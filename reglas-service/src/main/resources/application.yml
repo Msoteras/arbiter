@@ -1,0 +1,9 @@
+server:
+  port: 8083
+
+spring:
+  application:
+    name: reglas-service
+  threads:
+    virtual:
+      enabled: true

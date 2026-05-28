@@ -1,4 +1,4 @@
-# ddsi-tp-template
+# arbiter
 
 Plantilla base para el trabajo práctico de DDSI (UTN FRBA). Implementa una arquitectura de servicios con Spring Boot y una biblioteca compartida, usando un reactor de Maven multi-módulo.
 
@@ -15,7 +15,7 @@ Plantilla base para el trabajo práctico de DDSI (UTN FRBA). Implementa una arqu
 ## Estructura del repositorio
 
 ```
-ddsi-tp-template/
+arbiter/
 ├── pom.xml                    # POM padre: versiones y dependencyManagement
 ├── common-lib/                # Librería compartida (JAR), importada por los servicios
 ├── donaciones-service/        # Servicio de donaciones — puerto 8080

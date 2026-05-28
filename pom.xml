@@ -2,17 +2,20 @@
   xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
   <modelVersion>4.0.0</modelVersion>
 
-  <groupId>ar.edu.utn.frba.ddsi</groupId>
-  <artifactId>ddsi-tp-template</artifactId>
+  <groupId>ar.edu.utn.frba.arbiter</groupId>
+  <artifactId>arbiter</artifactId>
   <version>1.0-SNAPSHOT</version>
   <packaging>pom</packaging>
 
-  <name>ddsi-tp-template</name>
+  <name>arbiter</name>
   <url>https://github.com/dds-utn</url>
   <modules>
     <module>common-lib</module>
-    <module>donaciones-service</module>
-    <module>notificaciones-service</module>
+    <module>auth-service</module>
+    <module>siniestros-service</module>
+    <module>reglas-service</module>
+    <module>expedientes-service</module>
+    <module>reportes-service</module>
   </modules>
 
   <properties>

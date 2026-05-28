@@ -1,0 +1,9 @@
+server:
+  port: 8085
+
+spring:
+  application:
+    name: reportes-service
+  threads:
+    virtual:
+      enabled: true
