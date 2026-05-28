@@ -44,3 +44,7 @@ build/
 
 ### Mac OS ###
 .DS_Store
+
+### Frontend ###
+arbiter-frontend/node_modules/
+arbiter-frontend/dist/
