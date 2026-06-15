@@ -1,0 +1,54 @@
+services:
+
+  # ─── LLM ─────────────────────────────────────────────────────────────────
+  ollama:
+    image: ollama/ollama
+    volumes:
+      - ollama_data:/root/.ollama
+    ports:
+      - "11434:11434"
+    healthcheck:
+      test: ["CMD", "ollama", "list"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 10s
+
+  # Descarga el modelo al volume la primera vez; no-op si ya está cacheado.
+  ollama-init:
+    image: ollama/ollama
+    entrypoint: ["ollama", "pull", "qwen3-vl"]
+    environment:
+      OLLAMA_HOST: http://ollama:11434
+    depends_on:
+      ollama:
+        condition: service_healthy
+    restart: on-failure
+
+  # ─── Módulos backend ─────────────────────────────────────────────────────
+  siniestros-service:
+    build:
+      context: .
+      dockerfile: siniestros-service/Dockerfile
+    ports:
+      - "8082:8082"
+    environment:
+      OLLAMA_BASE_URL: http://ollama:11434
+      OLLAMA_MODEL: ${OLLAMA_MODEL:-qwen3-vl}
+      SPRING_PROFILES_ACTIVE: dev
+      # DB_URL, DB_USER, DB_PASSWORD → agregar cuando se configure PostgreSQL
+    depends_on:
+      ollama-init:
+        condition: service_completed_successfully
+    restart: on-failure
+
+  # TODO: agregar los demás servicios a medida que se implementen:
+  # auth-service       → puerto 8080
+  # reglas-service     → puerto 8081
+  # expedientes-service → puerto 8083
+  # reportes-service   → puerto 8084
+  # arbiter-frontend   → puerto 5173
+  # postgres           → puerto 5432
+
+volumes:
+  ollama_data:

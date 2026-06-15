@@ -1,0 +1,291 @@
+# Arbiter — Guía para Claude
+
+**Proyecto Final UTN FRBA (DDSI · K5054 · Grupo 5303).** Sistema de gestión inteligente del ciclo de vida de **siniestros** con IA, pensado como **plataforma multi-aseguradora**. Foco actual: el **Módulo de Análisis y Clasificación** (clasificación preliminar del siniestro con LLM + revisión humana obligatoria).
+
+Idioma: respondé y escribí comentarios/commits/docs en **español rioplatense**. Identificadores de código en **inglés**, excepto los términos del dominio (`Siniestro`, `Expediente`, `Poliza`, `Asegurado`, `Aseguradora`, `Regla`, `Clasificacion`, `Analista`, `Referente`) — esos quedan en castellano.
+
+---
+
+## Arquitectura — leer antes de tocar nada
+
+**Monolito modular desplegado como varias instancias.** El documento de arquitectura lo llama "monolito modular" en sentido lógico (una sola aplicación cohesionada, sin dependencias externas tipo SaaS), pero la **topología de despliegue real** es:
+
+- **5 instancias Spring Boot independientes**, una por módulo funcional (`auth`, `siniestros`, `expedientes`, `reglas`, `reportes`), corriendo en el **mismo servidor de aplicación (mismo host)** en puertos distintos.
+- **Nginx adelante** como reverse proxy + TLS, ruteando por path al puerto correspondiente.
+- **Cooperación entre módulos por REST interno** (HTTP plano, sin TLS, dentro del host). No es comunicación de red pública.
+- `common-lib` provee los DTOs/enums/excepciones compartidos para que los contratos REST entre módulos no se desincronicen.
+
+### Puertos asignados
+
+| Módulo                | Puerto |
+|-----------------------|--------|
+| `auth-service`        | 8080   |
+| `reglas-service`      | 8081   |
+| `siniestros-service`  | 8082   |
+| `expedientes-service` | 8083   |
+| `reportes-service`    | 8084   |
+| `arbiter-frontend`    | 5173   |
+
+(Confirmar/ajustar al crear cada `application.yml`. Hoy solo `siniestros` tiene 8082 fijado.)
+
+### Capas (sección 6 del documento de arquitectura)
+
+| Capa             | Componente               | Tecnología                       |
+|------------------|--------------------------|----------------------------------|
+| **Cliente**      | SPA                      | React 19 + MUI 9 + Vite 8        |
+| **Integración**  | Reverse proxy + TLS      | Nginx                            |
+| **Aplicación**   | Backend + LLM            | Java 21, Spring Boot 4.0.5, Ollama (Qwen3-VL) |
+| **Persistencia** | BD Arbiter + BD Aseguradora | PostgreSQL (+ pgvector), JDBC/Spring Data JPA |
+
+### Módulos del backend
+
+| Módulo Maven           | Responsabilidad (según doc)                                                                   |
+|------------------------|-----------------------------------------------------------------------------------------------|
+| `common-lib`           | Tipos compartidos: DTOs, enums de dominio (`Clasificacion`, `EstadoExpediente`), excepciones. |
+| `siniestros-service`   | **Módulo de Análisis y Clasificación** — orquesta: denuncia → Ollama → decisión del analista. |
+| `expedientes-service`  | **Módulo de Expedientes** — ciclo de vida, transiciones, documentación adjunta.               |
+| `reglas-service`       | **Motor de Reglas de Negocio** — reglas cargadas dinámicamente desde BD, no en código.         |
+| `reportes-service`     | **Reportes y Estadísticas** — agregaciones, tableros para el referente.                       |
+| `auth-service`         | **Gestión de Usuarios** — integración con Auth0, JWT, RBAC.                                   |
+| `arbiter-frontend`     | SPA React.                                                                                     |
+
+Estructura interna de cada módulo backend (ya scaffoldeada — respetala):
+
+```
+ar.edu.utn.frba.arbiter.<modulo>/
+├── <Modulo>ServiceApplication.java
+├── config/         # @Configuration, beans, WebMvc, security
+├── controllers/    # @RestController — solo orquesta, sin lógica
+├── dto/            # request/response (records preferidos)
+├── exceptions/     # excepciones de dominio + @ControllerAdvice
+├── models/
+│   ├── entities/   # @Entity JPA
+│   └── repositories/ # Spring Data JPA
+└── services/       # lógica de negocio
+```
+
+---
+
+## Modelo de dominio — vocabulario
+
+Estos términos vienen del relevamiento de una aseguradora real (BBVA Seguros, API `segrest`) — no los inventamos nosotros. Usar **estos nombres** en entidades, DTOs y endpoints para que el analista de siniestros (usuario final) se encuentre con lo que ya conoce.
+
+| Concepto             | Qué es                                                                                | Dueño         |
+|----------------------|----------------------------------------------------------------------------------------|---------------|
+| **`Ramo`**           | Línea de seguro (celulares, hogar, automotor, vida…). Configurable por aseguradora.   | `reglas`      |
+| **`Producto`**       | Variante comercial dentro de un ramo (ej. "Celular Protegido Básico").                | `reglas`      |
+| **`HechoGenerador`** | Causa del siniestro (robo en vía pública, hurto, caída, incendio…). Es el campo central que el LLM clasifica. | `reglas` |
+| **`BienAsegurado`**  | Bien cubierto por la póliza (un Samsung A56 específico, un auto patentado…).          | `siniestros`  |
+| **`Poliza`**         | Contrato (nro, certificado, endoso, vigencia, tomador, asegurado, productor, prima).  | `siniestros`  |
+| **`Cobertura`**      | Riesgo cubierto en la póliza con su suma asegurada y franquicia.                       | `siniestros`  |
+| **`Clausula`/`Anexo`** | Condiciones particulares aplicables (códigos: 100, 101, 102, 105, 340, 344…).      | `siniestros`  |
+| **`Siniestro`**      | El hecho denunciado (vincula Póliza + HechoGenerador + Bien + fecha + descripción).   | `siniestros`  |
+| **`Denuncia`**       | Acto de carga del siniestro (con adjuntos, geolocalización, denuncia policial).       | `siniestros`  |
+| **`Expediente`**     | Caso administrativo derivado del siniestro, con estado y trazabilidad.                | `expedientes` |
+| **`AgendaDocumental`** | Lista de **documentos requeridos** según `Ramo` + `HechoGenerador`. Determina si el expediente está completo. Configurable por aseguradora. | `reglas` (definición) + `expedientes` (instancia por expediente) |
+| **`Adjunto`**        | Archivo subido por el asegurado (PDF, imagen). Cumple un item de la `AgendaDocumental`. | `expedientes` |
+| **`Clasificacion`**  | Recomendación del LLM (`POTENCIAL_RIESGO` / `SIN_RIESGO` / `FAST_TRACK`) + factores.   | `siniestros`  |
+| **`ClasificacionLog`** | Registro inmutable y auditable de cada clasificación (input, output, decisión).      | `siniestros`  |
+
+### Implicancias de diseño
+
+1. **El alta de un siniestro NO es un único POST.** Es un wizard con catálogos en cascada — así lo hace BBVA y así lo necesita el usuario:
+   ```
+   1. listar Productos habilitados para el asegurado
+   2. para la Póliza elegida → consultar HechosGeneradores válidos
+   3. para Ramo + HechoGenerador → consultar Bienes asegurables
+   4. para Ramo + HechoGenerador → consultar AgendaDocumental requerida
+   5. autocompletar Domicilio de riesgo + Datos filiatorios
+   6. POST alta de Denuncia (con descripción + adjuntos)
+   ```
+   El frontend tiene que pedir cada paso y mostrar las opciones del siguiente. El backend expone endpoints de catálogo: `GET /siniestros/catalogos/hechos-generadores?polizaId=…`, etc.
+
+2. **El LLM clasifica mejor con campos estructurados.** El prompt no recibe solo texto libre de la denuncia: recibe `{ ramo, producto, hechoGenerador, bien, descripcionLibre, adjuntosOCR, imagen }`. Los campos estructurados son contexto duro que ancla la inferencia.
+
+3. **La AgendaDocumental es el contrato de "expediente completo".** Antes de pasar el expediente al analista, `expedientes-service` valida contra la agenda que todos los documentos obligatorios estén subidos. Si faltan, el estado es `INCOMPLETO`, no `PENDIENTE_REVISION_ANALISTA`.
+
+4. **Reglas duras vs clasificación del LLM.** Las exclusiones de cobertura (ej. "el bien estaba fuera del campo visual" → no cubierto; "ocurrió en domicilio declarado" → no cubierto) son **reglas evaluables** en `reglas-service`, no decisiones del LLM. El LLM aporta la lectura interpretativa (¿la denuncia describe un robo o un hurto? ¿la imagen es coherente con lo narrado?); las reglas evalúan condiciones objetivas.
+
+### Referencias para el modelo
+
+- **Póliza modelo (BBVA, ramo celulares)**: `Proyecto Final/poliza.pdf` — referencia para campos de `Poliza`, `Cobertura`, `Clausula`, `BienAsegurado`.
+- **API real de BBVA (QA)**: HAR capturado de `desa1-qa.bbvaseguros.com.ar` con 16 endpoints de `segrest/api/ext/siniestros`. Los códigos `ramCod`, `prdCod`, `hegCod`, `biesCod`, `spolNum` mapean directo a las entidades de la tabla. No replicar la API (es referencia de vocabulario, no de contrato).
+- **Disposición SSN 2/2023**: justificación regulatoria del human-in-the-loop y la auditoría de clasificaciones.
+
+---
+
+## Decisiones de arquitectura inmutables
+
+Estas decisiones están **cerradas y aprobadas** (doc v1.0, 27/05/2026). No las cuestiones ni propongas alternativas salvo que el equipo lo abra explícitamente.
+
+1. **LLM en infraestructura propia con Ollama + Qwen3-VL.** No usamos Anthropic, OpenAI ni ninguna API externa. Razón: privacidad de datos, sin costo por token, licencia Apache 2.0.
+2. **Ventana de contexto Ollama fijada en 32.768 tokens** (configurar explícitamente; Ollama descarta en silencio lo que pase). Prompt típico estimado 6–15k tokens.
+3. **Una sola instancia del modelo para todas las aseguradoras.** La especialización por compañía se hace **en el prompt** (inyectando las reglas), nunca con fine-tuning ni con un modelo por aseguradora.
+4. **Clasificación asincrónica.** El registro de la denuncia encola la inferencia hacia Ollama; el analista la consulta después. Objetivo: clasificación disponible **<10 min** desde la denuncia.
+5. **Human-in-the-loop obligatorio.** Toda clasificación del modelo requiere **aprobación o rechazo de un analista** antes de impactar en el expediente. **No hay** resolución automática — ni siquiera para Fast Track. El Fast Track agiliza, no automatiza.
+6. **3 categorías de clasificación**: `POTENCIAL_RIESGO`, `SIN_RIESGO`, `FAST_TRACK`. Definí el enum en `common-lib`.
+7. **Auditoría completa de cada clasificación** (Disposición 2/2023). Persistir, en una tabla aparte e inmutable: resultado del modelo, factores que lo fundamentan, decisión del analista, marca temporal. 100% de las clasificaciones deben tener este registro.
+8. **Auth0 + JWT + RBAC.** Tres roles: `ASEGURADO`, `ANALISTA_SINIESTROS`, `REFERENTE_ASEGURADORA`. NO implementar gestión de credenciales propia.
+9. **SendGrid** para mail (notificaciones de cambio de estado al asegurado).
+10. **PostgreSQL** con **multi-tenant por esquema separado por aseguradora** dentro de la misma instancia. NO hacer discriminación por columna `tenant_id`, NO instancia por aseguradora. La BD de la aseguradora (pólizas, historial) es **otra base** integrada por base de datos compartida.
+11. **pgvector** para detectar imágenes reutilizadas entre denuncias (similitud de embeddings). **No** delegues esta comparación al modelo de visión: el LLM analiza solo la imagen del siniestro en curso.
+12. **Reglas de negocio dinámicas en BD**, administradas por el referente. **No** implementar Strategy en código para variar por aseguradora — eso requiere redeploy por cada cambio.
+13. **API REST stateless** (sesión en el JWT, no en server). Habilita escalado horizontal.
+14. **Nginx como reverse proxy + terminación SSL.** Centraliza certificados. El backend no se expone directo a internet.
+15. **Despliegue en Docker** sobre Railway/AWS. RDS para Postgres, S3 (+ Glacier a 30d, borrado a 180d) para adjuntos, ECR para imágenes.
+
+### Patrones de diseño confirmados
+
+- **Repository** (Spring Data JPA) para acceso a datos.
+- **Adapter** para integraciones externas: implementá `Auth0Adapter`, `SendGridAdapter`, `OllamaAdapter` que encapsulen al SDK del proveedor. La lógica de negocio depende del adapter, no del SDK.
+- **MVC** clásico de Spring (controllers / services / repositories).
+- **Arquitectura en capas** + **monolito modular** + **multi-tenant by schema**.
+
+---
+
+## Stack
+
+- Java **21** (virtual threads activadas: `spring.threads.virtual.enabled: true`). Pensá los servicios como bloqueantes "tradicionales" — no metas WebFlux/Reactor.
+- Spring Boot **4.0.5**, Spring Cloud **2025.1.1** (BOM en POM padre — no fijes versión en submódulos).
+- Spring Data JPA + JDBC (PostgreSQL driver). Migraciones: definir Flyway o Liquibase (no está decidido — proponer Flyway).
+- Lombok activado vía annotation processor.
+- **Swagger / SpringDoc** para la documentación de la API REST — agregar el starter en cada módulo con controllers.
+- Frontend: React 19, MUI 9, Vite 8, ESLint flat config. **Diseño responsive obligatorio** (RNF de usabilidad: ≥85% éxito en tareas básicas en PC y móvil).
+- Ollama local con Qwen3-VL, contexto 32.768.
+
+---
+
+## Requisitos No Funcionales — números que importan
+
+Estos no son sugerencias, son métricas que tenemos que cumplir:
+
+| Atributo         | Métrica                                                                                       |
+|------------------|-----------------------------------------------------------------------------------------------|
+| Disponibilidad   | **99,5%** en horario laboral. ≤2,2 h/mes de inactividad.                                      |
+| Rendimiento      | Clasificación lista en **<10 min** desde la denuncia.                                          |
+| Seguridad        | JWT + TLS + RBAC. **100%** de clasificaciones auditadas con factores + decisión + timestamp.  |
+| Mantenibilidad   | Nuevo ramo de seguros incorporado en **≤1 sprint (2 semanas)** vía configuración del motor de reglas (sin tocar código). |
+| Usabilidad       | ≥85% éxito en tareas básicas (PC y móvil).                                                    |
+| Escalabilidad    | Con 3 aseguradoras simultáneas, el tiempo de respuesta no se degrada >20% vs. 1 aseguradora.  |
+| Continuidad      | **RPO 5 min · RTO 2 h.** Snapshots RDS diarios + PITR. Versionado S3 para adjuntos.            |
+
+---
+
+## Comandos clave
+
+Desde la raíz del proyecto:
+
+```bash
+mvn clean install                                    # construye todo (common-lib primero)
+mvn spring-boot:run -pl siniestros-service           # corre el módulo (revisar la cuestión del monolito antes)
+mvn -pl siniestros-service -am package               # construye módulo + dependencias
+mvn -pl siniestros-service test                      # tests del módulo
+
+cd arbiter-frontend && npm install && npm run dev    # http://localhost:5173
+
+# Docker: contexto SIEMPRE en la raíz (multi-módulo necesita el POM padre + common-lib)
+docker build -t siniestros-img -f siniestros-service/Dockerfile .
+```
+
+Ollama (para dev local):
+
+```bash
+ollama pull qwen3-vl                                 # primera vez
+ollama serve                                          # default: http://localhost:11434
+# Configurar el contexto a 32k vía Modelfile (PARAMETER num_ctx 32768)
+```
+
+---
+
+## Convenciones que SÍ aplico
+
+- **Records para DTOs y eventos**. Inmutables, sin Lombok salvo `@Builder` cuando hay muchos campos opcionales.
+- **Constructor injection siempre** (`@RequiredArgsConstructor`). Nunca `@Autowired` en campos.
+- **Excepciones de dominio** en `exceptions/` + un `@RestControllerAdvice` por módulo que las traduce a `ProblemDetail` (RFC 7807).
+- **Endpoints REST en plural y kebab-case si aplica**: `/api/v1/siniestros`, `/api/v1/siniestros/{id}/clasificacion`.
+- **Tipos compartidos** (DTOs públicos entre módulos, enums de dominio, excepciones base) van a `common-lib`. Lo interno de un módulo NO.
+- **Tests**: JUnit 5 + Spring Boot Test. Testcontainers para PostgreSQL y, cuando aplique, para Ollama. Mockito para mocks.
+- **Trazabilidad de cada clasificación**: registro inmutable en tabla `clasificacion_log` (o equivalente), separada de `siniestro`. Campos mínimos: `siniestro_id`, `modelo`, `prompt_version`, `input_hash`, `output_raw`, `output_parsed`, `factores`, `latencia_ms`, `analista_id`, `decision`, `decision_timestamp`.
+- **Multi-tenant**: cada request lleva el `tenant_id` (id de aseguradora) en el JWT. Resolver el esquema PostgreSQL en una `ConnectionProvider` o `Interceptor` de Hibernate al inicio del request. No hardcodear el schema en queries.
+- **Comunicación entre módulos**: REST interno por HTTP (sin TLS, dentro del host). Cliente: `RestClient` de Spring 6+ (no `RestTemplate`). DTOs del request/response en `common-lib`. Configurar URLs base por `application.yml` (`arbiter.services.reglas.url`, etc.) con default a localhost. Timeouts cortos y manejo de error explícito — no asumir que el otro módulo siempre responde.
+- **Propagar el JWT** entre módulos cuando una request es por cuenta de un usuario. El módulo destino valida con Auth0 igual que si viniera del frontend. Para llamadas sistema-a-sistema (jobs internos), evaluar service account o token de servicio aparte.
+
+## Convenciones que NO quiero ver
+
+- Lógica de negocio en `controllers/`. El controller arma el DTO y delega.
+- Acoplar dos módulos por **base de datos compartida**. Cada módulo es dueño de sus tablas; el resto las consulta por REST. Excepción: la **BD Aseguradora** sí se accede directo desde quien la necesita (es integración por BD compartida, así lo define la doc).
+- Llamar al SDK de Auth0 / SendGrid / Ollama directo desde un service. Pasá por el Adapter.
+- `service.findById(...).orElse(null)` con `if (x == null)` después. Tirá la excepción de dominio.
+- Wrappers innecesarios (`SiniestroWrapper`, `SiniestroHelper`, `SiniestroUtilService`).
+- Comentarios que repiten lo que dice el código. Solo cuando el **por qué** no es obvio.
+- Backwards-compat / flags / código muerto "por si las moscas". Greenfield.
+- **Reglas de negocio hardcodeadas**. Las reglas viven en BD, no en `if`s ni en clases `Strategy`.
+- **Decisión automática del modelo impactando en el expediente**. Siempre hay analista en el medio.
+
+---
+
+## Foco actual: Módulo de Análisis y Clasificación
+
+Flujo de extremo a extremo:
+
+```
+Asegurado registra denuncia (frontend, wizard con catálogos en cascada)
+  └─> GET /api/v1/catalogos/productos-habilitados
+  └─> GET /api/v1/catalogos/hechos-generadores?polizaId=…
+  └─> GET /api/v1/catalogos/bienes?ramoId=…&hechoGeneradorId=…
+  └─> GET /api/v1/catalogos/agenda-documental?ramoId=…&hechoGeneradorId=…
+  └─> POST /api/v1/siniestros (siniestros-service)
+        ├─> persiste Siniestro + Denuncia + Expediente (estado=PENDIENTE_CLASIFICACION)
+        ├─> sube Adjuntos a S3 (referencia en BD, asociados a items de la AgendaDocumental)
+        ├─> encola tarea de clasificación (async)
+        └─> responde 202 Accepted con id
+
+[async] ClasificacionJob
+  ├─> lee reglas de la aseguradora (reglas-service)
+  ├─> lee Poliza/Cobertura/Clausulas + historial del asegurado (BD Aseguradora)
+  ├─> calcula embedding de la imagen, busca similares con pgvector (flag de imagen reutilizada)
+  ├─> arma prompt con campos ESTRUCTURADOS:
+  │     { ramo, producto, hechoGenerador, bien, descripcionLibre,
+  │       adjuntosOCR, imagen, reglasAseguradora, historialAsegurado }
+  ├─> invoca OllamaAdapter.classify(prompt)
+  ├─> valida salida (JSON schema, enum válido, factores no vacíos)
+  ├─> persiste ClasificacionLog (inmutable)
+  └─> actualiza Expediente.estado = PENDIENTE_REVISION_ANALISTA
+
+Analista revisa y decide (frontend)
+  └─> POST /api/v1/siniestros/{id}/decision  (APROBAR | RECHAZAR)
+        ├─> persiste decisión en ClasificacionLog
+        ├─> motor de reglas valida transición
+        ├─> actualiza estado del Expediente
+        └─> dispara mail al asegurado vía SendGridAdapter
+```
+
+### Cómo arrancar (orden sugerido)
+
+1. **Modelo de datos** del módulo, usando el vocabulario de la sección "Modelo de dominio": `Poliza`, `Cobertura`, `Clausula`, `BienAsegurado`, `Siniestro`, `Denuncia`, `Adjunto`, `ClasificacionLog`. Las entidades de catálogo (`Ramo`, `Producto`, `HechoGenerador`, `AgendaDocumental`) viven en `reglas-service` — desde `siniestros` se referencian por id y se consultan por REST. Definir el script Flyway inicial.
+2. **Endpoints de catálogo** en `reglas-service`: `GET /ramos`, `GET /productos`, `GET /hechos-generadores`, `GET /agenda-documental`. Sirven al wizard del frontend y al `ClasificacionJob` (para inyectar nombres en el prompt). Datos semilla cargados con Flyway desde el PDF de BBVA.
+3. **OllamaAdapter** con interfaz `SiniestroClassifier` y un `MockClassifier` para perfil `dev`/`test` que devuelve clasificaciones canned. **El mock se escribe primero** — todo el flujo tiene que correr sin Ollama prendido.
+4. **Prompt versionado** en `siniestros-service/src/main/resources/prompts/clasificacion-v1.md`, cargado con `@Value("classpath:prompts/clasificacion-v1.md")`. La versión del prompt va en el log de cada clasificación. El prompt referencia los campos estructurados por nombre — no lo armes con string concatenation, usá una plantilla.
+5. **Salida estructurada**: forzar JSON con el schema `{ clasificacion: enum, factores: string[], confianza: number }`. Validar contra el schema antes de persistir; si falla → `ClasificacionInvalidaException` + reintento configurable.
+6. **Endpoints REST + Swagger**: `POST /siniestros`, `GET /siniestros/{id}`, `POST /siniestros/{id}/decision`, `GET /siniestros/{id}/clasificacion`, `POST /siniestros/{id}/adjuntos`.
+7. **Encolado async**: empezar con `@Async` + un `Executor` con virtual threads. Si más adelante necesitamos persistir la cola (sobrevivir restart), evaluar Spring Batch o una tabla `clasificacion_pendiente`.
+8. **Frontend**: wizard de alta de denuncia (asegurado) siguiendo el flujo de catálogos en cascada + bandeja del analista con detalle del siniestro + recomendación del modelo + botones aprobar/rechazar.
+
+### Cosas a tener arriba del escritorio
+
+- **Variables de entorno** (nunca en yml versionado): `OLLAMA_BASE_URL`, `AUTH0_DOMAIN`, `AUTH0_AUDIENCE`, `SENDGRID_API_KEY`, `DB_URL`, `DB_USER`, `DB_PASSWORD`, `AWS_S3_BUCKET`. Default a vacío y perfil `dev` con mocks.
+- **Construcción del prompt**: separar plantilla (markdown) de la inyección de datos. Probar con prompts de 6k y 15k tokens — son los extremos esperados.
+- **Embeddings de imágenes**: pendiente de decisión, **no bloqueante para arrancar** — la detección de duplicados se puede agregar después con el módulo ya funcionando. Opciones cuando se aborde:
+  - **CLIP** (open_clip / `clip-vit-base-patch32`) vía sidecar Python o Java DJL. Standard de facto para similitud de imágenes, vectores de 512 dims, mucho material de referencia académico.
+  - **Modelo de embedding multimodal servido por Ollama** (ej. `nomic-embed-vision`). Mantiene el stack unificado: una sola dependencia de inferencia.
+  - **Qwen3-VL para embeddings**: en teoría posible extrayendo hidden states, pero Ollama no expone una API limpia para esto. No recomendado salvo que se cierre con el equipo.
+
+---
+
+## Cómo quiero que trabajes
+
+- **Antes de tocar código nuevo**, leé el módulo entero (es chico) para no duplicar patrones.
+- **Cambios chicos**: aplicalos directo. **Cambios grandes** (nuevo flujo, nueva tabla, nuevo endpoint): proponé el plan en 3-5 líneas primero.
+- **Si tocás `common-lib`**, recordá que impacta a todos los módulos: `mvn -am verify` sobre consumidores.
+- **Antes de inventar un contrato inter-módulo**, releé la sección "Arquitectura". Comunicación entre módulos del backend → REST interno con DTO en `common-lib`. Comunicación frontend ↔ backend → REST sobre HTTPS (Nginx termina TLS).
+- **Si una decisión choca con este documento**, marcalo y avisame en vez de improvisar.
