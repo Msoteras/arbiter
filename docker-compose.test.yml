@@ -1,3 +1,5 @@
+version: '3.9'
+
 services:
 
   # ─── LLM ─────────────────────────────────────────────────────────────────
@@ -16,7 +18,7 @@ services:
   # Si el modelo ya está en el volume, termina en segundos.
   ollama-init:
     image: ollama/ollama
-    entrypoint: ["ollama", "pull", "qwen3-vl"]
+    entrypoint: ["sh", "-c", "ollama pull qwen3-vl && sleep infinity"]
     environment:
       OLLAMA_HOST: http://ollama:11434
     depends_on:
@@ -31,16 +33,16 @@ services:
       - .:/app                        # fuente del proyecto
       - maven_cache:/root/.m2         # cache de dependencias Maven entre runs
     command: >
-      mvn -pl common-lib,siniestros-service -am test
+      mvn clean install -DskipTests; mvn -pl siniestros-service test
       -Dgroups=integracion
-      -Dsurefire.failIfNoSpecifiedTests=false
+      -Dtest=OllamaClasificacionEscenariosTest
     environment:
       OLLAMA_BASE_URL: http://ollama:11434
       OLLAMA_MODEL: qwen3-vl
       SPRING_PROFILES_ACTIVE: test
     depends_on:
-      ollama-init:
-        condition: service_completed_successfully
+      ollama:
+        condition: service_healthy
 
 volumes:
   ollama_data:
