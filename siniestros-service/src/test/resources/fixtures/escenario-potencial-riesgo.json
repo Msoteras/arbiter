@@ -1,6 +1,6 @@
 {
   "nombre": "Asegurado reincidente con inconsistencias en la denuncia",
-  "clasificacionEsperada": "POTENCIAL_RIESGO",
+  "clasificacionEsperada": "POSIBLE_RIESGO",
   "request": {
     "ramo": "Celulares",
     "producto": "Celular Protegido Premium",

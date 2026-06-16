@@ -15,6 +15,9 @@ arbiter:
     base-url: ${OLLAMA_BASE_URL:http://localhost:11434}
     model: ${OLLAMA_MODEL:qwen3-vl}
     prompt-version: clasificacion-v1
+    num-ctx: ${OLLAMA_NUM_CTX:8192}
+  resultados:
+    path: ${RESULTADOS_PATH:./resultados-clasificaciones.md}
 
 logging:
   level:

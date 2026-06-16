@@ -51,9 +51,17 @@ class OllamaClasificacionEscenariosTest {
 
     @ParameterizedTest(name = "Escenario: {0}")
     @ValueSource(strings = {
-            "escenario-potencial-riesgo",
-            "escenario-sin-riesgo",
-            "escenario-fast-track"
+            "escenario-fast-track",
+            "escenario-fast-track-2",
+            "escenario-fast-track-3",
+            "escenario-posible-riesgo",
+            "escenario-posible-riesgo-2",
+            "escenario-posible-riesgo-3",
+            "escenario-falta-documentacion-1",
+            "escenario-falta-documentacion-2",
+            "escenario-analisis-manual-1",
+            "escenario-analisis-manual-2",
+            "escenario-sin-riesgo"
     })
     void clasificarEscenario(String escenario) throws IOException {
         JsonNode fixture = cargarFixture(escenario + ".json");

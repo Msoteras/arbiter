@@ -81,9 +81,9 @@ class ClasificacionOrquestadorIntegrationTest {
 
         ClasificacionResponse respuesta = orquestador.clasificar(denuncia);
 
-        imprimirResultado("REINCIDENTE — 4to siniestro, descripción vaga", respuesta, Clasificacion.POTENCIAL_RIESGO);
+        imprimirResultado("REINCIDENTE — 4to siniestro, descripción vaga", respuesta, Clasificacion.POSIBLE_RIESGO);
 
-        assertThat(respuesta.clasificacion()).isEqualTo(Clasificacion.POTENCIAL_RIESGO);
+        assertThat(respuesta.clasificacion()).isEqualTo(Clasificacion.POSIBLE_RIESGO);
         assertThat(respuesta.factores()).isNotEmpty();
         assertThat(respuesta.confianza()).isBetween(0.0, 1.0);
     }
@@ -126,9 +126,9 @@ class ClasificacionOrquestadorIntegrationTest {
 
         ClasificacionResponse respuesta = orquestador.clasificar(denuncia);
 
-        imprimirResultado("PRIMER SINIESTRO — denuncia detallada con testigos", respuesta, Clasificacion.SIN_RIESGO);
+        imprimirResultado("PRIMER SINIESTRO — denuncia detallada con testigos", respuesta, Clasificacion.FAST_TRACK);
 
-        assertThat(respuesta.clasificacion()).isEqualTo(Clasificacion.SIN_RIESGO);
+        assertThat(respuesta.clasificacion()).isEqualTo(Clasificacion.FAST_TRACK);
         assertThat(respuesta.factores()).isNotEmpty();
         assertThat(respuesta.confianza()).isBetween(0.0, 1.0);
     }

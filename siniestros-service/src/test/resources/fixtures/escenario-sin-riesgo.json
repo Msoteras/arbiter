@@ -1,6 +1,6 @@
 {
   "nombre": "Primer siniestro, denuncia detallada y coherente",
-  "clasificacionEsperada": "SIN_RIESGO",
+  "clasificacionEsperada": "FAST_TRACK",
   "request": {
     "ramo": "Celulares",
     "producto": "Celular Protegido Básico",

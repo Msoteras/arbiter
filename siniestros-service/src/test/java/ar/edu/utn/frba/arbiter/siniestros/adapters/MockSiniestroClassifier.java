@@ -14,10 +14,11 @@ public class MockSiniestroClassifier implements SiniestroClassifier {
     @Override
     public ClasificacionResponse clasificar(ClasificacionRequest request) {
         return new ClasificacionResponse(
-                Clasificacion.SIN_RIESGO,
+                Clasificacion.FAST_TRACK,
                 List.of("Denuncia consistente con el hecho generador declarado",
-                        "Sin historial de siniestros previos"),
-                0.90
+                        "Sin historial de siniestros previos",
+                        "Documentación completa y verificable"),
+                0.95
         );
     }
 }
