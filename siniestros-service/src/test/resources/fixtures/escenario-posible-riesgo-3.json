@@ -1,6 +1,6 @@
 {
   "nombre": "Descripción vaga, sin documentación, fecha dudosa",
-  "clasificacionEsperada": "POSIBLE_RIESGO",
+  "clasificacionEsperada": "POTENCIAL_RIESGO",
   "request": {
     "ramo": "Celulares",
     "producto": "Celular Protegido Básico",

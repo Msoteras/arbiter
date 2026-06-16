@@ -28,7 +28,7 @@ public class OllamaAdapter implements SiniestroClassifier {
             "type", "object",
             "properties", Map.of(
                     "clasificacion", Map.of("type", "string",
-                            "enum", List.of("POTENCIAL_RIESGO", "SIN_RIESGO", "FAST_TRACK")),
+                            "enum", List.of("POTENCIAL_RIESGO", "SIN_RIESGO", "FAST_TRACK", "FALTA_DOCUMENTACION", "REQUIERE_ANALISIS_MANUAL")),
                     "factores", Map.of("type", "array",
                             "items", Map.of("type", "string")),
                     "confianza", Map.of("type", "number", "minimum", 0, "maximum", 1)
