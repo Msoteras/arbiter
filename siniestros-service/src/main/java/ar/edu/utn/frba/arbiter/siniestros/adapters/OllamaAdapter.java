@@ -15,6 +15,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestClient;
 
 import java.io.BufferedReader;
+import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
@@ -78,16 +79,16 @@ public class OllamaAdapter implements SiniestroClassifier {
         long inicio = System.currentTimeMillis();
         log.info("[Ollama] Enviando request a {} ...", properties.baseUrl() + "/api/chat");
 
-        String respuestaCompleta = ollamaRestClient.post()
+        byte[] respuestaBytes = ollamaRestClient.post()
                 .uri("/api/chat")
                 .body(chatRequest)
                 .retrieve()
-                .body(InputStream.class);
+                .body(byte[].class);
 
         long latenciaMs = System.currentTimeMillis() - inicio;
         log.info("[Ollama] Stream recibido en {} ms, leyendo contenido...", latenciaMs);
 
-        String contenidoFinal = leerRespuestaStreaming(respuestaCompleta);
+        String contenidoFinal = leerRespuestaStreaming(new ByteArrayInputStream(respuestaBytes));
 
         if (contenidoFinal.isEmpty()) {
             log.error("[Ollama] Respuesta vacía tras {} ms", latenciaMs);
@@ -103,11 +104,11 @@ public class OllamaAdapter implements SiniestroClassifier {
         return resultado;
     }
 
-    private String leerRespuestaStreaming(Object inputStream) {
+    private String leerRespuestaStreaming(InputStream inputStream) {
         StringBuilder contenidoCompleto = new StringBuilder();
 
         try (BufferedReader reader = new BufferedReader(
-                new InputStreamReader((java.io.InputStream) inputStream, StandardCharsets.UTF_8))) {
+                new InputStreamReader(inputStream, StandardCharsets.UTF_8))) {
             String linea;
             while ((linea = reader.readLine()) != null) {
                 if (!linea.isEmpty()) {

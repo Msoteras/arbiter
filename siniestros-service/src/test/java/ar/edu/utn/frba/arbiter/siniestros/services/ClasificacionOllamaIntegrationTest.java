@@ -86,7 +86,7 @@ class ClasificacionOllamaIntegrationTest {
 
         assertThat(respuesta.clasificacion()).isIn(
                 Clasificacion.POTENCIAL_RIESGO,
-                Clasificacion.SIN_RIESGO,
+                Clasificacion.FALTA_DOCUMENTACION,
                 Clasificacion.FAST_TRACK
         );
         assertThat(respuesta.factores()).isNotEmpty();
