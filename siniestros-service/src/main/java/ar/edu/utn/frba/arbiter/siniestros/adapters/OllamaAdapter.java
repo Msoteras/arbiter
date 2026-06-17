@@ -14,7 +14,10 @@ import org.springframework.core.io.Resource;
 import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestClient;
 
+import java.io.BufferedReader;
 import java.io.IOException;
+import java.io.InputStream;
+import java.io.InputStreamReader;
 import java.nio.charset.StandardCharsets;
 import java.util.List;
 import java.util.Map;
@@ -75,26 +78,63 @@ public class OllamaAdapter implements SiniestroClassifier {
         long inicio = System.currentTimeMillis();
         log.info("[Ollama] Enviando request a {} ...", properties.baseUrl() + "/api/chat");
 
-        ChatResponse chatResponse = ollamaRestClient.post()
+        String respuestaCompleta = ollamaRestClient.post()
                 .uri("/api/chat")
                 .body(chatRequest)
                 .retrieve()
-                .body(ChatResponse.class);
+                .body(InputStream.class);
 
         long latenciaMs = System.currentTimeMillis() - inicio;
-        log.info("[Ollama] Respuesta recibida en {} ms", latenciaMs);
+        log.info("[Ollama] Stream recibido en {} ms, leyendo contenido...", latenciaMs);
 
-        if (chatResponse == null || chatResponse.message() == null) {
+        String contenidoFinal = leerRespuestaStreaming(respuestaCompleta);
+
+        if (contenidoFinal.isEmpty()) {
             log.error("[Ollama] Respuesta vacía tras {} ms", latenciaMs);
             throw new ClasificacionInvalidaException("Ollama devolvió una respuesta vacía");
         }
 
-        log.debug("[Ollama] Contenido raw: {}", chatResponse.message().content());
+        log.debug("[Ollama] Contenido raw: {}", contenidoFinal);
 
-        ClasificacionResponse resultado = parsearRespuesta(chatResponse.message().content());
+        ClasificacionResponse resultado = parsearRespuesta(contenidoFinal);
         log.info("[Ollama] Clasificación: {} | confianza: {} | factores: {}",
                 resultado.clasificacion(), resultado.confianza(), resultado.factores().size());
 
+        return resultado;
+    }
+
+    private String leerRespuestaStreaming(Object inputStream) {
+        StringBuilder contenidoCompleto = new StringBuilder();
+
+        try (BufferedReader reader = new BufferedReader(
+                new InputStreamReader((java.io.InputStream) inputStream, StandardCharsets.UTF_8))) {
+            String linea;
+            while ((linea = reader.readLine()) != null) {
+                if (!linea.isEmpty()) {
+                    try {
+                        // Cada línea es un JSON válido: { "message": { "content": "..." }, "done": false }
+                        Map<String, Object> chunk = objectMapper.readValue(linea, Map.class);
+                        Map<String, Object> message = (Map<String, Object>) chunk.get("message");
+                        if (message != null) {
+                            String content = (String) message.get("content");
+                            if (content != null) {
+                                contenidoCompleto.append(content);
+                            }
+                        }
+                    } catch (IOException e) {
+                        log.warn("[Ollama] No se pudo parsear chunk (seguir leyendo): {}", linea.substring(0, Math.min(100, linea.length())));
+                    }
+                }
+            }
+        } catch (IOException e) {
+            log.error("[Ollama] Error leyendo stream de respuesta", e);
+            throw new ClasificacionInvalidaException("Error al leer respuesta de Ollama: " + e.getMessage(), e);
+        }
+
+        String resultado = contenidoCompleto.toString().trim();
+        if (resultado.isEmpty()) {
+            log.warn("[Ollama] Stream procesado pero contenido vacío");
+        }
         return resultado;
     }
 
