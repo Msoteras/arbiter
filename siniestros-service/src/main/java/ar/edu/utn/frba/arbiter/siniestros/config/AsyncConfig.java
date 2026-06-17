@@ -14,11 +14,12 @@ public class AsyncConfig {
     @Bean(name = "clasificacionExecutor")
     public Executor clasificacionExecutor() {
         ThreadPoolTaskExecutor executor = new ThreadPoolTaskExecutor();
-        executor.setCorePoolSize(2);
-        executor.setMaxPoolSize(4);
-        executor.setQueueCapacity(10);
+        executor.setCorePoolSize(5);           // mínimo 5 threads (virtual threads)
+        executor.setMaxPoolSize(10);           // máximo 10 threads
+        executor.setQueueCapacity(50);         // cola de 50 tareas pendientes
         executor.setThreadNamePrefix("clasificacion-async-");
-        executor.setVirtualThreads(true);
+        executor.setWaitForTasksToCompleteOnShutdown(true);
+        executor.setAwaitTerminationSeconds(60);
         executor.initialize();
         return executor;
     }

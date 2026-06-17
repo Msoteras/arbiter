@@ -10,6 +10,10 @@ WORKDIR /build
 COPY pom.xml .
 COPY common-lib/pom.xml common-lib/
 COPY siniestros-service/pom.xml siniestros-service/
+
+# Actualizar pom padre para compilar solo módulos que existen (eliminar líneas de módulos inexistentes)
+RUN sed -i '/<module>auth-service<\/module>/d; /<module>reglas-service<\/module>/d; /<module>expedientes-service<\/module>/d; /<module>reportes-service<\/module>/d' pom.xml
+
 RUN mvn dependency:go-offline -pl common-lib,siniestros-service -am -q
 
 COPY common-lib/src common-lib/src

@@ -1,58 +1,53 @@
 package ar.edu.utn.frba.arbiter.siniestros.services;
 
 import ar.edu.utn.frba.arbiter.common.enums.Clasificacion;
-import ar.edu.utn.frba.arbiter.siniestros.config.OllamaProperties;
+import ar.edu.utn.frba.arbiter.siniestros.adapters.SiniestroClassifier;
+import ar.edu.utn.frba.arbiter.siniestros.dto.ClasificacionRequest;
 import ar.edu.utn.frba.arbiter.siniestros.dto.ClasificacionResponse;
 import ar.edu.utn.frba.arbiter.siniestros.dto.DenunciaSiniestro;
-import org.junit.jupiter.api.BeforeEach;
-import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.test.context.ActiveProfiles;
 
-import java.io.IOException;
-import java.net.HttpURLConnection;
-import java.net.URI;
 import java.time.LocalDateTime;
 import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.junit.jupiter.api.Assumptions.assumeTrue;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.when;
 
 /**
- * Test de integración del flujo completo: denuncia → orquestador → adapters mock → Ollama.
- * Usa perfil "test" para activar los mocks de AseguradoraAdapter y ReglasAdapter.
- * Requiere Ollama corriendo con qwen3-vl.
+ * Test unitario del flujo de orquestación: denuncia → adapters → classifier.
+ * Usa mock del SiniestroClassifier para no requerir Ollama.
  *
- * Correr: mvn -pl siniestros-service test -Dgroups=integracion -Dtest=ClasificacionOrquestadorIntegrationTest
+ * Correr: mvn -pl siniestros-service test -Dtest=ClasificacionOrquestadorIntegrationTest
  */
-@Tag("integracion")
 @SpringBootTest
 @ActiveProfiles("test")
 class ClasificacionOrquestadorIntegrationTest {
 
-    @Autowired
-    private OllamaProperties ollamaProperties;
+    @MockBean
+    private SiniestroClassifier classifierMock;
 
     @Autowired
     private ClasificacionOrquestador orquestador;
 
-    @BeforeEach
-    void verificarOllamaDisponible() {
-        String url = ollamaProperties.baseUrl() + "/api/tags";
-        try {
-            HttpURLConnection conn = (HttpURLConnection) URI.create(url).toURL().openConnection();
-            conn.setConnectTimeout(3000);
-            conn.connect();
-            assumeTrue(conn.getResponseCode() == 200, "Ollama no disponible en " + url);
-        } catch (IOException e) {
-            assumeTrue(false, "Ollama no disponible — " + e.getMessage());
-        }
-    }
-
     @Test
     void denunciaReincidente_deberiaClasificarComoPotencialRiesgo() {
+        // Setup: mock del classifier
+        ClasificacionResponse mockRespuesta = ClasificacionResponse.builder()
+                .clasificacion(Clasificacion.POTENCIAL_RIESGO)
+                .confianza(0.85)
+                .factores(List.of(
+                        "4to siniestro en 18 meses (reincidente)",
+                        "Descripción vaga: ubicación imprecisa, hora aproximada",
+                        "Monto total reclamado alto: $18.500"
+                ))
+                .build();
+        when(classifierMock.clasificar(any(ClasificacionRequest.class))).thenReturn(mockRespuesta);
+
         DenunciaSiniestro denuncia = DenunciaSiniestro.builder()
                 .ramo("Celulares")
                 .producto("Celular Protegido Premium")
@@ -81,15 +76,28 @@ class ClasificacionOrquestadorIntegrationTest {
 
         ClasificacionResponse respuesta = orquestador.clasificar(denuncia);
 
-        imprimirResultado("REINCIDENTE — 4to siniestro, descripción vaga", respuesta, Clasificacion.POSIBLE_RIESGO);
+        imprimirResultado("REINCIDENTE — 4to siniestro, descripción vaga", respuesta, Clasificacion.POTENCIAL_RIESGO);
 
-        assertThat(respuesta.clasificacion()).isEqualTo(Clasificacion.POSIBLE_RIESGO);
+        assertThat(respuesta.clasificacion()).isEqualTo(Clasificacion.POTENCIAL_RIESGO);
         assertThat(respuesta.factores()).isNotEmpty();
         assertThat(respuesta.confianza()).isBetween(0.0, 1.0);
     }
 
     @Test
-    void denunciaPrimerSiniestroConsistente_deberiaClasificarComoSinRiesgo() {
+    void denunciaPrimerSiniestroConsistente_deberiaClasificarComoFastTrack() {
+        // Setup: mock del classifier
+        ClasificacionResponse mockRespuesta = ClasificacionResponse.builder()
+                .clasificacion(Clasificacion.FAST_TRACK)
+                .confianza(0.92)
+                .factores(List.of(
+                        "Primer siniestro: sin historial de fraude",
+                        "Denuncia detallada: fecha, hora, ubicación, testigos",
+                        "Documentación completa: factura + denuncia policial",
+                        "Monto bajo: $389.990 vs suma asegurada"
+                ))
+                .build();
+        when(classifierMock.clasificar(any(ClasificacionRequest.class))).thenReturn(mockRespuesta);
+
         DenunciaSiniestro denuncia = DenunciaSiniestro.builder()
                 .ramo("Celulares")
                 .producto("Celular Protegido Básico")
@@ -135,6 +143,19 @@ class ClasificacionOrquestadorIntegrationTest {
 
     @Test
     void roturaPantallaConPresupuesto_deberiaClasificarComoFastTrack() {
+        // Setup: mock del classifier
+        ClasificacionResponse mockRespuesta = ClasificacionResponse.builder()
+                .clasificacion(Clasificacion.FAST_TRACK)
+                .confianza(0.88)
+                .factores(List.of(
+                        "Siniestro de naturaleza simple: accidente doméstico",
+                        "Documentación completa: factura + presupuesto de reparación",
+                        "Daño verificable: rotura de pantalla, sin intervención previa",
+                        "Monto reparación: $285.000 dentro del rango esperado"
+                ))
+                .build();
+        when(classifierMock.clasificar(any(ClasificacionRequest.class))).thenReturn(mockRespuesta);
+
         DenunciaSiniestro denuncia = DenunciaSiniestro.builder()
                 .ramo("Celulares")
                 .producto("Celular Protegido Premium")

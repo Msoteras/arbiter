@@ -11,11 +11,11 @@
   <url>https://github.com/dds-utn</url>
   <modules>
     <module>common-lib</module>
-    <module>auth-service</module>
+    <!-- <module>auth-service</module> -->
     <module>siniestros-service</module>
-    <module>reglas-service</module>
-    <module>expedientes-service</module>
-    <module>reportes-service</module>
+    <!-- <module>reglas-service</module> -->
+    <!-- <module>expedientes-service</module> -->
+    <!-- <module>reportes-service</module> -->
   </modules>
 
   <properties>

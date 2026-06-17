@@ -1,0 +1,74 @@
+{
+  "info": {
+    "name": "Arbiter — Módulo de Clasificación de Siniestros",
+    "description": "Colección de testing para el motor de análisis y clasificación de siniestros.\n\n**Pólizas disponibles en mock**:\n- POL-CEL-2024-001 (Laura Fernández, DNI 40.123.456)\n- POL-CEL-2025-099 (Marcelo Gómez, DNI 30.555.777)\n- POL-CEL-2026-042 (Sofía Martínez, DNI 42.987.654)\n\n**Flujo**:\n1. POST /api/v1/siniestros — crea denuncia en background (202 Accepted)\n2. GET /api/v1/siniestros/resultados — consulta tabla de resultados",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "item": [
+    {
+      "name": "1️⃣ FAST_TRACK — Rotura accidental",
+      "request": {
+        "method": "POST",
+        "header": [{"key": "Content-Type", "value": "application/json"}],
+        "url": {"raw": "{{baseUrl}}/api/v1/siniestros", "host": ["{{baseUrl}}"], "path": ["api", "v1", "siniestros"]},
+        "body": {"mode": "raw", "raw": "{\n  \"ramo\": \"Celulares\",\n  \"producto\": \"Celular Protegido Premium\",\n  \"hechoGenerador\": \"Rotura accidental\",\n  \"bienAsegurado\": \"Samsung Galaxy S25 Ultra\",\n  \"aseguradoDni\": \"42.987.654\",\n  \"polizaNumero\": \"POL-CEL-2026-042\",\n  \"descripcionLibre\": \"Se me cayó el celular de las manos. Se rompió la pantalla pero el equipo funciona\",\n  \"fechaHecho\": \"2026-06-14T08:30:00\",\n  \"lugarHecho\": \"Casa\",\n  \"adjuntosOCR\": [\"FACTURA DE COMPRA - Samsung Galaxy S25 Ultra - $1.299.990\", \"PRESUPUESTO REPARACIÓN - Pantalla - $285.000\"]\n}"
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "2️⃣ FAST_TRACK — Robo en vía pública",
+      "request": {
+        "method": "POST",
+        "header": [{"key": "Content-Type", "value": "application/json"}],
+        "url": {"raw": "{{baseUrl}}/api/v1/siniestros", "host": ["{{baseUrl}}"], "path": ["api", "v1", "siniestros"]},
+        "body": {"mode": "raw", "raw": "{\n  \"ramo\": \"Celulares\",\n  \"producto\": \"Celular Protegido Básico\",\n  \"hechoGenerador\": \"Robo en vía pública\",\n  \"bienAsegurado\": \"Motorola Edge 50 Pro\",\n  \"aseguradoDni\": \"40.123.456\",\n  \"polizaNumero\": \"POL-CEL-2024-001\",\n  \"descripcionLibre\": \"Me robaron el celular en la estación de subte. Hice denuncia policial el mismo día\",\n  \"fechaHecho\": \"2026-06-13T19:45:00\",\n  \"lugarHecho\": \"Estación Congreso, CABA\",\n  \"adjuntosOCR\": [\"DENUNCIA POLICIAL 2026/82341 - Robo en subte\", \"FACTURA - Motorola Edge 50 Pro - $389.990\"]\n}"
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "3️⃣ FALTA_DOCUMENTACION — Sin presupuesto",
+      "request": {
+        "method": "POST",
+        "header": [{"key": "Content-Type", "value": "application/json"}],
+        "url": {"raw": "{{baseUrl}}/api/v1/siniestros", "host": ["{{baseUrl}}"], "path": ["api", "v1", "siniestros"]},
+        "body": {"mode": "raw", "raw": "{\n  \"ramo\": \"Celulares\",\n  \"producto\": \"Celular Protegido Premium\",\n  \"hechoGenerador\": \"Robo en vía pública\",\n  \"bienAsegurado\": \"iPhone 15 Pro\",\n  \"aseguradoDni\": \"30.555.777\",\n  \"polizaNumero\": \"POL-CEL-2025-099\",\n  \"descripcionLibre\": \"Me robaron el celular en el colectivo. No tengo presupuesto aún\",\n  \"fechaHecho\": \"2026-06-08T17:45:00\",\n  \"lugarHecho\": \"Colectivo línea 39\",\n  \"adjuntosOCR\": []\n}"
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "4️⃣ POTENCIAL_RIESGO — Reincidente con inconsistencias",
+      "request": {
+        "method": "POST",
+        "header": [{"key": "Content-Type", "value": "application/json"}],
+        "url": {"raw": "{{baseUrl}}/api/v1/siniestros", "host": ["{{baseUrl}}"], "path": ["api", "v1", "siniestros"]},
+        "body": {"mode": "raw", "raw": "{\n  \"ramo\": \"Celulares\",\n  \"producto\": \"Celular Protegido Premium\",\n  \"hechoGenerador\": \"Robo en vía pública\",\n  \"bienAsegurado\": \"iPhone 16 Pro Max\",\n  \"aseguradoDni\": \"30.555.777\",\n  \"polizaNumero\": \"POL-CEL-2025-099\",\n  \"descripcionLibre\": \"Me robaron el celular pero no me acuerdo bien dónde ni cuándo. Fue el martes o miércoles pasado, creo que cerca de Palermo\",\n  \"fechaHecho\": \"2026-06-10T23:00:00\",\n  \"lugarHecho\": \"Palermo o Belgrano (no precisa)\",\n  \"adjuntosOCR\": [\"DENUNCIA POLICIAL 2026/78901 - Ubicación: Av. Santa Fe y Bulnes\"]\n}"
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "5️⃣ REQUIERE_ANALISIS_MANUAL — Ambigüedad",
+      "request": {
+        "method": "POST",
+        "header": [{"key": "Content-Type", "value": "application/json"}],
+        "url": {"raw": "{{baseUrl}}/api/v1/siniestros", "host": ["{{baseUrl}}"], "path": ["api", "v1", "siniestros"]},
+        "body": {"mode": "raw", "raw": "{\n  \"ramo\": \"Celulares\",\n  \"producto\": \"Celular Protegido Premium\",\n  \"hechoGenerador\": \"Robo en vía pública\",\n  \"bienAsegurado\": \"iPhone 16 Pro\",\n  \"aseguradoDni\": \"42.987.654\",\n  \"polizaNumero\": \"POL-CEL-2026-042\",\n  \"descripcionLibre\": \"El celular desapareció pero no sé si me lo robaron o lo perdí. No estoy seguro qué pasó exactamente\",\n  \"fechaHecho\": \"2026-06-12T18:30:00\",\n  \"lugarHecho\": \"Colectivo línea 159\",\n  \"adjuntosOCR\": [\"DENUNCIA POLICIAL - Sin detalles claros\"]\n}"
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "📋 Ver tabla de resultados",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {"raw": "{{baseUrl}}/api/v1/siniestros/resultados", "host": ["{{baseUrl}}"], "path": ["api", "v1", "siniestros", "resultados"]}
+      },
+      "response": []
+    }
+  ],
+  "variable": [{"key": "baseUrl", "value": "http://localhost:8082", "type": "string"}]
+}

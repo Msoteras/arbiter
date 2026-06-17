@@ -6,9 +6,10 @@ Clasifica siniestros usando un LLM local (Ollama + Qwen3-VL). El modelo recibe d
 
 | Clasificación | Significado |
 |---|---|
-| `POTENCIAL_RIESGO` | Inconsistencias, indicadores de fraude, requiere investigación |
-| `SIN_RIESGO` | Denuncia consistente, hecho cubierto, sin alertas |
-| `FAST_TRACK` | Caso simple y verificable, puede procesarse de forma expedita |
+| `FAST_TRACK` | Caso simple, documentación completa, historial limpio → puede procesarse expeditivamente |
+| `FALTA_DOCUMENTACION` | Caso válido pero incompleto → requiere documentos específicos del asegurado |
+| `POTENCIAL_RIESGO` | Inconsistencias, patrón sospechoso, múltiples siniestros recientes → requiere investigación |
+| `REQUIERE_ANALISIS_MANUAL` | Ambigüedad, contexto complejo, datos faltantes → escalada a analista especialista |
 
 ## Requisitos
 
@@ -51,56 +52,65 @@ siniestros-service/
 
 ## Cómo correr
 
-### 1. Compilar (sin tests)
+### 🚀 Opción 1: Todo en Docker (recomendado)
 
-Desde la **raíz del proyecto** (`arbiter/`):
+Levanta Ollama + siniestros-service en contenedores:
 
 ```bash
-mvn -pl common-lib,siniestros-service -am compile
+# Desde la raíz del proyecto
+docker-compose up -d --build
 ```
 
-### 2. Tests de integración con Docker (recomendado)
+**Primera vez:** ~2-3 min (compila Java + descarga modelo Qwen3-VL ~10GB)
+**Siguientes veces:** ~30s (usa cache)
 
-Levanta Ollama en un contenedor, baja el modelo automáticamente y corre los tests:
+Verifica logs:
+```bash
+docker-compose logs -f siniestros-service
+```
+
+Cuando veas `Started SiniestrosServiceApplication` → listo en `http://localhost:8082`
+
+Detener:
+```bash
+docker-compose down
+```
+
+Limpiar todo (incluyendo modelo):
+```bash
+docker-compose down -v
+```
+
+---
+
+### 🧪 Opción 2: Tests parametrizados con Docker
+
+Compila, levanta Ollama, corre 11 escenarios parametrizados en serie (no paralelo):
 
 ```bash
 docker compose -f docker-compose.test.yml up --exit-code-from siniestros-test
 ```
 
-> La primera vez tarda varios minutos porque baja `qwen3-vl` (~5 GB).
-> Las siguientes corridas son rápidas: el modelo queda en el volumen `ollama_data`.
+Espera ~3-5 min (cada escenario tarda 10-30s en Ollama).
 
-Para limpiar todo (incluyendo el modelo descargado):
+---
 
-```bash
-docker compose -f docker-compose.test.yml down -v
-```
+### 💻 Opción 3: Dev local con Ollama
 
-### 3. Tests de integración con Ollama local
-
-Si ya tenés Ollama instalado y el modelo descargado:
+Si tenés Ollama instalado localmente:
 
 ```bash
-# Asegurate de tener el modelo
+# Terminal 1: Ollama
+ollama serve
+
+# Terminal 2: Descarga modelo (primera vez)
 ollama pull qwen3-vl
 
-# Corré los tests (Ollama tiene que estar corriendo en localhost:11434)
-mvn -pl siniestros-service test -Dgroups=integracion
-```
-
-Para apuntar a otra URL de Ollama:
-
-```bash
-mvn -pl siniestros-service test -Dgroups=integracion -DOLLAMA_BASE_URL=http://otra-ip:11434
-```
-
-### 4. Levantar el servicio
-
-```bash
+# Terminal 3: Servicio Spring Boot
 mvn spring-boot:run -pl siniestros-service
 ```
 
-El servicio arranca en `http://localhost:8082`.
+El servicio arranca en `http://localhost:8082`
 
 ## Variables de entorno
 
@@ -134,50 +144,47 @@ Para agregar un escenario nuevo: crear un JSON con la misma estructura en `fixtu
 
 ## Probar desde Postman
 
-Con el servicio corriendo (`mvn spring-boot:run -pl siniestros-service`), hacer un **POST** a:
+### 📥 Importar colección
+
+1. Abre **Postman**
+2. **Collections** → **Import**
+3. Selecciona: `Arbiter_Siniestros_Clasificacion.postman_collection.json`
+4. ✅ Tenés 10 requests + 1 endpoint de resultados listos
+
+### 🔄 Flujo completo
+
+**Endpoint ASINCRÓNICO** (recomendado para ver resultados en archivo):
 
 ```
-http://localhost:8082/api/v1/clasificaciones
+POST http://localhost:8082/api/v1/siniestros
 ```
 
-**Content-Type**: `application/json`
+- Devuelve **202 Accepted** inmediatamente
+- Job procesa en background (~10-30 seg por request)
+- Escribe resultado en archivo `./resultados-clasificaciones.md`
 
-Body de ejemplo (caso POTENCIAL_RIESGO — reincidente):
-
-```json
-{
-  "ramo": "Celulares",
-  "producto": "Celular Protegido Premium",
-  "hechoGenerador": "Robo en vía pública",
-  "bienAsegurado": "iPhone 16 Pro Max 256GB - IMEI 353000000000099",
-  "aseguradoDni": "30.555.777",
-  "polizaNumero": "POL-CEL-2025-099",
-  "descripcionLibre": "Me robaron el celular el martes a la noche...",
-  "fechaHecho": "2026-06-10T23:00:00",
-  "lugarHecho": "Palermo, CABA",
-  "adjuntosOCR": ["DENUNCIA POLICIAL Nro 2026/78901..."]
-}
+**Endpoint SINCRÓNICO** (si querés respuesta inmediata):
 
 ```
-
-Hay más ejemplos listos para copiar en `src/main/resources/ejemplos-postman.json`.
-
-> **Importante**: para que funcione, Ollama tiene que estar corriendo con `qwen3-vl`.
-> Los datos de póliza, historial y reglas se resuelven con los mocks internos — no necesitás otros módulos levantados.
-
-**Respuesta esperada:**
-
-```json
-{
-  "clasificacion": "POTENCIAL_RIESGO",
-  "factores": [
-    "Cuarto siniestro en 8 meses",
-    "Descripción imprecisa del hecho",
-    "Inconsistencia entre ubicación declarada y denuncia policial"
-  ],
-  "confianza": 0.85
-}
+POST http://localhost:8082/api/v1/clasificaciones
 ```
+
+- Devuelve **200 OK** con clasificación (pero bloquea hasta 30s)
+
+**Ver resultados acumulados:**
+
+```
+GET http://localhost:8082/api/v1/siniestros/resultados
+```
+
+- Devuelve tabla markdown con todos los siniestros procesados
+
+### 📊 Workflow sugerido
+
+1. Ejecuta los 10 requests POST a `/api/v1/siniestros` en ráfaga
+2. Espera ~30 seg a que terminen los últimos
+3. Ejecuta `GET /resultados` para ver la tabla completa
+4. Verifica clasificaciones esperadas vs obtenidas
 
 ## Arquitectura del flujo de clasificación
 
@@ -200,8 +207,19 @@ ClasificacionController ──► ClasificacionOrquestador
 En dev/test se usan los mocks (`MockAseguradoraAdapter`, `MockReglasAdapter`).
 En producción se reemplazarán por implementaciones REST reales.
 
+## ✨ Mejoras recientes (sesión 16/06/2026)
+
+- ✅ **Reintentos en ClasificacionJob** — `@Retryable` con backoff exponencial (2s → 4s → 8s)
+- ✅ **PromptBuilder** — patrón builder para construir prompts, limpia 50+ líneas de formato
+- ✅ **@Execution(SAME_THREAD)** en tests — evita que Ollama colapse por inferencias paralelas
+- ✅ **Colección Postman** — 10 escenarios parametrizados + endpoint de resultados
+- ✅ **Mapeo BBVA** — alineación de tipologías de BBVA con clasificaciones del LLM
+
 ## Próximos pasos
 
+- [ ] Tabla `clasificacion_log` en BD — auditoría inmutable (Disposición SSN 2/2023)
+- [ ] Persistencia de `Siniestro` en BD en lugar de `AtomicLong` (IDs volátiles)
+- [ ] Circuit breaker Resilience4j para Ollama
+- [ ] Mock Classifier para perfil `dev` (tests sin Ollama)
 - [ ] Integración con NOSIS (scoring crediticio) — en evaluación
 - [ ] Implementaciones REST reales de `AseguradoraAdapter` y `ReglasAdapter`
-- [ ] Swagger/SpringDoc para documentación automática del endpoint
