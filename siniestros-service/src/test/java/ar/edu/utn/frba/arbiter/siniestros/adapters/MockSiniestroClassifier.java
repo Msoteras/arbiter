@@ -7,12 +7,12 @@ import ar.edu.utn.frba.arbiter.siniestros.dto.ClasificacionResponse;
 import java.util.List;
 
 /**
- * Implementación canned para tests unitarios. No llama a Ollama.
+ * Canned implementation for unit tests. Does not call Ollama.
  */
 public class MockSiniestroClassifier implements SiniestroClassifier {
 
     @Override
-    public ClasificacionResponse clasificar(ClasificacionRequest request) {
+    public ClasificacionResponse classify(ClasificacionRequest request) {
         return new ClasificacionResponse(
                 Clasificacion.FAST_TRACK,
                 List.of("Denuncia consistente con el hecho generador declarado",

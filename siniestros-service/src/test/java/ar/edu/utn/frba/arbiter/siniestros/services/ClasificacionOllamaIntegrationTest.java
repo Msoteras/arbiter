@@ -21,12 +21,12 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.jupiter.api.Assumptions.assumeTrue;
 
 /**
- * Test de integración contra Ollama real (OPCIONAL).
- * Requiere Ollama corriendo con qwen3-vl en la URL configurada.
- * Se salta automáticamente si Ollama no está disponible.
+ * Integration test against a real Ollama instance (OPTIONAL).
+ * Requires Ollama running with qwen3-vl at the configured URL.
+ * Automatically skipped if Ollama is not available.
  *
- * Correr: mvn -pl siniestros-service test -Dgroups=ollama -Dtest=ClasificacionOllamaIntegrationTest
- * O simplemente: mvn -pl siniestros-service test (se salta si Ollama no está disponible)
+ * Run: mvn -pl siniestros-service test -Dgroups=ollama -Dtest=ClasificacionOllamaIntegrationTest
+ * Or simply: mvn -pl siniestros-service test (skipped if Ollama is not available)
  */
 @Tag("ollama")
 @SpringBootTest
@@ -37,39 +37,39 @@ class ClasificacionOllamaIntegrationTest {
     private OllamaProperties ollamaProperties;
 
     @Autowired
-    private ClasificacionOrquestador orquestador;
+    private ClasificacionOrquestador orchestrator;
 
     @BeforeEach
-    void verificarOllamaDisponible() {
+    void checkOllamaAvailable() {
         String url = ollamaProperties.baseUrl() + "/api/tags";
         try {
             HttpURLConnection conn = (HttpURLConnection) URI.create(url).toURL().openConnection();
             conn.setConnectTimeout(3000);
             conn.connect();
-            assumeTrue(conn.getResponseCode() == 200, "Ollama no disponible en " + url);
+            assumeTrue(conn.getResponseCode() == 200, "Ollama not available at " + url);
         } catch (IOException e) {
-            assumeTrue(false, "Ollama no disponible — " + e.getMessage());
+            assumeTrue(false, "Ollama not available — " + e.getMessage());
         }
     }
 
     @Test
-    void denunciaReincidente_validarRespuestaOllama() {
-        DenunciaSiniestro denuncia = DenunciaSiniestro.builder()
-                .ramo("Celulares")
-                .producto("Celular Protegido Premium")
-                .hechoGenerador("Robo en vía pública")
-                .bienAsegurado("iPhone 16 Pro Max 256GB - IMEI 353000000000099")
-                .aseguradoDni("30.555.777")
-                .polizaNumero("POL-CEL-2025-099")
-                .descripcionLibre(
+    void recidivistClaim_validateOllamaResponse() {
+        DenunciaSiniestro claim = DenunciaSiniestro.builder()
+                .branch("Celulares")
+                .product("Celular Protegido Premium")
+                .claimCause("Robo en vía pública")
+                .insuredItem("iPhone 16 Pro Max 256GB - IMEI 353000000000099")
+                .insuredId("30.555.777")
+                .policyNumber("POL-CEL-2025-099")
+                .description(
                         "Me robaron el celular el martes a la noche, estaba en la calle creo que por " +
                         "Palermo o tal vez Belgrano, no me acuerdo bien la dirección exacta. Eran como " +
                         "las 11 o 12 de la noche. Vino un tipo y me lo sacó de la mano. No vi bien " +
                         "porque estaba oscuro. Hice la denuncia al día siguiente."
                 )
-                .fechaHecho(LocalDateTime.of(2026, 6, 10, 23, 0))
-                .lugarHecho("Palermo, CABA (ubicación imprecisa)")
-                .adjuntosOCR(List.of(
+                .eventDate(LocalDateTime.of(2026, 6, 10, 23, 0))
+                .eventLocation("Palermo, CABA (ubicación imprecisa)")
+                .attachmentsOcr(List.of(
                         "DENUNCIA POLICIAL Nro 2026/78901 - Comisaría 14va CABA\n" +
                         "Fecha: 12/06/2026 09:15 hs\n" +
                         "Denunciante: Marcelo Gómez DNI 30.555.777\n" +
@@ -77,19 +77,19 @@ class ClasificacionOllamaIntegrationTest {
                 ))
                 .build();
 
-        ClasificacionResponse respuesta = orquestador.clasificar(denuncia);
+        ClasificacionResponse response = orchestrator.classify(claim);
 
-        System.out.println("\n=== Respuesta Ollama real ===");
-        System.out.println("Clasificación: " + respuesta.clasificacion());
-        System.out.println("Confianza: " + respuesta.confianza());
-        System.out.println("Factores: " + respuesta.factores());
+        System.out.println("\n=== Real Ollama Response ===");
+        System.out.println("Classification: " + response.classification());
+        System.out.println("Confidence: " + response.confidence());
+        System.out.println("Factors: " + response.factors());
 
-        assertThat(respuesta.clasificacion()).isIn(
+        assertThat(response.classification()).isIn(
                 Clasificacion.POTENCIAL_RIESGO,
                 Clasificacion.FALTA_DOCUMENTACION,
                 Clasificacion.FAST_TRACK
         );
-        assertThat(respuesta.factores()).isNotEmpty();
-        assertThat(respuesta.confianza()).isBetween(0.0, 1.0);
+        assertThat(response.factors()).isNotEmpty();
+        assertThat(response.confidence()).isBetween(0.0, 1.0);
     }
 }

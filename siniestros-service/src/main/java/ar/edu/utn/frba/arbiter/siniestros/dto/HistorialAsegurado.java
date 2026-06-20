@@ -8,23 +8,23 @@ import java.util.List;
 
 @Builder
 public record HistorialAsegurado(
-        String aseguradoDni,
-        int cantidadSiniestrosPrevios,
-        BigDecimal montoTotalReclamado,
-        LocalDate clienteDesde,
-        List<SiniestroHistorico> siniestros
+        String insuredId,
+        int previousClaimsCount,
+        BigDecimal totalAmountClaimed,
+        LocalDate customerSince,
+        List<ClaimRecord> claims
 ) {
 
     @Builder
-    public record SiniestroHistorico(
-            String siniestroId,
-            LocalDate fecha,
-            String ramo,
-            String hechoGenerador,
-            String bienAfectado,
-            String estado,
-            BigDecimal montoReclamado,
-            BigDecimal montoLiquidado,
-            String observaciones
+    public record ClaimRecord(
+            String claimId,
+            LocalDate date,
+            String branch,
+            String claimCause,
+            String affectedItem,
+            String status,
+            BigDecimal amountClaimed,
+            BigDecimal amountSettled,
+            String notes
     ) {}
 }

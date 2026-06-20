@@ -7,7 +7,7 @@ import java.util.List;
 
 @Builder
 public record ClasificacionResponse(
-        Clasificacion clasificacion,
-        List<String> factores,
-        double confianza
+        Clasificacion classification,
+        List<String> factors,
+        double confidence
 ) {}

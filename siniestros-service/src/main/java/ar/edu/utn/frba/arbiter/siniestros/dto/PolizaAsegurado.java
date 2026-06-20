@@ -8,25 +8,25 @@ import java.util.List;
 
 @Builder
 public record PolizaAsegurado(
-        String polizaNumero,
-        String aseguradoNombre,
-        String aseguradoDni,
-        String ramo,
-        String producto,
-        LocalDate vigenciaDesde,
-        LocalDate vigenciaHasta,
-        boolean alDia,
-        BigDecimal sumaAsegurada,
-        BigDecimal franquicia,
-        List<CoberturaPoliza> coberturas,
-        List<String> clausulasAplicables
+        String policyNumber,
+        String insuredName,
+        String insuredId,
+        String branch,
+        String product,
+        LocalDate effectiveFrom,
+        LocalDate effectiveTo,
+        boolean upToDate,
+        BigDecimal insuredAmount,
+        BigDecimal deductible,
+        List<PolicyCoverage> coverages,
+        List<String> applicableClauses
 ) {
 
     @Builder
-    public record CoberturaPoliza(
-            String codigo,
-            String descripcion,
-            BigDecimal sumaAsegurada,
-            BigDecimal franquicia
+    public record PolicyCoverage(
+            String code,
+            String description,
+            BigDecimal insuredAmount,
+            BigDecimal deductible
     ) {}
 }

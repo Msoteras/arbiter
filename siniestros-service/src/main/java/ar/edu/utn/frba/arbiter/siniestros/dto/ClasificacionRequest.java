@@ -6,13 +6,12 @@ import java.util.List;
 
 @Builder
 public record ClasificacionRequest(
-        String ramo,
-        String producto,
-        String hechoGenerador,
-        String bienAsegurado,
-        String descripcionLibre,
-        List<String> adjuntosOCR,
-        String imagenBase64,
-        String reglasAseguradora,
-        String historialAsegurado
+        String branch,
+        String product,
+        String claimCause,
+        String insuredItem,
+        String description,
+        List<String> attachmentsOcr,
+        String insurerRules,
+        String insuredHistory
 ) {}

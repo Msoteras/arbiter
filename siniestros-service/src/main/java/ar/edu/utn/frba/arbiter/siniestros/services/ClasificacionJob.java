@@ -20,48 +20,48 @@ public class ClasificacionJob {
     private static final Logger log = LoggerFactory.getLogger(ClasificacionJob.class);
 
     private final SiniestroClassifier classifier;
-    private final ClasificacionOrquestador orquestador;
-    private final ResultadosClasificacionService resultadosService;
+    private final ClasificacionOrquestador orchestrator;
+    private final ResultadosClasificacionService resultsService;
 
-    @Async("clasificacionExecutor")
+    @Async("classificationExecutor")
     @Retryable(
             retryFor = {HttpServerErrorException.class, ResourceAccessException.class},
             maxAttempts = 3,
             backoff = @Backoff(delay = 2000, multiplier = 2.0)
     )
-    public void procesarClasificacion(Long siniestroId, DenunciaSiniestro denuncia) {
-        log.info("[ClasificacionJob] ▶ Iniciando clasificación async — siniestroId={} póliza='{}' dni='{}'",
-                siniestroId, denuncia.polizaNumero(), denuncia.aseguradoDni());
+    public void processClassification(Long claimId, DenunciaSiniestro claim) {
+        log.info("[ClassificationJob] ▶ Starting async classification — claimId={} policy='{}' insuredId='{}'",
+                claimId, claim.policyNumber(), claim.insuredId());
 
         try {
-            long inicio = System.currentTimeMillis();
+            long start = System.currentTimeMillis();
 
-            log.debug("[ClasificacionJob] → Orquestando: consultando póliza, historial, reglas...");
-            ClasificacionResponse respuesta = orquestador.clasificar(denuncia);
-            long latenciaMs = System.currentTimeMillis() - inicio;
+            log.debug("[ClassificationJob] → Orchestrating: fetching policy, history, rules...");
+            ClasificacionResponse response = orchestrator.classify(claim);
+            long latencyMs = System.currentTimeMillis() - start;
 
-            log.info("[ClasificacionJob] ✓ Clasificación obtenida — siniestroId={} clasificacion={} confianza={:.2f} latencia={}ms",
-                    siniestroId, respuesta.clasificacion(), respuesta.confianza(), latenciaMs);
+            log.info("[ClassificationJob] ✓ Classification obtained — claimId={} classification={} confidence={:.2f} latency={}ms",
+                    claimId, response.classification(), response.confidence(), latencyMs);
 
-            log.debug("[ClasificacionJob] → Guardando resultado en archivo de resultados...");
-            resultadosService.guardarResultado(
-                    siniestroId,
-                    denuncia.polizaNumero(),
-                    denuncia.aseguradoDni(),
-                    respuesta.clasificacion(),
-                    respuesta.confianza(),
-                    respuesta.factores(),
-                    latenciaMs
+            log.debug("[ClassificationJob] → Saving result...");
+            resultsService.saveResult(
+                    claimId,
+                    claim.policyNumber(),
+                    claim.insuredId(),
+                    response.classification(),
+                    response.confidence(),
+                    response.factors(),
+                    latencyMs
             );
 
-            log.info("[ClasificacionJob] ✓ COMPLETADO — siniestroId={} {} | Confianza: {:.2f} | Latencia: {}ms",
-                    siniestroId, respuesta.clasificacion(), respuesta.confianza(), latenciaMs);
-            log.debug("[ClasificacionJob]   Factores: {}", respuesta.factores());
+            log.info("[ClassificationJob] ✓ DONE — claimId={} {} | Confidence: {:.2f} | Latency: {}ms",
+                    claimId, response.classification(), response.confidence(), latencyMs);
+            log.debug("[ClassificationJob]   Factors: {}", response.factors());
 
         } catch (Exception e) {
-            log.error("[ClasificacionJob] ✗ Error procesando siniestro {} tras reintentos — {}",
-                    siniestroId, e.getMessage(), e);
-            throw new RuntimeException("Falló clasificación de siniestro " + siniestroId + " tras reintentos", e);
+            log.error("[ClassificationJob] ✗ Error processing claim {} after retries — {}",
+                    claimId, e.getMessage(), e);
+            throw new RuntimeException("Classification failed for claim " + claimId + " after retries", e);
         }
     }
 }

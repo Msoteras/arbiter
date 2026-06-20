@@ -5,7 +5,7 @@ import ar.edu.utn.frba.arbiter.siniestros.dto.PolizaAsegurado;
 
 public interface AseguradoraAdapter {
 
-    PolizaAsegurado obtenerPoliza(String polizaNumero);
+    PolizaAsegurado getPolicy(String policyNumber);
 
-    HistorialAsegurado obtenerHistorial(String aseguradoDni);
+    HistorialAsegurado getHistory(String insuredId);
 }

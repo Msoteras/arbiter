@@ -17,33 +17,33 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 @RestController
-@RequestMapping("/api/v1/clasificaciones")
+@RequestMapping("/api/v1/classifications")
 @RequiredArgsConstructor
-@Tag(name = "Clasificaciones", description = "Clasificación de siniestros con LLM")
+@Tag(name = "Classifications", description = "Claim classification with LLM")
 public class ClasificacionController {
 
-    private final ClasificacionOrquestador orquestador;
+    private final ClasificacionOrquestador orchestrator;
 
     @PostMapping
     @Operation(
-            summary = "Clasificar un siniestro",
+            summary = "Classify a claim",
             description = """
-                    Recibe los datos de una denuncia, consulta el historial del asegurado
-                    y las reglas de la aseguradora, construye un prompt estructurado
-                    y lo envía al LLM (Ollama + Qwen3-VL) para clasificar el siniestro.
+                    Receives claim data, queries the insured's history
+                    and the insurer's business rules, builds a structured prompt
+                    and sends it to the LLM (Ollama + Qwen3-VL) to classify the claim.
 
-                    Los campos `polizaNumero` y `aseguradoDni` se usan para consultar
-                    los mocks (en dev/test) o la API real de la aseguradora (en prod).
+                    The `policyNumber` and `insuredId` fields are used to query
+                    the mocks (in dev/test) or the real insurer API (in prod).
                     """,
             responses = {
-                    @ApiResponse(responseCode = "200", description = "Clasificación exitosa",
+                    @ApiResponse(responseCode = "200", description = "Classification successful",
                             content = @Content(schema = @Schema(implementation = ClasificacionResponse.class))),
-                    @ApiResponse(responseCode = "422", description = "El LLM devolvió una respuesta inválida"),
-                    @ApiResponse(responseCode = "400", description = "Datos de la denuncia inválidos")
+                    @ApiResponse(responseCode = "422", description = "The LLM returned an invalid response"),
+                    @ApiResponse(responseCode = "400", description = "Invalid claim data")
             }
     )
-    public ResponseEntity<ClasificacionResponse> clasificar(@Valid @RequestBody DenunciaSiniestro denuncia) {
-        ClasificacionResponse respuesta = orquestador.clasificar(denuncia);
-        return ResponseEntity.ok(respuesta);
+    public ResponseEntity<ClasificacionResponse> classify(@Valid @RequestBody DenunciaSiniestro claim) {
+        ClasificacionResponse response = orchestrator.classify(claim);
+        return ResponseEntity.ok(response);
     }
 }

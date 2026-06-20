@@ -4,5 +4,5 @@ import ar.edu.utn.frba.arbiter.siniestros.dto.ReglasNegocio;
 
 public interface ReglasAdapter {
 
-    ReglasNegocio obtenerReglas(String ramoId, String hechoGeneradorId);
+    ReglasNegocio getRules(String branchId, String claimCauseId);
 }

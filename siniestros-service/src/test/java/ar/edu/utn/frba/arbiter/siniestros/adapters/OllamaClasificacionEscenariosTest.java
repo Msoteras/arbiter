@@ -40,19 +40,19 @@ class OllamaClasificacionEscenariosTest {
     private SiniestroClassifier classifier;
 
     @BeforeEach
-    void verificarOllamaDisponible() {
+    void checkOllamaAvailable() {
         String url = ollamaProperties.baseUrl() + "/api/tags";
         try {
             HttpURLConnection conn = (HttpURLConnection) URI.create(url).toURL().openConnection();
             conn.setConnectTimeout(3000);
             conn.connect();
-            assumeTrue(conn.getResponseCode() == 200, "Ollama no disponible en " + url);
+            assumeTrue(conn.getResponseCode() == 200, "Ollama not available at " + url);
         } catch (IOException e) {
-            assumeTrue(false, "Ollama no disponible — " + e.getMessage());
+            assumeTrue(false, "Ollama not available — " + e.getMessage());
         }
     }
 
-    @ParameterizedTest(name = "Escenario: {0}")
+    @ParameterizedTest(name = "Scenario: {0}")
     @ValueSource(strings = {
             "escenario-fast-track",
             "escenario-fast-track-2",
@@ -66,70 +66,70 @@ class OllamaClasificacionEscenariosTest {
             "escenario-analisis-manual-2",
             "escenario-sin-riesgo"
     })
-    void clasificarEscenario(String escenario) throws IOException {
-        JsonNode fixture = cargarFixture(escenario + ".json");
-        String nombre = fixture.get("nombre").asText();
-        Clasificacion esperada = Clasificacion.valueOf(fixture.get("clasificacionEsperada").asText());
+    void classifyScenario(String scenario) throws IOException {
+        JsonNode fixture = loadFixture(scenario + ".json");
+        String name = fixture.get("name").asText();
+        Clasificacion expected = Clasificacion.valueOf(fixture.get("expectedClassification").asText());
 
-        ClasificacionRequest request = armarRequest(fixture.get("request"));
-        ClasificacionResponse respuesta = classifier.clasificar(request);
+        ClasificacionRequest request = buildRequest(fixture.get("request"));
+        ClasificacionResponse response = classifier.classify(request);
 
         System.out.println();
         System.out.println("╔══════════════════════════════════════════════════════════════╗");
-        System.out.printf( "║ ESCENARIO: %-49s║%n", nombre);
+        System.out.printf( "║ SCENARIO: %-50s║%n", name);
         System.out.println("╠══════════════════════════════════════════════════════════════╣");
-        System.out.printf( "║ Esperada:     %-46s║%n", esperada);
-        System.out.printf( "║ Obtenida:     %-46s║%n", respuesta.clasificacion());
-        System.out.printf( "║ Confianza:    %-46s║%n", String.format("%.2f", respuesta.confianza()));
-        System.out.printf( "║ Coincide:     %-46s║%n", respuesta.clasificacion() == esperada ? "SÍ ✓" : "NO ✗");
+        System.out.printf( "║ Expected:     %-46s║%n", expected);
+        System.out.printf( "║ Obtained:     %-46s║%n", response.classification());
+        System.out.printf( "║ Confidence:   %-46s║%n", String.format("%.2f", response.confidence()));
+        System.out.printf( "║ Match:        %-46s║%n", response.classification() == expected ? "YES ✓" : "NO ✗");
         System.out.println("╠══════════════════════════════════════════════════════════════╣");
-        System.out.println("║ Factores:");
-        for (String factor : respuesta.factores()) {
-            System.out.printf("║   • %-55s║%n", truncar(factor, 55));
+        System.out.println("║ Factors:");
+        for (String factor : response.factors()) {
+            System.out.printf("║   • %-55s║%n", truncate(factor, 55));
         }
         System.out.println("╚══════════════════════════════════════════════════════════════╝");
 
-        assertThat(respuesta.clasificacion())
-                .as("Clasificación para: %s", nombre)
+        assertThat(response.classification())
+                .as("Classification for: %s", name)
                 .isNotNull();
-        assertThat(respuesta.factores()).isNotEmpty();
-        assertThat(respuesta.confianza()).isBetween(0.0, 1.0);
+        assertThat(response.factors()).isNotEmpty();
+        assertThat(response.confidence()).isBetween(0.0, 1.0);
 
-        assertThat(respuesta.clasificacion())
-                .as("El modelo debería clasificar '%s' como %s", nombre, esperada)
-                .isEqualTo(esperada);
+        assertThat(response.classification())
+                .as("The model should classify '%s' as %s", name, expected)
+                .isEqualTo(expected);
     }
 
-    private JsonNode cargarFixture(String archivo) throws IOException {
-        try (InputStream is = getClass().getResourceAsStream("/fixtures/" + archivo)) {
-            assertThat(is).as("No se encontró el fixture: " + archivo).isNotNull();
+    private JsonNode loadFixture(String filename) throws IOException {
+        try (InputStream is = getClass().getResourceAsStream("/fixtures/" + filename)) {
+            assertThat(is).as("Fixture not found: " + filename).isNotNull();
             return mapper.readTree(is);
         }
     }
 
-    private ClasificacionRequest armarRequest(JsonNode req) {
-        List<String> adjuntos = new ArrayList<>();
-        if (req.has("adjuntosOCR")) {
-            req.get("adjuntosOCR").forEach(n -> adjuntos.add(n.asText()));
+    private ClasificacionRequest buildRequest(JsonNode req) {
+        List<String> attachments = new ArrayList<>();
+        if (req.has("attachmentsOcr")) {
+            req.get("attachmentsOcr").forEach(n -> attachments.add(n.asText()));
         }
 
         return ClasificacionRequest.builder()
-                .ramo(req.get("ramo").asText())
-                .producto(req.get("producto").asText())
-                .hechoGenerador(req.get("hechoGenerador").asText())
-                .bienAsegurado(req.get("bienAsegurado").asText())
-                .descripcionLibre(req.get("descripcionLibre").asText())
-                .adjuntosOCR(adjuntos)
-                .reglasAseguradora(textoOpcional(req, "reglasAseguradora"))
-                .historialAsegurado(textoOpcional(req, "historialAsegurado"))
+                .branch(req.get("branch").asText())
+                .product(req.get("product").asText())
+                .claimCause(req.get("claimCause").asText())
+                .insuredItem(req.get("insuredItem").asText())
+                .description(req.get("description").asText())
+                .attachmentsOcr(attachments)
+                .insurerRules(optionalText(req, "insurerRules"))
+                .insuredHistory(optionalText(req, "insuredHistory"))
                 .build();
     }
 
-    private String textoOpcional(JsonNode node, String campo) {
-        return node.has(campo) ? node.get(campo).asText() : null;
+    private String optionalText(JsonNode node, String field) {
+        return node.has(field) ? node.get(field).asText() : null;
     }
 
-    private String truncar(String texto, int max) {
-        return texto.length() <= max ? texto : texto.substring(0, max - 1) + "…";
+    private String truncate(String text, int max) {
+        return text.length() <= max ? text : text.substring(0, max - 1) + "…";
     }
 }

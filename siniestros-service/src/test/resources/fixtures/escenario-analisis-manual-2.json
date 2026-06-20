@@ -1,16 +1,16 @@
 {
-  "nombre": "Información contradictoria pero no clara si es fraude",
-  "clasificacionEsperada": "REQUIERE_ANALISIS_MANUAL",
+  "name": "Información contradictoria pero no clara si es fraude",
+  "expectedClassification": "REQUIERE_ANALISIS_MANUAL",
   "request": {
-    "ramo": "Celulares",
-    "producto": "Celular Protegido Básico",
-    "hechoGenerador": "Rotura accidental",
-    "bienAsegurado": "Samsung Galaxy S24 - IMEI 351000000000350",
-    "descripcionLibre": "Se me rompió la pantalla cuando se me cayó el celular desde el escritorio. Tiene una grieta grande en toda la pantalla. El táctil no funciona. Pasó el sábado a la mañana.",
-    "adjuntosOCR": [
+    "branch": "Celulares",
+    "product": "Celular Protegido Básico",
+    "claimCause": "Rotura accidental",
+    "insuredItem": "Samsung Galaxy S24 - IMEI 351000000000350",
+    "description": "Se me rompió la pantalla cuando se me cayó el celular desde el escritorio. Tiene una grieta grande en toda la pantalla. El táctil no funciona. Pasó el sábado a la mañana.",
+    "attachmentsOcr": [
       "FACTURA DE COMPRA\nFecha: 20/12/2024\nComercio: Samsung Store\nProducto: Samsung Galaxy S24 128GB\nIMEI: 351000000000350\nMonto: $450.000\nCliente: Javier Ruiz DNI 37.222.333"
     ],
-    "reglasAseguradora": "- Rotura accidental por caída está cubierta.\n- Costo de reparación no debe exceder 70% del valor del bien.\n- Se requiere presupuesto de servicio técnico.\n- Rotura por defecto de fabricación NO está cubierta.\n- Ambigüedad: la descripción puede ser accidental o defecto de fabricación.",
-    "historialAsegurado": "HISTORIAL DE SINIESTROS — Asegurado: Javier Ruiz (DNI 37.222.333)\n\n1. Siniestro #2025-2210 — 22/08/2025\n   Ramo: Celulares | Hecho: Rotura accidental\n   Bien: iPhone 14 Pro - IMEI 352000000000330\n   Estado: Aprobado | Liquidado: $380.000\n   Obs: Rotura similar a la actual (grieta en toda la pantalla)\n\nAntigüedad como asegurado: 2 años (desde junio 2024).\nPólizas activas: 1 (Celular Protegido Básico).\nPagos: Al día."
+    "insurerRules": "- Rotura accidental por caída está cubierta.\n- Costo de reparación no debe exceder 70% del valor del bien.\n- Se requiere presupuesto de servicio técnico.\n- Rotura por defecto de fabricación NO está cubierta.\n- Ambigüedad: la descripción puede ser accidental o defecto de fabricación.",
+    "insuredHistory": "HISTORIAL DE SINIESTROS — Asegurado: Javier Ruiz (DNI 37.222.333)\n\n1. Siniestro #2025-2210 — 22/08/2025\n   Ramo: Celulares | Hecho: Rotura accidental\n   Bien: iPhone 14 Pro - IMEI 352000000000330\n   Estado: Aprobado | Liquidado: $380.000\n   Obs: Rotura similar a la actual (grieta en toda la pantalla)\n\nAntigüedad como asegurado: 2 años (desde junio 2024).\nPólizas activas: 1 (Celular Protegido Básico).\nPagos: Al día."
   }
 }

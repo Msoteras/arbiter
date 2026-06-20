@@ -1,17 +1,17 @@
 {
-  "nombre": "Rotura de pantalla con foto y factura — caso simple y verificable",
-  "clasificacionEsperada": "FAST_TRACK",
+  "name": "Rotura de pantalla con foto y factura — caso simple y verificable",
+  "expectedClassification": "FAST_TRACK",
   "request": {
-    "ramo": "Celulares",
-    "producto": "Celular Protegido Premium",
-    "hechoGenerador": "Rotura accidental",
-    "bienAsegurado": "Samsung Galaxy S25 Ultra - IMEI 354000000000063",
-    "descripcionLibre": "El sábado 14 de junio de 2026 a la mañana, se me cayó el celular al piso mientras lo sacaba del bolsillo en la cocina de mi casa. Se me resbaló de la mano y cayó boca abajo sobre las baldosas. Se rompió la pantalla en la parte inferior derecha, tiene una rajadura que va de la esquina hasta el centro. El celular prende y funciona pero el táctil no responde bien en la zona de la rajadura.",
-    "adjuntosOCR": [
+    "branch": "Celulares",
+    "product": "Celular Protegido Premium",
+    "claimCause": "Rotura accidental",
+    "insuredItem": "Samsung Galaxy S25 Ultra - IMEI 354000000000063",
+    "description": "El sábado 14 de junio de 2026 a la mañana, se me cayó el celular al piso mientras lo sacaba del bolsillo en la cocina de mi casa. Se me resbaló de la mano y cayó boca abajo sobre las baldosas. Se rompió la pantalla en la parte inferior derecha, tiene una rajadura que va de la esquina hasta el centro. El celular prende y funciona pero el táctil no responde bien en la zona de la rajadura.",
+    "attachmentsOcr": [
       "FACTURA DE COMPRA\nFecha: 10/01/2026\nComercio: Samsung Store — Alto Palermo, CABA\nProducto: Samsung Galaxy S25 Ultra 512GB — Titanio Negro\nIMEI: 354000000000063\nMonto: $1.299.990\nMedio de pago: Transferencia bancaria\nCliente: Sofía Martínez DNI 42.987.654",
       "PRESUPUESTO DE REPARACIÓN\nServicio técnico: Samsung Service Center — Av. Cabildo 2050, CABA\nFecha: 14/06/2026\nDispositivo: Samsung Galaxy S25 Ultra — IMEI 354000000000063\nDaño: Rotura de display AMOLED + digitalizador (zona inferior derecha)\nReparación: Reemplazo de módulo pantalla + digitalizador\nCosto estimado: $285.000 + IVA\nTiempo estimado: 3 días hábiles\nNota: El equipo no presenta daños por líquido ni intervención previa."
     ],
-    "reglasAseguradora": "- Rotura accidental está cubierta con franquicia del 20% del costo de reparación.\n- Se requiere presupuesto de servicio técnico autorizado.\n- Si el costo de reparación supera el 70% del valor del bien, se considera pérdida total.\n- No se cubre daño por líquido ni rotura intencional.\n- Franquicia: $57.000. Suma asegurada: $1.300.000.",
-    "historialAsegurado": "HISTORIAL DE SINIESTROS — Asegurada: Sofía Martínez (DNI 42.987.654)\n\nSin siniestros previos registrados.\n\nAntigüedad como asegurada: 5 meses (desde enero 2026).\nPólizas activas: 2 (Celular Protegido Premium + Hogar Básico).\nPagos: Al día."
+    "insurerRules": "- Rotura accidental está cubierta con franquicia del 20% del costo de reparación.\n- Se requiere presupuesto de servicio técnico autorizado.\n- Si el costo de reparación supera el 70% del valor del bien, se considera pérdida total.\n- No se cubre daño por líquido ni rotura intencional.\n- Franquicia: $57.000. Suma asegurada: $1.300.000.",
+    "insuredHistory": "HISTORIAL DE SINIESTROS — Asegurada: Sofía Martínez (DNI 42.987.654)\n\nSin siniestros previos registrados.\n\nAntigüedad como asegurada: 5 meses (desde enero 2026).\nPólizas activas: 2 (Celular Protegido Premium + Hogar Básico).\nPagos: Al día."
   }
 }

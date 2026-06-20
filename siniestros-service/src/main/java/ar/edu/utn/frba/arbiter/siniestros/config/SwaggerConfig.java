@@ -18,20 +18,20 @@ public class SwaggerConfig {
                 .info(new Info()
                         .title("Arbiter — Siniestros Service")
                         .description("""
-                                Módulo de Análisis y Clasificación de Siniestros.
-                                Recibe denuncias, consulta reglas e historial del asegurado,
-                                y clasifica usando LLM (Ollama + Qwen3-VL).
+                                Claims Analysis and Classification Module.
+                                Receives claim reports, queries business rules and insured history,
+                                and classifies using LLM (Ollama + Qwen3-VL).
 
-                                **Clasificaciones posibles:**
-                                - `POTENCIAL_RIESGO` — inconsistencias o indicadores de fraude
-                                - `SIN_RIESGO` — denuncia consistente, sin alertas
-                                - `FAST_TRACK` — caso simple, puede procesarse de forma expedita
+                                **Possible classifications:**
+                                - `POTENCIAL_RIESGO` — inconsistencies or fraud indicators
+                                - `SIN_RIESGO` — consistent claim, no alerts
+                                - `FAST_TRACK` — simple case, can be processed expeditiously
 
-                                **Proyecto Final UTN FRBA · DDSI · K5054 · Grupo 5303**
+                                **UTN FRBA Final Project · DDSI · K5054 · Group 5303**
                                 """)
                         .version("v1.0")
                         .contact(new Contact()
-                                .name("Grupo 5303")
+                                .name("Group 5303")
                                 .email("asandoval@frba.utn.edu.ar")))
                 .servers(List.of(
                         new Server().url("http://localhost:8082").description("Local dev")

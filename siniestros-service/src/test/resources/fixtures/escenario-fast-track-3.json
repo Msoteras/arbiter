@@ -1,17 +1,17 @@
 {
-  "nombre": "Hurto en domicilio, documentación perfecta, sin antecedentes",
-  "clasificacionEsperada": "FAST_TRACK",
+  "name": "Hurto en domicilio, documentación perfecta, sin antecedentes",
+  "expectedClassification": "FAST_TRACK",
   "request": {
-    "ramo": "Celulares",
-    "producto": "Celular Protegido Básico",
-    "hechoGenerador": "Hurto",
-    "bienAsegurado": "iPhone 15 Pro Max - IMEI 352000000000085",
-    "descripcionLibre": "El domingo 16 de junio, dejé mi celular sobre la mesa de luz en mi dormitorio mientras iba al baño. Cuando volví, no estaba. Vive con nosotros una empleada doméstica que ese día estaba en la casa. Revisé toda la casa y no lo encontré. Hice la denuncia el mismo día.",
-    "adjuntosOCR": [
+    "branch": "Celulares",
+    "product": "Celular Protegido Básico",
+    "claimCause": "Hurto",
+    "insuredItem": "iPhone 15 Pro Max - IMEI 352000000000085",
+    "description": "El domingo 16 de junio, dejé mi celular sobre la mesa de luz en mi dormitorio mientras iba al baño. Cuando volví, no estaba. Vive con nosotros una empleada doméstica que ese día estaba en la casa. Revisé toda la casa y no lo encontré. Hice la denuncia el mismo día.",
+    "attachmentsOcr": [
       "DENUNCIA POLICIAL Nro 2026/91234 - Comisaría 17va CABA\nFecha: 16/06/2026 20:15 hs\nDenunciante: Andrea García DNI 32.888.999\nHecho: Hurto de teléfono celular en domicilio\nLugar: Domicilio particular, zona Flores, CABA\nFecha del hecho: 16/06/2026 18:00 hs (aproximado)\nDetalles: Bien dejado en zona común. Sin signos de violencia.",
       "FACTURA DE COMPRA\nFecha: 22/09/2025\nComercio: Apple Store — Galerías Pacífico\nProducto: iPhone 15 Pro Max 256GB - Titanio Natural\nIMEI: 352000000000085\nMonto: $1.299.990\nCliente: Andrea García DNI 32.888.999"
     ],
-    "reglasAseguradora": "- Hurto en domicilio cubierto con franquicia.\n- Se requiere denuncia policial.\n- Antecedentes limpios favorecen la aprobación.\n- Franquicia: $60.000. Suma asegurada: $1.300.000.",
-    "historialAsegurado": "HISTORIAL DE SINIESTROS — Asegurada: Andrea García (DNI 32.888.999)\n\nSin siniestros previos registrados.\n\nAntigüedad como asegurada: 4 años y 8 meses (desde octubre 2021).\nPólizas activas: 2 (Celular Protegido Básico + Hogar Básico).\nPagos: Al día, sin mora."
+    "insurerRules": "- Hurto en domicilio cubierto con franquicia.\n- Se requiere denuncia policial.\n- Antecedentes limpios favorecen la aprobación.\n- Franquicia: $60.000. Suma asegurada: $1.300.000.",
+    "insuredHistory": "HISTORIAL DE SINIESTROS — Asegurada: Andrea García (DNI 32.888.999)\n\nSin siniestros previos registrados.\n\nAntigüedad como asegurada: 4 años y 8 meses (desde octubre 2021).\nPólizas activas: 2 (Celular Protegido Básico + Hogar Básico).\nPagos: Al día, sin mora."
   }
 }

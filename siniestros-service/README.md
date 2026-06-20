@@ -1,195 +1,209 @@
-# siniestros-service — Módulo de Análisis y Clasificación
+# siniestros-service — Claims Analysis and Classification Module
 
-Clasifica siniestros usando un LLM local (Ollama + Qwen3-VL). El modelo recibe datos estructurados de múltiples fuentes (reglas de negocio, póliza, historial del asegurado) y devuelve una clasificación con factores y nivel de confianza.
+Classifies insurance claims using a local LLM (Ollama + Qwen3-VL). The model receives structured data from multiple sources (business rules, policy, insured history) and returns a classification with factors and confidence level.
 
-## Clasificaciones posibles
+## Possible Classifications
 
-| Clasificación | Significado |
+| Classification | Meaning |
 |---|---|
-| `FAST_TRACK` | Caso simple, documentación completa, historial limpio → puede procesarse expeditivamente |
-| `FALTA_DOCUMENTACION` | Caso válido pero incompleto → requiere documentos específicos del asegurado |
-| `POTENCIAL_RIESGO` | Inconsistencias, patrón sospechoso, múltiples siniestros recientes → requiere investigación |
-| `REQUIERE_ANALISIS_MANUAL` | Ambigüedad, contexto complejo, datos faltantes → escalada a analista especialista |
+| `FAST_TRACK` | Simple case, complete documentation, clean history → can be processed expeditiously |
+| `FALTA_DOCUMENTACION` | Valid but incomplete case → requires specific documents from the insured |
+| `POTENCIAL_RIESGO` | Inconsistencies, suspicious pattern, multiple recent claims → requires investigation |
+| `REQUIERE_ANALISIS_MANUAL` | Ambiguity, complex context, missing data → escalated to specialist analyst |
 
-## Requisitos
+## Requirements
 
 - **Java 21**
 - **Maven 3.9+**
-- **Docker** y **Docker Compose** (para correr Ollama en contenedor)
-- Puerto **8082** libre (servidor Spring Boot)
-- Puerto **11434** libre (Ollama)
+- **Docker** and **Docker Compose** (to run Ollama in a container)
+- Port **8082** free (Spring Boot server)
+- Port **11434** free (Ollama)
 
-## Estructura del módulo
+## Module Structure
 
 ```
 siniestros-service/
 ├── src/main/java/.../siniestros/
 │   ├── adapters/
-│   │   ├── SiniestroClassifier.java      # interfaz del clasificador
-│   │   └── OllamaAdapter.java            # implementación contra Ollama
+│   │   ├── SiniestroClassifier.java      # classifier interface
+│   │   ├── DocumentAnalyzer.java         # attachment vision-analysis interface
+│   │   └── OllamaAdapter.java            # implements both, against Ollama
 │   ├── config/
-│   │   ├── OllamaConfig.java             # bean RestClient para Ollama
-│   │   └── OllamaProperties.java         # propiedades (URL, modelo, versión prompt)
+│   │   ├── OllamaConfig.java             # RestClient bean for Ollama
+│   │   └── OllamaProperties.java         # properties (URL, model, prompt version)
 │   ├── dto/
-│   │   ├── ClasificacionRequest.java     # entrada al clasificador
-│   │   └── ClasificacionResponse.java    # salida (clasificación + factores + confianza)
+│   │   ├── ClasificacionRequest.java     # classifier input
+│   │   └── ClasificacionResponse.java    # output (classification + factors + confidence)
 │   └── exceptions/
 │       └── ClasificacionInvalidaException.java
 ├── src/main/resources/
 │   ├── application.yml
 │   └── prompts/
-│       └── clasificacion-v1.md           # plantilla del prompt (versionada)
+│       └── clasificacion-v1.md           # prompt template (versioned)
 └── src/test/
     ├── java/.../adapters/
-    │   ├── OllamaAdapterIntegrationTest.java       # test básico contra Ollama
-    │   ├── OllamaClasificacionEscenariosTest.java  # tests parametrizados con fixtures
-    │   └── MockSiniestroClassifier.java             # mock para tests unitarios
+    │   ├── OllamaAdapterIntegrationTest.java       # basic test against Ollama
+    │   ├── OllamaClasificacionEscenariosTest.java  # parameterized tests with fixtures
+    │   └── MockSiniestroClassifier.java             # mock for unit tests
     └── resources/fixtures/
-        ├── escenario-potencial-riesgo.json   # reincidente, inconsistencias
-        ├── escenario-sin-riesgo.json         # primer siniestro, denuncia sólida
-        └── escenario-fast-track.json         # rotura de pantalla, simple y verificable
+        ├── escenario-posible-riesgo.json     # recidivist, inconsistencies
+        ├── escenario-sin-riesgo.json         # first claim, solid report
+        └── escenario-fast-track.json         # screen break, simple and verifiable
 ```
 
-## Cómo correr
+## How to Run
 
-### 🚀 Opción 1: Todo en Docker (recomendado)
+### 🚀 Option 1: Everything in Docker (recommended)
 
-Levanta Ollama + siniestros-service en contenedores:
+Starts Ollama + siniestros-service in containers:
 
 ```bash
-# Desde la raíz del proyecto
+# From project root
 docker-compose up -d --build
 ```
 
-**Primera vez:** ~2-3 min (compila Java + descarga modelo Qwen3-VL ~10GB)
-**Siguientes veces:** ~30s (usa cache)
+**First time:** ~2-3 min (compiles Java + downloads Qwen3-VL model ~10GB)
+**Subsequent runs:** ~30s (uses cache)
 
-Verifica logs:
+Check logs:
 ```bash
 docker-compose logs -f siniestros-service
 ```
 
-Cuando veas `Started SiniestrosServiceApplication` → listo en `http://localhost:8082`
+When you see `Started SiniestrosServiceApplication` → ready at `http://localhost:8082`
 
-Detener:
+Stop:
 ```bash
 docker-compose down
 ```
 
-Limpiar todo (incluyendo modelo):
+Clean everything (including model):
 ```bash
 docker-compose down -v
 ```
 
 ---
 
-### 🧪 Opción 2: Tests parametrizados con Docker
+### 🧪 Option 2: Parameterized tests with Docker
 
-Compila, levanta Ollama, corre 11 escenarios parametrizados en serie (no paralelo):
+Compiles, starts Ollama, runs 11 parameterized scenarios in series (not parallel):
 
 ```bash
 docker compose -f docker-compose.test.yml up --exit-code-from siniestros-test
 ```
 
-Espera ~3-5 min (cada escenario tarda 10-30s en Ollama).
+Wait ~3-5 min (each scenario takes 10-30s in Ollama).
 
 ---
 
-### 💻 Opción 3: Dev local con Ollama
+### 💻 Option 3: Local dev with Ollama
 
-Si tenés Ollama instalado localmente:
+If you have Ollama installed locally:
 
 ```bash
 # Terminal 1: Ollama
 ollama serve
 
-# Terminal 2: Descarga modelo (primera vez)
+# Terminal 2: Download model (first time)
 ollama pull qwen3-vl
 
-# Terminal 3: Servicio Spring Boot
+# Terminal 3: Spring Boot service
 mvn spring-boot:run -pl siniestros-service
 ```
 
-El servicio arranca en `http://localhost:8082`
+Service starts at `http://localhost:8082`
 
-## Variables de entorno
+## Environment Variables
 
-| Variable | Default | Descripción |
+| Variable | Default | Description |
 |---|---|---|
-| `OLLAMA_BASE_URL` | `http://localhost:11434` | URL del servidor Ollama |
-| `OLLAMA_MODEL` | `qwen3-vl` | Modelo a usar para clasificación |
+| `OLLAMA_BASE_URL` | `http://localhost:11434` | Ollama server URL |
+| `OLLAMA_MODEL` | `qwen3-vl` | Model to use for classification |
 
-## Fixtures de test
+## Test Fixtures
 
-Los escenarios están en `src/test/resources/fixtures/`. Cada JSON tiene:
+Scenarios are in `src/test/resources/fixtures/`. Each JSON has:
 
 ```json
 {
-  "nombre": "Descripción del escenario",
-  "clasificacionEsperada": "POTENCIAL_RIESGO | SIN_RIESGO | FAST_TRACK",
+  "name": "Scenario description",
+  "expectedClassification": "POTENCIAL_RIESGO | FAST_TRACK | FALTA_DOCUMENTACION | REQUIERE_ANALISIS_MANUAL",
   "request": {
-    "ramo": "...",
-    "producto": "...",
-    "hechoGenerador": "...",
-    "bienAsegurado": "...",
-    "descripcionLibre": "...",
-    "adjuntosOCR": ["..."],
-    "reglasAseguradora": "...",
-    "historialAsegurado": "..."
+    "branch": "...",
+    "product": "...",
+    "claimCause": "...",
+    "insuredItem": "...",
+    "description": "...",
+    "attachmentsOcr": ["..."],
+    "insurerRules": "...",
+    "insuredHistory": "..."
   }
 }
 ```
 
-Para agregar un escenario nuevo: crear un JSON con la misma estructura en `fixtures/` y agregarlo al `@ValueSource` en `OllamaClasificacionEscenariosTest`.
+To add a new scenario: create a JSON with the same structure in `fixtures/` and add it to the `@ValueSource` in `OllamaClasificacionEscenariosTest`.
 
-## Probar desde Postman
+## Testing with Postman
 
-### 📥 Importar colección
+### 📥 Import collection
 
-1. Abre **Postman**
+1. Open **Postman**
 2. **Collections** → **Import**
-3. Selecciona: `Arbiter_Siniestros_Clasificacion.postman_collection.json`
-4. ✅ Tenés 10 requests + 1 endpoint de resultados listos
+3. Select: `Arbiter_Siniestros_Clasificacion.postman_collection.json`
+4. ✅ You have 5 requests + 1 results endpoint ready
 
-### 🔄 Flujo completo
+### 🔄 Full flow
 
-**Endpoint ASINCRÓNICO** (recomendado para ver resultados en archivo):
-
-```
-POST http://localhost:8082/api/v1/siniestros
-```
-
-- Devuelve **202 Accepted** inmediatamente
-- Job procesa en background (~10-30 seg por request)
-- Escribe resultado en archivo `./resultados-clasificaciones.md`
-
-**Endpoint SINCRÓNICO** (si querés respuesta inmediata):
+**ASYNC flow** (recommended to see results in file):
 
 ```
-POST http://localhost:8082/api/v1/clasificaciones
+1. POST http://localhost:8082/api/v1/claims
+   multipart/form-data:
+     - part "claim" (application/json): branch, product, claimCause, description, etc.
+     - part "files" (0..N, optional): invoice, repair quote, police report, photo of the item
+   → each file is sent to Ollama (vision model) to extract its relevant content, then
+     background classification is triggered immediately.
+   → 202 Accepted, returns claimId
+   Writes result to file `./resultados-clasificaciones.md`
+
+2. (optional, any time later) POST http://localhost:8082/api/v1/claims/{claimId}/attachments
+   multipart/form-data, field "files": one or more additional documents/photos — e.g. the
+   insured provides what was missing after a FALTA_DOCUMENTACION result.
+   → each file is analyzed and added to what was already extracted for this claim, and the
+     claim is reclassified automatically with the updated context.
+   → 202 Accepted. Can be called as many times as needed.
 ```
 
-- Devuelve **200 OK** con clasificación (pero bloquea hasta 30s)
-
-**Ver resultados acumulados:**
-
-```
-GET http://localhost:8082/api/v1/siniestros/resultados
-```
-
-- Devuelve tabla markdown con todos los siniestros procesados
-
-### 📊 Workflow sugerido
-
-1. Ejecuta los 10 requests POST a `/api/v1/siniestros` en ráfaga
-2. Espera ~30 seg a que terminen los últimos
-3. Ejecuta `GET /resultados` para ver la tabla completa
-4. Verifica clasificaciones esperadas vs obtenidas
-
-## Arquitectura del flujo de clasificación
+**SYNC endpoint** (if you want immediate response, skips the attachment-analysis step — you must
+provide already-extracted `attachmentsOcr` text yourself):
 
 ```
-Denuncia (frontend/Postman)
+POST http://localhost:8082/api/v1/classifications
+```
+
+- Returns **200 OK** with classification (but blocks up to 30s)
+
+**View accumulated results:**
+
+```
+GET http://localhost:8082/api/v1/claims/results
+```
+
+- Returns markdown table with all processed claims (one row per classification — a claim that
+  was reclassified after new attachments shows up more than once, with its own timestamp)
+
+### 📊 Suggested workflow
+
+1. Run `POST /api/v1/claims` (with or without initial attachments) for each scenario
+2. Wait ~15-30s, run `GET /results` to see the first classification
+3. For a `FALTA_DOCUMENTACION` case, `POST /{claimId}/attachments` with the missing document and
+   check `/results` again for the updated row
+4. Verify expected vs obtained classifications
+
+## Classification Flow Architecture
+
+```
+Claim (frontend/Postman)
     │
     ▼
 ClasificacionController ──► ClasificacionOrquestador
@@ -197,29 +211,27 @@ ClasificacionController ──► ClasificacionOrquestador
                     ┌───────────────┼───────────────┐
                     ▼               ▼               ▼
             AseguradoraAdapter  ReglasAdapter   SiniestroClassifier
-            (póliza+historial)  (reglas ramo)   (Ollama/LLM)
+            (policy+history)    (branch rules)  (Ollama/LLM)
                     │               │               │
                     ▼               ▼               ▼
               Mock / REST      Mock / REST     OllamaAdapter
-              (BD aseguradora) (reglas-service) (qwen3-vl)
+              (insurer DB)     (reglas-service) (qwen3-vl)
 ```
 
-En dev/test se usan los mocks (`MockAseguradoraAdapter`, `MockReglasAdapter`).
-En producción se reemplazarán por implementaciones REST reales.
+In dev/test the mocks are used (`MockAseguradoraAdapter`, `MockReglasAdapter`).
+In production they will be replaced by real REST implementations.
 
-## ✨ Mejoras recientes (sesión 16/06/2026)
+## Key API Fields
 
-- ✅ **Reintentos en ClasificacionJob** — `@Retryable` con backoff exponencial (2s → 4s → 8s)
-- ✅ **PromptBuilder** — patrón builder para construir prompts, limpia 50+ líneas de formato
-- ✅ **@Execution(SAME_THREAD)** en tests — evita que Ollama colapse por inferencias paralelas
-- ✅ **Colección Postman** — 10 escenarios parametrizados + endpoint de resultados
-- ✅ **Mapeo BBVA** — alineación de tipologías de BBVA con clasificaciones del LLM
-
-## Próximos pasos
-
-- [ ] Tabla `clasificacion_log` en BD — auditoría inmutable (Disposición SSN 2/2023)
-- [ ] Persistencia de `Siniestro` en BD en lugar de `AtomicLong` (IDs volátiles)
-- [ ] Circuit breaker Resilience4j para Ollama
-- [ ] Mock Classifier para perfil `dev` (tests sin Ollama)
-- [ ] Integración con NOSIS (scoring crediticio) — en evaluación
-- [ ] Implementaciones REST reales de `AseguradoraAdapter` y `ReglasAdapter`
+| Field | Type | Description |
+|---|---|---|
+| `branch` | String | Insurance branch (e.g. "Celulares") |
+| `product` | String | Commercial product variant |
+| `claimCause` | String | Cause of loss (e.g. "Robo en vía pública") |
+| `insuredItem` | String | Insured item with IMEI |
+| `insuredId` | String | Insured's ID (DNI) |
+| `policyNumber` | String | Policy number |
+| `description` | String | Free-text description from the insured |
+| `eventDate` | LocalDateTime | Date and time of the incident |
+| `eventLocation` | String | Location of the incident |
+| `attachmentsOcr` | List\<String\> | Text extracted by Ollama from each attachment. Populated automatically via `POST /{claimId}/attachments` — not sent by the client at creation time (only used directly by the sync `/classifications` endpoint) |

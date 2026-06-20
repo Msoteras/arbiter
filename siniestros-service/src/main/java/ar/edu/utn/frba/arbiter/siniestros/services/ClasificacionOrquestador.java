@@ -9,9 +9,6 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 
-import java.math.BigDecimal;
-import java.util.stream.Collectors;
-
 @Service
 @RequiredArgsConstructor
 public class ClasificacionOrquestador {
@@ -19,59 +16,58 @@ public class ClasificacionOrquestador {
     private static final Logger log = LoggerFactory.getLogger(ClasificacionOrquestador.class);
 
     private final SiniestroClassifier classifier;
-    private final ReglasAdapter reglasAdapter;
-    private final AseguradoraAdapter aseguradoraAdapter;
+    private final ReglasAdapter rulesAdapter;
+    private final AseguradoraAdapter insurerAdapter;
 
-    public ClasificacionResponse clasificar(DenunciaSiniestro denuncia) {
-        log.info("[Orquestador] Iniciando clasificación — poliza='{}' dni='{}' ramo='{}' hechoGenerador='{}'",
-                denuncia.polizaNumero(), denuncia.aseguradoDni(), denuncia.ramo(), denuncia.hechoGenerador());
+    public ClasificacionResponse classify(DenunciaSiniestro claim) {
+        log.info("[Orchestrator] Starting classification — policy='{}' insuredId='{}' branch='{}' claimCause='{}'",
+                claim.policyNumber(), claim.insuredId(), claim.branch(), claim.claimCause());
 
-        log.debug("[Orquestador] Consultando póliza '{}'...", denuncia.polizaNumero());
-        PolizaAsegurado poliza = aseguradoraAdapter.obtenerPoliza(denuncia.polizaNumero());
-        log.info("[Orquestador] Póliza OK — asegurado='{}' alDia={} sumaAsegurada={}",
-                poliza.aseguradoNombre(), poliza.alDia(), poliza.sumaAsegurada());
+        log.debug("[Orchestrator] Fetching policy '{}'...", claim.policyNumber());
+        PolizaAsegurado policy = insurerAdapter.getPolicy(claim.policyNumber());
+        log.info("[Orchestrator] Policy OK — insured='{}' upToDate={} insuredAmount={}",
+                policy.insuredName(), policy.upToDate(), policy.insuredAmount());
 
-        log.debug("[Orquestador] Consultando historial DNI '{}'...", denuncia.aseguradoDni());
-        HistorialAsegurado historial = aseguradoraAdapter.obtenerHistorial(denuncia.aseguradoDni());
-        log.info("[Orquestador] Historial OK — siniestros_previos={} monto_total_reclamado={}",
-                historial.cantidadSiniestrosPrevios(), historial.montoTotalReclamado());
+        log.debug("[Orchestrator] Fetching history for insuredId '{}'...", claim.insuredId());
+        HistorialAsegurado history = insurerAdapter.getHistory(claim.insuredId());
+        log.info("[Orchestrator] History OK — previous_claims={} total_amount_claimed={}",
+                history.previousClaimsCount(), history.totalAmountClaimed());
 
-        log.debug("[Orquestador] Consultando reglas — ramo='{}' hechoGenerador='{}'...",
-                denuncia.ramo(), denuncia.hechoGenerador());
-        ReglasNegocio reglas = reglasAdapter.obtenerReglas(denuncia.ramo(), denuncia.hechoGenerador());
-        log.info("[Orquestador] Reglas OK — {} reglas, {} exclusiones, {} criterios fast-track",
-                reglas.reglas().size(), reglas.exclusiones().size(), reglas.criteriosFastTrack().size());
+        log.debug("[Orchestrator] Fetching rules — branch='{}' claimCause='{}'...",
+                claim.branch(), claim.claimCause());
+        ReglasNegocio rules = rulesAdapter.getRules(claim.branch(), claim.claimCause());
+        log.info("[Orchestrator] Rules OK — {} rules, {} exclusions, {} fast-track criteria",
+                rules.rules().size(), rules.exclusions().size(), rules.fastTrackCriteria().size());
 
-        log.info("[Orquestador] Armando prompt y enviando a LLM...");
-        ClasificacionRequest request = armarRequest(denuncia, poliza, historial, reglas);
-        ClasificacionResponse respuesta = classifier.clasificar(request);
+        log.info("[Orchestrator] Building prompt and sending to LLM...");
+        ClasificacionRequest request = buildRequest(claim, policy, history, rules);
+        ClasificacionResponse response = classifier.classify(request);
 
-        log.info("[Orquestador] Clasificación finalizada — resultado={} confianza={}",
-                respuesta.clasificacion(), respuesta.confianza());
-        return respuesta;
+        log.info("[Orchestrator] Classification done — result={} confidence={}",
+                response.classification(), response.confidence());
+        return response;
     }
 
-    private ClasificacionRequest armarRequest(
-            DenunciaSiniestro denuncia,
-            PolizaAsegurado poliza,
-            HistorialAsegurado historial,
-            ReglasNegocio reglas
+    private ClasificacionRequest buildRequest(
+            DenunciaSiniestro claim,
+            PolizaAsegurado policy,
+            HistorialAsegurado history,
+            ReglasNegocio rules
     ) {
         var promptBuilder = new PromptBuilder()
-                .conReglas(reglas)
-                .conPoliza(poliza)
-                .conHistorial(historial);
+                .withRules(rules)
+                .withPolicy(policy)
+                .withHistory(history);
 
         return ClasificacionRequest.builder()
-                .ramo(denuncia.ramo())
-                .producto(denuncia.producto())
-                .hechoGenerador(denuncia.hechoGenerador())
-                .bienAsegurado(denuncia.bienAsegurado())
-                .descripcionLibre(denuncia.descripcionLibre())
-                .adjuntosOCR(denuncia.adjuntosOCR())
-                .imagenBase64(denuncia.imagenBase64())
-                .reglasAseguradora(promptBuilder.construirReglasYPoliza())
-                .historialAsegurado(promptBuilder.construirHistorial())
+                .branch(claim.branch())
+                .product(claim.product())
+                .claimCause(claim.claimCause())
+                .insuredItem(claim.insuredItem())
+                .description(claim.description())
+                .attachmentsOcr(claim.attachmentsOcr())
+                .insurerRules(promptBuilder.buildRulesAndPolicy())
+                .insuredHistory(promptBuilder.buildHistory())
                 .build();
     }
 }

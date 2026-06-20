@@ -5,5 +5,5 @@ import ar.edu.utn.frba.arbiter.siniestros.dto.ClasificacionResponse;
 
 public interface SiniestroClassifier {
 
-    ClasificacionResponse clasificar(ClasificacionRequest request);
+    ClasificacionResponse classify(ClasificacionRequest request);
 }

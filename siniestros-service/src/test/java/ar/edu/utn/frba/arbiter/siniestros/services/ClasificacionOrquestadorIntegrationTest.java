@@ -19,10 +19,10 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.when;
 
 /**
- * Test unitario del flujo de orquestación: denuncia → adapters → classifier.
- * Usa mock del SiniestroClassifier para no requerir Ollama.
+ * Unit test for the orchestration flow: claim → adapters → classifier.
+ * Uses a mock SiniestroClassifier so Ollama is not required.
  *
- * Correr: mvn -pl siniestros-service test -Dtest=ClasificacionOrquestadorIntegrationTest
+ * Run: mvn -pl siniestros-service test -Dtest=ClasificacionOrquestadorIntegrationTest
  */
 @SpringBootTest
 @ActiveProfiles("test")
@@ -32,38 +32,37 @@ class ClasificacionOrquestadorIntegrationTest {
     private SiniestroClassifier classifierMock;
 
     @Autowired
-    private ClasificacionOrquestador orquestador;
+    private ClasificacionOrquestador orchestrator;
 
     @Test
-    void denunciaReincidente_deberiaClasificarComoPotencialRiesgo() {
-        // Setup: mock del classifier
-        ClasificacionResponse mockRespuesta = ClasificacionResponse.builder()
-                .clasificacion(Clasificacion.POTENCIAL_RIESGO)
-                .confianza(0.85)
-                .factores(List.of(
-                        "4to siniestro en 18 meses (reincidente)",
-                        "Descripción vaga: ubicación imprecisa, hora aproximada",
-                        "Monto total reclamado alto: $18.500"
+    void recidivistClaim_shouldClassifyAsPotentialRisk() {
+        ClasificacionResponse mockResponse = ClasificacionResponse.builder()
+                .classification(Clasificacion.POTENCIAL_RIESGO)
+                .confidence(0.85)
+                .factors(List.of(
+                        "4th claim in 18 months (recidivist)",
+                        "Vague description: imprecise location, approximate time",
+                        "High total amount claimed: $18.500"
                 ))
                 .build();
-        when(classifierMock.clasificar(any(ClasificacionRequest.class))).thenReturn(mockRespuesta);
+        when(classifierMock.classify(any(ClasificacionRequest.class))).thenReturn(mockResponse);
 
-        DenunciaSiniestro denuncia = DenunciaSiniestro.builder()
-                .ramo("Celulares")
-                .producto("Celular Protegido Premium")
-                .hechoGenerador("Robo en vía pública")
-                .bienAsegurado("iPhone 16 Pro Max 256GB - IMEI 353000000000099")
-                .aseguradoDni("30.555.777")
-                .polizaNumero("POL-CEL-2025-099")
-                .descripcionLibre(
+        DenunciaSiniestro claim = DenunciaSiniestro.builder()
+                .branch("Celulares")
+                .product("Celular Protegido Premium")
+                .claimCause("Robo en vía pública")
+                .insuredItem("iPhone 16 Pro Max 256GB - IMEI 353000000000099")
+                .insuredId("30.555.777")
+                .policyNumber("POL-CEL-2025-099")
+                .description(
                         "Me robaron el celular el martes a la noche, estaba en la calle creo que por " +
                         "Palermo o tal vez Belgrano, no me acuerdo bien la dirección exacta. Eran como " +
                         "las 11 o 12 de la noche. Vino un tipo y me lo sacó de la mano. No vi bien " +
                         "porque estaba oscuro. Hice la denuncia al día siguiente."
                 )
-                .fechaHecho(LocalDateTime.of(2026, 6, 10, 23, 0))
-                .lugarHecho("Palermo, CABA (ubicación imprecisa)")
-                .adjuntosOCR(List.of(
+                .eventDate(LocalDateTime.of(2026, 6, 10, 23, 0))
+                .eventLocation("Palermo, CABA (ubicación imprecisa)")
+                .attachmentsOcr(List.of(
                         "DENUNCIA POLICIAL Nro 2026/78901 - Comisaría 14va CABA\n" +
                         "Fecha: 12/06/2026 09:15 hs\n" +
                         "Denunciante: Marcelo Gómez DNI 30.555.777\n" +
@@ -74,38 +73,37 @@ class ClasificacionOrquestadorIntegrationTest {
                 ))
                 .build();
 
-        ClasificacionResponse respuesta = orquestador.clasificar(denuncia);
+        ClasificacionResponse response = orchestrator.classify(claim);
 
-        imprimirResultado("REINCIDENTE — 4to siniestro, descripción vaga", respuesta, Clasificacion.POTENCIAL_RIESGO);
+        printResult("RECIDIVIST — 4th claim, vague description", response, Clasificacion.POTENCIAL_RIESGO);
 
-        assertThat(respuesta.clasificacion()).isEqualTo(Clasificacion.POTENCIAL_RIESGO);
-        assertThat(respuesta.factores()).isNotEmpty();
-        assertThat(respuesta.confianza()).isBetween(0.0, 1.0);
+        assertThat(response.classification()).isEqualTo(Clasificacion.POTENCIAL_RIESGO);
+        assertThat(response.factors()).isNotEmpty();
+        assertThat(response.confidence()).isBetween(0.0, 1.0);
     }
 
     @Test
-    void denunciaPrimerSiniestroConsistente_deberiaClasificarComoFastTrack() {
-        // Setup: mock del classifier
-        ClasificacionResponse mockRespuesta = ClasificacionResponse.builder()
-                .clasificacion(Clasificacion.FAST_TRACK)
-                .confianza(0.92)
-                .factores(List.of(
-                        "Primer siniestro: sin historial de fraude",
-                        "Denuncia detallada: fecha, hora, ubicación, testigos",
-                        "Documentación completa: factura + denuncia policial",
-                        "Monto bajo: $389.990 vs suma asegurada"
+    void firstTimeClaim_shouldClassifyAsFastTrack() {
+        ClasificacionResponse mockResponse = ClasificacionResponse.builder()
+                .classification(Clasificacion.FAST_TRACK)
+                .confidence(0.92)
+                .factors(List.of(
+                        "First claim: no fraud history",
+                        "Detailed report: date, time, location, witnesses",
+                        "Complete documentation: invoice + police report",
+                        "Low amount: $389.990 vs insured sum"
                 ))
                 .build();
-        when(classifierMock.clasificar(any(ClasificacionRequest.class))).thenReturn(mockRespuesta);
+        when(classifierMock.classify(any(ClasificacionRequest.class))).thenReturn(mockResponse);
 
-        DenunciaSiniestro denuncia = DenunciaSiniestro.builder()
-                .ramo("Celulares")
-                .producto("Celular Protegido Básico")
-                .hechoGenerador("Robo en vía pública")
-                .bienAsegurado("Motorola Edge 50 Pro - IMEI 351000000000042")
-                .aseguradoDni("40.123.456")
-                .polizaNumero("POL-CEL-2024-001")
-                .descripcionLibre(
+        DenunciaSiniestro claim = DenunciaSiniestro.builder()
+                .branch("Celulares")
+                .product("Celular Protegido Básico")
+                .claimCause("Robo en vía pública")
+                .insuredItem("Motorola Edge 50 Pro - IMEI 351000000000042")
+                .insuredId("40.123.456")
+                .policyNumber("POL-CEL-2024-001")
+                .description(
                         "El viernes 13 de junio de 2026 a las 19:45 hs aproximadamente, salía de mi " +
                         "trabajo en Av. Rivadavia 4200 (Almagro, CABA) caminando hacia la estación de " +
                         "subte Castro Barros. En la esquina de Rivadavia y Colombres, dos personas en " +
@@ -113,9 +111,9 @@ class ClasificacionOrquestadorIntegrationTest {
                         "celular de la mano derecha y se fueron por Colombres hacia el sur. Un vecino " +
                         "del local de la esquina me prestó su teléfono para llamar al 911."
                 )
-                .fechaHecho(LocalDateTime.of(2026, 6, 13, 19, 45))
-                .lugarHecho("Av. Rivadavia y Colombres, Almagro, CABA")
-                .adjuntosOCR(List.of(
+                .eventDate(LocalDateTime.of(2026, 6, 13, 19, 45))
+                .eventLocation("Av. Rivadavia y Colombres, Almagro, CABA")
+                .attachmentsOcr(List.of(
                         "DENUNCIA POLICIAL Nro 2026/82341 - Comisaría 8va CABA\n" +
                         "Fecha: 13/06/2026 20:30 hs\n" +
                         "Denunciante: Laura Fernández DNI 40.123.456\n" +
@@ -132,46 +130,45 @@ class ClasificacionOrquestadorIntegrationTest {
                 ))
                 .build();
 
-        ClasificacionResponse respuesta = orquestador.clasificar(denuncia);
+        ClasificacionResponse response = orchestrator.classify(claim);
 
-        imprimirResultado("PRIMER SINIESTRO — denuncia detallada con testigos", respuesta, Clasificacion.FAST_TRACK);
+        printResult("FIRST CLAIM — detailed report with witnesses", response, Clasificacion.FAST_TRACK);
 
-        assertThat(respuesta.clasificacion()).isEqualTo(Clasificacion.FAST_TRACK);
-        assertThat(respuesta.factores()).isNotEmpty();
-        assertThat(respuesta.confianza()).isBetween(0.0, 1.0);
+        assertThat(response.classification()).isEqualTo(Clasificacion.FAST_TRACK);
+        assertThat(response.factors()).isNotEmpty();
+        assertThat(response.confidence()).isBetween(0.0, 1.0);
     }
 
     @Test
-    void roturaPantallaConPresupuesto_deberiaClasificarComoFastTrack() {
-        // Setup: mock del classifier
-        ClasificacionResponse mockRespuesta = ClasificacionResponse.builder()
-                .clasificacion(Clasificacion.FAST_TRACK)
-                .confianza(0.88)
-                .factores(List.of(
-                        "Siniestro de naturaleza simple: accidente doméstico",
-                        "Documentación completa: factura + presupuesto de reparación",
-                        "Daño verificable: rotura de pantalla, sin intervención previa",
-                        "Monto reparación: $285.000 dentro del rango esperado"
+    void screenBreakWithQuote_shouldClassifyAsFastTrack() {
+        ClasificacionResponse mockResponse = ClasificacionResponse.builder()
+                .classification(Clasificacion.FAST_TRACK)
+                .confidence(0.88)
+                .factors(List.of(
+                        "Simple claim type: domestic accident",
+                        "Complete documentation: invoice + repair quote",
+                        "Verifiable damage: screen break, no prior intervention",
+                        "Repair cost: $285.000 within expected range"
                 ))
                 .build();
-        when(classifierMock.clasificar(any(ClasificacionRequest.class))).thenReturn(mockRespuesta);
+        when(classifierMock.classify(any(ClasificacionRequest.class))).thenReturn(mockResponse);
 
-        DenunciaSiniestro denuncia = DenunciaSiniestro.builder()
-                .ramo("Celulares")
-                .producto("Celular Protegido Premium")
-                .hechoGenerador("Rotura accidental")
-                .bienAsegurado("Samsung Galaxy S25 Ultra - IMEI 354000000000063")
-                .aseguradoDni("42.987.654")
-                .polizaNumero("POL-CEL-2026-042")
-                .descripcionLibre(
+        DenunciaSiniestro claim = DenunciaSiniestro.builder()
+                .branch("Celulares")
+                .product("Celular Protegido Premium")
+                .claimCause("Rotura accidental")
+                .insuredItem("Samsung Galaxy S25 Ultra - IMEI 354000000000063")
+                .insuredId("42.987.654")
+                .policyNumber("POL-CEL-2026-042")
+                .description(
                         "El sábado 14 de junio de 2026 a la mañana, se me cayó el celular al piso " +
                         "mientras lo sacaba del bolsillo en la cocina de mi casa. Se me resbaló de " +
                         "la mano y cayó boca abajo sobre las baldosas. Se rompió la pantalla en la " +
                         "parte inferior derecha, tiene una rajadura que va de la esquina hasta el centro."
                 )
-                .fechaHecho(LocalDateTime.of(2026, 6, 14, 10, 0))
-                .lugarHecho("Domicilio del asegurado")
-                .adjuntosOCR(List.of(
+                .eventDate(LocalDateTime.of(2026, 6, 14, 10, 0))
+                .eventLocation("Domicilio del asegurado")
+                .attachmentsOcr(List.of(
                         "FACTURA DE COMPRA — Samsung Store, Alto Palermo\n" +
                         "Fecha: 10/01/2026\n" +
                         "Producto: Samsung Galaxy S25 Ultra 512GB\n" +
@@ -187,30 +184,30 @@ class ClasificacionOrquestadorIntegrationTest {
                 ))
                 .build();
 
-        ClasificacionResponse respuesta = orquestador.clasificar(denuncia);
+        ClasificacionResponse response = orchestrator.classify(claim);
 
-        imprimirResultado("ROTURA PANTALLA — caso simple con presupuesto", respuesta, Clasificacion.FAST_TRACK);
+        printResult("SCREEN BREAK — simple case with repair quote", response, Clasificacion.FAST_TRACK);
 
-        assertThat(respuesta.clasificacion()).isEqualTo(Clasificacion.FAST_TRACK);
-        assertThat(respuesta.factores()).isNotEmpty();
-        assertThat(respuesta.confianza()).isBetween(0.0, 1.0);
+        assertThat(response.classification()).isEqualTo(Clasificacion.FAST_TRACK);
+        assertThat(response.factors()).isNotEmpty();
+        assertThat(response.confidence()).isBetween(0.0, 1.0);
     }
 
-    private void imprimirResultado(String titulo, ClasificacionResponse respuesta, Clasificacion esperada) {
-        boolean coincide = respuesta.clasificacion() == esperada;
+    private void printResult(String title, ClasificacionResponse response, Clasificacion expected) {
+        boolean match = response.classification() == expected;
         System.out.println();
         System.out.println("╔══════════════════════════════════════════════════════════════════╗");
-        System.out.printf( "║ %s%n", titulo);
+        System.out.printf( "║ %s%n", title);
         System.out.println("╠══════════════════════════════════════════════════════════════════╣");
-        System.out.printf( "║ Esperada:  %-53s║%n", esperada);
-        System.out.printf( "║ Obtenida:  %-53s║%n", respuesta.clasificacion());
-        System.out.printf( "║ Confianza: %-53s║%n", String.format("%.2f", respuesta.confianza()));
-        System.out.printf( "║ Coincide:  %-53s║%n", coincide ? "SÍ ✓" : "NO ✗");
+        System.out.printf( "║ Expected:   %-53s║%n", expected);
+        System.out.printf( "║ Obtained:   %-53s║%n", response.classification());
+        System.out.printf( "║ Confidence: %-53s║%n", String.format("%.2f", response.confidence()));
+        System.out.printf( "║ Match:      %-53s║%n", match ? "YES ✓" : "NO ✗");
         System.out.println("╠══════════════════════════════════════════════════════════════════╣");
-        System.out.println("║ Factores:");
-        for (String factor : respuesta.factores()) {
-            String linea = factor.length() > 60 ? factor.substring(0, 59) + "…" : factor;
-            System.out.printf("║   • %-60s║%n", linea);
+        System.out.println("║ Factors:");
+        for (String factor : response.factors()) {
+            String line = factor.length() > 60 ? factor.substring(0, 59) + "…" : factor;
+            System.out.printf("║   • %-60s║%n", line);
         }
         System.out.println("╚══════════════════════════════════════════════════════════════════╝");
     }

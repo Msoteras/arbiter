@@ -9,15 +9,14 @@ import java.util.List;
 
 @Builder
 public record DenunciaSiniestro(
-        @NotBlank String ramo,
-        @NotBlank String producto,
-        @NotBlank String hechoGenerador,
-        @NotBlank String bienAsegurado,
-        @NotBlank String aseguradoDni,
-        @NotBlank String polizaNumero,
-        @NotBlank String descripcionLibre,
-        @NotNull LocalDateTime fechaHecho,
-        @NotBlank String lugarHecho,
-        List<String> adjuntosOCR,
-        String imagenBase64
+        @NotBlank String branch,
+        @NotBlank String product,
+        @NotBlank String claimCause,
+        @NotBlank String insuredItem,
+        @NotBlank String insuredId,
+        @NotBlank String policyNumber,
+        @NotBlank String description,
+        @NotNull LocalDateTime eventDate,
+        @NotBlank String eventLocation,
+        List<String> attachmentsOcr
 ) {}

@@ -24,71 +24,69 @@ public class ResultadosClasificacionService {
     private static final DateTimeFormatter TIMESTAMP_FORMATTER = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
 
     @Value("${arbiter.resultados.path}")
-    private String resultadosPath;
+    private String resultsPath;
 
-    public void guardarResultado(
-            Long siniestroId,
-            String polizaNumero,
-            String aseguradoDni,
-            Clasificacion clasificacion,
-            Double confianza,
-            List<String> factores,
-            Long latenciaMs
+    public void saveResult(
+            Long claimId,
+            String policyNumber,
+            String insuredId,
+            Clasificacion classification,
+            Double confidence,
+            List<String> factors,
+            Long latencyMs
     ) {
         try {
-            Path path = Paths.get(resultadosPath);
+            Path path = Paths.get(resultsPath);
 
-            // Crear archivo si no existe, con encabezado
             if (!Files.exists(path)) {
-                crearArchivoConEncabezado(path);
+                createFileWithHeader(path);
             }
 
-            // Agregar fila con resultado
             String timestamp = LocalDateTime.now().format(TIMESTAMP_FORMATTER);
-            String factoresStr = String.join(" | ", factores);
-            String fila = String.format(
-                    "| %d | %s | %s | CLASIFICADO | %s | %.2f | %d ms | %s |\n",
-                    siniestroId,
-                    polizaNumero,
-                    aseguradoDni,
-                    clasificacion,
-                    confianza,
-                    latenciaMs,
+            String factorsStr = String.join(" | ", factors);
+            String row = String.format(
+                    "| %d | %s | %s | CLASSIFIED | %s | %.2f | %d ms | %s |\n",
+                    claimId,
+                    policyNumber,
+                    insuredId,
+                    classification,
+                    confidence,
+                    latencyMs,
                     timestamp
             );
 
-            Files.write(path, fila.getBytes(), StandardOpenOption.APPEND);
-            log.info("[ResultadosClasificacionService] Resultado guardado para siniestro {} en {}", siniestroId, resultadosPath);
+            Files.write(path, row.getBytes(), StandardOpenOption.APPEND);
+            log.info("[ResultsService] Result saved for claim {} at {}", claimId, resultsPath);
 
         } catch (IOException e) {
-            log.error("[ResultadosClasificacionService] Error al guardar resultado para siniestro {}", siniestroId, e);
+            log.error("[ResultsService] Error saving result for claim {}", claimId, e);
         }
     }
 
-    private void crearArchivoConEncabezado(Path path) throws IOException {
-        String encabezado = """
-                # Resultados de Clasificación de Siniestros
+    private void createFileWithHeader(Path path) throws IOException {
+        String header = """
+                # Claims Classification Results
 
-                Generado automáticamente por el módulo de análisis y clasificación.
+                Generated automatically by the analysis and classification module.
 
-                | ID | Póliza | DNI | Estado | Clasificación | Confianza | Latencia | Timestamp |
-                |----|--------|-----|--------|---------------|-----------|----------|-----------|
+                | ID | Policy | Insured ID | Status | Classification | Confidence | Latency | Timestamp |
+                |----|--------|------------|--------|----------------|------------|---------|-----------|
                 """;
 
         Files.createDirectories(path.getParent());
-        Files.write(path, encabezado.getBytes());
+        Files.write(path, header.getBytes());
     }
 
-    public String obtenerContenido() {
+    public String getContent() {
         try {
-            Path path = Paths.get(resultadosPath);
+            Path path = Paths.get(resultsPath);
             if (Files.exists(path)) {
                 return Files.readString(path);
             }
-            return "No hay resultados aún.";
+            return "No results yet.";
         } catch (IOException e) {
-            log.error("Error al leer archivo de resultados", e);
-            return "Error al leer resultados.";
+            log.error("Error reading results file", e);
+            return "Error reading results.";
         }
     }
 }

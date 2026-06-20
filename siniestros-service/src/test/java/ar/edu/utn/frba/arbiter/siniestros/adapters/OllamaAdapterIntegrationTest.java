@@ -18,10 +18,10 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.jupiter.api.Assumptions.assumeTrue;
 
 /**
- * Test de integración contra Ollama real.
- * Funciona tanto local (localhost:11434) como en Docker (ollama:11434).
- * La URL se toma de OllamaProperties → OLLAMA_BASE_URL env var.
- * Se saltea automáticamente si Ollama no está disponible.
+ * Integration test against a real Ollama instance.
+ * Works locally (localhost:11434) or in Docker (ollama:11434).
+ * URL is taken from OllamaProperties → OLLAMA_BASE_URL env var.
+ * Automatically skipped if Ollama is not available.
  *
  * Local:  mvn -pl siniestros-service test -Dgroups=integracion
  * Docker: docker compose -f docker-compose.test.yml up --abort-on-container-exit
@@ -37,58 +37,58 @@ class OllamaAdapterIntegrationTest {
     private SiniestroClassifier siniestroClassifier;
 
     @BeforeEach
-    void verificarOllamaDisponible() {
-        String urlSalud = ollamaProperties.baseUrl() + "/api/tags";
+    void checkOllamaAvailable() {
+        String healthUrl = ollamaProperties.baseUrl() + "/api/tags";
         try {
-            HttpURLConnection conn = (HttpURLConnection) URI.create(urlSalud)
+            HttpURLConnection conn = (HttpURLConnection) URI.create(healthUrl)
                     .toURL().openConnection();
             conn.setConnectTimeout(3000);
             conn.connect();
             assumeTrue(conn.getResponseCode() == 200,
-                    "Ollama no disponible en " + urlSalud);
+                    "Ollama not available at " + healthUrl);
         } catch (IOException e) {
-            assumeTrue(false, "Ollama no disponible en " + urlSalud + " — " + e.getMessage());
+            assumeTrue(false, "Ollama not available at " + healthUrl + " — " + e.getMessage());
         }
     }
 
     @Test
-    void clasificarSiniestroRoboMovil_deberiaRetornarClasificacionValida() {
+    void classifyMobileTheft_shouldReturnValidClassification() {
         ClasificacionRequest request = ClasificacionRequest.builder()
-                .ramo("Celulares")
-                .producto("Celular Protegido Básico")
-                .hechoGenerador("Robo en vía pública")
-                .bienAsegurado("Samsung Galaxy A56 - IMEI 358000000000001")
-                .descripcionLibre(
+                .branch("Celulares")
+                .product("Celular Protegido Básico")
+                .claimCause("Robo en vía pública")
+                .insuredItem("Samsung Galaxy A56 - IMEI 358000000000001")
+                .description(
                         "El día 10 de junio de 2026, alrededor de las 20:30 hs, " +
                         "me encontraba caminando por Av. Corrientes al 3500 cuando dos personas " +
                         "en moto se me acercaron y me arrancaron el celular de la mano. " +
                         "Realicé la denuncia policial en la comisaría 5ta a las 22:00 hs."
                 )
-                .adjuntosOCR(List.of(
+                .attachmentsOcr(List.of(
                         "DENUNCIA POLICIAL Nro 2026/45678 - Comisaría 5ta CABA\n" +
                         "Fecha: 10/06/2026 22:03 hs\n" +
                         "Denunciante: Juan Pérez DNI 38.000.001\n" +
                         "Hecho: Robo de teléfono celular en vía pública\n" +
                         "Lugar: Av. Corrientes 3500, CABA"
                 ))
-                .reglasAseguradora(
+                .insurerRules(
                         "- El bien debe estar dentro del campo visual del asegurado al momento del robo.\n" +
                         "- Se requiere denuncia policial dentro de las 48 hs del hecho.\n" +
                         "- Franquicia: $50.000. Suma asegurada: $300.000."
                 )
                 .build();
 
-        ClasificacionResponse respuesta = siniestroClassifier.clasificar(request);
+        ClasificacionResponse response = siniestroClassifier.classify(request);
 
-        System.out.println("=== RESPUESTA DEL MODELO ===");
-        System.out.println("Clasificación: " + respuesta.clasificacion());
-        System.out.println("Confianza:     " + respuesta.confianza());
-        System.out.println("Factores:");
-        respuesta.factores().forEach(f -> System.out.println("  - " + f));
-        System.out.println("============================");
+        System.out.println("=== MODEL RESPONSE ===");
+        System.out.println("Classification: " + response.classification());
+        System.out.println("Confidence:     " + response.confidence());
+        System.out.println("Factors:");
+        response.factors().forEach(f -> System.out.println("  - " + f));
+        System.out.println("======================");
 
-        assertThat(respuesta.clasificacion()).isNotNull();
-        assertThat(respuesta.factores()).isNotEmpty();
-        assertThat(respuesta.confianza()).isBetween(0.0, 1.0);
+        assertThat(response.classification()).isNotNull();
+        assertThat(response.factors()).isNotEmpty();
+        assertThat(response.confidence()).isBetween(0.0, 1.0);
     }
 }

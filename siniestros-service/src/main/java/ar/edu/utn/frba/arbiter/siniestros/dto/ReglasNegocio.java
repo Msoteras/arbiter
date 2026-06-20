@@ -6,9 +6,9 @@ import java.util.List;
 
 @Builder
 public record ReglasNegocio(
-        String ramoId,
-        String hechoGeneradorId,
-        List<String> reglas,
-        List<String> exclusiones,
-        List<String> criteriosFastTrack
+        String branchId,
+        String claimCauseId,
+        List<String> rules,
+        List<String> exclusions,
+        List<String> fastTrackCriteria
 ) {}

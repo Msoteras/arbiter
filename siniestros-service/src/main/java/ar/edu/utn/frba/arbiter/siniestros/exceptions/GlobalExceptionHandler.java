@@ -10,9 +10,9 @@ import org.springframework.web.bind.annotation.RestControllerAdvice;
 public class GlobalExceptionHandler {
 
     @ExceptionHandler(ClasificacionInvalidaException.class)
-    public ProblemDetail handleClasificacionInvalida(ClasificacionInvalidaException ex) {
+    public ProblemDetail handleInvalidClassification(ClasificacionInvalidaException ex) {
         ProblemDetail problem = ProblemDetail.forStatus(HttpStatus.UNPROCESSABLE_ENTITY);
-        problem.setTitle("Clasificación inválida");
+        problem.setTitle("Invalid classification");
         problem.setDetail(ex.getMessage());
         return problem;
     }
@@ -20,7 +20,7 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(IllegalArgumentException.class)
     public ProblemDetail handleIllegalArgument(IllegalArgumentException ex) {
         ProblemDetail problem = ProblemDetail.forStatus(HttpStatus.BAD_REQUEST);
-        problem.setTitle("Datos inválidos");
+        problem.setTitle("Invalid data");
         problem.setDetail(ex.getMessage());
         return problem;
     }
@@ -28,12 +28,12 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(MethodArgumentNotValidException.class)
     public ProblemDetail handleMethodArgumentNotValid(MethodArgumentNotValidException ex) {
         ProblemDetail problem = ProblemDetail.forStatus(HttpStatus.BAD_REQUEST);
-        problem.setTitle("Validación de entrada fallida");
-        String errores = ex.getBindingResult().getAllErrors().stream()
+        problem.setTitle("Validation failed");
+        String errors = ex.getBindingResult().getAllErrors().stream()
                 .map(e -> e.getDefaultMessage())
                 .reduce((a, b) -> a + "; " + b)
-                .orElse("Errores de validación");
-        problem.setDetail(errores);
+                .orElse("Validation errors");
+        problem.setDetail(errors);
         return problem;
     }
 }

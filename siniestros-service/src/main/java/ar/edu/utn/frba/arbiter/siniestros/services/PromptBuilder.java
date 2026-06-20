@@ -8,82 +8,82 @@ import java.util.Objects;
 
 public class PromptBuilder {
 
-    private ReglasNegocio reglas;
-    private PolizaAsegurado poliza;
-    private HistorialAsegurado historial;
+    private ReglasNegocio rules;
+    private PolizaAsegurado policy;
+    private HistorialAsegurado history;
 
-    public PromptBuilder conReglas(ReglasNegocio reglas) {
-        this.reglas = reglas;
+    public PromptBuilder withRules(ReglasNegocio rules) {
+        this.rules = rules;
         return this;
     }
 
-    public PromptBuilder conPoliza(PolizaAsegurado poliza) {
-        this.poliza = poliza;
+    public PromptBuilder withPolicy(PolizaAsegurado policy) {
+        this.policy = policy;
         return this;
     }
 
-    public PromptBuilder conHistorial(HistorialAsegurado historial) {
-        this.historial = historial;
+    public PromptBuilder withHistory(HistorialAsegurado history) {
+        this.history = history;
         return this;
     }
 
-    public String construirReglasYPoliza() {
-        Objects.requireNonNull(reglas, "Reglas no puede ser null");
-        Objects.requireNonNull(poliza, "Póliza no puede ser null");
+    public String buildRulesAndPolicy() {
+        Objects.requireNonNull(rules, "Rules cannot be null");
+        Objects.requireNonNull(policy, "Policy cannot be null");
 
         var sb = new StringBuilder();
 
         sb.append("REGLAS DE LA ASEGURADORA (ramo: %s, hecho generador: %s):\n"
-                .formatted(reglas.ramoId(), reglas.hechoGeneradorId()));
-        reglas.reglas().forEach(r -> sb.append("- ").append(r).append("\n"));
+                .formatted(rules.branchId(), rules.claimCauseId()));
+        rules.rules().forEach(r -> sb.append("- ").append(r).append("\n"));
 
-        if (!reglas.exclusiones().isEmpty()) {
+        if (!rules.exclusions().isEmpty()) {
             sb.append("\nEXCLUSIONES DE COBERTURA:\n");
-            reglas.exclusiones().forEach(e -> sb.append("- ").append(e).append("\n"));
+            rules.exclusions().forEach(e -> sb.append("- ").append(e).append("\n"));
         }
 
-        if (!reglas.criteriosFastTrack().isEmpty()) {
+        if (!rules.fastTrackCriteria().isEmpty()) {
             sb.append("\nCRITERIOS FAST TRACK (si se cumplen todos, el caso es expedito):\n");
-            reglas.criteriosFastTrack().forEach(c -> sb.append("- ").append(c).append("\n"));
+            rules.fastTrackCriteria().forEach(c -> sb.append("- ").append(c).append("\n"));
         }
 
         sb.append("\nDATOS DE LA PÓLIZA:\n");
-        sb.append("- Número: %s\n".formatted(poliza.polizaNumero()));
-        sb.append("- Estado de pago: %s\n".formatted(poliza.alDia() ? "Al día" : "CON MORA"));
-        sb.append("- Vigencia: %s a %s\n".formatted(poliza.vigenciaDesde(), poliza.vigenciaHasta()));
-        sb.append("- Suma asegurada: $%s\n".formatted(poliza.sumaAsegurada()));
-        sb.append("- Franquicia: $%s\n".formatted(poliza.franquicia()));
+        sb.append("- Número: %s\n".formatted(policy.policyNumber()));
+        sb.append("- Estado de pago: %s\n".formatted(policy.upToDate() ? "Al día" : "CON MORA"));
+        sb.append("- Vigencia: %s a %s\n".formatted(policy.effectiveFrom(), policy.effectiveTo()));
+        sb.append("- Suma asegurada: $%s\n".formatted(policy.insuredAmount()));
+        sb.append("- Franquicia: $%s\n".formatted(policy.deductible()));
 
-        if (!poliza.clausulasAplicables().isEmpty()) {
-            sb.append("- Cláusulas: %s\n".formatted(String.join(", ", poliza.clausulasAplicables())));
+        if (!policy.applicableClauses().isEmpty()) {
+            sb.append("- Cláusulas: %s\n".formatted(String.join(", ", policy.applicableClauses())));
         }
 
         return sb.toString();
     }
 
-    public String construirHistorial() {
-        Objects.requireNonNull(historial, "Historial no puede ser null");
+    public String buildHistory() {
+        Objects.requireNonNull(history, "History cannot be null");
 
         var sb = new StringBuilder();
 
-        sb.append("HISTORIAL DEL ASEGURADO (DNI: %s)\n".formatted(historial.aseguradoDni()));
-        sb.append("- Cliente desde: %s\n".formatted(historial.clienteDesde()));
-        sb.append("- Siniestros previos: %d\n".formatted(historial.cantidadSiniestrosPrevios()));
-        sb.append("- Monto total reclamado histórico: $%s\n".formatted(historial.montoTotalReclamado()));
+        sb.append("HISTORIAL DEL ASEGURADO (DNI: %s)\n".formatted(history.insuredId()));
+        sb.append("- Cliente desde: %s\n".formatted(history.customerSince()));
+        sb.append("- Siniestros previos: %d\n".formatted(history.previousClaimsCount()));
+        sb.append("- Monto total reclamado histórico: $%s\n".formatted(history.totalAmountClaimed()));
 
-        if (historial.siniestros().isEmpty()) {
+        if (history.claims().isEmpty()) {
             sb.append("\nSin siniestros previos registrados.");
         } else {
             sb.append("\nDETALLE DE SINIESTROS PREVIOS:\n");
-            for (var s : historial.siniestros()) {
-                sb.append("\n  Siniestro %s — %s\n".formatted(s.siniestroId(), s.fecha()));
-                sb.append("    Ramo: %s | Hecho: %s\n".formatted(s.ramo(), s.hechoGenerador()));
-                sb.append("    Bien: %s\n".formatted(s.bienAfectado()));
+            for (var c : history.claims()) {
+                sb.append("\n  Siniestro %s — %s\n".formatted(c.claimId(), c.date()));
+                sb.append("    Ramo: %s | Hecho: %s\n".formatted(c.branch(), c.claimCause()));
+                sb.append("    Bien: %s\n".formatted(c.affectedItem()));
                 sb.append("    Estado: %s | Reclamado: $%s | Liquidado: $%s\n"
-                        .formatted(s.estado(), s.montoReclamado(),
-                                s.montoLiquidado() != null ? s.montoLiquidado() : "—"));
-                if (s.observaciones() != null && !s.observaciones().isBlank()) {
-                    sb.append("    Obs: %s\n".formatted(s.observaciones()));
+                        .formatted(c.status(), c.amountClaimed(),
+                                c.amountSettled() != null ? c.amountSettled() : "—"));
+                if (c.notes() != null && !c.notes().isBlank()) {
+                    sb.append("    Obs: %s\n".formatted(c.notes()));
                 }
             }
         }

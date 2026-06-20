@@ -11,13 +11,13 @@ import java.util.concurrent.Executor;
 @EnableAsync
 public class AsyncConfig {
 
-    @Bean(name = "clasificacionExecutor")
-    public Executor clasificacionExecutor() {
+    @Bean(name = "classificationExecutor")
+    public Executor classificationExecutor() {
         ThreadPoolTaskExecutor executor = new ThreadPoolTaskExecutor();
-        executor.setCorePoolSize(5);           // mínimo 5 threads (virtual threads)
-        executor.setMaxPoolSize(10);           // máximo 10 threads
-        executor.setQueueCapacity(50);         // cola de 50 tareas pendientes
-        executor.setThreadNamePrefix("clasificacion-async-");
+        executor.setCorePoolSize(5);
+        executor.setMaxPoolSize(10);
+        executor.setQueueCapacity(50);
+        executor.setThreadNamePrefix("classification-async-");
         executor.setWaitForTasksToCompleteOnShutdown(true);
         executor.setAwaitTerminationSeconds(60);
         executor.initialize();
