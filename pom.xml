@@ -14,7 +14,7 @@
     <!-- <module>auth-service</module> -->
     <module>siniestros-service</module>
     <!-- <module>reglas-service</module> -->
-    <!-- <module>expedientes-service</module> -->
+    <module>expedientes-service</module>
     <!-- <module>reportes-service</module> -->
   </modules>
 

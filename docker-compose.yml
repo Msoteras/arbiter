@@ -42,10 +42,22 @@ services:
         condition: service_completed_successfully
     restart: on-failure
 
+  expedientes-service:
+    build:
+      context: .
+      dockerfile: expedientes-service/Dockerfile
+    ports:
+      - "8083:8083"
+    environment:
+      SPRING_PROFILES_ACTIVE: dev
+      # DB_URL, DB_USER, DB_PASSWORD → agregar cuando se configure PostgreSQL
+    depends_on:
+      - siniestros-service
+    restart: on-failure
+
   # TODO: agregar los demás servicios a medida que se implementen:
   # auth-service       → puerto 8080
   # reglas-service     → puerto 8081
-  # expedientes-service → puerto 8083
   # reportes-service   → puerto 8084
   # arbiter-frontend   → puerto 5173
   # postgres           → puerto 5432
