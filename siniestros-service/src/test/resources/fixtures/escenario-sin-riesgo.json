@@ -1,0 +1,17 @@
+{
+  "name": "Primer siniestro, denuncia detallada y coherente",
+  "expectedClassification": "FAST_TRACK",
+  "request": {
+    "branch": "Celulares",
+    "product": "Celular Protegido Básico",
+    "claimCause": "Robo en vía pública",
+    "insuredItem": "Motorola Edge 50 Pro - IMEI 351000000000042",
+    "description": "El viernes 13 de junio de 2026 a las 19:45 hs aproximadamente, salía de mi trabajo en Av. Rivadavia 4200 (Almagro, CABA) caminando hacia la estación de subte Castro Barros. En la esquina de Rivadavia y Colombres, dos personas en una moto Honda Wave roja se subieron a la vereda, el acompañante me arrancó el celular de la mano derecha y se fueron por Colombres hacia el sur. Un vecino del local de la esquina (panadería) me prestó su teléfono para llamar al 911. La policía llegó a los 15 minutos. Hice la denuncia esa misma noche en la comisaría 8va.",
+    "attachmentsOcr": [
+      "DENUNCIA POLICIAL Nro 2026/82341 - Comisaría 8va CABA\nFecha: 13/06/2026 20:30 hs\nDenunciante: Laura Fernández DNI 40.123.456\nHecho: Robo de teléfono celular en vía pública (modalidad motochorro)\nLugar: Av. Rivadavia y Colombres, Almagro, CABA\nFecha del hecho: 13/06/2026 aprox. 19:45 hs\nTestigos: Comerciante del local lindero confirmó haber presenciado el hecho\nVehículo involucrado: Moto tipo Honda Wave color roja, sin patente visible\nObs: La denunciante presenta estado de nerviosismo compatible con el evento. Sin lesiones.",
+      "FACTURA DE COMPRA\nFecha: 20/03/2026\nComercio: Motorola Store — Unicenter, Martínez\nProducto: Motorola Edge 50 Pro 256GB — Negro\nIMEI: 351000000000042\nMonto: $389.990\nMedio de pago: 12 cuotas Visa terminada en 4421\nCliente: Laura Fernández DNI 40.123.456"
+    ],
+    "insurerRules": "- El bien debe estar dentro del campo visual del asegurado al momento del robo.\n- Se requiere denuncia policial dentro de las 48 hs del hecho.\n- Franquicia: $50.000. Suma asegurada: $400.000.\n- Se valora positivamente la existencia de testigos o evidencia corroborante.",
+    "insuredHistory": "HISTORIAL DE SINIESTROS — Asegurada: Laura Fernández (DNI 40.123.456)\n\nSin siniestros previos registrados.\n\nAntigüedad como asegurada: 2 años y 3 meses (desde marzo 2024).\nPólizas activas: 1 (Celular Protegido Básico).\nPagos: Al día, sin mora."
+  }
+}

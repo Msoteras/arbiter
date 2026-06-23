@@ -26,3 +26,7 @@ Thumbs.db
 .env.*
 application-local.yml
 application-local.properties
+
+# Frontend (no forma parte del contexto de build del backend)
+arbiter-frontend/node_modules/
+arbiter-frontend/dist/

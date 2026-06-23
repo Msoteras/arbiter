@@ -1,0 +1,16 @@
+{
+  "name": "Asegurado reincidente con inconsistencias en la denuncia",
+  "expectedClassification": "POTENCIAL_RIESGO",
+  "request": {
+    "branch": "Celulares",
+    "product": "Celular Protegido Premium",
+    "claimCause": "Robo en vía pública",
+    "insuredItem": "iPhone 16 Pro Max 256GB - IMEI 353000000000099",
+    "description": "Me robaron el celular el martes a la noche, estaba en la calle creo que por Palermo o tal vez Belgrano, no me acuerdo bien la dirección exacta. Eran como las 11 o 12 de la noche. Vino un tipo y me lo sacó de la mano. No vi bien porque estaba oscuro. Hice la denuncia al día siguiente.",
+    "attachmentsOcr": [
+      "DENUNCIA POLICIAL Nro 2026/78901 - Comisaría 14va CABA\nFecha: 12/06/2026 09:15 hs\nDenunciante: Marcelo Gómez DNI 30.555.777\nHecho: Robo de teléfono celular\nLugar: Av. Santa Fe y Bulnes, CABA (Palermo)\nFecha del hecho declarada: 10/06/2026 aprox. 23:00 hs\nObservaciones: El denunciante no puede precisar la hora exacta ni la ubicación exacta del hecho. Se presenta sin lesiones visibles."
+    ],
+    "insurerRules": "- El bien debe estar dentro del campo visual del asegurado al momento del robo.\n- Se requiere denuncia policial dentro de las 48 hs del hecho.\n- Franquicia: $80.000. Suma asegurada: $1.200.000.\n- Si el asegurado tiene más de 2 siniestros en los últimos 12 meses, derivar a investigación.\n- Inconsistencias entre la descripción del asegurado y la denuncia policial son indicador de riesgo.",
+    "insuredHistory": "HISTORIAL DE SINIESTROS — Asegurado: Marcelo Gómez (DNI 30.555.777)\n\n1. Siniestro #2025-4401 — 15/11/2025\n   Ramo: Celulares | Producto: Celular Protegido Básico\n   Hecho generador: Robo en vía pública\n   Bien: Samsung Galaxy S24 Ultra - IMEI 353000000000055\n   Estado: Aprobado | Monto liquidado: $450.000\n   Observaciones: Denuncia consistente. Sin señales de alerta.\n\n2. Siniestro #2026-1892 — 03/02/2026\n   Ramo: Celulares | Producto: Celular Protegido Premium\n   Hecho generador: Hurto\n   Bien: iPhone 15 Pro - IMEI 353000000000077\n   Estado: Aprobado | Monto liquidado: $890.000\n   Observaciones: Analista marcó demora en la denuncia policial (72 hs) pero se aprobó por antecedente limpio previo.\n\n3. Siniestro #2026-3310 — 28/04/2026\n   Ramo: Celulares | Producto: Celular Protegido Premium\n   Hecho generador: Robo en vía pública\n   Bien: iPhone 16 Pro - IMEI 353000000000088\n   Estado: En investigación | Monto reclamado: $1.100.000\n   Observaciones: Tercer siniestro en 6 meses. Derivado a investigación por frecuencia.\n\nRESUMEN: 3 siniestros en los últimos 8 meses. Monto total reclamado: $2.440.000. Un caso aún en investigación."
+  }
+}

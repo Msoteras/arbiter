@@ -1,0 +1,132 @@
+### Variables globales
+@baseUrl = http://localhost:8082
+@endpoint = {{baseUrl}}/api/v1/clasificaciones
+
+### 1. Escenario Fast-Track: Caso válido, documentación completa
+POST {{endpoint}}
+Content-Type: application/json
+
+{
+  "ramo": "Celulares",
+  "producto": "Celular Protegido Premium",
+  "hechoGenerador": "Robo en vía pública",
+  "bienAsegurado": "iPhone 16 Pro Max 256GB - IMEI 353000000000087",
+  "aseguradoDni": "25.555.888",
+  "polizaNumero": "POL-2026-025",
+  "descripcionLibre": "Me robaron el celular en la estación de subte Congreso a las 8:30 PM. Presenté denuncia inmediatamente. El celular estaba en mi bolsillo frontal de la campera.",
+  "fechaHecho": "2026-06-15T20:30:00",
+  "lugarHecho": "Estación Congreso, Línea A, CABA",
+  "adjuntosOCR": [
+    "DENUNCIA POLICIAL Nro 2026/90234\nComisaría 19na CABA\nFecha: 15/06/2026 20:45 hs\nDenunciante: Juliana Rodríguez DNI 25.555.888\nHecho: Robo de celular\nLugar: Estación Congreso, CABA\nFecha del hecho: 15/06/2026 20:30 hs\nObservaciones: Denunciante describe bien la ubicación y hora exacta del hecho. Consistente con lo reportado."
+  ]
+}
+
+> {%
+  client.test("request", function() {
+    client.assert(response.status === 200, "Status debe ser 200");
+  });
+  client.test("respuesta", function() {
+    var body = response.body;
+    client.assert(body.clasificacion !== null, "Debe devolver clasificación");
+    client.assert(body.confianza >= 0 && body.confianza <= 1, "Confianza entre 0 y 1");
+    client.assert(body.factores.length > 0, "Debe devolver factores");
+  });
+%}
+
+### 2. Escenario Posible Riesgo: Asegurado reincidente con inconsistencias
+POST {{endpoint}}
+Content-Type: application/json
+
+{
+  "ramo": "Celulares",
+  "producto": "Celular Protegido Premium",
+  "hechoGenerador": "Robo en vía pública",
+  "bienAsegurado": "iPhone 16 Pro Max 256GB - IMEI 353000000000099",
+  "aseguradoDni": "30.555.777",
+  "polizaNumero": "POL-2026-030",
+  "descripcionLibre": "Me robaron el celular el martes a la noche, estaba en la calle creo que por Palermo o tal vez Belgrano, no me acuerdo bien la dirección exacta. Eran como las 11 o 12 de la noche. Vino un tipo y me lo sacó de la mano. No vi bien porque estaba oscuro. Hice la denuncia al día siguiente.",
+  "fechaHecho": "2026-06-10T23:00:00",
+  "lugarHecho": "Palermo o Belgrano, CABA (no precisa)",
+  "adjuntosOCR": [
+    "DENUNCIA POLICIAL Nro 2026/78901 - Comisaría 14va CABA\nFecha: 12/06/2026 09:15 hs\nDenunciante: Marcelo Gómez DNI 30.555.777\nHecho: Robo de teléfono celular\nLugar: Av. Santa Fe y Bulnes, CABA (Palermo)\nFecha del hecho declarada: 10/06/2026 aprox. 23:00 hs\nObservaciones: El denunciante no puede precisar la hora exacta ni la ubicación exacta del hecho. Se presenta sin lesiones visibles."
+  ]
+}
+
+> {%
+  client.test("request", function() {
+    client.assert(response.status === 200, "Status debe ser 200");
+  });
+%}
+
+### 3. Escenario Sin Riesgo: Caso claro, bien documentado, asegurado confiable
+POST {{endpoint}}
+Content-Type: application/json
+
+{
+  "ramo": "Celulares",
+  "producto": "Celular Protegido Básico",
+  "hechoGenerador": "Caída/Rotura accidental",
+  "bienAsegurado": "Samsung Galaxy A25 - IMEI 353000000000010",
+  "aseguradoDni": "19.444.555",
+  "polizaNumero": "POL-2026-019",
+  "descripcionLibre": "Se me cayó el teléfono mientras salía de casa. La pantalla se rompió completamente pero el resto funciona. Sin señales de haber sido azotado o golpeado deliberadamente.",
+  "fechaHecho": "2026-06-14T14:15:00",
+  "lugarHecho": "Puerta del domicilio, Belgrano, CABA",
+  "adjuntosOCR": [
+    "Fotos de pantalla rota. Teléfono encendido y funcionando. Sin daños adicionales."
+  ]
+}
+
+> {%
+  client.test("request", function() {
+    client.assert(response.status === 200, "Status debe ser 200");
+  });
+%}
+
+### 4. Escenario Falta Documentación: Caso válido pero sin documentos requeridos
+POST {{endpoint}}
+Content-Type: application/json
+
+{
+  "ramo": "Celulares",
+  "producto": "Celular Protegido Premium",
+  "hechoGenerador": "Robo en vía pública",
+  "bienAsegurado": "iPhone 15 Pro - IMEI 353000000000077",
+  "aseguradoDni": "35.666.999",
+  "polizaNumero": "POL-2026-035",
+  "descripcionLibre": "Me robaron el celular en el colectivo 39 rumbo a Flores. No tengo la factura de compra disponible y no reporté a la policía porque pasó hace una semana.",
+  "fechaHecho": "2026-06-08T17:45:00",
+  "lugarHecho": "Colectivo línea 39, CABA",
+  "adjuntosOCR": []
+}
+
+> {%
+  client.test("request", function() {
+    client.assert(response.status === 200, "Status debe ser 200");
+  });
+%}
+
+### 5. Escenario Requiere Análisis Manual: Información contradictoria
+POST {{endpoint}}
+Content-Type: application/json
+
+{
+  "ramo": "Celulares",
+  "producto": "Celular Protegido Premium",
+  "hechoGenerador": "Robo en vía pública",
+  "bienAsegurado": "Samsung Galaxy S24 Ultra - IMEI 353000000000055",
+  "aseguradoDni": "40.777.111",
+  "polizaNumero": "POL-2026-040",
+  "descripcionLibre": "El celular desapareció pero no sé si me lo robaron o lo perdí. Estaba en el colectivo. Es raro porque no me lo quitaron de la mano pero tampoco lo vi en la estación siguiente. La denuncia policial dice que fue robo pero yo dije que no sabía bien qué pasó.",
+  "fechaHecho": "2026-06-12T18:30:00",
+  "lugarHecho": "Colectivo línea 159, CABA",
+  "adjuntosOCR": [
+    "DENUNCIA POLICIAL Nro 2026/85432\nFecha: 12/06/2026 19:00 hs\nDenunciante reporta ROBO pero sin detalles claros del suceso."
+  ]
+}
+
+> {%
+  client.test("request", function() {
+    client.assert(response.status === 200, "Status debe ser 200");
+  });
+%}

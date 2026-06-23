@@ -1,0 +1,58 @@
+{
+  "info": "Ejemplos para probar POST http://localhost:8082/api/v1/clasificaciones desde Postman",
+  "ejemplos": [
+    {
+      "nombre": "POTENCIAL_RIESGO — Reincidente con inconsistencias",
+      "request": {
+        "ramo": "Celulares",
+        "producto": "Celular Protegido Premium",
+        "hechoGenerador": "Robo en vía pública",
+        "bienAsegurado": "iPhone 16 Pro Max 256GB - IMEI 353000000000099",
+        "aseguradoDni": "30.555.777",
+        "polizaNumero": "POL-CEL-2025-099",
+        "descripcionLibre": "Me robaron el celular el martes a la noche, estaba en la calle creo que por Palermo o tal vez Belgrano, no me acuerdo bien la dirección exacta. Eran como las 11 o 12 de la noche. Vino un tipo y me lo sacó de la mano. No vi bien porque estaba oscuro. Hice la denuncia al día siguiente.",
+        "fechaHecho": "2026-06-10T23:00:00",
+        "lugarHecho": "Palermo, CABA (ubicación imprecisa)",
+        "adjuntosOCR": [
+          "DENUNCIA POLICIAL Nro 2026/78901 - Comisaría 14va CABA\nFecha: 12/06/2026 09:15 hs\nDenunciante: Marcelo Gómez DNI 30.555.777\nHecho: Robo de teléfono celular\nLugar: Av. Santa Fe y Bulnes, CABA\nFecha del hecho declarada: 10/06/2026 aprox. 23:00 hs\nObservaciones: El denunciante no puede precisar la hora exacta ni la ubicación."
+        ]
+      }
+    },
+    {
+      "nombre": "SIN_RIESGO — Primer siniestro, denuncia sólida",
+      "request": {
+        "ramo": "Celulares",
+        "producto": "Celular Protegido Básico",
+        "hechoGenerador": "Robo en vía pública",
+        "bienAsegurado": "Motorola Edge 50 Pro - IMEI 351000000000042",
+        "aseguradoDni": "40.123.456",
+        "polizaNumero": "POL-CEL-2024-001",
+        "descripcionLibre": "El viernes 13 de junio de 2026 a las 19:45 hs aproximadamente, salía de mi trabajo en Av. Rivadavia 4200 (Almagro, CABA) caminando hacia la estación de subte Castro Barros. En la esquina de Rivadavia y Colombres, dos personas en una moto Honda Wave roja se subieron a la vereda, el acompañante me arrancó el celular de la mano derecha y se fueron por Colombres hacia el sur. Un vecino del local de la esquina me prestó su teléfono para llamar al 911.",
+        "fechaHecho": "2026-06-13T19:45:00",
+        "lugarHecho": "Av. Rivadavia y Colombres, Almagro, CABA",
+        "adjuntosOCR": [
+          "DENUNCIA POLICIAL Nro 2026/82341 - Comisaría 8va CABA\nFecha: 13/06/2026 20:30 hs\nDenunciante: Laura Fernández DNI 40.123.456\nHecho: Robo de teléfono celular (modalidad motochorro)\nLugar: Av. Rivadavia y Colombres, Almagro, CABA\nTestigos: Comerciante del local lindero confirmó haber presenciado el hecho",
+          "FACTURA DE COMPRA — Motorola Store, Unicenter\nFecha: 20/03/2026\nProducto: Motorola Edge 50 Pro 256GB\nIMEI: 351000000000042\nMonto: $389.990\nCliente: Laura Fernández DNI 40.123.456"
+        ]
+      }
+    },
+    {
+      "nombre": "FAST_TRACK — Rotura pantalla, simple y verificable",
+      "request": {
+        "ramo": "Celulares",
+        "producto": "Celular Protegido Premium",
+        "hechoGenerador": "Rotura accidental",
+        "bienAsegurado": "Samsung Galaxy S25 Ultra - IMEI 354000000000063",
+        "aseguradoDni": "42.987.654",
+        "polizaNumero": "POL-CEL-2026-042",
+        "descripcionLibre": "El sábado 14 de junio de 2026 a la mañana, se me cayó el celular al piso mientras lo sacaba del bolsillo en la cocina de mi casa. Se me resbaló de la mano y cayó boca abajo sobre las baldosas. Se rompió la pantalla en la parte inferior derecha, tiene una rajadura que va de la esquina hasta el centro.",
+        "fechaHecho": "2026-06-14T10:00:00",
+        "lugarHecho": "Domicilio del asegurado",
+        "adjuntosOCR": [
+          "FACTURA DE COMPRA — Samsung Store, Alto Palermo\nFecha: 10/01/2026\nProducto: Samsung Galaxy S25 Ultra 512GB\nIMEI: 354000000000063\nMonto: $1.299.990\nCliente: Sofía Martínez DNI 42.987.654",
+          "PRESUPUESTO — Samsung Service Center, Av. Cabildo 2050\nFecha: 14/06/2026\nDaño: Rotura de display AMOLED + digitalizador\nCosto estimado: $285.000 + IVA\nNota: Sin daños por líquido ni intervención previa."
+        ]
+      }
+    }
+  ]
+}
