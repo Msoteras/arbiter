@@ -2,11 +2,11 @@ package ar.edu.utn.frba.arbiter.siniestros.adapters;
 
 import ar.edu.utn.frba.arbiter.common.enums.Clasificacion;
 import ar.edu.utn.frba.arbiter.siniestros.config.OllamaProperties;
-import ar.edu.utn.frba.arbiter.siniestros.dto.ClasificacionRequest;
-import ar.edu.utn.frba.arbiter.siniestros.dto.ClasificacionResponse;
+import ar.edu.utn.frba.arbiter.siniestros.dto.ClassificationRequest;
+import ar.edu.utn.frba.arbiter.siniestros.dto.ClassificationResponse;
+import ar.edu.utn.frba.arbiter.siniestros.support.AbstractPersistenceIT;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.parallel.Execution;
@@ -29,7 +29,7 @@ import static org.junit.jupiter.api.Assumptions.assumeTrue;
 @Tag("integracion")
 @Execution(ExecutionMode.SAME_THREAD)
 @SpringBootTest
-class OllamaClasificacionEscenariosTest {
+class OllamaClasificacionScenariosTest extends AbstractPersistenceIT {
 
     private static final ObjectMapper mapper = new ObjectMapper();
 
@@ -52,27 +52,26 @@ class OllamaClasificacionEscenariosTest {
         }
     }
 
+    // Nota: FAST_TRACK ya no es una salida posible del LLM — se decide antes,
+    // de forma determinística, con FastTrackValidator (ver ClasificacionOrchestrator).
+    // Los escenarios fast-track quedaron afuera de este test porque ya no aplican a este nivel.
     @ParameterizedTest(name = "Scenario: {0}")
     @ValueSource(strings = {
-            "escenario-fast-track",
-            "escenario-fast-track-2",
-            "escenario-fast-track-3",
             "escenario-posible-riesgo",
             "escenario-posible-riesgo-2",
             "escenario-posible-riesgo-3",
             "escenario-falta-documentacion-1",
             "escenario-falta-documentacion-2",
             "escenario-analisis-manual-1",
-            "escenario-analisis-manual-2",
-            "escenario-sin-riesgo"
+            "escenario-analisis-manual-2"
     })
     void classifyScenario(String scenario) throws IOException {
         JsonNode fixture = loadFixture(scenario + ".json");
         String name = fixture.get("name").asText();
         Clasificacion expected = Clasificacion.valueOf(fixture.get("expectedClassification").asText());
 
-        ClasificacionRequest request = buildRequest(fixture.get("request"));
-        ClasificacionResponse response = classifier.classify(request);
+        ClassificationRequest request = buildRequest(fixture.get("request"));
+        ClassificationResponse response = classifier.classify(request);
 
         System.out.println();
         System.out.println("╔══════════════════════════════════════════════════════════════╗");
@@ -107,13 +106,13 @@ class OllamaClasificacionEscenariosTest {
         }
     }
 
-    private ClasificacionRequest buildRequest(JsonNode req) {
+    private ClassificationRequest buildRequest(JsonNode req) {
         List<String> attachments = new ArrayList<>();
         if (req.has("attachmentsOcr")) {
             req.get("attachmentsOcr").forEach(n -> attachments.add(n.asText()));
         }
 
-        return ClasificacionRequest.builder()
+        return ClassificationRequest.builder()
                 .branch(req.get("branch").asText())
                 .product(req.get("product").asText())
                 .claimCause(req.get("claimCause").asText())

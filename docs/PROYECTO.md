@@ -38,13 +38,14 @@ arbiter/
     │   ├── dto/                       # Request/Response (DTO locales)
     │   ├── exceptions/                # Excepciones locales + @ControllerAdvice
     │   ├── models/
-    │   │   ├── entities/              # @Entity JPA
-    │   │   └── repositories/          # Spring Data JPA
+    │   │   ├── entities/              # @Entity JPA: ClasificacionLog (auditoría inmutable)
+    │   │   └── repositories/          # Spring Data JPA: ClasificacionLogRepository
     │   ├── services/                  # Lógica de negocio
-    │   │   ├── ClasificacionJob.java       # Async wrapper con @Async
-    │   │   ├── ClasificacionOrquestador.java # Orquestación síncrona
+    │   │   ├── ClasificacionJob.java       # Async wrapper con @Async (testeo aislado)
+    │   │   ├── ClasificacionOrchestrator.java # Orquestación: gate Fast Track + LLM fallback
     │   │   ├── PromptBuilder.java          # Construcción de prompts
-    │   │   └── ResultadosClasificacionService.java
+    │   │   ├── FastTrackValidator.java     # Gate determinístico de Fast Track
+    │   │   └── ClasificacionResultsService.java
     │   └── adapters/                  # Integraciones externas
     │       ├── SiniestroClassifier.java     # Interface para el LLM
     │       ├── OllamaAdapter.java           # Implementación real (Ollama)
@@ -53,7 +54,7 @@ arbiter/
     │       └── AseguradoraAdapter.java      # Consulta BD aseguradora
     │
     ├── src/main/resources/
-    │   ├── application.yml            # Configuración común
+    │   ├── application.yml            # Configuración común (datasource + JPA, ddl-auto=update)
     │   ├── application-dev.yml        # Perfil dev (mock)
     │   ├── application-test.yml       # Perfil test (mocks)
     │   └── prompts/
@@ -61,7 +62,7 @@ arbiter/
     │
     ├── src/test/java/ar/edu/utn/frba/arbiter/siniestros/
     │   └── services/
-    │       ├── ClasificacionOrquestadorIntegrationTest.java  # Tests con mock (default)
+    │       ├── ClasificacionOrchestratorIntegrationTest.java  # Tests con mock (default)
     │       └── ClasificacionOllamaIntegrationTest.java        # Tests con Ollama real (optional)
     │
     ├── pom.xml

@@ -1,8 +1,9 @@
 package ar.edu.utn.frba.arbiter.siniestros.adapters;
 
 import ar.edu.utn.frba.arbiter.siniestros.config.OllamaProperties;
-import ar.edu.utn.frba.arbiter.siniestros.dto.ClasificacionRequest;
-import ar.edu.utn.frba.arbiter.siniestros.dto.ClasificacionResponse;
+import ar.edu.utn.frba.arbiter.siniestros.dto.ClassificationRequest;
+import ar.edu.utn.frba.arbiter.siniestros.dto.ClassificationResponse;
+import ar.edu.utn.frba.arbiter.siniestros.support.AbstractPersistenceIT;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
@@ -28,7 +29,7 @@ import static org.junit.jupiter.api.Assumptions.assumeTrue;
  */
 @Tag("integracion")
 @SpringBootTest
-class OllamaAdapterIntegrationTest {
+class OllamaAdapterIntegrationTest extends AbstractPersistenceIT {
 
     @Autowired
     private OllamaProperties ollamaProperties;
@@ -53,7 +54,7 @@ class OllamaAdapterIntegrationTest {
 
     @Test
     void classifyMobileTheft_shouldReturnValidClassification() {
-        ClasificacionRequest request = ClasificacionRequest.builder()
+        ClassificationRequest request = ClassificationRequest.builder()
                 .branch("Celulares")
                 .product("Celular Protegido Básico")
                 .claimCause("Robo en vía pública")
@@ -78,7 +79,7 @@ class OllamaAdapterIntegrationTest {
                 )
                 .build();
 
-        ClasificacionResponse response = siniestroClassifier.classify(request);
+        ClassificationResponse response = siniestroClassifier.classify(request);
 
         System.out.println("=== MODEL RESPONSE ===");
         System.out.println("Classification: " + response.classification());

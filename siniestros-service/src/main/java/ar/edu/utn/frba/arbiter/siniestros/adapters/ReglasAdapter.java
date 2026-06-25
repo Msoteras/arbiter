@@ -1,8 +1,8 @@
 package ar.edu.utn.frba.arbiter.siniestros.adapters;
 
-import ar.edu.utn.frba.arbiter.siniestros.dto.ReglasNegocio;
+import ar.edu.utn.frba.arbiter.siniestros.dto.BusinessRules;
 
 public interface ReglasAdapter {
 
-    ReglasNegocio getRules(String branchId, String claimCauseId);
+    BusinessRules getRules(String branchId, String claimCauseId);
 }

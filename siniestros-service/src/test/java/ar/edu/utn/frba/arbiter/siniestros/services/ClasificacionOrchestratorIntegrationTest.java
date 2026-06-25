@@ -2,41 +2,45 @@ package ar.edu.utn.frba.arbiter.siniestros.services;
 
 import ar.edu.utn.frba.arbiter.common.enums.Clasificacion;
 import ar.edu.utn.frba.arbiter.siniestros.adapters.SiniestroClassifier;
-import ar.edu.utn.frba.arbiter.siniestros.dto.ClasificacionRequest;
-import ar.edu.utn.frba.arbiter.siniestros.dto.ClasificacionResponse;
+import ar.edu.utn.frba.arbiter.siniestros.dto.ClassificationRequest;
+import ar.edu.utn.frba.arbiter.siniestros.dto.ClassificationResponse;
 import ar.edu.utn.frba.arbiter.siniestros.dto.DenunciaSiniestro;
+import ar.edu.utn.frba.arbiter.siniestros.support.AbstractPersistenceIT;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 
+import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 /**
  * Unit test for the orchestration flow: claim → adapters → classifier.
  * Uses a mock SiniestroClassifier so Ollama is not required.
  *
- * Run: mvn -pl siniestros-service test -Dtest=ClasificacionOrquestadorIntegrationTest
+ * Run: mvn -pl siniestros-service test -Dtest=ClasificacionOrchestratorIntegrationTest
  */
 @SpringBootTest
 @ActiveProfiles("test")
-class ClasificacionOrquestadorIntegrationTest {
+class ClasificacionOrchestratorIntegrationTest extends AbstractPersistenceIT {
 
     @MockitoBean
     private SiniestroClassifier classifierMock;
 
     @Autowired
-    private ClasificacionOrquestador orchestrator;
+    private ClasificacionOrchestrator orchestrator;
 
     @Test
     void recidivistClaim_shouldClassifyAsPotentialRisk() {
-        ClasificacionResponse mockResponse = ClasificacionResponse.builder()
+        ClassificationResponse mockResponse = ClassificationResponse.builder()
                 .classification(Clasificacion.POTENCIAL_RIESGO)
                 .confidence(0.85)
                 .factors(List.of(
@@ -45,7 +49,7 @@ class ClasificacionOrquestadorIntegrationTest {
                         "High total amount claimed: $18.500"
                 ))
                 .build();
-        when(classifierMock.classify(any(ClasificacionRequest.class))).thenReturn(mockResponse);
+        when(classifierMock.classify(any(ClassificationRequest.class))).thenReturn(mockResponse);
 
         DenunciaSiniestro claim = DenunciaSiniestro.builder()
                 .branch("Celulares")
@@ -73,7 +77,7 @@ class ClasificacionOrquestadorIntegrationTest {
                 ))
                 .build();
 
-        ClasificacionResponse response = orchestrator.classify(claim);
+        ClassificationResponse response = orchestrator.classify(claim);
 
         printResult("RECIDIVIST — 4th claim, vague description", response, Clasificacion.POTENCIAL_RIESGO);
 
@@ -84,7 +88,7 @@ class ClasificacionOrquestadorIntegrationTest {
 
     @Test
     void firstTimeClaim_shouldClassifyAsFastTrack() {
-        ClasificacionResponse mockResponse = ClasificacionResponse.builder()
+        ClassificationResponse mockResponse = ClassificationResponse.builder()
                 .classification(Clasificacion.FAST_TRACK)
                 .confidence(0.92)
                 .factors(List.of(
@@ -94,7 +98,7 @@ class ClasificacionOrquestadorIntegrationTest {
                         "Low amount: $389.990 vs insured sum"
                 ))
                 .build();
-        when(classifierMock.classify(any(ClasificacionRequest.class))).thenReturn(mockResponse);
+        when(classifierMock.classify(any(ClassificationRequest.class))).thenReturn(mockResponse);
 
         DenunciaSiniestro claim = DenunciaSiniestro.builder()
                 .branch("Celulares")
@@ -130,7 +134,7 @@ class ClasificacionOrquestadorIntegrationTest {
                 ))
                 .build();
 
-        ClasificacionResponse response = orchestrator.classify(claim);
+        ClassificationResponse response = orchestrator.classify(claim);
 
         printResult("FIRST CLAIM — detailed report with witnesses", response, Clasificacion.FAST_TRACK);
 
@@ -141,7 +145,7 @@ class ClasificacionOrquestadorIntegrationTest {
 
     @Test
     void screenBreakWithQuote_shouldClassifyAsFastTrack() {
-        ClasificacionResponse mockResponse = ClasificacionResponse.builder()
+        ClassificationResponse mockResponse = ClassificationResponse.builder()
                 .classification(Clasificacion.FAST_TRACK)
                 .confidence(0.88)
                 .factors(List.of(
@@ -151,7 +155,7 @@ class ClasificacionOrquestadorIntegrationTest {
                         "Repair cost: $285.000 within expected range"
                 ))
                 .build();
-        when(classifierMock.classify(any(ClasificacionRequest.class))).thenReturn(mockResponse);
+        when(classifierMock.classify(any(ClassificationRequest.class))).thenReturn(mockResponse);
 
         DenunciaSiniestro claim = DenunciaSiniestro.builder()
                 .branch("Celulares")
@@ -184,7 +188,7 @@ class ClasificacionOrquestadorIntegrationTest {
                 ))
                 .build();
 
-        ClasificacionResponse response = orchestrator.classify(claim);
+        ClassificationResponse response = orchestrator.classify(claim);
 
         printResult("SCREEN BREAK — simple case with repair quote", response, Clasificacion.FAST_TRACK);
 
@@ -193,7 +197,61 @@ class ClasificacionOrquestadorIntegrationTest {
         assertThat(response.confidence()).isBetween(0.0, 1.0);
     }
 
-    private void printResult(String title, ClasificacionResponse response, Clasificacion expected) {
+    @Test
+    void lowAmountFirstClaimUpToDate_shouldFastTrackWithoutCallingLLM() {
+        DenunciaSiniestro claim = DenunciaSiniestro.builder()
+                .branch("Celulares")
+                .product("Celular Protegido Básico")
+                .claimCause("Robo en vía pública")
+                .insuredItem("Motorola Edge 50 Pro - IMEI 351000000000042")
+                .insuredId("40.123.456")
+                .policyNumber("POL-CEL-2024-001")
+                .description("Robo en vía pública, denuncia policial presentada el mismo día.")
+                .eventDate(LocalDateTime.of(2026, 6, 13, 19, 45))
+                .eventLocation("Av. Rivadavia y Colombres, Almagro, CABA")
+                .claimedAmount(new BigDecimal("150000")) // 37.5% de la suma asegurada (400.000)
+                .attachmentsOcr(List.of())
+                .build();
+
+        ClassificationResponse response = orchestrator.classify(claim);
+
+        assertThat(response.classification()).isEqualTo(Clasificacion.FAST_TRACK);
+        assertThat(response.deterministicFastTrack()).isTrue();
+        assertThat(response.factors()).isNotEmpty();
+        verifyNoInteractions(classifierMock);
+    }
+
+    @Test
+    void aboveThresholdAmount_shouldNotFastTrack_andDelegateToLLM() {
+        ClassificationResponse mockResponse = ClassificationResponse.builder()
+                .classification(Clasificacion.REQUIERE_ANALISIS_MANUAL)
+                .confidence(0.6)
+                .factors(List.of("Monto reclamado elevado respecto de la suma asegurada"))
+                .build();
+        when(classifierMock.classify(any(ClassificationRequest.class))).thenReturn(mockResponse);
+
+        DenunciaSiniestro claim = DenunciaSiniestro.builder()
+                .branch("Celulares")
+                .product("Celular Protegido Básico")
+                .claimCause("Robo en vía pública")
+                .insuredItem("Motorola Edge 50 Pro - IMEI 351000000000042")
+                .insuredId("40.123.456")
+                .policyNumber("POL-CEL-2024-001")
+                .description("Robo en vía pública, monto reclamado cercano al total de la suma asegurada.")
+                .eventDate(LocalDateTime.of(2026, 6, 13, 19, 45))
+                .eventLocation("Av. Rivadavia y Colombres, Almagro, CABA")
+                .claimedAmount(new BigDecimal("390000")) // 97.5% de la suma asegurada (400.000)
+                .attachmentsOcr(List.of())
+                .build();
+
+        ClassificationResponse response = orchestrator.classify(claim);
+
+        assertThat(response.classification()).isEqualTo(Clasificacion.REQUIERE_ANALISIS_MANUAL);
+        assertThat(response.deterministicFastTrack()).isFalse();
+        verify(classifierMock).classify(any(ClassificationRequest.class));
+    }
+
+    private void printResult(String title, ClassificationResponse response, Clasificacion expected) {
         boolean match = response.classification() == expected;
         System.out.println();
         System.out.println("╔══════════════════════════════════════════════════════════════════╗");

@@ -4,6 +4,7 @@ import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import lombok.Builder;
 
+import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.List;
 
@@ -18,5 +19,6 @@ public record DenunciaSiniestro(
         @NotBlank String description,
         @NotNull LocalDateTime eventDate,
         @NotBlank String eventLocation,
+        BigDecimal claimedAmount,
         List<String> attachmentsOcr
 ) {}

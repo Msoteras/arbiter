@@ -2,17 +2,17 @@ package ar.edu.utn.frba.arbiter.siniestros.services;
 
 import ar.edu.utn.frba.arbiter.siniestros.dto.HistorialAsegurado;
 import ar.edu.utn.frba.arbiter.siniestros.dto.PolizaAsegurado;
-import ar.edu.utn.frba.arbiter.siniestros.dto.ReglasNegocio;
+import ar.edu.utn.frba.arbiter.siniestros.dto.BusinessRules;
 
 import java.util.Objects;
 
 public class PromptBuilder {
 
-    private ReglasNegocio rules;
+    private BusinessRules rules;
     private PolizaAsegurado policy;
     private HistorialAsegurado history;
 
-    public PromptBuilder withRules(ReglasNegocio rules) {
+    public PromptBuilder withRules(BusinessRules rules) {
         this.rules = rules;
         return this;
     }

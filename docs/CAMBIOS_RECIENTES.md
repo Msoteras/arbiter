@@ -29,12 +29,12 @@ scripts/
 ### 2. Mejora del testing 🧪
 
 #### Antes
-- Test de integración `ClasificacionOrquestadorIntegrationTest` llamaba sincronicamente a **Ollama real**
+- Test de integración `ClasificacionOrchestratorIntegrationTest` llamaba sincronicamente a **Ollama real**
 - Requería Ollama corriendo para pasar tests
 - Bloqueante para CI/CD automático
 
 #### Después
-- **Test unitario** `ClasificacionOrquestadorIntegrationTest` con mock del `SiniestroClassifier`
+- **Test unitario** `ClasificacionOrchestratorIntegrationTest` con mock del `SiniestroClassifier`
   - ✅ Corre sin Ollama
   - ✅ Rápido (~2-3s)
   - ✅ Determinístico

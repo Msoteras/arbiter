@@ -1,7 +1,7 @@
 package ar.edu.utn.frba.arbiter.siniestros.adapters.mock;
 
 import ar.edu.utn.frba.arbiter.siniestros.adapters.ReglasAdapter;
-import ar.edu.utn.frba.arbiter.siniestros.dto.ReglasNegocio;
+import ar.edu.utn.frba.arbiter.siniestros.dto.BusinessRules;
 import org.springframework.context.annotation.Profile;
 import org.springframework.stereotype.Component;
 
@@ -12,8 +12,8 @@ import java.util.Map;
 @Profile({"dev", "test", "default"})
 public class MockReglasAdapter implements ReglasAdapter {
 
-    private static final Map<String, ReglasNegocio> RULES_BY_BRANCH = Map.of(
-            "Celulares|Robo en vía pública", ReglasNegocio.builder()
+    private static final Map<String, BusinessRules> RULES_BY_BRANCH = Map.of(
+            "Celulares|Robo en vía pública", BusinessRules.builder()
                     .branchId("Celulares")
                     .claimCauseId("Robo en vía pública")
                     .rules(List.of(
@@ -33,9 +33,14 @@ public class MockReglasAdapter implements ReglasAdapter {
                             "Monto reclamado inferior al 50% de la suma asegurada",
                             "Existencia de testigos o cámaras de seguridad"
                     ))
+                    .fastTrackThresholds(BusinessRules.FastTrackThresholds.builder()
+                            .maxClaimedAmountRatio(0.5)
+                            .maxPriorClaims(0)
+                            .requiresUpToDatePolicy(true)
+                            .build())
                     .build(),
 
-            "Celulares|Hurto", ReglasNegocio.builder()
+            "Celulares|Hurto", BusinessRules.builder()
                     .branchId("Celulares")
                     .claimCauseId("Hurto")
                     .rules(List.of(
@@ -51,9 +56,14 @@ public class MockReglasAdapter implements ReglasAdapter {
                             "Primer siniestro del asegurado",
                             "Monto reclamado inferior al 30% de la suma asegurada"
                     ))
+                    .fastTrackThresholds(BusinessRules.FastTrackThresholds.builder()
+                            .maxClaimedAmountRatio(0.3)
+                            .maxPriorClaims(0)
+                            .requiresUpToDatePolicy(true)
+                            .build())
                     .build(),
 
-            "Celulares|Rotura accidental", ReglasNegocio.builder()
+            "Celulares|Rotura accidental", BusinessRules.builder()
                     .branchId("Celulares")
                     .claimCauseId("Rotura accidental")
                     .rules(List.of(
@@ -71,17 +81,21 @@ public class MockReglasAdapter implements ReglasAdapter {
                             "Costo de reparación menor al 50% del valor asegurado",
                             "Sin siniestros previos del mismo tipo en los últimos 6 meses"
                     ))
+                    .fastTrackThresholds(BusinessRules.FastTrackThresholds.builder()
+                            .maxClaimedAmountRatio(0.5)
+                            .requiresUpToDatePolicy(true)
+                            .build())
                     .build()
     );
 
     @Override
-    public ReglasNegocio getRules(String branchId, String claimCauseId) {
+    public BusinessRules getRules(String branchId, String claimCauseId) {
         String key = branchId + "|" + claimCauseId;
         return RULES_BY_BRANCH.getOrDefault(key, defaultGenericRules(branchId, claimCauseId));
     }
 
-    private ReglasNegocio defaultGenericRules(String branchId, String claimCauseId) {
-        return ReglasNegocio.builder()
+    private BusinessRules defaultGenericRules(String branchId, String claimCauseId) {
+        return BusinessRules.builder()
                 .branchId(branchId)
                 .claimCauseId(claimCauseId)
                 .rules(List.of(

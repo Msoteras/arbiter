@@ -43,7 +43,7 @@ siniestros-service/
 └── src/test/
     ├── java/.../adapters/
     │   ├── OllamaAdapterIntegrationTest.java       # basic test against Ollama
-    │   ├── OllamaClasificacionEscenariosTest.java  # parameterized tests with fixtures
+    │   ├── OllamaClasificacionScenariosTest.java   # parameterized tests with fixtures
     │   └── MockSiniestroClassifier.java             # mock for unit tests
     └── resources/fixtures/
         ├── escenario-posible-riesgo.json     # recidivist, inconsistencies
@@ -141,7 +141,7 @@ Scenarios are in `src/test/resources/fixtures/`. Each JSON has:
 }
 ```
 
-To add a new scenario: create a JSON with the same structure in `fixtures/` and add it to the `@ValueSource` in `OllamaClasificacionEscenariosTest`.
+To add a new scenario: create a JSON with the same structure in `fixtures/` and add it to the `@ValueSource` in `OllamaClasificacionScenariosTest`.
 
 ## Testing with Postman
 
@@ -206,7 +206,7 @@ GET http://localhost:8082/api/v1/claims/results
 Claim (frontend/Postman)
     │
     ▼
-ClasificacionController ──► ClasificacionOrquestador
+ClasificacionController ──► ClasificacionOrchestrator
                                     │
                     ┌───────────────┼───────────────┐
                     ▼               ▼               ▼

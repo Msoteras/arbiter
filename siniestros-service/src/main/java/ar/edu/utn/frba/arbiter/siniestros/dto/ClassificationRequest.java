@@ -5,7 +5,7 @@ import lombok.Builder;
 import java.util.List;
 
 @Builder
-public record ClasificacionRequest(
+public record ClassificationRequest(
         String branch,
         String product,
         String claimCause,

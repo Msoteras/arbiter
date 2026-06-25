@@ -6,8 +6,9 @@ import lombok.Builder;
 import java.util.List;
 
 @Builder
-public record ClasificacionResponse(
+public record ClassificationResponse(
         Clasificacion classification,
         List<String> factors,
-        double confidence
+        double confidence,
+        boolean deterministicFastTrack
 ) {}

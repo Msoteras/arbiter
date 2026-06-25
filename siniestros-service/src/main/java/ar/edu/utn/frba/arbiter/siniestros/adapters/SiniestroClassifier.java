@@ -1,9 +1,9 @@
 package ar.edu.utn.frba.arbiter.siniestros.adapters;
 
-import ar.edu.utn.frba.arbiter.siniestros.dto.ClasificacionRequest;
-import ar.edu.utn.frba.arbiter.siniestros.dto.ClasificacionResponse;
+import ar.edu.utn.frba.arbiter.siniestros.dto.ClassificationRequest;
+import ar.edu.utn.frba.arbiter.siniestros.dto.ClassificationResponse;
 
 public interface SiniestroClassifier {
 
-    ClasificacionResponse classify(ClasificacionRequest request);
+    ClassificationResponse classify(ClassificationRequest request);
 }

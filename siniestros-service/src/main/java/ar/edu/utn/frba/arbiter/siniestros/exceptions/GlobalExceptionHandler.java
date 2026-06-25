@@ -9,8 +9,8 @@ import org.springframework.web.bind.annotation.RestControllerAdvice;
 @RestControllerAdvice
 public class GlobalExceptionHandler {
 
-    @ExceptionHandler(ClasificacionInvalidaException.class)
-    public ProblemDetail handleInvalidClassification(ClasificacionInvalidaException ex) {
+    @ExceptionHandler(InvalidClassificationException.class)
+    public ProblemDetail handleInvalidClassification(InvalidClassificationException ex) {
         ProblemDetail problem = ProblemDetail.forStatus(HttpStatus.UNPROCESSABLE_ENTITY);
         problem.setTitle("Invalid classification");
         problem.setDetail(ex.getMessage());

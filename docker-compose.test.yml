@@ -30,12 +30,13 @@ services:
     image: maven:3.9-eclipse-temurin-21
     working_dir: /app
     volumes:
-      - .:/app                        # fuente del proyecto
-      - maven_cache:/root/.m2         # cache de dependencias Maven entre runs
+      - .:/app                                      # fuente del proyecto
+      - maven_cache:/root/.m2                        # cache de dependencias Maven entre runs
+      - /var/run/docker.sock:/var/run/docker.sock   # Testcontainers levanta un Postgres real para los @SpringBootTest
     command: >
       mvn clean install -DskipTests; mvn -pl siniestros-service test
       -Dgroups=integracion
-      -Dtest=OllamaClasificacionEscenariosTest
+      -Dtest=OllamaClasificacionScenariosTest
     environment:
       OLLAMA_BASE_URL: http://ollama:11434
       OLLAMA_MODEL: qwen3-vl

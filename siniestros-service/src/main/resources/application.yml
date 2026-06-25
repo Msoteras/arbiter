@@ -9,6 +9,14 @@ spring:
   threads:
     virtual:
       enabled: true
+  datasource:
+    url: ${DB_URL:jdbc:postgresql://localhost:5432/arbiter}
+    username: ${DB_USER:arbiter}
+    password: ${DB_PASSWORD:arbiter}
+  jpa:
+    open-in-view: false
+    hibernate:
+      ddl-auto: update
 
 arbiter:
   ollama:
@@ -16,8 +24,6 @@ arbiter:
     model: ${OLLAMA_MODEL:qwen3-vl}
     prompt-version: clasificacion-v1
     num-ctx: ${OLLAMA_NUM_CTX:8192}
-  resultados:
-    path: ${RESULTADOS_PATH:./resultados-clasificaciones.md}
 
 logging:
   level:

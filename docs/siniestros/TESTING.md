@@ -5,7 +5,7 @@
 El módulo tiene dos tipos de tests:
 
 ### 1. Tests unitarios con mock del LLM (recomendado)
-**Archivo:** `ClasificacionOrquestadorIntegrationTest.java`
+**Archivo:** `ClasificacionOrchestratorIntegrationTest.java`
 
 - ✅ **Corre sin dependencias externas** (sin Ollama)
 - ✅ **Rápido** (~2-3 segundos)
@@ -13,7 +13,7 @@ El módulo tiene dos tipos de tests:
 - ✅ **Válido para CI/CD**
 
 ```bash
-mvn -pl siniestros-service test -Dtest=ClasificacionOrquestadorIntegrationTest
+mvn -pl siniestros-service test -Dtest=ClasificacionOrchestratorIntegrationTest
 ```
 
 **Qué valida:**
@@ -54,7 +54,7 @@ O simplemente: `mvn -pl siniestros-service test` (se salta automáticamente si O
 mvn -pl siniestros-service test
 
 # Solo tests unitarios
-mvn -pl siniestros-service test -Dtest=ClasificacionOrquestador*
+mvn -pl siniestros-service test -Dtest=ClasificacionOrchestrator*
 ```
 
 ### Opción 2: Tests con Ollama real
@@ -101,7 +101,7 @@ Si necesitás debuggear un test:
 
 ```bash
 # Run en modo debug (espera en puerto 5005)
-mvn -pl siniestros-service test -Dtest=ClasificacionOrquestadorIntegrationTest -Dmaven.surefire.debug
+mvn -pl siniestros-service test -Dtest=ClasificacionOrchestratorIntegrationTest -Dmaven.surefire.debug
 ```
 
 Luego conectá tu IDE con debugger en `localhost:5005`.

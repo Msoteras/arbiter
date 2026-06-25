@@ -2,11 +2,14 @@ package ar.edu.utn.frba.arbiter.siniestros.adapters;
 
 import ar.edu.utn.frba.arbiter.common.enums.Clasificacion;
 import ar.edu.utn.frba.arbiter.siniestros.config.OllamaProperties;
-import ar.edu.utn.frba.arbiter.siniestros.dto.ClasificacionRequest;
-import ar.edu.utn.frba.arbiter.siniestros.dto.ClasificacionResponse;
-import ar.edu.utn.frba.arbiter.siniestros.exceptions.ClasificacionInvalidaException;
+import ar.edu.utn.frba.arbiter.siniestros.dto.ClassificationRequest;
+import ar.edu.utn.frba.arbiter.siniestros.dto.ClassificationResponse;
+import ar.edu.utn.frba.arbiter.siniestros.exceptions.InvalidClassificationException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.DeserializationFeature;
+import org.apache.pdfbox.Loader;
+import org.apache.pdfbox.pdmodel.PDDocument;
+import org.apache.pdfbox.rendering.PDFRenderer;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
@@ -14,8 +17,11 @@ import org.springframework.core.io.Resource;
 import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestClient;
 
+import javax.imageio.ImageIO;
+import java.awt.image.BufferedImage;
 import java.io.BufferedReader;
 import java.io.ByteArrayInputStream;
+import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
@@ -33,13 +39,16 @@ public class OllamaAdapter implements SiniestroClassifier, DocumentAnalyzer {
             "type", "object",
             "properties", Map.of(
                     "classification", Map.of("type", "string",
-                            "enum", List.of("POTENCIAL_RIESGO", "SIN_RIESGO", "FAST_TRACK", "FALTA_DOCUMENTACION", "REQUIERE_ANALISIS_MANUAL")),
+                            "enum", List.of("POTENCIAL_RIESGO", "FALTA_DOCUMENTACION", "REQUIERE_ANALISIS_MANUAL")),
                     "factors", Map.of("type", "array",
                             "items", Map.of("type", "string")),
                     "confidence", Map.of("type", "number", "minimum", 0, "maximum", 1)
             ),
             "required", List.of("classification", "factors", "confidence")
     );
+
+    /** Qwen3-VL vía Ollama solo acepta imágenes (jpg/png/webp/...), no PDF — hace falta rasterizar antes. */
+    private static final int MAX_PDF_PAGES = 5;
 
     private final RestClient ollamaRestClient;
     private final OllamaProperties properties;
@@ -65,7 +74,7 @@ public class OllamaAdapter implements SiniestroClassifier, DocumentAnalyzer {
     }
 
     @Override
-    public ClasificacionResponse classify(ClasificacionRequest request) {
+    public ClassificationResponse classify(ClassificationRequest request) {
         String prompt = buildPrompt(request);
         int estimatedTokens = prompt.length() / 4;
 
@@ -96,12 +105,12 @@ public class OllamaAdapter implements SiniestroClassifier, DocumentAnalyzer {
 
         if (finalContent.isEmpty()) {
             log.error("[Ollama] Empty response after {} ms", latencyMs);
-            throw new ClasificacionInvalidaException("Ollama returned an empty response");
+            throw new InvalidClassificationException("Ollama returned an empty response");
         }
 
         log.debug("[Ollama] Raw content: {}", finalContent);
 
-        ClasificacionResponse result = parseResponse(finalContent);
+        ClassificationResponse result = parseResponse(finalContent);
         log.info("[Ollama] Classification: {} | confidence: {} | factors: {}",
                 result.classification(), result.confidence(), result.factors().size());
 
@@ -110,10 +119,77 @@ public class OllamaAdapter implements SiniestroClassifier, DocumentAnalyzer {
 
     @Override
     public String extractText(byte[] content, String contentType) {
-        String base64 = Base64.getEncoder().encodeToString(content);
+        log.info("[Ollama] Starting document analysis — model={} contentType={} sizeBytes={} magicBytes={} decodableByJava={}",
+                properties.model(), contentType, content.length, magicBytesHex(content), isDecodableImage(content));
 
-        log.info("[Ollama] Starting document analysis — model={} contentType={} sizeBytes={}",
-                properties.model(), contentType, content.length);
+        if (isPdf(contentType, content)) {
+            return extractTextFromPdf(content);
+        }
+        return extractTextFromImage(content);
+    }
+
+    private boolean isPdf(String contentType, byte[] content) {
+        if ("application/pdf".equalsIgnoreCase(contentType)) {
+            return true;
+        }
+        return content.length >= 4
+                && content[0] == '%' && content[1] == 'P' && content[2] == 'D' && content[3] == 'F';
+    }
+
+    /** Diagnóstico: primeros bytes (firma del formato) para identificar qué llegó realmente. */
+    private String magicBytesHex(byte[] content) {
+        int len = Math.min(content.length, 16);
+        StringBuilder sb = new StringBuilder();
+        for (int i = 0; i < len; i++) {
+            sb.append(String.format("%02X ", content[i]));
+        }
+        return sb.toString().trim();
+    }
+
+    /** Diagnóstico: si ni el propio decoder de Java puede leerlo, es un problema de formato (ej. HEIC), no de Ollama. */
+    private boolean isDecodableImage(byte[] content) {
+        try {
+            return ImageIO.read(new ByteArrayInputStream(content)) != null;
+        } catch (IOException e) {
+            return false;
+        }
+    }
+
+    private String extractTextFromPdf(byte[] content) {
+        try (PDDocument document = Loader.loadPDF(content)) {
+            PDFRenderer renderer = new PDFRenderer(document);
+            int pageCount = Math.min(document.getNumberOfPages(), MAX_PDF_PAGES);
+            if (document.getNumberOfPages() > MAX_PDF_PAGES) {
+                log.warn("[Ollama] PDF has {} pages, only analyzing the first {}",
+                        document.getNumberOfPages(), MAX_PDF_PAGES);
+            }
+
+            StringBuilder combined = new StringBuilder();
+            for (int page = 0; page < pageCount; page++) {
+                BufferedImage image = renderer.renderImageWithDPI(page, 150);
+                String pageText = extractTextFromImage(toPng(image));
+                if (pageCount > 1) {
+                    combined.append("--- Página ").append(page + 1).append(" ---\n");
+                }
+                combined.append(pageText).append("\n");
+            }
+            return combined.toString().trim();
+        } catch (IOException e) {
+            throw new InvalidClassificationException("Could not render PDF document for analysis", e);
+        }
+    }
+
+    private byte[] toPng(BufferedImage image) {
+        try (ByteArrayOutputStream baos = new ByteArrayOutputStream()) {
+            ImageIO.write(image, "png", baos);
+            return baos.toByteArray();
+        } catch (IOException e) {
+            throw new InvalidClassificationException("Could not encode rendered PDF page as image", e);
+        }
+    }
+
+    private String extractTextFromImage(byte[] imageContent) {
+        String base64 = Base64.getEncoder().encodeToString(imageContent);
 
         ChatRequest chatRequest = new ChatRequest(
                 properties.model(),
@@ -168,7 +244,7 @@ public class OllamaAdapter implements SiniestroClassifier, DocumentAnalyzer {
             }
         } catch (IOException e) {
             log.error("[Ollama] Error reading response stream", e);
-            throw new ClasificacionInvalidaException("Error reading Ollama response: " + e.getMessage(), e);
+            throw new InvalidClassificationException("Error reading Ollama response: " + e.getMessage(), e);
         }
 
         String result = fullContent.toString().trim();
@@ -178,7 +254,7 @@ public class OllamaAdapter implements SiniestroClassifier, DocumentAnalyzer {
         return result;
     }
 
-    private String buildPrompt(ClasificacionRequest request) {
+    private String buildPrompt(ClassificationRequest request) {
         String attachmentsText = request.attachmentsOcr() == null || request.attachmentsOcr().isEmpty()
                 ? "Sin documentos adjuntos"
                 : String.join("\n\n---\n\n", request.attachmentsOcr());
@@ -202,16 +278,16 @@ public class OllamaAdapter implements SiniestroClassifier, DocumentAnalyzer {
                 .replace("{{insuredHistory}}", history);
     }
 
-    private ClasificacionResponse parseResponse(String contentJson) {
+    private ClassificationResponse parseResponse(String contentJson) {
         try {
             ModelOutput output = objectMapper.readValue(contentJson, ModelOutput.class);
             Clasificacion classification = Clasificacion.valueOf(output.classification());
-            return new ClasificacionResponse(classification, output.factors(), output.confidence());
+            return new ClassificationResponse(classification, output.factors(), output.confidence(), false);
         } catch (IllegalArgumentException e) {
-            throw new ClasificacionInvalidaException(
+            throw new InvalidClassificationException(
                     "The model returned an invalid classification value: " + contentJson, e);
         } catch (Exception e) {
-            throw new ClasificacionInvalidaException(
+            throw new InvalidClassificationException(
                     "Could not parse model response: " + contentJson, e);
         }
     }
@@ -222,10 +298,6 @@ public class OllamaAdapter implements SiniestroClassifier, DocumentAnalyzer {
 
     private record ChatRequest(String model, List<ChatMessage> messages, boolean stream,
                                Map<String, Object> format, Map<String, Object> options) {}
-
-    private record ChatResponseMessage(String role, String content) {}
-
-    private record ChatResponse(ChatResponseMessage message, boolean done) {}
 
     private record ModelOutput(String classification, List<String> factors, double confidence) {}
 }

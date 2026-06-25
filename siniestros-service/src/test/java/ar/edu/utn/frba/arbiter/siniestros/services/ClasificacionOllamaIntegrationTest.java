@@ -2,8 +2,9 @@ package ar.edu.utn.frba.arbiter.siniestros.services;
 
 import ar.edu.utn.frba.arbiter.common.enums.Clasificacion;
 import ar.edu.utn.frba.arbiter.siniestros.config.OllamaProperties;
-import ar.edu.utn.frba.arbiter.siniestros.dto.ClasificacionResponse;
+import ar.edu.utn.frba.arbiter.siniestros.dto.ClassificationResponse;
 import ar.edu.utn.frba.arbiter.siniestros.dto.DenunciaSiniestro;
+import ar.edu.utn.frba.arbiter.siniestros.support.AbstractPersistenceIT;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
@@ -31,13 +32,13 @@ import static org.junit.jupiter.api.Assumptions.assumeTrue;
 @Tag("ollama")
 @SpringBootTest
 @ActiveProfiles("test")
-class ClasificacionOllamaIntegrationTest {
+class ClasificacionOllamaIntegrationTest extends AbstractPersistenceIT {
 
     @Autowired
     private OllamaProperties ollamaProperties;
 
     @Autowired
-    private ClasificacionOrquestador orchestrator;
+    private ClasificacionOrchestrator orchestrator;
 
     @BeforeEach
     void checkOllamaAvailable() {
@@ -77,7 +78,7 @@ class ClasificacionOllamaIntegrationTest {
                 ))
                 .build();
 
-        ClasificacionResponse response = orchestrator.classify(claim);
+        ClassificationResponse response = orchestrator.classify(claim);
 
         System.out.println("\n=== Real Ollama Response ===");
         System.out.println("Classification: " + response.classification());
@@ -87,7 +88,7 @@ class ClasificacionOllamaIntegrationTest {
         assertThat(response.classification()).isIn(
                 Clasificacion.POTENCIAL_RIESGO,
                 Clasificacion.FALTA_DOCUMENTACION,
-                Clasificacion.FAST_TRACK
+                Clasificacion.REQUIERE_ANALISIS_MANUAL
         );
         assertThat(response.factors()).isNotEmpty();
         assertThat(response.confidence()).isBetween(0.0, 1.0);
