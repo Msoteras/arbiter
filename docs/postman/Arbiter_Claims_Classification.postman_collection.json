@@ -1,0 +1,131 @@
+{
+  "info": {
+    "_postman_id": "a1b2c3d4-e5f6-4a7b-8c9d-0e1f2a3b4c5d",
+    "name": "Arbiter — Claims Classification Module",
+    "description": "Testing collection for the isolated claims analysis/classification endpoint (no claim creation/persistence — that belongs to cases-service).\n\n**Available mock policies**:\n- POL-CEL-2024-001 (Laura Fernández, insuredId 40.123.456) — sum insured 400.000, up to date, 0 prior claims\n- POL-CEL-2025-099 (Marcelo Gómez, insuredId 30.555.777) — sum insured 1.200.000, 3 prior claims\n- POL-CEL-2026-042 (Sofía Martínez, insuredId 42.987.654) — sum insured 1.300.000, up to date, 0 prior claims\n\n**Flow**:\n1. POST /api/v1/classifications (multipart: `claim` JSON part + zero or more document parts) — runs asynchronously. Each file part is keyed by what the document IS (e.g. `police_report`, `invoice`, `quote`, `item_photo`); that key tells the OCR step how to read it and lets business rules require specific document types for Fast Track. Returns 202 Accepted immediately.\n2. GET /api/v1/classifications/results — queries the results table (one row per classification, with a Source column = RULES_FAST_TRACK or LLM). Poll this after each scenario; async classification usually finishes in a few seconds (instant for Fast Track, longer for LLM via Ollama).\n\n**To attach real test documents**: open each request's Body tab, click the file picker next to the document field (e.g. `invoice`, `police_report`) and select your file. Postman stores the local file path in the collection once you save (Ctrl+S) — it won't travel if you re-export/share the collection on another machine, but it's fine for local runs.\n\n**Note**: FAST_TRACK is decided deterministically by FastTrackValidator BEFORE reaching the LLM (claimedAmount vs sum insured, prior claims, policy up to date — and, if configured per ramo/hechoGenerador, presence of specific required documents). That's why the Fast Track scenarios below carry a low `claimedAmount` and a policy/insured that matches the mocks.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "item": [
+    {
+      "name": "1️⃣ FAST_TRACK — Accidental screen break",
+      "request": {
+        "method": "POST",
+        "header": [],
+        "url": {"raw": "{{baseUrl}}/api/v1/classifications", "host": ["{{baseUrl}}"], "path": ["api", "v1", "classifications"]},
+        "body": {
+          "mode": "formdata",
+          "formdata": [
+            {
+              "key": "claim",
+              "value": "{\n  \"branch\": \"Celulares\",\n  \"product\": \"Celular Protegido Premium\",\n  \"claimCause\": \"Rotura accidental\",\n  \"insuredItem\": \"Samsung Galaxy S25 Ultra\",\n  \"insuredId\": \"42.987.654\",\n  \"policyNumber\": \"POL-CEL-2026-042\",\n  \"description\": \"Se me cayó el celular de las manos. Se rompió la pantalla pero el equipo funciona\",\n  \"eventDate\": \"2026-06-14T08:30:00\",\n  \"eventLocation\": \"Casa\",\n  \"claimedAmount\": 285000\n}",
+              "contentType": "application/json",
+              "type": "text"
+            },
+            {"key": "invoice", "type": "file", "src": [], "description": "Optional: equipment purchase invoice"},
+            {"key": "quote", "type": "file", "src": [], "description": "Optional: authorized repair quote"}
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "2️⃣ FAST_TRACK — Street theft",
+      "request": {
+        "method": "POST",
+        "header": [],
+        "url": {"raw": "{{baseUrl}}/api/v1/classifications", "host": ["{{baseUrl}}"], "path": ["api", "v1", "classifications"]},
+        "body": {
+          "mode": "formdata",
+          "formdata": [
+            {
+              "key": "claim",
+              "value": "{\n  \"branch\": \"Celulares\",\n  \"product\": \"Celular Protegido Básico\",\n  \"claimCause\": \"Robo en vía pública\",\n  \"insuredItem\": \"Motorola Edge 50 Pro\",\n  \"insuredId\": \"40.123.456\",\n  \"policyNumber\": \"POL-CEL-2024-001\",\n  \"description\": \"Me robaron el celular en la estación de subte. Hice denuncia policial el mismo día\",\n  \"eventDate\": \"2026-06-13T19:45:00\",\n  \"eventLocation\": \"Estación Congreso, CABA\",\n  \"claimedAmount\": 150000\n}",
+              "contentType": "application/json",
+              "type": "text"
+            },
+            {"key": "police_report", "type": "file", "src": [], "description": "Optional: police report"},
+            {"key": "invoice", "type": "file", "src": [], "description": "Optional: equipment purchase invoice"}
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "3️⃣ LLM — Recidivist with inconsistencies",
+      "request": {
+        "method": "POST",
+        "header": [],
+        "url": {"raw": "{{baseUrl}}/api/v1/classifications", "host": ["{{baseUrl}}"], "path": ["api", "v1", "classifications"]},
+        "body": {
+          "mode": "formdata",
+          "formdata": [
+            {
+              "key": "claim",
+              "value": "{\n  \"branch\": \"Celulares\",\n  \"product\": \"Celular Protegido Premium\",\n  \"claimCause\": \"Robo en vía pública\",\n  \"insuredItem\": \"iPhone 16 Pro Max\",\n  \"insuredId\": \"30.555.777\",\n  \"policyNumber\": \"POL-CEL-2025-099\",\n  \"description\": \"Me robaron el celular pero no me acuerdo bien dónde ni cuándo. Fue el martes o miércoles pasado, creo que cerca de Palermo\",\n  \"eventDate\": \"2026-06-10T23:00:00\",\n  \"eventLocation\": \"Palermo o Belgrano (no precisa)\",\n  \"claimedAmount\": 950000\n}",
+              "contentType": "application/json",
+              "type": "text"
+            },
+            {"key": "police_report", "type": "file", "src": [], "description": "Optional: police report"}
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "4️⃣ LLM — Ambiguous case (no está claro si fue robo o pérdida)",
+      "request": {
+        "method": "POST",
+        "header": [],
+        "url": {"raw": "{{baseUrl}}/api/v1/classifications", "host": ["{{baseUrl}}"], "path": ["api", "v1", "classifications"]},
+        "body": {
+          "mode": "formdata",
+          "formdata": [
+            {
+              "key": "claim",
+              "value": "{\n  \"branch\": \"Celulares\",\n  \"product\": \"Celular Protegido Premium\",\n  \"claimCause\": \"Robo en vía pública\",\n  \"insuredItem\": \"iPhone 16 Pro\",\n  \"insuredId\": \"42.987.654\",\n  \"policyNumber\": \"POL-CEL-2026-042\",\n  \"description\": \"El celular desapareció pero no sé si me lo robaron o lo perdí. No estoy seguro qué pasó exactamente\",\n  \"eventDate\": \"2026-06-12T18:30:00\",\n  \"eventLocation\": \"Colectivo línea 159\",\n  \"claimedAmount\": 1200000\n}",
+              "contentType": "application/json",
+              "type": "text"
+            },
+            {"key": "police_report", "type": "file", "src": [], "description": "Optional: unclear/vague police report"}
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "5️⃣ LLM — Full documentation (invoice + quote + photo)",
+      "request": {
+        "method": "POST",
+        "header": [],
+        "url": {"raw": "{{baseUrl}}/api/v1/classifications", "host": ["{{baseUrl}}"], "path": ["api", "v1", "classifications"]},
+        "body": {
+          "mode": "formdata",
+          "formdata": [
+            {
+              "key": "claim",
+              "value": "{\n  \"branch\": \"Celulares\",\n  \"product\": \"Celular Protegido Premium\",\n  \"claimCause\": \"Robo en vía pública\",\n  \"insuredItem\": \"iPhone 15 Pro\",\n  \"insuredId\": \"30.555.777\",\n  \"policyNumber\": \"POL-CEL-2025-099\",\n  \"description\": \"Me robaron el celular en el colectivo. Adjunto toda la documentación disponible\",\n  \"eventDate\": \"2026-06-08T17:45:00\",\n  \"eventLocation\": \"Colectivo línea 39\",\n  \"claimedAmount\": 600000\n}",
+              "contentType": "application/json",
+              "type": "text"
+            },
+            {"key": "police_report", "type": "file", "src": [], "description": "Police report of the incident"},
+            {"key": "invoice", "type": "file", "src": [], "description": "Equipment purchase invoice"},
+            {"key": "item_photo", "type": "file", "src": [], "description": "Photo of the item"}
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "📋 Get results table",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {"raw": "{{baseUrl}}/api/v1/classifications/results", "host": ["{{baseUrl}}"], "path": ["api", "v1", "classifications", "results"]}
+      },
+      "response": []
+    }
+  ],
+  "variable": [
+    {"key": "baseUrl", "value": "http://localhost:8082", "type": "string"}
+  ]
+}
