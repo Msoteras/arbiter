@@ -1,6 +1,6 @@
 services:
 
-  # ─── Persistencia ───────────────────────────────────────────────────────
+  # ─── Persistence ────────────────────────────────────────────────────────
   postgres:
     image: postgres:16
     environment:
@@ -32,7 +32,7 @@ services:
       retries: 12
       start_period: 10s
 
-  # Descarga el modelo al volume la primera vez; no-op si ya está cacheado.
+  # Pulls the model into the volume on first run; no-op if it's already cached.
   ollama-init:
     image: ollama/ollama
     entrypoint: ["ollama", "pull", "qwen3-vl"]
@@ -43,11 +43,11 @@ services:
         condition: service_healthy
     restart: on-failure
 
-  # ─── Módulos backend ─────────────────────────────────────────────────────
-  siniestros-service:
+  # ─── Backend modules ────────────────────────────────────────────────────
+  classification-service:
     build:
       context: .
-      dockerfile: siniestros-service/Dockerfile
+      dockerfile: classification-service/Dockerfile
     ports:
       - "8082:8082"
     environment:
@@ -64,12 +64,12 @@ services:
         condition: service_healthy
     restart: on-failure
 
-  # TODO: agregar los demás servicios a medida que se implementen:
-  # auth-service       → puerto 8080
-  # reglas-service     → puerto 8081
-  # expedientes-service → puerto 8083
-  # reportes-service   → puerto 8084
-  # arbiter-frontend   → puerto 5173
+  # TODO: add the remaining services as they get implemented:
+  # auth-service       → port 8080
+  # rules-service      → port 8081
+  # cases-service      → port 8083
+  # reports-service    → port 8084
+  # arbiter-frontend   → port 5173
 
 volumes:
   ollama_data:

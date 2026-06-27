@@ -17,7 +17,7 @@ arbiter/
 │       └── TEST-CLASIFICACIONES.md
 │
 ├── postman/                           # Colecciones Postman
-│   └── Arbiter_Siniestros_Clasificacion.postman_collection.json
+│   └── Arbiter_Claims_Classification.postman_collection.json
 │
 ├── scripts/                           # Scripts auxiliares
 │   ├── test-clasificaciones.http      # Tests REST (HTTP Client de IntelliJ)
@@ -25,33 +25,33 @@ arbiter/
 │
 ├── common-lib/                        # Librería compartida
 │   ├── src/main/java/ar/edu/utn/frba/arbiter/common/
-│   │   ├── enums/                     # Enums de dominio (Clasificacion, etc.)
+│   │   ├── enums/                     # Domain enums (Classification, etc.)
 │   │   ├── dto/                       # DTOs compartidos entre módulos
 │   │   └── exceptions/                # Excepciones base
 │   └── pom.xml
 │
-└── siniestros-service/                # Módulo de Análisis y Clasificación
-    ├── src/main/java/ar/edu/utn/frba/arbiter/siniestros/
-    │   ├── SiniestrosServiceApplication.java
+└── classification-service/                # Módulo de Análisis y Clasificación
+    ├── src/main/java/ar/edu/utn/frba/arbiter/classification/
+    │   ├── ClassificationServiceApplication.java
     │   ├── config/                    # @Configuration, AsyncConfig, OllamaProperties
     │   ├── controllers/               # REST endpoints
     │   ├── dto/                       # Request/Response (DTO locales)
     │   ├── exceptions/                # Excepciones locales + @ControllerAdvice
     │   ├── models/
-    │   │   ├── entities/              # @Entity JPA: ClasificacionLog (auditoría inmutable)
-    │   │   └── repositories/          # Spring Data JPA: ClasificacionLogRepository
+    │   │   ├── entities/              # @Entity JPA: ClassificationLog (auditoría inmutable)
+    │   │   └── repositories/          # Spring Data JPA: ClassificationLogRepository
     │   ├── services/                  # Lógica de negocio
-    │   │   ├── ClasificacionJob.java       # Async wrapper con @Async (testeo aislado)
-    │   │   ├── ClasificacionOrchestrator.java # Orquestación: gate Fast Track + LLM fallback
+    │   │   ├── ClassificationJob.java       # Async wrapper con @Async (testeo aislado)
+    │   │   ├── ClassificationOrchestrator.java # Orquestación: gate Fast Track + LLM fallback
     │   │   ├── PromptBuilder.java          # Construcción de prompts
     │   │   ├── FastTrackValidator.java     # Gate determinístico de Fast Track
-    │   │   └── ClasificacionResultsService.java
+    │   │   └── ClassificationResultsService.java
     │   └── adapters/                  # Integraciones externas
-    │       ├── SiniestroClassifier.java     # Interface para el LLM
+    │       ├── ClaimClassifier.java     # Interface para el LLM
     │       ├── OllamaAdapter.java           # Implementación real (Ollama)
     │       ├── MockClassifier.java          # Mock para dev/test
-    │       ├── ReglasAdapter.java           # Consulta reglas-service
-    │       └── AseguradoraAdapter.java      # Consulta BD aseguradora
+    │       ├── RulesAdapter.java           # Consulta rules-service
+    │       └── InsurerAdapter.java      # Consulta BD aseguradora
     │
     ├── src/main/resources/
     │   ├── application.yml            # Configuración común (datasource + JPA, ddl-auto=update)
@@ -60,10 +60,10 @@ arbiter/
     │   └── prompts/
     │       └── clasificacion-v1.md    # Plantilla del prompt
     │
-    ├── src/test/java/ar/edu/utn/frba/arbiter/siniestros/
+    ├── src/test/java/ar/edu/utn/frba/arbiter/classification/
     │   └── services/
-    │       ├── ClasificacionOrchestratorIntegrationTest.java  # Tests con mock (default)
-    │       └── ClasificacionOllamaIntegrationTest.java        # Tests con Ollama real (optional)
+    │       ├── ClassificationOrchestratorIntegrationTest.java  # Tests con mock (default)
+    │       └── ClassificationOllamaIntegrationTest.java        # Tests con Ollama real (optional)
     │
     ├── pom.xml
     ├── Dockerfile                     # Multi-stage build
@@ -77,10 +77,10 @@ arbiter/
 | Módulo               | Responsabilidad                     | Estado        |
 |----------------------|-------------------------------------|---------------|
 | `common-lib`         | DTOs compartidos, enums, excepciones | ✅ Activo     |
-| `siniestros-service` | Análisis y Clasificación (enfoque actual) | ✅ En desarrollo |
-| `reglas-service`     | Motor de Reglas                     | 📋 Planeado   |
-| `expedientes-service`| Gestión de Expedientes              | 📋 Planeado   |
-| `reportes-service`   | Reportes y Estadísticas             | 📋 Planeado   |
+| `classification-service` | Análisis y Clasificación (enfoque actual) | ✅ En desarrollo |
+| `rules-service`     | Motor de Reglas                     | 📋 Planeado   |
+| `cases-service`| Gestión de Expedientes              | 📋 Planeado   |
+| `reports-service`   | Reportes y Estadísticas             | 📋 Planeado   |
 | `auth-service`       | Gestión de Usuarios + Auth0         | 📋 Planeado   |
 | `arbiter-frontend`   | SPA React 19                        | 📋 Planeado   |
 
@@ -104,13 +104,13 @@ arbiter/
 → Lee `docs/siniestros/TESTING.md`
 
 ### Quiero probar endpoints con Postman
-→ Importá `postman/Arbiter_Siniestros_Clasificacion.postman_collection.json`
+→ Importá `postman/Arbiter_Claims_Classification.postman_collection.json`
 
 ### Quiero correr el módulo localmente
-→ Lee `siniestros-service/README.md`
+→ Lee `classification-service/README.md`
 
 ### Quiero ver el flujo de capas (MVC)
-→ Explorá `siniestros-service/src/main/java/ar/edu/utn/frba/arbiter/siniestros/`
+→ Explorá `classification-service/src/main/java/ar/edu/utn/frba/arbiter/classification/`
 
 ---
 
@@ -123,7 +123,7 @@ arbiter/
 
 ### Ejemplo
 ```bash
-git commit -m "feat(siniestros): implementar ClasificacionJob asincrónico con reintentos"
+git commit -m "feat(siniestros): implementar ClassificationJob asincrónico con reintentos"
 ```
 
 ---
@@ -163,7 +163,7 @@ LOG_LEVEL=INFO
 
 1. ✅ **Módulo de Análisis y Clasificación** — armado base (Controllers, Services, Adapters)
 2. ⏳ **Flujo async mejorado** — persistencia de clasificación en BD (tablas `siniestro`, `clasificacion_log`)
-3. ⏳ **Endpoints de catálogo** en `reglas-service` (productos, ramos, hechos generadores)
+3. ⏳ **Endpoints de catálogo** en `rules-service` (productos, ramos, hechos generadores)
 4. ⏳ **Frontend** — wizard de alta de denuncia + bandeja del analista
 5. ⏳ **Motor de Reglas** — configuración dinámica por aseguradora
 
@@ -174,5 +174,5 @@ LOG_LEVEL=INFO
 - 📖 **Documentación de arquitectura aprobada:** `CLAUDE.md`
 - 🧪 **Guía de testing:** `docs/siniestros/TESTING.md`
 - 📋 **Casos de prueba:** `docs/siniestros/TEST-CLASIFICACIONES.md`
-- 🔗 **Postman:** `postman/Arbiter_Siniestros_Clasificacion.postman_collection.json`
-- 🛠️ **README del módulo:** `siniestros-service/README.md`
+- 🔗 **Postman:** `postman/Arbiter_Claims_Classification.postman_collection.json`
+- 🛠️ **README del módulo:** `classification-service/README.md`

@@ -16,7 +16,7 @@ docs/
     ├── MAPEO_TIPOLOGIAS_CLASIFICACIONES.md
     └── TEST-CLASIFICACIONES.md
 postman/
-└── Arbiter_Siniestros_Clasificacion.postman_collection.json
+└── Arbiter_Claims_Classification.postman_collection.json
 scripts/
 ├── test-clasificaciones.http
 └── test-clasificaciones.ps1
@@ -29,18 +29,18 @@ scripts/
 ### 2. Mejora del testing 🧪
 
 #### Antes
-- Test de integración `ClasificacionOrchestratorIntegrationTest` llamaba sincronicamente a **Ollama real**
+- Test de integración `ClassificationOrchestratorIntegrationTest` llamaba sincronicamente a **Ollama real**
 - Requería Ollama corriendo para pasar tests
 - Bloqueante para CI/CD automático
 
 #### Después
-- **Test unitario** `ClasificacionOrchestratorIntegrationTest` con mock del `SiniestroClassifier`
+- **Test unitario** `ClassificationOrchestratorIntegrationTest` con mock del `ClaimClassifier`
   - ✅ Corre sin Ollama
   - ✅ Rápido (~2-3s)
   - ✅ Determinístico
   - ✅ Válido para CI/CD
 
-- **Test de integración real** `ClasificacionOllamaIntegrationTest` (nuevo)
+- **Test de integración real** `ClassificationOllamaIntegrationTest` (nuevo)
   - ⚠️ Requiere Ollama
   - ⏱️ Lento (~15-30s)
   - ✅ Valida respuesta real del modelo
@@ -50,10 +50,10 @@ scripts/
 
 ```bash
 # Tests unitarios (default, sin Ollama)
-mvn -pl siniestros-service test
+mvn -pl classification-service test
 
 # Tests con Ollama real (opcional)
-mvn -pl siniestros-service test -Dgroups=ollama
+mvn -pl classification-service test -Dgroups=ollama
 ```
 
 ---
@@ -87,7 +87,7 @@ mvn -pl siniestros-service test -Dgroups=ollama
 
 1. **Persistencia de clasificaciones** → Crear tablas `siniestro`, `clasificacion`, `clasificacion_log`
 2. **Endpoint GET** para consultar clasificación después del async
-3. **Endpoints de catálogo** en `reglas-service` (Productos, Ramos, HechosGeneradores)
+3. **Endpoints de catálogo** en `rules-service` (Productos, Ramos, HechosGeneradores)
 4. **Frontend** — wizard de alta de denuncia
 
 ---
@@ -104,5 +104,5 @@ ls -R scripts/
 mvn clean compile
 
 # Tests
-mvn -pl siniestros-service test
+mvn -pl classification-service test
 ```

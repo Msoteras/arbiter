@@ -5,7 +5,7 @@
 El módulo tiene dos tipos de tests:
 
 ### 1. Tests unitarios con mock del LLM (recomendado)
-**Archivo:** `ClasificacionOrchestratorIntegrationTest.java`
+**Archivo:** `ClassificationOrchestratorIntegrationTest.java`
 
 - ✅ **Corre sin dependencias externas** (sin Ollama)
 - ✅ **Rápido** (~2-3 segundos)
@@ -13,7 +13,7 @@ El módulo tiene dos tipos de tests:
 - ✅ **Válido para CI/CD**
 
 ```bash
-mvn -pl siniestros-service test -Dtest=ClasificacionOrchestratorIntegrationTest
+mvn -pl classification-service test -Dtest=ClassificationOrchestratorIntegrationTest
 ```
 
 **Qué valida:**
@@ -25,7 +25,7 @@ mvn -pl siniestros-service test -Dtest=ClasificacionOrchestratorIntegrationTest
 ---
 
 ### 2. Tests de integración con Ollama real (opcional)
-**Archivo:** `ClasificacionOllamaIntegrationTest.java`
+**Archivo:** `ClassificationOllamaIntegrationTest.java`
 
 - ⚠️ **Requiere Ollama corriendo** con `qwen3-vl`
 - ⏱️ **Lento** (~15-30 segundos por test)
@@ -34,10 +34,10 @@ mvn -pl siniestros-service test -Dtest=ClasificacionOrchestratorIntegrationTest
 
 ```bash
 # Requiere: ollama serve
-mvn -pl siniestros-service test -Dgroups=ollama -Dtest=ClasificacionOllamaIntegrationTest
+mvn -pl classification-service test -Dgroups=ollama -Dtest=ClassificationOllamaIntegrationTest
 ```
 
-O simplemente: `mvn -pl siniestros-service test` (se salta automáticamente si Ollama no está disponible).
+O simplemente: `mvn -pl classification-service test` (se salta automáticamente si Ollama no está disponible).
 
 **Qué valida:**
 - Integración real con Ollama
@@ -51,10 +51,10 @@ O simplemente: `mvn -pl siniestros-service test` (se salta automáticamente si O
 ### Opción 1: Tests unitarios (default)
 ```bash
 # Todos los tests unitarios del módulo
-mvn -pl siniestros-service test
+mvn -pl classification-service test
 
 # Solo tests unitarios
-mvn -pl siniestros-service test -Dtest=ClasificacionOrchestrator*
+mvn -pl classification-service test -Dtest=ClassificationOrchestrator*
 ```
 
 ### Opción 2: Tests con Ollama real
@@ -63,7 +63,7 @@ mvn -pl siniestros-service test -Dtest=ClasificacionOrchestrator*
 ollama serve
 
 # En otra terminal:
-mvn -pl siniestros-service test -Dgroups=ollama
+mvn -pl classification-service test -Dgroups=ollama
 ```
 
 ### Opción 3: Todo desde la raíz
@@ -76,20 +76,20 @@ mvn clean test
 
 ## Mock del classifier
 
-Los tests unitarios mockan `SiniestroClassifier` con respuestas fijas:
+Los tests unitarios mockan `ClaimClassifier` con respuestas fijas:
 
 ```java
 @MockBean
-private SiniestroClassifier classifierMock;
+private ClaimClassifier classifierMock;
 
 // En cada test:
-when(classifierMock.clasificar(any(ClasificacionRequest.class)))
+when(classifierMock.clasificar(any(ClassificationRequest.class)))
     .thenReturn(expectedResponse);
 ```
 
 Para agregar casos nuevos, simplemente:
 1. Copia un test existente
-2. Crea un nuevo `DenunciaSiniestro` con los datos del caso
+2. Crea un nuevo `ClaimReport` con los datos del caso
 3. Mocka la respuesta esperada
 4. Agrega asserts
 
@@ -101,7 +101,7 @@ Si necesitás debuggear un test:
 
 ```bash
 # Run en modo debug (espera en puerto 5005)
-mvn -pl siniestros-service test -Dtest=ClasificacionOrchestratorIntegrationTest -Dmaven.surefire.debug
+mvn -pl classification-service test -Dtest=ClassificationOrchestratorIntegrationTest -Dmaven.surefire.debug
 ```
 
 Luego conectá tu IDE con debugger en `localhost:5005`.

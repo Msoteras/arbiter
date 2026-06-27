@@ -1,0 +1,9 @@
+server:
+  port: 8084
+
+spring:
+  application:
+    name: cases-service
+  threads:
+    virtual:
+      enabled: true
