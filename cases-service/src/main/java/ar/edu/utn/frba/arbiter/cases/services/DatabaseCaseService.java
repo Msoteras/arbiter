@@ -11,7 +11,7 @@ import org.springframework.web.server.ResponseStatusException;
 
 @Service
 @RequiredArgsConstructor
-public class InMemoryCaseService implements CaseService {
+public class DatabaseCaseService implements CaseService {
 
     private final CaseRepository caseRepository;
     private final RealClaimsAnalysisClient realClaimsAnalysisClient;
