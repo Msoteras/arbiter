@@ -1,0 +1,5 @@
+{
+  "/api/v1/expedientes": { "target": "http://localhost:8083", "secure": false, "changeOrigin": true },
+  "/api/v1/claims": { "target": "http://localhost:8082", "secure": false, "changeOrigin": true },
+  "/api/v1/classifications": { "target": "http://localhost:8082", "secure": false, "changeOrigin": true }
+}

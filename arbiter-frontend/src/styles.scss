@@ -1,0 +1,109 @@
+/* ===== Arbiter — design tokens (escala de grises, SIN color) ===== */
+:root {
+  /* Texto */
+  --c-ink: #23262a; /* negro de marca */
+  --c-ink-2: #3a3d41;
+  --c-ink-3: #51565c;
+  --c-ink-4: #585d63;
+  --c-muted: #868c93;
+  --c-muted-2: #9aa0a6;
+  --c-muted-3: #aeb3b8;
+  /* Bordes */
+  --c-border: #e2e5e8;
+  --c-divider: #eef0f2;
+  --c-border-2: #d4d8dc;
+  --c-border-3: #c2c7cc;
+  --c-border-strong: #aab0b6;
+  /* Fondos */
+  --c-bg: #ffffff;
+  --c-bg-soft: #fafbfc;
+  --c-bg-soft-2: #f6f7f8;
+  --c-bg-head: #f4f5f6;
+
+  --radius-card: 10px;
+  --radius-pill: 999px;
+  --radius-ctl: 7px;
+
+  --font-sans: -apple-system, BlinkMacSystemFont, 'Helvetica Neue', Arial, sans-serif;
+  --font-mono: 'Roboto Mono', ui-monospace, 'SFMono-Regular', Menlo, monospace;
+}
+
+* { box-sizing: border-box; }
+html, body { height: 100%; }
+
+body {
+  margin: 0;
+  font-family: var(--font-sans);
+  font-size: 13px;
+  color: var(--c-ink);
+  background: var(--c-bg);
+  -webkit-font-smoothing: antialiased;
+}
+
+.mono { font-family: var(--font-mono); }
+
+/* ===== App shell ===== */
+.app-shell { min-height: 100%; }
+
+.topbar {
+  position: sticky;
+  top: 0;
+  z-index: 30;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  height: 52px;
+  padding: 0 24px;
+  background: var(--c-bg);
+  border-bottom: 1px solid var(--c-border);
+}
+.topbar .logo {
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  font-size: 12px;
+  border: 1px solid var(--c-border-3);
+  border-radius: var(--radius-ctl);
+  padding: 4px 10px;
+  color: var(--c-ink-3);
+}
+.topbar-title { font-size: 13px; color: var(--c-ink-3); }
+
+.app-body { display: flex; align-items: flex-start; }
+
+.sidebar {
+  flex: 0 0 188px;
+  position: sticky;
+  top: 52px;
+  align-self: stretch;
+  border-right: 1px solid var(--c-border);
+  padding: 16px 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  background: var(--c-bg-soft);
+}
+.sidebar a {
+  display: block;
+  padding: 8px 12px;
+  border-radius: var(--radius-ctl);
+  text-decoration: none;
+  color: var(--c-ink-3);
+  font-size: 13px;
+}
+.sidebar a:hover { background: var(--c-bg-soft-2); color: var(--c-ink); }
+.sidebar a.active { background: var(--c-bg-head); color: var(--c-ink); font-weight: 600; }
+.sidebar a.disabled { color: var(--c-muted-3); cursor: default; }
+.sidebar a.disabled:hover { background: none; color: var(--c-muted-3); }
+
+.app-content { flex: 1 1 auto; min-width: 0; }
+
+@media (max-width: 700px) {
+  .app-body { flex-direction: column; }
+  .sidebar {
+    position: static;
+    flex-basis: auto;
+    flex-direction: row;
+    border-right: none;
+    border-bottom: 1px solid var(--c-border);
+  }
+}
