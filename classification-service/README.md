@@ -40,7 +40,7 @@ classification-service/
 ├── src/main/resources/
 │   ├── application.yml
 │   └── prompts/
-│       └── clasificacion-v1.md           # prompt template (versioned)
+│       └── classification-v1.md           # prompt template (versioned)
 └── src/test/
     ├── java/.../adapters/
     │   ├── OllamaAdapterIntegrationTest.java       # basic test against Ollama
