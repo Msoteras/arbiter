@@ -18,6 +18,27 @@ import java.util.Map;
 public class MockInsurerAdapter implements InsurerAdapter {
 
     private static final Map<String, InsuredPolicy> POLICIES = Map.of(
+            "POL-001", InsuredPolicy.builder()
+                    .policyNumber("POL-001")
+                    .insuredName("Test Insured")
+                    .insuredId("12345678")
+                    .branch("SUCURSAL-1")
+                    .product("CELULAR")
+                    .effectiveFrom(LocalDate.of(2024, 1, 1))
+                    .effectiveTo(LocalDate.of(2027, 12, 31))
+                    .upToDate(true)
+                    .insuredAmount(new BigDecimal("500000"))
+                    .deductible(new BigDecimal("50000"))
+                    .coverages(List.of(
+                            PolicyCoverage.builder()
+                                    .code("COB-ROB-TEST")
+                                    .description("Robo test coverage")
+                                    .insuredAmount(new BigDecimal("500000"))
+                                    .deductible(new BigDecimal("50000"))
+                                    .build()
+                    ))
+                    .applicableClauses(List.of("100 — Exclusión robo en domicilio"))
+                    .build(),
             "POL-CEL-2024-001", InsuredPolicy.builder()
                     .policyNumber("POL-CEL-2024-001")
                     .insuredName("Laura Fernández")
@@ -45,7 +66,6 @@ public class MockInsurerAdapter implements InsurerAdapter {
                     ))
                     .applicableClauses(List.of("100 — Exclusión robo en domicilio", "105 — Franquicia fija"))
                     .build(),
-
             "POL-CEL-2025-099", InsuredPolicy.builder()
                     .policyNumber("POL-CEL-2025-099")
                     .insuredName("Marcelo Gómez")
@@ -73,7 +93,6 @@ public class MockInsurerAdapter implements InsurerAdapter {
                     ))
                     .applicableClauses(List.of("100 — Exclusión robo en domicilio", "102 — Reposición a nuevo", "344 — Cobertura mundial"))
                     .build(),
-
             "POL-CEL-2026-042", InsuredPolicy.builder()
                     .policyNumber("POL-CEL-2026-042")
                     .insuredName("Sofía Martínez")
