@@ -1,9 +1,0 @@
-server:
-  port: 8084
-
-spring:
-  application:
-    name: expedientes-service
-  threads:
-    virtual:
-      enabled: true

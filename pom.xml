@@ -12,10 +12,10 @@
   <modules>
     <module>common-lib</module>
     <!-- <module>auth-service</module> -->
-    <module>siniestros-service</module>
-    <!-- <module>reglas-service</module> -->
-    <!-- <module>expedientes-service</module> -->
-    <!-- <module>reportes-service</module> -->
+    <module>classification-service</module>
+    <!-- <module>rules-service</module> -->
+    <module>cases-service</module>
+    <!-- <module>reports-service</module> -->
   </modules>
 
   <properties>

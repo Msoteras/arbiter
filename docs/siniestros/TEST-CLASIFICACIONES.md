@@ -60,7 +60,7 @@ Contiene 5 escenarios pre-armados con ejemplos de cada categoría.
 
 ## Prereqs
 
-- **Servicio siniestros corriendo**: `mvn spring-boot:run -pl siniestros-service` (puerto 8082)
+- **Servicio siniestros corriendo**: `mvn spring-boot:run -pl classification-service` (puerto 8082)
 - **Ollama disponible**: `ollama serve` en http://localhost:11434
 - **PowerShell 7+** o **.NET Framework 4.7+** (para el script)
 
@@ -80,11 +80,11 @@ Contiene 5 escenarios pre-armados con ejemplos de cada categoría.
 
 | Clasificación | Significado |
 |---|---|
-| `FAST_TRACK` | Caso claro, bajo riesgo, puede aprobarse rápido |
-| `POSIBLE_RIESGO` | Señales de alerta; requiere análisis adicional |
-| `SIN_RIESGO` | Caso rechazado por reglas de negocio |
+| `FAST_TRACK` | Gate determinístico (no LLM); caso claro, va directo al analista para aprobar |
 | `FALTA_DOCUMENTACION` | Documentación requerida no está completa |
-| `REQUIERE_ANALISIS_MANUAL` | Ambigüedad o contradicciones; escalado a analista |
+| `LLM_RECOMIENDA_APROBAR` | LLM no encontró alertas; recomienda aprobar (no vinculante) |
+| `LLM_NO_RECOMIENDA_APROBAR` | Señales de alerta; LLM recomienda no aprobar (no vinculante) |
+| `LLM_SOLICITA_REVISION_MANUAL` | Ambigüedad o contradicciones; el LLM no se anima a recomendar, pide revisión 100% manual |
 
 ## Debugging
 
@@ -95,7 +95,7 @@ Si falla un escenario:
 ./test-clasificaciones.ps1 -Filter "posible-riesgo"
 
 # Ver logs del servicio
-mvn spring-boot:run -pl siniestros-service --debug
+mvn spring-boot:run -pl classification-service --debug
 ```
 
 Check Ollama logs si hay timeouts:
@@ -106,7 +106,7 @@ ollama serve  # verifica que el modelo Qwen3-VL está cargado
 
 ## Notas
 
-- Los fixtures están en `siniestros-service/src/test/resources/fixtures/`
+- Los fixtures están en `classification-service/src/test/resources/fixtures/`
 - Cada fixture es un JSON con `nombre`, `clasificacionEsperada`, y el `request` a enviar
 - El script enriquece los requests con valores dummy para campos obligatorios (aseguradoDni, polizaNumero, fechaHecho) que no están en los fixtures
 - Latencias esperadas: 5-30 segundos por request (depende de carga de Ollama)
