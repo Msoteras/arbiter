@@ -1,15 +1,22 @@
 package ar.edu.utn.frba.arbiter.cases.services;
 
 import ar.edu.utn.frba.arbiter.cases.dto.CaseRequest;
+import ar.edu.utn.frba.arbiter.cases.models.entities.CaseEntity;
+import ar.edu.utn.frba.arbiter.cases.models.repositories.CaseRepository;
+import lombok.RequiredArgsConstructor;
+import org.springframework.context.annotation.Profile;
 import org.springframework.stereotype.Component;
 
 /**
- * Placeholder until the real REST call to classification-service is wired up.
- * Fakes a synchronous result with simple keyword matching — not a substitute
- * for the actual Fast Track gate + LLM flow.
+ * Mock implementation for dev profile — synchronous classification with keyword matching.
+ * Falls back when classification-service is unavailable or too slow.
  */
 @Component
+@Profile({"dev", "test", "default"})
+@RequiredArgsConstructor
 public class MockClaimsAnalysisClient implements ClaimsAnalysisClient {
+
+    private final CaseRepository caseRepository;
 
     @Override
     public AnalysisResult analyze(CaseRequest request) {
@@ -37,5 +44,37 @@ public class MockClaimsAnalysisClient implements ClaimsAnalysisClient {
             return "FALTA_DOCUMENTACION";
         }
         return "LLM_SOLICITA_REVISION_MANUAL";
+    }
+
+    @Override
+    public AnalysisResult analyzeAndPersist(CaseEntity caseEntity) {
+        // Mock: classify synchronously
+        AnalysisResult result = analyze(new CaseRequest(
+            caseEntity.getBranch(),
+            caseEntity.getProduct(),
+            caseEntity.getClaimCause(),
+            caseEntity.getInsuredItem(),
+            caseEntity.getInsuredId(),
+            caseEntity.getPolicyNumber(),
+            caseEntity.getDescription(),
+            caseEntity.getEventDate(),
+            caseEntity.getEventLocation()
+        ));
+        
+        // Update entity with classification result
+        caseEntity.setAnalysisClassification(result.classification());
+        caseEntity.setAnalysisConfidence(result.confidence());
+        caseEntity.setAnalysisDetail(result.detail());
+        caseEntity.setStatus("CLASSIFIED");
+        
+        // Persist immediately (mock is synchronous)
+        caseRepository.save(caseEntity);
+        return result;
+    }
+
+    @Override
+    public boolean refreshClassification(CaseEntity caseEntity) {
+        // Mock: already classified (was done in analyzeAndPersist)
+        return false;
     }
 }

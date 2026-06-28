@@ -73,9 +73,14 @@ services:
     environment:
       SPRING_PROFILES_ACTIVE: dev
       CLASSIFICATION_SERVICE_URL: http://classification-service:8082
-      # DB_URL, DB_USER, DB_PASSWORD → add once this module's persistence is wired up (still in-memory)
+      DB_URL: jdbc:postgresql://postgres:5432/${DB_NAME:-arbiter}
+      DB_USER: ${DB_USER:-arbiter}
+      DB_PASSWORD: ${DB_PASSWORD:-arbiter}
     depends_on:
-      - classification-service
+      classification-service:
+        condition: service_started
+      postgres:
+        condition: service_healthy
     restart: on-failure
 
   # TODO: add the remaining services as they get implemented:

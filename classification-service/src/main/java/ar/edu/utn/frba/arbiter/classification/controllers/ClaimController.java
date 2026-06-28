@@ -2,7 +2,7 @@ package ar.edu.utn.frba.arbiter.classification.controllers;
 
 import ar.edu.utn.frba.arbiter.classification.dto.ClaimReport;
 import ar.edu.utn.frba.arbiter.classification.dto.ClaimResponse;
-import ar.edu.utn.frba.arbiter.classification.services.ClassificationJob;
+import ar.edu.utn.frba.arbiter.classification.services.ClaimClassificationService;
 import ar.edu.utn.frba.arbiter.classification.services.ClaimService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
@@ -30,7 +30,7 @@ import java.util.Map;
 public class ClaimController {
 
     private final ClaimService claimService;
-    private final ClassificationJob classificationJob;
+    private final ClaimClassificationService claimClassificationService;
     private final MultipartDocumentMapper documentMapper;
 
     @PostMapping(consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
@@ -56,7 +56,7 @@ public class ClaimController {
             @RequestParam(required = false) Map<String, MultipartFile> documents
     ) {
         Long claimId = claimService.register(claim);
-        classificationJob.processClaimClassification(claimId, claim, documentMapper.toAttachmentDocuments(documents));
+        claimClassificationService.classifyAsync(claimId, claim, documentMapper.toAttachmentDocuments(documents));
 
         return ResponseEntity
                 .status(HttpStatus.ACCEPTED)
