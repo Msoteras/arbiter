@@ -58,7 +58,7 @@ arbiter/
     │   ├── application-dev.yml        # Perfil dev (mock)
     │   ├── application-test.yml       # Perfil test (mocks)
     │   └── prompts/
-    │       └── clasificacion-v1.md    # Plantilla del prompt
+    │       └── classification-v1.md    # Plantilla del prompt
     │
     ├── src/test/java/ar/edu/utn/frba/arbiter/classification/
     │   └── services/
