@@ -14,7 +14,7 @@
     <!-- <module>auth-service</module> -->
     <module>classification-service</module>
     <!-- <module>rules-service</module> -->
-    <!-- <module>cases-service</module> -->
+    <module>cases-service</module>
     <!-- <module>reports-service</module> -->
   </modules>
 
