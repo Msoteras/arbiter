@@ -1,6 +1,7 @@
 package ar.edu.utn.frba.arbiter.cases.services;
 
 import ar.edu.utn.frba.arbiter.cases.dto.CaseRequest;
+import ar.edu.utn.frba.arbiter.cases.models.entities.CaseEntity;
 
 /**
  * Adapter boundary to classification-service. The mock implementation fakes a
@@ -11,4 +12,17 @@ import ar.edu.utn.frba.arbiter.cases.dto.CaseRequest;
 public interface ClaimsAnalysisClient {
 
     AnalysisResult analyze(CaseRequest request);
+
+    /**
+     * Classify a case and persist the result.
+     * Mock implementation: synchronous, immediate result.
+     * Real implementation: async via REST, queues classification job.
+     */
+    AnalysisResult analyzeAndPersist(CaseEntity caseEntity);
+
+    /**
+     * Poll for updated classification results.
+     * Returns true if classification is now available, false if still pending.
+     */
+    boolean refreshClassification(CaseEntity caseEntity);
 }

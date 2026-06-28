@@ -14,7 +14,7 @@ import org.springframework.web.server.ResponseStatusException;
 public class DatabaseCaseService implements CaseService {
 
     private final CaseRepository caseRepository;
-    private final RealClaimsAnalysisClient realClaimsAnalysisClient;
+    private final ClaimsAnalysisClient claimsAnalysisClient;
 
     @Override
     public CaseResponse createCase(CaseRequest request) {
@@ -32,7 +32,7 @@ public class DatabaseCaseService implements CaseService {
                 .build();
 
         CaseEntity saved = caseRepository.save(entity);
-        realClaimsAnalysisClient.analyzeAndPersist(saved);
+        claimsAnalysisClient.analyzeAndPersist(saved);
 
         return toResponse(saved);
     }
@@ -41,7 +41,7 @@ public class DatabaseCaseService implements CaseService {
     public CaseResponse getCase(Long caseId) {
         CaseEntity entity = caseRepository.findById(caseId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Case " + caseId + " not found"));
-        realClaimsAnalysisClient.refreshClassification(entity);
+        claimsAnalysisClient.refreshClassification(entity);
         return toResponse(entity);
     }
 
