@@ -41,7 +41,7 @@ arbiter/
     │   │   ├── entities/              # @Entity JPA: ClassificationLog (auditoría inmutable)
     │   │   └── repositories/          # Spring Data JPA: ClassificationLogRepository
     │   ├── services/                  # Lógica de negocio
-    │   │   ├── ClassificationJob.java       # Async wrapper con @Async (testeo aislado)
+    │   │   ├── ClaimClassificationService.java   # @Async: clasificación aislada (testeo) + real (claim persistido)
     │   │   ├── ClassificationOrchestrator.java # Orquestación: gate Fast Track + LLM fallback
     │   │   ├── PromptBuilder.java          # Construcción de prompts
     │   │   ├── FastTrackValidator.java     # Gate determinístico de Fast Track
@@ -123,7 +123,7 @@ arbiter/
 
 ### Ejemplo
 ```bash
-git commit -m "feat(siniestros): implementar ClassificationJob asincrónico con reintentos"
+git commit -m "feat(siniestros): implementar ClaimClassificationService asincrónico con reintentos"
 ```
 
 ---

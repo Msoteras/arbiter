@@ -1,27 +1,29 @@
 package ar.edu.utn.frba.arbiter.cases.services;
 
-import ar.edu.utn.frba.arbiter.cases.dto.CaseRequest;
 import ar.edu.utn.frba.arbiter.cases.models.entities.CaseEntity;
 import ar.edu.utn.frba.arbiter.cases.models.repositories.CaseRepository;
 import lombok.RequiredArgsConstructor;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.context.annotation.Profile;
+import org.springframework.core.io.ByteArrayResource;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.stereotype.Component;
 import org.springframework.util.LinkedMultiValueMap;
 import org.springframework.util.MultiValueMap;
 import org.springframework.web.client.RestClient;
 import org.springframework.web.client.RestClientResponseException;
+import org.springframework.web.multipart.MultipartFile;
+import org.springframework.web.server.ResponseStatusException;
 
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
 @Component
-@Profile("prod")
 @RequiredArgsConstructor
 public class RealClaimsAnalysisClient implements ClaimsAnalysisClient {
 
@@ -36,12 +38,9 @@ public class RealClaimsAnalysisClient implements ClaimsAnalysisClient {
     private String classificationServiceUrl;
 
     @Override
-    public AnalysisResult analyze(CaseRequest request) {
-        throw new UnsupportedOperationException("Use createCase/poll flow instead of synchronous analyze() for real integration.");
-    }
-
-    public AnalysisResult analyzeAndPersist(CaseEntity caseEntity) {
+    public AnalysisResult analyzeAndPersist(CaseEntity caseEntity, Map<String, MultipartFile> documents) {
         MultiValueMap<String, Object> body = new LinkedMultiValueMap<>();
+
         Map<String, Object> claimPayload = new LinkedHashMap<>();
         claimPayload.put("branch", caseEntity.getBranch());
         claimPayload.put("product", caseEntity.getProduct());
@@ -52,9 +51,13 @@ public class RealClaimsAnalysisClient implements ClaimsAnalysisClient {
         claimPayload.put("description", caseEntity.getDescription());
         claimPayload.put("eventDate", caseEntity.getEventDate());
         claimPayload.put("eventLocation", caseEntity.getEventLocation());
-        claimPayload.put("claimedAmount", null);
+        claimPayload.put("claimedAmount", caseEntity.getClaimedAmount());
         claimPayload.put("attachmentsOcr", List.of());
         body.add("claim", claimPayload);
+
+        if (documents != null) {
+            documents.forEach((type, file) -> body.add(type, toResource(type, file)));
+        }
 
         Map<String, Object> response = restClientBuilder.build()
                 .post()
@@ -70,6 +73,21 @@ public class RealClaimsAnalysisClient implements ClaimsAnalysisClient {
         caseRepository.save(caseEntity);
 
         return new AnalysisResult(null, 0.0, "Classification in progress");
+    }
+
+    private ByteArrayResource toResource(String type, MultipartFile file) {
+        byte[] content;
+        try {
+            content = file.getBytes();
+        } catch (IOException e) {
+            throw new ResponseStatusException(HttpStatus.UNPROCESSABLE_CONTENT, "Could not read document '" + type + "'", e);
+        }
+        return new ByteArrayResource(content) {
+            @Override
+            public String getFilename() {
+                return file.getOriginalFilename();
+            }
+        };
     }
 
     public boolean refreshClassification(CaseEntity caseEntity) {

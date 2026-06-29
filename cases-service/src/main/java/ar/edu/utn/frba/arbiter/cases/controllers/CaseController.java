@@ -7,8 +7,12 @@ import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.multipart.MultipartFile;
+
+import java.util.Map;
 
 @RestController
 @RequestMapping("/api/v1/cases")
@@ -18,13 +22,19 @@ public class CaseController {
 
     private final CaseService caseService;
 
-    @PostMapping
+    @PostMapping(consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     @Operation(summary = "Create a case",
-            description = "Registers a case using the same request structure as the claim flow and triggers an analysis with classification-service.")
+            description = """
+                    Registers a case using the same request structure as the claim flow and triggers
+                    an analysis with classification-service, forwarding claimedAmount and any attached
+                    documents. Each part under `documents` is keyed by what the document IS
+                    (e.g. `police_report`, `invoice`, `quote`, `item_photo`).
+                    """)
     public ResponseEntity<CaseResponse> createCase(
-            @RequestBody @Valid CaseRequest request
+            @RequestPart("case") @Valid CaseRequest request,
+            @RequestParam(required = false) Map<String, MultipartFile> documents
     ) {
-        CaseResponse response = caseService.createCase(request);
+        CaseResponse response = caseService.createCase(request, documents);
         return ResponseEntity.accepted().body(response);
     }
 

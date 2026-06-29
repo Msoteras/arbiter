@@ -7,7 +7,10 @@ import ar.edu.utn.frba.arbiter.cases.models.repositories.CaseRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
+import org.springframework.web.multipart.MultipartFile;
 import org.springframework.web.server.ResponseStatusException;
+
+import java.util.Map;
 
 @Service
 @RequiredArgsConstructor
@@ -17,7 +20,7 @@ public class DatabaseCaseService implements CaseService {
     private final ClaimsAnalysisClient claimsAnalysisClient;
 
     @Override
-    public CaseResponse createCase(CaseRequest request) {
+    public CaseResponse createCase(CaseRequest request, Map<String, MultipartFile> documents) {
         CaseEntity entity = CaseEntity.builder()
                 .branch(request.branch())
                 .product(request.product())
@@ -28,11 +31,12 @@ public class DatabaseCaseService implements CaseService {
                 .description(request.description())
                 .eventDate(request.eventDate())
                 .eventLocation(request.eventLocation())
+                .claimedAmount(request.claimedAmount())
                 .status("PENDING_CLASSIFICATION")
                 .build();
 
         CaseEntity saved = caseRepository.save(entity);
-        claimsAnalysisClient.analyzeAndPersist(saved);
+        claimsAnalysisClient.analyzeAndPersist(saved, documents);
 
         return toResponse(saved);
     }

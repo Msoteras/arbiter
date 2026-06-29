@@ -242,7 +242,7 @@ Asegurado registra denuncia (frontend, wizard con catálogos en cascada)
         ├─> encola tarea de clasificación (async)
         └─> responde 202 Accepted con id
 
-[async] ClassificationJob
+[async] ClaimClassificationService
   ├─> lee reglas de la aseguradora (rules-service)
   ├─> lee Poliza/Cobertura/Clausulas + historial del asegurado (BD Aseguradora)
   ├─> calcula embedding de la imagen, busca similares con pgvector (flag de imagen reutilizada)
@@ -265,7 +265,7 @@ Analista revisa y decide (frontend)
 ### Cómo arrancar (orden sugerido)
 
 1. **Modelo de datos** del módulo, usando el vocabulario de la sección "Modelo de dominio": `Poliza`, `Cobertura`, `Clausula`, `BienAsegurado`, `Siniestro`, `Denuncia`, `Adjunto`, `ClassificationLog`. Las entidades de catálogo (`Ramo`, `Producto`, `HechoGenerador`, `AgendaDocumental`) viven en `rules-service` — desde `classification-service` se referencian por id y se consultan por REST. Definir el script Flyway inicial.
-2. **Endpoints de catálogo** en `rules-service`: `GET /ramos`, `GET /productos`, `GET /hechos-generadores`, `GET /agenda-documental`. Sirven al wizard del frontend y al `ClassificationJob` (para inyectar nombres en el prompt). Datos semilla cargados con Flyway desde el PDF de BBVA.
+2. **Endpoints de catálogo** en `rules-service`: `GET /ramos`, `GET /productos`, `GET /hechos-generadores`, `GET /agenda-documental`. Sirven al wizard del frontend y al `ClaimClassificationService` (para inyectar nombres en el prompt). Datos semilla cargados con Flyway desde el PDF de BBVA.
 3. **OllamaAdapter** con interfaz `ClaimClassifier` y un `MockClassifier` para perfil `dev`/`test` que devuelve clasificaciones canned. **El mock se escribe primero** — todo el flujo tiene que correr sin Ollama prendido.
 4. **Prompt versionado** en `classification-service/src/main/resources/prompts/classification-v1.md`, cargado con `@Value("classpath:prompts/classification-v1.md")`. La versión del prompt va en el log de cada clasificación. El prompt referencia los campos estructurados por nombre — no lo armes con string concatenation, usá una plantilla.
 5. **Salida estructurada**: forzar JSON con el schema `{ clasificacion: enum, factores: string[], confianza: number }`. Validar contra el schema antes de persistir; si falla → `InvalidClassificationException` + reintento configurable.

@@ -1,7 +1,7 @@
 package ar.edu.utn.frba.arbiter.classification.controllers;
 
 import ar.edu.utn.frba.arbiter.classification.dto.ClaimReport;
-import ar.edu.utn.frba.arbiter.classification.services.ClassificationJob;
+import ar.edu.utn.frba.arbiter.classification.services.ClaimClassificationService;
 import ar.edu.utn.frba.arbiter.classification.services.ClassificationResultsService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
@@ -27,7 +27,7 @@ import java.util.Map;
         "flow (Fast Track gate + LLM fallback) without going through claim creation/persistence.")
 public class ClassificationController {
 
-    private final ClassificationJob classificationJob;
+    private final ClaimClassificationService claimClassificationService;
     private final ClassificationResultsService resultsService;
     private final MultipartDocumentMapper documentMapper;
 
@@ -56,7 +56,7 @@ public class ClassificationController {
             @RequestPart("claim") @Valid ClaimReport claim,
             @RequestParam(required = false) Map<String, MultipartFile> documents
     ) {
-        classificationJob.processIsolatedClassification(claim, documentMapper.toAttachmentDocuments(documents));
+        claimClassificationService.processIsolatedClassification(claim, documentMapper.toAttachmentDocuments(documents));
 
         return ResponseEntity
                 .accepted()

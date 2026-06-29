@@ -2,6 +2,7 @@ package ar.edu.utn.frba.arbiter.cases.dto;
 
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
+import java.math.BigDecimal;
 import java.time.LocalDateTime;
 
 public record CaseRequest(
@@ -13,6 +14,7 @@ public record CaseRequest(
         @NotBlank String policyNumber,
         @NotBlank String description,
         @NotNull LocalDateTime eventDate,
-        @NotBlank String eventLocation
+        @NotBlank String eventLocation,
+        BigDecimal claimedAmount
 ) {
 }

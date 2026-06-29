@@ -1,39 +1,92 @@
 package ar.edu.utn.frba.arbiter.classification.services;
 
 import ar.edu.utn.frba.arbiter.classification.dto.AttachmentDocument;
+import ar.edu.utn.frba.arbiter.classification.dto.ClassificationResponse;
 import ar.edu.utn.frba.arbiter.classification.dto.ClaimReport;
 import lombok.RequiredArgsConstructor;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.retry.annotation.Backoff;
+import org.springframework.retry.annotation.Retryable;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
+import org.springframework.web.client.HttpServerErrorException;
+import org.springframework.web.client.ResourceAccessException;
 
 import java.util.List;
 
-/**
- * Service that wraps {@link ClassificationJob} to properly handle @Async execution
- * from the HTTP layer. Required because @Async doesn't work when called from the
- * same bean instance (Spring proxy limitation).
- *
- * This service is injected into the controller, so Spring intercepts the call
- * and delegates it to the async executor.
- */
 @Service
 @RequiredArgsConstructor
 public class ClaimClassificationService {
 
     private static final Logger log = LoggerFactory.getLogger(ClaimClassificationService.class);
 
-    private final ClassificationJob classificationJob;
+    private final ClassificationOrchestrator orchestrator;
+    private final ClassificationResultsService resultsService;
 
     /**
-     * Trigger async classification for a persisted claim.
-     * Called from ClaimController after claim is registered.
-     * Returns immediately; classification happens in background.
+     * Async classification for the isolated test endpoint (POST /api/v1/classifications):
+     * there's no persisted Claim, so the result is still audited in classification_log
+     * with claimId null (see GET /api/v1/classifications/results).
      */
     @Async("classificationExecutor")
-    public void classifyAsync(Long claimId, ClaimReport claim, List<AttachmentDocument> documents) {
-        log.debug("[ClaimClassificationService] Delegating async classification to ClassificationJob — claimId={}", claimId);
-        classificationJob.processClaimClassification(claimId, claim, documents);
+    @Retryable(
+            retryFor = {HttpServerErrorException.class, ResourceAccessException.class},
+            maxAttempts = 3,
+            backoff = @Backoff(delay = 2000, multiplier = 2.0)
+    )
+    public void processIsolatedClassification(ClaimReport claim, List<AttachmentDocument> documents) {
+        log.info("[ClaimClassificationService] ▶ Starting isolated async classification — policy='{}' insuredId='{}'",
+                claim.policyNumber(), claim.insuredId());
+
+        try {
+            long start = System.currentTimeMillis();
+
+            ClassificationResponse response = orchestrator.classify(claim, documents);
+            long latencyMs = System.currentTimeMillis() - start;
+
+            log.info("[ClaimClassificationService] ✓ Isolated classification obtained — {} confidence={} latency={}ms",
+                    response.classification(), response.confidence(), latencyMs);
+
+            resultsService.saveResult(null, response, latencyMs);
+
+        } catch (Exception e) {
+            log.error("[ClaimClassificationService] ✗ Error processing isolated classification after retries — {}",
+                    e.getMessage(), e);
+            throw new RuntimeException("Isolated classification failed after retries", e);
+        }
+    }
+
+    /**
+     * Async classification for a real, persisted claim (POST /api/v1/claims). Persists the
+     * result tagged with the claimId — that's the only signal this module gives back; whoever
+     * owns the claim's lifecycle (cases-service) polls GET /api/v1/claims/{id} for it.
+     */
+    @Async("classificationExecutor")
+    @Retryable(
+            retryFor = {HttpServerErrorException.class, ResourceAccessException.class},
+            maxAttempts = 3,
+            backoff = @Backoff(delay = 2000, multiplier = 2.0)
+    )
+    public void processClaimClassification(Long claimId, ClaimReport claim, List<AttachmentDocument> documents) {
+        log.info("[ClaimClassificationService] ▶ Starting async classification — claimId={} policy='{}' insuredId='{}'",
+                claimId, claim.policyNumber(), claim.insuredId());
+
+        try {
+            long start = System.currentTimeMillis();
+
+            ClassificationResponse response = orchestrator.classify(claim, documents);
+            long latencyMs = System.currentTimeMillis() - start;
+
+            log.info("[ClaimClassificationService] ✓ Classification obtained — claimId={} {} confidence={} latency={}ms",
+                    claimId, response.classification(), response.confidence(), latencyMs);
+
+            resultsService.saveResult(claimId, response, latencyMs);
+
+        } catch (Exception e) {
+            log.error("[ClaimClassificationService] ✗ Error processing claimId={} after retries — {}",
+                    claimId, e.getMessage(), e);
+            throw new RuntimeException("Classification failed for claim " + claimId + " after retries", e);
+        }
     }
 }
