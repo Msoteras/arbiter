@@ -33,6 +33,13 @@ public class ClassificationOrchestrator {
                 claim.policyNumber(), claim.insuredId(), claim.branch(), claim.claimCause());
 
         Context ctx = fetchContext(claim);
+
+        List<String> missingDocs = checkRequiredDocuments(ctx.rules(), List.of());
+        if (!missingDocs.isEmpty()) {
+            log.info("[Orchestrator] Missing required documents: {}", missingDocs);
+            return missingDocumentationResponse(missingDocs);
+        }
+
         FastTrackValidator.Result fastTrack = fastTrackValidator.evaluate(claim, ctx.policy(), ctx.history(), ctx.rules(), Map.of());
         if (fastTrack.fastTrack()) {
             log.info("[Orchestrator] Deterministic Fast Track — claim qualifies, skipping LLM. Reasons={}",
@@ -58,6 +65,13 @@ public class ClassificationOrchestrator {
                 claim.policyNumber(), claim.insuredId(), claim.branch(), claim.claimCause(), documents.size());
 
         Context ctx = fetchContext(claim);
+
+        List<String> documentTypes = documents.stream().map(AttachmentDocument::type).toList();
+        List<String> missingDocs = checkRequiredDocuments(ctx.rules(), documentTypes);
+        if (!missingDocs.isEmpty()) {
+            log.info("[Orchestrator] Missing required documents: {}", missingDocs);
+            return missingDocumentationResponse(missingDocs);
+        }
 
         List<String> requiredForGate = requiredDocumentTypes(ctx.rules());
         Map<String, String> gateDocumentTexts = extractRequiredDocuments(documents, requiredForGate);
@@ -104,6 +118,26 @@ public class ClassificationOrchestrator {
         log.info("[Orchestrator] Classification done — result={} confidence={}",
                 response.classification(), response.confidence());
         return response;
+    }
+
+    private List<String> checkRequiredDocuments(BusinessRules rules, List<String> providedDocumentTypes) {
+        if (rules.requiredDocumentTypes() == null || rules.requiredDocumentTypes().isEmpty()) {
+            return List.of();
+        }
+        return rules.requiredDocumentTypes().stream()
+                .filter(required -> !providedDocumentTypes.contains(required))
+                .toList();
+    }
+
+    private ClassificationResponse missingDocumentationResponse(List<String> missingDocs) {
+        return ClassificationResponse.builder()
+                .classification(Classification.FALTA_DOCUMENTACION)
+                .factors(missingDocs.stream()
+                        .map(doc -> "Falta documento requerido: " + doc)
+                        .toList())
+                .confidence(1.0)
+                .deterministicFastTrack(false)
+                .build();
     }
 
     private ClassificationResponse fastTrackResponse(FastTrackValidator.Result fastTrack) {

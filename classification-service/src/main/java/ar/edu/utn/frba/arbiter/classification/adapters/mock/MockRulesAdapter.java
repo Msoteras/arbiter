@@ -37,7 +37,9 @@ public class MockRulesAdapter implements RulesAdapter {
                             .maxClaimedAmountRatio(0.5)
                             .maxPriorClaims(0)
                             .requiresUpToDatePolicy(true)
+                            .requiredDocumentTypes(List.of("police_report"))
                             .build())
+                    .requiredDocumentTypes(List.of("police_report", "item_photo"))
                     .build(),
 
             "Celulares|Hurto", BusinessRules.builder()
@@ -60,7 +62,9 @@ public class MockRulesAdapter implements RulesAdapter {
                             .maxClaimedAmountRatio(0.3)
                             .maxPriorClaims(0)
                             .requiresUpToDatePolicy(true)
+                            .requiredDocumentTypes(List.of("police_report"))
                             .build())
+                    .requiredDocumentTypes(List.of("police_report"))
                     .build(),
 
             "Celulares|Rotura accidental", BusinessRules.builder()
@@ -85,6 +89,7 @@ public class MockRulesAdapter implements RulesAdapter {
                             .maxClaimedAmountRatio(0.5)
                             .requiresUpToDatePolicy(true)
                             .build())
+                    .requiredDocumentTypes(List.of("item_photo", "quote"))
                     .build()
     );
 

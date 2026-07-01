@@ -42,6 +42,21 @@ public class DatabaseCaseService implements CaseService {
     }
 
     @Override
+    public CaseResponse addDocumentsAndReclassify(Long caseId, Map<String, MultipartFile> documents) {
+        CaseEntity entity = caseRepository.findById(caseId)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Case " + caseId + " not found"));
+
+        entity.setStatus("PENDING_CLASSIFICATION");
+        entity.setAnalysisClassification(null);
+        entity.setAnalysisConfidence(null);
+        entity.setAnalysisDetail(null);
+        caseRepository.save(entity);
+
+        claimsAnalysisClient.analyzeAndPersist(entity, documents);
+        return toResponse(entity);
+    }
+
+    @Override
     public CaseResponse getCase(Long caseId) {
         CaseEntity entity = caseRepository.findById(caseId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Case " + caseId + " not found"));
@@ -53,8 +68,16 @@ public class DatabaseCaseService implements CaseService {
         return new CaseResponse(
                 entity.getId(),
                 entity.getStatus(),
-                entity.getPolicyNumber(),
+                entity.getBranch(),
+                entity.getProduct(),
+                entity.getClaimCause(),
+                entity.getInsuredItem(),
                 entity.getInsuredId(),
+                entity.getPolicyNumber(),
+                entity.getDescription(),
+                entity.getEventDate(),
+                entity.getEventLocation(),
+                entity.getClaimedAmount(),
                 entity.getAnalysisClassification(),
                 entity.getAnalysisConfidence() != null ? entity.getAnalysisConfidence() : 0.0,
                 entity.getAnalysisDetail()

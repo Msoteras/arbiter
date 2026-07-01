@@ -46,7 +46,7 @@ public class CaseEntity {
     @Column(nullable = false)
     private String policyNumber;
 
-    @Column(nullable = false)
+    @Column(nullable = false, columnDefinition = "TEXT")
     private String description;
 
     @Column(nullable = false)
@@ -66,6 +66,7 @@ public class CaseEntity {
 
     private Double analysisConfidence;
 
+    @Column(columnDefinition = "TEXT")
     private String analysisDetail;
 
     private Boolean deterministicFastTrack;
