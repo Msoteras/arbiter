@@ -11,7 +11,8 @@ public record BusinessRules(
         List<String> rules,
         List<String> exclusions,
         List<String> fastTrackCriteria,
-        FastTrackThresholds fastTrackThresholds
+        FastTrackThresholds fastTrackThresholds,
+        List<String> requiredDocumentTypes
 ) {
 
     /**

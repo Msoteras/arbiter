@@ -11,4 +11,6 @@ public interface CaseService {
     CaseResponse createCase(CaseRequest request, Map<String, MultipartFile> documents);
 
     CaseResponse getCase(Long caseId);
+
+    CaseResponse addDocumentsAndReclassify(Long caseId, Map<String, MultipartFile> documents);
 }

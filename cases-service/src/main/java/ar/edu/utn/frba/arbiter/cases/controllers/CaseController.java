@@ -45,4 +45,19 @@ public class CaseController {
         CaseResponse response = caseService.getCase(caseId);
         return ResponseEntity.ok(response);
     }
+
+    @PostMapping(value = "/{caseId}/documents", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    @Operation(summary = "Upload additional documents",
+            description = """
+                    Uploads additional documents to an existing case and re-triggers
+                    classification. Each part is keyed by what the document IS
+                    (e.g. `police_report`, `invoice`, `quote`, `item_photo`).
+                    """)
+    public ResponseEntity<CaseResponse> uploadDocuments(
+            @PathVariable Long caseId,
+            @RequestParam Map<String, MultipartFile> documents
+    ) {
+        CaseResponse response = caseService.addDocumentsAndReclassify(caseId, documents);
+        return ResponseEntity.accepted().body(response);
+    }
 }

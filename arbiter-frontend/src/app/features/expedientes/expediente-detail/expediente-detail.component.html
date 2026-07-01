@@ -1,0 +1,141 @@
+@if (data(); as d) {
+  <header class="det-header">
+    <a class="breadcrumb" routerLink="/bandeja">‹ Bandeja</a>
+
+    <div class="identity">
+      <h1 class="exp-id">Expediente #{{ d.id }}</h1>
+      <span class="badge tecnico">{{ d.status }}</span>
+      <span class="badge simplificado">Sin datos</span>
+    </div>
+    <p class="subtitle nodata">Sin datos</p>
+
+    <!-- Reasoning cards (orden de razonamiento) -->
+    <div class="reasoning">
+      <section class="rcard">
+        <div class="rcard-head">Nivel de riesgo de fraude</div>
+        <app-fraud-gauge [band]="null" />
+      </section>
+
+      <section class="rcard reco">
+        <div class="rcard-head"><span class="sparkles" aria-hidden="true">✦</span> Recomendación de Arbiter</div>
+        <p class="nodata">Sin datos</p>
+      </section>
+
+      <section class="rcard">
+        <div class="rcard-head">Decisión del analista</div>
+        @if (decision()) {
+          <p class="registered">✓ Registrado: {{ decisionLabel() }}</p>
+          <p class="rcard-note">Local, no persiste — falta <span class="mono">POST /decision</span>.</p>
+        } @else {
+          <div class="decision-btns">
+            <button class="btn-sec" (click)="askDecision('derivar')">Derivar</button>
+            <button class="btn-sec" (click)="askDecision('rechazar')">Rechazar</button>
+            <button class="btn-sec" (click)="askDecision('aprobar')">Aprobar</button>
+          </div>
+        }
+      </section>
+    </div>
+
+    <!-- Tabs -->
+    <nav class="tabs" role="tablist">
+      @for (t of tabs; track t.id) {
+        <button role="tab" class="tab" [class.active]="activeTab() === t.id"
+          [attr.aria-selected]="activeTab() === t.id" (click)="setTab(t.id)">{{ t.label }}</button>
+      }
+    </nav>
+  </header>
+
+  <main class="det-content">
+    @switch (activeTab()) {
+
+      <!-- ============ RESUMEN ============ -->
+      @case ('resumen') {
+        <div class="resumen-grid">
+          <div class="col-main">
+            <section class="card">
+              <div class="card-head">
+                <span class="sparkles" aria-hidden="true">✦</span>
+                <span class="card-title">Sugerencia del sistema</span>
+              </div>
+              <app-empty-state message="Sugerencia e indicadores del modelo" />
+            </section>
+
+            <section class="card">
+              <div class="card-head"><span class="card-title">Resumen del siniestro</span></div>
+              <p class="detail nodata">Sin datos</p>
+              <dl class="fields">
+                @for (f of fields(); track f.label) {
+                  <div class="field" [class.full]="f.full">
+                    <dt>{{ f.label }}</dt>
+                    @if (f.value) {
+                      <dd [class.mono]="f.mono">{{ f.value }}</dd>
+                    } @else {
+                      <dd class="nodata">Sin datos</dd>
+                    }
+                  </div>
+                }
+              </dl>
+            </section>
+          </div>
+
+          <div class="col-side">
+            <section class="card ai-card">
+              <div class="card-head">
+                <span class="sparkles" aria-hidden="true">✦</span>
+                <span class="card-title">Clasificación sugerida</span>
+              </div>
+              <p class="classification">{{ classificationLabel() }}</p>
+              <p class="note">Confianza del modelo: {{ confidencePercent() }}%</p>
+              @if (classifState() === 'none') {
+                <div class="accept-row">
+                  <button class="btn-pri" (click)="acceptClassif()">Aceptar</button>
+                  <button class="btn-sec" (click)="modifyClassif()">Modificar</button>
+                </div>
+              } @else {
+                <p class="registered">✓ {{ classifState() === 'aceptada' ? 'Clasificación aceptada' : 'Clasificación marcada para modificar' }}</p>
+                <p class="note">Queda registrado en el historial.</p>
+              }
+            </section>
+          </div>
+        </div>
+      }
+
+      @case ('datos') { <app-empty-state message="Datos extraídos por IA + coincidencia con la póliza" /> }
+      @case ('imagenes') { <app-empty-state message="Análisis forense de imágenes" /> }
+      @case ('documentacion') { <app-empty-state message="Agenda documental del hecho generador" /> }
+      @case ('conversacion') { <app-empty-state message="Conversación con el asegurado" /> }
+      @case ('historial') { <app-empty-state message="Historial / auditoría del expediente" /> }
+    }
+  </main>
+} @else if (loading()) {
+  <div class="state-wrap"><div class="card skeleton">Cargando expediente…</div></div>
+} @else if (hasError()) {
+  <div class="state-wrap">
+    <div class="card">
+      <p class="muted">
+        @if (notFound()) {
+          No se encontró el caso. Creá uno con
+          <span class="mono">POST /api/v1/cases</span> antes de consultarlo.
+        } @else {
+          No se pudo cargar el caso. Verificá que <span class="mono">cases-service</span>
+          esté corriendo en el puerto 8083.
+        }
+      </p>
+    </div>
+  </div>
+}
+
+<!-- Modal de justificación (gobierno: toda decisión queda justificada/auditada) -->
+@if (showJustify()) {
+  <div class="modal-backdrop" (click)="cancelDecision()">
+    <div class="modal" role="dialog" aria-modal="true" (click)="$event.stopPropagation()">
+      <h2 class="modal-title">Justificar decisión: {{ verbLabel(pendingDecision()) }}</h2>
+      <p class="muted">Toda decisión del analista queda justificada y auditada (human-in-the-loop).</p>
+      <textarea class="justify-input" rows="4" placeholder="Justificación (obligatoria)…" (input)="onJustifyInput($event)"></textarea>
+      <div class="modal-actions">
+        <button class="btn-sec" (click)="cancelDecision()">Cancelar</button>
+        <button class="btn-pri" [disabled]="!justification().trim()" (click)="confirmDecision()">Confirmar</button>
+      </div>
+    </div>
+  </div>
+}
