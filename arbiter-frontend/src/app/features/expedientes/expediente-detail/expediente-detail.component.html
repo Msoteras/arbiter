@@ -98,6 +98,45 @@
             </section>
           </div>
         </div>
+
+        <!-- Documentación faltante -->
+        @if (needsDocs()) {
+        <section class="card missing-docs-card">
+          <div class="card-head">
+            <span class="card-title">⚠ Falta documentación</span>
+          </div>
+          <p class="muted">La clasificación indica que faltan documentos requeridos. Subí la documentación faltante para re-evaluar el caso.</p>
+
+          @for (slot of docUploadSlots(); track slot.type; let i = $index) {
+            <div class="doc-row">
+              <span class="doc-row-label">{{ slot.label }}</span>
+              @if (slot.file) {
+                <div class="doc-row-file">
+                  <span class="doc-row-filename">{{ slot.file.name }}</span>
+                  <button type="button" class="doc-row-remove" (click)="removeDocFile(i)">✕</button>
+                </div>
+              } @else {
+                <label class="doc-row-upload">
+                  Elegir archivo
+                  <input type="file" accept="image/*,.pdf" (change)="onDocFileChange(i, $event)" hidden />
+                </label>
+              }
+            </div>
+          }
+
+          @if (uploadError()) {
+            <p class="upload-error">{{ uploadError() }}</p>
+          }
+
+          <button
+            class="btn-pri"
+            [disabled]="uploadedCount() === 0 || uploadingDocs()"
+            (click)="submitDocs()"
+            style="margin-top: 12px;">
+            {{ uploadingDocs() ? 'Enviando...' : 'Enviar documentación' }}
+          </button>
+        </section>
+        }
       }
 
       @case ('datos') { <app-empty-state message="Datos extraídos por IA + coincidencia con la póliza" /> }

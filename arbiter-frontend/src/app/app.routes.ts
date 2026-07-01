@@ -14,5 +14,12 @@ export const routes: Routes = [
         (m) => m.ExpedienteDetailComponent,
       ),
   },
+  {
+    path: 'nueva-denuncia',
+    loadComponent: () =>
+      import('./features/expedientes/nueva-denuncia/nueva-denuncia.component').then(
+        (m) => m.NuevaDenunciaComponent,
+      ),
+  },
   { path: '**', redirectTo: '' },
 ];

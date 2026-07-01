@@ -10,6 +10,12 @@ import { clasificacionLabel } from '../../../core/models/clasificacion';
 import { FraudGaugeComponent } from '../../../shared/ui/fraud-gauge/fraud-gauge.component';
 import { EmptyStateComponent } from '../../../shared/ui/empty-state/empty-state.component';
 
+interface DocUploadSlot {
+  type: string;
+  label: string;
+  file: File | null;
+}
+
 type LoadState =
   | { status: 'loading' }
   | { status: 'ok'; data: ExpedienteResponse }
@@ -75,21 +81,22 @@ export class ExpedienteDetailComponent {
   protected readonly fields = computed<FieldItem[]>(() => {
     const d = this.data();
     return [
-      { label: 'N° de siniestro / denuncia', value: null, mono: true },
+      { label: 'N° de siniestro / denuncia', value: d ? `#${d.id}` : null, mono: true },
       { label: 'Canal de origen', value: null },
       { label: 'N° de póliza', value: d?.policyNumber ?? null, mono: true },
       { label: 'N° de certificado', value: null, mono: true },
-      { label: 'Rama', value: null },
-      { label: 'Producto', value: null },
+      { label: 'Rama', value: d?.branch ?? null },
+      { label: 'Producto', value: d?.product ?? null },
       { label: 'Asegurado', value: d?.insuredId ?? null, mono: true },
       { label: 'Tomador', value: null },
-      { label: 'Suma asegurada', value: null },
-      { label: 'Importe estimado (informado)', value: null },
+      { label: 'Bien asegurado', value: d?.insuredItem ?? null },
+      { label: 'Importe reclamado', value: d?.claimedAmount ? `$${d.claimedAmount.toLocaleString()}` : null },
       { label: 'Fecha de denuncia', value: null },
-      { label: 'Fecha y hora de ocurrencia', value: null },
-      { label: 'Causa', value: null },
+      { label: 'Fecha y hora de ocurrencia', value: d?.eventDate ? new Date(d.eventDate).toLocaleDateString('es-AR') : null },
+      { label: 'Causa', value: d?.claimCause ?? null },
       { label: 'Hecho generador', value: null },
-      { label: 'Ubicación', value: null, full: true },
+      { label: 'Ubicación', value: d?.eventLocation ?? null, full: true },
+      { label: 'Descripción', value: d?.description ?? null, full: true },
       { label: 'Analista asignado', value: null },
       { label: 'PEP (declarativo)', value: null },
     ];
@@ -152,5 +159,64 @@ export class ExpedienteDetailComponent {
   }
   onJustifyInput(e: Event): void {
     this.justification.set((e.target as HTMLTextAreaElement).value);
+  }
+
+  // ----- carga de documentación adicional (FALTA_DOCUMENTACION) -----
+  protected readonly needsDocs = computed(() =>
+    this.data()?.analysisClassification === 'FALTA_DOCUMENTACION'
+  );
+
+  protected readonly docUploadSlots = signal<DocUploadSlot[]>([
+    { type: 'police_report', label: 'Denuncia policial', file: null },
+    { type: 'item_photo', label: 'Foto del bien', file: null },
+    { type: 'invoice', label: 'Factura de compra', file: null },
+    { type: 'quote', label: 'Presupuesto de reparación', file: null },
+  ]);
+
+  protected readonly uploadingDocs = signal(false);
+  protected readonly uploadError = signal<string | null>(null);
+  protected readonly uploadedCount = computed(() => this.docUploadSlots().filter(s => s.file).length);
+
+  onDocFileChange(index: number, event: Event): void {
+    const input = event.target as HTMLInputElement;
+    const file = input.files?.[0] ?? null;
+    this.docUploadSlots.update(slots => {
+      const updated = [...slots];
+      updated[index] = { ...updated[index], file };
+      return updated;
+    });
+  }
+
+  removeDocFile(index: number): void {
+    this.docUploadSlots.update(slots => {
+      const updated = [...slots];
+      updated[index] = { ...updated[index], file: null };
+      return updated;
+    });
+  }
+
+  submitDocs(): void {
+    const d = this.data();
+    if (!d || this.uploadingDocs()) return;
+
+    const docs = new Map<string, File>();
+    for (const slot of this.docUploadSlots()) {
+      if (slot.file) docs.set(slot.type, slot.file);
+    }
+    if (docs.size === 0) return;
+
+    this.uploadingDocs.set(true);
+    this.uploadError.set(null);
+
+    this.service.uploadDocuments(d.id, docs).subscribe({
+      next: () => {
+        this.uploadingDocs.set(false);
+        window.location.reload();
+      },
+      error: (err) => {
+        this.uploadingDocs.set(false);
+        this.uploadError.set(err.error?.message || err.message || 'Error al subir documentos');
+      },
+    });
   }
 }

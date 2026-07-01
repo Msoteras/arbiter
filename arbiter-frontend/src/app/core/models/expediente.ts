@@ -4,9 +4,17 @@ import { Clasificacion } from './clasificacion';
 export interface ExpedienteResponse {
   id: number;
   status: string;
-  policyNumber: string;
+  branch: string;
+  product: string;
+  claimCause: string;
+  insuredItem: string;
   insuredId: string;
+  policyNumber: string;
+  description: string;
+  eventDate: string;
+  eventLocation: string;
+  claimedAmount: number | null;
   analysisClassification: Clasificacion | string;
-  analysisConfidence: number; // 0..1
+  analysisConfidence: number;
   analysisDetail: string;
 }
