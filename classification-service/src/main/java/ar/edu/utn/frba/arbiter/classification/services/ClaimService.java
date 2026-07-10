@@ -71,21 +71,23 @@ public class ClaimService {
         }
 
         ClassificationLog log = logRepository.findFirstByClaimIdOrderByIdDesc(claimId)
-                .orElseGet(() -> {
-                    ClassificationLog fallbackLog = new ClassificationLog();
-                    fallbackLog.setClaimId(claimId);
-                    fallbackLog.setSource("DEV_FALLBACK");
-                    fallbackLog.setClassification(ar.edu.utn.frba.arbiter.common.enums.Classification.LLM_RECOMIENDA_APROBAR);
-                    fallbackLog.setConfidence(java.math.BigDecimal.valueOf(0.75));
-                    fallbackLog.setFactores("Clasificación provisional generada para permitir la prueba del flujo");
-                    fallbackLog.setLatenciaMs(0L);
-                    return logRepository.save(fallbackLog);
-                });
+            .orElseGet(() -> buildFallbackClassificationLog(claimId));
 
         log.setAnalistaId(request.analystId());
         log.setDecision(normalizeDecision(request.decision()));
         log.setDecisionTimestamp(Instant.now());
         logRepository.save(log);
+    }
+
+    private ClassificationLog buildFallbackClassificationLog(Long claimId) {
+        ClassificationLog fallbackLog = new ClassificationLog();
+        fallbackLog.setClaimId(claimId);
+        fallbackLog.setSource("DEV_FALLBACK");
+        fallbackLog.setClassification(ar.edu.utn.frba.arbiter.common.enums.Classification.LLM_RECOMIENDA_APROBAR);
+        fallbackLog.setConfidence(java.math.BigDecimal.valueOf(0.75));
+        fallbackLog.setFactores("Clasificación provisional generada para permitir la prueba del flujo");
+        fallbackLog.setLatenciaMs(0L);
+        return logRepository.save(fallbackLog);
     }
 
     private String normalizeDecision(String decision) {

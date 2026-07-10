@@ -125,7 +125,7 @@ export class ExpedienteDetailComponent {
     this.classifState.set('modificada');
   }
 
-  // ----- decisión del analista (local; no persiste: falta POST /decision) -----
+  // ----- decisión del analista (persiste vía POST /cases/{id}/decision) -----
   private readonly verbLabels: Record<Verb, string> = {
     aprobar: 'Aprobar',
     rechazar: 'Rechazar',

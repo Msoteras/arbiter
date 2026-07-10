@@ -61,7 +61,7 @@ public class OllamaAdapter implements ClaimClassifier, DocumentAnalyzer {
     public OllamaAdapter(
             RestClient ollamaRestClient,
             OllamaProperties properties,
-            @Value("classpath:prompts/clasificacion-v1.md") Resource promptResource,
+            @Value("classpath:prompts/classification-v1.md") Resource promptResource,
             @Value("classpath:prompts/extraccion-documento-v1.md") Resource documentExtractionPromptResource,
             @Value("${arbiter.ollama.num-ctx:8192}") int numCtx
     ) throws IOException {

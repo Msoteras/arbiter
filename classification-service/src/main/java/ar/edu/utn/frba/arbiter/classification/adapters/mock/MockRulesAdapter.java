@@ -2,14 +2,12 @@ package ar.edu.utn.frba.arbiter.classification.adapters.mock;
 
 import ar.edu.utn.frba.arbiter.classification.adapters.RulesAdapter;
 import ar.edu.utn.frba.arbiter.classification.dto.BusinessRules;
-import org.springframework.context.annotation.Profile;
 import org.springframework.stereotype.Component;
 
 import java.util.List;
 import java.util.Map;
 
 @Component
-@Profile({"dev", "test", "default"})
 public class MockRulesAdapter implements RulesAdapter {
 
     private static final Map<String, BusinessRules> RULES_BY_BRANCH = Map.of(

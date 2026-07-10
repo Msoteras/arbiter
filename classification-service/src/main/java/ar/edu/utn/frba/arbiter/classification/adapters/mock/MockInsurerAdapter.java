@@ -5,7 +5,6 @@ import ar.edu.utn.frba.arbiter.classification.dto.InsuredHistory;
 import ar.edu.utn.frba.arbiter.classification.dto.InsuredHistory.ClaimRecord;
 import ar.edu.utn.frba.arbiter.classification.dto.InsuredPolicy;
 import ar.edu.utn.frba.arbiter.classification.dto.InsuredPolicy.PolicyCoverage;
-import org.springframework.context.annotation.Profile;
 import org.springframework.stereotype.Component;
 
 import java.math.BigDecimal;
@@ -14,7 +13,6 @@ import java.util.List;
 import java.util.Map;
 
 @Component
-@Profile({"dev", "test", "default"})
 public class MockInsurerAdapter implements InsurerAdapter {
 
     private static final Map<String, InsuredPolicy> POLICIES = Map.of(

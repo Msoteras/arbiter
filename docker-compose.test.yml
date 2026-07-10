@@ -40,7 +40,6 @@ services:
     environment:
       OLLAMA_BASE_URL: http://ollama:11434
       OLLAMA_MODEL: qwen3-vl
-      SPRING_PROFILES_ACTIVE: test
     depends_on:
       ollama:
         condition: service_healthy
