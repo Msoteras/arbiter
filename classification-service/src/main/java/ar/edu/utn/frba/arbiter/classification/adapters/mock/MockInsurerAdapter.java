@@ -186,20 +186,7 @@ public class MockInsurerAdapter implements InsurerAdapter {
     public InsuredPolicy getPolicy(String policyNumber) {
         var policy = POLICIES.get(policyNumber);
         if (policy == null) {
-            return InsuredPolicy.builder()
-                    .policyNumber(policyNumber)
-                    .insuredName("Asegurado genérico")
-                    .insuredId("00.000.000")
-                    .branch("General")
-                    .product("Producto genérico")
-                    .effectiveFrom(LocalDate.now().minusYears(1))
-                    .effectiveTo(LocalDate.now().plusYears(1))
-                    .upToDate(true)
-                    .insuredAmount(new BigDecimal("100000"))
-                    .deductible(new BigDecimal("10000"))
-                    .coverages(List.of())
-                    .applicableClauses(List.of())
-                    .build();
+            throw new IllegalArgumentException("Mock policy not found: " + policyNumber);
         }
         return policy;
     }

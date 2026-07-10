@@ -4,7 +4,7 @@ import { ActivatedRoute, RouterLink } from '@angular/router';
 import { HttpErrorResponse } from '@angular/common/http';
 import { catchError, map, of, startWith, switchMap } from 'rxjs';
 
-import { ExpedienteService } from '../expediente.service';
+import { ExpedienteService, AnalystDecisionRequest } from '../expediente.service';
 import { ExpedienteResponse } from '../../../core/models/expediente';
 import { clasificacionLabel } from '../../../core/models/clasificacion';
 import { FraudGaugeComponent } from '../../../shared/ui/fraud-gauge/fraud-gauge.component';
@@ -136,6 +136,8 @@ export class ExpedienteDetailComponent {
   protected readonly showJustify = signal(false);
   protected readonly justification = signal('');
   protected readonly decisionLabel = computed(() => this.verbLabel(this.decision()));
+  protected readonly decisionError = signal<string | null>(null);
+  protected readonly decisionSaving = signal(false);
 
   verbLabel(v: Verb | null): string {
     return v ? this.verbLabels[v] : '';
@@ -151,11 +153,35 @@ export class ExpedienteDetailComponent {
     this.pendingDecision.set(null);
   }
   confirmDecision(): void {
-    if (!this.justification().trim()) {
+    if (!this.justification().trim() || !this.pendingDecision()) {
       return;
     }
-    this.decision.set(this.pendingDecision());
-    this.showJustify.set(false);
+
+    const d = this.data();
+    if (!d) {
+      return;
+    }
+
+    const decisionPayload: AnalystDecisionRequest = {
+      analystId: 'analista-ui',
+      decision: this.pendingDecision() === 'aprobar' ? 'APPROVE' : this.pendingDecision() === 'rechazar' ? 'REJECT' : 'DERIVAR',
+    };
+
+    this.decisionSaving.set(true);
+    this.decisionError.set(null);
+
+    this.service.recordAnalystDecision(d.id, decisionPayload).subscribe({
+      next: () => {
+        this.decision.set(this.pendingDecision());
+        this.showJustify.set(false);
+        this.pendingDecision.set(null);
+        this.decisionSaving.set(false);
+      },
+      error: (err) => {
+        this.decisionSaving.set(false);
+        this.decisionError.set(err.error?.message || err.message || 'No se pudo registrar la decisión');
+      },
+    });
   }
   onJustifyInput(e: Event): void {
     this.justification.set((e.target as HTMLTextAreaElement).value);

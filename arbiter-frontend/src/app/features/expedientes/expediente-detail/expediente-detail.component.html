@@ -25,13 +25,18 @@
         <div class="rcard-head">Decisión del analista</div>
         @if (decision()) {
           <p class="registered">✓ Registrado: {{ decisionLabel() }}</p>
-          <p class="rcard-note">Local, no persiste — falta <span class="mono">POST /decision</span>.</p>
         } @else {
           <div class="decision-btns">
-            <button class="btn-sec" (click)="askDecision('derivar')">Derivar</button>
-            <button class="btn-sec" (click)="askDecision('rechazar')">Rechazar</button>
-            <button class="btn-sec" (click)="askDecision('aprobar')">Aprobar</button>
+            <button class="btn-sec" [disabled]="decisionSaving()" (click)="askDecision('derivar')">Derivar</button>
+            <button class="btn-sec" [disabled]="decisionSaving()" (click)="askDecision('rechazar')">Rechazar</button>
+            <button class="btn-sec" [disabled]="decisionSaving()" (click)="askDecision('aprobar')">Aprobar</button>
           </div>
+        }
+        @if (decisionSaving()) {
+          <p class="rcard-note">Guardando decisión…</p>
+        }
+        @if (decisionError()) {
+          <p class="rcard-note error">{{ decisionError() }}</p>
         }
       </section>
     </div>

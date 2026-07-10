@@ -12,7 +12,6 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
 
-import java.math.BigDecimal;
 import java.time.LocalDateTime;
 
 @Entity
@@ -46,7 +45,7 @@ public class CaseEntity {
     @Column(nullable = false)
     private String policyNumber;
 
-    @Column(nullable = false, columnDefinition = "TEXT")
+    @Column(nullable = false)
     private String description;
 
     @Column(nullable = false)
@@ -54,8 +53,6 @@ public class CaseEntity {
 
     @Column(nullable = false)
     private String eventLocation;
-
-    private BigDecimal claimedAmount;
 
     @Column(nullable = false)
     private String status;
@@ -66,7 +63,6 @@ public class CaseEntity {
 
     private Double analysisConfidence;
 
-    @Column(columnDefinition = "TEXT")
     private String analysisDetail;
 
     private Boolean deterministicFastTrack;

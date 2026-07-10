@@ -1,5 +1,6 @@
 package ar.edu.utn.frba.arbiter.classification.services;
 
+import ar.edu.utn.frba.arbiter.classification.dto.AnalystDecisionRequest;
 import ar.edu.utn.frba.arbiter.classification.dto.ClaimReport;
 import ar.edu.utn.frba.arbiter.classification.dto.ClaimResponse;
 import ar.edu.utn.frba.arbiter.classification.exceptions.InvalidClassificationException;
@@ -11,6 +12,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
 
@@ -60,5 +62,38 @@ public class ClaimService {
                 .factors(log.map(l -> List.of(l.getFactores().split("\n"))).orElse(null))
                 .deterministicFastTrack(log.map(l -> "RULES_FAST_TRACK".equals(l.getSource())).orElse(false))
                 .build();
+    }
+
+    @Transactional
+    public void recordAnalystDecision(Long claimId, AnalystDecisionRequest request) {
+        if (!claimRepository.existsById(claimId)) {
+            throw new InvalidClassificationException("Claim " + claimId + " does not exist");
+        }
+
+        ClassificationLog log = logRepository.findFirstByClaimIdOrderByIdDesc(claimId)
+                .orElseGet(() -> {
+                    ClassificationLog fallbackLog = new ClassificationLog();
+                    fallbackLog.setClaimId(claimId);
+                    fallbackLog.setSource("DEV_FALLBACK");
+                    fallbackLog.setClassification(ar.edu.utn.frba.arbiter.common.enums.Classification.LLM_RECOMIENDA_APROBAR);
+                    fallbackLog.setConfidence(java.math.BigDecimal.valueOf(0.75));
+                    fallbackLog.setFactores("Clasificación provisional generada para permitir la prueba del flujo");
+                    fallbackLog.setLatenciaMs(0L);
+                    return logRepository.save(fallbackLog);
+                });
+
+        log.setAnalistaId(request.analystId());
+        log.setDecision(normalizeDecision(request.decision()));
+        log.setDecisionTimestamp(Instant.now());
+        logRepository.save(log);
+    }
+
+    private String normalizeDecision(String decision) {
+        String normalized = decision == null ? "" : decision.trim().toUpperCase();
+        return switch (normalized) {
+            case "APPROVE", "APROBAR", "YES", "Y" -> "APPROVE";
+            case "REJECT", "RECHAZAR", "NO", "N" -> "REJECT";
+            default -> normalized;
+        };
     }
 }

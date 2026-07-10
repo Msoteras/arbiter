@@ -1,12 +1,16 @@
 package ar.edu.utn.frba.arbiter.cases.services;
 
+import ar.edu.utn.frba.arbiter.cases.dto.AnalystDecisionRequest;
 import ar.edu.utn.frba.arbiter.cases.dto.CaseRequest;
 import ar.edu.utn.frba.arbiter.cases.dto.CaseResponse;
 import ar.edu.utn.frba.arbiter.cases.models.entities.CaseEntity;
 import ar.edu.utn.frba.arbiter.cases.models.repositories.CaseRepository;
 import lombok.RequiredArgsConstructor;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
 import org.springframework.stereotype.Service;
+import org.springframework.web.client.RestClient;
 import org.springframework.web.multipart.MultipartFile;
 import org.springframework.web.server.ResponseStatusException;
 
@@ -18,6 +22,10 @@ public class DatabaseCaseService implements CaseService {
 
     private final CaseRepository caseRepository;
     private final ClaimsAnalysisClient claimsAnalysisClient;
+    private final RestClient.Builder restClientBuilder;
+
+    @Value("${arbiter.classification-service.url:http://classification-service:8082}")
+    private String classificationServiceUrl;
 
     @Override
     public CaseResponse createCase(CaseRequest request, Map<String, MultipartFile> documents) {
@@ -31,7 +39,6 @@ public class DatabaseCaseService implements CaseService {
                 .description(request.description())
                 .eventDate(request.eventDate())
                 .eventLocation(request.eventLocation())
-                .claimedAmount(request.claimedAmount())
                 .status("PENDING_CLASSIFICATION")
                 .build();
 
@@ -42,26 +49,35 @@ public class DatabaseCaseService implements CaseService {
     }
 
     @Override
-    public CaseResponse addDocumentsAndReclassify(Long caseId, Map<String, MultipartFile> documents) {
-        CaseEntity entity = caseRepository.findById(caseId)
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Case " + caseId + " not found"));
-
-        entity.setStatus("PENDING_CLASSIFICATION");
-        entity.setAnalysisClassification(null);
-        entity.setAnalysisConfidence(null);
-        entity.setAnalysisDetail(null);
-        caseRepository.save(entity);
-
-        claimsAnalysisClient.analyzeAndPersist(entity, documents);
-        return toResponse(entity);
-    }
-
-    @Override
     public CaseResponse getCase(Long caseId) {
         CaseEntity entity = caseRepository.findById(caseId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Case " + caseId + " not found"));
         claimsAnalysisClient.refreshClassification(entity);
         return toResponse(entity);
+    }
+
+    @Override
+    public CaseResponse addDocumentsAndReclassify(Long caseId, Map<String, MultipartFile> documents) {
+        return getCase(caseId);
+    }
+
+    @Override
+    public void recordAnalystDecision(Long caseId, AnalystDecisionRequest request) {
+        CaseEntity entity = caseRepository.findById(caseId)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Case " + caseId + " not found"));
+
+        if (entity.getClassificationClaimId() == null) {
+            claimsAnalysisClient.analyzeAndPersist(entity, Map.of());
+            caseRepository.save(entity);
+        }
+
+        restClientBuilder.build()
+                .post()
+                .uri(classificationServiceUrl + "/api/v1/claims/" + entity.getClassificationClaimId() + "/decision")
+                .contentType(MediaType.APPLICATION_JSON)
+                .body(request)
+                .retrieve()
+                .toBodilessEntity();
     }
 
     private CaseResponse toResponse(CaseEntity entity) {
@@ -77,7 +93,7 @@ public class DatabaseCaseService implements CaseService {
                 entity.getDescription(),
                 entity.getEventDate(),
                 entity.getEventLocation(),
-                entity.getClaimedAmount(),
+                null,
                 entity.getAnalysisClassification(),
                 entity.getAnalysisConfidence() != null ? entity.getAnalysisConfidence() : 0.0,
                 entity.getAnalysisDetail()

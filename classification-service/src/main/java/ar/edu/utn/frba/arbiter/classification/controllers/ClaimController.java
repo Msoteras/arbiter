@@ -1,9 +1,10 @@
 package ar.edu.utn.frba.arbiter.classification.controllers;
 
+import ar.edu.utn.frba.arbiter.classification.dto.AnalystDecisionRequest;
 import ar.edu.utn.frba.arbiter.classification.dto.ClaimReport;
 import ar.edu.utn.frba.arbiter.classification.dto.ClaimResponse;
-import ar.edu.utn.frba.arbiter.classification.services.ClaimService;
 import ar.edu.utn.frba.arbiter.classification.services.ClaimClassificationService;
+import ar.edu.utn.frba.arbiter.classification.services.ClaimService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -56,7 +57,7 @@ public class ClaimController {
             @RequestParam(required = false) Map<String, MultipartFile> documents
     ) {
         Long claimId = claimService.register(claim);
-        claimClassificationService.processClaimClassification(claimId, claim, documentMapper.toAttachmentDocuments(documents));
+        claimClassificationService.classifyAsync(claimId, claim, documentMapper.toAttachmentDocuments(documents));
 
         return ResponseEntity
                 .status(HttpStatus.ACCEPTED)
@@ -77,5 +78,22 @@ public class ClaimController {
     @ApiResponse(responseCode = "422", description = "Claim does not exist")
     public ResponseEntity<ClaimResponse> getStatus(@PathVariable Long claimId) {
         return ResponseEntity.ok(claimService.getStatus(claimId));
+    }
+
+    @PostMapping("/{claimId}/decision")
+    @Operation(
+            summary = "Persist the analyst's final decision",
+            description = "Stores the analyst's verdict for the classification already produced for the claim."
+    )
+    @ApiResponse(responseCode = "200", description = "Decision persisted")
+    public ResponseEntity<Map<String, Object>> recordDecision(
+            @PathVariable Long claimId,
+            @RequestBody @Valid AnalystDecisionRequest request
+    ) {
+        claimService.recordAnalystDecision(claimId, request);
+        return ResponseEntity.ok(Map.of(
+                "claimId", claimId,
+                "status", "decision-recorded"
+        ));
     }
 }

@@ -1,5 +1,6 @@
 package ar.edu.utn.frba.arbiter.cases.controllers;
 
+import ar.edu.utn.frba.arbiter.cases.dto.AnalystDecisionRequest;
 import ar.edu.utn.frba.arbiter.cases.dto.CaseRequest;
 import ar.edu.utn.frba.arbiter.cases.dto.CaseResponse;
 import ar.edu.utn.frba.arbiter.cases.services.CaseService;
@@ -59,5 +60,19 @@ public class CaseController {
     ) {
         CaseResponse response = caseService.addDocumentsAndReclassify(caseId, documents);
         return ResponseEntity.accepted().body(response);
+    }
+
+    @PostMapping("/{caseId}/decision")
+    @Operation(summary = "Persist the analyst's decision",
+            description = "Forwards the analyst decision to classification-service so it is persisted in the audit trail.")
+    public ResponseEntity<Map<String, Object>> recordDecision(
+            @PathVariable Long caseId,
+            @RequestBody @Valid AnalystDecisionRequest request
+    ) {
+        caseService.recordAnalystDecision(caseId, request);
+        return ResponseEntity.ok(Map.of(
+                "caseId", caseId,
+                "status", "decision-recorded"
+        ));
     }
 }

@@ -1,5 +1,6 @@
 package ar.edu.utn.frba.arbiter.cases.services;
 
+import ar.edu.utn.frba.arbiter.cases.dto.AnalystDecisionRequest;
 import ar.edu.utn.frba.arbiter.cases.dto.CaseRequest;
 import ar.edu.utn.frba.arbiter.cases.dto.CaseResponse;
 import org.springframework.web.multipart.MultipartFile;
@@ -13,4 +14,6 @@ public interface CaseService {
     CaseResponse getCase(Long caseId);
 
     CaseResponse addDocumentsAndReclassify(Long caseId, Map<String, MultipartFile> documents);
+
+    void recordAnalystDecision(Long caseId, AnalystDecisionRequest request);
 }
