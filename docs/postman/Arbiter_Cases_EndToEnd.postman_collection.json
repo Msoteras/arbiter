@@ -2,7 +2,7 @@
   "info": {
     "_postman_id": "b2c3d4e5-f6a7-4b8c-9d0e-1f2a3b4c5d6e",
     "name": "Arbiter — End-to-End: Case → Classification",
-    "description": "Exercises the real cross-module flow: POST a case to cases-service (multipart: `case` JSON part + optional `documents`), which persists it and calls classification-service (POST /api/v1/claims) to analyze it — forwarding claimedAmount and the documents as-is. Then GET the case to poll classification-service (GET /api/v1/claims/{id}) until a result shows up.\n\n**Requirements**: both `cases-service` (port 8083) and `classification-service` (port 8082) up — `RealClaimsAnalysisClient` runs in every profile (dev included), no special profile needed anymore.\n\n**Document keys** (same convention as classification-service): `police_report`, `invoice`, `quote`, `item_photo` — or any free string, the Fast Track gate matches whatever `requiredDocumentTypes` the business rules ask for.\n\n**`GET /api/v1/cases/{id}` polls synchronously** (up to 6 attempts, 1s apart) — if the LLM is slow (minutes on CPU), this request can time out before a result appears. Just call GET again if so; Fast Track scenarios resolve instantly.\n\n**Mock policies available** (from classification-service's MockInsurerAdapter):\n- POL-CEL-2024-001 (insuredId 40.123.456) — sum insured 400.000, up to date, 0 prior claims\n- POL-CEL-2025-099 (insuredId 30.555.777) — sum insured 1.200.000, 3 prior claims\n- POL-CEL-2026-042 (insuredId 42.987.654) — sum insured 1.300.000, up to date, 0 prior claims",
+    "description": "Exercises the real cross-module flow: POST a case to cases-service (multipart: `case` JSON part + optional `documents`), which persists it and calls classification-service (POST /api/v1/claims) to analyze it — forwarding claimedAmount and the documents as-is. Then GET the case to poll classification-service (GET /api/v1/claims/{id}) until a result shows up.\n\n**Requirements**: both `cases-service` (port 8083) and `classification-service` (port 8082) up — `ClassificationServiceClient` runs in every profile (dev included), no special profile needed anymore.\n\n**Document keys** (same convention as classification-service): `police_report`, `invoice`, `quote`, `item_photo` — or any free string, the Fast Track gate matches whatever `requiredDocumentTypes` the business rules ask for.\n\n**`GET /api/v1/cases/{id}` is a pure read** — classification results are pulled in the background by `ClassificationRefreshScheduler` (every 5s by default). If the LLM is slow, GET may return `PENDING_CLASSIFICATION` — just call it again after a few seconds. Fast Track scenarios resolve instantly.\n\n**Mock policies available** (from classification-service's MockInsurerAdapter):\n- POL-001 (insuredId 12345678) — Asegurado de prueba, sum insured 500.000\n- POL-CEL-2024-001 (insuredId 40.123.456) — Laura Fernández, sum insured 400.000, 0 prior claims\n- POL-CEL-2025-099 (insuredId 30.555.777) — Marcelo Gómez, sum insured 1.200.000, 3 prior claims\n- POL-CEL-2026-042 (insuredId 42.987.654) — Sofía Martínez, sum insured 1.300.000, 0 prior claims\n- Cualquier otra póliza usa un fallback genérico (no explota).\n\n**Scenario 5 — FALTA_DOCUMENTACION**: crea un caso de robo SIN adjuntar denuncia policial. Las reglas mock para 'Robo' requieren `police_report` + `item_photo`, así que la clasificación devuelve FALTA_DOCUMENTACION. Luego se suben los documentos faltantes vía POST /{id}/documents y se re-clasifica.",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
   },
   "item": [
@@ -14,7 +14,7 @@
           "script": {
             "exec": [
               "const body = pm.response.json();",
-              "pm.collectionVariables.set('caseId', body.caseId);"
+              "pm.collectionVariables.set('caseId', body.id || body.caseId);"
             ]
           }
         }
@@ -56,7 +56,7 @@
           "script": {
             "exec": [
               "const body = pm.response.json();",
-              "pm.collectionVariables.set('caseId', body.caseId);"
+              "pm.collectionVariables.set('caseId', body.id || body.caseId);"
             ]
           }
         }
@@ -98,7 +98,7 @@
           "script": {
             "exec": [
               "const body = pm.response.json();",
-              "pm.collectionVariables.set('caseId', body.caseId);"
+              "pm.collectionVariables.set('caseId', body.id || body.caseId);"
             ]
           }
         }
@@ -139,7 +139,7 @@
           "script": {
             "exec": [
               "const body = pm.response.json();",
-              "pm.collectionVariables.set('caseId', body.caseId);"
+              "pm.collectionVariables.set('caseId', body.id || body.caseId);"
             ]
           }
         }
@@ -165,6 +165,71 @@
     },
     {
       "name": "4️⃣ ▶ Get case (falls to LLM — may need a couple of GETs)",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {"raw": "{{casesBaseUrl}}/api/v1/cases/{{caseId}}", "host": ["{{casesBaseUrl}}"], "path": ["api", "v1", "cases", "{{caseId}}"]}
+      },
+      "response": []
+    },
+    {
+      "name": "5️⃣ Create case — FALTA_DOCUMENTACION (robo sin denuncia policial)",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "const body = pm.response.json();",
+              "pm.collectionVariables.set('caseId', body.id || body.caseId);"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [],
+        "url": {"raw": "{{casesBaseUrl}}/api/v1/cases", "host": ["{{casesBaseUrl}}"], "path": ["api", "v1", "cases"]},
+        "body": {
+          "mode": "formdata",
+          "formdata": [
+            {
+              "key": "case",
+              "value": "{\n  \"branch\": \"Celulares\",\n  \"product\": \"Celular Protegido Básico\",\n  \"claimCause\": \"Robo en vía pública\",\n  \"insuredItem\": \"Xiaomi Redmi Note 13\",\n  \"insuredId\": \"40.123.456\",\n  \"policyNumber\": \"POL-CEL-2024-001\",\n  \"description\": \"Me robaron el celular mientras esperaba el colectivo. No adjunto denuncia policial todavía porque no tuve tiempo de ir a la comisaría\",\n  \"eventDate\": \"2026-06-20T21:15:00\",\n  \"eventLocation\": \"Parada de colectivo en Av. Rivadavia 5400, CABA\",\n  \"claimedAmount\": 180000\n}",
+              "contentType": "application/json",
+              "type": "text"
+            }
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "5️⃣ ▶ Get case (should show FALTA_DOCUMENTACION)",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {"raw": "{{casesBaseUrl}}/api/v1/cases/{{caseId}}", "host": ["{{casesBaseUrl}}"], "path": ["api", "v1", "cases", "{{caseId}}"]}
+      },
+      "response": []
+    },
+    {
+      "name": "5️⃣ ▶▶ Upload missing documents and re-classify",
+      "request": {
+        "method": "POST",
+        "header": [],
+        "url": {"raw": "{{casesBaseUrl}}/api/v1/cases/{{caseId}}/documents", "host": ["{{casesBaseUrl}}"], "path": ["api", "v1", "cases", "{{caseId}}", "documents"]},
+        "body": {
+          "mode": "formdata",
+          "formdata": [
+            {"key": "police_report", "type": "file", "src": [], "description": "Denuncia policial del incidente"},
+            {"key": "item_photo", "type": "file", "src": [], "description": "Foto del bien siniestrado"}
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "5️⃣ ▶▶▶ Get case after re-classification",
       "request": {
         "method": "GET",
         "header": [],

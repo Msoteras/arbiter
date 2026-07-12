@@ -17,19 +17,19 @@ public class MockRulesAdapter implements RulesAdapter {
                     .branchId("Celulares")
                     .claimCauseId("Robo en vía pública")
                     .rules(List.of(
-                            "El bien debe estar dentro del campo visual del insured al momento del robo",
-                            "Se requiere report policial dentro de las 48 hs del hecho",
-                            "El insured debe acreditar titularidad del equipo (factura o documentación)",
-                            "Si el insured tiene más de 2 claims en los últimos 12 meses, derivar a investigación"
+                            "El bien debe estar dentro del campo visual del asegurado al momento del robo",
+                            "Se requiere denuncia policial dentro de las 48 hs del hecho",
+                            "El asegurado debe acreditar titularidad del equipo (factura o documentación)",
+                            "Si el asegurado tiene más de 2 siniestros en los últimos 12 meses, derivar a investigación"
                     ))
                     .exclusions(List.of(
                             "Robo en domicilio declarado en póliza (se cubre por ramo Hogar)",
                             "Equipo fuera de la República Argentina",
-                            "Robo con participación del insured o grupo conviviente"
+                            "Robo con participación del asegurado o grupo conviviente"
                     ))
                     .fastTrackCriteria(List.of(
-                            "Primer claim del insured",
-                            "Report policial presentada dentro de las 24 hs",
+                            "Primer siniestro del asegurado",
+                            "Denuncia policial presentada dentro de las 24 hs",
                             "Monto reclamado inferior al 50% de la suma asegurada",
                             "Existencia de testigos o cámaras de seguridad"
                     ))
@@ -39,23 +39,23 @@ public class MockRulesAdapter implements RulesAdapter {
                             .requiresUpToDatePolicy(true)
                             .requiredDocumentTypes(List.of("police_report"))
                             .build())
-                    .requiredDocumentTypes(List.of("police_report", "item_photo"))
+                    .requiredDocumentTypes(List.of("police_report"))
                     .build(),
 
             "Celulares|Hurto", BusinessRules.builder()
                     .branchId("Celulares")
                     .claimCauseId("Hurto")
                     .rules(List.of(
-                            "Se requiere report policial dentro de las 48 hs del hecho",
-                            "El insured debe describir las circunstancias del hurto con detalle",
+                            "Se requiere denuncia policial dentro de las 48 hs del hecho",
+                            "El asegurado debe describir las circunstancias del hurto con detalle",
                             "Se requiere bloqueo del IMEI ante la empresa de telefonía"
                     ))
                     .exclusions(List.of(
-                            "Hurto por descuido en transporte público sin report",
+                            "Hurto por descuido en transporte público sin denuncia",
                             "Equipo dejado sin supervisión en lugar público"
                     ))
                     .fastTrackCriteria(List.of(
-                            "Primer claim del insured",
+                            "Primer siniestro del asegurado",
                             "Monto reclamado inferior al 30% de la suma asegurada"
                     ))
                     .fastTrackThresholds(BusinessRules.FastTrackThresholds.builder()
@@ -82,8 +82,8 @@ public class MockRulesAdapter implements RulesAdapter {
                     ))
                     .fastTrackCriteria(List.of(
                             "Presupuesto de servicio técnico autorizado adjunto",
-                            "Costo de reparación menor al 50% del valor insured",
-                            "Sin claims previos del mismo tipo en los últimos 6 meses"
+                            "Costo de reparación menor al 50% del valor asegurado",
+                            "Sin siniestros previos del mismo tipo en los últimos 6 meses"
                     ))
                     .fastTrackThresholds(BusinessRules.FastTrackThresholds.builder()
                             .maxClaimedAmountRatio(0.5)
@@ -105,7 +105,7 @@ public class MockRulesAdapter implements RulesAdapter {
                 .claimCauseId(claimCauseId)
                 .rules(List.of(
                         "Se requiere documentación respaldatoria del hecho",
-                        "Se requiere report policial si corresponde al tipo de hecho"
+                        "Se requiere denuncia policial si corresponde al tipo de hecho"
                 ))
                 .exclusions(List.of())
                 .fastTrackCriteria(List.of())

@@ -1,36 +1,56 @@
 package ar.edu.utn.frba.arbiter.classification.services;
 
+import ar.edu.utn.frba.arbiter.classification.dto.BusinessRules;
+import ar.edu.utn.frba.arbiter.classification.dto.ClassificationRequest;
 import ar.edu.utn.frba.arbiter.classification.dto.InsuredHistory;
 import ar.edu.utn.frba.arbiter.classification.dto.InsuredPolicy;
-import ar.edu.utn.frba.arbiter.classification.dto.BusinessRules;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.core.io.Resource;
+import org.springframework.stereotype.Component;
 
-import java.util.Objects;
+import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 
+@Component
 public class PromptBuilder {
 
-    private BusinessRules rules;
-    private InsuredPolicy policy;
-    private InsuredHistory history;
+    private final String promptTemplate;
 
-    public PromptBuilder withRules(BusinessRules rules) {
-        this.rules = rules;
-        return this;
+    public PromptBuilder(
+            @Value("classpath:prompts/classification-v1.md") Resource promptResource
+    ) throws IOException {
+        this.promptTemplate = promptResource.getContentAsString(StandardCharsets.UTF_8);
     }
 
-    public PromptBuilder withPolicy(InsuredPolicy policy) {
-        this.policy = policy;
-        return this;
+    public String getPromptVersion() {
+        return "classification-v1";
     }
 
-    public PromptBuilder withHistory(InsuredHistory history) {
-        this.history = history;
-        return this;
+    public String buildFullPrompt(ClassificationRequest request) {
+        String attachmentsText = request.attachmentsOcr() == null || request.attachmentsOcr().isEmpty()
+                ? "Sin documentos adjuntos"
+                : String.join("\n\n---\n\n", request.attachmentsOcr());
+
+        String history = request.insuredHistory() == null
+                ? "Sin historial previo disponible"
+                : request.insuredHistory();
+
+        String rules = request.insurerRules() == null
+                ? "Sin reglas adicionales configuradas"
+                : request.insurerRules();
+
+        return promptTemplate
+                .replace("{{branch}}", request.branch())
+                .replace("{{product}}", request.product())
+                .replace("{{claimCause}}", request.claimCause())
+                .replace("{{insuredItem}}", request.insuredItem())
+                .replace("{{description}}", request.description())
+                .replace("{{attachmentsOcr}}", attachmentsText)
+                .replace("{{insurerRules}}", rules)
+                .replace("{{insuredHistory}}", history);
     }
 
-    public String buildRulesAndPolicy() {
-        Objects.requireNonNull(rules, "Rules cannot be null");
-        Objects.requireNonNull(policy, "Policy cannot be null");
-
+    public String renderRulesAndPolicy(BusinessRules rules, InsuredPolicy policy) {
         var sb = new StringBuilder();
 
         sb.append("REGLAS DE LA ASEGURADORA (ramo: %s, hecho generador: %s):\n"
@@ -61,9 +81,7 @@ public class PromptBuilder {
         return sb.toString();
     }
 
-    public String buildHistory() {
-        Objects.requireNonNull(history, "History cannot be null");
-
+    public String renderHistory(InsuredHistory history) {
         var sb = new StringBuilder();
 
         sb.append("HISTORIAL DEL ASEGURADO (DNI: %s)\n".formatted(history.insuredId()));

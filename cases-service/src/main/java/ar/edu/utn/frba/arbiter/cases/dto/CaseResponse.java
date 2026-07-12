@@ -1,11 +1,14 @@
 package ar.edu.utn.frba.arbiter.cases.dto;
 
+import ar.edu.utn.frba.arbiter.common.enums.CaseStatus;
+import ar.edu.utn.frba.arbiter.common.enums.Classification;
+
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 
 public record CaseResponse(
         Long id,
-        String status,
+        CaseStatus status,
         String branch,
         String product,
         String claimCause,
@@ -16,7 +19,7 @@ public record CaseResponse(
         LocalDateTime eventDate,
         String eventLocation,
         BigDecimal claimedAmount,
-        String analysisClassification,
+        Classification analysisClassification,
         double analysisConfidence,
         String analysisDetail
 ) {

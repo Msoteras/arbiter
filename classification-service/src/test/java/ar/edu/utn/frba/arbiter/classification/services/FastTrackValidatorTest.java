@@ -1,6 +1,6 @@
 package ar.edu.utn.frba.arbiter.classification.services;
 
-import ar.edu.utn.frba.arbiter.classification.dto.ClaimReport;
+import ar.edu.utn.frba.arbiter.common.dto.ClaimReport;
 import ar.edu.utn.frba.arbiter.classification.dto.InsuredHistory;
 import ar.edu.utn.frba.arbiter.classification.dto.InsuredPolicy;
 import ar.edu.utn.frba.arbiter.classification.dto.BusinessRules;
@@ -25,6 +25,18 @@ class FastTrackValidatorTest {
         FastTrackValidator.Result result = validator.evaluate(claim(new BigDecimal("1000")), policy(), history(0), rules, Map.of());
 
         assertThat(result.fastTrack()).isFalse();
+    }
+
+    @Test
+    void allThresholdsNull_neverFastTracks() {
+        BusinessRules rules = baseRules()
+                .fastTrackThresholds(BusinessRules.FastTrackThresholds.builder().build())
+                .build();
+
+        FastTrackValidator.Result result = validator.evaluate(claim(new BigDecimal("1000")), policy(), history(0), rules, Map.of());
+
+        assertThat(result.fastTrack()).isFalse();
+        assertThat(result.reasons()).anyMatch(r -> r.contains("sin criterios activos"));
     }
 
     @Test

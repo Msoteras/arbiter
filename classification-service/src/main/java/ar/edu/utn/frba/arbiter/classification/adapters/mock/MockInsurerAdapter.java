@@ -20,7 +20,7 @@ public class MockInsurerAdapter implements InsurerAdapter {
     private static final Map<String, InsuredPolicy> POLICIES = Map.of(
             "POL-001", InsuredPolicy.builder()
                     .policyNumber("POL-001")
-                    .insuredName("Test Insured")
+                    .insuredName("Asegurado de prueba")
                     .insuredId("12345678")
                     .branch("SUCURSAL-1")
                     .product("CELULAR")
@@ -32,7 +32,7 @@ public class MockInsurerAdapter implements InsurerAdapter {
                     .coverages(List.of(
                             PolicyCoverage.builder()
                                     .code("COB-ROB-TEST")
-                                    .description("Robo test coverage")
+                                    .description("Cobertura de robo (prueba)")
                                     .insuredAmount(new BigDecimal("500000"))
                                     .deductible(new BigDecimal("50000"))
                                     .build()
@@ -146,7 +146,7 @@ public class MockInsurerAdapter implements InsurerAdapter {
                                     .status("Aprobado")
                                     .amountClaimed(new BigDecimal("450000"))
                                     .amountSettled(new BigDecimal("400000"))
-                                    .notes("Report consistente. Sin señales de alerta.")
+                                    .notes("Denuncia consistente. Sin señales de alerta.")
                                     .build(),
                             ClaimRecord.builder()
                                     .claimId("2026-1892")
@@ -157,7 +157,7 @@ public class MockInsurerAdapter implements InsurerAdapter {
                                     .status("Aprobado")
                                     .amountClaimed(new BigDecimal("890000"))
                                     .amountSettled(new BigDecimal("810000"))
-                                    .notes("Demora en report policial (72 hs). Aprobado por antecedente limpio previo.")
+                                    .notes("Demora en denuncia policial (72 hs). Aprobado por antecedente limpio previo.")
                                     .build(),
                             ClaimRecord.builder()
                                     .claimId("2026-3310")
@@ -168,7 +168,7 @@ public class MockInsurerAdapter implements InsurerAdapter {
                                     .status("En investigación")
                                     .amountClaimed(new BigDecimal("1100000"))
                                     .amountSettled(null)
-                                    .notes("Tercer claim en 6 meses. Derivado a investigación por frecuencia.")
+                                    .notes("Tercer siniestro en 6 meses. Derivado a investigación por frecuencia.")
                                     .build()
                     ))
                     .build(),

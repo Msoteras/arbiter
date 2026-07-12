@@ -1,6 +1,6 @@
 package ar.edu.utn.frba.arbiter.classification.services;
 
-import ar.edu.utn.frba.arbiter.classification.dto.ClaimReport;
+import ar.edu.utn.frba.arbiter.common.dto.ClaimReport;
 import ar.edu.utn.frba.arbiter.classification.dto.InsuredHistory;
 import ar.edu.utn.frba.arbiter.classification.dto.InsuredPolicy;
 import ar.edu.utn.frba.arbiter.classification.dto.BusinessRules;
@@ -41,6 +41,14 @@ public class FastTrackValidator {
         if (thresholds == null) {
             return new Result(false,
                     List.of("No hay criterios de Fast Track configurados para " + rules.branchId() + "/" + rules.claimCauseId()));
+        }
+
+        if (thresholds.maxClaimedAmountRatio() == null
+                && thresholds.maxPriorClaims() == null
+                && thresholds.requiresUpToDatePolicy() == null
+                && (thresholds.requiredDocumentTypes() == null || thresholds.requiredDocumentTypes().isEmpty())) {
+            return new Result(false,
+                    List.of("Fast Track configurado pero sin criterios activos para " + rules.branchId() + "/" + rules.claimCauseId()));
         }
 
         List<String> reasons = new ArrayList<>();

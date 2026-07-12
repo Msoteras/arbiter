@@ -1,7 +1,11 @@
 package ar.edu.utn.frba.arbiter.cases.models.entities;
 
+import ar.edu.utn.frba.arbiter.common.enums.CaseStatus;
+import ar.edu.utn.frba.arbiter.common.enums.Classification;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
+import jakarta.persistence.EnumType;
+import jakarta.persistence.Enumerated;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
@@ -57,12 +61,13 @@ public class CaseEntity {
 
     private BigDecimal claimedAmount;
 
-    @Column(nullable = false)
-    private String status;
+    @Enumerated(EnumType.STRING)
+    @Column(nullable = false, length = 40)
+    private CaseStatus status;
 
-    private Long classificationClaimId;
-
-    private String analysisClassification;
+    @Enumerated(EnumType.STRING)
+    @Column(length = 40)
+    private Classification analysisClassification;
 
     private Double analysisConfidence;
 
@@ -70,4 +75,8 @@ public class CaseEntity {
     private String analysisDetail;
 
     private Boolean deterministicFastTrack;
+
+    @Builder.Default
+    @Column(nullable = false)
+    private int classificationAttempts = 0;
 }
