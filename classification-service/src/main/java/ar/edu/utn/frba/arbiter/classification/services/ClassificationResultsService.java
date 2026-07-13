@@ -1,6 +1,7 @@
 package ar.edu.utn.frba.arbiter.classification.services;
 
 import ar.edu.utn.frba.arbiter.classification.config.OllamaProperties;
+import ar.edu.utn.frba.arbiter.common.dto.ClaimResponse;
 import ar.edu.utn.frba.arbiter.classification.dto.ClassificationResponse;
 import ar.edu.utn.frba.arbiter.classification.models.entities.ClassificationLog;
 import ar.edu.utn.frba.arbiter.classification.models.repositories.ClassificationLogRepository;
@@ -14,10 +15,12 @@ import java.math.BigDecimal;
 import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
 import java.util.List;
+import java.util.Optional;
 
 /**
- * Persists every classification into classification_log (immutable audit trail, SSN
- * Disposición 2/2023) and exposes the results table for quick lookup.
+ * Owns the classification_log table: persists every classification (immutable audit trail,
+ * SSN Disposición 2/2023), exposes each case's latest result for polling, and renders the
+ * results table for quick lookup.
  */
 @Service
 @RequiredArgsConstructor
@@ -32,24 +35,38 @@ public class ClassificationResultsService {
 
     @Transactional
     public void saveResult(
-            Long claimId,
+            Long caseId,
             ClassificationResponse response,
             long latencyMs
     ) {
         boolean fastTrack = response.deterministicFastTrack();
 
         ClassificationLog entry = new ClassificationLog();
-        entry.setClaimId(claimId);
+        entry.setCaseId(caseId);
         entry.setSource(fastTrack ? "RULES_FAST_TRACK" : "LLM");
-        entry.setModelo(fastTrack ? null : ollamaProperties.model());
+        entry.setModel(fastTrack ? null : ollamaProperties.model());
         entry.setPromptVersion(fastTrack ? null : ollamaProperties.promptVersion());
         entry.setClassification(response.classification());
         entry.setConfidence(BigDecimal.valueOf(response.confidence()));
-        entry.setFactores(String.join("\n", response.factors()));
-        entry.setLatenciaMs(latencyMs);
+        entry.setFactors(response.factors());
+        entry.setLatencyMs(latencyMs);
 
         logRepository.save(entry);
-        log.info("[ResultsService] Classification logged for claim {} ({})", claimId, entry.getSource());
+        log.info("[ResultsService] Classification logged for case {} ({})", caseId, entry.getSource());
+    }
+
+    /** Latest classification for a case; classification fields stay null until a log exists for it. */
+    @Transactional(readOnly = true)
+    public ClaimResponse getStatus(Long caseId) {
+        Optional<ClassificationLog> entry = logRepository.findFirstByCaseIdOrderByIdDesc(caseId);
+
+        return ClaimResponse.builder()
+                .caseId(caseId)
+                .classification(entry.map(ClassificationLog::getClassification).orElse(null))
+                .confidence(entry.map(l -> l.getConfidence() != null ? l.getConfidence().doubleValue() : null).orElse(null))
+                .factors(entry.map(ClassificationLog::getFactors).orElse(null))
+                .deterministicFastTrack(entry.map(l -> "RULES_FAST_TRACK".equals(l.getSource())).orElse(false))
+                .build();
     }
 
     @Transactional(readOnly = true)
@@ -62,19 +79,19 @@ public class ClassificationResultsService {
         StringBuilder sb = new StringBuilder("""
                 # Claims Classification Results
 
-                | Claim | Classification | Source | Confidence | Factors | Latency | Created |
-                |-------|----------------|--------|------------|---------|---------|---------|
+                | Case | Classification | Source | Confidence | Factors | Latency | Created |
+                |------|----------------|--------|------------|---------|---------|---------|
                 """);
 
         for (ClassificationLog e : entries) {
             sb.append(String.format(
                     "| %s | %s | %s | %s | %s | %s | %s |%n",
-                    e.getClaimId() != null ? e.getClaimId().toString() : "isolated test",
+                    e.getCaseId() != null ? e.getCaseId().toString() : "isolated test",
                     e.getClassification(),
                     e.getSource(),
                     e.getConfidence() != null ? e.getConfidence().toPlainString() : "-",
-                    e.getFactores().replace("\n", "; "),
-                    e.getLatenciaMs() != null ? e.getLatenciaMs() + " ms" : "-",
+                    String.join("; ", e.getFactors()),
+                    e.getLatencyMs() != null ? e.getLatencyMs() + " ms" : "-",
                     TIMESTAMP_FORMATTER.format(e.getCreatedAt())
             ));
         }

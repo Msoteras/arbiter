@@ -1,9 +1,9 @@
 package ar.edu.utn.frba.arbiter.cases.services;
 
+import ar.edu.utn.frba.arbiter.cases.models.entities.CaseDocument;
 import ar.edu.utn.frba.arbiter.cases.models.entities.CaseEntity;
-import org.springframework.web.multipart.MultipartFile;
 
-import java.util.Map;
+import java.util.List;
 
 /**
  * Adapter boundary to classification-service. Fires the async classification
@@ -13,10 +13,11 @@ import java.util.Map;
 public interface ClaimsAnalysisClient {
 
     /**
-     * Triggers classification for a case, forwarding its data and documents to
-     * classification-service (tagged with the case id), and marks the case pending.
+     * Triggers classification for a case, forwarding its data and the full set of
+     * accumulated documents to classification-service (tagged with the case id), and
+     * marks the case pending.
      */
-    AnalysisResult analyzeAndPersist(CaseEntity caseEntity, Map<String, MultipartFile> documents);
+    AnalysisResult analyzeAndPersist(CaseEntity caseEntity, List<CaseDocument> documents);
 
     /**
      * Single, non-blocking attempt to pull the classification result.

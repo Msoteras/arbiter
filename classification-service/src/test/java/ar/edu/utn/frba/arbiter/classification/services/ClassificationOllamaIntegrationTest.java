@@ -3,7 +3,7 @@ package ar.edu.utn.frba.arbiter.classification.services;
 import ar.edu.utn.frba.arbiter.common.enums.Classification;
 import ar.edu.utn.frba.arbiter.classification.config.OllamaProperties;
 import ar.edu.utn.frba.arbiter.classification.dto.ClassificationResponse;
-import ar.edu.utn.frba.arbiter.classification.dto.ClaimReport;
+import ar.edu.utn.frba.arbiter.common.dto.ClaimReport;
 import ar.edu.utn.frba.arbiter.classification.support.AbstractPersistenceIT;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Tag;

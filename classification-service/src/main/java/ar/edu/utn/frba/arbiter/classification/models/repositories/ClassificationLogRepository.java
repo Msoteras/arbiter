@@ -10,5 +10,5 @@ public interface ClassificationLogRepository extends JpaRepository<Classificatio
 
     List<ClassificationLog> findAllByOrderByIdAsc();
 
-    Optional<ClassificationLog> findFirstByClaimIdOrderByIdDesc(Long claimId);
+    Optional<ClassificationLog> findFirstByCaseIdOrderByIdDesc(Long caseId);
 }

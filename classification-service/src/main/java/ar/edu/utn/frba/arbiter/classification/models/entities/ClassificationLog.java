@@ -9,14 +9,16 @@ import org.hibernate.annotations.CreationTimestamp;
 
 import java.math.BigDecimal;
 import java.time.Instant;
+import java.util.List;
 
 /**
  * Immutable, auditable record of every analysis run (SSN Disposición 2/2023):
  * one row per classification, with the model's result, the factors backing it,
  * the source (Fast Track rules or LLM), and — once the analyst decides — their verdict.
  *
- * Decoupled from the Claim entity on purpose (stores only the id): the log is a
- * historical record, not a navigable relationship.
+ * This module does NOT persist the claim/case itself (that's cases-service's job): the
+ * log only references the owning case by id. It's a historical record, not a navigable
+ * relationship.
  */
 @Entity
 @Table(name = "classification_log")
@@ -29,13 +31,16 @@ public class ClassificationLog {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    /** Null when the classification runs isolated, with no persisted Claim (test endpoint). */
-    @Column(name = "claim_id")
-    private Long claimId;
+    /**
+     * Id of the case (owned by cases-service) this classification belongs to.
+     * Null when the classification runs isolated, with no case behind it (test endpoint).
+     */
+    @Column(name = "case_id")
+    private Long caseId;
 
     /** Model that produced the classification (e.g. "qwen3-vl"). Null when it was a rules-based Fast Track. */
     @Column(length = 80)
-    private String modelo;
+    private String model;
 
     /** Prompt version used. Null when it was a rules-based Fast Track. */
     @Column(name = "prompt_version", length = 80)
@@ -52,16 +57,16 @@ public class ClassificationLog {
     @Column(precision = 4, scale = 3)
     private BigDecimal confidence;
 
-    /** Factors backing the classification, joined by newline. */
+    @Convert(converter = StringListJsonConverter.class)
     @Column(nullable = false, columnDefinition = "text")
-    private String factores;
+    private List<String> factors;
 
-    @Column(name = "latencia_ms")
-    private Long latenciaMs;
+    @Column(name = "latency_ms")
+    private Long latencyMs;
 
     /** Filled in once the analyst makes their decision (decision endpoint, next step). */
-    @Column(name = "analista_id", length = 80)
-    private String analistaId;
+    @Column(name = "analyst_id", length = 80)
+    private String analystId;
 
     @Column(length = 20)
     private String decision;

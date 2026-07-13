@@ -4,7 +4,7 @@ import ar.edu.utn.frba.arbiter.common.enums.Classification;
 import ar.edu.utn.frba.arbiter.classification.adapters.ClaimClassifier;
 import ar.edu.utn.frba.arbiter.classification.dto.ClassificationRequest;
 import ar.edu.utn.frba.arbiter.classification.dto.ClassificationResponse;
-import ar.edu.utn.frba.arbiter.classification.dto.ClaimReport;
+import ar.edu.utn.frba.arbiter.common.dto.ClaimReport;
 import ar.edu.utn.frba.arbiter.classification.support.AbstractPersistenceIT;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
