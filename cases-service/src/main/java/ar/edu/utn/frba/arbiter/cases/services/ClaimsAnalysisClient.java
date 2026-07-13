@@ -1,7 +1,7 @@
 package ar.edu.utn.frba.arbiter.cases.services;
 
 import ar.edu.utn.frba.arbiter.cases.models.entities.CaseDocument;
-import ar.edu.utn.frba.arbiter.cases.models.entities.CaseEntity;
+import ar.edu.utn.frba.arbiter.cases.models.entities.Case;
 
 import java.util.List;
 
@@ -17,11 +17,11 @@ public interface ClaimsAnalysisClient {
      * accumulated documents to classification-service (tagged with the case id), and
      * marks the case pending.
      */
-    AnalysisResult analyzeAndPersist(CaseEntity caseEntity, List<CaseDocument> documents);
+    AnalysisResult analyzeAndPersist(Case caseRecord, List<CaseDocument> documents);
 
     /**
      * Single, non-blocking attempt to pull the classification result.
      * Returns true if classification is now available, false if still pending.
      */
-    boolean refreshClassification(CaseEntity caseEntity);
+    boolean refreshClassification(Case caseRecord);
 }

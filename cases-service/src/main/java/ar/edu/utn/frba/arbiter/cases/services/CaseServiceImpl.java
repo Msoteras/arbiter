@@ -5,7 +5,8 @@ import ar.edu.utn.frba.arbiter.cases.dto.CaseResponse;
 import ar.edu.utn.frba.arbiter.cases.exceptions.CaseNotFoundException;
 import ar.edu.utn.frba.arbiter.cases.exceptions.DocumentReadException;
 import ar.edu.utn.frba.arbiter.cases.models.entities.CaseDocument;
-import ar.edu.utn.frba.arbiter.cases.models.entities.CaseEntity;
+import ar.edu.utn.frba.arbiter.cases.models.entities.Case;
+import ar.edu.utn.frba.arbiter.cases.models.entities.StatusChangeActor;
 import ar.edu.utn.frba.arbiter.cases.models.repositories.CaseDocumentRepository;
 import ar.edu.utn.frba.arbiter.cases.models.repositories.CaseRepository;
 import ar.edu.utn.frba.arbiter.common.enums.CaseStatus;
@@ -22,11 +23,12 @@ public class CaseServiceImpl implements CaseService {
 
     private final CaseRepository caseRepository;
     private final CaseDocumentRepository caseDocumentRepository;
+    private final CaseStatusService caseStatusService;
     private final ClaimsAnalysisClient claimsAnalysisClient;
 
     @Override
     public CaseResponse createCase(CaseRequest request, Map<String, MultipartFile> documents) {
-        CaseEntity entity = CaseEntity.builder()
+        Case entity = Case.builder()
                 .branch(request.branch())
                 .product(request.product())
                 .claimCause(request.claimCause())
@@ -40,7 +42,8 @@ public class CaseServiceImpl implements CaseService {
                 .status(CaseStatus.PENDING_CLASSIFICATION)
                 .build();
 
-        CaseEntity saved = caseRepository.save(entity);
+        Case saved = caseRepository.save(entity);
+        caseStatusService.recordCreation(saved, StatusChangeActor.INSURED, "denuncia registrada");
         storeDocuments(saved.getId(), documents);
         claimsAnalysisClient.analyzeAndPersist(saved, caseDocumentRepository.findByCaseId(saved.getId()));
 
@@ -49,16 +52,16 @@ public class CaseServiceImpl implements CaseService {
 
     @Override
     public CaseResponse addDocumentsAndReclassify(Long caseId, Map<String, MultipartFile> documents) {
-        CaseEntity entity = caseRepository.findById(caseId)
+        Case entity = caseRepository.findById(caseId)
                 .orElseThrow(() -> new CaseNotFoundException(caseId));
 
         storeDocuments(caseId, documents);
 
-        entity.setStatus(CaseStatus.PENDING_CLASSIFICATION);
         entity.setAnalysisClassification(null);
         entity.setAnalysisConfidence(null);
         entity.setAnalysisDetail(null);
-        caseRepository.save(entity);
+        caseStatusService.transition(entity, CaseStatus.PENDING_CLASSIFICATION,
+                StatusChangeActor.INSURED, "documentación adicional subida");
 
         claimsAnalysisClient.analyzeAndPersist(entity, caseDocumentRepository.findByCaseId(caseId));
         return toResponse(entity);
@@ -87,12 +90,12 @@ public class CaseServiceImpl implements CaseService {
 
     @Override
     public CaseResponse getCase(Long caseId) {
-        CaseEntity entity = caseRepository.findById(caseId)
+        Case entity = caseRepository.findById(caseId)
                 .orElseThrow(() -> new CaseNotFoundException(caseId));
         return toResponse(entity);
     }
 
-    private CaseResponse toResponse(CaseEntity entity) {
+    private CaseResponse toResponse(Case entity) {
         return new CaseResponse(
                 entity.getId(),
                 entity.getStatus(),

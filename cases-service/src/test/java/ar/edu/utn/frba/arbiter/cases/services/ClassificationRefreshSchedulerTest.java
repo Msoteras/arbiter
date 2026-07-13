@@ -1,6 +1,7 @@
 package ar.edu.utn.frba.arbiter.cases.services;
 
-import ar.edu.utn.frba.arbiter.cases.models.entities.CaseEntity;
+import ar.edu.utn.frba.arbiter.cases.models.entities.Case;
+import ar.edu.utn.frba.arbiter.cases.models.entities.StatusChangeActor;
 import ar.edu.utn.frba.arbiter.cases.models.repositories.CaseRepository;
 import ar.edu.utn.frba.arbiter.common.enums.CaseStatus;
 import org.junit.jupiter.api.BeforeEach;
@@ -16,6 +17,7 @@ import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.*;
 
 @ExtendWith(MockitoExtension.class)
@@ -25,13 +27,16 @@ class ClassificationRefreshSchedulerTest {
     private CaseRepository caseRepository;
 
     @Mock
+    private CaseStatusService caseStatusService;
+
+    @Mock
     private ClaimsAnalysisClient claimsAnalysisClient;
 
     private ClassificationRefreshScheduler scheduler;
 
     @BeforeEach
     void setUp() {
-        scheduler = new ClassificationRefreshScheduler(caseRepository, claimsAnalysisClient);
+        scheduler = new ClassificationRefreshScheduler(caseRepository, caseStatusService, claimsAnalysisClient);
         setMaxAttempts(3);
     }
 
@@ -47,7 +52,7 @@ class ClassificationRefreshSchedulerTest {
 
     @Test
     void resolvedCase_doesNotIncrementAttempts() {
-        CaseEntity entity = pendingCase(0);
+        Case entity = pendingCase(0);
         when(caseRepository.findByStatus(CaseStatus.PENDING_CLASSIFICATION)).thenReturn(List.of(entity));
         when(claimsAnalysisClient.refreshClassification(entity)).thenReturn(true);
 
@@ -59,62 +64,64 @@ class ClassificationRefreshSchedulerTest {
 
     @Test
     void unresolvedCase_incrementsAttempts() {
-        CaseEntity entity = pendingCase(0);
+        Case entity = pendingCase(0);
         when(caseRepository.findByStatus(CaseStatus.PENDING_CLASSIFICATION)).thenReturn(List.of(entity));
         when(claimsAnalysisClient.refreshClassification(entity)).thenReturn(false);
 
         scheduler.refreshPendingCases();
 
-        ArgumentCaptor<CaseEntity> captor = ArgumentCaptor.forClass(CaseEntity.class);
+        ArgumentCaptor<Case> captor = ArgumentCaptor.forClass(Case.class);
         verify(caseRepository).save(captor.capture());
         assertThat(captor.getValue().getClassificationAttempts()).isEqualTo(1);
         assertThat(captor.getValue().getStatus()).isEqualTo(CaseStatus.PENDING_CLASSIFICATION);
+        verify(caseStatusService, never()).transition(any(), any(), any(), any());
     }
 
     @Test
     void maxAttemptsReached_marksClassificationFailed() {
-        CaseEntity entity = pendingCase(2);
+        Case entity = pendingCase(2);
         when(caseRepository.findByStatus(CaseStatus.PENDING_CLASSIFICATION)).thenReturn(List.of(entity));
         when(claimsAnalysisClient.refreshClassification(entity)).thenReturn(false);
 
         scheduler.refreshPendingCases();
 
-        ArgumentCaptor<CaseEntity> captor = ArgumentCaptor.forClass(CaseEntity.class);
-        verify(caseRepository).save(captor.capture());
-        assertThat(captor.getValue().getClassificationAttempts()).isEqualTo(3);
-        assertThat(captor.getValue().getStatus()).isEqualTo(CaseStatus.CLASSIFICATION_FAILED);
+        assertThat(entity.getClassificationAttempts()).isEqualTo(3);
+        verify(caseStatusService).transition(eq(entity), eq(CaseStatus.CLASSIFICATION_FAILED),
+                eq(StatusChangeActor.SYSTEM), any());
+        verify(caseRepository, never()).save(any());
     }
 
     @Test
     void exceptionDuringRefresh_incrementsAttempts() {
-        CaseEntity entity = pendingCase(0);
+        Case entity = pendingCase(0);
         when(caseRepository.findByStatus(CaseStatus.PENDING_CLASSIFICATION)).thenReturn(List.of(entity));
         when(claimsAnalysisClient.refreshClassification(entity)).thenThrow(new RuntimeException("connection refused"));
 
         scheduler.refreshPendingCases();
 
-        ArgumentCaptor<CaseEntity> captor = ArgumentCaptor.forClass(CaseEntity.class);
+        ArgumentCaptor<Case> captor = ArgumentCaptor.forClass(Case.class);
         verify(caseRepository).save(captor.capture());
         assertThat(captor.getValue().getClassificationAttempts()).isEqualTo(1);
     }
 
     @Test
     void exceptionAtMaxAttempts_marksClassificationFailed() {
-        CaseEntity entity = pendingCase(2);
+        Case entity = pendingCase(2);
         when(caseRepository.findByStatus(CaseStatus.PENDING_CLASSIFICATION)).thenReturn(List.of(entity));
         when(claimsAnalysisClient.refreshClassification(entity)).thenThrow(new RuntimeException("timeout"));
 
         scheduler.refreshPendingCases();
 
-        assertThat(entity.getStatus()).isEqualTo(CaseStatus.CLASSIFICATION_FAILED);
         assertThat(entity.getClassificationAttempts()).isEqualTo(3);
+        verify(caseStatusService).transition(eq(entity), eq(CaseStatus.CLASSIFICATION_FAILED),
+                eq(StatusChangeActor.SYSTEM), any());
     }
 
     @Test
     void multiplePendingCases_processesEachIndependently() {
-        CaseEntity resolved = pendingCase(0);
-        CaseEntity unresolved = pendingCase(1);
-        CaseEntity failing = pendingCase(2);
+        Case resolved = pendingCase(0);
+        Case unresolved = pendingCase(1);
+        Case failing = pendingCase(2);
 
         when(caseRepository.findByStatus(CaseStatus.PENDING_CLASSIFICATION))
                 .thenReturn(List.of(resolved, unresolved, failing));
@@ -128,9 +135,10 @@ class ClassificationRefreshSchedulerTest {
         assertThat(unresolved.getClassificationAttempts()).isEqualTo(2);
         assertThat(unresolved.getStatus()).isEqualTo(CaseStatus.PENDING_CLASSIFICATION);
         assertThat(failing.getClassificationAttempts()).isEqualTo(3);
-        assertThat(failing.getStatus()).isEqualTo(CaseStatus.CLASSIFICATION_FAILED);
 
-        verify(caseRepository, times(2)).save(any());
+        verify(caseRepository, times(1)).save(unresolved);   // only the still-pending one
+        verify(caseStatusService).transition(eq(failing), eq(CaseStatus.CLASSIFICATION_FAILED),
+                eq(StatusChangeActor.SYSTEM), any());
     }
 
     private void setMaxAttempts(int maxAttempts) {
@@ -143,8 +151,8 @@ class ClassificationRefreshSchedulerTest {
         }
     }
 
-    private CaseEntity pendingCase(int attempts) {
-        return CaseEntity.builder()
+    private Case pendingCase(int attempts) {
+        return Case.builder()
                 .id((long) (attempts + 1))
                 .branch("Celulares")
                 .product("Celular Protegido Básico")

@@ -26,20 +26,42 @@ Lo que sigue son los desvíos.
 
 ---
 
-## Gap A — `FALTA_DOCUMENTACION` cae en la bandeja del analista
+## Gap A — Estado para documentación faltante ✅ Resuelto (backend)
 
 **Diagrama:** cuando falta documentación, se le solicita **al asegurado** y el caso queda esperando
 (rama "El asegurado adjunta la documentación", que hace loop de vuelta al OCR). El analista **no**
 interviene en esta rama.
 
-**Hoy:** [`ClassificationServiceClient.refreshClassification`](../../cases-service/src/main/java/ar/edu/utn/frba/arbiter/cases/services/ClassificationServiceClient.java)
-setea `PENDING_ANALYST_REVIEW` para **cualquier** clasificación, incluida `FALTA_DOCUMENTACION`.
-En la BD seed, los cases 3 y 4 (`FALTA_DOCUMENTACION`) quedan en la cola del analista cuando
-deberían estar esperando al asegurado. El enum `CaseStatus` ni siquiera tiene un valor para
-representar "esperando documentación del asegurado".
+**Antes:** `refreshClassification` seteaba `PENDING_ANALYST_REVIEW` para cualquier clasificación,
+incluida `FALTA_DOCUMENTACION` — los casos con documentación faltante caían en la cola del analista.
 
-**Qué falta:** un estado tipo `AWAITING_DOCUMENTATION` + la transición que lo distingue de
-`PENDING_ANALYST_REVIEW`. **Diferido** hasta tener los diagramas de estado (no solo el de flujo).
+**Ahora:** [`ClassificationServiceClient.statusFor`](../../cases-service/src/main/java/ar/edu/utn/frba/arbiter/cases/services/ClassificationServiceClient.java)
+rutea por clasificación: `FALTA_DOCUMENTACION` → **`AWAITING_DOCUMENTATION`** (espera al asegurado);
+el resto → `PENDING_ANALYST_REVIEW`. El loop de vuelta ya existía: `POST /cases/{id}/documents`
+resetea a `PENDING_CLASSIFICATION` y re-clasifica con el set completo de adjuntos (Gap C).
+El scheduler solo pollea `PENDING_CLASSIFICATION`, así que un caso esperando documentación no se
+re-procesa hasta que el asegurado actúe.
+
+Se agregaron también `APPROVED` / `REJECTED` a `CaseStatus` — son los estados finales que setea el
+endpoint de decisión (Gap B, Fede): `PENDING_ANALYST_REVIEW → APPROVED | REJECTED`.
+
+### Estados internos vs. lo que ve el asegurado
+
+Los `CaseStatus` internos quedan granulares (en inglés); el asegurado ve una **proyección**, según
+los diagramas de estado aportados (denuncia y expediente). El mapeo es responsabilidad del frontend
+(pendiente de implementar ahí):
+
+| Interno (`CaseStatus`) | Denuncia (asegurado) | Expediente (asegurado) | ¿Analista actúa? |
+|---|---|---|---|
+| `PENDING_CLASSIFICATION` | Pendiente de clasificación | Recibido | No |
+| `PENDING_ANALYST_REVIEW` | Pendiente de clasificación | Recibido | **Sí** |
+| `CLASSIFICATION_FAILED` | Pendiente de clasificación | Recibido | A definir con analistas |
+| `AWAITING_DOCUMENTATION` | Esperando documentación adicional | Recibido (acción pendiente) | No |
+| `APPROVED` *(Gap B)* | Aprobado | Aprobado | No (final) |
+| `REJECTED` *(Gap B)* | Rechazado | Rechazado | No (final) |
+
+> El POV del analista (bandeja, asignación, prioridades) queda para discutir con los analistas.
+> El invariante que ya se cumple: puede saber si tiene que actuar mirando solo el estado.
 
 ---
 

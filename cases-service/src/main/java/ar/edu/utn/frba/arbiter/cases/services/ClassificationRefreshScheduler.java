@@ -1,6 +1,7 @@
 package ar.edu.utn.frba.arbiter.cases.services;
 
-import ar.edu.utn.frba.arbiter.cases.models.entities.CaseEntity;
+import ar.edu.utn.frba.arbiter.cases.models.entities.Case;
+import ar.edu.utn.frba.arbiter.cases.models.entities.StatusChangeActor;
 import ar.edu.utn.frba.arbiter.cases.models.repositories.CaseRepository;
 import ar.edu.utn.frba.arbiter.common.enums.CaseStatus;
 import lombok.RequiredArgsConstructor;
@@ -19,6 +20,7 @@ public class ClassificationRefreshScheduler {
     private static final Logger log = LoggerFactory.getLogger(ClassificationRefreshScheduler.class);
 
     private final CaseRepository caseRepository;
+    private final CaseStatusService caseStatusService;
     private final ClaimsAnalysisClient claimsAnalysisClient;
 
     @Value("${arbiter.classification-refresh.max-attempts:120}")
@@ -26,31 +28,33 @@ public class ClassificationRefreshScheduler {
 
     @Scheduled(fixedDelayString = "${arbiter.classification-refresh.interval-ms:5000}")
     public void refreshPendingCases() {
-        List<CaseEntity> pending = caseRepository.findByStatus(CaseStatus.PENDING_CLASSIFICATION);
+        List<Case> pending = caseRepository.findByStatus(CaseStatus.PENDING_CLASSIFICATION);
         if (pending.isEmpty()) {
             return;
         }
         log.debug("Refreshing {} pending case(s)", pending.size());
-        for (CaseEntity caseEntity : pending) {
+        for (Case caseRecord : pending) {
             try {
-                boolean resolved = claimsAnalysisClient.refreshClassification(caseEntity);
+                boolean resolved = claimsAnalysisClient.refreshClassification(caseRecord);
                 if (!resolved) {
-                    incrementAttempts(caseEntity);
+                    incrementAttempts(caseRecord);
                 }
             } catch (Exception e) {
-                log.warn("Refresh failed for case {}: {}", caseEntity.getId(), e.getMessage());
-                incrementAttempts(caseEntity);
+                log.warn("Refresh failed for case {}: {}", caseRecord.getId(), e.getMessage());
+                incrementAttempts(caseRecord);
             }
         }
     }
 
-    private void incrementAttempts(CaseEntity caseEntity) {
-        int attempts = caseEntity.getClassificationAttempts() + 1;
-        caseEntity.setClassificationAttempts(attempts);
+    private void incrementAttempts(Case caseRecord) {
+        int attempts = caseRecord.getClassificationAttempts() + 1;
+        caseRecord.setClassificationAttempts(attempts);
         if (attempts >= maxAttempts) {
-            caseEntity.setStatus(CaseStatus.CLASSIFICATION_FAILED);
-            log.error("Case {} marked as CLASSIFICATION_FAILED after {} attempts", caseEntity.getId(), attempts);
+            log.error("Case {} marked as CLASSIFICATION_FAILED after {} attempts", caseRecord.getId(), attempts);
+            caseStatusService.transition(caseRecord, CaseStatus.CLASSIFICATION_FAILED,
+                    StatusChangeActor.SYSTEM, "clasificación fallida tras " + attempts + " reintentos");
+        } else {
+            caseRepository.save(caseRecord);
         }
-        caseRepository.save(caseEntity);
     }
 }

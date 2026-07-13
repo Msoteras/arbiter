@@ -1,11 +1,12 @@
 package ar.edu.utn.frba.arbiter.cases.services;
 
 import ar.edu.utn.frba.arbiter.cases.models.entities.CaseDocument;
-import ar.edu.utn.frba.arbiter.cases.models.entities.CaseEntity;
-import ar.edu.utn.frba.arbiter.cases.models.repositories.CaseRepository;
+import ar.edu.utn.frba.arbiter.cases.models.entities.Case;
+import ar.edu.utn.frba.arbiter.cases.models.entities.StatusChangeActor;
 import ar.edu.utn.frba.arbiter.common.dto.ClaimReport;
 import ar.edu.utn.frba.arbiter.common.dto.ClaimResponse;
 import ar.edu.utn.frba.arbiter.common.enums.CaseStatus;
+import ar.edu.utn.frba.arbiter.common.enums.Classification;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
@@ -25,35 +26,35 @@ public class ClassificationServiceClient implements ClaimsAnalysisClient {
     private static final Logger log = LoggerFactory.getLogger(ClassificationServiceClient.class);
 
     private final RestClient restClient;
-    private final CaseRepository caseRepository;
+    private final CaseStatusService caseStatusService;
 
     public ClassificationServiceClient(
             RestClient.Builder restClientBuilder,
-            CaseRepository caseRepository,
+            CaseStatusService caseStatusService,
             @Value("${arbiter.classification-service.url:http://classification-service:8082}") String classificationServiceUrl
     ) {
         this.restClient = restClientBuilder.baseUrl(classificationServiceUrl).build();
-        this.caseRepository = caseRepository;
+        this.caseStatusService = caseStatusService;
     }
 
     @Override
-    public AnalysisResult analyzeAndPersist(CaseEntity caseEntity, List<CaseDocument> documents) {
+    public AnalysisResult analyzeAndPersist(Case caseRecord, List<CaseDocument> documents) {
         ClaimReport claim = ClaimReport.builder()
-                .branch(caseEntity.getBranch())
-                .product(caseEntity.getProduct())
-                .claimCause(caseEntity.getClaimCause())
-                .insuredItem(caseEntity.getInsuredItem())
-                .insuredId(caseEntity.getInsuredId())
-                .policyNumber(caseEntity.getPolicyNumber())
-                .description(caseEntity.getDescription())
-                .eventDate(caseEntity.getEventDate())
-                .eventLocation(caseEntity.getEventLocation())
-                .claimedAmount(caseEntity.getClaimedAmount())
+                .branch(caseRecord.getBranch())
+                .product(caseRecord.getProduct())
+                .claimCause(caseRecord.getClaimCause())
+                .insuredItem(caseRecord.getInsuredItem())
+                .insuredId(caseRecord.getInsuredId())
+                .policyNumber(caseRecord.getPolicyNumber())
+                .description(caseRecord.getDescription())
+                .eventDate(caseRecord.getEventDate())
+                .eventLocation(caseRecord.getEventLocation())
+                .claimedAmount(caseRecord.getClaimedAmount())
                 .attachmentsOcr(List.of())
                 .build();
 
         MultiValueMap<String, Object> body = new LinkedMultiValueMap<>();
-        body.add("caseId", String.valueOf(caseEntity.getId()));
+        body.add("caseId", String.valueOf(caseRecord.getId()));
         body.add("claim", claim);
         documents.forEach(document -> body.add(document.getType(), toResource(document)));
 
@@ -64,9 +65,7 @@ public class ClassificationServiceClient implements ClaimsAnalysisClient {
                 .retrieve()
                 .toBodilessEntity();
 
-        caseEntity.setStatus(CaseStatus.PENDING_CLASSIFICATION);
-        caseRepository.save(caseEntity);
-
+        // The case is already PENDING_CLASSIFICATION (set by the caller); this only fires the request.
         return new AnalysisResult(null, 0.0, "Classification in progress");
     }
 
@@ -85,31 +84,41 @@ public class ClassificationServiceClient implements ClaimsAnalysisClient {
      * still pending. Repetition is the scheduler's job, not this method's — no sleep here.
      */
     @Override
-    public boolean refreshClassification(CaseEntity caseEntity) {
-        if (caseEntity.getAnalysisClassification() != null) {
+    public boolean refreshClassification(Case caseRecord) {
+        if (caseRecord.getAnalysisClassification() != null) {
             return true;
         }
 
         try {
             ClaimResponse response = restClient.get()
-                    .uri("/api/v1/claims/{caseId}", caseEntity.getId())
+                    .uri("/api/v1/claims/{caseId}", caseRecord.getId())
                     .retrieve()
                     .body(ClaimResponse.class);
 
             if (response != null && response.classification() != null) {
-                caseEntity.setAnalysisClassification(response.classification());
-                caseEntity.setAnalysisConfidence(response.confidence());
-                caseEntity.setAnalysisDetail(buildDetail(response));
-                caseEntity.setDeterministicFastTrack(response.deterministicFastTrack());
-                caseEntity.setStatus(CaseStatus.PENDING_ANALYST_REVIEW);
-                caseRepository.save(caseEntity);
+                caseRecord.setAnalysisClassification(response.classification());
+                caseRecord.setAnalysisConfidence(response.confidence());
+                caseRecord.setAnalysisDetail(buildDetail(response));
+                caseRecord.setDeterministicFastTrack(response.deterministicFastTrack());
+                caseStatusService.transition(caseRecord, statusFor(response.classification()),
+                        StatusChangeActor.SYSTEM, "clasificación: " + response.classification());
                 return true;
             }
         } catch (RestClientResponseException exception) {
-            log.warn("Classification polling failed for case {}: {}", caseEntity.getId(), exception.getMessage());
+            log.warn("Classification polling failed for case {}: {}", caseRecord.getId(), exception.getMessage());
         }
 
         return false;
+    }
+
+    /**
+     * Missing documentation is the insured's turn (they upload what's missing and the case
+     * re-enters classification); every other result goes to the analyst's queue.
+     */
+    private CaseStatus statusFor(Classification classification) {
+        return classification == Classification.FALTA_DOCUMENTACION
+                ? CaseStatus.AWAITING_DOCUMENTATION
+                : CaseStatus.PENDING_ANALYST_REVIEW;
     }
 
     private String buildDetail(ClaimResponse response) {

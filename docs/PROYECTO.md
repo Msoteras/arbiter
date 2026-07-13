@@ -44,7 +44,7 @@ arbiter/
 │   └── src/test/java/.../classification/  # Tests (mock por defecto, Ollama real opcional)
 │
 └── cases-service/                     # Módulo de Expedientes (puerto 8083)
-    └── src/main/java/.../cases/       # CaseController, CaseService, ClaimsAnalysisClient, CaseEntity
+    └── src/main/java/.../cases/       # CaseController, CaseService, ClaimsAnalysisClient, Case
 ```
 
 ---

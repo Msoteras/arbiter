@@ -142,6 +142,16 @@ class CaseControllerTest {
                 .andExpect(jsonPath("$.status").value("CLASSIFICATION_FAILED"));
     }
 
+    @Test
+    void getCase_awaitingDocumentation_returnsAwaitingStatus() throws Exception {
+        CaseResponse response = caseResponse(3L, CaseStatus.AWAITING_DOCUMENTATION);
+        when(caseService.getCase(3L)).thenReturn(response);
+
+        mockMvc.perform(get("/api/v1/cases/3"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value("AWAITING_DOCUMENTATION"));
+    }
+
     private CaseResponse caseResponse(Long id, CaseStatus status) {
         return new CaseResponse(
                 id, status,

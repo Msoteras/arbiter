@@ -4,7 +4,8 @@ import ar.edu.utn.frba.arbiter.cases.dto.CaseRequest;
 import ar.edu.utn.frba.arbiter.cases.dto.CaseResponse;
 import ar.edu.utn.frba.arbiter.cases.exceptions.CaseNotFoundException;
 import ar.edu.utn.frba.arbiter.cases.models.entities.CaseDocument;
-import ar.edu.utn.frba.arbiter.cases.models.entities.CaseEntity;
+import ar.edu.utn.frba.arbiter.cases.models.entities.Case;
+import ar.edu.utn.frba.arbiter.cases.models.entities.StatusChangeActor;
 import ar.edu.utn.frba.arbiter.cases.models.repositories.CaseDocumentRepository;
 import ar.edu.utn.frba.arbiter.cases.models.repositories.CaseRepository;
 import ar.edu.utn.frba.arbiter.common.enums.CaseStatus;
@@ -38,6 +39,9 @@ class CaseServiceImplTest {
     private CaseDocumentRepository caseDocumentRepository;
 
     @Mock
+    private CaseStatusService caseStatusService;
+
+    @Mock
     private ClaimsAnalysisClient claimsAnalysisClient;
 
     @InjectMocks
@@ -46,8 +50,8 @@ class CaseServiceImplTest {
     @Test
     void createCase_persistsEntityAndTriggersClassification() {
         CaseRequest request = caseRequest();
-        CaseEntity saved = caseEntity(1L, CaseStatus.PENDING_CLASSIFICATION);
-        when(caseRepository.save(any(CaseEntity.class))).thenReturn(saved);
+        Case saved = caseRecord(1L, CaseStatus.PENDING_CLASSIFICATION);
+        when(caseRepository.save(any(Case.class))).thenReturn(saved);
         when(caseDocumentRepository.findByCaseId(1L)).thenReturn(List.of());
         when(claimsAnalysisClient.analyzeAndPersist(any(), any()))
                 .thenReturn(new AnalysisResult(null, 0.0, "in progress"));
@@ -58,7 +62,7 @@ class CaseServiceImplTest {
         assertThat(response.status()).isEqualTo(CaseStatus.PENDING_CLASSIFICATION);
         assertThat(response.branch()).isEqualTo("Celulares");
 
-        ArgumentCaptor<CaseEntity> captor = ArgumentCaptor.forClass(CaseEntity.class);
+        ArgumentCaptor<Case> captor = ArgumentCaptor.forClass(Case.class);
         verify(caseRepository).save(captor.capture());
         assertThat(captor.getValue().getStatus()).isEqualTo(CaseStatus.PENDING_CLASSIFICATION);
 
@@ -68,8 +72,8 @@ class CaseServiceImplTest {
     @Test
     void createCase_mapsAllFieldsFromRequest() {
         CaseRequest request = caseRequest();
-        when(caseRepository.save(any(CaseEntity.class))).thenAnswer(inv -> {
-            CaseEntity e = inv.getArgument(0);
+        when(caseRepository.save(any(Case.class))).thenAnswer(inv -> {
+            Case e = inv.getArgument(0);
             e.setId(1L);
             return e;
         });
@@ -92,7 +96,7 @@ class CaseServiceImplTest {
 
     @Test
     void getCase_returnsResponse() {
-        CaseEntity entity = caseEntity(1L, CaseStatus.PENDING_ANALYST_REVIEW);
+        Case entity = caseRecord(1L, CaseStatus.PENDING_ANALYST_REVIEW);
         entity.setAnalysisClassification(Classification.FAST_TRACK);
         entity.setAnalysisConfidence(1.0);
         entity.setAnalysisDetail("Low amount, first claim");
@@ -118,13 +122,19 @@ class CaseServiceImplTest {
 
     @Test
     void addDocumentsAndReclassify_resetsClassificationAndRetriggers() {
-        CaseEntity entity = caseEntity(1L, CaseStatus.PENDING_ANALYST_REVIEW);
+        Case entity = caseRecord(1L, CaseStatus.PENDING_ANALYST_REVIEW);
         entity.setAnalysisClassification(Classification.LLM_RECOMIENDA_APROBAR);
         entity.setAnalysisConfidence(0.9);
         entity.setAnalysisDetail("Some detail");
         when(caseRepository.findById(1L)).thenReturn(Optional.of(entity));
-        when(caseRepository.save(any(CaseEntity.class))).thenAnswer(inv -> inv.getArgument(0));
         when(caseDocumentRepository.findByCaseId(1L)).thenReturn(List.of());
+        // transition drives the status change; mirror it so the response reflects the new state
+        when(caseStatusService.transition(any(), eq(CaseStatus.PENDING_CLASSIFICATION), any(), any()))
+                .thenAnswer(inv -> {
+                    Case e = inv.getArgument(0);
+                    e.setStatus(CaseStatus.PENDING_CLASSIFICATION);
+                    return e;
+                });
         when(claimsAnalysisClient.analyzeAndPersist(any(), any()))
                 .thenReturn(new AnalysisResult(null, 0.0, "in progress"));
 
@@ -135,7 +145,8 @@ class CaseServiceImplTest {
         assertThat(response.analysisConfidence()).isEqualTo(0.0);
         assertThat(response.analysisDetail()).isNull();
 
-        verify(caseRepository).save(entity);
+        verify(caseStatusService).transition(eq(entity), eq(CaseStatus.PENDING_CLASSIFICATION),
+                eq(StatusChangeActor.INSURED), any());
         verify(claimsAnalysisClient).analyzeAndPersist(eq(entity), eq(List.of()));
     }
 
@@ -149,7 +160,7 @@ class CaseServiceImplTest {
 
     @Test
     void getCase_nullConfidence_defaultsToZero() {
-        CaseEntity entity = caseEntity(1L, CaseStatus.PENDING_CLASSIFICATION);
+        Case entity = caseRecord(1L, CaseStatus.PENDING_CLASSIFICATION);
         entity.setAnalysisConfidence(null);
         when(caseRepository.findById(1L)).thenReturn(Optional.of(entity));
 
@@ -161,8 +172,8 @@ class CaseServiceImplTest {
     @Test
     void createCase_withDocuments_persistsEachDocument() {
         CaseRequest request = caseRequest();
-        CaseEntity saved = caseEntity(1L, CaseStatus.PENDING_CLASSIFICATION);
-        when(caseRepository.save(any(CaseEntity.class))).thenReturn(saved);
+        Case saved = caseRecord(1L, CaseStatus.PENDING_CLASSIFICATION);
+        when(caseRepository.save(any(Case.class))).thenReturn(saved);
         when(caseDocumentRepository.findByCaseIdAndType(eq(1L), any())).thenReturn(Optional.empty());
         when(caseDocumentRepository.findByCaseId(1L)).thenReturn(List.of());
         when(claimsAnalysisClient.analyzeAndPersist(any(), any()))
@@ -185,13 +196,12 @@ class CaseServiceImplTest {
 
     @Test
     void addDocuments_replacesDocumentOfSameType() {
-        CaseEntity entity = caseEntity(1L, CaseStatus.PENDING_ANALYST_REVIEW);
+        Case entity = caseRecord(1L, CaseStatus.PENDING_ANALYST_REVIEW);
         CaseDocument existing = CaseDocument.builder()
                 .id(7L).caseId(1L).type("item_photo")
                 .filename("old.jpg").contentType("image/jpeg").content("old".getBytes())
                 .build();
         when(caseRepository.findById(1L)).thenReturn(Optional.of(entity));
-        when(caseRepository.save(any(CaseEntity.class))).thenAnswer(inv -> inv.getArgument(0));
         when(caseDocumentRepository.findByCaseIdAndType(1L, "item_photo")).thenReturn(Optional.of(existing));
         when(caseDocumentRepository.findByCaseId(1L)).thenReturn(List.of(existing));
         when(claimsAnalysisClient.analyzeAndPersist(any(), any()))
@@ -225,8 +235,8 @@ class CaseServiceImplTest {
         );
     }
 
-    private CaseEntity caseEntity(Long id, CaseStatus status) {
-        return CaseEntity.builder()
+    private Case caseRecord(Long id, CaseStatus status) {
+        return Case.builder()
                 .id(id)
                 .branch("Celulares")
                 .product("Celular Protegido Básico")
