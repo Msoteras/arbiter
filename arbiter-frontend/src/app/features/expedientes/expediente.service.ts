@@ -18,6 +18,11 @@ export interface CaseCreateRequest {
   claimedAmount?: number;
 }
 
+export interface AnalystDecisionRequest {
+  analystId: string;
+  decision: 'APPROVE' | 'REJECT' | 'DERIVAR';
+}
+
 @Injectable({ providedIn: 'root' })
 export class ExpedienteService {
   private readonly http = inject(HttpClient);
@@ -40,5 +45,9 @@ export class ExpedienteService {
     const formData = new FormData();
     documents.forEach((file, type) => formData.append(type, file));
     return this.http.post<ExpedienteResponse>(`${this.baseUrl}/${caseId}/documents`, formData);
+  }
+
+  recordAnalystDecision(caseId: number, request: AnalystDecisionRequest): Observable<{ status: string }> {
+    return this.http.post<{ status: string }>(`${this.baseUrl}/${caseId}/decision`, request);
   }
 }

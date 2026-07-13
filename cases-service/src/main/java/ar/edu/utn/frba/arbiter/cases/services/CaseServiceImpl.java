@@ -1,5 +1,6 @@
 package ar.edu.utn.frba.arbiter.cases.services;
 
+import ar.edu.utn.frba.arbiter.cases.dto.AnalystDecisionRequest;
 import ar.edu.utn.frba.arbiter.cases.dto.CaseRequest;
 import ar.edu.utn.frba.arbiter.cases.dto.CaseResponse;
 import ar.edu.utn.frba.arbiter.cases.exceptions.CaseNotFoundException;
@@ -93,6 +94,22 @@ public class CaseServiceImpl implements CaseService {
         Case entity = caseRepository.findById(caseId)
                 .orElseThrow(() -> new CaseNotFoundException(caseId));
         return toResponse(entity);
+    }
+
+    @Override
+    public void recordAnalystDecision(Long caseId, AnalystDecisionRequest request) {
+        Case entity = caseRepository.findById(caseId)
+                .orElseThrow(() -> new CaseNotFoundException(caseId));
+
+        claimsAnalysisClient.forwardAnalystDecision(caseId, request);
+
+        CaseStatus targetStatus = "REJECT".equalsIgnoreCase(request.decision())
+                || "RECHAZAR".equalsIgnoreCase(request.decision())
+                ? CaseStatus.REJECTED
+                : CaseStatus.APPROVED;
+
+        caseStatusService.transition(entity, targetStatus,
+                StatusChangeActor.ANALYST, "decisión del analista: " + request.decision());
     }
 
     private CaseResponse toResponse(Case entity) {

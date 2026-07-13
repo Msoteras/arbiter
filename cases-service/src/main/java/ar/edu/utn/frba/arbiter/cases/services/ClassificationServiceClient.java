@@ -1,5 +1,6 @@
 package ar.edu.utn.frba.arbiter.cases.services;
 
+import ar.edu.utn.frba.arbiter.cases.dto.AnalystDecisionRequest;
 import ar.edu.utn.frba.arbiter.cases.models.entities.CaseDocument;
 import ar.edu.utn.frba.arbiter.cases.models.entities.Case;
 import ar.edu.utn.frba.arbiter.cases.models.entities.StatusChangeActor;
@@ -119,6 +120,16 @@ public class ClassificationServiceClient implements ClaimsAnalysisClient {
         return classification == Classification.FALTA_DOCUMENTACION
                 ? CaseStatus.AWAITING_DOCUMENTATION
                 : CaseStatus.PENDING_ANALYST_REVIEW;
+    }
+
+    @Override
+    public void forwardAnalystDecision(Long caseId, AnalystDecisionRequest request) {
+        restClient.post()
+                .uri("/api/v1/claims/{caseId}/decision", caseId)
+                .contentType(MediaType.APPLICATION_JSON)
+                .body(request)
+                .retrieve()
+                .toBodilessEntity();
     }
 
     private String buildDetail(ClaimResponse response) {

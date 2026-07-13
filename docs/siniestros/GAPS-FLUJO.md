@@ -96,17 +96,34 @@ vuelve a pedir lo que el asegurado ya mandó.
 
 ---
 
-## Gap B — La decisión del analista no existe *(lo toma Fede)*
+## Gap B — Decisión del analista ✅ Resuelto
 
 **Diagrama:** todos los caminos terminan en *"se manda la resolución al analista, quien debe aprobar"*.
 
-**Hoy:** no hay endpoint de decisión. La entidad `ClassificationLog` tiene los campos preparados
-(`analystId`, `decision`, `decisionTimestamp`) pero ningún código los escribe. El flujo queda
-trunco en `PENDING_ANALYST_REVIEW`. Además incumple la auditoría de la Disposición 2/2023, que
-exige registrar la decisión del analista.
+**Antes:** no había endpoint de decisión. La entidad `ClassificationLog` tenía los campos preparados
+(`analystId`, `decision`, `decisionTimestamp`) pero ningún código los escribía. El flujo quedaba
+trunco en `PENDING_ANALYST_REVIEW`, incumpliendo la auditoría de la Disposición 2/2023.
 
-**Qué falta:** `POST /api/v1/claims/{id}/decision` (APROBAR | RECHAZAR), estados post-decisión en
-`CaseStatus` (`APPROVED` / `REJECTED`), y persistir la decisión en el log. → **Asignado a Fede.**
+**Ahora:** el flujo de decisión atraviesa los dos módulos:
+
+1. **`cases-service`:** [`CaseController.recordDecision`](../../cases-service/src/main/java/ar/edu/utn/frba/arbiter/cases/controllers/CaseController.java)
+   recibe `POST /api/v1/cases/{caseId}/decision` con `{ analystId, decision }`.
+   [`CaseServiceImpl.recordAnalystDecision`](../../cases-service/src/main/java/ar/edu/utn/frba/arbiter/cases/services/CaseServiceImpl.java)
+   forwarda la decisión a classification-service y transiciona el caso a `APPROVED` o `REJECTED`
+   vía el choke point (`CaseStatusService`), dejando trazabilidad completa.
+
+2. **`classification-service`:** [`ClaimController.recordDecision`](../../classification-service/src/main/java/ar/edu/utn/frba/arbiter/classification/controllers/ClaimController.java)
+   recibe `POST /api/v1/claims/{caseId}/decision`.
+   [`ClassificationResultsService.recordAnalystDecision`](../../classification-service/src/main/java/ar/edu/utn/frba/arbiter/classification/services/ClassificationResultsService.java)
+   persiste `analystId`, `decision` (normalizado: APROBAR→APPROVE, RECHAZAR→REJECT) y
+   `decisionTimestamp` en el `ClassificationLog` — registro inmutable de auditoría (Disposición 2/2023).
+
+**Auditoría:** la decisión queda registrada en dos niveles complementarios:
+- `classification_log` (classification-service): quién decidió, qué decidió, cuándo.
+- `case_status_history` (cases-service): transición `PENDING_ANALYST_REVIEW → APPROVED | REJECTED`, actor `ANALYST`.
+
+**Frontend:** Fede agregó los botones de aprobar/rechazar en el detalle del expediente
+(`expediente-detail.component`), que llaman a `POST /api/v1/cases/{id}/decision`.
 
 ---
 

@@ -3,6 +3,7 @@ package ar.edu.utn.frba.arbiter.classification.controllers;
 import ar.edu.utn.frba.arbiter.common.dto.ClaimReport;
 import ar.edu.utn.frba.arbiter.common.dto.ClaimResponse;
 import ar.edu.utn.frba.arbiter.classification.services.ClassificationResultsService;
+import ar.edu.utn.frba.arbiter.classification.dto.AnalystDecisionRequest;
 import ar.edu.utn.frba.arbiter.classification.services.ClaimClassificationService;
 import ar.edu.utn.frba.arbiter.classification.services.MultipartDocumentMapper;
 import io.swagger.v3.oas.annotations.Operation;
@@ -77,5 +78,22 @@ public class ClaimController {
     @ApiResponse(responseCode = "200", description = "Classification found (may still be null/pending)")
     public ResponseEntity<ClaimResponse> getStatus(@PathVariable Long caseId) {
         return ResponseEntity.ok(resultsService.getStatus(caseId));
+    }
+
+    @PostMapping("/{caseId}/decision")
+    @Operation(
+            summary = "Persist the analyst's final decision",
+            description = "Stores the analyst's verdict for the classification already produced for the case."
+    )
+    @ApiResponse(responseCode = "200", description = "Decision persisted")
+    public ResponseEntity<Map<String, Object>> recordDecision(
+            @PathVariable Long caseId,
+            @RequestBody @Valid AnalystDecisionRequest request
+    ) {
+        resultsService.recordAnalystDecision(caseId, request);
+        return ResponseEntity.ok(Map.of(
+                "caseId", caseId,
+                "status", "decision-recorded"
+        ));
     }
 }
