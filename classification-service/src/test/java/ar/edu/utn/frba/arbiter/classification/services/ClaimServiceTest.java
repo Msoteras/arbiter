@@ -8,10 +8,13 @@ import ar.edu.utn.frba.arbiter.classification.models.repositories.Classification
 import ar.edu.utn.frba.arbiter.common.enums.Classification;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
+import java.math.BigDecimal;
+import java.util.List;
 import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -32,32 +35,51 @@ class AnalystDecisionTest {
     private ClassificationResultsService resultsService;
 
     @Test
-    void recordAnalystDecision_persistsDecisionAndTimestamp() {
+    void recordAnalystDecision_createsNewImmutableRow() {
         Long caseId = 42L;
-        ClassificationLog log = new ClassificationLog();
-        log.setCaseId(caseId);
-        log.setClassification(Classification.LLM_RECOMIENDA_APROBAR);
-        when(logRepository.findFirstByCaseIdOrderByIdDesc(caseId)).thenReturn(Optional.of(log));
+        ClassificationLog original = classificationLog(caseId, Classification.LLM_RECOMIENDA_APROBAR);
+        when(logRepository.findFirstByCaseIdOrderByIdDesc(caseId)).thenReturn(Optional.of(original));
 
         resultsService.recordAnalystDecision(caseId, new AnalystDecisionRequest("analyst-1", "APROBAR"));
 
-        assertThat(log.getAnalystId()).isEqualTo("analyst-1");
-        assertThat(log.getDecision()).isEqualTo("APPROVE");
-        assertThat(log.getDecisionTimestamp()).isNotNull();
-        verify(logRepository).save(log);
+        ArgumentCaptor<ClassificationLog> captor = ArgumentCaptor.forClass(ClassificationLog.class);
+        verify(logRepository).save(captor.capture());
+        ClassificationLog saved = captor.getValue();
+
+        assertThat(saved).isNotSameAs(original);
+        assertThat(saved.getId()).isNull();
+        assertThat(saved.getCaseId()).isEqualTo(caseId);
+        assertThat(saved.getSource()).isEqualTo("ANALYST");
+        assertThat(saved.getClassification()).isEqualTo(Classification.LLM_RECOMIENDA_APROBAR);
+        assertThat(saved.getAnalystId()).isEqualTo("analyst-1");
+        assertThat(saved.getDecision()).isEqualTo("APPROVE");
+        assertThat(saved.getDecisionTimestamp()).isNotNull();
     }
 
     @Test
     void recordAnalystDecision_rejectNormalization() {
         Long caseId = 7L;
-        ClassificationLog log = new ClassificationLog();
-        log.setCaseId(caseId);
-        log.setClassification(Classification.LLM_NO_RECOMIENDA_APROBAR);
-        when(logRepository.findFirstByCaseIdOrderByIdDesc(caseId)).thenReturn(Optional.of(log));
+        ClassificationLog original = classificationLog(caseId, Classification.LLM_NO_RECOMIENDA_APROBAR);
+        when(logRepository.findFirstByCaseIdOrderByIdDesc(caseId)).thenReturn(Optional.of(original));
 
         resultsService.recordAnalystDecision(caseId, new AnalystDecisionRequest("analyst-2", "RECHAZAR"));
 
-        assertThat(log.getDecision()).isEqualTo("REJECT");
+        ArgumentCaptor<ClassificationLog> captor = ArgumentCaptor.forClass(ClassificationLog.class);
+        verify(logRepository).save(captor.capture());
+        assertThat(captor.getValue().getDecision()).isEqualTo("REJECT");
+    }
+
+    @Test
+    void recordAnalystDecision_doesNotMutateOriginalRow() {
+        Long caseId = 42L;
+        ClassificationLog original = classificationLog(caseId, Classification.LLM_RECOMIENDA_APROBAR);
+        when(logRepository.findFirstByCaseIdOrderByIdDesc(caseId)).thenReturn(Optional.of(original));
+
+        resultsService.recordAnalystDecision(caseId, new AnalystDecisionRequest("analyst-1", "APPROVE"));
+
+        assertThat(original.getAnalystId()).isNull();
+        assertThat(original.getDecision()).isNull();
+        assertThat(original.getDecisionTimestamp()).isNull();
     }
 
     @Test
@@ -68,5 +90,16 @@ class AnalystDecisionTest {
         assertThatThrownBy(() ->
                 resultsService.recordAnalystDecision(caseId, new AnalystDecisionRequest("analyst-1", "APPROVE")))
                 .isInstanceOf(InvalidClassificationException.class);
+    }
+
+    private ClassificationLog classificationLog(Long caseId, Classification classification) {
+        ClassificationLog log = new ClassificationLog();
+        log.setId(100L);
+        log.setCaseId(caseId);
+        log.setSource("LLM");
+        log.setClassification(classification);
+        log.setConfidence(BigDecimal.valueOf(0.85));
+        log.setFactors(List.of("factor-1", "factor-2"));
+        return log;
     }
 }
