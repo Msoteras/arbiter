@@ -11,7 +11,6 @@ import java.util.List;
 import java.util.Map;
 
 @Component
-@Profile({"dev", "test", "default"})
 public class MockRulesAdapter implements RulesAdapter {
 
     /**

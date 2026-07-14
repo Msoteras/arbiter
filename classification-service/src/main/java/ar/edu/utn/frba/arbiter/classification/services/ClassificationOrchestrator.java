@@ -44,13 +44,8 @@ public class ClassificationOrchestrator {
     }
 
     private ClassificationResponse resolveClassification(ClaimReport claim, Context ctx) {
-        List<String> missingDocs = checkRequiredDocuments(ctx.rules(), List.of());
-        if (!missingDocs.isEmpty()) {
-            log.info("[Orchestrator] Missing required documents: {}", missingDocs);
-            return missingDocumentationResponse(missingDocs);
-        }
 
-        FastTrackValidator.Result fastTrack = fastTrackValidator.evaluate(claim, ctx.policy(), ctx.history(), ctx.rules(), Map.of());
+        FastTrackValidator.Result fastTrack = fastTrackValidator.evaluate(claim, ctx.policy(), ctx.history(), ctx.rules(), null);
         if (fastTrack.fastTrack()) {
             log.info("[Orchestrator] Deterministic Fast Track — claim qualifies, skipping LLM. Reasons={}",
                     fastTrack.reasons());

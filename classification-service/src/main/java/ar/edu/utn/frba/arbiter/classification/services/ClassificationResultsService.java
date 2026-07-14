@@ -1,8 +1,10 @@
 package ar.edu.utn.frba.arbiter.classification.services;
 
 import ar.edu.utn.frba.arbiter.classification.config.OllamaProperties;
+import ar.edu.utn.frba.arbiter.classification.dto.AnalystDecisionRequest;
 import ar.edu.utn.frba.arbiter.common.dto.ClaimResponse;
 import ar.edu.utn.frba.arbiter.classification.dto.ClassificationResponse;
+import ar.edu.utn.frba.arbiter.classification.exceptions.InvalidClassificationException;
 import ar.edu.utn.frba.arbiter.classification.models.entities.ClassificationLog;
 import ar.edu.utn.frba.arbiter.classification.models.repositories.ClassificationLogRepository;
 import ar.edu.utn.frba.arbiter.classification.services.risk.RiskScore;
@@ -13,6 +15,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
+import java.time.Instant;
 import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
 import java.util.List;
@@ -87,6 +90,27 @@ public class ClassificationResultsService {
                 .riskBand(entry.map(ClassificationLog::getRiskBand).orElse(null))
                 .riskBreakdown(entry.map(ClassificationLog::getRiskBreakdown).orElse(null))
                 .build();
+    }
+
+    @Transactional
+    public void recordAnalystDecision(Long caseId, AnalystDecisionRequest request) {
+        ClassificationLog entry = logRepository.findFirstByCaseIdOrderByIdDesc(caseId)
+                .orElseThrow(() -> new InvalidClassificationException(
+                        "No classification found for case " + caseId));
+
+        entry.setAnalystId(request.analystId());
+        entry.setDecision(normalizeDecision(request.decision()));
+        entry.setDecisionTimestamp(Instant.now());
+        logRepository.save(entry);
+    }
+
+    private String normalizeDecision(String decision) {
+        String normalized = decision == null ? "" : decision.trim().toUpperCase();
+        return switch (normalized) {
+            case "APPROVE", "APROBAR", "YES", "Y" -> "APPROVE";
+            case "REJECT", "RECHAZAR", "NO", "N" -> "REJECT";
+            default -> normalized;
+        };
     }
 
     @Transactional(readOnly = true)

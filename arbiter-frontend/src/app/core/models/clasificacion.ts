@@ -4,12 +4,18 @@
 export type Clasificacion =
   | 'FAST_TRACK'
   | 'FALTA_DOCUMENTACION'
+  | 'LLM_RECOMIENDA_APROBAR'
+  | 'LLM_NO_RECOMIENDA_APROBAR'
+  | 'LLM_SOLICITA_REVISION_MANUAL'
   | 'POTENCIAL_RIESGO'
   | 'REQUIERE_ANALISIS_MANUAL';
 
 const LABELS: Record<Clasificacion, string> = {
   FAST_TRACK: 'Fast Track',
   FALTA_DOCUMENTACION: 'Falta documentación',
+  LLM_RECOMIENDA_APROBAR: 'Recomienda aprobar',
+  LLM_NO_RECOMIENDA_APROBAR: 'Recomienda rechazar',
+  LLM_SOLICITA_REVISION_MANUAL: 'Requiere revisión manual',
   POTENCIAL_RIESGO: 'Potencial riesgo',
   REQUIERE_ANALISIS_MANUAL: 'Requiere análisis manual',
 };

@@ -43,6 +43,7 @@ export class NuevaDenunciaComponent {
   ];
   protected readonly selectedType = signal<ClaimType | null>(null);
   protected readonly policyNumber = signal('');
+  protected readonly policyTouched = signal(false);
 
   protected readonly mockPolicies = [
     { number: 'POL-001', label: 'POL-001 — Test Insured (Celular)' },

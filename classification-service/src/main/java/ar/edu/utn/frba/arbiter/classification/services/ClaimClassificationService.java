@@ -15,19 +15,24 @@ import org.springframework.web.client.ResourceAccessException;
 
 import java.util.List;
 
+/**
+ * Thin façade that exposes the classification entry points expected by the controllers.
+ * The actual orchestration is delegated to {@link ClassificationOrchestrator} and the
+ * result is persisted so the analyst decision endpoint can work immediately in local/dev flows.
+ */
 @Service
 @RequiredArgsConstructor
 public class ClaimClassificationService {
 
     private static final Logger log = LoggerFactory.getLogger(ClaimClassificationService.class);
 
-    private final ClassificationOrchestrator orchestrator;
+    private final ClassificationOrchestrator classificationOrchestrator;
     private final ClassificationResultsService resultsService;
 
     /**
-     * Async classification for the isolated test endpoint (POST /api/v1/classifications):
-     * there's no persisted Claim, so the result is still audited in classification_log
-     * with claimId null (see GET /api/v1/classifications/results).
+     * Trigger async classification for a persisted claim.
+     * Called from ClaimController after claim is registered.
+     * Returns immediately; classification happens in background.
      */
     @Async("classificationExecutor")
     @Retryable(
@@ -42,7 +47,7 @@ public class ClaimClassificationService {
         try {
             long start = System.currentTimeMillis();
 
-            ClassificationResponse response = orchestrator.classify(claim, documents);
+            ClassificationResponse response = classificationOrchestrator.classify(claim, documents);
             long latencyMs = System.currentTimeMillis() - start;
 
             log.info("[ClaimClassificationService] ✓ Isolated classification obtained — {} confidence={} latency={}ms",
@@ -75,7 +80,7 @@ public class ClaimClassificationService {
         try {
             long start = System.currentTimeMillis();
 
-            ClassificationResponse response = orchestrator.classify(claim, documents);
+            ClassificationResponse response = classificationOrchestrator.classify(claim, documents);
             long latencyMs = System.currentTimeMillis() - start;
 
             log.info("[ClaimClassificationService] ✓ Classification obtained — caseId={} {} confidence={} latency={}ms",

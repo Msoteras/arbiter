@@ -18,7 +18,7 @@ RUN mvn dependency:go-offline -pl common-lib,cases-service -am -q
 
 COPY common-lib/src common-lib/src
 COPY cases-service/src cases-service/src
-RUN mvn -pl cases-service -am package -DskipTests -q
+RUN mvn -pl cases-service -am clean package -DskipTests -q
 
 # --- Stage 2: runtime ---
 FROM eclipse-temurin:21-jre-alpine

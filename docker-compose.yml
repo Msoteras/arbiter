@@ -53,7 +53,6 @@ services:
     environment:
       OLLAMA_BASE_URL: http://ollama:11434
       OLLAMA_MODEL: ${OLLAMA_MODEL:-qwen3-vl}
-      SPRING_PROFILES_ACTIVE: dev
       DB_URL: jdbc:postgresql://postgres:5432/${DB_NAME:-arbiter}
       DB_USER: ${DB_USER:-arbiter}
       DB_PASSWORD: ${DB_PASSWORD:-arbiter}
@@ -71,7 +70,6 @@ services:
     ports:
       - "8083:8083"
     environment:
-      SPRING_PROFILES_ACTIVE: dev
       CLASSIFICATION_SERVICE_URL: http://classification-service:8082
       DB_URL: jdbc:postgresql://postgres:5432/${DB_NAME:-arbiter}
       DB_USER: ${DB_USER:-arbiter}
