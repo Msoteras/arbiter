@@ -24,7 +24,7 @@ public class OllamaClaimClassifier implements ClaimClassifier {
             "type", "object",
             "properties", Map.of(
                     "classification", Map.of("type", "string",
-                            "enum", List.of("FALTA_DOCUMENTACION", "LLM_RECOMIENDA_APROBAR",
+                            "enum", List.of("LLM_RECOMIENDA_APROBAR",
                                     "LLM_NO_RECOMIENDA_APROBAR", "LLM_SOLICITA_REVISION_MANUAL")),
                     "factors", Map.of("type", "array",
                             "items", Map.of("type", "string")),

@@ -94,14 +94,18 @@ public class FastTrackValidator {
         }
 
         if (thresholds.requiredDocumentTypes() != null && !thresholds.requiredDocumentTypes().isEmpty()) {
-            List<String> missing = thresholds.requiredDocumentTypes().stream()
-                    .filter(type -> documentTexts == null || documentTexts.get(type) == null || documentTexts.get(type).isBlank())
-                    .toList();
-            if (missing.isEmpty()) {
-                reasons.add("Documentación requerida para Fast Track presente: " + thresholds.requiredDocumentTypes());
+            if (documentTexts == null) {
+                reasons.add("Documentación ya verificada previamente — no se re-evalúa en Fast Track");
             } else {
-                eligible = false;
-                reasons.add("Falta documentación requerida para Fast Track: " + missing);
+                List<String> missing = thresholds.requiredDocumentTypes().stream()
+                        .filter(type -> documentTexts.get(type) == null || documentTexts.get(type).isBlank())
+                        .toList();
+                if (missing.isEmpty()) {
+                    reasons.add("Documentación requerida para Fast Track presente: " + thresholds.requiredDocumentTypes());
+                } else {
+                    eligible = false;
+                    reasons.add("Falta documentación requerida para Fast Track: " + missing);
+                }
             }
         }
 
