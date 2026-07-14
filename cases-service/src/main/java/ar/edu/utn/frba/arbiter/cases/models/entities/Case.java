@@ -1,14 +1,18 @@
 package ar.edu.utn.frba.arbiter.cases.models.entities;
 
+import ar.edu.utn.frba.arbiter.common.dto.RiskBreakdownItem;
 import ar.edu.utn.frba.arbiter.common.enums.CaseStatus;
 import ar.edu.utn.frba.arbiter.common.enums.Classification;
+import ar.edu.utn.frba.arbiter.common.enums.RiskBand;
 import jakarta.persistence.Column;
+import jakarta.persistence.Convert;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
 import jakarta.persistence.Enumerated;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
+import jakarta.persistence.Index;
 import jakarta.persistence.Table;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -21,9 +25,12 @@ import org.hibernate.annotations.UpdateTimestamp;
 import java.math.BigDecimal;
 import java.time.Instant;
 import java.time.LocalDateTime;
+import java.util.List;
 
 @Entity
-@Table(name = "cases")
+@Table(name = "cases", indexes = {
+        @Index(name = "idx_cases_risk_band", columnList = "risk_band")
+})
 @Getter
 @Setter
 @NoArgsConstructor
@@ -78,6 +85,31 @@ public class Case {
     private String analysisDetail;
 
     private Boolean deterministicFastTrack;
+
+    /**
+     * Cached parallel fraud/risk score, populated read-only from the classification poll
+     * (ClaimResponse). The authoritative snapshot lives in classification-service's
+     * classification_log; the case only caches it for the analyst's fraud-gauge and for filtering.
+     * All three are null when the claim wasn't scored ("sin scorear") — never surfaced as a real LOW.
+     * {@code riskBand} is indexed so H0011 can filter cases by fraud-alert level.
+     */
+    private Double riskScore;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "risk_band", length = 20)
+    private RiskBand riskBand;
+
+    @Convert(converter = RiskBreakdownJsonConverter.class)
+    @Column(name = "risk_breakdown", columnDefinition = "TEXT")
+    private List<RiskBreakdownItem> riskBreakdown;
+
+    /**
+     * Free-text note where the analyst records an adjustment to the score WITHOUT overwriting the
+     * computed value (the score is a suggestion). Nullable; the write endpoint belongs to the
+     * analyst portal work — here it's only the field and its persistence.
+     */
+    @Column(name = "manual_adjustment_note", columnDefinition = "TEXT")
+    private String manualAdjustmentNote;
 
     @Builder.Default
     @Column(nullable = false)

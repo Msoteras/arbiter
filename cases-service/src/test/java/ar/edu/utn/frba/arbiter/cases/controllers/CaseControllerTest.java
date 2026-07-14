@@ -121,7 +121,8 @@ class CaseControllerTest {
                 LocalDateTime.of(2026, 6, 13, 19, 45), "CABA",
                 new BigDecimal("150000"),
                 Classification.FAST_TRACK, 1.0,
-                "Low amount, first claim, policy up to date"
+                "Low amount, first claim, policy up to date",
+                null, null, null
         );
         when(caseService.getCase(1L)).thenReturn(response);
 
@@ -160,7 +161,8 @@ class CaseControllerTest {
                 "Me robaron el celular",
                 LocalDateTime.of(2026, 6, 13, 19, 45), "CABA",
                 new BigDecimal("150000"),
-                null, 0.0, null
+                null, 0.0, null,
+                null, null, null
         );
     }
 }

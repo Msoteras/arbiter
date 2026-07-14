@@ -100,6 +100,11 @@ public class ClassificationServiceClient implements ClaimsAnalysisClient {
                 caseRecord.setAnalysisConfidence(response.confidence());
                 caseRecord.setAnalysisDetail(buildDetail(response));
                 caseRecord.setDeterministicFastTrack(response.deterministicFastTrack());
+                // Cache the parallel risk score. Null when "sin scorear" (no config) — kept null,
+                // never coerced to a band, so the read model can show "Sin datos".
+                caseRecord.setRiskScore(response.riskScore());
+                caseRecord.setRiskBand(response.riskBand());
+                caseRecord.setRiskBreakdown(response.riskBreakdown());
                 caseStatusService.transition(caseRecord, statusFor(response.classification()),
                         StatusChangeActor.SYSTEM, "clasificación: " + response.classification());
                 return true;

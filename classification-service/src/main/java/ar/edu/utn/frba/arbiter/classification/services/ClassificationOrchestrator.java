@@ -7,6 +7,9 @@ import ar.edu.utn.frba.arbiter.classification.adapters.RulesAdapter;
 import ar.edu.utn.frba.arbiter.classification.adapters.ClaimClassifier;
 import ar.edu.utn.frba.arbiter.common.dto.ClaimReport;
 import ar.edu.utn.frba.arbiter.classification.dto.*;
+import ar.edu.utn.frba.arbiter.classification.services.risk.RiskContext;
+import ar.edu.utn.frba.arbiter.classification.services.risk.RiskScore;
+import ar.edu.utn.frba.arbiter.classification.services.risk.RiskScoringService;
 import lombok.RequiredArgsConstructor;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -28,6 +31,7 @@ public class ClassificationOrchestrator {
     private final FastTrackValidator fastTrackValidator;
     private final DocumentAnalyzer documentAnalyzer;
     private final PromptBuilder promptBuilder;
+    private final RiskScoringService riskScoringService;
 
     /** Classifies a claim whose attachments' OCR has already been resolved. */
     public ClassificationResponse classify(ClaimReport claim) {
@@ -35,7 +39,11 @@ public class ClassificationOrchestrator {
                 claim.policyNumber(), claim.insuredId(), claim.branch(), claim.claimCause());
 
         Context ctx = fetchContext(claim);
+        ClassificationResponse classification = resolveClassification(claim, ctx);
+        return withRiskScore(classification, claim, ctx);
+    }
 
+    private ClassificationResponse resolveClassification(ClaimReport claim, Context ctx) {
         List<String> missingDocs = checkRequiredDocuments(ctx.rules(), List.of());
         if (!missingDocs.isEmpty()) {
             log.info("[Orchestrator] Missing required documents: {}", missingDocs);
@@ -67,7 +75,11 @@ public class ClassificationOrchestrator {
                 claim.policyNumber(), claim.insuredId(), claim.branch(), claim.claimCause(), documents.size());
 
         Context ctx = fetchContext(claim);
+        ClassificationResponse classification = resolveClassification(claim, documents, ctx);
+        return withRiskScore(classification, claim, ctx);
+    }
 
+    private ClassificationResponse resolveClassification(ClaimReport claim, List<AttachmentDocument> documents, Context ctx) {
         List<String> documentTypes = documents.stream().map(AttachmentDocument::type).toList();
         List<String> missingDocs = checkRequiredDocuments(ctx.rules(), documentTypes);
         if (!missingDocs.isEmpty()) {
@@ -89,6 +101,25 @@ public class ClassificationOrchestrator {
                 fastTrack.reasons());
         ClaimReport claimWithOcr = withAttachmentsOcr(claim, extractAllAttachmentsText(documents, gateDocumentTexts));
         return classifyWithLlm(claimWithOcr, ctx);
+    }
+
+    /**
+     * Attaches the parallel fraud/risk score to the classification, building {@link RiskContext}
+     * from the {@link Context} already assembled by {@code fetchContext()} — no extra adapter hits.
+     * A single scoring invocation per classification, shared by every route (missing docs, Fast
+     * Track and LLM). Scoring is best-effort: if it fails, the classification is returned as-is
+     * (riskScore null) — the score is a support signal and must never break the classification.
+     */
+    private ClassificationResponse withRiskScore(ClassificationResponse classification, ClaimReport claim, Context ctx) {
+        try {
+            RiskScore riskScore = riskScoringService.score(new RiskContext(claim, ctx.policy(), ctx.history(), ctx.rules()));
+            log.info("[Orchestrator] Risk score attached — scored={} score={} band={}",
+                    riskScore.scored(), String.format("%.3f", riskScore.score()), riskScore.band());
+            return classification.toBuilder().riskScore(riskScore).build();
+        } catch (Exception e) {
+            log.error("[Orchestrator] Risk scoring failed — classification proceeds without score: {}", e.getMessage(), e);
+            return classification;
+        }
     }
 
     private record Context(InsuredPolicy policy, InsuredHistory history, BusinessRules rules) {}

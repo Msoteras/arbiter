@@ -60,6 +60,11 @@ public class CaseServiceImpl implements CaseService {
         entity.setAnalysisClassification(null);
         entity.setAnalysisConfidence(null);
         entity.setAnalysisDetail(null);
+        // Clear the cached risk too so the recalculation window reads as "sin scorear"/recalculando,
+        // never a stale band. It's re-populated by the classification poll once the new score lands.
+        entity.setRiskScore(null);
+        entity.setRiskBand(null);
+        entity.setRiskBreakdown(null);
         caseStatusService.transition(entity, CaseStatus.PENDING_CLASSIFICATION,
                 StatusChangeActor.INSURED, "documentación adicional subida");
 
@@ -111,7 +116,10 @@ public class CaseServiceImpl implements CaseService {
                 entity.getClaimedAmount(),
                 entity.getAnalysisClassification(),
                 entity.getAnalysisConfidence() != null ? entity.getAnalysisConfidence() : 0.0,
-                entity.getAnalysisDetail()
+                entity.getAnalysisDetail(),
+                entity.getRiskScore(),
+                entity.getRiskBand(),
+                entity.getRiskBreakdown()
         );
     }
 }
