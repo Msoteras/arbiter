@@ -74,14 +74,21 @@ public class ClassificationResultsService {
 
     @Transactional
     public void recordAnalystDecision(Long caseId, AnalystDecisionRequest request) {
-        ClassificationLog entry = logRepository.findFirstByCaseIdOrderByIdDesc(caseId)
+        ClassificationLog classificationEntry = logRepository.findFirstByCaseIdOrderByIdDesc(caseId)
                 .orElseThrow(() -> new InvalidClassificationException(
                         "No classification found for case " + caseId));
 
-        entry.setAnalystId(request.analystId());
-        entry.setDecision(normalizeDecision(request.decision()));
-        entry.setDecisionTimestamp(Instant.now());
-        logRepository.save(entry);
+        ClassificationLog decisionEntry = new ClassificationLog();
+        decisionEntry.setCaseId(caseId);
+        decisionEntry.setSource("ANALYST");
+        decisionEntry.setClassification(classificationEntry.getClassification());
+        decisionEntry.setConfidence(classificationEntry.getConfidence());
+        decisionEntry.setFactors(classificationEntry.getFactors());
+        decisionEntry.setAnalystId(request.analystId());
+        decisionEntry.setDecision(normalizeDecision(request.decision()));
+        decisionEntry.setDecisionTimestamp(Instant.now());
+
+        logRepository.save(decisionEntry);
     }
 
     private String normalizeDecision(String decision) {
