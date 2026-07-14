@@ -1,8 +1,9 @@
 package ar.edu.utn.frba.arbiter.classification.controllers;
 
-import ar.edu.utn.frba.arbiter.classification.dto.ClaimReport;
+import ar.edu.utn.frba.arbiter.common.dto.ClaimReport;
 import ar.edu.utn.frba.arbiter.classification.services.ClaimClassificationService;
 import ar.edu.utn.frba.arbiter.classification.services.ClassificationResultsService;
+import ar.edu.utn.frba.arbiter.classification.services.MultipartDocumentMapper;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.tags.Tag;

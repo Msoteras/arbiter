@@ -5,6 +5,7 @@ import ar.edu.utn.frba.arbiter.classification.adapters.InsurerAdapter;
 import ar.edu.utn.frba.arbiter.classification.adapters.DocumentAnalyzer;
 import ar.edu.utn.frba.arbiter.classification.adapters.RulesAdapter;
 import ar.edu.utn.frba.arbiter.classification.adapters.ClaimClassifier;
+import ar.edu.utn.frba.arbiter.common.dto.ClaimReport;
 import ar.edu.utn.frba.arbiter.classification.dto.*;
 import lombok.RequiredArgsConstructor;
 import org.slf4j.Logger;
@@ -26,6 +27,7 @@ public class ClassificationOrchestrator {
     private final InsurerAdapter insurerAdapter;
     private final FastTrackValidator fastTrackValidator;
     private final DocumentAnalyzer documentAnalyzer;
+    private final PromptBuilder promptBuilder;
 
     /** Classifies a claim whose attachments' OCR has already been resolved. */
     public ClassificationResponse classify(ClaimReport claim) {
@@ -34,13 +36,7 @@ public class ClassificationOrchestrator {
 
         Context ctx = fetchContext(claim);
 
-        List<String> missingDocs = checkRequiredDocuments(ctx.rules(), List.of());
-        if (!missingDocs.isEmpty()) {
-            log.info("[Orchestrator] Missing required documents: {}", missingDocs);
-            return missingDocumentationResponse(missingDocs);
-        }
-
-        FastTrackValidator.Result fastTrack = fastTrackValidator.evaluate(claim, ctx.policy(), ctx.history(), ctx.rules(), Map.of());
+        FastTrackValidator.Result fastTrack = fastTrackValidator.evaluate(claim, ctx.policy(), ctx.history(), ctx.rules(), null);
         if (fastTrack.fastTrack()) {
             log.info("[Orchestrator] Deterministic Fast Track — claim qualifies, skipping LLM. Reasons={}",
                     fastTrack.reasons());
@@ -201,11 +197,6 @@ public class ClassificationOrchestrator {
             InsuredHistory history,
             BusinessRules rules
     ) {
-        var promptBuilder = new PromptBuilder()
-                .withRules(rules)
-                .withPolicy(policy)
-                .withHistory(history);
-
         return ClassificationRequest.builder()
                 .branch(claim.branch())
                 .product(claim.product())
@@ -213,8 +204,8 @@ public class ClassificationOrchestrator {
                 .insuredItem(claim.insuredItem())
                 .description(claim.description())
                 .attachmentsOcr(claim.attachmentsOcr())
-                .insurerRules(promptBuilder.buildRulesAndPolicy())
-                .insuredHistory(promptBuilder.buildHistory())
+                .insurerRules(promptBuilder.renderRulesAndPolicy(rules, policy))
+                .insuredHistory(promptBuilder.renderHistory(history))
                 .build();
     }
 }

@@ -1,7 +1,11 @@
 package ar.edu.utn.frba.arbiter.cases.models.entities;
 
+import ar.edu.utn.frba.arbiter.common.enums.CaseStatus;
+import ar.edu.utn.frba.arbiter.common.enums.Classification;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
+import jakarta.persistence.EnumType;
+import jakarta.persistence.Enumerated;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
@@ -11,8 +15,11 @@ import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
+import org.hibernate.annotations.CreationTimestamp;
+import org.hibernate.annotations.UpdateTimestamp;
 
 import java.math.BigDecimal;
+import java.time.Instant;
 import java.time.LocalDateTime;
 
 @Entity
@@ -22,7 +29,7 @@ import java.time.LocalDateTime;
 @NoArgsConstructor
 @AllArgsConstructor
 @Builder
-public class CaseEntity {
+public class Case {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
@@ -57,12 +64,13 @@ public class CaseEntity {
 
     private BigDecimal claimedAmount;
 
-    @Column(nullable = false)
-    private String status;
+    @Enumerated(EnumType.STRING)
+    @Column(nullable = false, length = 40)
+    private CaseStatus status;
 
-    private Long classificationClaimId;
-
-    private String analysisClassification;
+    @Enumerated(EnumType.STRING)
+    @Column(length = 40)
+    private Classification analysisClassification;
 
     private Double analysisConfidence;
 
@@ -70,4 +78,16 @@ public class CaseEntity {
     private String analysisDetail;
 
     private Boolean deterministicFastTrack;
+
+    @Builder.Default
+    @Column(nullable = false)
+    private int classificationAttempts = 0;
+
+    @CreationTimestamp
+    @Column(name = "created_at", nullable = false, updatable = false)
+    private Instant createdAt;
+
+    @UpdateTimestamp
+    @Column(name = "updated_at", nullable = false)
+    private Instant updatedAt;
 }

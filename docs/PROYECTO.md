@@ -1,178 +1,103 @@
 # Arbiter — Organización del Proyecto
 
+> La arquitectura, el modelo de dominio y las decisiones cerradas están en [`CLAUDE.md`](../CLAUDE.md).
+> Este archivo es solo un mapa de "dónde está cada cosa".
+
 ## Estructura de carpetas
 
 ```
 arbiter/
-├── CLAUDE.md                          # Guía para Claude (instrucciones de arquitectura)
+├── CLAUDE.md                          # Guía de arquitectura y convenciones
+├── Readme.md                          # Cómo levantar el proyecto
 ├── pom.xml                            # POM padre (multi-módulo)
+├── docker-compose.yml                 # Postgres + Ollama + módulos backend
 │
 ├── docs/                              # Documentación
 │   ├── PROYECTO.md                    # (este archivo)
-│   ├── api/                           # Documentación de API REST
-│   │   └── endpoints.md
+│   ├── postman/                       # Colecciones Postman + docs de prueba
+│   ├── scripts/                       # Scripts de prueba (.http, .ps1)
 │   └── siniestros/                    # Docs del módulo de Análisis y Clasificación
-│       ├── TESTING.md                 # Guía de testing
+│       ├── TESTING.md
+│       ├── TEST-CLASIFICACIONES.md
 │       ├── MAPEO_TIPOLOGIAS_CLASIFICACIONES.md
-│       └── TEST-CLASIFICACIONES.md
+│       ├── OLLAMA_STREAMING.md
+│       ├── GAPS-FLUJO.md              # Desvíos vs. el flujo aprobado
+│       └── diagrama-flujo-clasificacion.pdf
 │
-├── postman/                           # Colecciones Postman
-│   └── Arbiter_Claims_Classification.postman_collection.json
+├── common-lib/                        # Tipos compartidos entre módulos (enums, DTOs, excepciones)
 │
-├── scripts/                           # Scripts auxiliares
-│   ├── test-clasificaciones.http      # Tests REST (HTTP Client de IntelliJ)
-│   └── test-clasificaciones.ps1       # Tests PowerShell
+├── classification-service/            # Módulo de Análisis y Clasificación (puerto 8082)
+│   ├── src/main/java/.../classification/
+│   │   ├── ClassificationServiceApplication.java
+│   │   ├── config/                    # AsyncConfig, OllamaConfig/Properties, Swagger, Web
+│   │   ├── controllers/               # ClaimController, ClassificationController
+│   │   ├── dto/                       # Request/Response locales
+│   │   ├── exceptions/                # Excepciones locales + @RestControllerAdvice
+│   │   ├── models/
+│   │   │   ├── entities/              # ClassificationLog (auditoría inmutable)
+│   │   │   └── repositories/          # ClassificationLogRepository
+│   │   ├── services/                  # Orchestrator, FastTrackValidator, PromptBuilder, ...
+│   │   └── adapters/                  # ClaimClassifier/OllamaAdapter, Rules/InsurerAdapter + mocks
+│   ├── src/main/resources/
+│   │   ├── application.yml
+│   │   └── prompts/                   # classification-v1.md, extraccion-documento-v1.md
+│   └── src/test/java/.../classification/  # Tests (mock por defecto, Ollama real opcional)
 │
-├── common-lib/                        # Librería compartida
-│   ├── src/main/java/ar/edu/utn/frba/arbiter/common/
-│   │   ├── enums/                     # Domain enums (Classification, etc.)
-│   │   ├── dto/                       # DTOs compartidos entre módulos
-│   │   └── exceptions/                # Excepciones base
-│   └── pom.xml
-│
-└── classification-service/                # Módulo de Análisis y Clasificación
-    ├── src/main/java/ar/edu/utn/frba/arbiter/classification/
-    │   ├── ClassificationServiceApplication.java
-    │   ├── config/                    # @Configuration, AsyncConfig, OllamaProperties
-    │   ├── controllers/               # REST endpoints
-    │   ├── dto/                       # Request/Response (DTO locales)
-    │   ├── exceptions/                # Excepciones locales + @ControllerAdvice
-    │   ├── models/
-    │   │   ├── entities/              # @Entity JPA: ClassificationLog (auditoría inmutable)
-    │   │   └── repositories/          # Spring Data JPA: ClassificationLogRepository
-    │   ├── services/                  # Lógica de negocio
-    │   │   ├── ClaimClassificationService.java   # @Async: clasificación aislada (testeo) + real (claim persistido)
-    │   │   ├── ClassificationOrchestrator.java # Orquestación: gate Fast Track + LLM fallback
-    │   │   ├── PromptBuilder.java          # Construcción de prompts
-    │   │   ├── FastTrackValidator.java     # Gate determinístico de Fast Track
-    │   │   └── ClassificationResultsService.java
-    │   └── adapters/                  # Integraciones externas
-    │       ├── ClaimClassifier.java     # Interface para el LLM
-    │       ├── OllamaAdapter.java           # Implementación real (Ollama)
-    │       ├── MockClassifier.java          # Mock para dev/test
-    │       ├── RulesAdapter.java           # Consulta rules-service
-    │       └── InsurerAdapter.java      # Consulta BD aseguradora
-    │
-    ├── src/main/resources/
-    │   ├── application.yml            # Configuración común (datasource + JPA, ddl-auto=update)
-    │   ├── application-dev.yml        # Perfil dev (mock)
-    │   ├── application-test.yml       # Perfil test (mocks)
-    │   └── prompts/
-    │       └── classification-v1.md    # Plantilla del prompt
-    │
-    ├── src/test/java/ar/edu/utn/frba/arbiter/classification/
-    │   └── services/
-    │       ├── ClassificationOrchestratorIntegrationTest.java  # Tests con mock (default)
-    │       └── ClassificationOllamaIntegrationTest.java        # Tests con Ollama real (optional)
-    │
-    ├── pom.xml
-    ├── Dockerfile                     # Multi-stage build
-    └── README.md                      # README del módulo
+└── cases-service/                     # Módulo de Expedientes (puerto 8083)
+    └── src/main/java/.../cases/       # CaseController, CaseService, ClaimsAnalysisClient, Case
 ```
 
 ---
 
 ## Módulos Maven
 
-| Módulo               | Responsabilidad                     | Estado        |
-|----------------------|-------------------------------------|---------------|
-| `common-lib`         | DTOs compartidos, enums, excepciones | ✅ Activo     |
-| `classification-service` | Análisis y Clasificación (enfoque actual) | ✅ En desarrollo |
-| `rules-service`     | Motor de Reglas                     | 📋 Planeado   |
-| `cases-service`| Gestión de Expedientes              | 📋 Planeado   |
-| `reports-service`   | Reportes y Estadísticas             | 📋 Planeado   |
-| `auth-service`       | Gestión de Usuarios + Auth0         | 📋 Planeado   |
-| `arbiter-frontend`   | SPA React 19                        | 📋 Planeado   |
+| Módulo                   | Responsabilidad                              | Estado            |
+|--------------------------|----------------------------------------------|-------------------|
+| `common-lib`             | Enums de dominio, DTOs y excepciones compartidas | ✅ Activo      |
+| `classification-service` | Análisis y Clasificación (enfoque actual)    | ✅ En desarrollo  |
+| `cases-service`          | Gestión de Expedientes                       | ✅ En desarrollo  |
+| `arbiter-frontend`       | SPA Angular 20                               | ✅ En desarrollo  |
+| `rules-service`          | Motor de Reglas                              | 📋 Scaffold       |
+| `auth-service`           | Gestión de Usuarios + Auth0                  | 📋 Scaffold       |
+| `reports-service`        | Reportes y Estadísticas                      | 📋 Scaffold       |
+
+`rules`, `auth` y `reports` están scaffoldeados (estructura de paquetes vacía) y comentados en el POM padre.
 
 ---
 
 ## Cómo navegar
 
-### Quiero entender la arquitectura
-→ Lee `CLAUDE.md` (sección "Arquitectura — leer antes de tocar nada")
-
-### Quiero entender el modelo de dominio
-→ Lee `CLAUDE.md` (sección "Modelo de dominio — vocabulario")
-
-### Quiero ver un ejemplo de denuncia + clasificación
-→ Lee `docs/siniestros/TEST-CLASIFICACIONES.md`
-
-### Quiero debuggear el flujo de clasificación
-→ Lee `docs/siniestros/TESTING.md`
-
-### Quiero correr tests
-→ Lee `docs/siniestros/TESTING.md`
-
-### Quiero probar endpoints con Postman
-→ Importá `postman/Arbiter_Claims_Classification.postman_collection.json`
-
-### Quiero correr el módulo localmente
-→ Lee `classification-service/README.md`
-
-### Quiero ver el flujo de capas (MVC)
-→ Explorá `classification-service/src/main/java/ar/edu/utn/frba/arbiter/classification/`
+| Quiero…                                   | Dónde                                                        |
+|-------------------------------------------|-------------------------------------------------------------|
+| Entender la arquitectura                  | [`CLAUDE.md`](../CLAUDE.md) — "Arquitectura"                 |
+| Entender el modelo de dominio             | [`CLAUDE.md`](../CLAUDE.md) — "Modelo de dominio"            |
+| Ver un ejemplo de denuncia + clasificación| `docs/siniestros/TEST-CLASIFICACIONES.md`                   |
+| Ver qué falta vs. el flujo aprobado       | `docs/siniestros/GAPS-FLUJO.md`                             |
+| Debuggear el flujo / correr tests         | `docs/siniestros/TESTING.md`                                |
+| Probar endpoints con Postman              | `docs/postman/`                                             |
+| Correr el módulo localmente               | `classification-service/README.md`                          |
 
 ---
 
 ## Commits y convenciones
 
-- **Formato de commit:** `tipo(scope): descripción` (ej. `feat(siniestros): agregar endpoint de clasificación`)
+- **Formato:** `tipo(scope): descripción` (ej. `feat(siniestros): agregar endpoint de clasificación`)
 - **Tipos:** `feat`, `fix`, `refactor`, `test`, `docs`, `chore`
-- **Scope:** módulo o concepto afectado (ej. `siniestros`, `common-lib`)
-- **Idioma:** español rioplatense en mensajes, inglés en código
-
-### Ejemplo
-```bash
-git commit -m "feat(siniestros): implementar ClaimClassificationService asincrónico con reintentos"
-```
+- **Idioma:** español rioplatense en mensajes y docs; inglés en código y comentarios.
 
 ---
 
 ## Variables de entorno
 
-En `.env.local` (no versionado):
+En `.env.local` (no versionado). Con el perfil `dev` los adapters externos usan mocks, así que
+alcanza con Postgres para correr el flujo completo:
+
 ```env
-# Ollama
 OLLAMA_BASE_URL=http://localhost:11434
-
-# Auth0
-AUTH0_DOMAIN=your-tenant.auth0.com
-AUTH0_AUDIENCE=your-api-identifier
-AUTH0_CLIENT_ID=your-client-id
-AUTH0_CLIENT_SECRET=your-client-secret
-
-# Base de datos
 DB_URL=jdbc:postgresql://localhost:5432/arbiter
-DB_USER=postgres
-DB_PASSWORD=postgres
-
-# AWS S3 (adjuntos)
-AWS_S3_BUCKET=arbiter-adjuntos-dev
-AWS_REGION=us-east-1
-
-# SendGrid (email)
-SENDGRID_API_KEY=sg_xxxxx
-
-# Logging
+DB_USER=arbiter
+DB_PASSWORD=arbiter
+# Pendientes cuando se implementen auth/notificaciones:
+# AUTH0_DOMAIN, AUTH0_AUDIENCE, SENDGRID_API_KEY, AWS_S3_BUCKET
 LOG_LEVEL=INFO
 ```
-
----
-
-## Próximos pasos
-
-1. ✅ **Módulo de Análisis y Clasificación** — armado base (Controllers, Services, Adapters)
-2. ⏳ **Flujo async mejorado** — persistencia de clasificación en BD (tablas `siniestro`, `clasificacion_log`)
-3. ⏳ **Endpoints de catálogo** en `rules-service` (productos, ramos, hechos generadores)
-4. ⏳ **Frontend** — wizard de alta de denuncia + bandeja del analista
-5. ⏳ **Motor de Reglas** — configuración dinámica por aseguradora
-
----
-
-## Links rápidos
-
-- 📖 **Documentación de arquitectura aprobada:** `CLAUDE.md`
-- 🧪 **Guía de testing:** `docs/siniestros/TESTING.md`
-- 📋 **Casos de prueba:** `docs/siniestros/TEST-CLASIFICACIONES.md`
-- 🔗 **Postman:** `postman/Arbiter_Claims_Classification.postman_collection.json`
-- 🛠️ **README del módulo:** `classification-service/README.md`

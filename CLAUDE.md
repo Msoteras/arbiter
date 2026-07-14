@@ -34,7 +34,7 @@ La sección "Modelo de dominio — vocabulario" más abajo es la excepción: ah�
 
 | Capa             | Componente               | Tecnología                       |
 |------------------|--------------------------|----------------------------------|
-| **Cliente**      | SPA                      | React 19 + MUI 9 + Vite 8        |
+| **Cliente**      | SPA                      | Angular 20                       |
 | **Integración**  | Reverse proxy + TLS      | Nginx                            |
 | **Aplicación**   | Backend + LLM            | Java 21, Spring Boot 4.0.5, Ollama (Qwen3-VL) |
 | **Persistencia** | BD Arbiter + BD Aseguradora | PostgreSQL (+ pgvector), JDBC/Spring Data JPA |
@@ -49,7 +49,7 @@ La sección "Modelo de dominio — vocabulario" más abajo es la excepción: ah�
 | `rules-service`       | **Motor de Reglas de Negocio** — reglas cargadas dinámicamente desde BD, no en código.         |
 | `reports-service`     | **Reportes y Estadísticas** — agregaciones, tableros para el referente.                       |
 | `auth-service`         | **Gestión de Usuarios** — integración con Auth0, JWT, RBAC.                                   |
-| `arbiter-frontend`     | SPA React.                                                                                     |
+| `arbiter-frontend`     | SPA Angular 20.                                                                                |
 
 Estructura interna de cada módulo backend (ya scaffoldeada — respetala):
 
@@ -104,7 +104,7 @@ Estos términos vienen del relevamiento de una aseguradora real (BBVA Seguros, A
 
 2. **El LLM clasifica mejor con campos estructurados.** El prompt no recibe solo texto libre de la denuncia: recibe `{ ramo, producto, hechoGenerador, bien, descripcionLibre, adjuntosOCR, imagen }`. Los campos estructurados son contexto duro que ancla la inferencia.
 
-3. **La AgendaDocumental es el contrato de "expediente completo".** Antes de pasar el expediente al analista, `cases-service` valida contra la agenda que todos los documentos obligatorios estén subidos. Si faltan, el estado es `INCOMPLETO`, no `PENDIENTE_REVISION_ANALISTA`.
+3. **La AgendaDocumental es el contrato de "expediente completo".** Antes de pasar el expediente al analista, `cases-service` valida contra la agenda que todos los documentos obligatorios estén subidos. Si faltan, el estado es `INCOMPLETE`, no `PENDING_ANALYST_REVIEW` (los valores del enum `CaseStatus` van en inglés; el label en español es cosa del frontend).
 
 4. **Reglas duras vs clasificación del LLM.** Las exclusiones de cobertura (ej. "el bien estaba fuera del campo visual" → no cubierto; "ocurrió en domicilio declarado" → no cubierto) son **reglas evaluables** en `rules-service`, no decisiones del LLM. El LLM aporta la lectura interpretativa (¿la denuncia describe un robo o un hurto? ¿la imagen es coherente con lo narrado?); las reglas evalúan condiciones objetivas.
 
@@ -152,7 +152,7 @@ Estas decisiones están **cerradas y aprobadas** (doc v1.0, 27/05/2026). No las 
 - Spring Data JPA + JDBC (PostgreSQL driver). Migraciones: definir Flyway o Liquibase (no está decidido — proponer Flyway).
 - Lombok activado vía annotation processor.
 - **Swagger / SpringDoc** para la documentación de la API REST — agregar el starter en cada módulo con controllers.
-- Frontend: React 19, MUI 9, Vite 8, ESLint flat config. **Diseño responsive obligatorio** (RNF de usabilidad: ≥85% éxito en tareas básicas en PC y móvil).
+- Frontend: Angular 20 (standalone components, signals, `ChangeDetectionStrategy.OnPush`), SCSS. **Diseño responsive obligatorio** (RNF de usabilidad: ≥85% éxito en tareas básicas en PC y móvil).
 - Ollama local con Qwen3-VL, contexto 32.768.
 
 ---
@@ -211,6 +211,8 @@ ollama serve                                          # default: http://localhos
 - **Multi-tenant**: cada request lleva el `tenant_id` (id de aseguradora) en el JWT. Resolver el esquema PostgreSQL en una `ConnectionProvider` o `Interceptor` de Hibernate al inicio del request. No hardcodear el schema en queries.
 - **Comunicación entre módulos**: REST interno por HTTP (sin TLS, dentro del host). Cliente: `RestClient` de Spring 6+ (no `RestTemplate`). DTOs del request/response en `common-lib`. Configurar URLs base por `application.yml` (`arbiter.services.reglas.url`, etc.) con default a localhost. Timeouts cortos y manejo de error explícito — no asumir que el otro módulo siempre responde.
 - **Propagar el JWT** entre módulos cuando una request es por cuenta de un usuario. El módulo destino valida con Auth0 igual que si viniera del frontend. Para llamadas sistema-a-sistema (jobs internos), evaluar service account o token de servicio aparte.
+- **Naming de clases de servicio**: sin adjetivos ni prefijos que describan el mecanismo (`Real`, `Database`, `Default`, `Internal`). Si hay interfaz + implementación única, la implementación lleva sufijo `Impl` (ej. `CaseService` → `CaseServiceImpl`). Si hay varias implementaciones, nombrarlas por **lo que las diferencia funcionalmente**, no por tecnología (ej. `MockClaimClassifier` / `OllamaClaimClassifier`, no `RealClaimClassifier`).
+- **Enum literals en inglés**. El mapeo a labels en español es responsabilidad exclusiva del frontend (ver `estado.ts` como referencia). No mezclar idiomas dentro de un mismo enum.
 
 ## Convenciones que NO quiero ver
 
@@ -219,6 +221,7 @@ ollama serve                                          # default: http://localhos
 - Llamar al SDK de Auth0 / SendGrid / Ollama directo desde un service. Pasá por el Adapter.
 - `service.findById(...).orElse(null)` con `if (x == null)` después. Tirá la excepción de dominio.
 - Wrappers innecesarios (`SiniestroWrapper`, `SiniestroHelper`, `SiniestroUtilService`).
+- Adjetivos o prefijos de mecanismo en nombres de services (`DefaultX`, `RealX`, `DatabaseX`). Usar `Impl` si hay interfaz + implementación única; si hay varias, nombrar por diferencia funcional.
 - Comentarios que repiten lo que dice el código. Solo cuando el **por qué** no es obvio.
 - Backwards-compat / flags / código muerto "por si las moscas". Greenfield.
 - **Reglas de negocio hardcodeadas**. Las reglas viven en BD, no en `if`s ni en clases `Strategy`.
@@ -237,7 +240,7 @@ Asegurado registra denuncia (frontend, wizard con catálogos en cascada)
   └─> GET /api/v1/catalogos/bienes?ramoId=…&hechoGeneradorId=…
   └─> GET /api/v1/catalogos/agenda-documental?ramoId=…&hechoGeneradorId=…
   └─> POST /api/v1/claims (classification-service)
-        ├─> persiste Siniestro + Denuncia + Expediente (estado=PENDIENTE_CLASIFICACION)
+        ├─> persiste Siniestro + Denuncia + Expediente (estado=PENDING_CLASSIFICATION)
         ├─> sube Adjuntos a S3 (referencia en BD, asociados a items de la AgendaDocumental)
         ├─> encola tarea de clasificación (async)
         └─> responde 202 Accepted con id
@@ -252,7 +255,7 @@ Asegurado registra denuncia (frontend, wizard con catálogos en cascada)
   ├─> invoca OllamaAdapter.classify(prompt)
   ├─> valida salida (JSON schema, enum válido, factores no vacíos)
   ├─> persiste ClassificationLog (inmutable)
-  └─> actualiza Expediente.estado = PENDIENTE_REVISION_ANALISTA
+  └─> actualiza Expediente.estado = PENDING_ANALYST_REVIEW
 
 Analista revisa y decide (frontend)
   └─> POST /api/v1/claims/{id}/decision  (APROBAR | RECHAZAR)

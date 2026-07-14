@@ -1,6 +1,10 @@
-# arbiter
+# Arbiter
 
-Plantilla base para el trabajo práctico de DDSI (UTN FRBA). Implementa una arquitectura de servicios con Spring Boot y una biblioteca compartida, usando un reactor de Maven multi-módulo.
+Sistema de gestión inteligente del ciclo de vida de **siniestros** con IA, pensado como plataforma multi-aseguradora. Proyecto Final UTN FRBA (DDSI · K5054 · Grupo 5303).
+
+Foco actual: el **Módulo de Análisis y Clasificación** — clasificación preliminar del siniestro con un LLM local (Ollama + Qwen3-VL) y revisión humana obligatoria.
+
+> Arquitectura, modelo de dominio y decisiones cerradas están documentados en [`CLAUDE.md`](CLAUDE.md).
 
 ---
 
@@ -8,7 +12,8 @@ Plantilla base para el trabajo práctico de DDSI (UTN FRBA). Implementa una arqu
 
 - JDK 21
 - Maven 3.9+
-- Docker (opcional, solo para construir y ejecutar contenedores)
+- Docker + Docker Compose (para Postgres y Ollama)
+- Node 20+ (para el frontend Angular)
 
 ---
 
@@ -17,88 +22,75 @@ Plantilla base para el trabajo práctico de DDSI (UTN FRBA). Implementa una arqu
 ```
 arbiter/
 ├── pom.xml                    # POM padre: versiones y dependencyManagement
-├── common-lib/                # Librería compartida (JAR), importada por los servicios
-├── donaciones-service/        # Servicio de donaciones — puerto 8080
-└── notificaciones-service/    # Servicio de notificaciones — puerto 8081
+├── docker-compose.yml         # Postgres + Ollama + módulos backend
+├── common-lib/                # Tipos compartidos entre módulos (enums, DTOs, excepciones)
+├── classification-service/    # Módulo de Análisis y Clasificación — puerto 8082
+├── cases-service/             # Módulo de Expedientes — puerto 8083
+├── arbiter-frontend/          # SPA Angular 20 — puerto 5173
+├── auth-service/              # Gestión de usuarios (scaffold) — puerto 8080
+├── rules-service/             # Motor de reglas (scaffold) — puerto 8081
+├── reports-service/           # Reportes y estadísticas (scaffold) — puerto 8084
+└── docs/                      # Documentación, colecciones Postman y scripts
 ```
 
-Cada servicio es una aplicación Spring Boot independiente que declara `common-lib` como dependencia local del reactor.
+Cada servicio backend es una aplicación Spring Boot independiente que declara `common-lib` como
+dependencia local del reactor. `auth`, `rules` y `reports` están scaffoldeados pero todavía no
+implementados (comentados en el POM padre).
 
 ---
 
-## Tecnologías
+## Stack
 
-| Tecnología          | Versión       |
-|---------------------|---------------|
-| Java                | 21            |
-| Spring Boot         | 4.0.5         |
-| Spring Cloud BOM    | 2025.1.1      |
-| Lombok              | 1.18.34       |
-| Maven               | 3.9+          |
-
-El BOM de Spring Cloud está declarado en el POM padre para que los módulos puedan incorporar dependencias de Spring Cloud sin especificar versión explícita.
-
----
-
-## Desarrollo local (Maven)
-
-Todos los comandos se ejecutan desde la **raíz del proyecto**.
-
-### Compilar todos los módulos
-
-```bash
-mvn clean install
-```
-
-Esto construye `common-lib` primero y luego los servicios que dependen de ella.
-
-### Ejecutar un servicio
-
-```bash
-# Servicio de donaciones (puerto 8080)
-mvn spring-boot:run -pl donaciones-service
-
-# Servicio de notificaciones (puerto 8081)
-mvn spring-boot:run -pl notificaciones-service
-```
-
-Maven resuelve `common-lib` directamente desde el reactor, por lo que no hace falta instalarla por separado si se ejecuta desde la raíz.
+| Tecnología       | Versión / detalle                    |
+|------------------|--------------------------------------|
+| Java             | 21 (virtual threads)                 |
+| Spring Boot      | 4.0.5                                |
+| Spring Cloud BOM | 2025.1.1                             |
+| PostgreSQL       | 16                                   |
+| LLM              | Ollama + Qwen3-VL (contexto 32.768)  |
+| Frontend         | Angular 20                           |
+| Lombok           | 1.18.34                              |
 
 ---
 
-## Construcción de imágenes Docker
+## Desarrollo local
 
-Este proyecto utiliza una arquitectura multi-módulo de Maven. Los microservicios dependen del `pom.xml` padre y de `common-lib`, por lo que **el contexto de construcción de Docker siempre debe ser la raíz del proyecto**. Si se limita el contexto a la carpeta del microservicio, Maven fallará al no encontrar el POM padre ni las dependencias comunes.
+### Backend (Maven)
 
-### Construcción manual (CLI)
-
-Posicionarse en la carpeta raíz del proyecto y pasar el Dockerfile con `-f`, dejando `.` como contexto:
+Desde la **raíz del proyecto**:
 
 ```bash
-# donaciones-service (expone el puerto 8080)
-docker build -t donaciones-img -f donaciones-service/Dockerfile .
-
-# notificaciones-service (expone el puerto 8081)
-docker build -t notificaciones-img -f notificaciones-service/Dockerfile .
+mvn clean install                              # construye common-lib primero, luego los módulos
+mvn spring-boot:run -pl classification-service # corre el módulo de clasificación (8082)
+mvn spring-boot:run -pl cases-service          # corre el módulo de expedientes (8083)
+mvn -pl classification-service test            # tests del módulo
 ```
 
-### Ejecutar los contenedores
+Con el perfil `dev` (por defecto) los adapters externos (Ollama, aseguradora, reglas) usan mocks,
+así que el flujo completo corre sin Ollama prendido.
+
+### Frontend (Angular)
 
 ```bash
-docker run -p 8080:8080 donaciones-img
-docker run -p 8081:8081 notificaciones-img
+cd arbiter-frontend
+npm install
+npm start          # http://localhost:5173
 ```
 
-### Nota sobre `ARG SERVICE_NAME`
+### Todo junto (Docker Compose)
 
-Cada Dockerfile define un `ARG SERVICE_NAME` cuyo valor por defecto ya coincide con el nombre del servicio (p. ej. `donaciones-service`). Solo es necesario sobreescribirlo si se reutiliza un Dockerfile genérico para construir un servicio diferente:
+Levanta Postgres, Ollama (con el modelo pre-descargado) y los módulos backend:
 
 ```bash
-docker build --build-arg SERVICE_NAME=otro-service -f otro-service/Dockerfile .
+docker compose up --build
 ```
+
+> El contexto de build de cada imagen es **siempre la raíz** del proyecto (el multi-módulo necesita
+> el POM padre + `common-lib`). Ver los `Dockerfile` de cada servicio.
 
 ---
 
 ## Estado del proyecto
 
-Los servicios son aplicaciones Spring Boot mínimas, listas para extender con controladores, repositorios y lógica de negocio. `common-lib` contiene el código compartido entre servicios.
+Implementados: `classification-service`, `cases-service`, `common-lib`, `arbiter-frontend`.
+Scaffold pendiente de implementación: `auth-service`, `rules-service`, `reports-service`.

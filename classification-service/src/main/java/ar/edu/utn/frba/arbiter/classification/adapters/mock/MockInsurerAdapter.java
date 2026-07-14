@@ -5,7 +5,6 @@ import ar.edu.utn.frba.arbiter.classification.dto.InsuredHistory;
 import ar.edu.utn.frba.arbiter.classification.dto.InsuredHistory.ClaimRecord;
 import ar.edu.utn.frba.arbiter.classification.dto.InsuredPolicy;
 import ar.edu.utn.frba.arbiter.classification.dto.InsuredPolicy.PolicyCoverage;
-import org.springframework.context.annotation.Profile;
 import org.springframework.stereotype.Component;
 
 import java.math.BigDecimal;
@@ -14,13 +13,12 @@ import java.util.List;
 import java.util.Map;
 
 @Component
-@Profile({"dev", "test", "default"})
 public class MockInsurerAdapter implements InsurerAdapter {
 
     private static final Map<String, InsuredPolicy> POLICIES = Map.of(
             "POL-001", InsuredPolicy.builder()
                     .policyNumber("POL-001")
-                    .insuredName("Test Insured")
+                    .insuredName("Asegurado de prueba")
                     .insuredId("12345678")
                     .branch("SUCURSAL-1")
                     .product("CELULAR")
@@ -32,7 +30,7 @@ public class MockInsurerAdapter implements InsurerAdapter {
                     .coverages(List.of(
                             PolicyCoverage.builder()
                                     .code("COB-ROB-TEST")
-                                    .description("Robo test coverage")
+                                    .description("Cobertura de robo (prueba)")
                                     .insuredAmount(new BigDecimal("500000"))
                                     .deductible(new BigDecimal("50000"))
                                     .build()
@@ -146,7 +144,7 @@ public class MockInsurerAdapter implements InsurerAdapter {
                                     .status("Aprobado")
                                     .amountClaimed(new BigDecimal("450000"))
                                     .amountSettled(new BigDecimal("400000"))
-                                    .notes("Report consistente. Sin señales de alerta.")
+                                    .notes("Denuncia consistente. Sin señales de alerta.")
                                     .build(),
                             ClaimRecord.builder()
                                     .claimId("2026-1892")
@@ -157,7 +155,7 @@ public class MockInsurerAdapter implements InsurerAdapter {
                                     .status("Aprobado")
                                     .amountClaimed(new BigDecimal("890000"))
                                     .amountSettled(new BigDecimal("810000"))
-                                    .notes("Demora en report policial (72 hs). Aprobado por antecedente limpio previo.")
+                                    .notes("Demora en denuncia policial (72 hs). Aprobado por antecedente limpio previo.")
                                     .build(),
                             ClaimRecord.builder()
                                     .claimId("2026-3310")
@@ -168,7 +166,7 @@ public class MockInsurerAdapter implements InsurerAdapter {
                                     .status("En investigación")
                                     .amountClaimed(new BigDecimal("1100000"))
                                     .amountSettled(null)
-                                    .notes("Tercer claim en 6 meses. Derivado a investigación por frecuencia.")
+                                    .notes("Tercer siniestro en 6 meses. Derivado a investigación por frecuencia.")
                                     .build()
                     ))
                     .build(),
@@ -186,20 +184,7 @@ public class MockInsurerAdapter implements InsurerAdapter {
     public InsuredPolicy getPolicy(String policyNumber) {
         var policy = POLICIES.get(policyNumber);
         if (policy == null) {
-            return InsuredPolicy.builder()
-                    .policyNumber(policyNumber)
-                    .insuredName("Asegurado genérico")
-                    .insuredId("00.000.000")
-                    .branch("General")
-                    .product("Producto genérico")
-                    .effectiveFrom(LocalDate.now().minusYears(1))
-                    .effectiveTo(LocalDate.now().plusYears(1))
-                    .upToDate(true)
-                    .insuredAmount(new BigDecimal("100000"))
-                    .deductible(new BigDecimal("10000"))
-                    .coverages(List.of())
-                    .applicableClauses(List.of())
-                    .build();
+            throw new IllegalArgumentException("Mock policy not found: " + policyNumber);
         }
         return policy;
     }

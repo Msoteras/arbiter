@@ -18,7 +18,7 @@ RUN mvn dependency:go-offline -pl common-lib,classification-service -am -q
 
 COPY common-lib/src common-lib/src
 COPY classification-service/src classification-service/src
-RUN mvn -pl classification-service -am package -DskipTests -q
+RUN mvn -pl classification-service -am clean package -DskipTests -q
 
 # --- Stage 2: runtime ---
 FROM eclipse-temurin:21-jre-alpine

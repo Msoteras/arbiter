@@ -1,4 +1,4 @@
-package ar.edu.utn.frba.arbiter.classification.controllers;
+package ar.edu.utn.frba.arbiter.classification.services;
 
 import ar.edu.utn.frba.arbiter.classification.dto.AttachmentDocument;
 import ar.edu.utn.frba.arbiter.classification.exceptions.InvalidClassificationException;
@@ -9,7 +9,6 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 
-/** Converts the multipart `documents` map (key = document type) into AttachmentDocument list. */
 @Component
 public class MultipartDocumentMapper {
 

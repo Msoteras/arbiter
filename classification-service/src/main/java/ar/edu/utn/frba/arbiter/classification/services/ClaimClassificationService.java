@@ -2,7 +2,7 @@ package ar.edu.utn.frba.arbiter.classification.services;
 
 import ar.edu.utn.frba.arbiter.classification.dto.AttachmentDocument;
 import ar.edu.utn.frba.arbiter.classification.dto.ClassificationResponse;
-import ar.edu.utn.frba.arbiter.classification.dto.ClaimReport;
+import ar.edu.utn.frba.arbiter.common.dto.ClaimReport;
 import lombok.RequiredArgsConstructor;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -15,19 +15,24 @@ import org.springframework.web.client.ResourceAccessException;
 
 import java.util.List;
 
+/**
+ * Thin façade that exposes the classification entry points expected by the controllers.
+ * The actual orchestration is delegated to {@link ClassificationOrchestrator} and the
+ * result is persisted so the analyst decision endpoint can work immediately in local/dev flows.
+ */
 @Service
 @RequiredArgsConstructor
 public class ClaimClassificationService {
 
     private static final Logger log = LoggerFactory.getLogger(ClaimClassificationService.class);
 
-    private final ClassificationOrchestrator orchestrator;
+    private final ClassificationOrchestrator classificationOrchestrator;
     private final ClassificationResultsService resultsService;
 
     /**
-     * Async classification for the isolated test endpoint (POST /api/v1/classifications):
-     * there's no persisted Claim, so the result is still audited in classification_log
-     * with claimId null (see GET /api/v1/classifications/results).
+     * Trigger async classification for a persisted claim.
+     * Called from ClaimController after claim is registered.
+     * Returns immediately; classification happens in background.
      */
     @Async("classificationExecutor")
     @Retryable(
@@ -42,7 +47,7 @@ public class ClaimClassificationService {
         try {
             long start = System.currentTimeMillis();
 
-            ClassificationResponse response = orchestrator.classify(claim, documents);
+            ClassificationResponse response = classificationOrchestrator.classify(claim, documents);
             long latencyMs = System.currentTimeMillis() - start;
 
             log.info("[ClaimClassificationService] ✓ Isolated classification obtained — {} confidence={} latency={}ms",
@@ -58,9 +63,9 @@ public class ClaimClassificationService {
     }
 
     /**
-     * Async classification for a real, persisted claim (POST /api/v1/claims). Persists the
-     * result tagged with the claimId — that's the only signal this module gives back; whoever
-     * owns the claim's lifecycle (cases-service) polls GET /api/v1/claims/{id} for it.
+     * Async classification for a real case (POST /api/v1/claims, called by cases-service).
+     * Persists the result tagged with the caseId — that's the only signal this module gives
+     * back; whoever owns the case lifecycle (cases-service) polls GET /api/v1/claims/{caseId}.
      */
     @Async("classificationExecutor")
     @Retryable(
@@ -68,25 +73,25 @@ public class ClaimClassificationService {
             maxAttempts = 3,
             backoff = @Backoff(delay = 2000, multiplier = 2.0)
     )
-    public void processClaimClassification(Long claimId, ClaimReport claim, List<AttachmentDocument> documents) {
-        log.info("[ClaimClassificationService] ▶ Starting async classification — claimId={} policy='{}' insuredId='{}'",
-                claimId, claim.policyNumber(), claim.insuredId());
+    public void processClaimClassification(Long caseId, ClaimReport claim, List<AttachmentDocument> documents) {
+        log.info("[ClaimClassificationService] ▶ Starting async classification — caseId={} policy='{}' insuredId='{}'",
+                caseId, claim.policyNumber(), claim.insuredId());
 
         try {
             long start = System.currentTimeMillis();
 
-            ClassificationResponse response = orchestrator.classify(claim, documents);
+            ClassificationResponse response = classificationOrchestrator.classify(claim, documents);
             long latencyMs = System.currentTimeMillis() - start;
 
-            log.info("[ClaimClassificationService] ✓ Classification obtained — claimId={} {} confidence={} latency={}ms",
-                    claimId, response.classification(), response.confidence(), latencyMs);
+            log.info("[ClaimClassificationService] ✓ Classification obtained — caseId={} {} confidence={} latency={}ms",
+                    caseId, response.classification(), response.confidence(), latencyMs);
 
-            resultsService.saveResult(claimId, response, latencyMs);
+            resultsService.saveResult(caseId, response, latencyMs);
 
         } catch (Exception e) {
-            log.error("[ClaimClassificationService] ✗ Error processing claimId={} after retries — {}",
-                    claimId, e.getMessage(), e);
-            throw new RuntimeException("Classification failed for claim " + claimId + " after retries", e);
+            log.error("[ClaimClassificationService] ✗ Error processing caseId={} after retries — {}",
+                    caseId, e.getMessage(), e);
+            throw new RuntimeException("Classification failed for case " + caseId + " after retries", e);
         }
     }
 }
