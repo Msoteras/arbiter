@@ -15,4 +15,8 @@ public interface CaseRepository extends JpaRepository<Case, Long> {
     List<Case> findAllByOrderByIdDesc();
 
     List<Case> findByStatusOrderByIdDesc(CaseStatus status);
+
+    List<Case> findByInsuredIdOrderByIdDesc(String insuredId);
+
+    List<Case> findByInsuredIdAndStatusOrderByIdDesc(String insuredId, CaseStatus status);
 }

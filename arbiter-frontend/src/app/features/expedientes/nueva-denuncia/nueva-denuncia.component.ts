@@ -2,6 +2,7 @@ import { ChangeDetectionStrategy, Component, inject, signal, computed } from '@a
 import { Router } from '@angular/router';
 import { FormsModule } from '@angular/forms';
 import { ExpedienteService, CaseCreateRequest } from '../expediente.service';
+import { InsuredSessionService } from '../../../core/auth/insured-session.service';
 
 type Step = 1 | 2 | 3;
 
@@ -29,6 +30,7 @@ interface DocSlot {
 export class NuevaDenunciaComponent {
   private readonly router = inject(Router);
   private readonly service = inject(ExpedienteService);
+  private readonly session = inject(InsuredSessionService);
 
   protected readonly step = signal<Step>(1);
   protected readonly submitting = signal(false);
@@ -57,7 +59,8 @@ export class NuevaDenunciaComponent {
   // Step 2
   protected readonly description = signal('');
   protected readonly insuredItem = signal('');
-  protected readonly insuredId = signal('');
+  // Prellenado con la identidad en sesión (cuando llegue Auth0, sale del JWT).
+  protected readonly insuredId = signal(this.session.insuredId() ?? '');
   protected readonly eventLocation = signal('');
   protected readonly eventDate = signal('');
   protected readonly claimedAmount = signal<string>('');
@@ -143,7 +146,10 @@ export class NuevaDenunciaComponent {
     this.service.create(request, docs.size > 0 ? docs : undefined).subscribe({
       next: (res) => {
         this.submitting.set(false);
-        this.router.navigate(['/expedientes', res.id]);
+        // La denuncia la registra el asegurado: queda identificado con el id que usó
+        // y sigue el expediente desde su portal (no desde la vista del analista).
+        this.session.identify(request.insuredId);
+        this.router.navigate(['/portal/expedientes', res.id]);
       },
       error: (err) => {
         this.submitting.set(false);

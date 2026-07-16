@@ -18,9 +18,11 @@ export interface CaseCreateRequest {
   claimedAmount?: number;
 }
 
+// El backend solo acepta APPROVE/APROBAR o REJECT/RECHAZAR (human-in-the-loop:
+// el analista aprueba o rechaza; no hay otras salidas).
 export interface AnalystDecisionRequest {
   analystId: string;
-  decision: 'APPROVE' | 'REJECT' | 'DERIVAR';
+  decision: 'APPROVE' | 'REJECT';
 }
 
 @Injectable({ providedIn: 'root' })
@@ -32,9 +34,15 @@ export class ExpedienteService {
     return this.http.get<ExpedienteResponse>(`${this.baseUrl}/${id}`);
   }
 
-  /** Lista todos los expedientes, más recientes primero. `status` es opcional (filtra por estado). */
-  list(status?: string): Observable<ExpedienteResponse[]> {
-    const params: Record<string, string> = status ? { status } : {};
+  /**
+   * Lista expedientes, más recientes primero. Filtros opcionales y combinables:
+   * `status` (bandeja del analista) e `insuredId` (expedientes del asegurado —
+   * hasta que se integre Auth0, se pasa explícito; después saldrá del JWT).
+   */
+  list(status?: string, insuredId?: string): Observable<ExpedienteResponse[]> {
+    const params: Record<string, string> = {};
+    if (status) params['status'] = status;
+    if (insuredId) params['insuredId'] = insuredId;
     return this.http.get<ExpedienteResponse[]>(this.baseUrl, { params });
   }
 

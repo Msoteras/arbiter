@@ -22,4 +22,9 @@ public class CaseExceptionHandler {
     public ProblemDetail handleInvalidTransition(InvalidStatusTransitionException ex) {
         return ProblemDetail.forStatusAndDetail(HttpStatusCode.valueOf(409), ex.getMessage());
     }
+
+    @ExceptionHandler(InvalidAnalystDecisionException.class)
+    public ProblemDetail handleInvalidDecision(InvalidAnalystDecisionException ex) {
+        return ProblemDetail.forStatusAndDetail(HttpStatusCode.valueOf(400), ex.getMessage());
+    }
 }

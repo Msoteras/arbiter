@@ -1,0 +1,90 @@
+@if (data(); as d) {
+  <header class="page-head">
+    <a class="breadcrumb" routerLink="/portal">‹ Mis expedientes</a>
+    <div class="identity">
+      <h1>Expediente #{{ d.id }}</h1>
+      <span class="badge" [class.final]="isResolved()">{{ statusLabel() }}</span>
+    </div>
+    <p class="subtitle">{{ d.branch }} · {{ d.insuredItem }} · Póliza <span class="mono">{{ d.policyNumber }}</span></p>
+  </header>
+
+  <div class="seg-grid">
+    <div class="col-main">
+      <!-- Estado actual + próximos pasos -->
+      <section class="card status-card">
+        <h2 class="card-title">Estado actual</h2>
+        <p class="status-desc">{{ statusDescription() }}</p>
+        @if (nextStep()) {
+          <div class="next-box">
+            <span class="next-tag">Próximo paso esperado</span>
+            <p class="next-text">{{ nextStep() }}</p>
+          </div>
+        } @else {
+          <div class="next-box resolved">
+            <span class="next-tag">Expediente resuelto</span>
+            <p class="next-text">Vas a recibir la notificación por correo electrónico.</p>
+          </div>
+        }
+      </section>
+
+      <!-- Documentación faltante: el turno del asegurado -->
+      @if (needsDocs()) {
+        <section class="card">
+          <h2 class="card-title">⚠ Falta documentación</h2>
+          <app-doc-upload [caseId]="d.id" (uploaded)="onDocsUploaded()" />
+        </section>
+      }
+
+      <!-- Timeline de estados -->
+      <section class="card">
+        <h2 class="card-title">Historial del expediente</h2>
+        <app-status-timeline [history]="history()" [currentStatus]="d.status" />
+      </section>
+    </div>
+
+    <div class="col-side">
+      <section class="card">
+        <h2 class="card-title">Tu denuncia</h2>
+        <dl class="fields">
+          <div class="field">
+            <dt>Fecha de denuncia</dt>
+            <dd>{{ fechaDenuncia() }}</dd>
+          </div>
+          <div class="field">
+            <dt>Fecha del hecho</dt>
+            <dd>{{ fechaHecho() }}</dd>
+          </div>
+          <div class="field">
+            <dt>Causa</dt>
+            <dd>{{ d.claimCause }}</dd>
+          </div>
+          <div class="field">
+            <dt>Ubicación</dt>
+            <dd>{{ d.eventLocation }}</dd>
+          </div>
+          <div class="field">
+            <dt>Descripción</dt>
+            <dd>{{ d.description }}</dd>
+          </div>
+        </dl>
+      </section>
+    </div>
+  </div>
+} @else if (loading()) {
+  <div class="state-wrap"><div class="card skeleton">Cargando expediente…</div></div>
+} @else if (notFound()) {
+  <div class="state-wrap">
+    <div class="card">
+      <p class="muted">
+        No encontramos ese expediente entre los tuyos.
+        <a routerLink="/portal">Volver a mis expedientes</a>
+      </p>
+    </div>
+  </div>
+} @else if (hasError()) {
+  <div class="state-wrap">
+    <div class="card">
+      <p class="muted">No se pudo cargar el expediente. Probá de nuevo en unos minutos.</p>
+    </div>
+  </div>
+}

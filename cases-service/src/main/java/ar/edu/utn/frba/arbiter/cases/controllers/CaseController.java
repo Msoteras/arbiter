@@ -43,7 +43,10 @@ public class CaseController {
 
     @GetMapping("/{caseId}")
     @Operation(summary = "Get case by id",
-            description = "Returns the stored case and its analysis result.")
+            description = """
+                    Returns the stored case, its analysis result and the full status history
+                    (every transition with actor, reason and timestamp).
+                    """)
     public ResponseEntity<CaseResponse> getCase(@PathVariable Long caseId) {
         CaseResponse response = caseService.getCase(caseId);
         return ResponseEntity.ok(response);
@@ -51,9 +54,16 @@ public class CaseController {
 
     @GetMapping
     @Operation(summary = "List cases",
-            description = "Returns every case, most recent first. Optionally filtered by status (e.g. for the analyst's queue).")
-    public ResponseEntity<List<CaseResponse>> listCases(@RequestParam(required = false) CaseStatus status) {
-        List<CaseResponse> response = caseService.listCases(status);
+            description = """
+                    Returns cases, most recent first. Optional filters, combinable:
+                    `status` (e.g. for the analyst's queue) and `insuredId` (the insured's own
+                    cases — until Auth0/JWT integration lands, the caller passes it explicitly).
+                    """)
+    public ResponseEntity<List<CaseResponse>> listCases(
+            @RequestParam(required = false) CaseStatus status,
+            @RequestParam(required = false) String insuredId
+    ) {
+        List<CaseResponse> response = caseService.listCases(status, insuredId);
         return ResponseEntity.ok(response);
     }
 

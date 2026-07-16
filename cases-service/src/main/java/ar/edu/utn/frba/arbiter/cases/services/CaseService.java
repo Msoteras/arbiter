@@ -15,8 +15,12 @@ public interface CaseService {
 
     CaseResponse getCase(Long caseId);
 
-    /** Lists every case, most recent first. When {@code status} is given, only cases in that status are returned. */
-    List<CaseResponse> listCases(CaseStatus status);
+    /**
+     * Lists cases, most recent first. Both filters are optional and combinable:
+     * {@code status} narrows to one status, {@code insuredId} narrows to one insured's cases
+     * (until Auth0 lands, the caller passes it explicitly; then it will come from the JWT).
+     */
+    List<CaseResponse> listCases(CaseStatus status, String insuredId);
 
     CaseResponse addDocumentsAndReclassify(Long caseId, Map<String, MultipartFile> documents);
 

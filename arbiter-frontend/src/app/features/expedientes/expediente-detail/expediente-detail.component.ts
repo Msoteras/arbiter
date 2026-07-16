@@ -5,17 +5,13 @@ import { HttpErrorResponse } from '@angular/common/http';
 import { catchError, combineLatest, map, of, startWith, switchMap } from 'rxjs';
 
 import { ExpedienteService, AnalystDecisionRequest } from '../expediente.service';
-import { ExpedienteResponse } from '../../../core/models/expediente';
+import { ExpedienteResponse, StatusTransition } from '../../../core/models/expediente';
 import { clasificacionLabel } from '../../../core/models/clasificacion';
 import { estadoLabel } from '../../../core/models/estado';
 import { FraudGaugeComponent } from '../../../shared/ui/fraud-gauge/fraud-gauge.component';
 import { EmptyStateComponent } from '../../../shared/ui/empty-state/empty-state.component';
-
-interface DocUploadSlot {
-  type: string;
-  label: string;
-  file: File | null;
-}
+import { StatusTimelineComponent } from '../../../shared/ui/status-timeline/status-timeline.component';
+import { DocUploadComponent } from '../../../shared/ui/doc-upload/doc-upload.component';
 
 type LoadState =
   | { status: 'loading' }
@@ -30,7 +26,7 @@ interface FieldItem { label: string; value: string | null; mono?: boolean; full?
 
 @Component({
   selector: 'app-expediente-detail',
-  imports: [RouterLink, FraudGaugeComponent, EmptyStateComponent],
+  imports: [RouterLink, FraudGaugeComponent, EmptyStateComponent, StatusTimelineComponent, DocUploadComponent],
   changeDetection: ChangeDetectionStrategy.OnPush,
   templateUrl: './expediente-detail.component.html',
   styleUrl: './expediente-detail.component.scss',
@@ -103,7 +99,7 @@ export class ExpedienteDetailComponent {
       { label: 'Tomador', value: null },
       { label: 'Bien asegurado', value: d?.insuredItem ?? null },
       { label: 'Importe reclamado', value: d?.claimedAmount ? `$${d.claimedAmount.toLocaleString()}` : null },
-      { label: 'Fecha de denuncia', value: null },
+      { label: 'Fecha de denuncia', value: d?.createdAt ? new Date(d.createdAt).toLocaleString('es-AR') : null },
       { label: 'Fecha y hora de ocurrencia', value: d?.eventDate ? new Date(d.eventDate).toLocaleDateString('es-AR') : null },
       { label: 'Causa', value: d?.claimCause ?? null },
       { label: 'Hecho generador', value: null },
@@ -113,6 +109,9 @@ export class ExpedienteDetailComponent {
       { label: 'PEP (declarativo)', value: null },
     ];
   });
+
+  // ----- historial de estados (GET /{id} lo trae con timestamps de cada transición) -----
+  protected readonly history = computed<StatusTransition[]>(() => this.data()?.statusHistory ?? []);
 
   // ----- tabs -----
   protected readonly tabs: { id: TabId; label: string }[] = [
@@ -214,57 +213,7 @@ export class ExpedienteDetailComponent {
     this.data()?.analysisClassification === 'FALTA_DOCUMENTACION'
   );
 
-  protected readonly docUploadSlots = signal<DocUploadSlot[]>([
-    { type: 'police_report', label: 'Denuncia policial', file: null },
-    { type: 'item_photo', label: 'Foto del bien', file: null },
-    { type: 'invoice', label: 'Factura de compra', file: null },
-    { type: 'quote', label: 'Presupuesto de reparación', file: null },
-  ]);
-
-  protected readonly uploadingDocs = signal(false);
-  protected readonly uploadError = signal<string | null>(null);
-  protected readonly uploadedCount = computed(() => this.docUploadSlots().filter(s => s.file).length);
-
-  onDocFileChange(index: number, event: Event): void {
-    const input = event.target as HTMLInputElement;
-    const file = input.files?.[0] ?? null;
-    this.docUploadSlots.update(slots => {
-      const updated = [...slots];
-      updated[index] = { ...updated[index], file };
-      return updated;
-    });
-  }
-
-  removeDocFile(index: number): void {
-    this.docUploadSlots.update(slots => {
-      const updated = [...slots];
-      updated[index] = { ...updated[index], file: null };
-      return updated;
-    });
-  }
-
-  submitDocs(): void {
-    const d = this.data();
-    if (!d || this.uploadingDocs()) return;
-
-    const docs = new Map<string, File>();
-    for (const slot of this.docUploadSlots()) {
-      if (slot.file) docs.set(slot.type, slot.file);
-    }
-    if (docs.size === 0) return;
-
-    this.uploadingDocs.set(true);
-    this.uploadError.set(null);
-
-    this.service.uploadDocuments(d.id, docs).subscribe({
-      next: () => {
-        this.uploadingDocs.set(false);
-        window.location.reload();
-      },
-      error: (err) => {
-        this.uploadingDocs.set(false);
-        this.uploadError.set(err.error?.detail || 'Error al subir documentos');
-      },
-    });
+  onDocsUploaded(): void {
+    this.reloadTrigger.update((v) => v + 1);
   }
 }
