@@ -16,6 +16,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.io.IOException;
+import java.util.List;
 import java.util.Map;
 
 @Service
@@ -94,6 +95,14 @@ public class CaseServiceImpl implements CaseService {
         Case entity = caseRepository.findById(caseId)
                 .orElseThrow(() -> new CaseNotFoundException(caseId));
         return toResponse(entity);
+    }
+
+    @Override
+    public List<CaseResponse> listCases(CaseStatus status) {
+        List<Case> entities = status != null
+                ? caseRepository.findByStatusOrderByIdDesc(status)
+                : caseRepository.findAllByOrderByIdDesc();
+        return entities.stream().map(this::toResponse).toList();
     }
 
     @Override

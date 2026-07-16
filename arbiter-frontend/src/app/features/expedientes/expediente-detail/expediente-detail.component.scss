@@ -26,6 +26,7 @@
 .rcard.reco { flex: 0 0 210px; background: var(--c-bg-soft); }
 .rcard-head { font-size: 10px; text-transform: uppercase; letter-spacing: 0.05em; color: var(--c-ink-3); font-weight: 600; margin-bottom: 10px; display: flex; align-items: center; gap: 6px; }
 .rcard-note { margin: 8px 0 0; font-size: 11px; color: var(--c-muted); }
+.rcard-note.error { color: #c62828; }
 .registered { margin: 0; font-size: 14px; font-weight: 600; }
 .decision-btns { display: flex; flex-direction: column; gap: 6px; }
 

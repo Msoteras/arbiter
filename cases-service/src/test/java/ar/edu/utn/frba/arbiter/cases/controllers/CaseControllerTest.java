@@ -17,9 +17,11 @@ import org.springframework.test.web.servlet.MockMvc;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
+import java.util.List;
 
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.multipart;
@@ -82,6 +84,39 @@ class CaseControllerTest {
         mockMvc.perform(get("/api/v1/cases/999"))
                 .andExpect(status().isNotFound())
                 .andExpect(jsonPath("$.detail").value("Case 999 not found"));
+    }
+
+    @Test
+    void listCases_noStatusFilter_returnsAllAsArray() throws Exception {
+        CaseResponse case1 = caseResponse(2L, CaseStatus.PENDING_ANALYST_REVIEW);
+        CaseResponse case2 = caseResponse(1L, CaseStatus.APPROVED);
+        when(caseService.listCases(isNull())).thenReturn(List.of(case1, case2));
+
+        mockMvc.perform(get("/api/v1/cases"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.length()").value(2))
+                .andExpect(jsonPath("$[0].id").value(2))
+                .andExpect(jsonPath("$[1].id").value(1));
+    }
+
+    @Test
+    void listCases_withStatusFilter_passesStatusThrough() throws Exception {
+        CaseResponse response = caseResponse(1L, CaseStatus.PENDING_ANALYST_REVIEW);
+        when(caseService.listCases(CaseStatus.PENDING_ANALYST_REVIEW)).thenReturn(List.of(response));
+
+        mockMvc.perform(get("/api/v1/cases").param("status", "PENDING_ANALYST_REVIEW"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.length()").value(1))
+                .andExpect(jsonPath("$[0].status").value("PENDING_ANALYST_REVIEW"));
+    }
+
+    @Test
+    void listCases_noResults_returnsEmptyArray() throws Exception {
+        when(caseService.listCases(isNull())).thenReturn(List.of());
+
+        mockMvc.perform(get("/api/v1/cases"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.length()").value(0));
     }
 
     @Test

@@ -4,7 +4,7 @@
 
     <div class="identity">
       <h1 class="exp-id">Expediente #{{ d.id }}</h1>
-      <span class="badge tecnico">{{ d.status }}</span>
+      <span class="badge tecnico">{{ statusLabel() }}</span>
       <span class="badge simplificado">Sin datos</span>
     </div>
     <p class="subtitle nodata">Sin datos</p>
@@ -23,14 +23,22 @@
 
       <section class="rcard">
         <div class="rcard-head">Decisión del analista</div>
-        @if (decision()) {
-          <p class="registered">✓ Registrado: {{ decisionLabel() }}</p>
-        } @else {
-          <div class="decision-btns">
-            <button class="btn-sec" [disabled]="decisionSaving()" (click)="askDecision('derivar')">Derivar</button>
-            <button class="btn-sec" [disabled]="decisionSaving()" (click)="askDecision('rechazar')">Rechazar</button>
-            <button class="btn-sec" [disabled]="decisionSaving()" (click)="askDecision('aprobar')">Aprobar</button>
-          </div>
+        @switch (decisionState()) {
+          @case ('approved') {
+            <p class="registered">✓ Registrado: Aprobado</p>
+          }
+          @case ('rejected') {
+            <p class="registered">✓ Registrado: Rechazado</p>
+          }
+          @case ('pending') {
+            <div class="decision-btns">
+              <button class="btn-sec" [disabled]="decisionSaving()" (click)="askDecision('rechazar')">Rechazar</button>
+              <button class="btn-sec" [disabled]="decisionSaving()" (click)="askDecision('aprobar')">Aprobar</button>
+            </div>
+          }
+          @default {
+            <p class="nodata">Sin clasificación disponible todavía</p>
+          }
         }
         @if (decisionSaving()) {
           <p class="rcard-note">Guardando decisión…</p>

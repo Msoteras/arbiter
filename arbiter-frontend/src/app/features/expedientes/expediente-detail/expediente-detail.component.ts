@@ -1,12 +1,13 @@
 import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
-import { toSignal } from '@angular/core/rxjs-interop';
+import { toObservable, toSignal } from '@angular/core/rxjs-interop';
 import { ActivatedRoute, RouterLink } from '@angular/router';
 import { HttpErrorResponse } from '@angular/common/http';
-import { catchError, map, of, startWith, switchMap } from 'rxjs';
+import { catchError, combineLatest, map, of, startWith, switchMap } from 'rxjs';
 
 import { ExpedienteService, AnalystDecisionRequest } from '../expediente.service';
 import { ExpedienteResponse } from '../../../core/models/expediente';
 import { clasificacionLabel } from '../../../core/models/clasificacion';
+import { estadoLabel } from '../../../core/models/estado';
 import { FraudGaugeComponent } from '../../../shared/ui/fraud-gauge/fraud-gauge.component';
 import { EmptyStateComponent } from '../../../shared/ui/empty-state/empty-state.component';
 
@@ -22,7 +23,7 @@ type LoadState =
   | { status: 'error'; httpStatus: number };
 
 type TabId = 'resumen' | 'datos' | 'imagenes' | 'documentacion' | 'conversacion' | 'historial';
-type Verb = 'aprobar' | 'rechazar' | 'derivar';
+type Verb = 'aprobar' | 'rechazar';
 
 /** value=null → la sección muestra "Sin datos" (el backend no provee este campo). */
 interface FieldItem { label: string; value: string | null; mono?: boolean; full?: boolean; }
@@ -38,9 +39,15 @@ export class ExpedienteDetailComponent {
   private readonly route = inject(ActivatedRoute);
   private readonly service = inject(ExpedienteService);
 
+  /** Bumped after a decision is recorded, to refetch the case and reflect the real backend status. */
+  private readonly reloadTrigger = signal(0);
+
   private readonly state = toSignal(
-    this.route.paramMap.pipe(
-      map((params) => params.get('id') ?? ''),
+    combineLatest([
+      this.route.paramMap.pipe(map((params) => params.get('id') ?? '')),
+      toObservable(this.reloadTrigger),
+    ]).pipe(
+      map(([id]) => id),
       switchMap((id) =>
         this.service.getById(id).pipe(
           map((data): LoadState => ({ status: 'ok', data })),
@@ -65,6 +72,11 @@ export class ExpedienteDetailComponent {
   protected readonly notFound = computed(() => {
     const s = this.state();
     return s.status === 'error' && s.httpStatus === 404;
+  });
+
+  protected readonly statusLabel = computed(() => {
+    const d = this.data();
+    return d ? estadoLabel(d.status) : '';
   });
 
   protected readonly classificationLabel = computed(() => {
@@ -129,13 +141,21 @@ export class ExpedienteDetailComponent {
   private readonly verbLabels: Record<Verb, string> = {
     aprobar: 'Aprobar',
     rechazar: 'Rechazar',
-    derivar: 'Derivar',
   };
-  protected readonly decision = signal<Verb | null>(null);
+
+  /** Fuente de verdad: el estado del expediente en el backend, no un flag local. */
+  protected readonly decisionState = computed<'pending' | 'approved' | 'rejected' | 'not-ready'>(() => {
+    switch (this.data()?.status) {
+      case 'APPROVED': return 'approved';
+      case 'REJECTED': return 'rejected';
+      case 'PENDING_ANALYST_REVIEW': return 'pending';
+      default: return 'not-ready';
+    }
+  });
+
   protected readonly pendingDecision = signal<Verb | null>(null);
   protected readonly showJustify = signal(false);
   protected readonly justification = signal('');
-  protected readonly decisionLabel = computed(() => this.verbLabel(this.decision()));
   protected readonly decisionError = signal<string | null>(null);
   protected readonly decisionSaving = signal(false);
 
@@ -146,6 +166,7 @@ export class ExpedienteDetailComponent {
   askDecision(v: Verb): void {
     this.pendingDecision.set(v);
     this.justification.set('');
+    this.decisionError.set(null);
     this.showJustify.set(true);
   }
   cancelDecision(): void {
@@ -153,7 +174,8 @@ export class ExpedienteDetailComponent {
     this.pendingDecision.set(null);
   }
   confirmDecision(): void {
-    if (!this.justification().trim() || !this.pendingDecision()) {
+    const verb = this.pendingDecision();
+    if (!this.justification().trim() || !verb) {
       return;
     }
 
@@ -164,7 +186,7 @@ export class ExpedienteDetailComponent {
 
     const decisionPayload: AnalystDecisionRequest = {
       analystId: 'analista-ui',
-      decision: this.pendingDecision() === 'aprobar' ? 'APPROVE' : this.pendingDecision() === 'rechazar' ? 'REJECT' : 'DERIVAR',
+      decision: verb === 'aprobar' ? 'APPROVE' : 'REJECT',
     };
 
     this.decisionSaving.set(true);
@@ -172,14 +194,14 @@ export class ExpedienteDetailComponent {
 
     this.service.recordAnalystDecision(d.id, decisionPayload).subscribe({
       next: () => {
-        this.decision.set(this.pendingDecision());
         this.showJustify.set(false);
         this.pendingDecision.set(null);
         this.decisionSaving.set(false);
+        this.reloadTrigger.update((v) => v + 1);
       },
-      error: (err) => {
+      error: (err: HttpErrorResponse) => {
         this.decisionSaving.set(false);
-        this.decisionError.set(err.error?.message || err.message || 'No se pudo registrar la decisión');
+        this.decisionError.set(err.error?.detail || 'No se pudo registrar la decisión');
       },
     });
   }
@@ -241,7 +263,7 @@ export class ExpedienteDetailComponent {
       },
       error: (err) => {
         this.uploadingDocs.set(false);
-        this.uploadError.set(err.error?.message || err.message || 'Error al subir documentos');
+        this.uploadError.set(err.error?.detail || 'Error al subir documentos');
       },
     });
   }

@@ -147,7 +147,7 @@ export class NuevaDenunciaComponent {
       },
       error: (err) => {
         this.submitting.set(false);
-        this.submitError.set(err.error?.message || err.message || 'Error al crear el caso');
+        this.submitError.set(err.error?.detail || 'Error al crear el caso');
       },
     });
   }

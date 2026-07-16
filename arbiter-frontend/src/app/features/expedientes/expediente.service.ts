@@ -32,6 +32,12 @@ export class ExpedienteService {
     return this.http.get<ExpedienteResponse>(`${this.baseUrl}/${id}`);
   }
 
+  /** Lista todos los expedientes, más recientes primero. `status` es opcional (filtra por estado). */
+  list(status?: string): Observable<ExpedienteResponse[]> {
+    const params: Record<string, string> = status ? { status } : {};
+    return this.http.get<ExpedienteResponse[]>(this.baseUrl, { params });
+  }
+
   create(request: CaseCreateRequest, documents?: Map<string, File>): Observable<ExpedienteResponse> {
     const formData = new FormData();
     formData.append('case', new Blob([JSON.stringify(request)], { type: 'application/json' }));

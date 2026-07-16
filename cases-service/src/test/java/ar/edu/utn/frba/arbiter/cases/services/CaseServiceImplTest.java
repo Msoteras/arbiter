@@ -159,6 +159,42 @@ class CaseServiceImplTest {
     }
 
     @Test
+    void listCases_noFilter_returnsAllOrderedMostRecentFirst() {
+        Case case2 = caseRecord(2L, CaseStatus.PENDING_ANALYST_REVIEW);
+        Case case1 = caseRecord(1L, CaseStatus.APPROVED);
+        when(caseRepository.findAllByOrderByIdDesc()).thenReturn(List.of(case2, case1));
+
+        List<CaseResponse> response = caseService.listCases(null);
+
+        assertThat(response).hasSize(2);
+        assertThat(response.get(0).id()).isEqualTo(2L);
+        assertThat(response.get(1).id()).isEqualTo(1L);
+        verify(caseRepository, never()).findByStatusOrderByIdDesc(any());
+    }
+
+    @Test
+    void listCases_withStatusFilter_delegatesToFilteredQuery() {
+        Case entity = caseRecord(3L, CaseStatus.PENDING_ANALYST_REVIEW);
+        when(caseRepository.findByStatusOrderByIdDesc(CaseStatus.PENDING_ANALYST_REVIEW))
+                .thenReturn(List.of(entity));
+
+        List<CaseResponse> response = caseService.listCases(CaseStatus.PENDING_ANALYST_REVIEW);
+
+        assertThat(response).hasSize(1);
+        assertThat(response.get(0).status()).isEqualTo(CaseStatus.PENDING_ANALYST_REVIEW);
+        verify(caseRepository, never()).findAllByOrderByIdDesc();
+    }
+
+    @Test
+    void listCases_noResults_returnsEmptyList() {
+        when(caseRepository.findAllByOrderByIdDesc()).thenReturn(List.of());
+
+        List<CaseResponse> response = caseService.listCases(null);
+
+        assertThat(response).isEmpty();
+    }
+
+    @Test
     void getCase_nullConfidence_defaultsToZero() {
         Case entity = caseRecord(1L, CaseStatus.PENDING_CLASSIFICATION);
         entity.setAnalysisConfidence(null);
