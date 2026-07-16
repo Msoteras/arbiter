@@ -13,7 +13,7 @@ import org.springframework.stereotype.Component;
 public class ClaimFrequencyEvaluator implements RiskFactorEvaluator {
 
     /** Prior-claim count at which this factor reaches maximum risk. */
-    static final double MAX_EXPECTED_CLAIMS = 5.0;
+    static final double MAX_EXPECTED_CLAIMS = 3.0;
 
     @Override
     public String factorId() {

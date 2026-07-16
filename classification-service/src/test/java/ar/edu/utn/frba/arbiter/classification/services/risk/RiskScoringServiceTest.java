@@ -123,7 +123,7 @@ class RiskScoringServiceTest {
     void sameClaimUnderTwoInsurerConfigsGivesDifferentScoreAndBand() {
         ClaimReport claim = RiskFixtures.claim(new BigDecimal("360000"));   // ratio 0.9
         InsuredPolicy policy = RiskFixtures.policy(true, new BigDecimal("400000")); // standing 0.0
-        InsuredHistory history = RiskFixtures.history(1);                   // frequency 0.2
+        InsuredHistory history = RiskFixtures.history(1);                   // frequency 1/3
 
         // Insurer A weighs the claimed amount heavily, standard gauge bands.
         ScoringConfig insurerA = ScoringConfig.builder()
@@ -150,12 +150,12 @@ class RiskScoringServiceTest {
         RiskScore scoreA = service.score(RiskFixtures.context(claim, policy, history, insurerA));
         RiskScore scoreB = service.score(RiskFixtures.context(claim, policy, history, insurerB));
 
-        // A: 0.9*0.7 + 0.2*0.2 + 0.0*0.1 = 0.67 -> HIGH
-        assertThat(scoreA.score()).isCloseTo(0.67, within(1e-9));
+        // A: 0.9*0.7 + (1/3)*0.2 + 0.0*0.1 = 0.6967 -> HIGH
+        assertThat(scoreA.score()).isCloseTo(0.63 + 0.2 / 3.0, within(1e-9));
         assertThat(scoreA.band()).isEqualTo(RiskBand.HIGH);
 
-        // B: 0.9*0.2 + 0.2*0.3 + 0.0*0.5 = 0.24 -> MEDIUM (under B's stricter bands)
-        assertThat(scoreB.score()).isCloseTo(0.24, within(1e-9));
+        // B: 0.9*0.2 + (1/3)*0.3 + 0.0*0.5 = 0.28 -> MEDIUM (under B's stricter bands)
+        assertThat(scoreB.score()).isCloseTo(0.18 + 0.3 / 3.0, within(1e-9));
         assertThat(scoreB.band()).isEqualTo(RiskBand.MEDIUM);
 
         assertThat(scoreA.score()).isNotEqualTo(scoreB.score());

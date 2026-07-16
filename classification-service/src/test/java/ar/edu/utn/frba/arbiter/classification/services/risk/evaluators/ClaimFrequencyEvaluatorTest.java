@@ -29,12 +29,12 @@ class ClaimFrequencyEvaluatorTest {
 
     @Test
     void rampsLinearlyBelowSaturation() {
-        assertThat(evaluator.evaluate(contextWith(1)).score()).isCloseTo(0.2, within(1e-9));
+        assertThat(evaluator.evaluate(contextWith(1)).score()).isCloseTo(1.0 / 3.0, within(1e-9));
     }
 
     @Test
     void saturatesAtMaxExpectedClaims() {
-        assertThat(evaluator.evaluate(contextWith(5)).score()).isEqualTo(1.0);
+        assertThat(evaluator.evaluate(contextWith(3)).score()).isEqualTo(1.0);
     }
 
     @Test
