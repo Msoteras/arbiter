@@ -6,6 +6,7 @@ import ar.edu.utn.frba.arbiter.common.enums.Classification;
 import ar.edu.utn.frba.arbiter.common.enums.RiskBand;
 
 import java.math.BigDecimal;
+import java.time.Instant;
 import java.time.LocalDateTime;
 import java.util.List;
 
@@ -33,5 +34,9 @@ public record CaseResponse(
         Double riskScore,
         RiskBand riskBand,
         List<RiskBreakdownItem> riskBreakdown
+        Instant createdAt,
+        Instant updatedAt,
+        /** Full transition trail with timestamps; null on list endpoints (only GET /{id} loads it). */
+        List<StatusTransitionResponse> statusHistory
 ) {
 }

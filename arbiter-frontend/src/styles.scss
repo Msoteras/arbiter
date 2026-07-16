@@ -82,6 +82,15 @@ body {
   gap: 4px;
   background: var(--c-bg-soft);
 }
+.sidebar .nav-section {
+  margin: 10px 12px 2px;
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--c-muted);
+}
+.sidebar .nav-section:first-child { margin-top: 0; }
 .sidebar a {
   display: block;
   padding: 8px 12px;

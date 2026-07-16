@@ -13,6 +13,13 @@ public interface CaseRepository extends JpaRepository<Case, Long> {
 
     List<Case> findByStatus(CaseStatus status);
 
-    /** H0011: filter the analyst's queue by fraud-alert level (indexed by risk_band). */
     List<Case> findByRiskBand(RiskBand riskBand);
+    
+    List<Case> findAllByOrderByIdDesc();
+
+    List<Case> findByStatusOrderByIdDesc(CaseStatus status);
+
+    List<Case> findByInsuredIdOrderByIdDesc(String insuredId);
+
+    List<Case> findByInsuredIdAndStatusOrderByIdDesc(String insuredId, CaseStatus status);
 }

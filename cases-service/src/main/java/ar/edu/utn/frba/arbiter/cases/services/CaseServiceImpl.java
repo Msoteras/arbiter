@@ -3,8 +3,11 @@ package ar.edu.utn.frba.arbiter.cases.services;
 import ar.edu.utn.frba.arbiter.cases.dto.AnalystDecisionRequest;
 import ar.edu.utn.frba.arbiter.cases.dto.CaseRequest;
 import ar.edu.utn.frba.arbiter.cases.dto.CaseResponse;
+import ar.edu.utn.frba.arbiter.cases.dto.StatusTransitionResponse;
 import ar.edu.utn.frba.arbiter.cases.exceptions.CaseNotFoundException;
 import ar.edu.utn.frba.arbiter.cases.exceptions.DocumentReadException;
+import ar.edu.utn.frba.arbiter.cases.exceptions.InvalidAnalystDecisionException;
+import ar.edu.utn.frba.arbiter.cases.exceptions.InvalidStatusTransitionException;
 import ar.edu.utn.frba.arbiter.cases.models.entities.CaseDocument;
 import ar.edu.utn.frba.arbiter.cases.models.entities.Case;
 import ar.edu.utn.frba.arbiter.cases.models.entities.StatusChangeActor;
@@ -16,6 +19,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.io.IOException;
+import java.util.List;
 import java.util.Map;
 
 @Service
@@ -66,6 +70,10 @@ public class CaseServiceImpl implements CaseService {
         entity.setRiskScore(null);
         entity.setRiskBand(null);
         entity.setRiskBreakdown(null);
+        entity.setDeterministicFastTrack(null);
+        // Fresh classification cycle: without this reset, attempts accumulated in previous
+        // cycles would push the case to CLASSIFICATION_FAILED prematurely.
+        entity.setClassificationAttempts(0);
         caseStatusService.transition(entity, CaseStatus.PENDING_CLASSIFICATION,
                 StatusChangeActor.INSURED, "documentación adicional subida");
 
@@ -98,7 +106,25 @@ public class CaseServiceImpl implements CaseService {
     public CaseResponse getCase(Long caseId) {
         Case entity = caseRepository.findById(caseId)
                 .orElseThrow(() -> new CaseNotFoundException(caseId));
-        return toResponse(entity);
+        List<StatusTransitionResponse> history = caseStatusService.history(caseId).stream()
+                .map(StatusTransitionResponse::from)
+                .toList();
+        return toResponse(entity, history);
+    }
+
+    @Override
+    public List<CaseResponse> listCases(CaseStatus status, String insuredId) {
+        List<Case> entities;
+        if (insuredId != null && status != null) {
+            entities = caseRepository.findByInsuredIdAndStatusOrderByIdDesc(insuredId, status);
+        } else if (insuredId != null) {
+            entities = caseRepository.findByInsuredIdOrderByIdDesc(insuredId);
+        } else if (status != null) {
+            entities = caseRepository.findByStatusOrderByIdDesc(status);
+        } else {
+            entities = caseRepository.findAllByOrderByIdDesc();
+        }
+        return entities.stream().map(this::toResponse).toList();
     }
 
     @Override
@@ -106,18 +132,29 @@ public class CaseServiceImpl implements CaseService {
         Case entity = caseRepository.findById(caseId)
                 .orElseThrow(() -> new CaseNotFoundException(caseId));
 
-        claimsAnalysisClient.forwardAnalystDecision(caseId, request);
+        CaseStatus targetStatus = switch (request.decision() == null ? "" : request.decision().trim().toUpperCase()) {
+            case "APPROVE", "APROBAR" -> CaseStatus.APPROVED;
+            case "REJECT", "RECHAZAR" -> CaseStatus.REJECTED;
+            default -> throw new InvalidAnalystDecisionException(request.decision());
+        };
 
-        CaseStatus targetStatus = "REJECT".equalsIgnoreCase(request.decision())
-                || "RECHAZAR".equalsIgnoreCase(request.decision())
-                ? CaseStatus.REJECTED
-                : CaseStatus.APPROVED;
+        // The decision lands in classification-service's immutable audit log; validate the
+        // transition BEFORE forwarding so an unreviewable case never gets a decision recorded.
+        if (entity.getStatus() != CaseStatus.PENDING_ANALYST_REVIEW) {
+            throw new InvalidStatusTransitionException(entity.getStatus(), targetStatus);
+        }
+
+        claimsAnalysisClient.forwardAnalystDecision(caseId, request);
 
         caseStatusService.transition(entity, targetStatus,
                 StatusChangeActor.ANALYST, "decisión del analista: " + request.decision());
     }
 
     private CaseResponse toResponse(Case entity) {
+        return toResponse(entity, null);
+    }
+
+    private CaseResponse toResponse(Case entity, List<StatusTransitionResponse> history) {
         return new CaseResponse(
                 entity.getId(),
                 entity.getStatus(),
@@ -137,6 +174,9 @@ public class CaseServiceImpl implements CaseService {
                 entity.getRiskScore(),
                 entity.getRiskBand(),
                 entity.getRiskBreakdown()
+                entity.getCreatedAt(),
+                entity.getUpdatedAt(),
+                history
         );
     }
 }
