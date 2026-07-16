@@ -33,7 +33,7 @@ public record CaseResponse(
         String analysisDetail,
         Double riskScore,
         RiskBand riskBand,
-        List<RiskBreakdownItem> riskBreakdown
+        List<RiskBreakdownItem> riskBreakdown,
         Instant createdAt,
         Instant updatedAt,
         /** Full transition trail with timestamps; null on list endpoints (only GET /{id} loads it). */

@@ -173,7 +173,7 @@ public class CaseServiceImpl implements CaseService {
                 entity.getAnalysisDetail(),
                 entity.getRiskScore(),
                 entity.getRiskBand(),
-                entity.getRiskBreakdown()
+                entity.getRiskBreakdown(),
                 entity.getCreatedAt(),
                 entity.getUpdatedAt(),
                 history
