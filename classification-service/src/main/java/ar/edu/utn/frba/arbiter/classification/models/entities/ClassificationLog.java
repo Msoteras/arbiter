@@ -1,6 +1,8 @@
 package ar.edu.utn.frba.arbiter.classification.models.entities;
 
+import ar.edu.utn.frba.arbiter.common.dto.RiskBreakdownItem;
 import ar.edu.utn.frba.arbiter.common.enums.Classification;
+import ar.edu.utn.frba.arbiter.common.enums.RiskBand;
 import jakarta.persistence.*;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
@@ -63,6 +65,23 @@ public class ClassificationLog {
 
     @Column(name = "latency_ms")
     private Long latencyMs;
+
+    /**
+     * Authoritative, immutable snapshot of the parallel fraud/risk score at classification time.
+     * All three stay {@code null} when the claim wasn't scored (no scoring config) — that "sin
+     * scorear" state must not be surfaced as a real LOW band downstream.
+     */
+    @Column(name = "risk_score", precision = 4, scale = 3)
+    private BigDecimal riskScore;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "risk_band", length = 20)
+    private RiskBand riskBand;
+
+    /** Full per-factor breakdown as a JSON snapshot (factorId, rawScore, weight, weightedContribution, rationale). */
+    @Convert(converter = RiskBreakdownJsonConverter.class)
+    @Column(name = "risk_breakdown", columnDefinition = "text")
+    private List<RiskBreakdownItem> riskBreakdown;
 
     /** Filled in once the analyst makes their decision (decision endpoint, next step). */
     @Column(name = "analyst_id", length = 80)

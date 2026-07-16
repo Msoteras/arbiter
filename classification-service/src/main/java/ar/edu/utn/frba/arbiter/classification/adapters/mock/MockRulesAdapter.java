@@ -2,6 +2,9 @@ package ar.edu.utn.frba.arbiter.classification.adapters.mock;
 
 import ar.edu.utn.frba.arbiter.classification.adapters.RulesAdapter;
 import ar.edu.utn.frba.arbiter.classification.dto.BusinessRules;
+import ar.edu.utn.frba.arbiter.classification.services.risk.RiskFactorIds;
+import ar.edu.utn.frba.arbiter.common.enums.RiskBand;
+import org.springframework.context.annotation.Profile;
 import org.springframework.stereotype.Component;
 
 import java.util.List;
@@ -9,6 +12,37 @@ import java.util.Map;
 
 @Component
 public class MockRulesAdapter implements RulesAdapter {
+
+    /**
+     * Default fraud-scoring config for the mock, meant as a faithful H0012 reference config.
+     * Only the three factors with real logic are active, reweighted to sum 1 for readability
+     * (amount ratio, claim frequency, policy standing). {@code PURCHASE_TO_REPORT_TIME} and
+     * {@code DOCUMENT_INCONSISTENCY} stay implemented but out of the active set until they have
+     * real logic/data — one returns a fixed 0.0 and the other uses the policy's start date as a
+     * proxy for the purchase date, so activating them would bias the score without adding signal.
+     * Bands use the documented H0012 cuts (Bajo / Medio / Alto / Crítico on a 0..1 scale).
+     * Insurers override this via their own rules; here every mocked branch shares it so the
+     * scoring flow has data to run against.
+     */
+    private static final BusinessRules.ScoringConfig DEFAULT_SCORING_CONFIG = BusinessRules.ScoringConfig.builder()
+            .factors(List.of(
+                    factor(RiskFactorIds.AMOUNT_RATIO, 0.45),
+                    factor(RiskFactorIds.CLAIM_FREQUENCY, 0.35),
+                    factor(RiskFactorIds.POLICY_STANDING, 0.20)))
+            .bands(List.of(
+                    band(RiskBand.LOW, 0.00),
+                    band(RiskBand.MEDIUM, 0.30),
+                    band(RiskBand.HIGH, 0.60),
+                    band(RiskBand.CRITICAL, 0.80)))
+            .build();
+
+    private static BusinessRules.ScoringConfig.FactorWeight factor(String id, double weight) {
+        return BusinessRules.ScoringConfig.FactorWeight.builder().factorId(id).weight(weight).build();
+    }
+
+    private static BusinessRules.ScoringConfig.Band band(RiskBand band, double minScoreInclusive) {
+        return BusinessRules.ScoringConfig.Band.builder().band(band).minScoreInclusive(minScoreInclusive).build();
+    }
 
     private static final Map<String, BusinessRules> RULES_BY_BRANCH = Map.of(
             "Celulares|Robo en vía pública", BusinessRules.builder()
@@ -38,6 +72,7 @@ public class MockRulesAdapter implements RulesAdapter {
                             .requiredDocumentTypes(List.of("police_report"))
                             .build())
                     .requiredDocumentTypes(List.of("police_report"))
+                    .scoringConfig(DEFAULT_SCORING_CONFIG)
                     .build(),
 
             "Celulares|Hurto", BusinessRules.builder()
@@ -63,6 +98,7 @@ public class MockRulesAdapter implements RulesAdapter {
                             .requiredDocumentTypes(List.of("police_report"))
                             .build())
                     .requiredDocumentTypes(List.of("police_report"))
+                    .scoringConfig(DEFAULT_SCORING_CONFIG)
                     .build(),
 
             "Celulares|Rotura accidental", BusinessRules.builder()
@@ -88,6 +124,7 @@ public class MockRulesAdapter implements RulesAdapter {
                             .requiresUpToDatePolicy(true)
                             .build())
                     .requiredDocumentTypes(List.of("item_photo", "quote"))
+                    .scoringConfig(DEFAULT_SCORING_CONFIG)
                     .build()
     );
 
@@ -107,6 +144,7 @@ public class MockRulesAdapter implements RulesAdapter {
                 ))
                 .exclusions(List.of())
                 .fastTrackCriteria(List.of())
+                .scoringConfig(DEFAULT_SCORING_CONFIG)
                 .build();
     }
 }

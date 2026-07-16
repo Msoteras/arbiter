@@ -288,6 +288,117 @@
       "response": []
     },
     {
+      "name": "🎯 (H0012) Score de riesgo en el Case (read model / CaseResponse)",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "// Verifica que el score de riesgo (señal paralela, downstream de la clasificación)",
+              "// viaja por el poll existente y se expone en el CaseResponse. Usa el caso Fast Track,",
+              "// que resuelve al instante y también se puntúa.",
+              "const body = pm.response.json();",
+              "pm.test('200 OK', () => pm.response.to.have.status(200));",
+              "",
+              "if (!body.analysisClassification) {",
+              "    pm.test('Clasificacion resuelta (si falla, reintenta este GET: el scheduler pollea cada 5s)',",
+              "        () => pm.expect(body.analysisClassification, 'analysisClassification').to.not.be.null);",
+              "    return;",
+              "}",
+              "",
+              "const BANDS = ['LOW', 'MEDIUM', 'HIGH', 'CRITICAL'];",
+              "",
+              "pm.test('H0012 — el CaseResponse expone riskScore, riskBand y riskBreakdown', () => {",
+              "    pm.expect(body).to.have.property('riskScore');",
+              "    pm.expect(body).to.have.property('riskBand');",
+              "    pm.expect(body).to.have.property('riskBreakdown');",
+              "});",
+              "",
+              "if (body.riskBand === null) {",
+              "    // 'sin scorear': sin ScoringConfig el motor da 0.0/LOW, pero el read model lo muestra",
+              "    // como null (nunca un LOW real). Con el mock actual todo ramo tiene config, asi que",
+              "    // esta rama normalmente no se da; queda documentada.",
+              "    pm.test('Sin scorear => riskScore y riskBreakdown tambien null (nunca LOW)', () => {",
+              "        pm.expect(body.riskScore, 'riskScore').to.be.null;",
+              "        pm.expect(body.riskBreakdown, 'riskBreakdown').to.be.null;",
+              "    });",
+              "} else {",
+              "    pm.test('Banda valida y score en [0,1]', () => {",
+              "        pm.expect(BANDS).to.include(body.riskBand);",
+              "        pm.expect(body.riskScore).to.be.a('number').within(0, 1);",
+              "    });",
+              "    pm.test('Breakdown por factor bien formado (rawScore*weight = weightedContribution)', () => {",
+              "        pm.expect(body.riskBreakdown).to.be.an('array').that.is.not.empty;",
+              "        body.riskBreakdown.forEach(f => {",
+              "            ['factorId', 'rawScore', 'weight', 'weightedContribution', 'rationale']",
+              "                .forEach(k => pm.expect(f, 'factor.' + k).to.have.property(k));",
+              "            pm.expect(f.weightedContribution, f.factorId).to.be.closeTo(f.rawScore * f.weight, 1e-6);",
+              "        });",
+              "    });",
+              "    pm.test('Score = suma ponderada normalizada por el peso total', () => {",
+              "        const wSum = body.riskBreakdown.reduce((a, f) => a + f.weightedContribution, 0);",
+              "        const totalW = body.riskBreakdown.reduce((a, f) => a + f.weight, 0);",
+              "        pm.expect(body.riskScore).to.be.closeTo(wSum / totalW, 1e-6);",
+              "    });",
+              "}"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {"raw": "{{casesBaseUrl}}/api/v1/cases/{{caseId_fastTrack}}", "host": ["{{casesBaseUrl}}"], "path": ["api", "v1", "cases", "{{caseId_fastTrack}}"]}
+      },
+      "response": []
+    },
+    {
+      "name": "🎯 (H0012) Snapshot autoritativo del score (classification-service / ClaimResponse)",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "// El CaseResponse cachea el score; la fuente de verdad e inmutable es el ClassificationLog,",
+              "// expuesto por classification-service en GET /api/v1/claims/{caseId}. Ambos deben coincidir.",
+              "const body = pm.response.json();",
+              "pm.test('200 OK', () => pm.response.to.have.status(200));",
+              "",
+              "if (!body.classification) {",
+              "    pm.test('Clasificacion disponible (si falla, reintenta este GET)',",
+              "        () => pm.expect(body.classification, 'classification').to.not.be.null);",
+              "    return;",
+              "}",
+              "",
+              "const BANDS = ['LOW', 'MEDIUM', 'HIGH', 'CRITICAL'];",
+              "",
+              "pm.test('El snapshot autoritativo (ClaimResponse) trae riskScore, riskBand y riskBreakdown', () => {",
+              "    pm.expect(body).to.have.property('riskScore');",
+              "    pm.expect(body).to.have.property('riskBand');",
+              "    pm.expect(body).to.have.property('riskBreakdown');",
+              "});",
+              "",
+              "if (body.riskBand !== null) {",
+              "    pm.test('Banda valida, score en [0,1] y consistente con el breakdown', () => {",
+              "        pm.expect(BANDS).to.include(body.riskBand);",
+              "        pm.expect(body.riskScore).to.be.within(0, 1);",
+              "        const wSum = body.riskBreakdown.reduce((a, f) => a + f.weightedContribution, 0);",
+              "        const totalW = body.riskBreakdown.reduce((a, f) => a + f.weight, 0);",
+              "        pm.expect(body.riskScore).to.be.closeTo(wSum / totalW, 1e-6);",
+              "    });",
+              "}"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {"raw": "{{classificationBaseUrl}}/api/v1/claims/{{caseId_fastTrack}}", "host": ["{{classificationBaseUrl}}"], "path": ["api", "v1", "claims", "{{caseId_fastTrack}}"]}
+      },
+      "response": []
+    },
+    {
       "name": "📋 (debug) Get full results table directly from classification-service",
       "request": {
         "method": "GET",

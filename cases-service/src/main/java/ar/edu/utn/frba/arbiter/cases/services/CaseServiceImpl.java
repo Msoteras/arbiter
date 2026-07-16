@@ -65,6 +65,11 @@ public class CaseServiceImpl implements CaseService {
         entity.setAnalysisClassification(null);
         entity.setAnalysisConfidence(null);
         entity.setAnalysisDetail(null);
+        // Clear the cached risk too so the recalculation window reads as "sin scorear"/recalculando,
+        // never a stale band. It's re-populated by the classification poll once the new score lands.
+        entity.setRiskScore(null);
+        entity.setRiskBand(null);
+        entity.setRiskBreakdown(null);
         entity.setDeterministicFastTrack(null);
         // Fresh classification cycle: without this reset, attempts accumulated in previous
         // cycles would push the case to CLASSIFICATION_FAILED prematurely.
@@ -166,6 +171,9 @@ public class CaseServiceImpl implements CaseService {
                 entity.getAnalysisClassification(),
                 entity.getAnalysisConfidence() != null ? entity.getAnalysisConfidence() : 0.0,
                 entity.getAnalysisDetail(),
+                entity.getRiskScore(),
+                entity.getRiskBand(),
+                entity.getRiskBreakdown()
                 entity.getCreatedAt(),
                 entity.getUpdatedAt(),
                 history

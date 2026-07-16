@@ -94,4 +94,25 @@ public class ClaimClassificationService {
             throw new RuntimeException("Classification failed for case " + caseId + " after retries", e);
         }
     }
+
+    /**
+     * Recomputes classification + risk for a case and persists a fresh authoritative snapshot in
+     * classification_log. Both ends stay in sync without a new cross-service channel: the snapshot
+     * is the source of truth and the Case's cached copy refreshes from it via the existing poll
+     * (GET /api/v1/claims/{caseId}).
+     *
+     * <p>Enganche: cases-service's {@code addDocumentsAndReclassify} ("documentación agregada al
+     * expediente") already re-triggers this exact flow by re-POSTing to /api/v1/claims and clears
+     * the case's cached analysis+risk fields, so the recalculation window reads as "sin scorear"
+     * rather than a stale band. There is no dedicated score-only recompute event today; if one is
+     * added, subscribe it to this method. Scoring itself lives in {@code RiskScoringService} and is
+     * invoked once per classification by the orchestrator — this method does not re-implement it.
+     *
+     * <p>Requires the {@link ClaimReport} because this module doesn't persist the claim inputs
+     * (cases-service owns them); the caller that triggers a recalculation already has them.
+     */
+    public void recalculate(Long caseId, ClaimReport claim, List<AttachmentDocument> documents) {
+        log.info("[ClaimClassificationService] ↻ Recalculating classification + risk for caseId={}", caseId);
+        processClaimClassification(caseId, claim, documents);
+    }
 }
