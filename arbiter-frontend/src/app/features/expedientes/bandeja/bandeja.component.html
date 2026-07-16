@@ -1,0 +1,44 @@
+<div class="bandeja">
+  <h1 class="title">Bandeja de expedientes</h1>
+
+  @if (loading()) {
+    <div class="card skeleton">Cargando expedientes…</div>
+  } @else if (hasError()) {
+    <div class="card">
+      <p class="muted">
+        No se pudo cargar el listado. Verificá que <span class="mono">cases-service</span>
+        esté corriendo en el puerto 8083.
+      </p>
+    </div>
+  } @else if (isEmpty()) {
+    <div class="card">
+      <p class="muted">Todavía no hay expedientes cargados.</p>
+    </div>
+  } @else {
+    <ul class="case-list">
+      @for (c of cases(); track c.id) {
+        <li class="case-card">
+          <a class="case-card-link" [routerLink]="['/expedientes', c.id]">
+            <div class="case-card-head">
+              <span class="exp-id">#{{ c.id }}</span>
+              <span class="badge estado">{{ estadoLabel(c.status) }}</span>
+            </div>
+
+            <dl class="fields">
+              @for (f of fields(c); track f.label) {
+                <div class="field" [class.full]="f.full">
+                  <dt>{{ f.label }}</dt>
+                  @if (f.value) {
+                    <dd [class.mono]="f.mono">{{ f.value }}</dd>
+                  } @else {
+                    <dd class="nodata">Sin datos</dd>
+                  }
+                </div>
+              }
+            </dl>
+          </a>
+        </li>
+      }
+    </ul>
+  }
+</div>

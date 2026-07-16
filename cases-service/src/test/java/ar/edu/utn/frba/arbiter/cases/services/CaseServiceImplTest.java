@@ -1,10 +1,14 @@
 package ar.edu.utn.frba.arbiter.cases.services;
 
+import ar.edu.utn.frba.arbiter.cases.dto.AnalystDecisionRequest;
 import ar.edu.utn.frba.arbiter.cases.dto.CaseRequest;
 import ar.edu.utn.frba.arbiter.cases.dto.CaseResponse;
 import ar.edu.utn.frba.arbiter.cases.exceptions.CaseNotFoundException;
+import ar.edu.utn.frba.arbiter.cases.exceptions.InvalidAnalystDecisionException;
+import ar.edu.utn.frba.arbiter.cases.exceptions.InvalidStatusTransitionException;
 import ar.edu.utn.frba.arbiter.cases.models.entities.CaseDocument;
 import ar.edu.utn.frba.arbiter.cases.models.entities.Case;
+import ar.edu.utn.frba.arbiter.cases.models.entities.CaseStatusHistory;
 import ar.edu.utn.frba.arbiter.cases.models.entities.StatusChangeActor;
 import ar.edu.utn.frba.arbiter.cases.models.repositories.CaseDocumentRepository;
 import ar.edu.utn.frba.arbiter.cases.models.repositories.CaseRepository;
@@ -156,6 +160,143 @@ class CaseServiceImplTest {
 
         assertThatThrownBy(() -> caseService.addDocumentsAndReclassify(999L, Map.of()))
                 .isInstanceOf(CaseNotFoundException.class);
+    }
+
+    @Test
+    void listCases_noFilter_returnsAllOrderedMostRecentFirst() {
+        Case case2 = caseRecord(2L, CaseStatus.PENDING_ANALYST_REVIEW);
+        Case case1 = caseRecord(1L, CaseStatus.APPROVED);
+        when(caseRepository.findAllByOrderByIdDesc()).thenReturn(List.of(case2, case1));
+
+        List<CaseResponse> response = caseService.listCases(null, null);
+
+        assertThat(response).hasSize(2);
+        assertThat(response.get(0).id()).isEqualTo(2L);
+        assertThat(response.get(1).id()).isEqualTo(1L);
+        verify(caseRepository, never()).findByStatusOrderByIdDesc(any());
+    }
+
+    @Test
+    void listCases_withStatusFilter_delegatesToFilteredQuery() {
+        Case entity = caseRecord(3L, CaseStatus.PENDING_ANALYST_REVIEW);
+        when(caseRepository.findByStatusOrderByIdDesc(CaseStatus.PENDING_ANALYST_REVIEW))
+                .thenReturn(List.of(entity));
+
+        List<CaseResponse> response = caseService.listCases(CaseStatus.PENDING_ANALYST_REVIEW, null);
+
+        assertThat(response).hasSize(1);
+        assertThat(response.get(0).status()).isEqualTo(CaseStatus.PENDING_ANALYST_REVIEW);
+        verify(caseRepository, never()).findAllByOrderByIdDesc();
+    }
+
+    @Test
+    void listCases_withInsuredIdFilter_returnsOnlyThatInsuredsCases() {
+        Case entity = caseRecord(4L, CaseStatus.PENDING_CLASSIFICATION);
+        when(caseRepository.findByInsuredIdOrderByIdDesc("40.123.456")).thenReturn(List.of(entity));
+
+        List<CaseResponse> response = caseService.listCases(null, "40.123.456");
+
+        assertThat(response).hasSize(1);
+        assertThat(response.get(0).insuredId()).isEqualTo("40.123.456");
+        verify(caseRepository, never()).findAllByOrderByIdDesc();
+    }
+
+    @Test
+    void listCases_withBothFilters_combinesThem() {
+        Case entity = caseRecord(5L, CaseStatus.APPROVED);
+        when(caseRepository.findByInsuredIdAndStatusOrderByIdDesc("40.123.456", CaseStatus.APPROVED))
+                .thenReturn(List.of(entity));
+
+        List<CaseResponse> response = caseService.listCases(CaseStatus.APPROVED, "40.123.456");
+
+        assertThat(response).hasSize(1);
+        verify(caseRepository, never()).findByInsuredIdOrderByIdDesc(any());
+        verify(caseRepository, never()).findByStatusOrderByIdDesc(any());
+    }
+
+    @Test
+    void listCases_noResults_returnsEmptyList() {
+        when(caseRepository.findAllByOrderByIdDesc()).thenReturn(List.of());
+
+        List<CaseResponse> response = caseService.listCases(null, null);
+
+        assertThat(response).isEmpty();
+    }
+
+    @Test
+    void getCase_includesStatusHistoryWithTimestamps() {
+        Case entity = caseRecord(1L, CaseStatus.PENDING_ANALYST_REVIEW);
+        when(caseRepository.findById(1L)).thenReturn(Optional.of(entity));
+        when(caseStatusService.history(1L)).thenReturn(List.of(
+                CaseStatusHistory.builder()
+                        .caseId(1L).fromStatus(null).toStatus(CaseStatus.PENDING_CLASSIFICATION)
+                        .actor(StatusChangeActor.INSURED).reason("denuncia registrada").build(),
+                CaseStatusHistory.builder()
+                        .caseId(1L).fromStatus(CaseStatus.PENDING_CLASSIFICATION)
+                        .toStatus(CaseStatus.PENDING_ANALYST_REVIEW)
+                        .actor(StatusChangeActor.SYSTEM).reason("clasificación: LLM_RECOMIENDA_APROBAR").build()
+        ));
+
+        CaseResponse response = caseService.getCase(1L);
+
+        assertThat(response.statusHistory()).hasSize(2);
+        assertThat(response.statusHistory().get(0).fromStatus()).isNull();
+        assertThat(response.statusHistory().get(0).toStatus()).isEqualTo(CaseStatus.PENDING_CLASSIFICATION);
+        assertThat(response.statusHistory().get(1).actor()).isEqualTo(StatusChangeActor.SYSTEM);
+    }
+
+    @Test
+    void recordAnalystDecision_approve_transitionsToApproved() {
+        Case entity = caseRecord(1L, CaseStatus.PENDING_ANALYST_REVIEW);
+        when(caseRepository.findById(1L)).thenReturn(Optional.of(entity));
+        AnalystDecisionRequest request = new AnalystDecisionRequest("analyst-1", "APPROVE");
+
+        caseService.recordAnalystDecision(1L, request);
+
+        verify(claimsAnalysisClient).forwardAnalystDecision(1L, request);
+        verify(caseStatusService).transition(eq(entity), eq(CaseStatus.APPROVED),
+                eq(StatusChangeActor.ANALYST), any());
+    }
+
+    @Test
+    void recordAnalystDecision_unknownDecision_throwsAndDoesNotForward() {
+        Case entity = caseRecord(1L, CaseStatus.PENDING_ANALYST_REVIEW);
+        when(caseRepository.findById(1L)).thenReturn(Optional.of(entity));
+
+        assertThatThrownBy(() -> caseService.recordAnalystDecision(1L,
+                new AnalystDecisionRequest("analyst-1", "DERIVAR")))
+                .isInstanceOf(InvalidAnalystDecisionException.class);
+
+        verify(claimsAnalysisClient, never()).forwardAnalystDecision(any(), any());
+        verify(caseStatusService, never()).transition(any(), any(), any(), any());
+    }
+
+    @Test
+    void recordAnalystDecision_caseNotUnderReview_throwsBeforeForwarding() {
+        Case entity = caseRecord(1L, CaseStatus.PENDING_CLASSIFICATION);
+        when(caseRepository.findById(1L)).thenReturn(Optional.of(entity));
+
+        assertThatThrownBy(() -> caseService.recordAnalystDecision(1L,
+                new AnalystDecisionRequest("analyst-1", "APPROVE")))
+                .isInstanceOf(InvalidStatusTransitionException.class);
+
+        verify(claimsAnalysisClient, never()).forwardAnalystDecision(any(), any());
+    }
+
+    @Test
+    void addDocumentsAndReclassify_resetsClassificationAttempts() {
+        Case entity = caseRecord(1L, CaseStatus.AWAITING_DOCUMENTATION);
+        entity.setClassificationAttempts(115);
+        entity.setDeterministicFastTrack(Boolean.FALSE);
+        when(caseRepository.findById(1L)).thenReturn(Optional.of(entity));
+        when(caseDocumentRepository.findByCaseId(1L)).thenReturn(List.of());
+        when(claimsAnalysisClient.analyzeAndPersist(any(), any()))
+                .thenReturn(new AnalysisResult(null, 0.0, "in progress"));
+
+        caseService.addDocumentsAndReclassify(1L, Map.of());
+
+        assertThat(entity.getClassificationAttempts()).isZero();
+        assertThat(entity.getDeterministicFastTrack()).isNull();
     }
 
     @Test

@@ -11,4 +11,12 @@ import java.util.List;
 public interface CaseRepository extends JpaRepository<Case, Long> {
 
     List<Case> findByStatus(CaseStatus status);
+
+    List<Case> findAllByOrderByIdDesc();
+
+    List<Case> findByStatusOrderByIdDesc(CaseStatus status);
+
+    List<Case> findByInsuredIdOrderByIdDesc(String insuredId);
+
+    List<Case> findByInsuredIdAndStatusOrderByIdDesc(String insuredId, CaseStatus status);
 }

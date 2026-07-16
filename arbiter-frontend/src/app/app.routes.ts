@@ -2,6 +2,8 @@ import { Routes } from '@angular/router';
 
 export const routes: Routes = [
   { path: '', redirectTo: 'bandeja', pathMatch: 'full' },
+
+  // ----- Portal del analista -----
   {
     path: 'bandeja',
     loadComponent: () =>
@@ -14,6 +16,22 @@ export const routes: Routes = [
         (m) => m.ExpedienteDetailComponent,
       ),
   },
+
+  // ----- Portal del asegurado -----
+  {
+    path: 'portal',
+    loadComponent: () =>
+      import('./features/portal/mis-expedientes/mis-expedientes.component').then(
+        (m) => m.MisExpedientesComponent,
+      ),
+  },
+  {
+    path: 'portal/expedientes/:id',
+    loadComponent: () =>
+      import('./features/portal/seguimiento/seguimiento.component').then(
+        (m) => m.SeguimientoComponent,
+      ),
+  },
   {
     path: 'nueva-denuncia',
     loadComponent: () =>
@@ -21,5 +39,6 @@ export const routes: Routes = [
         (m) => m.NuevaDenunciaComponent,
       ),
   },
+
   { path: '**', redirectTo: '' },
 ];

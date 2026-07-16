@@ -4,7 +4,7 @@
 
     <div class="identity">
       <h1 class="exp-id">Expediente #{{ d.id }}</h1>
-      <span class="badge tecnico">{{ d.status }}</span>
+      <span class="badge tecnico">{{ statusLabel() }}</span>
       <span class="badge simplificado">Sin datos</span>
     </div>
     <p class="subtitle nodata">Sin datos</p>
@@ -23,14 +23,22 @@
 
       <section class="rcard">
         <div class="rcard-head">Decisión del analista</div>
-        @if (decision()) {
-          <p class="registered">✓ Registrado: {{ decisionLabel() }}</p>
-        } @else {
-          <div class="decision-btns">
-            <button class="btn-sec" [disabled]="decisionSaving()" (click)="askDecision('derivar')">Derivar</button>
-            <button class="btn-sec" [disabled]="decisionSaving()" (click)="askDecision('rechazar')">Rechazar</button>
-            <button class="btn-sec" [disabled]="decisionSaving()" (click)="askDecision('aprobar')">Aprobar</button>
-          </div>
+        @switch (decisionState()) {
+          @case ('approved') {
+            <p class="registered">✓ Registrado: Aprobado</p>
+          }
+          @case ('rejected') {
+            <p class="registered">✓ Registrado: Rechazado</p>
+          }
+          @case ('pending') {
+            <div class="decision-btns">
+              <button class="btn-sec" [disabled]="decisionSaving()" (click)="askDecision('rechazar')">Rechazar</button>
+              <button class="btn-sec" [disabled]="decisionSaving()" (click)="askDecision('aprobar')">Aprobar</button>
+            </div>
+          }
+          @default {
+            <p class="nodata">Sin clasificación disponible todavía</p>
+          }
         }
         @if (decisionSaving()) {
           <p class="rcard-note">Guardando decisión…</p>
@@ -110,36 +118,7 @@
           <div class="card-head">
             <span class="card-title">⚠ Falta documentación</span>
           </div>
-          <p class="muted">La clasificación indica que faltan documentos requeridos. Subí la documentación faltante para re-evaluar el caso.</p>
-
-          @for (slot of docUploadSlots(); track slot.type; let i = $index) {
-            <div class="doc-row">
-              <span class="doc-row-label">{{ slot.label }}</span>
-              @if (slot.file) {
-                <div class="doc-row-file">
-                  <span class="doc-row-filename">{{ slot.file.name }}</span>
-                  <button type="button" class="doc-row-remove" (click)="removeDocFile(i)">✕</button>
-                </div>
-              } @else {
-                <label class="doc-row-upload">
-                  Elegir archivo
-                  <input type="file" accept="image/*,.pdf" (change)="onDocFileChange(i, $event)" hidden />
-                </label>
-              }
-            </div>
-          }
-
-          @if (uploadError()) {
-            <p class="upload-error">{{ uploadError() }}</p>
-          }
-
-          <button
-            class="btn-pri"
-            [disabled]="uploadedCount() === 0 || uploadingDocs()"
-            (click)="submitDocs()"
-            style="margin-top: 12px;">
-            {{ uploadingDocs() ? 'Enviando...' : 'Enviar documentación' }}
-          </button>
+          <app-doc-upload [caseId]="d.id" (uploaded)="onDocsUploaded()" />
         </section>
         }
       }
@@ -148,7 +127,16 @@
       @case ('imagenes') { <app-empty-state message="Análisis forense de imágenes" /> }
       @case ('documentacion') { <app-empty-state message="Agenda documental del hecho generador" /> }
       @case ('conversacion') { <app-empty-state message="Conversación con el asegurado" /> }
-      @case ('historial') { <app-empty-state message="Historial / auditoría del expediente" /> }
+      @case ('historial') {
+        @if (history().length > 0) {
+          <section class="card">
+            <div class="card-head"><span class="card-title">Historial de estados</span></div>
+            <app-status-timeline [history]="history()" [currentStatus]="d.status" />
+          </section>
+        } @else {
+          <app-empty-state message="Historial / auditoría del expediente" />
+        }
+      }
     }
   </main>
 } @else if (loading()) {

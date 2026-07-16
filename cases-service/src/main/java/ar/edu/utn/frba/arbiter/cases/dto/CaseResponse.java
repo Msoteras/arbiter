@@ -4,7 +4,9 @@ import ar.edu.utn.frba.arbiter.common.enums.CaseStatus;
 import ar.edu.utn.frba.arbiter.common.enums.Classification;
 
 import java.math.BigDecimal;
+import java.time.Instant;
 import java.time.LocalDateTime;
+import java.util.List;
 
 public record CaseResponse(
         Long id,
@@ -21,6 +23,10 @@ public record CaseResponse(
         BigDecimal claimedAmount,
         Classification analysisClassification,
         double analysisConfidence,
-        String analysisDetail
+        String analysisDetail,
+        Instant createdAt,
+        Instant updatedAt,
+        /** Full transition trail with timestamps; null on list endpoints (only GET /{id} loads it). */
+        List<StatusTransitionResponse> statusHistory
 ) {
 }
