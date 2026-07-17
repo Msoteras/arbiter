@@ -1,55 +1,69 @@
-import { ChangeDetectionStrategy, Component, inject } from '@angular/core';
-import { Router, RouterLink } from '@angular/router';
-import { EmptyStateComponent } from '../../../shared/ui/empty-state/empty-state.component';
+import { ChangeDetectionStrategy, Component, computed, inject } from '@angular/core';
+import { toSignal } from '@angular/core/rxjs-interop';
+import { RouterLink } from '@angular/router';
+import { catchError, map, of, startWith } from 'rxjs';
+
+import { ExpedienteService } from '../expediente.service';
+import { ExpedienteResponse } from '../../../core/models/expediente';
+import { clasificacionLabel } from '../../../core/models/clasificacion';
+import { estadoLabel } from '../../../core/models/estado';
+
+interface FieldItem { label: string; value: string | null; mono?: boolean; full?: boolean; }
+
+type LoadState =
+  | { status: 'loading' }
+  | { status: 'ok'; data: ExpedienteResponse[] }
+  | { status: 'error' };
 
 @Component({
   selector: 'app-bandeja',
-  imports: [RouterLink, EmptyStateComponent],
+  imports: [RouterLink],
   changeDetection: ChangeDetectionStrategy.OnPush,
-  template: `
-    <div class="bandeja">
-      <h1 class="title">Bandeja de expedientes</h1>
-      <p class="muted">
-        El backend todavía no expone un listado (solo
-        <span class="mono">GET /api/v1/expedientes/&#123;id&#125;</span>). Abrí un expediente por id:
-      </p>
-
-      <div class="navrow">
-        <input #idInput class="id-input" type="number" min="1" placeholder="N° de expediente" />
-        <button class="btn" (click)="open(idInput.value)">Abrir</button>
-      </div>
-
-      <p class="muted demo">
-        Atajos de demo:
-        @for (id of demoIds; track id) {
-          <a class="chip" [routerLink]="['/expedientes', id]">#{{ id }}</a>
-        }
-      </p>
-
-      <app-empty-state message="Listado de expedientes" />
-    </div>
-  `,
-  styles: `
-    .bandeja { padding: 22px 24px 40px; max-width: 760px; }
-    .title { margin: 0 0 8px; font-size: 22px; font-weight: 600; }
-    .muted { color: var(--c-muted); font-size: 13px; }
-    .navrow { display: flex; gap: 8px; margin: 14px 0; }
-    .id-input { padding: 7px 10px; border: 1px solid var(--c-border-3); border-radius: var(--radius-ctl); font: inherit; width: 180px; }
-    .btn { padding: 7px 16px; border: 1px solid var(--c-ink); background: var(--c-ink); color: #fff; border-radius: var(--radius-ctl); cursor: pointer; font: inherit; }
-    .btn:hover { background: #000; }
-    .demo { margin-bottom: 16px; }
-    .chip { display: inline-block; margin-left: 6px; padding: 2px 9px; border: 1px solid var(--c-border-3); border-radius: var(--radius-pill); text-decoration: none; color: var(--c-ink-2); font-family: var(--font-mono); font-size: 12px; }
-    .chip:hover { border-color: var(--c-ink); }
-  `,
+  templateUrl: './bandeja.component.html',
+  styleUrl: './bandeja.component.scss',
 })
 export class BandejaComponent {
-  private readonly router = inject(Router);
-  protected readonly demoIds = [1, 2, 3, 4];
+  private readonly service = inject(ExpedienteService);
 
-  open(value: string): void {
-    const id = Number(value);
-    if (id > 0) {
-      this.router.navigate(['/expedientes', id]);
-    }
+  private readonly state = toSignal(
+    this.service.list().pipe(
+      map((data): LoadState => ({ status: 'ok', data })),
+      startWith<LoadState>({ status: 'loading' }),
+      catchError(() => of<LoadState>({ status: 'error' })),
+    ),
+    { initialValue: { status: 'loading' } as LoadState },
+  );
+
+  protected readonly loading = computed(() => this.state().status === 'loading');
+  protected readonly hasError = computed(() => this.state().status === 'error');
+
+  protected readonly cases = computed<ExpedienteResponse[]>(() => {
+    const s = this.state();
+    return s.status === 'ok' ? s.data : [];
+  });
+
+  protected readonly isEmpty = computed(() => this.state().status === 'ok' && this.cases().length === 0);
+
+  protected estadoLabel(status: string): string {
+    return estadoLabel(status);
+  }
+
+  /** Todos los campos que devuelve GET /api/v1/cases para un expediente, sin recortar. */
+  protected fields(c: ExpedienteResponse): FieldItem[] {
+    return [
+      { label: 'Rama', value: c.branch },
+      { label: 'Producto', value: c.product },
+      { label: 'Causa', value: c.claimCause },
+      { label: 'Bien asegurado', value: c.insuredItem },
+      { label: 'Asegurado', value: c.insuredId, mono: true },
+      { label: 'N° de póliza', value: c.policyNumber, mono: true },
+      { label: 'Fecha del hecho', value: new Date(c.eventDate).toLocaleDateString('es-AR') },
+      { label: 'Ubicación', value: c.eventLocation },
+      { label: 'Importe reclamado', value: c.claimedAmount != null ? `$${c.claimedAmount.toLocaleString()}` : null },
+      { label: 'Clasificación', value: c.analysisClassification ? clasificacionLabel(c.analysisClassification) : null },
+      { label: 'Confianza del modelo', value: c.analysisConfidence != null ? `${Math.round(c.analysisConfidence * 100)}%` : null },
+      { label: 'Detalle de la clasificación', value: c.analysisDetail, full: true },
+      { label: 'Descripción', value: c.description, full: true },
+    ];
   }
 }

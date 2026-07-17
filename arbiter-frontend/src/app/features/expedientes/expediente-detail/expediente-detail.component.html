@@ -3,8 +3,8 @@
     <a class="breadcrumb" routerLink="/bandeja">‹ Bandeja</a>
 
     <div class="identity">
-      <h1 class="exp-id">Expediente #{{ d.expedienteId }}</h1>
-      <span class="badge tecnico">{{ d.status }}</span>
+      <h1 class="exp-id">Expediente #{{ d.id }}</h1>
+      <span class="badge tecnico">{{ statusLabel() }}</span>
       <span class="badge simplificado">Sin datos</span>
     </div>
     <p class="subtitle nodata">Sin datos</p>
@@ -23,15 +23,28 @@
 
       <section class="rcard">
         <div class="rcard-head">Decisión del analista</div>
-        @if (decision()) {
-          <p class="registered">✓ Registrado: {{ decisionLabel() }}</p>
-          <p class="rcard-note">Local, no persiste — falta <span class="mono">POST /decision</span>.</p>
-        } @else {
-          <div class="decision-btns">
-            <button class="btn-sec" (click)="askDecision('derivar')">Derivar</button>
-            <button class="btn-sec" (click)="askDecision('rechazar')">Rechazar</button>
-            <button class="btn-sec" (click)="askDecision('aprobar')">Aprobar</button>
-          </div>
+        @switch (decisionState()) {
+          @case ('approved') {
+            <p class="registered">✓ Registrado: Aprobado</p>
+          }
+          @case ('rejected') {
+            <p class="registered">✓ Registrado: Rechazado</p>
+          }
+          @case ('pending') {
+            <div class="decision-btns">
+              <button class="btn-sec" [disabled]="decisionSaving()" (click)="askDecision('rechazar')">Rechazar</button>
+              <button class="btn-sec" [disabled]="decisionSaving()" (click)="askDecision('aprobar')">Aprobar</button>
+            </div>
+          }
+          @default {
+            <p class="nodata">Sin clasificación disponible todavía</p>
+          }
+        }
+        @if (decisionSaving()) {
+          <p class="rcard-note">Guardando decisión…</p>
+        }
+        @if (decisionError()) {
+          <p class="rcard-note error">{{ decisionError() }}</p>
         }
       </section>
     </div>
@@ -82,7 +95,7 @@
             <section class="card ai-card">
               <div class="card-head">
                 <span class="sparkles" aria-hidden="true">✦</span>
-                <span class="card-title">Clasificación sugerida</span>
+                <span class="card-title">Recomendación del modelo</span>
               </div>
               <p class="classification">{{ classificationLabel() }}</p>
               <p class="note">Confianza del modelo: {{ confidencePercent() }}%</p>
@@ -98,13 +111,32 @@
             </section>
           </div>
         </div>
+
+        <!-- Documentación faltante -->
+        @if (needsDocs()) {
+        <section class="card missing-docs-card">
+          <div class="card-head">
+            <span class="card-title">⚠ Falta documentación</span>
+          </div>
+          <app-doc-upload [caseId]="d.id" (uploaded)="onDocsUploaded()" />
+        </section>
+        }
       }
 
       @case ('datos') { <app-empty-state message="Datos extraídos por IA + coincidencia con la póliza" /> }
       @case ('imagenes') { <app-empty-state message="Análisis forense de imágenes" /> }
       @case ('documentacion') { <app-empty-state message="Agenda documental del hecho generador" /> }
       @case ('conversacion') { <app-empty-state message="Conversación con el asegurado" /> }
-      @case ('historial') { <app-empty-state message="Historial / auditoría del expediente" /> }
+      @case ('historial') {
+        @if (history().length > 0) {
+          <section class="card">
+            <div class="card-head"><span class="card-title">Historial de estados</span></div>
+            <app-status-timeline [history]="history()" [currentStatus]="d.status" />
+          </section>
+        } @else {
+          <app-empty-state message="Historial / auditoría del expediente" />
+        }
+      }
     }
   </main>
 } @else if (loading()) {
@@ -114,10 +146,10 @@
     <div class="card">
       <p class="muted">
         @if (notFound()) {
-          No se encontró el expediente. El almacenamiento es en memoria: creá uno con
-          <span class="mono">POST /api/v1/expedientes</span> antes de consultarlo.
+          No se encontró el caso. Creá uno con
+          <span class="mono">POST /api/v1/cases</span> antes de consultarlo.
         } @else {
-          No se pudo cargar el expediente. Verificá que <span class="mono">expedientes-service</span>
+          No se pudo cargar el caso. Verificá que <span class="mono">cases-service</span>
           esté corriendo en el puerto 8083.
         }
       </p>

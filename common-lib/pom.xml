@@ -13,5 +13,10 @@
     <packaging>jar</packaging>
 
     <dependencies>
+        <!-- Bean Validation annotations used by shared request DTOs (e.g. ClaimReport). -->
+        <dependency>
+            <groupId>jakarta.validation</groupId>
+            <artifactId>jakarta.validation-api</artifactId>
+        </dependency>
     </dependencies>
 </project>

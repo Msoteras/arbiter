@@ -1,16 +1,34 @@
 import { Clasificacion } from './clasificacion';
 
-/**
- * Espejo EXACTO de ExpedienteResponse del expedientes-service
- * (GET /api/v1/expedientes/{id}). Son los únicos datos que el backend
- * expone hoy por expediente — no agregar campos que el backend no devuelve.
- */
+// Espejo de StatusTransitionResponse del cases-service.
+// `fromStatus` es null en la fila de creación del expediente.
+export interface StatusTransition {
+  fromStatus: string | null;
+  toStatus: string;
+  actor: 'SYSTEM' | 'INSURED' | 'ANALYST';
+  reason: string;
+  changedAt: string;
+}
+
+// Espejo de CaseResponse del cases-service (GET /api/v1/cases/{id})
 export interface ExpedienteResponse {
-  expedienteId: number;
+  id: number;
   status: string;
-  policyNumber: string;
+  branch: string;
+  product: string;
+  claimCause: string;
+  insuredItem: string;
   insuredId: string;
+  policyNumber: string;
+  description: string;
+  eventDate: string;
+  eventLocation: string;
+  claimedAmount: number | null;
   analysisClassification: Clasificacion | string;
-  analysisConfidence: number; // 0..1
+  analysisConfidence: number;
   analysisDetail: string;
+  createdAt: string;
+  updatedAt: string;
+  /** Solo viene en GET /{id}; en listados es null. */
+  statusHistory: StatusTransition[] | null;
 }

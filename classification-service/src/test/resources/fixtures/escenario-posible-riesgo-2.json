@@ -1,0 +1,16 @@
+{
+  "name": "Múltiples siniestros en corto tiempo, montos altos sospechosos",
+  "expectedClassification": "LLM_NO_RECOMIENDA_APROBAR",
+  "request": {
+    "branch": "Celulares",
+    "product": "Celular Protegido Premium",
+    "claimCause": "Robo en vía pública",
+    "insuredItem": "iPhone 16 Pro Max - IMEI 353000000000150",
+    "description": "Otra vez me robaron el celular. Estaba en el colectivo y no me di cuenta cuando desapareció. No vi quién lo tomó.",
+    "attachmentsOcr": [
+      "DENUNCIA POLICIAL Nro 2026/55555 - Comisaría 12va CABA\nFecha: 15/06/2026 18:00 hs\nDenunciante: Carlos Martínez DNI 31.666.777\nHecho: Robo/Hurto de teléfono celular en colectivo\nLugar: Colectivo línea 24, ruta Constitución-Flores\nFecha del hecho: 15/06/2026 17:30 hs (aproximado)\nObs: Denunciante no vio al sujeto. No hay testigos."
+    ],
+    "insurerRules": "- Máximo 2 siniestros por año.\n- Montos totales reclamados >$3M requieren investigación.\n- Falta de testigos en robo reduce puntuación.\n- Si hay 4+ siniestros en 12 meses, derivar a investigación obligatoria.",
+    "insuredHistory": "HISTORIAL DE SINIESTROS — Asegurado: Carlos Martínez (DNI 31.666.777)\n\n1. Siniestro #2026-4410 — 18/03/2026\n   Ramo: Celulares | Hecho: Robo en vía pública\n   Bien: Samsung Galaxy S24 - IMEI 351000000000130\n   Estado: Aprobado | Liquidado: $750.000\n\n2. Siniestro #2026-5520 — 02/05/2026\n   Ramo: Celulares | Hecho: Robo en vía pública\n   Bien: iPhone 15 Pro - IMEI 352000000000140\n   Estado: Aprobado | Liquidado: $1.100.000\n\n3. Siniestro #2026-6630 — 28/05/2026\n   Ramo: Celulares | Hecho: Robo en vía pública\n   Bien: Samsung Galaxy S25 Ultra - IMEI 353000000000145\n   Estado: En investigación | Reclamado: $1.300.000\n\nRESUMEN: 3 siniestros en 2 meses. Monto total: $3.150.000. Patrón sospechoso."
+  }
+}
