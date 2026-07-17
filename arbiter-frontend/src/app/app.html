@@ -11,14 +11,18 @@
       }
     </header>
     <div class="app-body">
-      <!-- Hasta que Auth0 aporte RBAC completo, las dos vistas conviven en la misma nav. -->
+      <!-- H0003: cada sección solo se ve si el rol la habilita (el referente ve las dos). -->
       <nav class="sidebar">
-        <span class="nav-section">Analista</span>
-        <a routerLink="/bandeja" routerLinkActive="active">Bandeja</a>
-        <a class="disabled" title="Sin datos">Pendientes (Fast Track)</a>
-        <span class="nav-section">Asegurado</span>
-        <a routerLink="/portal" routerLinkActive="active">Mis expedientes</a>
-        <a routerLink="/nueva-denuncia" routerLinkActive="active">Nueva denuncia</a>
+        @if (showAnalistaNav()) {
+          <span class="nav-section">Analista</span>
+          <a routerLink="/bandeja" routerLinkActive="active">Bandeja</a>
+          <a class="disabled" title="Sin datos">Pendientes (Fast Track)</a>
+        }
+        @if (showAseguradoNav()) {
+          <span class="nav-section">Asegurado</span>
+          <a routerLink="/portal" routerLinkActive="active">Mis expedientes</a>
+          <a routerLink="/nueva-denuncia" routerLinkActive="active">Nueva denuncia</a>
+        }
       </nav>
       <main class="app-content">
         <router-outlet />

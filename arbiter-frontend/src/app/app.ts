@@ -27,6 +27,17 @@ export class App {
   // La pantalla de login es standalone: sin topbar ni nav de la app.
   protected readonly showShell = computed(() => this.currentUrl() !== '/login');
 
+  // H0003 - RBAC: el referente ve las dos secciones (acceso total); el resto, solo la propia.
+  protected readonly showAnalistaNav = computed(() => {
+    const rol = this.session.session()?.rol;
+    return rol === 'ANALISTA_SINIESTROS' || rol === 'REFERENTE_ASEGURADORA';
+  });
+
+  protected readonly showAseguradoNav = computed(() => {
+    const rol = this.session.session()?.rol;
+    return rol === 'ASEGURADO' || rol === 'REFERENTE_ASEGURADORA';
+  });
+
   protected roleLabel(rol: string): string {
     return userRoleLabel(rol);
   }

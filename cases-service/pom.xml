@@ -53,6 +53,27 @@
             <artifactId>postgresql</artifactId>
         </dependency>
 
+        <!-- Solo cases-service usa JwtAuthenticationFilter de común-lib hoy (RBAC, H0003);
+             quedan declaradas acá, no en common-lib, para no imponérselas a classification-service. -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-security</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>io.jsonwebtoken</groupId>
+            <artifactId>jjwt-api</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>io.jsonwebtoken</groupId>
+            <artifactId>jjwt-impl</artifactId>
+            <scope>runtime</scope>
+        </dependency>
+        <dependency>
+            <groupId>io.jsonwebtoken</groupId>
+            <artifactId>jjwt-jackson</artifactId>
+            <scope>runtime</scope>
+        </dependency>
+
         <dependency>
             <groupId>ar.edu.utn.frba.arbiter</groupId>
             <artifactId>common-lib</artifactId>

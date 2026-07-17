@@ -11,6 +11,7 @@ import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
@@ -26,6 +27,7 @@ public class CaseController {
     private final CaseService caseService;
 
     @PostMapping(consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    @PreAuthorize("hasAnyRole('ASEGURADO', 'REFERENTE_ASEGURADORA')")
     @Operation(summary = "Create a case",
             description = """
                     Registers a case using the same request structure as the claim flow and triggers
@@ -42,10 +44,13 @@ public class CaseController {
     }
 
     @GetMapping("/{caseId}")
+    @PreAuthorize("isAuthenticated()")
     @Operation(summary = "Get case by id",
             description = """
                     Returns the stored case, its analysis result and the full status history
-                    (every transition with actor, reason and timestamp).
+                    (every transition with actor, reason and timestamp). Any authenticated role
+                    can call this today — there's no owner check yet (the asegurado's identity
+                    isn't linked to Case.insuredId), so this only gates "logged in", not "yours".
                     """)
     public ResponseEntity<CaseResponse> getCase(@PathVariable Long caseId) {
         CaseResponse response = caseService.getCase(caseId);
@@ -53,6 +58,7 @@ public class CaseController {
     }
 
     @GetMapping
+    @PreAuthorize("isAuthenticated()")
     @Operation(summary = "List cases",
             description = """
                     Returns cases, most recent first. Optional filters, combinable:
@@ -68,6 +74,7 @@ public class CaseController {
     }
 
     @PostMapping(value = "/{caseId}/documents", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    @PreAuthorize("hasAnyRole('ASEGURADO', 'REFERENTE_ASEGURADORA')")
     @Operation(summary = "Upload additional documents",
             description = """
                     Uploads additional documents to an existing case and re-triggers
@@ -83,6 +90,7 @@ public class CaseController {
     }
 
     @PostMapping("/{caseId}/decision")
+    @PreAuthorize("hasAnyRole('ANALISTA_SINIESTROS', 'REFERENTE_ASEGURADORA')")
     @Operation(summary = "Persist the analyst's decision",
             description = "Forwards the analyst decision to classification-service so it is persisted in the audit trail.")
     public ResponseEntity<Map<String, Object>> recordDecision(

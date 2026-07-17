@@ -2,8 +2,8 @@ package ar.edu.utn.frba.arbiter.auth.services;
 
 import ar.edu.utn.frba.arbiter.auth.config.AuthProperties;
 import ar.edu.utn.frba.arbiter.auth.models.entities.User;
+import ar.edu.utn.frba.arbiter.common.security.JwtSupport;
 import io.jsonwebtoken.Jwts;
-import io.jsonwebtoken.security.Keys;
 import jakarta.annotation.PostConstruct;
 import lombok.RequiredArgsConstructor;
 import org.slf4j.Logger;
@@ -40,11 +40,15 @@ public class JwtService {
             key = Jwts.SIG.HS256.key().build();
             return;
         }
-        byte[] bytes = secret.getBytes(StandardCharsets.UTF_8);
-        if (bytes.length < MIN_SECRET_BYTES) {
+        if (secret.getBytes(StandardCharsets.UTF_8).length < MIN_SECRET_BYTES) {
             throw new IllegalStateException("JWT_SECRET debe tener al menos " + MIN_SECRET_BYTES + " bytes para HS256");
         }
-        key = Keys.hmacShaKeyFor(bytes);
+        key = JwtSupport.key(secret);
+    }
+
+    /** Misma clave usada para firmar — SecurityConfig la reutiliza para validar (nunca la deriva por su cuenta). */
+    public SecretKey getKey() {
+        return key;
     }
 
     public record IssuedToken(String token, Instant expiresAt) {}
