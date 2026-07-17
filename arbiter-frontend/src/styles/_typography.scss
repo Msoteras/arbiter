@@ -1,0 +1,47 @@
+/* ============================================================
+   Arbiter · Design System — CAPA de TIPOGRAFÍA
+   Estilos de texto reutilizables (rol = tamaño + peso + transform + color).
+   Clases utilitarias, no componentes: el texto no es interactivo, así que
+   componentizarlo sería overkill (enfoque liviano). Consumen tokens semánticos.
+   Usar SIEMPRE una de estas en vez de setear font-size/weight sueltos.
+   ============================================================ */
+
+/* Título de página (ej. "Bandeja de expedientes", "Expediente #123"). */
+.t-page-title {
+  font-size: var(--font-size-xl);
+  font-weight: var(--font-weight-medium);
+  color: var(--text-primary);
+  line-height: 1.2;
+}
+
+/* Etiqueta de sección / cabecera de card (uppercase con tracking). */
+.t-section-label {
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-weight-medium);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--text-tertiary);
+}
+
+/* Etiqueta de campo en fichas de datos (dt de un dl). */
+.t-field-label {
+  font-size: var(--font-size-2xs);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--text-muted);
+}
+
+/* Texto de cuerpo por defecto. */
+.t-body {
+  font-size: var(--font-size-body);
+  color: var(--text-primary);
+}
+
+/* Nota al pie / caption / texto secundario tenue. */
+.t-note {
+  font-size: var(--font-size-xs);
+  color: var(--text-muted);
+}
+
+/* Números, ids, códigos: familia monoespaciada. */
+.mono { font-family: var(--font-mono); }

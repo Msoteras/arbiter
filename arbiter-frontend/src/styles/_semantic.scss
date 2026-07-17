@@ -1,0 +1,40 @@
+/* ============================================================
+   Arbiter · Design System — CAPA 2: TOKENS SEMÁNTICOS
+   Roles. Mapean a la capa primitiva (_tokens.scss).
+   Los componentes del kit consumen SOLO estos tokens, nunca
+   los primitivos ni valores crudos. Acá vive el "tema": el día
+   que se sume dark mode o branding por aseguradora, se cambia
+   este archivo (o se sobreescribe bajo un [data-theme]) y todo
+   el sistema se adapta sin tocar componentes.
+   ============================================================ */
+:root {
+  /* ===== Texto ===== */
+  --text-primary: var(--c-ink);
+  --text-secondary: var(--c-ink-2);
+  --text-tertiary: var(--c-ink-3);
+  --text-muted: var(--c-muted);
+  --text-on-emphasis: var(--c-on-ink);
+
+  /* ===== Superficies ===== */
+  --surface: var(--c-bg);
+  --surface-soft: var(--c-bg-soft);
+  --surface-sunken: var(--c-bg-soft-2);
+  --surface-head: var(--c-bg-head);
+
+  /* ===== Bordes ===== */
+  --border-subtle: var(--c-divider);
+  --border-default: var(--c-border);
+  --border-control: var(--c-border-3);
+  --border-strong: var(--c-border-strong);
+
+  /* ===== Acción primaria (botón sólido, foco) ===== */
+  --action-primary-bg: var(--accent);
+  --action-primary-bg-hover: var(--c-ink-strong);
+  --action-primary-fg: var(--c-on-ink);
+
+  /* ===== Acción secundaria (botón con borde) ===== */
+  --action-secondary-bg: var(--c-bg);
+  --action-secondary-fg: var(--c-ink);
+  --action-secondary-border: var(--c-border-3);
+  --action-secondary-border-hover: var(--c-ink);
+}
