@@ -1,6 +1,7 @@
 import { ChangeDetectionStrategy, Component, computed, inject, input, output, signal } from '@angular/core';
 
 import { ExpedienteService } from '../../../features/expedientes/expediente.service';
+import { ButtonComponent } from '../button/button.component';
 
 interface DocUploadSlot {
   type: string;
@@ -16,6 +17,7 @@ interface DocUploadSlot {
 @Component({
   selector: 'app-doc-upload',
   changeDetection: ChangeDetectionStrategy.OnPush,
+  imports: [ButtonComponent],
   template: `
     <p class="muted">
       La evaluación indica que faltan documentos requeridos. Subí la documentación
@@ -27,7 +29,7 @@ interface DocUploadSlot {
         <span class="doc-row-label">{{ slot.label }}</span>
         @if (slot.file) {
           <div class="doc-row-file">
-            <span class="doc-row-filename">{{ slot.file.name }}</span>
+            <span class="doc-row-filename" [title]="slot.file.name">{{ slot.file.name }}</span>
             <button type="button" class="doc-row-remove" (click)="removeFile(i)">✕</button>
           </div>
         } @else {
@@ -43,57 +45,47 @@ interface DocUploadSlot {
       <p class="upload-error">{{ error() }}</p>
     }
 
-    <button
-      class="btn-pri"
+    <app-button
+      class="submit-btn"
       [disabled]="selectedCount() === 0 || uploading()"
       (click)="submit()">
       {{ uploading() ? 'Enviando…' : 'Enviar documentación' }}
-    </button>
+    </app-button>
   `,
   styles: `
     :host { display: block; }
-    .muted { margin: 0 0 6px; color: var(--c-muted); font-size: 13px; }
+    .muted { margin: 0 0 var(--space-2); color: var(--text-muted); font-size: var(--font-size-body); }
     .doc-row {
       display: flex;
       align-items: center;
       justify-content: space-between;
-      padding: 10px 0;
-      border-bottom: 1px solid var(--c-divider);
+      padding: var(--space-2) 0;
+      border-bottom: 1px solid var(--border-subtle);
     }
-    .doc-row-label { font-size: 13px; color: var(--c-ink-2); }
-    .doc-row-file { display: flex; align-items: center; gap: 8px; }
-    .doc-row-filename { font-size: 12px; font-family: var(--font-mono); color: var(--c-ink-3); }
+    .doc-row-label { font-size: var(--font-size-body); color: var(--text-secondary); }
+    .doc-row-file { display: flex; align-items: center; gap: var(--space-2); }
+    .doc-row-filename { font-size: var(--font-size-sm); font-family: var(--font-mono); color: var(--text-tertiary); }
     .doc-row-remove {
       border: none;
       background: none;
       cursor: pointer;
-      color: var(--c-muted);
-      font-size: 12px;
+      color: var(--text-muted);
+      font-size: var(--font-size-sm);
       padding: 2px 6px;
     }
-    .doc-row-remove:hover { color: var(--c-ink); }
+    .doc-row-remove:hover { color: var(--text-primary); }
     .doc-row-upload {
-      font-size: 12px;
-      border: 1px solid var(--c-border-3);
+      font-size: var(--font-size-sm);
+      border: 1px solid var(--border-control);
       border-radius: var(--radius-ctl);
-      padding: 5px 12px;
+      padding: var(--space-1) var(--space-3);
       cursor: pointer;
-      color: var(--c-ink-3);
-      background: var(--c-bg);
+      color: var(--text-tertiary);
+      background: var(--surface);
     }
-    .doc-row-upload:hover { background: var(--c-bg-soft-2); }
-    .upload-error { color: var(--c-ink); font-size: 12px; margin: 8px 0 0; }
-    .btn-pri {
-      margin-top: 12px;
-      border: 1px solid var(--c-ink);
-      background: var(--c-ink);
-      color: var(--c-bg);
-      border-radius: var(--radius-ctl);
-      padding: 7px 16px;
-      font-size: 13px;
-      cursor: pointer;
-    }
-    .btn-pri:disabled { opacity: 0.5; cursor: default; }
+    .doc-row-upload:hover { background: var(--surface-sunken); }
+    .upload-error { color: var(--status-danger); font-size: var(--font-size-sm); margin: var(--space-2) 0 0; }
+    .submit-btn { display: inline-block; margin-top: var(--space-3); }
   `,
 })
 export class DocUploadComponent {

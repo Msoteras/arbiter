@@ -18,13 +18,17 @@ import { ChangeDetectionStrategy, Component, input, model } from '@angular/core'
     .field {
       width: 100%;
       font: inherit;
-      font-size: var(--font-size-body);
+      /* 16px en mobile evita el zoom de iOS Safari al enfocar; 13px desde sm hacia arriba. */
+      font-size: var(--font-size-lg);
       padding: var(--space-2) var(--space-3);
       border: 1px solid var(--border-control);
       border-radius: var(--radius-ctl);
       background: var(--surface);
       color: var(--text-primary);
       resize: vertical;
+    }
+    @media (min-width: 640px) {
+      .field { font-size: var(--font-size-body); }
     }
     .field:focus { outline: none; border-color: var(--action-secondary-border-hover); }
     .field::placeholder { color: var(--text-muted); }

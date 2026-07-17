@@ -3,26 +3,23 @@
     <a class="breadcrumb" routerLink="/bandeja">‹ Bandeja</a>
 
     <div class="identity">
-      <h1 class="exp-id">Expediente #{{ d.id }}</h1>
-      <span class="badge tecnico">{{ statusLabel() }}</span>
-      <span class="badge simplificado">Sin datos</span>
+      <h1 class="t-page-title mono">Expediente #{{ d.id }}</h1>
+      <app-badge [tone]="statusTone()">{{ statusLabel() }}</app-badge>
+      <app-badge variant="dashed">Sin datos</app-badge>
     </div>
     <p class="subtitle nodata">Sin datos</p>
 
     <!-- Reasoning cards (orden de razonamiento) -->
     <div class="reasoning">
-      <section class="rcard">
-        <div class="rcard-head">Nivel de riesgo de fraude</div>
+      <app-card class="rcard" heading="Nivel de riesgo de fraude">
         <app-fraud-gauge [band]="null" />
-      </section>
+      </app-card>
 
-      <section class="rcard reco">
-        <div class="rcard-head"><span class="sparkles" aria-hidden="true">✦</span> Recomendación de Arbiter</div>
+      <app-card class="rcard reco" variant="soft" icon="✦" heading="Recomendación de Arbiter">
         <p class="nodata">Sin datos</p>
-      </section>
+      </app-card>
 
-      <section class="rcard">
-        <div class="rcard-head">Decisión del analista</div>
+      <app-card class="rcard" heading="Decisión del analista">
         @switch (decisionState()) {
           @case ('approved') {
             <p class="registered">✓ Registrado: Aprobado</p>
@@ -32,8 +29,8 @@
           }
           @case ('pending') {
             <div class="decision-btns">
-              <button class="btn-sec" [disabled]="decisionSaving()" (click)="askDecision('rechazar')">Rechazar</button>
-              <button class="btn-sec" [disabled]="decisionSaving()" (click)="askDecision('aprobar')">Aprobar</button>
+              <app-button variant="secondary" [block]="true" [disabled]="decisionSaving()" (click)="askDecision('rechazar')">Rechazar</app-button>
+              <app-button variant="secondary" [block]="true" [disabled]="decisionSaving()" (click)="askDecision('aprobar')">Aprobar</app-button>
             </div>
           }
           @default {
@@ -46,7 +43,7 @@
         @if (decisionError()) {
           <p class="rcard-note error">{{ decisionError() }}</p>
         }
-      </section>
+      </app-card>
     </div>
 
     <!-- Tabs -->
@@ -65,21 +62,16 @@
       @case ('resumen') {
         <div class="resumen-grid">
           <div class="col-main">
-            <section class="card">
-              <div class="card-head">
-                <span class="sparkles" aria-hidden="true">✦</span>
-                <span class="card-title">Sugerencia del sistema</span>
-              </div>
+            <app-card icon="✦" heading="Sugerencia del sistema">
               <app-empty-state message="Sugerencia e indicadores del modelo" />
-            </section>
+            </app-card>
 
-            <section class="card">
-              <div class="card-head"><span class="card-title">Resumen del siniestro</span></div>
+            <app-card heading="Resumen del siniestro">
               <p class="detail nodata">Sin datos</p>
               <dl class="fields">
                 @for (f of fields(); track f.label) {
                   <div class="field" [class.full]="f.full">
-                    <dt>{{ f.label }}</dt>
+                    <dt class="t-field-label">{{ f.label }}</dt>
                     @if (f.value) {
                       <dd [class.mono]="f.mono">{{ f.value }}</dd>
                     } @else {
@@ -88,38 +80,31 @@
                   </div>
                 }
               </dl>
-            </section>
+            </app-card>
           </div>
 
           <div class="col-side">
-            <section class="card ai-card">
-              <div class="card-head">
-                <span class="sparkles" aria-hidden="true">✦</span>
-                <span class="card-title">Recomendación del modelo</span>
-              </div>
-              <p class="classification">{{ classificationLabel() }}</p>
+            <app-card variant="soft" icon="✦" heading="Recomendación del modelo">
+              <p class="classification" [attr.data-tone]="classificationTone() !== 'neutral' ? classificationTone() : null">{{ classificationLabel() }}</p>
               <p class="note">Confianza del modelo: {{ confidencePercent() }}%</p>
               @if (classifState() === 'none') {
                 <div class="accept-row">
-                  <button class="btn-pri" (click)="acceptClassif()">Aceptar</button>
-                  <button class="btn-sec" (click)="modifyClassif()">Modificar</button>
+                  <app-button (click)="acceptClassif()">Aceptar</app-button>
+                  <app-button variant="secondary" (click)="modifyClassif()">Modificar</app-button>
                 </div>
               } @else {
                 <p class="registered">✓ {{ classifState() === 'aceptada' ? 'Clasificación aceptada' : 'Clasificación marcada para modificar' }}</p>
                 <p class="note">Queda registrado en el historial.</p>
               }
-            </section>
+            </app-card>
           </div>
         </div>
 
         <!-- Documentación faltante -->
         @if (needsDocs()) {
-        <section class="card missing-docs-card">
-          <div class="card-head">
-            <span class="card-title">⚠ Falta documentación</span>
-          </div>
-          <app-doc-upload [caseId]="d.id" (uploaded)="onDocsUploaded()" />
-        </section>
+          <app-card class="missing-docs-card" heading="⚠ Falta documentación">
+            <app-doc-upload [caseId]="d.id" (uploaded)="onDocsUploaded()" />
+          </app-card>
         }
       }
 
@@ -129,10 +114,9 @@
       @case ('conversacion') { <app-empty-state message="Conversación con el asegurado" /> }
       @case ('historial') {
         @if (history().length > 0) {
-          <section class="card">
-            <div class="card-head"><span class="card-title">Historial de estados</span></div>
+          <app-card heading="Historial de estados">
             <app-status-timeline [history]="history()" [currentStatus]="d.status" />
-          </section>
+          </app-card>
         } @else {
           <app-empty-state message="Historial / auditoría del expediente" />
         }
@@ -140,11 +124,11 @@
     }
   </main>
 } @else if (loading()) {
-  <div class="state-wrap"><div class="card skeleton">Cargando expediente…</div></div>
+  <div class="state-wrap"><app-card><p class="t-note">Cargando expediente…</p></app-card></div>
 } @else if (hasError()) {
   <div class="state-wrap">
-    <div class="card">
-      <p class="muted">
+    <app-card>
+      <p class="t-note">
         @if (notFound()) {
           No se encontró el caso. Creá uno con
           <span class="mono">POST /api/v1/cases</span> antes de consultarlo.
@@ -153,21 +137,20 @@
           esté corriendo en el puerto 8083.
         }
       </p>
-    </div>
+    </app-card>
   </div>
 }
 
 <!-- Modal de justificación (gobierno: toda decisión queda justificada/auditada) -->
-@if (showJustify()) {
-  <div class="modal-backdrop" (click)="cancelDecision()">
-    <div class="modal" role="dialog" aria-modal="true" (click)="$event.stopPropagation()">
-      <h2 class="modal-title">Justificar decisión: {{ verbLabel(pendingDecision()) }}</h2>
-      <p class="muted">Toda decisión del analista queda justificada y auditada (human-in-the-loop).</p>
-      <textarea class="justify-input" rows="4" placeholder="Justificación (obligatoria)…" (input)="onJustifyInput($event)"></textarea>
-      <div class="modal-actions">
-        <button class="btn-sec" (click)="cancelDecision()">Cancelar</button>
-        <button class="btn-pri" [disabled]="!justification().trim()" (click)="confirmDecision()">Confirmar</button>
-      </div>
-    </div>
-  </div>
-}
+<app-modal
+  [open]="showJustify()"
+  heading="Justificar decisión: {{ verbLabel(pendingDecision()) }}"
+  (close)="cancelDecision()"
+>
+  <p class="t-note">Toda decisión del analista queda justificada y auditada (human-in-the-loop).</p>
+  <app-textarea [rows]="4" placeholder="Justificación (obligatoria)…" [(value)]="justification" />
+  <ng-container modalActions>
+    <app-button variant="secondary" (click)="cancelDecision()">Cancelar</app-button>
+    <app-button [disabled]="!justification().trim()" (click)="confirmDecision()">Confirmar</app-button>
+  </ng-container>
+</app-modal>

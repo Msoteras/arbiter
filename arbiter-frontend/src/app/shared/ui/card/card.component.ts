@@ -15,7 +15,7 @@ type Variant = 'default' | 'soft';
       @if (heading()) {
         <div class="card-head">
           @if (icon()) { <span class="icon" aria-hidden="true">{{ icon() }}</span> }
-          <span class="card-title">{{ heading() }}</span>
+          <h2 class="card-title">{{ heading() }}</h2>
         </div>
       }
       <ng-content />
@@ -33,6 +33,7 @@ type Variant = 'default' | 'soft';
     .card-head { display: flex; align-items: center; gap: var(--space-2); margin-bottom: var(--space-3); }
     .icon { color: var(--text-primary); }
     .card-title {
+      margin: 0;
       font-size: var(--font-size-xs);
       font-weight: var(--font-weight-medium);
       text-transform: uppercase;

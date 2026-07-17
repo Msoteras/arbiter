@@ -37,4 +37,17 @@
   --action-secondary-fg: var(--c-ink);
   --action-secondary-border: var(--c-border-3);
   --action-secondary-border-hover: var(--c-ink);
+
+  /* ===== Estado / semáforo =====
+     Rol semántico de la paleta technicolor. Uso reservado a señales de
+     estado/resolución (badges, marcadores, notas), NO decorativo. Los
+     componentes consumen estos roles, nunca los primitivos --accent-*.
+       ok      → resuelto a favor / recomendación positiva  (verde)
+       warning → requiere atención / falta algo             (amarillo)
+       danger  → resuelto en contra / riesgo / error        (rojo)
+       info    → en curso / neutral informativo             (azul) */
+  --status-ok: var(--accent-green);
+  --status-warning: var(--accent-yellow);
+  --status-danger: var(--accent-red);
+  --status-info: var(--accent-blue);
 }

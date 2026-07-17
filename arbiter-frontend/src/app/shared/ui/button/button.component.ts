@@ -10,6 +10,7 @@ type Variant = 'primary' | 'secondary';
 @Component({
   selector: 'app-button',
   changeDetection: ChangeDetectionStrategy.OnPush,
+  host: { '[class.block]': 'block()' },
   template: `
     <button
       class="btn"
@@ -23,6 +24,8 @@ type Variant = 'primary' | 'secondary';
   `,
   styles: `
     :host { display: inline-block; }
+    :host(.block) { display: block; }
+    :host(.block) .btn { width: 100%; }
     .btn {
       font: inherit;
       font-size: var(--font-size-body);
@@ -43,4 +46,5 @@ export class ButtonComponent {
   readonly variant = input<Variant>('primary');
   readonly type = input<'button' | 'submit'>('button');
   readonly disabled = input(false);
+  readonly block = input(false);
 }

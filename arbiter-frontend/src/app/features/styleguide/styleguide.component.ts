@@ -89,6 +89,7 @@ interface Swatch {
 
       <section class="sg-block">
         <h3 class="sg-h3">Accent · technicolor</h3>
+        <p class="sg-p">Primitivos. No se consumen directo: se usan vía los roles de <span class="mono">Estado / semáforo</span> (abajo).</p>
         <div class="swatches">
           @for (s of technicolor; track s.v) {
             <div class="swatch">
@@ -205,7 +206,15 @@ interface Swatch {
         <h3 class="sg-h3">Badge</h3>
         <div class="row">
           <app-badge variant="solid">Estado técnico</app-badge>
+          <app-badge variant="strong">Estado final</app-badge>
           <app-badge variant="dashed">Sin datos</app-badge>
+        </div>
+        <p class="sg-p">Con punto de semáforo (<span class="mono">tone</span>): solo el punto lleva color, el texto sigue neutro.</p>
+        <div class="row">
+          <app-badge tone="ok">Aprobado</app-badge>
+          <app-badge tone="warning">Falta documentación</app-badge>
+          <app-badge tone="danger">Rechazado</app-badge>
+          <app-badge tone="info">En revisión</app-badge>
         </div>
       </section>
 
@@ -422,6 +431,15 @@ export class StyleguideComponent {
       items: [
         { name: 'action-primary-bg', v: '--action-primary-bg' },
         { name: 'action-primary-bg-hover', v: '--action-primary-bg-hover' },
+      ],
+    },
+    {
+      title: 'Estado / semáforo',
+      items: [
+        { name: 'status-ok', v: '--status-ok' },
+        { name: 'status-warning', v: '--status-warning' },
+        { name: 'status-danger', v: '--status-danger' },
+        { name: 'status-info', v: '--status-info' },
       ],
     },
   ];

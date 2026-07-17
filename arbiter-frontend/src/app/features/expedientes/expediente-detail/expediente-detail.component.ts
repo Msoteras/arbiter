@@ -6,12 +6,18 @@ import { catchError, combineLatest, map, of, startWith, switchMap } from 'rxjs';
 
 import { ExpedienteService, AnalystDecisionRequest } from '../expediente.service';
 import { ExpedienteResponse, StatusTransition } from '../../../core/models/expediente';
-import { clasificacionLabel } from '../../../core/models/clasificacion';
-import { estadoLabel } from '../../../core/models/estado';
+import { clasificacionLabel, clasificacionTone } from '../../../core/models/clasificacion';
+import { estadoLabel, estadoTone } from '../../../core/models/estado';
+import { StatusTone } from '../../../core/models/status-tone';
 import { FraudGaugeComponent } from '../../../shared/ui/fraud-gauge/fraud-gauge.component';
 import { EmptyStateComponent } from '../../../shared/ui/empty-state/empty-state.component';
 import { StatusTimelineComponent } from '../../../shared/ui/status-timeline/status-timeline.component';
 import { DocUploadComponent } from '../../../shared/ui/doc-upload/doc-upload.component';
+import { CardComponent } from '../../../shared/ui/card/card.component';
+import { ButtonComponent } from '../../../shared/ui/button/button.component';
+import { BadgeComponent } from '../../../shared/ui/badge/badge.component';
+import { ModalComponent } from '../../../shared/ui/modal/modal.component';
+import { TextareaComponent } from '../../../shared/ui/textarea/textarea.component';
 
 type LoadState =
   | { status: 'loading' }
@@ -26,7 +32,18 @@ interface FieldItem { label: string; value: string | null; mono?: boolean; full?
 
 @Component({
   selector: 'app-expediente-detail',
-  imports: [RouterLink, FraudGaugeComponent, EmptyStateComponent, StatusTimelineComponent, DocUploadComponent],
+  imports: [
+    RouterLink,
+    FraudGaugeComponent,
+    EmptyStateComponent,
+    StatusTimelineComponent,
+    DocUploadComponent,
+    CardComponent,
+    ButtonComponent,
+    BadgeComponent,
+    ModalComponent,
+    TextareaComponent,
+  ],
   changeDetection: ChangeDetectionStrategy.OnPush,
   templateUrl: './expediente-detail.component.html',
   styleUrl: './expediente-detail.component.scss',
@@ -75,9 +92,19 @@ export class ExpedienteDetailComponent {
     return d ? estadoLabel(d.status) : '';
   });
 
+  protected readonly statusTone = computed<StatusTone>(() => {
+    const d = this.data();
+    return d ? estadoTone(d.status) : 'neutral';
+  });
+
   protected readonly classificationLabel = computed(() => {
     const d = this.data();
     return d ? clasificacionLabel(d.analysisClassification) : '';
+  });
+
+  protected readonly classificationTone = computed<StatusTone>(() => {
+    const d = this.data();
+    return d ? clasificacionTone(d.analysisClassification) : 'neutral';
   });
 
   protected readonly confidencePercent = computed(() => {
@@ -203,9 +230,6 @@ export class ExpedienteDetailComponent {
         this.decisionError.set(err.error?.detail || 'No se pudo registrar la decisión');
       },
     });
-  }
-  onJustifyInput(e: Event): void {
-    this.justification.set((e.target as HTMLTextAreaElement).value);
   }
 
   // ----- carga de documentación adicional (FALTA_DOCUMENTACION) -----

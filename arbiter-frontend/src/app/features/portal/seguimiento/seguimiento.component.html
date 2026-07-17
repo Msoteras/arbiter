@@ -2,8 +2,12 @@
   <header class="page-head">
     <a class="breadcrumb" routerLink="/portal">‹ Mis expedientes</a>
     <div class="identity">
-      <h1>Expediente #{{ d.id }}</h1>
-      <span class="badge" [class.final]="isResolved()">{{ statusLabel() }}</span>
+      <h1 class="t-page-title">Expediente #{{ d.id }}</h1>
+      @if (isResolved()) {
+        <app-badge variant="strong" [tone]="statusTone()">{{ statusLabel() }}</app-badge>
+      } @else {
+        <app-badge [tone]="statusTone()">{{ statusLabel() }}</app-badge>
+      }
     </div>
     <p class="subtitle">{{ d.branch }} · {{ d.insuredItem }} · Póliza <span class="mono">{{ d.policyNumber }}</span></p>
   </header>
@@ -11,8 +15,7 @@
   <div class="seg-grid">
     <div class="col-main">
       <!-- Estado actual + próximos pasos -->
-      <section class="card status-card">
-        <h2 class="card-title">Estado actual</h2>
+      <app-card heading="Estado actual">
         <p class="status-desc">{{ statusDescription() }}</p>
         @if (nextStep()) {
           <div class="next-box">
@@ -25,66 +28,63 @@
             <p class="next-text">Vas a recibir la notificación por correo electrónico.</p>
           </div>
         }
-      </section>
+      </app-card>
 
       <!-- Documentación faltante: el turno del asegurado -->
       @if (needsDocs()) {
-        <section class="card">
-          <h2 class="card-title">⚠ Falta documentación</h2>
+        <app-card heading="⚠ Falta documentación">
           <app-doc-upload [caseId]="d.id" (uploaded)="onDocsUploaded()" />
-        </section>
+        </app-card>
       }
 
       <!-- Timeline de estados -->
-      <section class="card">
-        <h2 class="card-title">Historial del expediente</h2>
+      <app-card heading="Historial del expediente">
         <app-status-timeline [history]="history()" [currentStatus]="d.status" />
-      </section>
+      </app-card>
     </div>
 
     <div class="col-side">
-      <section class="card">
-        <h2 class="card-title">Tu denuncia</h2>
+      <app-card heading="Tu denuncia">
         <dl class="fields">
           <div class="field">
-            <dt>Fecha de denuncia</dt>
+            <dt class="t-field-label">Fecha de denuncia</dt>
             <dd>{{ fechaDenuncia() }}</dd>
           </div>
           <div class="field">
-            <dt>Fecha del hecho</dt>
+            <dt class="t-field-label">Fecha del hecho</dt>
             <dd>{{ fechaHecho() }}</dd>
           </div>
           <div class="field">
-            <dt>Causa</dt>
+            <dt class="t-field-label">Causa</dt>
             <dd>{{ d.claimCause }}</dd>
           </div>
           <div class="field">
-            <dt>Ubicación</dt>
+            <dt class="t-field-label">Ubicación</dt>
             <dd>{{ d.eventLocation }}</dd>
           </div>
           <div class="field">
-            <dt>Descripción</dt>
+            <dt class="t-field-label">Descripción</dt>
             <dd>{{ d.description }}</dd>
           </div>
         </dl>
-      </section>
+      </app-card>
     </div>
   </div>
 } @else if (loading()) {
-  <div class="state-wrap"><div class="card skeleton">Cargando expediente…</div></div>
+  <div class="state-wrap"><app-card><p class="t-note">Cargando expediente…</p></app-card></div>
 } @else if (notFound()) {
   <div class="state-wrap">
-    <div class="card">
-      <p class="muted">
+    <app-card>
+      <p class="t-note">
         No encontramos ese expediente entre los tuyos.
         <a routerLink="/portal">Volver a mis expedientes</a>
       </p>
-    </div>
+    </app-card>
   </div>
 } @else if (hasError()) {
   <div class="state-wrap">
-    <div class="card">
-      <p class="muted">No se pudo cargar el expediente. Probá de nuevo en unos minutos.</p>
-    </div>
+    <app-card>
+      <p class="t-note">No se pudo cargar el expediente. Probá de nuevo en unos minutos.</p>
+    </app-card>
   </div>
 }

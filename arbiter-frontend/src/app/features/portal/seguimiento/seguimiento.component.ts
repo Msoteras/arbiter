@@ -6,10 +6,13 @@ import { catchError, combineLatest, map, of, startWith, switchMap } from 'rxjs';
 
 import { InsuredSessionService } from '../../../core/auth/insured-session.service';
 import { ExpedienteResponse, StatusTransition } from '../../../core/models/expediente';
-import { estadoDescripcion, estadoLabel, isEstadoFinal, proximoPaso } from '../../../core/models/estado';
+import { estadoDescripcion, estadoLabel, estadoTone, isEstadoFinal, proximoPaso } from '../../../core/models/estado';
+import { StatusTone } from '../../../core/models/status-tone';
 import { DocUploadComponent } from '../../../shared/ui/doc-upload/doc-upload.component';
 import { StatusTimelineComponent } from '../../../shared/ui/status-timeline/status-timeline.component';
 import { ExpedienteService } from '../../expedientes/expediente.service';
+import { CardComponent } from '../../../shared/ui/card/card.component';
+import { BadgeComponent } from '../../../shared/ui/badge/badge.component';
 
 type LoadState =
   | { status: 'loading' }
@@ -24,7 +27,7 @@ type LoadState =
  */
 @Component({
   selector: 'app-seguimiento',
-  imports: [RouterLink, StatusTimelineComponent, DocUploadComponent],
+  imports: [RouterLink, StatusTimelineComponent, DocUploadComponent, CardComponent, BadgeComponent],
   changeDetection: ChangeDetectionStrategy.OnPush,
   templateUrl: './seguimiento.component.html',
   styleUrl: './seguimiento.component.scss',
@@ -81,6 +84,11 @@ export class SeguimientoComponent {
   protected readonly statusLabel = computed(() => {
     const d = this.data();
     return d ? estadoLabel(d.status) : '';
+  });
+
+  protected readonly statusTone = computed<StatusTone>(() => {
+    const d = this.data();
+    return d ? estadoTone(d.status) : 'neutral';
   });
 
   protected readonly statusDescription = computed(() => {
