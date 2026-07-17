@@ -38,6 +38,11 @@ export class App {
     return rol === 'ASEGURADO' || rol === 'REFERENTE_ASEGURADORA';
   });
 
+  // H0002 - Alta de Usuarios: panel exclusivo del referente.
+  protected readonly showAdminNav = computed(
+    () => this.session.session()?.rol === 'REFERENTE_ASEGURADORA',
+  );
+
   protected roleLabel(rol: string): string {
     return userRoleLabel(rol);
   }

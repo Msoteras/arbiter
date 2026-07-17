@@ -17,4 +17,14 @@ public class AuthExceptionHandler {
     public ProblemDetail handleAccountLocked(AccountLockedException ex) {
         return ProblemDetail.forStatusAndDetail(HttpStatusCode.valueOf(423), ex.getMessage());
     }
+
+    @ExceptionHandler(EmailAlreadyExistsException.class)
+    public ProblemDetail handleEmailAlreadyExists(EmailAlreadyExistsException ex) {
+        return ProblemDetail.forStatusAndDetail(HttpStatusCode.valueOf(409), ex.getMessage());
+    }
+
+    @ExceptionHandler(RoleNotAllowedException.class)
+    public ProblemDetail handleRoleNotAllowed(RoleNotAllowedException ex) {
+        return ProblemDetail.forStatusAndDetail(HttpStatusCode.valueOf(400), ex.getMessage());
+    }
 }

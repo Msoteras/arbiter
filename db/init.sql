@@ -31,6 +31,7 @@ CREATE TABLE users (
     rol             VARCHAR(40)  NOT NULL,
     sector          VARCHAR(255),
     fecha_ingreso   DATE,
+    insured_id      VARCHAR(255),
     failed_attempts INTEGER      NOT NULL DEFAULT 0,
     locked_until    TIMESTAMPTZ,
     created_at      TIMESTAMPTZ  NOT NULL DEFAULT NOW(),

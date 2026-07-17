@@ -23,6 +23,10 @@
           <a routerLink="/portal" routerLinkActive="active">Mis expedientes</a>
           <a routerLink="/nueva-denuncia" routerLinkActive="active">Nueva denuncia</a>
         }
+        @if (showAdminNav()) {
+          <span class="nav-section">Referente</span>
+          <a routerLink="/admin/usuarios" routerLinkActive="active">Alta de usuarios</a>
+        }
       </nav>
       <main class="app-content">
         <router-outlet />

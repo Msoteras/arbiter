@@ -53,6 +53,14 @@ public class User {
     @Column(name = "fecha_ingreso")
     private LocalDate fechaIngreso;
 
+    /**
+     * DNI/identificación del asegurado, para vincular esta cuenta con su póliza real
+     * (BD Aseguradora). Null para ANALISTA_SINIESTROS/REFERENTE_ASEGURADORA — todavía no se
+     * da de alta a asegurados por este panel (ver CLAUDE.md, decisión #8).
+     */
+    @Column(name = "insured_id")
+    private String insuredId;
+
     /** Consecutive failed login attempts; resets to 0 on a successful login. */
     @Builder.Default
     @Column(name = "failed_attempts", nullable = false)

@@ -58,5 +58,16 @@ export const routes: Routes = [
       ),
   },
 
+  // ----- Panel del referente -----
+  {
+    path: 'admin/usuarios',
+    canActivate: [roleGuard],
+    data: { roles: ['REFERENTE_ASEGURADORA'] },
+    loadComponent: () =>
+      import('./features/admin/alta-usuario/alta-usuario.component').then(
+        (m) => m.AltaUsuarioComponent,
+      ),
+  },
+
   { path: '**', redirectTo: '' },
 ];

@@ -1,0 +1,62 @@
+<header class="page-head">
+  <h1>Alta de usuarios</h1>
+  <p class="muted">
+    Creá una cuenta de analista de siniestros. Por ahora el alta de asegurados no se hace desde
+    acá.
+  </p>
+</header>
+
+<form class="card form-card" (submit)="$event.preventDefault(); submit()">
+  <label class="field">
+    <span>Nombre</span>
+    <input type="text" [ngModel]="nombre()" (ngModelChange)="nombre.set($event)" name="nombre" />
+  </label>
+
+  <label class="field">
+    <span>Apellido</span>
+    <input type="text" [ngModel]="apellido()" (ngModelChange)="apellido.set($event)" name="apellido" />
+  </label>
+
+  <label class="field">
+    <span>Email</span>
+    <input type="email" [ngModel]="email()" (ngModelChange)="email.set($event)" name="email" />
+  </label>
+
+  <label class="field">
+    <span>Contraseña</span>
+    <input
+      type="password"
+      [ngModel]="password()"
+      (ngModelChange)="password.set($event)"
+      name="password"
+      autocomplete="new-password"
+    />
+  </label>
+
+  <label class="field">
+    <span>Rol</span>
+    <input type="text" value="Analista de siniestros" disabled class="mono" />
+  </label>
+
+  <label class="field">
+    <span>Sector o área</span>
+    <input type="text" [ngModel]="sector()" (ngModelChange)="sector.set($event)" name="sector" />
+  </label>
+
+  <label class="field">
+    <span>Fecha de ingreso (opcional)</span>
+    <input type="date" [ngModel]="fechaIngreso()" (ngModelChange)="fechaIngreso.set($event)" name="fechaIngreso" />
+  </label>
+
+  @if (errorMessage()) {
+    <p class="error">{{ errorMessage() }}</p>
+  }
+
+  @if (created(); as u) {
+    <p class="success">Usuario {{ u.nombre }} {{ u.apellido }} ({{ u.email }}) creado correctamente.</p>
+  }
+
+  <button type="submit" class="btn-pri" [disabled]="!canSubmit() || submitting()">
+    {{ submitting() ? 'Creando…' : 'Crear usuario' }}
+  </button>
+</form>
