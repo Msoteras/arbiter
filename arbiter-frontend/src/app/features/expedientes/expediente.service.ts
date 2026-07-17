@@ -25,6 +25,17 @@ export interface AnalystDecisionRequest {
   decision: 'APPROVE' | 'REJECT';
 }
 
+// Forma de Page<T> de Spring Data — así responde GET /api/v1/cases desde que el backend
+// pagina (historia "Búsqueda y filtrado de expedientes"). Solo los campos que usamos hoy;
+// Spring manda más metadata (pageable, sort, empty, etc.) que ignoramos.
+export interface PagedResponse<T> {
+  content: T[];
+  totalElements: number;
+  totalPages: number;
+  number: number;
+  size: number;
+}
+
 @Injectable({ providedIn: 'root' })
 export class ExpedienteService {
   private readonly http = inject(HttpClient);
@@ -35,15 +46,22 @@ export class ExpedienteService {
   }
 
   /**
-   * Lista expedientes, más recientes primero. Filtros opcionales y combinables:
+   * Lista expedientes paginados, más recientes primero. Filtros opcionales y combinables:
    * `status` (bandeja del analista) e `insuredId` (expedientes del asegurado —
    * hasta que se integre Auth0, se pasa explícito; después saldrá del JWT).
+   * `page`/`size` son los de paginación estándar de Spring Data (default backend: page 0, size 20).
+   *
+   * Nota: el backend ahora también acepta `claimCause`, `policyNumber`, `eventDateFrom`/`eventDateTo`
+   * y `sort` — no están cableados acá todavía; eso es parte de la historia de Frontend
+   * "Búsqueda y filtrado de expedientes" (filtros, buscador y paginación real en la UI).
    */
-  list(status?: string, insuredId?: string): Observable<ExpedienteResponse[]> {
+  list(status?: string, insuredId?: string, page?: number, size?: number): Observable<PagedResponse<ExpedienteResponse>> {
     const params: Record<string, string> = {};
     if (status) params['status'] = status;
     if (insuredId) params['insuredId'] = insuredId;
-    return this.http.get<ExpedienteResponse[]>(this.baseUrl, { params });
+    if (page != null) params['page'] = String(page);
+    if (size != null) params['size'] = String(size);
+    return this.http.get<PagedResponse<ExpedienteResponse>>(this.baseUrl, { params });
   }
 
   create(request: CaseCreateRequest, documents?: Map<string, File>): Observable<ExpedienteResponse> {

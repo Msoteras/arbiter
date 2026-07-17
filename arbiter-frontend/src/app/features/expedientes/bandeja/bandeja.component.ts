@@ -26,8 +26,11 @@ export class BandejaComponent {
   private readonly service = inject(ExpedienteService);
 
   private readonly state = toSignal(
-    this.service.list().pipe(
-      map((data): LoadState => ({ status: 'ok', data })),
+    // El backend pagina (default 20). Todavía no hay controles de paginación acá —eso es
+    // parte de la historia de Frontend "Búsqueda y filtrado de expedientes"— así que pedimos
+    // un size grande como parche temporal para no perder expedientes de la vista.
+    this.service.list(undefined, undefined, 0, 100).pipe(
+      map((page): LoadState => ({ status: 'ok', data: page.content })),
       startWith<LoadState>({ status: 'loading' }),
       catchError(() => of<LoadState>({ status: 'error' })),
     ),

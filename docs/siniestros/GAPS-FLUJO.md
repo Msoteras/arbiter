@@ -136,3 +136,12 @@ trunco en `PENDING_ANALYST_REVIEW`, incumpliendo la auditoría de la Disposició
 - **Gap E — Analista asignado.** El diagrama dice "al analista **asignado**". No hay usuarios, roles
   ni asignación porque dependen de `auth-service` (Auth0), que no está levantado. Mientras tanto el
   `analystId` del Gap B se puede recibir como campo del request.
+- **Gap F — Filtro por aseguradora en la búsqueda de expedientes.** La historia "Búsqueda y filtrado
+  de expedientes" (Sprint 6) pide filtrar `GET /api/v1/cases` por aseguradora según el rol del
+  usuario autenticado. No implementado: depende de dos piezas que no existen todavía — `auth-service`
+  (Auth0/JWT, mismo gap que E) y el esquema multi-tenant por aseguradora (decisión de arquitectura
+  #10, `PostgreSQL` con schema separado por aseguradora). Filtrar "por aseguradora" no es un `WHERE`
+  más sobre una columna: es resolver a qué schema de Postgres apuntar antes de correr la query. Sin
+  el JWT no hay tenant que resolver. `GET /api/v1/cases` sí quedó extendido con el resto de los
+  filtros de la historia (`status`, `claimCause`, `policyNumber`, `insuredId`, rango de
+  `eventDate`) más paginación (`CaseServiceImpl.listCases`, `CaseSpecifications`).

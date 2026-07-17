@@ -13,12 +13,17 @@ import ar.edu.utn.frba.arbiter.cases.models.entities.Case;
 import ar.edu.utn.frba.arbiter.cases.models.entities.StatusChangeActor;
 import ar.edu.utn.frba.arbiter.cases.models.repositories.CaseDocumentRepository;
 import ar.edu.utn.frba.arbiter.cases.models.repositories.CaseRepository;
+import ar.edu.utn.frba.arbiter.cases.models.repositories.CaseSpecifications;
 import ar.edu.utn.frba.arbiter.common.enums.CaseStatus;
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.jpa.domain.Specification;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.io.IOException;
+import java.time.LocalDate;
 import java.util.List;
 import java.util.Map;
 
@@ -113,18 +118,12 @@ public class CaseServiceImpl implements CaseService {
     }
 
     @Override
-    public List<CaseResponse> listCases(CaseStatus status, String insuredId) {
-        List<Case> entities;
-        if (insuredId != null && status != null) {
-            entities = caseRepository.findByInsuredIdAndStatusOrderByIdDesc(insuredId, status);
-        } else if (insuredId != null) {
-            entities = caseRepository.findByInsuredIdOrderByIdDesc(insuredId);
-        } else if (status != null) {
-            entities = caseRepository.findByStatusOrderByIdDesc(status);
-        } else {
-            entities = caseRepository.findAllByOrderByIdDesc();
-        }
-        return entities.stream().map(this::toResponse).toList();
+    public Page<CaseResponse> listCases(CaseStatus status, String claimCause, String policyNumber,
+                                         String insuredId, LocalDate eventDateFrom, LocalDate eventDateTo,
+                                         Pageable pageable) {
+        Specification<Case> spec = CaseSpecifications.withFilters(
+                status, claimCause, policyNumber, insuredId, eventDateFrom, eventDateTo);
+        return caseRepository.findAll(spec, pageable).map(this::toResponse);
     }
 
     @Override

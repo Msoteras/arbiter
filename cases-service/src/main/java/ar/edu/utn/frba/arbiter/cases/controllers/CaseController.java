@@ -9,12 +9,17 @@ import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
+import org.springframework.data.web.PageableDefault;
+import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
-import java.util.List;
+import java.time.LocalDate;
 import java.util.Map;
 
 @RestController
@@ -55,15 +60,28 @@ public class CaseController {
     @GetMapping
     @Operation(summary = "List cases",
             description = """
-                    Returns cases, most recent first. Optional filters, combinable:
-                    `status` (e.g. for the analyst's queue) and `insuredId` (the insured's own
-                    cases — until Auth0/JWT integration lands, the caller passes it explicitly).
+                    Devuelve expedientes paginados, más recientes primero por defecto. Filtros
+                    opcionales y combinables: `status`, `claimCause` (tipo de siniestro /
+                    HechoGenerador), `policyNumber`, `insuredId` (expedientes del asegurado —
+                    hasta que Auth0/JWT integration lands, el caller lo pasa explícito) y el rango
+                    `eventDateFrom`/`eventDateTo` (ISO `yyyy-MM-dd`, inclusive en ambos extremos)
+                    sobre la fecha del hecho. Paginación estándar de Spring Data: `page`, `size`,
+                    `sort` (ej. `sort=eventDate,desc`).
+
+                    No filtra por aseguradora/rol del usuario autenticado: depende de auth-service,
+                    que todavía no está levantado (ver GAPS-FLUJO.md, Gap F).
                     """)
-    public ResponseEntity<List<CaseResponse>> listCases(
+    public ResponseEntity<Page<CaseResponse>> listCases(
             @RequestParam(required = false) CaseStatus status,
-            @RequestParam(required = false) String insuredId
+            @RequestParam(required = false) String claimCause,
+            @RequestParam(required = false) String policyNumber,
+            @RequestParam(required = false) String insuredId,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate eventDateFrom,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate eventDateTo,
+            @PageableDefault(size = 20, sort = "id", direction = Sort.Direction.DESC) Pageable pageable
     ) {
-        List<CaseResponse> response = caseService.listCases(status, insuredId);
+        Page<CaseResponse> response = caseService.listCases(
+                status, claimCause, policyNumber, insuredId, eventDateFrom, eventDateTo, pageable);
         return ResponseEntity.ok(response);
     }
 
