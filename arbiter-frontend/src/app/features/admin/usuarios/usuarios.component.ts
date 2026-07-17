@@ -1,45 +1,80 @@
-import { ChangeDetectionStrategy, Component, computed, inject } from '@angular/core';
-import { toSignal } from '@angular/core/rxjs-interop';
-import { catchError, map, of, startWith } from 'rxjs';
+import { HttpErrorResponse } from '@angular/common/http';
+import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
+import { FormsModule } from '@angular/forms';
 
+import { AuthSessionService } from '../../../core/auth/auth-session.service';
 import { UserAdminService, UserResponse } from '../../../core/auth/user-admin.service';
-import { userRoleLabel } from '../../../core/models/user-role';
+import { UserRole, userRoleLabel } from '../../../core/models/user-role';
 
-type LoadState =
-  | { status: 'loading' }
-  | { status: 'ok'; data: UserResponse[] }
-  | { status: 'error' };
-
-/** Trello "Gestión de roles y permisos" - solo el listado (GET). Sin selector de rol editable todavía. */
+/**
+ * Trello "Gestión de roles y permisos" - listado (GET) + selector de rol editable (PUT).
+ * El referente no puede cambiar su propio rol (lo valida el backend; acá lo deshabilitamos
+ * directamente para no dejarlo intentar).
+ */
 @Component({
   selector: 'app-usuarios',
+  imports: [FormsModule],
   changeDetection: ChangeDetectionStrategy.OnPush,
   templateUrl: './usuarios.component.html',
   styleUrl: './usuarios.component.scss',
 })
 export class UsuariosComponent {
   private readonly service = inject(UserAdminService);
+  private readonly session = inject(AuthSessionService);
 
-  private readonly state = toSignal(
-    this.service.list().pipe(
-      map((data): LoadState => ({ status: 'ok', data })),
-      startWith<LoadState>({ status: 'loading' }),
-      catchError(() => of<LoadState>({ status: 'error' })),
-    ),
-    { initialValue: { status: 'loading' } as LoadState },
-  );
+  protected readonly roles: UserRole[] = ['ASEGURADO', 'ANALISTA_SINIESTROS', 'REFERENTE_ASEGURADORA'];
 
-  protected readonly loading = computed(() => this.state().status === 'loading');
-  protected readonly hasError = computed(() => this.state().status === 'error');
+  protected readonly loading = signal(true);
+  protected readonly hasError = signal(false);
+  protected readonly users = signal<UserResponse[]>([]);
+  protected readonly savingId = signal<number | null>(null);
+  protected readonly roleError = signal<string | null>(null);
 
-  protected readonly users = computed<UserResponse[]>(() => {
-    const s = this.state();
-    return s.status === 'ok' ? s.data : [];
-  });
+  protected readonly isEmpty = computed(() => !this.loading() && !this.hasError() && this.users().length === 0);
 
-  protected readonly isEmpty = computed(() => this.state().status === 'ok' && this.users().length === 0);
+  constructor() {
+    this.load();
+  }
+
+  private load(): void {
+    this.loading.set(true);
+    this.hasError.set(false);
+    this.service.list().subscribe({
+      next: (data) => {
+        this.users.set(data);
+        this.loading.set(false);
+      },
+      error: () => {
+        this.hasError.set(true);
+        this.loading.set(false);
+      },
+    });
+  }
+
+  protected isSelf(user: UserResponse): boolean {
+    return user.email === this.session.session()?.email;
+  }
 
   protected roleLabel(rol: string): string {
     return userRoleLabel(rol);
+  }
+
+  protected onRoleChange(user: UserResponse, newRole: UserRole): void {
+    if (newRole === user.rol) {
+      return;
+    }
+    this.roleError.set(null);
+    this.savingId.set(user.id);
+
+    this.service.updateRole(user.id, newRole).subscribe({
+      next: (updated) => {
+        this.savingId.set(null);
+        this.users.update((list) => list.map((u) => (u.id === updated.id ? updated : u)));
+      },
+      error: (err: HttpErrorResponse) => {
+        this.savingId.set(null);
+        this.roleError.set(err.error?.detail ?? 'No se pudo cambiar el rol. Probá de nuevo.');
+      },
+    });
   }
 }

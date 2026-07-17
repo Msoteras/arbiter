@@ -13,6 +13,9 @@
     <p class="muted">Todavía no hay usuarios cargados.</p>
   </div>
 } @else {
+  @if (roleError()) {
+    <p class="error">{{ roleError() }}</p>
+  }
   <div class="card table-card">
     <table>
       <thead>
@@ -29,7 +32,22 @@
           <tr>
             <td>{{ u.nombre }} {{ u.apellido }}</td>
             <td class="mono">{{ u.email }}</td>
-            <td><span class="badge">{{ roleLabel(u.rol) }}</span></td>
+            <td>
+              @if (isSelf(u)) {
+                <span class="badge" title="No podés cambiar tu propio rol">{{ roleLabel(u.rol) }}</span>
+              } @else {
+                <select
+                  class="role-select"
+                  [ngModel]="u.rol"
+                  (ngModelChange)="onRoleChange(u, $event)"
+                  [disabled]="savingId() === u.id"
+                >
+                  @for (r of roles; track r) {
+                    <option [value]="r">{{ roleLabel(r) }}</option>
+                  }
+                </select>
+              }
+            </td>
             <td>{{ u.sector || '—' }}</td>
             <td>{{ u.fechaIngreso || '—' }}</td>
           </tr>

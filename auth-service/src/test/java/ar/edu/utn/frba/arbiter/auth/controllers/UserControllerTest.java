@@ -17,6 +17,7 @@ import org.springframework.test.web.servlet.MockMvc;
 
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -39,25 +40,28 @@ class UserControllerTest extends AbstractPersistenceIT {
 
     private final ObjectMapper objectMapper = new ObjectMapper();
 
+    private Long referenteId;
+    private Long analistaId;
+
     @BeforeEach
     void seedUsers() {
         userRepository.deleteAll();
 
-        userRepository.save(User.builder()
+        referenteId = userRepository.save(User.builder()
                 .email("referente.test@arbiter.test")
                 .passwordHash(passwordEncoder.encode("changeme123"))
                 .nombre("Sofía")
                 .apellido("Martínez")
                 .rol(UserRole.REFERENTE_ASEGURADORA)
-                .build());
+                .build()).getId();
 
-        userRepository.save(User.builder()
+        analistaId = userRepository.save(User.builder()
                 .email("analista.test@arbiter.test")
                 .passwordHash(passwordEncoder.encode("changeme123"))
                 .nombre("Lucas")
                 .apellido("Gómez")
                 .rol(UserRole.ANALISTA_SINIESTROS)
-                .build());
+                .build()).getId();
     }
 
     private String tokenFor(String email) throws Exception {
@@ -157,6 +161,69 @@ class UserControllerTest extends AbstractPersistenceIT {
                 .andExpect(jsonPath("$.length()").value(2))
                 .andExpect(jsonPath("$[*].email").value(org.hamcrest.Matchers.containsInAnyOrder(
                         "referente.test@arbiter.test", "analista.test@arbiter.test")));
+    }
+
+    @Test
+    void updateRole_withoutToken_returns401() throws Exception {
+        mockMvc.perform(put("/api/v1/auth/users/" + analistaId + "/role")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"rol": "REFERENTE_ASEGURADORA"}
+                                """))
+                .andExpect(status().isUnauthorized());
+    }
+
+    @Test
+    void updateRole_asAnalista_returns403() throws Exception {
+        String token = tokenFor("analista.test@arbiter.test");
+
+        mockMvc.perform(put("/api/v1/auth/users/" + referenteId + "/role")
+                        .header("Authorization", "Bearer " + token)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"rol": "ASEGURADO"}
+                                """))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
+    void updateRole_promoteAnalistaToReferente_returns200() throws Exception {
+        String token = tokenFor("referente.test@arbiter.test");
+
+        mockMvc.perform(put("/api/v1/auth/users/" + analistaId + "/role")
+                        .header("Authorization", "Bearer " + token)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"rol": "REFERENTE_ASEGURADORA"}
+                                """))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.rol").value("REFERENTE_ASEGURADORA"));
+    }
+
+    @Test
+    void updateRole_ownAccount_returns400() throws Exception {
+        String token = tokenFor("referente.test@arbiter.test");
+
+        mockMvc.perform(put("/api/v1/auth/users/" + referenteId + "/role")
+                        .header("Authorization", "Bearer " + token)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"rol": "ANALISTA_SINIESTROS"}
+                                """))
+                .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    void updateRole_unknownUser_returns404() throws Exception {
+        String token = tokenFor("referente.test@arbiter.test");
+
+        mockMvc.perform(put("/api/v1/auth/users/999999/role")
+                        .header("Authorization", "Bearer " + token)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"rol": "ASEGURADO"}
+                                """))
+                .andExpect(status().isNotFound());
     }
 
     private String newAnalistaBody(String email) {

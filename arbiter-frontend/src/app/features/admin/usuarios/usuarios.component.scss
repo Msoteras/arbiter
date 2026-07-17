@@ -36,3 +36,15 @@ tbody tr:not(:last-child) td { border-bottom: 1px solid var(--c-divider); }
   background: var(--c-bg-head);
   color: var(--c-ink-2);
 }
+
+.role-select {
+  font-size: 12px;
+  padding: 5px 8px;
+  border: 1px solid var(--c-border-3);
+  border-radius: var(--radius-ctl);
+  background: var(--c-bg);
+  color: var(--c-ink-2);
+}
+.role-select:disabled { opacity: 0.5; }
+
+.error { margin: 0 0 12px; color: #b3261e; font-size: 12px; }

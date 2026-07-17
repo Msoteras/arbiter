@@ -19,6 +19,7 @@ public class AuthService {
         return new LoginResponse(
                 issuedToken.token(),
                 issuedToken.expiresAt(),
+                user.getEmail(),
                 user.getRol(),
                 user.getNombre(),
                 user.getApellido());

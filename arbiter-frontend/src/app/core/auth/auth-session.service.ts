@@ -5,6 +5,7 @@ import { UserRole } from '../models/user-role';
 export interface AuthSession {
   token: string;
   expiresAt: string;
+  email: string;
   rol: UserRole;
   nombre: string;
   apellido: string;

@@ -27,4 +27,14 @@ public class AuthExceptionHandler {
     public ProblemDetail handleRoleNotAllowed(RoleNotAllowedException ex) {
         return ProblemDetail.forStatusAndDetail(HttpStatusCode.valueOf(400), ex.getMessage());
     }
+
+    @ExceptionHandler(UserNotFoundException.class)
+    public ProblemDetail handleUserNotFound(UserNotFoundException ex) {
+        return ProblemDetail.forStatusAndDetail(HttpStatusCode.valueOf(404), ex.getMessage());
+    }
+
+    @ExceptionHandler(CannotChangeOwnRoleException.class)
+    public ProblemDetail handleCannotChangeOwnRole(CannotChangeOwnRoleException ex) {
+        return ProblemDetail.forStatusAndDetail(HttpStatusCode.valueOf(400), ex.getMessage());
+    }
 }

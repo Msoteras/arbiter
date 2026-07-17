@@ -13,6 +13,7 @@ export interface LoginRequest {
 export interface LoginResponse {
   token: string;
   expiresAt: string;
+  email: string;
   rol: UserRole;
   nombre: string;
   apellido: string;

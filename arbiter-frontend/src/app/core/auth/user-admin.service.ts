@@ -39,4 +39,8 @@ export class UserAdminService {
   list(): Observable<UserResponse[]> {
     return this.http.get<UserResponse[]>(this.baseUrl);
   }
+
+  updateRole(id: number, rol: UserRole): Observable<UserResponse> {
+    return this.http.put<UserResponse>(`${this.baseUrl}/${id}/role`, { rol });
+  }
 }
