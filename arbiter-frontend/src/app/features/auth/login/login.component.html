@@ -1,0 +1,76 @@
+<div class="login-page">
+  <!-- Panel de marca. Placeholder liviano a propósito: Valen está mergeando el
+       rediseño del front a develop y esto probablemente se reemplaza pronto. -->
+  <section class="brand-pane">
+    <div class="brand-pane-inner">
+      <span class="brand-mark">Arbiter</span>
+      <h1>Gestión inteligente de siniestros</h1>
+      <p class="brand-tag">
+        Analizá, clasificá y resolvé siniestros con el respaldo de IA y revisión humana en cada paso.
+      </p>
+
+      <svg class="brand-illustration" viewBox="0 0 400 320" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+        <circle cx="55" cy="55" r="42" class="blob blob-1" />
+        <circle cx="345" cy="260" r="64" class="blob blob-2" />
+        <circle cx="360" cy="60" r="18" class="blob blob-3" />
+
+        <!-- Escudo: protección / cobertura -->
+        <path
+          d="M200 28 L286 62 V148 C286 214 248 262 200 288 C152 262 114 214 114 148 V62 Z"
+          class="shield"
+        />
+        <path d="M168 152 L191 176 L236 124" class="shield-check" fill="none" stroke-linecap="round" stroke-linejoin="round" />
+
+        <!-- Documento: expediente / póliza -->
+        <g class="document">
+          <rect x="242" y="150" width="86" height="108" rx="6" />
+          <line x1="258" y1="176" x2="312" y2="176" />
+          <line x1="258" y1="196" x2="312" y2="196" />
+          <line x1="258" y1="216" x2="296" y2="216" />
+        </g>
+      </svg>
+    </div>
+  </section>
+
+  <section class="form-pane">
+    <form class="login-card" (submit)="$event.preventDefault(); submit()">
+      <h2>Iniciar sesión</h2>
+      <p class="muted">Ingresá con tu email y contraseña para acceder a Arbiter.</p>
+
+      <label class="field">
+        <span>Email</span>
+        <input
+          type="email"
+          name="email"
+          autocomplete="username"
+          [ngModel]="email()"
+          (ngModelChange)="email.set($event)"
+        />
+      </label>
+
+      <label class="field">
+        <span>Contraseña</span>
+        <input
+          type="password"
+          name="password"
+          autocomplete="current-password"
+          [ngModel]="password()"
+          (ngModelChange)="password.set($event)"
+        />
+      </label>
+
+      @if (errorMessage()) {
+        <p class="error">{{ errorMessage() }}</p>
+      }
+
+      <button type="submit" class="btn-pri" [disabled]="!canSubmit() || submitting()">
+        {{ submitting() ? 'Ingresando…' : 'Ingresar' }}
+      </button>
+
+      <p class="hint">
+        ¿Sos asegurado, analista o referente y no tenés cuenta? El alta la gestiona el referente de
+        tu aseguradora — este sistema no tiene autorregistro.
+      </p>
+    </form>
+  </section>
+</div>

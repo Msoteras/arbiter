@@ -1,12 +1,15 @@
 import { HttpInterceptorFn } from '@angular/common/http';
+import { inject } from '@angular/core';
+
+import { AuthSessionService } from '../auth/auth-session.service';
 
 /**
- * Stub de autenticación. Cuando integremos Auth0, este interceptor va a
- * adjuntar el JWT (Authorization: Bearer <token>) a las llamadas /api/*.
- * Hoy no hay token, así que pasa la request tal cual — el gancho ya queda puesto.
+ * Adjunta el JWT de la sesión (login propio, H0001) a las llamadas /api/*.
+ * Cuando se integre Auth0 el token sale de ahí en vez de AuthSessionService,
+ * pero el resto de la request queda igual.
  */
 export const authInterceptor: HttpInterceptorFn = (req, next) => {
-  const token: string | null = null; // TODO: token real de Auth0
+  const token = inject(AuthSessionService).token();
   if (token && req.url.includes('/api/')) {
     req = req.clone({ setHeaders: { Authorization: `Bearer ${token}` } });
   }
