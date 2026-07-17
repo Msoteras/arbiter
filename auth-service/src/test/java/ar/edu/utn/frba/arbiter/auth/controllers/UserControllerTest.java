@@ -15,6 +15,7 @@ import org.springframework.http.MediaType;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.test.web.servlet.MockMvc;
 
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -131,6 +132,31 @@ class UserControllerTest extends AbstractPersistenceIT {
                                 }
                                 """))
                 .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    void listUsers_withoutToken_returns401() throws Exception {
+        mockMvc.perform(get("/api/v1/auth/users"))
+                .andExpect(status().isUnauthorized());
+    }
+
+    @Test
+    void listUsers_asAnalista_returns403() throws Exception {
+        String token = tokenFor("analista.test@arbiter.test");
+
+        mockMvc.perform(get("/api/v1/auth/users").header("Authorization", "Bearer " + token))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
+    void listUsers_asReferente_returns200WithBothSeededUsers() throws Exception {
+        String token = tokenFor("referente.test@arbiter.test");
+
+        mockMvc.perform(get("/api/v1/auth/users").header("Authorization", "Bearer " + token))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.length()").value(2))
+                .andExpect(jsonPath("$[*].email").value(org.hamcrest.Matchers.containsInAnyOrder(
+                        "referente.test@arbiter.test", "analista.test@arbiter.test")));
     }
 
     private String newAnalistaBody(String email) {

@@ -1,6 +1,7 @@
 import { HttpErrorResponse } from '@angular/common/http';
 import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
+import { RouterLink } from '@angular/router';
 
 import { CreateUserRequest, UserAdminService, UserResponse } from '../../../core/auth/user-admin.service';
 
@@ -10,7 +11,7 @@ import { CreateUserRequest, UserAdminService, UserResponse } from '../../../core
  */
 @Component({
   selector: 'app-alta-usuario',
-  imports: [FormsModule],
+  imports: [FormsModule, RouterLink],
   changeDetection: ChangeDetectionStrategy.OnPush,
   templateUrl: './alta-usuario.component.html',
   styleUrl: './alta-usuario.component.scss',

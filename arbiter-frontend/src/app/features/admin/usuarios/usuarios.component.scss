@@ -1,0 +1,38 @@
+:host { display: block; padding: 20px 24px; max-width: 900px; }
+
+.page-head { margin-bottom: 16px; }
+.page-head h1 { margin: 0; font-size: 20px; font-weight: 650; }
+
+.muted { color: var(--c-muted); font-size: 13px; margin: 0; }
+.skeleton { color: var(--c-muted); }
+
+.card {
+  border: 1px solid var(--c-border-3);
+  border-radius: var(--radius-card);
+  background: var(--c-bg);
+  padding: 16px;
+}
+
+.table-card { padding: 0; overflow-x: auto; }
+
+table { width: 100%; border-collapse: collapse; font-size: 13px; }
+th, td { text-align: left; padding: 10px 14px; white-space: nowrap; }
+thead th {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--c-muted);
+  background: var(--c-bg-head);
+  border-bottom: 1px solid var(--c-border);
+}
+tbody tr:not(:last-child) td { border-bottom: 1px solid var(--c-divider); }
+
+.badge {
+  display: inline-block;
+  font-size: 11px;
+  padding: 3px 10px;
+  border-radius: var(--radius-pill);
+  border: 1px solid var(--c-border-3);
+  background: var(--c-bg-head);
+  color: var(--c-ink-2);
+}

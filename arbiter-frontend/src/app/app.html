@@ -11,7 +11,7 @@
       }
     </header>
     <div class="app-body">
-      <!-- H0003: cada sección solo se ve si el rol la habilita (el referente ve las dos). -->
+      <!-- H0003: cada rol ve solo su propia sección del sidebar. -->
       <nav class="sidebar">
         @if (showAnalistaNav()) {
           <span class="nav-section">Analista</span>
@@ -25,7 +25,8 @@
         }
         @if (showAdminNav()) {
           <span class="nav-section">Referente</span>
-          <a routerLink="/admin/usuarios" routerLinkActive="active">Alta de usuarios</a>
+          <a routerLink="/admin/usuarios" routerLinkActive="active" [routerLinkActiveOptions]="{ exact: true }">Usuarios</a>
+          <a routerLink="/admin/usuarios/nuevo" routerLinkActive="active">Alta de usuarios</a>
         }
       </nav>
       <main class="app-content">

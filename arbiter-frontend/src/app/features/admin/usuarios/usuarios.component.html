@@ -1,0 +1,40 @@
+<header class="page-head">
+  <h1>Usuarios</h1>
+</header>
+
+@if (loading()) {
+  <div class="card skeleton">Cargando usuarios…</div>
+} @else if (hasError()) {
+  <div class="card">
+    <p class="muted">No se pudo cargar el listado de usuarios.</p>
+  </div>
+} @else if (isEmpty()) {
+  <div class="card">
+    <p class="muted">Todavía no hay usuarios cargados.</p>
+  </div>
+} @else {
+  <div class="card table-card">
+    <table>
+      <thead>
+        <tr>
+          <th>Nombre</th>
+          <th>Email</th>
+          <th>Rol</th>
+          <th>Sector</th>
+          <th>Fecha de ingreso</th>
+        </tr>
+      </thead>
+      <tbody>
+        @for (u of users(); track u.id) {
+          <tr>
+            <td>{{ u.nombre }} {{ u.apellido }}</td>
+            <td class="mono">{{ u.email }}</td>
+            <td><span class="badge">{{ roleLabel(u.rol) }}</span></td>
+            <td>{{ u.sector || '—' }}</td>
+            <td>{{ u.fechaIngreso || '—' }}</td>
+          </tr>
+        }
+      </tbody>
+    </table>
+  </div>
+}

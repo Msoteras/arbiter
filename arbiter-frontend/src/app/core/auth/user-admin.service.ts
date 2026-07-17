@@ -26,7 +26,7 @@ export interface UserResponse {
   createdAt: string;
 }
 
-/** H0002 - Alta de Usuarios. Solo el referente puede llamar a este endpoint (RBAC, H0003). */
+/** H0002/H0003 - Alta y listado de usuarios. Solo el referente puede llamar a estos endpoints (RBAC). */
 @Injectable({ providedIn: 'root' })
 export class UserAdminService {
   private readonly http = inject(HttpClient);
@@ -34,5 +34,9 @@ export class UserAdminService {
 
   create(request: CreateUserRequest): Observable<UserResponse> {
     return this.http.post<UserResponse>(this.baseUrl, request);
+  }
+
+  list(): Observable<UserResponse[]> {
+    return this.http.get<UserResponse[]>(this.baseUrl);
   }
 }

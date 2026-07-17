@@ -5,6 +5,7 @@ import { Router } from '@angular/router';
 
 import { AuthSessionService } from '../../../core/auth/auth-session.service';
 import { AuthService } from '../../../core/auth/auth.service';
+import { UserRole } from '../../../core/models/user-role';
 
 @Component({
   selector: 'app-login',
@@ -37,13 +38,20 @@ export class LoginComponent {
     this.authService.login({ email: this.email().trim(), password: this.password() }).subscribe({
       next: (response) => {
         this.session.start(response);
-        this.router.navigateByUrl(response.rol === 'ASEGURADO' ? '/portal' : '/bandeja');
+        this.router.navigateByUrl(this.homeFor(response.rol));
       },
       error: (err: HttpErrorResponse) => {
         this.submitting.set(false);
         this.errorMessage.set(this.messageFor(err));
       },
     });
+  }
+
+  /** El home de cada rol es su propia sección — el referente ya no aterriza en la bandeja del analista. */
+  private homeFor(rol: UserRole): string {
+    if (rol === 'ASEGURADO') return '/portal';
+    if (rol === 'REFERENTE_ASEGURADORA') return '/admin/usuarios';
+    return '/bandeja';
   }
 
   private messageFor(err: HttpErrorResponse): string {

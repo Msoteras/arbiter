@@ -64,6 +64,13 @@ export const routes: Routes = [
     canActivate: [roleGuard],
     data: { roles: ['REFERENTE_ASEGURADORA'] },
     loadComponent: () =>
+      import('./features/admin/usuarios/usuarios.component').then((m) => m.UsuariosComponent),
+  },
+  {
+    path: 'admin/usuarios/nuevo',
+    canActivate: [roleGuard],
+    data: { roles: ['REFERENTE_ASEGURADORA'] },
+    loadComponent: () =>
       import('./features/admin/alta-usuario/alta-usuario.component').then(
         (m) => m.AltaUsuarioComponent,
       ),

@@ -11,6 +11,8 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 
+import java.util.List;
+
 @Service
 @RequiredArgsConstructor
 public class UserService {
@@ -37,6 +39,13 @@ public class UserService {
                 .build();
 
         return toResponse(userRepository.save(user));
+    }
+
+    /** H0003 (Trello) - listado de usuarios con su rol actual. Sin el selector de rol editable. */
+    public List<UserResponse> listUsers() {
+        return userRepository.findAllByOrderByCreatedAtDesc().stream()
+                .map(this::toResponse)
+                .toList();
     }
 
     private UserResponse toResponse(User user) {
