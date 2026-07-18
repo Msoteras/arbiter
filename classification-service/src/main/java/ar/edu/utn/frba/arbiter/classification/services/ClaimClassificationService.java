@@ -2,6 +2,7 @@ package ar.edu.utn.frba.arbiter.classification.services;
 
 import ar.edu.utn.frba.arbiter.classification.dto.AttachmentDocument;
 import ar.edu.utn.frba.arbiter.classification.dto.ClassificationResponse;
+import ar.edu.utn.frba.arbiter.classification.dto.DuplicateImageMatch;
 import ar.edu.utn.frba.arbiter.common.dto.ClaimReport;
 import lombok.RequiredArgsConstructor;
 import org.slf4j.Logger;
@@ -13,7 +14,10 @@ import org.springframework.stereotype.Service;
 import org.springframework.web.client.HttpServerErrorException;
 import org.springframework.web.client.ResourceAccessException;
 
+import java.util.ArrayList;
+import java.util.Base64;
 import java.util.List;
+import java.util.Set;
 
 /**
  * Thin façade that exposes the classification entry points expected by the controllers.
@@ -26,8 +30,12 @@ public class ClaimClassificationService {
 
     private static final Logger log = LoggerFactory.getLogger(ClaimClassificationService.class);
 
+    private static final Set<String> IMAGE_CONTENT_TYPES = Set.of(
+            "image/jpeg", "image/png", "image/webp", "image/gif", "image/bmp");
+
     private final ClassificationOrchestrator classificationOrchestrator;
     private final ClassificationResultsService resultsService;
+    private final ImageEmbeddingService imageEmbeddingService;
 
     /**
      * Trigger async classification for a persisted claim.
@@ -83,6 +91,11 @@ public class ClaimClassificationService {
             ClassificationResponse response = classificationOrchestrator.classify(claim, documents);
             long latencyMs = System.currentTimeMillis() - start;
 
+            List<String> duplicateFactors = checkDuplicateImages(caseId, documents);
+            if (!duplicateFactors.isEmpty()) {
+                response = enrichWithDuplicateFactors(response, duplicateFactors);
+            }
+
             log.info("[ClaimClassificationService] ✓ Classification obtained — caseId={} {} confidence={} latency={}ms",
                     caseId, response.classification(), response.confidence(), latencyMs);
 
@@ -93,5 +106,52 @@ public class ClaimClassificationService {
                     caseId, e.getMessage(), e);
             throw new RuntimeException("Classification failed for case " + caseId + " after retries", e);
         }
+    }
+
+    private List<String> checkDuplicateImages(Long caseId, List<AttachmentDocument> documents) {
+        List<String> factors = new ArrayList<>();
+        int imageIndex = 0;
+
+        for (AttachmentDocument doc : documents) {
+            if (!IMAGE_CONTENT_TYPES.contains(doc.contentType())) {
+                continue;
+            }
+            String imageBase64 = Base64.getEncoder().encodeToString(doc.content());
+            String attachmentLabel = doc.type() + "-" + imageIndex++;
+
+            try {
+                List<DuplicateImageMatch> matches = imageEmbeddingService.processAndFindDuplicates(
+                        caseId, attachmentLabel, doc.type(), imageBase64);
+
+                for (DuplicateImageMatch match : matches) {
+                    factors.add(String.format(
+                            "⚠ Imagen '%s' similar (%.1f%%) a adjunto del siniestro #%d ('%s')",
+                            doc.type(),
+                            match.similarity() * 100,
+                            match.matchedCaseId(),
+                            match.matchedFilename()));
+                }
+            } catch (Exception e) {
+                log.warn("[ClaimClassificationService] Embedding check failed for attachment '{}' — {}",
+                        attachmentLabel, e.getMessage());
+            }
+        }
+
+        return factors;
+    }
+
+    private ClassificationResponse enrichWithDuplicateFactors(
+            ClassificationResponse original,
+            List<String> duplicateFactors
+    ) {
+        List<String> allFactors = new ArrayList<>(original.factors());
+        allFactors.addAll(duplicateFactors);
+
+        return ClassificationResponse.builder()
+                .classification(original.classification())
+                .factors(allFactors)
+                .confidence(original.confidence())
+                .deterministicFastTrack(original.deterministicFastTrack())
+                .build();
     }
 }
