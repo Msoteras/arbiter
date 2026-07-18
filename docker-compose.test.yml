@@ -1,0 +1,49 @@
+version: '3.9'
+
+services:
+
+  # ─── LLM ─────────────────────────────────────────────────────────────────
+  ollama:
+    image: ollama/ollama
+    volumes:
+      - ollama_data:/root/.ollama
+    healthcheck:
+      test: ["CMD", "ollama", "list"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 10s
+
+  # Pulls the model into the volume before running the tests.
+  # If the model is already in the volume, it finishes in seconds.
+  ollama-init:
+    image: ollama/ollama
+    entrypoint: ["sh", "-c", "ollama pull qwen3-vl && sleep infinity"]
+    environment:
+      OLLAMA_HOST: http://ollama:11434
+    depends_on:
+      ollama:
+        condition: service_healthy
+
+  # ─── Test runner ─────────────────────────────────────────────────────────
+  classification-test:
+    image: maven:3.9-eclipse-temurin-21
+    working_dir: /app
+    volumes:
+      - .:/app                                      # project source
+      - maven_cache:/root/.m2                        # Maven dependency cache across runs
+      - /var/run/docker.sock:/var/run/docker.sock   # Testcontainers spins up a real Postgres for the @SpringBootTest
+    command: >
+      mvn clean install -DskipTests; mvn -pl classification-service test
+      -Dgroups=integracion
+      -Dtest=OllamaClassificationScenariosTest
+    environment:
+      OLLAMA_BASE_URL: http://ollama:11434
+      OLLAMA_MODEL: qwen3-vl
+    depends_on:
+      ollama:
+        condition: service_healthy
+
+volumes:
+  ollama_data:
+  maven_cache:
