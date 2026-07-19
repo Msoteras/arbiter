@@ -54,6 +54,6 @@
   </app-card>
 }
 
-<app-modal [open]="showCreatePanel()" heading="Nuevo usuario" (close)="showCreatePanel.set(false)">
+<app-modal [open]="showCreatePanel()" heading="Nuevo usuario" variant="side" (close)="showCreatePanel.set(false)">
   <app-alta-usuario (created)="onCreated($event)" (cancel)="showCreatePanel.set(false)" />
 </app-modal>

@@ -244,7 +244,11 @@ interface Swatch {
 
       <section class="sg-block">
         <h3 class="sg-h3">Modal</h3>
-        <app-button (click)="modalOpen.set(true)">Abrir modal</app-button>
+        <div class="row">
+          <app-button (click)="modalOpen.set(true)">Abrir modal</app-button>
+          <app-button variant="secondary" (click)="sidePanelOpen.set(true)">Abrir panel lateral</app-button>
+        </div>
+        <p class="sg-p">Variante <span class="mono">side</span>: panel deslizante desde el borde, para formularios tipo "alta de X" sobre un listado.</p>
         <app-modal
           [open]="modalOpen()"
           heading="Justificar decisión"
@@ -255,6 +259,18 @@ interface Swatch {
           <ng-container modalActions>
             <app-button variant="secondary" (click)="modalOpen.set(false)">Cancelar</app-button>
             <app-button (click)="modalOpen.set(false)">Confirmar</app-button>
+          </ng-container>
+        </app-modal>
+        <app-modal
+          [open]="sidePanelOpen()"
+          heading="Nuevo usuario"
+          variant="side"
+          (close)="sidePanelOpen.set(false)"
+        >
+          <p class="sg-p">Contenido del panel, igual que un modal centrado.</p>
+          <ng-container modalActions>
+            <app-button variant="secondary" (click)="sidePanelOpen.set(false)">Cancelar</app-button>
+            <app-button (click)="sidePanelOpen.set(false)">Confirmar</app-button>
           </ng-container>
         </app-modal>
       </section>
@@ -361,6 +377,7 @@ export class StyleguideComponent {
   private readonly doc = inject(DOCUMENT);
 
   protected readonly modalOpen = signal(false);
+  protected readonly sidePanelOpen = signal(false);
   protected readonly sampleInput = signal('');
   protected readonly samplePassword = signal('');
   protected readonly sampleArea = signal('');
