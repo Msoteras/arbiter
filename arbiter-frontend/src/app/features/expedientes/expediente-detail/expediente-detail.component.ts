@@ -7,7 +7,7 @@ import { catchError, combineLatest, map, of, startWith, switchMap } from 'rxjs';
 import { ExpedienteService, AnalystDecisionRequest } from '../expediente.service';
 import { ExpedienteResponse, StatusTransition } from '../../../core/models/expediente';
 import { clasificacionLabel, clasificacionTone } from '../../../core/models/clasificacion';
-import { estadoLabel, estadoTone } from '../../../core/models/estado';
+import { estadoLabel, estadoSimplificadoLabel, estadoTone } from '../../../core/models/estado';
 import { StatusTone } from '../../../core/models/status-tone';
 import { FraudGaugeComponent } from '../../../shared/ui/fraud-gauge/fraud-gauge.component';
 import { EmptyStateComponent } from '../../../shared/ui/empty-state/empty-state.component';
@@ -95,6 +95,23 @@ export class ExpedienteDetailComponent {
   protected readonly statusTone = computed<StatusTone>(() => {
     const d = this.data();
     return d ? estadoTone(d.status) : 'neutral';
+  });
+
+  protected readonly simplifiedStatusLabel = computed(() => {
+    const d = this.data();
+    return d ? estadoSimplificadoLabel(d.status) : '';
+  });
+
+  private static readonly RISK_BAND_GAUGE: Record<string, 1 | 2 | 3 | 4> = {
+    LOW: 1,
+    MEDIUM: 2,
+    HIGH: 3,
+    CRITICAL: 4,
+  };
+
+  protected readonly riskGaugeBand = computed<1 | 2 | 3 | 4 | null>(() => {
+    const band = this.data()?.riskBand;
+    return band ? ExpedienteDetailComponent.RISK_BAND_GAUGE[band] : null;
   });
 
   protected readonly classificationLabel = computed(() => {

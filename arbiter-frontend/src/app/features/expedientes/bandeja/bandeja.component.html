@@ -16,7 +16,7 @@
     <ul class="case-list">
       @for (c of cases(); track c.id) {
         <li class="case-card">
-          <a class="case-card-link" [routerLink]="['/expedientes', c.id]">
+          <a class="case-card-link" [routerLink]="['/cases', c.id]">
             <div class="case-card-head">
               <span class="exp-id mono">#{{ c.id }}</span>
               <app-badge [tone]="estadoTone(c.status)">{{ estadoLabel(c.status) }}</app-badge>

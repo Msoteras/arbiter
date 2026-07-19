@@ -4,15 +4,15 @@
 
     <div class="identity">
       <h1 class="t-page-title mono">Expediente #{{ d.id }}</h1>
-      <app-badge [tone]="statusTone()">{{ statusLabel() }}</app-badge>
-      <app-badge variant="dashed">Sin datos</app-badge>
+      <app-badge [tone]="statusTone()" [title]="'Técnico'">{{ statusLabel() }}</app-badge>
+      <app-badge variant="dashed" [title]="'Simplificado (vista del asegurado)'">{{ simplifiedStatusLabel() }}</app-badge>
     </div>
     <p class="subtitle nodata">Sin datos</p>
 
     <!-- Reasoning cards (orden de razonamiento) -->
     <div class="reasoning">
       <app-card class="rcard" heading="Nivel de riesgo de fraude">
-        <app-fraud-gauge [band]="null" />
+        <app-fraud-gauge [band]="riskGaugeBand()" />
       </app-card>
 
       <app-card class="rcard reco" variant="soft" icon="✦" heading="Recomendación de Arbiter">

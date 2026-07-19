@@ -1,4 +1,4 @@
-:host { display: block; padding: var(--space-5); max-width: 980px; }
+:host { display: block; padding: var(--space-5); max-width: 980px; margin: 0 auto; }
 
 .page-head { margin-bottom: var(--space-4); }
 .page-head h1 { margin: 0; }
@@ -52,6 +52,10 @@
 
 .state-wrap { padding: var(--space-5) 0; }
 .t-note a { color: var(--text-tertiary); }
+
+@media (min-width: 1400px) {
+  :host { max-width: 1180px; }
+}
 
 @media (max-width: 760px) {
   .seg-grid { grid-template-columns: 1fr; }
