@@ -13,14 +13,14 @@ export const routes: Routes = [
 
   // ----- Portal del analista -----
   {
-    path: 'bandeja',
+    path: 'inbox',
     canActivate: [roleGuard],
     data: { roles: ['ANALISTA_SINIESTROS'] },
     loadComponent: () =>
       import('./features/expedientes/bandeja/bandeja.component').then((m) => m.BandejaComponent),
   },
   {
-    path: 'expedientes/:id',
+    path: 'cases/:id',
     canActivate: [roleGuard],
     data: { roles: ['ANALISTA_SINIESTROS'] },
     loadComponent: () =>
@@ -45,7 +45,7 @@ export const routes: Routes = [
       ),
   },
   {
-    path: 'portal/expedientes/:id',
+    path: 'portal/cases/:id',
     canActivate: [roleGuard],
     data: { roles: ['ASEGURADO'] },
     loadComponent: () =>
@@ -54,7 +54,7 @@ export const routes: Routes = [
       ),
   },
   {
-    path: 'nueva-denuncia',
+    path: 'new-claim',
     canActivate: [roleGuard],
     data: { roles: ['ASEGURADO'] },
     loadComponent: () =>
@@ -65,20 +65,11 @@ export const routes: Routes = [
 
   // ----- Panel del referente -----
   {
-    path: 'admin/usuarios',
+    path: 'insurer/users',
     canActivate: [roleGuard],
     data: { roles: ['REFERENTE_ASEGURADORA'] },
     loadComponent: () =>
       import('./features/admin/usuarios/usuarios.component').then((m) => m.UsuariosComponent),
-  },
-  {
-    path: 'admin/usuarios/nuevo',
-    canActivate: [roleGuard],
-    data: { roles: ['REFERENTE_ASEGURADORA'] },
-    loadComponent: () =>
-      import('./features/admin/alta-usuario/alta-usuario.component').then(
-        (m) => m.AltaUsuarioComponent,
-      ),
   },
 
   { path: '**', redirectTo: '' },

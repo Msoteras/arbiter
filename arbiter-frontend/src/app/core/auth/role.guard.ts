@@ -27,5 +27,5 @@ export const roleGuard: CanActivateFn = (route) => {
     return true;
   }
 
-  return router.parseUrl(current.rol === 'ASEGURADO' ? '/portal' : '/bandeja');
+  return router.parseUrl(current.rol === 'ASEGURADO' ? '/portal' : '/inbox');
 };

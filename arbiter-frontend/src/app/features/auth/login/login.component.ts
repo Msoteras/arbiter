@@ -52,8 +52,8 @@ export class LoginComponent {
   /** El home de cada rol es su propia sección — el referente ya no aterriza en la bandeja del analista. */
   private homeFor(rol: UserRole): string {
     if (rol === 'ASEGURADO') return '/portal';
-    if (rol === 'REFERENTE_ASEGURADORA') return '/admin/usuarios';
-    return '/bandeja';
+    if (rol === 'REFERENTE_ASEGURADORA') return '/insurer/users';
+    return '/inbox';
   }
 
   private messageFor(err: HttpErrorResponse): string {

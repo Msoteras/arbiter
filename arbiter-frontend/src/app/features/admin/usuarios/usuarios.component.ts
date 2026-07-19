@@ -5,17 +5,21 @@ import { FormsModule } from '@angular/forms';
 import { AuthSessionService } from '../../../core/auth/auth-session.service';
 import { UserAdminService, UserResponse } from '../../../core/auth/user-admin.service';
 import { UserRole, userRoleLabel } from '../../../core/models/user-role';
+import { AltaUsuarioComponent } from '../alta-usuario/alta-usuario.component';
 import { BadgeComponent } from '../../../shared/ui/badge/badge.component';
+import { ButtonComponent } from '../../../shared/ui/button/button.component';
 import { CardComponent } from '../../../shared/ui/card/card.component';
+import { ModalComponent } from '../../../shared/ui/modal/modal.component';
 
 /**
  * Trello "Gestión de roles y permisos" - listado (GET) + selector de rol editable (PUT).
  * El referente no puede cambiar su propio rol (lo valida el backend; acá lo deshabilitamos
- * directamente para no dejarlo intentar).
+ * directamente para no dejarlo intentar). "+ Nuevo usuario" abre el alta en un panel (wireframe),
+ * en vez de navegar a una página aparte.
  */
 @Component({
   selector: 'app-usuarios',
-  imports: [FormsModule, BadgeComponent, CardComponent],
+  imports: [FormsModule, AltaUsuarioComponent, BadgeComponent, ButtonComponent, CardComponent, ModalComponent],
   changeDetection: ChangeDetectionStrategy.OnPush,
   templateUrl: './usuarios.component.html',
   styleUrl: './usuarios.component.scss',
@@ -31,6 +35,7 @@ export class UsuariosComponent {
   protected readonly users = signal<UserResponse[]>([]);
   protected readonly savingId = signal<number | null>(null);
   protected readonly roleError = signal<string | null>(null);
+  protected readonly showCreatePanel = signal(false);
 
   protected readonly isEmpty = computed(() => !this.loading() && !this.hasError() && this.users().length === 0);
 
@@ -55,6 +60,11 @@ export class UsuariosComponent {
 
   protected isSelf(user: UserResponse): boolean {
     return user.email === this.session.session()?.email;
+  }
+
+  protected onCreated(user: UserResponse): void {
+    this.users.update((list) => [user, ...list]);
+    this.showCreatePanel.set(false);
   }
 
   protected roleLabel(rol: string): string {

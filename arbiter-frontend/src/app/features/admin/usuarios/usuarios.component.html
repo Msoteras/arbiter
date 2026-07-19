@@ -1,5 +1,6 @@
 <header class="page-head">
   <h1 class="t-page-title">Usuarios</h1>
+  <app-button (click)="showCreatePanel.set(true)">+ Nuevo usuario</app-button>
 </header>
 
 @if (loading()) {
@@ -52,3 +53,7 @@
     </table>
   </app-card>
 }
+
+<app-modal [open]="showCreatePanel()" heading="Nuevo usuario" (close)="showCreatePanel.set(false)">
+  <app-alta-usuario (created)="onCreated($event)" (cancel)="showCreatePanel.set(false)" />
+</app-modal>

@@ -1,14 +1,4 @@
-:host { display: block; padding: var(--space-5) var(--space-5); max-width: 480px; }
-
-.page-head { margin-bottom: var(--space-4); }
-.back-link {
-  display: inline-block;
-  margin-bottom: var(--space-2);
-  font-size: var(--font-size-xs);
-  color: var(--text-tertiary);
-  text-decoration: none;
-}
-.back-link:hover { text-decoration: underline; }
+:host { display: block; }
 
 .form-card { display: flex; flex-direction: column; gap: var(--space-3); }
 
@@ -23,4 +13,10 @@
 .role-display { margin: 0; color: var(--text-muted); }
 
 .error { margin: 0; color: var(--status-danger); font-size: var(--font-size-xs); }
-.success { margin: 0; color: var(--status-ok); font-size: var(--font-size-xs); }
+
+.form-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--space-2);
+  margin-top: var(--space-2);
+}

@@ -1,40 +1,35 @@
 <div class="app-shell">
   @if (showShell()) {
     <header class="topbar">
-      <span class="logo">LOGO</span>
-      <span class="topbar-title">Arbiter · Gestión de siniestros</span>
-      @if (session.session(); as s) {
-        <span class="who">
-          {{ s.nombre }} {{ s.apellido }} · {{ roleLabel(s.rol) }}
-          <button type="button" class="link-btn" (click)="logout()">Cerrar sesión</button>
-        </span>
-      }
-    </header>
-    <div class="app-body">
-      <!-- H0003: cada rol ve solo su propia sección del sidebar. -->
-      <nav class="sidebar">
+      <div class="topbar-row">
+        <span class="logo">LOGO</span>
+        <span class="topbar-title">Arbiter · Gestión de siniestros</span>
+        @if (session.session(); as s) {
+          <span class="who">
+            {{ s.nombre }} {{ s.apellido }} · {{ roleLabel(s.rol) }}
+            <button type="button" class="link-btn" (click)="logout()">Cerrar sesión</button>
+          </span>
+        }
+      </div>
+      <!-- H0003: cada rol ve solo su propia sección de la nav. -->
+      <nav class="topnav">
         @if (showAnalistaNav()) {
-          <span class="nav-section">Analista</span>
-          <a routerLink="/bandeja" routerLinkActive="active">Bandeja</a>
+          <a routerLink="/inbox" routerLinkActive="active">Bandeja</a>
           <a class="disabled" title="Sin datos">Pendientes (Fast Track)</a>
         }
         @if (showAseguradoNav()) {
-          <span class="nav-section">Asegurado</span>
           <a routerLink="/portal" routerLinkActive="active">Mis expedientes</a>
-          <a routerLink="/nueva-denuncia" routerLinkActive="active">Nueva denuncia</a>
+          <a routerLink="/new-claim" routerLinkActive="active">Nueva denuncia</a>
         }
         @if (showAdminNav()) {
-          <span class="nav-section">Referente</span>
-          <a routerLink="/admin/usuarios" routerLinkActive="active" [routerLinkActiveOptions]="{ exact: true }">Usuarios</a>
-          <a routerLink="/admin/usuarios/nuevo" routerLinkActive="active">Alta de usuarios</a>
+          <a routerLink="/insurer/users" routerLinkActive="active">Usuarios</a>
         }
-        <span class="nav-section">Dev</span>
-        <a routerLink="/styleguide" routerLinkActive="active">Design System</a>
+        <a routerLink="/styleguide" routerLinkActive="active" class="dev-link">Design System</a>
       </nav>
-      <main class="app-content">
-        <router-outlet />
-      </main>
-    </div>
+    </header>
+    <main class="app-content">
+      <router-outlet />
+    </main>
   } @else {
     <router-outlet />
   }

@@ -1,25 +1,27 @@
 import { HttpErrorResponse } from '@angular/common/http';
-import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
-import { RouterLink } from '@angular/router';
+import { ChangeDetectionStrategy, Component, computed, inject, output, signal } from '@angular/core';
 
 import { CreateUserRequest, UserAdminService, UserResponse } from '../../../core/auth/user-admin.service';
 import { ButtonComponent } from '../../../shared/ui/button/button.component';
-import { CardComponent } from '../../../shared/ui/card/card.component';
 import { InputComponent } from '../../../shared/ui/input/input.component';
 
 /**
  * H0002 - Alta de Usuarios. Por ahora solo crea cuentas ANALISTA_SINIESTROS (ver CLAUDE.md,
  * decisión #8) — el selector de rol no está porque hoy hay un solo valor válido.
+ * Vive dentro de un app-modal abierto desde UsuariosComponent (patrón del wireframe).
  */
 @Component({
   selector: 'app-alta-usuario',
-  imports: [RouterLink, ButtonComponent, CardComponent, InputComponent],
+  imports: [ButtonComponent, InputComponent],
   changeDetection: ChangeDetectionStrategy.OnPush,
   templateUrl: './alta-usuario.component.html',
   styleUrl: './alta-usuario.component.scss',
 })
 export class AltaUsuarioComponent {
   private readonly userAdminService = inject(UserAdminService);
+
+  readonly created = output<UserResponse>();
+  readonly cancel = output<void>();
 
   protected readonly email = signal('');
   protected readonly nombre = signal('');
@@ -30,7 +32,6 @@ export class AltaUsuarioComponent {
 
   protected readonly submitting = signal(false);
   protected readonly errorMessage = signal<string | null>(null);
-  protected readonly created = signal<UserResponse | null>(null);
 
   protected readonly canSubmit = computed(
     () =>
@@ -47,7 +48,6 @@ export class AltaUsuarioComponent {
     }
     this.submitting.set(true);
     this.errorMessage.set(null);
-    this.created.set(null);
 
     const request: CreateUserRequest = {
       email: this.email().trim(),
@@ -62,23 +62,13 @@ export class AltaUsuarioComponent {
     this.userAdminService.create(request).subscribe({
       next: (response) => {
         this.submitting.set(false);
-        this.created.set(response);
-        this.resetForm();
+        this.created.emit(response);
       },
       error: (err: HttpErrorResponse) => {
         this.submitting.set(false);
         this.errorMessage.set(this.messageFor(err));
       },
     });
-  }
-
-  private resetForm(): void {
-    this.email.set('');
-    this.nombre.set('');
-    this.apellido.set('');
-    this.password.set('');
-    this.sector.set('');
-    this.fechaIngreso.set('');
   }
 
   private messageFor(err: HttpErrorResponse): string {

@@ -152,7 +152,7 @@ export class NuevaDenunciaComponent {
         // La denuncia la registra el asegurado: queda identificado con el id que usó
         // y sigue el expediente desde su portal (no desde la vista del analista).
         this.session.identify(request.insuredId);
-        this.router.navigate(['/portal/expedientes', res.id]);
+        this.router.navigate(['/portal/cases', res.id]);
       },
       error: (err) => {
         this.submitting.set(false);

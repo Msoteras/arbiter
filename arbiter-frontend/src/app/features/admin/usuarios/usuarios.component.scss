@@ -1,6 +1,11 @@
 :host { display: block; padding: var(--space-5) var(--space-5); max-width: 900px; }
 
-.page-head { margin-bottom: var(--space-4); }
+.page-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: var(--space-4);
+}
 
 table { width: 100%; border-collapse: collapse; font-size: var(--font-size-body); }
 th, td { text-align: left; padding: var(--space-3) var(--space-4); white-space: nowrap; }
