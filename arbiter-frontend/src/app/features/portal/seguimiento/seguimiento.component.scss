@@ -7,6 +7,24 @@
 .identity { display: flex; align-items: center; gap: var(--space-2); margin-top: var(--space-1); flex-wrap: wrap; }
 .subtitle { margin: var(--space-1) 0 0; font-size: var(--font-size-body); color: var(--text-tertiary); }
 
+.simple-progress { display: flex; align-items: center; margin-top: var(--space-4); }
+.simple-step {
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-medium);
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+.simple-step.done { color: var(--text-tertiary); }
+.simple-step.current { color: var(--text-primary); }
+.simple-sep {
+  flex: 1;
+  height: 1px;
+  min-width: var(--space-5);
+  margin: 0 var(--space-2);
+  background: var(--border-default);
+}
+.simple-sep.done { background: var(--text-tertiary); }
+
 .seg-grid { display: grid; grid-template-columns: 1.6fr 1fr; gap: var(--space-3); align-items: start; }
 .col-main, .col-side { display: flex; flex-direction: column; gap: var(--space-3); }
 

@@ -10,6 +10,21 @@
       }
     </div>
     <p class="subtitle">{{ d.branch }} · {{ d.insuredItem }} · Póliza <span class="mono">{{ d.policyNumber }}</span></p>
+
+    <!-- Progreso simplificado: el único nivel de estado que ve el asegurado, sin jerga técnica. -->
+    <div class="simple-progress">
+      @for (s of simplifiedSteps; track s; let i = $index; let last = $last) {
+        <span class="simple-step" [class.done]="i < simplifiedIndex()" [class.current]="i === simplifiedIndex()">
+          @if (i < simplifiedIndex()) {
+            <span aria-hidden="true">✓</span>
+          }
+          {{ s === 'DENUNCIADO' ? 'Denunciado' : s === 'EN_TRAMITE' ? 'En trámite' : 'Terminado' }}
+        </span>
+        @if (!last) {
+          <span class="simple-sep" [class.done]="i < simplifiedIndex()"></span>
+        }
+      }
+    </div>
   </header>
 
   <div class="seg-grid">

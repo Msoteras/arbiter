@@ -82,3 +82,30 @@ const TONES: Record<CaseStatus, StatusTone> = {
 export function estadoTone(value: string): StatusTone {
   return (TONES as Record<string, StatusTone>)[value] ?? 'neutral';
 }
+
+// Simplificado a 3 niveles para el asegurado (portal): sin jerga técnica interna.
+// El detalle técnico completo (estadoLabel) sigue disponible en el timeline del expediente.
+export type EstadoSimplificado = 'DENUNCIADO' | 'EN_TRAMITE' | 'TERMINADO';
+
+const SIMPLIFICADO: Record<CaseStatus, EstadoSimplificado> = {
+  PENDING_CLASSIFICATION: 'DENUNCIADO',
+  PENDING_ANALYST_REVIEW: 'EN_TRAMITE',
+  CLASSIFICATION_FAILED: 'EN_TRAMITE',
+  AWAITING_DOCUMENTATION: 'EN_TRAMITE',
+  APPROVED: 'TERMINADO',
+  REJECTED: 'TERMINADO',
+};
+
+const SIMPLIFICADO_LABELS: Record<EstadoSimplificado, string> = {
+  DENUNCIADO: 'Denunciado',
+  EN_TRAMITE: 'En trámite',
+  TERMINADO: 'Terminado',
+};
+
+export function estadoSimplificado(value: string): EstadoSimplificado {
+  return (SIMPLIFICADO as Record<string, EstadoSimplificado>)[value] ?? 'EN_TRAMITE';
+}
+
+export function estadoSimplificadoLabel(value: string): string {
+  return SIMPLIFICADO_LABELS[estadoSimplificado(value)];
+}

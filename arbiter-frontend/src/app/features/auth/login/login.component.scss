@@ -3,7 +3,7 @@
 .login-page { display: flex; min-height: 100vh; }
 
 .brand-pane {
-  flex: 1 1 58%;
+  flex: 1 1 auto;
   position: relative;
   display: flex;
   align-items: center;
@@ -14,7 +14,7 @@
   color: var(--text-on-emphasis);
 }
 
-.brand-pane-inner { max-width: 420px; position: relative; z-index: 1; }
+.brand-pane-inner { max-width: 420px; width: 100%; position: relative; z-index: 1; }
 
 .brand-mark {
   display: inline-block;
@@ -28,8 +28,13 @@
   text-transform: uppercase;
 }
 
-.brand-title { margin: 0 0 var(--space-4); font-size: var(--font-size-xl); font-weight: var(--font-weight-medium); line-height: 1.25; }
-.brand-tag { max-width: 360px; margin: 0 0 var(--space-6); color: rgba(255, 255, 255, 0.75); font-size: var(--font-size-md); line-height: 1.55; }
+.brand-title {
+  margin: 0 0 var(--space-4);
+  font-size: clamp(var(--font-size-xl), 2.5vw, 2.75rem);
+  font-weight: var(--font-weight-medium);
+  line-height: 1.2;
+}
+.brand-tag { max-width: 420px; margin: 0 0 var(--space-6); color: rgba(255, 255, 255, 0.75); font-size: var(--font-size-md); line-height: 1.55; }
 
 .brand-illustration { display: block; width: 100%; max-width: 320px; height: auto; }
 .blob { fill: var(--text-on-emphasis); opacity: 0.14; }
@@ -41,7 +46,7 @@
 .document line { stroke: var(--border-control); stroke-width: 4; }
 
 .form-pane {
-  flex: 1 1 42%;
+  flex: 0 0 460px;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -68,6 +73,11 @@
   padding-top: var(--space-4);
   border-top: 1px solid var(--border-subtle);
   color: var(--text-muted);
+}
+
+@media (min-width: 1400px) {
+  .brand-pane-inner { max-width: 560px; }
+  .brand-illustration { max-width: 400px; }
 }
 
 @media (max-width: 860px) {

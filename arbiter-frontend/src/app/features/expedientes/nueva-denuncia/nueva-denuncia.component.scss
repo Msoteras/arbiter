@@ -96,6 +96,23 @@
 app-input,
 app-textarea { display: block; }
 
+.location-fields {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.location-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--space-3);
+}
+.location-grid app-input { margin: 0; }
+
+@media (max-width: 420px) {
+  .location-grid { grid-template-columns: 1fr; }
+}
+
 .char-count {
   display: block;
   font-size: var(--font-size-sm);
@@ -154,6 +171,12 @@ app-textarea { display: block; }
   border-radius: var(--radius-ctl);
   font-size: var(--font-size-md);
 }
+
+/* ===== Pantalla de éxito ===== */
+.success-screen { text-align: center; padding-top: var(--space-6); }
+.case-number { font-size: var(--font-size-lg); margin: 0 0 var(--space-4); }
+.success-screen .t-body { margin: 0 0 var(--space-4); }
+.legal-note { margin: 0 0 var(--space-5); }
 
 /* ===== Barra inferior fija ===== */
 .bottom-bar {

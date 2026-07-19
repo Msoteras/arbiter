@@ -6,7 +6,14 @@ import { catchError, combineLatest, map, of, startWith, switchMap } from 'rxjs';
 
 import { InsuredSessionService } from '../../../core/auth/insured-session.service';
 import { ExpedienteResponse, StatusTransition } from '../../../core/models/expediente';
-import { estadoDescripcion, estadoLabel, estadoTone, isEstadoFinal, proximoPaso } from '../../../core/models/estado';
+import {
+  estadoDescripcion,
+  estadoLabel,
+  estadoSimplificado,
+  estadoTone,
+  isEstadoFinal,
+  proximoPaso,
+} from '../../../core/models/estado';
 import { StatusTone } from '../../../core/models/status-tone';
 import { DocUploadComponent } from '../../../shared/ui/doc-upload/doc-upload.component';
 import { StatusTimelineComponent } from '../../../shared/ui/status-timeline/status-timeline.component';
@@ -84,6 +91,14 @@ export class SeguimientoComponent {
   protected readonly statusLabel = computed(() => {
     const d = this.data();
     return d ? estadoLabel(d.status) : '';
+  });
+
+  /** Progreso simplificado (Denunciado → En trámite → Terminado) para el asegurado. */
+  protected readonly simplifiedSteps = ['DENUNCIADO', 'EN_TRAMITE', 'TERMINADO'] as const;
+
+  protected readonly simplifiedIndex = computed(() => {
+    const d = this.data();
+    return d ? this.simplifiedSteps.indexOf(estadoSimplificado(d.status)) : 0;
   });
 
   protected readonly statusTone = computed<StatusTone>(() => {
