@@ -2,7 +2,11 @@ import { ChangeDetectionStrategy, Component, inject, signal, computed } from '@a
 import { Router } from '@angular/router';
 import { FormsModule } from '@angular/forms';
 import { ExpedienteService, CaseCreateRequest } from '../expediente.service';
+import { ExpedienteResponse } from '../../../core/models/expediente';
 import { InsuredSessionService } from '../../../core/auth/insured-session.service';
+import { ButtonComponent } from '../../../shared/ui/button/button.component';
+import { InputComponent } from '../../../shared/ui/input/input.component';
+import { TextareaComponent } from '../../../shared/ui/textarea/textarea.component';
 
 type Step = 1 | 2 | 3;
 
@@ -22,7 +26,7 @@ interface DocSlot {
 
 @Component({
   selector: 'app-nueva-denuncia',
-  imports: [FormsModule],
+  imports: [FormsModule, ButtonComponent, InputComponent, TextareaComponent],
   changeDetection: ChangeDetectionStrategy.OnPush,
   templateUrl: './nueva-denuncia.component.html',
   styleUrl: './nueva-denuncia.component.scss',
@@ -35,6 +39,7 @@ export class NuevaDenunciaComponent {
   protected readonly step = signal<Step>(1);
   protected readonly submitting = signal(false);
   protected readonly submitError = signal<string | null>(null);
+  protected readonly submittedCase = signal<ExpedienteResponse | null>(null);
 
   // Step 1
   protected readonly claimTypes: ClaimType[] = [
@@ -61,7 +66,10 @@ export class NuevaDenunciaComponent {
   protected readonly insuredItem = signal('');
   // Prellenado con la identidad en sesión (cuando llegue Auth0, sale del JWT).
   protected readonly insuredId = signal(this.session.insuredId() ?? '');
-  protected readonly eventLocation = signal('');
+  protected readonly provincia = signal('');
+  protected readonly localidad = signal('');
+  protected readonly calleNumero = signal('');
+  protected readonly entreCalles = signal('');
   protected readonly eventDate = signal('');
   protected readonly claimedAmount = signal<string>('');
 
@@ -116,6 +124,12 @@ export class NuevaDenunciaComponent {
     });
   }
 
+  private buildEventLocation(): string {
+    const parts = [this.calleNumero(), this.localidad(), this.provincia()].filter((p) => p.trim().length > 0);
+    const base = parts.join(', ');
+    return this.entreCalles().trim() ? `${base} (entre ${this.entreCalles()})` : base;
+  }
+
   submit(): void {
     const type = this.selectedType();
     if (!type || this.submitting()) return;
@@ -132,7 +146,7 @@ export class NuevaDenunciaComponent {
       policyNumber: this.policyNumber(),
       description: this.description(),
       eventDate: this.eventDate() + 'T00:00:00',
-      eventLocation: this.eventLocation(),
+      eventLocation: this.buildEventLocation(),
       claimedAmount: this.claimedAmount() ? Number(this.claimedAmount()) : undefined,
     };
 
@@ -149,12 +163,19 @@ export class NuevaDenunciaComponent {
         // La denuncia la registra el asegurado: queda identificado con el id que usó
         // y sigue el expediente desde su portal (no desde la vista del analista).
         this.session.identify(request.insuredId);
-        this.router.navigate(['/portal/expedientes', res.id]);
+        this.submittedCase.set(res);
       },
       error: (err) => {
         this.submitting.set(false);
         this.submitError.set(err.error?.detail || 'Error al crear el caso');
       },
     });
+  }
+
+  goToCase(): void {
+    const created = this.submittedCase();
+    if (created) {
+      this.router.navigate(['/portal/cases', created.id]);
+    }
   }
 }

@@ -44,6 +44,22 @@ services:
     restart: on-failure
 
   # ─── Backend modules ────────────────────────────────────────────────────
+  auth-service:
+    build:
+      context: .
+      dockerfile: auth-service/Dockerfile
+    ports:
+      - "8080:8080"
+    environment:
+      DB_URL: jdbc:postgresql://postgres:5432/${DB_NAME:-arbiter}
+      DB_USER: ${DB_USER:-arbiter}
+      DB_PASSWORD: ${DB_PASSWORD:-arbiter}
+      JWT_SECRET: ${JWT_SECRET:-+CV3wiE5lScQGEx1PvKLNuWmaqxixDsm8EIFifgfq8thgguF84p+GI10Rs/1wSTl}
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: on-failure
+
   classification-service:
     build:
       context: .
@@ -74,6 +90,7 @@ services:
       DB_URL: jdbc:postgresql://postgres:5432/${DB_NAME:-arbiter}
       DB_USER: ${DB_USER:-arbiter}
       DB_PASSWORD: ${DB_PASSWORD:-arbiter}
+      JWT_SECRET: ${JWT_SECRET:-+CV3wiE5lScQGEx1PvKLNuWmaqxixDsm8EIFifgfq8thgguF84p+GI10Rs/1wSTl}
     depends_on:
       classification-service:
         condition: service_started
@@ -82,7 +99,6 @@ services:
     restart: on-failure
 
   # TODO: add the remaining services as they get implemented:
-  # auth-service       → port 8080
   # rules-service      → port 8081
   # reports-service    → port 8084
   # arbiter-frontend   → port 5173
