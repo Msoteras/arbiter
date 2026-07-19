@@ -1,22 +1,18 @@
 <header class="page-head">
-  <h1>Usuarios</h1>
+  <h1 class="t-page-title">Usuarios</h1>
 </header>
 
 @if (loading()) {
-  <div class="card skeleton">Cargando usuarios…</div>
+  <app-card><p class="t-note">Cargando usuarios…</p></app-card>
 } @else if (hasError()) {
-  <div class="card">
-    <p class="muted">No se pudo cargar el listado de usuarios.</p>
-  </div>
+  <app-card><p class="t-note">No se pudo cargar el listado de usuarios.</p></app-card>
 } @else if (isEmpty()) {
-  <div class="card">
-    <p class="muted">Todavía no hay usuarios cargados.</p>
-  </div>
+  <app-card><p class="t-note">Todavía no hay usuarios cargados.</p></app-card>
 } @else {
   @if (roleError()) {
     <p class="error">{{ roleError() }}</p>
   }
-  <div class="card table-card">
+  <app-card [flush]="true">
     <table>
       <thead>
         <tr>
@@ -34,7 +30,7 @@
             <td class="mono">{{ u.email }}</td>
             <td>
               @if (isSelf(u)) {
-                <span class="badge" title="No podés cambiar tu propio rol">{{ roleLabel(u.rol) }}</span>
+                <app-badge title="No podés cambiar tu propio rol">{{ roleLabel(u.rol) }}</app-badge>
               } @else {
                 <select
                   class="role-select"
@@ -54,5 +50,5 @@
         }
       </tbody>
     </table>
-  </div>
+  </app-card>
 }

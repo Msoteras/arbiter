@@ -1,15 +1,17 @@
 import { HttpErrorResponse } from '@angular/common/http';
 import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
-import { FormsModule } from '@angular/forms';
 import { Router } from '@angular/router';
 
 import { AuthSessionService } from '../../../core/auth/auth-session.service';
 import { AuthService } from '../../../core/auth/auth.service';
 import { UserRole } from '../../../core/models/user-role';
+import { ButtonComponent } from '../../../shared/ui/button/button.component';
+import { CardComponent } from '../../../shared/ui/card/card.component';
+import { InputComponent } from '../../../shared/ui/input/input.component';
 
 @Component({
   selector: 'app-login',
-  imports: [FormsModule],
+  imports: [ButtonComponent, CardComponent, InputComponent],
   changeDetection: ChangeDetectionStrategy.OnPush,
   templateUrl: './login.component.html',
   styleUrl: './login.component.scss',

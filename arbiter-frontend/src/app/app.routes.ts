@@ -28,6 +28,11 @@ export const routes: Routes = [
         (m) => m.ExpedienteDetailComponent,
       ),
   },
+  {
+    path: 'styleguide',
+    loadComponent: () =>
+      import('./features/styleguide/styleguide.component').then((m) => m.StyleguideComponent),
+  },
 
   // ----- Portal del asegurado -----
   {

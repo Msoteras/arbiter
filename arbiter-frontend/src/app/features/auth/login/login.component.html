@@ -1,10 +1,8 @@
 <div class="login-page">
-  <!-- Panel de marca. Placeholder liviano a propósito: Valen está mergeando el
-       rediseño del front a develop y esto probablemente se reemplaza pronto. -->
   <section class="brand-pane">
     <div class="brand-pane-inner">
       <span class="brand-mark">Arbiter</span>
-      <h1>Gestión inteligente de siniestros</h1>
+      <h1 class="brand-title">Gestión inteligente de siniestros</h1>
       <p class="brand-tag">
         Analizá, clasificá y resolvé siniestros con el respaldo de IA y revisión humana en cada paso.
       </p>
@@ -33,45 +31,43 @@
   </section>
 
   <section class="form-pane">
-    <form class="login-card" (submit)="$event.preventDefault(); submit()">
-      <h2>Iniciar sesión</h2>
-      <p class="muted">Ingresá con tu email y contraseña para acceder a Arbiter.</p>
+    <app-card class="login-card">
+      <form (submit)="$event.preventDefault(); submit()">
+        <h2 class="t-page-title">Iniciar sesión</h2>
+        <p class="t-note">Ingresá con tu email y contraseña para acceder a Arbiter.</p>
 
-      <label class="field">
-        <span>Email</span>
-        <input
+        <label class="field-label" for="login-email">Email</label>
+        <app-input
+          id="login-email"
           type="email"
-          name="email"
           autocomplete="username"
-          [ngModel]="email()"
-          (ngModelChange)="email.set($event)"
+          [value]="email()"
+          (valueChange)="email.set($event)"
         />
-      </label>
 
-      <label class="field">
-        <span>Contraseña</span>
-        <input
+        <label class="field-label" for="login-password">Contraseña</label>
+        <app-input
+          id="login-password"
           type="password"
-          name="password"
           autocomplete="current-password"
-          [ngModel]="password()"
-          (ngModelChange)="password.set($event)"
+          [value]="password()"
+          (valueChange)="password.set($event)"
         />
-      </label>
 
-      @if (errorMessage()) {
-        <p class="error">{{ errorMessage() }}</p>
-      }
+        @if (errorMessage()) {
+          <p class="error">{{ errorMessage() }}</p>
+        }
 
-      <button type="submit" class="btn-pri" [disabled]="!canSubmit() || submitting()">
-        {{ submitting() ? 'Ingresando…' : 'Ingresar' }}
-      </button>
+        <app-button type="submit" [block]="true" [disabled]="!canSubmit() || submitting()">
+          {{ submitting() ? 'Ingresando…' : 'Ingresar' }}
+        </app-button>
 
-      <p class="hint">
-        ¿Sos asegurado o analista y no tenés cuenta? El alta la gestiona el referente de tu
-        aseguradora. Este sistema no tiene autorregistro, por favor contactá a tu referente de
-        aseguradora o a soporte.
-      </p>
-    </form>
+        <p class="t-note hint">
+          ¿Sos asegurado o analista y no tenés cuenta? El alta la gestiona el referente de tu
+          aseguradora. Este sistema no tiene autorregistro, por favor contactá a tu referente de
+          aseguradora o a soporte.
+        </p>
+      </form>
+    </app-card>
   </section>
 </div>

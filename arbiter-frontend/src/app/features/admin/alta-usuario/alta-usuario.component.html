@@ -1,63 +1,51 @@
 <header class="page-head">
   <a class="back-link" routerLink="/admin/usuarios">← Volver al listado</a>
-  <h1>Alta de usuarios</h1>
-  <p class="muted">
+  <h1 class="t-page-title">Alta de usuarios</h1>
+  <p class="t-note">
     Creá una cuenta de analista de siniestros. Por ahora el alta de asegurados no se hace desde
     acá.
   </p>
 </header>
 
-<form class="card form-card" (submit)="$event.preventDefault(); submit()">
-  <label class="field">
-    <span>Nombre</span>
-    <input type="text" [ngModel]="nombre()" (ngModelChange)="nombre.set($event)" name="nombre" />
-  </label>
+<app-card>
+  <form class="form-card" (submit)="$event.preventDefault(); submit()">
+    <label class="field-label" for="nombre">Nombre</label>
+    <app-input id="nombre" [value]="nombre()" (valueChange)="nombre.set($event)" />
 
-  <label class="field">
-    <span>Apellido</span>
-    <input type="text" [ngModel]="apellido()" (ngModelChange)="apellido.set($event)" name="apellido" />
-  </label>
+    <label class="field-label" for="apellido">Apellido</label>
+    <app-input id="apellido" [value]="apellido()" (valueChange)="apellido.set($event)" />
 
-  <label class="field">
-    <span>Email</span>
-    <input type="email" [ngModel]="email()" (ngModelChange)="email.set($event)" name="email" />
-  </label>
+    <label class="field-label" for="email">Email</label>
+    <app-input id="email" type="email" [value]="email()" (valueChange)="email.set($event)" />
 
-  <label class="field">
-    <span>Contraseña</span>
-    <input
+    <label class="field-label" for="password">Contraseña</label>
+    <app-input
+      id="password"
       type="password"
-      [ngModel]="password()"
-      (ngModelChange)="password.set($event)"
-      name="password"
       autocomplete="new-password"
+      [value]="password()"
+      (valueChange)="password.set($event)"
     />
-  </label>
 
-  <label class="field">
-    <span>Rol</span>
-    <input type="text" value="Analista de siniestros" disabled class="mono" />
-  </label>
+    <span class="field-label">Rol</span>
+    <p class="t-body mono role-display">Analista de siniestros</p>
 
-  <label class="field">
-    <span>Sector o área</span>
-    <input type="text" [ngModel]="sector()" (ngModelChange)="sector.set($event)" name="sector" />
-  </label>
+    <label class="field-label" for="sector">Sector o área</label>
+    <app-input id="sector" [value]="sector()" (valueChange)="sector.set($event)" />
 
-  <label class="field">
-    <span>Fecha de ingreso (opcional)</span>
-    <input type="date" [ngModel]="fechaIngreso()" (ngModelChange)="fechaIngreso.set($event)" name="fechaIngreso" />
-  </label>
+    <label class="field-label" for="fechaIngreso">Fecha de ingreso (opcional)</label>
+    <app-input id="fechaIngreso" type="date" [value]="fechaIngreso()" (valueChange)="fechaIngreso.set($event)" />
 
-  @if (errorMessage()) {
-    <p class="error">{{ errorMessage() }}</p>
-  }
+    @if (errorMessage()) {
+      <p class="error">{{ errorMessage() }}</p>
+    }
 
-  @if (created(); as u) {
-    <p class="success">Usuario {{ u.nombre }} {{ u.apellido }} ({{ u.email }}) creado correctamente.</p>
-  }
+    @if (created(); as u) {
+      <p class="success">Usuario {{ u.nombre }} {{ u.apellido }} ({{ u.email }}) creado correctamente.</p>
+    }
 
-  <button type="submit" class="btn-pri" [disabled]="!canSubmit() || submitting()">
-    {{ submitting() ? 'Creando…' : 'Crear usuario' }}
-  </button>
-</form>
+    <app-button type="submit" [disabled]="!canSubmit() || submitting()">
+      {{ submitting() ? 'Creando…' : 'Crear usuario' }}
+    </app-button>
+  </form>
+</app-card>

@@ -13,14 +13,14 @@ import { ChangeDetectionStrategy, Component, input } from '@angular/core';
   styles: `
     :host { display: block; }
     .empty {
-      border: 1px dashed var(--c-border-strong);
+      border: 1px dashed var(--border-strong);
       border-radius: var(--radius-card);
-      background: var(--c-bg-soft-2);
+      background: var(--surface-sunken);
       padding: 26px 16px;
       text-align: center;
     }
-    .msg { margin: 0 0 4px; font-size: 13px; color: var(--c-ink-3); }
-    .sub { margin: 0; font-size: 11px; color: var(--c-muted); text-transform: uppercase; letter-spacing: 0.04em; }
+    .msg { margin: 0 0 4px; font-size: 13px; color: var(--text-tertiary); }
+    .sub { margin: 0; font-size: 11px; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.04em; }
   `,
 })
 export class EmptyStateComponent {

@@ -3,6 +3,9 @@ import { Router } from '@angular/router';
 import { FormsModule } from '@angular/forms';
 import { ExpedienteService, CaseCreateRequest } from '../expediente.service';
 import { InsuredSessionService } from '../../../core/auth/insured-session.service';
+import { ButtonComponent } from '../../../shared/ui/button/button.component';
+import { InputComponent } from '../../../shared/ui/input/input.component';
+import { TextareaComponent } from '../../../shared/ui/textarea/textarea.component';
 
 type Step = 1 | 2 | 3;
 
@@ -22,7 +25,7 @@ interface DocSlot {
 
 @Component({
   selector: 'app-nueva-denuncia',
-  imports: [FormsModule],
+  imports: [FormsModule, ButtonComponent, InputComponent, TextareaComponent],
   changeDetection: ChangeDetectionStrategy.OnPush,
   templateUrl: './nueva-denuncia.component.html',
   styleUrl: './nueva-denuncia.component.scss',

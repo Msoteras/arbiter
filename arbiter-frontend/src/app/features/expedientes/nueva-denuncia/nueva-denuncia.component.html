@@ -1,4 +1,6 @@
 <div class="wizard-container">
+  <h1 class="sr-only">Nueva denuncia</h1>
+
   <!-- Stepper -->
   <div class="stepper">
     @for (s of [1, 2, 3]; track s) {
@@ -15,7 +17,7 @@
   <!-- Step 1: Datos -->
   @if (step() === 1) {
     <section class="step-content">
-      <h2>¿Qué pasó?</h2>
+      <h2 class="step-title">¿Qué pasó?</h2>
       <div class="chips">
         @for (t of claimTypes; track t.key) {
           <button
@@ -28,10 +30,9 @@
         }
       </div>
 
-      <label class="field-label" for="policy">Póliza</label>
+      <label class="field-label">Póliza</label>
       <select
-        id="policy"
-        class="field-input"
+        class="field-select"
         [ngModel]="policyNumber()"
         (ngModelChange)="policyNumber.set($event)">
         <option value="" disabled>Seleccioná una póliza</option>
@@ -45,37 +46,29 @@
   <!-- Step 2: Descripción -->
   @if (step() === 2) {
     <section class="step-content">
-      <h2>Contanos los detalles</h2>
+      <h2 class="step-title">Contanos los detalles</h2>
 
-      <label class="field-label" for="insuredItem">Bien asegurado</label>
-      <input id="insuredItem" type="text" class="field-input" placeholder="Ej: Samsung Galaxy A56"
-        [ngModel]="insuredItem()" (ngModelChange)="insuredItem.set($event)" />
+      <label class="field-label">Bien asegurado</label>
+      <app-input placeholder="Ej: Samsung Galaxy A56" [(value)]="insuredItem" />
 
-      <label class="field-label" for="insuredId">DNI del asegurado</label>
-      <input id="insuredId" type="text" class="field-input" placeholder="Ej: 40123456"
-        [ngModel]="insuredId()" (ngModelChange)="insuredId.set($event)" />
+      <label class="field-label">DNI del asegurado</label>
+      <app-input placeholder="Ej: 40123456" [(value)]="insuredId" />
 
-      <label class="field-label" for="eventDate">Fecha del hecho</label>
-      <input id="eventDate" type="date" class="field-input"
-        [ngModel]="eventDate()" (ngModelChange)="eventDate.set($event)" />
+      <label class="field-label">Fecha del hecho</label>
+      <app-input type="date" [(value)]="eventDate" />
 
-      <label class="field-label" for="eventLocation">Lugar del hecho</label>
-      <input id="eventLocation" type="text" class="field-input" placeholder="Ej: Av. Corrientes 1234, CABA"
-        [ngModel]="eventLocation()" (ngModelChange)="eventLocation.set($event)" />
+      <label class="field-label">Lugar del hecho</label>
+      <app-input placeholder="Ej: Av. Corrientes 1234, CABA" [(value)]="eventLocation" />
 
-      <label class="field-label" for="claimedAmount">Monto reclamado (opcional)</label>
-      <input id="claimedAmount" type="number" class="field-input" placeholder="$"
-        [ngModel]="claimedAmount()" (ngModelChange)="claimedAmount.set($event)" />
+      <label class="field-label">Monto reclamado (opcional)</label>
+      <app-input type="number" placeholder="$" [(value)]="claimedAmount" />
 
-      <label class="field-label" for="description">Descripción del hecho</label>
-      <textarea
-        id="description"
-        class="field-input field-textarea"
+      <label class="field-label">Descripción del hecho</label>
+      <app-textarea
+        [rows]="5"
         placeholder="Describí lo que pasó con el mayor detalle posible (mínimo 50 caracteres)"
-        rows="5"
-        [ngModel]="description()"
-        (ngModelChange)="description.set($event)">
-      </textarea>
+        [(value)]="description"
+      />
       <span class="char-count" [class.valid]="descCount() >= 50">{{ descCount() }} / 50</span>
     </section>
   }
@@ -83,7 +76,7 @@
   <!-- Step 3: Documentación -->
   @if (step() === 3) {
     <section class="step-content">
-      <h2>Adjuntá documentación</h2>
+      <h2 class="step-title">Adjuntá documentación</h2>
       <p class="step-hint">Los documentos ayudan a agilizar el análisis de tu caso.</p>
 
       @for (slot of docSlots(); track slot.type; let i = $index) {
@@ -91,7 +84,7 @@
           <span class="doc-label">{{ slot.label }}</span>
           @if (slot.file) {
             <div class="doc-file">
-              <span class="doc-filename">{{ slot.file.name }}</span>
+              <span class="doc-filename mono" [title]="slot.file.name">{{ slot.file.name }}</span>
               <button type="button" class="doc-remove" (click)="removeFile(i)">✕</button>
             </div>
           } @else {
@@ -112,25 +105,19 @@
   <!-- Sticky bottom bar -->
   <div class="bottom-bar">
     @if (step() > 1) {
-      <button type="button" class="btn-secondary" (click)="prev()">Volver</button>
+      <app-button variant="secondary" (click)="prev()">Volver</app-button>
     }
 
     @if (step() < 3) {
-      <button
-        type="button"
-        class="btn-primary"
+      <app-button
         [disabled]="(step() === 1 && !step1Valid()) || (step() === 2 && !step2Valid())"
         (click)="next()">
         Continuar
-      </button>
+      </app-button>
     } @else {
-      <button
-        type="button"
-        class="btn-primary"
-        [disabled]="submitting()"
-        (click)="submit()">
+      <app-button [disabled]="submitting()" (click)="submit()">
         {{ submitting() ? 'Enviando...' : 'Enviar denuncia' }}
-      </button>
+      </app-button>
     }
   </div>
 </div>

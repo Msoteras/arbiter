@@ -5,6 +5,8 @@ import { FormsModule } from '@angular/forms';
 import { AuthSessionService } from '../../../core/auth/auth-session.service';
 import { UserAdminService, UserResponse } from '../../../core/auth/user-admin.service';
 import { UserRole, userRoleLabel } from '../../../core/models/user-role';
+import { BadgeComponent } from '../../../shared/ui/badge/badge.component';
+import { CardComponent } from '../../../shared/ui/card/card.component';
 
 /**
  * Trello "Gestión de roles y permisos" - listado (GET) + selector de rol editable (PUT).
@@ -13,7 +15,7 @@ import { UserRole, userRoleLabel } from '../../../core/models/user-role';
  */
 @Component({
   selector: 'app-usuarios',
-  imports: [FormsModule],
+  imports: [FormsModule, BadgeComponent, CardComponent],
   changeDetection: ChangeDetectionStrategy.OnPush,
   templateUrl: './usuarios.component.html',
   styleUrl: './usuarios.component.scss',

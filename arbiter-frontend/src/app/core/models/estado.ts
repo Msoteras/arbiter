@@ -1,3 +1,5 @@
+import { StatusTone } from './status-tone';
+
 // Espejo del enum CaseStatus de common-lib
 // (ar.edu.utn.frba.arbiter.common.enums.CaseStatus).
 // cases-service lo devuelve como String en el campo `status`.
@@ -64,4 +66,19 @@ export function estadoDescripcion(value: string): string {
 
 export function proximoPaso(value: string): string {
   return (PROXIMOS_PASOS as Record<string, string>)[value] ?? '';
+}
+
+// Tono de semáforo por estado. En curso → info; falta algo / falla técnica →
+// warning; resolución a favor → ok; resolución en contra → danger.
+const TONES: Record<CaseStatus, StatusTone> = {
+  PENDING_CLASSIFICATION: 'info',
+  PENDING_ANALYST_REVIEW: 'info',
+  CLASSIFICATION_FAILED: 'warning',
+  AWAITING_DOCUMENTATION: 'warning',
+  APPROVED: 'ok',
+  REJECTED: 'danger',
+};
+
+export function estadoTone(value: string): StatusTone {
+  return (TONES as Record<string, StatusTone>)[value] ?? 'neutral';
 }
