@@ -1,3 +1,5 @@
+import { StatusTone } from './status-tone';
+
 // Espejo del enum CaseStatus de common-lib
 // (ar.edu.utn.frba.arbiter.common.enums.CaseStatus).
 // cases-service lo devuelve como String en el campo `status`.
@@ -64,4 +66,46 @@ export function estadoDescripcion(value: string): string {
 
 export function proximoPaso(value: string): string {
   return (PROXIMOS_PASOS as Record<string, string>)[value] ?? '';
+}
+
+// Tono de semáforo por estado. En curso → info; falta algo / falla técnica →
+// warning; resolución a favor → ok; resolución en contra → danger.
+const TONES: Record<CaseStatus, StatusTone> = {
+  PENDING_CLASSIFICATION: 'info',
+  PENDING_ANALYST_REVIEW: 'info',
+  CLASSIFICATION_FAILED: 'warning',
+  AWAITING_DOCUMENTATION: 'warning',
+  APPROVED: 'ok',
+  REJECTED: 'danger',
+};
+
+export function estadoTone(value: string): StatusTone {
+  return (TONES as Record<string, StatusTone>)[value] ?? 'neutral';
+}
+
+// Simplificado a 3 niveles para el asegurado (portal): sin jerga técnica interna.
+// El detalle técnico completo (estadoLabel) sigue disponible en el timeline del expediente.
+export type EstadoSimplificado = 'DENUNCIADO' | 'EN_TRAMITE' | 'TERMINADO';
+
+const SIMPLIFICADO: Record<CaseStatus, EstadoSimplificado> = {
+  PENDING_CLASSIFICATION: 'DENUNCIADO',
+  PENDING_ANALYST_REVIEW: 'EN_TRAMITE',
+  CLASSIFICATION_FAILED: 'EN_TRAMITE',
+  AWAITING_DOCUMENTATION: 'EN_TRAMITE',
+  APPROVED: 'TERMINADO',
+  REJECTED: 'TERMINADO',
+};
+
+const SIMPLIFICADO_LABELS: Record<EstadoSimplificado, string> = {
+  DENUNCIADO: 'Denunciado',
+  EN_TRAMITE: 'En trámite',
+  TERMINADO: 'Terminado',
+};
+
+export function estadoSimplificado(value: string): EstadoSimplificado {
+  return (SIMPLIFICADO as Record<string, EstadoSimplificado>)[value] ?? 'EN_TRAMITE';
+}
+
+export function estadoSimplificadoLabel(value: string): string {
+  return SIMPLIFICADO_LABELS[estadoSimplificado(value)];
 }

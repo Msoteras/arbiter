@@ -21,3 +21,6 @@ spring:
 arbiter:
   classification-service:
     url: ${CLASSIFICATION_SERVICE_URL:http://localhost:8082}
+  auth:
+    jwt:
+      secret: ${JWT_SECRET:}

@@ -16,9 +16,9 @@ type Severity = 'bajo' | 'medio' | 'alto';
     </span>
   `,
   styles: `
-    .sev { font-size: 11px; color: var(--c-muted); display: inline-flex; gap: 3px; align-items: center; }
-    .sev.medio { color: var(--c-ink-3); font-weight: 600; }
-    .sev.alto { color: var(--c-ink); font-weight: 700; }
+    .sev { font-size: 11px; color: var(--text-muted); display: inline-flex; gap: 3px; align-items: center; }
+    .sev.medio { color: var(--text-tertiary); font-weight: 600; }
+    .sev.alto { color: var(--text-primary); font-weight: 700; }
     .tri { font-size: 9px; }
   `,
 })

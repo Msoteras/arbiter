@@ -1,7 +1,9 @@
 import { ChangeDetectionStrategy, Component, computed, input } from '@angular/core';
 
 import { StatusTransition } from '../../../core/models/expediente';
-import { estadoLabel, isEstadoFinal, proximoPaso } from '../../../core/models/estado';
+import { estadoLabel, estadoTone, isEstadoFinal, proximoPaso } from '../../../core/models/estado';
+import { StatusTone } from '../../../core/models/status-tone';
+import { BadgeComponent } from '../badge/badge.component';
 
 const ACTOR_LABELS: Record<StatusTransition['actor'], string> = {
   SYSTEM: 'Sistema',
@@ -18,10 +20,15 @@ const ACTOR_LABELS: Record<StatusTransition['actor'], string> = {
 @Component({
   selector: 'app-status-timeline',
   changeDetection: ChangeDetectionStrategy.OnPush,
+  imports: [BadgeComponent],
   template: `
     <ol class="timeline">
       @for (h of history(); track $index; let last = $last) {
-        <li class="step" [class.current]="last && !hasNextStep()">
+        <li
+          class="step"
+          [class.current]="last && !hasNextStep()"
+          [attr.data-tone]="last && !hasNextStep() && currentTone() !== 'neutral' ? currentTone() : null"
+        >
           <span class="marker" aria-hidden="true"></span>
           <div class="body">
             <div class="when mono">{{ when(h.changedAt) }}</div>
@@ -30,7 +37,11 @@ const ACTOR_LABELS: Record<StatusTransition['actor'], string> = {
                 <span class="from">{{ estado(h.fromStatus) }}</span>
                 <span class="arrow" aria-hidden="true">→</span>
               }
-              <span class="badge">{{ estado(h.toStatus) }}</span>
+              @if (last && !hasNextStep()) {
+                <app-badge variant="strong" [tone]="currentTone()">{{ estado(h.toStatus) }}</app-badge>
+              } @else {
+                <app-badge>{{ estado(h.toStatus) }}</app-badge>
+              }
             </div>
             <div class="meta">
               <span class="actor">{{ actor(h.actor) }}</span>
@@ -56,7 +67,7 @@ const ACTOR_LABELS: Record<StatusTransition['actor'], string> = {
   styles: `
     :host { display: block; }
     .timeline { list-style: none; margin: 0; padding: 0; }
-    .step { position: relative; padding: 0 0 18px 26px; }
+    .step { position: relative; padding: 0 0 var(--space-4) var(--space-5); }
     /* Línea que conecta los hitos */
     .step:not(:last-child)::before {
       content: '';
@@ -65,7 +76,7 @@ const ACTOR_LABELS: Record<StatusTransition['actor'], string> = {
       top: 16px;
       bottom: -2px;
       width: 1px;
-      background: var(--c-border-2);
+      background: var(--border-strong);
     }
     .marker {
       position: absolute;
@@ -73,40 +84,35 @@ const ACTOR_LABELS: Record<StatusTransition['actor'], string> = {
       top: 3px;
       width: 13px;
       height: 13px;
-      border-radius: 50%;
-      background: var(--c-bg);
-      border: 2px solid var(--c-border-strong);
+      border-radius: var(--radius-pill);
+      background: var(--surface);
+      border: 2px solid var(--border-strong);
     }
-    .step.current .marker { background: var(--c-ink); border-color: var(--c-ink); }
-    .step.next .marker { border-style: dashed; border-color: var(--c-muted-2); }
+    .step.current .marker { background: var(--accent); border-color: var(--accent); }
+    /* El hito actual toma el color de semáforo del estado (resolución/curso). */
+    .step.current[data-tone='ok'] .marker { background: var(--status-ok); border-color: var(--status-ok); }
+    .step.current[data-tone='warning'] .marker { background: var(--status-warning); border-color: var(--status-warning); }
+    .step.current[data-tone='danger'] .marker { background: var(--status-danger); border-color: var(--status-danger); }
+    .step.current[data-tone='info'] .marker { background: var(--status-info); border-color: var(--status-info); }
+    .step.next .marker { border-style: dashed; border-color: var(--text-muted); }
     .step.next::before { display: none; }
 
-    .when { font-size: 11px; color: var(--c-muted); margin-bottom: 3px; }
-    .transition { display: flex; align-items: center; gap: 7px; flex-wrap: wrap; }
-    .from { font-size: 12px; color: var(--c-muted); }
-    .arrow { color: var(--c-muted-2); }
-    .badge {
-      display: inline-block;
-      font-size: 11px;
-      padding: 3px 10px;
-      border-radius: var(--radius-pill);
-      border: 1px solid var(--c-border-3);
-      background: var(--c-bg-head);
-      color: var(--c-ink-2);
-    }
-    .step.current .badge { border-color: var(--c-ink-3); color: var(--c-ink); font-weight: 600; }
-    .meta { margin-top: 4px; display: flex; gap: 9px; align-items: baseline; flex-wrap: wrap; }
+    .when { font-size: var(--font-size-xs); color: var(--text-muted); margin-bottom: 3px; }
+    .transition { display: flex; align-items: center; gap: var(--space-2); flex-wrap: wrap; }
+    .from { font-size: var(--font-size-sm); color: var(--text-muted); }
+    .arrow { color: var(--text-muted); }
+    .meta { margin-top: var(--space-1); display: flex; gap: var(--space-2); align-items: baseline; flex-wrap: wrap; }
     .actor {
-      font-size: 10px;
-      font-weight: 600;
+      font-size: var(--font-size-2xs);
+      font-weight: var(--font-weight-medium);
       text-transform: uppercase;
       letter-spacing: 0.04em;
-      color: var(--c-ink-3);
+      color: var(--text-tertiary);
     }
-    .reason { font-size: 12px; color: var(--c-ink-2); }
-    .step.next .when { text-transform: uppercase; letter-spacing: 0.04em; font-size: 10px; }
-    .next-text { margin: 0; font-size: 12px; color: var(--c-muted); font-style: italic; }
-    .empty { margin: 0; font-size: 13px; color: var(--c-muted); }
+    .reason { font-size: var(--font-size-sm); color: var(--text-secondary); }
+    .step.next .when { text-transform: uppercase; letter-spacing: 0.04em; font-size: var(--font-size-2xs); }
+    .next-text { margin: 0; font-size: var(--font-size-sm); color: var(--text-muted); font-style: italic; }
+    .empty { margin: 0; font-size: var(--font-size-body); color: var(--text-muted); }
   `,
 })
 export class StatusTimelineComponent {
@@ -119,6 +125,7 @@ export class StatusTimelineComponent {
     isEstadoFinal(this.currentStatus()) ? '' : proximoPaso(this.currentStatus()),
   );
   protected readonly hasNextStep = computed(() => this.nextStep() !== '');
+  protected readonly currentTone = computed<StatusTone>(() => estadoTone(this.currentStatus()));
 
   protected estado(status: string): string {
     return estadoLabel(status);

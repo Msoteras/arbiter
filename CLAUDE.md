@@ -127,7 +127,9 @@ Estas decisiones están **cerradas y aprobadas** (doc v1.0, 27/05/2026). No las 
 5. **Human-in-the-loop obligatorio.** Toda clasificación del modelo requiere **aprobación o rechazo de un analista** antes de impactar en el expediente. **No hay** resolución automática — ni siquiera para Fast Track. El Fast Track agiliza, no automatiza.
 6. **5 categorías de clasificación** en `Clasificacion` (`common-lib`): `FAST_TRACK` (determinístico, decidido por `FastTrackValidator` con reglas de negocio — el LLM **nunca** puede devolver este valor), `FALTA_DOCUMENTACION`, `LLM_RECOMIENDA_APROBAR`, `LLM_NO_RECOMIENDA_APROBAR`, `LLM_SOLICITA_REVISION_MANUAL`. Los 4 valores con LLM son recomendaciones no vinculantes — el analista decide siempre (ver punto 5).
 7. **Auditoría completa de cada clasificación** (Disposición 2/2023). Persistir, en una tabla aparte e inmutable: resultado del modelo, factores que lo fundamentan, decisión del analista, marca temporal. 100% de las clasificaciones deben tener este registro.
-8. **Auth0 + JWT + RBAC.** Tres roles: `ASEGURADO`, `ANALISTA_SINIESTROS`, `REFERENTE_ASEGURADORA`. NO implementar gestión de credenciales propia.
+8. **Auth0 + JWT + RBAC — estado objetivo.** Tres roles: `ASEGURADO`, `ANALISTA_SINIESTROS`, `REFERENTE_ASEGURADORA`.
+   - **Transitorio hasta integrar Auth0:** `auth-service` valida credenciales propias (BCrypt + JWT + bloqueo de cuenta) detrás de la interfaz `CredentialsAuthenticator` — el swap a Auth0 es una implementación nueva ahí, no toca `AuthController`/`AuthService`/`JwtService`.
+   - **Alta de usuarios:** contraseña directa (sin SendGrid todavía), solo crea `ANALISTA_SINIESTROS`. `User.insuredId` (nullable) queda preparado para cuando se sume alta de asegurados.
 9. **SendGrid** para mail (notificaciones de cambio de estado al asegurado).
 10. **PostgreSQL** con **multi-tenant por esquema separado por aseguradora** dentro de la misma instancia. NO hacer discriminación por columna `tenant_id`, NO instancia por aseguradora. La BD de la aseguradora (pólizas, historial) es **otra base** integrada por base de datos compartida.
 11. **pgvector** para detectar imágenes reutilizadas entre denuncias (similitud de embeddings). **No** delegues esta comparación al modelo de visión: el LLM analiza solo la imagen del siniestro en curso.
@@ -149,11 +151,51 @@ Estas decisiones están **cerradas y aprobadas** (doc v1.0, 27/05/2026). No las 
 
 - Java **21** (virtual threads activadas: `spring.threads.virtual.enabled: true`). Pensá los servicios como bloqueantes "tradicionales" — no metas WebFlux/Reactor.
 - Spring Boot **4.0.5**, Spring Cloud **2025.1.1** (BOM en POM padre — no fijes versión en submódulos).
-- Spring Data JPA + JDBC (PostgreSQL driver). Migraciones: definir Flyway o Liquibase (no está decidido — proponer Flyway).
+- Spring Data JPA + JDBC (PostgreSQL driver). **No usamos Flyway/Liquibase en la práctica**: `hibernate.ddl-auto: update` + `db/init.sql` a mano (todas las tablas, un solo script).
 - Lombok activado vía annotation processor.
 - **Swagger / SpringDoc** para la documentación de la API REST — agregar el starter en cada módulo con controllers.
 - Frontend: Angular 20 (standalone components, signals, `ChangeDetectionStrategy.OnPush`), SCSS. **Diseño responsive obligatorio** (RNF de usabilidad: ≥85% éxito en tareas básicas en PC y móvil).
 - Ollama local con Qwen3-VL, contexto 32.768.
+
+---
+
+## Design System del frontend — usarlo SIEMPRE
+
+El frontend (`arbiter-frontend/`, Angular 20 standalone + signals + OnPush) tiene un **design system propio ya construido**. Todo trabajo de UI —pantalla nueva, componente nuevo, ajuste— **debe** apoyarse en él. **No** traigas Tailwind, no uses OKLCH, no inventes una paleta ni reimplementes primitivas que ya existen.
+
+### Las 3 capas de estilos (fuente de verdad)
+
+| Capa | Archivo | Qué contiene | Regla |
+|------|---------|--------------|-------|
+| **1 · Primitivos** | `src/styles/_tokens.scss` | valores crudos: paleta `--c-*`, `--accent` + technicolor `--accent-green/yellow/red/blue`, `--space-1..7`, `--font-size-2xs..xl`, `--font-weight-regular/medium/bold`, `--radius-ctl/card/modal/pill`, sombras/overlay. | El **único** lugar donde pueden vivir hex/px crudos. No consumir estos tokens directo desde componentes. |
+| **2 · Semánticos** | `src/styles/_semantic.scss` | roles: `--text-primary/secondary/tertiary/muted/on-emphasis`, `--surface`/`-soft`/`-sunken`/`-head`, `--border-subtle/default/control/strong`, `--action-primary-bg`/`-bg-hover`/`-fg`, `--action-secondary-bg`/`-fg`/`-border`/`-border-hover`, y el **semáforo de estado** `--status-ok/warning/danger/info` (mapean a la technicolor). | **Los componentes consumen SOLO estos.** Acá vive el "tema" (dark mode / branding por aseguradora se resolverían acá sin tocar componentes). |
+| **Tipografía** | `src/styles/_typography.scss` | clases utilitarias: `.t-page-title`, `.t-section-label`, `.t-field-label`, `.t-body`, `.t-note`, `.mono`; utilidades `.measure` (~68ch), `.tabular`, `.sr-only`. | Usar SIEMPRE una clase `.t-*` en vez de setear `font-size`/`font-weight` sueltos. |
+
+Los partials se cablean en `src/styles.scss` vía `@use`. **Guardrail del proyecto: prohibido hex/px crudos fuera de `_tokens.scss`.**
+
+### El kit de componentes (`src/app/shared/ui/`)
+
+Antes de escribir markup de UI, usá los componentes que ya existen en vez de rearmarlos a mano:
+
+| Selector | Uso | Variantes / inputs clave |
+|----------|-----|--------------------------|
+| `app-button` | todo botón/acción | `primary` \| `secondary`; `block`, `disabled`, `type` |
+| `app-badge` | chips de estado/etiqueta | `solid` \| `strong` \| `dashed`; `tone` (semáforo `ok`/`warning`/`danger`/`info` → punto de color) |
+| `app-card` | contenedor de contenido | `heading`, `icon`, variante `soft` |
+| `app-input` | campo de texto | (ver componente) |
+| `app-textarea` | texto multilínea | (ver componente) |
+| `app-modal` | diálogos / overlays | (ver componente) |
+| `app-fraud-gauge`, `app-severity-label`, `app-empty-state`, `app-status-timeline`, `app-doc-upload` | componentes de dominio ya construidos | — |
+
+### Reglas accionables
+
+1. **Usá el kit, no reimplementes.** Botones, badges, cards, inputs, textareas y modales salen de `app-button`, `app-badge`, `app-card`, `app-input`, `app-textarea`, `app-modal`. Nada de `<button>`/`<div class="card">`/`<input>` estilizados a mano.
+2. **Nunca valores crudos en componentes.** Prohibido hex y px sueltos fuera de `_tokens.scss`. Consumí tokens **semánticos** (`--text-primary`, `--surface`, `--border-control`, `--action-primary-bg`…), no primitivos `--c-*` ni `--accent` directo.
+3. **Espaciado con `--space-*`, tipografía con clases `.t-*` + escala `--font-size-*`, radios con `--radius-*`.** Nada de márgenes/paddings/tamaños ad-hoc.
+4. **Estética del proyecto: escala de grises + color solo para estado.** El acento de marca es `--accent`. La paleta technicolor (`--accent-*`) NO se usa cruda en componentes: se consume vía los roles semánticos `--status-ok/warning/danger/info`, y **solo para comunicar estado** (semáforo de expediente/clasificación, texto de error), siempre sobrio — un punto, un borde o el color del texto, nunca fondos saturados. El tono sale del dominio: `estadoTone()` / `clasificacionTone()` (`core/models/`) mapean cada enum a su `StatusTone`. El `app-fraud-gauge` usa el semáforo `--status-*` para el nivel de riesgo (bajo→ok, medio→warning, alto/crítico→danger). **La severidad textual (`app-severity-label`) se codifica por PESO + triángulo ▲, sin color.** No metas color nuevo sin acordarlo.
+5. **Componente nuevo → sumalo a la styleguide.** Si agregás algo al kit, mostralo en la página `/styleguide` (`src/app/features/styleguide/styleguide.component.ts`). Es la vitrina viva del sistema.
+6. **Antes de crear UI nueva, revisá `/styleguide` y `shared/ui/`.** Si ya existe, reusá; no dupliques.
+7. **Accesibilidad y tipografía.** Los títulos de card son headings reales (jerarquía correcta, no `<div>` con estilo). Inputs a **16px en mobile** (evita el zoom de iOS). Contraste **AA** (la paleta ya está calibrada a 4.5:1). Mantené `.sr-only` para texto solo-lector y foco visible.
 
 ---
 
@@ -226,6 +268,7 @@ ollama serve                                          # default: http://localhos
 - Backwards-compat / flags / código muerto "por si las moscas". Greenfield.
 - **Reglas de negocio hardcodeadas**. Las reglas viven en BD, no en `if`s ni en clases `Strategy`.
 - **Decisión automática del modelo impactando en el expediente**. Siempre hay analista en el medio.
+- **UI a mano ignorando el design system**: hex/px crudos en componentes, botones/cards/inputs reimplementados, tokens primitivos `--c-*` consumidos directo. Ver "Design System del frontend".
 
 ---
 

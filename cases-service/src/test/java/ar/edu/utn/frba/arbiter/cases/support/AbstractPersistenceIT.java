@@ -1,6 +1,7 @@
 package ar.edu.utn.frba.arbiter.cases.support;
 
 import org.springframework.boot.testcontainers.service.connection.ServiceConnection;
+import org.springframework.test.context.TestPropertySource;
 import org.testcontainers.postgresql.PostgreSQLContainer;
 
 /**
@@ -11,6 +12,8 @@ import org.testcontainers.postgresql.PostgreSQLContainer;
  * en el bloque estático (se ejecuta una vez por JVM, al cargar esta clase) y vive hasta que Ryuk lo
  * limpia al terminar el proceso de test.
  */
+// SecurityConfig requiere un JWT_SECRET real para levantar el contexto (H0003).
+@TestPropertySource(properties = "arbiter.auth.jwt.secret=test-secret-at-least-32-bytes-long-for-hs256")
 public abstract class AbstractPersistenceIT {
 
     @ServiceConnection

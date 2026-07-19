@@ -5,8 +5,13 @@ import { catchError, map, of, startWith, switchMap } from 'rxjs';
 
 import { InsuredSessionService } from '../../../core/auth/insured-session.service';
 import { ExpedienteResponse } from '../../../core/models/expediente';
-import { estadoLabel, isEstadoFinal, proximoPaso } from '../../../core/models/estado';
+import { estadoLabel, estadoTone, isEstadoFinal, proximoPaso } from '../../../core/models/estado';
+import { StatusTone } from '../../../core/models/status-tone';
 import { ExpedienteService } from '../../expedientes/expediente.service';
+import { CardComponent } from '../../../shared/ui/card/card.component';
+import { BadgeComponent } from '../../../shared/ui/badge/badge.component';
+import { ButtonComponent } from '../../../shared/ui/button/button.component';
+import { InputComponent } from '../../../shared/ui/input/input.component';
 
 type LoadState =
   | { status: 'idle' }
@@ -21,8 +26,8 @@ type LoadState =
  */
 @Component({
   selector: 'app-mis-expedientes',
-  imports: [RouterLink],
   changeDetection: ChangeDetectionStrategy.OnPush,
+  imports: [RouterLink, CardComponent, BadgeComponent, ButtonComponent, InputComponent],
   templateUrl: './mis-expedientes.component.html',
   styleUrl: './mis-expedientes.component.scss',
 })
@@ -66,12 +71,12 @@ export class MisExpedientesComponent {
     this.session.identify(this.identityInput());
   }
 
-  protected onIdentityInput(e: Event): void {
-    this.identityInput.set((e.target as HTMLInputElement).value);
-  }
-
   protected estadoLabel(status: string): string {
     return estadoLabel(status);
+  }
+
+  protected estadoTone(status: string): StatusTone {
+    return estadoTone(status);
   }
 
   protected proximoPaso(status: string): string {

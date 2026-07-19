@@ -1,0 +1,495 @@
+import { ChangeDetectionStrategy, Component, inject, signal } from '@angular/core';
+import { DOCUMENT } from '@angular/common';
+
+import { ButtonComponent } from '../../shared/ui/button/button.component';
+import { BadgeComponent } from '../../shared/ui/badge/badge.component';
+import { CardComponent } from '../../shared/ui/card/card.component';
+import { InputComponent } from '../../shared/ui/input/input.component';
+import { TextareaComponent } from '../../shared/ui/textarea/textarea.component';
+import { ModalComponent } from '../../shared/ui/modal/modal.component';
+import { FraudGaugeComponent } from '../../shared/ui/fraud-gauge/fraud-gauge.component';
+import { SeverityLabelComponent } from '../../shared/ui/severity-label/severity-label.component';
+import { EmptyStateComponent } from '../../shared/ui/empty-state/empty-state.component';
+
+interface Token {
+  name: string;
+  v: string;
+}
+interface TokenGroup {
+  title: string;
+  items: Token[];
+}
+interface Knob {
+  name: string;
+  v: string;
+  default: string;
+}
+interface Swatch {
+  name: string;
+  hex: string;
+  v: string;
+}
+
+/**
+ * Vitrina viva del design system. Renderiza tokens y componentes reales (los que
+ * corren en producción), así que es la fuente de verdad visual y detecta drift al
+ * instante. Sin lógica de negocio: solo compone el kit.
+ */
+@Component({
+  selector: 'app-styleguide',
+  changeDetection: ChangeDetectionStrategy.OnPush,
+  imports: [
+    ButtonComponent,
+    BadgeComponent,
+    CardComponent,
+    InputComponent,
+    TextareaComponent,
+    ModalComponent,
+    FraudGaugeComponent,
+    SeverityLabelComponent,
+    EmptyStateComponent,
+  ],
+  template: `
+    <div class="sg">
+      <header class="sg-header">
+        <h1 class="sg-h1">Arbiter · Design System</h1>
+        <p class="sg-lead">
+          Tokens y componentes reales de la app. Esta página se alimenta sola: consume el mismo
+          kit que las pantallas, así que es la fuente de verdad visual del sistema.
+        </p>
+      </header>
+
+      <!-- ================= TOKENS ================= -->
+      <h2 class="sg-h2">Tokens</h2>
+
+      <section class="sg-block">
+        <h3 class="sg-h3">Paleta editable · tema en vivo</h3>
+        <p class="t-note edit-note">
+          Cambiá un color y toda la página se re-tematiza al instante: los componentes consumen
+          tokens, no valores crudos. Es la misma perilla que se usaría para dark mode o branding por
+          aseguradora.
+          <button class="linkbtn" type="button" (click)="resetColors()">Restaurar</button>
+        </p>
+        <div class="knobs">
+          @for (k of brandKnobs; track k.v) {
+            <label class="knob">
+              <input
+                type="color"
+                [value]="colors()[k.v]"
+                (input)="setColor(k.v, $any($event.target).value)"
+              />
+              <span class="knob-info">
+                <span class="tok-name">{{ k.name }}</span>
+                <span class="tok-var mono">{{ k.v }} · {{ colors()[k.v] }}</span>
+              </span>
+            </label>
+          }
+        </div>
+      </section>
+
+      <section class="sg-block">
+        <h3 class="sg-h3">Accent · technicolor</h3>
+        <p class="sg-p">Primitivos. No se consumen directo: se usan vía los roles de <span class="mono">Estado / semáforo</span> (abajo).</p>
+        <div class="swatches">
+          @for (s of technicolor; track s.v) {
+            <div class="swatch">
+              <span class="chip" [style.background]="'var(' + s.v + ')'"></span>
+              <span class="tok-name">{{ s.name }}</span>
+              <span class="tok-var mono">{{ s.v }} · {{ s.hex }}</span>
+            </div>
+          }
+        </div>
+      </section>
+
+      @for (group of colorGroups; track group.title) {
+        <section class="sg-block">
+          <h3 class="sg-h3">{{ group.title }}</h3>
+          <div class="swatches">
+            @for (t of group.items; track t.v) {
+              <div class="swatch">
+                <span class="chip" [style.background]="'var(' + t.v + ')'"></span>
+                <span class="tok-name">{{ t.name }}</span>
+                <span class="tok-var mono">{{ t.v }}</span>
+              </div>
+            }
+          </div>
+        </section>
+      }
+
+      <section class="sg-block">
+        <h3 class="sg-h3">Tipografía · escala de tamaños</h3>
+        @for (t of typeScale; track t.v) {
+          <div class="type-row">
+            <span [style.font-size]="'var(' + t.v + ')'">Arbiter · siniestro</span>
+            <span class="tok-var mono">{{ t.name }} · {{ t.v }}</span>
+          </div>
+        }
+      </section>
+
+      <section class="sg-block">
+        <h3 class="sg-h3">Tipografía · estilos de texto</h3>
+        <div class="type-styles">
+          <div class="ts-row"><span class="t-page-title">Título de página</span><span class="tok-var mono">.t-page-title</span></div>
+          <div class="ts-row"><span class="t-section-label">Etiqueta de sección</span><span class="tok-var mono">.t-section-label</span></div>
+          <div class="ts-row"><span class="t-field-label">Etiqueta de campo</span><span class="tok-var mono">.t-field-label</span></div>
+          <div class="ts-row"><span class="t-body">Texto de cuerpo por defecto.</span><span class="tok-var mono">.t-body</span></div>
+          <div class="ts-row"><span class="t-note">Nota al pie / caption tenue.</span><span class="tok-var mono">.t-note</span></div>
+          <div class="ts-row"><span class="t-body mono">EXP-2024-000123</span><span class="tok-var mono">.mono</span></div>
+        </div>
+      </section>
+
+      <section class="sg-block">
+        <h3 class="sg-h3">Pesos</h3>
+        @for (w of weights; track w.v) {
+          <div class="type-row">
+            <span [style.font-weight]="'var(' + w.v + ')'">Arbiter · siniestro</span>
+            <span class="tok-var mono">{{ w.name }} · {{ w.v }}</span>
+          </div>
+        }
+      </section>
+
+      <section class="sg-block">
+        <h3 class="sg-h3">Espaciado</h3>
+        @for (t of spaceScale; track t.v) {
+          <div class="space-row">
+            <span class="space-bar" [style.width]="'var(' + t.v + ')'"></span>
+            <span class="tok-var mono">{{ t.name }} · {{ t.v }}</span>
+          </div>
+        }
+      </section>
+
+      <section class="sg-block">
+        <h3 class="sg-h3">Radios</h3>
+        <div class="radii">
+          @for (t of radii; track t.v) {
+            <div class="radius-item">
+              <span class="radius-box" [style.border-radius]="'var(' + t.v + ')'"></span>
+              <span class="tok-var mono">{{ t.name }} · {{ t.v }}</span>
+            </div>
+          }
+        </div>
+      </section>
+
+      <section class="sg-block">
+        <h3 class="sg-h3">Sombra y overlay</h3>
+        <div class="row">
+          <div class="shadow-demo">
+            <span class="tok-var mono">--shadow-modal</span>
+          </div>
+          <div class="overlay-demo">
+            <span class="tok-var mono">--overlay-backdrop</span>
+          </div>
+        </div>
+      </section>
+
+      <section class="sg-block">
+        <h3 class="sg-h3">Íconos · convenciones</h3>
+        <div class="row">
+          <span class="icon-conv"><span class="glyph">✦</span> Sugerencia del modelo (IA)</span>
+          <span class="icon-conv"><span class="glyph">▲</span> Severidad / riesgo (nunca por color)</span>
+        </div>
+      </section>
+
+      <!-- ================= COMPONENTES ================= -->
+      <h2 class="sg-h2">Componentes</h2>
+
+      <section class="sg-block">
+        <h3 class="sg-h3">Button</h3>
+        <div class="row">
+          <app-button variant="primary">Primary</app-button>
+          <app-button variant="secondary">Secondary</app-button>
+          <app-button variant="primary" [disabled]="true">Disabled</app-button>
+        </div>
+      </section>
+
+      <section class="sg-block">
+        <h3 class="sg-h3">Badge</h3>
+        <div class="row">
+          <app-badge variant="solid">Estado técnico</app-badge>
+          <app-badge variant="strong">Estado final</app-badge>
+          <app-badge variant="dashed">Sin datos</app-badge>
+        </div>
+        <p class="sg-p">Con punto de semáforo (<span class="mono">tone</span>): solo el punto lleva color, el texto sigue neutro.</p>
+        <div class="row">
+          <app-badge tone="ok">Aprobado</app-badge>
+          <app-badge tone="warning">Falta documentación</app-badge>
+          <app-badge tone="danger">Rechazado</app-badge>
+          <app-badge tone="info">En revisión</app-badge>
+        </div>
+      </section>
+
+      <section class="sg-block">
+        <h3 class="sg-h3">Card</h3>
+        <div class="row cards">
+          <app-card heading="Resumen del siniestro">
+            <p class="sg-p">Contenido de la tarjeta.</p>
+          </app-card>
+          <app-card variant="soft" icon="✦" heading="Clasificación sugerida">
+            <p class="sg-p">Variante <span class="mono">soft</span>, usada para IA.</p>
+          </app-card>
+          <app-card [flush]="true" heading="Sin padding">
+            <p class="sg-p">Variante <span class="mono">flush</span>, para contenido que llega al borde (ej. una tabla).</p>
+          </app-card>
+        </div>
+      </section>
+
+      <section class="sg-block">
+        <h3 class="sg-h3">Input / Textarea</h3>
+        <div class="col narrow">
+          <app-input [(value)]="sampleInput" placeholder="N° de expediente" />
+          <app-input type="password" [(value)]="samplePassword" placeholder="Contraseña" />
+          <app-textarea [(value)]="sampleArea" placeholder="Justificación…" [rows]="3" />
+        </div>
+      </section>
+
+      <section class="sg-block">
+        <h3 class="sg-h3">Modal</h3>
+        <div class="row">
+          <app-button (click)="modalOpen.set(true)">Abrir modal</app-button>
+          <app-button variant="secondary" (click)="sidePanelOpen.set(true)">Abrir panel lateral</app-button>
+        </div>
+        <p class="sg-p">Variante <span class="mono">side</span>: panel deslizante desde el borde, para formularios tipo "alta de X" sobre un listado.</p>
+        <app-modal
+          [open]="modalOpen()"
+          heading="Justificar decisión"
+          (close)="modalOpen.set(false)"
+        >
+          <p class="sg-p">Toda decisión del analista queda justificada y auditada.</p>
+          <app-textarea placeholder="Justificación (obligatoria)…" [rows]="3" />
+          <ng-container modalActions>
+            <app-button variant="secondary" (click)="modalOpen.set(false)">Cancelar</app-button>
+            <app-button (click)="modalOpen.set(false)">Confirmar</app-button>
+          </ng-container>
+        </app-modal>
+        <app-modal
+          [open]="sidePanelOpen()"
+          heading="Nuevo usuario"
+          variant="side"
+          (close)="sidePanelOpen.set(false)"
+        >
+          <p class="sg-p">Contenido del panel, igual que un modal centrado.</p>
+          <ng-container modalActions>
+            <app-button variant="secondary" (click)="sidePanelOpen.set(false)">Cancelar</app-button>
+            <app-button (click)="sidePanelOpen.set(false)">Confirmar</app-button>
+          </ng-container>
+        </app-modal>
+      </section>
+
+      <section class="sg-block">
+        <h3 class="sg-h3">Fraud gauge</h3>
+        <div class="row">
+          <app-fraud-gauge [band]="1" />
+          <app-fraud-gauge [band]="2" />
+          <app-fraud-gauge [band]="3" />
+          <app-fraud-gauge [band]="4" />
+          <app-fraud-gauge [band]="null" />
+        </div>
+      </section>
+
+      <section class="sg-block">
+        <h3 class="sg-h3">Severity label</h3>
+        <div class="row">
+          <app-severity-label level="bajo" />
+          <app-severity-label level="medio" />
+          <app-severity-label level="alto" />
+        </div>
+      </section>
+
+      <section class="sg-block">
+        <h3 class="sg-h3">Empty state</h3>
+        <div class="narrow">
+          <app-empty-state message="Listado de expedientes" />
+        </div>
+      </section>
+    </div>
+  `,
+  styles: `
+    :host { display: block; }
+    .sg { padding: var(--space-5) var(--space-5) var(--space-7); max-width: 900px; }
+    .sg-header { margin-bottom: var(--space-6); }
+    .sg-h1 { margin: 0 0 var(--space-2); font-size: var(--font-size-xl); font-weight: var(--font-weight-medium); }
+    .sg-lead { margin: 0; font-size: var(--font-size-body); color: var(--text-tertiary); max-width: 620px; }
+    .sg-h2 {
+      margin: var(--space-6) 0 var(--space-4);
+      padding-bottom: var(--space-2);
+      border-bottom: 1px solid var(--border-default);
+      font-size: var(--font-size-lg);
+      font-weight: var(--font-weight-medium);
+    }
+    .sg-h3 {
+      margin: 0 0 var(--space-3);
+      font-size: var(--font-size-2xs);
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      color: var(--text-tertiary);
+      font-weight: var(--font-weight-medium);
+    }
+    .sg-block { margin-bottom: var(--space-5); }
+    .sg-p { margin: 0; font-size: var(--font-size-body); color: var(--text-secondary); }
+
+    .row { display: flex; gap: var(--space-3); flex-wrap: wrap; align-items: center; }
+    .row.cards { align-items: stretch; }
+    .cards app-card { flex: 1 1 240px; }
+    .col { display: flex; flex-direction: column; gap: var(--space-3); }
+    .narrow { max-width: 340px; }
+
+    /* Tokens de color */
+    .swatches { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: var(--space-3); }
+    .swatch { display: flex; flex-direction: column; gap: 2px; }
+    .chip { height: 40px; border-radius: var(--radius-ctl); border: 1px solid var(--border-default); }
+    .tok-name { font-size: var(--font-size-sm); color: var(--text-primary); }
+    .tok-var { font-size: var(--font-size-xs); color: var(--text-muted); }
+
+    /* Paleta editable */
+    .edit-note { max-width: 620px; margin: 0 0 var(--space-3); }
+    .linkbtn { border: none; background: none; padding: 0 0 0 var(--space-1); font: inherit; font-size: var(--font-size-xs); color: var(--text-primary); text-decoration: underline; cursor: pointer; }
+    .knobs { display: flex; flex-wrap: wrap; gap: var(--space-4); }
+    .knob { display: flex; align-items: center; gap: var(--space-2); cursor: pointer; }
+    .knob input[type='color'] { width: 40px; height: 40px; padding: 0; border: 1px solid var(--border-default); border-radius: var(--radius-ctl); background: none; cursor: pointer; }
+    .knob-info { display: flex; flex-direction: column; gap: 1px; }
+
+    /* Tipografía */
+    .type-row { display: flex; align-items: baseline; justify-content: space-between; gap: var(--space-4); padding: var(--space-2) 0; border-bottom: 1px solid var(--border-subtle); }
+    .type-styles { display: flex; flex-direction: column; }
+    .ts-row { display: flex; align-items: baseline; justify-content: space-between; gap: var(--space-4); padding: var(--space-2) 0; border-bottom: 1px solid var(--border-subtle); }
+
+    /* Sombra / overlay */
+    .shadow-demo { width: 160px; height: 72px; display: flex; align-items: center; justify-content: center; background: var(--surface); border-radius: var(--radius-modal); box-shadow: var(--shadow-modal); }
+    .overlay-demo { width: 160px; height: 72px; display: flex; align-items: center; justify-content: center; background: var(--overlay-backdrop); border-radius: var(--radius-ctl); color: var(--text-on-emphasis); }
+
+    /* Íconos */
+    .icon-conv { display: inline-flex; align-items: center; gap: var(--space-2); font-size: var(--font-size-body); color: var(--text-secondary); }
+    .icon-conv .glyph { color: var(--text-primary); }
+
+    /* Espaciado */
+    .space-row { display: flex; align-items: center; gap: var(--space-3); padding: 3px 0; }
+    .space-bar { display: block; height: 14px; background: var(--action-primary-bg); border-radius: 2px; }
+
+    /* Radios */
+    .radii { display: flex; gap: var(--space-4); flex-wrap: wrap; }
+    .radius-item { display: flex; flex-direction: column; gap: var(--space-2); align-items: flex-start; }
+    .radius-box { display: block; width: 56px; height: 56px; background: var(--surface-head); border: 1px solid var(--border-strong); }
+
+    .mono { font-family: var(--font-mono); }
+  `,
+})
+export class StyleguideComponent {
+  private readonly doc = inject(DOCUMENT);
+
+  protected readonly modalOpen = signal(false);
+  protected readonly sidePanelOpen = signal(false);
+  protected readonly sampleInput = signal('');
+  protected readonly samplePassword = signal('');
+  protected readonly sampleArea = signal('');
+
+  /** Perillas de tema editables en vivo. Escriben sobre :root → re-tematizan todo. */
+  protected readonly brandKnobs: Knob[] = [
+    { name: 'Acento (acción primaria)', v: '--accent', default: '#23262a' },
+    { name: 'Texto (ink)', v: '--c-ink', default: '#23262a' },
+    { name: 'Fondo', v: '--c-bg', default: '#ffffff' },
+    { name: 'Fondo tenue', v: '--c-bg-soft', default: '#fafbfc' },
+    { name: 'Borde', v: '--c-border', default: '#e2e5e8' },
+  ];
+
+  protected readonly colors = signal<Record<string, string>>(
+    Object.fromEntries(this.brandKnobs.map((k) => [k.v, k.default])),
+  );
+
+  protected setColor(v: string, value: string): void {
+    this.doc.documentElement.style.setProperty(v, value);
+    this.colors.update((c) => ({ ...c, [v]: value }));
+  }
+
+  protected resetColors(): void {
+    for (const k of this.brandKnobs) {
+      this.doc.documentElement.style.removeProperty(k.v);
+    }
+    this.colors.set(Object.fromEntries(this.brandKnobs.map((k) => [k.v, k.default])));
+  }
+
+  protected readonly technicolor: Swatch[] = [
+    { name: 'Verde', hex: '#00A99D', v: '--accent-green' },
+    { name: 'Amarillo', hex: '#F2B705', v: '--accent-yellow' },
+    { name: 'Rojo', hex: '#E63329', v: '--accent-red' },
+    { name: 'Azul', hex: '#2E4A9E', v: '--accent-blue' },
+  ];
+
+  protected readonly weights: Token[] = [
+    { name: 'regular', v: '--font-weight-regular' },
+    { name: 'medium', v: '--font-weight-medium' },
+    { name: 'bold', v: '--font-weight-bold' },
+  ];
+
+  protected readonly colorGroups: TokenGroup[] = [
+    {
+      title: 'Texto',
+      items: [
+        { name: 'text-primary', v: '--text-primary' },
+        { name: 'text-secondary', v: '--text-secondary' },
+        { name: 'text-tertiary', v: '--text-tertiary' },
+        { name: 'text-muted', v: '--text-muted' },
+      ],
+    },
+    {
+      title: 'Superficies',
+      items: [
+        { name: 'surface', v: '--surface' },
+        { name: 'surface-soft', v: '--surface-soft' },
+        { name: 'surface-sunken', v: '--surface-sunken' },
+        { name: 'surface-head', v: '--surface-head' },
+      ],
+    },
+    {
+      title: 'Bordes',
+      items: [
+        { name: 'border-subtle', v: '--border-subtle' },
+        { name: 'border-default', v: '--border-default' },
+        { name: 'border-control', v: '--border-control' },
+        { name: 'border-strong', v: '--border-strong' },
+      ],
+    },
+    {
+      title: 'Acción',
+      items: [
+        { name: 'action-primary-bg', v: '--action-primary-bg' },
+        { name: 'action-primary-bg-hover', v: '--action-primary-bg-hover' },
+      ],
+    },
+    {
+      title: 'Estado / semáforo',
+      items: [
+        { name: 'status-ok', v: '--status-ok' },
+        { name: 'status-warning', v: '--status-warning' },
+        { name: 'status-danger', v: '--status-danger' },
+        { name: 'status-info', v: '--status-info' },
+      ],
+    },
+  ];
+
+  protected readonly typeScale: Token[] = [
+    { name: 'xl', v: '--font-size-xl' },
+    { name: 'lg', v: '--font-size-lg' },
+    { name: 'md', v: '--font-size-md' },
+    { name: 'body', v: '--font-size-body' },
+    { name: 'sm', v: '--font-size-sm' },
+    { name: 'xs', v: '--font-size-xs' },
+    { name: '2xs', v: '--font-size-2xs' },
+  ];
+
+  protected readonly spaceScale: Token[] = [
+    { name: 'space-1', v: '--space-1' },
+    { name: 'space-2', v: '--space-2' },
+    { name: 'space-3', v: '--space-3' },
+    { name: 'space-4', v: '--space-4' },
+    { name: 'space-5', v: '--space-5' },
+    { name: 'space-6', v: '--space-6' },
+    { name: 'space-7', v: '--space-7' },
+  ];
+
+  protected readonly radii: Token[] = [
+    { name: 'ctl', v: '--radius-ctl' },
+    { name: 'card', v: '--radius-card' },
+    { name: 'modal', v: '--radius-modal' },
+    { name: 'pill', v: '--radius-pill' },
+  ];
+}

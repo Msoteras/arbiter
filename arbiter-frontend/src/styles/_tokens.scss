@@ -1,0 +1,83 @@
+/* ============================================================
+   Arbiter · Design System — CAPA 1: TOKENS PRIMITIVOS
+   Valores crudos. La "verdad" del sistema.
+   Regla de diseño: escala de grises, SIN color de acento.
+   No consumir estos tokens directo en componentes → usar la
+   capa semántica (_semantic.scss).
+   ============================================================ */
+:root {
+  /* ===== Color de acento / marca =====
+     Único "perilla" de tema: maneja la acción primaria y los estados activos.
+     Hoy es el gris de marca; cambiarlo re-tematiza la app entera (editable en vivo
+     desde /styleguide). El resto de la paleta es escala de grises pura. */
+  --accent: #23262a;
+
+  /* ===== Paleta accent · technicolor =====
+     Colores de acento fuera de la escala de grises. Uso previsto como
+     semáforo de estado: verde=ok, amarillo=atención, rojo=riesgo, azul=info. */
+  --accent-green: #00a99d;
+  --accent-yellow: #f2b705;
+  --accent-red: #e63329;
+  --accent-blue: #2e4a9e;
+
+  /* ===== Color — texto ===== */
+  --c-ink: #23262a; /* negro de marca */
+  --c-ink-strong: #000000;
+  --c-ink-2: #3a3d41;
+  --c-ink-3: #51565c;
+  --c-ink-4: #585d63;
+  --c-muted: #6d7379; /* oscurecido para llegar a 4.5:1 sobre blanco (WCAG AA) */
+  --c-muted-2: #9aa0a6;
+  --c-muted-3: #aeb3b8;
+  --c-on-ink: #ffffff; /* texto sobre fondo oscuro */
+
+  /* ===== Color — bordes ===== */
+  --c-divider: #eef0f2;
+  --c-border: #e2e5e8;
+  --c-border-2: #d4d8dc;
+  --c-border-3: #c2c7cc;
+  --c-border-strong: #aab0b6;
+
+  /* ===== Color — fondos ===== */
+  --c-bg: #ffffff;
+  --c-bg-soft: #fafbfc;
+  --c-bg-soft-2: #f6f7f8;
+  --c-bg-head: #f4f5f6;
+
+  /* ===== Espaciado (base 4px) ===== */
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 24px;
+  --space-6: 32px;
+  --space-7: 40px;
+
+  /* ===== Tipografía — familias ===== */
+  --font-sans: -apple-system, BlinkMacSystemFont, 'Helvetica Neue', Helvetica, Arial, sans-serif;
+  --font-mono: 'Roboto Mono', ui-monospace, 'SFMono-Regular', Menlo, monospace;
+
+  /* ===== Tipografía — escala ===== */
+  --font-size-2xs: 10px; /* labels uppercase */
+  --font-size-xs: 11px;
+  --font-size-sm: 12px;
+  --font-size-body: 13px; /* cuerpo por defecto */
+  --font-size-md: 14px;
+  --font-size-lg: 16px;
+  --font-size-xl: 22px; /* títulos de página */
+
+  /* ===== Tipografía — pesos ===== */
+  --font-weight-regular: 400;
+  --font-weight-medium: 600;
+  --font-weight-bold: 700;
+
+  /* ===== Radios ===== */
+  --radius-ctl: 7px; /* controles: botones, inputs */
+  --radius-card: 10px;
+  --radius-modal: 12px;
+  --radius-pill: 999px;
+
+  /* ===== Sombras / overlay ===== */
+  --shadow-modal: 0 10px 40px rgba(35, 38, 42, 0.18);
+  --overlay-backdrop: rgba(35, 38, 42, 0.4);
+}

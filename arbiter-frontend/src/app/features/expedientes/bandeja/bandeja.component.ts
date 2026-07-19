@@ -6,7 +6,10 @@ import { catchError, map, of, startWith } from 'rxjs';
 import { ExpedienteService } from '../expediente.service';
 import { ExpedienteResponse } from '../../../core/models/expediente';
 import { clasificacionLabel } from '../../../core/models/clasificacion';
-import { estadoLabel } from '../../../core/models/estado';
+import { estadoLabel, estadoTone } from '../../../core/models/estado';
+import { StatusTone } from '../../../core/models/status-tone';
+import { CardComponent } from '../../../shared/ui/card/card.component';
+import { BadgeComponent } from '../../../shared/ui/badge/badge.component';
 
 interface FieldItem { label: string; value: string | null; mono?: boolean; full?: boolean; }
 
@@ -17,7 +20,7 @@ type LoadState =
 
 @Component({
   selector: 'app-bandeja',
-  imports: [RouterLink],
+  imports: [RouterLink, CardComponent, BadgeComponent],
   changeDetection: ChangeDetectionStrategy.OnPush,
   templateUrl: './bandeja.component.html',
   styleUrl: './bandeja.component.scss',
@@ -49,6 +52,10 @@ export class BandejaComponent {
 
   protected estadoLabel(status: string): string {
     return estadoLabel(status);
+  }
+
+  protected estadoTone(status: string): StatusTone {
+    return estadoTone(status);
   }
 
   /** Todos los campos que devuelve GET /api/v1/cases para un expediente, sin recortar. */

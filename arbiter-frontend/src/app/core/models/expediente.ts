@@ -24,6 +24,7 @@ export interface ExpedienteResponse {
   eventDate: string;
   eventLocation: string;
   claimedAmount: number | null;
+  riskBand: 'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL' | null;
   analysisClassification: Clasificacion | string;
   analysisConfidence: number;
   analysisDetail: string;

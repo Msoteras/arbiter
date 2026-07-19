@@ -1,0 +1,59 @@
+<header class="page-head">
+  <h1 class="t-page-title">Usuarios</h1>
+  <app-button (click)="showCreatePanel.set(true)">+ Nuevo usuario</app-button>
+</header>
+
+@if (loading()) {
+  <app-card><p class="t-note">Cargando usuarios…</p></app-card>
+} @else if (hasError()) {
+  <app-card><p class="t-note">No se pudo cargar el listado de usuarios.</p></app-card>
+} @else if (isEmpty()) {
+  <app-card><p class="t-note">Todavía no hay usuarios cargados.</p></app-card>
+} @else {
+  @if (roleError()) {
+    <p class="error">{{ roleError() }}</p>
+  }
+  <app-card [flush]="true">
+    <table>
+      <thead>
+        <tr>
+          <th>Nombre</th>
+          <th>Email</th>
+          <th>Rol</th>
+          <th>Sector</th>
+          <th>Fecha de ingreso</th>
+        </tr>
+      </thead>
+      <tbody>
+        @for (u of users(); track u.id) {
+          <tr>
+            <td>{{ u.nombre }} {{ u.apellido }}</td>
+            <td class="mono">{{ u.email }}</td>
+            <td>
+              @if (isSelf(u)) {
+                <app-badge title="No podés cambiar tu propio rol">{{ roleLabel(u.rol) }}</app-badge>
+              } @else {
+                <select
+                  class="role-select"
+                  [ngModel]="u.rol"
+                  (ngModelChange)="onRoleChange(u, $event)"
+                  [disabled]="savingId() === u.id"
+                >
+                  @for (r of roles; track r) {
+                    <option [value]="r">{{ roleLabel(r) }}</option>
+                  }
+                </select>
+              }
+            </td>
+            <td>{{ u.sector || '—' }}</td>
+            <td>{{ u.fechaIngreso || '—' }}</td>
+          </tr>
+        }
+      </tbody>
+    </table>
+  </app-card>
+}
+
+<app-modal [open]="showCreatePanel()" heading="Nuevo usuario" variant="side" (close)="showCreatePanel.set(false)">
+  <app-alta-usuario (created)="onCreated($event)" (cancel)="showCreatePanel.set(false)" />
+</app-modal>
