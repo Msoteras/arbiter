@@ -3,6 +3,7 @@ package ar.edu.utn.frba.arbiter.auth.services;
 import ar.edu.utn.frba.arbiter.auth.dto.CreateUserRequest;
 import ar.edu.utn.frba.arbiter.auth.dto.UserResponse;
 import ar.edu.utn.frba.arbiter.auth.exceptions.CannotChangeOwnRoleException;
+import ar.edu.utn.frba.arbiter.auth.exceptions.CannotDeleteOwnAccountException;
 import ar.edu.utn.frba.arbiter.auth.exceptions.EmailAlreadyExistsException;
 import ar.edu.utn.frba.arbiter.auth.exceptions.RoleNotAllowedException;
 import ar.edu.utn.frba.arbiter.auth.exceptions.UserNotFoundException;
@@ -113,6 +114,36 @@ class UserServiceTest {
         when(userRepository.findById(999L)).thenReturn(Optional.empty());
 
         assertThatThrownBy(() -> userService.updateRole(999L, UserRole.ASEGURADO, "referente@arbiter.test"))
+                .isInstanceOf(UserNotFoundException.class);
+    }
+
+    @Test
+    void deleteUser_validTarget_deletesIt() {
+        userService = new UserService(userRepository, passwordEncoder);
+        User target = User.builder().id(7L).email("analista.test@arbiter.test").rol(UserRole.ANALISTA_SINIESTROS).build();
+        when(userRepository.findById(7L)).thenReturn(Optional.of(target));
+
+        userService.deleteUser(7L, "referente@arbiter.test");
+
+        verify(userRepository).delete(target);
+    }
+
+    @Test
+    void deleteUser_ownAccount_throwsCannotDeleteOwnAccount() {
+        userService = new UserService(userRepository, passwordEncoder);
+        User self = User.builder().id(3L).email("referente@arbiter.test").rol(UserRole.REFERENTE_ASEGURADORA).build();
+        when(userRepository.findById(3L)).thenReturn(Optional.of(self));
+
+        assertThatThrownBy(() -> userService.deleteUser(3L, "referente@arbiter.test"))
+                .isInstanceOf(CannotDeleteOwnAccountException.class);
+    }
+
+    @Test
+    void deleteUser_unknownUser_throwsUserNotFound() {
+        userService = new UserService(userRepository, passwordEncoder);
+        when(userRepository.findById(999L)).thenReturn(Optional.empty());
+
+        assertThatThrownBy(() -> userService.deleteUser(999L, "referente@arbiter.test"))
                 .isInstanceOf(UserNotFoundException.class);
     }
 }

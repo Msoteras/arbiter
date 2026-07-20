@@ -43,4 +43,9 @@ export class UserAdminService {
   updateRole(id: number, rol: UserRole): Observable<UserResponse> {
     return this.http.put<UserResponse>(`${this.baseUrl}/${id}/role`, { rol });
   }
+
+  /** Borrado definitivo e irreversible (wireframe "Eliminar") — no es una baja/desactivación. */
+  delete(id: number): Observable<void> {
+    return this.http.delete<void>(`${this.baseUrl}/${id}`);
+  }
 }

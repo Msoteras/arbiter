@@ -3,6 +3,7 @@ package ar.edu.utn.frba.arbiter.auth.services;
 import ar.edu.utn.frba.arbiter.auth.dto.CreateUserRequest;
 import ar.edu.utn.frba.arbiter.auth.dto.UserResponse;
 import ar.edu.utn.frba.arbiter.auth.exceptions.CannotChangeOwnRoleException;
+import ar.edu.utn.frba.arbiter.auth.exceptions.CannotDeleteOwnAccountException;
 import ar.edu.utn.frba.arbiter.auth.exceptions.EmailAlreadyExistsException;
 import ar.edu.utn.frba.arbiter.auth.exceptions.RoleNotAllowedException;
 import ar.edu.utn.frba.arbiter.auth.exceptions.UserNotFoundException;
@@ -64,6 +65,21 @@ public class UserService {
 
         user.setRol(newRole);
         return toResponse(userRepository.save(user));
+    }
+
+    /**
+     * Elimina un usuario definitivamente (wireframe "Eliminar", acción irreversible — no es una
+     * baja/desactivación). El referente no puede eliminarse a sí mismo, mismo motivo que
+     * {@link #updateRole}: evita quedarse sin acceso.
+     */
+    public void deleteUser(Long userId, String requestingEmail) {
+        User user = userRepository.findById(userId).orElseThrow(() -> new UserNotFoundException(userId));
+
+        if (user.getEmail().equals(requestingEmail)) {
+            throw new CannotDeleteOwnAccountException();
+        }
+
+        userRepository.delete(user);
     }
 
     private UserResponse toResponse(User user) {

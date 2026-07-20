@@ -37,4 +37,9 @@ public class AuthExceptionHandler {
     public ProblemDetail handleCannotChangeOwnRole(CannotChangeOwnRoleException ex) {
         return ProblemDetail.forStatusAndDetail(HttpStatusCode.valueOf(400), ex.getMessage());
     }
+
+    @ExceptionHandler(CannotDeleteOwnAccountException.class)
+    public ProblemDetail handleCannotDeleteOwnAccount(CannotDeleteOwnAccountException ex) {
+        return ProblemDetail.forStatusAndDetail(HttpStatusCode.valueOf(400), ex.getMessage());
+    }
 }
