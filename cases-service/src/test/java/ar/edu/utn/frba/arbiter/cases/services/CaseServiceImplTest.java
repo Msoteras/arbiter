@@ -176,7 +176,7 @@ class CaseServiceImplTest {
         when(caseRepository.findAll(isNull(Specification.class), eq(pageable)))
                 .thenReturn(new PageImpl<>(List.of(case2, case1), pageable, 2));
 
-        Page<CaseResponse> response = caseService.listCases(null, null, null, null, null, null, pageable);
+        Page<CaseResponse> response = caseService.listCases(null, null, null, null, null, null, null, pageable);
 
         assertThat(response.getContent()).hasSize(2);
         assertThat(response.getContent().get(0).id()).isEqualTo(2L);
@@ -191,7 +191,7 @@ class CaseServiceImplTest {
                 .thenReturn(new PageImpl<>(List.of(entity), pageable, 1));
 
         Page<CaseResponse> response = caseService.listCases(
-                CaseStatus.PENDING_ANALYST_REVIEW, null, null, null, null, null, pageable);
+                CaseStatus.PENDING_ANALYST_REVIEW, null, null, null, null, null, null, pageable);
 
         assertThat(response.getContent()).hasSize(1);
         assertThat(response.getContent().get(0).status()).isEqualTo(CaseStatus.PENDING_ANALYST_REVIEW);
@@ -205,10 +205,24 @@ class CaseServiceImplTest {
                 .thenReturn(new PageImpl<>(List.of(entity), pageable, 1));
 
         Page<CaseResponse> response = caseService.listCases(
-                null, null, null, "40.123.456", null, null, pageable);
+                null, null, null, "40.123.456", null, null, null, pageable);
 
         assertThat(response.getContent()).hasSize(1);
         assertThat(response.getContent().get(0).insuredId()).isEqualTo("40.123.456");
+    }
+
+    @Test
+    void listCases_withFreeTextSearch_passesQToSpecifications() {
+        Case entity = caseRecord(6L, CaseStatus.PENDING_ANALYST_REVIEW);
+        Pageable pageable = PageRequest.of(0, 20);
+        when(caseRepository.findAll(any(Specification.class), eq(pageable)))
+                .thenReturn(new PageImpl<>(List.of(entity), pageable, 1));
+
+        Page<CaseResponse> response = caseService.listCases(
+                null, null, null, null, null, null, "POL-CEL", pageable);
+
+        assertThat(response.getContent()).hasSize(1);
+        verify(caseRepository).findAll(any(Specification.class), eq(pageable));
     }
 
     @Test
@@ -220,7 +234,7 @@ class CaseServiceImplTest {
 
         Page<CaseResponse> response = caseService.listCases(
                 CaseStatus.APPROVED, "Robo en vía pública", "POL-CEL-2024-001", "40.123.456",
-                LocalDate.of(2026, 6, 1), LocalDate.of(2026, 6, 30), pageable);
+                LocalDate.of(2026, 6, 1), LocalDate.of(2026, 6, 30), null, pageable);
 
         assertThat(response.getContent()).hasSize(1);
         verify(caseRepository).findAll(any(Specification.class), eq(pageable));
@@ -232,7 +246,7 @@ class CaseServiceImplTest {
         when(caseRepository.findAll(isNull(Specification.class), eq(pageable)))
                 .thenReturn(new PageImpl<>(List.of(), pageable, 0));
 
-        Page<CaseResponse> response = caseService.listCases(null, null, null, null, null, null, pageable);
+        Page<CaseResponse> response = caseService.listCases(null, null, null, null, null, null, null, pageable);
 
         assertThat(response.getContent()).isEmpty();
         assertThat(response.getTotalElements()).isZero();

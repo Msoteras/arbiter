@@ -882,6 +882,32 @@
 				"description": "Con init.sql (5 cases) debería devolver primero los cases 5 y 4 (id desc), totalElements=5, totalPages=3."
 			},
 			"response": []
+		},
+		{
+			"name": "8️⃣ Búsqueda de texto libre (q): por nombre del asegurado",
+			"request": {
+				"method": "GET",
+				"header": [],
+				"url": {
+					"raw": "{{casesBaseUrl}}/api/v1/cases?q=Sof%C3%ADa",
+					"host": [
+						"{{casesBaseUrl}}"
+					],
+					"path": [
+						"api",
+						"v1",
+						"cases"
+					],
+					"query": [
+						{
+							"key": "q",
+							"value": "Sofía"
+						}
+					]
+				},
+				"description": "Con init.sql debería devolver los cases 1 y 4 (insuredName=\"Sofía Martínez\", case-insensitive substring). El case 5 comparte insuredId pero todavía no tiene insuredName resuelto (null hasta la primera clasificación) — no matchea. También matchea por policyNumber/insuredId (substring) o por id (exacto, si q es numérico)."
+			},
+			"response": []
 		}
 	],
 	"variable": [

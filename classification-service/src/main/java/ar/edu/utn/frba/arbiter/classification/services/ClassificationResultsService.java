@@ -54,6 +54,7 @@ public class ClassificationResultsService {
         entry.setConfidence(BigDecimal.valueOf(response.confidence()));
         entry.setFactors(response.factors());
         entry.setLatencyMs(latencyMs);
+        entry.setInsuredName(response.insuredName());
         applyRiskScore(entry, response.riskScore());
 
         logRepository.save(entry);
@@ -89,6 +90,7 @@ public class ClassificationResultsService {
                 .riskScore(entry.map(l -> l.getRiskScore() != null ? l.getRiskScore().doubleValue() : null).orElse(null))
                 .riskBand(entry.map(ClassificationLog::getRiskBand).orElse(null))
                 .riskBreakdown(entry.map(ClassificationLog::getRiskBreakdown).orElse(null))
+                .insuredName(entry.map(ClassificationLog::getInsuredName).orElse(null))
                 .build();
     }
 

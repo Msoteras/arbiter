@@ -23,6 +23,8 @@ public record CaseResponse(
         String claimCause,
         String insuredItem,
         String insuredId,
+        /** Nullable hasta que la primera clasificación resuelve (ver Case.insuredName). */
+        String insuredName,
         String policyNumber,
         String description,
         LocalDateTime eventDate,

@@ -120,9 +120,9 @@ public class CaseServiceImpl implements CaseService {
     @Override
     public Page<CaseResponse> listCases(CaseStatus status, String claimCause, String policyNumber,
                                          String insuredId, LocalDate eventDateFrom, LocalDate eventDateTo,
-                                         Pageable pageable) {
+                                         String q, Pageable pageable) {
         Specification<Case> spec = CaseSpecifications.withFilters(
-                status, claimCause, policyNumber, insuredId, eventDateFrom, eventDateTo);
+                status, claimCause, policyNumber, insuredId, eventDateFrom, eventDateTo, q);
         return caseRepository.findAll(spec, pageable).map(this::toResponse);
     }
 
@@ -162,6 +162,7 @@ public class CaseServiceImpl implements CaseService {
                 entity.getClaimCause(),
                 entity.getInsuredItem(),
                 entity.getInsuredId(),
+                entity.getInsuredName(),
                 entity.getPolicyNumber(),
                 entity.getDescription(),
                 entity.getEventDate(),

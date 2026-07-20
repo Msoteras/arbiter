@@ -18,15 +18,17 @@ public record ClassificationResponse(
         List<String> factors,
         double confidence,
         boolean deterministicFastTrack,
-        RiskScore riskScore
+        RiskScore riskScore,
+        /** Insured's real name (from InsuredPolicy), attached by the orchestrator like riskScore. */
+        String insuredName
 ) {
 
     /**
-     * Classifier-facing constructor without a score: the classifier produces the classification
-     * and never sets the risk score — the orchestrator attaches it afterwards. Keeps the classifier
-     * decoupled from scoring.
+     * Classifier-facing constructor without a score/name: the classifier produces the
+     * classification and never sets these — the orchestrator attaches them afterwards. Keeps the
+     * classifier decoupled from scoring and policy lookup.
      */
     public ClassificationResponse(Classification classification, List<String> factors, double confidence, boolean deterministicFastTrack) {
-        this(classification, factors, confidence, deterministicFastTrack, null);
+        this(classification, factors, confidence, deterministicFastTrack, null, null);
     }
 }

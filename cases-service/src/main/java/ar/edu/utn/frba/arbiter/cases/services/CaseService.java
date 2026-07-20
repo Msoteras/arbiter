@@ -21,14 +21,16 @@ public interface CaseService {
      * Lista expedientes paginados, más recientes primero por defecto. Todos los filtros son
      * opcionales y combinables: {@code status}, {@code claimCause} (tipo de siniestro /
      * HechoGenerador), {@code policyNumber}, {@code insuredId} (hasta que Auth0/JWT lands, el
-     * caller lo pasa explícito; después saldrá del JWT) y el rango {@code eventDateFrom}/
-     * {@code eventDateTo} (inclusive en ambos extremos) sobre la fecha del hecho.
+     * caller lo pasa explícito; después saldrá del JWT), el rango {@code eventDateFrom}/
+     * {@code eventDateTo} (inclusive en ambos extremos) sobre la fecha del hecho, y {@code q}
+     * (búsqueda de texto libre por número de expediente, póliza o asegurado — ver
+     * {@link ar.edu.utn.frba.arbiter.cases.models.repositories.CaseSpecifications#withFilters}).
      *
      * <p>No filtra por aseguradora/rol del usuario autenticado: depende de auth-service, que
      * todavía no está levantado (ver GAPS-FLUJO.md, Gap F).
      */
     Page<CaseResponse> listCases(CaseStatus status, String claimCause, String policyNumber, String insuredId,
-                                  LocalDate eventDateFrom, LocalDate eventDateTo, Pageable pageable);
+                                  LocalDate eventDateFrom, LocalDate eventDateTo, String q, Pageable pageable);
 
     CaseResponse addDocumentsAndReclassify(Long caseId, Map<String, MultipartFile> documents);
 

@@ -99,21 +99,23 @@ public class ClassificationOrchestrator {
     }
 
     /**
-     * Attaches the parallel fraud/risk score to the classification, building {@link RiskContext}
-     * from the {@link Context} already assembled by {@code fetchContext()} — no extra adapter hits.
-     * A single scoring invocation per classification, shared by every route (missing docs, Fast
-     * Track and LLM). Scoring is best-effort: if it fails, the classification is returned as-is
-     * (riskScore null) — the score is a support signal and must never break the classification.
+     * Attaches the parallel fraud/risk score and the insured's name to the classification, both
+     * sourced from the {@link Context} already assembled by {@code fetchContext()} — no extra
+     * adapter hits. A single scoring invocation per classification, shared by every route (missing
+     * docs, Fast Track and LLM). Scoring is best-effort: if it fails, the classification is
+     * returned as-is (riskScore null) — the score is a support signal and must never break the
+     * classification. The insured's name always comes from the policy, regardless of scoring.
      */
     private ClassificationResponse withRiskScore(ClassificationResponse classification, ClaimReport claim, Context ctx) {
+        ClassificationResponse withName = classification.toBuilder().insuredName(ctx.policy().insuredName()).build();
         try {
             RiskScore riskScore = riskScoringService.score(new RiskContext(claim, ctx.policy(), ctx.history(), ctx.rules()));
             log.info("[Orchestrator] Risk score attached — scored={} score={} band={}",
                     riskScore.scored(), String.format("%.3f", riskScore.score()), riskScore.band());
-            return classification.toBuilder().riskScore(riskScore).build();
+            return withName.toBuilder().riskScore(riskScore).build();
         } catch (Exception e) {
             log.error("[Orchestrator] Risk scoring failed — classification proceeds without score: {}", e.getMessage(), e);
-            return classification;
+            return withName;
         }
     }
 

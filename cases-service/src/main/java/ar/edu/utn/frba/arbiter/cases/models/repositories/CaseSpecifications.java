@@ -2,6 +2,7 @@ package ar.edu.utn.frba.arbiter.cases.models.repositories;
 
 import ar.edu.utn.frba.arbiter.cases.models.entities.Case;
 import ar.edu.utn.frba.arbiter.common.enums.CaseStatus;
+import jakarta.persistence.criteria.Predicate;
 import org.springframework.data.jpa.domain.Specification;
 
 import java.time.LocalDate;
@@ -24,14 +25,16 @@ public final class CaseSpecifications {
     }
 
     public static Specification<Case> withFilters(CaseStatus status, String claimCause, String policyNumber,
-                                                    String insuredId, LocalDate eventDateFrom, LocalDate eventDateTo) {
+                                                    String insuredId, LocalDate eventDateFrom, LocalDate eventDateTo,
+                                                    String q) {
         return Stream.of(
                         status(status),
                         claimCause(claimCause),
                         policyNumber(policyNumber),
                         insuredId(insuredId),
                         eventDateFrom(eventDateFrom),
-                        eventDateTo(eventDateTo)
+                        eventDateTo(eventDateTo),
+                        freeText(q)
                 )
                 .filter(Objects::nonNull)
                 .reduce(Specification::and)
@@ -67,5 +70,42 @@ public final class CaseSpecifications {
         // Inclusive del día completo: estrictamente antes de la medianoche del día siguiente.
         return to == null ? null
                 : (root, query, cb) -> cb.lessThan(root.get("eventDate"), to.plusDays(1).atStartOfDay());
+    }
+
+    /**
+     * Búsqueda de texto libre (H0011): OR entre los identificadores que existen de verdad —
+     * número de expediente ({@code id}, match exacto — nadie busca un expediente por "contiene
+     * este dígito"), número de póliza, y asegurado (por {@code insuredId} o, cuando ya se
+     * resolvió, {@code insuredName} — ver Javadoc de {@code Case.insuredName}), estos dos últimos
+     * case-insensitive por substring. No busca por {@code claimCause}: ese ya tiene su propio
+     * filtro exacto, para no mezclar "encontrar un expediente puntual" con "filtrar por tipo de
+     * siniestro".
+     */
+    private static Specification<Case> freeText(String q) {
+        if (q == null || q.isBlank()) {
+            return null;
+        }
+        String trimmed = q.trim();
+        String pattern = "%" + trimmed.toLowerCase() + "%";
+        Long idMatch = parseAsId(trimmed);
+        return (root, query, cb) -> {
+            Predicate byPolicyNumber = cb.like(cb.lower(root.get("policyNumber")), pattern);
+            Predicate byInsuredId = cb.like(cb.lower(root.get("insuredId")), pattern);
+            // insuredName es nullable (se resuelve recién con la primera clasificación) — NULL LIKE
+            // pattern evalúa a "no matchea" sin romper, no hace falta un coalesce.
+            Predicate byInsuredName = cb.like(cb.lower(root.get("insuredName")), pattern);
+            if (idMatch == null) {
+                return cb.or(byPolicyNumber, byInsuredId, byInsuredName);
+            }
+            return cb.or(cb.equal(root.get("id"), idMatch), byPolicyNumber, byInsuredId, byInsuredName);
+        };
+    }
+
+    private static Long parseAsId(String q) {
+        try {
+            return Long.parseLong(q);
+        } catch (NumberFormatException e) {
+            return null;
+        }
     }
 }

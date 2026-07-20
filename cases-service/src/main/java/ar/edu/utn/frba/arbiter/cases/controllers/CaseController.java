@@ -74,6 +74,11 @@ public class CaseController {
                     sobre la fecha del hecho. Paginación estándar de Spring Data: `page`, `size`,
                     `sort` (ej. `sort=eventDate,desc`).
 
+                    `q` es búsqueda de texto libre (case-insensitive, substring) sobre número de
+                    expediente, número de póliza y asegurado (`insuredId`/`insuredName` — este
+                    último nullable hasta que la primera clasificación resuelve el nombre real).
+                    Se combina por AND con el resto de los filtros.
+
                     No filtra por aseguradora/rol del usuario autenticado: depende de auth-service,
                     que todavía no está levantado (ver GAPS-FLUJO.md, Gap F).
                     """)
@@ -84,10 +89,11 @@ public class CaseController {
             @RequestParam(required = false) String insuredId,
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate eventDateFrom,
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate eventDateTo,
+            @RequestParam(required = false) String q,
             @PageableDefault(size = 20, sort = "id", direction = Sort.Direction.DESC) Pageable pageable
     ) {
         Page<CaseResponse> response = caseService.listCases(
-                status, claimCause, policyNumber, insuredId, eventDateFrom, eventDateTo, pageable);
+                status, claimCause, policyNumber, insuredId, eventDateFrom, eventDateTo, q, pageable);
         return ResponseEntity.ok(response);
     }
 

@@ -37,7 +37,6 @@ export interface PagedResponse<T> {
 }
 
 // Todos los filtros que GET /api/v1/cases acepta hoy (opcionales y combinables) + paginación/orden.
-// No incluye búsqueda de texto libre: el backend no la soporta todavía (ver GAPS-FLUJO.md).
 export interface ExpedienteListParams {
   status?: string;
   claimCause?: string;
@@ -50,6 +49,12 @@ export interface ExpedienteListParams {
   size?: number;
   /** Formato Spring Data, ej. "eventDate,desc". Default del backend: "id,desc". */
   sort?: string;
+  /**
+   * Búsqueda de texto libre (case-insensitive, substring) por número de expediente, póliza o
+   * asegurado (insuredId/insuredName — este último nullable hasta la primera clasificación).
+   * Se combina por AND con el resto de los filtros.
+   */
+  q?: string;
 }
 
 @Injectable({ providedIn: 'root' })
@@ -66,8 +71,6 @@ export class ExpedienteService {
    * `ExpedienteListParams` son opcionales y combinables — reflejan 1:1 lo que acepta
    * `GET /api/v1/cases` (historia "Búsqueda y filtrado de expedientes", backend). `insuredId` es
    * explícito hasta que se integre Auth0; después saldrá del JWT.
-   *
-   * Sin búsqueda de texto libre: el backend no la soporta todavía.
    */
   list(params: ExpedienteListParams = {}): Observable<PagedResponse<ExpedienteResponse>> {
     const query: Record<string, string> = {};
@@ -80,6 +83,7 @@ export class ExpedienteService {
     if (params.page != null) query['page'] = String(params.page);
     if (params.size != null) query['size'] = String(params.size);
     if (params.sort) query['sort'] = params.sort;
+    if (params.q) query['q'] = params.q;
     return this.http.get<PagedResponse<ExpedienteResponse>>(this.baseUrl, { params: query });
   }
 

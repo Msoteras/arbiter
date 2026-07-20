@@ -8,11 +8,10 @@ Rama sugerida: arrancá desde `develop` (ahí está todo lo que se describe acá
 
 ## Resumen para no perderse
 
-El Backend de esta historia (H0011) está **cerrado y verificado**: 158 tests en verde, probado
-contra Docker real. El **Frontend es lo que falta** — y hasta ahora estaba bloqueado porque la capa
-de servicio Angular (`ExpedienteService`) no exponía la mayoría de los filtros que el backend ya
-soporta. Eso ya está resuelto (ver más abajo) — arrancás con el service listo, sin nada que cablear
-del lado del contrato HTTP.
+El Backend de esta historia (H0011) está **cerrado y verificado**, búsqueda de texto libre incluida
+(ver más abajo — esto se agregó después de la primera versión de este handoff, ya no es un gap). La
+capa de servicio Angular (`ExpedienteService`) ya expone el 100% de lo que el backend soporta —
+arrancás con el service listo, sin nada que cablear del lado del contrato HTTP.
 
 ## El endpoint (backend, ya cerrado, no tocar)
 
@@ -28,11 +27,15 @@ combinables:
 | `status` | `CaseStatus` | `PENDING_CLASSIFICATION`, `PENDING_ANALYST_REVIEW`, `CLASSIFICATION_FAILED`, `AWAITING_DOCUMENTATION`, `APPROVED`, `REJECTED` |
 | `claimCause` | `string` | tipo de siniestro, match exacto |
 | `policyNumber` | `string` | match exacto |
-| `insuredId` | `string` | match exacto (DNI/identificador, no nombre — ver Gap 2 abajo) |
-| `eventDateFrom` / `eventDateTo` | ISO `yyyy-MM-dd` | filtra por **fecha del hecho**, no por fecha de denuncia (son campos distintos en el dominio — ver Gap 3) |
+| `insuredId` | `string` | match exacto (DNI/identificador) |
+| `eventDateFrom` / `eventDateTo` | ISO `yyyy-MM-dd` | filtra por **fecha del hecho**, no por fecha de denuncia (son campos distintos en el dominio — ver Gap único abajo) |
+| `q` | `string` | **búsqueda de texto libre**, case-insensitive. Matchea por número de expediente (exacto, si `q` es numérico), número de póliza (substring), y asegurado — `insuredId` o `insuredName` (substring en ambos). Se combina por AND con el resto de los filtros. |
 | `page`, `size`, `sort` | paginación Spring Data | default `page=0&size=20&sort=id,desc`. Ejemplo: `sort=eventDate,desc` |
 
-Respuesta paginada: `{ content: CaseResponse[], totalElements, totalPages, number, size }`.
+Respuesta paginada: `{ content: CaseResponse[], totalElements, totalPages, number, size }`. Cada
+`CaseResponse` ahora incluye `insuredName` (nullable — se resuelve recién con la primera
+clasificación del expediente, lo completa `classification-service` a partir de la póliza real; hasta
+entonces es `null`, no lo trates como "no tiene nombre").
 
 ## Lo que ya está listo del lado Angular (no hace falta que lo toques)
 
@@ -49,21 +52,26 @@ export interface ExpedienteListParams {
   page?: number;
   size?: number;
   sort?: string;           // ej. "eventDate,desc"
+  q?: string;              // búsqueda de texto libre
 }
 
 list(params: ExpedienteListParams = {}): Observable<PagedResponse<ExpedienteResponse>>
 ```
 
-Ya expone **los 5 filtros + sort + paginación**, todos opcionales — llamalo con lo que necesites,
-por ejemplo:
+Ya expone **todos los filtros del backend + sort + paginación**, todos opcionales — llamalo con lo
+que necesites, por ejemplo:
 
 ```ts
-this.expedienteService.list({ status: 'PENDING_ANALYST_REVIEW', claimCause: 'Robo en vía pública', page: 0, size: 20 })
+this.expedienteService.list({ status: 'PENDING_ANALYST_REVIEW', q: 'Fernández', page: 0, size: 20 })
 ```
 
-`bandeja.component.ts` y `mis-expedientes.component.ts` ya están actualizados a esta firma nueva
-(por si los mirás como referencia de uso — ojo que ellos piden `size: 100` como parche temporal
-hasta que tengas paginación real armada, no lo copies literal a tu UI final).
+`ExpedienteResponse` (`core/models/expediente.ts`) también tiene `insuredName` ahora — usalo para
+mostrar el nombre real del asegurado en la tabla/detalle en vez de solo el `insuredId`, cuando no
+sea `null`.
+
+`bandeja.component.ts` y `mis-expedientes.component.ts` ya están actualizados (por si los mirás como
+referencia de uso — ojo que ellos piden `size: 100` como parche temporal hasta que tengas paginación
+real armada, no lo copies literal a tu UI final).
 
 ## Lo que falta construir (esto sí es tuyo)
 
@@ -73,30 +81,17 @@ Según la card de Trello (Frontend) y el wireframe:
    rango de fechas (`eventDateFrom`/`eventDateTo`), `policyNumber`. Usá el kit del design system
    (`app-input`, `app-button`, etc. — ver `CLAUDE.md`, sección "Design System del frontend", y
    `/styleguide` para ver todo lo disponible antes de armar algo nuevo).
-2. **Paginación real**: controles de página + tamaño, conectados a `page`/`size`/`totalPages` de
+2. **Buscador de texto libre**: un `app-input` que mande `q` — ya no hace falta armar nada
+   client-side ni esperar una decisión del equipo, el backend ya lo resuelve server-side (evita el
+   problema de que un filtro client-side solo buscara dentro de la página cargada).
+3. **Paginación real**: controles de página + tamaño, conectados a `page`/`size`/`totalPages` de
    la respuesta. Hoy `bandeja`/`mis-expedientes` piden `size=100` como parche — cuando metas
    paginación real ahí, sacá ese parche.
-3. **Ordenamiento de columnas**: mapea a `sort` (`campo,asc|desc`).
+4. **Ordenamiento de columnas**: mapea a `sort` (`campo,asc|desc`).
 
-## Dos gaps reales que NO podés resolver solo del lado frontend — hay que decidirlos con el equipo
+## Un gap real que NO podés resolver solo del lado frontend — hay que decidirlo con el equipo
 
-### Gap 1 — Búsqueda de texto libre
-
-El HU oficial pide poder buscar por número de expediente/póliza/asegurado con un único campo de
-texto libre. **El backend no tiene ningún parámetro para esto.** No lo armes como un filtro
-client-side sobre lo ya cargado — como el backend pagina (`size` default 20), un filtro así solo
-buscaría dentro de la página actual, no en todos los expedientes. Antes de construir esto, avisá:
-necesita un parámetro nuevo en `GET /api/v1/cases` (backend) o alguna otra solución acordada.
-
-### Gap 2 — "Nombre del asegurado"
-
-El HU pide que la búsqueda incluya el nombre del asegurado. `Case` (la entidad de `cases-service`)
-**no tiene ningún campo de nombre** — solo `insuredId`, que es un identificador tipo DNI
-(`42.987.654`), no un nombre. Ni agregando el parámetro de búsqueda se podría cumplir esto tal cual
-está redactado, salvo que se sume ese campo al modelo. Otro punto para el equipo, no algo que
-puedas resolver vos sola en el frontend.
-
-### Gap 3 — Fecha de denuncia vs. fecha del hecho (menor, pero real)
+### Fecha de denuncia vs. fecha del hecho (menor, pero real)
 
 El HU dice "rango de fecha de **denuncia**"; el backend filtra por `eventDate` (fecha del **hecho**
 narrado en la denuncia, no cuándo se cargó el registro). Son conceptos distintos en el vocabulario
@@ -119,9 +114,12 @@ confusión (ej. "Fecha del hecho") hasta que el equipo decida si hace falta un c
   `changeme123`).
 - **Frontend**: `cd arbiter-frontend && npm start` (`ng serve`, puerto **4200** — el 5173 que dice
   `CLAUDE.md` está desactualizado).
-- **Verificación**: probé el flujo completo recién — login como analista, bandeja trayendo
-  expedientes reales vía `GET /api/v1/cases?page=0&size=100`, sin errores de consola. Los filtros
-  combinados (`claimCause` + rango de fechas + `sort`) los probé por API directa y funcionan.
+- **Verificación**: 166 tests de backend en verde (auth + classification + cases, incluye
+  `CaseRepositorySpecificationTests` contra Postgres real con casos de `q` case-insensitive,
+  substring y match exacto por id). En vivo contra Docker: login como analista, bandeja trayendo
+  expedientes reales, sin errores de consola. `q` probado por API directa contra los 5 cases de
+  `db/init.sql` — matchea por nombre (`Sofía`/`marcelo`, case-insensitive), por policyNumber
+  (substring) y por id (exacto).
 
 ## Dónde hay más contexto si hace falta
 

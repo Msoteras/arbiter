@@ -130,6 +130,7 @@ public class ClassificationServiceClient implements ClaimsAnalysisClient {
                 caseRecord.setRiskScore(response.riskScore());
                 caseRecord.setRiskBand(response.riskBand());
                 caseRecord.setRiskBreakdown(response.riskBreakdown());
+                caseRecord.setInsuredName(response.insuredName());
                 caseStatusService.transition(caseRecord, statusFor(response.classification()),
                         StatusChangeActor.SYSTEM, "clasificación: " + response.classification());
                 return true;
