@@ -36,6 +36,22 @@ export interface PagedResponse<T> {
   size: number;
 }
 
+// Todos los filtros que GET /api/v1/cases acepta hoy (opcionales y combinables) + paginación/orden.
+// No incluye búsqueda de texto libre: el backend no la soporta todavía (ver GAPS-FLUJO.md).
+export interface ExpedienteListParams {
+  status?: string;
+  claimCause?: string;
+  policyNumber?: string;
+  insuredId?: string;
+  /** ISO yyyy-MM-dd. Filtra por fecha del hecho (eventDate), no por fecha de denuncia. */
+  eventDateFrom?: string;
+  eventDateTo?: string;
+  page?: number;
+  size?: number;
+  /** Formato Spring Data, ej. "eventDate,desc". Default del backend: "id,desc". */
+  sort?: string;
+}
+
 @Injectable({ providedIn: 'root' })
 export class ExpedienteService {
   private readonly http = inject(HttpClient);
@@ -46,22 +62,25 @@ export class ExpedienteService {
   }
 
   /**
-   * Lista expedientes paginados, más recientes primero. Filtros opcionales y combinables:
-   * `status` (bandeja del analista) e `insuredId` (expedientes del asegurado —
-   * hasta que se integre Auth0, se pasa explícito; después saldrá del JWT).
-   * `page`/`size` son los de paginación estándar de Spring Data (default backend: page 0, size 20).
+   * Lista expedientes paginados, más recientes primero por defecto. Todos los filtros de
+   * `ExpedienteListParams` son opcionales y combinables — reflejan 1:1 lo que acepta
+   * `GET /api/v1/cases` (historia "Búsqueda y filtrado de expedientes", backend). `insuredId` es
+   * explícito hasta que se integre Auth0; después saldrá del JWT.
    *
-   * Nota: el backend ahora también acepta `claimCause`, `policyNumber`, `eventDateFrom`/`eventDateTo`
-   * y `sort` — no están cableados acá todavía; eso es parte de la historia de Frontend
-   * "Búsqueda y filtrado de expedientes" (filtros, buscador y paginación real en la UI).
+   * Sin búsqueda de texto libre: el backend no la soporta todavía.
    */
-  list(status?: string, insuredId?: string, page?: number, size?: number): Observable<PagedResponse<ExpedienteResponse>> {
-    const params: Record<string, string> = {};
-    if (status) params['status'] = status;
-    if (insuredId) params['insuredId'] = insuredId;
-    if (page != null) params['page'] = String(page);
-    if (size != null) params['size'] = String(size);
-    return this.http.get<PagedResponse<ExpedienteResponse>>(this.baseUrl, { params });
+  list(params: ExpedienteListParams = {}): Observable<PagedResponse<ExpedienteResponse>> {
+    const query: Record<string, string> = {};
+    if (params.status) query['status'] = params.status;
+    if (params.claimCause) query['claimCause'] = params.claimCause;
+    if (params.policyNumber) query['policyNumber'] = params.policyNumber;
+    if (params.insuredId) query['insuredId'] = params.insuredId;
+    if (params.eventDateFrom) query['eventDateFrom'] = params.eventDateFrom;
+    if (params.eventDateTo) query['eventDateTo'] = params.eventDateTo;
+    if (params.page != null) query['page'] = String(params.page);
+    if (params.size != null) query['size'] = String(params.size);
+    if (params.sort) query['sort'] = params.sort;
+    return this.http.get<PagedResponse<ExpedienteResponse>>(this.baseUrl, { params: query });
   }
 
   create(request: CaseCreateRequest, documents?: Map<string, File>): Observable<ExpedienteResponse> {

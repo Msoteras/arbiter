@@ -44,7 +44,7 @@ export class MisExpedientesComponent {
           return of<LoadState>({ status: 'idle' });
         }
         // Tamaño grande como parche temporal hasta que haya paginación real en esta vista.
-        return this.service.list(undefined, insuredId, 0, 100).pipe(
+        return this.service.list({ insuredId, page: 0, size: 100 }).pipe(
           map((page): LoadState => ({ status: 'ok', data: page.content })),
           startWith<LoadState>({ status: 'loading' }),
           catchError(() => of<LoadState>({ status: 'error' })),
