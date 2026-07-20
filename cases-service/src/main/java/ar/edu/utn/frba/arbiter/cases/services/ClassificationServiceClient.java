@@ -8,10 +8,13 @@ import ar.edu.utn.frba.arbiter.common.dto.ClaimReport;
 import ar.edu.utn.frba.arbiter.common.dto.ClaimResponse;
 import ar.edu.utn.frba.arbiter.common.enums.CaseStatus;
 import ar.edu.utn.frba.arbiter.common.enums.Classification;
+import ar.edu.utn.frba.arbiter.common.security.JwtSupport;
+import jakarta.servlet.http.HttpServletRequest;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.core.io.ByteArrayResource;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.stereotype.Component;
 import org.springframework.util.LinkedMultiValueMap;
@@ -19,6 +22,7 @@ import org.springframework.util.MultiValueMap;
 import org.springframework.web.client.RestClient;
 import org.springframework.web.client.RestClientResponseException;
 
+import javax.crypto.SecretKey;
 import java.util.List;
 
 @Component
@@ -28,14 +32,29 @@ public class ClassificationServiceClient implements ClaimsAnalysisClient {
 
     private final RestClient restClient;
     private final CaseStatusService caseStatusService;
+    private final HttpServletRequest currentRequest;
+    private final SecretKey jwtKey;
 
     public ClassificationServiceClient(
             RestClient.Builder restClientBuilder,
             CaseStatusService caseStatusService,
-            @Value("${arbiter.classification-service.url:http://classification-service:8082}") String classificationServiceUrl
+            @Value("${arbiter.classification-service.url:http://classification-service:8082}") String classificationServiceUrl,
+            HttpServletRequest currentRequest,
+            @Value("${arbiter.auth.jwt.secret}") String jwtSecret
     ) {
         this.restClient = restClientBuilder.baseUrl(classificationServiceUrl).build();
         this.caseStatusService = caseStatusService;
+        this.currentRequest = currentRequest;
+        this.jwtKey = JwtSupport.key(jwtSecret);
+    }
+
+    /**
+     * classification-service now requires auth (H0003) — these two calls happen inside the same
+     * request thread as the user's original call to cases-service, so we just forward their JWT
+     * as-is instead of minting a new one (they already passed @PreAuthorize here with it).
+     */
+    private String authorizationHeader() {
+        return currentRequest.getHeader(HttpHeaders.AUTHORIZATION);
     }
 
     @Override
@@ -61,6 +80,7 @@ public class ClassificationServiceClient implements ClaimsAnalysisClient {
 
         restClient.post()
                 .uri("/api/v1/claims")
+                .header(HttpHeaders.AUTHORIZATION, authorizationHeader())
                 .contentType(MediaType.MULTIPART_FORM_DATA)
                 .body(body)
                 .retrieve()
@@ -91,8 +111,12 @@ public class ClassificationServiceClient implements ClaimsAnalysisClient {
         }
 
         try {
+            // Called from ClassificationRefreshScheduler (@Scheduled, no HTTP request behind it) —
+            // there's no user JWT to forward here, so we sign a short-lived service token instead.
+            String serviceToken = JwtSupport.issueServiceToken(jwtKey, "cases-service-scheduler");
             ClaimResponse response = restClient.get()
                     .uri("/api/v1/claims/{caseId}", caseRecord.getId())
+                    .header(HttpHeaders.AUTHORIZATION, "Bearer " + serviceToken)
                     .retrieve()
                     .body(ClaimResponse.class);
 
@@ -131,6 +155,7 @@ public class ClassificationServiceClient implements ClaimsAnalysisClient {
     public void forwardAnalystDecision(Long caseId, AnalystDecisionRequest request) {
         restClient.post()
                 .uri("/api/v1/claims/{caseId}/decision", caseId)
+                .header(HttpHeaders.AUTHORIZATION, authorizationHeader())
                 .contentType(MediaType.APPLICATION_JSON)
                 .body(request)
                 .retrieve()

@@ -1,9 +1,8 @@
 package ar.edu.utn.frba.arbiter.classification.support;
 
 import org.springframework.boot.testcontainers.service.connection.ServiceConnection;
+import org.springframework.test.context.TestPropertySource;
 import org.testcontainers.postgresql.PostgreSQLContainer;
-import org.testcontainers.junit.jupiter.Container;
-import org.testcontainers.junit.jupiter.Testcontainers;
 
 /**
  * Base class for tests that boot the Spring context: starts a real Postgres in a
@@ -11,11 +10,23 @@ import org.testcontainers.junit.jupiter.Testcontainers;
  * ddl-auto=update creates the schema against the container, so it's validated too.
  *
  * Requires Docker available when running the tests.
+ *
+ * Patrón "singleton container" (recomendado por Testcontainers para compartir un contenedor entre
+ * varias clases de test): sin {@code @Testcontainers}/{@code @Container}, porque esas anotaciones
+ * paran el contenedor en el {@code afterAll} de cada clase — con un field estático heredado, eso
+ * mata el contenedor para la siguiente clase que lo use en la misma corrida (y peor: un reinicio le
+ * cambia el puerto, dejando contextos de Spring ya cacheados apuntando a un puerto muerto). Arrancado
+ * una sola vez en el bloque estático (se ejecuta una vez por JVM, al cargar esta clase) y vive hasta
+ * que Ryuk lo limpia al terminar el proceso de test. Mismo patrón que `cases-service`.
  */
-@Testcontainers
+// SecurityConfig requiere un JWT_SECRET real para levantar el contexto (H0003).
+@TestPropertySource(properties = "arbiter.auth.jwt.secret=test-secret-at-least-32-bytes-long-for-hs256")
 public abstract class AbstractPersistenceIT {
 
-    @Container
     @ServiceConnection
     static final PostgreSQLContainer POSTGRES = new PostgreSQLContainer("postgres:16-alpine");
+
+    static {
+        POSTGRES.start();
+    }
 }

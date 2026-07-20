@@ -1,27 +1,36 @@
 package ar.edu.utn.frba.arbiter.cases.services;
 
+import ar.edu.utn.frba.arbiter.cases.dto.AnalystDecisionRequest;
 import ar.edu.utn.frba.arbiter.cases.models.entities.Case;
+import ar.edu.utn.frba.arbiter.cases.models.entities.CaseDocument;
 import ar.edu.utn.frba.arbiter.cases.models.entities.StatusChangeActor;
 import ar.edu.utn.frba.arbiter.common.enums.CaseStatus;
 import ar.edu.utn.frba.arbiter.common.enums.Classification;
+import ar.edu.utn.frba.arbiter.common.security.JwtSupport;
+import jakarta.servlet.http.HttpServletRequest;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.test.web.client.MockRestServiceServer;
 import org.springframework.web.client.RestClient;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
+import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
 import static org.springframework.http.HttpMethod.GET;
+import static org.springframework.http.HttpMethod.POST;
+import static org.springframework.test.web.client.match.MockRestRequestMatchers.header;
 import static org.springframework.test.web.client.match.MockRestRequestMatchers.method;
 import static org.springframework.test.web.client.match.MockRestRequestMatchers.requestTo;
 import static org.springframework.test.web.client.response.MockRestResponseCreators.withSuccess;
@@ -30,9 +39,13 @@ import static org.springframework.test.web.client.response.MockRestResponseCreat
 class ClassificationServiceClientTest {
 
     private static final String BASE_URL = "http://classification-service:8082";
+    private static final String JWT_SECRET = "test-secret-at-least-32-bytes-long-for-hs256";
 
     @Mock
     private CaseStatusService caseStatusService;
+
+    @Mock
+    private HttpServletRequest currentRequest;
 
     private MockRestServiceServer server;
     private ClassificationServiceClient client;
@@ -41,7 +54,7 @@ class ClassificationServiceClientTest {
     void setUp() {
         RestClient.Builder builder = RestClient.builder();
         server = MockRestServiceServer.bindTo(builder).build();
-        client = new ClassificationServiceClient(builder, caseStatusService, BASE_URL);
+        client = new ClassificationServiceClient(builder, caseStatusService, BASE_URL, currentRequest, JWT_SECRET);
     }
 
     @Test
@@ -104,6 +117,56 @@ class ClassificationServiceClientTest {
         assertThat(resolved).isTrue();
         server.verify(); // no HTTP request expected
         verify(caseStatusService, never()).transition(any(), any(), any(), any());
+    }
+
+    @Test
+    void refreshClassification_sendsSelfSignedServiceToken() {
+        Case entity = pendingCase(7L);
+        server.expect(requestTo(BASE_URL + "/api/v1/claims/7"))
+                .andExpect(method(GET))
+                .andExpect(request -> {
+                    String authHeader = request.getHeaders().getFirst(HttpHeaders.AUTHORIZATION);
+                    assertThat(authHeader).startsWith("Bearer ");
+                    var claims = io.jsonwebtoken.Jwts.parser()
+                            .verifyWith(JwtSupport.key(JWT_SECRET)).build()
+                            .parseSignedClaims(authHeader.substring(7))
+                            .getPayload();
+                    assertThat(claims.getSubject()).isEqualTo("cases-service-scheduler");
+                })
+                .andRespond(withSuccess("""
+                        {"caseId": 7, "classification": null, "confidence": null, "factors": null, "deterministicFastTrack": false}
+                        """, MediaType.APPLICATION_JSON));
+
+        client.refreshClassification(entity);
+
+        server.verify();
+    }
+
+    @Test
+    void analyzeAndPersist_forwardsIncomingAuthorizationHeader() {
+        when(currentRequest.getHeader(HttpHeaders.AUTHORIZATION)).thenReturn("Bearer original-user-token");
+        Case entity = pendingCase(9L);
+        server.expect(requestTo(BASE_URL + "/api/v1/claims"))
+                .andExpect(method(POST))
+                .andExpect(header(HttpHeaders.AUTHORIZATION, "Bearer original-user-token"))
+                .andRespond(withSuccess());
+
+        client.analyzeAndPersist(entity, List.<CaseDocument>of());
+
+        server.verify();
+    }
+
+    @Test
+    void forwardAnalystDecision_forwardsIncomingAuthorizationHeader() {
+        when(currentRequest.getHeader(HttpHeaders.AUTHORIZATION)).thenReturn("Bearer original-user-token");
+        server.expect(requestTo(BASE_URL + "/api/v1/claims/9/decision"))
+                .andExpect(method(POST))
+                .andExpect(header(HttpHeaders.AUTHORIZATION, "Bearer original-user-token"))
+                .andRespond(withSuccess());
+
+        client.forwardAnalystDecision(9L, new AnalystDecisionRequest("a1", "APPROVE"));
+
+        server.verify();
     }
 
     private void expectPoll(long caseId, String classification, String confidence,
