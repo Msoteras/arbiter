@@ -83,6 +83,13 @@ public class ClassificationLog {
     @Column(name = "risk_breakdown", columnDefinition = "text")
     private List<RiskBreakdownItem> riskBreakdown;
 
+    /**
+     * Insured's real name, resolved from the policy (InsurerAdapter) at classification time.
+     * Null for isolated test classifications, where no real policy is looked up.
+     */
+    @Column(name = "insured_name")
+    private String insuredName;
+
     /** Filled in once the analyst makes their decision (decision endpoint, next step). */
     @Column(name = "analyst_id", length = 80)
     private String analystId;

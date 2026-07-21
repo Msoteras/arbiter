@@ -19,6 +19,8 @@ export interface ExpedienteResponse {
   claimCause: string;
   insuredItem: string;
   insuredId: string;
+  /** Nombre real del asegurado, resuelto por classification-service al clasificar. Null hasta entonces. */
+  insuredName: string | null;
   policyNumber: string;
   description: string;
   eventDate: string;
