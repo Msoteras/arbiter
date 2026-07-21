@@ -6,6 +6,12 @@
 --   docker exec -i arbiter-postgres-1 psql -U arbiter -d arbiter < db/init.sql
 -- =============================================================================
 
+-- Alinea la versión de collation de la base con la del SO del contenedor. Sin esto,
+-- si la imagen de Postgres actualizó su libc respecto a cuando se creó el volumen,
+-- cada conexión tira un WARNING de "collation version mismatch". Fuera del BEGIN:
+-- ALTER DATABASE es su propia transacción.
+ALTER DATABASE arbiter REFRESH COLLATION VERSION;
+
 BEGIN;
 
 -- ─── Limpiar tablas legacy y actuales ────────────────────────────────────────
