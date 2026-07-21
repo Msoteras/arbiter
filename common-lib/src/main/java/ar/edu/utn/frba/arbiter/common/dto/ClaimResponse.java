@@ -25,5 +25,7 @@ public record ClaimResponse(
         boolean deterministicFastTrack,
         Double riskScore,
         RiskBand riskBand,
-        List<RiskBreakdownItem> riskBreakdown
+        List<RiskBreakdownItem> riskBreakdown,
+        /** Insured's real name, resolved from the policy (InsurerAdapter) at classification time. */
+        String insuredName
 ) {}

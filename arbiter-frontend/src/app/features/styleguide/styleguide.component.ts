@@ -10,6 +10,8 @@ import { ModalComponent } from '../../shared/ui/modal/modal.component';
 import { FraudGaugeComponent } from '../../shared/ui/fraud-gauge/fraud-gauge.component';
 import { SeverityLabelComponent } from '../../shared/ui/severity-label/severity-label.component';
 import { EmptyStateComponent } from '../../shared/ui/empty-state/empty-state.component';
+import { SelectComponent } from '../../shared/ui/select/select.component';
+import { PaginationComponent } from '../../shared/ui/pagination/pagination.component';
 
 interface Token {
   name: string;
@@ -48,6 +50,8 @@ interface Swatch {
     FraudGaugeComponent,
     SeverityLabelComponent,
     EmptyStateComponent,
+    SelectComponent,
+    PaginationComponent,
   ],
   template: `
     <div class="sg">
@@ -238,8 +242,39 @@ interface Swatch {
         <div class="col narrow">
           <app-input [(value)]="sampleInput" placeholder="N° de expediente" />
           <app-input type="password" [(value)]="samplePassword" placeholder="Contraseña" />
+          <app-input type="date" [(value)]="sampleDate" />
           <app-textarea [(value)]="sampleArea" placeholder="Justificación…" [rows]="3" />
         </div>
+      </section>
+
+      <section class="sg-block">
+        <h3 class="sg-h3">Select</h3>
+        <p class="sg-p">
+          Mismo tratamiento visual que <span class="mono">app-input</span>. Se usa en filtros de
+          listados (ej. bandeja de expedientes: estado, tipo de siniestro).
+        </p>
+        <div class="col narrow">
+          <app-select
+            [(value)]="sampleSelect"
+            [options]="sampleSelectOptions"
+            placeholder="Todos los estados"
+          />
+        </div>
+      </section>
+
+      <section class="sg-block">
+        <h3 class="sg-h3">Pagination</h3>
+        <p class="sg-p">
+          Pager para listados paginados server-side (Spring Data, <span class="mono">page</span>
+          0-based). Sin conocimiento del dominio — cualquier listado paginado lo reutiliza.
+        </p>
+        <app-pagination
+          [page]="samplePage()"
+          [totalPages]="7"
+          [totalElements]="132"
+          [size]="20"
+          (pageChange)="samplePage.set($event)"
+        />
       </section>
 
       <section class="sg-block">
@@ -380,7 +415,15 @@ export class StyleguideComponent {
   protected readonly sidePanelOpen = signal(false);
   protected readonly sampleInput = signal('');
   protected readonly samplePassword = signal('');
+  protected readonly sampleDate = signal('');
   protected readonly sampleArea = signal('');
+  protected readonly sampleSelect = signal('');
+  protected readonly sampleSelectOptions = [
+    { value: 'PENDING_ANALYST_REVIEW', label: 'Pendiente de revisión' },
+    { value: 'AWAITING_DOCUMENTATION', label: 'Falta documentación' },
+    { value: 'APPROVED', label: 'Aprobado' },
+  ];
+  protected readonly samplePage = signal(2);
 
   /** Perillas de tema editables en vivo. Escriben sobre :root → re-tematizan todo. */
   protected readonly brandKnobs: Knob[] = [

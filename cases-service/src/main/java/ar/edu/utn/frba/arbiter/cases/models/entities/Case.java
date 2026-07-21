@@ -57,6 +57,14 @@ public class Case {
     @Column(nullable = false)
     private String insuredId;
 
+    /**
+     * Insured's real name, resolved from the policy by classification-service and cached here
+     * read-only from the classification poll (ClaimResponse) — same pattern as riskScore/riskBand.
+     * Null until the first classification resolves ("sin scorear"-style: not the same as "no
+     * tiene nombre", just "todavía no lo sabemos").
+     */
+    private String insuredName;
+
     @Column(nullable = false)
     private String policyNumber;
 

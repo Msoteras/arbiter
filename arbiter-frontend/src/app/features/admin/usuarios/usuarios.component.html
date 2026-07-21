@@ -22,6 +22,7 @@
           <th>Rol</th>
           <th>Sector</th>
           <th>Fecha de ingreso</th>
+          <th>Acciones</th>
         </tr>
       </thead>
       <tbody>
@@ -47,12 +48,39 @@
             </td>
             <td>{{ u.sector || '—' }}</td>
             <td>{{ u.fechaIngreso || '—' }}</td>
+            <td>
+              <app-button
+                variant="secondary"
+                [disabled]="isSelf(u)"
+                [title]="isSelf(u) ? 'No podés eliminar tu propia cuenta' : ''"
+                (click)="requestDelete(u)"
+              >Eliminar</app-button>
+            </td>
           </tr>
         }
       </tbody>
     </table>
   </app-card>
 }
+
+<app-modal [open]="userToDelete() !== null" heading="▲ ¿Eliminar usuario?" (close)="cancelDelete()">
+  @if (userToDelete(); as u) {
+    <p class="t-body">
+      Vas a eliminar a <strong>{{ u.nombre }} {{ u.apellido }}</strong>. Esta acción es
+      irreversible: se revoca su acceso y se libera su email. Los expedientes que tenía
+      asignados quedan sin analista.
+    </p>
+    @if (deleteError()) {
+      <p class="error">{{ deleteError() }}</p>
+    }
+    <ng-container modalActions>
+      <app-button variant="secondary" [disabled]="deleting()" (click)="cancelDelete()">Cancelar</app-button>
+      <app-button [disabled]="deleting()" (click)="confirmDelete()">
+        {{ deleting() ? 'Eliminando…' : 'Sí, eliminar usuario' }}
+      </app-button>
+    </ng-container>
+  }
+</app-modal>
 
 <app-modal [open]="showCreatePanel()" heading="Nuevo usuario" variant="side" (close)="showCreatePanel.set(false)">
   <app-alta-usuario (created)="onCreated($event)" (cancel)="showCreatePanel.set(false)" />
