@@ -90,22 +90,27 @@
   margin-top: var(--space-4);
 }
 
-/* select nativo con el look del DS (el kit no tiene componente select) */
-.field-select {
-  width: 100%;
-  padding: var(--space-2) var(--space-3);
-  border: 1px solid var(--border-control);
-  border-radius: var(--radius-ctl);
-  font: inherit;
-  font-size: var(--font-size-body);
-  background: var(--surface);
-  color: var(--text-primary);
-  outline: none;
-}
-.field-select:focus { border-color: var(--action-secondary-border-hover); }
-
 app-input,
+app-select,
 app-textarea { display: block; }
+
+/* Resumen de la póliza elegida (aseguradora + vigencia). */
+.policy-summary {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+  margin-top: var(--space-2);
+  font-size: var(--font-size-sm);
+  color: var(--text-tertiary);
+}
+.policy-tag {
+  font-weight: var(--font-weight-medium);
+  color: var(--text-secondary);
+}
+.policy-meta { color: var(--text-tertiary); }
+.policy-ok { color: var(--status-ok); }
+.policy-warn { color: var(--status-warning); }
 
 .location-fields {
   display: flex;
