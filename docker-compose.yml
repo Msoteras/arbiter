@@ -59,6 +59,8 @@ services:
       AUTH0_DOMAIN: ${AUTH0_DOMAIN:-}
       AUTH0_LOGIN_CLIENT_ID: ${AUTH0_LOGIN_CLIENT_ID:-}
       AUTH0_LOGIN_CLIENT_SECRET: ${AUTH0_LOGIN_CLIENT_SECRET:-}
+      AUTH0_MGMT_CLIENT_ID: ${AUTH0_MGMT_CLIENT_ID:-}
+      AUTH0_MGMT_CLIENT_SECRET: ${AUTH0_MGMT_CLIENT_SECRET:-}
     depends_on:
       postgres:
         condition: service_healthy

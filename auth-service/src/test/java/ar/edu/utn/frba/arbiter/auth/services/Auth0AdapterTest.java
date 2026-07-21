@@ -48,7 +48,8 @@ class Auth0AdapterTest {
                 "auth0",
                 new AuthProperties.Jwt("test-secret", 60),
                 new AuthProperties.Login(5, 15),
-                new AuthProperties.Auth0("example.auth0.com", "client-id", "client-secret", CONNECTION));
+                new AuthProperties.Auth0("example.auth0.com", "client-id", "client-secret", CONNECTION),
+                null);
         authenticator = new Auth0Adapter(auth0AuthApi, userRepository, properties);
     }
 

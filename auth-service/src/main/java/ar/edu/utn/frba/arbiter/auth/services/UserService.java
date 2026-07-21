@@ -15,6 +15,7 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 
 import java.util.List;
+import java.util.Optional;
 
 @Service
 @RequiredArgsConstructor
@@ -22,6 +23,7 @@ public class UserService {
 
     private final UserRepository userRepository;
     private final PasswordEncoder passwordEncoder;
+    private final Optional<Auth0UserProvisioner> auth0UserProvisioner;
 
     public UserResponse createUser(CreateUserRequest request) {
         if (request.rol() != UserRole.ANALISTA_SINIESTROS) {
@@ -41,7 +43,18 @@ public class UserService {
                 .fechaIngreso(request.fechaIngreso())
                 .build();
 
-        return toResponse(userRepository.save(user));
+        User saved = userRepository.save(user);
+
+        if (auth0UserProvisioner.isPresent()) {
+            try {
+                auth0UserProvisioner.get().createUser(request.email(), request.password());
+            } catch (RuntimeException e) {
+                userRepository.delete(saved);
+                throw e;
+            }
+        }
+
+        return toResponse(saved);
     }
 
     /** H0003 (Trello) - listado de usuarios con su rol actual. */
@@ -79,6 +92,7 @@ public class UserService {
             throw new CannotDeleteOwnAccountException();
         }
 
+        auth0UserProvisioner.ifPresent(provisioner -> provisioner.deleteUser(user.getEmail()));
         userRepository.delete(user);
     }
 

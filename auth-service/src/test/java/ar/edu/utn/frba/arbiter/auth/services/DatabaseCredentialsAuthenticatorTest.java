@@ -41,6 +41,7 @@ class DatabaseCredentialsAuthenticatorTest {
                 "database",
                 new AuthProperties.Jwt("test-secret", 60),
                 new AuthProperties.Login(5, 15),
+                null,
                 null);
         authenticator = new DatabaseCredentialsAuthenticator(userRepository, passwordEncoder, properties);
     }

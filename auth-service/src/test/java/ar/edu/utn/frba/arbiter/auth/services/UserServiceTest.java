@@ -2,6 +2,7 @@ package ar.edu.utn.frba.arbiter.auth.services;
 
 import ar.edu.utn.frba.arbiter.auth.dto.CreateUserRequest;
 import ar.edu.utn.frba.arbiter.auth.dto.UserResponse;
+import ar.edu.utn.frba.arbiter.auth.exceptions.Auth0ProvisioningException;
 import ar.edu.utn.frba.arbiter.auth.exceptions.CannotChangeOwnRoleException;
 import ar.edu.utn.frba.arbiter.auth.exceptions.CannotDeleteOwnAccountException;
 import ar.edu.utn.frba.arbiter.auth.exceptions.EmailAlreadyExistsException;
@@ -35,6 +36,9 @@ class UserServiceTest {
     @Mock
     private PasswordEncoder passwordEncoder;
 
+    @Mock
+    private Auth0UserProvisioner auth0UserProvisioner;
+
     private UserService userService;
 
     private CreateUserRequest analistaRequest() {
@@ -45,7 +49,7 @@ class UserServiceTest {
 
     @Test
     void createUser_validRequest_hashesPasswordAndPersists() {
-        userService = new UserService(userRepository, passwordEncoder);
+        userService = new UserService(userRepository, passwordEncoder, Optional.empty());
         when(userRepository.findByEmail("nuevo.analista@arbiter.test")).thenReturn(Optional.empty());
         when(passwordEncoder.encode("changeme123")).thenReturn("hashed-value");
         when(userRepository.save(any(User.class))).thenAnswer(inv -> {
@@ -67,7 +71,7 @@ class UserServiceTest {
 
     @Test
     void createUser_duplicateEmail_throwsEmailAlreadyExists() {
-        userService = new UserService(userRepository, passwordEncoder);
+        userService = new UserService(userRepository, passwordEncoder, Optional.empty());
         when(userRepository.findByEmail("nuevo.analista@arbiter.test"))
                 .thenReturn(Optional.of(User.builder().id(1L).build()));
 
@@ -77,7 +81,7 @@ class UserServiceTest {
 
     @Test
     void createUser_roleOtherThanAnalista_throwsRoleNotAllowed() {
-        userService = new UserService(userRepository, passwordEncoder);
+        userService = new UserService(userRepository, passwordEncoder, Optional.empty());
         CreateUserRequest request = new CreateUserRequest(
                 "asegurado@arbiter.test", "Martina", "Fernández", "changeme123",
                 UserRole.ASEGURADO, "N/A", null);
@@ -87,8 +91,46 @@ class UserServiceTest {
     }
 
     @Test
+    void createUser_auth0ProviderConfigured_alsoProvisionsInAuth0() {
+        userService = new UserService(userRepository, passwordEncoder, Optional.of(auth0UserProvisioner));
+        when(userRepository.findByEmail("nuevo.analista@arbiter.test")).thenReturn(Optional.empty());
+        when(passwordEncoder.encode("changeme123")).thenReturn("hashed-value");
+        when(userRepository.save(any(User.class))).thenAnswer(inv -> {
+            User u = inv.getArgument(0);
+            u.setId(42L);
+            return u;
+        });
+
+        UserResponse response = userService.createUser(analistaRequest());
+
+        assertThat(response.id()).isEqualTo(42L);
+        verify(auth0UserProvisioner).createUser("nuevo.analista@arbiter.test", "changeme123");
+    }
+
+    @Test
+    void createUser_auth0ProvisioningFails_rollsBackLocalUser() {
+        userService = new UserService(userRepository, passwordEncoder, Optional.of(auth0UserProvisioner));
+        when(userRepository.findByEmail("nuevo.analista@arbiter.test")).thenReturn(Optional.empty());
+        when(passwordEncoder.encode("changeme123")).thenReturn("hashed-value");
+        when(userRepository.save(any(User.class))).thenAnswer(inv -> {
+            User u = inv.getArgument(0);
+            u.setId(42L);
+            return u;
+        });
+        Auth0ProvisioningException failure = new Auth0ProvisioningException("crear", "nuevo.analista@arbiter.test", new RuntimeException("Auth0 down"));
+        org.mockito.Mockito.doThrow(failure).when(auth0UserProvisioner).createUser(any(), any());
+
+        assertThatThrownBy(() -> userService.createUser(analistaRequest()))
+                .isInstanceOf(Auth0ProvisioningException.class);
+
+        ArgumentCaptor<User> captor = ArgumentCaptor.forClass(User.class);
+        verify(userRepository).delete(captor.capture());
+        assertThat(captor.getValue().getId()).isEqualTo(42L);
+    }
+
+    @Test
     void updateRole_validTarget_changesRole() {
-        userService = new UserService(userRepository, passwordEncoder);
+        userService = new UserService(userRepository, passwordEncoder, Optional.empty());
         User target = User.builder().id(7L).email("analista.test@arbiter.test").rol(UserRole.ANALISTA_SINIESTROS).build();
         when(userRepository.findById(7L)).thenReturn(Optional.of(target));
         when(userRepository.save(any(User.class))).thenAnswer(inv -> inv.getArgument(0));
@@ -100,7 +142,7 @@ class UserServiceTest {
 
     @Test
     void updateRole_ownAccount_throwsCannotChangeOwnRole() {
-        userService = new UserService(userRepository, passwordEncoder);
+        userService = new UserService(userRepository, passwordEncoder, Optional.empty());
         User self = User.builder().id(3L).email("referente@arbiter.test").rol(UserRole.REFERENTE_ASEGURADORA).build();
         when(userRepository.findById(3L)).thenReturn(Optional.of(self));
 
@@ -110,7 +152,7 @@ class UserServiceTest {
 
     @Test
     void updateRole_unknownUser_throwsUserNotFound() {
-        userService = new UserService(userRepository, passwordEncoder);
+        userService = new UserService(userRepository, passwordEncoder, Optional.empty());
         when(userRepository.findById(999L)).thenReturn(Optional.empty());
 
         assertThatThrownBy(() -> userService.updateRole(999L, UserRole.ASEGURADO, "referente@arbiter.test"))
@@ -119,7 +161,7 @@ class UserServiceTest {
 
     @Test
     void deleteUser_validTarget_deletesIt() {
-        userService = new UserService(userRepository, passwordEncoder);
+        userService = new UserService(userRepository, passwordEncoder, Optional.empty());
         User target = User.builder().id(7L).email("analista.test@arbiter.test").rol(UserRole.ANALISTA_SINIESTROS).build();
         when(userRepository.findById(7L)).thenReturn(Optional.of(target));
 
@@ -130,7 +172,7 @@ class UserServiceTest {
 
     @Test
     void deleteUser_ownAccount_throwsCannotDeleteOwnAccount() {
-        userService = new UserService(userRepository, passwordEncoder);
+        userService = new UserService(userRepository, passwordEncoder, Optional.empty());
         User self = User.builder().id(3L).email("referente@arbiter.test").rol(UserRole.REFERENTE_ASEGURADORA).build();
         when(userRepository.findById(3L)).thenReturn(Optional.of(self));
 
@@ -140,10 +182,36 @@ class UserServiceTest {
 
     @Test
     void deleteUser_unknownUser_throwsUserNotFound() {
-        userService = new UserService(userRepository, passwordEncoder);
+        userService = new UserService(userRepository, passwordEncoder, Optional.empty());
         when(userRepository.findById(999L)).thenReturn(Optional.empty());
 
         assertThatThrownBy(() -> userService.deleteUser(999L, "referente@arbiter.test"))
                 .isInstanceOf(UserNotFoundException.class);
+    }
+
+    @Test
+    void deleteUser_auth0ProviderConfigured_alsoDeletesFromAuth0() {
+        userService = new UserService(userRepository, passwordEncoder, Optional.of(auth0UserProvisioner));
+        User target = User.builder().id(7L).email("analista.test@arbiter.test").rol(UserRole.ANALISTA_SINIESTROS).build();
+        when(userRepository.findById(7L)).thenReturn(Optional.of(target));
+
+        userService.deleteUser(7L, "referente@arbiter.test");
+
+        verify(auth0UserProvisioner).deleteUser("analista.test@arbiter.test");
+        verify(userRepository).delete(target);
+    }
+
+    @Test
+    void deleteUser_auth0DeletionFails_doesNotDeleteLocalUser() {
+        userService = new UserService(userRepository, passwordEncoder, Optional.of(auth0UserProvisioner));
+        User target = User.builder().id(7L).email("analista.test@arbiter.test").rol(UserRole.ANALISTA_SINIESTROS).build();
+        when(userRepository.findById(7L)).thenReturn(Optional.of(target));
+        Auth0ProvisioningException failure = new Auth0ProvisioningException("borrar", "analista.test@arbiter.test", new RuntimeException("Auth0 down"));
+        org.mockito.Mockito.doThrow(failure).when(auth0UserProvisioner).deleteUser(any());
+
+        assertThatThrownBy(() -> userService.deleteUser(7L, "referente@arbiter.test"))
+                .isInstanceOf(Auth0ProvisioningException.class);
+
+        verify(userRepository, org.mockito.Mockito.never()).delete(any());
     }
 }

@@ -32,6 +32,9 @@ arbiter:
       client-id: ${AUTH0_LOGIN_CLIENT_ID:}
       client-secret: ${AUTH0_LOGIN_CLIENT_SECRET:}
       connection: Username-Password-Authentication
+    management-api:
+      client-id: ${AUTH0_MGMT_CLIENT_ID:}
+      client-secret: ${AUTH0_MGMT_CLIENT_SECRET:}
 
 springdoc:
   api-docs:

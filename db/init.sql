@@ -129,11 +129,11 @@ CREATE TABLE classification_log (
 );
 
 -- ─── Datos de prueba: users ───────────────────────────────────────────────────
--- Contraseña de los 3: changeme123 (hash BCrypt real, generado con BCryptPasswordEncoder)
+-- password_hash queda fijo/sin uso real: con AUTH_PROVIDER=auth0 el login valida contra Auth0,
+-- no contra este hash (columna NOT NULL, se completa igual). Las contraseñas reales están
+-- cargadas en el tenant de Auth0 con la convención '<rol>.arbiter123' (ej. analista.arbiter123).
 INSERT INTO users (id, email, password_hash, nombre, apellido, rol, sector, fecha_ingreso)
 VALUES
-    (1, 'asegurado@arbiter.test', '$2a$10$/hsOFJuuoiB23a3Gr.zgYO9UuOSopLRsiiu37CMAIIL1yMFr8EGlq',
-     'Martina', 'Fernández', 'ASEGURADO', NULL, NULL),
     (2, 'analista@arbiter.test', '$2a$10$/hsOFJuuoiB23a3Gr.zgYO9UuOSopLRsiiu37CMAIIL1yMFr8EGlq',
      'Lucas', 'Gómez', 'ANALISTA_SINIESTROS', 'Siniestros Celulares', '2024-03-01'),
     (3, 'referente@arbiter.test', '$2a$10$/hsOFJuuoiB23a3Gr.zgYO9UuOSopLRsiiu37CMAIIL1yMFr8EGlq',
