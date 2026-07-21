@@ -13,6 +13,11 @@ public class CaseExceptionHandler {
         return ProblemDetail.forStatusAndDetail(HttpStatusCode.valueOf(404), ex.getMessage());
     }
 
+    @ExceptionHandler(PolicyNotFoundException.class)
+    public ProblemDetail handlePolicyNotFound(PolicyNotFoundException ex) {
+        return ProblemDetail.forStatusAndDetail(HttpStatusCode.valueOf(404), ex.getMessage());
+    }
+
     @ExceptionHandler(DocumentReadException.class)
     public ProblemDetail handleDocumentRead(DocumentReadException ex) {
         return ProblemDetail.forStatusAndDetail(HttpStatusCode.valueOf(422), ex.getMessage());
