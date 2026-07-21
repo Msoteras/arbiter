@@ -14,15 +14,22 @@ import ar.edu.utn.frba.arbiter.cases.models.repositories.CaseDocumentRepository;
 import ar.edu.utn.frba.arbiter.cases.models.repositories.CaseRepository;
 import ar.edu.utn.frba.arbiter.common.enums.CaseStatus;
 import ar.edu.utn.frba.arbiter.common.enums.Classification;
+import ar.edu.utn.frba.arbiter.common.enums.RiskBand;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageImpl;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.jpa.domain.Specification;
 import org.springframework.mock.web.MockMultipartFile;
 
 import java.math.BigDecimal;
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Map;
@@ -166,61 +173,98 @@ class CaseServiceImplTest {
     void listCases_noFilter_returnsAllOrderedMostRecentFirst() {
         Case case2 = caseRecord(2L, CaseStatus.PENDING_ANALYST_REVIEW);
         Case case1 = caseRecord(1L, CaseStatus.APPROVED);
-        when(caseRepository.findAllByOrderByIdDesc()).thenReturn(List.of(case2, case1));
+        Pageable pageable = PageRequest.of(0, 20);
+        when(caseRepository.findAll(isNull(Specification.class), eq(pageable)))
+                .thenReturn(new PageImpl<>(List.of(case2, case1), pageable, 2));
 
-        List<CaseResponse> response = caseService.listCases(null, null);
+        Page<CaseResponse> response = caseService.listCases(null, null, null, null, null, null, null, null, pageable);
 
-        assertThat(response).hasSize(2);
-        assertThat(response.get(0).id()).isEqualTo(2L);
-        assertThat(response.get(1).id()).isEqualTo(1L);
-        verify(caseRepository, never()).findByStatusOrderByIdDesc(any());
+        assertThat(response.getContent()).hasSize(2);
+        assertThat(response.getContent().get(0).id()).isEqualTo(2L);
+        assertThat(response.getContent().get(1).id()).isEqualTo(1L);
     }
 
     @Test
-    void listCases_withStatusFilter_delegatesToFilteredQuery() {
+    void listCases_withStatusFilter_appliesStatusSpec() {
         Case entity = caseRecord(3L, CaseStatus.PENDING_ANALYST_REVIEW);
-        when(caseRepository.findByStatusOrderByIdDesc(CaseStatus.PENDING_ANALYST_REVIEW))
-                .thenReturn(List.of(entity));
+        Pageable pageable = PageRequest.of(0, 20);
+        when(caseRepository.findAll(any(Specification.class), eq(pageable)))
+                .thenReturn(new PageImpl<>(List.of(entity), pageable, 1));
 
-        List<CaseResponse> response = caseService.listCases(CaseStatus.PENDING_ANALYST_REVIEW, null);
+        Page<CaseResponse> response = caseService.listCases(
+                CaseStatus.PENDING_ANALYST_REVIEW, null, null, null, null, null, null, null, pageable);
 
-        assertThat(response).hasSize(1);
-        assertThat(response.get(0).status()).isEqualTo(CaseStatus.PENDING_ANALYST_REVIEW);
-        verify(caseRepository, never()).findAllByOrderByIdDesc();
+        assertThat(response.getContent()).hasSize(1);
+        assertThat(response.getContent().get(0).status()).isEqualTo(CaseStatus.PENDING_ANALYST_REVIEW);
     }
 
     @Test
     void listCases_withInsuredIdFilter_returnsOnlyThatInsuredsCases() {
         Case entity = caseRecord(4L, CaseStatus.PENDING_CLASSIFICATION);
-        when(caseRepository.findByInsuredIdOrderByIdDesc("40.123.456")).thenReturn(List.of(entity));
+        Pageable pageable = PageRequest.of(0, 20);
+        when(caseRepository.findAll(any(Specification.class), eq(pageable)))
+                .thenReturn(new PageImpl<>(List.of(entity), pageable, 1));
 
-        List<CaseResponse> response = caseService.listCases(null, "40.123.456");
+        Page<CaseResponse> response = caseService.listCases(
+                null, null, null, "40.123.456", null, null, null, null, pageable);
 
-        assertThat(response).hasSize(1);
-        assertThat(response.get(0).insuredId()).isEqualTo("40.123.456");
-        verify(caseRepository, never()).findAllByOrderByIdDesc();
+        assertThat(response.getContent()).hasSize(1);
+        assertThat(response.getContent().get(0).insuredId()).isEqualTo("40.123.456");
     }
 
     @Test
-    void listCases_withBothFilters_combinesThem() {
+    void listCases_withFreeTextSearch_passesQToSpecifications() {
+        Case entity = caseRecord(6L, CaseStatus.PENDING_ANALYST_REVIEW);
+        Pageable pageable = PageRequest.of(0, 20);
+        when(caseRepository.findAll(any(Specification.class), eq(pageable)))
+                .thenReturn(new PageImpl<>(List.of(entity), pageable, 1));
+
+        Page<CaseResponse> response = caseService.listCases(
+                null, null, null, null, null, null, "POL-CEL", null, pageable);
+
+        assertThat(response.getContent()).hasSize(1);
+        verify(caseRepository).findAll(any(Specification.class), eq(pageable));
+    }
+
+    @Test
+    void listCases_withRiskBandFilter_passesRiskBandToSpecifications() {
+        Case entity = caseRecord(7L, CaseStatus.PENDING_ANALYST_REVIEW);
+        Pageable pageable = PageRequest.of(0, 20);
+        when(caseRepository.findAll(any(Specification.class), eq(pageable)))
+                .thenReturn(new PageImpl<>(List.of(entity), pageable, 1));
+
+        Page<CaseResponse> response = caseService.listCases(
+                null, null, null, null, null, null, null, RiskBand.HIGH, pageable);
+
+        assertThat(response.getContent()).hasSize(1);
+        verify(caseRepository).findAll(any(Specification.class), eq(pageable));
+    }
+
+    @Test
+    void listCases_withClaimCausePolicyNumberAndDateRange_combinesFilters() {
         Case entity = caseRecord(5L, CaseStatus.APPROVED);
-        when(caseRepository.findByInsuredIdAndStatusOrderByIdDesc("40.123.456", CaseStatus.APPROVED))
-                .thenReturn(List.of(entity));
+        Pageable pageable = PageRequest.of(0, 20);
+        when(caseRepository.findAll(any(Specification.class), eq(pageable)))
+                .thenReturn(new PageImpl<>(List.of(entity), pageable, 1));
 
-        List<CaseResponse> response = caseService.listCases(CaseStatus.APPROVED, "40.123.456");
+        Page<CaseResponse> response = caseService.listCases(
+                CaseStatus.APPROVED, "Robo en vía pública", "POL-CEL-2024-001", "40.123.456",
+                LocalDate.of(2026, 6, 1), LocalDate.of(2026, 6, 30), null, null, pageable);
 
-        assertThat(response).hasSize(1);
-        verify(caseRepository, never()).findByInsuredIdOrderByIdDesc(any());
-        verify(caseRepository, never()).findByStatusOrderByIdDesc(any());
+        assertThat(response.getContent()).hasSize(1);
+        verify(caseRepository).findAll(any(Specification.class), eq(pageable));
     }
 
     @Test
-    void listCases_noResults_returnsEmptyList() {
-        when(caseRepository.findAllByOrderByIdDesc()).thenReturn(List.of());
+    void listCases_noResults_returnsEmptyPage() {
+        Pageable pageable = PageRequest.of(0, 20);
+        when(caseRepository.findAll(isNull(Specification.class), eq(pageable)))
+                .thenReturn(new PageImpl<>(List.of(), pageable, 0));
 
-        List<CaseResponse> response = caseService.listCases(null, null);
+        Page<CaseResponse> response = caseService.listCases(null, null, null, null, null, null, null, null, pageable);
 
-        assertThat(response).isEmpty();
+        assertThat(response.getContent()).isEmpty();
+        assertThat(response.getTotalElements()).isZero();
     }
 
     @Test

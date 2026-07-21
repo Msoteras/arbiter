@@ -15,6 +15,8 @@ import org.springframework.http.MediaType;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.test.web.servlet.MockMvc;
 
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
@@ -223,6 +225,50 @@ class UserControllerTest extends AbstractPersistenceIT {
                         .content("""
                                 {"rol": "ASEGURADO"}
                                 """))
+                .andExpect(status().isNotFound());
+    }
+
+    @Test
+    void deleteUser_withoutToken_returns401() throws Exception {
+        mockMvc.perform(delete("/api/v1/auth/users/" + analistaId))
+                .andExpect(status().isUnauthorized());
+    }
+
+    @Test
+    void deleteUser_asAnalista_returns403() throws Exception {
+        String token = tokenFor("analista.test@arbiter.test");
+
+        mockMvc.perform(delete("/api/v1/auth/users/" + referenteId)
+                        .header("Authorization", "Bearer " + token))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
+    void deleteUser_asReferente_returns204AndRemovesUser() throws Exception {
+        String token = tokenFor("referente.test@arbiter.test");
+
+        mockMvc.perform(delete("/api/v1/auth/users/" + analistaId)
+                        .header("Authorization", "Bearer " + token))
+                .andExpect(status().isNoContent());
+
+        assertThat(userRepository.findById(analistaId)).isEmpty();
+    }
+
+    @Test
+    void deleteUser_ownAccount_returns400() throws Exception {
+        String token = tokenFor("referente.test@arbiter.test");
+
+        mockMvc.perform(delete("/api/v1/auth/users/" + referenteId)
+                        .header("Authorization", "Bearer " + token))
+                .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    void deleteUser_unknownUser_returns404() throws Exception {
+        String token = tokenFor("referente.test@arbiter.test");
+
+        mockMvc.perform(delete("/api/v1/auth/users/999999")
+                        .header("Authorization", "Bearer " + token))
                 .andExpect(status().isNotFound());
     }
 

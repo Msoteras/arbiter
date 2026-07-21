@@ -8,10 +8,15 @@ import ar.edu.utn.frba.arbiter.cases.models.entities.StatusChangeActor;
 import ar.edu.utn.frba.arbiter.cases.services.CaseService;
 import ar.edu.utn.frba.arbiter.common.enums.CaseStatus;
 import ar.edu.utn.frba.arbiter.common.enums.Classification;
+import ar.edu.utn.frba.arbiter.common.enums.RiskBand;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
 import org.springframework.context.annotation.Import;
+import org.springframework.data.domain.PageImpl;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
 import org.springframework.http.MediaType;
 import org.springframework.mock.web.MockMultipartFile;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
@@ -19,6 +24,7 @@ import org.springframework.test.web.servlet.MockMvc;
 
 import java.math.BigDecimal;
 import java.time.Instant;
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.List;
 
@@ -89,48 +95,108 @@ class CaseControllerTest {
                 .andExpect(jsonPath("$.detail").value("Case 999 not found"));
     }
 
+    private static final Pageable DEFAULT_PAGEABLE = PageRequest.of(0, 20, Sort.by(Sort.Direction.DESC, "id"));
+
     @Test
-    void listCases_noStatusFilter_returnsAllAsArray() throws Exception {
+    void listCases_noFilters_returnsPagedContent() throws Exception {
         CaseResponse case1 = caseResponse(2L, CaseStatus.PENDING_ANALYST_REVIEW);
         CaseResponse case2 = caseResponse(1L, CaseStatus.APPROVED);
-        when(caseService.listCases(isNull(), isNull())).thenReturn(List.of(case1, case2));
+        when(caseService.listCases(isNull(), isNull(), isNull(), isNull(), isNull(), isNull(), isNull(), isNull(), eq(DEFAULT_PAGEABLE)))
+                .thenReturn(new PageImpl<>(List.of(case1, case2), DEFAULT_PAGEABLE, 2));
 
         mockMvc.perform(get("/api/v1/cases"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.length()").value(2))
-                .andExpect(jsonPath("$[0].id").value(2))
-                .andExpect(jsonPath("$[1].id").value(1));
+                .andExpect(jsonPath("$.content.length()").value(2))
+                .andExpect(jsonPath("$.content[0].id").value(2))
+                .andExpect(jsonPath("$.content[1].id").value(1))
+                .andExpect(jsonPath("$.totalElements").value(2));
     }
 
     @Test
     void listCases_withStatusFilter_passesStatusThrough() throws Exception {
         CaseResponse response = caseResponse(1L, CaseStatus.PENDING_ANALYST_REVIEW);
-        when(caseService.listCases(eq(CaseStatus.PENDING_ANALYST_REVIEW), isNull())).thenReturn(List.of(response));
+        when(caseService.listCases(eq(CaseStatus.PENDING_ANALYST_REVIEW), isNull(), isNull(), isNull(),
+                isNull(), isNull(), isNull(), isNull(), eq(DEFAULT_PAGEABLE)))
+                .thenReturn(new PageImpl<>(List.of(response), DEFAULT_PAGEABLE, 1));
 
         mockMvc.perform(get("/api/v1/cases").param("status", "PENDING_ANALYST_REVIEW"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.length()").value(1))
-                .andExpect(jsonPath("$[0].status").value("PENDING_ANALYST_REVIEW"));
+                .andExpect(jsonPath("$.content.length()").value(1))
+                .andExpect(jsonPath("$.content[0].status").value("PENDING_ANALYST_REVIEW"));
     }
 
     @Test
     void listCases_withInsuredIdFilter_passesInsuredIdThrough() throws Exception {
         CaseResponse response = caseResponse(1L, CaseStatus.PENDING_CLASSIFICATION);
-        when(caseService.listCases(isNull(), eq("40.123.456"))).thenReturn(List.of(response));
+        when(caseService.listCases(isNull(), isNull(), isNull(), eq("40.123.456"), isNull(), isNull(), isNull(), isNull(), eq(DEFAULT_PAGEABLE)))
+                .thenReturn(new PageImpl<>(List.of(response), DEFAULT_PAGEABLE, 1));
 
         mockMvc.perform(get("/api/v1/cases").param("insuredId", "40.123.456"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.length()").value(1))
-                .andExpect(jsonPath("$[0].insuredId").value("40.123.456"));
+                .andExpect(jsonPath("$.content.length()").value(1))
+                .andExpect(jsonPath("$.content[0].insuredId").value("40.123.456"));
     }
 
     @Test
-    void listCases_noResults_returnsEmptyArray() throws Exception {
-        when(caseService.listCases(isNull(), isNull())).thenReturn(List.of());
+    void listCases_withRiskBandFilter_passesRiskBandThrough() throws Exception {
+        CaseResponse response = caseResponse(1L, CaseStatus.PENDING_ANALYST_REVIEW);
+        when(caseService.listCases(isNull(), isNull(), isNull(), isNull(), isNull(), isNull(), isNull(),
+                eq(RiskBand.HIGH), eq(DEFAULT_PAGEABLE)))
+                .thenReturn(new PageImpl<>(List.of(response), DEFAULT_PAGEABLE, 1));
+
+        mockMvc.perform(get("/api/v1/cases").param("riskBand", "HIGH"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.content.length()").value(1));
+    }
+
+    @Test
+    void listCases_withFreeTextSearch_passesQThrough() throws Exception {
+        CaseResponse response = caseResponse(1L, CaseStatus.PENDING_ANALYST_REVIEW);
+        when(caseService.listCases(isNull(), isNull(), isNull(), isNull(), isNull(), isNull(), eq("POL-CEL"), isNull(), eq(DEFAULT_PAGEABLE)))
+                .thenReturn(new PageImpl<>(List.of(response), DEFAULT_PAGEABLE, 1));
+
+        mockMvc.perform(get("/api/v1/cases").param("q", "POL-CEL"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.content.length()").value(1));
+    }
+
+    @Test
+    void listCases_withClaimCausePolicyNumberAndDateRange_passesFiltersThrough() throws Exception {
+        CaseResponse response = caseResponse(1L, CaseStatus.APPROVED);
+        when(caseService.listCases(isNull(), eq("Robo en vía pública"), eq("POL-CEL-2024-001"), isNull(),
+                eq(LocalDate.of(2026, 6, 1)), eq(LocalDate.of(2026, 6, 30)), isNull(), isNull(), eq(DEFAULT_PAGEABLE)))
+                .thenReturn(new PageImpl<>(List.of(response), DEFAULT_PAGEABLE, 1));
+
+        mockMvc.perform(get("/api/v1/cases")
+                        .param("claimCause", "Robo en vía pública")
+                        .param("policyNumber", "POL-CEL-2024-001")
+                        .param("eventDateFrom", "2026-06-01")
+                        .param("eventDateTo", "2026-06-30"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.content.length()").value(1));
+    }
+
+    @Test
+    void listCases_withPageParams_passesPageableThrough() throws Exception {
+        CaseResponse response = caseResponse(1L, CaseStatus.APPROVED);
+        Pageable pageable = PageRequest.of(1, 5, Sort.by(Sort.Direction.DESC, "id"));
+        when(caseService.listCases(isNull(), isNull(), isNull(), isNull(), isNull(), isNull(), isNull(), isNull(), eq(pageable)))
+                .thenReturn(new PageImpl<>(List.of(response), pageable, 6));
+
+        mockMvc.perform(get("/api/v1/cases").param("page", "1").param("size", "5"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.content.length()").value(1))
+                .andExpect(jsonPath("$.totalElements").value(6));
+    }
+
+    @Test
+    void listCases_noResults_returnsEmptyContent() throws Exception {
+        when(caseService.listCases(isNull(), isNull(), isNull(), isNull(), isNull(), isNull(), isNull(), isNull(), eq(DEFAULT_PAGEABLE)))
+                .thenReturn(new PageImpl<>(List.of(), DEFAULT_PAGEABLE, 0));
 
         mockMvc.perform(get("/api/v1/cases"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.length()").value(0));
+                .andExpect(jsonPath("$.content.length()").value(0));
     }
 
     @Test
@@ -165,7 +231,7 @@ class CaseControllerTest {
         CaseResponse response = new CaseResponse(
                 1L, CaseStatus.PENDING_ANALYST_REVIEW,
                 "Celulares", "Celular Protegido Básico", "Robo en vía pública",
-                "Motorola Edge 50 Pro", "40.123.456", "POL-CEL-2024-001",
+                "Motorola Edge 50 Pro", "40.123.456", "Laura Fernández", "POL-CEL-2024-001",
                 "Me robaron el celular",
                 LocalDateTime.of(2026, 6, 13, 19, 45), "CABA",
                 new BigDecimal("150000"),
@@ -221,7 +287,7 @@ class CaseControllerTest {
         return new CaseResponse(
                 id, status,
                 "Celulares", "Celular Protegido Básico", "Robo en vía pública",
-                "Motorola Edge 50 Pro", "40.123.456", "POL-CEL-2024-001",
+                "Motorola Edge 50 Pro", "40.123.456", "Laura Fernández", "POL-CEL-2024-001",
                 "Me robaron el celular",
                 LocalDateTime.of(2026, 6, 13, 19, 45), "CABA",
                 new BigDecimal("150000"),

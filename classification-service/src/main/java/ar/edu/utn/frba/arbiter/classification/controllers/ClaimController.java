@@ -14,6 +14,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatusCode;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
@@ -37,6 +38,7 @@ public class ClaimController {
     private final MultipartDocumentMapper documentMapper;
 
     @PostMapping(consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    @PreAuthorize("isAuthenticated()")
     @Operation(
             summary = "Trigger the classification of a case's claim",
             description = """
@@ -71,6 +73,7 @@ public class ClaimController {
     }
 
     @GetMapping("/{caseId}")
+    @PreAuthorize("isAuthenticated()")
     @Operation(
             summary = "Get a case's classification",
             description = "Classification fields are null until the analysis finishes — poll until they appear."
@@ -81,6 +84,7 @@ public class ClaimController {
     }
 
     @PostMapping("/{caseId}/decision")
+    @PreAuthorize("hasAnyRole('ANALISTA_SINIESTROS', 'REFERENTE_ASEGURADORA')")
     @Operation(
             summary = "Persist the analyst's final decision",
             description = "Stores the analyst's verdict for the classification already produced for the case."

@@ -49,6 +49,7 @@ CREATE TABLE cases (
     claim_cause             VARCHAR(255) NOT NULL,
     insured_item            VARCHAR(255) NOT NULL,
     insured_id              VARCHAR(255) NOT NULL,
+    insured_name            VARCHAR(255),
     policy_number           VARCHAR(255) NOT NULL,
     description             TEXT         NOT NULL,
     event_date              TIMESTAMP(6) NOT NULL,
@@ -110,6 +111,7 @@ CREATE TABLE classification_log (
     risk_score          NUMERIC(4,3),
     risk_band           VARCHAR(20),
     risk_breakdown      TEXT,
+    insured_name        VARCHAR(255),
     analyst_id          VARCHAR(80),
     decision            VARCHAR(20),
     decision_timestamp  TIMESTAMPTZ,
@@ -140,7 +142,7 @@ VALUES
 SELECT setval('users_id_seq', (SELECT MAX(id) FROM users));
 
 -- ─── Datos de prueba: cases ──────────────────────────────────────────────────
-INSERT INTO cases (id, branch, product, claim_cause, insured_item, insured_id, policy_number,
+INSERT INTO cases (id, branch, product, claim_cause, insured_item, insured_id, insured_name, policy_number,
                    description, event_date, event_location, claimed_amount,
                    status, analysis_classification, analysis_confidence, analysis_detail,
                    deterministic_fast_track, risk_score, risk_band, risk_breakdown,
@@ -148,7 +150,7 @@ INSERT INTO cases (id, branch, product, claim_cause, insured_item, insured_id, p
 VALUES
     -- Case 1: Fast Track determinístico (rotura accidental, monto bajo, primer siniestro) → riesgo BAJO real (scoreado)
     (1, 'Celulares', 'Celular Protegido Premium', 'Rotura accidental',
-     'Samsung Galaxy S25 Ultra', '42.987.654', 'POL-CEL-2026-042',
+     'Samsung Galaxy S25 Ultra', '42.987.654', 'Sofía Martínez', 'POL-CEL-2026-042',
      'Se me cayó el celular de las manos en mi casa. Se rompió la pantalla pero el equipo funciona normalmente',
      '2026-06-14 08:30:00', 'Casa', 285000.00,
      'PENDING_ANALYST_REVIEW', 'FAST_TRACK', 1.0,
@@ -160,7 +162,7 @@ VALUES
 
     -- Case 2: LLM no recomienda aprobar (reincidente, monto alto) → riesgo ALTO + nota del analista (no sobrescribe el score)
     (2, 'Celulares', 'Celular Protegido Premium', 'Robo en vía pública',
-     'iPhone 16 Pro Max', '30.555.777', 'POL-CEL-2025-099',
+     'iPhone 16 Pro Max', '30.555.777', 'Marcelo Gómez', 'POL-CEL-2025-099',
      'Me robaron el celular pero no me acuerdo bien dónde ni cuándo. Fue el martes o miércoles pasado, creo que cerca de Palermo',
      '2026-06-10 23:00:00', 'Palermo o Belgrano (no precisa)', 950000.00,
      'PENDING_ANALYST_REVIEW', 'LLM_NO_RECOMIENDA_APROBAR', 0.95,
@@ -170,9 +172,9 @@ VALUES
      '[{"factorId":"amount_ratio","rawScore":0.7917,"weight":0.45,"weightedContribution":0.3563,"rationale":"Monto reclamado es 79% de la suma asegurada"},{"factorId":"claim_frequency","rawScore":1.0,"weight":0.35,"weightedContribution":0.35,"rationale":"Siniestros previos del asegurado: 3"},{"factorId":"policy_standing","rawScore":0.0,"weight":0.2,"weightedContribution":0.0,"rationale":"Póliza al día con sus pagos"}]',
      'Score elevado por reincidencia; verifiqué las 3 denuncias previas — dos con resolución legítima. Mantengo el caso en revisión estándar, sin sobrescribir el valor calculado.', 0),
 
-    -- Case 3: Falta documentación, póliza fuera del catálogo mock → SIN SCOREAR (riesgo NULL, no LOW)
+    -- Case 3: Falta documentación, póliza fuera del catálogo mock → SIN SCOREAR (riesgo NULL, no LOW) → sin nombre resuelto tampoco
     (3, 'Celulares', 'Bolso – Compra Protegida', 'Robo en vía pública',
-     'Samsung Galaxy A50', '44655366', '2030405',
+     'Samsung Galaxy A50', '44655366', NULL, '2030405',
      'Estaba saliendo de la facultad y me robaron desde una moto.',
      '2026-06-30 00:00:00', 'Medrano 951', 120000.00,
      'AWAITING_DOCUMENTATION', 'FALTA_DOCUMENTACION', 1.0,
@@ -181,7 +183,7 @@ VALUES
 
     -- Case 4: Falta documentación (sin foto del bien), monto muy alto → riesgo MEDIO
     (4, 'Celulares', 'Celular Protegido Premium', 'Robo en vía pública',
-     'iPhone 16 Pro', '42.987.654', 'POL-CEL-2026-042',
+     'iPhone 16 Pro', '42.987.654', 'Sofía Martínez', 'POL-CEL-2026-042',
      'El celular desapareció pero no sé si me lo robaron o lo perdí. No estoy seguro qué pasó exactamente',
      '2026-06-12 18:30:00', 'Colectivo línea 159', 1200000.00,
      'AWAITING_DOCUMENTATION', 'FALTA_DOCUMENTACION', 1.0,
@@ -191,9 +193,9 @@ VALUES
      '[{"factorId":"amount_ratio","rawScore":0.9231,"weight":0.45,"weightedContribution":0.4154,"rationale":"Monto reclamado es 92% de la suma asegurada"},{"factorId":"claim_frequency","rawScore":0.0,"weight":0.35,"weightedContribution":0.0,"rationale":"Siniestros previos del asegurado: 0"},{"factorId":"policy_standing","rawScore":0.0,"weight":0.2,"weightedContribution":0.0,"rationale":"Póliza al día con sus pagos"}]',
      NULL, 0),
 
-    -- Case 5: Pendiente de clasificación (recién ingresado) → aún sin scorear (riesgo NULL)
+    -- Case 5: Pendiente de clasificación (recién ingresado) → aún sin scorear ni nombre resuelto (riesgo NULL)
     (5, 'Celulares', 'Celular Protegido Premium', 'Robo en vía pública',
-     'iPhone 16 Pro', '42.987.654', 'POL-CEL-2026-042',
+     'iPhone 16 Pro', '42.987.654', NULL, 'POL-CEL-2026-042',
      'El celular desapareció pero no sé si me lo robaron o lo perdí. No estoy seguro qué pasó exactamente',
      '2026-06-12 18:30:00', 'Colectivo línea 159', 1200000.00,
      'PENDING_CLASSIFICATION', NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, 0);
@@ -203,7 +205,8 @@ SELECT setval('cases_id_seq', (SELECT MAX(id) FROM cases));
 
 -- ─── Datos de prueba: classification_log ─────────────────────────────────────
 INSERT INTO classification_log (id, case_id, model, prompt_version, source, classification,
-                                confidence, factors, latency_ms, risk_score, risk_band, risk_breakdown, created_at)
+                                confidence, factors, latency_ms, risk_score, risk_band, risk_breakdown,
+                                insured_name, created_at)
 VALUES
     -- Log 1: Fast Track por reglas (case 1) → riesgo BAJO
     (1, 1, NULL, NULL, 'RULES_FAST_TRACK', 'FAST_TRACK',
@@ -211,7 +214,7 @@ VALUES
      '["Monto reclamado (21.9% de la suma asegurada) dentro del límite de Fast Track (50.0%)", "Póliza al día con sus pagos"]',
      5, 0.099, 'LOW',
      '[{"factorId":"amount_ratio","rawScore":0.2192,"weight":0.45,"weightedContribution":0.0986,"rationale":"Monto reclamado es 22% de la suma asegurada"},{"factorId":"claim_frequency","rawScore":0.0,"weight":0.35,"weightedContribution":0.0,"rationale":"Siniestros previos del asegurado: 0"},{"factorId":"policy_standing","rawScore":0.0,"weight":0.2,"weightedContribution":0.0,"rationale":"Póliza al día con sus pagos"}]',
-     '2026-06-29 00:27:15.751928+00'),
+     'Sofía Martínez', '2026-06-29 00:27:15.751928+00'),
 
     -- Log 2: LLM no recomienda (case 2, reincidente) → riesgo ALTO
     (2, 2, 'qwen3-vl', 'classification-v1', 'LLM', 'LLM_NO_RECOMIENDA_APROBAR',
@@ -219,19 +222,19 @@ VALUES
      '["Más de 2 claims en los últimos 12 meses: el asegurado tiene 3 claims previos (Nov 2025, Feb 2026 y Abr 2026). Esto activa la regla ''derivad a investigación'' según las cláusulas de la póliza.", "La descripción del incidente presenta inconsistencias con el reporte policial."]',
      3079602, 0.706, 'HIGH',
      '[{"factorId":"amount_ratio","rawScore":0.7917,"weight":0.45,"weightedContribution":0.3563,"rationale":"Monto reclamado es 79% de la suma asegurada"},{"factorId":"claim_frequency","rawScore":1.0,"weight":0.35,"weightedContribution":0.35,"rationale":"Siniestros previos del asegurado: 3"},{"factorId":"policy_standing","rawScore":0.0,"weight":0.2,"weightedContribution":0.0,"rationale":"Póliza al día con sus pagos"}]',
-     '2026-06-29 01:21:21.157741+00'),
+     'Marcelo Gómez', '2026-06-29 01:21:21.157741+00'),
 
-    -- Log 3: Falta documentación (case 3) → sin scorear (póliza fuera del catálogo mock)
+    -- Log 3: Falta documentación (case 3) → sin scorear ni nombre resuelto (póliza fuera del catálogo mock)
     (3, 3, 'qwen3-vl', 'classification-v1', 'LLM', 'FALTA_DOCUMENTACION',
      1.000,
      '["Falta documento requerido: police_report", "Falta documento requerido: item_photo"]',
-     7, NULL, NULL, NULL, '2026-07-01 22:57:48.286276+00'),
+     7, NULL, NULL, NULL, NULL, '2026-07-01 22:57:48.286276+00'),
 
-    -- Log 4: Clasificación aislada (sin case, test endpoint) → sin scorear
+    -- Log 4: Clasificación aislada (sin case, test endpoint) → sin scorear ni nombre
     (4, NULL, 'qwen3-vl', 'classification-v1', 'LLM', 'FALTA_DOCUMENTACION',
      1.000,
      '["Falta documento requerido: police_report", "Falta documento requerido: item_photo"]',
-     1, NULL, NULL, NULL, '2026-07-01 23:13:37.365684+00'),
+     1, NULL, NULL, NULL, NULL, '2026-07-01 23:13:37.365684+00'),
 
     -- Log 5: Falta documentación (case 4) → riesgo MEDIO
     (5, 4, 'qwen3-vl', 'classification-v1', 'LLM', 'FALTA_DOCUMENTACION',
@@ -239,7 +242,7 @@ VALUES
      '["Falta documento requerido: item_photo"]',
      0, 0.415, 'MEDIUM',
      '[{"factorId":"amount_ratio","rawScore":0.9231,"weight":0.45,"weightedContribution":0.4154,"rationale":"Monto reclamado es 92% de la suma asegurada"},{"factorId":"claim_frequency","rawScore":0.0,"weight":0.35,"weightedContribution":0.0,"rationale":"Siniestros previos del asegurado: 0"},{"factorId":"policy_standing","rawScore":0.0,"weight":0.2,"weightedContribution":0.0,"rationale":"Póliza al día con sus pagos"}]',
-     '2026-07-01 23:24:15.188195+00');
+     'Sofía Martínez', '2026-07-01 23:24:15.188195+00');
 
 -- Resetear la secuencia
 SELECT setval('classification_log_id_seq', (SELECT MAX(id) FROM classification_log));

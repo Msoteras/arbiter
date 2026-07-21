@@ -69,7 +69,7 @@ import { ChangeDetectionStrategy, Component, input, output } from '@angular/core
       to { transform: translateX(0); }
     }
     .modal-title { margin: 0 0 var(--space-2); font-size: var(--font-size-lg); font-weight: var(--font-weight-medium); }
-    .modal-actions { display: flex; justify-content: flex-end; gap: var(--space-2); margin-top: var(--space-4); }
+    .modal-actions { display: flex; justify-content: flex-end; gap: var(--space-3); margin-top: var(--space-4); }
   `,
 })
 export class ModalComponent {

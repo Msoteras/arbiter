@@ -37,6 +37,10 @@ export class UsuariosComponent {
   protected readonly roleError = signal<string | null>(null);
   protected readonly showCreatePanel = signal(false);
 
+  protected readonly userToDelete = signal<UserResponse | null>(null);
+  protected readonly deleting = signal(false);
+  protected readonly deleteError = signal<string | null>(null);
+
   protected readonly isEmpty = computed(() => !this.loading() && !this.hasError() && this.users().length === 0);
 
   constructor() {
@@ -86,6 +90,35 @@ export class UsuariosComponent {
       error: (err: HttpErrorResponse) => {
         this.savingId.set(null);
         this.roleError.set(err.error?.detail ?? 'No se pudo cambiar el rol. Probá de nuevo.');
+      },
+    });
+  }
+
+  /** Abre la confirmación destructiva (wireframe: "Eliminar pide confirmación destructiva, doble verbo"). */
+  protected requestDelete(user: UserResponse): void {
+    this.deleteError.set(null);
+    this.userToDelete.set(user);
+  }
+
+  protected cancelDelete(): void {
+    this.userToDelete.set(null);
+  }
+
+  protected confirmDelete(): void {
+    const user = this.userToDelete();
+    if (!user) {
+      return;
+    }
+    this.deleting.set(true);
+    this.service.delete(user.id).subscribe({
+      next: () => {
+        this.deleting.set(false);
+        this.userToDelete.set(null);
+        this.users.update((list) => list.filter((u) => u.id !== user.id));
+      },
+      error: (err: HttpErrorResponse) => {
+        this.deleting.set(false);
+        this.deleteError.set(err.error?.detail ?? 'No se pudo eliminar el usuario. Probá de nuevo.');
       },
     });
   }
