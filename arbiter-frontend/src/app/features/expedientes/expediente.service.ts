@@ -55,6 +55,8 @@ export interface ExpedienteListParams {
    * Se combina por AND con el resto de los filtros.
    */
   q?: string;
+  /** Nivel de alerta de fraude, match exacto. */
+  riskBand?: 'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL';
 }
 
 @Injectable({ providedIn: 'root' })
@@ -84,6 +86,7 @@ export class ExpedienteService {
     if (params.size != null) query['size'] = String(params.size);
     if (params.sort) query['sort'] = params.sort;
     if (params.q) query['q'] = params.q;
+    if (params.riskBand) query['riskBand'] = params.riskBand;
     return this.http.get<PagedResponse<ExpedienteResponse>>(this.baseUrl, { params: query });
   }
 

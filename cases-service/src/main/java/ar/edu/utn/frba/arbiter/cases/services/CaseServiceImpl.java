@@ -15,6 +15,7 @@ import ar.edu.utn.frba.arbiter.cases.models.repositories.CaseDocumentRepository;
 import ar.edu.utn.frba.arbiter.cases.models.repositories.CaseRepository;
 import ar.edu.utn.frba.arbiter.cases.models.repositories.CaseSpecifications;
 import ar.edu.utn.frba.arbiter.common.enums.CaseStatus;
+import ar.edu.utn.frba.arbiter.common.enums.RiskBand;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -120,9 +121,9 @@ public class CaseServiceImpl implements CaseService {
     @Override
     public Page<CaseResponse> listCases(CaseStatus status, String claimCause, String policyNumber,
                                          String insuredId, LocalDate eventDateFrom, LocalDate eventDateTo,
-                                         String q, Pageable pageable) {
+                                         String q, RiskBand riskBand, Pageable pageable) {
         Specification<Case> spec = CaseSpecifications.withFilters(
-                status, claimCause, policyNumber, insuredId, eventDateFrom, eventDateTo, q);
+                status, claimCause, policyNumber, insuredId, eventDateFrom, eventDateTo, q, riskBand);
         return caseRepository.findAll(spec, pageable).map(this::toResponse);
     }
 

@@ -145,11 +145,12 @@ trunco en `PENDING_ANALYST_REVIEW`, incumpliendo la auditoría de la Disposició
   el JWT no hay tenant que resolver. `GET /api/v1/cases` sí quedó extendido con el resto de los
   filtros de la historia (`status`, `claimCause`, `policyNumber`, `insuredId`, rango de
   `eventDate`) más paginación (`CaseServiceImpl.listCases`, `CaseSpecifications`).
-- **Gap G — Filtro por nivel de alerta de fraude en la búsqueda de expedientes.** El HU oficial de
-  H0011 ("Búsqueda y filtrado de expedientes") lista "nivel de alerta de fraude" como criterio de
-  búsqueda; la card de Trello que se usó para scopear el Sprint 6 no lo incluyó, así que quedó
-  afuera de esta iteración. `Case.riskBand` (H0012, scoring) ya está indexado y
-  `CaseRepository.findByRiskBand` existe sin uso — pensado como scaffolding para este filtro. Falta
-  cablearlo en `CaseSpecifications`/`CaseController` (un `@RequestParam RiskBand riskBand` más,
-  mismo patrón que los otros filtros). No es una historia en conflicto con H0011: el HU la incluye
-  ahí mismo. A validar con el equipo si se retoma en H0011 o pasa a H0012.
+- ~~**Gap G — Filtro por nivel de alerta de fraude en la búsqueda de expedientes.**~~ **Resuelto.**
+  El HU oficial de H0011 ("Búsqueda y filtrado de expedientes") lista "nivel de alerta de fraude"
+  como criterio de búsqueda; la card de Trello que se usó para scopear el Sprint 6 no lo incluyó, y
+  quedó afuera de la primera iteración. Retomado a pedido explícito del equipo: `GET /api/v1/cases`
+  ahora acepta `riskBand` (match exacto sobre `LOW`/`MEDIUM`/`HIGH`/`CRITICAL`), cableado en
+  `CaseSpecifications#riskBand` + `CaseServiceImpl#listCases` + `CaseController`, mismo patrón que
+  el resto de los filtros. Cubierto por `CaseRepositorySpecificationTests` (Postgres real) y
+  `CaseControllerTest`/`CaseServiceImplTest` (mocks). El frontend lo expone como un `app-select` más
+  en la bandeja del analista.

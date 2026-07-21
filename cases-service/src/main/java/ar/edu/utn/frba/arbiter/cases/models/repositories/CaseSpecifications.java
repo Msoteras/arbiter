@@ -2,6 +2,7 @@ package ar.edu.utn.frba.arbiter.cases.models.repositories;
 
 import ar.edu.utn.frba.arbiter.cases.models.entities.Case;
 import ar.edu.utn.frba.arbiter.common.enums.CaseStatus;
+import ar.edu.utn.frba.arbiter.common.enums.RiskBand;
 import jakarta.persistence.criteria.Predicate;
 import org.springframework.data.jpa.domain.Specification;
 
@@ -26,7 +27,7 @@ public final class CaseSpecifications {
 
     public static Specification<Case> withFilters(CaseStatus status, String claimCause, String policyNumber,
                                                     String insuredId, LocalDate eventDateFrom, LocalDate eventDateTo,
-                                                    String q) {
+                                                    String q, RiskBand riskBand) {
         return Stream.of(
                         status(status),
                         claimCause(claimCause),
@@ -34,7 +35,8 @@ public final class CaseSpecifications {
                         insuredId(insuredId),
                         eventDateFrom(eventDateFrom),
                         eventDateTo(eventDateTo),
-                        freeText(q)
+                        freeText(q),
+                        riskBand(riskBand)
                 )
                 .filter(Objects::nonNull)
                 .reduce(Specification::and)
@@ -59,6 +61,11 @@ public final class CaseSpecifications {
     private static Specification<Case> insuredId(String insuredId) {
         return insuredId == null || insuredId.isBlank() ? null
                 : (root, query, cb) -> cb.equal(root.get("insuredId"), insuredId);
+    }
+
+    private static Specification<Case> riskBand(RiskBand riskBand) {
+        return riskBand == null ? null
+                : (root, query, cb) -> cb.equal(root.get("riskBand"), riskBand);
     }
 
     private static Specification<Case> eventDateFrom(LocalDate from) {

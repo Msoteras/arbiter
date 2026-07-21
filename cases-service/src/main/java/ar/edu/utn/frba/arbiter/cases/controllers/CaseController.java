@@ -5,6 +5,7 @@ import ar.edu.utn.frba.arbiter.cases.dto.CaseRequest;
 import ar.edu.utn.frba.arbiter.cases.dto.CaseResponse;
 import ar.edu.utn.frba.arbiter.cases.services.CaseService;
 import ar.edu.utn.frba.arbiter.common.enums.CaseStatus;
+import ar.edu.utn.frba.arbiter.common.enums.RiskBand;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
@@ -77,7 +78,8 @@ public class CaseController {
                     `q` es búsqueda de texto libre (case-insensitive, substring) sobre número de
                     expediente, número de póliza y asegurado (`insuredId`/`insuredName` — este
                     último nullable hasta que la primera clasificación resuelve el nombre real).
-                    Se combina por AND con el resto de los filtros.
+                    `riskBand` filtra por nivel de alerta de fraude (match exacto: `LOW`, `MEDIUM`,
+                    `HIGH`, `CRITICAL`). Todos se combinan por AND entre sí.
 
                     No filtra por aseguradora/rol del usuario autenticado: depende de auth-service,
                     que todavía no está levantado (ver GAPS-FLUJO.md, Gap F).
@@ -90,10 +92,11 @@ public class CaseController {
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate eventDateFrom,
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate eventDateTo,
             @RequestParam(required = false) String q,
+            @RequestParam(required = false) RiskBand riskBand,
             @PageableDefault(size = 20, sort = "id", direction = Sort.Direction.DESC) Pageable pageable
     ) {
         Page<CaseResponse> response = caseService.listCases(
-                status, claimCause, policyNumber, insuredId, eventDateFrom, eventDateTo, q, pageable);
+                status, claimCause, policyNumber, insuredId, eventDateFrom, eventDateTo, q, riskBand, pageable);
         return ResponseEntity.ok(response);
     }
 

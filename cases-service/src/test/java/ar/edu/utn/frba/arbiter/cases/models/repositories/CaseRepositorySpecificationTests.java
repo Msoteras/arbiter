@@ -3,6 +3,7 @@ package ar.edu.utn.frba.arbiter.cases.models.repositories;
 import ar.edu.utn.frba.arbiter.cases.models.entities.Case;
 import ar.edu.utn.frba.arbiter.cases.support.AbstractPersistenceIT;
 import ar.edu.utn.frba.arbiter.common.enums.CaseStatus;
+import ar.edu.utn.frba.arbiter.common.enums.RiskBand;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -41,13 +42,13 @@ class CaseRepositorySpecificationTests extends AbstractPersistenceIT {
     void seed() {
         seeded = caseRepository.saveAll(java.util.List.of(
                 caseOf(CaseStatus.PENDING_ANALYST_REVIEW, "Robo en vía pública", "POL-CEL-2024-001",
-                        "40.123.456", "Laura Fernández", LocalDate.of(2026, 6, 1)),
+                        "40.123.456", "Laura Fernández", LocalDate.of(2026, 6, 1), RiskBand.LOW),
                 caseOf(CaseStatus.PENDING_CLASSIFICATION, "Hurto", "POL-CEL-2024-002",
-                        "40.123.457", null, LocalDate.of(2026, 6, 15)),
+                        "40.123.457", null, LocalDate.of(2026, 6, 15), null),
                 caseOf(CaseStatus.APPROVED, "Robo en vía pública", "POL-CEL-2024-003",
-                        "40.123.456", "Laura Fernández", LocalDate.of(2026, 6, 30)),
+                        "40.123.456", "Laura Fernández", LocalDate.of(2026, 6, 30), RiskBand.HIGH),
                 caseOf(CaseStatus.REJECTED, "Incendio", "POL-CEL-2024-004",
-                        "40.123.458", "Marcos Díaz", LocalDate.of(2026, 7, 5))
+                        "40.123.458", "Marcos Díaz", LocalDate.of(2026, 7, 5), RiskBand.HIGH)
         ));
     }
 
@@ -56,11 +57,11 @@ class CaseRepositorySpecificationTests extends AbstractPersistenceIT {
         // Regression: Specification.allOf(...) exige que ningún elemento sea null; con todos los
         // filtros ausentes, withFilters() debía devolver null directo (no una lista con nulls).
         assertThatCode(() -> caseRepository.findAll(CaseSpecifications.withFilters(
-                null, null, null, null, null, null, null), FIRST_PAGE))
+                null, null, null, null, null, null, null, null), FIRST_PAGE))
                 .doesNotThrowAnyException();
 
         Page<Case> page = caseRepository.findAll(CaseSpecifications.withFilters(
-                null, null, null, null, null, null, null), FIRST_PAGE);
+                null, null, null, null, null, null, null, null), FIRST_PAGE);
 
         assertThat(page.getTotalElements()).isEqualTo(4);
     }
@@ -68,7 +69,7 @@ class CaseRepositorySpecificationTests extends AbstractPersistenceIT {
     @Test
     void statusFilter_returnsOnlyMatchingStatus() {
         Specification<Case> spec = CaseSpecifications.withFilters(
-                CaseStatus.PENDING_ANALYST_REVIEW, null, null, null, null, null, null);
+                CaseStatus.PENDING_ANALYST_REVIEW, null, null, null, null, null, null, null);
 
         Page<Case> page = caseRepository.findAll(spec, FIRST_PAGE);
 
@@ -80,7 +81,7 @@ class CaseRepositorySpecificationTests extends AbstractPersistenceIT {
     @Test
     void claimCauseAndInsuredId_combineAsAnd() {
         Specification<Case> spec = CaseSpecifications.withFilters(
-                null, "Robo en vía pública", null, "40.123.456", null, null, null);
+                null, "Robo en vía pública", null, "40.123.456", null, null, null, null);
 
         Page<Case> page = caseRepository.findAll(spec, FIRST_PAGE);
 
@@ -95,7 +96,7 @@ class CaseRepositorySpecificationTests extends AbstractPersistenceIT {
     @Test
     void policyNumberFilter_returnsExactMatch() {
         Specification<Case> spec = CaseSpecifications.withFilters(
-                null, null, "POL-CEL-2024-002", null, null, null, null);
+                null, null, "POL-CEL-2024-002", null, null, null, null, null);
 
         Page<Case> page = caseRepository.findAll(spec, FIRST_PAGE);
 
@@ -109,7 +110,7 @@ class CaseRepositorySpecificationTests extends AbstractPersistenceIT {
         // Rango exacto sobre el primer y el último caso sembrados en junio: los dos límites tienen
         // que incluirse, ni un día de más ni de menos.
         Specification<Case> spec = CaseSpecifications.withFilters(
-                null, null, null, null, LocalDate.of(2026, 6, 1), LocalDate.of(2026, 6, 30), null);
+                null, null, null, null, LocalDate.of(2026, 6, 1), LocalDate.of(2026, 6, 30), null, null);
 
         Page<Case> page = caseRepository.findAll(spec, FIRST_PAGE);
 
@@ -121,7 +122,7 @@ class CaseRepositorySpecificationTests extends AbstractPersistenceIT {
     @Test
     void eventDateTo_excludesTheDayAfter() {
         Specification<Case> spec = CaseSpecifications.withFilters(
-                null, null, null, null, null, LocalDate.of(2026, 6, 1), null);
+                null, null, null, null, null, LocalDate.of(2026, 6, 1), null, null);
 
         Page<Case> page = caseRepository.findAll(spec, FIRST_PAGE);
 
@@ -133,7 +134,7 @@ class CaseRepositorySpecificationTests extends AbstractPersistenceIT {
     @Test
     void noMatchingFilters_returnsEmptyPage() {
         Specification<Case> spec = CaseSpecifications.withFilters(
-                null, null, "POL-INEXISTENTE", null, null, null, null);
+                null, null, "POL-INEXISTENTE", null, null, null, null, null);
 
         Page<Case> page = caseRepository.findAll(spec, FIRST_PAGE);
 
@@ -144,7 +145,7 @@ class CaseRepositorySpecificationTests extends AbstractPersistenceIT {
     @Test
     void freeTextSearch_matchesByPolicyNumberSubstring() {
         Specification<Case> spec = CaseSpecifications.withFilters(
-                null, null, null, null, null, null, "2024-002");
+                null, null, null, null, null, null, "2024-002", null);
 
         Page<Case> page = caseRepository.findAll(spec, FIRST_PAGE);
 
@@ -156,7 +157,7 @@ class CaseRepositorySpecificationTests extends AbstractPersistenceIT {
     @Test
     void freeTextSearch_matchesByInsuredIdSubstring() {
         Specification<Case> spec = CaseSpecifications.withFilters(
-                null, null, null, null, null, null, "123.457");
+                null, null, null, null, null, null, "123.457", null);
 
         Page<Case> page = caseRepository.findAll(spec, FIRST_PAGE);
 
@@ -168,7 +169,7 @@ class CaseRepositorySpecificationTests extends AbstractPersistenceIT {
     @Test
     void freeTextSearch_matchesByInsuredName_caseInsensitive() {
         Specification<Case> spec = CaseSpecifications.withFilters(
-                null, null, null, null, null, null, "laura");
+                null, null, null, null, null, null, "laura", null);
 
         Page<Case> page = caseRepository.findAll(spec, FIRST_PAGE);
 
@@ -182,7 +183,7 @@ class CaseRepositorySpecificationTests extends AbstractPersistenceIT {
     void freeTextSearch_matchesById() {
         Long targetId = seeded.get(1).getId(); // el de policyNumber POL-CEL-2024-002
         Specification<Case> spec = CaseSpecifications.withFilters(
-                null, null, null, null, null, null, String.valueOf(targetId));
+                null, null, null, null, null, null, String.valueOf(targetId), null);
 
         Page<Case> page = caseRepository.findAll(spec, FIRST_PAGE);
 
@@ -194,7 +195,7 @@ class CaseRepositorySpecificationTests extends AbstractPersistenceIT {
         // "2024-003" matchea policyNumber de un solo case (APPROVED); si combina mal con status
         // (OR en vez de AND), traería más de lo esperado.
         Specification<Case> spec = CaseSpecifications.withFilters(
-                CaseStatus.APPROVED, null, null, null, null, null, "2024-003");
+                CaseStatus.APPROVED, null, null, null, null, null, "2024-003", null);
 
         Page<Case> page = caseRepository.findAll(spec, FIRST_PAGE);
 
@@ -206,15 +207,40 @@ class CaseRepositorySpecificationTests extends AbstractPersistenceIT {
     @Test
     void freeTextSearch_noMatch_returnsEmptyPage() {
         Specification<Case> spec = CaseSpecifications.withFilters(
-                null, null, null, null, null, null, "no-existe-ningun-caso-asi");
+                null, null, null, null, null, null, "no-existe-ningun-caso-asi", null);
 
         Page<Case> page = caseRepository.findAll(spec, FIRST_PAGE);
 
         assertThat(page.getContent()).isEmpty();
     }
 
+    @Test
+    void riskBandFilter_returnsOnlyMatchingBand() {
+        Specification<Case> spec = CaseSpecifications.withFilters(
+                null, null, null, null, null, null, null, RiskBand.HIGH);
+
+        Page<Case> page = caseRepository.findAll(spec, FIRST_PAGE);
+
+        assertThat(page.getContent())
+                .hasSize(2)
+                .allMatch(c -> c.getRiskBand() == RiskBand.HIGH);
+    }
+
+    @Test
+    void riskBandFilter_combinesWithStatusAsAnd() {
+        // Dos cases son HIGH; solo uno de ellos está además REJECTED. El AND no debe traer el otro.
+        Specification<Case> spec = CaseSpecifications.withFilters(
+                CaseStatus.REJECTED, null, null, null, null, null, null, RiskBand.HIGH);
+
+        Page<Case> page = caseRepository.findAll(spec, FIRST_PAGE);
+
+        assertThat(page.getContent())
+                .hasSize(1)
+                .allMatch(c -> c.getPolicyNumber().equals("POL-CEL-2024-004"));
+    }
+
     private static Case caseOf(CaseStatus status, String claimCause, String policyNumber,
-                                String insuredId, String insuredName, LocalDate eventDate) {
+                                String insuredId, String insuredName, LocalDate eventDate, RiskBand riskBand) {
         return Case.builder()
                 .branch("Celulares")
                 .product("Celular Protegido Básico")
@@ -227,6 +253,7 @@ class CaseRepositorySpecificationTests extends AbstractPersistenceIT {
                 .eventDate(eventDate.atStartOfDay())
                 .eventLocation("CABA")
                 .status(status)
+                .riskBand(riskBand)
                 .build();
     }
 }
