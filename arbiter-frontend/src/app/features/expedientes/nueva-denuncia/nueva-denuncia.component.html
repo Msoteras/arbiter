@@ -17,11 +17,18 @@
   } @else {
     <!-- Stepper -->
     <div class="stepper">
-      @for (s of [1, 2, 3]; track s) {
-        <div class="step-indicator" [class.active]="step() === s" [class.done]="step() > s">
+      @for (s of steps; track s) {
+        <button
+          type="button"
+          class="step-indicator"
+          [class.active]="step() === s"
+          [class.done]="step() > s"
+          [disabled]="step() <= s"
+          [attr.aria-label]="step() > s ? 'Volver al paso ' + s : null"
+          (click)="goToStep(s)">
           <span class="step-number">{{ step() > s ? '✓' : s }}</span>
           <span class="step-label">{{ s === 1 ? 'Datos' : s === 2 ? 'Descripción' : 'Documentación' }}</span>
-        </div>
+        </button>
         @if (s < 3) {
           <div class="step-line" [class.done]="step() > s"></div>
         }

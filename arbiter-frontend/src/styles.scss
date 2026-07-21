@@ -8,6 +8,18 @@
 @use 'styles/semantic';
 @use 'styles/typography';
 
+/* Arimo — clon open-source (Apache 2.0) métricamente idéntico a Helvetica/Arial.
+   Auto-hospedado para render consistente en todo OS. Fuente variable: un solo
+   archivo cubre los pesos 400–700. Arial queda de fallback (mismas métricas → sin
+   layout shift mientras carga). */
+@font-face {
+  font-family: 'Arimo';
+  font-style: normal;
+  font-weight: 400 700;
+  font-display: swap;
+  src: url('/fonts/arimo-latin.woff2') format('woff2');
+}
+
 * { box-sizing: border-box; }
 html, body { height: 100%; }
 
@@ -32,20 +44,18 @@ a {
 /* ===== App shell ===== */
 .app-shell { min-height: 100%; }
 
+/* Barra única: marca + nav por rol + identidad, todo en una sola fila. */
 .topbar {
   position: sticky;
   top: 0;
   z-index: 30;
-  background: var(--surface);
-  border-bottom: 1px solid var(--border-default);
-}
-
-.topbar-row {
   display: flex;
   align-items: center;
   gap: var(--space-3);
-  height: 52px;
+  min-height: 52px;
   padding: 0 var(--space-5);
+  background: var(--surface);
+  border-bottom: 1px solid var(--border-default);
 }
 .topbar .logo {
   font-weight: var(--font-weight-bold);
@@ -57,32 +67,13 @@ a {
   color: var(--text-tertiary);
 }
 .topbar-title { font-size: var(--font-size-body); color: var(--text-tertiary); }
-.who {
-  margin-left: auto;
-  display: flex;
-  align-items: center;
-  gap: var(--space-2);
-  font-size: var(--font-size-sm);
-  color: var(--text-muted);
-}
-.link-btn {
-  border: none;
-  background: none;
-  cursor: pointer;
-  padding: 0;
-  font-size: var(--font-size-sm);
-  color: var(--text-tertiary);
-  text-decoration: underline;
-}
 
-/* Nav horizontal: reemplaza la sidebar vertical (pedido de UX). */
+/* Nav horizontal por rol: reemplaza la sidebar vertical (pedido de UX). */
 .topnav {
   display: flex;
   align-items: center;
   gap: var(--space-1);
-  padding: var(--space-2) var(--space-5);
   overflow-x: auto;
-  border-top: 1px solid var(--border-subtle);
 }
 .topnav a {
   display: inline-block;
@@ -97,9 +88,91 @@ a {
 .topnav a.active { background: var(--surface-head); color: var(--text-primary); font-weight: var(--font-weight-medium); }
 .topnav a.disabled { color: var(--text-muted); cursor: default; }
 .topnav a.disabled:hover { background: none; color: var(--text-muted); }
-.topnav a.dev-link { margin-left: auto; color: var(--text-muted); font-size: var(--font-size-sm); }
+
+/* Bloque derecho: link de dev + identidad del usuario. */
+.topbar-end {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+}
+.dev-link {
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--radius-ctl);
+  text-decoration: none;
+  color: var(--text-muted);
+  font-size: var(--font-size-sm);
+  white-space: nowrap;
+}
+.dev-link:hover { background: var(--surface-sunken); color: var(--text-primary); }
+.dev-link.active { color: var(--text-primary); }
+
+/* Campana de notificaciones + indicador de "sin leer". */
+.bell {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  height: 34px;
+  padding: 0;
+  border: none;
+  border-radius: var(--radius-ctl);
+  background: none;
+  color: var(--text-tertiary);
+  cursor: pointer;
+}
+.bell:hover { background: var(--surface-sunken); color: var(--text-primary); }
+.bell svg { width: 20px; height: 20px; }
+/* Punto de estado: usa el rol semántico de "info" (algo nuevo), recortado sobre la barra. */
+.bell-dot {
+  position: absolute;
+  top: 5px;
+  right: 5px;
+  width: 8px;
+  height: 8px;
+  border-radius: var(--radius-pill);
+  background: var(--status-info);
+  border: 2px solid var(--surface);
+}
+.who {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  font-size: var(--font-size-sm);
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+.link-btn {
+  border: none;
+  background: none;
+  cursor: pointer;
+  padding: 0;
+  /* Los <button> no heredan font-family: sin esto caen en el font del UA (Arial). */
+  font: inherit;
+  font-size: var(--font-size-sm);
+  color: var(--text-tertiary);
+  text-decoration: underline;
+}
+
+/* Cerrar sesión: acción sutil del topbar, mismo lenguaje que la nav / dev-link. */
+.logout {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  border: none;
+  background: none;
+  cursor: pointer;
+  font: inherit;
+  font-size: var(--font-size-sm);
+  color: var(--text-tertiary);
+  padding: var(--space-1) var(--space-2);
+  border-radius: var(--radius-ctl);
+}
+.logout svg { width: 15px; height: 15px; }
+.logout:hover { background: var(--surface-sunken); color: var(--text-primary); }
 
 @media (max-width: 700px) {
-  .topbar-row { height: auto; flex-wrap: wrap; padding: var(--space-2) var(--space-4); }
-  .topnav { padding: var(--space-1) var(--space-3) var(--space-2); }
+  .topbar { flex-wrap: wrap; padding: var(--space-2) var(--space-4); }
+  .topbar-title { display: none; }
 }

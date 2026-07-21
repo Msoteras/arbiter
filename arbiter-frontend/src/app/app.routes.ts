@@ -54,6 +54,15 @@ export const routes: Routes = [
       ),
   },
   {
+    path: 'portal/cases/:id/documentacion',
+    canActivate: [roleGuard],
+    data: { roles: ['ASEGURADO'] },
+    loadComponent: () =>
+      import('./features/portal/documentacion/documentacion.component').then(
+        (m) => m.DocumentacionComponent,
+      ),
+  },
+  {
     path: 'new-claim',
     canActivate: [roleGuard],
     data: { roles: ['ASEGURADO'] },

@@ -4,7 +4,7 @@ import { NavigationEnd, Router, RouterLink, RouterLinkActive, RouterOutlet } fro
 import { filter, map } from 'rxjs';
 
 import { AuthSessionService } from './core/auth/auth-session.service';
-import { userRoleLabel } from './core/models/user-role';
+import { NotificationsService } from './core/notifications/notifications.service';
 
 @Component({
   selector: 'app-root',
@@ -15,6 +15,7 @@ import { userRoleLabel } from './core/models/user-role';
 export class App {
   private readonly router = inject(Router);
   protected readonly session = inject(AuthSessionService);
+  protected readonly notifications = inject(NotificationsService);
 
   private readonly currentUrl = toSignal(
     this.router.events.pipe(
@@ -38,9 +39,12 @@ export class App {
     () => this.session.session()?.rol === 'REFERENTE_ASEGURADORA',
   );
 
-  protected roleLabel(rol: string): string {
-    return userRoleLabel(rol);
-  }
+  // Campana de notificaciones: solo roles internos (analista y referente), como en el
+  // wireframe. El asegurado no la tiene.
+  protected readonly showBell = computed(() => {
+    const rol = this.session.session()?.rol;
+    return rol === 'ANALISTA_SINIESTROS' || rol === 'REFERENTE_ASEGURADORA';
+  });
 
   protected logout(): void {
     this.session.clear();

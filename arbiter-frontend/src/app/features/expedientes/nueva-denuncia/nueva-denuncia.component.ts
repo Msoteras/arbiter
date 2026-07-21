@@ -36,6 +36,7 @@ export class NuevaDenunciaComponent {
   private readonly service = inject(ExpedienteService);
   private readonly session = inject(InsuredSessionService);
 
+  protected readonly steps: Step[] = [1, 2, 3];
   protected readonly step = signal<Step>(1);
   protected readonly submitting = signal(false);
   protected readonly submitError = signal<string | null>(null);
@@ -103,6 +104,13 @@ export class NuevaDenunciaComponent {
   prev(): void {
     if (this.step() > 1) {
       this.step.update(s => (s - 1) as Step);
+    }
+  }
+
+  /** Volver a un paso ya completado tocando su número. Avanzar sigue gateado por "Continuar". */
+  goToStep(s: Step): void {
+    if (s < this.step()) {
+      this.step.set(s);
     }
   }
 

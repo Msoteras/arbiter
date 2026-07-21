@@ -109,3 +109,39 @@ export function estadoSimplificado(value: string): EstadoSimplificado {
 export function estadoSimplificadoLabel(value: string): string {
   return SIMPLIFICADO_LABELS[estadoSimplificado(value)];
 }
+
+// Título tranquilizador para el hero del seguimiento (asegurado). Copy orientado a
+// la persona, no a la jerga interna — el detalle técnico vive en estadoLabel.
+const TITULOS_ASEGURADO: Record<CaseStatus, string> = {
+  PENDING_CLASSIFICATION: 'Recibimos tu denuncia',
+  PENDING_ANALYST_REVIEW: 'Tu expediente está en análisis',
+  CLASSIFICATION_FAILED: 'Tu expediente está en análisis',
+  AWAITING_DOCUMENTATION: 'Necesitamos algo de tu parte',
+  APPROVED: 'Tu siniestro fue aprobado',
+  REJECTED: 'Tu siniestro fue rechazado',
+};
+
+export function estadoTituloAsegurado(value: string): string {
+  return (TITULOS_ASEGURADO as Record<string, string>)[value] ?? 'Seguimiento de tu expediente';
+}
+
+// Subtítulo asegurado-safe: NUNCA menciona la clasificación del modelo, el análisis
+// automático ni estados técnicos internos (ver [[project-asegurado-vs-analista-visibility]]).
+// El asegurado no debe enterarse del pipeline de IA ni del scoring de fraude; solo qué
+// pasa con su caso en lenguaje llano. El detalle técnico vive en estadoDescripcion (analista).
+const DESCRIPCIONES_ASEGURADO: Record<CaseStatus, string> = {
+  PENDING_CLASSIFICATION:
+    'Recibimos tu denuncia y la estamos procesando. En breve un analista la revisa.',
+  PENDING_ANALYST_REVIEW:
+    'Un analista está revisando tu caso. Te avisamos ni bien haya novedades.',
+  CLASSIFICATION_FAILED:
+    'Estamos procesando tu caso. No hace falta que hagas nada por ahora.',
+  AWAITING_DOCUMENTATION:
+    'Necesitamos que subas la documentación faltante para poder continuar.',
+  APPROVED: 'Tu siniestro fue aprobado. Vas a recibir el detalle por correo electrónico.',
+  REJECTED: 'Tu siniestro fue rechazado. Vas a recibir los motivos por correo electrónico.',
+};
+
+export function estadoDescripcionAsegurado(value: string): string {
+  return (DESCRIPCIONES_ASEGURADO as Record<string, string>)[value] ?? '';
+}
