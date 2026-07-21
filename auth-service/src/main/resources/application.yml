@@ -20,12 +20,18 @@ spring:
 
 arbiter:
   auth:
+    provider: ${AUTH_PROVIDER:database}
     jwt:
       secret: ${JWT_SECRET:}
       expiration-minutes: ${JWT_EXPIRATION_MINUTES:60}
     login:
       max-failed-attempts: 5
       lockout-minutes: 15
+    auth0:
+      domain: ${AUTH0_DOMAIN:}
+      client-id: ${AUTH0_LOGIN_CLIENT_ID:}
+      client-secret: ${AUTH0_LOGIN_CLIENT_SECRET:}
+      connection: Username-Password-Authentication
 
 springdoc:
   api-docs:

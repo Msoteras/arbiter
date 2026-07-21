@@ -5,21 +5,29 @@ import ar.edu.utn.frba.arbiter.auth.exceptions.AccountLockedException;
 import ar.edu.utn.frba.arbiter.auth.exceptions.InvalidCredentialsException;
 import ar.edu.utn.frba.arbiter.auth.models.entities.User;
 import ar.edu.utn.frba.arbiter.auth.models.repositories.UserRepository;
+import com.auth0.client.auth.AuthAPI;
+import com.auth0.exception.Auth0Exception;
 import lombok.RequiredArgsConstructor;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
-import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Component;
 
 import java.time.Duration;
 import java.time.Instant;
 
+/**
+ * Validates credentials against Auth0 (Resource Owner Password Grant, "password-realm" against
+ * the Username-Password-Authentication connection) instead of our own bcrypt hash. The account
+ * lockout counters stay local (Auth0 never sees them): this class is the only thing that changes
+ * vs {@link DatabaseCredentialsAuthenticator} — AuthController/AuthService/JwtService don't.
+ * Profile fields (rol, sector, insuredId) live in our own User row, not in Auth0.
+ */
 @Component
-@ConditionalOnProperty(prefix = "arbiter.auth", name = "provider", havingValue = "database", matchIfMissing = true)
+@ConditionalOnProperty(prefix = "arbiter.auth", name = "provider", havingValue = "auth0")
 @RequiredArgsConstructor
-public class DatabaseCredentialsAuthenticator implements CredentialsAuthenticator {
+public class Auth0Adapter implements CredentialsAuthenticator {
 
+    private final AuthAPI auth0AuthApi;
     private final UserRepository userRepository;
-    private final PasswordEncoder passwordEncoder;
     private final AuthProperties properties;
 
     @Override
@@ -30,7 +38,9 @@ public class DatabaseCredentialsAuthenticator implements CredentialsAuthenticato
             throw new AccountLockedException(user.getLockedUntil());
         }
 
-        if (!passwordEncoder.matches(rawPassword, user.getPasswordHash())) {
+        try {
+            auth0AuthApi.login(email, rawPassword.toCharArray(), properties.auth0().connection()).execute();
+        } catch (Auth0Exception e) {
             registerFailedAttempt(user);
             throw new InvalidCredentialsException();
         }

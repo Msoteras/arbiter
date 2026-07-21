@@ -53,3 +53,6 @@ arbiter-frontend/dist/
 .agents/
 .claude/
 skills-lock.json
+
+### Secretos locales ###
+.env
