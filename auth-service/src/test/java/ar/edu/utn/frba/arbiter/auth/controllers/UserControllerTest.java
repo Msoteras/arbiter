@@ -50,7 +50,7 @@ class UserControllerTest extends AbstractPersistenceIT {
         userRepository.deleteAll();
 
         referenteId = userRepository.save(User.builder()
-                .email("referente.test@arbiter.test")
+                .email("referente.test@gmail.com")
                 .passwordHash(passwordEncoder.encode("changeme123"))
                 .nombre("Sofía")
                 .apellido("Martínez")
@@ -58,7 +58,7 @@ class UserControllerTest extends AbstractPersistenceIT {
                 .build()).getId();
 
         analistaId = userRepository.save(User.builder()
-                .email("analista.test@arbiter.test")
+                .email("analista.test@gmail.com")
                 .passwordHash(passwordEncoder.encode("changeme123"))
                 .nombre("Lucas")
                 .apellido("Gómez")
@@ -81,55 +81,55 @@ class UserControllerTest extends AbstractPersistenceIT {
     void createUser_withoutToken_returns401() throws Exception {
         mockMvc.perform(post("/api/v1/auth/users")
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content(newAnalistaBody("primera.vez@arbiter.test")))
+                        .content(newAnalistaBody("primera.vez@gmail.com")))
                 .andExpect(status().isUnauthorized());
     }
 
     @Test
     void createUser_asAnalista_returns403() throws Exception {
-        String token = tokenFor("analista.test@arbiter.test");
+        String token = tokenFor("analista.test@gmail.com");
 
         mockMvc.perform(post("/api/v1/auth/users")
                         .header("Authorization", "Bearer " + token)
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content(newAnalistaBody("otro.mas@arbiter.test")))
+                        .content(newAnalistaBody("otro.mas@gmail.com")))
                 .andExpect(status().isForbidden());
     }
 
     @Test
     void createUser_asReferente_returns201() throws Exception {
-        String token = tokenFor("referente.test@arbiter.test");
+        String token = tokenFor("referente.test@gmail.com");
 
         mockMvc.perform(post("/api/v1/auth/users")
                         .header("Authorization", "Bearer " + token)
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content(newAnalistaBody("nueva.alta@arbiter.test")))
+                        .content(newAnalistaBody("nueva.alta@gmail.com")))
                 .andExpect(status().isCreated())
-                .andExpect(jsonPath("$.email").value("nueva.alta@arbiter.test"))
+                .andExpect(jsonPath("$.email").value("nueva.alta@gmail.com"))
                 .andExpect(jsonPath("$.rol").value("ANALISTA_SINIESTROS"));
     }
 
     @Test
     void createUser_duplicateEmail_returns409() throws Exception {
-        String token = tokenFor("referente.test@arbiter.test");
+        String token = tokenFor("referente.test@gmail.com");
 
         mockMvc.perform(post("/api/v1/auth/users")
                         .header("Authorization", "Bearer " + token)
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content(newAnalistaBody("analista.test@arbiter.test")))
+                        .content(newAnalistaBody("analista.test@gmail.com")))
                 .andExpect(status().isConflict());
     }
 
     @Test
     void createUser_roleAsegurado_returns400() throws Exception {
-        String token = tokenFor("referente.test@arbiter.test");
+        String token = tokenFor("referente.test@gmail.com");
 
         mockMvc.perform(post("/api/v1/auth/users")
                         .header("Authorization", "Bearer " + token)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
                                 {
-                                  "email": "asegurado.nuevo@arbiter.test",
+                                  "email": "asegurado.nuevo@gmail.com",
                                   "nombre": "Martina",
                                   "apellido": "Fernández",
                                   "password": "changeme123",
@@ -148,7 +148,7 @@ class UserControllerTest extends AbstractPersistenceIT {
 
     @Test
     void listUsers_asAnalista_returns403() throws Exception {
-        String token = tokenFor("analista.test@arbiter.test");
+        String token = tokenFor("analista.test@gmail.com");
 
         mockMvc.perform(get("/api/v1/auth/users").header("Authorization", "Bearer " + token))
                 .andExpect(status().isForbidden());
@@ -156,13 +156,13 @@ class UserControllerTest extends AbstractPersistenceIT {
 
     @Test
     void listUsers_asReferente_returns200WithBothSeededUsers() throws Exception {
-        String token = tokenFor("referente.test@arbiter.test");
+        String token = tokenFor("referente.test@gmail.com");
 
         mockMvc.perform(get("/api/v1/auth/users").header("Authorization", "Bearer " + token))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.length()").value(2))
                 .andExpect(jsonPath("$[*].email").value(org.hamcrest.Matchers.containsInAnyOrder(
-                        "referente.test@arbiter.test", "analista.test@arbiter.test")));
+                        "referente.test@gmail.com", "analista.test@gmail.com")));
     }
 
     @Test
@@ -177,7 +177,7 @@ class UserControllerTest extends AbstractPersistenceIT {
 
     @Test
     void updateRole_asAnalista_returns403() throws Exception {
-        String token = tokenFor("analista.test@arbiter.test");
+        String token = tokenFor("analista.test@gmail.com");
 
         mockMvc.perform(put("/api/v1/auth/users/" + referenteId + "/role")
                         .header("Authorization", "Bearer " + token)
@@ -190,7 +190,7 @@ class UserControllerTest extends AbstractPersistenceIT {
 
     @Test
     void updateRole_promoteAnalistaToReferente_returns200() throws Exception {
-        String token = tokenFor("referente.test@arbiter.test");
+        String token = tokenFor("referente.test@gmail.com");
 
         mockMvc.perform(put("/api/v1/auth/users/" + analistaId + "/role")
                         .header("Authorization", "Bearer " + token)
@@ -204,7 +204,7 @@ class UserControllerTest extends AbstractPersistenceIT {
 
     @Test
     void updateRole_ownAccount_returns400() throws Exception {
-        String token = tokenFor("referente.test@arbiter.test");
+        String token = tokenFor("referente.test@gmail.com");
 
         mockMvc.perform(put("/api/v1/auth/users/" + referenteId + "/role")
                         .header("Authorization", "Bearer " + token)
@@ -217,7 +217,7 @@ class UserControllerTest extends AbstractPersistenceIT {
 
     @Test
     void updateRole_unknownUser_returns404() throws Exception {
-        String token = tokenFor("referente.test@arbiter.test");
+        String token = tokenFor("referente.test@gmail.com");
 
         mockMvc.perform(put("/api/v1/auth/users/999999/role")
                         .header("Authorization", "Bearer " + token)
@@ -236,7 +236,7 @@ class UserControllerTest extends AbstractPersistenceIT {
 
     @Test
     void deleteUser_asAnalista_returns403() throws Exception {
-        String token = tokenFor("analista.test@arbiter.test");
+        String token = tokenFor("analista.test@gmail.com");
 
         mockMvc.perform(delete("/api/v1/auth/users/" + referenteId)
                         .header("Authorization", "Bearer " + token))
@@ -245,7 +245,7 @@ class UserControllerTest extends AbstractPersistenceIT {
 
     @Test
     void deleteUser_asReferente_returns204AndRemovesUser() throws Exception {
-        String token = tokenFor("referente.test@arbiter.test");
+        String token = tokenFor("referente.test@gmail.com");
 
         mockMvc.perform(delete("/api/v1/auth/users/" + analistaId)
                         .header("Authorization", "Bearer " + token))
@@ -256,7 +256,7 @@ class UserControllerTest extends AbstractPersistenceIT {
 
     @Test
     void deleteUser_ownAccount_returns400() throws Exception {
-        String token = tokenFor("referente.test@arbiter.test");
+        String token = tokenFor("referente.test@gmail.com");
 
         mockMvc.perform(delete("/api/v1/auth/users/" + referenteId)
                         .header("Authorization", "Bearer " + token))
@@ -265,7 +265,7 @@ class UserControllerTest extends AbstractPersistenceIT {
 
     @Test
     void deleteUser_unknownUser_returns404() throws Exception {
-        String token = tokenFor("referente.test@arbiter.test");
+        String token = tokenFor("referente.test@gmail.com");
 
         mockMvc.perform(delete("/api/v1/auth/users/999999")
                         .header("Authorization", "Bearer " + token))

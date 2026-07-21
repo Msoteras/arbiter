@@ -24,11 +24,13 @@ public class UserService {
     private final UserRepository userRepository;
     private final PasswordEncoder passwordEncoder;
     private final Optional<Auth0UserProvisioner> auth0UserProvisioner;
+    private final EmailDomainValidator emailDomainValidator;
 
     public UserResponse createUser(CreateUserRequest request) {
         if (request.rol() != UserRole.ANALISTA_SINIESTROS) {
             throw new RoleNotAllowedException(request.rol());
         }
+        emailDomainValidator.validate(request.email());
         if (userRepository.findByEmail(request.email()).isPresent()) {
             throw new EmailAlreadyExistsException(request.email());
         }

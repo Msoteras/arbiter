@@ -47,4 +47,9 @@ public class AuthExceptionHandler {
     public ProblemDetail handleAuth0Provisioning(Auth0ProvisioningException ex) {
         return ProblemDetail.forStatusAndDetail(HttpStatusCode.valueOf(502), ex.getMessage());
     }
+
+    @ExceptionHandler(InvalidEmailDomainException.class)
+    public ProblemDetail handleInvalidEmailDomain(InvalidEmailDomainException ex) {
+        return ProblemDetail.forStatusAndDetail(HttpStatusCode.valueOf(400), ex.getMessage());
+    }
 }

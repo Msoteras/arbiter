@@ -132,11 +132,13 @@ CREATE TABLE classification_log (
 -- password_hash queda fijo/sin uso real: con AUTH_PROVIDER=auth0 el login valida contra Auth0,
 -- no contra este hash (columna NOT NULL, se completa igual). Las contraseñas reales están
 -- cargadas en el tenant de Auth0 con la convención '<rol>.arbiter123' (ej. analista.arbiter123).
+-- Los emails usan un dominio real (gmail.com) porque el alta valida registros MX —
+-- .test (RFC 2606) nunca resuelve, por eso no se usa más acá.
 INSERT INTO users (id, email, password_hash, nombre, apellido, rol, sector, fecha_ingreso)
 VALUES
-    (2, 'analista@arbiter.test', '$2a$10$/hsOFJuuoiB23a3Gr.zgYO9UuOSopLRsiiu37CMAIIL1yMFr8EGlq',
+    (2, 'analista.arbiter@gmail.com', '$2a$10$/hsOFJuuoiB23a3Gr.zgYO9UuOSopLRsiiu37CMAIIL1yMFr8EGlq',
      'Lucas', 'Gómez', 'ANALISTA_SINIESTROS', 'Siniestros Celulares', '2024-03-01'),
-    (3, 'referente@arbiter.test', '$2a$10$/hsOFJuuoiB23a3Gr.zgYO9UuOSopLRsiiu37CMAIIL1yMFr8EGlq',
+    (3, 'referente.arbiter@gmail.com', '$2a$10$/hsOFJuuoiB23a3Gr.zgYO9UuOSopLRsiiu37CMAIIL1yMFr8EGlq',
      'Sofía', 'Martínez', 'REFERENTE_ASEGURADORA', 'Administración', '2022-06-15');
 
 SELECT setval('users_id_seq', (SELECT MAX(id) FROM users));

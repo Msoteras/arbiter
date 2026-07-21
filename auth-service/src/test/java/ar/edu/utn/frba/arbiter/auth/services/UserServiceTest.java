@@ -39,6 +39,9 @@ class UserServiceTest {
     @Mock
     private Auth0UserProvisioner auth0UserProvisioner;
 
+    @Mock
+    private EmailDomainValidator emailDomainValidator;
+
     private UserService userService;
 
     private CreateUserRequest analistaRequest() {
@@ -49,7 +52,7 @@ class UserServiceTest {
 
     @Test
     void createUser_validRequest_hashesPasswordAndPersists() {
-        userService = new UserService(userRepository, passwordEncoder, Optional.empty());
+        userService = new UserService(userRepository, passwordEncoder, Optional.empty(), emailDomainValidator);
         when(userRepository.findByEmail("nuevo.analista@arbiter.test")).thenReturn(Optional.empty());
         when(passwordEncoder.encode("changeme123")).thenReturn("hashed-value");
         when(userRepository.save(any(User.class))).thenAnswer(inv -> {
@@ -71,7 +74,7 @@ class UserServiceTest {
 
     @Test
     void createUser_duplicateEmail_throwsEmailAlreadyExists() {
-        userService = new UserService(userRepository, passwordEncoder, Optional.empty());
+        userService = new UserService(userRepository, passwordEncoder, Optional.empty(), emailDomainValidator);
         when(userRepository.findByEmail("nuevo.analista@arbiter.test"))
                 .thenReturn(Optional.of(User.builder().id(1L).build()));
 
@@ -81,7 +84,7 @@ class UserServiceTest {
 
     @Test
     void createUser_roleOtherThanAnalista_throwsRoleNotAllowed() {
-        userService = new UserService(userRepository, passwordEncoder, Optional.empty());
+        userService = new UserService(userRepository, passwordEncoder, Optional.empty(), emailDomainValidator);
         CreateUserRequest request = new CreateUserRequest(
                 "asegurado@arbiter.test", "Martina", "Fernández", "changeme123",
                 UserRole.ASEGURADO, "N/A", null);
@@ -91,8 +94,20 @@ class UserServiceTest {
     }
 
     @Test
+    void createUser_invalidEmailDomain_throwsInvalidEmailDomainAndNeverPersists() {
+        userService = new UserService(userRepository, passwordEncoder, Optional.empty(), emailDomainValidator);
+        org.mockito.Mockito.doThrow(new ar.edu.utn.frba.arbiter.auth.exceptions.InvalidEmailDomainException("nuevo.analista@arbiter.test"))
+                .when(emailDomainValidator).validate("nuevo.analista@arbiter.test");
+
+        assertThatThrownBy(() -> userService.createUser(analistaRequest()))
+                .isInstanceOf(ar.edu.utn.frba.arbiter.auth.exceptions.InvalidEmailDomainException.class);
+
+        verify(userRepository, org.mockito.Mockito.never()).save(any());
+    }
+
+    @Test
     void createUser_auth0ProviderConfigured_alsoProvisionsInAuth0() {
-        userService = new UserService(userRepository, passwordEncoder, Optional.of(auth0UserProvisioner));
+        userService = new UserService(userRepository, passwordEncoder, Optional.of(auth0UserProvisioner), emailDomainValidator);
         when(userRepository.findByEmail("nuevo.analista@arbiter.test")).thenReturn(Optional.empty());
         when(passwordEncoder.encode("changeme123")).thenReturn("hashed-value");
         when(userRepository.save(any(User.class))).thenAnswer(inv -> {
@@ -109,7 +124,7 @@ class UserServiceTest {
 
     @Test
     void createUser_auth0ProvisioningFails_rollsBackLocalUser() {
-        userService = new UserService(userRepository, passwordEncoder, Optional.of(auth0UserProvisioner));
+        userService = new UserService(userRepository, passwordEncoder, Optional.of(auth0UserProvisioner), emailDomainValidator);
         when(userRepository.findByEmail("nuevo.analista@arbiter.test")).thenReturn(Optional.empty());
         when(passwordEncoder.encode("changeme123")).thenReturn("hashed-value");
         when(userRepository.save(any(User.class))).thenAnswer(inv -> {
@@ -130,7 +145,7 @@ class UserServiceTest {
 
     @Test
     void updateRole_validTarget_changesRole() {
-        userService = new UserService(userRepository, passwordEncoder, Optional.empty());
+        userService = new UserService(userRepository, passwordEncoder, Optional.empty(), emailDomainValidator);
         User target = User.builder().id(7L).email("analista.test@arbiter.test").rol(UserRole.ANALISTA_SINIESTROS).build();
         when(userRepository.findById(7L)).thenReturn(Optional.of(target));
         when(userRepository.save(any(User.class))).thenAnswer(inv -> inv.getArgument(0));
@@ -142,7 +157,7 @@ class UserServiceTest {
 
     @Test
     void updateRole_ownAccount_throwsCannotChangeOwnRole() {
-        userService = new UserService(userRepository, passwordEncoder, Optional.empty());
+        userService = new UserService(userRepository, passwordEncoder, Optional.empty(), emailDomainValidator);
         User self = User.builder().id(3L).email("referente@arbiter.test").rol(UserRole.REFERENTE_ASEGURADORA).build();
         when(userRepository.findById(3L)).thenReturn(Optional.of(self));
 
@@ -152,7 +167,7 @@ class UserServiceTest {
 
     @Test
     void updateRole_unknownUser_throwsUserNotFound() {
-        userService = new UserService(userRepository, passwordEncoder, Optional.empty());
+        userService = new UserService(userRepository, passwordEncoder, Optional.empty(), emailDomainValidator);
         when(userRepository.findById(999L)).thenReturn(Optional.empty());
 
         assertThatThrownBy(() -> userService.updateRole(999L, UserRole.ASEGURADO, "referente@arbiter.test"))
@@ -161,7 +176,7 @@ class UserServiceTest {
 
     @Test
     void deleteUser_validTarget_deletesIt() {
-        userService = new UserService(userRepository, passwordEncoder, Optional.empty());
+        userService = new UserService(userRepository, passwordEncoder, Optional.empty(), emailDomainValidator);
         User target = User.builder().id(7L).email("analista.test@arbiter.test").rol(UserRole.ANALISTA_SINIESTROS).build();
         when(userRepository.findById(7L)).thenReturn(Optional.of(target));
 
@@ -172,7 +187,7 @@ class UserServiceTest {
 
     @Test
     void deleteUser_ownAccount_throwsCannotDeleteOwnAccount() {
-        userService = new UserService(userRepository, passwordEncoder, Optional.empty());
+        userService = new UserService(userRepository, passwordEncoder, Optional.empty(), emailDomainValidator);
         User self = User.builder().id(3L).email("referente@arbiter.test").rol(UserRole.REFERENTE_ASEGURADORA).build();
         when(userRepository.findById(3L)).thenReturn(Optional.of(self));
 
@@ -182,7 +197,7 @@ class UserServiceTest {
 
     @Test
     void deleteUser_unknownUser_throwsUserNotFound() {
-        userService = new UserService(userRepository, passwordEncoder, Optional.empty());
+        userService = new UserService(userRepository, passwordEncoder, Optional.empty(), emailDomainValidator);
         when(userRepository.findById(999L)).thenReturn(Optional.empty());
 
         assertThatThrownBy(() -> userService.deleteUser(999L, "referente@arbiter.test"))
@@ -191,7 +206,7 @@ class UserServiceTest {
 
     @Test
     void deleteUser_auth0ProviderConfigured_alsoDeletesFromAuth0() {
-        userService = new UserService(userRepository, passwordEncoder, Optional.of(auth0UserProvisioner));
+        userService = new UserService(userRepository, passwordEncoder, Optional.of(auth0UserProvisioner), emailDomainValidator);
         User target = User.builder().id(7L).email("analista.test@arbiter.test").rol(UserRole.ANALISTA_SINIESTROS).build();
         when(userRepository.findById(7L)).thenReturn(Optional.of(target));
 
@@ -203,7 +218,7 @@ class UserServiceTest {
 
     @Test
     void deleteUser_auth0DeletionFails_doesNotDeleteLocalUser() {
-        userService = new UserService(userRepository, passwordEncoder, Optional.of(auth0UserProvisioner));
+        userService = new UserService(userRepository, passwordEncoder, Optional.of(auth0UserProvisioner), emailDomainValidator);
         User target = User.builder().id(7L).email("analista.test@arbiter.test").rol(UserRole.ANALISTA_SINIESTROS).build();
         when(userRepository.findById(7L)).thenReturn(Optional.of(target));
         Auth0ProvisioningException failure = new Auth0ProvisioningException("borrar", "analista.test@arbiter.test", new RuntimeException("Auth0 down"));
