@@ -136,14 +136,16 @@ CREATE TABLE classification_log (
 
 -- ─── Datos de prueba: users ───────────────────────────────────────────────────
 -- Contraseña de los 3: changeme123 (hash BCrypt real, generado con BCryptPasswordEncoder)
-INSERT INTO users (id, email, password_hash, nombre, apellido, rol, sector, fecha_ingreso)
+INSERT INTO users (id, email, password_hash, nombre, apellido, rol, sector, fecha_ingreso, insured_id)
 VALUES
+    -- El asegurado queda vinculado a su DNI: el portal lo saca del login, sin pedirlo.
+    -- 42.987.654 matchea sus casos seedeados y sus pólizas mock (BBVA + Zurich).
     (1, 'asegurado@arbiter.test', '$2a$10$/hsOFJuuoiB23a3Gr.zgYO9UuOSopLRsiiu37CMAIIL1yMFr8EGlq',
-     'Martina', 'Fernández', 'ASEGURADO', NULL, NULL),
+     'Martina', 'Fernández', 'ASEGURADO', NULL, NULL, '42.987.654'),
     (2, 'analista@arbiter.test', '$2a$10$/hsOFJuuoiB23a3Gr.zgYO9UuOSopLRsiiu37CMAIIL1yMFr8EGlq',
-     'Lucas', 'Gómez', 'ANALISTA_SINIESTROS', 'Siniestros Celulares', '2024-03-01'),
+     'Lucas', 'Gómez', 'ANALISTA_SINIESTROS', 'Siniestros Celulares', '2024-03-01', NULL),
     (3, 'referente@arbiter.test', '$2a$10$/hsOFJuuoiB23a3Gr.zgYO9UuOSopLRsiiu37CMAIIL1yMFr8EGlq',
-     'Sofía', 'Martínez', 'REFERENTE_ASEGURADORA', 'Administración', '2022-06-15');
+     'Sofía', 'Martínez', 'REFERENTE_ASEGURADORA', 'Administración', '2022-06-15', NULL);
 
 SELECT setval('users_id_seq', (SELECT MAX(id) FROM users));
 

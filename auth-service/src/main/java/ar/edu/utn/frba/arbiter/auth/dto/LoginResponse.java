@@ -10,5 +10,8 @@ public record LoginResponse(
         String email,
         UserRole rol,
         String nombre,
-        String apellido
+        String apellido,
+        /** DNI del asegurado (null para analista/referente). El front lo usa para el portal
+            sin volver a pedirlo — ver User.insuredId. */
+        String insuredId
 ) {}
