@@ -61,6 +61,9 @@ CREATE TABLE cases (
     event_date              TIMESTAMP(6) NOT NULL,
     event_location          VARCHAR(255) NOT NULL,
     claimed_amount          NUMERIC(38,2),
+    pep                     BOOLEAN      NOT NULL DEFAULT FALSE,
+    contact_email           VARCHAR(255),
+    contact_phone           VARCHAR(50),
     status                  VARCHAR(40)  NOT NULL,
     analysis_classification VARCHAR(40),
     analysis_confidence     DOUBLE PRECISION,
@@ -140,8 +143,9 @@ INSERT INTO users (id, email, password_hash, nombre, apellido, rol, sector, fech
 VALUES
     -- El asegurado queda vinculado a su DNI: el portal lo saca del login, sin pedirlo.
     -- 42.987.654 matchea sus casos seedeados y sus pólizas mock (BBVA + Zurich).
+    -- Mismo nombre que en la BD aseguradora (datos-aseguradoras.sql, documento 42.987.654)
     (1, 'asegurado@arbiter.test', '$2a$10$/hsOFJuuoiB23a3Gr.zgYO9UuOSopLRsiiu37CMAIIL1yMFr8EGlq',
-     'Martina', 'Fernández', 'ASEGURADO', NULL, NULL, '42.987.654'),
+     'Martina', 'Soteras', 'ASEGURADO', NULL, NULL, '42.987.654'),
     (2, 'analista@arbiter.test', '$2a$10$/hsOFJuuoiB23a3Gr.zgYO9UuOSopLRsiiu37CMAIIL1yMFr8EGlq',
      'Lucas', 'Gómez', 'ANALISTA_SINIESTROS', 'Siniestros Celulares', '2024-03-01', NULL),
     (3, 'referente@arbiter.test', '$2a$10$/hsOFJuuoiB23a3Gr.zgYO9UuOSopLRsiiu37CMAIIL1yMFr8EGlq',
@@ -152,6 +156,7 @@ SELECT setval('users_id_seq', (SELECT MAX(id) FROM users));
 -- ─── Datos de prueba: cases ──────────────────────────────────────────────────
 INSERT INTO cases (id, branch, product, claim_cause, insured_item, insured_id, insured_name, policy_number,
                    description, event_date, event_location, claimed_amount,
+                   pep, contact_email, contact_phone,
                    status, analysis_classification, analysis_confidence, analysis_detail,
                    deterministic_fast_track, risk_score, risk_band, risk_breakdown,
                    manual_adjustment_note, classification_attempts)
@@ -161,6 +166,7 @@ VALUES
      'Samsung Galaxy S25 Ultra', '42.987.654', 'Sofía Martínez', 'POL-CEL-2026-042',
      'Se me cayó el celular de las manos en mi casa. Se rompió la pantalla pero el equipo funciona normalmente',
      '2026-06-14 08:30:00', 'Casa', 285000.00,
+     FALSE, 'martina.soteras@example.com', '11-5555-0001',
      'PENDING_ANALYST_REVIEW', 'FAST_TRACK', 1.0,
      'Monto reclamado (21.9% de la suma asegurada) dentro del límite de Fast Track (50.0%), Póliza al día con sus pagos',
      TRUE,
@@ -173,6 +179,7 @@ VALUES
      'iPhone 16 Pro Max', '30.555.777', 'Marcelo Gómez', 'POL-CEL-2025-099',
      'Me robaron el celular pero no me acuerdo bien dónde ni cuándo. Fue el martes o miércoles pasado, creo que cerca de Palermo',
      '2026-06-10 23:00:00', 'Palermo o Belgrano (no precisa)', 950000.00,
+     FALSE, 'julian.perez@example.com', '11-5555-0002',
      'PENDING_ANALYST_REVIEW', 'LLM_NO_RECOMIENDA_APROBAR', 0.95,
      'Más de 2 claims en los últimos 12 meses: el asegurado tiene 3 claims previos (Nov 2025, Feb 2026 y Abr 2026). La descripción del incidente presenta inconsistencias con el reporte policial.',
      FALSE,
@@ -185,6 +192,7 @@ VALUES
      'Samsung Galaxy A50', '44655366', NULL, '2030405',
      'Estaba saliendo de la facultad y me robaron desde una moto.',
      '2026-06-30 00:00:00', 'Medrano 951', 120000.00,
+     FALSE, 'lucas.martinez@example.com', '11-5555-0003',
      'AWAITING_DOCUMENTATION', 'FALTA_DOCUMENTACION', 1.0,
      'Falta documento requerido: police_report, Falta documento requerido: item_photo',
      FALSE, NULL, NULL, NULL, NULL, 0),
@@ -194,6 +202,7 @@ VALUES
      'iPhone 16 Pro', '42.987.654', 'Sofía Martínez', 'POL-CEL-2026-042',
      'El celular desapareció pero no sé si me lo robaron o lo perdí. No estoy seguro qué pasó exactamente',
      '2026-06-12 18:30:00', 'Colectivo línea 159', 1200000.00,
+     FALSE, 'martina.soteras@example.com', '11-5555-0001',
      'AWAITING_DOCUMENTATION', 'FALTA_DOCUMENTACION', 1.0,
      'Falta documento requerido: item_photo',
      FALSE,
@@ -206,6 +215,7 @@ VALUES
      'iPhone 16 Pro', '42.987.654', NULL, 'POL-CEL-2026-042',
      'El celular desapareció pero no sé si me lo robaron o lo perdí. No estoy seguro qué pasó exactamente',
      '2026-06-12 18:30:00', 'Colectivo línea 159', 1200000.00,
+     FALSE, 'martina.soteras@example.com', '11-5555-0001',
      'PENDING_CLASSIFICATION', NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, 0);
 
 -- Resetear la secuencia para que el próximo INSERT use id=6

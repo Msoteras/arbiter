@@ -1,4 +1,4 @@
-import { ChangeDetectionStrategy, Component, inject, signal, computed } from '@angular/core';
+import { ChangeDetectionStrategy, Component, effect, inject, signal, computed } from '@angular/core';
 import { toSignal } from '@angular/core/rxjs-interop';
 import { Router, RouterLink } from '@angular/router';
 import { catchError, map, of, startWith } from 'rxjs';
@@ -87,6 +87,15 @@ export class NuevaDenunciaComponent {
     () => this.policies().find((p) => p.policyNumber === this.selectedPolicyNumber()) ?? null,
   );
 
+  private readonly autofillEffect = effect(() => {
+    const policy = this.selectedPolicy();
+    if (policy) {
+      if (policy.insuredItem) this.insuredItem.set(policy.insuredItem);
+      if (policy.contactEmail) this.contactEmail.set(policy.contactEmail);
+      if (policy.contactPhone) this.contactPhone.set(policy.contactPhone);
+    }
+  });
+
   protected readonly claimTypes: ClaimType[] = [
     { key: 'robo', label: 'Robo', claimCause: 'Robo en vía pública' },
     { key: 'hurto', label: 'Hurto', claimCause: 'Hurto' },
@@ -105,10 +114,13 @@ export class NuevaDenunciaComponent {
   protected readonly calleNumero = signal('');
   protected readonly entreCalles = signal('');
   protected readonly eventDate = signal('');
+  protected readonly eventTime = signal('');
   protected readonly claimedAmount = signal<string>('');
+  protected readonly pep = signal(false);
+  protected readonly contactEmail = signal('');
+  protected readonly contactPhone = signal('');
 
-  protected readonly descCount = computed(() => this.description().length);
-  protected readonly step2Valid = computed(() => this.descCount() >= 50);
+  protected readonly step2Valid = computed(() => this.description().trim().length > 0);
 
   // Step 3
   protected readonly docSlots = signal<DocSlot[]>([
@@ -186,9 +198,12 @@ export class NuevaDenunciaComponent {
       insuredId: policy.insuredId,
       policyNumber: policy.policyNumber,
       description: this.description(),
-      eventDate: this.eventDate() + 'T00:00:00',
+      eventDate: this.eventDate() + 'T' + (this.eventTime() || '00:00') + ':00',
       eventLocation: this.buildEventLocation(),
       claimedAmount: this.claimedAmount() ? Number(this.claimedAmount()) : undefined,
+      pep: this.pep(),
+      contactEmail: this.contactEmail() || undefined,
+      contactPhone: this.contactPhone() || undefined,
     };
 
     const docs = new Map<string, File>();

@@ -66,6 +66,9 @@
                 <div class="policy-summary">
                   <span class="policy-tag">{{ p.insurerName }}</span>
                   <span class="policy-meta">{{ p.branch }} · {{ p.product }}</span>
+                  @if (p.insuredItem) {
+                    <span class="policy-item">{{ p.insuredItem }}</span>
+                  }
                   @if (p.upToDate) {
                     <span class="policy-ok">✓ Póliza vigente</span>
                   } @else {
@@ -98,10 +101,13 @@
         <h2 class="step-title">Contanos los detalles</h2>
 
         <label class="field-label">Bien asegurado</label>
-        <app-input placeholder="Ej: Samsung Galaxy A56" [(value)]="insuredItem" />
+        <app-input placeholder="Ej: Samsung Galaxy A56" [(value)]="insuredItem" [readonly]="!!selectedPolicy()?.insuredItem" />
 
-        <label class="field-label">Fecha del hecho</label>
-        <app-input type="date" [(value)]="eventDate" />
+        <label class="field-label">Fecha y hora del hecho</label>
+        <div class="datetime-grid">
+          <app-input type="date" [(value)]="eventDate" />
+          <app-input type="time" [(value)]="eventTime" placeholder="Hora aprox." />
+        </div>
 
         <label class="field-label">¿Dónde pasó?</label>
         <div class="location-fields">
@@ -119,10 +125,23 @@
         <label class="field-label">Descripción del hecho</label>
         <app-textarea
           [rows]="5"
-          placeholder="Describí lo que pasó con el mayor detalle posible (mínimo 50 caracteres)"
+          placeholder="Describí lo que pasó con el mayor detalle posible"
           [(value)]="description"
         />
-        <span class="char-count" [class.valid]="descCount() >= 50">{{ descCount() }} / 50</span>
+
+        <label class="field-label">Datos de contacto</label>
+        <div class="location-grid">
+          <app-input type="email" placeholder="Email" [(value)]="contactEmail" [readonly]="!!selectedPolicy()?.contactEmail" />
+          <app-input type="tel" placeholder="Teléfono" [(value)]="contactPhone" [readonly]="!!selectedPolicy()?.contactPhone" />
+        </div>
+
+        <div class="pep-field">
+          <label class="pep-label">
+            <input type="checkbox" [checked]="pep()" (change)="pep.set($any($event.target).checked)" />
+            <span>¿Sos Persona Políticamente Expuesta (PEP)?</span>
+          </label>
+          <span class="pep-note">Declaración obligatoria según normativa UIF/PLA.</span>
+        </div>
       </section>
     }
 

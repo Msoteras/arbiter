@@ -109,8 +109,46 @@ app-textarea { display: block; }
   color: var(--text-secondary);
 }
 .policy-meta { color: var(--text-tertiary); }
+.policy-item { color: var(--text-secondary); }
 .policy-ok { color: var(--status-ok); }
 .policy-warn { color: var(--status-warning); }
+
+
+.datetime-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--space-3);
+}
+
+.pep-field {
+  margin-top: var(--space-5);
+  padding: var(--space-3) var(--space-4);
+  border: 1px solid var(--border-control);
+  border-radius: var(--radius-card);
+  background: var(--surface-soft);
+}
+.pep-label {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  font-size: var(--font-size-body);
+  color: var(--text-primary);
+  cursor: pointer;
+
+  input[type="checkbox"] {
+    width: 18px;
+    height: 18px;
+    accent-color: var(--accent);
+    cursor: pointer;
+  }
+}
+.pep-note {
+  display: block;
+  font-size: var(--font-size-sm);
+  color: var(--text-muted);
+  margin-top: var(--space-1);
+  padding-left: 26px;
+}
 
 .location-fields {
   display: flex;
@@ -129,15 +167,6 @@ app-textarea { display: block; }
   .location-grid { grid-template-columns: 1fr; }
 }
 
-.char-count {
-  display: block;
-  font-size: var(--font-size-sm);
-  color: var(--text-muted);
-  text-align: right;
-  margin-top: var(--space-1);
-
-  &.valid { color: var(--text-primary); font-weight: var(--font-weight-medium); }
-}
 
 /* ===== Documentación ===== */
 .doc-slot {

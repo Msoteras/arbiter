@@ -95,6 +95,9 @@ services:
       DB_USER: ${DB_USER:-arbiter}
       DB_PASSWORD: ${DB_PASSWORD:-arbiter}
       JWT_SECRET: ${JWT_SECRET:-+CV3wiE5lScQGEx1PvKLNuWmaqxixDsm8EIFifgfq8thgguF84p+GI10Rs/1wSTl}
+      # Lee las pólizas del asegurado desde la BD Aseguradora (schema `aseguradora`) vía
+      # InsurerDatabaseAdapter. Sin el perfil, usa el MockInsurerAdapter en memoria.
+      SPRING_PROFILES_ACTIVE: ${CASES_PROFILES:-insurer-db}
     depends_on:
       classification-service:
         condition: service_started

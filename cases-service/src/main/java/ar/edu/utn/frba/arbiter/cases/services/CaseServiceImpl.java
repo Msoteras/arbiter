@@ -50,6 +50,9 @@ public class CaseServiceImpl implements CaseService {
                 .eventDate(request.eventDate())
                 .eventLocation(request.eventLocation())
                 .claimedAmount(request.claimedAmount())
+                .pep(Boolean.TRUE.equals(request.pep()))
+                .contactEmail(request.contactEmail())
+                .contactPhone(request.contactPhone())
                 .status(CaseStatus.PENDING_CLASSIFICATION)
                 .build();
 

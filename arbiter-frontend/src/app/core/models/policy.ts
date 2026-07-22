@@ -14,7 +14,10 @@ export interface Policy {
   insurerName: string;
   insuredName: string;
   insuredId: string;
+  contactEmail: string | null;
+  contactPhone: string | null;
   branch: string;
+  insuredItem: string | null;
   product: string;
   /** ISO yyyy-MM-dd. */
   effectiveFrom: string;

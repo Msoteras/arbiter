@@ -15,6 +15,9 @@ public record CaseRequest(
         @NotBlank String description,
         @NotNull LocalDateTime eventDate,
         @NotBlank String eventLocation,
-        BigDecimal claimedAmount
+        BigDecimal claimedAmount,
+        @NotNull Boolean pep,
+        String contactEmail,
+        String contactPhone
 ) {
 }
