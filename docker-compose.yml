@@ -67,6 +67,9 @@ services:
     ports:
       - "8082:8082"
     environment:
+      # Reads policies/history from the seeded "BD Aseguradora" (schema `aseguradora`)
+      # via InsurerDatabaseAdapter. Unset it to fall back to the in-memory MockInsurerAdapter.
+      SPRING_PROFILES_ACTIVE: ${CLASSIFICATION_PROFILES:-insurer-db}
       OLLAMA_BASE_URL: http://ollama:11434
       OLLAMA_MODEL: ${OLLAMA_MODEL:-qwen3-vl}
       DB_URL: jdbc:postgresql://postgres:5432/${DB_NAME:-arbiter}
