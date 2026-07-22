@@ -59,7 +59,7 @@ export class NuevaDenunciaComponent {
   private readonly insuredId = this.session.insuredId();
 
   // Step 1 — pólizas del asegurado (de todas las aseguradoras) para elegir.
-  protected readonly policiesState = toSignal<PoliciesState>(
+  protected readonly policiesState = toSignal(
     this.insuredId
       ? this.policyService.listByInsured(this.insuredId).pipe(
           map((list): PoliciesState => ({ status: 'ok', list })),
@@ -67,7 +67,7 @@ export class NuevaDenunciaComponent {
           catchError(() => of<PoliciesState>({ status: 'error' })),
         )
       : of<PoliciesState>({ status: 'no-identity' }),
-    { initialValue: { status: 'loading' } },
+    { initialValue: { status: 'loading' } as PoliciesState },
   );
 
   protected readonly policies = computed<Policy[]>(() => {
