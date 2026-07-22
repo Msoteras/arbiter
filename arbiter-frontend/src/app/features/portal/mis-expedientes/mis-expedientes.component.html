@@ -1,11 +1,5 @@
 <header class="page-head">
   <h1 class="t-page-title">Mis expedientes</h1>
-  @if (!needsIdentity()) {
-    <p class="who">
-      Asegurado <span class="mono">{{ session.insuredId() }}</span>
-      <button type="button" class="link-btn" (click)="session.clear()">Cambiar</button>
-    </p>
-  }
 </header>
 
 @if (needsIdentity()) {

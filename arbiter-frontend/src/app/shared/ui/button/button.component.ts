@@ -39,7 +39,7 @@ type Variant = 'primary' | 'secondary';
     .btn.primary:hover:not(:disabled) { background: var(--action-primary-bg-hover); border-color: var(--action-primary-bg-hover); }
     .btn.secondary { background: var(--action-secondary-bg); border-color: var(--action-secondary-border); color: var(--action-secondary-fg); }
     .btn.secondary:hover:not(:disabled) { border-color: var(--action-secondary-border-hover); }
-    .btn:disabled { opacity: 0.4; cursor: not-allowed; }
+    .btn:disabled { color: var(--text-muted); background: var(--surface-sunken); border-color: var(--border-subtle); cursor: default; pointer-events: none; }
   `,
 })
 export class ButtonComponent {

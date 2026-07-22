@@ -1,8 +1,10 @@
 package ar.edu.utn.frba.arbiter.cases.controllers;
 
 import ar.edu.utn.frba.arbiter.cases.dto.AnalystDecisionRequest;
+import ar.edu.utn.frba.arbiter.cases.dto.CaseDocumentResponse;
 import ar.edu.utn.frba.arbiter.cases.dto.CaseRequest;
 import ar.edu.utn.frba.arbiter.cases.dto.CaseResponse;
+import ar.edu.utn.frba.arbiter.cases.models.entities.CaseDocument;
 import ar.edu.utn.frba.arbiter.cases.services.CaseService;
 import ar.edu.utn.frba.arbiter.common.enums.CaseStatus;
 import ar.edu.utn.frba.arbiter.common.enums.RiskBand;
@@ -22,6 +24,7 @@ import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.time.LocalDate;
+import java.util.List;
 import java.util.Map;
 
 @RestController
@@ -98,6 +101,34 @@ public class CaseController {
         Page<CaseResponse> response = caseService.listCases(
                 status, claimCause, policyNumber, insuredId, eventDateFrom, eventDateTo, q, riskBand, pageable);
         return ResponseEntity.ok(response);
+    }
+
+    @GetMapping("/{caseId}/documents")
+    @PreAuthorize("isAuthenticated()")
+    @Operation(summary = "List documents for a case",
+            description = """
+                    Returns metadata for every document attached to the case: type (what
+                    the document represents — e.g. `police_report`, `invoice`, `item_photo`),
+                    filename, content type, size in bytes, and upload timestamp. Does NOT
+                    return the binary content — use the per-document download endpoint for that.
+                    """)
+    public ResponseEntity<List<CaseDocumentResponse>> listDocuments(@PathVariable Long caseId) {
+        return ResponseEntity.ok(caseService.getDocuments(caseId));
+    }
+
+    @GetMapping("/{caseId}/documents/{documentId}")
+    @PreAuthorize("isAuthenticated()")
+    @Operation(summary = "Download a document",
+            description = "Returns the binary content of a specific document attached to the case.")
+    public ResponseEntity<byte[]> downloadDocument(
+            @PathVariable Long caseId,
+            @PathVariable Long documentId
+    ) {
+        CaseDocument doc = caseService.getDocument(caseId, documentId);
+        return ResponseEntity.ok()
+                .contentType(MediaType.parseMediaType(doc.getContentType()))
+                .header("Content-Disposition", "inline; filename=\"" + doc.getFilename() + "\"")
+                .body(doc.getContent());
     }
 
     @PostMapping(value = "/{caseId}/documents", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)

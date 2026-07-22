@@ -15,23 +15,72 @@
       <app-button (click)="goToCase()">Ver mi expediente</app-button>
     </section>
   } @else {
-    <!-- Stepper -->
+    <!-- Stepper: el número deja volver a un paso ya completado. -->
     <div class="stepper">
-      @for (s of [1, 2, 3]; track s) {
-        <div class="step-indicator" [class.active]="step() === s" [class.done]="step() > s">
+      @for (s of steps; track s) {
+        <button
+          type="button"
+          class="step-indicator"
+          [class.active]="step() === s"
+          [class.done]="step() > s"
+          [disabled]="step() <= s"
+          [attr.aria-label]="step() > s ? 'Volver al paso ' + s : null"
+          (click)="goToStep(s)">
           <span class="step-number">{{ step() > s ? '✓' : s }}</span>
           <span class="step-label">{{ s === 1 ? 'Datos' : s === 2 ? 'Descripción' : 'Documentación' }}</span>
-        </div>
+        </button>
         @if (s < 3) {
           <div class="step-line" [class.done]="step() > s"></div>
         }
       }
     </div>
 
-    <!-- Step 1: Datos -->
+    <!-- Step 1: Póliza + qué pasó -->
     @if (step() === 1) {
       <section class="step-content">
-        <h2 class="step-title">¿Qué pasó?</h2>
+        <h2 class="step-title">Tu póliza</h2>
+
+        @switch (policiesState().status) {
+          @case ('loading') {
+            <p class="step-hint">Cargando tus pólizas…</p>
+          }
+          @case ('no-identity') {
+            <p class="step-hint">
+              Identificate en <a routerLink="/portal">Mis expedientes</a> para ver tus pólizas.
+            </p>
+          }
+          @case ('error') {
+            <p class="step-hint">No pudimos cargar tus pólizas. Probá de nuevo en unos minutos.</p>
+          }
+          @case ('ok') {
+            @if (policies().length === 0) {
+              <p class="step-hint">No encontramos pólizas asociadas a tu identificación.</p>
+            } @else {
+              <label class="field-label">Elegí la póliza del siniestro</label>
+              <app-select
+                [(value)]="selectedPolicyNumber"
+                [options]="policyOptions()"
+                placeholder="Seleccioná una póliza"
+              />
+              @if (selectedPolicy(); as p) {
+                <div class="policy-summary">
+                  <span class="policy-tag">{{ p.insurerName }}</span>
+                  <span class="policy-meta">{{ p.branch }} · {{ p.product }}</span>
+                  @if (p.insuredItem) {
+                    <span class="policy-item">{{ p.insuredItem }}</span>
+                  }
+                  @if (p.upToDate) {
+                    <span class="policy-ok">✓ Póliza vigente</span>
+                  } @else {
+                    <span class="policy-warn">Póliza con premios adeudados</span>
+                  }
+                </div>
+              }
+            }
+          }
+        }
+
+        <label class="field-label">¿Qué te pasó?</label>
         <div class="chips">
           @for (t of claimTypes; track t.key) {
             <button
@@ -43,17 +92,6 @@
             </button>
           }
         </div>
-
-        <label class="field-label">Póliza</label>
-        <select
-          class="field-select"
-          [ngModel]="policyNumber()"
-          (ngModelChange)="policyNumber.set($event)">
-          <option value="" disabled>Seleccioná una póliza</option>
-          @for (p of mockPolicies; track p.number) {
-            <option [value]="p.number">{{ p.label }}</option>
-          }
-        </select>
       </section>
     }
 
@@ -63,13 +101,13 @@
         <h2 class="step-title">Contanos los detalles</h2>
 
         <label class="field-label">Bien asegurado</label>
-        <app-input placeholder="Ej: Samsung Galaxy A56" [(value)]="insuredItem" />
+        <app-input placeholder="Ej: Samsung Galaxy A56" [(value)]="insuredItem" [readonly]="!!selectedPolicy()?.insuredItem" />
 
-        <label class="field-label">DNI del asegurado</label>
-        <app-input placeholder="Ej: 40123456" [(value)]="insuredId" />
-
-        <label class="field-label">Fecha del hecho</label>
-        <app-input type="date" [(value)]="eventDate" />
+        <label class="field-label">Fecha y hora del hecho</label>
+        <div class="datetime-grid">
+          <app-input type="date" [(value)]="eventDate" />
+          <app-input type="time" [(value)]="eventTime" placeholder="Hora aprox." />
+        </div>
 
         <label class="field-label">¿Dónde pasó?</label>
         <div class="location-fields">
@@ -87,10 +125,23 @@
         <label class="field-label">Descripción del hecho</label>
         <app-textarea
           [rows]="5"
-          placeholder="Describí lo que pasó con el mayor detalle posible (mínimo 50 caracteres)"
+          placeholder="Describí lo que pasó con el mayor detalle posible"
           [(value)]="description"
         />
-        <span class="char-count" [class.valid]="descCount() >= 50">{{ descCount() }} / 50</span>
+
+        <label class="field-label">Datos de contacto</label>
+        <div class="location-grid">
+          <app-input type="email" placeholder="Email" [(value)]="contactEmail" [readonly]="!!selectedPolicy()?.contactEmail" />
+          <app-input type="tel" placeholder="Teléfono" [(value)]="contactPhone" [readonly]="!!selectedPolicy()?.contactPhone" />
+        </div>
+
+        <div class="pep-field">
+          <label class="pep-label">
+            <input type="checkbox" [checked]="pep()" (change)="pep.set($any($event.target).checked)" />
+            <span>¿Sos Persona Políticamente Expuesta (PEP)?</span>
+          </label>
+          <span class="pep-note">Declaración obligatoria según normativa UIF/PLA.</span>
+        </div>
       </section>
     }
 

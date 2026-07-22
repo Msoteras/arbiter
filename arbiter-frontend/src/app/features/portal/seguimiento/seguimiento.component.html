@@ -1,17 +1,12 @@
 @if (data(); as d) {
-  <header class="page-head">
-    <a class="breadcrumb" routerLink="/portal">‹ Mis expedientes</a>
-    <div class="identity">
-      <h1 class="t-page-title">Expediente #{{ d.id }}</h1>
-      @if (isResolved()) {
-        <app-badge variant="strong" [tone]="statusTone()">{{ statusLabel() }}</app-badge>
-      } @else {
-        <app-badge [tone]="statusTone()">{{ statusLabel() }}</app-badge>
-      }
-    </div>
-    <p class="subtitle">{{ d.branch }} · {{ d.insuredItem }} · Póliza <span class="mono">{{ d.policyNumber }}</span></p>
+  <a class="breadcrumb" routerLink="/portal">‹ Mis expedientes</a>
 
-    <!-- Progreso simplificado: el único nivel de estado que ve el asegurado, sin jerga técnica. -->
+  <!-- Hero: estado tranquilizador + progreso simplificado (lo único que ve el asegurado). -->
+  <header class="hero">
+    <span class="eyebrow">Expediente #{{ d.id }} · {{ d.claimCause }}</span>
+    <h1 class="t-page-title">{{ heroTitle() }}</h1>
+    <p class="hero-sub measure">{{ statusDescription() }}</p>
+
     <div class="simple-progress">
       @for (s of simplifiedSteps; track s; let i = $index; let last = $last) {
         <span class="simple-step" [class.done]="i < simplifiedIndex()" [class.current]="i === simplifiedIndex()">
@@ -27,64 +22,79 @@
     </div>
   </header>
 
-  <div class="seg-grid">
-    <div class="col-main">
-      <!-- Estado actual + próximos pasos -->
-      <app-card heading="Estado actual">
-        <p class="status-desc">{{ statusDescription() }}</p>
-        @if (nextStep()) {
-          <div class="next-box">
-            <span class="next-tag">Próximo paso esperado</span>
-            <p class="next-text">{{ nextStep() }}</p>
-          </div>
-        } @else {
-          <div class="next-box resolved">
-            <span class="next-tag">Expediente resuelto</span>
-            <p class="next-text">Vas a recibir la notificación por correo electrónico.</p>
-          </div>
-        }
-      </app-card>
+  <!-- Acción requerida: el turno del asegurado (falta documentación). -->
+  @if (needsDocs()) {
+    <div class="action-required">
+      <div class="action-body">
+        <span class="action-tag" [attr.data-tone]="'warning'">Acción requerida</span>
+        <p class="action-text">
+          Necesitamos algunos documentos para poder continuar con tu expediente.
+        </p>
+      </div>
+      <app-button (click)="goToDocumentacion()">Cargar documentación</app-button>
+    </div>
+  } @else if (isResolved()) {
+    <div class="action-required resolved">
+      <div class="action-body">
+        <span class="action-tag" [attr.data-tone]="statusTone()">
+          {{ statusLabel() }}
+        </span>
+        <p class="action-text">
+          Vas a recibir la notificación con el detalle por correo electrónico. No quedan pasos pendientes.
+        </p>
+      </div>
+    </div>
+  }
 
-      <!-- Documentación faltante: el turno del asegurado -->
-      @if (needsDocs()) {
-        <app-card heading="⚠ Falta documentación">
-          <app-doc-upload [caseId]="d.id" (uploaded)="onDocsUploaded()" />
-        </app-card>
+  <!-- Hilo simplificado: SOLO los hitos visibles del asegurado, sin motivos internos
+       ni estados técnicos (la clasificación/decisión del analista no se muestra acá). -->
+  <app-card heading="Seguimiento">
+    <ol class="milestones">
+      @for (m of milestones(); track m.stage) {
+        <li class="milestone" [class.reached]="m.reached" [class.current]="m.current">
+          <span class="ms-marker" aria-hidden="true"></span>
+          <div class="ms-body">
+            <span class="ms-label">{{ m.label }}</span>
+            @if (m.date) {
+              <span class="ms-date mono">{{ m.date }}</span>
+            } @else {
+              <span class="ms-date pending">Pendiente</span>
+            }
+          </div>
+        </li>
       }
+    </ol>
+  </app-card>
 
-      <!-- Timeline de estados -->
-      <app-card heading="Historial del expediente">
-        <app-status-timeline [history]="history()" [currentStatus]="d.status" />
-      </app-card>
-    </div>
-
-    <div class="col-side">
-      <app-card heading="Tu denuncia">
-        <dl class="fields">
-          <div class="field">
-            <dt class="t-field-label">Fecha de denuncia</dt>
-            <dd>{{ fechaDenuncia() }}</dd>
-          </div>
-          <div class="field">
-            <dt class="t-field-label">Fecha del hecho</dt>
-            <dd>{{ fechaHecho() }}</dd>
-          </div>
-          <div class="field">
-            <dt class="t-field-label">Causa</dt>
-            <dd>{{ d.claimCause }}</dd>
-          </div>
-          <div class="field">
-            <dt class="t-field-label">Ubicación</dt>
-            <dd>{{ d.eventLocation }}</dd>
-          </div>
-          <div class="field">
-            <dt class="t-field-label">Descripción</dt>
-            <dd>{{ d.description }}</dd>
-          </div>
-        </dl>
-      </app-card>
-    </div>
-  </div>
+  <!-- Detalle de la denuncia. -->
+  <app-card heading="Tu denuncia">
+    <dl class="fields">
+      <div class="field">
+        <dt class="t-field-label">Ramo · bien</dt>
+        <dd>{{ d.branch }} · {{ d.insuredItem }}</dd>
+      </div>
+      <div class="field">
+        <dt class="t-field-label">Póliza</dt>
+        <dd class="mono">{{ d.policyNumber }}</dd>
+      </div>
+      <div class="field">
+        <dt class="t-field-label">Fecha de denuncia</dt>
+        <dd>{{ fechaDenuncia() }}</dd>
+      </div>
+      <div class="field">
+        <dt class="t-field-label">Fecha del hecho</dt>
+        <dd>{{ fechaHecho() }}</dd>
+      </div>
+      <div class="field">
+        <dt class="t-field-label">Ubicación</dt>
+        <dd>{{ d.eventLocation }}</dd>
+      </div>
+      <div class="field">
+        <dt class="t-field-label">Descripción</dt>
+        <dd class="measure">{{ d.description }}</dd>
+      </div>
+    </dl>
+  </app-card>
 } @else if (loading()) {
   <div class="state-wrap"><app-card><p class="t-note">Cargando expediente…</p></app-card></div>
 } @else if (notFound()) {
