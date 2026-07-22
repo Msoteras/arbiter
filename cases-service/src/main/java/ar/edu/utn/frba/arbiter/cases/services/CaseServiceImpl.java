@@ -1,10 +1,12 @@
 package ar.edu.utn.frba.arbiter.cases.services;
 
 import ar.edu.utn.frba.arbiter.cases.dto.AnalystDecisionRequest;
+import ar.edu.utn.frba.arbiter.cases.dto.CaseDocumentResponse;
 import ar.edu.utn.frba.arbiter.cases.dto.CaseRequest;
 import ar.edu.utn.frba.arbiter.cases.dto.CaseResponse;
 import ar.edu.utn.frba.arbiter.cases.dto.StatusTransitionResponse;
 import ar.edu.utn.frba.arbiter.cases.exceptions.CaseNotFoundException;
+import ar.edu.utn.frba.arbiter.cases.exceptions.DocumentNotFoundException;
 import ar.edu.utn.frba.arbiter.cases.exceptions.DocumentReadException;
 import ar.edu.utn.frba.arbiter.cases.exceptions.InvalidAnalystDecisionException;
 import ar.edu.utn.frba.arbiter.cases.exceptions.InvalidStatusTransitionException;
@@ -128,6 +130,26 @@ public class CaseServiceImpl implements CaseService {
         Specification<Case> spec = CaseSpecifications.withFilters(
                 status, claimCause, policyNumber, insuredId, eventDateFrom, eventDateTo, q, riskBand);
         return caseRepository.findAll(spec, pageable).map(this::toResponse);
+    }
+
+    @Override
+    public List<CaseDocumentResponse> getDocuments(Long caseId) {
+        if (!caseRepository.existsById(caseId)) {
+            throw new CaseNotFoundException(caseId);
+        }
+        return caseDocumentRepository.findByCaseId(caseId).stream()
+                .map(CaseDocumentResponse::from)
+                .toList();
+    }
+
+    @Override
+    public CaseDocument getDocument(Long caseId, Long documentId) {
+        if (!caseRepository.existsById(caseId)) {
+            throw new CaseNotFoundException(caseId);
+        }
+        return caseDocumentRepository.findById(documentId)
+                .filter(doc -> doc.getCaseId().equals(caseId))
+                .orElseThrow(() -> new DocumentNotFoundException(caseId, documentId));
     }
 
     @Override
