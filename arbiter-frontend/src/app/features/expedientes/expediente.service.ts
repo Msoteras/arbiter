@@ -16,6 +16,9 @@ export interface CaseCreateRequest {
   eventDate: string;
   eventLocation: string;
   claimedAmount?: number;
+  pep: boolean;
+  contactEmail?: string;
+  contactPhone?: string;
 }
 
 // El backend solo acepta APPROVE/APROBAR o REJECT/RECHAZAR (human-in-the-loop:

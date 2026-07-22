@@ -59,6 +59,7 @@ CREATE TABLE aseguradora.poliza (
     titular_id            BIGINT        NOT NULL REFERENCES aseguradora.asegurado(id),
     rama                  VARCHAR(80)   NOT NULL,        -- = cases.branch (Celulares | Tecnología Portátil)
     producto              VARCHAR(160)  NOT NULL,        -- = cases.product
+    bien_asegurado        VARCHAR(255),           -- descripción del bien cubierto (ej. "Samsung Galaxy A56")
     moneda                VARCHAR(3)    NOT NULL DEFAULT 'ARS',
     vigencia_desde        DATE          NOT NULL,
     vigencia_hasta        DATE          NOT NULL,
@@ -144,69 +145,90 @@ INSERT INTO aseguradora.asegurado (id, aseguradora_id, documento, cuil, nombre, 
     ( 7, 1, '41.333.999', '20-41333999-7', 'Diego',    'Sosa',     'diego.sosa@example.com',       '11-5555-0007'),  -- 0 previos, póliza con mora
     ( 8, 2, '33.777.222', '27-33777222-8', 'Camila',   'Duarte',   'camila.duarte@example.com',    '11-5555-0008'),  -- 0 previos
     ( 9, 2, '28.444.666', '20-28444666-1', 'Federico', 'Aguirre',  'federico.aguirre@example.com', '11-5555-0009'),  -- 2 previos + mora
-    (10, 3, '45.111.888', '27-45111888-3', 'Brenda',   'Molina',   'brenda.molina@example.com',    '11-5555-0010');  -- 0 previos (La Segunda)
+    (10, 3, '45.111.888', '27-45111888-3', 'Brenda',   'Molina',   'brenda.molina@example.com',    '11-5555-0010'),  -- 0 previos (La Segunda)
+    -- Martina TAMBIÉN es cliente de Provincia (mismo documento, otra compañía):
+    -- ejercita la vista centralizada multi-aseguradora del portal (GET /policies?insuredId=…)
+    (11, 2, '42.987.654', '27-42987654-1', 'Martina',  'Soteras',  'martina.soteras@example.com',  '11-5555-0001');
 
 -- ─── Pólizas ─────────────────────────────────────────────────────────────────
 INSERT INTO aseguradora.poliza (id, aseguradora_id, numero, nro_certificado, titular_id, rama, producto,
+                                bien_asegurado,
                                 vigencia_desde, vigencia_hasta, estado_contrato, estado_pago,
                                 cuotas_pagas, cuotas_impagas, saldo_deuda, forma_pago,
                                 max_eventos_anuales, segundo_evento_pct, cubre_grupo_familiar, datos_proveedor)
 VALUES
     -- cases 1, 4 y 5 (Martina) — suma Robo = 1.300.000 reproduce los ratios de init.sql
     ( 1, 1, 'POL-CEL-2026-042', '621242',  1, 'Celulares', 'Celular Protegido Premium',
+     'Samsung Galaxy A56',
      '2026-01-01', '2027-01-01', 'ACTIVA', 'AL_DIA', 6, 0, 0.00, 'TARJETA DE CREDITO',
      NULL, NULL, TRUE, NULL),
 
     -- case 2 (Julián, reincidente) — suma Robo = 1.200.000
     ( 2, 1, 'POL-CEL-2025-099', '621243',  2, 'Celulares', 'Celular Protegido Premium',
+     'iPhone 15 Pro',
      '2025-11-01', '2026-11-01', 'ACTIVA', 'AL_DIA', 8, 0, 0.00, 'TARJETA DE CREDITO',
      NULL, NULL, TRUE, NULL),
 
     -- case 3 (Lucas) — sumas bajas
     ( 3, 1, '2030405', '621244',  3, 'Celulares', 'Celular Protegido Básico',
+     'Motorola Moto G54',
      '2026-01-15', '2027-01-15', 'ACTIVA', 'AL_DIA', 5, 0, 0.00, 'DEBITO',
      NULL, NULL, TRUE, NULL),
 
     -- Provincia (Carla) — Tecnología Portátil, con deuda (cuota impaga) y payload de proveedor
     ( 4, 2, 'POL-TEC-2026-311', '700841',  4, 'Tecnología Portátil', 'Seguro de Tecnología Portátil',
+     'MacBook Air M3 15"',
      '2026-03-01', '2027-03-01', 'ACTIVA', 'AL_DIA', 4, 1, 3406.17, 'TARJETA DE CREDITO',
      2, 50.00, FALSE,
      '{"codRamaSegR":7,"nroPolizaR":2365301,"nroCertificadoR":621242,"descProductoR":"07 150 CELU CONS 4000","importePrimaTarifa":2762.5,"importePremio":3406.17,"clausulaAjuste":"AJUSTE TASA FIJA","codClausulaAjuste":105}'::jsonb),
 
     -- Nicolás: 1 previo, al día → riesgo bajo/medio según monto
     ( 5, 1, 'POL-CEL-2026-118', '621245',  5, 'Celulares', 'Celular Protegido Básico',
+     'Samsung Galaxy S24',
      '2026-02-01', '2027-02-01', 'ACTIVA', 'AL_DIA', 5, 0, 0.00, 'DEBITO',
      NULL, NULL, FALSE, NULL),
 
     -- Valeria: 2 previos, al día → empuja claim_frequency
     ( 6, 1, 'POL-CEL-2025-204', '621246',  6, 'Celulares', 'Celular Protegido Premium',
+     'iPhone 14',
      '2025-09-01', '2026-09-01', 'ACTIVA', 'AL_DIA', 10, 0, 0.00, 'TARJETA DE CREDITO',
      NULL, NULL, TRUE, NULL),
 
     -- Diego: SIN previos pero póliza con mora → policy_standing = 1.0 (suma riesgo)
     ( 7, 1, 'POL-CEL-2026-077', '621247',  7, 'Celulares', 'Celular Protegido Premium',
+     'Xiaomi 14 Ultra',
      '2026-03-01', '2027-03-01', 'ACTIVA', 'SUSPENDIDA', 2, 3, 45000.00, 'TARJETA DE CREDITO',
      NULL, NULL, FALSE, NULL),
 
     -- Segunda póliza de Martina, ramo Tecnología Portátil → variedad de ramo, mismo asegurado
     ( 8, 1, 'POL-TEC-2026-050', '621248',  1, 'Tecnología Portátil', 'Seguro de Tecnología Portátil',
+     'Lenovo ThinkPad T14s Gen 5',
      '2026-01-01', '2027-01-01', 'ACTIVA', 'AL_DIA', 6, 0, 0.00, 'DEBITO',
      NULL, NULL, TRUE, NULL),
 
     -- Provincia (Camila) — Tecnología Portátil, al día
     ( 9, 2, 'POL-TEC-2026-412', '700842',  8, 'Tecnología Portátil', 'Seguro de Tecnología Portátil',
+     'Dell XPS 13',
      '2026-04-01', '2027-04-01', 'ACTIVA', 'AL_DIA', 4, 0, 0.00, 'DEBITO',
      2, 50.00, FALSE, NULL),
 
     -- Provincia (Federico) — 2 previos + póliza con mora → perfil de riesgo ALTO
     (10, 2, 'POL-TEC-2025-380', '700843',  9, 'Tecnología Portátil', 'Seguro de Tecnología Portátil',
+     'iPad Pro 12.9" M2',
      '2025-08-01', '2026-08-01', 'ACTIVA', 'SUSPENDIDA', 3, 4, 8200.00, 'TARJETA DE CREDITO',
      2, 50.00, FALSE, NULL),
 
     -- La Segunda (Brenda) — tercer tenant, Celulares
     (11, 3, 'POL-CEL-2026-909', '900110', 10, 'Celulares', 'Celular Protegido Básico',
+     'Samsung Galaxy A15',
      '2026-05-01', '2027-05-01', 'ACTIVA', 'AL_DIA', 3, 0, 0.00, 'TARJETA DE CREDITO',
-     NULL, NULL, FALSE, NULL);
+     NULL, NULL, FALSE, NULL),
+
+    -- Provincia (Martina, segunda compañía) → caso multi-aseguradora del mismo documento
+    (12, 2, 'POL-TEC-2026-515', '700844', 11, 'Tecnología Portátil', 'Seguro de Tecnología Portátil',
+     'HP Pavilion x360 14"',
+     '2026-06-01', '2027-06-01', 'ACTIVA', 'AL_DIA', 1, 0, 0.00, 'DEBITO',
+     2, 50.00, FALSE, NULL);
 
 -- ─── Coberturas (la suma asegurada vive acá) ─────────────────────────────────
 -- Sumas de POL-CEL-2026-042 y POL-CEL-2025-099 elegidas para reproducir los ratios
@@ -239,7 +261,10 @@ INSERT INTO aseguradora.cobertura (aseguradora_id, poliza_id, orden, nombre, sum
 
     (2, 10, 1, 'Robo de celular',  700000.00, 10.00),
 
-    (3, 11, 1, 'Robo de celular',  600000.00, 10.00);
+    (3, 11, 1, 'Robo de celular',  600000.00, 10.00),
+
+    (2, 12, 1, 'Robo de celular',  850000.00, 10.00),
+    (2, 12, 2, 'Daño accidental',  110000.00, 10.00);
 
 -- ─── Historial de siniestros previos (alimenta claim_frequency) ──────────────
 INSERT INTO aseguradora.siniestro_historico (aseguradora_id, poliza_id, asegurado_id,

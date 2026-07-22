@@ -9,6 +9,9 @@ export interface AuthSession {
   rol: UserRole;
   nombre: string;
   apellido: string;
+  /** DNI del asegurado (null para analista/referente). Sale del login; el portal lo usa
+      sin volver a pedirlo. */
+  insuredId: string | null;
 }
 
 /**

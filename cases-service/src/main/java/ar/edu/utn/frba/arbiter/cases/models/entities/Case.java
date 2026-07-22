@@ -79,6 +79,14 @@ public class Case {
 
     private BigDecimal claimedAmount;
 
+    @Column(nullable = false)
+    @Builder.Default
+    private boolean pep = false;
+
+    private String contactEmail;
+
+    private String contactPhone;
+
     @Enumerated(EnumType.STRING)
     @Column(nullable = false, length = 40)
     private CaseStatus status;

@@ -17,6 +17,8 @@ export interface LoginResponse {
   rol: UserRole;
   nombre: string;
   apellido: string;
+  /** DNI del asegurado (null para analista/referente). */
+  insuredId: string | null;
 }
 
 @Injectable({ providedIn: 'root' })

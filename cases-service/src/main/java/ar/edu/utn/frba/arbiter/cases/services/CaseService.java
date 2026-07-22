@@ -1,8 +1,10 @@
 package ar.edu.utn.frba.arbiter.cases.services;
 
 import ar.edu.utn.frba.arbiter.cases.dto.AnalystDecisionRequest;
+import ar.edu.utn.frba.arbiter.cases.dto.CaseDocumentResponse;
 import ar.edu.utn.frba.arbiter.cases.dto.CaseRequest;
 import ar.edu.utn.frba.arbiter.cases.dto.CaseResponse;
+import ar.edu.utn.frba.arbiter.cases.models.entities.CaseDocument;
 import ar.edu.utn.frba.arbiter.common.enums.CaseStatus;
 import ar.edu.utn.frba.arbiter.common.enums.RiskBand;
 import org.springframework.data.domain.Page;
@@ -10,6 +12,7 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.time.LocalDate;
+import java.util.List;
 import java.util.Map;
 
 public interface CaseService {
@@ -17,6 +20,10 @@ public interface CaseService {
     CaseResponse createCase(CaseRequest request, Map<String, MultipartFile> documents);
 
     CaseResponse getCase(Long caseId);
+
+    List<CaseDocumentResponse> getDocuments(Long caseId);
+
+    CaseDocument getDocument(Long caseId, Long documentId);
 
     /**
      * Lista expedientes paginados, más recientes primero por defecto. Todos los filtros son

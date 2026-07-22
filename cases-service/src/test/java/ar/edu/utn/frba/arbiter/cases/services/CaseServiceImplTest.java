@@ -416,7 +416,10 @@ class CaseServiceImplTest {
                 "Me robaron el celular en la estación de subte",
                 LocalDateTime.of(2026, 6, 13, 19, 45),
                 "Estación Congreso, CABA",
-                new BigDecimal("150000")
+                new BigDecimal("150000"),
+                false,
+                "test@example.com",
+                "11-5555-0000"
         );
     }
 

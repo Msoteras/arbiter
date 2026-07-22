@@ -15,11 +15,13 @@ import { ChangeDetectionStrategy, Component, input, model } from '@angular/core'
       [value]="value()"
       [attr.min]="min()"
       [attr.autocomplete]="autocomplete()"
+      [readOnly]="readonly()"
       (input)="value.set($any($event.target).value)"
     />
   `,
   styles: `
     :host { display: block; }
+    .field[readonly] { background: var(--surface-soft); color: var(--text-secondary); cursor: default; }
     .field {
       width: 100%;
       font: inherit;
@@ -40,8 +42,9 @@ import { ChangeDetectionStrategy, Component, input, model } from '@angular/core'
 })
 export class InputComponent {
   readonly value = model('');
-  readonly type = input<'text' | 'number' | 'email' | 'date' | 'password'>('text');
+  readonly type = input<'text' | 'number' | 'email' | 'date' | 'password' | 'time' | 'tel'>('text');
   readonly placeholder = input('');
   readonly min = input<number | null>(null);
   readonly autocomplete = input<string | null>(null);
+  readonly readonly = input(false);
 }

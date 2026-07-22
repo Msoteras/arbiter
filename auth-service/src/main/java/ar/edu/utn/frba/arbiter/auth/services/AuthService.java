@@ -22,6 +22,7 @@ public class AuthService {
                 user.getEmail(),
                 user.getRol(),
                 user.getNombre(),
-                user.getApellido());
+                user.getApellido(),
+                user.getInsuredId());
     }
 }

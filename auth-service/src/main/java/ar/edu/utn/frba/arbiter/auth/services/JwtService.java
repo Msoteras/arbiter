@@ -57,11 +57,17 @@ public class JwtService {
         Instant now = Instant.now();
         Instant expiresAt = now.plus(Duration.ofMinutes(properties.jwt().expirationMinutes()));
 
-        String token = Jwts.builder()
+        var builder = Jwts.builder()
                 .subject(user.getEmail())
                 .claim("rol", user.getRol().name())
                 .claim("nombre", user.getNombre())
-                .claim("apellido", user.getApellido())
+                .claim("apellido", user.getApellido());
+        // Solo los asegurados tienen insuredId; el back destino lo puede leer del token
+        // en vez de recibirlo por parámetro cuando se integre Auth0.
+        if (user.getInsuredId() != null) {
+            builder.claim("insuredId", user.getInsuredId());
+        }
+        String token = builder
                 .issuedAt(Date.from(now))
                 .expiration(Date.from(expiresAt))
                 .signWith(key)
