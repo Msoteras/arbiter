@@ -8,9 +8,9 @@ import { CardComponent } from '../../../shared/ui/card/card.component';
 import { InputComponent } from '../../../shared/ui/input/input.component';
 
 /**
- * Pide el mail y dispara UserService.requestPasswordReset, que responde 204 siempre exista o no
- * el email (no hay que filtrar qué direcciones están registradas) — por eso acá se muestra el
- * mismo mensaje de confirmación pase lo que pase, salvo un error real de red/servidor.
+ * Asks for the email and triggers UserService.requestPasswordReset, which always responds 204
+ * whether or not the email exists (no leaking which addresses are registered) — that's why this
+ * shows the same confirmation message no matter what, save for a real network/server error.
  */
 @Component({
   selector: 'app-forgot-password',

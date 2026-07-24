@@ -50,7 +50,7 @@ export class UserAdminService {
     return this.http.delete<void>(`${this.baseUrl}/${id}`);
   }
 
-  /** Solo tiene sentido para usuarios en estado PENDING — el backend rechaza si ya está activo. */
+  /** Only makes sense for users in PENDING status — the backend rejects it if already active. */
   resendInvite(id: number): Observable<UserResponse> {
     return this.http.post<UserResponse>(`${this.baseUrl}/${id}/resend-invite`, {});
   }

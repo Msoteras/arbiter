@@ -30,22 +30,22 @@ export class AuthService {
     return this.http.post<LoginResponse>(`${this.baseUrl}/login`, request);
   }
 
-  /** Fase 3 Auth0: el usuario invitado elige su contraseña acá — recién ahí se crea en Auth0. */
+  /** Auth0 Phase 3: the invited user picks their own password here — only then do we create them in Auth0. */
   activate(token: string, password: string): Observable<void> {
     return this.http.post<void>(`${this.baseUrl}/activate`, { token, password });
   }
 
-  /** Valida el token (de invitación o de reset) sin consumirlo — no altera nada en el backend. */
+  /** Validates the token (invite or reset) without consuming it — doesn't change anything server-side. */
   checkToken(token: string): Observable<void> {
     return this.http.get<void>(`${this.baseUrl}/invite-tokens/${encodeURIComponent(token)}`);
   }
 
-  /** "Olvidé mi contraseña": responde 204 siempre, exista o no el email. */
+  /** Forgot-password: always responds 204, whether or not the email exists. */
   forgotPassword(email: string): Observable<void> {
     return this.http.post<void>(`${this.baseUrl}/forgot-password`, { email });
   }
 
-  /** El usuario ya existe en Auth0 — acá solo se le actualiza la contraseña. */
+  /** The user already exists in Auth0 — this only updates their password. */
   resetPassword(token: string, password: string): Observable<void> {
     return this.http.post<void>(`${this.baseUrl}/reset-password`, { token, password });
   }

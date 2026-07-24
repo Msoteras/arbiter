@@ -43,9 +43,9 @@ public class UserService {
     private String frontendBaseUrl;
 
     /**
-     * El referente ya no fija contraseña (Fase 3 Auth0): el usuario queda "pendiente" con un
-     * token de invitación de un solo uso (48hs) y recibe un mail para elegir su propia
-     * contraseña — ver {@link #activateAccount}, que es donde recién se lo crea en Auth0.
+     * The referente no longer sets a password (Auth0 Phase 3): the user is left "pending" with
+     * a one-time invite token (48h) and gets an email to choose their own password — see
+     * {@link #activateAccount}, which is where they actually get created in Auth0.
      */
     public UserResponse createUser(CreateUserRequest request) {
         if (request.rol() != UserRole.ANALISTA_SINIESTROS) {
@@ -83,10 +83,9 @@ public class UserService {
     }
 
     /**
-     * El usuario invitado llega acá desde el link del mail. Recién en este momento se lo crea
-     * en Auth0 (con la contraseña que eligió) — si Auth0 falla, no tocamos nada local, así el
-     * usuario puede reintentar con el mismo link sin que el referente tenga que darlo de alta
-     * de nuevo.
+     * The invited user lands here from the email link. Only at this point do we create them
+     * in Auth0 (with the password they chose) — if Auth0 fails, we don't touch anything local,
+     * so the user can retry with the same link without the referente having to re-invite them.
      */
     public void activateAccount(String token, String rawPassword) {
         User user = requireValidToken(token);
@@ -103,9 +102,9 @@ public class UserService {
     }
 
     /**
-     * "Olvidé mi contraseña": si el email existe, le genera un token nuevo (reusa las mismas
-     * columnas de la invitación) y le manda el link. Responde igual exista o no el email — no
-     * hay que filtrar qué direcciones están registradas en el sistema.
+     * "Forgot my password": if the email exists, generates a new token (reusing the same invite
+     * columns) and sends the link. Responds the same way whether or not the email exists — no
+     * leaking which addresses are registered in the system.
      */
     public void requestPasswordReset(String email) {
         userRepository.findByEmail(email).ifPresent(user -> {
@@ -118,8 +117,8 @@ public class UserService {
     }
 
     /**
-     * El usuario ya existe en Auth0 (a diferencia de {@link #activateAccount}) — acá solo se le
-     * actualiza la contraseña, misma lógica de "Auth0 primero, commit local después".
+     * The user already exists in Auth0 (unlike {@link #activateAccount}) — this only updates
+     * the password, same "Auth0 first, local commit after" logic.
      */
     public void resetPassword(String token, String rawPassword) {
         User user = requireValidToken(token);
@@ -135,17 +134,17 @@ public class UserService {
     }
 
     /**
-     * Solo valida — no consume el token. La usa el frontend antes de mostrar el formulario de
-     * contraseña, para no dejar ver esa pantalla con un token inventado o vencido en la URL.
+     * Read-only validation — doesn't consume the token. The frontend calls this before showing
+     * the password form, so a made-up or expired token in the URL never gets to see that screen.
      */
     public void checkToken(String token) {
         requireValidToken(token);
     }
 
     /**
-     * El referente le manda una invitación nueva a un usuario que nunca activó la cuenta (link
-     * vencido, o se lo colgó). Genera un token nuevo con la misma validez de 48hs — no hay cron
-     * que borre invitaciones vencidas, esta es la única forma de destrabarlas.
+     * The referente sends a fresh invite to a user who never activated their account (expired
+     * link, or they just never got to it). Generates a new token with the same 48h validity —
+     * there's no cron cleaning up expired invites, this is the only way to unstick them.
      */
     public UserResponse resendInvite(Long userId) {
         User user = userRepository.findById(userId).orElseThrow(() -> new UserNotFoundException(userId));

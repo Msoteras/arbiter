@@ -8,8 +8,8 @@ import { InputComponent } from '../../../shared/ui/input/input.component';
 /**
  * H0002 - Alta de Usuarios. Por ahora solo crea cuentas ANALISTA_SINIESTROS (ver CLAUDE.md,
  * decisión #8) — el selector de rol no está porque hoy hay un solo valor válido.
- * Fase 3 Auth0: el referente ya no fija contraseña — el usuario queda "pendiente" y recibe un
- * mail para elegir la suya (ver ActivateAccountComponent).
+ * Auth0 Phase 3: the referente no longer sets a password — the user is left "pending" and
+ * gets an email to choose their own (see ActivateAccountComponent).
  * Vive dentro de un app-modal abierto desde UsuariosComponent (patrón del wireframe).
  */
 @Component({

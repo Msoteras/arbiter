@@ -88,7 +88,7 @@ export class UsuariosComponent {
     return userStatusTone(estado);
   }
 
-  /** Genera un token de invitación nuevo y reenvía el mail — solo tiene sentido en PENDING. */
+  /** Only shown for PENDING rows in the template — the backend rejects it otherwise. */
   protected resendInvite(user: UserResponse): void {
     this.resendError.set(null);
     this.resendOkId.set(null);

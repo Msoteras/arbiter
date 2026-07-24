@@ -51,9 +51,9 @@
             <optional>true</optional>
         </dependency>
 
-        <!-- SDK de SendGrid para SendGridAdapter (mails transaccionales: invitación, reset de
-             contraseña, notificaciones). Optional: cada módulo que use el adapter la vuelve a
-             declarar, mismo criterio que jjwt arriba. -->
+        <!-- SendGrid SDK for SendGridAdapter (transactional mail: invites, password resets,
+             notifications). Optional: each module using the adapter re-declares it, same
+             approach as jjwt above. -->
         <dependency>
             <groupId>com.sendgrid</groupId>
             <artifactId>sendgrid-java</artifactId>

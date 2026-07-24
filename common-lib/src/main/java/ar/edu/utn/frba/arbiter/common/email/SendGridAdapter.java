@@ -13,11 +13,11 @@ import org.slf4j.LoggerFactory;
 import java.io.IOException;
 
 /**
- * Encapsula el SDK de SendGrid detrás de un único método genérico — invitación de usuarios,
- * reset de contraseña o notificaciones futuras (cambio de estado al asegurado) arman su propio
- * asunto/HTML y le pegan a este mismo {@link #send}, sin tocar el SDK directo (ver CLAUDE.md,
- * patrón Adapter). Sin API key configurada, solo logea — permite correr y testear el resto del
- * flujo (tokens, endpoints) sin depender de una cuenta real de SendGrid.
+ * Wraps the SendGrid SDK behind a single generic method — user invitations, password resets, or
+ * future notifications (status change to the insured) each build their own subject/HTML and hit
+ * this same {@link #send}, without touching the SDK directly (see CLAUDE.md, Adapter pattern).
+ * With no API key configured, it just logs — lets the rest of the flow (tokens, endpoints) run
+ * and get tested without depending on a real SendGrid account.
  */
 public class SendGridAdapter {
 

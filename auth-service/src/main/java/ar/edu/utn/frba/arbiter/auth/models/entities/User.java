@@ -71,10 +71,10 @@ public class User {
     private Instant lockedUntil;
 
     /**
-     * Token de un solo uso, reusado por dos flujos: invitación (Fase 3 Auth0) y reset de
-     * contraseña sobre un usuario ya activo. Se limpia al consumirse en cualquiera de los dos —
-     * por eso NO sirve para derivar el estado "Pendiente" (ver {@link #activated}): un usuario
-     * activo que pide un reset también tiene este campo seteado un rato.
+     * One-time token, reused by two flows: invitation (Auth0 Phase 3) and password reset on an
+     * already-active user. Cleared once consumed by either — that's why it does NOT work to
+     * derive the "Pending" status (see {@link #activated}): an active user requesting a reset
+     * also has this field set for a while.
      */
     @Column(name = "invite_token", unique = true)
     private String inviteToken;
@@ -83,9 +83,9 @@ public class User {
     private Instant inviteExpiresAt;
 
     /**
-     * True desde que completa la activación inicial (Fase 3), para siempre. Es la única fuente
-     * de verdad del estado "Pendiente" vs "Activo" — a diferencia de {@link #inviteToken}, un
-     * reset de contraseña posterior no lo toca.
+     * True forever once the initial activation (Phase 3) completes. This is the only source of
+     * truth for "Pending" vs "Active" status — unlike {@link #inviteToken}, a later password
+     * reset doesn't touch it.
      */
     @Builder.Default
     @Column(nullable = false)

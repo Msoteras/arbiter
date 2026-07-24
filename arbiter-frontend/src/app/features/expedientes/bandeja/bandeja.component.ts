@@ -310,9 +310,9 @@ export class BandejaComponent {
   }
 
   /**
-   * "Asegurado" siempre muestra un nombre — nunca el DNI en su lugar. Si classification-service
-   * todavía no lo resolvió, mostramos un placeholder explícito en vez de confundir el DNI con
-   * el nombre (ver displayInsuredId para el identificador, que sí siempre está disponible).
+   * "Asegurado" always shows a name — never the DNI in its place. If classification-service
+   * hasn't resolved it yet, show an explicit placeholder instead of confusing the DNI for the
+   * name (see displayInsuredId for the identifier, which is always available).
    */
   protected displayInsured(c: ExpedienteResponse): string {
     return c.insuredName ?? 'Sin identificar';

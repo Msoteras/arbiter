@@ -1,8 +1,8 @@
 import { StatusTone } from './status-tone';
 
-// Espejo del enum UserStatus de common-lib (ar.edu.utn.frba.arbiter.common.enums.UserStatus).
-// INACTIVE queda reservado para cuando se construya deshabilitar cuentas — hoy ningún flujo
-// del backend lo produce, PENDING es el único estado "de acción" real.
+// Mirrors the UserStatus enum in common-lib (ar.edu.utn.frba.arbiter.common.enums.UserStatus).
+// INACTIVE is reserved for when account deactivation gets built — no backend flow produces it
+// yet, PENDING is the only real "needs action" status today.
 export type UserStatus = 'ACTIVE' | 'PENDING' | 'INACTIVE';
 
 const LABELS: Record<UserStatus, string> = {

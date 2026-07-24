@@ -1,9 +1,9 @@
 package ar.edu.utn.frba.arbiter.common.enums;
 
 /**
- * Estado del usuario para el panel del referente. PENDING se calcula de si todavía tiene un
- * invite_token activo (ver User#getInviteToken). INACTIVE queda reservado para cuando se
- * construya deshabilitar cuentas — hoy ningún flujo lo produce.
+ * User status for the referente's panel. PENDING is derived from User#isActivated() being
+ * false — not from invite_token, which a password reset also sets on an already-active user.
+ * INACTIVE is reserved for when account deactivation gets built — no flow produces it today.
  */
 public enum UserStatus {
     ACTIVE,

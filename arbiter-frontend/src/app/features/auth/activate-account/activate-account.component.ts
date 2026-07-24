@@ -11,12 +11,12 @@ import { InputComponent } from '../../../shared/ui/input/input.component';
 type Mode = 'activate' | 'reset';
 
 /**
- * Pantalla de "elegí tu contraseña", compartida por dos flujos que llegan acá desde un link de
- * mail con un token de un solo uso: activación de cuenta (Fase 3 Auth0 — UserService.createUser)
- * y "olvidé mi contraseña" (UserService.requestPasswordReset). El modo lo define la ruta
- * (`data.mode`, ver app.routes.ts) y decide el copy y a qué endpoint pegarle en el submit.
- * Antes de mostrar el formulario valida el token contra el backend (GET /invite-tokens/{token})
- * sin consumirlo, para no dejar ver la pantalla con un token inventado o vencido en la URL.
+ * "Choose your password" screen, shared by two flows that arrive here from a one-time-token
+ * mail link: account activation (Auth0 Phase 3 — UserService.createUser) and "forgot password"
+ * (UserService.requestPasswordReset). The route (`data.mode`, see app.routes.ts) picks the mode,
+ * which drives the copy and which endpoint the submit hits. Before showing the form it validates
+ * the token against the backend (GET /invite-tokens/{token}) without consuming it, so a made-up
+ * or expired token in the URL never gets to see the password form.
  */
 @Component({
   selector: 'app-activate-account',
@@ -68,10 +68,10 @@ export class ActivateAccountComponent implements OnInit {
         };
 
   /**
-   * Espeja la política de contraseña por default de Auth0 ("Good"): si no la cumple, Auth0
-   * rechaza la operación en la Management API y el usuario se queda con un 502 sin entender por
-   * qué (ver activateAccount/resetPassword en UserService — el link sigue siendo válido para
-   * reintentar, pero sin este chequeo previo nunca sabría que el problema es la contraseña).
+   * Mirrors Auth0's default ("Good") password policy: if it's not met, Auth0 rejects the
+   * Management API call and the user gets a 502 with no idea why (see activateAccount/
+   * resetPassword in UserService — the link is still valid to retry, but without this
+   * upfront check the user would never know the password was the actual problem).
    */
   protected readonly passwordRequirements = computed(() => {
     const pwd = this.password();
@@ -108,8 +108,8 @@ export class ActivateAccountComponent implements OnInit {
     if (!this.token) {
       return;
     }
-    // Ya lo capturamos del query param — lo sacamos de la barra de direcciones para que no
-    // quede pegado en el historial del navegador ni en una captura de pantalla accidental.
+    // Already captured from the query param — strip it from the address bar so it doesn't
+    // linger in browser history or end up in an accidental screenshot.
     this.location.replaceState(this.location.path().split('?')[0]);
 
     this.authService.checkToken(this.token).subscribe({

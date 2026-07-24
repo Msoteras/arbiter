@@ -41,7 +41,6 @@ public class Auth0UserProvisioner {
         }
     }
 
-    /** Reset de contraseña: el usuario ya existe en Auth0, acá solo se le cambia la clave. */
     public void updatePassword(String email, String rawPassword) {
         try {
             ManagementAPI management = managementApi();
