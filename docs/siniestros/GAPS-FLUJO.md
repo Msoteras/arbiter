@@ -136,3 +136,21 @@ trunco en `PENDING_ANALYST_REVIEW`, incumpliendo la auditoría de la Disposició
 - **Gap E — Analista asignado.** El diagrama dice "al analista **asignado**". No hay usuarios, roles
   ni asignación porque dependen de `auth-service` (Auth0), que no está levantado. Mientras tanto el
   `analystId` del Gap B se puede recibir como campo del request.
+- **Gap F — Filtro por aseguradora en la búsqueda de expedientes.** La historia "Búsqueda y filtrado
+  de expedientes" (Sprint 6) pide filtrar `GET /api/v1/cases` por aseguradora según el rol del
+  usuario autenticado. No implementado: depende de dos piezas que no existen todavía — `auth-service`
+  (Auth0/JWT, mismo gap que E) y el esquema multi-tenant por aseguradora (decisión de arquitectura
+  #10, `PostgreSQL` con schema separado por aseguradora). Filtrar "por aseguradora" no es un `WHERE`
+  más sobre una columna: es resolver a qué schema de Postgres apuntar antes de correr la query. Sin
+  el JWT no hay tenant que resolver. `GET /api/v1/cases` sí quedó extendido con el resto de los
+  filtros de la historia (`status`, `claimCause`, `policyNumber`, `insuredId`, rango de
+  `eventDate`) más paginación (`CaseServiceImpl.listCases`, `CaseSpecifications`).
+- ~~**Gap G — Filtro por nivel de alerta de fraude en la búsqueda de expedientes.**~~ **Resuelto.**
+  El HU oficial de H0011 ("Búsqueda y filtrado de expedientes") lista "nivel de alerta de fraude"
+  como criterio de búsqueda; la card de Trello que se usó para scopear el Sprint 6 no lo incluyó, y
+  quedó afuera de la primera iteración. Retomado a pedido explícito del equipo: `GET /api/v1/cases`
+  ahora acepta `riskBand` (match exacto sobre `LOW`/`MEDIUM`/`HIGH`/`CRITICAL`), cableado en
+  `CaseSpecifications#riskBand` + `CaseServiceImpl#listCases` + `CaseController`, mismo patrón que
+  el resto de los filtros. Cubierto por `CaseRepositorySpecificationTests` (Postgres real) y
+  `CaseControllerTest`/`CaseServiceImplTest` (mocks). El frontend lo expone como un `app-select` más
+  en la bandeja del analista.

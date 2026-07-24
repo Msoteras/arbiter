@@ -13,6 +13,16 @@ public class CaseExceptionHandler {
         return ProblemDetail.forStatusAndDetail(HttpStatusCode.valueOf(404), ex.getMessage());
     }
 
+    @ExceptionHandler(PolicyNotFoundException.class)
+    public ProblemDetail handlePolicyNotFound(PolicyNotFoundException ex) {
+        return ProblemDetail.forStatusAndDetail(HttpStatusCode.valueOf(404), ex.getMessage());
+    }
+
+    @ExceptionHandler(DocumentNotFoundException.class)
+    public ProblemDetail handleDocumentNotFound(DocumentNotFoundException ex) {
+        return ProblemDetail.forStatusAndDetail(HttpStatusCode.valueOf(404), ex.getMessage());
+    }
+
     @ExceptionHandler(DocumentReadException.class)
     public ProblemDetail handleDocumentRead(DocumentReadException ex) {
         return ProblemDetail.forStatusAndDetail(HttpStatusCode.valueOf(422), ex.getMessage());
@@ -21,5 +31,10 @@ public class CaseExceptionHandler {
     @ExceptionHandler(InvalidStatusTransitionException.class)
     public ProblemDetail handleInvalidTransition(InvalidStatusTransitionException ex) {
         return ProblemDetail.forStatusAndDetail(HttpStatusCode.valueOf(409), ex.getMessage());
+    }
+
+    @ExceptionHandler(InvalidAnalystDecisionException.class)
+    public ProblemDetail handleInvalidDecision(InvalidAnalystDecisionException ex) {
+        return ProblemDetail.forStatusAndDetail(HttpStatusCode.valueOf(400), ex.getMessage());
     }
 }

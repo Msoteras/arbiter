@@ -1,31 +1,23 @@
-/* ===== Arbiter — design tokens (escala de grises, SIN color) ===== */
-:root {
-  /* Texto */
-  --c-ink: #23262a; /* negro de marca */
-  --c-ink-2: #3a3d41;
-  --c-ink-3: #51565c;
-  --c-ink-4: #585d63;
-  --c-muted: #868c93;
-  --c-muted-2: #9aa0a6;
-  --c-muted-3: #aeb3b8;
-  /* Bordes */
-  --c-border: #e2e5e8;
-  --c-divider: #eef0f2;
-  --c-border-2: #d4d8dc;
-  --c-border-3: #c2c7cc;
-  --c-border-strong: #aab0b6;
-  /* Fondos */
-  --c-bg: #ffffff;
-  --c-bg-soft: #fafbfc;
-  --c-bg-soft-2: #f6f7f8;
-  --c-bg-head: #f4f5f6;
+/* ===== Arbiter — Design System =====
+   Fuente de verdad de estilos. Capas separadas:
+   - styles/_tokens.scss   → valores primitivos (paleta, espaciado, tipografía…)
+   - styles/_semantic.scss → roles semánticos (text-*, surface-*, action-*)
+   Los componentes consumen SOLO tokens semánticos.
+   Guardrail: prohibido hex/px crudos fuera de _tokens.scss. */
+@use 'styles/tokens';
+@use 'styles/semantic';
+@use 'styles/typography';
 
-  --radius-card: 10px;
-  --radius-pill: 999px;
-  --radius-ctl: 7px;
-
-  --font-sans: -apple-system, BlinkMacSystemFont, 'Helvetica Neue', Arial, sans-serif;
-  --font-mono: 'Roboto Mono', ui-monospace, 'SFMono-Regular', Menlo, monospace;
+/* Arimo — clon open-source (Apache 2.0) métricamente idéntico a Helvetica/Arial.
+   Auto-hospedado para render consistente en todo OS. Fuente variable: un solo
+   archivo cubre los pesos 400–700. Arial queda de fallback (mismas métricas → sin
+   layout shift mientras carga). */
+@font-face {
+  font-family: 'Arimo';
+  font-style: normal;
+  font-weight: 400 700;
+  font-display: swap;
+  src: url('/fonts/arimo-latin.woff2') format('woff2');
 }
 
 * { box-sizing: border-box; }
@@ -34,76 +26,153 @@ html, body { height: 100%; }
 body {
   margin: 0;
   font-family: var(--font-sans);
-  font-size: 13px;
-  color: var(--c-ink);
-  background: var(--c-bg);
+  font-size: var(--font-size-body);
+  line-height: 1.5;
+  color: var(--text-primary);
+  background: var(--surface);
+  font-synthesis: none;
   -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
 }
 
-.mono { font-family: var(--font-mono); }
+/* Subrayados anclados a las métricas de la fuente (no a la posición del browser). */
+a {
+  text-underline-offset: 2px;
+  text-decoration-thickness: from-font;
+}
 
 /* ===== App shell ===== */
 .app-shell { min-height: 100%; }
 
+/* Barra única: marca + nav por rol + identidad, todo en una sola fila. */
 .topbar {
   position: sticky;
   top: 0;
   z-index: 30;
   display: flex;
   align-items: center;
-  gap: 14px;
-  height: 52px;
-  padding: 0 24px;
-  background: var(--c-bg);
-  border-bottom: 1px solid var(--c-border);
+  gap: var(--space-3);
+  min-height: 52px;
+  padding: 0 var(--space-5);
+  background: var(--surface);
+  border-bottom: 1px solid var(--border-default);
 }
 .topbar .logo {
-  font-weight: 700;
+  font-weight: var(--font-weight-bold);
   letter-spacing: 0.06em;
-  font-size: 12px;
-  border: 1px solid var(--c-border-3);
+  font-size: var(--font-size-sm);
+  border: 1px solid var(--border-control);
   border-radius: var(--radius-ctl);
-  padding: 4px 10px;
-  color: var(--c-ink-3);
+  padding: var(--space-1) var(--space-2);
+  color: var(--text-tertiary);
 }
-.topbar-title { font-size: 13px; color: var(--c-ink-3); }
+.topbar-title { font-size: var(--font-size-body); color: var(--text-tertiary); }
 
-.app-body { display: flex; align-items: flex-start; }
-
-.sidebar {
-  flex: 0 0 188px;
-  position: sticky;
-  top: 52px;
-  align-self: stretch;
-  border-right: 1px solid var(--c-border);
-  padding: 16px 10px;
+/* Nav horizontal por rol: reemplaza la sidebar vertical (pedido de UX). */
+.topnav {
   display: flex;
-  flex-direction: column;
-  gap: 4px;
-  background: var(--c-bg-soft);
+  align-items: center;
+  gap: var(--space-1);
+  overflow-x: auto;
 }
-.sidebar a {
-  display: block;
-  padding: 8px 12px;
+.topnav a {
+  display: inline-block;
+  padding: var(--space-2) var(--space-3);
   border-radius: var(--radius-ctl);
   text-decoration: none;
-  color: var(--c-ink-3);
-  font-size: 13px;
+  color: var(--text-tertiary);
+  font-size: var(--font-size-body);
+  white-space: nowrap;
 }
-.sidebar a:hover { background: var(--c-bg-soft-2); color: var(--c-ink); }
-.sidebar a.active { background: var(--c-bg-head); color: var(--c-ink); font-weight: 600; }
-.sidebar a.disabled { color: var(--c-muted-3); cursor: default; }
-.sidebar a.disabled:hover { background: none; color: var(--c-muted-3); }
+.topnav a:hover { background: var(--surface-sunken); color: var(--text-primary); }
+.topnav a.active { background: var(--surface-head); color: var(--text-primary); font-weight: var(--font-weight-medium); }
+.topnav a.disabled { color: var(--text-muted); cursor: default; }
+.topnav a.disabled:hover { background: none; color: var(--text-muted); }
 
-.app-content { flex: 1 1 auto; min-width: 0; }
+/* Bloque derecho: link de dev + identidad del usuario. */
+.topbar-end {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+}
+.dev-link {
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--radius-ctl);
+  text-decoration: none;
+  color: var(--text-muted);
+  font-size: var(--font-size-sm);
+  white-space: nowrap;
+}
+.dev-link:hover { background: var(--surface-sunken); color: var(--text-primary); }
+.dev-link.active { color: var(--text-primary); }
+
+/* Campana de notificaciones + indicador de "sin leer". */
+.bell {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  height: 34px;
+  padding: 0;
+  border: none;
+  border-radius: var(--radius-ctl);
+  background: none;
+  color: var(--text-tertiary);
+  cursor: pointer;
+}
+.bell:hover { background: var(--surface-sunken); color: var(--text-primary); }
+.bell svg { width: 20px; height: 20px; }
+/* Punto de estado: usa el rol semántico de "info" (algo nuevo), recortado sobre la barra. */
+.bell-dot {
+  position: absolute;
+  top: 5px;
+  right: 5px;
+  width: 8px;
+  height: 8px;
+  border-radius: var(--radius-pill);
+  background: var(--status-info);
+  border: 2px solid var(--surface);
+}
+.who {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  font-size: var(--font-size-sm);
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+.link-btn {
+  border: none;
+  background: none;
+  cursor: pointer;
+  padding: 0;
+  /* Los <button> no heredan font-family: sin esto caen en el font del UA (Arial). */
+  font: inherit;
+  font-size: var(--font-size-sm);
+  color: var(--text-tertiary);
+  text-decoration: underline;
+}
+
+/* Cerrar sesión: acción sutil del topbar, mismo lenguaje que la nav / dev-link. */
+.logout {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  border: none;
+  background: none;
+  cursor: pointer;
+  font: inherit;
+  font-size: var(--font-size-sm);
+  color: var(--text-tertiary);
+  padding: var(--space-1) var(--space-2);
+  border-radius: var(--radius-ctl);
+}
+.logout svg { width: 15px; height: 15px; }
+.logout:hover { background: var(--surface-sunken); color: var(--text-primary); }
 
 @media (max-width: 700px) {
-  .app-body { flex-direction: column; }
-  .sidebar {
-    position: static;
-    flex-basis: auto;
-    flex-direction: row;
-    border-right: none;
-    border-bottom: 1px solid var(--c-border);
-  }
+  .topbar { flex-wrap: wrap; padding: var(--space-2) var(--space-4); }
+  .topbar-title { display: none; }
 }

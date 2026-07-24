@@ -11,6 +11,7 @@ import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -24,6 +25,7 @@ import java.util.Map;
 @RestController
 @RequestMapping("/api/v1/classifications")
 @RequiredArgsConstructor
+@PreAuthorize("hasAnyRole('ANALISTA_SINIESTROS', 'REFERENTE_ASEGURADORA')")
 @Tag(name = "Classifications", description = "Isolated classification testing — runs the full analysis " +
         "flow (Fast Track gate + LLM fallback) without going through claim creation/persistence.")
 public class ClassificationController {

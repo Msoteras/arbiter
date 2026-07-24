@@ -48,6 +48,12 @@ build/
 ### Frontend ###
 arbiter-frontend/node_modules/
 arbiter-frontend/dist/
-# Local secrets (API keys, credentials) — never commit
+
+### Tooling de agentes / skills (local, no del proyecto) ###
+.agents/
+.claude/
+skills-lock.json
+
+### Secretos locales (API keys, credentials) — never commit ###
 .env
 .env.local

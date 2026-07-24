@@ -1,136 +1,196 @@
 <div class="wizard-container">
-  <!-- Stepper -->
-  <div class="stepper">
-    @for (s of [1, 2, 3]; track s) {
-      <div class="step-indicator" [class.active]="step() === s" [class.done]="step() > s">
-        <span class="step-number">{{ step() > s ? '✓' : s }}</span>
-        <span class="step-label">{{ s === 1 ? 'Datos' : s === 2 ? 'Descripción' : 'Documentación' }}</span>
-      </div>
-      @if (s < 3) {
-        <div class="step-line" [class.done]="step() > s"></div>
+  <h1 class="sr-only">Nueva denuncia</h1>
+
+  @if (submittedCase(); as created) {
+    <section class="step-content success-screen">
+      <h2 class="step-title">¡Listo! Tu denuncia fue registrada</h2>
+      <p class="case-number">N° de expediente: <strong class="mono">{{ created.id }}</strong></p>
+      <p class="t-body">
+        Vas a poder seguir el estado de tu expediente desde "Mis expedientes". Si falta
+        documentación, te lo vamos a pedir ahí mismo.
+      </p>
+      <p class="legal-note t-note">
+        Esta denuncia se registra en los términos del Art. 56 de la Ley 17.418 de Seguros.
+      </p>
+      <app-button (click)="goToCase()">Ver mi expediente</app-button>
+    </section>
+  } @else {
+    <!-- Stepper: el número deja volver a un paso ya completado. -->
+    <div class="stepper">
+      @for (s of steps; track s) {
+        <button
+          type="button"
+          class="step-indicator"
+          [class.active]="step() === s"
+          [class.done]="step() > s"
+          [disabled]="step() <= s"
+          [attr.aria-label]="step() > s ? 'Volver al paso ' + s : null"
+          (click)="goToStep(s)">
+          <span class="step-number">{{ step() > s ? '✓' : s }}</span>
+          <span class="step-label">{{ s === 1 ? 'Datos' : s === 2 ? 'Descripción' : 'Documentación' }}</span>
+        </button>
+        @if (s < 3) {
+          <div class="step-line" [class.done]="step() > s"></div>
+        }
       }
-    }
-  </div>
+    </div>
 
-  <!-- Step 1: Datos -->
-  @if (step() === 1) {
-    <section class="step-content">
-      <h2>¿Qué pasó?</h2>
-      <div class="chips">
-        @for (t of claimTypes; track t.key) {
-          <button
-            type="button"
-            class="chip"
-            [class.selected]="selectedType()?.key === t.key"
-            (click)="selectType(t)">
-            {{ t.label }}
-          </button>
+    <!-- Step 1: Póliza + qué pasó -->
+    @if (step() === 1) {
+      <section class="step-content">
+        <h2 class="step-title">Tu póliza</h2>
+
+        @switch (policiesState().status) {
+          @case ('loading') {
+            <p class="step-hint">Cargando tus pólizas…</p>
+          }
+          @case ('no-identity') {
+            <p class="step-hint">
+              Identificate en <a routerLink="/portal">Mis expedientes</a> para ver tus pólizas.
+            </p>
+          }
+          @case ('error') {
+            <p class="step-hint">No pudimos cargar tus pólizas. Probá de nuevo en unos minutos.</p>
+          }
+          @case ('ok') {
+            @if (policies().length === 0) {
+              <p class="step-hint">No encontramos pólizas asociadas a tu identificación.</p>
+            } @else {
+              <label class="field-label">Elegí la póliza del siniestro</label>
+              <app-select
+                [(value)]="selectedPolicyNumber"
+                [options]="policyOptions()"
+                placeholder="Seleccioná una póliza"
+              />
+              @if (selectedPolicy(); as p) {
+                <div class="policy-summary">
+                  <span class="policy-tag">{{ p.insurerName }}</span>
+                  <span class="policy-meta">{{ p.branch }} · {{ p.product }}</span>
+                  @if (p.insuredItem) {
+                    <span class="policy-item">{{ p.insuredItem }}</span>
+                  }
+                  @if (p.upToDate) {
+                    <span class="policy-ok">✓ Póliza vigente</span>
+                  } @else {
+                    <span class="policy-warn">Póliza con premios adeudados</span>
+                  }
+                </div>
+              }
+            }
+          }
         }
-      </div>
 
-      <label class="field-label" for="policy">Póliza</label>
-      <select
-        id="policy"
-        class="field-input"
-        [ngModel]="policyNumber()"
-        (ngModelChange)="policyNumber.set($event)">
-        <option value="" disabled>Seleccioná una póliza</option>
-        @for (p of mockPolicies; track p.number) {
-          <option [value]="p.number">{{ p.label }}</option>
-        }
-      </select>
-    </section>
-  }
-
-  <!-- Step 2: Descripción -->
-  @if (step() === 2) {
-    <section class="step-content">
-      <h2>Contanos los detalles</h2>
-
-      <label class="field-label" for="insuredItem">Bien asegurado</label>
-      <input id="insuredItem" type="text" class="field-input" placeholder="Ej: Samsung Galaxy A56"
-        [ngModel]="insuredItem()" (ngModelChange)="insuredItem.set($event)" />
-
-      <label class="field-label" for="insuredId">DNI del asegurado</label>
-      <input id="insuredId" type="text" class="field-input" placeholder="Ej: 40123456"
-        [ngModel]="insuredId()" (ngModelChange)="insuredId.set($event)" />
-
-      <label class="field-label" for="eventDate">Fecha del hecho</label>
-      <input id="eventDate" type="date" class="field-input"
-        [ngModel]="eventDate()" (ngModelChange)="eventDate.set($event)" />
-
-      <label class="field-label" for="eventLocation">Lugar del hecho</label>
-      <input id="eventLocation" type="text" class="field-input" placeholder="Ej: Av. Corrientes 1234, CABA"
-        [ngModel]="eventLocation()" (ngModelChange)="eventLocation.set($event)" />
-
-      <label class="field-label" for="claimedAmount">Monto reclamado (opcional)</label>
-      <input id="claimedAmount" type="number" class="field-input" placeholder="$"
-        [ngModel]="claimedAmount()" (ngModelChange)="claimedAmount.set($event)" />
-
-      <label class="field-label" for="description">Descripción del hecho</label>
-      <textarea
-        id="description"
-        class="field-input field-textarea"
-        placeholder="Describí lo que pasó con el mayor detalle posible (mínimo 50 caracteres)"
-        rows="5"
-        [ngModel]="description()"
-        (ngModelChange)="description.set($event)">
-      </textarea>
-      <span class="char-count" [class.valid]="descCount() >= 50">{{ descCount() }} / 50</span>
-    </section>
-  }
-
-  <!-- Step 3: Documentación -->
-  @if (step() === 3) {
-    <section class="step-content">
-      <h2>Adjuntá documentación</h2>
-      <p class="step-hint">Los documentos ayudan a agilizar el análisis de tu caso.</p>
-
-      @for (slot of docSlots(); track slot.type; let i = $index) {
-        <div class="doc-slot">
-          <span class="doc-label">{{ slot.label }}</span>
-          @if (slot.file) {
-            <div class="doc-file">
-              <span class="doc-filename">{{ slot.file.name }}</span>
-              <button type="button" class="doc-remove" (click)="removeFile(i)">✕</button>
-            </div>
-          } @else {
-            <label class="doc-upload-btn">
-              Elegir archivo
-              <input type="file" accept="image/*,.pdf" (change)="onFileChange(i, $event)" hidden />
-            </label>
+        <label class="field-label">¿Qué te pasó?</label>
+        <div class="chips">
+          @for (t of claimTypes; track t.key) {
+            <button
+              type="button"
+              class="chip"
+              [class.selected]="selectedType()?.key === t.key"
+              (click)="selectType(t)">
+              {{ t.label }}
+            </button>
           }
         </div>
+      </section>
+    }
+
+    <!-- Step 2: Descripción -->
+    @if (step() === 2) {
+      <section class="step-content">
+        <h2 class="step-title">Contanos los detalles</h2>
+
+        <label class="field-label">Bien asegurado</label>
+        <app-input placeholder="Ej: Samsung Galaxy A56" [(value)]="insuredItem" [readonly]="!!selectedPolicy()?.insuredItem" />
+
+        <label class="field-label">Fecha y hora del hecho</label>
+        <div class="datetime-grid">
+          <app-input type="date" [(value)]="eventDate" />
+          <app-input type="time" [(value)]="eventTime" placeholder="Hora aprox." />
+        </div>
+
+        <label class="field-label">¿Dónde pasó?</label>
+        <div class="location-fields">
+          <div class="location-grid">
+            <app-input placeholder="Provincia" [(value)]="provincia" />
+            <app-input placeholder="Localidad" [(value)]="localidad" />
+          </div>
+          <app-input placeholder="Calle y número" [(value)]="calleNumero" />
+          <app-input placeholder="Entre calles (opcional)" [(value)]="entreCalles" />
+        </div>
+
+        <label class="field-label">Monto reclamado (opcional)</label>
+        <app-input type="number" placeholder="$" [(value)]="claimedAmount" />
+
+        <label class="field-label">Descripción del hecho</label>
+        <app-textarea
+          [rows]="5"
+          placeholder="Describí lo que pasó con el mayor detalle posible"
+          [(value)]="description"
+        />
+
+        <label class="field-label">Datos de contacto</label>
+        <div class="location-grid">
+          <app-input type="email" placeholder="Email" [(value)]="contactEmail" [readonly]="!!selectedPolicy()?.contactEmail" />
+          <app-input type="tel" placeholder="Teléfono" [(value)]="contactPhone" [readonly]="!!selectedPolicy()?.contactPhone" />
+        </div>
+
+        <div class="pep-field">
+          <label class="pep-label">
+            <input type="checkbox" [checked]="pep()" (change)="pep.set($any($event.target).checked)" />
+            <span>¿Sos Persona Políticamente Expuesta (PEP)?</span>
+          </label>
+          <span class="pep-note">Declaración obligatoria según normativa UIF/PLA.</span>
+        </div>
+      </section>
+    }
+
+    <!-- Step 3: Documentación -->
+    @if (step() === 3) {
+      <section class="step-content">
+        <h2 class="step-title">Adjuntá documentación</h2>
+        <p class="step-hint">Los documentos ayudan a agilizar el análisis de tu caso.</p>
+
+        @for (slot of docSlots(); track slot.type; let i = $index) {
+          <div class="doc-slot">
+            <span class="doc-label">{{ slot.label }}</span>
+            @if (slot.file) {
+              <div class="doc-file">
+                <span class="doc-filename mono" [title]="slot.file.name">{{ slot.file.name }}</span>
+                <button type="button" class="doc-remove" (click)="removeFile(i)">✕</button>
+              </div>
+            } @else {
+              <label class="doc-upload-btn">
+                Elegir archivo
+                <input type="file" accept="image/*,.pdf" (change)="onFileChange(i, $event)" hidden />
+              </label>
+            }
+          </div>
+        }
+
+        @if (submitError()) {
+          <div class="submit-error">{{ submitError() }}</div>
+        }
+      </section>
+    }
+
+    <!-- Sticky bottom bar -->
+    <div class="bottom-bar">
+      @if (step() > 1) {
+        <app-button variant="secondary" (click)="prev()">Volver</app-button>
       }
 
-      @if (submitError()) {
-        <div class="submit-error">{{ submitError() }}</div>
+      @if (step() < 3) {
+        <app-button
+          [disabled]="(step() === 1 && !step1Valid()) || (step() === 2 && !step2Valid())"
+          (click)="next()">
+          Continuar
+        </app-button>
+      } @else {
+        <app-button [disabled]="submitting()" (click)="submit()">
+          {{ submitting() ? 'Enviando...' : 'Enviar denuncia' }}
+        </app-button>
       }
-    </section>
+    </div>
   }
-
-  <!-- Sticky bottom bar -->
-  <div class="bottom-bar">
-    @if (step() > 1) {
-      <button type="button" class="btn-secondary" (click)="prev()">Volver</button>
-    }
-
-    @if (step() < 3) {
-      <button
-        type="button"
-        class="btn-primary"
-        [disabled]="(step() === 1 && !step1Valid()) || (step() === 2 && !step2Valid())"
-        (click)="next()">
-        Continuar
-      </button>
-    } @else {
-      <button
-        type="button"
-        class="btn-primary"
-        [disabled]="submitting()"
-        (click)="submit()">
-        {{ submitting() ? 'Enviando...' : 'Enviar denuncia' }}
-      </button>
-    }
-  </div>
 </div>

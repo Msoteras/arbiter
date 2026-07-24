@@ -1,15 +1,25 @@
-import { ChangeDetectionStrategy, Component, inject, signal, computed } from '@angular/core';
-import { Router } from '@angular/router';
-import { FormsModule } from '@angular/forms';
+import { ChangeDetectionStrategy, Component, effect, inject, signal, computed } from '@angular/core';
+import { toSignal } from '@angular/core/rxjs-interop';
+import { Router, RouterLink } from '@angular/router';
+import { catchError, map, of, startWith } from 'rxjs';
+
 import { ExpedienteService, CaseCreateRequest } from '../expediente.service';
+import { PolicyService } from '../policy.service';
+import { ExpedienteResponse } from '../../../core/models/expediente';
+import { Policy } from '../../../core/models/policy';
+import { InsuredSessionService } from '../../../core/auth/insured-session.service';
+import { ButtonComponent } from '../../../shared/ui/button/button.component';
+import { InputComponent } from '../../../shared/ui/input/input.component';
+import { TextareaComponent } from '../../../shared/ui/textarea/textarea.component';
+import { SelectComponent, SelectOption } from '../../../shared/ui/select/select.component';
 
 type Step = 1 | 2 | 3;
 
+// El tipo de hecho solo determina la causa (hecho generador). El ramo y el producto
+// salen de la póliza elegida, no del tipo — así lo hace la aseguradora.
 interface ClaimType {
   key: string;
   label: string;
-  branch: string;
-  product: string;
   claimCause: string;
 }
 
@@ -19,9 +29,15 @@ interface DocSlot {
   file: File | null;
 }
 
+type PoliciesState =
+  | { status: 'loading' }
+  | { status: 'no-identity' }
+  | { status: 'ok'; list: Policy[] }
+  | { status: 'error' };
+
 @Component({
   selector: 'app-nueva-denuncia',
-  imports: [FormsModule],
+  imports: [RouterLink, ButtonComponent, InputComponent, TextareaComponent, SelectComponent],
   changeDetection: ChangeDetectionStrategy.OnPush,
   templateUrl: './nueva-denuncia.component.html',
   styleUrl: './nueva-denuncia.component.scss',
@@ -29,41 +45,82 @@ interface DocSlot {
 export class NuevaDenunciaComponent {
   private readonly router = inject(Router);
   private readonly service = inject(ExpedienteService);
+  private readonly policyService = inject(PolicyService);
+  private readonly session = inject(InsuredSessionService);
 
+  protected readonly steps: Step[] = [1, 2, 3];
   protected readonly step = signal<Step>(1);
   protected readonly submitting = signal(false);
   protected readonly submitError = signal<string | null>(null);
+  protected readonly submittedCase = signal<ExpedienteResponse | null>(null);
 
-  // Step 1
+  // La identidad sale de la sesión: el asegurado ya está logueado/identificado, no
+  // vuelve a tipear el DNI. (Cuando se integre Auth0, sale del JWT.)
+  private readonly insuredId = this.session.insuredId();
+
+  // Step 1 — pólizas del asegurado (de todas las aseguradoras) para elegir.
+  protected readonly policiesState = toSignal(
+    this.insuredId
+      ? this.policyService.listByInsured(this.insuredId).pipe(
+          map((list): PoliciesState => ({ status: 'ok', list })),
+          startWith<PoliciesState>({ status: 'loading' }),
+          catchError(() => of<PoliciesState>({ status: 'error' })),
+        )
+      : of<PoliciesState>({ status: 'no-identity' }),
+    { initialValue: { status: 'loading' } as PoliciesState },
+  );
+
+  protected readonly policies = computed<Policy[]>(() => {
+    const s = this.policiesState();
+    return s.status === 'ok' ? s.list : [];
+  });
+
+  protected readonly policyOptions = computed<SelectOption[]>(() =>
+    this.policies().map((p) => ({
+      value: p.policyNumber,
+      label: `${p.insurerName} · ${p.product} · ${p.policyNumber}`,
+    })),
+  );
+
+  protected readonly selectedPolicyNumber = signal('');
+  protected readonly selectedPolicy = computed<Policy | null>(
+    () => this.policies().find((p) => p.policyNumber === this.selectedPolicyNumber()) ?? null,
+  );
+
+  private readonly autofillEffect = effect(() => {
+    const policy = this.selectedPolicy();
+    if (policy) {
+      if (policy.insuredItem) this.insuredItem.set(policy.insuredItem);
+      if (policy.contactEmail) this.contactEmail.set(policy.contactEmail);
+      if (policy.contactPhone) this.contactPhone.set(policy.contactPhone);
+    }
+  });
+
   protected readonly claimTypes: ClaimType[] = [
-    { key: 'robo', label: 'Robo', branch: 'Celulares', product: 'Bolso – Compra Protegida', claimCause: 'Robo en vía pública' },
-    { key: 'hurto', label: 'Hurto', branch: 'Celulares', product: 'Bolso – Compra Protegida', claimCause: 'Hurto' },
-    { key: 'rotura', label: 'Rotura accidental', branch: 'Celulares', product: 'Combinado Familiar', claimCause: 'Rotura accidental' },
-    { key: 'otro', label: 'Otro', branch: 'General', product: 'Multirriesgo', claimCause: 'Siniestro general' },
+    { key: 'robo', label: 'Robo', claimCause: 'Robo en vía pública' },
+    { key: 'hurto', label: 'Hurto', claimCause: 'Hurto' },
+    { key: 'rotura', label: 'Rotura accidental', claimCause: 'Rotura accidental' },
+    { key: 'otro', label: 'Otro', claimCause: 'Siniestro general' },
   ];
   protected readonly selectedType = signal<ClaimType | null>(null);
-  protected readonly policyNumber = signal('');
-  protected readonly policyTouched = signal(false);
 
-  protected readonly mockPolicies = [
-    { number: 'POL-001', label: 'POL-001 — Test Insured (Celular)' },
-    { number: 'POL-CEL-2024-001', label: 'POL-CEL-2024-001 — Laura Fernández (Celular Protegido Básico)' },
-    { number: 'POL-CEL-2025-099', label: 'POL-CEL-2025-099 — Marcelo Gómez (Celular Protegido Premium)' },
-    { number: 'POL-CEL-2026-042', label: 'POL-CEL-2026-042 — Póliza Demo' },
-  ];
-
-  protected readonly step1Valid = computed(() => !!this.selectedType() && this.policyNumber().length > 0);
+  protected readonly step1Valid = computed(() => !!this.selectedPolicy() && !!this.selectedType());
 
   // Step 2
   protected readonly description = signal('');
   protected readonly insuredItem = signal('');
-  protected readonly insuredId = signal('');
-  protected readonly eventLocation = signal('');
+  protected readonly provincia = signal('');
+  protected readonly localidad = signal('');
+  protected readonly calleNumero = signal('');
+  protected readonly entreCalles = signal('');
   protected readonly eventDate = signal('');
+  protected readonly eventTime = signal('');
   protected readonly claimedAmount = signal<string>('');
+  protected readonly pep = signal(false);
+  protected readonly contactEmail = signal('');
+  protected readonly contactPhone = signal('');
 
-  protected readonly descCount = computed(() => this.description().length);
-  protected readonly step2Valid = computed(() => this.descCount() >= 50);
+  protected readonly step2Valid = computed(() => this.description().trim().length > 0);
 
   // Step 3
   protected readonly docSlots = signal<DocSlot[]>([
@@ -73,32 +130,35 @@ export class NuevaDenunciaComponent {
     { type: 'quote', label: 'Presupuesto de reparación', file: null },
   ]);
 
-  protected readonly docsCount = computed(() => this.docSlots().filter(d => d.file).length);
+  protected readonly docsCount = computed(() => this.docSlots().filter((d) => d.file).length);
 
   selectType(t: ClaimType): void {
     this.selectedType.set(t);
   }
 
-  blurPolicy(): void {
-    this.policyTouched.set(true);
-  }
-
   next(): void {
     if (this.step() < 3) {
-      this.step.update(s => (s + 1) as Step);
+      this.step.update((s) => (s + 1) as Step);
     }
   }
 
   prev(): void {
     if (this.step() > 1) {
-      this.step.update(s => (s - 1) as Step);
+      this.step.update((s) => (s - 1) as Step);
+    }
+  }
+
+  /** Volver a un paso ya completado tocando su número. Avanzar sigue gateado por "Continuar". */
+  goToStep(s: Step): void {
+    if (s < this.step()) {
+      this.step.set(s);
     }
   }
 
   onFileChange(index: number, event: Event): void {
     const input = event.target as HTMLInputElement;
     const file = input.files?.[0] ?? null;
-    this.docSlots.update(slots => {
+    this.docSlots.update((slots) => {
       const updated = [...slots];
       updated[index] = { ...updated[index], file };
       return updated;
@@ -106,31 +166,44 @@ export class NuevaDenunciaComponent {
   }
 
   removeFile(index: number): void {
-    this.docSlots.update(slots => {
+    this.docSlots.update((slots) => {
       const updated = [...slots];
       updated[index] = { ...updated[index], file: null };
       return updated;
     });
   }
 
+  private buildEventLocation(): string {
+    const parts = [this.calleNumero(), this.localidad(), this.provincia()].filter(
+      (p) => p.trim().length > 0,
+    );
+    const base = parts.join(', ');
+    return this.entreCalles().trim() ? `${base} (entre ${this.entreCalles()})` : base;
+  }
+
   submit(): void {
     const type = this.selectedType();
-    if (!type || this.submitting()) return;
+    const policy = this.selectedPolicy();
+    if (!type || !policy || this.submitting()) return;
 
     this.submitting.set(true);
     this.submitError.set(null);
 
     const request: CaseCreateRequest = {
-      branch: type.branch,
-      product: type.product,
+      // El ramo y el producto salen de la póliza elegida, no del tipo de hecho.
+      branch: policy.branch,
+      product: policy.product,
       claimCause: type.claimCause,
       insuredItem: this.insuredItem(),
-      insuredId: this.insuredId(),
-      policyNumber: this.policyNumber(),
+      insuredId: policy.insuredId,
+      policyNumber: policy.policyNumber,
       description: this.description(),
-      eventDate: this.eventDate() + 'T00:00:00',
-      eventLocation: this.eventLocation(),
+      eventDate: this.eventDate() + 'T' + (this.eventTime() || '00:00') + ':00',
+      eventLocation: this.buildEventLocation(),
       claimedAmount: this.claimedAmount() ? Number(this.claimedAmount()) : undefined,
+      pep: this.pep(),
+      contactEmail: this.contactEmail() || undefined,
+      contactPhone: this.contactPhone() || undefined,
     };
 
     const docs = new Map<string, File>();
@@ -143,12 +216,20 @@ export class NuevaDenunciaComponent {
     this.service.create(request, docs.size > 0 ? docs : undefined).subscribe({
       next: (res) => {
         this.submitting.set(false);
-        this.router.navigate(['/expedientes', res.id]);
+        this.session.identify(request.insuredId);
+        this.submittedCase.set(res);
       },
       error: (err) => {
         this.submitting.set(false);
-        this.submitError.set(err.error?.message || err.message || 'Error al crear el caso');
+        this.submitError.set(err.error?.detail || 'Error al crear el caso');
       },
     });
+  }
+
+  goToCase(): void {
+    const created = this.submittedCase();
+    if (created) {
+      this.router.navigate(['/portal/cases', created.id]);
+    }
   }
 }

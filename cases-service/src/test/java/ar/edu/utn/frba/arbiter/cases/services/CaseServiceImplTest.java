@@ -1,24 +1,35 @@
 package ar.edu.utn.frba.arbiter.cases.services;
 
+import ar.edu.utn.frba.arbiter.cases.dto.AnalystDecisionRequest;
 import ar.edu.utn.frba.arbiter.cases.dto.CaseRequest;
 import ar.edu.utn.frba.arbiter.cases.dto.CaseResponse;
 import ar.edu.utn.frba.arbiter.cases.exceptions.CaseNotFoundException;
+import ar.edu.utn.frba.arbiter.cases.exceptions.InvalidAnalystDecisionException;
+import ar.edu.utn.frba.arbiter.cases.exceptions.InvalidStatusTransitionException;
 import ar.edu.utn.frba.arbiter.cases.models.entities.CaseDocument;
 import ar.edu.utn.frba.arbiter.cases.models.entities.Case;
+import ar.edu.utn.frba.arbiter.cases.models.entities.CaseStatusHistory;
 import ar.edu.utn.frba.arbiter.cases.models.entities.StatusChangeActor;
 import ar.edu.utn.frba.arbiter.cases.models.repositories.CaseDocumentRepository;
 import ar.edu.utn.frba.arbiter.cases.models.repositories.CaseRepository;
 import ar.edu.utn.frba.arbiter.common.enums.CaseStatus;
 import ar.edu.utn.frba.arbiter.common.enums.Classification;
+import ar.edu.utn.frba.arbiter.common.enums.RiskBand;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageImpl;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.jpa.domain.Specification;
 import org.springframework.mock.web.MockMultipartFile;
 
 import java.math.BigDecimal;
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Map;
@@ -159,6 +170,180 @@ class CaseServiceImplTest {
     }
 
     @Test
+    void listCases_noFilter_returnsAllOrderedMostRecentFirst() {
+        Case case2 = caseRecord(2L, CaseStatus.PENDING_ANALYST_REVIEW);
+        Case case1 = caseRecord(1L, CaseStatus.APPROVED);
+        Pageable pageable = PageRequest.of(0, 20);
+        when(caseRepository.findAll(isNull(Specification.class), eq(pageable)))
+                .thenReturn(new PageImpl<>(List.of(case2, case1), pageable, 2));
+
+        Page<CaseResponse> response = caseService.listCases(null, null, null, null, null, null, null, null, pageable);
+
+        assertThat(response.getContent()).hasSize(2);
+        assertThat(response.getContent().get(0).id()).isEqualTo(2L);
+        assertThat(response.getContent().get(1).id()).isEqualTo(1L);
+    }
+
+    @Test
+    void listCases_withStatusFilter_appliesStatusSpec() {
+        Case entity = caseRecord(3L, CaseStatus.PENDING_ANALYST_REVIEW);
+        Pageable pageable = PageRequest.of(0, 20);
+        when(caseRepository.findAll(any(Specification.class), eq(pageable)))
+                .thenReturn(new PageImpl<>(List.of(entity), pageable, 1));
+
+        Page<CaseResponse> response = caseService.listCases(
+                CaseStatus.PENDING_ANALYST_REVIEW, null, null, null, null, null, null, null, pageable);
+
+        assertThat(response.getContent()).hasSize(1);
+        assertThat(response.getContent().get(0).status()).isEqualTo(CaseStatus.PENDING_ANALYST_REVIEW);
+    }
+
+    @Test
+    void listCases_withInsuredIdFilter_returnsOnlyThatInsuredsCases() {
+        Case entity = caseRecord(4L, CaseStatus.PENDING_CLASSIFICATION);
+        Pageable pageable = PageRequest.of(0, 20);
+        when(caseRepository.findAll(any(Specification.class), eq(pageable)))
+                .thenReturn(new PageImpl<>(List.of(entity), pageable, 1));
+
+        Page<CaseResponse> response = caseService.listCases(
+                null, null, null, "40.123.456", null, null, null, null, pageable);
+
+        assertThat(response.getContent()).hasSize(1);
+        assertThat(response.getContent().get(0).insuredId()).isEqualTo("40.123.456");
+    }
+
+    @Test
+    void listCases_withFreeTextSearch_passesQToSpecifications() {
+        Case entity = caseRecord(6L, CaseStatus.PENDING_ANALYST_REVIEW);
+        Pageable pageable = PageRequest.of(0, 20);
+        when(caseRepository.findAll(any(Specification.class), eq(pageable)))
+                .thenReturn(new PageImpl<>(List.of(entity), pageable, 1));
+
+        Page<CaseResponse> response = caseService.listCases(
+                null, null, null, null, null, null, "POL-CEL", null, pageable);
+
+        assertThat(response.getContent()).hasSize(1);
+        verify(caseRepository).findAll(any(Specification.class), eq(pageable));
+    }
+
+    @Test
+    void listCases_withRiskBandFilter_passesRiskBandToSpecifications() {
+        Case entity = caseRecord(7L, CaseStatus.PENDING_ANALYST_REVIEW);
+        Pageable pageable = PageRequest.of(0, 20);
+        when(caseRepository.findAll(any(Specification.class), eq(pageable)))
+                .thenReturn(new PageImpl<>(List.of(entity), pageable, 1));
+
+        Page<CaseResponse> response = caseService.listCases(
+                null, null, null, null, null, null, null, RiskBand.HIGH, pageable);
+
+        assertThat(response.getContent()).hasSize(1);
+        verify(caseRepository).findAll(any(Specification.class), eq(pageable));
+    }
+
+    @Test
+    void listCases_withClaimCausePolicyNumberAndDateRange_combinesFilters() {
+        Case entity = caseRecord(5L, CaseStatus.APPROVED);
+        Pageable pageable = PageRequest.of(0, 20);
+        when(caseRepository.findAll(any(Specification.class), eq(pageable)))
+                .thenReturn(new PageImpl<>(List.of(entity), pageable, 1));
+
+        Page<CaseResponse> response = caseService.listCases(
+                CaseStatus.APPROVED, "Robo en vía pública", "POL-CEL-2024-001", "40.123.456",
+                LocalDate.of(2026, 6, 1), LocalDate.of(2026, 6, 30), null, null, pageable);
+
+        assertThat(response.getContent()).hasSize(1);
+        verify(caseRepository).findAll(any(Specification.class), eq(pageable));
+    }
+
+    @Test
+    void listCases_noResults_returnsEmptyPage() {
+        Pageable pageable = PageRequest.of(0, 20);
+        when(caseRepository.findAll(isNull(Specification.class), eq(pageable)))
+                .thenReturn(new PageImpl<>(List.of(), pageable, 0));
+
+        Page<CaseResponse> response = caseService.listCases(null, null, null, null, null, null, null, null, pageable);
+
+        assertThat(response.getContent()).isEmpty();
+        assertThat(response.getTotalElements()).isZero();
+    }
+
+    @Test
+    void getCase_includesStatusHistoryWithTimestamps() {
+        Case entity = caseRecord(1L, CaseStatus.PENDING_ANALYST_REVIEW);
+        when(caseRepository.findById(1L)).thenReturn(Optional.of(entity));
+        when(caseStatusService.history(1L)).thenReturn(List.of(
+                CaseStatusHistory.builder()
+                        .caseId(1L).fromStatus(null).toStatus(CaseStatus.PENDING_CLASSIFICATION)
+                        .actor(StatusChangeActor.INSURED).reason("denuncia registrada").build(),
+                CaseStatusHistory.builder()
+                        .caseId(1L).fromStatus(CaseStatus.PENDING_CLASSIFICATION)
+                        .toStatus(CaseStatus.PENDING_ANALYST_REVIEW)
+                        .actor(StatusChangeActor.SYSTEM).reason("clasificación: LLM_RECOMIENDA_APROBAR").build()
+        ));
+
+        CaseResponse response = caseService.getCase(1L);
+
+        assertThat(response.statusHistory()).hasSize(2);
+        assertThat(response.statusHistory().get(0).fromStatus()).isNull();
+        assertThat(response.statusHistory().get(0).toStatus()).isEqualTo(CaseStatus.PENDING_CLASSIFICATION);
+        assertThat(response.statusHistory().get(1).actor()).isEqualTo(StatusChangeActor.SYSTEM);
+    }
+
+    @Test
+    void recordAnalystDecision_approve_transitionsToApproved() {
+        Case entity = caseRecord(1L, CaseStatus.PENDING_ANALYST_REVIEW);
+        when(caseRepository.findById(1L)).thenReturn(Optional.of(entity));
+        AnalystDecisionRequest request = new AnalystDecisionRequest("analyst-1", "APPROVE");
+
+        caseService.recordAnalystDecision(1L, request);
+
+        verify(claimsAnalysisClient).forwardAnalystDecision(1L, request);
+        verify(caseStatusService).transition(eq(entity), eq(CaseStatus.APPROVED),
+                eq(StatusChangeActor.ANALYST), any());
+    }
+
+    @Test
+    void recordAnalystDecision_unknownDecision_throwsAndDoesNotForward() {
+        Case entity = caseRecord(1L, CaseStatus.PENDING_ANALYST_REVIEW);
+        when(caseRepository.findById(1L)).thenReturn(Optional.of(entity));
+
+        assertThatThrownBy(() -> caseService.recordAnalystDecision(1L,
+                new AnalystDecisionRequest("analyst-1", "DERIVAR")))
+                .isInstanceOf(InvalidAnalystDecisionException.class);
+
+        verify(claimsAnalysisClient, never()).forwardAnalystDecision(any(), any());
+        verify(caseStatusService, never()).transition(any(), any(), any(), any());
+    }
+
+    @Test
+    void recordAnalystDecision_caseNotUnderReview_throwsBeforeForwarding() {
+        Case entity = caseRecord(1L, CaseStatus.PENDING_CLASSIFICATION);
+        when(caseRepository.findById(1L)).thenReturn(Optional.of(entity));
+
+        assertThatThrownBy(() -> caseService.recordAnalystDecision(1L,
+                new AnalystDecisionRequest("analyst-1", "APPROVE")))
+                .isInstanceOf(InvalidStatusTransitionException.class);
+
+        verify(claimsAnalysisClient, never()).forwardAnalystDecision(any(), any());
+    }
+
+    @Test
+    void addDocumentsAndReclassify_resetsClassificationAttempts() {
+        Case entity = caseRecord(1L, CaseStatus.AWAITING_DOCUMENTATION);
+        entity.setClassificationAttempts(115);
+        entity.setDeterministicFastTrack(Boolean.FALSE);
+        when(caseRepository.findById(1L)).thenReturn(Optional.of(entity));
+        when(caseDocumentRepository.findByCaseId(1L)).thenReturn(List.of());
+        when(claimsAnalysisClient.analyzeAndPersist(any(), any()))
+                .thenReturn(new AnalysisResult(null, 0.0, "in progress"));
+
+        caseService.addDocumentsAndReclassify(1L, Map.of());
+
+        assertThat(entity.getClassificationAttempts()).isZero();
+        assertThat(entity.getDeterministicFastTrack()).isNull();
+    }
+
+    @Test
     void getCase_nullConfidence_defaultsToZero() {
         Case entity = caseRecord(1L, CaseStatus.PENDING_CLASSIFICATION);
         entity.setAnalysisConfidence(null);
@@ -231,7 +416,10 @@ class CaseServiceImplTest {
                 "Me robaron el celular en la estación de subte",
                 LocalDateTime.of(2026, 6, 13, 19, 45),
                 "Estación Congreso, CABA",
-                new BigDecimal("150000")
+                new BigDecimal("150000"),
+                false,
+                "test@example.com",
+                "11-5555-0000"
         );
     }
 

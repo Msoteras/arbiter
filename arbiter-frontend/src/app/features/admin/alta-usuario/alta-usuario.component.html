@@ -1,0 +1,35 @@
+<p class="t-note">
+  Creá una cuenta de analista de siniestros. Le vamos a mandar un mail para que elija su propia
+  contraseña. Por ahora el alta de asegurados no se hace desde acá.
+</p>
+
+<form class="form-card" (submit)="$event.preventDefault(); submit()">
+  <label class="field-label" for="nombre">Nombre</label>
+  <app-input id="nombre" [value]="nombre()" (valueChange)="nombre.set($event)" />
+
+  <label class="field-label" for="apellido">Apellido</label>
+  <app-input id="apellido" [value]="apellido()" (valueChange)="apellido.set($event)" />
+
+  <label class="field-label" for="email">Email</label>
+  <app-input id="email" type="email" [value]="email()" (valueChange)="email.set($event)" />
+
+  <span class="field-label">Rol</span>
+  <p class="t-body mono role-display">Analista de siniestros</p>
+
+  <label class="field-label" for="sector">Sector o área</label>
+  <app-input id="sector" [value]="sector()" (valueChange)="sector.set($event)" />
+
+  <label class="field-label" for="fechaIngreso">Fecha de ingreso (opcional)</label>
+  <app-input id="fechaIngreso" type="date" [value]="fechaIngreso()" (valueChange)="fechaIngreso.set($event)" />
+
+  @if (errorMessage()) {
+    <p class="error">{{ errorMessage() }}</p>
+  }
+
+  <div class="form-actions">
+    <app-button type="button" variant="secondary" (click)="cancel.emit()">Cancelar</app-button>
+    <app-button type="submit" [disabled]="!canSubmit() || submitting()">
+      {{ submitting() ? 'Creando…' : 'Crear usuario' }}
+    </app-button>
+  </div>
+</form>

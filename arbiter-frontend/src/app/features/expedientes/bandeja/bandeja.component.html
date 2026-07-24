@@ -1,0 +1,141 @@
+<div class="bandeja">
+  <h1 class="t-page-title title">Bandeja de expedientes</h1>
+
+  <app-card>
+    <div class="filters">
+      <label class="filter-field">
+        <span class="t-field-label">Estado</span>
+        <app-select
+          [value]="statusFilter()"
+          (valueChange)="onStatusChange($event)"
+          [options]="statusOptions"
+          placeholder="Todos los estados"
+        />
+      </label>
+
+      <label class="filter-field">
+        <span class="t-field-label">Tipo de siniestro</span>
+        <app-select
+          [value]="claimCauseFilter()"
+          (valueChange)="onClaimCauseChange($event)"
+          [options]="claimCauseOptions"
+          placeholder="Todos los tipos"
+        />
+      </label>
+
+      <label class="filter-field">
+        <span class="t-field-label">Nivel de alerta de fraude</span>
+        <app-select
+          [value]="riskBandFilter()"
+          (valueChange)="onRiskBandChange($event)"
+          [options]="riskBandOptions"
+          placeholder="Todos los niveles"
+        />
+      </label>
+
+      <label class="filter-field">
+        <span class="t-field-label">Fecha del hecho — desde</span>
+        <app-input type="date" [value]="eventDateFrom()" (valueChange)="onDateFromChange($event)" />
+      </label>
+
+      <label class="filter-field">
+        <span class="t-field-label">Fecha del hecho — hasta</span>
+        <app-input type="date" [value]="eventDateTo()" (valueChange)="onDateToChange($event)" />
+      </label>
+
+      <label class="filter-field grow">
+        <span class="t-field-label">Buscar</span>
+        <app-input
+          [value]="qDraft()"
+          (valueChange)="onSearchInput($event)"
+          placeholder="N° de expediente, nombre del asegurado o N° de póliza…"
+        />
+      </label>
+
+      <app-button variant="secondary" [disabled]="!hasActiveFilters()" (click)="clearFilters()">
+        Limpiar filtros
+      </app-button>
+
+      <app-button variant="secondary" [disabled]="exportingCsv() || isEmpty()" (click)="exportCsv()">
+        {{ exportingCsv() ? 'Exportando…' : 'Exportar CSV' }}
+      </app-button>
+    </div>
+  </app-card>
+
+  @if (loading()) {
+    <app-card><p class="t-note">Cargando expedientes…</p></app-card>
+  } @else if (hasError()) {
+    <app-card>
+      <p class="t-note">
+        No se pudo cargar el listado. Verificá que <span class="mono">cases-service</span>
+        esté corriendo en el puerto 8083.
+      </p>
+    </app-card>
+  } @else if (isEmpty()) {
+    <app-card>
+      <p class="t-note">
+        @if (hasActiveFilters()) {
+          Ningún expediente coincide con los filtros aplicados.
+        } @else {
+          Todavía no hay expedientes cargados.
+        }
+      </p>
+    </app-card>
+  } @else {
+    <app-card [flush]="true">
+      <table>
+        <thead>
+          <tr>
+            @for (col of columns; track col.field) {
+              <th>
+                <button type="button" class="sort-btn" (click)="toggleSort(col.field)">
+                  {{ col.label }}
+                  @if (sortField() === col.field) {
+                    <span class="sort-arrow" aria-hidden="true">{{ sortDir() === 'asc' ? '↑' : '↓' }}</span>
+                  }
+                </button>
+              </th>
+            }
+          </tr>
+        </thead>
+        <tbody>
+          @for (c of cases(); track c.id) {
+            <tr class="row-link" (click)="goTo(c.id)">
+              <td>
+                <a class="mono id-link" [routerLink]="['/cases', c.id]" (click)="$event.stopPropagation()">#{{ c.id }}</a>
+              </td>
+              <td><app-badge [tone]="estadoTone(c.status)">{{ estadoLabel(c.status) }}</app-badge></td>
+              <td>
+                <span [class.t-note]="!c.insuredName">{{ displayInsured(c) }}</span>
+                <br />
+                <span class="t-note mono">{{ displayInsuredId(c) }}</span>
+              </td>
+              <td>{{ c.claimCause }}</td>
+              <td>{{ formatDate(c.eventDate) }}</td>
+              <td class="mono">{{ formatAmount(c.claimedAmount) }}</td>
+              <td><app-fraud-gauge [band]="riskGaugeBand(c)" /></td>
+              <td>
+                @if (c.analysisClassification) {
+                  <app-badge [tone]="clasificacionTone(c.analysisClassification)">
+                    {{ clasificacionLabel(c.analysisClassification) }}
+                  </app-badge>
+                } @else {
+                  <span class="t-note">—</span>
+                }
+              </td>
+            </tr>
+          }
+        </tbody>
+      </table>
+    </app-card>
+
+    <app-pagination
+      [page]="page()"
+      [totalPages]="totalPages()"
+      [totalElements]="totalElements()"
+      [size]="size()"
+      (pageChange)="onPageChange($event)"
+      (sizeChange)="onSizeChange($event)"
+    />
+  }
+</div>

@@ -16,11 +16,50 @@ export interface CaseCreateRequest {
   eventDate: string;
   eventLocation: string;
   claimedAmount?: number;
+  pep: boolean;
+  contactEmail?: string;
+  contactPhone?: string;
 }
 
+// El backend solo acepta APPROVE/APROBAR o REJECT/RECHAZAR (human-in-the-loop:
+// el analista aprueba o rechaza; no hay otras salidas).
 export interface AnalystDecisionRequest {
   analystId: string;
-  decision: 'APPROVE' | 'REJECT' | 'DERIVAR';
+  decision: 'APPROVE' | 'REJECT';
+}
+
+// Forma de Page<T> de Spring Data — así responde GET /api/v1/cases desde que el backend
+// pagina (historia "Búsqueda y filtrado de expedientes"). Solo los campos que usamos hoy;
+// Spring manda más metadata (pageable, sort, empty, etc.) que ignoramos.
+export interface PagedResponse<T> {
+  content: T[];
+  totalElements: number;
+  totalPages: number;
+  number: number;
+  size: number;
+}
+
+// Todos los filtros que GET /api/v1/cases acepta hoy (opcionales y combinables) + paginación/orden.
+export interface ExpedienteListParams {
+  status?: string;
+  claimCause?: string;
+  policyNumber?: string;
+  insuredId?: string;
+  /** ISO yyyy-MM-dd. Filtra por fecha del hecho (eventDate), no por fecha de denuncia. */
+  eventDateFrom?: string;
+  eventDateTo?: string;
+  page?: number;
+  size?: number;
+  /** Formato Spring Data, ej. "eventDate,desc". Default del backend: "id,desc". */
+  sort?: string;
+  /**
+   * Búsqueda de texto libre (case-insensitive, substring) por número de expediente, póliza o
+   * asegurado (insuredId/insuredName — este último nullable hasta la primera clasificación).
+   * Se combina por AND con el resto de los filtros.
+   */
+  q?: string;
+  /** Nivel de alerta de fraude, match exacto. */
+  riskBand?: 'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL';
 }
 
 @Injectable({ providedIn: 'root' })
@@ -30,6 +69,28 @@ export class ExpedienteService {
 
   getById(id: string | number): Observable<ExpedienteResponse> {
     return this.http.get<ExpedienteResponse>(`${this.baseUrl}/${id}`);
+  }
+
+  /**
+   * Lista expedientes paginados, más recientes primero por defecto. Todos los filtros de
+   * `ExpedienteListParams` son opcionales y combinables — reflejan 1:1 lo que acepta
+   * `GET /api/v1/cases` (historia "Búsqueda y filtrado de expedientes", backend). `insuredId` es
+   * explícito hasta que se integre Auth0; después saldrá del JWT.
+   */
+  list(params: ExpedienteListParams = {}): Observable<PagedResponse<ExpedienteResponse>> {
+    const query: Record<string, string> = {};
+    if (params.status) query['status'] = params.status;
+    if (params.claimCause) query['claimCause'] = params.claimCause;
+    if (params.policyNumber) query['policyNumber'] = params.policyNumber;
+    if (params.insuredId) query['insuredId'] = params.insuredId;
+    if (params.eventDateFrom) query['eventDateFrom'] = params.eventDateFrom;
+    if (params.eventDateTo) query['eventDateTo'] = params.eventDateTo;
+    if (params.page != null) query['page'] = String(params.page);
+    if (params.size != null) query['size'] = String(params.size);
+    if (params.sort) query['sort'] = params.sort;
+    if (params.q) query['q'] = params.q;
+    if (params.riskBand) query['riskBand'] = params.riskBand;
+    return this.http.get<PagedResponse<ExpedienteResponse>>(this.baseUrl, { params: query });
   }
 
   create(request: CaseCreateRequest, documents?: Map<string, File>): Observable<ExpedienteResponse> {

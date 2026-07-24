@@ -8,6 +8,7 @@ import ar.edu.utn.frba.arbiter.classification.dto.ClassificationResponse;
 import ar.edu.utn.frba.arbiter.classification.exceptions.InvalidClassificationException;
 import ar.edu.utn.frba.arbiter.classification.models.entities.ClassificationLog;
 import ar.edu.utn.frba.arbiter.classification.models.repositories.ClassificationLogRepository;
+import ar.edu.utn.frba.arbiter.classification.services.risk.RiskScore;
 import lombok.RequiredArgsConstructor;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -56,9 +57,26 @@ public class ClassificationResultsService {
         entry.setFactors(response.factors());
         entry.setForensicReport(forensicReport);
         entry.setLatencyMs(latencyMs);
+        entry.setInsuredName(response.insuredName());
+        applyRiskScore(entry, response.riskScore());
 
         logRepository.save(entry);
-        log.info("[ResultsService] Classification logged for case {} ({})", caseId, entry.getSource());
+        log.info("[ResultsService] Classification logged for case {} ({}) — riskBand={}",
+                caseId, entry.getSource(), entry.getRiskBand());
+    }
+
+    /**
+     * Writes the risk snapshot only when the claim was actually scored. When there's no scoring
+     * config the engine returns a neutral 0.0/LOW, but we persist it as null ("sin scorear") so the
+     * read model never presents it as a real LOW band.
+     */
+    private void applyRiskScore(ClassificationLog entry, RiskScore riskScore) {
+        if (riskScore == null || !riskScore.scored()) {
+            return;
+        }
+        entry.setRiskScore(BigDecimal.valueOf(riskScore.score()));
+        entry.setRiskBand(riskScore.band());
+        entry.setRiskBreakdown(riskScore.breakdown());
     }
 
     /** Latest classification for a case; classification fields stay null until a log exists for it. */
@@ -73,6 +91,10 @@ public class ClassificationResultsService {
                 .factors(entry.map(ClassificationLog::getFactors).orElse(null))
                 .deterministicFastTrack(entry.map(l -> "RULES_FAST_TRACK".equals(l.getSource())).orElse(false))
                 .forensicReport(entry.map(ClassificationLog::getForensicReport).orElse(null))
+                .riskScore(entry.map(l -> l.getRiskScore() != null ? l.getRiskScore().doubleValue() : null).orElse(null))
+                .riskBand(entry.map(ClassificationLog::getRiskBand).orElse(null))
+                .riskBreakdown(entry.map(ClassificationLog::getRiskBreakdown).orElse(null))
+                .insuredName(entry.map(ClassificationLog::getInsuredName).orElse(null))
                 .build();
     }
 

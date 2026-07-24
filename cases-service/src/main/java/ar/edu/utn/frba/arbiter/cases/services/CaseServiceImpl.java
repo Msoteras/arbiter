@@ -1,21 +1,33 @@
 package ar.edu.utn.frba.arbiter.cases.services;
 
 import ar.edu.utn.frba.arbiter.cases.dto.AnalystDecisionRequest;
+import ar.edu.utn.frba.arbiter.cases.dto.CaseDocumentResponse;
 import ar.edu.utn.frba.arbiter.cases.dto.CaseRequest;
 import ar.edu.utn.frba.arbiter.cases.dto.CaseResponse;
+import ar.edu.utn.frba.arbiter.cases.dto.StatusTransitionResponse;
 import ar.edu.utn.frba.arbiter.cases.exceptions.CaseNotFoundException;
+import ar.edu.utn.frba.arbiter.cases.exceptions.DocumentNotFoundException;
 import ar.edu.utn.frba.arbiter.cases.exceptions.DocumentReadException;
+import ar.edu.utn.frba.arbiter.cases.exceptions.InvalidAnalystDecisionException;
+import ar.edu.utn.frba.arbiter.cases.exceptions.InvalidStatusTransitionException;
 import ar.edu.utn.frba.arbiter.cases.models.entities.CaseDocument;
 import ar.edu.utn.frba.arbiter.cases.models.entities.Case;
 import ar.edu.utn.frba.arbiter.cases.models.entities.StatusChangeActor;
 import ar.edu.utn.frba.arbiter.cases.models.repositories.CaseDocumentRepository;
 import ar.edu.utn.frba.arbiter.cases.models.repositories.CaseRepository;
+import ar.edu.utn.frba.arbiter.cases.models.repositories.CaseSpecifications;
 import ar.edu.utn.frba.arbiter.common.enums.CaseStatus;
+import ar.edu.utn.frba.arbiter.common.enums.RiskBand;
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.jpa.domain.Specification;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.io.IOException;
+import java.time.LocalDate;
+import java.util.List;
 import java.util.Map;
 
 @Service
@@ -40,6 +52,9 @@ public class CaseServiceImpl implements CaseService {
                 .eventDate(request.eventDate())
                 .eventLocation(request.eventLocation())
                 .claimedAmount(request.claimedAmount())
+                .pep(Boolean.TRUE.equals(request.pep()))
+                .contactEmail(request.contactEmail())
+                .contactPhone(request.contactPhone())
                 .status(CaseStatus.PENDING_CLASSIFICATION)
                 .build();
 
@@ -61,6 +76,15 @@ public class CaseServiceImpl implements CaseService {
         entity.setAnalysisClassification(null);
         entity.setAnalysisConfidence(null);
         entity.setAnalysisDetail(null);
+        // Clear the cached risk too so the recalculation window reads as "sin scorear"/recalculando,
+        // never a stale band. It's re-populated by the classification poll once the new score lands.
+        entity.setRiskScore(null);
+        entity.setRiskBand(null);
+        entity.setRiskBreakdown(null);
+        entity.setDeterministicFastTrack(null);
+        // Fresh classification cycle: without this reset, attempts accumulated in previous
+        // cycles would push the case to CLASSIFICATION_FAILED prematurely.
+        entity.setClassificationAttempts(0);
         caseStatusService.transition(entity, CaseStatus.PENDING_CLASSIFICATION,
                 StatusChangeActor.INSURED, "documentación adicional subida");
 
@@ -93,7 +117,39 @@ public class CaseServiceImpl implements CaseService {
     public CaseResponse getCase(Long caseId) {
         Case entity = caseRepository.findById(caseId)
                 .orElseThrow(() -> new CaseNotFoundException(caseId));
-        return toResponse(entity);
+        List<StatusTransitionResponse> history = caseStatusService.history(caseId).stream()
+                .map(StatusTransitionResponse::from)
+                .toList();
+        return toResponse(entity, history);
+    }
+
+    @Override
+    public Page<CaseResponse> listCases(CaseStatus status, String claimCause, String policyNumber,
+                                         String insuredId, LocalDate eventDateFrom, LocalDate eventDateTo,
+                                         String q, RiskBand riskBand, Pageable pageable) {
+        Specification<Case> spec = CaseSpecifications.withFilters(
+                status, claimCause, policyNumber, insuredId, eventDateFrom, eventDateTo, q, riskBand);
+        return caseRepository.findAll(spec, pageable).map(this::toResponse);
+    }
+
+    @Override
+    public List<CaseDocumentResponse> getDocuments(Long caseId) {
+        if (!caseRepository.existsById(caseId)) {
+            throw new CaseNotFoundException(caseId);
+        }
+        return caseDocumentRepository.findByCaseId(caseId).stream()
+                .map(CaseDocumentResponse::from)
+                .toList();
+    }
+
+    @Override
+    public CaseDocument getDocument(Long caseId, Long documentId) {
+        if (!caseRepository.existsById(caseId)) {
+            throw new CaseNotFoundException(caseId);
+        }
+        return caseDocumentRepository.findById(documentId)
+                .filter(doc -> doc.getCaseId().equals(caseId))
+                .orElseThrow(() -> new DocumentNotFoundException(caseId, documentId));
     }
 
     @Override
@@ -101,18 +157,29 @@ public class CaseServiceImpl implements CaseService {
         Case entity = caseRepository.findById(caseId)
                 .orElseThrow(() -> new CaseNotFoundException(caseId));
 
-        claimsAnalysisClient.forwardAnalystDecision(caseId, request);
+        CaseStatus targetStatus = switch (request.decision() == null ? "" : request.decision().trim().toUpperCase()) {
+            case "APPROVE", "APROBAR" -> CaseStatus.APPROVED;
+            case "REJECT", "RECHAZAR" -> CaseStatus.REJECTED;
+            default -> throw new InvalidAnalystDecisionException(request.decision());
+        };
 
-        CaseStatus targetStatus = "REJECT".equalsIgnoreCase(request.decision())
-                || "RECHAZAR".equalsIgnoreCase(request.decision())
-                ? CaseStatus.REJECTED
-                : CaseStatus.APPROVED;
+        // The decision lands in classification-service's immutable audit log; validate the
+        // transition BEFORE forwarding so an unreviewable case never gets a decision recorded.
+        if (entity.getStatus() != CaseStatus.PENDING_ANALYST_REVIEW) {
+            throw new InvalidStatusTransitionException(entity.getStatus(), targetStatus);
+        }
+
+        claimsAnalysisClient.forwardAnalystDecision(caseId, request);
 
         caseStatusService.transition(entity, targetStatus,
                 StatusChangeActor.ANALYST, "decisión del analista: " + request.decision());
     }
 
     private CaseResponse toResponse(Case entity) {
+        return toResponse(entity, null);
+    }
+
+    private CaseResponse toResponse(Case entity, List<StatusTransitionResponse> history) {
         return new CaseResponse(
                 entity.getId(),
                 entity.getStatus(),
@@ -121,6 +188,7 @@ public class CaseServiceImpl implements CaseService {
                 entity.getClaimCause(),
                 entity.getInsuredItem(),
                 entity.getInsuredId(),
+                entity.getInsuredName(),
                 entity.getPolicyNumber(),
                 entity.getDescription(),
                 entity.getEventDate(),
@@ -128,7 +196,13 @@ public class CaseServiceImpl implements CaseService {
                 entity.getClaimedAmount(),
                 entity.getAnalysisClassification(),
                 entity.getAnalysisConfidence() != null ? entity.getAnalysisConfidence() : 0.0,
-                entity.getAnalysisDetail()
+                entity.getAnalysisDetail(),
+                entity.getRiskScore(),
+                entity.getRiskBand(),
+                entity.getRiskBreakdown(),
+                entity.getCreatedAt(),
+                entity.getUpdatedAt(),
+                history
         );
     }
 }

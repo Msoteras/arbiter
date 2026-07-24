@@ -1,20 +1,23 @@
 import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
-import { toSignal } from '@angular/core/rxjs-interop';
+import { toObservable, toSignal } from '@angular/core/rxjs-interop';
 import { ActivatedRoute, RouterLink } from '@angular/router';
 import { HttpErrorResponse } from '@angular/common/http';
-import { catchError, map, of, startWith, switchMap } from 'rxjs';
+import { catchError, combineLatest, map, of, startWith, switchMap } from 'rxjs';
 
 import { ExpedienteService, AnalystDecisionRequest } from '../expediente.service';
-import { ExpedienteResponse } from '../../../core/models/expediente';
-import { clasificacionLabel } from '../../../core/models/clasificacion';
+import { ExpedienteResponse, StatusTransition } from '../../../core/models/expediente';
+import { clasificacionLabel, clasificacionTone } from '../../../core/models/clasificacion';
+import { estadoLabel, estadoSimplificadoLabel, estadoTone } from '../../../core/models/estado';
+import { StatusTone } from '../../../core/models/status-tone';
 import { FraudGaugeComponent } from '../../../shared/ui/fraud-gauge/fraud-gauge.component';
 import { EmptyStateComponent } from '../../../shared/ui/empty-state/empty-state.component';
-
-interface DocUploadSlot {
-  type: string;
-  label: string;
-  file: File | null;
-}
+import { StatusTimelineComponent } from '../../../shared/ui/status-timeline/status-timeline.component';
+import { DocUploadComponent } from '../../../shared/ui/doc-upload/doc-upload.component';
+import { CardComponent } from '../../../shared/ui/card/card.component';
+import { ButtonComponent } from '../../../shared/ui/button/button.component';
+import { BadgeComponent } from '../../../shared/ui/badge/badge.component';
+import { ModalComponent } from '../../../shared/ui/modal/modal.component';
+import { TextareaComponent } from '../../../shared/ui/textarea/textarea.component';
 
 type LoadState =
   | { status: 'loading' }
@@ -22,14 +25,25 @@ type LoadState =
   | { status: 'error'; httpStatus: number };
 
 type TabId = 'resumen' | 'datos' | 'imagenes' | 'documentacion' | 'conversacion' | 'historial';
-type Verb = 'aprobar' | 'rechazar' | 'derivar';
+type Verb = 'aprobar' | 'rechazar';
 
 /** value=null → la sección muestra "Sin datos" (el backend no provee este campo). */
 interface FieldItem { label: string; value: string | null; mono?: boolean; full?: boolean; }
 
 @Component({
   selector: 'app-expediente-detail',
-  imports: [RouterLink, FraudGaugeComponent, EmptyStateComponent],
+  imports: [
+    RouterLink,
+    FraudGaugeComponent,
+    EmptyStateComponent,
+    StatusTimelineComponent,
+    DocUploadComponent,
+    CardComponent,
+    ButtonComponent,
+    BadgeComponent,
+    ModalComponent,
+    TextareaComponent,
+  ],
   changeDetection: ChangeDetectionStrategy.OnPush,
   templateUrl: './expediente-detail.component.html',
   styleUrl: './expediente-detail.component.scss',
@@ -38,9 +52,15 @@ export class ExpedienteDetailComponent {
   private readonly route = inject(ActivatedRoute);
   private readonly service = inject(ExpedienteService);
 
+  /** Bumped after a decision is recorded, to refetch the case and reflect the real backend status. */
+  private readonly reloadTrigger = signal(0);
+
   private readonly state = toSignal(
-    this.route.paramMap.pipe(
-      map((params) => params.get('id') ?? ''),
+    combineLatest([
+      this.route.paramMap.pipe(map((params) => params.get('id') ?? '')),
+      toObservable(this.reloadTrigger),
+    ]).pipe(
+      map(([id]) => id),
       switchMap((id) =>
         this.service.getById(id).pipe(
           map((data): LoadState => ({ status: 'ok', data })),
@@ -67,9 +87,41 @@ export class ExpedienteDetailComponent {
     return s.status === 'error' && s.httpStatus === 404;
   });
 
+  protected readonly statusLabel = computed(() => {
+    const d = this.data();
+    return d ? estadoLabel(d.status) : '';
+  });
+
+  protected readonly statusTone = computed<StatusTone>(() => {
+    const d = this.data();
+    return d ? estadoTone(d.status) : 'neutral';
+  });
+
+  protected readonly simplifiedStatusLabel = computed(() => {
+    const d = this.data();
+    return d ? estadoSimplificadoLabel(d.status) : '';
+  });
+
+  private static readonly RISK_BAND_GAUGE: Record<string, 1 | 2 | 3 | 4> = {
+    LOW: 1,
+    MEDIUM: 2,
+    HIGH: 3,
+    CRITICAL: 4,
+  };
+
+  protected readonly riskGaugeBand = computed<1 | 2 | 3 | 4 | null>(() => {
+    const band = this.data()?.riskBand;
+    return band ? ExpedienteDetailComponent.RISK_BAND_GAUGE[band] : null;
+  });
+
   protected readonly classificationLabel = computed(() => {
     const d = this.data();
     return d ? clasificacionLabel(d.analysisClassification) : '';
+  });
+
+  protected readonly classificationTone = computed<StatusTone>(() => {
+    const d = this.data();
+    return d ? clasificacionTone(d.analysisClassification) : 'neutral';
   });
 
   protected readonly confidencePercent = computed(() => {
@@ -87,11 +139,12 @@ export class ExpedienteDetailComponent {
       { label: 'N° de certificado', value: null, mono: true },
       { label: 'Rama', value: d?.branch ?? null },
       { label: 'Producto', value: d?.product ?? null },
-      { label: 'Asegurado', value: d?.insuredId ?? null, mono: true },
+      { label: 'Asegurado', value: d?.insuredName ?? null },
+      { label: 'DNI', value: d?.insuredId ?? null, mono: true },
       { label: 'Tomador', value: null },
       { label: 'Bien asegurado', value: d?.insuredItem ?? null },
       { label: 'Importe reclamado', value: d?.claimedAmount ? `$${d.claimedAmount.toLocaleString()}` : null },
-      { label: 'Fecha de denuncia', value: null },
+      { label: 'Fecha de denuncia', value: d?.createdAt ? new Date(d.createdAt).toLocaleString('es-AR') : null },
       { label: 'Fecha y hora de ocurrencia', value: d?.eventDate ? new Date(d.eventDate).toLocaleDateString('es-AR') : null },
       { label: 'Causa', value: d?.claimCause ?? null },
       { label: 'Hecho generador', value: null },
@@ -101,6 +154,9 @@ export class ExpedienteDetailComponent {
       { label: 'PEP (declarativo)', value: null },
     ];
   });
+
+  // ----- historial de estados (GET /{id} lo trae con timestamps de cada transición) -----
+  protected readonly history = computed<StatusTransition[]>(() => this.data()?.statusHistory ?? []);
 
   // ----- tabs -----
   protected readonly tabs: { id: TabId; label: string }[] = [
@@ -129,13 +185,21 @@ export class ExpedienteDetailComponent {
   private readonly verbLabels: Record<Verb, string> = {
     aprobar: 'Aprobar',
     rechazar: 'Rechazar',
-    derivar: 'Derivar',
   };
-  protected readonly decision = signal<Verb | null>(null);
+
+  /** Fuente de verdad: el estado del expediente en el backend, no un flag local. */
+  protected readonly decisionState = computed<'pending' | 'approved' | 'rejected' | 'not-ready'>(() => {
+    switch (this.data()?.status) {
+      case 'APPROVED': return 'approved';
+      case 'REJECTED': return 'rejected';
+      case 'PENDING_ANALYST_REVIEW': return 'pending';
+      default: return 'not-ready';
+    }
+  });
+
   protected readonly pendingDecision = signal<Verb | null>(null);
   protected readonly showJustify = signal(false);
   protected readonly justification = signal('');
-  protected readonly decisionLabel = computed(() => this.verbLabel(this.decision()));
   protected readonly decisionError = signal<string | null>(null);
   protected readonly decisionSaving = signal(false);
 
@@ -146,6 +210,7 @@ export class ExpedienteDetailComponent {
   askDecision(v: Verb): void {
     this.pendingDecision.set(v);
     this.justification.set('');
+    this.decisionError.set(null);
     this.showJustify.set(true);
   }
   cancelDecision(): void {
@@ -153,7 +218,8 @@ export class ExpedienteDetailComponent {
     this.pendingDecision.set(null);
   }
   confirmDecision(): void {
-    if (!this.justification().trim() || !this.pendingDecision()) {
+    const verb = this.pendingDecision();
+    if (!this.justification().trim() || !verb) {
       return;
     }
 
@@ -164,7 +230,7 @@ export class ExpedienteDetailComponent {
 
     const decisionPayload: AnalystDecisionRequest = {
       analystId: 'analista-ui',
-      decision: this.pendingDecision() === 'aprobar' ? 'APPROVE' : this.pendingDecision() === 'rechazar' ? 'REJECT' : 'DERIVAR',
+      decision: verb === 'aprobar' ? 'APPROVE' : 'REJECT',
     };
 
     this.decisionSaving.set(true);
@@ -172,19 +238,16 @@ export class ExpedienteDetailComponent {
 
     this.service.recordAnalystDecision(d.id, decisionPayload).subscribe({
       next: () => {
-        this.decision.set(this.pendingDecision());
         this.showJustify.set(false);
         this.pendingDecision.set(null);
         this.decisionSaving.set(false);
+        this.reloadTrigger.update((v) => v + 1);
       },
-      error: (err) => {
+      error: (err: HttpErrorResponse) => {
         this.decisionSaving.set(false);
-        this.decisionError.set(err.error?.message || err.message || 'No se pudo registrar la decisión');
+        this.decisionError.set(err.error?.detail || 'No se pudo registrar la decisión');
       },
     });
-  }
-  onJustifyInput(e: Event): void {
-    this.justification.set((e.target as HTMLTextAreaElement).value);
   }
 
   // ----- carga de documentación adicional (FALTA_DOCUMENTACION) -----
@@ -192,57 +255,7 @@ export class ExpedienteDetailComponent {
     this.data()?.analysisClassification === 'FALTA_DOCUMENTACION'
   );
 
-  protected readonly docUploadSlots = signal<DocUploadSlot[]>([
-    { type: 'police_report', label: 'Denuncia policial', file: null },
-    { type: 'item_photo', label: 'Foto del bien', file: null },
-    { type: 'invoice', label: 'Factura de compra', file: null },
-    { type: 'quote', label: 'Presupuesto de reparación', file: null },
-  ]);
-
-  protected readonly uploadingDocs = signal(false);
-  protected readonly uploadError = signal<string | null>(null);
-  protected readonly uploadedCount = computed(() => this.docUploadSlots().filter(s => s.file).length);
-
-  onDocFileChange(index: number, event: Event): void {
-    const input = event.target as HTMLInputElement;
-    const file = input.files?.[0] ?? null;
-    this.docUploadSlots.update(slots => {
-      const updated = [...slots];
-      updated[index] = { ...updated[index], file };
-      return updated;
-    });
-  }
-
-  removeDocFile(index: number): void {
-    this.docUploadSlots.update(slots => {
-      const updated = [...slots];
-      updated[index] = { ...updated[index], file: null };
-      return updated;
-    });
-  }
-
-  submitDocs(): void {
-    const d = this.data();
-    if (!d || this.uploadingDocs()) return;
-
-    const docs = new Map<string, File>();
-    for (const slot of this.docUploadSlots()) {
-      if (slot.file) docs.set(slot.type, slot.file);
-    }
-    if (docs.size === 0) return;
-
-    this.uploadingDocs.set(true);
-    this.uploadError.set(null);
-
-    this.service.uploadDocuments(d.id, docs).subscribe({
-      next: () => {
-        this.uploadingDocs.set(false);
-        window.location.reload();
-      },
-      error: (err) => {
-        this.uploadingDocs.set(false);
-        this.uploadError.set(err.error?.message || err.message || 'Error al subir documentos');
-      },
-    });
+  onDocsUploaded(): void {
+    this.reloadTrigger.update((v) => v + 1);
   }
 }

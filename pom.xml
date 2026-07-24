@@ -11,7 +11,7 @@
   <url>https://github.com/dds-utn</url>
   <modules>
     <module>common-lib</module>
-    <!-- <module>auth-service</module> -->
+    <module>auth-service</module>
     <module>classification-service</module>
     <!-- <module>rules-service</module> -->
     <module>cases-service</module>
@@ -27,6 +27,7 @@
     <spring.cloud-version>2025.1.1</spring.cloud-version>
     <lombok.version>1.18.34</lombok.version>
     <springdoc.version>2.8.6</springdoc.version>
+    <jjwt.version>0.12.6</jjwt.version>
   </properties>
 
   <dependencyManagement>
@@ -51,6 +52,22 @@
         <groupId>org.springdoc</groupId>
         <artifactId>springdoc-openapi-starter-webmvc-ui</artifactId>
         <version>${springdoc.version}</version>
+      </dependency>
+
+      <dependency>
+        <groupId>io.jsonwebtoken</groupId>
+        <artifactId>jjwt-api</artifactId>
+        <version>${jjwt.version}</version>
+      </dependency>
+      <dependency>
+        <groupId>io.jsonwebtoken</groupId>
+        <artifactId>jjwt-impl</artifactId>
+        <version>${jjwt.version}</version>
+      </dependency>
+      <dependency>
+        <groupId>io.jsonwebtoken</groupId>
+        <artifactId>jjwt-jackson</artifactId>
+        <version>${jjwt.version}</version>
       </dependency>
     </dependencies>
   </dependencyManagement>
