@@ -48,3 +48,6 @@ build/
 ### Frontend ###
 arbiter-frontend/node_modules/
 arbiter-frontend/dist/
+# Local secrets (API keys, credentials) — never commit
+.env
+.env.local

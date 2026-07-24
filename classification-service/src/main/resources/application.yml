@@ -28,6 +28,11 @@ arbiter:
     model: ${EMBEDDING_MODEL:clip-vit-b-32-openai}
     similarity-threshold: ${EMBEDDING_SIMILARITY_THRESHOLD:0.90}
     max-results: ${EMBEDDING_MAX_RESULTS:5}
+  # Sends claim images to a third party — opt-in only, requires the insured's consent.
+  google-vision:
+    enabled: ${GOOGLE_VISION_ENABLED:false}
+    api-key: ${GOOGLE_VISION_API_KEY:}
+    max-results: ${GOOGLE_VISION_MAX_RESULTS:10}
 
 logging:
   level:

@@ -3,6 +3,7 @@ package ar.edu.utn.frba.arbiter.classification.services;
 import ar.edu.utn.frba.arbiter.classification.config.OllamaProperties;
 import ar.edu.utn.frba.arbiter.classification.dto.AnalystDecisionRequest;
 import ar.edu.utn.frba.arbiter.common.dto.ClaimResponse;
+import ar.edu.utn.frba.arbiter.common.dto.ImageForensicReport;
 import ar.edu.utn.frba.arbiter.classification.dto.ClassificationResponse;
 import ar.edu.utn.frba.arbiter.classification.exceptions.InvalidClassificationException;
 import ar.edu.utn.frba.arbiter.classification.models.entities.ClassificationLog;
@@ -40,6 +41,7 @@ public class ClassificationResultsService {
     public void saveResult(
             Long caseId,
             ClassificationResponse response,
+            ImageForensicReport forensicReport,
             long latencyMs
     ) {
         boolean fastTrack = response.deterministicFastTrack();
@@ -52,6 +54,7 @@ public class ClassificationResultsService {
         entry.setClassification(response.classification());
         entry.setConfidence(BigDecimal.valueOf(response.confidence()));
         entry.setFactors(response.factors());
+        entry.setForensicReport(forensicReport);
         entry.setLatencyMs(latencyMs);
 
         logRepository.save(entry);
@@ -69,6 +72,7 @@ public class ClassificationResultsService {
                 .confidence(entry.map(l -> l.getConfidence() != null ? l.getConfidence().doubleValue() : null).orElse(null))
                 .factors(entry.map(ClassificationLog::getFactors).orElse(null))
                 .deterministicFastTrack(entry.map(l -> "RULES_FAST_TRACK".equals(l.getSource())).orElse(false))
+                .forensicReport(entry.map(ClassificationLog::getForensicReport).orElse(null))
                 .build();
     }
 
@@ -84,6 +88,7 @@ public class ClassificationResultsService {
         decisionEntry.setClassification(classificationEntry.getClassification());
         decisionEntry.setConfidence(classificationEntry.getConfidence());
         decisionEntry.setFactors(classificationEntry.getFactors());
+        decisionEntry.setForensicReport(classificationEntry.getForensicReport());
         decisionEntry.setAnalystId(request.analystId());
         decisionEntry.setDecision(normalizeDecision(request.decision()));
         decisionEntry.setDecisionTimestamp(Instant.now());

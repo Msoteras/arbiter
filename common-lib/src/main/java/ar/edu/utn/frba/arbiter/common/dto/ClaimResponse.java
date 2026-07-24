@@ -9,6 +9,10 @@ import java.util.List;
  * Shared contract: polling response for a case's classification. Fields other than
  * {@code caseId} are null until the analysis finishes; the case lifecycle/state is
  * cases-service's responsibility.
+ *
+ * <p>{@code forensicReport} carries the structured image-fraud analysis for the analyst UI
+ * (analyst-only — never shown to the insured). Null when no analysis ran: Fast Track, or a
+ * claim with no image attachments.
  */
 @Builder
 public record ClaimResponse(
@@ -16,5 +20,6 @@ public record ClaimResponse(
         Classification classification,
         Double confidence,
         List<String> factors,
-        boolean deterministicFastTrack
+        boolean deterministicFastTrack,
+        ImageForensicReport forensicReport
 ) {}

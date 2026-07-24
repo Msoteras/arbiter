@@ -1,5 +1,6 @@
 package ar.edu.utn.frba.arbiter.classification.models.entities;
 
+import ar.edu.utn.frba.arbiter.common.dto.ImageForensicReport;
 import ar.edu.utn.frba.arbiter.common.enums.Classification;
 import jakarta.persistence.*;
 import lombok.Getter;
@@ -60,6 +61,14 @@ public class ClassificationLog {
     @Convert(converter = StringListJsonConverter.class)
     @Column(nullable = false, columnDefinition = "text")
     private List<String> factors;
+
+    /**
+     * Structured image-fraud analysis backing the forensic section of the analyst UI.
+     * Null when no analysis ran (Fast Track, isolated test, or a claim with no images).
+     */
+    @Convert(converter = ImageForensicReportJsonConverter.class)
+    @Column(name = "forensic_report", columnDefinition = "text")
+    private ImageForensicReport forensicReport;
 
     @Column(name = "latency_ms")
     private Long latencyMs;

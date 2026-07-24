@@ -2,8 +2,8 @@ package ar.edu.utn.frba.arbiter.classification.services;
 
 import ar.edu.utn.frba.arbiter.classification.dto.AttachmentDocument;
 import ar.edu.utn.frba.arbiter.classification.dto.ClassificationResponse;
-import ar.edu.utn.frba.arbiter.classification.dto.DuplicateImageMatch;
 import ar.edu.utn.frba.arbiter.common.dto.ClaimReport;
+import ar.edu.utn.frba.arbiter.common.dto.ImageForensicReport;
 import lombok.RequiredArgsConstructor;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -15,9 +15,7 @@ import org.springframework.web.client.HttpServerErrorException;
 import org.springframework.web.client.ResourceAccessException;
 
 import java.util.ArrayList;
-import java.util.Base64;
 import java.util.List;
-import java.util.Set;
 
 /**
  * Thin façade that exposes the classification entry points expected by the controllers.
@@ -30,12 +28,9 @@ public class ClaimClassificationService {
 
     private static final Logger log = LoggerFactory.getLogger(ClaimClassificationService.class);
 
-    private static final Set<String> IMAGE_CONTENT_TYPES = Set.of(
-            "image/jpeg", "image/png", "image/webp", "image/gif", "image/bmp");
-
     private final ClassificationOrchestrator classificationOrchestrator;
     private final ClassificationResultsService resultsService;
-    private final ImageEmbeddingService imageEmbeddingService;
+    private final ImageFraudAnalysisService imageFraudAnalysisService;
 
     /**
      * Trigger async classification for a persisted claim.
@@ -61,7 +56,7 @@ public class ClaimClassificationService {
             log.info("[ClaimClassificationService] ✓ Isolated classification obtained — {} confidence={} latency={}ms",
                     response.classification(), response.confidence(), latencyMs);
 
-            resultsService.saveResult(null, response, latencyMs);
+            resultsService.saveResult(null, response, null, latencyMs);
 
         } catch (Exception e) {
             log.error("[ClaimClassificationService] ✗ Error processing isolated classification after retries — {}",
@@ -91,15 +86,15 @@ public class ClaimClassificationService {
             ClassificationResponse response = classificationOrchestrator.classify(claim, documents);
             long latencyMs = System.currentTimeMillis() - start;
 
-            List<String> duplicateFactors = checkDuplicateImages(caseId, documents);
-            if (!duplicateFactors.isEmpty()) {
-                response = enrichWithDuplicateFactors(response, duplicateFactors);
+            ImageForensicReport forensicReport = runImageFraudAnalysis(caseId, response, documents);
+            if (forensicReport != null) {
+                response = withForensicTraces(response, forensicReport);
             }
 
             log.info("[ClaimClassificationService] ✓ Classification obtained — caseId={} {} confidence={} latency={}ms",
                     caseId, response.classification(), response.confidence(), latencyMs);
 
-            resultsService.saveResult(caseId, response, latencyMs);
+            resultsService.saveResult(caseId, response, forensicReport, latencyMs);
 
         } catch (Exception e) {
             log.error("[ClaimClassificationService] ✗ Error processing caseId={} after retries — {}",
@@ -108,50 +103,42 @@ public class ClaimClassificationService {
         }
     }
 
-    private List<String> checkDuplicateImages(Long caseId, List<AttachmentDocument> documents) {
-        List<String> factors = new ArrayList<>();
-        int imageIndex = 0;
+    /**
+     * Runs the image-fraud cascade for the deep review.
+     *
+     * <p>Only for the deep review: a Fast Track claim cleared the deterministic gate, so it
+     * doesn't warrant the cost of the analysis (embeddings, and possibly an external call).
+     * Fraud review is precisely what the non Fast Track route is for.
+     *
+     * @return the structured report, or null when the analysis didn't run (Fast Track) or found
+     *         no images to analyze — the caller persists it as-is (null ⇒ no forensic section)
+     */
+    private ImageForensicReport runImageFraudAnalysis(
+            Long caseId, ClassificationResponse response, List<AttachmentDocument> documents) {
 
-        for (AttachmentDocument doc : documents) {
-            if (!IMAGE_CONTENT_TYPES.contains(doc.contentType())) {
-                continue;
-            }
-            String imageBase64 = Base64.getEncoder().encodeToString(doc.content());
-            String attachmentLabel = doc.type() + "-" + imageIndex++;
-
-            try {
-                List<DuplicateImageMatch> matches = imageEmbeddingService.processAndFindDuplicates(
-                        caseId, attachmentLabel, doc.type(), imageBase64);
-
-                for (DuplicateImageMatch match : matches) {
-                    factors.add(String.format(
-                            "⚠ Imagen '%s' similar (%.1f%%) a adjunto del siniestro #%d ('%s')",
-                            doc.type(),
-                            match.similarity() * 100,
-                            match.matchedCaseId(),
-                            match.matchedFilename()));
-                }
-            } catch (Exception e) {
-                log.warn("[ClaimClassificationService] Embedding check failed for attachment '{}' — {}",
-                        attachmentLabel, e.getMessage());
-            }
+        if (response.deterministicFastTrack()) {
+            log.info("[ClaimClassificationService] caseId={} Fast Track — skipping image fraud analysis", caseId);
+            return null;
         }
 
-        return factors;
+        ImageForensicReport report = imageFraudAnalysisService.analyze(caseId, documents);
+        return report.imagesAnalyzed() == 0 ? null : report;
     }
 
-    private ClassificationResponse enrichWithDuplicateFactors(
-            ClassificationResponse original,
-            List<String> duplicateFactors
-    ) {
-        List<String> allFactors = new ArrayList<>(original.factors());
-        allFactors.addAll(duplicateFactors);
+    /** Folds the forensic traces into the classification factors (the analyst's reading of the case). */
+    private ClassificationResponse withForensicTraces(ClassificationResponse response, ImageForensicReport report) {
+        List<String> traces = imageFraudAnalysisService.renderTraces(report);
+        if (traces.isEmpty()) {
+            return response;
+        }
+        List<String> factors = new ArrayList<>(response.factors());
+        factors.addAll(traces);
 
         return ClassificationResponse.builder()
-                .classification(original.classification())
-                .factors(allFactors)
-                .confidence(original.confidence())
-                .deterministicFastTrack(original.deterministicFastTrack())
+                .classification(response.classification())
+                .factors(factors)
+                .confidence(response.confidence())
+                .deterministicFastTrack(response.deterministicFastTrack())
                 .build();
     }
 }

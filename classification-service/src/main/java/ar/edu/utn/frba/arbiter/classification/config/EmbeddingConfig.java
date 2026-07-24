@@ -9,6 +9,6 @@ import org.springframework.context.annotation.Configuration;
  * through Ollama — the CLIP service is a standalone dependency.
  */
 @Configuration
-@EnableConfigurationProperties(EmbeddingProperties.class)
+@EnableConfigurationProperties({EmbeddingProperties.class, GoogleVisionProperties.class})
 public class EmbeddingConfig {
 }
