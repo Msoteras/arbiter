@@ -38,8 +38,11 @@ class DatabaseCredentialsAuthenticatorTest {
     @BeforeEach
     void setUp() {
         AuthProperties properties = new AuthProperties(
+                "database",
                 new AuthProperties.Jwt("test-secret", 60),
-                new AuthProperties.Login(5, 15));
+                new AuthProperties.Login(5, 15),
+                null,
+                null);
         authenticator = new DatabaseCredentialsAuthenticator(userRepository, passwordEncoder, properties);
     }
 

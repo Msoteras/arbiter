@@ -50,5 +50,15 @@
             <scope>runtime</scope>
             <optional>true</optional>
         </dependency>
+
+        <!-- SendGrid SDK for SendGridAdapter (transactional mail: invites, password resets,
+             notifications). Optional: each module using the adapter re-declares it, same
+             approach as jjwt above. -->
+        <dependency>
+            <groupId>com.sendgrid</groupId>
+            <artifactId>sendgrid-java</artifactId>
+            <version>4.10.3</version>
+            <optional>true</optional>
+        </dependency>
     </dependencies>
 </project>

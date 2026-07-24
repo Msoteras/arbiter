@@ -6,6 +6,7 @@ import ar.edu.utn.frba.arbiter.auth.exceptions.InvalidCredentialsException;
 import ar.edu.utn.frba.arbiter.auth.models.entities.User;
 import ar.edu.utn.frba.arbiter.auth.models.repositories.UserRepository;
 import lombok.RequiredArgsConstructor;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Component;
 
@@ -13,6 +14,7 @@ import java.time.Duration;
 import java.time.Instant;
 
 @Component
+@ConditionalOnProperty(prefix = "arbiter.auth", name = "provider", havingValue = "database", matchIfMissing = true)
 @RequiredArgsConstructor
 public class DatabaseCredentialsAuthenticator implements CredentialsAuthenticator {
 

@@ -13,6 +13,9 @@
   @if (roleError()) {
     <p class="error">{{ roleError() }}</p>
   }
+  @if (resendError()) {
+    <p class="error">{{ resendError() }}</p>
+  }
   <app-card [flush]="true">
     <table>
       <thead>
@@ -22,6 +25,7 @@
           <th>Rol</th>
           <th>Sector</th>
           <th>Fecha de ingreso</th>
+          <th>Estado</th>
           <th>Acciones</th>
         </tr>
       </thead>
@@ -49,6 +53,19 @@
             <td>{{ u.sector || '—' }}</td>
             <td>{{ u.fechaIngreso || '—' }}</td>
             <td>
+              <app-badge [tone]="statusTone(u.estado)">{{ statusLabel(u.estado) }}</app-badge>
+              @if (resendOkId() === u.id) {
+                <p class="t-note resend-ok">Invitación reenviada.</p>
+              }
+            </td>
+            <td class="actions-cell">
+              @if (u.estado === 'PENDING') {
+                <app-button
+                  variant="secondary"
+                  [disabled]="resendingId() === u.id"
+                  (click)="resendInvite(u)"
+                >{{ resendingId() === u.id ? 'Reenviando…' : 'Reenviar invitación' }}</app-button>
+              }
               <app-button
                 variant="secondary"
                 [disabled]="isSelf(u)"

@@ -1,6 +1,6 @@
 import { HttpErrorResponse } from '@angular/common/http';
 import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
-import { Router } from '@angular/router';
+import { Router, RouterLink } from '@angular/router';
 
 import { AuthSessionService } from '../../../core/auth/auth-session.service';
 import { AuthService } from '../../../core/auth/auth.service';
@@ -11,7 +11,7 @@ import { InputComponent } from '../../../shared/ui/input/input.component';
 
 @Component({
   selector: 'app-login',
-  imports: [ButtonComponent, CardComponent, InputComponent],
+  imports: [ButtonComponent, CardComponent, InputComponent, RouterLink],
   changeDetection: ChangeDetectionStrategy.OnPush,
   templateUrl: './login.component.html',
   styleUrl: './login.component.scss',

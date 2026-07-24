@@ -4,12 +4,12 @@ import { Observable } from 'rxjs';
 
 import { environment } from '../../../environments/environment';
 import { UserRole } from '../models/user-role';
+import { UserStatus } from '../models/user-status';
 
 export interface CreateUserRequest {
   email: string;
   nombre: string;
   apellido: string;
-  password: string;
   rol: UserRole;
   sector: string;
   fechaIngreso?: string;
@@ -23,6 +23,7 @@ export interface UserResponse {
   rol: UserRole;
   sector: string;
   fechaIngreso: string | null;
+  estado: UserStatus;
   createdAt: string;
 }
 
@@ -47,5 +48,10 @@ export class UserAdminService {
   /** Borrado definitivo e irreversible (wireframe "Eliminar") — no es una baja/desactivación. */
   delete(id: number): Observable<void> {
     return this.http.delete<void>(`${this.baseUrl}/${id}`);
+  }
+
+  /** Only makes sense for users in PENDING status — the backend rejects it if already active. */
+  resendInvite(id: number): Observable<UserResponse> {
+    return this.http.post<UserResponse>(`${this.baseUrl}/${id}/resend-invite`, {});
   }
 }

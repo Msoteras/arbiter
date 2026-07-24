@@ -20,12 +20,27 @@ spring:
 
 arbiter:
   auth:
+    provider: ${AUTH_PROVIDER:database}
     jwt:
       secret: ${JWT_SECRET:}
       expiration-minutes: ${JWT_EXPIRATION_MINUTES:60}
     login:
       max-failed-attempts: 5
       lockout-minutes: 15
+    auth0:
+      domain: ${AUTH0_DOMAIN:}
+      client-id: ${AUTH0_LOGIN_CLIENT_ID:}
+      client-secret: ${AUTH0_LOGIN_CLIENT_SECRET:}
+      connection: Username-Password-Authentication
+    management-api:
+      client-id: ${AUTH0_MGMT_CLIENT_ID:}
+      client-secret: ${AUTH0_MGMT_CLIENT_SECRET:}
+  email:
+    sendgrid-api-key: ${SENDGRID_API_KEY:}
+    from-address: ${SENDGRID_FROM_ADDRESS:no-reply@arbiter.test}
+    from-name: ${SENDGRID_FROM_NAME:Arbiter}
+  frontend:
+    base-url: ${FRONTEND_BASE_URL:http://localhost:4200}
 
 springdoc:
   api-docs:

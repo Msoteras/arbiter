@@ -69,6 +69,17 @@ public class UserController {
         return ResponseEntity.ok(response);
     }
 
+    @PostMapping("/{id}/resend-invite")
+    @PreAuthorize("hasRole('REFERENTE_ASEGURADORA')")
+    @Operation(summary = "Reenviar la invitación a un usuario pendiente",
+            description = """
+                    Genera un token de invitación nuevo (48hs) y reenvía el mail de activación.
+                    Solo tiene sentido para usuarios en estado PENDING — 400 si ya está activo.
+                    """)
+    public ResponseEntity<UserResponse> resendInvite(@PathVariable Long id) {
+        return ResponseEntity.ok(userService.resendInvite(id));
+    }
+
     @DeleteMapping("/{id}")
     @PreAuthorize("hasRole('REFERENTE_ASEGURADORA')")
     @Operation(summary = "Eliminar un usuario",

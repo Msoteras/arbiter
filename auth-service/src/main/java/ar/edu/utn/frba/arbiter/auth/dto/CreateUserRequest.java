@@ -11,7 +11,6 @@ public record CreateUserRequest(
         @NotBlank @Email String email,
         @NotBlank String nombre,
         @NotBlank String apellido,
-        @NotBlank String password,
         @NotNull UserRole rol,
         @NotBlank String sector,
         LocalDate fechaIngreso

@@ -30,7 +30,15 @@ public class SecurityConfig {
     public SecurityFilterChain securityFilterChain(HttpSecurity http, JwtAuthenticationFilter jwtFilter) throws Exception {
         ArbiterHttpSecurity.configure(http, jwtFilter);
         http.authorizeHttpRequests(auth -> auth
-                .requestMatchers("/api/v1/auth/login", "/v3/api-docs/**", "/swagger-ui/**").permitAll()
+                .requestMatchers(
+                        "/api/v1/auth/login",
+                        "/api/v1/auth/activate",
+                        "/api/v1/auth/forgot-password",
+                        "/api/v1/auth/reset-password",
+                        "/api/v1/auth/invite-tokens/**",
+                        "/v3/api-docs/**",
+                        "/swagger-ui/**")
+                .permitAll()
                 .anyRequest().authenticated());
         return http.build();
     }

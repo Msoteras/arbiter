@@ -309,9 +309,17 @@ export class BandejaComponent {
     return value != null ? `$${value.toLocaleString('es-AR')}` : '—';
   }
 
-  /** Nombre real si ya fue resuelto por classification-service; si no, cae al identificador. */
+  /**
+   * "Asegurado" always shows a name — never the DNI in its place. If classification-service
+   * hasn't resolved it yet, show an explicit placeholder instead of confusing the DNI for the
+   * name (see displayInsuredId for the identifier, which is always available).
+   */
   protected displayInsured(c: ExpedienteResponse): string {
-    return c.insuredName ?? c.insuredId;
+    return c.insuredName ?? 'Sin identificar';
+  }
+
+  protected displayInsuredId(c: ExpedienteResponse): string {
+    return c.insuredId;
   }
 
   // ───────────────── Exportar CSV ─────────────────

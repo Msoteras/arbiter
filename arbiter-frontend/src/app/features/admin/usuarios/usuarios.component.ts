@@ -5,6 +5,7 @@ import { FormsModule } from '@angular/forms';
 import { AuthSessionService } from '../../../core/auth/auth-session.service';
 import { UserAdminService, UserResponse } from '../../../core/auth/user-admin.service';
 import { UserRole, userRoleLabel } from '../../../core/models/user-role';
+import { userStatusLabel, userStatusTone } from '../../../core/models/user-status';
 import { AltaUsuarioComponent } from '../alta-usuario/alta-usuario.component';
 import { BadgeComponent } from '../../../shared/ui/badge/badge.component';
 import { ButtonComponent } from '../../../shared/ui/button/button.component';
@@ -41,6 +42,10 @@ export class UsuariosComponent {
   protected readonly deleting = signal(false);
   protected readonly deleteError = signal<string | null>(null);
 
+  protected readonly resendingId = signal<number | null>(null);
+  protected readonly resendError = signal<string | null>(null);
+  protected readonly resendOkId = signal<number | null>(null);
+
   protected readonly isEmpty = computed(() => !this.loading() && !this.hasError() && this.users().length === 0);
 
   constructor() {
@@ -73,6 +78,33 @@ export class UsuariosComponent {
 
   protected roleLabel(rol: string): string {
     return userRoleLabel(rol);
+  }
+
+  protected statusLabel(estado: string): string {
+    return userStatusLabel(estado);
+  }
+
+  protected statusTone(estado: string) {
+    return userStatusTone(estado);
+  }
+
+  /** Only shown for PENDING rows in the template — the backend rejects it otherwise. */
+  protected resendInvite(user: UserResponse): void {
+    this.resendError.set(null);
+    this.resendOkId.set(null);
+    this.resendingId.set(user.id);
+
+    this.service.resendInvite(user.id).subscribe({
+      next: (updated) => {
+        this.resendingId.set(null);
+        this.resendOkId.set(updated.id);
+        this.users.update((list) => list.map((u) => (u.id === updated.id ? updated : u)));
+      },
+      error: (err: HttpErrorResponse) => {
+        this.resendingId.set(null);
+        this.resendError.set(err.error?.detail ?? 'No se pudo reenviar la invitación. Probá de nuevo.');
+      },
+    });
   }
 
   protected onRoleChange(user: UserResponse, newRole: UserRole): void {

@@ -10,6 +10,29 @@ export const routes: Routes = [
     loadComponent: () =>
       import('./features/auth/login/login.component').then((m) => m.LoginComponent),
   },
+  {
+    path: 'activate-account',
+    data: { mode: 'activate' },
+    loadComponent: () =>
+      import('./features/auth/activate-account/activate-account.component').then(
+        (m) => m.ActivateAccountComponent,
+      ),
+  },
+  {
+    path: 'forgot-password',
+    loadComponent: () =>
+      import('./features/auth/forgot-password/forgot-password.component').then(
+        (m) => m.ForgotPasswordComponent,
+      ),
+  },
+  {
+    path: 'reset-password',
+    data: { mode: 'reset' },
+    loadComponent: () =>
+      import('./features/auth/activate-account/activate-account.component').then(
+        (m) => m.ActivateAccountComponent,
+      ),
+  },
 
   // ----- Portal del analista -----
   {

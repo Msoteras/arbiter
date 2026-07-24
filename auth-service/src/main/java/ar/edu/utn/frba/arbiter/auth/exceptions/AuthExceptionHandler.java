@@ -42,4 +42,29 @@ public class AuthExceptionHandler {
     public ProblemDetail handleCannotDeleteOwnAccount(CannotDeleteOwnAccountException ex) {
         return ProblemDetail.forStatusAndDetail(HttpStatusCode.valueOf(400), ex.getMessage());
     }
+
+    @ExceptionHandler(Auth0ProvisioningException.class)
+    public ProblemDetail handleAuth0Provisioning(Auth0ProvisioningException ex) {
+        return ProblemDetail.forStatusAndDetail(HttpStatusCode.valueOf(502), ex.getMessage());
+    }
+
+    @ExceptionHandler(InvalidEmailDomainException.class)
+    public ProblemDetail handleInvalidEmailDomain(InvalidEmailDomainException ex) {
+        return ProblemDetail.forStatusAndDetail(HttpStatusCode.valueOf(400), ex.getMessage());
+    }
+
+    @ExceptionHandler(InvalidInviteTokenException.class)
+    public ProblemDetail handleInvalidInviteToken(InvalidInviteTokenException ex) {
+        return ProblemDetail.forStatusAndDetail(HttpStatusCode.valueOf(400), ex.getMessage());
+    }
+
+    @ExceptionHandler(InviteTokenExpiredException.class)
+    public ProblemDetail handleInviteTokenExpired(InviteTokenExpiredException ex) {
+        return ProblemDetail.forStatusAndDetail(HttpStatusCode.valueOf(400), ex.getMessage());
+    }
+
+    @ExceptionHandler(UserAlreadyActiveException.class)
+    public ProblemDetail handleUserAlreadyActive(UserAlreadyActiveException ex) {
+        return ProblemDetail.forStatusAndDetail(HttpStatusCode.valueOf(400), ex.getMessage());
+    }
 }

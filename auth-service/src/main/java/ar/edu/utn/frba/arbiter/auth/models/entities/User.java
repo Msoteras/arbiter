@@ -70,6 +70,27 @@ public class User {
     @Column(name = "locked_until")
     private Instant lockedUntil;
 
+    /**
+     * One-time token, reused by two flows: invitation (Auth0 Phase 3) and password reset on an
+     * already-active user. Cleared once consumed by either — that's why it does NOT work to
+     * derive the "Pending" status (see {@link #activated}): an active user requesting a reset
+     * also has this field set for a while.
+     */
+    @Column(name = "invite_token", unique = true)
+    private String inviteToken;
+
+    @Column(name = "invite_expires_at")
+    private Instant inviteExpiresAt;
+
+    /**
+     * True forever once the initial activation (Phase 3) completes. This is the only source of
+     * truth for "Pending" vs "Active" status — unlike {@link #inviteToken}, a later password
+     * reset doesn't touch it.
+     */
+    @Builder.Default
+    @Column(nullable = false)
+    private boolean activated = false;
+
     @CreationTimestamp
     @Column(name = "created_at", nullable = false, updatable = false)
     private Instant createdAt;
