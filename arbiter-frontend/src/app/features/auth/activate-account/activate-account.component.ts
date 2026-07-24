@@ -1,3 +1,4 @@
+import { Location } from '@angular/common';
 import { HttpErrorResponse } from '@angular/common/http';
 import { ChangeDetectionStrategy, Component, OnInit, computed, inject, signal } from '@angular/core';
 import { ActivatedRoute, Router } from '@angular/router';
@@ -28,6 +29,7 @@ export class ActivateAccountComponent implements OnInit {
   private readonly authService = inject(AuthService);
   private readonly route = inject(ActivatedRoute);
   private readonly router = inject(Router);
+  private readonly location = inject(Location);
 
   protected readonly mode: Mode = (this.route.snapshot.data['mode'] as Mode) ?? 'activate';
   protected readonly token = this.route.snapshot.queryParamMap.get('token');
@@ -106,6 +108,10 @@ export class ActivateAccountComponent implements OnInit {
     if (!this.token) {
       return;
     }
+    // Ya lo capturamos del query param — lo sacamos de la barra de direcciones para que no
+    // quede pegado en el historial del navegador ni en una captura de pantalla accidental.
+    this.location.replaceState(this.location.path().split('?')[0]);
+
     this.authService.checkToken(this.token).subscribe({
       next: () => this.tokenStatus.set('valid'),
       error: () => this.tokenStatus.set('invalid'),
