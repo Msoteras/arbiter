@@ -1,5 +1,6 @@
 <p class="t-note">
-  Creá una cuenta de analista de siniestros. Por ahora el alta de asegurados no se hace desde acá.
+  Creá una cuenta de analista de siniestros. Le vamos a mandar un mail para que elija su propia
+  contraseña. Por ahora el alta de asegurados no se hace desde acá.
 </p>
 
 <form class="form-card" (submit)="$event.preventDefault(); submit()">
@@ -11,15 +12,6 @@
 
   <label class="field-label" for="email">Email</label>
   <app-input id="email" type="email" [value]="email()" (valueChange)="email.set($event)" />
-
-  <label class="field-label" for="password">Contraseña</label>
-  <app-input
-    id="password"
-    type="password"
-    autocomplete="new-password"
-    [value]="password()"
-    (valueChange)="password.set($event)"
-  />
 
   <span class="field-label">Rol</span>
   <p class="t-body mono role-display">Analista de siniestros</p>

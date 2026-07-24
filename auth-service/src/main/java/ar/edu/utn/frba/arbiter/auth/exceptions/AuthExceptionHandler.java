@@ -52,4 +52,14 @@ public class AuthExceptionHandler {
     public ProblemDetail handleInvalidEmailDomain(InvalidEmailDomainException ex) {
         return ProblemDetail.forStatusAndDetail(HttpStatusCode.valueOf(400), ex.getMessage());
     }
+
+    @ExceptionHandler(InvalidInviteTokenException.class)
+    public ProblemDetail handleInvalidInviteToken(InvalidInviteTokenException ex) {
+        return ProblemDetail.forStatusAndDetail(HttpStatusCode.valueOf(400), ex.getMessage());
+    }
+
+    @ExceptionHandler(InviteTokenExpiredException.class)
+    public ProblemDetail handleInviteTokenExpired(InviteTokenExpiredException ex) {
+        return ProblemDetail.forStatusAndDetail(HttpStatusCode.valueOf(400), ex.getMessage());
+    }
 }

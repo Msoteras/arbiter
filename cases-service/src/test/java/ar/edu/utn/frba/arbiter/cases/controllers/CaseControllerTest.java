@@ -63,7 +63,8 @@ class CaseControllerTest {
                   "policyNumber": "POL-CEL-2024-001",
                   "description": "Me robaron el celular",
                   "eventDate": "2026-06-13T19:45:00",
-                  "eventLocation": "CABA"
+                  "eventLocation": "CABA",
+                  "pep": false
                 }
                 """.getBytes()
         );

@@ -8,6 +8,8 @@ import { InputComponent } from '../../../shared/ui/input/input.component';
 /**
  * H0002 - Alta de Usuarios. Por ahora solo crea cuentas ANALISTA_SINIESTROS (ver CLAUDE.md,
  * decisión #8) — el selector de rol no está porque hoy hay un solo valor válido.
+ * Fase 3 Auth0: el referente ya no fija contraseña — el usuario queda "pendiente" y recibe un
+ * mail para elegir la suya (ver ActivateAccountComponent).
  * Vive dentro de un app-modal abierto desde UsuariosComponent (patrón del wireframe).
  */
 @Component({
@@ -26,7 +28,6 @@ export class AltaUsuarioComponent {
   protected readonly email = signal('');
   protected readonly nombre = signal('');
   protected readonly apellido = signal('');
-  protected readonly password = signal('');
   protected readonly sector = signal('');
   protected readonly fechaIngreso = signal('');
 
@@ -38,7 +39,6 @@ export class AltaUsuarioComponent {
       this.email().trim().length > 0 &&
       this.nombre().trim().length > 0 &&
       this.apellido().trim().length > 0 &&
-      this.password().length > 0 &&
       this.sector().trim().length > 0,
   );
 
@@ -53,7 +53,6 @@ export class AltaUsuarioComponent {
       email: this.email().trim(),
       nombre: this.nombre().trim(),
       apellido: this.apellido().trim(),
-      password: this.password(),
       rol: 'ANALISTA_SINIESTROS',
       sector: this.sector().trim(),
       fechaIngreso: this.fechaIngreso() || undefined,

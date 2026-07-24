@@ -35,6 +35,12 @@ arbiter:
     management-api:
       client-id: ${AUTH0_MGMT_CLIENT_ID:}
       client-secret: ${AUTH0_MGMT_CLIENT_SECRET:}
+  email:
+    sendgrid-api-key: ${SENDGRID_API_KEY:}
+    from-address: ${SENDGRID_FROM_ADDRESS:no-reply@arbiter.test}
+    from-name: ${SENDGRID_FROM_NAME:Arbiter}
+  frontend:
+    base-url: ${FRONTEND_BASE_URL:http://localhost:4200}
 
 springdoc:
   api-docs:

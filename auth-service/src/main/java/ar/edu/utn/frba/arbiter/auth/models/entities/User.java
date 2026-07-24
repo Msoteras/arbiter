@@ -70,6 +70,17 @@ public class User {
     @Column(name = "locked_until")
     private Instant lockedUntil;
 
+    /**
+     * Token de un solo uso, reusado por dos flujos: invitación (Fase 3 Auth0 — mientras esté
+     * seteado en un alta, el usuario está "pendiente" y no existe en Auth0 todavía) y reset de
+     * contraseña (sobre un usuario ya activo). Se limpia al consumirse en cualquiera de los dos.
+     */
+    @Column(name = "invite_token", unique = true)
+    private String inviteToken;
+
+    @Column(name = "invite_expires_at")
+    private Instant inviteExpiresAt;
+
     @CreationTimestamp
     @Column(name = "created_at", nullable = false, updatable = false)
     private Instant createdAt;

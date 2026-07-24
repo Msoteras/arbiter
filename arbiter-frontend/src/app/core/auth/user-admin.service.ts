@@ -9,7 +9,6 @@ export interface CreateUserRequest {
   email: string;
   nombre: string;
   apellido: string;
-  password: string;
   rol: UserRole;
   sector: string;
   fechaIngreso?: string;

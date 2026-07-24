@@ -40,6 +40,11 @@ CREATE TABLE users (
     insured_id      VARCHAR(255),
     failed_attempts INTEGER      NOT NULL DEFAULT 0,
     locked_until    TIMESTAMPTZ,
+    -- Fase 3 Auth0: el alta ya no fija contraseña — el usuario la elige vía este token de
+    -- invitación (mail con link, expira a las 48hs). Mientras esté seteado, el usuario está
+    -- "pendiente" y todavía no existe en Auth0 (ver UserService.createUser/activateAccount).
+    invite_token       VARCHAR(255) UNIQUE,
+    invite_expires_at  TIMESTAMPTZ,
     created_at      TIMESTAMPTZ  NOT NULL DEFAULT NOW(),
 
     CONSTRAINT users_rol_check CHECK (
@@ -167,7 +172,7 @@ INSERT INTO cases (id, branch, product, claim_cause, insured_item, insured_id, i
 VALUES
     -- Case 1: Fast Track determinístico (rotura accidental, monto bajo, primer siniestro) → riesgo BAJO real (scoreado)
     (1, 'Celulares', 'Celular Protegido Premium', 'Rotura accidental',
-     'Samsung Galaxy S25 Ultra', '42.987.654', 'Sofía Martínez', 'POL-CEL-2026-042',
+     'Samsung Galaxy S25 Ultra', '42.987.654', 'Martina Soteras', 'POL-CEL-2026-042',
      'Se me cayó el celular de las manos en mi casa. Se rompió la pantalla pero el equipo funciona normalmente',
      '2026-06-14 08:30:00', 'Casa', 285000.00,
      FALSE, 'martina.soteras@example.com', '11-5555-0001',
@@ -203,7 +208,7 @@ VALUES
 
     -- Case 4: Falta documentación (sin foto del bien), monto muy alto → riesgo MEDIO
     (4, 'Celulares', 'Celular Protegido Premium', 'Robo en vía pública',
-     'iPhone 16 Pro', '42.987.654', 'Sofía Martínez', 'POL-CEL-2026-042',
+     'iPhone 16 Pro', '42.987.654', 'Martina Soteras', 'POL-CEL-2026-042',
      'El celular desapareció pero no sé si me lo robaron o lo perdí. No estoy seguro qué pasó exactamente',
      '2026-06-12 18:30:00', 'Colectivo línea 159', 1200000.00,
      FALSE, 'martina.soteras@example.com', '11-5555-0001',
@@ -236,7 +241,7 @@ VALUES
      '["Monto reclamado (21.9% de la suma asegurada) dentro del límite de Fast Track (50.0%)", "Póliza al día con sus pagos"]',
      5, 0.099, 'LOW',
      '[{"factorId":"amount_ratio","rawScore":0.2192,"weight":0.45,"weightedContribution":0.0986,"rationale":"Monto reclamado es 22% de la suma asegurada"},{"factorId":"claim_frequency","rawScore":0.0,"weight":0.35,"weightedContribution":0.0,"rationale":"Siniestros previos del asegurado: 0"},{"factorId":"policy_standing","rawScore":0.0,"weight":0.2,"weightedContribution":0.0,"rationale":"Póliza al día con sus pagos"}]',
-     'Sofía Martínez', '2026-06-29 00:27:15.751928+00'),
+     'Martina Soteras', '2026-06-29 00:27:15.751928+00'),
 
     -- Log 2: LLM no recomienda (case 2, reincidente) → riesgo ALTO
     (2, 2, 'qwen3-vl', 'classification-v1', 'LLM', 'LLM_NO_RECOMIENDA_APROBAR',
@@ -264,7 +269,7 @@ VALUES
      '["Falta documento requerido: item_photo"]',
      0, 0.415, 'MEDIUM',
      '[{"factorId":"amount_ratio","rawScore":0.9231,"weight":0.45,"weightedContribution":0.4154,"rationale":"Monto reclamado es 92% de la suma asegurada"},{"factorId":"claim_frequency","rawScore":0.0,"weight":0.35,"weightedContribution":0.0,"rationale":"Siniestros previos del asegurado: 0"},{"factorId":"policy_standing","rawScore":0.0,"weight":0.2,"weightedContribution":0.0,"rationale":"Póliza al día con sus pagos"}]',
-     'Sofía Martínez', '2026-07-01 23:24:15.188195+00');
+     'Martina Soteras', '2026-07-01 23:24:15.188195+00');
 
 -- Resetear la secuencia
 SELECT setval('classification_log_id_seq', (SELECT MAX(id) FROM classification_log));

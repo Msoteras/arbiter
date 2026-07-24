@@ -105,7 +105,11 @@
                 <a class="mono id-link" [routerLink]="['/cases', c.id]" (click)="$event.stopPropagation()">#{{ c.id }}</a>
               </td>
               <td><app-badge [tone]="estadoTone(c.status)">{{ estadoLabel(c.status) }}</app-badge></td>
-              <td [class.mono]="!c.insuredName">{{ displayInsured(c) }}</td>
+              <td>
+                <span [class.t-note]="!c.insuredName">{{ displayInsured(c) }}</span>
+                <br />
+                <span class="t-note mono">{{ displayInsuredId(c) }}</span>
+              </td>
               <td>{{ c.claimCause }}</td>
               <td>{{ formatDate(c.eventDate) }}</td>
               <td class="mono">{{ formatAmount(c.claimedAmount) }}</td>

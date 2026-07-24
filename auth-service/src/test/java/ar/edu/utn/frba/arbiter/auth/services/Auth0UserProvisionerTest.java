@@ -167,6 +167,82 @@ class Auth0UserProvisionerTest {
         }
     }
 
+    @Test
+    @SuppressWarnings("unchecked")
+    void updatePassword_userExistsInAuth0_updatesItByAuth0Id() throws Auth0Exception {
+        stubM2mToken();
+
+        String auth0UserId = "auth0|6a5fcb701c7dd907a68b98a4";
+        User existingUser = org.mockito.Mockito.mock(User.class);
+        when(existingUser.getId()).thenReturn(auth0UserId);
+
+        UsersEntity usersEntity = org.mockito.Mockito.mock(UsersEntity.class);
+        Request<java.util.List<User>> listRequest = org.mockito.Mockito.mock(Request.class);
+        Response<java.util.List<User>> listResponse = org.mockito.Mockito.mock(Response.class);
+        when(usersEntity.listByEmail(eq(EMAIL), any())).thenReturn(listRequest);
+        when(listRequest.execute()).thenReturn(listResponse);
+        when(listResponse.getBody()).thenReturn(java.util.List.of(existingUser));
+
+        Request<User> updateRequest = org.mockito.Mockito.mock(Request.class);
+        when(usersEntity.update(eq(auth0UserId), any(User.class))).thenReturn(updateRequest);
+        when(updateRequest.execute()).thenReturn(org.mockito.Mockito.mock(Response.class));
+
+        try (MockedConstruction<ManagementAPI> mocked = mockConstruction(ManagementAPI.class,
+                (mock, context) -> when(mock.users()).thenReturn(usersEntity))) {
+            provisioner().updatePassword(EMAIL, "OtraPass456!");
+
+            verify(usersEntity).update(eq(auth0UserId), any(User.class));
+        }
+    }
+
+    @Test
+    @SuppressWarnings("unchecked")
+    void updatePassword_userNotFoundInAuth0_throwsAuth0ProvisioningException() throws Auth0Exception {
+        stubM2mToken();
+
+        UsersEntity usersEntity = org.mockito.Mockito.mock(UsersEntity.class);
+        Request<java.util.List<User>> listRequest = org.mockito.Mockito.mock(Request.class);
+        Response<java.util.List<User>> listResponse = org.mockito.Mockito.mock(Response.class);
+        when(usersEntity.listByEmail(eq(EMAIL), any())).thenReturn(listRequest);
+        when(listRequest.execute()).thenReturn(listResponse);
+        when(listResponse.getBody()).thenReturn(java.util.List.of());
+
+        try (MockedConstruction<ManagementAPI> mocked = mockConstruction(ManagementAPI.class,
+                (mock, context) -> when(mock.users()).thenReturn(usersEntity))) {
+            assertThatThrownBy(() -> provisioner().updatePassword(EMAIL, "OtraPass456!"))
+                    .isInstanceOf(Auth0ProvisioningException.class);
+
+            verify(usersEntity, org.mockito.Mockito.never()).update(any(), any());
+        }
+    }
+
+    @Test
+    @SuppressWarnings("unchecked")
+    void updatePassword_managementApiRejects_throwsAuth0ProvisioningException() throws Auth0Exception {
+        stubM2mToken();
+
+        String auth0UserId = "auth0|6a5fcb701c7dd907a68b98a4";
+        User existingUser = org.mockito.Mockito.mock(User.class);
+        when(existingUser.getId()).thenReturn(auth0UserId);
+
+        UsersEntity usersEntity = org.mockito.Mockito.mock(UsersEntity.class);
+        Request<java.util.List<User>> listRequest = org.mockito.Mockito.mock(Request.class);
+        Response<java.util.List<User>> listResponse = org.mockito.Mockito.mock(Response.class);
+        when(usersEntity.listByEmail(eq(EMAIL), any())).thenReturn(listRequest);
+        when(listRequest.execute()).thenReturn(listResponse);
+        when(listResponse.getBody()).thenReturn(java.util.List.of(existingUser));
+
+        Request<User> updateRequest = org.mockito.Mockito.mock(Request.class);
+        when(usersEntity.update(eq(auth0UserId), any(User.class))).thenReturn(updateRequest);
+        when(updateRequest.execute()).thenThrow(new Auth0Exception("weak password"));
+
+        try (MockedConstruction<ManagementAPI> mocked = mockConstruction(ManagementAPI.class,
+                (mock, context) -> when(mock.users()).thenReturn(usersEntity))) {
+            assertThatThrownBy(() -> provisioner().updatePassword(EMAIL, "OtraPass456!"))
+                    .isInstanceOf(Auth0ProvisioningException.class);
+        }
+    }
+
     private void assertThatArgsMatchDomainAndToken(java.util.List<?> arguments) {
         org.assertj.core.api.Assertions.assertThat(arguments.get(0)).isEqualTo(DOMAIN);
         org.assertj.core.api.Assertions.assertThat(arguments.get(1)).isEqualTo(ACCESS_TOKEN);

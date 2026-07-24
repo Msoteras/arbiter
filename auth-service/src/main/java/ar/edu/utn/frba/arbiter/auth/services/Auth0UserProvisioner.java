@@ -41,6 +41,25 @@ public class Auth0UserProvisioner {
         }
     }
 
+    /** Reset de contraseña: el usuario ya existe en Auth0, acá solo se le cambia la clave. */
+    public void updatePassword(String email, String rawPassword) {
+        try {
+            ManagementAPI management = managementApi();
+
+            List<User> matches = management.users().listByEmail(email, null).execute().getBody();
+            if (matches.isEmpty()) {
+                throw new Auth0ProvisioningException("actualizar la contraseña de", email,
+                        new IllegalStateException("no existe en Auth0"));
+            }
+
+            User update = new User(properties.auth0().connection());
+            update.setPassword(rawPassword.toCharArray());
+            management.users().update(matches.get(0).getId(), update).execute();
+        } catch (Auth0Exception e) {
+            throw new Auth0ProvisioningException("actualizar la contraseña de", email, e);
+        }
+    }
+
     /** Si el usuario no existe en Auth0 (nunca se provisionó, o ya se borró), no hace nada. */
     public void deleteUser(String email) {
         try {

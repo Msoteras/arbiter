@@ -132,7 +132,6 @@ class UserControllerTest extends AbstractPersistenceIT {
                                   "email": "asegurado.nuevo@gmail.com",
                                   "nombre": "Martina",
                                   "apellido": "Fernández",
-                                  "password": "changeme123",
                                   "rol": "ASEGURADO",
                                   "sector": "N/A"
                                 }
@@ -278,7 +277,6 @@ class UserControllerTest extends AbstractPersistenceIT {
                   "email": "%s",
                   "nombre": "Nuevo",
                   "apellido": "Analista",
-                  "password": "changeme123",
                   "rol": "ANALISTA_SINIESTROS",
                   "sector": "Siniestros Celulares",
                   "fechaIngreso": "2026-01-01"

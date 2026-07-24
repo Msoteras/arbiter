@@ -1,0 +1,77 @@
+<div class="login-page">
+  <section class="brand-pane">
+    <div class="brand-pane-inner">
+      <span class="brand-mark">Arbiter</span>
+      <h1 class="brand-title">{{ copy.brandTitle }}</h1>
+      <p class="brand-tag">{{ copy.brandTag }}</p>
+    </div>
+  </section>
+
+  <section class="form-pane">
+    <app-card class="login-card">
+      @if (tokenStatus() === 'checking') {
+        <h2 class="t-page-title">Validando el link…</h2>
+      } @else if (tokenStatus() === 'invalid') {
+        <h2 class="t-page-title">Link inválido</h2>
+        <p class="t-note">
+          Este link no es válido o venció. Pedí uno nuevo y volvé a intentar.
+        </p>
+      } @else if (activated()) {
+        <h2 class="t-page-title">{{ copy.successTitle }}</h2>
+        <p class="t-note">{{ copy.successNote }}</p>
+        <app-button type="button" [block]="true" (click)="goToLogin()">Ir a iniciar sesión</app-button>
+      } @else {
+        <form (submit)="$event.preventDefault(); submit()">
+          <h2 class="t-page-title">{{ copy.formTitle }}</h2>
+          <p class="t-note">{{ copy.formNote }}</p>
+
+          <label class="field-label" for="activate-password">Contraseña</label>
+          <app-input
+            id="activate-password"
+            type="password"
+            autocomplete="new-password"
+            [value]="password()"
+            (valueChange)="password.set($event)"
+          />
+          <p class="t-note">
+            Mínimo 8 caracteres, al menos 3 de estos 4 tipos (minúsculas, mayúsculas, números,
+            símbolos), y sin 3 caracteres iguales seguidos.
+          </p>
+          @if (password().length > 0 && !passwordValid()) {
+            <ul class="error password-issues">
+              @if (!passwordRequirements().minLength) {
+                <li>Falta longitud: al menos 8 caracteres.</li>
+              }
+              @if (!passwordRequirements().variety) {
+                <li>Falta variedad: combiná al menos 3 tipos de carácter.</li>
+              }
+              @if (!passwordRequirements().noRepeats) {
+                <li>No repitas el mismo carácter 3 veces seguidas.</li>
+              }
+            </ul>
+          }
+
+          <label class="field-label" for="activate-confirm-password">Repetí la contraseña</label>
+          <app-input
+            id="activate-confirm-password"
+            type="password"
+            autocomplete="new-password"
+            [value]="confirmPassword()"
+            (valueChange)="confirmPassword.set($event)"
+          />
+          @if (confirmPassword().length > 0 && !passwordsMatch()) {
+            <p class="error">Las contraseñas no coinciden.</p>
+          }
+
+          @if (errorMessage()) {
+            <p class="error">{{ errorMessage() }}</p>
+          }
+
+          <app-button type="submit" [block]="true" [disabled]="!canSubmit() || submitting()">
+            {{ submitting() ? copy.submittingLabel : copy.submitLabel }}
+          </app-button>
+        </form>
+      }
+    </app-card>
+  </section>
+</div>
