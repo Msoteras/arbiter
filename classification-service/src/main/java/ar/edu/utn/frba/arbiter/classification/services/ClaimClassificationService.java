@@ -3,7 +3,6 @@ package ar.edu.utn.frba.arbiter.classification.services;
 import ar.edu.utn.frba.arbiter.classification.dto.AttachmentDocument;
 import ar.edu.utn.frba.arbiter.classification.dto.ClassificationResponse;
 import ar.edu.utn.frba.arbiter.common.dto.ClaimReport;
-import ar.edu.utn.frba.arbiter.common.dto.ImageForensicReport;
 import lombok.RequiredArgsConstructor;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -14,7 +13,6 @@ import org.springframework.stereotype.Service;
 import org.springframework.web.client.HttpServerErrorException;
 import org.springframework.web.client.ResourceAccessException;
 
-import java.util.ArrayList;
 import java.util.List;
 
 /**
@@ -30,7 +28,6 @@ public class ClaimClassificationService {
 
     private final ClassificationOrchestrator classificationOrchestrator;
     private final ClassificationResultsService resultsService;
-    private final ImageFraudAnalysisService imageFraudAnalysisService;
 
     /**
      * Trigger async classification for a persisted claim.
@@ -83,61 +80,20 @@ public class ClaimClassificationService {
         try {
             long start = System.currentTimeMillis();
 
-            ClassificationResponse response = classificationOrchestrator.classify(claim, documents);
+            // The caseId overload runs the image-fraud cascade and threads it into scoring + the response.
+            ClassificationResponse response = classificationOrchestrator.classify(caseId, claim, documents);
             long latencyMs = System.currentTimeMillis() - start;
-
-            ImageForensicReport forensicReport = runImageFraudAnalysis(caseId, response, documents);
-            if (forensicReport != null) {
-                response = withForensicTraces(response, forensicReport);
-            }
 
             log.info("[ClaimClassificationService] ✓ Classification obtained — caseId={} {} confidence={} latency={}ms",
                     caseId, response.classification(), response.confidence(), latencyMs);
 
-            resultsService.saveResult(caseId, response, forensicReport, latencyMs);
+            resultsService.saveResult(caseId, response, response.forensicReport(), latencyMs);
 
         } catch (Exception e) {
             log.error("[ClaimClassificationService] ✗ Error processing caseId={} after retries — {}",
                     caseId, e.getMessage(), e);
             throw new RuntimeException("Classification failed for case " + caseId + " after retries", e);
         }
-    }
-
-    /**
-     * Runs the image-fraud cascade for the deep review.
-     *
-     * <p>Only for the deep review: a Fast Track claim cleared the deterministic gate, so it
-     * doesn't warrant the cost of the analysis (embeddings, and possibly an external call).
-     * Fraud review is precisely what the non Fast Track route is for.
-     *
-     * @return the structured report, or null when the analysis didn't run (Fast Track) or found
-     *         no images to analyze — the caller persists it as-is (null ⇒ no forensic section)
-     */
-    private ImageForensicReport runImageFraudAnalysis(
-            Long caseId, ClassificationResponse response, List<AttachmentDocument> documents) {
-
-        if (response.deterministicFastTrack()) {
-            log.info("[ClaimClassificationService] caseId={} Fast Track — skipping image fraud analysis", caseId);
-            return null;
-        }
-
-        ImageForensicReport report = imageFraudAnalysisService.analyze(caseId, documents);
-        return report.imagesAnalyzed() == 0 ? null : report;
-    }
-
-    /** Folds the forensic traces into the classification factors (the analyst's reading of the case). */
-    private ClassificationResponse withForensicTraces(ClassificationResponse response, ImageForensicReport report) {
-        List<String> traces = imageFraudAnalysisService.renderTraces(report);
-        if (traces.isEmpty()) {
-            return response;
-        }
-        List<String> factors = new ArrayList<>(response.factors());
-        factors.addAll(traces);
-
-        // toBuilder (not builder): keep riskScore/insuredName the orchestrator attached — only factors change.
-        return response.toBuilder()
-                .factors(factors)
-                .build();
     }
 
     /**

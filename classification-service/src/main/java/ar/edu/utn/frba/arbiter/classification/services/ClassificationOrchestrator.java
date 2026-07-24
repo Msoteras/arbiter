@@ -6,6 +6,7 @@ import ar.edu.utn.frba.arbiter.classification.adapters.DocumentAnalyzer;
 import ar.edu.utn.frba.arbiter.classification.adapters.RulesAdapter;
 import ar.edu.utn.frba.arbiter.classification.adapters.ClaimClassifier;
 import ar.edu.utn.frba.arbiter.common.dto.ClaimReport;
+import ar.edu.utn.frba.arbiter.common.dto.ImageForensicReport;
 import ar.edu.utn.frba.arbiter.classification.dto.*;
 import ar.edu.utn.frba.arbiter.classification.services.risk.RiskContext;
 import ar.edu.utn.frba.arbiter.classification.services.risk.RiskScore;
@@ -15,6 +16,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
@@ -32,6 +34,7 @@ public class ClassificationOrchestrator {
     private final DocumentAnalyzer documentAnalyzer;
     private final PromptBuilder promptBuilder;
     private final RiskScoringService riskScoringService;
+    private final ImageFraudAnalysisService imageFraudAnalysisService;
 
     /** Classifies a claim whose attachments' OCR has already been resolved. */
     public ClassificationResponse classify(ClaimReport claim) {
@@ -40,7 +43,7 @@ public class ClassificationOrchestrator {
 
         Context ctx = fetchContext(claim);
         ClassificationResponse classification = resolveClassification(claim, ctx);
-        return withRiskScore(classification, claim, ctx);
+        return withRiskScore(classification, claim, ctx, null);
     }
 
     private ClassificationResponse resolveClassification(ClaimReport claim, Context ctx) {
@@ -71,7 +74,35 @@ public class ClassificationOrchestrator {
 
         Context ctx = fetchContext(claim);
         ClassificationResponse classification = resolveClassification(claim, documents, ctx);
-        return withRiskScore(classification, claim, ctx);
+        return withRiskScore(classification, claim, ctx, null);
+    }
+
+    /**
+     * Classification for a real case: same flow as above, plus the image-fraud cascade that needs
+     * the {@code caseId} (to exclude self-matches and persist embeddings). The forensic report is
+     * threaded into scoring so the {@code image_reuse}/{@code image_web_match} factors weigh in, and
+     * attached to the response for persistence + the analyst UI.
+     */
+    public ClassificationResponse classify(Long caseId, ClaimReport claim, List<AttachmentDocument> documents) {
+        Context ctx = fetchContext(claim);
+        ClassificationResponse classification = resolveClassification(claim, documents, ctx);
+        ImageForensicReport forensic = runImageFraudAnalysis(caseId, classification, documents);
+        return withRiskScore(classification, claim, ctx, forensic);
+    }
+
+    /**
+     * Runs the image-fraud cascade for the deep review only. A Fast Track claim cleared the
+     * deterministic gate, so it doesn't warrant the cost (embeddings, and possibly an external call).
+     *
+     * @return the report, or null when the analysis didn't run (Fast Track) or found no images
+     */
+    private ImageForensicReport runImageFraudAnalysis(
+            Long caseId, ClassificationResponse classification, List<AttachmentDocument> documents) {
+        if (caseId == null || classification.deterministicFastTrack()) {
+            return null;
+        }
+        ImageForensicReport report = imageFraudAnalysisService.analyze(caseId, documents);
+        return report.imagesAnalyzed() == 0 ? null : report;
     }
 
     private ClassificationResponse resolveClassification(ClaimReport claim, List<AttachmentDocument> documents, Context ctx) {
@@ -106,17 +137,38 @@ public class ClassificationOrchestrator {
      * returned as-is (riskScore null) — the score is a support signal and must never break the
      * classification. The insured's name always comes from the policy, regardless of scoring.
      */
-    private ClassificationResponse withRiskScore(ClassificationResponse classification, ClaimReport claim, Context ctx) {
-        ClassificationResponse withName = classification.toBuilder().insuredName(ctx.policy().insuredName()).build();
+    private ClassificationResponse withRiskScore(
+            ClassificationResponse classification, ClaimReport claim, Context ctx, ImageForensicReport forensic) {
+
+        ClassificationResponse enriched = classification.toBuilder()
+                .insuredName(ctx.policy().insuredName())
+                .forensicReport(forensic)
+                .factors(foldForensicTraces(classification.factors(), forensic))
+                .build();
         try {
-            RiskScore riskScore = riskScoringService.score(new RiskContext(claim, ctx.policy(), ctx.history(), ctx.rules()));
+            RiskScore riskScore = riskScoringService.score(
+                    new RiskContext(claim, ctx.policy(), ctx.history(), ctx.rules(), forensic));
             log.info("[Orchestrator] Risk score attached — scored={} score={} band={}",
                     riskScore.scored(), String.format("%.3f", riskScore.score()), riskScore.band());
-            return withName.toBuilder().riskScore(riskScore).build();
+            return enriched.toBuilder().riskScore(riskScore).build();
         } catch (Exception e) {
             log.error("[Orchestrator] Risk scoring failed — classification proceeds without score: {}", e.getMessage(), e);
-            return withName;
+            return enriched;
         }
+    }
+
+    /** Appends the forensic traces to the classification factors (the analyst's reading of the case). */
+    private List<String> foldForensicTraces(List<String> factors, ImageForensicReport forensic) {
+        if (forensic == null) {
+            return factors;
+        }
+        List<String> traces = imageFraudAnalysisService.renderTraces(forensic);
+        if (traces.isEmpty()) {
+            return factors;
+        }
+        List<String> merged = new ArrayList<>(factors);
+        merged.addAll(traces);
+        return merged;
     }
 
     private record Context(InsuredPolicy policy, InsuredHistory history, BusinessRules rules) {}

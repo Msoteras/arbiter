@@ -13,6 +13,10 @@ public final class RiskFactorIds {
     public static final String POLICY_STANDING = "policy_standing";
     public static final String PURCHASE_TO_REPORT_TIME = "purchase_to_report_time";
     public static final String DOCUMENT_INCONSISTENCY = "document_inconsistency";
+    /** Image reused from another claim already in the system (internal pgvector match). */
+    public static final String IMAGE_REUSE = "image_reuse";
+    /** Claim image found already published on the web (stock/catalog/marketplace). */
+    public static final String IMAGE_WEB_MATCH = "image_web_match";
 
     private RiskFactorIds() {}
 }

@@ -23,6 +23,12 @@ public class MockRulesAdapter implements RulesAdapter {
      * Bands use the documented H0012 cuts (Bajo / Medio / Alto / Crítico on a 0..1 scale).
      * Insurers override this via their own rules; here every mocked branch shares it so the
      * scoring flow has data to run against.
+     *
+     * <p>{@code IMAGE_REUSE} and {@code IMAGE_WEB_MATCH} are wired (see the evaluators) but likewise
+     * out of the active set: both are non-evaluable (contribute 0) for Fast Track and image-less
+     * claims, so activating them globally would dilute every such claim's score and mis-calibrate
+     * the bands above. Activating them is a tuning decision (weights + recalibrated bands, or making
+     * the engine drop non-evaluable factors from the weighted average) — pendiente con el equipo.
      */
     private static final BusinessRules.ScoringConfig DEFAULT_SCORING_CONFIG = BusinessRules.ScoringConfig.builder()
             .factors(List.of(
