@@ -167,3 +167,21 @@ docker compose exec -T postgres psql -U arbiter -d arbiter < classification-serv
 ```
 
 Después, `GET http://localhost:8082/api/v1/claims/9001` (y 9002, 9003) ya devuelven los tres casos. Con eso el front tiene los tres estados para maquetar sin depender de Ollama ni del alta de siniestros.
+
+---
+
+## Tarea aparte (frontend) — Consentimiento en el wizard de alta
+
+Esto **no** es del panel del analista, es del **wizard de alta de denuncia (asegurado)**, pero es responsabilidad del frontend y va de la mano con lo forense, así que queda anotado acá.
+
+**Qué:** un checkbox de consentimiento para que la imagen del siniestro pueda enviarse a un proveedor externo de verificación antifraude (Google Vision). Es el **requisito legal** que habilita a prender la búsqueda en internet (`GOOGLE_VISION_ENABLED`) en producción.
+
+**Por qué:** la búsqueda web saca la imagen del asegurado fuera de nuestra infraestructura → transferencia internacional de datos personales (Ley 25.326). Requiere consentimiento **libre, expreso e informado**.
+
+**Requisitos de la UI:**
+- Checkbox **dedicado y visible** en el paso final del wizard — no enterrado en unos T&C genéricos.
+- Texto que informe **finalidad** (verificación antifraude), **quién** recibe (proveedor externo) y **dónde** (exterior).
+- **Libre:** negarse **no** debe impedir denunciar. Si el asegurado no consiente, el flujo sigue igual; simplemente el backend no hace la búsqueda web (el factor queda no evaluable, la cascada ya lo contempla).
+- Se suma al **bloque de consentimientos que ya estaba pendiente** en el wizard (el de WhatsApp) — misma sección.
+
+**Backend:** persistir el consentimiento (con timestamp) es un pendiente aparte; hoy el flag es global por deployment. Coordinar cuando se implemente el alta con consentimiento por siniestro. Ver `docs/image-fraud-scoring-integration.md` (sección "Consentimiento") para el detalle legal.
