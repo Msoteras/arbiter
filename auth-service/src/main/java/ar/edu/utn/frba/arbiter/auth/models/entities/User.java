@@ -71,15 +71,25 @@ public class User {
     private Instant lockedUntil;
 
     /**
-     * Token de un solo uso, reusado por dos flujos: invitación (Fase 3 Auth0 — mientras esté
-     * seteado en un alta, el usuario está "pendiente" y no existe en Auth0 todavía) y reset de
-     * contraseña (sobre un usuario ya activo). Se limpia al consumirse en cualquiera de los dos.
+     * Token de un solo uso, reusado por dos flujos: invitación (Fase 3 Auth0) y reset de
+     * contraseña sobre un usuario ya activo. Se limpia al consumirse en cualquiera de los dos —
+     * por eso NO sirve para derivar el estado "Pendiente" (ver {@link #activated}): un usuario
+     * activo que pide un reset también tiene este campo seteado un rato.
      */
     @Column(name = "invite_token", unique = true)
     private String inviteToken;
 
     @Column(name = "invite_expires_at")
     private Instant inviteExpiresAt;
+
+    /**
+     * True desde que completa la activación inicial (Fase 3), para siempre. Es la única fuente
+     * de verdad del estado "Pendiente" vs "Activo" — a diferencia de {@link #inviteToken}, un
+     * reset de contraseña posterior no lo toca.
+     */
+    @Builder.Default
+    @Column(nullable = false)
+    private boolean activated = false;
 
     @CreationTimestamp
     @Column(name = "created_at", nullable = false, updatable = false)

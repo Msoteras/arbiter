@@ -62,4 +62,9 @@ public class AuthExceptionHandler {
     public ProblemDetail handleInviteTokenExpired(InviteTokenExpiredException ex) {
         return ProblemDetail.forStatusAndDetail(HttpStatusCode.valueOf(400), ex.getMessage());
     }
+
+    @ExceptionHandler(UserAlreadyActiveException.class)
+    public ProblemDetail handleUserAlreadyActive(UserAlreadyActiveException ex) {
+        return ProblemDetail.forStatusAndDetail(HttpStatusCode.valueOf(400), ex.getMessage());
+    }
 }

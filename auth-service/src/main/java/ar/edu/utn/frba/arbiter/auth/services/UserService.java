@@ -8,11 +8,13 @@ import ar.edu.utn.frba.arbiter.auth.exceptions.EmailAlreadyExistsException;
 import ar.edu.utn.frba.arbiter.auth.exceptions.InvalidInviteTokenException;
 import ar.edu.utn.frba.arbiter.auth.exceptions.InviteTokenExpiredException;
 import ar.edu.utn.frba.arbiter.auth.exceptions.RoleNotAllowedException;
+import ar.edu.utn.frba.arbiter.auth.exceptions.UserAlreadyActiveException;
 import ar.edu.utn.frba.arbiter.auth.exceptions.UserNotFoundException;
 import ar.edu.utn.frba.arbiter.auth.models.entities.User;
 import ar.edu.utn.frba.arbiter.auth.models.repositories.UserRepository;
 import ar.edu.utn.frba.arbiter.common.email.SendGridAdapter;
 import ar.edu.utn.frba.arbiter.common.enums.UserRole;
+import ar.edu.utn.frba.arbiter.common.enums.UserStatus;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.security.crypto.password.PasswordEncoder;
@@ -96,6 +98,7 @@ public class UserService {
         user.setPasswordHash(passwordEncoder.encode(rawPassword));
         user.setInviteToken(null);
         user.setInviteExpiresAt(null);
+        user.setActivated(true);
         userRepository.save(user);
     }
 
@@ -137,6 +140,28 @@ public class UserService {
      */
     public void checkToken(String token) {
         requireValidToken(token);
+    }
+
+    /**
+     * El referente le manda una invitación nueva a un usuario que nunca activó la cuenta (link
+     * vencido, o se lo colgó). Genera un token nuevo con la misma validez de 48hs — no hay cron
+     * que borre invitaciones vencidas, esta es la única forma de destrabarlas.
+     */
+    public UserResponse resendInvite(Long userId) {
+        User user = userRepository.findById(userId).orElseThrow(() -> new UserNotFoundException(userId));
+
+        if (user.isActivated()) {
+            throw new UserAlreadyActiveException();
+        }
+
+        user.setInviteToken(UUID.randomUUID().toString());
+        user.setInviteExpiresAt(Instant.now().plus(INVITE_VALIDITY_HOURS, ChronoUnit.HOURS));
+        User saved = userRepository.save(user);
+
+        sendGridAdapter.send(user.getEmail(), "Activá tu cuenta en Arbiter",
+                invitationEmailBody(user.getNombre(), user.getInviteToken()));
+
+        return toResponse(saved);
     }
 
     private User requireValidToken(String token) {
@@ -222,6 +247,7 @@ public class UserService {
                 user.getRol(),
                 user.getSector(),
                 user.getFechaIngreso(),
+                user.isActivated() ? UserStatus.ACTIVE : UserStatus.PENDING,
                 user.getCreatedAt());
     }
 }

@@ -10,11 +10,13 @@ import ar.edu.utn.frba.arbiter.auth.exceptions.InvalidEmailDomainException;
 import ar.edu.utn.frba.arbiter.auth.exceptions.InvalidInviteTokenException;
 import ar.edu.utn.frba.arbiter.auth.exceptions.InviteTokenExpiredException;
 import ar.edu.utn.frba.arbiter.auth.exceptions.RoleNotAllowedException;
+import ar.edu.utn.frba.arbiter.auth.exceptions.UserAlreadyActiveException;
 import ar.edu.utn.frba.arbiter.auth.exceptions.UserNotFoundException;
 import ar.edu.utn.frba.arbiter.auth.models.entities.User;
 import ar.edu.utn.frba.arbiter.auth.models.repositories.UserRepository;
 import ar.edu.utn.frba.arbiter.common.email.SendGridAdapter;
 import ar.edu.utn.frba.arbiter.common.enums.UserRole;
+import ar.edu.utn.frba.arbiter.common.enums.UserStatus;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
@@ -82,6 +84,7 @@ class UserServiceTest {
         assertThat(response.id()).isEqualTo(42L);
         assertThat(response.email()).isEqualTo("nuevo.analista@arbiter.test");
         assertThat(response.rol()).isEqualTo(UserRole.ANALISTA_SINIESTROS);
+        assertThat(response.estado()).isEqualTo(UserStatus.PENDING);
 
         ArgumentCaptor<User> captor = ArgumentCaptor.forClass(User.class);
         verify(userRepository).save(captor.capture());
@@ -164,6 +167,7 @@ class UserServiceTest {
         assertThat(captor.getValue().getPasswordHash()).isEqualTo("hashed-real-password");
         assertThat(captor.getValue().getInviteToken()).isNull();
         assertThat(captor.getValue().getInviteExpiresAt()).isNull();
+        assertThat(captor.getValue().isActivated()).isTrue();
     }
 
     @Test
@@ -315,6 +319,48 @@ class UserServiceTest {
 
         assertThatThrownBy(() -> userService.checkToken("bad-token"))
                 .isInstanceOf(InvalidInviteTokenException.class);
+    }
+
+    @Test
+    void resendInvite_pendingUser_generatesNewTokenAndSendsMail() {
+        userService = userService(Optional.empty());
+        User pending = User.builder()
+                .id(11L).email("pendiente.test@arbiter.test").nombre("Martina").rol(UserRole.ANALISTA_SINIESTROS)
+                .inviteToken("tok-viejo").inviteExpiresAt(Instant.now().minusSeconds(1))
+                .build();
+        when(userRepository.findById(11L)).thenReturn(Optional.of(pending));
+        when(userRepository.save(any(User.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        UserResponse response = userService.resendInvite(11L);
+
+        assertThat(response.estado()).isEqualTo(UserStatus.PENDING);
+        ArgumentCaptor<User> captor = ArgumentCaptor.forClass(User.class);
+        verify(userRepository).save(captor.capture());
+        assertThat(captor.getValue().getInviteToken()).isNotEqualTo("tok-viejo");
+        assertThat(captor.getValue().getInviteExpiresAt()).isAfter(Instant.now());
+        verify(sendGridAdapter).send(eq("pendiente.test@arbiter.test"), anyString(), anyString());
+    }
+
+    @Test
+    void resendInvite_activeUser_throwsUserAlreadyActive() {
+        userService = userService(Optional.empty());
+        User active = User.builder().id(7L).email("analista.test@arbiter.test").rol(UserRole.ANALISTA_SINIESTROS)
+                .activated(true).build();
+        when(userRepository.findById(7L)).thenReturn(Optional.of(active));
+
+        assertThatThrownBy(() -> userService.resendInvite(7L))
+                .isInstanceOf(UserAlreadyActiveException.class);
+
+        verify(userRepository, never()).save(any());
+    }
+
+    @Test
+    void resendInvite_unknownUser_throwsUserNotFound() {
+        userService = userService(Optional.empty());
+        when(userRepository.findById(999L)).thenReturn(Optional.empty());
+
+        assertThatThrownBy(() -> userService.resendInvite(999L))
+                .isInstanceOf(UserNotFoundException.class);
     }
 
     @Test

@@ -45,6 +45,10 @@ CREATE TABLE users (
     -- "pendiente" y todavía no existe en Auth0 (ver UserService.createUser/activateAccount).
     invite_token       VARCHAR(255) UNIQUE,
     invite_expires_at  TIMESTAMPTZ,
+    -- True desde que completa la activación inicial, para siempre — a diferencia de
+    -- invite_token, un reset de contraseña posterior no lo toca. Única fuente de verdad
+    -- del estado "Pendiente" vs "Activo" en el panel del referente.
+    activated       BOOLEAN      NOT NULL DEFAULT FALSE,
     created_at      TIMESTAMPTZ  NOT NULL DEFAULT NOW(),
 
     CONSTRAINT users_rol_check CHECK (
@@ -148,17 +152,19 @@ CREATE TABLE classification_log (
 -- cargadas en el tenant de Auth0 con la convención '<rol>.arbiter123' (ej. analista.arbiter123).
 -- Los emails usan un dominio real (gmail.com) porque el alta valida registros MX —
 -- .test (RFC 2606) nunca resuelve, por eso no se usa más acá.
-INSERT INTO users (id, email, password_hash, nombre, apellido, rol, sector, fecha_ingreso, insured_id)
+INSERT INTO users (id, email, password_hash, nombre, apellido, rol, sector, fecha_ingreso, insured_id, activated)
 VALUES
     -- El asegurado queda vinculado a su DNI: el portal lo saca del login, sin pedirlo.
     -- 42.987.654 matchea sus casos seedeados y sus pólizas mock (BBVA + Zurich).
     -- Mismo nombre que en la BD aseguradora (datos-aseguradoras.sql, documento 42.987.654)
+    -- Los 3 seeds son cuentas ya operativas (no pasaron por el flujo de invitación), por eso
+    -- activated = TRUE de entrada.
     (1, 'asegurado.arbiter@gmail.com', '$2a$10$/hsOFJuuoiB23a3Gr.zgYO9UuOSopLRsiiu37CMAIIL1yMFr8EGlq',
-     'Martina', 'Soteras', 'ASEGURADO', NULL, NULL, '42.987.654'),
+     'Martina', 'Soteras', 'ASEGURADO', NULL, NULL, '42.987.654', TRUE),
     (2, 'analista.arbiter@gmail.com', '$2a$10$/hsOFJuuoiB23a3Gr.zgYO9UuOSopLRsiiu37CMAIIL1yMFr8EGlq',
-     'Lucas', 'Gómez', 'ANALISTA_SINIESTROS', 'Siniestros Celulares', '2024-03-01', NULL),
+     'Lucas', 'Gómez', 'ANALISTA_SINIESTROS', 'Siniestros Celulares', '2024-03-01', NULL, TRUE),
     (3, 'referente.arbiter@gmail.com', '$2a$10$/hsOFJuuoiB23a3Gr.zgYO9UuOSopLRsiiu37CMAIIL1yMFr8EGlq',
-     'Sofía', 'Martínez', 'REFERENTE_ASEGURADORA', 'Administración', '2022-06-15', NULL);
+     'Sofía', 'Martínez', 'REFERENTE_ASEGURADORA', 'Administración', '2022-06-15', NULL, TRUE);
 
 SELECT setval('users_id_seq', (SELECT MAX(id) FROM users));
 

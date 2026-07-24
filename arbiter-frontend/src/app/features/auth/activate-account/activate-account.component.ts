@@ -1,6 +1,6 @@
 import { HttpErrorResponse } from '@angular/common/http';
 import { ChangeDetectionStrategy, Component, OnInit, computed, inject, signal } from '@angular/core';
-import { ActivatedRoute, Router, RouterLink } from '@angular/router';
+import { ActivatedRoute, Router } from '@angular/router';
 
 import { AuthService } from '../../../core/auth/auth.service';
 import { ButtonComponent } from '../../../shared/ui/button/button.component';
@@ -19,7 +19,7 @@ type Mode = 'activate' | 'reset';
  */
 @Component({
   selector: 'app-activate-account',
-  imports: [ButtonComponent, CardComponent, InputComponent, RouterLink],
+  imports: [ButtonComponent, CardComponent, InputComponent],
   changeDetection: ChangeDetectionStrategy.OnPush,
   templateUrl: './activate-account.component.html',
   styleUrl: './activate-account.component.scss',

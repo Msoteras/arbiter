@@ -15,6 +15,9 @@ import org.springframework.http.MediaType;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.test.web.servlet.MockMvc;
 
+import java.time.Instant;
+import java.time.temporal.ChronoUnit;
+
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
@@ -44,6 +47,7 @@ class UserControllerTest extends AbstractPersistenceIT {
 
     private Long referenteId;
     private Long analistaId;
+    private Long pendienteId;
 
     @BeforeEach
     void seedUsers() {
@@ -55,6 +59,7 @@ class UserControllerTest extends AbstractPersistenceIT {
                 .nombre("Sofía")
                 .apellido("Martínez")
                 .rol(UserRole.REFERENTE_ASEGURADORA)
+                .activated(true)
                 .build()).getId();
 
         analistaId = userRepository.save(User.builder()
@@ -63,6 +68,17 @@ class UserControllerTest extends AbstractPersistenceIT {
                 .nombre("Lucas")
                 .apellido("Gómez")
                 .rol(UserRole.ANALISTA_SINIESTROS)
+                .activated(true)
+                .build()).getId();
+
+        pendienteId = userRepository.save(User.builder()
+                .email("pendiente.test@gmail.com")
+                .passwordHash(passwordEncoder.encode("no-usable"))
+                .nombre("Martina")
+                .apellido("Soteras")
+                .rol(UserRole.ANALISTA_SINIESTROS)
+                .inviteToken("tok-viejo")
+                .inviteExpiresAt(Instant.now().minus(1, ChronoUnit.HOURS))
                 .build()).getId();
     }
 
@@ -154,14 +170,24 @@ class UserControllerTest extends AbstractPersistenceIT {
     }
 
     @Test
-    void listUsers_asReferente_returns200WithBothSeededUsers() throws Exception {
+    void listUsers_asReferente_returns200WithAllSeededUsers() throws Exception {
         String token = tokenFor("referente.test@gmail.com");
 
         mockMvc.perform(get("/api/v1/auth/users").header("Authorization", "Bearer " + token))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.length()").value(2))
+                .andExpect(jsonPath("$.length()").value(3))
                 .andExpect(jsonPath("$[*].email").value(org.hamcrest.Matchers.containsInAnyOrder(
-                        "referente.test@gmail.com", "analista.test@gmail.com")));
+                        "referente.test@gmail.com", "analista.test@gmail.com", "pendiente.test@gmail.com")));
+    }
+
+    @Test
+    void listUsers_pendingUser_hasEstadoPending() throws Exception {
+        String token = tokenFor("referente.test@gmail.com");
+
+        mockMvc.perform(get("/api/v1/auth/users").header("Authorization", "Bearer " + token))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$[?(@.email == 'pendiente.test@gmail.com')].estado").value("PENDING"))
+                .andExpect(jsonPath("$[?(@.email == 'analista.test@gmail.com')].estado").value("ACTIVE"));
     }
 
     @Test
@@ -267,6 +293,53 @@ class UserControllerTest extends AbstractPersistenceIT {
         String token = tokenFor("referente.test@gmail.com");
 
         mockMvc.perform(delete("/api/v1/auth/users/999999")
+                        .header("Authorization", "Bearer " + token))
+                .andExpect(status().isNotFound());
+    }
+
+    @Test
+    void resendInvite_withoutToken_returns401() throws Exception {
+        mockMvc.perform(post("/api/v1/auth/users/" + pendienteId + "/resend-invite"))
+                .andExpect(status().isUnauthorized());
+    }
+
+    @Test
+    void resendInvite_asAnalista_returns403() throws Exception {
+        String token = tokenFor("analista.test@gmail.com");
+
+        mockMvc.perform(post("/api/v1/auth/users/" + pendienteId + "/resend-invite")
+                        .header("Authorization", "Bearer " + token))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
+    void resendInvite_pendingUser_returns200WithNewToken() throws Exception {
+        String token = tokenFor("referente.test@gmail.com");
+
+        mockMvc.perform(post("/api/v1/auth/users/" + pendienteId + "/resend-invite")
+                        .header("Authorization", "Bearer " + token))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.estado").value("PENDING"));
+
+        User refreshed = userRepository.findById(pendienteId).orElseThrow();
+        assertThat(refreshed.getInviteToken()).isNotEqualTo("tok-viejo");
+        assertThat(refreshed.getInviteExpiresAt()).isAfter(Instant.now());
+    }
+
+    @Test
+    void resendInvite_activeUser_returns400() throws Exception {
+        String token = tokenFor("referente.test@gmail.com");
+
+        mockMvc.perform(post("/api/v1/auth/users/" + analistaId + "/resend-invite")
+                        .header("Authorization", "Bearer " + token))
+                .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    void resendInvite_unknownUser_returns404() throws Exception {
+        String token = tokenFor("referente.test@gmail.com");
+
+        mockMvc.perform(post("/api/v1/auth/users/999999/resend-invite")
                         .header("Authorization", "Bearer " + token))
                 .andExpect(status().isNotFound());
     }
