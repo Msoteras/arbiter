@@ -129,10 +129,14 @@ trunco en `PENDING_ANALYST_REVIEW`, incumpliendo la auditoría de la Disposició
 
 ## Gaps conocidos y aceptados (no bloqueantes)
 
-- **Gap D — Análisis de fraude en el prompt.** El diagrama lista "análisis de fraude" como parte del
-  contexto del LLM. Reglas e historial sí se inyectan (`PromptBuilder`); la detección de imagen
-  reutilizada con pgvector **no** está. Ya está diferido explícitamente en la arquitectura
-  ("no bloqueante para arrancar").
+- ~~**Gap D — Análisis de fraude en el prompt.**~~ **Resuelto.** El diagrama lista "análisis de
+  fraude" como parte del contexto. Reglas e historial se inyectan en el prompt (`PromptBuilder`); la
+  detección de imágenes se implementó como una **cascada** aparte (`ImageFraudAnalysisService`, corre
+  en el orchestrator en el camino no-Fast-Track): primero CLIP + pgvector contra la base (imagen
+  reutilizada de otro siniestro), y si no matchea, Google Vision Web Detection (imagen publicada en
+  internet, opt-in). El resultado va al `RiskContext` y al reporte forense del `ClaimResponse`. Ver
+  `docs/image-fraud-scoring-integration.md`. Lo único que queda abierto es activar los dos factores
+  de imagen en el score → **Gap H**.
 - **Gap E — Analista asignado.** El diagrama dice "al analista **asignado**". No hay usuarios, roles
   ni asignación porque dependen de `auth-service` (Auth0), que no está levantado. Mientras tanto el
   `analystId` del Gap B se puede recibir como campo del request.
@@ -154,3 +158,17 @@ trunco en `PENDING_ANALYST_REVIEW`, incumpliendo la auditoría de la Disposició
   el resto de los filtros. Cubierto por `CaseRepositorySpecificationTests` (Postgres real) y
   `CaseControllerTest`/`CaseServiceImplTest` (mocks). El frontend lo expone como un `app-select` más
   en la bandeja del analista.
+- **Gap H — Activación de los factores de imagen en el motor de scoring.** Los evaluators
+  `ImageReuseEvaluator` e `ImageWebMatchEvaluator` están implementados, wireados y probados, pero
+  **fuera del set activo** de la `ScoringConfig` del mock (igual que `PURCHASE_TO_REPORT_TIME` y
+  `DOCUMENT_INCONSISTENCY`). Motivo: ambos son *no evaluables* (aportan 0) en los siniestros Fast
+  Track y en los que no tienen imágenes; como el motor divide por el peso total, activarlos
+  globalmente bajaría el score de todos esos casos y descalibraría las bandas H0012 (0.30 / 0.60 /
+  0.80). El reporte forense igual llega al analista (vía `factors` + `forensicReport` del
+  `ClaimResponse`); lo que falta es que **pondere** el número. Activarlos requiere una de dos cosas,
+  a decidir con el equipo:
+  1. **Recalibrar** — definir los pesos de los dos factores y reajustar los cortes de banda.
+  2. **Fix del motor** — que `RiskScoringService` excluya del promedio ponderado los factores no
+     evaluables (en vez de contarlos como 0). Esto además destrabaría los dos factores dormidos de
+     develop. Requiere un flag "no evaluable" en `RiskFactorEvaluator.Contribution`.
+  Ver `docs/image-fraud-scoring-integration.md` y el comentario en `MockRulesAdapter`.

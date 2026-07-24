@@ -3,7 +3,7 @@
 **Para:** quien tome el frontend Angular.
 **Contexto:** el backend corre un análisis de fraude por imágenes (comparación contra siniestros previos + búsqueda en internet). Este doc describe cómo mostrarlo en la bandeja del analista.
 
-> ⚠️ **Depende de trabajo de backend que todavía no está** (ver la última sección "Contrato pendiente"). Hoy el backend aplana todo en una lista de strings; para hacer esta pantalla como corresponde hace falta que exponga la info estructurada. Coordinar con backend antes de arrancar.
+> ✅ **El backend ya está listo.** `ClaimResponse` expone el análisis forense estructurado (`forensicReport`) y cases-service sirve las imágenes de los adjuntos. Ver "Contrato de backend (disponible)" más abajo. El front puede arrancar sin esperar nada.
 
 ---
 
@@ -78,7 +78,7 @@ Que el analista capte de un vistazo dónde hay algo:
 
 ---
 
-## Contrato pendiente (backend) — LEER antes de estimar
+## Contrato de backend (disponible)
 
 Hoy el endpoint que el front pollea (`GET` del estado del siniestro → `ClaimResponse`) devuelve:
 
@@ -88,15 +88,17 @@ Hoy el endpoint que el front pollea (`GET` del estado del siniestro → `ClaimRe
 
 Las trazas del análisis forense hoy vienen **aplanadas dentro de `factors`**, mezcladas con los motivos de la clasificación, como texto suelto. Con eso **no se puede** construir la pantalla de arriba (no hay imágenes, no hay estructura, no se distingue un match interno de uno web, no hay URLs ni similitudes por separado).
 
-Para habilitar esta sección, backend tiene que:
+**Todo el contrato de backend ya está disponible** — el front puede arrancar:
 
-1. **Exponer el análisis forense estructurado**, no aplanado. Ya existe el objeto `ImageFraudAnalysis` internamente (con `internalDuplicates`, `webMatches`, `traces`, `webChecksPerformed`); falta **persistirlo** y **devolverlo** en el contrato de polling (extender `ClaimResponse` o un endpoint aparte tipo `GET /api/v1/claims/{id}/forensics`).
-2. **Servir las imágenes.** Los adjuntos no los tiene classification-service — viven en cases-service / S3. El front necesita URLs para renderizarlas. Definir de dónde salen (endpoint de cases-service que devuelva las imágenes del siniestro, y la referencia a la imagen del siniestro previo en un match interno).
-3. **Distinguir "no se buscó" de "se buscó y no hay"** en el contrato (para el estado "búsqueda web deshabilitada").
+1. **Análisis forense estructurado** ✅ — `ClaimResponse` incluye `forensicReport` (ver contrato abajo), con `internalMatches`, `webFinding` y `webSearchesPerformed` por imagen. Se persiste en `classification_log` y viaja por el poll `GET /api/v1/claims/{caseId}`.
+2. **Servir las imágenes** ✅ — cases-service persiste los adjuntos (`CaseDocument`, bytea) y los expone:
+   - `GET /api/v1/cases/{caseId}/documents` → lista de documentos (metadata: `id`, `filename`, `contentType`, `size`).
+   - `GET /api/v1/cases/{caseId}/documents/{documentId}` → los **bytes** con su `Content-Type`.
 
-Sin (1) y (2), esta pantalla no se puede hacer más allá de listar los strings de `factors`. Conviene que backend cierre ese contrato antes de que el front arranque.
+   El front renderiza directo: `<img [src]="'/api/v1/cases/' + caseId + '/documents/' + documentId">`. Para correlacionar cada `finding` del reporte con su imagen, matchear por `filename` contra la lista de documentos.
+3. **"No se buscó" vs "se buscó y no hay"** ✅ — resuelto en el contrato: `webFinding == null` = no se buscó; `webFinding` presente con todo en 0 = se buscó y no encontró.
 
-> **Estado:** el punto (1) **ya está cerrado** — `ClaimResponse` ahora incluye `forensicReport` estructurado (ver contrato abajo). El punto (2) (servir las imágenes desde cases-service/S3) **sigue pendiente**: por ahora el front puede renderizar los **links de las páginas web** (que vienen en el reporte) y usar un placeholder para la imagen del adjunto.
+> **Nota:** la imagen del **siniestro previo** en un match interno (`matchedCaseId`) se sirve con el mismo endpoint apuntando a ese otro caso: `GET /api/v1/cases/{matchedCaseId}/documents/...`.
 
 ---
 
