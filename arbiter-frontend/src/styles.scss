@@ -41,138 +41,15 @@ a {
   text-decoration-thickness: from-font;
 }
 
-/* ===== App shell ===== */
-.app-shell { min-height: 100%; }
-
-/* Barra única: marca + nav por rol + identidad, todo en una sola fila. */
-.topbar {
-  position: sticky;
-  top: 0;
-  z-index: 30;
-  display: flex;
-  align-items: center;
-  gap: var(--space-3);
-  min-height: 52px;
-  padding: 0 var(--space-5);
-  background: var(--surface);
-  border-bottom: 1px solid var(--border-default);
-}
-.topbar .logo {
-  font-weight: var(--font-weight-bold);
-  letter-spacing: 0.06em;
-  font-size: var(--font-size-sm);
-  border: 1px solid var(--border-control);
-  border-radius: var(--radius-ctl);
-  padding: var(--space-1) var(--space-2);
-  color: var(--text-tertiary);
-}
-.topbar-title { font-size: var(--font-size-body); color: var(--text-tertiary); }
-
-/* Nav horizontal por rol: reemplaza la sidebar vertical (pedido de UX). */
-.topnav {
-  display: flex;
-  align-items: center;
-  gap: var(--space-1);
-  overflow-x: auto;
-}
-.topnav a {
-  display: inline-block;
-  padding: var(--space-2) var(--space-3);
-  border-radius: var(--radius-ctl);
-  text-decoration: none;
-  color: var(--text-tertiary);
-  font-size: var(--font-size-body);
-  white-space: nowrap;
-}
-.topnav a:hover { background: var(--surface-sunken); color: var(--text-primary); }
-.topnav a.active { background: var(--surface-head); color: var(--text-primary); font-weight: var(--font-weight-medium); }
-.topnav a.disabled { color: var(--text-muted); cursor: default; }
-.topnav a.disabled:hover { background: none; color: var(--text-muted); }
-
-/* Bloque derecho: link de dev + identidad del usuario. */
-.topbar-end {
-  margin-left: auto;
-  display: flex;
-  align-items: center;
-  gap: var(--space-3);
-}
-.dev-link {
-  padding: var(--space-2) var(--space-3);
-  border-radius: var(--radius-ctl);
-  text-decoration: none;
-  color: var(--text-muted);
-  font-size: var(--font-size-sm);
-  white-space: nowrap;
-}
-.dev-link:hover { background: var(--surface-sunken); color: var(--text-primary); }
-.dev-link.active { color: var(--text-primary); }
-
-/* Campana de notificaciones + indicador de "sin leer". */
-.bell {
-  position: relative;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 34px;
-  height: 34px;
-  padding: 0;
-  border: none;
-  border-radius: var(--radius-ctl);
-  background: none;
-  color: var(--text-tertiary);
-  cursor: pointer;
-}
-.bell:hover { background: var(--surface-sunken); color: var(--text-primary); }
-.bell svg { width: 20px; height: 20px; }
-/* Punto de estado: usa el rol semántico de "info" (algo nuevo), recortado sobre la barra. */
-.bell-dot {
-  position: absolute;
-  top: 5px;
-  right: 5px;
-  width: 8px;
-  height: 8px;
-  border-radius: var(--radius-pill);
-  background: var(--status-info);
-  border: 2px solid var(--surface);
-}
-.who {
-  display: flex;
-  align-items: center;
-  gap: var(--space-2);
-  font-size: var(--font-size-sm);
-  color: var(--text-muted);
-  white-space: nowrap;
-}
+/* Botón-enlace inline (ej. "Cambiar" en el portal del asegurado).
+   Los <button> no heredan font-family: sin `font: inherit` caen en el font del UA. */
 .link-btn {
   border: none;
   background: none;
   cursor: pointer;
   padding: 0;
-  /* Los <button> no heredan font-family: sin esto caen en el font del UA (Arial). */
   font: inherit;
   font-size: var(--font-size-sm);
   color: var(--text-tertiary);
   text-decoration: underline;
-}
-
-/* Cerrar sesión: acción sutil del topbar, mismo lenguaje que la nav / dev-link. */
-.logout {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--space-1);
-  border: none;
-  background: none;
-  cursor: pointer;
-  font: inherit;
-  font-size: var(--font-size-sm);
-  color: var(--text-tertiary);
-  padding: var(--space-1) var(--space-2);
-  border-radius: var(--radius-ctl);
-}
-.logout svg { width: 15px; height: 15px; }
-.logout:hover { background: var(--surface-sunken); color: var(--text-primary); }
-
-@media (max-width: 700px) {
-  .topbar { flex-wrap: wrap; padding: var(--space-2) var(--space-4); }
-  .topbar-title { display: none; }
 }

@@ -27,10 +27,39 @@
   --border-control: var(--c-border-3);
   --border-strong: var(--c-border-strong);
 
-  /* ===== Acción primaria (botón sólido, foco) ===== */
-  --action-primary-bg: var(--accent);
+  /* ===== Acción primaria (botón sólido) =====
+     El botón primario es oscuro (tinta de marca); el teal queda para
+     estados activos/selección — ver "Acento de marca" más abajo. */
+  --action-primary-bg: var(--c-ink);
   --action-primary-bg-hover: var(--c-ink-strong);
   --action-primary-fg: var(--c-on-ink);
+
+  /* ===== Acento de marca (estados activos / selección / IA) =====
+     Rellenos activos (stepper, toggles, timeline, tab activo) usan
+     --accent; texto/íconos teal sobre claro usan --accent-fg (AA);
+     la selección tintada usa el par --selected-bg/--selected-border.
+     El anillo de foco de inputs/controles es --focus-ring. */
+  --accent-fg: var(--accent-strong);
+  --selected-bg: var(--accent-soft);
+  --selected-border: var(--accent-soft-border);
+  --border-focus: var(--accent);
+  --focus-ring: 0 0 0 3px var(--accent-veil);
+
+  /* Superficie de cards de IA (sugerencias / recomendaciones del modelo, ✦). */
+  --surface-ai: linear-gradient(180deg, var(--accent-wash), var(--surface) 62%);
+  --border-ai: var(--accent-soft-border);
+
+  /* ===== Panel de marca (login / hero) ===== */
+  --brand-panel-bg: linear-gradient(160deg, var(--accent-strong) 0%, var(--accent-deep) 55%, var(--accent-deepest) 100%);
+  --brand-panel-fg: var(--c-on-ink);
+
+  /* ===== Sidebar de navegación (analista / referente) ===== */
+  --sidebar-bg: var(--c-ink);
+  --sidebar-fg: var(--c-on-ink);
+  --sidebar-muted: var(--c-muted-2);
+  --sidebar-item-active: var(--c-ink-raised);
+  --sidebar-hair: var(--c-ink-hair);
+  --sidebar-avatar-bg: var(--c-ink-raised-2);
 
   /* ===== Acción secundaria (botón con borde) ===== */
   --action-secondary-bg: var(--c-bg);
@@ -44,10 +73,12 @@
      componentes consumen estos roles, nunca los primitivos --accent-*.
        ok      → resuelto a favor / recomendación positiva  (verde)
        warning → requiere atención / falta algo             (amarillo)
+       risk    → riesgo medio-alto (gauge de fraude "Alto") (naranja)
        danger  → resuelto en contra / riesgo / error        (rojo)
        info    → en curso / neutral informativo             (azul) */
   --status-ok: var(--accent-green);
   --status-warning: var(--accent-yellow);
+  --status-risk: var(--accent-orange);
   --status-danger: var(--accent-red);
   --status-info: var(--accent-blue);
 }

@@ -36,7 +36,7 @@ import { ChangeDetectionStrategy, Component, input, model } from '@angular/core'
     @media (min-width: 640px) {
       .field { font-size: var(--font-size-body); }
     }
-    .field:focus { outline: none; border-color: var(--action-secondary-border-hover); }
+    .field:focus { outline: none; border-color: var(--border-focus); box-shadow: var(--focus-ring); }
     .field::placeholder { color: var(--text-muted); }
   `,
 })

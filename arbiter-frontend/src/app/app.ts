@@ -5,10 +5,13 @@ import { filter, map } from 'rxjs';
 
 import { AuthSessionService } from './core/auth/auth-session.service';
 import { NotificationsService } from './core/notifications/notifications.service';
+import { userRoleLabel } from './core/models/user-role';
+import { LogoComponent } from './shared/ui/logo/logo.component';
 
 @Component({
   selector: 'app-root',
-  imports: [RouterOutlet, RouterLink, RouterLinkActive],
+  imports: [RouterOutlet, RouterLink, RouterLinkActive, LogoComponent],
+  changeDetection: ChangeDetectionStrategy.OnPush,
   templateUrl: './app.html',
   styleUrl: './app.scss',
 })
@@ -25,7 +28,7 @@ export class App {
     { initialValue: this.router.url },
   );
 
-  // La pantalla de login es standalone: sin topbar ni nav de la app.
+  // La pantalla de login es standalone: sin sidebar ni nav de la app.
   protected readonly showShell = computed(() => this.currentUrl() !== '/login');
 
   // H0003 - RBAC: cada rol ve solo su propia sección del sidebar (el referente incluida —
@@ -45,6 +48,15 @@ export class App {
     const rol = this.session.session()?.rol;
     return rol === 'ANALISTA_SINIESTROS' || rol === 'REFERENTE_ASEGURADORA';
   });
+
+  protected roleLabel(rol: string): string {
+    return userRoleLabel(rol);
+  }
+
+  /** Iniciales para el avatar de la sidebar (ej. "María Gómez" → "MG"). */
+  protected initials(nombre: string, apellido: string): string {
+    return `${nombre?.[0] ?? ''}${apellido?.[0] ?? ''}`.toUpperCase() || '—';
+  }
 
   protected logout(): void {
     this.session.clear();

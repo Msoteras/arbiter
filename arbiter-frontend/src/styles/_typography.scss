@@ -16,6 +16,17 @@
   text-wrap: balance;
 }
 
+/* Título hero: más grande y liviano que el t-page-title (ej. "Bienvenido de
+   nuevo" del login, títulos del portal del asegurado). */
+.t-hero-title {
+  font-size: var(--font-size-2xl);
+  font-weight: var(--font-weight-regular);
+  color: var(--text-primary);
+  line-height: 1.15;
+  letter-spacing: 0.005em;
+  text-wrap: balance;
+}
+
 /* Etiqueta de sección / cabecera de card (uppercase con tracking). */
 .t-section-label {
   font-size: var(--font-size-xs);

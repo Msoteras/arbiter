@@ -12,6 +12,7 @@ import { SeverityLabelComponent } from '../../shared/ui/severity-label/severity-
 import { EmptyStateComponent } from '../../shared/ui/empty-state/empty-state.component';
 import { SelectComponent } from '../../shared/ui/select/select.component';
 import { PaginationComponent } from '../../shared/ui/pagination/pagination.component';
+import { LogoComponent } from '../../shared/ui/logo/logo.component';
 
 interface Token {
   name: string;
@@ -52,6 +53,7 @@ interface Swatch {
     EmptyStateComponent,
     SelectComponent,
     PaginationComponent,
+    LogoComponent,
   ],
   template: `
     <div class="sg">
@@ -194,6 +196,19 @@ interface Swatch {
         </div>
       </section>
 
+      <section class="sg-block">
+        <h3 class="sg-h3">Logo</h3>
+        <p class="sg-p">
+          Isotipo (<span class="mono">app-logo</span>): hereda <span class="mono">currentColor</span>
+          y escala al ancho del host. Usado en el login y la shell.
+        </p>
+        <div class="row">
+          <app-logo class="sg-logo-sm" />
+          <app-logo class="sg-logo-md" />
+          <span class="sg-logo-dark"><app-logo class="sg-logo-md" /></span>
+        </div>
+      </section>
+
       <!-- ================= COMPONENTES ================= -->
       <h2 class="sg-h2">Componentes</h2>
 
@@ -228,8 +243,11 @@ interface Swatch {
           <app-card heading="Resumen del siniestro">
             <p class="sg-p">Contenido de la tarjeta.</p>
           </app-card>
-          <app-card variant="soft" icon="✦" heading="Clasificación sugerida">
-            <p class="sg-p">Variante <span class="mono">soft</span>, usada para IA.</p>
+          <app-card variant="soft" heading="Fondo tenue">
+            <p class="sg-p">Variante <span class="mono">soft</span>.</p>
+          </app-card>
+          <app-card variant="ai" icon="✦" heading="Recomendación del modelo">
+            <p class="sg-p">Variante <span class="mono">ai</span>: lavado teal para sugerencias del modelo.</p>
           </app-card>
           <app-card [flush]="true" heading="Sin padding">
             <p class="sg-p">Variante <span class="mono">flush</span>, para contenido que llega al borde (ej. una tabla).</p>
@@ -396,6 +414,10 @@ interface Swatch {
     .icon-conv { display: inline-flex; align-items: center; gap: var(--space-2); font-size: var(--font-size-body); color: var(--text-secondary); }
     .icon-conv .glyph { color: var(--text-primary); }
 
+    .sg-logo-sm { width: 28px; color: var(--text-primary); }
+    .sg-logo-md { width: 56px; color: var(--text-primary); }
+    .sg-logo-dark { display: inline-flex; padding: var(--space-3); border-radius: var(--radius-card); background: var(--brand-panel-bg); color: var(--text-on-emphasis); }
+
     /* Espaciado */
     .space-row { display: flex; align-items: center; gap: var(--space-3); padding: 3px 0; }
     .space-bar { display: block; height: 14px; background: var(--action-primary-bg); border-radius: 2px; }
@@ -427,11 +449,11 @@ export class StyleguideComponent {
 
   /** Perillas de tema editables en vivo. Escriben sobre :root → re-tematizan todo. */
   protected readonly brandKnobs: Knob[] = [
-    { name: 'Acento (acción primaria)', v: '--accent', default: '#23262a' },
-    { name: 'Texto (ink)', v: '--c-ink', default: '#23262a' },
+    { name: 'Acento (estados activos)', v: '--accent', default: '#00a99d' },
+    { name: 'Texto (ink)', v: '--c-ink', default: '#191c1f' },
     { name: 'Fondo', v: '--c-bg', default: '#ffffff' },
-    { name: 'Fondo tenue', v: '--c-bg-soft', default: '#fafbfc' },
-    { name: 'Borde', v: '--c-border', default: '#e2e5e8' },
+    { name: 'Fondo tenue', v: '--c-bg-soft', default: '#fbfaf7' },
+    { name: 'Borde', v: '--c-border', default: '#e5e4dd' },
   ];
 
   protected readonly colors = signal<Record<string, string>>(
@@ -453,6 +475,7 @@ export class StyleguideComponent {
   protected readonly technicolor: Swatch[] = [
     { name: 'Verde', hex: '#00A99D', v: '--accent-green' },
     { name: 'Amarillo', hex: '#F2B705', v: '--accent-yellow' },
+    { name: 'Naranja', hex: '#E8632A', v: '--accent-orange' },
     { name: 'Rojo', hex: '#E63329', v: '--accent-red' },
     { name: 'Azul', hex: '#2E4A9E', v: '--accent-blue' },
   ];
@@ -503,6 +526,7 @@ export class StyleguideComponent {
       items: [
         { name: 'status-ok', v: '--status-ok' },
         { name: 'status-warning', v: '--status-warning' },
+        { name: 'status-risk', v: '--status-risk' },
         { name: 'status-danger', v: '--status-danger' },
         { name: 'status-info', v: '--status-info' },
       ],

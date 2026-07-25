@@ -91,7 +91,7 @@ export interface SelectOption {
       cursor: pointer;
     }
     .trigger:focus-visible,
-    .select.open .trigger { outline: none; border-color: var(--action-secondary-border-hover); }
+    .select.open .trigger { outline: none; border-color: var(--border-focus); box-shadow: var(--focus-ring); }
     .trigger-label {
       overflow: hidden;
       text-overflow: ellipsis;

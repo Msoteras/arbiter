@@ -1,7 +1,24 @@
 :host { display: block; }
 
-.bandeja { padding: var(--space-5) var(--space-5) var(--space-7); max-width: 1200px; }
-.title { margin: 0 0 var(--space-4); }
+.bandeja {
+  padding: var(--space-5) var(--space-6) var(--space-7);
+  max-width: 1440px;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+// ───────────────── Encabezado ─────────────────
+.bandeja-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--space-4);
+}
+.bandeja-head-text { min-width: 0; }
+.bandeja-sub { margin: var(--space-1) 0 0; font-size: var(--font-size-body); color: var(--text-muted); }
+
+.btn-with-icon { display: inline-flex; align-items: center; gap: var(--space-2); }
 
 // ───────────────── Barra de filtros ─────────────────
 .filters {
@@ -23,13 +40,19 @@
   .filter-field { flex-basis: 100%; }
 }
 
-// ───────────────── Tabla (mismo patrón que usuarios.component.scss) ─────────────────
+// ───────────────── Tabla ─────────────────
+.table-card { padding: 0; }
+
 table { width: 100%; border-collapse: collapse; font-size: var(--font-size-body); }
 th, td { text-align: left; padding: var(--space-3) var(--space-4); white-space: nowrap; }
+th:first-child, td:first-child { padding-left: var(--space-5); }
+th:last-child, td:last-child { padding-right: var(--space-5); }
+
 thead th {
-  font-size: var(--font-size-xs);
+  font-size: var(--font-size-2xs);
   text-transform: uppercase;
-  letter-spacing: 0.04em;
+  letter-spacing: 0.08em;
+  font-weight: var(--font-weight-medium);
   color: var(--text-muted);
   background: var(--surface-head);
   border-bottom: 1px solid var(--border-default);
@@ -44,20 +67,32 @@ tbody tr:not(:last-child) td { border-bottom: 1px solid var(--border-subtle); }
   font-size: inherit;
   text-transform: inherit;
   letter-spacing: inherit;
+  font-weight: inherit;
   color: inherit;
   background: none;
   border: none;
   padding: 0;
   cursor: pointer;
 }
-.sort-arrow { color: var(--text-primary); }
+.sort-btn:hover { color: var(--text-secondary); }
+.sort-btn.is-sorted { color: var(--text-primary); }
+.sort-arrow { color: var(--accent-fg); }
+
+// Importe: alineado a la izquierda como el resto, con cifras tabulares.
+.num { font-variant-numeric: tabular-nums; }
 
 .row-link { cursor: pointer; }
-.row-link:hover td { background: var(--surface-sunken); }
+.row-link:hover td { background: var(--surface-soft); }
 
 .id-link {
-  color: inherit;
+  color: var(--accent-fg);
   text-decoration: none;
   font-weight: var(--font-weight-medium);
 }
 .id-link:hover { text-decoration: underline; }
+
+// ───────────────── Paginación como pie de página ─────────────────
+app-pagination {
+  border-top: 1px solid var(--border-default);
+  padding: var(--space-4) var(--space-5) 0;
+}
