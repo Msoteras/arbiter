@@ -4,8 +4,8 @@ import { RouterLink } from '@angular/router';
 
 import { AuthService } from '../../../core/auth/auth.service';
 import { ButtonComponent } from '../../../shared/ui/button/button.component';
-import { CardComponent } from '../../../shared/ui/card/card.component';
 import { InputComponent } from '../../../shared/ui/input/input.component';
+import { LogoComponent } from '../../../shared/ui/logo/logo.component';
 
 /**
  * Asks for the email and triggers UserService.requestPasswordReset, which always responds 204
@@ -14,7 +14,7 @@ import { InputComponent } from '../../../shared/ui/input/input.component';
  */
 @Component({
   selector: 'app-forgot-password',
-  imports: [ButtonComponent, CardComponent, InputComponent, RouterLink],
+  imports: [ButtonComponent, InputComponent, LogoComponent, RouterLink],
   changeDetection: ChangeDetectionStrategy.OnPush,
   templateUrl: './forgot-password.component.html',
   styleUrl: './forgot-password.component.scss',

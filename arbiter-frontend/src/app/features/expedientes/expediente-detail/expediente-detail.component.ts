@@ -5,6 +5,7 @@ import { HttpErrorResponse } from '@angular/common/http';
 import { catchError, combineLatest, map, of, startWith, switchMap } from 'rxjs';
 
 import { ExpedienteService, AnalystDecisionRequest } from '../expediente.service';
+import { CaseNavigationService } from '../case-navigation.service';
 import { ExpedienteResponse, StatusTransition } from '../../../core/models/expediente';
 import { clasificacionLabel, clasificacionTone } from '../../../core/models/clasificacion';
 import { estadoLabel, estadoSimplificadoLabel, estadoTone } from '../../../core/models/estado';
@@ -51,6 +52,7 @@ interface FieldItem { label: string; value: string | null; mono?: boolean; full?
 export class ExpedienteDetailComponent {
   private readonly route = inject(ActivatedRoute);
   private readonly service = inject(ExpedienteService);
+  private readonly caseNav = inject(CaseNavigationService);
 
   /** Bumped after a decision is recorded, to refetch the case and reflect the real backend status. */
   private readonly reloadTrigger = signal(0);
@@ -86,6 +88,15 @@ export class ExpedienteDetailComponent {
     const s = this.state();
     return s.status === 'error' && s.httpStatus === 404;
   });
+
+  // Anterior/siguiente según el orden de la bandeja (no por id correlativo). null cuando no hay
+  // vecino (borde de la lista) o cuando se entró por deep-link sin pasar por la bandeja.
+  protected readonly prevId = computed<number | null>(() =>
+    this.caseNav.neighbor(this.data()?.id, -1),
+  );
+  protected readonly nextId = computed<number | null>(() =>
+    this.caseNav.neighbor(this.data()?.id, 1),
+  );
 
   protected readonly statusLabel = computed(() => {
     const d = this.data();

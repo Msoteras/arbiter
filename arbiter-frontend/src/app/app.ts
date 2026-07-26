@@ -28,8 +28,13 @@ export class App {
     { initialValue: this.router.url },
   );
 
-  // La pantalla de login es standalone: sin sidebar ni nav de la app.
-  protected readonly showShell = computed(() => this.currentUrl() !== '/login');
+  // Las pantallas de autenticación son standalone (sin sesión todavía): pantalla completa,
+  // sin sidebar ni nav de la app. Se comparan por path, ignorando el query (activación y reset
+  // llevan el token en la URL).
+  private static readonly AUTH_ROUTES = ['/login', '/forgot-password', '/activate-account', '/reset-password'];
+  protected readonly showShell = computed(
+    () => !App.AUTH_ROUTES.includes(this.currentUrl().split('?')[0]),
+  );
 
   // H0003 - RBAC: cada rol ve solo su propia sección del sidebar (el referente incluida —
   // tiene acceso completo a nivel de permisos, pero en el nav solo se le muestra la suya).
