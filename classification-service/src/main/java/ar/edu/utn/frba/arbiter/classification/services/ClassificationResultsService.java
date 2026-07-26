@@ -104,6 +104,10 @@ public class ClassificationResultsService {
                 .orElseThrow(() -> new InvalidClassificationException(
                         "No classification found for case " + caseId));
 
+        // The decision row is the latest for the case, so getStatus reads IT — it must carry a
+        // faithful copy of the classification snapshot, risk score included, or the analyst's poll
+        // would see the fraud score/name vanish once a decision is recorded (and the audit trail
+        // would lose the score behind the verdict).
         ClassificationLog decisionEntry = new ClassificationLog();
         decisionEntry.setCaseId(caseId);
         decisionEntry.setSource("ANALYST");
@@ -111,6 +115,10 @@ public class ClassificationResultsService {
         decisionEntry.setConfidence(classificationEntry.getConfidence());
         decisionEntry.setFactors(classificationEntry.getFactors());
         decisionEntry.setForensicReport(classificationEntry.getForensicReport());
+        decisionEntry.setRiskScore(classificationEntry.getRiskScore());
+        decisionEntry.setRiskBand(classificationEntry.getRiskBand());
+        decisionEntry.setRiskBreakdown(classificationEntry.getRiskBreakdown());
+        decisionEntry.setInsuredName(classificationEntry.getInsuredName());
         decisionEntry.setAnalystId(request.analystId());
         decisionEntry.setDecision(normalizeDecision(request.decision()));
         decisionEntry.setDecisionTimestamp(Instant.now());
