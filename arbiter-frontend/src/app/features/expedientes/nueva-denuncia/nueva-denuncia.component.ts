@@ -9,10 +9,12 @@ import { ExpedienteResponse } from '../../../core/models/expediente';
 import { Policy } from '../../../core/models/policy';
 import { InsuredSessionService } from '../../../core/auth/insured-session.service';
 import { ButtonComponent } from '../../../shared/ui/button/button.component';
+import { CardComponent } from '../../../shared/ui/card/card.component';
 import { InputComponent } from '../../../shared/ui/input/input.component';
 import { TextareaComponent } from '../../../shared/ui/textarea/textarea.component';
 import { SelectComponent, SelectOption } from '../../../shared/ui/select/select.component';
 
+// Wizard de alta de denuncia (asegurado) — 3 pasos con catálogos en cascada.
 type Step = 1 | 2 | 3;
 
 // El tipo de hecho solo determina la causa (hecho generador). El ramo y el producto
@@ -37,7 +39,7 @@ type PoliciesState =
 
 @Component({
   selector: 'app-nueva-denuncia',
-  imports: [RouterLink, ButtonComponent, InputComponent, TextareaComponent, SelectComponent],
+  imports: [RouterLink, ButtonComponent, CardComponent, InputComponent, TextareaComponent, SelectComponent],
   changeDetection: ChangeDetectionStrategy.OnPush,
   templateUrl: './nueva-denuncia.component.html',
   styleUrl: './nueva-denuncia.component.scss',

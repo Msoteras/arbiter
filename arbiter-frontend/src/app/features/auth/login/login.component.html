@@ -26,12 +26,13 @@
 
         <div class="field-label-row">
           <label class="field-label" for="login-password">Contraseña</label>
-          <a class="field-link" routerLink="/forgot-password">¿La olvidaste?</a>
+          <a class="field-link" routerLink="/forgot-password">¿Olvidaste tu contraseña?</a>
         </div>
         <app-input
           id="login-password"
           type="password"
           autocomplete="current-password"
+          [revealable]="true"
           [value]="password()"
           (valueChange)="password.set($event)"
         />
