@@ -18,7 +18,7 @@
 
 ### 1. Sección "Análisis forense"
 
-Un bloque dentro del detalle del siniestro, junto a la recomendación de clasificación. Solo aparece si hubo análisis (los Fast Track no lo tienen — ver estados abajo).
+Un bloque dentro del detalle del siniestro, junto a la recomendación de clasificación. Aparece cuando `forensicReport != null` (hubo análisis de imágenes). No depende de Fast Track: un Fast Track que analizó documentación también puede traer análisis forense. Ver estados abajo.
 
 Estructura sugerida:
 
@@ -59,7 +59,7 @@ Que el analista capte de un vistazo dónde hay algo:
 
 | Estado | Qué pasó | Qué mostrar |
 |---|---|---|
-| **Fast Track** | El siniestro no pasó por análisis forense (lo resolvió el gate determinístico). | No mostrar la sección, o un texto tipo "No requiere análisis forense (Fast Track)". |
+| **Sin análisis** | `forensicReport == null`: no se analizó documentación (Fast Track resuelto solo con datos estructurados) o no había imágenes. | No mostrar la sección. Ojo: un Fast Track **con** documentación analizada sí puede traer `forensicReport` — no asumir "Fast Track = sin análisis". |
 | **Sin imágenes** | El siniestro no tenía adjuntos de imagen. | "No se adjuntaron imágenes para analizar". |
 | **Sin hallazgos** | Se analizó, todo limpio. | Sección en verde, "Sin coincidencias internas ni en internet". |
 | **Hallazgo interno** | La imagen coincide con otro siniestro. | 🔴 con la imagen previa y el % de similitud. |
@@ -141,7 +141,7 @@ Para un match interno, `webFinding` es `null` (no se escaló) y `internalMatches
 
 | Estado | Cómo detectarlo |
 |---|---|
-| Fast Track / sin análisis | `forensicReport == null` |
+| Sin análisis (no se analizó documentación, o sin imágenes) | `forensicReport == null` |
 | Imagen limpia | `internalMatches` vacío **y** `webFinding.found()` falso (0/0/[]) |
 | Match interno (reúso entre siniestros) | `internalMatches` no vacío |
 | Match web (foto publicada) | `webFinding` con `fullMatches`/`partialMatches`/`pages` > 0 |

@@ -22,7 +22,9 @@ public class DocumentInconsistencyEvaluator implements RiskFactorEvaluator {
 
     @Override
     public Contribution evaluate(RiskContext context) {
-        return new Contribution(factorId(), 0.0,
-                "Análisis de inconsistencias documentales pendiente (stub) — sin aporte de riesgo por ahora");
+        // Stub: no cross-document logic yet, so it can't evaluate anything — declare it non-evaluable
+        // rather than fabricate a 0.0 that would drag the score down when an insurer activates it.
+        return Contribution.notEvaluable(factorId(),
+                "Análisis de inconsistencias documentales pendiente (stub) — factor no evaluable");
     }
 }

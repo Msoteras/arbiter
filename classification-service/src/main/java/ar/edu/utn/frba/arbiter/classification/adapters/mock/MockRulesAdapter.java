@@ -15,26 +15,28 @@ public class MockRulesAdapter implements RulesAdapter {
 
     /**
      * Default fraud-scoring config for the mock, meant as a faithful H0012 reference config.
-     * Only the three factors with real logic are active, reweighted to sum 1 for readability
-     * (amount ratio, claim frequency, policy standing). {@code PURCHASE_TO_REPORT_TIME} and
-     * {@code DOCUMENT_INCONSISTENCY} stay implemented but out of the active set until they have
-     * real logic/data — one returns a fixed 0.0 and the other uses the policy's start date as a
-     * proxy for the purchase date, so activating them would bias the score without adding signal.
-     * Bands use the documented H0012 cuts (Bajo / Medio / Alto / Crítico on a 0..1 scale).
-     * Insurers override this via their own rules; here every mocked branch shares it so the
-     * scoring flow has data to run against.
+     * Active factors: amount ratio, claim frequency, policy standing (the three with real logic on
+     * every claim) plus the two image-fraud factors ({@code IMAGE_REUSE}, {@code IMAGE_WEB_MATCH}).
+     * The image factors are safe to keep active because the engine now drops non-evaluable factors
+     * from the weighted average: on Fast Track / image-less claims they simply don't participate,
+     * so they don't dilute the score — they only weigh in when there's an image analysis to grade.
      *
-     * <p>{@code IMAGE_REUSE} and {@code IMAGE_WEB_MATCH} are wired (see the evaluators) but likewise
-     * out of the active set: both are non-evaluable (contribute 0) for Fast Track and image-less
-     * claims, so activating them globally would dilute every such claim's score and mis-calibrate
-     * the bands above. Activating them is a tuning decision (weights + recalibrated bands, or making
-     * the engine drop non-evaluable factors from the weighted average) — pendiente con el equipo.
+     * <p>{@code PURCHASE_TO_REPORT_TIME} stays out of the active set: it uses the policy's start date
+     * as a proxy for the purchase date, so it would produce a real (biased) score from stubbed data
+     * — a data-quality issue the non-evaluable exclusion doesn't fix. {@code DOCUMENT_INCONSISTENCY}
+     * is a stub that now reports itself non-evaluable, so it would never contribute; left inactive.
+     *
+     * <p>Weights don't need to sum to 1 (the engine normalizes by total active weight). Bands use the
+     * documented H0012 cuts (Bajo / Medio / Alto / Crítico). The image weights are provisional — an
+     * insurer overrides all of this via its own rules.
      */
     private static final BusinessRules.ScoringConfig DEFAULT_SCORING_CONFIG = BusinessRules.ScoringConfig.builder()
             .factors(List.of(
                     factor(RiskFactorIds.AMOUNT_RATIO, 0.45),
                     factor(RiskFactorIds.CLAIM_FREQUENCY, 0.35),
-                    factor(RiskFactorIds.POLICY_STANDING, 0.20)))
+                    factor(RiskFactorIds.POLICY_STANDING, 0.20),
+                    factor(RiskFactorIds.IMAGE_REUSE, 0.50),
+                    factor(RiskFactorIds.IMAGE_WEB_MATCH, 0.40)))
             .bands(List.of(
                     band(RiskBand.LOW, 0.00),
                     band(RiskBand.MEDIUM, 0.30),

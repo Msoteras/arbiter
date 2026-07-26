@@ -33,8 +33,8 @@ public class ImageWebMatchEvaluator implements RiskFactorEvaluator {
     public Contribution evaluate(RiskContext context) {
         ImageForensicReport fraud = context.imageFraud();
         if (fraud == null || fraud.webSearchesPerformed() == 0) {
-            return new Contribution(factorId(), 0.0,
-                    "No se verificó contra internet — factor no evaluable, se asume sin aporte de riesgo");
+            return Contribution.notEvaluable(factorId(),
+                    "No se verificó contra internet — factor no evaluable");
         }
 
         double score = 0.0;

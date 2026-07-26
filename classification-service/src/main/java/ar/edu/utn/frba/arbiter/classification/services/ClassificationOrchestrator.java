@@ -73,8 +73,8 @@ public class ClassificationOrchestrator {
                 claim.policyNumber(), claim.insuredId(), claim.branch(), claim.claimCause(), documents.size());
 
         Context ctx = fetchContext(claim);
-        ClassificationResponse classification = resolveClassification(claim, documents, ctx);
-        return withRiskScore(classification, claim, ctx, null);
+        Resolution resolution = resolveClassification(claim, documents, ctx);
+        return withRiskScore(resolution.response(), claim, ctx, null);
     }
 
     /**
@@ -82,35 +82,49 @@ public class ClassificationOrchestrator {
      * the {@code caseId} (to exclude self-matches and persist embeddings). The forensic report is
      * threaded into scoring so the {@code image_reuse}/{@code image_web_match} factors weigh in, and
      * attached to the response for persistence + the analyst UI.
+     *
+     * <p>The cascade runs <b>exactly when the documentation is analyzed</b> (see {@link Resolution}):
+     * images are just another attachment, so they're examined together with the rest — including a
+     * Fast Track that examined a required document, and excluding a Fast Track resolved on structured
+     * data alone. Not a separate "analyze images?" toggle: it follows the documentation, which the
+     * business rules govern.
      */
     public ClassificationResponse classify(Long caseId, ClaimReport claim, List<AttachmentDocument> documents) {
         Context ctx = fetchContext(claim);
-        ClassificationResponse classification = resolveClassification(claim, documents, ctx);
-        ImageForensicReport forensic = runImageFraudAnalysis(caseId, classification, documents);
-        return withRiskScore(classification, claim, ctx, forensic);
+        Resolution resolution = resolveClassification(claim, documents, ctx);
+        ImageForensicReport forensic = resolution.documentationAnalyzed()
+                ? runImageFraudAnalysis(caseId, documents)
+                : null;
+        return withRiskScore(resolution.response(), claim, ctx, forensic);
     }
 
     /**
-     * Runs the image-fraud cascade for the deep review only. A Fast Track claim cleared the
-     * deterministic gate, so it doesn't warrant the cost (embeddings, and possibly an external call).
-     *
-     * @return the report, or null when the analysis didn't run (Fast Track) or found no images
+     * @return the report, or null when there's no case (isolated flow) or no images to analyze.
+     *         Whether it's called at all is decided by the caller from {@link Resolution}.
      */
-    private ImageForensicReport runImageFraudAnalysis(
-            Long caseId, ClassificationResponse classification, List<AttachmentDocument> documents) {
-        if (caseId == null || classification.deterministicFastTrack()) {
+    private ImageForensicReport runImageFraudAnalysis(Long caseId, List<AttachmentDocument> documents) {
+        if (caseId == null) {
             return null;
         }
         ImageForensicReport report = imageFraudAnalysisService.analyze(caseId, documents);
         return report.imagesAnalyzed() == 0 ? null : report;
     }
 
-    private ClassificationResponse resolveClassification(ClaimReport claim, List<AttachmentDocument> documents, Context ctx) {
+    /**
+     * A resolved classification plus whether the flow actually <b>examined</b> the claim's
+     * documents. Image-fraud analysis rides on that flag: images are just another attachment, so
+     * they're analyzed exactly when the documentation is — not on a separate toggle. It's
+     * {@code false} only when the case resolves without touching any document (Fast Track on
+     * structured data with no required doc, or an early missing-documentation exit).
+     */
+    private record Resolution(ClassificationResponse response, boolean documentationAnalyzed) {}
+
+    private Resolution resolveClassification(ClaimReport claim, List<AttachmentDocument> documents, Context ctx) {
         List<String> documentTypes = documents.stream().map(AttachmentDocument::type).toList();
         List<String> missingDocs = checkRequiredDocuments(ctx.rules(), documentTypes);
         if (!missingDocs.isEmpty()) {
             log.info("[Orchestrator] Missing required documents: {}", missingDocs);
-            return missingDocumentationResponse(missingDocs);
+            return new Resolution(missingDocumentationResponse(missingDocs), false);
         }
 
         List<String> requiredForGate = requiredDocumentTypes(ctx.rules());
@@ -120,13 +134,14 @@ public class ClassificationOrchestrator {
                 fastTrackValidator.evaluate(claim, ctx.policy(), ctx.history(), ctx.rules(), gateDocumentTexts);
         if (fastTrack.fastTrack()) {
             log.info("[Orchestrator] Deterministic Fast Track — Reasons={}", fastTrack.reasons());
-            return fastTrackResponse(fastTrack);
+            // Documentation was analyzed only if the gate actually examined a required document.
+            return new Resolution(fastTrackResponse(fastTrack), !gateDocumentTexts.isEmpty());
         }
 
         log.info("[Orchestrator] Not Fast Track ({}). Extracting remaining document(s) and sending to LLM...",
                 fastTrack.reasons());
         ClaimReport claimWithOcr = withAttachmentsOcr(claim, extractAllAttachmentsText(documents, gateDocumentTexts));
-        return classifyWithLlm(claimWithOcr, ctx);
+        return new Resolution(classifyWithLlm(claimWithOcr, ctx), true);
     }
 
     /**

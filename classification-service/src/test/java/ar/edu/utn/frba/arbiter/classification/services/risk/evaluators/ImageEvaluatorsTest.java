@@ -30,15 +30,18 @@ class ImageEvaluatorsTest {
     @Test
     void reuse_notEvaluableWhenNoReport() {
         Contribution c = reuse.evaluate(ctx(null));
-        assertThat(c.score()).isZero();
+        assertThat(c.evaluable()).isFalse();
         assertThat(c.rationale()).contains("no evaluable");
     }
 
     @Test
-    void reuse_zeroWhenNoInternalMatches() {
+    void reuse_evaluableZeroWhenAnalyzedButNoInternalMatches() {
         ImageForensicReport report = new ImageForensicReport(1, 1,
                 List.of(finding(List.of(), new WebFinding(0, 0, List.of(), null))));
-        assertThat(reuse.evaluate(ctx(report)).score()).isZero();
+        Contribution c = reuse.evaluate(ctx(report));
+        // Analyzed and found no reuse: a genuine low-risk 0, NOT "not evaluable".
+        assertThat(c.evaluable()).isTrue();
+        assertThat(c.score()).isZero();
     }
 
     @Test
@@ -60,15 +63,18 @@ class ImageEvaluatorsTest {
         ImageForensicReport report = new ImageForensicReport(1, 0,
                 List.of(finding(List.of(), null)));
         Contribution c = web.evaluate(ctx(report));
-        assertThat(c.score()).isZero();
+        assertThat(c.evaluable()).isFalse();
         assertThat(c.rationale()).contains("no evaluable");
     }
 
     @Test
-    void web_zeroWhenSearchedButNothingFound() {
+    void web_evaluableZeroWhenSearchedButNothingFound() {
         ImageForensicReport report = new ImageForensicReport(1, 1,
                 List.of(finding(List.of(), new WebFinding(0, 0, List.of(), null))));
-        assertThat(web.evaluate(ctx(report)).score()).isZero();
+        Contribution c = web.evaluate(ctx(report));
+        // Searched and found nothing on the web: a genuine low-risk 0, NOT "not evaluable".
+        assertThat(c.evaluable()).isTrue();
+        assertThat(c.score()).isZero();
     }
 
     @Test

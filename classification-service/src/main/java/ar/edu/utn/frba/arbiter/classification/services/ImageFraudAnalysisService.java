@@ -19,7 +19,10 @@ import java.util.List;
 import java.util.Set;
 
 /**
- * Image-fraud analysis for the deep (non Fast Track) review, run as an escalating cascade:
+ * Image-fraud analysis, run as part of analyzing the claim's documentation (images are just
+ * another attachment): the orchestrator invokes it exactly when the documentation is examined —
+ * Fast Track with a required document included, structured-data-only Fast Track excluded. Runs as
+ * an escalating cascade:
  *
  * <ol>
  *   <li><b>Internal first</b> — compare the image against attachments of previous claims using

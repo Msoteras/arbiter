@@ -25,8 +25,8 @@ public class AmountRatioEvaluator implements RiskFactorEvaluator {
         BigDecimal insured = context.policy().insuredAmount();
 
         if (claimed == null || insured == null || insured.signum() <= 0) {
-            return new Contribution(factorId(), 0.0,
-                    "Monto reclamado o suma asegurada no disponible — factor no evaluable, se asume sin aporte de riesgo");
+            return Contribution.notEvaluable(factorId(),
+                    "Monto reclamado o suma asegurada no disponible — factor no evaluable");
         }
 
         double ratio = claimed.doubleValue() / insured.doubleValue();

@@ -115,6 +115,51 @@ class RiskScoringServiceTest {
         assertThat(result.score()).isCloseTo(0.5, within(1e-9));
     }
 
+    @Test
+    void nonEvaluableFactorIsExcludedFromWeightedAverageNotCountedAsZero() {
+        // AMOUNT_RATIO is evaluable (ratio 0.5); DOCUMENT_INCONSISTENCY is a non-evaluable stub.
+        // The score must be the amount's raw contribution, NOT diluted by the doc factor's weight.
+        ScoringConfig config = ScoringConfig.builder()
+                .factors(List.of(
+                        factor(RiskFactorIds.AMOUNT_RATIO, 0.5),
+                        factor(RiskFactorIds.DOCUMENT_INCONSISTENCY, 0.5)))
+                .bands(gaugeBands())
+                .build();
+        RiskContext ctx = RiskFixtures.context(
+                RiskFixtures.claim(new BigDecimal("200000")),
+                RiskFixtures.policy(true, new BigDecimal("400000")),
+                RiskFixtures.history(0),
+                config);
+
+        RiskScore result = service.score(ctx);
+
+        // 0.5*0.5 / 0.5 = 0.5  (denominator excludes the non-evaluable factor's weight)
+        assertThat(result.score()).isCloseTo(0.5, within(1e-9));
+        // The non-evaluable factor is not in the breakdown either.
+        assertThat(result.breakdown()).hasSize(1);
+        assertThat(result.breakdown()).singleElement()
+                .satisfies(b -> assertThat(b.factorId()).isEqualTo(RiskFactorIds.AMOUNT_RATIO));
+    }
+
+    @Test
+    void allFactorsNonEvaluableYieldsNotScored() {
+        ScoringConfig config = ScoringConfig.builder()
+                .factors(List.of(factor(RiskFactorIds.DOCUMENT_INCONSISTENCY, 1.0)))
+                .bands(gaugeBands())
+                .build();
+        RiskContext ctx = RiskFixtures.context(
+                RiskFixtures.claim(new BigDecimal("200000")),
+                RiskFixtures.policy(true, new BigDecimal("400000")),
+                RiskFixtures.history(0),
+                config);
+
+        RiskScore result = service.score(ctx);
+
+        // Config existed but nothing could be evaluated → "sin scorear", not a fabricated LOW.
+        assertThat(result.scored()).isFalse();
+        assertThat(result.breakdown()).isEmpty();
+    }
+
     /**
      * Genericity proof: the SAME claim/policy/history scored under two different insurer configs
      * (different weights AND different bands) must produce different scores and different bands.

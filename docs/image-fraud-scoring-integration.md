@@ -10,15 +10,16 @@ Este documento cubre dos cosas:
 
 ## Parte 1 — El análisis en cascada (implementado)
 
-### El principio: escalar solo cuando hace falta
+### Cuándo corre: acoplado al análisis de documentación
 
-El análisis corre **únicamente en la revisión profunda** (no Fast Track) y, por cada imagen, sigue este orden:
+El análisis de imágenes **no es un interruptor aparte** — las imágenes son un adjunto más, así que se analizan **exactamente cuando se analiza la documentación** del siniestro. Eso lo gobiernan las reglas de negocio (qué documentación se examina por ramo/hecho generador), no un flag "analizar imágenes sí/no".
 
 ```
 Clasificación (orchestrator)
-  └─> ¿deterministicFastTrack?
-        ├─ SÍ  → se saltea el análisis (el gate determinístico ya resolvió)
-        └─ NO  → ImageFraudAnalysisService.analyze()
+  └─> ¿se examinó documentación en este caso?
+        ├─ NO  → no corre el análisis de imágenes
+        │        (Fast Track resuelto solo con datos estructurados, sin OCR de ningún documento)
+        └─ SÍ  → ImageFraudAnalysisService.analyze()   ← incluye Fast Track que examinó un documento requerido
                   │
                   └─ por cada imagen:
                        1. CLIP + pgvector contra NUESTRA base   (gratis · privado · rápido)
@@ -27,7 +28,9 @@ Clasificación (orchestrator)
                        2. Google Vision Web Detection           (pago · sale de la infra)
 ```
 
-**Por qué este orden.** El paso 1 no cuesta nada y no expone datos. El paso 2 cuesta plata y saca la imagen del asegurado fuera de nuestra infraestructura, así que es el **fallback**, nunca la primera jugada. Y si el paso 1 ya encontró que la imagen se reutilizó de otro siniestro, el hallazgo está establecido: escalar no aportaría nada.
+**Por qué acoplado a la documentación.** Fast Track es un gate determinístico de reglas (monto, historial, standing, docs) que **no mira las imágenes**; si lo usáramos como criterio, un Fast Track con documento analizado se quedaría sin chequeo de imagen. El disparador correcto es "¿se analizó documentación?": si sí, y hay imágenes, se analizan; si el caso se resuelve sin tocar ningún documento, no. En el código lo reporta `ClassificationOrchestrator.Resolution.documentationAnalyzed`.
+
+**Por qué el orden interno (CLIP → Vision).** El paso 1 no cuesta nada y no expone datos. El paso 2 cuesta plata y saca la imagen del asegurado fuera de nuestra infraestructura, así que es el **fallback**, nunca la primera jugada. Y si el paso 1 ya encontró que la imagen se reutilizó de otro siniestro, el hallazgo está establecido: escalar no aportaría nada.
 
 **El corte es por imagen, no global.** Si el siniestro tiene tres fotos y una matchea internamente, solo esa se corta; las otras dos igual se escalan.
 

@@ -23,8 +23,8 @@ public class ImageReuseEvaluator implements RiskFactorEvaluator {
     public Contribution evaluate(RiskContext context) {
         ImageForensicReport fraud = context.imageFraud();
         if (fraud == null || fraud.imagesAnalyzed() == 0) {
-            return new Contribution(factorId(), 0.0,
-                    "Sin análisis de imágenes disponible — factor no evaluable, se asume sin aporte de riesgo");
+            return Contribution.notEvaluable(factorId(),
+                    "Sin análisis de imágenes disponible — factor no evaluable");
         }
 
         double maxSimilarity = fraud.findings().stream()
@@ -34,6 +34,7 @@ public class ImageReuseEvaluator implements RiskFactorEvaluator {
                 .orElse(0.0);
 
         if (maxSimilarity <= 0.0) {
+            // Images were analyzed and none matched a previous claim: a real "no reuse" (evaluable 0).
             return new Contribution(factorId(), 0.0,
                     "Ninguna imagen coincide con adjuntos de siniestros previos");
         }
