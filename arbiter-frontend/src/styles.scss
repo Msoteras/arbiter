@@ -57,14 +57,11 @@ a {
   background: var(--surface);
   border-bottom: 1px solid var(--border-default);
 }
+/* El logo va sin recuadro: el borde de antes era el marco del placeholder "LOGO".
+   Hereda color, así que sigue al tema de la barra. */
 .topbar .logo {
-  font-weight: var(--font-weight-bold);
-  letter-spacing: 0.06em;
-  font-size: var(--font-size-sm);
-  border: 1px solid var(--border-control);
-  border-radius: var(--radius-ctl);
-  padding: var(--space-1) var(--space-2);
-  color: var(--text-tertiary);
+  --logo-size: var(--font-size-lg);
+  color: var(--text-primary);
 }
 .topbar-title { font-size: var(--font-size-body); color: var(--text-tertiary); }
 

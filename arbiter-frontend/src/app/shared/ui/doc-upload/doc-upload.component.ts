@@ -1,7 +1,9 @@
 import { ChangeDetectionStrategy, Component, computed, inject, input, output, signal } from '@angular/core';
 
 import { ExpedienteService } from '../../../features/expedientes/expediente.service';
+import { CASE_DOCUMENT_TYPES } from '../../../core/models/case-document';
 import { ButtonComponent } from '../button/button.component';
+import { FilePreviewComponent } from '../file-preview/file-preview.component';
 
 interface DocUploadSlot {
   type: string;
@@ -17,7 +19,7 @@ interface DocUploadSlot {
 @Component({
   selector: 'app-doc-upload',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [ButtonComponent],
+  imports: [ButtonComponent, FilePreviewComponent],
   template: `
     <p class="muted">
       La evaluación indica que faltan documentos requeridos. Subí la documentación
@@ -35,7 +37,7 @@ interface DocUploadSlot {
         <span class="doc-row-label">{{ slot.label }}</span>
         @if (slot.file) {
           <div class="doc-row-file">
-            <span class="doc-row-filename" [title]="slot.file.name">{{ slot.file.name }}</span>
+            <app-file-preview [file]="slot.file" />
             <button type="button" class="doc-row-remove" (click)="removeFile(i)">✕</button>
           </div>
         } @else {
@@ -64,8 +66,9 @@ interface DocUploadSlot {
     .hint { margin: 0 0 var(--space-3); color: var(--text-muted); font-size: var(--font-size-sm); }
     .doc-row {
       display: flex;
-      align-items: center;
+      align-items: flex-start;
       justify-content: space-between;
+      gap: var(--space-3);
       padding: var(--space-2) 0;
       border-bottom: 1px solid var(--border-subtle);
       border-radius: var(--radius-ctl);
@@ -73,8 +76,10 @@ interface DocUploadSlot {
     }
     .doc-row.dragover { background: var(--surface-sunken); }
     .doc-row-label { font-size: var(--font-size-body); color: var(--text-secondary); }
-    .doc-row-file { display: flex; align-items: center; gap: var(--space-2); }
-    .doc-row-filename { font-size: var(--font-size-sm); font-family: var(--font-mono); color: var(--text-tertiary); }
+    /* La miniatura crece hasta ocupar el ancho libre: al expandirla, la vista previa
+       necesita todo el espacio de la fila. */
+    .doc-row-file { display: flex; align-items: flex-start; gap: var(--space-2); flex: 1; min-width: 0; }
+    .doc-row-file app-file-preview { flex: 1; min-width: 0; }
     .doc-row-remove {
       border: none;
       background: none;
@@ -105,12 +110,9 @@ export class DocUploadComponent {
   /** Se emite cuando el backend aceptó los documentos (el caso vuelve a clasificación). */
   readonly uploaded = output<void>();
 
-  protected readonly slots = signal<DocUploadSlot[]>([
-    { type: 'police_report', label: 'Denuncia policial', file: null },
-    { type: 'item_photo', label: 'Foto del bien', file: null },
-    { type: 'invoice', label: 'Factura de compra', file: null },
-    { type: 'quote', label: 'Presupuesto de reparación', file: null },
-  ]);
+  protected readonly slots = signal<DocUploadSlot[]>(
+    CASE_DOCUMENT_TYPES.map(({ type, label }) => ({ type, label, file: null })),
+  );
 
   protected readonly uploading = signal(false);
   protected readonly error = signal<string | null>(null);

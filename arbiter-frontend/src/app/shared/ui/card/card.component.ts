@@ -30,6 +30,10 @@ type Variant = 'default' | 'soft';
       padding: var(--space-4);
     }
     .card.soft { background: var(--surface-soft); }
+    /* Para cards que son un enlace (ej. la lista del portal). El host es el <a>: acá solo
+       se agrega la respuesta al hover, el resto del tratamiento ya lo da .card. */
+    :host(.interactive) .card { transition: background-color 0.1s, border-color 0.1s; }
+    :host(.interactive:hover) .card { background: var(--surface-soft); border-color: var(--border-strong); }
     /* Sin padding interno: para contenido que necesita llegar al borde (ej. una tabla). */
     .card.flush { padding: 0; overflow-x: auto; }
     .card.flush .card-head { margin: var(--space-4) var(--space-4) var(--space-3); }

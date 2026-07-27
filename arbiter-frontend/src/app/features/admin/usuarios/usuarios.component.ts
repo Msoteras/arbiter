@@ -1,6 +1,5 @@
 import { HttpErrorResponse } from '@angular/common/http';
 import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
-import { FormsModule } from '@angular/forms';
 
 import { AuthSessionService } from '../../../core/auth/auth-session.service';
 import { UserAdminService, UserResponse } from '../../../core/auth/user-admin.service';
@@ -11,6 +10,8 @@ import { BadgeComponent } from '../../../shared/ui/badge/badge.component';
 import { ButtonComponent } from '../../../shared/ui/button/button.component';
 import { CardComponent } from '../../../shared/ui/card/card.component';
 import { ModalComponent } from '../../../shared/ui/modal/modal.component';
+import { TableComponent } from '../../../shared/ui/table/table.component';
+import { SelectComponent, SelectOption } from '../../../shared/ui/select/select.component';
 
 /**
  * Trello "Gestión de roles y permisos" - listado (GET) + selector de rol editable (PUT).
@@ -20,7 +21,7 @@ import { ModalComponent } from '../../../shared/ui/modal/modal.component';
  */
 @Component({
   selector: 'app-usuarios',
-  imports: [FormsModule, AltaUsuarioComponent, BadgeComponent, ButtonComponent, CardComponent, ModalComponent],
+  imports: [AltaUsuarioComponent, BadgeComponent, ButtonComponent, CardComponent, ModalComponent, TableComponent, SelectComponent],
   changeDetection: ChangeDetectionStrategy.OnPush,
   templateUrl: './usuarios.component.html',
   styleUrl: './usuarios.component.scss',
@@ -30,6 +31,12 @@ export class UsuariosComponent {
   private readonly session = inject(AuthSessionService);
 
   protected readonly roles: UserRole[] = ['ASEGURADO', 'ANALISTA_SINIESTROS', 'REFERENTE_ASEGURADORA'];
+
+  /** Misma lista, en el formato que espera app-select. */
+  protected readonly roleOptions: SelectOption[] = this.roles.map((r) => ({
+    value: r,
+    label: this.roleLabel(r),
+  }));
 
   protected readonly loading = signal(true);
   protected readonly hasError = signal(false);

@@ -120,27 +120,13 @@ app-textarea { display: block; }
   gap: var(--space-3);
 }
 
+/* radius-ctl y no radius-card: es una caja del tamaño de un control, no una tarjeta. */
 .pep-field {
   margin-top: var(--space-5);
   padding: var(--space-3) var(--space-4);
   border: 1px solid var(--border-control);
-  border-radius: var(--radius-card);
+  border-radius: var(--radius-ctl);
   background: var(--surface-soft);
-}
-.pep-label {
-  display: flex;
-  align-items: center;
-  gap: var(--space-2);
-  font-size: var(--font-size-body);
-  color: var(--text-primary);
-  cursor: pointer;
-
-  input[type="checkbox"] {
-    width: 18px;
-    height: 18px;
-    accent-color: var(--accent);
-    cursor: pointer;
-  }
 }
 .pep-note {
   display: block;
@@ -171,21 +157,16 @@ app-textarea { display: block; }
 /* ===== Documentación ===== */
 .doc-slot {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   justify-content: space-between;
+  gap: var(--space-3);
   padding: var(--space-3) 0;
   border-bottom: 1px solid var(--border-subtle);
 }
 .doc-label { font-size: var(--font-size-md); color: var(--text-secondary); }
-.doc-file { display: flex; align-items: center; gap: var(--space-2); }
-.doc-filename {
-  font-size: var(--font-size-body);
-  color: var(--text-tertiary);
-  max-width: 140px;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
+/* La vista previa toma el ancho libre para poder expandirse dentro de la fila. */
+.doc-file { display: flex; align-items: flex-start; gap: var(--space-2); flex: 1; min-width: 0; }
+.doc-file app-file-preview { flex: 1; min-width: 0; }
 .doc-remove {
   background: none;
   border: none;

@@ -24,17 +24,6 @@
 }
 
 // ───────────────── Tabla (mismo patrón que usuarios.component.scss) ─────────────────
-table { width: 100%; border-collapse: collapse; font-size: var(--font-size-body); }
-th, td { text-align: left; padding: var(--space-3) var(--space-4); white-space: nowrap; }
-thead th {
-  font-size: var(--font-size-xs);
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
-  color: var(--text-muted);
-  background: var(--surface-head);
-  border-bottom: 1px solid var(--border-default);
-}
-tbody tr:not(:last-child) td { border-bottom: 1px solid var(--border-subtle); }
 
 .sort-btn {
   display: inline-flex;

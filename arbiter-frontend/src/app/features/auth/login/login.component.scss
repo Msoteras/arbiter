@@ -16,16 +16,15 @@
 
 .brand-pane-inner { max-width: 420px; width: 100%; position: relative; z-index: 1; }
 
+/* Sobre el panel oscuro el logo hereda el blanco del texto — por eso el símbolo va en
+   currentColor y no hace falta la variante -white del export. */
 .brand-mark {
-  display: inline-block;
+  /* En px y no con un token de la escala: acá el logo es un gráfico de marca, no texto
+     de UI — la escala tipográfica llega hasta 22px (títulos de página) y se quedaba corta. */
+  --logo-size: 30px;
+  display: inline-flex;
   margin-bottom: var(--space-6);
-  padding: var(--space-1) var(--space-3);
-  border: 1px solid rgba(255, 255, 255, 0.35);
-  border-radius: var(--radius-ctl);
-  font-size: var(--font-size-sm);
-  font-weight: var(--font-weight-bold);
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
+  color: var(--text-on-emphasis);
 }
 
 .brand-title {

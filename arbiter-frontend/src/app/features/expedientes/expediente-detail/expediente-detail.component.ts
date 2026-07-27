@@ -13,6 +13,7 @@ import { FraudGaugeComponent } from '../../../shared/ui/fraud-gauge/fraud-gauge.
 import { EmptyStateComponent } from '../../../shared/ui/empty-state/empty-state.component';
 import { StatusTimelineComponent } from '../../../shared/ui/status-timeline/status-timeline.component';
 import { DocUploadComponent } from '../../../shared/ui/doc-upload/doc-upload.component';
+import { CaseDocumentsComponent } from '../case-documents/case-documents.component';
 import { CardComponent } from '../../../shared/ui/card/card.component';
 import { ButtonComponent } from '../../../shared/ui/button/button.component';
 import { BadgeComponent } from '../../../shared/ui/badge/badge.component';
@@ -38,6 +39,7 @@ interface FieldItem { label: string; value: string | null; mono?: boolean; full?
     EmptyStateComponent,
     StatusTimelineComponent,
     DocUploadComponent,
+    CaseDocumentsComponent,
     CardComponent,
     ButtonComponent,
     BadgeComponent,
@@ -254,6 +256,9 @@ export class ExpedienteDetailComponent {
   protected readonly needsDocs = computed(() =>
     this.data()?.analysisClassification === 'FALTA_DOCUMENTACION'
   );
+
+  /** La agenda documental es otra llamada al backend: se refresca con el mismo trigger. */
+  protected readonly docsReloadToken = computed(() => this.reloadTrigger());
 
   onDocsUploaded(): void {
     this.reloadTrigger.update((v) => v + 1);

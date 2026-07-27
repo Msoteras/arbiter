@@ -5,10 +5,11 @@ import { filter, map } from 'rxjs';
 
 import { AuthSessionService } from './core/auth/auth-session.service';
 import { NotificationsService } from './core/notifications/notifications.service';
+import { LogoComponent } from './shared/ui/logo/logo.component';
 
 @Component({
   selector: 'app-root',
-  imports: [RouterOutlet, RouterLink, RouterLinkActive],
+  imports: [RouterOutlet, RouterLink, RouterLinkActive, LogoComponent],
   templateUrl: './app.html',
   styleUrl: './app.scss',
 })
