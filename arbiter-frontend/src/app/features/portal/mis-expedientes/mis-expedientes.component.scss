@@ -1,36 +1,80 @@
-:host { display: block; padding: var(--space-5); max-width: 760px; margin: 0 auto; }
+:host { display: block; }
 
-.page-head { margin-bottom: var(--space-4); }
-.page-head h1 { margin: 0; }
+.portal {
+  padding: var(--space-5) var(--space-6) var(--space-7);
+  max-width: 860px;
+  margin: 0 auto;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+/* ===== Encabezado ===== */
+.portal-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--space-4);
+}
+.eyebrow { color: var(--accent-fg); display: block; }
+.portal-head-text h1 { margin: var(--space-1) 0 0; }
+.portal-sub { margin: var(--space-2) 0 0; font-size: var(--font-size-body); color: var(--text-muted); }
 
 .muted { color: var(--text-muted); }
 .muted a,
-.t-note a { color: var(--text-tertiary); }
+.t-note a { color: var(--accent-fg); }
 
+/* ===== Identificación / vacío ===== */
 .identify-form { display: flex; gap: var(--space-2); margin-top: var(--space-3); flex-wrap: wrap; align-items: center; }
 .identify-input { flex: 1 1 200px; }
+.empty-card { text-align: center; }
+.empty-card app-button { margin-top: var(--space-3); }
 
+/* ===== Lista de expedientes ===== */
 .case-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: var(--space-3); }
-/* El borde, radio, fondo y padding los pone app-card; acá solo lo que hace falta
-   porque el contenedor es un <a>. El hover viene de la clase .interactive del kit. */
-.case-card { display: block; text-decoration: none; color: inherit; }
+.case-card {
+  display: block;
+  text-decoration: none;
+  color: inherit;
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-card);
+  background: var(--surface);
+  padding: var(--space-4) var(--space-5);
+  box-shadow: var(--shadow-card);
+  transition: border-color 0.12s, box-shadow 0.12s;
+}
+.case-card:hover { border-color: var(--selected-border); box-shadow: 0 4px 14px -8px rgba(0, 0, 0, 0.2); }
 .case-head { display: flex; align-items: center; justify-content: space-between; gap: var(--space-2); flex-wrap: wrap; }
-.case-id { font-size: var(--font-size-body); font-weight: var(--font-weight-medium); }
+.case-id { font-size: var(--font-size-md); font-weight: var(--font-weight-medium); }
 .case-fields { display: flex; gap: var(--space-3); flex-wrap: wrap; margin-top: var(--space-1); font-size: var(--font-size-body); }
-.case-next { margin: var(--space-2) 0 0; font-size: var(--font-size-sm); color: var(--text-secondary); }
+.case-item { color: var(--text-secondary); }
+
+/* Próximo paso: franja tenue con acento teal, separada del cuerpo. */
+.case-next {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin-top: var(--space-3);
+  padding-top: var(--space-3);
+  border-top: 1px solid var(--border-subtle);
+  font-size: var(--font-size-sm);
+  color: var(--text-secondary);
+}
 .next-tag {
   font-size: var(--font-size-2xs);
   font-weight: var(--font-weight-medium);
   text-transform: uppercase;
   letter-spacing: 0.04em;
-  color: var(--text-tertiary);
-  margin-right: var(--space-2);
+  color: var(--accent-fg);
+  background: var(--selected-bg);
+  padding: 2px var(--space-2);
+  border-radius: var(--radius-pill);
+  flex: none;
 }
-
-@media (min-width: 1400px) {
-  :host { max-width: 960px; }
-}
+.next-text { min-width: 0; }
+.next-arrow { margin-left: auto; color: var(--accent-fg); flex: none; }
 
 @media (max-width: 520px) {
+  .portal-head { flex-direction: column; }
   .identify-form { flex-direction: column; align-items: stretch; }
 }

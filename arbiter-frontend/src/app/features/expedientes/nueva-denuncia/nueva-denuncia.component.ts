@@ -10,12 +10,14 @@ import { Policy } from '../../../core/models/policy';
 import { CASE_DOCUMENT_TYPES } from '../../../core/models/case-document';
 import { InsuredSessionService } from '../../../core/auth/insured-session.service';
 import { ButtonComponent } from '../../../shared/ui/button/button.component';
+import { CardComponent } from '../../../shared/ui/card/card.component';
 import { InputComponent } from '../../../shared/ui/input/input.component';
 import { TextareaComponent } from '../../../shared/ui/textarea/textarea.component';
 import { SelectComponent, SelectOption } from '../../../shared/ui/select/select.component';
 import { FilePreviewComponent } from '../../../shared/ui/file-preview/file-preview.component';
 import { CheckboxComponent } from '../../../shared/ui/checkbox/checkbox.component';
 
+// Wizard de alta de denuncia (asegurado) — 3 pasos con catálogos en cascada.
 type Step = 1 | 2 | 3;
 
 // El tipo de hecho solo determina la causa (hecho generador). El ramo y el producto
@@ -43,11 +45,12 @@ type PoliciesState =
   imports: [
     RouterLink,
     ButtonComponent,
+    CardComponent,
     InputComponent,
     TextareaComponent,
     SelectComponent,
-    FilePreviewComponent,
     CheckboxComponent,
+    FilePreviewComponent,
   ],
   changeDetection: ChangeDetectionStrategy.OnPush,
   templateUrl: './nueva-denuncia.component.html',

@@ -1,48 +1,63 @@
 /* ============================================================
    Arbiter · Design System — CAPA 1: TOKENS PRIMITIVOS
    Valores crudos. La "verdad" del sistema.
-   Regla de diseño: escala de grises, SIN color de acento.
+   Regla de diseño: neutros cálidos ("papel") + teal de marca como
+   acento de estados activos/selección; el semáforo technicolor
+   queda reservado a señales de estado.
    No consumir estos tokens directo en componentes → usar la
    capa semántica (_semantic.scss).
+   Referencia visual: docs/prototipo/arbiter-hifi.html
    ============================================================ */
 :root {
   /* ===== Color de acento / marca =====
-     Único "perilla" de tema: maneja la acción primaria y los estados activos.
-     Hoy es el gris de marca; cambiarlo re-tematiza la app entera (editable en vivo
-     desde /styleguide). El resto de la paleta es escala de grises pura. */
-  --accent: #23262a;
+     Único "perilla" de tema: maneja los estados activos, la selección
+     y la identidad de marca. Cambiarlo re-tematiza la app entera
+     (editable en vivo desde /styleguide). */
+  --accent: #00a99d;
+  --accent-strong: #0b6f68; /* teal apto para texto (6:1 sobre blanco) */
+  --accent-deep: #095c56; /* stops del gradiente del panel de marca */
+  --accent-deepest: #083f3b;
+  --accent-soft: #e6f4f2; /* fondo tintado de selección */
+  --accent-soft-border: #b9e3de;
+  --accent-wash: #f0faf8; /* lavado teal muy tenue (tope del gradiente de cards IA) */
+  --accent-veil: rgba(0, 169, 157, 0.15); /* anillo de foco */
 
   /* ===== Paleta accent · technicolor =====
-     Colores de acento fuera de la escala de grises. Uso previsto como
-     semáforo de estado: verde=ok, amarillo=atención, rojo=riesgo, azul=info. */
+     Colores de acento fuera de la escala neutra. Uso previsto como
+     semáforo de estado: verde=ok, amarillo=atención, naranja=riesgo
+     medio-alto, rojo=riesgo, azul=info. */
   --accent-green: #00a99d;
   --accent-yellow: #f2b705;
+  --accent-orange: #e8632a;
   --accent-red: #e63329;
   --accent-blue: #2e4a9e;
 
   /* ===== Color — texto ===== */
-  --c-ink: #23262a; /* negro de marca */
+  --c-ink: #191c1f; /* negro de marca */
   --c-ink-strong: #000000;
-  --c-ink-2: #3a3d41;
-  --c-ink-3: #51565c;
-  --c-ink-4: #585d63;
-  --c-muted: #6d7379; /* oscurecido para llegar a 4.5:1 sobre blanco (WCAG AA) */
+  --c-ink-2: #3a3f45;
+  --c-ink-3: #545a61;
+  --c-ink-4: #5c6167;
+  --c-ink-raised: #2a2e33; /* item activo/hover sobre superficie oscura (sidebar) */
+  --c-ink-raised-2: #3a3f45; /* avatar sobre superficie oscura */
+  --c-ink-hair: #2a2e33; /* separador sobre superficie oscura */
+  --c-muted: #6c7278; /* calibrado para 4.5:1 sobre blanco (WCAG AA) */
   --c-muted-2: #9aa0a6;
-  --c-muted-3: #aeb3b8;
+  --c-muted-3: #b4b9b1;
   --c-on-ink: #ffffff; /* texto sobre fondo oscuro */
 
-  /* ===== Color — bordes ===== */
-  --c-divider: #eef0f2;
-  --c-border: #e2e5e8;
-  --c-border-2: #d4d8dc;
-  --c-border-3: #c2c7cc;
-  --c-border-strong: #aab0b6;
+  /* ===== Color — bordes (neutros cálidos) ===== */
+  --c-divider: #f0efe8;
+  --c-border: #e5e4dd;
+  --c-border-2: #dcdbd2;
+  --c-border-3: #cfd3cd;
+  --c-border-strong: #a9aea6;
 
-  /* ===== Color — fondos ===== */
+  /* ===== Color — fondos (papel cálido) ===== */
   --c-bg: #ffffff;
-  --c-bg-soft: #fafbfc;
-  --c-bg-soft-2: #f6f7f8;
-  --c-bg-head: #f4f5f6;
+  --c-bg-soft: #fbfaf7;
+  --c-bg-soft-2: #f4f3ee; /* lienzo de la app */
+  --c-bg-head: #faf9f6;
 
   /* ===== Espaciado (base 4px) ===== */
   --space-1: 4px;
@@ -53,7 +68,9 @@
   --space-6: 32px;
   --space-7: 40px;
 
-  /* ===== Tipografía — familias ===== */
+  /* ===== Tipografía — familias =====
+     Arimo (clon open-source de Helvetica, auto-hospedado en styles.scss) con
+     Helvetica/Arial de fallback métricamente idéntico. */
   --font-sans: 'Arimo', 'Helvetica Neue', Helvetica, Arial, sans-serif;
   --font-mono: 'Roboto Mono', ui-monospace, 'SFMono-Regular', Menlo, monospace;
 
@@ -65,6 +82,7 @@
   --font-size-md: 14px;
   --font-size-lg: 16px;
   --font-size-xl: 22px; /* títulos de página */
+  --font-size-2xl: 28px; /* títulos hero (login, portal) */
 
   /* ===== Tipografía — pesos ===== */
   --font-weight-regular: 400;
@@ -72,12 +90,13 @@
   --font-weight-bold: 700;
 
   /* ===== Radios ===== */
-  --radius-ctl: 7px; /* controles: botones, inputs */
-  --radius-card: 10px;
-  --radius-modal: 12px;
+  --radius-ctl: 8px; /* controles: botones, inputs */
+  --radius-card: 12px;
+  --radius-modal: 14px;
   --radius-pill: 999px;
 
   /* ===== Sombras / overlay ===== */
-  --shadow-modal: 0 10px 40px rgba(35, 38, 42, 0.18);
-  --overlay-backdrop: rgba(35, 38, 42, 0.4);
+  --shadow-card: 0 1px 2px rgba(0, 0, 0, 0.03);
+  --shadow-modal: 0 10px 40px rgba(25, 28, 31, 0.18);
+  --overlay-backdrop: rgba(25, 28, 31, 0.4);
 }

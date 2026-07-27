@@ -1,6 +1,7 @@
 import { ChangeDetectionStrategy, Component, input } from '@angular/core';
 
 type Variant = 'primary' | 'secondary';
+type Size = 'md' | 'sm';
 
 /**
  * Botón del design system. Única definición de "qué es un botón" en la app.
@@ -16,6 +17,7 @@ type Variant = 'primary' | 'secondary';
       class="btn"
       [class.primary]="variant() === 'primary'"
       [class.secondary]="variant() === 'secondary'"
+      [class.sm]="size() === 'sm'"
       [type]="type()"
       [disabled]="disabled()"
     >
@@ -35,6 +37,7 @@ type Variant = 'primary' | 'secondary';
       border: 1px solid transparent;
       white-space: nowrap;
     }
+    .btn.sm { font-size: var(--font-size-sm); padding: var(--space-1) var(--space-3); }
     .btn.primary { background: var(--action-primary-bg); border-color: var(--action-primary-bg); color: var(--action-primary-fg); }
     .btn.primary:hover:not(:disabled) { background: var(--action-primary-bg-hover); border-color: var(--action-primary-bg-hover); }
     .btn.secondary { background: var(--action-secondary-bg); border-color: var(--action-secondary-border); color: var(--action-secondary-fg); }
@@ -44,6 +47,7 @@ type Variant = 'primary' | 'secondary';
 })
 export class ButtonComponent {
   readonly variant = input<Variant>('primary');
+  readonly size = input<Size>('md');
   readonly type = input<'button' | 'submit'>('button');
   readonly disabled = input(false);
   readonly block = input(false);

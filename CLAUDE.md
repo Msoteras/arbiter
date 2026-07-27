@@ -26,7 +26,7 @@ La sección "Modelo de dominio — vocabulario" más abajo es la excepción: ah�
 | `classification-service`  | 8082   |
 | `cases-service` | 8083   |
 | `reports-service`    | 8084   |
-| `arbiter-frontend`    | 5173   |
+| `arbiter-frontend`    | 4200   |
 
 (Confirmar/ajustar al crear cada `application.yml`. Hoy solo `classification-service` tiene 8082 fijado.)
 
@@ -167,8 +167,8 @@ El frontend (`arbiter-frontend/`, Angular 20 standalone + signals + OnPush) tien
 
 | Capa | Archivo | Qué contiene | Regla |
 |------|---------|--------------|-------|
-| **1 · Primitivos** | `src/styles/_tokens.scss` | valores crudos: paleta `--c-*`, `--accent` + technicolor `--accent-green/yellow/red/blue`, `--space-1..7`, `--font-size-2xs..xl`, `--font-weight-regular/medium/bold`, `--radius-ctl/card/modal/pill`, sombras/overlay. | El **único** lugar donde pueden vivir hex/px crudos. No consumir estos tokens directo desde componentes. |
-| **2 · Semánticos** | `src/styles/_semantic.scss` | roles: `--text-primary/secondary/tertiary/muted/on-emphasis`, `--surface`/`-soft`/`-sunken`/`-head`, `--border-subtle/default/control/strong`, `--action-primary-bg`/`-bg-hover`/`-fg`, `--action-secondary-bg`/`-fg`/`-border`/`-border-hover`, y el **semáforo de estado** `--status-ok/warning/danger/info` (mapean a la technicolor). | **Los componentes consumen SOLO estos.** Acá vive el "tema" (dark mode / branding por aseguradora se resolverían acá sin tocar componentes). |
+| **1 · Primitivos** | `src/styles/_tokens.scss` | valores crudos: paleta `--c-*` (neutros cálidos "papel"), `--accent` (teal de marca) + familia `--accent-strong/soft/soft-border/veil`, technicolor `--accent-green/yellow/orange/red/blue`, `--space-1..7`, `--font-size-2xs..xl`, `--font-weight-regular/medium/bold`, `--radius-ctl/card/modal/pill`, sombras/overlay. | El **único** lugar donde pueden vivir hex/px crudos. No consumir estos tokens directo desde componentes. |
+| **2 · Semánticos** | `src/styles/_semantic.scss` | roles: `--text-primary/secondary/tertiary/muted/on-emphasis`, `--surface`/`-soft`/`-sunken`/`-head`, `--border-subtle/default/control/strong`, `--action-primary-bg`/`-bg-hover`/`-fg` (botón primario **oscuro**), `--action-secondary-bg`/`-fg`/`-border`/`-border-hover`, el **acento de marca** `--accent-fg`/`--selected-bg`/`--selected-border`/`--border-focus`/`--focus-ring` (estados activos, selección, foco), y el **semáforo de estado** `--status-ok/warning/risk/danger/info` (mapean a la technicolor). | **Los componentes consumen SOLO estos.** Acá vive el "tema" (dark mode / branding por aseguradora se resolverían acá sin tocar componentes). |
 | **Tipografía** | `src/styles/_typography.scss` | clases utilitarias: `.t-page-title`, `.t-section-label`, `.t-field-label`, `.t-body`, `.t-note`, `.mono`; utilidades `.measure` (~68ch), `.tabular`, `.sr-only`. | Usar SIEMPRE una clase `.t-*` en vez de setear `font-size`/`font-weight` sueltos. |
 
 Los partials se cablean en `src/styles.scss` vía `@use`. **Guardrail del proyecto: prohibido hex/px crudos fuera de `_tokens.scss`.**
@@ -192,7 +192,7 @@ Antes de escribir markup de UI, usá los componentes que ya existen en vez de re
 1. **Usá el kit, no reimplementes.** Botones, badges, cards, inputs, textareas y modales salen de `app-button`, `app-badge`, `app-card`, `app-input`, `app-textarea`, `app-modal`. Nada de `<button>`/`<div class="card">`/`<input>` estilizados a mano.
 2. **Nunca valores crudos en componentes.** Prohibido hex y px sueltos fuera de `_tokens.scss`. Consumí tokens **semánticos** (`--text-primary`, `--surface`, `--border-control`, `--action-primary-bg`…), no primitivos `--c-*` ni `--accent` directo.
 3. **Espaciado con `--space-*`, tipografía con clases `.t-*` + escala `--font-size-*`, radios con `--radius-*`.** Nada de márgenes/paddings/tamaños ad-hoc.
-4. **Estética del proyecto: escala de grises + color solo para estado.** El acento de marca es `--accent`. La paleta technicolor (`--accent-*`) NO se usa cruda en componentes: se consume vía los roles semánticos `--status-ok/warning/danger/info`, y **solo para comunicar estado** (semáforo de expediente/clasificación, texto de error), siempre sobrio — un punto, un borde o el color del texto, nunca fondos saturados. El tono sale del dominio: `estadoTone()` / `clasificacionTone()` (`core/models/`) mapean cada enum a su `StatusTone`. El `app-fraud-gauge` usa el semáforo `--status-*` para el nivel de riesgo (bajo→ok, medio→warning, alto/crítico→danger). **La severidad textual (`app-severity-label`) se codifica por PESO + triángulo ▲, sin color.** No metas color nuevo sin acordarlo.
+4. **Estética del proyecto: neutros cálidos ("papel") + teal de marca con criterio + semáforo solo para estado.** (Referencia visual: `docs/prototipo/arbiter-hifi.html`.) El acento de marca es `--accent` (teal) y se reserva a **estados activos, selección y foco** (stepper, tab activo, toggle, timeline, anillo de foco) vía los roles `--accent-fg`/`--selected-*`/`--border-focus`/`--focus-ring` — el botón primario es **oscuro** (`--action-primary-*`), no teal. La paleta technicolor (`--accent-*`) NO se usa cruda en componentes: se consume vía los roles semánticos `--status-ok/warning/risk/danger/info`, y **solo para comunicar estado** (semáforo de expediente/clasificación, texto de error), siempre sobrio — un punto, un borde o el color del texto, nunca fondos saturados. El tono sale del dominio: `estadoTone()` / `clasificacionTone()` (`core/models/`) mapean cada enum a su `StatusTone`. El `app-fraud-gauge` usa el semáforo `--status-*` para el nivel de riesgo (bajo→ok, medio→warning, alto→risk, crítico→danger). **La severidad textual (`app-severity-label`) se codifica por PESO + triángulo ▲, sin color.** No metas color nuevo sin acordarlo.
 5. **Componente nuevo → sumalo a la styleguide.** Si agregás algo al kit, mostralo en la página `/styleguide` (`src/app/features/styleguide/styleguide.component.ts`). Es la vitrina viva del sistema.
 6. **Antes de crear UI nueva, revisá `/styleguide` y `shared/ui/`.** Si ya existe, reusá; no dupliques.
 7. **Accesibilidad y tipografía.** Los títulos de card son headings reales (jerarquía correcta, no `<div>` con estilo). Inputs a **16px en mobile** (evita el zoom de iOS). Contraste **AA** (la paleta ya está calibrada a 4.5:1). Mantené `.sr-only` para texto solo-lector y foco visible.
@@ -225,7 +225,7 @@ mvn spring-boot:run -pl classification-service           # corre el módulo (rev
 mvn -pl classification-service -am package               # construye módulo + dependencias
 mvn -pl classification-service test                      # tests del módulo
 
-cd arbiter-frontend && npm install && npm run dev    # http://localhost:5173
+cd arbiter-frontend && npm install && npm start      # ng serve → http://localhost:4200
 
 # Docker: contexto SIEMPRE en la raíz (multi-módulo necesita el POM padre + common-lib)
 docker build -t classification-img -f classification-service/Dockerfile .

@@ -38,12 +38,14 @@ type Band = 1 | 2 | 3 | 4 | null;
     .gauge-label .muted { font-weight: var(--font-weight-regular); color: var(--text-muted); }
     .tri { font-size: var(--font-size-xs); }
 
-    /* Semáforo de riesgo: bajo→ok, medio→warning, alto/crítico→danger. */
+    /* Semáforo de riesgo: bajo→ok, medio→warning, alto→risk, crítico→danger. */
     :host([data-tone='ok']) .seg.filled { background: var(--status-ok); }
     :host([data-tone='warning']) .seg.filled { background: var(--status-warning); }
+    :host([data-tone='risk']) .seg.filled { background: var(--status-risk); }
     :host([data-tone='danger']) .seg.filled { background: var(--status-danger); }
     :host([data-tone='ok']) .tri { color: var(--status-ok); }
     :host([data-tone='warning']) .tri { color: var(--status-warning); }
+    :host([data-tone='risk']) .tri { color: var(--status-risk); }
     :host([data-tone='danger']) .tri { color: var(--status-danger); }
   `,
 })
@@ -57,12 +59,13 @@ export class FraudGaugeComponent {
     return b === null ? 'Sin datos' : labels[b];
   });
 
-  /** Nivel de riesgo → tono de semáforo. Alto y Crítico comparten rojo (los distingue el fill + el ▲). */
+  /** Nivel de riesgo → tono de semáforo: bajo→ok, medio→warning, alto→risk, crítico→danger. */
   protected readonly tone = computed<StatusTone>(() => {
     const b = this.band();
     if (b === null) return 'neutral';
     if (b === 1) return 'ok';
     if (b === 2) return 'warning';
+    if (b === 3) return 'risk';
     return 'danger';
   });
 }

@@ -92,7 +92,7 @@ export interface SelectOption {
       cursor: pointer;
     }
     .trigger:focus-visible,
-    .select.open .trigger { outline: none; border-color: var(--action-secondary-border-hover); }
+    .select.open .trigger { outline: none; border-color: var(--border-focus); box-shadow: var(--focus-ring); }
     .trigger:disabled { cursor: default; opacity: 0.55; }
     .trigger-label {
       overflow: hidden;

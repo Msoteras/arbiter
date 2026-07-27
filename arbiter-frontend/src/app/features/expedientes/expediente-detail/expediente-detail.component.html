@@ -1,22 +1,53 @@
 @if (data(); as d) {
   <header class="det-header">
-    <a class="breadcrumb" routerLink="/inbox">‹ Bandeja</a>
+    <nav class="breadcrumb"><a routerLink="/inbox">Bandeja</a> <span class="crumb-sep">/</span> <span class="mono">#{{ d.id }}</span></nav>
 
-    <div class="identity">
-      <h1 class="t-page-title mono">Expediente #{{ d.id }}</h1>
-      <app-badge [tone]="statusTone()" [title]="'Técnico'">{{ statusLabel() }}</app-badge>
-      <app-badge variant="dashed" [title]="'Simplificado (vista del asegurado)'">{{ simplifiedStatusLabel() }}</app-badge>
+    <div class="det-header-row">
+      <div class="identity">
+        <h1 class="t-page-title mono">Expediente #{{ d.id }}</h1>
+        <app-badge [tone]="statusTone()" [title]="'Técnico'">{{ statusLabel() }}</app-badge>
+        <app-badge variant="dashed" [title]="'Simplificado (vista del asegurado)'">Asegurado ve: {{ simplifiedStatusLabel() }}</app-badge>
+      </div>
+      @if (prevId() || nextId()) {
+        <div class="case-nav">
+          <a class="nav-link" [class.disabled]="!prevId()" [routerLink]="prevId() ? ['/cases', prevId()] : null">‹ Anterior</a>
+          <a class="nav-link" [class.disabled]="!nextId()" [routerLink]="nextId() ? ['/cases', nextId()] : null">Siguiente ›</a>
+        </div>
+      }
     </div>
-    <p class="subtitle nodata">Sin datos</p>
+    <p class="subtitle">
+      <span [class.mono]="!d.insuredName">{{ d.insuredName ?? d.insuredId }}</span>
+      · {{ d.claimCause }} · {{ d.branch }}
+    </p>
+  </header>
 
+  <main class="det-content">
     <!-- Reasoning cards (orden de razonamiento) -->
     <div class="reasoning">
-      <app-card class="rcard" heading="Nivel de riesgo de fraude">
-        <app-fraud-gauge [band]="riskGaugeBand()" />
+      <app-card class="rcard reco" variant="ai" icon="✦" heading="Recomendación de Arbiter">
+        @if (classificationLabel()) {
+          <div class="reco-body">
+            <div class="reco-text">
+              <p class="reco-value" [attr.data-tone]="classificationTone() !== 'neutral' ? classificationTone() : null">{{ classificationLabel() }}</p>
+              <p class="note">Confianza del modelo: {{ confidencePercent() }}%</p>
+              @if (classifState() !== 'none') {
+                <p class="registered">✓ {{ classifState() === 'aceptada' ? 'Clasificación aceptada' : 'Marcada para modificar' }}</p>
+              }
+            </div>
+            @if (classifState() === 'none') {
+              <div class="accept-col">
+                <app-button size="sm" [block]="true" (click)="acceptClassif()">Aceptar</app-button>
+                <app-button variant="secondary" size="sm" [block]="true" (click)="modifyClassif()">Modificar</app-button>
+              </div>
+            }
+          </div>
+        } @else {
+          <p class="nodata">Sin datos</p>
+        }
       </app-card>
 
-      <app-card class="rcard reco" variant="soft" icon="✦" heading="Recomendación de Arbiter">
-        <p class="nodata">Sin datos</p>
+      <app-card class="rcard" heading="Nivel de riesgo de fraude">
+        <app-fraud-gauge [band]="riskGaugeBand()" />
       </app-card>
 
       <app-card class="rcard" heading="Decisión del analista">
@@ -53,21 +84,14 @@
           [attr.aria-selected]="activeTab() === t.id" (click)="setTab(t.id)">{{ t.label }}</button>
       }
     </nav>
-  </header>
 
-  <main class="det-content">
     @switch (activeTab()) {
 
       <!-- ============ RESUMEN ============ -->
       @case ('resumen') {
         <div class="resumen-grid">
           <div class="col-main">
-            <app-card icon="✦" heading="Sugerencia del sistema">
-              <app-empty-state message="Sugerencia e indicadores del modelo" />
-            </app-card>
-
             <app-card heading="Resumen del siniestro">
-              <p class="detail nodata">Sin datos</p>
               <dl class="fields">
                 @for (f of fields(); track f.label) {
                   <div class="field" [class.full]="f.full">
@@ -84,18 +108,8 @@
           </div>
 
           <div class="col-side">
-            <app-card variant="soft" icon="✦" heading="Recomendación del modelo">
-              <p class="classification" [attr.data-tone]="classificationTone() !== 'neutral' ? classificationTone() : null">{{ classificationLabel() }}</p>
-              <p class="note">Confianza del modelo: {{ confidencePercent() }}%</p>
-              @if (classifState() === 'none') {
-                <div class="accept-row">
-                  <app-button (click)="acceptClassif()">Aceptar</app-button>
-                  <app-button variant="secondary" (click)="modifyClassif()">Modificar</app-button>
-                </div>
-              } @else {
-                <p class="registered">✓ {{ classifState() === 'aceptada' ? 'Clasificación aceptada' : 'Clasificación marcada para modificar' }}</p>
-                <p class="note">Queda registrado en el historial.</p>
-              }
+            <app-card variant="ai" icon="✦" heading="Sugerencia del sistema">
+              <app-empty-state message="Sugerencia e indicadores del modelo" />
             </app-card>
           </div>
         </div>

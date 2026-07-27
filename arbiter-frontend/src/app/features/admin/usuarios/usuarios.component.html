@@ -86,13 +86,13 @@
     @if (deleteError()) {
       <p class="error">{{ deleteError() }}</p>
     }
-    <ng-container modalActions>
-      <app-button variant="secondary" [disabled]="deleting()" (click)="cancelDelete()">Cancelar</app-button>
-      <app-button [disabled]="deleting()" (click)="confirmDelete()">
-        {{ deleting() ? 'Eliminando…' : 'Sí, eliminar usuario' }}
-      </app-button>
-    </ng-container>
   }
+  <ng-container modalActions>
+    <app-button variant="secondary" [disabled]="deleting()" (click)="cancelDelete()">Cancelar</app-button>
+    <app-button [disabled]="deleting()" (click)="confirmDelete()">
+      {{ deleting() ? 'Eliminando…' : 'Sí, eliminar usuario' }}
+    </app-button>
+  </ng-container>
 </app-modal>
 
 <app-modal [open]="showCreatePanel()" heading="Nuevo usuario" variant="side" (close)="showCreatePanel.set(false)">

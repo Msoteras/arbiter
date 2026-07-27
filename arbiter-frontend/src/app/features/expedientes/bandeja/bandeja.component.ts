@@ -1,5 +1,5 @@
 import { DOCUMENT } from '@angular/common';
-import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, effect, inject, signal } from '@angular/core';
 import { toObservable, toSignal } from '@angular/core/rxjs-interop';
 import { Router, RouterLink } from '@angular/router';
 import {
@@ -14,6 +14,7 @@ import {
 } from 'rxjs';
 
 import { ExpedienteService, ExpedienteListParams } from '../expediente.service';
+import { CaseNavigationService } from '../case-navigation.service';
 import { ExpedienteResponse } from '../../../core/models/expediente';
 import { clasificacionLabel, clasificacionTone } from '../../../core/models/clasificacion';
 import { CaseStatus, estadoLabel, estadoTone } from '../../../core/models/estado';
@@ -71,6 +72,7 @@ export class BandejaComponent {
   private readonly service = inject(ExpedienteService);
   private readonly router = inject(Router);
   private readonly document = inject(DOCUMENT);
+  private readonly caseNav = inject(CaseNavigationService);
 
   // ───────────────── Filtros, búsqueda, orden y paginación ─────────────────
   // Todos combinables por AND, reflejan 1:1 los params que acepta GET /api/v1/cases
@@ -137,6 +139,12 @@ export class BandejaComponent {
   protected readonly cases = computed<ExpedienteResponse[]>(() => {
     const s = this.state();
     return s.status === 'ok' ? s.data : [];
+  });
+
+  // Publica el orden visible de la tabla para que el detalle sepa cuál es el expediente
+  // anterior/siguiente según ESTE orden (filtros + sort + página), no por id correlativo.
+  private readonly publishSequence = effect(() => {
+    this.caseNav.setSequence(this.cases().map((c) => c.id));
   });
 
   protected readonly totalElements = computed(() => {

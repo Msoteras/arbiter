@@ -1,6 +1,6 @@
 import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
 import { toObservable, toSignal } from '@angular/core/rxjs-interop';
-import { RouterLink } from '@angular/router';
+import { Router, RouterLink } from '@angular/router';
 import { catchError, map, of, startWith, switchMap } from 'rxjs';
 
 import { InsuredSessionService } from '../../../core/auth/insured-session.service';
@@ -33,6 +33,7 @@ type LoadState =
 })
 export class MisExpedientesComponent {
   private readonly service = inject(ExpedienteService);
+  private readonly router = inject(Router);
   protected readonly session = inject(InsuredSessionService);
 
   protected readonly identityInput = signal('');
@@ -69,6 +70,10 @@ export class MisExpedientesComponent {
 
   protected identify(): void {
     this.session.identify(this.identityInput());
+  }
+
+  protected nuevaDenuncia(): void {
+    this.router.navigate(['/new-claim']);
   }
 
   protected estadoLabel(status: string): string {

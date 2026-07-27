@@ -54,6 +54,7 @@ type Variant = 'solid' | 'strong' | 'dashed';
     }
     .badge[data-tone='ok'] .dot { background: var(--status-ok); }
     .badge[data-tone='warning'] .dot { background: var(--status-warning); }
+    .badge[data-tone='risk'] .dot { background: var(--status-risk); }
     .badge[data-tone='danger'] .dot { background: var(--status-danger); }
     .badge[data-tone='info'] .dot { background: var(--status-info); }
   `,
