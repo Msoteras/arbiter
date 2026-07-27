@@ -111,6 +111,14 @@
       </div>
     </dl>
   </app-card>
+
+  <!-- Lo que el asegurado ya envió, con vista previa: hasta ahora, una vez subido
+       el documento desaparecía de su vista y no tenía cómo confirmar qué mandó. -->
+  <app-case-documents
+    class="docs-section"
+    [caseId]="d.id"
+    heading="Documentación que enviaste"
+    [showMissing]="false" />
 } @else if (loading()) {
   <div class="state-wrap"><app-card><p class="t-note">Cargando tu siniestro…</p></app-card></div>
 } @else if (notFound()) {

@@ -17,7 +17,7 @@
     <p class="error">{{ resendError() }}</p>
   }
   <app-card [flush]="true">
-    <table>
+    <app-table>
       <thead>
         <tr>
           <th>Nombre</th>
@@ -38,16 +38,12 @@
               @if (isSelf(u)) {
                 <app-badge title="No podés cambiar tu propio rol">{{ roleLabel(u.rol) }}</app-badge>
               } @else {
-                <select
+                <app-select
                   class="role-select"
-                  [ngModel]="u.rol"
-                  (ngModelChange)="onRoleChange(u, $event)"
-                  [disabled]="savingId() === u.id"
-                >
-                  @for (r of roles; track r) {
-                    <option [value]="r">{{ roleLabel(r) }}</option>
-                  }
-                </select>
+                  [options]="roleOptions"
+                  [value]="u.rol"
+                  (valueChange)="onRoleChange(u, $any($event))"
+                  [disabled]="savingId() === u.id" />
               }
             </td>
             <td>{{ u.sector || '—' }}</td>
@@ -76,7 +72,7 @@
           </tr>
         }
       </tbody>
-    </table>
+    </app-table>
   </app-card>
 }
 

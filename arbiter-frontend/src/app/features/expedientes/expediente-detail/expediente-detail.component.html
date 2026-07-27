@@ -124,7 +124,9 @@
 
       @case ('datos') { <app-empty-state message="Datos extraídos por IA + coincidencia con la póliza" /> }
       @case ('imagenes') { <app-empty-state message="Análisis forense de imágenes" /> }
-      @case ('documentacion') { <app-empty-state message="Agenda documental del hecho generador" /> }
+      @case ('documentacion') {
+        <app-case-documents [caseId]="d.id" [reloadToken]="docsReloadToken()" />
+      }
       @case ('conversacion') { <app-empty-state message="Conversación con el asegurado" /> }
       @case ('historial') {
         @if (history().length > 0) {

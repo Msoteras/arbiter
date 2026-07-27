@@ -1,44 +1,97 @@
-import { ChangeDetectionStrategy, Component } from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, input } from '@angular/core';
+
+/** Instancias distintas no pueden compartir el id del mask: el segundo pisaría al primero. */
+let uid = 0;
 
 /**
- * Isotipo de Arbiter: aro con asterisco de 8 puntas y "dona" inferior,
- * ambos apoyados sobre recortes del aro (via mask). Hereda el color del
- * contexto (currentColor) y escala al ancho del host — el consumidor
- * define tamaño vía CSS (ej. `app-logo { width: 28px; }`).
+ * Marca de Arbiter. El símbolo sale del SVG original (public/brand/), con dos cambios
+ * deliberados respecto del export:
+ *
+ * 1. Los trazos van en `currentColor` en vez de #0a0a0a / #ffffff. Un solo componente
+ *    cubre fondo claro y oscuro (el panel del login es oscuro) y queda resuelto para
+ *    cuando entre dark mode.
+ * 2. "Arbiter" va como texto HTML, no como el <text> del SVG. El export lo declara en
+ *    Helvetica Neue/Arial y el proyecto usa Arimo (--font-sans): embebido tal cual, el
+ *    logo quedaba en otra tipografía que el resto de la UI.
+ *
+ * Los archivos originales quedan en public/brand/ para usos fuera de la app (docs, slides).
  */
 @Component({
   selector: 'app-logo',
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
-    <svg viewBox="0 0 48 48" fill="none" aria-hidden="true">
-      <defs>
-        <mask id="arb-logo-gaps">
-          <rect width="48" height="48" fill="white" />
-          <circle cx="36.5" cy="11.5" r="9.5" fill="black" />
-          <circle cx="11" cy="38" r="8.5" fill="black" />
-        </mask>
-      </defs>
-      <circle
-        cx="24"
-        cy="25"
-        r="17"
-        stroke="currentColor"
-        stroke-width="3.6"
-        mask="url(#arb-logo-gaps)"
-      />
-      <!-- Asterisco tipográfico de 6 brazos (3 líneas a 60°). -->
-      <g stroke="currentColor" stroke-width="3.6" stroke-linecap="round">
-        <line x1="36.5" y1="5.7" x2="36.5" y2="17.3" />
-        <line x1="31.5" y1="8.6" x2="41.5" y2="14.4" />
-        <line x1="41.5" y1="8.6" x2="31.5" y2="14.4" />
-      </g>
-      <circle cx="11" cy="38" r="5" stroke="currentColor" stroke-width="3" />
-      <circle cx="11" cy="38" r="1.8" fill="currentColor" />
-    </svg>
+    <span class="logo" [class.symbol-only]="variant() === 'symbol'">
+      <svg
+        class="mark"
+        viewBox="0 0 88 88"
+        fill="none"
+        xmlns="http://www.w3.org/2000/svg"
+        aria-hidden="true">
+        <defs>
+          <mask [attr.id]="maskId()">
+            <rect x="-10" y="-10" width="108" height="108" fill="white" />
+            <circle cx="21" cy="67" r="13.5" fill="black" />
+          </mask>
+        </defs>
+        <path
+          d="M 55 12 A 34 34 0 1 0 76 33"
+          stroke="currentColor"
+          stroke-width="4.5"
+          stroke-linecap="butt"
+          [attr.mask]="maskRef()" />
+        <path
+          d="M 60.0 14.0 A 34 34 0 0 1 73.4 27.0 M 70.0 9.8 L 65.2 29.2 M 77.2 16.8 L 58.0 22.3"
+          stroke="currentColor"
+          stroke-width="4"
+          fill="none"
+          stroke-linecap="butt" />
+        <circle cx="21" cy="67" r="9" stroke="currentColor" stroke-width="4.5" fill="none" />
+        <circle cx="21" cy="67" r="3" fill="currentColor" />
+      </svg>
+
+      @if (variant() === 'lockup') {
+        <span class="wordmark">Arbiter</span>
+      }
+    </span>
   `,
   styles: `
-    :host { display: inline-block; line-height: 0; }
-    svg { display: block; width: 100%; height: auto; }
+    :host { display: inline-flex; }
+
+    .logo {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.42em;
+      color: inherit;
+      /* Todo escala con font-size: quien lo use solo define el tamaño del texto. */
+      font-size: var(--logo-size, var(--font-size-lg));
+    }
+
+    .mark {
+      width: 1.15em;
+      height: 1.15em;
+      flex-shrink: 0;
+      /* El símbolo tiene el punto abajo a la izquierda: sin este ajuste la masa visual
+         queda por debajo de la línea base del texto y el conjunto se ve caído. */
+      margin-block-start: -0.06em;
+    }
+
+    .wordmark {
+      font-family: var(--font-sans);
+      font-weight: var(--font-weight-medium);
+      font-size: 1em;
+      letter-spacing: -0.011em;
+      line-height: 1;
+      white-space: nowrap;
+    }
+
+    .symbol-only .mark { width: 1.3em; height: 1.3em; }
   `,
 })
-export class LogoComponent {}
+export class LogoComponent {
+  /** `lockup` = símbolo + "Arbiter"; `symbol` = solo el símbolo (espacios angostos). */
+  readonly variant = input<'lockup' | 'symbol'>('lockup');
+
+  private readonly id = `arbiter-logo-gap-${uid++}`;
+  protected readonly maskId = computed(() => this.id);
+  protected readonly maskRef = computed(() => `url(#${this.id})`);
+}

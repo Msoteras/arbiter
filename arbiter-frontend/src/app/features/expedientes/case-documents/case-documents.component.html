@@ -1,0 +1,106 @@
+@if (loading()) {
+  <app-card><p class="t-note">Cargando documentación…</p></app-card>
+} @else if (hasError()) {
+  <app-card>
+    <p class="t-note">
+      No se pudo cargar la documentación. Verificá que
+      <span class="mono">cases-service</span> esté corriendo en el puerto 8083.
+    </p>
+  </app-card>
+} @else if (!showMissing() && presentCount() === 0) {
+  <!-- Portal sin adjuntos: una lista y un visor vacíos no dicen nada, mejor una sola nota. -->
+  <app-card [heading]="heading()">
+    <p class="t-note">Todavía no enviaste documentación para este expediente.</p>
+  </app-card>
+} @else {
+  <div class="docs-layout">
+    <!-- Checklist: las 4 filas siempre, presentes y faltantes -->
+    <app-card class="docs-list" [heading]="heading()">
+      <p class="docs-count">
+        @if (showMissing()) {
+          {{ presentCount() }} de {{ totalCount }} documentos cargados
+        } @else {
+          {{ presentCount() }} {{ presentCount() === 1 ? 'documento enviado' : 'documentos enviados' }}
+        }
+      </p>
+
+      <ul class="doc-items">
+        @for (row of rows(); track row.type) {
+          <li class="doc-item" [class.missing]="!row.doc">
+            @if (row.doc) {
+              <button
+                type="button"
+                class="doc-btn"
+                [class.selected]="selectedId() === row.doc.id"
+                [attr.aria-current]="selectedId() === row.doc.id ? 'true' : null"
+                (click)="select(row.doc)">
+                <span class="doc-head">
+                  <span class="doc-label">{{ row.label }}</span>
+                  <app-badge variant="solid" tone="ok">Cargado</app-badge>
+                </span>
+                <span class="doc-filename" [title]="row.doc.filename">{{ row.doc.filename }}</span>
+                <span class="doc-meta">
+                  {{ formatLabel(row.doc.contentType) }} · {{ fileSize(row.doc.sizeBytes) }} ·
+                  {{ uploadedAt(row.doc.uploadedAt) }}
+                </span>
+              </button>
+            } @else {
+              <div class="doc-btn is-missing">
+                <span class="doc-head">
+                  <span class="doc-label">{{ row.label }}</span>
+                  <app-badge variant="dashed">Faltante</app-badge>
+                </span>
+                <span class="doc-meta">Sin cargar</span>
+              </div>
+            }
+          </li>
+        }
+      </ul>
+    </app-card>
+
+    <!-- Visor embebido -->
+    <app-card class="docs-viewer" heading="Vista previa">
+      @let p = preview();
+
+      @switch (p.status) {
+        @case ('empty') {
+          <div class="viewer-state">
+            <p class="t-note">Todavía no hay documentación cargada en este expediente.</p>
+          </div>
+        }
+        @case ('loading') {
+          <div class="viewer-state"><p class="t-note">Abriendo {{ p.doc.filename }}…</p></div>
+        }
+        @case ('error') {
+          <div class="viewer-state">
+            <p class="t-note">No se pudo abrir {{ p.doc.filename }}.</p>
+          </div>
+        }
+        @case ('unsupported') {
+          <div class="viewer-state">
+            <p class="t-note">
+              {{ p.doc.contentType }} no se puede previsualizar acá.
+            </p>
+            <a class="doc-download" [href]="p.objectUrl" [download]="p.doc.filename">
+              Descargar {{ p.doc.filename }}
+            </a>
+          </div>
+        }
+        @case ('ok') {
+          <div class="viewer-bar">
+            <span class="viewer-name" [title]="p.doc.filename">{{ p.doc.filename }}</span>
+            <a class="doc-download" [href]="p.objectUrl" [download]="p.doc.filename">Descargar</a>
+          </div>
+
+          @if (isImage(p.doc.contentType)) {
+            <div class="viewer-frame image">
+              <img [src]="p.objectUrl" [alt]="p.doc.filename" />
+            </div>
+          } @else if (isPdf(p.doc.contentType)) {
+            <iframe class="viewer-frame pdf" [src]="p.safeUrl" [title]="p.doc.filename"></iframe>
+          }
+        }
+      }
+    </app-card>
+  </div>
+}

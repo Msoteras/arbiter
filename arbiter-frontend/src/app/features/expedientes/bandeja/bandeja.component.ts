@@ -26,6 +26,7 @@ import { InputComponent } from '../../../shared/ui/input/input.component';
 import { SelectComponent, SelectOption } from '../../../shared/ui/select/select.component';
 import { PaginationComponent } from '../../../shared/ui/pagination/pagination.component';
 import { FraudGaugeComponent } from '../../../shared/ui/fraud-gauge/fraud-gauge.component';
+import { TableComponent } from '../../../shared/ui/table/table.component';
 
 // Campos por los que GET /api/v1/cases acepta ordenar (propiedades reales de la entidad Case
 // en cases-service — Spring Data ordena por propiedad JPA, no por nombre de columna SQL).
@@ -61,6 +62,7 @@ type LoadState =
     SelectComponent,
     PaginationComponent,
     FraudGaugeComponent,
+    TableComponent,
   ],
   changeDetection: ChangeDetectionStrategy.OnPush,
   templateUrl: './bandeja.component.html',

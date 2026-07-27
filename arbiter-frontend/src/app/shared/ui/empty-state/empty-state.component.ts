@@ -16,11 +16,11 @@ import { ChangeDetectionStrategy, Component, input } from '@angular/core';
       border: 1px dashed var(--border-strong);
       border-radius: var(--radius-card);
       background: var(--surface-sunken);
-      padding: 26px 16px;
+      padding: var(--space-5) var(--space-4);
       text-align: center;
     }
-    .msg { margin: 0 0 4px; font-size: 13px; color: var(--text-tertiary); }
-    .sub { margin: 0; font-size: 11px; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.04em; }
+    .msg { margin: 0 0 var(--space-1); font-size: var(--font-size-body); color: var(--text-tertiary); }
+    .sub { margin: 0; font-size: var(--font-size-xs); color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.04em; }
   `,
 })
 export class EmptyStateComponent {
