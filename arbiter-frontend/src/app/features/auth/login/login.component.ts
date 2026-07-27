@@ -8,10 +8,11 @@ import { UserRole } from '../../../core/models/user-role';
 import { ButtonComponent } from '../../../shared/ui/button/button.component';
 import { CardComponent } from '../../../shared/ui/card/card.component';
 import { InputComponent } from '../../../shared/ui/input/input.component';
+import { LogoComponent } from '../../../shared/ui/logo/logo.component';
 
 @Component({
   selector: 'app-login',
-  imports: [ButtonComponent, CardComponent, InputComponent, RouterLink],
+  imports: [ButtonComponent, CardComponent, InputComponent, LogoComponent, RouterLink],
   changeDetection: ChangeDetectionStrategy.OnPush,
   templateUrl: './login.component.html',
   styleUrl: './login.component.scss',

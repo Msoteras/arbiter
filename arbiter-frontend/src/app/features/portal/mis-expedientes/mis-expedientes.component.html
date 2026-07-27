@@ -33,22 +33,24 @@
     @for (c of cases(); track c.id) {
       <li>
         <a class="case-card" [routerLink]="['/portal/cases', c.id]">
-          <div class="case-head">
-            <span class="case-id mono">Expediente #{{ c.id }}</span>
-            @if (isFinal(c.status)) {
-              <app-badge variant="strong" [tone]="estadoTone(c.status)">{{ estadoLabel(c.status) }}</app-badge>
-            } @else {
-              <app-badge [tone]="estadoTone(c.status)">{{ estadoLabel(c.status) }}</app-badge>
-            }
-          </div>
-          <div class="case-fields">
-            <span>{{ c.branch }} · {{ c.insuredItem }}</span>
-            <span class="muted">Denunciado el {{ fechaDenuncia(c) }}</span>
-          </div>
-          <p class="case-next">
-            <span class="next-tag">Próximo paso</span>
-            {{ proximoPaso(c.status) }}
-          </p>
+          <app-card class="interactive">
+            <div class="case-head">
+              <span class="case-id mono">Expediente #{{ c.id }}</span>
+              @if (isFinal(c.status)) {
+                <app-badge variant="strong" [tone]="estadoTone(c.status)">{{ estadoLabel(c.status) }}</app-badge>
+              } @else {
+                <app-badge [tone]="estadoTone(c.status)">{{ estadoLabel(c.status) }}</app-badge>
+              }
+            </div>
+            <div class="case-fields">
+              <span>{{ c.branch }} · {{ c.insuredItem }}</span>
+              <span class="muted">Denunciado el {{ fechaDenuncia(c) }}</span>
+            </div>
+            <p class="case-next">
+              <span class="next-tag">Próximo paso</span>
+              {{ proximoPaso(c.status) }}
+            </p>
+          </app-card>
         </a>
       </li>
     }

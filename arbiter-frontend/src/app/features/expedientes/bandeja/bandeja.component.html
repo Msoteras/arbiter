@@ -83,7 +83,7 @@
     </app-card>
   } @else {
     <app-card [flush]="true">
-      <table>
+      <app-table>
         <thead>
           <tr>
             @for (col of columns; track col.field) {
@@ -126,7 +126,7 @@
             </tr>
           }
         </tbody>
-      </table>
+      </app-table>
     </app-card>
 
     <app-pagination

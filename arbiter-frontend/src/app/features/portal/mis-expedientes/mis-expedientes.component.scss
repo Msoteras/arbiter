@@ -11,16 +11,9 @@
 .identify-input { flex: 1 1 200px; }
 
 .case-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: var(--space-3); }
-.case-card {
-  display: block;
-  text-decoration: none;
-  color: inherit;
-  border: 1px solid var(--border-control);
-  border-radius: var(--radius-card);
-  background: var(--surface);
-  padding: var(--space-4);
-}
-.case-card:hover { background: var(--surface-soft); border-color: var(--border-strong); }
+/* El borde, radio, fondo y padding los pone app-card; acá solo lo que hace falta
+   porque el contenedor es un <a>. El hover viene de la clase .interactive del kit. */
+.case-card { display: block; text-decoration: none; color: inherit; }
 .case-head { display: flex; align-items: center; justify-content: space-between; gap: var(--space-2); flex-wrap: wrap; }
 .case-id { font-size: var(--font-size-body); font-weight: var(--font-weight-medium); }
 .case-fields { display: flex; gap: var(--space-3); flex-wrap: wrap; margin-top: var(--space-1); font-size: var(--font-size-body); }

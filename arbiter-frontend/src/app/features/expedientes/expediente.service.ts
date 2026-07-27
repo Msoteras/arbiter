@@ -4,6 +4,7 @@ import { Observable } from 'rxjs';
 
 import { environment } from '../../../environments/environment';
 import { ExpedienteResponse } from '../../core/models/expediente';
+import { CaseDocument } from '../../core/models/case-document';
 
 export interface CaseCreateRequest {
   branch: string;
@@ -106,6 +107,22 @@ export class ExpedienteService {
     const formData = new FormData();
     documents.forEach((file, type) => formData.append(type, file));
     return this.http.post<ExpedienteResponse>(`${this.baseUrl}/${caseId}/documents`, formData);
+  }
+
+  /** Metadata de los adjuntos del expediente (sin el contenido). */
+  listDocuments(caseId: number): Observable<CaseDocument[]> {
+    return this.http.get<CaseDocument[]>(`${this.baseUrl}/${caseId}/documents`);
+  }
+
+  /**
+   * Contenido del adjunto. Va por HttpClient (y no por un <a href>) porque el endpoint
+   * exige el JWT: el authInterceptor solo alcanza a las requests del HttpClient, una
+   * navegación del browser saldría sin header y volvería 401.
+   */
+  downloadDocument(caseId: number, documentId: number): Observable<Blob> {
+    return this.http.get(`${this.baseUrl}/${caseId}/documents/${documentId}`, {
+      responseType: 'blob',
+    });
   }
 
   recordAnalystDecision(caseId: number, request: AnalystDecisionRequest): Observable<{ status: string }> {
