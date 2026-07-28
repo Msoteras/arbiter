@@ -14,6 +14,7 @@ import { FraudGaugeComponent } from '../../../shared/ui/fraud-gauge/fraud-gauge.
 import { EmptyStateComponent } from '../../../shared/ui/empty-state/empty-state.component';
 import { StatusTimelineComponent } from '../../../shared/ui/status-timeline/status-timeline.component';
 import { DocUploadComponent } from '../../../shared/ui/doc-upload/doc-upload.component';
+import { ForensicAnalysisComponent } from './forensic-analysis/forensic-analysis.component';
 import { CaseDocumentsComponent } from '../case-documents/case-documents.component';
 import { CardComponent } from '../../../shared/ui/card/card.component';
 import { ButtonComponent } from '../../../shared/ui/button/button.component';
@@ -40,6 +41,7 @@ interface FieldItem { label: string; value: string | null; mono?: boolean; full?
     EmptyStateComponent,
     StatusTimelineComponent,
     DocUploadComponent,
+    ForensicAnalysisComponent,
     CaseDocumentsComponent,
     CardComponent,
     ButtonComponent,

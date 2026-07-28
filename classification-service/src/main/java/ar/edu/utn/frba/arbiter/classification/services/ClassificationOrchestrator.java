@@ -6,6 +6,7 @@ import ar.edu.utn.frba.arbiter.classification.adapters.DocumentAnalyzer;
 import ar.edu.utn.frba.arbiter.classification.adapters.RulesAdapter;
 import ar.edu.utn.frba.arbiter.classification.adapters.ClaimClassifier;
 import ar.edu.utn.frba.arbiter.common.dto.ClaimReport;
+import ar.edu.utn.frba.arbiter.common.dto.ImageForensicReport;
 import ar.edu.utn.frba.arbiter.classification.dto.*;
 import ar.edu.utn.frba.arbiter.classification.services.risk.RiskContext;
 import ar.edu.utn.frba.arbiter.classification.services.risk.RiskScore;
@@ -15,6 +16,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
@@ -32,6 +34,7 @@ public class ClassificationOrchestrator {
     private final DocumentAnalyzer documentAnalyzer;
     private final PromptBuilder promptBuilder;
     private final RiskScoringService riskScoringService;
+    private final ImageFraudAnalysisService imageFraudAnalysisService;
 
     /** Classifies a claim whose attachments' OCR has already been resolved. */
     public ClassificationResponse classify(ClaimReport claim) {
@@ -40,7 +43,7 @@ public class ClassificationOrchestrator {
 
         Context ctx = fetchContext(claim);
         ClassificationResponse classification = resolveClassification(claim, ctx);
-        return withRiskScore(classification, claim, ctx);
+        return withRiskScore(classification, claim, ctx, null);
     }
 
     private ClassificationResponse resolveClassification(ClaimReport claim, Context ctx) {
@@ -70,16 +73,58 @@ public class ClassificationOrchestrator {
                 claim.policyNumber(), claim.insuredId(), claim.branch(), claim.claimCause(), documents.size());
 
         Context ctx = fetchContext(claim);
-        ClassificationResponse classification = resolveClassification(claim, documents, ctx);
-        return withRiskScore(classification, claim, ctx);
+        Resolution resolution = resolveClassification(claim, documents, ctx);
+        return withRiskScore(resolution.response(), claim, ctx, null);
     }
 
-    private ClassificationResponse resolveClassification(ClaimReport claim, List<AttachmentDocument> documents, Context ctx) {
+    /**
+     * Classification for a real case: same flow as above, plus the image-fraud cascade that needs
+     * the {@code caseId} (to exclude self-matches and persist embeddings). The forensic report is
+     * threaded into scoring so the {@code image_reuse}/{@code image_web_match} factors weigh in, and
+     * attached to the response for persistence + the analyst UI.
+     *
+     * <p>The cascade runs <b>exactly when the documentation is analyzed</b> (see {@link Resolution}):
+     * images are just another attachment, so they're examined together with the rest — including a
+     * Fast Track that examined a required document, and excluding a Fast Track resolved on structured
+     * data alone. Not a separate "analyze images?" toggle: it follows the documentation, which the
+     * business rules govern.
+     */
+    public ClassificationResponse classify(Long caseId, ClaimReport claim, List<AttachmentDocument> documents) {
+        Context ctx = fetchContext(claim);
+        Resolution resolution = resolveClassification(claim, documents, ctx);
+        ImageForensicReport forensic = resolution.documentationAnalyzed()
+                ? runImageFraudAnalysis(caseId, documents)
+                : null;
+        return withRiskScore(resolution.response(), claim, ctx, forensic);
+    }
+
+    /**
+     * @return the report, or null when there's no case (isolated flow) or no images to analyze.
+     *         Whether it's called at all is decided by the caller from {@link Resolution}.
+     */
+    private ImageForensicReport runImageFraudAnalysis(Long caseId, List<AttachmentDocument> documents) {
+        if (caseId == null) {
+            return null;
+        }
+        ImageForensicReport report = imageFraudAnalysisService.analyze(caseId, documents);
+        return report.imagesAnalyzed() == 0 ? null : report;
+    }
+
+    /**
+     * A resolved classification plus whether the flow actually <b>examined</b> the claim's
+     * documents. Image-fraud analysis rides on that flag: images are just another attachment, so
+     * they're analyzed exactly when the documentation is — not on a separate toggle. It's
+     * {@code false} only when the case resolves without touching any document (Fast Track on
+     * structured data with no required doc, or an early missing-documentation exit).
+     */
+    private record Resolution(ClassificationResponse response, boolean documentationAnalyzed) {}
+
+    private Resolution resolveClassification(ClaimReport claim, List<AttachmentDocument> documents, Context ctx) {
         List<String> documentTypes = documents.stream().map(AttachmentDocument::type).toList();
         List<String> missingDocs = checkRequiredDocuments(ctx.rules(), documentTypes);
         if (!missingDocs.isEmpty()) {
             log.info("[Orchestrator] Missing required documents: {}", missingDocs);
-            return missingDocumentationResponse(missingDocs);
+            return new Resolution(missingDocumentationResponse(missingDocs), false);
         }
 
         List<String> requiredForGate = requiredDocumentTypes(ctx.rules());
@@ -89,13 +134,14 @@ public class ClassificationOrchestrator {
                 fastTrackValidator.evaluate(claim, ctx.policy(), ctx.history(), ctx.rules(), gateDocumentTexts);
         if (fastTrack.fastTrack()) {
             log.info("[Orchestrator] Deterministic Fast Track — Reasons={}", fastTrack.reasons());
-            return fastTrackResponse(fastTrack);
+            // Documentation was analyzed only if the gate actually examined a required document.
+            return new Resolution(fastTrackResponse(fastTrack), !gateDocumentTexts.isEmpty());
         }
 
         log.info("[Orchestrator] Not Fast Track ({}). Extracting remaining document(s) and sending to LLM...",
                 fastTrack.reasons());
         ClaimReport claimWithOcr = withAttachmentsOcr(claim, extractAllAttachmentsText(documents, gateDocumentTexts));
-        return classifyWithLlm(claimWithOcr, ctx);
+        return new Resolution(classifyWithLlm(claimWithOcr, ctx), true);
     }
 
     /**
@@ -106,17 +152,38 @@ public class ClassificationOrchestrator {
      * returned as-is (riskScore null) — the score is a support signal and must never break the
      * classification. The insured's name always comes from the policy, regardless of scoring.
      */
-    private ClassificationResponse withRiskScore(ClassificationResponse classification, ClaimReport claim, Context ctx) {
-        ClassificationResponse withName = classification.toBuilder().insuredName(ctx.policy().insuredName()).build();
+    private ClassificationResponse withRiskScore(
+            ClassificationResponse classification, ClaimReport claim, Context ctx, ImageForensicReport forensic) {
+
+        ClassificationResponse enriched = classification.toBuilder()
+                .insuredName(ctx.policy().insuredName())
+                .forensicReport(forensic)
+                .factors(foldForensicTraces(classification.factors(), forensic))
+                .build();
         try {
-            RiskScore riskScore = riskScoringService.score(new RiskContext(claim, ctx.policy(), ctx.history(), ctx.rules()));
+            RiskScore riskScore = riskScoringService.score(
+                    new RiskContext(claim, ctx.policy(), ctx.history(), ctx.rules(), forensic));
             log.info("[Orchestrator] Risk score attached — scored={} score={} band={}",
                     riskScore.scored(), String.format("%.3f", riskScore.score()), riskScore.band());
-            return withName.toBuilder().riskScore(riskScore).build();
+            return enriched.toBuilder().riskScore(riskScore).build();
         } catch (Exception e) {
             log.error("[Orchestrator] Risk scoring failed — classification proceeds without score: {}", e.getMessage(), e);
-            return withName;
+            return enriched;
         }
+    }
+
+    /** Appends the forensic traces to the classification factors (the analyst's reading of the case). */
+    private List<String> foldForensicTraces(List<String> factors, ImageForensicReport forensic) {
+        if (forensic == null) {
+            return factors;
+        }
+        List<String> traces = imageFraudAnalysisService.renderTraces(forensic);
+        if (traces.isEmpty()) {
+            return factors;
+        }
+        List<String> merged = new ArrayList<>(factors);
+        merged.addAll(traces);
+        return merged;
     }
 
     private record Context(InsuredPolicy policy, InsuredHistory history, BusinessRules rules) {}

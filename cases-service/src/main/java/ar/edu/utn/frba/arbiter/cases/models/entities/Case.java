@@ -1,5 +1,6 @@
 package ar.edu.utn.frba.arbiter.cases.models.entities;
 
+import ar.edu.utn.frba.arbiter.common.dto.ImageForensicReport;
 import ar.edu.utn.frba.arbiter.common.dto.RiskBreakdownItem;
 import ar.edu.utn.frba.arbiter.common.enums.CaseStatus;
 import ar.edu.utn.frba.arbiter.common.enums.Classification;
@@ -83,6 +84,15 @@ public class Case {
     @Builder.Default
     private boolean pep = false;
 
+    /**
+     * Insured's consent to have their claim images analyzed for fraud indicators (reuse
+     * detection, web search), captured at denuncia time (H0009). Declarative, same pattern
+     * as {@code pep} — not surfaced back on CaseResponse, just persisted for the audit trail.
+     */
+    @Column(name = "image_consent", nullable = false)
+    @Builder.Default
+    private boolean imageConsent = false;
+
     private String contactEmail;
 
     private String contactPhone;
@@ -118,6 +128,17 @@ public class Case {
     @Convert(converter = RiskBreakdownJsonConverter.class)
     @Column(name = "risk_breakdown", columnDefinition = "TEXT")
     private List<RiskBreakdownItem> riskBreakdown;
+
+    /**
+     * Structured image-fraud analysis, populated read-only from the classification poll
+     * (ClaimResponse) — same pattern as riskScore/riskBand/riskBreakdown. Cached here so the
+     * analyst UI's forensic tab can read it from GET /cases/{id} without calling
+     * classification-service directly. Null when no analysis ran (Fast Track, isolated test, or
+     * a case with no image attachments).
+     */
+    @Convert(converter = ImageForensicReportJsonConverter.class)
+    @Column(name = "forensic_report", columnDefinition = "TEXT")
+    private ImageForensicReport forensicReport;
 
     /**
      * Free-text note where the analyst records an adjustment to the score WITHOUT overwriting the

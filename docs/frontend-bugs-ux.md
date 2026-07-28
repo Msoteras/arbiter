@@ -199,6 +199,14 @@ Contexto: aparece como fallback en secciones que dependen de datos que todavía 
 
 ---
 
+## 12. "Hay que agregar un boton de descarga en el analisis de imagen
+
+Contexto: Del lado del analista se pueden ver las imagenes que los asegurados cargan a su expediente y necesitaríamos un boton que permita bajar la foto para tenerla en local
+
+**Fix sugerido (según lo pedido):** Añadir el boton
+
+---
+
 ## Resumen para priorizar
 
 | # | Ítem | Severidad | Esfuerzo estimado |
@@ -214,3 +222,4 @@ Contexto: aparece como fallback en secciones que dependen de datos que todavía 
 | 4 | Notificaciones sin funcionalidad | 🟡 Baja — es un stub conocido | Alto (requiere backend) |
 | 6 | "Pendientes" bloqueado | 🟡 Baja — placeholder honesto | Alto (nueva pantalla) |
 | 11 | "Sin Datos" poco descriptivo | 🟡 Baja | Muy bajo |
+| 12 | Boton de descarga de imagen | 🟡 Baja | Muy bajo |

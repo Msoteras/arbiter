@@ -55,6 +55,14 @@ public class RiskScoringService {
             }
 
             RiskFactorEvaluator.Contribution contribution = evaluator.evaluate(context);
+            if (!contribution.evaluable()) {
+                // Missing data for this factor: exclude it from the weighted average so it doesn't
+                // dilute the claims it doesn't apply to (e.g. image factors on an image-less claim).
+                log.debug("[RiskScoring] Factor '{}' not evaluable — excluded: {}",
+                        factor.factorId(), contribution.rationale());
+                continue;
+            }
+
             double weighted = contribution.score() * factor.weight();
             weightedSum += weighted;
             totalWeight += factor.weight();
@@ -67,7 +75,13 @@ public class RiskScoringService {
                     contribution.rationale()));
         }
 
-        double score = totalWeight > 0.0 ? weightedSum / totalWeight : 0.0;
+        // No factor could be evaluated: treat as "sin scorear" rather than a fabricated 0.0/LOW.
+        if (totalWeight == 0.0) {
+            log.info("[RiskScoring] No factor was evaluable — not scored (sin scorear)");
+            return RiskScore.notScored();
+        }
+
+        double score = weightedSum / totalWeight;
         RiskBand band = resolveBand(score, config.bands());
 
         log.info("[RiskScoring] score={} band={} factors={}", String.format("%.3f", score), band, breakdown.size());

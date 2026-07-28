@@ -24,7 +24,7 @@ import org.testcontainers.postgresql.PostgreSQLContainer;
 public abstract class AbstractPersistenceIT {
 
     @ServiceConnection
-    static final PostgreSQLContainer POSTGRES = new PostgreSQLContainer("postgres:16-alpine");
+    static final PostgreSQLContainer POSTGRES = new PostgreSQLContainer("pgvector/pgvector:pg16");
 
     static {
         POSTGRES.start();

@@ -18,6 +18,7 @@ export interface CaseCreateRequest {
   eventLocation: string;
   claimedAmount?: number;
   pep: boolean;
+  imageConsent: boolean;
   contactEmail?: string;
   contactPhone?: string;
 }

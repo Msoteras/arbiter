@@ -52,7 +52,7 @@ class ClassificationResultsServiceTest {
         RiskScore score = new RiskScore(true, 0.72, RiskBand.HIGH,
                 List.of(new RiskBreakdownItem("amount_ratio", 0.9, 0.45, 0.405, "monto alto")));
 
-        service.saveResult(7L, response(score), 120);
+        service.saveResult(7L, response(score), null, 120);
 
         ArgumentCaptor<ClassificationLog> captor = ArgumentCaptor.forClass(ClassificationLog.class);
         verify(logRepository).save(captor.capture());
@@ -64,7 +64,7 @@ class ClassificationResultsServiceTest {
 
     @Test
     void noConfigClaim_persistsNullRisk_notLow() {
-        service.saveResult(7L, response(RiskScore.notScored()), 120);
+        service.saveResult(7L, response(RiskScore.notScored()), null, 120);
 
         ArgumentCaptor<ClassificationLog> captor = ArgumentCaptor.forClass(ClassificationLog.class);
         verify(logRepository).save(captor.capture());

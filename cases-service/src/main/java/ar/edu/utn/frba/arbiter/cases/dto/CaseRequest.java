@@ -17,6 +17,11 @@ public record CaseRequest(
         @NotBlank String eventLocation,
         BigDecimal claimedAmount,
         @NotNull Boolean pep,
+        /**
+         * Insured's consent to have claim images analyzed for fraud indicators (H0009):
+         * internal reuse detection + web search. Declarative, same treatment as {@code pep}.
+         */
+        @NotNull Boolean imageConsent,
         String contactEmail,
         String contactPhone
 ) {

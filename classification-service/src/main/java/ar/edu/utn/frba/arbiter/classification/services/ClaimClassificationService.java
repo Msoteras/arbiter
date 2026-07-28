@@ -53,7 +53,7 @@ public class ClaimClassificationService {
             log.info("[ClaimClassificationService] ✓ Isolated classification obtained — {} confidence={} latency={}ms",
                     response.classification(), response.confidence(), latencyMs);
 
-            resultsService.saveResult(null, response, latencyMs);
+            resultsService.saveResult(null, response, null, latencyMs);
 
         } catch (Exception e) {
             log.error("[ClaimClassificationService] ✗ Error processing isolated classification after retries — {}",
@@ -80,13 +80,14 @@ public class ClaimClassificationService {
         try {
             long start = System.currentTimeMillis();
 
-            ClassificationResponse response = classificationOrchestrator.classify(claim, documents);
+            // The caseId overload runs the image-fraud cascade and threads it into scoring + the response.
+            ClassificationResponse response = classificationOrchestrator.classify(caseId, claim, documents);
             long latencyMs = System.currentTimeMillis() - start;
 
             log.info("[ClaimClassificationService] ✓ Classification obtained — caseId={} {} confidence={} latency={}ms",
                     caseId, response.classification(), response.confidence(), latencyMs);
 
-            resultsService.saveResult(caseId, response, latencyMs);
+            resultsService.saveResult(caseId, response, response.forensicReport(), latencyMs);
 
         } catch (Exception e) {
             log.error("[ClaimClassificationService] ✗ Error processing caseId={} after retries — {}",

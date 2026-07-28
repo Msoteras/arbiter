@@ -129,10 +129,14 @@ trunco en `PENDING_ANALYST_REVIEW`, incumpliendo la auditoría de la Disposició
 
 ## Gaps conocidos y aceptados (no bloqueantes)
 
-- **Gap D — Análisis de fraude en el prompt.** El diagrama lista "análisis de fraude" como parte del
-  contexto del LLM. Reglas e historial sí se inyectan (`PromptBuilder`); la detección de imagen
-  reutilizada con pgvector **no** está. Ya está diferido explícitamente en la arquitectura
-  ("no bloqueante para arrancar").
+- ~~**Gap D — Análisis de fraude en el prompt.**~~ **Resuelto.** El diagrama lista "análisis de
+  fraude" como parte del contexto. Reglas e historial se inyectan en el prompt (`PromptBuilder`); la
+  detección de imágenes se implementó como una **cascada** aparte (`ImageFraudAnalysisService`, corre
+  en el orchestrator cuando se analiza documentación —Fast Track con documento incluido—): primero CLIP + pgvector contra la base (imagen
+  reutilizada de otro siniestro), y si no matchea, Google Vision Web Detection (imagen publicada en
+  internet, opt-in). El resultado va al `RiskContext` y al reporte forense del `ClaimResponse`. Ver
+  `docs/image-fraud-scoring-integration.md`. Lo único que queda abierto es activar los dos factores
+  de imagen en el score → **Gap H**.
 - **Gap E — Analista asignado.** El diagrama dice "al analista **asignado**". No hay usuarios, roles
   ni asignación porque dependen de `auth-service` (Auth0), que no está levantado. Mientras tanto el
   `analystId` del Gap B se puede recibir como campo del request.
@@ -154,3 +158,25 @@ trunco en `PENDING_ANALYST_REVIEW`, incumpliendo la auditoría de la Disposició
   el resto de los filtros. Cubierto por `CaseRepositorySpecificationTests` (Postgres real) y
   `CaseControllerTest`/`CaseServiceImplTest` (mocks). El frontend lo expone como un `app-select` más
   en la bandeja del analista.
+- ~~**Gap H — Activación de los factores de imagen en el motor de scoring.**~~ **Resuelto (vía fix
+  del motor).** Se implementó la opción 2: `RiskFactorEvaluator.Contribution` ahora distingue
+  *evaluable* de *no evaluable* (factory `notEvaluable(...)`), y `RiskScoringService` **excluye los no
+  evaluables del promedio ponderado** (numerador y denominador) en vez de contarlos como 0; si ningún
+  factor fue evaluable, devuelve "sin scorear". Con eso, `ImageReuseEvaluator` e `ImageWebMatchEvaluator`
+  quedaron **activos** en la `ScoringConfig` del mock (pesos provisionales 0.50 / 0.40): en los
+  siniestros sin imágenes se excluyen solos, sin descalibrar las bandas. `AmountRatio`,
+  `PurchaseToReportTime` y `DocumentInconsistency` también declaran `notEvaluable` en sus casos de
+  falta de data. `PURCHASE_TO_REPORT_TIME` sigue inactivo (su problema es data de proxy, no dilución).
+  Pendiente menor: los **pesos de imagen son provisionales** — la calibración fina (pesos + cortes de
+  banda) es decisión de negocio. Ver `docs/image-fraud-scoring-integration.md`.
+- **Gap I — Snapshot de inputs crudos del scoring (auditoría Disp. 2/2023).** Hoy `classification_log`
+  persiste el resultado del scoring (`risk_score`, `risk_band`, `risk_breakdown` con `rawScore`/`weight`/
+  `weightedContribution`/`rationale` por factor) al momento de la clasificación, y **no** se recalcula
+  al consultar. Pero **no** se snapshotean los **inputs crudos estructurados** con los que se calculó
+  (los `BigDecimal` de monto reclamado/suma asegurada, el `InsuredHistory` completo, fechas de póliza):
+  solo quedan los scores derivados y el `rationale` en prosa (que echa algunos inputs, ej. "Monto
+  reclamado es 90% de la suma asegurada"). Como esos datos vienen de la **BD Aseguradora** (sistema de
+  la aseguradora, que puede cambiar después), no se puede reconstruir el input exacto a posteriori. Para
+  una auditoría 2/2023 estricta ("los datos con que se calculó"), evaluar persistir también un snapshot
+  de inputs (una columna JSON `scoring_inputs` en `classification_log`, o una tabla aparte). No
+  bloqueante: el breakdown + rationale ya dan trazabilidad parcial del *cómo*, falta el *con qué* exacto.

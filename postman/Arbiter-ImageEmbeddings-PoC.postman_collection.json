@@ -1,0 +1,232 @@
+{
+  "info": {
+    "name": "Arbiter — Image Embeddings PoC",
+    "description": "Detección de imágenes duplicadas con pgvector + CLIP (embedding-service).\n\nPrerrequisitos:\n- `docker compose up --build` (levanta postgres con pgvector, clip-embedding y classification-service)\n- classification-service con `EMBEDDING_ENABLED=true`\n- 2-3 imágenes de prueba\n\nCLIP es determinístico: la misma imagen produce siempre el mismo vector, por lo que una imagen idéntica da similarity ~1.0.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    {
+      "key": "baseUrl",
+      "value": "http://localhost:8082",
+      "type": "string"
+    }
+  ],
+  "item": [
+    {
+      "name": "1. Subir imagen base (caso #1)",
+      "request": {
+        "method": "POST",
+        "header": [],
+        "url": {
+          "raw": "{{baseUrl}}/api/v1/image-embeddings/check-duplicate",
+          "host": ["{{baseUrl}}"],
+          "path": ["api", "v1", "image-embeddings", "check-duplicate"]
+        },
+        "body": {
+          "mode": "formdata",
+          "formdata": [
+            {
+              "key": "caseId",
+              "value": "1",
+              "type": "text"
+            },
+            {
+              "key": "attachmentLabel",
+              "value": "foto-celular-roto",
+              "type": "text"
+            },
+            {
+              "key": "image",
+              "type": "file",
+              "src": "",
+              "description": "Seleccioná una imagen (JPEG/PNG) como foto base del siniestro"
+            }
+          ]
+        },
+        "description": "Primera imagen: se genera el embedding y se persiste. No debería encontrar duplicados (es la primera)."
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('Status 200', () => pm.response.to.have.status(200));",
+              "",
+              "pm.test('Sin duplicados (primera imagen)', () => {",
+              "    const body = pm.response.json();",
+              "    pm.expect(body.duplicatesFound).to.eql(0);",
+              "    pm.expect(body.matches).to.be.an('array').that.is.empty;",
+              "});"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "2. Misma imagen en otro caso (caso #2) → duplicado",
+      "request": {
+        "method": "POST",
+        "header": [],
+        "url": {
+          "raw": "{{baseUrl}}/api/v1/image-embeddings/check-duplicate",
+          "host": ["{{baseUrl}}"],
+          "path": ["api", "v1", "image-embeddings", "check-duplicate"]
+        },
+        "body": {
+          "mode": "formdata",
+          "formdata": [
+            {
+              "key": "caseId",
+              "value": "2",
+              "type": "text"
+            },
+            {
+              "key": "attachmentLabel",
+              "value": "foto-celular-roto",
+              "type": "text"
+            },
+            {
+              "key": "image",
+              "type": "file",
+              "src": "",
+              "description": "Subí la MISMA imagen que en el paso 1"
+            }
+          ]
+        },
+        "description": "Misma foto, otro siniestro. Debería detectar duplicado con similarity ~1.0 contra el caso #1."
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('Status 200', () => pm.response.to.have.status(200));",
+              "",
+              "pm.test('Detecta duplicado contra caso #1', () => {",
+              "    const body = pm.response.json();",
+              "    pm.expect(body.duplicatesFound).to.be.above(0);",
+              "});",
+              "",
+              "pm.test('Similarity alta (>= 0.99 para imagen idéntica)', () => {",
+              "    const body = pm.response.json();",
+              "    const match = body.matches[0];",
+              "    pm.expect(match.matchedCaseId).to.eql(1);",
+              "    pm.expect(match.similarity).to.be.above(0.99);",
+              "});"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "3. Imagen distinta (caso #3) → sin duplicados",
+      "request": {
+        "method": "POST",
+        "header": [],
+        "url": {
+          "raw": "{{baseUrl}}/api/v1/image-embeddings/check-duplicate",
+          "host": ["{{baseUrl}}"],
+          "path": ["api", "v1", "image-embeddings", "check-duplicate"]
+        },
+        "body": {
+          "mode": "formdata",
+          "formdata": [
+            {
+              "key": "caseId",
+              "value": "3",
+              "type": "text"
+            },
+            {
+              "key": "attachmentLabel",
+              "value": "foto-dano",
+              "type": "text"
+            },
+            {
+              "key": "image",
+              "type": "file",
+              "src": "",
+              "description": "Subí una imagen DIFERENTE (ej. otra foto, otro objeto)"
+            }
+          ]
+        },
+        "description": "Foto completamente distinta. No debería matchear con nada."
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('Status 200', () => pm.response.to.have.status(200));",
+              "",
+              "pm.test('Sin duplicados (imagen diferente)', () => {",
+              "    const body = pm.response.json();",
+              "    pm.expect(body.duplicatesFound).to.eql(0);",
+              "    pm.expect(body.matches).to.be.an('array').that.is.empty;",
+              "});"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "4. Imagen editada (caso #4) → similitud parcial",
+      "request": {
+        "method": "POST",
+        "header": [],
+        "url": {
+          "raw": "{{baseUrl}}/api/v1/image-embeddings/check-duplicate",
+          "host": ["{{baseUrl}}"],
+          "path": ["api", "v1", "image-embeddings", "check-duplicate"]
+        },
+        "body": {
+          "mode": "formdata",
+          "formdata": [
+            {
+              "key": "caseId",
+              "value": "4",
+              "type": "text"
+            },
+            {
+              "key": "attachmentLabel",
+              "value": "foto-celular-editada",
+              "type": "text"
+            },
+            {
+              "key": "image",
+              "type": "file",
+              "src": "",
+              "description": "Subí la imagen del paso 1 pero RECORTADA, ROTADA o con filtro"
+            }
+          ]
+        },
+        "description": "Misma foto pero editada. Testea similitud semántica del modelo.\nSi supera el umbral (0.90) aparece como duplicado con similarity < 1.0."
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('Status 200', () => pm.response.to.have.status(200));",
+              "",
+              "pm.test('Detecta similitud parcial si supera umbral', () => {",
+              "    const body = pm.response.json();",
+              "    if (body.duplicatesFound > 0) {",
+              "        const match = body.matches[0];",
+              "        pm.expect(match.similarity).to.be.above(0.90);",
+              "        pm.expect(match.similarity).to.be.below(1.0);",
+              "        console.log('Similarity: ' + match.similarity);",
+              "    } else {",
+              "        console.log('No superó el umbral — la edición fue demasiado agresiva');",
+              "    }",
+              "});"
+            ]
+          }
+        }
+      ]
+    }
+  ]
+}

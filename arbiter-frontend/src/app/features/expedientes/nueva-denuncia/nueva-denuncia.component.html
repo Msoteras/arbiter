@@ -180,6 +180,17 @@
             </div>
           }
 
+          <div class="pep-field">
+            <app-checkbox [(checked)]="imageConsent">
+              Acepto que mis imágenes se envíen a un proveedor externo de verificación antifraude
+            </app-checkbox>
+            <span class="pep-note">
+              Es un paso adicional de control: si lo aceptás, las imágenes que adjuntes pueden compartirse con un
+              servicio externo (fuera de la infraestructura de Arbiter) para verificar que no estén publicadas en
+              otro lugar. Es opcional — si no aceptás, tu denuncia se procesa igual, sin ese chequeo puntual.
+            </span>
+          </div>
+
           @if (submitError()) {
             <div class="submit-error">{{ submitError() }}</div>
           }

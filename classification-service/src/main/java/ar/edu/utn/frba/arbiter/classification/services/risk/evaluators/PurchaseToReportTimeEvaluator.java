@@ -32,13 +32,13 @@ public class PurchaseToReportTimeEvaluator implements RiskFactorEvaluator {
         var effectiveFrom = context.policy().effectiveFrom();
         var eventDate = context.claim().eventDate();
         if (effectiveFrom == null || eventDate == null) {
-            return new Contribution(factorId(), 0.0,
+            return Contribution.notEvaluable(factorId(),
                     "Fechas de vigencia o del hecho no disponibles — factor no evaluable");
         }
 
         long days = ChronoUnit.DAYS.between(effectiveFrom, eventDate.toLocalDate());
         if (days < 0) {
-            return new Contribution(factorId(), 0.0,
+            return Contribution.notEvaluable(factorId(),
                     "Fecha del hecho anterior a la vigencia de la póliza — factor no evaluable");
         }
 

@@ -5,7 +5,9 @@ import ar.edu.utn.frba.arbiter.classification.dto.AnalystDecisionRequest;
 import ar.edu.utn.frba.arbiter.classification.exceptions.InvalidClassificationException;
 import ar.edu.utn.frba.arbiter.classification.models.entities.ClassificationLog;
 import ar.edu.utn.frba.arbiter.classification.models.repositories.ClassificationLogRepository;
+import ar.edu.utn.frba.arbiter.common.dto.RiskBreakdownItem;
 import ar.edu.utn.frba.arbiter.common.enums.Classification;
+import ar.edu.utn.frba.arbiter.common.enums.RiskBand;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
@@ -54,6 +56,30 @@ class AnalystDecisionTest {
         assertThat(saved.getAnalystId()).isEqualTo("analyst-1");
         assertThat(saved.getDecision()).isEqualTo("APPROVE");
         assertThat(saved.getDecisionTimestamp()).isNotNull();
+    }
+
+    @Test
+    void recordAnalystDecision_carriesRiskSnapshotAndInsuredName() {
+        Long caseId = 42L;
+        ClassificationLog original = classificationLog(caseId, Classification.LLM_NO_RECOMIENDA_APROBAR);
+        original.setRiskScore(BigDecimal.valueOf(0.72));
+        original.setRiskBand(RiskBand.HIGH);
+        original.setRiskBreakdown(List.of(new RiskBreakdownItem("amount_ratio", 0.9, 0.45, 0.405, "monto alto")));
+        original.setInsuredName("Juan Pérez");
+        when(logRepository.findFirstByCaseIdOrderByIdDesc(caseId)).thenReturn(Optional.of(original));
+
+        resultsService.recordAnalystDecision(caseId, new AnalystDecisionRequest("analyst-1", "APROBAR"));
+
+        ArgumentCaptor<ClassificationLog> captor = ArgumentCaptor.forClass(ClassificationLog.class);
+        verify(logRepository).save(captor.capture());
+        ClassificationLog saved = captor.getValue();
+
+        // The decision row (now the latest for the case) must preserve the fraud snapshot,
+        // otherwise getStatus would report a null risk once the analyst decides.
+        assertThat(saved.getRiskScore()).isEqualByComparingTo("0.72");
+        assertThat(saved.getRiskBand()).isEqualTo(RiskBand.HIGH);
+        assertThat(saved.getRiskBreakdown()).isEqualTo(original.getRiskBreakdown());
+        assertThat(saved.getInsuredName()).isEqualTo("Juan Pérez");
     }
 
     @Test

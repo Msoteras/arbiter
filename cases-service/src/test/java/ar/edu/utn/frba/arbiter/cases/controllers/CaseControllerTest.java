@@ -64,7 +64,8 @@ class CaseControllerTest {
                   "description": "Me robaron el celular",
                   "eventDate": "2026-06-13T19:45:00",
                   "eventLocation": "CABA",
-                  "pep": false
+                  "pep": false,
+                  "imageConsent": false
                 }
                 """.getBytes()
         );
@@ -238,7 +239,7 @@ class CaseControllerTest {
                 new BigDecimal("150000"),
                 Classification.FAST_TRACK, 1.0,
                 "Low amount, first claim, policy up to date",
-                null, null, null,
+                null, null, null, null,
                 Instant.parse("2026-06-13T22:50:00Z"),
                 Instant.parse("2026-06-13T22:55:00Z"),
                 List.of(
@@ -293,7 +294,7 @@ class CaseControllerTest {
                 LocalDateTime.of(2026, 6, 13, 19, 45), "CABA",
                 new BigDecimal("150000"),
                 null, 0.0, null,
-                null, null, null,
+                null, null, null, null,
                 Instant.parse("2026-06-13T22:50:00Z"),
                 Instant.parse("2026-06-13T22:50:00Z"),
                 null

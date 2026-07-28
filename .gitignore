@@ -54,5 +54,6 @@ arbiter-frontend/dist/
 .claude/
 skills-lock.json
 
-### Secretos locales ###
+### Secretos locales (API keys, credentials) — never commit ###
 .env
+.env.local

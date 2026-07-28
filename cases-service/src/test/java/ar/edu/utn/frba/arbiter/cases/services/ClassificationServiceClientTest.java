@@ -97,6 +97,56 @@ class ClassificationServiceClientTest {
     }
 
     @Test
+    void llmClassification_cachesForensicReport() {
+        Case entity = pendingCase(11L);
+        server.expect(requestTo(BASE_URL + "/api/v1/claims/11"))
+                .andExpect(method(GET))
+                .andRespond(withSuccess("""
+                        {
+                          "caseId": 11,
+                          "classification": "LLM_SOLICITA_REVISION_MANUAL",
+                          "confidence": 0.6,
+                          "factors": ["Imagen con posible reutilización"],
+                          "deterministicFastTrack": false,
+                          "forensicReport": {
+                            "imagesAnalyzed": 1,
+                            "webSearchesPerformed": 0,
+                            "findings": [
+                              {
+                                "label": "item_photo-0",
+                                "filename": "item_photo",
+                                "internalMatches": [
+                                  {"matchedCaseId": 4, "matchedFilename": "item_photo", "similarity": 0.97}
+                                ],
+                                "webFinding": null
+                              }
+                            ]
+                          }
+                        }
+                        """, MediaType.APPLICATION_JSON));
+
+        boolean resolved = client.refreshClassification(entity);
+
+        assertThat(resolved).isTrue();
+        assertThat(entity.getForensicReport()).isNotNull();
+        assertThat(entity.getForensicReport().imagesAnalyzed()).isEqualTo(1);
+        assertThat(entity.getForensicReport().findings()).hasSize(1);
+        var match = entity.getForensicReport().findings().get(0).internalMatches().get(0);
+        assertThat(match.matchedCaseId()).isEqualTo(4L);
+        assertThat(match.similarity()).isEqualTo(0.97);
+    }
+
+    @Test
+    void llmClassification_withNoForensicReport_leavesItNull() {
+        Case entity = pendingCase(2L);
+        expectPoll(2L, "LLM_NO_RECOMIENDA_APROBAR", "0.95", "[\"Reincidente\"]", false);
+
+        client.refreshClassification(entity);
+
+        assertThat(entity.getForensicReport()).isNull();
+    }
+
+    @Test
     void classificationNotReadyYet_returnsFalseAndDoesNotTransition() {
         Case entity = pendingCase(5L);
         expectPoll(5L, "null", "null", "null", false);

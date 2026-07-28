@@ -131,6 +131,9 @@ public class ClassificationServiceClient implements ClaimsAnalysisClient {
                 caseRecord.setRiskBand(response.riskBand());
                 caseRecord.setRiskBreakdown(response.riskBreakdown());
                 caseRecord.setInsuredName(response.insuredName());
+                // Cache the structured image-fraud analysis for the analyst's forensic tab
+                // (H0009). Null when no analysis ran (Fast Track, or a case with no images).
+                caseRecord.setForensicReport(response.forensicReport());
                 caseStatusService.transition(caseRecord, statusFor(response.classification()),
                         StatusChangeActor.SYSTEM, "clasificación: " + response.classification());
                 return true;

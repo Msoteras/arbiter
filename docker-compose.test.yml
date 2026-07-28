@@ -4,7 +4,7 @@ services:
 
   # ─── LLM ─────────────────────────────────────────────────────────────────
   ollama:
-    image: ollama/ollama
+    image: ollama/ollama:latest
     volumes:
       - ollama_data:/root/.ollama
     healthcheck:
@@ -14,11 +14,11 @@ services:
       retries: 12
       start_period: 10s
 
-  # Pulls the model into the volume before running the tests.
-  # If the model is already in the volume, it finishes in seconds.
+  # Pulls the models into the volume before running the tests.
+  # If the models are already in the volume, it finishes in seconds.
   ollama-init:
-    image: ollama/ollama
-    entrypoint: ["sh", "-c", "ollama pull qwen3-vl && sleep infinity"]
+    image: ollama/ollama:latest
+    entrypoint: ["sh", "-c", "ollama pull qwen3-vl; ollama pull nomic-embed-text; sleep infinity"]
     environment:
       OLLAMA_HOST: http://ollama:11434
     depends_on:
