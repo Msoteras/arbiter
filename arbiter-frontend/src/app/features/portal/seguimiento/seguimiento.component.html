@@ -1,17 +1,17 @@
 @if (data(); as d) {
-  <a class="breadcrumb" routerLink="/portal">‹ Mis expedientes</a>
+  <a class="breadcrumb" routerLink="/portal">‹ Mis siniestros</a>
 
   <!-- Hero: estado tranquilizador + progreso simplificado (lo único que ve el asegurado). -->
   <header class="hero">
-    <span class="eyebrow">Expediente #{{ d.id }} · {{ d.claimCause }}</span>
-    <h1 class="t-page-title">{{ heroTitle() }}</h1>
+    <span class="eyebrow">Siniestro #{{ d.id }} · {{ d.claimCause }}</span>
+    <h1 class="t-hero-title">{{ heroTitle() }}</h1>
     <p class="hero-sub measure">{{ statusDescription() }}</p>
 
     <div class="simple-progress">
       @for (s of simplifiedSteps; track s; let i = $index; let last = $last) {
         <span class="simple-step" [class.done]="i < simplifiedIndex()" [class.current]="i === simplifiedIndex()">
           @if (i < simplifiedIndex()) {
-            <span aria-hidden="true">✓</span>
+            <span class="simple-check" aria-hidden="true">✓</span>
           }
           {{ s === 'DENUNCIADO' ? 'Denunciado' : s === 'EN_TRAMITE' ? 'En trámite' : 'Terminado' }}
         </span>
@@ -24,21 +24,31 @@
 
   <!-- Acción requerida: el turno del asegurado (falta documentación). -->
   @if (needsDocs()) {
-    <div class="action-required">
+    <div class="action-required" data-tone="warning">
+      <span class="action-icon" aria-hidden="true">
+        <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
+          <rect x="4" y="2.5" width="10" height="13" rx="1.6" stroke="currentColor" stroke-width="1.5" />
+          <line x1="6.5" y1="6" x2="11.5" y2="6" stroke="currentColor" stroke-width="1.5" />
+          <line x1="6.5" y1="9" x2="11.5" y2="9" stroke="currentColor" stroke-width="1.5" />
+        </svg>
+      </span>
       <div class="action-body">
-        <span class="action-tag" [attr.data-tone]="'warning'">Acción requerida</span>
+        <span class="action-tag">Una cosa pendiente</span>
         <p class="action-text">
-          Necesitamos algunos documentos para poder continuar con tu expediente.
+          Necesitamos algunos documentos para poder continuar con tu siniestro.
         </p>
       </div>
       <app-button (click)="goToDocumentacion()">Cargar documentación</app-button>
     </div>
   } @else if (isResolved()) {
-    <div class="action-required resolved">
+    <div class="action-required resolved" [attr.data-tone]="statusTone()">
+      <span class="action-icon" aria-hidden="true">
+        <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
+          <path d="M4 9.5l3 3 7-7" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" />
+        </svg>
+      </span>
       <div class="action-body">
-        <span class="action-tag" [attr.data-tone]="statusTone()">
-          {{ statusLabel() }}
-        </span>
+        <span class="action-tag">{{ statusLabel() }}</span>
         <p class="action-text">
           Vas a recibir la notificación con el detalle por correo electrónico. No quedan pasos pendientes.
         </p>
@@ -52,9 +62,15 @@
     <ol class="milestones">
       @for (m of milestones(); track m.stage) {
         <li class="milestone" [class.reached]="m.reached" [class.current]="m.current">
-          <span class="ms-marker" aria-hidden="true"></span>
+          <span class="ms-marker" aria-hidden="true">
+            @if (m.reached && !m.current) { <span class="ms-check">✓</span> }
+            @if (m.current) { <span class="ms-pulse"></span> }
+          </span>
           <div class="ms-body">
-            <span class="ms-label">{{ m.label }}</span>
+            <div class="ms-head">
+              <span class="ms-label">{{ m.label }}</span>
+              @if (m.current) { <span class="ms-now">Ahora</span> }
+            </div>
             @if (m.date) {
               <span class="ms-date mono">{{ m.date }}</span>
             } @else {
@@ -95,21 +111,29 @@
       </div>
     </dl>
   </app-card>
+
+  <!-- Lo que el asegurado ya envió, con vista previa: hasta ahora, una vez subido
+       el documento desaparecía de su vista y no tenía cómo confirmar qué mandó. -->
+  <app-case-documents
+    class="docs-section"
+    [caseId]="d.id"
+    heading="Documentación que enviaste"
+    [showMissing]="false" />
 } @else if (loading()) {
-  <div class="state-wrap"><app-card><p class="t-note">Cargando expediente…</p></app-card></div>
+  <div class="state-wrap"><app-card><p class="t-note">Cargando tu siniestro…</p></app-card></div>
 } @else if (notFound()) {
   <div class="state-wrap">
     <app-card>
       <p class="t-note">
-        No encontramos ese expediente entre los tuyos.
-        <a routerLink="/portal">Volver a mis expedientes</a>
+        No encontramos ese siniestro entre los tuyos.
+        <a routerLink="/portal">Volver a mis siniestros</a>
       </p>
     </app-card>
   </div>
 } @else if (hasError()) {
   <div class="state-wrap">
     <app-card>
-      <p class="t-note">No se pudo cargar el expediente. Probá de nuevo en unos minutos.</p>
+      <p class="t-note">No se pudo cargar tu siniestro. Probá de nuevo en unos minutos.</p>
     </app-card>
   </div>
 }

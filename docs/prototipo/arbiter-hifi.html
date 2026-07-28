@@ -1,0 +1,692 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Arbiter — Arbitraje de siniestros</title>
+<style>
+  *{margin:0;padding:0;box-sizing:border-box}
+  body{background:#e9e7e0;font-family:'Helvetica Neue',Helvetica,Arial,sans-serif;-webkit-font-smoothing:antialiased;color:#191c1f}
+  a{color:#0b6f68}a:hover{color:#00a99d}
+  button{font-family:inherit}
+  @keyframes aiPulse{0%,100%{opacity:.55;transform:scale(1)}50%{opacity:1;transform:scale(1.12)}}
+  @keyframes barGrow{from{transform:scaleX(0)}to{transform:scaleX(1)}}
+
+  /* ---- router ---- */
+  .screen{display:none}
+  .screen.active{display:block}
+  .screen.app.active,.screen.center.active{display:flex}
+
+  /* ---- shared ---- */
+  .btn-dark{background:#191c1f;color:#fff;border:none;cursor:pointer;transition:background .15s}
+  .btn-dark:hover{background:#000}
+  .btn-line{background:#fff;color:#191c1f;border:1px solid #cfd3cd;cursor:pointer;transition:border-color .15s}
+  .btn-line:hover{border-color:#191c1f}
+  .input{height:44px;border:1px solid #dcdbd2;border-radius:8px;padding:0 14px;font-size:14px;color:#191c1f;background:#fff;outline:none;font-family:inherit}
+  .input:focus{border-color:#00a99d;box-shadow:0 0 0 3px rgba(0,169,157,.15)}
+
+  /* ---- login ---- */
+  .center{min-height:100vh;align-items:center;justify-content:center;padding:24px}
+  .login-card{width:860px;max-width:100%;display:flex;background:#fff;border:1px solid rgba(0,0,0,.1);border-radius:10px;box-shadow:0 12px 30px -18px rgba(0,0,0,.35),0 2px 6px rgba(0,0,0,.05);overflow:hidden}
+  .role-chip{flex:1;text-align:center;padding:9px 0;border:1px solid #dcdbd2;border-radius:7px;font-size:12px;color:#545a61;background:#fff;cursor:pointer}
+  .role-chip.active{border-color:#00a99d;color:#0b6f68;background:#e6f4f2;font-weight:500}
+
+  /* ---- portal (asegurado) ---- */
+  .portal{min-height:100vh;background:#f7f6f2}
+  .p-head{background:#fff;border-bottom:1px solid #e5e4dd;padding:16px 30px;display:flex;align-items:center;justify-content:space-between}
+  .p-nav{display:flex;gap:24px;font-size:13px}
+  .p-nav a{color:#545a61;text-decoration:none;cursor:pointer}
+  .p-nav a:hover{color:#191c1f}
+  .p-nav a.active{color:#191c1f;font-weight:500;border-bottom:2px solid #00a99d;padding-bottom:3px}
+  .p-body{max-width:764px;margin:0 auto;padding:34px 22px 60px}
+
+  /* ---- app (analista / referente) ---- */
+  .app{min-height:100vh;background:#f4f3ee}
+  .sidebar{width:210px;flex:none;background:#191c1f;color:#c9ccc6;padding:20px 16px;display:flex;flex-direction:column;gap:26px;position:sticky;top:0;height:100vh}
+  .snav{display:flex;flex-direction:column;gap:3px}
+  .snav a{display:flex;align-items:center;gap:11px;padding:10px 12px;border-radius:8px;font-size:13.5px;color:#9aa0a6;text-decoration:none}
+  .snav a:hover{color:#fff}
+  .snav a .dot{width:7px;height:7px;border-radius:2px;background:#4b5158;flex:none}
+  .snav a.active{background:#2a2e33;color:#fff;font-weight:500}
+  .snav a.active .dot{background:#00a99d}
+  .badge-count{font-size:11px;background:#2a2e33;padding:1px 7px;border-radius:20px;margin-left:auto}
+  .snav a.active .badge-count{background:#3a3f45}
+  .side-user{margin-top:auto;display:flex;align-items:center;gap:10px;padding:16px 6px 8px;border-top:1px solid #2a2e33}
+  .avatar{width:32px;height:32px;border-radius:50%;background:#3a3f45;display:flex;align-items:center;justify-content:center;font-size:12px;color:#fff;font-weight:600;flex:none}
+  .main{flex:1;min-width:0;display:flex;flex-direction:column}
+
+  /* ---- bandeja ---- */
+  .search-wrap{flex:1;max-width:440px;display:flex;align-items:center;gap:9px;height:38px;border:1px solid #e5e4dd;border-radius:9px;padding:0 12px;background:#faf9f6}
+  .search-wrap input{flex:1;border:none;outline:none;background:transparent;font-size:13px;color:#191c1f;font-family:inherit}
+  .search-wrap input::placeholder{color:#9aa0a6}
+  .row{cursor:pointer}
+  .row:hover{background:#faf9f6}
+  .row.row-alert{background:#fdf6f4}
+  .row.row-alert:hover{background:#fbeeeb}
+  .urow:hover{background:#faf9f6}
+
+  /* ---- denuncia ---- */
+  .type-card{display:flex;align-items:center;gap:13px;padding:16px;border:1px solid #e5e4dd;border-radius:12px;background:#fff;cursor:pointer;transition:border-color .15s,background .15s}
+  .type-card:hover{border-color:#cfd3cd;background:#fbfaf7}
+
+  /* ---- detalle: tabs ---- */
+  .tabs{margin-top:22px;display:flex;gap:26px;border-bottom:1px solid #e5e4dd}
+  .tab{padding:0 0 12px;font-size:13.5px;cursor:pointer;color:#767c83;background:none;border:none;border-bottom:2px solid transparent;margin-bottom:-1px;display:flex;align-items:center;gap:5px}
+  .tab.active{color:#191c1f;font-weight:600;border-bottom-color:#191c1f}
+  .tabpanel[hidden]{display:none}
+
+  /* ---- reglas: toggle ---- */
+  .toggle{width:44px;height:26px;border-radius:20px;background:#00a99d;position:relative;flex:none;cursor:pointer;border:none}
+  .toggle::after{content:'';position:absolute;top:3px;right:3px;width:20px;height:20px;border-radius:50%;background:#fff}
+  .toggle.off{background:#d8d7cd}
+  .toggle.off::after{right:auto;left:3px}
+  .rule{transition:opacity .15s}
+  .rule-off{opacity:.7}
+</style>
+</head>
+<body>
+
+<!-- ============ LOGIN ============ -->
+<section class="screen center" id="s-login">
+  <div class="login-card">
+    <!-- brand panel -->
+    <div style="width:340px;flex:none;background:linear-gradient(160deg,#0b6f68 0%,#095c56 55%,#083f3b 100%);color:#eafaf7;padding:38px 34px;display:flex;flex-direction:column;justify-content:space-between;position:relative;overflow:hidden">
+      <div style="position:absolute;inset:0;background:radial-gradient(120% 80% at 100% 0%,rgba(255,255,255,.10),transparent 55%);pointer-events:none"></div>
+      <div style="display:flex;align-items:center;gap:9px;position:relative">
+        <svg width="28" height="28" viewBox="0 0 26 26" fill="none" style="flex:none"><circle cx="13" cy="14" r="8" stroke="#eafaf7" stroke-width="2"/><circle cx="6" cy="20.5" r="2.3" stroke="#eafaf7" stroke-width="2"/><g stroke="#eafaf7" stroke-width="1.7" stroke-linecap="round"><line x1="20" y1="2.6" x2="20" y2="9.4"/><line x1="16.6" y1="6" x2="23.4" y2="6"/><line x1="17.6" y1="3.6" x2="22.4" y2="8.4"/><line x1="22.4" y1="3.6" x2="17.6" y2="8.4"/></g></svg>
+        <span style="font-size:22px;font-weight:600;letter-spacing:.01em">Arbiter</span>
+      </div>
+      <div style="position:relative">
+        <div style="font-size:29px;line-height:1.18;font-weight:400;letter-spacing:.005em">Arbitraje de siniestros, con criterio humano.</div>
+        <p style="margin-top:16px;font-size:13px;line-height:1.65;color:rgba(234,250,247,.72)">Analizá, documentá y resolvé expedientes en un solo lugar. La IA sugiere; vos decidís.</p>
+      </div>
+      <div style="position:relative;display:flex;gap:22px;font-size:10.5px;letter-spacing:.14em;text-transform:uppercase;color:rgba(234,250,247,.5)">
+        <span>Seguro</span><span>Trazable</span><span>Auditado</span>
+      </div>
+    </div>
+    <!-- form -->
+    <div style="flex:1;padding:44px 46px 38px;background:#fbfaf7">
+      <div style="font-size:11px;letter-spacing:.16em;text-transform:uppercase;color:#767c83;font-weight:500">Ingresar</div>
+      <h1 style="font-size:28px;font-weight:500;color:#191c1f;margin-top:8px;letter-spacing:.005em">Bienvenido de nuevo</h1>
+      <p style="font-size:13px;color:#767c83;margin-top:6px;line-height:1.55">Usá tu correo corporativo o el N° de expediente del asegurado.</p>
+
+      <form style="margin-top:26px;display:flex;flex-direction:column;gap:16px" onsubmit="login();return false">
+        <label style="display:flex;flex-direction:column;gap:7px">
+          <span style="font-size:11px;font-weight:500;letter-spacing:.06em;text-transform:uppercase;color:#545a61">Usuario / N° de expediente</span>
+          <input class="input" value="maria.gomez@aseguradora.com">
+        </label>
+        <label style="display:flex;flex-direction:column;gap:7px">
+          <span style="display:flex;justify-content:space-between;align-items:baseline"><span style="font-size:11px;font-weight:500;letter-spacing:.06em;text-transform:uppercase;color:#545a61">Contraseña</span><a href="#/login" style="font-size:11.5px;color:#0b6f68;text-decoration:none">¿La olvidaste?</a></span>
+          <input class="input" type="password" value="············">
+        </label>
+        <button type="submit" class="btn-dark" style="margin-top:8px;width:100%;height:46px;border-radius:8px;font-size:14px;font-weight:500;letter-spacing:.01em">Ingresar →</button>
+      </form>
+
+      <div style="margin-top:22px;display:flex;align-items:center;gap:10px;color:#9aa0a6;font-size:11px"><span style="flex:1;height:1px;background:#e5e4dd"></span>ACCESO POR ROL<span style="flex:1;height:1px;background:#e5e4dd"></span></div>
+      <div style="margin-top:14px;display:flex;gap:8px">
+        <button type="button" class="role-chip" data-role="asegurado">Asegurado</button>
+        <button type="button" class="role-chip active" data-role="analista">Analista</button>
+        <button type="button" class="role-chip" data-role="referente">Referente</button>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ DENUNCIA (portal, paso 1) ============ -->
+<section class="screen portal" id="s-denuncia">
+  <header class="p-head" data-active="inicio"></header>
+  <div class="p-body">
+    <div style="font-size:11px;letter-spacing:.16em;text-transform:uppercase;color:#00a99d;font-weight:600">Nueva denuncia</div>
+    <h1 style="font-size:32px;font-weight:500;color:#191c1f;margin-top:8px;letter-spacing:.005em">Denunciá tu siniestro</h1>
+    <p style="font-size:14px;color:#767c83;margin-top:8px;line-height:1.55">Te guiamos paso a paso. Podés volver atrás cuando quieras — nada se pierde.</p>
+
+    <!-- stepper -->
+    <div style="display:flex;align-items:center;margin:30px 0 32px">
+      <div style="display:flex;flex-direction:column;align-items:center;gap:8px;width:70px">
+        <span style="width:34px;height:34px;border-radius:50%;background:#00a99d;color:#fff;display:flex;align-items:center;justify-content:center;font-size:15px;font-weight:600;box-shadow:0 0 0 4px rgba(0,169,157,.16)">1</span>
+        <span style="font-size:12px;color:#191c1f;font-weight:500">Datos</span>
+      </div>
+      <span style="flex:1;height:2px;background:#dcdbd2;margin:0 -8px;margin-bottom:22px"></span>
+      <div style="display:flex;flex-direction:column;align-items:center;gap:8px;width:90px">
+        <span style="width:34px;height:34px;border-radius:50%;background:#fff;border:1.5px solid #cfd3cd;color:#9aa0a6;display:flex;align-items:center;justify-content:center;font-size:15px;font-weight:600">2</span>
+        <span style="font-size:12px;color:#9aa0a6">Descripción</span>
+      </div>
+      <span style="flex:1;height:2px;background:#dcdbd2;margin:0 -8px;margin-bottom:22px"></span>
+      <div style="display:flex;flex-direction:column;align-items:center;gap:8px;width:90px">
+        <span style="width:34px;height:34px;border-radius:50%;background:#fff;border:1.5px solid #cfd3cd;color:#9aa0a6;display:flex;align-items:center;justify-content:center;font-size:15px;font-weight:600">3</span>
+        <span style="font-size:12px;color:#9aa0a6">Documentación</span>
+      </div>
+    </div>
+
+    <!-- póliza -->
+    <div style="background:#fff;border:1px solid #e5e4dd;border-radius:12px;padding:22px 24px;box-shadow:0 1px 2px rgba(0,0,0,.03)">
+      <label style="font-size:11px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:#545a61">N° de póliza</label>
+      <div style="display:flex;align-items:center;gap:10px;margin-top:9px;height:46px;border:1px solid #00a99d;border-radius:9px;padding:0 14px;background:#fbfffe;box-shadow:0 0 0 3px rgba(0,169,157,.12)">
+        <input value="1 2 3 4 5 6 7" style="flex:1;border:none;outline:none;font-size:15px;letter-spacing:.08em;color:#191c1f;background:transparent;font-family:inherit">
+        <span style="display:flex;align-items:center;gap:5px;font-size:11.5px;color:#0b6f68;font-weight:500"><span style="width:15px;height:15px;border-radius:50%;background:#00a99d;color:#fff;display:flex;align-items:center;justify-content:center;font-size:9px">✓</span>Vigente</span>
+      </div>
+      <p style="font-size:12px;color:#9aa0a6;margin-top:8px">La encontrás en tu credencial o en el mail de bienvenida.</p>
+    </div>
+
+    <!-- tipo -->
+    <div style="margin-top:26px">
+      <div style="font-size:15px;font-weight:600;color:#191c1f">¿Qué te pasó?</div>
+      <p style="font-size:12.5px;color:#767c83;margin-top:3px">Elegí el tipo — así preparamos la documentación exacta que vamos a pedirte.</p>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:14px">
+        <div style="display:flex;align-items:center;gap:13px;padding:16px;border:1.5px solid #00a99d;border-radius:12px;background:#e6f4f2;cursor:pointer">
+          <span style="width:40px;height:40px;border-radius:10px;background:#00a99d;display:flex;align-items:center;justify-content:center;flex:none"><svg width="20" height="20" viewBox="0 0 20 20"><rect x="4" y="3" width="12" height="14" rx="2" fill="none" stroke="#fff" stroke-width="1.6"></rect><circle cx="10" cy="13.5" r="1.3" fill="#fff"></circle></svg></span>
+          <div><div style="font-size:14.5px;font-weight:600;color:#191c1f">Robo</div><div style="font-size:11.5px;color:#0b6f68">Celular, bienes, vehículo…</div></div>
+          <span style="margin-left:auto;width:20px;height:20px;border-radius:50%;background:#00a99d;color:#fff;display:flex;align-items:center;justify-content:center;font-size:11px">✓</span>
+        </div>
+        <div class="type-card">
+          <span style="width:40px;height:40px;border-radius:10px;background:#f2f1ea;display:flex;align-items:center;justify-content:center;flex:none"><svg width="20" height="20" viewBox="0 0 20 20"><polyline points="4,4 9,9 6,11 12,16" fill="none" stroke="#767c83" stroke-width="1.6" stroke-linejoin="round"></polyline></svg></span>
+          <div><div style="font-size:14.5px;font-weight:600;color:#191c1f">Rotura</div><div style="font-size:11.5px;color:#767c83">Daño accidental</div></div>
+        </div>
+        <div class="type-card">
+          <span style="width:40px;height:40px;border-radius:10px;background:#f2f1ea;display:flex;align-items:center;justify-content:center;flex:none"><svg width="20" height="20" viewBox="0 0 20 20"><polygon points="10,4 16,16 4,16" fill="none" stroke="#767c83" stroke-width="1.6" stroke-linejoin="round"></polygon></svg></span>
+          <div><div style="font-size:14.5px;font-weight:600;color:#191c1f">Pérdida total</div><div style="font-size:11.5px;color:#767c83">Vehículo / bien mayor</div></div>
+        </div>
+        <div class="type-card">
+          <span style="width:40px;height:40px;border-radius:10px;background:#f2f1ea;display:flex;align-items:center;justify-content:center;flex:none"><svg width="20" height="20" viewBox="0 0 20 20"><circle cx="5" cy="10" r="1.4" fill="#767c83"></circle><circle cx="10" cy="10" r="1.4" fill="#767c83"></circle><circle cx="15" cy="10" r="1.4" fill="#767c83"></circle></svg></span>
+          <div><div style="font-size:14.5px;font-weight:600;color:#191c1f">Otro</div><div style="font-size:11.5px;color:#767c83">Otra causa</div></div>
+        </div>
+      </div>
+    </div>
+
+    <div style="margin-top:30px;display:flex;justify-content:space-between;align-items:center">
+      <span style="font-size:12.5px;color:#9aa0a6">Paso 1 de 3 · guardado automático</span>
+      <button class="btn-dark" style="height:46px;padding:0 26px;border-radius:9px;font-size:14px;font-weight:500" onclick="go('documentacion')">Continuar →</button>
+    </div>
+  </div>
+</section>
+
+<!-- ============ DOCUMENTACIÓN (portal, paso 3) ============ -->
+<section class="screen portal" id="s-documentacion">
+  <header class="p-head" data-active="inicio"></header>
+  <div class="p-body">
+    <div style="display:flex;align-items:center;margin-bottom:30px">
+      <div style="display:flex;flex-direction:column;align-items:center;gap:8px;width:70px"><span style="width:30px;height:30px;border-radius:50%;background:#00a99d;color:#fff;display:flex;align-items:center;justify-content:center;font-size:13px">✓</span><span style="font-size:11.5px;color:#545a61">Datos</span></div>
+      <span style="flex:1;height:2px;background:#00a99d;margin:0 -8px;margin-bottom:19px"></span>
+      <div style="display:flex;flex-direction:column;align-items:center;gap:8px;width:90px"><span style="width:30px;height:30px;border-radius:50%;background:#00a99d;color:#fff;display:flex;align-items:center;justify-content:center;font-size:13px">✓</span><span style="font-size:11.5px;color:#545a61">Descripción</span></div>
+      <span style="flex:1;height:2px;background:#00a99d;margin:0 -8px;margin-bottom:19px"></span>
+      <div style="display:flex;flex-direction:column;align-items:center;gap:8px;width:100px"><span style="width:34px;height:34px;border-radius:50%;background:#00a99d;color:#fff;display:flex;align-items:center;justify-content:center;font-size:15px;font-weight:600;box-shadow:0 0 0 4px rgba(0,169,157,.16)">3</span><span style="font-size:12px;color:#191c1f;font-weight:500">Documentación</span></div>
+    </div>
+    <div style="font-size:11px;letter-spacing:.16em;text-transform:uppercase;color:#00a99d;font-weight:600">Último paso</div>
+    <h1 style="font-size:28px;font-weight:700;color:#191c1f;margin-top:8px;letter-spacing:-.01em">Adjuntá la documentación</h1>
+    <p style="font-size:14px;color:#767c83;margin-top:8px;line-height:1.55">Según tu tipo de siniestro (Robo), necesitamos estos documentos. Podés arrastrarlos o sacarles una foto.</p>
+    <div style="margin-top:24px;display:flex;flex-direction:column;gap:10px">
+      <div style="display:flex;align-items:center;gap:14px;background:#fff;border:1px solid #b9e3de;border-radius:12px;padding:15px 18px"><span style="width:36px;height:36px;border-radius:9px;background:#e6f4f2;color:#00a99d;display:flex;align-items:center;justify-content:center;font-size:16px">✓</span><div style="flex:1"><div style="font-size:14px;font-weight:600;color:#191c1f">Denuncia policial</div><div style="font-size:12px;color:#0b6f68">denuncia_policial.pdf · 240 KB</div></div><span style="font-size:12px;color:#9aa0a6;cursor:pointer">Reemplazar</span></div>
+      <div style="display:flex;align-items:center;gap:14px;background:#fff;border:1px solid #b9e3de;border-radius:12px;padding:15px 18px"><span style="width:36px;height:36px;border-radius:9px;background:#e6f4f2;color:#00a99d;display:flex;align-items:center;justify-content:center;font-size:16px">✓</span><div style="flex:1"><div style="font-size:14px;font-weight:600;color:#191c1f">Foto del DNI</div><div style="font-size:12px;color:#0b6f68">dni_frente.jpg · 1.1 MB</div></div><span style="font-size:12px;color:#9aa0a6;cursor:pointer">Reemplazar</span></div>
+      <div style="display:flex;align-items:center;gap:14px;background:#fffdf3;border:1px solid #f3e0a8;border-radius:12px;padding:15px 18px"><span style="width:36px;height:36px;border-radius:9px;background:#fff6db;color:#b8890a;display:flex;align-items:center;justify-content:center;font-size:15px">!</span><div style="flex:1"><div style="font-size:14px;font-weight:600;color:#191c1f">Factura de compra <span style="font-size:11px;color:#b8890a;font-weight:500">· recomendada</span></div><div style="font-size:12px;color:#6b5a1a">Agiliza el análisis. Si no la tenés, podés continuar.</div></div></div>
+    </div>
+    <div style="margin-top:14px;border:1.5px dashed #cfd3cd;border-radius:14px;padding:28px;text-align:center;background:#fbfaf7"><div style="width:44px;height:44px;border-radius:11px;background:#f2f1ea;display:flex;align-items:center;justify-content:center;margin:0 auto"><svg width="20" height="20" viewBox="0 0 20 20" fill="none"><path d="M10 14V5m0 0 3.2 3.2M10 5 6.8 8.2M4 15h12" stroke="#767c83" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg></div><div style="font-size:13.5px;color:#191c1f;font-weight:500;margin-top:12px">Arrastrá tus archivos acá</div><div style="font-size:12px;color:#9aa0a6;margin-top:3px">o <span style="color:#0b6f68;cursor:pointer">buscá en tu dispositivo</span> · PDF, JPG o PNG</div></div>
+    <div style="margin-top:26px;display:flex;justify-content:space-between;align-items:center"><a href="#/denuncia" style="font-size:13px;color:#0b6f68;text-decoration:none">‹ Volver</a><button class="btn-dark" style="height:46px;padding:0 26px;border-radius:9px;font-size:14px;font-weight:500" onclick="go('seguimiento')">Enviar denuncia →</button></div>
+  </div>
+</section>
+
+<!-- ============ SEGUIMIENTO (portal) ============ -->
+<section class="screen portal" id="s-seguimiento">
+  <header class="p-head" data-active="exp"></header>
+  <div class="p-body">
+    <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:20px">
+      <div>
+        <div style="font-size:11px;letter-spacing:.16em;text-transform:uppercase;color:#00a99d;font-weight:600">Seguimiento</div>
+        <h1 style="font-size:30px;font-weight:500;color:#191c1f;margin-top:8px">Tu denuncia está en curso</h1>
+        <p style="font-size:13.5px;color:#767c83;margin-top:7px;line-height:1.55">Robo de celular · <span style="font-family:ui-monospace,Menlo,monospace;font-size:12.5px;color:#545a61">EXP-2026-00482</span> · denunciado el 02/06/26</p>
+      </div>
+      <div style="text-align:right;flex:none;background:#e6f4f2;border:1px solid #b9e3de;border-radius:10px;padding:12px 16px">
+        <div style="font-size:10.5px;letter-spacing:.1em;text-transform:uppercase;color:#0b6f68;font-weight:600">Tiempo estimado</div>
+        <div style="font-size:22px;font-weight:600;color:#0b6f68;margin-top:2px">~ 8 días</div>
+      </div>
+    </div>
+
+    <!-- timeline -->
+    <div style="margin-top:30px;background:#fff;border:1px solid #e5e4dd;border-radius:14px;padding:28px 30px;box-shadow:0 1px 2px rgba(0,0,0,.03)">
+      <div style="display:flex;flex-direction:column;gap:0">
+        <div style="display:flex;gap:16px">
+          <div style="display:flex;flex-direction:column;align-items:center"><span style="width:26px;height:26px;border-radius:50%;background:#00a99d;color:#fff;display:flex;align-items:center;justify-content:center;font-size:13px;flex:none">✓</span><span style="width:2px;flex:1;background:#00a99d;min-height:28px"></span></div>
+          <div style="padding-bottom:22px"><div style="font-size:14.5px;font-weight:600;color:#191c1f">Denuncia recibida</div><div style="font-size:12.5px;color:#767c83;margin-top:2px">02/06/26 · confirmada por correo</div></div>
+        </div>
+        <div style="display:flex;gap:16px">
+          <div style="display:flex;flex-direction:column;align-items:center"><span style="width:26px;height:26px;border-radius:50%;background:#00a99d;color:#fff;display:flex;align-items:center;justify-content:center;font-size:13px;flex:none">✓</span><span style="width:2px;flex:1;background:#00a99d;min-height:28px"></span></div>
+          <div style="padding-bottom:22px"><div style="font-size:14.5px;font-weight:600;color:#191c1f">Documentación inicial validada</div><div style="font-size:12.5px;color:#767c83;margin-top:2px">04/06/26 · póliza y denuncia policial OK</div></div>
+        </div>
+        <div style="display:flex;gap:16px">
+          <div style="display:flex;flex-direction:column;align-items:center"><span style="width:26px;height:26px;border-radius:50%;background:#fff;border:2px solid #00a99d;display:flex;align-items:center;justify-content:center;flex:none"><span style="width:9px;height:9px;border-radius:50%;background:#00a99d;animation:aiPulse 2s ease-in-out infinite"></span></span><span style="width:2px;flex:1;background:#dcdbd2;min-height:28px"></span></div>
+          <div style="padding-bottom:22px;flex:1">
+            <div style="display:flex;align-items:center;gap:9px"><span style="font-size:14.5px;font-weight:600;color:#191c1f">En análisis</span><span style="font-size:10.5px;font-weight:600;letter-spacing:.05em;text-transform:uppercase;color:#0b6f68;background:#e6f4f2;padding:2px 8px;border-radius:20px">Ahora</span></div>
+            <div style="font-size:12.5px;color:#767c83;margin-top:3px">Un analista está revisando tu caso. No necesitás hacer nada por ahora.</div>
+          </div>
+        </div>
+        <div style="display:flex;gap:16px">
+          <div style="display:flex;flex-direction:column;align-items:center"><span style="width:26px;height:26px;border-radius:50%;background:#f2f1ea;border:1.5px solid #cfd3cd;flex:none"></span></div>
+          <div><div style="font-size:14.5px;font-weight:500;color:#9aa0a6">Resolución</div><div style="font-size:12.5px;color:#b4b9b1;margin-top:2px">Te avisamos apenas haya novedades</div></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- action needed -->
+    <div style="margin-top:20px;display:flex;gap:14px;align-items:flex-start;background:#fffdf3;border:1px solid #f3e0a8;border-radius:12px;padding:18px 20px">
+      <span style="width:34px;height:34px;border-radius:9px;background:#f2b705;display:flex;align-items:center;justify-content:center;flex:none"><svg width="18" height="18" viewBox="0 0 18 18"><rect x="4" y="2.5" width="10" height="13" rx="1.6" fill="none" stroke="#191c1f" stroke-width="1.5"></rect><line x1="6.5" y1="6" x2="11.5" y2="6" stroke="#191c1f" stroke-width="1.5"></line><line x1="6.5" y1="9" x2="11.5" y2="9" stroke="#191c1f" stroke-width="1.5"></line></svg></span>
+      <div style="flex:1">
+        <div style="font-size:14px;font-weight:600;color:#191c1f">Una cosa pendiente</div>
+        <div style="font-size:12.5px;color:#6b5a1a;margin-top:3px;line-height:1.5">Subí una foto de la factura de compra del celular para agilizar el análisis.</div>
+      </div>
+      <button class="btn-dark" style="height:38px;padding:0 18px;border-radius:8px;font-size:13px;font-weight:500;flex:none;align-self:center" onclick="go('documentacion')">Subir</button>
+    </div>
+  </div>
+</section>
+
+<!-- ============ BANDEJA (analista) ============ -->
+<section class="screen app" id="s-bandeja">
+  <aside class="sidebar" data-nav="analista" data-active="bandeja"></aside>
+  <div class="main">
+    <div style="background:#fff;border-bottom:1px solid #e5e4dd;padding:12px 24px;display:flex;align-items:center;gap:14px">
+      <div class="search-wrap"><svg width="15" height="15" viewBox="0 0 16 16" style="flex:none"><circle cx="7" cy="7" r="5" fill="none" stroke="#9aa0a6" stroke-width="1.6"/><line x1="10.5" y1="10.5" x2="14" y2="14" stroke="#9aa0a6" stroke-width="1.6" stroke-linecap="round"/></svg><input placeholder="Buscar por N° de expediente, póliza o asegurado…"></div>
+      <span style="margin-left:auto;width:38px;height:38px;border-radius:9px;border:1px solid #e5e4dd;display:flex;align-items:center;justify-content:center;position:relative;background:#fff;cursor:pointer"><svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M4 6.5a4 4 0 1 1 8 0c0 3 1 4 1 4H3s1-1 1-4Z" stroke="#545a61" stroke-width="1.4"/><path d="M6.5 13a1.5 1.5 0 0 0 3 0" stroke="#545a61" stroke-width="1.4"/></svg><span style="position:absolute;top:-3px;right:-3px;width:9px;height:9px;border-radius:50%;background:#e63329;border:2px solid #fff"></span></span>
+      <span style="width:32px;height:32px;border-radius:50%;background:#e6f4f2;color:#0b6f68;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:600">MG</span>
+    </div>
+    <div style="padding:24px 28px 28px">
+      <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:20px">
+        <div><h1 style="font-size:26px;font-weight:700;color:#191c1f;letter-spacing:-.01em">Bandeja de expedientes</h1><p style="font-size:13px;color:#767c83;margin-top:5px">142 expedientes · ordenados por N° de expediente</p></div>
+        <button class="btn-line" style="height:40px;padding:0 16px;border-radius:9px;font-size:13px;font-weight:500;display:flex;align-items:center;gap:8px"><svg width="15" height="15" viewBox="0 0 16 16" fill="none"><path d="M8 2v8m0 0 3-3m-3 3L5 7M3 13h10" stroke="#191c1f" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>Exportar CSV</button>
+      </div>
+      <div style="display:flex;flex-wrap:wrap;gap:8px;margin-top:18px">
+        <span style="display:flex;align-items:center;gap:7px;font-size:12px;color:#191c1f;background:#fff;border:1px solid #dcdbd2;border-radius:20px;padding:5px 10px 5px 12px">Estado: En Trámite <span style="color:#9aa0a6;cursor:pointer">✕</span></span>
+        <span style="display:flex;align-items:center;gap:7px;font-size:12px;color:#191c1f;background:#fff;border:1px solid #dcdbd2;border-radius:20px;padding:5px 10px 5px 12px">F. denuncia: 01/05–14/06 <span style="color:#9aa0a6;cursor:pointer">✕</span></span>
+        <span style="display:flex;align-items:center;gap:7px;font-size:12px;color:#191c1f;background:#fff;border:1px solid #dcdbd2;border-radius:20px;padding:5px 10px 5px 12px">Rama: Riesgos Varios <span style="color:#9aa0a6;cursor:pointer">✕</span></span>
+        <span style="display:flex;align-items:center;gap:6px;font-size:12px;color:#0b6f68;border:1px dashed #9dd5cf;border-radius:20px;padding:5px 12px;cursor:pointer">+ Agregar filtro</span>
+      </div>
+      <div style="display:flex;flex-wrap:wrap;gap:8px;margin-top:12px">
+        <span style="font-size:12px;color:#fff;background:#191c1f;border-radius:20px;padding:6px 12px;cursor:pointer">Todos <b style="opacity:.6;margin-left:4px">142</b></span>
+        <span style="font-size:12px;color:#545a61;background:#fff;border:1px solid #e5e4dd;border-radius:20px;padding:6px 12px;cursor:pointer">En Trámite <b style="color:#191c1f;margin-left:4px">64</b></span>
+        <span style="font-size:12px;color:#545a61;background:#fff;border:1px solid #e5e4dd;border-radius:20px;padding:6px 12px;cursor:pointer">Sol. Documentación <b style="color:#191c1f;margin-left:4px">12</b></span>
+        <span style="font-size:12px;color:#545a61;background:#fff;border:1px solid #e5e4dd;border-radius:20px;padding:6px 12px;cursor:pointer">Estudio Técnico <b style="color:#191c1f;margin-left:4px">9</b></span>
+        <span style="font-size:12px;color:#545a61;background:#fff;border:1px solid #e5e4dd;border-radius:20px;padding:6px 12px;cursor:pointer">Autorizado <b style="color:#191c1f;margin-left:4px">21</b></span>
+        <span style="font-size:12px;color:#545a61;background:#fff;border:1px solid #e5e4dd;border-radius:20px;padding:6px 12px;cursor:pointer">Rechazado <b style="color:#191c1f;margin-left:4px">12</b></span>
+      </div>
+      <div style="margin-top:18px;background:#fff;border:1px solid #e5e4dd;border-radius:12px;overflow:hidden;box-shadow:0 1px 2px rgba(0,0,0,.03)">
+        <div style="display:grid;grid-template-columns:130px 1.4fr 1fr 1fr 150px;gap:14px;padding:12px 20px;background:#faf9f6;border-bottom:1px solid #e5e4dd;font-size:10.5px;letter-spacing:.08em;text-transform:uppercase;color:#767c83;font-weight:600"><span>N° exp. ▲</span><span>Asegurado</span><span>Estado</span><span>IA</span><span>Score fraude</span></div>
+        <div class="row" onclick="go('detalle')" style="display:grid;grid-template-columns:130px 1.4fr 1fr 1fr 150px;gap:14px;padding:15px 20px;border-bottom:1px solid #f0efe8;align-items:center"><span style="font-family:ui-monospace,Menlo,monospace;font-size:12.5px;color:#191c1f">EXP-2026-00449</span><span><div style="font-size:13.5px;color:#191c1f;font-weight:500">Sofía Acosta</div><div style="font-size:11.5px;color:#9aa0a6">Rotura · Combinado Familiar</div></span><span><span style="font-size:11.5px;color:#0b6f68;background:#e6f4f2;border-radius:20px;padding:3px 10px">Autorizado</span></span><span style="display:flex;align-items:center;gap:6px;font-size:12px;color:#0b6f68"><span style="color:#00a99d">✦</span>Analizado</span><span style="display:flex;align-items:center;gap:8px"><span style="display:flex;gap:3px"><span style="width:16px;height:6px;border-radius:3px;background:#00a99d"></span><span style="width:16px;height:6px;border-radius:3px;background:#ecebe4"></span><span style="width:16px;height:6px;border-radius:3px;background:#ecebe4"></span><span style="width:16px;height:6px;border-radius:3px;background:#ecebe4"></span></span><span style="font-size:11.5px;color:#00a99d;font-weight:600">▲ Bajo</span></span></div>
+        <div class="row" onclick="go('detalle')" style="display:grid;grid-template-columns:130px 1.4fr 1fr 1fr 150px;gap:14px;padding:15px 20px;border-bottom:1px solid #f0efe8;align-items:center"><span style="font-family:ui-monospace,Menlo,monospace;font-size:12.5px;color:#191c1f">EXP-2026-00468</span><span><div style="font-size:13.5px;color:#191c1f;font-weight:500">Diego Romero</div><div style="font-size:11.5px;color:#9aa0a6">Pérdida total · Automotores</div></span><span><span style="font-size:11.5px;color:#545a61;background:#f2f1ea;border-radius:20px;padding:3px 10px">Preanálisis IA</span></span><span style="display:flex;align-items:center;gap:6px;font-size:12px;color:#767c83"><span style="width:6px;height:6px;border-radius:50%;border:1.5px dashed #b4b9b1"></span>Analizando</span><span style="display:flex;align-items:center;gap:8px"><span style="display:flex;gap:3px"><span style="width:16px;height:6px;border-radius:3px;background:#f2b705"></span><span style="width:16px;height:6px;border-radius:3px;background:#f2b705"></span><span style="width:16px;height:6px;border-radius:3px;background:#ecebe4"></span><span style="width:16px;height:6px;border-radius:3px;background:#ecebe4"></span></span><span style="font-size:11.5px;color:#b8890a;font-weight:600">▲ Medio</span></span></div>
+        <div class="row row-alert" onclick="go('detalle')" style="display:grid;grid-template-columns:130px 1.4fr 1fr 1fr 150px;gap:14px;padding:15px 20px;border-bottom:1px solid #f0efe8;align-items:center"><span style="font-family:ui-monospace,Menlo,monospace;font-size:12.5px;color:#191c1f">EXP-2026-00482</span><span><div style="font-size:13.5px;color:#191c1f;font-weight:500">Martín Suárez</div><div style="font-size:11.5px;color:#9aa0a6">Robo · Riesgos Varios</div></span><span><span style="font-size:11.5px;color:#545a61;background:#f2f1ea;border-radius:20px;padding:3px 10px">Estudio Técnico</span></span><span style="display:flex;align-items:center;gap:6px;font-size:12px;color:#0b6f68"><span style="color:#00a99d">✦</span>Analizado</span><span style="display:flex;align-items:center;gap:8px"><span style="display:flex;gap:3px"><span style="width:16px;height:6px;border-radius:3px;background:#e8632a"></span><span style="width:16px;height:6px;border-radius:3px;background:#e8632a"></span><span style="width:16px;height:6px;border-radius:3px;background:#e8632a"></span><span style="width:16px;height:6px;border-radius:3px;background:#ecebe4"></span></span><span style="font-size:11.5px;color:#191c1f;font-weight:700">▲ Alto</span></span></div>
+        <div class="row" onclick="go('detalle')" style="display:grid;grid-template-columns:130px 1.4fr 1fr 1fr 150px;gap:14px;padding:15px 20px;border-bottom:1px solid #f0efe8;align-items:center"><span style="font-family:ui-monospace,Menlo,monospace;font-size:12.5px;color:#191c1f">EXP-2026-00488</span><span><div style="font-size:13.5px;color:#191c1f;font-weight:500">Hernán Costa</div><div style="font-size:11.5px;color:#9aa0a6">Robo · Riesgos Varios</div></span><span><span style="font-size:11.5px;color:#0b6f68;background:#e6f4f2;border-radius:20px;padding:3px 10px">Fast Track</span></span><span style="display:flex;align-items:center;gap:6px;font-size:12px;color:#0b6f68"><span style="color:#00a99d">✦</span>Analizado</span><span style="display:flex;align-items:center;gap:8px"><span style="display:flex;gap:3px"><span style="width:16px;height:6px;border-radius:3px;background:#00a99d"></span><span style="width:16px;height:6px;border-radius:3px;background:#ecebe4"></span><span style="width:16px;height:6px;border-radius:3px;background:#ecebe4"></span><span style="width:16px;height:6px;border-radius:3px;background:#ecebe4"></span></span><span style="font-size:11.5px;color:#00a99d;font-weight:600">▲ Bajo</span></span></div>
+        <div class="row" onclick="go('detalle')" style="display:grid;grid-template-columns:130px 1.4fr 1fr 1fr 150px;gap:14px;padding:15px 20px;align-items:center"><span style="font-family:ui-monospace,Menlo,monospace;font-size:12.5px;color:#191c1f">EXP-2026-00491</span><span><div style="font-size:13.5px;color:#191c1f;font-weight:500">Renata Bianchi</div><div style="font-size:11.5px;color:#9aa0a6">Rotura · Combinado Familiar</div></span><span><span style="font-size:11.5px;color:#b8232a;background:#fdecea;border-radius:20px;padding:3px 10px">Rechazado</span></span><span style="display:flex;align-items:center;gap:6px;font-size:12px;color:#767c83"><span style="color:#00a99d">✦</span>Analizado</span><span style="display:flex;align-items:center;gap:8px"><span style="display:flex;gap:3px"><span style="width:16px;height:6px;border-radius:3px;background:#e63329"></span><span style="width:16px;height:6px;border-radius:3px;background:#e63329"></span><span style="width:16px;height:6px;border-radius:3px;background:#e63329"></span><span style="width:16px;height:6px;border-radius:3px;background:#e63329"></span></span><span style="font-size:11.5px;color:#b8232a;font-weight:700">▲ Crítico</span></span></div>
+      </div>
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-top:16px;font-size:12.5px;color:#767c83"><span>41–60 de 142</span><div style="display:flex;align-items:center;gap:8px"><span style="padding:6px 12px;border:1px solid #e5e4dd;border-radius:8px;background:#fff;cursor:pointer">‹ Anterior</span><span>Página 3 de 8</span><span style="padding:6px 12px;border:1px solid #e5e4dd;border-radius:8px;background:#fff;cursor:pointer">Siguiente ›</span></div></div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ PENDIENTES (analista) ============ -->
+<section class="screen app" id="s-pendientes">
+  <aside class="sidebar" data-nav="analista" data-active="pendientes"></aside>
+  <div class="main">
+    <div style="padding:28px 30px 30px">
+      <h1 style="font-size:26px;font-weight:700;color:#191c1f;letter-spacing:-.01em">Pendientes</h1>
+      <p style="font-size:13px;color:#767c83;margin-top:5px">4 acciones te están esperando · ordenadas por vencimiento</p>
+      <div style="display:flex;flex-direction:column;gap:12px;margin-top:22px">
+        <div style="display:flex;align-items:center;gap:16px;background:#fff;border:1px solid #f3c4bd;border-left:3px solid #e63329;border-radius:12px;padding:18px 20px;box-shadow:0 1px 2px rgba(0,0,0,.03)"><span style="color:#e63329;font-size:15px">▲</span><div style="flex:1"><div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap"><span style="font-family:ui-monospace,Menlo,monospace;font-size:12.5px;color:#545a61">EXP-2026-00482</span><span style="font-size:15px;font-weight:600;color:#191c1f">Decidir tras estudio técnico</span></div><div style="font-size:12.5px;color:#767c83;margin-top:3px">Martín Suárez · Robo · <span style="color:#00a99d">✦</span> Arbiter sugiere derivar (78%)</div></div><span style="font-size:11.5px;color:#b8232a;background:#fdecea;border-radius:20px;padding:4px 11px;font-weight:600">Vence hoy</span><button class="btn-dark" style="height:38px;padding:0 16px;border-radius:8px;font-size:13px;font-weight:500" onclick="go('detalle')">Abrir</button></div>
+        <div style="display:flex;align-items:center;gap:16px;background:#fff;border:1px solid #e5e4dd;border-radius:12px;padding:18px 20px;box-shadow:0 1px 2px rgba(0,0,0,.03)"><span style="color:#b8890a;font-size:15px">▲</span><div style="flex:1"><div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap"><span style="font-family:ui-monospace,Menlo,monospace;font-size:12.5px;color:#545a61">EXP-2026-00468</span><span style="font-size:15px;font-weight:600;color:#191c1f">Revisar documentación adicional</span></div><div style="font-size:12.5px;color:#767c83;margin-top:3px">Diego Romero · Pérdida total · el asegurado subió 3 archivos</div></div><span style="font-size:11.5px;color:#6b5a1a;background:#fffdf3;border:1px solid #f3e0a8;border-radius:20px;padding:4px 11px;font-weight:600">2 días</span><button class="btn-line" style="height:38px;padding:0 16px;border-radius:8px;font-size:13px;font-weight:500" onclick="go('detalle')">Abrir</button></div>
+        <div style="display:flex;align-items:center;gap:16px;background:#fff;border:1px solid #e5e4dd;border-radius:12px;padding:18px 20px;box-shadow:0 1px 2px rgba(0,0,0,.03)"><span style="color:#00a99d;font-size:15px">✦</span><div style="flex:1"><div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap"><span style="font-family:ui-monospace,Menlo,monospace;font-size:12.5px;color:#545a61">EXP-2026-00475</span><span style="font-size:15px;font-weight:600;color:#191c1f">Validar sugerencia de Fast Track</span></div><div style="font-size:12.5px;color:#767c83;margin-top:3px">Lucía Fernández · Rotura · riesgo Bajo, apto para vía rápida</div></div><span style="font-size:11.5px;color:#545a61;background:#f2f1ea;border-radius:20px;padding:4px 11px">4 días</span><button class="btn-line" style="height:38px;padding:0 16px;border-radius:8px;font-size:13px;font-weight:500" onclick="go('detalle')">Abrir</button></div>
+        <div style="display:flex;align-items:center;gap:16px;background:#fff;border:1px solid #e5e4dd;border-radius:12px;padding:18px 20px;box-shadow:0 1px 2px rgba(0,0,0,.03)"><span style="color:#767c83;font-size:15px">▲</span><div style="flex:1"><div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap"><span style="font-family:ui-monospace,Menlo,monospace;font-size:12.5px;color:#545a61">EXP-2026-00461</span><span style="font-size:15px;font-weight:600;color:#191c1f">Confirmar denuncia recibida</span></div><div style="font-size:12.5px;color:#767c83;margin-top:3px">Carla Giménez · Robo · falta acuse de recepción</div></div><span style="font-size:11.5px;color:#545a61;background:#f2f1ea;border-radius:20px;padding:4px 11px">5 días</span><button class="btn-line" style="height:38px;padding:0 16px;border-radius:8px;font-size:13px;font-weight:500" onclick="go('detalle')">Abrir</button></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ DETALLE (analista) ============ -->
+<section class="screen app" id="s-detalle">
+  <aside class="sidebar" data-nav="analista" data-active="bandeja"></aside>
+  <div class="main">
+    <div style="background:#fff;border-bottom:1px solid #e5e4dd;padding:16px 30px">
+      <div style="font-size:12px;color:#9aa0a6"><a href="#/bandeja" style="color:#0b6f68;text-decoration:none">Bandeja</a> / <span style="font-family:ui-monospace,Menlo,monospace;color:#545a61">EXP-2026-00482</span></div>
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-top:8px;gap:16px;flex-wrap:wrap">
+        <div style="display:flex;align-items:center;gap:16px;flex-wrap:wrap">
+          <h1 style="font-size:24px;font-weight:600;color:#191c1f;font-family:ui-monospace,Menlo,monospace;letter-spacing:-.01em">EXP-2026-00482</h1>
+          <div style="display:flex;gap:8px;flex-wrap:wrap">
+            <span style="font-size:11.5px;color:#545a61;background:#f2f1ea;border:1px solid #e5e4dd;padding:4px 10px;border-radius:20px">Técnico: <b style="color:#191c1f;font-weight:600">Envío a Estudio Técnico</b></span>
+            <span style="font-size:11.5px;color:#545a61;background:#fff;border:1px solid #e5e4dd;padding:4px 10px;border-radius:20px">Asegurado ve: <b style="color:#191c1f;font-weight:600">En Trámite</b></span>
+          </div>
+        </div>
+        <div style="display:flex;gap:8px;color:#767c83;font-size:13px"><span style="padding:7px 12px;border:1px solid #e5e4dd;border-radius:8px;cursor:pointer">‹ Anterior</span><span style="padding:7px 12px;border:1px solid #e5e4dd;border-radius:8px;cursor:pointer">Siguiente ›</span></div>
+      </div>
+      <div style="font-size:12.5px;color:#767c83;margin-top:6px">Martín Suárez · Robo · Riesgos Varios · denuncia 02/06/26</div>
+    </div>
+
+    <div style="padding:22px 30px 30px">
+      <!-- header cards -->
+      <div style="display:grid;grid-template-columns:1fr 1.2fr 1fr;gap:16px">
+        <!-- risk -->
+        <div style="background:#fff;border:1px solid #e5e4dd;border-radius:12px;padding:18px 20px;box-shadow:0 1px 2px rgba(0,0,0,.03)">
+          <div style="font-size:10.5px;letter-spacing:.1em;text-transform:uppercase;color:#767c83;font-weight:600">Nivel de riesgo de fraude</div>
+          <div style="display:flex;align-items:center;gap:9px;margin-top:12px"><span style="color:#e8632a;font-size:20px">▲</span><span style="font-size:26px;font-weight:700;color:#191c1f;letter-spacing:-.01em">Alto</span></div>
+          <div style="display:flex;gap:5px;margin-top:14px">
+            <span style="flex:1;height:7px;border-radius:4px;background:#00a99d"></span>
+            <span style="flex:1;height:7px;border-radius:4px;background:#f2b705"></span>
+            <span style="flex:1;height:7px;border-radius:4px;background:#e8632a;box-shadow:0 0 0 2px rgba(232,99,42,.25)"></span>
+            <span style="flex:1;height:7px;border-radius:4px;background:#ecebe4"></span>
+          </div>
+          <div style="display:flex;justify-content:space-between;margin-top:6px;font-size:10px;color:#9aa0a6"><span>Bajo</span><span>Medio</span><span style="color:#e8632a;font-weight:600">Alto</span><span>Crítico</span></div>
+        </div>
+        <!-- recommendation (AI) -->
+        <div style="background:linear-gradient(180deg,#f0faf8,#fff 60%);border:1px solid #b9e3de;border-radius:12px;padding:18px 20px;box-shadow:0 1px 2px rgba(0,0,0,.03)">
+          <div style="display:flex;align-items:center;gap:7px"><span style="color:#00a99d;font-size:13px;animation:aiPulse 2.4s ease-in-out infinite">✦</span><span style="font-size:10.5px;letter-spacing:.1em;text-transform:uppercase;color:#0b6f68;font-weight:600">Recomendación de Arbiter</span></div>
+          <div style="display:flex;align-items:center;justify-content:space-between;gap:14px;margin-top:12px">
+            <div style="font-size:19px;font-weight:600;color:#191c1f;line-height:1.25">Derivar a estudio técnico</div>
+            <div style="flex:none;width:52px;height:52px;border-radius:50%;background:conic-gradient(#00a99d 0% 78%,#e6f4f2 78% 100%);display:flex;align-items:center;justify-content:center"><span style="width:38px;height:38px;border-radius:50%;background:#fff;display:flex;flex-direction:column;align-items:center;justify-content:center;line-height:1"><span style="font-size:14px;font-weight:700;color:#0b6f68">78%</span></span></div>
+          </div>
+          <div style="font-size:12px;color:#0b6f68;margin-top:2px">confianza</div>
+          <p style="font-size:12px;color:#545a61;margin-top:10px;line-height:1.5">Se apoya en los indicadores del Resumen. Orientativa — la decisión la tomás vos.</p>
+        </div>
+        <!-- fraud note -->
+        <div style="background:#fff;border:1px solid #f3c4bd;border-radius:12px;padding:18px 20px;box-shadow:0 1px 2px rgba(0,0,0,.03)">
+          <div style="display:flex;align-items:center;gap:7px"><span style="color:#e63329;font-size:13px">▲</span><span style="font-size:10.5px;letter-spacing:.1em;text-transform:uppercase;color:#e63329;font-weight:600">Revisión de fraude</span></div>
+          <p style="font-size:12.5px;color:#191c1f;margin-top:12px;line-height:1.5;font-weight:500">Posible reutilización de imágenes (nivel Alto).</p>
+          <p style="font-size:12px;color:#767c83;margin-top:8px;line-height:1.5">Revisá el tab <a style="color:#0b6f68;cursor:pointer;text-decoration:none" onclick="setTab('img')">Análisis de imágenes</a> antes de decidir.</p>
+        </div>
+      </div>
+
+      <!-- decision -->
+      <div style="margin-top:18px;background:#fff;border:1px solid #e5e4dd;border-radius:12px;padding:18px 20px;box-shadow:0 1px 2px rgba(0,0,0,.03);display:flex;align-items:center;justify-content:space-between;gap:20px;flex-wrap:wrap">
+        <div><div style="font-size:13px;font-weight:600;color:#191c1f">Decisión del analista</div><div style="font-size:11.5px;color:#767c83;margin-top:2px">La primaria coincide con la recomendación · el humano decide</div></div>
+        <div style="display:flex;gap:10px">
+          <button class="btn-dark" style="height:42px;padding:0 22px;border-radius:9px;font-size:13.5px;font-weight:500;box-shadow:0 2px 6px rgba(0,0,0,.18)">Derivar</button>
+          <button class="btn-line" style="height:42px;padding:0 20px;border-radius:9px;font-size:13.5px;font-weight:500">Rechazar</button>
+          <button class="btn-line" style="height:42px;padding:0 20px;border-radius:9px;font-size:13.5px;font-weight:500">Aprobar</button>
+        </div>
+      </div>
+
+      <!-- tabs -->
+      <div class="tabs">
+        <button type="button" class="tab active" data-tab="resumen" onclick="setTab('resumen')">Resumen</button>
+        <button type="button" class="tab" data-tab="datos" onclick="setTab('datos')">Datos extraídos</button>
+        <button type="button" class="tab" data-tab="img" onclick="setTab('img')">Análisis de imágenes <span style="width:6px;height:6px;border-radius:50%;background:#e63329"></span></button>
+        <button type="button" class="tab" data-tab="doc" onclick="setTab('doc')">Documentación</button>
+        <button type="button" class="tab" data-tab="hist" onclick="setTab('hist')">Historial</button>
+      </div>
+
+      <!-- tab: resumen -->
+      <div class="tabpanel" data-tab="resumen">
+        <div style="margin-top:20px;display:grid;grid-template-columns:1fr 1fr;gap:16px">
+          <div style="background:#fff;border:1px solid #b9e3de;border-radius:12px;padding:18px 20px">
+            <div style="display:flex;align-items:center;justify-content:space-between"><span style="display:flex;align-items:center;gap:7px"><span style="color:#00a99d">✦</span><span style="font-size:10.5px;letter-spacing:.09em;text-transform:uppercase;color:#0b6f68;font-weight:600">Sugerencia del sistema</span></span><span style="font-size:11px;color:#0b6f68;background:#e6f4f2;padding:2px 9px;border-radius:20px;font-weight:600">78% confianza</span></div>
+            <p style="font-size:13.5px;color:#191c1f;margin-top:12px;line-height:1.5">Los tiempos de denuncia y el patrón de imágenes sugieren derivar a estudio técnico.</p>
+            <div style="display:flex;gap:9px;margin-top:14px"><button style="height:34px;padding:0 14px;background:#e6f4f2;color:#0b6f68;border:1px solid #00a99d;border-radius:7px;font-size:12.5px;font-weight:500;cursor:pointer">Aceptar</button><button style="height:34px;padding:0 14px;background:#fff;color:#545a61;border:1px solid #dcdbd2;border-radius:7px;font-size:12.5px;cursor:pointer">Modificar</button></div>
+          </div>
+          <div style="background:#fff;border:1px solid #e5e4dd;border-radius:12px;padding:18px 20px">
+            <div style="font-size:10.5px;letter-spacing:.09em;text-transform:uppercase;color:#767c83;font-weight:600">Factores del score</div>
+            <div style="margin-top:14px;display:flex;flex-direction:column;gap:12px">
+              <div><div style="display:flex;justify-content:space-between;font-size:12.5px;color:#191c1f"><span>Imágenes reutilizadas</span><span style="color:#e63329;font-weight:600">Alto</span></div><div style="height:6px;background:#f2f1ea;border-radius:4px;margin-top:5px;overflow:hidden"><span style="display:block;height:100%;width:86%;background:#e63329;border-radius:4px;transform-origin:left;animation:barGrow .8s ease-out"></span></div></div>
+              <div><div style="display:flex;justify-content:space-between;font-size:12.5px;color:#191c1f"><span>Demora en la denuncia</span><span style="color:#e8632a;font-weight:600">Medio-Alto</span></div><div style="height:6px;background:#f2f1ea;border-radius:4px;margin-top:5px;overflow:hidden"><span style="display:block;height:100%;width:64%;background:#e8632a;border-radius:4px;transform-origin:left;animation:barGrow .8s ease-out"></span></div></div>
+              <div><div style="display:flex;justify-content:space-between;font-size:12.5px;color:#191c1f"><span>Consistencia documental</span><span style="color:#00a99d;font-weight:600">OK</span></div><div style="height:6px;background:#f2f1ea;border-radius:4px;margin-top:5px;overflow:hidden"><span style="display:block;height:100%;width:28%;background:#00a99d;border-radius:4px;transform-origin:left;animation:barGrow .8s ease-out"></span></div></div>
+            </div>
+            <a style="display:inline-block;margin-top:14px;font-size:12px;color:#0b6f68;text-decoration:none;cursor:pointer" onclick="setTab('img')">Ver evidencia completa →</a>
+          </div>
+        </div>
+      </div>
+
+      <!-- tab: datos -->
+      <div class="tabpanel" data-tab="datos" hidden>
+        <div style="margin-top:20px;background:#fff;border:1px solid #e5e4dd;border-radius:12px;overflow:hidden;box-shadow:0 1px 2px rgba(0,0,0,.03)">
+          <div style="display:grid;grid-template-columns:1.2fr 1fr 1.1fr;gap:14px;padding:12px 20px;background:#faf9f6;border-bottom:1px solid #e5e4dd;font-size:10.5px;letter-spacing:.08em;text-transform:uppercase;color:#767c83;font-weight:600"><span style="display:flex;align-items:center;gap:6px"><span style="color:#00a99d">✦</span>Campo extraído por IA</span><span>Valor (editable)</span><span>Coincidencia con póliza</span></div>
+          <div style="display:grid;grid-template-columns:1.2fr 1fr 1.1fr;gap:14px;padding:14px 20px;border-bottom:1px solid #f0efe8;align-items:center"><span style="font-size:13px;color:#191c1f">N° de factura</span><span style="font-family:ui-monospace,Menlo,monospace;font-size:12.5px;color:#191c1f;border:1px solid #e5e4dd;border-radius:7px;padding:6px 10px;background:#fff">A-0001-00045821</span><span style="font-size:12.5px;color:#0b6f68;display:flex;align-items:center;gap:6px">✓ Coincide</span></div>
+          <div style="display:grid;grid-template-columns:1.2fr 1fr 1.1fr;gap:14px;padding:14px 20px;border-bottom:1px solid #f0efe8;align-items:center"><span style="font-size:13px;color:#191c1f">Marca</span><span style="font-family:ui-monospace,Menlo,monospace;font-size:12.5px;color:#191c1f;border:1px solid #e5e4dd;border-radius:7px;padding:6px 10px;background:#fff">Lenovo</span><span style="font-size:12.5px;color:#0b6f68;display:flex;align-items:center;gap:6px">✓ Coincide</span></div>
+          <div style="display:grid;grid-template-columns:1.2fr 1fr 1.1fr;gap:14px;padding:14px 20px;border-bottom:1px solid #f0efe8;align-items:center;background:#fffdf3"><span style="font-size:13px;color:#191c1f;font-weight:600">Modelo</span><span style="font-family:ui-monospace,Menlo,monospace;font-size:12.5px;color:#191c1f;border:1px solid #f3e0a8;border-radius:7px;padding:6px 10px;background:#fff">ThinkPad E14</span><span style="font-size:12.5px;color:#191c1f;font-weight:600;display:flex;align-items:center;gap:6px"><span style="color:#b8890a">▲</span>No coincide <span style="color:#767c83;font-weight:400">(póliza: E15)</span></span></div>
+          <div style="display:grid;grid-template-columns:1.2fr 1fr 1.1fr;gap:14px;padding:14px 20px;align-items:center"><span style="font-size:13px;color:#191c1f">N° de serie</span><span style="font-family:ui-monospace,Menlo,monospace;font-size:12.5px;color:#191c1f;border:1px solid #e5e4dd;border-radius:7px;padding:6px 10px;background:#fff">PF-2X9K-7740</span><span style="font-size:12.5px;color:#0b6f68;display:flex;align-items:center;gap:6px">✓ Coincide</span></div>
+          <div style="padding:11px 20px;font-size:11.5px;color:#9aa0a6;background:#faf9f6;border-top:1px solid #f0efe8">Campos editables inline. Las discrepancias contra la póliza se marcan con peso e ícono ▲.</div>
+        </div>
+      </div>
+
+      <!-- tab: imágenes -->
+      <div class="tabpanel" data-tab="img" hidden>
+        <div style="margin-top:20px;display:flex;flex-direction:column;gap:16px">
+          <div style="display:flex;align-items:center;gap:12px;background:#fff;border:1px solid #f3c4bd;border-left:3px solid #e63329;border-radius:12px;padding:16px 18px"><span style="color:#e63329;font-size:16px">▲</span><div style="flex:1"><div style="font-size:14px;font-weight:600;color:#191c1f">Forense de imágenes — hallazgos nivel Alto</div><div style="font-size:12.5px;color:#767c83;margin-top:2px">2 de 3 imágenes con indicios de edición o reutilización. Revisá antes de decidir.</div></div><span style="font-size:11.5px;color:#b8232a;background:#fdecea;border-radius:20px;padding:4px 11px;font-weight:600">Confianza 92%</span></div>
+          <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:14px">
+            <div style="background:#fff;border:1px solid #e5e4dd;border-radius:12px;overflow:hidden"><div style="height:130px;background:repeating-linear-gradient(45deg,#f2f1ea,#f2f1ea 9px,#eae8df 9px,#eae8df 18px);position:relative;display:flex;align-items:flex-end;padding:8px"><span style="position:absolute;top:8px;right:8px;font-size:10.5px;color:#fff;background:#e63329;border-radius:20px;padding:2px 8px;font-weight:600">▲ Reutilizada</span><span style="font-family:ui-monospace,Menlo,monospace;font-size:10px;color:#9aa0a6">IMG_01 · foto del daño</span></div><div style="padding:11px 13px;font-size:11.5px;color:#767c83">Coincide 98% con siniestro <span style="font-family:ui-monospace,Menlo,monospace;color:#545a61">EXP-2025-01188</span></div></div>
+            <div style="background:#fff;border:1px solid #e5e4dd;border-radius:12px;overflow:hidden"><div style="height:130px;background:repeating-linear-gradient(45deg,#f2f1ea,#f2f1ea 9px,#eae8df 9px,#eae8df 18px);position:relative;display:flex;align-items:flex-end;padding:8px"><span style="position:absolute;top:8px;right:8px;font-size:10.5px;color:#191c1f;background:#fff6db;border:1px solid #f3e0a8;border-radius:20px;padding:2px 8px;font-weight:600">▲ Sin EXIF</span><span style="font-family:ui-monospace,Menlo,monospace;font-size:10px;color:#9aa0a6">IMG_02 · factura</span></div><div style="padding:11px 13px;font-size:11.5px;color:#767c83">Metadatos de captura ausentes</div></div>
+            <div style="background:#fff;border:1px solid #e5e4dd;border-radius:12px;overflow:hidden"><div style="height:130px;background:repeating-linear-gradient(45deg,#f2f1ea,#f2f1ea 9px,#eae8df 9px,#eae8df 18px);position:relative;display:flex;align-items:flex-end;padding:8px"><span style="position:absolute;top:8px;right:8px;font-size:10.5px;color:#0b6f68;background:#e6f4f2;border-radius:20px;padding:2px 8px;font-weight:600">✓ OK</span><span style="font-family:ui-monospace,Menlo,monospace;font-size:10px;color:#9aa0a6">IMG_03 · caja producto</span></div><div style="padding:11px 13px;font-size:11.5px;color:#767c83">Sin anomalías detectadas</div></div>
+          </div>
+          <div style="background:#fff;border:1px solid #e5e4dd;border-radius:12px;padding:18px 20px"><div style="font-size:10.5px;letter-spacing:.09em;text-transform:uppercase;color:#767c83;font-weight:600">Detalle del análisis</div><div style="margin-top:12px;display:flex;flex-direction:column;gap:11px">
+            <div style="display:flex;gap:11px;align-items:flex-start;font-size:12.5px;color:#191c1f"><span style="color:#e63329;margin-top:1px">▲</span><span><b style="font-weight:600">Reutilización de imagen</b> — IMG_01 coincide al 98% con una imagen ya usada en otro expediente cerrado.</span></div>
+            <div style="display:flex;gap:11px;align-items:flex-start;font-size:12.5px;color:#191c1f"><span style="color:#b8890a;margin-top:1px">▲</span><span><b style="font-weight:600">Análisis ELA</b> — inconsistencias de compresión en la zona central de IMG_02 (posible edición).</span></div>
+            <div style="display:flex;gap:11px;align-items:flex-start;font-size:12.5px;color:#191c1f"><span style="color:#767c83;margin-top:1px">▲</span><span><b style="font-weight:600">Metadatos</b> — IMG_02 sin EXIF de captura (fecha/dispositivo no verificables).</span></div>
+          </div></div>
+        </div>
+      </div>
+
+      <!-- tab: documentación -->
+      <div class="tabpanel" data-tab="doc" hidden>
+        <div style="margin-top:20px">
+          <div style="display:flex;align-items:center;justify-content:space-between;gap:16px"><div><div style="font-size:14px;font-weight:600;color:#191c1f">Agenda documental</div><div style="font-size:12px;color:#767c83;margin-top:2px">3 de 8 validados · derivada del hecho generador (robo de bienes personales)</div></div><button type="button" class="btn-line" style="height:38px;padding:0 16px;border-radius:8px;font-size:13px;font-weight:500">Solicitar documentación</button></div>
+          <div style="margin-top:14px;background:#fff;border:1px solid #e5e4dd;border-radius:12px;overflow:hidden;box-shadow:0 1px 2px rgba(0,0,0,.03)">
+            <div style="display:flex;align-items:center;gap:14px;padding:15px 20px;border-bottom:1px solid #f0efe8"><span style="width:30px;height:30px;border-radius:8px;background:#e6f4f2;color:#00a99d;display:flex;align-items:center;justify-content:center;font-size:14px;flex:none">✓</span><div style="flex:1"><div style="font-size:13.5px;color:#191c1f;font-weight:500">DNI (frente)</div><div style="font-size:11.5px;color:#9aa0a6">dni_frente.jpg</div></div><span style="display:flex;align-items:center;gap:6px;font-size:11.5px;color:#0b6f68;background:#e6f4f2;border-radius:20px;padding:4px 11px"><svg width="10" height="10" viewBox="0 0 12 12" fill="none"><rect x="2.5" y="5.5" width="7" height="5" rx="1" stroke="#0b6f68" stroke-width="1.2"/><path d="M4 5.5V4a2 2 0 0 1 4 0v1.5" stroke="#0b6f68" stroke-width="1.2"/></svg>Validado</span></div>
+            <div style="display:flex;align-items:center;gap:14px;padding:15px 20px;border-bottom:1px solid #f0efe8"><span style="width:30px;height:30px;border-radius:8px;background:#e6f4f2;color:#00a99d;display:flex;align-items:center;justify-content:center;font-size:14px;flex:none">✓</span><div style="flex:1"><div style="font-size:13.5px;color:#191c1f;font-weight:500">Denuncia policial</div><div style="font-size:11.5px;color:#9aa0a6">denuncia.pdf · 1,2 MB</div></div><span style="font-size:11.5px;color:#545a61;background:#f2f1ea;border-radius:20px;padding:4px 11px">En validación</span></div>
+            <div style="display:flex;align-items:center;gap:14px;padding:15px 20px;border-bottom:1px solid #f0efe8;background:#fffdf3"><span style="width:30px;height:30px;border-radius:8px;background:#fff6db;color:#b8890a;display:flex;align-items:center;justify-content:center;font-size:14px;flex:none">!</span><div style="flex:1"><div style="font-size:13.5px;color:#191c1f;font-weight:500">Factura de compra</div><div style="font-size:11.5px;color:#6b5a1a">Requerido · pendiente de carga</div></div><span style="font-size:11.5px;color:#6b5a1a;background:#fff;border:1px solid #f3e0a8;border-radius:20px;padding:4px 11px">Pendiente</span></div>
+            <div style="display:flex;align-items:center;gap:14px;padding:15px 20px;border-bottom:1px solid #f0efe8"><span style="width:30px;height:30px;border-radius:8px;background:#f2f1ea;color:#767c83;display:flex;align-items:center;justify-content:center;font-size:13px;flex:none">↑</span><div style="flex:1"><div style="font-size:13.5px;color:#191c1f;font-weight:500">Foto del daño</div><div style="height:5px;background:#f2f1ea;border-radius:3px;margin-top:6px;max-width:220px;overflow:hidden"><span style="display:block;height:100%;width:60%;background:#00a99d;border-radius:3px"></span></div></div><span style="font-size:11.5px;color:#767c83">Subiendo… 60%</span></div>
+            <div style="display:flex;align-items:center;gap:14px;padding:15px 20px"><span style="width:30px;height:30px;border-radius:8px;background:#f2f1ea;color:#b4b9b1;display:flex;align-items:center;justify-content:center;font-size:14px;flex:none">○</span><div style="flex:1"><div style="font-size:13.5px;color:#191c1f;font-weight:500">Datos de cuenta bancaria (CBU)</div><div style="font-size:11.5px;color:#9aa0a6">Requerido · pendiente de carga</div></div><span style="font-size:11.5px;color:#9aa0a6;border:1px dashed #cfd3cd;border-radius:20px;padding:4px 11px">Pendiente</span></div>
+          </div>
+          <div style="margin-top:12px;font-size:11.5px;color:#9aa0a6">Un documento validado queda bloqueado (no editable) para preservar la integridad del expediente.</div>
+        </div>
+      </div>
+
+      <!-- tab: historial -->
+      <div class="tabpanel" data-tab="hist" hidden>
+        <div style="margin-top:20px;background:#fff;border:1px solid #e5e4dd;border-radius:12px;padding:24px 26px;box-shadow:0 1px 2px rgba(0,0,0,.03)">
+          <div style="display:flex;flex-direction:column">
+            <div style="display:flex;gap:16px"><div style="display:flex;flex-direction:column;align-items:center"><span style="width:13px;height:13px;border-radius:50%;background:#191c1f;flex:none;margin-top:3px"></span><span style="width:2px;flex:1;background:#e5e4dd;min-height:26px"></span></div><div style="padding-bottom:20px"><div style="font-size:13.5px;font-weight:600;color:#191c1f">Cambio de estado: Envío a Estudio Técnico</div><div style="font-size:11.5px;color:#9aa0a6;margin-top:2px">06/06/26 · 09:12 · Sistema (auto)</div></div></div>
+            <div style="display:flex;gap:16px"><div style="display:flex;flex-direction:column;align-items:center"><span style="width:13px;height:13px;border-radius:50%;background:#fff;border:2px solid #cfd3cd;flex:none;margin-top:3px"></span><span style="width:2px;flex:1;background:#e5e4dd;min-height:26px"></span></div><div style="padding-bottom:20px"><div style="font-size:13.5px;font-weight:600;color:#191c1f">Solicitud de documentación adicional</div><div style="font-size:12px;color:#545a61;margin-top:3px">Se requiere: factura de compra del bien siniestrado.</div><div style="font-size:11.5px;color:#9aa0a6;margin-top:3px">04/06/26 · 15:30 · María Gómez</div></div></div>
+            <div style="display:flex;gap:16px"><div style="display:flex;flex-direction:column;align-items:center"><span style="width:13px;height:13px;border-radius:50%;background:#fff;border:2px solid #cfd3cd;flex:none;margin-top:3px"></span><span style="width:2px;flex:1;background:#e5e4dd;min-height:26px"></span></div><div style="padding-bottom:20px"><div style="font-size:13.5px;font-weight:600;color:#191c1f">Asignación de analista</div><div style="font-size:12px;color:#545a61;margin-top:3px">Expediente asignado a María Gómez (Siniestros).</div><div style="font-size:11.5px;color:#9aa0a6;margin-top:3px">03/06/26 · 09:10 · Sistema (auto)</div></div></div>
+            <div style="display:flex;gap:16px"><div style="display:flex;flex-direction:column;align-items:center"><span style="width:13px;height:13px;border-radius:50%;background:#fff;border:2px solid #cfd3cd;flex:none;margin-top:3px"></span><span style="width:2px;flex:1;background:#e5e4dd;min-height:26px"></span></div><div style="padding-bottom:20px"><div style="font-size:13.5px;font-weight:600;color:#191c1f">Registro de la declaración del asegurado</div><div style="font-size:12px;color:#545a61;margin-top:3px;font-style:italic">"Volvía del trabajo y al subir al colectivo me sustrajeron la mochila con la notebook…"</div><div style="font-size:11.5px;color:#9aa0a6;margin-top:3px">02/06/26 · 21:52 · Martín Suárez (asegurado)</div></div></div>
+            <div style="display:flex;gap:16px"><div style="display:flex;flex-direction:column;align-items:center"><span style="width:13px;height:13px;border-radius:50%;background:#fff;border:2px solid #cfd3cd;flex:none;margin-top:3px"></span></div><div><div style="font-size:13.5px;font-weight:600;color:#191c1f">Generación del reclamo</div><div style="font-size:12px;color:#545a61;margin-top:3px">Hecho generador 0712 · Robo de bienes personales. Canal WEB.</div><div style="font-size:11.5px;color:#9aa0a6;margin-top:3px">02/06/26 · 21:50 · Martín Suárez (asegurado)</div></div></div>
+          </div>
+          <div style="margin-top:8px;border-top:1px solid #f0efe8;padding-top:18px;display:flex;align-items:center;justify-content:space-between;gap:16px"><div><div style="font-size:13px;font-weight:600;color:#191c1f">Reabrir expediente</div><div style="font-size:11.5px;color:#9aa0a6;margin-top:2px">Disponible solo desde estados terminales · requiere justificación escrita</div></div><button type="button" disabled style="height:36px;padding:0 16px;background:#f2f1ea;color:#b4b9b1;border:1px solid #e5e4dd;border-radius:8px;font-size:12.5px;cursor:not-allowed">Reabrir (no disponible)</button></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ DASHBOARD (referente) ============ -->
+<section class="screen app" id="s-dashboard">
+  <aside class="sidebar" data-nav="referente" data-active="dashboard"></aside>
+  <div class="main">
+    <div style="padding:28px 30px 30px">
+      <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:20px">
+        <div><h1 style="font-size:26px;font-weight:700;color:#191c1f;letter-spacing:-.01em">Dashboard de métricas</h1><p style="font-size:13px;color:#767c83;margin-top:5px">Rendimiento operativo de la aseguradora</p></div>
+        <span style="display:flex;align-items:center;gap:8px;height:38px;padding:0 14px;border:1px solid #e5e4dd;border-radius:9px;background:#fff;font-size:13px;color:#191c1f;cursor:pointer">Últimos 30 días <span style="color:#9aa0a6">▾</span></span>
+      </div>
+      <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin-top:22px">
+        <div style="background:#fff;border:1px solid #e5e4dd;border-radius:12px;padding:18px;box-shadow:0 1px 2px rgba(0,0,0,.03)"><div style="font-size:11px;letter-spacing:.06em;text-transform:uppercase;color:#767c83;font-weight:600">Total expedientes</div><div style="font-size:34px;font-weight:700;color:#191c1f;margin-top:8px;letter-spacing:-.02em">248</div><div style="font-size:11.5px;color:#9aa0a6;margin-top:2px">en el período</div></div>
+        <div style="background:#fff;border:1px solid #e5e4dd;border-radius:12px;padding:18px;box-shadow:0 1px 2px rgba(0,0,0,.03)"><div style="font-size:11px;letter-spacing:.06em;text-transform:uppercase;color:#767c83;font-weight:600">Tiempo prom. resolución</div><div style="font-size:34px;font-weight:700;color:#191c1f;margin-top:8px;letter-spacing:-.02em">30<span style="font-size:18px;color:#767c83">d</span></div><div style="font-size:11.5px;color:#0b6f68;font-weight:500;margin-top:2px">▼ 3d vs. mes anterior</div></div>
+        <div style="background:#fff;border:1px solid #e5e4dd;border-radius:12px;padding:18px;box-shadow:0 1px 2px rgba(0,0,0,.03)"><div style="font-size:11px;letter-spacing:.06em;text-transform:uppercase;color:#767c83;font-weight:600">% Fast Track</div><div style="font-size:34px;font-weight:700;color:#191c1f;margin-top:8px;letter-spacing:-.02em">34<span style="font-size:18px;color:#767c83">%</span></div><div style="font-size:11.5px;color:#0b6f68;font-weight:500;margin-top:2px">▲ 5% de los cierres</div></div>
+        <div style="background:#fff;border:1px solid #f3c4bd;border-radius:12px;padding:18px;box-shadow:0 1px 2px rgba(0,0,0,.03)"><div style="display:flex;align-items:center;gap:6px;font-size:11px;letter-spacing:.06em;text-transform:uppercase;color:#b8232a;font-weight:600"><span>▲</span>Alertas de fraude</div><div style="font-size:34px;font-weight:700;color:#191c1f;margin-top:8px;letter-spacing:-.02em">12</div><div style="font-size:11.5px;color:#b8232a;margin-top:2px">activas · 3 por vencer</div></div>
+      </div>
+      <div style="display:grid;grid-template-columns:1.6fr 1fr;gap:14px;margin-top:14px">
+        <div style="background:#fff;border:1px solid #e5e4dd;border-radius:12px;padding:20px 22px;box-shadow:0 1px 2px rgba(0,0,0,.03)"><div style="font-size:13.5px;font-weight:600;color:#191c1f">Expedientes por estado</div><div style="display:flex;align-items:flex-end;gap:18px;height:150px;margin-top:22px;padding-bottom:26px;position:relative">
+          <div style="flex:1;display:flex;flex-direction:column;align-items:center;gap:8px;height:100%;justify-content:flex-end"><span style="font-size:12px;color:#191c1f;font-weight:600">18</span><span style="width:100%;max-width:44px;height:22%;background:#c4c3b8;border-radius:6px 6px 0 0"></span><span style="font-size:10.5px;color:#767c83;position:absolute;bottom:0;text-align:center">Denunc.</span></div>
+          <div style="flex:1;display:flex;flex-direction:column;align-items:center;gap:8px;height:100%;justify-content:flex-end"><span style="font-size:12px;color:#191c1f;font-weight:600">64</span><span style="width:100%;max-width:44px;height:80%;background:#191c1f;border-radius:6px 6px 0 0"></span><span style="font-size:10.5px;color:#767c83;position:absolute;bottom:0">En Trám.</span></div>
+          <div style="flex:1;display:flex;flex-direction:column;align-items:center;gap:8px;height:100%;justify-content:flex-end"><span style="font-size:12px;color:#191c1f;font-weight:600">12</span><span style="width:100%;max-width:44px;height:15%;background:#c4c3b8;border-radius:6px 6px 0 0"></span><span style="font-size:10.5px;color:#767c83;position:absolute;bottom:0">Sol.Doc</span></div>
+          <div style="flex:1;display:flex;flex-direction:column;align-items:center;gap:8px;height:100%;justify-content:flex-end"><span style="font-size:12px;color:#191c1f;font-weight:600">9</span><span style="width:100%;max-width:44px;height:11%;background:#c4c3b8;border-radius:6px 6px 0 0"></span><span style="font-size:10.5px;color:#767c83;position:absolute;bottom:0">Estudio</span></div>
+          <div style="flex:1;display:flex;flex-direction:column;align-items:center;gap:8px;height:100%;justify-content:flex-end"><span style="font-size:12px;color:#0b6f68;font-weight:600">21</span><span style="width:100%;max-width:44px;height:26%;background:#00a99d;border-radius:6px 6px 0 0"></span><span style="font-size:10.5px;color:#767c83;position:absolute;bottom:0">Autoriz.</span></div>
+          <div style="flex:1;display:flex;flex-direction:column;align-items:center;gap:8px;height:100%;justify-content:flex-end"><span style="font-size:12px;color:#b8232a;font-weight:600">12</span><span style="width:100%;max-width:44px;height:15%;background:#e63329;border-radius:6px 6px 0 0"></span><span style="font-size:10.5px;color:#767c83;position:absolute;bottom:0">Rechaz.</span></div>
+        </div></div>
+        <div style="background:#fff;border:1px solid #e5e4dd;border-radius:12px;padding:20px 22px;box-shadow:0 1px 2px rgba(0,0,0,.03)"><div style="font-size:13.5px;font-weight:600;color:#191c1f">Riesgo de fraude</div><div style="display:flex;align-items:center;gap:20px;margin-top:20px"><div style="width:110px;height:110px;border-radius:50%;background:conic-gradient(#00a99d 0% 58%,#f2b705 58% 80%,#e8632a 80% 93%,#e63329 93% 100%);display:flex;align-items:center;justify-content:center;flex:none"><span style="width:74px;height:74px;border-radius:50%;background:#fff;display:flex;flex-direction:column;align-items:center;justify-content:center"><span style="font-size:22px;font-weight:700;color:#191c1f">248</span><span style="font-size:10px;color:#767c83">casos</span></span></div><div style="display:flex;flex-direction:column;gap:9px"><span style="display:flex;align-items:center;gap:8px;font-size:12px;color:#545a61"><span style="width:9px;height:9px;border-radius:2px;background:#00a99d"></span>Bajo · 58%</span><span style="display:flex;align-items:center;gap:8px;font-size:12px;color:#545a61"><span style="width:9px;height:9px;border-radius:2px;background:#f2b705"></span>Medio · 22%</span><span style="display:flex;align-items:center;gap:8px;font-size:12px;color:#545a61"><span style="width:9px;height:9px;border-radius:2px;background:#e8632a"></span>Alto · 13%</span><span style="display:flex;align-items:center;gap:8px;font-size:12px;color:#545a61"><span style="width:9px;height:9px;border-radius:2px;background:#e63329"></span>Crítico · 7%</span></div></div></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ USUARIOS (referente) ============ -->
+<section class="screen app" id="s-usuarios">
+  <aside class="sidebar" data-nav="referente" data-active="usuarios"></aside>
+  <div class="main">
+    <div style="padding:28px 30px 30px">
+      <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:20px"><div><h1 style="font-size:26px;font-weight:700;color:#191c1f;letter-spacing:-.01em">Usuarios</h1><p style="font-size:13px;color:#767c83;margin-top:5px">14 usuarios · 3 roles</p></div><button class="btn-dark" style="height:40px;padding:0 18px;border-radius:9px;font-size:13px;font-weight:500">+ Invitar usuario</button></div>
+      <div style="margin-top:22px;background:#fff;border:1px solid #e5e4dd;border-radius:12px;overflow:hidden;box-shadow:0 1px 2px rgba(0,0,0,.03)">
+        <div style="display:grid;grid-template-columns:1.6fr 1fr 1fr 1fr 60px;gap:14px;padding:12px 22px;background:#faf9f6;border-bottom:1px solid #e5e4dd;font-size:10.5px;letter-spacing:.08em;text-transform:uppercase;color:#767c83;font-weight:600"><span>Usuario</span><span>Rol</span><span>Estado</span><span>Último acceso</span><span></span></div>
+        <div class="urow" style="display:grid;grid-template-columns:1.6fr 1fr 1fr 1fr 60px;gap:14px;padding:15px 22px;border-bottom:1px solid #f0efe8;align-items:center"><span style="display:flex;align-items:center;gap:11px"><span style="width:32px;height:32px;border-radius:50%;background:#e6f4f2;color:#0b6f68;display:flex;align-items:center;justify-content:center;font-size:11.5px;font-weight:600">MG</span><span><span style="display:block;font-size:13.5px;color:#191c1f;font-weight:500">María Gómez</span><span style="font-size:11.5px;color:#9aa0a6">maria.gomez@aseg.com</span></span></span><span style="font-size:12.5px;color:#545a61">Analista</span><span><span style="display:inline-flex;align-items:center;gap:6px;font-size:11.5px;color:#0b6f68"><span style="width:7px;height:7px;border-radius:50%;background:#00a99d"></span>Activo</span></span><span style="font-size:12.5px;color:#767c83">hace 5 min</span><span style="color:#9aa0a6;text-align:center;cursor:pointer">⋯</span></div>
+        <div class="urow" style="display:grid;grid-template-columns:1.6fr 1fr 1fr 1fr 60px;gap:14px;padding:15px 22px;border-bottom:1px solid #f0efe8;align-items:center"><span style="display:flex;align-items:center;gap:11px"><span style="width:32px;height:32px;border-radius:50%;background:#f2f1ea;color:#545a61;display:flex;align-items:center;justify-content:center;font-size:11.5px;font-weight:600">CV</span><span><span style="display:block;font-size:13.5px;color:#191c1f;font-weight:500">Carlos Vega</span><span style="font-size:11.5px;color:#9aa0a6">carlos.vega@aseg.com</span></span></span><span style="font-size:12.5px;color:#545a61">Referente</span><span><span style="display:inline-flex;align-items:center;gap:6px;font-size:11.5px;color:#0b6f68"><span style="width:7px;height:7px;border-radius:50%;background:#00a99d"></span>Activo</span></span><span style="font-size:12.5px;color:#767c83">hace 1 h</span><span style="color:#9aa0a6;text-align:center;cursor:pointer">⋯</span></div>
+        <div class="urow" style="display:grid;grid-template-columns:1.6fr 1fr 1fr 1fr 60px;gap:14px;padding:15px 22px;border-bottom:1px solid #f0efe8;align-items:center"><span style="display:flex;align-items:center;gap:11px"><span style="width:32px;height:32px;border-radius:50%;background:#f2f1ea;color:#545a61;display:flex;align-items:center;justify-content:center;font-size:11.5px;font-weight:600">JP</span><span><span style="display:block;font-size:13.5px;color:#191c1f;font-weight:500">Julia Paz</span><span style="font-size:11.5px;color:#9aa0a6">julia.paz@aseg.com</span></span></span><span style="font-size:12.5px;color:#545a61">Analista</span><span><span style="display:inline-flex;align-items:center;gap:6px;font-size:11.5px;color:#767c83"><span style="width:7px;height:7px;border-radius:50%;background:#c4c3b8"></span>Inactivo</span></span><span style="font-size:12.5px;color:#767c83">hace 12 días</span><span style="color:#9aa0a6;text-align:center;cursor:pointer">⋯</span></div>
+        <div class="urow" style="display:grid;grid-template-columns:1.6fr 1fr 1fr 1fr 60px;gap:14px;padding:15px 22px;align-items:center"><span style="display:flex;align-items:center;gap:11px"><span style="width:32px;height:32px;border-radius:50%;background:#fff6db;color:#b8890a;display:flex;align-items:center;justify-content:center;font-size:11.5px;font-weight:600">RS</span><span><span style="display:block;font-size:13.5px;color:#191c1f;font-weight:500">Rodrigo Sosa</span><span style="font-size:11.5px;color:#9aa0a6">rodrigo.sosa@aseg.com</span></span></span><span style="font-size:12.5px;color:#545a61">Analista</span><span><span style="display:inline-flex;align-items:center;gap:6px;font-size:11.5px;color:#b8890a"><span style="width:7px;height:7px;border-radius:50%;background:#f2b705"></span>Invitación pendiente</span></span><span style="font-size:12.5px;color:#767c83">—</span><span style="color:#9aa0a6;text-align:center;cursor:pointer">⋯</span></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ REGLAS (referente) ============ -->
+<section class="screen app" id="s-reglas">
+  <aside class="sidebar" data-nav="referente" data-active="reglas"></aside>
+  <div class="main">
+    <div style="padding:28px 30px 30px">
+      <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:20px"><div><h1 style="font-size:26px;font-weight:700;color:#191c1f;letter-spacing:-.01em">Reglas y flujos</h1><p style="font-size:13px;color:#767c83;margin-top:5px">Automatizaciones que aplican al ingresar o cambiar de estado</p></div><button class="btn-dark" style="height:40px;padding:0 18px;border-radius:9px;font-size:13px;font-weight:500">+ Nueva regla</button></div>
+      <div style="display:flex;flex-direction:column;gap:12px;margin-top:22px">
+        <div class="rule" style="background:#fff;border:1px solid #e5e4dd;border-radius:12px;padding:18px 20px;display:flex;align-items:center;gap:18px;box-shadow:0 1px 2px rgba(0,0,0,.03)"><div style="flex:1"><div style="display:flex;align-items:center;gap:9px;flex-wrap:wrap"><span style="font-size:10.5px;letter-spacing:.08em;text-transform:uppercase;color:#0b6f68;font-weight:600;background:#e6f4f2;padding:2px 8px;border-radius:20px">Fraude</span><span style="font-size:14.5px;font-weight:600;color:#191c1f">Reutilización de imágenes → Estudio técnico</span></div><div style="font-size:12.5px;color:#767c83;margin-top:6px">Si el análisis de imágenes marca nivel <b style="color:#191c1f">Alto</b>, derivar a estudio técnico y crear alerta.</div></div><button class="toggle" aria-label="Activar o desactivar regla" onclick="toggleRule(this)"></button></div>
+        <div class="rule" style="background:#fff;border:1px solid #e5e4dd;border-radius:12px;padding:18px 20px;display:flex;align-items:center;gap:18px;box-shadow:0 1px 2px rgba(0,0,0,.03)"><div style="flex:1"><div style="display:flex;align-items:center;gap:9px;flex-wrap:wrap"><span style="font-size:10.5px;letter-spacing:.08em;text-transform:uppercase;color:#b8890a;font-weight:600;background:#fff6db;padding:2px 8px;border-radius:20px">Riesgo</span><span style="font-size:14.5px;font-weight:600;color:#191c1f">Demora de denuncia &gt; 30 días → riesgo Medio</span></div><div style="font-size:12.5px;color:#767c83;margin-top:6px">Suma un factor al score cuando la denuncia se hace más de 30 días después del hecho.</div></div><button class="toggle" aria-label="Activar o desactivar regla" onclick="toggleRule(this)"></button></div>
+        <div class="rule" style="background:#fff;border:1px solid #e5e4dd;border-radius:12px;padding:18px 20px;display:flex;align-items:center;gap:18px;box-shadow:0 1px 2px rgba(0,0,0,.03)"><div style="flex:1"><div style="display:flex;align-items:center;gap:9px;flex-wrap:wrap"><span style="font-size:10.5px;letter-spacing:.08em;text-transform:uppercase;color:#0b6f68;font-weight:600;background:#e6f4f2;padding:2px 8px;border-radius:20px">Flujo</span><span style="font-size:14.5px;font-weight:600;color:#191c1f">Riesgo Bajo + doc. completa → Fast Track</span></div><div style="font-size:12.5px;color:#767c83;margin-top:6px">Habilita la vía rápida de liquidación cuando no hay factores de riesgo abiertos.</div></div><button class="toggle" aria-label="Activar o desactivar regla" onclick="toggleRule(this)"></button></div>
+        <div class="rule rule-off" style="background:#fff;border:1px solid #e5e4dd;border-radius:12px;padding:18px 20px;display:flex;align-items:center;gap:18px;box-shadow:0 1px 2px rgba(0,0,0,.03)"><div style="flex:1"><div style="display:flex;align-items:center;gap:9px;flex-wrap:wrap"><span style="font-size:10.5px;letter-spacing:.08em;text-transform:uppercase;color:#767c83;font-weight:600;background:#f2f1ea;padding:2px 8px;border-radius:20px">Flujo</span><span style="font-size:14.5px;font-weight:600;color:#191c1f">Recordatorio de documentación a las 72 h</span></div><div style="font-size:12.5px;color:#767c83;margin-top:6px">Envía un recordatorio al asegurado si falta documentación tras 3 días.</div></div><button class="toggle off" aria-label="Activar o desactivar regla" onclick="toggleRule(this)"></button></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ FLUJO (referente) ============ -->
+<section class="screen app" id="s-flujo">
+  <aside class="sidebar" data-nav="referente" data-active="flujo"></aside>
+  <div class="main">
+    <div style="padding:28px 30px 30px">
+      <h1 style="font-size:26px;font-weight:700;color:#191c1f;letter-spacing:-.01em">Configuración del flujo</h1>
+      <p style="font-size:13px;color:#767c83;margin-top:5px">Etapas por las que pasa un expediente. Arrastrá para reordenar.</p>
+      <div style="margin-top:26px;display:flex;align-items:stretch;gap:0;overflow-x:auto;padding-bottom:6px">
+        <div style="flex:none;width:150px;background:#fff;border:1px solid #e5e4dd;border-radius:12px;padding:16px;box-shadow:0 1px 2px rgba(0,0,0,.03)"><span style="font-size:10px;letter-spacing:.08em;text-transform:uppercase;color:#9aa0a6;font-weight:600">Etapa 1</span><div style="font-size:14px;font-weight:600;color:#191c1f;margin-top:6px">Denunciado</div><div style="font-size:11.5px;color:#767c83;margin-top:8px">Entrada · portal del asegurado</div></div>
+        <div style="flex:none;width:34px;display:flex;align-items:center;justify-content:center;color:#c4c3b8">→</div>
+        <div style="flex:none;width:150px;background:#fff;border:1px solid #e5e4dd;border-radius:12px;padding:16px;box-shadow:0 1px 2px rgba(0,0,0,.03)"><span style="font-size:10px;letter-spacing:.08em;text-transform:uppercase;color:#9aa0a6;font-weight:600">Etapa 2</span><div style="font-size:14px;font-weight:600;color:#191c1f;margin-top:6px">En Trámite</div><div style="font-size:11.5px;color:#767c83;margin-top:8px"><span style="color:#00a99d">✦</span> Preanálisis IA automático</div></div>
+        <div style="flex:none;width:34px;display:flex;align-items:center;justify-content:center;color:#c4c3b8">→</div>
+        <div style="flex:none;width:150px;background:#fff;border:1px solid #e5e4dd;border-radius:12px;padding:16px;box-shadow:0 1px 2px rgba(0,0,0,.03)"><span style="font-size:10px;letter-spacing:.08em;text-transform:uppercase;color:#9aa0a6;font-weight:600">Etapa 3</span><div style="font-size:14px;font-weight:600;color:#191c1f;margin-top:6px">Solicitud Doc.</div><div style="font-size:11.5px;color:#767c83;margin-top:8px">Opcional · según reglas</div></div>
+        <div style="flex:none;width:34px;display:flex;align-items:center;justify-content:center;color:#c4c3b8">→</div>
+        <div style="flex:none;width:150px;background:#fff;border:1px solid #e5e4dd;border-radius:12px;padding:16px;box-shadow:0 1px 2px rgba(0,0,0,.03)"><span style="font-size:10px;letter-spacing:.08em;text-transform:uppercase;color:#9aa0a6;font-weight:600">Etapa 4</span><div style="font-size:14px;font-weight:600;color:#191c1f;margin-top:6px">Estudio Técnico</div><div style="font-size:11.5px;color:#767c83;margin-top:8px">Peritaje / mediación</div></div>
+        <div style="flex:none;width:34px;display:flex;align-items:center;justify-content:center;color:#c4c3b8">→</div>
+        <div style="flex:none;width:170px;display:flex;flex-direction:column;gap:10px">
+          <div style="background:#fff;border:1px solid #b9e3de;border-left:3px solid #00a99d;border-radius:12px;padding:13px 15px"><div style="font-size:13.5px;font-weight:600;color:#0b6f68">Autorizado a Liquidar</div><div style="font-size:11px;color:#767c83;margin-top:3px">Salida positiva</div></div>
+          <div style="background:#fff;border:1px solid #f3c4bd;border-left:3px solid #e63329;border-radius:12px;padding:13px 15px"><div style="font-size:13.5px;font-weight:600;color:#b8232a">Rechazado</div><div style="font-size:11px;color:#767c83;margin-top:3px">Salida negativa</div></div>
+        </div>
+      </div>
+      <div style="margin-top:20px;display:flex;gap:14px;align-items:flex-start;background:#f0faf8;border:1px solid #b9e3de;border-radius:12px;padding:16px 18px"><span style="color:#00a99d">✦</span><div style="font-size:12.5px;color:#0b6f68;line-height:1.5">El estado técnico interno es distinto del que ve el asegurado. "En Trámite", "Solicitud Doc." y "Estudio Técnico" se muestran como <b>"En Trámite"</b> en el portal — para no exponer el detalle del análisis.</div></div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ REPORTES (referente) ============ -->
+<section class="screen app" id="s-reportes">
+  <aside class="sidebar" data-nav="referente" data-active="reportes"></aside>
+  <div class="main">
+    <div style="padding:28px 30px 30px">
+      <h1 style="font-size:26px;font-weight:700;color:#191c1f;letter-spacing:-.01em">Reportes</h1>
+      <p style="font-size:13px;color:#767c83;margin-top:5px">Generá un reporte a medida o descargá uno reciente</p>
+      <div style="display:grid;grid-template-columns:1fr 1.1fr;gap:16px;margin-top:22px">
+        <div style="background:#fff;border:1px solid #e5e4dd;border-radius:12px;padding:22px;box-shadow:0 1px 2px rgba(0,0,0,.03)">
+          <div style="font-size:14px;font-weight:600;color:#191c1f">Nuevo reporte</div>
+          <div style="display:flex;flex-direction:column;gap:14px;margin-top:16px">
+            <label style="display:flex;flex-direction:column;gap:6px"><span style="font-size:11px;font-weight:600;letter-spacing:.05em;text-transform:uppercase;color:#545a61">Tipo</span><span style="height:42px;border:1px solid #dcdbd2;border-radius:9px;padding:0 12px;display:flex;align-items:center;justify-content:space-between;font-size:13.5px;color:#191c1f;background:#fff;cursor:pointer">Resolución por estado <span style="color:#9aa0a6">▾</span></span></label>
+            <label style="display:flex;flex-direction:column;gap:6px"><span style="font-size:11px;font-weight:600;letter-spacing:.05em;text-transform:uppercase;color:#545a61">Período</span><span style="height:42px;border:1px solid #dcdbd2;border-radius:9px;padding:0 12px;display:flex;align-items:center;justify-content:space-between;font-size:13.5px;color:#191c1f;background:#fff;cursor:pointer">01/06/26 – 30/06/26 <span style="color:#9aa0a6">▾</span></span></label>
+            <div style="display:flex;flex-direction:column;gap:6px"><span style="font-size:11px;font-weight:600;letter-spacing:.05em;text-transform:uppercase;color:#545a61">Formato</span><div style="display:flex;gap:8px"><span style="flex:1;text-align:center;padding:9px 0;border:1px solid #00a99d;background:#e6f4f2;color:#0b6f68;border-radius:8px;font-size:12.5px;font-weight:500;cursor:pointer">CSV</span><span style="flex:1;text-align:center;padding:9px 0;border:1px solid #dcdbd2;background:#fff;color:#545a61;border-radius:8px;font-size:12.5px;cursor:pointer">Excel</span><span style="flex:1;text-align:center;padding:9px 0;border:1px solid #dcdbd2;background:#fff;color:#545a61;border-radius:8px;font-size:12.5px;cursor:pointer">PDF</span></div></div>
+          </div>
+          <button class="btn-dark" style="margin-top:20px;width:100%;height:44px;border-radius:9px;font-size:14px;font-weight:500">Generar reporte</button>
+        </div>
+        <div style="background:#fff;border:1px solid #e5e4dd;border-radius:12px;padding:22px;box-shadow:0 1px 2px rgba(0,0,0,.03)">
+          <div style="font-size:14px;font-weight:600;color:#191c1f">Recientes</div>
+          <div style="display:flex;flex-direction:column;margin-top:12px">
+            <div style="display:flex;align-items:center;gap:13px;padding:13px 0;border-bottom:1px solid #f0efe8"><span style="width:34px;height:34px;border-radius:8px;background:#f2f1ea;display:flex;align-items:center;justify-content:center"><svg width="16" height="16" viewBox="0 0 16 16" fill="none"><rect x="3" y="1.5" width="10" height="13" rx="1.6" stroke="#767c83" stroke-width="1.4"/><line x1="5.5" y1="5" x2="10.5" y2="5" stroke="#767c83" stroke-width="1.4"/><line x1="5.5" y1="8" x2="10.5" y2="8" stroke="#767c83" stroke-width="1.4"/></svg></span><div style="flex:1"><div style="font-size:13px;font-weight:500;color:#191c1f">Resolución por estado · Junio</div><div style="font-size:11.5px;color:#9aa0a6">CSV · 24 KB · hace 2 días</div></div><span style="font-size:12.5px;color:#0b6f68;cursor:pointer">Descargar</span></div>
+            <div style="display:flex;align-items:center;gap:13px;padding:13px 0;border-bottom:1px solid #f0efe8"><span style="width:34px;height:34px;border-radius:8px;background:#f2f1ea;display:flex;align-items:center;justify-content:center"><svg width="16" height="16" viewBox="0 0 16 16" fill="none"><rect x="3" y="1.5" width="10" height="13" rx="1.6" stroke="#767c83" stroke-width="1.4"/><line x1="5.5" y1="5" x2="10.5" y2="5" stroke="#767c83" stroke-width="1.4"/><line x1="5.5" y1="8" x2="10.5" y2="8" stroke="#767c83" stroke-width="1.4"/></svg></span><div style="flex:1"><div style="font-size:13px;font-weight:500;color:#191c1f">Alertas de fraude · Q2</div><div style="font-size:11.5px;color:#9aa0a6">PDF · 180 KB · hace 6 días</div></div><span style="font-size:12.5px;color:#0b6f68;cursor:pointer">Descargar</span></div>
+            <div style="display:flex;align-items:center;gap:13px;padding:13px 0"><span style="width:34px;height:34px;border-radius:8px;background:#f2f1ea;display:flex;align-items:center;justify-content:center"><svg width="16" height="16" viewBox="0 0 16 16" fill="none"><rect x="3" y="1.5" width="10" height="13" rx="1.6" stroke="#767c83" stroke-width="1.4"/><line x1="5.5" y1="5" x2="10.5" y2="5" stroke="#767c83" stroke-width="1.4"/><line x1="5.5" y1="8" x2="10.5" y2="8" stroke="#767c83" stroke-width="1.4"/></svg></span><div style="flex:1"><div style="font-size:13px;font-weight:500;color:#191c1f">Productividad por analista · Mayo</div><div style="font-size:11.5px;color:#9aa0a6">Excel · 42 KB · hace 3 semanas</div></div><span style="font-size:12.5px;color:#0b6f68;cursor:pointer">Descargar</span></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<script>
+  /* ---------- shared chrome (logo, sidebars, portal headers) ---------- */
+  var LOGO = function (size, color) {
+    return '<svg width="' + size + '" height="' + size + '" viewBox="0 0 26 26" fill="none" style="flex:none"><circle cx="13" cy="14" r="8" stroke="' + color + '" stroke-width="2"/><circle cx="6" cy="20.5" r="2.3" stroke="' + color + '" stroke-width="2"/><g stroke="' + color + '" stroke-width="1.7" stroke-linecap="round"><line x1="20" y1="2.6" x2="20" y2="9.4"/><line x1="16.6" y1="6" x2="23.4" y2="6"/><line x1="17.6" y1="3.6" x2="22.4" y2="8.4"/><line x1="22.4" y1="3.6" x2="17.6" y2="8.4"/></g></svg>';
+  };
+
+  var NAVS = {
+    analista: {
+      items: [['bandeja', 'Bandeja', null], ['pendientes', 'Pendientes', '4']],
+      user: ['MG', 'María Gómez', 'Analista']
+    },
+    referente: {
+      items: [['usuarios', 'Usuarios', null], ['flujo', 'Config. del flujo', null], ['reglas', 'Reglas', null], ['dashboard', 'Dashboard', null], ['reportes', 'Reportes', null]],
+      user: ['CV', 'Carlos Vega', 'Referente']
+    }
+  };
+
+  document.querySelectorAll('aside.sidebar').forEach(function (a) {
+    var cfg = NAVS[a.dataset.nav], act = a.dataset.active;
+    var links = cfg.items.map(function (it) {
+      return '<a href="#/' + it[0] + '"' + (it[0] === act ? ' class="active"' : '') + '><span class="dot"></span>' + it[1] +
+        (it[2] ? '<span class="badge-count">' + it[2] + '</span>' : '') + '</a>';
+    }).join('');
+    a.innerHTML =
+      '<div style="display:flex;align-items:center;gap:9px;padding:0 6px">' + LOGO(22, '#fff') +
+      '<span style="font-size:18px;font-weight:700;color:#fff;letter-spacing:-.02em">Arbiter</span></div>' +
+      '<nav class="snav">' + links + '</nav>' +
+      '<div class="side-user"><span class="avatar">' + cfg.user[0] + '</span><div style="line-height:1.3"><div style="font-size:12.5px;color:#fff;font-weight:500">' + cfg.user[1] + '</div><div style="font-size:10.5px;color:#767c83">' + cfg.user[2] + '</div></div></div>';
+  });
+
+  document.querySelectorAll('header.p-head').forEach(function (h) {
+    var act = h.dataset.active;
+    h.innerHTML =
+      '<a href="#/denuncia" style="display:flex;align-items:center;gap:9px;text-decoration:none">' + LOGO(20, '#191c1f') +
+      '<span style="font-size:19px;font-weight:700;color:#191c1f;letter-spacing:-.02em">Arbiter</span></a>' +
+      '<nav class="p-nav">' +
+      '<a href="#/denuncia"' + (act === 'inicio' ? ' class="active"' : '') + '>Inicio</a>' +
+      '<a href="#/seguimiento"' + (act === 'exp' ? ' class="active"' : '') + '>Mis expedientes</a>' +
+      '<a>Ayuda</a></nav>';
+  });
+
+  /* ---------- router ---------- */
+  var SCREENS = {
+    login: 's-login', denuncia: 's-denuncia', documentacion: 's-documentacion', seguimiento: 's-seguimiento',
+    bandeja: 's-bandeja', pendientes: 's-pendientes', detalle: 's-detalle',
+    dashboard: 's-dashboard', usuarios: 's-usuarios', reglas: 's-reglas', flujo: 's-flujo', reportes: 's-reportes'
+  };
+  function go(route) { location.hash = '#/' + route; }
+  function routeTo() {
+    var r = (location.hash || '#/login').replace(/^#\/?/, '');
+    if (!SCREENS[r]) r = 'login';
+    document.querySelectorAll('.screen').forEach(function (s) {
+      s.classList.toggle('active', s.id === SCREENS[r]);
+    });
+    window.scrollTo(0, 0);
+  }
+  window.addEventListener('hashchange', routeTo);
+  routeTo();
+
+  /* ---------- login por rol ---------- */
+  var role = 'analista';
+  var HOME = { asegurado: 'denuncia', analista: 'bandeja', referente: 'dashboard' };
+  document.querySelectorAll('.role-chip').forEach(function (c) {
+    c.addEventListener('click', function () {
+      role = c.dataset.role;
+      document.querySelectorAll('.role-chip').forEach(function (x) { x.classList.toggle('active', x === c); });
+    });
+  });
+  function login() { go(HOME[role]); }
+
+  /* ---------- tabs del detalle ---------- */
+  function setTab(t) {
+    document.querySelectorAll('#s-detalle .tab').forEach(function (b) { b.classList.toggle('active', b.dataset.tab === t); });
+    document.querySelectorAll('#s-detalle .tabpanel').forEach(function (p) { p.hidden = p.dataset.tab !== t; });
+  }
+
+  /* ---------- toggles de reglas ---------- */
+  function toggleRule(btn) {
+    btn.classList.toggle('off');
+    btn.closest('.rule').classList.toggle('rule-off', btn.classList.contains('off'));
+  }
+</script>
+</body>
+</html>

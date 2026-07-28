@@ -7,27 +7,9 @@
   margin-bottom: var(--space-4);
 }
 
-table { width: 100%; border-collapse: collapse; font-size: var(--font-size-body); }
-th, td { text-align: left; padding: var(--space-3) var(--space-4); white-space: nowrap; }
-thead th {
-  font-size: var(--font-size-xs);
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
-  color: var(--text-muted);
-  background: var(--surface-head);
-  border-bottom: 1px solid var(--border-default);
-}
-tbody tr:not(:last-child) td { border-bottom: 1px solid var(--border-subtle); }
-
-.role-select {
-  font-size: var(--font-size-sm);
-  padding: var(--space-1) var(--space-2);
-  border: 1px solid var(--border-control);
-  border-radius: var(--radius-ctl);
-  background: var(--surface);
-  color: var(--text-secondary);
-}
-.role-select:disabled { opacity: 0.5; }
+/* El tratamiento visual y el estado deshabilitado los pone app-select; acá solo el ancho
+   para que la columna no se estire con el rol más largo. */
+.role-select { display: block; min-width: 200px; }
 
 .error { margin: 0 0 var(--space-3); color: var(--status-danger); font-size: var(--font-size-xs); }
 

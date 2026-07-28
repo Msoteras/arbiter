@@ -1,56 +1,69 @@
-<header class="page-head">
-  <h1 class="t-page-title">Mis expedientes</h1>
-</header>
-
-@if (needsIdentity()) {
-  <!-- Identificación provisoria: cuando se integre Auth0, esto desaparece
-       y la identidad sale del JWT. -->
-  <app-card heading="Identificate para ver tus expedientes">
-    <p class="t-body muted">
-      Ingresá tu número de documento o identificación de asegurado (el mismo que usaste
-      al registrar la denuncia).
-    </p>
-    <form class="identify-form" (submit)="$event.preventDefault(); identify()">
-      <app-input class="identify-input" [(value)]="identityInput" placeholder="Ej: 40.123.456" />
-      <app-button type="submit" [disabled]="!identityInput().trim()">Ingresar</app-button>
-    </form>
-  </app-card>
-} @else if (loading()) {
-  <app-card><p class="t-note">Cargando tus expedientes…</p></app-card>
-} @else if (hasError()) {
-  <app-card>
-    <p class="t-note">No se pudieron cargar tus expedientes. Probá de nuevo en unos minutos.</p>
-  </app-card>
-} @else if (isEmpty()) {
-  <app-card>
-    <p class="t-note">
-      No encontramos expedientes asociados a tu identificación.
-      <a routerLink="/new-claim">Registrá una denuncia</a> para abrir uno.
-    </p>
-  </app-card>
-} @else {
-  <ul class="case-list">
-    @for (c of cases(); track c.id) {
-      <li>
-        <a class="case-card" [routerLink]="['/portal/cases', c.id]">
-          <div class="case-head">
-            <span class="case-id mono">Expediente #{{ c.id }}</span>
-            @if (isFinal(c.status)) {
-              <app-badge variant="strong" [tone]="estadoTone(c.status)">{{ estadoLabel(c.status) }}</app-badge>
-            } @else {
-              <app-badge [tone]="estadoTone(c.status)">{{ estadoLabel(c.status) }}</app-badge>
-            }
-          </div>
-          <div class="case-fields">
-            <span>{{ c.branch }} · {{ c.insuredItem }}</span>
-            <span class="muted">Denunciado el {{ fechaDenuncia(c) }}</span>
-          </div>
-          <p class="case-next">
-            <span class="next-tag">Próximo paso</span>
-            {{ proximoPaso(c.status) }}
-          </p>
-        </a>
-      </li>
+<div class="portal">
+  <header class="portal-head">
+    <div class="portal-head-text">
+      <span class="t-section-label eyebrow">Portal del asegurado</span>
+      <h1 class="t-hero-title">Mis siniestros</h1>
+      @if (!needsIdentity() && !loading() && !hasError() && !isEmpty()) {
+        <p class="portal-sub">
+          {{ cases().length }} {{ cases().length === 1 ? 'siniestro' : 'siniestros' }} en curso
+        </p>
+      }
+    </div>
+    @if (!needsIdentity()) {
+      <app-button (click)="nuevaDenuncia()">+ Nueva denuncia</app-button>
     }
-  </ul>
-}
+  </header>
+
+  @if (needsIdentity()) {
+    <!-- Identificación provisoria: cuando se integre Auth0, esto desaparece
+         y la identidad sale del JWT. -->
+    <app-card class="identify-card" heading="Identificate para ver tus siniestros">
+      <p class="t-body muted">
+        Ingresá tu número de documento o identificación de asegurado (el mismo que usaste
+        al registrar la denuncia).
+      </p>
+      <form class="identify-form" (submit)="$event.preventDefault(); identify()">
+        <app-input class="identify-input" [(value)]="identityInput" placeholder="Ej: 40.123.456" />
+        <app-button type="submit" [disabled]="!identityInput().trim()">Ingresar</app-button>
+      </form>
+    </app-card>
+  } @else if (loading()) {
+    <app-card><p class="t-note">Cargando tus siniestros…</p></app-card>
+  } @else if (hasError()) {
+    <app-card>
+      <p class="t-note">No se pudieron cargar tus siniestros. Probá de nuevo en unos minutos.</p>
+    </app-card>
+  } @else if (isEmpty()) {
+    <app-card class="empty-card">
+      <p class="t-body">Todavía no tenés siniestros denunciados.</p>
+      <p class="t-note">Cuando denuncies un siniestro vas a poder seguirlo desde acá.</p>
+      <app-button (click)="nuevaDenuncia()">+ Registrar una denuncia</app-button>
+    </app-card>
+  } @else {
+    <ul class="case-list">
+      @for (c of cases(); track c.id) {
+        <li>
+          <a class="case-card" [routerLink]="['/portal/cases', c.id]">
+            <div class="case-head">
+              <span class="case-id mono">Siniestro #{{ c.id }}</span>
+              @if (isFinal(c.status)) {
+                <app-badge variant="strong" [tone]="estadoTone(c.status)">{{ estadoLabel(c.status) }}</app-badge>
+              } @else {
+                <app-badge [tone]="estadoTone(c.status)">{{ estadoLabel(c.status) }}</app-badge>
+              }
+            </div>
+            <div class="case-fields">
+              <span class="case-item">{{ c.branch }} · {{ c.insuredItem }}</span>
+              <span class="muted">Denunciado el {{ fechaDenuncia(c) }}</span>
+            </div>
+            <div class="case-next">
+              <span class="next-tag">Próximo paso</span>
+              <span class="next-text">{{ proximoPaso(c.status) }}</span>
+              <span class="next-arrow" aria-hidden="true">→</span>
+            </div>
+          </a>
+        </li>
+      }
+    </ul>
+  }
+</div>

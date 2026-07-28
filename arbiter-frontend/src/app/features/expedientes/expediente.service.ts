@@ -4,7 +4,7 @@ import { Observable } from 'rxjs';
 
 import { environment } from '../../../environments/environment';
 import { ExpedienteResponse } from '../../core/models/expediente';
-import { CaseDocumentResponse } from '../../core/models/case-document';
+import { CaseDocument } from '../../core/models/case-document';
 
 export interface CaseCreateRequest {
   branch: string;
@@ -110,19 +110,23 @@ export class ExpedienteService {
     return this.http.post<ExpedienteResponse>(`${this.baseUrl}/${caseId}/documents`, formData);
   }
 
+  /** Metadata de los adjuntos del expediente (sin el contenido). */
+  listDocuments(caseId: number): Observable<CaseDocument[]> {
+    return this.http.get<CaseDocument[]>(`${this.baseUrl}/${caseId}/documents`);
+  }
+
+  /**
+   * Contenido del adjunto. Va por HttpClient (y no por un <a href>) porque el endpoint
+   * exige el JWT: el authInterceptor solo alcanza a las requests del HttpClient, una
+   * navegación del browser saldría sin header y volvería 401.
+   */
+  downloadDocument(caseId: number, documentId: number): Observable<Blob> {
+    return this.http.get(`${this.baseUrl}/${caseId}/documents/${documentId}`, {
+      responseType: 'blob',
+    });
+  }
+
   recordAnalystDecision(caseId: number, request: AnalystDecisionRequest): Observable<{ status: string }> {
     return this.http.post<{ status: string }>(`${this.baseUrl}/${caseId}/decision`, request);
-  }
-
-  /** Metadata de los adjuntos del expediente (sin el binario) — usado para cruzar cada
-   * hallazgo del análisis forense con la imagen real que lo originó. */
-  listDocuments(caseId: number): Observable<CaseDocumentResponse[]> {
-    return this.http.get<CaseDocumentResponse[]>(`${this.baseUrl}/${caseId}/documents`);
-  }
-
-  /** Binario de un adjunto, como blob — para previsualizarlo con un object URL (el endpoint
-   * requiere JWT, así que no puede ser el `src` directo de un `<img>`). */
-  downloadDocumentBlob(caseId: number, documentId: number): Observable<Blob> {
-    return this.http.get(`${this.baseUrl}/${caseId}/documents/${documentId}`, { responseType: 'blob' });
   }
 }

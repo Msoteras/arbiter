@@ -7,12 +7,17 @@ import { ExpedienteService, CaseCreateRequest } from '../expediente.service';
 import { PolicyService } from '../policy.service';
 import { ExpedienteResponse } from '../../../core/models/expediente';
 import { Policy } from '../../../core/models/policy';
+import { CASE_DOCUMENT_TYPES } from '../../../core/models/case-document';
 import { InsuredSessionService } from '../../../core/auth/insured-session.service';
 import { ButtonComponent } from '../../../shared/ui/button/button.component';
+import { CardComponent } from '../../../shared/ui/card/card.component';
 import { InputComponent } from '../../../shared/ui/input/input.component';
 import { TextareaComponent } from '../../../shared/ui/textarea/textarea.component';
 import { SelectComponent, SelectOption } from '../../../shared/ui/select/select.component';
+import { FilePreviewComponent } from '../../../shared/ui/file-preview/file-preview.component';
+import { CheckboxComponent } from '../../../shared/ui/checkbox/checkbox.component';
 
+// Wizard de alta de denuncia (asegurado) — 3 pasos con catálogos en cascada.
 type Step = 1 | 2 | 3;
 
 // El tipo de hecho solo determina la causa (hecho generador). El ramo y el producto
@@ -37,7 +42,16 @@ type PoliciesState =
 
 @Component({
   selector: 'app-nueva-denuncia',
-  imports: [RouterLink, ButtonComponent, InputComponent, TextareaComponent, SelectComponent],
+  imports: [
+    RouterLink,
+    ButtonComponent,
+    CardComponent,
+    InputComponent,
+    TextareaComponent,
+    SelectComponent,
+    CheckboxComponent,
+    FilePreviewComponent,
+  ],
   changeDetection: ChangeDetectionStrategy.OnPush,
   templateUrl: './nueva-denuncia.component.html',
   styleUrl: './nueva-denuncia.component.scss',
@@ -123,12 +137,9 @@ export class NuevaDenunciaComponent {
   protected readonly step2Valid = computed(() => this.description().trim().length > 0);
 
   // Step 3
-  protected readonly docSlots = signal<DocSlot[]>([
-    { type: 'police_report', label: 'Denuncia policial', file: null },
-    { type: 'item_photo', label: 'Foto del bien', file: null },
-    { type: 'invoice', label: 'Factura de compra', file: null },
-    { type: 'quote', label: 'Presupuesto de reparación', file: null },
-  ]);
+  protected readonly docSlots = signal<DocSlot[]>(
+    CASE_DOCUMENT_TYPES.map(({ type, label }) => ({ type, label, file: null })),
+  );
 
   protected readonly docsCount = computed(() => this.docSlots().filter((d) => d.file).length);
 

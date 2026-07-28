@@ -39,6 +39,7 @@ export interface SelectOption {
         [attr.aria-expanded]="open()"
         [attr.aria-controls]="open() ? id + '-listbox' : null"
         [attr.aria-activedescendant]="open() ? id + '-opt-' + activeIndex() : null"
+        [disabled]="disabled()"
         (click)="toggle()"
         (keydown)="onKeydown($event)"
       >
@@ -91,7 +92,8 @@ export interface SelectOption {
       cursor: pointer;
     }
     .trigger:focus-visible,
-    .select.open .trigger { outline: none; border-color: var(--action-secondary-border-hover); }
+    .select.open .trigger { outline: none; border-color: var(--border-focus); box-shadow: var(--focus-ring); }
+    .trigger:disabled { cursor: default; opacity: 0.55; }
     .trigger-label {
       overflow: hidden;
       text-overflow: ellipsis;
@@ -154,6 +156,8 @@ export class SelectComponent {
   readonly value = model('');
   readonly options = input<SelectOption[]>([]);
   readonly placeholder = input('');
+  /** Bloquea la apertura (ej. mientras se guarda el cambio contra el backend). */
+  readonly disabled = input(false);
 
   protected readonly open = signal(false);
   protected readonly activeIndex = signal(0);
@@ -170,6 +174,7 @@ export class SelectComponent {
   );
 
   protected toggle(): void {
+    if (this.disabled()) return;
     if (this.open()) {
       this.open.set(false);
     } else {

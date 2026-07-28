@@ -1,17 +1,23 @@
 import { ChangeDetectionStrategy, Component, input } from '@angular/core';
 
-type Variant = 'default' | 'soft';
+type Variant = 'default' | 'soft' | 'ai';
 
 /**
- * Contenedor con borde + radio. `soft` (fondo tenue) se usa para las tarjetas de IA.
- * Cabecera opcional vía `heading` (+ `icon` opcional, ej. '✦' para sugerencias del modelo).
+ * Contenedor con borde + radio. `soft` = fondo tenue; `ai` = lavado teal para las
+ * tarjetas del modelo (sugerencias/recomendaciones, marcadas con ✦).
+ * Cabecera opcional vía `heading` (+ `icon` opcional, ej. '✦').
  * El cuerpo va como contenido proyectado.
  */
 @Component({
   selector: 'app-card',
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
-    <section class="card" [class.soft]="variant() === 'soft'" [class.flush]="flush()">
+    <section
+      class="card"
+      [class.soft]="variant() === 'soft'"
+      [class.ai]="variant() === 'ai'"
+      [class.flush]="flush()"
+    >
       @if (heading()) {
         <div class="card-head">
           @if (icon()) { <span class="icon" aria-hidden="true">{{ icon() }}</span> }
@@ -24,17 +30,27 @@ type Variant = 'default' | 'soft';
   styles: `
     :host { display: block; }
     .card {
-      border: 1px solid var(--border-control);
+      border: 1px solid var(--border-default);
       border-radius: var(--radius-card);
       background: var(--surface);
       padding: var(--space-4);
+      box-shadow: var(--shadow-card);
+      /* Llena la celda cuando el host se estira (grid/flex); en flujo normal es no-op. */
+      height: 100%;
     }
     .card.soft { background: var(--surface-soft); }
+    .card.ai { background: var(--surface-ai); border-color: var(--border-ai); }
+    /* Para cards que son un enlace (ej. la lista del portal). El host es el <a>: acá solo
+       se agrega la respuesta al hover, el resto del tratamiento ya lo da .card. */
+    :host(.interactive) .card { transition: background-color 0.1s, border-color 0.1s; }
+    :host(.interactive:hover) .card { background: var(--surface-soft); border-color: var(--border-strong); }
     /* Sin padding interno: para contenido que necesita llegar al borde (ej. una tabla). */
     .card.flush { padding: 0; overflow-x: auto; }
     .card.flush .card-head { margin: var(--space-4) var(--space-4) var(--space-3); }
     .card-head { display: flex; align-items: center; gap: var(--space-2); margin-bottom: var(--space-3); }
     .icon { color: var(--text-primary); }
+    .card.ai .card-head .icon { color: var(--accent-fg); }
+    .card.ai .card-head .card-title { color: var(--accent-fg); }
     .card-title {
       margin: 0;
       font-size: var(--font-size-xs);

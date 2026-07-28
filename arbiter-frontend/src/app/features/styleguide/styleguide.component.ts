@@ -12,6 +12,12 @@ import { SeverityLabelComponent } from '../../shared/ui/severity-label/severity-
 import { EmptyStateComponent } from '../../shared/ui/empty-state/empty-state.component';
 import { SelectComponent } from '../../shared/ui/select/select.component';
 import { PaginationComponent } from '../../shared/ui/pagination/pagination.component';
+import { TableComponent } from '../../shared/ui/table/table.component';
+import { CheckboxComponent } from '../../shared/ui/checkbox/checkbox.component';
+import { LogoComponent } from '../../shared/ui/logo/logo.component';
+import { FilePreviewComponent } from '../../shared/ui/file-preview/file-preview.component';
+import { StatusTimelineComponent } from '../../shared/ui/status-timeline/status-timeline.component';
+import { StatusTransition } from '../../core/models/expediente';
 
 interface Token {
   name: string;
@@ -52,6 +58,11 @@ interface Swatch {
     EmptyStateComponent,
     SelectComponent,
     PaginationComponent,
+    TableComponent,
+    CheckboxComponent,
+    LogoComponent,
+    FilePreviewComponent,
+    StatusTimelineComponent,
   ],
   template: `
     <div class="sg">
@@ -194,6 +205,19 @@ interface Swatch {
         </div>
       </section>
 
+      <section class="sg-block">
+        <h3 class="sg-h3">Logo</h3>
+        <p class="sg-p">
+          Isotipo (<span class="mono">app-logo</span>): hereda <span class="mono">currentColor</span>
+          y escala al ancho del host. Usado en el login y la shell.
+        </p>
+        <div class="row">
+          <app-logo class="sg-logo-sm" />
+          <app-logo class="sg-logo-md" />
+          <span class="sg-logo-dark"><app-logo class="sg-logo-md" /></span>
+        </div>
+      </section>
+
       <!-- ================= COMPONENTES ================= -->
       <h2 class="sg-h2">Componentes</h2>
 
@@ -228,8 +252,11 @@ interface Swatch {
           <app-card heading="Resumen del siniestro">
             <p class="sg-p">Contenido de la tarjeta.</p>
           </app-card>
-          <app-card variant="soft" icon="✦" heading="Clasificación sugerida">
-            <p class="sg-p">Variante <span class="mono">soft</span>, usada para IA.</p>
+          <app-card variant="soft" heading="Fondo tenue">
+            <p class="sg-p">Variante <span class="mono">soft</span>.</p>
+          </app-card>
+          <app-card variant="ai" icon="✦" heading="Recomendación del modelo">
+            <p class="sg-p">Variante <span class="mono">ai</span>: lavado teal para sugerencias del modelo.</p>
           </app-card>
           <app-card [flush]="true" heading="Sin padding">
             <p class="sg-p">Variante <span class="mono">flush</span>, para contenido que llega al borde (ej. una tabla).</p>
@@ -336,6 +363,99 @@ interface Swatch {
           <app-empty-state message="Listado de expedientes" />
         </div>
       </section>
+
+      <section class="sg-block">
+        <h3 class="sg-h3">Logo</h3>
+        <p class="sg-p">
+          El símbolo va en <span class="mono">currentColor</span>: una sola versión sirve para
+          fondo claro y oscuro. El tamaño se controla con <span class="mono">--logo-size</span>
+          y el texto escala con él. Los archivos originales del export están en
+          <span class="mono">public/brand/</span>.
+        </p>
+        <div class="row logos">
+          <app-logo />
+          <app-logo variant="symbol" />
+          <span class="logo-on-dark"><app-logo /></span>
+        </div>
+      </section>
+
+      <section class="sg-block">
+        <h3 class="sg-h3">Table</h3>
+        <p class="sg-p">
+          Solo aporta el look (header tenue en mayúsculas, filas separadas por borde). El
+          contenido se proyecta como <span class="mono">thead</span>/<span class="mono">tbody</span>
+          nativos. Va dentro de <span class="mono">app-card [flush]</span> para que llegue al borde.
+        </p>
+        <app-card [flush]="true">
+          <app-table>
+            <thead>
+              <tr><th>N°</th><th>Estado</th><th>Asegurado</th></tr>
+            </thead>
+            <tbody>
+              <tr><td class="mono">#1</td><td>Pendiente de revisión</td><td>Martina Soteras</td></tr>
+              <tr><td class="mono">#2</td><td>Falta documentación</td><td>Julián Pérez</td></tr>
+            </tbody>
+          </app-table>
+        </app-card>
+      </section>
+
+      <section class="sg-block">
+        <h3 class="sg-h3">Checkbox</h3>
+        <p class="sg-p">
+          Conserva el <span class="mono">&lt;input&gt;</span> nativo (foco por teclado y lectores
+          de pantalla salen gratis); el componente aporta tamaño, área de toque de 40px y la
+          etiqueta clickeable.
+        </p>
+        <div class="col narrow">
+          <app-checkbox [(checked)]="sampleCheckbox">
+            ¿Sos Persona Políticamente Expuesta (PEP)?
+          </app-checkbox>
+          <app-checkbox [checked]="true" [disabled]="true">Deshabilitado</app-checkbox>
+        </div>
+      </section>
+
+      <section class="sg-block">
+        <h3 class="sg-h3">Status timeline</h3>
+        <p class="sg-p">
+          Historial de estados del expediente. El último recibe el tono del estado actual.
+        </p>
+        <app-card>
+          <app-status-timeline [history]="sampleHistory" currentStatus="PENDING_ANALYST_REVIEW" />
+        </app-card>
+      </section>
+
+      <section class="sg-block">
+        <h3 class="sg-h3">File preview</h3>
+        <p class="sg-p">
+          Vista previa de un archivo elegido <em>antes</em> de subirlo — el
+          <span class="mono">File</span> ya está en memoria, no hay llamada al backend. Miniatura
+          + click para agrandar en línea. Elegí un JPG, PNG o PDF para probarlo:
+        </p>
+        <div class="col narrow">
+          <label class="sg-file-btn">
+            Elegir archivo
+            <input type="file" accept="image/*,.pdf" hidden (change)="onSampleFile($event)" />
+          </label>
+          @if (sampleFile(); as f) {
+            <app-file-preview [file]="f" />
+          }
+        </div>
+      </section>
+
+      <section class="sg-block">
+        <h3 class="sg-h3">Doc upload</h3>
+        <p class="sg-p">
+          Componente compuesto: los 4 slots de documentación de un expediente, con validación
+          (JPG/PNG/PDF, 10 MB), drag &amp; drop y vista previa de cada archivo. Al enviar hace
+          <span class="mono">POST /cases/&#123;id&#125;/documents</span>, que en el backend
+          <strong>re-dispara la clasificación</strong>.
+        </p>
+        <p class="sg-p">
+          No se muestra vivo acá a propósito: necesita un <span class="mono">caseId</span> real y
+          cualquier envío modificaría un expediente. Se ve en el detalle del expediente (cuando
+          falta documentación) y en el portal del asegurado.
+        </p>
+      </section>
     </div>
   `,
   styles: `
@@ -364,6 +484,27 @@ interface Swatch {
 
     .row { display: flex; gap: var(--space-3); flex-wrap: wrap; align-items: center; }
     .row.cards { align-items: stretch; }
+    .row.logos { gap: var(--space-6); }
+
+    /* Para verificar que el logo se banca fondo oscuro sin cargar la variante -white. */
+    .logo-on-dark {
+      display: inline-flex;
+      padding: var(--space-3) var(--space-4);
+      border-radius: var(--radius-ctl);
+      background: var(--accent);
+      color: var(--text-on-emphasis);
+    }
+
+    /* Mismo lenguaje que el label de archivo de app-doc-upload. */
+    .sg-file-btn {
+      align-self: flex-start;
+      font-size: var(--font-size-sm);
+      border: 1px solid var(--border-control);
+      border-radius: var(--radius-ctl);
+      padding: var(--space-2) var(--space-3);
+      cursor: pointer;
+    }
+    .sg-file-btn:hover { background: var(--surface-sunken); }
     .cards app-card { flex: 1 1 240px; }
     .col { display: flex; flex-direction: column; gap: var(--space-3); }
     .narrow { max-width: 340px; }
@@ -396,6 +537,10 @@ interface Swatch {
     .icon-conv { display: inline-flex; align-items: center; gap: var(--space-2); font-size: var(--font-size-body); color: var(--text-secondary); }
     .icon-conv .glyph { color: var(--text-primary); }
 
+    .sg-logo-sm { width: 28px; color: var(--text-primary); }
+    .sg-logo-md { width: 56px; color: var(--text-primary); }
+    .sg-logo-dark { display: inline-flex; padding: var(--space-3); border-radius: var(--radius-card); background: var(--brand-panel-bg); color: var(--text-on-emphasis); }
+
     /* Espaciado */
     .space-row { display: flex; align-items: center; gap: var(--space-3); padding: 3px 0; }
     .space-bar { display: block; height: 14px; background: var(--action-primary-bg); border-radius: 2px; }
@@ -424,14 +569,39 @@ export class StyleguideComponent {
     { value: 'APPROVED', label: 'Aprobado' },
   ];
   protected readonly samplePage = signal(2);
+  protected readonly sampleCheckbox = signal(false);
+
+  /** El archivo lo elige quien mira la página: no hay forma honesta de fabricar un File de ejemplo. */
+  protected readonly sampleFile = signal<File | null>(null);
+
+  protected readonly sampleHistory: StatusTransition[] = [
+    {
+      fromStatus: null,
+      toStatus: 'PENDING_CLASSIFICATION',
+      actor: 'INSURED',
+      reason: 'denuncia registrada',
+      changedAt: '2026-06-29T00:27:10Z',
+    },
+    {
+      fromStatus: 'PENDING_CLASSIFICATION',
+      toStatus: 'PENDING_ANALYST_REVIEW',
+      actor: 'SYSTEM',
+      reason: 'clasificación: PROCEDENTE',
+      changedAt: '2026-06-29T00:27:41Z',
+    },
+  ];
+
+  protected onSampleFile(event: Event): void {
+    this.sampleFile.set((event.target as HTMLInputElement).files?.[0] ?? null);
+  }
 
   /** Perillas de tema editables en vivo. Escriben sobre :root → re-tematizan todo. */
   protected readonly brandKnobs: Knob[] = [
-    { name: 'Acento (acción primaria)', v: '--accent', default: '#23262a' },
-    { name: 'Texto (ink)', v: '--c-ink', default: '#23262a' },
+    { name: 'Acento (estados activos)', v: '--accent', default: '#00a99d' },
+    { name: 'Texto (ink)', v: '--c-ink', default: '#191c1f' },
     { name: 'Fondo', v: '--c-bg', default: '#ffffff' },
-    { name: 'Fondo tenue', v: '--c-bg-soft', default: '#fafbfc' },
-    { name: 'Borde', v: '--c-border', default: '#e2e5e8' },
+    { name: 'Fondo tenue', v: '--c-bg-soft', default: '#fbfaf7' },
+    { name: 'Borde', v: '--c-border', default: '#e5e4dd' },
   ];
 
   protected readonly colors = signal<Record<string, string>>(
@@ -453,6 +623,7 @@ export class StyleguideComponent {
   protected readonly technicolor: Swatch[] = [
     { name: 'Verde', hex: '#00A99D', v: '--accent-green' },
     { name: 'Amarillo', hex: '#F2B705', v: '--accent-yellow' },
+    { name: 'Naranja', hex: '#E8632A', v: '--accent-orange' },
     { name: 'Rojo', hex: '#E63329', v: '--accent-red' },
     { name: 'Azul', hex: '#2E4A9E', v: '--accent-blue' },
   ];
@@ -503,6 +674,7 @@ export class StyleguideComponent {
       items: [
         { name: 'status-ok', v: '--status-ok' },
         { name: 'status-warning', v: '--status-warning' },
+        { name: 'status-risk', v: '--status-risk' },
         { name: 'status-danger', v: '--status-danger' },
         { name: 'status-info', v: '--status-info' },
       ],

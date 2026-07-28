@@ -5,6 +5,7 @@ import { HttpErrorResponse } from '@angular/common/http';
 import { catchError, combineLatest, map, of, startWith, switchMap } from 'rxjs';
 
 import { ExpedienteService, AnalystDecisionRequest } from '../expediente.service';
+import { CaseNavigationService } from '../case-navigation.service';
 import { ExpedienteResponse, StatusTransition } from '../../../core/models/expediente';
 import { clasificacionLabel, clasificacionTone } from '../../../core/models/clasificacion';
 import { estadoLabel, estadoSimplificadoLabel, estadoTone } from '../../../core/models/estado';
@@ -14,6 +15,7 @@ import { EmptyStateComponent } from '../../../shared/ui/empty-state/empty-state.
 import { StatusTimelineComponent } from '../../../shared/ui/status-timeline/status-timeline.component';
 import { DocUploadComponent } from '../../../shared/ui/doc-upload/doc-upload.component';
 import { ForensicAnalysisComponent } from './forensic-analysis/forensic-analysis.component';
+import { CaseDocumentsComponent } from '../case-documents/case-documents.component';
 import { CardComponent } from '../../../shared/ui/card/card.component';
 import { ButtonComponent } from '../../../shared/ui/button/button.component';
 import { BadgeComponent } from '../../../shared/ui/badge/badge.component';
@@ -40,6 +42,7 @@ interface FieldItem { label: string; value: string | null; mono?: boolean; full?
     StatusTimelineComponent,
     DocUploadComponent,
     ForensicAnalysisComponent,
+    CaseDocumentsComponent,
     CardComponent,
     ButtonComponent,
     BadgeComponent,
@@ -53,6 +56,7 @@ interface FieldItem { label: string; value: string | null; mono?: boolean; full?
 export class ExpedienteDetailComponent {
   private readonly route = inject(ActivatedRoute);
   private readonly service = inject(ExpedienteService);
+  private readonly caseNav = inject(CaseNavigationService);
 
   /** Bumped after a decision is recorded, to refetch the case and reflect the real backend status. */
   private readonly reloadTrigger = signal(0);
@@ -88,6 +92,15 @@ export class ExpedienteDetailComponent {
     const s = this.state();
     return s.status === 'error' && s.httpStatus === 404;
   });
+
+  // Anterior/siguiente según el orden de la bandeja (no por id correlativo). null cuando no hay
+  // vecino (borde de la lista) o cuando se entró por deep-link sin pasar por la bandeja.
+  protected readonly prevId = computed<number | null>(() =>
+    this.caseNav.neighbor(this.data()?.id, -1),
+  );
+  protected readonly nextId = computed<number | null>(() =>
+    this.caseNav.neighbor(this.data()?.id, 1),
+  );
 
   protected readonly statusLabel = computed(() => {
     const d = this.data();
@@ -256,6 +269,9 @@ export class ExpedienteDetailComponent {
   protected readonly needsDocs = computed(() =>
     this.data()?.analysisClassification === 'FALTA_DOCUMENTACION'
   );
+
+  /** La agenda documental es otra llamada al backend: se refresca con el mismo trigger. */
+  protected readonly docsReloadToken = computed(() => this.reloadTrigger());
 
   onDocsUploaded(): void {
     this.reloadTrigger.update((v) => v + 1);

@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="230" height="60" viewBox="0 0 230 60" fill="none">
+  <g transform="translate(6,6) scale(0.545)">
+  <defs>
+    <mask id="gap-lb">
+      <rect x="-10" y="-10" width="108" height="108" fill="white"></rect>
+      <circle cx="21" cy="67" r="13.5" fill="black"></circle>
+    </mask>
+  </defs>
+  <path d="M 55 12 A 34 34 0 1 0 76 33" stroke="#0a0a0a" stroke-width="4.5" stroke-linecap="butt" mask="url(#gap-lb)"></path>
+  <path d="M 60.0 14.0 A 34 34 0 0 1 73.4 27.0 M 70.0 9.8 L 65.2 29.2 M 77.2 16.8 L 58.0 22.3" stroke="#0a0a0a" stroke-width="4" fill="none" stroke-linecap="butt"></path>
+  <circle cx="21" cy="67" r="9" stroke="#0a0a0a" stroke-width="4.5" fill="none"></circle>
+  <circle cx="21" cy="67" r="3" fill="#0a0a0a"></circle>
+  </g>
+  <text x="66" y="40" font-family="Helvetica Neue, Helvetica, Arial, sans-serif" font-weight="500" font-size="28" letter-spacing="-0.3" fill="#0a0a0a">Arbiter</text>
+</svg>

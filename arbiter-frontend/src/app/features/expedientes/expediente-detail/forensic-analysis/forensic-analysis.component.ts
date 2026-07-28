@@ -105,7 +105,7 @@ export class ForensicAnalysisComponent implements OnDestroy {
             this.imageLoadFailed.update((m) => ({ ...m, [finding.label]: true }));
             continue;
           }
-          this.service.downloadDocumentBlob(caseId, doc.id).subscribe({
+          this.service.downloadDocument(caseId, doc.id).subscribe({
             next: (blob) => {
               const url = URL.createObjectURL(blob);
               this.activeObjectUrls.push(url);
@@ -141,7 +141,7 @@ export class ForensicAnalysisComponent implements OnDestroy {
               this.matchedImageLoadFailed.update((m) => ({ ...m, [key]: true }));
               return;
             }
-            this.service.downloadDocumentBlob(match.matchedCaseId, doc.id).subscribe({
+            this.service.downloadDocument(match.matchedCaseId, doc.id).subscribe({
               next: (blob) => {
                 const url = URL.createObjectURL(blob);
                 this.activeObjectUrls.push(url);

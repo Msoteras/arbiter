@@ -1,7 +1,25 @@
 <div class="bandeja">
-  <h1 class="t-page-title title">Bandeja de expedientes</h1>
+  <header class="bandeja-head">
+    <div class="bandeja-head-text">
+      <h1 class="t-page-title">Bandeja de expedientes</h1>
+      @if (!loading() && !hasError()) {
+        <p class="bandeja-sub">
+          {{ totalElements() }} {{ totalElements() === 1 ? 'expediente' : 'expedientes' }}
+          @if (hasActiveFilters()) { · filtrados }
+        </p>
+      }
+    </div>
+    <app-button variant="secondary" [disabled]="exportingCsv() || isEmpty()" (click)="exportCsv()">
+      <span class="btn-with-icon">
+        <svg width="15" height="15" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+          <path d="M8 2v8m0 0 3-3m-3 3L5 7M3 13h10" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" />
+        </svg>
+        {{ exportingCsv() ? 'Exportando…' : 'Exportar CSV' }}
+      </span>
+    </app-button>
+  </header>
 
-  <app-card>
+  <app-card class="filters-card">
     <div class="filters">
       <label class="filter-field">
         <span class="t-field-label">Estado</span>
@@ -55,10 +73,6 @@
       <app-button variant="secondary" [disabled]="!hasActiveFilters()" (click)="clearFilters()">
         Limpiar filtros
       </app-button>
-
-      <app-button variant="secondary" [disabled]="exportingCsv() || isEmpty()" (click)="exportCsv()">
-        {{ exportingCsv() ? 'Exportando…' : 'Exportar CSV' }}
-      </app-button>
     </div>
   </app-card>
 
@@ -82,13 +96,18 @@
       </p>
     </app-card>
   } @else {
-    <app-card [flush]="true">
+    <app-card [flush]="true" class="table-card">
       <table>
         <thead>
           <tr>
             @for (col of columns; track col.field) {
               <th>
-                <button type="button" class="sort-btn" (click)="toggleSort(col.field)">
+                <button
+                  type="button"
+                  class="sort-btn"
+                  [class.is-sorted]="sortField() === col.field"
+                  (click)="toggleSort(col.field)"
+                >
                   {{ col.label }}
                   @if (sortField() === col.field) {
                     <span class="sort-arrow" aria-hidden="true">{{ sortDir() === 'asc' ? '↑' : '↓' }}</span>
@@ -112,7 +131,7 @@
               </td>
               <td>{{ c.claimCause }}</td>
               <td>{{ formatDate(c.eventDate) }}</td>
-              <td class="mono">{{ formatAmount(c.claimedAmount) }}</td>
+              <td class="mono num">{{ formatAmount(c.claimedAmount) }}</td>
               <td><app-fraud-gauge [band]="riskGaugeBand(c)" /></td>
               <td>
                 @if (c.analysisClassification) {

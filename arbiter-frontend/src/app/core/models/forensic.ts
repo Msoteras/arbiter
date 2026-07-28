@@ -28,7 +28,7 @@ export interface ImageForensicFinding {
   /**
    * OJO: pese al nombre, hoy el backend manda acá el `type` del documento (ej.
    * "item_photo"), no el nombre de archivo original — AttachmentDocument no
-   * lo tiene. Es el mismo string que `CaseDocumentResponse.type`, así se
+   * lo tiene. Es el mismo string que `CaseDocument.type`, así se
    * cruza cada finding con su adjunto real (ver ForensicAnalysisComponent).
    */
   filename: string;
@@ -92,7 +92,7 @@ export function forensicFindingIsClean(finding: ImageForensicFinding): boolean {
  * `ImageFraudAnalysisService` con formato `tipo-índice` (ej. "item_photo-0") — porque
  * `ImageEmbeddingService.processAndFindDuplicates` recibe ese mismo label como
  * `originalFilename`. Esta función aproxima el `type` real quitando el sufijo `-N` final,
- * para poder cruzarlo contra `CaseDocumentResponse.type` del siniestro coincidente.
+ * para poder cruzarlo contra `CaseDocument.type` del siniestro coincidente.
  */
 export function typeFromMatchedFilename(matchedFilename: string): string {
   return matchedFilename.replace(/-\d+$/, '');
