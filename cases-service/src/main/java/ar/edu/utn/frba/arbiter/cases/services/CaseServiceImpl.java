@@ -53,6 +53,7 @@ public class CaseServiceImpl implements CaseService {
                 .eventLocation(request.eventLocation())
                 .claimedAmount(request.claimedAmount())
                 .pep(Boolean.TRUE.equals(request.pep()))
+                .imageConsent(Boolean.TRUE.equals(request.imageConsent()))
                 .contactEmail(request.contactEmail())
                 .contactPhone(request.contactPhone())
                 .status(CaseStatus.PENDING_CLASSIFICATION)
@@ -93,11 +94,24 @@ public class CaseServiceImpl implements CaseService {
     }
 
     /** Persists each uploaded document, replacing any prior document of the same type. */
+    /**
+     * "case" is a reserved key: the frontend sends the case JSON payload itself as a Blob under
+     * that same multipart field name (see ExpedienteService.create), and Spring's {@code
+     * Map<String, MultipartFile>} binding picks it up alongside the real documents. It's not a
+     * document — filtering it out here keeps it out of case_documents (and out of what gets
+     * forwarded to classification-service's OCR, which would otherwise try to read the JSON bytes
+     * as an image and fail with "Failed to load image or audio file").
+     */
+    private static final String CASE_PAYLOAD_KEY = "case";
+
     private void storeDocuments(Long caseId, Map<String, MultipartFile> documents) {
         if (documents == null) {
             return;
         }
         documents.forEach((type, file) -> {
+            if (CASE_PAYLOAD_KEY.equals(type)) {
+                return;
+            }
             byte[] content;
             try {
                 content = file.getBytes();
@@ -200,6 +214,7 @@ public class CaseServiceImpl implements CaseService {
                 entity.getRiskScore(),
                 entity.getRiskBand(),
                 entity.getRiskBreakdown(),
+                entity.getForensicReport(),
                 entity.getCreatedAt(),
                 entity.getUpdatedAt(),
                 history

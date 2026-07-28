@@ -132,6 +132,12 @@ export class NuevaDenunciaComponent {
 
   protected readonly docsCount = computed(() => this.docSlots().filter((d) => d.file).length);
 
+  // Consentimiento para enviar las imágenes a un proveedor externo de verificación
+  // antifraude (H0009 / docs/frontend-analisis-forense.md). A diferencia de PEP, este
+  // consentimiento tiene que ser LIBRE (Ley 25.326, transferencia internacional de datos):
+  // negarse NO puede impedir la denuncia — por eso no gatea "Enviar denuncia".
+  protected readonly imageConsent = signal(false);
+
   selectType(t: ClaimType): void {
     this.selectedType.set(t);
   }
@@ -202,6 +208,7 @@ export class NuevaDenunciaComponent {
       eventLocation: this.buildEventLocation(),
       claimedAmount: this.claimedAmount() ? Number(this.claimedAmount()) : undefined,
       pep: this.pep(),
+      imageConsent: this.imageConsent(),
       contactEmail: this.contactEmail() || undefined,
       contactPhone: this.contactPhone() || undefined,
     };

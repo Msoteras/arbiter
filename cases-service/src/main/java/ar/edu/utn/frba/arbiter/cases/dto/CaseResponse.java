@@ -1,5 +1,6 @@
 package ar.edu.utn.frba.arbiter.cases.dto;
 
+import ar.edu.utn.frba.arbiter.common.dto.ImageForensicReport;
 import ar.edu.utn.frba.arbiter.common.dto.RiskBreakdownItem;
 import ar.edu.utn.frba.arbiter.common.enums.CaseStatus;
 import ar.edu.utn.frba.arbiter.common.enums.Classification;
@@ -14,6 +15,10 @@ import java.util.List;
  * Expediente detail read model. The risk fields are the cached parallel fraud score: {@code
  * riskScore} and {@code riskBand} are {@code null} when the claim wasn't scored ("sin scorear"),
  * which the fraud-gauge renders as "Sin datos" — distinct from a real {@code LOW}.
+ *
+ * <p>{@code forensicReport} carries the cached structured image-fraud analysis for the analyst's
+ * forensic tab (H0009) — analyst-only, never shown to the insured. Null when no analysis ran
+ * (Fast Track, or a case with no image attachments).
  */
 public record CaseResponse(
         Long id,
@@ -36,6 +41,7 @@ public record CaseResponse(
         Double riskScore,
         RiskBand riskBand,
         List<RiskBreakdownItem> riskBreakdown,
+        ImageForensicReport forensicReport,
         Instant createdAt,
         Instant updatedAt,
         /** Full transition trail with timestamps; null on list endpoints (only GET /{id} loads it). */

@@ -1,4 +1,5 @@
 import { Clasificacion } from './clasificacion';
+import { ImageForensicReport } from './forensic';
 
 // Espejo de StatusTransitionResponse del cases-service.
 // `fromStatus` es null en la fila de creación del expediente.
@@ -27,6 +28,11 @@ export interface ExpedienteResponse {
   eventLocation: string;
   claimedAmount: number | null;
   riskBand: 'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL' | null;
+  /**
+   * Análisis forense de imágenes (H0009), analista-only. Null cuando no corrió
+   * (Fast Track o expediente sin adjuntos de imagen).
+   */
+  forensicReport: ImageForensicReport | null;
   analysisClassification: Clasificacion | string;
   analysisConfidence: number;
   analysisDetail: string;

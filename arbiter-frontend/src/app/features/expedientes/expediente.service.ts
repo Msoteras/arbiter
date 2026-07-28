@@ -4,6 +4,7 @@ import { Observable } from 'rxjs';
 
 import { environment } from '../../../environments/environment';
 import { ExpedienteResponse } from '../../core/models/expediente';
+import { CaseDocumentResponse } from '../../core/models/case-document';
 
 export interface CaseCreateRequest {
   branch: string;
@@ -17,6 +18,7 @@ export interface CaseCreateRequest {
   eventLocation: string;
   claimedAmount?: number;
   pep: boolean;
+  imageConsent: boolean;
   contactEmail?: string;
   contactPhone?: string;
 }
@@ -110,5 +112,17 @@ export class ExpedienteService {
 
   recordAnalystDecision(caseId: number, request: AnalystDecisionRequest): Observable<{ status: string }> {
     return this.http.post<{ status: string }>(`${this.baseUrl}/${caseId}/decision`, request);
+  }
+
+  /** Metadata de los adjuntos del expediente (sin el binario) — usado para cruzar cada
+   * hallazgo del análisis forense con la imagen real que lo originó. */
+  listDocuments(caseId: number): Observable<CaseDocumentResponse[]> {
+    return this.http.get<CaseDocumentResponse[]>(`${this.baseUrl}/${caseId}/documents`);
+  }
+
+  /** Binario de un adjunto, como blob — para previsualizarlo con un object URL (el endpoint
+   * requiere JWT, así que no puede ser el `src` directo de un `<img>`). */
+  downloadDocumentBlob(caseId: number, documentId: number): Observable<Blob> {
+    return this.http.get(`${this.baseUrl}/${caseId}/documents/${documentId}`, { responseType: 'blob' });
   }
 }

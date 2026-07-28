@@ -71,7 +71,8 @@ class CaseSecurityTest extends AbstractPersistenceIT {
                   "description": "Me robaron el celular",
                   "eventDate": "2026-06-13T19:45:00",
                   "eventLocation": "CABA",
-                  "pep": false
+                  "pep": false,
+                  "imageConsent": false
                 }
                 """.getBytes()
         );

@@ -12,6 +12,7 @@ import ar.edu.utn.frba.arbiter.cases.models.entities.CaseStatusHistory;
 import ar.edu.utn.frba.arbiter.cases.models.entities.StatusChangeActor;
 import ar.edu.utn.frba.arbiter.cases.models.repositories.CaseDocumentRepository;
 import ar.edu.utn.frba.arbiter.cases.models.repositories.CaseRepository;
+import ar.edu.utn.frba.arbiter.common.dto.ImageForensicReport;
 import ar.edu.utn.frba.arbiter.common.enums.CaseStatus;
 import ar.edu.utn.frba.arbiter.common.enums.Classification;
 import ar.edu.utn.frba.arbiter.common.enums.RiskBand;
@@ -106,6 +107,33 @@ class CaseServiceImplTest {
     }
 
     @Test
+    void createCase_persistsImageConsent() {
+        CaseRequest request = new CaseRequest(
+                "Celulares", "Celular Protegido Básico", "Robo en vía pública",
+                "Motorola Edge 50 Pro", "40.123.456", "POL-CEL-2024-001",
+                "Me robaron el celular en la estación de subte",
+                LocalDateTime.of(2026, 6, 13, 19, 45), "Estación Congreso, CABA",
+                new BigDecimal("150000"),
+                false,
+                true, // imageConsent: el asegurado aceptó el análisis forense de sus imágenes (H0009)
+                "test@example.com", "11-5555-0000"
+        );
+        when(caseRepository.save(any(Case.class))).thenAnswer(inv -> {
+            Case e = inv.getArgument(0);
+            e.setId(1L);
+            return e;
+        });
+        when(claimsAnalysisClient.analyzeAndPersist(any(), any()))
+                .thenReturn(new AnalysisResult(null, 0.0, "in progress"));
+
+        caseService.createCase(request, null);
+
+        ArgumentCaptor<Case> captor = ArgumentCaptor.forClass(Case.class);
+        verify(caseRepository).save(captor.capture());
+        assertThat(captor.getValue().isImageConsent()).isTrue();
+    }
+
+    @Test
     void getCase_returnsResponse() {
         Case entity = caseRecord(1L, CaseStatus.PENDING_ANALYST_REVIEW);
         entity.setAnalysisClassification(Classification.FAST_TRACK);
@@ -120,6 +148,27 @@ class CaseServiceImplTest {
         assertThat(response.analysisClassification()).isEqualTo(Classification.FAST_TRACK);
         assertThat(response.analysisConfidence()).isEqualTo(1.0);
         assertThat(response.analysisDetail()).isEqualTo("Low amount, first claim");
+    }
+
+    @Test
+    void getCase_includesCachedForensicReport() {
+        ImageForensicReport.InternalMatch match =
+                new ImageForensicReport.InternalMatch(4L, "item_photo", 0.97);
+        ImageForensicReport.ImageFinding finding =
+                new ImageForensicReport.ImageFinding("item_photo-0", "item_photo", List.of(match), null);
+        ImageForensicReport report = new ImageForensicReport(1, 0, List.of(finding));
+
+        Case entity = caseRecord(1L, CaseStatus.PENDING_ANALYST_REVIEW);
+        entity.setForensicReport(report);
+        when(caseRepository.findById(1L)).thenReturn(Optional.of(entity));
+
+        CaseResponse response = caseService.getCase(1L);
+
+        assertThat(response.forensicReport()).isNotNull();
+        assertThat(response.forensicReport().imagesAnalyzed()).isEqualTo(1);
+        assertThat(response.forensicReport().findings()).hasSize(1);
+        assertThat(response.forensicReport().findings().get(0).internalMatches())
+                .containsExactly(match);
     }
 
     @Test
@@ -380,6 +429,33 @@ class CaseServiceImplTest {
     }
 
     @Test
+    void createCase_withDocuments_ignoresCasePayloadKey() {
+        // The frontend sends the case JSON itself as a Blob under the "case" multipart key
+        // (see ExpedienteService.create), and Spring's Map<String, MultipartFile> binding picks
+        // it up alongside the real documents. It must never be persisted as a document — if it
+        // were, it'd travel to classification-service's OCR step, which tries to read every
+        // non-PDF attachment as an image and fails ("Failed to load image or audio file").
+        CaseRequest request = caseRequest();
+        Case saved = caseRecord(1L, CaseStatus.PENDING_CLASSIFICATION);
+        when(caseRepository.save(any(Case.class))).thenReturn(saved);
+        when(caseDocumentRepository.findByCaseIdAndType(eq(1L), any())).thenReturn(Optional.empty());
+        when(caseDocumentRepository.findByCaseId(1L)).thenReturn(List.of());
+        when(claimsAnalysisClient.analyzeAndPersist(any(), any()))
+                .thenReturn(new AnalysisResult(null, 0.0, "in progress"));
+
+        MockMultipartFile casePayload = new MockMultipartFile(
+                "case", "blob", "application/json", "{\"branch\":\"Celulares\"}".getBytes());
+        MockMultipartFile photo = new MockMultipartFile(
+                "item_photo", "foto.png", "image/png", "png-bytes".getBytes());
+
+        caseService.createCase(request, Map.of("case", casePayload, "item_photo", photo));
+
+        ArgumentCaptor<CaseDocument> captor = ArgumentCaptor.forClass(CaseDocument.class);
+        verify(caseDocumentRepository).save(captor.capture());
+        assertThat(captor.getValue().getType()).isEqualTo("item_photo");
+    }
+
+    @Test
     void addDocuments_replacesDocumentOfSameType() {
         Case entity = caseRecord(1L, CaseStatus.PENDING_ANALYST_REVIEW);
         CaseDocument existing = CaseDocument.builder()
@@ -417,6 +493,7 @@ class CaseServiceImplTest {
                 LocalDateTime.of(2026, 6, 13, 19, 45),
                 "Estación Congreso, CABA",
                 new BigDecimal("150000"),
+                false,
                 false,
                 "test@example.com",
                 "11-5555-0000"
