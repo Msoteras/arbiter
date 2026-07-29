@@ -9,14 +9,19 @@
         </p>
       }
     </div>
-    <app-button variant="secondary" [disabled]="exportingCsv() || isEmpty()" (click)="exportCsv()">
+    <app-menu-button
+      [items]="exportOptions"
+      [disabled]="exporting() || isEmpty()"
+      align="end"
+      (itemSelected)="exportAs($event)"
+    >
       <span class="btn-with-icon">
         <svg width="15" height="15" viewBox="0 0 16 16" fill="none" aria-hidden="true">
           <path d="M8 2v8m0 0 3-3m-3 3L5 7M3 13h10" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" />
         </svg>
-        {{ exportingCsv() ? 'Exportando…' : 'Exportar CSV' }}
+        {{ exporting() ? 'Exportando…' : 'Exportar' }}
       </span>
-    </app-button>
+    </app-menu-button>
   </header>
 
   <app-card class="filters-card">

@@ -17,6 +17,7 @@ import { CheckboxComponent } from '../../shared/ui/checkbox/checkbox.component';
 import { LogoComponent } from '../../shared/ui/logo/logo.component';
 import { FilePreviewComponent } from '../../shared/ui/file-preview/file-preview.component';
 import { StatusTimelineComponent } from '../../shared/ui/status-timeline/status-timeline.component';
+import { MenuButtonComponent, MenuItem } from '../../shared/ui/menu-button/menu-button.component';
 import { StatusTransition } from '../../core/models/expediente';
 
 interface Token {
@@ -63,6 +64,7 @@ interface Swatch {
     LogoComponent,
     FilePreviewComponent,
     StatusTimelineComponent,
+    MenuButtonComponent,
   ],
   template: `
     <div class="sg">
@@ -286,6 +288,23 @@ interface Swatch {
             [options]="sampleSelectOptions"
             placeholder="Todos los estados"
           />
+        </div>
+      </section>
+
+      <section class="sg-block">
+        <h3 class="sg-h3">Menu button</h3>
+        <p class="sg-p">
+          Botón con menú desplegable (ej. "Exportar" en la bandeja de expedientes: CSV / XLSX).
+          Mismo trigger que <span class="mono">app-button</span>; el panel usa el tratamiento
+          visual de <span class="mono">app-select</span>.
+        </p>
+        <div class="row">
+          <app-menu-button [items]="sampleMenuItems" (itemSelected)="onSampleMenuSelect($event)">
+            Exportar
+          </app-menu-button>
+          @if (sampleMenuChoice(); as choice) {
+            <span class="t-note">Elegiste: <span class="mono">{{ choice }}</span></span>
+          }
         </div>
       </section>
 
@@ -570,6 +589,15 @@ export class StyleguideComponent {
   ];
   protected readonly samplePage = signal(2);
   protected readonly sampleCheckbox = signal(false);
+  protected readonly sampleMenuItems: MenuItem[] = [
+    { value: 'csv', label: 'CSV (.csv)' },
+    { value: 'xlsx', label: 'Excel (.xlsx)' },
+  ];
+  protected readonly sampleMenuChoice = signal('');
+
+  protected onSampleMenuSelect(value: string): void {
+    this.sampleMenuChoice.set(value);
+  }
 
   /** El archivo lo elige quien mira la página: no hay forma honesta de fabricar un File de ejemplo. */
   protected readonly sampleFile = signal<File | null>(null);

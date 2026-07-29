@@ -12,6 +12,7 @@ import {
   startWith,
   switchMap,
 } from 'rxjs';
+import * as XLSX from 'xlsx';
 
 import { ExpedienteService, ExpedienteListParams } from '../expediente.service';
 import { CaseNavigationService } from '../case-navigation.service';
@@ -27,6 +28,7 @@ import { SelectComponent, SelectOption } from '../../../shared/ui/select/select.
 import { PaginationComponent } from '../../../shared/ui/pagination/pagination.component';
 import { FraudGaugeComponent } from '../../../shared/ui/fraud-gauge/fraud-gauge.component';
 import { TableComponent } from '../../../shared/ui/table/table.component';
+import { MenuButtonComponent, MenuItem } from '../../../shared/ui/menu-button/menu-button.component';
 
 // Campos por los que GET /api/v1/cases acepta ordenar (propiedades reales de la entidad Case
 // en cases-service — Spring Data ordena por propiedad JPA, no por nombre de columna SQL).
@@ -63,6 +65,7 @@ type LoadState =
     PaginationComponent,
     FraudGaugeComponent,
     TableComponent,
+    MenuButtonComponent,
   ],
   changeDetection: ChangeDetectionStrategy.OnPush,
   templateUrl: './bandeja.component.html',
@@ -332,10 +335,15 @@ export class BandejaComponent {
     return c.insuredId;
   }
 
-  // ───────────────── Exportar CSV ─────────────────
-  protected readonly exportingCsv = signal(false);
+  // ───────────────── Exportar (CSV / XLSX) ─────────────────
+  protected readonly exporting = signal(false);
 
-  private static readonly CSV_HEADER = [
+  protected readonly exportOptions: MenuItem[] = [
+    { value: 'csv', label: 'CSV (.csv)' },
+    { value: 'xlsx', label: 'Excel (.xlsx)' },
+  ];
+
+  private static readonly EXPORT_HEADER = [
     'N°',
     'Estado',
     'Asegurado',
@@ -352,21 +360,25 @@ export class BandejaComponent {
    * pagina en secuencia con un tamaño grande hasta agotar totalPages, ignorando la paginación de
    * la tabla. Respeta filtros + orden vigentes; ignora page/size de la vista.
    */
-  protected exportCsv(): void {
-    if (this.exportingCsv()) {
+  protected exportAs(format: string): void {
+    if (this.exporting()) {
       return;
     }
-    this.exportingCsv.set(true);
+    this.exporting.set(true);
 
     const params: ExpedienteListParams = { ...this.activeFilters(), size: 200 };
 
     this.fetchAllPages(params, 0, []).subscribe({
       next: (rows) => {
-        this.downloadCsv(rows);
-        this.exportingCsv.set(false);
+        if (format === 'xlsx') {
+          this.downloadXlsx(rows);
+        } else {
+          this.downloadCsv(rows);
+        }
+        this.exporting.set(false);
       },
       error: () => {
-        this.exportingCsv.set(false);
+        this.exporting.set(false);
       },
     });
   }
@@ -388,22 +400,37 @@ export class BandejaComponent {
 
   private downloadCsv(rows: ExpedienteResponse[]): void {
     const lines = [
-      BandejaComponent.CSV_HEADER.join(','),
-      ...rows.map((r) => this.toCsvRow(r)),
+      BandejaComponent.EXPORT_HEADER.join(','),
+      ...rows.map((r) => this.toRowCells(r).map((v) => this.csvEscape(v)).join(',')),
     ];
     // BOM al inicio para que Excel abra el UTF-8 sin desarmar tildes/ñ.
     const blob = new Blob(['﻿' + lines.join('\r\n')], { type: 'text/csv;charset=utf-8;' });
-    const url = URL.createObjectURL(blob);
+    this.download(blob, 'csv');
+  }
 
+  private downloadXlsx(rows: ExpedienteResponse[]): void {
+    const aoa = [BandejaComponent.EXPORT_HEADER, ...rows.map((r) => this.toRowCells(r))];
+    const sheet = XLSX.utils.aoa_to_sheet(aoa);
+    const book = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(book, sheet, 'Expedientes');
+    const buffer: ArrayBuffer = XLSX.write(book, { type: 'array', bookType: 'xlsx' });
+    const blob = new Blob([buffer], {
+      type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    });
+    this.download(blob, 'xlsx');
+  }
+
+  private download(blob: Blob, extension: string): void {
+    const url = URL.createObjectURL(blob);
     const link = this.document.createElement('a');
     link.href = url;
-    link.download = `expedientes-${this.timestampForFilename()}.csv`;
+    link.download = `expedientes-${this.timestampForFilename()}.${extension}`;
     link.click();
     URL.revokeObjectURL(url);
   }
 
-  private toCsvRow(c: ExpedienteResponse): string {
-    const cells = [
+  private toRowCells(c: ExpedienteResponse): string[] {
+    return [
       String(c.id),
       estadoLabel(c.status),
       this.displayInsured(c),
@@ -414,7 +441,6 @@ export class BandejaComponent {
       this.riskBandLabel(c.riskBand),
       c.analysisClassification ? clasificacionLabel(c.analysisClassification) : '',
     ];
-    return cells.map((v) => this.csvEscape(v)).join(',');
   }
 
   private riskBandLabel(band: string | null): string {
