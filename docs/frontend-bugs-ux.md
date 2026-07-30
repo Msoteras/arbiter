@@ -207,10 +207,39 @@ Contexto: Del lado del analista se pueden ver las imagenes que los asegurados ca
 
 ---
 
+## 13. El analista ve el formulario de carga de archivos como si fuera el asegurado
+
+**Archivos:** [`expediente-detail.component.html:117-122`](../arbiter-frontend/src/app/features/expedientes/expediente-detail/expediente-detail.component.html), [`expediente-detail.component.ts:269-271`](../arbiter-frontend/src/app/features/expedientes/expediente-detail/expediente-detail.component.ts)
+
+Confirmado con el código exacto. Cuando un expediente tiene clasificación "Falta documentación", la pantalla de detalle del **analista** renderiza el mismo componente de carga que usa el **asegurado** en `portal/documentacion`:
+
+```html
+@if (needsDocs()) {
+  <app-card class="missing-docs-card" heading="⚠ Falta documentación">
+    <app-doc-upload [caseId]="d.id" (uploaded)="onDocsUploaded()" />
+  </app-card>
+}
+```
+
+```ts
+protected readonly needsDocs = computed(() =>
+  this.data()?.analysisClassification === 'FALTA_DOCUMENTACION'
+);
+```
+
+`needsDocs()` solo mira la clasificación del caso — **cero chequeo de rol**. `app-doc-upload` es el mismo componente reusado tal cual entre las dos pantallas. El resultado: cualquier analista que abre un expediente en ese estado ve un formulario de carga de archivos activo y funcional, como si él tuviera que adjuntar la documentación del asegurado.
+
+No es solo un problema de UX confusa — es un problema de integridad: el analista **no debería poder subir documentación en nombre del asegurado**. Rompe la trazabilidad de quién adjuntó qué, y no tiene sentido que quien revisa sea quien carga.
+
+**Fix sugerido:** sacar `app-doc-upload` de la vista del analista. En su lugar, mostrar un estado de **solo lectura** — qué documentos faltan según la agenda documental, y que ya se le notificó al asegurado — sin ninguna acción de carga disponible para el rol analista.
+
+---
+
 ## Resumen para priorizar
 
 | # | Ítem | Severidad | Esfuerzo estimado |
 |---|------|-----------|--------------------|
+| 13 | Analista puede subir documentación como si fuera el asegurado | 🔴 Alta — rompe integridad/trazabilidad | Bajo (sacar el componente reusado) |
 | 9 | Paginación: buscador no resetea página | 🔴 Alta — datos incorrectos visibles | Bajo (1 línea) |
 | 10 | Seguimiento retrocede tras subir documentación | 🔴 Alta — mala experiencia, parece bug grave | Medio |
 | 2 | Mensaje de error genérico en login | 🟠 Media | Bajo |
