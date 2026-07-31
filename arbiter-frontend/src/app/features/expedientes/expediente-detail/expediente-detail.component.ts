@@ -7,13 +7,13 @@ import { catchError, combineLatest, map, of, startWith, switchMap } from 'rxjs';
 import { ExpedienteService, AnalystDecisionRequest } from '../expediente.service';
 import { CaseNavigationService } from '../case-navigation.service';
 import { ExpedienteResponse, StatusTransition } from '../../../core/models/expediente';
+import { CASE_DOCUMENT_TYPES, CaseDocument } from '../../../core/models/case-document';
 import { clasificacionLabel, clasificacionTone } from '../../../core/models/clasificacion';
 import { estadoLabel, estadoSimplificadoLabel, estadoTone } from '../../../core/models/estado';
 import { StatusTone } from '../../../core/models/status-tone';
 import { FraudGaugeComponent } from '../../../shared/ui/fraud-gauge/fraud-gauge.component';
 import { EmptyStateComponent } from '../../../shared/ui/empty-state/empty-state.component';
 import { StatusTimelineComponent } from '../../../shared/ui/status-timeline/status-timeline.component';
-import { DocUploadComponent } from '../../../shared/ui/doc-upload/doc-upload.component';
 import { ForensicAnalysisComponent } from './forensic-analysis/forensic-analysis.component';
 import { CaseDocumentsComponent } from '../case-documents/case-documents.component';
 import { CardComponent } from '../../../shared/ui/card/card.component';
@@ -40,7 +40,6 @@ interface FieldItem { label: string; value: string | null; mono?: boolean; full?
     FraudGaugeComponent,
     EmptyStateComponent,
     StatusTimelineComponent,
-    DocUploadComponent,
     ForensicAnalysisComponent,
     CaseDocumentsComponent,
     CardComponent,
@@ -265,7 +264,9 @@ export class ExpedienteDetailComponent {
     });
   }
 
-  // ----- carga de documentación adicional (FALTA_DOCUMENTACION) -----
+  // ----- documentación faltante (FALTA_DOCUMENTACION), SOLO LECTURA para el analista -----
+  // El analista no sube documentos: la carga es exclusiva del asegurado desde su portal. Acá
+  // solo se le listan los tipos requeridos que todavía no se cargaron.
   protected readonly needsDocs = computed(() =>
     this.data()?.analysisClassification === 'FALTA_DOCUMENTACION'
   );
@@ -273,7 +274,23 @@ export class ExpedienteDetailComponent {
   /** La agenda documental es otra llamada al backend: se refresca con el mismo trigger. */
   protected readonly docsReloadToken = computed(() => this.reloadTrigger());
 
-  onDocsUploaded(): void {
-    this.reloadTrigger.update((v) => v + 1);
-  }
+  private readonly documents = toSignal(
+    combineLatest([
+      this.route.paramMap.pipe(map((params) => params.get('id') ?? '')),
+      toObservable(this.reloadTrigger),
+    ]).pipe(
+      switchMap(([id]) =>
+        id
+          ? this.service.listDocuments(Number(id)).pipe(catchError(() => of<CaseDocument[]>([])))
+          : of<CaseDocument[]>([]),
+      ),
+    ),
+    { initialValue: [] as CaseDocument[] },
+  );
+
+  /** Tipos requeridos que todavía no se cargaron — lo que el analista ve como "falta". */
+  protected readonly missingDocLabels = computed(() => {
+    const present = new Set(this.documents().map((d) => d.type));
+    return CASE_DOCUMENT_TYPES.filter((t) => !present.has(t.type)).map((t) => t.label);
+  });
 }

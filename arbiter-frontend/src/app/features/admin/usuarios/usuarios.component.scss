@@ -16,3 +16,10 @@
 .actions-cell { display: flex; gap: var(--space-2); align-items: center; flex-wrap: wrap; }
 
 .resend-ok { margin: var(--space-1) 0 0; color: var(--status-ok); font-size: var(--font-size-2xs); }
+
+.delete-confirm {
+  display: block;
+  margin-top: var(--space-4);
+
+  .t-field-label { display: block; margin-bottom: var(--space-2); }
+}

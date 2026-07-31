@@ -41,7 +41,7 @@
           <p class="error">{{ errorMessage() }}</p>
         }
 
-        <app-button type="submit" [block]="true" [disabled]="!canSubmit() || submitting()">
+        <app-button type="submit" [block]="true" [loading]="submitting()" [disabled]="!canSubmit()">
           {{ submitting() ? 'Ingresando…' : 'Ingresar →' }}
         </app-button>
 

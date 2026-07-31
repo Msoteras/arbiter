@@ -52,6 +52,8 @@ export class ForensicAnalysisComponent implements OnDestroy {
   /** label del finding -> object URL del blob ya descargado. */
   protected readonly imageUrls = signal<Record<string, string>>({});
   protected readonly imageLoadFailed = signal<Record<string, boolean>>({});
+  /** label del finding -> filename original del adjunto, para nombrar la descarga. */
+  protected readonly imageFilenames = signal<Record<string, string>>({});
 
   /** clave de match interno (ver `matchKey`) -> object URL de la imagen del siniestro previo. */
   protected readonly matchedImageUrls = signal<Record<string, string>>({});
@@ -90,6 +92,7 @@ export class ForensicAnalysisComponent implements OnDestroy {
     this.activeObjectUrls = [];
     this.imageUrls.set({});
     this.imageLoadFailed.set({});
+    this.imageFilenames.set({});
     this.matchedImageUrls.set({});
     this.matchedImageLoadFailed.set({});
   }
@@ -110,6 +113,7 @@ export class ForensicAnalysisComponent implements OnDestroy {
               const url = URL.createObjectURL(blob);
               this.activeObjectUrls.push(url);
               this.imageUrls.update((m) => ({ ...m, [finding.label]: url }));
+              this.imageFilenames.update((m) => ({ ...m, [finding.label]: doc.filename }));
             },
             error: () => this.imageLoadFailed.update((m) => ({ ...m, [finding.label]: true })),
           });

@@ -80,16 +80,25 @@
   @if (userToDelete(); as u) {
     <p class="t-body">
       Vas a eliminar a <strong>{{ u.nombre }} {{ u.apellido }}</strong>. Esta acción es
-      irreversible: se revoca su acceso y se libera su email. Los expedientes que tenía
-      asignados quedan sin analista.
+      irreversible: se revoca su acceso y se libera su email.
     </p>
+    <label class="delete-confirm">
+      <span class="t-field-label">
+        Para confirmar, escribí <strong>{{ deleteConfirmTarget() }}</strong>
+      </span>
+      <app-input
+        [value]="deleteConfirmText()"
+        (valueChange)="deleteConfirmText.set($event)"
+        placeholder="Nombre y apellido del usuario"
+      />
+    </label>
     @if (deleteError()) {
       <p class="error">{{ deleteError() }}</p>
     }
   }
   <ng-container modalActions>
     <app-button variant="secondary" [disabled]="deleting()" (click)="cancelDelete()">Cancelar</app-button>
-    <app-button [disabled]="deleting()" (click)="confirmDelete()">
+    <app-button [disabled]="deleting() || !canConfirmDelete()" (click)="confirmDelete()">
       {{ deleting() ? 'Eliminando…' : 'Sí, eliminar usuario' }}
     </app-button>
   </ng-container>

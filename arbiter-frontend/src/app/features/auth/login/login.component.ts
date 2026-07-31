@@ -44,6 +44,10 @@ export class LoginComponent {
       },
       error: (err: HttpErrorResponse) => {
         this.submitting.set(false);
+        // El detalle real (status + payload) va a consola/observabilidad; el usuario ve un
+        // mensaje acotado. Sin esto, un 500 y un backend caído eran indistinguibles a la hora
+        // de diagnosticar, dependiendo del relato del usuario.
+        console.error('Login falló', { status: err.status, detail: err.error });
         this.errorMessage.set(this.messageFor(err));
       },
     });
@@ -65,6 +69,14 @@ export class LoginComponent {
     }
     if (err.status === 400) {
       return 'Completá email y contraseña.';
+    }
+    // status 0 = no hubo respuesta del servidor: backend caído, sin conexión, timeout o CORS.
+    if (err.status === 0) {
+      return 'No pudimos conectar con el servidor. Revisá tu conexión a internet; si el problema persiste, avisá a soporte.';
+    }
+    // 5xx: el backend respondió con un error propio — no es un problema transitorio de red.
+    if (err.status >= 500) {
+      return 'El servicio no está disponible por el momento. Ya estamos al tanto; probá de nuevo en unos minutos o avisá a soporte si sigue.';
     }
     return 'No se pudo iniciar sesión. Probá de nuevo en unos minutos.';
   }

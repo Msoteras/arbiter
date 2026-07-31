@@ -42,7 +42,7 @@
             }
           </div>
         } @else {
-          <p class="nodata">Sin datos</p>
+          <p class="nodata">El modelo todavía no generó una recomendación para este expediente.</p>
         }
       </app-card>
 
@@ -109,20 +109,33 @@
 
           <div class="col-side">
             <app-card variant="ai" icon="✦" heading="Sugerencia del sistema">
-              <app-empty-state message="Sugerencia e indicadores del modelo" />
+              <app-empty-state message="Sugerencia e indicadores del modelo" sub="Pendiente de datos de IA" />
             </app-card>
           </div>
         </div>
 
-        <!-- Documentación faltante -->
+        <!-- Documentación faltante: SOLO LECTURA para el analista. La carga es del asegurado
+             desde su portal; acá se listan los documentos que todavía faltan. -->
         @if (needsDocs()) {
           <app-card class="missing-docs-card" heading="⚠ Falta documentación">
-            <app-doc-upload [caseId]="d.id" (uploaded)="onDocsUploaded()" />
+            <p class="t-note missing-docs-note">
+              El asegurado tiene que subir la documentación faltante desde su portal. Cuando la
+              cargue, el caso se vuelve a evaluar automáticamente.
+            </p>
+            @if (missingDocLabels().length > 0) {
+              <ul class="missing-docs-list">
+                @for (label of missingDocLabels(); track label) {
+                  <li>{{ label }}</li>
+                }
+              </ul>
+            } @else {
+              <p class="t-note">Ya se cargaron todos los documentos requeridos.</p>
+            }
           </app-card>
         }
       }
 
-      @case ('datos') { <app-empty-state message="Datos extraídos por IA + coincidencia con la póliza" /> }
+      @case ('datos') { <app-empty-state message="Datos extraídos por IA + coincidencia con la póliza" sub="Pendiente de datos de IA" /> }
       @case ('imagenes') { <app-forensic-analysis [caseId]="d.id" [report]="d.forensicReport" /> }
       @case ('documentacion') {
         <app-case-documents [caseId]="d.id" [reloadToken]="docsReloadToken()" />

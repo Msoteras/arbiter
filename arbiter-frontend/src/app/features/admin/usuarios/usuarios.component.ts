@@ -9,6 +9,7 @@ import { AltaUsuarioComponent } from '../alta-usuario/alta-usuario.component';
 import { BadgeComponent } from '../../../shared/ui/badge/badge.component';
 import { ButtonComponent } from '../../../shared/ui/button/button.component';
 import { CardComponent } from '../../../shared/ui/card/card.component';
+import { InputComponent } from '../../../shared/ui/input/input.component';
 import { ModalComponent } from '../../../shared/ui/modal/modal.component';
 import { TableComponent } from '../../../shared/ui/table/table.component';
 import { SelectComponent, SelectOption } from '../../../shared/ui/select/select.component';
@@ -21,7 +22,7 @@ import { SelectComponent, SelectOption } from '../../../shared/ui/select/select.
  */
 @Component({
   selector: 'app-usuarios',
-  imports: [AltaUsuarioComponent, BadgeComponent, ButtonComponent, CardComponent, ModalComponent, TableComponent, SelectComponent],
+  imports: [AltaUsuarioComponent, BadgeComponent, ButtonComponent, CardComponent, InputComponent, ModalComponent, TableComponent, SelectComponent],
   changeDetection: ChangeDetectionStrategy.OnPush,
   templateUrl: './usuarios.component.html',
   styleUrl: './usuarios.component.scss',
@@ -48,6 +49,20 @@ export class UsuariosComponent {
   protected readonly userToDelete = signal<UserResponse | null>(null);
   protected readonly deleting = signal(false);
   protected readonly deleteError = signal<string | null>(null);
+  // Confirmación destructiva real ("doble verbo" del wireframe): el referente tiene que
+  // tipear el nombre completo del usuario a eliminar. Un solo botón "Sí, eliminar" invitaba
+  // a borrar de un click por accidente.
+  protected readonly deleteConfirmText = signal('');
+  protected readonly deleteConfirmTarget = computed(() => {
+    const u = this.userToDelete();
+    return u ? `${u.nombre} ${u.apellido}`.trim() : '';
+  });
+  protected readonly canConfirmDelete = computed(
+    () =>
+      this.userToDelete() !== null &&
+      this.deleteConfirmText().trim().toLocaleLowerCase() ===
+        this.deleteConfirmTarget().toLocaleLowerCase(),
+  );
 
   protected readonly resendingId = signal<number | null>(null);
   protected readonly resendError = signal<string | null>(null);
@@ -136,16 +151,18 @@ export class UsuariosComponent {
   /** Abre la confirmación destructiva (wireframe: "Eliminar pide confirmación destructiva, doble verbo"). */
   protected requestDelete(user: UserResponse): void {
     this.deleteError.set(null);
+    this.deleteConfirmText.set('');
     this.userToDelete.set(user);
   }
 
   protected cancelDelete(): void {
     this.userToDelete.set(null);
+    this.deleteConfirmText.set('');
   }
 
   protected confirmDelete(): void {
     const user = this.userToDelete();
-    if (!user) {
+    if (!user || !this.canConfirmDelete()) {
       return;
     }
     this.deleting.set(true);
@@ -153,6 +170,7 @@ export class UsuariosComponent {
       next: () => {
         this.deleting.set(false);
         this.userToDelete.set(null);
+        this.deleteConfirmText.set('');
         this.users.update((list) => list.filter((u) => u.id !== user.id));
       },
       error: (err: HttpErrorResponse) => {
