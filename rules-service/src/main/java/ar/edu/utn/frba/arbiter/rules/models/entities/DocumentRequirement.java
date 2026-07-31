@@ -16,30 +16,33 @@ import lombok.NoArgsConstructor;
 import lombok.Setter;
 
 /**
- * Valid claim-cause combination an insurer has enabled for a branch
- * ("hecho_generador_aseguradora" in the DER). Points at {@link Insurer} and
- * {@link Branch} directly — the DER's own draft went through an intermediate
- * "rama_aseguradora" entity, but that's not needed for how multi-tenant actually works
- * here: same reasoning {@link InsurerRule} already follows
- * with its own direct {@code branch} field. {@code coverageId} is a logical reference to
- * cases-service's Coverage — cross-module, no real FK.
+ * Required document type per branch + claim cause (+ risk band) — "requisito_documental"
+ * in the DER, the configurable target shape of CLAUDE.md's "AgendaDocumental". Today the
+ * equivalent list is hardcoded in MockRulesAdapter.requiredDocumentTypes; this table
+ * doesn't replace that wiring yet.
  */
 @Entity
-@Table(name = "insurer_claim_cause")
+@Table(name = "document_requirement")
 @Getter
 @Setter
 @NoArgsConstructor
 @AllArgsConstructor
 @Builder
-public class InsurerClaimCause {
+public class DocumentRequirement {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "insurer_id", nullable = false)
-    private Insurer insurer;
+    /** LOW | MEDIUM | HIGH | CRITICAL, nullable — not every requirement is risk-scoped. */
+    @Column(name = "risk_band", length = 20)
+    private String riskBand;
+
+    @Column(nullable = false)
+    private boolean mandatory;
+
+    @Column(name = "document_type", nullable = false)
+    private String documentType;
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "branch_id", nullable = false)
@@ -48,7 +51,4 @@ public class InsurerClaimCause {
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "claim_cause_id", nullable = false)
     private ClaimCause claimCause;
-
-    @Column(name = "coverage_id")
-    private Long coverageId;
 }

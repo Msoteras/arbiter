@@ -1,0 +1,45 @@
+package ar.edu.utn.frba.arbiter.rules.models.entities;
+
+import jakarta.persistence.Column;
+import jakarta.persistence.Entity;
+import jakarta.persistence.GeneratedValue;
+import jakarta.persistence.GenerationType;
+import jakarta.persistence.Id;
+import jakarta.persistence.Table;
+import lombok.AllArgsConstructor;
+import lombok.Builder;
+import lombok.Getter;
+import lombok.NoArgsConstructor;
+import lombok.Setter;
+
+/**
+ * Configurable case-status catalog ("estado_expediente" in the DER) — the target shape
+ * for H0015 ("el referente puede definir los estados activos del flujo"), replacing the
+ * hardcoded {@code CaseStatus} enum. Not wired up yet: {@code cases.status} still uses
+ * the enum; this table doesn't drive it.
+ */
+@Entity
+@Table(name = "case_state")
+@Getter
+@Setter
+@NoArgsConstructor
+@AllArgsConstructor
+@Builder
+public class CaseState {
+
+    @Id
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    private Long id;
+
+    @Column(nullable = false)
+    private String name;
+
+    private String description;
+
+    /** Aggregated label the insured sees (several internal states can map to the same one). */
+    @Column(name = "insured_state")
+    private String insuredState;
+
+    @Column(name = "is_final", nullable = false)
+    private boolean isFinal;
+}
