@@ -1,9 +1,19 @@
 server:
-  port: 8083
+  port: 8081
 
 spring:
   application:
     name: rules-service
+  datasource:
+    url: ${DB_URL:jdbc:postgresql://localhost:5432/arbiter}
+    username: ${DB_USER:arbiter}
+    password: ${DB_PASSWORD:arbiter}
+  jpa:
+    hibernate:
+      ddl-auto: update
+    properties:
+      hibernate:
+        format_sql: true
   threads:
     virtual:
       enabled: true

@@ -140,8 +140,22 @@ services:
         condition: service_healthy
     restart: on-failure
 
+  rules-service:
+    build:
+      context: .
+      dockerfile: rules-service/Dockerfile
+    ports:
+      - "8081:8081"
+    environment:
+      DB_URL: jdbc:postgresql://postgres:5432/${DB_NAME:-arbiter}
+      DB_USER: ${DB_USER:-arbiter}
+      DB_PASSWORD: ${DB_PASSWORD:-arbiter}
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: on-failure
+
   # TODO: add the remaining services as they get implemented:
-  # rules-service      → port 8081
   # reports-service    → port 8084
   # arbiter-frontend   → port 5173
 
