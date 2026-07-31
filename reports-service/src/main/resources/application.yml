@@ -1,9 +1,19 @@
 server:
-  port: 8085
+  port: 8084
 
 spring:
   application:
     name: reports-service
+  datasource:
+    url: ${DB_URL:jdbc:postgresql://localhost:5432/arbiter}
+    username: ${DB_USER:arbiter}
+    password: ${DB_PASSWORD:arbiter}
+  jpa:
+    hibernate:
+      ddl-auto: update
+    properties:
+      hibernate:
+        format_sql: true
   threads:
     virtual:
       enabled: true
