@@ -16,8 +16,8 @@ import lombok.NoArgsConstructor;
 import lombok.Setter;
 
 /**
- * Hecho generador (causa del siniestro: robo en vía pública, hurto, caída, incendio…).
- * Campo central que el LLM clasifica — ver CLAUDE.md, "Modelo de dominio - vocabulario".
+ * Cause of the claim (robo en vía pública, hurto, caída, incendio…) — "HechoGenerador"
+ * in CLAUDE.md's domain vocabulary. The central field the LLM classifies.
  */
 @Entity
 @Table(name = "claim_cause")

@@ -16,8 +16,8 @@ import lombok.NoArgsConstructor;
 import lombok.Setter;
 
 /**
- * Regla de negocio de un ramo. {@code forFastTrack} marca si participa del circuito
- * Fast Track (H0013); las que no, son reglas de exclusión/validación de cobertura.
+ * Business rule for a branch. {@code forFastTrack} marks whether it participates in
+ * the Fast Track flow (H0013); the ones that don't are coverage exclusion/validation rules.
  */
 @Entity
 @Table(name = "rule")
