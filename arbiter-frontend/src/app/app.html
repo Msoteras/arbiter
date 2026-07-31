@@ -10,9 +10,6 @@
       <nav class="sidebar-nav">
         @if (showAnalistaNav()) {
           <a routerLink="/inbox" routerLinkActive="active"><span class="nav-dot"></span>Bandeja</a>
-          <span class="nav-item is-disabled" title="Sin datos">
-            <span class="nav-dot"></span>Pendientes
-          </span>
         }
         @if (showAseguradoNav()) {
           <a routerLink="/portal" routerLinkActive="active"><span class="nav-dot"></span>Mis siniestros</a>
@@ -36,7 +33,7 @@
               <button
                 type="button"
                 class="sidebar-icon-btn"
-                (click)="notifications.markAllRead()"
+                (click)="openNotifications()"
                 [attr.aria-label]="
                   notifications.hasUnread()
                     ? 'Notificaciones: ' + notifications.unreadCount() + ' sin leer'
@@ -68,6 +65,20 @@
       <router-outlet />
     </main>
   </div>
+
+  <app-modal [open]="showNotifications()" heading="Notificaciones" (close)="closeNotifications()">
+    @if (notifications.hasUnread()) {
+      <p class="t-body">
+        Tenés {{ notifications.unreadCount() }}
+        {{ notifications.unreadCount() === 1 ? 'notificación sin leer' : 'notificaciones sin leer' }}.
+      </p>
+    } @else {
+      <p class="t-body">No tenés notificaciones sin leer.</p>
+    }
+    <ng-container modalActions>
+      <app-button (click)="closeNotifications()">Entendido</app-button>
+    </ng-container>
+  </app-modal>
 } @else {
   <router-outlet />
 }

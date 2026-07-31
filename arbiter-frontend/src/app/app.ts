@@ -1,4 +1,4 @@
-import { ChangeDetectionStrategy, Component, computed, inject } from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
 import { toSignal } from '@angular/core/rxjs-interop';
 import { NavigationEnd, Router, RouterLink, RouterLinkActive, RouterOutlet } from '@angular/router';
 import { filter, map } from 'rxjs';
@@ -7,10 +7,12 @@ import { AuthSessionService } from './core/auth/auth-session.service';
 import { NotificationsService } from './core/notifications/notifications.service';
 import { userRoleLabel } from './core/models/user-role';
 import { LogoComponent } from './shared/ui/logo/logo.component';
+import { ButtonComponent } from './shared/ui/button/button.component';
+import { ModalComponent } from './shared/ui/modal/modal.component';
 
 @Component({
   selector: 'app-root',
-  imports: [RouterOutlet, RouterLink, RouterLinkActive, LogoComponent],
+  imports: [RouterOutlet, RouterLink, RouterLinkActive, LogoComponent, ButtonComponent, ModalComponent],
   changeDetection: ChangeDetectionStrategy.OnPush,
   templateUrl: './app.html',
   styleUrl: './app.scss',
@@ -53,6 +55,20 @@ export class App {
     const rol = this.session.session()?.rol;
     return rol === 'ANALISTA_SINIESTROS' || rol === 'REFERENTE_ASEGURADORA';
   });
+
+  // La campana abre un panel de notificaciones. Hoy el productor real (polling/SSE) no está
+  // cableado y el contador siempre es 0, así que el panel muestra el vacío honesto en vez de
+  // un ícono decorativo que no hacía nada (ver bug #4 del relevamiento de UX).
+  protected readonly showNotifications = signal(false);
+
+  protected openNotifications(): void {
+    this.showNotifications.set(true);
+  }
+
+  protected closeNotifications(): void {
+    this.notifications.markAllRead();
+    this.showNotifications.set(false);
+  }
 
   protected roleLabel(rol: string): string {
     return userRoleLabel(rol);

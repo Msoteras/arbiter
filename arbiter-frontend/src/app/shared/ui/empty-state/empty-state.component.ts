@@ -7,7 +7,7 @@ import { ChangeDetectionStrategy, Component, input } from '@angular/core';
   template: `
     <div class="empty">
       <p class="msg">{{ message() }}</p>
-      <p class="sub">Sin datos</p>
+      <p class="sub">{{ sub() }}</p>
     </div>
   `,
   styles: `
@@ -25,4 +25,7 @@ import { ChangeDetectionStrategy, Component, input } from '@angular/core';
 })
 export class EmptyStateComponent {
   readonly message = input('Sin datos');
+  /** Etiqueta corta de estado bajo el mensaje. Por defecto "Sin datos"; pasá algo más
+   *  descriptivo (ej. "Pendiente de datos") cuando el motivo del vacío no sea obvio. */
+  readonly sub = input('Sin datos');
 }

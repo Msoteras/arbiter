@@ -8,10 +8,11 @@ import { InsuredSessionService } from '../../../core/auth/insured-session.servic
 import { ExpedienteResponse } from '../../../core/models/expediente';
 import {
   EstadoSimplificado,
-  estadoDescripcionAsegurado,
+  estadoDescripcionAseguradoEfectivo,
   estadoLabel,
   estadoSimplificado,
-  estadoTituloAsegurado,
+  estadoSimplificadoEfectivo,
+  estadoTituloAseguradoEfectivo,
   estadoTone,
   isEstadoFinal,
 } from '../../../core/models/estado';
@@ -103,9 +104,15 @@ export class SeguimientoComponent {
     return d ? estadoLabel(d.status) : '';
   });
 
+  // Los `toStatus` del historial: insumo del progreso EFECTIVO (monótono) y del copy
+  // reproceso-aware, para que el seguimiento nunca retroceda al día 1 tras subir documentación.
+  private readonly pastStatuses = computed<string[]>(
+    () => this.data()?.statusHistory?.map((h) => h.toStatus) ?? [],
+  );
+
   protected readonly heroTitle = computed(() => {
     const d = this.data();
-    return d ? estadoTituloAsegurado(d.status) : '';
+    return d ? estadoTituloAseguradoEfectivo(d.status, this.pastStatuses()) : '';
   });
 
   /** Progreso simplificado (Denunciado → En trámite → Terminado) para el asegurado. */
@@ -113,7 +120,7 @@ export class SeguimientoComponent {
 
   protected readonly simplifiedIndex = computed(() => {
     const d = this.data();
-    return d ? this.simplifiedSteps.indexOf(estadoSimplificado(d.status)) : 0;
+    return d ? this.simplifiedSteps.indexOf(estadoSimplificadoEfectivo(d.status, this.pastStatuses())) : 0;
   });
 
   protected readonly statusTone = computed<StatusTone>(() => {
@@ -125,7 +132,7 @@ export class SeguimientoComponent {
   // visibilidad asegurado vs analista).
   protected readonly statusDescription = computed(() => {
     const d = this.data();
-    return d ? estadoDescripcionAsegurado(d.status) : '';
+    return d ? estadoDescripcionAseguradoEfectivo(d.status, this.pastStatuses()) : '';
   });
 
   protected readonly isResolved = computed(() => {
@@ -148,7 +155,7 @@ export class SeguimientoComponent {
     }
     const history = d.statusHistory ?? [];
     const order: EstadoSimplificado[] = ['DENUNCIADO', 'EN_TRAMITE', 'TERMINADO'];
-    const currentIndex = order.indexOf(estadoSimplificado(d.status));
+    const currentIndex = order.indexOf(estadoSimplificadoEfectivo(d.status, this.pastStatuses()));
 
     return order.map((stage, i) => {
       const hit = history.find((h) => estadoSimplificado(h.toStatus) === stage);

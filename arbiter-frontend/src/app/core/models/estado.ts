@@ -110,6 +110,44 @@ export function estadoSimplificadoLabel(value: string): string {
   return SIMPLIFICADO_LABELS[estadoSimplificado(value)];
 }
 
+// Orden de avance del progreso simplificado. El progreso visible del asegurado es MONÓTONO:
+// una vez que el expediente entró "En trámite" no vuelve a "Denunciado", aunque el estado
+// técnico interno retroceda a PENDING_CLASSIFICATION. Eso pasa cuando el asegurado sube la
+// documentación faltante y cases-service re-encola la clasificación (ver bug #10 del
+// relevamiento de UX): sin esto, el stepper regresaba al día 1 como si se hubiera perdido todo.
+const SIMPLIFICADO_ORDER: EstadoSimplificado[] = ['DENUNCIADO', 'EN_TRAMITE', 'TERMINADO'];
+
+/**
+ * Estado simplificado EFECTIVO: el máximo nivel de avance alcanzado según el historial de
+ * transiciones, no el estado técnico instantáneo. `pastStatuses` son los `toStatus` del historial
+ * (GET /cases/{id} los trae en `statusHistory`). Garantiza que el progreso del asegurado nunca
+ * retroceda.
+ */
+export function estadoSimplificadoEfectivo(
+  currentStatus: string,
+  pastStatuses: string[] = [],
+): EstadoSimplificado {
+  const maxIndex = [currentStatus, ...pastStatuses]
+    .map((s) => SIMPLIFICADO_ORDER.indexOf(estadoSimplificado(s)))
+    .reduce((max, i) => Math.max(max, i), 0);
+  return SIMPLIFICADO_ORDER[maxIndex];
+}
+
+/**
+ * True cuando el expediente volvió a PENDING_CLASSIFICATION por una carga de documentación del
+ * asegurado (no es una denuncia recién ingresada): se detecta porque ya pasó por
+ * AWAITING_DOCUMENTATION en su historial. Sirve para no mostrarle el copy de "día 1" a alguien
+ * que acaba de subir lo que le pidieron.
+ */
+export function esReprocesoPorDocumentacion(
+  currentStatus: string,
+  pastStatuses: string[],
+): boolean {
+  return (
+    currentStatus === 'PENDING_CLASSIFICATION' && pastStatuses.includes('AWAITING_DOCUMENTATION')
+  );
+}
+
 // Título tranquilizador para el hero del seguimiento (asegurado). Copy orientado a
 // la persona, no a la jerga interna — el detalle técnico vive en estadoLabel.
 const TITULOS_ASEGURADO: Record<CaseStatus, string> = {
@@ -123,6 +161,18 @@ const TITULOS_ASEGURADO: Record<CaseStatus, string> = {
 
 export function estadoTituloAsegurado(value: string): string {
   return (TITULOS_ASEGURADO as Record<string, string>)[value] ?? 'Seguimiento de tu expediente';
+}
+
+// Copy específico del reproceso tras carga de documentación: reconoce la acción del asegurado
+// en vez de repetir el título de día 1 ("Recibimos tu denuncia"). Ver [[esReprocesoPorDocumentacion]].
+const TITULO_REPROCESO_DOCUMENTACION = 'Recibimos tu documentación';
+const DESCRIPCION_REPROCESO_DOCUMENTACION =
+  'Recibimos los documentos que subiste y estamos reevaluando tu caso. Te avisamos ni bien haya novedades.';
+
+export function estadoTituloAseguradoEfectivo(currentStatus: string, pastStatuses: string[]): string {
+  return esReprocesoPorDocumentacion(currentStatus, pastStatuses)
+    ? TITULO_REPROCESO_DOCUMENTACION
+    : estadoTituloAsegurado(currentStatus);
 }
 
 // Subtítulo asegurado-safe: NUNCA menciona la clasificación del modelo, el análisis
@@ -144,4 +194,13 @@ const DESCRIPCIONES_ASEGURADO: Record<CaseStatus, string> = {
 
 export function estadoDescripcionAsegurado(value: string): string {
   return (DESCRIPCIONES_ASEGURADO as Record<string, string>)[value] ?? '';
+}
+
+export function estadoDescripcionAseguradoEfectivo(
+  currentStatus: string,
+  pastStatuses: string[],
+): string {
+  return esReprocesoPorDocumentacion(currentStatus, pastStatuses)
+    ? DESCRIPCION_REPROCESO_DOCUMENTACION
+    : estadoDescripcionAsegurado(currentStatus);
 }

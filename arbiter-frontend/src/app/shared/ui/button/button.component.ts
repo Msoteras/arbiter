@@ -18,9 +18,11 @@ type Size = 'md' | 'sm';
       [class.primary]="variant() === 'primary'"
       [class.secondary]="variant() === 'secondary'"
       [class.sm]="size() === 'sm'"
+      [class.loading]="loading()"
       [type]="type()"
-      [disabled]="disabled()"
+      [disabled]="disabled() || loading()"
     >
+      @if (loading()) { <span class="btn-spinner" aria-hidden="true"></span> }
       <ng-content />
     </button>
   `,
@@ -37,6 +39,18 @@ type Size = 'md' | 'sm';
       border: 1px solid transparent;
       white-space: nowrap;
     }
+    .btn.loading { display: inline-flex; align-items: center; justify-content: center; gap: var(--space-2); }
+    .btn-spinner {
+      width: 0.9em;
+      height: 0.9em;
+      border: 2px solid currentColor;
+      border-right-color: transparent;
+      border-radius: var(--radius-pill);
+      animation: btn-spin 0.6s linear infinite;
+      flex-shrink: 0;
+    }
+    @keyframes btn-spin { to { transform: rotate(360deg); } }
+    @media (prefers-reduced-motion: reduce) { .btn-spinner { animation-duration: 1.5s; } }
     .btn.sm { font-size: var(--font-size-sm); padding: var(--space-1) var(--space-3); }
     .btn.primary { background: var(--action-primary-bg); border-color: var(--action-primary-bg); color: var(--action-primary-fg); }
     .btn.primary:hover:not(:disabled) { background: var(--action-primary-bg-hover); border-color: var(--action-primary-bg-hover); }
@@ -51,4 +65,6 @@ export class ButtonComponent {
   readonly type = input<'button' | 'submit'>('button');
   readonly disabled = input(false);
   readonly block = input(false);
+  /** Muestra un spinner inline y deshabilita el botón mientras dura una acción async. */
+  readonly loading = input(false);
 }
