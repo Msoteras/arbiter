@@ -114,10 +114,23 @@
           </div>
         </div>
 
-        <!-- Documentación faltante -->
+        <!-- Documentación faltante: SOLO LECTURA para el analista. La carga es del asegurado
+             desde su portal; acá se listan los documentos que todavía faltan. -->
         @if (needsDocs()) {
           <app-card class="missing-docs-card" heading="⚠ Falta documentación">
-            <app-doc-upload [caseId]="d.id" (uploaded)="onDocsUploaded()" />
+            <p class="t-note missing-docs-note">
+              El asegurado tiene que subir la documentación faltante desde su portal. Cuando la
+              cargue, el caso se vuelve a evaluar automáticamente.
+            </p>
+            @if (missingDocLabels().length > 0) {
+              <ul class="missing-docs-list">
+                @for (label of missingDocLabels(); track label) {
+                  <li>{{ label }}</li>
+                }
+              </ul>
+            } @else {
+              <p class="t-note">Ya se cargaron todos los documentos requeridos.</p>
+            }
           </app-card>
         }
       }
