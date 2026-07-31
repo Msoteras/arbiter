@@ -7,7 +7,9 @@ import ar.edu.utn.frba.arbiter.common.dto.ImageForensicReport;
 import ar.edu.utn.frba.arbiter.classification.dto.ClassificationResponse;
 import ar.edu.utn.frba.arbiter.classification.exceptions.InvalidClassificationException;
 import ar.edu.utn.frba.arbiter.classification.models.entities.ClassificationLog;
+import ar.edu.utn.frba.arbiter.classification.models.entities.RiskAnalysis;
 import ar.edu.utn.frba.arbiter.classification.models.repositories.ClassificationLogRepository;
+import ar.edu.utn.frba.arbiter.classification.models.repositories.RiskAnalysisRepository;
 import ar.edu.utn.frba.arbiter.classification.services.risk.RiskScore;
 import lombok.RequiredArgsConstructor;
 import org.slf4j.Logger;
@@ -36,6 +38,7 @@ public class ClassificationResultsService {
             DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss").withZone(ZoneId.systemDefault());
 
     private final ClassificationLogRepository logRepository;
+    private final RiskAnalysisRepository riskAnalysisRepository;
     private final OllamaProperties ollamaProperties;
 
     @Transactional
@@ -58,31 +61,34 @@ public class ClassificationResultsService {
         entry.setForensicReport(forensicReport);
         entry.setLatencyMs(latencyMs);
         entry.setInsuredName(response.insuredName());
-        applyRiskScore(entry, response.riskScore());
 
         logRepository.save(entry);
-        log.info("[ResultsService] Classification logged for case {} ({}) — riskBand={}",
-                caseId, entry.getSource(), entry.getRiskBand());
+        saveRiskAnalysis(caseId, response.riskScore());
+        log.info("[ResultsService] Classification logged for case {} ({})", caseId, entry.getSource());
     }
 
     /**
-     * Writes the risk snapshot only when the claim was actually scored. When there's no scoring
-     * config the engine returns a neutral 0.0/LOW, but we persist it as null ("sin scorear") so the
+     * Writes a risk_analysis row only when the claim was actually scored. When there's no scoring
+     * config the engine returns a neutral 0.0/LOW, but we skip persisting it ("sin scorear") so the
      * read model never presents it as a real LOW band.
      */
-    private void applyRiskScore(ClassificationLog entry, RiskScore riskScore) {
+    private void saveRiskAnalysis(Long caseId, RiskScore riskScore) {
         if (riskScore == null || !riskScore.scored()) {
             return;
         }
-        entry.setRiskScore(BigDecimal.valueOf(riskScore.score()));
-        entry.setRiskBand(riskScore.band());
-        entry.setRiskBreakdown(riskScore.breakdown());
+        RiskAnalysis analysis = new RiskAnalysis();
+        analysis.setCaseId(caseId);
+        analysis.setRiskScore(BigDecimal.valueOf(riskScore.score()));
+        analysis.setRiskBand(riskScore.band());
+        analysis.setRiskBreakdown(riskScore.breakdown());
+        riskAnalysisRepository.save(analysis);
     }
 
     /** Latest classification for a case; classification fields stay null until a log exists for it. */
     @Transactional(readOnly = true)
     public ClaimResponse getStatus(Long caseId) {
         Optional<ClassificationLog> entry = logRepository.findFirstByCaseIdOrderByIdDesc(caseId);
+        Optional<RiskAnalysis> risk = riskAnalysisRepository.findFirstByCaseIdOrderByIdDesc(caseId);
 
         return ClaimResponse.builder()
                 .caseId(caseId)
@@ -91,9 +97,9 @@ public class ClassificationResultsService {
                 .factors(entry.map(ClassificationLog::getFactors).orElse(null))
                 .deterministicFastTrack(entry.map(l -> "RULES_FAST_TRACK".equals(l.getSource())).orElse(false))
                 .forensicReport(entry.map(ClassificationLog::getForensicReport).orElse(null))
-                .riskScore(entry.map(l -> l.getRiskScore() != null ? l.getRiskScore().doubleValue() : null).orElse(null))
-                .riskBand(entry.map(ClassificationLog::getRiskBand).orElse(null))
-                .riskBreakdown(entry.map(ClassificationLog::getRiskBreakdown).orElse(null))
+                .riskScore(risk.map(r -> r.getRiskScore().doubleValue()).orElse(null))
+                .riskBand(risk.map(RiskAnalysis::getRiskBand).orElse(null))
+                .riskBreakdown(risk.map(RiskAnalysis::getRiskBreakdown).orElse(null))
                 .insuredName(entry.map(ClassificationLog::getInsuredName).orElse(null))
                 .build();
     }
@@ -105,9 +111,9 @@ public class ClassificationResultsService {
                         "No classification found for case " + caseId));
 
         // The decision row is the latest for the case, so getStatus reads IT — it must carry a
-        // faithful copy of the classification snapshot, risk score included, or the analyst's poll
-        // would see the fraud score/name vanish once a decision is recorded (and the audit trail
-        // would lose the score behind the verdict).
+        // faithful copy of the classification snapshot, or the analyst's poll would see the
+        // factors/name vanish once a decision is recorded. Risk score isn't copied here: getStatus
+        // looks up the latest RiskAnalysis by caseId independently, it doesn't ride on this row.
         ClassificationLog decisionEntry = new ClassificationLog();
         decisionEntry.setCaseId(caseId);
         decisionEntry.setSource("ANALYST");
@@ -115,9 +121,6 @@ public class ClassificationResultsService {
         decisionEntry.setConfidence(classificationEntry.getConfidence());
         decisionEntry.setFactors(classificationEntry.getFactors());
         decisionEntry.setForensicReport(classificationEntry.getForensicReport());
-        decisionEntry.setRiskScore(classificationEntry.getRiskScore());
-        decisionEntry.setRiskBand(classificationEntry.getRiskBand());
-        decisionEntry.setRiskBreakdown(classificationEntry.getRiskBreakdown());
         decisionEntry.setInsuredName(classificationEntry.getInsuredName());
         decisionEntry.setAnalystId(request.analystId());
         decisionEntry.setDecision(normalizeDecision(request.decision()));

@@ -5,9 +5,8 @@ import ar.edu.utn.frba.arbiter.classification.dto.AnalystDecisionRequest;
 import ar.edu.utn.frba.arbiter.classification.exceptions.InvalidClassificationException;
 import ar.edu.utn.frba.arbiter.classification.models.entities.ClassificationLog;
 import ar.edu.utn.frba.arbiter.classification.models.repositories.ClassificationLogRepository;
-import ar.edu.utn.frba.arbiter.common.dto.RiskBreakdownItem;
+import ar.edu.utn.frba.arbiter.classification.models.repositories.RiskAnalysisRepository;
 import ar.edu.utn.frba.arbiter.common.enums.Classification;
-import ar.edu.utn.frba.arbiter.common.enums.RiskBand;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
@@ -29,6 +28,9 @@ class AnalystDecisionTest {
 
     @Mock
     private ClassificationLogRepository logRepository;
+
+    @Mock
+    private RiskAnalysisRepository riskAnalysisRepository;
 
     @Mock
     private OllamaProperties ollamaProperties;
@@ -59,12 +61,9 @@ class AnalystDecisionTest {
     }
 
     @Test
-    void recordAnalystDecision_carriesRiskSnapshotAndInsuredName() {
+    void recordAnalystDecision_carriesInsuredName() {
         Long caseId = 42L;
         ClassificationLog original = classificationLog(caseId, Classification.LLM_NO_RECOMIENDA_APROBAR);
-        original.setRiskScore(BigDecimal.valueOf(0.72));
-        original.setRiskBand(RiskBand.HIGH);
-        original.setRiskBreakdown(List.of(new RiskBreakdownItem("amount_ratio", 0.9, 0.45, 0.405, "monto alto")));
         original.setInsuredName("Juan Pérez");
         when(logRepository.findFirstByCaseIdOrderByIdDesc(caseId)).thenReturn(Optional.of(original));
 
@@ -74,11 +73,10 @@ class AnalystDecisionTest {
         verify(logRepository).save(captor.capture());
         ClassificationLog saved = captor.getValue();
 
-        // The decision row (now the latest for the case) must preserve the fraud snapshot,
-        // otherwise getStatus would report a null risk once the analyst decides.
-        assertThat(saved.getRiskScore()).isEqualByComparingTo("0.72");
-        assertThat(saved.getRiskBand()).isEqualTo(RiskBand.HIGH);
-        assertThat(saved.getRiskBreakdown()).isEqualTo(original.getRiskBreakdown());
+        // The decision row (now the latest for the case) must preserve the classification
+        // snapshot, otherwise getStatus would report a null name once the analyst decides.
+        // Risk score isn't part of this row anymore — getStatus looks up RiskAnalysis by
+        // caseId independently.
         assertThat(saved.getInsuredName()).isEqualTo("Juan Pérez");
     }
 
