@@ -18,9 +18,10 @@ import lombok.Setter;
 import java.time.Instant;
 
 /**
- * How an insurer customizes a base {@link Rule} ("regla_aseguradora" in the DER) —
- * effect, priority, and whether it blocks Fast Track. {@code coverageId} is a logical
- * reference, same reason as {@link InsurerClaimCause#getCoverageId()}.
+ * A business rule as configured by one insurer ("regla_aseguradora" in the DER) — there's
+ * no rule common to every insurer, so this is the only rule entity: effect, priority, and
+ * whether it blocks Fast Track. {@code coverageId} is a logical reference, same reason as
+ * {@link InsurerClaimCause#getCoverageId()}.
  */
 @Entity
 @Table(name = "insurer_rule")
@@ -34,10 +35,6 @@ public class InsurerRule {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
-
-    @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "rule_id", nullable = false)
-    private Rule rule;
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "insurer_id", nullable = false)

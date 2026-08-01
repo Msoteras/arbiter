@@ -18,8 +18,8 @@ import lombok.Setter;
 import java.time.Instant;
 
 /**
- * Append-only audit trail of changes to a {@link Rule} ("historial_regla_aseguradora" in
- * the DER). {@code changedBy} is a logical reference to a user (auth-service, another
+ * Append-only audit trail of changes to an {@link InsurerRule} ("historial_regla_aseguradora"
+ * in the DER). {@code changedBy} is a logical reference to a user (auth-service, another
  * module) — not a real FK, same criterion used across the rest of the schema.
  */
 @Entity
@@ -50,8 +50,8 @@ public class InsurerRuleHistory {
     private Instant validTo;
 
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "rule_id", nullable = false)
-    private Rule rule;
+    @JoinColumn(name = "insurer_rule_id", nullable = false)
+    private InsurerRule insurerRule;
 
     @Column(name = "changed_by")
     private Long changedBy;

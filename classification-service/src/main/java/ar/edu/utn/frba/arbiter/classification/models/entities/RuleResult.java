@@ -15,10 +15,10 @@ import java.time.Instant;
 
 /**
  * Audit record of a single business-rule evaluation against a claim
- * ("resultado_regla" in the DER) — no rule engine evaluates anything into this table
- * yet (rules-service only has the Rule catalog so far). ruleId is a logical reference to
- * rules-service's Rule and caseId to cases-service's Case — neither is a real FK, same
- * criterion as ClassificationLog.caseId.
+ * ("resultado_regla" in the DER) — no rule engine evaluates anything into this table yet.
+ * ruleId is a logical reference to rules-service's InsurerRule (there's no rule common to
+ * every insurer to point at instead) and caseId to cases-service's Case — neither is a
+ * real FK, same criterion as ClassificationLog.caseId.
  */
 @Entity
 @Table(name = "rule_result")
