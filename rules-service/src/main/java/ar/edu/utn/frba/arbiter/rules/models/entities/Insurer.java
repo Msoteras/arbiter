@@ -38,7 +38,6 @@ public class Insurer {
     @Column(nullable = false)
     private boolean active;
 
-    /** Target-state schema name for multi-tenant-by-schema (decision #10) — not wired up yet. */
-    @Column(name = "schema_name")
+    @Column(name = "schema_name", nullable = false)
     private String schemaName;
 }

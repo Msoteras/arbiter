@@ -14,6 +14,8 @@ import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
+import org.hibernate.annotations.JdbcTypeCode;
+import org.hibernate.type.SqlTypes;
 
 import java.time.Instant;
 
@@ -46,7 +48,7 @@ public class InsurerRule {
     @Column(name = "valid_from", nullable = false)
     private Instant validFrom;
 
-    @Column(columnDefinition = "TEXT")
+    @JdbcTypeCode(SqlTypes.JSON)
     private String configuration;
 
     @Column(nullable = false)

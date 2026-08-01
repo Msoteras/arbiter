@@ -14,6 +14,8 @@ import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
+import org.hibernate.annotations.JdbcTypeCode;
+import org.hibernate.type.SqlTypes;
 
 import java.time.Instant;
 
@@ -35,7 +37,8 @@ public class ScoringConfigurationHistory {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    @Column(name = "snapshot_config", nullable = false, columnDefinition = "TEXT")
+    @Column(name = "snapshot_config", nullable = false)
+    @JdbcTypeCode(SqlTypes.JSON)
     private String snapshotConfig;
 
     @Column(name = "valid_from", nullable = false)

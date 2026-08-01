@@ -14,6 +14,8 @@ import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
+import org.hibernate.annotations.JdbcTypeCode;
+import org.hibernate.type.SqlTypes;
 
 import java.time.Instant;
 
@@ -35,7 +37,8 @@ public class InsurerRuleHistory {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    @Column(name = "config_version", nullable = false, columnDefinition = "TEXT")
+    @Column(name = "config_version", nullable = false)
+    @JdbcTypeCode(SqlTypes.JSON)
     private String configVersion;
 
     @Column(name = "changed_at", nullable = false)
@@ -49,8 +52,11 @@ public class InsurerRuleHistory {
     @Column(name = "valid_to")
     private Instant validTo;
 
+    // Column is rule_id in the real DDL — the DER's original name for it, kept even though
+    // the FK target is insurer_rule (there's no common "rule" table to point at instead;
+    // see README-multitenant.md).
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "insurer_rule_id", nullable = false)
+    @JoinColumn(name = "rule_id", nullable = false)
     private InsurerRule insurerRule;
 
     @Column(name = "changed_by")
