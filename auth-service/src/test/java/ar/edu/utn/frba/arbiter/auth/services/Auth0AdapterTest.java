@@ -5,7 +5,6 @@ import ar.edu.utn.frba.arbiter.auth.exceptions.AccountLockedException;
 import ar.edu.utn.frba.arbiter.auth.exceptions.InvalidCredentialsException;
 import ar.edu.utn.frba.arbiter.auth.models.entities.User;
 import ar.edu.utn.frba.arbiter.auth.models.repositories.UserRepository;
-import ar.edu.utn.frba.arbiter.common.enums.UserRole;
 import com.auth0.client.auth.AuthAPI;
 import com.auth0.exception.Auth0Exception;
 import com.auth0.net.TokenRequest;
@@ -57,10 +56,7 @@ class Auth0AdapterTest {
         return User.builder()
                 .id(1L)
                 .email(EMAIL)
-                .passwordHash("unused-auth0-validates-this")
-                .nombre("Lucas")
-                .apellido("Gómez")
-                .rol(UserRole.ANALISTA_SINIESTROS)
+                .auth0Sub("auth0|test-user")
                 .failedAttempts(0)
                 .build();
     }

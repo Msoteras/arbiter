@@ -12,6 +12,11 @@ spring:
     username: ${DB_USER:arbiter}
     password: ${DB_PASSWORD:arbiter}
   jpa:
+    # Off, not just best-practice: with multi-tenancy, an open-in-view session opens (and
+    # resolves its tenant) on the request's first query and stays pinned to it — AuthService
+    # sets the real tenant afterward, so a shared session would keep querying the wrong schema
+    # for the rest of the request.
+    open-in-view: false
     hibernate:
       ddl-auto: update
     properties:
@@ -20,7 +25,7 @@ spring:
 
 arbiter:
   auth:
-    provider: ${AUTH_PROVIDER:database}
+    provider: ${AUTH_PROVIDER:auth0}
     jwt:
       secret: ${JWT_SECRET:}
       expiration-minutes: ${JWT_EXPIRATION_MINUTES:60}

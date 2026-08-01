@@ -16,13 +16,12 @@ import lombok.NoArgsConstructor;
 import lombok.Setter;
 
 /**
- * Own profile for an insured person ("Asegurado" in CLAUDE.md's domain vocabulary) —
- * the target shape for what {@link User#getInsuredId()} anticipates. Note: "alta de
- * usuarios" (the referente's "+Nuevo usuario", already built) only creates
- * ANALISTA_SINIESTROS accounts — "alta de asegurados" is a separate, not-yet-built flow
- * (decision #8). The 3 seeded ASEGURADO users never went through any real sign-up. Not
- * wired up yet either way: the portal still reads the insured's name/DNI off
- * {@code User} directly.
+ * Own profile for an insured person ("Asegurado" in CLAUDE.md's domain vocabulary),
+ * living in the insurer's own tenant schema — {@code dni} is what {@code JwtService}
+ * puts in the {@code insuredId} claim. "Alta de usuarios" (the referente's "+Nuevo
+ * usuario", already built) only creates ANALISTA_SINIESTROS accounts — "alta de
+ * asegurados" is a separate, not-yet-built flow (decision #8). The 3 seeded ASEGURADO
+ * users never went through any real sign-up.
  */
 @Entity
 @Table(name = "insured")
@@ -40,8 +39,8 @@ public class Insured {
     @Column(nullable = false)
     private String name;
 
-    @Column(name = "last_name", nullable = false)
-    private String lastName;
+    @Column(nullable = false)
+    private String surname;
 
     @Column(nullable = false, unique = true)
     private String dni;

@@ -31,9 +31,9 @@ public class AuthController {
     @PostMapping("/login")
     @Operation(summary = "Login",
             description = """
-                    Valida email + contraseña contra la base de datos y devuelve un JWT con el rol
-                    del usuario. Bloquea la cuenta 15 minutos tras 5 intentos fallidos consecutivos.
-                    Paso transitorio hasta integrar Auth0 (ver CLAUDE.md, decisión #8).
+                    Valida email + contraseña contra Auth0 y devuelve un JWT propio con el rol,
+                    nombre y aseguradora del usuario. Bloquea la cuenta 15 minutos tras 5 intentos
+                    fallidos consecutivos (contador local, Auth0 no lo ve).
                     """)
     public ResponseEntity<LoginResponse> login(@RequestBody @Valid LoginRequest request) {
         return ResponseEntity.ok(authService.login(request));

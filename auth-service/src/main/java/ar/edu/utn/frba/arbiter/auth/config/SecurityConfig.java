@@ -1,5 +1,6 @@
 package ar.edu.utn.frba.arbiter.auth.config;
 
+import ar.edu.utn.frba.arbiter.auth.config.tenant.TenantResolvingFilter;
 import ar.edu.utn.frba.arbiter.auth.services.JwtService;
 import ar.edu.utn.frba.arbiter.common.security.ArbiterHttpSecurity;
 import ar.edu.utn.frba.arbiter.common.security.JwtAuthenticationFilter;
@@ -27,8 +28,15 @@ public class SecurityConfig {
     }
 
     @Bean
-    public SecurityFilterChain securityFilterChain(HttpSecurity http, JwtAuthenticationFilter jwtFilter) throws Exception {
+    public TenantResolvingFilter tenantResolvingFilter() {
+        return new TenantResolvingFilter(jwtService.getKey());
+    }
+
+    @Bean
+    public SecurityFilterChain securityFilterChain(
+            HttpSecurity http, JwtAuthenticationFilter jwtFilter, TenantResolvingFilter tenantFilter) throws Exception {
         ArbiterHttpSecurity.configure(http, jwtFilter);
+        http.addFilterAfter(tenantFilter, JwtAuthenticationFilter.class);
         http.authorizeHttpRequests(auth -> auth
                 .requestMatchers(
                         "/api/v1/auth/login",

@@ -1,10 +1,8 @@
 package ar.edu.utn.frba.arbiter.auth.models.entities;
 
-import ar.edu.utn.frba.arbiter.common.enums.UserRole;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
-import jakarta.persistence.EnumType;
-import jakarta.persistence.Enumerated;
+import jakarta.persistence.FetchType;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
@@ -20,10 +18,18 @@ import lombok.Setter;
 import org.hibernate.annotations.CreationTimestamp;
 
 import java.time.Instant;
-import java.time.LocalDate;
 import java.util.HashSet;
 import java.util.Set;
 
+/**
+ * Identity shared across every insurer ("usuario" in the DER) — lives in the common
+ * schema because login has to work before the tenant is known. What used to be columns
+ * here (password_hash, nombre, apellido, rol, sector, fecha_ingreso, insured_id) moved
+ * out: Auth0 owns credentials now ({@code authSub}), {@code rol} comes from
+ * {@link #roles} (the {@code user_role} join, common too), and name/last name live on
+ * the per-tenant profile table for whichever role the user has ({@code insured} /
+ * {@code claims_analyst} / {@code insurer_referent}).
+ */
 @Entity
 @Table(name = "users")
 @Getter
@@ -37,34 +43,16 @@ public class User {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
+    /** Auth0's stable subject id ('auth0|...') — not email, so a mail change doesn't orphan this row. */
+    @Column(name = "auth0_sub", nullable = false)
+    private String auth0Sub;
+
     @Column(nullable = false, unique = true)
     private String email;
 
-    @Column(name = "password_hash", nullable = false)
-    private String passwordHash;
-
+    @Builder.Default
     @Column(nullable = false)
-    private String nombre;
-
-    @Column(nullable = false)
-    private String apellido;
-
-    @Enumerated(EnumType.STRING)
-    @Column(nullable = false, length = 40)
-    private UserRole rol;
-
-    private String sector;
-
-    @Column(name = "fecha_ingreso")
-    private LocalDate fechaIngreso;
-
-    /**
-     * DNI/identificación del asegurado, para vincular esta cuenta con su póliza real
-     * (BD Aseguradora). Null para ANALISTA_SINIESTROS/REFERENTE_ASEGURADORA — todavía no se
-     * da de alta a asegurados por este panel (ver CLAUDE.md, decisión #8).
-     */
-    @Column(name = "insured_id")
-    private String insuredId;
+    private boolean active = true;
 
     /** Consecutive failed login attempts; resets to 0 on a successful login. */
     @Builder.Default
@@ -100,14 +88,20 @@ public class User {
     @Column(name = "created_at", nullable = false, updatable = false)
     private Instant createdAt;
 
+    @Column(name = "last_access_at")
+    private Instant lastAccessAt;
+
     /**
-     * Granular roles ("usuario_rol" in the DER) — additive to {@link #rol}, not a
-     * replacement. {@link #rol} stays the source of truth for the existing
-     * single-role checks (JWT claims, {@code @PreAuthorize}) until a migration to
-     * this model is decided.
+     * Roles ("usuario_rol" in the DER) — the only source of a user's role now that the
+     * single {@code rol} column is gone. Modeled as a set because the DER draws it that
+     * way, but nothing in the app assigns more than one per user yet; callers that need
+     * "the" role take the first entry (see JwtService). EAGER on purpose: every login
+     * reads it right after {@code User} is fetched, by which point (with open-in-view
+     * off, deliberately — see application.yml) the session that fetched it is already
+     * closed, so LAZY throws.
      */
     @Builder.Default
-    @ManyToMany
+    @ManyToMany(fetch = FetchType.EAGER)
     @JoinTable(
             name = "user_role",
             joinColumns = @JoinColumn(name = "user_id"),
