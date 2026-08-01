@@ -15,6 +15,7 @@ import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.Date;
+import java.util.List;
 
 /**
  * Issues the arbiter JWT. Callers only depend on {@link #issue(User)} — if Auth0 replaces this
@@ -54,6 +55,17 @@ public class JwtService {
     public record IssuedToken(String token, Instant expiresAt) {}
 
     public IssuedToken issue(User user) {
+        return issue(user, List.of());
+    }
+
+    /**
+     * {@code insurerIds} son las aseguradoras a las que pertenece el usuario
+     * ("usuario_aseguradora" en el DER) — insumo para la resolución de tenant por request
+     * (decisión #10) una vez que exista. Un usuario puede estar en más de una (ver
+     * README-multitenant.md); qué hace el login en ese caso todavía no está decidido, así
+     * que el claim va como lista y no se fuerza a un solo valor.
+     */
+    public IssuedToken issue(User user, List<Long> insurerIds) {
         Instant now = Instant.now();
         Instant expiresAt = now.plus(Duration.ofMinutes(properties.jwt().expirationMinutes()));
 
@@ -66,6 +78,9 @@ public class JwtService {
         // en vez de recibirlo por parámetro cuando se integre Auth0.
         if (user.getInsuredId() != null) {
             builder.claim("insuredId", user.getInsuredId());
+        }
+        if (!insurerIds.isEmpty()) {
+            builder.claim("insurerIds", insurerIds);
         }
         String token = builder
                 .issuedAt(Date.from(now))
