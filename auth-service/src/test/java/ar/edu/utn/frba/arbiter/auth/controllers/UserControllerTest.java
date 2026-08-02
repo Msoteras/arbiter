@@ -1,22 +1,35 @@
 package ar.edu.utn.frba.arbiter.auth.controllers;
 
+import ar.edu.utn.frba.arbiter.auth.models.entities.ClaimsAnalyst;
+import ar.edu.utn.frba.arbiter.auth.models.entities.Insurer;
+import ar.edu.utn.frba.arbiter.auth.models.entities.InsurerReferent;
+import ar.edu.utn.frba.arbiter.auth.models.entities.Role;
 import ar.edu.utn.frba.arbiter.auth.models.entities.User;
+import ar.edu.utn.frba.arbiter.auth.models.entities.UserInsurer;
+import ar.edu.utn.frba.arbiter.auth.models.repositories.ClaimsAnalystRepository;
+import ar.edu.utn.frba.arbiter.auth.models.repositories.InsurerReferentRepository;
+import ar.edu.utn.frba.arbiter.auth.models.repositories.InsurerRepository;
+import ar.edu.utn.frba.arbiter.auth.models.repositories.RoleRepository;
+import ar.edu.utn.frba.arbiter.auth.models.repositories.UserInsurerRepository;
 import ar.edu.utn.frba.arbiter.auth.models.repositories.UserRepository;
+import ar.edu.utn.frba.arbiter.auth.services.Auth0UserProvisioner;
+import ar.edu.utn.frba.arbiter.auth.services.JwtService;
 import ar.edu.utn.frba.arbiter.auth.support.AbstractPersistenceIT;
 import ar.edu.utn.frba.arbiter.common.enums.UserRole;
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.http.MediaType;
-import org.springframework.security.crypto.password.PasswordEncoder;
+import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Set;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
@@ -27,10 +40,14 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 /**
- * H0002 - Alta de Usuarios. Usa /api/v1/auth/login real (no arma tokens a mano) para no
- * duplicar la lógica de emisión — auth-service es el que emite, a diferencia de cases-service.
+ * H0002 - Alta de Usuarios. Tokens se emiten directo con JwtService en vez de pegarle a
+ * /api/v1/auth/login: ese endpoint valida contra Auth0 de verdad ahora (no hay
+ * DatabaseCredentialsAuthenticator al que apuntar en un test), así que login en sí lo
+ * cubre Auth0AdapterTest con mocks — acá lo que se prueba es autorización y CRUD.
  */
-@SpringBootTest
+// Dummy Auth0 domain: Auth0Config's AuthAPI bean needs a parseable URL to construct, even
+// though nothing here ever calls the real Auth0 API — tokens are minted directly via JwtService.
+@SpringBootTest(properties = "arbiter.auth.auth0.domain=example.auth0.com")
 @AutoConfigureMockMvc
 class UserControllerTest extends AbstractPersistenceIT {
 
@@ -41,9 +58,27 @@ class UserControllerTest extends AbstractPersistenceIT {
     private UserRepository userRepository;
 
     @Autowired
-    private PasswordEncoder passwordEncoder;
+    private RoleRepository roleRepository;
 
-    private final ObjectMapper objectMapper = new ObjectMapper();
+    @Autowired
+    private InsurerRepository insurerRepository;
+
+    @Autowired
+    private UserInsurerRepository userInsurerRepository;
+
+    @Autowired
+    private InsurerReferentRepository insurerReferentRepository;
+
+    @Autowired
+    private ClaimsAnalystRepository claimsAnalystRepository;
+
+    @Autowired
+    private JwtService jwtService;
+
+    /** Neutralizes real Auth0 Management API calls from deleteUser — login itself is
+     * bypassed entirely here (tokens minted directly), Auth0Adapter never touches this. */
+    @MockitoBean
+    private Auth0UserProvisioner auth0UserProvisioner;
 
     private Long referenteId;
     private Long analistaId;
@@ -51,46 +86,49 @@ class UserControllerTest extends AbstractPersistenceIT {
 
     @BeforeEach
     void seedUsers() {
+        userInsurerRepository.deleteAll();
+        claimsAnalystRepository.deleteAll();
+        insurerReferentRepository.deleteAll();
         userRepository.deleteAll();
+        insurerRepository.deleteAll();
+        roleRepository.deleteAll();
 
-        referenteId = userRepository.save(User.builder()
-                .email("referente.test@gmail.com")
-                .passwordHash(passwordEncoder.encode("changeme123"))
-                .nombre("Sofía")
-                .apellido("Martínez")
-                .rol(UserRole.REFERENTE_ASEGURADORA)
-                .activated(true)
-                .build()).getId();
+        Role referenteRole = roleRepository.save(Role.builder().code("REFERENTE_ASEGURADORA").name("Referente").build());
+        Role analistaRole = roleRepository.save(Role.builder().code("ANALISTA_SINIESTROS").name("Analista").build());
 
-        analistaId = userRepository.save(User.builder()
-                .email("analista.test@gmail.com")
-                .passwordHash(passwordEncoder.encode("changeme123"))
-                .nombre("Lucas")
-                .apellido("Gómez")
-                .rol(UserRole.ANALISTA_SINIESTROS)
-                .activated(true)
-                .build()).getId();
+        Insurer insurer = insurerRepository.save(Insurer.builder()
+                .legalName("BBVA Seguros Argentina S.A.").name("BBVA Seguros")
+                .taxId("30-50006423-0").active(true).schemaName("arbiter_bbva")
+                .build());
 
-        pendienteId = userRepository.save(User.builder()
-                .email("pendiente.test@gmail.com")
-                .passwordHash(passwordEncoder.encode("no-usable"))
-                .nombre("Martina")
-                .apellido("Soteras")
-                .rol(UserRole.ANALISTA_SINIESTROS)
-                .inviteToken("tok-viejo")
-                .inviteExpiresAt(Instant.now().minus(1, ChronoUnit.HOURS))
-                .build()).getId();
+        User referente = userRepository.save(User.builder()
+                .email("referente.test@gmail.com").auth0Sub("auth0|referente-test")
+                .roles(new HashSet<>(Set.of(referenteRole))).activated(true).build());
+        referenteId = referente.getId();
+        userInsurerRepository.save(UserInsurer.builder().user(referente).insurerId(insurer.getId()).build());
+        insurerReferentRepository.save(InsurerReferent.builder().user(referente).name("Sofía").surname("Martínez").build());
+
+        User analista = userRepository.save(User.builder()
+                .email("analista.test@gmail.com").auth0Sub("auth0|analista-test")
+                .roles(new HashSet<>(Set.of(analistaRole))).activated(true).build());
+        analistaId = analista.getId();
+        userInsurerRepository.save(UserInsurer.builder().user(analista).insurerId(insurer.getId()).build());
+        claimsAnalystRepository.save(ClaimsAnalyst.builder()
+                .user(analista).name("Lucas").surname("Gómez").email("analista.test@gmail.com").build());
+
+        User pendiente = userRepository.save(User.builder()
+                .email("pendiente.test@gmail.com").auth0Sub("pending:tok-viejo")
+                .roles(new HashSet<>(Set.of(analistaRole)))
+                .inviteToken("tok-viejo").inviteExpiresAt(Instant.now().minus(1, ChronoUnit.HOURS))
+                .build());
+        pendienteId = pendiente.getId();
+        userInsurerRepository.save(UserInsurer.builder().user(pendiente).insurerId(insurer.getId()).build());
     }
 
-    private String tokenFor(String email) throws Exception {
-        String body = mockMvc.perform(post("/api/v1/auth/login")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content("""
-                                {"email": "%s", "password": "changeme123"}
-                                """.formatted(email)))
-                .andReturn().getResponse().getContentAsString();
-        JsonNode node = objectMapper.readTree(body);
-        return node.get("token").asText();
+    private String tokenFor(Long userId, UserRole rol) {
+        User user = userRepository.findById(userId).orElseThrow();
+        var issued = jwtService.issue(user, rol, "Test", "User", null, List.of(1L), "arbiter_bbva");
+        return issued.token();
     }
 
     @Test
@@ -103,7 +141,7 @@ class UserControllerTest extends AbstractPersistenceIT {
 
     @Test
     void createUser_asAnalista_returns403() throws Exception {
-        String token = tokenFor("analista.test@gmail.com");
+        String token = tokenFor(analistaId, UserRole.ANALISTA_SINIESTROS);
 
         mockMvc.perform(post("/api/v1/auth/users")
                         .header("Authorization", "Bearer " + token)
@@ -114,7 +152,7 @@ class UserControllerTest extends AbstractPersistenceIT {
 
     @Test
     void createUser_asReferente_returns201() throws Exception {
-        String token = tokenFor("referente.test@gmail.com");
+        String token = tokenFor(referenteId, UserRole.REFERENTE_ASEGURADORA);
 
         mockMvc.perform(post("/api/v1/auth/users")
                         .header("Authorization", "Bearer " + token)
@@ -127,7 +165,7 @@ class UserControllerTest extends AbstractPersistenceIT {
 
     @Test
     void createUser_duplicateEmail_returns409() throws Exception {
-        String token = tokenFor("referente.test@gmail.com");
+        String token = tokenFor(referenteId, UserRole.REFERENTE_ASEGURADORA);
 
         mockMvc.perform(post("/api/v1/auth/users")
                         .header("Authorization", "Bearer " + token)
@@ -138,7 +176,7 @@ class UserControllerTest extends AbstractPersistenceIT {
 
     @Test
     void createUser_roleAsegurado_returns400() throws Exception {
-        String token = tokenFor("referente.test@gmail.com");
+        String token = tokenFor(referenteId, UserRole.REFERENTE_ASEGURADORA);
 
         mockMvc.perform(post("/api/v1/auth/users")
                         .header("Authorization", "Bearer " + token)
@@ -148,8 +186,7 @@ class UserControllerTest extends AbstractPersistenceIT {
                                   "email": "asegurado.nuevo@gmail.com",
                                   "nombre": "Martina",
                                   "apellido": "Fernández",
-                                  "rol": "ASEGURADO",
-                                  "sector": "N/A"
+                                  "rol": "ASEGURADO"
                                 }
                                 """))
                 .andExpect(status().isBadRequest());
@@ -163,15 +200,15 @@ class UserControllerTest extends AbstractPersistenceIT {
 
     @Test
     void listUsers_asAnalista_returns403() throws Exception {
-        String token = tokenFor("analista.test@gmail.com");
+        String token = tokenFor(analistaId, UserRole.ANALISTA_SINIESTROS);
 
         mockMvc.perform(get("/api/v1/auth/users").header("Authorization", "Bearer " + token))
                 .andExpect(status().isForbidden());
     }
 
     @Test
-    void listUsers_asReferente_returns200WithAllSeededUsers() throws Exception {
-        String token = tokenFor("referente.test@gmail.com");
+    void listUsers_asReferente_returns200WithSameInsurerUsers() throws Exception {
+        String token = tokenFor(referenteId, UserRole.REFERENTE_ASEGURADORA);
 
         mockMvc.perform(get("/api/v1/auth/users").header("Authorization", "Bearer " + token))
                 .andExpect(status().isOk())
@@ -182,7 +219,7 @@ class UserControllerTest extends AbstractPersistenceIT {
 
     @Test
     void listUsers_pendingUser_hasEstadoPending() throws Exception {
-        String token = tokenFor("referente.test@gmail.com");
+        String token = tokenFor(referenteId, UserRole.REFERENTE_ASEGURADORA);
 
         mockMvc.perform(get("/api/v1/auth/users").header("Authorization", "Bearer " + token))
                 .andExpect(status().isOk())
@@ -202,7 +239,7 @@ class UserControllerTest extends AbstractPersistenceIT {
 
     @Test
     void updateRole_asAnalista_returns403() throws Exception {
-        String token = tokenFor("analista.test@gmail.com");
+        String token = tokenFor(analistaId, UserRole.ANALISTA_SINIESTROS);
 
         mockMvc.perform(put("/api/v1/auth/users/" + referenteId + "/role")
                         .header("Authorization", "Bearer " + token)
@@ -215,7 +252,7 @@ class UserControllerTest extends AbstractPersistenceIT {
 
     @Test
     void updateRole_promoteAnalistaToReferente_returns200() throws Exception {
-        String token = tokenFor("referente.test@gmail.com");
+        String token = tokenFor(referenteId, UserRole.REFERENTE_ASEGURADORA);
 
         mockMvc.perform(put("/api/v1/auth/users/" + analistaId + "/role")
                         .header("Authorization", "Bearer " + token)
@@ -229,7 +266,7 @@ class UserControllerTest extends AbstractPersistenceIT {
 
     @Test
     void updateRole_ownAccount_returns400() throws Exception {
-        String token = tokenFor("referente.test@gmail.com");
+        String token = tokenFor(referenteId, UserRole.REFERENTE_ASEGURADORA);
 
         mockMvc.perform(put("/api/v1/auth/users/" + referenteId + "/role")
                         .header("Authorization", "Bearer " + token)
@@ -242,7 +279,7 @@ class UserControllerTest extends AbstractPersistenceIT {
 
     @Test
     void updateRole_unknownUser_returns404() throws Exception {
-        String token = tokenFor("referente.test@gmail.com");
+        String token = tokenFor(referenteId, UserRole.REFERENTE_ASEGURADORA);
 
         mockMvc.perform(put("/api/v1/auth/users/999999/role")
                         .header("Authorization", "Bearer " + token)
@@ -261,7 +298,7 @@ class UserControllerTest extends AbstractPersistenceIT {
 
     @Test
     void deleteUser_asAnalista_returns403() throws Exception {
-        String token = tokenFor("analista.test@gmail.com");
+        String token = tokenFor(analistaId, UserRole.ANALISTA_SINIESTROS);
 
         mockMvc.perform(delete("/api/v1/auth/users/" + referenteId)
                         .header("Authorization", "Bearer " + token))
@@ -270,7 +307,7 @@ class UserControllerTest extends AbstractPersistenceIT {
 
     @Test
     void deleteUser_asReferente_returns204AndRemovesUser() throws Exception {
-        String token = tokenFor("referente.test@gmail.com");
+        String token = tokenFor(referenteId, UserRole.REFERENTE_ASEGURADORA);
 
         mockMvc.perform(delete("/api/v1/auth/users/" + analistaId)
                         .header("Authorization", "Bearer " + token))
@@ -281,7 +318,7 @@ class UserControllerTest extends AbstractPersistenceIT {
 
     @Test
     void deleteUser_ownAccount_returns400() throws Exception {
-        String token = tokenFor("referente.test@gmail.com");
+        String token = tokenFor(referenteId, UserRole.REFERENTE_ASEGURADORA);
 
         mockMvc.perform(delete("/api/v1/auth/users/" + referenteId)
                         .header("Authorization", "Bearer " + token))
@@ -290,7 +327,7 @@ class UserControllerTest extends AbstractPersistenceIT {
 
     @Test
     void deleteUser_unknownUser_returns404() throws Exception {
-        String token = tokenFor("referente.test@gmail.com");
+        String token = tokenFor(referenteId, UserRole.REFERENTE_ASEGURADORA);
 
         mockMvc.perform(delete("/api/v1/auth/users/999999")
                         .header("Authorization", "Bearer " + token))
@@ -305,7 +342,7 @@ class UserControllerTest extends AbstractPersistenceIT {
 
     @Test
     void resendInvite_asAnalista_returns403() throws Exception {
-        String token = tokenFor("analista.test@gmail.com");
+        String token = tokenFor(analistaId, UserRole.ANALISTA_SINIESTROS);
 
         mockMvc.perform(post("/api/v1/auth/users/" + pendienteId + "/resend-invite")
                         .header("Authorization", "Bearer " + token))
@@ -314,7 +351,7 @@ class UserControllerTest extends AbstractPersistenceIT {
 
     @Test
     void resendInvite_pendingUser_returns200WithNewToken() throws Exception {
-        String token = tokenFor("referente.test@gmail.com");
+        String token = tokenFor(referenteId, UserRole.REFERENTE_ASEGURADORA);
 
         mockMvc.perform(post("/api/v1/auth/users/" + pendienteId + "/resend-invite")
                         .header("Authorization", "Bearer " + token))
@@ -328,7 +365,7 @@ class UserControllerTest extends AbstractPersistenceIT {
 
     @Test
     void resendInvite_activeUser_returns400() throws Exception {
-        String token = tokenFor("referente.test@gmail.com");
+        String token = tokenFor(referenteId, UserRole.REFERENTE_ASEGURADORA);
 
         mockMvc.perform(post("/api/v1/auth/users/" + analistaId + "/resend-invite")
                         .header("Authorization", "Bearer " + token))
@@ -337,7 +374,7 @@ class UserControllerTest extends AbstractPersistenceIT {
 
     @Test
     void resendInvite_unknownUser_returns404() throws Exception {
-        String token = tokenFor("referente.test@gmail.com");
+        String token = tokenFor(referenteId, UserRole.REFERENTE_ASEGURADORA);
 
         mockMvc.perform(post("/api/v1/auth/users/999999/resend-invite")
                         .header("Authorization", "Bearer " + token))
@@ -350,9 +387,7 @@ class UserControllerTest extends AbstractPersistenceIT {
                   "email": "%s",
                   "nombre": "Nuevo",
                   "apellido": "Analista",
-                  "rol": "ANALISTA_SINIESTROS",
-                  "sector": "Siniestros Celulares",
-                  "fechaIngreso": "2026-01-01"
+                  "rol": "ANALISTA_SINIESTROS"
                 }
                 """.formatted(email);
     }

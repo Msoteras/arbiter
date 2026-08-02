@@ -35,21 +35,24 @@ public class UserController {
     @PreAuthorize("hasRole('REFERENTE_ASEGURADORA')")
     @Operation(summary = "Dar de alta un usuario",
             description = """
-                    El referente de una aseguradora da de alta un nuevo usuario con contraseña
-                    directa (paso transitorio, ver CLAUDE.md decisión #8). Por ahora solo admite
-                    rol ANALISTA_SINIESTROS — el asegurado no se da de alta por acá.
+                    El referente de una aseguradora invita a un nuevo usuario, que queda
+                    "pendiente" hasta que elige su propia contraseña por mail (Auth0). Por ahora
+                    solo admite rol ANALISTA_SINIESTROS — el asegurado no se da de alta por acá
+                    (ver CLAUDE.md decisión #8). Queda vinculado a la misma aseguradora del
+                    referente que lo invita.
                     """)
-    public ResponseEntity<UserResponse> createUser(@RequestBody @Valid CreateUserRequest request) {
-        UserResponse response = userService.createUser(request);
+    public ResponseEntity<UserResponse> createUser(
+            @RequestBody @Valid CreateUserRequest request, Authentication authentication) {
+        UserResponse response = userService.createUser(request, authentication.getName());
         return ResponseEntity.status(HttpStatus.CREATED).body(response);
     }
 
     @GetMapping
     @PreAuthorize("hasRole('REFERENTE_ASEGURADORA')")
     @Operation(summary = "Listar usuarios",
-            description = "Devuelve todos los usuarios del sistema con su rol actual, más recientes primero.")
-    public ResponseEntity<List<UserResponse>> listUsers() {
-        return ResponseEntity.ok(userService.listUsers());
+            description = "Devuelve los usuarios de la aseguradora del referente, con su rol actual, más recientes primero.")
+    public ResponseEntity<List<UserResponse>> listUsers(Authentication authentication) {
+        return ResponseEntity.ok(userService.listUsers(authentication.getName()));
     }
 
     @PutMapping("/{id}/role")

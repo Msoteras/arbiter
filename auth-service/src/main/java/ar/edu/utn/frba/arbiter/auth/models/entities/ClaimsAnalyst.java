@@ -16,9 +16,10 @@ import lombok.NoArgsConstructor;
 import lombok.Setter;
 
 /**
- * Profile for an ANALISTA_SINIESTROS account ("analista_seguro" in the DER) —
- * duplicates name/last name/email that already live on {@link User}. Not wired up yet:
- * the Usuarios admin screen still reads these straight off {@code users}.
+ * Profile for an ANALISTA_SINIESTROS account ("analista_siniestro" in the DER), living
+ * in the insurer's own tenant schema — {@code name}/{@code surname} is what
+ * {@code JwtService} puts in the JWT once the tenant is resolved. Not wired up yet: the
+ * Usuarios admin screen still reads these straight off {@code users}.
  */
 @Entity
 @Table(name = "claims_analyst")
@@ -33,11 +34,13 @@ public class ClaimsAnalyst {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
+    @Column(nullable = false)
     private String name;
 
-    @Column(name = "last_name")
-    private String lastName;
+    @Column(nullable = false)
+    private String surname;
 
+    @Column(nullable = false)
     private String email;
 
     @OneToOne(fetch = FetchType.LAZY)

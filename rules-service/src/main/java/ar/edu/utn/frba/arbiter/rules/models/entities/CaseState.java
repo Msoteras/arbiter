@@ -19,7 +19,7 @@ import lombok.Setter;
  * the enum; this table doesn't drive it.
  */
 @Entity
-@Table(name = "case_state")
+@Table(name = "case_status")
 @Getter
 @Setter
 @NoArgsConstructor
@@ -34,10 +34,11 @@ public class CaseState {
     @Column(nullable = false)
     private String name;
 
+    @Column(nullable = false)
     private String description;
 
     /** Aggregated label the insured sees (several internal states can map to the same one). */
-    @Column(name = "insured_state")
+    @Column(name = "insured_status", nullable = false)
     private String insuredState;
 
     @Column(name = "is_final", nullable = false)

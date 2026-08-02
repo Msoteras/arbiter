@@ -45,6 +45,6 @@ public class Metric {
     @Column(nullable = false)
     private BigDecimal value;
 
-    @Column(length = 20)
+    @Column(nullable = false, length = 20)
     private String granularity;
 }

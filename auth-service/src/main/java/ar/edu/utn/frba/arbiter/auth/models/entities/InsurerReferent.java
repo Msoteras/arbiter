@@ -16,29 +16,31 @@ import lombok.NoArgsConstructor;
 import lombok.Setter;
 
 /**
- * Profile for a REFERENTE_ASEGURADORA account ("referente_aseguradora" in the DER) —
- * duplicates name/last name that already live on {@link User}. Not wired up yet: the
+ * Profile for a REFERENTE_ASEGURADORA account ("referente_aseguradora" in the DER),
+ * living in the insurer's own tenant schema — {@code name}/{@code surname} is what
+ * {@code JwtService} puts in the JWT once the tenant is resolved. Not wired up yet: the
  * Usuarios admin screen still reads name/role straight off {@code users}. Which insurer
- * a referente belongs to is {@link UserInsurer}, not a field here — the DER doesn't put
- * insurer_id on this entity either.
+ * a referente belongs to is {@link UserInsurer} (common schema) — the schema this row
+ * lives in already says the same thing, so there's no insurer_id field here either.
  */
 @Entity
-@Table(name = "insurer_representative")
+@Table(name = "insurer_referent")
 @Getter
 @Setter
 @NoArgsConstructor
 @AllArgsConstructor
 @Builder
-public class InsurerRepresentative {
+public class InsurerReferent {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
+    @Column(nullable = false)
     private String name;
 
-    @Column(name = "last_name")
-    private String lastName;
+    @Column(nullable = false)
+    private String surname;
 
     @OneToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "user_id", nullable = false, unique = true)

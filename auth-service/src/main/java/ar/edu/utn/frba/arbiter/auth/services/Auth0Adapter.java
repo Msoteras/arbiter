@@ -16,10 +16,9 @@ import java.time.Instant;
 
 /**
  * Validates credentials against Auth0 (Resource Owner Password Grant, "password-realm" against
- * the Username-Password-Authentication connection) instead of our own bcrypt hash. The account
- * lockout counters stay local (Auth0 never sees them): this class is the only thing that changes
- * vs {@link DatabaseCredentialsAuthenticator} — AuthController/AuthService/JwtService don't.
- * Profile fields (rol, sector, insuredId) live in our own User row, not in Auth0.
+ * the Username-Password-Authentication connection) — Auth0 is the only place a password lives
+ * now, the multi-tenant {@code users} table doesn't have a hash column at all. The account
+ * lockout counters stay local (Auth0 never sees them).
  */
 @Component
 @ConditionalOnProperty(prefix = "arbiter.auth", name = "provider", havingValue = "auth0")
