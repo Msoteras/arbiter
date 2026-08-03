@@ -9,8 +9,16 @@ spring:
     username: ${DB_USER:arbiter}
     password: ${DB_PASSWORD:arbiter}
   jpa:
+    # Off, not just best-practice: with multi-tenancy, an open-in-view session opens (and
+    # resolves its tenant) on the request's first query and stays pinned to it for the rest
+    # of the request — see auth-service's application.yml for the concrete bug this caused
+    # there.
+    open-in-view: false
     hibernate:
-      ddl-auto: update
+      # `validate`, nunca `update`: con el search_path multi-tenant, en `update` Hibernate
+      # recrea las tablas de arbiter_common adentro de cada esquema de aseguradora apenas no
+      # las encuentra calificadas. El esquema lo define db/init-multitenant.sql y punto.
+      ddl-auto: validate
     properties:
       hibernate:
         format_sql: true
