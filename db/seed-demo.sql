@@ -2,25 +2,29 @@
 -- Arbiter — demo data, segmented by insurer
 --
 -- Run AFTER db/init-multitenant.sql, which creates the schemas, the catalogs and
--- the four seed users.
+-- the five seed users.
 --
--- Ports the fixtures that db/init.sql and db/datos-aseguradoras.sql held in a single
--- schema, splitting them across the two tenants. The risk profiles are preserved
--- deliberately — each insured exercises a different corner of the scoring engine:
+-- Every claim below belongs to Martina or Julián — the two BBVA insureds with a
+-- real, loginable account (Auth0 doesn't have a self-service "alta de asegurado"
+-- flow yet, so a fresh identity costs a manual Management API call, not a
+-- signup form). Earlier versions of this file spread the same scenarios across
+-- eight fictitious `@example.com` people; they were never reachable (no real
+-- Auth0 identity behind them) and only added noise to the Usuarios screen. The
+-- risk-profile variety is preserved by splitting the claims across two real
+-- people instead of eight fake ones — nothing about the scoring engine cares
+-- who the repeat claimant is:
 --
 --   claim_frequency = min(1, previous_claims / 3)
 --   policy_standing = 1.0 when the policy is in arrears, 0.0 when up to date
 --   amount_ratio    = claimed_amount / coverage sum insured
 --
---   BBVA        Martina  0 previous · up to date   → LOW
---               Julián   3 previous · up to date   → HIGH (repeat claimant)
---               Lucas    0 previous · low sums     → unscored (missing docs)
---               Nicolás  1 previous · up to date   → MEDIUM
---               Valeria  2 previous · up to date   → MEDIUM/HIGH
---               Diego    0 previous · IN ARREARS   → isolates policy_standing
---   PROVINCIA   Carla    0 previous · up to date   → LOW (resolved case)
---               Camila   0 previous · up to date   → LOW
---               Federico 2 previous · IN ARREARS   → HIGH (two factors at once)
+--   BBVA        Martina  claim 1  0 previous · up to date   → LOW
+--                        claim 4  0 previous · up to date   → MEDIUM
+--                        claim 5  just submitted, unscored yet
+--               Julián   claim 2  3 previous · up to date   → HIGH (repeat claimant)
+--                        claim 3  0 previous · low sums     → unscored (missing docs)
+--   PROVINCIA   Martina  claim 1  0 previous · up to date   → LOW (resolved case)
+--                        claim 2  2 previous · IN ARREARS   → CRITICAL (two factors at once)
 --
 -- Martina is a customer of BOTH insurers: one identity in arbiter_common.users, two
 -- `insured` rows in different schemas. That is the case worth demoing — it shows the
@@ -33,45 +37,23 @@ BEGIN;
 
 -- =============================================================================
 -- PART 1 — Shared identity (arbiter_common)
--- One user per insured person. Roles and membership decide what they can see and
--- which schema serves them.
+-- Martina (user 1) and Julián (user 5) are seeded by init-multitenant.sql.
+-- Martina is also a Provincia customer; Julián is BBVA-only.
 -- =============================================================================
 
-INSERT INTO arbiter_common.users (id, auth0_sub, email, active, activated) VALUES
-    -- BBVA policyholders
-    ( 5, 'auth0|seed-julian',   'julian.perez@example.com',     TRUE, TRUE),
-    ( 6, 'auth0|seed-lucasm',   'lucas.martinez@example.com',   TRUE, TRUE),
-    ( 7, 'auth0|seed-nicolas',  'nicolas.ferreyra@example.com', TRUE, TRUE),
-    ( 8, 'auth0|seed-valeria',  'valeria.rios@example.com',     TRUE, TRUE),
-    ( 9, 'auth0|seed-diegos',   'diego.sosa@example.com',       TRUE, TRUE),
-    -- Provincia policyholders
-    (10, 'auth0|seed-carla',    'carla.gomez@example.com',      TRUE, TRUE),
-    (11, 'auth0|seed-camila',   'camila.duarte@example.com',    TRUE, TRUE),
-    (12, 'auth0|seed-federico', 'federico.aguirre@example.com', TRUE, TRUE);
-
-SELECT setval(pg_get_serial_sequence('arbiter_common.users', 'id'),
-              (SELECT MAX(id) FROM arbiter_common.users));
-
 INSERT INTO arbiter_common.user_role (user_id, role_id) VALUES
-    (5,1), (6,1), (7,1), (8,1), (9,1), (10,1), (11,1), (12,1);
+    (5, 1);
 
 INSERT INTO arbiter_common.user_insurer (user_id, insurer_id) VALUES
-    (5,1), (6,1), (7,1), (8,1), (9,1),
-    (10,2), (11,2), (12,2),
-    -- Martina (user 1, already a BBVA member) is also a Provincia customer.
-    (1,2);
+    (1,2), (5,1);
 
 -- =============================================================================
 -- PART 2 — "BD Aseguradora": BBVA (external system, read by InsurerDatabaseAdapter)
 -- =============================================================================
 
 INSERT INTO aseguradora_bbva.asegurado (id, documento, cuil, nombre, apellido, email, telefono) VALUES
-    (1, '42.987.654', '27-42987654-1', 'Martina',  'Soteras',  'martina.soteras@example.com',  '11-5555-0001'),
-    (2, '30.555.777', '20-30555777-3', 'Julián',   'Pérez',    'julian.perez@example.com',     '11-5555-0002'),
-    (3, '44655366',   '20-44655366-9', 'Lucas',    'Martínez', 'lucas.martinez@example.com',   '11-5555-0003'),
-    (4, '38.222.111', '20-38222111-5', 'Nicolás',  'Ferreyra', 'nicolas.ferreyra@example.com', '11-5555-0005'),
-    (5, '29.888.444', '27-29888444-2', 'Valeria',  'Ríos',     'valeria.rios@example.com',     '11-5555-0006'),
-    (6, '41.333.999', '20-41333999-7', 'Diego',    'Sosa',     'diego.sosa@example.com',       '11-5555-0007');
+    (1, '42.987.654', '27-42987654-1', 'Martina', 'Soteras', 'martina.soteras@example.com',    '11-5555-0001'),
+    (2, '30.555.777', '20-30555777-3', 'Julián',  'Pérez',   'asegurado2.arbiter@gmail.com',   '11-5555-0002');
 
 SELECT setval(pg_get_serial_sequence('aseguradora_bbva.asegurado','id'),
               (SELECT MAX(id) FROM aseguradora_bbva.asegurado));
@@ -83,15 +65,12 @@ INSERT INTO aseguradora_bbva.poliza (id, numero, nro_certificado, titular_id, ra
      '2026-01-01','2027-01-01','ACTIVA','AL_DIA',       6, 0,       0.00, 'TARJETA DE CREDITO', TRUE),
     (2, 'POL-CEL-2025-099', '621243', 2, 'Celulares', 'Celular Protegido Premium', 'iPhone 15 Pro',
      '2025-11-01','2026-11-01','ACTIVA','AL_DIA',       8, 0,       0.00, 'TARJETA DE CREDITO', TRUE),
-    (3, '2030405',          '621244', 3, 'Celulares', 'Celular Protegido Básico',  'Motorola Moto G54',
+    (3, '2030405',          '621244', 2, 'Celulares', 'Celular Protegido Básico',  'Motorola Moto G54',
      '2026-01-15','2027-01-15','ACTIVA','AL_DIA',       5, 0,       0.00, 'DEBITO', TRUE),
-    (4, 'POL-CEL-2026-118', '621245', 4, 'Celulares', 'Celular Protegido Básico',  'Samsung Galaxy S24',
+    (4, 'POL-CEL-2026-118', '621245', 1, 'Celulares', 'Celular Protegido Básico',  'Samsung Galaxy S24',
      '2026-02-01','2027-02-01','ACTIVA','AL_DIA',       5, 0,       0.00, 'DEBITO', FALSE),
-    (5, 'POL-CEL-2026-205', '621246', 5, 'Celulares', 'Celular Protegido Premium', 'iPhone 15',
-     '2026-01-10','2027-01-10','ACTIVA','AL_DIA',       6, 0,       0.00, 'TARJETA DE CREDITO', TRUE),
-    -- Diego: the only BBVA policy in arrears — isolates policy_standing from every other factor.
-    (6, 'POL-CEL-2026-330', '621247', 6, 'Celulares', 'Celular Protegido Básico',  'Xiaomi Redmi Note 13',
-     '2026-03-01','2027-03-01','ACTIVA','SUSPENDIDA',   2, 3, 18450.00, 'DEBITO', FALSE);
+    (5, 'POL-CEL-2026-205', '621246', 1, 'Celulares', 'Celular Protegido Premium', 'iPhone 15',
+     '2026-01-10','2027-01-10','ACTIVA','AL_DIA',       6, 0,       0.00, 'TARJETA DE CREDITO', TRUE);
 
 SELECT setval(pg_get_serial_sequence('aseguradora_bbva.poliza','id'),
               (SELECT MAX(id) FROM aseguradora_bbva.poliza));
@@ -104,32 +83,23 @@ INSERT INTO aseguradora_bbva.cobertura (poliza_id, orden, nombre, suma_asegurada
     (3, 2, 'Hurto',             50000.00,  0.00),
     (4, 1, 'Robo de celular',  800000.00, 10.00),
     (5, 1, 'Robo de celular', 1500000.00, 10.00),
-    (5, 2, 'Hurto',            400000.00, 15.00),
-    (6, 1, 'Robo de celular',  600000.00, 10.00);
+    (5, 2, 'Hurto',            400000.00, 15.00);
 
+-- Julián, policy 2: 3 previous → claim_frequency saturates at 1.0.
 INSERT INTO aseguradora_bbva.siniestro_historico (poliza_id, asegurado_id, fecha_ocurrencia, causa,
                                                   estado_resolucion, monto_indemnizado) VALUES
-    -- Julián: 3 previous → claim_frequency saturates at 1.0
     (2, 2, '2025-11-18', 'Robo en vía pública', 'LIQUIDADO', 640000.00),
     (2, 2, '2026-02-05', 'Robo en vía pública', 'LIQUIDADO', 710000.00),
-    (2, 2, '2026-04-22', 'Robo en vía pública', 'RECHAZADO', NULL),
-    -- Nicolás: 1 previous
-    (4, 4, '2026-03-20', 'Robo en vía pública', 'LIQUIDADO', 380000.00),
-    -- Valeria: 2 previous
-    (5, 5, '2025-10-12', 'Hurto',               'LIQUIDADO', 520000.00),
-    (5, 5, '2026-01-30', 'Robo en vía pública', 'RECHAZADO', NULL);
--- Martina, Lucas and Diego have none → claim_frequency = 0.
+    (2, 2, '2026-04-22', 'Robo en vía pública', 'RECHAZADO', NULL);
+-- Policies 1, 3, 4 and 5 have none → claim_frequency = 0 on those claims.
 
 -- =============================================================================
 -- PART 3 — "BD Aseguradora": Provincia
 -- =============================================================================
 
+-- Same document as BBVA's asegurado(1): Martina holds policies with both companies.
 INSERT INTO aseguradora_provincia.asegurado (id, documento, cuil, nombre, apellido, email, telefono) VALUES
-    (1, '35.111.222', '27-35111222-4', 'Carla',    'Gómez',   'carla.gomez@example.com',      '11-5555-0004'),
-    (2, '33.777.222', '27-33777222-8', 'Camila',   'Duarte',  'camila.duarte@example.com',    '11-5555-0008'),
-    (3, '28.444.666', '20-28444666-1', 'Federico', 'Aguirre', 'federico.aguirre@example.com', '11-5555-0009'),
-    -- Same document as BBVA's insured 1: Martina holds policies with both companies.
-    (4, '42.987.654', '27-42987654-1', 'Martina',  'Soteras', 'martina.soteras@example.com',  '11-5555-0001');
+    (1, '42.987.654', '27-42987654-1', 'Martina',  'Soteras', 'martina.soteras@example.com',  '11-5555-0001');
 
 SELECT setval(pg_get_serial_sequence('aseguradora_provincia.asegurado','id'),
               (SELECT MAX(id) FROM aseguradora_provincia.asegurado));
@@ -142,12 +112,10 @@ INSERT INTO aseguradora_provincia.poliza (id, numero, nro_certificado, titular_i
     (1, 'POL-TEC-2026-311', '700841', 1, 'Tecnología Portátil', 'Seguro de Tecnología Portátil', 'MacBook Air M3 15"',
      '2026-03-01','2027-03-01','ACTIVA','AL_DIA', 4, 1, 3406.17, 'TARJETA DE CREDITO', 2, 50.00, FALSE,
      '{"codRamaSegR":7,"nroPolizaR":2365301,"nroCertificadoR":700841,"descProductoR":"07 150 TEC PORT","importePrimaTarifa":2762.5,"importePremio":3406.17,"clausulaAjuste":"AJUSTE TASA FIJA","codClausulaAjuste":105}'::jsonb),
-    (2, 'POL-TEC-2026-402', '700842', 2, 'Tecnología Portátil', 'Seguro de Tecnología Portátil', 'iPad Pro 11"',
-     '2026-02-01','2027-02-01','ACTIVA','AL_DIA', 5, 0, 0.00, 'DEBITO', 2, 50.00, FALSE, NULL),
-    -- Federico: 2 previous claims AND in arrears — two risk factors firing at once.
-    (3, 'POL-CEL-2026-501', '700843', 3, 'Celulares', 'Celular Protegido', 'Samsung Galaxy S23',
+    -- 2 previous claims AND in arrears — two risk factors firing at once.
+    (2, 'POL-CEL-2026-501', '700843', 1, 'Celulares', 'Celular Protegido', 'Samsung Galaxy S23',
      '2026-01-05','2027-01-05','ACTIVA','SUSPENDIDA', 3, 2, 22100.00, 'DEBITO', NULL, NULL, FALSE, NULL),
-    (4, 'POL-CEL-2026-777', '700844', 4, 'Celulares', 'Celular Protegido', 'Samsung Galaxy A56',
+    (3, 'POL-CEL-2026-777', '700844', 1, 'Celulares', 'Celular Protegido', 'Samsung Galaxy A56',
      '2026-04-01','2027-04-01','ACTIVA','AL_DIA', 3, 0, 0.00, 'TARJETA DE CREDITO', NULL, NULL, FALSE, NULL);
 
 SELECT setval(pg_get_serial_sequence('aseguradora_provincia.poliza','id'),
@@ -156,28 +124,24 @@ SELECT setval(pg_get_serial_sequence('aseguradora_provincia.poliza','id'),
 INSERT INTO aseguradora_provincia.cobertura (poliza_id, orden, nombre, suma_asegurada, franquicia_pct) VALUES
     (1, 1, 'Robo de celular', 170000.00, 10.00),
     (1, 2, 'Daño accidental',  90000.00, 10.00),
-    (2, 1, 'Daño accidental', 250000.00, 10.00),
-    (3, 1, 'Robo de celular', 900000.00, 10.00),
-    (4, 1, 'Robo de celular', 700000.00, 10.00);
+    (2, 1, 'Robo de celular', 900000.00, 10.00),
+    (3, 1, 'Robo de celular', 700000.00, 10.00);
 
 INSERT INTO aseguradora_provincia.siniestro_historico (poliza_id, asegurado_id, fecha_ocurrencia, causa,
                                                        estado_resolucion, monto_indemnizado) VALUES
-    (3, 3, '2025-09-15', 'Robo en vía pública', 'LIQUIDADO', 410000.00),
-    (3, 3, '2026-02-20', 'Robo en vía pública', 'LIQUIDADO', 480000.00);
+    (2, 1, '2025-09-15', 'Robo en vía pública', 'LIQUIDADO', 410000.00),
+    (2, 1, '2026-02-20', 'Robo en vía pública', 'LIQUIDADO', 480000.00);
 
 -- =============================================================================
 -- PART 4 — Arbiter tenant: BBVA
 -- =============================================================================
 
--- insured id=1 (Martina) is already seeded by init-multitenant.sql.
-INSERT INTO arbiter_bbva.insured (id, name, surname, dni, email, phone, case_count, pep, user_id) VALUES
-    (2, 'Julián',  'Pérez',    '30.555.777', 'julian.perez@example.com',     '11-5555-0002', 1, FALSE, 5),
-    (3, 'Lucas',   'Martínez', '44655366',   'lucas.martinez@example.com',   '11-5555-0003', 1, FALSE, 6),
-    (4, 'Nicolás', 'Ferreyra', '38.222.111', 'nicolas.ferreyra@example.com', '11-5555-0005', 0, FALSE, 7),
-    (5, 'Valeria', 'Ríos',     '29.888.444', 'valeria.rios@example.com',     '11-5555-0006', 0, FALSE, 8),
-    (6, 'Diego',   'Sosa',     '41.333.999', 'diego.sosa@example.com',       '11-5555-0007', 0, FALSE, 9);
+-- insured id=1 (Martina) is already seeded by init-multitenant.sql — claims 1, 4
+-- and 5 are hers. Julián (user 5) gets his own insured row here — claims 2 and 3.
+UPDATE arbiter_bbva.insured SET case_count = 3 WHERE id = 1;
 
-UPDATE arbiter_bbva.insured SET case_count = 3 WHERE id = 1;   -- Martina: cases 1, 4 and 5
+INSERT INTO arbiter_bbva.insured (id, name, surname, dni, email, phone, case_count, pep, user_id) VALUES
+    (2, 'Julián', 'Pérez', '30.555.777', 'asegurado2.arbiter@gmail.com', '11-5555-0002', 2, FALSE, 5);
 
 SELECT setval(pg_get_serial_sequence('arbiter_bbva.insured','id'),
               (SELECT MAX(id) FROM arbiter_bbva.insured));
@@ -186,10 +150,9 @@ SELECT setval(pg_get_serial_sequence('arbiter_bbva.insured','id'),
 INSERT INTO arbiter_bbva.policy (id, external_policy_number, product, sum_insured, in_force, insured_id, coverage_id) VALUES
     (1, 'POL-CEL-2026-042', 'Celular Protegido Premium', 1300000.00, TRUE, 1, 1),
     (2, 'POL-CEL-2025-099', 'Celular Protegido Premium', 1200000.00, TRUE, 2, 1),
-    (3, '2030405',          'Celular Protegido Básico',   200000.00, TRUE, 3, 1),
-    (4, 'POL-CEL-2026-118', 'Celular Protegido Básico',   800000.00, TRUE, 4, 1),
-    (5, 'POL-CEL-2026-205', 'Celular Protegido Premium', 1500000.00, TRUE, 5, 1),
-    (6, 'POL-CEL-2026-330', 'Celular Protegido Básico',   600000.00, TRUE, 6, 1);
+    (3, '2030405',          'Celular Protegido Básico',   200000.00, TRUE, 2, 1),
+    (4, 'POL-CEL-2026-118', 'Celular Protegido Básico',   800000.00, TRUE, 1, 1),
+    (5, 'POL-CEL-2026-205', 'Celular Protegido Premium', 1500000.00, TRUE, 1, 1);
 
 SELECT setval(pg_get_serial_sequence('arbiter_bbva.policy','id'),
               (SELECT MAX(id) FROM arbiter_bbva.policy));
@@ -230,7 +193,7 @@ INSERT INTO arbiter_bbva.cases
     (3, '2026-06-30 00:00:00+00', '2026-06-30 10:00:00+00', NULL, '2026-07-30',
      'Estaba saliendo de la facultad y me robaron desde una moto.',
      FALSE, 120000.00, 'Samsung Galaxy A50', 'Medrano 951', 'CABA', 'Buenos Aires',
-     3, NULL, 3, 2, 1, 3, 3, NULL),
+     3, NULL, 2, 2, 1, 3, 3, NULL),
 
     -- 4 · missing item photo, very high amount → MEDIUM.
     (4, '2026-06-12 18:30:00+00', '2026-06-12 18:55:00+00', NULL, '2026-07-12',
@@ -298,7 +261,7 @@ INSERT INTO arbiter_bbva.case_status_history (reason, observation, actor, change
      'SYSTEM', '2026-06-14 08:36:00+00', NULL, 1, 2, 1),
     ('Denuncia registrada', NULL, 'INSURED', '2026-06-11 09:05:00+00', 5, NULL, 1, 2),
     ('Clasificación disponible', 'Riesgo ALTO por reincidencia', 'SYSTEM', '2026-06-11 09:12:00+00', NULL, 1, 2, 2),
-    ('Denuncia registrada', NULL, 'INSURED', '2026-06-30 10:00:00+00', 6, NULL, 1, 3),
+    ('Denuncia registrada', NULL, 'INSURED', '2026-06-30 10:00:00+00', 5, NULL, 1, 3),
     ('Faltan documentos obligatorios de la agenda', 'DENUNCIA_POLICIAL, FOTO_BIEN',
      'SYSTEM', '2026-06-30 10:08:00+00', NULL, 1, 3, 3),
     ('Denuncia registrada', NULL, 'INSURED', '2026-06-12 18:55:00+00', 1, NULL, 1, 4),
@@ -318,21 +281,17 @@ INSERT INTO arbiter_provincia.coverage (id, name, description, report_deadline_h
 SELECT setval(pg_get_serial_sequence('arbiter_provincia.coverage','id'),
               (SELECT MAX(id) FROM arbiter_provincia.coverage));
 
+-- Same person as arbiter_bbva.insured(1) — one identity, two tenants, no shared row.
 INSERT INTO arbiter_provincia.insured (id, name, surname, dni, email, phone, case_count, pep, user_id) VALUES
-    (1, 'Carla',    'Gómez',   '35.111.222', 'carla.gomez@example.com',      '11-5555-0004', 1, FALSE, 10),
-    (2, 'Camila',   'Duarte',  '33.777.222', 'camila.duarte@example.com',    '11-5555-0008', 0, FALSE, 11),
-    (3, 'Federico', 'Aguirre', '28.444.666', 'federico.aguirre@example.com', '11-5555-0009', 1, TRUE,  12),
-    -- Same person as arbiter_bbva.insured(1) — one identity, two tenants, no shared row.
-    (4, 'Martina',  'Soteras', '42.987.654', 'martina.soteras@example.com',  '11-5555-0001', 0, FALSE, 1);
+    (1, 'Martina',  'Soteras', '42.987.654', 'martina.soteras@example.com',  '11-5555-0001', 2, FALSE, 1);
 
 SELECT setval(pg_get_serial_sequence('arbiter_provincia.insured','id'),
               (SELECT MAX(id) FROM arbiter_provincia.insured));
 
 INSERT INTO arbiter_provincia.policy (id, external_policy_number, product, sum_insured, in_force, insured_id, coverage_id) VALUES
     (1, 'POL-TEC-2026-311', 'Seguro de Tecnología Portátil',  90000.00, TRUE, 1, 3),
-    (2, 'POL-TEC-2026-402', 'Seguro de Tecnología Portátil', 250000.00, TRUE, 2, 3),
-    (3, 'POL-CEL-2026-501', 'Celular Protegido',             900000.00, TRUE, 3, 1),
-    (4, 'POL-CEL-2026-777', 'Celular Protegido',             700000.00, TRUE, 4, 1);
+    (2, 'POL-CEL-2026-501', 'Celular Protegido',             900000.00, TRUE, 1, 1),
+    (3, 'POL-CEL-2026-777', 'Celular Protegido',             700000.00, TRUE, 1, 1);
 
 SELECT setval(pg_get_serial_sequence('arbiter_provincia.policy','id'),
               (SELECT MAX(id) FROM arbiter_provincia.policy));
@@ -340,7 +299,7 @@ SELECT setval(pg_get_serial_sequence('arbiter_provincia.policy','id'),
 INSERT INTO arbiter_provincia.policy_snapshot (id, external_policy_number, sum_insured, in_force,
                                                payments_up_to_date, previous_claims, queried_at) VALUES
     (1, 'POL-TEC-2026-311',  90000.00, TRUE, TRUE,  0, '2026-05-20 14:05:00+00'),
-    -- Federico: in arrears and with history — policy_standing and claim_frequency both fire.
+    -- In arrears and with history — policy_standing and claim_frequency both fire.
     (2, 'POL-CEL-2026-501', 900000.00, TRUE, FALSE, 2, '2026-07-05 11:20:00+00');
 
 SELECT setval(pg_get_serial_sequence('arbiter_provincia.policy_snapshot','id'),
@@ -359,11 +318,11 @@ INSERT INTO arbiter_provincia.cases
      FALSE, 38000.00, 'MacBook Air M3 15"', 'Av. Rivadavia 4820', 'CABA', 'Buenos Aires',
      5, 1, 1, 6, 3, 1, 1, 1),
 
-    -- 2 · in arrears + repeat claimant → HIGH, waiting for the analyst.
+    -- 2 · in arrears + repeat claimant → CRITICAL, waiting for the analyst.
     (2, '2026-07-04 22:40:00+00', '2026-07-05 11:15:00+00', '2026-07-05 09:30:00+00', '2026-08-04',
      'Me arrebataron el celular en la parada del colectivo, dos personas en moto',
      FALSE, 760000.00, 'Samsung Galaxy S23', 'Av. San Martín 2100', 'San Martín', 'Buenos Aires',
-     2, 1, 3, 2, 1, 3, 2, 1);
+     2, 1, 1, 2, 1, 2, 2, 1);
 
 SELECT setval(pg_get_serial_sequence('arbiter_provincia.cases','id'),
               (SELECT MAX(id) FROM arbiter_provincia.cases));
@@ -414,18 +373,18 @@ INSERT INTO arbiter_provincia.rule_result (rule_type, result, evaluated_value, s
 
 INSERT INTO arbiter_provincia.case_status_history (reason, observation, actor, changed_at, changed_by,
                                                    initial_status_id, final_status_id, case_id) VALUES
-    ('Denuncia registrada', NULL, 'INSURED', '2026-05-20 14:00:00+00', 10, NULL, 1, 1),
+    ('Denuncia registrada', NULL, 'INSURED', '2026-05-20 14:00:00+00', 1, NULL, 1, 1),
     ('Clasificación disponible', 'El modelo recomienda aprobar', 'SYSTEM', '2026-05-20 14:07:00+00', NULL, 1, 2, 1),
     -- The only ANALYST transition in the fixtures: human-in-the-loop closing a case.
     ('El analista aprobó el siniestro', 'Documentación completa', 'ANALYST', '2026-05-21 10:30:00+00', 4, 2, 5, 1),
-    ('Denuncia registrada', NULL, 'INSURED', '2026-07-05 11:15:00+00', 12, NULL, 1, 2),
+    ('Denuncia registrada', NULL, 'INSURED', '2026-07-05 11:15:00+00', 1, NULL, 1, 2),
     ('Clasificación disponible', 'Riesgo CRÍTICO: mora + reincidencia', 'SYSTEM', '2026-07-05 11:22:00+00', NULL, 1, 2, 2);
 
--- Notification sent to Carla when her case was approved.
+-- Notification sent to Martina when her case was approved.
 INSERT INTO arbiter_provincia.notification (type, channel, content, sent, read, sent_at, read_at,
                                             recipient_id, case_id) VALUES
     ('CAMBIO_ESTADO', 'EMAIL',
      'Tu siniestro fue aprobado. En los próximos días vas a recibir el detalle de la liquidación.',
-     TRUE, TRUE, '2026-05-21 10:31:00+00', '2026-05-21 18:02:00+00', 10, 1);
+     TRUE, TRUE, '2026-05-21 10:31:00+00', '2026-05-21 18:02:00+00', 1, 1);
 
 COMMIT;

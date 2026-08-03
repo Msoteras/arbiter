@@ -181,7 +181,10 @@ INSERT INTO arbiter_common.users (id, auth0_sub, email, active, activated) VALUE
     (3, 'auth0|seed-referente',           'referente.arbiter@gmail.com',           TRUE, TRUE),
     -- Analyst on the second insurer: without someone on the other side there is no way
     -- to demonstrate that tenant isolation actually holds.
-    (4, 'auth0|seed-analista-provincia',  'analista.provincia.arbiter@gmail.com',  TRUE, TRUE);
+    (4, 'auth0|seed-analista-provincia',  'analista.provincia.arbiter@gmail.com',  TRUE, TRUE),
+    -- Second BBVA policyholder: without one, every claim in the fixtures piles onto
+    -- insured(1), which looks less like demo data and more like one very unlucky person.
+    (5, 'auth0|6a71248c6b9165b91b479173',  'asegurado2.arbiter@gmail.com',          TRUE, TRUE);
 
 SELECT setval(pg_get_serial_sequence('arbiter_common.users', 'id'),
               (SELECT MAX(id) FROM arbiter_common.users));
