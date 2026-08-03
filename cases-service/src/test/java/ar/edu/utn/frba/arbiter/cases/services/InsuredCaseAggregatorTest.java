@@ -70,7 +70,7 @@ class InsuredCaseAggregatorTest {
         return caseRecord;
     }
 
-    private Page<Case> findOwnCases() {
+    private Page<InsuredCaseAggregator.InsuredCase> findOwnCases() {
         return aggregator.findOwnCases(null, null, null, null, null, null, null,
                 PageRequest.of(0, 10));
     }
@@ -88,12 +88,16 @@ class InsuredCaseAggregatorTest {
                 .thenReturn(List.of(caseReportedAt(1L, Instant.parse("2026-06-01T10:00:00Z"))))
                 .thenReturn(List.of(caseReportedAt(1L, Instant.parse("2026-07-01T10:00:00Z"))));
 
-        Page<Case> result = findOwnCases();
+        Page<InsuredCaseAggregator.InsuredCase> result = findOwnCases();
 
         assertThat(result.getTotalElements()).isEqualTo(2);
         // Más reciente primero: es lo que el portal del asegurado espera ver arriba.
-        assertThat(result.getContent().get(0).getReportedAt())
+        assertThat(result.getContent().get(0).caseRecord().getReportedAt())
                 .isEqualTo(Instant.parse("2026-07-01T10:00:00Z"));
+        // Y cada uno sabe de qué aseguradora vino: con ids que colisionan, es lo único que
+        // después permite volver a abrir el correcto.
+        assertThat(result.getContent()).extracting(InsuredCaseAggregator.InsuredCase::insurerSlug)
+                .containsExactly("provincia", "bbva");
     }
 
     @Test
@@ -138,7 +142,7 @@ class InsuredCaseAggregatorTest {
         when(caseRepository.findAll(any(Specification.class), any(Sort.class)))
                 .thenReturn(List.of(caseReportedAt(1L, Instant.parse("2026-06-01T10:00:00Z"))));
 
-        Page<Case> result = findOwnCases();
+        Page<InsuredCaseAggregator.InsuredCase> result = findOwnCases();
 
         assertThat(result.getTotalElements()).isEqualTo(1);
     }
