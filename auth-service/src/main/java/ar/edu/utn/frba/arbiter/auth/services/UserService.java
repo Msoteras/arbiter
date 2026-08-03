@@ -22,6 +22,7 @@ import ar.edu.utn.frba.arbiter.common.enums.UserStatus;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
@@ -62,6 +63,10 @@ public class UserService {
      * in the caller's own schema, already the active one for this request
      * (TenantResolvingFilter set it from the caller's own JWT).
      */
+    // Sin esto, un fallo a mitad de camino (ej. el insert de claims_analyst) deja el `users` y
+    // el `user_insurer` ya commiteados por separado: el email queda "trabado" con una cuenta a
+    // medio crear que ni activa ni se puede reintentar (choca con EmailAlreadyExistsException).
+    @Transactional
     public UserResponse createUser(CreateUserRequest request, String callerEmail) {
         if (request.rol() != UserRole.ANALISTA_SINIESTROS) {
             throw new RoleNotAllowedException(request.rol());
