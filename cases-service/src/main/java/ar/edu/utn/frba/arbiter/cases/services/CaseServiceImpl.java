@@ -117,7 +117,9 @@ public class CaseServiceImpl implements CaseService {
         // case is back in PENDING_CLASSIFICATION toResponse doesn't surface the previous run.
         entity.setRiskScore(null);
         entity.setRiskBand(null);
-        entity.setDeterministicFastTrack(null);
+        // false y no null: la columna es NOT NULL. Para quien lee es lo mismo, wasFastTracked()
+        // ya trata los dos igual.
+        entity.setDeterministicFastTrack(false);
         // Fresh classification cycle: without this reset, attempts accumulated in previous
         // cycles would push the case to CLASSIFICATION_FAILED prematurely.
         entity.setClassificationAttempts(0);

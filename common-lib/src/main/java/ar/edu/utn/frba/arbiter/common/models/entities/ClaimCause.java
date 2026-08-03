@@ -35,7 +35,12 @@ public class ClaimCause {
     @Column(nullable = false)
     private String name;
 
-    @ManyToOne(fetch = FetchType.LAZY)
+    // EAGER a propósito: la rama viaja en toda respuesta de expediente
+    // (CaseServiceImpl.toResponse lee claimCause.getBranch().getName()), y con open-in-view
+    // apagado no hay sesión abierta cuando se arma el DTO. No alcanza con envolver el service en
+    // @Transactional: el barrido multi-aseguradora cambia de esquema en medio del método, y una
+    // transacción retiene una conexión, así que el search_path quedaría clavado en el primero.
+    @ManyToOne(fetch = FetchType.EAGER)
     @JoinColumn(name = "branch_id", nullable = false)
     private Branch branch;
 }

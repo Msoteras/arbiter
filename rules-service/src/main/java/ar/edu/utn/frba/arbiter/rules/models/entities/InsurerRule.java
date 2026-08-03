@@ -1,7 +1,6 @@
 package ar.edu.utn.frba.arbiter.rules.models.entities;
 
 import ar.edu.utn.frba.arbiter.common.models.entities.Branch;
-import ar.edu.utn.frba.arbiter.common.models.entities.Insurer;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.FetchType;
@@ -24,8 +23,12 @@ import java.time.Instant;
 /**
  * A business rule as configured by one insurer ("regla_aseguradora" in the DER) — there's
  * no rule common to every insurer, so this is the only rule entity: effect, priority, and
- * whether it blocks Fast Track. {@code coverageId} is a logical reference, same reason as
- * {@link InsurerClaimCause#getCoverageId()}.
+ * whether it blocks Fast Track. {@code coverageId} points at cases-service's coverage:
+ * same tenant schema, but another module owns it, so it stays a plain id and not a real FK.
+ *
+ * <p>No lleva aseguradora: la fila ya vive en el esquema de una, que es lo que la identifica.
+ * Una columna con el id sería un segundo lugar donde dice a quién pertenece, y los dos podrían
+ * discrepar.
  */
 @Entity
 @Table(name = "insurer_rule")
@@ -39,10 +42,6 @@ public class InsurerRule {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
-
-    @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "insurer_id", nullable = false)
-    private Insurer insurer;
 
     @Column(nullable = false)
     private boolean active;

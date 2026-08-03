@@ -22,6 +22,14 @@ spring:
     properties:
       hibernate:
         format_sql: true
+        hbm2ddl:
+          # Las entidades viven repartidas entre arbiter_common y el esquema del tenant. La
+          # estrategia por defecto (`grouped`) pide la metadata de UN solo esquema: el
+          # `current_schema()` de la conexión, que es el primero del search_path, o sea el del
+          # tenant. Con eso, al validar, toda tabla del común figura como faltante aunque el
+          # search_path la resuelva bien en runtime. `individually` la pide tabla por tabla y
+          # sí atraviesa el search_path.
+          jdbc_metadata_extraction_strategy: individually
 
 arbiter:
   auth:

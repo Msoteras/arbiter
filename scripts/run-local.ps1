@@ -89,4 +89,11 @@ if (-not $Module) {
 }
 
 Write-Host "Levantando $Module..." -ForegroundColor Cyan
-mvn spring-boot:run -pl $Module
+
+# El driver JDBC le manda al servidor la zona horaria de la JVM. En Windows, para la
+# hora de Argentina, Java resuelve el alias viejo `America/Buenos_Aires`, que el
+# Postgres de Railway no reconoce (sólo tiene `America/Argentina/Buenos_Aires`), y la
+# conexión muere con "FATAL: invalid value for parameter TimeZone" antes de que
+# Hibernate llegue a hablar. Se fija UTC para que no dependa de la máquina de cada uno:
+# las columnas son TIMESTAMPTZ, así que el instante que se guarda es el mismo igual.
+mvn spring-boot:run -pl $Module "-Dspring-boot.run.jvmArguments=-Duser.timezone=UTC"

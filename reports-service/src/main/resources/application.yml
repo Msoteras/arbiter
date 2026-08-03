@@ -19,6 +19,11 @@ spring:
     properties:
       hibernate:
         format_sql: true
+        hbm2ddl:
+          # Ver el comentario de auth-service: con las entidades repartidas entre
+          # arbiter_common y el esquema del tenant, `grouped` sólo mira el esquema por
+          # defecto y da por faltantes las del común.
+          jdbc_metadata_extraction_strategy: individually
   threads:
     virtual:
       enabled: true
