@@ -1,4 +1,4 @@
-package ar.edu.utn.frba.arbiter.auth.models.entities;
+package ar.edu.utn.frba.arbiter.common.models.entities;
 
 import jakarta.persistence.CascadeType;
 import jakarta.persistence.Column;

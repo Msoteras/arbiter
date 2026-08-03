@@ -1,6 +1,6 @@
 package ar.edu.utn.frba.arbiter.auth.models.repositories;
 
-import ar.edu.utn.frba.arbiter.auth.models.entities.Insured;
+import ar.edu.utn.frba.arbiter.common.models.entities.tenant.Insured;
 import org.springframework.data.jpa.repository.JpaRepository;
 
 import java.util.Optional;

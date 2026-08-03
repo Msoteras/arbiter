@@ -1,4 +1,4 @@
-package ar.edu.utn.frba.arbiter.rules.models.entities;
+package ar.edu.utn.frba.arbiter.common.models.entities;
 
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
@@ -12,18 +12,14 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
 
-/**
- * Insurance line (celulares, hogar, automotor, vida…) — "Ramo" in CLAUDE.md's domain
- * vocabulary.
- */
 @Entity
-@Table(name = "branch")
+@Table(name = "permission")
 @Getter
 @Setter
 @NoArgsConstructor
 @AllArgsConstructor
 @Builder
-public class Branch {
+public class Permission {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)

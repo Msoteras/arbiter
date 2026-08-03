@@ -1,4 +1,4 @@
-package ar.edu.utn.frba.arbiter.rules.models.entities;
+package ar.edu.utn.frba.arbiter.common.models.entities;
 
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
@@ -14,9 +14,12 @@ import lombok.Setter;
 
 /**
  * Configurable case-status catalog ("estado_expediente" in the DER) — the target shape
- * for H0015 ("el referente puede definir los estados activos del flujo"), replacing the
- * hardcoded {@code CaseStatus} enum. Not wired up yet: {@code cases.status} still uses
- * the enum; this table doesn't drive it.
+ * for H0015 ("el referente puede definir los estados activos del flujo").
+ *
+ * <p>{@code cases.current_status_id} and {@code case_status_history} point here. {@code name}
+ * is still 1:1 with common-lib's {@code CaseStatus} enum, which stays as the vocabulary the
+ * state machine and the API speak; the enum literal is what resolves a row (the column is
+ * UNIQUE). Adding a row the enum doesn't know about is the next step of H0015, not this one.
  */
 @Entity
 @Table(name = "case_status")

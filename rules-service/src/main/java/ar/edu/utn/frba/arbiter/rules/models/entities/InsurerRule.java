@@ -1,5 +1,7 @@
 package ar.edu.utn.frba.arbiter.rules.models.entities;
 
+import ar.edu.utn.frba.arbiter.common.models.entities.Branch;
+import ar.edu.utn.frba.arbiter.common.models.entities.Insurer;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.FetchType;

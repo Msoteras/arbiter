@@ -1,4 +1,4 @@
-package ar.edu.utn.frba.arbiter.rules.models.entities;
+package ar.edu.utn.frba.arbiter.common.models.entities;
 
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
@@ -12,7 +12,15 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
 
-/** Insurance company on the platform ("Aseguradora" in CLAUDE.md's domain vocabulary). */
+/**
+ * Tenant registry ("aseguradora" in the DER), common schema. {@code schemaName} is the
+ * routing key each module's {@code TenantIdentifierResolver} needs to point a request at
+ * the right tenant schema.
+ *
+ * <p>Lives here rather than in a module because {@code insurer} belongs to the platform,
+ * not to any one service — it was duplicated in auth-service and rules-service before,
+ * with the two definitions already starting to drift.
+ */
 @Entity
 @Table(name = "insurer")
 @Getter
