@@ -10,6 +10,7 @@ import ar.edu.utn.frba.arbiter.classification.models.repositories.CaseOutcomeRep
 import ar.edu.utn.frba.arbiter.classification.models.repositories.LlmAnalysisRepository;
 import ar.edu.utn.frba.arbiter.classification.models.repositories.RiskAnalysisRepository;
 import ar.edu.utn.frba.arbiter.common.enums.Classification;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
@@ -23,6 +24,8 @@ import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -51,6 +54,66 @@ class AnalystDecisionTest {
 
     @InjectMocks
     private ClassificationResultsService resultsService;
+
+    /**
+     * {@code JpaRepository.save} devuelve la entidad ya persistida, y {@code
+     * recordAnalystDecision} usa su id para que cases-service pueda apuntar
+     * {@code cases.classification_id} al veredicto. El mock devolvía null.
+     *
+     * <p>Se devuelve una instancia distinta y no el argumento: los tests capturan lo que se le
+     * pasó a {@code save} y verifican que va sin id (es una fila nueva), así que asignárselo al
+     * argumento invalidaría justamente eso.
+     */
+    @BeforeEach
+    void savedDecisionComesBackWithAnId() {
+        lenient().when(caseClassificationRepository.save(any(CaseClassification.class)))
+                .thenAnswer(invocation -> {
+                    CaseClassification persisted = new CaseClassification();
+                    persisted.setId(PERSISTED_DECISION_ID);
+                    return persisted;
+                });
+    }
+
+    private static final Long PERSISTED_DECISION_ID = 7L;
+
+    @Test
+    void recordAnalystDecision_returnsTheIdOfThePersistedDecision() {
+        // Es lo que ata el expediente a la corrida del modelo que respaldó el veredicto: sin este
+        // id, cases.classification_id queda null y se pierde el vínculo para la auditoría.
+        Long caseId = 42L;
+        when(llmAnalysisRepository.findFirstByCaseIdOrderByIdDesc(caseId))
+                .thenReturn(Optional.of(analysis(caseId, Classification.LLM_RECOMIENDA_APROBAR)));
+
+        Long classificationId = resultsService.recordAnalystDecision(
+                caseId, new AnalystDecisionRequest(1L, "APROBAR", null));
+
+        assertThat(classificationId).isEqualTo(PERSISTED_DECISION_ID);
+    }
+
+    @Test
+    void recordAnalystDecision_freezesTheAttemptCounterOntoTheAuditRow() {
+        // El contador vivo es cases.classification_attempts; su valor final tiene que quedar en el
+        // registro auditable, que antes siempre se guardaba en 0.
+        Long caseId = 42L;
+        when(llmAnalysisRepository.findFirstByCaseIdOrderByIdDesc(caseId))
+                .thenReturn(Optional.of(analysis(caseId, Classification.LLM_RECOMIENDA_APROBAR)));
+
+        resultsService.recordAnalystDecision(caseId, new AnalystDecisionRequest(1L, "APROBAR", 4));
+
+        assertThat(captureDecision().getClassificationAttempts()).isEqualTo(4);
+    }
+
+    @Test
+    void recordAnalystDecision_withoutAnAttemptCount_defaultsToZero() {
+        // La columna es NOT NULL y el campo del request es opcional (un caller viejo no lo manda).
+        Long caseId = 42L;
+        when(llmAnalysisRepository.findFirstByCaseIdOrderByIdDesc(caseId))
+                .thenReturn(Optional.of(analysis(caseId, Classification.LLM_RECOMIENDA_APROBAR)));
+
+        resultsService.recordAnalystDecision(caseId, new AnalystDecisionRequest(1L, "APROBAR", null));
+
+        assertThat(captureDecision().getClassificationAttempts()).isZero();
+    }
 
     @Test
     void recordAnalystDecision_linksToTheAnalysisInsteadOfCopyingIt() {
