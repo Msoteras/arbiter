@@ -112,22 +112,101 @@ function Step-Reset {
     Invoke-Psql @('-f', 'db/reset-multitenant.sql') 'Reset (destructivo)'
 }
 
+# Un solo query: devuelve "etiqueta|valor" por línea y acá se compara contra lo esperado.
+function Get-Scalar {
+    param([string]$Sql)
+    return (& $psql $connectionUrl -U $env:DB_USER -tAc $Sql | Where-Object { $_ }) -join ''
+}
+
+function Assert-Count {
+    param([string]$Label, [string]$Sql, [int]$Expected, [switch]$AtLeast)
+
+    $actual = [int](Get-Scalar $Sql)
+    $ok = if ($AtLeast) { $actual -ge $Expected } else { $actual -eq $Expected }
+    $suffix = if ($AtLeast) { "(esperado >= $Expected)" } else { "(esperado $Expected)" }
+
+    if ($ok) {
+        Write-Host ("  {0,-46} {1,4}  OK" -f $Label, $actual) -ForegroundColor Green
+    } else {
+        Write-Host ("  {0,-46} {1,4}  MAL $suffix" -f $Label, $actual) -ForegroundColor Red
+        $script:verifyFailed = $true
+    }
+}
+
 function Step-Verify {
-    # init es un solo BEGIN/COMMIT: si abortó a mitad, no quedan estas columnas.
-    $expected = @('classification_attempts', 'forensic_report', 'manual_adjustment_note',
-                  'risk_band', 'risk_score')
-    $found = & $psql $connectionUrl -U $env:DB_USER -tAc @"
-SELECT column_name FROM information_schema.columns
+    $script:verifyFailed = $false
+    Write-Host '→ Verificación' -ForegroundColor Cyan
+
+    # 1. Estructura. init es un solo BEGIN/COMMIT: si abortó a mitad no queda nada,
+    #    pero si se corrió una versión vieja del script el conteo va a diferir.
+    Assert-Count 'esquemas creados' @"
+SELECT count(*) FROM information_schema.schemata
+ WHERE schema_name = 'arbiter_common'
+    OR schema_name LIKE 'arbiter\_%' OR schema_name LIKE 'aseguradora\_%';
+"@ 5
+
+    Assert-Count 'tablas en arbiter_common' @"
+SELECT count(*) FROM information_schema.tables WHERE table_schema='arbiter_common';
+"@ 10
+
+    foreach ($tenant in @('arbiter_bbva', 'arbiter_provincia')) {
+        Assert-Count "tablas en $tenant" @"
+SELECT count(*) FROM information_schema.tables WHERE table_schema='$tenant';
+"@ 24
+    }
+
+    # 2. Que sea el esquema NUEVO y no el del commit anterior. Estas columnas se
+    #    agregaron después de la última vez que se corrió contra Railway.
+    Assert-Count 'columnas nuevas en arbiter_bbva.cases' @"
+SELECT count(*) FROM information_schema.columns
  WHERE table_schema='arbiter_bbva' AND table_name='cases'
    AND column_name IN ('risk_score','risk_band','forensic_report',
-                       'classification_attempts','manual_adjustment_note')
- ORDER BY column_name;
-"@
-    $foundList = @($found | Where-Object { $_ })
-    if ($foundList.Count -ne $expected.Count) {
-        Write-Error "Esperaba $($expected.Count) columnas nuevas en arbiter_bbva.cases y encontré $($foundList.Count): $($foundList -join ', '). La base quedó con un esquema viejo o el init abortó."
+                       'classification_attempts','manual_adjustment_note');
+"@ 5
+
+    Assert-Count 'actor en case_status_history' @"
+SELECT count(*) FROM information_schema.columns
+ WHERE table_schema='arbiter_bbva' AND table_name='case_status_history'
+   AND column_name='actor';
+"@ 1
+
+    Assert-Count 'image_consent en insured' @"
+SELECT count(*) FROM information_schema.columns
+ WHERE table_schema='arbiter_bbva' AND table_name='insured' AND column_name='image_consent';
+"@ 1
+
+    Assert-Count 'model en image_analysis' @"
+SELECT count(*) FROM information_schema.columns
+ WHERE table_schema='arbiter_bbva' AND table_name='image_analysis' AND column_name='model';
+"@ 1
+
+    # 3. Que los catálogos y el seed hayan entrado. Sin esto el esquema está bien
+    #    pero la app no arranca ni tiene con qué probar.
+    Assert-Count 'estados en arbiter_common.case_status' `
+        'SELECT count(*) FROM arbiter_common.case_status;' 6
+    Assert-Count 'aseguradoras registradas' `
+        'SELECT count(*) FROM arbiter_common.insurer;' 2
+    Assert-Count 'usuarios sembrados' `
+        'SELECT count(*) FROM arbiter_common.users;' 4 -AtLeast
+    Assert-Count 'casos en arbiter_bbva' `
+        'SELECT count(*) FROM arbiter_bbva.cases;' 1 -AtLeast
+    Assert-Count 'casos en arbiter_provincia' `
+        'SELECT count(*) FROM arbiter_provincia.cases;' 1 -AtLeast
+
+    # 4. El caso multi-aseguradora que hace falta para probar la agregación: una
+    #    identidad en el esquema común con perfil de asegurado en las dos compañías.
+    Assert-Count 'asegurados en las DOS aseguradoras (caso Martina)' @"
+SELECT count(*) FROM (
+    SELECT dni FROM arbiter_bbva.insured
+    INTERSECT
+    SELECT dni FROM arbiter_provincia.insured
+) AS ambas;
+"@ 1 -AtLeast
+
+    if ($script:verifyFailed) {
+        Write-Error 'La verificación encontró diferencias. La base NO quedó como se espera.'
     }
-    Write-Host "  esquema nuevo confirmado ($($foundList.Count)/$($expected.Count) columnas)" -ForegroundColor Green
+    Write-Host '  Todo OK: esquema nuevo, catálogos y datos de demo cargados.' -ForegroundColor Green
 }
 
 switch ($Step) {
