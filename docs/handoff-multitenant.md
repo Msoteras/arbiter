@@ -258,16 +258,18 @@ valores reales, se tipa).
 
 ---
 
-## 6. Para el DER
+## 6. Para el DER — hecho
 
-Ya sincronizado salvo lo que suma Aylén (`score_riesgo`, `banda_riesgo`, `reporte_forense`,
-`nota_ajuste_manual` en `expediente`). Falta además:
+Ya sincronizado, incluidas las dos columnas que faltaban:
 
-- **`actor VARCHAR(20) NOT NULL` en `historial_estado_expediente`.** Distinto de `changed_by`, que
-  es nullable justamente porque las transiciones de SYSTEM no tienen usuario detrás. El frontend
-  lo muestra en el timeline, así que no se puede derivar de `changed_by IS NULL`.
-- **`model VARCHAR(80) NOT NULL` en `image_analysis`.** Vectores de modelos distintos no son
-  comparables; sin esto, cambiar de modelo invalida en silencio todo lo guardado.
+- `historial_estado_expediente.etiqueta_actor` VARCHAR(20) — equivale a `case_status_history.actor`
+  del script. Distinto de `changed_by`, que es nullable porque las transiciones de SYSTEM no tienen
+  usuario detrás; el frontend lo muestra en el timeline, no se puede derivar de `changed_by IS NULL`.
+- `analisis_imagen.modelo_utlizado` VARCHAR(255) — equivale a `image_analysis.model`. El script lo
+  tiene en VARCHAR(80); diferencia de longitud nada más, no de fondo.
+
+Y lo que suma Aylén (`score_riesgo`, `banda_riesgo`, `reporte_forense`, `nota_ajuste_manual` en
+`expediente`) también está.
 
 ---
 
