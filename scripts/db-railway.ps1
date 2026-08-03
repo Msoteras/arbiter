@@ -71,6 +71,18 @@ if ([string]::IsNullOrWhiteSpace($env:DB_URL) -or $env:DB_URL -like '*HOST:PUERT
 
 # jdbc:postgresql://host:port/base?params  →  postgresql://host:port/base?params
 $connectionUrl = $env:DB_URL -replace '^jdbc:', ''
+
+# Sin connect_timeout, psql espera para siempre: un host mal escrito, un puerto
+# cerrado o un firewall se ven igual que "esta tardando". Con esto falla en 10s.
+if ($connectionUrl -notmatch 'connect_timeout=') {
+    $connectionUrl += $(if ($connectionUrl -like '*?*') { '&' } else { '?' }) + 'connect_timeout=10'
+}
+
+if ([string]::IsNullOrWhiteSpace($env:DB_PASSWORD)) {
+    # psql pediria la password por stdin y quedaria esperando una tecla que nadie
+    # va a apretar, que es indistinguible de un cuelgue de red.
+    Write-Error "DB_PASSWORD vacio en $EnvFile. psql se quedaria esperando el prompt."
+}
 $env:PGPASSWORD = $env:DB_PASSWORD
 
 if ($connectionUrl -match '://([^/?]+)') {
