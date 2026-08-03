@@ -4,6 +4,7 @@ import ar.edu.utn.frba.arbiter.cases.dto.AnalystDecisionRequest;
 import ar.edu.utn.frba.arbiter.cases.dto.CaseDocumentResponse;
 import ar.edu.utn.frba.arbiter.cases.dto.CaseRequest;
 import ar.edu.utn.frba.arbiter.cases.dto.CaseResponse;
+import ar.edu.utn.frba.arbiter.cases.config.tenant.TenantContext;
 import ar.edu.utn.frba.arbiter.cases.dto.StatusTransitionResponse;
 import ar.edu.utn.frba.arbiter.cases.exceptions.CaseNotFoundException;
 import ar.edu.utn.frba.arbiter.cases.exceptions.DocumentNotFoundException;
@@ -12,11 +13,16 @@ import ar.edu.utn.frba.arbiter.cases.exceptions.InvalidAnalystDecisionException;
 import ar.edu.utn.frba.arbiter.cases.exceptions.InvalidStatusTransitionException;
 import ar.edu.utn.frba.arbiter.cases.models.entities.CaseDocument;
 import ar.edu.utn.frba.arbiter.cases.models.entities.Case;
+import ar.edu.utn.frba.arbiter.common.models.entities.tenant.Insured;
+import ar.edu.utn.frba.arbiter.cases.models.entities.Policy;
 import ar.edu.utn.frba.arbiter.cases.models.entities.StatusChangeActor;
+import ar.edu.utn.frba.arbiter.cases.models.repositories.CaseAnalysisRepository;
+import ar.edu.utn.frba.arbiter.cases.models.repositories.CaseAnalysisRepository.CaseAnalysis;
 import ar.edu.utn.frba.arbiter.cases.models.repositories.CaseDocumentRepository;
 import ar.edu.utn.frba.arbiter.cases.models.repositories.CaseRepository;
 import ar.edu.utn.frba.arbiter.cases.models.repositories.CaseSpecifications;
 import ar.edu.utn.frba.arbiter.common.enums.CaseStatus;
+import ar.edu.utn.frba.arbiter.common.enums.Classification;
 import ar.edu.utn.frba.arbiter.common.enums.RiskBand;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
@@ -38,25 +44,56 @@ public class CaseServiceImpl implements CaseService {
     private final CaseDocumentRepository caseDocumentRepository;
     private final CaseStatusService caseStatusService;
     private final ClaimsAnalysisClient claimsAnalysisClient;
+    private final CaseReferenceResolver referenceResolver;
+    private final CaseAnalysisRepository caseAnalysisRepository;
+    private final CaseAccessPolicy accessPolicy;
+    private final InsuredCaseAggregator insuredCaseAggregator;
+    private final PolicyTenantLocator policyTenantLocator;
+
+    /**
+     * Ley 17.418 art. 56: the insurer has 30 days from the denuncia to pronounce itself, and
+     * staying silent means acceptance. A constant and not a rule in rules-service because it
+     * isn't the insurer's to configure — the law sets it, the same for every tenant.
+     */
+    private static final int RESPONSE_TERM_DAYS = 30;
 
     @Override
     public CaseResponse createCase(CaseRequest request, Map<String, MultipartFile> documents) {
+        // La aseguradora sale de la póliza denunciada, no del login: quien tiene pólizas en dos
+        // compañías tiene que poder denunciar en cualquiera de las dos, y el tenantSchema del
+        // token se fijó cuando todavía no se sabía cuál iba a elegir.
+        String issuingTenant = policyTenantLocator.locate(request.policyNumber());
+        String callerTenant = TenantContext.get();
+        TenantContext.set(issuingTenant);
+        try {
+            return createCaseInIssuingTenant(request, documents);
+        } finally {
+            TenantContext.set(callerTenant);
+        }
+    }
+
+    private CaseResponse createCaseInIssuingTenant(CaseRequest request, Map<String, MultipartFile> documents) {
+        // Every string in the request has to name something the tenant actually has; anything
+        // that doesn't resolve fails with 422 rather than being stored as free text.
+        Policy policy = referenceResolver.resolvePolicy(request.policyNumber());
+        Insured insured = referenceResolver.applyDeclaredDetails(
+                referenceResolver.resolveInsured(request.insuredId()), request);
+
         Case entity = Case.builder()
-                .branch(request.branch())
-                .product(request.product())
-                .claimCause(request.claimCause())
-                .insuredItem(request.insuredItem())
-                .insuredId(request.insuredId())
-                .policyNumber(request.policyNumber())
+                .claimCause(referenceResolver.resolveClaimCause(request.branch(), request.claimCause()))
+                .declaredItem(request.insuredItem())
+                .insured(insured)
+                .policy(policy)
+                .coverage(policy.getCoverage())
                 .description(request.description())
-                .eventDate(request.eventDate())
-                .eventLocation(request.eventLocation())
+                .occurredAt(request.eventDate())
+                .policeReportAt(request.policeReportAt())
+                .eventAddress(request.eventLocation())
                 .claimedAmount(request.claimedAmount())
-                .pep(Boolean.TRUE.equals(request.pep()))
-                .imageConsent(Boolean.TRUE.equals(request.imageConsent()))
-                .contactEmail(request.contactEmail())
-                .contactPhone(request.contactPhone())
-                .status(CaseStatus.PENDING_CLASSIFICATION)
+                // Desde la denuncia, que es este mismo momento: `reportedAt` lo pone Hibernate
+                // recién al insertar, así que acá todavía es null.
+                .responseDeadline(LocalDate.now().plusDays(RESPONSE_TERM_DAYS))
+                .currentStatus(caseStatusService.initialStatus())
                 .build();
 
         Case saved = caseRepository.save(entity);
@@ -74,14 +111,12 @@ public class CaseServiceImpl implements CaseService {
 
         storeDocuments(caseId, documents);
 
-        entity.setAnalysisClassification(null);
-        entity.setAnalysisConfidence(null);
-        entity.setAnalysisDetail(null);
-        // Clear the cached risk too so the recalculation window reads as "sin scorear"/recalculando,
+        // Clear the cached risk so the recalculation window reads as "sin scorear"/recalculando,
         // never a stale band. It's re-populated by the classification poll once the new score lands.
+        // The model's recommendation needs no reset: llm_analysis is append-only, and while the
+        // case is back in PENDING_CLASSIFICATION toResponse doesn't surface the previous run.
         entity.setRiskScore(null);
         entity.setRiskBand(null);
-        entity.setRiskBreakdown(null);
         entity.setDeterministicFastTrack(null);
         // Fresh classification cycle: without this reset, attempts accumulated in previous
         // cycles would push the case to CLASSIFICATION_FAILED prematurely.
@@ -131,26 +166,41 @@ public class CaseServiceImpl implements CaseService {
     public CaseResponse getCase(Long caseId) {
         Case entity = caseRepository.findById(caseId)
                 .orElseThrow(() -> new CaseNotFoundException(caseId));
+        accessPolicy.assertCanRead(entity);
         List<StatusTransitionResponse> history = caseStatusService.history(caseId).stream()
                 .map(StatusTransitionResponse::from)
                 .toList();
-        return toResponse(entity, history);
+        return toResponse(entity, history, caseAnalysisRepository.findByCaseId(caseId));
     }
 
     @Override
     public Page<CaseResponse> listCases(CaseStatus status, String claimCause, String policyNumber,
                                          String insuredId, LocalDate eventDateFrom, LocalDate eventDateTo,
                                          String q, RiskBand riskBand, Pageable pageable) {
+        if (accessPolicy.currentUserIsInsured()) {
+            // El asegurado ve los suyos de TODAS sus aseguradoras, no solo la del tenant activo.
+            return toResponses(insuredCaseAggregator.findOwnCases(
+                    status, claimCause, policyNumber, eventDateFrom, eventDateTo, q, riskBand, pageable));
+        }
         Specification<Case> spec = CaseSpecifications.withFilters(
                 status, claimCause, policyNumber, insuredId, eventDateFrom, eventDateTo, q, riskBand);
-        return caseRepository.findAll(spec, pageable).map(this::toResponse);
+        return toResponses(caseRepository.findAll(spec, pageable));
+    }
+
+    /** Resuelve el análisis joineado de toda una página de una sola vez. */
+    Page<CaseResponse> toResponses(Page<Case> page) {
+        // Un solo query para toda la página: pedir el análisis caso por caso acá es el N+1 que
+        // hace colapsar la bandeja.
+        Map<Long, CaseAnalysis> analyses = caseAnalysisRepository.findByCaseIds(
+                page.getContent().stream().map(Case::getId).toList());
+        return page.map(entity -> toResponse(entity, null,
+                analyses.getOrDefault(entity.getId(), CaseAnalysis.none())));
     }
 
     @Override
     public List<CaseDocumentResponse> getDocuments(Long caseId) {
-        if (!caseRepository.existsById(caseId)) {
-            throw new CaseNotFoundException(caseId);
-        }
+        // Los adjuntos son parte del expediente: si no podés leerlo, tampoco su documentación.
+        readableCase(caseId);
         return caseDocumentRepository.findByCaseId(caseId).stream()
                 .map(CaseDocumentResponse::from)
                 .toList();
@@ -158,12 +208,17 @@ public class CaseServiceImpl implements CaseService {
 
     @Override
     public CaseDocument getDocument(Long caseId, Long documentId) {
-        if (!caseRepository.existsById(caseId)) {
-            throw new CaseNotFoundException(caseId);
-        }
+        readableCase(caseId);
         return caseDocumentRepository.findById(documentId)
                 .filter(doc -> doc.getCaseId().equals(caseId))
                 .orElseThrow(() -> new DocumentNotFoundException(caseId, documentId));
+    }
+
+    private Case readableCase(Long caseId) {
+        Case entity = caseRepository.findById(caseId)
+                .orElseThrow(() -> new CaseNotFoundException(caseId));
+        accessPolicy.assertCanRead(entity);
+        return entity;
     }
 
     @Override
@@ -183,41 +238,95 @@ public class CaseServiceImpl implements CaseService {
             throw new InvalidStatusTransitionException(entity.getStatus(), targetStatus);
         }
 
-        claimsAnalysisClient.forwardAnalystDecision(caseId, request);
+        // El contador vivo es de `cases`; el registro auditable se queda con su valor final, así
+        // que se lo mandamos nosotros — el frontend no lo conoce, igual que con analystId.
+        AnalystDecisionRequest audited = new AnalystDecisionRequest(
+                request.analystId(), request.decision(), entity.getClassificationAttempts());
+
+        // The decision row is created there, so its id only exists after the call. Storing it
+        // links the case to the model run the verdict was based on.
+        entity.setClassificationId(claimsAnalysisClient.forwardAnalystDecision(caseId, audited));
 
         caseStatusService.transition(entity, targetStatus,
                 StatusChangeActor.ANALYST, "decisión del analista: " + request.decision());
     }
 
+    /** Recién creado o recién reencolado: todavía no hay clasificación que mostrar. */
     private CaseResponse toResponse(Case entity) {
-        return toResponse(entity, null);
+        return toResponse(entity, null, CaseAnalysis.none());
     }
 
-    private CaseResponse toResponse(Case entity, List<StatusTransitionResponse> history) {
+    /**
+     * The single place the joins get flattened back into the shape the frontend already speaks.
+     * {@code Case} stores FKs and only the columns the inbox filters by; {@code CaseResponse} did
+     * not change, and neither did the SPA.
+     */
+    private CaseResponse toResponse(Case entity, List<StatusTransitionResponse> history,
+                                     CaseAnalysis analysis) {
+        // Mientras el expediente está de vuelta en clasificación, la corrida anterior sigue siendo
+        // la última fila de llm_analysis. Mostrarla diría que hay una recomendación vigente cuando
+        // justamente se está recalculando, así que en ese estado no se surface ninguna.
+        CaseAnalysis current = entity.getStatus() == CaseStatus.PENDING_CLASSIFICATION
+                ? CaseAnalysis.none()
+                : analysis;
+
         return new CaseResponse(
                 entity.getId(),
                 entity.getStatus(),
-                entity.getBranch(),
-                entity.getProduct(),
-                entity.getClaimCause(),
-                entity.getInsuredItem(),
-                entity.getInsuredId(),
-                entity.getInsuredName(),
-                entity.getPolicyNumber(),
+                entity.getClaimCause().getBranch().getName(),
+                entity.getPolicy().getProduct(),
+                entity.getClaimCause().getName(),
+                entity.getDeclaredItem(),
+                entity.getInsured().getDni(),
+                entity.getInsured().fullName(),
+                entity.getPolicy().getExternalPolicyNumber(),
                 entity.getDescription(),
-                entity.getEventDate(),
-                entity.getEventLocation(),
+                entity.getOccurredAt(),
+                entity.getEventAddress(),
                 entity.getClaimedAmount(),
-                entity.getAnalysisClassification(),
-                entity.getAnalysisConfidence() != null ? entity.getAnalysisConfidence() : 0.0,
-                entity.getAnalysisDetail(),
+                classificationOf(entity, current),
+                confidenceOf(entity, current),
+                detailOf(entity, current),
                 entity.getRiskScore(),
                 entity.getRiskBand(),
-                entity.getRiskBreakdown(),
+                current.riskBreakdown(),
                 entity.getForensicReport(),
-                entity.getCreatedAt(),
+                entity.getReportedAt(),
                 entity.getUpdatedAt(),
                 history
         );
+    }
+
+    /**
+     * Un Fast Track no deja fila en {@code llm_analysis} (el modelo nunca corrió, y el CHECK de la
+     * tabla rechaza {@code FAST_TRACK}), así que ahí la clasificación sale de {@code was_fast_track}.
+     * Mismo criterio que {@code ClassificationResultsService.getStatus}.
+     */
+    private Classification classificationOf(Case entity, CaseAnalysis analysis) {
+        if (analysis.classification() != null) {
+            return analysis.classification();
+        }
+        return wasFastTracked(entity) ? Classification.FAST_TRACK : null;
+    }
+
+    private double confidenceOf(Case entity, CaseAnalysis analysis) {
+        if (analysis.confidence() != null) {
+            return analysis.confidence();
+        }
+        return wasFastTracked(entity) ? 1.0 : 0.0;
+    }
+
+    private String detailOf(Case entity, CaseAnalysis analysis) {
+        if (!analysis.factors().isEmpty()) {
+            return String.join(", ", analysis.factors());
+        }
+        if (analysis.classification() == null && !wasFastTracked(entity)) {
+            return null;
+        }
+        return wasFastTracked(entity) ? "Fast track classification available" : "Classification completed";
+    }
+
+    private boolean wasFastTracked(Case entity) {
+        return Boolean.TRUE.equals(entity.getDeterministicFastTrack());
     }
 }

@@ -1,9 +1,14 @@
 package ar.edu.utn.frba.arbiter.cases.services;
 
+import ar.edu.utn.frba.arbiter.cases.config.tenant.TenantContext;
 import ar.edu.utn.frba.arbiter.cases.models.entities.Case;
 import ar.edu.utn.frba.arbiter.cases.models.entities.StatusChangeActor;
 import ar.edu.utn.frba.arbiter.cases.models.repositories.CaseRepository;
+import ar.edu.utn.frba.arbiter.cases.models.repositories.InsurerRepository;
+import ar.edu.utn.frba.arbiter.cases.support.CaseFixtures;
+import ar.edu.utn.frba.arbiter.cases.support.CaseStates;
 import ar.edu.utn.frba.arbiter.common.enums.CaseStatus;
+import ar.edu.utn.frba.arbiter.common.models.entities.Insurer;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -13,6 +18,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
+import java.util.ArrayList;
 import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -32,11 +38,21 @@ class ClassificationRefreshSchedulerTest {
     @Mock
     private ClaimsAnalysisClient claimsAnalysisClient;
 
+    @Mock
+    private InsurerRepository insurerRepository;
+
     private ClassificationRefreshScheduler scheduler;
 
     @BeforeEach
     void setUp() {
-        scheduler = new ClassificationRefreshScheduler(caseRepository, caseStatusService, claimsAnalysisClient);
+        scheduler = new ClassificationRefreshScheduler(
+                caseRepository, caseStatusService, claimsAnalysisClient, insurerRepository);
+        // The sweep is per tenant now, so every test needs at least one insurer to sweep.
+        // A single one keeps these cases testing what they always tested; the multi-tenant
+        // behaviour has its own tests below. Lenient because those two override this stub
+        // before it is ever called, which strict stubs would otherwise flag.
+        lenient().when(insurerRepository.findByActiveTrue())
+                .thenReturn(List.of(insurer(1L, "arbiter_bbva")));
         setMaxAttempts(3);
     }
 
@@ -141,6 +157,53 @@ class ClassificationRefreshSchedulerTest {
                 eq(StatusChangeActor.SYSTEM), any());
     }
 
+    @Test
+    void sweepsEveryActiveInsurer_withThatTenantResolvedEachTime() {
+        when(insurerRepository.findByActiveTrue())
+                .thenReturn(List.of(insurer(1L, "arbiter_bbva"), insurer(2L, "arbiter_provincia")));
+        // Capture the tenant in effect at the moment each schema is queried: proving the
+        // sweep switches tenants is the whole point of the change.
+        List<String> tenantsSeen = new ArrayList<>();
+        when(caseRepository.findByStatus(CaseStatus.PENDING_CLASSIFICATION)).thenAnswer(invocation -> {
+            tenantsSeen.add(TenantContext.get());
+            return List.of();
+        });
+
+        scheduler.refreshPendingCases();
+
+        assertThat(tenantsSeen).containsExactly("arbiter_bbva", "arbiter_provincia");
+        // And nothing leaks past the sweep.
+        assertThat(TenantContext.get()).isEqualTo(TenantContext.COMMON_SCHEMA);
+    }
+
+    @Test
+    void oneInsurerFailing_doesNotStopTheRest() {
+        when(insurerRepository.findByActiveTrue())
+                .thenReturn(List.of(insurer(1L, "arbiter_bbva"), insurer(2L, "arbiter_provincia")));
+        Case entity = pendingCase(0);
+        when(caseRepository.findByStatus(CaseStatus.PENDING_CLASSIFICATION))
+                .thenThrow(new RuntimeException("schema unreachable"))
+                .thenReturn(List.of(entity));
+        when(claimsAnalysisClient.refreshClassification(entity)).thenReturn(true);
+
+        scheduler.refreshPendingCases();
+
+        // The second insurer was still swept despite the first one blowing up.
+        verify(claimsAnalysisClient).refreshClassification(entity);
+        assertThat(TenantContext.get()).isEqualTo(TenantContext.COMMON_SCHEMA);
+    }
+
+    private Insurer insurer(Long id, String schemaName) {
+        return Insurer.builder()
+                .id(id)
+                .legalName("Seguros " + id + " S.A.")
+                .name("Seguros " + id)
+                .taxId("30-0000000" + id + "-0")
+                .active(true)
+                .schemaName(schemaName)
+                .build();
+    }
+
     private void setMaxAttempts(int maxAttempts) {
         try {
             var field = ClassificationRefreshScheduler.class.getDeclaredField("maxAttempts");
@@ -154,17 +217,16 @@ class ClassificationRefreshSchedulerTest {
     private Case pendingCase(int attempts) {
         return Case.builder()
                 .id((long) (attempts + 1))
-                .branch("Celulares")
-                .product("Celular Protegido Básico")
-                .claimCause("Robo en vía pública")
-                .insuredItem("Motorola Edge 50 Pro")
-                .insuredId("40.123.456")
-                .policyNumber("POL-CEL-2024-001")
+                .claimCause(CaseFixtures.claimCause("Celulares", "Robo en vía pública"))
+                .declaredItem("Motorola Edge 50 Pro")
+                .insured(CaseFixtures.insured("40.123.456", "Laura", "Fernández"))
+                .policy(CaseFixtures.policy("POL-CEL-2024-001", "Celular Protegido Básico"))
+                .coverage(CaseFixtures.coverage("Celulares"))
                 .description("Test case")
-                .eventDate(LocalDateTime.of(2026, 6, 13, 19, 45))
-                .eventLocation("CABA")
+                .occurredAt(LocalDateTime.of(2026, 6, 13, 19, 45))
+                .eventAddress("CABA")
                 .claimedAmount(new BigDecimal("150000"))
-                .status(CaseStatus.PENDING_CLASSIFICATION)
+                .currentStatus(CaseStates.of(CaseStatus.PENDING_CLASSIFICATION))
                 .classificationAttempts(attempts)
                 .build();
     }

@@ -88,7 +88,7 @@ class CaseSecurityTest extends AbstractPersistenceIT {
                         .header("Authorization", "Bearer " + tokenFor("ASEGURADO"))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
-                                {"analystId": "a1", "decision": "APPROVE"}
+                                {"analystId": 1, "decision": "APPROVE"}
                                 """))
                 .andExpect(status().isForbidden());
     }
@@ -101,7 +101,7 @@ class CaseSecurityTest extends AbstractPersistenceIT {
                         .header("Authorization", "Bearer " + tokenFor("ANALISTA_SINIESTROS"))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
-                                {"analystId": "a1", "decision": "APPROVE"}
+                                {"analystId": 1, "decision": "APPROVE"}
                                 """))
                 .andExpect(status().isNotFound());
     }
