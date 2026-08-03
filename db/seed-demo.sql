@@ -289,19 +289,21 @@ INSERT INTO arbiter_bbva.rule_result (rule_type, result, evaluated_value, score_
     ('FAST_TRACK', 'CUMPLE',    'AL_DIA', 0.0000, '2026-06-14 08:35:31+00', 2, 1),
     ('FAST_TRACK', 'NO_CUMPLE', '0.792', 0.3563, '2026-06-11 09:10:30+00', 1, 2);
 
-INSERT INTO arbiter_bbva.case_status_history (reason, observation, changed_at, changed_by,
+-- actor: who drove each transition. SYSTEM rows have no changed_by — an automated
+-- transition has no user behind it, which is exactly why actor can't be derived from it.
+INSERT INTO arbiter_bbva.case_status_history (reason, observation, actor, changed_at, changed_by,
                                               initial_status_id, final_status_id, case_id) VALUES
-    ('Denuncia registrada', NULL, '2026-06-14 08:34:00+00', 1, NULL, 1, 1),
+    ('Denuncia registrada', NULL, 'INSURED', '2026-06-14 08:34:00+00', 1, NULL, 1, 1),
     ('Fast Track determinístico: cumple todas las reglas', 'Monto 21.9% de la suma asegurada',
-     '2026-06-14 08:36:00+00', NULL, 1, 2, 1),
-    ('Denuncia registrada', NULL, '2026-06-11 09:05:00+00', 5, NULL, 1, 2),
-    ('Clasificación disponible', 'Riesgo ALTO por reincidencia', '2026-06-11 09:12:00+00', NULL, 1, 2, 2),
-    ('Denuncia registrada', NULL, '2026-06-30 10:00:00+00', 6, NULL, 1, 3),
+     'SYSTEM', '2026-06-14 08:36:00+00', NULL, 1, 2, 1),
+    ('Denuncia registrada', NULL, 'INSURED', '2026-06-11 09:05:00+00', 5, NULL, 1, 2),
+    ('Clasificación disponible', 'Riesgo ALTO por reincidencia', 'SYSTEM', '2026-06-11 09:12:00+00', NULL, 1, 2, 2),
+    ('Denuncia registrada', NULL, 'INSURED', '2026-06-30 10:00:00+00', 6, NULL, 1, 3),
     ('Faltan documentos obligatorios de la agenda', 'DENUNCIA_POLICIAL, FOTO_BIEN',
-     '2026-06-30 10:08:00+00', NULL, 1, 3, 3),
-    ('Denuncia registrada', NULL, '2026-06-12 18:55:00+00', 1, NULL, 1, 4),
-    ('Falta la foto del bien', NULL, '2026-06-12 19:02:00+00', NULL, 1, 3, 4),
-    ('Denuncia registrada', NULL, '2026-07-31 12:00:00+00', 1, NULL, 1, 5);
+     'SYSTEM', '2026-06-30 10:08:00+00', NULL, 1, 3, 3),
+    ('Denuncia registrada', NULL, 'INSURED', '2026-06-12 18:55:00+00', 1, NULL, 1, 4),
+    ('Falta la foto del bien', NULL, 'SYSTEM', '2026-06-12 19:02:00+00', NULL, 1, 3, 4),
+    ('Denuncia registrada', NULL, 'INSURED', '2026-07-31 12:00:00+00', 1, NULL, 1, 5);
 
 -- =============================================================================
 -- PART 5 — Arbiter tenant: Provincia
@@ -410,13 +412,14 @@ INSERT INTO arbiter_provincia.rule_result (rule_type, result, evaluated_value, s
     ('FAST_TRACK', 'NO_CUMPLE', '0.844',  0.3800, '2026-07-05 11:20:30+00', 1, 2),
     ('FAST_TRACK', 'NO_CUMPLE', 'SUSPENDIDA', 0.2000, '2026-07-05 11:20:31+00', 2, 2);
 
-INSERT INTO arbiter_provincia.case_status_history (reason, observation, changed_at, changed_by,
+INSERT INTO arbiter_provincia.case_status_history (reason, observation, actor, changed_at, changed_by,
                                                    initial_status_id, final_status_id, case_id) VALUES
-    ('Denuncia registrada', NULL, '2026-05-20 14:00:00+00', 10, NULL, 1, 1),
-    ('Clasificación disponible', 'El modelo recomienda aprobar', '2026-05-20 14:07:00+00', NULL, 1, 2, 1),
-    ('El analista aprobó el siniestro', 'Documentación completa', '2026-05-21 10:30:00+00', 4, 2, 5, 1),
-    ('Denuncia registrada', NULL, '2026-07-05 11:15:00+00', 12, NULL, 1, 2),
-    ('Clasificación disponible', 'Riesgo CRÍTICO: mora + reincidencia', '2026-07-05 11:22:00+00', NULL, 1, 2, 2);
+    ('Denuncia registrada', NULL, 'INSURED', '2026-05-20 14:00:00+00', 10, NULL, 1, 1),
+    ('Clasificación disponible', 'El modelo recomienda aprobar', 'SYSTEM', '2026-05-20 14:07:00+00', NULL, 1, 2, 1),
+    -- The only ANALYST transition in the fixtures: human-in-the-loop closing a case.
+    ('El analista aprobó el siniestro', 'Documentación completa', 'ANALYST', '2026-05-21 10:30:00+00', 4, 2, 5, 1),
+    ('Denuncia registrada', NULL, 'INSURED', '2026-07-05 11:15:00+00', 12, NULL, 1, 2),
+    ('Clasificación disponible', 'Riesgo CRÍTICO: mora + reincidencia', 'SYSTEM', '2026-07-05 11:22:00+00', NULL, 1, 2, 2);
 
 -- Notification sent to Carla when her case was approved.
 INSERT INTO arbiter_provincia.notification (type, channel, content, sent, read, sent_at, read_at,
