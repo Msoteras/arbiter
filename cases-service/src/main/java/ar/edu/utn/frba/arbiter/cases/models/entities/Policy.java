@@ -47,11 +47,11 @@ public class Policy {
 
     private String product;
 
-    @Column(name = "insured_amount")
-    private BigDecimal insuredAmount;
+    @Column(name = "sum_insured", nullable = false)
+    private BigDecimal sumInsured;
 
-    @Column(nullable = false)
-    private boolean current;
+    @Column(name = "in_force", nullable = false)
+    private boolean inForce;
 
     @Column(name = "synced_at")
     private Instant syncedAt;

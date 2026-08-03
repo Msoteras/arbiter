@@ -27,7 +27,10 @@ public interface ClaimsAnalysisClient {
 
     /**
      * Forwards the analyst's decision to classification-service so it is persisted
-     * in the audit trail (ClassificationLog).
+     * in the audit trail (llm_analysis + llm_reason).
+     *
+     * @return the id of the {@code case_classification} row it created, to be stored on
+     *         {@code cases.classification_id}; null if the response didn't carry one.
      */
-    void forwardAnalystDecision(Long caseId, AnalystDecisionRequest request);
+    Long forwardAnalystDecision(Long caseId, AnalystDecisionRequest request);
 }

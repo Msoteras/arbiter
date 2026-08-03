@@ -5,6 +5,7 @@ import ar.edu.utn.frba.arbiter.cases.models.entities.CaseStatusHistory;
 import ar.edu.utn.frba.arbiter.cases.models.entities.StatusChangeActor;
 import ar.edu.utn.frba.arbiter.cases.models.repositories.CaseRepository;
 import ar.edu.utn.frba.arbiter.cases.models.repositories.CaseStatusHistoryRepository;
+import ar.edu.utn.frba.arbiter.cases.support.CaseStates;
 import ar.edu.utn.frba.arbiter.common.enums.CaseStatus;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -28,6 +29,9 @@ class CaseStatusServiceTest {
     @Mock
     private CaseStatusHistoryRepository historyRepository;
 
+    @Mock
+    private CaseStateCatalog caseStateCatalog;
+
     @InjectMocks
     private CaseStatusService caseStatusService;
 
@@ -49,6 +53,8 @@ class CaseStatusServiceTest {
     @Test
     void transition_recordsFromCurrent_setsNewStatus_andSavesCase() {
         Case entity = caseRecord(1L, CaseStatus.PENDING_CLASSIFICATION);
+        when(caseStateCatalog.resolve(CaseStatus.AWAITING_DOCUMENTATION))
+                .thenReturn(CaseStates.of(CaseStatus.AWAITING_DOCUMENTATION));
         when(caseRepository.save(any(Case.class))).thenAnswer(inv -> inv.getArgument(0));
 
         caseStatusService.transition(entity, CaseStatus.AWAITING_DOCUMENTATION,
@@ -70,6 +76,6 @@ class CaseStatusServiceTest {
     }
 
     private Case caseRecord(Long id, CaseStatus status) {
-        return Case.builder().id(id).status(status).build();
+        return Case.builder().id(id).currentStatus(CaseStates.of(status)).build();
     }
 }

@@ -46,15 +46,15 @@ public class Coverage {
     @Column(name = "max_events_per_year")
     private Integer maxEventsPerYear;
 
-    @Column(name = "covers_household", nullable = false)
-    private boolean coversHousehold;
+    @Column(name = "covers_family_group", nullable = false)
+    private boolean coversFamilyGroup;
 
     private BigDecimal deductible;
 
-    @Column(name = "claim_extinguishes_coverage", nullable = false)
-    private boolean claimExtinguishesCoverage;
+    @Column(name = "claim_exhausts_coverage", nullable = false)
+    private boolean claimExhaustsCoverage;
 
-    @Column(nullable = false)
+    @Column(name = "is_individual", nullable = false)
     private boolean individual;
 
     @Column(name = "waiting_period_days")
