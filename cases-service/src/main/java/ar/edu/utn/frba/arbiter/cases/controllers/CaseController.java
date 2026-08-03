@@ -1,6 +1,7 @@
 package ar.edu.utn.frba.arbiter.cases.controllers;
 
 import ar.edu.utn.frba.arbiter.cases.dto.AnalystDecisionRequest;
+import ar.edu.utn.frba.arbiter.cases.dto.AssignAnalystRequest;
 import ar.edu.utn.frba.arbiter.cases.dto.CaseDocumentResponse;
 import ar.edu.utn.frba.arbiter.cases.dto.CaseRequest;
 import ar.edu.utn.frba.arbiter.cases.dto.CaseResponse;
@@ -82,10 +83,13 @@ public class CaseController {
                     expediente, número de póliza y asegurado (`insuredId`/`insuredName` — este
                     último nullable hasta que la primera clasificación resuelve el nombre real).
                     `riskBand` filtra por nivel de alerta de fraude (match exacto: `LOW`, `MEDIUM`,
-                    `HIGH`, `CRITICAL`). Todos se combinan por AND entre sí.
+                    `HIGH`, `CRITICAL`). `assignedAnalystId` acota a los expedientes de un analista
+                    puntual — es la lente "Míos" de la bandeja; omitirlo es la lente "Todos".
+                    Todos se combinan por AND entre sí.
 
-                    No filtra por aseguradora/rol del usuario autenticado: depende de auth-service,
-                    que todavía no está levantado (ver GAPS-FLUJO.md, Gap F).
+                    `assignedAnalystId` es "de quién es el expediente", no "qué expedientes puede
+                    ver este usuario": el recorte por aseguradora es otra cosa y todavía no existe
+                    (depende del esquema multi-tenant — ver GAPS-FLUJO.md, Gap F).
                     """)
     public ResponseEntity<Page<CaseResponse>> listCases(
             @RequestParam(required = false) CaseStatus status,
@@ -96,11 +100,48 @@ public class CaseController {
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate eventDateTo,
             @RequestParam(required = false) String q,
             @RequestParam(required = false) RiskBand riskBand,
+            @RequestParam(required = false) Long assignedAnalystId,
             @PageableDefault(size = 20, sort = "id", direction = Sort.Direction.DESC) Pageable pageable
     ) {
         Page<CaseResponse> response = caseService.listCases(
-                status, claimCause, policyNumber, insuredId, eventDateFrom, eventDateTo, q, riskBand, pageable);
+                status, claimCause, policyNumber, insuredId, eventDateFrom, eventDateTo, q, riskBand,
+                assignedAnalystId, pageable);
         return ResponseEntity.ok(response);
+    }
+
+    @PostMapping("/{caseId}/assign")
+    @PreAuthorize("hasAnyRole('ANALISTA_SINIESTROS', 'REFERENTE_ASEGURADORA')")
+    @Operation(summary = "Asignar el expediente a un analista",
+            description = """
+                    Pone al analista como dueño del expediente. Habilitado para ambos roles: el
+                    referente reparte trabajo y el analista puede tomar un expediente (o pasárselo
+                    a un colega) sin depender de él.
+
+                    Un solo analista por expediente: si ya tenía uno, esta asignación lo reemplaza.
+                    Asignar NO resuelve ni mueve de estado — el expediente sigue necesitando la
+                    decisión explícita del analista (`POST /{id}/decision`), que es lo que impacta
+                    en el ciclo de vida. Cada (re)asignación queda registrada en el historial.
+
+                    404 si el `analystId` no corresponde a un analista asignable; 503 si
+                    auth-service no responde (no se asigna a un id que no se pudo verificar).
+                    """)
+    public ResponseEntity<CaseResponse> assignAnalyst(
+            @PathVariable Long caseId,
+            @RequestBody @Valid AssignAnalystRequest request
+    ) {
+        return ResponseEntity.ok(caseService.assignAnalyst(caseId, request.analystId()));
+    }
+
+    @DeleteMapping("/{caseId}/assign")
+    @PreAuthorize("hasAnyRole('ANALISTA_SINIESTROS', 'REFERENTE_ASEGURADORA')")
+    @Operation(summary = "Liberar el expediente",
+            description = """
+                    Deja el expediente sin analista asignado. Queda fuera de la lente "Míos" de
+                    todos y visible en "Todos", listo para que lo tome otro. Idempotente: liberar
+                    un expediente que ya estaba sin asignar no falla.
+                    """)
+    public ResponseEntity<CaseResponse> unassignAnalyst(@PathVariable Long caseId) {
+        return ResponseEntity.ok(caseService.unassignAnalyst(caseId));
     }
 
     @GetMapping("/{caseId}/documents")

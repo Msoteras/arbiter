@@ -206,6 +206,21 @@ public class UserService {
     }
 
     /**
+     * Analistas a los que se les puede asignar un expediente. Es un recorte del listado completo
+     * de usuarios pensado para el selector de asignación de la bandeja: solo el rol
+     * ANALISTA_SINIESTROS, y por eso también lo puede consultar un analista (no solo el referente).
+     *
+     * <p>Devuelve también los que están PENDING (invitados sin activar): quien asigna ve el estado
+     * y decide. Hoy no filtra por aseguradora — ese recorte llega con el esquema multi-tenant
+     * (decisión de arquitectura #10, ver GAPS-FLUJO.md Gap F).
+     */
+    public List<UserResponse> listAssignableAnalysts() {
+        return userRepository.findByRolOrderByApellidoAscNombreAsc(UserRole.ANALISTA_SINIESTROS).stream()
+                .map(this::toResponse)
+                .toList();
+    }
+
+    /**
      * Cambia el rol de un usuario. El referente puede promover a otro referente (no es una
      * escalada real: ya tiene acceso completo), pero no puede cambiarse el rol a sí mismo —
      * evita que se autodegrade o se bloquee sin querer.

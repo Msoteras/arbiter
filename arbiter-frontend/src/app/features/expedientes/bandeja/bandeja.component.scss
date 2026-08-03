@@ -20,6 +20,46 @@
 
 .btn-with-icon { display: inline-flex; align-items: center; gap: var(--space-2); }
 
+// ───────────────── Lente "Míos" / "Todos" ─────────────────
+// Mismo tratamiento que las tabs del detalle del expediente (.tabs/.tab): subrayado en el
+// segmento activo, sin colores ni primitivas nuevas.
+.lens {
+  display: flex;
+  gap: var(--space-5);
+  border-bottom: 1px solid var(--border-default);
+}
+.lens-tab {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  border: none;
+  background: none;
+  cursor: pointer;
+  font: inherit;
+  font-size: var(--font-size-body);
+  color: var(--text-muted);
+  padding: var(--space-3) 0;
+  border-bottom: 2px solid transparent;
+  margin-bottom: -1px;
+  white-space: nowrap;
+}
+.lens-tab:hover { color: var(--text-secondary); }
+.lens-tab.active {
+  color: var(--text-primary);
+  border-bottom-color: var(--accent-fg);
+  font-weight: var(--font-weight-medium);
+}
+// El conteo acompaña sin competir con la etiqueta.
+.lens-count {
+  font-size: var(--font-size-xs);
+  font-variant-numeric: tabular-nums;
+  color: var(--text-muted);
+  background: var(--surface-sunken);
+  border-radius: var(--radius-pill);
+  padding: 1px var(--space-2);
+}
+.lens-tab.active .lens-count { color: var(--accent-fg); background: var(--selected-bg); }
+
 // ───────────────── Barra de filtros ─────────────────
 .filters {
   display: flex;
@@ -90,6 +130,34 @@ tbody tr:not(:last-child) td { border-bottom: 1px solid var(--border-subtle); }
   font-weight: var(--font-weight-medium);
 }
 .id-link:hover { text-decoration: underline; }
+
+// ───────────────── Celda de asignación ─────────────────
+// Las acciones aparecen recién al hoverear la fila: en reposo la columna es informativa
+// ("quién lo tiene") y no compite con el resto de la tabla.
+.assign-cell { cursor: default; }
+.assign-actions {
+  display: none;
+  align-items: center;
+  gap: var(--space-2);
+  margin-top: var(--space-1);
+}
+.row-link:hover .assign-actions,
+.assign-cell:focus-within .assign-actions { display: flex; }
+
+.assign-link {
+  font: inherit;
+  font-size: var(--font-size-xs);
+  color: var(--accent-fg);
+  background: none;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+}
+.assign-link:hover:not(:disabled) { text-decoration: underline; }
+.assign-link:disabled { color: var(--text-muted); cursor: default; }
+
+// El menú de asignación es un control chico dentro de la fila, no un botón de página.
+.assign-actions app-menu-button { font-size: var(--font-size-xs); }
 
 // ───────────────── Paginación como pie de página ─────────────────
 app-pagination {

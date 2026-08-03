@@ -27,7 +27,7 @@ public final class CaseSpecifications {
 
     public static Specification<Case> withFilters(CaseStatus status, String claimCause, String policyNumber,
                                                     String insuredId, LocalDate eventDateFrom, LocalDate eventDateTo,
-                                                    String q, RiskBand riskBand) {
+                                                    String q, RiskBand riskBand, Long assignedAnalystId) {
         return Stream.of(
                         status(status),
                         claimCause(claimCause),
@@ -36,7 +36,8 @@ public final class CaseSpecifications {
                         eventDateFrom(eventDateFrom),
                         eventDateTo(eventDateTo),
                         freeText(q),
-                        riskBand(riskBand)
+                        riskBand(riskBand),
+                        assignedAnalystId(assignedAnalystId)
                 )
                 .filter(Objects::nonNull)
                 .reduce(Specification::and)
@@ -61,6 +62,16 @@ public final class CaseSpecifications {
     private static Specification<Case> insuredId(String insuredId) {
         return insuredId == null || insuredId.isBlank() ? null
                 : (root, query, cb) -> cb.equal(root.get("insuredId"), insuredId);
+    }
+
+    /**
+     * Lente "Míos" de la bandeja: expedientes de un analista puntual. Es el filtro de "de quién
+     * es", no el de "qué puedo ver" — el recorte por aseguradora es aparte y todavía no existe
+     * (ver el Javadoc de la clase).
+     */
+    private static Specification<Case> assignedAnalystId(Long assignedAnalystId) {
+        return assignedAnalystId == null ? null
+                : (root, query, cb) -> cb.equal(root.get("assignedAnalystId"), assignedAnalystId);
     }
 
     private static Specification<Case> riskBand(RiskBand riskBand) {

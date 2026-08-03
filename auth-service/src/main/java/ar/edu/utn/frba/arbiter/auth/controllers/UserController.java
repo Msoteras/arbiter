@@ -52,6 +52,23 @@ public class UserController {
         return ResponseEntity.ok(userService.listUsers());
     }
 
+    @GetMapping("/analysts")
+    @PreAuthorize("hasAnyRole('ANALISTA_SINIESTROS', 'REFERENTE_ASEGURADORA')")
+    @Operation(summary = "Listar analistas asignables",
+            description = """
+                    Devuelve los usuarios con rol ANALISTA_SINIESTROS, ordenados por apellido.
+                    Alimenta el selector de asignación de expedientes de la bandeja, por eso —a
+                    diferencia del listado completo de usuarios— también lo puede consultar un
+                    analista: asignar es una acción de ambos roles, no solo del referente.
+
+                    Incluye los analistas en estado PENDING (invitados sin activar): quien asigna
+                    ve el estado y decide. Todavía no filtra por aseguradora — ese recorte llega
+                    con el esquema multi-tenant (ver GAPS-FLUJO.md, Gap F).
+                    """)
+    public ResponseEntity<List<UserResponse>> listAnalysts() {
+        return ResponseEntity.ok(userService.listAssignableAnalysts());
+    }
+
     @PutMapping("/{id}/role")
     @PreAuthorize("hasRole('REFERENTE_ASEGURADORA')")
     @Operation(summary = "Cambiar el rol de un usuario",

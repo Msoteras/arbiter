@@ -13,6 +13,8 @@ export interface LoginRequest {
 export interface LoginResponse {
   token: string;
   expiresAt: string;
+  /** Id del usuario logueado — con esto la bandeja resuelve qué expedientes son "míos". */
+  id: number;
   email: string;
   rol: UserRole;
   nombre: string;

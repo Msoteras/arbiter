@@ -24,6 +24,35 @@
     </app-menu-button>
   </header>
 
+  <!-- Lente de pertenencia: de quién es el expediente. Va aparte de los filtros a propósito
+       (no es un recorte más del listado) y reusa el patrón de tabs del detalle. -->
+  <div class="lens" role="tablist" aria-label="Expedientes a mostrar">
+    <button
+      type="button"
+      role="tab"
+      class="lens-tab"
+      [class.active]="lens() === 'mine'"
+      [attr.aria-selected]="lens() === 'mine'"
+      (click)="setLens('mine')"
+    >
+      Míos <span class="lens-count">{{ mineCount() }}</span>
+    </button>
+    <button
+      type="button"
+      role="tab"
+      class="lens-tab"
+      [class.active]="lens() === 'all'"
+      [attr.aria-selected]="lens() === 'all'"
+      (click)="setLens('all')"
+    >
+      Todos <span class="lens-count">{{ allCount() }}</span>
+    </button>
+  </div>
+
+  @if (assignError()) {
+    <app-card><p class="t-note">{{ assignError() }}</p></app-card>
+  }
+
   <app-card class="filters-card">
     <div class="filters">
       <label class="filter-field">
@@ -146,6 +175,39 @@
                 } @else {
                   <span class="t-note">—</span>
                 }
+              </td>
+              <td class="assign-cell" (click)="$event.stopPropagation()">
+                <span [class.t-note]="!c.assignedAnalystName">{{ displayAnalyst(c) }}</span>
+                <div class="assign-actions">
+                  @if (!c.assignedAnalystId && canTake()) {
+                    <button
+                      type="button"
+                      class="assign-link"
+                      [disabled]="assigning() !== null"
+                      (click)="take(c)"
+                    >
+                      Tomar
+                    </button>
+                  }
+                  @if (c.assignedAnalystId) {
+                    <button
+                      type="button"
+                      class="assign-link"
+                      [disabled]="assigning() !== null"
+                      (click)="release(c.id)"
+                    >
+                      Liberar
+                    </button>
+                  }
+                  <app-menu-button
+                    [items]="analystMenuItems()"
+                    [disabled]="assigning() !== null"
+                    align="end"
+                    (itemSelected)="assignTo(c.id, $event)"
+                  >
+                    {{ c.assignedAnalystId ? 'Reasignar' : 'Asignar a…' }}
+                  </app-menu-button>
+                </div>
               </td>
             </tr>
           }

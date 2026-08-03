@@ -56,6 +56,9 @@ class CaseServiceImplTest {
     @Mock
     private ClaimsAnalysisClient claimsAnalysisClient;
 
+    @Mock
+    private AnalystDirectory analystDirectory;
+
     @InjectMocks
     private CaseServiceImpl caseService;
 
@@ -226,7 +229,7 @@ class CaseServiceImplTest {
         when(caseRepository.findAll(isNull(Specification.class), eq(pageable)))
                 .thenReturn(new PageImpl<>(List.of(case2, case1), pageable, 2));
 
-        Page<CaseResponse> response = caseService.listCases(null, null, null, null, null, null, null, null, pageable);
+        Page<CaseResponse> response = caseService.listCases(null, null, null, null, null, null, null, null, null, pageable);
 
         assertThat(response.getContent()).hasSize(2);
         assertThat(response.getContent().get(0).id()).isEqualTo(2L);
@@ -241,7 +244,7 @@ class CaseServiceImplTest {
                 .thenReturn(new PageImpl<>(List.of(entity), pageable, 1));
 
         Page<CaseResponse> response = caseService.listCases(
-                CaseStatus.PENDING_ANALYST_REVIEW, null, null, null, null, null, null, null, pageable);
+                CaseStatus.PENDING_ANALYST_REVIEW, null, null, null, null, null, null, null, null, pageable);
 
         assertThat(response.getContent()).hasSize(1);
         assertThat(response.getContent().get(0).status()).isEqualTo(CaseStatus.PENDING_ANALYST_REVIEW);
@@ -255,7 +258,7 @@ class CaseServiceImplTest {
                 .thenReturn(new PageImpl<>(List.of(entity), pageable, 1));
 
         Page<CaseResponse> response = caseService.listCases(
-                null, null, null, "40.123.456", null, null, null, null, pageable);
+                null, null, null, "40.123.456", null, null, null, null, null, pageable);
 
         assertThat(response.getContent()).hasSize(1);
         assertThat(response.getContent().get(0).insuredId()).isEqualTo("40.123.456");
@@ -269,7 +272,7 @@ class CaseServiceImplTest {
                 .thenReturn(new PageImpl<>(List.of(entity), pageable, 1));
 
         Page<CaseResponse> response = caseService.listCases(
-                null, null, null, null, null, null, "POL-CEL", null, pageable);
+                null, null, null, null, null, null, "POL-CEL", null, null, pageable);
 
         assertThat(response.getContent()).hasSize(1);
         verify(caseRepository).findAll(any(Specification.class), eq(pageable));
@@ -283,7 +286,7 @@ class CaseServiceImplTest {
                 .thenReturn(new PageImpl<>(List.of(entity), pageable, 1));
 
         Page<CaseResponse> response = caseService.listCases(
-                null, null, null, null, null, null, null, RiskBand.HIGH, pageable);
+                null, null, null, null, null, null, null, RiskBand.HIGH, null, pageable);
 
         assertThat(response.getContent()).hasSize(1);
         verify(caseRepository).findAll(any(Specification.class), eq(pageable));
@@ -298,7 +301,7 @@ class CaseServiceImplTest {
 
         Page<CaseResponse> response = caseService.listCases(
                 CaseStatus.APPROVED, "Robo en vía pública", "POL-CEL-2024-001", "40.123.456",
-                LocalDate.of(2026, 6, 1), LocalDate.of(2026, 6, 30), null, null, pageable);
+                LocalDate.of(2026, 6, 1), LocalDate.of(2026, 6, 30), null, null, null, pageable);
 
         assertThat(response.getContent()).hasSize(1);
         verify(caseRepository).findAll(any(Specification.class), eq(pageable));
@@ -310,10 +313,96 @@ class CaseServiceImplTest {
         when(caseRepository.findAll(isNull(Specification.class), eq(pageable)))
                 .thenReturn(new PageImpl<>(List.of(), pageable, 0));
 
-        Page<CaseResponse> response = caseService.listCases(null, null, null, null, null, null, null, null, pageable);
+        Page<CaseResponse> response = caseService.listCases(null, null, null, null, null, null, null, null, null, pageable);
 
         assertThat(response.getContent()).isEmpty();
         assertThat(response.getTotalElements()).isZero();
+    }
+
+    @Test
+    void assignAnalyst_setsOwnerAndCachesResolvedName() {
+        Case entity = caseRecord(1L, CaseStatus.PENDING_ANALYST_REVIEW);
+        when(caseRepository.findById(1L)).thenReturn(Optional.of(entity));
+        when(analystDirectory.analystName(7L)).thenReturn("Lucas Gómez");
+
+        CaseResponse response = caseService.assignAnalyst(1L, 7L);
+
+        assertThat(response.assignedAnalystId()).isEqualTo(7L);
+        assertThat(response.assignedAnalystName()).isEqualTo("Lucas Gómez");
+        verify(caseRepository).save(entity);
+    }
+
+    @Test
+    void assignAnalyst_doesNotChangeCaseStatus() {
+        // Asignar es poner dueño, no resolver: el expediente sigue esperando la decisión del
+        // analista (human-in-the-loop, decisión de arquitectura #5).
+        Case entity = caseRecord(1L, CaseStatus.PENDING_ANALYST_REVIEW);
+        when(caseRepository.findById(1L)).thenReturn(Optional.of(entity));
+        when(analystDirectory.analystName(7L)).thenReturn("Lucas Gómez");
+
+        caseService.assignAnalyst(1L, 7L);
+
+        assertThat(entity.getStatus()).isEqualTo(CaseStatus.PENDING_ANALYST_REVIEW);
+        verify(caseStatusService, never()).transition(any(), any(), any(), anyString());
+    }
+
+    @Test
+    void assignAnalyst_recordsAssignmentInHistory() {
+        Case entity = caseRecord(1L, CaseStatus.PENDING_ANALYST_REVIEW);
+        when(caseRepository.findById(1L)).thenReturn(Optional.of(entity));
+        when(analystDirectory.analystName(7L)).thenReturn("Lucas Gómez");
+
+        caseService.assignAnalyst(1L, 7L);
+
+        verify(caseStatusService).recordAssignment(entity, "expediente asignado a Lucas Gómez");
+    }
+
+    @Test
+    void assignAnalyst_reassigning_replacesThePreviousOwner() {
+        Case entity = caseRecord(1L, CaseStatus.PENDING_ANALYST_REVIEW);
+        entity.setAssignedAnalystId(7L);
+        entity.setAssignedAnalystName("Lucas Gómez");
+        when(caseRepository.findById(1L)).thenReturn(Optional.of(entity));
+        when(analystDirectory.analystName(9L)).thenReturn("Sofía Martínez");
+
+        CaseResponse response = caseService.assignAnalyst(1L, 9L);
+
+        assertThat(response.assignedAnalystId()).isEqualTo(9L);
+        assertThat(response.assignedAnalystName()).isEqualTo("Sofía Martínez");
+    }
+
+    @Test
+    void assignAnalyst_unknownCase_throwsNotFound() {
+        when(caseRepository.findById(99L)).thenReturn(Optional.empty());
+
+        assertThatThrownBy(() -> caseService.assignAnalyst(99L, 7L))
+                .isInstanceOf(CaseNotFoundException.class);
+    }
+
+    @Test
+    void unassignAnalyst_clearsOwnerAndRecordsIt() {
+        Case entity = caseRecord(1L, CaseStatus.PENDING_ANALYST_REVIEW);
+        entity.setAssignedAnalystId(7L);
+        entity.setAssignedAnalystName("Lucas Gómez");
+        when(caseRepository.findById(1L)).thenReturn(Optional.of(entity));
+
+        CaseResponse response = caseService.unassignAnalyst(1L);
+
+        assertThat(response.assignedAnalystId()).isNull();
+        assertThat(response.assignedAnalystName()).isNull();
+        verify(caseStatusService).recordAssignment(entity,
+                "expediente liberado (estaba asignado a Lucas Gómez)");
+    }
+
+    @Test
+    void unassignAnalyst_alreadyUnassigned_isIdempotent() {
+        Case entity = caseRecord(1L, CaseStatus.PENDING_ANALYST_REVIEW);
+        when(caseRepository.findById(1L)).thenReturn(Optional.of(entity));
+
+        CaseResponse response = caseService.unassignAnalyst(1L);
+
+        assertThat(response.assignedAnalystId()).isNull();
+        verify(caseStatusService).recordAssignment(entity, "expediente liberado");
     }
 
     @Test

@@ -38,6 +38,7 @@ public class CaseServiceImpl implements CaseService {
     private final CaseDocumentRepository caseDocumentRepository;
     private final CaseStatusService caseStatusService;
     private final ClaimsAnalysisClient claimsAnalysisClient;
+    private final AnalystDirectory analystDirectory;
 
     @Override
     public CaseResponse createCase(CaseRequest request, Map<String, MultipartFile> documents) {
@@ -140,10 +141,44 @@ public class CaseServiceImpl implements CaseService {
     @Override
     public Page<CaseResponse> listCases(CaseStatus status, String claimCause, String policyNumber,
                                          String insuredId, LocalDate eventDateFrom, LocalDate eventDateTo,
-                                         String q, RiskBand riskBand, Pageable pageable) {
+                                         String q, RiskBand riskBand, Long assignedAnalystId, Pageable pageable) {
         Specification<Case> spec = CaseSpecifications.withFilters(
-                status, claimCause, policyNumber, insuredId, eventDateFrom, eventDateTo, q, riskBand);
+                status, claimCause, policyNumber, insuredId, eventDateFrom, eventDateTo, q, riskBand,
+                assignedAnalystId);
         return caseRepository.findAll(spec, pageable).map(this::toResponse);
+    }
+
+    @Override
+    public CaseResponse assignAnalyst(Long caseId, Long analystId) {
+        Case entity = caseRepository.findById(caseId)
+                .orElseThrow(() -> new CaseNotFoundException(caseId));
+
+        // Resolve BEFORE writing: an unknown analyst (or an unreachable auth-service) has to fail
+        // without leaving the case owned by an id nobody can resolve to a person.
+        String analystName = analystDirectory.analystName(analystId);
+
+        entity.setAssignedAnalystId(analystId);
+        entity.setAssignedAnalystName(analystName);
+        caseRepository.save(entity);
+        caseStatusService.recordAssignment(entity, "expediente asignado a " + analystName);
+
+        return toResponse(entity);
+    }
+
+    @Override
+    public CaseResponse unassignAnalyst(Long caseId) {
+        Case entity = caseRepository.findById(caseId)
+                .orElseThrow(() -> new CaseNotFoundException(caseId));
+
+        String previousAnalyst = entity.getAssignedAnalystName();
+        entity.setAssignedAnalystId(null);
+        entity.setAssignedAnalystName(null);
+        caseRepository.save(entity);
+        caseStatusService.recordAssignment(entity, previousAnalyst == null
+                ? "expediente liberado"
+                : "expediente liberado (estaba asignado a " + previousAnalyst + ")");
+
+        return toResponse(entity);
     }
 
     @Override
@@ -215,6 +250,8 @@ public class CaseServiceImpl implements CaseService {
                 entity.getRiskBand(),
                 entity.getRiskBreakdown(),
                 entity.getForensicReport(),
+                entity.getAssignedAnalystId(),
+                entity.getAssignedAnalystName(),
                 entity.getCreatedAt(),
                 entity.getUpdatedAt(),
                 history

@@ -30,7 +30,8 @@ import java.util.List;
 
 @Entity
 @Table(name = "cases", indexes = {
-        @Index(name = "idx_cases_risk_band", columnList = "risk_band")
+        @Index(name = "idx_cases_risk_band", columnList = "risk_band"),
+        @Index(name = "idx_cases_assigned_analyst", columnList = "assigned_analyst_id")
 })
 @Getter
 @Setter
@@ -147,6 +148,28 @@ public class Case {
      */
     @Column(name = "manual_adjustment_note", columnDefinition = "TEXT")
     private String manualAdjustmentNote;
+
+    /**
+     * Analyst who owns this case, as the auth-service user id. Nullable: an unassigned case is the
+     * normal starting state, not an error. One analyst at a time — reassigning overwrites, it
+     * doesn't stack (see {@code CaseService.assignAnalyst}). Indexed because the analyst inbox
+     * filters on it ("Míos" lens).
+     *
+     * <p>Assignment is ownership, not resolution: the case still needs the analyst's explicit
+     * approve/reject to move forward (decisión de arquitectura #5, human-in-the-loop).
+     */
+    @Column(name = "assigned_analyst_id")
+    private Long assignedAnalystId;
+
+    /**
+     * Analyst's display name, resolved from auth-service at assignment time and cached here — same
+     * pattern as {@code insuredName}. Avoids an N+1 REST call per row when the inbox lists cases;
+     * cases-service doesn't own the users table and must not read it directly (each module owns
+     * its own tables). Goes stale if the user is later renamed — acceptable for a display label,
+     * the id stays authoritative.
+     */
+    @Column(name = "assigned_analyst_name")
+    private String assignedAnalystName;
 
     @Builder.Default
     @Column(nullable = false)

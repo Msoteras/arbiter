@@ -37,4 +37,14 @@ public class CaseExceptionHandler {
     public ProblemDetail handleInvalidDecision(InvalidAnalystDecisionException ex) {
         return ProblemDetail.forStatusAndDetail(HttpStatusCode.valueOf(400), ex.getMessage());
     }
+
+    @ExceptionHandler(AnalystNotFoundException.class)
+    public ProblemDetail handleAnalystNotFound(AnalystNotFoundException ex) {
+        return ProblemDetail.forStatusAndDetail(HttpStatusCode.valueOf(404), ex.getMessage());
+    }
+
+    @ExceptionHandler(AnalystDirectoryUnavailableException.class)
+    public ProblemDetail handleAnalystDirectoryUnavailable(AnalystDirectoryUnavailableException ex) {
+        return ProblemDetail.forStatusAndDetail(HttpStatusCode.valueOf(503), ex.getMessage());
+    }
 }

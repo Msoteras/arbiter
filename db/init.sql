@@ -84,12 +84,21 @@ CREATE TABLE cases (
     risk_breakdown          TEXT,
     forensic_report         TEXT,
     manual_adjustment_note  TEXT,
+    -- Analista dueño del expediente (id de users, en auth-service). NULL = sin asignar, que es
+    -- el estado inicial normal. Sin FK a users a propósito: cada módulo es dueño de sus tablas y
+    -- cases-service no acopla su schema al de auth-service (se resuelve por REST). El nombre va
+    -- desnormalizado para que el listado no tenga que resolverlo fila por fila (mismo criterio
+    -- que insured_name).
+    assigned_analyst_id     BIGINT,
+    assigned_analyst_name   VARCHAR(255),
     classification_attempts INTEGER      NOT NULL DEFAULT 0,
     created_at              TIMESTAMPTZ  NOT NULL DEFAULT NOW(),
     updated_at              TIMESTAMPTZ  NOT NULL DEFAULT NOW()
 );
 
 CREATE INDEX idx_cases_risk_band ON cases (risk_band);
+-- La bandeja del analista filtra por "míos" en cada carga: es el filtro más caliente de la tabla.
+CREATE INDEX idx_cases_assigned_analyst ON cases (assigned_analyst_id);
 
 -- ─── case_documents (cases-service) ──────────────────────────────────────────
 -- Adjuntos del expediente: un registro por tipo de documento por caso (upsert por tipo).
@@ -238,6 +247,11 @@ VALUES
 -- Resetear la secuencia para que el próximo INSERT use id=6
 SELECT setval('cases_id_seq', (SELECT MAX(id) FROM cases));
 
+-- Dos de los cinco expedientes arrancan asignados al analista seed (Lucas Gómez, users.id = 2)
+-- para que la bandeja tenga contenido en ambas lentes ("Míos" y "Todos") sin tener que asignar
+-- a mano después de cada reset de la base. El resto queda sin asignar a propósito.
+UPDATE cases SET assigned_analyst_id = 2, assigned_analyst_name = 'Lucas Gómez' WHERE id IN (1, 2);
+
 -- ─── Datos de prueba: classification_log ─────────────────────────────────────
 INSERT INTO classification_log (id, case_id, model, prompt_version, source, classification,
                                 confidence, factors, latency_ms, risk_score, risk_band, risk_breakdown,
@@ -303,7 +317,16 @@ VALUES
     (8, 4, 'PENDING_CLASSIFICATION', 'AWAITING_DOCUMENTATION', 'SYSTEM', 'clasificación: FALTA_DOCUMENTACION', '2026-07-01 23:24:15+00'),
 
     -- Case 5: recién ingresado, sin clasificar todavía
-    (9, 5, NULL, 'PENDING_CLASSIFICATION', 'INSURED', 'denuncia registrada', '2026-07-02 10:00:00+00');
+    (9, 5, NULL, 'PENDING_CLASSIFICATION', 'INSURED', 'denuncia registrada', '2026-07-02 10:00:00+00'),
+
+    -- Asignaciones de los cases 1 y 2 al analista seed. from_status = to_status porque asignar
+    -- NO mueve el expediente de estado: solo le pone dueño (human-in-the-loop intacto, decisión
+    -- #5 — el analista igual tiene que aprobar o rechazar). El timeline del front las renderiza
+    -- como hito sin flecha justamente por esa igualdad.
+    (10, 1, 'PENDING_ANALYST_REVIEW', 'PENDING_ANALYST_REVIEW', 'ANALYST',
+     'expediente asignado a Lucas Gómez', '2026-06-29 00:30:00+00'),
+    (11, 2, 'PENDING_ANALYST_REVIEW', 'PENDING_ANALYST_REVIEW', 'ANALYST',
+     'expediente asignado a Lucas Gómez', '2026-06-29 01:25:00+00');
 
 -- Resetear la secuencia
 SELECT setval('case_status_history_id_seq', (SELECT MAX(id) FROM case_status_history));

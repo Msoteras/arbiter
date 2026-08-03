@@ -33,6 +33,10 @@ export interface ExpedienteResponse {
    * (Fast Track o expediente sin adjuntos de imagen).
    */
   forensicReport: ImageForensicReport | null;
+  /** Analista dueño del expediente (id de usuario). Null = sin asignar. */
+  assignedAnalystId: number | null;
+  /** Nombre del analista asignado, resuelto por el backend al asignar. Null = sin asignar. */
+  assignedAnalystName: string | null;
   analysisClassification: Clasificacion | string;
   analysisConfidence: number;
   analysisDetail: string;

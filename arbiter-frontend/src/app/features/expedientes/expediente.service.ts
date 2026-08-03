@@ -62,6 +62,12 @@ export interface ExpedienteListParams {
   q?: string;
   /** Nivel de alerta de fraude, match exacto. */
   riskBand?: 'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL';
+  /**
+   * Expedientes de un analista puntual — es la lente "Míos" de la bandeja; omitirlo es "Todos".
+   * Es "de quién es el expediente", no "qué puede ver este usuario" (ese recorte es por
+   * aseguradora y todavía no existe).
+   */
+  assignedAnalystId?: number;
 }
 
 @Injectable({ providedIn: 'root' })
@@ -92,6 +98,9 @@ export class ExpedienteService {
     if (params.sort) query['sort'] = params.sort;
     if (params.q) query['q'] = params.q;
     if (params.riskBand) query['riskBand'] = params.riskBand;
+    if (params.assignedAnalystId != null) {
+      query['assignedAnalystId'] = String(params.assignedAnalystId);
+    }
     return this.http.get<PagedResponse<ExpedienteResponse>>(this.baseUrl, { params: query });
   }
 
@@ -128,5 +137,19 @@ export class ExpedienteService {
 
   recordAnalystDecision(caseId: number, request: AnalystDecisionRequest): Observable<{ status: string }> {
     return this.http.post<{ status: string }>(`${this.baseUrl}/${caseId}/decision`, request);
+  }
+
+  /**
+   * Pone a `analystId` como dueño del expediente. Un solo analista por expediente: reasignar
+   * reemplaza al anterior. Asignar NO resuelve — el expediente sigue necesitando la decisión
+   * explícita del analista (`recordAnalystDecision`).
+   */
+  assign(caseId: number, analystId: number): Observable<ExpedienteResponse> {
+    return this.http.post<ExpedienteResponse>(`${this.baseUrl}/${caseId}/assign`, { analystId });
+  }
+
+  /** Libera el expediente: queda sin dueño y disponible para que lo tome otro analista. */
+  unassign(caseId: number): Observable<ExpedienteResponse> {
+    return this.http.delete<ExpedienteResponse>(`${this.baseUrl}/${caseId}/assign`);
   }
 }

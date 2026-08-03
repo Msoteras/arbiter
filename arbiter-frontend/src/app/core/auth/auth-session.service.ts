@@ -5,6 +5,9 @@ import { UserRole } from '../models/user-role';
 export interface AuthSession {
   token: string;
   expiresAt: string;
+  /** Id del usuario logueado. Es contra este id que se resuelve "míos" en la bandeja del
+      analista y el atajo "Tomar" (auto-asignarse un expediente). */
+  id: number;
   email: string;
   rol: UserRole;
   nombre: string;

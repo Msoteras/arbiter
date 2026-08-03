@@ -41,6 +41,15 @@ export class UserAdminService {
     return this.http.get<UserResponse[]>(this.baseUrl);
   }
 
+  /**
+   * Analistas a los que se les puede asignar un expediente, ordenados por apellido. A diferencia
+   * de `list()`, también lo puede llamar un analista: asignar es acción de los dos roles
+   * operativos. Alimenta el selector de asignación de la bandeja y del detalle.
+   */
+  listAnalysts(): Observable<UserResponse[]> {
+    return this.http.get<UserResponse[]>(`${this.baseUrl}/analysts`);
+  }
+
   updateRole(id: number, rol: UserRole): Observable<UserResponse> {
     return this.http.put<UserResponse>(`${this.baseUrl}/${id}/role`, { rol });
   }
