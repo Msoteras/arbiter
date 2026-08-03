@@ -2,11 +2,9 @@ package ar.edu.utn.frba.arbiter.rules.config.tenant;
 
 /**
  * Per-request holder for the resolved tenant schema — same pattern as auth-service's
- * {@code TenantContext}. Nothing sets this yet: rules-service has no controllers or
- * Spring Security wired up (still catalog-only scaffolding), so there's no request to
- * resolve a tenant from. This exists so the connection provider and identifier resolver
- * below have a real ThreadLocal to read once that JWT-reading filter gets built
- * alongside this module's first real endpoint.
+ * {@code TenantContext}. Set by {@link TenantResolvingFilter}, which is wired even though
+ * this module still has no controllers (catalog-only scaffolding): it's cheap to have ready
+ * for whenever the first real endpoint lands, and matches the other 4 modules.
  */
 public final class TenantContext {
 
