@@ -77,13 +77,27 @@ if ($connectionUrl -match '://([^/?]+)') {
     Write-Host "Base: $($Matches[1])  usuario: $env:DB_USER" -ForegroundColor Cyan
 }
 
+# La conexión SIEMPRE va con -d, nunca como argumento posicional: el psql de Windows
+# deja de parsear opciones apenas encuentra un posicional, así que
+# `psql <url> -U user -tAc <sql>` termina ignorando el -U, el -tAc y hasta la query
+# ("se ignoró argumento extra"). Con -d todo son opciones y el orden deja de importar.
 function Invoke-Psql {
     param([string[]]$PsqlArgs, [string]$Label)
 
     Write-Host "→ $Label" -ForegroundColor Cyan
-    # ON_ERROR_STOP: sin esto psql sigue tras un error y termina con exit 0, que es
-    # cómo se llega a un esquema a medio crear creyendo que salió bien.
-    & $psql $connectionUrl -v ON_ERROR_STOP=1 -U $env:DB_USER @PsqlArgs
+    # psql manda los NOTICE por stderr, y PowerShell 5.1 convierte cada linea de stderr
+    # de un nativo en un ErrorRecord: con ErrorActionPreference=Stop, un simple
+    # "NOTICE: ivfflat index created with little data" aborta todo aunque psql haya
+    # salido con 0. El exito se decide por $LASTEXITCODE, que es lo unico confiable.
+    $previous = $ErrorActionPreference
+    $ErrorActionPreference = 'Continue'
+    try {
+        # ON_ERROR_STOP: sin esto psql sigue tras un error y termina con exit 0, que es
+        # cómo se llega a un esquema a medio crear creyendo que salió bien.
+        & $psql -d $connectionUrl -U $env:DB_USER -v ON_ERROR_STOP=1 @PsqlArgs
+    } finally {
+        $ErrorActionPreference = $previous
+    }
     if ($LASTEXITCODE -ne 0) {
         Write-Error "$Label falló (exit $LASTEXITCODE). No sigo con los pasos siguientes."
     }
@@ -92,7 +106,7 @@ function Invoke-Psql {
 function Step-Check {
     Invoke-Psql @('-c', 'SELECT version();') 'Conexión'
     Write-Host '→ pgvector disponible?' -ForegroundColor Cyan
-    $vector = & $psql $connectionUrl -U $env:DB_USER -tAc `
+    $vector = & $psql -d $connectionUrl -U $env:DB_USER -tAc `
         "SELECT name FROM pg_available_extensions WHERE name='vector';"
     if (-not $vector) {
         Write-Error "pgvector no está disponible. init-multitenant.sql lo crea en su primera sentencia, así que sin esto no arranca. Habilitalo desde la consola de Railway."
@@ -115,7 +129,13 @@ function Step-Reset {
 # Un solo query: devuelve "etiqueta|valor" por línea y acá se compara contra lo esperado.
 function Get-Scalar {
     param([string]$Sql)
-    return (& $psql $connectionUrl -U $env:DB_USER -tAc $Sql | Where-Object { $_ }) -join ''
+    $previous = $ErrorActionPreference
+    $ErrorActionPreference = 'Continue'
+    try {
+        return (& $psql -d $connectionUrl -U $env:DB_USER -tAc $Sql | Where-Object { $_ }) -join ''
+    } finally {
+        $ErrorActionPreference = $previous
+    }
 }
 
 function Assert-Count {
