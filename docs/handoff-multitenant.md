@@ -4,9 +4,99 @@ Rama `feature/mapeo-der`. Fede: esto resume lo que cambió, por qué, y qué que
 El detalle paso a paso de `Case` está en [`case-restructuring-plan.md`](case-restructuring-plan.md);
 acá va lo que necesitás saber para trabajar encima sin pisar decisiones ya tomadas.
 
-> **Estado:** compila el reactor completo. Los tests de cases-service estaban en verde antes de
-> las últimas dos tandas (owner check y multi-aseguradora), que están **sin correr**. Nada corrió
-> todavía contra la BD real de Railway.
+> **Estado al 2/8 tarde-noche:** compila el reactor completo. La BD de Railway ya tiene el esquema
+> nuevo cargado y verificado (`scripts/db-railway.ps1 verify`, los 14 chequeos en verde). Pero
+> **arrancar los módulos contra esa base todavía NO funciona** — ver la sección 0, es lo primero
+> que hay que resolver. Los tests de cases-service estaban en verde antes de las últimas dos
+> tandas (owner check y multi-aseguradora), que siguen **sin correr**.
+
+---
+
+## 0. BLOQUEANTE: los módulos no arrancan contra Railway (`ddl-auto: validate`)
+
+Esto es nuevo desde la última vez que se tocó este doc, y es lo primero que hay que mirar —
+sin esto ni el backend ni el frontend tienen con qué hablar.
+
+**Cómo se descubrió:** armé `docker-compose.railway.yml` para levantar los 5 módulos en Docker
+contra Railway (dockerfiles existentes, sin tocar `docker-compose.yml` que sigue siendo el de
+Postgres local). Al levantarlo, **4 de los 5 no arrancan.**
+
+### Bug 1 — `getAnyConnection()` no seteaba `search_path` (parcialmente arreglado)
+
+Hibernate valida el esquema al boot usando `MultiTenantConnectionProvider.getAnyConnection()`,
+y en los 5 módulos esa conexión se devolvía cruda, sin `SET search_path`. Contra Railway el
+default de Postgres es `public`, donde no hay ninguna tabla de la app — confirmado con
+`reports-service`, que fallaba buscando `metric` (una tabla *por tenant*, ni siquiera del común).
+
+Nunca se había visto porque los ITs con Testcontainers pisan `ddl-auto` a `update` contra una
+base vacía donde todo cae en `public` sin estructura multi-schema — ese camino jamás ejercitó
+`getAnyConnection()` de verdad.
+
+**El intento de arreglo** (ya commiteado, commit `5ce89ff`, los 5 `TenantConnectionProvider.java`):
+antes de devolver la conexión, consulta `arbiter_common.insurer` por el primer `schema_name`
+activo y le aplica `search_path` — todos los esquemas de tenant son estructuralmente idénticos
+(los crea la misma función `create_tenant_schema`), así que da igual cuál elija. Con `try/catch`
+alrededor: si la query falla (base vacía antes del `init`, o el esquema plano de los ITs donde
+`arbiter_common` no existe como schema), sigue con el comportamiento de antes. Compila y **no
+rompió los tests que corrí** (`mvn clean test-compile` limpio; no llegué a correr el `test`
+completo del reactor, quedó cortado).
+
+**Resultado real, probando contra Railway con Docker:**
+
+| Módulo | Con el fix |
+|---|---|
+| `reports-service` | ✅ arranca (`Started ReportsServiceApplication in 22.9s`) |
+| `auth-service` | ❌ sigue `missing table [branch]` |
+| `rules-service` | ❌ sigue `missing table [branch]` |
+| `cases-service` | ❌ sigue `missing table [branch]` |
+| `classification-service` | pasa la validación de esquema, falla por el Bug 2 (abajo) |
+
+**No tengo explicación de por qué funciona para uno y no para los otros tres**, siendo el mismo
+código en los 5 archivos. No llegué a investigarlo — hipótesis a probar: loguear qué devuelve la
+query de `arbiter_common.insurer` en cada módulo al bootear (¿está tirando al `catch`? ¿por qué
+ahí sí y en `reports-service` no?), o probar seteando `search_path` vía el connection string
+(`DB_URL=...&currentSchema=arbiter_bbva,arbiter_common,public`) como alternativa más simple si
+esto sigue sin ceder.
+
+### Bug 2 — `classification-service`: referencia viva a una tabla que ya no existe
+
+Distinto del anterior, y no tiene que ver con `search_path`. Pasa la validación de esquema y
+explota después, en un bean init:
+
+```
+Caused by: org.postgresql.util.PSQLException: ERROR: relation "image_embedding" does not exist
+```
+
+`image_embedding` se partió en `image_analysis` en este mismo trabajo (ver sección 3 del doc
+viejo / el commit de classification-service). El código de la entidad ya se actualizó, pero
+**`PgVectorConfig.java` tiene SQL crudo hardcodeado contra el nombre viejo** — es el que ajusta la
+dimensión del índice `ivfflat` en `@PostConstruct`. Localizado, no arreglado:
+
+```
+classification-service/src/main/java/ar/edu/utn/frba/arbiter/classification/config/PgVectorConfig.java
+```
+
+Buscar `image_embedding` ahí adentro y cambiarlo a `image_analysis` (dos apariciones: el
+`pg_attribute` lookup y el `ALTER TABLE ... DROP COLUMN`).
+
+### Estado de Docker ahora mismo
+
+`docker-compose.railway.yml` (nuevo, corre los 5 módulos contra `DB_URL`/`DB_USER`/`DB_PASSWORD`
+de `.env`, sin tocar el `postgres` local del compose original — tiene `name: arbiter-railway`
+propio para no chocar de nombres con el otro stack, eso también costó un rato de debuggear).
+Puede estar corriendo en tu Docker Desktop con contenedores reiniciándose en loop
+(`restart: on-failure`) — no molesta pero conviene bajarlo mientras no se esté mirando:
+
+```bash
+docker compose -f docker-compose.railway.yml down
+```
+
+Para retomar donde quedó, una vez resuelto el Bug 1 de verdad:
+
+```bash
+docker compose -f docker-compose.railway.yml up -d --build
+docker logs arbiter-railway-auth-service-1 --tail 30   # y así con cada uno
+```
 
 ---
 
