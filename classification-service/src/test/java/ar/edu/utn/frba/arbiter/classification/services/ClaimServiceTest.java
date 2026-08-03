@@ -3,8 +3,11 @@ package ar.edu.utn.frba.arbiter.classification.services;
 import ar.edu.utn.frba.arbiter.classification.config.OllamaProperties;
 import ar.edu.utn.frba.arbiter.classification.dto.AnalystDecisionRequest;
 import ar.edu.utn.frba.arbiter.classification.exceptions.InvalidClassificationException;
-import ar.edu.utn.frba.arbiter.classification.models.entities.ClassificationLog;
-import ar.edu.utn.frba.arbiter.classification.models.repositories.ClassificationLogRepository;
+import ar.edu.utn.frba.arbiter.classification.models.entities.CaseClassification;
+import ar.edu.utn.frba.arbiter.classification.models.entities.LlmAnalysis;
+import ar.edu.utn.frba.arbiter.classification.models.repositories.CaseClassificationRepository;
+import ar.edu.utn.frba.arbiter.classification.models.repositories.CaseOutcomeRepository;
+import ar.edu.utn.frba.arbiter.classification.models.repositories.LlmAnalysisRepository;
 import ar.edu.utn.frba.arbiter.classification.models.repositories.RiskAnalysisRepository;
 import ar.edu.utn.frba.arbiter.common.enums.Classification;
 import org.junit.jupiter.api.Test;
@@ -15,7 +18,7 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.math.BigDecimal;
-import java.util.List;
+import java.time.Instant;
 import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -23,14 +26,25 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+/**
+ * The analyst's decision, against the normalized model. The old shape copied the whole
+ * classification snapshot onto a second log row so a later read would still find it; now the
+ * decision points at the analysis, and these tests assert that link instead of the copy.
+ */
 @ExtendWith(MockitoExtension.class)
 class AnalystDecisionTest {
 
     @Mock
-    private ClassificationLogRepository logRepository;
+    private LlmAnalysisRepository llmAnalysisRepository;
+
+    @Mock
+    private CaseClassificationRepository caseClassificationRepository;
 
     @Mock
     private RiskAnalysisRepository riskAnalysisRepository;
+
+    @Mock
+    private CaseOutcomeRepository caseOutcomeRepository;
 
     @Mock
     private OllamaProperties ollamaProperties;
@@ -39,91 +53,91 @@ class AnalystDecisionTest {
     private ClassificationResultsService resultsService;
 
     @Test
-    void recordAnalystDecision_createsNewImmutableRow() {
+    void recordAnalystDecision_linksToTheAnalysisInsteadOfCopyingIt() {
         Long caseId = 42L;
-        ClassificationLog original = classificationLog(caseId, Classification.LLM_RECOMIENDA_APROBAR);
-        when(logRepository.findFirstByCaseIdOrderByIdDesc(caseId)).thenReturn(Optional.of(original));
+        LlmAnalysis analysis = analysis(caseId, Classification.LLM_RECOMIENDA_APROBAR);
+        when(llmAnalysisRepository.findFirstByCaseIdOrderByIdDesc(caseId)).thenReturn(Optional.of(analysis));
 
-        resultsService.recordAnalystDecision(caseId, new AnalystDecisionRequest("analyst-1", "APROBAR"));
+        resultsService.recordAnalystDecision(caseId, new AnalystDecisionRequest(1L, "APROBAR", null));
 
-        ArgumentCaptor<ClassificationLog> captor = ArgumentCaptor.forClass(ClassificationLog.class);
-        verify(logRepository).save(captor.capture());
-        ClassificationLog saved = captor.getValue();
-
-        assertThat(saved).isNotSameAs(original);
+        CaseClassification saved = captureDecision();
         assertThat(saved.getId()).isNull();
-        assertThat(saved.getCaseId()).isEqualTo(caseId);
-        assertThat(saved.getSource()).isEqualTo("ANALYST");
-        assertThat(saved.getClassification()).isEqualTo(Classification.LLM_RECOMIENDA_APROBAR);
-        assertThat(saved.getAnalystId()).isEqualTo("analyst-1");
+        assertThat(saved.getLlmAnalysis()).isSameAs(analysis);
+        assertThat(saved.getAnalystId()).isEqualTo(1L);
         assertThat(saved.getDecision()).isEqualTo("APPROVE");
-        assertThat(saved.getDecisionTimestamp()).isNotNull();
-    }
-
-    @Test
-    void recordAnalystDecision_carriesInsuredName() {
-        Long caseId = 42L;
-        ClassificationLog original = classificationLog(caseId, Classification.LLM_NO_RECOMIENDA_APROBAR);
-        original.setInsuredName("Juan Pérez");
-        when(logRepository.findFirstByCaseIdOrderByIdDesc(caseId)).thenReturn(Optional.of(original));
-
-        resultsService.recordAnalystDecision(caseId, new AnalystDecisionRequest("analyst-1", "APROBAR"));
-
-        ArgumentCaptor<ClassificationLog> captor = ArgumentCaptor.forClass(ClassificationLog.class);
-        verify(logRepository).save(captor.capture());
-        ClassificationLog saved = captor.getValue();
-
-        // The decision row (now the latest for the case) must preserve the classification
-        // snapshot, otherwise getStatus would report a null name once the analyst decides.
-        // Risk score isn't part of this row anymore — getStatus looks up RiskAnalysis by
-        // caseId independently.
-        assertThat(saved.getInsuredName()).isEqualTo("Juan Pérez");
+        assertThat(saved.getDecidedAt()).isNotNull();
     }
 
     @Test
     void recordAnalystDecision_rejectNormalization() {
         Long caseId = 7L;
-        ClassificationLog original = classificationLog(caseId, Classification.LLM_NO_RECOMIENDA_APROBAR);
-        when(logRepository.findFirstByCaseIdOrderByIdDesc(caseId)).thenReturn(Optional.of(original));
+        when(llmAnalysisRepository.findFirstByCaseIdOrderByIdDesc(caseId))
+                .thenReturn(Optional.of(analysis(caseId, Classification.LLM_NO_RECOMIENDA_APROBAR)));
 
-        resultsService.recordAnalystDecision(caseId, new AnalystDecisionRequest("analyst-2", "RECHAZAR"));
+        resultsService.recordAnalystDecision(caseId, new AnalystDecisionRequest(2L, "RECHAZAR", null));
 
-        ArgumentCaptor<ClassificationLog> captor = ArgumentCaptor.forClass(ClassificationLog.class);
-        verify(logRepository).save(captor.capture());
-        assertThat(captor.getValue().getDecision()).isEqualTo("REJECT");
+        assertThat(captureDecision().getDecision()).isEqualTo("REJECT");
     }
 
     @Test
-    void recordAnalystDecision_doesNotMutateOriginalRow() {
+    void recordAnalystDecision_leavesTheAnalysisUntouched() {
         Long caseId = 42L;
-        ClassificationLog original = classificationLog(caseId, Classification.LLM_RECOMIENDA_APROBAR);
-        when(logRepository.findFirstByCaseIdOrderByIdDesc(caseId)).thenReturn(Optional.of(original));
+        LlmAnalysis analysis = analysis(caseId, Classification.LLM_RECOMIENDA_APROBAR);
+        when(llmAnalysisRepository.findFirstByCaseIdOrderByIdDesc(caseId)).thenReturn(Optional.of(analysis));
 
-        resultsService.recordAnalystDecision(caseId, new AnalystDecisionRequest("analyst-1", "APPROVE"));
+        resultsService.recordAnalystDecision(caseId, new AnalystDecisionRequest(1L, "APPROVE", null));
 
-        assertThat(original.getAnalystId()).isNull();
-        assertThat(original.getDecision()).isNull();
-        assertThat(original.getDecisionTimestamp()).isNull();
+        // The audit trail is immutable: recording a verdict must not rewrite what the model said.
+        verify(llmAnalysisRepository, org.mockito.Mockito.never()).save(org.mockito.ArgumentMatchers.any());
+        assertThat(analysis.getRecommendation()).isEqualTo(Classification.LLM_RECOMIENDA_APROBAR);
+        assertThat(analysis.getConfidence()).isEqualByComparingTo(BigDecimal.valueOf(0.85));
     }
 
     @Test
-    void recordAnalystDecision_throwsWhenNoClassificationExists() {
+    void recordAnalystDecision_onAFastTrackedCase_savesWithoutAnAnalysis() {
+        Long caseId = 5L;
+        when(llmAnalysisRepository.findFirstByCaseIdOrderByIdDesc(caseId)).thenReturn(Optional.empty());
+        when(caseOutcomeRepository.findOutcome(caseId))
+                .thenReturn(new CaseOutcomeRepository.CaseOutcome(true, null, "Martina Soteras"));
+
+        resultsService.recordAnalystDecision(caseId, new AnalystDecisionRequest(1L, "APROBAR", null));
+
+        // Fast Track skips the model but not the analyst (decision #5) — so the decision exists
+        // with nothing to point at.
+        CaseClassification saved = captureDecision();
+        assertThat(saved.getLlmAnalysis()).isNull();
+        assertThat(saved.getDecision()).isEqualTo("APPROVE");
+    }
+
+    @Test
+    void recordAnalystDecision_throwsWhenTheCaseWasNeverClassified() {
         Long caseId = 99L;
-        when(logRepository.findFirstByCaseIdOrderByIdDesc(caseId)).thenReturn(Optional.empty());
+        when(llmAnalysisRepository.findFirstByCaseIdOrderByIdDesc(caseId)).thenReturn(Optional.empty());
+        when(caseOutcomeRepository.findOutcome(caseId))
+                .thenReturn(new CaseOutcomeRepository.CaseOutcome(false, null, null));
 
         assertThatThrownBy(() ->
-                resultsService.recordAnalystDecision(caseId, new AnalystDecisionRequest("analyst-1", "APPROVE")))
+                resultsService.recordAnalystDecision(caseId, new AnalystDecisionRequest(1L, "APPROVE", null)))
                 .isInstanceOf(InvalidClassificationException.class);
     }
 
-    private ClassificationLog classificationLog(Long caseId, Classification classification) {
-        ClassificationLog log = new ClassificationLog();
-        log.setId(100L);
-        log.setCaseId(caseId);
-        log.setSource("LLM");
-        log.setClassification(classification);
-        log.setConfidence(BigDecimal.valueOf(0.85));
-        log.setFactors(List.of("factor-1", "factor-2"));
-        return log;
+    private CaseClassification captureDecision() {
+        ArgumentCaptor<CaseClassification> captor = ArgumentCaptor.forClass(CaseClassification.class);
+        verify(caseClassificationRepository).save(captor.capture());
+        return captor.getValue();
+    }
+
+    private LlmAnalysis analysis(Long caseId, Classification recommendation) {
+        LlmAnalysis analysis = new LlmAnalysis();
+        analysis.setId(100L);
+        analysis.setCaseId(caseId);
+        analysis.setRecommendation(recommendation);
+        analysis.setModel("qwen3-vl");
+        analysis.setPromptVersion("classification-v1");
+        analysis.setConfidence(BigDecimal.valueOf(0.85));
+        analysis.setAnalyzedAt(Instant.now());
+        analysis.addReason("factor-1");
+        analysis.addReason("factor-2");
+        return analysis;
     }
 }

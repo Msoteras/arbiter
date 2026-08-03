@@ -18,7 +18,7 @@ import java.time.Instant;
  * ("resultado_regla" in the DER) — no rule engine evaluates anything into this table yet.
  * ruleId is a logical reference to rules-service's InsurerRule (there's no rule common to
  * every insurer to point at instead) and caseId to cases-service's Case — neither is a
- * real FK, same criterion as ClassificationLog.caseId.
+ * real FK, same criterion as LlmAnalysis.caseId.
  */
 @Entity
 @Table(name = "rule_result")

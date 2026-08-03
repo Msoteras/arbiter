@@ -15,6 +15,8 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
 import org.hibernate.annotations.CreationTimestamp;
+import org.hibernate.annotations.JdbcTypeCode;
+import org.hibernate.type.SqlTypes;
 
 import java.math.BigDecimal;
 import java.time.Instant;
@@ -22,10 +24,10 @@ import java.util.List;
 
 /**
  * One row per risk-scoring run ("analisis_riesgo_expediente" in the DER) — mirrors how
- * {@link ClassificationLog} is append-only per classification attempt. Was previously
- * columns directly on ClassificationLog; split out because the DER models risk scoring
+ * {@link LlmAnalysis} is append-only per classification attempt. Was previously
+ * columns on the old classification log; split out because the DER models risk scoring
  * and claim classification as separate concerns. case_id is a logical reference to
- * cases-service's Case, not a real FK — same criterion as ClassificationLog.caseId.
+ * cases-service's Case, not a real FK — same criterion as LlmAnalysis.caseId.
  */
 @Entity
 @Table(name = "risk_analysis")
@@ -48,8 +50,12 @@ public class RiskAnalysis {
     @Column(name = "risk_band", nullable = false, length = 20)
     private RiskBand riskBand;
 
+    // jsonb, no text: así está la columna en el esquema, y con ddl-auto=validate un text acá
+    // haría fallar el arranque del módulo entero. El converter sigue produciendo el String;
+    // @JdbcTypeCode es lo que le dice a Hibernate cómo escribirlo.
     @Convert(converter = RiskBreakdownJsonConverter.class)
-    @Column(name = "risk_breakdown", nullable = false, columnDefinition = "text")
+    @JdbcTypeCode(SqlTypes.JSON)
+    @Column(name = "risk_breakdown", nullable = false, columnDefinition = "jsonb")
     private List<RiskBreakdownItem> riskBreakdown;
 
     @CreationTimestamp

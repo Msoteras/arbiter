@@ -56,11 +56,13 @@ public class ImageEmbeddingController {
         String imageBase64 = Base64.getEncoder().encodeToString(image.getBytes());
         log.info("[ImageEmbeddingController] Base64 length: {} chars", imageBase64.length());
 
-        String resolvedAttachmentId = (attachmentLabel != null && !attachmentLabel.isBlank())
+        String resolvedLabel = (attachmentLabel != null && !attachmentLabel.isBlank())
                 ? attachmentLabel : "manual-check";
 
+        // caseDocumentId null: la imagen llega suelta por multipart, no hay fila de case_documents
+        // a la que anclarla — se compara igual pero no se persiste el análisis.
         List<DuplicateImageMatch> matches = imageEmbeddingService.processAndFindDuplicates(
-                caseId, resolvedAttachmentId, image.getOriginalFilename(), imageBase64);
+                caseId, null, resolvedLabel, imageBase64).duplicates();
 
         return ResponseEntity.ok(Map.of(
                 "caseId", caseId,

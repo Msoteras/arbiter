@@ -2,15 +2,21 @@ package ar.edu.utn.frba.arbiter.classification.services;
 
 import ar.edu.utn.frba.arbiter.classification.config.OllamaProperties;
 import ar.edu.utn.frba.arbiter.classification.dto.AnalystDecisionRequest;
-import ar.edu.utn.frba.arbiter.common.dto.ClaimResponse;
-import ar.edu.utn.frba.arbiter.common.dto.ImageForensicReport;
 import ar.edu.utn.frba.arbiter.classification.dto.ClassificationResponse;
 import ar.edu.utn.frba.arbiter.classification.exceptions.InvalidClassificationException;
-import ar.edu.utn.frba.arbiter.classification.models.entities.ClassificationLog;
+import ar.edu.utn.frba.arbiter.classification.models.entities.CaseClassification;
+import ar.edu.utn.frba.arbiter.classification.models.entities.ImageForensicReportJsonConverter;
+import ar.edu.utn.frba.arbiter.classification.models.entities.LlmAnalysis;
+import ar.edu.utn.frba.arbiter.classification.models.entities.LlmReason;
 import ar.edu.utn.frba.arbiter.classification.models.entities.RiskAnalysis;
-import ar.edu.utn.frba.arbiter.classification.models.repositories.ClassificationLogRepository;
+import ar.edu.utn.frba.arbiter.classification.models.repositories.CaseClassificationRepository;
+import ar.edu.utn.frba.arbiter.classification.models.repositories.CaseOutcomeRepository;
+import ar.edu.utn.frba.arbiter.classification.models.repositories.LlmAnalysisRepository;
 import ar.edu.utn.frba.arbiter.classification.models.repositories.RiskAnalysisRepository;
 import ar.edu.utn.frba.arbiter.classification.services.risk.RiskScore;
+import ar.edu.utn.frba.arbiter.common.dto.ClaimResponse;
+import ar.edu.utn.frba.arbiter.common.dto.ImageForensicReport;
+import ar.edu.utn.frba.arbiter.common.enums.Classification;
 import lombok.RequiredArgsConstructor;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -23,11 +29,19 @@ import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
 import java.util.List;
 import java.util.Optional;
+import java.util.stream.Collectors;
 
 /**
- * Owns the classification_log table: persists every classification (immutable audit trail,
- * SSN Disposición 2/2023), exposes each case's latest result for polling, and renders the
- * results table for quick lookup.
+ * Persists every classification and exposes each case's latest result for polling.
+ *
+ * <p>Replaces the single {@code classification_log} table with the DER's three: the model's
+ * recommendation ({@code llm_analysis}), the factors behind it ({@code llm_reason}), and the
+ * analyst's verdict ({@code case_classification}). The old shape forced a copy of the whole
+ * snapshot onto a second row every time an analyst decided, just so a later read would still
+ * find the factors; now the decision points at the analysis and there is one copy of each fact.
+ *
+ * <p>Still an immutable audit trail (Disposición SSN 2/2023) — nothing here updates a
+ * classification once written.
  */
 @Service
 @RequiredArgsConstructor
@@ -36,9 +50,13 @@ public class ClassificationResultsService {
     private static final Logger log = LoggerFactory.getLogger(ClassificationResultsService.class);
     private static final DateTimeFormatter TIMESTAMP_FORMATTER =
             DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss").withZone(ZoneId.systemDefault());
+    /** Stateless; the report is JSON on cases.forensic_report, not a mapped column any more. */
+    private static final ImageForensicReportJsonConverter FORENSIC_JSON = new ImageForensicReportJsonConverter();
 
-    private final ClassificationLogRepository logRepository;
+    private final LlmAnalysisRepository llmAnalysisRepository;
+    private final CaseClassificationRepository caseClassificationRepository;
     private final RiskAnalysisRepository riskAnalysisRepository;
+    private final CaseOutcomeRepository caseOutcomeRepository;
     private final OllamaProperties ollamaProperties;
 
     @Transactional
@@ -48,23 +66,30 @@ public class ClassificationResultsService {
             ImageForensicReport forensicReport,
             long latencyMs
     ) {
-        boolean fastTrack = response.deterministicFastTrack();
+        if (response.deterministicFastTrack()) {
+            // No llm_analysis row: the model never ran. The outcome is recorded on the case,
+            // which is the only place that can tell "fast tracked" from "not classified yet".
+            caseOutcomeRepository.markFastTracked(caseId);
+            log.info("[ResultsService] Fast Track recorded for case {}", caseId);
+        } else {
+            LlmAnalysis analysis = new LlmAnalysis();
+            analysis.setCaseId(caseId);
+            analysis.setRecommendation(response.classification());
+            analysis.setModel(ollamaProperties.model());
+            analysis.setPromptVersion(ollamaProperties.promptVersion());
+            analysis.setConfidence(BigDecimal.valueOf(response.confidence()));
+            analysis.setLatencyMs((int) latencyMs);
+            analysis.setAnalyzedAt(Instant.now());
+            response.factors().forEach(analysis::addReason);
 
-        ClassificationLog entry = new ClassificationLog();
-        entry.setCaseId(caseId);
-        entry.setSource(fastTrack ? "RULES_FAST_TRACK" : "LLM");
-        entry.setModel(fastTrack ? null : ollamaProperties.model());
-        entry.setPromptVersion(fastTrack ? null : ollamaProperties.promptVersion());
-        entry.setClassification(response.classification());
-        entry.setConfidence(BigDecimal.valueOf(response.confidence()));
-        entry.setFactors(response.factors());
-        entry.setForensicReport(forensicReport);
-        entry.setLatencyMs(latencyMs);
-        entry.setInsuredName(response.insuredName());
+            llmAnalysisRepository.save(analysis);
+            log.info("[ResultsService] Classification logged for case {} ({})", caseId, response.classification());
+        }
 
-        logRepository.save(entry);
+        if (forensicReport != null) {
+            caseOutcomeRepository.saveForensicReport(caseId, FORENSIC_JSON.convertToDatabaseColumn(forensicReport));
+        }
         saveRiskAnalysis(caseId, response.riskScore());
-        log.info("[ResultsService] Classification logged for case {} ({})", caseId, entry.getSource());
     }
 
     /**
@@ -84,49 +109,58 @@ public class ClassificationResultsService {
         riskAnalysisRepository.save(analysis);
     }
 
-    /** Latest classification for a case; classification fields stay null until a log exists for it. */
+    /** Latest classification for a case; classification fields stay null until one exists. */
     @Transactional(readOnly = true)
     public ClaimResponse getStatus(Long caseId) {
-        Optional<ClassificationLog> entry = logRepository.findFirstByCaseIdOrderByIdDesc(caseId);
+        Optional<LlmAnalysis> analysis = llmAnalysisRepository.findFirstByCaseIdOrderByIdDesc(caseId);
         Optional<RiskAnalysis> risk = riskAnalysisRepository.findFirstByCaseIdOrderByIdDesc(caseId);
+        CaseOutcomeRepository.CaseOutcome outcome = caseOutcomeRepository.findOutcome(caseId);
 
         return ClaimResponse.builder()
                 .caseId(caseId)
-                .classification(entry.map(ClassificationLog::getClassification).orElse(null))
-                .confidence(entry.map(l -> l.getConfidence() != null ? l.getConfidence().doubleValue() : null).orElse(null))
-                .factors(entry.map(ClassificationLog::getFactors).orElse(null))
-                .deterministicFastTrack(entry.map(l -> "RULES_FAST_TRACK".equals(l.getSource())).orElse(false))
-                .forensicReport(entry.map(ClassificationLog::getForensicReport).orElse(null))
+                // A fast tracked case has no analysis row, so the classification comes from the
+                // outcome instead of from the model.
+                .classification(analysis.map(LlmAnalysis::getRecommendation)
+                        .orElse(outcome.wasFastTrack() ? Classification.FAST_TRACK : null))
+                .confidence(analysis
+                        .map(a -> a.getConfidence() != null ? a.getConfidence().doubleValue() : null)
+                        .orElse(outcome.wasFastTrack() ? 1.0 : null))
+                .factors(analysis.map(a -> a.getReasons().stream().map(LlmReason::getReason).toList())
+                        .orElse(null))
+                .deterministicFastTrack(outcome.wasFastTrack())
+                .forensicReport(FORENSIC_JSON.convertToEntityAttribute(outcome.forensicReport()))
                 .riskScore(risk.map(r -> r.getRiskScore().doubleValue()).orElse(null))
                 .riskBand(risk.map(RiskAnalysis::getRiskBand).orElse(null))
                 .riskBreakdown(risk.map(RiskAnalysis::getRiskBreakdown).orElse(null))
-                .insuredName(entry.map(ClassificationLog::getInsuredName).orElse(null))
+                .insuredName(outcome.insuredName())
                 .build();
     }
 
+    /**
+     * @return the id of the persisted {@code case_classification} row, so cases-service can point
+     *         {@code cases.classification_id} at it. That link is what ties a case to the model run
+     *         its verdict was based on — the audit trail Disposición SSN 2/2023 requires.
+     */
     @Transactional
-    public void recordAnalystDecision(Long caseId, AnalystDecisionRequest request) {
-        ClassificationLog classificationEntry = logRepository.findFirstByCaseIdOrderByIdDesc(caseId)
-                .orElseThrow(() -> new InvalidClassificationException(
-                        "No classification found for case " + caseId));
+    public Long recordAnalystDecision(Long caseId, AnalystDecisionRequest request) {
+        // A fast tracked case has no analysis to point at, but still needs an analyst's decision
+        // (decision #5) — hence the nullable FK rather than a lookup failure.
+        Optional<LlmAnalysis> analysis = llmAnalysisRepository.findFirstByCaseIdOrderByIdDesc(caseId);
+        if (analysis.isEmpty() && !caseOutcomeRepository.findOutcome(caseId).wasFastTrack()) {
+            throw new InvalidClassificationException("No classification found for case " + caseId);
+        }
 
-        // The decision row is the latest for the case, so getStatus reads IT — it must carry a
-        // faithful copy of the classification snapshot, or the analyst's poll would see the
-        // factors/name vanish once a decision is recorded. Risk score isn't copied here: getStatus
-        // looks up the latest RiskAnalysis by caseId independently, it doesn't ride on this row.
-        ClassificationLog decisionEntry = new ClassificationLog();
-        decisionEntry.setCaseId(caseId);
-        decisionEntry.setSource("ANALYST");
-        decisionEntry.setClassification(classificationEntry.getClassification());
-        decisionEntry.setConfidence(classificationEntry.getConfidence());
-        decisionEntry.setFactors(classificationEntry.getFactors());
-        decisionEntry.setForensicReport(classificationEntry.getForensicReport());
-        decisionEntry.setInsuredName(classificationEntry.getInsuredName());
-        decisionEntry.setAnalystId(request.analystId());
-        decisionEntry.setDecision(normalizeDecision(request.decision()));
-        decisionEntry.setDecisionTimestamp(Instant.now());
+        CaseClassification decision = new CaseClassification();
+        decision.setLlmAnalysis(analysis.orElse(null));
+        decision.setAnalystId(request.analystId());
+        decision.setDecision(normalizeDecision(request.decision()));
+        decision.setDecidedAt(Instant.now());
+        // Freezes the live counter from cases.classification_attempts onto the auditable row.
+        // Null when the caller doesn't know it — the column is NOT NULL, so it defaults to 0.
+        decision.setClassificationAttempts(
+                request.classificationAttempts() == null ? 0 : request.classificationAttempts());
 
-        logRepository.save(decisionEntry);
+        return caseClassificationRepository.save(decision).getId();
     }
 
     private String normalizeDecision(String decision) {
@@ -140,7 +174,7 @@ public class ClassificationResultsService {
 
     @Transactional(readOnly = true)
     public String getContent() {
-        List<ClassificationLog> entries = logRepository.findAllByOrderByIdAsc();
+        List<LlmAnalysis> entries = llmAnalysisRepository.findAllByOrderByIdAsc();
         if (entries.isEmpty()) {
             return "No results yet.";
         }
@@ -148,20 +182,20 @@ public class ClassificationResultsService {
         StringBuilder sb = new StringBuilder("""
                 # Claims Classification Results
 
-                | Case | Classification | Source | Confidence | Factors | Latency | Created |
-                |------|----------------|--------|------------|---------|---------|---------|
+                | Case | Recommendation | Model | Confidence | Reasons | Latency | Analyzed |
+                |------|----------------|-------|------------|---------|---------|----------|
                 """);
 
-        for (ClassificationLog e : entries) {
+        for (LlmAnalysis e : entries) {
             sb.append(String.format(
                     "| %s | %s | %s | %s | %s | %s | %s |%n",
-                    e.getCaseId() != null ? e.getCaseId().toString() : "isolated test",
-                    e.getClassification(),
-                    e.getSource(),
+                    e.getCaseId(),
+                    e.getRecommendation(),
+                    e.getModel(),
                     e.getConfidence() != null ? e.getConfidence().toPlainString() : "-",
-                    String.join("; ", e.getFactors()),
+                    e.getReasons().stream().map(LlmReason::getReason).collect(Collectors.joining("; ")),
                     e.getLatencyMs() != null ? e.getLatencyMs() + " ms" : "-",
-                    TIMESTAMP_FORMATTER.format(e.getCreatedAt())
+                    TIMESTAMP_FORMATTER.format(e.getAnalyzedAt())
             ));
         }
         return sb.toString();
