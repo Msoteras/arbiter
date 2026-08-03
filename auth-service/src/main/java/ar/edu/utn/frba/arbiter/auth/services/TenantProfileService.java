@@ -1,7 +1,7 @@
 package ar.edu.utn.frba.arbiter.auth.services;
 
 import ar.edu.utn.frba.arbiter.auth.models.entities.ClaimsAnalyst;
-import ar.edu.utn.frba.arbiter.auth.models.entities.User;
+import ar.edu.utn.frba.arbiter.common.models.entities.User;
 import ar.edu.utn.frba.arbiter.auth.models.repositories.ClaimsAnalystRepository;
 import ar.edu.utn.frba.arbiter.auth.models.repositories.InsuredRepository;
 import ar.edu.utn.frba.arbiter.auth.models.repositories.InsurerReferentRepository;

@@ -1,6 +1,6 @@
 package ar.edu.utn.frba.arbiter.auth.services;
 
-import ar.edu.utn.frba.arbiter.auth.models.entities.Insurer;
+import ar.edu.utn.frba.arbiter.common.models.entities.Insurer;
 import ar.edu.utn.frba.arbiter.auth.models.repositories.InsurerRepository;
 import ar.edu.utn.frba.arbiter.auth.models.repositories.UserInsurerRepository;
 import lombok.RequiredArgsConstructor;

@@ -1,6 +1,6 @@
 package ar.edu.utn.frba.arbiter.auth.services;
 
-import ar.edu.utn.frba.arbiter.auth.models.entities.User;
+import ar.edu.utn.frba.arbiter.common.models.entities.User;
 
 /**
  * Validates credentials and returns the authenticated user. This is the seam for the future

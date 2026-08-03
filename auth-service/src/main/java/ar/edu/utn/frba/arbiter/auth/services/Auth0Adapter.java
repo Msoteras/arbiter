@@ -3,7 +3,7 @@ package ar.edu.utn.frba.arbiter.auth.services;
 import ar.edu.utn.frba.arbiter.auth.config.AuthProperties;
 import ar.edu.utn.frba.arbiter.auth.exceptions.AccountLockedException;
 import ar.edu.utn.frba.arbiter.auth.exceptions.InvalidCredentialsException;
-import ar.edu.utn.frba.arbiter.auth.models.entities.User;
+import ar.edu.utn.frba.arbiter.common.models.entities.User;
 import ar.edu.utn.frba.arbiter.auth.models.repositories.UserRepository;
 import com.auth0.client.auth.AuthAPI;
 import com.auth0.exception.Auth0Exception;
