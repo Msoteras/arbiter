@@ -26,12 +26,27 @@ public final class JwtSupport {
      * {@code isAuthenticated()} on the receiving end, not any specific role.
      */
     public static String issueServiceToken(SecretKey key, String subject) {
+        return issueServiceToken(key, subject, null);
+    }
+
+    /**
+     * Same, carrying the tenant the call has to run against. A background job serves no single
+     * insurer, so it sweeps them one at a time and names the schema explicitly — without this
+     * claim the receiving module's TenantResolvingFilter finds nothing and falls back to the
+     * common schema, where the per-tenant tables don't exist.
+     *
+     * @param tenantSchema schema to target, or {@code null} for calls that touch only the
+     *                     common schema
+     */
+    public static String issueServiceToken(SecretKey key, String subject, String tenantSchema) {
         Instant now = Instant.now();
-        return Jwts.builder()
+        var builder = Jwts.builder()
                 .subject(subject)
                 .issuedAt(Date.from(now))
-                .expiration(Date.from(now.plus(SERVICE_TOKEN_TTL)))
-                .signWith(key)
-                .compact();
+                .expiration(Date.from(now.plus(SERVICE_TOKEN_TTL)));
+        if (tenantSchema != null) {
+            builder.claim("tenantSchema", tenantSchema);
+        }
+        return builder.signWith(key).compact();
     }
 }

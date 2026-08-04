@@ -47,7 +47,9 @@ public class ClaimController {
                     `caseId`. Returns 202 right away — poll GET /api/v1/claims/{caseId} for the result.
 
                     Each part under `documents` is keyed by what the document IS
-                    (e.g. `police_report`, `invoice`, `item_photo`).
+                    (e.g. `police_report`, `invoice`, `item_photo`), and `documentIds` carries
+                    the matching `case_documents` id under the same key — image analysis stores
+                    it so a duplicate match can point at the exact file.
                     """,
             responses = {
                     @ApiResponse(responseCode = "202", description = "Analysis in progress"),
@@ -58,9 +60,11 @@ public class ClaimController {
     public ResponseEntity<Map<String, Object>> classify(
             @RequestParam("caseId") Long caseId,
             @RequestPart("claim") @Valid ClaimReport claim,
-            @RequestParam(required = false) Map<String, MultipartFile> documents
+            @RequestParam(required = false) Map<String, MultipartFile> documents,
+            @RequestPart(value = "documentIds", required = false) Map<String, Long> documentIds
     ) {
-        claimClassificationService.processClaimClassification(caseId, claim, documentMapper.toAttachmentDocuments(documents));
+        claimClassificationService.processClaimClassification(
+                caseId, claim, documentMapper.toAttachmentDocuments(documents, documentIds));
 
         return ResponseEntity
                 .status(HttpStatusCode.valueOf(202))
@@ -94,10 +98,12 @@ public class ClaimController {
             @PathVariable Long caseId,
             @RequestBody @Valid AnalystDecisionRequest request
     ) {
-        resultsService.recordAnalystDecision(caseId, request);
+        Long classificationId = resultsService.recordAnalystDecision(caseId, request);
         return ResponseEntity.ok(Map.of(
                 "caseId", caseId,
-                "status", "decision-recorded"
+                "status", "decision-recorded",
+                // cases-service stores this on cases.classification_id — see Case.classificationId.
+                "classificationId", classificationId
         ));
     }
 }

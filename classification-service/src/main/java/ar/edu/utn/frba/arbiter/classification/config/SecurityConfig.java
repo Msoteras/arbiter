@@ -1,5 +1,6 @@
 package ar.edu.utn.frba.arbiter.classification.config;
 
+import ar.edu.utn.frba.arbiter.classification.config.tenant.TenantResolvingFilter;
 import ar.edu.utn.frba.arbiter.common.security.ArbiterHttpSecurity;
 import ar.edu.utn.frba.arbiter.common.security.JwtAuthenticationFilter;
 import ar.edu.utn.frba.arbiter.common.security.JwtSupport;
@@ -32,8 +33,16 @@ public class SecurityConfig {
     }
 
     @Bean
-    public SecurityFilterChain securityFilterChain(HttpSecurity http, JwtAuthenticationFilter jwtFilter) throws Exception {
+    public TenantResolvingFilter tenantResolvingFilter() {
+        return new TenantResolvingFilter(JwtSupport.key(jwtSecret));
+    }
+
+    @Bean
+    public SecurityFilterChain securityFilterChain(
+            HttpSecurity http, JwtAuthenticationFilter jwtFilter, TenantResolvingFilter tenantFilter) throws Exception {
         ArbiterHttpSecurity.configure(http, jwtFilter);
+        // After authentication, so an invalid token never resolves a tenant.
+        http.addFilterAfter(tenantFilter, JwtAuthenticationFilter.class);
         http.authorizeHttpRequests(auth -> auth
                 .requestMatchers("/v3/api-docs/**", "/swagger-ui/**").permitAll()
                 .anyRequest().authenticated());

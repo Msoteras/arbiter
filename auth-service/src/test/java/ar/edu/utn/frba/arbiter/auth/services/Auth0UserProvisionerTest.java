@@ -69,16 +69,21 @@ class Auth0UserProvisionerTest {
 
         UsersEntity usersEntity = org.mockito.Mockito.mock(UsersEntity.class);
         Request<User> createRequest = org.mockito.Mockito.mock(Request.class);
+        Response<User> createResponse = org.mockito.Mockito.mock(Response.class);
+        User createdUser = org.mockito.Mockito.mock(User.class);
         when(usersEntity.create(any(User.class))).thenReturn(createRequest);
-        when(createRequest.execute()).thenReturn(org.mockito.Mockito.mock(Response.class));
+        when(createRequest.execute()).thenReturn(createResponse);
+        when(createResponse.getBody()).thenReturn(createdUser);
+        when(createdUser.getId()).thenReturn("auth0|new-user-id");
 
         try (MockedConstruction<ManagementAPI> mocked = mockConstruction(ManagementAPI.class,
                 (mock, context) -> {
                     assertThatArgsMatchDomainAndToken(context.arguments());
                     when(mock.users()).thenReturn(usersEntity);
                 })) {
-            provisioner().createUser(EMAIL, PASSWORD);
+            String result = provisioner().createUser(EMAIL, PASSWORD);
 
+            org.assertj.core.api.Assertions.assertThat(result).isEqualTo("auth0|new-user-id");
             org.mockito.ArgumentCaptor<User> captor = org.mockito.ArgumentCaptor.forClass(User.class);
             verify(usersEntity).create(captor.capture());
             org.assertj.core.api.Assertions.assertThat(captor.getValue().getEmail()).isEqualTo(EMAIL);

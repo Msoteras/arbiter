@@ -15,7 +15,7 @@ La sección "Modelo de dominio — vocabulario" más abajo es la excepción: ah�
 - **5 instancias Spring Boot independientes**, una por módulo funcional (`auth`, `classification`, `cases`, `rules`, `reports`), corriendo en el **mismo servidor de aplicación (mismo host)** en puertos distintos.
 - **Nginx adelante** como reverse proxy + TLS, ruteando por path al puerto correspondiente.
 - **Cooperación entre módulos por REST interno** (HTTP plano, sin TLS, dentro del host). No es comunicación de red pública.
-- `common-lib` provee los DTOs/enums/excepciones compartidos para que los contratos REST entre módulos no se desincronicen.
+- `common-lib` provee los DTOs/enums/excepciones compartidos para que los contratos REST entre módulos no se desincronicen, más las entidades JPA del esquema común (`arbiter_common`), que son de la plataforma y no de un módulo.
 
 ### Puertos asignados
 
@@ -43,7 +43,7 @@ La sección "Modelo de dominio — vocabulario" más abajo es la excepción: ah�
 
 | Módulo Maven           | Responsabilidad (según doc)                                                                   |
 |------------------------|-----------------------------------------------------------------------------------------------|
-| `common-lib`           | Tipos compartidos: DTOs, enums de dominio (`Clasificacion`, `EstadoExpediente`), excepciones. |
+| `common-lib`           | Tipos compartidos: DTOs, enums de dominio (`Clasificacion`, `EstadoExpediente`), excepciones, y las **entidades JPA del esquema común** (`arbiter_common`). |
 | `classification-service`   | **Módulo de Análisis y Clasificación** — orquesta: denuncia → Ollama → decisión del analista. |
 | `cases-service`  | **Módulo de Expedientes** — ciclo de vida, transiciones, documentación adjunta.               |
 | `rules-service`       | **Motor de Reglas de Negocio** — reglas cargadas dinámicamente desde BD, no en código.         |
@@ -127,11 +127,12 @@ Estas decisiones están **cerradas y aprobadas** (doc v1.0, 27/05/2026). No las 
 5. **Human-in-the-loop obligatorio.** Toda clasificación del modelo requiere **aprobación o rechazo de un analista** antes de impactar en el expediente. **No hay** resolución automática — ni siquiera para Fast Track. El Fast Track agiliza, no automatiza.
 6. **5 categorías de clasificación** en `Clasificacion` (`common-lib`): `FAST_TRACK` (determinístico, decidido por `FastTrackValidator` con reglas de negocio — el LLM **nunca** puede devolver este valor), `FALTA_DOCUMENTACION`, `LLM_RECOMIENDA_APROBAR`, `LLM_NO_RECOMIENDA_APROBAR`, `LLM_SOLICITA_REVISION_MANUAL`. Los 4 valores con LLM son recomendaciones no vinculantes — el analista decide siempre (ver punto 5).
 7. **Auditoría completa de cada clasificación** (Disposición 2/2023). Persistir, en una tabla aparte e inmutable: resultado del modelo, factores que lo fundamentan, decisión del analista, marca temporal. 100% de las clasificaciones deben tener este registro.
-8. **Auth0 + JWT + RBAC — estado objetivo.** Tres roles: `ASEGURADO`, `ANALISTA_SINIESTROS`, `REFERENTE_ASEGURADORA`.
-   - **Transitorio hasta integrar Auth0:** `auth-service` valida credenciales propias (BCrypt + JWT + bloqueo de cuenta) detrás de la interfaz `CredentialsAuthenticator` — el swap a Auth0 es una implementación nueva ahí, no toca `AuthController`/`AuthService`/`JwtService`.
-   - **Alta de usuarios:** contraseña directa (sin SendGrid todavía), solo crea `ANALISTA_SINIESTROS`. `User.insuredId` (nullable) queda preparado para cuando se sume alta de asegurados.
+8. **Auth0 + JWT + RBAC.** Tres roles: `ASEGURADO`, `ANALISTA_SINIESTROS`, `REFERENTE_ASEGURADORA`.
+   - **Auth0 integrado y funcionando** (`Auth0Adapter` detrás de la interfaz `CredentialsAuthenticator`, `AUTH_PROVIDER=auth0`) — probado de punta a punta: invitación real por SendGrid, el usuario elige su propia contraseña, login valida contra Auth0. `DatabaseCredentialsAuthenticator` (BCrypt local) queda como implementación alternativa detrás de la misma interfaz, no se usa en este entorno.
+   - **Alta de usuarios:** funcionando (invitación por SendGrid, el usuario setea su contraseña), pero **solo crea `ANALISTA_SINIESTROS`**. `User.insuredId` (nullable) queda preparado para cuando se sume **alta de asegurados** — ese flujo todavía no existe (ni autoservicio ni alta por el referente).
 9. **SendGrid** para mail (notificaciones de cambio de estado al asegurado).
 10. **PostgreSQL** con **multi-tenant por esquema separado por aseguradora** dentro de la misma instancia. NO hacer discriminación por columna `tenant_id`, NO instancia por aseguradora. La BD de la aseguradora (pólizas, historial) es **otra base** integrada por base de datos compartida.
+    - **Cómo se materializa la integración (confirmado con Aylén, 31/7):** Arbiter persiste **snapshots locales** de lo que le pasa la BD Aseguradora (`Poliza`, `Cobertura`, `BienAsegurado`, `Asegurado`) — no se consulta la BD externa en vivo en cada request. Un cron (o consulta a demanda) trae los datos y los mapea a las entidades propias de Arbiter. Sin esto, Arbiter no funciona de forma autónoma/consistente. Esto no contradice "integración por base de datos compartida": es el mecanismo concreto que la implementa.
 11. **pgvector** para detectar imágenes reutilizadas entre denuncias (similitud de embeddings). **No** delegues esta comparación al modelo de visión: el LLM analiza solo la imagen del siniestro en curso.
 12. **Reglas de negocio dinámicas en BD**, administradas por el referente. **No** implementar Strategy en código para variar por aseguradora — eso requiere redeploy por cada cambio.
 13. **API REST stateless** (sesión en el JWT, no en server). Habilita escalado horizontal.
@@ -151,7 +152,7 @@ Estas decisiones están **cerradas y aprobadas** (doc v1.0, 27/05/2026). No las 
 
 - Java **21** (virtual threads activadas: `spring.threads.virtual.enabled: true`). Pensá los servicios como bloqueantes "tradicionales" — no metas WebFlux/Reactor.
 - Spring Boot **4.0.5**, Spring Cloud **2025.1.1** (BOM en POM padre — no fijes versión en submódulos).
-- Spring Data JPA + JDBC (PostgreSQL driver). **No usamos Flyway/Liquibase en la práctica**: `hibernate.ddl-auto: update` + `db/init.sql` a mano (todas las tablas, un solo script).
+- Spring Data JPA + JDBC (PostgreSQL driver). **No usamos Flyway/Liquibase**: el esquema lo define `db/init-multitenant.sql` a mano (todas las tablas, un solo script) y **`hibernate.ddl-auto: validate`**, nunca `update`. Con el `search_path` multi-tenant, en `update` Hibernate recrea las tablas de `arbiter_common` adentro de cada esquema de aseguradora apenas no las encuentra calificadas. Los ITs lo pisan a `update` en su `AbstractPersistenceIT` porque levantan contra un contenedor vacío donde nadie corre el script.
 - Lombok activado vía annotation processor.
 - **Swagger / SpringDoc** para la documentación de la API REST — agregar el starter en cada módulo con controllers.
 - Frontend: Angular 20 (standalone components, signals, `ChangeDetectionStrategy.OnPush`), SCSS. **Diseño responsive obligatorio** (RNF de usabilidad: ≥85% éxito en tareas básicas en PC y móvil).
@@ -248,6 +249,8 @@ ollama serve                                          # default: http://localhos
 - **Excepciones de dominio** en `exceptions/` + un `@RestControllerAdvice` por módulo que las traduce a `ProblemDetail` (RFC 7807).
 - **Endpoints REST en plural y kebab-case si aplica**: `/api/v1/siniestros`, `/api/v1/siniestros/{id}/clasificacion`.
 - **Tipos compartidos** (DTOs públicos entre módulos, enums de dominio, excepciones base) van a `common-lib`. Lo interno de un módulo NO.
+- **Las entidades JPA del esquema común van a `common-lib`**, en `common/models/entities/`. Son las 10 tablas de `arbiter_common` (`insurer`, `users`, `user_insurer`, `role`, `permission`, `role_permission`, `user_role`, `branch`, `claim_cause`, `case_status`): no son de ningún módulo, son de la plataforma, y varios módulos necesitan leerlas. Definirlas una sola vez evita que se desincronicen — `Insurer` llegó a estar duplicada en `auth-service` y `rules-service`. **Los repositories NO se comparten**: cada módulo declara el suyo con las queries que necesita, apuntando a la entidad de `common-lib`.
+- **Las entidades de un esquema de aseguradora son del módulo dueño**, con una excepción acotada: cuando **más de un módulo** necesita la misma tabla de tenant, va a `common/models/entities/tenant/` (ver el `package-info` de ese paquete). Hoy la única es `Insured`, que auth-service y cases-service declaraban por separado y ya habían divergido. La distinción entre los dos paquetes importa: el padre son tablas con **una sola fila para toda la plataforma**; `tenant/` son tablas que existen **una vez por aseguradora**, y qué fila se lee depende del tenant resuelto. No sumes entidades ahí por las dudas: si la usa un solo módulo, va en ese módulo.
 - **Tests**: JUnit 5 + Spring Boot Test. Testcontainers para PostgreSQL y, cuando aplique, para Ollama. Mockito para mocks.
 - **Trazabilidad de cada clasificación**: registro inmutable en tabla `clasificacion_log` (o equivalente), separada de `siniestro`. Campos mínimos: `siniestro_id`, `modelo`, `prompt_version`, `input_hash`, `output_raw`, `output_parsed`, `factores`, `latencia_ms`, `analista_id`, `decision`, `decision_timestamp`.
 - **Multi-tenant**: cada request lleva el `tenant_id` (id de aseguradora) en el JWT. Resolver el esquema PostgreSQL en una `ConnectionProvider` o `Interceptor` de Hibernate al inicio del request. No hardcodear el schema en queries.
@@ -259,7 +262,7 @@ ollama serve                                          # default: http://localhos
 ## Convenciones que NO quiero ver
 
 - Lógica de negocio en `controllers/`. El controller arma el DTO y delega.
-- Acoplar dos módulos por **base de datos compartida**. Cada módulo es dueño de sus tablas; el resto las consulta por REST. Excepción: la **BD Aseguradora** sí se accede directo desde quien la necesita (es integración por BD compartida, así lo define la doc).
+- Acoplar dos módulos por **base de datos compartida**. Cada módulo es dueño de sus tablas; el resto las consulta por REST. Dos excepciones: la **BD Aseguradora** se accede directo desde quien la necesita (es integración por BD compartida, así lo define la doc), y el **esquema común** (`arbiter_common`) es de la plataforma, no de un módulo — sus entidades viven en `common-lib` y cualquier módulo puede leerlas.
 - Llamar al SDK de Auth0 / SendGrid / Ollama directo desde un service. Pasá por el Adapter.
 - `service.findById(...).orElse(null)` con `if (x == null)` después. Tirá la excepción de dominio.
 - Wrappers innecesarios (`SiniestroWrapper`, `SiniestroHelper`, `SiniestroUtilService`).

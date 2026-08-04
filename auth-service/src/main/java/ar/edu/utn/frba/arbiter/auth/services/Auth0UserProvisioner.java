@@ -26,7 +26,8 @@ public class Auth0UserProvisioner {
     private final AuthAPI auth0ManagementAuthApi;
     private final AuthProperties properties;
 
-    public void createUser(String email, String rawPassword) {
+    /** @return the Auth0 user id ("auth0|...") — {@code User.authSub}'s source of truth. */
+    public String createUser(String email, String rawPassword) {
         try {
             ManagementAPI management = managementApi();
 
@@ -35,7 +36,7 @@ public class Auth0UserProvisioner {
             newUser.setPassword(rawPassword.toCharArray());
             newUser.setEmailVerified(true);
 
-            management.users().create(newUser).execute();
+            return management.users().create(newUser).execute().getBody().getId();
         } catch (Auth0Exception e) {
             throw new Auth0ProvisioningException("crear", email, e);
         }

@@ -1,20 +1,25 @@
 package ar.edu.utn.frba.arbiter.classification.controllers;
 
+import ar.edu.utn.frba.arbiter.classification.models.repositories.CaseOutcomeRepository;
 import ar.edu.utn.frba.arbiter.classification.support.AbstractPersistenceIT;
 import ar.edu.utn.frba.arbiter.common.security.JwtSupport;
 import io.jsonwebtoken.Jwts;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.http.MediaType;
 import org.springframework.mock.web.MockMultipartFile;
+import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 
 import java.time.Duration;
 import java.time.Instant;
 import java.util.Date;
 
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.multipart;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
@@ -34,6 +39,20 @@ class ClaimSecurityTest extends AbstractPersistenceIT {
 
     @Autowired
     private MockMvc mockMvc;
+
+    /**
+     * {@code cases} vive en el esquema de cases-service, no en el contenedor de este módulo — sin
+     * mockearlo, cualquier endpoint que lo lea muere con "relation does not exist" antes de llegar
+     * a lo que este test mide, que es el gate de RBAC.
+     */
+    @MockitoBean
+    private CaseOutcomeRepository caseOutcomeRepository;
+
+    @BeforeEach
+    void stubCaseLookup() {
+        when(caseOutcomeRepository.findOutcome(any()))
+                .thenReturn(new CaseOutcomeRepository.CaseOutcome(false, null, null));
+    }
 
     private String tokenFor(String rol) {
         Instant now = Instant.now();
@@ -97,7 +116,7 @@ class ClaimSecurityTest extends AbstractPersistenceIT {
                         .header("Authorization", "Bearer " + tokenFor("ASEGURADO"))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
-                                {"analystId": "a1", "decision": "APPROVE"}
+                                {"analystId": 1, "decision": "APPROVE"}
                                 """))
                 .andExpect(status().isForbidden());
     }
@@ -110,7 +129,7 @@ class ClaimSecurityTest extends AbstractPersistenceIT {
                         .header("Authorization", "Bearer " + tokenFor("ANALISTA_SINIESTROS"))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
-                                {"analystId": "a1", "decision": "APPROVE"}
+                                {"analystId": 1, "decision": "APPROVE"}
                                 """))
                 .andExpect(status().isUnprocessableEntity());
     }

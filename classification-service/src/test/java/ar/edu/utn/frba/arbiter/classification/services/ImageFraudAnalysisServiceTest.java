@@ -3,6 +3,7 @@ package ar.edu.utn.frba.arbiter.classification.services;
 import ar.edu.utn.frba.arbiter.classification.adapters.GoogleVisionClient;
 import ar.edu.utn.frba.arbiter.classification.dto.AttachmentDocument;
 import ar.edu.utn.frba.arbiter.classification.dto.DuplicateImageMatch;
+import ar.edu.utn.frba.arbiter.classification.dto.ImageAnalysisOutcome;
 import ar.edu.utn.frba.arbiter.classification.dto.WebImageMatch;
 import ar.edu.utn.frba.arbiter.common.dto.ImageForensicReport;
 import ar.edu.utn.frba.arbiter.common.dto.ImageForensicReport.ImageFinding;
@@ -31,17 +32,17 @@ class ImageFraudAnalysisServiceTest {
     private ImageFraudAnalysisService service;
 
     private static AttachmentDocument image(String type) {
-        return new AttachmentDocument(type, new byte[]{1, 2, 3}, "image/jpeg");
+        return new AttachmentDocument(null, type, new byte[]{1, 2, 3}, "image/jpeg");
     }
 
     private void internalReturns(DuplicateImageMatch... matches) {
-        when(imageEmbeddingService.processAndFindDuplicates(eq(1L), anyString(), anyString(), anyString()))
-                .thenReturn(List.of(matches));
+        when(imageEmbeddingService.processAndFindDuplicates(eq(1L), any(), anyString(), anyString()))
+                .thenReturn(new ImageAnalysisOutcome(7L, List.of(matches)));
     }
 
     @Test
     void skipsNonImageAttachments() {
-        AttachmentDocument pdf = new AttachmentDocument("police_report", new byte[]{1}, "application/pdf");
+        AttachmentDocument pdf = new AttachmentDocument(null, "police_report", new byte[]{1}, "application/pdf");
 
         ImageForensicReport report = service.analyze(1L, List.of(pdf));
 
@@ -52,7 +53,7 @@ class ImageFraudAnalysisServiceTest {
 
     @Test
     void internalMatchStopsTheCascade() {
-        internalReturns(new DuplicateImageMatch(42L, "photo-0", "stolen.jpg", 0.97));
+        internalReturns(new DuplicateImageMatch(42L, 555L, "photo-0", "stolen.jpg", 0.97));
 
         ImageForensicReport report = service.analyze(1L, List.of(image("damage_photo")));
 
@@ -112,7 +113,7 @@ class ImageFraudAnalysisServiceTest {
 
     @Test
     void internalFailureDegradesAndStillEscalates() {
-        when(imageEmbeddingService.processAndFindDuplicates(eq(1L), anyString(), anyString(), anyString()))
+        when(imageEmbeddingService.processAndFindDuplicates(eq(1L), any(), anyString(), anyString()))
                 .thenThrow(new RuntimeException("pgvector down"));
         when(googleVisionClient.isEnabled()).thenReturn(true);
         when(googleVisionClient.detectWebMatches(anyString())).thenReturn(WebImageMatch.none());
@@ -137,9 +138,11 @@ class ImageFraudAnalysisServiceTest {
 
     @Test
     void analyzesEachImageIndependently() {
-        when(imageEmbeddingService.processAndFindDuplicates(eq(1L), anyString(), anyString(), anyString()))
-                .thenReturn(List.of(new DuplicateImageMatch(9L, "p", "a.jpg", 0.99))) // 1st: internal hit
-                .thenReturn(List.of());                                                // 2nd: no hit
+        when(imageEmbeddingService.processAndFindDuplicates(eq(1L), any(), anyString(), anyString()))
+                // 1st image: internal hit
+                .thenReturn(new ImageAnalysisOutcome(7L, List.of(new DuplicateImageMatch(9L, 556L, "p", "a.jpg", 0.99))))
+                // 2nd image: no hit
+                .thenReturn(ImageAnalysisOutcome.none());
         when(googleVisionClient.isEnabled()).thenReturn(true);
         when(googleVisionClient.detectWebMatches(anyString())).thenReturn(WebImageMatch.none());
 
@@ -155,7 +158,7 @@ class ImageFraudAnalysisServiceTest {
 
     @Test
     void renderTracesDescribesInternalMatch() {
-        internalReturns(new DuplicateImageMatch(42L, "photo-0", "stolen.jpg", 0.97));
+        internalReturns(new DuplicateImageMatch(42L, 555L, "photo-0", "stolen.jpg", 0.97));
         ImageForensicReport report = service.analyze(1L, List.of(image("damage_photo")));
 
         List<String> traces = service.renderTraces(report);
