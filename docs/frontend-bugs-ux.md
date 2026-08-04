@@ -192,7 +192,79 @@ carga y cambie el título a *"Recibimos tu documentación, estamos re-evaluando 
 
 ---
 
-## 🟡 9. El ícono de notificaciones sigue sin funcionalidad
+## 🟠 9. La sesión vence a los 60 minutos y nadie se entera
+
+**Archivos:** [`auth.interceptor.ts`](../arbiter-frontend/src/app/core/http/auth.interceptor.ts), [`auth-session.service.ts`](../arbiter-frontend/src/app/core/auth/auth-session.service.ts)
+
+El interceptor solo **adjunta** el token; no reacciona a la respuesta:
+
+```ts
+export const authInterceptor: HttpInterceptorFn = (req, next) => {
+  const token = inject(AuthSessionService).token();
+  if (token && req.url.includes('/api/')) {
+    req = req.clone({ setHeaders: { Authorization: `Bearer ${token}` } });
+  }
+  return next(req);   // ← ningún catchError, ningún manejo de 401
+};
+```
+
+No hay manejo global de 401 en ningún lado (el único hit del grep está en un comentario de
+`expediente.service.ts`). El token dura 60 minutos por defecto
+(`JWT_EXPIRATION_MINUTES:60`). Cuando vence, **cada pantalla muestra su mensaje de error
+genérico** — "No pudimos cargar…", "Error al crear el caso" — y el usuario no tiene forma de
+saber que lo que pasó es que se le venció la sesión. Peor en el wizard: completa los tres pasos,
+adjunta documentación, y el envío falla sin decirle que tiene que volver a loguearse.
+
+Además, `expiresAt` se guarda en la sesión (`AuthSession.expiresAt`) y **no lo lee nadie** — el
+grep solo encuentra las dos declaraciones del campo, ningún uso.
+
+Se combina feo con el ítem #4: el token vive solo en memoria (decisión deliberada de H0001), así
+que un F5 en medio del wizard pierde la sesión **y** el borrador al mismo tiempo.
+
+**Fix sugerido:** manejar 401 en el interceptor — limpiar la sesión y redirigir a `/login` con un
+mensaje del tipo "tu sesión expiró, ingresá de nuevo". Opcionalmente avisar antes usando
+`expiresAt`, que ya está disponible.
+
+---
+
+## 🟠 10. La tabla de la bandeja desborda en móvil
+
+**Archivos:** [`bandeja.component.scss:39-48`](../arbiter-frontend/src/app/features/expedientes/bandeja/bandeja.component.scss), [`bandeja.component.html:104-105`](../arbiter-frontend/src/app/features/expedientes/bandeja/bandeja.component.html)
+
+Todas las celdas son `white-space: nowrap`:
+
+```scss
+th, td { text-align: left; padding: var(--space-3) var(--space-4); white-space: nowrap; }
+```
+
+y **no hay ningún `overflow-x`** en el componente (grep vacío). El único breakpoint a 720px solo
+ajusta `.filter-field`, no la tabla. El `<table>` está directamente adentro de
+`<app-card [flush]="true">`, sin wrapper scrolleable.
+
+Con 8 columnas sin permitir corte de línea y sin contenedor que scrollee, en un teléfono la tabla
+empuja el ancho de la página entera: aparece scroll horizontal en el `body` y se rompe el layout.
+Va en contra del RNF de usabilidad (≥85% de éxito en tareas básicas **en PC y móvil**), y del
+guardrail del design system, que pide que el contenido ancho scrollee dentro de su propio
+contenedor.
+
+**Fix sugerido:** envolver la tabla en un contenedor con `overflow-x: auto`, o pasar a un layout
+de tarjetas por debajo del breakpoint móvil.
+
+---
+
+## 🟡 11. Tres pantallas sin ningún breakpoint
+
+**Archivos:** `portal/documentacion`, `admin/usuarios`, `admin/alta-usuario`
+
+El front sí tiene responsive en general (11 media queries repartidas), pero estas tres no tienen
+ninguna. `usuarios` es la única pantalla del referente y muestra una tabla de usuarios con
+acciones — el mismo riesgo que el ítem #10.
+
+**Fix sugerido:** revisarlas en viewport móvil y sumar los breakpoints que falten.
+
+---
+
+## 🟡 12. El ícono de notificaciones sigue sin funcionalidad
 
 **Archivos:** [`notifications.service.ts`](../arbiter-frontend/src/app/core/notifications/notifications.service.ts), [`app.html:36-52, 70-73`](../arbiter-frontend/src/app/app.html)
 
@@ -208,7 +280,7 @@ dato existe del lado de la base — falta el endpoint y el cableado.
 
 ---
 
-## 🟡 10. Sin validación de archivos en el wizard
+## 🟡 13. Sin validación de archivos en el wizard
 
 **Archivo:** [`nueva-denuncia.component.ts:175-183`](../arbiter-frontend/src/app/features/expedientes/nueva-denuncia/nueva-denuncia.component.ts)
 
@@ -228,7 +300,7 @@ documento, antes de llegar al envío.
 
 ---
 
-## 🟡 11. Se puede denunciar un siniestro con fecha futura
+## 🟡 14. Se puede denunciar un siniestro con fecha futura
 
 **Archivo:** [`nueva-denuncia.component.html:118`](../arbiter-frontend/src/app/features/expedientes/nueva-denuncia/nueva-denuncia.component.html)
 
@@ -244,7 +316,7 @@ la regla de verdad.
 
 ---
 
-## 🟡 12. Faltan estados vacíos en casi todas las pantallas
+## 🟡 15. Faltan estados vacíos en casi todas las pantallas
 
 **Archivos:** `bandeja`, `seguimiento`, `documentacion`, `usuarios`
 
@@ -258,7 +330,7 @@ hay resultados para este filtro" de "algo se rompió".
 
 ---
 
-## 🟡 13. `/styleguide` es pública
+## 🟡 16. `/styleguide` es pública
 
 **Archivo:** [`app.routes.ts:53-57`](../arbiter-frontend/src/app/app.routes.ts)
 
@@ -272,7 +344,7 @@ No expone datos, pero es una pantalla de desarrollo accesible en producción.
 
 ---
 
-## 🟡 14. El favicon viejo de Angular sigue en `public/`
+## 🟡 17. El favicon viejo de Angular sigue en `public/`
 
 **Archivos:** `arbiter-frontend/public/favicon.ico`, `favicon.svg`
 
@@ -284,7 +356,7 @@ probable que se siga viendo el genérico — sobre todo con la pestaña cacheada
 
 ---
 
-## 🟡 15. "Sin datos" no distingue por qué no hay datos
+## 🟡 18. "Sin datos" no distingue por qué no hay datos
 
 **Archivos:** [`empty-state.component.ts:27-30`](../arbiter-frontend/src/app/shared/ui/empty-state/empty-state.component.ts), [`fraud-gauge.component.ts:59`](../arbiter-frontend/src/app/shared/ui/fraud-gauge/fraud-gauge.component.ts), [`expediente-detail.component.html:102`](../arbiter-frontend/src/app/features/expedientes/expediente-detail/expediente-detail.component.html)
 
@@ -299,7 +371,7 @@ Vale la pena distinguir al menos "sin scorear" (nunca se calculó, es esperable)
 
 ---
 
-## 🟡 16. En el wizard no se puede saltar hacia adelante
+## 🟡 19. En el wizard no se puede saltar hacia adelante
 
 **Archivo:** [`nueva-denuncia.component.ts:168-173`](../arbiter-frontend/src/app/features/expedientes/nueva-denuncia/nueva-denuncia.component.ts)
 
@@ -326,16 +398,19 @@ las dos direcciones.
 | 1 | `analystId` hardcodeado rompe aprobar/rechazar | 🔴 Alta — funcionalidad central caída | Bajo |
 | 2 | La justificación del analista se descarta | 🔴 Alta — auditoría incompleta (SSN 2/2023) | Bajo |
 | 3 | El wizard envía denuncias que el backend rechaza | 🔴 Alta — bloquea al usuario final | Bajo |
+| 9 | La sesión vence y nadie se entera (sin manejo de 401) | 🟠 Media — errores confusos en toda la app | Bajo |
+| 10 | La tabla de la bandeja desborda en móvil | 🟠 Media — incumple el RNF de usabilidad | Bajo |
 | 4 | "Guardado automático" no existe | 🟠 Media — promesa falsa, pérdida de datos | Bajo (o sacar el texto) |
+| 8 | El seguimiento retrocede tras subir documentación | 🟠 Media — parece un bug grave al asegurado | Medio |
 | 5 | El referente tiene una sola pantalla | 🟠 Media — rol sin navegación | Alto |
 | 6 | `reports-service` inalcanzable desde el front | 🟠 Media — módulo entero sin consumir | Alto |
 | 7 | Expedientes asignados (lo toma Flor) | 🟠 Media | — |
-| 8 | El seguimiento retrocede tras subir documentación | 🟠 Media — parece un bug grave al asegurado | Medio |
-| 10 | Sin validación de archivos | 🟡 Baja | Bajo |
-| 11 | Fecha de siniestro futura | 🟡 Baja | Bajo |
-| 12 | Faltan estados vacíos | 🟡 Baja | Bajo |
-| 13 | `/styleguide` pública | 🟡 Baja | Muy bajo |
-| 16 | No se puede avanzar en el wizard | 🟡 Baja | Muy bajo |
-| 9 | Notificaciones sin cablear | 🟡 Baja — stub conocido | Alto (requiere backend) |
-| 14 | Favicon viejo | 🟡 Baja | Muy bajo |
-| 15 | "Sin datos" ambiguo | 🟡 Baja | Bajo |
+| 13 | Sin validación de archivos | 🟡 Baja | Bajo |
+| 14 | Fecha de siniestro futura | 🟡 Baja | Bajo |
+| 15 | Faltan estados vacíos | 🟡 Baja | Bajo |
+| 11 | Tres pantallas sin breakpoint | 🟡 Baja | Bajo |
+| 16 | `/styleguide` pública | 🟡 Baja | Muy bajo |
+| 19 | No se puede avanzar en el wizard | 🟡 Baja | Muy bajo |
+| 12 | Notificaciones sin cablear | 🟡 Baja — stub conocido | Alto (requiere backend) |
+| 17 | Favicon viejo | 🟡 Baja | Muy bajo |
+| 18 | "Sin datos" ambiguo | 🟡 Baja | Bajo |
