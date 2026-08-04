@@ -478,7 +478,10 @@ class CaseServiceImplTest {
         caseService.addDocumentsAndReclassify(1L, Map.of());
 
         assertThat(entity.getClassificationAttempts()).isZero();
-        assertThat(entity.getDeterministicFastTrack()).isNull();
+        // false y no null: la columna was_fast_track es NOT NULL, así que el null que se seteaba
+        // antes reventaba al persistir contra el esquema real. Para el que lee es lo mismo,
+        // wasFastTracked() trata los dos igual.
+        assertThat(entity.getDeterministicFastTrack()).isFalse();
     }
 
     @Test

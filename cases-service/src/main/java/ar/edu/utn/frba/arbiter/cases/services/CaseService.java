@@ -21,6 +21,14 @@ public interface CaseService {
 
     CaseResponse getCase(Long caseId);
 
+    /**
+     * @param insurerSlug en cuál de las aseguradoras del asegurado buscar ({@code provincia}).
+     *                    Sólo hace falta cuando es cliente de más de una: los ids de expediente se
+     *                    repiten entre esquemas. Null resuelve contra el tenant del login, que es
+     *                    lo que necesita el analista.
+     */
+    CaseResponse getCase(Long caseId, String insurerSlug);
+
     List<CaseDocumentResponse> getDocuments(Long caseId);
 
     CaseDocument getDocument(Long caseId, Long documentId);

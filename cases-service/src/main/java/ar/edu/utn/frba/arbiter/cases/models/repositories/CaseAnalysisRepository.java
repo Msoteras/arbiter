@@ -3,10 +3,15 @@ package ar.edu.utn.frba.arbiter.cases.models.repositories;
 import ar.edu.utn.frba.arbiter.cases.models.entities.RiskBreakdownJsonConverter;
 import ar.edu.utn.frba.arbiter.common.dto.RiskBreakdownItem;
 import ar.edu.utn.frba.arbiter.common.enums.Classification;
+import jakarta.persistence.EntityManager;
 import lombok.RequiredArgsConstructor;
+import org.hibernate.Session;
 import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
+import org.springframework.jdbc.datasource.SingleConnectionDataSource;
 import org.springframework.stereotype.Repository;
+import org.springframework.transaction.annotation.Transactional;
 
+import java.math.BigDecimal;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashMap;
@@ -31,12 +36,20 @@ import java.util.Map;
  * <p>Both tables are append-only (one row per run), so "the classification" always means the
  * newest row for the case — hence {@code DISTINCT ON ... ORDER BY id DESC} rather than a plain
  * lookup, which would return every historical run.
+ *
+ * <p><b>Las queries corren sobre la conexión de Hibernate, no sobre una del pool.</b> Estas dos
+ * tablas viven en el esquema del tenant y se nombran sin calificar, así que dependen del
+ * {@code search_path} — y ese lo setea {@code TenantConnectionProvider}, que sólo interviene en
+ * las conexiones que pide Hibernate. Un {@code NamedParameterJdbcTemplate} armado sobre el
+ * {@code DataSource} las pediría directo al pool, sin ese seteo, y las queries fallarían con
+ * "relation llm_analysis does not exist" contra la base multi-tenant real (en los tests no se
+ * ve, porque ahí el esquema es plano y todo cae en {@code public}).
  */
 @Repository
 @RequiredArgsConstructor
 public class CaseAnalysisRepository {
 
-    private final NamedParameterJdbcTemplate jdbcTemplate;
+    private final EntityManager entityManager;
 
     private static final RiskBreakdownJsonConverter BREAKDOWN_JSON = new RiskBreakdownJsonConverter();
 
@@ -62,11 +75,24 @@ public class CaseAnalysisRepository {
     /**
      * Batched on purpose: the inbox maps a whole page of cases, and one query per row is the
      * N+1 that makes a paged list collapse.
+     *
+     * <p>{@code @Transactional} para que haya una sesión de Hibernate de la cual tomar la
+     * conexión: los métodos de {@code CaseServiceImpl} que llaman acá no son transaccionales, y
+     * con {@code open-in-view} apagado no hay ninguna abierta por el request.
      */
+    @Transactional(readOnly = true)
     public Map<Long, CaseAnalysis> findByCaseIds(Collection<Long> caseIds) {
         if (caseIds == null || caseIds.isEmpty()) {
             return Map.of();
         }
+        // suppressClose: la conexión es de Hibernate y la cierra Hibernate; el template no debe.
+        return entityManager.unwrap(Session.class).doReturningWork(connection ->
+                queryAnalysis(new NamedParameterJdbcTemplate(
+                        new SingleConnectionDataSource(connection, true)), caseIds));
+    }
+
+    private Map<Long, CaseAnalysis> queryAnalysis(NamedParameterJdbcTemplate jdbcTemplate,
+                                                  Collection<Long> caseIds) {
         Map<String, Object> params = Map.of("caseIds", caseIds);
 
         List<LatestAnalysis> latest = jdbcTemplate.query("""
@@ -75,7 +101,11 @@ public class CaseAnalysisRepository {
                  WHERE case_id IN (:caseIds)
                  ORDER BY case_id, id DESC
                 """, params, (rs, rowNum) -> {
-            Double confidence = rs.getObject("confidence", Double.class);
+            // La columna es numeric(5,3) y el driver de Postgres no la convierte a Double con
+            // getObject(name, Class): hay que leerla como BigDecimal. Sigue viajando como Double
+            // porque es lo que expone ClaimResponse/CaseResponse.
+            BigDecimal rawConfidence = rs.getBigDecimal("confidence");
+            Double confidence = rawConfidence == null ? null : rawConfidence.doubleValue();
             return new LatestAnalysis(
                     rs.getLong("case_id"),
                     rs.getLong("id"),
@@ -90,7 +120,7 @@ public class CaseAnalysisRepository {
             caseByAnalysisId.put(row.analysisId(), row.caseId());
         }
 
-        Map<Long, List<String>> factorsByCase = factorsFor(caseByAnalysisId);
+        Map<Long, List<String>> factorsByCase = factorsFor(jdbcTemplate, caseByAnalysisId);
 
         Map<Long, List<RiskBreakdownItem>> breakdownByCase = new HashMap<>();
         jdbcTemplate.query("""
@@ -117,7 +147,8 @@ public class CaseAnalysisRepository {
     private record LatestAnalysis(Long caseId, Long analysisId, Classification classification, Double confidence) {
     }
 
-    private Map<Long, List<String>> factorsFor(Map<Long, Long> caseByAnalysisId) {
+    private Map<Long, List<String>> factorsFor(NamedParameterJdbcTemplate jdbcTemplate,
+                                               Map<Long, Long> caseByAnalysisId) {
         if (caseByAnalysisId.isEmpty()) {
             return Map.of();
         }

@@ -118,15 +118,28 @@ public class ClassificationResultsService {
 
         return ClaimResponse.builder()
                 .caseId(caseId)
-                // A fast tracked case has no analysis row, so the classification comes from the
-                // outcome instead of from the model.
-                .classification(analysis.map(LlmAnalysis::getRecommendation)
-                        .orElse(outcome.wasFastTrack() ? Classification.FAST_TRACK : null))
-                .confidence(analysis
-                        .map(a -> a.getConfidence() != null ? a.getConfidence().doubleValue() : null)
-                        .orElse(outcome.wasFastTrack() ? 1.0 : null))
-                .factors(analysis.map(a -> a.getReasons().stream().map(LlmReason::getReason).toList())
-                        .orElse(null))
+                // El Fast Track manda cuando está: un Fast Track no deja fila en llm_analysis, y
+                // esa tabla es append-only, así que si se preguntara primero por ella ganaría la
+                // corrida ANTERIOR. Pasa al reclasificar (subir la documentación que faltaba y
+                // que el gate resuelva Fast Track): quedaba mostrándose el FALTA_DOCUMENTACION
+                // viejo. El flag no tiene ese problema porque se reescribe en cada corrida, así
+                // que en true significa siempre "la última fue Fast Track".
+                .classification(outcome.wasFastTrack()
+                        ? Classification.FAST_TRACK
+                        : analysis.map(LlmAnalysis::getRecommendation).orElse(null))
+                // Double.valueOf y no 1.0 a secas: con el literal primitivo, el ternario se tipa
+                // como double y desempaqueta la rama nula, que revienta con NPE.
+                .confidence(outcome.wasFastTrack()
+                        ? Double.valueOf(1.0)
+                        : analysis.map(a -> a.getConfidence() != null ? a.getConfidence().doubleValue() : null)
+                                .orElse(null))
+                // Sin motivos en un Fast Track: los de la corrida anterior fundamentan otra
+                // clasificación, mostrarlos al lado de FAST_TRACK sería atribuirle razones que no
+                // son suyas.
+                .factors(outcome.wasFastTrack()
+                        ? null
+                        : analysis.map(a -> a.getReasons().stream().map(LlmReason::getReason).toList())
+                                .orElse(null))
                 .deterministicFastTrack(outcome.wasFastTrack())
                 .forensicReport(FORENSIC_JSON.convertToEntityAttribute(outcome.forensicReport()))
                 .riskScore(risk.map(r -> r.getRiskScore().doubleValue()).orElse(null))

@@ -61,8 +61,11 @@ public class CaseController {
                     can call this today — there's no owner check yet (the asegurado's identity
                     isn't linked to Case.insuredId), so this only gates "logged in", not "yours".
                     """)
-    public ResponseEntity<CaseResponse> getCase(@PathVariable Long caseId) {
-        CaseResponse response = caseService.getCase(caseId);
+    public ResponseEntity<CaseResponse> getCase(
+            @PathVariable Long caseId,
+            @RequestParam(required = false) String aseguradora
+    ) {
+        CaseResponse response = caseService.getCase(caseId, aseguradora);
         return ResponseEntity.ok(response);
     }
 

@@ -145,8 +145,12 @@ public class Case {
      * {@code CaseOutcomeRepository} — a Fast Track leaves no {@code llm_analysis} row, so without
      * this "fue Fast Track" and "todavía no se clasificó" are indistinguishable.
      */
-    @Column(name = "was_fast_track")
-    private Boolean deterministicFastTrack;
+    // Arranca en false, no en null: la columna es NOT NULL DEFAULT false, y el default del
+    // esquema no aplica porque Hibernate incluye la columna en el INSERT igual. Da lo mismo
+    // para quien lee — wasFastTracked() ya trata null y false por igual.
+    @Builder.Default
+    @Column(name = "was_fast_track", nullable = false)
+    private Boolean deterministicFastTrack = false;
 
     /**
      * Final human determination that the claim was fraudulent ("fue_determinado_fraude") —
@@ -185,7 +189,11 @@ public class Case {
      * — the score breakdown, which is only displayed, is joined instead.
      * Both are null when the claim wasn't scored ("sin scorear") — never surfaced as a real LOW.
      */
-    @Column(name = "risk_score")
+    // La columna es numeric(4,3), igual que risk_analysis.risk_score (la fuente auditable).
+    // Se mantiene Double del lado Java porque es lo que exponen ClaimResponse/CaseResponse y el
+    // frontend ya consume; el tipo JDBC se declara acá para que coincida con el esquema.
+    @Column(name = "risk_score", precision = 4, scale = 3)
+    @JdbcTypeCode(SqlTypes.NUMERIC)
     private Double riskScore;
 
     @Enumerated(EnumType.STRING)

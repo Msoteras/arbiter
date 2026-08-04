@@ -1,4 +1,4 @@
-import { HttpClient } from '@angular/common/http';
+import { HttpClient, HttpParams } from '@angular/common/http';
 import { Injectable, inject } from '@angular/core';
 import { Observable } from 'rxjs';
 
@@ -69,8 +69,17 @@ export class ExpedienteService {
   private readonly http = inject(HttpClient);
   private readonly baseUrl = `${environment.apiBaseUrl}/cases`;
 
-  getById(id: string | number): Observable<ExpedienteResponse> {
-    return this.http.get<ExpedienteResponse>(`${this.baseUrl}/${id}`);
+  /**
+   * `aseguradora` sólo lo manda el portal del asegurado, y sólo hace falta si es cliente de más de
+   * una compañía: los números de expediente se repiten entre aseguradoras, así que sin esto el
+   * back siempre resolvía contra la del login y los de la otra quedaban inalcanzables. El back lo
+   * valida contra el token, no confía en el parámetro.
+   */
+  getById(id: string | number, aseguradora?: string | null): Observable<ExpedienteResponse> {
+    const options = aseguradora
+      ? { params: new HttpParams().set('aseguradora', aseguradora) }
+      : {};
+    return this.http.get<ExpedienteResponse>(`${this.baseUrl}/${id}`, options);
   }
 
   /**

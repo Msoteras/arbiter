@@ -80,7 +80,7 @@ class CaseControllerTest {
     @Test
     void getCase_returns200() throws Exception {
         CaseResponse response = caseResponse(1L, CaseStatus.PENDING_ANALYST_REVIEW);
-        when(caseService.getCase(1L)).thenReturn(response);
+        when(caseService.getCase(1L, (String) null)).thenReturn(response);
 
         mockMvc.perform(get("/api/v1/cases/1"))
                 .andExpect(status().isOk())
@@ -90,7 +90,7 @@ class CaseControllerTest {
 
     @Test
     void getCase_notFound_returns404ProblemDetail() throws Exception {
-        when(caseService.getCase(999L)).thenThrow(new CaseNotFoundException(999L));
+        when(caseService.getCase(999L, (String) null)).thenThrow(new CaseNotFoundException(999L));
 
         mockMvc.perform(get("/api/v1/cases/999"))
                 .andExpect(status().isNotFound())
@@ -231,7 +231,7 @@ class CaseControllerTest {
     @Test
     void getCase_withClassificationResult_returnsFullResponse() throws Exception {
         CaseResponse response = new CaseResponse(
-                1L, CaseStatus.PENDING_ANALYST_REVIEW,
+                1L, null, null, CaseStatus.PENDING_ANALYST_REVIEW,
                 "Celulares", "Celular Protegido Básico", "Robo en vía pública",
                 "Motorola Edge 50 Pro", "40.123.456", "Laura Fernández", "POL-CEL-2024-001",
                 "Me robaron el celular",
@@ -252,7 +252,7 @@ class CaseControllerTest {
                                 Instant.parse("2026-06-13T22:55:00Z"))
                 )
         );
-        when(caseService.getCase(1L)).thenReturn(response);
+        when(caseService.getCase(1L, (String) null)).thenReturn(response);
 
         mockMvc.perform(get("/api/v1/cases/1"))
                 .andExpect(status().isOk())
@@ -268,7 +268,7 @@ class CaseControllerTest {
     @Test
     void getCase_classificationFailed_returnsFailedStatus() throws Exception {
         CaseResponse response = caseResponse(1L, CaseStatus.CLASSIFICATION_FAILED);
-        when(caseService.getCase(1L)).thenReturn(response);
+        when(caseService.getCase(1L, (String) null)).thenReturn(response);
 
         mockMvc.perform(get("/api/v1/cases/1"))
                 .andExpect(status().isOk())
@@ -278,7 +278,7 @@ class CaseControllerTest {
     @Test
     void getCase_awaitingDocumentation_returnsAwaitingStatus() throws Exception {
         CaseResponse response = caseResponse(3L, CaseStatus.AWAITING_DOCUMENTATION);
-        when(caseService.getCase(3L)).thenReturn(response);
+        when(caseService.getCase(3L, (String) null)).thenReturn(response);
 
         mockMvc.perform(get("/api/v1/cases/3"))
                 .andExpect(status().isOk())
@@ -287,7 +287,7 @@ class CaseControllerTest {
 
     private CaseResponse caseResponse(Long id, CaseStatus status) {
         return new CaseResponse(
-                id, status,
+                id, null, null, status,
                 "Celulares", "Celular Protegido Básico", "Robo en vía pública",
                 "Motorola Edge 50 Pro", "40.123.456", "Laura Fernández", "POL-CEL-2024-001",
                 "Me robaron el celular",

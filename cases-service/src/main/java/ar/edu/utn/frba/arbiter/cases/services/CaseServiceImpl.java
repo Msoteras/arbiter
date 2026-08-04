@@ -4,8 +4,11 @@ import ar.edu.utn.frba.arbiter.cases.dto.AnalystDecisionRequest;
 import ar.edu.utn.frba.arbiter.cases.dto.CaseDocumentResponse;
 import ar.edu.utn.frba.arbiter.cases.dto.CaseRequest;
 import ar.edu.utn.frba.arbiter.cases.dto.CaseResponse;
+import ar.edu.utn.frba.arbiter.cases.config.tenant.CallerContext;
 import ar.edu.utn.frba.arbiter.cases.config.tenant.TenantContext;
 import ar.edu.utn.frba.arbiter.cases.dto.StatusTransitionResponse;
+import ar.edu.utn.frba.arbiter.cases.models.repositories.InsurerRepository;
+import ar.edu.utn.frba.arbiter.common.models.entities.Insurer;
 import ar.edu.utn.frba.arbiter.cases.exceptions.CaseNotFoundException;
 import ar.edu.utn.frba.arbiter.cases.exceptions.DocumentNotFoundException;
 import ar.edu.utn.frba.arbiter.cases.exceptions.DocumentReadException;
@@ -49,6 +52,7 @@ public class CaseServiceImpl implements CaseService {
     private final CaseAccessPolicy accessPolicy;
     private final InsuredCaseAggregator insuredCaseAggregator;
     private final PolicyTenantLocator policyTenantLocator;
+    private final InsurerRepository insurerRepository;
 
     /**
      * Ley 17.418 art. 56: the insurer has 30 days from the denuncia to pronounce itself, and
@@ -117,7 +121,9 @@ public class CaseServiceImpl implements CaseService {
         // case is back in PENDING_CLASSIFICATION toResponse doesn't surface the previous run.
         entity.setRiskScore(null);
         entity.setRiskBand(null);
-        entity.setDeterministicFastTrack(null);
+        // false y no null: la columna es NOT NULL. Para quien lee es lo mismo, wasFastTracked()
+        // ya trata los dos igual.
+        entity.setDeterministicFastTrack(false);
         // Fresh classification cycle: without this reset, attempts accumulated in previous
         // cycles would push the case to CLASSIFICATION_FAILED prematurely.
         entity.setClassificationAttempts(0);
@@ -164,6 +170,41 @@ public class CaseServiceImpl implements CaseService {
 
     @Override
     public CaseResponse getCase(Long caseId) {
+        return getCase(caseId, null);
+    }
+
+    /**
+     * {@code insurerSlug} sólo hace falta para el asegurado que es cliente de más de una compañía:
+     * los ids son autoincrementales por esquema, así que sin él "el expediente 4" es ambiguo y
+     * siempre se resolvía contra el tenant del login, dejando el de la otra aseguradora
+     * inalcanzable desde el portal.
+     */
+    @Override
+    public CaseResponse getCase(Long caseId, String insurerSlug) {
+        if (insurerSlug == null || insurerSlug.isBlank()) {
+            return loadCase(caseId);
+        }
+        // El slug viene del pedido, así que sólo se busca entre las aseguradoras del claim
+        // firmado: es lo que impide nombrar la de otra compañía. Si no está, 404 y no 403 —
+        // mismo criterio que un expediente ajeno, para no confirmar qué tenants existen.
+        Insurer insurer = insurerRepository.findAllById(CallerContext.get().insurerIds()).stream()
+                .filter(Insurer::isActive)
+                .filter(candidate -> InsurerSlug.matches(candidate, insurerSlug))
+                .findFirst()
+                .orElseThrow(() -> new CaseNotFoundException(caseId));
+
+        String callerTenant = TenantContext.get();
+        try {
+            TenantContext.set(insurer.getSchemaName());
+            return loadCase(caseId);
+        } finally {
+            // Igual que en el agregador: si no se restaura, la conexión vuelve al pool viendo el
+            // esquema equivocado y se lo lleva puesto el próximo request.
+            TenantContext.set(callerTenant);
+        }
+    }
+
+    private CaseResponse loadCase(Long caseId) {
         Case entity = caseRepository.findById(caseId)
                 .orElseThrow(() -> new CaseNotFoundException(caseId));
         accessPolicy.assertCanRead(entity);
@@ -179,12 +220,23 @@ public class CaseServiceImpl implements CaseService {
                                          String q, RiskBand riskBand, Pageable pageable) {
         if (accessPolicy.currentUserIsInsured()) {
             // El asegurado ve los suyos de TODAS sus aseguradoras, no solo la del tenant activo.
-            return toResponses(insuredCaseAggregator.findOwnCases(
+            return toInsuredResponses(insuredCaseAggregator.findOwnCases(
                     status, claimCause, policyNumber, eventDateFrom, eventDateTo, q, riskBand, pageable));
         }
         Specification<Case> spec = CaseSpecifications.withFilters(
                 status, claimCause, policyNumber, insuredId, eventDateFrom, eventDateTo, q, riskBand);
         return toResponses(caseRepository.findAll(spec, pageable));
+    }
+
+    /**
+     * Igual que {@link #toResponses(Page)} pero conservando de qué aseguradora salió cada
+     * expediente, que es lo único que después permite volver a abrirlo: los ids se repiten entre
+     * esquemas. No se joinea el análisis — el asegurado no ve clasificación ni riesgo, y las
+     * tablas de análisis son por esquema (habría que volver a saltar de tenant por cada fila).
+     */
+    private Page<CaseResponse> toInsuredResponses(Page<InsuredCaseAggregator.InsuredCase> page) {
+        return page.map(it -> toResponse(it.caseRecord(), null, CaseAnalysis.none(),
+                it.insurerSlug(), it.insurerName()));
     }
 
     /** Resuelve el análisis joineado de toda una página de una sola vez. */
@@ -263,6 +315,11 @@ public class CaseServiceImpl implements CaseService {
      */
     private CaseResponse toResponse(Case entity, List<StatusTransitionResponse> history,
                                      CaseAnalysis analysis) {
+        return toResponse(entity, history, analysis, null, null);
+    }
+
+    private CaseResponse toResponse(Case entity, List<StatusTransitionResponse> history,
+                                     CaseAnalysis analysis, String insurerSlug, String insurerName) {
         // Mientras el expediente está de vuelta en clasificación, la corrida anterior sigue siendo
         // la última fila de llm_analysis. Mostrarla diría que hay una recomendación vigente cuando
         // justamente se está recalculando, así que en ese estado no se surface ninguna.
@@ -272,6 +329,8 @@ public class CaseServiceImpl implements CaseService {
 
         return new CaseResponse(
                 entity.getId(),
+                insurerSlug,
+                insurerName,
                 entity.getStatus(),
                 entity.getClaimCause().getBranch().getName(),
                 entity.getPolicy().getProduct(),
@@ -302,28 +361,37 @@ public class CaseServiceImpl implements CaseService {
      * tabla rechaza {@code FAST_TRACK}), así que ahí la clasificación sale de {@code was_fast_track}.
      * Mismo criterio que {@code ClassificationResultsService.getStatus}.
      */
+    /**
+     * El Fast Track se pregunta primero, no último: no deja fila en {@code llm_analysis}, y como
+     * esa tabla es append-only, preguntar por ella antes hace ganar a la corrida ANTERIOR. Se ve
+     * al reclasificar — subir la documentación faltante y que el gate resuelva Fast Track dejaba
+     * el {@code FALTA_DOCUMENTACION} viejo a la vista. El flag se reescribe en cada corrida, así
+     * que en true siempre significa "la última fue Fast Track".
+     */
     private Classification classificationOf(Case entity, CaseAnalysis analysis) {
-        if (analysis.classification() != null) {
-            return analysis.classification();
+        if (wasFastTracked(entity)) {
+            return Classification.FAST_TRACK;
         }
-        return wasFastTracked(entity) ? Classification.FAST_TRACK : null;
+        return analysis.classification();
     }
 
     private double confidenceOf(Case entity, CaseAnalysis analysis) {
-        if (analysis.confidence() != null) {
-            return analysis.confidence();
+        if (wasFastTracked(entity)) {
+            return 1.0;
         }
-        return wasFastTracked(entity) ? 1.0 : 0.0;
+        return analysis.confidence() != null ? analysis.confidence() : 0.0;
     }
 
     private String detailOf(Case entity, CaseAnalysis analysis) {
+        // Mismo criterio que classificationOf: los motivos de llm_reason son de la corrida
+        // anterior, y atribuírselos a un Fast Track sería darle razones que no son suyas.
+        if (wasFastTracked(entity)) {
+            return "Fast track classification available";
+        }
         if (!analysis.factors().isEmpty()) {
             return String.join(", ", analysis.factors());
         }
-        if (analysis.classification() == null && !wasFastTracked(entity)) {
-            return null;
-        }
-        return wasFastTracked(entity) ? "Fast track classification available" : "Classification completed";
+        return analysis.classification() == null ? null : "Classification completed";
     }
 
     private boolean wasFastTracked(Case entity) {

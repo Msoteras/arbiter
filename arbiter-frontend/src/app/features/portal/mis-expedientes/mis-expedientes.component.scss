@@ -46,6 +46,12 @@
 .case-card:hover { border-color: var(--selected-border); box-shadow: 0 4px 14px -8px rgba(0, 0, 0, 0.2); }
 .case-head { display: flex; align-items: center; justify-content: space-between; gap: var(--space-2); flex-wrap: wrap; }
 .case-id { font-size: var(--font-size-md); font-weight: var(--font-weight-medium); }
+
+/* Acompaña al número sin competir con él: identifica la compañía, no es el dato principal. */
+.case-insurer {
+  color: var(--text-secondary);
+  font-weight: var(--font-weight-regular);
+}
 .case-fields { display: flex; gap: var(--space-3); flex-wrap: wrap; margin-top: var(--space-1); font-size: var(--font-size-body); }
 .case-item { color: var(--text-secondary); }
 

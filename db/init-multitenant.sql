@@ -181,7 +181,10 @@ INSERT INTO arbiter_common.users (id, auth0_sub, email, active, activated) VALUE
     (3, 'auth0|seed-referente',           'referente.arbiter@gmail.com',           TRUE, TRUE),
     -- Analyst on the second insurer: without someone on the other side there is no way
     -- to demonstrate that tenant isolation actually holds.
-    (4, 'auth0|seed-analista-provincia',  'analista.provincia.arbiter@gmail.com',  TRUE, TRUE);
+    (4, 'auth0|seed-analista-provincia',  'analista.provincia.arbiter@gmail.com',  TRUE, TRUE),
+    -- Second BBVA policyholder: without one, every claim in the fixtures piles onto
+    -- insured(1), which looks less like demo data and more like one very unlucky person.
+    (5, 'auth0|6a71248c6b9165b91b479173',  'asegurado2.arbiter@gmail.com',          TRUE, TRUE);
 
 SELECT setval(pg_get_serial_sequence('arbiter_common.users', 'id'),
               (SELECT MAX(id) FROM arbiter_common.users));
@@ -878,14 +881,26 @@ SELECT arbiter_common.create_insurer_db_schema(
 INSERT INTO arbiter_bbva.insured (id, name, surname, dni, email, phone, pep, user_id) VALUES
     (1, 'Martina', 'Soteras', '42.987.654', 'asegurado.arbiter@gmail.com', '+54 9 11 5555-0001', FALSE, 1);
 
+SELECT setval(pg_get_serial_sequence('arbiter_bbva.insured', 'id'),
+              (SELECT MAX(id) FROM arbiter_bbva.insured));
+
 INSERT INTO arbiter_bbva.claims_analyst (id, name, surname, email, user_id) VALUES
     (1, 'Lucas', 'Gómez', 'analista.arbiter@gmail.com', 2);
+
+SELECT setval(pg_get_serial_sequence('arbiter_bbva.claims_analyst', 'id'),
+              (SELECT MAX(id) FROM arbiter_bbva.claims_analyst));
 
 INSERT INTO arbiter_bbva.insurer_referent (id, name, surname, user_id) VALUES
     (1, 'Sofía', 'Martínez', 3);
 
+SELECT setval(pg_get_serial_sequence('arbiter_bbva.insurer_referent', 'id'),
+              (SELECT MAX(id) FROM arbiter_bbva.insurer_referent));
+
 INSERT INTO arbiter_provincia.claims_analyst (id, name, surname, email, user_id) VALUES
     (1, 'Diego', 'Fernández', 'analista.provincia.arbiter@gmail.com', 4);
+
+SELECT setval(pg_get_serial_sequence('arbiter_provincia.claims_analyst', 'id'),
+              (SELECT MAX(id) FROM arbiter_provincia.claims_analyst));
 
 COMMIT;
 

@@ -48,11 +48,19 @@ public class InsuredCaseAggregator {
     private final InsurerRepository insurerRepository;
 
     /**
+     * Un expediente junto con la aseguradora de la que salió. Sin esto el origen se pierde al
+     * fusionar: los ids son autoincrementales <b>por esquema</b>, así que el mismo número puede
+     * existir en las dos aseguradoras y después no hay forma de saber a cuál abrir.
+     */
+    public record InsuredCase(Case caseRecord, String insurerSlug, String insurerName) {
+    }
+
+    /**
      * Devuelve entidades y no {@code CaseResponse} a propósito: aplanar es de
      * {@code CaseServiceImpl}, que es el único lugar donde vive esa forma. Si este servicio
      * mapeara, los dos beans se necesitarían mutuamente.
      */
-    public Page<Case> findOwnCases(CaseStatus status, String claimCause, String policyNumber,
+    public Page<InsuredCase> findOwnCases(CaseStatus status, String claimCause, String policyNumber,
                                     LocalDate eventDateFrom, LocalDate eventDateTo,
                                     String q, RiskBand riskBand, Pageable pageable) {
         CallerContext.Caller caller = CallerContext.get();
@@ -73,14 +81,15 @@ public class InsuredCaseAggregator {
                 eventDateFrom, eventDateTo, q, riskBand);
 
         String callerTenant = TenantContext.get();
-        List<Case> merged = new ArrayList<>();
+        List<InsuredCase> merged = new ArrayList<>();
         try {
             for (Insurer insurer : insurerRepository.findAllById(caller.insurerIds())) {
                 if (!insurer.isActive()) {
                     continue;
                 }
                 TenantContext.set(insurer.getSchemaName());
-                merged.addAll(caseRepository.findAll(spec, Sort.unsorted()));
+                caseRepository.findAll(spec, Sort.unsorted()).forEach(found ->
+                        merged.add(new InsuredCase(found, InsurerSlug.of(insurer), insurer.getName())));
             }
         } finally {
             // Restaura el tenant del request: el resto de la request (y la conexión que se
@@ -99,9 +108,10 @@ public class InsuredCaseAggregator {
      * <p>El id va sólo como desempate estable: es autoincremental <b>por esquema</b>, así que se
      * repite entre aseguradoras y por sí solo no ordena nada.
      */
-    private Page<Case> page(List<Case> merged, Pageable pageable) {
-        merged.sort(Comparator.comparing(Case::getReportedAt, Comparator.reverseOrder())
-                .thenComparing(Case::getId, Comparator.reverseOrder()));
+    private Page<InsuredCase> page(List<InsuredCase> merged, Pageable pageable) {
+        merged.sort(Comparator.comparing((InsuredCase it) -> it.caseRecord().getReportedAt(),
+                        Comparator.reverseOrder())
+                .thenComparing(it -> it.caseRecord().getId(), Comparator.reverseOrder()));
 
         int from = (int) Math.min(pageable.getOffset(), merged.size());
         int to = Math.min(from + pageable.getPageSize(), merged.size());

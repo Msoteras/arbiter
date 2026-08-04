@@ -2,7 +2,7 @@ import { ChangeDetectionStrategy, Component, computed, inject } from '@angular/c
 import { toSignal } from '@angular/core/rxjs-interop';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { HttpErrorResponse } from '@angular/common/http';
-import { catchError, map, of, startWith, switchMap } from 'rxjs';
+import { catchError, combineLatest, map, of, startWith, switchMap } from 'rxjs';
 
 import { InsuredSessionService } from '../../../core/auth/insured-session.service';
 import { ExpedienteResponse } from '../../../core/models/expediente';
@@ -61,11 +61,16 @@ export class SeguimientoComponent {
   private readonly service = inject(ExpedienteService);
   private readonly session = inject(InsuredSessionService);
 
+  // Se combinan ruta y query: el id solo no identifica un expediente para un asegurado con
+  // pólizas en dos compañías, porque se repite entre ellas. `insurerId` viaja desde la lista.
   private readonly state = toSignal(
-    this.route.paramMap.pipe(
-      map((params) => params.get('id') ?? ''),
-      switchMap((id) =>
-        this.service.getById(id).pipe(
+    combineLatest([this.route.paramMap, this.route.queryParamMap]).pipe(
+      map(([params, query]) => ({
+        id: params.get('id') ?? '',
+        aseguradora: query.get('aseguradora'),
+      })),
+      switchMap(({ id, aseguradora }) =>
+        this.service.getById(id, aseguradora).pipe(
           map((data): LoadState => ({ status: 'ok', data })),
           startWith<LoadState>({ status: 'loading' }),
           catchError((err: HttpErrorResponse) =>
