@@ -1,254 +1,341 @@
-# Bugs y deuda de UX — frontend (relevamiento manual)
+# Bugs y deuda de UX — frontend
 
-**Estado:** documentado, sin fixear. Cada ítem tiene el archivo/línea exacto y la causa verificada en código — no son suposiciones, se leyó el componente correspondiente.
+**Estado:** documentado, sin fixear salvo donde se aclare. Cada ítem tiene el archivo/línea exacto
+y la causa verificada en código — no son suposiciones, se leyó el componente correspondiente.
 
----
-
-## 1. Falta spinner visual en "Ingresar"
-
-**Archivo:** [`login.component.ts`](../arbiter-frontend/src/app/features/auth/login/login.component.ts) + [`login.component.html:44-45`](../arbiter-frontend/src/app/features/auth/login/login.component.html)
-
-El estado `submitting()` sí existe y deshabilita el botón, pero el único feedback visual es el cambio de texto `"Ingresar →"` → `"Ingresando…"`. No hay ningún spinner/loader — en conexiones lentas, el usuario no tiene una señal fuerte de que el click se registró (solo un cambio de texto sutil), lo cual invita al doble-click.
-
-**Fix sugerido:** agregar un spinner inline en `app-button` (o un ícono girando) cuando `submitting()` es true, consistente con el resto del design system.
+**Última revisión:** 3/8/2026, sobre `develop`. En esa pasada se **borraron 7 ítems ya resueltos**
+(spinner de login, mensajes de error del login, doble verbo al eliminar usuario, "Pendientes"
+hardcodeado en el nav, reseteo de página del buscador, botón de descarga de documentos, y el
+formulario de carga que veía el analista) y se sumaron los que aparecen abajo como **nuevos**.
 
 ---
 
-## 2. Mensaje de error genérico y poco útil ("re-trolea" si el back está caído)
+## 🔴 1. La decisión del analista no funciona: `analystId` es un string hardcodeado
 
-**Archivo:** [`login.component.ts:60-70`](../arbiter-frontend/src/app/features/auth/login/login.component.ts)
+**Archivos:** [`expediente-detail.component.ts:245-248`](../arbiter-frontend/src/app/features/expedientes/expediente-detail/expediente-detail.component.ts), [`expediente.service.ts:28-31`](../arbiter-frontend/src/app/features/expedientes/expediente.service.ts)
+
+El front manda:
 
 ```ts
-private messageFor(err: HttpErrorResponse): string {
-  if (err.status === 401) { return err.error?.detail ?? 'Email o contraseña inválidos.'; }
-  if (err.status === 423) { return err.error?.detail ?? 'Cuenta bloqueada temporalmente...'; }
-  if (err.status === 400) { return 'Completá email y contraseña.'; }
-  return 'No se pudo iniciar sesión. Probá de nuevo en unos minutos.';
+const decisionPayload: AnalystDecisionRequest = {
+  analystId: 'analista-ui',          // ← string fijo, no el analista logueado
+  decision: verb === 'aprobar' ? 'APPROVE' : 'REJECT',
+};
+```
+
+y su interfaz lo declara `analystId: string`. El backend espera otra cosa:
+
+```java
+public record AnalystDecisionRequest(
+        @NotNull(message = "analystId is required") Long analystId,
+        ...
+```
+
+`case_classification.analyst_id` es **FK real** a `claims_analyst(id)`. Un string no parsea a
+`Long` → 400. **Aprobar o rechazar un expediente no funciona hoy**, y es el corazón del
+human-in-the-loop (decisión de arquitectura #5): sin esto ninguna clasificación puede impactar
+en el expediente.
+
+**Fix sugerido:** que el front no mande `analystId` en absoluto. cases-service ya resuelve el
+tenant y la identidad desde el JWT (`CallerContext`); debería resolver también el
+`claims_analyst.id` del analista logueado, igual que ya hace con `classificationAttempts`. El
+Javadoc del DTO dice exactamente eso ("cases-service resolves it from the caller's JWT"), pero
+todavía lo recibe del cliente.
+
+---
+
+## 🔴 2. La justificación del analista se pide y se tira
+
+**Archivos:** [`expediente-detail.component.ts:234-248`](../arbiter-frontend/src/app/features/expedientes/expediente-detail/expediente-detail.component.ts), [`AnalystDecisionRequest.java`](../cases-service/src/main/java/ar/edu/utn/frba/arbiter/cases/dto/AnalystDecisionRequest.java)
+
+`confirmDecision()` **exige** la justificación antes de dejar continuar:
+
+```ts
+if (!this.justification().trim() || !verb) {
+  return;
 }
 ```
 
-El `catch-all` es el mismo mensaje **sea cual sea el problema real**: un 500 del backend, un timeout, `auth-service` caído, sin conexión a internet, un JWT_SECRET mal configurado, etc. Si "se rompió todo" (el backend está abajo), el usuario recibe el mismo texto ambiguo que si hubiese un problema transitorio de un minuto — de ahí la sensación de "troleo": no hay forma de distinguir "reintentá en 2 minutos" de "esto está roto de verdad, avisale a soporte".
+…y después arma el payload **sin incluirla**. El DTO solo tiene `analystId`, `decision` y
+`classificationAttempts`. La columna `case_classification.analyst_justification TEXT` existe en
+el esquema y queda siempre en null.
 
-**Fix sugerido:** distinguir al menos error de red (sin respuesta del server) de error 5xx, con mensajes distintos, y loguear el detalle real a consola/Sentry para poder diagnosticar sin depender del relato del usuario.
+Es el registro auditable de *por qué* se decidió algo — justo lo que pide la Disposición SSN
+2/2023. Pedirle al analista que la escriba y descartarla en silencio es peor que no pedirla.
 
----
-
-## 3. Modal "Eliminar usuario" — sin restricciones por rol
-
-**Archivos:** [`usuarios.component.html:61-100`](../arbiter-frontend/src/app/features/admin/usuarios/usuarios.component.html), [`usuarios.component.ts:129-153`](../arbiter-frontend/src/app/features/admin/usuarios/usuarios.component.ts)
-
-La única restricción hoy es `isSelf(u)` (no podés eliminarte a vos mismo — está resuelto en backend con `CannotDeleteOwnAccountException`). **Cualquier `REFERENTE_ASEGURADORA` puede eliminar a cualquier otro usuario** — analista o referente — con un solo click de confirmación. No hay:
-- Distinción de qué puede borrar un referente (¿debería poder borrar a otro referente? ¿o solo analistas?).
-- Confirmación reforzada (el comentario del código dice `"wireframe: 'Eliminar pide confirmación destructiva, doble verbo'"` pero la implementación es un solo botón "Sí, eliminar usuario", no un doble verbo real como escribir el nombre del usuario).
-
-Además, el texto del modal dice *"Los expedientes que tenía asignados quedan sin analista"* — pero **no existe el concepto de expediente asignado a un analista** en el modelo de datos (ver punto 7). Es copy que describe una feature que no existe todavía.
-
-**Fix sugerido:** definir la matriz de permisos real (¿quién puede borrar a quién?), reforzar la confirmación, y corregir el copy del modal para no mencionar asignación hasta que exista.
+**Fix sugerido:** sumar `justification` al DTO de las dos puntas y persistirla en
+`case_classification.analyst_justification`.
 
 ---
 
-## 4. El ícono de notificaciones no tiene funcionalidad
+## 🔴 3. El wizard deja enviar denuncias que el backend rechaza
 
-**Archivos:** [`notifications.service.ts`](../arbiter-frontend/src/app/core/notifications/notifications.service.ts), [`app.html:36-52`](../arbiter-frontend/src/app/app.html)
+**Archivos:** [`nueva-denuncia.component.ts:137, 218-219`](../arbiter-frontend/src/app/features/expedientes/nueva-denuncia/nueva-denuncia.component.ts), [`CaseRequest.java`](../cases-service/src/main/java/ar/edu/utn/frba/arbiter/cases/dto/CaseRequest.java)
 
-El servicio es un stub completo:
+La validación del paso 2 mira **un solo campo**:
 
 ```ts
-setUnread(count: number): void { this._unread.set(Math.max(0, count)); }
-markAllRead(): void { this._unread.set(0); }
+protected readonly step2Valid = computed(() => this.description().trim().length > 0);
 ```
 
-`setUnread` **nunca se llama desde ningún lado** — no hay polling, SSE, ni ningún productor real conectado al backend. El contador siempre vale 0. El único handler del ícono en la campana es `(click)="notifications.markAllRead()"` — no abre ningún dropdown, no navega a ningún lado, no lista nada. Es decorativo.
+Pero el backend exige además `insuredItem`, `eventDate` y `eventLocation`
+(`@NotBlank`/`@NotNull`). Dos formas concretas de romperlo:
 
-**Fix sugerido:** o se cablea a un endpoint real, o se oculta/deshabilita visualmente hasta que exista el backend, para no prometer una feature inexistente.
+- **Sin fecha:** se arma `eventDate: this.eventDate() + 'T' + (this.eventTime() || '00:00') + ':00'`
+  → con `eventDate()` vacío queda `"T00:00:00"`, que ni siquiera parsea como `LocalDateTime`.
+- **Sin ubicación:** `buildEventLocation()` devuelve `''` si los tres campos están vacíos.
 
----
+El usuario se entera recién en el paso 3, después de haber adjuntado documentación, con el
+mensaje genérico `'Error al crear el caso'`. Ninguno de esos campos está marcado como
+obligatorio en la UI (no hay asterisco ni nota).
 
-## 5. El ícono de la pestaña del navegador no es el de Arbiter
-
-**Archivos:** [`index.html:8`](../arbiter-frontend/src/index.html), `public/favicon.svg`, `public/favicon.ico`
-
-Hay un `favicon.svg` custom (círculo azul con una balanza — temática de "arbiter/árbitro"), referenciado correctamente en `index.html` con `<link rel="icon" type="image/svg+xml" href="favicon.svg">`. **Pero también existe `public/favicon.ico`**, sin ningún `<link>` que lo referencie explícitamente, y con fecha **anterior** (30/jun) a la del SVG custom (18/jul) — es casi seguro el ícono genérico que trae el scaffold de Angular CLI por defecto.
-
-Los navegadores piden `/favicon.ico` de forma implícita por convención, independientemente de los `<link>` del HTML — así que es muy probable que Chrome esté priorizando/cacheando ese `.ico` viejo (genérico) en vez del `.svg` nuevo (de Arbiter), sobre todo si la pestaña ya estaba abierta antes de que se agregara el SVG.
-
-**Fix sugerido:** regenerar `favicon.ico` a partir del diseño de Arbiter (o borrarlo si el SVG alcanza para los navegadores objetivo) y probar en una pestaña/perfil sin caché.
+**Fix sugerido:** sumar los tres a `step2Valid`, marcarlos visualmente como obligatorios y
+mostrar el error al lado del campo, no al final del wizard.
 
 ---
 
-## 6. "Pendientes" está bloqueado siempre, sin importar si hay pendientes
+## 🟠 4. "Guardado automático" es una promesa falsa
 
-**Archivo:** [`app.html:11-16`](../arbiter-frontend/src/app/app.html)
+**Archivo:** [`nueva-denuncia.component.html:24, 205`](../arbiter-frontend/src/app/features/expedientes/nueva-denuncia/nueva-denuncia.component.html)
 
 ```html
-<a routerLink="/inbox" routerLinkActive="active"><span class="nav-dot"></span>Bandeja</a>
-<span class="nav-item is-disabled" title="Sin datos">
-  <span class="nav-dot"></span>Pendientes
-</span>
+<p class="wizard-sub">Te guiamos paso a paso. Podés volver atrás cuando quieras — nada se pierde.</p>
+...
+<span class="actions-hint">Paso {{ step() }} de 3 · guardado automático</span>
 ```
 
-No es un bug de estado — es un placeholder **hardcodeado como deshabilitado**. No hay ruta `/pendientes`, no hay componente, no hay lógica condicional: el `title="Sin datos"` no refleja ningún cálculo real, es un tooltip fijo. La pantalla nunca se construyó.
+No existe ninguna persistencia: ni `localStorage`, ni borrador en backend. Todo vive en signals
+en memoria. Si el usuario recarga, se le corta la conexión o cierra la pestaña por accidente,
+**pierde todo** — justo después de que la interfaz le prometió lo contrario. El asegurado ya
+cargó descripción, ubicación, fecha y hasta archivos.
 
-**Fix sugerido:** o se construye la pantalla, o se saca el ítem del nav hasta que exista (mostrar un nav item permanentemente deshabilitado es peor que no mostrarlo).
-
----
-
-## 7. "¿Cuáles son tus expedientes asignados?" — hoy se muestra TODO
-
-**Archivos:** [`Case.java`](../cases-service/src/main/java/ar/edu/utn/frba/arbiter/cases/models/entities/Case.java) (backend), [`bandeja.component.ts`](../arbiter-frontend/src/app/features/expedientes/bandeja/bandeja.component.ts), [`expediente-detail.component.ts:164`](../arbiter-frontend/src/app/features/expedientes/expediente-detail/expediente-detail.component.ts)
-
-Confirmado en backend y frontend: **no existe el concepto de "analista asignado a un expediente"** en absoluto.
-
-- La entidad `Case` no tiene ningún campo de analista asignado.
-- `GET /api/v1/cases` no filtra por analista (solo por `status`, `claimCause`, `policyNumber`, `insuredId`, rango de fechas, texto libre y `riskBand`).
-- La bandeja del frontend (`bandeja.component.ts`) muestra **todos los expedientes** a cualquier analista logueado, sin distinción de "míos" vs. "de otro".
-- En el detalle del expediente hay un campo `{ label: 'Analista asignado', value: null }` — un placeholder de UI que siempre está vacío, para una feature que no existe.
-
-Esto ya estaba documentado como **Gap E** en `docs/siniestros/GAPS-FLUJO.md` (dependía de que `auth-service` estuviera levantado). Auth ya existe hoy (login, JWT, roles), pero **la asignación de expedientes a un analista puntual es una feature aparte que nunca se construyó** — ni el campo en el modelo, ni el endpoint, ni la UI.
-
-**Fix sugerido:** definir si se quiere asignación real (campo `assignedAnalystId` en `Case` + endpoint de asignación + filtro "mis expedientes" en la bandeja) o si el modelo de trabajo es "cualquier analista ve todo" a propósito — y en ese caso, sacar el copy/placeholder que sugiere lo contrario.
+**Fix sugerido:** o se implementa el borrador (`localStorage` alcanza para el caso), o se saca
+el texto. Prometer y no cumplir es peor que no prometer.
 
 ---
 
-## 8. Asegurado ve "Denunciado" / "Terminado" — labels mal ubicados
+## 🟠 5. El referente de aseguradora tiene una sola pantalla
 
-**Archivo:** [`estado.ts:88-111`](../arbiter-frontend/src/app/core/models/estado.ts)
+**Archivos:** [`app.routes.ts:99-106`](../arbiter-frontend/src/app/app.routes.ts), [`app.html:19`](../arbiter-frontend/src/app/app.html), [`login.component.ts:59`](../arbiter-frontend/src/app/features/auth/login/login.component.ts)
 
-El estado simplificado para el asegurado tiene 3 niveles:
+`REFERENTE_ASEGURADORA` es uno de los tres roles del sistema (decisión #8) y el único destino que
+tiene es `/insurer/users`. El login lo manda ahí directo y el nav no le ofrece nada más.
+
+Lo llamativo es que el `roleGuard` **sí le da acceso total**:
 
 ```ts
-DENUNCIADO: 'Denunciado',
-EN_TRAMITE: 'En trámite',
-TERMINADO: 'Terminado',
-```
-
-Y el mapeo de estados técnicos → simplificado:
-
-```ts
-PENDING_CLASSIFICATION: 'DENUNCIADO',
-PENDING_ANALYST_REVIEW: 'EN_TRAMITE',
-CLASSIFICATION_FAILED: 'EN_TRAMITE',
-AWAITING_DOCUMENTATION: 'EN_TRAMITE',
-APPROVED: 'TERMINADO',
-REJECTED: 'TERMINADO',
-```
-
-El problema concreto (ver también el punto 10): cuando el asegurado sube documentación faltante, el backend **resetea el estado a `PENDING_CLASSIFICATION`** (mismo estado que el día 1). Como ese estado mapea a `DENUNCIADO`, el asegurado ve que su expediente **retrocede** de "En trámite" a "Denunciado" — como si el sistema hubiese olvidado todo el progreso previo. Es un regreso visual que no refleja lo que pasó (subió lo que le pedían, no volvió a fojas cero).
-
-`TERMINADO` en sí no distingue aprobado de rechazado a nivel de la etiqueta corta (aunque sí a nivel de color/tono e `estadoDescripcionAsegurado`), lo cual puede ser intencional (el semáforo de color ya lo distingue) pero vale confirmarlo con el equipo de diseño.
-
-**Fix sugerido:** ver punto 10 — la resolución real está en no volver a `PENDING_CLASSIFICATION` sino a un estado intermedio propio (o mantener el estado simplificado `EN_TRAMITE` aunque el técnico interno cambie).
-
----
-
-## 9. Paginación rota — el buscador de texto no resetea la página
-
-**Archivo:** [`bandeja.component.ts:83-112, 247`](../arbiter-frontend/src/app/features/expedientes/bandeja/bandeja.component.ts)
-
-Confirmado con precisión: **todos** los filtros de la bandeja (`status`, `claimCause`, `riskBand`, fechas, `clearFilters`, cambio de orden) llaman `this.page.set(0)` al aplicarse — **excepto el buscador de texto libre**:
-
-```ts
-protected readonly qDraft = signal('');
-private readonly qDebounced = toSignal(
-  toObservable(this.qDraft).pipe(debounceTime(350), distinctUntilChanged()),
-);
-// ...
-this.qDraft.set(v);   // línea 247 — el handler del input de búsqueda. NO resetea page.
-```
-
-**Repro:** en la bandeja, andá a una página avanzada (ej. página 3 con 20 resultados de 57), después escribí algo en el buscador que matchee solo 2 expedientes. El componente sigue pidiendo `page=2&size=20` al backend, que devuelve una página vacía (no hay 3 páginas de resultados para esa búsqueda) — la tabla se ve vacía o el indicador "Página 3 de 1" queda inconsistente, aunque sí existan resultados en la página 0.
-
-**Fix sugerido:** agregar `this.page.set(0)` al handler de búsqueda, igual que en el resto de los filtros.
-
----
-
-## 10. El seguimiento del asegurado retrocede después de subir documentación
-
-**Archivos:** [`documentacion.component.ts:59-63`](../arbiter-frontend/src/app/features/portal/documentacion/documentacion.component.ts), [`estado.ts:116-122`](../arbiter-frontend/src/app/core/models/estado.ts), `cases-service` (`CaseServiceImpl.addDocumentsAndReclassify`)
-
-Cadena completa verificada:
-
-1. El asegurado sube los documentos faltantes en `/portal/cases/{id}/documents`.
-2. `onUploaded()` redirige a `/portal/cases/{id}` (la pantalla de seguimiento):
-   ```ts
-   protected onUploaded(): void {
-     // El backend ya recibió los documentos y re-encoló la clasificación: volvemos al
-     // seguimiento, que va a mostrar el estado actualizado.
-     this.router.navigate(['/portal/cases', this.caseId]);
-   }
-   ```
-3. El backend, al recibir documentación adicional, **resetea el estado a `PENDING_CLASSIFICATION`** (confirmado en `CaseServiceImpl`, con el motivo `"documentación adicional subida"`).
-4. El seguimiento lee ese estado y usa el título asegurado-facing:
-   ```ts
-   PENDING_CLASSIFICATION: 'Recibimos tu denuncia',
-   ```
-
-Es **el mismo título y el mismo estado simplificado (`DENUNCIADO`)** que ve un asegurado que recién denunció por primera vez. El stepper de progreso (`seguimiento.component.ts`, basado en `estadoSimplificado`) retrocede al primer paso. El asegurado, que activamente subió lo que le pedían, no recibe ningún reconocimiento de esa acción — la pantalla dice literalmente "Recibimos tu denuncia", como si estuviera arrancando de cero.
-
-**Fix sugerido:** o el backend no vuelve a `PENDING_CLASSIFICATION` sino a un estado propio tipo `DOCUMENTATION_RECEIVED_REPROCESSING`, o el frontend detecta (por historial de transiciones) que hubo una carga de documentación previa y muestra un título distinto tipo *"Recibimos tu documentación, estamos re-evaluando tu caso"* en vez del genérico de día 1.
-
----
-
-## 11. "Sin Datos" en la sección de IA — mensaje poco descriptivo
-
-Contexto: aparece como fallback en secciones que dependen de datos que todavía no llegaron (ej. el análisis del modelo, el forense de imágenes, o el nav de "Pendientes" del punto 6 con el mismo `title="Sin datos"`).
-
-`"Sin Datos"` no le dice al usuario **por qué** no hay datos ni **qué esperar**: ¿está cargando? ¿falló? ¿nunca va a haber datos para este caso? Un mensaje así genera la duda de si es un bug o un estado esperado.
-
-**Fix sugerido (según lo pedido):** reemplazar por un texto más descriptivo del estado real, por ejemplo *"Pendiente de recepción de datos de IA"* o, si aplica, distinguir explícitamente "está procesando" de "no aplica para este caso" de "falló el análisis" — cada uno con su propio mensaje, no un genérico compartido.
-
----
-
-## 12. "Hay que agregar un boton de descarga en el analisis de imagen
-
-Contexto: Del lado del analista se pueden ver las imagenes que los asegurados cargan a su expediente y necesitaríamos un boton que permita bajar la foto para tenerla en local
-
-**Fix sugerido (según lo pedido):** Añadir el boton
-
----
-
-## 13. El analista ve el formulario de carga de archivos como si fuera el asegurado
-
-**Archivos:** [`expediente-detail.component.html:117-122`](../arbiter-frontend/src/app/features/expedientes/expediente-detail/expediente-detail.component.html), [`expediente-detail.component.ts:269-271`](../arbiter-frontend/src/app/features/expedientes/expediente-detail/expediente-detail.component.ts)
-
-Confirmado con el código exacto. Cuando un expediente tiene clasificación "Falta documentación", la pantalla de detalle del **analista** renderiza el mismo componente de carga que usa el **asegurado** en `portal/documentacion`:
-
-```html
-@if (needsDocs()) {
-  <app-card class="missing-docs-card" heading="⚠ Falta documentación">
-    <app-doc-upload [caseId]="d.id" (uploaded)="onDocsUploaded()" />
-  </app-card>
+if (current.rol === 'REFERENTE_ASEGURADORA') {
+  return true;
 }
 ```
 
+O sea que podría entrar a la bandeja o al detalle de un expediente escribiendo la URL a mano,
+pero no hay ningún link que lo lleve. Es un rol central sin navegación propia.
+
+**Fix sugerido:** definir qué ve el referente (¿bandeja de solo lectura? ¿tablero?) y darle
+entradas en el nav, o acotar el guard si no debería ver eso.
+
+---
+
+## 🟠 6. `reports-service` no lo consume nadie
+
+**Archivos:** [`proxy.conf.json`](../arbiter-frontend/proxy.conf.json), todo el front
+
+Cero referencias a reportes, métricas o tableros en el frontend. `proxy.conf.json` solo rutea
+`/api/v1/auth` (8080), `/api/v1/cases` y `/api/v1/policies` (8083), y `/api/v1/claims` +
+`/api/v1/classifications` (8082) — el puerto **8084 no está**, así que ni siquiera es alcanzable
+desde la SPA en desarrollo.
+
+El módulo corre, tiene su entidad `Metric`, y es inaccesible. Es el módulo de "Reportes y
+Estadísticas" del documento de arquitectura, y el consumidor natural sería el referente (ver #5).
+
+**Fix sugerido:** decidir si entra en el alcance del TP. Si entra, sumar la ruta al proxy y una
+pantalla para el referente; si no, dejarlo anotado como fuera de alcance para que no parezca un
+olvido.
+
+---
+
+## 🟠 7. "¿Cuáles son tus expedientes asignados?" — se sigue mostrando todo
+
+**Archivos:** [`Case.java`](../cases-service/src/main/java/ar/edu/utn/frba/arbiter/cases/models/entities/Case.java), [`bandeja.component.ts`](../arbiter-frontend/src/app/features/expedientes/bandeja/bandeja.component.ts)
+
+El esquema **sí** tiene la columna (`cases.analyst_id BIGINT REFERENCES claims_analyst(id)`),
+pero la entidad `Case` no la mapea, `GET /api/v1/cases` no filtra por analista, y la bandeja
+muestra todos los expedientes a cualquier analista logueado.
+
+Sabemos que **Flor lo está tomando en su historia**, así que queda acá solo para no perderlo de
+vista, no como trabajo a repartir.
+
+---
+
+## 🟠 8. El seguimiento del asegurado retrocede después de subir documentación
+
+**Archivos:** [`CaseServiceImpl.java:130`](../cases-service/src/main/java/ar/edu/utn/frba/arbiter/cases/services/CaseServiceImpl.java), [`estado.ts:91`](../arbiter-frontend/src/app/core/models/estado.ts), [`documentacion.component.ts`](../arbiter-frontend/src/app/features/portal/documentacion/documentacion.component.ts)
+
+Cadena completa, verificada de punta a punta:
+
+1. El asegurado sube lo que le faltaba y el front lo devuelve a `/portal/cases/{id}`.
+2. El backend resetea el estado a `PENDING_CLASSIFICATION` (motivo `"documentación adicional subida"`).
+3. `estado.ts` mapea ese estado a `DENUNCIADO`, el primer escalón del stepper.
+4. El seguimiento muestra *"Recibimos tu denuncia"* — el mismo texto que ve alguien que denunció
+   recién.
+
+El asegurado que hizo exactamente lo que le pidieron ve que su expediente **vuelve al día 1**.
+No hay ningún reconocimiento de la acción.
+
+Esto arrastra el ítem viejo de las etiquetas `DENUNCIADO`/`EN_TRAMITE`/`TERMINADO`: el problema
+no son los labels, es que el estado técnico retrocede.
+
+**Fix sugerido:** un estado propio de reproceso (tipo `DOCUMENTATION_RECEIVED`) que siga
+mapeando a `EN_TRAMITE`, o que el front detecte por el historial de transiciones que ya hubo una
+carga y cambie el título a *"Recibimos tu documentación, estamos re-evaluando tu caso"*.
+
+---
+
+## 🟡 9. El ícono de notificaciones sigue sin funcionalidad
+
+**Archivos:** [`notifications.service.ts`](../arbiter-frontend/src/app/core/notifications/notifications.service.ts), [`app.html:36-52, 70-73`](../arbiter-frontend/src/app/app.html)
+
+Sin cambios desde el relevamiento anterior: `setUnread` **no se llama desde ningún lado** (el
+único hit del grep es su propia definición y el comentario que lo explica). No hay polling ni
+SSE. El contador siempre vale 0 y la campana solo llama a `markAllRead()`, que limpia algo que
+nunca se llenó.
+
+Hay una tabla `notification` en el esquema de cada tenant y el seed carga una fila, así que el
+dato existe del lado de la base — falta el endpoint y el cableado.
+
+**Fix sugerido:** o se cablea, o se oculta hasta que exista el backend.
+
+---
+
+## 🟡 10. Sin validación de archivos en el wizard
+
+**Archivo:** [`nueva-denuncia.component.ts:175-183`](../arbiter-frontend/src/app/features/expedientes/nueva-denuncia/nueva-denuncia.component.ts)
+
+`onFileChange` toma el archivo y lo guarda sin mirar nada:
+
 ```ts
-protected readonly needsDocs = computed(() =>
-  this.data()?.analysisClassification === 'FALTA_DOCUMENTACION'
-);
+const file = input.files?.[0] ?? null;
 ```
 
-`needsDocs()` solo mira la clasificación del caso — **cero chequeo de rol**. `app-doc-upload` es el mismo componente reusado tal cual entre las dos pantallas. El resultado: cualquier analista que abre un expediente en ese estado ve un formulario de carga de archivos activo y funcional, como si él tuviera que adjuntar la documentación del asegurado.
+El `accept="image/*,.pdf"` del input es solo una sugerencia del explorador de archivos (se puede
+saltear eligiendo "todos los archivos"), y **no hay ningún límite de tamaño**. Un PDF de 80 MB se
+acepta en la UI y falla recién en el submit, después de esperar la subida, con el mensaje
+genérico.
 
-No es solo un problema de UX confusa — es un problema de integridad: el analista **no debería poder subir documentación en nombre del asegurado**. Rompe la trazabilidad de quién adjuntó qué, y no tiene sentido que quien revisa sea quien carga.
+**Fix sugerido:** validar tipo y tamaño en `onFileChange` y mostrar el error en el slot del
+documento, antes de llegar al envío.
 
-**Fix sugerido:** sacar `app-doc-upload` de la vista del analista. En su lugar, mostrar un estado de **solo lectura** — qué documentos faltan según la agenda documental, y que ya se le notificó al asegurado — sin ninguna acción de carga disponible para el rol analista.
+---
+
+## 🟡 11. Se puede denunciar un siniestro con fecha futura
+
+**Archivo:** [`nueva-denuncia.component.html:118`](../arbiter-frontend/src/app/features/expedientes/nueva-denuncia/nueva-denuncia.component.html)
+
+```html
+<app-input type="date" [(value)]="eventDate" />
+```
+
+Sin `max`, y sin validación en el submit. Se puede cargar una denuncia de un hecho que "ocurre"
+la semana que viene. El backend tampoco lo valida (`@NotNull LocalDateTime eventDate`, nada más).
+
+**Fix sugerido:** `max` = hoy en el input y validación en backend, que es donde tiene que estar
+la regla de verdad.
+
+---
+
+## 🟡 12. Faltan estados vacíos en casi todas las pantallas
+
+**Archivos:** `bandeja`, `seguimiento`, `documentacion`, `usuarios`
+
+Existe el componente `app-empty-state` en el design system y **solo lo usa `mis-expedientes`**.
+Las otras cuatro pantallas tienen estado de carga y de error, pero cuando la lista vuelve vacía
+no muestran nada: la tabla queda en blanco sin explicación. El usuario no puede distinguir "no
+hay resultados para este filtro" de "algo se rompió".
+
+**Fix sugerido:** usar `app-empty-state` en las cuatro, con mensajes distintos según el caso
+("no hay expedientes con estos filtros" vs. "todavía no cargaste ningún usuario").
+
+---
+
+## 🟡 13. `/styleguide` es pública
+
+**Archivo:** [`app.routes.ts:53-57`](../arbiter-frontend/src/app/app.routes.ts)
+
+Es la única ruta sin `canActivate: [roleGuard]`. Cualquiera sin sesión puede abrir
+`/styleguide` y ver el design system completo. Además el nav la muestra siempre, con clase
+`nav-dev`.
+
+No expone datos, pero es una pantalla de desarrollo accesible en producción.
+
+**Fix sugerido:** guardarla detrás del guard, o excluirla del build productivo.
+
+---
+
+## 🟡 14. El favicon viejo de Angular sigue en `public/`
+
+**Archivos:** `arbiter-frontend/public/favicon.ico`, `favicon.svg`
+
+Sin cambios: los dos archivos conviven. El `index.html` referencia el `.svg` (el de Arbiter),
+pero los navegadores piden `/favicon.ico` por convención sin importar el `<link>`, así que es
+probable que se siga viendo el genérico — sobre todo con la pestaña cacheada.
+
+**Fix sugerido:** regenerar el `.ico` desde el diseño de Arbiter o borrarlo.
+
+---
+
+## 🟡 15. "Sin datos" no distingue por qué no hay datos
+
+**Archivos:** [`empty-state.component.ts:27-30`](../arbiter-frontend/src/app/shared/ui/empty-state/empty-state.component.ts), [`fraud-gauge.component.ts:59`](../arbiter-frontend/src/app/shared/ui/fraud-gauge/fraud-gauge.component.ts), [`expediente-detail.component.html:102`](../arbiter-frontend/src/app/features/expedientes/expediente-detail/expediente-detail.component.html)
+
+`"Sin datos"` es el default de `app-empty-state` y también el texto del medidor de fraude cuando
+la banda es `null`. El mismo texto cubre situaciones distintas: *está procesando*, *no aplica a
+este caso* (un Fast Track no tiene análisis del modelo), y *falló el análisis*. El analista no
+puede saber si esperar o si hay un problema.
+
+Vale la pena distinguir al menos "sin scorear" (nunca se calculó, es esperable) de "en proceso".
+
+**Fix sugerido:** pasar un `message`/`sub` explícito en cada uso en vez de dejar el default.
+
+---
+
+## 🟡 16. En el wizard no se puede saltar hacia adelante
+
+**Archivo:** [`nueva-denuncia.component.ts:168-173`](../arbiter-frontend/src/app/features/expedientes/nueva-denuncia/nueva-denuncia.component.ts)
+
+```ts
+goToStep(s: Step): void {
+  if (s < this.step()) {
+    this.step.set(s);
+  }
+}
+```
+
+Volver atrás desde el paso 3 al 1 funciona, pero para regresar al 3 hay que apretar "Continuar"
+dos veces aunque no se haya cambiado nada. Los pasos ya completados deberían ser navegables en
+las dos direcciones.
+
+**Fix sugerido:** permitir avanzar hasta el paso máximo ya alcanzado.
 
 ---
 
 ## Resumen para priorizar
 
-| # | Ítem | Severidad | Esfuerzo estimado |
-|---|------|-----------|--------------------|
-| 13 | Analista puede subir documentación como si fuera el asegurado | 🔴 Alta — rompe integridad/trazabilidad | Bajo (sacar el componente reusado) |
-| 9 | Paginación: buscador no resetea página | 🔴 Alta — datos incorrectos visibles | Bajo (1 línea) |
-| 10 | Seguimiento retrocede tras subir documentación | 🔴 Alta — mala experiencia, parece bug grave | Medio |
-| 2 | Mensaje de error genérico en login | 🟠 Media | Bajo |
-| 3 | Modal eliminar usuario sin restricciones | 🟠 Media — riesgo de seguridad/operación | Medio |
-| 7 | "Expedientes asignados" no existe | 🟠 Media — feature faltante, no bug | Alto (nueva feature) |
-| 8 | Labels "Denunciado"/"Terminado" mal ubicados | 🟠 Media — depende del fix de #10 | Bajo, una vez resuelto #10 |
-| 5 | Favicon no es el de Arbiter | 🟡 Baja | Muy bajo |
-| 1 | Falta spinner en login | 🟡 Baja | Muy bajo |
-| 4 | Notificaciones sin funcionalidad | 🟡 Baja — es un stub conocido | Alto (requiere backend) |
-| 6 | "Pendientes" bloqueado | 🟡 Baja — placeholder honesto | Alto (nueva pantalla) |
-| 11 | "Sin Datos" poco descriptivo | 🟡 Baja | Muy bajo |
-| 12 | Boton de descarga de imagen | 🟡 Baja | Muy bajo |
+| # | Ítem | Severidad | Esfuerzo |
+|---|------|-----------|----------|
+| 1 | `analystId` hardcodeado rompe aprobar/rechazar | 🔴 Alta — funcionalidad central caída | Bajo |
+| 2 | La justificación del analista se descarta | 🔴 Alta — auditoría incompleta (SSN 2/2023) | Bajo |
+| 3 | El wizard envía denuncias que el backend rechaza | 🔴 Alta — bloquea al usuario final | Bajo |
+| 4 | "Guardado automático" no existe | 🟠 Media — promesa falsa, pérdida de datos | Bajo (o sacar el texto) |
+| 5 | El referente tiene una sola pantalla | 🟠 Media — rol sin navegación | Alto |
+| 6 | `reports-service` inalcanzable desde el front | 🟠 Media — módulo entero sin consumir | Alto |
+| 7 | Expedientes asignados (lo toma Flor) | 🟠 Media | — |
+| 8 | El seguimiento retrocede tras subir documentación | 🟠 Media — parece un bug grave al asegurado | Medio |
+| 10 | Sin validación de archivos | 🟡 Baja | Bajo |
+| 11 | Fecha de siniestro futura | 🟡 Baja | Bajo |
+| 12 | Faltan estados vacíos | 🟡 Baja | Bajo |
+| 13 | `/styleguide` pública | 🟡 Baja | Muy bajo |
+| 16 | No se puede avanzar en el wizard | 🟡 Baja | Muy bajo |
+| 9 | Notificaciones sin cablear | 🟡 Baja — stub conocido | Alto (requiere backend) |
+| 14 | Favicon viejo | 🟡 Baja | Muy bajo |
+| 15 | "Sin datos" ambiguo | 🟡 Baja | Bajo |
