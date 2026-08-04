@@ -21,7 +21,7 @@
     <header class="wizard-head">
       <span class="t-section-label eyebrow">Nueva denuncia</span>
       <h1 class="t-hero-title">Denunciá tu siniestro</h1>
-      <p class="wizard-sub">Te guiamos paso a paso. Podés volver atrás cuando quieras — nada se pierde.</p>
+      <p class="wizard-sub">Te guiamos paso a paso. No cierres esta pestaña hasta terminar: los datos no se guardan hasta que envíes la denuncia.</p>
     </header>
 
     <app-card class="wizard-card">
@@ -115,7 +115,7 @@
 
           <label class="field-label">Fecha y hora del hecho *</label>
           <div class="datetime-grid">
-            <app-input type="date" [(value)]="eventDate" />
+            <app-input type="date" [max]="today" [(value)]="eventDate" />
             <app-input type="time" [(value)]="eventTime" placeholder="Hora aprox." />
           </div>
 
@@ -177,6 +177,9 @@
                   <input type="file" accept="image/*,.pdf" (change)="onFileChange(i, $event)" hidden />
                 </label>
               }
+              @if (slot.error) {
+                <p class="doc-error">{{ slot.error }}</p>
+              }
             </div>
           }
 
@@ -202,7 +205,7 @@
         @if (step() > 1) {
           <app-button variant="secondary" (click)="prev()">‹ Volver</app-button>
         } @else {
-          <span class="actions-hint">Paso {{ step() }} de 3 · guardado automático</span>
+          <span class="actions-hint">Paso {{ step() }} de 3</span>
         }
 
         @if (step() < 3) {

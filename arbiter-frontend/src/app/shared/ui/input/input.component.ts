@@ -18,6 +18,7 @@ import { ChangeDetectionStrategy, Component, computed, input, model, signal } fr
         [placeholder]="placeholder()"
         [value]="value()"
         [attr.min]="min()"
+        [attr.max]="max()"
         [attr.autocomplete]="autocomplete()"
         [readOnly]="readonly()"
         (input)="value.set($any($event.target).value)"
@@ -101,6 +102,7 @@ export class InputComponent {
   readonly id = input<string | null>(null);
   readonly placeholder = input('');
   readonly min = input<number | null>(null);
+  readonly max = input<string | null>(null);
   readonly autocomplete = input<string | null>(null);
   readonly readonly = input(false);
   readonly revealable = input(false);

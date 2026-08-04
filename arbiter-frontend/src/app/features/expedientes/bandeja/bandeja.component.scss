@@ -43,6 +43,11 @@
 // ───────────────── Tabla ─────────────────
 .table-card { padding: 0; }
 
+// Sin esto, en móvil la tabla (8 columnas, todas nowrap) empujaba el ancho de la
+// página entera en vez de scrollear en su propio contenedor — ver
+// docs/frontend-bugs-ux.md #12 y el guardrail del design system al respecto.
+.table-scroll { overflow-x: auto; }
+
 table { width: 100%; border-collapse: collapse; font-size: var(--font-size-body); }
 th, td { text-align: left; padding: var(--space-3) var(--space-4); white-space: nowrap; }
 th:first-child, td:first-child { padding-left: var(--space-5); }

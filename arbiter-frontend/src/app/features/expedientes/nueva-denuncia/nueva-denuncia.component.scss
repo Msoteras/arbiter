@@ -176,11 +176,15 @@ app-textarea { display: block; }
 /* ===== Documentación ===== */
 .doc-slot {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   gap: var(--space-3);
   padding: var(--space-3) 0;
   border-bottom: 1px solid var(--border-subtle);
 }
+// flex-basis 100% en un flex row fuerza el salto de línea: el error queda debajo del
+// nombre + botón, no apretado al lado.
+.doc-error { flex-basis: 100%; margin: 0; font-size: var(--font-size-sm); color: var(--status-danger); }
 .doc-status { flex: none; display: flex; align-items: center; justify-content: center; width: 24px; height: 24px; }
 .doc-check {
   display: flex; align-items: center; justify-content: center;
