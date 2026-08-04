@@ -43,7 +43,9 @@ type SortField =
   | 'claimedAmount'
   | 'riskBand'
   | 'analysisClassification'
-  | 'assignedAnalystName';
+  // Path anidado: el analista es una relación, no una columna. Ordenar por apellido es lo que
+  // espera quien mira la columna "Analista".
+  | 'analyst.surname';
 type SortDir = 'asc' | 'desc';
 
 interface ColumnDef {
@@ -87,7 +89,10 @@ export class BandejaComponent {
   // ───────────────── Lente: "Míos" vs "Todos" ─────────────────
   // No es un filtro más de la fila de selects: es de quién es el expediente, no cómo se recorta
   // el listado. Por eso vive arriba de la tabla y "Limpiar filtros" no lo toca.
-  private readonly myId = computed(() => this.session.session()?.id ?? null);
+  //
+  // Quién es "yo" NO se manda: el id de analista es local al esquema de cada aseguradora, así que
+  // lo resuelve el backend contra el token (`assignedToMe`). Acá solo se dice qué lente está
+  // activa.
 
   /** El analista entra a lo suyo; el referente reparte trabajo, así que arranca viendo todo. */
   protected readonly lens = signal<Lens>(
@@ -136,11 +141,6 @@ export class BandejaComponent {
   /** Se incrementa después de asignar/liberar para releer el listado desde el backend. */
   private readonly reloadTrigger = signal(0);
 
-  /** `undefined` = lente "Todos" (el service no manda el param). */
-  private readonly lensAnalystId = computed<number | undefined>(() =>
-    this.lens() === 'mine' ? (this.myId() ?? undefined) : undefined,
-  );
-
   /**
    * Filtros + lente: la definición completa de "lo que estoy viendo". Única fuente para la tabla
    * y para la exportación — si se bifurcan, el archivo deja de coincidir con la pantalla (la
@@ -148,7 +148,7 @@ export class BandejaComponent {
    */
   private readonly viewFilters = computed<ExpedienteListParams>(() => ({
     ...this.activeFilters(),
-    assignedAnalystId: this.lensAnalystId(),
+    assignedToMe: this.lens() === 'mine',
   }));
 
   private readonly requestParams = computed<ExpedienteListParams & { reload: number }>(() => ({
@@ -215,18 +215,14 @@ export class BandejaComponent {
     toObservable(
       computed(() => ({
         filters: this.activeFilters(),
-        myId: this.myId(),
         reload: this.reloadTrigger(),
       })),
     ).pipe(
-      switchMap(({ filters, myId }) =>
+      switchMap(({ filters }) =>
         forkJoin({
-          mine:
-            myId == null
-              ? of(0)
-              : this.service
-                  .list({ ...filters, assignedAnalystId: myId, page: 0, size: 1 })
-                  .pipe(map((p) => p.totalElements)),
+          mine: this.service
+            .list({ ...filters, assignedToMe: true, page: 0, size: 1 })
+            .pipe(map((p) => p.totalElements)),
           all: this.service
             .list({ ...filters, page: 0, size: 1 })
             .pipe(map((p) => p.totalElements)),
@@ -295,7 +291,7 @@ export class BandejaComponent {
     { field: 'claimedAmount', label: 'Importe reclamado' },
     { field: 'riskBand', label: 'Riesgo' },
     { field: 'analysisClassification', label: 'Clasificación' },
-    { field: 'assignedAnalystName', label: 'Analista' },
+    { field: 'analyst.surname', label: 'Analista' },
   ];
 
   // ───────────────── Handlers de filtros (todos resetean a página 0) ─────────────────
@@ -380,13 +376,23 @@ export class BandejaComponent {
     this.analysts().map((a) => ({ value: String(a.id), label: `${a.nombre} ${a.apellido}` })),
   );
 
+  /**
+   * Mi id de analista DENTRO de esta aseguradora. No sale de la sesión —ahí está el id de
+   * usuario, que es otra tabla— sino de buscarme por email en el listado de analistas, que ya
+   * viene acotado al tenant. Null para el referente, que no tiene perfil de analista.
+   */
+  private readonly myAnalystId = computed<number | null>(() => {
+    const email = this.session.session()?.email;
+    return this.analysts().find((a) => a.email === email)?.id ?? null;
+  });
+
   /** Solo un analista puede tomar un expediente para sí; el referente asigna, no se autoasigna. */
   protected readonly canTake = computed(
-    () => this.session.session()?.rol === 'ANALISTA_SINIESTROS' && this.myId() != null,
+    () => this.session.session()?.rol === 'ANALISTA_SINIESTROS' && this.myAnalystId() != null,
   );
 
   protected isMine(c: ExpedienteResponse): boolean {
-    return c.assignedAnalystId != null && c.assignedAnalystId === this.myId();
+    return c.assignedAnalystId != null && c.assignedAnalystId === this.myAnalystId();
   }
 
   protected displayAnalyst(c: ExpedienteResponse): string {
@@ -395,7 +401,7 @@ export class BandejaComponent {
 
   /** Atajo del analista: se asigna el expediente a sí mismo sin pasar por el selector. */
   protected take(c: ExpedienteResponse): void {
-    const me = this.myId();
+    const me = this.myAnalystId();
     if (me != null) {
       this.runAssignment(c.id, this.service.assign(c.id, me));
     }

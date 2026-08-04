@@ -3,6 +3,7 @@ package ar.edu.utn.frba.arbiter.classification.services;
 import ar.edu.utn.frba.arbiter.classification.adapters.GoogleVisionClient;
 import ar.edu.utn.frba.arbiter.classification.dto.AttachmentDocument;
 import ar.edu.utn.frba.arbiter.classification.dto.DuplicateImageMatch;
+import ar.edu.utn.frba.arbiter.classification.dto.ImageAnalysisOutcome;
 import ar.edu.utn.frba.arbiter.classification.dto.WebImageMatch;
 import ar.edu.utn.frba.arbiter.common.dto.ImageForensicReport;
 import ar.edu.utn.frba.arbiter.common.dto.ImageForensicReport.ImageFinding;
@@ -64,13 +65,20 @@ public class ImageFraudAnalysisService {
             String imageBase64 = Base64.getEncoder().encodeToString(doc.content());
             imagesAnalyzed++;
 
-            List<InternalMatch> internalMatches = findInternalDuplicates(caseId, label, imageBase64);
+            ImageAnalysisOutcome outcome =
+                    analyseInternally(caseId, doc.documentId(), label, imageBase64);
+            List<InternalMatch> internalMatches = outcome.duplicates().stream()
+                    .map(this::toInternalMatch)
+                    .toList();
 
             WebFinding webFinding = null;
             if (internalMatches.isEmpty()) {
                 webFinding = findOnWeb(label, imageBase64); // escalate only when no internal match
                 if (webFinding != null) {
                     webSearchesPerformed++;
+                    // Persist it on the row the internal pass wrote, so "suspicious because it's
+                    // published on the web" is queryable and not only inside the report JSON.
+                    imageEmbeddingService.recordWebMatch(outcome.analysisId(), webFinding);
                 }
             }
 
@@ -115,14 +123,13 @@ public class ImageFraudAnalysisService {
         return traces;
     }
 
-    private List<InternalMatch> findInternalDuplicates(Long caseId, String label, String imageBase64) {
+    private ImageAnalysisOutcome analyseInternally(
+            Long caseId, Long caseDocumentId, String label, String imageBase64) {
         try {
-            return imageEmbeddingService.processAndFindDuplicates(caseId, label, label, imageBase64).stream()
-                    .map(this::toInternalMatch)
-                    .toList();
+            return imageEmbeddingService.processAndFindDuplicates(caseId, caseDocumentId, label, imageBase64);
         } catch (Exception e) {
             log.warn("[ImageFraud] Internal check failed for '{}' — {}", label, e.getMessage());
-            return List.of();
+            return ImageAnalysisOutcome.none();
         }
     }
 

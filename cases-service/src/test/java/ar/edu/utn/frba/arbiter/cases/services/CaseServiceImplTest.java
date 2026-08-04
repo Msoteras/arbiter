@@ -3,19 +3,30 @@ package ar.edu.utn.frba.arbiter.cases.services;
 import ar.edu.utn.frba.arbiter.cases.dto.AnalystDecisionRequest;
 import ar.edu.utn.frba.arbiter.cases.dto.CaseRequest;
 import ar.edu.utn.frba.arbiter.cases.dto.CaseResponse;
+import ar.edu.utn.frba.arbiter.cases.exceptions.AnalystNotFoundException;
 import ar.edu.utn.frba.arbiter.cases.exceptions.CaseNotFoundException;
 import ar.edu.utn.frba.arbiter.cases.exceptions.InvalidAnalystDecisionException;
 import ar.edu.utn.frba.arbiter.cases.exceptions.InvalidStatusTransitionException;
+import ar.edu.utn.frba.arbiter.cases.exceptions.UnresolvedCaseReferenceException;
 import ar.edu.utn.frba.arbiter.cases.models.entities.CaseDocument;
 import ar.edu.utn.frba.arbiter.cases.models.entities.Case;
 import ar.edu.utn.frba.arbiter.cases.models.entities.CaseStatusHistory;
+import ar.edu.utn.frba.arbiter.common.models.entities.tenant.ClaimsAnalyst;
+import ar.edu.utn.frba.arbiter.common.models.entities.tenant.Insured;
+import ar.edu.utn.frba.arbiter.cases.models.entities.Policy;
 import ar.edu.utn.frba.arbiter.cases.models.entities.StatusChangeActor;
+import ar.edu.utn.frba.arbiter.cases.models.repositories.CaseAnalysisRepository;
+import ar.edu.utn.frba.arbiter.cases.models.repositories.CaseAnalysisRepository.CaseAnalysis;
 import ar.edu.utn.frba.arbiter.cases.models.repositories.CaseDocumentRepository;
 import ar.edu.utn.frba.arbiter.cases.models.repositories.CaseRepository;
+import ar.edu.utn.frba.arbiter.cases.models.repositories.ClaimsAnalystRepository;
+import ar.edu.utn.frba.arbiter.cases.support.CaseFixtures;
+import ar.edu.utn.frba.arbiter.cases.support.CaseStates;
 import ar.edu.utn.frba.arbiter.common.dto.ImageForensicReport;
 import ar.edu.utn.frba.arbiter.common.enums.CaseStatus;
 import ar.edu.utn.frba.arbiter.common.enums.Classification;
 import ar.edu.utn.frba.arbiter.common.enums.RiskBand;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
@@ -32,6 +43,7 @@ import org.springframework.mock.web.MockMultipartFile;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -57,15 +69,42 @@ class CaseServiceImplTest {
     private ClaimsAnalysisClient claimsAnalysisClient;
 
     @Mock
-    private AnalystDirectory analystDirectory;
+    private ClaimsAnalystRepository claimsAnalystRepository;
+
+    @Mock
+    private CaseReferenceResolver referenceResolver;
+
+    @Mock
+    private CaseAnalysisRepository caseAnalysisRepository;
+
+    @Mock
+    private CaseAccessPolicy accessPolicy;
+
+    @Mock
+    private InsuredCaseAggregator insuredCaseAggregator;
+
+    @Mock
+    private PolicyTenantLocator policyTenantLocator;
 
     @InjectMocks
     private CaseServiceImpl caseService;
+
+    /**
+     * Por defecto no hay clasificación joineada. Es lo que devuelve el repositorio para un
+     * expediente recién creado, y deja que cada test que sí la necesita la sobrescriba.
+     */
+    @BeforeEach
+    void noAnalysisByDefault() {
+        lenient().when(caseAnalysisRepository.findByCaseId(any())).thenReturn(CaseAnalysis.none());
+        lenient().when(caseAnalysisRepository.findByCaseIds(any())).thenReturn(Map.of());
+    }
 
     @Test
     void createCase_persistsEntityAndTriggersClassification() {
         CaseRequest request = caseRequest();
         Case saved = caseRecord(1L, CaseStatus.PENDING_CLASSIFICATION);
+        stubReferenceResolution();
+        when(caseStatusService.initialStatus()).thenReturn(CaseStates.of(CaseStatus.PENDING_CLASSIFICATION));
         when(caseRepository.save(any(Case.class))).thenReturn(saved);
         when(caseDocumentRepository.findByCaseId(1L)).thenReturn(List.of());
         when(claimsAnalysisClient.analyzeAndPersist(any(), any()))
@@ -87,6 +126,7 @@ class CaseServiceImplTest {
     @Test
     void createCase_mapsAllFieldsFromRequest() {
         CaseRequest request = caseRequest();
+        stubReferenceResolution();
         when(caseRepository.save(any(Case.class))).thenAnswer(inv -> {
             Case e = inv.getArgument(0);
             e.setId(1L);
@@ -110,17 +150,23 @@ class CaseServiceImplTest {
     }
 
     @Test
-    void createCase_persistsImageConsent() {
+    void createCase_routesDeclaredDetailsToTheInsured() {
+        // pep/imageConsent/contacto describen a la persona, no al siniestro: desde el DER viven en
+        // `insured`. El alta solo los reenvía — que efectivamente se apliquen es de
+        // CaseReferenceResolverTest.
         CaseRequest request = new CaseRequest(
                 "Celulares", "Celular Protegido Básico", "Robo en vía pública",
                 "Motorola Edge 50 Pro", "40.123.456", "POL-CEL-2024-001",
                 "Me robaron el celular en la estación de subte",
                 LocalDateTime.of(2026, 6, 13, 19, 45), "Estación Congreso, CABA",
+                null, // policeReportAt
                 new BigDecimal("150000"),
                 false,
                 true, // imageConsent: el asegurado aceptó el análisis forense de sus imágenes (H0009)
                 "test@example.com", "11-5555-0000"
         );
+        Insured insured = CaseFixtures.insured("40.123.456", "Laura", "Fernández");
+        stubReferenceResolution();
         when(caseRepository.save(any(Case.class))).thenAnswer(inv -> {
             Case e = inv.getArgument(0);
             e.setId(1L);
@@ -131,26 +177,71 @@ class CaseServiceImplTest {
 
         caseService.createCase(request, null);
 
-        ArgumentCaptor<Case> captor = ArgumentCaptor.forClass(Case.class);
-        verify(caseRepository).save(captor.capture());
-        assertThat(captor.getValue().isImageConsent()).isTrue();
+        verify(referenceResolver).applyDeclaredDetails(any(Insured.class), eq(request));
     }
 
     @Test
-    void getCase_returnsResponse() {
+    void createCase_unresolvablePolicy_throwsAndPersistsNothing() {
+        CaseRequest request = caseRequest();
+        when(referenceResolver.resolvePolicy("POL-CEL-2024-001"))
+                .thenThrow(new UnresolvedCaseReferenceException("policy", "POL-CEL-2024-001"));
+
+        assertThatThrownBy(() -> caseService.createCase(request, null))
+                .isInstanceOf(UnresolvedCaseReferenceException.class)
+                .hasMessageContaining("POL-CEL-2024-001");
+
+        verify(caseRepository, never()).save(any());
+        verify(claimsAnalysisClient, never()).analyzeAndPersist(any(), any());
+    }
+
+    @Test
+    void getCase_joinsTheClassificationFromLlmAnalysis() {
+        // La recomendación ya no es columna de `cases`: sale del join, y el detalle se arma
+        // concatenando los motivos (llm_reason).
         Case entity = caseRecord(1L, CaseStatus.PENDING_ANALYST_REVIEW);
-        entity.setAnalysisClassification(Classification.FAST_TRACK);
-        entity.setAnalysisConfidence(1.0);
-        entity.setAnalysisDetail("Low amount, first claim");
         when(caseRepository.findById(1L)).thenReturn(Optional.of(entity));
+        when(caseAnalysisRepository.findByCaseId(1L)).thenReturn(new CaseAnalysis(
+                Classification.LLM_RECOMIENDA_APROBAR, 0.87,
+                List.of("Monto bajo", "Primer siniestro"), null));
 
         CaseResponse response = caseService.getCase(1L);
 
         assertThat(response.id()).isEqualTo(1L);
         assertThat(response.status()).isEqualTo(CaseStatus.PENDING_ANALYST_REVIEW);
+        assertThat(response.analysisClassification()).isEqualTo(Classification.LLM_RECOMIENDA_APROBAR);
+        assertThat(response.analysisConfidence()).isEqualTo(0.87);
+        assertThat(response.analysisDetail()).isEqualTo("Monto bajo, Primer siniestro");
+    }
+
+    @Test
+    void getCase_fastTracked_reportsFastTrackWithoutAnLlmRow() {
+        // Un Fast Track no deja fila en llm_analysis (el CHECK de la tabla rechaza FAST_TRACK),
+        // así que la clasificación tiene que salir de was_fast_track o se vería "sin clasificar".
+        Case entity = caseRecord(1L, CaseStatus.PENDING_ANALYST_REVIEW);
+        entity.setDeterministicFastTrack(true);
+        when(caseRepository.findById(1L)).thenReturn(Optional.of(entity));
+
+        CaseResponse response = caseService.getCase(1L);
+
         assertThat(response.analysisClassification()).isEqualTo(Classification.FAST_TRACK);
         assertThat(response.analysisConfidence()).isEqualTo(1.0);
-        assertThat(response.analysisDetail()).isEqualTo("Low amount, first claim");
+        assertThat(response.analysisDetail()).isEqualTo("Fast track classification available");
+    }
+
+    @Test
+    void getCase_beingReclassified_doesNotSurfaceThePreviousRun() {
+        // llm_analysis es append-only: mientras se recalcula, la corrida vieja sigue siendo la
+        // última fila. Mostrarla diría que hay recomendación vigente justo cuando no la hay.
+        Case entity = caseRecord(1L, CaseStatus.PENDING_CLASSIFICATION);
+        when(caseRepository.findById(1L)).thenReturn(Optional.of(entity));
+        when(caseAnalysisRepository.findByCaseId(1L)).thenReturn(new CaseAnalysis(
+                Classification.LLM_RECOMIENDA_APROBAR, 0.9, List.of("Motivo viejo"), null));
+
+        CaseResponse response = caseService.getCase(1L);
+
+        assertThat(response.analysisClassification()).isNull();
+        assertThat(response.analysisConfidence()).isEqualTo(0.0);
+        assertThat(response.analysisDetail()).isNull();
     }
 
     @Test
@@ -186,16 +277,13 @@ class CaseServiceImplTest {
     @Test
     void addDocumentsAndReclassify_resetsClassificationAndRetriggers() {
         Case entity = caseRecord(1L, CaseStatus.PENDING_ANALYST_REVIEW);
-        entity.setAnalysisClassification(Classification.LLM_RECOMIENDA_APROBAR);
-        entity.setAnalysisConfidence(0.9);
-        entity.setAnalysisDetail("Some detail");
         when(caseRepository.findById(1L)).thenReturn(Optional.of(entity));
         when(caseDocumentRepository.findByCaseId(1L)).thenReturn(List.of());
         // transition drives the status change; mirror it so the response reflects the new state
         when(caseStatusService.transition(any(), eq(CaseStatus.PENDING_CLASSIFICATION), any(), any()))
                 .thenAnswer(inv -> {
                     Case e = inv.getArgument(0);
-                    e.setStatus(CaseStatus.PENDING_CLASSIFICATION);
+                    e.setCurrentStatus(CaseStates.of(CaseStatus.PENDING_CLASSIFICATION));
                     return e;
                 });
         when(claimsAnalysisClient.analyzeAndPersist(any(), any()))
@@ -229,7 +317,7 @@ class CaseServiceImplTest {
         when(caseRepository.findAll(isNull(Specification.class), eq(pageable)))
                 .thenReturn(new PageImpl<>(List.of(case2, case1), pageable, 2));
 
-        Page<CaseResponse> response = caseService.listCases(null, null, null, null, null, null, null, null, null, pageable);
+        Page<CaseResponse> response = caseService.listCases(null, null, null, null, null, null, null, null, false, pageable);
 
         assertThat(response.getContent()).hasSize(2);
         assertThat(response.getContent().get(0).id()).isEqualTo(2L);
@@ -244,7 +332,7 @@ class CaseServiceImplTest {
                 .thenReturn(new PageImpl<>(List.of(entity), pageable, 1));
 
         Page<CaseResponse> response = caseService.listCases(
-                CaseStatus.PENDING_ANALYST_REVIEW, null, null, null, null, null, null, null, null, pageable);
+                CaseStatus.PENDING_ANALYST_REVIEW, null, null, null, null, null, null, null, false, pageable);
 
         assertThat(response.getContent()).hasSize(1);
         assertThat(response.getContent().get(0).status()).isEqualTo(CaseStatus.PENDING_ANALYST_REVIEW);
@@ -258,7 +346,7 @@ class CaseServiceImplTest {
                 .thenReturn(new PageImpl<>(List.of(entity), pageable, 1));
 
         Page<CaseResponse> response = caseService.listCases(
-                null, null, null, "40.123.456", null, null, null, null, null, pageable);
+                null, null, null, "40.123.456", null, null, null, null, false, pageable);
 
         assertThat(response.getContent()).hasSize(1);
         assertThat(response.getContent().get(0).insuredId()).isEqualTo("40.123.456");
@@ -272,7 +360,7 @@ class CaseServiceImplTest {
                 .thenReturn(new PageImpl<>(List.of(entity), pageable, 1));
 
         Page<CaseResponse> response = caseService.listCases(
-                null, null, null, null, null, null, "POL-CEL", null, null, pageable);
+                null, null, null, null, null, null, "POL-CEL", null, false, pageable);
 
         assertThat(response.getContent()).hasSize(1);
         verify(caseRepository).findAll(any(Specification.class), eq(pageable));
@@ -286,7 +374,7 @@ class CaseServiceImplTest {
                 .thenReturn(new PageImpl<>(List.of(entity), pageable, 1));
 
         Page<CaseResponse> response = caseService.listCases(
-                null, null, null, null, null, null, null, RiskBand.HIGH, null, pageable);
+                null, null, null, null, null, null, null, RiskBand.HIGH, false, pageable);
 
         assertThat(response.getContent()).hasSize(1);
         verify(caseRepository).findAll(any(Specification.class), eq(pageable));
@@ -301,7 +389,7 @@ class CaseServiceImplTest {
 
         Page<CaseResponse> response = caseService.listCases(
                 CaseStatus.APPROVED, "Robo en vía pública", "POL-CEL-2024-001", "40.123.456",
-                LocalDate.of(2026, 6, 1), LocalDate.of(2026, 6, 30), null, null, null, pageable);
+                LocalDate.of(2026, 6, 1), LocalDate.of(2026, 6, 30), null, null, false, pageable);
 
         assertThat(response.getContent()).hasSize(1);
         verify(caseRepository).findAll(any(Specification.class), eq(pageable));
@@ -313,17 +401,17 @@ class CaseServiceImplTest {
         when(caseRepository.findAll(isNull(Specification.class), eq(pageable)))
                 .thenReturn(new PageImpl<>(List.of(), pageable, 0));
 
-        Page<CaseResponse> response = caseService.listCases(null, null, null, null, null, null, null, null, null, pageable);
+        Page<CaseResponse> response = caseService.listCases(null, null, null, null, null, null, null, null, false, pageable);
 
         assertThat(response.getContent()).isEmpty();
         assertThat(response.getTotalElements()).isZero();
     }
 
     @Test
-    void assignAnalyst_setsOwnerAndCachesResolvedName() {
+    void assignAnalyst_setsOwnerResolvedFromTheTenant() {
         Case entity = caseRecord(1L, CaseStatus.PENDING_ANALYST_REVIEW);
         when(caseRepository.findById(1L)).thenReturn(Optional.of(entity));
-        when(analystDirectory.analystName(7L)).thenReturn("Lucas Gómez");
+        when(claimsAnalystRepository.findById(7L)).thenReturn(Optional.of(analyst(7L, "Lucas", "Gómez")));
 
         CaseResponse response = caseService.assignAnalyst(1L, 7L);
 
@@ -338,7 +426,7 @@ class CaseServiceImplTest {
         // analista (human-in-the-loop, decisión de arquitectura #5).
         Case entity = caseRecord(1L, CaseStatus.PENDING_ANALYST_REVIEW);
         when(caseRepository.findById(1L)).thenReturn(Optional.of(entity));
-        when(analystDirectory.analystName(7L)).thenReturn("Lucas Gómez");
+        when(claimsAnalystRepository.findById(7L)).thenReturn(Optional.of(analyst(7L, "Lucas", "Gómez")));
 
         caseService.assignAnalyst(1L, 7L);
 
@@ -350,7 +438,7 @@ class CaseServiceImplTest {
     void assignAnalyst_recordsAssignmentInHistory() {
         Case entity = caseRecord(1L, CaseStatus.PENDING_ANALYST_REVIEW);
         when(caseRepository.findById(1L)).thenReturn(Optional.of(entity));
-        when(analystDirectory.analystName(7L)).thenReturn("Lucas Gómez");
+        when(claimsAnalystRepository.findById(7L)).thenReturn(Optional.of(analyst(7L, "Lucas", "Gómez")));
 
         caseService.assignAnalyst(1L, 7L);
 
@@ -360,10 +448,9 @@ class CaseServiceImplTest {
     @Test
     void assignAnalyst_reassigning_replacesThePreviousOwner() {
         Case entity = caseRecord(1L, CaseStatus.PENDING_ANALYST_REVIEW);
-        entity.setAssignedAnalystId(7L);
-        entity.setAssignedAnalystName("Lucas Gómez");
+        entity.setAnalyst(analyst(7L, "Lucas", "Gómez"));
         when(caseRepository.findById(1L)).thenReturn(Optional.of(entity));
-        when(analystDirectory.analystName(9L)).thenReturn("Sofía Martínez");
+        when(claimsAnalystRepository.findById(9L)).thenReturn(Optional.of(analyst(9L, "Sofía", "Martínez")));
 
         CaseResponse response = caseService.assignAnalyst(1L, 9L);
 
@@ -380,10 +467,22 @@ class CaseServiceImplTest {
     }
 
     @Test
+    void assignAnalyst_analystOutsideTheTenant_throwsNotFound() {
+        // claims_analyst es por esquema: un analista de otra aseguradora no está en esta tabla.
+        // Es lo que hace que el aislamiento no necesite un chequeo aparte.
+        Case entity = caseRecord(1L, CaseStatus.PENDING_ANALYST_REVIEW);
+        when(caseRepository.findById(1L)).thenReturn(Optional.of(entity));
+        when(claimsAnalystRepository.findById(404L)).thenReturn(Optional.empty());
+
+        assertThatThrownBy(() -> caseService.assignAnalyst(1L, 404L))
+                .isInstanceOf(AnalystNotFoundException.class);
+        verify(caseRepository, never()).save(any());
+    }
+
+    @Test
     void unassignAnalyst_clearsOwnerAndRecordsIt() {
         Case entity = caseRecord(1L, CaseStatus.PENDING_ANALYST_REVIEW);
-        entity.setAssignedAnalystId(7L);
-        entity.setAssignedAnalystName("Lucas Gómez");
+        entity.setAnalyst(analyst(7L, "Lucas", "Gómez"));
         when(caseRepository.findById(1L)).thenReturn(Optional.of(entity));
 
         CaseResponse response = caseService.unassignAnalyst(1L);
@@ -405,17 +504,27 @@ class CaseServiceImplTest {
         verify(caseStatusService).recordAssignment(entity, "expediente liberado");
     }
 
+    private static ClaimsAnalyst analyst(Long id, String name, String surname) {
+        return ClaimsAnalyst.builder()
+                .id(id)
+                .name(name)
+                .surname(surname)
+                .email(name.toLowerCase() + "@arbiter.test")
+                .build();
+    }
+
     @Test
     void getCase_includesStatusHistoryWithTimestamps() {
         Case entity = caseRecord(1L, CaseStatus.PENDING_ANALYST_REVIEW);
         when(caseRepository.findById(1L)).thenReturn(Optional.of(entity));
         when(caseStatusService.history(1L)).thenReturn(List.of(
                 CaseStatusHistory.builder()
-                        .caseId(1L).fromStatus(null).toStatus(CaseStatus.PENDING_CLASSIFICATION)
+                        .caseId(1L).initialStatus(null)
+                        .finalStatus(CaseStates.of(CaseStatus.PENDING_CLASSIFICATION))
                         .actor(StatusChangeActor.INSURED).reason("denuncia registrada").build(),
                 CaseStatusHistory.builder()
-                        .caseId(1L).fromStatus(CaseStatus.PENDING_CLASSIFICATION)
-                        .toStatus(CaseStatus.PENDING_ANALYST_REVIEW)
+                        .caseId(1L).initialStatus(CaseStates.of(CaseStatus.PENDING_CLASSIFICATION))
+                        .finalStatus(CaseStates.of(CaseStatus.PENDING_ANALYST_REVIEW))
                         .actor(StatusChangeActor.SYSTEM).reason("clasificación: LLM_RECOMIENDA_APROBAR").build()
         ));
 
@@ -431,11 +540,14 @@ class CaseServiceImplTest {
     void recordAnalystDecision_approve_transitionsToApproved() {
         Case entity = caseRecord(1L, CaseStatus.PENDING_ANALYST_REVIEW);
         when(caseRepository.findById(1L)).thenReturn(Optional.of(entity));
-        AnalystDecisionRequest request = new AnalystDecisionRequest("analyst-1", "APPROVE");
+        AnalystDecisionRequest request = new AnalystDecisionRequest(1L, "APPROVE", null);
 
         caseService.recordAnalystDecision(1L, request);
 
-        verify(claimsAnalysisClient).forwardAnalystDecision(1L, request);
+        // Se reenvía con el contador de reintentos del expediente, que el frontend no conoce:
+        // case_classification.classification_attempts se congela con ese valor.
+        verify(claimsAnalysisClient).forwardAnalystDecision(1L,
+                new AnalystDecisionRequest(1L, "APPROVE", entity.getClassificationAttempts()));
         verify(caseStatusService).transition(eq(entity), eq(CaseStatus.APPROVED),
                 eq(StatusChangeActor.ANALYST), any());
     }
@@ -446,7 +558,7 @@ class CaseServiceImplTest {
         when(caseRepository.findById(1L)).thenReturn(Optional.of(entity));
 
         assertThatThrownBy(() -> caseService.recordAnalystDecision(1L,
-                new AnalystDecisionRequest("analyst-1", "DERIVAR")))
+                new AnalystDecisionRequest(1L, "DERIVAR", null)))
                 .isInstanceOf(InvalidAnalystDecisionException.class);
 
         verify(claimsAnalysisClient, never()).forwardAnalystDecision(any(), any());
@@ -459,7 +571,7 @@ class CaseServiceImplTest {
         when(caseRepository.findById(1L)).thenReturn(Optional.of(entity));
 
         assertThatThrownBy(() -> caseService.recordAnalystDecision(1L,
-                new AnalystDecisionRequest("analyst-1", "APPROVE")))
+                new AnalystDecisionRequest(1L, "APPROVE", null)))
                 .isInstanceOf(InvalidStatusTransitionException.class);
 
         verify(claimsAnalysisClient, never()).forwardAnalystDecision(any(), any());
@@ -478,13 +590,15 @@ class CaseServiceImplTest {
         caseService.addDocumentsAndReclassify(1L, Map.of());
 
         assertThat(entity.getClassificationAttempts()).isZero();
-        assertThat(entity.getDeterministicFastTrack()).isNull();
+        // false y no null: la columna was_fast_track es NOT NULL, así que el null que se seteaba
+        // antes reventaba al persistir contra el esquema real. Para el que lee es lo mismo,
+        // wasFastTracked() trata los dos igual.
+        assertThat(entity.getDeterministicFastTrack()).isFalse();
     }
 
     @Test
     void getCase_nullConfidence_defaultsToZero() {
         Case entity = caseRecord(1L, CaseStatus.PENDING_CLASSIFICATION);
-        entity.setAnalysisConfidence(null);
         when(caseRepository.findById(1L)).thenReturn(Optional.of(entity));
 
         CaseResponse response = caseService.getCase(1L);
@@ -496,6 +610,7 @@ class CaseServiceImplTest {
     void createCase_withDocuments_persistsEachDocument() {
         CaseRequest request = caseRequest();
         Case saved = caseRecord(1L, CaseStatus.PENDING_CLASSIFICATION);
+        stubReferenceResolution();
         when(caseRepository.save(any(Case.class))).thenReturn(saved);
         when(caseDocumentRepository.findByCaseIdAndType(eq(1L), any())).thenReturn(Optional.empty());
         when(caseDocumentRepository.findByCaseId(1L)).thenReturn(List.of());
@@ -526,6 +641,7 @@ class CaseServiceImplTest {
         // non-PDF attachment as an image and fails ("Failed to load image or audio file").
         CaseRequest request = caseRequest();
         Case saved = caseRecord(1L, CaseStatus.PENDING_CLASSIFICATION);
+        stubReferenceResolution();
         when(caseRepository.save(any(Case.class))).thenReturn(saved);
         when(caseDocumentRepository.findByCaseIdAndType(eq(1L), any())).thenReturn(Optional.empty());
         when(caseDocumentRepository.findByCaseId(1L)).thenReturn(List.of());
@@ -581,6 +697,7 @@ class CaseServiceImplTest {
                 "Me robaron el celular en la estación de subte",
                 LocalDateTime.of(2026, 6, 13, 19, 45),
                 "Estación Congreso, CABA",
+                null, // policeReportAt
                 new BigDecimal("150000"),
                 false,
                 false,
@@ -592,17 +709,31 @@ class CaseServiceImplTest {
     private Case caseRecord(Long id, CaseStatus status) {
         return Case.builder()
                 .id(id)
-                .branch("Celulares")
-                .product("Celular Protegido Básico")
-                .claimCause("Robo en vía pública")
-                .insuredItem("Motorola Edge 50 Pro")
-                .insuredId("40.123.456")
-                .policyNumber("POL-CEL-2024-001")
+                .claimCause(CaseFixtures.claimCause("Celulares", "Robo en vía pública"))
+                .declaredItem("Motorola Edge 50 Pro")
+                .insured(CaseFixtures.insured("40.123.456", "Laura", "Fernández"))
+                .policy(CaseFixtures.policy("POL-CEL-2024-001", "Celular Protegido Básico"))
+                .coverage(CaseFixtures.coverage("Celulares"))
                 .description("Me robaron el celular en la estación de subte")
-                .eventDate(LocalDateTime.of(2026, 6, 13, 19, 45))
-                .eventLocation("Estación Congreso, CABA")
+                .occurredAt(LocalDateTime.of(2026, 6, 13, 19, 45))
+                .eventAddress("Estación Congreso, CABA")
                 .claimedAmount(new BigDecimal("150000"))
-                .status(status)
+                .responseDeadline(LocalDate.of(2026, 7, 13))
+                .currentStatus(CaseStates.of(status))
                 .build();
+    }
+
+    /**
+     * Every createCase test needs the four lookups to resolve; what varies is only what each one
+     * then asserts. Mirrors the graph {@link #caseRecord} builds.
+     */
+    private void stubReferenceResolution() {
+        Policy policy = CaseFixtures.policy("POL-CEL-2024-001", "Celular Protegido Básico");
+        Insured insured = CaseFixtures.insured("40.123.456", "Laura", "Fernández");
+        when(referenceResolver.resolvePolicy(any())).thenReturn(policy);
+        when(referenceResolver.resolveInsured(any())).thenReturn(insured);
+        when(referenceResolver.applyDeclaredDetails(any(), any())).thenReturn(insured);
+        when(referenceResolver.resolveClaimCause(any(), any()))
+                .thenReturn(CaseFixtures.claimCause("Celulares", "Robo en vía pública"));
     }
 }

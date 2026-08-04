@@ -14,6 +14,14 @@ export interface StatusTransition {
 // Espejo de CaseResponse del cases-service (GET /api/v1/cases/{id})
 export interface ExpedienteResponse {
   id: number;
+  /**
+   * De qué aseguradora es. Sólo vienen en "mis siniestros" del asegurado, la única vista que
+   * mezcla compañías. `insurerSlug` es lo que se usa para volver a pedir el expediente (`id` se
+   * repite entre aseguradoras); `insurerName` es para mostrarlo, porque dos siniestros con el
+   * mismo número no se distinguen si no se dice de quién es cada uno.
+   */
+  insurerSlug?: string | null;
+  insurerName?: string | null;
   status: string;
   branch: string;
   product: string;
@@ -33,9 +41,13 @@ export interface ExpedienteResponse {
    * (Fast Track o expediente sin adjuntos de imagen).
    */
   forensicReport: ImageForensicReport | null;
-  /** Analista dueño del expediente (id de usuario). Null = sin asignar. */
+  /**
+   * Analista dueño del expediente, por su id de analista dentro de la aseguradora (el mismo que
+   * devuelve `GET /auth/users/analysts`). Null = sin asignar. No es el id de usuario de la
+   * sesión: son tablas distintas.
+   */
   assignedAnalystId: number | null;
-  /** Nombre del analista asignado, resuelto por el backend al asignar. Null = sin asignar. */
+  /** Nombre del analista asignado, resuelto por el backend. Null = sin asignar. */
   assignedAnalystName: string | null;
   analysisClassification: Clasificacion | string;
   analysisConfidence: number;

@@ -4,6 +4,8 @@ import ar.edu.utn.frba.arbiter.cases.dto.AnalystDecisionRequest;
 import ar.edu.utn.frba.arbiter.cases.models.entities.Case;
 import ar.edu.utn.frba.arbiter.cases.models.entities.CaseDocument;
 import ar.edu.utn.frba.arbiter.cases.models.entities.StatusChangeActor;
+import ar.edu.utn.frba.arbiter.cases.support.CaseFixtures;
+import ar.edu.utn.frba.arbiter.cases.support.CaseStates;
 import ar.edu.utn.frba.arbiter.common.enums.CaseStatus;
 import ar.edu.utn.frba.arbiter.common.enums.Classification;
 import ar.edu.utn.frba.arbiter.common.security.JwtSupport;
@@ -65,8 +67,9 @@ class ClassificationServiceClientTest {
 
         boolean resolved = client.refreshClassification(entity);
 
+        // La recomendación ya no se copia al expediente (vive en llm_analysis); lo observable de
+        // este lado es a qué estado lo mueve.
         assertThat(resolved).isTrue();
-        assertThat(entity.getAnalysisClassification()).isEqualTo(Classification.FALTA_DOCUMENTACION);
         verify(caseStatusService).transition(eq(entity), eq(CaseStatus.AWAITING_DOCUMENTATION),
                 eq(StatusChangeActor.SYSTEM), any());
     }
@@ -159,8 +162,10 @@ class ClassificationServiceClientTest {
 
     @Test
     void alreadyClassified_returnsTrueWithoutCallingOrTransitioning() {
+        // La guarda pasó a mirar el estado: salir de PENDING_CLASSIFICATION es justamente lo que
+        // hace este método cuando llega el resultado, así que cualquier otro estado ya se resolvió.
         Case entity = pendingCase(1L);
-        entity.setAnalysisClassification(Classification.FAST_TRACK);
+        entity.setCurrentStatus(CaseStates.of(CaseStatus.PENDING_ANALYST_REVIEW));
 
         boolean resolved = client.refreshClassification(entity);
 
@@ -214,7 +219,7 @@ class ClassificationServiceClientTest {
                 .andExpect(header(HttpHeaders.AUTHORIZATION, "Bearer original-user-token"))
                 .andRespond(withSuccess());
 
-        client.forwardAnalystDecision(9L, new AnalystDecisionRequest("a1", "APPROVE"));
+        client.forwardAnalystDecision(9L, new AnalystDecisionRequest(1L, "APPROVE", null));
 
         server.verify();
     }
@@ -243,17 +248,16 @@ class ClassificationServiceClientTest {
     private Case pendingCase(Long id) {
         return Case.builder()
                 .id(id)
-                .branch("Celulares")
-                .product("Celular Protegido Premium")
-                .claimCause("Robo en vía pública")
-                .insuredItem("iPhone 16 Pro")
-                .insuredId("42.987.654")
-                .policyNumber("POL-CEL-2026-042")
+                .claimCause(CaseFixtures.claimCause("Celulares", "Robo en vía pública"))
+                .declaredItem("iPhone 16 Pro")
+                .insured(CaseFixtures.insured("42.987.654", "Marcos", "Díaz"))
+                .policy(CaseFixtures.policy("POL-CEL-2026-042", "Celular Protegido Premium"))
+                .coverage(CaseFixtures.coverage("Celulares"))
                 .description("Test case")
-                .eventDate(LocalDateTime.of(2026, 6, 12, 18, 30))
-                .eventLocation("CABA")
+                .occurredAt(LocalDateTime.of(2026, 6, 12, 18, 30))
+                .eventAddress("CABA")
                 .claimedAmount(new BigDecimal("1200000"))
-                .status(CaseStatus.PENDING_CLASSIFICATION)
+                .currentStatus(CaseStates.of(CaseStatus.PENDING_CLASSIFICATION))
                 .build();
     }
 }

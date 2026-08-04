@@ -1,4 +1,4 @@
-import { HttpClient } from '@angular/common/http';
+import { HttpClient, HttpParams } from '@angular/common/http';
 import { Injectable, inject } from '@angular/core';
 import { Observable } from 'rxjs';
 
@@ -63,11 +63,14 @@ export interface ExpedienteListParams {
   /** Nivel de alerta de fraude, match exacto. */
   riskBand?: 'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL';
   /**
-   * Expedientes de un analista puntual — es la lente "Míos" de la bandeja; omitirlo es "Todos".
-   * Es "de quién es el expediente", no "qué puede ver este usuario" (ese recorte es por
-   * aseguradora y todavía no existe).
+   * Lente "Míos" de la bandeja: solo los expedientes asignados al analista logueado. Omitirlo
+   * (o `false`) es la lente "Todos".
+   *
+   * Es un flag y no un id porque el id de analista es local al esquema de cada aseguradora:
+   * quién es "yo" lo resuelve el backend contra el token. Es "de quién es el expediente", no
+   * "qué puede ver este usuario" — eso último ya lo acota el tenant.
    */
-  assignedAnalystId?: number;
+  assignedToMe?: boolean;
 }
 
 @Injectable({ providedIn: 'root' })
@@ -75,8 +78,17 @@ export class ExpedienteService {
   private readonly http = inject(HttpClient);
   private readonly baseUrl = `${environment.apiBaseUrl}/cases`;
 
-  getById(id: string | number): Observable<ExpedienteResponse> {
-    return this.http.get<ExpedienteResponse>(`${this.baseUrl}/${id}`);
+  /**
+   * `aseguradora` sólo lo manda el portal del asegurado, y sólo hace falta si es cliente de más de
+   * una compañía: los números de expediente se repiten entre aseguradoras, así que sin esto el
+   * back siempre resolvía contra la del login y los de la otra quedaban inalcanzables. El back lo
+   * valida contra el token, no confía en el parámetro.
+   */
+  getById(id: string | number, aseguradora?: string | null): Observable<ExpedienteResponse> {
+    const options = aseguradora
+      ? { params: new HttpParams().set('aseguradora', aseguradora) }
+      : {};
+    return this.http.get<ExpedienteResponse>(`${this.baseUrl}/${id}`, options);
   }
 
   /**
@@ -98,9 +110,7 @@ export class ExpedienteService {
     if (params.sort) query['sort'] = params.sort;
     if (params.q) query['q'] = params.q;
     if (params.riskBand) query['riskBand'] = params.riskBand;
-    if (params.assignedAnalystId != null) {
-      query['assignedAnalystId'] = String(params.assignedAnalystId);
-    }
+    if (params.assignedToMe) query['assignedToMe'] = 'true';
     return this.http.get<PagedResponse<ExpedienteResponse>>(this.baseUrl, { params: query });
   }
 
@@ -143,6 +153,8 @@ export class ExpedienteService {
    * Pone a `analystId` como dueño del expediente. Un solo analista por expediente: reasignar
    * reemplaza al anterior. Asignar NO resuelve — el expediente sigue necesitando la decisión
    * explícita del analista (`recordAnalystDecision`).
+   *
+   * `analystId` es el id que devuelve `GET /auth/users/analysts`, local a la aseguradora.
    */
   assign(caseId: number, analystId: number): Observable<ExpedienteResponse> {
     return this.http.post<ExpedienteResponse>(`${this.baseUrl}/${caseId}/assign`, { analystId });

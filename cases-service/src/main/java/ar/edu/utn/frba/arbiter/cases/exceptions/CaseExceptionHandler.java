@@ -33,6 +33,16 @@ public class CaseExceptionHandler {
         return ProblemDetail.forStatusAndDetail(HttpStatusCode.valueOf(409), ex.getMessage());
     }
 
+    @ExceptionHandler(UnresolvedCaseReferenceException.class)
+    public ProblemDetail handleUnresolvedReference(UnresolvedCaseReferenceException ex) {
+        return ProblemDetail.forStatusAndDetail(HttpStatusCode.valueOf(422), ex.getMessage());
+    }
+
+    @ExceptionHandler(UnknownCaseStateException.class)
+    public ProblemDetail handleUnknownCaseState(UnknownCaseStateException ex) {
+        return ProblemDetail.forStatusAndDetail(HttpStatusCode.valueOf(500), ex.getMessage());
+    }
+
     @ExceptionHandler(InvalidAnalystDecisionException.class)
     public ProblemDetail handleInvalidDecision(InvalidAnalystDecisionException ex) {
         return ProblemDetail.forStatusAndDetail(HttpStatusCode.valueOf(400), ex.getMessage());
@@ -43,8 +53,4 @@ public class CaseExceptionHandler {
         return ProblemDetail.forStatusAndDetail(HttpStatusCode.valueOf(404), ex.getMessage());
     }
 
-    @ExceptionHandler(AnalystDirectoryUnavailableException.class)
-    public ProblemDetail handleAnalystDirectoryUnavailable(AnalystDirectoryUnavailableException ex) {
-        return ProblemDetail.forStatusAndDetail(HttpStatusCode.valueOf(503), ex.getMessage());
-    }
 }

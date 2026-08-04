@@ -19,6 +19,18 @@
             <artifactId>jakarta.validation-api</artifactId>
         </dependency>
 
+        <!-- JPA for the common-schema entities (common/models/entities): the arbiter_common
+             tables belong to the platform, not to one module, so they are defined once here.
+             Optional on purpose, same reasoning as the security deps below — a module that
+             doesn't touch the common schema shouldn't get JPA dragged onto its classpath.
+             Each module that maps these entities re-declares spring-boot-starter-data-jpa
+             and adds ar.edu.utn.frba.arbiter.common.models.entities to its @EntityScan. -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-data-jpa</artifactId>
+            <optional>true</optional>
+        </dependency>
+
         <!-- Filtro de validación de JWT compartido entre módulos (H0003 - RBAC). Todas `optional`:
              common-lib no puede imponerle Spring Security a un módulo que no lo pida (rompería
              classification-service, que depende de common-lib pero no protege sus endpoints

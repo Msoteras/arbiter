@@ -7,6 +7,7 @@ import ar.edu.utn.frba.arbiter.cases.models.entities.StatusChangeActor;
 import ar.edu.utn.frba.arbiter.cases.models.repositories.CaseRepository;
 import ar.edu.utn.frba.arbiter.cases.models.repositories.CaseStatusHistoryRepository;
 import ar.edu.utn.frba.arbiter.common.enums.CaseStatus;
+import ar.edu.utn.frba.arbiter.common.models.entities.CaseState;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
@@ -19,7 +20,7 @@ import static ar.edu.utn.frba.arbiter.common.enums.CaseStatus.*;
 /**
  * Single entry point for every case status change. Both mutating the case and appending the
  * audit row happen here, so a case can't move states without leaving a trail
- * (Expediente = estado + trazabilidad). Nothing else should call {@code Case.setStatus}.
+ * (Expediente = estado + trazabilidad). Nothing else should call {@code Case.setCurrentStatus}.
  */
 @Service
 @RequiredArgsConstructor
@@ -34,10 +35,19 @@ public class CaseStatusService {
 
     private final CaseRepository caseRepository;
     private final CaseStatusHistoryRepository historyRepository;
+    private final CaseStateCatalog caseStateCatalog;
+
+    /**
+     * The state every case is born in. Lives here rather than in {@code CaseServiceImpl} so the
+     * catalog stays behind this service — the entry point for anything status-shaped.
+     */
+    public CaseState initialStatus() {
+        return caseStateCatalog.resolve(PENDING_CLASSIFICATION);
+    }
 
     /** Records the case's birth (null → its initial status). The case is already persisted. */
     public void recordCreation(Case caseRecord, StatusChangeActor actor, String reason) {
-        appendHistory(caseRecord.getId(), null, caseRecord.getStatus(), actor, reason);
+        appendHistory(caseRecord.getId(), null, caseRecord.getCurrentStatus(), actor, reason);
     }
 
     /** Moves the case to a new status, records the transition, and persists the case. */
@@ -48,8 +58,9 @@ public class CaseStatusService {
             throw new InvalidStatusTransitionException(from, to);
         }
 
-        appendHistory(caseRecord.getId(), from, to, actor, reason);
-        caseRecord.setStatus(to);
+        CaseState target = caseStateCatalog.resolve(to);
+        appendHistory(caseRecord.getId(), caseRecord.getCurrentStatus(), target, actor, reason);
+        caseRecord.setCurrentStatus(target);
         return caseRepository.save(caseRecord);
     }
 
@@ -64,7 +75,7 @@ public class CaseStatusService {
      * having an owner is not a decision (decisión de arquitectura #5).
      */
     public void recordAssignment(Case caseRecord, String reason) {
-        appendHistory(caseRecord.getId(), caseRecord.getStatus(), caseRecord.getStatus(),
+        appendHistory(caseRecord.getId(), caseRecord.getCurrentStatus(), caseRecord.getCurrentStatus(),
                 StatusChangeActor.ANALYST, reason);
     }
 
@@ -72,11 +83,11 @@ public class CaseStatusService {
         return historyRepository.findByCaseIdOrderByChangedAtAsc(caseId);
     }
 
-    private void appendHistory(Long caseId, CaseStatus from, CaseStatus to, StatusChangeActor actor, String reason) {
+    private void appendHistory(Long caseId, CaseState from, CaseState to, StatusChangeActor actor, String reason) {
         historyRepository.save(CaseStatusHistory.builder()
                 .caseId(caseId)
-                .fromStatus(from)
-                .toStatus(to)
+                .initialStatus(from)
+                .finalStatus(to)
                 .actor(actor)
                 .reason(reason)
                 .build());

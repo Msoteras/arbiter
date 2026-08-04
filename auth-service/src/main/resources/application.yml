@@ -12,15 +12,28 @@ spring:
     username: ${DB_USER:arbiter}
     password: ${DB_PASSWORD:arbiter}
   jpa:
+    # Off, not just best-practice: with multi-tenancy, an open-in-view session opens (and
+    # resolves its tenant) on the request's first query and stays pinned to it — AuthService
+    # sets the real tenant afterward, so a shared session would keep querying the wrong schema
+    # for the rest of the request.
+    open-in-view: false
     hibernate:
-      ddl-auto: update
+      ddl-auto: validate
     properties:
       hibernate:
         format_sql: true
+        hbm2ddl:
+          # Las entidades viven repartidas entre arbiter_common y el esquema del tenant. La
+          # estrategia por defecto (`grouped`) pide la metadata de UN solo esquema: el
+          # `current_schema()` de la conexión, que es el primero del search_path, o sea el del
+          # tenant. Con eso, al validar, toda tabla del común figura como faltante aunque el
+          # search_path la resuelva bien en runtime. `individually` la pide tabla por tabla y
+          # sí atraviesa el search_path.
+          jdbc_metadata_extraction_strategy: individually
 
 arbiter:
   auth:
-    provider: ${AUTH_PROVIDER:database}
+    provider: ${AUTH_PROVIDER:auth0}
     jwt:
       secret: ${JWT_SECRET:}
       expiration-minutes: ${JWT_EXPIRATION_MINUTES:60}

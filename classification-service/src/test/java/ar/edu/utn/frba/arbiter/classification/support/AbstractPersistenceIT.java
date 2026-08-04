@@ -20,7 +20,13 @@ import org.testcontainers.postgresql.PostgreSQLContainer;
  * que Ryuk lo limpia al terminar el proceso de test. Mismo patrón que `cases-service`.
  */
 // SecurityConfig requiere un JWT_SECRET real para levantar el contexto (H0003).
-@TestPropertySource(properties = "arbiter.auth.jwt.secret=test-secret-at-least-32-bytes-long-for-hs256")
+//
+// ddl-auto se pisa a `update` solo acá: en producción es `validate` (el esquema lo define
+// db/init-multitenant.sql). Ver el comentario largo en cases-service.
+@TestPropertySource(properties = {
+        "arbiter.auth.jwt.secret=test-secret-at-least-32-bytes-long-for-hs256",
+        "spring.jpa.hibernate.ddl-auto=update"
+})
 public abstract class AbstractPersistenceIT {
 
     @ServiceConnection

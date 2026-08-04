@@ -1,0 +1,14 @@
+package ar.edu.utn.frba.arbiter.cases.models.repositories;
+
+import ar.edu.utn.frba.arbiter.common.models.entities.ClaimCause;
+import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.stereotype.Repository;
+
+import java.util.Optional;
+
+@Repository
+public interface ClaimCauseRepository extends JpaRepository<ClaimCause, Long> {
+
+    /** {@code (branch_id, name)} is the natural key — the same cause repeats across branches. */
+    Optional<ClaimCause> findByBranchIdAndName(Long branchId, String name);
+}

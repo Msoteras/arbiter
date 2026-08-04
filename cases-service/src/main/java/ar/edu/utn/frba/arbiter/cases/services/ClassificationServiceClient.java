@@ -1,5 +1,7 @@
 package ar.edu.utn.frba.arbiter.cases.services;
 
+import ar.edu.utn.frba.arbiter.cases.config.tenant.CallerContext;
+import ar.edu.utn.frba.arbiter.cases.config.tenant.TenantContext;
 import ar.edu.utn.frba.arbiter.cases.dto.AnalystDecisionRequest;
 import ar.edu.utn.frba.arbiter.cases.models.entities.CaseDocument;
 import ar.edu.utn.frba.arbiter.cases.models.entities.Case;
@@ -13,6 +15,7 @@ import jakarta.servlet.http.HttpServletRequest;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.core.ParameterizedTypeReference;
 import org.springframework.core.io.ByteArrayResource;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
@@ -24,6 +27,8 @@ import org.springframework.web.client.RestClientResponseException;
 
 import javax.crypto.SecretKey;
 import java.util.List;
+import java.util.Map;
+import java.util.stream.Collectors;
 
 @Component
 public class ClassificationServiceClient implements ClaimsAnalysisClient {
@@ -49,7 +54,7 @@ public class ClassificationServiceClient implements ClaimsAnalysisClient {
     }
 
     /**
-     * classification-service now requires auth (H0003) — these two calls happen inside the same
+     * classification-service now requires auth (H0003) — these calls happen inside the same
      * request thread as the user's original call to cases-service, so we just forward their JWT
      * as-is instead of minting a new one (they already passed @PreAuthorize here with it).
      */
@@ -57,18 +62,36 @@ public class ClassificationServiceClient implements ClaimsAnalysisClient {
         return currentRequest.getHeader(HttpHeaders.AUTHORIZATION);
     }
 
+    /**
+     * El token del usuario lleva el {@code tenantSchema} que se resolvió en el login, y el alta de
+     * una denuncia puede correr en otro: el de la aseguradora que emitió la póliza. Reenviarlo tal
+     * cual haría que classification-service escriba el análisis en el esquema equivocado, así que
+     * cuando la operación se movió de tenant se firma un token de servicio con el tenant real —
+     * mismo mecanismo que usa el scheduler, que tampoco tiene un JWT de usuario con el tenant que
+     * necesita. Si no se movió, se reenvía el del usuario y la cadena de identidad queda intacta.
+     */
+    private String authorizationHeaderForCurrentTenant() {
+        if (!CallerContext.get().movedAwayFromHome()) {
+            return authorizationHeader();
+        }
+        return "Bearer " + JwtSupport.issueServiceToken(
+                jwtKey, "cases-service-alta", TenantContext.get());
+    }
+
     @Override
     public AnalysisResult analyzeAndPersist(Case caseRecord, List<CaseDocument> documents) {
+        // The contract with classification-service is unchanged: still plain strings, only now
+        // read off the joins instead of off denormalized columns.
         ClaimReport claim = ClaimReport.builder()
-                .branch(caseRecord.getBranch())
-                .product(caseRecord.getProduct())
-                .claimCause(caseRecord.getClaimCause())
-                .insuredItem(caseRecord.getInsuredItem())
-                .insuredId(caseRecord.getInsuredId())
-                .policyNumber(caseRecord.getPolicyNumber())
+                .branch(caseRecord.getClaimCause().getBranch().getName())
+                .product(caseRecord.getPolicy().getProduct())
+                .claimCause(caseRecord.getClaimCause().getName())
+                .insuredItem(caseRecord.getDeclaredItem())
+                .insuredId(caseRecord.getInsured().getDni())
+                .policyNumber(caseRecord.getPolicy().getExternalPolicyNumber())
                 .description(caseRecord.getDescription())
-                .eventDate(caseRecord.getEventDate())
-                .eventLocation(caseRecord.getEventLocation())
+                .eventDate(caseRecord.getOccurredAt())
+                .eventLocation(caseRecord.getEventAddress())
                 .claimedAmount(caseRecord.getClaimedAmount())
                 .attachmentsOcr(List.of())
                 .build();
@@ -77,10 +100,17 @@ public class ClassificationServiceClient implements ClaimsAnalysisClient {
         body.add("caseId", String.valueOf(caseRecord.getId()));
         body.add("claim", claim);
         documents.forEach(document -> body.add(document.getType(), toResource(document)));
+        // Keyed by type, matching the file parts above: case_documents is unique on
+        // (case_id, type), so the type pairs each id with its file. Sent as one JSON part
+        // rather than loose params — a @RequestParam Map would swallow every other param on
+        // the request. classification-service persists these on the image analysis so a
+        // duplicate match can name the exact document it matched.
+        body.add("documentIds", documents.stream()
+                .collect(Collectors.toMap(CaseDocument::getType, CaseDocument::getId)));
 
         restClient.post()
                 .uri("/api/v1/claims")
-                .header(HttpHeaders.AUTHORIZATION, authorizationHeader())
+                .header(HttpHeaders.AUTHORIZATION, authorizationHeaderForCurrentTenant())
                 .contentType(MediaType.MULTIPART_FORM_DATA)
                 .body(body)
                 .retrieve()
@@ -106,14 +136,20 @@ public class ClassificationServiceClient implements ClaimsAnalysisClient {
      */
     @Override
     public boolean refreshClassification(Case caseRecord) {
-        if (caseRecord.getAnalysisClassification() != null) {
+        // La clasificación ya no se cachea en `cases`, así que el estado es la señal: el poller
+        // solo trae PENDING_CLASSIFICATION, y salir de ese estado es exactamente lo que hace este
+        // método cuando el resultado llega. Cualquier otro estado significa que ya se resolvió.
+        if (caseRecord.getStatus() != CaseStatus.PENDING_CLASSIFICATION) {
             return true;
         }
 
         try {
             // Called from ClassificationRefreshScheduler (@Scheduled, no HTTP request behind it) —
             // there's no user JWT to forward here, so we sign a short-lived service token instead.
-            String serviceToken = JwtSupport.issueServiceToken(jwtKey, "cases-service-scheduler");
+            // It carries the tenant the scheduler is currently sweeping: classification-service
+            // resolves its own schema from that claim, and without it would read the common one.
+            String serviceToken = JwtSupport.issueServiceToken(
+                    jwtKey, "cases-service-scheduler", TenantContext.get());
             ClaimResponse response = restClient.get()
                     .uri("/api/v1/claims/{caseId}", caseRecord.getId())
                     .header(HttpHeaders.AUTHORIZATION, "Bearer " + serviceToken)
@@ -121,16 +157,17 @@ public class ClassificationServiceClient implements ClaimsAnalysisClient {
                     .body(ClaimResponse.class);
 
             if (response != null && response.classification() != null) {
-                caseRecord.setAnalysisClassification(response.classification());
-                caseRecord.setAnalysisConfidence(response.confidence());
-                caseRecord.setAnalysisDetail(buildDetail(response));
+                // La recomendación, su confianza y sus motivos NO se copian: viven en llm_analysis,
+                // en este mismo esquema, y CaseAnalysisRepository los joinea al armar la respuesta.
+                // Acá solo queda lo que la bandeja filtra, más lo que no tiene otra tabla de dónde
+                // salir (was_fast_track, forensic_report).
                 caseRecord.setDeterministicFastTrack(response.deterministicFastTrack());
                 // Cache the parallel risk score. Null when "sin scorear" (no config) — kept null,
                 // never coerced to a band, so the read model can show "Sin datos".
                 caseRecord.setRiskScore(response.riskScore());
                 caseRecord.setRiskBand(response.riskBand());
-                caseRecord.setRiskBreakdown(response.riskBreakdown());
-                caseRecord.setInsuredName(response.insuredName());
+                // insuredName is no longer cached off the poll: the case joins `insured` directly,
+                // so the name is always there instead of appearing with the first classification.
                 // Cache the structured image-fraud analysis for the analyst's forensic tab
                 // (H0009). Null when no analysis ran (Fast Track, or a case with no images).
                 caseRecord.setForensicReport(response.forensicReport());
@@ -156,23 +193,18 @@ public class ClassificationServiceClient implements ClaimsAnalysisClient {
     }
 
     @Override
-    public void forwardAnalystDecision(Long caseId, AnalystDecisionRequest request) {
-        restClient.post()
+    public Long forwardAnalystDecision(Long caseId, AnalystDecisionRequest request) {
+        Map<String, Object> response = restClient.post()
                 .uri("/api/v1/claims/{caseId}/decision", caseId)
                 .header(HttpHeaders.AUTHORIZATION, authorizationHeader())
                 .contentType(MediaType.APPLICATION_JSON)
                 .body(request)
                 .retrieve()
-                .toBodilessEntity();
+                .body(new ParameterizedTypeReference<>() {
+                });
+
+        Object classificationId = response == null ? null : response.get("classificationId");
+        return classificationId instanceof Number number ? number.longValue() : null;
     }
 
-    private String buildDetail(ClaimResponse response) {
-        List<String> factors = response.factors();
-        if (factors != null && !factors.isEmpty()) {
-            return String.join(", ", factors);
-        }
-        return response.deterministicFastTrack()
-                ? "Fast track classification available"
-                : "Classification completed";
-    }
 }

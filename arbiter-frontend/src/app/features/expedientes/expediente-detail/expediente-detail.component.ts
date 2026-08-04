@@ -285,17 +285,25 @@ export class ExpedienteDetailComponent {
     this.analysts().map((a) => ({ value: String(a.id), label: `${a.nombre} ${a.apellido}` })),
   );
 
-  private readonly myId = computed(() => this.session.session()?.id ?? null);
+  /**
+   * Mi id de analista DENTRO de esta aseguradora — no el de usuario de la sesión, que es otra
+   * tabla. Sale de buscarme por email en el listado de analistas, que ya viene acotado al tenant.
+   * Null para el referente, que no tiene perfil de analista.
+   */
+  private readonly myAnalystId = computed<number | null>(() => {
+    const email = this.session.session()?.email;
+    return this.analysts().find((a) => a.email === email)?.id ?? null;
+  });
 
   protected readonly canTake = computed(
-    () => this.session.session()?.rol === 'ANALISTA_SINIESTROS' && this.myId() != null,
+    () => this.session.session()?.rol === 'ANALISTA_SINIESTROS' && this.myAnalystId() != null,
   );
 
   protected readonly assignedName = computed(() => this.data()?.assignedAnalystName ?? null);
   protected readonly isAssigned = computed(() => this.data()?.assignedAnalystId != null);
 
   protected take(): void {
-    const me = this.myId();
+    const me = this.myAnalystId();
     const d = this.data();
     if (me != null && d) {
       this.runAssignment(this.service.assign(d.id, me));

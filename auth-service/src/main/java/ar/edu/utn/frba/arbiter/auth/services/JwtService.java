@@ -1,7 +1,8 @@
 package ar.edu.utn.frba.arbiter.auth.services;
 
 import ar.edu.utn.frba.arbiter.auth.config.AuthProperties;
-import ar.edu.utn.frba.arbiter.auth.models.entities.User;
+import ar.edu.utn.frba.arbiter.common.models.entities.User;
+import ar.edu.utn.frba.arbiter.common.enums.UserRole;
 import ar.edu.utn.frba.arbiter.common.security.JwtSupport;
 import io.jsonwebtoken.Jwts;
 import jakarta.annotation.PostConstruct;
@@ -15,10 +16,11 @@ import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.Date;
+import java.util.List;
 
 /**
- * Issues the arbiter JWT. Callers only depend on {@link #issue(User)} — if Auth0 replaces this
- * later, only this class (and its Auth0 secret/audience config) changes.
+ * Issues the arbiter JWT. Callers only depend on {@link #issue}, so a future Auth0-issued
+ * token would only change this class (and its secret/audience config).
  */
 @Component
 @RequiredArgsConstructor
@@ -53,19 +55,36 @@ public class JwtService {
 
     public record IssuedToken(String token, Instant expiresAt) {}
 
-    public IssuedToken issue(User user) {
+    /**
+     * Every claim here used to be read straight off {@link User}; now that name/last name
+     * and the role live on the per-tenant profile and {@code user_role} respectively, the
+     * caller (AuthService) resolves them first and hands over the result — JwtService just
+     * encodes it, it doesn't know about tenants or profile tables.
+     *
+     * {@code insurerIds} lists every insurer the user belongs to; {@code tenantSchema} is
+     * the one this session actually resolved to (see TenantResolver — first insurer wins
+     * until the multi-insurer login UX is decided, per README-multitenant.md).
+     */
+    public IssuedToken issue(
+            User user, UserRole rol, String nombre, String apellido, String insuredId,
+            List<Long> insurerIds, String tenantSchema
+    ) {
         Instant now = Instant.now();
         Instant expiresAt = now.plus(Duration.ofMinutes(properties.jwt().expirationMinutes()));
 
         var builder = Jwts.builder()
                 .subject(user.getEmail())
-                .claim("rol", user.getRol().name())
-                .claim("nombre", user.getNombre())
-                .claim("apellido", user.getApellido());
-        // Solo los asegurados tienen insuredId; el back destino lo puede leer del token
-        // en vez de recibirlo por parámetro cuando se integre Auth0.
-        if (user.getInsuredId() != null) {
-            builder.claim("insuredId", user.getInsuredId());
+                .claim("rol", rol.name())
+                .claim("nombre", nombre)
+                .claim("apellido", apellido);
+        if (insuredId != null) {
+            builder.claim("insuredId", insuredId);
+        }
+        if (!insurerIds.isEmpty()) {
+            builder.claim("insurerIds", insurerIds);
+        }
+        if (tenantSchema != null) {
+            builder.claim("tenantSchema", tenantSchema);
         }
         String token = builder
                 .issuedAt(Date.from(now))

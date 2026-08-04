@@ -15,6 +15,8 @@ public record CaseRequest(
         @NotBlank String description,
         @NotNull LocalDateTime eventDate,
         @NotBlank String eventLocation,
+        /** Fecha/hora de la denuncia policial, si el hecho tuvo una. No todo siniestro la requiere. */
+        LocalDateTime policeReportAt,
         BigDecimal claimedAmount,
         @NotNull Boolean pep,
         /**

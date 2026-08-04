@@ -12,7 +12,15 @@ import java.util.List;
 @Repository
 public interface CaseRepository extends JpaRepository<Case, Long>, JpaSpecificationExecutor<Case> {
 
-    List<Case> findByStatus(CaseStatus status);
+    /**
+     * Cases sitting in a given state. Takes the enum and navigates to {@code case_status.name}
+     * rather than the FK id, so callers never need to know the catalog's ids.
+     */
+    default List<Case> findByStatus(CaseStatus status) {
+        return findByCurrentStatusName(status.name());
+    }
+
+    List<Case> findByCurrentStatusName(String statusName);
 
     List<Case> findByRiskBand(RiskBand riskBand);
 }

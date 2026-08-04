@@ -21,6 +21,14 @@ public interface CaseService {
 
     CaseResponse getCase(Long caseId);
 
+    /**
+     * @param insurerSlug en cuál de las aseguradoras del asegurado buscar ({@code provincia}).
+     *                    Sólo hace falta cuando es cliente de más de una: los ids de expediente se
+     *                    repiten entre esquemas. Null resuelve contra el tenant del login, que es
+     *                    lo que necesita el analista.
+     */
+    CaseResponse getCase(Long caseId, String insurerSlug);
+
     List<CaseDocumentResponse> getDocuments(Long caseId);
 
     CaseDocument getDocument(Long caseId, Long documentId);
@@ -33,25 +41,33 @@ public interface CaseService {
      * {@code eventDateTo} (inclusive en ambos extremos) sobre la fecha del hecho, {@code q}
      * (búsqueda de texto libre por número de expediente, póliza o asegurado — ver
      * {@link ar.edu.utn.frba.arbiter.cases.models.repositories.CaseSpecifications#withFilters}) y
-     * {@code riskBand} (nivel de alerta de fraude, match exacto) y {@code assignedAnalystId}
-     * (expedientes de un analista puntual — la lente "Míos" de la bandeja).
+     * {@code riskBand} (nivel de alerta de fraude, match exacto) y {@code assignedToMe}
+     * (la lente "Míos" de la bandeja: solo los expedientes del analista que hace el request).
      *
-     * <p>No filtra por aseguradora/rol del usuario autenticado: depende del esquema multi-tenant,
-     * que todavía no está (ver GAPS-FLUJO.md, Gap F). {@code assignedAnalystId} es "de quién es",
-     * no "qué puedo ver": son dos recortes distintos.
+     * <p>El recorte por aseguradora no es un filtro más: lo resuelve el esquema del tenant, así
+     * que todo lo que se lista acá ya pertenece a una sola compañía. {@code assignedToMe} es
+     * "de quién es el expediente", que es otra pregunta.
+     *
+     * <p>Es un booleano y no un id porque el id de analista es local al esquema: quién es "yo"
+     * se resuelve acá contra el token, no lo manda el frontend. Para un rol sin perfil de
+     * analista en el tenant (el referente) la lente devuelve vacío, no todo.
      */
     Page<CaseResponse> listCases(CaseStatus status, String claimCause, String policyNumber, String insuredId,
                                   LocalDate eventDateFrom, LocalDate eventDateTo, String q, RiskBand riskBand,
-                                  Long assignedAnalystId, Pageable pageable);
+                                  boolean assignedToMe, Pageable pageable);
 
     CaseResponse addDocumentsAndReclassify(Long caseId, Map<String, MultipartFile> documents);
 
     void recordAnalystDecision(Long caseId, AnalystDecisionRequest request);
 
     /**
-     * Pone al analista como dueño del expediente. Un solo analista por expediente: si ya tenía
-     * uno, esta asignación lo reemplaza. Asignar NO resuelve ni mueve de estado — el expediente
-     * sigue necesitando la decisión explícita del analista (decisión de arquitectura #5).
+     * Pone al analista como dueño del expediente, por su id de {@code claims_analyst}. Un solo
+     * analista por expediente: si ya tenía uno, esta asignación lo reemplaza. Asignar NO resuelve
+     * ni mueve de estado — el expediente sigue necesitando la decisión explícita del analista
+     * (decisión de arquitectura #5).
+     *
+     * <p>El analista se busca en el esquema del tenant activo, así que un id de otra aseguradora
+     * no resuelve y termina en 404.
      */
     CaseResponse assignAnalyst(Long caseId, Long analystId);
 

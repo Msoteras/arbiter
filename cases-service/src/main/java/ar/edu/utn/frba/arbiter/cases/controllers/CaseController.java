@@ -62,8 +62,11 @@ public class CaseController {
                     can call this today — there's no owner check yet (the asegurado's identity
                     isn't linked to Case.insuredId), so this only gates "logged in", not "yours".
                     """)
-    public ResponseEntity<CaseResponse> getCase(@PathVariable Long caseId) {
-        CaseResponse response = caseService.getCase(caseId);
+    public ResponseEntity<CaseResponse> getCase(
+            @PathVariable Long caseId,
+            @RequestParam(required = false) String aseguradora
+    ) {
+        CaseResponse response = caseService.getCase(caseId, aseguradora);
         return ResponseEntity.ok(response);
     }
 
@@ -83,13 +86,18 @@ public class CaseController {
                     expediente, número de póliza y asegurado (`insuredId`/`insuredName` — este
                     último nullable hasta que la primera clasificación resuelve el nombre real).
                     `riskBand` filtra por nivel de alerta de fraude (match exacto: `LOW`, `MEDIUM`,
-                    `HIGH`, `CRITICAL`). `assignedAnalystId` acota a los expedientes de un analista
-                    puntual — es la lente "Míos" de la bandeja; omitirlo es la lente "Todos".
-                    Todos se combinan por AND entre sí.
+                    `HIGH`, `CRITICAL`). `assignedToMe=true` acota a los expedientes asignados al
+                    analista que hace el request — es la lente "Míos" de la bandeja; omitirlo es la
+                    lente "Todos". Todos se combinan por AND entre sí.
 
-                    `assignedAnalystId` es "de quién es el expediente", no "qué expedientes puede
-                    ver este usuario": el recorte por aseguradora es otra cosa y todavía no existe
-                    (depende del esquema multi-tenant — ver GAPS-FLUJO.md, Gap F).
+                    `assignedToMe` es un flag y no un id de analista porque ese id es local al
+                    esquema de cada aseguradora: quién es "yo" lo resuelve el backend contra el
+                    token, no lo manda el cliente. Para un rol sin perfil de analista en el tenant
+                    (el referente) la lente devuelve vacío, no todo.
+
+                    Es "de quién es el expediente", no "qué expedientes puede ver este usuario":
+                    lo segundo ya lo resuelve el esquema del tenant, que acota el listado a una
+                    sola aseguradora.
                     """)
     public ResponseEntity<Page<CaseResponse>> listCases(
             @RequestParam(required = false) CaseStatus status,
@@ -100,12 +108,12 @@ public class CaseController {
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate eventDateTo,
             @RequestParam(required = false) String q,
             @RequestParam(required = false) RiskBand riskBand,
-            @RequestParam(required = false) Long assignedAnalystId,
+            @RequestParam(defaultValue = "false") boolean assignedToMe,
             @PageableDefault(size = 20, sort = "id", direction = Sort.Direction.DESC) Pageable pageable
     ) {
         Page<CaseResponse> response = caseService.listCases(
                 status, claimCause, policyNumber, insuredId, eventDateFrom, eventDateTo, q, riskBand,
-                assignedAnalystId, pageable);
+                assignedToMe, pageable);
         return ResponseEntity.ok(response);
     }
 
@@ -122,8 +130,9 @@ public class CaseController {
                     decisión explícita del analista (`POST /{id}/decision`), que es lo que impacta
                     en el ciclo de vida. Cada (re)asignación queda registrada en el historial.
 
-                    404 si el `analystId` no corresponde a un analista asignable; 503 si
-                    auth-service no responde (no se asigna a un id que no se pudo verificar).
+                    El `analystId` es el id de `claims_analyst`, que vive en el esquema de la
+                    aseguradora: un analista de otra compañía no existe en esta tabla y da 404,
+                    así que el aislamiento entre aseguradoras no necesita un chequeo aparte.
                     """)
     public ResponseEntity<CaseResponse> assignAnalyst(
             @PathVariable Long caseId,
