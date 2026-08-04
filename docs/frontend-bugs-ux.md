@@ -3,7 +3,9 @@
 **Estado:** documentado, sin fixear salvo donde se aclare. Cada ítem tiene el archivo/línea exacto
 y la causa verificada en código — no son suposiciones, se leyó el componente correspondiente.
 
-**Última revisión:** 3/8/2026, sobre `develop`. En esa pasada se **borraron 7 ítems ya resueltos**
+**Última revisión:** 3/8/2026, sobre `develop`. La tercera pasada se hizo **con la app corriendo**
+contra la BD de Railway, no solo leyendo código: los ítems 4, 5 y 18 están verificados en runtime
+(árbol de accesibilidad, navegación real, DOM inspeccionado). En esa pasada se **borraron 7 ítems ya resueltos**
 (spinner de login, mensajes de error del login, doble verbo al eliminar usuario, "Pendientes"
 hardcodeado en el nav, reseteo de página del buscador, botón de descarga de documentos, y el
 formulario de carga que veía el analista) y se sumaron los que aparecen abajo como **nuevos**.
@@ -94,7 +96,7 @@ mostrar el error al lado del campo, no al final del wizard.
 
 ---
 
-## 🟠 4. "Guardado automático" es una promesa falsa
+## 🟠 7. "Guardado automático" es una promesa falsa
 
 **Archivo:** [`nueva-denuncia.component.html:24, 205`](../arbiter-frontend/src/app/features/expedientes/nueva-denuncia/nueva-denuncia.component.html)
 
@@ -114,7 +116,7 @@ el texto. Prometer y no cumplir es peor que no prometer.
 
 ---
 
-## 🟠 5. El referente de aseguradora tiene una sola pantalla
+## 🟠 8. El referente de aseguradora tiene una sola pantalla
 
 **Archivos:** [`app.routes.ts:99-106`](../arbiter-frontend/src/app/app.routes.ts), [`app.html:19`](../arbiter-frontend/src/app/app.html), [`login.component.ts:59`](../arbiter-frontend/src/app/features/auth/login/login.component.ts)
 
@@ -137,7 +139,7 @@ entradas en el nav, o acotar el guard si no debería ver eso.
 
 ---
 
-## 🟠 6. `reports-service` no lo consume nadie
+## 🟠 9. `reports-service` no lo consume nadie
 
 **Archivos:** [`proxy.conf.json`](../arbiter-frontend/proxy.conf.json), todo el front
 
@@ -147,7 +149,7 @@ Cero referencias a reportes, métricas o tableros en el frontend. `proxy.conf.js
 desde la SPA en desarrollo.
 
 El módulo corre, tiene su entidad `Metric`, y es inaccesible. Es el módulo de "Reportes y
-Estadísticas" del documento de arquitectura, y el consumidor natural sería el referente (ver #5).
+Estadísticas" del documento de arquitectura, y el consumidor natural sería el referente (ver #8).
 
 **Fix sugerido:** decidir si entra en el alcance del TP. Si entra, sumar la ruta al proxy y una
 pantalla para el referente; si no, dejarlo anotado como fuera de alcance para que no parezca un
@@ -155,7 +157,7 @@ olvido.
 
 ---
 
-## 🟠 7. "¿Cuáles son tus expedientes asignados?" — se sigue mostrando todo
+## 🟠 10. "¿Cuáles son tus expedientes asignados?" — se sigue mostrando todo
 
 **Archivos:** [`Case.java`](../cases-service/src/main/java/ar/edu/utn/frba/arbiter/cases/models/entities/Case.java), [`bandeja.component.ts`](../arbiter-frontend/src/app/features/expedientes/bandeja/bandeja.component.ts)
 
@@ -168,7 +170,7 @@ vista, no como trabajo a repartir.
 
 ---
 
-## 🟠 8. El seguimiento del asegurado retrocede después de subir documentación
+## 🟠 11. El seguimiento del asegurado retrocede después de subir documentación
 
 **Archivos:** [`CaseServiceImpl.java:130`](../cases-service/src/main/java/ar/edu/utn/frba/arbiter/cases/services/CaseServiceImpl.java), [`estado.ts:91`](../arbiter-frontend/src/app/core/models/estado.ts), [`documentacion.component.ts`](../arbiter-frontend/src/app/features/portal/documentacion/documentacion.component.ts)
 
@@ -192,7 +194,92 @@ carga y cambie el título a *"Recibimos tu documentación, estamos re-evaluando 
 
 ---
 
-## 🟠 9. La sesión vence a los 60 minutos y nadie se entera
+## 🔴 4. Ningún campo de formulario tiene nombre accesible
+
+**Archivos:** [`input.component.ts:90-99`](../arbiter-frontend/src/app/shared/ui/input/input.component.ts), [`login.component.html:18-31`](../arbiter-frontend/src/app/features/auth/login/login.component.html) (y las otras 33 usos de `field-label`)
+
+**Verificado en runtime**, leyendo el árbol de accesibilidad de `/login` con la app corriendo:
+
+```
+textbox [ref_1] type="email"          ← sin nombre
+textbox [ref_3] type="password"       ← sin nombre
+button  "Mostrar contraseña" [ref_4]  ← con nombre
+button  "Ingresar →" [ref_5]          ← con nombre
+```
+
+Los botones tienen nombre accesible; **los campos no**. Un lector de pantalla los anuncia como
+"cuadro de texto" en blanco, sin decir cuál es cuál.
+
+La causa es más sutil de lo que parece: el markup **sí** hace lo correcto…
+
+```html
+<label class="field-label" for="login-email">Email</label>
+<app-input ... />
+```
+
+…pero `InputComponent` **no declara ningún input `id`**:
+
+```ts
+readonly value = model('');
+readonly type = input<...>('text');
+readonly placeholder = input('');
+readonly min = input<number | null>(null);
+readonly autocomplete = input<string | null>(null);
+readonly readonly = input(false);
+readonly revealable = input(false);
+// ← no hay `id`
+```
+
+y su template renderiza el `<input>` sin `id`. Confirmado en el DOM: los dos inputs tienen
+`id: null`, `aria-label: null`, `aria-labelledby: null` y no están anidados dentro del label,
+mientras los labels apuntan a `for="login-email"` / `for="login-password"` — ids que **no existen
+en la página**. El `for` no engancha con nada.
+
+Es sistémico, no del login: `field-label` se usa 34 veces (todo el wizard de denuncia, los
+filtros de la bandeja, el alta de usuario) y `app-input` es el componente estándar del design
+system. Rompe el criterio de accesibilidad que el propio CLAUDE.md fija para el kit de UI, y
+además el click en el label no enfoca el campo, que es una molestia para cualquiera, no solo
+para quien usa lector de pantalla.
+
+**Fix sugerido:** agregar `readonly id = input<string | null>(null)` a `InputComponent` (y a
+`app-textarea` / `app-select`, que muy probablemente tengan lo mismo) y bindearlo con
+`[attr.id]`. Como red de seguridad, si no viene `id` se puede generar uno y exponerlo, para que
+ningún uso quede sin asociar.
+
+---
+
+## 🟠 5. Una URL inexistente deja la página en blanco
+
+**Archivo:** [`app.routes.ts:5, 112`](../arbiter-frontend/src/app/app.routes.ts)
+
+```ts
+{ path: '', redirectTo: 'login', pathMatch: 'full' },
+...
+{ path: '**', redirectTo: '' },
+```
+
+**Verificado en runtime.** Navegando a `/ruta-que-no-existe`:
+
+| | Resultado |
+|---|---|
+| URL final | `/` (no `/login`) |
+| `<router-outlet>` | existe |
+| Componente renderizado | **ninguno** |
+| Texto visible | solo el shell: "Arbiter / Design System" |
+
+Comparado con `/login`, que sí renderiza `APP-LOGIN` correctamente — o sea que no es un problema
+general del router, es específico del comodín.
+
+El redirect del `**` deja la navegación en `''` pero la regla `'' → login` no se vuelve a
+aplicar, así que el outlet queda vacío. Para el usuario: un link roto, un typo en la URL o un
+bookmark viejo dan una **pantalla en blanco**, sin mensaje ni forma de volver.
+
+**Fix sugerido:** que el comodín apunte directo a `login` (`{ path: '**', redirectTo: 'login' }`)
+o, mejor, una pantalla 404 real con un link al home del rol.
+
+---
+
+## 🟠 6. La sesión vence a los 60 minutos y nadie se entera
 
 **Archivos:** [`auth.interceptor.ts`](../arbiter-frontend/src/app/core/http/auth.interceptor.ts), [`auth-session.service.ts`](../arbiter-frontend/src/app/core/auth/auth-session.service.ts)
 
@@ -218,7 +305,7 @@ adjunta documentación, y el envío falla sin decirle que tiene que volver a log
 Además, `expiresAt` se guarda en la sesión (`AuthSession.expiresAt`) y **no lo lee nadie** — el
 grep solo encuentra las dos declaraciones del campo, ningún uso.
 
-Se combina feo con el ítem #4: el token vive solo en memoria (decisión deliberada de H0001), así
+Se combina feo con el ítem #7: el token vive solo en memoria (decisión deliberada de H0001), así
 que un F5 en medio del wizard pierde la sesión **y** el borrador al mismo tiempo.
 
 **Fix sugerido:** manejar 401 en el interceptor — limpiar la sesión y redirigir a `/login` con un
@@ -227,7 +314,7 @@ mensaje del tipo "tu sesión expiró, ingresá de nuevo". Opcionalmente avisar a
 
 ---
 
-## 🟠 10. La tabla de la bandeja desborda en móvil
+## 🟠 12. La tabla de la bandeja desborda en móvil
 
 **Archivos:** [`bandeja.component.scss:39-48`](../arbiter-frontend/src/app/features/expedientes/bandeja/bandeja.component.scss), [`bandeja.component.html:104-105`](../arbiter-frontend/src/app/features/expedientes/bandeja/bandeja.component.html)
 
@@ -252,7 +339,7 @@ de tarjetas por debajo del breakpoint móvil.
 
 ---
 
-## 🟡 11. Tres pantallas sin ningún breakpoint
+## 🟡 13. Tres pantallas sin ningún breakpoint
 
 **Archivos:** `portal/documentacion`, `admin/usuarios`, `admin/alta-usuario`
 
@@ -264,7 +351,7 @@ acciones — el mismo riesgo que el ítem #10.
 
 ---
 
-## 🟡 12. El ícono de notificaciones sigue sin funcionalidad
+## 🟡 14. El ícono de notificaciones sigue sin funcionalidad
 
 **Archivos:** [`notifications.service.ts`](../arbiter-frontend/src/app/core/notifications/notifications.service.ts), [`app.html:36-52, 70-73`](../arbiter-frontend/src/app/app.html)
 
@@ -280,7 +367,7 @@ dato existe del lado de la base — falta el endpoint y el cableado.
 
 ---
 
-## 🟡 13. Sin validación de archivos en el wizard
+## 🟡 15. Sin validación de archivos en el wizard
 
 **Archivo:** [`nueva-denuncia.component.ts:175-183`](../arbiter-frontend/src/app/features/expedientes/nueva-denuncia/nueva-denuncia.component.ts)
 
@@ -300,7 +387,7 @@ documento, antes de llegar al envío.
 
 ---
 
-## 🟡 14. Se puede denunciar un siniestro con fecha futura
+## 🟡 16. Se puede denunciar un siniestro con fecha futura
 
 **Archivo:** [`nueva-denuncia.component.html:118`](../arbiter-frontend/src/app/features/expedientes/nueva-denuncia/nueva-denuncia.component.html)
 
@@ -316,7 +403,7 @@ la regla de verdad.
 
 ---
 
-## 🟡 15. Faltan estados vacíos en casi todas las pantallas
+## 🟡 17. Faltan estados vacíos en casi todas las pantallas
 
 **Archivos:** `bandeja`, `seguimiento`, `documentacion`, `usuarios`
 
@@ -330,7 +417,7 @@ hay resultados para este filtro" de "algo se rompió".
 
 ---
 
-## 🟡 16. `/styleguide` es pública
+## 🟡 18. `/styleguide` es pública
 
 **Archivo:** [`app.routes.ts:53-57`](../arbiter-frontend/src/app/app.routes.ts)
 
@@ -344,7 +431,7 @@ No expone datos, pero es una pantalla de desarrollo accesible en producción.
 
 ---
 
-## 🟡 17. El favicon viejo de Angular sigue en `public/`
+## 🟡 19. El favicon viejo de Angular sigue en `public/`
 
 **Archivos:** `arbiter-frontend/public/favicon.ico`, `favicon.svg`
 
@@ -356,7 +443,7 @@ probable que se siga viendo el genérico — sobre todo con la pestaña cacheada
 
 ---
 
-## 🟡 18. "Sin datos" no distingue por qué no hay datos
+## 🟡 20. "Sin datos" no distingue por qué no hay datos
 
 **Archivos:** [`empty-state.component.ts:27-30`](../arbiter-frontend/src/app/shared/ui/empty-state/empty-state.component.ts), [`fraud-gauge.component.ts:59`](../arbiter-frontend/src/app/shared/ui/fraud-gauge/fraud-gauge.component.ts), [`expediente-detail.component.html:102`](../arbiter-frontend/src/app/features/expedientes/expediente-detail/expediente-detail.component.html)
 
@@ -371,7 +458,7 @@ Vale la pena distinguir al menos "sin scorear" (nunca se calculó, es esperable)
 
 ---
 
-## 🟡 19. En el wizard no se puede saltar hacia adelante
+## 🟡 21. En el wizard no se puede saltar hacia adelante
 
 **Archivo:** [`nueva-denuncia.component.ts:168-173`](../arbiter-frontend/src/app/features/expedientes/nueva-denuncia/nueva-denuncia.component.ts)
 
@@ -398,19 +485,21 @@ las dos direcciones.
 | 1 | `analystId` hardcodeado rompe aprobar/rechazar | 🔴 Alta — funcionalidad central caída | Bajo |
 | 2 | La justificación del analista se descarta | 🔴 Alta — auditoría incompleta (SSN 2/2023) | Bajo |
 | 3 | El wizard envía denuncias que el backend rechaza | 🔴 Alta — bloquea al usuario final | Bajo |
-| 9 | La sesión vence y nadie se entera (sin manejo de 401) | 🟠 Media — errores confusos en toda la app | Bajo |
-| 10 | La tabla de la bandeja desborda en móvil | 🟠 Media — incumple el RNF de usabilidad | Bajo |
-| 4 | "Guardado automático" no existe | 🟠 Media — promesa falsa, pérdida de datos | Bajo (o sacar el texto) |
-| 8 | El seguimiento retrocede tras subir documentación | 🟠 Media — parece un bug grave al asegurado | Medio |
-| 5 | El referente tiene una sola pantalla | 🟠 Media — rol sin navegación | Alto |
-| 6 | `reports-service` inalcanzable desde el front | 🟠 Media — módulo entero sin consumir | Alto |
-| 7 | Expedientes asignados (lo toma Flor) | 🟠 Media | — |
-| 13 | Sin validación de archivos | 🟡 Baja | Bajo |
-| 14 | Fecha de siniestro futura | 🟡 Baja | Bajo |
-| 15 | Faltan estados vacíos | 🟡 Baja | Bajo |
-| 11 | Tres pantallas sin breakpoint | 🟡 Baja | Bajo |
-| 16 | `/styleguide` pública | 🟡 Baja | Muy bajo |
-| 19 | No se puede avanzar en el wizard | 🟡 Baja | Muy bajo |
-| 12 | Notificaciones sin cablear | 🟡 Baja — stub conocido | Alto (requiere backend) |
-| 17 | Favicon viejo | 🟡 Baja | Muy bajo |
-| 18 | "Sin datos" ambiguo | 🟡 Baja | Bajo |
+| 4 | Ningún campo tiene nombre accesible | 🔴 Alta — sistémico, 34 usos | Bajo (un input en el kit) |
+| 5 | URL inexistente = pantalla en blanco | 🟠 Media — sin salida para el usuario | Muy bajo |
+| 6 | La sesión vence y nadie se entera (sin manejo de 401) | 🟠 Media — errores confusos en toda la app | Bajo |
+| 12 | La tabla de la bandeja desborda en móvil | 🟠 Media — incumple el RNF de usabilidad | Bajo |
+| 7 | "Guardado automático" no existe | 🟠 Media — promesa falsa, pérdida de datos | Bajo (o sacar el texto) |
+| 11 | El seguimiento retrocede tras subir documentación | 🟠 Media — parece un bug grave al asegurado | Medio |
+| 8 | El referente tiene una sola pantalla | 🟠 Media — rol sin navegación | Alto |
+| 9 | `reports-service` inalcanzable desde el front | 🟠 Media — módulo entero sin consumir | Alto |
+| 10 | Expedientes asignados (lo toma Flor) | 🟠 Media | — |
+| 15 | Sin validación de archivos | 🟡 Baja | Bajo |
+| 16 | Fecha de siniestro futura | 🟡 Baja | Bajo |
+| 17 | Faltan estados vacíos | 🟡 Baja | Bajo |
+| 13 | Tres pantallas sin breakpoint | 🟡 Baja | Bajo |
+| 18 | `/styleguide` pública | 🟡 Baja | Muy bajo |
+| 21 | No se puede avanzar en el wizard | 🟡 Baja | Muy bajo |
+| 14 | Notificaciones sin cablear | 🟡 Baja — stub conocido | Alto (requiere backend) |
+| 19 | Favicon viejo | 🟡 Baja | Muy bajo |
+| 20 | "Sin datos" ambiguo | 🟡 Baja | Bajo |
