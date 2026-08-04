@@ -31,20 +31,20 @@ public class PgVectorConfig {
                 BEGIN
                     SELECT atttypmod INTO current_dims
                     FROM pg_attribute
-                    WHERE attrelid = 'image_embedding'::regclass
+                    WHERE attrelid = 'image_analysis'::regclass
                       AND attname = 'embedding'
                       AND NOT attisdropped;
                     IF current_dims IS NOT NULL AND current_dims <> %d THEN
-                        EXECUTE 'ALTER TABLE image_embedding DROP COLUMN embedding';
+                        EXECUTE 'ALTER TABLE image_analysis DROP COLUMN embedding';
                     END IF;
                 END $$
                 """.formatted(EMBEDDING_DIMS));
 
         jdbcTemplate.execute("""
-                ALTER TABLE image_embedding
+                ALTER TABLE image_analysis
                     ADD COLUMN IF NOT EXISTS embedding vector(%d)
                 """.formatted(EMBEDDING_DIMS));
 
-        log.info("[pgvector] Extension and vector({}) column ensured on image_embedding", EMBEDDING_DIMS);
+        log.info("[pgvector] Extension and vector({}) column ensured on image_analysis", EMBEDDING_DIMS);
     }
 }
