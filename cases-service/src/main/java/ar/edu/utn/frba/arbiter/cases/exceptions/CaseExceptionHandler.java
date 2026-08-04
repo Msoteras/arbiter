@@ -47,4 +47,9 @@ public class CaseExceptionHandler {
     public ProblemDetail handleInvalidDecision(InvalidAnalystDecisionException ex) {
         return ProblemDetail.forStatusAndDetail(HttpStatusCode.valueOf(400), ex.getMessage());
     }
+
+    @ExceptionHandler(AnalystProfileNotFoundException.class)
+    public ProblemDetail handleAnalystProfileNotFound(AnalystProfileNotFoundException ex) {
+        return ProblemDetail.forStatusAndDetail(HttpStatusCode.valueOf(403), ex.getMessage());
+    }
 }

@@ -7,8 +7,11 @@ import ar.edu.utn.frba.arbiter.cases.dto.CaseResponse;
 import ar.edu.utn.frba.arbiter.cases.config.tenant.CallerContext;
 import ar.edu.utn.frba.arbiter.cases.config.tenant.TenantContext;
 import ar.edu.utn.frba.arbiter.cases.dto.StatusTransitionResponse;
+import ar.edu.utn.frba.arbiter.cases.models.repositories.ClaimsAnalystRepository;
 import ar.edu.utn.frba.arbiter.cases.models.repositories.InsurerRepository;
 import ar.edu.utn.frba.arbiter.common.models.entities.Insurer;
+import ar.edu.utn.frba.arbiter.common.models.entities.tenant.ClaimsAnalyst;
+import ar.edu.utn.frba.arbiter.cases.exceptions.AnalystProfileNotFoundException;
 import ar.edu.utn.frba.arbiter.cases.exceptions.CaseNotFoundException;
 import ar.edu.utn.frba.arbiter.cases.exceptions.DocumentNotFoundException;
 import ar.edu.utn.frba.arbiter.cases.exceptions.DocumentReadException;
@@ -31,6 +34,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.domain.Specification;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
 
@@ -53,6 +57,7 @@ public class CaseServiceImpl implements CaseService {
     private final InsuredCaseAggregator insuredCaseAggregator;
     private final PolicyTenantLocator policyTenantLocator;
     private final InsurerRepository insurerRepository;
+    private final ClaimsAnalystRepository claimsAnalystRepository;
 
     /**
      * Ley 17.418 art. 56: the insurer has 30 days from the denuncia to pronounce itself, and
@@ -290,10 +295,17 @@ public class CaseServiceImpl implements CaseService {
             throw new InvalidStatusTransitionException(entity.getStatus(), targetStatus);
         }
 
+        // analystId nunca sale del cliente: un id mandado por el front dejaría atribuirle la
+        // decisión a cualquier analista con solo cambiar el body. Se resuelve acá contra
+        // claims_analyst por el email del JWT — mismo mecanismo que ya usa CaseAccessPolicy.
+        String callerEmail = SecurityContextHolder.getContext().getAuthentication().getName();
+        ClaimsAnalyst analyst = claimsAnalystRepository.findByEmail(callerEmail)
+                .orElseThrow(() -> new AnalystProfileNotFoundException(callerEmail));
+
         // El contador vivo es de `cases`; el registro auditable se queda con su valor final, así
         // que se lo mandamos nosotros — el frontend no lo conoce, igual que con analystId.
         AnalystDecisionRequest audited = new AnalystDecisionRequest(
-                request.analystId(), request.decision(), entity.getClassificationAttempts());
+                analyst.getId(), request.decision(), request.justification(), entity.getClassificationAttempts());
 
         // The decision row is created there, so its id only exists after the call. Storing it
         // links the case to the model run the verdict was based on.

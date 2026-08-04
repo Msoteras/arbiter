@@ -219,7 +219,7 @@ class ClassificationServiceClientTest {
                 .andExpect(header(HttpHeaders.AUTHORIZATION, "Bearer original-user-token"))
                 .andRespond(withSuccess());
 
-        client.forwardAnalystDecision(9L, new AnalystDecisionRequest(1L, "APPROVE", null));
+        client.forwardAnalystDecision(9L, new AnalystDecisionRequest(1L, "APPROVE", null, null));
 
         server.verify();
     }

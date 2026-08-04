@@ -110,16 +110,16 @@
         <section class="step-content">
           <h2 class="step-title">Contanos los detalles</h2>
 
-          <label class="field-label">Bien asegurado</label>
+          <label class="field-label">Bien asegurado *</label>
           <app-input placeholder="Ej: Samsung Galaxy A56" [(value)]="insuredItem" [readonly]="!!selectedPolicy()?.insuredItem" />
 
-          <label class="field-label">Fecha y hora del hecho</label>
+          <label class="field-label">Fecha y hora del hecho *</label>
           <div class="datetime-grid">
             <app-input type="date" [(value)]="eventDate" />
             <app-input type="time" [(value)]="eventTime" placeholder="Hora aprox." />
           </div>
 
-          <label class="field-label">¿Dónde pasó?</label>
+          <label class="field-label">¿Dónde pasó? *</label>
           <div class="location-fields">
             <div class="location-grid">
               <app-input placeholder="Provincia" [(value)]="provincia" />

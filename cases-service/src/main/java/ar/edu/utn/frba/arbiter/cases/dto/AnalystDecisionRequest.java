@@ -1,13 +1,17 @@
 package ar.edu.utn.frba.arbiter.cases.dto;
 
 import jakarta.validation.constraints.NotBlank;
-import jakarta.validation.constraints.NotNull;
 
 /**
  * @param analystId              {@code claims_analyst.id} of whoever is deciding. Numeric because
- *                               {@code case_classification.analyst_id} is a real FK —
- *                               cases-service resolves it from the caller's JWT, which is the side
- *                               that already knows the user.
+ *                               {@code case_classification.analyst_id} is a real FK. Never sent by
+ *                               the frontend (a client-supplied id would let anyone attribute a
+ *                               decision to a different analyst) — {@code CaseServiceImpl} resolves
+ *                               it from the caller's JWT before forwarding, the side that already
+ *                               knows the user.
+ * @param justification          the analyst's stated reason for the decision — the audit trail
+ *                               Disposición SSN 2/2023 requires. Persisted verbatim on {@code
+ *                               case_classification.analyst_justification}.
  * @param classificationAttempts how many classification attempts the case took before landing on
  *                               the analyst's desk. The live counter is {@code
  *                               cases.classification_attempts} (the poller uses it to give up and
@@ -17,7 +21,8 @@ import jakarta.validation.constraints.NotNull;
  *                               {@code analystId}.
  */
 public record AnalystDecisionRequest(
-        @NotNull(message = "analystId is required") Long analystId,
+        Long analystId,
         @NotBlank(message = "decision is required") String decision,
+        String justification,
         Integer classificationAttempts
 ) {}

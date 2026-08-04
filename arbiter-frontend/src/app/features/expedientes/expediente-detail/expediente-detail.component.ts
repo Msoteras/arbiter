@@ -243,8 +243,8 @@ export class ExpedienteDetailComponent {
     }
 
     const decisionPayload: AnalystDecisionRequest = {
-      analystId: 'analista-ui',
       decision: verb === 'aprobar' ? 'APPROVE' : 'REJECT',
+      justification: this.justification().trim(),
     };
 
     this.decisionSaving.set(true);

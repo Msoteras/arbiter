@@ -134,7 +134,16 @@ export class NuevaDenunciaComponent {
   protected readonly contactEmail = signal('');
   protected readonly contactPhone = signal('');
 
-  protected readonly step2Valid = computed(() => this.description().trim().length > 0);
+  // El backend exige además insuredItem, eventDate y eventLocation (@NotBlank/@NotNull en
+  // CaseRequest) — sin esto el asegurado llegaba al paso 3, adjuntaba documentación, y recién
+  // ahí el submit fallaba con un error genérico.
+  protected readonly step2Valid = computed(
+    () =>
+      this.description().trim().length > 0 &&
+      this.insuredItem().trim().length > 0 &&
+      this.eventDate().trim().length > 0 &&
+      this.buildEventLocation().trim().length > 0,
+  );
 
   // Step 3
   protected readonly docSlots = signal<DocSlot[]>(

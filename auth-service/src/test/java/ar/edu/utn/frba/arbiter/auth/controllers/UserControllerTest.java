@@ -1,6 +1,6 @@
 package ar.edu.utn.frba.arbiter.auth.controllers;
 
-import ar.edu.utn.frba.arbiter.auth.models.entities.ClaimsAnalyst;
+import ar.edu.utn.frba.arbiter.common.models.entities.tenant.ClaimsAnalyst;
 import ar.edu.utn.frba.arbiter.common.models.entities.Insurer;
 import ar.edu.utn.frba.arbiter.auth.models.entities.InsurerReferent;
 import ar.edu.utn.frba.arbiter.common.models.entities.Role;

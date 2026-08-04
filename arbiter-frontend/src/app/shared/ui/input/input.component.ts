@@ -13,6 +13,7 @@ import { ChangeDetectionStrategy, Component, computed, input, model, signal } fr
       <input
         class="field"
         [class.has-reveal]="showReveal()"
+        [id]="resolvedId()"
         [type]="effectiveType()"
         [placeholder]="placeholder()"
         [value]="value()"
@@ -90,14 +91,21 @@ import { ChangeDetectionStrategy, Component, computed, input, model, signal } fr
   `,
 })
 export class InputComponent {
+  private static autoIdCounter = 0;
+  /** Genera el id si el caller no pasó uno, para que ningún <input> quede sin id posible de
+   * asociar a un `<label for>` — ver docs/frontend-bugs-ux.md #4. */
+  private readonly autoId = `app-input-${InputComponent.autoIdCounter++}`;
+
   readonly value = model('');
   readonly type = input<'text' | 'number' | 'email' | 'date' | 'password' | 'time' | 'tel'>('text');
+  readonly id = input<string | null>(null);
   readonly placeholder = input('');
   readonly min = input<number | null>(null);
   readonly autocomplete = input<string | null>(null);
   readonly readonly = input(false);
   readonly revealable = input(false);
 
+  protected readonly resolvedId = computed(() => this.id() ?? this.autoId);
   protected readonly revealed = signal(false);
   protected readonly showReveal = computed(() => this.revealable() && this.type() === 'password');
   protected readonly effectiveType = computed(() =>

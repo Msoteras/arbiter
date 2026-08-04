@@ -1,4 +1,4 @@
-package ar.edu.utn.frba.arbiter.auth.models.entities;
+package ar.edu.utn.frba.arbiter.common.models.entities.tenant;
 
 import ar.edu.utn.frba.arbiter.common.models.entities.User;
 import jakarta.persistence.Column;
@@ -17,10 +17,14 @@ import lombok.NoArgsConstructor;
 import lombok.Setter;
 
 /**
- * Profile for an ANALISTA_SINIESTROS account ("analista_siniestro" in the DER), living
- * in the insurer's own tenant schema — {@code name}/{@code surname} is what
- * {@code JwtService} puts in the JWT once the tenant is resolved. Not wired up yet: the
- * Usuarios admin screen still reads these straight off {@code users}.
+ * Profile for an ANALISTA_SINIESTROS account ("analista_siniestro" in the DER), living in the
+ * insurer's own tenant schema — {@code name}/{@code surname} is what {@code JwtService} puts in
+ * the JWT once the tenant is resolved.
+ *
+ * <p>Unlike its siblings in the parent package, this table lives in the <b>tenant</b> schema, not
+ * in {@code arbiter_common} — see this package's rationale for why it is shared anyway. auth-service
+ * owns the alta; cases-service reads it to resolve {@code case_classification.analyst_id} from the
+ * logged-in analyst's JWT instead of trusting a client-supplied id.
  */
 @Entity
 @Table(name = "claims_analyst")
