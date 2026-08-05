@@ -52,7 +52,11 @@ export const routes: Routes = [
       ),
   },
   {
+    // Sin roles en data: cualquier sesión autenticada entra (no es de un rol en particular,
+    // es la vitrina del design system) — pero sí requiere login, no queda pública en
+    // producción. docs/frontend-bugs-ux.md #18.
     path: 'styleguide',
+    canActivate: [roleGuard],
     loadComponent: () =>
       import('./features/styleguide/styleguide.component').then((m) => m.StyleguideComponent),
   },
@@ -104,5 +108,8 @@ export const routes: Routes = [
       import('./features/admin/usuarios/usuarios.component').then((m) => m.UsuariosComponent),
   },
 
-  { path: '**', redirectTo: '' },
+  // redirectTo: '' no vuelve a disparar la regla '' → login (Angular no re-evalúa el
+  // redirect resultante) — una URL inexistente quedaba en pantalla en blanco, sin
+  // mensaje ni forma de volver. docs/frontend-bugs-ux.md #5.
+  { path: '**', redirectTo: 'login' },
 ];

@@ -85,7 +85,7 @@ class AnalystDecisionTest {
                 .thenReturn(Optional.of(analysis(caseId, Classification.LLM_RECOMIENDA_APROBAR)));
 
         Long classificationId = resultsService.recordAnalystDecision(
-                caseId, new AnalystDecisionRequest(1L, "APROBAR", null));
+                caseId, new AnalystDecisionRequest(1L, "APROBAR", null, null));
 
         assertThat(classificationId).isEqualTo(PERSISTED_DECISION_ID);
     }
@@ -98,7 +98,7 @@ class AnalystDecisionTest {
         when(llmAnalysisRepository.findFirstByCaseIdOrderByIdDesc(caseId))
                 .thenReturn(Optional.of(analysis(caseId, Classification.LLM_RECOMIENDA_APROBAR)));
 
-        resultsService.recordAnalystDecision(caseId, new AnalystDecisionRequest(1L, "APROBAR", 4));
+        resultsService.recordAnalystDecision(caseId, new AnalystDecisionRequest(1L, "APROBAR", null, 4));
 
         assertThat(captureDecision().getClassificationAttempts()).isEqualTo(4);
     }
@@ -110,7 +110,7 @@ class AnalystDecisionTest {
         when(llmAnalysisRepository.findFirstByCaseIdOrderByIdDesc(caseId))
                 .thenReturn(Optional.of(analysis(caseId, Classification.LLM_RECOMIENDA_APROBAR)));
 
-        resultsService.recordAnalystDecision(caseId, new AnalystDecisionRequest(1L, "APROBAR", null));
+        resultsService.recordAnalystDecision(caseId, new AnalystDecisionRequest(1L, "APROBAR", null, null));
 
         assertThat(captureDecision().getClassificationAttempts()).isZero();
     }
@@ -121,13 +121,17 @@ class AnalystDecisionTest {
         LlmAnalysis analysis = analysis(caseId, Classification.LLM_RECOMIENDA_APROBAR);
         when(llmAnalysisRepository.findFirstByCaseIdOrderByIdDesc(caseId)).thenReturn(Optional.of(analysis));
 
-        resultsService.recordAnalystDecision(caseId, new AnalystDecisionRequest(1L, "APROBAR", null));
+        resultsService.recordAnalystDecision(caseId,
+                new AnalystDecisionRequest(1L, "APROBAR", "Documentación completa y consistente", null));
 
         CaseClassification saved = captureDecision();
         assertThat(saved.getId()).isNull();
         assertThat(saved.getLlmAnalysis()).isSameAs(analysis);
         assertThat(saved.getAnalystId()).isEqualTo(1L);
         assertThat(saved.getDecision()).isEqualTo("APPROVE");
+        // El registro auditable de la Disposición SSN 2/2023 tiene que guardar el motivo, no
+        // descartarlo — bug encontrado porque el front lo pedía y nunca lo mandaba.
+        assertThat(saved.getAnalystJustification()).isEqualTo("Documentación completa y consistente");
         assertThat(saved.getDecidedAt()).isNotNull();
     }
 
@@ -137,7 +141,7 @@ class AnalystDecisionTest {
         when(llmAnalysisRepository.findFirstByCaseIdOrderByIdDesc(caseId))
                 .thenReturn(Optional.of(analysis(caseId, Classification.LLM_NO_RECOMIENDA_APROBAR)));
 
-        resultsService.recordAnalystDecision(caseId, new AnalystDecisionRequest(2L, "RECHAZAR", null));
+        resultsService.recordAnalystDecision(caseId, new AnalystDecisionRequest(2L, "RECHAZAR", null, null));
 
         assertThat(captureDecision().getDecision()).isEqualTo("REJECT");
     }
@@ -148,7 +152,7 @@ class AnalystDecisionTest {
         LlmAnalysis analysis = analysis(caseId, Classification.LLM_RECOMIENDA_APROBAR);
         when(llmAnalysisRepository.findFirstByCaseIdOrderByIdDesc(caseId)).thenReturn(Optional.of(analysis));
 
-        resultsService.recordAnalystDecision(caseId, new AnalystDecisionRequest(1L, "APPROVE", null));
+        resultsService.recordAnalystDecision(caseId, new AnalystDecisionRequest(1L, "APPROVE", null, null));
 
         // The audit trail is immutable: recording a verdict must not rewrite what the model said.
         verify(llmAnalysisRepository, org.mockito.Mockito.never()).save(org.mockito.ArgumentMatchers.any());
@@ -163,7 +167,7 @@ class AnalystDecisionTest {
         when(caseOutcomeRepository.findOutcome(caseId))
                 .thenReturn(new CaseOutcomeRepository.CaseOutcome(true, null, "Martina Soteras"));
 
-        resultsService.recordAnalystDecision(caseId, new AnalystDecisionRequest(1L, "APROBAR", null));
+        resultsService.recordAnalystDecision(caseId, new AnalystDecisionRequest(1L, "APROBAR", null, null));
 
         // Fast Track skips the model but not the analyst (decision #5) — so the decision exists
         // with nothing to point at.
@@ -180,7 +184,7 @@ class AnalystDecisionTest {
                 .thenReturn(new CaseOutcomeRepository.CaseOutcome(false, null, null));
 
         assertThatThrownBy(() ->
-                resultsService.recordAnalystDecision(caseId, new AnalystDecisionRequest(1L, "APPROVE", null)))
+                resultsService.recordAnalystDecision(caseId, new AnalystDecisionRequest(1L, "APPROVE", null, null)))
                 .isInstanceOf(InvalidClassificationException.class);
     }
 

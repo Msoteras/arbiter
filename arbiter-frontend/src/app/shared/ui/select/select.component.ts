@@ -34,11 +34,12 @@ export interface SelectOption {
       <button
         type="button"
         class="trigger"
+        [id]="resolvedId()"
         role="combobox"
         aria-haspopup="listbox"
         [attr.aria-expanded]="open()"
-        [attr.aria-controls]="open() ? id + '-listbox' : null"
-        [attr.aria-activedescendant]="open() ? id + '-opt-' + activeIndex() : null"
+        [attr.aria-controls]="open() ? resolvedId() + '-listbox' : null"
+        [attr.aria-activedescendant]="open() ? resolvedId() + '-opt-' + activeIndex() : null"
         [disabled]="disabled()"
         (click)="toggle()"
         (keydown)="onKeydown($event)"
@@ -52,12 +53,12 @@ export interface SelectOption {
       </button>
 
       @if (open()) {
-        <ul class="panel" role="listbox" [id]="id + '-listbox'">
+        <ul class="panel" role="listbox" [id]="resolvedId() + '-listbox'">
           @for (opt of allOptions(); track opt.value; let i = $index) {
             <li
               class="option"
               role="option"
-              [id]="id + '-opt-' + i"
+              [id]="resolvedId() + '-opt-' + i"
               [class.active]="activeIndex() === i"
               [class.is-placeholder]="opt.value === ''"
               [attr.aria-selected]="value() === opt.value"
@@ -151,13 +152,18 @@ export class SelectComponent {
 
   private readonly host = inject<ElementRef<HTMLElement>>(ElementRef);
 
-  protected readonly id = 'app-select-' + SelectComponent.nextId++;
+  private readonly autoId = 'app-select-' + SelectComponent.nextId++;
 
   readonly value = model('');
   readonly options = input<SelectOption[]>([]);
   readonly placeholder = input('');
   /** Bloquea la apertura (ej. mientras se guarda el cambio contra el backend). */
   readonly disabled = input(false);
+  /** Para asociar un `<label for>` — sin esto el trigger nunca tenía id propio, solo sus
+   * sub-elementos internos (listbox/opciones). Ver docs/frontend-bugs-ux.md #4. */
+  readonly id = input<string | null>(null);
+
+  protected readonly resolvedId = computed(() => this.id() ?? this.autoId);
 
   protected readonly open = signal(false);
   protected readonly activeIndex = signal(0);

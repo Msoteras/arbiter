@@ -4,6 +4,7 @@ import ar.edu.utn.frba.arbiter.cases.dto.AnalystDecisionRequest;
 import ar.edu.utn.frba.arbiter.cases.dto.CaseRequest;
 import ar.edu.utn.frba.arbiter.cases.dto.CaseResponse;
 import ar.edu.utn.frba.arbiter.cases.exceptions.AnalystNotFoundException;
+import ar.edu.utn.frba.arbiter.cases.exceptions.AnalystProfileNotFoundException;
 import ar.edu.utn.frba.arbiter.cases.exceptions.CaseNotFoundException;
 import ar.edu.utn.frba.arbiter.cases.exceptions.InvalidAnalystDecisionException;
 import ar.edu.utn.frba.arbiter.cases.exceptions.InvalidStatusTransitionException;
@@ -26,6 +27,8 @@ import ar.edu.utn.frba.arbiter.common.dto.ImageForensicReport;
 import ar.edu.utn.frba.arbiter.common.enums.CaseStatus;
 import ar.edu.utn.frba.arbiter.common.enums.Classification;
 import ar.edu.utn.frba.arbiter.common.enums.RiskBand;
+import ar.edu.utn.frba.arbiter.common.models.entities.tenant.ClaimsAnalyst;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -39,6 +42,8 @@ import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.domain.Specification;
 import org.springframework.mock.web.MockMultipartFile;
+import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.core.context.SecurityContextHolder;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
@@ -97,6 +102,17 @@ class CaseServiceImplTest {
     void noAnalysisByDefault() {
         lenient().when(caseAnalysisRepository.findByCaseId(any())).thenReturn(CaseAnalysis.none());
         lenient().when(caseAnalysisRepository.findByCaseIds(any())).thenReturn(Map.of());
+    }
+
+    @AfterEach
+    void clearSecurityContext() {
+        SecurityContextHolder.clearContext();
+    }
+
+    /** recordAnalystDecision resuelve el analista contra este email, no contra el request. */
+    private void authenticateAs(String email) {
+        SecurityContextHolder.getContext().setAuthentication(
+                new UsernamePasswordAuthenticationToken(email, null, List.of()));
     }
 
     @Test
@@ -540,14 +556,18 @@ class CaseServiceImplTest {
     void recordAnalystDecision_approve_transitionsToApproved() {
         Case entity = caseRecord(1L, CaseStatus.PENDING_ANALYST_REVIEW);
         when(caseRepository.findById(1L)).thenReturn(Optional.of(entity));
-        AnalystDecisionRequest request = new AnalystDecisionRequest(1L, "APPROVE", null);
+        authenticateAs("analista@example.com");
+        when(claimsAnalystRepository.findByEmail("analista@example.com"))
+                .thenReturn(Optional.of(ClaimsAnalyst.builder().id(7L).build()));
+        AnalystDecisionRequest request = new AnalystDecisionRequest(null, "APPROVE", "Documentación completa", null);
 
         caseService.recordAnalystDecision(1L, request);
 
-        // Se reenvía con el contador de reintentos del expediente, que el frontend no conoce:
-        // case_classification.classification_attempts se congela con ese valor.
+        // Se reenvía con el analista resuelto del JWT (no del request) y el contador de
+        // reintentos del expediente, que el frontend no conoce: case_classification.
+        // classification_attempts se congela con ese valor.
         verify(claimsAnalysisClient).forwardAnalystDecision(1L,
-                new AnalystDecisionRequest(1L, "APPROVE", entity.getClassificationAttempts()));
+                new AnalystDecisionRequest(7L, "APPROVE", "Documentación completa", entity.getClassificationAttempts()));
         verify(caseStatusService).transition(eq(entity), eq(CaseStatus.APPROVED),
                 eq(StatusChangeActor.ANALYST), any());
     }
@@ -558,7 +578,7 @@ class CaseServiceImplTest {
         when(caseRepository.findById(1L)).thenReturn(Optional.of(entity));
 
         assertThatThrownBy(() -> caseService.recordAnalystDecision(1L,
-                new AnalystDecisionRequest(1L, "DERIVAR", null)))
+                new AnalystDecisionRequest(null, "DERIVAR", null, null)))
                 .isInstanceOf(InvalidAnalystDecisionException.class);
 
         verify(claimsAnalysisClient, never()).forwardAnalystDecision(any(), any());
@@ -571,8 +591,22 @@ class CaseServiceImplTest {
         when(caseRepository.findById(1L)).thenReturn(Optional.of(entity));
 
         assertThatThrownBy(() -> caseService.recordAnalystDecision(1L,
-                new AnalystDecisionRequest(1L, "APPROVE", null)))
+                new AnalystDecisionRequest(null, "APPROVE", null, null)))
                 .isInstanceOf(InvalidStatusTransitionException.class);
+
+        verify(claimsAnalysisClient, never()).forwardAnalystDecision(any(), any());
+    }
+
+    @Test
+    void recordAnalystDecision_callerHasNoAnalystProfile_throws() {
+        Case entity = caseRecord(1L, CaseStatus.PENDING_ANALYST_REVIEW);
+        when(caseRepository.findById(1L)).thenReturn(Optional.of(entity));
+        authenticateAs("referente@example.com");
+        when(claimsAnalystRepository.findByEmail("referente@example.com")).thenReturn(Optional.empty());
+
+        assertThatThrownBy(() -> caseService.recordAnalystDecision(1L,
+                new AnalystDecisionRequest(null, "APPROVE", null, null)))
+                .isInstanceOf(AnalystProfileNotFoundException.class);
 
         verify(claimsAnalysisClient, never()).forwardAnalystDecision(any(), any());
     }

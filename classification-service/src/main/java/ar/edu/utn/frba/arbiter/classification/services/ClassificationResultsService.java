@@ -167,6 +167,7 @@ public class ClassificationResultsService {
         decision.setLlmAnalysis(analysis.orElse(null));
         decision.setAnalystId(request.analystId());
         decision.setDecision(normalizeDecision(request.decision()));
+        decision.setAnalystJustification(request.justification());
         decision.setDecidedAt(Instant.now());
         // Freezes the live counter from cases.classification_attempts onto the auditable row.
         // Null when the caller doesn't know it — the column is NOT NULL, so it defaults to 0.

@@ -32,6 +32,23 @@ interface DocSlot {
   type: string;
   label: string;
   file: File | null;
+  error: string | null;
+}
+
+// Mismo tope que cases-service (spring.servlet.multipart.max-file-size) — validar acá
+// evita esperar la subida completa para recién ahí enterarse de que no entra. El
+// accept="image/*,.pdf" del input es solo una sugerencia del explorador de archivos
+// (se salta eligiendo "todos los archivos"), así que la validación real va acá.
+const MAX_FILE_SIZE_BYTES = 10 * 1024 * 1024;
+
+function fileTypeError(file: File): string | null {
+  if (!file.type.startsWith('image/') && file.type !== 'application/pdf') {
+    return 'Solo se aceptan imágenes o PDF.';
+  }
+  if (file.size > MAX_FILE_SIZE_BYTES) {
+    return 'El archivo pesa más de 10 MB.';
+  }
+  return null;
 }
 
 type PoliciesState =
@@ -64,6 +81,9 @@ export class NuevaDenunciaComponent {
 
   protected readonly steps: Step[] = [1, 2, 3];
   protected readonly step = signal<Step>(1);
+  // El paso más lejano ya alcanzado — permite ir y volver libremente dentro de lo ya
+  // completado sin reabrir la validación de "Continuar" cada vez (docs/frontend-bugs-ux.md #21).
+  protected readonly maxStepReached = signal<Step>(1);
   protected readonly submitting = signal(false);
   protected readonly submitError = signal<string | null>(null);
   protected readonly submittedCase = signal<ExpedienteResponse | null>(null);
@@ -120,6 +140,11 @@ export class NuevaDenunciaComponent {
 
   protected readonly step1Valid = computed(() => !!this.selectedPolicy() && !!this.selectedType());
 
+  // Tope del input de fecha (docs/frontend-bugs-ux.md #16): un siniestro no puede haber
+  // "ocurrido" en el futuro. La regla real vive en el backend (CaseRequest la valida de
+  // nuevo); esto es solo la ayuda visual del datepicker.
+  protected readonly today = new Date().toISOString().slice(0, 10);
+
   // Step 2
   protected readonly description = signal('');
   protected readonly insuredItem = signal('');
@@ -134,11 +159,21 @@ export class NuevaDenunciaComponent {
   protected readonly contactEmail = signal('');
   protected readonly contactPhone = signal('');
 
-  protected readonly step2Valid = computed(() => this.description().trim().length > 0);
+  // El backend exige además insuredItem, eventDate y eventLocation (@NotBlank/@NotNull en
+  // CaseRequest) — sin esto el asegurado llegaba al paso 3, adjuntaba documentación, y recién
+  // ahí el submit fallaba con un error genérico.
+  protected readonly step2Valid = computed(
+    () =>
+      this.description().trim().length > 0 &&
+      this.insuredItem().trim().length > 0 &&
+      this.eventDate().trim().length > 0 &&
+      this.eventDate() <= this.today &&
+      this.buildEventLocation().trim().length > 0,
+  );
 
   // Step 3
   protected readonly docSlots = signal<DocSlot[]>(
-    CASE_DOCUMENT_TYPES.map(({ type, label }) => ({ type, label, file: null })),
+    CASE_DOCUMENT_TYPES.map(({ type, label }) => ({ type, label, file: null, error: null })),
   );
 
   protected readonly docsCount = computed(() => this.docSlots().filter((d) => d.file).length);
@@ -155,7 +190,11 @@ export class NuevaDenunciaComponent {
 
   next(): void {
     if (this.step() < 3) {
-      this.step.update((s) => (s + 1) as Step);
+      const nextStep = (this.step() + 1) as Step;
+      this.step.set(nextStep);
+      if (nextStep > this.maxStepReached()) {
+        this.maxStepReached.set(nextStep);
+      }
     }
   }
 
@@ -165,9 +204,10 @@ export class NuevaDenunciaComponent {
     }
   }
 
-  /** Volver a un paso ya completado tocando su número. Avanzar sigue gateado por "Continuar". */
+  /** Cualquier paso ya alcanzado es navegable en las dos direcciones. Uno nuevo sigue
+   * gateado por "Continuar" (la validación del paso actual). */
   goToStep(s: Step): void {
-    if (s < this.step()) {
+    if (s <= this.maxStepReached()) {
       this.step.set(s);
     }
   }
@@ -175,17 +215,23 @@ export class NuevaDenunciaComponent {
   onFileChange(index: number, event: Event): void {
     const input = event.target as HTMLInputElement;
     const file = input.files?.[0] ?? null;
+    const error = file ? fileTypeError(file) : null;
     this.docSlots.update((slots) => {
       const updated = [...slots];
-      updated[index] = { ...updated[index], file };
+      // Un archivo inválido no se guarda: el slot queda vacío con el motivo al lado,
+      // en vez de dejar avanzar y fallar recién en el submit.
+      updated[index] = { ...updated[index], file: error ? null : file, error };
       return updated;
     });
+    // Limpia el input nativo: sin esto, elegir el mismo archivo inválido dos veces
+    // seguidas no dispara (change) la segunda vez.
+    input.value = '';
   }
 
   removeFile(index: number): void {
     this.docSlots.update((slots) => {
       const updated = [...slots];
-      updated[index] = { ...updated[index], file: null };
+      updated[index] = { ...updated[index], file: null, error: null };
       return updated;
     });
   }

@@ -1,6 +1,6 @@
 import { HttpErrorResponse } from '@angular/common/http';
 import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
-import { Router, RouterLink } from '@angular/router';
+import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 
 import { AuthSessionService } from '../../../core/auth/auth-session.service';
 import { AuthService } from '../../../core/auth/auth.service';
@@ -20,11 +20,18 @@ export class LoginComponent {
   private readonly authService = inject(AuthService);
   private readonly session = inject(AuthSessionService);
   private readonly router = inject(Router);
+  private readonly route = inject(ActivatedRoute);
 
   protected readonly email = signal('');
   protected readonly password = signal('');
   protected readonly submitting = signal(false);
-  protected readonly errorMessage = signal<string | null>(null);
+  // sessionExpired: lo agrega authInterceptor tras un 401 en cualquier llamada /api —
+  // sin esto el usuario no tenía forma de saber que lo que pasó fue que venció el token.
+  protected readonly errorMessage = signal<string | null>(
+    this.route.snapshot.queryParamMap.has('sessionExpired')
+      ? 'Tu sesión expiró. Ingresá de nuevo.'
+      : null,
+  );
 
   protected readonly canSubmit = computed(
     () => this.email().trim().length > 0 && this.password().length > 0,

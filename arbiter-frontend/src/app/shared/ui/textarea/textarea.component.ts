@@ -1,4 +1,4 @@
-import { ChangeDetectionStrategy, Component, input, model } from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, input, model } from '@angular/core';
 
 /** Área de texto multilínea. Mismo estilo de campo que app-input. */
 @Component({
@@ -7,6 +7,7 @@ import { ChangeDetectionStrategy, Component, input, model } from '@angular/core'
   template: `
     <textarea
       class="field"
+      [id]="resolvedId()"
       [rows]="rows()"
       [placeholder]="placeholder()"
       [value]="value()"
@@ -35,7 +36,13 @@ import { ChangeDetectionStrategy, Component, input, model } from '@angular/core'
   `,
 })
 export class TextareaComponent {
+  private static autoIdCounter = 0;
+  private readonly autoId = `app-textarea-${TextareaComponent.autoIdCounter++}`;
+
   readonly value = model('');
   readonly rows = input(4);
   readonly placeholder = input('');
+  readonly id = input<string | null>(null);
+
+  protected readonly resolvedId = computed(() => this.id() ?? this.autoId);
 }

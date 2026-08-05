@@ -48,9 +48,15 @@ public class CaseExceptionHandler {
         return ProblemDetail.forStatusAndDetail(HttpStatusCode.valueOf(400), ex.getMessage());
     }
 
+    /** El analista al que se quiere asignar el expediente no existe en esta aseguradora. */
     @ExceptionHandler(AnalystNotFoundException.class)
     public ProblemDetail handleAnalystNotFound(AnalystNotFoundException ex) {
         return ProblemDetail.forStatusAndDetail(HttpStatusCode.valueOf(404), ex.getMessage());
     }
 
+    /** Distinto del anterior: acá el que no tiene perfil de analista es quien hace el request. */
+    @ExceptionHandler(AnalystProfileNotFoundException.class)
+    public ProblemDetail handleAnalystProfileNotFound(AnalystProfileNotFoundException ex) {
+        return ProblemDetail.forStatusAndDetail(HttpStatusCode.valueOf(403), ex.getMessage());
+    }
 }

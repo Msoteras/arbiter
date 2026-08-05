@@ -24,10 +24,11 @@ export interface CaseCreateRequest {
 }
 
 // El backend solo acepta APPROVE/APROBAR o REJECT/RECHAZAR (human-in-the-loop:
-// el analista aprueba o rechaza; no hay otras salidas).
+// el analista aprueba o rechaza; no hay otras salidas). Sin analystId: cases-service
+// lo resuelve del JWT del que llama, no confía en lo que mande el cliente.
 export interface AnalystDecisionRequest {
-  analystId: string;
   decision: 'APPROVE' | 'REJECT';
+  justification: string;
 }
 
 // Forma de Page<T> de Spring Data — así responde GET /api/v1/cases desde que el backend
