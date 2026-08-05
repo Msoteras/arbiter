@@ -11,8 +11,14 @@ import { UserAdminService } from '../../../core/auth/user-admin.service';
 import { ExpedienteResponse, StatusTransition } from '../../../core/models/expediente';
 import { CASE_DOCUMENT_TYPES, CaseDocument } from '../../../core/models/case-document';
 import { clasificacionLabel, clasificacionTone } from '../../../core/models/clasificacion';
-import { estadoLabel, estadoSimplificadoLabel, estadoTone } from '../../../core/models/estado';
+import {
+  estadoLabel,
+  estadoSimplificadoLabel,
+  estadoTone,
+  riskBandEmptyLabel,
+} from '../../../core/models/estado';
 import { StatusTone } from '../../../core/models/status-tone';
+import { formatDateTime } from '../../../core/util/datetime';
 import { FraudGaugeComponent } from '../../../shared/ui/fraud-gauge/fraud-gauge.component';
 import { EmptyStateComponent } from '../../../shared/ui/empty-state/empty-state.component';
 import { StatusTimelineComponent } from '../../../shared/ui/status-timeline/status-timeline.component';
@@ -134,6 +140,11 @@ export class ExpedienteDetailComponent {
     return band ? ExpedienteDetailComponent.RISK_BAND_GAUGE[band] : null;
   });
 
+  protected readonly riskGaugeEmptyLabel = computed(() => {
+    const d = this.data();
+    return d ? riskBandEmptyLabel(d.status, d.analysisClassification) : 'Sin datos';
+  });
+
   protected readonly classificationLabel = computed(() => {
     const d = this.data();
     return d ? clasificacionLabel(d.analysisClassification) : '';
@@ -164,8 +175,8 @@ export class ExpedienteDetailComponent {
       { label: 'Tomador', value: null },
       { label: 'Bien asegurado', value: d?.insuredItem ?? null },
       { label: 'Importe reclamado', value: d?.claimedAmount ? `$${d.claimedAmount.toLocaleString()}` : null },
-      { label: 'Fecha de denuncia', value: d?.createdAt ? new Date(d.createdAt).toLocaleString('es-AR') : null },
-      { label: 'Fecha y hora de ocurrencia', value: d?.eventDate ? new Date(d.eventDate).toLocaleDateString('es-AR') : null },
+      { label: 'Fecha de denuncia', value: d?.createdAt ? formatDateTime(d.createdAt) : null },
+      { label: 'Fecha y hora de ocurrencia', value: d?.eventDate ? formatDateTime(d.eventDate) : null },
       { label: 'Causa', value: d?.claimCause ?? null },
       { label: 'Hecho generador', value: null },
       { label: 'Ubicación', value: d?.eventLocation ?? null, full: true },
@@ -266,6 +277,33 @@ export class ExpedienteDetailComponent {
       error: (err: HttpErrorResponse) => {
         this.decisionSaving.set(false);
         this.decisionError.set(err.error?.detail || 'No se pudo registrar la decisión');
+      },
+    });
+  }
+
+  // ----- reintento manual de la clasificación (expediente en CLASSIFICATION_FAILED) -----
+  // El scheduler solo barre PENDING_CLASSIFICATION, así que un caso que agotó los reintentos queda
+  // varado hasta que el analista lo reencola a mano (bugs-ux #22). No resuelve el caso: lo devuelve
+  // al pipeline, que después vuelve a necesitar la decisión del analista.
+  protected readonly isFailed = computed(() => this.data()?.status === 'CLASSIFICATION_FAILED');
+  protected readonly retrying = signal(false);
+  protected readonly retryError = signal<string | null>(null);
+
+  retryClassification(): void {
+    const d = this.data();
+    if (!d || this.retrying()) {
+      return;
+    }
+    this.retrying.set(true);
+    this.retryError.set(null);
+    this.service.retryClassification(d.id).subscribe({
+      next: () => {
+        this.retrying.set(false);
+        this.reloadTrigger.update((v) => v + 1);
+      },
+      error: (err: HttpErrorResponse) => {
+        this.retrying.set(false);
+        this.retryError.set(err.error?.detail || 'No se pudo reintentar la clasificación');
       },
     });
   }

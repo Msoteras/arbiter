@@ -151,6 +151,15 @@ export class ExpedienteService {
   }
 
   /**
+   * Reintenta la clasificación de un expediente que quedó en CLASSIFICATION_FAILED. Lo devuelve a
+   * PENDING_CLASSIFICATION y re-dispara el análisis en el backend. Solo válido desde el estado
+   * fallido (otro estado → 409).
+   */
+  retryClassification(caseId: number): Observable<ExpedienteResponse> {
+    return this.http.post<ExpedienteResponse>(`${this.baseUrl}/${caseId}/retry-classification`, {});
+  }
+
+  /**
    * Pone a `analystId` como dueño del expediente. Un solo analista por expediente: reasignar
    * reemplaza al anterior. Asignar NO resuelve — el expediente sigue necesitando la decisión
    * explícita del analista (`recordAnalystDecision`).

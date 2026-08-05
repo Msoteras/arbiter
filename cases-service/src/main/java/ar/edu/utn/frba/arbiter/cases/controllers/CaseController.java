@@ -58,9 +58,10 @@ public class CaseController {
     @Operation(summary = "Get case by id",
             description = """
                     Returns the stored case, its analysis result and the full status history
-                    (every transition with actor, reason and timestamp). Any authenticated role
-                    can call this today — there's no owner check yet (the asegurado's identity
-                    isn't linked to Case.insuredId), so this only gates "logged in", not "yours".
+                    (every transition with actor, reason and timestamp). An ASEGURADO only sees
+                    their own cases: CaseAccessPolicy.assertCanRead matches the caller's DNI against
+                    the case's insured and 404s otherwise. Analyst and referente see every case in
+                    their tenant.
                     """)
     public ResponseEntity<CaseResponse> getCase(
             @PathVariable Long caseId,
@@ -195,6 +196,22 @@ public class CaseController {
     ) {
         CaseResponse response = caseService.addDocumentsAndReclassify(caseId, documents);
         return ResponseEntity.accepted().body(response);
+    }
+
+    @PostMapping("/{caseId}/retry-classification")
+    @PreAuthorize("hasAnyRole('ANALISTA_SINIESTROS', 'REFERENTE_ASEGURADORA')")
+    @Operation(summary = "Reintentar la clasificación de un expediente fallido",
+            description = """
+                    Vuelve a poner en cola la clasificación de un expediente que quedó en
+                    CLASSIFICATION_FAILED tras agotar los reintentos automáticos. El scheduler solo
+                    barre PENDING_CLASSIFICATION, así que sin este empujón manual el caso queda
+                    varado. Resetea el contador de intentos, lo devuelve a PENDING_CLASSIFICATION y
+                    re-dispara el análisis con la documentación ya cargada. Solo válido desde
+                    CLASSIFICATION_FAILED (otro estado → 409). No resuelve el caso: sigue necesitando
+                    la decisión del analista (decisión de arquitectura #5).
+                    """)
+    public ResponseEntity<CaseResponse> retryClassification(@PathVariable Long caseId) {
+        return ResponseEntity.accepted().body(caseService.retryClassification(caseId));
     }
 
     @PostMapping("/{caseId}/decision")

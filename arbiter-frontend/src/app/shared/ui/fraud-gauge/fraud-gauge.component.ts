@@ -51,12 +51,15 @@ type Band = 1 | 2 | 3 | 4 | null;
 })
 export class FraudGaugeComponent {
   readonly band = input<Band>(null);
+  /** Texto cuando band=null. El default "Sin datos" es ambiguo; el llamador puede pasar el
+   *  motivo real ("En proceso", "No aplica · Fast Track", "Sin evaluar"). Ver bugs-ux #20. */
+  readonly emptyLabel = input('Sin datos');
   protected readonly segments = [1, 2, 3, 4] as const;
   protected readonly widths = [30, 30, 20, 20];
   protected readonly label = computed(() => {
     const labels: Record<number, string> = { 1: 'Bajo', 2: 'Medio', 3: 'Alto', 4: 'Crítico' };
     const b = this.band();
-    return b === null ? 'Sin datos' : labels[b];
+    return b === null ? this.emptyLabel() : labels[b];
   });
 
   /** Nivel de riesgo → tono de semáforo: bajo→ok, medio→warning, alto→risk, crítico→danger. */

@@ -47,7 +47,7 @@
       </app-card>
 
       <app-card class="rcard" heading="Nivel de riesgo de fraude">
-        <app-fraud-gauge [band]="riskGaugeBand()" />
+        <app-fraud-gauge [band]="riskGaugeBand()" [emptyLabel]="riskGaugeEmptyLabel()" />
       </app-card>
 
       <!-- Asignación: quién tiene el expediente. Separada de la decisión a propósito — tener
@@ -106,7 +106,22 @@
             </div>
           }
           @default {
-            <p class="nodata">Sin clasificación disponible todavía</p>
+            @if (isFailed()) {
+              <p class="nodata">No se pudo clasificar automáticamente tras varios intentos.</p>
+              <app-button
+                variant="secondary"
+                [block]="true"
+                [disabled]="retrying()"
+                (click)="retryClassification()"
+              >
+                {{ retrying() ? 'Reintentando…' : 'Reintentar clasificación' }}
+              </app-button>
+              @if (retryError()) {
+                <p class="rcard-note error">{{ retryError() }}</p>
+              }
+            } @else {
+              <p class="nodata">Sin clasificación disponible todavía</p>
+            }
           }
         }
         @if (decisionSaving()) {

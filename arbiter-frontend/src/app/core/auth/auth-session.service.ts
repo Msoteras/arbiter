@@ -19,8 +19,8 @@ export interface AuthSession {
 
 /**
  * Sesión de autenticación — token JWT en memoria (nunca localStorage: se pierde al
- * recargar la página, tal como pide el criterio de aceptación de H0001). Paso
- * transitorio hasta integrar Auth0 (ver CLAUDE.md, decisión #8).
+ * recargar la página, tal como pide el criterio de aceptación de H0001). Es a propósito,
+ * no un placeholder: Auth0 ya está integrado (ver CLAUDE.md, decisión #8).
  */
 @Injectable({ providedIn: 'root' })
 export class AuthSessionService {

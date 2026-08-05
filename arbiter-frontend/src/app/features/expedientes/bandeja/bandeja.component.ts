@@ -21,7 +21,7 @@ import { AuthSessionService } from '../../../core/auth/auth-session.service';
 import { UserAdminService } from '../../../core/auth/user-admin.service';
 import { ExpedienteResponse } from '../../../core/models/expediente';
 import { clasificacionLabel, clasificacionTone } from '../../../core/models/clasificacion';
-import { CaseStatus, estadoLabel, estadoTone } from '../../../core/models/estado';
+import { CaseStatus, estadoLabel, estadoTone, riskBandEmptyLabel } from '../../../core/models/estado';
 import { StatusTone } from '../../../core/models/status-tone';
 import { CardComponent } from '../../../shared/ui/card/card.component';
 import { BadgeComponent } from '../../../shared/ui/badge/badge.component';
@@ -30,6 +30,7 @@ import { InputComponent } from '../../../shared/ui/input/input.component';
 import { SelectComponent, SelectOption } from '../../../shared/ui/select/select.component';
 import { PaginationComponent } from '../../../shared/ui/pagination/pagination.component';
 import { FraudGaugeComponent } from '../../../shared/ui/fraud-gauge/fraud-gauge.component';
+import { EmptyStateComponent } from '../../../shared/ui/empty-state/empty-state.component';
 import { MenuButtonComponent, MenuItem } from '../../../shared/ui/menu-button/menu-button.component';
 
 // Campos por los que GET /api/v1/cases acepta ordenar (propiedades reales de la entidad Case
@@ -72,6 +73,7 @@ type Lens = 'mine' | 'all';
     SelectComponent,
     PaginationComponent,
     FraudGaugeComponent,
+    EmptyStateComponent,
     MenuButtonComponent,
   ],
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -461,6 +463,10 @@ export class BandejaComponent {
 
   protected riskGaugeBand(c: ExpedienteResponse): 1 | 2 | 3 | 4 | null {
     return c.riskBand ? BandejaComponent.RISK_BAND_GAUGE[c.riskBand] : null;
+  }
+
+  protected riskGaugeEmptyLabel(c: ExpedienteResponse): string {
+    return riskBandEmptyLabel(c.status, c.analysisClassification);
   }
 
   protected formatDate(value: string): string {

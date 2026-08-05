@@ -23,6 +23,15 @@ verificó que no hay regresiones de seguridad (RBAC/IDOR: 401/403/404/409 respon
 corresponde). Se suman **4 hallazgos nuevos** como ítems 22–25, más 2 de deuda de documentación
 (26–27) que no son bugs funcionales pero vale la pena anotar.
 
+**Pasada del 5/8 — arreglos rápidos:** se cerraron **#23** y **#24** (formateo de fecha/hora,
+centralizado en `core/util/datetime.ts` con `hour12: false`), **#26** (comentarios
+desactualizados), **#13** (revisado `portal/documentacion` por código — no desborda en móvil, sin
+cambios), **#17** (`bandeja` y `usuarios` pasaron a `app-empty-state`) y **#20** (el gauge de fraude
+distingue "En proceso" / "No aplica · Fast Track" / "Sin evaluar" en vez del "Sin datos" ambiguo,
+vía el helper `riskBandEmptyLabel`). El **#10** quedó cerrado por Flor en su historia. El **#25
+(PEP)** se marcó **fuera de alcance**: la condición PEP es un dato de la póliza, no del expediente,
+así que no se expone en el detalle del caso. Frontend verificado con build limpio.
+
 ---
 
 ## 🔴 1. La decisión del analista no funciona: `analystId` es un string hardcodeado
@@ -154,6 +163,10 @@ el texto. Prometer y no cumplir es peor que no prometer.
 
 ## 🟠 8. El referente de aseguradora tiene una sola pantalla
 
+> ⛔ **FUERA DE ALCANCE (5/8) — sprint siguiente.** No es un bug: el referente va a sumar pantallas
+> cuando se implemente el **módulo de Reportes y Métricas** (ver #9), que todavía no está en este
+> sprint. Hoy `Usuarios` es su única pantalla a propósito. Queda anotado para no perderlo de vista.
+
 > **Sigue abierto, re-verificado 4/8 tarde.** Confirmado en código y en vivo: `roleGuard.ts:21-23`
 > sigue dejando pasar a cualquier ruta a un referente (`if (current.rol === 'REFERENTE_ASEGURADORA')
 > return true`), pero solo `Usuarios` está en el nav. Necesita que el equipo defina qué debería ver
@@ -182,6 +195,10 @@ entradas en el nav, o acotar el guard si no debería ver eso.
 
 ## 🟠 9. `reports-service` no lo consume nadie
 
+> ⛔ **FUERA DE ALCANCE (5/8) — sprint siguiente.** No es un bug: el **módulo de Reportes y
+> Métricas** todavía no se implementó, viene en un sprint posterior. Que el front no lo consuma ni
+> la ruta esté en el proxy es esperable hasta entonces. Su consumidor natural será el referente (#8).
+
 > **Sigue abierto, re-verificado 4/8 tarde.** `reports-service` arranca OK contra Railway (parte de
 > los 5 módulos levantados para el testeo), pero sigue inalcanzable desde el front. Necesita decidir
 > si entra en el alcance del TP.
@@ -204,7 +221,9 @@ olvido.
 
 ## 🟠 10. "¿Cuáles son tus expedientes asignados?" — se sigue mostrando todo
 
-> **Sigue abierto, re-verificado 4/8 tarde.** Sigue en manos de Flor, no tocado en esta pasada.
+> ✅ **CERRADO (5/8).** Lo resolvió Flor en su historia: la entidad `Case` mapea `analyst_id`,
+> `GET /api/v1/cases` filtra por el analista logueado y la bandeja ya no muestra todos los
+> expedientes a cualquiera.
 
 **Archivos:** [`Case.java`](../cases-service/src/main/java/ar/edu/utn/frba/arbiter/cases/models/entities/Case.java), [`bandeja.component.ts`](../arbiter-frontend/src/app/features/expedientes/bandeja/bandeja.component.ts)
 
@@ -412,6 +431,12 @@ de tarjetas por debajo del breakpoint móvil.
 
 ## 🟡 13. Tres pantallas sin ningún breakpoint
 
+> ✅ **CERRADO (5/8) — no requería cambios.** `admin/usuarios` y `admin/alta-usuario` ya se habían
+> reevaluado OK (heredan el `overflow-x` del `app-table`). Faltaba `portal/documentacion`: revisada
+> por código, no tiene ningún ancho fijo ni contenido que desborde — el host usa `max-width: 640px`
+> + padding fluido y `app-doc-upload` arma filas flex con `min-width: 0` en el elemento que crece,
+> con labels que envuelven. No se rompe a 375px, así que no hace falta breakpoint.
+
 > **Sigue abierto, pero reevaluado a la baja (4/8 tarde).** Se probó `admin/usuarios` en viewport
 > 375px con la app real: la tabla scrollea bien (hereda el `overflow-x:auto` del `app-table`
 > compartido, ver ítem 12) y el formulario "Nuevo usuario" entra completo sin desbordar (medido por
@@ -431,6 +456,10 @@ acciones — el mismo riesgo que el ítem #10.
 ---
 
 ## 🟡 14. El ícono de notificaciones sigue sin funcionalidad
+
+> ⛔ **FUERA DE ALCANCE (5/8) — sprint siguiente.** El **módulo de notificaciones** (endpoint +
+> polling/SSE) no se implementó todavía, viene en un sprint posterior. La campana es un stub a
+> propósito hasta entonces.
 
 > **Sigue abierto, re-verificado 4/8 tarde.** Probado en vivo como referente: el panel dice
 > "No tenés notificaciones sin leer" — siempre vacío, tal como describe este ítem. Esfuerzo alto,
@@ -499,6 +528,12 @@ la regla de verdad.
 
 ## 🟡 17. Faltan estados vacíos en casi todas las pantallas
 
+> ✅ **CERRADO (5/8).** `bandeja` y `usuarios` pasaron a usar `app-empty-state` del design system
+> (antes tenían un `<p class="t-note">` a mano). Bandeja conserva la distinción "no coincide con los
+> filtros" vs "todavía no hay expedientes cargados"; usuarios (que no filtra) usa un solo mensaje.
+> `seguimiento` y `documentacion` **no aplican**: son vistas de un caso único, no listas que puedan
+> "volver vacías".
+
 > **Sigue abierto, re-verificado 4/8 tarde.** Confirmado por código: `bandeja.component.html` sigue
 > sin ningún `app-empty-state`. No se llegó a probar `seguimiento`/`documentacion`/`usuarios` con
 > datos vacíos en esta pasada, pero el grep no encuentra el componente en ninguna de las cuatro.
@@ -549,6 +584,12 @@ probable que se siga viendo el genérico — sobre todo con la pestaña cacheada
 
 ## 🟡 20. "Sin datos" no distingue por qué no hay datos
 
+> ✅ **CERRADO (5/8).** El `app-fraud-gauge` recibe ahora un input `emptyLabel` y los dos usos
+> (bandeja y detalle del expediente) lo derivan del estado del caso con el helper
+> `riskBandEmptyLabel` (`core/models/estado.ts`): **"En proceso"** (`PENDING_CLASSIFICATION`, todavía
+> clasificando), **"No aplica · Fast Track"** (el modelo no corre) y **"Sin evaluar"** (el resto). Ya
+> no muestra el "Sin datos" ambiguo para tres situaciones distintas.
+
 > **Sigue abierto, re-verificado 4/8 tarde.** Visible en vivo en la columna RIESGO de la bandeja
 > para varios expedientes (cuando `riskBand` es `null` porque nunca se calculó, no porque haya
 > fallado). Mismo default ambiguo que describe este ítem.
@@ -592,7 +633,18 @@ las dos direcciones.
 
 ## 🔴 22. `CLASSIFICATION_FAILED` es un callejón sin salida con mensaje falso
 
-**Archivos:** [`ClassificationRefreshScheduler.java:60-77`](../cases-service/src/main/java/ar/edu/utn/frba/arbiter/cases/services/ClassificationRefreshScheduler.java), [`CaseStatusService.java:33`](../cases-service/src/main/java/ar/edu/utn/frba/arbiter/cases/services/CaseStatusService.java), [`estado.ts:156-193`](../arbiter-frontend/src/app/core/models/estado.ts)
+> ✅ **CERRADO (5/8) — botón de reintento manual para el analista.** Nuevo endpoint
+> `POST /cases/{id}/retry-classification` (analista/referente): resetea el contador de intentos,
+> devuelve el caso a `PENDING_CLASSIFICATION` y re-dispara el análisis, con la máquina de estados
+> validando que solo salga de `CLASSIFICATION_FAILED` (otro estado → 409). En el detalle del
+> expediente, la card "Decisión del analista" muestra un botón **"Reintentar clasificación"** cuando
+> el caso está fallido. Se corrigió además el copy que mentía: `estado.ts` ya no dice "el equipo
+> reintenta / no hace falta hacer nada" — ahora describe el reintento manual (analista) y, del lado
+> del asegurado, "un analista está revisando tu caso" en vez de un procesamiento automático
+> inexistente. Se eligió el reintento manual sobre el barrido automático del scheduler para
+> respetar el human-in-the-loop (decisión de arquitectura #5).
+
+**Archivos:** [`CaseController.java`](../cases-service/src/main/java/ar/edu/utn/frba/arbiter/cases/controllers/CaseController.java), [`CaseServiceImpl.java`](../cases-service/src/main/java/ar/edu/utn/frba/arbiter/cases/services/CaseServiceImpl.java), [`expediente-detail.component.ts`](../arbiter-frontend/src/app/features/expedientes/expediente-detail/expediente-detail.component.ts), [`estado.ts`](../arbiter-frontend/src/app/core/models/estado.ts) · Diagnóstico original: [`ClassificationRefreshScheduler.java:60-77`](../cases-service/src/main/java/ar/edu/utn/frba/arbiter/cases/services/ClassificationRefreshScheduler.java), [`CaseStatusService.java:33`](../cases-service/src/main/java/ar/edu/utn/frba/arbiter/cases/services/CaseStatusService.java)
 
 El scheduler que reintenta la clasificación solo mira los pendientes:
 
@@ -633,6 +685,11 @@ automáticamente, un analista lo va a revisar a mano").
 
 ## 🟠 23. Las fechas con hora se muestran mal — 12hs de diferencia
 
+> ✅ **CERRADO (5/8).** Se centralizó el formateo en `core/util/datetime.ts` (`formatDateTime`,
+> con `hour12: false` explícito) y se reemplazaron las 5 llamadas sueltas a
+> `toLocaleString('es-AR')` (seguimiento ×3, status-timeline, expediente-detail). Ya no depende del
+> comportamiento del ICU: la hora sale siempre en formato 24h.
+
 **Archivos:** [`seguimiento.component.ts:171,180,185`](../arbiter-frontend/src/app/features/portal/seguimiento/seguimiento.component.ts), [`status-timeline.component.ts:139`](../arbiter-frontend/src/app/shared/ui/status-timeline/status-timeline.component.ts), [`expediente-detail.component.ts:161`](../arbiter-frontend/src/app/features/expedientes/expediente-detail/expediente-detail.component.ts)
 
 Los cinco lugares que muestran fecha+hora hacen lo mismo:
@@ -670,6 +727,9 @@ formateo en un `DatePipe` de Angular (`| date:'dd/MM/yyyy, HH:mm:ss'`) para no r
 
 ## 🟡 24. "Fecha y hora de ocurrencia" nunca muestra la hora
 
+> ✅ **CERRADO (5/8).** Pasó de `toLocaleDateString` (solo fecha) al `formatDateTime` del ítem 23
+> (fecha + hora, 24h). El analista ahora ve la hora del hecho, que ya estaba en el dato.
+
 **Archivo:** [`expediente-detail.component.ts:162`](../arbiter-frontend/src/app/features/expedientes/expediente-detail/expediente-detail.component.ts)
 
 Bug puntual, distinto del ítem 23 (aunque en el mismo archivo):
@@ -687,6 +747,12 @@ disponible (`eventDate` incluye la hora, capturada desde el wizard).
 ---
 
 ## 🟠 25. La declaración PEP se pide y se persiste, pero el analista no la ve nunca
+
+> ⛔ **FUERA DE ALCANCE (5/8).** No es un dato del expediente/siniestro: la condición PEP es una
+> cuestión de la **póliza**, no algo que el analista deba resolver desde el detalle del caso. Se
+> deja anotado para que no parezca un olvido, pero no se surface en `CaseResponse`. La fila
+> `PEP (declarativo)` de la grilla queda en `null` a propósito (candidata a sacarse en una limpieza
+> cosmética futura).
 
 **Archivos:** [`nueva-denuncia.component.ts:158,267`](../arbiter-frontend/src/app/features/expedientes/nueva-denuncia/nueva-denuncia.component.ts), [`CaseReferenceResolver.java:59`](../cases-service/src/main/java/ar/edu/utn/frba/arbiter/cases/services/CaseReferenceResolver.java), [`expediente-detail.component.ts:168`](../arbiter-frontend/src/app/features/expedientes/expediente-detail/expediente-detail.component.ts)
 
@@ -721,6 +787,12 @@ de que el control existe.
 ---
 
 ## 🟢 26. Deuda de documentación menor (comentarios desactualizados, import muerto)
+
+> ✅ **CERRADO (5/8).** Se actualizó el comentario de `AuthSessionService` (la sesión en memoria es
+> a propósito por H0001, Auth0 ya está integrado — no un placeholder) y el javadoc de
+> `CaseController.getCase` (ahora describe el owner check real de `CaseAccessPolicy`, antes decía
+> falsamente que no existía). El import muerto de `TableComponent` **ya estaba limpio** en la rama
+> actual, no hubo nada que borrar.
 
 Encontrados en el testeo del 4/8 tarde, sin impacto funcional, pero conviene limpiarlos:
 
@@ -760,8 +832,10 @@ Se documenta para que quede registro de que se revisó y no como una alarma — 
 
 ## Resumen para priorizar
 
-**Cerrados (14 de 21 ítems originales + el nuevo #22 sigue abierto — ver tabla de abiertos más abajo).**
-Todos verificados en vivo, no solo con tests, en al menos una de las dos pasadas del 4/8.
+**Cerrados (22 ítems + #25 marcado fuera de alcance).** Los del 4/8 verificados en vivo; los del
+5/8 (#13, #17, #20, #22, #23, #24, #26) verificados con build limpio de front y back, y el #10 lo
+cerró Flor en su historia. **No quedan bugs funcionales abiertos** — solo los 3 ítems de sprints
+siguientes y el #25 (fuera de alcance).
 
 | # | Ítem | Severidad | Cerrado en |
 |---|------|-----------|------------|
@@ -772,6 +846,7 @@ Todos verificados en vivo, no solo con tests, en al menos una de las dos pasadas
 | 5 | URL inexistente = pantalla en blanco | 🟠 Media | commit `a238a61` |
 | 6 | La sesión vence y nadie se entera | 🟠 Media | commit `a238a61` |
 | 7 | "Guardado automático" no existe | 🟠 Media | commit `a238a61` |
+| 10 | Expedientes asignados no se filtran por analista | 🟠 Media | 5/8 (Flor) |
 | 11 | El seguimiento retrocede tras subir documentación | 🟠 Media | pase previo al 4/8 |
 | 12 | La tabla de la bandeja desborda en móvil | 🟠 Media | commit `a238a61` |
 | 15 | Sin validación de archivos | 🟡 Baja | commit `a238a61` |
@@ -779,21 +854,22 @@ Todos verificados en vivo, no solo con tests, en al menos una de las dos pasadas
 | 18 | `/styleguide` pública | 🟡 Baja | commit `a238a61` |
 | 19 | Favicon viejo | 🟡 Baja | commit `a238a61` |
 | 21 | No se puede avanzar en el wizard | 🟡 Baja | commit `a238a61` |
+| 23 | Fechas con hora muestran 12hs de diferencia | 🟠 Media | 5/8 (`datetime.ts`) |
+| 24 | "Fecha y hora de ocurrencia" no muestra hora | 🟡 Baja | 5/8 (`datetime.ts`) |
+| 26 | Deuda de doc (comentarios viejos) | 🟢 Cosmética | 5/8 |
+| 13 | Tres pantallas sin breakpoint | 🟡 Baja | 5/8 (no requería cambios) |
+| 17 | Faltan estados vacíos | 🟡 Baja | 5/8 (`app-empty-state`) |
+| 20 | "Sin datos" ambiguo | 🟡 Baja | 5/8 (`riskBandEmptyLabel`) |
+| 22 | `CLASSIFICATION_FAILED` sin salida + copy falso | 🔴 Alta | 5/8 (reintento manual) |
 
-**Abiertos** (los viejos re-verificados el 4/8 tarde + los 4 nuevos de esa misma pasada):
+**Fuera de alcance** (no son bugs — funcionalidad de sprints siguientes o de otro dominio):
 
-| # | Ítem | Severidad | Esfuerzo | Estado |
-|---|------|-----------|----------|--------|
-| 22 | `CLASSIFICATION_FAILED` sin salida + mensaje falso | 🔴 Alta — casos reales varados para siempre | Bajo-Medio | **Nuevo** |
-| 8 | El referente tiene una sola pantalla | 🟠 Media — rol sin navegación | Alto | Re-verificado |
-| 9 | `reports-service` inalcanzable desde el front | 🟠 Media — módulo entero sin consumir | Alto | Re-verificado |
-| 10 | Expedientes asignados (lo toma Flor) | 🟠 Media | — | Re-verificado |
-| 23 | Fechas con hora muestran 12hs de diferencia | 🟠 Media — dato con peso legal en un siniestro | Bajo | **Nuevo** |
-| 25 | PEP se persiste pero no se ve nunca | 🟠 Media — compliance UIF/PLA invisible | Bajo | **Nuevo** |
-| 13 | Tres pantallas sin breakpoint | 🟡 Baja (reevaluado: menos grave de lo que parecía) | Bajo | Re-verificado |
-| 14 | Notificaciones sin cablear | 🟡 Baja — stub conocido | Alto (backend) | Re-verificado |
-| 17 | Faltan estados vacíos | 🟡 Baja | Bajo | Re-verificado |
-| 20 | "Sin datos" ambiguo | 🟡 Baja | Bajo | Re-verificado |
-| 24 | "Fecha y hora de ocurrencia" no muestra hora | 🟡 Baja | Muy bajo | **Nuevo** |
-| 26 | Deuda de documentación (import muerto, comentarios viejos) | 🟢 Cosmética | Muy bajo | **Nuevo** |
-| 27 | RBAC/IDOR — sin hallazgos, documentado | 🟢 — | — | **Nuevo (verificación)** |
+| # | Ítem | Motivo |
+|---|------|--------|
+| 8 | El referente tiene una sola pantalla | Suma pantallas con el módulo de Reportes y Métricas (sprint siguiente) |
+| 9 | `reports-service` inalcanzable desde el front | Módulo de Reportes y Métricas no implementado aún (sprint siguiente) |
+| 14 | Notificaciones sin cablear | Módulo de notificaciones no implementado aún (sprint siguiente) |
+| 25 | PEP se persiste pero no se ve nunca | Es un dato de la póliza, no del expediente |
+
+**Abiertos:** ninguno. Todos los bugs funcionales están cerrados; lo que queda (#8, #9, #14) es
+funcionalidad de sprints siguientes y #25 es de otro dominio (ver "Fuera de alcance").
