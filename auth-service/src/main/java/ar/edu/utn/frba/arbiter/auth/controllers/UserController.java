@@ -1,5 +1,6 @@
 package ar.edu.utn.frba.arbiter.auth.controllers;
 
+import ar.edu.utn.frba.arbiter.auth.dto.AnalystResponse;
 import ar.edu.utn.frba.arbiter.auth.dto.CreateUserRequest;
 import ar.edu.utn.frba.arbiter.auth.dto.UpdateUserRoleRequest;
 import ar.edu.utn.frba.arbiter.auth.dto.UserResponse;
@@ -53,6 +54,24 @@ public class UserController {
             description = "Devuelve los usuarios de la aseguradora del referente, con su rol actual, más recientes primero.")
     public ResponseEntity<List<UserResponse>> listUsers(Authentication authentication) {
         return ResponseEntity.ok(userService.listUsers(authentication.getName()));
+    }
+
+    @GetMapping("/analysts")
+    @PreAuthorize("hasAnyRole('ANALISTA_SINIESTROS', 'REFERENTE_ASEGURADORA')")
+    @Operation(summary = "Listar analistas asignables",
+            description = """
+                    Devuelve los analistas de la aseguradora del request, ordenados por apellido.
+                    Alimenta el selector de asignación de expedientes de la bandeja, por eso —a
+                    diferencia del listado completo de usuarios— también lo puede consultar un
+                    analista: asignar es una acción de ambos roles, no solo del referente.
+
+                    El `id` es el de `claims_analyst` (el que espera `POST /cases/{id}/assign`),
+                    no el de `users`. Al ser una tabla por esquema, el listado ya viene acotado a
+                    una sola aseguradora: el aislamiento lo da el tenant resuelto para el request,
+                    no un filtro.
+                    """)
+    public ResponseEntity<List<AnalystResponse>> listAnalysts() {
+        return ResponseEntity.ok(userService.listAssignableAnalysts());
     }
 
     @PutMapping("/{id}/role")

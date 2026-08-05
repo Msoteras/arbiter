@@ -510,6 +510,8 @@ BEGIN
     EXECUTE format('CREATE INDEX idx_cases_insured ON %I.cases (insured_id)', p_schema);
     -- The analyst's inbox filters by risk band.
     EXECUTE format('CREATE INDEX idx_cases_risk_band ON %I.cases (risk_band)', p_schema);
+    -- ...and by owner: the inbox's default lens is "Míos", so this filter runs on every load.
+    EXECUTE format('CREATE INDEX idx_cases_analyst ON %I.cases (analyst_id)', p_schema);
 
     -- ─── case_documents / "documento_expediente" ─────────────────────────────
     EXECUTE format($ddl$

@@ -29,7 +29,7 @@ export interface MenuItem {
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <div class="menu" [class.open]="open()" [class.align-end]="align() === 'end'">
-      <app-button variant="secondary" [disabled]="disabled()" (click)="toggle()">
+      <app-button variant="secondary" [size]="size()" [disabled]="disabled()" (click)="toggle()">
         <ng-content />
       </app-button>
 
@@ -89,6 +89,8 @@ export class MenuButtonComponent {
 
   readonly items = input.required<MenuItem[]>();
   readonly disabled = input(false);
+  /** Mismo tamaño que app-button: `sm` para triggers que viven dentro de una fila de tabla. */
+  readonly size = input<'md' | 'sm'>('md');
   /** Lado del trigger al que se ancla el panel — "end" para triggers pegados al borde derecho. */
   readonly align = input<'start' | 'end'>('start');
 

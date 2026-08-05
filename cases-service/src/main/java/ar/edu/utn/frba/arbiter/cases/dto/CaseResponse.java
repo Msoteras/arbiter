@@ -54,6 +54,13 @@ public record CaseResponse(
         RiskBand riskBand,
         List<RiskBreakdownItem> riskBreakdown,
         ImageForensicReport forensicReport,
+        /**
+         * Analista dueño del expediente, por su id de {@code claims_analyst} — local al esquema
+         * de la aseguradora, no comparable entre tenants. Null = sin asignar.
+         */
+        Long assignedAnalystId,
+        /** Nombre del analista asignado, resuelto por el join con {@code claims_analyst}. */
+        String assignedAnalystName,
         Instant createdAt,
         Instant updatedAt,
         /** Full transition trail with timestamps; null on list endpoints (only GET /{id} loads it). */

@@ -1,5 +1,6 @@
 package ar.edu.utn.frba.arbiter.auth.services;
 
+import ar.edu.utn.frba.arbiter.auth.dto.AnalystResponse;
 import ar.edu.utn.frba.arbiter.auth.dto.CreateUserRequest;
 import ar.edu.utn.frba.arbiter.auth.dto.UserResponse;
 import ar.edu.utn.frba.arbiter.auth.exceptions.CannotChangeOwnRoleException;
@@ -13,6 +14,7 @@ import ar.edu.utn.frba.arbiter.auth.exceptions.UserNotFoundException;
 import ar.edu.utn.frba.arbiter.common.models.entities.Role;
 import ar.edu.utn.frba.arbiter.common.models.entities.User;
 import ar.edu.utn.frba.arbiter.common.models.entities.UserInsurer;
+import ar.edu.utn.frba.arbiter.auth.models.repositories.ClaimsAnalystRepository;
 import ar.edu.utn.frba.arbiter.auth.models.repositories.RoleRepository;
 import ar.edu.utn.frba.arbiter.auth.models.repositories.UserInsurerRepository;
 import ar.edu.utn.frba.arbiter.auth.models.repositories.UserRepository;
@@ -40,6 +42,7 @@ public class UserService {
     private static final long RESET_VALIDITY_HOURS = 2;
 
     private final UserRepository userRepository;
+    private final ClaimsAnalystRepository claimsAnalystRepository;
     private final RoleRepository roleRepository;
     private final UserInsurerRepository userInsurerRepository;
     private final TenantResolver tenantResolver;
@@ -244,6 +247,22 @@ public class UserService {
         return userRepository.findAllById(userIds).stream()
                 .sorted(Comparator.comparing(User::getCreatedAt).reversed())
                 .map(this::toResponse)
+                .toList();
+    }
+
+    /**
+     * Analistas a los que se les puede asignar un expediente, para el selector de la bandeja. Por
+     * eso también lo puede consultar un analista y no solo el referente: asignar es acción de los
+     * dos roles operativos.
+     *
+     * <p>Sale de {@code claims_analyst} y no de {@code users}: ahí viven el nombre y el apellido, y
+     * al ser una tabla por esquema el listado ya queda acotado a la aseguradora del request sin
+     * ningún filtro extra — el aislamiento lo da el tenant (decisión de arquitectura #10). El id
+     * que devuelve es el que espera {@code cases.analyst_id}.
+     */
+    public List<AnalystResponse> listAssignableAnalysts() {
+        return claimsAnalystRepository.findAllByOrderBySurnameAscNameAsc().stream()
+                .map(a -> new AnalystResponse(a.getId(), a.getName(), a.getSurname(), a.getEmail()))
                 .toList();
     }
 

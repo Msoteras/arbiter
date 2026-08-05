@@ -5,6 +5,7 @@ import ar.edu.utn.frba.arbiter.common.enums.CaseStatus;
 import ar.edu.utn.frba.arbiter.common.enums.RiskBand;
 import ar.edu.utn.frba.arbiter.common.models.entities.CaseState;
 import ar.edu.utn.frba.arbiter.common.models.entities.ClaimCause;
+import ar.edu.utn.frba.arbiter.common.models.entities.tenant.ClaimsAnalyst;
 import ar.edu.utn.frba.arbiter.common.models.entities.tenant.Insured;
 import jakarta.persistence.Column;
 import jakarta.persistence.Convert;
@@ -37,7 +38,8 @@ import java.time.LocalDateTime;
 
 @Entity
 @Table(name = "cases", indexes = {
-        @Index(name = "idx_cases_risk_band", columnList = "risk_band")
+        @Index(name = "idx_cases_risk_band", columnList = "risk_band"),
+        @Index(name = "idx_cases_analyst", columnList = "analyst_id")
 })
 @Getter
 @Setter
@@ -222,6 +224,27 @@ public class Case {
      */
     @Column(name = "manual_adjustment_note", columnDefinition = "TEXT")
     private String manualAdjustmentNote;
+
+    /**
+     * Analyst who owns this case ("analista asignado"). Nullable: an unassigned case is the normal
+     * starting state, not an error. One analyst at a time — reassigning overwrites, it doesn't
+     * stack (see {@code CaseService.assignAnalyst}).
+     *
+     * <p>A real association and not a cached id + name: {@code claims_analyst} lives in this same
+     * tenant schema, so the display name is one join away and the FK keeps the pair consistent.
+     * That also bounds assignment to the insurer's own analysts for free — an id from another
+     * tenant simply isn't in this schema.
+     *
+     * <p>EAGER like its siblings on this entity: the inbox renders the analyst's name on every
+     * row, and with open-in-view off (see application.yml) a LAZY proxy would be resolved after
+     * the session closed.
+     *
+     * <p>Assignment is ownership, not resolution: the case still needs the analyst's explicit
+     * approve/reject to move forward (decisión de arquitectura #5, human-in-the-loop).
+     */
+    @ManyToOne(fetch = FetchType.EAGER)
+    @JoinColumn(name = "analyst_id")
+    private ClaimsAnalyst analyst;
 
     @Builder.Default
     @Column(name = "classification_attempts", nullable = false)

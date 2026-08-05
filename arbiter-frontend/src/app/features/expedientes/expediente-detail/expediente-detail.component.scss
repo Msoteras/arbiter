@@ -55,6 +55,11 @@
 .decision-btns { display: flex; gap: var(--space-2); }
 .decision-btns app-button { flex: 1; }
 
+/* ===== Asignación ===== */
+.assigned-name { margin: 0; font-size: var(--font-size-body); font-weight: var(--font-weight-medium); }
+.assign-actions { display: flex; gap: var(--space-2); align-items: center; margin-top: var(--space-3); flex-wrap: wrap; }
+.assign-actions app-button { flex: 1; }
+
 /* ===== Tabs ===== */
 .tabs {
   display: flex;

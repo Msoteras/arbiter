@@ -7,6 +7,9 @@ import java.time.Instant;
 public record LoginResponse(
         String token,
         Instant expiresAt,
+        /** Id del usuario logueado. El front lo necesita para saber qué es "mío" (ej. la lente
+            "Míos" de la bandeja y el atajo "Tomar"), que se resuelven contra este id. */
+        Long id,
         String email,
         UserRole rol,
         String nombre,

@@ -6,6 +6,7 @@ import {
   catchError,
   debounceTime,
   distinctUntilChanged,
+  forkJoin,
   map,
   Observable,
   of,
@@ -16,6 +17,8 @@ import * as XLSX from 'xlsx';
 
 import { ExpedienteService, ExpedienteListParams } from '../expediente.service';
 import { CaseNavigationService } from '../case-navigation.service';
+import { AuthSessionService } from '../../../core/auth/auth-session.service';
+import { UserAdminService } from '../../../core/auth/user-admin.service';
 import { ExpedienteResponse } from '../../../core/models/expediente';
 import { clasificacionLabel, clasificacionTone } from '../../../core/models/clasificacion';
 import { CaseStatus, estadoLabel, estadoTone } from '../../../core/models/estado';
@@ -27,7 +30,6 @@ import { InputComponent } from '../../../shared/ui/input/input.component';
 import { SelectComponent, SelectOption } from '../../../shared/ui/select/select.component';
 import { PaginationComponent } from '../../../shared/ui/pagination/pagination.component';
 import { FraudGaugeComponent } from '../../../shared/ui/fraud-gauge/fraud-gauge.component';
-import { TableComponent } from '../../../shared/ui/table/table.component';
 import { MenuButtonComponent, MenuItem } from '../../../shared/ui/menu-button/menu-button.component';
 
 // Campos por los que GET /api/v1/cases acepta ordenar (propiedades reales de la entidad Case
@@ -40,7 +42,10 @@ type SortField =
   | 'eventDate'
   | 'claimedAmount'
   | 'riskBand'
-  | 'analysisClassification';
+  | 'analysisClassification'
+  // Path anidado: el analista es una relación, no una columna. Ordenar por apellido es lo que
+  // espera quien mira la columna "Analista".
+  | 'analyst.surname';
 type SortDir = 'asc' | 'desc';
 
 interface ColumnDef {
@@ -53,6 +58,9 @@ type LoadState =
   | { status: 'ok'; data: ExpedienteResponse[]; totalElements: number; totalPages: number }
   | { status: 'error' };
 
+/** "Míos" = expedientes asignados al usuario logueado; "Todos" = sin recorte por analista. */
+type Lens = 'mine' | 'all';
+
 @Component({
   selector: 'app-bandeja',
   imports: [
@@ -64,7 +72,6 @@ type LoadState =
     SelectComponent,
     PaginationComponent,
     FraudGaugeComponent,
-    TableComponent,
     MenuButtonComponent,
   ],
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -76,6 +83,26 @@ export class BandejaComponent {
   private readonly router = inject(Router);
   private readonly document = inject(DOCUMENT);
   private readonly caseNav = inject(CaseNavigationService);
+  private readonly session = inject(AuthSessionService);
+  private readonly users = inject(UserAdminService);
+
+  // ───────────────── Lente: "Míos" vs "Todos" ─────────────────
+  // No es un filtro más de la fila de selects: es de quién es el expediente, no cómo se recorta
+  // el listado. Por eso vive arriba de la tabla y "Limpiar filtros" no lo toca.
+  //
+  // Quién es "yo" NO se manda: el id de analista es local al esquema de cada aseguradora, así que
+  // lo resuelve el backend contra el token (`assignedToMe`). Acá solo se dice qué lente está
+  // activa.
+
+  /** El analista entra a lo suyo; el referente reparte trabajo, así que arranca viendo todo. */
+  protected readonly lens = signal<Lens>(
+    this.session.session()?.rol === 'ANALISTA_SINIESTROS' ? 'mine' : 'all',
+  );
+
+  protected setLens(lens: Lens): void {
+    this.lens.set(lens);
+    this.page.set(0);
+  }
 
   // ───────────────── Filtros, búsqueda, orden y paginación ─────────────────
   // Todos combinables por AND, reflejan 1:1 los params que acepta GET /api/v1/cases
@@ -98,8 +125,9 @@ export class BandejaComponent {
     { initialValue: '' },
   );
 
-  // Filtros compartidos por la vista paginada y por la exportación a CSV (que ignora
-  // page/size propios y trae todas las páginas que matcheen).
+  // Solo la barra de filtros, SIN la lente. Los conteos del toggle se apoyan en esto porque
+  // necesitan pedir las dos lentes sobre la misma base; para "lo que estoy viendo" está
+  // viewFilters, que es lo que tienen que usar la tabla y la exportación.
   private readonly activeFilters = computed<ExpedienteListParams>(() => ({
     status: this.statusFilter() || undefined,
     claimCause: this.claimCauseFilter() || undefined,
@@ -110,10 +138,24 @@ export class BandejaComponent {
     sort: `${this.sortField()},${this.sortDir()}`,
   }));
 
-  private readonly requestParams = computed<ExpedienteListParams>(() => ({
+  /** Se incrementa después de asignar/liberar para releer el listado desde el backend. */
+  private readonly reloadTrigger = signal(0);
+
+  /**
+   * Filtros + lente: la definición completa de "lo que estoy viendo". Única fuente para la tabla
+   * y para la exportación — si se bifurcan, el archivo deja de coincidir con la pantalla (la
+   * lente quedaba afuera del export y "Míos" exportaba igual todos los expedientes).
+   */
+  private readonly viewFilters = computed<ExpedienteListParams>(() => ({
     ...this.activeFilters(),
+    assignedToMe: this.lens() === 'mine',
+  }));
+
+  private readonly requestParams = computed<ExpedienteListParams & { reload: number }>(() => ({
+    ...this.viewFilters(),
     page: this.page(),
     size: this.size(),
+    reload: this.reloadTrigger(),
   }));
 
   private readonly state = toSignal(
@@ -163,6 +205,35 @@ export class BandejaComponent {
   protected readonly isEmpty = computed(
     () => this.state().status === 'ok' && this.cases().length === 0,
   );
+
+  /**
+   * Conteo de cada lente para mostrarlo al lado del toggle ("Míos 4 · Todos 57"). Se piden con
+   * `size: 1` porque solo interesa `totalElements`, no las filas. Respetan los filtros vigentes:
+   * el número tiene que decir cuántos hay *de lo que estás mirando*, no del total absoluto.
+   */
+  private readonly counts = toSignal(
+    toObservable(
+      computed(() => ({
+        filters: this.activeFilters(),
+        reload: this.reloadTrigger(),
+      })),
+    ).pipe(
+      switchMap(({ filters }) =>
+        forkJoin({
+          mine: this.service
+            .list({ ...filters, assignedToMe: true, page: 0, size: 1 })
+            .pipe(map((p) => p.totalElements)),
+          all: this.service
+            .list({ ...filters, page: 0, size: 1 })
+            .pipe(map((p) => p.totalElements)),
+        }).pipe(catchError(() => of({ mine: 0, all: 0 }))),
+      ),
+    ),
+    { initialValue: { mine: 0, all: 0 } },
+  );
+
+  protected readonly mineCount = computed(() => this.counts().mine);
+  protected readonly allCount = computed(() => this.counts().all);
 
   protected readonly hasActiveFilters = computed(
     () =>
@@ -220,6 +291,7 @@ export class BandejaComponent {
     { field: 'claimedAmount', label: 'Importe reclamado' },
     { field: 'riskBand', label: 'Riesgo' },
     { field: 'analysisClassification', label: 'Clasificación' },
+    { field: 'analyst.surname', label: 'Analista' },
   ];
 
   // ───────────────── Handlers de filtros (todos resetean a página 0) ─────────────────
@@ -284,6 +356,83 @@ export class BandejaComponent {
 
   protected goTo(id: number): void {
     this.router.navigate(['/cases', id]);
+  }
+
+  // ───────────────── Asignación ─────────────────
+  // Asignar es poner dueño, no resolver: el expediente sigue esperando que el analista lo apruebe
+  // o lo rechace desde el detalle (human-in-the-loop).
+
+  /** Id del expediente cuya asignación está en vuelo, para deshabilitar el botón mientras tanto. */
+  protected readonly assigning = signal<number | null>(null);
+  protected readonly assignError = signal<string | null>(null);
+
+  /** Analistas asignables. Se piden una vez; el selector de "Asignar a…" se arma con esto. */
+  private readonly analysts = toSignal(
+    this.users.listAnalysts().pipe(catchError(() => of([]))),
+    { initialValue: [] },
+  );
+
+  protected readonly analystMenuItems = computed<MenuItem[]>(() =>
+    this.analysts().map((a) => ({ value: String(a.id), label: `${a.nombre} ${a.apellido}` })),
+  );
+
+  /**
+   * Mi id de analista DENTRO de esta aseguradora. No sale de la sesión —ahí está el id de
+   * usuario, que es otra tabla— sino de buscarme por email en el listado de analistas, que ya
+   * viene acotado al tenant. Null para el referente, que no tiene perfil de analista.
+   */
+  private readonly myAnalystId = computed<number | null>(() => {
+    const email = this.session.session()?.email;
+    return this.analysts().find((a) => a.email === email)?.id ?? null;
+  });
+
+  /** Solo un analista puede tomar un expediente para sí; el referente asigna, no se autoasigna. */
+  protected readonly canTake = computed(
+    () => this.session.session()?.rol === 'ANALISTA_SINIESTROS' && this.myAnalystId() != null,
+  );
+
+  protected isMine(c: ExpedienteResponse): boolean {
+    return c.assignedAnalystId != null && c.assignedAnalystId === this.myAnalystId();
+  }
+
+  protected displayAnalyst(c: ExpedienteResponse): string {
+    return c.assignedAnalystName ?? 'Sin asignar';
+  }
+
+  /** Atajo del analista: se asigna el expediente a sí mismo sin pasar por el selector. */
+  protected take(c: ExpedienteResponse): void {
+    const me = this.myAnalystId();
+    if (me != null) {
+      this.runAssignment(c.id, this.service.assign(c.id, me));
+    }
+  }
+
+  protected assignTo(caseId: number, analystId: string): void {
+    this.runAssignment(caseId, this.service.assign(caseId, Number(analystId)));
+  }
+
+  protected release(caseId: number): void {
+    this.runAssignment(caseId, this.service.unassign(caseId));
+  }
+
+  private runAssignment(caseId: number, request: Observable<ExpedienteResponse>): void {
+    if (this.assigning() !== null) {
+      return;
+    }
+    this.assigning.set(caseId);
+    this.assignError.set(null);
+    request.subscribe({
+      next: () => {
+        this.assigning.set(null);
+        // Releer del backend en vez de parchear la fila: si la lente es "Míos", el expediente
+        // recién liberado tiene que desaparecer del listado y los conteos moverse con él.
+        this.reloadTrigger.update((n) => n + 1);
+      },
+      error: () => {
+        this.assigning.set(null);
+        this.assignError.set('No se pudo actualizar la asignación. Intentá de nuevo.');
+      },
+    });
   }
 
   // ───────────────── Presentación de celdas ─────────────────
@@ -353,12 +502,16 @@ export class BandejaComponent {
     'Importe reclamado',
     'Riesgo',
     'Clasificación',
+    'Analista',
   ];
 
   /**
-   * Exporta TODOS los expedientes que matchean los filtros actuales (no solo la página visible):
+   * Exporta TODOS los expedientes que matchean lo que se está viendo (no solo la página visible):
    * pagina en secuencia con un tamaño grande hasta agotar totalPages, ignorando la paginación de
-   * la tabla. Respeta filtros + orden vigentes; ignora page/size de la vista.
+   * la tabla. Respeta filtros, lente ("Míos"/"Todos") y orden vigentes; ignora page/size.
+   *
+   * <p>Sale de {@code viewFilters}, la misma fuente que alimenta la tabla: el archivo tiene que
+   * contener exactamente las filas que el analista tiene delante, ni una más.
    */
   protected exportAs(format: string): void {
     if (this.exporting()) {
@@ -366,7 +519,7 @@ export class BandejaComponent {
     }
     this.exporting.set(true);
 
-    const params: ExpedienteListParams = { ...this.activeFilters(), size: 200 };
+    const params: ExpedienteListParams = { ...this.viewFilters(), size: 200 };
 
     this.fetchAllPages(params, 0, []).subscribe({
       next: (rows) => {
@@ -424,7 +577,10 @@ export class BandejaComponent {
     const url = URL.createObjectURL(blob);
     const link = this.document.createElement('a');
     link.href = url;
-    link.download = `expedientes-${this.timestampForFilename()}.${extension}`;
+    // La lente va en el nombre: abierto suelto, el archivo tiene que poder decir si son los
+    // expedientes del analista o todos.
+    const scope = this.lens() === 'mine' ? 'mios-' : '';
+    link.download = `expedientes-${scope}${this.timestampForFilename()}.${extension}`;
     link.click();
     URL.revokeObjectURL(url);
   }
@@ -440,6 +596,7 @@ export class BandejaComponent {
       c.claimedAmount != null ? String(c.claimedAmount) : '',
       this.riskBandLabel(c.riskBand),
       c.analysisClassification ? clasificacionLabel(c.analysisClassification) : '',
+      c.assignedAnalystName ?? '',
     ];
   }
 

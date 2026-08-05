@@ -126,6 +126,7 @@ services:
       - "8083:8083"
     environment:
       CLASSIFICATION_SERVICE_URL: http://classification-service:8082
+      AUTH_SERVICE_URL: http://auth-service:8080
       DB_URL: jdbc:postgresql://postgres:5432/${DB_NAME:-arbiter}
       DB_USER: ${DB_USER:-arbiter}
       DB_PASSWORD: ${DB_PASSWORD:-arbiter}
@@ -150,6 +151,9 @@ services:
       DB_URL: jdbc:postgresql://postgres:5432/${DB_NAME:-arbiter}
       DB_USER: ${DB_USER:-arbiter}
       DB_PASSWORD: ${DB_PASSWORD:-arbiter}
+      # Igual que el resto: su SecurityConfig arma el JwtAuthenticationFilter al
+      # levantar, así que sin secreto no arranca (falla con "key byte array is 0 bits").
+      JWT_SECRET: ${JWT_SECRET:-+CV3wiE5lScQGEx1PvKLNuWmaqxixDsm8EIFifgfq8thgguF84p+GI10Rs/1wSTl}
     depends_on:
       postgres:
         condition: service_healthy
@@ -165,6 +169,7 @@ services:
       DB_URL: jdbc:postgresql://postgres:5432/${DB_NAME:-arbiter}
       DB_USER: ${DB_USER:-arbiter}
       DB_PASSWORD: ${DB_PASSWORD:-arbiter}
+      JWT_SECRET: ${JWT_SECRET:-+CV3wiE5lScQGEx1PvKLNuWmaqxixDsm8EIFifgfq8thgguF84p+GI10Rs/1wSTl}
     depends_on:
       postgres:
         condition: service_healthy

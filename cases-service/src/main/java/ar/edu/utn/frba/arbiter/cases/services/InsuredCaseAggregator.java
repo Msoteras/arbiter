@@ -76,9 +76,11 @@ public class InsuredCaseAggregator {
 
         // El DNI se fuerza como filtro en vez de tomarse del request: es lo que ata el resultado
         // al que pregunta.
+        // Sin filtro de analista: a quién le tocó trabajar el expediente es interno de la
+        // aseguradora, no un recorte de la vista del asegurado.
         Specification<Case> spec = CaseSpecifications.withFilters(
                 status, claimCause, policyNumber, caller.insuredId(),
-                eventDateFrom, eventDateTo, q, riskBand);
+                eventDateFrom, eventDateTo, q, riskBand, null);
 
         String callerTenant = TenantContext.get();
         List<InsuredCase> merged = new ArrayList<>();

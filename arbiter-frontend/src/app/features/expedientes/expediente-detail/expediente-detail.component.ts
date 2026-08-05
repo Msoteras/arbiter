@@ -2,10 +2,12 @@ import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@a
 import { toObservable, toSignal } from '@angular/core/rxjs-interop';
 import { ActivatedRoute, RouterLink } from '@angular/router';
 import { HttpErrorResponse } from '@angular/common/http';
-import { catchError, combineLatest, map, of, startWith, switchMap } from 'rxjs';
+import { catchError, combineLatest, map, Observable, of, startWith, switchMap } from 'rxjs';
 
 import { ExpedienteService, AnalystDecisionRequest } from '../expediente.service';
 import { CaseNavigationService } from '../case-navigation.service';
+import { AuthSessionService } from '../../../core/auth/auth-session.service';
+import { UserAdminService } from '../../../core/auth/user-admin.service';
 import { ExpedienteResponse, StatusTransition } from '../../../core/models/expediente';
 import { CASE_DOCUMENT_TYPES, CaseDocument } from '../../../core/models/case-document';
 import { clasificacionLabel, clasificacionTone } from '../../../core/models/clasificacion';
@@ -21,6 +23,7 @@ import { ButtonComponent } from '../../../shared/ui/button/button.component';
 import { BadgeComponent } from '../../../shared/ui/badge/badge.component';
 import { ModalComponent } from '../../../shared/ui/modal/modal.component';
 import { TextareaComponent } from '../../../shared/ui/textarea/textarea.component';
+import { MenuButtonComponent, MenuItem } from '../../../shared/ui/menu-button/menu-button.component';
 
 type LoadState =
   | { status: 'loading' }
@@ -47,6 +50,7 @@ interface FieldItem { label: string; value: string | null; mono?: boolean; full?
     BadgeComponent,
     ModalComponent,
     TextareaComponent,
+    MenuButtonComponent,
   ],
   changeDetection: ChangeDetectionStrategy.OnPush,
   templateUrl: './expediente-detail.component.html',
@@ -56,6 +60,8 @@ export class ExpedienteDetailComponent {
   private readonly route = inject(ActivatedRoute);
   private readonly service = inject(ExpedienteService);
   private readonly caseNav = inject(CaseNavigationService);
+  private readonly session = inject(AuthSessionService);
+  private readonly users = inject(UserAdminService);
 
   /** Bumped after a decision is recorded, to refetch the case and reflect the real backend status. */
   private readonly reloadTrigger = signal(0);
@@ -164,7 +170,7 @@ export class ExpedienteDetailComponent {
       { label: 'Hecho generador', value: null },
       { label: 'Ubicación', value: d?.eventLocation ?? null, full: true },
       { label: 'Descripción', value: d?.description ?? null, full: true },
-      { label: 'Analista asignado', value: null },
+      { label: 'Analista asignado', value: d?.assignedAnalystName ?? null },
       { label: 'PEP (declarativo)', value: null },
     ];
   });
@@ -260,6 +266,76 @@ export class ExpedienteDetailComponent {
       error: (err: HttpErrorResponse) => {
         this.decisionSaving.set(false);
         this.decisionError.set(err.error?.detail || 'No se pudo registrar la decisión');
+      },
+    });
+  }
+
+  // ----- asignación del expediente -----
+  // Asignar es poner dueño, no resolver: no mueve el expediente de estado ni reemplaza la
+  // decisión del analista (human-in-the-loop, decisión de arquitectura #5). Los dos roles
+  // operativos pueden asignar; solo el analista puede tomarlo para sí.
+  protected readonly assignSaving = signal(false);
+  protected readonly assignError = signal<string | null>(null);
+
+  private readonly analysts = toSignal(this.users.listAnalysts().pipe(catchError(() => of([]))), {
+    initialValue: [],
+  });
+
+  protected readonly analystMenuItems = computed<MenuItem[]>(() =>
+    this.analysts().map((a) => ({ value: String(a.id), label: `${a.nombre} ${a.apellido}` })),
+  );
+
+  /**
+   * Mi id de analista DENTRO de esta aseguradora — no el de usuario de la sesión, que es otra
+   * tabla. Sale de buscarme por email en el listado de analistas, que ya viene acotado al tenant.
+   * Null para el referente, que no tiene perfil de analista.
+   */
+  private readonly myAnalystId = computed<number | null>(() => {
+    const email = this.session.session()?.email;
+    return this.analysts().find((a) => a.email === email)?.id ?? null;
+  });
+
+  protected readonly canTake = computed(
+    () => this.session.session()?.rol === 'ANALISTA_SINIESTROS' && this.myAnalystId() != null,
+  );
+
+  protected readonly assignedName = computed(() => this.data()?.assignedAnalystName ?? null);
+  protected readonly isAssigned = computed(() => this.data()?.assignedAnalystId != null);
+
+  protected take(): void {
+    const me = this.myAnalystId();
+    const d = this.data();
+    if (me != null && d) {
+      this.runAssignment(this.service.assign(d.id, me));
+    }
+  }
+
+  protected assignTo(analystId: string): void {
+    const d = this.data();
+    if (d) {
+      this.runAssignment(this.service.assign(d.id, Number(analystId)));
+    }
+  }
+
+  protected release(): void {
+    const d = this.data();
+    if (d) {
+      this.runAssignment(this.service.unassign(d.id));
+    }
+  }
+
+  private runAssignment(request: Observable<ExpedienteResponse>): void {
+    this.assignSaving.set(true);
+    this.assignError.set(null);
+    request.subscribe({
+      next: () => {
+        this.assignSaving.set(false);
+        // Releer: la asignación también deja un hito nuevo en el historial de transiciones.
+        this.reloadTrigger.update((v) => v + 1);
+      },
+      error: (err: HttpErrorResponse) => {
+        this.assignSaving.set(false);
+        this.assignError.set(err.error?.detail || 'No se pudo actualizar la asignación');
       },
     });
   }
