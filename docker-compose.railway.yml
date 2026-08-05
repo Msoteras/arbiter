@@ -149,6 +149,9 @@ services:
       DB_URL: ${DB_URL:?falta DB_URL en .env}
       DB_USER: ${DB_USER:?falta DB_USER en .env}
       DB_PASSWORD: ${DB_PASSWORD:?falta DB_PASSWORD en .env}
+      # Igual que el resto: su SecurityConfig arma el JwtAuthenticationFilter al
+      # levantar, así que sin secreto no arranca (falla con "key byte array is 0 bits").
+      JWT_SECRET: ${JWT_SECRET:?falta JWT_SECRET en .env}
     restart: on-failure
 
   reports-service:
@@ -161,6 +164,7 @@ services:
       DB_URL: ${DB_URL:?falta DB_URL en .env}
       DB_USER: ${DB_USER:?falta DB_USER en .env}
       DB_PASSWORD: ${DB_PASSWORD:?falta DB_PASSWORD en .env}
+      JWT_SECRET: ${JWT_SECRET:?falta JWT_SECRET en .env}
     restart: on-failure
 
 volumes:

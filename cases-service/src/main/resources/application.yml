@@ -34,10 +34,6 @@ spring:
 arbiter:
   classification-service:
     url: ${CLASSIFICATION_SERVICE_URL:http://localhost:8082}
-  # Resuelve el nombre del analista al asignar un expediente (no se lee la tabla users directo:
-  # es de auth-service).
-  auth-service:
-    url: ${AUTH_SERVICE_URL:http://localhost:8080}
   auth:
     jwt:
       secret: ${JWT_SECRET:}
