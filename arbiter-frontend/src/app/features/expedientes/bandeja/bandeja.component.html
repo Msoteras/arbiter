@@ -178,7 +178,9 @@
                 }
               </td>
               <td class="assign-cell" (click)="$event.stopPropagation()">
-                <span [class.t-note]="!c.assignedAnalystName">{{ displayAnalyst(c) }}</span>
+                <span class="assign-name" [class.t-note]="!c.assignedAnalystName">
+                  {{ displayAnalyst(c) }}
+                </span>
                 <div class="assign-actions">
                   @if (!c.assignedAnalystId && canTake()) {
                     <button
@@ -204,9 +206,10 @@
                     [items]="analystMenuItems()"
                     [disabled]="assigning() !== null"
                     align="end"
+                    size="sm"
                     (itemSelected)="assignTo(c.id, $event)"
                   >
-                    {{ c.assignedAnalystId ? 'Reasignar' : 'Asignar a…' }}
+                    {{ c.assignedAnalystId ? 'Reasignar' : 'Asignar' }}
                   </app-menu-button>
                 </div>
               </td>

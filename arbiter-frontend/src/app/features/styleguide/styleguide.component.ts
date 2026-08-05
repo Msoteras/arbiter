@@ -298,11 +298,20 @@ interface Swatch {
         <p class="sg-p">
           Botón con menú desplegable (ej. "Exportar" en la bandeja de expedientes: CSV / XLSX).
           Mismo trigger que <span class="mono">app-button</span>; el panel usa el tratamiento
-          visual de <span class="mono">app-select</span>.
+          visual de <span class="mono">app-select</span>. Acepta el mismo
+          <span class="mono">size</span> que el botón: <span class="mono">sm</span> para triggers
+          que viven dentro de una fila de tabla (ej. "Reasignar" en la columna Analista).
         </p>
         <div class="row">
           <app-menu-button [items]="sampleMenuItems" (itemSelected)="onSampleMenuSelect($event)">
             Exportar
+          </app-menu-button>
+          <app-menu-button
+            [items]="sampleMenuItems"
+            size="sm"
+            (itemSelected)="onSampleMenuSelect($event)"
+          >
+            Exportar (sm)
           </app-menu-button>
           @if (sampleMenuChoice(); as choice) {
             <span class="t-note">Elegiste: <span class="mono">{{ choice }}</span></span>
