@@ -1,0 +1,46 @@
+:host {
+  display: block;
+  padding: var(--space-5);
+  max-width: 760px;
+}
+
+.intro {
+  margin: 0 0 var(--space-5);
+}
+
+app-card {
+  display: block;
+  margin-bottom: var(--space-5);
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  margin-bottom: var(--space-4);
+}
+
+.field-inline {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  margin-bottom: var(--space-4);
+}
+
+.hint {
+  color: var(--text-tertiary);
+}
+
+.actions {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: var(--space-3);
+}
+
+.msg-error {
+  color: var(--status-danger);
+}
+
+.msg-ok {
+  color: var(--status-ok);
+}

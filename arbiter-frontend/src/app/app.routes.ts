@@ -107,6 +107,13 @@ export const routes: Routes = [
     loadComponent: () =>
       import('./features/admin/usuarios/usuarios.component').then((m) => m.UsuariosComponent),
   },
+  {
+    path: 'insurer/rules',
+    canActivate: [roleGuard],
+    data: { roles: ['REFERENTE_ASEGURADORA'] },
+    loadComponent: () =>
+      import('./features/admin/reglas/reglas.component').then((m) => m.ReglasComponent),
+  },
 
   // redirectTo: '' no vuelve a disparar la regla '' → login (Angular no re-evalúa el
   // redirect resultante) — una URL inexistente quedaba en pantalla en blanco, sin

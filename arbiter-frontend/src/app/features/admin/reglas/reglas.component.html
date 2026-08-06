@@ -1,0 +1,73 @@
+<h1 class="t-page-title">Reglas Fast Track</h1>
+<p class="t-note measure intro">
+  Configurá los umbrales que habilitan el Fast Track por ramo y cobertura. Los cambios se aplican
+  sin redeploy y cada edición queda auditada en el historial.
+</p>
+
+<app-card heading="Ramo y cobertura">
+  <div class="field">
+    <span class="t-field-label">Ramo</span>
+    <app-select
+      placeholder="Elegí un ramo"
+      [options]="branchOptions()"
+      [value]="selectedBranch()"
+      (valueChange)="onBranchChange($event)"
+    ></app-select>
+  </div>
+  <div class="field">
+    <span class="t-field-label">Cobertura</span>
+    <app-select
+      placeholder="Elegí una cobertura"
+      [options]="coverageOptions()"
+      [value]="selectedCoverage()"
+      [disabled]="selectedBranch() === ''"
+      (valueChange)="onCoverageChange($event)"
+    ></app-select>
+  </div>
+</app-card>
+
+@if (canEdit()) {
+  <app-card heading="Umbrales Fast Track">
+    @if (loadingConfig()) {
+      <p class="t-note">Cargando configuración…</p>
+    } @else {
+      <div class="field">
+        <span class="t-field-label">Monto reclamado máximo (proporción de la suma asegurada)</span>
+        <app-input type="number" placeholder="Ej. 0.5" [min]="0" [(value)]="ratio"></app-input>
+        <span class="t-note hint">Entre 0 y 1. Vacío = no se evalúa este criterio.</span>
+      </div>
+
+      <div class="field">
+        <span class="t-field-label">Máximo de siniestros previos</span>
+        <app-input type="number" placeholder="Ej. 0" [min]="0" [(value)]="maxPriorClaims"></app-input>
+        <span class="t-note hint">Vacío = no se evalúa.</span>
+      </div>
+
+      <div class="field-inline">
+        <app-checkbox [(checked)]="requiresUpToDate"></app-checkbox>
+        <span class="t-field-label">Requiere póliza al día con sus pagos</span>
+      </div>
+
+      <div class="field">
+        <span class="t-field-label">Documentos requeridos</span>
+        <app-input placeholder="Ej. police_report, item_photo" [(value)]="requiredDocs"></app-input>
+        <span class="t-note hint">Separados por coma. Vacío = ninguno.</span>
+      </div>
+
+      @if (error()) {
+        <p class="t-note msg-error">{{ error() }}</p>
+      }
+      @if (savedOk()) {
+        <p class="t-note msg-ok">Cambios guardados ✓</p>
+      }
+
+      <div class="actions">
+        <app-button [loading]="saving()" [disabled]="saving()" (click)="save()">Guardar</app-button>
+      </div>
+    }
+  </app-card>
+} @else {
+  <app-card>
+    <p class="t-note">Elegí un ramo y una cobertura para configurar sus umbrales Fast Track.</p>
+  </app-card>
+}

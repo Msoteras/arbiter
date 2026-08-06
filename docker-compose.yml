@@ -109,6 +109,7 @@ services:
       DB_USER: ${DB_USER:-arbiter}
       DB_PASSWORD: ${DB_PASSWORD:-arbiter}
       JWT_SECRET: ${JWT_SECRET:-+CV3wiE5lScQGEx1PvKLNuWmaqxixDsm8EIFifgfq8thgguF84p+GI10Rs/1wSTl}
+      RULES_SERVICE_URL: http://rules-service:8081
     depends_on:
       ollama-init:
         condition: service_completed_successfully
@@ -150,6 +151,7 @@ services:
       DB_URL: jdbc:postgresql://postgres:5432/${DB_NAME:-arbiter}
       DB_USER: ${DB_USER:-arbiter}
       DB_PASSWORD: ${DB_PASSWORD:-arbiter}
+      JWT_SECRET: ${JWT_SECRET:-+CV3wiE5lScQGEx1PvKLNuWmaqxixDsm8EIFifgfq8thgguF84p+GI10Rs/1wSTl}
     depends_on:
       postgres:
         condition: service_healthy

@@ -199,9 +199,9 @@ public class ClassificationOrchestrator {
         log.info("[Orchestrator] History OK — previous_claims={} total_amount_claimed={}",
                 history.previousClaimsCount(), history.totalAmountClaimed());
 
-        log.debug("[Orchestrator] Fetching rules — branch='{}' claimCause='{}'...",
-                claim.branch(), claim.claimCause());
-        BusinessRules rules = rulesAdapter.getRules(claim.branch(), claim.claimCause());
+        log.debug("[Orchestrator] Fetching rules — branch='{}' coverageId={} claimCause='{}'...",
+                claim.branch(), claim.coverageId(), claim.claimCause());
+        BusinessRules rules = rulesAdapter.getRules(claim.branch(), claim.coverageId(), claim.claimCause());
         log.info("[Orchestrator] Rules OK — {} rules, {} exclusions, {} fast-track criteria",
                 rules.rules().size(), rules.exclusions().size(), rules.fastTrackCriteria().size());
 
@@ -281,6 +281,7 @@ public class ClassificationOrchestrator {
                 .branch(claim.branch())
                 .product(claim.product())
                 .claimCause(claim.claimCause())
+                .coverageId(claim.coverageId())
                 .insuredItem(claim.insuredItem())
                 .insuredId(claim.insuredId())
                 .policyNumber(claim.policyNumber())
