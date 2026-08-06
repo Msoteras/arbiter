@@ -58,6 +58,7 @@ export class MenuButtonRegistry {
   selector: 'app-menu-button',
   imports: [ButtonComponent],
   changeDetection: ChangeDetectionStrategy.OnPush,
+  host: { '[class.block]': 'block()' },
   template: `
     <div
       class="menu"
@@ -65,7 +66,13 @@ export class MenuButtonRegistry {
       [class.align-end]="align() === 'end'"
       [class.drop-up]="dropUp()"
     >
-      <app-button variant="secondary" [size]="size()" [disabled]="disabled()" (click)="toggle()">
+      <app-button
+        variant="secondary"
+        [size]="size()"
+        [block]="block()"
+        [disabled]="disabled()"
+        (click)="toggle()"
+      >
         <ng-content />
       </app-button>
 
@@ -74,8 +81,8 @@ export class MenuButtonRegistry {
           @if (heading(); as h) {
             <li role="presentation" class="heading">{{ h }}</li>
           }
-          @for (item of items(); track item.value) {
-            <li role="none" [class.danger-sep]="item.danger">
+          @for (item of items(); track item.value; let i = $index) {
+            <li role="none" [class.danger-sep]="item.danger && i > 0">
               <button
                 type="button"
                 role="menuitem"
@@ -93,6 +100,8 @@ export class MenuButtonRegistry {
   `,
   styles: `
     :host { display: inline-block; }
+    :host(.block) { display: block; }
+    :host(.block) .menu { width: 100%; }
     .menu { position: relative; }
 
     .panel {
@@ -154,6 +163,8 @@ export class MenuButtonComponent implements ClosableMenu {
   /** Título opcional arriba de la lista (ej. "Asignar a otro analista"). No es clickeable. */
   readonly heading = input<string | null>(null);
   readonly disabled = input(false);
+  /** Trigger a ancho completo (para menús que actúan como botón principal, ej. "Reasignar"). */
+  readonly block = input(false);
   /** Mismo tamaño que app-button: `sm` para triggers que viven dentro de una fila de tabla. */
   readonly size = input<'md' | 'sm'>('md');
   /** Lado del trigger al que se ancla el panel — "end" para triggers pegados al borde derecho. */

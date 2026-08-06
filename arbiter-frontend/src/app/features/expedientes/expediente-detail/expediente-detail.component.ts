@@ -344,6 +344,55 @@ export class ExpedienteDetailComponent {
   protected readonly assignedName = computed(() => this.data()?.assignedAnalystName ?? null);
   protected readonly isAssigned = computed(() => this.data()?.assignedAnalystId != null);
 
+  /** True cuando el expediente está asignado al analista logueado (para el "Vos"). */
+  protected readonly isMine = computed(() => {
+    const id = this.data()?.assignedAnalystId;
+    return id != null && id === this.myAnalystId();
+  });
+
+  /** Iniciales del analista asignado para el avatar (hasta 2). */
+  protected readonly analystInitials = computed(() =>
+    (this.assignedName() ?? '')
+      .split(/\s+/)
+      .filter(Boolean)
+      .slice(0, 2)
+      .map((w) => w[0]!.toUpperCase())
+      .join(''),
+  );
+
+  /**
+   * Fecha de la asignación vigente, sacada del historial: la asignación deja un hito con
+   * fromStatus == toStatus y actor ANALYST (ver CaseStatusService.recordAssignment). El último de
+   * esos hitos, estando asignado, es la asignación actual.
+   */
+  private readonly assignedSince = computed<string | null>(() => {
+    const milestones = (this.data()?.statusHistory ?? []).filter(
+      (t) => t.fromStatus === t.toStatus && t.actor === 'ANALYST',
+    );
+    const last = milestones.at(-1);
+    return last
+      ? new Date(last.changedAt).toLocaleDateString('es-AR', { day: '2-digit', month: '2-digit' })
+      : null;
+  });
+
+  /** Subtítulo del avatar: "Vos · desde el 04/06" (cada parte según disponibilidad). */
+  protected readonly assignedContext = computed(() => {
+    const parts: string[] = [];
+    if (this.isMine()) parts.push('Vos');
+    const since = this.assignedSince();
+    if (since) parts.push(`desde el ${since}`);
+    return parts.join(' · ');
+  });
+
+  /** Menú "…" del recuadro de asignación: por ahora solo la acción destructiva de liberar. */
+  protected readonly overflowMenuItems: MenuItem[] = [
+    { value: 'release', label: 'Liberar', danger: true },
+  ];
+
+  protected onOverflowMenu(value: string): void {
+    if (value === 'release') this.release();
+  }
+
   protected take(): void {
     const me = this.myAnalystId();
     const d = this.data();
