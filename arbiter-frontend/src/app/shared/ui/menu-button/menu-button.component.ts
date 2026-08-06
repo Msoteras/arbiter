@@ -14,6 +14,8 @@ import { ButtonComponent } from '../button/button.component';
 export interface MenuItem {
   value: string;
   label: string;
+  /** Acción destructiva (ej. "Liberar"): se separa del resto y se pinta con el color de peligro. */
+  danger?: boolean;
 }
 
 /**
@@ -28,16 +30,30 @@ export interface MenuItem {
   imports: [ButtonComponent],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
-    <div class="menu" [class.open]="open()" [class.align-end]="align() === 'end'">
+    <div
+      class="menu"
+      [class.open]="open()"
+      [class.align-end]="align() === 'end'"
+      [class.drop-up]="dropUp()"
+    >
       <app-button variant="secondary" [size]="size()" [disabled]="disabled()" (click)="toggle()">
         <ng-content />
       </app-button>
 
       @if (open()) {
         <ul class="panel" role="menu">
+          @if (heading(); as h) {
+            <li role="presentation" class="heading">{{ h }}</li>
+          }
           @for (item of items(); track item.value) {
-            <li role="none">
-              <button type="button" role="menuitem" class="option" (click)="choose(item)">
+            <li role="none" [class.danger-sep]="item.danger">
+              <button
+                type="button"
+                role="menuitem"
+                class="option"
+                [class.danger]="item.danger"
+                (click)="choose(item)"
+              >
                 {{ item.label }}
               </button>
             </li>
@@ -66,6 +82,7 @@ export interface MenuItem {
       box-shadow: var(--shadow-modal);
     }
     .menu.align-end .panel { left: auto; right: 0; }
+    .menu.drop-up .panel { top: auto; bottom: calc(100% + var(--space-1)); }
 
     .option {
       display: block;
@@ -82,12 +99,25 @@ export interface MenuItem {
       white-space: nowrap;
     }
     .option:hover { background: var(--surface-sunken); color: var(--text-primary); }
+
+    .heading {
+      padding: var(--space-1) var(--space-3) var(--space-2);
+      font-size: var(--font-size-2xs);
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+      color: var(--text-muted);
+    }
+    .danger-sep { border-top: 1px solid var(--border-subtle); margin-top: var(--space-1); padding-top: var(--space-1); }
+    .option.danger { color: var(--status-danger); }
+    .option.danger:hover { background: var(--surface-sunken); color: var(--status-danger); }
   `,
 })
 export class MenuButtonComponent {
   private readonly host = inject<ElementRef<HTMLElement>>(ElementRef);
 
   readonly items = input.required<MenuItem[]>();
+  /** Título opcional arriba de la lista (ej. "Asignar a otro analista"). No es clickeable. */
+  readonly heading = input<string | null>(null);
   readonly disabled = input(false);
   /** Mismo tamaño que app-button: `sm` para triggers que viven dentro de una fila de tabla. */
   readonly size = input<'md' | 'sm'>('md');
@@ -97,10 +127,42 @@ export class MenuButtonComponent {
   readonly itemSelected = output<string>();
 
   protected readonly open = signal(false);
+  /** El panel abre hacia arriba cuando no entra abajo (fila baja de una tabla scrolleable). */
+  protected readonly dropUp = signal(false);
 
   protected toggle(): void {
     if (this.disabled()) return;
-    this.open.update((o) => !o);
+    const opening = !this.open();
+    // Se decide ANTES de renderizar el panel (con la altura estimada) para que no haya parpadeo:
+    // el panel aparece directo del lado correcto.
+    if (opening) this.dropUp.set(this.shouldDropUp());
+    this.open.set(opening);
+  }
+
+  /**
+   * True cuando el panel no entra abajo del trigger pero sí arriba. La referencia no es el viewport
+   * sino el contenedor scrolleable más cercano (ej. el wrapper de la tabla): abrir hacia abajo ahí
+   * estira el contenedor y suma scroll, que es justo lo que se quiere evitar.
+   */
+  private shouldDropUp(): boolean {
+    const rect = this.host.nativeElement.getBoundingClientRect();
+    const estItemHeight = 40;
+    const estPanelHeight = (this.heading() ? 28 : 0) + this.items().length * estItemHeight + 12;
+    const spaceBelow = this.scrollBoundaryBottom() - rect.bottom;
+    const spaceAbove = rect.top;
+    return spaceBelow < estPanelHeight && spaceAbove > spaceBelow;
+  }
+
+  /** Borde inferior del ancestro scrolleable más cercano; si no hay, el del viewport. */
+  private scrollBoundaryBottom(): number {
+    let el = this.host.nativeElement.parentElement;
+    while (el) {
+      if (/(auto|scroll|hidden)/.test(getComputedStyle(el).overflowY)) {
+        return el.getBoundingClientRect().bottom;
+      }
+      el = el.parentElement;
+    }
+    return window.innerHeight;
   }
 
   protected choose(item: MenuItem): void {

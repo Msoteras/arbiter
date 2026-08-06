@@ -3,6 +3,7 @@ import { ChangeDetectionStrategy, Component, computed, input } from '@angular/co
 import { StatusTransition } from '../../../core/models/expediente';
 import { estadoLabel, estadoTone, isEstadoFinal, proximoPaso } from '../../../core/models/estado';
 import { StatusTone } from '../../../core/models/status-tone';
+import { formatDateTime } from '../../../core/util/datetime';
 import { BadgeComponent } from '../badge/badge.component';
 
 const ACTOR_LABELS: Record<StatusTransition['actor'], string> = {
@@ -150,6 +151,6 @@ export class StatusTimelineComponent {
   }
 
   protected when(iso: string): string {
-    return new Date(iso).toLocaleString('es-AR');
+    return formatDateTime(iso);
   }
 }

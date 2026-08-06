@@ -142,6 +142,27 @@ public class CaseServiceImpl implements CaseService {
         return toResponse(entity);
     }
 
+    @Override
+    public CaseResponse retryClassification(Long caseId) {
+        Case entity = caseRepository.findById(caseId)
+                .orElseThrow(() -> new CaseNotFoundException(caseId));
+
+        // Fresh cycle, same reset as addDocumentsAndReclassify: without zeroing attempts the
+        // scheduler would re-fail the case on its next tick (it left CLASSIFICATION_FAILED already
+        // at maxAttempts), and the stale risk band would show through the re-classification window.
+        entity.setRiskScore(null);
+        entity.setRiskBand(null);
+        entity.setDeterministicFastTrack(false);
+        entity.setClassificationAttempts(0);
+        // transition guards the state machine: only CLASSIFICATION_FAILED → PENDING_CLASSIFICATION
+        // is allowed, so a stale retry from any other state 409s instead of silently re-queueing.
+        caseStatusService.transition(entity, CaseStatus.PENDING_CLASSIFICATION,
+                StatusChangeActor.ANALYST, "reintento manual de clasificación");
+
+        claimsAnalysisClient.analyzeAndPersist(entity, caseDocumentRepository.findByCaseId(caseId));
+        return toResponse(entity);
+    }
+
     /** Persists each uploaded document, replacing any prior document of the same type. */
     /**
      * "case" is a reserved key: the frontend sends the case JSON payload itself as a Blob under

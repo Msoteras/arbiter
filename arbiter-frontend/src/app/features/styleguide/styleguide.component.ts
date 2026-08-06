@@ -228,6 +228,7 @@ interface Swatch {
         <div class="row">
           <app-button variant="primary">Primary</app-button>
           <app-button variant="secondary">Secondary</app-button>
+          <app-button variant="accent">Accent</app-button>
           <app-button variant="primary" [disabled]="true">Disabled</app-button>
           <app-button variant="primary" [loading]="true">Loading</app-button>
           <app-button variant="secondary" [loading]="true">Loading</app-button>

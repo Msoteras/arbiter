@@ -8,7 +8,7 @@
 } @else if (hasError()) {
   <app-card><p class="t-note">No se pudo cargar el listado de usuarios.</p></app-card>
 } @else if (isEmpty()) {
-  <app-card><p class="t-note">Todavía no hay usuarios cargados.</p></app-card>
+  <app-empty-state message="Todavía no hay usuarios cargados." sub="Sin usuarios" />
 } @else {
   @if (roleError()) {
     <p class="error">{{ roleError() }}</p>

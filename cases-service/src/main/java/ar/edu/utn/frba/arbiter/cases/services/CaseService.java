@@ -58,6 +58,16 @@ public interface CaseService {
 
     CaseResponse addDocumentsAndReclassify(Long caseId, Map<String, MultipartFile> documents);
 
+    /**
+     * Reintento manual de la clasificación para un expediente en {@code CLASSIFICATION_FAILED}. El
+     * scheduler solo barre {@code PENDING_CLASSIFICATION}, así que un caso que agotó los reintentos
+     * queda varado sin este empujón. Devuelve el caso a {@code PENDING_CLASSIFICATION} (reseteando
+     * el contador de intentos, si no el scheduler lo re-marcaría fallido enseguida) y vuelve a
+     * disparar el análisis con la documentación ya cargada. Lo dispara el analista, no el sistema:
+     * la máquina de estados rechaza (409) el reintento desde cualquier otro estado.
+     */
+    CaseResponse retryClassification(Long caseId);
+
     void recordAnalystDecision(Long caseId, AnalystDecisionRequest request);
 
     /**

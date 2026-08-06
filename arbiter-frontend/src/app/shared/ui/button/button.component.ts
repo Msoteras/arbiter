@@ -1,6 +1,6 @@
 import { ChangeDetectionStrategy, Component, input } from '@angular/core';
 
-type Variant = 'primary' | 'secondary';
+type Variant = 'primary' | 'secondary' | 'accent';
 type Size = 'md' | 'sm';
 
 /**
@@ -17,6 +17,7 @@ type Size = 'md' | 'sm';
       class="btn"
       [class.primary]="variant() === 'primary'"
       [class.secondary]="variant() === 'secondary'"
+      [class.accent]="variant() === 'accent'"
       [class.sm]="size() === 'sm'"
       [class.loading]="loading()"
       [type]="type()"
@@ -56,6 +57,8 @@ type Size = 'md' | 'sm';
     .btn.primary:hover:not(:disabled) { background: var(--action-primary-bg-hover); border-color: var(--action-primary-bg-hover); }
     .btn.secondary { background: var(--action-secondary-bg); border-color: var(--action-secondary-border); color: var(--action-secondary-fg); }
     .btn.secondary:hover:not(:disabled) { border-color: var(--action-secondary-border-hover); }
+    .btn.accent { background: var(--action-accent-bg); border-color: var(--action-accent-bg); color: var(--action-accent-fg); }
+    .btn.accent:hover:not(:disabled) { background: var(--action-accent-bg-hover); border-color: var(--action-accent-bg-hover); }
     .btn:disabled { color: var(--text-muted); background: var(--surface-sunken); border-color: var(--border-subtle); cursor: default; pointer-events: none; }
   `,
 })

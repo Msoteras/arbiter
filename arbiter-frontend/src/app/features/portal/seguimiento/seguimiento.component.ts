@@ -17,6 +17,7 @@ import {
   isEstadoFinal,
 } from '../../../core/models/estado';
 import { StatusTone } from '../../../core/models/status-tone';
+import { formatDateTime } from '../../../core/util/datetime';
 import { ExpedienteService } from '../../expedientes/expediente.service';
 import { CardComponent } from '../../../shared/ui/card/card.component';
 import { ButtonComponent } from '../../../shared/ui/button/button.component';
@@ -168,22 +169,16 @@ export class SeguimientoComponent {
       return {
         stage,
         label: SIMPLIFICADO_LABEL[stage],
-        date: date ? new Date(date).toLocaleString('es-AR') : null,
+        date: date ? formatDateTime(date, '') : null,
         reached: i <= currentIndex,
         current: i === currentIndex,
       };
     });
   });
 
-  protected readonly fechaDenuncia = computed(() => {
-    const d = this.data();
-    return d?.createdAt ? new Date(d.createdAt).toLocaleString('es-AR') : '—';
-  });
+  protected readonly fechaDenuncia = computed(() => formatDateTime(this.data()?.createdAt));
 
-  protected readonly fechaHecho = computed(() => {
-    const d = this.data();
-    return d?.eventDate ? new Date(d.eventDate).toLocaleString('es-AR') : '—';
-  });
+  protected readonly fechaHecho = computed(() => formatDateTime(this.data()?.eventDate));
 
   protected goToDocumentacion(): void {
     this.router.navigate(['documentacion'], { relativeTo: this.route });
