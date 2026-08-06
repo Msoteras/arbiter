@@ -30,7 +30,12 @@ export interface MenuItem {
   imports: [ButtonComponent],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
-    <div class="menu" [class.open]="open()" [class.align-end]="align() === 'end'">
+    <div
+      class="menu"
+      [class.open]="open()"
+      [class.align-end]="align() === 'end'"
+      [class.drop-up]="dropUp()"
+    >
       <app-button variant="secondary" [size]="size()" [disabled]="disabled()" (click)="toggle()">
         <ng-content />
       </app-button>
@@ -77,6 +82,7 @@ export interface MenuItem {
       box-shadow: var(--shadow-modal);
     }
     .menu.align-end .panel { left: auto; right: 0; }
+    .menu.drop-up .panel { top: auto; bottom: calc(100% + var(--space-1)); }
 
     .option {
       display: block;
@@ -121,10 +127,42 @@ export class MenuButtonComponent {
   readonly itemSelected = output<string>();
 
   protected readonly open = signal(false);
+  /** El panel abre hacia arriba cuando no entra abajo (fila baja de una tabla scrolleable). */
+  protected readonly dropUp = signal(false);
 
   protected toggle(): void {
     if (this.disabled()) return;
-    this.open.update((o) => !o);
+    const opening = !this.open();
+    // Se decide ANTES de renderizar el panel (con la altura estimada) para que no haya parpadeo:
+    // el panel aparece directo del lado correcto.
+    if (opening) this.dropUp.set(this.shouldDropUp());
+    this.open.set(opening);
+  }
+
+  /**
+   * True cuando el panel no entra abajo del trigger pero sí arriba. La referencia no es el viewport
+   * sino el contenedor scrolleable más cercano (ej. el wrapper de la tabla): abrir hacia abajo ahí
+   * estira el contenedor y suma scroll, que es justo lo que se quiere evitar.
+   */
+  private shouldDropUp(): boolean {
+    const rect = this.host.nativeElement.getBoundingClientRect();
+    const estItemHeight = 40;
+    const estPanelHeight = (this.heading() ? 28 : 0) + this.items().length * estItemHeight + 12;
+    const spaceBelow = this.scrollBoundaryBottom() - rect.bottom;
+    const spaceAbove = rect.top;
+    return spaceBelow < estPanelHeight && spaceAbove > spaceBelow;
+  }
+
+  /** Borde inferior del ancestro scrolleable más cercano; si no hay, el del viewport. */
+  private scrollBoundaryBottom(): number {
+    let el = this.host.nativeElement.parentElement;
+    while (el) {
+      if (/(auto|scroll|hidden)/.test(getComputedStyle(el).overflowY)) {
+        return el.getBoundingClientRect().bottom;
+      }
+      el = el.parentElement;
+    }
+    return window.innerHeight;
   }
 
   protected choose(item: MenuItem): void {
