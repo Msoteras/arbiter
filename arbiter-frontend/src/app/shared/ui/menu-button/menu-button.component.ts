@@ -1,8 +1,10 @@
 import {
   ChangeDetectionStrategy,
   Component,
+  DestroyRef,
   ElementRef,
   HostListener,
+  Injectable,
   inject,
   input,
   output,
@@ -16,6 +18,33 @@ export interface MenuItem {
   label: string;
   /** Acción destructiva (ej. "Liberar"): se separa del resto y se pinta con el color de peligro. */
   danger?: boolean;
+}
+
+interface ClosableMenu {
+  closeFromRegistry(): void;
+}
+
+/**
+ * Garantiza que haya un solo menú abierto a la vez. Coordinar por acá (y no por el `document:click`
+ * de cada menú) es necesario porque ese click puede venir con `stopPropagation` — la celda de la
+ * bandeja lo hace para no navegar a la fila — y ahí un menú nunca se entera de que se abrió otro.
+ */
+@Injectable({ providedIn: 'root' })
+export class MenuButtonRegistry {
+  private current: ClosableMenu | null = null;
+
+  open(menu: ClosableMenu): void {
+    if (this.current && this.current !== menu) {
+      this.current.closeFromRegistry();
+    }
+    this.current = menu;
+  }
+
+  close(menu: ClosableMenu): void {
+    if (this.current === menu) {
+      this.current = null;
+    }
+  }
 }
 
 /**
@@ -112,8 +141,14 @@ export interface MenuItem {
     .option.danger:hover { background: var(--surface-sunken); color: var(--status-danger); }
   `,
 })
-export class MenuButtonComponent {
+export class MenuButtonComponent implements ClosableMenu {
   private readonly host = inject<ElementRef<HTMLElement>>(ElementRef);
+  private readonly registry = inject(MenuButtonRegistry);
+
+  constructor() {
+    // Si la fila (y su menú) se destruye estando abierto, no dejar la referencia colgada.
+    inject(DestroyRef).onDestroy(() => this.registry.close(this));
+  }
 
   readonly items = input.required<MenuItem[]>();
   /** Título opcional arriba de la lista (ej. "Asignar a otro analista"). No es clickeable. */
@@ -132,11 +167,26 @@ export class MenuButtonComponent {
 
   protected toggle(): void {
     if (this.disabled()) return;
-    const opening = !this.open();
-    // Se decide ANTES de renderizar el panel (con la altura estimada) para que no haya parpadeo:
-    // el panel aparece directo del lado correcto.
-    if (opening) this.dropUp.set(this.shouldDropUp());
-    this.open.set(opening);
+    if (this.open()) {
+      this.close();
+    } else {
+      // dropUp se decide ANTES de renderizar el panel (con la altura estimada) para que no haya
+      // parpadeo: el panel aparece directo del lado correcto.
+      this.dropUp.set(this.shouldDropUp());
+      this.open.set(true);
+      // Cierra cualquier otro menú abierto (uno solo a la vez).
+      this.registry.open(this);
+    }
+  }
+
+  private close(): void {
+    this.open.set(false);
+    this.registry.close(this);
+  }
+
+  /** Lo llama el registry al abrirse otro menú: baja este sin volver a notificar (evita recursión). */
+  closeFromRegistry(): void {
+    this.open.set(false);
   }
 
   /**
@@ -166,19 +216,19 @@ export class MenuButtonComponent {
   }
 
   protected choose(item: MenuItem): void {
-    this.open.set(false);
+    this.close();
     this.itemSelected.emit(item.value);
   }
 
   @HostListener('document:click', ['$event'])
   protected onDocumentClick(event: MouseEvent): void {
     if (this.open() && !this.host.nativeElement.contains(event.target as Node)) {
-      this.open.set(false);
+      this.close();
     }
   }
 
   @HostListener('document:keydown.escape')
   protected onEscape(): void {
-    this.open.set(false);
+    if (this.open()) this.close();
   }
 }

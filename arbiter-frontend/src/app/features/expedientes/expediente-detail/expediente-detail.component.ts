@@ -319,9 +319,13 @@ export class ExpedienteDetailComponent {
     initialValue: [],
   });
 
-  protected readonly analystMenuItems = computed<MenuItem[]>(() =>
-    this.analysts().map((a) => ({ value: String(a.id), label: `${a.nombre} ${a.apellido}` })),
-  );
+  protected readonly analystMenuItems = computed<MenuItem[]>(() => {
+    // "Asignar a otro analista": el que ya lo tiene no va en la lista (reasignárselo no es acción).
+    const assignedId = this.data()?.assignedAnalystId;
+    return this.analysts()
+      .filter((a) => a.id !== assignedId)
+      .map((a) => ({ value: String(a.id), label: `${a.nombre} ${a.apellido}` }));
+  });
 
   /**
    * Mi id de analista DENTRO de esta aseguradora — no el de usuario de la sesión, que es otra
