@@ -35,8 +35,10 @@ type Variant = 'default' | 'soft' | 'ai';
       background: var(--surface);
       padding: var(--space-4);
       box-shadow: var(--shadow-card);
-      /* Llena la celda cuando el host se estira (grid/flex); en flujo normal es no-op. */
-      height: 100%;
+      /* min-height, no height: llena la celda si el host se estira (grid/flex), pero nunca
+         achica la card por debajo de su contenido (con height:100% pasaba dentro de un flex
+         column de altura auto, ej. .bandeja, y .card.flush lo escondía con su overflow). */
+      min-height: 100%;
     }
     .card.soft { background: var(--surface-soft); }
     .card.ai { background: var(--surface-ai); border-color: var(--border-ai); }

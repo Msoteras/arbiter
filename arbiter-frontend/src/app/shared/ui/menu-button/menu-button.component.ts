@@ -60,12 +60,7 @@ export class MenuButtonRegistry {
   changeDetection: ChangeDetectionStrategy.OnPush,
   host: { '[class.block]': 'block()' },
   template: `
-    <div
-      class="menu"
-      [class.open]="open()"
-      [class.align-end]="align() === 'end'"
-      [class.drop-up]="dropUp()"
-    >
+    <div class="menu" [class.open]="open()">
       <app-button
         variant="secondary"
         [size]="size()"
@@ -77,7 +72,14 @@ export class MenuButtonRegistry {
       </app-button>
 
       @if (open()) {
-        <ul class="panel" role="menu">
+        <ul
+          class="panel"
+          role="menu"
+          [style.top.px]="panelPos().top"
+          [style.bottom.px]="panelPos().bottom"
+          [style.left.px]="panelPos().left"
+          [style.right.px]="panelPos().right"
+        >
           @if (heading(); as h) {
             <li role="presentation" class="heading">{{ h }}</li>
           }
@@ -104,23 +106,21 @@ export class MenuButtonRegistry {
     :host(.block) .menu { width: 100%; }
     .menu { position: relative; }
 
+    /* fixed, no absolute: anclado al trigger por coordenadas de viewport. Como absolute lo
+       recortaba cualquier ancestro con overflow (ej. el wrapper con scroll horizontal de la
+       bandeja, que la spec obliga a recortar también en vertical). */
     .panel {
-      position: absolute;
-      top: calc(100% + var(--space-1));
-      left: 0;
+      position: fixed;
       z-index: 50;
       margin: 0;
       padding: var(--space-1);
       list-style: none;
-      min-width: 100%;
       width: max-content;
       background: var(--surface);
       border: 1px solid var(--border-control);
       border-radius: var(--radius-ctl);
       box-shadow: var(--shadow-modal);
     }
-    .menu.align-end .panel { left: auto; right: 0; }
-    .menu.drop-up .panel { top: auto; bottom: calc(100% + var(--space-1)); }
 
     .option {
       display: block;
@@ -155,8 +155,18 @@ export class MenuButtonComponent implements ClosableMenu {
   private readonly registry = inject(MenuButtonRegistry);
 
   constructor() {
+    const destroyRef = inject(DestroyRef);
     // Si la fila (y su menú) se destruye estando abierto, no dejar la referencia colgada.
-    inject(DestroyRef).onDestroy(() => this.registry.close(this));
+    destroyRef.onDestroy(() => this.registry.close(this));
+
+    // El panel es `fixed`: no acompaña a lo que scrollea, así que se cierra en vez de quedar
+    // flotando lejos del trigger. En captura para enterarse del scroll de cualquier contenedor
+    // interno (ej. la tabla de la bandeja), que no burbujea a window.
+    const onScroll = () => {
+      if (this.open()) this.close();
+    };
+    document.addEventListener('scroll', onScroll, true);
+    destroyRef.onDestroy(() => document.removeEventListener('scroll', onScroll, true));
   }
 
   readonly items = input.required<MenuItem[]>();
@@ -173,17 +183,21 @@ export class MenuButtonComponent implements ClosableMenu {
   readonly itemSelected = output<string>();
 
   protected readonly open = signal(false);
-  /** El panel abre hacia arriba cuando no entra abajo (fila baja de una tabla scrolleable). */
-  protected readonly dropUp = signal(false);
+  /** Coordenadas de viewport del panel (es `fixed`). Null en el eje que no se fija. */
+  protected readonly panelPos = signal<{
+    top: number | null;
+    bottom: number | null;
+    left: number | null;
+    right: number | null;
+  }>({ top: null, bottom: null, left: null, right: null });
 
   protected toggle(): void {
     if (this.disabled()) return;
     if (this.open()) {
       this.close();
     } else {
-      // dropUp se decide ANTES de renderizar el panel (con la altura estimada) para que no haya
-      // parpadeo: el panel aparece directo del lado correcto.
-      this.dropUp.set(this.shouldDropUp());
+      // Se posiciona ANTES de renderizar para que aparezca directo en su lugar, sin parpadeo.
+      this.positionPanel();
       this.open.set(true);
       // Cierra cualquier otro menú abierto (uno solo a la vez).
       this.registry.open(this);
@@ -201,29 +215,23 @@ export class MenuButtonComponent implements ClosableMenu {
   }
 
   /**
-   * True cuando el panel no entra abajo del trigger pero sí arriba. La referencia no es el viewport
-   * sino el contenedor scrolleable más cercano (ej. el wrapper de la tabla): abrir hacia abajo ahí
-   * estira el contenedor y suma scroll, que es justo lo que se quiere evitar.
+   * Ancla el panel al trigger en coordenadas de viewport (el panel es `fixed`). Se fija el borde
+   * opuesto al lado hacia el que abre — `top` si cae hacia abajo, `bottom` si cae hacia arriba —
+   * así no hace falta medir el panel antes de renderizarlo.
    */
-  private shouldDropUp(): boolean {
+  private positionPanel(): void {
     const rect = this.host.nativeElement.getBoundingClientRect();
-    const estItemHeight = 40;
-    const estPanelHeight = (this.heading() ? 28 : 0) + this.items().length * estItemHeight + 12;
-    const spaceBelow = this.scrollBoundaryBottom() - rect.bottom;
-    const spaceAbove = rect.top;
-    return spaceBelow < estPanelHeight && spaceAbove > spaceBelow;
-  }
+    const gap = 4;
+    const estPanelHeight = (this.heading() ? 28 : 0) + this.items().length * 40 + 12;
+    const spaceBelow = window.innerHeight - rect.bottom;
+    const dropUp = spaceBelow < estPanelHeight && rect.top > spaceBelow;
 
-  /** Borde inferior del ancestro scrolleable más cercano; si no hay, el del viewport. */
-  private scrollBoundaryBottom(): number {
-    let el = this.host.nativeElement.parentElement;
-    while (el) {
-      if (/(auto|scroll|hidden)/.test(getComputedStyle(el).overflowY)) {
-        return el.getBoundingClientRect().bottom;
-      }
-      el = el.parentElement;
-    }
-    return window.innerHeight;
+    this.panelPos.set({
+      top: dropUp ? null : rect.bottom + gap,
+      bottom: dropUp ? window.innerHeight - rect.top + gap : null,
+      left: this.align() === 'end' ? null : rect.left,
+      right: this.align() === 'end' ? window.innerWidth - rect.right : null,
+    });
   }
 
   protected choose(item: MenuItem): void {
@@ -240,6 +248,11 @@ export class MenuButtonComponent implements ClosableMenu {
 
   @HostListener('document:keydown.escape')
   protected onEscape(): void {
+    if (this.open()) this.close();
+  }
+
+  @HostListener('window:resize')
+  protected onViewportChange(): void {
     if (this.open()) this.close();
   }
 }
