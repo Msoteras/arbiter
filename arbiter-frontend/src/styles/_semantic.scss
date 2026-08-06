@@ -34,6 +34,14 @@
   --action-primary-bg-hover: var(--c-ink-strong);
   --action-primary-fg: var(--c-on-ink);
 
+  /* ===== Acción de acento (botón sólido teal) =====
+     Excepción acotada a la regla de arriba: CTA teal para acciones que
+     conviene resaltar con el acento de marca (ej. "Asignarme" en la bandeja).
+     Usa --accent-strong (no --accent) para que el texto blanco pase AA. */
+  --action-accent-bg: var(--accent-strong);
+  --action-accent-bg-hover: var(--accent-deep);
+  --action-accent-fg: var(--c-on-ink);
+
   /* ===== Acento de marca (estados activos / selección / IA) =====
      Rellenos activos (stepper, toggles, timeline, tab activo) usan
      --accent; texto/íconos teal sobre claro usan --accent-fg (AA);

@@ -14,6 +14,8 @@ import { ButtonComponent } from '../button/button.component';
 export interface MenuItem {
   value: string;
   label: string;
+  /** Acción destructiva (ej. "Liberar"): se separa del resto y se pinta con el color de peligro. */
+  danger?: boolean;
 }
 
 /**
@@ -35,9 +37,18 @@ export interface MenuItem {
 
       @if (open()) {
         <ul class="panel" role="menu">
+          @if (heading(); as h) {
+            <li role="presentation" class="heading">{{ h }}</li>
+          }
           @for (item of items(); track item.value) {
-            <li role="none">
-              <button type="button" role="menuitem" class="option" (click)="choose(item)">
+            <li role="none" [class.danger-sep]="item.danger">
+              <button
+                type="button"
+                role="menuitem"
+                class="option"
+                [class.danger]="item.danger"
+                (click)="choose(item)"
+              >
                 {{ item.label }}
               </button>
             </li>
@@ -82,12 +93,25 @@ export interface MenuItem {
       white-space: nowrap;
     }
     .option:hover { background: var(--surface-sunken); color: var(--text-primary); }
+
+    .heading {
+      padding: var(--space-1) var(--space-3) var(--space-2);
+      font-size: var(--font-size-2xs);
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+      color: var(--text-muted);
+    }
+    .danger-sep { border-top: 1px solid var(--border-subtle); margin-top: var(--space-1); padding-top: var(--space-1); }
+    .option.danger { color: var(--status-danger); }
+    .option.danger:hover { background: var(--surface-sunken); color: var(--status-danger); }
   `,
 })
 export class MenuButtonComponent {
   private readonly host = inject<ElementRef<HTMLElement>>(ElementRef);
 
   readonly items = input.required<MenuItem[]>();
+  /** Título opcional arriba de la lista (ej. "Asignar a otro analista"). No es clickeable. */
+  readonly heading = input<string | null>(null);
   readonly disabled = input(false);
   /** Mismo tamaño que app-button: `sm` para triggers que viven dentro de una fila de tabla. */
   readonly size = input<'md' | 'sm'>('md');

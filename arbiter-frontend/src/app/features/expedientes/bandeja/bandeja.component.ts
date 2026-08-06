@@ -397,8 +397,36 @@ export class BandejaComponent {
     return c.assignedAnalystId != null && c.assignedAnalystId === this.myAnalystId();
   }
 
-  protected displayAnalyst(c: ExpedienteResponse): string {
-    return c.assignedAnalystName ?? 'Sin asignar';
+  /** Iniciales para el avatar del analista asignado (hasta 2). */
+  protected analystInitials(c: ExpedienteResponse): string {
+    return (c.assignedAnalystName ?? '')
+      .split(/\s+/)
+      .filter(Boolean)
+      .slice(0, 2)
+      .map((w) => w[0]!.toUpperCase())
+      .join('');
+  }
+
+  /** Marca del item "Liberar" dentro del menú de acciones — no es un id de analista. */
+  private static readonly RELEASE = '__release__';
+
+  /**
+   * Items del menú "…": la lista de analistas para reasignar y, si el expediente ya tiene dueño,
+   * "Liberar" como acción destructiva separada al final.
+   */
+  protected assignMenuItems(c: ExpedienteResponse): MenuItem[] {
+    const items = this.analystMenuItems();
+    return c.assignedAnalystId
+      ? [...items, { value: BandejaComponent.RELEASE, label: 'Liberar', danger: true }]
+      : items;
+  }
+
+  protected onAssignMenu(c: ExpedienteResponse, value: string): void {
+    if (value === BandejaComponent.RELEASE) {
+      this.release(c.id);
+    } else {
+      this.assignTo(c.id, value);
+    }
   }
 
   /** Atajo del analista: se asigna el expediente a sí mismo sin pasar por el selector. */

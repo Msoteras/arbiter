@@ -177,39 +177,39 @@
                 }
               </td>
               <td class="assign-cell" (click)="$event.stopPropagation()">
-                <span class="assign-name" [class.t-note]="!c.assignedAnalystName">
-                  {{ displayAnalyst(c) }}
-                </span>
-                <div class="assign-actions">
-                  @if (!c.assignedAnalystId && canTake()) {
-                    <button
-                      type="button"
-                      class="assign-link"
-                      [disabled]="assigning() !== null"
-                      (click)="take(c)"
-                    >
-                      Tomar
-                    </button>
-                  }
+                <div class="assign-row">
                   @if (c.assignedAnalystId) {
-                    <button
-                      type="button"
-                      class="assign-link"
-                      [disabled]="assigning() !== null"
-                      (click)="release(c.id)"
-                    >
-                      Liberar
-                    </button>
+                    <div class="assignee">
+                      <span class="avatar" aria-hidden="true">{{ analystInitials(c) }}</span>
+                      <span class="assignee-text">
+                        <span class="assignee-name">{{ c.assignedAnalystName }}</span>
+                        <span class="assignee-sub">Asignado</span>
+                      </span>
+                    </div>
                   }
-                  <app-menu-button
-                    [items]="analystMenuItems()"
-                    [disabled]="assigning() !== null"
-                    align="end"
-                    size="sm"
-                    (itemSelected)="assignTo(c.id, $event)"
-                  >
-                    {{ c.assignedAnalystId ? 'Reasignar' : 'Asignar' }}
-                  </app-menu-button>
+                  <div class="assign-actions">
+                    @if (!c.assignedAnalystId && canTake()) {
+                      <app-button
+                        variant="accent"
+                        size="sm"
+                        [disabled]="assigning() !== null"
+                        (click)="take(c)"
+                      >
+                        + Asignarme
+                      </app-button>
+                    }
+                    <app-menu-button
+                      [items]="assignMenuItems(c)"
+                      heading="Asignar a otro analista"
+                      [disabled]="assigning() !== null"
+                      align="end"
+                      size="sm"
+                      (itemSelected)="onAssignMenu(c, $event)"
+                    >
+                      <span aria-hidden="true">⋯</span>
+                      <span class="sr-only">Más acciones de asignación</span>
+                    </app-menu-button>
+                  </div>
                 </div>
               </td>
             </tr>
