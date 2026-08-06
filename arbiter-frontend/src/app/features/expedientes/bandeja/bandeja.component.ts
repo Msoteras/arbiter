@@ -415,10 +415,13 @@ export class BandejaComponent {
    * "Liberar" como acción destructiva separada al final.
    */
   protected assignMenuItems(c: ExpedienteResponse): MenuItem[] {
-    const items = this.analystMenuItems();
+    // "Asignar a otro analista": el que ya lo tiene no va en la lista (reasignárselo no es una acción).
+    const others = this.analystMenuItems().filter(
+      (item) => item.value !== String(c.assignedAnalystId),
+    );
     return c.assignedAnalystId
-      ? [...items, { value: BandejaComponent.RELEASE, label: 'Liberar', danger: true }]
-      : items;
+      ? [...others, { value: BandejaComponent.RELEASE, label: 'Liberar', danger: true }]
+      : others;
   }
 
   protected onAssignMenu(c: ExpedienteResponse, value: string): void {

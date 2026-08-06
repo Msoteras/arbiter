@@ -1,6 +1,8 @@
 @if (data(); as d) {
   <header class="det-header">
-    <nav class="breadcrumb"><a routerLink="/inbox">Bandeja</a> <span class="crumb-sep">/</span> <span class="mono">#{{ d.id }}</span></nav>
+    <a class="back-link" routerLink="/inbox">
+      <span class="back-arrow" aria-hidden="true">‹</span> Volver a mis expedientes
+    </a>
 
     <div class="det-header-row">
       <div class="identity">
@@ -48,47 +50,6 @@
 
       <app-card class="rcard" heading="Nivel de riesgo de fraude">
         <app-fraud-gauge [band]="riskGaugeBand()" [emptyLabel]="riskGaugeEmptyLabel()" />
-      </app-card>
-
-      <!-- Asignación: quién tiene el expediente. Separada de la decisión a propósito — tener
-           dueño no es haber resuelto (human-in-the-loop). -->
-      <app-card class="rcard" heading="Analista asignado">
-        @if (isAssigned()) {
-          <p class="assigned-name">{{ assignedName() }}</p>
-        } @else {
-          <p class="nodata">Sin asignar</p>
-        }
-        <div class="assign-actions">
-          @if (!isAssigned() && canTake()) {
-            <app-button size="sm" [block]="true" [disabled]="assignSaving()" (click)="take()">
-              Tomar
-            </app-button>
-          }
-          <app-menu-button
-            [items]="analystMenuItems()"
-            [disabled]="assignSaving()"
-            (itemSelected)="assignTo($event)"
-          >
-            {{ isAssigned() ? 'Reasignar' : 'Asignar a…' }}
-          </app-menu-button>
-          @if (isAssigned()) {
-            <app-button
-              variant="secondary"
-              size="sm"
-              [block]="true"
-              [disabled]="assignSaving()"
-              (click)="release()"
-            >
-              Liberar
-            </app-button>
-          }
-        </div>
-        @if (assignSaving()) {
-          <p class="rcard-note">Guardando asignación…</p>
-        }
-        @if (assignError()) {
-          <p class="rcard-note error">{{ assignError() }}</p>
-        }
       </app-card>
 
       <app-card class="rcard" heading="Decisión del analista">
@@ -164,6 +125,73 @@
           </div>
 
           <div class="col-side">
+            <!-- Asignación: quién tiene el expediente. Separada de la decisión a propósito — tener
+                 dueño no es haber resuelto (human-in-the-loop). -->
+            <app-card heading="Analista asignado">
+              @if (isAssigned()) {
+                <div class="assignee">
+                  <span class="assignee-avatar" aria-hidden="true">{{ analystInitials() }}</span>
+                  <div class="assignee-text">
+                    <p class="assignee-name">{{ assignedName() }}</p>
+                    @if (assignedContext()) {
+                      <p class="assignee-sub">{{ assignedContext() }}</p>
+                    }
+                  </div>
+                </div>
+                <div class="assign-actions">
+                  <app-menu-button
+                    class="grow"
+                    [block]="true"
+                    [items]="analystMenuItems()"
+                    heading="Asignar a otro analista"
+                    [disabled]="assignSaving()"
+                    (itemSelected)="assignTo($event)"
+                  >
+                    <span aria-hidden="true">⟳</span> Reasignar
+                  </app-menu-button>
+                  <app-menu-button
+                    [items]="overflowMenuItems"
+                    [disabled]="assignSaving()"
+                    align="end"
+                    (itemSelected)="onOverflowMenu($event)"
+                  >
+                    <span aria-hidden="true">⋯</span>
+                    <span class="sr-only">Más acciones de asignación</span>
+                  </app-menu-button>
+                </div>
+              } @else {
+                <p class="nodata">Sin asignar</p>
+                <div class="assign-actions">
+                  @if (canTake()) {
+                    <app-button
+                      variant="accent"
+                      [block]="true"
+                      [disabled]="assignSaving()"
+                      (click)="take()"
+                    >
+                      + Asignarme
+                    </app-button>
+                  }
+                  <app-menu-button
+                    class="grow"
+                    [block]="true"
+                    [items]="analystMenuItems()"
+                    heading="Asignar a otro analista"
+                    [disabled]="assignSaving()"
+                    (itemSelected)="assignTo($event)"
+                  >
+                    Asignar a…
+                  </app-menu-button>
+                </div>
+              }
+              @if (assignSaving()) {
+                <p class="rcard-note">Guardando asignación…</p>
+              }
+              @if (assignError()) {
+                <p class="rcard-note error">{{ assignError() }}</p>
+              }
+            </app-card>
+
             <app-card variant="ai" icon="✦" heading="Sugerencia del sistema">
               <app-empty-state message="Sugerencia e indicadores del modelo" sub="Pendiente de datos de IA" />
             </app-card>
