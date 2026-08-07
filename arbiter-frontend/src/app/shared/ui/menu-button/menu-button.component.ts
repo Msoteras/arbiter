@@ -12,6 +12,7 @@ import {
 } from '@angular/core';
 
 import { ButtonComponent } from '../button/button.component';
+import { OverlayPosition, anchorToTrigger } from '../overlay-position';
 
 export interface MenuItem {
   value: string;
@@ -184,12 +185,13 @@ export class MenuButtonComponent implements ClosableMenu {
 
   protected readonly open = signal(false);
   /** Coordenadas de viewport del panel (es `fixed`). Null en el eje que no se fija. */
-  protected readonly panelPos = signal<{
-    top: number | null;
-    bottom: number | null;
-    left: number | null;
-    right: number | null;
-  }>({ top: null, bottom: null, left: null, right: null });
+  protected readonly panelPos = signal<OverlayPosition>({
+    top: null,
+    bottom: null,
+    left: null,
+    right: null,
+    width: null,
+  });
 
   protected toggle(): void {
     if (this.disabled()) return;
@@ -214,24 +216,11 @@ export class MenuButtonComponent implements ClosableMenu {
     this.open.set(false);
   }
 
-  /**
-   * Ancla el panel al trigger en coordenadas de viewport (el panel es `fixed`). Se fija el borde
-   * opuesto al lado hacia el que abre — `top` si cae hacia abajo, `bottom` si cae hacia arriba —
-   * así no hace falta medir el panel antes de renderizarlo.
-   */
   private positionPanel(): void {
-    const rect = this.host.nativeElement.getBoundingClientRect();
-    const gap = 4;
     const estPanelHeight = (this.heading() ? 28 : 0) + this.items().length * 40 + 12;
-    const spaceBelow = window.innerHeight - rect.bottom;
-    const dropUp = spaceBelow < estPanelHeight && rect.top > spaceBelow;
-
-    this.panelPos.set({
-      top: dropUp ? null : rect.bottom + gap,
-      bottom: dropUp ? window.innerHeight - rect.top + gap : null,
-      left: this.align() === 'end' ? null : rect.left,
-      right: this.align() === 'end' ? window.innerWidth - rect.right : null,
-    });
+    this.panelPos.set(
+      anchorToTrigger(this.host.nativeElement.getBoundingClientRect(), estPanelHeight, this.align()),
+    );
   }
 
   protected choose(item: MenuItem): void {

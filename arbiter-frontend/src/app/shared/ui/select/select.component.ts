@@ -1,6 +1,7 @@
 import {
   ChangeDetectionStrategy,
   Component,
+  DestroyRef,
   ElementRef,
   HostListener,
   computed,
@@ -9,6 +10,8 @@ import {
   model,
   signal,
 } from '@angular/core';
+
+import { OverlayPosition, anchorToTrigger } from '../overlay-position';
 
 export interface SelectOption {
   value: string;
@@ -53,7 +56,15 @@ export interface SelectOption {
       </button>
 
       @if (open()) {
-        <ul class="panel" role="listbox" [id]="resolvedId() + '-listbox'">
+        <ul
+          class="panel"
+          role="listbox"
+          [id]="resolvedId() + '-listbox'"
+          [style.top.px]="panelPos().top"
+          [style.bottom.px]="panelPos().bottom"
+          [style.left.px]="panelPos().left"
+          [style.width.px]="panelPos().width"
+        >
           @for (opt of allOptions(); track opt.value; let i = $index) {
             <li
               class="option"
@@ -110,11 +121,10 @@ export interface SelectOption {
     }
     .select.open .chevron { transform: rotate(180deg); }
 
+    /* fixed, no absolute: absolute lo recortaba cualquier ancestro con overflow (ej. la tabla
+       de usuarios, cuyo scroll horizontal obliga a recortar también en vertical). */
     .panel {
-      position: absolute;
-      top: calc(100% + var(--space-1));
-      left: 0;
-      right: 0;
+      position: fixed;
       z-index: 50;
       margin: 0;
       padding: var(--space-1);
@@ -167,6 +177,24 @@ export class SelectComponent {
 
   protected readonly open = signal(false);
   protected readonly activeIndex = signal(0);
+  /** Coordenadas de viewport del panel (es `fixed`). Null en el eje que no se fija. */
+  protected readonly panelPos = signal<OverlayPosition>({
+    top: null,
+    bottom: null,
+    left: null,
+    right: null,
+    width: null,
+  });
+
+  constructor() {
+    // El panel es `fixed`: no acompaña a lo que scrollea, así que se cierra. En captura, para
+    // enterarse del scroll de contenedores internos, que no burbujea a window.
+    const onScroll = () => {
+      if (this.open()) this.open.set(false);
+    };
+    document.addEventListener('scroll', onScroll, true);
+    inject(DestroyRef).onDestroy(() => document.removeEventListener('scroll', onScroll, true));
+  }
 
   /** Opciones renderizadas: el placeholder es la opción vacía (permite "limpiar"). */
   protected readonly allOptions = computed<SelectOption[]>(() =>
@@ -248,11 +276,27 @@ export class SelectComponent {
     }
   }
 
+  @HostListener('window:resize')
+  protected onViewportChange(): void {
+    if (this.open()) this.open.set(false);
+  }
+
   private openPanel(): void {
     const selected = this.allOptions().findIndex((o) => o.value === this.value());
     this.activeIndex.set(selected >= 0 ? selected : 0);
+    this.positionPanel();
     this.open.set(true);
     this.scrollActiveIntoView();
+  }
+
+  private positionPanel(): void {
+    const trigger = this.host.nativeElement.querySelector('.trigger')!.getBoundingClientRect();
+    // El panel tiene max-height 40vh, así que nunca crece más que eso por muchas opciones.
+    const estHeight = Math.min(
+      this.allOptions().length * 40 + 8,
+      document.documentElement.clientHeight * 0.4,
+    );
+    this.panelPos.set(anchorToTrigger(trigger, estHeight, 'stretch'));
   }
 
   private moveActive(delta: number): void {
