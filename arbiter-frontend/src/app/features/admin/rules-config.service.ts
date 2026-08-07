@@ -58,7 +58,7 @@ const DEFAULT_SCORING = {
 
 const SEED_RAMOS: RamoRules[] = [
   {
-    id: 'celular',
+    id: '1',
     name: 'Celular Protegido',
     coverages: [
       {
@@ -67,6 +67,8 @@ const SEED_RAMOS: RamoRules[] = [
         clause: '340',
         insuredAmount: null,
         deductibleRatio: 0.1,
+        reportingWindowDays: 3,
+        maxAnnualClaims: null,
         exclusions: ['Robo con participación del asegurado o grupo conviviente'],
       },
       {
@@ -75,6 +77,8 @@ const SEED_RAMOS: RamoRules[] = [
         clause: '340',
         insuredAmount: null,
         deductibleRatio: 0.1,
+        reportingWindowDays: 3,
+        maxAnnualClaims: null,
         exclusions: [],
       },
     ],
@@ -91,9 +95,6 @@ const SEED_RAMOS: RamoRules[] = [
       'Contratable para familiares directos (hijos, padres, concubinos)',
       'La póliza debe estar al día al momento del siniestro',
     ],
-    franchiseRatio: 0.1,
-    reportingWindowDays: 3,
-    maxAnnualClaims: null,
     fastTrack: {
       enabled: true,
       minPolicyAgeMonths: 6,
@@ -111,7 +112,7 @@ const SEED_RAMOS: RamoRules[] = [
     scoring: structuredClone(DEFAULT_SCORING),
   },
   {
-    id: 'tecnologia',
+    id: '3',
     name: 'Tecnología Portátil',
     coverages: [
       {
@@ -120,6 +121,8 @@ const SEED_RAMOS: RamoRules[] = [
         clause: '340',
         insuredAmount: null,
         deductibleRatio: 0.1,
+        reportingWindowDays: 3,
+        maxAnnualClaims: 2,
         exclusions: ['Si el siniestro ocurrió en el domicilio del asegurado'],
       },
       {
@@ -128,6 +131,8 @@ const SEED_RAMOS: RamoRules[] = [
         clause: '340',
         insuredAmount: null,
         deductibleRatio: 0.1,
+        reportingWindowDays: 3,
+        maxAnnualClaims: 2,
         exclusions: [],
       },
     ],
@@ -143,9 +148,6 @@ const SEED_RAMOS: RamoRules[] = [
       'Cubre notebooks, netbooks, tablets, smartwatch, cámaras, auriculares y parlantes',
       'La póliza debe estar al día al momento del siniestro',
     ],
-    franchiseRatio: 0.1,
-    reportingWindowDays: 3,
-    maxAnnualClaims: 2,
     fastTrack: {
       enabled: true,
       minPolicyAgeMonths: 6,

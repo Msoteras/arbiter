@@ -15,8 +15,12 @@ export interface Coverage {
   clause: string;
   /** Suma asegurada tope de la cobertura, o null si sale de la póliza. */
   insuredAmount: number | null;
-  /** Franquicia como fracción (0..1) del monto, o null. */
+  /** Franquicia como fracción (0..1) del monto, o null. → DER cobertura.franquicia */
   deductibleRatio: number | null;
+  /** Plazo para denunciar el siniestro, en días. → DER cobertura.plazo_denuncia_horas */
+  reportingWindowDays: number | null;
+  /** Máx. de eventos indemnizables por año y póliza. → DER cobertura.tope_eventos_por_anio */
+  maxAnnualClaims: number | null;
   /** Exclusiones específicas de esta cobertura. */
   exclusions: string[];
 }
@@ -68,12 +72,6 @@ export interface RamoRules {
   requiredDocuments: string[];
   /** Reglas de negocio en texto libre. */
   businessRules: string[];
-  /** Franquicia general del ramo como fracción (0..1). */
-  franchiseRatio: number | null;
-  /** Plazo para denunciar el siniestro, en días. */
-  reportingWindowDays: number | null;
-  /** Máximo de eventos indemnizables por año y póliza (ej. 2 en Tecnología). */
-  maxAnnualClaims: number | null;
   fastTrack: FastTrackConfig;
   scoring: ScoringConfig;
 }

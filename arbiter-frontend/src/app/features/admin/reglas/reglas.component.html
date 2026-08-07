@@ -105,6 +105,26 @@
                         (valueChange)="setCoverageDeductible(c.id, $event)"
                       />
                     </label>
+                    <label class="fieldset">
+                      <span class="t-field-label">Plazo de denuncia (días)</span>
+                      <app-input
+                        type="number"
+                        [min]="0"
+                        [value]="coverageReportingWindowStr(c)"
+                        (valueChange)="setCoverageReportingWindow(c.id, $event)"
+                        placeholder="—"
+                      />
+                    </label>
+                    <label class="fieldset">
+                      <span class="t-field-label">Máx. eventos por año</span>
+                      <app-input
+                        type="number"
+                        [min]="0"
+                        [value]="coverageMaxClaimsStr(c)"
+                        (valueChange)="setCoverageMaxClaims(c.id, $event)"
+                        placeholder="Sin límite"
+                      />
+                    </label>
                   </div>
 
                   <div class="cov-excl">
@@ -212,6 +232,25 @@
                     />
                   </div>
                 }
+
+                <div class="ft-save">
+                  <p class="section-hint">
+                    Se persisten en el motor: monto reclamado máx., siniestros previos máx., póliza
+                    al día y documentos exigidos. La antigüedad mínima, la ventana de siniestros y
+                    los criterios descriptivos todavía no llegan al gate.
+                  </p>
+                  <div class="editor-actions">
+                    <app-button [disabled]="ftSaving()" (click)="saveFastTrack()">
+                      {{ ftSaving() ? 'Guardando…' : 'Guardar Fast Track' }}
+                    </app-button>
+                    @if (ftSaved()) {
+                      <span class="saved-note">✓ Guardado en el motor</span>
+                    }
+                    @if (ftError(); as err) {
+                      <span class="warn-note">{{ err }}</span>
+                    }
+                  </div>
+                </div>
               </app-card>
             </div>
           }
@@ -304,23 +343,6 @@
           <!-- ============ REGLAS DE NEGOCIO ============ -->
           @case ('reglas') {
             <div class="tab-panel">
-              <app-card heading="Parámetros del ramo">
-                <div class="grid-fields">
-                  <label class="fieldset">
-                    <span class="th-label">Franquicia general (%)</span>
-                    <app-input type="number" [min]="0" [value]="franchisePctStr()" (valueChange)="setFranchisePct($event)" placeholder="—" />
-                  </label>
-                  <label class="fieldset">
-                    <span class="th-label">Plazo de denuncia (días)</span>
-                    <app-input type="number" [min]="0" [value]="reportingWindowStr()" (valueChange)="setReportingWindow($event)" placeholder="—" />
-                  </label>
-                  <label class="fieldset">
-                    <span class="th-label">Máx. eventos indemnizables por año</span>
-                    <app-input type="number" [min]="0" [value]="maxAnnualClaimsStr()" (valueChange)="setMaxAnnualClaims($event)" placeholder="Sin límite" />
-                  </label>
-                </div>
-              </app-card>
-
               <app-card heading="Reglas de negocio">
                 <p class="section-hint">
                   Condiciones y criterios que el analista y el modelo deben tener en cuenta al

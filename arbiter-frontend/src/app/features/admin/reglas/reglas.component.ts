@@ -1,3 +1,4 @@
+import { HttpErrorResponse } from '@angular/common/http';
 import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
 
 import {
@@ -10,6 +11,7 @@ import {
 } from '../../../core/models/business-rules';
 import { RISK_BANDS, RiskBand, riskBandLabel } from '../../../core/models/risk-band';
 import { RulesConfigService } from '../rules-config.service';
+import { FastTrackConfigDto, FastTrackRulesService } from '../fast-track-rules.service';
 import { BadgeComponent } from '../../../shared/ui/badge/badge.component';
 import { ButtonComponent } from '../../../shared/ui/button/button.component';
 import { CardComponent } from '../../../shared/ui/card/card.component';
@@ -44,6 +46,12 @@ type TabId = 'coberturas' | 'fastTrack' | 'documentacion' | 'scoring' | 'reglas'
 })
 export class ReglasComponent {
   private readonly service = inject(RulesConfigService);
+  private readonly ftService = inject(FastTrackRulesService);
+
+  // Estado del guardado real del Fast Track (única solapa cableada al backend por ahora).
+  protected readonly ftSaving = signal(false);
+  protected readonly ftSaved = signal(false);
+  protected readonly ftError = signal<string | null>(null);
 
   protected readonly docTypes = DOCUMENT_TYPES;
   protected readonly riskFactors = RISK_FACTORS;
@@ -94,6 +102,66 @@ export class ReglasComponent {
     this.activeTab.set('coberturas');
     this.dirty.set(false);
     this.saved.set(false);
+    this.ftSaved.set(false);
+    this.ftError.set(null);
+    this.loadFastTrackFromBackend(r);
+  }
+
+  /**
+   * Trae del backend el Fast Track persistido y lo superpone sobre el draft, para que el referente
+   * vea lo que está guardado (no el semilla del mock). Best-effort: si falla o no hay config, deja
+   * los valores del mock. Solo aplica a ramos con branchId real (id numérico).
+   */
+  private loadFastTrackFromBackend(r: RamoRules): void {
+    const branchId = this.branchIdOf(r);
+    if (branchId == null) {
+      return;
+    }
+    this.ftService.loadForBranch(branchId).subscribe({
+      next: (dto) => this.overlayFastTrack(dto),
+      error: () => {
+        /* backend caído: nos quedamos con el mock, sin romper la pantalla */
+      },
+    });
+  }
+
+  private overlayFastTrack(dto: FastTrackConfigDto | null): void {
+    // Config vacía en la DB = Fast Track no configurado para este ramo.
+    if (!dto || this.isEmptyFastTrack(dto)) {
+      this.draft.update((d) => (d ? { ...d, fastTrack: { ...d.fastTrack, enabled: false } } : d));
+      return;
+    }
+    this.draft.update((d) =>
+      d
+        ? {
+            ...d,
+            fastTrack: {
+              ...d.fastTrack,
+              enabled: true,
+              maxClaimedAmountRatio: dto.maxClaimedAmountRatio,
+              maxPriorClaims: dto.maxPriorClaims,
+              requiresUpToDatePolicy: dto.requiresUpToDatePolicy ?? d.fastTrack.requiresUpToDatePolicy,
+              requiredDocumentTypes: dto.requiredDocumentTypes ?? [],
+            },
+          }
+        : d,
+    );
+    // Vino del backend, no es un cambio del usuario.
+    this.dirty.set(false);
+  }
+
+  private isEmptyFastTrack(dto: FastTrackConfigDto): boolean {
+    return (
+      dto.maxClaimedAmountRatio == null &&
+      dto.maxPriorClaims == null &&
+      dto.requiresUpToDatePolicy == null &&
+      (dto.requiredDocumentTypes == null || dto.requiredDocumentTypes.length === 0)
+    );
+  }
+
+  private branchIdOf(r: RamoRules): number | null {
+    const n = Number(r.id);
+    return Number.isInteger(n) && n > 0 ? n : null;
   }
 
   protected setTab(t: TabId): void {
@@ -115,9 +183,6 @@ export class ReglasComponent {
       commonExclusions: [],
       requiredDocuments: [],
       businessRules: [],
-      franchiseRatio: null,
-      reportingWindowDays: null,
-      maxAnnualClaims: null,
       fastTrack: {
         enabled: false,
         minPolicyAgeMonths: null,
@@ -182,6 +247,8 @@ export class ReglasComponent {
       clause: '',
       insuredAmount: null,
       deductibleRatio: null,
+      reportingWindowDays: null,
+      maxAnnualClaims: null,
       exclusions: [],
     };
     this.draft.update((d) => (d ? { ...d, coverages: [...d.coverages, coverage] } : d));
@@ -214,6 +281,22 @@ export class ReglasComponent {
 
   protected coverageAmountStr(c: Coverage): string {
     return c.insuredAmount == null ? '' : String(c.insuredAmount);
+  }
+
+  protected setCoverageReportingWindow(id: string, value: string): void {
+    this.setCoverageField(id, { reportingWindowDays: this.intFromStr(value) });
+  }
+
+  protected setCoverageMaxClaims(id: string, value: string): void {
+    this.setCoverageField(id, { maxAnnualClaims: this.intFromStr(value) });
+  }
+
+  protected coverageReportingWindowStr(c: Coverage): string {
+    return this.intStr(c.reportingWindowDays);
+  }
+
+  protected coverageMaxClaimsStr(c: Coverage): string {
+    return this.intStr(c.maxAnnualClaims);
   }
 
   protected setCommonExclusions(items: string[]): void {
@@ -351,26 +434,59 @@ export class ReglasComponent {
     this.patch({ businessRules: items });
   }
 
-  protected setFranchisePct(v: string): void {
-    this.patch({ franchiseRatio: this.ratioFromPct(v) });
+  // ───────────────── Fast Track: persistencia real (rules-service) ─────────────────
+  /**
+   * Guarda el Fast Track del ramo en el backend (fan-out a las coberturas del ramo). Solo persiste
+   * los 4 umbrales que el motor evalúa hoy: monto máx., siniestros previos máx., póliza al día y
+   * documentos exigidos. Antigüedad mínima, ventana de siniestros y criterios descriptivos aún no
+   * llegan al gate (quedan en el draft/mock). Deshabilitado ⇒ config vacía = sin Fast Track.
+   */
+  protected saveFastTrack(): void {
+    const d = this.draft();
+    if (!d || this.ftSaving()) {
+      return;
+    }
+    this.ftError.set(null);
+    this.ftSaved.set(false);
+    const branchId = this.branchIdOf(d);
+    if (branchId == null) {
+      this.ftError.set('Este ramo todavía no existe en el backend.');
+      return;
+    }
+    const ft = d.fastTrack;
+    const dto: FastTrackConfigDto = ft.enabled
+      ? {
+          maxClaimedAmountRatio: ft.maxClaimedAmountRatio,
+          maxPriorClaims: ft.maxPriorClaims,
+          requiresUpToDatePolicy: ft.requiresUpToDatePolicy,
+          requiredDocumentTypes: ft.requiredDocumentTypes,
+        }
+      : { maxClaimedAmountRatio: null, maxPriorClaims: null, requiresUpToDatePolicy: null, requiredDocumentTypes: [] };
+
+    this.ftSaving.set(true);
+    this.ftService.saveForBranch(branchId, dto).subscribe({
+      next: () => {
+        this.ftSaving.set(false);
+        this.ftSaved.set(true);
+      },
+      error: (e: unknown) => {
+        this.ftSaving.set(false);
+        this.ftError.set(this.ftErrorMessage(e));
+      },
+    });
   }
 
-  protected setReportingWindow(v: string): void {
-    this.patch({ reportingWindowDays: this.intFromStr(v) });
-  }
-
-  protected setMaxAnnualClaims(v: string): void {
-    this.patch({ maxAnnualClaims: this.intFromStr(v) });
-  }
-
-  protected franchisePctStr(): string {
-    return this.pctFromRatio(this.draft()?.franchiseRatio ?? null);
-  }
-  protected reportingWindowStr(): string {
-    return this.intStr(this.draft()?.reportingWindowDays);
-  }
-  protected maxAnnualClaimsStr(): string {
-    return this.intStr(this.draft()?.maxAnnualClaims);
+  private ftErrorMessage(e: unknown): string {
+    if (e instanceof HttpErrorResponse) {
+      if (e.status === 403) {
+        return 'No tenés permiso para editar reglas (se requiere rol Referente).';
+      }
+      if (e.status === 0) {
+        return 'No se pudo contactar al backend de reglas (¿rules-service arriba?).';
+      }
+      return `El backend rechazó el guardado (${e.status}).`;
+    }
+    return e instanceof Error ? e.message : 'No se pudo guardar el Fast Track.';
   }
 
   // ───────────────── Guardar / descartar ─────────────────
