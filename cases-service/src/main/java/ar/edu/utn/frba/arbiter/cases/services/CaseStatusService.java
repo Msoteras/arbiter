@@ -64,6 +64,21 @@ public class CaseStatusService {
         return caseRepository.save(caseRecord);
     }
 
+    /**
+     * Appends an ownership change (assign / reassign / release) to the same trail as the status
+     * moves, so "quién lo tomó y cuándo" is auditable next to "qué pasó con el expediente".
+     *
+     * <p>Assigning is not a state machine move: the case keeps its status, which is why this
+     * bypasses {@link #transition} instead of trying to squeeze through VALID_TRANSITIONS. The row
+     * records {@code from == to} on purpose — that equality is the marker the frontend timeline
+     * uses to render it as a milestone without a status arrow. Human-in-the-loop is untouched:
+     * having an owner is not a decision (decisión de arquitectura #5).
+     */
+    public void recordAssignment(Case caseRecord, String reason) {
+        appendHistory(caseRecord.getId(), caseRecord.getCurrentStatus(), caseRecord.getCurrentStatus(),
+                StatusChangeActor.ANALYST, reason);
+    }
+
     public List<CaseStatusHistory> history(Long caseId) {
         return historyRepository.findByCaseIdOrderByChangedAtAsc(caseId);
     }

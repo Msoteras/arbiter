@@ -22,9 +22,12 @@ import lombok.Setter;
  * the JWT once the tenant is resolved.
  *
  * <p>Unlike its siblings in the parent package, this table lives in the <b>tenant</b> schema, not
- * in {@code arbiter_common} — see this package's rationale for why it is shared anyway. auth-service
- * owns the alta; cases-service reads it to resolve {@code case_classification.analyst_id} from the
- * logged-in analyst's JWT instead of trusting a client-supplied id.
+ * in {@code arbiter_common} — see this package's rationale for why it is shared anyway: more than
+ * one module needs it. auth-service owns the alta and lists them for the assignment selector;
+ * cases-service points {@code cases.analyst_id} here to record who owns an expediente, and
+ * resolves {@code case_classification.analyst_id} from the logged-in analyst's JWT rather than
+ * trusting a client-supplied id. Both reads are a plain join — sitting in the tenant schema
+ * alongside {@code cases}, the analyst's name needs no REST hop to auth-service.
  */
 @Entity
 @Table(name = "claims_analyst")

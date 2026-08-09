@@ -15,6 +15,7 @@ import java.time.Duration;
 import java.time.Instant;
 import java.util.Date;
 
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.multipart;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
@@ -104,5 +105,47 @@ class CaseSecurityTest extends AbstractPersistenceIT {
                                 {"analystId": 1, "decision": "APPROVE"}
                                 """))
                 .andExpect(status().isNotFound());
+    }
+
+    @Test
+    void assignAnalyst_asAsegurado_returns403() throws Exception {
+        mockMvc.perform(post("/api/v1/cases/1/assign")
+                        .header("Authorization", "Bearer " + tokenFor("ASEGURADO"))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"analystId": 2}
+                                """))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
+    void assignAnalyst_asAnalista_passesTheRoleGate() throws Exception {
+        // Asignar es de los dos roles operativos, no solo del referente: el analista puede tomar
+        // un expediente sin depender de que se lo repartan. Mismo truco del 404 que en decision.
+        mockMvc.perform(post("/api/v1/cases/999999/assign")
+                        .header("Authorization", "Bearer " + tokenFor("ANALISTA_SINIESTROS"))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"analystId": 2}
+                                """))
+                .andExpect(status().isNotFound());
+    }
+
+    @Test
+    void assignAnalyst_asReferente_passesTheRoleGate() throws Exception {
+        mockMvc.perform(post("/api/v1/cases/999999/assign")
+                        .header("Authorization", "Bearer " + tokenFor("REFERENTE_ASEGURADORA"))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"analystId": 2}
+                                """))
+                .andExpect(status().isNotFound());
+    }
+
+    @Test
+    void unassignAnalyst_asAsegurado_returns403() throws Exception {
+        mockMvc.perform(delete("/api/v1/cases/1/assign")
+                        .header("Authorization", "Bearer " + tokenFor("ASEGURADO")))
+                .andExpect(status().isForbidden());
     }
 }

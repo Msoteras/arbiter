@@ -27,7 +27,7 @@ public final class CaseSpecifications {
 
     public static Specification<Case> withFilters(CaseStatus status, String claimCause, String policyNumber,
                                                     String insuredId, LocalDate eventDateFrom, LocalDate eventDateTo,
-                                                    String q, RiskBand riskBand) {
+                                                    String q, RiskBand riskBand, Long analystId) {
         return Stream.of(
                         status(status),
                         claimCause(claimCause),
@@ -36,7 +36,8 @@ public final class CaseSpecifications {
                         eventDateFrom(eventDateFrom),
                         eventDateTo(eventDateTo),
                         freeText(q),
-                        riskBand(riskBand)
+                        riskBand(riskBand),
+                        analystId(analystId)
                 )
                 .filter(Objects::nonNull)
                 .reduce(Specification::and)
@@ -64,6 +65,17 @@ public final class CaseSpecifications {
     private static Specification<Case> insuredId(String insuredId) {
         return insuredId == null || insuredId.isBlank() ? null
                 : (root, query, cb) -> cb.equal(root.get("insured").get("dni"), insuredId);
+    }
+
+    /**
+     * Lente "Míos" de la bandeja: expedientes de un analista puntual, por su id de
+     * {@code claims_analyst}. Es el filtro de "de quién es el expediente", no el de "qué puedo
+     * ver": lo segundo lo resuelve el esquema del tenant, que ya acota todo lo que se lee acá a
+     * una sola aseguradora.
+     */
+    private static Specification<Case> analystId(Long analystId) {
+        return analystId == null ? null
+                : (root, query, cb) -> cb.equal(root.get("analyst").get("id"), analystId);
     }
 
     private static Specification<Case> riskBand(RiskBand riskBand) {

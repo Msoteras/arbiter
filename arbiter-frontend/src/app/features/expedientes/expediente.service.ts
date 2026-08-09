@@ -63,6 +63,15 @@ export interface ExpedienteListParams {
   q?: string;
   /** Nivel de alerta de fraude, match exacto. */
   riskBand?: 'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL';
+  /**
+   * Lente "Míos" de la bandeja: solo los expedientes asignados al analista logueado. Omitirlo
+   * (o `false`) es la lente "Todos".
+   *
+   * Es un flag y no un id porque el id de analista es local al esquema de cada aseguradora:
+   * quién es "yo" lo resuelve el backend contra el token. Es "de quién es el expediente", no
+   * "qué puede ver este usuario" — eso último ya lo acota el tenant.
+   */
+  assignedToMe?: boolean;
 }
 
 @Injectable({ providedIn: 'root' })
@@ -102,6 +111,7 @@ export class ExpedienteService {
     if (params.sort) query['sort'] = params.sort;
     if (params.q) query['q'] = params.q;
     if (params.riskBand) query['riskBand'] = params.riskBand;
+    if (params.assignedToMe) query['assignedToMe'] = 'true';
     return this.http.get<PagedResponse<ExpedienteResponse>>(this.baseUrl, { params: query });
   }
 
@@ -138,5 +148,30 @@ export class ExpedienteService {
 
   recordAnalystDecision(caseId: number, request: AnalystDecisionRequest): Observable<{ status: string }> {
     return this.http.post<{ status: string }>(`${this.baseUrl}/${caseId}/decision`, request);
+  }
+
+  /**
+   * Reintenta la clasificación de un expediente que quedó en CLASSIFICATION_FAILED. Lo devuelve a
+   * PENDING_CLASSIFICATION y re-dispara el análisis en el backend. Solo válido desde el estado
+   * fallido (otro estado → 409).
+   */
+  retryClassification(caseId: number): Observable<ExpedienteResponse> {
+    return this.http.post<ExpedienteResponse>(`${this.baseUrl}/${caseId}/retry-classification`, {});
+  }
+
+  /**
+   * Pone a `analystId` como dueño del expediente. Un solo analista por expediente: reasignar
+   * reemplaza al anterior. Asignar NO resuelve — el expediente sigue necesitando la decisión
+   * explícita del analista (`recordAnalystDecision`).
+   *
+   * `analystId` es el id que devuelve `GET /auth/users/analysts`, local a la aseguradora.
+   */
+  assign(caseId: number, analystId: number): Observable<ExpedienteResponse> {
+    return this.http.post<ExpedienteResponse>(`${this.baseUrl}/${caseId}/assign`, { analystId });
+  }
+
+  /** Libera el expediente: queda sin dueño y disponible para que lo tome otro analista. */
+  unassign(caseId: number): Observable<ExpedienteResponse> {
+    return this.http.delete<ExpedienteResponse>(`${this.baseUrl}/${caseId}/assign`);
   }
 }

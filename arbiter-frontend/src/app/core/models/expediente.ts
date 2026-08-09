@@ -41,6 +41,14 @@ export interface ExpedienteResponse {
    * (Fast Track o expediente sin adjuntos de imagen).
    */
   forensicReport: ImageForensicReport | null;
+  /**
+   * Analista dueño del expediente, por su id de analista dentro de la aseguradora (el mismo que
+   * devuelve `GET /auth/users/analysts`). Null = sin asignar. No es el id de usuario de la
+   * sesión: son tablas distintas.
+   */
+  assignedAnalystId: number | null;
+  /** Nombre del analista asignado, resuelto por el backend. Null = sin asignar. */
+  assignedAnalystName: string | null;
   analysisClassification: Clasificacion | string;
   analysisConfidence: number;
   analysisDetail: string;

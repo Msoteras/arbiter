@@ -3,6 +3,7 @@ import { ChangeDetectionStrategy, Component, computed, input } from '@angular/co
 import { StatusTransition } from '../../../core/models/expediente';
 import { estadoLabel, estadoTone, isEstadoFinal, proximoPaso } from '../../../core/models/estado';
 import { StatusTone } from '../../../core/models/status-tone';
+import { formatDateTime } from '../../../core/util/datetime';
 import { BadgeComponent } from '../badge/badge.component';
 
 const ACTOR_LABELS: Record<StatusTransition['actor'], string> = {
@@ -33,14 +34,20 @@ const ACTOR_LABELS: Record<StatusTransition['actor'], string> = {
           <div class="body">
             <div class="when mono">{{ when(h.changedAt) }}</div>
             <div class="transition">
-              @if (h.fromStatus) {
-                <span class="from">{{ estado(h.fromStatus) }}</span>
-                <span class="arrow" aria-hidden="true">→</span>
-              }
-              @if (last && !hasNextStep()) {
-                <app-badge variant="strong" [tone]="currentTone()">{{ estado(h.toStatus) }}</app-badge>
+              @if (isSameStatus(h)) {
+                <!-- Hito que no movió el expediente de estado (ej. una asignación): mostrar
+                     "X → X" sería ruido, alcanza con el motivo que va abajo. -->
+                <span class="from">Sin cambio de estado</span>
               } @else {
-                <app-badge>{{ estado(h.toStatus) }}</app-badge>
+                @if (h.fromStatus) {
+                  <span class="from">{{ estado(h.fromStatus) }}</span>
+                  <span class="arrow" aria-hidden="true">→</span>
+                }
+                @if (last && !hasNextStep()) {
+                  <app-badge variant="strong" [tone]="currentTone()">{{ estado(h.toStatus) }}</app-badge>
+                } @else {
+                  <app-badge>{{ estado(h.toStatus) }}</app-badge>
+                }
               }
             </div>
             <div class="meta">
@@ -127,6 +134,14 @@ export class StatusTimelineComponent {
   protected readonly hasNextStep = computed(() => this.nextStep() !== '');
   protected readonly currentTone = computed<StatusTone>(() => estadoTone(this.currentStatus()));
 
+  /**
+   * Hito registrado sin cambio de estado. El backend usa `from === to` para eventos que dejan
+   * traza pero no mueven el expediente — hoy, las asignaciones de analista.
+   */
+  protected isSameStatus(h: StatusTransition): boolean {
+    return h.fromStatus !== null && h.fromStatus === h.toStatus;
+  }
+
   protected estado(status: string): string {
     return estadoLabel(status);
   }
@@ -136,6 +151,6 @@ export class StatusTimelineComponent {
   }
 
   protected when(iso: string): string {
-    return new Date(iso).toLocaleString('es-AR');
+    return formatDateTime(iso);
   }
 }

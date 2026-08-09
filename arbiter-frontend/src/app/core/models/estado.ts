@@ -36,7 +36,7 @@ const DESCRIPCIONES: Record<CaseStatus, string> = {
   PENDING_ANALYST_REVIEW:
     'La clasificación preliminar ya está disponible y un analista de siniestros está revisando el caso.',
   CLASSIFICATION_FAILED:
-    'El análisis automático tuvo un inconveniente técnico. El caso no se pierde: va a ser reprocesado.',
+    'El análisis automático no pudo completarse tras varios intentos. El caso no se pierde: un analista puede reintentar la clasificación a mano.',
   AWAITING_DOCUMENTATION:
     'Falta documentación obligatoria para poder evaluar el caso.',
   APPROVED: 'El siniestro fue aprobado por un analista.',
@@ -51,7 +51,7 @@ const PROXIMOS_PASOS: Record<CaseStatus, string> = {
   PENDING_ANALYST_REVIEW:
     'El analista aprueba o rechaza el caso. El resultado se notifica por correo electrónico.',
   CLASSIFICATION_FAILED:
-    'El equipo reintenta el análisis. No hace falta hacer nada.',
+    'Un analista reintenta la clasificación desde el detalle del expediente y sigue el flujo normal.',
   AWAITING_DOCUMENTATION:
     'Subí los documentos faltantes; al recibirlos, el caso se vuelve a evaluar automáticamente.',
   APPROVED:
@@ -81,6 +81,21 @@ const TONES: Record<CaseStatus, StatusTone> = {
 
 export function estadoTone(value: string): StatusTone {
   return (TONES as Record<string, StatusTone>)[value] ?? 'neutral';
+}
+
+/**
+ * Texto del gauge de fraude cuando no hay `riskBand`: distingue por qué falta, en vez del
+ * "Sin datos" ambiguo. "En proceso" (todavía clasificando), "No aplica" (Fast Track: el modelo
+ * no corre) y "Sin evaluar" (el resto). Ver docs/frontend-bugs-ux.md #20.
+ */
+export function riskBandEmptyLabel(status: string, classification: string | null): string {
+  if (status === 'PENDING_CLASSIFICATION') {
+    return 'En proceso';
+  }
+  if (classification === 'FAST_TRACK') {
+    return 'No aplica · Fast Track';
+  }
+  return 'Sin evaluar';
 }
 
 // Simplificado a 3 niveles para el asegurado (portal): sin jerga técnica interna.
@@ -185,7 +200,7 @@ const DESCRIPCIONES_ASEGURADO: Record<CaseStatus, string> = {
   PENDING_ANALYST_REVIEW:
     'Un analista está revisando tu caso. Te avisamos ni bien haya novedades.',
   CLASSIFICATION_FAILED:
-    'Estamos procesando tu caso. No hace falta que hagas nada por ahora.',
+    'Un analista está revisando tu caso. No hace falta que hagas nada por ahora.',
   AWAITING_DOCUMENTATION:
     'Necesitamos que subas la documentación faltante para poder continuar.',
   APPROVED: 'Tu siniestro fue aprobado. Vas a recibir el detalle por correo electrónico.',

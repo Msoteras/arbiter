@@ -5,6 +5,9 @@ import { UserRole } from '../models/user-role';
 export interface AuthSession {
   token: string;
   expiresAt: string;
+  /** Id del usuario logueado. Es contra este id que se resuelve "míos" en la bandeja del
+      analista y el atajo "Tomar" (auto-asignarse un expediente). */
+  id: number;
   email: string;
   rol: UserRole;
   nombre: string;
@@ -16,8 +19,8 @@ export interface AuthSession {
 
 /**
  * Sesión de autenticación — token JWT en memoria (nunca localStorage: se pierde al
- * recargar la página, tal como pide el criterio de aceptación de H0001). Paso
- * transitorio hasta integrar Auth0 (ver CLAUDE.md, decisión #8).
+ * recargar la página, tal como pide el criterio de aceptación de H0001). Es a propósito,
+ * no un placeholder: Auth0 ya está integrado (ver CLAUDE.md, decisión #8).
  */
 @Injectable({ providedIn: 'root' })
 export class AuthSessionService {

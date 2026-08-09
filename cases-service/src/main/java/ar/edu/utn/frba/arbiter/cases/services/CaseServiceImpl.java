@@ -7,10 +7,9 @@ import ar.edu.utn.frba.arbiter.cases.dto.CaseResponse;
 import ar.edu.utn.frba.arbiter.cases.config.tenant.CallerContext;
 import ar.edu.utn.frba.arbiter.cases.config.tenant.TenantContext;
 import ar.edu.utn.frba.arbiter.cases.dto.StatusTransitionResponse;
-import ar.edu.utn.frba.arbiter.cases.models.repositories.ClaimsAnalystRepository;
 import ar.edu.utn.frba.arbiter.cases.models.repositories.InsurerRepository;
 import ar.edu.utn.frba.arbiter.common.models.entities.Insurer;
-import ar.edu.utn.frba.arbiter.common.models.entities.tenant.ClaimsAnalyst;
+import ar.edu.utn.frba.arbiter.cases.exceptions.AnalystNotFoundException;
 import ar.edu.utn.frba.arbiter.cases.exceptions.AnalystProfileNotFoundException;
 import ar.edu.utn.frba.arbiter.cases.exceptions.CaseNotFoundException;
 import ar.edu.utn.frba.arbiter.cases.exceptions.DocumentNotFoundException;
@@ -27,6 +26,8 @@ import ar.edu.utn.frba.arbiter.cases.models.repositories.CaseAnalysisRepository.
 import ar.edu.utn.frba.arbiter.cases.models.repositories.CaseDocumentRepository;
 import ar.edu.utn.frba.arbiter.cases.models.repositories.CaseRepository;
 import ar.edu.utn.frba.arbiter.cases.models.repositories.CaseSpecifications;
+import ar.edu.utn.frba.arbiter.cases.models.repositories.ClaimsAnalystRepository;
+import ar.edu.utn.frba.arbiter.common.models.entities.tenant.ClaimsAnalyst;
 import ar.edu.utn.frba.arbiter.common.enums.CaseStatus;
 import ar.edu.utn.frba.arbiter.common.enums.Classification;
 import ar.edu.utn.frba.arbiter.common.enums.RiskBand;
@@ -34,6 +35,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.domain.Specification;
+import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
@@ -42,6 +44,7 @@ import java.io.IOException;
 import java.time.LocalDate;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 
 @Service
 @RequiredArgsConstructor
@@ -51,13 +54,13 @@ public class CaseServiceImpl implements CaseService {
     private final CaseDocumentRepository caseDocumentRepository;
     private final CaseStatusService caseStatusService;
     private final ClaimsAnalysisClient claimsAnalysisClient;
+    private final ClaimsAnalystRepository claimsAnalystRepository;
     private final CaseReferenceResolver referenceResolver;
     private final CaseAnalysisRepository caseAnalysisRepository;
     private final CaseAccessPolicy accessPolicy;
     private final InsuredCaseAggregator insuredCaseAggregator;
     private final PolicyTenantLocator policyTenantLocator;
     private final InsurerRepository insurerRepository;
-    private final ClaimsAnalystRepository claimsAnalystRepository;
 
     /**
      * Ley 17.418 art. 56: the insurer has 30 days from the denuncia to pronounce itself, and
@@ -134,6 +137,27 @@ public class CaseServiceImpl implements CaseService {
         entity.setClassificationAttempts(0);
         caseStatusService.transition(entity, CaseStatus.PENDING_CLASSIFICATION,
                 StatusChangeActor.INSURED, "documentación adicional subida");
+
+        claimsAnalysisClient.analyzeAndPersist(entity, caseDocumentRepository.findByCaseId(caseId));
+        return toResponse(entity);
+    }
+
+    @Override
+    public CaseResponse retryClassification(Long caseId) {
+        Case entity = caseRepository.findById(caseId)
+                .orElseThrow(() -> new CaseNotFoundException(caseId));
+
+        // Fresh cycle, same reset as addDocumentsAndReclassify: without zeroing attempts the
+        // scheduler would re-fail the case on its next tick (it left CLASSIFICATION_FAILED already
+        // at maxAttempts), and the stale risk band would show through the re-classification window.
+        entity.setRiskScore(null);
+        entity.setRiskBand(null);
+        entity.setDeterministicFastTrack(false);
+        entity.setClassificationAttempts(0);
+        // transition guards the state machine: only CLASSIFICATION_FAILED → PENDING_CLASSIFICATION
+        // is allowed, so a stale retry from any other state 409s instead of silently re-queueing.
+        caseStatusService.transition(entity, CaseStatus.PENDING_CLASSIFICATION,
+                StatusChangeActor.ANALYST, "reintento manual de clasificación");
 
         claimsAnalysisClient.analyzeAndPersist(entity, caseDocumentRepository.findByCaseId(caseId));
         return toResponse(entity);
@@ -222,15 +246,42 @@ public class CaseServiceImpl implements CaseService {
     @Override
     public Page<CaseResponse> listCases(CaseStatus status, String claimCause, String policyNumber,
                                          String insuredId, LocalDate eventDateFrom, LocalDate eventDateTo,
-                                         String q, RiskBand riskBand, Pageable pageable) {
+                                         String q, RiskBand riskBand, boolean assignedToMe, Pageable pageable) {
         if (accessPolicy.currentUserIsInsured()) {
             // El asegurado ve los suyos de TODAS sus aseguradoras, no solo la del tenant activo.
+            // La lente no le aplica: no hay expedientes "asignados" a un asegurado.
             return toInsuredResponses(insuredCaseAggregator.findOwnCases(
                     status, claimCause, policyNumber, eventDateFrom, eventDateTo, q, riskBand, pageable));
         }
+
+        Long ownerId = null;
+        if (assignedToMe) {
+            ownerId = currentAnalystId().orElse(null);
+            if (ownerId == null) {
+                // Sin perfil de analista en este tenant (el caso del referente) no hay expediente
+                // propio que mostrar. Vacío y no "sin filtro": lo segundo devolvería TODOS, que es
+                // justo lo contrario de lo que se pidió.
+                return Page.empty(pageable);
+            }
+        }
+
         Specification<Case> spec = CaseSpecifications.withFilters(
-                status, claimCause, policyNumber, insuredId, eventDateFrom, eventDateTo, q, riskBand);
+                status, claimCause, policyNumber, insuredId, eventDateFrom, eventDateTo, q, riskBand,
+                ownerId);
         return toResponses(caseRepository.findAll(spec, pageable));
+    }
+
+    /**
+     * El analista del request, resuelto por el email del token contra {@code claims_analyst} del
+     * tenant activo. El id es local al esquema, así que no viaja al frontend: la bandeja pide
+     * "los míos" y esto resuelve quién es "yo" del lado que sí puede saberlo.
+     */
+    private Optional<Long> currentAnalystId() {
+        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+        if (authentication == null) {
+            return Optional.empty();
+        }
+        return claimsAnalystRepository.findByEmail(authentication.getName()).map(ClaimsAnalyst::getId);
     }
 
     /**
@@ -252,6 +303,44 @@ public class CaseServiceImpl implements CaseService {
                 page.getContent().stream().map(Case::getId).toList());
         return page.map(entity -> toResponse(entity, null,
                 analyses.getOrDefault(entity.getId(), CaseAnalysis.none())));
+    }
+
+    @Override
+    public CaseResponse assignAnalyst(Long caseId, Long analystId) {
+        Case entity = caseRepository.findById(caseId)
+                .orElseThrow(() -> new CaseNotFoundException(caseId));
+
+        // Se busca en el esquema del tenant activo: un id de analista de OTRA aseguradora
+        // sencillamente no está en esta tabla, así que el aislamiento no necesita un chequeo
+        // aparte. Se resuelve antes de escribir para no dejar el expediente con un dueño que
+        // nadie puede convertir en una persona.
+        ClaimsAnalyst analyst = claimsAnalystRepository.findById(analystId)
+                .orElseThrow(() -> new AnalystNotFoundException(analystId));
+
+        entity.setAnalyst(analyst);
+        caseRepository.save(entity);
+        caseStatusService.recordAssignment(entity, "expediente asignado a " + fullName(analyst));
+
+        return loadCase(caseId);
+    }
+
+    @Override
+    public CaseResponse unassignAnalyst(Long caseId) {
+        Case entity = caseRepository.findById(caseId)
+                .orElseThrow(() -> new CaseNotFoundException(caseId));
+
+        ClaimsAnalyst previous = entity.getAnalyst();
+        entity.setAnalyst(null);
+        caseRepository.save(entity);
+        caseStatusService.recordAssignment(entity, previous == null
+                ? "expediente liberado"
+                : "expediente liberado (estaba asignado a " + fullName(previous) + ")");
+
+        return loadCase(caseId);
+    }
+
+    private static String fullName(ClaimsAnalyst analyst) {
+        return analyst.getName() + " " + analyst.getSurname();
     }
 
     @Override
@@ -362,6 +451,8 @@ public class CaseServiceImpl implements CaseService {
                 entity.getRiskBand(),
                 current.riskBreakdown(),
                 entity.getForensicReport(),
+                entity.getAnalyst() == null ? null : entity.getAnalyst().getId(),
+                entity.getAnalyst() == null ? null : fullName(entity.getAnalyst()),
                 entity.getReportedAt(),
                 entity.getUpdatedAt(),
                 history

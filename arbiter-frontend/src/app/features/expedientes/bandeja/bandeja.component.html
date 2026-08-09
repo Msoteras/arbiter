@@ -24,6 +24,35 @@
     </app-menu-button>
   </header>
 
+  <!-- Lente de pertenencia: de quién es el expediente. Va aparte de los filtros a propósito
+       (no es un recorte más del listado) y reusa el patrón de tabs del detalle. -->
+  <div class="lens" role="tablist" aria-label="Expedientes a mostrar">
+    <button
+      type="button"
+      role="tab"
+      class="lens-tab"
+      [class.active]="lens() === 'mine'"
+      [attr.aria-selected]="lens() === 'mine'"
+      (click)="setLens('mine')"
+    >
+      Mis asignados <span class="lens-count">{{ mineCount() }}</span>
+    </button>
+    <button
+      type="button"
+      role="tab"
+      class="lens-tab"
+      [class.active]="lens() === 'all'"
+      [attr.aria-selected]="lens() === 'all'"
+      (click)="setLens('all')"
+    >
+      Todos <span class="lens-count">{{ allCount() }}</span>
+    </button>
+  </div>
+
+  @if (assignError()) {
+    <app-card><p class="t-note">{{ assignError() }}</p></app-card>
+  }
+
   <app-card class="filters-card">
     <div class="filters">
       <label class="filter-field">
@@ -91,15 +120,14 @@
       </p>
     </app-card>
   } @else if (isEmpty()) {
-    <app-card>
-      <p class="t-note">
-        @if (hasActiveFilters()) {
-          Ningún expediente coincide con los filtros aplicados.
-        } @else {
-          Todavía no hay expedientes cargados.
-        }
-      </p>
-    </app-card>
+    @if (hasActiveFilters()) {
+      <app-empty-state
+        message="Ningún expediente coincide con los filtros aplicados."
+        sub="Sin coincidencias"
+      />
+    } @else {
+      <app-empty-state message="Todavía no hay expedientes cargados." sub="Sin expedientes" />
+    }
   } @else {
     <app-card [flush]="true" class="table-card">
       <div class="table-scroll">
@@ -138,7 +166,7 @@
               <td>{{ c.claimCause }}</td>
               <td>{{ formatDate(c.eventDate) }}</td>
               <td class="mono num">{{ formatAmount(c.claimedAmount) }}</td>
-              <td><app-fraud-gauge [band]="riskGaugeBand(c)" /></td>
+              <td><app-fraud-gauge [band]="riskGaugeBand(c)" [emptyLabel]="riskGaugeEmptyLabel(c)" /></td>
               <td>
                 @if (c.analysisClassification) {
                   <app-badge [tone]="clasificacionTone(c.analysisClassification)">
@@ -147,6 +175,42 @@
                 } @else {
                   <span class="t-note">—</span>
                 }
+              </td>
+              <td class="assign-cell" (click)="$event.stopPropagation()">
+                <div class="assign-row">
+                  @if (c.assignedAnalystId) {
+                    <div class="assignee">
+                      <span class="avatar" aria-hidden="true">{{ analystInitials(c) }}</span>
+                      <span class="assignee-text">
+                        <span class="assignee-name">{{ c.assignedAnalystName }}</span>
+                        <span class="assignee-sub">Asignado</span>
+                      </span>
+                    </div>
+                  }
+                  <div class="assign-actions">
+                    @if (!c.assignedAnalystId && canTake()) {
+                      <app-button
+                        variant="accent"
+                        size="sm"
+                        [disabled]="assigning() !== null"
+                        (click)="take(c)"
+                      >
+                        + Asignarme
+                      </app-button>
+                    }
+                    <app-menu-button
+                      [items]="assignMenuItems(c)"
+                      heading="Asignar a otro analista"
+                      [disabled]="assigning() !== null"
+                      align="end"
+                      size="sm"
+                      (itemSelected)="onAssignMenu(c, $event)"
+                    >
+                      <span aria-hidden="true">⋯</span>
+                      <span class="sr-only">Más acciones de asignación</span>
+                    </app-menu-button>
+                  </div>
+                </div>
               </td>
             </tr>
           }

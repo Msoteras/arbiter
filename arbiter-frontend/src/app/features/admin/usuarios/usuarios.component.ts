@@ -9,6 +9,7 @@ import { AltaUsuarioComponent } from '../alta-usuario/alta-usuario.component';
 import { BadgeComponent } from '../../../shared/ui/badge/badge.component';
 import { ButtonComponent } from '../../../shared/ui/button/button.component';
 import { CardComponent } from '../../../shared/ui/card/card.component';
+import { EmptyStateComponent } from '../../../shared/ui/empty-state/empty-state.component';
 import { InputComponent } from '../../../shared/ui/input/input.component';
 import { ModalComponent } from '../../../shared/ui/modal/modal.component';
 import { TableComponent } from '../../../shared/ui/table/table.component';
@@ -22,7 +23,7 @@ import { SelectComponent, SelectOption } from '../../../shared/ui/select/select.
  */
 @Component({
   selector: 'app-usuarios',
-  imports: [AltaUsuarioComponent, BadgeComponent, ButtonComponent, CardComponent, InputComponent, ModalComponent, TableComponent, SelectComponent],
+  imports: [AltaUsuarioComponent, BadgeComponent, ButtonComponent, CardComponent, EmptyStateComponent, InputComponent, ModalComponent, TableComponent, SelectComponent],
   changeDetection: ChangeDetectionStrategy.OnPush,
   templateUrl: './usuarios.component.html',
   styleUrl: './usuarios.component.scss',

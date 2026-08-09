@@ -1,6 +1,7 @@
 package ar.edu.utn.frba.arbiter.cases.controllers;
 
 import ar.edu.utn.frba.arbiter.cases.dto.AnalystDecisionRequest;
+import ar.edu.utn.frba.arbiter.cases.dto.AssignAnalystRequest;
 import ar.edu.utn.frba.arbiter.cases.dto.CaseDocumentResponse;
 import ar.edu.utn.frba.arbiter.cases.dto.CaseRequest;
 import ar.edu.utn.frba.arbiter.cases.dto.CaseResponse;
@@ -57,9 +58,10 @@ public class CaseController {
     @Operation(summary = "Get case by id",
             description = """
                     Returns the stored case, its analysis result and the full status history
-                    (every transition with actor, reason and timestamp). Any authenticated role
-                    can call this today — there's no owner check yet (the asegurado's identity
-                    isn't linked to Case.insuredId), so this only gates "logged in", not "yours".
+                    (every transition with actor, reason and timestamp). An ASEGURADO only sees
+                    their own cases: CaseAccessPolicy.assertCanRead matches the caller's DNI against
+                    the case's insured and 404s otherwise. Analyst and referente see every case in
+                    their tenant.
                     """)
     public ResponseEntity<CaseResponse> getCase(
             @PathVariable Long caseId,
@@ -85,10 +87,18 @@ public class CaseController {
                     expediente, número de póliza y asegurado (`insuredId`/`insuredName` — este
                     último nullable hasta que la primera clasificación resuelve el nombre real).
                     `riskBand` filtra por nivel de alerta de fraude (match exacto: `LOW`, `MEDIUM`,
-                    `HIGH`, `CRITICAL`). Todos se combinan por AND entre sí.
+                    `HIGH`, `CRITICAL`). `assignedToMe=true` acota a los expedientes asignados al
+                    analista que hace el request — es la lente "Míos" de la bandeja; omitirlo es la
+                    lente "Todos". Todos se combinan por AND entre sí.
 
-                    No filtra por aseguradora/rol del usuario autenticado: depende de auth-service,
-                    que todavía no está levantado (ver GAPS-FLUJO.md, Gap F).
+                    `assignedToMe` es un flag y no un id de analista porque ese id es local al
+                    esquema de cada aseguradora: quién es "yo" lo resuelve el backend contra el
+                    token, no lo manda el cliente. Para un rol sin perfil de analista en el tenant
+                    (el referente) la lente devuelve vacío, no todo.
+
+                    Es "de quién es el expediente", no "qué expedientes puede ver este usuario":
+                    lo segundo ya lo resuelve el esquema del tenant, que acota el listado a una
+                    sola aseguradora.
                     """)
     public ResponseEntity<Page<CaseResponse>> listCases(
             @RequestParam(required = false) CaseStatus status,
@@ -99,11 +109,49 @@ public class CaseController {
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate eventDateTo,
             @RequestParam(required = false) String q,
             @RequestParam(required = false) RiskBand riskBand,
+            @RequestParam(defaultValue = "false") boolean assignedToMe,
             @PageableDefault(size = 20, sort = "id", direction = Sort.Direction.DESC) Pageable pageable
     ) {
         Page<CaseResponse> response = caseService.listCases(
-                status, claimCause, policyNumber, insuredId, eventDateFrom, eventDateTo, q, riskBand, pageable);
+                status, claimCause, policyNumber, insuredId, eventDateFrom, eventDateTo, q, riskBand,
+                assignedToMe, pageable);
         return ResponseEntity.ok(response);
+    }
+
+    @PostMapping("/{caseId}/assign")
+    @PreAuthorize("hasAnyRole('ANALISTA_SINIESTROS', 'REFERENTE_ASEGURADORA')")
+    @Operation(summary = "Asignar el expediente a un analista",
+            description = """
+                    Pone al analista como dueño del expediente. Habilitado para ambos roles: el
+                    referente reparte trabajo y el analista puede tomar un expediente (o pasárselo
+                    a un colega) sin depender de él.
+
+                    Un solo analista por expediente: si ya tenía uno, esta asignación lo reemplaza.
+                    Asignar NO resuelve ni mueve de estado — el expediente sigue necesitando la
+                    decisión explícita del analista (`POST /{id}/decision`), que es lo que impacta
+                    en el ciclo de vida. Cada (re)asignación queda registrada en el historial.
+
+                    El `analystId` es el id de `claims_analyst`, que vive en el esquema de la
+                    aseguradora: un analista de otra compañía no existe en esta tabla y da 404,
+                    así que el aislamiento entre aseguradoras no necesita un chequeo aparte.
+                    """)
+    public ResponseEntity<CaseResponse> assignAnalyst(
+            @PathVariable Long caseId,
+            @RequestBody @Valid AssignAnalystRequest request
+    ) {
+        return ResponseEntity.ok(caseService.assignAnalyst(caseId, request.analystId()));
+    }
+
+    @DeleteMapping("/{caseId}/assign")
+    @PreAuthorize("hasAnyRole('ANALISTA_SINIESTROS', 'REFERENTE_ASEGURADORA')")
+    @Operation(summary = "Liberar el expediente",
+            description = """
+                    Deja el expediente sin analista asignado. Queda fuera de la lente "Míos" de
+                    todos y visible en "Todos", listo para que lo tome otro. Idempotente: liberar
+                    un expediente que ya estaba sin asignar no falla.
+                    """)
+    public ResponseEntity<CaseResponse> unassignAnalyst(@PathVariable Long caseId) {
+        return ResponseEntity.ok(caseService.unassignAnalyst(caseId));
     }
 
     @GetMapping("/{caseId}/documents")
@@ -148,6 +196,22 @@ public class CaseController {
     ) {
         CaseResponse response = caseService.addDocumentsAndReclassify(caseId, documents);
         return ResponseEntity.accepted().body(response);
+    }
+
+    @PostMapping("/{caseId}/retry-classification")
+    @PreAuthorize("hasAnyRole('ANALISTA_SINIESTROS', 'REFERENTE_ASEGURADORA')")
+    @Operation(summary = "Reintentar la clasificación de un expediente fallido",
+            description = """
+                    Vuelve a poner en cola la clasificación de un expediente que quedó en
+                    CLASSIFICATION_FAILED tras agotar los reintentos automáticos. El scheduler solo
+                    barre PENDING_CLASSIFICATION, así que sin este empujón manual el caso queda
+                    varado. Resetea el contador de intentos, lo devuelve a PENDING_CLASSIFICATION y
+                    re-dispara el análisis con la documentación ya cargada. Solo válido desde
+                    CLASSIFICATION_FAILED (otro estado → 409). No resuelve el caso: sigue necesitando
+                    la decisión del analista (decisión de arquitectura #5).
+                    """)
+    public ResponseEntity<CaseResponse> retryClassification(@PathVariable Long caseId) {
+        return ResponseEntity.accepted().body(caseService.retryClassification(caseId));
     }
 
     @PostMapping("/{caseId}/decision")

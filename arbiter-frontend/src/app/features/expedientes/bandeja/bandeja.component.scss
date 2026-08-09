@@ -20,6 +20,46 @@
 
 .btn-with-icon { display: inline-flex; align-items: center; gap: var(--space-2); }
 
+// ───────────────── Lente "Míos" / "Todos" ─────────────────
+// Mismo tratamiento que las tabs del detalle del expediente (.tabs/.tab): subrayado en el
+// segmento activo, sin colores ni primitivas nuevas.
+.lens {
+  display: flex;
+  gap: var(--space-5);
+  border-bottom: 1px solid var(--border-default);
+}
+.lens-tab {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  border: none;
+  background: none;
+  cursor: pointer;
+  font: inherit;
+  font-size: var(--font-size-body);
+  color: var(--text-muted);
+  padding: var(--space-3) 0;
+  border-bottom: 2px solid transparent;
+  margin-bottom: -1px;
+  white-space: nowrap;
+}
+.lens-tab:hover { color: var(--text-secondary); }
+.lens-tab.active {
+  color: var(--text-primary);
+  border-bottom-color: var(--accent-fg);
+  font-weight: var(--font-weight-medium);
+}
+// El conteo acompaña sin competir con la etiqueta.
+.lens-count {
+  font-size: var(--font-size-xs);
+  font-variant-numeric: tabular-nums;
+  color: var(--text-muted);
+  background: var(--surface-sunken);
+  border-radius: var(--radius-pill);
+  padding: 1px var(--space-2);
+}
+.lens-tab.active .lens-count { color: var(--accent-fg); background: var(--selected-bg); }
+
 // ───────────────── Barra de filtros ─────────────────
 .filters {
   display: flex;
@@ -95,6 +135,60 @@ tbody tr:not(:last-child) td { border-bottom: 1px solid var(--border-subtle); }
   font-weight: var(--font-weight-medium);
 }
 .id-link:hover { text-decoration: underline; }
+
+// ───────────────── Celda de asignación ─────────────────
+// La columna muestra la identidad del analista asignado (avatar + nombre) y las acciones a la
+// derecha: "+ Asignarme" (acento, solo para expedientes sin dueño) y el menú "…" para reasignar
+// a otro analista o liberar. Todo visible siempre — sin hover-reveal — como pide el diseño.
+.assign-cell {
+  cursor: default;
+  width: 220px; // fija para que el reparto de columnas no baile entre filas asignadas y no
+}
+th:last-child { width: 220px; }
+
+.assign-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+  min-height: 2.1em; // alto estable entre filas con y sin identidad
+}
+
+.assignee {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-width: 0; // permite que el nombre trunque en vez de desbordar
+}
+.avatar {
+  flex-shrink: 0;
+  width: 30px;
+  height: 30px;
+  border-radius: var(--radius-pill);
+  background: var(--selected-bg);
+  color: var(--accent-fg);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: var(--font-size-2xs);
+  font-weight: var(--font-weight-medium);
+}
+.assignee-text { display: flex; flex-direction: column; min-width: 0; line-height: 1.2; }
+.assignee-name {
+  font-size: var(--font-size-sm);
+  color: var(--text-primary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.assignee-sub { font-size: var(--font-size-2xs); color: var(--text-muted); }
+
+.assign-actions {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  flex-shrink: 0;
+}
 
 // ───────────────── Paginación como pie de página ─────────────────
 app-pagination {

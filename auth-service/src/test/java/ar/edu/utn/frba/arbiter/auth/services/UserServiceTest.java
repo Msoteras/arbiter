@@ -15,6 +15,7 @@ import ar.edu.utn.frba.arbiter.auth.exceptions.UserNotFoundException;
 import ar.edu.utn.frba.arbiter.common.models.entities.Role;
 import ar.edu.utn.frba.arbiter.common.models.entities.User;
 import ar.edu.utn.frba.arbiter.common.models.entities.UserInsurer;
+import ar.edu.utn.frba.arbiter.auth.models.repositories.ClaimsAnalystRepository;
 import ar.edu.utn.frba.arbiter.auth.models.repositories.RoleRepository;
 import ar.edu.utn.frba.arbiter.auth.models.repositories.UserInsurerRepository;
 import ar.edu.utn.frba.arbiter.auth.models.repositories.UserRepository;
@@ -58,6 +59,9 @@ class UserServiceTest {
     private UserInsurerRepository userInsurerRepository;
 
     @Mock
+    private ClaimsAnalystRepository claimsAnalystRepository;
+
+    @Mock
     private TenantResolver tenantResolver;
 
     @Mock
@@ -75,8 +79,9 @@ class UserServiceTest {
     private UserService userService;
 
     private UserService userService(Optional<Auth0UserProvisioner> provisioner) {
-        return new UserService(userRepository, roleRepository, userInsurerRepository, tenantResolver,
-                tenantProfileService, provisioner, emailDomainValidator, sendGridAdapter);
+        return new UserService(userRepository, claimsAnalystRepository, roleRepository,
+                userInsurerRepository, tenantResolver, tenantProfileService, provisioner,
+                emailDomainValidator, sendGridAdapter);
     }
 
     private CreateUserRequest analistaRequest() {

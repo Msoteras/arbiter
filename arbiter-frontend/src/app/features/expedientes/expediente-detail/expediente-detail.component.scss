@@ -9,10 +9,18 @@
   padding: var(--space-4) var(--space-6);
   z-index: 10;
 }
-.breadcrumb { font-size: var(--font-size-sm); color: var(--text-muted); margin-bottom: var(--space-3); }
-.breadcrumb a { color: var(--accent-fg); text-decoration: none; }
-.breadcrumb a:hover { text-decoration: underline; }
-.crumb-sep { margin: 0 var(--space-1); color: var(--text-muted); }
+.back-link {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-medium);
+  color: var(--accent-fg);
+  text-decoration: none;
+  margin-bottom: var(--space-3);
+}
+.back-link:hover { text-decoration: underline; }
+.back-arrow { font-size: var(--font-size-lg); line-height: 1; }
 .det-header-row { display: flex; align-items: center; justify-content: space-between; gap: var(--space-4); flex-wrap: wrap; }
 .identity { display: flex; align-items: center; gap: var(--space-3); flex-wrap: wrap; }
 .identity h1 { margin: 0; }
@@ -55,6 +63,30 @@
 .decision-btns { display: flex; gap: var(--space-2); }
 .decision-btns app-button { flex: 1; }
 
+/* ===== Asignación ===== */
+.assignee { display: flex; align-items: center; gap: var(--space-2); margin-bottom: var(--space-3); }
+.assignee-avatar {
+  flex-shrink: 0;
+  width: 34px;
+  height: 34px;
+  border-radius: var(--radius-pill);
+  background: var(--selected-bg);
+  color: var(--accent-fg);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-weight-medium);
+}
+.assignee-text { min-width: 0; }
+.assignee-name { margin: 0; font-size: var(--font-size-body); font-weight: var(--font-weight-medium); color: var(--text-primary); }
+.assignee-sub { margin: var(--space-1) 0 0; font-size: var(--font-size-xs); color: var(--text-muted); }
+/* Los triggers principales ("+ Asignarme" / "Asignar a…" / "⟳ Reasignar") reparten el ancho por
+   igual; el "…" queda chico al lado. */
+.assign-actions { display: flex; gap: var(--space-2); align-items: center; }
+.assign-actions > app-button,
+.assign-actions > .grow { flex: 1; min-width: 0; }
+
 /* ===== Tabs ===== */
 .tabs {
   display: flex;
@@ -69,7 +101,7 @@
 .tab.active { color: var(--text-primary); border-bottom-color: var(--text-primary); font-weight: var(--font-weight-medium); }
 
 /* ===== Contenido ===== */
-.det-content { padding: var(--space-5) var(--space-6) var(--space-7); max-width: 1180px; }
+.det-content { padding: var(--space-5) var(--space-6) var(--space-7); }
 .state-wrap { padding: var(--space-5); max-width: 760px; }
 
 .note { margin: var(--space-1) 0 0; font-size: var(--font-size-xs); color: var(--text-muted); }

@@ -15,6 +15,20 @@ export interface CreateUserRequest {
   fechaIngreso?: string;
 }
 
+/**
+ * Espejo de `AnalystResponse` del auth-service: un analista asignable de la aseguradora actual.
+ *
+ * Es más chico que `UserResponse` a propósito — responde "a quién le puedo dar este expediente",
+ * no "qué cuentas hay". El `id` es el de `claims_analyst`, que vive en el esquema de cada
+ * aseguradora: **no lo compares entre aseguradoras ni contra el id de usuario de la sesión.**
+ */
+export interface AnalystResponse {
+  id: number;
+  nombre: string;
+  apellido: string;
+  email: string;
+}
+
 export interface UserResponse {
   id: number;
   email: string;
@@ -39,6 +53,18 @@ export class UserAdminService {
 
   list(): Observable<UserResponse[]> {
     return this.http.get<UserResponse[]>(this.baseUrl);
+  }
+
+  /**
+   * Analistas a los que se les puede asignar un expediente, ordenados por apellido. A diferencia
+   * de `list()`, también lo puede llamar un analista: asignar es acción de los dos roles
+   * operativos. Alimenta el selector de asignación de la bandeja y del detalle.
+   *
+   * Vienen ya acotados a la aseguradora del usuario logueado (la tabla es por esquema), y el
+   * `id` es el que espera `POST /cases/{id}/assign`.
+   */
+  listAnalysts(): Observable<AnalystResponse[]> {
+    return this.http.get<AnalystResponse[]>(`${this.baseUrl}/analysts`);
   }
 
   updateRole(id: number, rol: UserRole): Observable<UserResponse> {
