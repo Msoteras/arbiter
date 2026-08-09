@@ -36,7 +36,7 @@
                 <p class="registered">✓ {{ classifState() === 'aceptada' ? 'Clasificación aceptada' : 'Marcada para modificar' }}</p>
               }
             </div>
-            @if (classifState() === 'none') {
+            @if (classifState() === 'none' && canAct()) {
               <div class="accept-col">
                 <app-button size="sm" [block]="true" (click)="acceptClassif()">Aceptar</app-button>
                 <app-button variant="secondary" size="sm" [block]="true" (click)="modifyClassif()">Modificar</app-button>
@@ -61,24 +61,30 @@
             <p class="registered">✓ Registrado: Rechazado</p>
           }
           @case ('pending') {
-            <div class="decision-btns">
-              <app-button variant="secondary" [block]="true" [disabled]="decisionSaving()" (click)="askDecision('rechazar')">Rechazar</app-button>
-              <app-button variant="secondary" [block]="true" [disabled]="decisionSaving()" (click)="askDecision('aprobar')">Aprobar</app-button>
-            </div>
+            @if (canAct()) {
+              <div class="decision-btns">
+                <app-button variant="secondary" [block]="true" [disabled]="decisionSaving()" (click)="askDecision('rechazar')">Rechazar</app-button>
+                <app-button variant="secondary" [block]="true" [disabled]="decisionSaving()" (click)="askDecision('aprobar')">Aprobar</app-button>
+              </div>
+            } @else {
+              <p class="nodata">Pendiente de decisión del analista</p>
+            }
           }
           @default {
             @if (isFailed()) {
               <p class="nodata">No se pudo clasificar automáticamente tras varios intentos.</p>
-              <app-button
-                variant="secondary"
-                [block]="true"
-                [disabled]="retrying()"
-                (click)="retryClassification()"
-              >
-                {{ retrying() ? 'Reintentando…' : 'Reintentar clasificación' }}
-              </app-button>
-              @if (retryError()) {
-                <p class="rcard-note error">{{ retryError() }}</p>
+              @if (canAct()) {
+                <app-button
+                  variant="secondary"
+                  [block]="true"
+                  [disabled]="retrying()"
+                  (click)="retryClassification()"
+                >
+                  {{ retrying() ? 'Reintentando…' : 'Reintentar clasificación' }}
+                </app-button>
+                @if (retryError()) {
+                  <p class="rcard-note error">{{ retryError() }}</p>
+                }
               }
             } @else {
               <p class="nodata">Sin clasificación disponible todavía</p>
@@ -138,51 +144,55 @@
                     }
                   </div>
                 </div>
-                <div class="assign-actions">
-                  <app-menu-button
-                    class="grow"
-                    [block]="true"
-                    [items]="analystMenuItems()"
-                    heading="Asignar a otro analista"
-                    [disabled]="assignSaving()"
-                    (itemSelected)="assignTo($event)"
-                  >
-                    <span aria-hidden="true">⟳</span> Reasignar
-                  </app-menu-button>
-                  <app-menu-button
-                    [items]="overflowMenuItems"
-                    [disabled]="assignSaving()"
-                    align="end"
-                    (itemSelected)="onOverflowMenu($event)"
-                  >
-                    <span aria-hidden="true">⋯</span>
-                    <span class="sr-only">Más acciones de asignación</span>
-                  </app-menu-button>
-                </div>
+                @if (canAct()) {
+                  <div class="assign-actions">
+                    <app-menu-button
+                      class="grow"
+                      [block]="true"
+                      [items]="analystMenuItems()"
+                      heading="Asignar a otro analista"
+                      [disabled]="assignSaving()"
+                      (itemSelected)="assignTo($event)"
+                    >
+                      <span aria-hidden="true">⟳</span> Reasignar
+                    </app-menu-button>
+                    <app-menu-button
+                      [items]="overflowMenuItems"
+                      [disabled]="assignSaving()"
+                      align="end"
+                      (itemSelected)="onOverflowMenu($event)"
+                    >
+                      <span aria-hidden="true">⋯</span>
+                      <span class="sr-only">Más acciones de asignación</span>
+                    </app-menu-button>
+                  </div>
+                }
               } @else {
                 <p class="nodata">Sin asignar</p>
-                <div class="assign-actions">
-                  @if (canTake()) {
-                    <app-button
-                      variant="accent"
+                @if (canAct()) {
+                  <div class="assign-actions">
+                    @if (canTake()) {
+                      <app-button
+                        variant="accent"
+                        [block]="true"
+                        [disabled]="assignSaving()"
+                        (click)="take()"
+                      >
+                        + Asignarme
+                      </app-button>
+                    }
+                    <app-menu-button
+                      class="grow"
                       [block]="true"
+                      [items]="analystMenuItems()"
+                      heading="Asignar a otro analista"
                       [disabled]="assignSaving()"
-                      (click)="take()"
+                      (itemSelected)="assignTo($event)"
                     >
-                      + Asignarme
-                    </app-button>
-                  }
-                  <app-menu-button
-                    class="grow"
-                    [block]="true"
-                    [items]="analystMenuItems()"
-                    heading="Asignar a otro analista"
-                    [disabled]="assignSaving()"
-                    (itemSelected)="assignTo($event)"
-                  >
-                    Asignar a…
-                  </app-menu-button>
-                </div>
+                      Asignar a…
+                    </app-menu-button>
+                  </div>
+                }
               }
               @if (assignSaving()) {
                 <p class="rcard-note">Guardando asignación…</p>

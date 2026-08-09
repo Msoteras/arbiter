@@ -341,6 +341,14 @@ export class ExpedienteDetailComponent {
     () => this.session.session()?.rol === 'ANALISTA_SINIESTROS' && this.myAnalystId() != null,
   );
 
+  /**
+   * Solo el analista opera sobre el expediente (asignar, decidir, aceptar/modificar la
+   * clasificación, reintentar). El referente lo ve de solo lectura.
+   */
+  protected readonly canAct = computed(
+    () => this.session.session()?.rol === 'ANALISTA_SINIESTROS',
+  );
+
   protected readonly assignedName = computed(() => this.data()?.assignedAnalystName ?? null);
   protected readonly isAssigned = computed(() => this.data()?.assignedAnalystId != null);
 
