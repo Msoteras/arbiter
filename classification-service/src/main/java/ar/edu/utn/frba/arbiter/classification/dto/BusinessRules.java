@@ -5,7 +5,7 @@ import lombok.Builder;
 
 import java.util.List;
 
-@Builder
+@Builder(toBuilder = true)
 public record BusinessRules(
         String branchId,
         String claimCauseId,

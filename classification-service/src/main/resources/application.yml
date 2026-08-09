@@ -31,6 +31,8 @@ arbiter:
   auth:
     jwt:
       secret: ${JWT_SECRET:}
+  rules-service:
+    url: ${RULES_SERVICE_URL:http://localhost:8081}
   ollama:
     base-url: ${OLLAMA_BASE_URL:http://localhost:11434}
     model: ${OLLAMA_MODEL:qwen3-vl}

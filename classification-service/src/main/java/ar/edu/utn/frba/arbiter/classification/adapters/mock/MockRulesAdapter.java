@@ -52,8 +52,12 @@ public class MockRulesAdapter implements RulesAdapter {
         return BusinessRules.ScoringConfig.Band.builder().band(band).minScoreInclusive(minScoreInclusive).build();
     }
 
-    private static final Map<String, BusinessRules> RULES_BY_BRANCH = Map.of(
-            "Celulares|Robo en vía pública", BusinessRules.builder()
+    // Keyed by coverage id: the DER scopes regla_aseguradora by rama + cobertura, NOT by hecho
+    // generador (getRules gets the claim cause separately, for the document-requirement axis).
+    // Seed coverage ids: 1 = "Robo de celular" (robo en vía pública), 2 = "Hurto". A claim cause
+    // with no coverage (e.g. rotura accidental) has no rule and falls back to defaultGenericRules.
+    private static final Map<Long, BusinessRules> RULES_BY_COVERAGE = Map.of(
+            1L, BusinessRules.builder()
                     .branchId("Celulares")
                     .claimCauseId("Robo en vía pública")
                     .rules(List.of(
@@ -83,7 +87,7 @@ public class MockRulesAdapter implements RulesAdapter {
                     .scoringConfig(DEFAULT_SCORING_CONFIG)
                     .build(),
 
-            "Celulares|Hurto", BusinessRules.builder()
+            2L, BusinessRules.builder()
                     .branchId("Celulares")
                     .claimCauseId("Hurto")
                     .rules(List.of(
@@ -107,39 +111,13 @@ public class MockRulesAdapter implements RulesAdapter {
                             .build())
                     .requiredDocumentTypes(List.of("police_report"))
                     .scoringConfig(DEFAULT_SCORING_CONFIG)
-                    .build(),
-
-            "Celulares|Rotura accidental", BusinessRules.builder()
-                    .branchId("Celulares")
-                    .claimCauseId("Rotura accidental")
-                    .rules(List.of(
-                            "Rotura accidental cubierta con franquicia del 20% del costo de reparación",
-                            "Se requiere presupuesto de servicio técnico autorizado por la marca",
-                            "Si el costo de reparación supera el 70% del valor del bien, se considera pérdida total"
-                    ))
-                    .exclusions(List.of(
-                            "Daño por líquido",
-                            "Rotura intencional",
-                            "Equipo con intervención previa no autorizada (root, jailbreak, reparación informal)"
-                    ))
-                    .fastTrackCriteria(List.of(
-                            "Presupuesto de servicio técnico autorizado adjunto",
-                            "Costo de reparación menor al 50% del valor asegurado",
-                            "Sin siniestros previos del mismo tipo en los últimos 6 meses"
-                    ))
-                    .fastTrackThresholds(BusinessRules.FastTrackThresholds.builder()
-                            .maxClaimedAmountRatio(0.5)
-                            .requiresUpToDatePolicy(true)
-                            .build())
-                    .requiredDocumentTypes(List.of("item_photo", "quote"))
-                    .scoringConfig(DEFAULT_SCORING_CONFIG)
                     .build()
     );
 
     @Override
-    public BusinessRules getRules(String branchId, String claimCauseId) {
-        String key = branchId + "|" + claimCauseId;
-        return RULES_BY_BRANCH.getOrDefault(key, defaultGenericRules(branchId, claimCauseId));
+    public BusinessRules getRules(String branchId, Long coverageId, String claimCauseId) {
+        BusinessRules rules = coverageId == null ? null : RULES_BY_COVERAGE.get(coverageId);
+        return rules != null ? rules : defaultGenericRules(branchId, claimCauseId);
     }
 
     private BusinessRules defaultGenericRules(String branchId, String claimCauseId) {

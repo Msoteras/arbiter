@@ -1,0 +1,439 @@
+<div class="rules-page">
+  <header class="rules-head">
+    <h1 class="t-page-title">Configuración de reglas</h1>
+  </header>
+
+  <div class="rules-layout">
+    <!-- ───────── Master: ramos ───────── -->
+    <app-card class="list-card" heading="Ramos">
+      <ul class="ramo-list">
+        @for (r of ramos(); track r.id) {
+          <li>
+            <button type="button" class="ramo-item" [class.active]="isSelected(r)" (click)="select(r)">
+              <span class="ramo-name">{{ r.name }}</span>
+              <span class="ramo-meta">{{ r.coverages.length }} coberturas</span>
+            </button>
+          </li>
+        } @empty {
+          <li class="ramo-empty t-note">No hay ramos configurados.</li>
+        }
+      </ul>
+      <app-button class="add-ramo" variant="secondary" size="sm" [block]="true" (click)="addRamo()">
+        + Nuevo ramo
+      </app-button>
+    </app-card>
+
+    <!-- ───────── Detalle del ramo ───────── -->
+    <div class="editor">
+      @if (draft(); as d) {
+        <div class="editor-head">
+          <div class="editor-title">
+            <span class="t-section-label">Nombre del ramo</span>
+            <app-input class="ramo-name-field" [value]="d.name" (valueChange)="setName($event)" placeholder="Nombre del ramo" />
+            <button type="button" class="delete-ramo" (click)="requestDeleteRamo()">Eliminar ramo</button>
+          </div>
+          <div class="editor-actions">
+            @if (saved()) { <span class="saved-note">✓ Cambios guardados</span> }
+            <app-button variant="secondary" [disabled]="!dirty() || saving()" (click)="discard()">
+              Descartar
+            </app-button>
+            <app-button [disabled]="!dirty() || saving()" (click)="save()">
+              {{ saving() ? 'Guardando…' : 'Guardar cambios' }}
+            </app-button>
+          </div>
+        </div>
+
+        <nav class="tabs" role="tablist">
+          @for (t of tabs; track t.id) {
+            <button
+              role="tab"
+              class="tab"
+              [class.active]="activeTab() === t.id"
+              [attr.aria-selected]="activeTab() === t.id"
+              (click)="setTab(t.id)"
+            >
+              {{ t.label }}
+            </button>
+          }
+        </nav>
+
+        @switch (activeTab()) {
+          <!-- ============ COBERTURAS ============ -->
+          @case ('coberturas') {
+            <div class="tab-panel">
+              @for (c of d.coverages; track c.id) {
+                <app-card>
+                  <div class="cov-top">
+                    <label class="fieldset grow">
+                      <span class="t-field-label">Cobertura</span>
+                      <app-input
+                        [value]="c.name"
+                        (valueChange)="setCoverageField(c.id, { name: $event })"
+                        placeholder="Nombre de la cobertura"
+                      />
+                    </label>
+                    <button type="button" class="remove-cov" (click)="removeCoverage(c.id)">
+                      Quitar cobertura
+                    </button>
+                  </div>
+
+                  <div class="cov-fields">
+                    <label class="fieldset">
+                      <span class="t-field-label">Cláusula</span>
+                      <app-input
+                        [value]="c.clause"
+                        (valueChange)="setCoverageField(c.id, { clause: $event })"
+                        placeholder="ej. 340"
+                      />
+                    </label>
+                    <label class="fieldset">
+                      <span class="t-field-label">Suma asegurada ($)</span>
+                      <app-input
+                        type="number"
+                        [min]="0"
+                        [value]="coverageAmountStr(c)"
+                        (valueChange)="setCoverageAmount(c.id, $event)"
+                        placeholder="De la póliza"
+                      />
+                    </label>
+                    <label class="fieldset">
+                      <span class="t-field-label">Franquicia (%)</span>
+                      <app-input
+                        type="number"
+                        [min]="0"
+                        [value]="coverageDeductiblePct(c)"
+                        (valueChange)="setCoverageDeductible(c.id, $event)"
+                      />
+                    </label>
+                    <label class="fieldset">
+                      <span class="t-field-label">Plazo de denuncia (días)</span>
+                      <app-input
+                        type="number"
+                        [min]="0"
+                        [value]="coverageReportingWindowStr(c)"
+                        (valueChange)="setCoverageReportingWindow(c.id, $event)"
+                        placeholder="—"
+                      />
+                    </label>
+                    <label class="fieldset">
+                      <span class="t-field-label">Máx. eventos por año</span>
+                      <app-input
+                        type="number"
+                        [min]="0"
+                        [value]="coverageMaxClaimsStr(c)"
+                        (valueChange)="setCoverageMaxClaims(c.id, $event)"
+                        placeholder="Sin límite"
+                      />
+                    </label>
+                  </div>
+
+                  <div class="cov-excl">
+                    <span class="t-field-label">Exclusiones específicas</span>
+                    <app-string-list-editor
+                      [items]="c.exclusions"
+                      (itemsChange)="setCoverageField(c.id, { exclusions: $event })"
+                      placeholder="Exclusión específica de esta cobertura…"
+                      addLabel="+ Agregar exclusión"
+                      emptyText="Sin exclusiones específicas."
+                    />
+                  </div>
+                </app-card>
+              }
+
+              <app-button variant="secondary" (click)="addCoverage()">+ Agregar cobertura</app-button>
+
+              <app-card heading="Exclusiones comunes del ramo">
+                <p class="section-hint">
+                  Situaciones NO cubiertas por ninguna cobertura. Condiciones objetivas que evalúa
+                  el motor de reglas, no el modelo.
+                </p>
+                <app-string-list-editor
+                  [items]="d.commonExclusions"
+                  (itemsChange)="setCommonExclusions($event)"
+                  placeholder="Exclusión común…"
+                  addLabel="+ Agregar exclusión"
+                  emptyText="Sin exclusiones comunes."
+                />
+              </app-card>
+
+              <div class="ft-save">
+                <div class="editor-actions">
+                  <app-button [disabled]="covSaving()" (click)="saveCoverages()">
+                    {{ covSaving() ? 'Guardando…' : 'Guardar coberturas' }}
+                  </app-button>
+                  @if (covSaved()) {
+                    <span class="saved-note">✓ Guardado en el motor</span>
+                  }
+                  @if (covError(); as err) {
+                    <span class="warn-note">{{ err }}</span>
+                  }
+                </div>
+              </div>
+            </div>
+          }
+
+          <!-- ============ FAST TRACK ============ -->
+          @case ('fastTrack') {
+            <div class="tab-panel">
+              <app-card heading="Fast Track (Siniestro Express)">
+                <div class="section-toggle">
+                  <p class="section-hint">
+                    Gate determinístico que agiliza el caso. Nunca lo resuelve solo: siempre revisa
+                    un analista.
+                  </p>
+                  <button
+                    type="button"
+                    class="switch"
+                    [class.on]="d.fastTrack.enabled"
+                    [attr.aria-pressed]="d.fastTrack.enabled"
+                    (click)="toggleFastTrack()"
+                  >
+                    {{ d.fastTrack.enabled ? 'Habilitado' : 'Deshabilitado' }}
+                  </button>
+                </div>
+
+                @if (d.fastTrack.enabled) {
+                  <div class="subsection">
+                    <span class="t-field-label">Umbrales evaluables</span>
+                    <div class="grid-fields">
+                      <label class="fieldset">
+                        <span class="th-label">Antigüedad mínima de la póliza (meses)</span>
+                        <app-input type="number" [min]="0" [value]="ftMinAgeStr()" (valueChange)="setMinPolicyAge($event)" placeholder="Sin mínimo" />
+                      </label>
+                      <label class="fieldset">
+                        <span class="th-label">Siniestros previos máx.</span>
+                        <app-input type="number" [min]="0" [value]="ftMaxPriorStr()" (valueChange)="setMaxPriorClaims($event)" placeholder="Sin límite" />
+                      </label>
+                      <label class="fieldset">
+                        <span class="th-label">Ventana de siniestros previos (meses)</span>
+                        <app-input type="number" [min]="0" [value]="ftWindowStr()" (valueChange)="setPriorClaimsWindow($event)" placeholder="—" />
+                      </label>
+                      <label class="fieldset">
+                        <span class="th-label">Monto reclamado máx. (% de la suma asegurada)</span>
+                        <app-input type="number" [min]="0" [value]="ftMaxRatioPct()" (valueChange)="setFtMaxRatio($event)" placeholder="Sin límite" />
+                      </label>
+                    </div>
+                    <button
+                      type="button"
+                      class="chip"
+                      [class.active]="d.fastTrack.requiresUpToDatePolicy"
+                      [attr.aria-pressed]="d.fastTrack.requiresUpToDatePolicy"
+                      (click)="toggleFtRequiresUpToDate()"
+                    >
+                      Exige póliza al día
+                    </button>
+                  </div>
+
+                  <div class="subsection">
+                    <span class="t-field-label">Documentos que exige el Fast Track</span>
+                    <div class="chips">
+                      @for (doc of docTypes; track doc.code) {
+                        <button type="button" class="chip" [class.active]="isFtDoc(doc.code)" [attr.aria-pressed]="isFtDoc(doc.code)" (click)="toggleFtDoc(doc.code)">
+                          {{ doc.label }}
+                        </button>
+                      }
+                    </div>
+                  </div>
+
+                  <div class="subsection">
+                    <span class="t-field-label">Criterios (descriptivos)</span>
+                    <app-string-list-editor
+                      [items]="d.fastTrack.criteria"
+                      (itemsChange)="setFtCriteria($event)"
+                      placeholder="Criterio de Fast Track…"
+                      addLabel="+ Agregar criterio"
+                      emptyText="Sin criterios descriptivos."
+                    />
+                  </div>
+                }
+
+                <div class="ft-save">
+                  <p class="section-hint">
+                    Se persisten en el motor: monto reclamado máx., siniestros previos máx., póliza
+                    al día y documentos exigidos. La antigüedad mínima, la ventana de siniestros y
+                    los criterios descriptivos todavía no llegan al gate.
+                  </p>
+                  <div class="editor-actions">
+                    <app-button [disabled]="ftSaving()" (click)="saveFastTrack()">
+                      {{ ftSaving() ? 'Guardando…' : 'Guardar Fast Track' }}
+                    </app-button>
+                    @if (ftSaved()) {
+                      <span class="saved-note">✓ Guardado en el motor</span>
+                    }
+                    @if (ftError(); as err) {
+                      <span class="warn-note">{{ err }}</span>
+                    }
+                  </div>
+                </div>
+              </app-card>
+            </div>
+          }
+
+          <!-- ============ DOCUMENTACIÓN ============ -->
+          @case ('documentacion') {
+            <div class="tab-panel">
+              <app-card heading="Agenda documental">
+                <p class="section-hint">
+                  Documentos obligatorios para considerar el expediente completo. Si falta alguno, el
+                  estado queda en "Falta documentación".
+                </p>
+                <div class="chips">
+                  @for (doc of docTypes; track doc.code) {
+                    <button type="button" class="chip" [class.active]="isDocRequired(doc.code)" [attr.aria-pressed]="isDocRequired(doc.code)" (click)="toggleDoc(doc.code)">
+                      {{ doc.label }}
+                    </button>
+                  }
+                </div>
+
+                <div class="ft-save">
+                  <div class="editor-actions">
+                    <app-button [disabled]="docSaving()" (click)="saveDocuments()">
+                      {{ docSaving() ? 'Guardando…' : 'Guardar documentación' }}
+                    </app-button>
+                    @if (docSaved()) {
+                      <span class="saved-note">✓ Guardado en el motor</span>
+                    }
+                    @if (docError(); as err) {
+                      <span class="warn-note">{{ err }}</span>
+                    }
+                  </div>
+                </div>
+              </app-card>
+            </div>
+          }
+
+          <!-- ============ SCORING ============ -->
+          @case ('scoring') {
+            <div class="tab-panel">
+              <app-card heading="Scoring de fraude">
+                <div class="section-toggle">
+                  <p class="section-hint">
+                    Score paralelo de riesgo (señal para el analista, nunca decisión automática).
+                    Cada factor pesa sobre el total; el score mapea a una banda. Es una única
+                    configuración para toda la aseguradora: se aplica igual a todos los ramos.
+                  </p>
+                  <button
+                    type="button"
+                    class="switch"
+                    [class.on]="d.scoring.enabled"
+                    [attr.aria-pressed]="d.scoring.enabled"
+                    (click)="toggleScoring()"
+                  >
+                    {{ d.scoring.enabled ? 'Habilitado' : 'Deshabilitado' }}
+                  </button>
+                </div>
+
+                @if (d.scoring.enabled) {
+                  <div class="subsection">
+                    <div class="subsection-head">
+                      <span class="t-field-label">Factores y pesos</span>
+                      <app-badge [tone]="weightsBalanced() ? 'ok' : 'warning'">Suma: {{ weightSumPct() }}%</app-badge>
+                    </div>
+                    @if (!weightsBalanced()) {
+                      <p class="warn-note">Los pesos de los factores activos deberían sumar 100%.</p>
+                    }
+                    <ul class="factors">
+                      @for (f of riskFactors; track f.id) {
+                        <li class="factor">
+                          <button type="button" class="chip factor-chip" [class.active]="isFactorActive(f.id)" [attr.aria-pressed]="isFactorActive(f.id)" (click)="toggleFactor(f.id)">
+                            {{ f.label }}
+                          </button>
+                          @if (isFactorActive(f.id)) {
+                            <label class="factor-weight">
+                              <app-input type="number" [min]="0" [value]="factorWeightPct(f.id)" (valueChange)="setFactorWeight(f.id, $event)" />
+                              <span class="pct">%</span>
+                            </label>
+                          }
+                        </li>
+                      }
+                    </ul>
+                  </div>
+
+                  <div class="subsection">
+                    <span class="t-field-label">Bandas de riesgo (score mínimo, %)</span>
+                    <ul class="bands">
+                      @for (band of riskBands; track band) {
+                        <li class="band">
+                          <span class="band-name">{{ bandLabel(band) }}</span>
+                          @if (band === 'LOW') {
+                            <app-input type="number" [value]="'0'" [readonly]="true" />
+                          } @else {
+                            <app-input type="number" [min]="0" [value]="bandCutPct(band)" (valueChange)="setBandCut(band, $event)" />
+                          }
+                        </li>
+                      }
+                    </ul>
+                  </div>
+                }
+
+                <div class="ft-save">
+                  <div class="editor-actions">
+                    <app-button [disabled]="scoreSaving()" (click)="saveScoring()">
+                      {{ scoreSaving() ? 'Guardando…' : 'Guardar scoring' }}
+                    </app-button>
+                    @if (scoreSaved()) {
+                      <span class="saved-note">✓ Guardado en el motor</span>
+                    }
+                    @if (scoreError(); as err) {
+                      <span class="warn-note">{{ err }}</span>
+                    }
+                  </div>
+                </div>
+              </app-card>
+            </div>
+          }
+
+          <!-- ============ REGLAS DE NEGOCIO ============ -->
+          @case ('reglas') {
+            <div class="tab-panel">
+              <app-card heading="Reglas de negocio">
+                <p class="section-hint">
+                  Condiciones y criterios que el analista y el modelo deben tener en cuenta al
+                  evaluar el siniestro.
+                </p>
+                <app-string-list-editor
+                  [items]="d.businessRules"
+                  (itemsChange)="setBusinessRules($event)"
+                  placeholder="Descripción de la regla…"
+                  addLabel="+ Agregar regla"
+                  emptyText="Sin reglas configuradas."
+                />
+
+                <div class="ft-save">
+                  <div class="editor-actions">
+                    <app-button [disabled]="rulesSaving()" (click)="saveBusinessRules()">
+                      {{ rulesSaving() ? 'Guardando…' : 'Guardar reglas de negocio' }}
+                    </app-button>
+                    @if (rulesSaved()) {
+                      <span class="saved-note">✓ Guardado en el motor</span>
+                    }
+                    @if (rulesError(); as err) {
+                      <span class="warn-note">{{ err }}</span>
+                    }
+                  </div>
+                </div>
+              </app-card>
+            </div>
+          }
+        }
+      } @else {
+        <app-empty-state message="Elegí un ramo para configurarlo" />
+      }
+    </div>
+  </div>
+</div>
+
+<app-modal [open]="ramoToDelete() !== null" heading="▲ ¿Eliminar ramo?" (close)="cancelDeleteRamo()">
+  @if (ramoToDelete(); as r) {
+    <p class="t-body">
+      Vas a eliminar el ramo <strong>{{ r.name }}</strong> y toda su configuración (coberturas,
+      Fast Track, documentación, scoring y reglas). Esta acción no se puede deshacer.
+    </p>
+  }
+  <ng-container modalActions>
+    <app-button variant="secondary" [disabled]="deleting()" (click)="cancelDeleteRamo()">Cancelar</app-button>
+    <app-button [disabled]="deleting()" (click)="confirmDeleteRamo()">
+      {{ deleting() ? 'Eliminando…' : 'Sí, eliminar ramo' }}
+    </app-button>
+  </ng-container>
+</app-modal>
