@@ -18,6 +18,11 @@ public class CaseExceptionHandler {
         return ProblemDetail.forStatusAndDetail(HttpStatusCode.valueOf(404), ex.getMessage());
     }
 
+    @ExceptionHandler(CoverageNotFoundException.class)
+    public ProblemDetail handleCoverageNotFound(CoverageNotFoundException ex) {
+        return ProblemDetail.forStatusAndDetail(HttpStatusCode.valueOf(404), ex.getMessage());
+    }
+
     @ExceptionHandler(DocumentNotFoundException.class)
     public ProblemDetail handleDocumentNotFound(DocumentNotFoundException ex) {
         return ProblemDetail.forStatusAndDetail(HttpStatusCode.valueOf(404), ex.getMessage());

@@ -18,6 +18,10 @@ public record ClaimReport(
         @NotBlank String branch,
         @NotBlank String product,
         @NotBlank String claimCause,
+        // Coverage id — the DER scopes a business rule (Fast Track, scoring) by rama + cobertura,
+        // not by hecho generador. Nullable: the isolated test flow builds a claim without a case;
+        // the real cases->classification flow always sets it from Case.coverage.
+        Long coverageId,
         @NotBlank String insuredItem,
         @NotBlank String insuredId,
         @NotBlank String policyNumber,

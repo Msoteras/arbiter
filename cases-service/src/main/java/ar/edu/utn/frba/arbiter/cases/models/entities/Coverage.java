@@ -1,6 +1,7 @@
 package ar.edu.utn.frba.arbiter.cases.models.entities;
 
 import jakarta.persistence.Column;
+import jakarta.persistence.Convert;
 import jakarta.persistence.Entity;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
@@ -11,8 +12,11 @@ import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
+import org.hibernate.annotations.JdbcTypeCode;
+import org.hibernate.type.SqlTypes;
 
 import java.math.BigDecimal;
+import java.util.List;
 
 /**
  * Coverage a policy grants ("Cobertura" in CLAUDE.md's domain vocabulary) — sum insured,
@@ -20,6 +24,11 @@ import java.math.BigDecimal;
  * {@code InsurerAdapter}/{@code MockInsurerAdapter} as part of {@code PolicyResponse}, not
  * from a local table; this is the target shape for persisting it, unused for now.
  * {@code branchId} is a logical reference to rules-service's Branch — cross-module, no FK.
+ *
+ * <p>{@code deductible} is stored in percentage points (10.00 = 10%), not a 0..1 fraction —
+ * matches the existing seed data. {@code clause} and {@code exclusions} have no backing table
+ * in the DER (docs/decisiones-reglas-a-validar.md, D3/D7): parked here in JSONB until the
+ * rules engine actually consumes them.
  */
 @Entity
 @Table(name = "coverage")
@@ -62,4 +71,12 @@ public class Coverage {
 
     @Column(name = "branch_id")
     private Long branchId;
+
+    @Column(length = 20)
+    private String clause;
+
+    @Convert(converter = StringListJsonConverter.class)
+    @JdbcTypeCode(SqlTypes.JSON)
+    @Column(columnDefinition = "jsonb")
+    private List<String> exclusions;
 }

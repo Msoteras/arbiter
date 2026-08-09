@@ -109,6 +109,13 @@ export const routes: Routes = [
       import('./features/admin/usuarios/usuarios.component').then((m) => m.UsuariosComponent),
   },
   {
+    path: 'insurer/rules',
+    canActivate: [roleGuard],
+    data: { roles: ['REFERENTE_ASEGURADORA'] },
+    loadComponent: () =>
+      import('./features/admin/reglas/reglas.component').then((m) => m.ReglasComponent),
+  },
+  {
     path: 'insurer/dashboard',
     canActivate: [roleGuard],
     data: { roles: ['REFERENTE_ASEGURADORA'] },

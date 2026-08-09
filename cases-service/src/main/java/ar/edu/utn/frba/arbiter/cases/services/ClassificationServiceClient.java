@@ -86,6 +86,7 @@ public class ClassificationServiceClient implements ClaimsAnalysisClient {
                 .branch(caseRecord.getClaimCause().getBranch().getName())
                 .product(caseRecord.getPolicy().getProduct())
                 .claimCause(caseRecord.getClaimCause().getName())
+                .coverageId(caseRecord.getCoverage().getId())
                 .insuredItem(caseRecord.getDeclaredItem())
                 .insuredId(caseRecord.getInsured().getDni())
                 .policyNumber(caseRecord.getPolicy().getExternalPolicyNumber())
