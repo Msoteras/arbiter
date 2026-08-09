@@ -3,6 +3,7 @@ package ar.edu.utn.frba.arbiter.rules.services;
 import ar.edu.utn.frba.arbiter.common.models.entities.Branch;
 import ar.edu.utn.frba.arbiter.rules.dto.CatalogOption;
 import ar.edu.utn.frba.arbiter.rules.dto.FastTrackConfigDto;
+import ar.edu.utn.frba.arbiter.rules.dto.FastTrackRuleResponse;
 import ar.edu.utn.frba.arbiter.rules.exceptions.BranchNotFoundException;
 import ar.edu.utn.frba.arbiter.rules.exceptions.InvalidRuleConfigurationException;
 import ar.edu.utn.frba.arbiter.rules.models.entities.InsurerRule;
@@ -68,7 +69,7 @@ public class FastTrackRuleService {
     }
 
     @Transactional
-    public void upsert(Long branchId, Long coverageId, FastTrackConfigDto config, String actorEmail) {
+    public FastTrackRuleResponse upsert(Long branchId, Long coverageId, FastTrackConfigDto config, String actorEmail) {
         String json = serialize(config);
         Instant now = Instant.now();
 
@@ -89,9 +90,9 @@ public class FastTrackRuleService {
                     .coverageId(coverageId)
                     .configuration(json)
                     .build();
-            ruleRepository.save(rule);
+            rule = ruleRepository.save(rule);
             log.info("[FastTrackRule] created — branch={} coverage={} by={}", branchId, coverageId, actorEmail);
-            return;
+            return new FastTrackRuleResponse(rule.getId(), branchId, coverageId, config);
         }
 
         // Snapshot the version we're about to overwrite before touching it (append-only audit).
@@ -110,8 +111,9 @@ public class FastTrackRuleService {
 
         rule.setConfiguration(json);
         rule.setValidFrom(now);
-        ruleRepository.save(rule);
+        rule = ruleRepository.save(rule);
         log.info("[FastTrackRule] updated — branch={} coverage={} by={}", branchId, coverageId, actorEmail);
+        return new FastTrackRuleResponse(rule.getId(), branchId, coverageId, config);
     }
 
     private FastTrackConfigDto deserialize(String json) {

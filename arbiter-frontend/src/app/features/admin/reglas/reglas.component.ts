@@ -1,5 +1,6 @@
 import { HttpErrorResponse } from '@angular/common/http';
 import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
+import { Observable, forkJoin, of } from 'rxjs';
 
 import {
   Coverage,
@@ -12,6 +13,10 @@ import {
 import { RISK_BANDS, RiskBand, riskBandLabel } from '../../../core/models/risk-band';
 import { RulesConfigService } from '../rules-config.service';
 import { FastTrackConfigDto, FastTrackRulesService } from '../fast-track-rules.service';
+import { CoverageDetail, CoverageUpsertRequest, CoveragesRulesService } from '../coverages-rules.service';
+import { DocumentRulesService } from '../document-rules.service';
+import { ScoringConfigDto, ScoringRulesService } from '../scoring-rules.service';
+import { BusinessRulesTextService } from '../business-rules-text.service';
 import { BadgeComponent } from '../../../shared/ui/badge/badge.component';
 import { ButtonComponent } from '../../../shared/ui/button/button.component';
 import { CardComponent } from '../../../shared/ui/card/card.component';
@@ -24,10 +29,12 @@ type TabId = 'coberturas' | 'fastTrack' | 'documentacion' | 'scoring' | 'reglas'
 
 /**
  * Configuración de reglas del referente, Ramo-céntrica. Master (lista de ramos) + detalle con
- * solapas: Coberturas, Fast Track, Documentación, Scoring y Reglas. El Fast Track y el scoring
- * son por ramo. Trabaja sobre un draft en memoria; "Guardar" persiste vía RulesConfigService
- * (mock hasta que exista rules-service). Porcentajes en la UI (0..100) ↔ fracción (0..1) en el
- * modelo, que es el contrato del back.
+ * solapas: Coberturas, Fast Track, Documentación, Scoring y Reglas. Trabaja sobre un draft en
+ * memoria por solapa; cada una tiene su propio botón "Guardar X" que persiste contra el backend
+ * real (cases-service para Coberturas, rules-service para las otras 4). El "Guardar cambios" /
+ * "Descartar" globales de arriba solo cubren el nombre del ramo y el alta/baja de ramos, que
+ * siguen en RulesConfigService (mock): no existe todavía un CRUD de Branch en el backend.
+ * Porcentajes en la UI (0..100) ↔ fracción (0..1) en el modelo, que es el contrato del back.
  */
 @Component({
   selector: 'app-reglas',
@@ -47,11 +54,34 @@ type TabId = 'coberturas' | 'fastTrack' | 'documentacion' | 'scoring' | 'reglas'
 export class ReglasComponent {
   private readonly service = inject(RulesConfigService);
   private readonly ftService = inject(FastTrackRulesService);
+  private readonly coveragesService = inject(CoveragesRulesService);
+  private readonly documentsService = inject(DocumentRulesService);
+  private readonly scoringService = inject(ScoringRulesService);
+  private readonly rulesTextService = inject(BusinessRulesTextService);
 
-  // Estado del guardado real del Fast Track (única solapa cableada al backend por ahora).
+  // Estado de guardado real por solapa (Fast Track, Coberturas, Documentación, Scoring y Reglas de
+  // negocio persisten contra el backend, cada una con su propio botón — el "Guardar cambios" global
+  // sigue existiendo solo para el nombre del ramo, que todavía es mock (alta/baja de ramo también).
   protected readonly ftSaving = signal(false);
   protected readonly ftSaved = signal(false);
   protected readonly ftError = signal<string | null>(null);
+
+  protected readonly covSaving = signal(false);
+  protected readonly covSaved = signal(false);
+  protected readonly covError = signal<string | null>(null);
+  private loadedCoverages: Coverage[] = [];
+
+  protected readonly docSaving = signal(false);
+  protected readonly docSaved = signal(false);
+  protected readonly docError = signal<string | null>(null);
+
+  protected readonly scoreSaving = signal(false);
+  protected readonly scoreSaved = signal(false);
+  protected readonly scoreError = signal<string | null>(null);
+
+  protected readonly rulesSaving = signal(false);
+  protected readonly rulesSaved = signal(false);
+  protected readonly rulesError = signal<string | null>(null);
 
   protected readonly docTypes = DOCUMENT_TYPES;
   protected readonly riskFactors = RISK_FACTORS;
@@ -104,7 +134,19 @@ export class ReglasComponent {
     this.saved.set(false);
     this.ftSaved.set(false);
     this.ftError.set(null);
+    this.covSaved.set(false);
+    this.covError.set(null);
+    this.docSaved.set(false);
+    this.docError.set(null);
+    this.scoreSaved.set(false);
+    this.scoreError.set(null);
+    this.rulesSaved.set(false);
+    this.rulesError.set(null);
     this.loadFastTrackFromBackend(r);
+    this.loadCoveragesFromBackend(r);
+    this.loadDocumentsFromBackend(r);
+    this.loadScoringFromBackend();
+    this.loadBusinessRulesFromBackend(r);
   }
 
   /**
@@ -146,8 +188,6 @@ export class ReglasComponent {
           }
         : d,
     );
-    // Vino del backend, no es un cambio del usuario.
-    this.dirty.set(false);
   }
 
   private isEmptyFastTrack(dto: FastTrackConfigDto): boolean {
@@ -157,6 +197,99 @@ export class ReglasComponent {
       dto.requiresUpToDatePolicy == null &&
       (dto.requiredDocumentTypes == null || dto.requiredDocumentTypes.length === 0)
     );
+  }
+
+  /**
+   * Trae del backend las coberturas reales del ramo (cases-service) y las exclusiones comunes
+   * (rules-service), reemplazando lo que trajera el mock. Guarda una copia (`loadedCoverages`)
+   * para poder diffear altas/bajas/ediciones al guardar.
+   */
+  private loadCoveragesFromBackend(r: RamoRules): void {
+    const branchId = this.branchIdOf(r);
+    if (branchId == null) {
+      return;
+    }
+    this.coveragesService.listDetailed(branchId).subscribe({
+      next: (list) => this.overlayCoverages(list),
+      error: () => {
+        /* backend caído: nos quedamos con el mock, sin romper la pantalla */
+      },
+    });
+    this.rulesTextService.getExclusions(branchId).subscribe({
+      next: (items) => {
+        this.draft.update((d) => (d ? { ...d, commonExclusions: items } : d));
+      },
+      error: () => {
+        /* best-effort */
+      },
+    });
+  }
+
+  private overlayCoverages(list: CoverageDetail[]): void {
+    const coverages: Coverage[] = list.map((c) => ({
+      id: String(c.id),
+      name: c.name,
+      clause: c.clause ?? '',
+      insuredAmount: null,
+      deductibleRatio: c.deductibleRatio,
+      reportingWindowDays: c.reportingWindowDays,
+      maxAnnualClaims: c.maxAnnualClaims,
+      exclusions: c.exclusions ?? [],
+    }));
+    this.loadedCoverages = coverages;
+    this.draft.update((d) => (d ? { ...d, coverages } : d));
+  }
+
+  /** Trae la agenda documental real del ramo (rules-service, fan-out invisible en el backend). */
+  private loadDocumentsFromBackend(r: RamoRules): void {
+    const branchId = this.branchIdOf(r);
+    if (branchId == null) {
+      return;
+    }
+    this.documentsService.get(branchId).subscribe({
+      next: (types) => {
+        this.draft.update((d) => (d ? { ...d, requiredDocuments: types } : d));
+      },
+      error: () => {
+        /* backend caído: nos quedamos con el mock, sin romper la pantalla */
+      },
+    });
+  }
+
+  /**
+   * Trae el scoring real de la aseguradora (rules-service) — una sola config compartida por
+   * todos los ramos, no depende del branchId. Sin config aún → skeleton con las 4 bandas en 0.
+   */
+  private loadScoringFromBackend(): void {
+    this.scoringService.get().subscribe({
+      next: (dto) => this.overlayScoring(dto),
+      error: () => {
+        /* backend caído: nos quedamos con el mock, sin romper la pantalla */
+      },
+    });
+  }
+
+  private overlayScoring(dto: ScoringConfigDto): void {
+    const bands = dto.bands.length
+      ? dto.bands
+      : RISK_BANDS.map((band, i) => ({ band, minScoreInclusive: [0, 0.3, 0.6, 0.8][i] }));
+    this.draft.update((d) => (d ? { ...d, scoring: { enabled: dto.enabled, factors: dto.factors, bands } } : d));
+  }
+
+  /** Trae las reglas de negocio en texto libre del ramo (rules-service). */
+  private loadBusinessRulesFromBackend(r: RamoRules): void {
+    const branchId = this.branchIdOf(r);
+    if (branchId == null) {
+      return;
+    }
+    this.rulesTextService.getBusinessRules(branchId).subscribe({
+      next: (items) => {
+        this.draft.update((d) => (d ? { ...d, businessRules: items } : d));
+      },
+      error: () => {
+        /* backend caído: nos quedamos con el mock, sin romper la pantalla */
+      },
+    });
   }
 
   private branchIdOf(r: RamoRules): number | null {
@@ -471,22 +604,164 @@ export class ReglasComponent {
       },
       error: (e: unknown) => {
         this.ftSaving.set(false);
-        this.ftError.set(this.ftErrorMessage(e));
+        this.ftError.set(this.backendErrorMessage(e));
       },
     });
   }
 
-  private ftErrorMessage(e: unknown): string {
+  // ───────────────── Coberturas: persistencia real (cases-service) ─────────────────
+  /**
+   * Guarda las coberturas del ramo (alta/edición/baja según cómo cambió el draft frente a
+   * `loadedCoverages`) y las exclusiones comunes (rules-service), en un solo botón porque
+   * comparten la solapa Coberturas.
+   */
+  protected saveCoverages(): void {
+    const d = this.draft();
+    if (!d || this.covSaving()) {
+      return;
+    }
+    this.covError.set(null);
+    this.covSaved.set(false);
+    const branchId = this.branchIdOf(d);
+    if (branchId == null) {
+      this.covError.set('Este ramo todavía no existe en el backend.');
+      return;
+    }
+
+    const draftIds = new Set(d.coverages.map((c) => c.id));
+    const toDelete = this.loadedCoverages.filter((c) => !draftIds.has(c.id));
+    const toCreate = d.coverages.filter((c) => !this.isPersistedId(c.id));
+    const toUpdate = d.coverages.filter((c) => this.isPersistedId(c.id));
+
+    const requests: Observable<unknown>[] = [
+      ...toDelete.map((c) => this.coveragesService.remove(Number(c.id))),
+      ...toCreate.map((c) => this.coveragesService.create(branchId, this.toCoverageRequest(c))),
+      ...toUpdate.map((c) => this.coveragesService.update(Number(c.id), this.toCoverageRequest(c))),
+      this.rulesTextService.saveExclusions(branchId, d.commonExclusions),
+    ];
+
+    this.covSaving.set(true);
+    forkJoin(requests.length ? requests : [of(null)]).subscribe({
+      next: () => {
+        this.covSaving.set(false);
+        this.covSaved.set(true);
+        // Recarga: los que eran altas ahora tienen id real del backend.
+        this.loadCoveragesFromBackend(d);
+      },
+      error: (e: unknown) => {
+        this.covSaving.set(false);
+        this.covError.set(this.backendErrorMessage(e));
+      },
+    });
+  }
+
+  private toCoverageRequest(c: Coverage): CoverageUpsertRequest {
+    return {
+      name: c.name,
+      clause: c.clause || null,
+      deductibleRatio: c.deductibleRatio,
+      reportingWindowDays: c.reportingWindowDays,
+      maxAnnualClaims: c.maxAnnualClaims,
+      exclusions: c.exclusions,
+    };
+  }
+
+  /** Un id numérico es una cobertura que ya existe en el backend; uno con prefijo `cov-` es un alta local. */
+  private isPersistedId(id: string): boolean {
+    return /^\d+$/.test(id);
+  }
+
+  // ───────────────── Documentación: persistencia real (rules-service) ─────────────────
+  protected saveDocuments(): void {
+    const d = this.draft();
+    if (!d || this.docSaving()) {
+      return;
+    }
+    this.docError.set(null);
+    this.docSaved.set(false);
+    const branchId = this.branchIdOf(d);
+    if (branchId == null) {
+      this.docError.set('Este ramo todavía no existe en el backend.');
+      return;
+    }
+    this.docSaving.set(true);
+    this.documentsService.save(branchId, d.requiredDocuments).subscribe({
+      next: () => {
+        this.docSaving.set(false);
+        this.docSaved.set(true);
+      },
+      error: (e: unknown) => {
+        this.docSaving.set(false);
+        this.docError.set(this.backendErrorMessage(e));
+      },
+    });
+  }
+
+  // ───────────────── Scoring: persistencia real (rules-service) ─────────────────
+  /** Guarda el scoring de la aseguradora. No depende del ramo: aplica a todos por igual. */
+  protected saveScoring(): void {
+    const d = this.draft();
+    if (!d || this.scoreSaving()) {
+      return;
+    }
+    this.scoreError.set(null);
+    this.scoreSaved.set(false);
+    const sc = d.scoring;
+    const dto: ScoringConfigDto = sc.enabled
+      ? { enabled: true, factors: sc.factors, bands: sc.bands }
+      : { enabled: false, factors: [], bands: [] };
+
+    this.scoreSaving.set(true);
+    this.scoringService.save(dto).subscribe({
+      next: () => {
+        this.scoreSaving.set(false);
+        this.scoreSaved.set(true);
+      },
+      error: (e: unknown) => {
+        this.scoreSaving.set(false);
+        this.scoreError.set(this.backendErrorMessage(e));
+      },
+    });
+  }
+
+  // ───────────────── Reglas de negocio: persistencia real (rules-service) ─────────────────
+  protected saveBusinessRules(): void {
+    const d = this.draft();
+    if (!d || this.rulesSaving()) {
+      return;
+    }
+    this.rulesError.set(null);
+    this.rulesSaved.set(false);
+    const branchId = this.branchIdOf(d);
+    if (branchId == null) {
+      this.rulesError.set('Este ramo todavía no existe en el backend.');
+      return;
+    }
+    this.rulesSaving.set(true);
+    this.rulesTextService.saveBusinessRules(branchId, d.businessRules).subscribe({
+      next: () => {
+        this.rulesSaving.set(false);
+        this.rulesSaved.set(true);
+      },
+      error: (e: unknown) => {
+        this.rulesSaving.set(false);
+        this.rulesError.set(this.backendErrorMessage(e));
+      },
+    });
+  }
+
+  private backendErrorMessage(e: unknown): string {
     if (e instanceof HttpErrorResponse) {
       if (e.status === 403) {
         return 'No tenés permiso para editar reglas (se requiere rol Referente).';
       }
       if (e.status === 0) {
-        return 'No se pudo contactar al backend de reglas (¿rules-service arriba?).';
+        return 'No se pudo contactar al backend de reglas (¿el servicio está arriba?).';
       }
-      return `El backend rechazó el guardado (${e.status}).`;
+      const detail = (e.error as { detail?: string } | null)?.detail;
+      return detail ?? `El backend rechazó el guardado (${e.status}).`;
     }
-    return e instanceof Error ? e.message : 'No se pudo guardar el Fast Track.';
+    return e instanceof Error ? e.message : 'No se pudo guardar.';
   }
 
   // ───────────────── Guardar / descartar ─────────────────

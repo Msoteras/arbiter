@@ -1,7 +1,6 @@
 import { HttpClient } from '@angular/common/http';
 import { Injectable, inject } from '@angular/core';
 import { Observable, forkJoin, of, switchMap, throwError } from 'rxjs';
-import { map } from 'rxjs/operators';
 
 import { environment } from '../../../environments/environment';
 
@@ -21,6 +20,14 @@ export interface FastTrackConfigDto {
   maxPriorClaims: number | null;
   requiresUpToDatePolicy: boolean | null;
   requiredDocumentTypes: string[];
+}
+
+/** Confirmación de guardado: la fila de insurer_rule (FAST_TRACK) tal como quedó en la DB. */
+export interface FastTrackRuleResponse {
+  id: number;
+  branchId: number;
+  coverageId: number;
+  config: FastTrackConfigDto;
 }
 
 /**
@@ -49,8 +56,8 @@ export class FastTrackRulesService {
     });
   }
 
-  saveFastTrack(branchId: number, coverageId: number, config: FastTrackConfigDto): Observable<void> {
-    return this.http.put<void>(`${this.rulesBase}/fast-track`, config, {
+  saveFastTrack(branchId: number, coverageId: number, config: FastTrackConfigDto): Observable<FastTrackRuleResponse> {
+    return this.http.put<FastTrackRuleResponse>(`${this.rulesBase}/fast-track`, config, {
       params: { branchId: String(branchId), coverageId: String(coverageId) },
     });
   }
@@ -62,16 +69,14 @@ export class FastTrackRulesService {
     );
   }
 
-  /** Guarda la config a TODAS las coberturas del ramo (el motor lee por cobertura). */
-  saveForBranch(branchId: number, config: FastTrackConfigDto): Observable<void> {
+  /** Guarda la config a TODAS las coberturas del ramo (el motor lee por cobertura); una confirmación por cobertura. */
+  saveForBranch(branchId: number, config: FastTrackConfigDto): Observable<FastTrackRuleResponse[]> {
     return this.listCoverages(branchId).pipe(
       switchMap((covs) => {
         if (!covs.length) {
           return throwError(() => new Error('El ramo no tiene coberturas cargadas en el catálogo.'));
         }
-        return forkJoin(covs.map((c) => this.saveFastTrack(branchId, c.id, config))).pipe(
-          map(() => void 0),
-        );
+        return forkJoin(covs.map((c) => this.saveFastTrack(branchId, c.id, config)));
       }),
     );
   }

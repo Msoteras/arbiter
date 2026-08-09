@@ -22,4 +22,11 @@ public interface InsurerRuleRepository extends JpaRepository<InsurerRule, Long> 
      * classification-service, which carries the claim's coverage id but not the branch id.
      */
     Optional<InsurerRule> findFirstByCoverageIdAndRuleType(Long coverageId, String ruleType);
+
+    /**
+     * A rule scoped to the whole rama, no cobertura (coverage_id null — valid per the DER, see
+     * InsurerRule's javadoc). Used for the free-text rules that have no table of their own
+     * (commonExclusions, businessRules): they apply to the ramo as a whole.
+     */
+    Optional<InsurerRule> findFirstByBranch_IdAndCoverageIdIsNullAndRuleType(Long branchId, String ruleType);
 }

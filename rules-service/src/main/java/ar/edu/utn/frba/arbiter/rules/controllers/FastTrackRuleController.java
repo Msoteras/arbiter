@@ -2,12 +2,12 @@ package ar.edu.utn.frba.arbiter.rules.controllers;
 
 import ar.edu.utn.frba.arbiter.rules.dto.CatalogOption;
 import ar.edu.utn.frba.arbiter.rules.dto.FastTrackConfigDto;
+import ar.edu.utn.frba.arbiter.rules.dto.FastTrackRuleResponse;
 import ar.edu.utn.frba.arbiter.rules.services.FastTrackRuleService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
-import org.springframework.http.HttpStatus;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -15,7 +15,6 @@ import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
-import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.util.List;
@@ -62,15 +61,15 @@ public class FastTrackRuleController {
 
     @PutMapping("/fast-track")
     @PreAuthorize("hasRole('REFERENTE_ASEGURADORA')")
-    @ResponseStatus(HttpStatus.NO_CONTENT)
     @Operation(summary = "Guardar umbrales Fast Track de una cobertura",
             description = "Crea o actualiza la regla FAST_TRACK de (ramo, cobertura). Cada cambio deja "
-                    + "un snapshot en el historial (auditoría append-only). Sin redeploy.")
-    public void upsert(
+                    + "un snapshot en el historial (auditoría append-only). Sin redeploy. Devuelve la fila "
+                    + "de insurer_rule tal como quedó persistida, con su id.")
+    public FastTrackRuleResponse upsert(
             @RequestParam Long branchId,
             @RequestParam Long coverageId,
             @RequestBody @Valid FastTrackConfigDto config,
             Authentication authentication) {
-        fastTrackRuleService.upsert(branchId, coverageId, config, authentication.getName());
+        return fastTrackRuleService.upsert(branchId, coverageId, config, authentication.getName());
     }
 }

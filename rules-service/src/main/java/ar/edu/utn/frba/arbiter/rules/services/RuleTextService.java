@@ -1,0 +1,108 @@
+package ar.edu.utn.frba.arbiter.rules.services;
+
+import ar.edu.utn.frba.arbiter.common.models.entities.Branch;
+import ar.edu.utn.frba.arbiter.rules.dto.RuleTextResponse;
+import ar.edu.utn.frba.arbiter.rules.exceptions.BranchNotFoundException;
+import ar.edu.utn.frba.arbiter.rules.exceptions.InvalidRuleConfigurationException;
+import ar.edu.utn.frba.arbiter.rules.models.entities.InsurerRule;
+import ar.edu.utn.frba.arbiter.rules.models.entities.InsurerRuleHistory;
+import ar.edu.utn.frba.arbiter.rules.models.repositories.BranchRepository;
+import ar.edu.utn.frba.arbiter.rules.models.repositories.InsurerRuleHistoryRepository;
+import ar.edu.utn.frba.arbiter.rules.models.repositories.InsurerRuleRepository;
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.core.type.TypeReference;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import lombok.RequiredArgsConstructor;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+
+import java.time.Instant;
+import java.util.List;
+
+/**
+ * Texto libre a nivel ramo sin tabla propia en el DER (docs/decisiones-reglas-a-validar.md, D3):
+ * exclusiones comunes y reglas de negocio en prosa. Reutiliza el mismo mecanismo que Fast Track
+ * ({@link InsurerRule} + historial append-only), pero con {@code coverage_id} null (regla a nivel
+ * ramo, válido según el DER) y un {@code rule_type} distinto por cada lista. Un {@code ruleType}
+ * por instancia — dos beans, uno por lista, ver {@link ar.edu.utn.frba.arbiter.rules.config.RuleTextConfig}.
+ */
+@RequiredArgsConstructor
+public class RuleTextService {
+
+    private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
+    private static final TypeReference<List<String>> STRING_LIST = new TypeReference<>() {};
+
+    private final String ruleType;
+    private final String ruleNamePrefix;
+    private final InsurerRuleRepository ruleRepository;
+    private final InsurerRuleHistoryRepository historyRepository;
+    private final BranchRepository branchRepository;
+
+    @Transactional(readOnly = true)
+    public List<String> get(Long branchId) {
+        return ruleRepository.findFirstByBranch_IdAndCoverageIdIsNullAndRuleType(branchId, ruleType)
+                .map(rule -> deserialize(rule.getConfiguration()))
+                .orElseGet(List::of);
+    }
+
+    @Transactional
+    public RuleTextResponse upsert(Long branchId, List<String> items, String actorEmail) {
+        String json = serialize(items);
+        Instant now = Instant.now();
+
+        InsurerRule rule = ruleRepository
+                .findFirstByBranch_IdAndCoverageIdIsNullAndRuleType(branchId, ruleType)
+                .orElse(null);
+
+        if (rule == null) {
+            Branch branch = branchRepository.findById(branchId)
+                    .orElseThrow(() -> new BranchNotFoundException(branchId));
+            rule = InsurerRule.builder()
+                    .active(true)
+                    .validFrom(now)
+                    .name(ruleNamePrefix + " — ramo " + branchId)
+                    .ruleType(ruleType)
+                    .blocksFastTrack(false)
+                    .branch(branch)
+                    .coverageId(null)
+                    .configuration(json)
+                    .build();
+            rule = ruleRepository.save(rule);
+            return new RuleTextResponse(rule.getId(), branchId, ruleType, items);
+        }
+
+        historyRepository.save(InsurerRuleHistory.builder()
+                .configVersion(rule.getConfiguration() == null ? "[]" : rule.getConfiguration())
+                .changedAt(now)
+                .validFrom(rule.getValidFrom())
+                .validTo(now)
+                .reason(ruleNamePrefix + " actualizado por " + actorEmail)
+                .insurerRule(rule)
+                .changedBy(null)
+                .build());
+
+        rule.setConfiguration(json);
+        rule.setValidFrom(now);
+        rule = ruleRepository.save(rule);
+        return new RuleTextResponse(rule.getId(), branchId, ruleType, items);
+    }
+
+    private List<String> deserialize(String json) {
+        if (json == null || json.isBlank()) {
+            return List.of();
+        }
+        try {
+            return OBJECT_MAPPER.readValue(json, STRING_LIST);
+        } catch (JsonProcessingException e) {
+            throw new InvalidRuleConfigurationException("Configuración de regla ilegible: " + e.getOriginalMessage());
+        }
+    }
+
+    private String serialize(List<String> items) {
+        try {
+            return OBJECT_MAPPER.writeValueAsString(items);
+        } catch (JsonProcessingException e) {
+            throw new InvalidRuleConfigurationException("No se pudo serializar la configuración de la regla");
+        }
+    }
+}

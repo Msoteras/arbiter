@@ -155,6 +155,20 @@
                   emptyText="Sin exclusiones comunes."
                 />
               </app-card>
+
+              <div class="ft-save">
+                <div class="editor-actions">
+                  <app-button [disabled]="covSaving()" (click)="saveCoverages()">
+                    {{ covSaving() ? 'Guardando…' : 'Guardar coberturas' }}
+                  </app-button>
+                  @if (covSaved()) {
+                    <span class="saved-note">✓ Guardado en el motor</span>
+                  }
+                  @if (covError(); as err) {
+                    <span class="warn-note">{{ err }}</span>
+                  }
+                </div>
+              </div>
             </div>
           }
 
@@ -270,6 +284,20 @@
                     </button>
                   }
                 </div>
+
+                <div class="ft-save">
+                  <div class="editor-actions">
+                    <app-button [disabled]="docSaving()" (click)="saveDocuments()">
+                      {{ docSaving() ? 'Guardando…' : 'Guardar documentación' }}
+                    </app-button>
+                    @if (docSaved()) {
+                      <span class="saved-note">✓ Guardado en el motor</span>
+                    }
+                    @if (docError(); as err) {
+                      <span class="warn-note">{{ err }}</span>
+                    }
+                  </div>
+                </div>
               </app-card>
             </div>
           }
@@ -281,7 +309,8 @@
                 <div class="section-toggle">
                   <p class="section-hint">
                     Score paralelo de riesgo (señal para el analista, nunca decisión automática).
-                    Cada factor pesa sobre el total; el score mapea a una banda.
+                    Cada factor pesa sobre el total; el score mapea a una banda. Es una única
+                    configuración para toda la aseguradora: se aplica igual a todos los ramos.
                   </p>
                   <button
                     type="button"
@@ -336,6 +365,20 @@
                     </ul>
                   </div>
                 }
+
+                <div class="ft-save">
+                  <div class="editor-actions">
+                    <app-button [disabled]="scoreSaving()" (click)="saveScoring()">
+                      {{ scoreSaving() ? 'Guardando…' : 'Guardar scoring' }}
+                    </app-button>
+                    @if (scoreSaved()) {
+                      <span class="saved-note">✓ Guardado en el motor</span>
+                    }
+                    @if (scoreError(); as err) {
+                      <span class="warn-note">{{ err }}</span>
+                    }
+                  </div>
+                </div>
               </app-card>
             </div>
           }
@@ -355,6 +398,20 @@
                   addLabel="+ Agregar regla"
                   emptyText="Sin reglas configuradas."
                 />
+
+                <div class="ft-save">
+                  <div class="editor-actions">
+                    <app-button [disabled]="rulesSaving()" (click)="saveBusinessRules()">
+                      {{ rulesSaving() ? 'Guardando…' : 'Guardar reglas de negocio' }}
+                    </app-button>
+                    @if (rulesSaved()) {
+                      <span class="saved-note">✓ Guardado en el motor</span>
+                    }
+                    @if (rulesError(); as err) {
+                      <span class="warn-note">{{ err }}</span>
+                    }
+                  </div>
+                </div>
               </app-card>
             </div>
           }

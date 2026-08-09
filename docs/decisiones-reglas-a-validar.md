@@ -6,6 +6,38 @@ y el **DER** (`docs/arbiter der.mdj`, fuente de verdad) no coincidían.
 
 Estado: **a validar con el equipo.** Cada punto anota qué se hizo y qué queda abierto.
 
+## Update 2026-08-07 · las 5 solapas ya persisten contra el backend real
+
+Se cablearon las 4 solapas que faltaban (Coberturas, Documentación, Scoring, Reglas de
+negocio), cada una con su propio botón "Guardar X", mismo patrón que Fast Track:
+
+- **D1 y D2 resueltas**: `Coverage` (cases-service) ya expone `PUT /api/v1/coverages/{id}`
+  (+ POST/DELETE). El service convierte días (UI) ↔ horas (`report_deadline_hours`, D2-a).
+- **D3 resuelta (Camino C)**: `clause` y `exclusions` de `Coverage` se agregaron como
+  columnas propias (`clause` varchar, `exclusions` JSONB) — no un blob genérico. Las dos
+  listas de texto sin tabla (`commonExclusions`, `businessRules`) se persisten como
+  `InsurerRule` con `rule_type='EXCLUSIONS'` / `'BUSINESS_RULES'`, `coverage_id` null
+  (regla a nivel ramo), `configuration` JSONB = array de strings. Mismo historial
+  append-only que Fast Track.
+- **D4 confirmada**: `insuredAmount` no se envía al backend, sigue siendo informativo.
+- **D5 resuelta con fan-out**: `document_requirement` se activó tal cual (branch +
+  claim_cause). El backend hace el fan-out él mismo (a diferencia de Fast Track, que lo
+  hace el frontend): `DocumentRequirementService.upsert` escribe la misma lista para
+  todos los hechos generadores del ramo.
+- **Scoring — decisión nueva, no estaba en D1-D6**: `scoring_configuration` no tenía
+  `branch_id` (era una config única por aseguradora); la UI la modela por ramo. Se
+  eligió agregar `branch_id UNIQUE` a la tabla (migración chica en
+  `db/init-multitenant.sql`) en vez de tratarlo como config única — consistente con
+  Fast Track y Documentación, sin sorpresas para el referente.
+- **`Coverage.deductible` es la franquicia en puntos porcentuales** (10.00 = 10%), no
+  una fracción 0..1 ni un monto — así estaba sembrada (`10.00`, `20.00` en el seed) y
+  nada más la leía todavía, así que se mantuvo esa unidad. El service convierte
+  ratio (UI, 0..1) ↔ puntos porcentuales (DB) multiplicando/dividiendo por 100.
+
+**Sigue sin resolver**: el alta/baja/rename de `Ramo` (Branch) sigue en el mock
+`RulesConfigService` — no hay CRUD de Branch en el backend. El botón global "Guardar
+cambios" solo cubre eso; cada solapa tiene el suyo propio para lo demás.
+
 ---
 
 ## D1 · Franquicia, plazo de denuncia y tope anual pasan a **nivel cobertura**
