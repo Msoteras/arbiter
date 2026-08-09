@@ -61,6 +61,96 @@ sigue saliendo del `MockRulesAdapter`. Próximo paso natural: extender `RulesRes
 scoring + textos + agenda sobre el `BusinessRules` real (endpoints internos análogos al de Fast Track).
 Es la continuación de los pendientes P2/P3 de la sección 5.
 
+> **Actualización (ver el update de más abajo):** la parte de **textos** ya está hecha —
+> exclusiones y reglas de negocio sí llegan al prompt. Siguen pendientes el **scoring** y la
+> **agenda documental**.
+
+---
+
+## Update 2026-08-09 (2) · P2 cerrado: los textos del referente llegan al prompt
+
+Sobre la misma rama `feature/front-details`. Sigue de la sección de arriba.
+
+### ⚠️ Antes de correr nada después de pullear
+
+**`Coverage` se movió a `common-lib`.** Hay que instalar common-lib **una vez** antes de levantar
+cualquier módulo, o `run-local.ps1` explota con `ClassNotFoundException` aunque `mvn test` desde la
+raíz compile bien (el reactor la ve, `~/.m2` no):
+
+```
+mvn -pl common-lib install -DskipTests
+```
+
+### Qué se hizo
+
+- **`Coverage` → `common-lib/models/entities/tenant/`** (con su `StringListJsonConverter`). No fue
+  por gusto: el motor solo tiene `coverageId` como id real —`branch` y `claimCause` le llegan como
+  **nombres**, ver `ClaimReport`— pero los textos se guardan **por ramo**, así que hacía falta cruzar
+  cobertura → ramo y rules-service no podía leer `coverage`. Es el patrón que el `package-info` de
+  ese paquete ya documenta para tablas de tenant que necesita más de un módulo (como `Insured`); se
+  actualizó ese `package-info` con las 3 entidades y el porqué de cada una. El dueño funcional de
+  `coverage` sigue siendo cases-service — rules-service solo la lee, y con su propio repository.
+- **`GET /api/v1/rules/internal/rule-texts?coverageId=N`** (`RuleTextController` +
+  `InternalRuleTextService`), calcado de `/internal/fast-track`: `isAuthenticated()` en vez de rol
+  REFERENTE, token de servicio con el tenant, keyeado por cobertura, y devuelve listas vacías en vez
+  de 404 (el motor compone sobre su baseline; una clasificación no se cae por falta de config).
+- **`RulesRestAdapter`**: ahora hace **dos overlays independientes** (Fast Track y textos), cada uno
+  con su try/catch — si una lectura falla, la otra igual se aplica. Los textos **reemplazan** al
+  baseline del `MockRulesAdapter`; una lista vacía se lee como "no configurado" y lo deja intacto.
+- **`PromptBuilderTest`** (3 tests, no existía ninguno para esa clase): cubre el último eslabón, que
+  el texto del referente termine en el string del prompt.
+
+Verificado contra Railway con una reclasificación real (botón "Reintentar" del caso #5): el mock
+tenía 4 reglas para esa cobertura y el log quedó en `1 rules` — la del referente. El dato de prueba
+se borró de Railway al terminar.
+
+### Dos bugs de front arreglados de paso
+
+- **`proxy.conf.json` mandaba `/api/v1/auth` a 8090**, donde no escucha nadie (auth-service es 8080
+  según su `application.yml`, el `docker-compose` y el CLAUDE.md; era el único 8090 del repo). **El
+  login por `ng serve` estaba roto, también en `develop`.**
+- **`RISK_FACTORS` había derivado del backend**: `RiskFactorIds` define 7 factores y el front conocía
+  5 — faltaban `image_reuse` e `image_web_match`, que el seed tiene activos con 50% y 40%. El
+  referente los tenía invisibles pero sumando en el total. Mismo tipo de bug que el de los códigos de
+  documento. No había pérdida de datos: el guardado ya reenviaba el array completo.
+
+### ❗ Dos tests que YA estaban rotos antes de esto
+
+Verificado con `git stash` contra la rama limpia — **no son de este cambio**, pero conviene saberlo
+para no perder tiempo:
+
+- `ClassificationOrchestratorIntegrationTest.lowAmountFirstClaimUpToDate_shouldFastTrackWithoutCallingLLM`
+  — arma un `ClaimReport` **sin `coverageId`**, y desde que el Fast Track se scopea por cobertura
+  (PR #29) el mock no puede devolver umbrales. El test quedó viejo, no el código.
+- `RulesServiceApplicationTests.contextLoads` — no encuentra datasource ("Unable to determine
+  Dialect"), ni cargando el `.env`.
+
+### 🔀 Dos decisiones que quedaron abiertas para vos y Valen
+
+1. **La advertencia "los pesos deberían sumar 100%" del scoring contradice al motor.**
+   `RiskScoringService` **normaliza** (`score = weightedSum / totalWeight`) y su javadoc lo dice: el
+   score queda en [0,1] *"regardless of how many factors an insurer turns on or how it scales its
+   weights"*. O sea que los pesos son **relativos**, no absolutos, y no hay razón para que sumen 100.
+   La config sembrada suma 190% y la UI la marca como error de fábrica, sin que el referente pueda
+   hacer nada al respecto. Encima el motor re-normaliza excluyendo los factores no evaluables (los de
+   imagen en una denuncia sin fotos), así que exigir 100% es doblemente inútil. Hay que decidir: se
+   saca la regla de la UI, o se ajustan los pesos del seed (eso último es decisión de negocio).
+2. **El panel de ramos miente sobre las coberturas.** La lista y el contador ("2 coberturas") salen
+   del mock `rules-config.service.ts`, no del backend. Al referente de **BBVA** le muestra
+   "Tecnología Portátil · 2 coberturas", pero `db/seed-demo.sql` dice textual que ese ramo lo vende
+   *Provincia* y BBVA no: la solapa Coberturas abre vacía. Es lo último que queda de P3 (el "swap del
+   mock" de la sección 5) y necesita un CRUD de Branch en el backend.
+
+### Estado real de los pendientes de la sección 5
+
+| | Estado |
+|---|---|
+| P1 Probar Fast Track en vivo | ✅ hecho (persistencia, fan-out por cobertura y "deshabilitar vacía la config") |
+| P2 Textos → prompt | ✅ **hecho acá** |
+| P3 Cablear las solapas | 🟡 las 4 solapas ya pegan a HTTP real; falta solo la lista de ramos |
+| P4 Auditoría `resultado_regla` | ❌ `RuleResult` tiene entidad y repository, **cero escritores** |
+| P5 Campos diferidos Fast Track | ❌ |
+
 ---
 
 ## 1. De qué va esto

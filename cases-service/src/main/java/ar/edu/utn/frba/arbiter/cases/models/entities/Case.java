@@ -6,6 +6,7 @@ import ar.edu.utn.frba.arbiter.common.enums.RiskBand;
 import ar.edu.utn.frba.arbiter.common.models.entities.CaseState;
 import ar.edu.utn.frba.arbiter.common.models.entities.ClaimCause;
 import ar.edu.utn.frba.arbiter.common.models.entities.tenant.ClaimsAnalyst;
+import ar.edu.utn.frba.arbiter.common.models.entities.tenant.Coverage;
 import ar.edu.utn.frba.arbiter.common.models.entities.tenant.Insured;
 import jakarta.persistence.Column;
 import jakarta.persistence.Convert;

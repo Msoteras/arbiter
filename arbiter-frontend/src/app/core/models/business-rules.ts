@@ -94,6 +94,8 @@ export const RISK_FACTORS: RiskFactorDef[] = [
   { id: 'policy_standing', label: 'Situación de la póliza (vigencia / mora)' },
   { id: 'purchase_to_report_time', label: 'Tiempo entre compra y denuncia' },
   { id: 'document_inconsistency', label: 'Inconsistencias en la documentación' },
+  { id: 'image_reuse', label: 'Imagen reutilizada de otra denuncia' },
+  { id: 'image_web_match', label: 'Imagen publicada en la web' },
 ];
 
 export function riskFactorLabel(id: string): string {

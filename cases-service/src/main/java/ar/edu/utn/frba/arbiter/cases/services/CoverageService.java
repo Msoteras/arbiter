@@ -4,7 +4,7 @@ import ar.edu.utn.frba.arbiter.cases.dto.CoverageDetailResponse;
 import ar.edu.utn.frba.arbiter.cases.dto.CoverageOption;
 import ar.edu.utn.frba.arbiter.cases.dto.CoverageUpsertRequest;
 import ar.edu.utn.frba.arbiter.cases.exceptions.CoverageNotFoundException;
-import ar.edu.utn.frba.arbiter.cases.models.entities.Coverage;
+import ar.edu.utn.frba.arbiter.common.models.entities.tenant.Coverage;
 import ar.edu.utn.frba.arbiter.cases.models.repositories.CoverageRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
