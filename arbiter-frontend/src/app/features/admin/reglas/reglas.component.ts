@@ -1,5 +1,5 @@
 import { HttpErrorResponse } from '@angular/common/http';
-import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, inject, signal } from '@angular/core';
 import { Observable, forkJoin, of } from 'rxjs';
 
 import {
@@ -7,44 +7,42 @@ import {
   DOCUMENT_TYPES,
   FastTrackConfig,
   RamoRules,
-  RISK_FACTORS,
-  ScoringConfig,
 } from '../../../core/models/business-rules';
-import { RISK_BANDS, RiskBand, riskBandLabel } from '../../../core/models/risk-band';
 import { RulesConfigService } from '../rules-config.service';
 import { FastTrackConfigDto, FastTrackRulesService } from '../fast-track-rules.service';
 import { CoverageDetail, CoverageUpsertRequest, CoveragesRulesService } from '../coverages-rules.service';
 import { DocumentRulesService } from '../document-rules.service';
-import { ScoringConfigDto, ScoringRulesService } from '../scoring-rules.service';
 import { BusinessRulesTextService } from '../business-rules-text.service';
-import { BadgeComponent } from '../../../shared/ui/badge/badge.component';
 import { ButtonComponent } from '../../../shared/ui/button/button.component';
 import { CardComponent } from '../../../shared/ui/card/card.component';
 import { EmptyStateComponent } from '../../../shared/ui/empty-state/empty-state.component';
 import { InputComponent } from '../../../shared/ui/input/input.component';
 import { ModalComponent } from '../../../shared/ui/modal/modal.component';
+import { ScoringConfigComponent } from '../scoring-config/scoring-config.component';
 import { StringListEditorComponent } from './string-list-editor.component';
 
-type TabId = 'coberturas' | 'fastTrack' | 'documentacion' | 'scoring' | 'reglas';
+type TabId = 'coberturas' | 'fastTrack' | 'documentacion' | 'reglas';
 
 /**
  * Configuración de reglas del referente, Ramo-céntrica. Master (lista de ramos) + detalle con
- * solapas: Coberturas, Fast Track, Documentación, Scoring y Reglas. Trabaja sobre un draft en
- * memoria por solapa; cada una tiene su propio botón "Guardar X" que persiste contra el backend
- * real (cases-service para Coberturas, rules-service para las otras 4). El "Guardar cambios" /
+ * solapas: Coberturas, Fast Track, Documentación y Reglas. Trabaja sobre un draft en memoria por
+ * solapa; cada una tiene su propio botón "Guardar X" que persiste contra el backend real
+ * (cases-service para Coberturas, rules-service para las otras). El "Guardar cambios" /
  * "Descartar" globales de arriba solo cubren el nombre del ramo y el alta/baja de ramos, que
  * siguen en RulesConfigService (mock): no existe todavía un CRUD de Branch en el backend.
+ * El scoring de fraude NO es por ramo: es una config única por aseguradora y vive en una sección
+ * aparte de la pantalla (ScoringConfigComponent), fuera de este master-detail.
  * Porcentajes en la UI (0..100) ↔ fracción (0..1) en el modelo, que es el contrato del back.
  */
 @Component({
   selector: 'app-reglas',
   imports: [
-    BadgeComponent,
     ButtonComponent,
     CardComponent,
     EmptyStateComponent,
     InputComponent,
     ModalComponent,
+    ScoringConfigComponent,
     StringListEditorComponent,
   ],
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -56,12 +54,11 @@ export class ReglasComponent {
   private readonly ftService = inject(FastTrackRulesService);
   private readonly coveragesService = inject(CoveragesRulesService);
   private readonly documentsService = inject(DocumentRulesService);
-  private readonly scoringService = inject(ScoringRulesService);
   private readonly rulesTextService = inject(BusinessRulesTextService);
 
-  // Estado de guardado real por solapa (Fast Track, Coberturas, Documentación, Scoring y Reglas de
-  // negocio persisten contra el backend, cada una con su propio botón — el "Guardar cambios" global
-  // sigue existiendo solo para el nombre del ramo, que todavía es mock (alta/baja de ramo también).
+  // Estado de guardado real por solapa (Fast Track, Coberturas, Documentación y Reglas de negocio
+  // persisten contra el backend, cada una con su propio botón — el "Guardar cambios" global sigue
+  // existiendo solo para el nombre del ramo, que todavía es mock (alta/baja de ramo también).
   protected readonly ftSaving = signal(false);
   protected readonly ftSaved = signal(false);
   protected readonly ftError = signal<string | null>(null);
@@ -75,43 +72,29 @@ export class ReglasComponent {
   protected readonly docSaved = signal(false);
   protected readonly docError = signal<string | null>(null);
 
-  protected readonly scoreSaving = signal(false);
-  protected readonly scoreSaved = signal(false);
-  protected readonly scoreError = signal<string | null>(null);
-
   protected readonly rulesSaving = signal(false);
   protected readonly rulesSaved = signal(false);
   protected readonly rulesError = signal<string | null>(null);
 
   protected readonly docTypes = DOCUMENT_TYPES;
-  protected readonly riskFactors = RISK_FACTORS;
-  protected readonly riskBands = RISK_BANDS;
-  protected readonly bandLabel = riskBandLabel;
 
   protected readonly tabs: { id: TabId; label: string }[] = [
     { id: 'coberturas', label: 'Coberturas' },
     { id: 'fastTrack', label: 'Fast Track' },
     { id: 'documentacion', label: 'Documentación' },
-    { id: 'scoring', label: 'Scoring de fraude' },
     { id: 'reglas', label: 'Reglas de negocio' },
   ];
   protected readonly activeTab = signal<TabId>('coberturas');
 
   protected readonly ramos = signal<RamoRules[]>([]);
   protected readonly selectedId = signal<string | null>(null);
+  // Qué muestra el panel derecho: el detalle del ramo seleccionado ('ramo') o el scoring de la
+  // aseguradora ('scoring'), que no pertenece a ningún ramo y se elige desde su propio recuadro.
+  protected readonly view = signal<'ramo' | 'scoring'>('ramo');
   protected readonly draft = signal<RamoRules | null>(null);
   protected readonly dirty = signal(false);
   protected readonly saving = signal(false);
   protected readonly saved = signal(false);
-
-  protected readonly weightSumPct = computed(() => {
-    const sc = this.draft()?.scoring;
-    if (!sc) {
-      return 0;
-    }
-    return Math.round(sc.factors.reduce((sum, f) => sum + f.weight, 0) * 1000) / 10;
-  });
-  protected readonly weightsBalanced = computed(() => Math.abs(this.weightSumPct() - 100) < 0.05);
 
   constructor() {
     this.service.list().subscribe((list) => {
@@ -123,10 +106,16 @@ export class ReglasComponent {
   }
 
   protected isSelected(r: RamoRules): boolean {
-    return this.selectedId() === r.id;
+    return this.view() === 'ramo' && this.selectedId() === r.id;
+  }
+
+  /** El recuadro "Scoring de riesgo" de la izquierda: muestra el scoring de la aseguradora a la derecha. */
+  protected selectScoring(): void {
+    this.view.set('scoring');
   }
 
   protected select(r: RamoRules): void {
+    this.view.set('ramo');
     this.selectedId.set(r.id);
     this.draft.set(structuredClone(r));
     this.activeTab.set('coberturas');
@@ -138,14 +127,11 @@ export class ReglasComponent {
     this.covError.set(null);
     this.docSaved.set(false);
     this.docError.set(null);
-    this.scoreSaved.set(false);
-    this.scoreError.set(null);
     this.rulesSaved.set(false);
     this.rulesError.set(null);
     this.loadFastTrackFromBackend(r);
     this.loadCoveragesFromBackend(r);
     this.loadDocumentsFromBackend(r);
-    this.loadScoringFromBackend();
     this.loadBusinessRulesFromBackend(r);
   }
 
@@ -256,26 +242,6 @@ export class ReglasComponent {
     });
   }
 
-  /**
-   * Trae el scoring real de la aseguradora (rules-service) — una sola config compartida por
-   * todos los ramos, no depende del branchId. Sin config aún → skeleton con las 4 bandas en 0.
-   */
-  private loadScoringFromBackend(): void {
-    this.scoringService.get().subscribe({
-      next: (dto) => this.overlayScoring(dto),
-      error: () => {
-        /* backend caído: nos quedamos con el mock, sin romper la pantalla */
-      },
-    });
-  }
-
-  private overlayScoring(dto: ScoringConfigDto): void {
-    const bands = dto.bands.length
-      ? dto.bands
-      : RISK_BANDS.map((band, i) => ({ band, minScoreInclusive: [0, 0.3, 0.6, 0.8][i] }));
-    this.draft.update((d) => (d ? { ...d, scoring: { enabled: dto.enabled, factors: dto.factors, bands } } : d));
-  }
-
   /** Trae las reglas de negocio en texto libre del ramo (rules-service). */
   private loadBusinessRulesFromBackend(r: RamoRules): void {
     const branchId = this.branchIdOf(r);
@@ -325,11 +291,6 @@ export class ReglasComponent {
         requiresUpToDatePolicy: true,
         requiredDocumentTypes: [],
         criteria: [],
-      },
-      scoring: {
-        enabled: false,
-        factors: [],
-        bands: RISK_BANDS.map((band, i) => ({ band, minScoreInclusive: [0, 0.3, 0.6, 0.8][i] })),
       },
     };
     this.service.create(ramo).subscribe((created) => {
@@ -515,53 +476,6 @@ export class ReglasComponent {
     return this.pctFromRatio(this.draft()?.fastTrack.maxClaimedAmountRatio ?? null);
   }
 
-  // ───────────────── Scoring ─────────────────
-  protected toggleScoring(): void {
-    this.patchScoring((sc) => ({ ...sc, enabled: !sc.enabled }));
-  }
-
-  protected isFactorActive(id: string): boolean {
-    return this.draft()?.scoring.factors.some((f) => f.factorId === id) ?? false;
-  }
-
-  protected toggleFactor(id: string): void {
-    this.patchScoring((sc) => {
-      const has = sc.factors.some((f) => f.factorId === id);
-      return {
-        ...sc,
-        factors: has
-          ? sc.factors.filter((f) => f.factorId !== id)
-          : [...sc.factors, { factorId: id, weight: 0 }],
-      };
-    });
-  }
-
-  protected factorWeightPct(id: string): string {
-    const f = this.draft()?.scoring.factors.find((x) => x.factorId === id);
-    return f ? this.pctFromRatio(f.weight) : '';
-  }
-
-  protected setFactorWeight(id: string, value: string): void {
-    const ratio = this.ratioFromPct(value) ?? 0;
-    this.patchScoring((sc) => ({
-      ...sc,
-      factors: sc.factors.map((f) => (f.factorId === id ? { ...f, weight: ratio } : f)),
-    }));
-  }
-
-  protected bandCutPct(band: RiskBand): string {
-    const b = this.draft()?.scoring.bands.find((x) => x.band === band);
-    return b ? this.pctFromRatio(b.minScoreInclusive) : '';
-  }
-
-  protected setBandCut(band: RiskBand, value: string): void {
-    const ratio = this.ratioFromPct(value) ?? 0;
-    this.patchScoring((sc) => ({
-      ...sc,
-      bands: sc.bands.map((b) => (b.band === band ? { ...b, minScoreInclusive: ratio } : b)),
-    }));
-  }
-
   // ───────────────── Reglas de negocio ─────────────────
   protected setBusinessRules(items: string[]): void {
     this.patch({ businessRules: items });
@@ -601,6 +515,8 @@ export class ReglasComponent {
       next: () => {
         this.ftSaving.set(false);
         this.ftSaved.set(true);
+        // Recarga desde el backend para reflejar exactamente lo que quedó persistido.
+        this.loadFastTrackFromBackend(d);
       },
       error: (e: unknown) => {
         this.ftSaving.set(false);
@@ -689,37 +605,12 @@ export class ReglasComponent {
       next: () => {
         this.docSaving.set(false);
         this.docSaved.set(true);
+        // Recarga desde el backend para reflejar exactamente lo que quedó persistido.
+        this.loadDocumentsFromBackend(d);
       },
       error: (e: unknown) => {
         this.docSaving.set(false);
         this.docError.set(this.backendErrorMessage(e));
-      },
-    });
-  }
-
-  // ───────────────── Scoring: persistencia real (rules-service) ─────────────────
-  /** Guarda el scoring de la aseguradora. No depende del ramo: aplica a todos por igual. */
-  protected saveScoring(): void {
-    const d = this.draft();
-    if (!d || this.scoreSaving()) {
-      return;
-    }
-    this.scoreError.set(null);
-    this.scoreSaved.set(false);
-    const sc = d.scoring;
-    const dto: ScoringConfigDto = sc.enabled
-      ? { enabled: true, factors: sc.factors, bands: sc.bands }
-      : { enabled: false, factors: [], bands: [] };
-
-    this.scoreSaving.set(true);
-    this.scoringService.save(dto).subscribe({
-      next: () => {
-        this.scoreSaving.set(false);
-        this.scoreSaved.set(true);
-      },
-      error: (e: unknown) => {
-        this.scoreSaving.set(false);
-        this.scoreError.set(this.backendErrorMessage(e));
       },
     });
   }
@@ -742,6 +633,8 @@ export class ReglasComponent {
       next: () => {
         this.rulesSaving.set(false);
         this.rulesSaved.set(true);
+        // Recarga desde el backend para reflejar exactamente lo que quedó persistido.
+        this.loadBusinessRulesFromBackend(d);
       },
       error: (e: unknown) => {
         this.rulesSaving.set(false);
@@ -796,11 +689,6 @@ export class ReglasComponent {
 
   private patchFastTrack(fn: (ft: FastTrackConfig) => FastTrackConfig): void {
     this.draft.update((d) => (d ? { ...d, fastTrack: fn(d.fastTrack) } : d));
-    this.markDirty();
-  }
-
-  private patchScoring(fn: (sc: ScoringConfig) => ScoringConfig): void {
-    this.draft.update((d) => (d ? { ...d, scoring: fn(d.scoring) } : d));
     this.markDirty();
   }
 

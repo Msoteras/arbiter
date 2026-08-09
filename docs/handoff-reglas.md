@@ -10,6 +10,59 @@ previo. Fecha: 2026-08-07. Branch: `feature/backend-reglas-de-negocio`.
 
 ---
 
+## Update 2026-08-09 · scoring por aseguradora, agenda documental arreglada, catálogo de ramos
+
+Cambios de esta sesión (front + seeds + BD Railway re-seedeada). Rama de trabajo: `feature/front-details`.
+
+### Frontend
+- **Scoring de fraude: de por-ramo → por-aseguradora.** Estaba como una solapa dentro de cada ramo,
+  aunque el backend ya servía UNA sola config (`GET|PUT /api/v1/rules/scoring`, sin `branchId`). Se
+  sacó `scoring` de `RamoRules` (modelo `core/models/business-rules.ts`) y del mock; ahora vive en un
+  componente propio **`ScoringConfigComponent`** (`features/admin/scoring-config/`), como recuadro
+  aparte en la columna izquierda de la pantalla de Reglas (se elige como un ramo; el panel derecho
+  muestra su config de factores + bandas).
+- **Se quitó el toggle Habilitado/Deshabilitado del scoring.** El motor scorea si hay factores
+  (`BusinessRules.ScoringConfig` en classification ni tiene campo `enabled`), así que el flag
+  confundía. El front manda siempre `enabled=true`.
+- **Agenda documental (solapa Documentación): arreglada.** No levantaba los defaults ni reflejaba los
+  cambios. Causa raíz: el seed de `document_requirement` usaba códigos ad-hoc
+  (`DNI/DENUNCIA_POLICIAL/FACTURA_COMPRA/FOTO_BIEN/BLOQUEO_IMEI`) que el front no reconoce. El
+  vocabulario **canónico** (lo usa todo el resto del sistema) es
+  `police_report / purchase_proof / imei_deregistration / last_connection / repair_quote / item_photo`.
+  Se alineó el seed a esos códigos. El GET/PUT (`DocumentRulesService` ↔ `DocumentRequirementController`)
+  ya estaban bien cableados.
+- **Recarga tras guardar** agregada en Documentación, Fast Track, Reglas de negocio y Scoring (antes
+  solo la tenía Coberturas), para reflejar exactamente lo persistido.
+- **Fix de merge:** `arbiter-frontend/src/app/app.html` tenía el `@if (showAdminNav())` sin cerrar
+  (se comió el `}` al resolver el merge de `develop`) → Angular no compilaba. Corregido.
+
+### Catálogo de ramos (BD) — decisión de esta sesión
+- **Hogar eliminado** (no se trabaja con ese ramo por ahora) y **Tecnología Portátil pasó a ser el
+  branch 2** (antes 3), para dejar los ids contiguos. `claim_cause` de Tecnología (6/7/8) → `branch_id=2`;
+  se sacó Incendio (branch Hogar). Editado en `db/init-multitenant.sql` y `db/seed-demo.sql` (el coverage
+  de Tecnología del tenant Provincia → `branch_id=2`). El front mock `rules-config.service.ts` usa
+  `id:'2'` para Tecnología. ⚠️ **Front y BD tienen que ir juntos**: si la BD queda con Tecnología=3, la
+  pantalla de ese ramo lee/guarda contra el branch equivocado.
+- **BD Railway re-seedeada** (`reset → init → seed`) el 2026-08-09 con este catálogo nuevo. El reset es
+  destructivo: se perdió la data de prueba creada vía app (esperable). Estado final verificado.
+
+### Operativo (cómo correr los scripts de `db/`)
+- `psql` NO está instalado en la máquina; se corren con la imagen **`pgvector/pgvector:pg16`** de Docker
+  (o `scripts/db-railway.ps1` si hay psql en PATH). La conexión sale del `.env` (`DB_URL`/`DB_USER`/
+  `DB_PASSWORD`, pasada por `PGPASSWORD`). **Validar siempre en un contenedor descartable antes de tocar
+  Railway** (es compartida por el equipo).
+
+### ⏭️ Lo que sigue faltando en el backend (para que otro lo continúe)
+El trabajo del referente se **persiste** en rules-service, pero `classification-service` todavía solo
+consume de él los **umbrales de Fast Track** (`RulesRestAdapter` → `GET /internal/fast-track`). **NO
+consume aún**: el **scoring** (factores/bandas → `RiskScoringService`), las **exclusiones / reglas de
+negocio en texto** (van al prompt del LLM vía `PromptBuilder`), ni la **agenda documental**. Todo eso
+sigue saliendo del `MockRulesAdapter`. Próximo paso natural: extender `RulesRestAdapter` para superponer
+scoring + textos + agenda sobre el `BusinessRules` real (endpoints internos análogos al de Fast Track).
+Es la continuación de los pendientes P2/P3 de la sección 5.
+
+---
+
 ## 1. De qué va esto
 
 El referente de una aseguradora tiene que poder **configurar las reglas de negocio de su

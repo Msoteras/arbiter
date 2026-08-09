@@ -4,6 +4,8 @@
   </header>
 
   <div class="rules-layout">
+    <!-- ───────── Columna izquierda: ramos + scoring ───────── -->
+    <div class="master-col">
     <!-- ───────── Master: ramos ───────── -->
     <app-card class="list-card" heading="Ramos">
       <ul class="ramo-list">
@@ -23,9 +25,26 @@
       </app-button>
     </app-card>
 
-    <!-- ───────── Detalle del ramo ───────── -->
+    <!-- ───────── Scoring de riesgo: config única por aseguradora, no pertenece a ningún ramo ─────────
+         Por eso es un recuadro aparte; al elegirlo, el panel derecho muestra su configuración. -->
+    <app-card class="scoring-card">
+      <button
+        type="button"
+        class="ramo-item scoring-item"
+        [class.active]="view() === 'scoring'"
+        (click)="selectScoring()"
+      >
+        <span class="ramo-name">Scoring de riesgo</span>
+        <span class="ramo-meta">Toda la aseguradora</span>
+      </button>
+    </app-card>
+    </div>
+
+    <!-- ───────── Panel derecho: detalle del ramo o scoring ───────── -->
     <div class="editor">
-      @if (draft(); as d) {
+      @if (view() === 'scoring') {
+        <app-scoring-config />
+      } @else if (draft(); as d) {
         <div class="editor-head">
           <div class="editor-title">
             <span class="t-section-label">Nombre del ramo</span>
@@ -302,87 +321,6 @@
             </div>
           }
 
-          <!-- ============ SCORING ============ -->
-          @case ('scoring') {
-            <div class="tab-panel">
-              <app-card heading="Scoring de fraude">
-                <div class="section-toggle">
-                  <p class="section-hint">
-                    Score paralelo de riesgo (señal para el analista, nunca decisión automática).
-                    Cada factor pesa sobre el total; el score mapea a una banda. Es una única
-                    configuración para toda la aseguradora: se aplica igual a todos los ramos.
-                  </p>
-                  <button
-                    type="button"
-                    class="switch"
-                    [class.on]="d.scoring.enabled"
-                    [attr.aria-pressed]="d.scoring.enabled"
-                    (click)="toggleScoring()"
-                  >
-                    {{ d.scoring.enabled ? 'Habilitado' : 'Deshabilitado' }}
-                  </button>
-                </div>
-
-                @if (d.scoring.enabled) {
-                  <div class="subsection">
-                    <div class="subsection-head">
-                      <span class="t-field-label">Factores y pesos</span>
-                      <app-badge [tone]="weightsBalanced() ? 'ok' : 'warning'">Suma: {{ weightSumPct() }}%</app-badge>
-                    </div>
-                    @if (!weightsBalanced()) {
-                      <p class="warn-note">Los pesos de los factores activos deberían sumar 100%.</p>
-                    }
-                    <ul class="factors">
-                      @for (f of riskFactors; track f.id) {
-                        <li class="factor">
-                          <button type="button" class="chip factor-chip" [class.active]="isFactorActive(f.id)" [attr.aria-pressed]="isFactorActive(f.id)" (click)="toggleFactor(f.id)">
-                            {{ f.label }}
-                          </button>
-                          @if (isFactorActive(f.id)) {
-                            <label class="factor-weight">
-                              <app-input type="number" [min]="0" [value]="factorWeightPct(f.id)" (valueChange)="setFactorWeight(f.id, $event)" />
-                              <span class="pct">%</span>
-                            </label>
-                          }
-                        </li>
-                      }
-                    </ul>
-                  </div>
-
-                  <div class="subsection">
-                    <span class="t-field-label">Bandas de riesgo (score mínimo, %)</span>
-                    <ul class="bands">
-                      @for (band of riskBands; track band) {
-                        <li class="band">
-                          <span class="band-name">{{ bandLabel(band) }}</span>
-                          @if (band === 'LOW') {
-                            <app-input type="number" [value]="'0'" [readonly]="true" />
-                          } @else {
-                            <app-input type="number" [min]="0" [value]="bandCutPct(band)" (valueChange)="setBandCut(band, $event)" />
-                          }
-                        </li>
-                      }
-                    </ul>
-                  </div>
-                }
-
-                <div class="ft-save">
-                  <div class="editor-actions">
-                    <app-button [disabled]="scoreSaving()" (click)="saveScoring()">
-                      {{ scoreSaving() ? 'Guardando…' : 'Guardar scoring' }}
-                    </app-button>
-                    @if (scoreSaved()) {
-                      <span class="saved-note">✓ Guardado en el motor</span>
-                    }
-                    @if (scoreError(); as err) {
-                      <span class="warn-note">{{ err }}</span>
-                    }
-                  </div>
-                </div>
-              </app-card>
-            </div>
-          }
-
           <!-- ============ REGLAS DE NEGOCIO ============ -->
           @case ('reglas') {
             <div class="tab-panel">
@@ -427,7 +365,7 @@
   @if (ramoToDelete(); as r) {
     <p class="t-body">
       Vas a eliminar el ramo <strong>{{ r.name }}</strong> y toda su configuración (coberturas,
-      Fast Track, documentación, scoring y reglas). Esta acción no se puede deshacer.
+      Fast Track, documentación y reglas). Esta acción no se puede deshacer.
     </p>
   }
   <ng-container modalActions>

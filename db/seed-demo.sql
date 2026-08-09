@@ -276,7 +276,7 @@ INSERT INTO arbiter_bbva.case_status_history (reason, observation, actor, change
 INSERT INTO arbiter_provincia.coverage (id, name, description, report_deadline_hours, max_events_per_year,
                                         covers_family_group, deductible, claim_exhausts_coverage,
                                         is_individual, waiting_period_days, branch_id) VALUES
-    (3, 'Daño accidental', 'Cobertura por daño accidental de equipo portátil', 96, 2, FALSE, 10.00, FALSE, TRUE, 30, 3);
+    (3, 'Daño accidental', 'Cobertura por daño accidental de equipo portátil', 96, 2, FALSE, 10.00, FALSE, TRUE, 30, 2);
 
 SELECT setval(pg_get_serial_sequence('arbiter_provincia.coverage','id'),
               (SELECT MAX(id) FROM arbiter_provincia.coverage));
