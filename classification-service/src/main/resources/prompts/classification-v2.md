@@ -6,6 +6,9 @@ Sos un asistente especializado en análisis de siniestros de seguros. Tu tarea e
 - **Producto:** {{product}}
 - **Hecho generador:** {{claimCause}}
 - **Bien asegurado:** {{insuredItem}}
+- **Fecha y hora del hecho:** {{eventDate}}
+- **Lugar del hecho:** {{eventLocation}}
+- **Monto reclamado:** {{claimedAmount}}
 - **Descripción del asegurado:** {{description}}
 
 ## Reglas de la aseguradora aplicables

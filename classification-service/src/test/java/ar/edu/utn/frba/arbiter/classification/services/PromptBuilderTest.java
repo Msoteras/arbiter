@@ -10,6 +10,7 @@ import org.springframework.core.io.ClassPathResource;
 import java.io.IOException;
 import java.math.BigDecimal;
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -25,7 +26,7 @@ class PromptBuilderTest {
 
     @BeforeEach
     void setUp() throws IOException {
-        promptBuilder = new PromptBuilder(new ClassPathResource("prompts/classification-v1.md"));
+        promptBuilder = new PromptBuilder(new ClassPathResource("prompts/classification-v2.md"));
     }
 
     private InsuredPolicy policy() {
@@ -93,5 +94,49 @@ class PromptBuilderTest {
                 .build();
 
         assertThat(promptBuilder.buildFullPrompt(request)).contains("Regla configurada por el referente");
+    }
+
+    /** D5: la fecha del hecho, el lugar y el monto reclamado ahora viajan al prompt. */
+    @Test
+    void buildFullPrompt_includesEventDateLocationAndClaimedAmount() {
+        ClassificationRequest request = ClassificationRequest.builder()
+                .branch("Tecnología Portátil")
+                .product("Seguro de Tecnología Portátil")
+                .claimCause("Robo en vía pública")
+                .insuredItem("MacBook Air M3")
+                .description("Me robaron la notebook.")
+                .eventDate(LocalDateTime.of(2026, 6, 30, 22, 15))
+                .eventLocation("Av. Rivadavia 4820, CABA")
+                .claimedAmount(new BigDecimal("1234567"))
+                .insurerRules("sin reglas")
+                .insuredHistory("sin historial")
+                .build();
+
+        String prompt = promptBuilder.buildFullPrompt(request);
+
+        assertThat(prompt).contains("30/06/2026 22:15");
+        assertThat(prompt).contains("Av. Rivadavia 4820, CABA");
+        assertThat(prompt).contains("1.234.567");
+    }
+
+    /** El monto es opcional (el wizard no lo exige): sin dato, el prompt dice "No declarado", no null. */
+    @Test
+    void buildFullPrompt_showsClaimedAmountAsNotDeclaredWhenNull() {
+        ClassificationRequest request = ClassificationRequest.builder()
+                .branch("Celulares")
+                .product("Celular Protegido Básico")
+                .claimCause("Hurto")
+                .insuredItem("Samsung Galaxy A56")
+                .description("Me hurtaron el celular.")
+                .eventDate(LocalDateTime.of(2026, 7, 4, 9, 30))
+                .eventLocation("San Martín, Buenos Aires")
+                .claimedAmount(null)
+                .insurerRules("sin reglas")
+                .insuredHistory("sin historial")
+                .build();
+
+        String prompt = promptBuilder.buildFullPrompt(request);
+
+        assertThat(prompt).contains("No declarado");
     }
 }
