@@ -39,7 +39,6 @@ arbiter:
     prompt-version: classification-v1
     num-ctx: ${OLLAMA_NUM_CTX:32768}
   embedding:
-    enabled: ${EMBEDDING_ENABLED:false}
     service-url: ${EMBEDDING_SERVICE_URL:http://localhost:8000}
     model: ${EMBEDDING_MODEL:clip-vit-b-32-openai}
     similarity-threshold: ${EMBEDDING_SIMILARITY_THRESHOLD:0.90}

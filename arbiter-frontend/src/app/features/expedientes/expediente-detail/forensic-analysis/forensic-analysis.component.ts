@@ -9,7 +9,6 @@ import {
   ImageForensicWebFinding,
   forensicAlertLevel,
   forensicFindingIsClean,
-  typeFromMatchedFilename,
 } from '../../../../core/models/forensic';
 import { CardComponent } from '../../../../shared/ui/card/card.component';
 import { EmptyStateComponent } from '../../../../shared/ui/empty-state/empty-state.component';
@@ -82,9 +81,13 @@ export class ForensicAnalysisComponent implements OnDestroy {
     return !!web && (web.fullMatches > 0 || web.partialMatches > 0 || web.pages.length > 0);
   }
 
-  /** Clave estable para identificar la imagen de un match interno en los signals de arriba. */
+  /**
+   * Clave estable para identificar la imagen de un match interno en los signals de arriba.
+   * Por tipo y no por filename: `case_documents` es UNIQUE (case_id, type), así que el par
+   * no puede repetirse; dos archivos con el mismo nombre en distintos tipos sí.
+   */
   protected matchKey(match: ImageForensicInternalMatch): string {
-    return `${match.matchedCaseId}:${match.matchedFilename}`;
+    return `${match.matchedCaseId}:${match.matchedDocumentType}`;
   }
 
   private resetImages(): void {
@@ -101,9 +104,8 @@ export class ForensicAnalysisComponent implements OnDestroy {
     this.service.listDocuments(caseId).subscribe({
       next: (docs) => {
         for (const finding of findings) {
-          // `finding.filename` es hoy el `type` del documento (ver core/models/forensic.ts),
-          // y el tipo es único por expediente — alcanza para cruzar 1:1 con el adjunto real.
-          const doc = docs.find((d) => d.type === finding.filename);
+          // El tipo es único por expediente (UNIQUE (case_id, type)) — cruza 1:1 con el adjunto real.
+          const doc = docs.find((d) => d.type === finding.documentType);
           if (!doc) {
             this.imageLoadFailed.update((m) => ({ ...m, [finding.label]: true }));
             continue;
@@ -129,18 +131,18 @@ export class ForensicAnalysisComponent implements OnDestroy {
 
   /**
    * Descarga, para cada match interno, la imagen del siniestro previo (`matchedCaseId`) —
-   * comparación lado a lado (docs/frontend-analisis-forense.md). El endpoint de documentos
-   * no tiene chequeo de ownership hoy (ver CaseController), así que cualquier analista
-   * autenticado puede traerla igual que la propia.
+   * comparación lado a lado (docs/frontend-analisis-forense.md). Traer un documento de OTRO
+   * expediente es legítimo acá: `CaseAccessPolicy.assertCanRead` acota al ASEGURADO a los
+   * propios, pero el analista ve todos los de su aseguradora — que es justo lo que esta
+   * comparación necesita.
    */
   private loadMatchedImages(findings: ImageForensicFinding[]): void {
     for (const finding of findings) {
       for (const match of finding.internalMatches) {
         const key = this.matchKey(match);
-        const approxType = typeFromMatchedFilename(match.matchedFilename);
         this.service.listDocuments(match.matchedCaseId).subscribe({
           next: (docs) => {
-            const doc = docs.find((d) => d.type === approxType);
+            const doc = docs.find((d) => d.type === match.matchedDocumentType);
             if (!doc) {
               this.matchedImageLoadFailed.update((m) => ({ ...m, [key]: true }));
               return;

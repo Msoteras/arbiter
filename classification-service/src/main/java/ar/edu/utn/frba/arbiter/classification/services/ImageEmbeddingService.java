@@ -53,11 +53,6 @@ public class ImageEmbeddingService {
             String attachmentLabel,
             String imageBase64
     ) {
-        if (!properties.enabled()) {
-            log.debug("[ImageEmbedding] Disabled — skipping duplicate check");
-            return ImageAnalysisOutcome.none();
-        }
-
         log.info("[ImageEmbedding] Generating embedding for case={} attachment='{}'", caseId, attachmentLabel);
         float[] vector = clipClient.embed(imageBase64);
         log.info("[ImageEmbedding] Embedding generated — {} dimensions", vector.length);

@@ -99,16 +99,16 @@ public class ImageFraudAnalysisService {
             if (!f.internalMatches().isEmpty()) {
                 f.internalMatches().forEach(m -> traces.add(String.format(
                         "⚠ Imagen '%s': %.0f%% similar a un adjunto del siniestro #%d ('%s')",
-                        f.filename(), m.similarity() * 100, m.matchedCaseId(), m.matchedFilename())));
+                        f.documentType(), m.similarity() * 100, m.matchedCaseId(), m.matchedFilename())));
                 continue;
             }
-            traces.add(String.format("Imagen '%s': sin coincidencias con adjuntos de siniestros previos", f.filename()));
+            traces.add(String.format("Imagen '%s': sin coincidencias con adjuntos de siniestros previos", f.documentType()));
 
             if (f.webFinding() == null) {
                 continue; // web not searched (disabled or failed) — nothing more to say for this image
             }
             if (!f.webFinding().found()) {
-                traces.add(String.format("Imagen '%s': tampoco se encontró publicada en internet", f.filename()));
+                traces.add(String.format("Imagen '%s': tampoco se encontró publicada en internet", f.documentType()));
             } else {
                 String where = f.webFinding().pages().stream()
                         .limit(3).map(WebFinding.Page::url)
@@ -116,7 +116,7 @@ public class ImageFraudAnalysisService {
                 traces.add(String.format(
                         "⚠ Imagen '%s': publicada en internet — %d exacta(s), %d parcial(es), %d página(s). "
                                 + "Identificada como '%s'. Ej.: %s",
-                        f.filename(), f.webFinding().fullMatches(), f.webFinding().partialMatches(),
+                        f.documentType(), f.webFinding().fullMatches(), f.webFinding().partialMatches(),
                         f.webFinding().pages().size(), f.webFinding().bestGuessLabel(), where));
             }
         }
@@ -151,6 +151,7 @@ public class ImageFraudAnalysisService {
     }
 
     private InternalMatch toInternalMatch(DuplicateImageMatch m) {
-        return new InternalMatch(m.matchedCaseId(), m.matchedFilename(), m.similarity());
+        return new InternalMatch(
+                m.matchedCaseId(), m.matchedAttachmentLabel(), m.matchedFilename(), m.similarity());
     }
 }

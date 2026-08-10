@@ -38,19 +38,7 @@ class ImageEmbeddingServiceTest {
     private ImageEmbeddingService service;
 
     @Test
-    void skipsWhenDisabled() {
-        when(properties.enabled()).thenReturn(false);
-
-        ImageAnalysisOutcome result = service.processAndFindDuplicates(
-                1L, 100L, "att-0", "base64data");
-
-        assertThat(result.duplicates()).isEmpty();
-        verifyNoInteractions(clipClient, repository);
-    }
-
-    @Test
     void generatesEmbeddingAndPersistsAgainstTheDocument() {
-        when(properties.enabled()).thenReturn(true);
         when(properties.model()).thenReturn("clip-vit-b-32-openai");
         when(properties.similarityThreshold()).thenReturn(0.90);
         when(properties.maxResults()).thenReturn(5);
@@ -70,7 +58,6 @@ class ImageEmbeddingServiceTest {
 
     @Test
     void withoutDocumentId_comparesButDoesNotStore() {
-        when(properties.enabled()).thenReturn(true);
         when(properties.similarityThreshold()).thenReturn(0.90);
         when(properties.maxResults()).thenReturn(5);
         when(clipClient.embed("data")).thenReturn(new float[]{0.4f});
@@ -87,7 +74,6 @@ class ImageEmbeddingServiceTest {
 
     @Test
     void returnsDuplicatesWhenFound() {
-        when(properties.enabled()).thenReturn(true);
         when(properties.model()).thenReturn("clip-vit-b-32-openai");
         when(properties.similarityThreshold()).thenReturn(0.90);
         when(properties.maxResults()).thenReturn(5);
@@ -115,7 +101,6 @@ class ImageEmbeddingServiceTest {
 
     @Test
     void internalMatch_isPersistedOnTheAnalysisRow() {
-        when(properties.enabled()).thenReturn(true);
         when(properties.model()).thenReturn("clip-vit-b-32-openai");
         when(properties.similarityThreshold()).thenReturn(0.90);
         when(properties.maxResults()).thenReturn(5);
@@ -142,7 +127,6 @@ class ImageEmbeddingServiceTest {
 
     @Test
     void noInternalMatch_savesTheImageWithoutFlaggingIt() {
-        when(properties.enabled()).thenReturn(true);
         when(properties.model()).thenReturn("clip-vit-b-32-openai");
         when(properties.similarityThreshold()).thenReturn(0.90);
         when(properties.maxResults()).thenReturn(5);
@@ -178,7 +162,6 @@ class ImageEmbeddingServiceTest {
 
     @Test
     void vectorLiteralFormat() {
-        when(properties.enabled()).thenReturn(true);
         when(properties.model()).thenReturn("clip-vit-b-32-openai");
         when(properties.similarityThreshold()).thenReturn(0.90);
         when(properties.maxResults()).thenReturn(5);

@@ -22,26 +22,33 @@ public record ImageForensicReport(
 ) {
 
     /**
-     * @param label          attachment label (e.g. "damage_photo-0")
-     * @param filename       original filename, for display
+     * @param label           unique label within the report (e.g. "item_photo-0")
+     * @param documentType    the {@code case_documents.type} this image was uploaded as
+     *                        ("item_photo", "invoice", ...). Unique per case, so it's what the
+     *                        UI joins on to fetch the actual file. Deliberately not a filename:
+     *                        the analysis works off {@code AttachmentDocument}, which carries the
+     *                        type and not the original name.
      * @param internalMatches matches against attachments of previous claims (empty if none)
-     * @param webFinding     web-search result, or null when the web wasn't searched for this image
-     *                       (no internal match was needed, or the external search is disabled/failed)
+     * @param webFinding      web-search result, or null when the web wasn't searched for this image
+     *                        (no internal match was needed, or the external search is disabled/failed)
      */
     public record ImageFinding(
             String label,
-            String filename,
+            String documentType,
             List<InternalMatch> internalMatches,
             WebFinding webFinding
     ) {}
 
     /**
-     * @param matchedCaseId   the previous claim whose attachment this image resembles
-     * @param matchedFilename that attachment's filename
-     * @param similarity      cosine similarity in [0,1]
+     * @param matchedCaseId       the previous claim whose attachment this image resembles
+     * @param matchedDocumentType that attachment's type — what the UI joins on to fetch the file
+     *                            and show both images side by side
+     * @param matchedFilename     that attachment's original filename, for display only
+     * @param similarity          cosine similarity in [0,1]
      */
     public record InternalMatch(
             Long matchedCaseId,
+            String matchedDocumentType,
             String matchedFilename,
             double similarity
     ) {}

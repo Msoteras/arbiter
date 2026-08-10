@@ -5,6 +5,9 @@
 
 export interface ImageForensicInternalMatch {
   matchedCaseId: number;
+  /** `CaseDocument.type` del adjunto que coincidió — con esto se lo busca para mostrarlo. */
+  matchedDocumentType: string;
+  /** Nombre original del archivo, solo para mostrar. */
   matchedFilename: string;
   /** Similitud coseno en [0,1]. */
   similarity: number;
@@ -26,12 +29,11 @@ export interface ImageForensicFinding {
   /** Ej. "item_photo-0". */
   label: string;
   /**
-   * OJO: pese al nombre, hoy el backend manda acá el `type` del documento (ej.
-   * "item_photo"), no el nombre de archivo original — AttachmentDocument no
-   * lo tiene. Es el mismo string que `CaseDocument.type`, así se
-   * cruza cada finding con su adjunto real (ver ForensicAnalysisComponent).
+   * `CaseDocument.type` del adjunto analizado (ej. "item_photo"). Es único por
+   * expediente, así se cruza cada finding con su adjunto real (ver
+   * ForensicAnalysisComponent).
    */
-  filename: string;
+  documentType: string;
   internalMatches: ImageForensicInternalMatch[];
   /** Null cuando no se buscó en la web (no hizo falta o falló/deshabilitado). */
   webFinding: ImageForensicWebFinding | null;
@@ -84,16 +86,4 @@ function webFindingFound(web: ImageForensicWebFinding | null): boolean {
 /** true si el finding no tiene ninguna coincidencia (interna ni web) que mostrar. */
 export function forensicFindingIsClean(finding: ImageForensicFinding): boolean {
   return finding.internalMatches.length === 0 && !webFindingFound(finding.webFinding);
-}
-
-/**
- * `InternalMatch.matchedFilename` tiene el mismo problema que `ImageFinding.filename`
- * (ver arriba): hoy no es un nombre de archivo real, es el `label` armado por
- * `ImageFraudAnalysisService` con formato `tipo-índice` (ej. "item_photo-0") — porque
- * `ImageEmbeddingService.processAndFindDuplicates` recibe ese mismo label como
- * `originalFilename`. Esta función aproxima el `type` real quitando el sufijo `-N` final,
- * para poder cruzarlo contra `CaseDocument.type` del siniestro coincidente.
- */
-export function typeFromMatchedFilename(matchedFilename: string): string {
-  return matchedFilename.replace(/-\d+$/, '');
 }

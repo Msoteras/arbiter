@@ -4,12 +4,10 @@ import jakarta.annotation.PostConstruct;
 import lombok.RequiredArgsConstructor;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.jdbc.core.JdbcTemplate;
 
 @Configuration
-@ConditionalOnProperty(name = "arbiter.embedding.enabled", havingValue = "true")
 @RequiredArgsConstructor
 public class PgVectorConfig {
 
