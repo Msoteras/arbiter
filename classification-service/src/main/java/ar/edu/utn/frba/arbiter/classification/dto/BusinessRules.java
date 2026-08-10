@@ -15,7 +15,12 @@ public record BusinessRules(
         FastTrackThresholds fastTrackThresholds,
         List<String> requiredDocumentTypes,
         ScoringConfig scoringConfig,
-        List<EvaluableRule> evaluableRules
+        List<EvaluableRule> evaluableRules,
+        // Límites intrínsecos de la cobertura (columnas de coverage), evaluables por código:
+        // plazo de denuncia (D11) y tope de eventos por año (D10). null = no configurado ⇒ la regla
+        // correspondiente no se evalúa.
+        Long reportDeadlineHours,
+        Integer maxEventsPerYear
 ) {
 
     /**

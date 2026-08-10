@@ -31,6 +31,7 @@ public class ClassificationOrchestrator {
     private final RulesAdapter rulesAdapter;
     private final InsurerAdapter insurerAdapter;
     private final CoverageRuleEvaluator coverageRuleEvaluator;
+    private final TemporalRuleEvaluator temporalRuleEvaluator;
     private final FastTrackValidator fastTrackValidator;
     private final DocumentAnalyzer documentAnalyzer;
     private final PromptBuilder promptBuilder;
@@ -55,15 +56,20 @@ public class ClassificationOrchestrator {
             return attachRuleFindings(coverageExclusionResponse(exclusion, claim), exclusion);
         }
 
+        // Reglas temporales (D10/D11/D13): bloquean Fast Track y suman motivos para el analista.
+        TemporalRuleEvaluator.Result temporal =
+                temporalRuleEvaluator.evaluate(claim, ctx.policy(), ctx.history(), ctx.rules());
+
         FastTrackValidator.Result fastTrack = fastTrackValidator.evaluate(claim, ctx.policy(), ctx.history(), ctx.rules(), null);
-        if (fastTrack.fastTrack()) {
+        if (fastTrack.fastTrack() && !temporal.blocksFastTrack()) {
             log.info("[Orchestrator] Deterministic Fast Track — claim qualifies, skipping LLM. Reasons={}",
                     fastTrack.reasons());
             return attachRuleFindings(fastTrackResponse(fastTrack), exclusion);
         }
 
-        log.info("[Orchestrator] Not Fast Track ({}). Building prompt and sending to LLM...", fastTrack.reasons());
-        return attachRuleFindings(classifyWithLlm(claim, ctx), exclusion);
+        log.info("[Orchestrator] Not Fast Track (fastTrack={}, temporalBlock={}). Building prompt and sending to LLM...",
+                fastTrack.reasons(), temporal.reasons());
+        return appendReasons(attachRuleFindings(classifyWithLlm(claim, ctx), exclusion), temporal.reasons());
     }
 
     /**
@@ -144,18 +150,23 @@ public class ClassificationOrchestrator {
         List<String> requiredForGate = requiredDocumentTypes(ctx.rules());
         Map<String, String> gateDocumentTexts = extractRequiredDocuments(documents, requiredForGate);
 
+        // Reglas temporales (D10/D11/D13): bloquean Fast Track y suman motivos para el analista.
+        TemporalRuleEvaluator.Result temporal =
+                temporalRuleEvaluator.evaluate(claim, ctx.policy(), ctx.history(), ctx.rules());
+
         FastTrackValidator.Result fastTrack =
                 fastTrackValidator.evaluate(claim, ctx.policy(), ctx.history(), ctx.rules(), gateDocumentTexts);
-        if (fastTrack.fastTrack()) {
+        if (fastTrack.fastTrack() && !temporal.blocksFastTrack()) {
             log.info("[Orchestrator] Deterministic Fast Track — Reasons={}", fastTrack.reasons());
             // Documentation was analyzed only if the gate actually examined a required document.
             return new Resolution(attachRuleFindings(fastTrackResponse(fastTrack), exclusion), !gateDocumentTexts.isEmpty());
         }
 
-        log.info("[Orchestrator] Not Fast Track ({}). Extracting remaining document(s) and sending to LLM...",
-                fastTrack.reasons());
+        log.info("[Orchestrator] Not Fast Track (fastTrack={}, temporalBlock={}). Extracting remaining document(s)...",
+                fastTrack.reasons(), temporal.reasons());
         ClaimReport claimWithOcr = withAttachmentsOcr(claim, extractAllAttachmentsText(documents, gateDocumentTexts));
-        return new Resolution(attachRuleFindings(classifyWithLlm(claimWithOcr, ctx), exclusion), true);
+        return new Resolution(
+                appendReasons(attachRuleFindings(classifyWithLlm(claimWithOcr, ctx), exclusion), temporal.reasons()), true);
     }
 
     /**
@@ -285,6 +296,16 @@ public class ClassificationOrchestrator {
         return response.toBuilder().ruleFindings(exclusion.findings()).build();
     }
 
+    /** Suma los motivos de las reglas temporales a los factores visibles del analista. */
+    private ClassificationResponse appendReasons(ClassificationResponse response, List<String> reasons) {
+        if (reasons.isEmpty()) {
+            return response;
+        }
+        List<String> merged = new ArrayList<>(response.factors() == null ? List.of() : response.factors());
+        merged.addAll(reasons);
+        return response.toBuilder().factors(merged).build();
+    }
+
     private List<String> requiredDocumentTypes(BusinessRules rules) {
         BusinessRules.FastTrackThresholds thresholds = rules.fastTrackThresholds();
         if (thresholds == null || thresholds.requiredDocumentTypes() == null) {
@@ -329,6 +350,7 @@ public class ClassificationOrchestrator {
                 .eventDate(claim.eventDate())
                 .eventLocation(claim.eventLocation())
                 .claimedAmount(claim.claimedAmount())
+                .reportedAt(claim.reportedAt())
                 .attachmentsOcr(attachmentsOcr)
                 .build();
     }

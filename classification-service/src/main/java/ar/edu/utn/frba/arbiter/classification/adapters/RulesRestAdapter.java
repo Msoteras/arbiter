@@ -63,9 +63,42 @@ public class RulesRestAdapter implements RulesAdapter {
         }
         // Lecturas independientes a propósito: si una falla, las otras igual se aplican. Cada una
         // cae a su parte del baseline sin tirar abajo la clasificación.
-        return overlayEvaluableRules(
-                overlayDocumentRequirements(
-                        overlayRuleTexts(overlayFastTrack(base, coverageId), coverageId), coverageId), coverageId);
+        return overlayCoverageLimits(
+                overlayEvaluableRules(
+                        overlayDocumentRequirements(
+                                overlayRuleTexts(overlayFastTrack(base, coverageId), coverageId), coverageId),
+                        coverageId),
+                coverageId);
+    }
+
+    /**
+     * Los límites intrínsecos de la cobertura (plazo de denuncia D11, tope de eventos por año D10),
+     * que el motor evalúa por código. Best-effort como el resto; si no se pueden leer, deja el
+     * baseline.
+     */
+    private BusinessRules overlayCoverageLimits(BusinessRules rules, Long coverageId) {
+        try {
+            CoverageLimitsResponse limits = restClient.get()
+                    .uri(uri -> uri.path("/api/v1/rules/internal/coverage-limits")
+                            .queryParam("coverageId", coverageId).build())
+                    .header(HttpHeaders.AUTHORIZATION, serviceToken())
+                    .retrieve()
+                    .body(CoverageLimitsResponse.class);
+            if (limits == null || limits.isEmpty()) {
+                log.debug("[RulesRestAdapter] No coverage limits in DB for coverage {} — using baseline", coverageId);
+                return rules;
+            }
+            log.info("[RulesRestAdapter] Coverage limits loaded for coverage {} — deadlineHours={} maxEventsPerYear={}",
+                    coverageId, limits.reportDeadlineHours(), limits.maxEventsPerYear());
+            return rules.toBuilder()
+                    .reportDeadlineHours(limits.reportDeadlineHours())
+                    .maxEventsPerYear(limits.maxEventsPerYear())
+                    .build();
+        } catch (Exception e) {
+            log.warn("[RulesRestAdapter] rules-service unavailable for coverage limits of coverage {} — baseline: {}",
+                    coverageId, e.getMessage());
+            return rules;
+        }
     }
 
     /**
@@ -225,6 +258,14 @@ public class RulesRestAdapter implements RulesAdapter {
             String effect,
             boolean blocksFastTrack,
             List<Long> excludedClaimCauseIds) {}
+
+    /** Mirrors rules-service's CoverageLimitsDto (plazo de denuncia + tope de eventos por año). */
+    private record CoverageLimitsResponse(Long reportDeadlineHours, Integer maxEventsPerYear) {
+
+        boolean isEmpty() {
+            return reportDeadlineHours == null && maxEventsPerYear == null;
+        }
+    }
 
     /** Mirrors rules-service's FastTrackConfigDto (JSON shape of the persisted thresholds). */
     private record FastTrackResponse(

@@ -1,6 +1,8 @@
 package ar.edu.utn.frba.arbiter.rules.controllers;
 
+import ar.edu.utn.frba.arbiter.rules.dto.CoverageLimitsDto;
 import ar.edu.utn.frba.arbiter.rules.dto.EvaluableRulesDto;
+import ar.edu.utn.frba.arbiter.rules.services.InternalCoverageLimitsService;
 import ar.edu.utn.frba.arbiter.rules.services.InternalEvaluableRuleService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -23,6 +25,7 @@ import org.springframework.web.bind.annotation.RestController;
 public class EvaluableRuleController {
 
     private final InternalEvaluableRuleService internalEvaluableRules;
+    private final InternalCoverageLimitsService internalCoverageLimits;
 
     @GetMapping("/internal/evaluable")
     @PreAuthorize("isAuthenticated()")
@@ -33,5 +36,15 @@ public class EvaluableRuleController {
                     + "el motor compone esto sobre su baseline.")
     public EvaluableRulesDto internalEvaluable(@RequestParam Long coverageId) {
         return internalEvaluableRules.getByCoverage(coverageId);
+    }
+
+    @GetMapping("/internal/coverage-limits")
+    @PreAuthorize("isAuthenticated()")
+    @Operation(summary = "[interno] Límites de la cobertura (plazo de denuncia, tope de eventos)",
+            description = "Lectura system-to-system para el motor: columnas report_deadline_hours y "
+                    + "max_events_per_year de la cobertura, que el motor evalúa por código (D10/D11). "
+                    + "Sin cobertura ⇒ vacío.")
+    public CoverageLimitsDto internalCoverageLimits(@RequestParam Long coverageId) {
+        return internalCoverageLimits.getByCoverage(coverageId);
     }
 }

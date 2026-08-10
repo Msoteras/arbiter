@@ -26,6 +26,8 @@ import org.springframework.web.client.RestClient;
 import org.springframework.web.client.RestClientResponseException;
 
 import javax.crypto.SecretKey;
+import java.time.LocalDateTime;
+import java.time.ZoneId;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
@@ -95,6 +97,10 @@ public class ClassificationServiceClient implements ClaimsAnalysisClient {
                 .eventDate(caseRecord.getOccurredAt())
                 .eventLocation(caseRecord.getEventAddress())
                 .claimedAmount(caseRecord.getClaimedAmount())
+                // reportedAt (Instant) → LocalDateTime para el motor: la regla del plazo de denuncia
+                // (D11) compara reportedAt - occurredAt contra el plazo de la cobertura.
+                .reportedAt(caseRecord.getReportedAt() == null ? null
+                        : LocalDateTime.ofInstant(caseRecord.getReportedAt(), ZoneId.systemDefault()))
                 .attachmentsOcr(List.of())
                 .build();
 

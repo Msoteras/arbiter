@@ -215,13 +215,21 @@ el seed multi-tenant **no los lee nadie**.
 `waiting_period_days` (carencia), `claim_exhausts_coverage`, `covers_family_group`, `is_individual`:
 cero consumidores, ni siquiera para mostrarlas.
 
-**D10 · La regla estrella del ramo no se aplica**
+**D10 · La regla estrella del ramo no se aplica** — 🟡 **tope de eventos RESUELTO (10/08, backend)**, sin validar en vivo
 `max_eventos_anuales` y `segundo_evento_pct` ("2 eventos por año y póliza, el segundo al 50%") se
-guardan, se muestran en el CRUD del referente y no los evalúa nada.
+guardaban y no los evaluaba nada.
+- **Fix (tope de eventos)**: `TemporalRuleEvaluator` cuenta los siniestros del asegurado en el ramo
+  dentro de los últimos 12 meses (de `InsuredHistory.claims`) y bloquea el Fast Track + suma un factor
+  para el analista si el actual supera `coverage.max_events_per_year`. rules-service sirve el límite
+  por `/internal/coverage-limits`. **Queda afuera** el `segundo_evento_pct` (cobertura al 50% del
+  segundo evento) — es cálculo de indemnización, no un gate de clasificación.
 
-**D11 · El plazo de denuncia no se evalúa**
-`report_deadline_hours` (72 hs en Celulares, 96 en Tecnología) es editable por el referente y solo se
-lee para devolverlo en el CRUD (`CoverageService.java:91`).
+**D11 · El plazo de denuncia no se evalúa** — 🟡 **RESUELTO (10/08, backend)**, sin validar en vivo
+`report_deadline_hours` era editable y solo se leía para el CRUD.
+- **Fix**: `TemporalRuleEvaluator` compara `reportedAt - occurred_at` (la denuncia a la aseguradora es
+  el alta del caso, `Case.reportedAt`, que ahora viaja en `ClaimReport`) contra
+  `coverage.report_deadline_hours` (servido por `/internal/coverage-limits`). Fuera de plazo (o
+  denuncia anterior al hecho) bloquea Fast Track + factor para el analista.
 
 **D12 · `police_report_at` no se captura ni se evalúa** — 🟡 **captura RESUELTA (Aylén, 09/08)**, evaluación pendiente
 Existía en `CaseRequest` y en la entidad, pero **el wizard nunca lo mandaba** y ningún servicio lo
@@ -244,9 +252,18 @@ lee. La regla "denuncia policial dentro de las 48 hs" era literalmente inverific
   declarado y lo que dice el papel es justamente la señal que le daría contenido al
   `DocumentInconsistencyEvaluator` (**D4b**).
 
-**D13 · Vigencia de la póliza vs fecha del hecho: no se valida**
-`effectiveFrom`/`effectiveTo` se leen de la BD Aseguradora y se imprimen en el prompt. Nadie valida
-que el siniestro haya ocurrido dentro de la vigencia.
+**D13 · Vigencia de la póliza vs fecha del hecho: no se valida** — 🟡 **RESUELTO (10/08, backend)**, sin validar en vivo
+`effectiveFrom`/`effectiveTo` se leían de la BD Aseguradora y solo se imprimían en el prompt.
+- **Fix**: `TemporalRuleEvaluator` valida que `occurred_at` caiga dentro de
+  `[effectiveFrom, effectiveTo]` de la `InsuredPolicy`. Fuera de vigencia bloquea Fast Track + factor
+  para el analista.
+
+> **Nota común a D10/D11/D13 (auditoría):** estos tres se evalúan por código y **bloquean el Fast
+> Track**, pero **no se auditan en `rule_result`** todavía: sus umbrales son columnas de `coverage`,
+> no filas de `insurer_rule`, y `rule_result.rule_id` es FK NOT NULL a `insurer_rule`. Auditarlos
+> requiere modelarlos como reglas de aseguradora, igual que las exclusiones (ver
+> plan-reglas-evaluables.md §1.1). Además siguen pudiendo aparecer como texto en las "reglas de
+> negocio" del prompt: la limpieza de ese texto (tipo paso 6) es aparte.
 
 **D14 · Criterios de Fast Track que la UI promete y el motor no tiene**
 `minPolicyAgeMonths` y `priorClaimsWindowMonths` están en el mock del front
@@ -309,7 +326,9 @@ re-verificado ahora.)* Decidir con Mar/Valen: sacar la regla o ajustar el seed.
 | D4b | Alto | Abierto — depende de H0007 (OCR estructurado) | — |
 | D5 | Alto | fecha/monto/lugar ✅ (v2, sin validar en vivo); falta la imagen al LLM | Mar |
 | D19 | Alto | Abierto | Mar (rumbo definido) |
-| D9–D14 | Medio | Abierto (D10/D11/D13 = próximo: pasarlas a reglas duras evaluables) | — |
+| D10, D11, D13 | Medio | ✅ Resuelto (10/08, backend) — reglas duras temporales (`TemporalRuleEvaluator`), bloquean Fast Track; **sin auditar en `rule_result`** y **sin validar en vivo** | Aylén |
+| D9, D14 | Medio | Abierto | — |
+| D12 | Medio | captura ✅ (Aylén); evaluación del plazo policial pendiente | — |
 | D15 | Medio | ✅ Resuelto (10/08) — lista real + CRUD de ramos (`BranchController`) | Aylén |
 | D16, D17 | Bajo | Abierto | — |
 | D18 | Bajo | ✅ Resuelto (09/08) — reactor completo verde, 334 tests | Aylén |

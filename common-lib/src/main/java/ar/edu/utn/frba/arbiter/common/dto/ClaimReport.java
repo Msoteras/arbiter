@@ -33,5 +33,9 @@ public record ClaimReport(
         @NotNull LocalDateTime eventDate,
         @NotBlank String eventLocation,
         BigDecimal claimedAmount,
+        // Cuándo se denunció el siniestro a la aseguradora (alta del caso). Lo usa la regla del plazo
+        // de denuncia (D11): reportedAt - eventDate vs coverage.report_deadline_hours. Nullable: el
+        // flujo aislado (sin caso) no lo tiene, y ahí la regla no es evaluable.
+        LocalDateTime reportedAt,
         List<String> attachmentsOcr
 ) {}
