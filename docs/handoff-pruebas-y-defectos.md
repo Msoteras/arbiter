@@ -61,11 +61,14 @@ En los scripts versionados, Tecnología Portátil es **de Provincia**:
   tira **422** si no existe. Branch 2 tiene `Daño accidental`, `Robo en vía pública` y `Hurto`; el
   wizard ofrece 4 tipos fijos (`nueva-denuncia.component.ts:133`): Robo ✅, Hurto ✅,
   **Rotura accidental ❌**, **Otro → "Siniestro general" ❌**. O sea: *Daño accidental*, la cobertura
-  propia del ramo, **no es alcanzable desde la UI**.
+  propia del ramo, **no es alcanzable desde la UI**. → **Resuelto (`7c8dd20`)**: el wizard ahora
+  ofrece los hechos generadores reales del ramo desde el backend (falta validar en vivo).
 - **No hay slot para la constancia de baja de IMEI.** El asegurado sube 4 tipos
   (`case-document.ts:26`): `police_report`, `item_photo`, `invoice`, `quote`. La agenda documental
   del referente maneja otros 4 (`business-rules.ts:112`): `police_report`, `purchase_proof`,
-  `imei_deregistration`, `last_connection`. **Solo `police_report` intersecta.**
+  `imei_deregistration`, `last_connection`. **Solo `police_report` intersecta.** → **Resuelto
+  (`14fce00`)**: vocabulario unificado (el uploader deriva de la agenda del referente),
+  `imei_deregistration` ahora es subible (falta validar en vivo).
 - **Cierre**: todos los casos terminan en `APPROVED` o `REJECTED` vía el endpoint de decisión
   (`APROBAR`/`RECHAZAR`, `CaseServiceImpl.java:376`), que solo acepta casos en
   `PENDING_ANALYST_REVIEW`.
@@ -82,7 +85,7 @@ En los scripts versionados, Tecnología Portátil es **de Provincia**:
 | # | Caso | Recorrido | Estado |
 |---|------|-----------|--------|
 | 1 | **Fast Track (Express)** | Denuncia → gate determinístico → `PENDING_ANALYST_REVIEW` con `FAST_TRACK` → analista aprueba → `APPROVED` | ✅ Verde **si** el referente habilita Fast Track para esa cobertura. Que ande solo con configuración es, además, el caso de prueba del RNF de mantenibilidad ("ramo nuevo en ≤1 sprint sin tocar código"). |
-| 2 | **Falta documentación** | Denuncia incompleta → `AWAITING_DOCUMENTATION` → el asegurado sube → `PENDING_CLASSIFICATION` → reclasifica → analista decide | 🟡 Bloqueado hoy en este ramo (**D6**, lo está arreglando Mar). |
+| 2 | **Falta documentación** | Denuncia incompleta → `AWAITING_DOCUMENTATION` → el asegurado sube → `PENDING_CLASSIFICATION` → reclasifica → analista decide | ✅ El gate ya lee la agenda real del referente (`14fce00`); falta validar en vivo. |
 | 3 | **Fraude: adjunto reusado / bajado de la web** | Igual que 1, pero el adjunto ya se usó en otra denuncia → `image_reuse` (o `image_web_match`) suma al score → analista rechaza | ✅ Verde de punta a punta, con informe forense visible. |
 | 4 | **Fraude: constancia IMEI fabricada** | Constancia inventada, no reusada, IMEI que no coincide | 🔴 Nada la detecta (**D4b**). Va como caso en rojo. |
 | 5 | **Factura de otro equipo** | Factura de un celular distinto al bien asegurado | 🟡 Solo el LLM puede notarlo leyendo el OCR; no es determinístico. El resultado esperado no puede ser "el sistema detecta", sino "el analista tiene el dato a la vista". |
@@ -134,22 +137,24 @@ Tampoco recibe la imagen: el modelo de visión la ve solo en la extracción OCR,
 texto puro. → Ya se pasó el template `classification-v2.md` listo; ojo con versionar
 (`getPromptVersion()` se persiste en `llm_analysis.prompt_version`, es la auditoría).
 
-**D6 · La agenda documental que configura el referente no la lee nadie** — *en curso (Mar)*
-El gate de faltantes usa `rules.requiredDocumentTypes()` (`ClassificationOrchestrator.java:220`), que
-sale del mock hardcodeado para coverages 1 y 2 de Celulares. `RulesRestAdapter` superpone Fast Track
-y textos, **no** la lista de documentos. Para una cobertura nueva la lista queda vacía → el camino
-determinístico `FALTA_DOCUMENTACION` **nunca dispara**. Además, el panel de "documentación faltante"
-del analista compara contra 4 constantes del front (`expediente-detail.component.ts:465`), no contra
-la agenda.
+**D19 · El `InsurerDatabaseAdapter` no se migró a multi-tenant** — *detectado 10/08 (Mar)*
+Lee el schema **bare `aseguradora`** (`InsurerDatabaseAdapter.java:35`), que es del modelo
+single-schema viejo (`db/datos-aseguradoras.sql`), **no** los `aseguradora_<tenant>` que crea el seed
+multi-tenant (`init-multitenant.sql` → `create_insurer_db_schema('aseguradora_bbva'…)`). Encima la
+query hace `JOIN … c.id = p.aseguradora_id` (`:60`), pero en el modelo multi-tenant la `poliza` ya
+**no tiene** `aseguradora_id` (el discriminador se dropeó; `compania` es una sola fila por schema).
+Consecuencia: tras un reseed multi-tenant limpio (reset→init→seed, **sin** `datos-aseguradoras.sql`),
+`/policies` y `/cases` tiran **500** (`relation "aseguradora.poliza" does not exist`). Hoy solo anda
+si sobrevive el schema `aseguradora` viejo; los `aseguradora_bbva`/`aseguradora_provincia` que llena
+el seed multi-tenant **no los lee nadie**.
+- **Fix**: migrar el adapter a leer `aseguradora_<tenant>` según el `TenantContext` (la aseguradora
+  correspondiente al asegurado) y reescribir la query — sacar `p.aseguradora_id`, `compania` es la
+  fila única del schema. A decidir: la vista multi-aseguradora (Martina es cliente de BBVA y
+  Provincia con el mismo DNI, §6.2) — ¿solo el tenant actual, o unir todos los `aseguradora_*`?
+- **Workaround hasta migrarlo**: después del reset trio, correr también `db/datos-aseguradoras.sql`
+  (recrea el schema `aseguradora` bare que el adapter todavía necesita).
 
 ### 🟡 Medios
-
-**D7 · Dos de los cuatro tipos de hecho del wizard dan 422 en Tecnología**
-"Rotura accidental" no existe en branch 2 y "Otro → Siniestro general" no existe en ningún ramo. Y
-"Daño accidental", que sí existe en el catálogo, no se puede elegir.
-
-**D8 · Dos vocabularios de documentos que no se cruzan**
-Ver §2.2. Consecuencia directa: no hay forma de subir la constancia de baja de IMEI con su tipo real.
 
 **D9 · Cuatro columnas de `coverage` que no lee nadie**
 `waiting_period_days` (carencia), `claim_exhausts_coverage`, `covers_family_group`, `is_individual`:
@@ -207,8 +212,8 @@ contra la base limpia en la sesión anterior.)*
 | D1, D2 | Crítico | Abierto — sin dueño | ¿historia? |
 | D3, D4a/b/c | Alto | Abierto — sin dueño | ¿historia? |
 | D5 | Alto | **En curso** (template v2 entregado) | Mar |
-| D6 | Alto | **En curso** | Mar |
-| D7–D15 | Medio | Abierto | — |
+| D19 | Alto | Abierto | Mar (rumbo definido) |
+| D9–D15 | Medio | Abierto | — |
 | D16–D18 | Bajo | Abierto | — |
 
 ---
@@ -246,7 +251,7 @@ Ordenado por lo que más rinde:
    seguimiento de estados con su timeline.
 3. **Validaciones de alta** — batería de negativos barata y real: `@PastOrPresent` en la fecha del
    hecho, `@NotBlank` en 7 campos, `@NotNull` en PEP y consentimiento de imagen, archivo > 10 MB,
-   archivo que no es imagen ni PDF, y los 422 de referencias no resolubles (D7).
+   archivo que no es imagen ni PDF, y los 422 de referencias no resolubles.
 4. **Los 6 casos del ramo** (§2.4), con los rojos documentados como defecto.
 5. **Fast Track configurable** — el mismo caso 1 sirve para probar el RNF de mantenibilidad: ramo
    nuevo operativo **solo con configuración del referente**, sin deploy.
@@ -263,9 +268,8 @@ Ordenado por lo que más rinde:
 2. **Cerrar los dos agujeros de autorización** — D1 y D2. Chico en código, Crítico en severidad.
 3. **Reglas temporales y de frecuencia** — D10, D11, D12, D13: plazo de denuncia, vigencia al momento
    del hecho, tope de eventos anuales. Todas necesitan lo mismo: que alguien evalúe fechas.
-4. **Unificar el vocabulario de documentos** — D8 + el slot faltante de IMEI.
-5. **Alerta de vencimiento del plazo legal** — §5, la de consecuencia legal más concreta.
-6. **CRUD de ramos** — D15, para que el panel deje de mentir.
+4. **Alerta de vencimiento del plazo legal** — §5, la de consecuencia legal más concreta.
+5. **CRUD de ramos** — D15, para que el panel deje de mentir.
 
 ---
 
