@@ -1,9 +1,11 @@
 # Plan — Reglas duras evaluables + auditoría en `rule_result`
 
 **Fecha:** 09/08/2026 · **Rama:** `feature/fix-defectos-aylen` · **Estado:** ✅ **implementado (10/08)** —
-pasos 1–5 y **7 (UI del referente)**. Decisión §2: se hizo primero la **(a)** (backend + seed) y luego
-se sumó la **(b)** conectando la pantalla de reglas existente. **Pendiente:** paso 6 (sacar las
-exclusiones del prompt + `classification-v3`) y el corte degradado del paso 3. **Sin validar en vivo.**
+pasos 1–7. Decisión §2: se hizo primero la **(a)** (backend + seed) y luego la **(b)** conectando la
+pantalla. **Paso 6 hecho**: prompt `classification-v3` con el veredicto determinístico del motor
+inyectado ("no re-decidir") — cubre exclusiones y las reglas temporales D10/D11/D13. **Pendiente:**
+solo el corte degradado del paso 3 (si rules-service no responde, no aprobar por silencio). **Sin
+validar en vivo.**
 
 **Cierra:** D3, D4a (la parte de exclusiones), D4c del
 [handoff de pruebas y defectos](handoff-pruebas-y-defectos.md).

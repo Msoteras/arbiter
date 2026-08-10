@@ -26,7 +26,7 @@ class PromptBuilderTest {
 
     @BeforeEach
     void setUp() throws IOException {
-        promptBuilder = new PromptBuilder(new ClassPathResource("prompts/classification-v2.md"));
+        promptBuilder = new PromptBuilder(new ClassPathResource("prompts/classification-v3.md"));
     }
 
     private InsuredPolicy policy() {
@@ -117,6 +117,27 @@ class PromptBuilderTest {
         assertThat(prompt).contains("30/06/2026 22:15");
         assertThat(prompt).contains("Av. Rivadavia 4820, CABA");
         assertThat(prompt).contains("1.234.567");
+    }
+
+    /** D4a paso 6: el veredicto del motor (reglas duras ya evaluadas) se inyecta en el prompt. */
+    @Test
+    void buildFullPrompt_injectsEngineEvaluation() {
+        ClassificationRequest withFinding = ClassificationRequest.builder()
+                .branch("Celulares").product("x").claimCause("Hurto").insuredItem("y")
+                .description("z").insurerRules("sin reglas").insuredHistory("sin historial")
+                .engineEvaluation(List.of("Denuncia fuera de plazo: 100 hs desde el hecho, supera el máximo de 72 hs"))
+                .build();
+        assertThat(promptBuilder.buildFullPrompt(withFinding))
+                .contains("Denuncia fuera de plazo")
+                .contains("ya fueron evaluadas por código");
+
+        ClassificationRequest noFinding = ClassificationRequest.builder()
+                .branch("Celulares").product("x").claimCause("Hurto").insuredItem("y")
+                .description("z").insurerRules("sin reglas").insuredHistory("sin historial")
+                .engineEvaluation(List.of())
+                .build();
+        assertThat(promptBuilder.buildFullPrompt(noFinding))
+                .contains("no encontró incumplimientos de reglas duras");
     }
 
     /** El monto es opcional (el wizard no lo exige): sin dato, el prompt dice "No declarado", no null. */

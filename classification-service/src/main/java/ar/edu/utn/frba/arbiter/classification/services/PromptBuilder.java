@@ -23,13 +23,13 @@ public class PromptBuilder {
     private final String promptTemplate;
 
     public PromptBuilder(
-            @Value("classpath:prompts/classification-v2.md") Resource promptResource
+            @Value("classpath:prompts/classification-v3.md") Resource promptResource
     ) throws IOException {
         this.promptTemplate = promptResource.getContentAsString(StandardCharsets.UTF_8);
     }
 
     public String getPromptVersion() {
-        return "classification-v2";
+        return "classification-v3";
     }
 
     public String buildFullPrompt(ClassificationRequest request) {
@@ -44,6 +44,11 @@ public class PromptBuilder {
         String rules = request.insurerRules() == null
                 ? "Sin reglas adicionales configuradas"
                 : request.insurerRules();
+
+        String engineEvaluation = request.engineEvaluation() == null || request.engineEvaluation().isEmpty()
+                ? "El motor no encontró incumplimientos de reglas duras (cobertura del hecho generador, "
+                        + "plazo de denuncia, vigencia de la póliza, tope de eventos por año)."
+                : request.engineEvaluation().stream().map(f -> "- " + f).reduce((a, b) -> a + "\n" + b).orElse("");
 
         String eventDate = request.eventDate() == null
                 ? "No especificada"
@@ -70,6 +75,7 @@ public class PromptBuilder {
                 .replace("{{claimedAmount}}", claimedAmount)
                 .replace("{{attachmentsOcr}}", attachmentsText)
                 .replace("{{insurerRules}}", rules)
+                .replace("{{engineEvaluation}}", engineEvaluation)
                 .replace("{{insuredHistory}}", history);
     }
 

@@ -69,7 +69,9 @@ public class ClassificationOrchestrator {
 
         log.info("[Orchestrator] Not Fast Track (fastTrack={}, temporalBlock={}). Building prompt and sending to LLM...",
                 fastTrack.reasons(), temporal.reasons());
-        return appendReasons(attachRuleFindings(classifyWithLlm(claim, ctx), exclusion), temporal.reasons());
+        return appendReasons(
+                attachRuleFindings(classifyWithLlm(claim, ctx, engineFindings(exclusion, temporal)), exclusion),
+                temporal.reasons());
     }
 
     /**
@@ -166,7 +168,10 @@ public class ClassificationOrchestrator {
                 fastTrack.reasons(), temporal.reasons());
         ClaimReport claimWithOcr = withAttachmentsOcr(claim, extractAllAttachmentsText(documents, gateDocumentTexts));
         return new Resolution(
-                appendReasons(attachRuleFindings(classifyWithLlm(claimWithOcr, ctx), exclusion), temporal.reasons()), true);
+                appendReasons(
+                        attachRuleFindings(classifyWithLlm(claimWithOcr, ctx, engineFindings(exclusion, temporal)), exclusion),
+                        temporal.reasons()),
+                true);
     }
 
     /**
@@ -233,8 +238,8 @@ public class ClassificationOrchestrator {
         return new Context(policy, history, rules);
     }
 
-    private ClassificationResponse classifyWithLlm(ClaimReport claim, Context ctx) {
-        ClassificationRequest request = buildRequest(claim, ctx.policy(), ctx.history(), ctx.rules());
+    private ClassificationResponse classifyWithLlm(ClaimReport claim, Context ctx, List<String> engineFindings) {
+        ClassificationRequest request = buildRequest(claim, ctx.policy(), ctx.history(), ctx.rules(), engineFindings);
         ClassificationResponse response = classifier.classify(request);
 
         log.info("[Orchestrator] Classification done — result={} confidence={}",
@@ -359,7 +364,8 @@ public class ClassificationOrchestrator {
             ClaimReport claim,
             InsuredPolicy policy,
             InsuredHistory history,
-            BusinessRules rules
+            BusinessRules rules,
+            List<String> engineFindings
     ) {
         return ClassificationRequest.builder()
                 .branch(claim.branch())
@@ -373,6 +379,20 @@ public class ClassificationOrchestrator {
                 .attachmentsOcr(claim.attachmentsOcr())
                 .insurerRules(promptBuilder.renderRulesAndPolicy(rules, policy))
                 .insuredHistory(promptBuilder.renderHistory(history))
+                .engineEvaluation(engineFindings)
                 .build();
+    }
+
+    /**
+     * El veredicto de las reglas duras que el motor ya evaluó (D4a paso 6), para inyectar en el prompt
+     * como hecho establecido: los incumplimientos temporales (plazo/vigencia/frecuencia) y, si había
+     * regla de exclusión y no aplicó, la confirmación de que la cobertura cubre el hecho generador.
+     */
+    private List<String> engineFindings(CoverageRuleEvaluator.Result exclusion, TemporalRuleEvaluator.Result temporal) {
+        List<String> findings = new ArrayList<>(temporal.reasons());
+        if (!exclusion.findings().isEmpty() && exclusion.findings().stream().allMatch(f -> f.passed())) {
+            findings.add("La cobertura cubre el hecho generador declarado (regla de exclusión evaluada: no aplica).");
+        }
+        return findings;
     }
 }

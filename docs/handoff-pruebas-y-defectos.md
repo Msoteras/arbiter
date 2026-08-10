@@ -169,10 +169,13 @@ Denunciar Hurto sobre una cobertura que excluye el hurto entraba igual y llegaba
     (exclusión dura). Solo las genuinamente *interpretativas* (relato inconsistente, daño no
     relacionado con el robo) justifican quedar en el prompt. **Diseño objetivo**: evaluar las duras
     en el motor + escribir `rule_result` (ver §7.1), y dejar al LLM solo las interpretativas.
-  - **Avance (10/08)**: las **exclusiones de cobertura** ya se evalúan en código (D3) y se auditan en
-    `rule_result` (D4c). Falta el **paso 6** del plan: sacarlas del prompt y bumpear a
-    `classification-v3` — hoy la exclusión se evalúa *y además* sigue viajando como texto al LLM. Las
-    demás reglas duras (plazo, vigencia, frecuencia: D10–D13) siguen sin evaluarse.
+  - **RESUELTO (10/08)**: las reglas duras (exclusión de cobertura D3, y temporales D10/D11/D13) ya
+    se evalúan por código. **Paso 6 hecho**: el prompt se bumpeó a **`classification-v3`** e inyecta
+    el **veredicto determinístico del motor** ("reglas duras ya evaluadas — no re-decidir"), con una
+    instrucción explícita para que el LLM no las reinterprete y se enfoque en el relato/consistencia.
+    De paso se dejó consistente `llm_analysis.prompt_version` (antes el template era v2 pero se
+    persistía `classification-v1`). Lo que **queda en el prompt** son las reglas genuinamente
+    *interpretativas* (relato inconsistente, daño no relacionado), que es lo correcto.
 - **D4b**: `DocumentInconsistencyEvaluator` (el factor que agarraría "el IMEI del documento no coincide
   con el del bien") es un **stub** que se declara no evaluable.
 - **D4c**: `rule_result` —la tabla donde se auditaría qué regla se evaluó y con qué resultado— tenía
@@ -324,7 +327,7 @@ re-verificado ahora.)* Decidir con Mar/Valen: sacar la regla o ajustar el seed.
 | D1, D2, D20 | Crítico | ✅ Resuelto (09/08) — 146 tests verdes en cases-service, **sin validar en vivo** | Aylén |
 | D3 | Alto | ✅ Resuelto (10/08, backend) — exclusiones evaluables + `rule_result`, **sin validar en vivo** | Aylén |
 | D4c | Alto | ✅ Resuelto (10/08) — `rule_result` con escritores | Aylén |
-| D4a | Alto | Parcial — exclusiones ya evaluables; falta paso 6 (sacarlas del prompt, v3) y las demás duras | — |
+| D4a | Alto | ✅ Resuelto (10/08) — reglas duras evaluables (D3+D10/D11/D13) + paso 6 (prompt `classification-v3` con el veredicto del motor); quedan solo las interpretativas en el prompt. Sin validar en vivo | Aylén |
 | D4b | Alto | Abierto — depende de H0007 (OCR estructurado) | — |
 | D5 | Alto | fecha/monto/lugar ✅ (v2, sin validar en vivo); falta la imagen al LLM | Mar |
 | D19 | Alto | Abierto | Mar (rumbo definido) |
