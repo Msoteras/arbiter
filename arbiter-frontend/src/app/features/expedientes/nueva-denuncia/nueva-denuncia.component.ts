@@ -137,7 +137,11 @@ export class NuevaDenunciaComponent {
   // general" en ninguno) → el backend tiraba 422 al crear el caso. Vacío hasta elegir póliza.
   protected readonly claimTypes = toSignal(
     toObservable(computed(() => this.selectedPolicy()?.branch ?? null)).pipe(
-      switchMap((branch) => (branch ? this.policyService.listClaimCauses(branch) : of<string[]>([]))),
+      switchMap((branch) =>
+        branch
+          ? this.policyService.listClaimCauses(branch).pipe(catchError(() => of<string[]>([])))
+          : of<string[]>([]),
+      ),
       map((names) => names.map((name): ClaimType => ({ key: name, label: name, claimCause: name }))),
     ),
     { initialValue: [] as ClaimType[] },
