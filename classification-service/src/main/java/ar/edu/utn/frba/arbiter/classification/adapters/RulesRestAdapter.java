@@ -3,6 +3,7 @@ package ar.edu.utn.frba.arbiter.classification.adapters;
 import ar.edu.utn.frba.arbiter.classification.adapters.mock.MockRulesAdapter;
 import ar.edu.utn.frba.arbiter.classification.config.tenant.TenantContext;
 import ar.edu.utn.frba.arbiter.classification.dto.BusinessRules;
+import ar.edu.utn.frba.arbiter.common.enums.RiskBand;
 import ar.edu.utn.frba.arbiter.common.security.JwtSupport;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -16,6 +17,7 @@ import org.springframework.web.client.RestClient;
 
 import javax.crypto.SecretKey;
 import java.time.Duration;
+import java.util.ArrayList;
 import java.util.List;
 
 /**
@@ -63,12 +65,47 @@ public class RulesRestAdapter implements RulesAdapter {
         }
         // Lecturas independientes a propósito: si una falla, las otras igual se aplican. Cada una
         // cae a su parte del baseline sin tirar abajo la clasificación.
-        return overlayCoverageLimits(
-                overlayEvaluableRules(
-                        overlayDocumentRequirements(
-                                overlayRuleTexts(overlayFastTrack(base, coverageId), coverageId), coverageId),
-                        coverageId),
-                coverageId);
+        return overlayScoring(
+                overlayCoverageLimits(
+                        overlayEvaluableRules(
+                                overlayDocumentRequirements(
+                                        overlayRuleTexts(overlayFastTrack(base, coverageId), coverageId), coverageId),
+                                coverageId),
+                        coverageId));
+    }
+
+    /**
+     * El scoring de fraude (factores + bandas) que configura el referente. Es config única por
+     * aseguradora (no por cobertura), así que se lee sin coverageId. Reemplaza al baseline del mock
+     * cuando la aseguradora tiene una config habilitada; si no la tiene (o no se puede leer), deja el
+     * scoring de referencia del baseline. Esto es lo que hace que el panel de scoring del referente
+     * efectivamente afecte la clasificación (antes el scoring salía siempre del mock).
+     */
+    private BusinessRules overlayScoring(BusinessRules rules) {
+        try {
+            ScoringResponse scoring = restClient.get()
+                    .uri("/api/v1/rules/internal/scoring")
+                    .header(HttpHeaders.AUTHORIZATION, serviceToken())
+                    .retrieve()
+                    .body(ScoringResponse.class);
+            if (scoring == null || !scoring.enabled()
+                    || scoring.factors() == null || scoring.factors().isEmpty()
+                    || scoring.bands() == null || scoring.bands().isEmpty()) {
+                log.debug("[RulesRestAdapter] No scoring config in DB (or disabled) — using baseline");
+                return rules;
+            }
+            BusinessRules.ScoringConfig mapped = scoring.toScoringConfig();
+            if (mapped == null) {
+                log.warn("[RulesRestAdapter] Scoring config in DB is unusable (bad band?) — using baseline");
+                return rules;
+            }
+            log.info("[RulesRestAdapter] Scoring config loaded from rules-service — {} factors, {} bands",
+                    mapped.factors().size(), mapped.bands().size());
+            return rules.toBuilder().scoringConfig(mapped).build();
+        } catch (Exception e) {
+            log.warn("[RulesRestAdapter] rules-service unavailable for scoring — baseline: {}", e.getMessage());
+            return rules;
+        }
     }
 
     /**
@@ -266,6 +303,38 @@ public class RulesRestAdapter implements RulesAdapter {
             return reportDeadlineHours == null && maxEventsPerYear == null;
         }
     }
+
+    /** Mirrors rules-service's ScoringConfigDto (factores + bandas del scoring de fraude). */
+    private record ScoringResponse(boolean enabled, List<ScoringFactorJson> factors, List<ScoringBandJson> bands) {
+
+        /** Mapea al ScoringConfig de classification; null si alguna banda no es una RiskBand válida. */
+        BusinessRules.ScoringConfig toScoringConfig() {
+            List<BusinessRules.ScoringConfig.FactorWeight> factorWeights = factors.stream()
+                    .map(f -> BusinessRules.ScoringConfig.FactorWeight.builder()
+                            .factorId(f.factorId())
+                            .weight(f.weight() == null ? 0.0 : f.weight())
+                            .build())
+                    .toList();
+            List<BusinessRules.ScoringConfig.Band> scoreBands = new ArrayList<>();
+            for (ScoringBandJson b : bands) {
+                RiskBand riskBand;
+                try {
+                    riskBand = RiskBand.valueOf(b.band());
+                } catch (IllegalArgumentException | NullPointerException e) {
+                    return null;
+                }
+                scoreBands.add(BusinessRules.ScoringConfig.Band.builder()
+                        .band(riskBand)
+                        .minScoreInclusive(b.minScoreInclusive() == null ? 0.0 : b.minScoreInclusive())
+                        .build());
+            }
+            return BusinessRules.ScoringConfig.builder().factors(factorWeights).bands(scoreBands).build();
+        }
+    }
+
+    private record ScoringFactorJson(String factorId, Double weight) {}
+
+    private record ScoringBandJson(String band, Double minScoreInclusive) {}
 
     /** Mirrors rules-service's FastTrackConfigDto (JSON shape of the persisted thresholds). */
     private record FastTrackResponse(

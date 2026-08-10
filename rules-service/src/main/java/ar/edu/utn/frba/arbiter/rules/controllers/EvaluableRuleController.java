@@ -2,8 +2,10 @@ package ar.edu.utn.frba.arbiter.rules.controllers;
 
 import ar.edu.utn.frba.arbiter.rules.dto.CoverageLimitsDto;
 import ar.edu.utn.frba.arbiter.rules.dto.EvaluableRulesDto;
+import ar.edu.utn.frba.arbiter.rules.dto.ScoringConfigDto;
 import ar.edu.utn.frba.arbiter.rules.services.InternalCoverageLimitsService;
 import ar.edu.utn.frba.arbiter.rules.services.InternalEvaluableRuleService;
+import ar.edu.utn.frba.arbiter.rules.services.ScoringConfigurationService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
@@ -26,6 +28,7 @@ public class EvaluableRuleController {
 
     private final InternalEvaluableRuleService internalEvaluableRules;
     private final InternalCoverageLimitsService internalCoverageLimits;
+    private final ScoringConfigurationService scoringConfigurationService;
 
     @GetMapping("/internal/evaluable")
     @PreAuthorize("isAuthenticated()")
@@ -46,5 +49,15 @@ public class EvaluableRuleController {
                     + "Sin cobertura ⇒ vacío.")
     public CoverageLimitsDto internalCoverageLimits(@RequestParam Long coverageId) {
         return internalCoverageLimits.getByCoverage(coverageId);
+    }
+
+    @GetMapping("/internal/scoring")
+    @PreAuthorize("isAuthenticated()")
+    @Operation(summary = "[interno] Scoring de fraude de la aseguradora",
+            description = "Lectura system-to-system para el motor: factores + bandas configurados por el "
+                    + "referente (una config por aseguradora). Sin config ⇒ enabled=false; el motor cae a su "
+                    + "baseline. Es lo que hace que el panel de scoring del referente afecte la clasificación.")
+    public ScoringConfigDto internalScoring() {
+        return scoringConfigurationService.get();
     }
 }

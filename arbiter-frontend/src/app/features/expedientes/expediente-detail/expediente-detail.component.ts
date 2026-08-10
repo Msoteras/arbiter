@@ -9,7 +9,8 @@ import { DocumentAgendaService } from '../document-agenda.service';
 import { CaseNavigationService } from '../case-navigation.service';
 import { AuthSessionService } from '../../../core/auth/auth-session.service';
 import { UserAdminService } from '../../../core/auth/user-admin.service';
-import { ExpedienteResponse, StatusTransition } from '../../../core/models/expediente';
+import { ExpedienteResponse, RiskBreakdownItem, StatusTransition } from '../../../core/models/expediente';
+import { riskFactorLabel } from '../../../core/models/business-rules';
 import { CASE_DOCUMENT_TYPES, CaseDocument, CaseDocumentType } from '../../../core/models/case-document';
 import { clasificacionLabel, clasificacionTone } from '../../../core/models/clasificacion';
 import {
@@ -145,6 +146,26 @@ export class ExpedienteDetailComponent {
     const d = this.data();
     return d ? riskBandEmptyLabel(d.status, d.analysisClassification) : 'Sin datos';
   });
+
+  /** Score de fraude como porcentaje entero (0..100), o null si no se scoreó. */
+  protected readonly riskScorePct = computed<number | null>(() => {
+    const score = this.data()?.riskScore;
+    return score == null ? null : Math.round(score * 100);
+  });
+
+  /** Desglose del score por factor, ordenado por aporte descendente (el que más pesó primero). */
+  protected readonly riskBreakdown = computed<RiskBreakdownItem[]>(() => {
+    const items = this.data()?.riskBreakdown ?? [];
+    return [...items].sort((a, b) => b.weightedContribution - a.weightedContribution);
+  });
+
+  protected factorLabel(factorId: string): string {
+    return riskFactorLabel(factorId);
+  }
+
+  protected pct(value: number): number {
+    return Math.round(value * 100);
+  }
 
   protected readonly classificationLabel = computed(() => {
     const d = this.data();

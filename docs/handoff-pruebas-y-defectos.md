@@ -329,8 +329,8 @@ re-verificado ahora.)* Decidir con Mar/Valen: sacar la regla o ajustar el seed.
 | D4c | Alto | ✅ Resuelto (10/08) — `rule_result` con escritores | Aylén |
 | D4a | Alto | ✅ Resuelto (10/08) — reglas duras evaluables (D3+D10/D11/D13) + paso 6 (prompt `classification-v3` con el veredicto del motor); quedan solo las interpretativas en el prompt. Sin validar en vivo | Aylén |
 | D4b | Alto | Abierto — depende de H0007 (OCR estructurado) | — |
-| D5 | Alto | fecha/monto/lugar ✅ (v2, sin validar en vivo); falta la imagen al LLM | Mar |
-| D19 | Alto | Abierto | Mar (rumbo definido) |
+| D5 | Alto | fecha/monto/lugar ✅ (v2, sin validar en vivo); falta la imagen al LLM | — |
+| D19 | Alto | Abierto (rumbo definido, ver arriba) | — |
 | D10, D11, D13 | Medio | ✅ Resuelto (10/08, backend) — reglas duras temporales (`TemporalRuleEvaluator`), bloquean Fast Track; **sin auditar en `rule_result`** y **sin validar en vivo** | Aylén |
 | D9, D14 | Medio | Abierto | — |
 | D12 | Medio | captura ✅ (Aylén); evaluación del plazo policial pendiente | — |
@@ -427,26 +427,24 @@ Foco: cosas mockeadas, y config/datos que un lado establece y el otro no usa. Or
 
 ### 🟠 Altos
 
-**D21 · El scoring de fraude que configura el referente NUNCA llega al motor**
-`ScoringConfigurationController` sirve `GET|PUT /api/v1/rules/scoring` y persiste
-`ScoringConfiguration` + `FactorWeight` + `ScoreBand` (el front los edita en `ScoringConfigComponent`).
-Pero **no existe `/internal/scoring`** y `RulesRestAdapter` **no overlaya el scoring**: `RiskScoringService`
-lee `BusinessRules.scoringConfig()`, que solo lo setea el `MockRulesAdapter`
-(`DEFAULT_SCORING_CONFIG`). El propio comentario lo admite (`RulesRestAdapter` javadoc: "The scoring
-config still comes from the mock"). Consecuencia: **todo el panel de scoring del referente es
-decorativo** — los pesos/bandas/factores que carga no cambian ni una corrida. Es más profundo que D17
-(que es solo la advertencia de UI de los pesos). Ligado: `cases.scoring_configuration_id` nunca se
-escribe (no hay id de config que auditar). **Fix**: endpoint `/internal/scoring` + `overlayScoring`
-en `RulesRestAdapter`, mismo patrón que Fast Track / coverage-limits.
+**D21 · El scoring de fraude que configura el referente NUNCA llega al motor** — ✅ **RESUELTO (10/08, backend)**, sin validar en vivo
+`ScoringConfigurationController` sirve `GET|PUT /api/v1/rules/scoring` y persiste el scoring del
+referente, pero no llegaba al motor: no había `/internal/scoring` y `RulesRestAdapter` usaba el
+scoring del `MockRulesAdapter`.
+- **Fix**: nuevo `GET /api/v1/rules/internal/scoring` (system-to-system) + `overlayScoring` en
+  `RulesRestAdapter`, mismo patrón que Fast Track / coverage-limits. Ahora `RiskScoringService` usa los
+  factores/bandas que carga el referente; si no hay config (o no se puede leer) cae al baseline de
+  referencia. El panel de scoring **ya afecta la clasificación**.
+- **Queda**: `cases.scoring_configuration_id` sigue sin escribirse (D29) — falta persistir qué config
+  de scoring se usó, para la auditoría.
 
-**D22 · El `riskScore` numérico y el `riskBreakdown` se calculan y viajan, pero el front no los muestra**
-`CaseResponse` expone `riskScore` (Double) y `riskBreakdown` (aporte por factor + `rationale`,
-`RiskBreakdownItem`), pensados "for the analyst's fraud-gauge". El front (`core/models/expediente.ts`)
-**no declara ninguno de los dos**: solo usa `riskBand`, y el `FraudGaugeComponent` es categórico (4
-bandas, sin número). Grep confirma cero referencias a `riskScore`/`riskBreakdown` en el front.
-Consecuencia: el analista ve "Alto/Bajo" pero nunca el score ni **qué factor lo empujó** — el trabajo
-del motor de scoring queda invisible. (Distinto del `forensicReport` de imágenes, que sí se muestra.)
-Junto con D21: el scoring está desconectado en las dos puntas (config no entra, salida no se muestra).
+**D22 · El `riskScore` numérico y el `riskBreakdown` se calculan y viajan, pero el front no los muestra** — ✅ **RESUELTO (10/08, front)**, sin validar en vivo
+El back ya entregaba `riskScore` + `riskBreakdown` en `CaseResponse` (el `riskBreakdown` lo joina
+`CaseAnalysisRepository`), pero el front solo usaba `riskBand`.
+- **Fix**: `ExpedienteResponse` gana `riskScore` + `riskBreakdown` (`RiskBreakdownItem`), y la vista
+  del analista (`expediente-detail`) muestra, bajo el gauge, el **score de fraude en %** y una **tabla
+  de desglose** por factor (nombre + aporte `rawScore × peso` + `rationale`), ordenada por el que más
+  pesó. El score deja de ser una caja negra. Junto con D21, el scoring queda conectado de punta a punta.
 
 ### 🟡 Medios
 
@@ -513,6 +511,6 @@ directo por el pipeline). `proxy.conf.json` rutea `/classifications` al pedo. Mu
 ### Estado
 | ID | Sev | Dueño |
 |----|-----|-------|
-| D21 (scoring no llega al motor), D22 (score/breakdown no se muestra) | Alto | — |
+| D21 (scoring → motor), D22 (score/breakdown en la UI del analista) | Alto | ✅ Resuelto (10/08), sin validar en vivo |
 | D23 (sector/fechaIngreso), D24 (aceptar/modificar), D25 (suma asegurada), D26 (filtro bandeja), D27 (PolicySnapshot) | Medio | — |
 | D28 (filas muertas), D29 (columnas cases), D30 (endpoints sin uso) | Bajo | — |

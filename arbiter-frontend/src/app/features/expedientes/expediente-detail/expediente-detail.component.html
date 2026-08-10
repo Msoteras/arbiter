@@ -50,6 +50,37 @@
 
       <app-card class="rcard" heading="Nivel de riesgo de fraude">
         <app-fraud-gauge [band]="riskGaugeBand()" [emptyLabel]="riskGaugeEmptyLabel()" />
+
+        @if (riskScorePct(); as pct) {
+          <p class="risk-score">Score de fraude: <strong>{{ pct }}%</strong></p>
+        }
+
+        @if (riskBreakdown().length > 0) {
+          <div class="risk-breakdown">
+            <span class="t-field-label">Cómo se compone el score</span>
+            <table class="breakdown-table">
+              <thead>
+                <tr><th>Factor</th><th>Aporte</th></tr>
+              </thead>
+              <tbody>
+                @for (item of riskBreakdown(); track item.factorId) {
+                  <tr>
+                    <td>
+                      <span class="factor-name">{{ factorLabel(item.factorId) }}</span>
+                      @if (item.rationale) {
+                        <span class="factor-rationale">{{ item.rationale }}</span>
+                      }
+                    </td>
+                    <td class="factor-contrib">
+                      +{{ pct(item.weightedContribution) }}%
+                      <span class="factor-detail">({{ pct(item.rawScore) }}% × peso {{ item.weight }})</span>
+                    </td>
+                  </tr>
+                }
+              </tbody>
+            </table>
+          </div>
+        }
       </app-card>
 
       <app-card class="rcard" heading="Decisión del analista">
