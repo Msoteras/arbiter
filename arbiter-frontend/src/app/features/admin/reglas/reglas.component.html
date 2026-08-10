@@ -207,24 +207,12 @@
           @case ('fastTrack') {
             <div class="tab-panel">
               <app-card heading="Fast Track (Siniestro Express)">
-                <div class="section-toggle">
-                  <p class="section-hint">
-                    Gate determinístico que agiliza el caso. Nunca lo resuelve solo: siempre revisa
-                    un analista.
-                  </p>
-                  <button
-                    type="button"
-                    class="switch"
-                    [class.on]="d.fastTrack.enabled"
-                    [attr.aria-pressed]="d.fastTrack.enabled"
-                    (click)="toggleFastTrack()"
-                  >
-                    {{ d.fastTrack.enabled ? 'Habilitado' : 'Deshabilitado' }}
-                  </button>
-                </div>
+                <p class="section-hint">
+                  Gate determinístico que agiliza el caso (siempre activo, es parte del análisis).
+                  Nunca lo resuelve solo: siempre revisa un analista.
+                </p>
 
-                @if (d.fastTrack.enabled) {
-                  <div class="subsection">
+                <div class="subsection">
                     <span class="t-field-label">Umbrales evaluables</span>
                     <div class="grid-fields">
                       <label class="fieldset">
@@ -276,7 +264,6 @@
                       emptyText="Sin criterios descriptivos."
                     />
                   </div>
-                }
 
                 <div class="ft-save">
                   <p class="section-hint">

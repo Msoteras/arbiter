@@ -442,10 +442,11 @@ scoring del `MockRulesAdapter`.
 **D22 · El `riskScore` numérico y el `riskBreakdown` se calculan y viajan, pero el front no los muestra** — ✅ **RESUELTO (10/08, front)**, sin validar en vivo
 El back ya entregaba `riskScore` + `riskBreakdown` en `CaseResponse` (el `riskBreakdown` lo joina
 `CaseAnalysisRepository`), pero el front solo usaba `riskBand`.
-- **Fix**: `ExpedienteResponse` gana `riskScore` + `riskBreakdown` (`RiskBreakdownItem`), y la vista
-  del analista (`expediente-detail`) muestra, bajo el gauge, el **score de fraude en %** y una **tabla
-  de desglose** por factor (nombre + aporte `rawScore × peso` + `rationale`), ordenada por el que más
-  pesó. El score deja de ser una caja negra. Junto con D21, el scoring queda conectado de punta a punta.
+- **Fix**: `ExpedienteResponse` gana `riskScore` + `riskBreakdown` (`RiskBreakdownItem`). A primera
+  vista, la vista del analista muestra solo el **gauge** (nivel de riesgo); el **desglose** (score de
+  fraude en % + tabla por factor: nombre + aporte `rawScore × peso` + `rationale`, ordenada por el que
+  más pesó) vive en una **sub-pestaña "Desglose de riesgo"** junto a Resumen/Documentación/etc. El
+  score deja de ser una caja negra. Junto con D21, el scoring queda conectado de punta a punta.
 
 ### 🟡 Medios
 

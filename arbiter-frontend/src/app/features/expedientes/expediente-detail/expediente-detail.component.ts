@@ -38,7 +38,7 @@ type LoadState =
   | { status: 'ok'; data: ExpedienteResponse }
   | { status: 'error'; httpStatus: number };
 
-type TabId = 'resumen' | 'datos' | 'imagenes' | 'documentacion' | 'conversacion' | 'historial';
+type TabId = 'resumen' | 'datos' | 'imagenes' | 'riesgo' | 'documentacion' | 'conversacion' | 'historial';
 type Verb = 'aprobar' | 'rechazar';
 
 /** value=null → la sección muestra "Sin datos" (el backend no provee este campo). */
@@ -216,6 +216,7 @@ export class ExpedienteDetailComponent {
     { id: 'resumen', label: 'Resumen' },
     { id: 'datos', label: 'Datos extraídos' },
     { id: 'imagenes', label: 'Análisis de imágenes' },
+    { id: 'riesgo', label: 'Desglose de riesgo' },
     { id: 'documentacion', label: 'Documentación' },
     { id: 'conversacion', label: 'Conversación' },
     { id: 'historial', label: 'Historial' },

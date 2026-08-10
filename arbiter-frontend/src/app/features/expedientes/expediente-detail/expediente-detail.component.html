@@ -42,37 +42,6 @@
 
       <app-card class="rcard" heading="Nivel de riesgo de fraude">
         <app-fraud-gauge [band]="riskGaugeBand()" [emptyLabel]="riskGaugeEmptyLabel()" />
-
-        @if (riskScorePct(); as pct) {
-          <p class="risk-score">Score de fraude: <strong>{{ pct }}%</strong></p>
-        }
-
-        @if (riskBreakdown().length > 0) {
-          <div class="risk-breakdown">
-            <span class="t-field-label">Cómo se compone el score</span>
-            <table class="breakdown-table">
-              <thead>
-                <tr><th>Factor</th><th>Aporte</th></tr>
-              </thead>
-              <tbody>
-                @for (item of riskBreakdown(); track item.factorId) {
-                  <tr>
-                    <td>
-                      <span class="factor-name">{{ factorLabel(item.factorId) }}</span>
-                      @if (item.rationale) {
-                        <span class="factor-rationale">{{ item.rationale }}</span>
-                      }
-                    </td>
-                    <td class="factor-contrib">
-                      +{{ pct(item.weightedContribution) }}%
-                      <span class="factor-detail">({{ pct(item.rawScore) }}% × peso {{ item.weight }})</span>
-                    </td>
-                  </tr>
-                }
-              </tbody>
-            </table>
-          </div>
-        }
       </app-card>
 
       <app-card class="rcard" heading="Decisión del analista">
@@ -254,6 +223,43 @@
 
       @case ('datos') { <app-empty-state message="Datos extraídos por IA + coincidencia con la póliza" sub="Pendiente de datos de IA" /> }
       @case ('imagenes') { <app-forensic-analysis [caseId]="d.id" [report]="d.forensicReport" /> }
+      @case ('riesgo') {
+        <app-card heading="Desglose del score de fraude">
+          @if (riskScorePct(); as scorePct) {
+            <p class="risk-score">Score de fraude: <strong>{{ scorePct }}%</strong></p>
+            @if (riskBreakdown().length > 0) {
+              <div class="risk-breakdown">
+                <span class="t-field-label">Cómo se compone el score</span>
+                <table class="breakdown-table">
+                  <thead>
+                    <tr><th>Factor</th><th>Aporte</th></tr>
+                  </thead>
+                  <tbody>
+                    @for (item of riskBreakdown(); track item.factorId) {
+                      <tr>
+                        <td>
+                          <span class="factor-name">{{ factorLabel(item.factorId) }}</span>
+                          @if (item.rationale) {
+                            <span class="factor-rationale">{{ item.rationale }}</span>
+                          }
+                        </td>
+                        <td class="factor-contrib">
+                          +{{ pct(item.weightedContribution) }}%
+                          <span class="factor-detail">({{ pct(item.rawScore) }}% × peso {{ item.weight }})</span>
+                        </td>
+                      </tr>
+                    }
+                  </tbody>
+                </table>
+              </div>
+            }
+          } @else {
+            <app-empty-state
+              message="Este expediente todavía no tiene score de fraude"
+              sub="Se calcula al clasificar (no aplica en Fast Track ni sin datos suficientes)." />
+          }
+        </app-card>
+      }
       @case ('documentacion') {
         <app-case-documents [caseId]="d.id" [reloadToken]="docsReloadToken()" [branch]="d.branch" />
       }

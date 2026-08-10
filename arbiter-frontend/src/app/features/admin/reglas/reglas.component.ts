@@ -125,7 +125,7 @@ export class ReglasComponent {
       requiredDocuments: [],
       businessRules: [],
       fastTrack: {
-        enabled: false,
+        enabled: true,
         minPolicyAgeMonths: null,
         maxPriorClaims: null,
         priorClaimsWindowMonths: null,
@@ -202,11 +202,8 @@ export class ReglasComponent {
   }
 
   private overlayFastTrack(dto: FastTrackConfigDto | null): void {
-    // Config vacía en la DB = Fast Track no configurado para este ramo.
-    if (!dto || this.isEmptyFastTrack(dto)) {
-      this.draft.update((d) => (d ? { ...d, fastTrack: { ...d.fastTrack, enabled: false } } : d));
-      return;
-    }
+    // Fast Track siempre activo (requisito del sistema): se cargan los umbrales que haya en la DB;
+    // si no hay, quedan vacíos (sin criterios activos), pero el gate es siempre parte del análisis.
     this.draft.update((d) =>
       d
         ? {
@@ -214,22 +211,13 @@ export class ReglasComponent {
             fastTrack: {
               ...d.fastTrack,
               enabled: true,
-              maxClaimedAmountRatio: dto.maxClaimedAmountRatio,
-              maxPriorClaims: dto.maxPriorClaims,
-              requiresUpToDatePolicy: dto.requiresUpToDatePolicy ?? d.fastTrack.requiresUpToDatePolicy,
-              requiredDocumentTypes: dto.requiredDocumentTypes ?? [],
+              maxClaimedAmountRatio: dto?.maxClaimedAmountRatio ?? null,
+              maxPriorClaims: dto?.maxPriorClaims ?? null,
+              requiresUpToDatePolicy: dto?.requiresUpToDatePolicy ?? d.fastTrack.requiresUpToDatePolicy,
+              requiredDocumentTypes: dto?.requiredDocumentTypes ?? [],
             },
           }
         : d,
-    );
-  }
-
-  private isEmptyFastTrack(dto: FastTrackConfigDto): boolean {
-    return (
-      dto.maxClaimedAmountRatio == null &&
-      dto.maxPriorClaims == null &&
-      dto.requiresUpToDatePolicy == null &&
-      (dto.requiredDocumentTypes == null || dto.requiredDocumentTypes.length === 0)
     );
   }
 
@@ -507,11 +495,7 @@ export class ReglasComponent {
     this.markDirty();
   }
 
-  // ───────────────── Fast Track ─────────────────
-  protected toggleFastTrack(): void {
-    this.patchFastTrack((ft) => ({ ...ft, enabled: !ft.enabled }));
-  }
-
+  // ───────────────── Fast Track (siempre activo; no hay toggle) ─────────────────
   protected setMinPolicyAge(v: string): void {
     this.patchFastTrack((ft) => ({ ...ft, minPolicyAgeMonths: this.intFromStr(v) }));
   }
@@ -590,14 +574,13 @@ export class ReglasComponent {
       return;
     }
     const ft = d.fastTrack;
-    const dto: FastTrackConfigDto = ft.enabled
-      ? {
-          maxClaimedAmountRatio: ft.maxClaimedAmountRatio,
-          maxPriorClaims: ft.maxPriorClaims,
-          requiresUpToDatePolicy: ft.requiresUpToDatePolicy,
-          requiredDocumentTypes: ft.requiredDocumentTypes,
-        }
-      : { maxClaimedAmountRatio: null, maxPriorClaims: null, requiresUpToDatePolicy: null, requiredDocumentTypes: [] };
+    // Fast Track siempre activo: se persisten los umbrales tal como están (vacíos = sin criterios).
+    const dto: FastTrackConfigDto = {
+      maxClaimedAmountRatio: ft.maxClaimedAmountRatio,
+      maxPriorClaims: ft.maxPriorClaims,
+      requiresUpToDatePolicy: ft.requiresUpToDatePolicy,
+      requiredDocumentTypes: ft.requiredDocumentTypes,
+    };
 
     this.ftSaving.set(true);
     this.ftService.saveForBranch(branchId, dto).subscribe({
