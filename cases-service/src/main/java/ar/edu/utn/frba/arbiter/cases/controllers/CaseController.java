@@ -37,13 +37,19 @@ public class CaseController {
     private final CaseService caseService;
 
     @PostMapping(consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
-    @PreAuthorize("hasAnyRole('ASEGURADO', 'REFERENTE_ASEGURADORA')")
+    @PreAuthorize("hasRole('ASEGURADO')")
     @Operation(summary = "Create a case",
             description = """
                     Registers a case using the same request structure as the claim flow and triggers
                     an analysis with classification-service, forwarding claimedAmount and any attached
                     documents. Each part under `documents` is keyed by what the document IS
                     (e.g. `police_report`, `invoice`, `quote`, `item_photo`).
+
+                    Solo el ASEGURADO denuncia, y solo a nombre propio: el `insuredId` del payload
+                    tiene que ser el DNI del token (403 si no), y la póliza denunciada tiene que ser
+                    de ese asegurado (422 si no). El referente estaba habilitado acá por una
+                    anotación más laxa que la regla de negocio — el frontend ya restringía la ruta
+                    `new-claim` a ASEGURADO.
                     """)
     public ResponseEntity<CaseResponse> createCase(
             @RequestPart("case") @Valid CaseRequest request,
@@ -183,12 +189,17 @@ public class CaseController {
     }
 
     @PostMapping(value = "/{caseId}/documents", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
-    @PreAuthorize("hasAnyRole('ASEGURADO', 'REFERENTE_ASEGURADORA')")
+    @PreAuthorize("hasRole('ASEGURADO')")
     @Operation(summary = "Upload additional documents",
             description = """
                     Uploads additional documents to an existing case and re-triggers
                     classification. Each part is keyed by what the document IS
                     (e.g. `police_report`, `invoice`, `quote`, `item_photo`).
+
+                    Solo el asegurado dueño del expediente: la carga pasa por el mismo control de
+                    pertenencia que las lecturas (404 sobre un expediente ajeno). Antes era un
+                    `findById` pelado, así que cualquier asegurado podía subir documentación al
+                    expediente de otro y forzarle una reclasificación.
                     """)
     public ResponseEntity<CaseResponse> uploadDocuments(
             @PathVariable Long caseId,
