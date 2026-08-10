@@ -279,10 +279,11 @@ la omite (queda en el draft, no viaja al backend).
 **D15 · El panel de ramos salía de un mock** — ✅ **RESUELTO (10/08)**
 La lista de ramos sale del catálogo real (`GET /api/v1/rules/branches`, tabla `branch`) vía
 `BranchesService` — se eliminó el `SEED_RAMOS`/`RulesConfigService` del front. Se sumó el **CRUD
-completo**: `BranchController` (rol REFERENTE) con `POST` (alta), `PUT /{id}` (renombre) y
-`DELETE /{id}` (baja), servidos por `BranchCatalogService` (nombre único → 409; baja con guarda de
-referencias → 409 si el ramo tiene hechos generadores/coberturas/reglas). El front re-habilitó alta,
-renombre y baja apuntando a esos endpoints.
+completo en el backend**: `BranchController` (rol REFERENTE) con `POST` (alta), `PUT /{id}` (renombre)
+y `DELETE /{id}` (baja), servidos por `BranchCatalogService` (nombre único → 409; baja con guarda de
+referencias → 409 si el ramo tiene hechos generadores/coberturas/reglas). En la **UI** se expone solo
+el **renombre**: el alta y la baja de ramos quedaron fuera de la pantalla a pedido (el catálogo es
+fijo, lo administra el seed) — los endpoints siguen ahí por si se reactivan.
 - **Ojo (diseño)**: `branch` es un catálogo **global** (`arbiter_common`, compartido por todas las
   aseguradoras), no una config por aseguradora — crear/borrar un ramo toca el catálogo maestro. Si en
   el futuro se quiere que cada aseguradora tenga su propio catálogo, hay que mover/rediseñar `branch`.

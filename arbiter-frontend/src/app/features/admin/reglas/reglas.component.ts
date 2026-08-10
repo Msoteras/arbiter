@@ -18,7 +18,6 @@ import { ButtonComponent } from '../../../shared/ui/button/button.component';
 import { CardComponent } from '../../../shared/ui/card/card.component';
 import { EmptyStateComponent } from '../../../shared/ui/empty-state/empty-state.component';
 import { InputComponent } from '../../../shared/ui/input/input.component';
-import { ModalComponent } from '../../../shared/ui/modal/modal.component';
 import { ScoringConfigComponent } from '../scoring-config/scoring-config.component';
 import { StringListEditorComponent } from './string-list-editor.component';
 
@@ -43,7 +42,6 @@ type TabId = 'coberturas' | 'fastTrack' | 'documentacion' | 'reglas';
     CardComponent,
     EmptyStateComponent,
     InputComponent,
-    ModalComponent,
     ScoringConfigComponent,
     StringListEditorComponent,
   ],
@@ -84,11 +82,8 @@ export class ReglasComponent {
   // por cobertura. Se cargan del backend al elegir el ramo.
   protected readonly claimCauses = signal<ClaimCauseOption[]>([]);
 
-  // ABM de ramos (catálogo global branch, vía BranchesService).
-  protected readonly newRamoName = signal('');
-  protected readonly creatingRamo = signal(false);
-  protected readonly createRamoError = signal<string | null>(null);
-
+  // Renombre del ramo (lo único editable del ramo desde acá: el alta y la baja no se exponen en la
+  // UI — el catálogo de ramos es fijo, lo administra el seed).
   protected readonly renaming = signal(false);
   protected readonly renameSaved = signal(false);
   protected readonly renameError = signal<string | null>(null);
@@ -360,33 +355,9 @@ export class ReglasComponent {
     this.activeTab.set(t);
   }
 
-  // ───────────────── Ramos: ABM (catálogo global branch) ─────────────────
-  protected setNewRamoName(name: string): void {
-    this.newRamoName.set(name);
-    this.createRamoError.set(null);
-  }
-
-  protected createRamo(): void {
-    const name = this.newRamoName().trim();
-    if (name === '' || this.creatingRamo()) {
-      return;
-    }
-    this.createRamoError.set(null);
-    this.creatingRamo.set(true);
-    this.branchesService.create(name).subscribe({
-      next: (branch) => {
-        this.creatingRamo.set(false);
-        this.newRamoName.set('');
-        const ramo = this.shellFromBranch(branch);
-        this.ramos.update((list) => [...list, ramo]);
-        this.select(ramo);
-      },
-      error: (e: unknown) => {
-        this.creatingRamo.set(false);
-        this.createRamoError.set(this.backendErrorMessage(e));
-      },
-    });
-  }
+  // ───────────────── Ramos: renombre ─────────────────
+  // El alta y la baja de ramos no se exponen en la UI (el catálogo es fijo, lo administra el seed).
+  // El backend igual tiene el ABM completo (BranchesService.create/remove) por si se reactiva.
 
   /** Edita el nombre del ramo en el draft (local); se persiste con saveName(). */
   protected setName(name: string): void {
@@ -420,50 +391,6 @@ export class ReglasComponent {
       error: (e: unknown) => {
         this.renaming.set(false);
         this.renameError.set(this.backendErrorMessage(e));
-      },
-    });
-  }
-
-  protected readonly ramoToDelete = signal<RamoRules | null>(null);
-  protected readonly deleting = signal(false);
-  protected readonly deleteError = signal<string | null>(null);
-
-  protected requestDeleteRamo(): void {
-    const d = this.draft();
-    if (d) {
-      this.deleteError.set(null);
-      this.ramoToDelete.set(d);
-    }
-  }
-
-  protected cancelDeleteRamo(): void {
-    this.ramoToDelete.set(null);
-  }
-
-  protected confirmDeleteRamo(): void {
-    const ramo = this.ramoToDelete();
-    const branchId = ramo ? this.branchIdOf(ramo) : null;
-    if (!ramo || branchId == null || this.deleting()) {
-      return;
-    }
-    this.deleteError.set(null);
-    this.deleting.set(true);
-    this.branchesService.remove(branchId).subscribe({
-      next: () => {
-        this.ramos.update((list) => list.filter((r) => r.id !== ramo.id));
-        this.deleting.set(false);
-        this.ramoToDelete.set(null);
-        const next = this.ramos()[0];
-        if (next) {
-          this.select(next);
-        } else {
-          this.selectedId.set(null);
-          this.draft.set(null);
-        }
-      },
-      error: (e: unknown) => {
-        this.deleting.set(false);
-        this.deleteError.set(this.backendErrorMessage(e));
       },
     });
   }
