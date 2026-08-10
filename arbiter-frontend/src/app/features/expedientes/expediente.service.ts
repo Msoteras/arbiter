@@ -88,6 +88,11 @@ export class ExpedienteService {
   private readonly http = inject(HttpClient);
   private readonly baseUrl = `${environment.apiBaseUrl}/cases`;
 
+  /** Nombres distintos de hechos generadores (todos los ramos), para el filtro de la bandeja. */
+  claimCauseNames(): Observable<string[]> {
+    return this.http.get<string[]>(`${environment.apiBaseUrl}/claim-causes/all`);
+  }
+
   /**
    * `aseguradora` sólo lo manda el portal del asegurado, y sólo hace falta si es cliente de más de
    * una compañía: los números de expediente se repiten entre aseguradoras, así que sin esto el

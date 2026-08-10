@@ -39,4 +39,13 @@ public class ClaimCauseController {
                 .map(ClaimCause::getName)
                 .toList();
     }
+
+    @GetMapping("/all")
+    @PreAuthorize("isAuthenticated()")
+    @Operation(summary = "Todos los hechos generadores (nombres distintos)",
+            description = "Para el filtro 'Tipo de siniestro' de la bandeja, que es global (todos los "
+                    + "ramos). Nombres distintos, ordenados.")
+    public List<String> all() {
+        return claimCauseRepository.findDistinctNames();
+    }
 }

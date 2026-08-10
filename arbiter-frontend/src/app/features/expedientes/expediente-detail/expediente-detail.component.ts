@@ -225,14 +225,9 @@ export class ExpedienteDetailComponent {
     this.activeTab.set(t);
   }
 
-  // ----- clasificación sugerida: aceptar / modificar (local) -----
-  protected readonly classifState = signal<'none' | 'aceptada' | 'modificada'>('none');
-  acceptClassif(): void {
-    this.classifState.set('aceptada');
-  }
-  modifyClassif(): void {
-    this.classifState.set('modificada');
-  }
+  // La "aceptación/modificación" local de la recomendación se quitó: no persistía ni auditaba nada
+  // (aparentaba una acción que no ocurría). La única decisión real del analista es Aprobar/Rechazar,
+  // que sí persiste vía POST /cases/{id}/decision (abajo).
 
   // ----- decisión del analista (persiste vía POST /cases/{id}/decision) -----
   private readonly verbLabels: Record<Verb, string> = {

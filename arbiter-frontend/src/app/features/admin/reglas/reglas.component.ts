@@ -531,20 +531,12 @@ export class ReglasComponent {
     this.markDirty();
   }
 
-  protected setCoverageAmount(id: string, value: string): void {
-    this.setCoverageField(id, { insuredAmount: this.intFromStr(value) });
-  }
-
   protected setCoverageDeductible(id: string, value: string): void {
     this.setCoverageField(id, { deductibleRatio: this.ratioFromPct(value) });
   }
 
   protected coverageDeductiblePct(c: Coverage): string {
     return this.pctFromRatio(c.deductibleRatio);
-  }
-
-  protected coverageAmountStr(c: Coverage): string {
-    return c.insuredAmount == null ? '' : String(c.insuredAmount);
   }
 
   protected setCoverageReportingWindow(id: string, value: string): void {

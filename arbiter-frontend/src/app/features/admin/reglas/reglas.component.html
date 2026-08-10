@@ -120,16 +120,6 @@
                       />
                     </label>
                     <label class="fieldset">
-                      <span class="t-field-label">Suma asegurada ($)</span>
-                      <app-input
-                        type="number"
-                        [min]="0"
-                        [value]="coverageAmountStr(c)"
-                        (valueChange)="setCoverageAmount(c.id, $event)"
-                        placeholder="De la póliza"
-                      />
-                    </label>
-                    <label class="fieldset">
                       <span class="t-field-label">Franquicia (%)</span>
                       <app-input
                         type="number"

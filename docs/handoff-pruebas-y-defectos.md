@@ -448,33 +448,31 @@ El back ya entregaba `riskScore` + `riskBreakdown` en `CaseResponse` (el `riskBr
 
 ### 🟡 Medios
 
-**D23 · Alta de usuario: `sector` (obligatorio) y `fechaIngreso` se descartan en silencio**
-El front manda `sector` + `fechaIngreso` (`user-admin.service.ts`) y el form **exige `sector`**
-(`alta-usuario.component.ts`), pero el `CreateUserRequest` del back (auth-service) solo tiene
-`email/nombre/apellido/rol` → Jackson los ignora y **nunca se persisten**. Al revés, `UserResponse`
-del back no devuelve `sector`/`fechaIngreso`, así que las columnas **Sector** y **Fecha de ingreso**
-de la grilla salen siempre "—". Mismatch en los dos sentidos. (Auth estaba marcado "no revisado" en
-§1; esto es concreto.)
+**D23 · Alta de usuario: `sector` y `fechaIngreso` se descartaban en silencio** — ✅ **RESUELTO (10/08, front)**
+El front mandaba `sector` (obligatorio) + `fechaIngreso` que el back ignoraba, y la grilla mostraba
+columnas Sector/Fecha de ingreso siempre "—". El modelo multi-tenant de usuarios **no tiene esas
+columnas** (el DER las dropeó).
+- **Fix (alineación al back)**: se sacaron `sector`/`fechaIngreso` del alta de usuario (form + DTOs
+  `CreateUserRequest`/`UserResponse`) y las dos columnas de la grilla. La UI deja de capturar datos
+  que se descartan.
+- **Si se quieren de verdad**: es una historia de schema (columna en el perfil por rol —
+  `insurer_referent` / `claims_analyst`), no un campo de UI suelto.
 
-**D24 · "Aceptar / Modificar" la clasificación sugerida (vista analista) no persiste**
-`expediente-detail.component` — `acceptClassif()` / `modifyClassif()` solo setean una señal local y
-muestran "✓ Clasificación aceptada" / "Marcada para modificar", pero **no pegan a ningún backend**: no
-hay endpoint, no queda auditoría, se pierde al recargar. La UI aparenta una acción que no ocurre.
-(Distinto de APPROVE/REJECT, que sí van a `/decision`.)
+**D24 · "Aceptar / Modificar" la clasificación sugerida (vista analista) no persistía** — ✅ **RESUELTO (10/08, front)**
+`acceptClassif()`/`modifyClassif()` solo seteaban una señal local (aparentaban una acción que no
+ocurría). **Fix**: se quitaron los botones y el estado local; la tarjeta de recomendación ahora aclara
+que es no vinculante y que la decisión real se registra en Aprobar/Rechazar (`/decision`), que es lo
+único que persiste.
 
-**D25 · "Suma asegurada" por cobertura: input editable que nunca se persiste ni se carga**
-Solapa Coberturas — el input "Suma asegurada ($)" está vivo y editable, pero `overlayCoverages` lo
-setea **siempre en `null`** y `toCoverageRequest` **no lo manda**. El referente lo escribe, se
-descarta al guardar y vuelve vacío al recargar. `CoveragesRulesService` documenta que a propósito no
-hay campo en el DER (la suma vive en la póliza) — entonces el input **sobra** y confunde. Decidir:
-sacarlo, o mostrarlo read-only desde la póliza.
+**D25 · "Suma asegurada" por cobertura: input editable que no se persistía ni cargaba** — ✅ **RESUELTO (10/08, front)**
+El input "Suma asegurada ($)" de la solapa Coberturas se descartaba al guardar (no está en el DER: la
+suma vive en la póliza). **Fix**: se sacó el input y sus helpers (`coverageAmountStr`/`setCoverageAmount`).
 
-**D26 · Filtro "Tipo de siniestro" de la bandeja: catálogo hardcodeado (con valores inexistentes)**
-`bandeja.component.ts` — `claimCauseOptions` es una lista fija de 4 (`Robo en vía pública`, `Hurto`,
-`Rotura accidental`, `Siniestro general`); los dos últimos **no existen** en el catálogo real (mismo
-problema que el wizard viejo, §2.2). El endpoint real ya existe (`GET /claim-causes` /
-`GET /rules/claim-causes`) y el wizard ya migró — la bandeja quedó con el mock, así que filtrar por
-esas opciones da resultados vacíos/incompletos.
+**D26 · Filtro "Tipo de siniestro" de la bandeja: catálogo hardcodeado (con valores inexistentes)** — ✅ **RESUELTO (10/08)**
+`bandeja.component.ts` tenía una lista fija de 4 con valores que no existen (`Siniestro general`,
+`Rotura accidental` solo en un ramo) → filtraba vacío. **Fix**: nuevo `GET /api/v1/claim-causes/all`
+(cases-service, nombres distintos de todos los ramos) que la bandeja carga en el constructor y usa
+como opciones del filtro. Deja de estar hardcodeado.
 
 **D27 · `PolicySnapshot`: entidad con cero escritores y cero lectores**
 `PolicySnapshot` + `PolicySnapshotRepository` no se inyectan en ningún lado y `Case.policySnapshot`
@@ -512,5 +510,6 @@ directo por el pipeline). `proxy.conf.json` rutea `/classifications` al pedo. Mu
 | ID | Sev | Dueño |
 |----|-----|-------|
 | D21 (scoring → motor), D22 (score/breakdown en la UI del analista) | Alto | ✅ Resuelto (10/08), sin validar en vivo |
-| D23 (sector/fechaIngreso), D24 (aceptar/modificar), D25 (suma asegurada), D26 (filtro bandeja), D27 (PolicySnapshot) | Medio | — |
+| D23 (sector/fechaIngreso), D24 (aceptar/modificar), D25 (suma asegurada), D26 (filtro bandeja) | Medio | ✅ Resuelto (10/08), sin validar en vivo |
+| D27 (PolicySnapshot) | Medio | Abierto |
 | D28 (filas muertas), D29 (columnas cases), D30 (endpoints sin uso) | Bajo | — |

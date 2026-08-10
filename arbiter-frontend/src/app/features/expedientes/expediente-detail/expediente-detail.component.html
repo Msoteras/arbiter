@@ -32,16 +32,8 @@
             <div class="reco-text">
               <p class="reco-value" [attr.data-tone]="classificationTone() !== 'neutral' ? classificationTone() : null">{{ classificationLabel() }}</p>
               <p class="note">Confianza del modelo: {{ confidencePercent() }}%</p>
-              @if (classifState() !== 'none') {
-                <p class="registered">✓ {{ classifState() === 'aceptada' ? 'Clasificación aceptada' : 'Marcada para modificar' }}</p>
-              }
+              <p class="note">Es una recomendación no vinculante: la decisión se registra abajo (Aprobar / Rechazar).</p>
             </div>
-            @if (classifState() === 'none' && canAct()) {
-              <div class="accept-col">
-                <app-button size="sm" [block]="true" (click)="acceptClassif()">Aceptar</app-button>
-                <app-button variant="secondary" size="sm" [block]="true" (click)="modifyClassif()">Modificar</app-button>
-              </div>
-            }
           </div>
         } @else {
           <p class="nodata">El modelo todavía no generó una recomendación para este expediente.</p>
