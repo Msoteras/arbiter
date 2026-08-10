@@ -138,13 +138,15 @@ Denunciar Hurto sobre una cobertura que excluye el hurto entra igual y llega a l
   entidad y repository y **cero escritores**. Las filas de la demo las puso el seed a mano. Es
   requisito de la Disposición SSN 2/2023.
 
-**D5 · El prompt del LLM no lleva fecha del hecho, monto reclamado ni lugar** — *en curso (Mar)*
-`classification-v1.md` solo recibe ramo, producto, hecho generador, bien, descripción, reglas,
-historial y OCR. Sin fechas no puede evaluar plazo ni vigencia; sin monto, proporcionalidad. **No es
-que el modelo se equivoque: no tiene el dato.** Los tres campos ya llegan en el `ClaimReport`.
-Tampoco recibe la imagen: el modelo de visión la ve solo en la extracción OCR, la clasificación es
-texto puro. → Ya se pasó el template `classification-v2.md` listo; ojo con versionar
-(`getPromptVersion()` se persiste en `llm_analysis.prompt_version`, es la auditoría).
+**D5 · La clasificación del LLM es texto puro: no recibe la imagen** — *fecha/monto/lugar RESUELTO (Mar, v2)*
+- ✅ **Resuelto**: la **fecha del hecho, el lugar y el monto reclamado** ya viajan al prompt. Se
+  agregaron a `ClassificationRequest`, se mapean en `ClassificationOrchestrator.buildRequest()` desde
+  el `ClaimReport`, y se imprimen en el template — renombrado a **`classification-v2.md`** con
+  `getPromptVersion()` = `"classification-v2"` para no romper la auditoría de
+  `llm_analysis.prompt_version` (Disposición SSN 2/2023). Implementado, **sin validar en vivo**.
+- ⚠️ **Queda abierto**: el modelo de **clasificación no recibe la imagen**, solo su OCR — el modelo
+  de visión la ve en la extracción, pero la clasificación es texto puro. Para casos de fraude
+  documental *visual* (constancia fabricada) esto limita lo que el LLM puede notar.
 
 **D19 · El `InsurerDatabaseAdapter` no se migró a multi-tenant** — *detectado 10/08 (Mar)*
 Lee el schema **bare `aseguradora`** (`InsurerDatabaseAdapter.java:35`), que es del modelo
@@ -220,7 +222,7 @@ contra la base limpia en la sesión anterior.)*
 |----|-----------|--------|-------|
 | D1, D2 | Crítico | Abierto — sin dueño | ¿historia? |
 | D3, D4a/b/c | Alto | Abierto — sin dueño | ¿historia? |
-| D5 | Alto | **En curso** (template v2 entregado) | Mar |
+| D5 | Alto | fecha/monto/lugar ✅ (v2, sin validar en vivo); falta la imagen al LLM | Mar |
 | D19 | Alto | Abierto | Mar (rumbo definido) |
 | D9–D15 | Medio | Abierto | — |
 | D16–D18 | Bajo | Abierto | — |
