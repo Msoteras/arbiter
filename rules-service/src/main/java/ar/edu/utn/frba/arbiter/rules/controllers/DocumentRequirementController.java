@@ -2,6 +2,7 @@ package ar.edu.utn.frba.arbiter.rules.controllers;
 
 import ar.edu.utn.frba.arbiter.rules.dto.DocumentRequirementDto;
 import ar.edu.utn.frba.arbiter.rules.services.DocumentRequirementService;
+import ar.edu.utn.frba.arbiter.rules.services.InternalDocumentRequirementService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
@@ -26,6 +27,28 @@ import java.util.List;
 public class DocumentRequirementController {
 
     private final DocumentRequirementService documentRequirementService;
+    private final InternalDocumentRequirementService internalDocumentRequirementService;
+
+    @GetMapping("/internal")
+    @PreAuthorize("isAuthenticated()")
+    @Operation(summary = "[interno] Agenda documental por cobertura",
+            description = "Lectura system-to-system para classification-service (sin rol REFERENTE): la usa "
+                    + "el motor con un token de servicio que lleva el tenant. Keyea por cobertura —lo que el "
+                    + "claim tiene a mano— y resuelve el ramo puertas adentro. Sin agenda devuelve lista "
+                    + "vacía, nunca 404: el motor compone esto sobre su baseline.")
+    public List<String> internalByCoverage(@RequestParam Long coverageId) {
+        return internalDocumentRequirementService.getByCoverage(coverageId);
+    }
+
+    @GetMapping("/for-branch")
+    @PreAuthorize("isAuthenticated()")
+    @Operation(summary = "Agenda documental por nombre de ramo",
+            description = "Lectura para el asegurado (arma el uploader) y el analista (checklist de "
+                    + "faltantes): qué documentos requiere el ramo. Por NOMBRE de ramo, que es lo que la "
+                    + "póliza y el expediente tienen a mano. Sin agenda devuelve lista vacía.")
+    public List<String> getByBranchName(@RequestParam String branch) {
+        return documentRequirementService.getByBranchName(branch);
+    }
 
     @GetMapping
     @PreAuthorize("hasRole('REFERENTE_ASEGURADORA')")

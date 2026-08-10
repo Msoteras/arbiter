@@ -1,6 +1,8 @@
 package ar.edu.utn.frba.arbiter.rules.controllers;
 
 import ar.edu.utn.frba.arbiter.rules.dto.RuleTextResponse;
+import ar.edu.utn.frba.arbiter.rules.dto.RuleTextsDto;
+import ar.edu.utn.frba.arbiter.rules.services.InternalRuleTextService;
 import ar.edu.utn.frba.arbiter.rules.services.RuleTextService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -27,12 +29,26 @@ public class RuleTextController {
 
     private final RuleTextService commonExclusions;
     private final RuleTextService businessRules;
+    private final InternalRuleTextService internalRuleTexts;
 
     public RuleTextController(
             @Qualifier("commonExclusionsRuleTextService") RuleTextService commonExclusions,
-            @Qualifier("businessRulesRuleTextService") RuleTextService businessRules) {
+            @Qualifier("businessRulesRuleTextService") RuleTextService businessRules,
+            InternalRuleTextService internalRuleTexts) {
         this.commonExclusions = commonExclusions;
         this.businessRules = businessRules;
+        this.internalRuleTexts = internalRuleTexts;
+    }
+
+    @GetMapping("/internal/rule-texts")
+    @PreAuthorize("isAuthenticated()")
+    @Operation(summary = "[interno] Exclusiones y reglas de negocio por cobertura",
+            description = "Lectura system-to-system para classification-service (sin rol REFERENTE): la usa "
+                    + "el motor con un token de servicio que lleva el tenant. Keyea por cobertura —lo que el "
+                    + "claim tiene a mano— y resuelve el ramo puertas adentro. Sin configuración devuelve "
+                    + "listas vacías, nunca 404: el motor compone esto sobre su baseline.")
+    public RuleTextsDto internalRuleTexts(@RequestParam Long coverageId) {
+        return internalRuleTexts.getByCoverage(coverageId);
     }
 
     @GetMapping("/exclusions")

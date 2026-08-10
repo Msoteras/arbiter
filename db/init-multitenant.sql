@@ -207,12 +207,11 @@ INSERT INTO arbiter_common.user_role (user_id, role_id) VALUES
 INSERT INTO arbiter_common.user_insurer (user_id, insurer_id) VALUES
     (1, 1), (2, 1), (3, 1), (4, 2);
 
--- The two branches the business scope actually covers (Celulares, Tecnología
--- Portátil) plus Hogar, which the claim-cause catalog already referenced.
+-- Los dos ramos que el negocio cubre hoy. Hogar quedó fuera por ahora (no se trabaja con ese
+-- ramo todavía), así que Tecnología Portátil pasa a ser el branch 2 y los ids quedan contiguos.
 INSERT INTO arbiter_common.branch (id, name) VALUES
     (1, 'Celulares'),
-    (2, 'Hogar'),
-    (3, 'Tecnología Portátil');
+    (2, 'Tecnología Portátil');
 
 SELECT setval(pg_get_serial_sequence('arbiter_common.branch', 'id'),
               (SELECT MAX(id) FROM arbiter_common.branch));
@@ -225,10 +224,9 @@ INSERT INTO arbiter_common.claim_cause (id, name, branch_id) VALUES
     (2, 'Robo en vía pública', 1),
     (3, 'Hurto',               1),
     (4, 'Caída',               1),
-    (5, 'Incendio',            2),   -- Hogar
-    (6, 'Daño accidental',     3),   -- Tecnología Portátil
-    (7, 'Robo en vía pública', 3),
-    (8, 'Hurto',               3);
+    (6, 'Daño accidental',     2),   -- Tecnología Portátil (branch 2; Hogar quedó fuera)
+    (7, 'Robo en vía pública', 2),
+    (8, 'Hurto',               2);
 
 SELECT setval(pg_get_serial_sequence('arbiter_common.claim_cause', 'id'),
               (SELECT MAX(id) FROM arbiter_common.claim_cause));
@@ -709,15 +707,23 @@ BEGIN
              'Póliza al día con sus pagos', 'FAST_TRACK', 'APROBAR', 2, FALSE, 1)
         $ddl$, p_schema);
 
-    -- The AgendaDocumental for Celulares · Robo en vía pública.
+    -- AgendaDocumental sembrada con los códigos CANÓNICOS de tipo de documento — los mismos que usa
+    -- el alta de denuncia y classification (police_report / purchase_proof / imei_deregistration /
+    -- last_connection). Antes se sembraba con códigos ad-hoc (DNI/DENUNCIA_POLICIAL/…) que el front
+    -- no reconocía, y por eso la solapa Documentación no mostraba los defaults. Se siembra para
+    -- Celulares · "Robo en vía pública" (claim_cause 2) y Tecnología Portátil · "Daño accidental"
+    -- (claim_cause 6). El referente la amplía/recorta desde la pantalla de reglas (solapa
+    -- Documentación), que persiste sobre esta misma tabla.
     EXECUTE format($ddl$
         INSERT INTO %I.document_requirement (id, document_type, mandatory, risk_band, branch_id, claim_cause_id) VALUES
-            (1, 'DNI',               TRUE,  NULL, 1, 2),
-            (2, 'DENUNCIA_POLICIAL', TRUE,  NULL, 1, 2),
-            (3, 'FACTURA_COMPRA',    TRUE,  NULL, 1, 2),
-            (4, 'FOTO_BIEN',         FALSE, NULL, 1, 2),
-            -- Tightened for high-risk cases only.
-            (5, 'BLOQUEO_IMEI',      TRUE,  'HIGH', 1, 2)
+            (1, 'police_report',       TRUE, NULL, 1, 2),
+            (2, 'purchase_proof',      TRUE, NULL, 1, 2),
+            (3, 'imei_deregistration', TRUE, NULL, 1, 2),
+            (4, 'last_connection',     TRUE, NULL, 1, 2),
+            (5, 'police_report',       TRUE, NULL, 2, 6),
+            (6, 'purchase_proof',      TRUE, NULL, 2, 6),
+            (7, 'imei_deregistration', TRUE, NULL, 2, 6),
+            (8, 'last_connection',     TRUE, NULL, 2, 6)
         $ddl$, p_schema);
 
     -- Same values as classification-service's MockRulesAdapter.DEFAULT_SCORING_CONFIG

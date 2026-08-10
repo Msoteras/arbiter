@@ -39,22 +39,8 @@ export class RulesConfigService {
   }
 }
 
-// Config de scoring por defecto (H0012): 3 factores con lógica real re-pesados a sumar 1, y las
-// bandas documentadas (Bajo / Medio / Alto / Crítico sobre 0..1).
-const DEFAULT_SCORING = {
-  enabled: true,
-  factors: [
-    { factorId: 'amount_ratio', weight: 0.45 },
-    { factorId: 'claim_frequency', weight: 0.35 },
-    { factorId: 'policy_standing', weight: 0.2 },
-  ],
-  bands: [
-    { band: 'LOW' as const, minScoreInclusive: 0.0 },
-    { band: 'MEDIUM' as const, minScoreInclusive: 0.3 },
-    { band: 'HIGH' as const, minScoreInclusive: 0.6 },
-    { band: 'CRITICAL' as const, minScoreInclusive: 0.8 },
-  ],
-};
+// El scoring de fraude ya no vive por ramo: es una config única por aseguradora que administra
+// ScoringConfigComponent contra `/api/v1/rules/scoring`. Por eso los ramos del mock ya no lo llevan.
 
 const SEED_RAMOS: RamoRules[] = [
   {
@@ -109,10 +95,9 @@ const SEED_RAMOS: RamoRules[] = [
         'Monto del reclamo dentro del límite (Anexo II)',
       ],
     },
-    scoring: structuredClone(DEFAULT_SCORING),
   },
   {
-    id: '3',
+    id: '2',
     name: 'Tecnología Portátil',
     coverages: [
       {
@@ -162,6 +147,5 @@ const SEED_RAMOS: RamoRules[] = [
         'Monto del reclamo dentro del límite (Anexo II)',
       ],
     },
-    scoring: structuredClone(DEFAULT_SCORING),
   },
 ];

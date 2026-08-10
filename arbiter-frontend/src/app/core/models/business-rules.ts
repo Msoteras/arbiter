@@ -2,10 +2,10 @@ import { RiskBand } from './risk-band';
 
 // Modelo de configuración de reglas administrado por el referente. Es Ramo-céntrico: el Ramo
 // (Celular Protegido, Tecnología Portátil) es la unidad de configuración, y dentro viven las
-// coberturas, exclusiones, la agenda documental, el Fast Track (que es POR RAMO) y el scoring.
-// Refleja la estructura real del producto (manuales + condiciones generales BBVA). El
-// rules-service todavía no existe; cuando exista, servirá esta config y classification-service
-// la consumirá derivando por (ramo, hecho generador).
+// coberturas, exclusiones, la agenda documental y el Fast Track (que es POR RAMO).
+// El scoring de fraude NO vive acá: es una única config por aseguradora (no por ramo), la
+// administra ScoringConfigComponent contra `/api/v1/rules/scoring`. Ver ScoringConfig abajo.
+// Refleja la estructura real del producto (manuales + condiciones generales BBVA).
 
 /** Una cobertura del ramo (ej. Robo, Daño por tentativa de robo), con su cláusula y franquicia. */
 export interface Coverage {
@@ -55,6 +55,11 @@ export interface RiskBandCut {
   minScoreInclusive: number;
 }
 
+/**
+ * Scoring de fraude de la aseguradora. Es una config ÚNICA por aseguradora (no por ramo): el
+ * backend la persiste en `scoring_configuration` sin `branch_id` y la sirve en
+ * `/api/v1/rules/scoring`. La administra ScoringConfigComponent, fuera del master-detail de ramos.
+ */
 export interface ScoringConfig {
   enabled: boolean;
   factors: FactorWeight[];
@@ -73,7 +78,6 @@ export interface RamoRules {
   /** Reglas de negocio en texto libre. */
   businessRules: string[];
   fastTrack: FastTrackConfig;
-  scoring: ScoringConfig;
 }
 
 // ───────────────── Catálogos ─────────────────
@@ -90,6 +94,8 @@ export const RISK_FACTORS: RiskFactorDef[] = [
   { id: 'policy_standing', label: 'Situación de la póliza (vigencia / mora)' },
   { id: 'purchase_to_report_time', label: 'Tiempo entre compra y denuncia' },
   { id: 'document_inconsistency', label: 'Inconsistencias en la documentación' },
+  { id: 'image_reuse', label: 'Imagen reutilizada de otra denuncia' },
+  { id: 'image_web_match', label: 'Imagen publicada en la web' },
 ];
 
 export function riskFactorLabel(id: string): string {

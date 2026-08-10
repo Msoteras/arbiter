@@ -15,9 +15,18 @@
  *
  * <p>Por eso la regla general (CLAUDE.md) es que las tablas de tenant pertenecen al módulo dueño y
  * no a common-lib. Acá se hace excepción solo cuando <b>más de un módulo</b> necesita la misma
- * tabla y tener dos definiciones ya provocó drift — el caso de {@code Insured}, que auth-service y
- * cases-service declaraban por separado con campos distintos. No sumes una entidad acá porque sí:
- * si un solo módulo la usa, va en ese módulo.
+ * tabla. No sumes una entidad acá porque sí: si un solo módulo la usa, va en ese módulo. Las que
+ * están, y por qué:
+ *
+ * <ul>
+ *   <li>{@code Insured} — auth-service y cases-service la declaraban por separado con campos
+ *       distintos, y ya habían divergido.</li>
+ *   <li>{@code ClaimsAnalyst} — auth-service y cases-service, desde que la decisión del analista
+ *       se resuelve del JWT.</li>
+ *   <li>{@code Coverage} — cases-service es el dueño funcional, pero rules-service necesita su
+ *       {@code branchId} para servirle al motor de clasificación los textos del referente: el
+ *       motor solo tiene a mano un {@code coverageId}, y los textos se guardan por ramo.</li>
+ * </ul>
  *
  * <p>Consecuencia operativa: leer cualquiera de estas entidades <b>sin un tenant resuelto</b> cae
  * al esquema común, donde la tabla no existe. Los jobs que corren fuera de un request tienen que

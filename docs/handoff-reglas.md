@@ -10,6 +10,149 @@ previo. Fecha: 2026-08-07. Branch: `feature/backend-reglas-de-negocio`.
 
 ---
 
+## Update 2026-08-09 · scoring por aseguradora, agenda documental arreglada, catálogo de ramos
+
+Cambios de esta sesión (front + seeds + BD Railway re-seedeada). Rama de trabajo: `feature/front-details`.
+
+### Frontend
+- **Scoring de fraude: de por-ramo → por-aseguradora.** Estaba como una solapa dentro de cada ramo,
+  aunque el backend ya servía UNA sola config (`GET|PUT /api/v1/rules/scoring`, sin `branchId`). Se
+  sacó `scoring` de `RamoRules` (modelo `core/models/business-rules.ts`) y del mock; ahora vive en un
+  componente propio **`ScoringConfigComponent`** (`features/admin/scoring-config/`), como recuadro
+  aparte en la columna izquierda de la pantalla de Reglas (se elige como un ramo; el panel derecho
+  muestra su config de factores + bandas).
+- **Se quitó el toggle Habilitado/Deshabilitado del scoring.** El motor scorea si hay factores
+  (`BusinessRules.ScoringConfig` en classification ni tiene campo `enabled`), así que el flag
+  confundía. El front manda siempre `enabled=true`.
+- **Agenda documental (solapa Documentación): arreglada.** No levantaba los defaults ni reflejaba los
+  cambios. Causa raíz: el seed de `document_requirement` usaba códigos ad-hoc
+  (`DNI/DENUNCIA_POLICIAL/FACTURA_COMPRA/FOTO_BIEN/BLOQUEO_IMEI`) que el front no reconoce. El
+  vocabulario **canónico** (lo usa todo el resto del sistema) es
+  `police_report / purchase_proof / imei_deregistration / last_connection / repair_quote / item_photo`.
+  Se alineó el seed a esos códigos. El GET/PUT (`DocumentRulesService` ↔ `DocumentRequirementController`)
+  ya estaban bien cableados.
+- **Recarga tras guardar** agregada en Documentación, Fast Track, Reglas de negocio y Scoring (antes
+  solo la tenía Coberturas), para reflejar exactamente lo persistido.
+- **Fix de merge:** `arbiter-frontend/src/app/app.html` tenía el `@if (showAdminNav())` sin cerrar
+  (se comió el `}` al resolver el merge de `develop`) → Angular no compilaba. Corregido.
+
+### Catálogo de ramos (BD) — decisión de esta sesión
+- **Hogar eliminado** (no se trabaja con ese ramo por ahora) y **Tecnología Portátil pasó a ser el
+  branch 2** (antes 3), para dejar los ids contiguos. `claim_cause` de Tecnología (6/7/8) → `branch_id=2`;
+  se sacó Incendio (branch Hogar). Editado en `db/init-multitenant.sql` y `db/seed-demo.sql` (el coverage
+  de Tecnología del tenant Provincia → `branch_id=2`). El front mock `rules-config.service.ts` usa
+  `id:'2'` para Tecnología. ⚠️ **Front y BD tienen que ir juntos**: si la BD queda con Tecnología=3, la
+  pantalla de ese ramo lee/guarda contra el branch equivocado.
+- **BD Railway re-seedeada** (`reset → init → seed`) el 2026-08-09 con este catálogo nuevo. El reset es
+  destructivo: se perdió la data de prueba creada vía app (esperable). Estado final verificado.
+
+### Operativo (cómo correr los scripts de `db/`)
+- `psql` NO está instalado en la máquina; se corren con la imagen **`pgvector/pgvector:pg16`** de Docker
+  (o `scripts/db-railway.ps1` si hay psql en PATH). La conexión sale del `.env` (`DB_URL`/`DB_USER`/
+  `DB_PASSWORD`, pasada por `PGPASSWORD`). **Validar siempre en un contenedor descartable antes de tocar
+  Railway** (es compartida por el equipo).
+
+### ⏭️ Lo que sigue faltando en el backend (para que otro lo continúe)
+El trabajo del referente se **persiste** en rules-service, pero `classification-service` todavía solo
+consume de él los **umbrales de Fast Track** (`RulesRestAdapter` → `GET /internal/fast-track`). **NO
+consume aún**: el **scoring** (factores/bandas → `RiskScoringService`), las **exclusiones / reglas de
+negocio en texto** (van al prompt del LLM vía `PromptBuilder`), ni la **agenda documental**. Todo eso
+sigue saliendo del `MockRulesAdapter`. Próximo paso natural: extender `RulesRestAdapter` para superponer
+scoring + textos + agenda sobre el `BusinessRules` real (endpoints internos análogos al de Fast Track).
+Es la continuación de los pendientes P2/P3 de la sección 5.
+
+> **Actualización (ver el update de más abajo):** la parte de **textos** ya está hecha —
+> exclusiones y reglas de negocio sí llegan al prompt. Siguen pendientes el **scoring** y la
+> **agenda documental**.
+
+---
+
+## Update 2026-08-09 (2) · P2 cerrado: los textos del referente llegan al prompt
+
+Sobre la misma rama `feature/front-details`. Sigue de la sección de arriba.
+
+### ⚠️ Antes de correr nada después de pullear
+
+**`Coverage` se movió a `common-lib`.** Hay que instalar common-lib **una vez** antes de levantar
+cualquier módulo, o `run-local.ps1` explota con `ClassNotFoundException` aunque `mvn test` desde la
+raíz compile bien (el reactor la ve, `~/.m2` no):
+
+```
+mvn -pl common-lib install -DskipTests
+```
+
+### Qué se hizo
+
+- **`Coverage` → `common-lib/models/entities/tenant/`** (con su `StringListJsonConverter`). No fue
+  por gusto: el motor solo tiene `coverageId` como id real —`branch` y `claimCause` le llegan como
+  **nombres**, ver `ClaimReport`— pero los textos se guardan **por ramo**, así que hacía falta cruzar
+  cobertura → ramo y rules-service no podía leer `coverage`. Es el patrón que el `package-info` de
+  ese paquete ya documenta para tablas de tenant que necesita más de un módulo (como `Insured`); se
+  actualizó ese `package-info` con las 3 entidades y el porqué de cada una. El dueño funcional de
+  `coverage` sigue siendo cases-service — rules-service solo la lee, y con su propio repository.
+- **`GET /api/v1/rules/internal/rule-texts?coverageId=N`** (`RuleTextController` +
+  `InternalRuleTextService`), calcado de `/internal/fast-track`: `isAuthenticated()` en vez de rol
+  REFERENTE, token de servicio con el tenant, keyeado por cobertura, y devuelve listas vacías en vez
+  de 404 (el motor compone sobre su baseline; una clasificación no se cae por falta de config).
+- **`RulesRestAdapter`**: ahora hace **dos overlays independientes** (Fast Track y textos), cada uno
+  con su try/catch — si una lectura falla, la otra igual se aplica. Los textos **reemplazan** al
+  baseline del `MockRulesAdapter`; una lista vacía se lee como "no configurado" y lo deja intacto.
+- **`PromptBuilderTest`** (3 tests, no existía ninguno para esa clase): cubre el último eslabón, que
+  el texto del referente termine en el string del prompt.
+
+Verificado contra Railway con una reclasificación real (botón "Reintentar" del caso #5): el mock
+tenía 4 reglas para esa cobertura y el log quedó en `1 rules` — la del referente. El dato de prueba
+se borró de Railway al terminar.
+
+### Dos bugs de front arreglados de paso
+
+- **`proxy.conf.json` mandaba `/api/v1/auth` a 8090**, donde no escucha nadie (auth-service es 8080
+  según su `application.yml`, el `docker-compose` y el CLAUDE.md; era el único 8090 del repo). **El
+  login por `ng serve` estaba roto, también en `develop`.**
+- **`RISK_FACTORS` había derivado del backend**: `RiskFactorIds` define 7 factores y el front conocía
+  5 — faltaban `image_reuse` e `image_web_match`, que el seed tiene activos con 50% y 40%. El
+  referente los tenía invisibles pero sumando en el total. Mismo tipo de bug que el de los códigos de
+  documento. No había pérdida de datos: el guardado ya reenviaba el array completo.
+
+### ❗ Dos tests que YA estaban rotos antes de esto
+
+Verificado con `git stash` contra la rama limpia — **no son de este cambio**, pero conviene saberlo
+para no perder tiempo:
+
+- `ClassificationOrchestratorIntegrationTest.lowAmountFirstClaimUpToDate_shouldFastTrackWithoutCallingLLM`
+  — arma un `ClaimReport` **sin `coverageId`**, y desde que el Fast Track se scopea por cobertura
+  (PR #29) el mock no puede devolver umbrales. El test quedó viejo, no el código.
+- `RulesServiceApplicationTests.contextLoads` — no encuentra datasource ("Unable to determine
+  Dialect"), ni cargando el `.env`.
+
+### 🔀 Dos decisiones que quedaron abiertas para vos y Valen
+
+1. **La advertencia "los pesos deberían sumar 100%" del scoring contradice al motor.**
+   `RiskScoringService` **normaliza** (`score = weightedSum / totalWeight`) y su javadoc lo dice: el
+   score queda en [0,1] *"regardless of how many factors an insurer turns on or how it scales its
+   weights"*. O sea que los pesos son **relativos**, no absolutos, y no hay razón para que sumen 100.
+   La config sembrada suma 190% y la UI la marca como error de fábrica, sin que el referente pueda
+   hacer nada al respecto. Encima el motor re-normaliza excluyendo los factores no evaluables (los de
+   imagen en una denuncia sin fotos), así que exigir 100% es doblemente inútil. Hay que decidir: se
+   saca la regla de la UI, o se ajustan los pesos del seed (eso último es decisión de negocio).
+2. **El panel de ramos miente sobre las coberturas.** La lista y el contador ("2 coberturas") salen
+   del mock `rules-config.service.ts`, no del backend. Al referente de **BBVA** le muestra
+   "Tecnología Portátil · 2 coberturas", pero `db/seed-demo.sql` dice textual que ese ramo lo vende
+   *Provincia* y BBVA no: la solapa Coberturas abre vacía. Es lo último que queda de P3 (el "swap del
+   mock" de la sección 5) y necesita un CRUD de Branch en el backend.
+
+### Estado real de los pendientes de la sección 5
+
+| | Estado |
+|---|---|
+| P1 Probar Fast Track en vivo | ✅ hecho (persistencia, fan-out por cobertura y "deshabilitar vacía la config") |
+| P2 Textos → prompt | ✅ **hecho acá** |
+| P3 Cablear las solapas | 🟡 las 4 solapas ya pegan a HTTP real; falta solo la lista de ramos |
+| P4 Auditoría `resultado_regla` | ❌ `RuleResult` tiene entidad y repository, **cero escritores** |
+| P5 Campos diferidos Fast Track | ❌ |
+
+---
+
 ## 1. De qué va esto
 
 El referente de una aseguradora tiene que poder **configurar las reglas de negocio de su

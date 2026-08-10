@@ -1,4 +1,4 @@
-package ar.edu.utn.frba.arbiter.cases.models.entities;
+package ar.edu.utn.frba.arbiter.common.models.entities.tenant;
 
 import jakarta.persistence.Column;
 import jakarta.persistence.Convert;
@@ -20,15 +20,17 @@ import java.util.List;
 
 /**
  * Coverage a policy grants ("Cobertura" in CLAUDE.md's domain vocabulary) — sum insured,
- * deductible, per-policy limits. Today this data comes live from
- * {@code InsurerAdapter}/{@code MockInsurerAdapter} as part of {@code PolicyResponse}, not
- * from a local table; this is the target shape for persisting it, unused for now.
- * {@code branchId} is a logical reference to rules-service's Branch — cross-module, no FK.
+ * deductible, per-policy limits. {@code branchId} is a logical reference to the common-schema
+ * Branch — cross-module, no FK.
+ *
+ * <p>Shared here (and not owned by cases-service) because rules-service also needs it: the rule
+ * texts the referente writes are stored per branch, but the classification engine only carries a
+ * {@code coverageId} — branch and claim cause reach it as names, not ids. So resolving
+ * coverage → branch is what lets the engine ask for the texts that apply to a claim.
  *
  * <p>{@code deductible} is stored in percentage points (10.00 = 10%), not a 0..1 fraction —
  * matches the existing seed data. {@code clause} and {@code exclusions} have no backing table
- * in the DER (docs/decisiones-reglas-a-validar.md, D3/D7): parked here in JSONB until the
- * rules engine actually consumes them.
+ * in the DER (docs/decisiones-reglas-a-validar.md, D3/D7): parked here in JSONB.
  */
 @Entity
 @Table(name = "coverage")

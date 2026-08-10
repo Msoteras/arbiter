@@ -63,6 +63,16 @@
             <optional>true</optional>
         </dependency>
 
+        <!-- Jackson for the JSONB attribute converters of the shared tenant entities
+             (StringListJsonConverter). jjwt-jackson above is runtime-only, so it doesn't put
+             databind on the compile classpath. Optional, same reasoning as the rest: los módulos
+             que mapean estas entidades ya traen Jackson vía spring-boot-starter-web. -->
+        <dependency>
+            <groupId>com.fasterxml.jackson.core</groupId>
+            <artifactId>jackson-databind</artifactId>
+            <optional>true</optional>
+        </dependency>
+
         <!-- SendGrid SDK for SendGridAdapter (transactional mail: invites, password resets,
              notifications). Optional: each module using the adapter re-declares it, same
              approach as jjwt above. -->

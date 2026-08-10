@@ -2,6 +2,8 @@
 // los usa como clave del multipart (POST /cases/{id}/documents) y como columna `type` de
 // case_documents, así que el string tiene que coincidir exactamente.
 
+import { DOCUMENT_TYPES } from './business-rules';
+
 /** Forma de CaseDocumentResponse (cases-service). No trae el contenido, solo metadata. */
 export interface CaseDocument {
   id: number;
@@ -18,17 +20,18 @@ export interface CaseDocumentType {
 }
 
 /**
- * Los 4 tipos que el expediente puede llevar, en el orden en que se muestran.
- * Fuente única: la usan tanto el uploader (app-doc-upload) como la agenda documental
- * de la pestaña "documentación". Si divergen, el analista ve un checklist que no
- * matchea con lo que puede subir.
+ * Tipos de documento que el expediente puede llevar. **Fuente única: la agenda documental del
+ * referente** (`DOCUMENT_TYPES` en business-rules.ts): lo que el asegurado puede subir es
+ * exactamente el vocabulario que el referente administra como requerido. Antes esta lista tenía
+ * su propio set (`invoice`/`quote`) que no cruzaba con el del referente (`purchase_proof`/
+ * `imei_deregistration`/`last_connection`), así que un documento exigido no se podía subir. Al
+ * derivar de una sola fuente, el uploader (app-doc-upload), el wizard de denuncia y el checklist
+ * del analista hablan el mismo idioma que la configuración de reglas.
  */
-export const CASE_DOCUMENT_TYPES: readonly CaseDocumentType[] = [
-  { type: 'police_report', label: 'Denuncia policial' },
-  { type: 'item_photo', label: 'Foto del bien' },
-  { type: 'invoice', label: 'Factura de compra' },
-  { type: 'quote', label: 'Presupuesto de reparación' },
-] as const;
+export const CASE_DOCUMENT_TYPES: readonly CaseDocumentType[] = DOCUMENT_TYPES.map((d) => ({
+  type: d.code,
+  label: d.label,
+}));
 
 /** Etiqueta legible del tipo; si el backend manda uno desconocido, se muestra crudo. */
 export function documentTypeLabel(type: string): string {

@@ -9,21 +9,27 @@ import org.springframework.core.io.Resource;
 import org.springframework.stereotype.Component;
 
 import java.io.IOException;
+import java.math.BigDecimal;
 import java.nio.charset.StandardCharsets;
+import java.text.NumberFormat;
+import java.time.format.DateTimeFormatter;
+import java.util.Locale;
 
 @Component
 public class PromptBuilder {
 
+    private static final DateTimeFormatter EVENT_DATE_FORMAT = DateTimeFormatter.ofPattern("dd/MM/yyyy HH:mm");
+
     private final String promptTemplate;
 
     public PromptBuilder(
-            @Value("classpath:prompts/classification-v1.md") Resource promptResource
+            @Value("classpath:prompts/classification-v2.md") Resource promptResource
     ) throws IOException {
         this.promptTemplate = promptResource.getContentAsString(StandardCharsets.UTF_8);
     }
 
     public String getPromptVersion() {
-        return "classification-v1";
+        return "classification-v2";
     }
 
     public String buildFullPrompt(ClassificationRequest request) {
@@ -39,15 +45,37 @@ public class PromptBuilder {
                 ? "Sin reglas adicionales configuradas"
                 : request.insurerRules();
 
+        String eventDate = request.eventDate() == null
+                ? "No especificada"
+                : EVENT_DATE_FORMAT.format(request.eventDate());
+
+        String eventLocation = request.eventLocation() == null || request.eventLocation().isBlank()
+                ? "No especificado"
+                : request.eventLocation();
+
+        // claimedAmount es nullable (el wizard no lo exige): sin dato va texto, no null — String.replace
+        // no acepta reemplazo null.
+        String claimedAmount = request.claimedAmount() == null
+                ? "No declarado"
+                : formatAmount(request.claimedAmount());
+
         return promptTemplate
                 .replace("{{branch}}", request.branch())
                 .replace("{{product}}", request.product())
                 .replace("{{claimCause}}", request.claimCause())
                 .replace("{{insuredItem}}", request.insuredItem())
                 .replace("{{description}}", request.description())
+                .replace("{{eventDate}}", eventDate)
+                .replace("{{eventLocation}}", eventLocation)
+                .replace("{{claimedAmount}}", claimedAmount)
                 .replace("{{attachmentsOcr}}", attachmentsText)
                 .replace("{{insurerRules}}", rules)
                 .replace("{{insuredHistory}}", history);
+    }
+
+    /** Monto reclamado con separador de miles (es-AR): 1234567 → "$1.234.567". */
+    private static String formatAmount(BigDecimal amount) {
+        return "$" + NumberFormat.getNumberInstance(Locale.of("es", "AR")).format(amount);
     }
 
     public String renderRulesAndPolicy(BusinessRules rules, InsuredPolicy policy) {

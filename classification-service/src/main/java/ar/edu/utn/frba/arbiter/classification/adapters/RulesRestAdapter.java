@@ -8,6 +8,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Primary;
+import org.springframework.core.ParameterizedTypeReference;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.client.SimpleClientHttpRequestFactory;
 import org.springframework.stereotype.Component;
@@ -18,11 +19,12 @@ import java.time.Duration;
 import java.util.List;
 
 /**
- * Primary {@link RulesAdapter}: reads the referente-configured Fast Track thresholds from
- * rules-service (the DB) and overlays them on the {@link MockRulesAdapter} baseline. rules-service
- * only persists the Fast Track thresholds so far; the interpretive rules/exclusions and the scoring
- * config still come from the mock, so we <b>compose</b> rather than replace — the prompt and the
- * fraud score keep working unchanged, only the Fast Track gate now honors the persisted config.
+ * Primary {@link RulesAdapter}: reads what the referente configured in rules-service (the DB) and
+ * overlays it on the {@link MockRulesAdapter} baseline — the Fast Track thresholds that gate the
+ * expedited path, the free-text rules/exclusions that go into the LLM prompt, and the document
+ * agenda that the missing-docs gate checks. The scoring config still comes from the mock, so we
+ * <b>compose</b> rather than replace: whatever the insurer hasn't configured keeps working off the
+ * baseline.
  *
  * <p>Classification runs async: there's no user request/JWT on the thread, but the tenant schema is
  * propagated via {@link TenantContext}. So the call authenticates with a <b>service token</b> that
@@ -59,6 +61,13 @@ public class RulesRestAdapter implements RulesAdapter {
         if (coverageId == null) {
             return base;
         }
+        // Lecturas independientes a propósito: si una falla, las otras igual se aplican. Cada una
+        // cae a su parte del baseline sin tirar abajo la clasificación.
+        return overlayDocumentRequirements(
+                overlayRuleTexts(overlayFastTrack(base, coverageId), coverageId), coverageId);
+    }
+
+    private BusinessRules overlayFastTrack(BusinessRules base, Long coverageId) {
         try {
             FastTrackResponse ft = restClient.get()
                     .uri(uri -> uri.path("/api/v1/rules/internal/fast-track")
@@ -77,14 +86,86 @@ public class RulesRestAdapter implements RulesAdapter {
                             ft.requiresUpToDatePolicy(), ft.requiredDocumentTypes()))
                     .build();
         } catch (Exception e) {
-            log.warn("[RulesRestAdapter] rules-service unavailable for coverage {} — falling back to baseline: {}",
+            log.warn("[RulesRestAdapter] rules-service unavailable for Fast Track of coverage {} — baseline: {}",
                     coverageId, e.getMessage());
             return base;
         }
     }
 
+    /**
+     * Lo que el referente escribe en Coberturas (exclusiones) y Reglas de negocio. Reemplaza al
+     * baseline en vez de sumarse: si la aseguradora configuró sus reglas, las genéricas del mock no
+     * pintan nada. Una lista vacía se trata como "no configurado" y deja el baseline.
+     */
+    private BusinessRules overlayRuleTexts(BusinessRules rules, Long coverageId) {
+        try {
+            RuleTextsResponse texts = restClient.get()
+                    .uri(uri -> uri.path("/api/v1/rules/internal/rule-texts")
+                            .queryParam("coverageId", coverageId).build())
+                    .header(HttpHeaders.AUTHORIZATION, serviceToken())
+                    .retrieve()
+                    .body(RuleTextsResponse.class);
+            if (texts == null || texts.isEmpty()) {
+                log.debug("[RulesRestAdapter] No rule texts in DB for coverage {} — using baseline", coverageId);
+                return rules;
+            }
+            BusinessRules.BusinessRulesBuilder builder = rules.toBuilder();
+            if (texts.businessRules() != null && !texts.businessRules().isEmpty()) {
+                builder.rules(texts.businessRules());
+            }
+            if (texts.exclusions() != null && !texts.exclusions().isEmpty()) {
+                builder.exclusions(texts.exclusions());
+            }
+            log.info("[RulesRestAdapter] Rule texts loaded from rules-service for coverage {} — {} rules, {} exclusions",
+                    coverageId,
+                    texts.businessRules() == null ? 0 : texts.businessRules().size(),
+                    texts.exclusions() == null ? 0 : texts.exclusions().size());
+            return builder.build();
+        } catch (Exception e) {
+            log.warn("[RulesRestAdapter] rules-service unavailable for rule texts of coverage {} — baseline: {}",
+                    coverageId, e.getMessage());
+            return rules;
+        }
+    }
+
+    /**
+     * La agenda documental que el referente configuró para el ramo de la cobertura. Reemplaza al
+     * baseline del mock: es lo que el gate de faltantes ({@code checkRequiredDocuments}) compara
+     * contra lo que el asegurado subió. Una lista vacía = "no configurado" y deja el baseline.
+     */
+    private BusinessRules overlayDocumentRequirements(BusinessRules rules, Long coverageId) {
+        try {
+            List<String> agenda = restClient.get()
+                    .uri(uri -> uri.path("/api/v1/rules/document-requirements/internal")
+                            .queryParam("coverageId", coverageId).build())
+                    .header(HttpHeaders.AUTHORIZATION, serviceToken())
+                    .retrieve()
+                    .body(new ParameterizedTypeReference<List<String>>() {});
+            if (agenda == null || agenda.isEmpty()) {
+                log.debug("[RulesRestAdapter] No document agenda in DB for coverage {} — using baseline", coverageId);
+                return rules;
+            }
+            log.info("[RulesRestAdapter] Document agenda loaded from rules-service for coverage {} — {} docs",
+                    coverageId, agenda.size());
+            return rules.toBuilder().requiredDocumentTypes(agenda).build();
+        } catch (Exception e) {
+            log.warn("[RulesRestAdapter] rules-service unavailable for document agenda of coverage {} — baseline: {}",
+                    coverageId, e.getMessage());
+            return rules;
+        }
+    }
+
     private String serviceToken() {
         return "Bearer " + JwtSupport.issueServiceToken(jwtKey, "classification-service", TenantContext.get());
+    }
+
+    /** Mirrors rules-service's RuleTextsDto (the referente's free-text lists for the branch). */
+    private record RuleTextsResponse(List<String> exclusions, List<String> businessRules) {
+
+        boolean isEmpty() {
+            return (exclusions == null || exclusions.isEmpty())
+                    && (businessRules == null || businessRules.isEmpty());
+        }
     }
 
     /** Mirrors rules-service's FastTrackConfigDto (JSON shape of the persisted thresholds). */

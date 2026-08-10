@@ -393,6 +393,15 @@ export class BandejaComponent {
     () => this.session.session()?.rol === 'ANALISTA_SINIESTROS' && this.myAnalystId() != null,
   );
 
+  /**
+   * Solo el analista asigna. El referente ve la bandeja de solo lectura: la columna de analista
+   * queda informativa (sin "Asignarme"/"Reasignar"/"Liberar") y sin la lente "Mis asignados",
+   * porque no tiene expedientes propios.
+   */
+  protected readonly canAssign = computed(
+    () => this.session.session()?.rol === 'ANALISTA_SINIESTROS',
+  );
+
   protected isMine(c: ExpedienteResponse): boolean {
     return c.assignedAnalystId != null && c.assignedAnalystId === this.myAnalystId();
   }

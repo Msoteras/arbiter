@@ -1,4 +1,4 @@
-package ar.edu.utn.frba.arbiter.cases.models.entities;
+package ar.edu.utn.frba.arbiter.common.models.entities.tenant;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.core.type.TypeReference;
@@ -8,7 +8,7 @@ import jakarta.persistence.Converter;
 
 import java.util.List;
 
-/** Serializes a {@code List<String>} to a JSON array column — same convention as {@link RiskBreakdownJsonConverter}. */
+/** Serializes a {@code List<String>} to a JSON array column. Used by {@link Coverage#getExclusions()}. */
 @Converter
 public class StringListJsonConverter implements AttributeConverter<List<String>, String> {
 
