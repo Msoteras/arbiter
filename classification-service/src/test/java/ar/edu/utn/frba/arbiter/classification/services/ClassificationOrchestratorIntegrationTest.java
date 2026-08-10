@@ -203,6 +203,12 @@ class ClassificationOrchestratorIntegrationTest extends AbstractPersistenceIT {
                 .branch("Celulares")
                 .product("Celular Protegido Básico")
                 .claimCause("Robo en vía pública")
+                // Sin esto no hay Fast Track que probar: las reglas se scopean por cobertura
+                // (MockRulesAdapter.RULES_BY_COVERAGE), así que un claim sin coverageId cae a las
+                // genéricas, que no traen thresholds — el caso terminaba en el LLM y el mock sin
+                // stub devolvía null (D18). Cobertura 1 = "Robo de celular", la del hecho generador
+                // de este claim.
+                .coverageId(1L)
                 .insuredItem("Motorola Edge 50 Pro - IMEI 351000000000042")
                 .insuredId("40.123.456")
                 .policyNumber("POL-CEL-2024-001")
