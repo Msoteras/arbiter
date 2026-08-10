@@ -92,7 +92,7 @@
 
           <label class="field-label">¿Qué te pasó?</label>
           <div class="chips">
-            @for (t of claimTypes; track t.key) {
+            @for (t of claimTypes(); track t.key) {
               <button
                 type="button"
                 class="chip"
