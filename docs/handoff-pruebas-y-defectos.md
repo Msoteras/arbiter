@@ -254,9 +254,12 @@ que el siniestro haya ocurrido dentro de la vigencia.
 `BusinessRules.FastTrackThresholds`, que tienen 4 campos. Un caso de prueba tipo "póliza con menos de
 6 meses de vigencia → no aplica Fast Track" hoy falla.
 
-**D15 · El panel de ramos sale de un mock**
-No hay CRUD de `Branch`; la lista de ramos y sus coberturas es el `SEED_RAMOS` del front. Por eso le
-muestra Tecnología Portátil a BBVA. (P3 del handoff de reglas.)
+**D15 · El panel de ramos salía de un mock** — 🟡 **parcial (10/08)**: la lista ya es real
+La lista de ramos ahora sale del catálogo real (`GET /api/v1/rules/branches`, tabla `branch`) vía
+`BranchesService` — se eliminó el `SEED_RAMOS`/`RulesConfigService` del front. Como no hay CRUD de
+`Branch`, el ramo no se crea, renombra ni borra desde la pantalla (el nombre es de solo lectura); el
+catálogo lo fija el seed. Queda pendiente el CRUD de `Branch` si alguna vez el referente administra su
+propio catálogo de ramos.
 
 ### 🔵 Bajos
 

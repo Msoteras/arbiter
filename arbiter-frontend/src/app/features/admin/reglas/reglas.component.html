@@ -44,18 +44,8 @@
       } @else if (draft(); as d) {
         <div class="editor-head">
           <div class="editor-title">
-            <span class="t-section-label">Nombre del ramo</span>
-            <app-input class="ramo-name-field" [value]="d.name" (valueChange)="setName($event)" placeholder="Nombre del ramo" />
-            <button type="button" class="delete-ramo" (click)="requestDeleteRamo()">Eliminar ramo</button>
-          </div>
-          <div class="editor-actions">
-            @if (saved()) { <span class="saved-note">✓ Cambios guardados</span> }
-            <app-button variant="secondary" [disabled]="!dirty() || saving()" (click)="discard()">
-              Descartar
-            </app-button>
-            <app-button [disabled]="!dirty() || saving()" (click)="save()">
-              {{ saving() ? 'Guardando…' : 'Guardar cambios' }}
-            </app-button>
+            <span class="t-section-label">Ramo</span>
+            <h2 class="t-section-title">{{ d.name }}</h2>
           </div>
         </div>
 
@@ -385,18 +375,3 @@
     </div>
   </div>
 </div>
-
-<app-modal [open]="ramoToDelete() !== null" heading="▲ ¿Eliminar ramo?" (close)="cancelDeleteRamo()">
-  @if (ramoToDelete(); as r) {
-    <p class="t-body">
-      Vas a eliminar el ramo <strong>{{ r.name }}</strong> y toda su configuración (coberturas,
-      Fast Track, documentación y reglas). Esta acción no se puede deshacer.
-    </p>
-  }
-  <ng-container modalActions>
-    <app-button variant="secondary" [disabled]="deleting()" (click)="cancelDeleteRamo()">Cancelar</app-button>
-    <app-button [disabled]="deleting()" (click)="confirmDeleteRamo()">
-      {{ deleting() ? 'Eliminando…' : 'Sí, eliminar ramo' }}
-    </app-button>
-  </ng-container>
-</app-modal>

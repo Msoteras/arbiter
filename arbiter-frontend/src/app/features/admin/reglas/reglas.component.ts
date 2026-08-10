@@ -8,7 +8,7 @@ import {
   FastTrackConfig,
   RamoRules,
 } from '../../../core/models/business-rules';
-import { RulesConfigService } from '../rules-config.service';
+import { BranchOption, BranchesService } from '../branches.service';
 import { FastTrackConfigDto, FastTrackRulesService } from '../fast-track-rules.service';
 import { CoverageDetail, CoverageUpsertRequest, CoveragesRulesService } from '../coverages-rules.service';
 import { ClaimCauseOption, CoverageExclusionsService } from '../coverage-exclusions.service';
@@ -18,7 +18,6 @@ import { ButtonComponent } from '../../../shared/ui/button/button.component';
 import { CardComponent } from '../../../shared/ui/card/card.component';
 import { EmptyStateComponent } from '../../../shared/ui/empty-state/empty-state.component';
 import { InputComponent } from '../../../shared/ui/input/input.component';
-import { ModalComponent } from '../../../shared/ui/modal/modal.component';
 import { ScoringConfigComponent } from '../scoring-config/scoring-config.component';
 import { StringListEditorComponent } from './string-list-editor.component';
 
@@ -28,9 +27,9 @@ type TabId = 'coberturas' | 'fastTrack' | 'documentacion' | 'reglas';
  * Configuración de reglas del referente, Ramo-céntrica. Master (lista de ramos) + detalle con
  * solapas: Coberturas, Fast Track, Documentación y Reglas. Trabaja sobre un draft en memoria por
  * solapa; cada una tiene su propio botón "Guardar X" que persiste contra el backend real
- * (cases-service para Coberturas, rules-service para las otras). El "Guardar cambios" /
- * "Descartar" globales de arriba solo cubren el nombre del ramo y el alta/baja de ramos, que
- * siguen en RulesConfigService (mock): no existe todavía un CRUD de Branch en el backend.
+ * (cases-service para Coberturas, rules-service para las otras). La lista de ramos sale del
+ * catálogo REAL (BranchesService → rules-service /branches); no hay CRUD de Branch, así que el ramo
+ * no se crea, renombra ni borra desde acá — su catálogo lo fija el seed.
  * El scoring de fraude NO es por ramo: es una config única por aseguradora y vive en una sección
  * aparte de la pantalla (ScoringConfigComponent), fuera de este master-detail.
  * Porcentajes en la UI (0..100) ↔ fracción (0..1) en el modelo, que es el contrato del back.
@@ -42,7 +41,6 @@ type TabId = 'coberturas' | 'fastTrack' | 'documentacion' | 'reglas';
     CardComponent,
     EmptyStateComponent,
     InputComponent,
-    ModalComponent,
     ScoringConfigComponent,
     StringListEditorComponent,
   ],
@@ -51,7 +49,7 @@ type TabId = 'coberturas' | 'fastTrack' | 'documentacion' | 'reglas';
   styleUrl: './reglas.component.scss',
 })
 export class ReglasComponent {
-  private readonly service = inject(RulesConfigService);
+  private readonly branchesService = inject(BranchesService);
   private readonly ftService = inject(FastTrackRulesService);
   private readonly coveragesService = inject(CoveragesRulesService);
   private readonly exclusionsService = inject(CoverageExclusionsService);
@@ -97,17 +95,39 @@ export class ReglasComponent {
   // aseguradora ('scoring'), que no pertenece a ningún ramo y se elige desde su propio recuadro.
   protected readonly view = signal<'ramo' | 'scoring'>('ramo');
   protected readonly draft = signal<RamoRules | null>(null);
-  protected readonly dirty = signal(false);
-  protected readonly saving = signal(false);
-  protected readonly saved = signal(false);
 
   constructor() {
-    this.service.list().subscribe((list) => {
-      this.ramos.set(list);
-      if (list.length > 0) {
-        this.select(list[0]);
+    // La lista sale del catálogo real de ramos (tabla branch). Cada ramo arranca como un shell
+    // (solo id + nombre); el detalle de cada solapa se carga del backend al seleccionarlo.
+    this.branchesService.list().subscribe((branches) => {
+      const ramos = branches.map((b) => this.shellFromBranch(b));
+      this.ramos.set(ramos);
+      if (ramos.length > 0) {
+        this.select(ramos[0]);
       }
     });
+  }
+
+  /** Shell de RamoRules a partir del ramo real: id + nombre; el resto lo llena el backend al select. */
+  private shellFromBranch(branch: BranchOption): RamoRules {
+    return {
+      id: String(branch.id),
+      name: branch.name,
+      coverages: [],
+      commonExclusions: [],
+      requiredDocuments: [],
+      businessRules: [],
+      fastTrack: {
+        enabled: false,
+        minPolicyAgeMonths: null,
+        maxPriorClaims: null,
+        priorClaimsWindowMonths: null,
+        maxClaimedAmountRatio: null,
+        requiresUpToDatePolicy: true,
+        requiredDocumentTypes: [],
+        criteria: [],
+      },
+    };
   }
 
   protected isSelected(r: RamoRules): boolean {
@@ -124,8 +144,6 @@ export class ReglasComponent {
     this.selectedId.set(r.id);
     this.draft.set(structuredClone(r));
     this.activeTab.set('coberturas');
-    this.dirty.set(false);
-    this.saved.set(false);
     this.ftSaved.set(false);
     this.ftError.set(null);
     this.covSaved.set(false);
@@ -328,50 +346,10 @@ export class ReglasComponent {
     this.activeTab.set(t);
   }
 
-  // ───────────────── Alta / renombre / baja de ramos ─────────────────
-  // Mockeado: hoy Arbiter solo soporta Celular y Tecnología, pero el alta/baja queda armada
-  // para cuando cada aseguradora administre su propio catálogo de productos.
-  protected setName(name: string): void {
-    this.patch({ name });
-  }
-
-  // El alta de ramos está deshabilitada a propósito: no existe CRUD de Branch en el backend, así que
-  // el catálogo de ramos es fijo (lo administra el seed, no el referente). Cuando exista el CRUD,
-  // vuelve el botón "+ Nuevo ramo" y su addRamo().
-
-  protected readonly ramoToDelete = signal<RamoRules | null>(null);
-  protected readonly deleting = signal(false);
-
-  protected requestDeleteRamo(): void {
-    const d = this.draft();
-    if (d) {
-      this.ramoToDelete.set(d);
-    }
-  }
-
-  protected cancelDeleteRamo(): void {
-    this.ramoToDelete.set(null);
-  }
-
-  protected confirmDeleteRamo(): void {
-    const ramo = this.ramoToDelete();
-    if (!ramo || this.deleting()) {
-      return;
-    }
-    this.deleting.set(true);
-    this.service.remove(ramo.id).subscribe(() => {
-      this.ramos.update((list) => list.filter((r) => r.id !== ramo.id));
-      this.deleting.set(false);
-      this.ramoToDelete.set(null);
-      const next = this.ramos()[0];
-      if (next) {
-        this.select(next);
-      } else {
-        this.selectedId.set(null);
-        this.draft.set(null);
-      }
-    });
-  }
+  // ───────────────── Ramos ─────────────────
+  // El ramo no se crea, renombra ni borra desde acá: no existe CRUD de Branch en el backend, así que
+  // el catálogo es fijo (lo fija el seed) y esta pantalla solo configura lo de adentro. El nombre se
+  // muestra de solo lectura. Cuando exista el CRUD de Branch, vuelven el alta, el renombre y la baja.
 
   // ───────────────── Coberturas ─────────────────
   protected addCoverage(): void {
@@ -737,30 +715,6 @@ export class ReglasComponent {
     return e instanceof Error ? e.message : 'No se pudo guardar.';
   }
 
-  // ───────────────── Guardar / descartar ─────────────────
-  protected save(): void {
-    const d = this.draft();
-    if (!d || !this.dirty() || this.saving()) {
-      return;
-    }
-    this.saving.set(true);
-    this.service.save(d).subscribe((updated) => {
-      this.ramos.update((list) => list.map((r) => (r.id === updated.id ? updated : r)));
-      this.saving.set(false);
-      this.dirty.set(false);
-      this.saved.set(true);
-    });
-  }
-
-  protected discard(): void {
-    const original = this.ramos().find((r) => r.id === this.selectedId());
-    if (original) {
-      this.draft.set(structuredClone(original));
-      this.dirty.set(false);
-      this.saved.set(false);
-    }
-  }
-
   // ───────────────── Helpers ─────────────────
   private patch(partial: Partial<RamoRules>): void {
     this.draft.update((d) => (d ? { ...d, ...partial } : d));
@@ -772,9 +726,11 @@ export class ReglasComponent {
     this.markDirty();
   }
 
+  // Cada solapa persiste con su propio botón "Guardar X"; ya no hay un guardado global de ramo que
+  // dependa de un flag "sucio", así que marcar cambios quedó sin efecto (se conserva el gancho por
+  // si alguna solapa quiere resaltar cambios sin guardar en el futuro).
   private markDirty(): void {
-    this.dirty.set(true);
-    this.saved.set(false);
+    /* no-op */
   }
 
   private pctFromRatio(ratio: number | null): string {
