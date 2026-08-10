@@ -1,9 +1,9 @@
 # Plan — Reglas duras evaluables + auditoría en `rule_result`
 
-**Fecha:** 09/08/2026 · **Rama:** `feature/fix-defectos-aylen` · **Estado:** ✅ **implementado (10/08)
-en su opción (a)** — pasos 1–5. Decisión §2 resuelta como **(a)** (backend + seed, sin UII del
-referente). **Pendiente:** paso 6 (sacar las exclusiones del prompt + `classification-v3`), paso 7
-(UI, si se elige (b)) y el corte degradado del paso 3. **Sin validar en vivo.**
+**Fecha:** 09/08/2026 · **Rama:** `feature/fix-defectos-aylen` · **Estado:** ✅ **implementado (10/08)** —
+pasos 1–5 y **7 (UI del referente)**. Decisión §2: se hizo primero la **(a)** (backend + seed) y luego
+se sumó la **(b)** conectando la pantalla de reglas existente. **Pendiente:** paso 6 (sacar las
+exclusiones del prompt + `classification-v3`) y el corte degradado del paso 3. **Sin validar en vivo.**
 
 **Cierra:** D3, D4a (la parte de exclusiones), D4c del
 [handoff de pruebas y defectos](handoff-pruebas-y-defectos.md).
@@ -188,13 +188,21 @@ no se puede cambiar el prompt sin versionarlo.
 **Cierra D4a** en la parte que corresponde (las duras). El matiz del handoff se mantiene: las
 interpretativas siguen y deben seguir en el prompt.
 
-### Paso 7 · (solo si se elige (b)) UI del referente
+### Paso 7 · UI del referente — ✅ **hecho (10/08)**
 
-Solapa *Reglas de negocio*: selector múltiple de hechos generadores por cobertura. Ojo con el
-**fan-out** que ya usa Fast Track (la UI configura por ramo y el front escribe a todas las coberturas
-del ramo) — acá **no aplica**: una exclusión es por cobertura por definición, así que esta solapa
-tiene que trabajar por cobertura, no por ramo. Es una diferencia de comportamiento respecto de las
-otras solapas y hay que decidirla explícitamente con Valen/Mar.
+Selector múltiple de hechos generadores **por cobertura** en la solapa *Coberturas* (no *Reglas de
+negocio*: la exclusión dura vive al lado de cada cobertura, junto a las exclusiones en texto). Se
+trabaja **por cobertura**, no por ramo — sin el fan-out de Fast Track, porque una exclusión es por
+cobertura por definición.
+- **Backend (rules-service)**: `CoverageExclusionController` (rol REFERENTE) con
+  `GET/PUT /coverage-exclusions?coverageId` (+`branchId` en el PUT) y `GET /claim-causes?branchId`
+  (id + nombre, para el selector). `CoverageExclusionRuleService` hace el upsert de la fila
+  `COVERAGE_EXCLUSION` con snapshot de historial, igual que Fast Track.
+- **Front**: `CoverageExclusionsService` + chips de hechos generadores por cobertura en
+  `reglas.component`. Se guardan dentro de "Guardar coberturas" (solo para coberturas ya
+  persistidas; una recién creada las configura tras el reload). El **alta de ramos se deshabilitó**
+  (no hay CRUD de Branch; el catálogo de ramos lo fija el seed).
+- **Test**: `CoverageExclusionRuleServiceTest` (get/upsert/historial/catálogo).
 
 ---
 

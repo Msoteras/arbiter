@@ -46,8 +46,12 @@ public class CoverageRuleEvaluator {
             if (!COVERAGE_EXCLUSION.equals(rule.ruleType())) {
                 continue;
             }
+            // Una exclusión sin hechos generadores configurados no excluye nada: no hay regla que
+            // evaluar ni que auditar (el referente puede dejar la lista vacía desde la UI).
+            if (rule.excludedClaimCauseIds() == null || rule.excludedClaimCauseIds().isEmpty()) {
+                continue;
+            }
             boolean causeExcluded = claim.claimCauseId() != null
-                    && rule.excludedClaimCauseIds() != null
                     && rule.excludedClaimCauseIds().contains(claim.claimCauseId());
             // PASS = la cobertura cubre el hecho generador (regla satisfecha);
             // FAIL = lo excluye (la regla dispara).

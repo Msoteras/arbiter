@@ -20,9 +20,6 @@
           <li class="ramo-empty t-note">No hay ramos configurados.</li>
         }
       </ul>
-      <app-button class="add-ramo" variant="secondary" size="sm" [block]="true" (click)="addRamo()">
-        + Nuevo ramo
-      </app-button>
     </app-card>
 
     <!-- ───────── Scoring de riesgo: config única por aseguradora, no pertenece a ningún ramo ─────────
@@ -155,6 +152,34 @@
                       addLabel="+ Agregar exclusión"
                       emptyText="Sin exclusiones específicas."
                     />
+                  </div>
+
+                  <div class="cov-excl">
+                    <span class="t-field-label">Hechos generadores NO cubiertos</span>
+                    <p class="section-hint">
+                      Exclusión dura: si se denuncia uno de estos hechos sobre esta cobertura, el
+                      motor lo detecta por regla (bloquea Fast Track y deriva a revisión), no el
+                      modelo.
+                    </p>
+                    @if (!canEditExclusions(c)) {
+                      <p class="t-note">Guardá la cobertura primero para configurar sus exclusiones.</p>
+                    } @else if (claimCauses().length === 0) {
+                      <p class="t-note">No hay hechos generadores en este ramo.</p>
+                    } @else {
+                      <div class="chips">
+                        @for (cause of claimCauses(); track cause.id) {
+                          <button
+                            type="button"
+                            class="chip"
+                            [class.active]="isCauseExcluded(c, cause.id)"
+                            [attr.aria-pressed]="isCauseExcluded(c, cause.id)"
+                            (click)="toggleExcludedCause(c.id, cause.id)"
+                          >
+                            {{ cause.name }}
+                          </button>
+                        }
+                      </div>
+                    }
                   </div>
                 </app-card>
               }
