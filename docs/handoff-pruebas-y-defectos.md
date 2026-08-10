@@ -266,10 +266,12 @@ lee. La regla "denuncia policial dentro de las 48 hs" era literalmente inverific
 > negocio" del prompt: la limpieza de ese texto (tipo paso 6) es aparte.
 
 **D14 · Criterios de Fast Track que la UI promete y el motor no tiene**
-`minPolicyAgeMonths` y `priorClaimsWindowMonths` están en el mock del front
-(`rules-config.service.ts:138`) y **no existen** en `FastTrackConfigDto` ni en
-`BusinessRules.FastTrackThresholds`, que tienen 4 campos. Un caso de prueba tipo "póliza con menos de
-6 meses de vigencia → no aplica Fast Track" hoy falla.
+`minPolicyAgeMonths` y `priorClaimsWindowMonths` están en el modelo del front
+(`core/models/business-rules.ts`, `FastTrackConfig`) y en la solapa Fast Track, pero **no existen**
+en `FastTrackConfigDto` ni en `BusinessRules.FastTrackThresholds` (4 campos), y `saveFastTrack()` no
+los manda. Un caso tipo "póliza con menos de 6 meses → no aplica Fast Track" hoy no se evalúa. Suma
+lo mismo la lista **`criteria`** (criterios descriptivos): es editable en la UI y `saveFastTrack()`
+la omite (queda en el draft, no viaja al backend).
 
 **D15 · El panel de ramos salía de un mock** — ✅ **RESUELTO (10/08)**
 La lista de ramos sale del catálogo real (`GET /api/v1/rules/branches`, tabla `branch`) vía
@@ -332,6 +334,7 @@ re-verificado ahora.)* Decidir con Mar/Valen: sacar la regla o ajustar el seed.
 | D15 | Medio | ✅ Resuelto (10/08) — lista real + CRUD de ramos (`BranchController`) | Aylén |
 | D16, D17 | Bajo | Abierto | — |
 | D18 | Bajo | ✅ Resuelto (09/08) — reactor completo verde, 334 tests | Aylén |
+| **D21–D30** | Alto→Bajo | **Abierto — relevo de desconexiones back↔front (10/08), ver §9** | — |
 
 ---
 
@@ -351,6 +354,9 @@ el plan de pruebas no liste como componente algo que no existe:
   encabezado. → **Marcar explícitamente fuera de alcance de esta iteración de testing.**
 - **Detección de fraude documental.** Hoy la cascada cubre reuso interno (CLIP + pgvector) y match web
   (Google Vision). Un documento *fabricado* no dispara ninguno de los dos.
+- **Mensajería asegurado ↔ analista.** La solapa "Conversación" del expediente
+  (`expediente-detail.component.html`) es un placeholder vacío — no existe backend de chat. Distinto
+  de las notificaciones SendGrid (que son one-way, cambio de estado): esto sería bidireccional.
 
 ---
 
@@ -408,3 +414,102 @@ Ordenado por lo que más rinde:
   Observaciones del Resultado · Tester.
 - **Tests con Testcontainers**: sufijo `*Tests.java`, nunca `*IT.java` (Surefire los excluye en
   silencio).
+
+---
+
+## 9 · Relevo de desconexiones back↔front (10/08)
+
+Barrido del código —fuera de lo que ya cubren D1–D20 y §5— para "dejar la app realmente conectada".
+Foco: cosas mockeadas, y config/datos que un lado establece y el otro no usa. Ordenado por impacto.
+
+### 🟠 Altos
+
+**D21 · El scoring de fraude que configura el referente NUNCA llega al motor**
+`ScoringConfigurationController` sirve `GET|PUT /api/v1/rules/scoring` y persiste
+`ScoringConfiguration` + `FactorWeight` + `ScoreBand` (el front los edita en `ScoringConfigComponent`).
+Pero **no existe `/internal/scoring`** y `RulesRestAdapter` **no overlaya el scoring**: `RiskScoringService`
+lee `BusinessRules.scoringConfig()`, que solo lo setea el `MockRulesAdapter`
+(`DEFAULT_SCORING_CONFIG`). El propio comentario lo admite (`RulesRestAdapter` javadoc: "The scoring
+config still comes from the mock"). Consecuencia: **todo el panel de scoring del referente es
+decorativo** — los pesos/bandas/factores que carga no cambian ni una corrida. Es más profundo que D17
+(que es solo la advertencia de UI de los pesos). Ligado: `cases.scoring_configuration_id` nunca se
+escribe (no hay id de config que auditar). **Fix**: endpoint `/internal/scoring` + `overlayScoring`
+en `RulesRestAdapter`, mismo patrón que Fast Track / coverage-limits.
+
+**D22 · El `riskScore` numérico y el `riskBreakdown` se calculan y viajan, pero el front no los muestra**
+`CaseResponse` expone `riskScore` (Double) y `riskBreakdown` (aporte por factor + `rationale`,
+`RiskBreakdownItem`), pensados "for the analyst's fraud-gauge". El front (`core/models/expediente.ts`)
+**no declara ninguno de los dos**: solo usa `riskBand`, y el `FraudGaugeComponent` es categórico (4
+bandas, sin número). Grep confirma cero referencias a `riskScore`/`riskBreakdown` en el front.
+Consecuencia: el analista ve "Alto/Bajo" pero nunca el score ni **qué factor lo empujó** — el trabajo
+del motor de scoring queda invisible. (Distinto del `forensicReport` de imágenes, que sí se muestra.)
+Junto con D21: el scoring está desconectado en las dos puntas (config no entra, salida no se muestra).
+
+### 🟡 Medios
+
+**D23 · Alta de usuario: `sector` (obligatorio) y `fechaIngreso` se descartan en silencio**
+El front manda `sector` + `fechaIngreso` (`user-admin.service.ts`) y el form **exige `sector`**
+(`alta-usuario.component.ts`), pero el `CreateUserRequest` del back (auth-service) solo tiene
+`email/nombre/apellido/rol` → Jackson los ignora y **nunca se persisten**. Al revés, `UserResponse`
+del back no devuelve `sector`/`fechaIngreso`, así que las columnas **Sector** y **Fecha de ingreso**
+de la grilla salen siempre "—". Mismatch en los dos sentidos. (Auth estaba marcado "no revisado" en
+§1; esto es concreto.)
+
+**D24 · "Aceptar / Modificar" la clasificación sugerida (vista analista) no persiste**
+`expediente-detail.component` — `acceptClassif()` / `modifyClassif()` solo setean una señal local y
+muestran "✓ Clasificación aceptada" / "Marcada para modificar", pero **no pegan a ningún backend**: no
+hay endpoint, no queda auditoría, se pierde al recargar. La UI aparenta una acción que no ocurre.
+(Distinto de APPROVE/REJECT, que sí van a `/decision`.)
+
+**D25 · "Suma asegurada" por cobertura: input editable que nunca se persiste ni se carga**
+Solapa Coberturas — el input "Suma asegurada ($)" está vivo y editable, pero `overlayCoverages` lo
+setea **siempre en `null`** y `toCoverageRequest` **no lo manda**. El referente lo escribe, se
+descarta al guardar y vuelve vacío al recargar. `CoveragesRulesService` documenta que a propósito no
+hay campo en el DER (la suma vive en la póliza) — entonces el input **sobra** y confunde. Decidir:
+sacarlo, o mostrarlo read-only desde la póliza.
+
+**D26 · Filtro "Tipo de siniestro" de la bandeja: catálogo hardcodeado (con valores inexistentes)**
+`bandeja.component.ts` — `claimCauseOptions` es una lista fija de 4 (`Robo en vía pública`, `Hurto`,
+`Rotura accidental`, `Siniestro general`); los dos últimos **no existen** en el catálogo real (mismo
+problema que el wizard viejo, §2.2). El endpoint real ya existe (`GET /claim-causes` /
+`GET /rules/claim-causes`) y el wizard ya migró — la bandeja quedó con el mock, así que filtrar por
+esas opciones da resultados vacíos/incompletos.
+
+**D27 · `PolicySnapshot`: entidad con cero escritores y cero lectores**
+`PolicySnapshot` + `PolicySnapshotRepository` no se inyectan en ningún lado y `Case.policySnapshot`
+(FK) nunca se setea (el javadoc lo admite). La "foto" de la póliza al momento de la denuncia —que el
+scoring leería para `policy_standing`/`claim_frequency` y que pide la reproducibilidad de la Disp. SSN
+2/2023— **no se guarda**. Análogo a `Notification`/`Metric` (§5) pero no estaba documentado.
+
+### 🔵 Bajos
+
+**D28 · Filas muertas en la grilla del expediente (analista)**
+`expediente-detail.component.ts` hardcodea `value: null` permanente en `Canal de origen`, `N° de
+certificado`, `Tomador` y `Hecho generador` → siempre "Sin datos". Ojo: `Hecho generador` duplica a
+`Causa` (que sí trae `claimCause`) — uno vivo y otro muerto.
+
+**D29 · Columnas de `cases` sin uso**
+`fraud_determined` y `destination` (`Case.java`): sin writer ni reader — no hay flujo "marcar como
+fraude" ni "derivar" del analista (solo aprobar/rechazar). Más `scoring_configuration_id` (ligado a
+D21). Análogo a D9 pero en `cases`.
+
+**D30 · Endpoints sin consumidor (solo Postman/PoC)**
+`ClassificationController` (`POST /api/v1/classifications`, `GET /classifications/results`, "isolated
+testing") e `ImageEmbeddingController` (`POST /api/v1/image-embeddings/check-duplicate`, "(PoC)") no
+los llama nadie (ni front ni back — el flujo real entra por `/api/v1/claims` y el reuso de imágenes va
+directo por el pipeline). `proxy.conf.json` rutea `/classifications` al pedo. Muertos o de test.
+
+### Menores (no defectos, limpieza)
+- **Comentario obsoleto** `Case.java` ("classification-service doesn't call rules-service yet, still
+  MockRulesAdapter"): falso desde D3/D4 (`RulesRestAdapter` es `@Primary`).
+- **History repos write-only**: `InsurerRuleHistoryRepository` y `ScoringConfigurationHistoryRepository`
+  solo reciben `save(...)`, ningún lector — si la auditoría debía ser consultable, falta el read.
+- **D19 son DOS adapters**: `InsurerDatabaseAdapter` existe en cases-service **y** en
+  classification-service; ambos leen el schema bare `aseguradora`. Migrar los dos.
+
+### Estado
+| ID | Sev | Dueño |
+|----|-----|-------|
+| D21 (scoring no llega al motor), D22 (score/breakdown no se muestra) | Alto | — |
+| D23 (sector/fechaIngreso), D24 (aceptar/modificar), D25 (suma asegurada), D26 (filtro bandeja), D27 (PolicySnapshot) | Medio | — |
+| D28 (filas muertas), D29 (columnas cases), D30 (endpoints sin uso) | Bajo | — |
