@@ -99,18 +99,44 @@ Severidad según los criterios del plan de pruebas (Crítico / Alto / Medio / Ba
 
 ### 🔴 Críticos
 
-**D1 · Cualquier asegurado puede subir documentos al expediente de otro**
-`POST /cases/{id}/documents` es `hasAnyRole('ASEGURADO','REFERENTE_ASEGURADORA')`, y
-`addDocumentsAndReclassify` (`CaseServiceImpl.java:120`) hace `findById` y nada más: **no pasa por
-`CaseAccessPolicy`**. Los *reads* sí están cerrados (`readableCase`, línea 366), este *write* no.
-Impacto: subir documentación a un expediente ajeno y forzarle una reclasificación.
-*Se prueba con Postman en dos minutos: dos asegurados, el id de expediente del otro.*
+**D1 · Cualquier asegurado puede subir documentos al expediente de otro** — ✅ **RESUELTO (Aylén, 09/08)**
+`POST /cases/{id}/documents` era `hasAnyRole('ASEGURADO','REFERENTE_ASEGURADORA')`, y
+`addDocumentsAndReclassify` hacía `findById` y nada más: **no pasaba por `CaseAccessPolicy`**. Los
+*reads* sí estaban cerrados (`readableCase`), este *write* no. Impacto: subir documentación a un
+expediente ajeno y forzarle una reclasificación.
+- **Fix**: la carga pasa por `readableCase(caseId)`, el mismo control de pertenencia que las
+  lecturas → 404 (no 403) sobre un expediente ajeno, por la razón que documenta `CaseAccessPolicy`
+  (los ids son secuenciales).
+- **Test**: `CaseServiceImplTest.addDocumentsAndReclassify_someoneElsesCase_isRejected` — verifica
+  además que no se guarde documento ni se reencole clasificación.
 
-**D2 · El alta de denuncia no valida a nombre de quién se denuncia**
-En `createCase`, `insuredId` (DNI) y `policyNumber` salen del payload y se resuelven por separado
-(`CaseReferenceResolver`), sin compararse contra el usuario del JWT **ni entre sí**. Se puede
-denunciar sobre la póliza de otro, o combinar el DNI de uno con la póliza de otro. El único uso de
-`CallerContext` en ese servicio es para resolver la aseguradora (línea 219).
+**D2 · El alta de denuncia no valida a nombre de quién se denuncia** — ✅ **RESUELTO (Aylén, 09/08)**
+En `createCase`, `insuredId` (DNI) y `policyNumber` salían del payload y se resolvían por separado
+(`CaseReferenceResolver`), sin compararse contra el usuario del JWT **ni entre sí**. Se podía
+denunciar sobre la póliza de otro, o combinar el DNI de uno con la póliza de otro.
+- **Fix, dos chequeos**: (1) el `insuredId` del payload tiene que ser el DNI del token
+  (`CallerContext`) → `InsuredIdentityMismatchException`, **403**; se valida, no se sobreescribe en
+  silencio, para que un front que manda mal el campo falle fuerte. (2) `policy.insuredId` tiene que
+  ser el id del asegurado resuelto → `PolicyInsuredMismatchException`, **422**; con `Objects.equals`,
+  así una póliza sin dueño sincronizado tampoco pasa (dueño que no se puede verificar = no se
+  acepta).
+- **Tests**: `createCase_denunciaOnBehalfOfAnotherInsured_isRejected`,
+  `createCase_callerWithoutDni_isRejected`, `createCase_policyBelongingToAnotherInsured_isRejected`,
+  `createCase_policyOfTheInsuredFiling_goesThrough`.
+
+**D20 · Los endpoints del asegurado estaban habilitados para el referente** — ✅ **RESUELTO (Aylén, 09/08)**
+*Detectado al arreglar D1/D2.* `POST /cases` y `POST /cases/{id}/documents` estaban en
+`hasAnyRole('ASEGURADO','REFERENTE_ASEGURADORA')`, más laxo que la regla de negocio: **denunciar y
+subir documentación son del asegurado y de nadie más**. El frontend ya lo aplicaba (las rutas
+`new-claim` y `portal/cases/:id/documentacion` están en `roles: ['ASEGURADO']`), así que era el
+backend el que quedaba abierto — no había forma de llegar desde la UI, pero sí con un token de
+referente y Postman.
+- **Fix**: los dos endpoints pasaron a `hasRole('ASEGURADO')`.
+- **Tests**: `CaseSecurityTest.createCase_asReferente_returns403`,
+  `uploadDocuments_asReferente_returns403`, `uploadDocuments_asAnalista_returns403`.
+- **Ojo si aparece el alta de asegurados por el referente** (CLAUDE.md decisión #8): ese flujo no
+  existe hoy, pero si algún día el referente carga denuncias por teléfono o mesa de entradas, esto
+  se reabre como decisión de negocio, no como defecto.
 
 ### 🟠 Altos
 
@@ -179,10 +205,26 @@ guardan, se muestran en el CRUD del referente y no los evalúa nada.
 `report_deadline_hours` (72 hs en Celulares, 96 en Tecnología) es editable por el referente y solo se
 lee para devolverlo en el CRUD (`CoverageService.java:91`).
 
-**D12 · `police_report_at` no se captura ni se evalúa**
-Existe en `CaseRequest` y en la entidad, pero **el wizard nunca lo manda** (ver el payload de
-`nueva-denuncia.component.ts:260`) y ningún servicio lo lee. La regla "denuncia policial dentro de las
-48 hs", que está escrita en el mock de reglas, es hoy literalmente inverificable.
+**D12 · `police_report_at` no se captura ni se evalúa** — 🟡 **captura RESUELTA (Aylén, 09/08)**, evaluación pendiente
+Existía en `CaseRequest` y en la entidad, pero **el wizard nunca lo mandaba** y ningún servicio lo
+lee. La regla "denuncia policial dentro de las 48 hs" era literalmente inverificable.
+- **Fix de la captura**: el wizard pide fecha + hora de la denuncia policial, y solo cuando la
+  agenda documental del ramo incluye `police_report` — se deriva de `requiredDocTypes`, la misma
+  fuente que arma los slots de adjuntos, así que si el referente saca ese documento de un ramo el
+  campo desaparece solo. Vacío ⇒ se manda `undefined`: "no hubo denuncia policial" es un caso
+  legítimo y distinto de "hubo pero no sé cuándo"; mandar una fecha inventada sería peor, porque la
+  regla del plazo la evaluaría como real.
+- **Sin validación de coherencia en el cliente, a propósito**: que la denuncia policial no pueda ser
+  anterior al hecho, y el plazo de las 48/72 hs, son reglas de negocio → van al motor, no al
+  frontend (es la lección de D4a). El wizard solo topea la fecha a hoy, igual que `eventDate`.
+- **Queda pendiente la evaluación**, que entra con [plan-reglas-evaluables.md](plan-reglas-evaluables.md):
+  `coverage.report_deadline_hours` comparado contra `police_report_at - occurred_at`, escribiendo
+  `rule_result`. Es una de las "duras-eables" que menciona D4a.
+- **Decisión de diseño registrada**: `police_report_at` es la **declaración del asegurado**. Cuando
+  exista extracción estructurada del documento (H0007), la fecha que diga la constancia va en un
+  dato **aparte** — si sobreescribiera a esta se pierde el cruce, y la discrepancia entre lo
+  declarado y lo que dice el papel es justamente la señal que le daría contenido al
+  `DocumentInconsistencyEvaluator` (**D4b**).
 
 **D13 · Vigencia de la póliza vs fecha del hecho: no se valida**
 `effectiveFrom`/`effectiveTo` se leen de la BD Aseguradora y se imprimen en el prompt. Nadie valida
@@ -208,11 +250,25 @@ Ni scoring, ni prompt, ni pantalla del analista. Cero consumidores.
 seed suma 190% y la UI lo marca como error de fábrica. *(Detectado en la sesión anterior, no
 re-verificado ahora.)* Decidir con Mar/Valen: sacar la regla o ajustar el seed.
 
-**D18 · Dos tests rotos desde antes**
-`ClassificationOrchestratorIntegrationTest.lowAmountFirstClaimUpToDate_shouldFastTrack…` (arma un
-`ClaimReport` sin `coverageId`, quedó viejo respecto del scoping por cobertura del PR #29) y
-`RulesServiceApplicationTests.contextLoads` (no encuentra datasource). *(Verificado con `git stash`
-contra la base limpia en la sesión anterior.)*
+**D18 · Dos tests rotos desde antes** — ✅ **RESUELTO (Aylén, 09/08)** · eran **tres**
+- `ClassificationOrchestratorIntegrationTest.lowAmountFirstClaimUpToDate_shouldFastTrack…` — armaba
+  un `ClaimReport` sin `coverageId`, y `MockRulesAdapter.RULES_BY_COVERAGE` keyea **por id de
+  cobertura**, así que caía a las reglas genéricas (sin thresholds) → el caso terminaba en el LLM y
+  el mock sin stub devolvía null → **NPE**, no un assert fallido. **Fix**: `.coverageId(1L)`
+  (cobertura "Robo de celular", la del hecho generador del claim). Es el único test de la clase que
+  prueba el gate determinístico de verdad (`verifyNoInteractions`); los otros dos que esperan
+  `FAST_TRACK` stubean el classifier, por eso pasaban.
+- `RulesServiceApplicationTests.contextLoads` — la causa no era "no encuentra datasource" sino
+  `PSQLException: FATAL: la autentificación password falló para el usuario "arbiter"`: el módulo
+  **no tenía ninguna infraestructura de test** y el `@SpringBootTest` levantaba contra el Postgres
+  del `application.yml`. **Fix**: Testcontainers + `support/AbstractPersistenceIT`, espejando el de
+  cases-service (mismo patrón singleton container, mismo `ddl-auto=update` acotado a tests).
+- **`ReportsServiceApplicationTests.contextLoads`** — *no estaba en el registro*: idéntica causa que
+  el anterior. Mismo fix. Sin esto el reactor seguía en rojo aunque los otros dos estuvieran
+  arreglados, que era justamente el punto de cerrar D18.
+
+**Estado verificado:** `mvn test` sobre el reactor completo → **7/7 módulos, 334 tests, 0 fallas**
+(common-lib 4 · auth 80 · classification 100 · rules 3 · cases 146 · reports 1).
 
 ---
 
@@ -220,12 +276,13 @@ contra la base limpia en la sesión anterior.)*
 
 | ID | Severidad | Estado | Dueño |
 |----|-----------|--------|-------|
-| D1, D2 | Crítico | Abierto — sin dueño | ¿historia? |
+| D1, D2, D20 | Crítico | ✅ Resuelto (09/08) — 146 tests verdes en cases-service, **sin validar en vivo** | Aylén |
 | D3, D4a/b/c | Alto | Abierto — sin dueño | ¿historia? |
 | D5 | Alto | fecha/monto/lugar ✅ (v2, sin validar en vivo); falta la imagen al LLM | Mar |
 | D19 | Alto | Abierto | Mar (rumbo definido) |
 | D9–D15 | Medio | Abierto | — |
-| D16–D18 | Bajo | Abierto | — |
+| D16, D17 | Bajo | Abierto | — |
+| D18 | Bajo | ✅ Resuelto (09/08) — reactor completo verde, 334 tests | Aylén |
 
 ---
 
@@ -252,10 +309,12 @@ el plan de pruebas no liste como componente algo que no existe:
 
 Ordenado por lo que más rinde:
 
-1. **Seguridad y permisos de acceso** — D1 y D2 son casos de prueba redondos, con Postman, severidad
-   Crítica. Sumar: lectura de expediente ajeno (esto **sí** está bien cerrado: 404, no 403, para no
-   filtrar existencia), descarga de documento ajeno (también cerrado), y el matriz de roles sobre los
-   endpoints de `CaseController` (`@PreAuthorize` por endpoint).
+1. **Seguridad y permisos de acceso** — D1, D2 y D20 siguen siendo casos de prueba redondos con
+   Postman, pero ahora como **regresión**: el resultado esperado pasó de "entra igual" a 404 (subir
+   a expediente ajeno), 403 (denunciar a nombre de otro, o con token de referente) y 422 (DNI de uno
+   con póliza de otro). Sumar: lectura de expediente ajeno (esto **sí** ya estaba bien cerrado: 404,
+   no 403, para no filtrar existencia), descarga de documento ajeno (también cerrado), y la matriz de
+   roles sobre los endpoints de `CaseController` (`@PreAuthorize` por endpoint).
 2. **Portal del asegurado** — es real, no mock. Ver solo los propios (incluidos los de las dos
    aseguradoras: Martina es cliente de BBVA y Provincia con el mismo DNI), subir documentación
    faltante y verificar que el expediente vuelva a `PENDING_CLASSIFICATION` y se reclasifique,
