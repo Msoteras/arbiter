@@ -30,6 +30,7 @@ public class ClassificationOrchestrator {
     private final ClaimClassifier classifier;
     private final RulesAdapter rulesAdapter;
     private final InsurerAdapter insurerAdapter;
+    private final CoverageRuleEvaluator coverageRuleEvaluator;
     private final FastTrackValidator fastTrackValidator;
     private final DocumentAnalyzer documentAnalyzer;
     private final PromptBuilder promptBuilder;
@@ -48,15 +49,21 @@ public class ClassificationOrchestrator {
 
     private ClassificationResponse resolveClassification(ClaimReport claim, Context ctx) {
 
+        // Reglas duras primero: una exclusión de cobertura hace irrelevante al Fast Track (D3).
+        CoverageRuleEvaluator.Result exclusion = coverageRuleEvaluator.evaluate(claim, ctx.rules());
+        if (exclusion.excluded()) {
+            return attachRuleFindings(coverageExclusionResponse(exclusion, claim), exclusion);
+        }
+
         FastTrackValidator.Result fastTrack = fastTrackValidator.evaluate(claim, ctx.policy(), ctx.history(), ctx.rules(), null);
         if (fastTrack.fastTrack()) {
             log.info("[Orchestrator] Deterministic Fast Track — claim qualifies, skipping LLM. Reasons={}",
                     fastTrack.reasons());
-            return fastTrackResponse(fastTrack);
+            return attachRuleFindings(fastTrackResponse(fastTrack), exclusion);
         }
 
         log.info("[Orchestrator] Not Fast Track ({}). Building prompt and sending to LLM...", fastTrack.reasons());
-        return classifyWithLlm(claim, ctx);
+        return attachRuleFindings(classifyWithLlm(claim, ctx), exclusion);
     }
 
     /**
@@ -120,11 +127,18 @@ public class ClassificationOrchestrator {
     private record Resolution(ClassificationResponse response, boolean documentationAnalyzed) {}
 
     private Resolution resolveClassification(ClaimReport claim, List<AttachmentDocument> documents, Context ctx) {
+        // Reglas duras primero: una exclusión de cobertura corta antes que el gate documental y el
+        // Fast Track (D3). No se analizan documentos ni imágenes: la exclusión ya resuelve el camino.
+        CoverageRuleEvaluator.Result exclusion = coverageRuleEvaluator.evaluate(claim, ctx.rules());
+        if (exclusion.excluded()) {
+            return new Resolution(attachRuleFindings(coverageExclusionResponse(exclusion, claim), exclusion), false);
+        }
+
         List<String> documentTypes = documents.stream().map(AttachmentDocument::type).toList();
         List<String> missingDocs = checkRequiredDocuments(ctx.rules(), documentTypes);
         if (!missingDocs.isEmpty()) {
             log.info("[Orchestrator] Missing required documents: {}", missingDocs);
-            return new Resolution(missingDocumentationResponse(missingDocs), false);
+            return new Resolution(attachRuleFindings(missingDocumentationResponse(missingDocs), exclusion), false);
         }
 
         List<String> requiredForGate = requiredDocumentTypes(ctx.rules());
@@ -135,13 +149,13 @@ public class ClassificationOrchestrator {
         if (fastTrack.fastTrack()) {
             log.info("[Orchestrator] Deterministic Fast Track — Reasons={}", fastTrack.reasons());
             // Documentation was analyzed only if the gate actually examined a required document.
-            return new Resolution(fastTrackResponse(fastTrack), !gateDocumentTexts.isEmpty());
+            return new Resolution(attachRuleFindings(fastTrackResponse(fastTrack), exclusion), !gateDocumentTexts.isEmpty());
         }
 
         log.info("[Orchestrator] Not Fast Track ({}). Extracting remaining document(s) and sending to LLM...",
                 fastTrack.reasons());
         ClaimReport claimWithOcr = withAttachmentsOcr(claim, extractAllAttachmentsText(documents, gateDocumentTexts));
-        return new Resolution(classifyWithLlm(claimWithOcr, ctx), true);
+        return new Resolution(attachRuleFindings(classifyWithLlm(claimWithOcr, ctx), exclusion), true);
     }
 
     /**
@@ -246,6 +260,31 @@ public class ClassificationOrchestrator {
                 .build();
     }
 
+    /**
+     * Una exclusión dura no cierra el expediente (CLAUDE.md #5, human-in-the-loop): deriva a
+     * revisión del analista con el motivo a la vista y sin llamar al LLM. Determinístico, como el
+     * Fast Track y el FALTA_DOCUMENTACION, pero en sentido contrario. El hallazgo queda auditado en
+     * {@code rule_result} vía {@code ruleFindings}.
+     */
+    private ClassificationResponse coverageExclusionResponse(CoverageRuleEvaluator.Result exclusion, ClaimReport claim) {
+        log.info("[Orchestrator] Coverage exclusion — deriva a revisión manual sin LLM. claimCause='{}'",
+                claim.claimCause());
+        return ClassificationResponse.builder()
+                .classification(Classification.LLM_SOLICITA_REVISION_MANUAL)
+                .factors(coverageRuleEvaluator.excludedReasons(exclusion, claim))
+                .confidence(1.0)
+                .deterministicFastTrack(false)
+                .build();
+    }
+
+    /** Cuelga los resultados de reglas evaluadas (PASS/FAIL) para que se auditen en rule_result. */
+    private ClassificationResponse attachRuleFindings(ClassificationResponse response, CoverageRuleEvaluator.Result exclusion) {
+        if (exclusion.findings().isEmpty()) {
+            return response;
+        }
+        return response.toBuilder().ruleFindings(exclusion.findings()).build();
+    }
+
     private List<String> requiredDocumentTypes(BusinessRules rules) {
         BusinessRules.FastTrackThresholds thresholds = rules.fastTrackThresholds();
         if (thresholds == null || thresholds.requiredDocumentTypes() == null) {
@@ -282,6 +321,7 @@ public class ClassificationOrchestrator {
                 .product(claim.product())
                 .claimCause(claim.claimCause())
                 .coverageId(claim.coverageId())
+                .claimCauseId(claim.claimCauseId())
                 .insuredItem(claim.insuredItem())
                 .insuredId(claim.insuredId())
                 .policyNumber(claim.policyNumber())

@@ -1,13 +1,26 @@
 # Plan — Reglas duras evaluables + auditoría en `rule_result`
 
-**Fecha:** 09/08/2026 · **Rama:** `feature/fix-defectos-aylen` · **Estado:** plan aprobado en su forma,
-**una decisión abierta** (§2) antes de escribir código.
+**Fecha:** 09/08/2026 · **Rama:** `feature/fix-defectos-aylen` · **Estado:** ✅ **implementado (10/08)
+en su opción (a)** — pasos 1–5. Decisión §2 resuelta como **(a)** (backend + seed, sin UII del
+referente). **Pendiente:** paso 6 (sacar las exclusiones del prompt + `classification-v3`), paso 7
+(UI, si se elige (b)) y el corte degradado del paso 3. **Sin validar en vivo.**
 
-**Cierra:** D3, D4a (la parte que corresponde), D4c del
+**Cierra:** D3, D4a (la parte de exclusiones), D4c del
 [handoff de pruebas y defectos](handoff-pruebas-y-defectos.md).
 **Deja afuera a propósito:** D4b (ver §7).
 
 Es la historia #1 de la lista de candidatas del handoff (§7), la que ahí figura como "la más valiosa".
+
+> **Cómo quedó (10/08).** `ClaimReport` lleva `claimCauseId` (match por id, no por nombre).
+> rules-service sirve `GET /internal/evaluable?coverageId` (`InternalEvaluableRuleService` +
+> `EvaluableRuleController`), leyendo `insurer_rule` de tipo `COVERAGE_EXCLUSION` con
+> `configuration = {"excludedClaimCauseIds":[…]}`. `RulesRestAdapter.overlayEvaluableRules` lo
+> compone sobre el baseline; `BusinessRules` gana `evaluableRules`. `CoverageRuleEvaluator` corre
+> **antes** del gate de Fast Track: una exclusión bloquea el Fast Track y deriva a
+> `LLM_SOLICITA_REVISION_MANUAL` sin LLM (no cierra el expediente). `ClassificationResultsService`
+> escribe `rule_result` (PASS y FAIL) cuando hay `caseId`. Seed del caso 6 en `init-multitenant.sql`.
+> Tests: `CoverageRuleEvaluatorTest`, `ClassificationResultsServiceTest` (escritura) y caso 6 en
+> `ClassificationOrchestratorIntegrationTest`. Reactor completo verde (342 tests).
 
 ---
 

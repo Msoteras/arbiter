@@ -4,6 +4,7 @@ import ar.edu.utn.frba.arbiter.common.enums.Classification;
 import ar.edu.utn.frba.arbiter.classification.adapters.ClaimClassifier;
 import ar.edu.utn.frba.arbiter.classification.dto.ClassificationRequest;
 import ar.edu.utn.frba.arbiter.classification.dto.ClassificationResponse;
+import ar.edu.utn.frba.arbiter.classification.dto.RuleFinding;
 import ar.edu.utn.frba.arbiter.common.dto.ClaimReport;
 import ar.edu.utn.frba.arbiter.classification.support.AbstractPersistenceIT;
 import org.junit.jupiter.api.Test;
@@ -255,6 +256,39 @@ class ClassificationOrchestratorIntegrationTest extends AbstractPersistenceIT {
         assertThat(response.classification()).isEqualTo(Classification.LLM_SOLICITA_REVISION_MANUAL);
         assertThat(response.deterministicFastTrack()).isFalse();
         verify(classifierMock).classify(any(ClassificationRequest.class));
+    }
+
+    @Test
+    void hurtoOnRobberyCoverage_isExcludedByRule_withoutCallingLLM() {
+        // Caso 6 del handoff ("Hurto no cubierto"): cobertura 1 = "Robo de celular", que excluye el
+        // hecho generador Hurto (claim_cause 3) vía la regla COVERAGE_EXCLUSION del baseline. La
+        // exclusión dura corta antes del Fast Track y del LLM, y deja el hallazgo para rule_result.
+        ClaimReport claim = ClaimReport.builder()
+                .branch("Celulares")
+                .product("Celular Protegido Básico")
+                .claimCause("Hurto")
+                .coverageId(1L)
+                .claimCauseId(3L)
+                .insuredItem("Motorola Edge 50 Pro - IMEI 351000000000042")
+                .insuredId("40.123.456")
+                .policyNumber("POL-CEL-2024-001")
+                .description("Denuncia de hurto sobre una cobertura de robo, que lo excluye.")
+                .eventDate(LocalDateTime.of(2026, 6, 13, 19, 45))
+                .eventLocation("Av. Rivadavia y Colombres, Almagro, CABA")
+                .claimedAmount(new BigDecimal("100000")) // bajo: fast-trackearía si no estuviera excluido
+                .attachmentsOcr(List.of())
+                .build();
+
+        ClassificationResponse response = orchestrator.classify(claim);
+
+        assertThat(response.classification()).isEqualTo(Classification.LLM_SOLICITA_REVISION_MANUAL);
+        assertThat(response.deterministicFastTrack()).isFalse();
+        assertThat(response.factors()).isNotEmpty();
+        assertThat(response.ruleFindings())
+                .anyMatch(f -> f.ruleId().equals(3L) && "FAIL".equals(f.result()));
+        assertThat(response.ruleFindings()).extracting(RuleFinding::ruleType)
+                .contains("COVERAGE_EXCLUSION");
+        verifyNoInteractions(classifierMock);
     }
 
     private void printResult(String title, ClassificationResponse response, Classification expected) {

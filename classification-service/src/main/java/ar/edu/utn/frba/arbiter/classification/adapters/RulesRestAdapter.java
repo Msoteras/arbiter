@@ -63,8 +63,50 @@ public class RulesRestAdapter implements RulesAdapter {
         }
         // Lecturas independientes a propósito: si una falla, las otras igual se aplican. Cada una
         // cae a su parte del baseline sin tirar abajo la clasificación.
-        return overlayDocumentRequirements(
-                overlayRuleTexts(overlayFastTrack(base, coverageId), coverageId), coverageId);
+        return overlayEvaluableRules(
+                overlayDocumentRequirements(
+                        overlayRuleTexts(overlayFastTrack(base, coverageId), coverageId), coverageId), coverageId);
+    }
+
+    /**
+     * Las reglas duras evaluables de la cobertura (hoy: exclusiones de hecho generador). Reemplaza al
+     * baseline: si la aseguradora configuró exclusiones, mandan las suyas. Una lista vacía se trata
+     * como "no configurado" y deja el baseline.
+     *
+     * <p>Best-effort como los otros overlays, con un matiz que la clasificación no puede ignorar: si
+     * rules-service no responde, el resultado <b>no puede ser "pasa igual"</b> — pero el corte
+     * degradado (no aprobar por silencio del motor, derivar a revisión) todavía no está: por ahora
+     * cae al baseline como el resto. Queda anotado como pendiente en plan-reglas-evaluables.md §3.
+     */
+    private BusinessRules overlayEvaluableRules(BusinessRules rules, Long coverageId) {
+        try {
+            EvaluableRulesResponse resp = restClient.get()
+                    .uri(uri -> uri.path("/api/v1/rules/internal/evaluable")
+                            .queryParam("coverageId", coverageId).build())
+                    .header(HttpHeaders.AUTHORIZATION, serviceToken())
+                    .retrieve()
+                    .body(EvaluableRulesResponse.class);
+            if (resp == null || resp.isEmpty()) {
+                log.debug("[RulesRestAdapter] No evaluable rules in DB for coverage {} — using baseline", coverageId);
+                return rules;
+            }
+            List<BusinessRules.EvaluableRule> mapped = resp.rules().stream()
+                    .map(r -> BusinessRules.EvaluableRule.builder()
+                            .id(r.id())
+                            .ruleType(r.ruleType())
+                            .effect(r.effect())
+                            .blocksFastTrack(r.blocksFastTrack())
+                            .excludedClaimCauseIds(r.excludedClaimCauseIds())
+                            .build())
+                    .toList();
+            log.info("[RulesRestAdapter] Evaluable rules loaded from rules-service for coverage {} — {} rules",
+                    coverageId, mapped.size());
+            return rules.toBuilder().evaluableRules(mapped).build();
+        } catch (Exception e) {
+            log.warn("[RulesRestAdapter] rules-service unavailable for evaluable rules of coverage {} — baseline: {}",
+                    coverageId, e.getMessage());
+            return rules;
+        }
     }
 
     private BusinessRules overlayFastTrack(BusinessRules base, Long coverageId) {
@@ -167,6 +209,22 @@ public class RulesRestAdapter implements RulesAdapter {
                     && (businessRules == null || businessRules.isEmpty());
         }
     }
+
+    /** Mirrors rules-service's EvaluableRulesDto (the coverage's hard evaluable rules). */
+    private record EvaluableRulesResponse(List<EvaluableRuleJson> rules) {
+
+        boolean isEmpty() {
+            return rules == null || rules.isEmpty();
+        }
+    }
+
+    /** Mirrors rules-service's EvaluableRuleDto. */
+    private record EvaluableRuleJson(
+            Long id,
+            String ruleType,
+            String effect,
+            boolean blocksFastTrack,
+            List<Long> excludedClaimCauseIds) {}
 
     /** Mirrors rules-service's FastTrackConfigDto (JSON shape of the persisted thresholds). */
     private record FastTrackResponse(

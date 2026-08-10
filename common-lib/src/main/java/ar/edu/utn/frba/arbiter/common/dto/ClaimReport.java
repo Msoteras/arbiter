@@ -22,6 +22,10 @@ public record ClaimReport(
         // not by hecho generador. Nullable: the isolated test flow builds a claim without a case;
         // the real cases->classification flow always sets it from Case.coverage.
         Long coverageId,
+        // Claim cause (hecho generador) id — the coverage-exclusion evaluator matches against it
+        // by id, not by name (names repeat across branches; the id is unambiguous). Nullable for
+        // the same reason as coverageId: the isolated test flow has no case behind it.
+        Long claimCauseId,
         @NotBlank String insuredItem,
         @NotBlank String insuredId,
         @NotBlank String policyNumber,

@@ -38,6 +38,7 @@ class ClassificationOrchestratorScoringTest {
     @Mock private ClaimClassifier classifier;
     @Mock private RulesAdapter rulesAdapter;
     @Mock private InsurerAdapter insurerAdapter;
+    @Mock private CoverageRuleEvaluator coverageRuleEvaluator;
     @Mock private FastTrackValidator fastTrackValidator;
     @Mock private DocumentAnalyzer documentAnalyzer;
     @Mock private PromptBuilder promptBuilder;
@@ -53,6 +54,8 @@ class ClassificationOrchestratorScoringTest {
         when(insurerAdapter.getPolicy(any())).thenReturn(RiskFixtures.policy(true, new BigDecimal("400000")));
         when(insurerAdapter.getHistory(any())).thenReturn(RiskFixtures.history(0));
         when(rulesAdapter.getRules(any(), any(), any())).thenReturn(RiskFixtures.rules(null));
+        when(coverageRuleEvaluator.evaluate(any(), any()))
+                .thenReturn(new CoverageRuleEvaluator.Result(false, List.of()));
     }
 
     @Test

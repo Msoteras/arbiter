@@ -707,6 +707,21 @@ BEGIN
              'Póliza al día con sus pagos', 'FAST_TRACK', 'APROBAR', 2, FALSE, 1)
         $ddl$, p_schema);
 
+    -- Regla dura EVALUABLE por código (a diferencia de las de arriba, que son ejemplos sin motor).
+    -- Caso 6 del handoff, "Hurto no cubierto": la cobertura de robo (id 1) excluye el hecho generador
+    -- Hurto (claim_cause id 3). `configuration` JSONB = lista negra de claim_cause; classification la
+    -- lee por /internal/evaluable y matchea por id. blocks_fast_track = TRUE: una exclusión dura hace
+    -- irrelevante al Fast Track. La evalúa CoverageRuleEvaluator y deja fila en rule_result (D3/D4c).
+    -- OJO (handoff §8): confirmar los ids de coverage/claim_cause contra Railway antes de fijarlos —
+    -- Tecnología pasó de branch 3 a 2 en el último reseed.
+    EXECUTE format($ddl$
+        INSERT INTO %I.insurer_rule (id, active, valid_from, name, rule_type, effect, priority,
+                                     blocks_fast_track, branch_id, coverage_id, configuration) VALUES
+            (3, TRUE, '2026-01-01 00:00:00+00',
+             'La cobertura de robo no cubre el hurto', 'COVERAGE_EXCLUSION', 'RECHAZAR', 1,
+             TRUE, 1, 1, '{"excludedClaimCauseIds":[3]}')
+        $ddl$, p_schema);
+
     -- AgendaDocumental sembrada con los códigos CANÓNICOS de tipo de documento — los mismos que usa
     -- el alta de denuncia y classification (police_report / purchase_proof / imei_deregistration /
     -- last_connection). Antes se sembraba con códigos ad-hoc (DNI/DENUNCIA_POLICIAL/…) que el front

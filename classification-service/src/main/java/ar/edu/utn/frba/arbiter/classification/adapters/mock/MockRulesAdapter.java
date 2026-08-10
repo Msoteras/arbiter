@@ -85,6 +85,16 @@ public class MockRulesAdapter implements RulesAdapter {
                             .build())
                     .requiredDocumentTypes(List.of("police_report"))
                     .scoringConfig(DEFAULT_SCORING_CONFIG)
+                    // Caso 6 del handoff ("Hurto no cubierto"): la cobertura de robo (id 1) excluye
+                    // el hecho generador Hurto (claim_cause id 3). Lista negra: un robo (cause 2) no
+                    // se ve afectado. Espeja el seed COVERAGE_EXCLUSION de init-multitenant.sql.
+                    .evaluableRules(List.of(BusinessRules.EvaluableRule.builder()
+                            .id(3L)
+                            .ruleType("COVERAGE_EXCLUSION")
+                            .effect("RECHAZAR")
+                            .blocksFastTrack(true)
+                            .excludedClaimCauseIds(List.of(3L))
+                            .build()))
                     .build(),
 
             2L, BusinessRules.builder()

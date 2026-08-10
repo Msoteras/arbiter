@@ -89,7 +89,7 @@ En los scripts versionados, Tecnología Portátil es **de Provincia**:
 | 3 | **Fraude: adjunto reusado / bajado de la web** | Igual que 1, pero el adjunto ya se usó en otra denuncia → `image_reuse` (o `image_web_match`) suma al score → analista rechaza | ✅ Verde de punta a punta, con informe forense visible. |
 | 4 | **Fraude: constancia IMEI fabricada** | Constancia inventada, no reusada, IMEI que no coincide | 🔴 Nada la detecta (**D4b**). Va como caso en rojo. |
 | 5 | **Factura de otro equipo** | Factura de un celular distinto al bien asegurado | 🟡 Solo el LLM puede notarlo leyendo el OCR; no es determinístico. El resultado esperado no puede ser "el sistema detecta", sino "el analista tiene el dato a la vista". |
-| 6 | **Hurto no cubierto** | Denuncia de Hurto sobre una cobertura que lo excluye | 🟡 Termina en `REJECTED` **por criterio del analista, no por regla** (**D3**). Sirve justamente para documentar el gap. |
+| 6 | **Hurto no cubierto** | Denuncia de Hurto sobre una cobertura que lo excluye | ✅ Ahora el motor lo detecta por **regla** (`COVERAGE_EXCLUSION`, D3): bloquea Fast Track, deriva a revisión manual sin LLM y deja fila en `rule_result`. El analista sigue decidiendo el cierre (no auto-`REJECTED`). Falta validar en vivo. |
 
 ---
 
@@ -140,9 +140,20 @@ referente y Postman.
 
 ### 🟠 Altos
 
-**D3 · Nada valida que el hecho generador esté cubierto por la cobertura**
-El expediente hereda la cobertura de la póliza (`CaseServiceImpl.java:99`) y no hay chequeo alguno.
-Denunciar Hurto sobre una cobertura que excluye el hurto entra igual y llega a la bandeja.
+**D3 · Nada valida que el hecho generador esté cubierto por la cobertura** — 🟠 **RESUELTO (backend, 10/08)**, sin validar en vivo
+El expediente hereda la cobertura de la póliza (`CaseServiceImpl.java:99`) y no había chequeo alguno.
+Denunciar Hurto sobre una cobertura que excluye el hurto entraba igual y llegaba a la bandeja.
+- **Fix**: se implementó el plan [plan-reglas-evaluables.md](plan-reglas-evaluables.md) en su opción (a).
+  Una regla `COVERAGE_EXCLUSION` en `insurer_rule` (JSONB = lista negra de `claim_cause`) define qué
+  hechos generadores NO cubre una cobertura. rules-service la sirve por `/internal/evaluable`,
+  `RulesRestAdapter` la overlaya, y `CoverageRuleEvaluator` (classification) la evalúa **por id**
+  (`ClaimReport` ahora lleva `claimCauseId`) **antes** del gate de Fast Track. Una exclusión bloquea
+  el Fast Track y deriva a `LLM_SOLICITA_REVISION_MANUAL` sin llamar al LLM — no cierra el expediente
+  (human-in-the-loop, CLAUDE.md #5). Lista negra a propósito: una cobertura sin regla se comporta
+  igual que hoy.
+- **Seed**: `init-multitenant.sql` siembra la exclusión del caso 6 (cobertura de robo excluye Hurto).
+  ⚠️ confirmar ids contra Railway (§8) antes de fijarlos en los casos de prueba.
+- **Tests**: `CoverageRuleEvaluatorTest` (unit puro) + caso 6 en `ClassificationOrchestratorIntegrationTest`.
 
 **D4 · Las exclusiones y reglas de negocio son texto, no reglas — y no queda auditoría**
 - **D4a**: tanto las **exclusiones** (`rules.exclusions()`) como las **reglas de negocio en texto**
@@ -158,11 +169,18 @@ Denunciar Hurto sobre una cobertura que excluye el hurto entra igual y llega a l
     (exclusión dura). Solo las genuinamente *interpretativas* (relato inconsistente, daño no
     relacionado con el robo) justifican quedar en el prompt. **Diseño objetivo**: evaluar las duras
     en el motor + escribir `rule_result` (ver §7.1), y dejar al LLM solo las interpretativas.
+  - **Avance (10/08)**: las **exclusiones de cobertura** ya se evalúan en código (D3) y se auditan en
+    `rule_result` (D4c). Falta el **paso 6** del plan: sacarlas del prompt y bumpear a
+    `classification-v3` — hoy la exclusión se evalúa *y además* sigue viajando como texto al LLM. Las
+    demás reglas duras (plazo, vigencia, frecuencia: D10–D13) siguen sin evaluarse.
 - **D4b**: `DocumentInconsistencyEvaluator` (el factor que agarraría "el IMEI del documento no coincide
   con el del bien") es un **stub** que se declara no evaluable.
-- **D4c**: `rule_result` —la tabla donde se auditaría qué regla se evaluó y con qué resultado— tiene
-  entidad y repository y **cero escritores**. Las filas de la demo las puso el seed a mano. Es
-  requisito de la Disposición SSN 2/2023.
+- **D4c**: `rule_result` —la tabla donde se auditaría qué regla se evaluó y con qué resultado— tenía
+  entidad y repository y **cero escritores**. → **RESUELTO (10/08)**: `ClassificationResultsService`
+  escribe una fila por regla evaluada (PASS y FAIL, no solo rechazos) con `rule_id` → `insurer_rule`,
+  en el flujo con `caseId`. Cierra el requisito de auditoría de la Disposición SSN 2/2023 para las
+  exclusiones de cobertura. Falta que se sumen las demás reglas duras (D10–D13) a medida que se
+  implementen.
 
 **D5 · La clasificación del LLM es texto puro: no recibe la imagen** — *fecha/monto/lugar RESUELTO (Mar, v2)*
 - ✅ **Resuelto**: la **fecha del hecho, el lugar y el monto reclamado** ya viajan al prompt. Se
@@ -277,7 +295,10 @@ re-verificado ahora.)* Decidir con Mar/Valen: sacar la regla o ajustar el seed.
 | ID | Severidad | Estado | Dueño |
 |----|-----------|--------|-------|
 | D1, D2, D20 | Crítico | ✅ Resuelto (09/08) — 146 tests verdes en cases-service, **sin validar en vivo** | Aylén |
-| D3, D4a/b/c | Alto | Abierto — sin dueño | ¿historia? |
+| D3 | Alto | ✅ Resuelto (10/08, backend) — exclusiones evaluables + `rule_result`, **sin validar en vivo** | Aylén |
+| D4c | Alto | ✅ Resuelto (10/08) — `rule_result` con escritores | Aylén |
+| D4a | Alto | Parcial — exclusiones ya evaluables; falta paso 6 (sacarlas del prompt, v3) y las demás duras | — |
+| D4b | Alto | Abierto — depende de H0007 (OCR estructurado) | — |
 | D5 | Alto | fecha/monto/lugar ✅ (v2, sin validar en vivo); falta la imagen al LLM | Mar |
 | D19 | Alto | Abierto | Mar (rumbo definido) |
 | D9–D15 | Medio | Abierto | — |
