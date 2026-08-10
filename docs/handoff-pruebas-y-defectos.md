@@ -118,11 +118,20 @@ denunciar sobre la póliza de otro, o combinar el DNI de uno con la póliza de o
 El expediente hereda la cobertura de la póliza (`CaseServiceImpl.java:99`) y no hay chequeo alguno.
 Denunciar Hurto sobre una cobertura que excluye el hurto entra igual y llega a la bandeja.
 
-**D4 · Las exclusiones son texto, no reglas — y no queda auditoría**
-- **D4a**: las exclusiones que escribe el referente viajan al prompt del LLM
-  (`RulesRestAdapter.java:113`) y ahí termina su vida. El único que "aplica" una exclusión es el
-  modelo, opinando. Contradice la implicancia #4 del `CLAUDE.md`, que dice textual que las exclusiones
-  de cobertura son **reglas evaluables en rules-service**, no decisiones del LLM.
+**D4 · Las exclusiones y reglas de negocio son texto, no reglas — y no queda auditoría**
+- **D4a**: tanto las **exclusiones** (`rules.exclusions()`) como las **reglas de negocio en texto**
+  (`rules.rules()`) que escribe el referente se pegan como texto en el **prompt del LLM**
+  (`PromptBuilder.renderRulesAndPolicy`; `RulesRestAdapter` las superpone desde la DB) y ahí termina
+  su vida: el único que las "aplica" es el modelo, interpretándolas — **no hay código que las
+  evalúe**. Consecuencia: **no determinístico** (la misma denuncia puede clasificar distinto entre
+  corridas) y **sin auditoría** de qué regla se evaluó y con qué resultado. Contradice la implicancia
+  #4 del `CLAUDE.md` (las exclusiones de cobertura son **reglas evaluables en rules-service**, no
+  decisiones del LLM).
+  - **Matiz**: muchas son *duras-eables* y deberían evaluarse en código — plazo de denuncia (fechas),
+    póliza al día (estado de pago), monto dentro del límite (comparación), "hurto sin violencia"
+    (exclusión dura). Solo las genuinamente *interpretativas* (relato inconsistente, daño no
+    relacionado con el robo) justifican quedar en el prompt. **Diseño objetivo**: evaluar las duras
+    en el motor + escribir `rule_result` (ver §7.1), y dejar al LLM solo las interpretativas.
 - **D4b**: `DocumentInconsistencyEvaluator` (el factor que agarraría "el IMEI del documento no coincide
   con el del bien") es un **stub** que se declara no evaluable.
 - **D4c**: `rule_result` —la tabla donde se auditaría qué regla se evaluó y con qué resultado— tiene
