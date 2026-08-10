@@ -254,12 +254,17 @@ que el siniestro haya ocurrido dentro de la vigencia.
 `BusinessRules.FastTrackThresholds`, que tienen 4 campos. Un caso de prueba tipo "póliza con menos de
 6 meses de vigencia → no aplica Fast Track" hoy falla.
 
-**D15 · El panel de ramos salía de un mock** — 🟡 **parcial (10/08)**: la lista ya es real
-La lista de ramos ahora sale del catálogo real (`GET /api/v1/rules/branches`, tabla `branch`) vía
-`BranchesService` — se eliminó el `SEED_RAMOS`/`RulesConfigService` del front. Como no hay CRUD de
-`Branch`, el ramo no se crea, renombra ni borra desde la pantalla (el nombre es de solo lectura); el
-catálogo lo fija el seed. Queda pendiente el CRUD de `Branch` si alguna vez el referente administra su
-propio catálogo de ramos.
+**D15 · El panel de ramos salía de un mock** — ✅ **RESUELTO (10/08)**
+La lista de ramos sale del catálogo real (`GET /api/v1/rules/branches`, tabla `branch`) vía
+`BranchesService` — se eliminó el `SEED_RAMOS`/`RulesConfigService` del front. Se sumó el **CRUD
+completo**: `BranchController` (rol REFERENTE) con `POST` (alta), `PUT /{id}` (renombre) y
+`DELETE /{id}` (baja), servidos por `BranchCatalogService` (nombre único → 409; baja con guarda de
+referencias → 409 si el ramo tiene hechos generadores/coberturas/reglas). El front re-habilitó alta,
+renombre y baja apuntando a esos endpoints.
+- **Ojo (diseño)**: `branch` es un catálogo **global** (`arbiter_common`, compartido por todas las
+  aseguradoras), no una config por aseguradora — crear/borrar un ramo toca el catálogo maestro. Si en
+  el futuro se quiere que cada aseguradora tenga su propio catálogo, hay que mover/rediseñar `branch`.
+- **Test**: `BranchCatalogServiceTest`.
 
 ### 🔵 Bajos
 
@@ -304,7 +309,8 @@ re-verificado ahora.)* Decidir con Mar/Valen: sacar la regla o ajustar el seed.
 | D4b | Alto | Abierto — depende de H0007 (OCR estructurado) | — |
 | D5 | Alto | fecha/monto/lugar ✅ (v2, sin validar en vivo); falta la imagen al LLM | Mar |
 | D19 | Alto | Abierto | Mar (rumbo definido) |
-| D9–D15 | Medio | Abierto | — |
+| D9–D14 | Medio | Abierto (D10/D11/D13 = próximo: pasarlas a reglas duras evaluables) | — |
+| D15 | Medio | ✅ Resuelto (10/08) — lista real + CRUD de ramos (`BranchController`) | Aylén |
 | D16, D17 | Bajo | Abierto | — |
 | D18 | Bajo | ✅ Resuelto (09/08) — reactor completo verde, 334 tests | Aylén |
 

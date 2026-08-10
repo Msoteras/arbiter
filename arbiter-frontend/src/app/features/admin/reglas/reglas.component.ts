@@ -18,6 +18,7 @@ import { ButtonComponent } from '../../../shared/ui/button/button.component';
 import { CardComponent } from '../../../shared/ui/card/card.component';
 import { EmptyStateComponent } from '../../../shared/ui/empty-state/empty-state.component';
 import { InputComponent } from '../../../shared/ui/input/input.component';
+import { ModalComponent } from '../../../shared/ui/modal/modal.component';
 import { ScoringConfigComponent } from '../scoring-config/scoring-config.component';
 import { StringListEditorComponent } from './string-list-editor.component';
 
@@ -27,9 +28,10 @@ type TabId = 'coberturas' | 'fastTrack' | 'documentacion' | 'reglas';
  * Configuración de reglas del referente, Ramo-céntrica. Master (lista de ramos) + detalle con
  * solapas: Coberturas, Fast Track, Documentación y Reglas. Trabaja sobre un draft en memoria por
  * solapa; cada una tiene su propio botón "Guardar X" que persiste contra el backend real
- * (cases-service para Coberturas, rules-service para las otras). La lista de ramos sale del
- * catálogo REAL (BranchesService → rules-service /branches); no hay CRUD de Branch, así que el ramo
- * no se crea, renombra ni borra desde acá — su catálogo lo fija el seed.
+ * (cases-service para Coberturas, rules-service para las otras). La lista y el ABM de ramos salen del
+ * catálogo REAL (BranchesService → rules-service /branches): alta, renombre y baja pegan al backend.
+ * Ojo: branch es un catálogo GLOBAL (compartido por todas las aseguradoras), no una config por
+ * aseguradora — por eso el ABM administra el catálogo maestro.
  * El scoring de fraude NO es por ramo: es una config única por aseguradora y vive en una sección
  * aparte de la pantalla (ScoringConfigComponent), fuera de este master-detail.
  * Porcentajes en la UI (0..100) ↔ fracción (0..1) en el modelo, que es el contrato del back.
@@ -41,6 +43,7 @@ type TabId = 'coberturas' | 'fastTrack' | 'documentacion' | 'reglas';
     CardComponent,
     EmptyStateComponent,
     InputComponent,
+    ModalComponent,
     ScoringConfigComponent,
     StringListEditorComponent,
   ],
@@ -80,6 +83,15 @@ export class ReglasComponent {
   // Hechos generadores del ramo seleccionado (id + nombre), para el selector de exclusiones duras
   // por cobertura. Se cargan del backend al elegir el ramo.
   protected readonly claimCauses = signal<ClaimCauseOption[]>([]);
+
+  // ABM de ramos (catálogo global branch, vía BranchesService).
+  protected readonly newRamoName = signal('');
+  protected readonly creatingRamo = signal(false);
+  protected readonly createRamoError = signal<string | null>(null);
+
+  protected readonly renaming = signal(false);
+  protected readonly renameSaved = signal(false);
+  protected readonly renameError = signal<string | null>(null);
 
   protected readonly tabs: { id: TabId; label: string }[] = [
     { id: 'coberturas', label: 'Coberturas' },
@@ -152,6 +164,8 @@ export class ReglasComponent {
     this.docError.set(null);
     this.rulesSaved.set(false);
     this.rulesError.set(null);
+    this.renameSaved.set(false);
+    this.renameError.set(null);
     this.loadClaimCauses(r);
     this.loadFastTrackFromBackend(r);
     this.loadCoveragesFromBackend(r);
@@ -346,10 +360,113 @@ export class ReglasComponent {
     this.activeTab.set(t);
   }
 
-  // ───────────────── Ramos ─────────────────
-  // El ramo no se crea, renombra ni borra desde acá: no existe CRUD de Branch en el backend, así que
-  // el catálogo es fijo (lo fija el seed) y esta pantalla solo configura lo de adentro. El nombre se
-  // muestra de solo lectura. Cuando exista el CRUD de Branch, vuelven el alta, el renombre y la baja.
+  // ───────────────── Ramos: ABM (catálogo global branch) ─────────────────
+  protected setNewRamoName(name: string): void {
+    this.newRamoName.set(name);
+    this.createRamoError.set(null);
+  }
+
+  protected createRamo(): void {
+    const name = this.newRamoName().trim();
+    if (name === '' || this.creatingRamo()) {
+      return;
+    }
+    this.createRamoError.set(null);
+    this.creatingRamo.set(true);
+    this.branchesService.create(name).subscribe({
+      next: (branch) => {
+        this.creatingRamo.set(false);
+        this.newRamoName.set('');
+        const ramo = this.shellFromBranch(branch);
+        this.ramos.update((list) => [...list, ramo]);
+        this.select(ramo);
+      },
+      error: (e: unknown) => {
+        this.creatingRamo.set(false);
+        this.createRamoError.set(this.backendErrorMessage(e));
+      },
+    });
+  }
+
+  /** Edita el nombre del ramo en el draft (local); se persiste con saveName(). */
+  protected setName(name: string): void {
+    this.draft.update((d) => (d ? { ...d, name } : d));
+    this.renameSaved.set(false);
+  }
+
+  protected saveName(): void {
+    const d = this.draft();
+    if (!d || this.renaming()) {
+      return;
+    }
+    const branchId = this.branchIdOf(d);
+    const name = d.name.trim();
+    if (branchId == null || name === '') {
+      this.renameError.set('El nombre del ramo no puede estar vacío.');
+      return;
+    }
+    this.renameError.set(null);
+    this.renameSaved.set(false);
+    this.renaming.set(true);
+    this.branchesService.rename(branchId, name).subscribe({
+      next: (branch) => {
+        this.renaming.set(false);
+        this.renameSaved.set(true);
+        // Refleja el nombre nuevo en la lista de la izquierda.
+        this.ramos.update((list) =>
+          list.map((r) => (r.id === String(branch.id) ? { ...r, name: branch.name } : r)),
+        );
+      },
+      error: (e: unknown) => {
+        this.renaming.set(false);
+        this.renameError.set(this.backendErrorMessage(e));
+      },
+    });
+  }
+
+  protected readonly ramoToDelete = signal<RamoRules | null>(null);
+  protected readonly deleting = signal(false);
+  protected readonly deleteError = signal<string | null>(null);
+
+  protected requestDeleteRamo(): void {
+    const d = this.draft();
+    if (d) {
+      this.deleteError.set(null);
+      this.ramoToDelete.set(d);
+    }
+  }
+
+  protected cancelDeleteRamo(): void {
+    this.ramoToDelete.set(null);
+  }
+
+  protected confirmDeleteRamo(): void {
+    const ramo = this.ramoToDelete();
+    const branchId = ramo ? this.branchIdOf(ramo) : null;
+    if (!ramo || branchId == null || this.deleting()) {
+      return;
+    }
+    this.deleteError.set(null);
+    this.deleting.set(true);
+    this.branchesService.remove(branchId).subscribe({
+      next: () => {
+        this.ramos.update((list) => list.filter((r) => r.id !== ramo.id));
+        this.deleting.set(false);
+        this.ramoToDelete.set(null);
+        const next = this.ramos()[0];
+        if (next) {
+          this.select(next);
+        } else {
+          this.selectedId.set(null);
+          this.draft.set(null);
+        }
+      },
+      error: (e: unknown) => {
+        this.deleting.set(false);
+        this.deleteError.set(this.backendErrorMessage(e));
+      },
+    });
+  }
 
   // ───────────────── Coberturas ─────────────────
   protected addCoverage(): void {

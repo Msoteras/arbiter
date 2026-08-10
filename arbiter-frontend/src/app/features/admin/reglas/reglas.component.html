@@ -20,6 +20,25 @@
           <li class="ramo-empty t-note">No hay ramos configurados.</li>
         }
       </ul>
+      <div class="add-ramo">
+        <app-input
+          [value]="newRamoName()"
+          (valueChange)="setNewRamoName($event)"
+          placeholder="Nombre del nuevo ramo"
+        />
+        <app-button
+          variant="secondary"
+          size="sm"
+          [block]="true"
+          [disabled]="creatingRamo() || newRamoName().trim() === ''"
+          (click)="createRamo()"
+        >
+          {{ creatingRamo() ? 'Creando…' : '+ Nuevo ramo' }}
+        </app-button>
+        @if (createRamoError(); as err) {
+          <span class="warn-note">{{ err }}</span>
+        }
+      </div>
     </app-card>
 
     <!-- ───────── Scoring de riesgo: config única por aseguradora, no pertenece a ningún ramo ─────────
@@ -44,8 +63,16 @@
       } @else if (draft(); as d) {
         <div class="editor-head">
           <div class="editor-title">
-            <span class="t-section-label">Ramo</span>
-            <h2 class="t-section-title">{{ d.name }}</h2>
+            <span class="t-section-label">Nombre del ramo</span>
+            <app-input class="ramo-name-field" [value]="d.name" (valueChange)="setName($event)" placeholder="Nombre del ramo" />
+          </div>
+          <div class="editor-actions">
+            @if (renameSaved()) { <span class="saved-note">✓ Nombre guardado</span> }
+            @if (renameError(); as err) { <span class="warn-note">{{ err }}</span> }
+            <app-button variant="secondary" [disabled]="renaming()" (click)="saveName()">
+              {{ renaming() ? 'Guardando…' : 'Renombrar' }}
+            </app-button>
+            <button type="button" class="delete-ramo" (click)="requestDeleteRamo()">Eliminar ramo</button>
           </div>
         </div>
 
@@ -375,3 +402,21 @@
     </div>
   </div>
 </div>
+
+<app-modal [open]="ramoToDelete() !== null" heading="▲ ¿Eliminar ramo?" (close)="cancelDeleteRamo()">
+  @if (ramoToDelete(); as r) {
+    <p class="t-body">
+      Vas a eliminar el ramo <strong>{{ r.name }}</strong> del catálogo. Solo se puede si no tiene
+      hechos generadores, coberturas ni reglas asociadas. Esta acción no se puede deshacer.
+    </p>
+  }
+  @if (deleteError(); as err) {
+    <p class="warn-note">{{ err }}</p>
+  }
+  <ng-container modalActions>
+    <app-button variant="secondary" [disabled]="deleting()" (click)="cancelDeleteRamo()">Cancelar</app-button>
+    <app-button [disabled]="deleting()" (click)="confirmDeleteRamo()">
+      {{ deleting() ? 'Eliminando…' : 'Sí, eliminar ramo' }}
+    </app-button>
+  </ng-container>
+</app-modal>

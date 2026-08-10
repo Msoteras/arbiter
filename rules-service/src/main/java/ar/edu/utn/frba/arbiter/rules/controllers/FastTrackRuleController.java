@@ -1,6 +1,5 @@
 package ar.edu.utn.frba.arbiter.rules.controllers;
 
-import ar.edu.utn.frba.arbiter.rules.dto.CatalogOption;
 import ar.edu.utn.frba.arbiter.rules.dto.FastTrackConfigDto;
 import ar.edu.utn.frba.arbiter.rules.dto.FastTrackRuleResponse;
 import ar.edu.utn.frba.arbiter.rules.services.FastTrackRuleService;
@@ -17,8 +16,6 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
-import java.util.List;
-
 /**
  * Backoffice del referente: carga y edición de los umbrales Fast Track de su aseguradora,
  * por (rama, cobertura), más el catálogo de ramos para poblar el selector. El schema del tenant
@@ -31,14 +28,6 @@ import java.util.List;
 public class FastTrackRuleController {
 
     private final FastTrackRuleService fastTrackRuleService;
-
-    @GetMapping("/branches")
-    @PreAuthorize("hasRole('REFERENTE_ASEGURADORA')")
-    @Operation(summary = "Ramos disponibles",
-            description = "Lista los ramos (arbiter_common) para poblar el selector del backoffice de reglas.")
-    public List<CatalogOption> branches() {
-        return fastTrackRuleService.listBranches();
-    }
 
     @GetMapping("/fast-track")
     @PreAuthorize("hasRole('REFERENTE_ASEGURADORA')")

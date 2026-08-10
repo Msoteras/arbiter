@@ -11,9 +11,9 @@ export interface BranchOption {
 }
 
 /**
- * Catálogo real de ramos (branch) contra rules-service — reemplaza al mock RulesConfigService para
- * la lista de la pantalla de reglas. No hay CRUD de Branch: el catálogo lo fija el seed, así que
- * esto es solo lectura (la lista y los nombres salen de la base, no del front).
+ * Catálogo real de ramos (branch) contra rules-service — reemplaza al mock RulesConfigService. La
+ * lista y los nombres salen de la base, y el ABM administra el catálogo global (branch es compartido
+ * por todas las aseguradoras: crear/borrar un ramo lo agrega/saca del catálogo maestro).
  */
 @Injectable({ providedIn: 'root' })
 export class BranchesService {
@@ -22,5 +22,17 @@ export class BranchesService {
 
   list(): Observable<BranchOption[]> {
     return this.http.get<BranchOption[]>(this.base);
+  }
+
+  create(name: string): Observable<BranchOption> {
+    return this.http.post<BranchOption>(this.base, { name });
+  }
+
+  rename(id: number, name: string): Observable<BranchOption> {
+    return this.http.put<BranchOption>(`${this.base}/${id}`, { name });
+  }
+
+  remove(id: number): Observable<void> {
+    return this.http.delete<void>(`${this.base}/${id}`);
   }
 }

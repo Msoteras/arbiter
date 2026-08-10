@@ -1,7 +1,6 @@
 package ar.edu.utn.frba.arbiter.rules.services;
 
 import ar.edu.utn.frba.arbiter.common.models.entities.Branch;
-import ar.edu.utn.frba.arbiter.rules.dto.CatalogOption;
 import ar.edu.utn.frba.arbiter.rules.dto.FastTrackConfigDto;
 import ar.edu.utn.frba.arbiter.rules.dto.FastTrackRuleResponse;
 import ar.edu.utn.frba.arbiter.rules.exceptions.BranchNotFoundException;
@@ -16,12 +15,10 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Instant;
-import java.util.List;
 
 /**
  * Reads and writes a referente's Fast Track thresholds for one (rama, cobertura). The rule is
@@ -59,13 +56,6 @@ public class FastTrackRuleService {
         return ruleRepository.findFirstByCoverageIdAndRuleType(coverageId, FAST_TRACK)
                 .map(rule -> deserialize(rule.getConfiguration()))
                 .orElseGet(FastTrackConfigDto::empty);
-    }
-
-    @Transactional(readOnly = true)
-    public List<CatalogOption> listBranches() {
-        return branchRepository.findAll(Sort.by("name")).stream()
-                .map(branch -> new CatalogOption(branch.getId(), branch.getName()))
-                .toList();
     }
 
     @Transactional
