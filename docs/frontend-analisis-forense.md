@@ -95,7 +95,7 @@ Las trazas del análisis forense hoy vienen **aplanadas dentro de `factors`**, m
    - `GET /api/v1/cases/{caseId}/documents` → lista de documentos (metadata: `id`, `filename`, `contentType`, `size`).
    - `GET /api/v1/cases/{caseId}/documents/{documentId}` → los **bytes** con su `Content-Type`.
 
-   El front renderiza directo: `<img [src]="'/api/v1/cases/' + caseId + '/documents/' + documentId">`. Para correlacionar cada `finding` del reporte con su imagen, matchear por `filename` contra la lista de documentos.
+   El front renderiza directo: `<img [src]="'/api/v1/cases/' + caseId + '/documents/' + documentId">`. Para correlacionar cada `finding` del reporte con su imagen, matchear su `documentType` contra el `type` de la lista de documentos: `case_documents` es UNIQUE (case_id, type), así que el cruce es 1:1.
 3. **"No se buscó" vs "se buscó y no hay"** ✅ — resuelto en el contrato: `webFinding == null` = no se buscó; `webFinding` presente con todo en 0 = se buscó y no encontró.
 
 > **Nota:** la imagen del **siniestro previo** en un match interno (`matchedCaseId`) se sirve con el mismo endpoint apuntando a ese otro caso: `GET /api/v1/cases/{matchedCaseId}/documents/...`.
@@ -119,7 +119,7 @@ Devuelve el `ClaimResponse`. El campo nuevo es `forensicReport` (null si fue Fas
     "findings": [
       {
         "label": "damage_photo-0",
-        "filename": "telefono.jpg",
+        "documentType": "damage_photo",  // CaseDocument.type — con esto se busca el adjunto real
         "internalMatches": [],           // vacío = sin coincidencias con siniestros previos
         "webFinding": {                  // null = NO se buscó en internet para esta imagen
           "fullMatches": 0,              // coincidencias exactas
@@ -135,7 +135,7 @@ Devuelve el `ClaimResponse`. El campo nuevo es `forensicReport` (null si fue Fas
 }
 ```
 
-Para un match interno, `webFinding` es `null` (no se escaló) y `internalMatches` trae `{ matchedCaseId, matchedFilename, similarity }`.
+Para un match interno, `webFinding` es `null` (no se escaló) y `internalMatches` trae `{ matchedCaseId, matchedDocumentType, matchedFilename, similarity }`. `matchedDocumentType` es el `CaseDocument.type` del adjunto coincidente: con eso se lo busca en el expediente previo para mostrar las dos imágenes lado a lado. `matchedFilename` es solo para mostrar.
 
 ### Cómo distinguir los estados desde el JSON
 

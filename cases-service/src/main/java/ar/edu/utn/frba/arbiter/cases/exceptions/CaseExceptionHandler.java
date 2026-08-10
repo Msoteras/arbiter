@@ -64,4 +64,16 @@ public class CaseExceptionHandler {
     public ProblemDetail handleAnalystProfileNotFound(AnalystProfileNotFoundException ex) {
         return ProblemDetail.forStatusAndDetail(HttpStatusCode.valueOf(403), ex.getMessage());
     }
+
+    /** Denunciar a nombre de otro asegurado. */
+    @ExceptionHandler(InsuredIdentityMismatchException.class)
+    public ProblemDetail handleInsuredIdentityMismatch(InsuredIdentityMismatchException ex) {
+        return ProblemDetail.forStatusAndDetail(HttpStatusCode.valueOf(403), ex.getMessage());
+    }
+
+    /** La póliza denunciada existe, pero es de otro asegurado. */
+    @ExceptionHandler(PolicyInsuredMismatchException.class)
+    public ProblemDetail handlePolicyInsuredMismatch(PolicyInsuredMismatchException ex) {
+        return ProblemDetail.forStatusAndDetail(HttpStatusCode.valueOf(422), ex.getMessage());
+    }
 }

@@ -100,7 +100,6 @@ services:
       SPRING_PROFILES_ACTIVE: ${CLASSIFICATION_PROFILES:-insurer-db}
       OLLAMA_BASE_URL: http://ollama:11434
       OLLAMA_MODEL: ${OLLAMA_MODEL:-qwen3-vl}
-      EMBEDDING_ENABLED: ${EMBEDDING_ENABLED:-true}
       EMBEDDING_SERVICE_URL: http://clip-embedding:8000
       # Opt-in: sends images to Google. Set both in your .env (never commit the key).
       GOOGLE_VISION_ENABLED: ${GOOGLE_VISION_ENABLED:-false}

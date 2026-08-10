@@ -85,6 +85,19 @@ public class MockRulesAdapter implements RulesAdapter {
                             .build())
                     .requiredDocumentTypes(List.of("police_report"))
                     .scoringConfig(DEFAULT_SCORING_CONFIG)
+                    // Límites de la cobertura (D10/D11), espejo del seed: plazo 72 hs, 2 eventos/año.
+                    .reportDeadlineHours(72L)
+                    .maxEventsPerYear(2)
+                    // Caso 6 del handoff ("Hurto no cubierto"): la cobertura de robo (id 1) excluye
+                    // el hecho generador Hurto (claim_cause id 3). Lista negra: un robo (cause 2) no
+                    // se ve afectado. Espeja el seed COVERAGE_EXCLUSION de init-multitenant.sql.
+                    .evaluableRules(List.of(BusinessRules.EvaluableRule.builder()
+                            .id(3L)
+                            .ruleType("COVERAGE_EXCLUSION")
+                            .effect("RECHAZAR")
+                            .blocksFastTrack(true)
+                            .excludedClaimCauseIds(List.of(3L))
+                            .build()))
                     .build(),
 
             2L, BusinessRules.builder()
@@ -111,6 +124,9 @@ public class MockRulesAdapter implements RulesAdapter {
                             .build())
                     .requiredDocumentTypes(List.of("police_report"))
                     .scoringConfig(DEFAULT_SCORING_CONFIG)
+                    // Límites de la cobertura (D10/D11), espejo del seed: plazo 72 hs, 1 evento/año.
+                    .reportDeadlineHours(72L)
+                    .maxEventsPerYear(1)
                     .build()
     );
 

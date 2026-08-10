@@ -84,6 +84,56 @@ class CaseSecurityTest extends AbstractPersistenceIT {
     }
 
     @Test
+    void createCase_asReferente_returns403() throws Exception {
+        // Denunciar es del asegurado y de nadie más. El endpoint estaba en
+        // hasAnyRole('ASEGURADO','REFERENTE_ASEGURADORA'), más laxo que la regla de negocio — el
+        // frontend ya restringía la ruta `new-claim` a ASEGURADO.
+        MockMultipartFile casePart = new MockMultipartFile(
+                "case", "", MediaType.APPLICATION_JSON_VALUE,
+                """
+                {
+                  "branch": "Celulares",
+                  "product": "Celular Protegido Básico",
+                  "claimCause": "Robo en vía pública",
+                  "insuredItem": "Motorola Edge 50 Pro",
+                  "insuredId": "40.123.456",
+                  "policyNumber": "POL-CEL-2024-001",
+                  "description": "Me robaron el celular",
+                  "eventDate": "2026-06-13T19:45:00",
+                  "eventLocation": "CABA",
+                  "pep": false,
+                  "imageConsent": false
+                }
+                """.getBytes()
+        );
+
+        mockMvc.perform(multipart("/api/v1/cases").file(casePart)
+                        .header("Authorization", "Bearer " + tokenFor("REFERENTE_ASEGURADORA")))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
+    void uploadDocuments_asReferente_returns403() throws Exception {
+        // Misma regla: la documentación adicional la sube el asegurado dueño del expediente (H0005).
+        MockMultipartFile doc = new MockMultipartFile(
+                "police_report", "denuncia.pdf", MediaType.APPLICATION_PDF_VALUE, "contenido".getBytes());
+
+        mockMvc.perform(multipart("/api/v1/cases/1/documents").file(doc)
+                        .header("Authorization", "Bearer " + tokenFor("REFERENTE_ASEGURADORA")))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
+    void uploadDocuments_asAnalista_returns403() throws Exception {
+        MockMultipartFile doc = new MockMultipartFile(
+                "police_report", "denuncia.pdf", MediaType.APPLICATION_PDF_VALUE, "contenido".getBytes());
+
+        mockMvc.perform(multipart("/api/v1/cases/1/documents").file(doc)
+                        .header("Authorization", "Bearer " + tokenFor("ANALISTA_SINIESTROS")))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
     void recordDecision_asAsegurado_returns403() throws Exception {
         mockMvc.perform(post("/api/v1/cases/1/decision")
                         .header("Authorization", "Bearer " + tokenFor("ASEGURADO"))

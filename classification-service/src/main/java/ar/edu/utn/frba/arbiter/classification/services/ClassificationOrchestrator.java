@@ -30,6 +30,8 @@ public class ClassificationOrchestrator {
     private final ClaimClassifier classifier;
     private final RulesAdapter rulesAdapter;
     private final InsurerAdapter insurerAdapter;
+    private final CoverageRuleEvaluator coverageRuleEvaluator;
+    private final TemporalRuleEvaluator temporalRuleEvaluator;
     private final FastTrackValidator fastTrackValidator;
     private final DocumentAnalyzer documentAnalyzer;
     private final PromptBuilder promptBuilder;
@@ -48,15 +50,28 @@ public class ClassificationOrchestrator {
 
     private ClassificationResponse resolveClassification(ClaimReport claim, Context ctx) {
 
-        FastTrackValidator.Result fastTrack = fastTrackValidator.evaluate(claim, ctx.policy(), ctx.history(), ctx.rules(), null);
-        if (fastTrack.fastTrack()) {
-            log.info("[Orchestrator] Deterministic Fast Track — claim qualifies, skipping LLM. Reasons={}",
-                    fastTrack.reasons());
-            return fastTrackResponse(fastTrack);
+        // Reglas duras primero: una exclusión de cobertura hace irrelevante al Fast Track (D3).
+        CoverageRuleEvaluator.Result exclusion = coverageRuleEvaluator.evaluate(claim, ctx.rules());
+        if (exclusion.excluded()) {
+            return attachRuleFindings(coverageExclusionResponse(exclusion, claim), exclusion);
         }
 
-        log.info("[Orchestrator] Not Fast Track ({}). Building prompt and sending to LLM...", fastTrack.reasons());
-        return classifyWithLlm(claim, ctx);
+        // Reglas temporales (D10/D11/D13): bloquean Fast Track y suman motivos para el analista.
+        TemporalRuleEvaluator.Result temporal =
+                temporalRuleEvaluator.evaluate(claim, ctx.policy(), ctx.history(), ctx.rules());
+
+        FastTrackValidator.Result fastTrack = fastTrackValidator.evaluate(claim, ctx.policy(), ctx.history(), ctx.rules(), null);
+        if (fastTrack.fastTrack() && !temporal.blocksFastTrack()) {
+            log.info("[Orchestrator] Deterministic Fast Track — claim qualifies, skipping LLM. Reasons={}",
+                    fastTrack.reasons());
+            return attachRuleFindings(fastTrackResponse(fastTrack), exclusion);
+        }
+
+        log.info("[Orchestrator] Not Fast Track (fastTrack={}, temporalBlock={}). Building prompt and sending to LLM...",
+                fastTrack.reasons(), temporal.reasons());
+        return appendReasons(
+                attachRuleFindings(classifyWithLlm(claim, ctx, engineFindings(exclusion, temporal)), exclusion),
+                temporal.reasons());
     }
 
     /**
@@ -120,28 +135,43 @@ public class ClassificationOrchestrator {
     private record Resolution(ClassificationResponse response, boolean documentationAnalyzed) {}
 
     private Resolution resolveClassification(ClaimReport claim, List<AttachmentDocument> documents, Context ctx) {
+        // Reglas duras primero: una exclusión de cobertura corta antes que el gate documental y el
+        // Fast Track (D3). No se analizan documentos ni imágenes: la exclusión ya resuelve el camino.
+        CoverageRuleEvaluator.Result exclusion = coverageRuleEvaluator.evaluate(claim, ctx.rules());
+        if (exclusion.excluded()) {
+            return new Resolution(attachRuleFindings(coverageExclusionResponse(exclusion, claim), exclusion), false);
+        }
+
         List<String> documentTypes = documents.stream().map(AttachmentDocument::type).toList();
         List<String> missingDocs = checkRequiredDocuments(ctx.rules(), documentTypes);
         if (!missingDocs.isEmpty()) {
             log.info("[Orchestrator] Missing required documents: {}", missingDocs);
-            return new Resolution(missingDocumentationResponse(missingDocs), false);
+            return new Resolution(attachRuleFindings(missingDocumentationResponse(missingDocs), exclusion), false);
         }
 
         List<String> requiredForGate = requiredDocumentTypes(ctx.rules());
         Map<String, String> gateDocumentTexts = extractRequiredDocuments(documents, requiredForGate);
 
+        // Reglas temporales (D10/D11/D13): bloquean Fast Track y suman motivos para el analista.
+        TemporalRuleEvaluator.Result temporal =
+                temporalRuleEvaluator.evaluate(claim, ctx.policy(), ctx.history(), ctx.rules());
+
         FastTrackValidator.Result fastTrack =
                 fastTrackValidator.evaluate(claim, ctx.policy(), ctx.history(), ctx.rules(), gateDocumentTexts);
-        if (fastTrack.fastTrack()) {
+        if (fastTrack.fastTrack() && !temporal.blocksFastTrack()) {
             log.info("[Orchestrator] Deterministic Fast Track — Reasons={}", fastTrack.reasons());
             // Documentation was analyzed only if the gate actually examined a required document.
-            return new Resolution(fastTrackResponse(fastTrack), !gateDocumentTexts.isEmpty());
+            return new Resolution(attachRuleFindings(fastTrackResponse(fastTrack), exclusion), !gateDocumentTexts.isEmpty());
         }
 
-        log.info("[Orchestrator] Not Fast Track ({}). Extracting remaining document(s) and sending to LLM...",
-                fastTrack.reasons());
+        log.info("[Orchestrator] Not Fast Track (fastTrack={}, temporalBlock={}). Extracting remaining document(s)...",
+                fastTrack.reasons(), temporal.reasons());
         ClaimReport claimWithOcr = withAttachmentsOcr(claim, extractAllAttachmentsText(documents, gateDocumentTexts));
-        return new Resolution(classifyWithLlm(claimWithOcr, ctx), true);
+        return new Resolution(
+                appendReasons(
+                        attachRuleFindings(classifyWithLlm(claimWithOcr, ctx, engineFindings(exclusion, temporal)), exclusion),
+                        temporal.reasons()),
+                true);
     }
 
     /**
@@ -208,8 +238,8 @@ public class ClassificationOrchestrator {
         return new Context(policy, history, rules);
     }
 
-    private ClassificationResponse classifyWithLlm(ClaimReport claim, Context ctx) {
-        ClassificationRequest request = buildRequest(claim, ctx.policy(), ctx.history(), ctx.rules());
+    private ClassificationResponse classifyWithLlm(ClaimReport claim, Context ctx, List<String> engineFindings) {
+        ClassificationRequest request = buildRequest(claim, ctx.policy(), ctx.history(), ctx.rules(), engineFindings);
         ClassificationResponse response = classifier.classify(request);
 
         log.info("[Orchestrator] Classification done — result={} confidence={}",
@@ -244,6 +274,41 @@ public class ClassificationOrchestrator {
                 .confidence(1.0)
                 .deterministicFastTrack(true)
                 .build();
+    }
+
+    /**
+     * Una exclusión dura no cierra el expediente (CLAUDE.md #5, human-in-the-loop): deriva a
+     * revisión del analista con el motivo a la vista y sin llamar al LLM. Determinístico, como el
+     * Fast Track y el FALTA_DOCUMENTACION, pero en sentido contrario. El hallazgo queda auditado en
+     * {@code rule_result} vía {@code ruleFindings}.
+     */
+    private ClassificationResponse coverageExclusionResponse(CoverageRuleEvaluator.Result exclusion, ClaimReport claim) {
+        log.info("[Orchestrator] Coverage exclusion — deriva a revisión manual sin LLM. claimCause='{}'",
+                claim.claimCause());
+        return ClassificationResponse.builder()
+                .classification(Classification.LLM_SOLICITA_REVISION_MANUAL)
+                .factors(coverageRuleEvaluator.excludedReasons(exclusion, claim))
+                .confidence(1.0)
+                .deterministicFastTrack(false)
+                .build();
+    }
+
+    /** Cuelga los resultados de reglas evaluadas (PASS/FAIL) para que se auditen en rule_result. */
+    private ClassificationResponse attachRuleFindings(ClassificationResponse response, CoverageRuleEvaluator.Result exclusion) {
+        if (exclusion.findings().isEmpty()) {
+            return response;
+        }
+        return response.toBuilder().ruleFindings(exclusion.findings()).build();
+    }
+
+    /** Suma los motivos de las reglas temporales a los factores visibles del analista. */
+    private ClassificationResponse appendReasons(ClassificationResponse response, List<String> reasons) {
+        if (reasons.isEmpty()) {
+            return response;
+        }
+        List<String> merged = new ArrayList<>(response.factors() == null ? List.of() : response.factors());
+        merged.addAll(reasons);
+        return response.toBuilder().factors(merged).build();
     }
 
     private List<String> requiredDocumentTypes(BusinessRules rules) {
@@ -282,6 +347,7 @@ public class ClassificationOrchestrator {
                 .product(claim.product())
                 .claimCause(claim.claimCause())
                 .coverageId(claim.coverageId())
+                .claimCauseId(claim.claimCauseId())
                 .insuredItem(claim.insuredItem())
                 .insuredId(claim.insuredId())
                 .policyNumber(claim.policyNumber())
@@ -289,6 +355,7 @@ public class ClassificationOrchestrator {
                 .eventDate(claim.eventDate())
                 .eventLocation(claim.eventLocation())
                 .claimedAmount(claim.claimedAmount())
+                .reportedAt(claim.reportedAt())
                 .attachmentsOcr(attachmentsOcr)
                 .build();
     }
@@ -297,7 +364,8 @@ public class ClassificationOrchestrator {
             ClaimReport claim,
             InsuredPolicy policy,
             InsuredHistory history,
-            BusinessRules rules
+            BusinessRules rules,
+            List<String> engineFindings
     ) {
         return ClassificationRequest.builder()
                 .branch(claim.branch())
@@ -311,6 +379,20 @@ public class ClassificationOrchestrator {
                 .attachmentsOcr(claim.attachmentsOcr())
                 .insurerRules(promptBuilder.renderRulesAndPolicy(rules, policy))
                 .insuredHistory(promptBuilder.renderHistory(history))
+                .engineEvaluation(engineFindings)
                 .build();
+    }
+
+    /**
+     * El veredicto de las reglas duras que el motor ya evaluó (D4a paso 6), para inyectar en el prompt
+     * como hecho establecido: los incumplimientos temporales (plazo/vigencia/frecuencia) y, si había
+     * regla de exclusión y no aplicó, la confirmación de que la cobertura cubre el hecho generador.
+     */
+    private List<String> engineFindings(CoverageRuleEvaluator.Result exclusion, TemporalRuleEvaluator.Result temporal) {
+        List<String> findings = new ArrayList<>(temporal.reasons());
+        if (!exclusion.findings().isEmpty() && exclusion.findings().stream().allMatch(f -> f.passed())) {
+            findings.add("La cobertura cubre el hecho generador declarado (regla de exclusión evaluada: no aplica).");
+        }
+        return findings;
     }
 }

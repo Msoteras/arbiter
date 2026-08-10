@@ -9,7 +9,8 @@ import { DocumentAgendaService } from '../document-agenda.service';
 import { CaseNavigationService } from '../case-navigation.service';
 import { AuthSessionService } from '../../../core/auth/auth-session.service';
 import { UserAdminService } from '../../../core/auth/user-admin.service';
-import { ExpedienteResponse, StatusTransition } from '../../../core/models/expediente';
+import { ExpedienteResponse, RiskBreakdownItem, StatusTransition } from '../../../core/models/expediente';
+import { riskFactorLabel } from '../../../core/models/business-rules';
 import { CASE_DOCUMENT_TYPES, CaseDocument, CaseDocumentType } from '../../../core/models/case-document';
 import { clasificacionLabel, clasificacionTone } from '../../../core/models/clasificacion';
 import {
@@ -37,7 +38,7 @@ type LoadState =
   | { status: 'ok'; data: ExpedienteResponse }
   | { status: 'error'; httpStatus: number };
 
-type TabId = 'resumen' | 'datos' | 'imagenes' | 'documentacion' | 'conversacion' | 'historial';
+type TabId = 'resumen' | 'datos' | 'imagenes' | 'riesgo' | 'documentacion' | 'conversacion' | 'historial';
 type Verb = 'aprobar' | 'rechazar';
 
 /** value=null → la sección muestra "Sin datos" (el backend no provee este campo). */
@@ -146,6 +147,26 @@ export class ExpedienteDetailComponent {
     return d ? riskBandEmptyLabel(d.status, d.analysisClassification) : 'Sin datos';
   });
 
+  /** Score de fraude como porcentaje entero (0..100), o null si no se scoreó. */
+  protected readonly riskScorePct = computed<number | null>(() => {
+    const score = this.data()?.riskScore;
+    return score == null ? null : Math.round(score * 100);
+  });
+
+  /** Desglose del score por factor, ordenado por aporte descendente (el que más pesó primero). */
+  protected readonly riskBreakdown = computed<RiskBreakdownItem[]>(() => {
+    const items = this.data()?.riskBreakdown ?? [];
+    return [...items].sort((a, b) => b.weightedContribution - a.weightedContribution);
+  });
+
+  protected factorLabel(factorId: string): string {
+    return riskFactorLabel(factorId);
+  }
+
+  protected pct(value: number): number {
+    return Math.round(value * 100);
+  }
+
   protected readonly classificationLabel = computed(() => {
     const d = this.data();
     return d ? clasificacionLabel(d.analysisClassification) : '';
@@ -195,6 +216,7 @@ export class ExpedienteDetailComponent {
     { id: 'resumen', label: 'Resumen' },
     { id: 'datos', label: 'Datos extraídos' },
     { id: 'imagenes', label: 'Análisis de imágenes' },
+    { id: 'riesgo', label: 'Desglose de riesgo' },
     { id: 'documentacion', label: 'Documentación' },
     { id: 'conversacion', label: 'Conversación' },
     { id: 'historial', label: 'Historial' },
@@ -204,14 +226,9 @@ export class ExpedienteDetailComponent {
     this.activeTab.set(t);
   }
 
-  // ----- clasificación sugerida: aceptar / modificar (local) -----
-  protected readonly classifState = signal<'none' | 'aceptada' | 'modificada'>('none');
-  acceptClassif(): void {
-    this.classifState.set('aceptada');
-  }
-  modifyClassif(): void {
-    this.classifState.set('modificada');
-  }
+  // La "aceptación/modificación" local de la recomendación se quitó: no persistía ni auditaba nada
+  // (aparentaba una acción que no ocurría). La única decisión real del analista es Aprobar/Rechazar,
+  // que sí persiste vía POST /cases/{id}/decision (abajo).
 
   // ----- decisión del analista (persiste vía POST /cases/{id}/decision) -----
   private readonly verbLabels: Record<Verb, string> = {

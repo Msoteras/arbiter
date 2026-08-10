@@ -21,8 +21,14 @@ export interface Coverage {
   reportingWindowDays: number | null;
   /** Máx. de eventos indemnizables por año y póliza. → DER cobertura.tope_eventos_por_anio */
   maxAnnualClaims: number | null;
-  /** Exclusiones específicas de esta cobertura. */
+  /** Exclusiones específicas de esta cobertura, en texto libre (van al prompt del LLM). */
   exclusions: string[];
+  /**
+   * Hechos generadores (claim_cause ids) que esta cobertura NO cubre — exclusión DURA que evalúa
+   * el motor por código (COVERAGE_EXCLUSION) y audita en rule_result, no el LLM. Opcional: el mock
+   * semilla no lo trae; el detalle real de la cobertura lo carga desde rules-service.
+   */
+  excludedClaimCauseIds?: number[];
 }
 
 /** Gate determinístico del Fast Track ("Siniestro Express"), configurado por ramo. */

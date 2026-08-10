@@ -6,15 +6,15 @@
 
     <div class="findings-grid">
       @for (finding of r.findings; track finding.label) {
-        <app-card [heading]="docLabel(finding.filename)">
+        <app-card [heading]="docLabel(finding.documentType)">
           <div class="finding-body">
             <div class="finding-image">
               @if (imageUrls()[finding.label]; as url) {
-                <img [src]="url" [alt]="docLabel(finding.filename)" />
+                <img [src]="url" [alt]="docLabel(finding.documentType)" />
                 <a
                   class="img-download"
                   [href]="url"
-                  [download]="imageFilenames()[finding.label] || docLabel(finding.filename)"
+                  [download]="imageFilenames()[finding.label] || docLabel(finding.documentType)"
                 >
                   <svg width="14" height="14" viewBox="0 0 16 16" fill="none" aria-hidden="true">
                     <path d="M8 2v8m0 0 3-3m-3 3L5 7M3 13h10" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" />

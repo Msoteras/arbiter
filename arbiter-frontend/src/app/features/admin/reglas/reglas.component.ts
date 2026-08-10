@@ -8,16 +8,16 @@ import {
   FastTrackConfig,
   RamoRules,
 } from '../../../core/models/business-rules';
-import { RulesConfigService } from '../rules-config.service';
+import { BranchOption, BranchesService } from '../branches.service';
 import { FastTrackConfigDto, FastTrackRulesService } from '../fast-track-rules.service';
 import { CoverageDetail, CoverageUpsertRequest, CoveragesRulesService } from '../coverages-rules.service';
+import { ClaimCauseOption, CoverageExclusionsService } from '../coverage-exclusions.service';
 import { DocumentRulesService } from '../document-rules.service';
 import { BusinessRulesTextService } from '../business-rules-text.service';
 import { ButtonComponent } from '../../../shared/ui/button/button.component';
 import { CardComponent } from '../../../shared/ui/card/card.component';
 import { EmptyStateComponent } from '../../../shared/ui/empty-state/empty-state.component';
 import { InputComponent } from '../../../shared/ui/input/input.component';
-import { ModalComponent } from '../../../shared/ui/modal/modal.component';
 import { ScoringConfigComponent } from '../scoring-config/scoring-config.component';
 import { StringListEditorComponent } from './string-list-editor.component';
 
@@ -27,9 +27,10 @@ type TabId = 'coberturas' | 'fastTrack' | 'documentacion' | 'reglas';
  * Configuración de reglas del referente, Ramo-céntrica. Master (lista de ramos) + detalle con
  * solapas: Coberturas, Fast Track, Documentación y Reglas. Trabaja sobre un draft en memoria por
  * solapa; cada una tiene su propio botón "Guardar X" que persiste contra el backend real
- * (cases-service para Coberturas, rules-service para las otras). El "Guardar cambios" /
- * "Descartar" globales de arriba solo cubren el nombre del ramo y el alta/baja de ramos, que
- * siguen en RulesConfigService (mock): no existe todavía un CRUD de Branch en el backend.
+ * (cases-service para Coberturas, rules-service para las otras). La lista y el ABM de ramos salen del
+ * catálogo REAL (BranchesService → rules-service /branches): alta, renombre y baja pegan al backend.
+ * Ojo: branch es un catálogo GLOBAL (compartido por todas las aseguradoras), no una config por
+ * aseguradora — por eso el ABM administra el catálogo maestro.
  * El scoring de fraude NO es por ramo: es una config única por aseguradora y vive en una sección
  * aparte de la pantalla (ScoringConfigComponent), fuera de este master-detail.
  * Porcentajes en la UI (0..100) ↔ fracción (0..1) en el modelo, que es el contrato del back.
@@ -41,7 +42,6 @@ type TabId = 'coberturas' | 'fastTrack' | 'documentacion' | 'reglas';
     CardComponent,
     EmptyStateComponent,
     InputComponent,
-    ModalComponent,
     ScoringConfigComponent,
     StringListEditorComponent,
   ],
@@ -50,9 +50,10 @@ type TabId = 'coberturas' | 'fastTrack' | 'documentacion' | 'reglas';
   styleUrl: './reglas.component.scss',
 })
 export class ReglasComponent {
-  private readonly service = inject(RulesConfigService);
+  private readonly branchesService = inject(BranchesService);
   private readonly ftService = inject(FastTrackRulesService);
   private readonly coveragesService = inject(CoveragesRulesService);
+  private readonly exclusionsService = inject(CoverageExclusionsService);
   private readonly documentsService = inject(DocumentRulesService);
   private readonly rulesTextService = inject(BusinessRulesTextService);
 
@@ -77,6 +78,15 @@ export class ReglasComponent {
   protected readonly rulesError = signal<string | null>(null);
 
   protected readonly docTypes = DOCUMENT_TYPES;
+  // Hechos generadores del ramo seleccionado (id + nombre), para el selector de exclusiones duras
+  // por cobertura. Se cargan del backend al elegir el ramo.
+  protected readonly claimCauses = signal<ClaimCauseOption[]>([]);
+
+  // Renombre del ramo (lo único editable del ramo desde acá: el alta y la baja no se exponen en la
+  // UI — el catálogo de ramos es fijo, lo administra el seed).
+  protected readonly renaming = signal(false);
+  protected readonly renameSaved = signal(false);
+  protected readonly renameError = signal<string | null>(null);
 
   protected readonly tabs: { id: TabId; label: string }[] = [
     { id: 'coberturas', label: 'Coberturas' },
@@ -92,17 +102,39 @@ export class ReglasComponent {
   // aseguradora ('scoring'), que no pertenece a ningún ramo y se elige desde su propio recuadro.
   protected readonly view = signal<'ramo' | 'scoring'>('ramo');
   protected readonly draft = signal<RamoRules | null>(null);
-  protected readonly dirty = signal(false);
-  protected readonly saving = signal(false);
-  protected readonly saved = signal(false);
 
   constructor() {
-    this.service.list().subscribe((list) => {
-      this.ramos.set(list);
-      if (list.length > 0) {
-        this.select(list[0]);
+    // La lista sale del catálogo real de ramos (tabla branch). Cada ramo arranca como un shell
+    // (solo id + nombre); el detalle de cada solapa se carga del backend al seleccionarlo.
+    this.branchesService.list().subscribe((branches) => {
+      const ramos = branches.map((b) => this.shellFromBranch(b));
+      this.ramos.set(ramos);
+      if (ramos.length > 0) {
+        this.select(ramos[0]);
       }
     });
+  }
+
+  /** Shell de RamoRules a partir del ramo real: id + nombre; el resto lo llena el backend al select. */
+  private shellFromBranch(branch: BranchOption): RamoRules {
+    return {
+      id: String(branch.id),
+      name: branch.name,
+      coverages: [],
+      commonExclusions: [],
+      requiredDocuments: [],
+      businessRules: [],
+      fastTrack: {
+        enabled: true,
+        minPolicyAgeMonths: null,
+        maxPriorClaims: null,
+        priorClaimsWindowMonths: null,
+        maxClaimedAmountRatio: null,
+        requiresUpToDatePolicy: true,
+        requiredDocumentTypes: [],
+        criteria: [],
+      },
+    };
   }
 
   protected isSelected(r: RamoRules): boolean {
@@ -119,8 +151,6 @@ export class ReglasComponent {
     this.selectedId.set(r.id);
     this.draft.set(structuredClone(r));
     this.activeTab.set('coberturas');
-    this.dirty.set(false);
-    this.saved.set(false);
     this.ftSaved.set(false);
     this.ftError.set(null);
     this.covSaved.set(false);
@@ -129,10 +159,28 @@ export class ReglasComponent {
     this.docError.set(null);
     this.rulesSaved.set(false);
     this.rulesError.set(null);
+    this.renameSaved.set(false);
+    this.renameError.set(null);
+    this.loadClaimCauses(r);
     this.loadFastTrackFromBackend(r);
     this.loadCoveragesFromBackend(r);
     this.loadDocumentsFromBackend(r);
     this.loadBusinessRulesFromBackend(r);
+  }
+
+  /** Catálogo de hechos generadores del ramo, para el selector de exclusiones duras por cobertura. */
+  private loadClaimCauses(r: RamoRules): void {
+    this.claimCauses.set([]);
+    const branchId = this.branchIdOf(r);
+    if (branchId == null) {
+      return;
+    }
+    this.exclusionsService.listClaimCauses(branchId).subscribe({
+      next: (options) => this.claimCauses.set(options),
+      error: () => {
+        /* backend caído: el selector queda vacío, sin romper la pantalla */
+      },
+    });
   }
 
   /**
@@ -154,11 +202,8 @@ export class ReglasComponent {
   }
 
   private overlayFastTrack(dto: FastTrackConfigDto | null): void {
-    // Config vacía en la DB = Fast Track no configurado para este ramo.
-    if (!dto || this.isEmptyFastTrack(dto)) {
-      this.draft.update((d) => (d ? { ...d, fastTrack: { ...d.fastTrack, enabled: false } } : d));
-      return;
-    }
+    // Fast Track siempre activo (requisito del sistema): se cargan los umbrales que haya en la DB;
+    // si no hay, quedan vacíos (sin criterios activos), pero el gate es siempre parte del análisis.
     this.draft.update((d) =>
       d
         ? {
@@ -166,22 +211,13 @@ export class ReglasComponent {
             fastTrack: {
               ...d.fastTrack,
               enabled: true,
-              maxClaimedAmountRatio: dto.maxClaimedAmountRatio,
-              maxPriorClaims: dto.maxPriorClaims,
-              requiresUpToDatePolicy: dto.requiresUpToDatePolicy ?? d.fastTrack.requiresUpToDatePolicy,
-              requiredDocumentTypes: dto.requiredDocumentTypes ?? [],
+              maxClaimedAmountRatio: dto?.maxClaimedAmountRatio ?? null,
+              maxPriorClaims: dto?.maxPriorClaims ?? null,
+              requiresUpToDatePolicy: dto?.requiresUpToDatePolicy ?? d.fastTrack.requiresUpToDatePolicy,
+              requiredDocumentTypes: dto?.requiredDocumentTypes ?? [],
             },
           }
         : d,
-    );
-  }
-
-  private isEmptyFastTrack(dto: FastTrackConfigDto): boolean {
-    return (
-      dto.maxClaimedAmountRatio == null &&
-      dto.maxPriorClaims == null &&
-      dto.requiresUpToDatePolicy == null &&
-      (dto.requiredDocumentTypes == null || dto.requiredDocumentTypes.length === 0)
     );
   }
 
@@ -196,7 +232,10 @@ export class ReglasComponent {
       return;
     }
     this.coveragesService.listDetailed(branchId).subscribe({
-      next: (list) => this.overlayCoverages(list),
+      next: (list) => {
+        this.overlayCoverages(list);
+        this.loadCoverageExclusions(list);
+      },
       error: () => {
         /* backend caído: nos quedamos con el mock, sin romper la pantalla */
       },
@@ -221,9 +260,46 @@ export class ReglasComponent {
       reportingWindowDays: c.reportingWindowDays,
       maxAnnualClaims: c.maxAnnualClaims,
       exclusions: c.exclusions ?? [],
+      // Las exclusiones duras (por hecho generador) viven en rules-service, no en este detalle:
+      // arrancan vacías y las completa loadCoverageExclusions.
+      excludedClaimCauseIds: [],
     }));
     this.loadedCoverages = coverages;
     this.draft.update((d) => (d ? { ...d, coverages } : d));
+  }
+
+  /**
+   * Trae, por cada cobertura persistida, los hechos generadores que excluye (rules-service) y los
+   * mergea en el draft. Best-effort e independiente por cobertura: si una falla, las otras igual
+   * cargan. Solo para coberturas con id real; las altas locales (`cov-…`) todavía no existen en el
+   * backend.
+   */
+  private loadCoverageExclusions(list: CoverageDetail[]): void {
+    list.forEach((c) => {
+      this.exclusionsService.get(c.id).subscribe({
+        next: (ids) => this.setCoverageExcludedIds(String(c.id), ids),
+        error: () => {
+          /* best-effort */
+        },
+      });
+    });
+  }
+
+  private setCoverageExcludedIds(coverageId: string, ids: number[]): void {
+    this.draft.update((d) =>
+      d
+        ? {
+            ...d,
+            coverages: d.coverages.map((c) =>
+              c.id === coverageId ? { ...c, excludedClaimCauseIds: ids } : c,
+            ),
+          }
+        : d,
+    );
+    // Reflejarlo también en el baseline cargado, para que el diff de guardado no lo marque sucio.
+    this.loadedCoverages = this.loadedCoverages.map((c) =>
+      c.id === coverageId ? { ...c, excludedClaimCauseIds: ids } : c,
+    );
   }
 
   /** Trae la agenda documental real del ramo (rules-service, fan-out invisible en el backend). */
@@ -267,69 +343,43 @@ export class ReglasComponent {
     this.activeTab.set(t);
   }
 
-  // ───────────────── Alta / renombre / baja de ramos ─────────────────
-  // Mockeado: hoy Arbiter solo soporta Celular y Tecnología, pero el alta/baja queda armada
-  // para cuando cada aseguradora administre su propio catálogo de productos.
+  // ───────────────── Ramos: renombre ─────────────────
+  // El alta y la baja de ramos no se exponen en la UI (el catálogo es fijo, lo administra el seed).
+  // El backend igual tiene el ABM completo (BranchesService.create/remove) por si se reactiva.
+
+  /** Edita el nombre del ramo en el draft (local); se persiste con saveName(). */
   protected setName(name: string): void {
-    this.patch({ name });
+    this.draft.update((d) => (d ? { ...d, name } : d));
+    this.renameSaved.set(false);
   }
 
-  protected addRamo(): void {
-    const ramo: RamoRules = {
-      id: `ramo-${Date.now()}`,
-      name: 'Nuevo ramo',
-      coverages: [],
-      commonExclusions: [],
-      requiredDocuments: [],
-      businessRules: [],
-      fastTrack: {
-        enabled: false,
-        minPolicyAgeMonths: null,
-        maxPriorClaims: null,
-        priorClaimsWindowMonths: null,
-        maxClaimedAmountRatio: null,
-        requiresUpToDatePolicy: true,
-        requiredDocumentTypes: [],
-        criteria: [],
-      },
-    };
-    this.service.create(ramo).subscribe((created) => {
-      this.ramos.update((list) => [...list, created]);
-      this.select(created);
-    });
-  }
-
-  protected readonly ramoToDelete = signal<RamoRules | null>(null);
-  protected readonly deleting = signal(false);
-
-  protected requestDeleteRamo(): void {
+  protected saveName(): void {
     const d = this.draft();
-    if (d) {
-      this.ramoToDelete.set(d);
-    }
-  }
-
-  protected cancelDeleteRamo(): void {
-    this.ramoToDelete.set(null);
-  }
-
-  protected confirmDeleteRamo(): void {
-    const ramo = this.ramoToDelete();
-    if (!ramo || this.deleting()) {
+    if (!d || this.renaming()) {
       return;
     }
-    this.deleting.set(true);
-    this.service.remove(ramo.id).subscribe(() => {
-      this.ramos.update((list) => list.filter((r) => r.id !== ramo.id));
-      this.deleting.set(false);
-      this.ramoToDelete.set(null);
-      const next = this.ramos()[0];
-      if (next) {
-        this.select(next);
-      } else {
-        this.selectedId.set(null);
-        this.draft.set(null);
-      }
+    const branchId = this.branchIdOf(d);
+    const name = d.name.trim();
+    if (branchId == null || name === '') {
+      this.renameError.set('El nombre del ramo no puede estar vacío.');
+      return;
+    }
+    this.renameError.set(null);
+    this.renameSaved.set(false);
+    this.renaming.set(true);
+    this.branchesService.rename(branchId, name).subscribe({
+      next: (branch) => {
+        this.renaming.set(false);
+        this.renameSaved.set(true);
+        // Refleja el nombre nuevo en la lista de la izquierda.
+        this.ramos.update((list) =>
+          list.map((r) => (r.id === String(branch.id) ? { ...r, name: branch.name } : r)),
+        );
+      },
+      error: (e: unknown) => {
+        this.renaming.set(false);
+        this.renameError.set(this.backendErrorMessage(e));
+      },
     });
   }
 
@@ -344,8 +394,43 @@ export class ReglasComponent {
       reportingWindowDays: null,
       maxAnnualClaims: null,
       exclusions: [],
+      excludedClaimCauseIds: [],
     };
     this.draft.update((d) => (d ? { ...d, coverages: [...d.coverages, coverage] } : d));
+    this.markDirty();
+  }
+
+  // ───────────────── Exclusiones duras por cobertura (hecho generador) ─────────────────
+  /** Una cobertura ya persistida (id numérico) puede configurar exclusiones; una local todavía no. */
+  protected canEditExclusions(c: Coverage): boolean {
+    return this.isPersistedId(c.id);
+  }
+
+  protected isCauseExcluded(c: Coverage, causeId: number): boolean {
+    return (c.excludedClaimCauseIds ?? []).includes(causeId);
+  }
+
+  protected toggleExcludedCause(id: string, causeId: number): void {
+    this.draft.update((d) =>
+      d
+        ? {
+            ...d,
+            coverages: d.coverages.map((c) => {
+              if (c.id !== id) {
+                return c;
+              }
+              const current = c.excludedClaimCauseIds ?? [];
+              const has = current.includes(causeId);
+              return {
+                ...c,
+                excludedClaimCauseIds: has
+                  ? current.filter((x) => x !== causeId)
+                  : [...current, causeId],
+              };
+            }),
+          }
+        : d,
+    );
     this.markDirty();
   }
 
@@ -361,20 +446,12 @@ export class ReglasComponent {
     this.markDirty();
   }
 
-  protected setCoverageAmount(id: string, value: string): void {
-    this.setCoverageField(id, { insuredAmount: this.intFromStr(value) });
-  }
-
   protected setCoverageDeductible(id: string, value: string): void {
     this.setCoverageField(id, { deductibleRatio: this.ratioFromPct(value) });
   }
 
   protected coverageDeductiblePct(c: Coverage): string {
     return this.pctFromRatio(c.deductibleRatio);
-  }
-
-  protected coverageAmountStr(c: Coverage): string {
-    return c.insuredAmount == null ? '' : String(c.insuredAmount);
   }
 
   protected setCoverageReportingWindow(id: string, value: string): void {
@@ -418,11 +495,7 @@ export class ReglasComponent {
     this.markDirty();
   }
 
-  // ───────────────── Fast Track ─────────────────
-  protected toggleFastTrack(): void {
-    this.patchFastTrack((ft) => ({ ...ft, enabled: !ft.enabled }));
-  }
-
+  // ───────────────── Fast Track (siempre activo; no hay toggle) ─────────────────
   protected setMinPolicyAge(v: string): void {
     this.patchFastTrack((ft) => ({ ...ft, minPolicyAgeMonths: this.intFromStr(v) }));
   }
@@ -501,14 +574,13 @@ export class ReglasComponent {
       return;
     }
     const ft = d.fastTrack;
-    const dto: FastTrackConfigDto = ft.enabled
-      ? {
-          maxClaimedAmountRatio: ft.maxClaimedAmountRatio,
-          maxPriorClaims: ft.maxPriorClaims,
-          requiresUpToDatePolicy: ft.requiresUpToDatePolicy,
-          requiredDocumentTypes: ft.requiredDocumentTypes,
-        }
-      : { maxClaimedAmountRatio: null, maxPriorClaims: null, requiresUpToDatePolicy: null, requiredDocumentTypes: [] };
+    // Fast Track siempre activo: se persisten los umbrales tal como están (vacíos = sin criterios).
+    const dto: FastTrackConfigDto = {
+      maxClaimedAmountRatio: ft.maxClaimedAmountRatio,
+      maxPriorClaims: ft.maxPriorClaims,
+      requiresUpToDatePolicy: ft.requiresUpToDatePolicy,
+      requiredDocumentTypes: ft.requiredDocumentTypes,
+    };
 
     this.ftSaving.set(true);
     this.ftService.saveForBranch(branchId, dto).subscribe({
@@ -553,6 +625,11 @@ export class ReglasComponent {
       ...toDelete.map((c) => this.coveragesService.remove(Number(c.id))),
       ...toCreate.map((c) => this.coveragesService.create(branchId, this.toCoverageRequest(c))),
       ...toUpdate.map((c) => this.coveragesService.update(Number(c.id), this.toCoverageRequest(c))),
+      // Exclusiones duras (por hecho generador) solo de las coberturas ya persistidas: una recién
+      // creada no tiene id real todavía y sus exclusiones se configuran tras el reload.
+      ...toUpdate.map((c) =>
+        this.exclusionsService.save(branchId, Number(c.id), c.excludedClaimCauseIds ?? []),
+      ),
       this.rulesTextService.saveExclusions(branchId, d.commonExclusions),
     ];
 
@@ -657,30 +734,6 @@ export class ReglasComponent {
     return e instanceof Error ? e.message : 'No se pudo guardar.';
   }
 
-  // ───────────────── Guardar / descartar ─────────────────
-  protected save(): void {
-    const d = this.draft();
-    if (!d || !this.dirty() || this.saving()) {
-      return;
-    }
-    this.saving.set(true);
-    this.service.save(d).subscribe((updated) => {
-      this.ramos.update((list) => list.map((r) => (r.id === updated.id ? updated : r)));
-      this.saving.set(false);
-      this.dirty.set(false);
-      this.saved.set(true);
-    });
-  }
-
-  protected discard(): void {
-    const original = this.ramos().find((r) => r.id === this.selectedId());
-    if (original) {
-      this.draft.set(structuredClone(original));
-      this.dirty.set(false);
-      this.saved.set(false);
-    }
-  }
-
   // ───────────────── Helpers ─────────────────
   private patch(partial: Partial<RamoRules>): void {
     this.draft.update((d) => (d ? { ...d, ...partial } : d));
@@ -692,9 +745,11 @@ export class ReglasComponent {
     this.markDirty();
   }
 
+  // Cada solapa persiste con su propio botón "Guardar X"; ya no hay un guardado global de ramo que
+  // dependa de un flag "sucio", así que marcar cambios quedó sin efecto (se conserva el gancho por
+  // si alguna solapa quiere resaltar cambios sin guardar en el futuro).
   private markDirty(): void {
-    this.dirty.set(true);
-    this.saved.set(false);
+    /* no-op */
   }
 
   private pctFromRatio(ratio: number | null): string {

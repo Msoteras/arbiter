@@ -18,4 +18,14 @@ public class RulesExceptionHandler {
     public ProblemDetail handleInvalidConfiguration(InvalidRuleConfigurationException ex) {
         return ProblemDetail.forStatusAndDetail(HttpStatusCode.valueOf(422), ex.getMessage());
     }
+
+    @ExceptionHandler(BranchNameConflictException.class)
+    public ProblemDetail handleBranchNameConflict(BranchNameConflictException ex) {
+        return ProblemDetail.forStatusAndDetail(HttpStatusCode.valueOf(409), ex.getMessage());
+    }
+
+    @ExceptionHandler(BranchInUseException.class)
+    public ProblemDetail handleBranchInUse(BranchInUseException ex) {
+        return ProblemDetail.forStatusAndDetail(HttpStatusCode.valueOf(409), ex.getMessage());
+    }
 }

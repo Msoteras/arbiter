@@ -22,7 +22,7 @@ class ImageEvaluatorsTest {
     }
 
     private static ImageFinding finding(List<InternalMatch> internal, WebFinding webFinding) {
-        return new ImageFinding("damage_photo-0", "foto.jpg", internal, webFinding);
+        return new ImageFinding("damage_photo-0", "damage_photo", internal, webFinding);
     }
 
     // ── image_reuse ──────────────────────────────────────────────────────────
@@ -47,8 +47,8 @@ class ImageEvaluatorsTest {
     @Test
     void reuse_scoresMaxSimilarity() {
         ImageForensicReport report = new ImageForensicReport(2, 0, List.of(
-                finding(List.of(new InternalMatch(8734L, "a.jpg", 0.81)), null),
-                finding(List.of(new InternalMatch(9002L, "b.jpg", 0.96)), null)));
+                finding(List.of(new InternalMatch(8734L, "item_photo", "a.jpg", 0.81)), null),
+                finding(List.of(new InternalMatch(9002L, "item_photo", "b.jpg", 0.96)), null)));
 
         Contribution c = reuse.evaluate(ctx(report));
 

@@ -143,3 +143,13 @@ app-textarea { display: block; margin: var(--space-3) 0; }
   .resumen-grid { grid-template-columns: 1fr; }
   .fields { grid-template-columns: 1fr; }
 }
+
+.risk-score { margin: 0.75rem 0 0.25rem; font-size: 0.95rem; }
+.risk-breakdown { margin-top: 0.5rem; }
+.breakdown-table { width: 100%; border-collapse: collapse; font-size: 0.85rem; margin-top: 0.35rem; }
+.breakdown-table th { text-align: left; font-weight: 600; opacity: 0.7; padding: 0.2rem 0; }
+.breakdown-table td { padding: 0.3rem 0; border-top: 1px solid rgba(128,128,128,0.2); vertical-align: top; }
+.factor-name { display: block; }
+.factor-rationale { display: block; opacity: 0.65; font-size: 0.8rem; }
+.factor-contrib { text-align: right; white-space: nowrap; font-variant-numeric: tabular-nums; }
+.factor-detail { display: block; opacity: 0.6; font-size: 0.75rem; }

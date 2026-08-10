@@ -24,7 +24,13 @@ public record ClassificationResponse(
         /** Insured's real name (from InsuredPolicy), attached by the orchestrator like riskScore. */
         String insuredName,
         /** Structured image-fraud analysis, attached by the orchestrator for persistence + UI. */
-        ImageForensicReport forensicReport
+        ImageForensicReport forensicReport,
+        /**
+         * Hard-rule evaluations (coverage exclusions) that ran deterministically before the LLM.
+         * Attached by the orchestrator and persisted to {@code rule_result} for the audit trail;
+         * empty when no evaluable rule applied. Never set by the classifier.
+         */
+        List<RuleFinding> ruleFindings
 ) {
 
     /**
@@ -33,6 +39,6 @@ public record ClassificationResponse(
      * classifier decoupled from scoring and policy lookup.
      */
     public ClassificationResponse(Classification classification, List<String> factors, double confidence, boolean deterministicFastTrack) {
-        this(classification, factors, confidence, deterministicFastTrack, null, null, null);
+        this(classification, factors, confidence, deterministicFastTrack, null, null, null, null);
     }
 }
