@@ -119,6 +119,18 @@
             <app-input type="time" [(value)]="eventTime" placeholder="Hora aprox." />
           </div>
 
+          @if (requiresPoliceReport()) {
+            <label class="field-label">Fecha y hora de la denuncia policial</label>
+            <div class="datetime-grid">
+              <app-input type="date" [max]="today" [(value)]="policeReportDate" />
+              <app-input type="time" [(value)]="policeReportTime" placeholder="Hora aprox." />
+            </div>
+            <p class="t-note">
+              Si todavía no hiciste la denuncia policial, dejá el campo vacío. La constancia se
+              adjunta en el paso siguiente.
+            </p>
+          }
+
           <label class="field-label">¿Dónde pasó? *</label>
           <div class="location-fields">
             <div class="location-grid">

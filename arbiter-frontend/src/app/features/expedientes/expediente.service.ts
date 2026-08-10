@@ -16,6 +16,15 @@ export interface CaseCreateRequest {
   description: string;
   eventDate: string;
   eventLocation: string;
+  // Fecha/hora en que el asegurado hizo la denuncia policial, tal como la declara. Opcional: no
+  // todo hecho generador lleva denuncia policial (el wizard solo pide el dato cuando la agenda
+  // documental del ramo incluye `police_report`).
+  //
+  // Es la DECLARACIÓN, no lo que diga la constancia. Cuando exista extracción estructurada del
+  // documento (H0007), esa fecha va en un dato aparte: si sobreescribiera a esta se pierde el
+  // cruce, y la discrepancia entre lo declarado y lo que dice el papel es justamente la señal
+  // que le daría contenido al DocumentInconsistencyEvaluator (D4b).
+  policeReportAt?: string;
   claimedAmount?: number;
   pep: boolean;
   imageConsent: boolean;

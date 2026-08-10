@@ -173,6 +173,12 @@ export class NuevaDenunciaComponent {
   protected readonly entreCalles = signal('');
   protected readonly eventDate = signal('');
   protected readonly eventTime = signal('');
+  // Cuándo hizo la denuncia policial, declarado por el asegurado. Separado de eventDate porque son
+  // dos momentos distintos y la diferencia entre ambos es lo que evalúa la regla del plazo de
+  // denuncia (`coverage.report_deadline_hours`). El dato existía en CaseRequest y en la entidad
+  // desde el principio; el wizard nunca lo mandaba, así que la regla era inverificable (D12).
+  protected readonly policeReportDate = signal('');
+  protected readonly policeReportTime = signal('');
   protected readonly claimedAmount = signal<string>('');
   protected readonly pep = signal(false);
   protected readonly contactEmail = signal('');
@@ -210,6 +216,16 @@ export class NuevaDenunciaComponent {
   });
 
   protected readonly docsCount = computed(() => this.docSlots().filter((d) => d.file).length);
+
+  /**
+   * Si el ramo pide constancia de denuncia policial, entonces el hecho generador la lleva y tiene
+   * sentido preguntar cuándo se hizo. Se deriva de la agenda documental del referente —la misma
+   * fuente que arma los slots de adjuntos— en vez de una lista propia de hechos generadores: así
+   * el día que el referente saque `police_report` de un ramo, el campo desaparece solo.
+   */
+  protected readonly requiresPoliceReport = computed(() =>
+    this.requiredDocTypes().some(({ type }) => type === 'police_report'),
+  );
 
   // Consentimiento para enviar las imágenes a un proveedor externo de verificación
   // antifraude (H0009 / docs/frontend-analisis-forense.md). A diferencia de PEP, este
@@ -296,6 +312,12 @@ export class NuevaDenunciaComponent {
       description: this.description(),
       eventDate: this.eventDate() + 'T' + (this.eventTime() || '00:00') + ':00',
       eventLocation: this.buildEventLocation(),
+      // Solo si se declaró: la columna es nullable y "no hubo denuncia policial" es un caso
+      // legítimo, distinto de "hubo pero no sé cuándo". Mandar una fecha inventada sería peor
+      // que no mandar nada, porque la regla del plazo la evaluaría como si fuera real.
+      policeReportAt: this.policeReportDate()
+        ? this.policeReportDate() + 'T' + (this.policeReportTime() || '00:00') + ':00'
+        : undefined,
       claimedAmount: this.claimedAmount() ? Number(this.claimedAmount()) : undefined,
       pep: this.pep(),
       imageConsent: this.imageConsent(),
