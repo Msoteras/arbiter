@@ -8,6 +8,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Primary;
+import org.springframework.core.ParameterizedTypeReference;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.client.SimpleClientHttpRequestFactory;
 import org.springframework.stereotype.Component;
@@ -20,9 +21,10 @@ import java.util.List;
 /**
  * Primary {@link RulesAdapter}: reads what the referente configured in rules-service (the DB) and
  * overlays it on the {@link MockRulesAdapter} baseline — the Fast Track thresholds that gate the
- * expedited path, and the free-text rules/exclusions that go into the LLM prompt. The scoring
- * config still comes from the mock, so we <b>compose</b> rather than replace: whatever the insurer
- * hasn't configured keeps working off the baseline.
+ * expedited path, the free-text rules/exclusions that go into the LLM prompt, and the document
+ * agenda that the missing-docs gate checks. The scoring config still comes from the mock, so we
+ * <b>compose</b> rather than replace: whatever the insurer hasn't configured keeps working off the
+ * baseline.
  *
  * <p>Classification runs async: there's no user request/JWT on the thread, but the tenant schema is
  * propagated via {@link TenantContext}. So the call authenticates with a <b>service token</b> that
@@ -59,9 +61,10 @@ public class RulesRestAdapter implements RulesAdapter {
         if (coverageId == null) {
             return base;
         }
-        // Dos lecturas independientes a propósito: si una falla, la otra igual se aplica. Cada una
+        // Lecturas independientes a propósito: si una falla, las otras igual se aplican. Cada una
         // cae a su parte del baseline sin tirar abajo la clasificación.
-        return overlayRuleTexts(overlayFastTrack(base, coverageId), coverageId);
+        return overlayDocumentRequirements(
+                overlayRuleTexts(overlayFastTrack(base, coverageId), coverageId), coverageId);
     }
 
     private BusinessRules overlayFastTrack(BusinessRules base, Long coverageId) {
@@ -120,6 +123,33 @@ public class RulesRestAdapter implements RulesAdapter {
             return builder.build();
         } catch (Exception e) {
             log.warn("[RulesRestAdapter] rules-service unavailable for rule texts of coverage {} — baseline: {}",
+                    coverageId, e.getMessage());
+            return rules;
+        }
+    }
+
+    /**
+     * La agenda documental que el referente configuró para el ramo de la cobertura. Reemplaza al
+     * baseline del mock: es lo que el gate de faltantes ({@code checkRequiredDocuments}) compara
+     * contra lo que el asegurado subió. Una lista vacía = "no configurado" y deja el baseline.
+     */
+    private BusinessRules overlayDocumentRequirements(BusinessRules rules, Long coverageId) {
+        try {
+            List<String> agenda = restClient.get()
+                    .uri(uri -> uri.path("/api/v1/rules/document-requirements/internal")
+                            .queryParam("coverageId", coverageId).build())
+                    .header(HttpHeaders.AUTHORIZATION, serviceToken())
+                    .retrieve()
+                    .body(new ParameterizedTypeReference<List<String>>() {});
+            if (agenda == null || agenda.isEmpty()) {
+                log.debug("[RulesRestAdapter] No document agenda in DB for coverage {} — using baseline", coverageId);
+                return rules;
+            }
+            log.info("[RulesRestAdapter] Document agenda loaded from rules-service for coverage {} — {} docs",
+                    coverageId, agenda.size());
+            return rules.toBuilder().requiredDocumentTypes(agenda).build();
+        } catch (Exception e) {
+            log.warn("[RulesRestAdapter] rules-service unavailable for document agenda of coverage {} — baseline: {}",
                     coverageId, e.getMessage());
             return rules;
         }

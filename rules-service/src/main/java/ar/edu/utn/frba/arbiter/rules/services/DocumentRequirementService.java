@@ -40,6 +40,18 @@ public class DocumentRequirementService {
                 .toList();
     }
 
+    /**
+     * Igual que {@link #get(Long)} pero resolviendo el ramo por nombre — es lo que el asegurado (al
+     * subir) y el analista (checklist de faltantes) tienen a mano; el id numérico solo lo maneja el
+     * referente. Ramo desconocido ⇒ lista vacía.
+     */
+    @Transactional(readOnly = true)
+    public List<String> getByBranchName(String branchName) {
+        return branchRepository.findByName(branchName)
+                .map(branch -> get(branch.getId()))
+                .orElse(List.of());
+    }
+
     @Transactional
     public List<DocumentRequirementDto> upsert(Long branchId, List<String> documentTypes) {
         Branch branch = branchRepository.findById(branchId)

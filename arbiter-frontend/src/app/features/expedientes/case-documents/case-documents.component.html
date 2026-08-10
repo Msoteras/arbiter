@@ -18,7 +18,7 @@
     <app-card class="docs-list" [heading]="heading()">
       <p class="docs-count">
         @if (showMissing()) {
-          {{ presentCount() }} de {{ totalCount }} documentos cargados
+          {{ presentCount() }} de {{ totalCount() }} documentos cargados
         } @else {
           {{ presentCount() }} {{ presentCount() === 1 ? 'documento enviado' : 'documentos enviados' }}
         }

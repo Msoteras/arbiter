@@ -232,7 +232,7 @@
       @case ('datos') { <app-empty-state message="Datos extraídos por IA + coincidencia con la póliza" sub="Pendiente de datos de IA" /> }
       @case ('imagenes') { <app-forensic-analysis [caseId]="d.id" [report]="d.forensicReport" /> }
       @case ('documentacion') {
-        <app-case-documents [caseId]="d.id" [reloadToken]="docsReloadToken()" />
+        <app-case-documents [caseId]="d.id" [reloadToken]="docsReloadToken()" [branch]="d.branch" />
       }
       @case ('conversacion') { <app-empty-state message="Conversación con el asegurado" /> }
       @case ('historial') {

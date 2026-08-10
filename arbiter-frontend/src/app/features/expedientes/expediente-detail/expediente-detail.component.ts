@@ -5,11 +5,12 @@ import { HttpErrorResponse } from '@angular/common/http';
 import { catchError, combineLatest, map, Observable, of, startWith, switchMap } from 'rxjs';
 
 import { ExpedienteService, AnalystDecisionRequest } from '../expediente.service';
+import { DocumentAgendaService } from '../document-agenda.service';
 import { CaseNavigationService } from '../case-navigation.service';
 import { AuthSessionService } from '../../../core/auth/auth-session.service';
 import { UserAdminService } from '../../../core/auth/user-admin.service';
 import { ExpedienteResponse, StatusTransition } from '../../../core/models/expediente';
-import { CASE_DOCUMENT_TYPES, CaseDocument } from '../../../core/models/case-document';
+import { CASE_DOCUMENT_TYPES, CaseDocument, CaseDocumentType } from '../../../core/models/case-document';
 import { clasificacionLabel, clasificacionTone } from '../../../core/models/clasificacion';
 import {
   estadoLabel,
@@ -463,9 +464,19 @@ export class ExpedienteDetailComponent {
     { initialValue: [] as CaseDocument[] },
   );
 
+  private readonly agenda = inject(DocumentAgendaService);
+
+  /** La agenda REAL del ramo del expediente (la que configuró el referente), o el catálogo completo. */
+  private readonly requiredDocTypes = toSignal(
+    toObservable(computed(() => this.data()?.branch ?? null)).pipe(
+      switchMap((branch) => (branch ? this.agenda.slotsForBranch(branch) : of(CASE_DOCUMENT_TYPES))),
+    ),
+    { initialValue: CASE_DOCUMENT_TYPES as readonly CaseDocumentType[] },
+  );
+
   /** Tipos requeridos que todavía no se cargaron — lo que el analista ve como "falta". */
   protected readonly missingDocLabels = computed(() => {
     const present = new Set(this.documents().map((d) => d.type));
-    return CASE_DOCUMENT_TYPES.filter((t) => !present.has(t.type)).map((t) => t.label);
+    return this.requiredDocTypes().filter((t) => !present.has(t.type)).map((t) => t.label);
   });
 }
