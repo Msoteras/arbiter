@@ -1,7 +1,7 @@
 package ar.edu.utn.frba.arbiter.classification.config.tenant;
 
 import org.springframework.core.task.TaskDecorator;
-import org.springframework.lang.NonNull;
+import org.jspecify.annotations.NonNull;
 
 /**
  * Carries the request's tenant into the async classification threads.
@@ -19,8 +19,7 @@ import org.springframework.lang.NonNull;
 public class TenantAwareTaskDecorator implements TaskDecorator {
 
     @Override
-    @NonNull
-    public Runnable decorate(@NonNull Runnable runnable) {
+    public @NonNull Runnable decorate(@NonNull Runnable runnable) {
         String tenantSchema = TenantContext.get();
         return () -> {
             TenantContext.set(tenantSchema);
