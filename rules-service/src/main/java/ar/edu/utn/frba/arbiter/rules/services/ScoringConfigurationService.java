@@ -101,6 +101,7 @@ public class ScoringConfigurationService {
 
     private ScoringConfigDto toDto(ScoringConfiguration config) {
         return new ScoringConfigDto(
+                config.getId(),
                 config.isActive(),
                 factorWeightRepository.findByScoringConfiguration_Id(config.getId()).stream()
                         .map(f -> new FactorWeightDto(f.getFactorCode(), f.getWeight()))
