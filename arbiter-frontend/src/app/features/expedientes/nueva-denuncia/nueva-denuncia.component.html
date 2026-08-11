@@ -1,16 +1,24 @@
-<div class="wizard">
+<div class="wizard" [class.embedded]="embedded()">
   @if (submittedCase(); as created) {
-    <app-card class="success-card">
+    <app-card class="success-card" [bare]="embedded()">
       <span class="success-icon" aria-hidden="true">
         <svg width="26" height="26" viewBox="0 0 24 24" fill="none">
-          <path d="M5 12.5l4 4 10-10" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" />
+          <path
+            d="M5 12.5l4 4 10-10"
+            stroke="currentColor"
+            stroke-width="2.2"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+          />
         </svg>
       </span>
       <h2 class="success-title">¡Listo! Tu denuncia fue registrada</h2>
-      <p class="case-number">N° de siniestro: <strong class="mono">#{{ created.id }}</strong></p>
+      <p class="case-number">
+        N° de siniestro: <strong class="mono">#{{ created.id }}</strong>
+      </p>
       <p class="t-body">
-        Vas a poder seguir el estado de tu siniestro desde "Mis siniestros". Si falta
-        documentación, te lo vamos a pedir ahí mismo.
+        Vas a poder seguir el estado de tu siniestro desde "Mis siniestros". Si falta documentación,
+        te lo vamos a pedir ahí mismo.
       </p>
       <p class="legal-note t-note">
         Esta denuncia se registra en los términos del Art. 56 de la Ley 17.418 de Seguros.
@@ -18,13 +26,18 @@
       <app-button (click)="goToCase()">Ver mi siniestro →</app-button>
     </app-card>
   } @else {
-    <header class="wizard-head">
-      <span class="t-section-label eyebrow">Nueva denuncia</span>
-      <h1 class="t-hero-title">Denunciá tu siniestro</h1>
-      <p class="wizard-sub">Te guiamos paso a paso. No cierres esta pestaña hasta terminar: los datos no se guardan hasta que envíes la denuncia.</p>
-    </header>
+    @if (!embedded()) {
+      <header class="wizard-head">
+        <span class="t-section-label eyebrow">Nueva denuncia</span>
+        <h1 class="t-hero-title">Denunciá tu siniestro</h1>
+        <p class="wizard-sub">
+          Te guiamos paso a paso. No cierres esta pestaña hasta terminar: los datos no se guardan
+          hasta que envíes la denuncia.
+        </p>
+      </header>
+    }
 
-    <app-card class="wizard-card">
+    <app-card class="wizard-card" [bare]="embedded()">
       <!-- Stepper: el número deja volver a un paso ya completado. -->
       <div class="stepper">
         @for (s of steps; track s) {
@@ -35,9 +48,12 @@
             [class.done]="step() > s"
             [disabled]="step() <= s"
             [attr.aria-label]="step() > s ? 'Volver al paso ' + s : null"
-            (click)="goToStep(s)">
+            (click)="goToStep(s)"
+          >
             <span class="step-number">{{ step() > s ? '✓' : s }}</span>
-            <span class="step-label">{{ s === 1 ? 'Datos' : s === 2 ? 'Descripción' : 'Documentación' }}</span>
+            <span class="step-label">{{
+              s === 1 ? 'Datos' : s === 2 ? 'Descripción' : 'Documentación'
+            }}</span>
           </button>
           @if (s < 3) {
             <div class="step-line" [class.done]="step() > s"></div>
@@ -60,7 +76,9 @@
               </p>
             }
             @case ('error') {
-              <p class="step-hint">No pudimos cargar tus pólizas. Probá de nuevo en unos minutos.</p>
+              <p class="step-hint">
+                No pudimos cargar tus pólizas. Probá de nuevo en unos minutos.
+              </p>
             }
             @case ('ok') {
               @if (policies().length === 0) {
@@ -97,7 +115,8 @@
                 type="button"
                 class="chip"
                 [class.selected]="selectedType()?.key === t.key"
-                (click)="selectType(t)">
+                (click)="selectType(t)"
+              >
                 {{ t.label }}
               </button>
             }
@@ -111,7 +130,11 @@
           <h2 class="step-title">Contanos los detalles</h2>
 
           <label class="field-label">Bien asegurado *</label>
-          <app-input placeholder="Ej: Samsung Galaxy A56" [(value)]="insuredItem" [readonly]="!!selectedPolicy()?.insuredItem" />
+          <app-input
+            placeholder="Ej: Samsung Galaxy A56"
+            [(value)]="insuredItem"
+            [readonly]="!!selectedPolicy()?.insuredItem"
+          />
 
           <label class="field-label">Fecha y hora del hecho *</label>
           <div class="datetime-grid">
@@ -153,8 +176,18 @@
 
           <label class="field-label">Datos de contacto</label>
           <div class="location-grid">
-            <app-input type="email" placeholder="Email" [(value)]="contactEmail" [readonly]="!!selectedPolicy()?.contactEmail" />
-            <app-input type="tel" placeholder="Teléfono" [(value)]="contactPhone" [readonly]="!!selectedPolicy()?.contactPhone" />
+            <app-input
+              type="email"
+              placeholder="Email"
+              [(value)]="contactEmail"
+              [readonly]="!!selectedPolicy()?.contactEmail"
+            />
+            <app-input
+              type="tel"
+              placeholder="Teléfono"
+              [(value)]="contactPhone"
+              [readonly]="!!selectedPolicy()?.contactPhone"
+            />
           </div>
 
           <div class="pep-field">
@@ -175,18 +208,34 @@
           @for (slot of docSlots(); track slot.type; let i = $index) {
             <div class="doc-slot" [class.filled]="!!slot.file">
               <span class="doc-status" aria-hidden="true">
-                @if (slot.file) { <span class="doc-check">✓</span> } @else { <span class="doc-dot"></span> }
+                @if (slot.file) {
+                  <span class="doc-check">✓</span>
+                } @else {
+                  <span class="doc-dot"></span>
+                }
               </span>
               <span class="doc-label">{{ slot.label }}</span>
               @if (slot.file) {
                 <div class="doc-file">
                   <app-file-preview [file]="slot.file" />
-                  <button type="button" class="doc-remove" aria-label="Quitar archivo" (click)="removeFile(i)">✕</button>
+                  <button
+                    type="button"
+                    class="doc-remove"
+                    aria-label="Quitar archivo"
+                    (click)="removeFile(i)"
+                  >
+                    ✕
+                  </button>
                 </div>
               } @else {
                 <label class="doc-upload-btn">
                   Elegir archivo
-                  <input type="file" accept="image/*,.pdf" (change)="onFileChange(i, $event)" hidden />
+                  <input
+                    type="file"
+                    accept="image/*,.pdf"
+                    (change)="onFileChange(i, $event)"
+                    hidden
+                  />
                 </label>
               }
               @if (slot.error) {
@@ -200,9 +249,10 @@
               Acepto que mis imágenes se envíen a un proveedor externo de verificación antifraude
             </app-checkbox>
             <span class="pep-note">
-              Es un paso adicional de control: si lo aceptás, las imágenes que adjuntes pueden compartirse con un
-              servicio externo (fuera de la infraestructura de Arbiter) para verificar que no estén publicadas en
-              otro lugar. Es opcional — si no aceptás, tu denuncia se procesa igual, sin ese chequeo puntual.
+              Es un paso adicional de control: si lo aceptás, las imágenes que adjuntes pueden
+              compartirse con un servicio externo (fuera de la infraestructura de Arbiter) para
+              verificar que no estén publicadas en otro lugar. Es opcional — si no aceptás, tu
+              denuncia se procesa igual, sin ese chequeo puntual.
             </span>
           </div>
 
@@ -216,6 +266,8 @@
       <div class="wizard-actions">
         @if (step() > 1) {
           <app-button variant="secondary" (click)="prev()">‹ Volver</app-button>
+        } @else if (embedded()) {
+          <app-button variant="secondary" (click)="cancel()">Cancelar</app-button>
         } @else {
           <span class="actions-hint">Paso {{ step() }} de 3</span>
         }
@@ -223,7 +275,8 @@
         @if (step() < 3) {
           <app-button
             [disabled]="(step() === 1 && !step1Valid()) || (step() === 2 && !step2Valid())"
-            (click)="next()">
+            (click)="next()"
+          >
             Continuar →
           </app-button>
         } @else {

@@ -89,4 +89,9 @@
   --status-risk: var(--accent-orange);
   --status-danger: var(--accent-red);
   --status-info: var(--accent-blue);
+
+  /* Superficie tenue de alerta: fondo tintado para tarjetas que comunican riesgo (ej. la
+     tarjeta de "Alertas de fraude" del inicio). Par superficie + borde, como --selected-*. */
+  --surface-danger-soft: var(--accent-red-soft);
+  --border-danger-soft: var(--accent-red-soft-border);
 }

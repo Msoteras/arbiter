@@ -1,0 +1,94 @@
+@if (pageLoading()) {
+  <app-loading message="Estamos preparando tu inicio" />
+} @else {
+  <div class="inicio" @staggerReveal>
+    <header class="hero">
+      <div class="hero-text">
+        <h1 class="t-hero-title">{{ saludo }}, {{ nombre() }}</h1>
+        <p class="hero-sub">
+          {{ fecha }}
+          @if (counts(); as c) {
+            @if (c.pendientes > 0) {
+              · tenés {{ c.pendientes }}
+              {{
+                c.pendientes === 1
+                  ? 'expediente esperando tu decisión'
+                  : 'expedientes esperando tu decisión'
+              }}
+            } @else {
+              · no tenés expedientes pendientes de decisión
+            }
+          }
+        </p>
+      </div>
+      <a routerLink="/inbox" class="hero-cta"
+        ><app-button variant="secondary">Ir a mi bandeja</app-button></a
+      >
+    </header>
+
+    <section class="stats" aria-label="Resumen de tu bandeja">
+      <app-stat-tile
+        [loading]="countsLoading()"
+        [value]="counts()?.pendientes ?? 0"
+        tone="accent"
+        label="Pendientes de decisión"
+        sub="asignados a vos"
+      />
+      <app-stat-tile
+        [loading]="countsLoading()"
+        [value]="counts()?.enTramite ?? 0"
+        label="En trámite"
+        sub="en tu bandeja"
+      />
+      <app-stat-tile
+        [loading]="countsLoading()"
+        [value]="counts()?.resueltos ?? 0"
+        label="Resueltos"
+        sub="en total"
+      />
+      <app-stat-tile
+        [loading]="countsLoading()"
+        [value]="counts()?.riesgo ?? 0"
+        [tone]="(counts()?.riesgo ?? 0) > 0 ? 'danger' : 'default'"
+        label="Riesgo alto"
+        sub="requieren atención"
+      />
+    </section>
+
+    <div class="cols">
+      <app-card heading="Requieren tu acción">
+        @if (actionLoading()) {
+          <p class="t-note">Cargando…</p>
+        } @else if (actionError()) {
+          <p class="t-note">No pudimos cargar tus expedientes. Probá recargar la página.</p>
+        } @else if (actionEmpty()) {
+          <app-empty-state message="No tenés expedientes esperando tu decisión" sub="Todo al día" />
+        } @else {
+          <ul class="action-list">
+            @for (c of actionItems(); track c.id) {
+              <li>
+                <a class="action-item" [routerLink]="['/cases', c.id]">
+                  <div class="action-main">
+                    <span class="action-id mono">EXP-{{ c.id }}</span>
+                    <span class="action-meta">{{ displayInsured(c) }} · {{ c.claimCause }}</span>
+                  </div>
+                  <app-badge [tone]="estadoTone(c.status)">{{ estadoLabel(c.status) }}</app-badge>
+                </a>
+              </li>
+            }
+          </ul>
+          <a routerLink="/inbox" class="see-all">Ver toda la bandeja ›</a>
+        }
+      </app-card>
+
+      <!-- El resumen del modelo todavía no existe en el backend: placeholder honesto en vez de
+         un texto inventado, coherente con el resto de la app. -->
+      <app-card variant="ai" heading="Resumen de Arbiter" icon="✦">
+        <app-empty-state
+          message="Todavía no hay un resumen automático de tu jornada"
+          sub="Próximamente"
+        />
+      </app-card>
+    </div>
+  </div>
+}

@@ -1,6 +1,6 @@
 import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
 import { toObservable, toSignal } from '@angular/core/rxjs-interop';
-import { Router, RouterLink } from '@angular/router';
+import { RouterLink } from '@angular/router';
 import { catchError, map, of, startWith, switchMap } from 'rxjs';
 
 import { InsuredSessionService } from '../../../core/auth/insured-session.service';
@@ -8,10 +8,13 @@ import { ExpedienteResponse } from '../../../core/models/expediente';
 import { estadoLabel, estadoTone, isEstadoFinal, proximoPaso } from '../../../core/models/estado';
 import { StatusTone } from '../../../core/models/status-tone';
 import { ExpedienteService } from '../../expedientes/expediente.service';
+import { NewClaimModalService } from '../../expedientes/new-claim-modal.service';
 import { CardComponent } from '../../../shared/ui/card/card.component';
 import { BadgeComponent } from '../../../shared/ui/badge/badge.component';
 import { ButtonComponent } from '../../../shared/ui/button/button.component';
 import { InputComponent } from '../../../shared/ui/input/input.component';
+import { LoadingComponent } from '../../../shared/ui/loading/loading.component';
+import { staggerReveal } from '../../../shared/animations';
 
 type LoadState =
   | { status: 'idle' }
@@ -27,13 +30,21 @@ type LoadState =
 @Component({
   selector: 'app-mis-expedientes',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [RouterLink, CardComponent, BadgeComponent, ButtonComponent, InputComponent],
+  imports: [
+    RouterLink,
+    CardComponent,
+    BadgeComponent,
+    ButtonComponent,
+    InputComponent,
+    LoadingComponent,
+  ],
+  animations: [staggerReveal],
   templateUrl: './mis-expedientes.component.html',
   styleUrl: './mis-expedientes.component.scss',
 })
 export class MisExpedientesComponent {
   private readonly service = inject(ExpedienteService);
-  private readonly router = inject(Router);
+  private readonly newClaim = inject(NewClaimModalService);
   protected readonly session = inject(InsuredSessionService);
 
   protected readonly identityInput = signal('');
@@ -73,7 +84,7 @@ export class MisExpedientesComponent {
   }
 
   protected nuevaDenuncia(): void {
-    this.router.navigate(['/new-claim']);
+    this.newClaim.open();
   }
 
   protected estadoLabel(status: string): string {

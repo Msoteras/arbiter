@@ -1,0 +1,104 @@
+@if (pageLoading()) {
+  <app-loading message="Estamos cargando el panorama de tu operación" />
+} @else {
+  <div class="inicio" @staggerReveal>
+    <header class="hero">
+      <div class="hero-text">
+        <h1 class="t-hero-title">{{ saludo }}, {{ nombre() }}</h1>
+        <p class="hero-sub">Panorama de la operación de tu aseguradora · {{ fecha }}</p>
+      </div>
+      <a routerLink="/insurer/dashboard" class="hero-cta">Ver dashboard completo ›</a>
+    </header>
+
+    <section class="stats" aria-label="Resumen de la operación">
+      <app-stat-tile
+        [loading]="countsLoading()"
+        [value]="counts()?.activos ?? 0"
+        tone="accent"
+        label="Expedientes activos"
+        sub="en curso"
+      />
+      <app-stat-tile
+        [loading]="countsLoading()"
+        [value]="counts()?.alertas ?? 0"
+        [tone]="(counts()?.alertas ?? 0) > 0 ? 'danger' : 'default'"
+        label="Alertas de fraude"
+        sub="riesgo alto o crítico"
+      />
+      <app-stat-tile
+        [loading]="countsLoading()"
+        [value]="counts()?.resueltos ?? 0"
+        label="Resueltos"
+        sub="en total"
+      />
+      <app-stat-tile
+        [loading]="countsLoading()"
+        [value]="counts()?.total ?? 0"
+        label="Total expedientes"
+        sub="en la aseguradora"
+      />
+    </section>
+
+    <div class="cols">
+      <app-card heading="Requieren atención">
+        @if (alertLoading()) {
+          <p class="t-note">Cargando…</p>
+        } @else if (alertError()) {
+          <p class="t-note">No pudimos cargar las alertas. Probá recargar la página.</p>
+        } @else if (alertEmpty()) {
+          <app-empty-state
+            message="No hay expedientes con alerta de fraude"
+            sub="Sin riesgo alto ni crítico"
+          />
+        } @else {
+          <ul class="alert-list">
+            @for (c of alertItems(); track c.id) {
+              <li>
+                <a class="alert-item" [routerLink]="['/cases', c.id]">
+                  <div class="alert-main">
+                    <span class="alert-id mono">EXP-{{ c.id }}</span>
+                    <span class="alert-meta">{{ displayInsured(c) }} · {{ c.claimCause }}</span>
+                  </div>
+                  <div class="alert-tags">
+                    <app-badge [tone]="c.riskBand === 'CRITICAL' ? 'danger' : 'risk'">
+                      {{ riskLabel(c.riskBand) }}
+                    </app-badge>
+                    <app-badge [tone]="estadoTone(c.status)">{{ estadoLabel(c.status) }}</app-badge>
+                  </div>
+                </a>
+              </li>
+            }
+          </ul>
+          <a routerLink="/inbox" class="see-all">Ver todos los expedientes ›</a>
+        }
+      </app-card>
+
+      <app-card heading="Carga del equipo">
+        @if (workloadLoading()) {
+          <p class="t-note">Cargando…</p>
+        } @else if (workloadError()) {
+          <p class="t-note">No pudimos cargar la carga del equipo. Probá recargar la página.</p>
+        } @else if (workloadEmpty()) {
+          <app-empty-state
+            message="No hay analistas en el equipo"
+            sub="Sin analistas dados de alta"
+          />
+        } @else {
+          <ul class="team-list">
+            @for (a of workload(); track a.analystId) {
+              <li class="team-row">
+                <span class="team-name">{{ a.name }}</span>
+                <span class="team-bar" aria-hidden="true">
+                  <span class="team-bar-fill" [style.width.%]="barPct(a.activeCases)"></span>
+                </span>
+                <span class="team-count tabular">
+                  {{ a.activeCases }} {{ a.activeCases === 1 ? 'activo' : 'activos' }}
+                </span>
+              </li>
+            }
+          </ul>
+        }
+      </app-card>
+    </div>
+  </div>
+}

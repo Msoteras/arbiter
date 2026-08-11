@@ -1,5 +1,12 @@
 import { DOCUMENT } from '@angular/common';
-import { ChangeDetectionStrategy, Component, computed, effect, inject, signal } from '@angular/core';
+import {
+  ChangeDetectionStrategy,
+  Component,
+  computed,
+  effect,
+  inject,
+  signal,
+} from '@angular/core';
 import { toObservable, toSignal } from '@angular/core/rxjs-interop';
 import { Router, RouterLink } from '@angular/router';
 import {
@@ -21,7 +28,12 @@ import { AuthSessionService } from '../../../core/auth/auth-session.service';
 import { UserAdminService } from '../../../core/auth/user-admin.service';
 import { ExpedienteResponse } from '../../../core/models/expediente';
 import { clasificacionLabel, clasificacionTone } from '../../../core/models/clasificacion';
-import { CaseStatus, estadoLabel, estadoTone, riskBandEmptyLabel } from '../../../core/models/estado';
+import {
+  CaseStatus,
+  estadoLabel,
+  estadoTone,
+  riskBandEmptyLabel,
+} from '../../../core/models/estado';
 import { StatusTone } from '../../../core/models/status-tone';
 import { CardComponent } from '../../../shared/ui/card/card.component';
 import { BadgeComponent } from '../../../shared/ui/badge/badge.component';
@@ -31,7 +43,11 @@ import { SelectComponent, SelectOption } from '../../../shared/ui/select/select.
 import { PaginationComponent } from '../../../shared/ui/pagination/pagination.component';
 import { FraudGaugeComponent } from '../../../shared/ui/fraud-gauge/fraud-gauge.component';
 import { EmptyStateComponent } from '../../../shared/ui/empty-state/empty-state.component';
-import { MenuButtonComponent, MenuItem } from '../../../shared/ui/menu-button/menu-button.component';
+import {
+  MenuButtonComponent,
+  MenuItem,
+} from '../../../shared/ui/menu-button/menu-button.component';
+import { LoadingComponent } from '../../../shared/ui/loading/loading.component';
 
 // Campos por los que GET /api/v1/cases acepta ordenar (propiedades reales de la entidad Case
 // en cases-service — Spring Data ordena por propiedad JPA, no por nombre de columna SQL).
@@ -75,6 +91,7 @@ type Lens = 'mine' | 'all';
     FraudGaugeComponent,
     EmptyStateComponent,
     MenuButtonComponent,
+    LoadingComponent,
   ],
   changeDetection: ChangeDetectionStrategy.OnPush,
   templateUrl: './bandeja.component.html',
@@ -174,14 +191,12 @@ export class BandejaComponent {
     toObservable(this.requestParams).pipe(
       switchMap((params) =>
         this.service.list(params).pipe(
-          map(
-            (page): LoadState => ({
-              status: 'ok',
-              data: page.content,
-              totalElements: page.totalElements,
-              totalPages: page.totalPages,
-            }),
-          ),
+          map((page): LoadState => ({
+            status: 'ok',
+            data: page.content,
+            totalElements: page.totalElements,
+            totalPages: page.totalPages,
+          })),
           startWith<LoadState>({ status: 'loading' }),
           catchError(() => of<LoadState>({ status: 'error' })),
         ),
@@ -192,6 +207,16 @@ export class BandejaComponent {
 
   protected readonly loading = computed(() => this.state().status === 'loading');
   protected readonly hasError = computed(() => this.state().status === 'error');
+
+  // Pantalla de carga de marca SOLO en la primera carga: una vez que llegó data (o error), los
+  // refetch por filtro/lente/paginado no vuelven a taparla — el listado se actualiza en su lugar.
+  private readonly hasLoaded = signal(false);
+  private readonly latchLoaded = effect(() => {
+    if (!this.loading()) {
+      this.hasLoaded.set(true);
+    }
+  });
+  protected readonly showLoader = computed(() => this.loading() && !this.hasLoaded());
 
   protected readonly cases = computed<ExpedienteResponse[]>(() => {
     const s = this.state();
@@ -373,10 +398,9 @@ export class BandejaComponent {
   protected readonly assignError = signal<string | null>(null);
 
   /** Analistas asignables. Se piden una vez; el selector de "Asignar a…" se arma con esto. */
-  private readonly analysts = toSignal(
-    this.users.listAnalysts().pipe(catchError(() => of([]))),
-    { initialValue: [] },
-  );
+  private readonly analysts = toSignal(this.users.listAnalysts().pipe(catchError(() => of([]))), {
+    initialValue: [],
+  });
 
   protected readonly analystMenuItems = computed<MenuItem[]>(() =>
     this.analysts().map((a) => ({ value: String(a.id), label: `${a.nombre} ${a.apellido}` })),
@@ -604,7 +628,11 @@ export class BandejaComponent {
   private downloadCsv(rows: ExpedienteResponse[]): void {
     const lines = [
       BandejaComponent.EXPORT_HEADER.join(','),
-      ...rows.map((r) => this.toRowCells(r).map((v) => this.csvEscape(v)).join(',')),
+      ...rows.map((r) =>
+        this.toRowCells(r)
+          .map((v) => this.csvEscape(v))
+          .join(','),
+      ),
     ];
     // BOM al inicio para que Excel abra el UTF-8 sin desarmar tildes/ñ.
     const blob = new Blob(['﻿' + lines.join('\r\n')], { type: 'text/csv;charset=utf-8;' });

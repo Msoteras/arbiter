@@ -1,0 +1,197 @@
+@if (loading()) {
+  <app-loading message="Estamos cargando tus siniestros" />
+} @else {
+  <div class="inicio" @staggerReveal>
+    <header class="hero">
+      <div class="hero-text">
+        <span class="eyebrow">Tu expediente</span>
+        <h1 class="t-hero-title">{{ saludo }}, {{ nombre() }}</h1>
+        <p class="hero-sub">
+          Seguí el estado de tu denuncia. Te avisamos por acá y por mail cuando haya novedades.
+        </p>
+      </div>
+      <app-button variant="accent" (click)="newClaim.open()">+ Nueva denuncia</app-button>
+    </header>
+
+    @if (needsIdentity()) {
+      <app-card>
+        <p class="t-body">Para ver tus siniestros, identificate primero desde tu portal.</p>
+        <a routerLink="/portal" class="link-cta">Ir a mis siniestros ›</a>
+      </app-card>
+    } @else if (hasError()) {
+      <app-card>
+        <p class="t-body">No pudimos cargar tus siniestros en este momento.</p>
+        <p class="t-note">Probá recargar la página; si el problema sigue, escribinos.</p>
+      </app-card>
+    } @else {
+      <!-- Expediente activo (el más reciente): el foco de la pantalla. -->
+      @if (destacado(); as d) {
+        <section class="case-card">
+          <div class="case-head">
+            <div class="case-head-text">
+              <div class="case-title-row">
+                <h2 class="case-title">{{ d.claimCause }}</h2>
+                <app-badge [tone]="estadoTone(d.status)" variant="strong">
+                  {{ estadoSimplificadoLabel(d.status) }}
+                </app-badge>
+              </div>
+              <div class="case-id mono">EXP-{{ d.id }} · denunciado el {{ fechaDenuncia(d) }}</div>
+            </div>
+            <span class="case-icon" aria-hidden="true">
+              <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
+                <rect
+                  x="4"
+                  y="3"
+                  width="12"
+                  height="14"
+                  rx="2"
+                  stroke="currentColor"
+                  stroke-width="1.5"
+                />
+                <path
+                  d="M7 7h6M7 10h6M7 13h3"
+                  stroke="currentColor"
+                  stroke-width="1.5"
+                  stroke-linecap="round"
+                />
+              </svg>
+            </span>
+          </div>
+
+          <div class="case-body">
+            <ol
+              class="stepper"
+              [attr.aria-label]="'Progreso: ' + estadoSimplificadoLabel(d.status)"
+            >
+              @for (s of steps(); track s.n; let i = $index; let last = $last) {
+                <li
+                  class="node"
+                  [class.done]="s.state === 'done'"
+                  [class.active]="s.state === 'active'"
+                  [class.danger]="s.tone === 'danger'"
+                >
+                  <span class="node-dot">
+                    @if (s.state === 'done') {
+                      @if (s.tone === 'danger') {
+                        <span aria-hidden="true">✕</span>
+                      } @else {
+                        <span aria-hidden="true">✓</span>
+                      }
+                    } @else {
+                      {{ s.n }}
+                    }
+                  </span>
+                  <span class="node-label">{{ s.label }}</span>
+                </li>
+                @if (!last) {
+                  <li class="conn" [class.done]="connectorDone(i)" aria-hidden="true"></li>
+                }
+              }
+            </ol>
+
+            <div class="info-box">
+              <span class="info-icon" aria-hidden="true">
+                <svg width="17" height="17" viewBox="0 0 20 20" fill="none">
+                  <circle cx="10" cy="10" r="7.5" stroke="currentColor" stroke-width="1.5" />
+                  <path
+                    d="M10 6v4l2.5 2"
+                    stroke="currentColor"
+                    stroke-width="1.5"
+                    stroke-linecap="round"
+                  />
+                </svg>
+              </span>
+              <div>
+                <div class="info-title">{{ titulo(d.status) }}</div>
+                <div class="info-desc">{{ descripcion(d.status) }}</div>
+              </div>
+            </div>
+          </div>
+
+          <div class="case-actions">
+            <a [routerLink]="['/portal/cases', d.id]" class="grow">
+              <app-button [block]="true">Ver seguimiento del caso</app-button>
+            </a>
+            <a [routerLink]="['/portal/cases', d.id, 'documentacion']">
+              <app-button variant="secondary">Ver mis documentos</app-button>
+            </a>
+          </div>
+        </section>
+      } @else if (isEmpty()) {
+        <section class="case-card empty-case">
+          <app-empty-state
+            message="Todavía no tenés siniestros registrados"
+            sub="Cuando denuncies uno, vas a poder seguirlo desde acá"
+          />
+          <div class="empty-cta">
+            <app-button (click)="newClaim.open()">Hacer una denuncia</app-button>
+          </div>
+        </section>
+      }
+
+      <!-- Accesos secundarios -->
+      <div class="tiles">
+        <button type="button" class="tile" (click)="newClaim.open()">
+          <span class="tile-icon dark" aria-hidden="true">
+            <svg width="18" height="18" viewBox="0 0 20 20" fill="none">
+              <path
+                d="M10 4v12M4 10h12"
+                stroke="currentColor"
+                stroke-width="1.8"
+                stroke-linecap="round"
+              />
+            </svg>
+          </span>
+          <div class="tile-title">Iniciar nueva denuncia</div>
+          <div class="tile-desc">Reportá un nuevo siniestro en pocos pasos.</div>
+        </button>
+
+        <a class="tile" routerLink="/portal">
+          <span class="tile-icon" aria-hidden="true">
+            <svg width="18" height="18" viewBox="0 0 20 20" fill="none">
+              <rect
+                x="4"
+                y="3"
+                width="12"
+                height="14"
+                rx="2"
+                stroke="currentColor"
+                stroke-width="1.5"
+              />
+              <path
+                d="M7 7h6M7 10h6M7 13h3"
+                stroke="currentColor"
+                stroke-width="1.5"
+                stroke-linecap="round"
+              />
+            </svg>
+          </span>
+          <div class="tile-title">Mis expedientes</div>
+          <div class="tile-desc">
+            {{ enCurso() }} en curso · {{ cerrados() }}
+            {{ cerrados() === 1 ? 'cerrado' : 'cerrados' }}. Revisá el historial.
+          </div>
+        </a>
+
+        <!-- Ayuda todavía no tiene destino (no hay página de FAQ ni contacto configurado): tarjeta
+           informativa por ahora, a la espera de a dónde debe apuntar. -->
+        <div class="tile tile-static">
+          <span class="tile-icon" aria-hidden="true">
+            <svg width="18" height="18" viewBox="0 0 20 20" fill="none">
+              <circle cx="10" cy="10" r="7.5" stroke="currentColor" stroke-width="1.5" />
+              <path
+                d="M8 8a2 2 0 1 1 2.7 1.9c-.4.2-.7.5-.7 1v.6"
+                stroke="currentColor"
+                stroke-width="1.5"
+                stroke-linecap="round"
+              />
+              <circle cx="10" cy="14.3" r=".9" fill="currentColor" />
+            </svg>
+          </span>
+          <div class="tile-title">Ayuda</div>
+          <div class="tile-desc">Preguntas frecuentes y cómo contactarnos.</div>
+        </div>
+      </div>
+    }
+  </div>
+}

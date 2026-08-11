@@ -31,3 +31,32 @@ export function formatDate(value: string | Date | null | undefined, fallback = '
   }
   return new Date(value).toLocaleDateString('es-AR');
 }
+
+/**
+ * Saludo según la hora del día, para el encabezado de las pantallas de inicio.
+ * Cortes pensados para el uso local (es-AR): mañana 6–13, tarde 13–20, resto noche.
+ * Recibe la fecha por parámetro (default: ahora) para poder testearlo sin mockear el reloj.
+ */
+export function saludoSegunHora(now: Date = new Date()): string {
+  const hora = now.getHours();
+  if (hora >= 6 && hora < 13) {
+    return 'Buenos días';
+  }
+  if (hora >= 13 && hora < 20) {
+    return 'Buenas tardes';
+  }
+  return 'Buenas noches';
+}
+
+/**
+ * Fecha larga con día de la semana para el subtítulo del saludo, ej. "Martes 10 de agosto".
+ * Capitaliza la inicial porque `toLocaleDateString('es-AR')` devuelve el día en minúscula.
+ */
+export function fechaLarga(now: Date = new Date()): string {
+  const texto = now.toLocaleDateString('es-AR', {
+    weekday: 'long',
+    day: 'numeric',
+    month: 'long',
+  });
+  return texto.charAt(0).toUpperCase() + texto.slice(1);
+}

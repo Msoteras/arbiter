@@ -1,6 +1,8 @@
 package ar.edu.utn.frba.arbiter.cases.services;
 
 import ar.edu.utn.frba.arbiter.cases.dto.AnalystDecisionRequest;
+import ar.edu.utn.frba.arbiter.cases.dto.AnalystWorkloadResponse;
+import ar.edu.utn.frba.arbiter.cases.dto.AssignedCaseSummaryResponse;
 import ar.edu.utn.frba.arbiter.cases.dto.CaseDocumentResponse;
 import ar.edu.utn.frba.arbiter.cases.dto.CaseRequest;
 import ar.edu.utn.frba.arbiter.cases.dto.CaseResponse;
@@ -44,6 +46,9 @@ import org.springframework.web.multipart.MultipartFile;
 
 import java.io.IOException;
 import java.time.LocalDate;
+import java.util.ArrayList;
+import java.util.Comparator;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -377,6 +382,55 @@ public class CaseServiceImpl implements CaseService {
 
     private static String fullName(ClaimsAnalyst analyst) {
         return analyst.getName() + " " + analyst.getSurname();
+    }
+
+    // Estados terminales: un expediente en uno de estos ya no es "carga" (no requiere más trabajo).
+    private static final List<String> FINAL_STATUS_NAMES =
+            List.of(CaseStatus.APPROVED.name(), CaseStatus.REJECTED.name());
+
+    // Bandas que cuentan como "alerta de fraude" en la tarjeta de riesgo del inicio del analista.
+    private static final List<RiskBand> HIGH_RISK_BANDS = List.of(RiskBand.HIGH, RiskBand.CRITICAL);
+
+    @Override
+    public AssignedCaseSummaryResponse assignedCaseSummary() {
+        // Un rol sin perfil de analista en el tenant (el referente) no tiene expedientes propios:
+        // resumen vacío en vez de error, igual que la lente "Míos" de la bandeja.
+        Long analystId = currentAnalystId().orElse(null);
+        if (analystId == null) {
+            return new AssignedCaseSummaryResponse(0, Map.of(), 0);
+        }
+
+        Map<String, Long> byStatus = new HashMap<>();
+        long total = 0;
+        for (CaseRepository.StatusCount row : caseRepository.countByStatusForAnalyst(analystId)) {
+            byStatus.put(row.getStatus(), row.getTotal());
+            total += row.getTotal();
+        }
+
+        long highRisk = caseRepository.countByAnalystAndRiskBandIn(analystId, HIGH_RISK_BANDS);
+        return new AssignedCaseSummaryResponse(total, byStatus, highRisk);
+    }
+
+    @Override
+    public List<AnalystWorkloadResponse> analystWorkload() {
+        // Un solo query agrupado trae los conteos de los analistas que tienen expedientes activos.
+        Map<Long, Long> activeByAnalyst = new HashMap<>();
+        for (CaseRepository.AnalystCaseCount row : caseRepository.countActiveByAnalyst(FINAL_STATUS_NAMES)) {
+            activeByAnalyst.put(row.getAnalystId(), row.getTotal());
+        }
+
+        // Se listan TODOS los analistas del tenant (los que no aparecieron arriba van con cero): el
+        // panel muestra al equipo completo, no solo a los que tienen trabajo encima.
+        List<AnalystWorkloadResponse> workload = new ArrayList<>();
+        for (ClaimsAnalyst analyst : claimsAnalystRepository.findAll()) {
+            workload.add(new AnalystWorkloadResponse(
+                    analyst.getId(), fullName(analyst), activeByAnalyst.getOrDefault(analyst.getId(), 0L)));
+        }
+
+        // Más cargados primero; a igualdad de carga, alfabético por nombre para un orden estable.
+        workload.sort(Comparator.comparingLong(AnalystWorkloadResponse::activeCases).reversed()
+                .thenComparing(AnalystWorkloadResponse::name));
+        return workload;
     }
 
     @Override

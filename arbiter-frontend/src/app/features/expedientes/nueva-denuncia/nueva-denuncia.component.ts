@@ -1,4 +1,14 @@
-import { ChangeDetectionStrategy, Component, effect, inject, signal, computed, untracked } from '@angular/core';
+import {
+  ChangeDetectionStrategy,
+  Component,
+  effect,
+  inject,
+  input,
+  output,
+  signal,
+  computed,
+  untracked,
+} from '@angular/core';
 import { toObservable, toSignal } from '@angular/core/rxjs-interop';
 import { Router, RouterLink } from '@angular/router';
 import { catchError, map, of, startWith, switchMap } from 'rxjs';
@@ -81,6 +91,14 @@ export class NuevaDenunciaComponent {
   private readonly agenda = inject(DocumentAgendaService);
   private readonly session = inject(InsuredSessionService);
 
+  /**
+   * `true` cuando el wizard se muestra dentro de un modal (pop-up sobre el portal) en vez de como
+   * página propia: oculta el encabezado y la caja externa (el modal ya los da) y habilita `close`.
+   */
+  readonly embedded = input(false);
+  /** Pedido de cerrar el pop-up (cancelar o después de crear). Solo tiene efecto en modo embedded. */
+  readonly close = output<void>();
+
   protected readonly steps: Step[] = [1, 2, 3];
   protected readonly step = signal<Step>(1);
   // El paso más lejano ya alcanzado — permite ir y volver libremente dentro de lo ya
@@ -142,7 +160,9 @@ export class NuevaDenunciaComponent {
           ? this.policyService.listClaimCauses(branch).pipe(catchError(() => of<string[]>([])))
           : of<string[]>([]),
       ),
-      map((names) => names.map((name): ClaimType => ({ key: name, label: name, claimCause: name }))),
+      map((names) =>
+        names.map((name): ClaimType => ({ key: name, label: name, claimCause: name })),
+      ),
     ),
     { initialValue: [] as ClaimType[] },
   );
@@ -206,7 +226,9 @@ export class NuevaDenunciaComponent {
   // rearman los slots según la agenda de su ramo.
   private readonly requiredDocTypes = toSignal(
     toObservable(computed(() => this.selectedPolicy()?.branch ?? null)).pipe(
-      switchMap((branch) => (branch ? this.agenda.slotsForBranch(branch) : of(CASE_DOCUMENT_TYPES))),
+      switchMap((branch) =>
+        branch ? this.agenda.slotsForBranch(branch) : of(CASE_DOCUMENT_TYPES),
+      ),
     ),
     { initialValue: CASE_DOCUMENT_TYPES as readonly CaseDocumentType[] },
   );
@@ -348,7 +370,16 @@ export class NuevaDenunciaComponent {
   goToCase(): void {
     const created = this.submittedCase();
     if (created) {
+      // Si está embebido, cerrar el modal antes de navegar al seguimiento del caso recién creado.
+      if (this.embedded()) {
+        this.close.emit();
+      }
       this.router.navigate(['/portal/cases', created.id]);
     }
+  }
+
+  /** Cancelar desde el pop-up (solo embedded): cierra sin crear nada. */
+  cancel(): void {
+    this.close.emit();
   }
 }

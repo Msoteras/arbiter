@@ -1,6 +1,8 @@
 package ar.edu.utn.frba.arbiter.cases.services;
 
 import ar.edu.utn.frba.arbiter.cases.dto.AnalystDecisionRequest;
+import ar.edu.utn.frba.arbiter.cases.dto.AnalystWorkloadResponse;
+import ar.edu.utn.frba.arbiter.cases.dto.AssignedCaseSummaryResponse;
 import ar.edu.utn.frba.arbiter.cases.dto.CaseDocumentResponse;
 import ar.edu.utn.frba.arbiter.cases.dto.CaseRequest;
 import ar.edu.utn.frba.arbiter.cases.dto.CaseResponse;
@@ -83,4 +85,18 @@ public interface CaseService {
 
     /** Libera el expediente: vuelve a quedar sin dueño, visible en "Todos" y en ninguna lente "Míos". */
     CaseResponse unassignAnalyst(Long caseId);
+
+    /**
+     * Carga de trabajo del equipo: cada analista del tenant con su cantidad de expedientes activos
+     * (no resueltos) asignados. Incluye a los analistas sin expedientes, con cero. Ordenado de más
+     * a menos cargado. Es la vista que usa el referente para repartir trabajo.
+     */
+    List<AnalystWorkloadResponse> analystWorkload();
+
+    /**
+     * Resumen de los expedientes asignados al analista logueado (conteo por estado + total + cuántos
+     * de riesgo alto/crítico), para las tarjetas de su inicio. El "yo" se resuelve contra el token;
+     * un rol sin perfil de analista recibe el resumen vacío.
+     */
+    AssignedCaseSummaryResponse assignedCaseSummary();
 }

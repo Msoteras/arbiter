@@ -1,3 +1,6 @@
+@if (showLoader()) {
+  <app-loading message="Estamos cargando los expedientes" />
+}
 <div class="bandeja">
   <header class="bandeja-head">
     <div class="bandeja-head-text">
@@ -5,7 +8,9 @@
       @if (!loading() && !hasError()) {
         <p class="bandeja-sub">
           {{ totalElements() }} {{ totalElements() === 1 ? 'expediente' : 'expedientes' }}
-          @if (hasActiveFilters()) { · filtrados }
+          @if (hasActiveFilters()) {
+            · filtrados
+          }
         </p>
       }
     </div>
@@ -17,7 +22,13 @@
     >
       <span class="btn-with-icon">
         <svg width="15" height="15" viewBox="0 0 16 16" fill="none" aria-hidden="true">
-          <path d="M8 2v8m0 0 3-3m-3 3L5 7M3 13h10" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" />
+          <path
+            d="M8 2v8m0 0 3-3m-3 3L5 7M3 13h10"
+            stroke="currentColor"
+            stroke-width="1.5"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+          />
         </svg>
         {{ exporting() ? 'Exportando…' : 'Exportar' }}
       </span>
@@ -53,7 +64,9 @@
   }
 
   @if (assignError()) {
-    <app-card><p class="t-note">{{ assignError() }}</p></app-card>
+    <app-card
+      ><p class="t-note">{{ assignError() }}</p></app-card
+    >
   }
 
   <app-card class="filters-card">
@@ -134,95 +147,110 @@
   } @else {
     <app-card [flush]="true" class="table-card">
       <div class="table-scroll">
-      <table>
-        <thead>
-          <tr>
-            @for (col of columns; track col.field) {
-              <th>
-                <button
-                  type="button"
-                  class="sort-btn"
-                  [class.is-sorted]="sortField() === col.field"
-                  (click)="toggleSort(col.field)"
-                >
-                  {{ col.label }}
-                  @if (sortField() === col.field) {
-                    <span class="sort-arrow" aria-hidden="true">{{ sortDir() === 'asc' ? '↑' : '↓' }}</span>
-                  }
-                </button>
-              </th>
-            }
-          </tr>
-        </thead>
-        <tbody>
-          @for (c of cases(); track c.id) {
-            <tr class="row-link" (click)="goTo(c.id)">
-              <td>
-                <a class="mono id-link" [routerLink]="['/cases', c.id]" (click)="$event.stopPropagation()">#{{ c.id }}</a>
-              </td>
-              <td><app-badge [tone]="estadoTone(c.status)">{{ estadoLabel(c.status) }}</app-badge></td>
-              <td>
-                <span [class.t-note]="!c.insuredName">{{ displayInsured(c) }}</span>
-                <br />
-                <span class="t-note mono">{{ displayInsuredId(c) }}</span>
-              </td>
-              <td>{{ c.claimCause }}</td>
-              <td>{{ formatDate(c.eventDate) }}</td>
-              <td class="mono num">{{ formatAmount(c.claimedAmount) }}</td>
-              <td><app-fraud-gauge [band]="riskGaugeBand(c)" [emptyLabel]="riskGaugeEmptyLabel(c)" /></td>
-              <td>
-                @if (c.analysisClassification) {
-                  <app-badge [tone]="clasificacionTone(c.analysisClassification)">
-                    {{ clasificacionLabel(c.analysisClassification) }}
-                  </app-badge>
-                } @else {
-                  <span class="t-note">—</span>
-                }
-              </td>
-              <td class="assign-cell" (click)="$event.stopPropagation()">
-                <div class="assign-row">
-                  @if (c.assignedAnalystId) {
-                    <div class="assignee">
-                      <span class="avatar" aria-hidden="true">{{ analystInitials(c) }}</span>
-                      <span class="assignee-text">
-                        <span class="assignee-name">{{ c.assignedAnalystName }}</span>
-                        <span class="assignee-sub">Asignado</span>
-                      </span>
-                    </div>
-                  } @else if (!canAssign()) {
-                    <span class="t-note">Sin asignar</span>
-                  }
-                  @if (canAssign()) {
-                    <div class="assign-actions">
-                      @if (!c.assignedAnalystId && canTake()) {
-                        <app-button
-                          variant="accent"
-                          size="sm"
-                          [disabled]="assigning() !== null"
-                          (click)="take(c)"
-                        >
-                          + Asignarme
-                        </app-button>
-                      }
-                      <app-menu-button
-                        [items]="assignMenuItems(c)"
-                        heading="Asignar a otro analista"
-                        [disabled]="assigning() !== null"
-                        align="end"
-                        size="sm"
-                        (itemSelected)="onAssignMenu(c, $event)"
-                      >
-                        <span aria-hidden="true">⋯</span>
-                        <span class="sr-only">Más acciones de asignación</span>
-                      </app-menu-button>
-                    </div>
-                  }
-                </div>
-              </td>
+        <table>
+          <thead>
+            <tr>
+              @for (col of columns; track col.field) {
+                <th>
+                  <button
+                    type="button"
+                    class="sort-btn"
+                    [class.is-sorted]="sortField() === col.field"
+                    (click)="toggleSort(col.field)"
+                  >
+                    {{ col.label }}
+                    @if (sortField() === col.field) {
+                      <span class="sort-arrow" aria-hidden="true">{{
+                        sortDir() === 'asc' ? '↑' : '↓'
+                      }}</span>
+                    }
+                  </button>
+                </th>
+              }
             </tr>
-          }
-        </tbody>
-      </table>
+          </thead>
+          <tbody>
+            @for (c of cases(); track c.id) {
+              <tr class="row-link" (click)="goTo(c.id)">
+                <td>
+                  <a
+                    class="mono id-link"
+                    [routerLink]="['/cases', c.id]"
+                    (click)="$event.stopPropagation()"
+                    >#{{ c.id }}</a
+                  >
+                </td>
+                <td>
+                  <app-badge [tone]="estadoTone(c.status)">{{ estadoLabel(c.status) }}</app-badge>
+                </td>
+                <td>
+                  <span [class.t-note]="!c.insuredName">{{ displayInsured(c) }}</span>
+                  <br />
+                  <span class="t-note mono">{{ displayInsuredId(c) }}</span>
+                </td>
+                <td>{{ c.claimCause }}</td>
+                <td>{{ formatDate(c.eventDate) }}</td>
+                <td class="mono num">{{ formatAmount(c.claimedAmount) }}</td>
+                <td>
+                  <app-fraud-gauge
+                    [band]="riskGaugeBand(c)"
+                    [emptyLabel]="riskGaugeEmptyLabel(c)"
+                  />
+                </td>
+                <td>
+                  @if (c.analysisClassification) {
+                    <app-badge [tone]="clasificacionTone(c.analysisClassification)">
+                      {{ clasificacionLabel(c.analysisClassification) }}
+                    </app-badge>
+                  } @else {
+                    <span class="t-note">—</span>
+                  }
+                </td>
+                <td class="assign-cell" (click)="$event.stopPropagation()">
+                  <div class="assign-row">
+                    @if (c.assignedAnalystId) {
+                      <div class="assignee">
+                        <span class="avatar" aria-hidden="true">{{ analystInitials(c) }}</span>
+                        <span class="assignee-text">
+                          <span class="assignee-name">{{ c.assignedAnalystName }}</span>
+                          <span class="assignee-sub">Asignado</span>
+                        </span>
+                      </div>
+                    } @else if (!canAssign()) {
+                      <span class="t-note">Sin asignar</span>
+                    }
+                    @if (canAssign()) {
+                      <div class="assign-actions">
+                        @if (!c.assignedAnalystId && canTake()) {
+                          <app-button
+                            variant="accent"
+                            size="sm"
+                            [loading]="assigning() === c.id"
+                            [disabled]="assigning() !== null"
+                            (click)="take(c)"
+                          >
+                            + Asignarme
+                          </app-button>
+                        }
+                        <app-menu-button
+                          [items]="assignMenuItems(c)"
+                          heading="Asignar a otro analista"
+                          [disabled]="assigning() !== null"
+                          align="end"
+                          size="sm"
+                          (itemSelected)="onAssignMenu(c, $event)"
+                        >
+                          <span aria-hidden="true">⋯</span>
+                          <span class="sr-only">Más acciones de asignación</span>
+                        </app-menu-button>
+                      </div>
+                    }
+                  </div>
+                </td>
+              </tr>
+            }
+          </tbody>
+        </table>
       </div>
     </app-card>
 
