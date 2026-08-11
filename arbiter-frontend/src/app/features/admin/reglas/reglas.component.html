@@ -128,6 +128,41 @@
                         placeholder="Sin límite"
                       />
                     </label>
+                    <label class="fieldset">
+                      <span class="t-field-label">Carencia (días)</span>
+                      <app-input
+                        type="number"
+                        [min]="0"
+                        [value]="coverageWaitingPeriodStr(c)"
+                        (valueChange)="setCoverageWaitingPeriod(c.id, $event)"
+                        placeholder="Sin carencia"
+                      />
+                    </label>
+                  </div>
+                  <p class="section-hint">
+                    Durante la carencia la cobertura todavía no aplica, aunque la póliza esté
+                    vigente: un siniestro dentro de ese plazo no se cubre.
+                  </p>
+
+                  <div class="chips">
+                    <button
+                      type="button"
+                      class="chip"
+                      [class.active]="c.coversFamilyGroup"
+                      [attr.aria-pressed]="c.coversFamilyGroup"
+                      (click)="toggleCoverageFamilyGroup(c)"
+                    >
+                      Alcanza al grupo familiar
+                    </button>
+                    <button
+                      type="button"
+                      class="chip"
+                      [class.active]="c.claimExhaustsCoverage"
+                      [attr.aria-pressed]="c.claimExhaustsCoverage"
+                      (click)="toggleCoverageExhausts(c)"
+                    >
+                      Un siniestro agota la cobertura
+                    </button>
                   </div>
 
                   <div class="cov-excl">

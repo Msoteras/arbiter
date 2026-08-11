@@ -265,6 +265,9 @@ export class ReglasComponent {
       deductibleRatio: c.deductibleRatio,
       reportingWindowDays: c.reportingWindowDays,
       maxAnnualClaims: c.maxAnnualClaims,
+      waitingPeriodDays: c.waitingPeriodDays,
+      coversFamilyGroup: c.coversFamilyGroup,
+      claimExhaustsCoverage: c.claimExhaustsCoverage,
       exclusions: c.exclusions ?? [],
       // Las exclusiones duras (por hecho generador) viven en rules-service, no en este detalle:
       // arrancan vacías y las completa loadCoverageExclusions.
@@ -399,6 +402,9 @@ export class ReglasComponent {
       deductibleRatio: null,
       reportingWindowDays: null,
       maxAnnualClaims: null,
+      waitingPeriodDays: null,
+      coversFamilyGroup: false,
+      claimExhaustsCoverage: false,
       exclusions: [],
       excludedClaimCauseIds: [],
     };
@@ -474,6 +480,22 @@ export class ReglasComponent {
 
   protected coverageMaxClaimsStr(c: Coverage): string {
     return this.intStr(c.maxAnnualClaims);
+  }
+
+  protected setCoverageWaitingPeriod(id: string, value: string): void {
+    this.setCoverageField(id, { waitingPeriodDays: this.intFromStr(value) });
+  }
+
+  protected coverageWaitingPeriodStr(c: Coverage): string {
+    return this.intStr(c.waitingPeriodDays);
+  }
+
+  protected toggleCoverageFamilyGroup(c: Coverage): void {
+    this.setCoverageField(c.id, { coversFamilyGroup: !c.coversFamilyGroup });
+  }
+
+  protected toggleCoverageExhausts(c: Coverage): void {
+    this.setCoverageField(c.id, { claimExhaustsCoverage: !c.claimExhaustsCoverage });
   }
 
   protected setCommonExclusions(items: string[]): void {
@@ -664,6 +686,9 @@ export class ReglasComponent {
       deductibleRatio: c.deductibleRatio,
       reportingWindowDays: c.reportingWindowDays,
       maxAnnualClaims: c.maxAnnualClaims,
+      waitingPeriodDays: c.waitingPeriodDays,
+      coversFamilyGroup: c.coversFamilyGroup,
+      claimExhaustsCoverage: c.claimExhaustsCoverage,
       exclusions: c.exclusions,
     };
   }

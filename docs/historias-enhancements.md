@@ -7,7 +7,8 @@ Cada bloque es **una card de Trello**: el título va en el nombre de la card y e
 descripción. La numeración arranca en H0021 asumiendo que el documento de HU llega hasta H0020 —
 confirmar antes de cargarlas.
 
-Ordenadas por lo que más rinde. Las tres primeras se destraban entre sí.
+Ordenadas por lo que más rinde. Las tres primeras se destraban entre sí. **H0025 ya se hizo** — está
+tachada abajo, no hay que cargarla.
 
 ---
 
@@ -102,7 +103,11 @@ reproducible una clasificación ante la Disposición SSN 2/2023 — pero solo si
 
 ---
 
-## H0025 · Configurar las condiciones de la cobertura desde el panel
+## ~~H0025 · Configurar las condiciones de la cobertura desde el panel~~ — ✅ HECHA (10/08)
+
+> Se implementó el mismo día: los tres campos están en la solapa Coberturas, se persisten por
+> `CoverageUpsertRequest` y el motor evalúa lo guardado. **No cargar esta card.** Se deja el texto
+> como registro de por qué existía.
 
 **Como** referente de la aseguradora
 **quiero** editar la carencia, si la cobertura alcanza al grupo familiar y si un siniestro la agota

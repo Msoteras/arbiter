@@ -357,9 +357,11 @@ coberturas. Si son inversas, implementarla sería guardar el mismo hecho dos vec
 cómo se desincronizan. **Cuando se implemente `covers_family_group` hay que decidir si `is_individual`
 se dropea del DER o se deriva**, no dejar las dos vivas.
 
-**Las cuatro deberían verse en la solapa Coberturas**, que ya existe y edita nombre, cláusula,
-franquicia, plazo de denuncia, máx. eventos por año y exclusiones. No hay que construir pantalla:
-hay que sumar campos a una que ya está.
+**Las tres evaluables ya se ven y se editan en la solapa Coberturas** — ✅ (10/08, H0025). La carencia
+como campo numérico (vacío = sin carencia) y las otras dos como toggles, junto a los que ya estaban.
+Se persisten por `CoverageUpsertRequest`/`CoverageDetailResponse` (cases-service es el dueño de la
+tabla) y el motor evalúa lo guardado, así que **dejaron de configurarse por SQL**. `is_individual` no
+se expone, por lo mismo que no se implementó: es redundante con `covers_family_group`.
 
 > **Nota de diseño — reglas que dependen del relato (`covers_family_group`, y también D4b).**
 > Fede lo planteó así (10/08): estas validaciones se corren sobre el expediente, y si de la
