@@ -184,7 +184,14 @@ INSERT INTO arbiter_common.users (id, auth0_sub, email, active, activated) VALUE
     (4, 'auth0|seed-analista-provincia',  'analista.provincia.arbiter@gmail.com',  TRUE, TRUE),
     -- Second BBVA policyholder: without one, every claim in the fixtures piles onto
     -- insured(1), which looks less like demo data and more like one very unlucky person.
-    (5, 'auth0|6a71248c6b9165b91b479173',  'asegurado2.arbiter@gmail.com',          TRUE, TRUE);
+    (5, 'auth0|6a71248c6b9165b91b479173',  'asegurado2.arbiter@gmail.com',          TRUE, TRUE),
+    -- Referent on the second insurer, same reasoning as the analyst above: without one there is
+    -- no way to check that the rules backoffice stays inside its own tenant.
+    (6, 'auth0|seed-referente-provincia', 'referente.provincia.arbiter@gmail.com',  TRUE, TRUE),
+    -- Real team accounts, one per insurer. They exist in Auth0, but the login reads the local
+    -- row before validating there, so without these a re-init locks them out.
+    (7, 'auth0|seed-analista-provincia-2', 'mocciafederico@hotmail.com',            TRUE, TRUE),
+    (8, 'auth0|seed-analista-bbva-2',      'federico21433@hotmail.com',             TRUE, TRUE);
 
 SELECT setval(pg_get_serial_sequence('arbiter_common.users', 'id'),
               (SELECT MAX(id) FROM arbiter_common.users));
@@ -199,13 +206,13 @@ SELECT setval(pg_get_serial_sequence('arbiter_common.role', 'id'),
               (SELECT MAX(id) FROM arbiter_common.role));
 
 INSERT INTO arbiter_common.user_role (user_id, role_id) VALUES
-    (1, 1), (2, 2), (3, 3), (4, 2);
+    (1, 1), (2, 2), (3, 3), (4, 2), (6, 3), (7, 2), (8, 2);
 
 -- permission / role_permission stay empty on purpose — no permission catalog has been
 -- defined yet, and seeding invented ones would be made-up data.
 
 INSERT INTO arbiter_common.user_insurer (user_id, insurer_id) VALUES
-    (1, 1), (2, 1), (3, 1), (4, 2);
+    (1, 1), (2, 1), (3, 1), (4, 2), (6, 2), (7, 2), (8, 1);
 
 -- Los dos ramos que el negocio cubre hoy. Hogar quedó fuera por ahora (no se trabaja con ese
 -- ramo todavía), así que Tecnología Portátil pasa a ser el branch 2 y los ids quedan contiguos.
@@ -918,7 +925,8 @@ SELECT setval(pg_get_serial_sequence('arbiter_bbva.insured', 'id'),
               (SELECT MAX(id) FROM arbiter_bbva.insured));
 
 INSERT INTO arbiter_bbva.claims_analyst (id, name, surname, email, user_id) VALUES
-    (1, 'Lucas', 'Gómez', 'analista.arbiter@gmail.com', 2);
+    (1, 'Lucas', 'Gómez', 'analista.arbiter@gmail.com', 2),
+    (2, 'Federico', 'Alvarez', 'federico21433@hotmail.com', 8);
 
 SELECT setval(pg_get_serial_sequence('arbiter_bbva.claims_analyst', 'id'),
               (SELECT MAX(id) FROM arbiter_bbva.claims_analyst));
@@ -930,10 +938,17 @@ SELECT setval(pg_get_serial_sequence('arbiter_bbva.insurer_referent', 'id'),
               (SELECT MAX(id) FROM arbiter_bbva.insurer_referent));
 
 INSERT INTO arbiter_provincia.claims_analyst (id, name, surname, email, user_id) VALUES
-    (1, 'Diego', 'Fernández', 'analista.provincia.arbiter@gmail.com', 4);
+    (1, 'Diego', 'Fernández', 'analista.provincia.arbiter@gmail.com', 4),
+    (2, 'Federico', 'Moccia', 'mocciafederico@hotmail.com', 7);
 
 SELECT setval(pg_get_serial_sequence('arbiter_provincia.claims_analyst', 'id'),
               (SELECT MAX(id) FROM arbiter_provincia.claims_analyst));
+
+INSERT INTO arbiter_provincia.insurer_referent (id, name, surname, user_id) VALUES
+    (1, 'Paula', 'Ríos', 6);
+
+SELECT setval(pg_get_serial_sequence('arbiter_provincia.insurer_referent', 'id'),
+              (SELECT MAX(id) FROM arbiter_provincia.insurer_referent));
 
 COMMIT;
 

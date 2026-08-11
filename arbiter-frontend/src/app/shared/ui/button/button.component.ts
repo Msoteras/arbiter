@@ -6,12 +6,16 @@ type Size = 'md' | 'sm';
 /**
  * Botón del design system. Única definición de "qué es un botón" en la app.
  * Variantes cerradas por la API (primary | secondary) → imposible inventar uno nuevo.
- * El click nativo burbujea al host, así que (click) sobre <app-button> funciona.
+ * El click nativo burbujea al host, así que (click) sobre <app-button> funciona — y por eso mismo
+ * el estado deshabilitado se corta acá (ver onHostClick).
  */
 @Component({
   selector: 'app-button',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  host: { '[class.block]': 'block()' },
+  host: {
+    '[class.block]': 'block()',
+    '[class.is-disabled]': 'disabled() || loading()',
+  },
   template: `
     <button
       class="btn"
@@ -29,6 +33,10 @@ type Size = 'md' | 'sm';
   `,
   styles: `
     :host { display: inline-block; }
+    /* El (click) de los consumidores vive en el host y se dispara aunque el <button> interno esté
+       disabled; un HostListener no gana, porque el del consumidor se registra primero. Sin eventos
+       de puntero tampoco hay hover: el title de un botón deshabilitado va en algo que lo envuelva. */
+    :host(.is-disabled) { pointer-events: none; }
     :host(.block) { display: block; }
     :host(.block) .btn { width: 100%; }
     .btn {
@@ -70,4 +78,5 @@ export class ButtonComponent {
   readonly block = input(false);
   /** Muestra un spinner inline y deshabilita el botón mientras dura una acción async. */
   readonly loading = input(false);
+
 }
