@@ -1,11 +1,13 @@
 package ar.edu.utn.frba.arbiter.classification.services;
 
+import ar.edu.utn.frba.arbiter.classification.config.OllamaProperties;
 import ar.edu.utn.frba.arbiter.classification.dto.BusinessRules;
 import ar.edu.utn.frba.arbiter.classification.dto.ClassificationRequest;
+import ar.edu.utn.frba.arbiter.classification.dto.DocumentExtraction;
 import ar.edu.utn.frba.arbiter.classification.dto.InsuredPolicy;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
-import org.springframework.core.io.ClassPathResource;
+import org.springframework.core.io.DefaultResourceLoader;
 
 import java.io.IOException;
 import java.math.BigDecimal;
@@ -24,9 +26,16 @@ class PromptBuilderTest {
 
     private PromptBuilder promptBuilder;
 
+    /**
+     * Se construye igual que en producción —desde la versión configurada— y no apuntando a un
+     * archivo fijo: así el test también verifica que el template de la versión que se audita exista
+     * de verdad en el classpath.
+     */
     @BeforeEach
     void setUp() throws IOException {
-        promptBuilder = new PromptBuilder(new ClassPathResource("prompts/classification-v3.md"));
+        promptBuilder = new PromptBuilder(
+                new OllamaProperties(null, "qwen3-vl", "classification-v4"),
+                new DefaultResourceLoader());
     }
 
     private InsuredPolicy policy() {
@@ -159,5 +168,52 @@ class PromptBuilderTest {
         String prompt = promptBuilder.buildFullPrompt(request);
 
         assertThat(prompt).contains("No declarado");
+    }
+
+    /**
+     * D5: la señal visual de la pasada de extracción tiene que llegar al clasificador <b>separada</b>
+     * de la transcripción. Si se mezclaran, el modelo leería "la firma está pixelada" como si lo
+     * dijera el documento.
+     */
+    @Test
+    void renderAttachment_keepsVisualFindingsApartFromTheTranscription() {
+        String rendered = promptBuilder.renderAttachment(
+                "police_report",
+                new DocumentExtraction(
+                        "Constancia de denuncia N° 4471/26, comisaría 15a, 30/06/2026.",
+                        List.of("El número de acta usa una tipografía distinta al resto del formulario"),
+                        DocumentExtraction.Fields.none()));
+
+        assertThat(rendered)
+                .contains("police_report: Constancia de denuncia N° 4471/26")
+                .contains("no es contenido del documento")
+                .contains("tipografía distinta al resto del formulario");
+    }
+
+    /** Sin hallazgos —el caso normal— no se agrega ningún encabezado que sugiera sospecha. */
+    @Test
+    void renderAttachment_addsNothingWhenThereAreNoVisualFindings() {
+        String rendered = promptBuilder.renderAttachment(
+                "invoice", DocumentExtraction.of("Factura B 0001-00023456, $1.150.000, 12/05/2026."));
+
+        assertThat(rendered).isEqualTo("invoice: Factura B 0001-00023456, $1.150.000, 12/05/2026.");
+        assertThat(rendered).doesNotContain("Observado en la imagen");
+    }
+
+    /** El bloque del template que le dice al modelo cómo pesar esas señales. */
+    @Test
+    void buildFullPrompt_explainsHowToWeighVisualFindings() {
+        ClassificationRequest request = ClassificationRequest.builder()
+                .branch("Celulares").product("x").claimCause("Hurto").insuredItem("y")
+                .description("z").insurerRules("sin reglas").insuredHistory("sin historial")
+                .attachmentsOcr(List.of(promptBuilder.renderAttachment(
+                        "police_report",
+                        new DocumentExtraction("Constancia.", List.of("Sello deformado"), DocumentExtraction.Fields.none()))))
+                .build();
+
+        assertThat(promptBuilder.buildFullPrompt(request))
+                .contains("No son concluyentes")
+                .contains("Su ausencia no prueba nada")
+                .contains("Sello deformado");
     }
 }

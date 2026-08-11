@@ -24,6 +24,24 @@ public final class RiskFixtures {
         return claim(claimedAmount, EVENT_DATE);
     }
 
+    /** Con la fecha de denuncia policial que declaró el asegurado (D12). */
+    public static ClaimReport claimWithPoliceReport(LocalDateTime policeReportAt) {
+        return ClaimReport.builder()
+                .branch("Celulares")
+                .product("Celular Protegido Básico")
+                .claimCause("Robo en vía pública")
+                .insuredItem("Motorola Edge 50 Pro")
+                .insuredId("40.123.456")
+                .policyNumber("POL-CEL-2024-001")
+                .description("Robo en vía pública.")
+                .eventDate(EVENT_DATE)
+                .eventLocation("CABA")
+                .claimedAmount(new BigDecimal("100000"))
+                .policeReportAt(policeReportAt)
+                .attachmentsOcr(List.of())
+                .build();
+    }
+
     public static ClaimReport claim(BigDecimal claimedAmount, LocalDateTime eventDate) {
         return ClaimReport.builder()
                 .branch("Celulares")
