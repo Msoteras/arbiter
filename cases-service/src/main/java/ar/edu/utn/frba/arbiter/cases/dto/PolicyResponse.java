@@ -10,7 +10,7 @@ import java.util.List;
  * Póliza vista por el asegurado para autocompletar el alta de denuncia. Incluye la
  * aseguradora ({@code insurerId}/{@code insurerName}): un mismo asegurado puede tener
  * pólizas de distintas aseguradoras en la plataforma, y las ve centralizadas acá.
- * Los datos salen de la BD Aseguradora vía {@code InsurerAdapter} (mock por ahora).
+ * Los datos salen de la BD Aseguradora vía {@code InsurerAdapter}.
  */
 @Builder
 public record PolicyResponse(
