@@ -88,6 +88,16 @@ export class BandejaComponent {
   private readonly session = inject(AuthSessionService);
   private readonly users = inject(UserAdminService);
 
+  constructor() {
+    // Catálogo real de tipos de siniestro para el filtro (best-effort: si falla, queda vacío).
+    this.service.claimCauseNames().subscribe({
+      next: (names) => this.claimCauseOptions.set(names.map((n) => ({ value: n, label: n }))),
+      error: () => {
+        /* backend caído: el filtro queda sin opciones, sin romper la bandeja */
+      },
+    });
+  }
+
   // ───────────────── Lente: "Míos" vs "Todos" ─────────────────
   // No es un filtro más de la fila de selects: es de quién es el expediente, no cómo se recorta
   // el listado. Por eso vive arriba de la tabla y "Limpiar filtros" no lo toca.
@@ -264,16 +274,10 @@ export class BandejaComponent {
     label: estadoLabel(s),
   }));
 
-  // Catálogo de tipos de siniestro conocidos (mismo set que usa nueva-denuncia.component.ts
-  // para el alta). Temporal: HechoGenerador es dueño de rules-service (ver CLAUDE.md, "Modelo
-  // de dominio"), que todavía no expone un endpoint de catálogo — hasta entonces, match exacto
-  // contra este set corto hardcodeado.
-  protected readonly claimCauseOptions: SelectOption[] = [
-    { value: 'Robo en vía pública', label: 'Robo en vía pública' },
-    { value: 'Hurto', label: 'Hurto' },
-    { value: 'Rotura accidental', label: 'Rotura accidental' },
-    { value: 'Siniestro general', label: 'Siniestro general' },
-  ];
+  // Catálogo real de tipos de siniestro (hechos generadores), traído del backend en el constructor:
+  // GET /api/v1/claim-causes/all devuelve los nombres distintos de todos los ramos. Antes era una
+  // lista hardcodeada con valores que no existían ("Siniestro general") y filtraba vacío.
+  protected readonly claimCauseOptions = signal<SelectOption[]>([]);
 
   // Mismas 4 etiquetas que usa app-fraud-gauge para band 1-4, para no inventar un vocabulario
   // paralelo de "nivel de riesgo" entre el filtro y la columna que lo muestra.
@@ -391,6 +395,15 @@ export class BandejaComponent {
   /** Solo un analista puede tomar un expediente para sí; el referente asigna, no se autoasigna. */
   protected readonly canTake = computed(
     () => this.session.session()?.rol === 'ANALISTA_SINIESTROS' && this.myAnalystId() != null,
+  );
+
+  /**
+   * Solo el analista asigna. El referente ve la bandeja de solo lectura: la columna de analista
+   * queda informativa (sin "Asignarme"/"Reasignar"/"Liberar") y sin la lente "Mis asignados",
+   * porque no tiene expedientes propios.
+   */
+  protected readonly canAssign = computed(
+    () => this.session.session()?.rol === 'ANALISTA_SINIESTROS',
   );
 
   protected isMine(c: ExpedienteResponse): boolean {

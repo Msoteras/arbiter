@@ -11,6 +11,21 @@ export interface StatusTransition {
   changedAt: string;
 }
 
+/**
+ * El aporte de un factor al score de fraude — espejo de RiskBreakdownItem del back. Lo muestra la
+ * vista del analista para que el score no sea una caja negra: qué factor pesó y por qué.
+ */
+export interface RiskBreakdownItem {
+  factorId: string;
+  /** Contribución normalizada del factor en [0,1]. */
+  rawScore: number;
+  /** Peso de la aseguradora para este factor. */
+  weight: number;
+  /** rawScore * weight — el empuje absoluto de este factor sobre el total. */
+  weightedContribution: number;
+  rationale: string;
+}
+
 // Espejo de CaseResponse del cases-service (GET /api/v1/cases/{id})
 export interface ExpedienteResponse {
   id: number;
@@ -30,12 +45,22 @@ export interface ExpedienteResponse {
   insuredId: string;
   /** Nombre real del asegurado, resuelto por classification-service al clasificar. Null hasta entonces. */
   insuredName: string | null;
+  /**
+   * Persona políticamente expuesta, según lo declaró el asegurado al denunciar (UIF/PLA). Es
+   * debida diligencia, no una señal de fraude: se muestra entre los datos del asegurado para que
+   * el analista lo tenga a la vista, y no participa del scoring ni de la clasificación (D16).
+   */
+  pep: boolean;
   policyNumber: string;
   description: string;
   eventDate: string;
   eventLocation: string;
   claimedAmount: number | null;
   riskBand: 'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL' | null;
+  /** Score de fraude normalizado en [0,1]. Null cuando no se scoreó ("sin scorear"). */
+  riskScore: number | null;
+  /** Desglose del score por factor (analista-only). Null/[] cuando no se scoreó. */
+  riskBreakdown: RiskBreakdownItem[] | null;
   /**
    * Análisis forense de imágenes (H0009), analista-only. Null cuando no corrió
    * (Fast Track o expediente sin adjuntos de imagen).

@@ -2,12 +2,15 @@ package ar.edu.utn.frba.arbiter.classification.services;
 
 import ar.edu.utn.frba.arbiter.classification.config.OllamaProperties;
 import ar.edu.utn.frba.arbiter.classification.dto.ClassificationResponse;
+import ar.edu.utn.frba.arbiter.classification.dto.RuleFinding;
 import ar.edu.utn.frba.arbiter.classification.models.entities.LlmAnalysis;
 import ar.edu.utn.frba.arbiter.classification.models.entities.RiskAnalysis;
+import ar.edu.utn.frba.arbiter.classification.models.entities.RuleResult;
 import ar.edu.utn.frba.arbiter.classification.models.repositories.CaseClassificationRepository;
 import ar.edu.utn.frba.arbiter.classification.models.repositories.CaseOutcomeRepository;
 import ar.edu.utn.frba.arbiter.classification.models.repositories.LlmAnalysisRepository;
 import ar.edu.utn.frba.arbiter.classification.models.repositories.RiskAnalysisRepository;
+import ar.edu.utn.frba.arbiter.classification.models.repositories.RuleResultRepository;
 import ar.edu.utn.frba.arbiter.classification.services.risk.RiskScore;
 import ar.edu.utn.frba.arbiter.common.dto.ClaimResponse;
 import ar.edu.utn.frba.arbiter.common.dto.RiskBreakdownItem;
@@ -46,6 +49,7 @@ class ClassificationResultsServiceTest {
     @Mock private CaseClassificationRepository caseClassificationRepository;
     @Mock private RiskAnalysisRepository riskAnalysisRepository;
     @Mock private CaseOutcomeRepository caseOutcomeRepository;
+    @Mock private RuleResultRepository ruleResultRepository;
     @Mock private OllamaProperties ollamaProperties;
 
     @InjectMocks private ClassificationResultsService service;
@@ -67,7 +71,7 @@ class ClassificationResultsServiceTest {
     @Test
     void scoredClaim_persistsRiskAnalysis() {
         RiskScore score = new RiskScore(true, 0.72, RiskBand.HIGH,
-                List.of(new RiskBreakdownItem("amount_ratio", 0.9, 0.45, 0.405, "monto alto")));
+                List.of(new RiskBreakdownItem("amount_ratio", 0.9, 0.45, 0.405, "monto alto")), 3L);
 
         service.saveResult(7L, response(score), null, 120);
 
@@ -78,6 +82,27 @@ class ClassificationResultsServiceTest {
         assertThat(saved.getRiskScore()).isEqualByComparingTo("0.720");
         assertThat(saved.getRiskBand()).isEqualTo(RiskBand.HIGH);
         assertThat(saved.getRiskBreakdown()).isEqualTo(score.breakdown());
+    }
+
+    /** D29 · con qué configuración se calculó el score, para poder explicarlo después. */
+    @Test
+    void scoredClaim_recordsWhichScoringConfigurationWasUsed() {
+        RiskScore score = new RiskScore(true, 0.72, RiskBand.HIGH, List.of(), 3L);
+
+        service.saveResult(7L, response(score), null, 120);
+
+        verify(caseOutcomeRepository).saveScoringConfiguration(7L, 3L);
+    }
+
+    /** El baseline no es una fila de {@code scoring_configuration}: no hay id que apuntar. */
+    @Test
+    void baselineScore_recordsNoScoringConfiguration() {
+        RiskScore score = new RiskScore(true, 0.72, RiskBand.HIGH, List.of(), null);
+
+        service.saveResult(7L, response(score), null, 120);
+
+        verify(caseOutcomeRepository, never()).saveScoringConfiguration(
+                org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.any());
     }
 
     @Test
@@ -95,6 +120,44 @@ class ClassificationResultsServiceTest {
         // so the outcome lives on the case (decision #6).
         verify(caseOutcomeRepository).markFastTracked(7L);
         verify(llmAnalysisRepository, never()).save(org.mockito.ArgumentMatchers.any());
+    }
+
+    @Test
+    void ruleFindings_areAuditedIntoRuleResult() {
+        ClassificationResponse response = ClassificationResponse.builder()
+                .classification(Classification.LLM_SOLICITA_REVISION_MANUAL)
+                .factors(List.of("La cobertura no cubre el hecho generador declarado"))
+                .confidence(1.0)
+                .deterministicFastTrack(false)
+                .ruleFindings(List.of(new RuleFinding(3L, "COVERAGE_EXCLUSION", false, "claimCause=Hurto (id=3)")))
+                .build();
+
+        service.saveResult(7L, response, null, 50);
+
+        ArgumentCaptor<RuleResult> captor = ArgumentCaptor.forClass(RuleResult.class);
+        verify(ruleResultRepository).save(captor.capture());
+        RuleResult saved = captor.getValue();
+        assertThat(saved.getCaseId()).isEqualTo(7L);
+        assertThat(saved.getRuleId()).isEqualTo(3L);
+        assertThat(saved.getRuleType()).isEqualTo("COVERAGE_EXCLUSION");
+        assertThat(saved.getResult()).isEqualTo("FAIL");
+        assertThat(saved.getEvaluatedValue()).contains("id=3");
+        assertThat(saved.getEvaluatedAt()).isNotNull();
+    }
+
+    @Test
+    void isolatedFlow_noCaseId_writesNoRuleResult() {
+        ClassificationResponse response = ClassificationResponse.builder()
+                .classification(Classification.FAST_TRACK)
+                .factors(List.of("ok"))
+                .confidence(1.0)
+                .deterministicFastTrack(true)
+                .ruleFindings(List.of(new RuleFinding(3L, "COVERAGE_EXCLUSION", true, "claimCause=Robo (id=2)")))
+                .build();
+
+        service.saveResult(null, response, null, 50);
+
+        verify(ruleResultRepository, never()).save(org.mockito.ArgumentMatchers.any());
     }
 
     @Test

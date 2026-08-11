@@ -28,18 +28,19 @@ export class AltaUsuarioComponent {
   protected readonly email = signal('');
   protected readonly nombre = signal('');
   protected readonly apellido = signal('');
-  protected readonly sector = signal('');
-  protected readonly fechaIngreso = signal('');
 
   protected readonly submitting = signal(false);
   protected readonly errorMessage = signal<string | null>(null);
+
+  // sector / fechaIngreso se sacaron: el backend multi-tenant no los modela (el DER de usuarios ya
+  // no tiene esas columnas) y se descartaban en silencio. Si algún día se quieren, va con una
+  // historia de schema (columna en el perfil por rol), no como campo de UI suelto.
 
   protected readonly canSubmit = computed(
     () =>
       this.email().trim().length > 0 &&
       this.nombre().trim().length > 0 &&
-      this.apellido().trim().length > 0 &&
-      this.sector().trim().length > 0,
+      this.apellido().trim().length > 0,
   );
 
   protected submit(): void {
@@ -54,8 +55,6 @@ export class AltaUsuarioComponent {
       nombre: this.nombre().trim(),
       apellido: this.apellido().trim(),
       rol: 'ANALISTA_SINIESTROS',
-      sector: this.sector().trim(),
-      fechaIngreso: this.fechaIngreso() || undefined,
     };
 
     this.userAdminService.create(request).subscribe({

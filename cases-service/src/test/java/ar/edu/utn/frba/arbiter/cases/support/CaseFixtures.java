@@ -1,6 +1,6 @@
 package ar.edu.utn.frba.arbiter.cases.support;
 
-import ar.edu.utn.frba.arbiter.cases.models.entities.Coverage;
+import ar.edu.utn.frba.arbiter.common.models.entities.tenant.Coverage;
 import ar.edu.utn.frba.arbiter.common.models.entities.tenant.Insured;
 import ar.edu.utn.frba.arbiter.cases.models.entities.Policy;
 import ar.edu.utn.frba.arbiter.common.models.entities.Branch;

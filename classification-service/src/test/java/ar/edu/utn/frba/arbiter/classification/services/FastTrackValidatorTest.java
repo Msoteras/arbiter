@@ -111,6 +111,119 @@ class FastTrackValidatorTest {
         assertThat(result.fastTrack()).isFalse();
     }
 
+    /**
+     * D14 · el caso que motivó el campo. Sin ventana, "máximo 1 siniestro previo" se compara contra
+     * el histórico completo, así que dos siniestros de 2024 dejan afuera del Fast Track a un cliente
+     * que hace dos años no reclama.
+     */
+    @Test
+    void withoutWindow_priorClaimsCountTheWholeHistory() {
+        BusinessRules rules = baseRules()
+                .fastTrackThresholds(BusinessRules.FastTrackThresholds.builder()
+                        .maxPriorClaims(1)
+                        .build())
+                .build();
+
+        FastTrackValidator.Result result = validator.evaluate(
+                claim(new BigDecimal("1000")), policy(),
+                historyWithClaimsOn(LocalDate.of(2024, 4, 1), LocalDate.of(2024, 8, 1)),
+                rules, Map.of());
+
+        assertThat(result.fastTrack()).isFalse();
+        assertThat(result.reasons()).anyMatch(r -> r.contains("Claims previos (2)"));
+    }
+
+    /** Con ventana de 12 meses, esos mismos dos siniestros de 2024 ya no cuentan. */
+    @Test
+    void withWindow_onlyPriorClaimsInsideItCount() {
+        BusinessRules rules = baseRules()
+                .fastTrackThresholds(BusinessRules.FastTrackThresholds.builder()
+                        .maxPriorClaims(1)
+                        .priorClaimsWindowMonths(12)
+                        .build())
+                .build();
+
+        FastTrackValidator.Result result = validator.evaluate(
+                claim(new BigDecimal("1000")), policy(),
+                historyWithClaimsOn(LocalDate.of(2024, 4, 1), LocalDate.of(2024, 8, 1)),
+                rules, Map.of());
+
+        assertThat(result.fastTrack()).isTrue();
+        assertThat(result.reasons()).anyMatch(r -> r.contains("en los últimos 12 meses"));
+    }
+
+    /** La ventana se cuenta desde el hecho, no desde hoy: un siniestro de hace 3 meses sí entra. */
+    @Test
+    void theWindowIsCountedBackFromTheEvent() {
+        BusinessRules rules = baseRules()
+                .fastTrackThresholds(BusinessRules.FastTrackThresholds.builder()
+                        .maxPriorClaims(0)
+                        .priorClaimsWindowMonths(12)
+                        .build())
+                .build();
+
+        FastTrackValidator.Result result = validator.evaluate(
+                claim(new BigDecimal("1000")), policy(),
+                historyWithClaimsOn(LocalDate.of(2026, 3, 10)),
+                rules, Map.of());
+
+        assertThat(result.fastTrack()).isFalse();
+    }
+
+    /** D14 · antigüedad mínima de la póliza (alta 01/03/2024, hecho 13/06/2026 ⇒ 27 meses). */
+    @Test
+    void policyOlderThanTheMinimum_fastTracks() {
+        BusinessRules rules = baseRules()
+                .fastTrackThresholds(BusinessRules.FastTrackThresholds.builder()
+                        .minPolicyAgeMonths(6)
+                        .build())
+                .build();
+
+        FastTrackValidator.Result result = validator.evaluate(
+                claim(new BigDecimal("1000")), policy(), history(0), rules, Map.of());
+
+        assertThat(result.fastTrack()).isTrue();
+    }
+
+    @Test
+    void policyYoungerThanTheMinimum_doesNotFastTrack() {
+        BusinessRules rules = baseRules()
+                .fastTrackThresholds(BusinessRules.FastTrackThresholds.builder()
+                        .minPolicyAgeMonths(36)
+                        .build())
+                .build();
+
+        FastTrackValidator.Result result = validator.evaluate(
+                claim(new BigDecimal("1000")), policy(), history(0), rules, Map.of());
+
+        assertThat(result.fastTrack()).isFalse();
+        assertThat(result.reasons()).anyMatch(r -> r.contains("por debajo del mínimo"));
+    }
+
+    /** El Fast Track solo procede sobre lo verificable: sin fecha de alta no se asume antigüedad. */
+    @Test
+    void withoutPolicyStartDate_theMinimumAgeCannotBeAsserted() {
+        BusinessRules rules = baseRules()
+                .fastTrackThresholds(BusinessRules.FastTrackThresholds.builder()
+                        .minPolicyAgeMonths(6)
+                        .build())
+                .build();
+        InsuredPolicy noStartDate = InsuredPolicy.builder()
+                .policyNumber("POL-CEL-2024-001")
+                .insuredId("40.123.456")
+                .upToDate(true)
+                .insuredAmount(new BigDecimal("400000"))
+                .coverages(List.of())
+                .applicableClauses(List.of())
+                .build();
+
+        FastTrackValidator.Result result = validator.evaluate(
+                claim(new BigDecimal("1000")), noStartDate, history(0), rules, Map.of());
+
+        assertThat(result.fastTrack()).isFalse();
+        assertThat(result.reasons()).anyMatch(r -> r.contains("No se pudo determinar la antigüedad"));
+    }
+
     private ClaimReport claim(BigDecimal claimedAmount) {
         return ClaimReport.builder()
                 .branch("Celulares")
@@ -155,6 +268,25 @@ class FastTrackValidatorTest {
                 .totalAmountClaimed(BigDecimal.ZERO)
                 .customerSince(LocalDate.of(2024, 3, 1))
                 .claims(List.of())
+                .build();
+    }
+
+    /** Historial con siniestros fechados, para poder probar la ventana (el hecho es 13/06/2026). */
+    private InsuredHistory historyWithClaimsOn(LocalDate... dates) {
+        return InsuredHistory.builder()
+                .insuredId("40.123.456")
+                .previousClaimsCount(dates.length)
+                .totalAmountClaimed(BigDecimal.ZERO)
+                .customerSince(LocalDate.of(2024, 3, 1))
+                .claims(List.of(dates).stream()
+                        .map(date -> InsuredHistory.ClaimRecord.builder()
+                                .claimId("H-" + date)
+                                .date(date)
+                                .branch("Celulares")
+                                .claimCause("Robo en vía pública")
+                                .status("LIQUIDADO")
+                                .build())
+                        .toList())
                 .build();
     }
 

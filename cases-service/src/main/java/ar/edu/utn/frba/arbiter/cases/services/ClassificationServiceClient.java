@@ -26,6 +26,8 @@ import org.springframework.web.client.RestClient;
 import org.springframework.web.client.RestClientResponseException;
 
 import javax.crypto.SecretKey;
+import java.time.LocalDateTime;
+import java.time.ZoneId;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
@@ -86,6 +88,8 @@ public class ClassificationServiceClient implements ClaimsAnalysisClient {
                 .branch(caseRecord.getClaimCause().getBranch().getName())
                 .product(caseRecord.getPolicy().getProduct())
                 .claimCause(caseRecord.getClaimCause().getName())
+                .coverageId(caseRecord.getCoverage().getId())
+                .claimCauseId(caseRecord.getClaimCause().getId())
                 .insuredItem(caseRecord.getDeclaredItem())
                 .insuredId(caseRecord.getInsured().getDni())
                 .policyNumber(caseRecord.getPolicy().getExternalPolicyNumber())
@@ -93,6 +97,14 @@ public class ClassificationServiceClient implements ClaimsAnalysisClient {
                 .eventDate(caseRecord.getOccurredAt())
                 .eventLocation(caseRecord.getEventAddress())
                 .claimedAmount(caseRecord.getClaimedAmount())
+                // reportedAt (Instant) → LocalDateTime para el motor: la regla del plazo de denuncia
+                // (D11) compara reportedAt - occurredAt contra el plazo de la cobertura.
+                .reportedAt(caseRecord.getReportedAt() == null ? null
+                        : LocalDateTime.ofInstant(caseRecord.getReportedAt(), ZoneId.systemDefault()))
+                // Lo que el asegurado declaró en el wizard sobre su denuncia policial (D12). Se
+                // capturaba desde el 09/08 y se quedaba en cases-service: sin esto el motor no
+                // podía evaluar el plazo ni cruzarlo contra la fecha que dice la constancia.
+                .policeReportAt(caseRecord.getPoliceReportAt())
                 .attachmentsOcr(List.of())
                 .build();
 

@@ -42,6 +42,13 @@ public record CaseResponse(
         String insuredId,
         /** Nullable hasta que la primera clasificación resuelve (ver Case.insuredName). */
         String insuredName,
+        /**
+         * Persona políticamente expuesta, tal como la declaró el asegurado al denunciar
+         * (UIF/PLA). Es un dato de <b>debida diligencia</b>, no una señal de fraude: viaja para
+         * que el analista lo vea junto al resto de los datos del asegurado, y a propósito no
+         * entra al scoring ni al prompt (D16).
+         */
+        boolean pep,
         String policyNumber,
         String description,
         LocalDateTime eventDate,

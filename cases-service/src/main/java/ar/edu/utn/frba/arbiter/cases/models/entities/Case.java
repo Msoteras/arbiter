@@ -6,6 +6,7 @@ import ar.edu.utn.frba.arbiter.common.enums.RiskBand;
 import ar.edu.utn.frba.arbiter.common.models.entities.CaseState;
 import ar.edu.utn.frba.arbiter.common.models.entities.ClaimCause;
 import ar.edu.utn.frba.arbiter.common.models.entities.tenant.ClaimsAnalyst;
+import ar.edu.utn.frba.arbiter.common.models.entities.tenant.Coverage;
 import ar.edu.utn.frba.arbiter.common.models.entities.tenant.Insured;
 import jakarta.persistence.Column;
 import jakarta.persistence.Convert;
@@ -177,9 +178,10 @@ public class Case {
     /**
      * Which scoring configuration produced {@link #riskScore}. A raw id and not an association,
      * same pattern as {@link #classificationId}: {@code scoring_configuration} belongs to
-     * rules-service, which owns the entity. Null today because classification-service doesn't
-     * call rules-service yet (still {@code MockRulesAdapter} — see CLAUDE.md's roadmap); nothing
-     * upstream has a real id to hand over.
+     * rules-service, which owns the entity. Written by classification-service alongside the score
+     * ({@code CaseOutcomeRepository}), not by this module: only the engine knows which config it
+     * actually applied. Null when the score came from the baseline instead of a configuration the
+     * referent saved — the baseline is no row, so there is nothing to point at.
      */
     @Column(name = "scoring_configuration_id")
     private Long scoringConfigurationId;

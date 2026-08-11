@@ -34,18 +34,19 @@ export const routes: Routes = [
       ),
   },
 
-  // ----- Portal del analista -----
+  // ----- Portal del analista (la bandeja y el detalle también los ve el referente, en
+  //        modo solo lectura: sin asignar ni decidir) -----
   {
     path: 'inbox',
     canActivate: [roleGuard],
-    data: { roles: ['ANALISTA_SINIESTROS'] },
+    data: { roles: ['ANALISTA_SINIESTROS', 'REFERENTE_ASEGURADORA'] },
     loadComponent: () =>
       import('./features/expedientes/bandeja/bandeja.component').then((m) => m.BandejaComponent),
   },
   {
     path: 'cases/:id',
     canActivate: [roleGuard],
-    data: { roles: ['ANALISTA_SINIESTROS'] },
+    data: { roles: ['ANALISTA_SINIESTROS', 'REFERENTE_ASEGURADORA'] },
     loadComponent: () =>
       import('./features/expedientes/expediente-detail/expediente-detail.component').then(
         (m) => m.ExpedienteDetailComponent,
@@ -106,6 +107,27 @@ export const routes: Routes = [
     data: { roles: ['REFERENTE_ASEGURADORA'] },
     loadComponent: () =>
       import('./features/admin/usuarios/usuarios.component').then((m) => m.UsuariosComponent),
+  },
+  {
+    path: 'insurer/rules',
+    canActivate: [roleGuard],
+    data: { roles: ['REFERENTE_ASEGURADORA'] },
+    loadComponent: () =>
+      import('./features/admin/reglas/reglas.component').then((m) => m.ReglasComponent),
+  },
+  {
+    path: 'insurer/dashboard',
+    canActivate: [roleGuard],
+    data: { roles: ['REFERENTE_ASEGURADORA'] },
+    loadComponent: () =>
+      import('./features/admin/dashboard/dashboard.component').then((m) => m.DashboardComponent),
+  },
+  {
+    path: 'insurer/reports',
+    canActivate: [roleGuard],
+    data: { roles: ['REFERENTE_ASEGURADORA'] },
+    loadComponent: () =>
+      import('./features/admin/reportes/reportes.component').then((m) => m.ReportesComponent),
   },
 
   // redirectTo: '' no vuelve a disparar la regla '' → login (Angular no re-evalúa el

@@ -18,6 +18,11 @@ public class CaseExceptionHandler {
         return ProblemDetail.forStatusAndDetail(HttpStatusCode.valueOf(404), ex.getMessage());
     }
 
+    @ExceptionHandler(CoverageNotFoundException.class)
+    public ProblemDetail handleCoverageNotFound(CoverageNotFoundException ex) {
+        return ProblemDetail.forStatusAndDetail(HttpStatusCode.valueOf(404), ex.getMessage());
+    }
+
     @ExceptionHandler(DocumentNotFoundException.class)
     public ProblemDetail handleDocumentNotFound(DocumentNotFoundException ex) {
         return ProblemDetail.forStatusAndDetail(HttpStatusCode.valueOf(404), ex.getMessage());
@@ -58,5 +63,17 @@ public class CaseExceptionHandler {
     @ExceptionHandler(AnalystProfileNotFoundException.class)
     public ProblemDetail handleAnalystProfileNotFound(AnalystProfileNotFoundException ex) {
         return ProblemDetail.forStatusAndDetail(HttpStatusCode.valueOf(403), ex.getMessage());
+    }
+
+    /** Denunciar a nombre de otro asegurado. */
+    @ExceptionHandler(InsuredIdentityMismatchException.class)
+    public ProblemDetail handleInsuredIdentityMismatch(InsuredIdentityMismatchException ex) {
+        return ProblemDetail.forStatusAndDetail(HttpStatusCode.valueOf(403), ex.getMessage());
+    }
+
+    /** La póliza denunciada existe, pero es de otro asegurado. */
+    @ExceptionHandler(PolicyInsuredMismatchException.class)
+    public ProblemDetail handlePolicyInsuredMismatch(PolicyInsuredMismatchException ex) {
+        return ProblemDetail.forStatusAndDetail(HttpStatusCode.valueOf(422), ex.getMessage());
     }
 }

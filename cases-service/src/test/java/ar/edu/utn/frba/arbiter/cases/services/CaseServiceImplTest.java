@@ -1,13 +1,16 @@
 package ar.edu.utn.frba.arbiter.cases.services;
 
+import ar.edu.utn.frba.arbiter.cases.config.tenant.CallerContext;
 import ar.edu.utn.frba.arbiter.cases.dto.AnalystDecisionRequest;
 import ar.edu.utn.frba.arbiter.cases.dto.CaseRequest;
 import ar.edu.utn.frba.arbiter.cases.dto.CaseResponse;
 import ar.edu.utn.frba.arbiter.cases.exceptions.AnalystNotFoundException;
 import ar.edu.utn.frba.arbiter.cases.exceptions.AnalystProfileNotFoundException;
 import ar.edu.utn.frba.arbiter.cases.exceptions.CaseNotFoundException;
+import ar.edu.utn.frba.arbiter.cases.exceptions.InsuredIdentityMismatchException;
 import ar.edu.utn.frba.arbiter.cases.exceptions.InvalidAnalystDecisionException;
 import ar.edu.utn.frba.arbiter.cases.exceptions.InvalidStatusTransitionException;
+import ar.edu.utn.frba.arbiter.cases.exceptions.PolicyInsuredMismatchException;
 import ar.edu.utn.frba.arbiter.cases.exceptions.UnresolvedCaseReferenceException;
 import ar.edu.utn.frba.arbiter.cases.models.entities.CaseDocument;
 import ar.edu.utn.frba.arbiter.cases.models.entities.Case;
@@ -61,6 +64,9 @@ import static org.mockito.Mockito.*;
 @ExtendWith(MockitoExtension.class)
 class CaseServiceImplTest {
 
+    /** El DNI que trae {@link #caseRequest()} y, por defecto, también el token del caller. */
+    private static final String CALLER_DNI = "40.123.456";
+
     @Mock
     private CaseRepository caseRepository;
 
@@ -104,9 +110,20 @@ class CaseServiceImplTest {
         lenient().when(caseAnalysisRepository.findByCaseIds(any())).thenReturn(Map.of());
     }
 
+    /**
+     * El alta ahora exige que el DNI del payload sea el del token (D2), así que todo test de
+     * createCase necesita un caller con el mismo DNI que usa {@link #caseRequest()}. Los tests que
+     * prueban el rechazo lo pisan.
+     */
+    @BeforeEach
+    void callerIsTheInsuredFiling() {
+        CallerContext.set(new CallerContext.Caller(CALLER_DNI, List.of(1L), "arbiter_bbva"));
+    }
+
     @AfterEach
     void clearSecurityContext() {
         SecurityContextHolder.clearContext();
+        CallerContext.clear();
     }
 
     /** recordAnalystDecision resuelve el analista contra este email, no contra el request. */
@@ -210,6 +227,82 @@ class CaseServiceImplTest {
         verify(claimsAnalysisClient, never()).analyzeAndPersist(any(), any());
     }
 
+    // ─────────── D2: no se denuncia a nombre de otro ───────────
+
+    @Test
+    void createCase_denunciaOnBehalfOfAnotherInsured_isRejected() {
+        // El payload nombra un DNI distinto al del token. Antes se resolvía igual: insuredId y
+        // policyNumber eran dos búsquedas sueltas que nadie cruzaba contra el usuario.
+        CallerContext.set(new CallerContext.Caller("42.987.654", List.of(1L), "arbiter_bbva"));
+
+        assertThatThrownBy(() -> caseService.createCase(caseRequest(), null))
+                .isInstanceOf(InsuredIdentityMismatchException.class);
+
+        // Falla antes de resolver nada: no se toca la base ni se encola una clasificación.
+        verify(referenceResolver, never()).resolvePolicy(any());
+        verify(caseRepository, never()).save(any());
+        verify(claimsAnalysisClient, never()).analyzeAndPersist(any(), any());
+    }
+
+    @Test
+    void createCase_callerWithoutDni_isRejected() {
+        // Analista o referente: no tienen fila en `insured`, así que el token no trae DNI. El rol ya
+        // los bloquea en el controller; acá se verifica que el servicio no los deje pasar por null.
+        CallerContext.set(new CallerContext.Caller(null, List.of(1L), "arbiter_bbva"));
+
+        assertThatThrownBy(() -> caseService.createCase(caseRequest(), null))
+                .isInstanceOf(InsuredIdentityMismatchException.class);
+
+        verify(caseRepository, never()).save(any());
+    }
+
+    @Test
+    void createCase_policyBelongingToAnotherInsured_isRejected() {
+        // Los dos resuelven bien por separado; lo que no existe es la combinación. Con ids
+        // explícitos porque es justamente la pareja lo que se compara.
+        Insured insured = CaseFixtures.insured(CALLER_DNI, "Laura", "Fernández");
+        insured.setId(7L);
+        Policy someoneElsesPolicy = CaseFixtures.policy("POL-CEL-2024-001", "Celular Protegido Básico");
+        someoneElsesPolicy.setInsuredId(99L);
+
+        when(referenceResolver.resolvePolicy(any())).thenReturn(someoneElsesPolicy);
+        when(referenceResolver.resolveInsured(any())).thenReturn(insured);
+        when(referenceResolver.applyDeclaredDetails(any(), any())).thenReturn(insured);
+
+        assertThatThrownBy(() -> caseService.createCase(caseRequest(), null))
+                .isInstanceOf(PolicyInsuredMismatchException.class)
+                .hasMessageContaining("POL-CEL-2024-001");
+
+        verify(caseRepository, never()).save(any());
+        verify(claimsAnalysisClient, never()).analyzeAndPersist(any(), any());
+    }
+
+    @Test
+    void createCase_policyOfTheInsuredFiling_goesThrough() {
+        // La contracara del anterior: misma pareja, ids que coinciden, el alta procede.
+        Insured insured = CaseFixtures.insured(CALLER_DNI, "Laura", "Fernández");
+        insured.setId(7L);
+        Policy ownPolicy = CaseFixtures.policy("POL-CEL-2024-001", "Celular Protegido Básico");
+        ownPolicy.setInsuredId(7L);
+
+        when(referenceResolver.resolvePolicy(any())).thenReturn(ownPolicy);
+        when(referenceResolver.resolveInsured(any())).thenReturn(insured);
+        when(referenceResolver.applyDeclaredDetails(any(), any())).thenReturn(insured);
+        when(referenceResolver.resolveClaimCause(any(), any()))
+                .thenReturn(CaseFixtures.claimCause("Celulares", "Robo en vía pública"));
+        when(caseRepository.save(any(Case.class))).thenAnswer(inv -> {
+            Case e = inv.getArgument(0);
+            e.setId(1L);
+            return e;
+        });
+        when(claimsAnalysisClient.analyzeAndPersist(any(), any()))
+                .thenReturn(new AnalysisResult(null, 0.0, "in progress"));
+
+        assertThat(caseService.createCase(caseRequest(), null).id()).isEqualTo(1L);
+
+        verify(caseRepository).save(any(Case.class));
+    }
+
     @Test
     void getCase_joinsTheClassificationFromLlmAnalysis() {
         // La recomendación ya no es columna de `cases`: sale del join, y el detalle se arma
@@ -263,7 +356,7 @@ class CaseServiceImplTest {
     @Test
     void getCase_includesCachedForensicReport() {
         ImageForensicReport.InternalMatch match =
-                new ImageForensicReport.InternalMatch(4L, "item_photo", 0.97);
+                new ImageForensicReport.InternalMatch(4L, "item_photo", "IMG_2831.jpg", 0.97);
         ImageForensicReport.ImageFinding finding =
                 new ImageForensicReport.ImageFinding("item_photo-0", "item_photo", List.of(match), null);
         ImageForensicReport report = new ImageForensicReport(1, 0, List.of(finding));
@@ -323,6 +416,24 @@ class CaseServiceImplTest {
 
         assertThatThrownBy(() -> caseService.addDocumentsAndReclassify(999L, Map.of()))
                 .isInstanceOf(CaseNotFoundException.class);
+    }
+
+    @Test
+    void addDocumentsAndReclassify_someoneElsesCase_isRejected() {
+        // D1: era un findById pelado, así que cualquier asegurado podía subir documentación al
+        // expediente de otro y forzarle una reclasificación. Ahora pasa por el mismo control de
+        // pertenencia que las lecturas — y falla como 404, no 403, para no confirmar que existe.
+        Case someoneElses = caseRecord(1L, CaseStatus.AWAITING_DOCUMENTATION);
+        when(caseRepository.findById(1L)).thenReturn(Optional.of(someoneElses));
+        doThrow(new CaseNotFoundException(1L)).when(accessPolicy).assertCanRead(someoneElses);
+
+        assertThatThrownBy(() -> caseService.addDocumentsAndReclassify(1L, Map.of()))
+                .isInstanceOf(CaseNotFoundException.class);
+
+        // Nada se guardó ni se reencoló: el rechazo es antes de tocar el expediente.
+        verify(caseDocumentRepository, never()).save(any());
+        verify(claimsAnalysisClient, never()).analyzeAndPersist(any(), any());
+        verify(caseStatusService, never()).transition(any(), any(), any(), any());
     }
 
     @Test

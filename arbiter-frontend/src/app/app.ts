@@ -34,8 +34,14 @@ export class App {
   // sin sidebar ni nav de la app. Se comparan por path, ignorando el query (activación y reset
   // llevan el token en la URL).
   private static readonly AUTH_ROUTES = ['/login', '/forgot-password', '/activate-account', '/reset-password'];
+  // El shell exige sesión, no solo "no estar en una ruta de auth": la sesión vive en memoria y se
+  // pierde al recargar, así que al refrescar una ruta protegida la URL sigue siendo /inbox por un
+  // instante (antes de que el guard redirija a /login). Sin este chequeo, el sidebar se pintaba
+  // vacío ese instante — el "flash" del layout interno al recargar.
   protected readonly showShell = computed(
-    () => !App.AUTH_ROUTES.includes(this.currentUrl().split('?')[0]),
+    () =>
+      this.session.session() !== null &&
+      !App.AUTH_ROUTES.includes(this.currentUrl().split('?')[0]),
   );
 
   // H0003 - RBAC: cada rol ve solo su propia sección del sidebar (el referente incluida —

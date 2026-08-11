@@ -9,10 +9,12 @@ import ar.edu.utn.frba.arbiter.classification.models.entities.ImageForensicRepor
 import ar.edu.utn.frba.arbiter.classification.models.entities.LlmAnalysis;
 import ar.edu.utn.frba.arbiter.classification.models.entities.LlmReason;
 import ar.edu.utn.frba.arbiter.classification.models.entities.RiskAnalysis;
+import ar.edu.utn.frba.arbiter.classification.models.entities.RuleResult;
 import ar.edu.utn.frba.arbiter.classification.models.repositories.CaseClassificationRepository;
 import ar.edu.utn.frba.arbiter.classification.models.repositories.CaseOutcomeRepository;
 import ar.edu.utn.frba.arbiter.classification.models.repositories.LlmAnalysisRepository;
 import ar.edu.utn.frba.arbiter.classification.models.repositories.RiskAnalysisRepository;
+import ar.edu.utn.frba.arbiter.classification.models.repositories.RuleResultRepository;
 import ar.edu.utn.frba.arbiter.classification.services.risk.RiskScore;
 import ar.edu.utn.frba.arbiter.common.dto.ClaimResponse;
 import ar.edu.utn.frba.arbiter.common.dto.ImageForensicReport;
@@ -57,6 +59,7 @@ public class ClassificationResultsService {
     private final CaseClassificationRepository caseClassificationRepository;
     private final RiskAnalysisRepository riskAnalysisRepository;
     private final CaseOutcomeRepository caseOutcomeRepository;
+    private final RuleResultRepository ruleResultRepository;
     private final OllamaProperties ollamaProperties;
 
     @Transactional
@@ -86,10 +89,38 @@ public class ClassificationResultsService {
             log.info("[ResultsService] Classification logged for case {} ({})", caseId, response.classification());
         }
 
+        saveRuleResults(caseId, response);
+
         if (forensicReport != null) {
             caseOutcomeRepository.saveForensicReport(caseId, FORENSIC_JSON.convertToDatabaseColumn(forensicReport));
         }
         saveRiskAnalysis(caseId, response.riskScore());
+    }
+
+    /**
+     * Audita las reglas duras evaluadas (hoy, exclusiones de cobertura) en {@code rule_result} —
+     * cierra el D4c: la tabla existía con entidad y repository pero cero escritores. Se escribe tanto
+     * el PASS como el FAIL: la auditoría de la Disposición SSN 2/2023 es "qué regla se evaluó y con
+     * qué resultado", no solo los rechazos. {@code rule_id} es FK NOT NULL a {@code insurer_rule}, y
+     * viaja desde la regla evaluada. Solo en el flujo con {@code caseId}: la fila referencia
+     * {@code cases(id)}, así que el flujo aislado (sin expediente) no escribe.
+     */
+    private void saveRuleResults(Long caseId, ClassificationResponse response) {
+        if (caseId == null || response.ruleFindings() == null || response.ruleFindings().isEmpty()) {
+            return;
+        }
+        Instant now = Instant.now();
+        response.ruleFindings().forEach(finding -> {
+            RuleResult row = new RuleResult();
+            row.setCaseId(caseId);
+            row.setRuleId(finding.ruleId());
+            row.setRuleType(finding.ruleType());
+            row.setResult(finding.result());
+            row.setEvaluatedValue(finding.evaluatedValue());
+            row.setEvaluatedAt(now);
+            ruleResultRepository.save(row);
+        });
+        log.info("[ResultsService] {} rule_result row(s) written for case {}", response.ruleFindings().size(), caseId);
     }
 
     /**
@@ -107,6 +138,12 @@ public class ClassificationResultsService {
         analysis.setRiskBand(riskScore.band());
         analysis.setRiskBreakdown(riskScore.breakdown());
         riskAnalysisRepository.save(analysis);
+
+        // Con qué configuración se calculó (D29). Null cuando el scoring salió del baseline y no de
+        // una fila del referente: ahí no hay nada que apuntar, y la FK lo rechazaría.
+        if (riskScore.scoringConfigurationId() != null) {
+            caseOutcomeRepository.saveScoringConfiguration(caseId, riskScore.scoringConfigurationId());
+        }
     }
 
     /** Latest classification for a case; classification fields stay null until one exists. */

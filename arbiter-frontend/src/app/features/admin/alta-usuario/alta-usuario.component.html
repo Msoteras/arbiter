@@ -16,12 +16,6 @@
   <span class="field-label">Rol</span>
   <p class="t-body mono role-display">Analista de siniestros</p>
 
-  <label class="field-label" for="sector">Sector o área</label>
-  <app-input id="sector" [value]="sector()" (valueChange)="sector.set($event)" />
-
-  <label class="field-label" for="fechaIngreso">Fecha de ingreso (opcional)</label>
-  <app-input id="fechaIngreso" type="date" [value]="fechaIngreso()" (valueChange)="fechaIngreso.set($event)" />
-
   @if (errorMessage()) {
     <p class="error">{{ errorMessage() }}</p>
   }

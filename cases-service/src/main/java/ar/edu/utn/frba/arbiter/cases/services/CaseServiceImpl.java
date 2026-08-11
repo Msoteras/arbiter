@@ -14,8 +14,10 @@ import ar.edu.utn.frba.arbiter.cases.exceptions.AnalystProfileNotFoundException;
 import ar.edu.utn.frba.arbiter.cases.exceptions.CaseNotFoundException;
 import ar.edu.utn.frba.arbiter.cases.exceptions.DocumentNotFoundException;
 import ar.edu.utn.frba.arbiter.cases.exceptions.DocumentReadException;
+import ar.edu.utn.frba.arbiter.cases.exceptions.InsuredIdentityMismatchException;
 import ar.edu.utn.frba.arbiter.cases.exceptions.InvalidAnalystDecisionException;
 import ar.edu.utn.frba.arbiter.cases.exceptions.InvalidStatusTransitionException;
+import ar.edu.utn.frba.arbiter.cases.exceptions.PolicyInsuredMismatchException;
 import ar.edu.utn.frba.arbiter.cases.models.entities.CaseDocument;
 import ar.edu.utn.frba.arbiter.cases.models.entities.Case;
 import ar.edu.utn.frba.arbiter.common.models.entities.tenant.Insured;
@@ -44,6 +46,7 @@ import java.io.IOException;
 import java.time.LocalDate;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
 
 @Service
@@ -85,11 +88,25 @@ public class CaseServiceImpl implements CaseService {
     }
 
     private CaseResponse createCaseInIssuingTenant(CaseRequest request, Map<String, MultipartFile> documents) {
+        // Only the insured files, and only for themselves: the payload's DNI has to be the token's.
+        // Without this, insuredId and policyNumber were two independent lookups, so a denuncia could
+        // name anyone (D2). Validated rather than silently overwritten — a mismatch means the client
+        // is sending something wrong, and correcting it here would hide that.
+        assertFilingOwnDenuncia(request.insuredId());
+
         // Every string in the request has to name something the tenant actually has; anything
         // that doesn't resolve fails with 422 rather than being stored as free text.
         Policy policy = referenceResolver.resolvePolicy(request.policyNumber());
         Insured insured = referenceResolver.applyDeclaredDetails(
                 referenceResolver.resolveInsured(request.insuredId()), request);
+
+        // Both resolved on their own; the pairing is what has to hold. Checked after resolving
+        // because the policy's owner is an id, and the DNI only becomes one here. Objects.equals
+        // so a policy whose owner never synced (null) fails against a real insured instead of
+        // throwing: an owner we can't verify is one we don't accept.
+        if (!Objects.equals(insured.getId(), policy.getInsuredId())) {
+            throw new PolicyInsuredMismatchException(request.policyNumber());
+        }
 
         Case entity = Case.builder()
                 .claimCause(referenceResolver.resolveClaimCause(request.branch(), request.claimCause()))
@@ -116,10 +133,29 @@ public class CaseServiceImpl implements CaseService {
         return toResponse(saved);
     }
 
+    /**
+     * The denuncia has to be filed by the insured it names. Reads the DNI off the signed token,
+     * never off the request — taking it from the payload is exactly what let a denuncia be filed
+     * on someone else's behalf.
+     *
+     * <p>A caller with no DNI in their token is not an ASEGURADO, and only that role can file
+     * (the endpoint's {@code @PreAuthorize}), so this also refuses the roles the annotation
+     * already blocks rather than letting them through on a null.
+     */
+    private void assertFilingOwnDenuncia(String declaredInsuredId) {
+        String callerDni = CallerContext.get().insuredId();
+        if (callerDni == null || !callerDni.equals(declaredInsuredId)) {
+            throw new InsuredIdentityMismatchException();
+        }
+    }
+
     @Override
     public CaseResponse addDocumentsAndReclassify(Long caseId, Map<String, MultipartFile> documents) {
-        Case entity = caseRepository.findById(caseId)
-                .orElseThrow(() -> new CaseNotFoundException(caseId));
+        // Same ownership check as the reads: an ASEGURADO can only add documents to their own case.
+        // This was a plain findById, so anyone could upload to a stranger's case and force it to
+        // reclassify (D1). 404 and not 403 for the reason CaseAccessPolicy documents: case ids are
+        // sequential, and a 403 would map the table.
+        Case entity = readableCase(caseId);
 
         storeDocuments(caseId, documents);
 
@@ -439,6 +475,7 @@ public class CaseServiceImpl implements CaseService {
                 entity.getDeclaredItem(),
                 entity.getInsured().getDni(),
                 entity.getInsured().fullName(),
+                entity.getInsured().isPep(),
                 entity.getPolicy().getExternalPolicyNumber(),
                 entity.getDescription(),
                 entity.getOccurredAt(),

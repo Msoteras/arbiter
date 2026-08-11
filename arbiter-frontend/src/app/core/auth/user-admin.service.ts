@@ -11,8 +11,6 @@ export interface CreateUserRequest {
   nombre: string;
   apellido: string;
   rol: UserRole;
-  sector: string;
-  fechaIngreso?: string;
 }
 
 /**
@@ -35,8 +33,6 @@ export interface UserResponse {
   nombre: string;
   apellido: string;
   rol: UserRole;
-  sector: string;
-  fechaIngreso: string | null;
   estado: UserStatus;
   createdAt: string;
 }

@@ -9,6 +9,7 @@ import ar.edu.utn.frba.arbiter.common.dto.ImageForensicReport.WebFinding;
 import org.junit.jupiter.api.Test;
 
 import java.util.List;
+import java.util.Map;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -18,11 +19,11 @@ class ImageEvaluatorsTest {
     private final ImageWebMatchEvaluator web = new ImageWebMatchEvaluator();
 
     private static RiskContext ctx(ImageForensicReport report) {
-        return new RiskContext(null, null, null, null, report);
+        return new RiskContext(null, null, null, null, report, Map.of());
     }
 
     private static ImageFinding finding(List<InternalMatch> internal, WebFinding webFinding) {
-        return new ImageFinding("damage_photo-0", "foto.jpg", internal, webFinding);
+        return new ImageFinding("damage_photo-0", "damage_photo", internal, webFinding);
     }
 
     // ── image_reuse ──────────────────────────────────────────────────────────
@@ -47,8 +48,8 @@ class ImageEvaluatorsTest {
     @Test
     void reuse_scoresMaxSimilarity() {
         ImageForensicReport report = new ImageForensicReport(2, 0, List.of(
-                finding(List.of(new InternalMatch(8734L, "a.jpg", 0.81)), null),
-                finding(List.of(new InternalMatch(9002L, "b.jpg", 0.96)), null)));
+                finding(List.of(new InternalMatch(8734L, "item_photo", "a.jpg", 0.81)), null),
+                finding(List.of(new InternalMatch(9002L, "item_photo", "b.jpg", 0.96)), null)));
 
         Contribution c = reuse.evaluate(ctx(report));
 

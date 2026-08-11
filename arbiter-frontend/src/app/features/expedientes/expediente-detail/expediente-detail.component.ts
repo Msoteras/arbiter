@@ -5,11 +5,13 @@ import { HttpErrorResponse } from '@angular/common/http';
 import { catchError, combineLatest, map, Observable, of, startWith, switchMap } from 'rxjs';
 
 import { ExpedienteService, AnalystDecisionRequest } from '../expediente.service';
+import { DocumentAgendaService } from '../document-agenda.service';
 import { CaseNavigationService } from '../case-navigation.service';
 import { AuthSessionService } from '../../../core/auth/auth-session.service';
 import { UserAdminService } from '../../../core/auth/user-admin.service';
-import { ExpedienteResponse, StatusTransition } from '../../../core/models/expediente';
-import { CASE_DOCUMENT_TYPES, CaseDocument } from '../../../core/models/case-document';
+import { ExpedienteResponse, RiskBreakdownItem, StatusTransition } from '../../../core/models/expediente';
+import { riskFactorLabel } from '../../../core/models/business-rules';
+import { CASE_DOCUMENT_TYPES, CaseDocument, CaseDocumentType } from '../../../core/models/case-document';
 import { clasificacionLabel, clasificacionTone } from '../../../core/models/clasificacion';
 import {
   estadoLabel,
@@ -36,7 +38,7 @@ type LoadState =
   | { status: 'ok'; data: ExpedienteResponse }
   | { status: 'error'; httpStatus: number };
 
-type TabId = 'resumen' | 'datos' | 'imagenes' | 'documentacion' | 'conversacion' | 'historial';
+type TabId = 'resumen' | 'datos' | 'imagenes' | 'riesgo' | 'documentacion' | 'conversacion' | 'historial';
 type Verb = 'aprobar' | 'rechazar';
 
 /** value=null → la sección muestra "Sin datos" (el backend no provee este campo). */
@@ -145,6 +147,26 @@ export class ExpedienteDetailComponent {
     return d ? riskBandEmptyLabel(d.status, d.analysisClassification) : 'Sin datos';
   });
 
+  /** Score de fraude como porcentaje entero (0..100), o null si no se scoreó. */
+  protected readonly riskScorePct = computed<number | null>(() => {
+    const score = this.data()?.riskScore;
+    return score == null ? null : Math.round(score * 100);
+  });
+
+  /** Desglose del score por factor, ordenado por aporte descendente (el que más pesó primero). */
+  protected readonly riskBreakdown = computed<RiskBreakdownItem[]>(() => {
+    const items = this.data()?.riskBreakdown ?? [];
+    return [...items].sort((a, b) => b.weightedContribution - a.weightedContribution);
+  });
+
+  protected factorLabel(factorId: string): string {
+    return riskFactorLabel(factorId);
+  }
+
+  protected pct(value: number): number {
+    return Math.round(value * 100);
+  }
+
   protected readonly classificationLabel = computed(() => {
     const d = this.data();
     return d ? clasificacionLabel(d.analysisClassification) : '';
@@ -165,24 +187,23 @@ export class ExpedienteDetailComponent {
     const d = this.data();
     return [
       { label: 'N° de siniestro / denuncia', value: d ? `#${d.id}` : null, mono: true },
-      { label: 'Canal de origen', value: null },
       { label: 'N° de póliza', value: d?.policyNumber ?? null, mono: true },
-      { label: 'N° de certificado', value: null, mono: true },
       { label: 'Rama', value: d?.branch ?? null },
       { label: 'Producto', value: d?.product ?? null },
       { label: 'Asegurado', value: d?.insuredName ?? null },
       { label: 'DNI', value: d?.insuredId ?? null, mono: true },
-      { label: 'Tomador', value: null },
+      // Declaración UIF/PLA del propio asegurado, junto al resto de sus datos: es donde el analista
+      // la busca. "No" es un valor, no la ausencia de dato, así que no cae en el `?? null` que el
+      // resto de las filas usa para mostrar "Sin datos" (D16).
+      { label: 'PEP (declarativo)', value: d ? (d.pep ? 'Sí' : 'No') : null },
       { label: 'Bien asegurado', value: d?.insuredItem ?? null },
       { label: 'Importe reclamado', value: d?.claimedAmount ? `$${d.claimedAmount.toLocaleString()}` : null },
       { label: 'Fecha de denuncia', value: d?.createdAt ? formatDateTime(d.createdAt) : null },
       { label: 'Fecha y hora de ocurrencia', value: d?.eventDate ? formatDateTime(d.eventDate) : null },
       { label: 'Causa', value: d?.claimCause ?? null },
-      { label: 'Hecho generador', value: null },
       { label: 'Ubicación', value: d?.eventLocation ?? null, full: true },
       { label: 'Descripción', value: d?.description ?? null, full: true },
       { label: 'Analista asignado', value: d?.assignedAnalystName ?? null },
-      { label: 'PEP (declarativo)', value: null },
     ];
   });
 
@@ -194,6 +215,7 @@ export class ExpedienteDetailComponent {
     { id: 'resumen', label: 'Resumen' },
     { id: 'datos', label: 'Datos extraídos' },
     { id: 'imagenes', label: 'Análisis de imágenes' },
+    { id: 'riesgo', label: 'Desglose de riesgo' },
     { id: 'documentacion', label: 'Documentación' },
     { id: 'conversacion', label: 'Conversación' },
     { id: 'historial', label: 'Historial' },
@@ -203,14 +225,9 @@ export class ExpedienteDetailComponent {
     this.activeTab.set(t);
   }
 
-  // ----- clasificación sugerida: aceptar / modificar (local) -----
-  protected readonly classifState = signal<'none' | 'aceptada' | 'modificada'>('none');
-  acceptClassif(): void {
-    this.classifState.set('aceptada');
-  }
-  modifyClassif(): void {
-    this.classifState.set('modificada');
-  }
+  // La "aceptación/modificación" local de la recomendación se quitó: no persistía ni auditaba nada
+  // (aparentaba una acción que no ocurría). La única decisión real del analista es Aprobar/Rechazar,
+  // que sí persiste vía POST /cases/{id}/decision (abajo).
 
   // ----- decisión del analista (persiste vía POST /cases/{id}/decision) -----
   private readonly verbLabels: Record<Verb, string> = {
@@ -341,6 +358,14 @@ export class ExpedienteDetailComponent {
     () => this.session.session()?.rol === 'ANALISTA_SINIESTROS' && this.myAnalystId() != null,
   );
 
+  /**
+   * Solo el analista opera sobre el expediente (asignar, decidir, aceptar/modificar la
+   * clasificación, reintentar). El referente lo ve de solo lectura.
+   */
+  protected readonly canAct = computed(
+    () => this.session.session()?.rol === 'ANALISTA_SINIESTROS',
+  );
+
   protected readonly assignedName = computed(() => this.data()?.assignedAnalystName ?? null);
   protected readonly isAssigned = computed(() => this.data()?.assignedAnalystId != null);
 
@@ -455,9 +480,19 @@ export class ExpedienteDetailComponent {
     { initialValue: [] as CaseDocument[] },
   );
 
+  private readonly agenda = inject(DocumentAgendaService);
+
+  /** La agenda REAL del ramo del expediente (la que configuró el referente), o el catálogo completo. */
+  private readonly requiredDocTypes = toSignal(
+    toObservable(computed(() => this.data()?.branch ?? null)).pipe(
+      switchMap((branch) => (branch ? this.agenda.slotsForBranch(branch) : of(CASE_DOCUMENT_TYPES))),
+    ),
+    { initialValue: CASE_DOCUMENT_TYPES as readonly CaseDocumentType[] },
+  );
+
   /** Tipos requeridos que todavía no se cargaron — lo que el analista ve como "falta". */
   protected readonly missingDocLabels = computed(() => {
     const present = new Set(this.documents().map((d) => d.type));
-    return CASE_DOCUMENT_TYPES.filter((t) => !present.has(t.type)).map((t) => t.label);
+    return this.requiredDocTypes().filter((t) => !present.has(t.type)).map((t) => t.label);
   });
 }

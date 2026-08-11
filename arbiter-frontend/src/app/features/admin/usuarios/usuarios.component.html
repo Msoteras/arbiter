@@ -23,8 +23,6 @@
           <th>Nombre</th>
           <th>Email</th>
           <th>Rol</th>
-          <th>Sector</th>
-          <th>Fecha de ingreso</th>
           <th>Estado</th>
           <th>Acciones</th>
         </tr>
@@ -46,8 +44,6 @@
                   [disabled]="savingId() === u.id" />
               }
             </td>
-            <td>{{ u.sector || '—' }}</td>
-            <td>{{ u.fechaIngreso || '—' }}</td>
             <td>
               <app-badge [tone]="statusTone(u.estado)">{{ statusLabel(u.estado) }}</app-badge>
               @if (resendOkId() === u.id) {

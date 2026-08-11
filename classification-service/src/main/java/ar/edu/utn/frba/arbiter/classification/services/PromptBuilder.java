@@ -1,29 +1,43 @@
 package ar.edu.utn.frba.arbiter.classification.services;
 
+import ar.edu.utn.frba.arbiter.classification.config.OllamaProperties;
 import ar.edu.utn.frba.arbiter.classification.dto.BusinessRules;
 import ar.edu.utn.frba.arbiter.classification.dto.ClassificationRequest;
+import ar.edu.utn.frba.arbiter.classification.dto.DocumentExtraction;
 import ar.edu.utn.frba.arbiter.classification.dto.InsuredHistory;
 import ar.edu.utn.frba.arbiter.classification.dto.InsuredPolicy;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.core.io.Resource;
+import org.springframework.core.io.ResourceLoader;
 import org.springframework.stereotype.Component;
 
 import java.io.IOException;
+import java.math.BigDecimal;
 import java.nio.charset.StandardCharsets;
+import java.text.NumberFormat;
+import java.time.format.DateTimeFormatter;
+import java.util.List;
+import java.util.Locale;
 
 @Component
 public class PromptBuilder {
 
+    private static final DateTimeFormatter EVENT_DATE_FORMAT = DateTimeFormatter.ofPattern("dd/MM/yyyy HH:mm");
+
     private final String promptTemplate;
 
-    public PromptBuilder(
-            @Value("classpath:prompts/classification-v1.md") Resource promptResource
-    ) throws IOException {
+    /**
+     * El template se resuelve <b>desde</b> la versión configurada
+     * ({@code arbiter.ollama.prompt-version}), que es la que {@code ClassificationResultsService}
+     * persiste en {@code llm_analysis.prompt_version} para la auditoría de la Disposición SSN
+     * 2/2023. Antes eran dos constantes independientes —el classpath acá y la versión en el yml— y
+     * ya se desincronizaron una vez: el template era v2 y se auditaba como v1. Ahora el archivo que
+     * se manda y la versión que se audita no pueden discrepar, y bumpear la versión sin crear el
+     * archivo rompe al arrancar, que es cuando se quiere saber.
+     */
+    public PromptBuilder(OllamaProperties properties, ResourceLoader resourceLoader) throws IOException {
+        Resource promptResource =
+                resourceLoader.getResource("classpath:prompts/" + properties.promptVersion() + ".md");
         this.promptTemplate = promptResource.getContentAsString(StandardCharsets.UTF_8);
-    }
-
-    public String getPromptVersion() {
-        return "classification-v1";
     }
 
     public String buildFullPrompt(ClassificationRequest request) {
@@ -39,15 +53,63 @@ public class PromptBuilder {
                 ? "Sin reglas adicionales configuradas"
                 : request.insurerRules();
 
+        String engineEvaluation = request.engineEvaluation() == null || request.engineEvaluation().isEmpty()
+                ? "El motor no encontró incumplimientos de reglas duras (cobertura del hecho generador, "
+                        + "plazo de denuncia, vigencia de la póliza, tope de eventos por año)."
+                : request.engineEvaluation().stream().map(f -> "- " + f).reduce((a, b) -> a + "\n" + b).orElse("");
+
+        String eventDate = request.eventDate() == null
+                ? "No especificada"
+                : EVENT_DATE_FORMAT.format(request.eventDate());
+
+        String eventLocation = request.eventLocation() == null || request.eventLocation().isBlank()
+                ? "No especificado"
+                : request.eventLocation();
+
+        // claimedAmount es nullable (el wizard no lo exige): sin dato va texto, no null — String.replace
+        // no acepta reemplazo null.
+        String claimedAmount = request.claimedAmount() == null
+                ? "No declarado"
+                : formatAmount(request.claimedAmount());
+
         return promptTemplate
                 .replace("{{branch}}", request.branch())
                 .replace("{{product}}", request.product())
                 .replace("{{claimCause}}", request.claimCause())
                 .replace("{{insuredItem}}", request.insuredItem())
                 .replace("{{description}}", request.description())
+                .replace("{{eventDate}}", eventDate)
+                .replace("{{eventLocation}}", eventLocation)
+                .replace("{{claimedAmount}}", claimedAmount)
                 .replace("{{attachmentsOcr}}", attachmentsText)
                 .replace("{{insurerRules}}", rules)
+                .replace("{{engineEvaluation}}", engineEvaluation)
                 .replace("{{insuredHistory}}", history);
+    }
+
+    /** Monto reclamado con separador de miles (es-AR): 1234567 → "$1.234.567". */
+    private static String formatAmount(BigDecimal amount) {
+        return "$" + NumberFormat.getNumberInstance(Locale.of("es", "AR")).format(amount);
+    }
+
+    /**
+     * Un adjunto, como lo ve el clasificador: la transcripción y —aparte, bajo un encabezado
+     * propio— lo que la pasada de visión observó en la imagen (D5).
+     *
+     * <p>La separación es el punto: sin encabezado, "la firma está pixelada" se lee como si el
+     * documento lo dijera. El texto del encabezado le dice al modelo de dónde salió y cuánto pesa;
+     * el prompt de clasificación lo repite del otro lado.
+     */
+    public String renderAttachment(String documentType, DocumentExtraction extraction) {
+        String rendered = documentType + ": " + extraction.transcription();
+        List<String> findings = extraction.visualFindings();
+        if (findings.isEmpty()) {
+            return rendered;
+        }
+        StringBuilder sb = new StringBuilder(rendered);
+        sb.append("\n[Observado en la imagen de este adjunto, no es contenido del documento]\n");
+        findings.forEach(finding -> sb.append("  - ").append(finding).append("\n"));
+        return sb.toString().trim();
     }
 
     public String renderRulesAndPolicy(BusinessRules rules, InsuredPolicy policy) {

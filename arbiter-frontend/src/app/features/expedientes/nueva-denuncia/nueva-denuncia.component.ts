@@ -1,13 +1,14 @@
-import { ChangeDetectionStrategy, Component, effect, inject, signal, computed } from '@angular/core';
-import { toSignal } from '@angular/core/rxjs-interop';
+import { ChangeDetectionStrategy, Component, effect, inject, signal, computed, untracked } from '@angular/core';
+import { toObservable, toSignal } from '@angular/core/rxjs-interop';
 import { Router, RouterLink } from '@angular/router';
-import { catchError, map, of, startWith } from 'rxjs';
+import { catchError, map, of, startWith, switchMap } from 'rxjs';
 
 import { ExpedienteService, CaseCreateRequest } from '../expediente.service';
 import { PolicyService } from '../policy.service';
+import { DocumentAgendaService } from '../document-agenda.service';
 import { ExpedienteResponse } from '../../../core/models/expediente';
 import { Policy } from '../../../core/models/policy';
-import { CASE_DOCUMENT_TYPES } from '../../../core/models/case-document';
+import { CASE_DOCUMENT_TYPES, CaseDocumentType } from '../../../core/models/case-document';
 import { InsuredSessionService } from '../../../core/auth/insured-session.service';
 import { ButtonComponent } from '../../../shared/ui/button/button.component';
 import { CardComponent } from '../../../shared/ui/card/card.component';
@@ -77,6 +78,7 @@ export class NuevaDenunciaComponent {
   private readonly router = inject(Router);
   private readonly service = inject(ExpedienteService);
   private readonly policyService = inject(PolicyService);
+  private readonly agenda = inject(DocumentAgendaService);
   private readonly session = inject(InsuredSessionService);
 
   protected readonly steps: Step[] = [1, 2, 3];
@@ -130,13 +132,30 @@ export class NuevaDenunciaComponent {
     }
   });
 
-  protected readonly claimTypes: ClaimType[] = [
-    { key: 'robo', label: 'Robo', claimCause: 'Robo en vía pública' },
-    { key: 'hurto', label: 'Hurto', claimCause: 'Hurto' },
-    { key: 'rotura', label: 'Rotura accidental', claimCause: 'Rotura accidental' },
-    { key: 'otro', label: 'Otro', claimCause: 'Siniestro general' },
-  ];
+  // Hechos generadores REALES del ramo de la póliza elegida. Antes eran una lista fija que no
+  // coincidía con el catálogo por ramo (ej. "Rotura accidental" no existe en Tecnología, "Siniestro
+  // general" en ninguno) → el backend tiraba 422 al crear el caso. Vacío hasta elegir póliza.
+  protected readonly claimTypes = toSignal(
+    toObservable(computed(() => this.selectedPolicy()?.branch ?? null)).pipe(
+      switchMap((branch) =>
+        branch
+          ? this.policyService.listClaimCauses(branch).pipe(catchError(() => of<string[]>([])))
+          : of<string[]>([]),
+      ),
+      map((names) => names.map((name): ClaimType => ({ key: name, label: name, claimCause: name }))),
+    ),
+    { initialValue: [] as ClaimType[] },
+  );
   protected readonly selectedType = signal<ClaimType | null>(null);
+  // Al cambiar de ramo la causa elegida puede dejar de existir: se limpia para no mandar un hecho
+  // generador que el backend rechazaría.
+  private readonly resetSelectedType = effect(() => {
+    const types = this.claimTypes();
+    const current = untracked(() => this.selectedType());
+    if (current && !types.some((t) => t.claimCause === current.claimCause)) {
+      this.selectedType.set(null);
+    }
+  });
 
   protected readonly step1Valid = computed(() => !!this.selectedPolicy() && !!this.selectedType());
 
@@ -154,6 +173,12 @@ export class NuevaDenunciaComponent {
   protected readonly entreCalles = signal('');
   protected readonly eventDate = signal('');
   protected readonly eventTime = signal('');
+  // Cuándo hizo la denuncia policial, declarado por el asegurado. Separado de eventDate porque son
+  // dos momentos distintos y la diferencia entre ambos es lo que evalúa la regla del plazo de
+  // denuncia (`coverage.report_deadline_hours`). El dato existía en CaseRequest y en la entidad
+  // desde el principio; el wizard nunca lo mandaba, así que la regla era inverificable (D12).
+  protected readonly policeReportDate = signal('');
+  protected readonly policeReportTime = signal('');
   protected readonly claimedAmount = signal<string>('');
   protected readonly pep = signal(false);
   protected readonly contactEmail = signal('');
@@ -176,7 +201,31 @@ export class NuevaDenunciaComponent {
     CASE_DOCUMENT_TYPES.map(({ type, label }) => ({ type, label, file: null, error: null })),
   );
 
+  // El asegurado sube exactamente lo que el referente configuró como requerido para el ramo de la
+  // póliza elegida (o el catálogo completo si ese ramo no tiene agenda). Al cambiar de póliza, se
+  // rearman los slots según la agenda de su ramo.
+  private readonly requiredDocTypes = toSignal(
+    toObservable(computed(() => this.selectedPolicy()?.branch ?? null)).pipe(
+      switchMap((branch) => (branch ? this.agenda.slotsForBranch(branch) : of(CASE_DOCUMENT_TYPES))),
+    ),
+    { initialValue: CASE_DOCUMENT_TYPES as readonly CaseDocumentType[] },
+  );
+  private readonly rebuildDocSlots = effect(() => {
+    const types = this.requiredDocTypes();
+    this.docSlots.set(types.map(({ type, label }) => ({ type, label, file: null, error: null })));
+  });
+
   protected readonly docsCount = computed(() => this.docSlots().filter((d) => d.file).length);
+
+  /**
+   * Si el ramo pide constancia de denuncia policial, entonces el hecho generador la lleva y tiene
+   * sentido preguntar cuándo se hizo. Se deriva de la agenda documental del referente —la misma
+   * fuente que arma los slots de adjuntos— en vez de una lista propia de hechos generadores: así
+   * el día que el referente saque `police_report` de un ramo, el campo desaparece solo.
+   */
+  protected readonly requiresPoliceReport = computed(() =>
+    this.requiredDocTypes().some(({ type }) => type === 'police_report'),
+  );
 
   // Consentimiento para enviar las imágenes a un proveedor externo de verificación
   // antifraude (H0009 / docs/frontend-analisis-forense.md). A diferencia de PEP, este
@@ -263,6 +312,12 @@ export class NuevaDenunciaComponent {
       description: this.description(),
       eventDate: this.eventDate() + 'T' + (this.eventTime() || '00:00') + ':00',
       eventLocation: this.buildEventLocation(),
+      // Solo si se declaró: la columna es nullable y "no hubo denuncia policial" es un caso
+      // legítimo, distinto de "hubo pero no sé cuándo". Mandar una fecha inventada sería peor
+      // que no mandar nada, porque la regla del plazo la evaluaría como si fuera real.
+      policeReportAt: this.policeReportDate()
+        ? this.policeReportDate() + 'T' + (this.policeReportTime() || '00:00') + ':00'
+        : undefined,
       claimedAmount: this.claimedAmount() ? Number(this.claimedAmount()) : undefined,
       pep: this.pep(),
       imageConsent: this.imageConsent(),

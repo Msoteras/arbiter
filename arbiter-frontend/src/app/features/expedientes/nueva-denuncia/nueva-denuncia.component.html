@@ -92,7 +92,7 @@
 
           <label class="field-label">¿Qué te pasó?</label>
           <div class="chips">
-            @for (t of claimTypes; track t.key) {
+            @for (t of claimTypes(); track t.key) {
               <button
                 type="button"
                 class="chip"
@@ -118,6 +118,18 @@
             <app-input type="date" [max]="today" [(value)]="eventDate" />
             <app-input type="time" [(value)]="eventTime" placeholder="Hora aprox." />
           </div>
+
+          @if (requiresPoliceReport()) {
+            <label class="field-label">Fecha y hora de la denuncia policial</label>
+            <div class="datetime-grid">
+              <app-input type="date" [max]="today" [(value)]="policeReportDate" />
+              <app-input type="time" [(value)]="policeReportTime" placeholder="Hora aprox." />
+            </div>
+            <p class="t-note">
+              Si todavía no hiciste la denuncia policial, dejá el campo vacío. La constancia se
+              adjunta en el paso siguiente.
+            </p>
+          }
 
           <label class="field-label">¿Dónde pasó? *</label>
           <div class="location-fields">

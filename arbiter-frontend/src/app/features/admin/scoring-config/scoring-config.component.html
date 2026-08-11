@@ -1,0 +1,63 @@
+<app-card heading="Scoring de riesgo">
+  <p class="section-hint">
+    Score paralelo de riesgo (señal para el analista, nunca decisión automática). Cada factor pesa
+    sobre el total; el score mapea a una banda. Es una única configuración para toda la aseguradora:
+    se aplica igual a todos los ramos, no se configura por ramo.
+  </p>
+
+  <div class="subsection">
+    <div class="subsection-head">
+      <span class="t-field-label">Factores y pesos</span>
+    </div>
+    <p class="section-hint">
+      Los pesos son relativos entre sí: no hace falta que sumen 100%. Al lado de cada uno se muestra
+      cuánto pesa efectivamente sobre el total de los factores activos, que es lo que aplica el motor.
+    </p>
+    <ul class="factors">
+      @for (f of riskFactors; track f.id) {
+        <li class="factor">
+          <button type="button" class="chip factor-chip" [class.active]="isFactorActive(f.id)" [attr.aria-pressed]="isFactorActive(f.id)" (click)="toggleFactor(f.id)">
+            {{ f.label }}
+          </button>
+          @if (isFactorActive(f.id)) {
+            <label class="factor-weight">
+              <app-input type="number" [min]="0" [value]="factorWeightPct(f.id)" (valueChange)="setFactorWeight(f.id, $event)" />
+              <span class="pct">%</span>
+            </label>
+            <span class="factor-effective">pesa {{ effectiveWeightPct(f.id) }}</span>
+          }
+        </li>
+      }
+    </ul>
+  </div>
+
+  <div class="subsection">
+    <span class="t-field-label">Bandas de riesgo (score mínimo, %)</span>
+    <ul class="bands">
+      @for (band of riskBands; track band) {
+        <li class="band">
+          <span class="band-name">{{ bandLabel(band) }}</span>
+          @if (band === 'LOW') {
+            <app-input type="number" [value]="'0'" [readonly]="true" />
+          } @else {
+            <app-input type="number" [min]="0" [value]="bandCutPct(band)" (valueChange)="setBandCut(band, $event)" />
+          }
+        </li>
+      }
+    </ul>
+  </div>
+
+  <div class="ft-save">
+    <div class="editor-actions">
+      <app-button [disabled]="saving()" (click)="saveScoring()">
+        {{ saving() ? 'Guardando…' : 'Guardar scoring' }}
+      </app-button>
+      @if (saved()) {
+        <span class="saved-note">✓ Guardado en el motor</span>
+      }
+      @if (error(); as err) {
+        <span class="warn-note">{{ err }}</span>
+      }
+    </div>
+  </div>
+</app-card>

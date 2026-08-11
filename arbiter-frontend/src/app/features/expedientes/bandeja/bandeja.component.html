@@ -25,29 +25,32 @@
   </header>
 
   <!-- Lente de pertenencia: de quién es el expediente. Va aparte de los filtros a propósito
-       (no es un recorte más del listado) y reusa el patrón de tabs del detalle. -->
-  <div class="lens" role="tablist" aria-label="Expedientes a mostrar">
-    <button
-      type="button"
-      role="tab"
-      class="lens-tab"
-      [class.active]="lens() === 'mine'"
-      [attr.aria-selected]="lens() === 'mine'"
-      (click)="setLens('mine')"
-    >
-      Mis asignados <span class="lens-count">{{ mineCount() }}</span>
-    </button>
-    <button
-      type="button"
-      role="tab"
-      class="lens-tab"
-      [class.active]="lens() === 'all'"
-      [attr.aria-selected]="lens() === 'all'"
-      (click)="setLens('all')"
-    >
-      Todos <span class="lens-count">{{ allCount() }}</span>
-    </button>
-  </div>
+       (no es un recorte más del listado) y reusa el patrón de tabs del detalle. Solo para el
+       analista: el referente ve todo (no tiene expedientes propios). -->
+  @if (canAssign()) {
+    <div class="lens" role="tablist" aria-label="Expedientes a mostrar">
+      <button
+        type="button"
+        role="tab"
+        class="lens-tab"
+        [class.active]="lens() === 'mine'"
+        [attr.aria-selected]="lens() === 'mine'"
+        (click)="setLens('mine')"
+      >
+        Mis asignados <span class="lens-count">{{ mineCount() }}</span>
+      </button>
+      <button
+        type="button"
+        role="tab"
+        class="lens-tab"
+        [class.active]="lens() === 'all'"
+        [attr.aria-selected]="lens() === 'all'"
+        (click)="setLens('all')"
+      >
+        Todos <span class="lens-count">{{ allCount() }}</span>
+      </button>
+    </div>
+  }
 
   @if (assignError()) {
     <app-card><p class="t-note">{{ assignError() }}</p></app-card>
@@ -70,7 +73,7 @@
         <app-select
           [value]="claimCauseFilter()"
           (valueChange)="onClaimCauseChange($event)"
-          [options]="claimCauseOptions"
+          [options]="claimCauseOptions()"
           placeholder="Todos los tipos"
         />
       </label>
@@ -186,30 +189,34 @@
                         <span class="assignee-sub">Asignado</span>
                       </span>
                     </div>
+                  } @else if (!canAssign()) {
+                    <span class="t-note">Sin asignar</span>
                   }
-                  <div class="assign-actions">
-                    @if (!c.assignedAnalystId && canTake()) {
-                      <app-button
-                        variant="accent"
-                        size="sm"
+                  @if (canAssign()) {
+                    <div class="assign-actions">
+                      @if (!c.assignedAnalystId && canTake()) {
+                        <app-button
+                          variant="accent"
+                          size="sm"
+                          [disabled]="assigning() !== null"
+                          (click)="take(c)"
+                        >
+                          + Asignarme
+                        </app-button>
+                      }
+                      <app-menu-button
+                        [items]="assignMenuItems(c)"
+                        heading="Asignar a otro analista"
                         [disabled]="assigning() !== null"
-                        (click)="take(c)"
+                        align="end"
+                        size="sm"
+                        (itemSelected)="onAssignMenu(c, $event)"
                       >
-                        + Asignarme
-                      </app-button>
-                    }
-                    <app-menu-button
-                      [items]="assignMenuItems(c)"
-                      heading="Asignar a otro analista"
-                      [disabled]="assigning() !== null"
-                      align="end"
-                      size="sm"
-                      (itemSelected)="onAssignMenu(c, $event)"
-                    >
-                      <span aria-hidden="true">⋯</span>
-                      <span class="sr-only">Más acciones de asignación</span>
-                    </app-menu-button>
-                  </div>
+                        <span aria-hidden="true">⋯</span>
+                        <span class="sr-only">Más acciones de asignación</span>
+                      </app-menu-button>
+                    </div>
+                  }
                 </div>
               </td>
             </tr>

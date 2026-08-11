@@ -15,9 +15,11 @@ import { HttpErrorResponse } from '@angular/common/http';
 import { catchError, combineLatest, map, of, startWith, switchMap } from 'rxjs';
 
 import { ExpedienteService } from '../expediente.service';
+import { DocumentAgendaService } from '../document-agenda.service';
 import {
   CASE_DOCUMENT_TYPES,
   CaseDocument,
+  CaseDocumentType,
   documentFormatLabel,
   formatFileSize,
   isPreviewableImage,
@@ -64,6 +66,7 @@ type PreviewState =
 })
 export class CaseDocumentsComponent {
   private readonly service = inject(ExpedienteService);
+  private readonly agenda = inject(DocumentAgendaService);
   private readonly sanitizer = inject(DomSanitizer);
   private readonly destroyRef = inject(DestroyRef);
 
@@ -77,6 +80,20 @@ export class CaseDocumentsComponent {
    */
   readonly showMissing = input(true);
   readonly heading = input('Agenda documental');
+  /**
+   * Nombre del ramo del expediente. Con esto el checklist se arma contra la agenda REAL que
+   * configuró el referente para ese ramo, no contra el catálogo completo. Sin ramo (o sin agenda
+   * configurada) cae al catálogo completo.
+   */
+  readonly branch = input<string | null>(null);
+
+  /** Tipos de documento requeridos del ramo (o el catálogo completo como fallback). */
+  private readonly requiredTypes = toSignal(
+    toObservable(this.branch).pipe(
+      switchMap((branch) => (branch ? this.agenda.slotsForBranch(branch) : of(CASE_DOCUMENT_TYPES))),
+    ),
+    { initialValue: CASE_DOCUMENT_TYPES as readonly CaseDocumentType[] },
+  );
 
   private readonly state = toSignal(
     combineLatest([toObservable(this.caseId), toObservable(this.reloadToken)]).pipe(
@@ -102,7 +119,7 @@ export class CaseDocumentsComponent {
   /** Las 4 filas del checklist; con showMissing=false quedan solo las cargadas. */
   protected readonly rows = computed<DocRow[]>(() => {
     const docs = this.documents();
-    const all = CASE_DOCUMENT_TYPES.map(({ type, label }) => ({
+    const all = this.requiredTypes().map(({ type, label }) => ({
       type,
       label,
       doc: docs.find((d) => d.type === type) ?? null,
@@ -111,7 +128,7 @@ export class CaseDocumentsComponent {
   });
 
   protected readonly presentCount = computed(() => this.documents().length);
-  protected readonly totalCount = CASE_DOCUMENT_TYPES.length;
+  protected readonly totalCount = computed(() => this.requiredTypes().length);
 
   protected readonly preview = signal<PreviewState>({ status: 'empty' });
 

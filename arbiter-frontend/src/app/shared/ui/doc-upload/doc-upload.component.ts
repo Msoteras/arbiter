@@ -1,7 +1,10 @@
-import { ChangeDetectionStrategy, Component, computed, inject, input, output, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, effect, inject, input, output, signal } from '@angular/core';
+import { toObservable, toSignal } from '@angular/core/rxjs-interop';
+import { of, switchMap } from 'rxjs';
 
 import { ExpedienteService } from '../../../features/expedientes/expediente.service';
-import { CASE_DOCUMENT_TYPES } from '../../../core/models/case-document';
+import { DocumentAgendaService } from '../../../features/expedientes/document-agenda.service';
+import { CASE_DOCUMENT_TYPES, CaseDocumentType } from '../../../core/models/case-document';
 import { ButtonComponent } from '../button/button.component';
 import { FilePreviewComponent } from '../file-preview/file-preview.component';
 
@@ -105,14 +108,36 @@ interface DocUploadSlot {
 })
 export class DocUploadComponent {
   private readonly service = inject(ExpedienteService);
+  private readonly agenda = inject(DocumentAgendaService);
 
   readonly caseId = input.required<number>();
+  /**
+   * Nombre del ramo del expediente: arma el uploader con los documentos que el ramo realmente
+   * requiere (la agenda del referente), no con el catálogo completo. Sin ramo, cae al catálogo.
+   */
+  readonly branch = input<string | null>(null);
   /** Se emite cuando el backend aceptó los documentos (el caso vuelve a clasificación). */
   readonly uploaded = output<void>();
 
   protected readonly slots = signal<DocUploadSlot[]>(
     CASE_DOCUMENT_TYPES.map(({ type, label }) => ({ type, label, file: null })),
   );
+
+  /** Tipos requeridos del ramo (o el catálogo completo como fallback). */
+  private readonly requiredTypes = toSignal(
+    toObservable(this.branch).pipe(
+      switchMap((branch) => (branch ? this.agenda.slotsForBranch(branch) : of(CASE_DOCUMENT_TYPES))),
+    ),
+    { initialValue: CASE_DOCUMENT_TYPES as readonly CaseDocumentType[] },
+  );
+
+  constructor() {
+    // Al resolverse la agenda del ramo, rearma los slots con el vocabulario real (limpia archivos).
+    effect(() => {
+      const types = this.requiredTypes();
+      this.slots.set(types.map(({ type, label }) => ({ type, label, file: null })));
+    });
+  }
 
   protected readonly uploading = signal(false);
   protected readonly error = signal<string | null>(null);

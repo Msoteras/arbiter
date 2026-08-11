@@ -58,19 +58,20 @@ INSERT INTO aseguradora_bbva.asegurado (id, documento, cuil, nombre, apellido, e
 SELECT setval(pg_get_serial_sequence('aseguradora_bbva.asegurado','id'),
               (SELECT MAX(id) FROM aseguradora_bbva.asegurado));
 
+-- imei: solo en ramo Celulares; en Tecnología Portátil queda NULL (el equipo no tiene uno).
 INSERT INTO aseguradora_bbva.poliza (id, numero, nro_certificado, titular_id, rama, producto, bien_asegurado,
-                                     vigencia_desde, vigencia_hasta, estado_contrato, estado_pago,
+                                     imei, vigencia_desde, vigencia_hasta, estado_contrato, estado_pago,
                                      cuotas_pagas, cuotas_impagas, saldo_deuda, forma_pago, cubre_grupo_familiar) VALUES
     (1, 'POL-CEL-2026-042', '621242', 1, 'Celulares', 'Celular Protegido Premium', 'Samsung Galaxy A56',
-     '2026-01-01','2027-01-01','ACTIVA','AL_DIA',       6, 0,       0.00, 'TARJETA DE CREDITO', TRUE),
+     '351000000000042', '2026-01-01','2027-01-01','ACTIVA','AL_DIA',       6, 0,       0.00, 'TARJETA DE CREDITO', TRUE),
     (2, 'POL-CEL-2025-099', '621243', 2, 'Celulares', 'Celular Protegido Premium', 'iPhone 15 Pro',
-     '2025-11-01','2026-11-01','ACTIVA','AL_DIA',       8, 0,       0.00, 'TARJETA DE CREDITO', TRUE),
+     '353000000000099', '2025-11-01','2026-11-01','ACTIVA','AL_DIA',       8, 0,       0.00, 'TARJETA DE CREDITO', TRUE),
     (3, '2030405',          '621244', 2, 'Celulares', 'Celular Protegido Básico',  'Motorola Moto G54',
-     '2026-01-15','2027-01-15','ACTIVA','AL_DIA',       5, 0,       0.00, 'DEBITO', TRUE),
+     '354000000000054', '2026-01-15','2027-01-15','ACTIVA','AL_DIA',       5, 0,       0.00, 'DEBITO', TRUE),
     (4, 'POL-CEL-2026-118', '621245', 1, 'Celulares', 'Celular Protegido Básico',  'Samsung Galaxy S24',
-     '2026-02-01','2027-02-01','ACTIVA','AL_DIA',       5, 0,       0.00, 'DEBITO', FALSE),
+     '355000000000024', '2026-02-01','2027-02-01','ACTIVA','AL_DIA',       5, 0,       0.00, 'DEBITO', FALSE),
     (5, 'POL-CEL-2026-205', '621246', 1, 'Celulares', 'Celular Protegido Premium', 'iPhone 15',
-     '2026-01-10','2027-01-10','ACTIVA','AL_DIA',       6, 0,       0.00, 'TARJETA DE CREDITO', TRUE);
+     '356000000000015', '2026-01-10','2027-01-10','ACTIVA','AL_DIA',       6, 0,       0.00, 'TARJETA DE CREDITO', TRUE);
 
 SELECT setval(pg_get_serial_sequence('aseguradora_bbva.poliza','id'),
               (SELECT MAX(id) FROM aseguradora_bbva.poliza));
@@ -105,18 +106,19 @@ SELECT setval(pg_get_serial_sequence('aseguradora_provincia.asegurado','id'),
               (SELECT MAX(id) FROM aseguradora_provincia.asegurado));
 
 INSERT INTO aseguradora_provincia.poliza (id, numero, nro_certificado, titular_id, rama, producto, bien_asegurado,
-                                          vigencia_desde, vigencia_hasta, estado_contrato, estado_pago,
+                                          imei, vigencia_desde, vigencia_hasta, estado_contrato, estado_pago,
                                           cuotas_pagas, cuotas_impagas, saldo_deuda, forma_pago,
                                           max_eventos_anuales, segundo_evento_pct, cubre_grupo_familiar,
                                           datos_proveedor) VALUES
+    -- Tecnología Portátil: sin IMEI, una notebook no tiene.
     (1, 'POL-TEC-2026-311', '700841', 1, 'Tecnología Portátil', 'Seguro de Tecnología Portátil', 'MacBook Air M3 15"',
-     '2026-03-01','2027-03-01','ACTIVA','AL_DIA', 4, 1, 3406.17, 'TARJETA DE CREDITO', 2, 50.00, FALSE,
+     NULL, '2026-03-01','2027-03-01','ACTIVA','AL_DIA', 4, 1, 3406.17, 'TARJETA DE CREDITO', 2, 50.00, FALSE,
      '{"codRamaSegR":7,"nroPolizaR":2365301,"nroCertificadoR":700841,"descProductoR":"07 150 TEC PORT","importePrimaTarifa":2762.5,"importePremio":3406.17,"clausulaAjuste":"AJUSTE TASA FIJA","codClausulaAjuste":105}'::jsonb),
     -- 2 previous claims AND in arrears — two risk factors firing at once.
     (2, 'POL-CEL-2026-501', '700843', 1, 'Celulares', 'Celular Protegido', 'Samsung Galaxy S23',
-     '2026-01-05','2027-01-05','ACTIVA','SUSPENDIDA', 3, 2, 22100.00, 'DEBITO', NULL, NULL, FALSE, NULL),
+     '357000000000023', '2026-01-05','2027-01-05','ACTIVA','SUSPENDIDA', 3, 2, 22100.00, 'DEBITO', NULL, NULL, FALSE, NULL),
     (3, 'POL-CEL-2026-777', '700844', 1, 'Celulares', 'Celular Protegido', 'Samsung Galaxy A56',
-     '2026-04-01','2027-04-01','ACTIVA','AL_DIA', 3, 0, 0.00, 'TARJETA DE CREDITO', NULL, NULL, FALSE, NULL);
+     '358000000000056', '2026-04-01','2027-04-01','ACTIVA','AL_DIA', 3, 0, 0.00, 'TARJETA DE CREDITO', NULL, NULL, FALSE, NULL);
 
 SELECT setval(pg_get_serial_sequence('aseguradora_provincia.poliza','id'),
               (SELECT MAX(id) FROM aseguradora_provincia.poliza));
@@ -276,7 +278,7 @@ INSERT INTO arbiter_bbva.case_status_history (reason, observation, actor, change
 INSERT INTO arbiter_provincia.coverage (id, name, description, report_deadline_hours, max_events_per_year,
                                         covers_family_group, deductible, claim_exhausts_coverage,
                                         is_individual, waiting_period_days, branch_id) VALUES
-    (3, 'Daño accidental', 'Cobertura por daño accidental de equipo portátil', 96, 2, FALSE, 10.00, FALSE, TRUE, 30, 3);
+    (3, 'Daño accidental', 'Cobertura por daño accidental de equipo portátil', 96, 2, FALSE, 10.00, FALSE, TRUE, 30, 2);
 
 SELECT setval(pg_get_serial_sequence('arbiter_provincia.coverage','id'),
               (SELECT MAX(id) FROM arbiter_provincia.coverage));

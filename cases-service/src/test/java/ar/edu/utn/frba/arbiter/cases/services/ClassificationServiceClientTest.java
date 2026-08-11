@@ -117,9 +117,10 @@ class ClassificationServiceClientTest {
                             "findings": [
                               {
                                 "label": "item_photo-0",
-                                "filename": "item_photo",
+                                "documentType": "item_photo",
                                 "internalMatches": [
-                                  {"matchedCaseId": 4, "matchedFilename": "item_photo", "similarity": 0.97}
+                                  {"matchedCaseId": 4, "matchedDocumentType": "item_photo",
+                                   "matchedFilename": "IMG_2831.jpg", "similarity": 0.97}
                                 ],
                                 "webFinding": null
                               }
