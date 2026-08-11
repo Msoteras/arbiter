@@ -12,9 +12,13 @@ import java.util.Optional;
 
 /**
  * Fallback en memoria cuando el perfil {@code insurer-db} NO está activo (tests / dev sin la
- * BD aseguradora seedeada). Refleja una porción del seed real {@code db/datos-aseguradoras.sql}
- * para el asegurado de prueba (42.987.654). La fuente de verdad es {@link
- * ar.edu.utn.frba.arbiter.cases.adapters.db.InsurerDatabaseAdapter} cuando el perfil está prendido.
+ * BD aseguradora seedeada). Refleja una porción del seed real ({@code db/seed-demo.sql}, esquema
+ * {@code aseguradora_bbva}) para el asegurado de prueba (42.987.654). La fuente de verdad es
+ * {@link ar.edu.utn.frba.arbiter.cases.adapters.db.InsurerDatabaseAdapter} cuando el perfil está
+ * prendido.
+ *
+ * <p>Devuelve las pólizas de una sola compañía aunque el asegurado real tenga en dos: el recorte
+ * multi-aseguradora depende del esquema por tenant, que acá no existe. Alcanza para el wizard.
  */
 @Component
 public class MockInsurerAdapter implements InsurerAdapter {
