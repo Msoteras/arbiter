@@ -4,7 +4,6 @@ import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@a
 import { RISK_FACTORS, ScoringConfig } from '../../../core/models/business-rules';
 import { RISK_BANDS, RiskBand, riskBandLabel } from '../../../core/models/risk-band';
 import { ScoringConfigDto, ScoringRulesService } from '../scoring-rules.service';
-import { BadgeComponent } from '../../../shared/ui/badge/badge.component';
 import { ButtonComponent } from '../../../shared/ui/button/button.component';
 import { CardComponent } from '../../../shared/ui/card/card.component';
 import { InputComponent } from '../../../shared/ui/input/input.component';
@@ -20,7 +19,7 @@ import { InputComponent } from '../../../shared/ui/input/input.component';
  */
 @Component({
   selector: 'app-scoring-config',
-  imports: [BadgeComponent, ButtonComponent, CardComponent, InputComponent],
+  imports: [ButtonComponent, CardComponent, InputComponent],
   changeDetection: ChangeDetectionStrategy.OnPush,
   templateUrl: './scoring-config.component.html',
   styleUrl: './scoring-config.component.scss',
@@ -38,11 +37,26 @@ export class ScoringConfigComponent {
   protected readonly saved = signal(false);
   protected readonly error = signal<string | null>(null);
 
-  protected readonly weightSumPct = computed(() => {
-    const factors = this.draft().factors;
-    return Math.round(factors.reduce((sum, f) => sum + f.weight, 0) * 1000) / 10;
-  });
-  protected readonly weightsBalanced = computed(() => Math.abs(this.weightSumPct() - 100) < 0.05);
+  /**
+   * Los pesos son **relativos**: el motor divide por el total (`score = Σ(puntaje × peso) / Σ(peso)`),
+   * así que el score sale en [0,1] sumen 100%, 190% o 7. Antes la UI advertía que "deberían sumar
+   * 100%" — una regla que el motor no tiene y que el seed viola de fábrica (suma 190%). Peor: el
+   * número que el referente leía (45%) no era el que se aplicaba (23,7%). Se sacó la advertencia y
+   * en su lugar se muestra el **peso efectivo**, que es lo que el motor realmente usa (D17).
+   */
+  private readonly totalWeight = computed(() =>
+    this.draft().factors.reduce((sum, f) => sum + f.weight, 0),
+  );
+
+  /** Cuánto pesa de verdad un factor: su peso sobre el total de los activos. */
+  protected effectiveWeightPct(factorId: string): string {
+    const total = this.totalWeight();
+    const factor = this.draft().factors.find((f) => f.factorId === factorId);
+    if (!factor || total === 0) {
+      return '—';
+    }
+    return `${Math.round((factor.weight / total) * 1000) / 10}%`;
+  }
 
   constructor() {
     this.load();

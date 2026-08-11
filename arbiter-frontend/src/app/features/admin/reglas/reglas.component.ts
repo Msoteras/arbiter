@@ -213,8 +213,14 @@ export class ReglasComponent {
               enabled: true,
               maxClaimedAmountRatio: dto?.maxClaimedAmountRatio ?? null,
               maxPriorClaims: dto?.maxPriorClaims ?? null,
+              priorClaimsWindowMonths: dto?.priorClaimsWindowMonths ?? null,
+              minPolicyAgeMonths: dto?.minPolicyAgeMonths ?? null,
               requiresUpToDatePolicy: dto?.requiresUpToDatePolicy ?? d.fastTrack.requiresUpToDatePolicy,
               requiredDocumentTypes: dto?.requiredDocumentTypes ?? [],
+              // Con config guardada mandan los criterios guardados, incluso si son una lista vacía:
+              // vacío es una decisión del referente, no "todavía no cargué nada". Sin config, queda
+              // lo que haya en el draft (D14).
+              criteria: dto ? (dto.criteria ?? []) : d.fastTrack.criteria,
             },
           }
         : d,
@@ -578,8 +584,11 @@ export class ReglasComponent {
     const dto: FastTrackConfigDto = {
       maxClaimedAmountRatio: ft.maxClaimedAmountRatio,
       maxPriorClaims: ft.maxPriorClaims,
+      priorClaimsWindowMonths: ft.priorClaimsWindowMonths,
+      minPolicyAgeMonths: ft.minPolicyAgeMonths,
       requiresUpToDatePolicy: ft.requiresUpToDatePolicy,
       requiredDocumentTypes: ft.requiredDocumentTypes,
+      criteria: ft.criteria,
     };
 
     this.ftSaving.set(true);

@@ -187,24 +187,23 @@ export class ExpedienteDetailComponent {
     const d = this.data();
     return [
       { label: 'N° de siniestro / denuncia', value: d ? `#${d.id}` : null, mono: true },
-      { label: 'Canal de origen', value: null },
       { label: 'N° de póliza', value: d?.policyNumber ?? null, mono: true },
-      { label: 'N° de certificado', value: null, mono: true },
       { label: 'Rama', value: d?.branch ?? null },
       { label: 'Producto', value: d?.product ?? null },
       { label: 'Asegurado', value: d?.insuredName ?? null },
       { label: 'DNI', value: d?.insuredId ?? null, mono: true },
-      { label: 'Tomador', value: null },
+      // Declaración UIF/PLA del propio asegurado, junto al resto de sus datos: es donde el analista
+      // la busca. "No" es un valor, no la ausencia de dato, así que no cae en el `?? null` que el
+      // resto de las filas usa para mostrar "Sin datos" (D16).
+      { label: 'PEP (declarativo)', value: d ? (d.pep ? 'Sí' : 'No') : null },
       { label: 'Bien asegurado', value: d?.insuredItem ?? null },
       { label: 'Importe reclamado', value: d?.claimedAmount ? `$${d.claimedAmount.toLocaleString()}` : null },
       { label: 'Fecha de denuncia', value: d?.createdAt ? formatDateTime(d.createdAt) : null },
       { label: 'Fecha y hora de ocurrencia', value: d?.eventDate ? formatDateTime(d.eventDate) : null },
       { label: 'Causa', value: d?.claimCause ?? null },
-      { label: 'Hecho generador', value: null },
       { label: 'Ubicación', value: d?.eventLocation ?? null, full: true },
       { label: 'Descripción', value: d?.description ?? null, full: true },
       { label: 'Analista asignado', value: d?.assignedAnalystName ?? null },
-      { label: 'PEP (declarativo)', value: null },
     ];
   });
 
