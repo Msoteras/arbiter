@@ -831,6 +831,10 @@ BEGIN
             rama                  VARCHAR(80)   NOT NULL,
             producto              VARCHAR(160)  NOT NULL,
             bien_asegurado        VARCHAR(255),
+            -- Identificador del equipo cuando el ramo lo tiene (Celulares). NULL en los ramos donde
+            -- no aplica. Es el operando que le faltaba al cruce "el IMEI del documento no coincide
+            -- con el del bien" (D4b): sin esto, extraer el IMEI de la factura no servía de nada.
+            imei                  VARCHAR(20),
             moneda                VARCHAR(3)    NOT NULL DEFAULT 'ARS',
             vigencia_desde        DATE          NOT NULL,
             vigencia_hasta        DATE          NOT NULL,
