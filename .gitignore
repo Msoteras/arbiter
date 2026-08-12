@@ -57,3 +57,6 @@ skills-lock.json
 ### Secretos locales (API keys, credentials) — never commit ###
 .env
 .env.local
+
+### Override local de Docker Compose (config de entorno, no del proyecto) ###
+docker-compose.override.yml
