@@ -1,6 +1,8 @@
 package ar.edu.utn.frba.arbiter.cases.services;
 
 import ar.edu.utn.frba.arbiter.cases.dto.AnalystDecisionRequest;
+import ar.edu.utn.frba.arbiter.cases.dto.AnalystWorkloadResponse;
+import ar.edu.utn.frba.arbiter.cases.dto.AssignedCaseSummaryResponse;
 import ar.edu.utn.frba.arbiter.cases.dto.CaseDocumentResponse;
 import ar.edu.utn.frba.arbiter.cases.dto.CaseRequest;
 import ar.edu.utn.frba.arbiter.cases.dto.CaseResponse;
@@ -51,10 +53,24 @@ public interface CaseService {
      * <p>Es un booleano y no un id porque el id de analista es local al esquema: quién es "yo"
      * se resuelve acá contra el token, no lo manda el frontend. Para un rol sin perfil de
      * analista en el tenant (el referente) la lente devuelve vacío, no todo.
+     *
+     * <p>{@code unassigned} (lente "Sin asignar": expedientes sin analista), {@code assigned}
+     * (lente "Asignados": con analista, la bandeja del referente) y {@code fraudAlert} (lente
+     * "Alerta de fraude": riesgo HIGH/CRITICAL) son las otras lentes de la bandeja. A diferencia de
+     * {@code assignedToMe}, no dependen del "yo": son filtros booleanos puros.
      */
     Page<CaseResponse> listCases(CaseStatus status, String claimCause, String policyNumber, String insuredId,
                                   LocalDate eventDateFrom, LocalDate eventDateTo, String q, RiskBand riskBand,
-                                  boolean assignedToMe, Pageable pageable);
+                                  boolean assignedToMe, boolean unassigned, boolean fraudAlert, boolean assigned,
+                                  Pageable pageable);
+
+    /** Overload para las lentes "Míos"/"Todos" (sin las lentes de asignación ni alerta de fraude). */
+    default Page<CaseResponse> listCases(CaseStatus status, String claimCause, String policyNumber, String insuredId,
+                                          LocalDate eventDateFrom, LocalDate eventDateTo, String q, RiskBand riskBand,
+                                          boolean assignedToMe, Pageable pageable) {
+        return listCases(status, claimCause, policyNumber, insuredId, eventDateFrom, eventDateTo, q, riskBand,
+                assignedToMe, false, false, false, pageable);
+    }
 
     CaseResponse addDocumentsAndReclassify(Long caseId, Map<String, MultipartFile> documents);
 
@@ -83,4 +99,18 @@ public interface CaseService {
 
     /** Libera el expediente: vuelve a quedar sin dueño, visible en "Todos" y en ninguna lente "Míos". */
     CaseResponse unassignAnalyst(Long caseId);
+
+    /**
+     * Carga de trabajo del equipo: cada analista del tenant con su cantidad de expedientes activos
+     * (no resueltos) asignados. Incluye a los analistas sin expedientes, con cero. Ordenado de más
+     * a menos cargado. Es la vista que usa el referente para repartir trabajo.
+     */
+    List<AnalystWorkloadResponse> analystWorkload();
+
+    /**
+     * Resumen de los expedientes asignados al analista logueado (conteo por estado + total + cuántos
+     * de riesgo alto/crítico), para las tarjetas de su inicio. El "yo" se resuelve contra el token;
+     * un rol sin perfil de analista recibe el resumen vacío.
+     */
+    AssignedCaseSummaryResponse assignedCaseSummary();
 }

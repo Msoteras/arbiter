@@ -1,11 +1,12 @@
-<header class="page-head">
-  <h1 class="t-page-title">Usuarios</h1>
-  <app-button (click)="showCreatePanel.set(true)">+ Nuevo usuario</app-button>
-</header>
+<div class="usuarios-page" @staggerReveal>
+  <header class="page-head">
+    <h1 class="t-page-title">Usuarios</h1>
+    <app-button (click)="showCreatePanel.set(true)">+ Nuevo usuario</app-button>
+  </header>
 
-@if (loading()) {
-  <app-card><p class="t-note">Cargando usuarios…</p></app-card>
-} @else if (hasError()) {
+  @if (loading()) {
+    <app-inline-loading message="Cargando usuarios…" />
+  } @else if (hasError()) {
   <app-card><p class="t-note">No se pudo cargar el listado de usuarios.</p></app-card>
 } @else if (isEmpty()) {
   <app-empty-state message="Todavía no hay usuarios cargados." sub="Sin usuarios" />
@@ -27,7 +28,7 @@
           <th>Acciones</th>
         </tr>
       </thead>
-      <tbody>
+      <tbody @fadeStagger>
         @for (u of users(); track u.id) {
           <tr>
             <td>{{ u.nombre }} {{ u.apellido }}</td>
@@ -72,7 +73,8 @@
       </tbody>
     </app-table>
   </app-card>
-}
+  }
+</div>
 
 <app-modal [open]="userToDelete() !== null" heading="▲ ¿Eliminar usuario?" (close)="cancelDelete()">
   @if (userToDelete(); as u) {

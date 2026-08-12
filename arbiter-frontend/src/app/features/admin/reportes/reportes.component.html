@@ -1,4 +1,4 @@
-<div class="reportes">
+<div class="reportes" @staggerReveal>
   <header class="rep-head">
     <h1 class="t-page-title">Reportes</h1>
     <p class="rep-sub">Generá un reporte a medida o descargá uno reciente</p>
@@ -37,7 +37,7 @@
     </app-card>
 
     <app-card heading="Recientes">
-      <ul class="recent-list">
+      <ul class="recent-list" @listStagger>
         @for (r of recent; track r.name) {
           <li class="recent-item">
             <span class="recent-icon" aria-hidden="true">

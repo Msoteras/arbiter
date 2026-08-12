@@ -60,11 +60,11 @@ export class LoginComponent {
     });
   }
 
-  /** El home de cada rol es su propia sección — el referente ya no aterriza en la bandeja del analista. */
+  /** Cada rol aterriza en su pantalla de inicio, que resume su trabajo y enlaza al resto de su sección. */
   private homeFor(rol: UserRole): string {
-    if (rol === 'ASEGURADO') return '/portal';
-    if (rol === 'REFERENTE_ASEGURADORA') return '/insurer/users';
-    return '/inbox';
+    if (rol === 'ASEGURADO') return '/portal/home';
+    if (rol === 'REFERENTE_ASEGURADORA') return '/insurer/home';
+    return '/home';
   }
 
   private messageFor(err: HttpErrorResponse): string {

@@ -34,6 +34,37 @@ export const routes: Routes = [
       ),
   },
 
+  // ----- Pantallas de inicio (una por rol) -----
+  // Cada rol aterriza acá después del login. El home es su propia sección: no comparten
+  // componente porque el contenido y los datos son distintos por rol.
+  {
+    path: 'home',
+    canActivate: [roleGuard],
+    data: { roles: ['ANALISTA_SINIESTROS'] },
+    loadComponent: () =>
+      import('./features/home/analista-inicio/analista-inicio.component').then(
+        (m) => m.AnalistaInicioComponent,
+      ),
+  },
+  {
+    path: 'insurer/home',
+    canActivate: [roleGuard],
+    data: { roles: ['REFERENTE_ASEGURADORA'] },
+    loadComponent: () =>
+      import('./features/home/referente-inicio/referente-inicio.component').then(
+        (m) => m.ReferenteInicioComponent,
+      ),
+  },
+  {
+    path: 'portal/home',
+    canActivate: [roleGuard],
+    data: { roles: ['ASEGURADO'] },
+    loadComponent: () =>
+      import('./features/home/asegurado-inicio/asegurado-inicio.component').then(
+        (m) => m.AseguradoInicioComponent,
+      ),
+  },
+
   // ----- Portal del analista (la bandeja y el detalle también los ve el referente, en
   //        modo solo lectura: sin asignar ni decidir) -----
   {

@@ -1,7 +1,9 @@
 package ar.edu.utn.frba.arbiter.cases.controllers;
 
 import ar.edu.utn.frba.arbiter.cases.dto.AnalystDecisionRequest;
+import ar.edu.utn.frba.arbiter.cases.dto.AnalystWorkloadResponse;
 import ar.edu.utn.frba.arbiter.cases.dto.AssignAnalystRequest;
+import ar.edu.utn.frba.arbiter.cases.dto.AssignedCaseSummaryResponse;
 import ar.edu.utn.frba.arbiter.cases.dto.CaseDocumentResponse;
 import ar.edu.utn.frba.arbiter.cases.dto.CaseRequest;
 import ar.edu.utn.frba.arbiter.cases.dto.CaseResponse;
@@ -116,11 +118,14 @@ public class CaseController {
             @RequestParam(required = false) String q,
             @RequestParam(required = false) RiskBand riskBand,
             @RequestParam(defaultValue = "false") boolean assignedToMe,
+            @RequestParam(defaultValue = "false") boolean unassigned,
+            @RequestParam(defaultValue = "false") boolean fraudAlert,
+            @RequestParam(defaultValue = "false") boolean assigned,
             @PageableDefault(size = 20, sort = "id", direction = Sort.Direction.DESC) Pageable pageable
     ) {
         Page<CaseResponse> response = caseService.listCases(
                 status, claimCause, policyNumber, insuredId, eventDateFrom, eventDateTo, q, riskBand,
-                assignedToMe, pageable);
+                assignedToMe, unassigned, fraudAlert, assigned, pageable);
         return ResponseEntity.ok(response);
     }
 
@@ -158,6 +163,40 @@ public class CaseController {
                     """)
     public ResponseEntity<CaseResponse> unassignAnalyst(@PathVariable Long caseId) {
         return ResponseEntity.ok(caseService.unassignAnalyst(caseId));
+    }
+
+    @GetMapping("/analysts/workload")
+    @PreAuthorize("hasRole('REFERENTE_ASEGURADORA')")
+    @Operation(summary = "Carga de trabajo por analista",
+            description = """
+                    Devuelve, para cada analista de la aseguradora, cuántos expedientes ACTIVOS
+                    (no resueltos) tiene asignados. Alimenta el panel "Carga del equipo" del inicio
+                    del referente, que lo usa para repartir trabajo de un vistazo.
+
+                    Incluye a los analistas sin expedientes asignados (con cero): la vista es del
+                    equipo completo, no solo de los ocupados. Ordenado de más a menos cargado.
+
+                    Solo el referente: es una vista de gestión del equipo. El recorte por aseguradora
+                    lo resuelve el esquema del tenant, así que los conteos ya son de una sola compañía.
+                    """)
+    public ResponseEntity<List<AnalystWorkloadResponse>> analystWorkload() {
+        return ResponseEntity.ok(caseService.analystWorkload());
+    }
+
+    @GetMapping("/assigned/summary")
+    @PreAuthorize("hasRole('ANALISTA_SINIESTROS')")
+    @Operation(summary = "Resumen de mis expedientes asignados",
+            description = """
+                    Devuelve el resumen de los expedientes asignados al analista logueado: total,
+                    conteo por estado, y cuántos tienen alerta de fraude alta o crítica. Alimenta
+                    las tarjetas de su pantalla de inicio en una sola llamada (en vez de un conteo
+                    por estado a la vez).
+
+                    Quién es "yo" lo resuelve el backend contra el token —el id de analista es local
+                    al esquema de la aseguradora—, no lo manda el cliente.
+                    """)
+    public ResponseEntity<AssignedCaseSummaryResponse> assignedCaseSummary() {
+        return ResponseEntity.ok(caseService.assignedCaseSummary());
     }
 
     @GetMapping("/{caseId}/documents")

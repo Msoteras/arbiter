@@ -1,4 +1,4 @@
-<div class="rules-page">
+<div class="rules-page" @staggerReveal>
   <header class="rules-head">
     <h1 class="t-page-title">Configuración de reglas</h1>
   </header>
@@ -8,18 +8,22 @@
     <div class="master-col">
     <!-- ───────── Master: ramos ───────── -->
     <app-card class="list-card" heading="Ramos">
-      <ul class="ramo-list">
-        @for (r of ramos(); track r.id) {
-          <li>
-            <button type="button" class="ramo-item" [class.active]="isSelected(r)" (click)="select(r)">
-              <span class="ramo-name">{{ r.name }}</span>
-              <span class="ramo-meta">{{ r.coverages.length }} coberturas</span>
-            </button>
-          </li>
-        } @empty {
-          <li class="ramo-empty t-note">No hay ramos configurados.</li>
-        }
-      </ul>
+      @if (ramosLoading()) {
+        <app-inline-loading [size]="22" message="Cargando ramos…" />
+      } @else {
+        <ul class="ramo-list" @listStagger>
+          @for (r of ramos(); track r.id) {
+            <li>
+              <button type="button" class="ramo-item" [class.active]="isSelected(r)" (click)="select(r)">
+                <span class="ramo-name">{{ r.name }}</span>
+                <span class="ramo-meta">{{ r.coverages.length }} coberturas</span>
+              </button>
+            </li>
+          } @empty {
+            <li class="ramo-empty t-note">No hay ramos configurados.</li>
+          }
+        </ul>
+      }
     </app-card>
 
     <!-- ───────── Scoring de riesgo: config única por aseguradora, no pertenece a ningún ramo ─────────
@@ -73,7 +77,7 @@
         @switch (activeTab()) {
           <!-- ============ COBERTURAS ============ -->
           @case ('coberturas') {
-            <div class="tab-panel">
+            <div class="tab-panel" @fadeInUp>
               @for (c of d.coverages; track c.id) {
                 <app-card>
                   <div class="cov-top">
@@ -240,7 +244,7 @@
 
           <!-- ============ FAST TRACK ============ -->
           @case ('fastTrack') {
-            <div class="tab-panel">
+            <div class="tab-panel" @fadeInUp>
               <app-card heading="Fast Track (Siniestro Express)">
                 <p class="section-hint">
                   Gate determinístico que agiliza el caso (siempre activo, es parte del análisis).
@@ -324,7 +328,7 @@
 
           <!-- ============ DOCUMENTACIÓN ============ -->
           @case ('documentacion') {
-            <div class="tab-panel">
+            <div class="tab-panel" @fadeInUp>
               <app-card heading="Agenda documental">
                 <p class="section-hint">
                   Documentos obligatorios para considerar el expediente completo. Si falta alguno, el
@@ -357,7 +361,7 @@
 
           <!-- ============ REGLAS DE NEGOCIO ============ -->
           @case ('reglas') {
-            <div class="tab-panel">
+            <div class="tab-panel" @fadeInUp>
               <app-card heading="Reglas de negocio">
                 <p class="section-hint">
                   Condiciones y criterios que el analista y el modelo deben tener en cuenta al

@@ -14,6 +14,8 @@ import { InputComponent } from '../../../shared/ui/input/input.component';
 import { ModalComponent } from '../../../shared/ui/modal/modal.component';
 import { TableComponent } from '../../../shared/ui/table/table.component';
 import { SelectComponent, SelectOption } from '../../../shared/ui/select/select.component';
+import { InlineLoadingComponent } from '../../../shared/ui/inline-loading/inline-loading.component';
+import { fadeStagger, staggerReveal } from '../../../shared/animations';
 
 /**
  * Trello "Gestión de roles y permisos" - listado (GET) + selector de rol editable (PUT).
@@ -23,8 +25,9 @@ import { SelectComponent, SelectOption } from '../../../shared/ui/select/select.
  */
 @Component({
   selector: 'app-usuarios',
-  imports: [AltaUsuarioComponent, BadgeComponent, ButtonComponent, CardComponent, EmptyStateComponent, InputComponent, ModalComponent, TableComponent, SelectComponent],
+  imports: [AltaUsuarioComponent, BadgeComponent, ButtonComponent, CardComponent, EmptyStateComponent, InputComponent, ModalComponent, TableComponent, SelectComponent, InlineLoadingComponent],
   changeDetection: ChangeDetectionStrategy.OnPush,
+  animations: [staggerReveal, fadeStagger],
   templateUrl: './usuarios.component.html',
   styleUrl: './usuarios.component.scss',
 })

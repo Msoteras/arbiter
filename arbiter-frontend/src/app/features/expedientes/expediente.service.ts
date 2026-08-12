@@ -81,6 +81,33 @@ export interface ExpedienteListParams {
    * "qué puede ver este usuario" — eso último ya lo acota el tenant.
    */
   assignedToMe?: boolean;
+  /** Lente "Sin asignar": expedientes sin analista todavía. Excluyente con las otras lentes. */
+  unassigned?: boolean;
+  /** Lente "Asignados" (referente): expedientes con analista, sin importar quién. Excluyente. */
+  assigned?: boolean;
+  /** Lente "Alerta de fraude": expedientes con riesgo alto o crítico. Excluyente con las otras. */
+  fraudAlert?: boolean;
+}
+
+/**
+ * Carga de trabajo de un analista del equipo — espejo de AnalystWorkloadResponse del cases-service.
+ * `activeCases` cuenta solo expedientes activos (no resueltos). La usa el inicio del referente.
+ */
+export interface AnalystWorkload {
+  analystId: number;
+  name: string;
+  activeCases: number;
+}
+
+/**
+ * Resumen de los expedientes asignados al analista logueado — espejo de AssignedCaseSummaryResponse.
+ * `byStatus` mapea nombre de CaseStatus → cantidad (solo estados con al menos uno). La usa el inicio
+ * del analista para las tarjetas (pendientes / en trámite / resueltos / riesgo alto).
+ */
+export interface AssignedCaseSummary {
+  total: number;
+  byStatus: Record<string, number>;
+  highRisk: number;
 }
 
 @Injectable({ providedIn: 'root' })
@@ -100,9 +127,7 @@ export class ExpedienteService {
    * valida contra el token, no confía en el parámetro.
    */
   getById(id: string | number, aseguradora?: string | null): Observable<ExpedienteResponse> {
-    const options = aseguradora
-      ? { params: new HttpParams().set('aseguradora', aseguradora) }
-      : {};
+    const options = aseguradora ? { params: new HttpParams().set('aseguradora', aseguradora) } : {};
     return this.http.get<ExpedienteResponse>(`${this.baseUrl}/${id}`, options);
   }
 
@@ -126,10 +151,16 @@ export class ExpedienteService {
     if (params.q) query['q'] = params.q;
     if (params.riskBand) query['riskBand'] = params.riskBand;
     if (params.assignedToMe) query['assignedToMe'] = 'true';
+    if (params.unassigned) query['unassigned'] = 'true';
+    if (params.assigned) query['assigned'] = 'true';
+    if (params.fraudAlert) query['fraudAlert'] = 'true';
     return this.http.get<PagedResponse<ExpedienteResponse>>(this.baseUrl, { params: query });
   }
 
-  create(request: CaseCreateRequest, documents?: Map<string, File>): Observable<ExpedienteResponse> {
+  create(
+    request: CaseCreateRequest,
+    documents?: Map<string, File>,
+  ): Observable<ExpedienteResponse> {
     const formData = new FormData();
     formData.append('case', new Blob([JSON.stringify(request)], { type: 'application/json' }));
     if (documents) {
@@ -160,7 +191,10 @@ export class ExpedienteService {
     });
   }
 
-  recordAnalystDecision(caseId: number, request: AnalystDecisionRequest): Observable<{ status: string }> {
+  recordAnalystDecision(
+    caseId: number,
+    request: AnalystDecisionRequest,
+  ): Observable<{ status: string }> {
     return this.http.post<{ status: string }>(`${this.baseUrl}/${caseId}/decision`, request);
   }
 
@@ -187,5 +221,22 @@ export class ExpedienteService {
   /** Libera el expediente: queda sin dueño y disponible para que lo tome otro analista. */
   unassign(caseId: number): Observable<ExpedienteResponse> {
     return this.http.delete<ExpedienteResponse>(`${this.baseUrl}/${caseId}/assign`);
+  }
+
+  /**
+   * Carga de trabajo del equipo: cada analista de la aseguradora con su cantidad de expedientes
+   * activos asignados (incluye a los que tienen cero). Solo para el referente. Alimenta el panel
+   * "Carga del equipo" del inicio.
+   */
+  analystWorkload(): Observable<AnalystWorkload[]> {
+    return this.http.get<AnalystWorkload[]>(`${this.baseUrl}/analysts/workload`);
+  }
+
+  /**
+   * Resumen de los expedientes asignados al analista logueado (conteo por estado + riesgo alto).
+   * El backend resuelve "yo" contra el token. Alimenta las tarjetas del inicio del analista.
+   */
+  assignedSummary(): Observable<AssignedCaseSummary> {
+    return this.http.get<AssignedCaseSummary>(`${this.baseUrl}/assigned/summary`);
   }
 }

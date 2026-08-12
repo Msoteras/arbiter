@@ -31,6 +31,9 @@
   --accent-orange: #e8632a;
   --accent-red: #e63329;
   --accent-blue: #2e4a9e;
+  /* Lavado tenue de alerta (fondos tintados de señales de riesgo, ej. tarjeta de fraude). */
+  --accent-red-soft: #fdeceb;
+  --accent-red-soft-border: #f4c9c5;
 
   /* ===== Color — texto ===== */
   --c-ink: #191c1f; /* negro de marca */
@@ -97,6 +100,21 @@
 
   /* ===== Sombras / overlay ===== */
   --shadow-card: 0 1px 2px rgba(0, 0, 0, 0.03);
+  /* Elevación al hover de una card interactiva / tile: apenas más marcada que la de reposo. */
+  --shadow-card-hover: 0 6px 20px rgba(25, 28, 31, 0.08);
+  /* Popover / panel flotante (ej. campana de notificaciones anclada a la topbar). */
+  --shadow-pop: 0 12px 32px rgba(25, 28, 31, 0.16);
   --shadow-modal: 0 10px 40px rgba(25, 28, 31, 0.18);
   --overlay-backdrop: rgba(25, 28, 31, 0.4);
+
+  /* ===== Movimiento =====
+     Duraciones y curvas compartidas para transiciones/animaciones CSS. Las animaciones
+     de @angular/animations llevan sus tiempos literales (la DSL no lee custom properties),
+     pero se alinean a estos valores. La curva "out" es un ease-out expresivo (arranca
+     rápido y desacelera) para entradas y hovers. */
+  --dur-1: 120ms; /* micro-feedback (hover de control) */
+  --dur-2: 200ms; /* transición estándar */
+  --dur-3: 340ms; /* entrada de superficie (card/modal) */
+  --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+  --ease-standard: cubic-bezier(0.2, 0, 0, 1);
 }

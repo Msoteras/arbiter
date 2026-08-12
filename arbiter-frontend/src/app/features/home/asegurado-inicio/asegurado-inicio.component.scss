@@ -1,0 +1,314 @@
+:host {
+  display: block;
+}
+
+.inicio {
+  padding: var(--space-5) var(--space-6) var(--space-7);
+  max-width: 900px;
+  margin: 0 auto;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+// ───────────────── Encabezado / saludo ─────────────────
+.hero {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-4);
+}
+.hero-text {
+  min-width: 0;
+}
+.hero > app-button {
+  flex: none;
+}
+.eyebrow {
+  font-size: var(--font-size-2xs);
+  font-weight: var(--font-weight-medium);
+  text-transform: uppercase;
+  letter-spacing: 0.14em;
+  color: var(--text-muted);
+}
+.hero .t-hero-title {
+  margin-top: var(--space-2);
+}
+.hero-sub {
+  margin: var(--space-2) 0 0;
+  font-size: var(--font-size-md);
+  color: var(--text-muted);
+  line-height: 1.55;
+}
+
+.link-cta {
+  display: inline-block;
+  margin-top: var(--space-3);
+  font-size: var(--font-size-body);
+  color: var(--accent-fg);
+  text-decoration: none;
+}
+.link-cta:hover {
+  text-decoration: underline;
+}
+
+// ───────────────── Card del expediente activo ─────────────────
+.case-card {
+  margin-top: var(--space-3);
+  background: var(--surface);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-modal);
+  box-shadow: var(--shadow-card);
+  overflow: hidden;
+}
+
+.case-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-4);
+  padding: var(--space-5) var(--space-5) var(--space-4);
+  border-bottom: 1px solid var(--border-subtle);
+}
+.case-head-text {
+  min-width: 0;
+}
+.case-title-row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  flex-wrap: wrap;
+}
+.case-title {
+  margin: 0;
+  font-size: var(--font-size-lg);
+  font-weight: var(--font-weight-medium);
+  color: var(--text-primary);
+}
+.case-id {
+  margin-top: var(--space-1);
+  font-size: var(--font-size-sm);
+  color: var(--text-muted);
+}
+.case-icon {
+  flex: none;
+  width: 48px;
+  height: 48px;
+  border-radius: var(--radius-pill);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--selected-bg);
+  color: var(--accent-fg);
+}
+
+.case-body {
+  padding: var(--space-5) var(--space-5) var(--space-4);
+}
+
+// ───────────────── Stepper de 3 pasos ─────────────────
+.stepper {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  align-items: flex-start;
+}
+.node {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-2);
+  text-align: center;
+  min-width: 0;
+}
+.node-dot {
+  width: 28px;
+  height: 28px;
+  flex: none;
+  border-radius: var(--radius-pill);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-medium);
+  background: var(--surface);
+  border: 2px solid var(--border-strong);
+  color: var(--text-muted);
+}
+// Paso completado / en curso: relleno teal. El nodo "activo" además lleva un anillo.
+.node.done .node-dot,
+.node.active .node-dot {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--text-on-emphasis);
+}
+.node.active .node-dot {
+  box-shadow: 0 0 0 4px var(--accent-veil);
+}
+// Resolución en contra: el último nodo cierra en rojo.
+.node.done.danger .node-dot {
+  background: var(--status-danger);
+  border-color: var(--status-danger);
+}
+.node-label {
+  font-size: var(--font-size-sm);
+  color: var(--text-muted);
+}
+.node.done .node-label,
+.node.active .node-label {
+  color: var(--text-primary);
+  font-weight: var(--font-weight-medium);
+}
+// Conector entre nodos, alineado con el centro de los círculos (14px = mitad del dot).
+.conn {
+  flex: 1;
+  height: 2px;
+  margin-top: 13px;
+  background: var(--border-default);
+  border-radius: 2px;
+}
+.conn.done {
+  background: var(--accent);
+}
+
+// ───────────────── Aviso de estado ─────────────────
+.info-box {
+  margin-top: var(--space-5);
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-4);
+  background: var(--surface-sunken);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-card);
+}
+.info-icon {
+  flex: none;
+  width: 34px;
+  height: 34px;
+  border-radius: var(--radius-ctl);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--selected-bg);
+  color: var(--accent-fg);
+}
+.info-title {
+  font-size: var(--font-size-md);
+  font-weight: var(--font-weight-medium);
+  color: var(--text-primary);
+}
+.info-desc {
+  margin-top: 2px;
+  font-size: var(--font-size-sm);
+  color: var(--text-muted);
+  line-height: 1.5;
+}
+
+// ───────────────── Acciones ─────────────────
+.case-actions {
+  display: flex;
+  gap: var(--space-3);
+  padding: 0 var(--space-5) var(--space-5);
+}
+.case-actions a {
+  text-decoration: none;
+  display: block;
+}
+.case-actions .grow {
+  flex: 1;
+}
+
+.empty-case {
+  padding: var(--space-5);
+}
+.empty-cta {
+  margin-top: var(--space-4);
+  display: flex;
+  justify-content: center;
+}
+.empty-cta a {
+  text-decoration: none;
+}
+
+// ───────────────── Tarjetas de acceso ─────────────────
+.tiles {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: var(--space-3);
+}
+.tile {
+  display: block;
+  width: 100%;
+  text-align: left;
+  background: var(--surface);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-card);
+  padding: var(--space-5);
+  box-shadow: var(--shadow-card);
+  text-decoration: none;
+  font: inherit;
+  color: inherit;
+  cursor: pointer;
+}
+// "Iniciar nueva denuncia" es un <button> (abre el modal); "Mis expedientes" un <a>. Los dos
+// clickeables comparten la misma respuesta al hover.
+a.tile,
+button.tile {
+  transition:
+    background-color 0.1s,
+    border-color 0.1s;
+}
+a.tile:hover,
+button.tile:hover {
+  background: var(--surface-soft);
+  border-color: var(--border-strong);
+}
+.tile-static {
+  cursor: default;
+}
+.tile-icon {
+  width: 38px;
+  height: 38px;
+  border-radius: var(--radius-ctl);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--surface-sunken);
+  color: var(--text-secondary);
+}
+.tile-icon.dark {
+  background: var(--action-primary-bg);
+  color: var(--action-primary-fg);
+}
+.tile-title {
+  margin-top: var(--space-3);
+  font-size: var(--font-size-md);
+  font-weight: var(--font-weight-medium);
+  color: var(--text-primary);
+}
+.tile-desc {
+  margin-top: 3px;
+  font-size: var(--font-size-sm);
+  color: var(--text-muted);
+  line-height: 1.5;
+}
+
+// ───────────────── Responsive ─────────────────
+@media (max-width: 640px) {
+  .inicio {
+    padding: var(--space-4) var(--space-4) var(--space-6);
+  }
+  .hero {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+  .tiles {
+    grid-template-columns: 1fr;
+  }
+  .case-actions {
+    flex-direction: column;
+  }
+}
