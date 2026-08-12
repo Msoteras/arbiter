@@ -1,5 +1,5 @@
 @if (loading()) {
-  <app-card><p class="t-note">Cargando documentación…</p></app-card>
+  <app-inline-loading message="Cargando documentación…" />
 } @else if (hasError()) {
   <app-card>
     <p class="t-note">
@@ -69,7 +69,9 @@
           </div>
         }
         @case ('loading') {
-          <div class="viewer-state"><p class="t-note">Abriendo {{ p.doc.filename }}…</p></div>
+          <div class="viewer-state">
+            <app-inline-loading [size]="20" [message]="'Abriendo ' + p.doc.filename + '…'" />
+          </div>
         }
         @case ('error') {
           <div class="viewer-state">

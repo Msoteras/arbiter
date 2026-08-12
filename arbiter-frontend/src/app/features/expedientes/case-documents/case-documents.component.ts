@@ -27,6 +27,7 @@ import {
 } from '../../../core/models/case-document';
 import { CardComponent } from '../../../shared/ui/card/card.component';
 import { BadgeComponent } from '../../../shared/ui/badge/badge.component';
+import { InlineLoadingComponent } from '../../../shared/ui/inline-loading/inline-loading.component';
 
 type ListState =
   | { status: 'loading' }
@@ -60,7 +61,7 @@ type PreviewState =
 @Component({
   selector: 'app-case-documents',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [CardComponent, BadgeComponent],
+  imports: [CardComponent, BadgeComponent, InlineLoadingComponent],
   templateUrl: './case-documents.component.html',
   styleUrl: './case-documents.component.scss',
 })

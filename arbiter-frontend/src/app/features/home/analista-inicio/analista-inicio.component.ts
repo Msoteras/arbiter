@@ -1,4 +1,4 @@
-import { ChangeDetectionStrategy, Component, computed, inject } from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, effect, inject } from '@angular/core';
 import { toSignal } from '@angular/core/rxjs-interop';
 import { RouterLink } from '@angular/router';
 import { catchError, map, of, startWith } from 'rxjs';
@@ -15,13 +15,22 @@ import { BadgeComponent } from '../../../shared/ui/badge/badge.component';
 import { ButtonComponent } from '../../../shared/ui/button/button.component';
 import { EmptyStateComponent } from '../../../shared/ui/empty-state/empty-state.component';
 import { LoadingComponent } from '../../../shared/ui/loading/loading.component';
-import { staggerReveal } from '../../../shared/animations';
+import { InlineLoadingComponent } from '../../../shared/ui/inline-loading/inline-loading.component';
+import { AppReadyService } from '../../../core/app-ready.service';
+import { growBar, listStagger, staggerReveal } from '../../../shared/animations';
 
 interface Counts {
   pendientes: number;
   enTramite: number;
   resueltos: number;
   riesgo: number;
+}
+
+/** Un segmento de la barra de distribución de la bandeja: etiqueta, cantidad y tono de estado. */
+interface DistSegment {
+  label: string;
+  value: number;
+  tone: 'info' | 'warning' | 'ok';
 }
 
 type CountsState = { status: 'loading' } | { status: 'ok'; counts: Counts } | { status: 'error' };
@@ -45,15 +54,17 @@ type ActionState =
     ButtonComponent,
     EmptyStateComponent,
     LoadingComponent,
+    InlineLoadingComponent,
   ],
   changeDetection: ChangeDetectionStrategy.OnPush,
-  animations: [staggerReveal],
+  animations: [staggerReveal, listStagger, growBar],
   templateUrl: './analista-inicio.component.html',
   styleUrl: './analista-inicio.component.scss',
 })
 export class AnalistaInicioComponent {
   private readonly service = inject(ExpedienteService);
   private readonly session = inject(AuthSessionService);
+  private readonly appReady = inject(AppReadyService);
 
   // El saludo y la fecha se fijan al entrar a la pantalla (no hace falta que "tickeen" en vivo).
   protected readonly saludo = saludoSegunHora();
@@ -121,9 +132,47 @@ export class AnalistaInicioComponent {
     () => this.actionState().status === 'ok' && this.actionItems().length === 0,
   );
 
-  // La pantalla espera TODOS sus datos: mientras cualquiera de los dos endpoints siga en vuelo se
-  // muestra la pantalla de carga de marca, en vez de recuadros con "Cargando…" sueltos.
+  // La pantalla espera TODOS sus datos antes de pintar el contenido, en vez de recuadros con
+  // "Cargando…" sueltos.
   protected readonly pageLoading = computed(() => this.countsLoading() || this.actionLoading());
+
+  // La pantalla de carga de marca a viewport completo se muestra SOLO en el arranque (login →
+  // primer home). Al volver al home desde otra pantalla, la app ya "arrancó": la carga es parcial
+  // (un spinner en el lugar, con el shell visible), no tapa todo de nuevo.
+  protected readonly showFullLoader = computed(() => this.pageLoading() && !this.appReady.ready());
+  private readonly markReady = effect(() => {
+    if (!this.pageLoading()) {
+      this.appReady.markReady();
+    }
+  });
+
+  // ───────────────── Distribución de la bandeja ─────────────────
+  // Reparto del caseload activo del analista por estado, con los MISMOS conteos que ya trae el
+  // resumen (no hay endpoint nuevo ni dato inventado). "Riesgo alto" no entra en las barras: es
+  // un subconjunto que se solapa con las otras categorías, así que se muestra aparte como señal.
+  protected readonly distSegments = computed<DistSegment[]>(() => {
+    const c = this.counts();
+    if (!c) return [];
+    return [
+      { label: 'Pendientes', value: c.pendientes, tone: 'info' },
+      { label: 'En trámite', value: c.enTramite, tone: 'warning' },
+      { label: 'Resueltos', value: c.resueltos, tone: 'ok' },
+    ];
+  });
+
+  // Denominador de las barras: total del caseload activo (suma de los tres estados). Nunca 0 para
+  // no dividir por cero; `hasCaseload` decide si mostrar las barras o el vacío.
+  protected readonly distTotal = computed(() => {
+    const c = this.counts();
+    return c ? c.pendientes + c.enTramite + c.resueltos : 0;
+  });
+  protected readonly hasCaseload = computed(() => this.distTotal() > 0);
+  protected readonly riesgo = computed(() => this.counts()?.riesgo ?? 0);
+
+  protected distPct(value: number): number {
+    const total = this.distTotal();
+    return total > 0 ? Math.round((value / total) * 100) : 0;
+  }
 
   // ───────────────── Presentación ─────────────────
   protected estadoLabel(status: string): string {

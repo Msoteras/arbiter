@@ -2,6 +2,14 @@
   display: block;
 }
 
+// Carga parcial (revisita al home): spinner centrado en el área de contenido, sin tapar el shell.
+.partial-load {
+  min-height: 60vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
 .inicio {
   padding: var(--space-5) var(--space-6) var(--space-7);
   display: flex;
@@ -11,6 +19,8 @@
 
 // ───────────────── Encabezado / saludo (banner de marca) ─────────────────
 .hero {
+  position: relative;
+  overflow: hidden;
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -21,7 +31,25 @@
   color: var(--brand-panel-fg);
   box-shadow: var(--shadow-card);
 }
+// Halo suave arriba a la derecha (mismo recurso que el inicio del analista): profundidad sin
+// sumar color nuevo. Decorativo.
+.hero::after {
+  content: '';
+  position: absolute;
+  top: -55%;
+  right: -6%;
+  width: 340px;
+  height: 340px;
+  border-radius: var(--radius-pill);
+  background: radial-gradient(
+    circle,
+    color-mix(in srgb, var(--brand-panel-fg) 16%, transparent),
+    transparent 70%
+  );
+  pointer-events: none;
+}
 .hero-text {
+  position: relative;
   min-width: 0;
 }
 .hero .t-hero-title {
@@ -33,6 +61,7 @@
   color: color-mix(in srgb, var(--brand-panel-fg) 82%, transparent);
 }
 .hero-cta {
+  position: relative;
   flex: none;
   font-size: var(--font-size-body);
   color: var(--brand-panel-fg);
@@ -64,18 +93,25 @@
   padding: 0;
   display: flex;
   flex-direction: column;
+  gap: var(--space-1);
 }
+// Fila como "chip" clickeable: resalte + leve desplazamiento al hover (igual que el inicio del
+// analista), en vez de separadores.
 .alert-item {
   display: flex;
   align-items: center;
-  justify-content: space-between;
   gap: var(--space-3);
-  padding: var(--space-3) 0;
+  padding: var(--space-2) var(--space-3);
+  margin: 0 calc(-1 * var(--space-2));
+  border-radius: var(--radius-ctl);
   text-decoration: none;
-  border-bottom: 1px solid var(--border-subtle);
+  transition:
+    background var(--dur-1) ease,
+    transform var(--dur-1) var(--ease-out);
 }
-.alert-list li:last-child .alert-item {
-  border-bottom: none;
+.alert-item:hover {
+  background: var(--surface-soft);
+  transform: translateX(2px);
 }
 .alert-item:hover .alert-id {
   text-decoration: underline;
@@ -86,6 +122,7 @@
   flex-direction: column;
   gap: 2px;
   min-width: 0;
+  margin-right: auto;
 }
 .alert-id {
   font-size: var(--font-size-body);
@@ -104,6 +141,20 @@
   align-items: center;
   gap: var(--space-2);
   flex: none;
+}
+// Chevron tenue que aparece al hover, para reforzar que la fila lleva al expediente.
+.alert-chevron {
+  flex: none;
+  color: var(--text-muted);
+  opacity: 0;
+  transform: translateX(-4px);
+  transition:
+    opacity var(--dur-1) ease,
+    transform var(--dur-1) var(--ease-out);
+}
+.alert-item:hover .alert-chevron {
+  opacity: 1;
+  transform: translateX(0);
 }
 
 .see-all {

@@ -200,7 +200,6 @@ export class NuevaDenunciaComponent {
   protected readonly policeReportDate = signal('');
   protected readonly policeReportTime = signal('');
   protected readonly claimedAmount = signal<string>('');
-  protected readonly pep = signal(false);
   protected readonly contactEmail = signal('');
   protected readonly contactPhone = signal('');
 
@@ -341,7 +340,10 @@ export class NuevaDenunciaComponent {
         ? this.policeReportDate() + 'T' + (this.policeReportTime() || '00:00') + ':00'
         : undefined,
       claimedAmount: this.claimedAmount() ? Number(this.claimedAmount()) : undefined,
-      pep: this.pep(),
+      // PEP ya no se declara en la denuncia: es un dato del asegurado que viene de la póliza/KYC,
+      // no algo que se pregunte acá. Se manda false solo para satisfacer el contrato actual —
+      // el backend debe resolver la condición PEP desde el registro del asegurado, no del request.
+      pep: false,
       imageConsent: this.imageConsent(),
       contactEmail: this.contactEmail() || undefined,
       contactPhone: this.contactPhone() || undefined,

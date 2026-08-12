@@ -81,6 +81,10 @@ export interface ExpedienteListParams {
    * "qué puede ver este usuario" — eso último ya lo acota el tenant.
    */
   assignedToMe?: boolean;
+  /** Lente "Sin asignar": expedientes sin analista todavía. Excluyente con las otras lentes. */
+  unassigned?: boolean;
+  /** Lente "Alerta de fraude": expedientes con riesgo alto o crítico. Excluyente con las otras. */
+  fraudAlert?: boolean;
 }
 
 /**
@@ -145,6 +149,8 @@ export class ExpedienteService {
     if (params.q) query['q'] = params.q;
     if (params.riskBand) query['riskBand'] = params.riskBand;
     if (params.assignedToMe) query['assignedToMe'] = 'true';
+    if (params.unassigned) query['unassigned'] = 'true';
+    if (params.fraudAlert) query['fraudAlert'] = 'true';
     return this.http.get<PagedResponse<ExpedienteResponse>>(this.baseUrl, { params: query });
   }
 

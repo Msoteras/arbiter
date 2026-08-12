@@ -1,4 +1,4 @@
-import { ChangeDetectionStrategy, Component, computed, inject } from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, effect, inject } from '@angular/core';
 import { toSignal } from '@angular/core/rxjs-interop';
 import { RouterLink } from '@angular/router';
 import { catchError, forkJoin, map, of, startWith } from 'rxjs';
@@ -14,7 +14,9 @@ import { StatTileComponent } from '../../../shared/ui/stat-tile/stat-tile.compon
 import { BadgeComponent } from '../../../shared/ui/badge/badge.component';
 import { EmptyStateComponent } from '../../../shared/ui/empty-state/empty-state.component';
 import { LoadingComponent } from '../../../shared/ui/loading/loading.component';
-import { staggerReveal } from '../../../shared/animations';
+import { InlineLoadingComponent } from '../../../shared/ui/inline-loading/inline-loading.component';
+import { AppReadyService } from '../../../core/app-ready.service';
+import { growBar, listStagger, staggerReveal } from '../../../shared/animations';
 
 interface Counts {
   activos: number;
@@ -46,15 +48,17 @@ type WorkloadState =
     BadgeComponent,
     EmptyStateComponent,
     LoadingComponent,
+    InlineLoadingComponent,
   ],
   changeDetection: ChangeDetectionStrategy.OnPush,
-  animations: [staggerReveal],
+  animations: [staggerReveal, listStagger, growBar],
   templateUrl: './referente-inicio.component.html',
   styleUrl: './referente-inicio.component.scss',
 })
 export class ReferenteInicioComponent {
   private readonly service = inject(ExpedienteService);
   private readonly session = inject(AuthSessionService);
+  private readonly appReady = inject(AppReadyService);
 
   protected readonly saludo = saludoSegunHora();
   protected readonly fecha = fechaLarga();
@@ -146,11 +150,19 @@ export class ReferenteInicioComponent {
     () => this.workloadState().status === 'ok' && this.workload().length === 0,
   );
 
-  // La pantalla espera TODOS sus datos: se muestra la pantalla de carga hasta que los tres
-  // endpoints (conteos, alertas y carga del equipo) hayan respondido.
+  // La pantalla espera TODOS sus datos (conteos, alertas y carga del equipo) antes de pintar.
   protected readonly pageLoading = computed(
     () => this.countsLoading() || this.alertLoading() || this.workloadLoading(),
   );
+
+  // Carga de marca a viewport completo SOLO en el arranque (login → primer home). Al volver, carga
+  // parcial con el shell visible. Ver AppReadyService.
+  protected readonly showFullLoader = computed(() => this.pageLoading() && !this.appReady.ready());
+  private readonly markReady = effect(() => {
+    if (!this.pageLoading()) {
+      this.appReady.markReady();
+    }
+  });
 
   // Tope para escalar las barras. Piso en 1 para no dividir por cero cuando nadie tiene carga.
   private readonly maxLoad = computed(() =>

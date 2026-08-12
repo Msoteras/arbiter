@@ -1,5 +1,10 @@
-@if (pageLoading()) {
+@if (showFullLoader()) {
   <app-loading message="Estamos preparando tu inicio" />
+} @else if (pageLoading()) {
+  <!-- Revisita al home (la app ya arrancó): carga parcial, con el shell visible. -->
+  <div class="partial-load">
+    <app-inline-loading [size]="30" message="Actualizando tu inicio…" />
+  </div>
 } @else {
   <div class="inicio" @staggerReveal>
     <header class="hero">
@@ -64,7 +69,7 @@
         } @else if (actionEmpty()) {
           <app-empty-state message="No tenés expedientes esperando tu decisión" sub="Todo al día" />
         } @else {
-          <ul class="action-list">
+          <ul class="action-list" @listStagger>
             @for (c of actionItems(); track c.id) {
               <li>
                 <a class="action-item" [routerLink]="['/cases', c.id]">
@@ -73,6 +78,7 @@
                     <span class="action-meta">{{ displayInsured(c) }} · {{ c.claimCause }}</span>
                   </div>
                   <app-badge [tone]="estadoTone(c.status)">{{ estadoLabel(c.status) }}</app-badge>
+                  <span class="action-chevron" aria-hidden="true">›</span>
                 </a>
               </li>
             }
@@ -81,14 +87,52 @@
         }
       </app-card>
 
-      <!-- El resumen del modelo todavía no existe en el backend: placeholder honesto en vez de
-         un texto inventado, coherente con el resto de la app. -->
-      <app-card variant="ai" heading="Resumen de Arbiter" icon="✦">
-        <app-empty-state
-          message="Todavía no hay un resumen automático de tu jornada"
-          sub="Próximamente"
-        />
-      </app-card>
+      <div class="side-col">
+        <!-- Distribución del caseload propio por estado. Datos reales del resumen; las barras
+             crecen al aparecer (@growBar). -->
+        <app-card heading="Distribución de tu bandeja">
+          @if (!hasCaseload()) {
+            <app-empty-state
+              message="Todavía no tenés expedientes asignados"
+              sub="Nada en tu bandeja"
+            />
+          } @else {
+            <ul class="dist">
+              @for (seg of distSegments(); track seg.label) {
+                <li class="dist-row">
+                  <span class="dist-label">{{ seg.label }}</span>
+                  <span class="dist-track">
+                    <span
+                      class="dist-fill"
+                      [class]="'tone-' + seg.tone"
+                      [style.width.%]="distPct(seg.value)"
+                      @growBar
+                    ></span>
+                  </span>
+                  <span class="dist-val tabular">{{ seg.value }}</span>
+                </li>
+              }
+            </ul>
+            <div class="dist-foot">
+              @if (riesgo() > 0) {
+                <app-badge tone="danger">{{ riesgo() }} de riesgo alto</app-badge>
+                <span class="t-note">sobre tu carga activa</span>
+              } @else {
+                <span class="t-note">Sin expedientes de riesgo alto</span>
+              }
+            </div>
+          }
+        </app-card>
+
+        <!-- El resumen del modelo todavía no existe en el backend: teaser compacto y honesto en
+             vez de una tarjeta grande vacía. -->
+        <app-card variant="ai" heading="Resumen de Arbiter" icon="✦" class="ai-teaser">
+          <p class="ai-teaser-text">
+            Pronto vas a ver acá un resumen de tu jornada y las señales que levanta el modelo.
+          </p>
+          <app-badge variant="dashed">Próximamente</app-badge>
+        </app-card>
+      </div>
     </div>
   </div>
 }

@@ -376,8 +376,12 @@ app-textarea {
   padding-top: var(--space-4);
   border-top: 1px solid var(--border-subtle);
 }
-.wizard-actions > app-button:only-child {
-  margin-left: auto;
+/* Grupo izquierdo (Volver / Cancelar / hint): se mantiene junto mientras el botón de avanzar
+   queda a la derecha por el space-between del contenedor. */
+.wizard-actions-left {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
 }
 .actions-hint {
   font-size: var(--font-size-sm);

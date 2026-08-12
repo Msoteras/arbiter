@@ -53,10 +53,22 @@ public interface CaseService {
      * <p>Es un booleano y no un id porque el id de analista es local al esquema: quién es "yo"
      * se resuelve acá contra el token, no lo manda el frontend. Para un rol sin perfil de
      * analista en el tenant (el referente) la lente devuelve vacío, no todo.
+     *
+     * <p>{@code unassigned} (lente "Sin asignar": expedientes sin analista) y {@code fraudAlert}
+     * (lente "Alerta de fraude": riesgo HIGH/CRITICAL) son las otras dos lentes de la bandeja.
+     * A diferencia de {@code assignedToMe}, no dependen del "yo": son filtros booleanos puros.
      */
     Page<CaseResponse> listCases(CaseStatus status, String claimCause, String policyNumber, String insuredId,
                                   LocalDate eventDateFrom, LocalDate eventDateTo, String q, RiskBand riskBand,
-                                  boolean assignedToMe, Pageable pageable);
+                                  boolean assignedToMe, boolean unassigned, boolean fraudAlert, Pageable pageable);
+
+    /** Overload para las lentes "Míos"/"Todos" (sin "sin asignar" ni "alerta de fraude"). */
+    default Page<CaseResponse> listCases(CaseStatus status, String claimCause, String policyNumber, String insuredId,
+                                          LocalDate eventDateFrom, LocalDate eventDateTo, String q, RiskBand riskBand,
+                                          boolean assignedToMe, Pageable pageable) {
+        return listCases(status, claimCause, policyNumber, insuredId, eventDateFrom, eventDateTo, q, riskBand,
+                assignedToMe, false, false, pageable);
+    }
 
     CaseResponse addDocumentsAndReclassify(Long caseId, Map<String, MultipartFile> documents);
 

@@ -1,4 +1,4 @@
-import { ChangeDetectionStrategy, Component, input } from '@angular/core';
+import { ChangeDetectionStrategy, Component, effect, input, signal } from '@angular/core';
 
 type Tone = 'default' | 'accent' | 'danger';
 
@@ -18,7 +18,7 @@ type Tone = 'default' | 'accent' | 'danger';
   template: `
     <div class="stat" [class.accent]="tone() === 'accent'" [class.danger]="tone() === 'danger'">
       <span class="stat-label">{{ label() }}</span>
-      <span class="stat-value tabular">{{ loading() ? '—' : value() }}</span>
+      <span class="stat-value tabular">{{ display() }}</span>
       @if (sub()) {
         <span class="stat-sub">{{ sub() }}</span>
       }
@@ -82,4 +82,45 @@ export class StatTileComponent {
   readonly sub = input('');
   readonly tone = input<Tone>('default');
   readonly loading = input(false);
+
+  /**
+   * Valor que se pinta. Mientras carga es un guion; con un número, cuenta desde 0 hasta el valor
+   * (una sola vez, al aparecer el dato) para dar el efecto "contador" de dashboard. Con
+   * prefers-reduced-motion o valores no numéricos, se muestra el valor tal cual, sin animar.
+   */
+  protected readonly display = signal<string | number>('—');
+
+  constructor() {
+    effect((onCleanup) => {
+      const v = this.value();
+      if (this.loading()) {
+        this.display.set('—');
+        return;
+      }
+      if (typeof v !== 'number' || !Number.isFinite(v)) {
+        this.display.set(v);
+        return;
+      }
+      const reduce =
+        typeof window !== 'undefined' &&
+        window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
+      if (reduce || v <= 0) {
+        this.display.set(v);
+        return;
+      }
+      const target = v;
+      const duration = 650;
+      let startTs: number | null = null;
+      let raf = 0;
+      const step = (ts: number) => {
+        if (startTs === null) startTs = ts;
+        const p = Math.min(1, (ts - startTs) / duration);
+        const eased = 1 - Math.pow(1 - p, 3); // ease-out cubic
+        this.display.set(Math.round(target * eased));
+        if (p < 1) raf = requestAnimationFrame(step);
+      };
+      raf = requestAnimationFrame(step);
+      onCleanup(() => cancelAnimationFrame(raf));
+    });
+  }
 }

@@ -287,10 +287,11 @@ public class CaseServiceImpl implements CaseService {
     @Override
     public Page<CaseResponse> listCases(CaseStatus status, String claimCause, String policyNumber,
                                          String insuredId, LocalDate eventDateFrom, LocalDate eventDateTo,
-                                         String q, RiskBand riskBand, boolean assignedToMe, Pageable pageable) {
+                                         String q, RiskBand riskBand, boolean assignedToMe,
+                                         boolean unassigned, boolean fraudAlert, Pageable pageable) {
         if (accessPolicy.currentUserIsInsured()) {
             // El asegurado ve los suyos de TODAS sus aseguradoras, no solo la del tenant activo.
-            // La lente no le aplica: no hay expedientes "asignados" a un asegurado.
+            // Las lentes no le aplican: no tiene expedientes "asignados" ni bandeja de fraude.
             return toInsuredResponses(insuredCaseAggregator.findOwnCases(
                     status, claimCause, policyNumber, eventDateFrom, eventDateTo, q, riskBand, pageable));
         }
@@ -308,7 +309,7 @@ public class CaseServiceImpl implements CaseService {
 
         Specification<Case> spec = CaseSpecifications.withFilters(
                 status, claimCause, policyNumber, insuredId, eventDateFrom, eventDateTo, q, riskBand,
-                ownerId);
+                ownerId, unassigned, fraudAlert);
         return toResponses(caseRepository.findAll(spec, pageable));
     }
 

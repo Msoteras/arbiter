@@ -24,7 +24,10 @@
               } @else if (imageLoadFailed()[finding.label]) {
                 <div class="img-placeholder">No se pudo cargar la imagen</div>
               } @else {
-                <div class="img-placeholder">Cargando imagen…</div>
+                <div class="img-placeholder is-loading">
+                  <app-spinner [size]="22" />
+                  <span>Cargando imagen…</span>
+                </div>
               }
             </div>
 
@@ -60,7 +63,7 @@
                       } @else if (matchedImageLoadFailed()[matchKey(m)]) {
                         <div class="img-placeholder small">No disponible</div>
                       } @else {
-                        <div class="img-placeholder small">Cargando…</div>
+                        <div class="img-placeholder small"><app-spinner [size]="16" /></div>
                       }
                     </div>
                   </div>

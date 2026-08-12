@@ -27,7 +27,10 @@ import { ChangeDetectionStrategy, Component, computed, input, output } from '@an
             (change)="sizeChange.emit(+$any($event.target).value)"
           >
             @for (s of sizeOptions(); track s) {
-              <option [value]="s">{{ s }}</option>
+              <!-- [selected] además de [value] en el select: sin esto, el <select> nativo se
+                   renderiza antes que sus <option> y cae en la primera (mostraba "10" aunque el
+                   tamaño real fuera 20). -->
+              <option [value]="s" [selected]="s === size()">{{ s }}</option>
             }
           </select>
         </label>

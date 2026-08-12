@@ -56,12 +56,25 @@ type Variant = 'default' | 'soft' | 'ai';
        se agrega la respuesta al hover, el resto del tratamiento ya lo da .card. */
     :host(.interactive) .card {
       transition:
-        background-color 0.1s,
-        border-color 0.1s;
+        background-color var(--dur-1) ease,
+        border-color var(--dur-1) ease,
+        box-shadow var(--dur-2) var(--ease-out),
+        transform var(--dur-2) var(--ease-out);
     }
     :host(.interactive:hover) .card {
       background: var(--surface-soft);
       border-color: var(--border-strong);
+      box-shadow: var(--shadow-card-hover);
+      transform: translateY(-2px);
+    }
+    :host(.interactive:active) .card {
+      transform: translateY(0);
+      box-shadow: var(--shadow-card);
+    }
+    @media (prefers-reduced-motion: reduce) {
+      :host(.interactive:hover) .card {
+        transform: none;
+      }
     }
     /* Sin caja: ni borde ni fondo ni padding. Para reusar el contenido de una card cuando el
        contenedor ya ES la caja (ej. el wizard dentro de un modal) y una segunda no suma. */

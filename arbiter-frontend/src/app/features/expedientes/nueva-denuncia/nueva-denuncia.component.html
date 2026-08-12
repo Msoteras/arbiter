@@ -189,13 +189,6 @@
               [readonly]="!!selectedPolicy()?.contactPhone"
             />
           </div>
-
-          <div class="pep-field">
-            <app-checkbox [(checked)]="pep">
-              ¿Sos Persona Políticamente Expuesta (PEP)?
-            </app-checkbox>
-            <span class="pep-note">Declaración obligatoria según normativa UIF/PLA.</span>
-          </div>
         </section>
       }
 
@@ -264,13 +257,18 @@
 
       <!-- Barra de acciones (inline) -->
       <div class="wizard-actions">
-        @if (step() > 1) {
-          <app-button variant="secondary" (click)="prev()">‹ Volver</app-button>
-        } @else if (embedded()) {
-          <app-button variant="secondary" (click)="cancel()">Cancelar</app-button>
-        } @else {
-          <span class="actions-hint">Paso {{ step() }} de 3</span>
-        }
+        <div class="wizard-actions-left">
+          @if (step() > 1) {
+            <app-button variant="secondary" (click)="prev()">‹ Volver</app-button>
+          }
+          <!-- Cancelar disponible en TODO paso del pop-up: cerrar sin tener que volver al paso 1.
+               (Solo en modo embedded — como página propia se sale por la navegación.) -->
+          @if (embedded()) {
+            <app-button variant="secondary" (click)="cancel()">Cancelar</app-button>
+          } @else if (step() === 1) {
+            <span class="actions-hint">Paso {{ step() }} de 3</span>
+          }
+        </div>
 
         @if (step() < 3) {
           <app-button

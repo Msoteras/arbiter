@@ -1,5 +1,10 @@
-@if (pageLoading()) {
+@if (showFullLoader()) {
   <app-loading message="Estamos cargando el panorama de tu operación" />
+} @else if (pageLoading()) {
+  <!-- Revisita al home (la app ya arrancó): carga parcial, con el shell visible. -->
+  <div class="partial-load">
+    <app-inline-loading [size]="30" message="Actualizando el panorama…" />
+  </div>
 } @else {
   <div class="inicio" @staggerReveal>
     <header class="hero">
@@ -51,7 +56,7 @@
             sub="Sin riesgo alto ni crítico"
           />
         } @else {
-          <ul class="alert-list">
+          <ul class="alert-list" @listStagger>
             @for (c of alertItems(); track c.id) {
               <li>
                 <a class="alert-item" [routerLink]="['/cases', c.id]">
@@ -65,6 +70,7 @@
                     </app-badge>
                     <app-badge [tone]="estadoTone(c.status)">{{ estadoLabel(c.status) }}</app-badge>
                   </div>
+                  <span class="alert-chevron" aria-hidden="true">›</span>
                 </a>
               </li>
             }
@@ -84,12 +90,16 @@
             sub="Sin analistas dados de alta"
           />
         } @else {
-          <ul class="team-list">
+          <ul class="team-list" @listStagger>
             @for (a of workload(); track a.analystId) {
               <li class="team-row">
                 <span class="team-name">{{ a.name }}</span>
                 <span class="team-bar" aria-hidden="true">
-                  <span class="team-bar-fill" [style.width.%]="barPct(a.activeCases)"></span>
+                  <span
+                    class="team-bar-fill"
+                    [style.width.%]="barPct(a.activeCases)"
+                    @growBar
+                  ></span>
                 </span>
                 <span class="team-count tabular">
                   {{ a.activeCases }} {{ a.activeCases === 1 ? 'activo' : 'activos' }}

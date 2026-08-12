@@ -154,10 +154,73 @@
   background: var(--status-info);
   border: 2px solid var(--sidebar-bg);
 }
+/* Variante del punto sobre superficie clara (campana de la topbar). */
+.bell-dot--light {
+  border-color: var(--surface);
+}
+
+/* Columna de contenido (a la derecha de la sidebar): topbar fija + área ruteada. */
+.app-main {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+/* ===== Barra superior del contenido (roles internos) ===== */
+.content-topbar {
+  position: sticky;
+  top: 0;
+  z-index: 15;
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
+  min-height: 56px;
+  padding: var(--space-3) var(--space-6);
+  /* Barra "esmerilada": deja entrever el contenido al scrollear por debajo. */
+  background: color-mix(in srgb, var(--surface) 82%, transparent);
+  backdrop-filter: blur(8px);
+  border-bottom: 1px solid var(--border-subtle);
+}
+.content-topbar-title {
+  margin: 0;
+  font-size: var(--font-size-lg);
+  font-weight: var(--font-weight-medium);
+  letter-spacing: -0.01em;
+  color: var(--text-primary);
+}
+.content-topbar-actions {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+.topbar-bell {
+  position: relative;
+  flex: none;
+  display: flex;
+  padding: var(--space-2);
+  border: none;
+  background: none;
+  border-radius: var(--radius-ctl);
+  color: var(--text-tertiary);
+  cursor: pointer;
+  transition:
+    color var(--dur-1) ease,
+    background var(--dur-1) ease;
+}
+.topbar-bell:hover {
+  color: var(--text-primary);
+  background: var(--surface-sunken);
+}
 
 .app-content {
   flex: 1 1 auto;
   min-width: 0;
+  // Columna flex para que una pantalla pueda estirarse al alto disponible (ej. la bandeja ancla
+  // su paginación al pie). Las pantallas que no lo piden se dimensionan por su contenido igual.
+  display: flex;
+  flex-direction: column;
 }
 
 /* ===== Barra superior (portal del asegurado) ===== */
@@ -265,6 +328,10 @@
 
 /* ===== Mobile: la sidebar pasa a barra superior ===== */
 @media (max-width: 720px) {
+  .content-topbar {
+    padding: var(--space-3) var(--space-4);
+    min-height: 48px;
+  }
   .app-shell {
     flex-direction: column;
   }

@@ -4,6 +4,7 @@ import {
   Component,
   computed,
   effect,
+  HostListener,
   inject,
   signal,
 } from '@angular/core';
@@ -47,7 +48,8 @@ import {
   MenuButtonComponent,
   MenuItem,
 } from '../../../shared/ui/menu-button/menu-button.component';
-import { LoadingComponent } from '../../../shared/ui/loading/loading.component';
+import { InlineLoadingComponent } from '../../../shared/ui/inline-loading/inline-loading.component';
+import { fadeStagger } from '../../../shared/animations';
 
 // Campos por los que GET /api/v1/cases acepta ordenar (propiedades reales de la entidad Case
 // en cases-service — Spring Data ordena por propiedad JPA, no por nombre de columna SQL).
@@ -75,8 +77,14 @@ type LoadState =
   | { status: 'ok'; data: ExpedienteResponse[]; totalElements: number; totalPages: number }
   | { status: 'error' };
 
-/** "Míos" = expedientes asignados al usuario logueado; "Todos" = sin recorte por analista. */
-type Lens = 'mine' | 'all';
+/**
+ * Lente de pertenencia de la bandeja del analista:
+ *  - `mine`       → asignados al usuario logueado
+ *  - `all`        → sin recorte por analista
+ *  - `unassigned` → sin analista todavía
+ *  - `fraud`      → con alerta de fraude (riesgo alto/crítico)
+ */
+type Lens = 'mine' | 'all' | 'unassigned' | 'fraud';
 
 @Component({
   selector: 'app-bandeja',
@@ -91,9 +99,10 @@ type Lens = 'mine' | 'all';
     FraudGaugeComponent,
     EmptyStateComponent,
     MenuButtonComponent,
-    LoadingComponent,
+    InlineLoadingComponent,
   ],
   changeDetection: ChangeDetectionStrategy.OnPush,
+  animations: [fadeStagger],
   templateUrl: './bandeja.component.html',
   styleUrl: './bandeja.component.scss',
 })
@@ -145,7 +154,7 @@ export class BandejaComponent {
   protected readonly sortField = signal<SortField>('id');
   protected readonly sortDir = signal<SortDir>('desc');
   protected readonly page = signal(0);
-  protected readonly size = signal(20);
+  protected readonly size = signal(10);
 
   // La búsqueda libre se debounce para no pegarle al backend en cada tecla; el resto de los
   // filtros dispara al toque (son selects/fechas, no texto libre).
@@ -178,6 +187,8 @@ export class BandejaComponent {
   private readonly viewFilters = computed<ExpedienteListParams>(() => ({
     ...this.activeFilters(),
     assignedToMe: this.lens() === 'mine',
+    unassigned: this.lens() === 'unassigned',
+    fraudAlert: this.lens() === 'fraud',
   }));
 
   private readonly requestParams = computed<ExpedienteListParams & { reload: number }>(() => ({
@@ -208,15 +219,18 @@ export class BandejaComponent {
   protected readonly loading = computed(() => this.state().status === 'loading');
   protected readonly hasError = computed(() => this.state().status === 'error');
 
-  // Pantalla de carga de marca SOLO en la primera carga: una vez que llegó data (o error), los
-  // refetch por filtro/lente/paginado no vuelven a taparla — el listado se actualiza en su lugar.
-  private readonly hasLoaded = signal(false);
+  // La bandeja NO usa la pantalla de carga de marca a viewport completo: esa se reserva al
+  // arranque (login → home). Acá la carga se muestra con un spinner en el lugar, sin tapar la
+  // pantalla. Se distingue la PRIMERA carga (spinner solo, sin la caja de filtros —queda raro
+  // mostrarla vacía) de los refetch por filtro/lente/paginado (los filtros quedan y el spinner
+  // reemplaza solo a la tabla).
+  protected readonly hasLoaded = signal(false);
   private readonly latchLoaded = effect(() => {
     if (!this.loading()) {
       this.hasLoaded.set(true);
     }
   });
-  protected readonly showLoader = computed(() => this.loading() && !this.hasLoaded());
+  protected readonly firstLoad = computed(() => this.loading() && !this.hasLoaded());
 
   protected readonly cases = computed<ExpedienteResponse[]>(() => {
     const s = this.state();
@@ -263,14 +277,22 @@ export class BandejaComponent {
           all: this.service
             .list({ ...filters, page: 0, size: 1 })
             .pipe(map((p) => p.totalElements)),
-        }).pipe(catchError(() => of({ mine: 0, all: 0 }))),
+          unassigned: this.service
+            .list({ ...filters, unassigned: true, page: 0, size: 1 })
+            .pipe(map((p) => p.totalElements)),
+          fraud: this.service
+            .list({ ...filters, fraudAlert: true, page: 0, size: 1 })
+            .pipe(map((p) => p.totalElements)),
+        }).pipe(catchError(() => of({ mine: 0, all: 0, unassigned: 0, fraud: 0 }))),
       ),
     ),
-    { initialValue: { mine: 0, all: 0 } },
+    { initialValue: { mine: 0, all: 0, unassigned: 0, fraud: 0 } },
   );
 
   protected readonly mineCount = computed(() => this.counts().mine);
   protected readonly allCount = computed(() => this.counts().all);
+  protected readonly unassignedCount = computed(() => this.counts().unassigned);
+  protected readonly fraudCount = computed(() => this.counts().fraud);
 
   protected readonly hasActiveFilters = computed(
     () =>
@@ -325,44 +347,121 @@ export class BandejaComponent {
     { field: 'analyst.surname', label: 'Analista' },
   ];
 
-  // ───────────────── Handlers de filtros (todos resetean a página 0) ─────────────────
-  protected onStatusChange(v: string): void {
-    this.statusFilter.set(v);
-    this.page.set(0);
-  }
-
-  protected onClaimCauseChange(v: string): void {
-    this.claimCauseFilter.set(v);
-    this.page.set(0);
-  }
-
-  protected onRiskBandChange(v: string): void {
-    this.riskBandFilter.set(v);
-    this.page.set(0);
-  }
-
-  protected onDateFromChange(v: string): void {
-    this.eventDateFrom.set(v);
-    this.page.set(0);
-  }
-
-  protected onDateToChange(v: string): void {
-    this.eventDateTo.set(v);
-    this.page.set(0);
-  }
-
+  // La búsqueda queda fuera del panel (barra siempre visible) y es en vivo (debounced).
   protected onSearchInput(v: string): void {
     this.qDraft.set(v);
     this.page.set(0);
   }
 
-  protected clearFilters(): void {
+  // ───────────────── Panel de filtros (drawer lateral, aplicación diferida) ─────────────────
+  // Estado/tipo/riesgo/fechas se editan en un panel que se desliza desde la derecha y se aplican
+  // al confirmar ("Aplicar filtros"), no en vivo. Los aplicados (statusFilter/…) manejan la tabla;
+  // los "draft" son lo que se está editando en el panel (se descartan si se cierra sin aplicar).
+  protected readonly filtersOpen = signal(false);
+  protected readonly draftStatus = signal('');
+  protected readonly draftClaimCause = signal('');
+  protected readonly draftRiskBand = signal('');
+  protected readonly draftDateFrom = signal('');
+  protected readonly draftDateTo = signal('');
+
+  protected openFilters(): void {
+    this.draftStatus.set(this.statusFilter());
+    this.draftClaimCause.set(this.claimCauseFilter());
+    this.draftRiskBand.set(this.riskBandFilter());
+    this.draftDateFrom.set(this.eventDateFrom());
+    this.draftDateTo.set(this.eventDateTo());
+    this.filtersOpen.set(true);
+  }
+  protected closeFilters(): void {
+    this.filtersOpen.set(false);
+  }
+  protected toggleFilters(): void {
+    if (this.filtersOpen()) {
+      this.closeFilters();
+    } else {
+      this.openFilters();
+    }
+  }
+
+  // Cierre del popover: click fuera del ancla (el botón + el panel viven dentro de .filters-anchor)
+  // o Escape. Mismo enfoque que el kit (menu-button/select), sin backdrop.
+  @HostListener('document:click', ['$event'])
+  protected onDocumentClick(event: MouseEvent): void {
+    if (!this.filtersOpen()) return;
+    const target = event.target as HTMLElement | null;
+    if (target && !target.closest('.filters-anchor')) {
+      this.closeFilters();
+    }
+  }
+  @HostListener('document:keydown.escape')
+  protected onEscape(): void {
+    if (this.filtersOpen()) {
+      this.closeFilters();
+    }
+  }
+  protected applyFilters(): void {
+    this.statusFilter.set(this.draftStatus());
+    this.claimCauseFilter.set(this.draftClaimCause());
+    this.riskBandFilter.set(this.draftRiskBand());
+    this.eventDateFrom.set(this.draftDateFrom());
+    this.eventDateTo.set(this.draftDateTo());
+    this.page.set(0);
+    this.filtersOpen.set(false);
+  }
+  /** Vacía los campos del panel (draft), sin aplicar todavía. */
+  protected clearDraft(): void {
+    this.draftStatus.set('');
+    this.draftClaimCause.set('');
+    this.draftRiskBand.set('');
+    this.draftDateFrom.set('');
+    this.draftDateTo.set('');
+  }
+
+  // Cantidad de filtros aplicados (sin contar la búsqueda) → badge del botón "Filtros".
+  protected readonly activeFilterCount = computed(() => {
+    let n = 0;
+    if (this.statusFilter()) n++;
+    if (this.claimCauseFilter()) n++;
+    if (this.riskBandFilter()) n++;
+    if (this.eventDateFrom()) n++;
+    if (this.eventDateTo()) n++;
+    return n;
+  });
+
+  // Chips de los filtros aplicados: se ven y se quitan sin abrir el panel.
+  protected readonly activeChips = computed<{ key: string; label: string }[]>(() => {
+    const chips: { key: string; label: string }[] = [];
+    if (this.statusFilter())
+      chips.push({ key: 'status', label: `Estado: ${estadoLabel(this.statusFilter())}` });
+    if (this.claimCauseFilter())
+      chips.push({ key: 'claimCause', label: `Tipo: ${this.claimCauseFilter()}` });
+    if (this.riskBandFilter())
+      chips.push({ key: 'riskBand', label: `Fraude: ${this.riskBandLabel(this.riskBandFilter())}` });
+    if (this.eventDateFrom())
+      chips.push({ key: 'dateFrom', label: `Desde: ${this.formatDate(this.eventDateFrom())}` });
+    if (this.eventDateTo())
+      chips.push({ key: 'dateTo', label: `Hasta: ${this.formatDate(this.eventDateTo())}` });
+    return chips;
+  });
+
+  protected removeChip(key: string): void {
+    switch (key) {
+      case 'status': this.statusFilter.set(''); break;
+      case 'claimCause': this.claimCauseFilter.set(''); break;
+      case 'riskBand': this.riskBandFilter.set(''); break;
+      case 'dateFrom': this.eventDateFrom.set(''); break;
+      case 'dateTo': this.eventDateTo.set(''); break;
+    }
+    this.page.set(0);
+  }
+
+  /** "Limpiar todo": quita todos los filtros aplicados (la búsqueda no se toca). */
+  protected clearAllChips(): void {
     this.statusFilter.set('');
     this.claimCauseFilter.set('');
     this.riskBandFilter.set('');
     this.eventDateFrom.set('');
     this.eventDateTo.set('');
-    this.qDraft.set('');
     this.page.set(0);
   }
 

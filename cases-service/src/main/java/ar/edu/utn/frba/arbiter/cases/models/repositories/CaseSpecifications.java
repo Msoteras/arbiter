@@ -27,7 +27,8 @@ public final class CaseSpecifications {
 
     public static Specification<Case> withFilters(CaseStatus status, String claimCause, String policyNumber,
                                                     String insuredId, LocalDate eventDateFrom, LocalDate eventDateTo,
-                                                    String q, RiskBand riskBand, Long analystId) {
+                                                    String q, RiskBand riskBand, Long analystId,
+                                                    boolean unassigned, boolean fraudAlert) {
         return Stream.of(
                         status(status),
                         claimCause(claimCause),
@@ -37,11 +38,21 @@ public final class CaseSpecifications {
                         eventDateTo(eventDateTo),
                         freeText(q),
                         riskBand(riskBand),
-                        analystId(analystId)
+                        analystId(analystId),
+                        unassigned(unassigned),
+                        fraudAlert(fraudAlert)
                 )
                 .filter(Objects::nonNull)
                 .reduce(Specification::and)
                 .orElse(null); // sin filtros: JpaSpecificationExecutor trata null como "sin restricción"
+    }
+
+    /** Overload para las lentes "Míos"/"Todos" (sin "sin asignar" ni "alerta de fraude"). */
+    public static Specification<Case> withFilters(CaseStatus status, String claimCause, String policyNumber,
+                                                    String insuredId, LocalDate eventDateFrom, LocalDate eventDateTo,
+                                                    String q, RiskBand riskBand, Long analystId) {
+        return withFilters(status, claimCause, policyNumber, insuredId, eventDateFrom, eventDateTo, q,
+                riskBand, analystId, false, false);
     }
 
     private static Specification<Case> status(CaseStatus status) {
@@ -81,6 +92,25 @@ public final class CaseSpecifications {
     private static Specification<Case> riskBand(RiskBand riskBand) {
         return riskBand == null ? null
                 : (root, query, cb) -> cb.equal(root.get("riskBand"), riskBand);
+    }
+
+    /**
+     * Lente "Sin asignar": expedientes sin analista todavía ({@code analyst IS NULL}). Es el
+     * complemento de {@link #analystId} — no se combinan (el frontend manda una lente a la vez).
+     */
+    private static Specification<Case> unassigned(boolean unassigned) {
+        return !unassigned ? null
+                : (root, query, cb) -> cb.isNull(root.get("analyst"));
+    }
+
+    /**
+     * Lente "Alerta de fraude": expedientes con nivel de riesgo alto o crítico (HIGH/CRITICAL) —
+     * los que el analista/referente quiere mirar primero. Mismo criterio que el conteo de alertas
+     * del resumen de la bandeja.
+     */
+    private static Specification<Case> fraudAlert(boolean fraudAlert) {
+        return !fraudAlert ? null
+                : (root, query, cb) -> root.get("riskBand").in(RiskBand.HIGH, RiskBand.CRITICAL);
     }
 
     private static Specification<Case> eventDateFrom(LocalDate from) {

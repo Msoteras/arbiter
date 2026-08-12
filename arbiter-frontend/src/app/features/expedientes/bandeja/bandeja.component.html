@@ -1,6 +1,3 @@
-@if (showLoader()) {
-  <app-loading message="Estamos cargando los expedientes" />
-}
 <div class="bandeja">
   <header class="bandeja-head">
     <div class="bandeja-head-text">
@@ -14,26 +11,36 @@
         </p>
       }
     </div>
-    <app-menu-button
-      [items]="exportOptions"
-      [disabled]="exporting() || isEmpty()"
-      align="end"
-      (itemSelected)="exportAs($event)"
-    >
-      <span class="btn-with-icon">
-        <svg width="15" height="15" viewBox="0 0 16 16" fill="none" aria-hidden="true">
-          <path
-            d="M8 2v8m0 0 3-3m-3 3L5 7M3 13h10"
-            stroke="currentColor"
-            stroke-width="1.5"
-            stroke-linecap="round"
-            stroke-linejoin="round"
-          />
-        </svg>
-        {{ exporting() ? 'Exportando…' : 'Exportar' }}
-      </span>
-    </app-menu-button>
+    @if (hasLoaded()) {
+      <app-menu-button
+        [items]="exportOptions"
+        [disabled]="exporting() || isEmpty()"
+        align="end"
+        (itemSelected)="exportAs($event)"
+      >
+        <span class="btn-with-icon">
+          <svg width="15" height="15" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+            <path
+              d="M8 2v8m0 0 3-3m-3 3L5 7M3 13h10"
+              stroke="currentColor"
+              stroke-width="1.5"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+            />
+          </svg>
+          {{ exporting() ? 'Exportando…' : 'Exportar' }}
+        </span>
+      </app-menu-button>
+    }
   </header>
+
+  @if (firstLoad()) {
+    <!-- Primera carga: solo el spinner, centrado y SIN la caja de filtros (mostrarla vacía queda
+         raro). Los filtros aparecen recién con los datos. -->
+    <div class="first-load">
+      <app-inline-loading [size]="30" message="Cargando expedientes…" />
+    </div>
+  } @else {
 
   <!-- Lente de pertenencia: de quién es el expediente. Va aparte de los filtros a propósito
        (no es un recorte más del listado) y reusa el patrón de tabs del detalle. Solo para el
@@ -60,6 +67,27 @@
       >
         Todos <span class="lens-count">{{ allCount() }}</span>
       </button>
+      <button
+        type="button"
+        role="tab"
+        class="lens-tab"
+        [class.active]="lens() === 'unassigned'"
+        [attr.aria-selected]="lens() === 'unassigned'"
+        (click)="setLens('unassigned')"
+      >
+        Sin asignar <span class="lens-count">{{ unassignedCount() }}</span>
+      </button>
+      <button
+        type="button"
+        role="tab"
+        class="lens-tab lens-tab--alert"
+        [class.active]="lens() === 'fraud'"
+        [attr.aria-selected]="lens() === 'fraud'"
+        (click)="setLens('fraud')"
+      >
+        <span class="lens-alert-mark" aria-hidden="true">▲</span> Alerta de fraude
+        <span class="lens-count">{{ fraudCount() }}</span>
+      </button>
     </div>
   }
 
@@ -69,66 +97,125 @@
     >
   }
 
-  <app-card class="filters-card">
-    <div class="filters">
-      <label class="filter-field">
-        <span class="t-field-label">Estado</span>
-        <app-select
-          [value]="statusFilter()"
-          (valueChange)="onStatusChange($event)"
-          [options]="statusOptions"
-          placeholder="Todos los estados"
-        />
-      </label>
+  <!-- Barra: búsqueda en vivo + botón "Filtros" que abre un popover anclado con los filtros. -->
+  <div class="toolbar">
+    <app-input
+      class="search"
+      [value]="qDraft()"
+      (valueChange)="onSearchInput($event)"
+      placeholder="Buscar por N° de expediente, asegurado o N° de póliza…"
+    />
 
-      <label class="filter-field">
-        <span class="t-field-label">Tipo de siniestro</span>
-        <app-select
-          [value]="claimCauseFilter()"
-          (valueChange)="onClaimCauseChange($event)"
-          [options]="claimCauseOptions()"
-          placeholder="Todos los tipos"
-        />
-      </label>
-
-      <label class="filter-field">
-        <span class="t-field-label">Nivel de alerta de fraude</span>
-        <app-select
-          [value]="riskBandFilter()"
-          (valueChange)="onRiskBandChange($event)"
-          [options]="riskBandOptions"
-          placeholder="Todos los niveles"
-        />
-      </label>
-
-      <label class="filter-field">
-        <span class="t-field-label">Fecha del hecho — desde</span>
-        <app-input type="date" [value]="eventDateFrom()" (valueChange)="onDateFromChange($event)" />
-      </label>
-
-      <label class="filter-field">
-        <span class="t-field-label">Fecha del hecho — hasta</span>
-        <app-input type="date" [value]="eventDateTo()" (valueChange)="onDateToChange($event)" />
-      </label>
-
-      <label class="filter-field grow">
-        <span class="t-field-label">Buscar</span>
-        <app-input
-          [value]="qDraft()"
-          (valueChange)="onSearchInput($event)"
-          placeholder="N° de expediente, nombre del asegurado o N° de póliza…"
-        />
-      </label>
-
-      <app-button variant="secondary" [disabled]="!hasActiveFilters()" (click)="clearFilters()">
-        Limpiar filtros
+    <div class="filters-anchor">
+      <app-button variant="secondary" (click)="toggleFilters()">
+        <span class="filters-btn">
+          <svg width="15" height="15" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+            <path
+              d="M2 3.5h12M4.5 8h7M6.5 12.5h3"
+              stroke="currentColor"
+              stroke-width="1.5"
+              stroke-linecap="round"
+            />
+          </svg>
+          Filtros
+          @if (activeFilterCount() > 0) {
+            <span class="filters-badge">{{ activeFilterCount() }}</span>
+          }
+        </span>
       </app-button>
-    </div>
-  </app-card>
 
-  @if (loading()) {
-    <app-card><p class="t-note">Cargando expedientes…</p></app-card>
-  } @else if (hasError()) {
+      @if (filtersOpen()) {
+        <div class="filters-pop" role="dialog" aria-label="Filtrar expedientes">
+          <div class="filters-pop-head">
+            <span class="filters-pop-title">Filtrar expedientes</span>
+            <button
+              type="button"
+              class="filters-pop-close"
+              aria-label="Cerrar"
+              (click)="closeFilters()"
+            >
+              ✕
+            </button>
+          </div>
+
+          <div class="filters-pop-grid">
+            <label class="filter-field">
+              <span class="t-field-label">Estado</span>
+              <app-select
+                [value]="draftStatus()"
+                (valueChange)="draftStatus.set($event)"
+                [options]="statusOptions"
+                placeholder="Todos los estados"
+              />
+            </label>
+
+            <label class="filter-field">
+              <span class="t-field-label">Tipo de siniestro</span>
+              <app-select
+                [value]="draftClaimCause()"
+                (valueChange)="draftClaimCause.set($event)"
+                [options]="claimCauseOptions()"
+                placeholder="Todos los tipos"
+              />
+            </label>
+
+            <label class="filter-field">
+              <span class="t-field-label">Nivel de alerta de fraude</span>
+              <app-select
+                [value]="draftRiskBand()"
+                (valueChange)="draftRiskBand.set($event)"
+                [options]="riskBandOptions"
+                placeholder="Todos los niveles"
+              />
+            </label>
+
+            <label class="filter-field">
+              <span class="t-field-label">Fecha del hecho — desde</span>
+              <app-input
+                type="date"
+                [value]="draftDateFrom()"
+                (valueChange)="draftDateFrom.set($event)"
+              />
+            </label>
+
+            <label class="filter-field">
+              <span class="t-field-label">Fecha del hecho — hasta</span>
+              <app-input
+                type="date"
+                [value]="draftDateTo()"
+                (valueChange)="draftDateTo.set($event)"
+              />
+            </label>
+          </div>
+
+          <div class="filters-pop-foot">
+            <app-button variant="secondary" size="sm" (click)="clearDraft()">
+              Limpiar filtros
+            </app-button>
+            <app-button size="sm" (click)="applyFilters()">Aplicar</app-button>
+          </div>
+        </div>
+      }
+    </div>
+  </div>
+
+  <!-- Chips de filtros aplicados: se ven y se quitan sin abrir el popover. -->
+  @if (activeChips().length > 0) {
+    <div class="active-chips">
+      @for (chip of activeChips(); track chip.key) {
+        <button type="button" class="chip" (click)="removeChip(chip.key)">
+          {{ chip.label }} <span class="chip-x" aria-hidden="true">✕</span>
+        </button>
+      }
+      <button type="button" class="chip-clear" (click)="clearAllChips()">Limpiar todo</button>
+    </div>
+  }
+
+    @if (loading()) {
+      <!-- Refetch (filtro / lente / paginado): los filtros de arriba quedan; el spinner reemplaza
+           solo a la tabla. -->
+      <app-inline-loading message="Cargando expedientes…" />
+    } @else if (hasError()) {
     <app-card>
       <p class="t-note">
         No se pudo cargar el listado. Verificá que <span class="mono">cases-service</span>
@@ -169,7 +256,7 @@
               }
             </tr>
           </thead>
-          <tbody>
+          <tbody @fadeStagger>
             @for (c of cases(); track c.id) {
               <tr class="row-link" (click)="goTo(c.id)">
                 <td>
@@ -254,13 +341,14 @@
       </div>
     </app-card>
 
-    <app-pagination
-      [page]="page()"
-      [totalPages]="totalPages()"
-      [totalElements]="totalElements()"
-      [size]="size()"
-      (pageChange)="onPageChange($event)"
-      (sizeChange)="onSizeChange($event)"
-    />
+      <app-pagination
+        [page]="page()"
+        [totalPages]="totalPages()"
+        [totalElements]="totalElements()"
+        [size]="size()"
+        (pageChange)="onPageChange($event)"
+        (sizeChange)="onSizeChange($event)"
+      />
+    }
   }
 </div>

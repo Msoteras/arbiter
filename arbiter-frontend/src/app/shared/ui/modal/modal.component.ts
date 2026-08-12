@@ -50,6 +50,15 @@ import { ChangeDetectionStrategy, Component, input, output } from '@angular/core
       justify-content: center;
       z-index: 100;
       padding: var(--space-4);
+      animation: backdrop-in var(--dur-2) ease-out;
+    }
+    @keyframes backdrop-in {
+      from {
+        opacity: 0;
+      }
+      to {
+        opacity: 1;
+      }
     }
     .backdrop.side {
       justify-content: flex-end;
@@ -67,6 +76,19 @@ import { ChangeDetectionStrategy, Component, input, output } from '@angular/core
          empujar la página o desbordar el viewport. */
       max-height: 90vh;
       overflow-y: auto;
+      /* Entrada del diálogo centrado: aparece y sube apenas, con un pelín de escala. El panel
+         lateral (.side) sobreescribe esto con su propio slide-in. */
+      animation: modal-in var(--dur-3) var(--ease-out);
+    }
+    @keyframes modal-in {
+      from {
+        opacity: 0;
+        transform: translateY(10px) scale(0.98);
+      }
+      to {
+        opacity: 1;
+        transform: none;
+      }
     }
     /* Diálogo ancho para formularios (ej. nueva denuncia). */
     .modal.lg {
@@ -78,7 +100,7 @@ import { ChangeDetectionStrategy, Component, input, output } from '@angular/core
       border-radius: 0;
       border-width: 0 0 0 1px;
       overflow-y: auto;
-      animation: slide-in 0.18s ease-out;
+      animation: slide-in var(--dur-2) var(--ease-out);
     }
     @keyframes slide-in {
       from {
@@ -86,6 +108,14 @@ import { ChangeDetectionStrategy, Component, input, output } from '@angular/core
       }
       to {
         transform: translateX(0);
+      }
+    }
+    /* Respeta la preferencia del sistema: sin desplazamientos, solo el fade del contenido. */
+    @media (prefers-reduced-motion: reduce) {
+      .backdrop,
+      .modal,
+      .modal.side {
+        animation: none;
       }
     }
     .modal-title {

@@ -2,6 +2,15 @@
   display: block;
 }
 
+// Carga parcial (revisita al home): el spinner se centra en el área de contenido, sin tapar el
+// shell. Alto generoso para que quede a la vista sin necesitar el overlay completo.
+.partial-load {
+  min-height: 60vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
 .inicio {
   padding: var(--space-5) var(--space-6) var(--space-7);
   display: flex;
@@ -13,6 +22,8 @@
 
 // ───────────────── Encabezado / saludo (banner de marca) ─────────────────
 .hero {
+  position: relative;
+  overflow: hidden;
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -23,7 +34,25 @@
   color: var(--brand-panel-fg);
   box-shadow: var(--shadow-card);
 }
+// Halo suave arriba a la derecha: da profundidad al degradé sin sumar color nuevo (usa el
+// blanco del panel de marca a baja opacidad). Decorativo, no interactivo.
+.hero::after {
+  content: '';
+  position: absolute;
+  top: -55%;
+  right: -6%;
+  width: 340px;
+  height: 340px;
+  border-radius: var(--radius-pill);
+  background: radial-gradient(
+    circle,
+    color-mix(in srgb, var(--brand-panel-fg) 16%, transparent),
+    transparent 70%
+  );
+  pointer-events: none;
+}
 .hero-text {
+  position: relative;
   min-width: 0;
 }
 // El saludo y su subtítulo van en blanco sobre el degradé teal.
@@ -36,6 +65,7 @@
   color: color-mix(in srgb, var(--brand-panel-fg) 82%, transparent);
 }
 .hero-cta {
+  position: relative;
   flex: none;
   text-decoration: none;
 }
@@ -54,6 +84,12 @@
   gap: var(--space-4);
   align-items: start;
 }
+// Columna derecha: dos tarjetas apiladas (distribución + teaser IA).
+.side-col {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
 
 .action-list {
   list-style: none;
@@ -61,18 +97,27 @@
   padding: 0;
   display: flex;
   flex-direction: column;
+  gap: var(--space-1);
 }
+.action-list li {
+  min-width: 0;
+}
+// Fila como "chip" clickeable: se resalta y se desplaza apenas al hover, en vez de separadores.
 .action-item {
   display: flex;
   align-items: center;
-  justify-content: space-between;
   gap: var(--space-3);
-  padding: var(--space-3) 0;
+  padding: var(--space-2) var(--space-3);
+  margin: 0 calc(-1 * var(--space-2));
+  border-radius: var(--radius-ctl);
   text-decoration: none;
-  border-bottom: 1px solid var(--border-subtle);
+  transition:
+    background var(--dur-1) ease,
+    transform var(--dur-1) var(--ease-out);
 }
-.action-list li:last-child .action-item {
-  border-bottom: none;
+.action-item:hover {
+  background: var(--surface-soft);
+  transform: translateX(2px);
 }
 .action-item:hover .action-id {
   text-decoration: underline;
@@ -83,6 +128,7 @@
   flex-direction: column;
   gap: 2px;
   min-width: 0;
+  margin-right: auto;
 }
 .action-id {
   font-size: var(--font-size-body);
@@ -96,6 +142,20 @@
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+// Chevron tenue que aparece al hover, para reforzar que la fila lleva al expediente.
+.action-chevron {
+  flex: none;
+  color: var(--text-muted);
+  opacity: 0;
+  transform: translateX(-4px);
+  transition:
+    opacity var(--dur-1) ease,
+    transform var(--dur-1) var(--ease-out);
+}
+.action-item:hover .action-chevron {
+  opacity: 1;
+  transform: translateX(0);
+}
 
 .see-all {
   display: inline-block;
@@ -106,6 +166,67 @@
 }
 .see-all:hover {
   text-decoration: underline;
+}
+
+// ───────────────── Distribución de la bandeja ─────────────────
+.dist {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+.dist-row {
+  display: grid;
+  grid-template-columns: 84px 1fr auto;
+  align-items: center;
+  gap: var(--space-3);
+}
+.dist-label {
+  font-size: var(--font-size-xs);
+  color: var(--text-secondary);
+}
+.dist-track {
+  height: 8px;
+  border-radius: var(--radius-pill);
+  background: var(--surface-sunken);
+  overflow: hidden;
+}
+.dist-fill {
+  display: block;
+  height: 100%;
+  min-width: 3px; // un hilo visible aunque el valor sea muy chico
+  border-radius: var(--radius-pill);
+}
+.dist-fill.tone-info {
+  background: var(--status-info);
+}
+.dist-fill.tone-warning {
+  background: var(--status-warning);
+}
+.dist-fill.tone-ok {
+  background: var(--status-ok);
+}
+.dist-val {
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-medium);
+  color: var(--text-primary);
+}
+.dist-foot {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin-top: var(--space-4);
+  padding-top: var(--space-3);
+  border-top: 1px solid var(--border-subtle);
+}
+
+// ───────────────── Teaser del resumen del modelo ─────────────────
+.ai-teaser-text {
+  margin: 0 0 var(--space-3);
+  font-size: var(--font-size-body);
+  color: var(--text-secondary);
 }
 
 // ───────────────── Responsive ─────────────────

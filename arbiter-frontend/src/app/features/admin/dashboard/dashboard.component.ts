@@ -2,6 +2,7 @@ import { ChangeDetectionStrategy, Component, signal } from '@angular/core';
 
 import { CardComponent } from '../../../shared/ui/card/card.component';
 import { MenuButtonComponent, MenuItem } from '../../../shared/ui/menu-button/menu-button.component';
+import { staggerReveal } from '../../../shared/animations';
 
 /** Un KPI del encabezado. `tone` sólo para la tarjeta que comunica alerta (fraude). */
 interface Stat {
@@ -35,6 +36,7 @@ interface RiesgoSlice {
   selector: 'app-dashboard',
   imports: [CardComponent, MenuButtonComponent],
   changeDetection: ChangeDetectionStrategy.OnPush,
+  animations: [staggerReveal],
   templateUrl: './dashboard.component.html',
   styleUrl: './dashboard.component.scss',
 })

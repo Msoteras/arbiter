@@ -32,6 +32,8 @@ import { BadgeComponent } from '../../../shared/ui/badge/badge.component';
 import { ModalComponent } from '../../../shared/ui/modal/modal.component';
 import { TextareaComponent } from '../../../shared/ui/textarea/textarea.component';
 import { MenuButtonComponent, MenuItem } from '../../../shared/ui/menu-button/menu-button.component';
+import { InlineLoadingComponent } from '../../../shared/ui/inline-loading/inline-loading.component';
+import { fadeInUp, staggerReveal, tabSwitch } from '../../../shared/animations';
 
 type LoadState =
   | { status: 'loading' }
@@ -59,8 +61,10 @@ interface FieldItem { label: string; value: string | null; mono?: boolean; full?
     ModalComponent,
     TextareaComponent,
     MenuButtonComponent,
+    InlineLoadingComponent,
   ],
   changeDetection: ChangeDetectionStrategy.OnPush,
+  animations: [fadeInUp, staggerReveal, tabSwitch],
   templateUrl: './expediente-detail.component.html',
   styleUrl: './expediente-detail.component.scss',
 })

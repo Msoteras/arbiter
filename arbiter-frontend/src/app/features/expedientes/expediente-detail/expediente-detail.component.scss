@@ -104,6 +104,14 @@
 .det-content { padding: var(--space-5) var(--space-6) var(--space-7); }
 .state-wrap { padding: var(--space-5); max-width: 760px; }
 
+// Carga del expediente: spinner centrado en la página (no arriba a un costado).
+.detail-loading {
+  min-height: 70vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
 .note { margin: var(--space-1) 0 0; font-size: var(--font-size-xs); color: var(--text-muted); }
 
 /* ===== Resumen ===== */

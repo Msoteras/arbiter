@@ -1,23 +1,20 @@
-@if (loading()) {
-  <app-loading message="Estamos cargando la información de tus expedientes" />
-} @else {
-  <div class="portal" @staggerReveal>
-    <header class="portal-head">
-      <div class="portal-head-text">
-        <span class="t-section-label eyebrow">Portal del asegurado</span>
-        <h1 class="t-hero-title">Mis siniestros</h1>
-        @if (!needsIdentity() && !loading() && !hasError() && !isEmpty()) {
-          <p class="portal-sub">
-            {{ cases().length }} {{ cases().length === 1 ? 'siniestro' : 'siniestros' }} en curso
-          </p>
-        }
-      </div>
-      @if (!needsIdentity()) {
-        <app-button (click)="nuevaDenuncia()">+ Nueva denuncia</app-button>
+<div class="portal" @staggerReveal>
+  <header class="portal-head">
+    <div class="portal-head-text">
+      <span class="t-section-label eyebrow">Portal del asegurado</span>
+      <h1 class="t-hero-title">Mis siniestros</h1>
+      @if (!needsIdentity() && !loading() && !hasError() && !isEmpty()) {
+        <p class="portal-sub">
+          {{ cases().length }} {{ cases().length === 1 ? 'siniestro' : 'siniestros' }} en curso
+        </p>
       }
-    </header>
+    </div>
+    @if (!needsIdentity()) {
+      <app-button (click)="nuevaDenuncia()">+ Nueva denuncia</app-button>
+    }
+  </header>
 
-    @if (needsIdentity()) {
+  @if (needsIdentity()) {
       <!-- Identificación provisoria: cuando se integre Auth0, esto desaparece
          y la identidad sale del JWT. -->
       <app-card class="identify-card" heading="Identificate para ver tus siniestros">
@@ -34,6 +31,10 @@
           <app-button type="submit" [disabled]="!identityInput().trim()">Ingresar</app-button>
         </form>
       </app-card>
+    } @else if (loading()) {
+      <!-- Carga en el lugar del listado: la barra superior del portal queda visible; no se tapa
+           la pantalla entera (esa se reserva al arranque login → home). -->
+      <app-inline-loading message="Cargando tus siniestros…" />
     } @else if (hasError()) {
       <app-card>
         <p class="t-note">No se pudieron cargar tus siniestros. Probá de nuevo en unos minutos.</p>
@@ -45,7 +46,7 @@
         <app-button (click)="nuevaDenuncia()">+ Registrar una denuncia</app-button>
       </app-card>
     } @else {
-      <ul class="case-list">
+      <ul class="case-list" @listStagger>
         <!-- El track combina aseguradora + id: el id solo se repite entre compañías, y con dos
            siniestros "#4" Angular reusaría la misma fila para los dos. -->
         @for (c of cases(); track c.insurerSlug + '-' + c.id) {
@@ -87,4 +88,3 @@
       </ul>
     }
   </div>
-}

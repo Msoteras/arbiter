@@ -20,6 +20,7 @@ import { EmptyStateComponent } from '../../../shared/ui/empty-state/empty-state.
 import { InputComponent } from '../../../shared/ui/input/input.component';
 import { ScoringConfigComponent } from '../scoring-config/scoring-config.component';
 import { StringListEditorComponent } from './string-list-editor.component';
+import { fadeInUp, listStagger, staggerReveal } from '../../../shared/animations';
 
 type TabId = 'coberturas' | 'fastTrack' | 'documentacion' | 'reglas';
 
@@ -46,6 +47,7 @@ type TabId = 'coberturas' | 'fastTrack' | 'documentacion' | 'reglas';
     StringListEditorComponent,
   ],
   changeDetection: ChangeDetectionStrategy.OnPush,
+  animations: [staggerReveal, listStagger, fadeInUp],
   templateUrl: './reglas.component.html',
   styleUrl: './reglas.component.scss',
 })

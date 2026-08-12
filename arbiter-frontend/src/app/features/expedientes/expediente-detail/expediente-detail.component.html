@@ -1,5 +1,5 @@
 @if (data(); as d) {
-  <header class="det-header">
+  <header class="det-header" @fadeInUp>
     <a class="back-link" routerLink="/inbox">
       <span class="back-arrow" aria-hidden="true">‹</span> Volver a mis expedientes
     </a>
@@ -25,7 +25,7 @@
 
   <main class="det-content">
     <!-- Reasoning cards (orden de razonamiento) -->
-    <div class="reasoning">
+    <div class="reasoning" @staggerReveal>
       <app-card class="rcard reco" variant="ai" icon="✦" heading="Recomendación de Arbiter">
         @if (classificationLabel()) {
           <div class="reco-body">
@@ -100,6 +100,7 @@
       }
     </nav>
 
+    <div class="tab-panel" [@tabSwitch]="activeTab()">
     @switch (activeTab()) {
 
       <!-- ============ RESUMEN ============ -->
@@ -277,9 +278,10 @@
         }
       }
     }
+    </div>
   </main>
 } @else if (loading()) {
-  <div class="state-wrap"><app-card><p class="t-note">Cargando expediente…</p></app-card></div>
+  <div class="detail-loading"><app-inline-loading [size]="32" message="Cargando expediente…" /></div>
 } @else if (hasError()) {
   <div class="state-wrap">
     <app-card>

@@ -13,6 +13,7 @@ import {
 import { CardComponent } from '../../../../shared/ui/card/card.component';
 import { EmptyStateComponent } from '../../../../shared/ui/empty-state/empty-state.component';
 import { SeverityLabelComponent } from '../../../../shared/ui/severity-label/severity-label.component';
+import { SpinnerComponent } from '../../../../shared/ui/spinner/spinner.component';
 
 /** Mismo diccionario tipo→label que doc-upload / nueva-denuncia (H0009 no agrega tipos nuevos). */
 const DOC_TYPE_LABELS: Record<string, string> = {
@@ -37,7 +38,7 @@ const DOC_TYPE_LABELS: Record<string, string> = {
  */
 @Component({
   selector: 'app-forensic-analysis',
-  imports: [DecimalPipe, CardComponent, EmptyStateComponent, SeverityLabelComponent],
+  imports: [DecimalPipe, CardComponent, EmptyStateComponent, SeverityLabelComponent, SpinnerComponent],
   changeDetection: ChangeDetectionStrategy.OnPush,
   templateUrl: './forensic-analysis.component.html',
   styleUrl: './forensic-analysis.component.scss',

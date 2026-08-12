@@ -13,8 +13,8 @@ import { CardComponent } from '../../../shared/ui/card/card.component';
 import { BadgeComponent } from '../../../shared/ui/badge/badge.component';
 import { ButtonComponent } from '../../../shared/ui/button/button.component';
 import { InputComponent } from '../../../shared/ui/input/input.component';
-import { LoadingComponent } from '../../../shared/ui/loading/loading.component';
-import { staggerReveal } from '../../../shared/animations';
+import { InlineLoadingComponent } from '../../../shared/ui/inline-loading/inline-loading.component';
+import { listStagger, staggerReveal } from '../../../shared/animations';
 
 type LoadState =
   | { status: 'idle' }
@@ -36,9 +36,9 @@ type LoadState =
     BadgeComponent,
     ButtonComponent,
     InputComponent,
-    LoadingComponent,
+    InlineLoadingComponent,
   ],
-  animations: [staggerReveal],
+  animations: [staggerReveal, listStagger],
   templateUrl: './mis-expedientes.component.html',
   styleUrl: './mis-expedientes.component.scss',
 })
