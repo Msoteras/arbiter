@@ -14,10 +14,15 @@ import { SpinnerComponent } from '../spinner/spinner.component';
   template: `
     <div class="loading" role="status" aria-live="polite">
       <app-spinner [size]="72" />
-      <p class="msg">
-        {{ message()
-        }}<span class="dots" aria-hidden="true"><span>.</span><span>.</span><span>.</span></span>
-      </p>
+      <div class="loading-text">
+        <p class="msg">
+          {{ message()
+          }}<span class="dots" aria-hidden="true"><span>.</span><span>.</span><span>.</span></span>
+        </p>
+        @if (sub()) {
+          <p class="sub">{{ sub() }}</p>
+        }
+      </div>
     </div>
   `,
   styles: `
@@ -41,10 +46,21 @@ import { SpinnerComponent } from '../spinner/spinner.component';
       padding: var(--space-6);
       text-align: center;
     }
+    .loading-text {
+      display: flex;
+      flex-direction: column;
+      gap: var(--space-1);
+      align-items: center;
+    }
     .msg {
       font-size: var(--font-size-md);
       font-weight: var(--font-weight-medium);
       color: var(--text-secondary);
+    }
+    /* Segunda línea, tenue: una cortesía ("Aguardá un momento") bajo el mensaje principal. */
+    .sub {
+      font-size: var(--font-size-sm);
+      color: var(--text-muted);
     }
     /* Los tres puntos que laten mientras carga. */
     .dots span {
@@ -74,6 +90,8 @@ import { SpinnerComponent } from '../spinner/spinner.component';
   `,
 })
 export class LoadingComponent {
-  /** Mensaje contextual, ej. "Estamos cargando tus expedientes". */
+  /** Mensaje contextual, ej. "Preparando tu espacio de trabajo". */
   readonly message = input('Cargando');
+  /** Segunda línea opcional, tenue (ej. "Aguardá un momento"). */
+  readonly sub = input('');
 }

@@ -20,6 +20,7 @@ import { EmptyStateComponent } from '../../../shared/ui/empty-state/empty-state.
 import { InputComponent } from '../../../shared/ui/input/input.component';
 import { ScoringConfigComponent } from '../scoring-config/scoring-config.component';
 import { StringListEditorComponent } from './string-list-editor.component';
+import { InlineLoadingComponent } from '../../../shared/ui/inline-loading/inline-loading.component';
 import { fadeInUp, listStagger, staggerReveal } from '../../../shared/animations';
 
 type TabId = 'coberturas' | 'fastTrack' | 'documentacion' | 'reglas';
@@ -45,6 +46,7 @@ type TabId = 'coberturas' | 'fastTrack' | 'documentacion' | 'reglas';
     InputComponent,
     ScoringConfigComponent,
     StringListEditorComponent,
+    InlineLoadingComponent,
   ],
   changeDetection: ChangeDetectionStrategy.OnPush,
   animations: [staggerReveal, listStagger, fadeInUp],
@@ -99,6 +101,7 @@ export class ReglasComponent {
   protected readonly activeTab = signal<TabId>('coberturas');
 
   protected readonly ramos = signal<RamoRules[]>([]);
+  protected readonly ramosLoading = signal(true);
   protected readonly selectedId = signal<string | null>(null);
   // Qué muestra el panel derecho: el detalle del ramo seleccionado ('ramo') o el scoring de la
   // aseguradora ('scoring'), que no pertenece a ningún ramo y se elige desde su propio recuadro.
@@ -108,12 +111,16 @@ export class ReglasComponent {
   constructor() {
     // La lista sale del catálogo real de ramos (tabla branch). Cada ramo arranca como un shell
     // (solo id + nombre); el detalle de cada solapa se carga del backend al seleccionarlo.
-    this.branchesService.list().subscribe((branches) => {
-      const ramos = branches.map((b) => this.shellFromBranch(b));
-      this.ramos.set(ramos);
-      if (ramos.length > 0) {
-        this.select(ramos[0]);
-      }
+    this.branchesService.list().subscribe({
+      next: (branches) => {
+        const ramos = branches.map((b) => this.shellFromBranch(b));
+        this.ramos.set(ramos);
+        this.ramosLoading.set(false);
+        if (ramos.length > 0) {
+          this.select(ramos[0]);
+        }
+      },
+      error: () => this.ramosLoading.set(false),
     });
   }
 

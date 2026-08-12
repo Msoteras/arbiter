@@ -8,18 +8,22 @@
     <div class="master-col">
     <!-- ───────── Master: ramos ───────── -->
     <app-card class="list-card" heading="Ramos">
-      <ul class="ramo-list" @listStagger>
-        @for (r of ramos(); track r.id) {
-          <li>
-            <button type="button" class="ramo-item" [class.active]="isSelected(r)" (click)="select(r)">
-              <span class="ramo-name">{{ r.name }}</span>
-              <span class="ramo-meta">{{ r.coverages.length }} coberturas</span>
-            </button>
-          </li>
-        } @empty {
-          <li class="ramo-empty t-note">No hay ramos configurados.</li>
-        }
-      </ul>
+      @if (ramosLoading()) {
+        <app-inline-loading [size]="22" message="Cargando ramos…" />
+      } @else {
+        <ul class="ramo-list" @listStagger>
+          @for (r of ramos(); track r.id) {
+            <li>
+              <button type="button" class="ramo-item" [class.active]="isSelected(r)" (click)="select(r)">
+                <span class="ramo-name">{{ r.name }}</span>
+                <span class="ramo-meta">{{ r.coverages.length }} coberturas</span>
+              </button>
+            </li>
+          } @empty {
+            <li class="ramo-empty t-note">No hay ramos configurados.</li>
+          }
+        </ul>
+      }
     </app-card>
 
     <!-- ───────── Scoring de riesgo: config única por aseguradora, no pertenece a ningún ramo ─────────

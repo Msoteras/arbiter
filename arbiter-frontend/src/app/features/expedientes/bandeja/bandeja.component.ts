@@ -49,7 +49,7 @@ import {
   MenuItem,
 } from '../../../shared/ui/menu-button/menu-button.component';
 import { InlineLoadingComponent } from '../../../shared/ui/inline-loading/inline-loading.component';
-import { fadeStagger } from '../../../shared/animations';
+import { fadeStagger, staggerReveal } from '../../../shared/animations';
 
 // Campos por los que GET /api/v1/cases acepta ordenar (propiedades reales de la entidad Case
 // en cases-service — Spring Data ordena por propiedad JPA, no por nombre de columna SQL).
@@ -79,12 +79,13 @@ type LoadState =
 
 /**
  * Lente de pertenencia de la bandeja del analista:
- *  - `mine`       → asignados al usuario logueado
+ *  - `mine`       → asignados al usuario logueado (solo analista)
  *  - `all`        → sin recorte por analista
+ *  - `assigned`   → con analista, sin importar quién (bandeja del referente)
  *  - `unassigned` → sin analista todavía
  *  - `fraud`      → con alerta de fraude (riesgo alto/crítico)
  */
-type Lens = 'mine' | 'all' | 'unassigned' | 'fraud';
+type Lens = 'mine' | 'all' | 'assigned' | 'unassigned' | 'fraud';
 
 @Component({
   selector: 'app-bandeja',
@@ -102,7 +103,7 @@ type Lens = 'mine' | 'all' | 'unassigned' | 'fraud';
     InlineLoadingComponent,
   ],
   changeDetection: ChangeDetectionStrategy.OnPush,
-  animations: [fadeStagger],
+  animations: [fadeStagger, staggerReveal],
   templateUrl: './bandeja.component.html',
   styleUrl: './bandeja.component.scss',
 })
@@ -187,6 +188,7 @@ export class BandejaComponent {
   private readonly viewFilters = computed<ExpedienteListParams>(() => ({
     ...this.activeFilters(),
     assignedToMe: this.lens() === 'mine',
+    assigned: this.lens() === 'assigned',
     unassigned: this.lens() === 'unassigned',
     fraudAlert: this.lens() === 'fraud',
   }));
@@ -277,20 +279,24 @@ export class BandejaComponent {
           all: this.service
             .list({ ...filters, page: 0, size: 1 })
             .pipe(map((p) => p.totalElements)),
+          assigned: this.service
+            .list({ ...filters, assigned: true, page: 0, size: 1 })
+            .pipe(map((p) => p.totalElements)),
           unassigned: this.service
             .list({ ...filters, unassigned: true, page: 0, size: 1 })
             .pipe(map((p) => p.totalElements)),
           fraud: this.service
             .list({ ...filters, fraudAlert: true, page: 0, size: 1 })
             .pipe(map((p) => p.totalElements)),
-        }).pipe(catchError(() => of({ mine: 0, all: 0, unassigned: 0, fraud: 0 }))),
+        }).pipe(catchError(() => of({ mine: 0, all: 0, assigned: 0, unassigned: 0, fraud: 0 }))),
       ),
     ),
-    { initialValue: { mine: 0, all: 0, unassigned: 0, fraud: 0 } },
+    { initialValue: { mine: 0, all: 0, assigned: 0, unassigned: 0, fraud: 0 } },
   );
 
   protected readonly mineCount = computed(() => this.counts().mine);
   protected readonly allCount = computed(() => this.counts().all);
+  protected readonly assignedCount = computed(() => this.counts().assigned);
   protected readonly unassignedCount = computed(() => this.counts().unassigned);
   protected readonly fraudCount = computed(() => this.counts().fraud);
 
@@ -527,6 +533,11 @@ export class BandejaComponent {
    */
   protected readonly canAssign = computed(
     () => this.session.session()?.rol === 'ANALISTA_SINIESTROS',
+  );
+
+  /** El referente ve la bandeja de supervisión: sin "Míos", pero con lentes de asignación/fraude. */
+  protected readonly isReferente = computed(
+    () => this.session.session()?.rol === 'REFERENTE_ASEGURADORA',
   );
 
   protected isMine(c: ExpedienteResponse): boolean {

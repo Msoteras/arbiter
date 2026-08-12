@@ -54,20 +54,22 @@ public interface CaseService {
      * se resuelve acá contra el token, no lo manda el frontend. Para un rol sin perfil de
      * analista en el tenant (el referente) la lente devuelve vacío, no todo.
      *
-     * <p>{@code unassigned} (lente "Sin asignar": expedientes sin analista) y {@code fraudAlert}
-     * (lente "Alerta de fraude": riesgo HIGH/CRITICAL) son las otras dos lentes de la bandeja.
-     * A diferencia de {@code assignedToMe}, no dependen del "yo": son filtros booleanos puros.
+     * <p>{@code unassigned} (lente "Sin asignar": expedientes sin analista), {@code assigned}
+     * (lente "Asignados": con analista, la bandeja del referente) y {@code fraudAlert} (lente
+     * "Alerta de fraude": riesgo HIGH/CRITICAL) son las otras lentes de la bandeja. A diferencia de
+     * {@code assignedToMe}, no dependen del "yo": son filtros booleanos puros.
      */
     Page<CaseResponse> listCases(CaseStatus status, String claimCause, String policyNumber, String insuredId,
                                   LocalDate eventDateFrom, LocalDate eventDateTo, String q, RiskBand riskBand,
-                                  boolean assignedToMe, boolean unassigned, boolean fraudAlert, Pageable pageable);
+                                  boolean assignedToMe, boolean unassigned, boolean fraudAlert, boolean assigned,
+                                  Pageable pageable);
 
-    /** Overload para las lentes "Míos"/"Todos" (sin "sin asignar" ni "alerta de fraude"). */
+    /** Overload para las lentes "Míos"/"Todos" (sin las lentes de asignación ni alerta de fraude). */
     default Page<CaseResponse> listCases(CaseStatus status, String claimCause, String policyNumber, String insuredId,
                                           LocalDate eventDateFrom, LocalDate eventDateTo, String q, RiskBand riskBand,
                                           boolean assignedToMe, Pageable pageable) {
         return listCases(status, claimCause, policyNumber, insuredId, eventDateFrom, eventDateTo, q, riskBand,
-                assignedToMe, false, false, pageable);
+                assignedToMe, false, false, false, pageable);
     }
 
     CaseResponse addDocumentsAndReclassify(Long caseId, Map<String, MultipartFile> documents);

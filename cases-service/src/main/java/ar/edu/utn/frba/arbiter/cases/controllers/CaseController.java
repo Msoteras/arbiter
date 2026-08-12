@@ -120,11 +120,12 @@ public class CaseController {
             @RequestParam(defaultValue = "false") boolean assignedToMe,
             @RequestParam(defaultValue = "false") boolean unassigned,
             @RequestParam(defaultValue = "false") boolean fraudAlert,
+            @RequestParam(defaultValue = "false") boolean assigned,
             @PageableDefault(size = 20, sort = "id", direction = Sort.Direction.DESC) Pageable pageable
     ) {
         Page<CaseResponse> response = caseService.listCases(
                 status, claimCause, policyNumber, insuredId, eventDateFrom, eventDateTo, q, riskBand,
-                assignedToMe, unassigned, fraudAlert, pageable);
+                assignedToMe, unassigned, fraudAlert, assigned, pageable);
         return ResponseEntity.ok(response);
     }
 

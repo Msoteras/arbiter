@@ -1,4 +1,4 @@
-<div class="bandeja">
+<div class="bandeja" @staggerReveal>
   <header class="bandeja-head">
     <div class="bandeja-head-text">
       <h1 class="t-page-title">Bandeja de expedientes</h1>
@@ -86,6 +86,52 @@
         (click)="setLens('fraud')"
       >
         <span class="lens-alert-mark" aria-hidden="true">▲</span> Alerta de fraude
+        <span class="lens-count">{{ fraudCount() }}</span>
+      </button>
+    </div>
+  } @else if (isReferente()) {
+    <!-- El referente supervisa toda la operación: no tiene "Míos" (no le asignan expedientes),
+         pero sí lentes de asignación y de fraude sobre todo el caseload de la aseguradora. -->
+    <div class="lens" role="tablist" aria-label="Expedientes a mostrar">
+      <button
+        type="button"
+        role="tab"
+        class="lens-tab"
+        [class.active]="lens() === 'all'"
+        [attr.aria-selected]="lens() === 'all'"
+        (click)="setLens('all')"
+      >
+        Todos <span class="lens-count">{{ allCount() }}</span>
+      </button>
+      <button
+        type="button"
+        role="tab"
+        class="lens-tab"
+        [class.active]="lens() === 'assigned'"
+        [attr.aria-selected]="lens() === 'assigned'"
+        (click)="setLens('assigned')"
+      >
+        Asignados <span class="lens-count">{{ assignedCount() }}</span>
+      </button>
+      <button
+        type="button"
+        role="tab"
+        class="lens-tab"
+        [class.active]="lens() === 'unassigned'"
+        [attr.aria-selected]="lens() === 'unassigned'"
+        (click)="setLens('unassigned')"
+      >
+        Sin asignar <span class="lens-count">{{ unassignedCount() }}</span>
+      </button>
+      <button
+        type="button"
+        role="tab"
+        class="lens-tab lens-tab--alert"
+        [class.active]="lens() === 'fraud'"
+        [attr.aria-selected]="lens() === 'fraud'"
+        (click)="setLens('fraud')"
+      >
+        <span class="lens-alert-mark" aria-hidden="true">▲</span> Riesgo de fraude
         <span class="lens-count">{{ fraudCount() }}</span>
       </button>
     </div>

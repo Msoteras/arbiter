@@ -28,7 +28,7 @@ public final class CaseSpecifications {
     public static Specification<Case> withFilters(CaseStatus status, String claimCause, String policyNumber,
                                                     String insuredId, LocalDate eventDateFrom, LocalDate eventDateTo,
                                                     String q, RiskBand riskBand, Long analystId,
-                                                    boolean unassigned, boolean fraudAlert) {
+                                                    boolean unassigned, boolean fraudAlert, boolean assigned) {
         return Stream.of(
                         status(status),
                         claimCause(claimCause),
@@ -40,19 +40,20 @@ public final class CaseSpecifications {
                         riskBand(riskBand),
                         analystId(analystId),
                         unassigned(unassigned),
-                        fraudAlert(fraudAlert)
+                        fraudAlert(fraudAlert),
+                        assigned(assigned)
                 )
                 .filter(Objects::nonNull)
                 .reduce(Specification::and)
                 .orElse(null); // sin filtros: JpaSpecificationExecutor trata null como "sin restricción"
     }
 
-    /** Overload para las lentes "Míos"/"Todos" (sin "sin asignar" ni "alerta de fraude"). */
+    /** Overload para las lentes "Míos"/"Todos" (sin las lentes de asignación ni alerta de fraude). */
     public static Specification<Case> withFilters(CaseStatus status, String claimCause, String policyNumber,
                                                     String insuredId, LocalDate eventDateFrom, LocalDate eventDateTo,
                                                     String q, RiskBand riskBand, Long analystId) {
         return withFilters(status, claimCause, policyNumber, insuredId, eventDateFrom, eventDateTo, q,
-                riskBand, analystId, false, false);
+                riskBand, analystId, false, false, false);
     }
 
     private static Specification<Case> status(CaseStatus status) {
@@ -101,6 +102,15 @@ public final class CaseSpecifications {
     private static Specification<Case> unassigned(boolean unassigned) {
         return !unassigned ? null
                 : (root, query, cb) -> cb.isNull(root.get("analyst"));
+    }
+
+    /**
+     * Lente "Asignados" (bandeja del referente): expedientes que ya tienen dueño ({@code analyst
+     * IS NOT NULL}), sin importar quién. Complemento de {@link #unassigned}.
+     */
+    private static Specification<Case> assigned(boolean assigned) {
+        return !assigned ? null
+                : (root, query, cb) -> cb.isNotNull(root.get("analyst"));
     }
 
     /**
