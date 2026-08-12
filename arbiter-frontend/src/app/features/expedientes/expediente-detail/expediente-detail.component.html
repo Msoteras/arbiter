@@ -232,7 +232,7 @@
                 <span class="t-field-label">Cómo se compone el score</span>
                 <table class="breakdown-table">
                   <thead>
-                    <tr><th>Factor</th><th>Aporte</th></tr>
+                    <tr><th>Factor</th><th>Aporte al score</th></tr>
                   </thead>
                   <tbody>
                     @for (item of riskBreakdown(); track item.factorId) {
@@ -243,14 +243,12 @@
                             <span class="factor-rationale">{{ item.rationale }}</span>
                           }
                         </td>
-                        <td class="factor-contrib">
-                          +{{ pct(item.weightedContribution) }}%
-                          <span class="factor-detail">({{ pct(item.rawScore) }}% × peso {{ item.weight }})</span>
-                        </td>
+                        <td class="factor-contrib">+{{ aporteAlScore(item) }}</td>
                       </tr>
                     }
                   </tbody>
                 </table>
+                <span class="factor-detail">Cada factor aporta una parte; los aportes suman el score ({{ scorePct }}).</span>
               </div>
             }
           } @else {

@@ -159,12 +159,30 @@ export class ExpedienteDetailComponent {
     return [...items].sort((a, b) => b.weightedContribution - a.weightedContribution);
   });
 
+  /** Suma de los aportes crudos del breakdown; denominador para normalizar cada aporte. */
+  private readonly weightedSum = computed<number>(() =>
+    this.riskBreakdown().reduce((sum, item) => sum + item.weightedContribution, 0),
+  );
+
   protected factorLabel(factorId: string): string {
     return riskFactorLabel(factorId);
   }
 
   protected pct(value: number): number {
     return Math.round(value * 100);
+  }
+
+  /**
+   * Aporte de un factor AL score, en la misma escala 0–100 que el score que ve el analista. El
+   * backend guarda el aporte crudo (rawScore × peso) sin normalizar, pero el score final se divide
+   * por la suma de pesos; sin re-normalizar acá, los aportes por factor no sumarían el score de
+   * arriba. Con esto sí: la columna suma exactamente el score. No se muestra el peso crudo — es
+   * config relativa del referente y al analista solo le importa cuánto empujó cada factor ESTE score.
+   */
+  protected aporteAlScore(item: RiskBreakdownItem): number {
+    const total = this.weightedSum();
+    const score = this.data()?.riskScore ?? 0;
+    return total === 0 ? 0 : Math.round((item.weightedContribution / total) * score * 100);
   }
 
   protected readonly classificationLabel = computed(() => {
