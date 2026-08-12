@@ -104,6 +104,15 @@ export class App {
     return url === '/home' || url === '/insurer/home' ? 'Inicio' : '';
   });
 
+  // En el detalle de un expediente (/cases/:id) la topbar muestra "Volver a la bandeja" a la
+  // izquierda, en vez del título — el detalle ya trae su propio encabezado con el N° de expediente.
+  protected readonly showBack = computed(() =>
+    this.currentUrl().split('?')[0].startsWith('/cases/'),
+  );
+  protected goBack(): void {
+    this.router.navigateByUrl('/inbox');
+  }
+
   // La campana abre un panel de notificaciones. Hoy el productor real (polling/SSE) no está
   // cableado y el contador siempre es 0, así que el panel muestra el vacío honesto en vez de
   // un ícono decorativo que no hacía nada (ver bug #4 del relevamiento de UX).
