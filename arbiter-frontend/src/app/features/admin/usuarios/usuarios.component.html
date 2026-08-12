@@ -58,12 +58,14 @@
                   (click)="resendInvite(u)"
                 >{{ resendingId() === u.id ? 'Reenviando…' : 'Reenviar invitación' }}</app-button>
               }
-              <app-button
-                variant="secondary"
-                [disabled]="isSelf(u)"
-                [title]="isSelf(u) ? 'No podés eliminar tu propia cuenta' : ''"
-                (click)="requestDelete(u)"
-              >Eliminar</app-button>
+              <!-- El title va acá: deshabilitado, app-button no recibe hover. -->
+              <span [title]="isSelf(u) ? 'No podés eliminar tu propia cuenta' : ''">
+                <app-button
+                  variant="secondary"
+                  [disabled]="isSelf(u)"
+                  (click)="requestDelete(u)"
+                >Eliminar</app-button>
+              </span>
             </td>
           </tr>
         }

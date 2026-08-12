@@ -9,6 +9,7 @@ import ar.edu.utn.frba.arbiter.common.dto.ImageForensicReport.WebFinding;
 import org.junit.jupiter.api.Test;
 
 import java.util.List;
+import java.util.Map;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -18,7 +19,7 @@ class ImageEvaluatorsTest {
     private final ImageWebMatchEvaluator web = new ImageWebMatchEvaluator();
 
     private static RiskContext ctx(ImageForensicReport report) {
-        return new RiskContext(null, null, null, null, report);
+        return new RiskContext(null, null, null, null, report, Map.of());
     }
 
     private static ImageFinding finding(List<InternalMatch> internal, WebFinding webFinding) {

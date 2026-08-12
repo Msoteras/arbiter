@@ -71,7 +71,7 @@ class ClassificationResultsServiceTest {
     @Test
     void scoredClaim_persistsRiskAnalysis() {
         RiskScore score = new RiskScore(true, 0.72, RiskBand.HIGH,
-                List.of(new RiskBreakdownItem("amount_ratio", 0.9, 0.45, 0.405, "monto alto")));
+                List.of(new RiskBreakdownItem("amount_ratio", 0.9, 0.45, 0.405, "monto alto")), 3L);
 
         service.saveResult(7L, response(score), null, 120);
 
@@ -82,6 +82,27 @@ class ClassificationResultsServiceTest {
         assertThat(saved.getRiskScore()).isEqualByComparingTo("0.720");
         assertThat(saved.getRiskBand()).isEqualTo(RiskBand.HIGH);
         assertThat(saved.getRiskBreakdown()).isEqualTo(score.breakdown());
+    }
+
+    /** D29 · con qué configuración se calculó el score, para poder explicarlo después. */
+    @Test
+    void scoredClaim_recordsWhichScoringConfigurationWasUsed() {
+        RiskScore score = new RiskScore(true, 0.72, RiskBand.HIGH, List.of(), 3L);
+
+        service.saveResult(7L, response(score), null, 120);
+
+        verify(caseOutcomeRepository).saveScoringConfiguration(7L, 3L);
+    }
+
+    /** El baseline no es una fila de {@code scoring_configuration}: no hay id que apuntar. */
+    @Test
+    void baselineScore_recordsNoScoringConfiguration() {
+        RiskScore score = new RiskScore(true, 0.72, RiskBand.HIGH, List.of(), null);
+
+        service.saveResult(7L, response(score), null, 120);
+
+        verify(caseOutcomeRepository, never()).saveScoringConfiguration(
+                org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.any());
     }
 
     @Test

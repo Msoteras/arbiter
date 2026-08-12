@@ -125,11 +125,16 @@ public class RulesRestAdapter implements RulesAdapter {
                 log.debug("[RulesRestAdapter] No coverage limits in DB for coverage {} — using baseline", coverageId);
                 return rules;
             }
-            log.info("[RulesRestAdapter] Coverage limits loaded for coverage {} — deadlineHours={} maxEventsPerYear={}",
-                    coverageId, limits.reportDeadlineHours(), limits.maxEventsPerYear());
+            log.info("[RulesRestAdapter] Coverage limits loaded for coverage {} — deadlineHours={} "
+                            + "maxEventsPerYear={} waitingPeriodDays={}",
+                    coverageId, limits.reportDeadlineHours(), limits.maxEventsPerYear(),
+                    limits.waitingPeriodDays());
             return rules.toBuilder()
                     .reportDeadlineHours(limits.reportDeadlineHours())
                     .maxEventsPerYear(limits.maxEventsPerYear())
+                    .waitingPeriodDays(limits.waitingPeriodDays())
+                    .coversFamilyGroup(limits.coversFamilyGroup())
+                    .claimExhaustsCoverage(limits.claimExhaustsCoverage())
                     .build();
         } catch (Exception e) {
             log.warn("[RulesRestAdapter] rules-service unavailable for coverage limits of coverage {} — baseline: {}",
@@ -192,11 +197,20 @@ public class RulesRestAdapter implements RulesAdapter {
                 return base;
             }
             log.info("[RulesRestAdapter] Fast Track thresholds loaded from rules-service for coverage {}", coverageId);
-            return base.toBuilder()
+            BusinessRules.BusinessRulesBuilder overlaid = base.toBuilder()
                     .fastTrackThresholds(new BusinessRules.FastTrackThresholds(
                             ft.maxClaimedAmountRatio(), ft.maxPriorClaims(),
-                            ft.requiresUpToDatePolicy(), ft.requiredDocumentTypes()))
-                    .build();
+                            ft.priorClaimsWindowMonths(), ft.minPolicyAgeMonths(),
+                            ft.requiresUpToDatePolicy(), ft.requiredDocumentTypes()));
+
+            // Los criterios en castellano se reemplazan junto con los umbrales, no se mezclan: la
+            // lista del mock describía otros números y llegaba al prompt contradiciendo a los que el
+            // referente había configurado. Si guardó una config sin criterios, el prompt va sin la
+            // sección — mejor eso que resucitar un texto que nadie del negocio escribió (D14).
+            if (ft.criteria() != null) {
+                overlaid.fastTrackCriteria(List.copyOf(ft.criteria()));
+            }
+            return overlaid.build();
         } catch (Exception e) {
             log.warn("[RulesRestAdapter] rules-service unavailable for Fast Track of coverage {} — baseline: {}",
                     coverageId, e.getMessage());
@@ -297,15 +311,19 @@ public class RulesRestAdapter implements RulesAdapter {
             List<Long> excludedClaimCauseIds) {}
 
     /** Mirrors rules-service's CoverageLimitsDto (plazo de denuncia + tope de eventos por año). */
-    private record CoverageLimitsResponse(Long reportDeadlineHours, Integer maxEventsPerYear) {
+    private record CoverageLimitsResponse(
+            Long reportDeadlineHours, Integer maxEventsPerYear, Integer waitingPeriodDays,
+            Boolean coversFamilyGroup, Boolean claimExhaustsCoverage) {
 
         boolean isEmpty() {
-            return reportDeadlineHours == null && maxEventsPerYear == null;
+            return reportDeadlineHours == null && maxEventsPerYear == null && waitingPeriodDays == null
+                    && coversFamilyGroup == null && claimExhaustsCoverage == null;
         }
     }
 
     /** Mirrors rules-service's ScoringConfigDto (factores + bandas del scoring de fraude). */
-    private record ScoringResponse(boolean enabled, List<ScoringFactorJson> factors, List<ScoringBandJson> bands) {
+    private record ScoringResponse(Long id, boolean enabled, boolean fullAnalysisOnFastTrack,
+                                   List<ScoringFactorJson> factors, List<ScoringBandJson> bands) {
 
         /** Mapea al ScoringConfig de classification; null si alguna banda no es una RiskBand válida. */
         BusinessRules.ScoringConfig toScoringConfig() {
@@ -328,7 +346,12 @@ public class RulesRestAdapter implements RulesAdapter {
                         .minScoreInclusive(b.minScoreInclusive() == null ? 0.0 : b.minScoreInclusive())
                         .build());
             }
-            return BusinessRules.ScoringConfig.builder().factors(factorWeights).bands(scoreBands).build();
+            return BusinessRules.ScoringConfig.builder()
+                    .id(id)
+                    .factors(factorWeights)
+                    .bands(scoreBands)
+                    .fullAnalysisOnFastTrack(fullAnalysisOnFastTrack)
+                    .build();
         }
     }
 
@@ -340,14 +363,20 @@ public class RulesRestAdapter implements RulesAdapter {
     private record FastTrackResponse(
             Double maxClaimedAmountRatio,
             Integer maxPriorClaims,
+            Integer priorClaimsWindowMonths,
+            Integer minPolicyAgeMonths,
             Boolean requiresUpToDatePolicy,
-            List<String> requiredDocumentTypes) {
+            List<String> requiredDocumentTypes,
+            List<String> criteria) {
 
         boolean isEmpty() {
             return maxClaimedAmountRatio == null
                     && maxPriorClaims == null
+                    && priorClaimsWindowMonths == null
+                    && minPolicyAgeMonths == null
                     && requiresUpToDatePolicy == null
-                    && (requiredDocumentTypes == null || requiredDocumentTypes.isEmpty());
+                    && (requiredDocumentTypes == null || requiredDocumentTypes.isEmpty())
+                    && (criteria == null || criteria.isEmpty());
         }
     }
 }

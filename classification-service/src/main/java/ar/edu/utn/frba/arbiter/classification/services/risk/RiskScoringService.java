@@ -84,8 +84,9 @@ public class RiskScoringService {
         double score = weightedSum / totalWeight;
         RiskBand band = resolveBand(score, config.bands());
 
-        log.info("[RiskScoring] score={} band={} factors={}", String.format("%.3f", score), band, breakdown.size());
-        return new RiskScore(true, score, band, List.copyOf(breakdown));
+        log.info("[RiskScoring] score={} band={} factors={} config={}",
+                String.format("%.3f", score), band, breakdown.size(), config.id());
+        return new RiskScore(true, score, band, List.copyOf(breakdown), config.id());
     }
 
     /** Highest band whose {@code minScoreInclusive <= score}; falls back to the lowest-threshold band. */

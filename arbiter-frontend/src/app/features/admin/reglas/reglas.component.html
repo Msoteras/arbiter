@@ -128,6 +128,41 @@
                         placeholder="Sin límite"
                       />
                     </label>
+                    <label class="fieldset">
+                      <span class="t-field-label">Carencia (días)</span>
+                      <app-input
+                        type="number"
+                        [min]="0"
+                        [value]="coverageWaitingPeriodStr(c)"
+                        (valueChange)="setCoverageWaitingPeriod(c.id, $event)"
+                        placeholder="Sin carencia"
+                      />
+                    </label>
+                  </div>
+                  <p class="section-hint">
+                    Durante la carencia la cobertura todavía no aplica, aunque la póliza esté
+                    vigente: un siniestro dentro de ese plazo no se cubre.
+                  </p>
+
+                  <div class="chips">
+                    <button
+                      type="button"
+                      class="chip"
+                      [class.active]="c.coversFamilyGroup"
+                      [attr.aria-pressed]="c.coversFamilyGroup"
+                      (click)="toggleCoverageFamilyGroup(c)"
+                    >
+                      Alcanza al grupo familiar
+                    </button>
+                    <button
+                      type="button"
+                      class="chip"
+                      [class.active]="c.claimExhaustsCoverage"
+                      [attr.aria-pressed]="c.claimExhaustsCoverage"
+                      (click)="toggleCoverageExhausts(c)"
+                    >
+                      Un siniestro agota la cobertura
+                    </button>
                   </div>
 
                   <div class="cov-excl">
@@ -267,9 +302,9 @@
 
                 <div class="ft-save">
                   <p class="section-hint">
-                    Se persisten en el motor: monto reclamado máx., siniestros previos máx., póliza
-                    al día y documentos exigidos. La antigüedad mínima, la ventana de siniestros y
-                    los criterios descriptivos todavía no llegan al gate.
+                    Los umbrales de arriba son los que decide el motor. Los criterios descriptivos
+                    no deciden: se le pasan al modelo como descripción de la política, así que
+                    conviene que digan lo mismo que los números.
                   </p>
                   <div class="editor-actions">
                     <app-button [disabled]="ftSaving()" (click)="saveFastTrack()">

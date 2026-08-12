@@ -159,12 +159,47 @@ export class ExpedienteDetailComponent {
     return [...items].sort((a, b) => b.weightedContribution - a.weightedContribution);
   });
 
+  /** Suma de los aportes crudos del breakdown; denominador para normalizar cada aporte. */
+  private readonly weightedSum = computed<number>(() =>
+    this.riskBreakdown().reduce((sum, item) => sum + item.weightedContribution, 0),
+  );
+
+  /**
+   * Alcance del score en un Fast Track. En el carril rápido el análisis pesado (documentación +
+   * imágenes) corre solo si la aseguradora lo activó, así que el score puede ser parcial: solo con
+   * factores de datos duros. Detecta si corrió por la presencia del análisis forense o de algún
+   * factor pesado en el desglose. Devuelve null si no es Fast Track o no hay score (no aplica aviso).
+   */
+  protected readonly fastTrackScoreScope = computed<'partial' | 'full' | null>(() => {
+    const d = this.data();
+    if (!d || d.analysisClassification !== 'FAST_TRACK' || d.riskScore == null) {
+      return null;
+    }
+    const heavyFactors = new Set(['image_reuse', 'image_web_match', 'document_inconsistency']);
+    const ranHeavy =
+      !!d.forensicReport || (d.riskBreakdown ?? []).some((i) => heavyFactors.has(i.factorId));
+    return ranHeavy ? 'full' : 'partial';
+  });
+
   protected factorLabel(factorId: string): string {
     return riskFactorLabel(factorId);
   }
 
   protected pct(value: number): number {
     return Math.round(value * 100);
+  }
+
+  /**
+   * Aporte de un factor AL score, en la misma escala 0–100 que el score que ve el analista. El
+   * backend guarda el aporte crudo (rawScore × peso) sin normalizar, pero el score final se divide
+   * por la suma de pesos; sin re-normalizar acá, los aportes por factor no sumarían el score de
+   * arriba. Con esto sí: la columna suma exactamente el score. No se muestra el peso crudo — es
+   * config relativa del referente y al analista solo le importa cuánto empujó cada factor ESTE score.
+   */
+  protected aporteAlScore(item: RiskBreakdownItem): number {
+    const total = this.weightedSum();
+    const score = this.data()?.riskScore ?? 0;
+    return total === 0 ? 0 : Math.round((item.weightedContribution / total) * score * 100);
   }
 
   protected readonly classificationLabel = computed(() => {
@@ -187,24 +222,23 @@ export class ExpedienteDetailComponent {
     const d = this.data();
     return [
       { label: 'N° de siniestro / denuncia', value: d ? `#${d.id}` : null, mono: true },
-      { label: 'Canal de origen', value: null },
       { label: 'N° de póliza', value: d?.policyNumber ?? null, mono: true },
-      { label: 'N° de certificado', value: null, mono: true },
       { label: 'Rama', value: d?.branch ?? null },
       { label: 'Producto', value: d?.product ?? null },
       { label: 'Asegurado', value: d?.insuredName ?? null },
       { label: 'DNI', value: d?.insuredId ?? null, mono: true },
-      { label: 'Tomador', value: null },
+      // Declaración UIF/PLA del propio asegurado, junto al resto de sus datos: es donde el analista
+      // la busca. "No" es un valor, no la ausencia de dato, así que no cae en el `?? null` que el
+      // resto de las filas usa para mostrar "Sin datos" (D16).
+      { label: 'PEP (declarativo)', value: d ? (d.pep ? 'Sí' : 'No') : null },
       { label: 'Bien asegurado', value: d?.insuredItem ?? null },
       { label: 'Importe reclamado', value: d?.claimedAmount ? `$${d.claimedAmount.toLocaleString()}` : null },
       { label: 'Fecha de denuncia', value: d?.createdAt ? formatDateTime(d.createdAt) : null },
       { label: 'Fecha y hora de ocurrencia', value: d?.eventDate ? formatDateTime(d.eventDate) : null },
       { label: 'Causa', value: d?.claimCause ?? null },
-      { label: 'Hecho generador', value: null },
       { label: 'Ubicación', value: d?.eventLocation ?? null, full: true },
       { label: 'Descripción', value: d?.description ?? null, full: true },
       { label: 'Analista asignado', value: d?.assignedAnalystName ?? null },
-      { label: 'PEP (declarativo)', value: null },
     ];
   });
 

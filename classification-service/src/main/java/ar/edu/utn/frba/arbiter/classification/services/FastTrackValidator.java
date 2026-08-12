@@ -8,6 +8,8 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 
+import java.time.LocalDate;
+import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -43,8 +45,11 @@ public class FastTrackValidator {
                     List.of("No hay criterios de Fast Track configurados para " + rules.branchId() + "/" + rules.claimCauseId()));
         }
 
+        // priorClaimsWindowMonths no cuenta como criterio activo: no decide por sí solo, solo acota
+        // la ventana de maxPriorClaims. Sin ese límite configurado, no evalúa nada.
         if (thresholds.maxClaimedAmountRatio() == null
                 && thresholds.maxPriorClaims() == null
+                && thresholds.minPolicyAgeMonths() == null
                 && thresholds.requiresUpToDatePolicy() == null
                 && (thresholds.requiredDocumentTypes() == null || thresholds.requiredDocumentTypes().isEmpty())) {
             return new Result(false,
@@ -74,13 +79,34 @@ public class FastTrackValidator {
         }
 
         if (thresholds.maxPriorClaims() != null) {
-            if (history.previousClaimsCount() <= thresholds.maxPriorClaims()) {
-                reasons.add("Claims previos (" + history.previousClaimsCount()
-                        + ") dentro del límite de Fast Track (" + thresholds.maxPriorClaims() + ")");
+            int priorClaims = priorClaimsInWindow(claim, history, thresholds.priorClaimsWindowMonths());
+            String window = thresholds.priorClaimsWindowMonths() == null
+                    ? ""
+                    : " en los últimos " + thresholds.priorClaimsWindowMonths() + " meses";
+            if (priorClaims <= thresholds.maxPriorClaims()) {
+                reasons.add("Claims previos (" + priorClaims + ")" + window
+                        + " dentro del límite de Fast Track (" + thresholds.maxPriorClaims() + ")");
             } else {
                 eligible = false;
-                reasons.add("Claims previos (" + history.previousClaimsCount()
-                        + ") supera el límite de Fast Track (" + thresholds.maxPriorClaims() + ")");
+                reasons.add("Claims previos (" + priorClaims + ")" + window
+                        + " supera el límite de Fast Track (" + thresholds.maxPriorClaims() + ")");
+            }
+        }
+
+        if (thresholds.minPolicyAgeMonths() != null) {
+            Long ageMonths = policyAgeMonths(claim, policy);
+            if (ageMonths == null) {
+                // Sin fecha de alta de la póliza o sin fecha del hecho no se puede afirmar la
+                // antigüedad, y el Fast Track solo procede sobre lo verificable.
+                eligible = false;
+                reasons.add("No se pudo determinar la antigüedad de la póliza — no aplica Fast Track");
+            } else if (ageMonths >= thresholds.minPolicyAgeMonths()) {
+                reasons.add("Antigüedad de la póliza (" + ageMonths + " meses) cumple el mínimo de Fast Track ("
+                        + thresholds.minPolicyAgeMonths() + ")");
+            } else {
+                eligible = false;
+                reasons.add("Antigüedad de la póliza (" + ageMonths + " meses) por debajo del mínimo de Fast Track ("
+                        + thresholds.minPolicyAgeMonths() + ")");
             }
         }
 
@@ -111,5 +137,35 @@ public class FastTrackValidator {
 
         log.info("[FastTrackValidator] policy='{}' eligible={} reasons={}", policy.policyNumber(), eligible, reasons);
         return new Result(eligible, reasons);
+    }
+
+    /**
+     * Siniestros previos que cuentan contra el límite. Sin ventana configurada usa el conteo
+     * histórico completo, que es exactamente lo que hacía antes de que el campo existiera: el
+     * límite se comparaba contra los siniestros de toda la vida del asegurado, así que "máximo 1
+     * previo" dejaba fuera del Fast Track, para siempre, a un cliente de quince años con dos
+     * siniestros viejos (D14).
+     *
+     * <p>La ventana se cuenta hacia atrás desde el <b>hecho</b> y no desde hoy, igual que el tope
+     * de eventos anuales de {@code TemporalRuleEvaluator}: el criterio es la situación del
+     * asegurado cuando ocurrió el siniestro, no cuando alguien mira el expediente.
+     */
+    private int priorClaimsInWindow(ClaimReport claim, InsuredHistory history, Integer windowMonths) {
+        if (windowMonths == null || claim.eventDate() == null || history.claims() == null) {
+            return history.previousClaimsCount();
+        }
+        LocalDate windowStart = claim.eventDate().toLocalDate().minusMonths(windowMonths);
+        return (int) history.claims().stream()
+                .filter(record -> record.date() != null)
+                .filter(record -> !record.date().isBefore(windowStart))
+                .count();
+    }
+
+    /** @return meses entre el alta de la póliza y el hecho, o null si falta alguna de las dos fechas. */
+    private Long policyAgeMonths(ClaimReport claim, InsuredPolicy policy) {
+        if (claim.eventDate() == null || policy.effectiveFrom() == null) {
+            return null;
+        }
+        return ChronoUnit.MONTHS.between(policy.effectiveFrom(), claim.eventDate().toLocalDate());
     }
 }

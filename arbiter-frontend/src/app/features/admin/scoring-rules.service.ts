@@ -8,6 +8,7 @@ import { FactorWeight, RiskBandCut } from '../../core/models/business-rules';
 /** Scoring de la aseguradora tal como lo persiste rules-service — calca ScoringConfigDto campo por campo. */
 export interface ScoringConfigDto {
   enabled: boolean;
+  fullAnalysisOnFastTrack: boolean;
   factors: FactorWeight[];
   bands: RiskBandCut[];
 }

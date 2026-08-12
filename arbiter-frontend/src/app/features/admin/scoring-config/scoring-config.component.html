@@ -8,11 +8,11 @@
   <div class="subsection">
     <div class="subsection-head">
       <span class="t-field-label">Factores y pesos</span>
-      <app-badge [tone]="weightsBalanced() ? 'ok' : 'warning'">Suma: {{ weightSumPct() }}%</app-badge>
     </div>
-    @if (!weightsBalanced()) {
-      <p class="warn-note">Los pesos de los factores activos deberían sumar 100%.</p>
-    }
+    <p class="section-hint">
+      Los pesos son relativos entre sí: no hace falta que sumen 100%. Al lado de cada uno se muestra
+      cuánto pesa efectivamente sobre el total de los factores activos, que es lo que aplica el motor.
+    </p>
     <ul class="factors">
       @for (f of riskFactors; track f.id) {
         <li class="factor">
@@ -24,6 +24,7 @@
               <app-input type="number" [min]="0" [value]="factorWeightPct(f.id)" (valueChange)="setFactorWeight(f.id, $event)" />
               <span class="pct">%</span>
             </label>
+            <span class="factor-effective">pesa {{ effectiveWeightPct(f.id) }}</span>
           }
         </li>
       }
@@ -44,6 +45,19 @@
         </li>
       }
     </ul>
+  </div>
+
+  <div class="subsection">
+    <span class="t-field-label">Fast Track</span>
+    <p class="section-hint">
+      En Fast Track, el análisis de fraude pesado (lectura de documentos + comparación de imágenes) no
+      corre por defecto para no frenar el carril rápido: el score sale parcial, solo con los factores
+      de datos duros. Activá esto si querés que el Fast Track igual corra ese análisis y el score salga
+      completo. No cambia si el siniestro es Fast Track o no — solo cuánto se analiza.
+    </p>
+    <button type="button" class="chip factor-chip" [class.active]="fullAnalysisOnFastTrack()" [attr.aria-pressed]="fullAnalysisOnFastTrack()" (click)="toggleFullAnalysisOnFastTrack()">
+      Analizar documentación e imágenes aunque sea Fast Track
+    </button>
   </div>
 
   <div class="ft-save">

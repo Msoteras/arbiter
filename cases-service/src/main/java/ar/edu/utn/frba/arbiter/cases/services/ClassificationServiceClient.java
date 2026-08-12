@@ -101,6 +101,10 @@ public class ClassificationServiceClient implements ClaimsAnalysisClient {
                 // (D11) compara reportedAt - occurredAt contra el plazo de la cobertura.
                 .reportedAt(caseRecord.getReportedAt() == null ? null
                         : LocalDateTime.ofInstant(caseRecord.getReportedAt(), ZoneId.systemDefault()))
+                // Lo que el asegurado declaró en el wizard sobre su denuncia policial (D12). Se
+                // capturaba desde el 09/08 y se quedaba en cases-service: sin esto el motor no
+                // podía evaluar el plazo ni cruzarlo contra la fecha que dice la constancia.
+                .policeReportAt(caseRecord.getPoliceReportAt())
                 .attachmentsOcr(List.of())
                 .build();
 

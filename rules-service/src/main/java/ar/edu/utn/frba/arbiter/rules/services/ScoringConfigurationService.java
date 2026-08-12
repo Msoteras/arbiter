@@ -55,6 +55,7 @@ public class ScoringConfigurationService {
             config = ScoringConfiguration.builder()
                     .name("Scoring de la aseguradora")
                     .active(dto.enabled())
+                    .fullAnalysisOnFastTrack(dto.fullAnalysisOnFastTrack())
                     .validFrom(now)
                     .build();
             config = scoringConfigurationRepository.save(config);
@@ -75,6 +76,7 @@ public class ScoringConfigurationService {
         factorWeightRepository.deleteByScoringConfiguration_Id(config.getId());
         scoreBandRepository.deleteByScoringConfiguration_Id(config.getId());
         config.setActive(dto.enabled());
+        config.setFullAnalysisOnFastTrack(dto.fullAnalysisOnFastTrack());
         config.setValidFrom(now);
         scoringConfigurationRepository.save(config);
         saveChildren(config, dto);
@@ -101,7 +103,9 @@ public class ScoringConfigurationService {
 
     private ScoringConfigDto toDto(ScoringConfiguration config) {
         return new ScoringConfigDto(
+                config.getId(),
                 config.isActive(),
+                config.isFullAnalysisOnFastTrack(),
                 factorWeightRepository.findByScoringConfiguration_Id(config.getId()).stream()
                         .map(f -> new FactorWeightDto(f.getFactorCode(), f.getWeight()))
                         .toList(),

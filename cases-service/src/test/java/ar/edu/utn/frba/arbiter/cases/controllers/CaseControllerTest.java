@@ -247,7 +247,7 @@ class CaseControllerTest {
         CaseResponse response = new CaseResponse(
                 1L, null, null, CaseStatus.PENDING_ANALYST_REVIEW,
                 "Celulares", "Celular Protegido Básico", "Robo en vía pública",
-                "Motorola Edge 50 Pro", "40.123.456", "Laura Fernández", "POL-CEL-2024-001",
+                "Motorola Edge 50 Pro", "40.123.456", "Laura Fernández", false, "POL-CEL-2024-001",
                 "Me robaron el celular",
                 LocalDateTime.of(2026, 6, 13, 19, 45), "CABA",
                 new BigDecimal("150000"),
@@ -303,7 +303,7 @@ class CaseControllerTest {
         return new CaseResponse(
                 id, null, null, status,
                 "Celulares", "Celular Protegido Básico", "Robo en vía pública",
-                "Motorola Edge 50 Pro", "40.123.456", "Laura Fernández", "POL-CEL-2024-001",
+                "Motorola Edge 50 Pro", "40.123.456", "Laura Fernández", false, "POL-CEL-2024-001",
                 "Me robaron el celular",
                 LocalDateTime.of(2026, 6, 13, 19, 45), "CABA",
                 new BigDecimal("150000"),

@@ -131,6 +131,6 @@ class ClaimSecurityTest extends AbstractPersistenceIT {
                         .content("""
                                 {"analystId": 1, "decision": "APPROVE"}
                                 """))
-                .andExpect(status().isUnprocessableEntity());
+                .andExpect(status().isUnprocessableContent());
     }
 }

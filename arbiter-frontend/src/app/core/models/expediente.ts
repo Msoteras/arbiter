@@ -45,6 +45,12 @@ export interface ExpedienteResponse {
   insuredId: string;
   /** Nombre real del asegurado, resuelto por classification-service al clasificar. Null hasta entonces. */
   insuredName: string | null;
+  /**
+   * Persona políticamente expuesta, según lo declaró el asegurado al denunciar (UIF/PLA). Es
+   * debida diligencia, no una señal de fraude: se muestra entre los datos del asegurado para que
+   * el analista lo tenga a la vista, y no participa del scoring ni de la clasificación (D16).
+   */
+  pep: boolean;
   policyNumber: string;
   description: string;
   eventDate: string;

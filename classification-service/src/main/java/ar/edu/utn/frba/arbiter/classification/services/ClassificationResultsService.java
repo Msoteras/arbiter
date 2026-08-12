@@ -138,6 +138,12 @@ public class ClassificationResultsService {
         analysis.setRiskBand(riskScore.band());
         analysis.setRiskBreakdown(riskScore.breakdown());
         riskAnalysisRepository.save(analysis);
+
+        // Con qué configuración se calculó (D29). Null cuando el scoring salió del baseline y no de
+        // una fila del referente: ahí no hay nada que apuntar, y la FK lo rechazaría.
+        if (riskScore.scoringConfigurationId() != null) {
+            caseOutcomeRepository.saveScoringConfiguration(caseId, riskScore.scoringConfigurationId());
+        }
     }
 
     /** Latest classification for a case; classification fields stay null until one exists. */

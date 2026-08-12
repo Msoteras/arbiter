@@ -21,6 +21,15 @@ export interface Coverage {
   reportingWindowDays: number | null;
   /** Máx. de eventos indemnizables por año y póliza. → DER cobertura.tope_eventos_por_anio */
   maxAnnualClaims: number | null;
+  /**
+   * Carencia: días desde el alta de la póliza en que la cobertura todavía no aplica, aunque la
+   * póliza esté vigente. null = sin carencia. → DER cobertura.carencia_dias
+   */
+  waitingPeriodDays: number | null;
+  /** Si la cobertura alcanza al grupo familiar conviviente o solo al titular. */
+  coversFamilyGroup: boolean;
+  /** Si un siniestro liquidado agota la cobertura para el período. */
+  claimExhaustsCoverage: boolean;
   /** Exclusiones específicas de esta cobertura, en texto libre (van al prompt del LLM). */
   exclusions: string[];
   /**
@@ -68,6 +77,12 @@ export interface RiskBandCut {
  */
 export interface ScoringConfig {
   enabled: boolean;
+  /**
+   * Si el Fast Track de la aseguradora igual corre el análisis pesado (OCR + fraude de imágenes)
+   * para que su score de fraude salga completo. false (default) = Fast Track rápido, score parcial.
+   * No vetea el Fast Track — el score es señal paralela; solo decide cuánto análisis corre.
+   */
+  fullAnalysisOnFastTrack: boolean;
   factors: FactorWeight[];
   bands: RiskBandCut[];
 }
