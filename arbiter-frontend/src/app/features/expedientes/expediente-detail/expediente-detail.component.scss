@@ -9,18 +9,6 @@
   padding: var(--space-4) var(--space-6);
   z-index: 10;
 }
-.back-link {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--space-1);
-  font-size: var(--font-size-sm);
-  font-weight: var(--font-weight-medium);
-  color: var(--accent-fg);
-  text-decoration: none;
-  margin-bottom: var(--space-3);
-}
-.back-link:hover { text-decoration: underline; }
-.back-arrow { font-size: var(--font-size-lg); line-height: 1; }
 .det-header-row { display: flex; align-items: center; justify-content: space-between; gap: var(--space-4); flex-wrap: wrap; }
 .identity { display: flex; align-items: center; gap: var(--space-3); flex-wrap: wrap; }
 .identity h1 { margin: 0; }

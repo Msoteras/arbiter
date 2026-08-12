@@ -195,6 +195,32 @@
   align-items: center;
   gap: var(--space-2);
 }
+/* Botón "Volver a la bandeja" del detalle del expediente: liviano, tipo link. */
+.topbar-back {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  font: inherit;
+  font-size: var(--font-size-md);
+  color: var(--text-secondary);
+  background: none;
+  border: none;
+  padding: var(--space-1) var(--space-2);
+  margin-left: calc(-1 * var(--space-2));
+  border-radius: var(--radius-ctl);
+  cursor: pointer;
+  transition:
+    color var(--dur-1) ease,
+    background var(--dur-1) ease;
+}
+.topbar-back:hover {
+  color: var(--text-primary);
+  background: var(--surface-sunken);
+}
+.topbar-back-arrow {
+  font-size: 1.2em;
+  line-height: 1;
+}
 .topbar-bell {
   position: relative;
   flex: none;

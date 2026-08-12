@@ -190,7 +190,11 @@
              derecha (campana movida acá desde la sidebar). El título de cada pantalla lo pone la
              propia pantalla, no la topbar. -->
         <header class="content-topbar">
-          @if (sectionTitle()) {
+          @if (showBack()) {
+            <button type="button" class="topbar-back" (click)="goBack()">
+              <span class="topbar-back-arrow" aria-hidden="true">‹</span> Volver a la bandeja
+            </button>
+          } @else if (sectionTitle()) {
             <h1 class="content-topbar-title">{{ sectionTitle() }}</h1>
           }
           <div class="content-topbar-actions">

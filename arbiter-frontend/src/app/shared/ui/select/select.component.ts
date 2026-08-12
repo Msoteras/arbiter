@@ -187,10 +187,17 @@ export class SelectComponent {
   });
 
   constructor() {
-    // El panel es `fixed`: no acompaña a lo que scrollea, así que se cierra. En captura, para
-    // enterarse del scroll de contenedores internos, que no burbujea a window.
-    const onScroll = () => {
-      if (this.open()) this.open.set(false);
+    // El panel es `fixed`: no acompaña a lo que scrollea, así que se cierra cuando scrollea un
+    // contenedor externo (se despegaría del trigger). En captura, para enterarse del scroll de
+    // contenedores internos, que no burbujea a window.
+    // PERO el propio panel tiene scroll interno (max-height 40vh): si el usuario está recorriendo
+    // las opciones, ese scroll NO debe cerrarlo (si no, con muchas opciones no se puede bajar).
+    const onScroll = (event: Event) => {
+      if (!this.open()) return;
+      const panel = this.host.nativeElement.querySelector('.panel');
+      const target = event.target as Node | null;
+      if (panel && target && panel.contains(target)) return; // scroll dentro del listado: no cerrar
+      this.open.set(false);
     };
     document.addEventListener('scroll', onScroll, true);
     inject(DestroyRef).onDestroy(() => document.removeEventListener('scroll', onScroll, true));
