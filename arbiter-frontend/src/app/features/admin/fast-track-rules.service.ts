@@ -18,8 +18,18 @@ export interface CoverageOption {
 export interface FastTrackConfigDto {
   maxClaimedAmountRatio: number | null;
   maxPriorClaims: number | null;
+  /** Ventana para contar `maxPriorClaims`. null = histórico completo del asegurado. */
+  priorClaimsWindowMonths: number | null;
+  /** Antigüedad mínima de la póliza al momento del hecho. null = no se exige. */
+  minPolicyAgeMonths: number | null;
   requiresUpToDatePolicy: boolean | null;
   requiredDocumentTypes: string[];
+  /**
+   * Los mismos criterios en castellano. No deciden nada —el gate son los umbrales— pero viajan al
+   * prompt del modelo como descripción de la política de Fast Track. Antes salían hardcodeados del
+   * backend y podían contradecir a los números configurados acá (D14).
+   */
+  criteria: string[];
 }
 
 /** Confirmación de guardado: la fila de insurer_rule (FAST_TRACK) tal como quedó en la DB. */

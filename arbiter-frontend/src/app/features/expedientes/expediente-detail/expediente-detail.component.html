@@ -227,12 +227,17 @@
         <app-card heading="Desglose del score de fraude">
           @if (riskScorePct(); as scorePct) {
             <p class="risk-score">Score de fraude: <strong>{{ scorePct }}%</strong></p>
+            @if (fastTrackScoreScope() === 'partial') {
+              <p class="factor-detail">Siniestro Fast Track: score parcial, calculado solo con factores de datos estructurados. El análisis de documentación e imágenes no corrió (la aseguradora no lo activó para Fast Track).</p>
+            } @else if (fastTrackScoreScope() === 'full') {
+              <p class="factor-detail">Siniestro Fast Track con análisis completo: el score incluye documentación e imágenes.</p>
+            }
             @if (riskBreakdown().length > 0) {
               <div class="risk-breakdown">
                 <span class="t-field-label">Cómo se compone el score</span>
                 <table class="breakdown-table">
                   <thead>
-                    <tr><th>Factor</th><th>Aporte</th></tr>
+                    <tr><th>Factor</th><th>Aporte al score</th></tr>
                   </thead>
                   <tbody>
                     @for (item of riskBreakdown(); track item.factorId) {
@@ -243,14 +248,12 @@
                             <span class="factor-rationale">{{ item.rationale }}</span>
                           }
                         </td>
-                        <td class="factor-contrib">
-                          +{{ pct(item.weightedContribution) }}%
-                          <span class="factor-detail">({{ pct(item.rawScore) }}% × peso {{ item.weight }})</span>
-                        </td>
+                        <td class="factor-contrib">+{{ aporteAlScore(item) }}</td>
                       </tr>
                     }
                   </tbody>
                 </table>
+                <span class="factor-detail">Cada factor aporta una parte; los aportes suman el score ({{ scorePct }}).</span>
               </div>
             }
           } @else {

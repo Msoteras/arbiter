@@ -32,9 +32,10 @@ public class PolicyController {
     @PreAuthorize("hasAnyRole('ASEGURADO', 'REFERENTE_ASEGURADORA')")
     @Operation(summary = "List the insured's policies",
             description = """
-                    Returns every policy of the given insured across all insurers on the
-                    platform (centralized view). Backs the claim wizard: the logged-in insured
-                    picks one of their policies instead of typing the number blindly.
+                    Returns every policy of the given insured across the insurers they belong to
+                    (centralized view). Backs the claim wizard: the logged-in insured picks one of
+                    their policies instead of typing the number blindly. An ASEGURADO can only ask
+                    for their own DNI — 403 otherwise.
                     """)
     public ResponseEntity<List<PolicyResponse>> listByInsured(@RequestParam String insuredId) {
         return ResponseEntity.ok(policyService.listByInsured(insuredId));
@@ -43,7 +44,11 @@ public class PolicyController {
     @GetMapping("/{policyNumber}")
     @PreAuthorize("hasAnyRole('ASEGURADO', 'REFERENTE_ASEGURADORA')")
     @Operation(summary = "Get a policy by number",
-            description = "Returns the policy for autocomplete and validity check (upToDate). 404 if not found.")
+            description = """
+                    Returns the policy for autocomplete and validity check (upToDate). 404 if not
+                    found — and also if it belongs to someone else, so the response never confirms
+                    that a policy number exists.
+                    """)
     public ResponseEntity<PolicyResponse> getByNumber(@PathVariable String policyNumber) {
         return ResponseEntity.ok(policyService.getByNumber(policyNumber));
     }

@@ -1,6 +1,7 @@
 package ar.edu.utn.frba.arbiter.cases.adapters.db;
 
 import ar.edu.utn.frba.arbiter.cases.adapters.InsurerAdapter;
+import ar.edu.utn.frba.arbiter.cases.adapters.db.CallerInsurerDatabases.InsurerDatabase;
 import ar.edu.utn.frba.arbiter.cases.dto.PolicyResponse;
 import ar.edu.utn.frba.arbiter.cases.dto.PolicyResponse.Coverage;
 import lombok.RequiredArgsConstructor;
@@ -12,15 +13,20 @@ import org.springframework.stereotype.Component;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.time.LocalDate;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 
 /**
- * Lee las pólizas del asegurado desde la BD Aseguradora (schema {@code aseguradora} en la
- * misma instancia Postgres, cargado por {@code db/datos-aseguradoras.sql} — ver arch doc,
- * decisión #10). Mismo enfoque que el {@code InsurerDatabaseAdapter} de classification-service,
- * pero orientado al portal: agrega la aseguradora (JOIN a {@code compania}) y lista TODAS las
- * pólizas de un asegurado cruzando compañías ({@code documento} puede repetirse por tenant).
+ * Lee las pólizas del asegurado desde la BD Aseguradora (ver arch doc, decisión #10): un esquema
+ * {@code aseguradora_<tenant>} por compañía dentro de la misma instancia Postgres, creados por
+ * {@code db/init-multitenant.sql}. Mismo enfoque que el {@code InsurerDatabaseAdapter} de
+ * classification-service, pero orientado al portal: recorre <b>todas</b> las aseguradoras del que
+ * llama ({@link CallerInsurerDatabases}), porque un mismo DNI puede tener pólizas en varias.
+ *
+ * <p>La compañía sale del registro de la plataforma y no de la tabla {@code compania}: con un
+ * esquema por aseguradora esa tabla tiene una fila sola y su id es siempre 1 — el discriminador
+ * {@code poliza.aseguradora_id} del modelo single-schema ya no existe.
  *
  * <p>Activo solo bajo el perfil {@code insurer-db} y {@code @Primary}: gana sobre
  * {@link ar.edu.utn.frba.arbiter.cases.adapters.mock.MockInsurerAdapter} cuando está prendido,
@@ -36,45 +42,54 @@ public class InsurerDatabaseAdapter implements InsurerAdapter {
             SELECT p.id, p.numero, p.rama, p.producto, p.bien_asegurado,
                    p.vigencia_desde, p.vigencia_hasta,
                    p.estado_pago, p.saldo_deuda,
-                   a.documento, a.nombre, a.apellido, a.email, a.telefono,
-                   c.id     AS compania_id,
-                   c.nombre AS compania_nombre
-            FROM aseguradora.poliza p
-            JOIN aseguradora.asegurado a ON a.id = p.titular_id
-            JOIN aseguradora.compania  c ON c.id = p.aseguradora_id
+                   a.documento, a.nombre, a.apellido, a.email, a.telefono
+            FROM %1$s.poliza p
+            JOIN %1$s.asegurado a ON a.id = p.titular_id
             """;
 
     private final JdbcTemplate jdbc;
+    private final CallerInsurerDatabases insurerDatabases;
 
+    /** Primera que la tenga: un número de póliza es único dentro de una compañía. */
     @Override
     public Optional<PolicyResponse> findPolicy(String policyNumber) {
-        return jdbc.query(POLICY_SELECT + " WHERE p.numero = ? ORDER BY p.id", this::mapRow, policyNumber)
-                .stream()
-                .findFirst()
-                .map(this::toResponse);
+        for (InsurerDatabase database : insurerDatabases.forCaller()) {
+            Optional<PolicyResponse> found = jdbc.query(
+                            POLICY_SELECT.formatted(database.schema()) + " WHERE p.numero = ? ORDER BY p.id",
+                            this::mapRow,
+                            policyNumber)
+                    .stream()
+                    .findFirst()
+                    .map(row -> toResponse(row, database));
+            if (found.isPresent()) {
+                return found;
+            }
+        }
+        return Optional.empty();
     }
 
+    /** El mismo documento puede tener pólizas en varias compañías → vista centralizada. */
     @Override
     public List<PolicyResponse> findPoliciesByInsured(String insuredId) {
-        // El mismo documento puede tener pólizas en varias compañías → vista centralizada.
-        return jdbc.query(
-                        POLICY_SELECT + " WHERE a.documento = ? ORDER BY c.nombre, p.numero",
-                        this::mapRow,
-                        insuredId)
-                .stream()
-                .map(this::toResponse)
-                .toList();
+        List<PolicyResponse> policies = new ArrayList<>();
+        for (InsurerDatabase database : insurerDatabases.forCaller()) {
+            jdbc.query(POLICY_SELECT.formatted(database.schema()) + " WHERE a.documento = ? ORDER BY p.numero",
+                            this::mapRow,
+                            insuredId)
+                    .forEach(row -> policies.add(toResponse(row, database)));
+        }
+        return List.copyOf(policies);
     }
 
     /** Segunda pasada: la suma asegurada vive en cada cobertura; la de la póliza es la primaria. */
-    private PolicyResponse toResponse(PolicyRow row) {
+    private PolicyResponse toResponse(PolicyRow row, InsurerDatabase database) {
         List<Coverage> coverages = jdbc.query(
                 """
                 SELECT orden, nombre, suma_asegurada, franquicia_pct
-                FROM aseguradora.cobertura
+                FROM %s.cobertura
                 WHERE poliza_id = ?
                 ORDER BY orden
-                """,
+                """.formatted(database.schema()),
                 (rs, i) -> {
                     BigDecimal sum = rs.getBigDecimal("suma_asegurada");
                     return Coverage.builder()
@@ -89,8 +104,8 @@ public class InsurerDatabaseAdapter implements InsurerAdapter {
         Coverage primary = coverages.isEmpty() ? null : coverages.get(0);
         return PolicyResponse.builder()
                 .policyNumber(row.numero())
-                .insurerId(String.valueOf(row.companiaId()))
-                .insurerName(row.companiaNombre())
+                .insurerId(String.valueOf(database.insurerId()))
+                .insurerName(database.insurerName())
                 .insuredName((row.nombre() + " " + row.apellido()).trim())
                 .insuredId(row.documento())
                 .contactEmail(row.email())
@@ -122,9 +137,7 @@ public class InsurerDatabaseAdapter implements InsurerAdapter {
                 rs.getString("nombre"),
                 rs.getString("apellido"),
                 rs.getString("email"),
-                rs.getString("telefono"),
-                rs.getLong("compania_id"),
-                rs.getString("compania_nombre"));
+                rs.getString("telefono"));
     }
 
     private static boolean isUpToDate(String estadoPago, BigDecimal saldoDeuda) {
@@ -154,8 +167,6 @@ public class InsurerDatabaseAdapter implements InsurerAdapter {
             String nombre,
             String apellido,
             String email,
-            String telefono,
-            long companiaId,
-            String companiaNombre
+            String telefono
     ) {}
 }

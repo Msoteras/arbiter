@@ -24,7 +24,12 @@ public class InternalCoverageLimitsService {
     @Transactional(readOnly = true)
     public CoverageLimitsDto getByCoverage(Long coverageId) {
         return coverageRepository.findById(coverageId)
-                .map(coverage -> new CoverageLimitsDto(coverage.getReportDeadlineHours(), coverage.getMaxEventsPerYear()))
+                .map(coverage -> new CoverageLimitsDto(
+                        coverage.getReportDeadlineHours(),
+                        coverage.getMaxEventsPerYear(),
+                        coverage.getWaitingPeriodDays(),
+                        coverage.isCoversFamilyGroup(),
+                        coverage.isClaimExhaustsCoverage()))
                 .orElseGet(CoverageLimitsDto::empty);
     }
 }

@@ -12,6 +12,9 @@ export interface CoverageDetail {
   deductibleRatio: number | null;
   reportingWindowDays: number | null;
   maxAnnualClaims: number | null;
+  waitingPeriodDays: number | null;
+  coversFamilyGroup: boolean;
+  claimExhaustsCoverage: boolean;
   exclusions: string[] | null;
 }
 
@@ -21,6 +24,9 @@ export interface CoverageUpsertRequest {
   deductibleRatio: number | null;
   reportingWindowDays: number | null;
   maxAnnualClaims: number | null;
+  waitingPeriodDays: number | null;
+  coversFamilyGroup: boolean;
+  claimExhaustsCoverage: boolean;
   exclusions: string[];
 }
 

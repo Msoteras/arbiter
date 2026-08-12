@@ -5,17 +5,21 @@ import ar.edu.utn.frba.arbiter.classification.adapters.DocumentAnalyzer;
 import ar.edu.utn.frba.arbiter.classification.adapters.InsurerAdapter;
 import ar.edu.utn.frba.arbiter.classification.adapters.RulesAdapter;
 import ar.edu.utn.frba.arbiter.classification.dto.ClassificationResponse;
+import ar.edu.utn.frba.arbiter.classification.models.repositories.PolicySnapshotRepository;
 import ar.edu.utn.frba.arbiter.classification.services.risk.RiskFixtures;
 import ar.edu.utn.frba.arbiter.classification.services.risk.RiskScore;
 import ar.edu.utn.frba.arbiter.classification.services.risk.RiskScoringService;
 import ar.edu.utn.frba.arbiter.common.dto.RiskBreakdownItem;
 import ar.edu.utn.frba.arbiter.common.enums.Classification;
 import ar.edu.utn.frba.arbiter.common.enums.RiskBand;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
+import org.mockito.Spy;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.math.BigDecimal;
@@ -39,16 +43,20 @@ class ClassificationOrchestratorScoringTest {
     @Mock private RulesAdapter rulesAdapter;
     @Mock private InsurerAdapter insurerAdapter;
     @Mock private CoverageRuleEvaluator coverageRuleEvaluator;
+    @Mock private CoverageScopeEvaluator coverageScopeEvaluator;
     @Mock private TemporalRuleEvaluator temporalRuleEvaluator;
     @Mock private FastTrackValidator fastTrackValidator;
     @Mock private DocumentAnalyzer documentAnalyzer;
     @Mock private PromptBuilder promptBuilder;
     @Mock private RiskScoringService riskScoringService;
+    @Mock private ImageFraudAnalysisService imageFraudAnalysisService;
+    @Mock private PolicySnapshotRepository policySnapshotRepository;
+    @Spy private ObjectMapper objectMapper = new ObjectMapper().registerModule(new JavaTimeModule());
 
     @InjectMocks private ClassificationOrchestrator orchestrator;
 
     private final RiskScore knownScore = new RiskScore(true, 0.42, RiskBand.MEDIUM,
-            List.of(new RiskBreakdownItem("amount_ratio", 0.5, 0.45, 0.225, "monto")));
+            List.of(new RiskBreakdownItem("amount_ratio", 0.5, 0.45, 0.225, "monto")), 1L);
 
     @BeforeEach
     void stubContext() {
@@ -59,6 +67,8 @@ class ClassificationOrchestratorScoringTest {
                 .thenReturn(new CoverageRuleEvaluator.Result(false, List.of()));
         when(temporalRuleEvaluator.evaluate(any(), any(), any(), any()))
                 .thenReturn(new TemporalRuleEvaluator.Result(false, List.of()));
+        when(coverageScopeEvaluator.evaluate(any(), any(), any(), any()))
+                .thenReturn(new CoverageScopeEvaluator.Result(false, List.of()));
     }
 
     @Test

@@ -13,12 +13,82 @@ import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-/** Reglas duras temporales (D13 vigencia, D11 plazo de denuncia, D10 tope de eventos). Unit puro. */
+/**
+ * Reglas duras temporales (D13 vigencia, D9 carencia, D11 plazo de denuncia, D10 tope de eventos).
+ * Unit puro.
+ */
 class TemporalRuleEvaluatorTest {
 
-    private final TemporalRuleEvaluator evaluator = new TemporalRuleEvaluator();
+    /** 72 hs es el default de la propiedad; el plazo policial es provisorio hasta que sea configurable. */
+    private final TemporalRuleEvaluator evaluator = new TemporalRuleEvaluator(72);
 
     private static final LocalDateTime EVENT = LocalDateTime.of(2026, 6, 13, 20, 0);
+
+    private ClaimReport claimWithPoliceReport(LocalDateTime policeReportAt) {
+        return ClaimReport.builder()
+                .branch("Celulares")
+                .product("Celular Protegido Básico")
+                .claimCause("Robo en vía pública")
+                .coverageId(1L)
+                .claimCauseId(2L)
+                .insuredId("40.123.456")
+                .policyNumber("POL-CEL-2024-001")
+                .description("...")
+                .eventDate(EVENT)
+                .policeReportAt(policeReportAt)
+                .build();
+    }
+
+    // ─── D12 · plazo de la denuncia policial (72 hs provisorias) ──────────────────
+    // El hecho es el 13/06/2026 a las 20:00.
+
+    @Test
+    void aPoliceReportWithinTheDeadline_doesNotBlock() {
+        TemporalRuleEvaluator.Result result = evaluator.evaluate(
+                claimWithPoliceReport(EVENT.plusHours(30)),
+                policy(LocalDate.of(2024, 3, 1), LocalDate.of(2027, 3, 1)),
+                history(List.of()),
+                rules(null, null));
+
+        assertThat(result.blocksFastTrack()).isFalse();
+    }
+
+    @Test
+    void aPoliceReportPastTheDeadline_blocksFastTrack() {
+        TemporalRuleEvaluator.Result result = evaluator.evaluate(
+                claimWithPoliceReport(EVENT.plusHours(100)),
+                policy(LocalDate.of(2024, 3, 1), LocalDate.of(2027, 3, 1)),
+                history(List.of()),
+                rules(null, null));
+
+        assertThat(result.blocksFastTrack()).isTrue();
+        assertThat(result.reasons()).anyMatch(r -> r.contains("Denuncia policial fuera de plazo"));
+    }
+
+    /** Denunciar en la policía antes del hecho es un dato inconsistente, no un plazo cumplido. */
+    @Test
+    void aPoliceReportBeforeTheEvent_blocksFastTrack() {
+        TemporalRuleEvaluator.Result result = evaluator.evaluate(
+                claimWithPoliceReport(EVENT.minusDays(2)),
+                policy(LocalDate.of(2024, 3, 1), LocalDate.of(2027, 3, 1)),
+                history(List.of()),
+                rules(null, null));
+
+        assertThat(result.blocksFastTrack()).isTrue();
+        assertThat(result.reasons()).anyMatch(r -> r.contains("anterior a la fecha del hecho"));
+    }
+
+    /** "No hubo denuncia policial" es legítimo: la regla no participa, no bloquea a ciegas. */
+    @Test
+    void withoutADeclaredPoliceReport_theRuleDoesNotParticipate() {
+        TemporalRuleEvaluator.Result result = evaluator.evaluate(
+                claimWithPoliceReport(null),
+                policy(LocalDate.of(2024, 3, 1), LocalDate.of(2027, 3, 1)),
+                history(List.of()),
+                rules(null, null));
+
+        assertThat(result.blocksFastTrack()).isFalse();
+    }
 
     private ClaimReport claim(LocalDateTime reportedAt) {
         return ClaimReport.builder()
@@ -66,6 +136,66 @@ class TemporalRuleEvaluatorTest {
                 .reportDeadlineHours(reportDeadlineHours)
                 .maxEventsPerYear(maxEventsPerYear)
                 .build();
+    }
+
+    private BusinessRules rulesWithWaitingPeriod(Integer waitingPeriodDays) {
+        return BusinessRules.builder()
+                .branchId("Celulares")
+                .rules(List.of()).exclusions(List.of()).fastTrackCriteria(List.of())
+                .waitingPeriodDays(waitingPeriodDays)
+                .build();
+    }
+
+    // ─── D9 · carencia ────────────────────────────────────────────────────────────
+    // El hecho es el 13/06/2026. La carencia se cuenta desde el alta de la póliza.
+
+    /** Póliza de hace 5 días con carencia de 30: hay contrato, pero todavía no hay cobertura. */
+    @Test
+    void eventInsideTheWaitingPeriod_blocksFastTrack() {
+        TemporalRuleEvaluator.Result result = evaluator.evaluate(
+                claim(EVENT.plusHours(2)),
+                policy(LocalDate.of(2026, 6, 8), LocalDate.of(2027, 6, 8)),
+                history(List.of()),
+                rulesWithWaitingPeriod(30));
+
+        assertThat(result.blocksFastTrack()).isTrue();
+        assertThat(result.reasons()).anyMatch(r -> r.contains("dentro de la carencia de 30 días"));
+    }
+
+    /** Mismo caso, un día después de cumplirse la carencia: cubierto. */
+    @Test
+    void eventAfterTheWaitingPeriod_doesNotBlock() {
+        TemporalRuleEvaluator.Result result = evaluator.evaluate(
+                claim(EVENT.plusHours(2)),
+                policy(LocalDate.of(2026, 5, 1), LocalDate.of(2027, 5, 1)),
+                history(List.of()),
+                rulesWithWaitingPeriod(30));
+
+        assertThat(result.blocksFastTrack()).isFalse();
+    }
+
+    /** El día exacto en que vence la carencia ya está cubierto (alta 14/05 + 30 días = 13/06). */
+    @Test
+    void theDayTheWaitingPeriodEnds_isAlreadyCovered() {
+        TemporalRuleEvaluator.Result result = evaluator.evaluate(
+                claim(EVENT.plusHours(2)),
+                policy(LocalDate.of(2026, 5, 14), LocalDate.of(2027, 5, 14)),
+                history(List.of()),
+                rulesWithWaitingPeriod(30));
+
+        assertThat(result.blocksFastTrack()).isFalse();
+    }
+
+    /** Sin carencia configurada la regla no participa — no bloquea a ciegas. */
+    @Test
+    void withoutAWaitingPeriodConfigured_theRuleDoesNotParticipate() {
+        TemporalRuleEvaluator.Result result = evaluator.evaluate(
+                claim(EVENT.plusHours(2)),
+                policy(LocalDate.of(2026, 6, 8), LocalDate.of(2027, 6, 8)),
+                history(List.of()),
+                rulesWithWaitingPeriod(null));
+
+        assertThat(result.blocksFastTrack()).isFalse();
     }
 
     // ── D13 · vigencia ─────────────────────────────────────────────────────

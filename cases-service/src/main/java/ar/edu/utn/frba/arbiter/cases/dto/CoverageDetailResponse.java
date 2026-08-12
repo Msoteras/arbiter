@@ -11,4 +11,7 @@ public record CoverageDetailResponse(
         BigDecimal deductibleRatio,
         Integer reportingWindowDays,
         Integer maxAnnualClaims,
+        Integer waitingPeriodDays,
+        boolean coversFamilyGroup,
+        boolean claimExhaustsCoverage,
         List<String> exclusions) {}

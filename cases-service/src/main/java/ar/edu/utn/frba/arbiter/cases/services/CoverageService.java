@@ -79,6 +79,11 @@ public class CoverageService {
         coverage.setReportDeadlineHours(request.reportingWindowDays() == null
                 ? null : request.reportingWindowDays() * HOURS_PER_DAY);
         coverage.setMaxEventsPerYear(request.maxAnnualClaims());
+        // Las tres condiciones que el motor ya evaluaba y el referente no podía tocar (D9):
+        // hasta ahora se configuraban por SQL.
+        coverage.setWaitingPeriodDays(request.waitingPeriodDays());
+        coverage.setCoversFamilyGroup(request.coversFamilyGroup());
+        coverage.setClaimExhaustsCoverage(request.claimExhaustsCoverage());
     }
 
     private CoverageDetailResponse toDetail(Coverage coverage) {
@@ -91,6 +96,9 @@ public class CoverageService {
                 coverage.getReportDeadlineHours() == null
                         ? null : Math.toIntExact(coverage.getReportDeadlineHours() / HOURS_PER_DAY),
                 coverage.getMaxEventsPerYear(),
+                coverage.getWaitingPeriodDays(),
+                coverage.isCoversFamilyGroup(),
+                coverage.isClaimExhaustsCoverage(),
                 coverage.getExclusions());
     }
 }

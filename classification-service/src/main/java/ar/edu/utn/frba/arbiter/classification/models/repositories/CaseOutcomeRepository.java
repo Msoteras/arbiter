@@ -42,6 +42,16 @@ public class CaseOutcomeRepository {
         jdbcTemplate.update("UPDATE cases SET forensic_report = ?::jsonb WHERE id = ?", reportJson, caseId);
     }
 
+    /**
+     * Which scoring configuration produced the case's risk score (D29). Written next to the score
+     * and not derived later: the referent can retune the weights the next day, and then the band on
+     * the case no longer matches any configuration you can look up.
+     */
+    public void saveScoringConfiguration(Long caseId, Long scoringConfigurationId) {
+        jdbcTemplate.update(
+                "UPDATE cases SET scoring_configuration_id = ? WHERE id = ?", scoringConfigurationId, caseId);
+    }
+
     // The rest of the read model (analysis_classification, risk_score, risk_band, ...) is NOT
     // written here: cases-service's poller already copies it off the getStatus response. A
     // second write path for the same values is how they drift apart.

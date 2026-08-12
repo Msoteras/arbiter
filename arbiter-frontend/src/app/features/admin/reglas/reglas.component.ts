@@ -213,8 +213,14 @@ export class ReglasComponent {
               enabled: true,
               maxClaimedAmountRatio: dto?.maxClaimedAmountRatio ?? null,
               maxPriorClaims: dto?.maxPriorClaims ?? null,
+              priorClaimsWindowMonths: dto?.priorClaimsWindowMonths ?? null,
+              minPolicyAgeMonths: dto?.minPolicyAgeMonths ?? null,
               requiresUpToDatePolicy: dto?.requiresUpToDatePolicy ?? d.fastTrack.requiresUpToDatePolicy,
               requiredDocumentTypes: dto?.requiredDocumentTypes ?? [],
+              // Con config guardada mandan los criterios guardados, incluso si son una lista vacía:
+              // vacío es una decisión del referente, no "todavía no cargué nada". Sin config, queda
+              // lo que haya en el draft (D14).
+              criteria: dto ? (dto.criteria ?? []) : d.fastTrack.criteria,
             },
           }
         : d,
@@ -259,6 +265,9 @@ export class ReglasComponent {
       deductibleRatio: c.deductibleRatio,
       reportingWindowDays: c.reportingWindowDays,
       maxAnnualClaims: c.maxAnnualClaims,
+      waitingPeriodDays: c.waitingPeriodDays,
+      coversFamilyGroup: c.coversFamilyGroup,
+      claimExhaustsCoverage: c.claimExhaustsCoverage,
       exclusions: c.exclusions ?? [],
       // Las exclusiones duras (por hecho generador) viven en rules-service, no en este detalle:
       // arrancan vacías y las completa loadCoverageExclusions.
@@ -393,6 +402,9 @@ export class ReglasComponent {
       deductibleRatio: null,
       reportingWindowDays: null,
       maxAnnualClaims: null,
+      waitingPeriodDays: null,
+      coversFamilyGroup: false,
+      claimExhaustsCoverage: false,
       exclusions: [],
       excludedClaimCauseIds: [],
     };
@@ -468,6 +480,22 @@ export class ReglasComponent {
 
   protected coverageMaxClaimsStr(c: Coverage): string {
     return this.intStr(c.maxAnnualClaims);
+  }
+
+  protected setCoverageWaitingPeriod(id: string, value: string): void {
+    this.setCoverageField(id, { waitingPeriodDays: this.intFromStr(value) });
+  }
+
+  protected coverageWaitingPeriodStr(c: Coverage): string {
+    return this.intStr(c.waitingPeriodDays);
+  }
+
+  protected toggleCoverageFamilyGroup(c: Coverage): void {
+    this.setCoverageField(c.id, { coversFamilyGroup: !c.coversFamilyGroup });
+  }
+
+  protected toggleCoverageExhausts(c: Coverage): void {
+    this.setCoverageField(c.id, { claimExhaustsCoverage: !c.claimExhaustsCoverage });
   }
 
   protected setCommonExclusions(items: string[]): void {
@@ -578,8 +606,11 @@ export class ReglasComponent {
     const dto: FastTrackConfigDto = {
       maxClaimedAmountRatio: ft.maxClaimedAmountRatio,
       maxPriorClaims: ft.maxPriorClaims,
+      priorClaimsWindowMonths: ft.priorClaimsWindowMonths,
+      minPolicyAgeMonths: ft.minPolicyAgeMonths,
       requiresUpToDatePolicy: ft.requiresUpToDatePolicy,
       requiredDocumentTypes: ft.requiredDocumentTypes,
+      criteria: ft.criteria,
     };
 
     this.ftSaving.set(true);
@@ -655,6 +686,9 @@ export class ReglasComponent {
       deductibleRatio: c.deductibleRatio,
       reportingWindowDays: c.reportingWindowDays,
       maxAnnualClaims: c.maxAnnualClaims,
+      waitingPeriodDays: c.waitingPeriodDays,
+      coversFamilyGroup: c.coversFamilyGroup,
+      claimExhaustsCoverage: c.claimExhaustsCoverage,
       exclusions: c.exclusions,
     };
   }

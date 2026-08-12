@@ -37,5 +37,10 @@ public record ClaimReport(
         // de denuncia (D11): reportedAt - eventDate vs coverage.report_deadline_hours. Nullable: el
         // flujo aislado (sin caso) no lo tiene, y ahí la regla no es evaluable.
         LocalDateTime reportedAt,
+        // Cuándo dice el asegurado que hizo la denuncia policial. Es su DECLARACIÓN, no lo que diga
+        // la constancia: cuando la extracción lee la fecha del papel, va por separado, y el cruce
+        // entre las dos es justamente la señal (D12). Nullable — no todo hecho generador lleva
+        // denuncia policial, y ahí la regla del plazo no es evaluable.
+        LocalDateTime policeReportAt,
         List<String> attachmentsOcr
 ) {}

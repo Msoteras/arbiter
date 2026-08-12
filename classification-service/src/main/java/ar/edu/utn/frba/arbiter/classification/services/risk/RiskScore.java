@@ -19,11 +19,17 @@ public record RiskScore(
         boolean scored,
         double score,
         RiskBand band,
-        List<RiskBreakdownItem> breakdown
+        List<RiskBreakdownItem> breakdown,
+        /**
+         * Which {@code scoring_configuration} produced this score, persisted on the case (D29).
+         * The referent can change the weights the next day, so a score without it can't be
+         * explained after the fact. Null when the baseline was used (no persisted row).
+         */
+        Long scoringConfigurationId
 ) {
 
     /** Neutral result for a claim with no scoring config: not scored, 0.0/LOW, empty breakdown. */
     public static RiskScore notScored() {
-        return new RiskScore(false, 0.0, RiskBand.LOW, List.of());
+        return new RiskScore(false, 0.0, RiskBand.LOW, List.of(), null);
     }
 }
