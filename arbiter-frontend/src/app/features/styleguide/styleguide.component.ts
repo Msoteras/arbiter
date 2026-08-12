@@ -18,6 +18,9 @@ import { LogoComponent } from '../../shared/ui/logo/logo.component';
 import { FilePreviewComponent } from '../../shared/ui/file-preview/file-preview.component';
 import { StatusTimelineComponent } from '../../shared/ui/status-timeline/status-timeline.component';
 import { MenuButtonComponent, MenuItem } from '../../shared/ui/menu-button/menu-button.component';
+import { SpinnerComponent } from '../../shared/ui/spinner/spinner.component';
+import { InlineLoadingComponent } from '../../shared/ui/inline-loading/inline-loading.component';
+import { StatTileComponent } from '../../shared/ui/stat-tile/stat-tile.component';
 import { StatusTransition } from '../../core/models/expediente';
 
 interface Token {
@@ -65,6 +68,9 @@ interface Swatch {
     FilePreviewComponent,
     StatusTimelineComponent,
     MenuButtonComponent,
+    SpinnerComponent,
+    InlineLoadingComponent,
+    StatTileComponent,
   ],
   template: `
     <div class="sg">
@@ -486,6 +492,59 @@ interface Swatch {
           cualquier envío modificaría un expediente. Se ve en el detalle del expediente (cuando
           falta documentación) y en el portal del asegurado.
         </p>
+      </section>
+
+      <section class="sg-block">
+        <h3 class="sg-h3">Spinner</h3>
+        <p class="sg-p">
+          El símbolo de Arbiter girando, sin texto. El trazo va en
+          <span class="mono">currentColor</span>, así que hereda el color de donde se lo ponga —
+          blanco sobre un botón oscuro, tinta sobre papel.
+        </p>
+        <div class="row">
+          <app-spinner [size]="16" />
+          <app-spinner [size]="24" />
+          <app-spinner [size]="48" />
+        </div>
+      </section>
+
+      <section class="sg-block">
+        <h3 class="sg-h3">Inline loading</h3>
+        <p class="sg-p">
+          Carga "en el lugar": spinner + mensaje opcional, dentro de una pantalla que ya tiene su
+          shell visible. Es la contraparte liviana de <span class="mono">app-loading</span>.
+        </p>
+        <app-inline-loading message="Cargando expedientes…" />
+        <app-inline-loading />
+      </section>
+
+      <section class="sg-block">
+        <h3 class="sg-h3">Loading (pantalla completa)</h3>
+        <p class="sg-p">
+          Overlay a viewport completo con el spinner de marca y un mensaje. Se reserva al arranque
+          (login → primer home), cuando todavía no hay shell que mostrar.
+        </p>
+        <p class="sg-p">
+          No se muestra vivo acá porque taparía la vitrina entera. Para verlo, cerrá sesión y volvé
+          a entrar.
+        </p>
+      </section>
+
+      <section class="sg-block">
+        <h3 class="sg-h3">Stat tile</h3>
+        <p class="sg-p">
+          La tarjeta de métrica de las pantallas de inicio. <span class="mono">tone</span> se usa
+          solo cuando el número comunica algo: <span class="mono">accent</span> para el dato propio
+          a resaltar, <span class="mono">danger</span> para una alerta. Con
+          <span class="mono">loading</span> muestra un guion en vez de un 0 que después salta a su
+          valor real y se lee como "no hay nada".
+        </p>
+        <div class="row cards">
+          <app-stat-tile [value]="14" label="Total expedientes" sub="en la aseguradora" />
+          <app-stat-tile [value]="5" tone="accent" label="Pendientes" sub="asignados a vos" />
+          <app-stat-tile [value]="3" tone="danger" label="Riesgo alto" sub="requieren atención" />
+          <app-stat-tile [loading]="true" label="Resueltos" sub="en total" />
+        </div>
       </section>
     </div>
   `,
