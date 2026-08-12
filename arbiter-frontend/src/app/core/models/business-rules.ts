@@ -77,6 +77,12 @@ export interface RiskBandCut {
  */
 export interface ScoringConfig {
   enabled: boolean;
+  /**
+   * Si el Fast Track de la aseguradora igual corre el análisis pesado (OCR + fraude de imágenes)
+   * para que su score de fraude salga completo. false (default) = Fast Track rápido, score parcial.
+   * No vetea el Fast Track — el score es señal paralela; solo decide cuánto análisis corre.
+   */
+  fullAnalysisOnFastTrack: boolean;
   factors: FactorWeight[];
   bands: RiskBandCut[];
 }

@@ -15,10 +15,16 @@ public record ScoringConfigDto(
          */
         Long id,
         boolean enabled,
+        /**
+         * Si el Fast Track de esta aseguradora igual corre el análisis pesado (OCR + fraude de
+         * imágenes) para que el score salga completo. Default false: el Fast Track queda rápido y el
+         * score es parcial. No vetea el Fast Track — solo decide cuánto análisis corre.
+         */
+        boolean fullAnalysisOnFastTrack,
         @Valid List<FactorWeightDto> factors,
         @Valid List<ScoreBandCutDto> bands) {
 
     public static ScoringConfigDto empty() {
-        return new ScoringConfigDto(null, false, List.of(), List.of());
+        return new ScoringConfigDto(null, false, false, List.of(), List.of());
     }
 }

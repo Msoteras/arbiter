@@ -70,6 +70,7 @@ export class ScoringConfigComponent {
   private skeleton(): ScoringConfig {
     return {
       enabled: true,
+      fullAnalysisOnFastTrack: false,
       factors: [],
       bands: RISK_BANDS.map((band, i) => ({ band, minScoreInclusive: [0, 0.3, 0.6, 0.8][i] })),
     };
@@ -84,7 +85,12 @@ export class ScoringConfigComponent {
     this.scoringService.get().subscribe({
       next: (dto) => {
         const bands = dto.bands.length ? dto.bands : this.skeleton().bands;
-        this.draft.set({ enabled: true, factors: dto.factors, bands });
+        this.draft.set({
+          enabled: true,
+          fullAnalysisOnFastTrack: dto.fullAnalysisOnFastTrack ?? false,
+          factors: dto.factors,
+          bands,
+        });
       },
       error: () => {
         /* backend caído: nos quedamos con el skeleton */
@@ -106,6 +112,14 @@ export class ScoringConfigComponent {
           : [...sc.factors, { factorId: id, weight: 0 }],
       };
     });
+  }
+
+  protected fullAnalysisOnFastTrack(): boolean {
+    return this.draft().fullAnalysisOnFastTrack;
+  }
+
+  protected toggleFullAnalysisOnFastTrack(): void {
+    this.patch((sc) => ({ ...sc, fullAnalysisOnFastTrack: !sc.fullAnalysisOnFastTrack }));
   }
 
   protected factorWeightPct(id: string): string {
@@ -142,7 +156,12 @@ export class ScoringConfigComponent {
     this.error.set(null);
     this.saved.set(false);
     const sc = this.draft();
-    const dto: ScoringConfigDto = { enabled: true, factors: sc.factors, bands: sc.bands };
+    const dto: ScoringConfigDto = {
+      enabled: true,
+      fullAnalysisOnFastTrack: sc.fullAnalysisOnFastTrack,
+      factors: sc.factors,
+      bands: sc.bands,
+    };
 
     this.saving.set(true);
     this.scoringService.save(dto).subscribe({

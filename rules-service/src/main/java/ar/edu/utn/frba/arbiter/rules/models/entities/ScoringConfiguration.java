@@ -43,4 +43,13 @@ public class ScoringConfiguration {
 
     @Column(name = "valid_from", nullable = false)
     private Instant validFrom;
+
+    /**
+     * Si los siniestros Fast Track de esta aseguradora igual pasan por el análisis pesado (OCR de
+     * todos los adjuntos + cascada de fraude de imágenes) para que su score salga completo, en vez
+     * de solo con los factores de datos estructurados. Default false: el Fast Track queda rápido. No
+     * vetea el Fast Track — el score es señal paralela; solo decide cuánto análisis corre.
+     */
+    @Column(name = "full_analysis_on_fast_track", nullable = false)
+    private boolean fullAnalysisOnFastTrack;
 }

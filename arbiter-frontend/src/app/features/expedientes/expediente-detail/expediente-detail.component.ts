@@ -164,6 +164,23 @@ export class ExpedienteDetailComponent {
     this.riskBreakdown().reduce((sum, item) => sum + item.weightedContribution, 0),
   );
 
+  /**
+   * Alcance del score en un Fast Track. En el carril rápido el análisis pesado (documentación +
+   * imágenes) corre solo si la aseguradora lo activó, así que el score puede ser parcial: solo con
+   * factores de datos duros. Detecta si corrió por la presencia del análisis forense o de algún
+   * factor pesado en el desglose. Devuelve null si no es Fast Track o no hay score (no aplica aviso).
+   */
+  protected readonly fastTrackScoreScope = computed<'partial' | 'full' | null>(() => {
+    const d = this.data();
+    if (!d || d.analysisClassification !== 'FAST_TRACK' || d.riskScore == null) {
+      return null;
+    }
+    const heavyFactors = new Set(['image_reuse', 'image_web_match', 'document_inconsistency']);
+    const ranHeavy =
+      !!d.forensicReport || (d.riskBreakdown ?? []).some((i) => heavyFactors.has(i.factorId));
+    return ranHeavy ? 'full' : 'partial';
+  });
+
   protected factorLabel(factorId: string): string {
     return riskFactorLabel(factorId);
   }

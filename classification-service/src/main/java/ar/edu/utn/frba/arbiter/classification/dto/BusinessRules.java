@@ -83,7 +83,16 @@ public record BusinessRules(
              */
             Long id,
             List<FactorWeight> factors,
-            List<Band> bands
+            List<Band> bands,
+            /**
+             * Whether Fast Track claims still get the full (heavy) analysis — OCR of every attachment
+             * plus the image-fraud cascade — so their fraud score comes out complete instead of only
+             * on structured-data factors. {@code false} (default) keeps Fast Track fast: it skips that
+             * analysis and the score is partial. Per-insurer, configured by the referente: some want
+             * the expedited lane to stay quick, others want the fraud read done regardless. It never
+             * gates Fast Track — the score is a parallel signal — it only decides how much runs.
+             */
+            boolean fullAnalysisOnFastTrack
     ) {
 
         /** A risk factor that is active for this insurer, and how much it weighs in the sum. */

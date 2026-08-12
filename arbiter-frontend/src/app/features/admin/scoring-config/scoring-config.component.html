@@ -47,6 +47,19 @@
     </ul>
   </div>
 
+  <div class="subsection">
+    <span class="t-field-label">Fast Track</span>
+    <p class="section-hint">
+      En Fast Track, el análisis de fraude pesado (lectura de documentos + comparación de imágenes) no
+      corre por defecto para no frenar el carril rápido: el score sale parcial, solo con los factores
+      de datos duros. Activá esto si querés que el Fast Track igual corra ese análisis y el score salga
+      completo. No cambia si el siniestro es Fast Track o no — solo cuánto se analiza.
+    </p>
+    <button type="button" class="chip factor-chip" [class.active]="fullAnalysisOnFastTrack()" [attr.aria-pressed]="fullAnalysisOnFastTrack()" (click)="toggleFullAnalysisOnFastTrack()">
+      Analizar documentación e imágenes aunque sea Fast Track
+    </button>
+  </div>
+
   <div class="ft-save">
     <div class="editor-actions">
       <app-button [disabled]="saving()" (click)="saveScoring()">

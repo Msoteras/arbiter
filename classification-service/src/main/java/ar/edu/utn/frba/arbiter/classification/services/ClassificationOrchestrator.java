@@ -233,10 +233,18 @@ public class ClassificationOrchestrator {
         FastTrackValidator.Result fastTrack =
                 fastTrackValidator.evaluate(claim, ctx.policy(), ctx.history(), ctx.rules(), gateDocumentTexts);
         if (fastTrack.fastTrack() && !temporal.blocksFastTrack() && !scope.blocksFastTrack()) {
-            log.info("[Orchestrator] Deterministic Fast Track — Reasons={}", fastTrack.reasons());
-            // Documentation was analyzed only if the gate actually examined a required document.
+            // The insurer may want the full fraud analysis even on Fast Track (per-insurer flag). When
+            // on, extract every attachment and mark the documentation as analyzed so the image-fraud
+            // cascade runs and the score comes out complete — not just on structured-data factors.
+            // When off (default), Fast Track stays fast: only the gate's docs were read, if any.
+            boolean fullAnalysis = fullAnalysisOnFastTrack(ctx.rules());
+            Map<String, DocumentExtraction> fastTrackExtractions = fullAnalysis
+                    ? extractAllAttachments(documents, gateExtractions)
+                    : gateExtractions;
+            log.info("[Orchestrator] Deterministic Fast Track — Reasons={} fullAnalysis={}",
+                    fastTrack.reasons(), fullAnalysis);
             return new Resolution(attachRuleFindings(fastTrackResponse(fastTrack), exclusion),
-                    !gateExtractions.isEmpty(), gateExtractions);
+                    fullAnalysis || !gateExtractions.isEmpty(), fastTrackExtractions);
         }
 
         log.info("[Orchestrator] Not Fast Track (fastTrack={}, temporalBlock={}, scopeBlock={}). "
@@ -399,6 +407,16 @@ public class ClassificationOrchestrator {
         List<String> merged = new ArrayList<>(response.factors() == null ? List.of() : response.factors());
         merged.addAll(reasons);
         return response.toBuilder().factors(merged).build();
+    }
+
+    /**
+     * Whether this insurer wants the heavy analysis (OCR of every attachment + the image-fraud
+     * cascade) to run on Fast Track claims, so their fraud score is complete rather than partial.
+     * Off by default — the score is a parallel signal and never gates Fast Track; this only widens
+     * how much gets analyzed on the expedited path. Null-safe: no scoring config ⇒ off.
+     */
+    private boolean fullAnalysisOnFastTrack(BusinessRules rules) {
+        return rules.scoringConfig() != null && rules.scoringConfig().fullAnalysisOnFastTrack();
     }
 
     private List<String> requiredDocumentTypes(BusinessRules rules) {

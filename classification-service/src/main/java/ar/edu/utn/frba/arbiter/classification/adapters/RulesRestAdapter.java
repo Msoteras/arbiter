@@ -322,7 +322,8 @@ public class RulesRestAdapter implements RulesAdapter {
     }
 
     /** Mirrors rules-service's ScoringConfigDto (factores + bandas del scoring de fraude). */
-    private record ScoringResponse(Long id, boolean enabled, List<ScoringFactorJson> factors, List<ScoringBandJson> bands) {
+    private record ScoringResponse(Long id, boolean enabled, boolean fullAnalysisOnFastTrack,
+                                   List<ScoringFactorJson> factors, List<ScoringBandJson> bands) {
 
         /** Mapea al ScoringConfig de classification; null si alguna banda no es una RiskBand válida. */
         BusinessRules.ScoringConfig toScoringConfig() {
@@ -349,6 +350,7 @@ public class RulesRestAdapter implements RulesAdapter {
                     .id(id)
                     .factors(factorWeights)
                     .bands(scoreBands)
+                    .fullAnalysisOnFastTrack(fullAnalysisOnFastTrack)
                     .build();
         }
     }
