@@ -105,6 +105,15 @@ export interface AnalystWorkload {
   activeCases: number;
 }
 
+/** Conteos de las lentes de la bandeja — espejo de LensSummaryResponse del cases-service. */
+export interface LensSummary {
+  all: number;
+  mine: number;
+  assigned: number;
+  unassigned: number;
+  fraud: number;
+}
+
 /**
  * Resumen de los expedientes asignados al analista logueado — espejo de AssignedCaseSummaryResponse.
  * `byStatus` mapea nombre de CaseStatus → cantidad (solo estados con al menos uno). La usa el inicio
@@ -235,6 +244,21 @@ export class ExpedienteService {
    * activos asignados (incluye a los que tienen cero). Solo para el referente. Alimenta el panel
    * "Carga del equipo" del inicio.
    */
+  /** Los 5 conteos de las lentes en un request, sobre los filtros vigentes (sin paginado ni orden). */
+  lensSummary(params: ExpedienteListParams = {}): Observable<LensSummary> {
+    const query: Record<string, string> = {};
+    if (params.status) query['status'] = params.status;
+    if (params.claimCause) query['claimCause'] = params.claimCause;
+    if (params.policyNumber) query['policyNumber'] = params.policyNumber;
+    if (params.insuredId) query['insuredId'] = params.insuredId;
+    if (params.eventDateFrom) query['eventDateFrom'] = params.eventDateFrom;
+    if (params.eventDateTo) query['eventDateTo'] = params.eventDateTo;
+    if (params.q) query['q'] = params.q;
+    if (params.riskBand) query['riskBand'] = params.riskBand;
+    if (params.analystId != null) query['analystId'] = String(params.analystId);
+    return this.http.get<LensSummary>(`${this.baseUrl}/lens-summary`, { params: query });
+  }
+
   analystWorkload(): Observable<AnalystWorkload[]> {
     return this.http.get<AnalystWorkload[]>(`${this.baseUrl}/analysts/workload`);
   }

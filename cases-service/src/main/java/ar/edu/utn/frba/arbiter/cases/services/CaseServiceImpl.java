@@ -6,6 +6,7 @@ import ar.edu.utn.frba.arbiter.cases.dto.AssignedCaseSummaryResponse;
 import ar.edu.utn.frba.arbiter.cases.dto.CaseDocumentResponse;
 import ar.edu.utn.frba.arbiter.cases.dto.CaseRequest;
 import ar.edu.utn.frba.arbiter.cases.dto.CaseResponse;
+import ar.edu.utn.frba.arbiter.cases.dto.LensSummaryResponse;
 import ar.edu.utn.frba.arbiter.cases.config.tenant.CallerContext;
 import ar.edu.utn.frba.arbiter.cases.config.tenant.TenantContext;
 import ar.edu.utn.frba.arbiter.cases.dto.StatusTransitionResponse;
@@ -314,6 +315,35 @@ public class CaseServiceImpl implements CaseService {
                 status, claimCause, policyNumber, insuredId, eventDateFrom, eventDateTo, q, riskBand,
                 ownerId, unassigned, fraudAlert, assigned);
         return toResponses(caseRepository.findAll(spec, pageable));
+    }
+
+    @Override
+    public LensSummaryResponse lensSummary(CaseStatus status, String claimCause, String policyNumber,
+                                            String insuredId, LocalDate eventDateFrom, LocalDate eventDateTo,
+                                            String q, RiskBand riskBand, Long analystId) {
+        // "Míos" necesita saber quién es "yo"; para el referente no hay perfil de analista y queda 0.
+        Long me = currentAnalystId().orElse(null);
+        return new LensSummaryResponse(
+                count(status, claimCause, policyNumber, insuredId, eventDateFrom, eventDateTo, q, riskBand,
+                        analystId, false, false, false),
+                me == null ? 0 : count(status, claimCause, policyNumber, insuredId, eventDateFrom, eventDateTo,
+                        q, riskBand, me, false, false, false),
+                count(status, claimCause, policyNumber, insuredId, eventDateFrom, eventDateTo, q, riskBand,
+                        analystId, false, false, true),
+                count(status, claimCause, policyNumber, insuredId, eventDateFrom, eventDateTo, q, riskBand,
+                        analystId, true, false, false),
+                count(status, claimCause, policyNumber, insuredId, eventDateFrom, eventDateTo, q, riskBand,
+                        analystId, false, true, false));
+    }
+
+    private long count(CaseStatus status, String claimCause, String policyNumber, String insuredId,
+                       LocalDate eventDateFrom, LocalDate eventDateTo, String q, RiskBand riskBand,
+                       Long analystId, boolean unassigned, boolean fraudAlert, boolean assigned) {
+        Specification<Case> spec = CaseSpecifications.withFilters(
+                status, claimCause, policyNumber, insuredId, eventDateFrom, eventDateTo, q, riskBand,
+                analystId, unassigned, fraudAlert, assigned);
+        // Sin ningún filtro la spec queda null, y count(null) explota — findAll(null, pageable) no.
+        return spec == null ? caseRepository.count() : caseRepository.count(spec);
     }
 
     /**

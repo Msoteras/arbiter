@@ -276,9 +276,10 @@ export class BandejaComponent {
   );
 
   /**
-   * Conteo de cada lente para mostrarlo al lado del toggle ("Míos 4 · Todos 57"). Se piden con
-   * `size: 1` porque solo interesa `totalElements`, no las filas. Respetan los filtros vigentes:
-   * el número tiene que decir cuántos hay *de lo que estás mirando*, no del total absoluto.
+   * Conteo de cada lente para mostrarlo al lado del toggle ("Míos 4 · Todos 57"). Respetan los
+   * filtros vigentes: el número tiene que decir cuántos hay *de lo que estás mirando*, no del total
+   * absoluto. Un solo request — antes era uno por lente, y cada uno traía una fila entera solo para
+   * leerle el total.
    */
   private readonly counts = toSignal(
     toObservable(
@@ -288,23 +289,9 @@ export class BandejaComponent {
       })),
     ).pipe(
       switchMap(({ filters }) =>
-        forkJoin({
-          mine: this.service
-            .list({ ...filters, assignedToMe: true, page: 0, size: 1 })
-            .pipe(map((p) => p.totalElements)),
-          all: this.service
-            .list({ ...filters, page: 0, size: 1 })
-            .pipe(map((p) => p.totalElements)),
-          assigned: this.service
-            .list({ ...filters, assigned: true, page: 0, size: 1 })
-            .pipe(map((p) => p.totalElements)),
-          unassigned: this.service
-            .list({ ...filters, unassigned: true, page: 0, size: 1 })
-            .pipe(map((p) => p.totalElements)),
-          fraud: this.service
-            .list({ ...filters, fraudAlert: true, page: 0, size: 1 })
-            .pipe(map((p) => p.totalElements)),
-        }).pipe(catchError(() => of({ mine: 0, all: 0, assigned: 0, unassigned: 0, fraud: 0 }))),
+        this.service
+          .lensSummary(filters)
+          .pipe(catchError(() => of({ mine: 0, all: 0, assigned: 0, unassigned: 0, fraud: 0 }))),
       ),
     ),
     { initialValue: { mine: 0, all: 0, assigned: 0, unassigned: 0, fraud: 0 } },

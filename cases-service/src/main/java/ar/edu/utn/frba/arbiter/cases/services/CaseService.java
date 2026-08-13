@@ -4,6 +4,7 @@ import ar.edu.utn.frba.arbiter.cases.dto.AnalystDecisionRequest;
 import ar.edu.utn.frba.arbiter.cases.dto.AnalystWorkloadResponse;
 import ar.edu.utn.frba.arbiter.cases.dto.AssignedCaseSummaryResponse;
 import ar.edu.utn.frba.arbiter.cases.dto.CaseDocumentResponse;
+import ar.edu.utn.frba.arbiter.cases.dto.LensSummaryResponse;
 import ar.edu.utn.frba.arbiter.cases.dto.CaseRequest;
 import ar.edu.utn.frba.arbiter.cases.dto.CaseResponse;
 import ar.edu.utn.frba.arbiter.cases.models.entities.CaseDocument;
@@ -75,6 +76,15 @@ public interface CaseService {
         return listCases(status, claimCause, policyNumber, insuredId, eventDateFrom, eventDateTo, q, riskBand,
                 null, assignedToMe, false, false, false, pageable);
     }
+
+    /**
+     * Los cinco conteos de las lentes de una sola vez, sobre los mismos filtros que el listado.
+     * Cuenta con {@code count(spec)}: no trae filas ni joinea el análisis, a diferencia de pedir
+     * cada lente con {@code size=1} solo para leer el total.
+     */
+    LensSummaryResponse lensSummary(CaseStatus status, String claimCause, String policyNumber,
+                                     String insuredId, LocalDate eventDateFrom, LocalDate eventDateTo,
+                                     String q, RiskBand riskBand, Long analystId);
 
     CaseResponse addDocumentsAndReclassify(Long caseId, Map<String, MultipartFile> documents);
 
