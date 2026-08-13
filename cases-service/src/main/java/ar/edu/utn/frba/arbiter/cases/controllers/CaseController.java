@@ -117,6 +117,7 @@ public class CaseController {
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate eventDateTo,
             @RequestParam(required = false) String q,
             @RequestParam(required = false) RiskBand riskBand,
+            @RequestParam(required = false) Long analystId,
             @RequestParam(defaultValue = "false") boolean assignedToMe,
             @RequestParam(defaultValue = "false") boolean unassigned,
             @RequestParam(defaultValue = "false") boolean fraudAlert,
@@ -125,7 +126,7 @@ public class CaseController {
     ) {
         Page<CaseResponse> response = caseService.listCases(
                 status, claimCause, policyNumber, insuredId, eventDateFrom, eventDateTo, q, riskBand,
-                assignedToMe, unassigned, fraudAlert, assigned, pageable);
+                analystId, assignedToMe, unassigned, fraudAlert, assigned, pageable);
         return ResponseEntity.ok(response);
     }
 

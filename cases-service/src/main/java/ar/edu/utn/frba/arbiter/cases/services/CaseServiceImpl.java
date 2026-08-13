@@ -287,7 +287,7 @@ public class CaseServiceImpl implements CaseService {
     @Override
     public Page<CaseResponse> listCases(CaseStatus status, String claimCause, String policyNumber,
                                          String insuredId, LocalDate eventDateFrom, LocalDate eventDateTo,
-                                         String q, RiskBand riskBand, boolean assignedToMe,
+                                         String q, RiskBand riskBand, Long analystId, boolean assignedToMe,
                                          boolean unassigned, boolean fraudAlert, boolean assigned,
                                          Pageable pageable) {
         if (accessPolicy.currentUserIsInsured()) {
@@ -297,7 +297,9 @@ public class CaseServiceImpl implements CaseService {
                     status, claimCause, policyNumber, eventDateFrom, eventDateTo, q, riskBand, pageable));
         }
 
-        Long ownerId = null;
+        // "Los míos" gana sobre el filtro explícito: si vienen los dos, el analista está mirando su
+        // propia bandeja y el id de otro no tendría sentido.
+        Long ownerId = analystId;
         if (assignedToMe) {
             ownerId = currentAnalystId().orElse(null);
             if (ownerId == null) {

@@ -123,6 +123,20 @@ export class BandejaComponent {
         /* backend caído: el filtro queda sin opciones, sin romper la bandeja */
       },
     });
+
+    // El equipo de analistas, para el filtro del referente. El endpoint es solo de ese rol, así
+    // que ni se pide para un analista.
+    if (this.isReferente()) {
+      this.service.analystWorkload().subscribe({
+        next: (team) =>
+          this.analystOptions.set(
+            team.map((a) => ({ value: String(a.analystId), label: a.name })),
+          ),
+        error: () => {
+          /* mismo criterio que arriba: sin opciones, sin romper */
+        },
+      });
+    }
   }
 
   // ───────────────── Lente: "Míos" vs "Todos" ─────────────────
@@ -149,6 +163,7 @@ export class BandejaComponent {
   protected readonly statusFilter = signal('');
   protected readonly claimCauseFilter = signal('');
   protected readonly riskBandFilter = signal('');
+  protected readonly analystFilter = signal('');
   protected readonly eventDateFrom = signal('');
   protected readonly eventDateTo = signal('');
   protected readonly qDraft = signal('');
@@ -171,6 +186,7 @@ export class BandejaComponent {
     status: this.statusFilter() || undefined,
     claimCause: this.claimCauseFilter() || undefined,
     riskBand: (this.riskBandFilter() || undefined) as ExpedienteListParams['riskBand'],
+    analystId: this.analystFilter() ? Number(this.analystFilter()) : undefined,
     eventDateFrom: this.eventDateFrom() || undefined,
     eventDateTo: this.eventDateTo() || undefined,
     q: this.qDebounced() || undefined,
@@ -332,6 +348,9 @@ export class BandejaComponent {
   // lista hardcodeada con valores que no existían ("Siniestro general") y filtraba vacío.
   protected readonly claimCauseOptions = signal<SelectOption[]>([]);
 
+  /** Equipo de analistas de la aseguradora. Vacío para el analista: el filtro no se le muestra. */
+  protected readonly analystOptions = signal<SelectOption[]>([]);
+
   // Mismas 4 etiquetas que usa app-fraud-gauge para band 1-4, para no inventar un vocabulario
   // paralelo de "nivel de riesgo" entre el filtro y la columna que lo muestra.
   protected readonly riskBandOptions: SelectOption[] = [
@@ -367,6 +386,7 @@ export class BandejaComponent {
   protected readonly draftStatus = signal('');
   protected readonly draftClaimCause = signal('');
   protected readonly draftRiskBand = signal('');
+  protected readonly draftAnalyst = signal('');
   protected readonly draftDateFrom = signal('');
   protected readonly draftDateTo = signal('');
 
@@ -374,6 +394,7 @@ export class BandejaComponent {
     this.draftStatus.set(this.statusFilter());
     this.draftClaimCause.set(this.claimCauseFilter());
     this.draftRiskBand.set(this.riskBandFilter());
+    this.draftAnalyst.set(this.analystFilter());
     this.draftDateFrom.set(this.eventDateFrom());
     this.draftDateTo.set(this.eventDateTo());
     this.filtersOpen.set(true);
@@ -409,6 +430,7 @@ export class BandejaComponent {
     this.statusFilter.set(this.draftStatus());
     this.claimCauseFilter.set(this.draftClaimCause());
     this.riskBandFilter.set(this.draftRiskBand());
+    this.analystFilter.set(this.draftAnalyst());
     this.eventDateFrom.set(this.draftDateFrom());
     this.eventDateTo.set(this.draftDateTo());
     this.page.set(0);
@@ -419,6 +441,7 @@ export class BandejaComponent {
     this.draftStatus.set('');
     this.draftClaimCause.set('');
     this.draftRiskBand.set('');
+    this.draftAnalyst.set('');
     this.draftDateFrom.set('');
     this.draftDateTo.set('');
   }
@@ -429,6 +452,7 @@ export class BandejaComponent {
     if (this.statusFilter()) n++;
     if (this.claimCauseFilter()) n++;
     if (this.riskBandFilter()) n++;
+    if (this.analystFilter()) n++;
     if (this.eventDateFrom()) n++;
     if (this.eventDateTo()) n++;
     return n;
@@ -443,6 +467,8 @@ export class BandejaComponent {
       chips.push({ key: 'claimCause', label: `Tipo: ${this.claimCauseFilter()}` });
     if (this.riskBandFilter())
       chips.push({ key: 'riskBand', label: `Fraude: ${this.riskBandLabel(this.riskBandFilter())}` });
+    if (this.analystFilter())
+      chips.push({ key: 'analyst', label: `Analista: ${this.analystName(this.analystFilter())}` });
     if (this.eventDateFrom())
       chips.push({ key: 'dateFrom', label: `Desde: ${this.formatDate(this.eventDateFrom())}` });
     if (this.eventDateTo())
@@ -455,10 +481,15 @@ export class BandejaComponent {
       case 'status': this.statusFilter.set(''); break;
       case 'claimCause': this.claimCauseFilter.set(''); break;
       case 'riskBand': this.riskBandFilter.set(''); break;
+      case 'analyst': this.analystFilter.set(''); break;
       case 'dateFrom': this.eventDateFrom.set(''); break;
       case 'dateTo': this.eventDateTo.set(''); break;
     }
     this.page.set(0);
+  }
+
+  private analystName(id: string): string {
+    return this.analystOptions().find((o) => o.value === id)?.label ?? id;
   }
 
   /** "Limpiar todo": quita todos los filtros aplicados (la búsqueda no se toca). */

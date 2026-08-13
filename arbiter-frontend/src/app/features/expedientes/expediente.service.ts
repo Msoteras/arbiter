@@ -81,6 +81,12 @@ export interface ExpedienteListParams {
    * "qué puede ver este usuario" — eso último ya lo acota el tenant.
    */
   assignedToMe?: boolean;
+  /**
+   * Filtro "Analista" del referente: expedientes de un analista puntual. A diferencia de
+   * `assignedToMe`, acá el id sí viaja — sale de la lista de `analystWorkload()`, que ya es de su
+   * propia aseguradora.
+   */
+  analystId?: number;
   /** Lente "Sin asignar": expedientes sin analista todavía. Excluyente con las otras lentes. */
   unassigned?: boolean;
   /** Lente "Asignados" (referente): expedientes con analista, sin importar quién. Excluyente. */
@@ -150,6 +156,7 @@ export class ExpedienteService {
     if (params.sort) query['sort'] = params.sort;
     if (params.q) query['q'] = params.q;
     if (params.riskBand) query['riskBand'] = params.riskBand;
+    if (params.analystId != null) query['analystId'] = String(params.analystId);
     if (params.assignedToMe) query['assignedToMe'] = 'true';
     if (params.unassigned) query['unassigned'] = 'true';
     if (params.assigned) query['assigned'] = 'true';
