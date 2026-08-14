@@ -1,0 +1,4 @@
+services:
+  auth-service:
+    ports: !override
+      - "8090:8080"
