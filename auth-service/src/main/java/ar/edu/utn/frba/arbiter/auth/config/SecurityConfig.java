@@ -12,8 +12,8 @@ import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.web.SecurityFilterChain;
 
 /**
- * Login queda público (es el único punto de entrada sin JWT); todo lo demás requiere estar
- * autenticado. Sin sesión de servidor (decisión de arquitectura #13): el estado vive en el JWT.
+ * Login stays public (it's the only entry point without a JWT); everything else needs to be
+ * authenticated. No server session (architecture decision #13): the state lives in the JWT.
  */
 @Configuration
 @EnableMethodSecurity

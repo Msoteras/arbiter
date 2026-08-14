@@ -33,14 +33,14 @@ public record ClaimReport(
         @NotNull LocalDateTime eventDate,
         @NotBlank String eventLocation,
         BigDecimal claimedAmount,
-        // Cuándo se denunció el siniestro a la aseguradora (alta del caso). Lo usa la regla del plazo
-        // de denuncia (D11): reportedAt - eventDate vs coverage.report_deadline_hours. Nullable: el
-        // flujo aislado (sin caso) no lo tiene, y ahí la regla no es evaluable.
+        // When the claim was reported to the insurer (case creation). Used by the reporting deadline
+        // rule (D11): reportedAt - eventDate vs coverage.report_deadline_hours. Nullable: the
+        // isolated flow (no case) doesn't have it, and there the rule isn't evaluable.
         LocalDateTime reportedAt,
-        // Cuándo dice el asegurado que hizo la denuncia policial. Es su DECLARACIÓN, no lo que diga
-        // la constancia: cuando la extracción lee la fecha del papel, va por separado, y el cruce
-        // entre las dos es justamente la señal (D12). Nullable — no todo hecho generador lleva
-        // denuncia policial, y ahí la regla del plazo no es evaluable.
+        // When the insured SAYS they filed the police report. It's their STATEMENT, not what the
+        // certificate says: when extraction reads the date off the paper it travels separately, and
+        // crossing the two is precisely the signal (D12). Nullable — not every claim cause involves
+        // a police report, and there the deadline rule isn't evaluable.
         LocalDateTime policeReportAt,
         List<String> attachmentsOcr
 ) {}

@@ -7,14 +7,14 @@ import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
 
 /**
- * Wiring común a todos los módulos: sin sesión de servidor ni CSRF (decisión de arquitectura
- * #13), sin autenticación anónima (para que "sin token" devuelva 401 y no 403 — por default,
- * Spring Security trata al anónimo como "autenticado" y un {@code isAuthenticated()} fallido
- * termina en 403), y el filtro de JWT antes del de user/password. {@code /error} queda público:
- * cuando Spring Security deniega (401/403), el contenedor hace un forward interno a {@code /error}
- * para renderizarlo, y ese forward vuelve a pasar por el filtro de seguridad — sin este permitAll,
- * ese segundo request (sin poder reautenticar igual que el original) pisa el status code real.
- * Cada módulo agrega sus propias reglas de autorización por endpoint encima de esto.
+ * Wiring common to every module: no server session and no CSRF (architecture decision #13), no
+ * anonymous authentication (so that "no token" returns 401 and not 403 — by default Spring Security
+ * treats the anonymous user as "authenticated" and a failed {@code isAuthenticated()} ends in 403),
+ * and the JWT filter before the user/password one. {@code /error} stays public: when Spring
+ * Security denies (401/403), the container does an internal forward to {@code /error} to render it,
+ * and that forward goes through the security filter again — without this permitAll, that second
+ * request (unable to re-authenticate like the original) overwrites the real status code. Each
+ * module adds its own per-endpoint authorization rules on top of this.
  */
 public final class ArbiterHttpSecurity {
 

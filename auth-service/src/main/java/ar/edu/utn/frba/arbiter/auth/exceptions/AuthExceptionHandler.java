@@ -13,7 +13,7 @@ public class AuthExceptionHandler {
         return ProblemDetail.forStatusAndDetail(HttpStatusCode.valueOf(401), ex.getMessage());
     }
 
-    /** 400 y no 401: no fallaron las credenciales, no se pudo leer el pedido. */
+    /** 400 rather than 401: the credentials didn't fail, the request couldn't be read. */
     @ExceptionHandler(InvalidEncryptedPasswordException.class)
     public ProblemDetail handleInvalidEncryptedPassword(InvalidEncryptedPasswordException ex) {
         return ProblemDetail.forStatusAndDetail(HttpStatusCode.valueOf(400), ex.getMessage());

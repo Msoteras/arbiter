@@ -5,26 +5,26 @@ import org.springframework.test.context.TestPropertySource;
 import org.testcontainers.postgresql.PostgreSQLContainer;
 
 /**
- * Mismo patrón "singleton container" que los {@code AbstractPersistenceIT} de cases-service y
- * rules-service: sin {@code @Testcontainers}/{@code @Container}, porque esas anotaciones paran el
- * contenedor en el {@code afterAll} de cada clase y con un field estático heredado eso lo mata para
- * la clase siguiente de la misma corrida.
+ * Same "singleton container" pattern as the {@code AbstractPersistenceIT} of cases-service and
+ * rules-service: no {@code @Testcontainers}/{@code @Container}, because those annotations stop the
+ * container on each class's {@code afterAll}, and with an inherited static field that kills it for
+ * the next class of the same run.
  *
- * <p>Sin esto, el {@code @SpringBootTest} de reports-service intentaba levantar el contexto contra
- * el Postgres del {@code application.yml} y fallaba en cualquier máquina sin esa base local (D18,
- * tercera instancia del mismo problema).
+ * <p>Without this, reports-service's {@code @SpringBootTest} tried to start the context against the
+ * Postgres in {@code application.yml} and failed on any machine without that local database (D18,
+ * third instance of the same problem).
  *
- * <p>Cuando el módulo tenga controllers y services de verdad (hoy es solo la entidad {@code Metric}
- * y su repository — ver la brecha de la épica 9 en {@code docs/gap-historias-usuario.md}), esta
- * clase es la base de la que van a colgar sus tests de persistencia.
+ * <p>Once the module has real controllers and services (today it's only the {@code Metric} entity
+ * and its repository — see the epic 9 gap in {@code docs/gap-historias-usuario.md}), this class is
+ * the base their persistence tests will hang off.
  */
-// SecurityConfig necesita un JWT_SECRET real para levantar el contexto: el default del yml es vacío
-// y ahí la key de HS256 no se puede construir.
+// SecurityConfig needs a real JWT_SECRET to start the context: the yml default is empty and the
+// HS256 key can't be built from that.
 //
-// ddl-auto se pisa a `update` solo acá; en producción es `validate` (el esquema lo define
-// db/init-multitenant.sql). Mismo trade-off y misma deuda que en los otros dos módulos: el
-// contenedor arranca vacío y nadie corre el script, así que no habría tablas contra las cuales
-// validar.
+// ddl-auto is overridden to `update` only here; in production it's `validate` (the schema is
+// defined by db/init-multitenant.sql). Same trade-off and same debt as in the other two modules:
+// the container starts empty and nobody runs the script, so there'd be no tables to validate
+// against.
 @TestPropertySource(properties = {
         "arbiter.auth.jwt.secret=test-secret-at-least-32-bytes-long-for-hs256",
         "spring.jpa.hibernate.ddl-auto=update"

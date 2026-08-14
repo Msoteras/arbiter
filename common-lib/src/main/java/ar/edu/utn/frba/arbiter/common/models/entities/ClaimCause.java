@@ -35,11 +35,11 @@ public class ClaimCause {
     @Column(nullable = false)
     private String name;
 
-    // EAGER a propósito: la rama viaja en toda respuesta de expediente
-    // (CaseServiceImpl.toResponse lee claimCause.getBranch().getName()), y con open-in-view
-    // apagado no hay sesión abierta cuando se arma el DTO. No alcanza con envolver el service en
-    // @Transactional: el barrido multi-aseguradora cambia de esquema en medio del método, y una
-    // transacción retiene una conexión, así que el search_path quedaría clavado en el primero.
+    // EAGER on purpose: the branch travels in every case response
+    // (CaseServiceImpl.toResponse reads claimCause.getBranch().getName()), and with open-in-view off
+    // there's no open session when the DTO is built. Wrapping the service in @Transactional isn't
+    // enough: the multi-insurer sweep switches schema mid-method, and a transaction holds on to a
+    // connection, so the search_path would stay pinned to the first one.
     @ManyToOne(fetch = FetchType.EAGER)
     @JoinColumn(name = "branch_id", nullable = false)
     private Branch branch;

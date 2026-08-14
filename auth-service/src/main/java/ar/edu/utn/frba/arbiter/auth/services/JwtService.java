@@ -48,7 +48,7 @@ public class JwtService {
         key = JwtSupport.key(secret);
     }
 
-    /** Misma clave usada para firmar — SecurityConfig la reutiliza para validar (nunca la deriva por su cuenta). */
+    /** The same key used to sign — SecurityConfig reuses it to validate, never derives its own. */
     public SecretKey getKey() {
         return key;
     }

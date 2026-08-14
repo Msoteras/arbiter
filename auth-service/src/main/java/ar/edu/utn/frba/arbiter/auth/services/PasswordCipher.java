@@ -24,10 +24,9 @@ import java.time.Instant;
 import java.util.Base64;
 
 /**
- * Opens the password the browser sends encrypted on login, so it doesn't travel readable in the
- * body: this does not replace TLS, it keeps the password out of devtools, exported HARs and
- * misconfigured access logs. The auth-service → Auth0 leg still sends it in the clear inside the
- * tunnel, since Auth0's API takes the real password (decision #8).
+ * Opens the password the browser sends encrypted on login. It doesn't replace TLS — it keeps the
+ * password out of devtools, HARs and access logs. The auth-service → Auth0 leg still goes in the
+ * clear inside the tunnel, since Auth0's API takes the real password (decision #8).
  */
 @Service
 @Slf4j
@@ -52,9 +51,9 @@ public class PasswordCipher {
             KeyPair generated = generateKeyPair();
             privateKey = generated.getPrivate();
             publicKeyBase64 = Base64.getEncoder().encodeToString(generated.getPublic().getEncoded());
-            log.warn("Sin arbiter.auth.password-encryption.private-key se generó un par RSA efímero. "
-                    + "Con más de una instancia hay que fijarlo: el navegador cifra contra la clave de "
-                    + "una y el login le puede tocar otra, con fallas intermitentes.");
+            log.warn("No arbiter.auth.password-encryption.private-key set, generated an ephemeral RSA "
+                    + "pair. With more than one instance it has to be pinned: the browser encrypts "
+                    + "against one instance's key and the login may land on another, failing on and off.");
             return;
         }
         privateKey = readPrivateKey(configuredPrivateKey);
@@ -100,7 +99,7 @@ public class PasswordCipher {
             byte[] decrypted = cipher.doFinal(Base64.getDecoder().decode(base64Ciphertext));
             return new String(decrypted, StandardCharsets.UTF_8);
         } catch (Exception e) {
-            log.debug("No se pudo descifrar el sobre de contraseña", e);
+            log.debug("Could not decrypt the password envelope", e);
             throw new InvalidEncryptedPasswordException();
         }
     }
@@ -119,7 +118,7 @@ public class PasswordCipher {
             generator.initialize(2048);
             return generator.generateKeyPair();
         } catch (Exception e) {
-            throw new IllegalStateException("No se pudo generar el par de claves para el login", e);
+            throw new IllegalStateException("Could not generate the login key pair", e);
         }
     }
 
@@ -129,7 +128,7 @@ public class PasswordCipher {
             return KeyFactory.getInstance("RSA").generatePrivate(new PKCS8EncodedKeySpec(der));
         } catch (Exception e) {
             throw new IllegalStateException(
-                    "arbiter.auth.password-encryption.private-key no es una clave RSA PKCS#8 en base64", e);
+                    "arbiter.auth.password-encryption.private-key is not a base64 PKCS#8 RSA key", e);
         }
     }
 
@@ -140,10 +139,10 @@ public class PasswordCipher {
             return KeyFactory.getInstance("RSA")
                     .generatePublic(new RSAPublicKeySpec(crt.getModulus(), crt.getPublicExponent()));
         } catch (ClassCastException e) {
-            throw new IllegalStateException("La clave privada no trae los parámetros CRT, así que no se "
-                    + "le puede derivar la pública. Generala con `openssl genpkey -algorithm RSA`.", e);
+            throw new IllegalStateException("The private key carries no CRT parameters, so the public "
+                    + "one can't be derived from it. Generate it with `openssl genpkey -algorithm RSA`.", e);
         } catch (Exception e) {
-            throw new IllegalStateException("No se pudo derivar la clave pública del login", e);
+            throw new IllegalStateException("Could not derive the login public key", e);
         }
     }
 }

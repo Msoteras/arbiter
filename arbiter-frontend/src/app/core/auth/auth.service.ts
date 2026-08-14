@@ -19,13 +19,13 @@ interface PublicKeyResponse {
 export interface LoginResponse {
   token: string;
   expiresAt: string;
-  /** Id del usuario logueado — con esto la bandeja resuelve qué expedientes son "míos". */
+  /** Id of the logged-in user — the bandeja resolves which cases are "mine" with it. */
   id: number;
   email: string;
   rol: UserRole;
   nombre: string;
   apellido: string;
-  /** DNI del asegurado (null para analista/referente). */
+  /** The insured's DNI (null for analista/referente). */
   insuredId: string | null;
 }
 

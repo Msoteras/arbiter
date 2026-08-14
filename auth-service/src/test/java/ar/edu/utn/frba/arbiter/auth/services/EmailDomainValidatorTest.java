@@ -7,8 +7,8 @@ import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 /**
- * Hace lookups DNS reales — depende de red. Usa dominios estables: gmail.com (MX real,
- * no debería cambiar) y el TLD .invalid (RFC 2606, reservado para nunca resolver).
+ * Does real DNS lookups — depends on the network. Uses stable domains: gmail.com (real MX, it
+ * shouldn't change) and the .invalid TLD (RFC 2606, reserved to never resolve).
  */
 class EmailDomainValidatorTest {
 

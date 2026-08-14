@@ -1,6 +1,6 @@
 package ar.edu.utn.frba.arbiter.auth.exceptions;
 
-/** El dominio del email no tiene registros MX — no puede recibir correo real. */
+/** The email's domain has no MX records — it can't receive real mail. */
 public class InvalidEmailDomainException extends RuntimeException {
     public InvalidEmailDomainException(String email) {
         super("El dominio del email no parece real (sin registros MX): " + email);

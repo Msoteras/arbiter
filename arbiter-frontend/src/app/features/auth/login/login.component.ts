@@ -25,8 +25,8 @@ export class LoginComponent {
   protected readonly email = signal('');
   protected readonly password = signal('');
   protected readonly submitting = signal(false);
-  // sessionExpired: lo agrega authInterceptor tras un 401 en cualquier llamada /api —
-  // sin esto el usuario no tenía forma de saber que lo que pasó fue que venció el token.
+  // sessionExpired: authInterceptor adds it after a 401 on any /api call — without it the user had
+  // no way of knowing what happened was that the token expired.
   protected readonly errorMessage = signal<string | null>(
     this.route.snapshot.queryParamMap.has('sessionExpired')
       ? 'Tu sesión expiró. Ingresá de nuevo.'
@@ -51,16 +51,15 @@ export class LoginComponent {
       },
       error: (err: HttpErrorResponse) => {
         this.submitting.set(false);
-        // El detalle real (status + payload) va a consola/observabilidad; el usuario ve un
-        // mensaje acotado. Sin esto, un 500 y un backend caído eran indistinguibles a la hora
-        // de diagnosticar, dependiendo del relato del usuario.
-        console.error('Login falló', { status: err.status, detail: err.error });
+        // The real detail goes to the console; the user sees a narrow message. Without this, a 500
+        // and a downed backend were indistinguishable when diagnosing.
+        console.error('Login failed', { status: err.status, detail: err.error });
         this.errorMessage.set(this.messageFor(err));
       },
     });
   }
 
-  /** Cada rol aterriza en su pantalla de inicio, que resume su trabajo y enlaza al resto de su sección. */
+  /** Each role lands on its own home, which sums up its work and links to the rest of its section. */
   private homeFor(rol: UserRole): string {
     if (rol === 'ASEGURADO') return '/portal/home';
     if (rol === 'REFERENTE_ASEGURADORA') return '/insurer/home';
@@ -74,16 +73,16 @@ export class LoginComponent {
     if (err.status === 423) {
       return err.error?.detail ?? 'Cuenta bloqueada temporalmente. Probá de nuevo más tarde.';
     }
-    // Los campos vacíos ya los ataja canSubmit, así que un 400 del server es el sobre cifrado que
-    // no se pudo abrir: el backend rotó la clave al reiniciar, o el reloj del navegador está corrido.
+    // canSubmit already catches empty fields, so a 400 from the server means the sealed password
+    // couldn't be opened: the backend rotated its key on restart, or the browser clock is off.
     if (err.status === 400) {
       return err.error?.detail ?? 'No pudimos procesar el pedido. Recargá la página y probá de nuevo.';
     }
-    // status 0 = no hubo respuesta del servidor: backend caído, sin conexión, timeout o CORS.
+    // status 0 = no response from the server: backend down, no connection, timeout or CORS.
     if (err.status === 0) {
       return 'No pudimos conectar con el servidor. Revisá tu conexión a internet; si el problema persiste, avisá a soporte.';
     }
-    // 5xx: el backend respondió con un error propio — no es un problema transitorio de red.
+    // 5xx: the backend answered with an error of its own — not a transient network problem.
     if (err.status >= 500) {
       return 'El servicio no está disponible por el momento. Ya estamos al tanto; probá de nuevo en unos minutos o avisá a soporte si sigue.';
     }
