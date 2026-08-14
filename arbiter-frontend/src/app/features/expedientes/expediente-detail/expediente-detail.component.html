@@ -31,6 +31,9 @@
           <div class="reco-body">
             <div class="reco-text">
               <p class="reco-value" [attr.data-tone]="classificationTone() !== 'neutral' ? classificationTone() : null">{{ classificationLabel() }}</p>
+              @if (data()?.analysisDetail; as detail) {
+                <p class="t-body reco-detail">{{ detail }}</p>
+              }
               <p class="note">Confianza del modelo: {{ confidencePercent() }}%</p>
               <p class="note">Es una recomendación no vinculante: la decisión se registra abajo (Aprobar / Rechazar).</p>
             </div>
@@ -265,7 +268,7 @@
         </app-card>
       }
       @case ('documentacion') {
-        <app-case-documents [caseId]="d.id" [reloadToken]="docsReloadToken()" [branch]="d.branch" />
+        <app-case-documents [caseId]="d.id" [reloadToken]="docsReloadToken()" [branch]="d.branch" [claimCause]="d.claimCause" />
       }
       @case ('conversacion') { <app-empty-state message="Conversación con el asegurado" /> }
       @case ('historial') {

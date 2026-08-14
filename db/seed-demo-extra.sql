@@ -261,12 +261,12 @@ SELECT setval(pg_get_serial_sequence('arbiter_bbva.risk_analysis','id'), (SELECT
 
 INSERT INTO arbiter_bbva.rule_result (rule_type, result, evaluated_value, score_contribution,
                                   evaluated_at, rule_id, case_id) VALUES
-    ('COVERAGE_EXCLUSION', 'NO_CUMPLE', 'Hurto', 0.0000, '2025-06-16 10:05:00+00', 3, 8),
+    ('COVERAGE_INCLUSION', 'NO_CUMPLE', 'Hurto', 0.0000, '2025-06-16 10:05:00+00', 3, 8),
     ('FAST_TRACK', 'CUMPLE', '0.940', 0.423, '2026-08-01 18:25:00+00', 1, 11),
     ('FAST_TRACK', 'CUMPLE', 'AL_DIA', 0.0000, '2026-08-01 18:25:00+00', 2, 11),
     ('FAST_TRACK', 'CUMPLE', '0.200', 0.09, '2026-08-03 12:20:00+00', 1, 12),
     ('FAST_TRACK', 'CUMPLE', 'AL_DIA', 0.0000, '2026-08-03 12:20:00+00', 2, 12),
-    ('COVERAGE_EXCLUSION', 'NO_CUMPLE', 'Hurto', 0.0000, '2026-08-02 16:05:00+00', 3, 17);
+    ('COVERAGE_INCLUSION', 'NO_CUMPLE', 'Hurto', 0.0000, '2026-08-02 16:05:00+00', 3, 17);
 
 INSERT INTO arbiter_bbva.case_classification (id, decision, analyst_justification, decided_at,
                                           classification_attempts, llm_analysis_id, analyst_id) VALUES

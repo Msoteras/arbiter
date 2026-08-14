@@ -7,8 +7,8 @@ package ar.edu.utn.frba.arbiter.classification.dto;
  * reglas se evaluaron.
  *
  * @param ruleId         id de la {@code insurer_rule} evaluada — va a {@code rule_result.rule_id}
- * @param ruleType       p.ej. {@code COVERAGE_EXCLUSION}
- * @param passed         {@code true} si la regla se satisface (no excluye); {@code false} si falla
+ * @param ruleType       p.ej. {@code COVERAGE_INCLUSION}
+ * @param passed         {@code true} si la regla se satisface (cubre); {@code false} si falla (no cubre)
  * @param evaluatedValue qué se comparó, legible (p.ej. {@code "claimCause=Hurto (id=3)"})
  */
 public record RuleFinding(

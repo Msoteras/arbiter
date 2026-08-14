@@ -1,6 +1,6 @@
 package ar.edu.utn.frba.arbiter.rules.services;
 
-import ar.edu.utn.frba.arbiter.rules.dto.CoverageExclusionConfig;
+import ar.edu.utn.frba.arbiter.rules.dto.CoverageInclusionConfig;
 import ar.edu.utn.frba.arbiter.rules.dto.EvaluableRuleDto;
 import ar.edu.utn.frba.arbiter.rules.dto.EvaluableRulesDto;
 import ar.edu.utn.frba.arbiter.rules.exceptions.InvalidRuleConfigurationException;
@@ -19,8 +19,8 @@ import java.util.List;
  * {@code /internal/fast-track} y {@code /internal/rule-texts}. Keyea por cobertura, que es lo que el
  * claim tiene a mano.
  *
- * <p>Hoy el único tipo es {@code COVERAGE_EXCLUSION}: la lista negra de hechos generadores que la
- * cobertura no cubre, persistida como una fila de {@code insurer_rule} con {@code configuration}
+ * <p>Hoy el único tipo es {@code COVERAGE_INCLUSION}: la lista de hechos generadores que la
+ * cobertura SÍ cubre, persistida como una fila de {@code insurer_rule} con {@code configuration}
  * JSONB. Esto cierra la asimetría del DER, donde no existe relación cobertura ↔ hecho generador
  * (ver plan-reglas-evaluables.md §1.2). El {@code id} de la regla viaja al motor porque es lo que
  * después va a {@code rule_result.rule_id} (auditoría, Disposición SSN 2/2023).
@@ -28,7 +28,7 @@ import java.util.List;
 @Service
 public class InternalEvaluableRuleService {
 
-    private static final String COVERAGE_EXCLUSION = "COVERAGE_EXCLUSION";
+    private static final String COVERAGE_INCLUSION = "COVERAGE_INCLUSION";
     // Self-instanciado (Jackson 2), igual que FastTrackRuleService: Spring Boot 4 autoconfigura un
     // ObjectMapper de Jackson 3 (tools.jackson), así que no hay bean com.fasterxml para inyectar.
     private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
@@ -41,7 +41,7 @@ public class InternalEvaluableRuleService {
 
     @Transactional(readOnly = true)
     public EvaluableRulesDto getByCoverage(Long coverageId) {
-        return ruleRepository.findFirstByCoverageIdAndRuleType(coverageId, COVERAGE_EXCLUSION)
+        return ruleRepository.findFirstByCoverageIdAndRuleType(coverageId, COVERAGE_INCLUSION)
                 .filter(InsurerRule::isActive)
                 .map(this::toDto)
                 .map(dto -> new EvaluableRulesDto(List.of(dto)))
@@ -49,23 +49,23 @@ public class InternalEvaluableRuleService {
     }
 
     private EvaluableRuleDto toDto(InsurerRule rule) {
-        CoverageExclusionConfig config = deserialize(rule.getConfiguration());
+        CoverageInclusionConfig config = deserialize(rule.getConfiguration());
         return new EvaluableRuleDto(
                 rule.getId(),
                 rule.getRuleType(),
                 rule.getEffect(),
                 rule.isBlocksFastTrack(),
-                config.excludedClaimCauseIds());
+                config.includedClaimCauseIds());
     }
 
-    private CoverageExclusionConfig deserialize(String json) {
+    private CoverageInclusionConfig deserialize(String json) {
         if (json == null || json.isBlank()) {
-            return new CoverageExclusionConfig(List.of());
+            return new CoverageInclusionConfig(List.of());
         }
         try {
-            return OBJECT_MAPPER.readValue(json, CoverageExclusionConfig.class);
+            return OBJECT_MAPPER.readValue(json, CoverageInclusionConfig.class);
         } catch (JsonProcessingException e) {
-            throw new InvalidRuleConfigurationException("Configuración de exclusión ilegible: " + e.getOriginalMessage());
+            throw new InvalidRuleConfigurationException("Configuración de inclusión ilegible: " + e.getOriginalMessage());
         }
     }
 }

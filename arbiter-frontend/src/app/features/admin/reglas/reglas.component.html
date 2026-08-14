@@ -181,14 +181,14 @@
                   </div>
 
                   <div class="cov-excl">
-                    <span class="t-field-label">Hechos generadores NO cubiertos</span>
+                    <span class="t-field-label">Hechos generadores cubiertos</span>
                     <p class="section-hint">
-                      Exclusión dura: si se denuncia uno de estos hechos sobre esta cobertura, el
+                      Inclusión dura: si se denuncia un hecho generador que NO está tildado acá, el
                       motor lo detecta por regla (bloquea Fast Track y deriva a revisión), no el
-                      modelo.
+                      modelo. Sin ningún hecho generador tildado, esta cobertura no cubre nada.
                     </p>
-                    @if (!canEditExclusions(c)) {
-                      <p class="t-note">Guardá la cobertura primero para configurar sus exclusiones.</p>
+                    @if (!canEditInclusions(c)) {
+                      <p class="t-note">Guardá la cobertura primero para configurar qué cubre.</p>
                     } @else if (claimCauses().length === 0) {
                       <p class="t-note">No hay hechos generadores en este ramo.</p>
                     } @else {
@@ -197,9 +197,9 @@
                           <button
                             type="button"
                             class="chip"
-                            [class.active]="isCauseExcluded(c, cause.id)"
-                            [attr.aria-pressed]="isCauseExcluded(c, cause.id)"
-                            (click)="toggleExcludedCause(c.id, cause.id)"
+                            [class.active]="isCauseIncluded(c, cause.id)"
+                            [attr.aria-pressed]="isCauseIncluded(c, cause.id)"
+                            (click)="toggleIncludedCause(c.id, cause.id)"
                           >
                             {{ cause.name }}
                           </button>
@@ -331,30 +331,61 @@
             <div class="tab-panel" @fadeInUp>
               <app-card heading="Agenda documental">
                 <p class="section-hint">
-                  Documentos obligatorios para considerar el expediente completo. Si falta alguno, el
-                  estado queda en "Falta documentación".
+                  Documentos obligatorios para considerar el expediente completo. Se configuran
+                  por separado para cada hecho generador: no es lo mismo un robo que una caída.
                 </p>
-                <div class="chips">
-                  @for (doc of docTypes; track doc.code) {
-                    <button type="button" class="chip" [class.active]="isDocRequired(doc.code)" [attr.aria-pressed]="isDocRequired(doc.code)" (click)="toggleDoc(doc.code)">
-                      {{ doc.label }}
-                    </button>
-                  }
-                </div>
 
-                <div class="ft-save">
-                  <div class="editor-actions">
-                    <app-button [disabled]="docSaving()" (click)="saveDocuments()">
-                      {{ docSaving() ? 'Guardando…' : 'Guardar documentación' }}
-                    </app-button>
-                    @if (docSaved()) {
-                      <span class="saved-note">✓ Guardado en el motor</span>
-                    }
-                    @if (docError(); as err) {
-                      <span class="warn-note">{{ err }}</span>
-                    }
+                @if (claimCauses().length === 0) {
+                  <p class="t-note">No hay hechos generadores en este ramo.</p>
+                } @else {
+                  <div class="subsection">
+                    <span class="t-field-label">Paso 1 · Elegí el hecho generador</span>
+                    <div class="chips">
+                      @for (cause of claimCauses(); track cause.id) {
+                        <button
+                          type="button"
+                          class="chip"
+                          [class.active]="selectedDocClaimCauseId() === cause.id"
+                          [attr.aria-pressed]="selectedDocClaimCauseId() === cause.id"
+                          (click)="selectDocClaimCause(cause.id)"
+                        >
+                          {{ cause.name }}
+                        </button>
+                      }
+                    </div>
                   </div>
-                </div>
+
+                  @if (selectedDocClaimCauseName(); as causeName) {
+                    <div class="subsection">
+                      <span class="t-field-label">Paso 2 · Documentos requeridos para «{{ causeName }}»</span>
+                      <p class="t-note">
+                        Si al denunciar falta alguno de los tildados, el expediente queda en
+                        "Falta documentación" hasta que se suba.
+                      </p>
+                      <div class="chips">
+                        @for (doc of docTypes; track doc.code) {
+                          <button type="button" class="chip" [class.active]="isDocRequired(doc.code)" [attr.aria-pressed]="isDocRequired(doc.code)" (click)="toggleDoc(doc.code)">
+                            {{ doc.label }}
+                          </button>
+                        }
+                      </div>
+                    </div>
+                  }
+
+                  <div class="ft-save">
+                    <div class="editor-actions">
+                      <app-button [disabled]="docSaving()" (click)="saveDocuments()">
+                        {{ docSaving() ? 'Guardando…' : 'Guardar documentos de «' + selectedDocClaimCauseName() + '»' }}
+                      </app-button>
+                      @if (docSaved()) {
+                        <span class="saved-note">✓ Guardado en el motor</span>
+                      }
+                      @if (docError(); as err) {
+                        <span class="warn-note">{{ err }}</span>
+                      }
+                    </div>
+                  </div>
+                }
               </app-card>
             </div>
           }

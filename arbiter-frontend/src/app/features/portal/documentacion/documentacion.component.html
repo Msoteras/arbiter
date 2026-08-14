@@ -14,7 +14,12 @@
 </header>
 
 <app-card heading="Documentos requeridos">
-  <app-doc-upload [caseId]="caseId" [branch]="data()?.branch ?? null" (uploaded)="onUploaded()" />
+  <app-doc-upload
+    [caseId]="caseId"
+    [branch]="data()?.branch ?? null"
+    [claimCause]="data()?.claimCause ?? null"
+    (uploaded)="onUploaded()"
+  />
 </app-card>
 
 <p class="autosend-note">

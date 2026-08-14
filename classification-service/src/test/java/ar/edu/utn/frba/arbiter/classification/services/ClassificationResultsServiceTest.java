@@ -129,7 +129,7 @@ class ClassificationResultsServiceTest {
                 .factors(List.of("La cobertura no cubre el hecho generador declarado"))
                 .confidence(1.0)
                 .deterministicFastTrack(false)
-                .ruleFindings(List.of(new RuleFinding(3L, "COVERAGE_EXCLUSION", false, "claimCause=Hurto (id=3)")))
+                .ruleFindings(List.of(new RuleFinding(3L, "COVERAGE_INCLUSION", false, "claimCause=Hurto (id=3)")))
                 .build();
 
         service.saveResult(7L, response, null, 50);
@@ -139,7 +139,7 @@ class ClassificationResultsServiceTest {
         RuleResult saved = captor.getValue();
         assertThat(saved.getCaseId()).isEqualTo(7L);
         assertThat(saved.getRuleId()).isEqualTo(3L);
-        assertThat(saved.getRuleType()).isEqualTo("COVERAGE_EXCLUSION");
+        assertThat(saved.getRuleType()).isEqualTo("COVERAGE_INCLUSION");
         assertThat(saved.getResult()).isEqualTo("FAIL");
         assertThat(saved.getEvaluatedValue()).contains("id=3");
         assertThat(saved.getEvaluatedAt()).isNotNull();
@@ -152,7 +152,7 @@ class ClassificationResultsServiceTest {
                 .factors(List.of("ok"))
                 .confidence(1.0)
                 .deterministicFastTrack(true)
-                .ruleFindings(List.of(new RuleFinding(3L, "COVERAGE_EXCLUSION", true, "claimCause=Robo (id=2)")))
+                .ruleFindings(List.of(new RuleFinding(3L, "COVERAGE_INCLUSION", true, "claimCause=Robo (id=2)")))
                 .build();
 
         service.saveResult(null, response, null, 50);

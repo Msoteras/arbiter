@@ -1,5 +1,5 @@
 import { HttpErrorResponse } from '@angular/common/http';
-import { ChangeDetectionStrategy, Component, inject, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
 import { Observable, forkJoin, of } from 'rxjs';
 
 import {
@@ -11,7 +11,7 @@ import {
 import { BranchOption, BranchesService } from '../branches.service';
 import { FastTrackConfigDto, FastTrackRulesService } from '../fast-track-rules.service';
 import { CoverageDetail, CoverageUpsertRequest, CoveragesRulesService } from '../coverages-rules.service';
-import { ClaimCauseOption, CoverageExclusionsService } from '../coverage-exclusions.service';
+import { ClaimCauseOption, CoverageInclusionsService } from '../coverage-inclusions.service';
 import { DocumentRulesService } from '../document-rules.service';
 import { BusinessRulesTextService } from '../business-rules-text.service';
 import { ButtonComponent } from '../../../shared/ui/button/button.component';
@@ -57,7 +57,7 @@ export class ReglasComponent {
   private readonly branchesService = inject(BranchesService);
   private readonly ftService = inject(FastTrackRulesService);
   private readonly coveragesService = inject(CoveragesRulesService);
-  private readonly exclusionsService = inject(CoverageExclusionsService);
+  private readonly inclusionsService = inject(CoverageInclusionsService);
   private readonly documentsService = inject(DocumentRulesService);
   private readonly rulesTextService = inject(BusinessRulesTextService);
 
@@ -82,9 +82,16 @@ export class ReglasComponent {
   protected readonly rulesError = signal<string | null>(null);
 
   protected readonly docTypes = DOCUMENT_TYPES;
-  // Hechos generadores del ramo seleccionado (id + nombre), para el selector de exclusiones duras
-  // por cobertura. Se cargan del backend al elegir el ramo.
+  // Hechos generadores del ramo seleccionado (id + nombre). Se usan tanto para el selector de
+  // inclusiones duras por cobertura como para la solapa Documentación (agenda por hecho generador,
+  // D5). Se cargan del backend al elegir el ramo.
   protected readonly claimCauses = signal<ClaimCauseOption[]>([]);
+  // Hecho generador activo en la solapa Documentación — arranca en el primero del ramo.
+  protected readonly selectedDocClaimCauseId = signal<number | null>(null);
+  // Su nombre, para el encabezado "Documentos requeridos para «X»" del paso 2.
+  protected readonly selectedDocClaimCauseName = computed(
+    () => this.claimCauses().find((c) => c.id === this.selectedDocClaimCauseId())?.name ?? null,
+  );
 
   // Renombre del ramo (lo único editable del ramo desde acá: el alta y la baja no se exponen en la
   // UI — el catálogo de ramos es fijo, lo administra el seed).
@@ -131,7 +138,7 @@ export class ReglasComponent {
       name: branch.name,
       coverages: [],
       commonExclusions: [],
-      requiredDocuments: [],
+      requiredDocumentsByClaimCause: {},
       businessRules: [],
       fastTrack: {
         enabled: true,
@@ -173,21 +180,34 @@ export class ReglasComponent {
     this.loadClaimCauses(r);
     this.loadFastTrackFromBackend(r);
     this.loadCoveragesFromBackend(r);
-    this.loadDocumentsFromBackend(r);
     this.loadBusinessRulesFromBackend(r);
   }
 
-  /** Catálogo de hechos generadores del ramo, para el selector de exclusiones duras por cobertura. */
+  /**
+   * Catálogo de hechos generadores del ramo: alimenta tanto el selector de inclusiones duras por
+   * cobertura como la solapa Documentación. La agenda documental depende de este catálogo (se edita
+   * por hecho generador, D5), así que recién acá —con el catálogo ya en mano— se elige el primero y
+   * se le carga la agenda; antes se disparaba en paralelo con branchId y podía pisar en el orden
+   * incorrecto si el catálogo tardaba más que la agenda del ramo entero.
+   */
   private loadClaimCauses(r: RamoRules): void {
     this.claimCauses.set([]);
+    this.selectedDocClaimCauseId.set(null);
     const branchId = this.branchIdOf(r);
     if (branchId == null) {
       return;
     }
-    this.exclusionsService.listClaimCauses(branchId).subscribe({
-      next: (options) => this.claimCauses.set(options),
+    this.inclusionsService.listClaimCauses(branchId).subscribe({
+      next: (options) => {
+        this.claimCauses.set(options);
+        const first = options[0]?.id ?? null;
+        this.selectedDocClaimCauseId.set(first);
+        if (first != null) {
+          this.loadDocumentsFromBackend(r, first);
+        }
+      },
       error: () => {
-        /* backend caído: el selector queda vacío, sin romper la pantalla */
+        /* backend caído: los selectores quedan vacíos, sin romper la pantalla */
       },
     });
   }
@@ -249,7 +269,7 @@ export class ReglasComponent {
     this.coveragesService.listDetailed(branchId).subscribe({
       next: (list) => {
         this.overlayCoverages(list);
-        this.loadCoverageExclusions(list);
+        this.loadCoverageInclusions(list);
       },
       error: () => {
         /* backend caído: nos quedamos con el mock, sin romper la pantalla */
@@ -278,24 +298,24 @@ export class ReglasComponent {
       coversFamilyGroup: c.coversFamilyGroup,
       claimExhaustsCoverage: c.claimExhaustsCoverage,
       exclusions: c.exclusions ?? [],
-      // Las exclusiones duras (por hecho generador) viven en rules-service, no en este detalle:
-      // arrancan vacías y las completa loadCoverageExclusions.
-      excludedClaimCauseIds: [],
+      // Las inclusiones duras (por hecho generador) viven en rules-service, no en este detalle:
+      // arrancan vacías y las completa loadCoverageInclusions.
+      includedClaimCauseIds: [],
     }));
     this.loadedCoverages = coverages;
     this.draft.update((d) => (d ? { ...d, coverages } : d));
   }
 
   /**
-   * Trae, por cada cobertura persistida, los hechos generadores que excluye (rules-service) y los
+   * Trae, por cada cobertura persistida, los hechos generadores que cubre (rules-service) y los
    * mergea en el draft. Best-effort e independiente por cobertura: si una falla, las otras igual
    * cargan. Solo para coberturas con id real; las altas locales (`cov-…`) todavía no existen en el
    * backend.
    */
-  private loadCoverageExclusions(list: CoverageDetail[]): void {
+  private loadCoverageInclusions(list: CoverageDetail[]): void {
     list.forEach((c) => {
-      this.exclusionsService.get(c.id).subscribe({
-        next: (ids) => this.setCoverageExcludedIds(String(c.id), ids),
+      this.inclusionsService.get(c.id).subscribe({
+        next: (ids) => this.setCoverageIncludedIds(String(c.id), ids),
         error: () => {
           /* best-effort */
         },
@@ -303,35 +323,42 @@ export class ReglasComponent {
     });
   }
 
-  private setCoverageExcludedIds(coverageId: string, ids: number[]): void {
+  private setCoverageIncludedIds(coverageId: string, ids: number[]): void {
     this.draft.update((d) =>
       d
         ? {
             ...d,
             coverages: d.coverages.map((c) =>
-              c.id === coverageId ? { ...c, excludedClaimCauseIds: ids } : c,
+              c.id === coverageId ? { ...c, includedClaimCauseIds: ids } : c,
             ),
           }
         : d,
     );
     // Reflejarlo también en el baseline cargado, para que el diff de guardado no lo marque sucio.
     this.loadedCoverages = this.loadedCoverages.map((c) =>
-      c.id === coverageId ? { ...c, excludedClaimCauseIds: ids } : c,
+      c.id === coverageId ? { ...c, includedClaimCauseIds: ids } : c,
     );
   }
 
-  /** Trae la agenda documental real del ramo (rules-service, fan-out invisible en el backend). */
-  private loadDocumentsFromBackend(r: RamoRules): void {
+  /** Trae del backend la agenda documental real de un hecho generador puntual del ramo. */
+  private loadDocumentsFromBackend(r: RamoRules, claimCauseId: number): void {
     const branchId = this.branchIdOf(r);
     if (branchId == null) {
       return;
     }
-    this.documentsService.get(branchId).subscribe({
+    this.documentsService.get(branchId, claimCauseId).subscribe({
       next: (types) => {
-        this.draft.update((d) => (d ? { ...d, requiredDocuments: types } : d));
+        this.draft.update((d) =>
+          d
+            ? {
+                ...d,
+                requiredDocumentsByClaimCause: { ...d.requiredDocumentsByClaimCause, [claimCauseId]: types },
+              }
+            : d,
+        );
       },
       error: () => {
-        /* backend caído: nos quedamos con el mock, sin romper la pantalla */
+        /* backend caído: nos quedamos con lo que había, sin romper la pantalla */
       },
     });
   }
@@ -415,23 +442,23 @@ export class ReglasComponent {
       coversFamilyGroup: false,
       claimExhaustsCoverage: false,
       exclusions: [],
-      excludedClaimCauseIds: [],
+      includedClaimCauseIds: [],
     };
     this.draft.update((d) => (d ? { ...d, coverages: [...d.coverages, coverage] } : d));
     this.markDirty();
   }
 
-  // ───────────────── Exclusiones duras por cobertura (hecho generador) ─────────────────
-  /** Una cobertura ya persistida (id numérico) puede configurar exclusiones; una local todavía no. */
-  protected canEditExclusions(c: Coverage): boolean {
+  // ───────────────── Inclusiones duras por cobertura (hecho generador) ─────────────────
+  /** Una cobertura ya persistida (id numérico) puede configurar inclusiones; una local todavía no. */
+  protected canEditInclusions(c: Coverage): boolean {
     return this.isPersistedId(c.id);
   }
 
-  protected isCauseExcluded(c: Coverage, causeId: number): boolean {
-    return (c.excludedClaimCauseIds ?? []).includes(causeId);
+  protected isCauseIncluded(c: Coverage, causeId: number): boolean {
+    return (c.includedClaimCauseIds ?? []).includes(causeId);
   }
 
-  protected toggleExcludedCause(id: string, causeId: number): void {
+  protected toggleIncludedCause(id: string, causeId: number): void {
     this.draft.update((d) =>
       d
         ? {
@@ -440,11 +467,11 @@ export class ReglasComponent {
               if (c.id !== id) {
                 return c;
               }
-              const current = c.excludedClaimCauseIds ?? [];
+              const current = c.includedClaimCauseIds ?? [];
               const has = current.includes(causeId);
               return {
                 ...c,
-                excludedClaimCauseIds: has
+                includedClaimCauseIds: has
                   ? current.filter((x) => x !== causeId)
                   : [...current, causeId],
               };
@@ -511,23 +538,41 @@ export class ReglasComponent {
     this.patch({ commonExclusions: items });
   }
 
-  // ───────────────── Documentación ─────────────────
+  // ───────────────── Documentación (por hecho generador) ─────────────────
+  protected selectDocClaimCause(claimCauseId: number): void {
+    if (this.selectedDocClaimCauseId() === claimCauseId) {
+      return;
+    }
+    this.selectedDocClaimCauseId.set(claimCauseId);
+    this.docSaved.set(false);
+    this.docError.set(null);
+    const d = this.draft();
+    if (d) {
+      this.loadDocumentsFromBackend(d, claimCauseId);
+    }
+  }
+
   protected isDocRequired(code: string): boolean {
-    return this.draft()?.requiredDocuments.includes(code) ?? false;
+    const claimCauseId = this.selectedDocClaimCauseId();
+    if (claimCauseId == null) {
+      return false;
+    }
+    return this.draft()?.requiredDocumentsByClaimCause[claimCauseId]?.includes(code) ?? false;
   }
 
   protected toggleDoc(code: string): void {
+    const claimCauseId = this.selectedDocClaimCauseId();
+    if (claimCauseId == null) {
+      return;
+    }
     this.draft.update((d) => {
       if (!d) {
         return d;
       }
-      const has = d.requiredDocuments.includes(code);
-      return {
-        ...d,
-        requiredDocuments: has
-          ? d.requiredDocuments.filter((c) => c !== code)
-          : [...d.requiredDocuments, code],
-      };
+      const current = d.requiredDocumentsByClaimCause[claimCauseId] ?? [];
+      const has = current.includes(code);
+      const next = has ? current.filter((c) => c !== code) : [...current, code];
+      return { ...d, requiredDocumentsByClaimCause: { ...d.requiredDocumentsByClaimCause, [claimCauseId]: next } };
     });
     this.markDirty();
   }
@@ -665,10 +710,10 @@ export class ReglasComponent {
       ...toDelete.map((c) => this.coveragesService.remove(Number(c.id))),
       ...toCreate.map((c) => this.coveragesService.create(branchId, this.toCoverageRequest(c))),
       ...toUpdate.map((c) => this.coveragesService.update(Number(c.id), this.toCoverageRequest(c))),
-      // Exclusiones duras (por hecho generador) solo de las coberturas ya persistidas: una recién
-      // creada no tiene id real todavía y sus exclusiones se configuran tras el reload.
+      // Inclusiones duras (por hecho generador) solo de las coberturas ya persistidas: una recién
+      // creada no tiene id real todavía y sus inclusiones se configuran tras el reload.
       ...toUpdate.map((c) =>
-        this.exclusionsService.save(branchId, Number(c.id), c.excludedClaimCauseIds ?? []),
+        this.inclusionsService.save(branchId, Number(c.id), c.includedClaimCauseIds ?? []),
       ),
       this.rulesTextService.saveExclusions(branchId, d.commonExclusions),
     ];
@@ -710,7 +755,8 @@ export class ReglasComponent {
   // ───────────────── Documentación: persistencia real (rules-service) ─────────────────
   protected saveDocuments(): void {
     const d = this.draft();
-    if (!d || this.docSaving()) {
+    const claimCauseId = this.selectedDocClaimCauseId();
+    if (!d || this.docSaving() || claimCauseId == null) {
       return;
     }
     this.docError.set(null);
@@ -721,12 +767,13 @@ export class ReglasComponent {
       return;
     }
     this.docSaving.set(true);
-    this.documentsService.save(branchId, d.requiredDocuments).subscribe({
+    const documentTypes = d.requiredDocumentsByClaimCause[claimCauseId] ?? [];
+    this.documentsService.save(branchId, claimCauseId, documentTypes).subscribe({
       next: () => {
         this.docSaving.set(false);
         this.docSaved.set(true);
         // Recarga desde el backend para reflejar exactamente lo que quedó persistido.
-        this.loadDocumentsFromBackend(d);
+        this.loadDocumentsFromBackend(d, claimCauseId);
       },
       error: (e: unknown) => {
         this.docSaving.set(false);

@@ -220,13 +220,18 @@ export class NuevaDenunciaComponent {
     CASE_DOCUMENT_TYPES.map(({ type, label }) => ({ type, label, file: null, error: null })),
   );
 
-  // El asegurado sube exactamente lo que el referente configuró como requerido para el ramo de la
-  // póliza elegida (o el catálogo completo si ese ramo no tiene agenda). Al cambiar de póliza, se
-  // rearman los slots según la agenda de su ramo.
+  // El asegurado sube exactamente lo que el referente configuró como requerido para el ramo +
+  // hecho generador elegidos (o el catálogo completo si esa combinación no tiene agenda). Al
+  // cambiar de póliza o de hecho generador, se rearman los slots según esa agenda.
   private readonly requiredDocTypes = toSignal(
-    toObservable(computed(() => this.selectedPolicy()?.branch ?? null)).pipe(
-      switchMap((branch) =>
-        branch ? this.agenda.slotsForBranch(branch) : of(CASE_DOCUMENT_TYPES),
+    toObservable(
+      computed(() => ({
+        branch: this.selectedPolicy()?.branch ?? null,
+        claimCause: this.selectedType()?.claimCause ?? null,
+      })),
+    ).pipe(
+      switchMap(({ branch, claimCause }) =>
+        branch && claimCause ? this.agenda.slotsForBranch(branch, claimCause) : of(CASE_DOCUMENT_TYPES),
       ),
     ),
     { initialValue: CASE_DOCUMENT_TYPES as readonly CaseDocumentType[] },

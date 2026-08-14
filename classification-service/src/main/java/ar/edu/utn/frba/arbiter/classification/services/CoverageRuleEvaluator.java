@@ -11,27 +11,35 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
- * Evaluación determinística de las reglas duras de cobertura — hoy, las <b>exclusiones</b>: qué
- * hechos generadores NO cubre la cobertura del claim. Corre <b>antes</b> del gate de Fast Track (una
- * exclusión dura hace irrelevante al Fast Track) y sin LLM: es código que compara ids, no
- * interpretación del modelo. Cierra el D3 del handoff (nada validaba que el hecho generador
+ * Evaluación determinística de las reglas duras de cobertura — hoy, las <b>inclusiones</b>: qué
+ * hechos generadores SÍ cubre la cobertura del claim. Corre <b>antes</b> del gate de Fast Track (un
+ * hecho generador no cubierto hace irrelevante al Fast Track) y sin LLM: es código que compara ids,
+ * no interpretación del modelo. Cierra el D3 del handoff (nada validaba que el hecho generador
  * estuviera cubierto) y, junto con la escritura de {@code rule_result}, el D4c.
  *
- * <p><b>No decide el expediente.</b> Produce un hallazgo, no una resolución: una exclusión bloquea
- * el Fast Track y deriva a revisión, pero la decisión sigue siendo del analista (CLAUDE.md #5,
- * human-in-the-loop). El resultado se audita en {@code rule_result} tanto en PASS como en FAIL.
+ * <p>Antes esto era una lista NEGRA (COVERAGE_EXCLUSION): sin regla configurada, la cobertura cubría
+ * todo por default. Se pasó a lista BLANCA porque ese default permisivo dejaba pasar sin avisar
+ * denuncias de hechos generadores que la cobertura nunca tuvo que cubrir (ej. una caída sobre una
+ * cobertura de robo) mientras nadie configurara nada — un fail-open peligroso. Ahora, sin regla
+ * configurada para la cobertura, el hecho generador se considera NO cubierto.
+ *
+ * <p><b>No decide el expediente.</b> Produce un hallazgo, no una resolución: un hecho generador no
+ * cubierto bloquea el Fast Track y deriva a revisión, pero la decisión sigue siendo del analista
+ * (CLAUDE.md #5, human-in-the-loop). El resultado se audita en {@code rule_result} tanto en PASS
+ * como en FAIL.
  */
 @Service
 public class CoverageRuleEvaluator {
 
     private static final Logger log = LoggerFactory.getLogger(CoverageRuleEvaluator.class);
-    private static final String COVERAGE_EXCLUSION = "COVERAGE_EXCLUSION";
+    private static final String COVERAGE_INCLUSION = "COVERAGE_INCLUSION";
 
     /**
-     * @param excluded {@code true} si alguna exclusión dura aplica al hecho generador del claim.
+     * @param notCovered {@code true} si la cobertura tiene una regla de inclusión configurada y el
+     *                   hecho generador del claim no está en su lista.
      * @param findings una fila por regla evaluada (PASS/FAIL), para auditar en {@code rule_result}.
      */
-    public record Result(boolean excluded, List<RuleFinding> findings) {}
+    public record Result(boolean notCovered, List<RuleFinding> findings) {}
 
     public Result evaluate(ClaimReport claim, BusinessRules rules) {
         List<BusinessRules.EvaluableRule> evaluableRules = rules.evaluableRules();
@@ -40,44 +48,43 @@ public class CoverageRuleEvaluator {
         }
 
         List<RuleFinding> findings = new ArrayList<>();
-        boolean excluded = false;
+        boolean notCovered = false;
 
         for (BusinessRules.EvaluableRule rule : evaluableRules) {
-            if (!COVERAGE_EXCLUSION.equals(rule.ruleType())) {
+            if (!COVERAGE_INCLUSION.equals(rule.ruleType())) {
                 continue;
             }
-            // Una exclusión sin hechos generadores configurados no excluye nada: no hay regla que
-            // evaluar ni que auditar (el referente puede dejar la lista vacía desde la UI).
-            if (rule.excludedClaimCauseIds() == null || rule.excludedClaimCauseIds().isEmpty()) {
-                continue;
-            }
-            boolean causeExcluded = claim.claimCauseId() != null
-                    && rule.excludedClaimCauseIds().contains(claim.claimCauseId());
-            // PASS = la cobertura cubre el hecho generador (regla satisfecha);
-            // FAIL = lo excluye (la regla dispara).
+            // Una inclusión sin hechos generadores configurados no cubre nada: hay regla, así que sí
+            // se evalúa y se audita (a diferencia de la exclusión vieja, acá la lista vacía importa).
+            boolean causeIncluded = rule.includedClaimCauseIds() != null
+                    && claim.claimCauseId() != null
+                    && rule.includedClaimCauseIds().contains(claim.claimCauseId());
+            // PASS = la cobertura cubre el hecho generador (está en la lista);
+            // FAIL = no lo cubre (la regla dispara).
             findings.add(new RuleFinding(
                     rule.id(),
                     rule.ruleType(),
-                    !causeExcluded,
+                    causeIncluded,
                     "claimCause=" + claim.claimCause() + " (id=" + claim.claimCauseId() + ")"));
-            if (causeExcluded) {
-                excluded = true;
+            if (!causeIncluded) {
+                notCovered = true;
             }
         }
 
-        if (excluded) {
-            log.info("[CoverageRuleEvaluator] Hecho generador '{}' (id={}) excluido por la cobertura {} — bloquea Fast Track",
+        if (notCovered) {
+            log.info("[CoverageRuleEvaluator] Hecho generador '{}' (id={}) no cubierto por la cobertura {} — bloquea Fast Track",
                     claim.claimCause(), claim.claimCauseId(), claim.coverageId());
         }
-        return new Result(excluded, findings);
+        return new Result(notCovered, findings);
     }
 
     /** Motivos legibles para el analista, a partir de los findings que fallaron. */
-    public List<String> excludedReasons(Result result, ClaimReport claim) {
+    public List<String> notCoveredReasons(Result result, ClaimReport claim) {
         return result.findings().stream()
                 .filter(f -> !f.passed())
                 .map(f -> "La cobertura no cubre el hecho generador declarado ("
-                        + claim.claimCause() + ") — exclusión configurada por la aseguradora")
+                        + claim.claimCause() + ") — no está en la lista de hechos generadores cubiertos "
+                        + "configurada por la aseguradora")
                 .toList();
     }
 }

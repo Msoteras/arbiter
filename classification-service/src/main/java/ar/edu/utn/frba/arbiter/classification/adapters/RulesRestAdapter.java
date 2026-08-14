@@ -69,7 +69,8 @@ public class RulesRestAdapter implements RulesAdapter {
                 overlayCoverageLimits(
                         overlayEvaluableRules(
                                 overlayDocumentRequirements(
-                                        overlayRuleTexts(overlayFastTrack(base, coverageId), coverageId), coverageId),
+                                        overlayRuleTexts(overlayFastTrack(base, coverageId), coverageId),
+                                        coverageId, claimCauseId),
                                 coverageId),
                         coverageId));
     }
@@ -171,7 +172,7 @@ public class RulesRestAdapter implements RulesAdapter {
                             .ruleType(r.ruleType())
                             .effect(r.effect())
                             .blocksFastTrack(r.blocksFastTrack())
-                            .excludedClaimCauseIds(r.excludedClaimCauseIds())
+                            .includedClaimCauseIds(r.includedClaimCauseIds())
                             .build())
                     .toList();
             log.info("[RulesRestAdapter] Evaluable rules loaded from rules-service for coverage {} — {} rules",
@@ -255,28 +256,30 @@ public class RulesRestAdapter implements RulesAdapter {
     }
 
     /**
-     * La agenda documental que el referente configuró para el ramo de la cobertura. Reemplaza al
-     * baseline del mock: es lo que el gate de faltantes ({@code checkRequiredDocuments}) compara
-     * contra lo que el asegurado subió. Una lista vacía = "no configurado" y deja el baseline.
+     * La agenda documental que el referente configuró para el ramo + hecho generador de la cobertura.
+     * Reemplaza al baseline del mock: es lo que el gate de faltantes ({@code checkRequiredDocuments})
+     * compara contra lo que el asegurado subió. Una lista vacía = "no configurado" y deja el baseline.
      */
-    private BusinessRules overlayDocumentRequirements(BusinessRules rules, Long coverageId) {
+    private BusinessRules overlayDocumentRequirements(BusinessRules rules, Long coverageId, String claimCause) {
         try {
             List<String> agenda = restClient.get()
                     .uri(uri -> uri.path("/api/v1/rules/document-requirements/internal")
-                            .queryParam("coverageId", coverageId).build())
+                            .queryParam("coverageId", coverageId)
+                            .queryParam("claimCause", claimCause).build())
                     .header(HttpHeaders.AUTHORIZATION, serviceToken())
                     .retrieve()
                     .body(new ParameterizedTypeReference<List<String>>() {});
             if (agenda == null || agenda.isEmpty()) {
-                log.debug("[RulesRestAdapter] No document agenda in DB for coverage {} — using baseline", coverageId);
+                log.debug("[RulesRestAdapter] No document agenda in DB for coverage {} / claim cause {} — using baseline",
+                        coverageId, claimCause);
                 return rules;
             }
-            log.info("[RulesRestAdapter] Document agenda loaded from rules-service for coverage {} — {} docs",
-                    coverageId, agenda.size());
+            log.info("[RulesRestAdapter] Document agenda loaded from rules-service for coverage {} / claim cause {} — {} docs",
+                    coverageId, claimCause, agenda.size());
             return rules.toBuilder().requiredDocumentTypes(agenda).build();
         } catch (Exception e) {
-            log.warn("[RulesRestAdapter] rules-service unavailable for document agenda of coverage {} — baseline: {}",
-                    coverageId, e.getMessage());
+            log.warn("[RulesRestAdapter] rules-service unavailable for document agenda of coverage {} / claim cause {} — baseline: {}",
+                    coverageId, claimCause, e.getMessage());
             return rules;
         }
     }
@@ -308,7 +311,7 @@ public class RulesRestAdapter implements RulesAdapter {
             String ruleType,
             String effect,
             boolean blocksFastTrack,
-            List<Long> excludedClaimCauseIds) {}
+            List<Long> includedClaimCauseIds) {}
 
     /** Mirrors rules-service's CoverageLimitsDto (plazo de denuncia + tope de eventos por año). */
     private record CoverageLimitsResponse(

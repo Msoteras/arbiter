@@ -719,18 +719,26 @@ BEGIN
         $ddl$, p_schema);
 
     -- Regla dura EVALUABLE por código (a diferencia de las de arriba, que son ejemplos sin motor).
-    -- Caso 6 del handoff, "Hurto no cubierto": la cobertura de robo (id 1) excluye el hecho generador
-    -- Hurto (claim_cause id 3). `configuration` JSONB = lista negra de claim_cause; classification la
-    -- lee por /internal/evaluable y matchea por id. blocks_fast_track = TRUE: una exclusión dura hace
-    -- irrelevante al Fast Track. La evalúa CoverageRuleEvaluator y deja fila en rule_result (D3/D4c).
-    -- OJO (handoff §8): confirmar los ids de coverage/claim_cause contra Railway antes de fijarlos —
-    -- Tecnología pasó de branch 3 a 2 en el último reseed.
+    -- Lista BLANCA de hechos generadores cubiertos, no negra: sin fila para una cobertura, no cubre
+    -- nada — el referente tiene que declarar explícitamente qué cubre cada una (antes era al revés,
+    -- COVERAGE_EXCLUSION, y una cobertura sin regla cubría todo por default, un fail-open peligroso).
+    -- Caso 6 del handoff, "Hurto no cubierto": la cobertura de robo (id 1) solo cubre el hecho
+    -- generador Robo en vía pública (claim_cause id 2) — Hurto (id 3) no está en su lista, así que
+    -- queda no cubierto. La cobertura de Hurto (id 2) cubre a su vez Hurto (claim_cause id 3).
+    -- `configuration` JSONB = lista de claim_cause incluidos; classification la lee por
+    -- /internal/evaluable y matchea por id. blocks_fast_track = TRUE: un hecho generador no cubierto
+    -- hace irrelevante al Fast Track. La evalúa CoverageRuleEvaluator y deja fila en rule_result
+    -- (D3/D4c). OJO (handoff §8): confirmar los ids de coverage/claim_cause contra Railway antes de
+    -- fijarlos — Tecnología pasó de branch 3 a 2 en el último reseed.
     EXECUTE format($ddl$
         INSERT INTO %I.insurer_rule (id, active, valid_from, name, rule_type, effect, priority,
                                      blocks_fast_track, branch_id, coverage_id, configuration) VALUES
             (3, TRUE, '2026-01-01 00:00:00+00',
-             'La cobertura de robo no cubre el hurto', 'COVERAGE_EXCLUSION', 'RECHAZAR', 1,
-             TRUE, 1, 1, '{"excludedClaimCauseIds":[3]}')
+             'La cobertura de robo cubre robo en vía pública', 'COVERAGE_INCLUSION', 'RECHAZAR', 1,
+             TRUE, 1, 1, '{"includedClaimCauseIds":[2]}'),
+            (4, TRUE, '2026-01-01 00:00:00+00',
+             'La cobertura de hurto cubre hurto', 'COVERAGE_INCLUSION', 'RECHAZAR', 1,
+             TRUE, 1, 2, '{"includedClaimCauseIds":[3]}')
         $ddl$, p_schema);
 
     -- AgendaDocumental sembrada con los códigos CANÓNICOS de tipo de documento — los mismos que usa

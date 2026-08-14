@@ -259,10 +259,11 @@ class ClassificationOrchestratorIntegrationTest extends AbstractPersistenceIT {
     }
 
     @Test
-    void hurtoOnRobberyCoverage_isExcludedByRule_withoutCallingLLM() {
-        // Caso 6 del handoff ("Hurto no cubierto"): cobertura 1 = "Robo de celular", que excluye el
-        // hecho generador Hurto (claim_cause 3) vía la regla COVERAGE_EXCLUSION del baseline. La
-        // exclusión dura corta antes del Fast Track y del LLM, y deja el hallazgo para rule_result.
+    void hurtoOnRobberyCoverage_isNotCoveredByRule_withoutCallingLLM() {
+        // Caso 6 del handoff ("Hurto no cubierto"): cobertura 1 = "Robo de celular", que solo cubre
+        // el hecho generador Robo en vía pública (claim_cause 2) vía la regla COVERAGE_INCLUSION del
+        // baseline — Hurto (claim_cause 3) no está en la lista. El hecho generador no cubierto corta
+        // antes del Fast Track y del LLM, y deja el hallazgo para rule_result.
         ClaimReport claim = ClaimReport.builder()
                 .branch("Celulares")
                 .product("Celular Protegido Básico")
@@ -272,22 +273,22 @@ class ClassificationOrchestratorIntegrationTest extends AbstractPersistenceIT {
                 .insuredItem("Motorola Edge 50 Pro - IMEI 351000000000042")
                 .insuredId("40.123.456")
                 .policyNumber("POL-CEL-2024-001")
-                .description("Denuncia de hurto sobre una cobertura de robo, que lo excluye.")
+                .description("Denuncia de hurto sobre una cobertura de robo, que no lo cubre.")
                 .eventDate(LocalDateTime.of(2026, 6, 13, 19, 45))
                 .eventLocation("Av. Rivadavia y Colombres, Almagro, CABA")
-                .claimedAmount(new BigDecimal("100000")) // bajo: fast-trackearía si no estuviera excluido
+                .claimedAmount(new BigDecimal("100000")) // bajo: fast-trackearía si estuviera cubierto
                 .attachmentsOcr(List.of())
                 .build();
 
         ClassificationResponse response = orchestrator.classify(claim);
 
-        assertThat(response.classification()).isEqualTo(Classification.LLM_SOLICITA_REVISION_MANUAL);
+        assertThat(response.classification()).isEqualTo(Classification.LLM_NO_RECOMIENDA_APROBAR);
         assertThat(response.deterministicFastTrack()).isFalse();
         assertThat(response.factors()).isNotEmpty();
         assertThat(response.ruleFindings())
                 .anyMatch(f -> f.ruleId().equals(3L) && "FAIL".equals(f.result()));
         assertThat(response.ruleFindings()).extracting(RuleFinding::ruleType)
-                .contains("COVERAGE_EXCLUSION");
+                .contains("COVERAGE_INCLUSION");
         verifyNoInteractions(classifierMock);
     }
 

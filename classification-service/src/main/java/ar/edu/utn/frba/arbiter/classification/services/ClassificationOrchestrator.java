@@ -56,10 +56,10 @@ public class ClassificationOrchestrator {
 
     private ClassificationResponse resolveClassification(ClaimReport claim, Context ctx) {
 
-        // Reglas duras primero: una exclusión de cobertura hace irrelevante al Fast Track (D3).
-        CoverageRuleEvaluator.Result exclusion = coverageRuleEvaluator.evaluate(claim, ctx.rules());
-        if (exclusion.excluded()) {
-            return attachRuleFindings(coverageExclusionResponse(exclusion, claim), exclusion);
+        // Reglas duras primero: un hecho generador no cubierto hace irrelevante al Fast Track (D3).
+        CoverageRuleEvaluator.Result coverage = coverageRuleEvaluator.evaluate(claim, ctx.rules());
+        if (coverage.notCovered()) {
+            return attachRuleFindings(notCoveredResponse(coverage, claim), coverage);
         }
 
         // Reglas temporales (D10/D11/D12/D13): bloquean Fast Track y suman motivos para el analista.
@@ -75,17 +75,17 @@ public class ClassificationOrchestrator {
         if (fastTrack.fastTrack() && !temporal.blocksFastTrack() && !scope.blocksFastTrack()) {
             log.info("[Orchestrator] Deterministic Fast Track — claim qualifies, skipping LLM. Reasons={}",
                     fastTrack.reasons());
-            return attachRuleFindings(fastTrackResponse(fastTrack), exclusion);
+            return attachRuleFindings(fastTrackResponse(fastTrack), coverage);
         }
 
         log.info("[Orchestrator] Not Fast Track (fastTrack={}, temporalBlock={}, scopeBlock={}). "
                         + "Building prompt and sending to LLM...",
                 fastTrack.reasons(), temporal.reasons(), scope.reasons());
-        List<String> engineFindings = engineFindings(exclusion, temporal);
+        List<String> engineFindings = engineFindings(coverage, temporal);
         engineFindings.addAll(scope.reasons());
         return appendReasons(
                 appendReasons(
-                        attachRuleFindings(classifyWithLlm(claim, ctx, engineFindings), exclusion),
+                        attachRuleFindings(classifyWithLlm(claim, ctx, engineFindings), coverage),
                         temporal.reasons()),
                 scope.reasons());
     }
@@ -201,12 +201,12 @@ public class ClassificationOrchestrator {
             Map<String, DocumentExtraction> extractions) {}
 
     private Resolution resolveClassification(ClaimReport claim, List<AttachmentDocument> documents, Context ctx) {
-        // Reglas duras primero: una exclusión de cobertura corta antes que el gate documental y el
-        // Fast Track (D3). No se analizan documentos ni imágenes: la exclusión ya resuelve el camino.
-        CoverageRuleEvaluator.Result exclusion = coverageRuleEvaluator.evaluate(claim, ctx.rules());
-        if (exclusion.excluded()) {
+        // Reglas duras primero: un hecho generador no cubierto corta antes que el gate documental y
+        // el Fast Track (D3). No se analizan documentos ni imágenes: ya resuelve el camino.
+        CoverageRuleEvaluator.Result coverage = coverageRuleEvaluator.evaluate(claim, ctx.rules());
+        if (coverage.notCovered()) {
             return new Resolution(
-                    attachRuleFindings(coverageExclusionResponse(exclusion, claim), exclusion), false, Map.of());
+                    attachRuleFindings(notCoveredResponse(coverage, claim), coverage), false, Map.of());
         }
 
         List<String> documentTypes = documents.stream().map(AttachmentDocument::type).toList();
@@ -214,7 +214,7 @@ public class ClassificationOrchestrator {
         if (!missingDocs.isEmpty()) {
             log.info("[Orchestrator] Missing required documents: {}", missingDocs);
             return new Resolution(
-                    attachRuleFindings(missingDocumentationResponse(missingDocs), exclusion), false, Map.of());
+                    attachRuleFindings(missingDocumentationResponse(missingDocs), coverage), false, Map.of());
         }
 
         List<String> requiredForGate = requiredDocumentTypes(ctx.rules());
@@ -243,7 +243,7 @@ public class ClassificationOrchestrator {
                     : gateExtractions;
             log.info("[Orchestrator] Deterministic Fast Track — Reasons={} fullAnalysis={}",
                     fastTrack.reasons(), fullAnalysis);
-            return new Resolution(attachRuleFindings(fastTrackResponse(fastTrack), exclusion),
+            return new Resolution(attachRuleFindings(fastTrackResponse(fastTrack), coverage),
                     fullAnalysis || !gateExtractions.isEmpty(), fastTrackExtractions);
         }
 
@@ -258,13 +258,13 @@ public class ClassificationOrchestrator {
         CoverageScopeEvaluator.Result fullScope =
                 coverageScopeEvaluator.evaluate(claim, ctx.history(), ctx.rules(), extractions);
 
-        List<String> engineFindings = engineFindings(exclusion, temporal);
+        List<String> engineFindings = engineFindings(coverage, temporal);
         engineFindings.addAll(fullScope.reasons());
 
         return new Resolution(
                 appendReasons(
                         appendReasons(
-                                attachRuleFindings(classifyWithLlm(claimWithOcr, ctx, engineFindings), exclusion),
+                                attachRuleFindings(classifyWithLlm(claimWithOcr, ctx, engineFindings), coverage),
                                 temporal.reasons()),
                         fullScope.reasons()),
                 true,
@@ -375,28 +375,31 @@ public class ClassificationOrchestrator {
     }
 
     /**
-     * Una exclusión dura no cierra el expediente (CLAUDE.md #5, human-in-the-loop): deriva a
-     * revisión del analista con el motivo a la vista y sin llamar al LLM. Determinístico, como el
-     * Fast Track y el FALTA_DOCUMENTACION, pero en sentido contrario. El hallazgo queda auditado en
+     * Un hecho generador no cubierto no cierra el expediente (CLAUDE.md #5, human-in-the-loop):
+     * deriva a revisión del analista con el motivo a la vista y sin llamar al LLM. Determinístico,
+     * como el Fast Track y el FALTA_DOCUMENTACION, pero en sentido contrario. {@code
+     * LLM_NO_RECOMIENDA_APROBAR} (no {@code LLM_SOLICITA_REVISION_MANUAL}): la regla no es un caso
+     * ambiguo que necesite ojo humano extra, es una certeza — "esta cobertura no cubre esto" — así
+     * que la recomendación tiene que sonar tan directa como el motivo. El hallazgo queda auditado en
      * {@code rule_result} vía {@code ruleFindings}.
      */
-    private ClassificationResponse coverageExclusionResponse(CoverageRuleEvaluator.Result exclusion, ClaimReport claim) {
-        log.info("[Orchestrator] Coverage exclusion — deriva a revisión manual sin LLM. claimCause='{}'",
+    private ClassificationResponse notCoveredResponse(CoverageRuleEvaluator.Result coverage, ClaimReport claim) {
+        log.info("[Orchestrator] Hecho generador no cubierto — deriva a revisión manual sin LLM. claimCause='{}'",
                 claim.claimCause());
         return ClassificationResponse.builder()
-                .classification(Classification.LLM_SOLICITA_REVISION_MANUAL)
-                .factors(coverageRuleEvaluator.excludedReasons(exclusion, claim))
+                .classification(Classification.LLM_NO_RECOMIENDA_APROBAR)
+                .factors(coverageRuleEvaluator.notCoveredReasons(coverage, claim))
                 .confidence(1.0)
                 .deterministicFastTrack(false)
                 .build();
     }
 
     /** Cuelga los resultados de reglas evaluadas (PASS/FAIL) para que se auditen en rule_result. */
-    private ClassificationResponse attachRuleFindings(ClassificationResponse response, CoverageRuleEvaluator.Result exclusion) {
-        if (exclusion.findings().isEmpty()) {
+    private ClassificationResponse attachRuleFindings(ClassificationResponse response, CoverageRuleEvaluator.Result coverage) {
+        if (coverage.findings().isEmpty()) {
             return response;
         }
-        return response.toBuilder().ruleFindings(exclusion.findings()).build();
+        return response.toBuilder().ruleFindings(coverage.findings()).build();
     }
 
     /** Suma los motivos de las reglas temporales a los factores visibles del analista. */
@@ -518,12 +521,13 @@ public class ClassificationOrchestrator {
     /**
      * El veredicto de las reglas duras que el motor ya evaluó (D4a paso 6), para inyectar en el prompt
      * como hecho establecido: los incumplimientos temporales (plazo/vigencia/frecuencia) y, si había
-     * regla de exclusión y no aplicó, la confirmación de que la cobertura cubre el hecho generador.
+     * regla de inclusión y el hecho generador estaba en la lista, la confirmación de que la cobertura
+     * lo cubre.
      */
-    private List<String> engineFindings(CoverageRuleEvaluator.Result exclusion, TemporalRuleEvaluator.Result temporal) {
+    private List<String> engineFindings(CoverageRuleEvaluator.Result coverage, TemporalRuleEvaluator.Result temporal) {
         List<String> findings = new ArrayList<>(temporal.reasons());
-        if (!exclusion.findings().isEmpty() && exclusion.findings().stream().allMatch(f -> f.passed())) {
-            findings.add("La cobertura cubre el hecho generador declarado (regla de exclusión evaluada: no aplica).");
+        if (!coverage.findings().isEmpty() && coverage.findings().stream().allMatch(f -> f.passed())) {
+            findings.add("La cobertura cubre el hecho generador declarado (regla de inclusión evaluada: está cubierto).");
         }
         return findings;
     }

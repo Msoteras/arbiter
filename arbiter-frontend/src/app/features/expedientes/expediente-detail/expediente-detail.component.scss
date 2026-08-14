@@ -59,6 +59,7 @@
 .reco-value[data-tone='risk'] { border-left-color: var(--status-risk); }
 .reco-value[data-tone='danger'] { border-left-color: var(--status-danger); }
 .reco-value[data-tone='info'] { border-left-color: var(--status-info); }
+.reco-detail { margin: var(--space-2) 0 0; color: var(--text-secondary); }
 .registered { margin: var(--space-2) 0 0; font-size: var(--font-size-sm); font-weight: var(--font-weight-medium); color: var(--accent-fg); }
 .decision-btns { display: flex; gap: var(--space-2); }
 .decision-btns app-button { flex: 1; }

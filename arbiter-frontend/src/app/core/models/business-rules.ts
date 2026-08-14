@@ -33,11 +33,12 @@ export interface Coverage {
   /** Exclusiones específicas de esta cobertura, en texto libre (van al prompt del LLM). */
   exclusions: string[];
   /**
-   * Hechos generadores (claim_cause ids) que esta cobertura NO cubre — exclusión DURA que evalúa
-   * el motor por código (COVERAGE_EXCLUSION) y audita en rule_result, no el LLM. Opcional: el mock
-   * semilla no lo trae; el detalle real de la cobertura lo carga desde rules-service.
+   * Hechos generadores (claim_cause ids) que esta cobertura SÍ cubre — inclusión DURA que evalúa
+   * el motor por código (COVERAGE_INCLUSION) y audita en rule_result, no el LLM. Opcional: el mock
+   * semilla no lo trae; el detalle real de la cobertura lo carga desde rules-service. Sin config,
+   * la cobertura no cubre ningún hecho generador (lista blanca, no negra).
    */
-  excludedClaimCauseIds?: number[];
+  includedClaimCauseIds?: number[];
 }
 
 /** Gate determinístico del Fast Track ("Siniestro Express"), configurado por ramo. */
@@ -94,8 +95,8 @@ export interface RamoRules {
   coverages: Coverage[];
   /** Exclusiones comunes a todas las coberturas del ramo. */
   commonExclusions: string[];
-  /** Agenda documental del ramo (códigos de tipo de documento). */
-  requiredDocuments: string[];
+  /** Agenda documental del ramo, por hecho generador (id → códigos de tipo de documento). */
+  requiredDocumentsByClaimCause: Record<number, string[]>;
   /** Reglas de negocio en texto libre. */
   businessRules: string[];
   fastTrack: FastTrackConfig;

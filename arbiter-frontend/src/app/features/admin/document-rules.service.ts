@@ -13,22 +13,24 @@ export interface DocumentRequirementDto {
 }
 
 /**
- * Agenda documental de un ramo (solapa Documentación) contra rules-service. La pantalla la edita
- * como lista plana por ramo; el backend hace fan-out a cada hecho generador del ramo
- * (docs/decisiones-reglas-a-validar.md, D5) — invisible para el frontend.
+ * Agenda documental de un hecho generador de un ramo (solapa Documentación) contra rules-service.
+ * Desde D5 (docs/decisiones-reglas-a-validar.md) la pantalla edita por hecho generador — ya no hay
+ * fan-out a los demás hechos generadores del ramo.
  */
 @Injectable({ providedIn: 'root' })
 export class DocumentRulesService {
   private readonly http = inject(HttpClient);
   private readonly base = `${environment.apiBaseUrl}/rules/document-requirements`;
 
-  get(branchId: number): Observable<string[]> {
-    return this.http.get<string[]>(this.base, { params: { branchId: String(branchId) } });
+  get(branchId: number, claimCauseId: number): Observable<string[]> {
+    return this.http.get<string[]>(this.base, {
+      params: { branchId: String(branchId), claimCauseId: String(claimCauseId) },
+    });
   }
 
-  save(branchId: number, documentTypes: string[]): Observable<DocumentRequirementDto[]> {
+  save(branchId: number, claimCauseId: number, documentTypes: string[]): Observable<DocumentRequirementDto[]> {
     return this.http.put<DocumentRequirementDto[]>(this.base, documentTypes, {
-      params: { branchId: String(branchId) },
+      params: { branchId: String(branchId), claimCauseId: String(claimCauseId) },
     });
   }
 }

@@ -33,9 +33,10 @@ public record BusinessRules(
      * A hard rule evaluated by code (not interpreted by the LLM), configured by the insurer.
      * {@code id} is the {@code insurer_rule} id and must survive the trip: it's what
      * {@code rule_result.rule_id} points at, and without it there's no audit trail
-     * (Disposición SSN 2/2023). Today the only {@code ruleType} is {@code COVERAGE_EXCLUSION}:
-     * the evaluator matches the claim's hecho generador against {@code excludedClaimCauseIds}
-     * <b>by id</b> (names repeat across branches; the id is unambiguous).
+     * (Disposición SSN 2/2023). Today the only {@code ruleType} is {@code COVERAGE_INCLUSION}:
+     * the evaluator matches the claim's hecho generador against {@code includedClaimCauseIds}
+     * <b>by id</b> (names repeat across branches; the id is unambiguous) — not in the list means
+     * the coverage doesn't cover it.
      */
     @Builder
     public record EvaluableRule(
@@ -43,7 +44,7 @@ public record BusinessRules(
             String ruleType,
             String effect,
             boolean blocksFastTrack,
-            List<Long> excludedClaimCauseIds
+            List<Long> includedClaimCauseIds
     ) {}
 
     /**
