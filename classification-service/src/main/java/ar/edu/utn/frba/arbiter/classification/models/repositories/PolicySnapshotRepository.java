@@ -8,24 +8,24 @@ import java.math.BigDecimal;
 import java.util.List;
 
 /**
- * La foto de la póliza sobre la que se clasificó ({@code policy_snapshot}, el
- * {@code poliza_consultada} del DER).
+ * The snapshot of the policy the classification ran on ({@code policy_snapshot}, the DER's
+ * {@code poliza_consultada}).
  *
- * <p>La escribe este módulo y no cases-service porque acá es donde el dato entra a la decisión:
- * {@code ClassificationOrchestrator.fetchContext()} consulta la BD Aseguradora y de ahí salen dos
- * factores del scoring ({@code policy_standing} ← {@code payments_up_to_date},
- * {@code claim_frequency} ← {@code previous_claims}). cases-service, en el alta, ni toca la BD
- * Aseguradora: trabaja contra la copia local sincronizada. Que la fotografiara él daría un registro
- * de auditoría que no coincide con lo que la decisión usó, que es peor que no tener ninguno.
+ * <p>This module writes it and not cases-service because this is where the data enters the
+ * decision: {@code ClassificationOrchestrator.fetchContext()} queries the insurer's DB and two
+ * scoring factors come from there ({@code policy_standing} ← {@code payments_up_to_date},
+ * {@code claim_frequency} ← {@code previous_claims}). cases-service, on creation, doesn't touch the
+ * insurer's DB at all: it works against the synced local copy. Having it take the snapshot would
+ * give an audit record that doesn't match what the decision used, which is worse than none.
  *
- * <p>Sin esto la clasificación no es reproducible: la BD Aseguradora es un sistema externo que
- * sigue cambiando, así que "se puso al día" o "le liquidaron otro siniestro" alteran el score de
- * una re-corrida sin dejar rastro de qué se vio la primera vez — justo lo que la Disposición SSN
- * 2/2023 pide poder mostrar (D27).
+ * <p>Without this the classification isn't reproducible: the insurer's DB is an external system
+ * that keeps changing, so "they caught up on payments" or "another claim got settled" shift the
+ * score of a re-run with no trace of what the first one saw — exactly what SSN Disposition 2/2023
+ * asks to be able to show (D27).
  *
- * <p>JDBC plano y no una entidad, por la misma razón que {@link CaseOutcomeRepository}: mapear acá
- * una tabla del esquema de cases-service la dejaría con dos módulos dueños. La entidad
- * {@code PolicySnapshot} de cases-service es el lado <b>lectura</b>.
+ * <p>Plain JDBC rather than an entity, for the same reason as {@link CaseOutcomeRepository}: mapping
+ * a cases-service table here would leave it with two owning modules. cases-service's
+ * {@code PolicySnapshot} entity is the <b>read</b> side.
  */
 @Repository
 @RequiredArgsConstructor
@@ -34,9 +34,9 @@ public class PolicySnapshotRepository {
     private final JdbcTemplate jdbcTemplate;
 
     /**
-     * @param inForce si la póliza cubría temporalmente la fecha del hecho
-     * @param payload la respuesta cruda de la BD Aseguradora, entera — es el registro fiel, del que
-     *                las columnas de arriba son la lectura ya interpretada
+     * @param inForce whether the policy temporally covered the event's date
+     * @param payload the insurer DB's raw answer, whole — it's the faithful record, of which the
+     *                columns above are the already-interpreted reading
      */
     public record Snapshot(
             String externalPolicyNumber,
@@ -48,13 +48,13 @@ public class PolicySnapshotRepository {
     ) {}
 
     /**
-     * Una sola fila por expediente: si ya hay foto, se pisa.
+     * One row per case: if there's already a snapshot, it gets overwritten.
      *
-     * <p>Es la decisión (b) del handoff. Un expediente se re-clasifica cuando el asegurado completa
-     * documentación, y entre una corrida y la otra pasan horas: la póliza es la misma. Guardar una
-     * fila por corrida agregaría filas sin {@code case_id} —la tabla no lo tiene, el vínculo es
-     * {@code cases.policy_snapshot_id}— o sea huérfanas y difíciles de atribuir. Si algún día hace
-     * falta el historial completo, es sumar {@code case_id} al DER y recién ahí acá.
+     * <p>It's the handoff's decision (b). A case is reclassified when the insured completes
+     * documentation, and hours pass between runs: the policy is the same. Storing a row per run
+     * would add rows without a {@code case_id} — the table has none, the link is
+     * {@code cases.policy_snapshot_id} — orphaned and hard to attribute. If the full history is
+     * ever needed, it's adding {@code case_id} to the DER and only then here.
      */
     public void save(Long caseId, Snapshot snapshot) {
         Long existingId = currentSnapshotId(caseId);
@@ -66,7 +66,7 @@ public class PolicySnapshotRepository {
                 "UPDATE cases SET policy_snapshot_id = ? WHERE id = ?", insert(snapshot), caseId);
     }
 
-    /** Null si el expediente todavía no tiene foto, o si no está en este esquema. */
+    /** Null if the case has no snapshot yet, or isn't in this schema. */
     private Long currentSnapshotId(Long caseId) {
         List<Long> ids = jdbcTemplate.query(
                 "SELECT policy_snapshot_id FROM cases WHERE id = ?",

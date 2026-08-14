@@ -16,15 +16,15 @@ public record BusinessRules(
         List<String> requiredDocumentTypes,
         ScoringConfig scoringConfig,
         List<EvaluableRule> evaluableRules,
-        // Límites intrínsecos de la cobertura (columnas de coverage), evaluables por código:
-        // plazo de denuncia (D11) y tope de eventos por año (D10). null = no configurado ⇒ la regla
-        // correspondiente no se evalúa.
+        // The coverage's intrinsic limits (coverage columns), evaluable in code: reporting deadline
+        // (D11) and event cap per year (D10). null = not configured ⇒ the matching rule isn't
+        // evaluated.
         Long reportDeadlineHours,
         Integer maxEventsPerYear,
-        // Carencia (D9): días desde el alta de la póliza en que la cobertura todavía no aplica.
+        // Waiting period (D9): days from the policy's start where the coverage doesn't apply yet.
         Integer waitingPeriodDays,
-        // Alcance de la cobertura (D9). La fuente es la cobertura que configura el referente, no
-        // poliza.cubre_grupo_familiar de la BD Aseguradora — las dos existen y ya se contradicen.
+        // Coverage scope (D9). The source is the coverage the referente configures, not the insurer
+        // DB's poliza.cubre_grupo_familiar — both exist and already contradict each other.
         Boolean coversFamilyGroup,
         Boolean claimExhaustsCoverage
 ) {
@@ -56,12 +56,12 @@ public record BusinessRules(
             Double maxClaimedAmountRatio,
             Integer maxPriorClaims,
             /**
-             * Ventana en meses sobre la que se cuenta {@code maxPriorClaims}. Null = histórico
-             * completo, que es como se comportaba antes de existir el campo: el límite se
-             * comparaba contra los siniestros de toda la vida del asegurado (D14).
+             * Window in months over which {@code maxPriorClaims} is counted. Null = the whole
+             * history, which is how it behaved before the field existed: the limit was compared
+             * against the insured's lifetime claims (D14).
              */
             Integer priorClaimsWindowMonths,
-            /** Antigüedad mínima de la póliza al momento del hecho, en meses. Null = no se exige. */
+            /** Minimum policy age at the time of the event, in months. Null = not required. */
             Integer minPolicyAgeMonths,
             Boolean requiresUpToDatePolicy,
             List<String> requiredDocumentTypes
@@ -76,10 +76,10 @@ public record BusinessRules(
     @Builder
     public record ScoringConfig(
             /**
-             * Fila de {@code scoring_configuration} de la que salió esta config. Viaja para poder
-             * escribir {@code cases.scoring_configuration_id}: sin eso, un score auditado no dice
-             * con qué configuración se calculó, y el referente puede haberla cambiado desde
-             * entonces (D29). Null cuando el scoring es el baseline del mock, que no es una fila.
+             * The {@code scoring_configuration} row this config came from. It travels so
+             * {@code cases.scoring_configuration_id} can be written: without it, an audited score
+             * doesn't say which configuration computed it, and the referente may have changed it
+             * since (D29). Null when the scoring is the mock baseline, which isn't a row.
              */
             Long id,
             List<FactorWeight> factors,

@@ -10,7 +10,7 @@ import java.util.List;
 import static org.assertj.core.api.Assertions.assertThat;
 
 /**
- * Unit puro del evaluador de reglas duras de cobertura (D3): no levanta Spring ni base. Ids del seed:
+ * Pure unit test of the hard coverage rule evaluator (D3): no Spring, no database. Seed ids:
  * cobertura 1 = "Robo de celular", claim_cause 3 = "Hurto".
  */
 class CoverageRuleEvaluatorTest {
@@ -91,7 +91,7 @@ class CoverageRuleEvaluatorTest {
 
     @Test
     void nullClaimCauseId_cannotMatch_recordsPass() {
-        // El flujo aislado (sin expediente) puede no traer el id: no se puede excluir a ciegas.
+        // The isolated flow (no case) may not carry the id: it can't exclude blindly.
         CoverageRuleEvaluator.Result result =
                 evaluator.evaluate(claim("Hurto", null), rulesWith(List.of(EXCLUDE_HURTO)));
 

@@ -59,8 +59,8 @@ public class ImageEmbeddingController {
         String resolvedLabel = (attachmentLabel != null && !attachmentLabel.isBlank())
                 ? attachmentLabel : "manual-check";
 
-        // caseDocumentId null: la imagen llega suelta por multipart, no hay fila de case_documents
-        // a la que anclarla — se compara igual pero no se persiste el análisis.
+        // caseDocumentId null: the image arrives loose via multipart, there's no case_documents row
+        // to anchor it to — it's compared anyway but the analysis isn't persisted.
         List<DuplicateImageMatch> matches = imageEmbeddingService.processAndFindDuplicates(
                 caseId, null, resolvedLabel, imageBase64).duplicates();
 

@@ -13,11 +13,11 @@ public record InsuredPolicy(
         String insuredId,
         String branch,
         String product,
-        /** El bien cubierto, tal como lo tiene la aseguradora (no lo que declaró el asegurado). */
+        /** The covered item as the insurer has it (not what the insured declared). */
         String insuredItem,
         /**
-         * IMEI del equipo cuando el ramo lo tiene (Celulares); null donde no aplica. Es el operando
-         * contra el que se cruza el IMEI que aparece en los documentos adjuntos (D4b).
+         * The device's IMEI when the branch has one (Celulares); null where it doesn't apply. It's
+         * the operand the IMEI appearing in the attached documents is crossed against (D4b).
          */
         String imei,
         LocalDate effectiveFrom,
@@ -30,13 +30,14 @@ public record InsuredPolicy(
 ) {
 
     /**
-     * Si la póliza cubría temporalmente esa fecha. Vive acá porque la ventana de vigencia es de la
-     * póliza y ya la preguntan dos lugares: la regla dura D13 ({@code TemporalRuleEvaluator}) y la
-     * foto que se audita ({@code policy_snapshot.in_force}). Duplicada, un día uno de los dos
-     * empieza a usar {@code isAfter} donde el otro usa {@code isBefore} y nadie se entera.
+     * Whether the policy temporally covered that date. It lives here because the validity window
+     * belongs to the policy and two places already ask for it: the hard rule D13
+     * ({@code TemporalRuleEvaluator}) and the audited snapshot ({@code policy_snapshot.in_force}).
+     * Duplicated, one day one of them starts using {@code isAfter} where the other uses
+     * {@code isBefore} and nobody notices.
      *
-     * <p>Sin fechas devuelve {@code false}: no se afirma vigencia que no se pudo verificar — mismo
-     * criterio que el dueño de la póliza en D2. El dato crudo, nulls incluidos, queda igual en
+     * <p>With no dates it returns {@code false}: validity that couldn't be verified isn't asserted —
+     * same criterion as the policy holder in D2. The raw data, nulls included, still lands in
      * {@code policy_snapshot.insurer_db_payload}.
      */
     public boolean inForceOn(LocalDate date) {

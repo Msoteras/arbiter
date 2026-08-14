@@ -11,15 +11,15 @@ import org.testcontainers.postgresql.PostgreSQLContainer;
  *
  * Requires Docker available when running the tests.
  *
- * Patrón "singleton container" (recomendado por Testcontainers para compartir un contenedor entre
- * varias clases de test): sin {@code @Testcontainers}/{@code @Container}, porque esas anotaciones
- * paran el contenedor en el {@code afterAll} de cada clase — con un field estático heredado, eso
- * mata el contenedor para la siguiente clase que lo use en la misma corrida (y peor: un reinicio le
- * cambia el puerto, dejando contextos de Spring ya cacheados apuntando a un puerto muerto). Arrancado
- * una sola vez en el bloque estático (se ejecuta una vez por JVM, al cargar esta clase) y vive hasta
- * que Ryuk lo limpia al terminar el proceso de test. Mismo patrón que `cases-service`.
+ * "Singleton container" pattern (recommended by Testcontainers to share one container across
+ * several test classes): no {@code @Testcontainers}/{@code @Container}, because those annotations
+ * stop the container on each class's {@code afterAll} — with an inherited static field that kills
+ * it for the next class using it in the same run (and worse: a restart changes its port, leaving
+ * already-cached Spring contexts pointing at a dead one). Started once in the static block (which
+ * runs once per JVM, when this class loads) and alive until Ryuk cleans it up when the test process
+ * ends. Same pattern as `cases-service`.
  */
-// SecurityConfig requiere un JWT_SECRET real para levantar el contexto (H0003).
+// SecurityConfig needs a real JWT_SECRET to start the context (H0003).
 //
 // ddl-auto se pisa a `update` solo acá: en producción es `validate` (el esquema lo define
 // db/init-multitenant.sql). Ver el comentario largo en cases-service.

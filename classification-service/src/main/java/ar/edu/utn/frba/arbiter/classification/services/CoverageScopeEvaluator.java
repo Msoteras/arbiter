@@ -13,38 +13,39 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * Hasta dónde llega la cobertura: a quién alcanza y si le queda saldo (D9). Son dos columnas de
- * {@code coverage} que se guardaban y no leía nadie.
+ * How far the coverage reaches: who it covers and whether it has anything left (D9). Two
+ * {@code coverage} columns that were stored and nobody read.
  *
  * <ul>
- *   <li><b>{@code covers_family_group}</b> — si la cobertura no alcanza al grupo familiar y el
- *       damnificado es un familiar, el hecho no está cubierto.</li>
- *   <li><b>{@code claim_exhausts_coverage}</b> — si un siniestro liquidado agota la cobertura, el
- *       siguiente sobre la misma póliza ya no tiene con qué responder.</li>
+ *   <li><b>{@code covers_family_group}</b> — if the coverage doesn't reach the family group and the
+ *       injured party is a relative, the event isn't covered.</li>
+ *   <li><b>{@code claim_exhausts_coverage}</b> — if a settled claim exhausts the coverage, the next
+ *       one on the same policy has nothing left to answer with.</li>
  * </ul>
  *
- * <p><b>Por qué el primero no lo decide el LLM.</b> Saber de quién era el equipo exige leer el
- * relato, y leer es lo único que el código no puede hacer — pero interpretar la regla sí. Así que se
- * parte en dos, igual que en D4a: la pasada de extracción devuelve un <b>hecho tipado</b>
- * ({@link DocumentExtraction.AffectedParty}) y acá se evalúa la regla. El modelo nunca decide si hay
- * cobertura; solo aporta el dato.
+ * <p><b>Why the LLM doesn't decide the first one.</b> Knowing whose device it was requires reading
+ * the narrative, and reading is the one thing code can't do — but interpreting the rule it can. So
+ * it's split in two, same as D4a: the extraction pass returns a <b>typed fact</b>
+ * ({@link DocumentExtraction.AffectedParty}) and the rule is evaluated here. The model never
+ * decides whether there's coverage; it only supplies the data.
  *
- * <p><b>Fuente del dato: la cobertura, no la póliza.</b> {@code coverage.covers_family_group} (lo que
- * configura el referente) y {@code poliza.cubre_grupo_familiar} (BD Aseguradora) existen las dos y ya
- * se contradicen en el seed. Manda la del referente (decisión de Fede, 10/08).
+ * <p><b>Source of the data: the coverage, not the policy.</b> {@code coverage.covers_family_group}
+ * (what the referente configures) and {@code poliza.cubre_grupo_familiar} (insurer DB) both exist
+ * and already contradict each other in the seed. The referente's wins (Fede's call, 10/08).
  *
- * <p>Como el resto de las reglas duras: <b>bloquean el Fast Track y aportan motivos</b>, no cierran
- * el expediente. Una exclusión no rechaza la liquidación sola — el analista firma (CLAUDE.md #5).
+ * <p>Like the rest of the hard rules: they <b>block Fast Track and contribute reasons</b>, they
+ * don't close the case. An exclusion doesn't reject the settlement on its own — the analyst signs
+ * (CLAUDE.md #5).
  */
 @Service
 public class CoverageScopeEvaluator {
 
     private static final Logger log = LoggerFactory.getLogger(CoverageScopeEvaluator.class);
 
-    /** Estado de resolución que indica que el siniestro previo efectivamente consumió la cobertura. */
+    /** Resolution status meaning the prior claim actually consumed the coverage. */
     private static final String SETTLED = "LIQUIDADO";
 
-    /** @param reasons motivos legibles de las reglas que fallaron, para el analista. */
+    /** @param reasons readable reasons for the rules that failed, for the analyst. */
     public record Result(boolean blocksFastTrack, List<String> reasons) {}
 
     public Result evaluate(
@@ -66,14 +67,14 @@ public class CoverageScopeEvaluator {
     }
 
     /**
-     * Solo dispara con un {@code FAMILIAR} explícito. {@code DESCONOCIDO} —o ningún documento leído—
-     * deja la regla sin evaluar: que el papel no aclare de quién era el equipo no puede costarle la
-     * cobertura a nadie.
+     * It only fires on an explicit {@code FAMILIAR}. {@code DESCONOCIDO} — or no document read —
+     * leaves the rule unevaluated: the paper not saying whose device it was can't cost anyone
+     * their coverage.
      */
     private void evaluateFamilyGroup(
             BusinessRules rules, Map<String, DocumentExtraction> documents, List<String> reasons) {
         if (!Boolean.FALSE.equals(rules.coversFamilyGroup())) {
-            return; // la cobertura alcanza al grupo familiar, o no está configurada
+            return; // the coverage reaches the family group, or isn't configured
         }
         boolean affectedIsFamily = documents.values().stream()
                 .map(extraction -> extraction.fields().affectedParty())
@@ -85,9 +86,9 @@ public class CoverageScopeEvaluator {
     }
 
     /**
-     * Cuenta solo los siniestros liquidados <b>de la misma póliza</b>: la cobertura se agota por
-     * póliza, y el mismo asegurado puede tener otras. Sin número de póliza en el historial la regla
-     * no participa, en vez de contar siniestros ajenos a esta cobertura.
+     * Counts only settled claims <b>on the same policy</b>: coverage is exhausted per policy, and
+     * the same insured may have others. With no policy number in the history the rule doesn't take
+     * part, rather than counting claims foreign to this coverage.
      */
     private void evaluateExhaustedCoverage(
             ClaimReport claim, InsuredHistory history, BusinessRules rules, List<String> reasons) {

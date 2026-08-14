@@ -20,9 +20,8 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 /**
- * H0003 - el endpoint de testing aislado (sin caso/expediente detrás) queda restringido al
- * "módulo de scoring" del analista/referente, no accesible por el asegurado ni por callers
- * sin token.
+ * H0003 - the isolated testing endpoint (with no case behind it) is restricted to the
+ * analyst/referente "scoring module", not reachable by the insured or by callers without a token.
  */
 @SpringBootTest
 @AutoConfigureMockMvc

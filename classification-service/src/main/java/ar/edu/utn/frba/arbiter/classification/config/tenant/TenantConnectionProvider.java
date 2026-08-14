@@ -53,7 +53,7 @@ public class TenantConnectionProvider implements MultiTenantConnectionProvider<S
                 applySearchPath(connection, rs.getString(1));
             }
         } catch (SQLException noRegistryYet) {
-            // Ver el Javadoc: sin arbiter_common todavía, seguimos con el search_path por defecto.
+            // See the Javadoc: with no arbiter_common yet, stay on the default search_path.
         }
         return connection;
     }

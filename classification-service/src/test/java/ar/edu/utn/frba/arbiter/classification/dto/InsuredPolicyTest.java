@@ -7,9 +7,9 @@ import java.time.LocalDate;
 import static org.assertj.core.api.Assertions.assertThat;
 
 /**
- * La ventana de vigencia la preguntan dos lugares —la regla dura D13 y la foto que se audita
- * (D27)— así que vive una sola vez. Los bordes se prueban acá porque son inclusivos: un siniestro
- * el último día de vigencia está cubierto.
+ * Two places ask for the validity window — the hard rule D13 and the audited snapshot (D27) — so it
+ * lives in one place. The edges are tested here because they're inclusive: a claim on the last day
+ * of validity is covered.
  */
 class InsuredPolicyTest {
 
@@ -37,7 +37,7 @@ class InsuredPolicyTest {
         assertThat(policy(FROM, TO).inForceOn(TO.plusDays(1))).isFalse();
     }
 
-    /** No se afirma una vigencia que no se pudo verificar — mismo criterio que el dueño en D2. */
+    /** Validity that couldn't be verified isn't asserted — same criterion as the holder in D2. */
     @Test
     void withoutDatesNothingIsAsserted() {
         assertThat(policy(null, TO).inForceOn(FROM)).isFalse();

@@ -50,9 +50,9 @@ public class RiskAnalysis {
     @Column(name = "risk_band", nullable = false, length = 20)
     private RiskBand riskBand;
 
-    // jsonb, no text: así está la columna en el esquema, y con ddl-auto=validate un text acá
-    // haría fallar el arranque del módulo entero. El converter sigue produciendo el String;
-    // @JdbcTypeCode es lo que le dice a Hibernate cómo escribirlo.
+    // jsonb, not text: that's how the column is in the schema, and with ddl-auto=validate a text
+    // here would fail the whole module's startup. The converter still produces the String;
+    // @JdbcTypeCode is what tells Hibernate how to write it.
     @Convert(converter = RiskBreakdownJsonConverter.class)
     @JdbcTypeCode(SqlTypes.JSON)
     @Column(name = "risk_breakdown", nullable = false, columnDefinition = "jsonb")

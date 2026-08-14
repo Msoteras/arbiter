@@ -19,7 +19,7 @@ import static org.assertj.core.api.Assertions.assertThat;
  */
 class TemporalRuleEvaluatorTest {
 
-    /** 72 hs es el default de la propiedad; el plazo policial es provisorio hasta que sea configurable. */
+    /** 72 h is the property's default; the police deadline is provisional until it's configurable. */
     private final TemporalRuleEvaluator evaluator = new TemporalRuleEvaluator(72);
 
     private static final LocalDateTime EVENT = LocalDateTime.of(2026, 6, 13, 20, 0);
@@ -40,7 +40,7 @@ class TemporalRuleEvaluatorTest {
     }
 
     // ─── D12 · plazo de la denuncia policial (72 hs provisorias) ──────────────────
-    // El hecho es el 13/06/2026 a las 20:00.
+    // The event is on 13/06/2026 at 20:00.
 
     @Test
     void aPoliceReportWithinTheDeadline_doesNotBlock() {
@@ -65,7 +65,7 @@ class TemporalRuleEvaluatorTest {
         assertThat(result.reasons()).anyMatch(r -> r.contains("Denuncia policial fuera de plazo"));
     }
 
-    /** Denunciar en la policía antes del hecho es un dato inconsistente, no un plazo cumplido. */
+    /** Filing with the police before the event is inconsistent data, not a deadline met. */
     @Test
     void aPoliceReportBeforeTheEvent_blocksFastTrack() {
         TemporalRuleEvaluator.Result result = evaluator.evaluate(
@@ -147,9 +147,9 @@ class TemporalRuleEvaluatorTest {
     }
 
     // ─── D9 · carencia ────────────────────────────────────────────────────────────
-    // El hecho es el 13/06/2026. La carencia se cuenta desde el alta de la póliza.
+    // The event is on 13/06/2026. The waiting period counts from the policy's start.
 
-    /** Póliza de hace 5 días con carencia de 30: hay contrato, pero todavía no hay cobertura. */
+    /** A 5-day-old policy with a 30-day waiting period: there's a contract, but no cover yet. */
     @Test
     void eventInsideTheWaitingPeriod_blocksFastTrack() {
         TemporalRuleEvaluator.Result result = evaluator.evaluate(
@@ -174,7 +174,7 @@ class TemporalRuleEvaluatorTest {
         assertThat(result.blocksFastTrack()).isFalse();
     }
 
-    /** El día exacto en que vence la carencia ya está cubierto (alta 14/05 + 30 días = 13/06). */
+    /** The exact day the waiting period ends is already covered (start 14/05 + 30 days = 13/06). */
     @Test
     void theDayTheWaitingPeriodEnds_isAlreadyCovered() {
         TemporalRuleEvaluator.Result result = evaluator.evaluate(
@@ -219,7 +219,7 @@ class TemporalRuleEvaluatorTest {
     // ── D11 · plazo de denuncia ────────────────────────────────────────────
     @Test
     void reportedLate_blocks() {
-        // Denuncia 100 hs después del hecho, plazo de la cobertura 72 hs.
+        // Reported 100 h after the event, coverage deadline 72 h.
         var result = evaluator.evaluate(
                 claim(EVENT.plusHours(100)), policy(LocalDate.of(2024, 1, 1), LocalDate.of(2027, 1, 1)),
                 history(List.of()), rules(72L, null));
@@ -250,7 +250,7 @@ class TemporalRuleEvaluatorTest {
     // ── D10 · tope de eventos por año ──────────────────────────────────────
     @Test
     void exceedsMaxAnnualEvents_blocks() {
-        // Tope 1/año, ya hay 1 siniestro en el ramo en los últimos 12 meses → el actual es el 2º.
+        // Cap 1/year, there's already 1 claim in the branch in the last 12 months → this is the 2nd.
         var result = evaluator.evaluate(
                 claim(null), policy(LocalDate.of(2024, 1, 1), LocalDate.of(2027, 1, 1)),
                 history(List.of(priorClaim(LocalDate.of(2026, 2, 1), "Celulares"))), rules(null, 1));
@@ -282,7 +282,7 @@ class TemporalRuleEvaluatorTest {
 
     @Test
     void missingData_doesNotBlind_block() {
-        // Sin fechas de póliza, sin reportedAt y sin límites configurados: nada que evaluar.
+        // No policy dates, no reportedAt and no limits configured: nothing to evaluate.
         var result = evaluator.evaluate(claim(null), policy(null, null), history(List.of()), rules(null, null));
 
         assertThat(result.blocksFastTrack()).isFalse();
