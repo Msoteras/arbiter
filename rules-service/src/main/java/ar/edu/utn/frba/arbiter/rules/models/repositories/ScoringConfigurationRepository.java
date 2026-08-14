@@ -7,6 +7,6 @@ import java.util.Optional;
 
 public interface ScoringConfigurationRepository extends JpaRepository<ScoringConfiguration, Long> {
 
-    /** Una sola fila por aseguradora (tabla per-tenant, sin columna de ramo). */
+    /** A single row per insurer (per-tenant table, no branch column). */
     Optional<ScoringConfiguration> findFirstByOrderByIdAsc();
 }

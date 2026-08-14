@@ -25,8 +25,8 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 /**
- * Exclusiones duras de cobertura: get/upsert por (ramo, cobertura) con snapshot de historial, y el
- * catálogo de hechos generadores. Mockito puro, sin Spring.
+ * Hard coverage exclusions: get/upsert per (branch, coverage) with a history snapshot, and the
+ * claim cause catalog. Plain Mockito, no Spring.
  */
 class CoverageExclusionRuleServiceTest {
 

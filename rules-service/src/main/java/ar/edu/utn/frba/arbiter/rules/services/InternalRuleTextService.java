@@ -7,13 +7,12 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 /**
- * Lectura system-to-system de las reglas en texto para el motor de clasificación.
+ * System-to-system read of the text rules for the classification engine.
  *
- * <p>Existe por una asimetría de claves: el referente configura los textos <b>por ramo</b>, pero el
- * claim que llega al motor solo trae un {@code coverageId} — el ramo y el hecho generador le llegan
- * como nombres, no como ids (ver {@code ClaimReport}). Así que acá se resuelve cobertura → ramo y
- * recién después se leen los textos. Es el mismo motivo por el que {@code /internal/fast-track}
- * keyea por cobertura.
+ * <p>It exists because of a key asymmetry: the referente configures the texts <b>by branch</b>, but
+ * the claim reaching the engine only carries a {@code coverageId} — branch and claim cause arrive
+ * as names, not ids (see {@code ClaimReport}). So coverage → branch is resolved here and only then
+ * are the texts read. Same reason {@code /internal/fast-track} is keyed by coverage.
  */
 @Service
 public class InternalRuleTextService {
@@ -32,8 +31,8 @@ public class InternalRuleTextService {
     }
 
     /**
-     * Devuelve vacío —no 404— cuando la cobertura no existe o no tiene ramo: el motor compone esto
-     * sobre su baseline y una clasificación no se puede caer porque falte configuración.
+     * Returns empty — not 404 — when the coverage doesn't exist or has no branch: the engine
+     * composes this over its baseline, and a classification can't fall over missing config.
      */
     @Transactional(readOnly = true)
     public RuleTextsDto getByCoverage(Long coverageId) {

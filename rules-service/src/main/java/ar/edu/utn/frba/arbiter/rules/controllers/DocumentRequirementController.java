@@ -17,8 +17,8 @@ import org.springframework.web.bind.annotation.RestController;
 import java.util.List;
 
 /**
- * Agenda documental del referente, por ramo (fan-out interno a los hechos generadores del ramo —
- * ver {@link DocumentRequirementService}).
+ * The referente's document schedule, by branch (internal fan-out to the branch's claim causes —
+ * see {@link DocumentRequirementService}).
  */
 @RestController
 @RequestMapping("/api/v1/rules/document-requirements")

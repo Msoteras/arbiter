@@ -20,11 +20,11 @@ import java.time.Instant;
 import java.util.List;
 
 /**
- * Texto libre a nivel ramo sin tabla propia en el DER (docs/decisiones-reglas-a-validar.md, D3):
- * exclusiones comunes y reglas de negocio en prosa. Reutiliza el mismo mecanismo que Fast Track
- * ({@link InsurerRule} + historial append-only), pero con {@code coverage_id} null (regla a nivel
- * ramo, válido según el DER) y un {@code rule_type} distinto por cada lista. Un {@code ruleType}
- * por instancia — dos beans, uno por lista, ver {@link ar.edu.utn.frba.arbiter.rules.config.RuleTextConfig}.
+ * Branch-level free text with no table of its own in the DER (docs/decisiones-reglas-a-validar.md,
+ * D3): common exclusions and business rules in prose. It reuses the same mechanism as Fast Track
+ * ({@link InsurerRule} + append-only history), but with {@code coverage_id} null (a branch-level
+ * rule, valid per the DER) and a different {@code rule_type} per list. One {@code ruleType}
+ * per instance — two beans, one per list, see {@link ar.edu.utn.frba.arbiter.rules.config.RuleTextConfig}.
  */
 @RequiredArgsConstructor
 public class RuleTextService {

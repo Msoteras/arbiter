@@ -17,9 +17,9 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 /**
- * Backoffice del referente: carga y edición de los umbrales Fast Track de su aseguradora,
- * por (rama, cobertura), más el catálogo de ramos para poblar el selector. El schema del tenant
- * se resuelve del JWT, así que el referente solo ve/edita las reglas de su propia aseguradora.
+ * Referente backoffice: entering and editing their insurer's Fast Track thresholds, per (branch,
+ * coverage), plus the branch catalog to populate the picker. The tenant schema comes from the JWT,
+ * so the referente only sees and edits their own insurer's rules.
  */
 @RestController
 @RequestMapping("/api/v1/rules")

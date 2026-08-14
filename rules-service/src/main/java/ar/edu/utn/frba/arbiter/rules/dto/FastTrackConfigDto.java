@@ -17,21 +17,21 @@ public record FastTrackConfigDto(
         @DecimalMin("0.0") @DecimalMax("1.0") Double maxClaimedAmountRatio,
         @Min(0) Integer maxPriorClaims,
         /**
-         * Ventana en meses para contar {@code maxPriorClaims}. Null = sin ventana, o sea el
-         * histórico completo del asegurado — que era el comportamiento anterior, cuando el campo
-         * existía solo en la UI y se descartaba: "máximo 1 siniestro previo" significaba
-         * *nunca en la vida*, no *en los últimos 24 meses* (D14).
+         * Window in months to count {@code maxPriorClaims}. Null = no window, i.e. the insured's
+         * whole history — which was the previous behaviour, when the field existed only in the UI
+         * and got dropped: "at most 1 prior claim" meant *never in their life*, not *in the last
+         * 24 months* (D14).
          */
         @Min(0) Integer priorClaimsWindowMonths,
-        /** Antigüedad mínima de la póliza al momento del hecho, en meses. Null = no se exige. */
+        /** Minimum policy age at the time of the event, in months. Null = not required. */
         @Min(0) Integer minPolicyAgeMonths,
         Boolean requiresUpToDatePolicy,
         List<String> requiredDocumentTypes,
         /**
-         * Los mismos criterios en castellano, para que el LLM los lea. No deciden nada —el gate son
-         * los umbrales de arriba— pero viajan al prompt como descripción de la política de Fast
-         * Track de la aseguradora. Antes salían hardcodeados del {@code MockRulesAdapter}, así que
-         * el texto podía contradecir a los números que el referente configuraba (D14).
+         * The same criteria in Spanish, for the LLM to read. They decide nothing — the gate is the
+         * thresholds above — but they travel to the prompt as a description of the insurer's Fast
+         * Track policy. They used to come hardcoded from {@code MockRulesAdapter}, so the text
+         * could contradict the numbers the referente configured (D14).
          */
         List<String> criteria
 ) {

@@ -13,8 +13,8 @@ import static org.mockito.Mockito.when;
 
 /**
  * El motor solo tiene el {@code coverageId}; la agenda se guarda por ramo. El servicio cruza
- * cobertura → ramo y devuelve la agenda de ese ramo; sin cobertura o sin ramo, lista vacía (el
- * motor compone sobre su baseline y nunca se cae por falta de config).
+ * coverage → branch and returns that branch's schedule; with no coverage or no branch, an empty
+ * list (the engine composes over its baseline and never falls over missing config).
  */
 class InternalDocumentRequirementServiceTest {
 

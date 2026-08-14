@@ -17,12 +17,11 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
- * Agenda documental (AgendaDocumental) de un ramo, para la solapa Documentación del referente. El
- * DER (document_requirement / "requisito_documental") keyea por rama + hecho generador; la pantalla
- * la edita como una lista plana por ramo (docs/decisiones-reglas-a-validar.md, D5). Resolvemos la
- * diferencia con el mismo patrón que Fast Track usa con las coberturas: fan-out — la misma lista se
- * escribe para todos los hechos generadores del ramo. Sin historial: el DER no tiene
- * "historial_requisito_documental".
+ * A branch's AgendaDocumental, for the referente's Documentación tab. The DER
+ * (document_requirement / "requisito_documental") keys by branch + claim cause; the screen edits it
+ * as a flat list per branch (docs/decisiones-reglas-a-validar.md, D5). The gap is bridged with the
+ * same pattern Fast Track uses for coverages: fan-out — the same list is written for every claim
+ * cause of the branch. No history: the DER has no "historial_requisito_documental".
  */
 @Service
 @RequiredArgsConstructor
@@ -41,9 +40,9 @@ public class DocumentRequirementService {
     }
 
     /**
-     * Igual que {@link #get(Long)} pero resolviendo el ramo por nombre — es lo que el asegurado (al
-     * subir) y el analista (checklist de faltantes) tienen a mano; el id numérico solo lo maneja el
-     * referente. Ramo desconocido ⇒ lista vacía.
+     * Same as {@link #get(Long)} but resolving the branch by name — it's what the insured (when
+     * uploading) and the analyst (missing-documents checklist) have at hand; only the referente
+     * handles the numeric id. Unknown branch ⇒ empty list.
      */
     @Transactional(readOnly = true)
     public List<String> getByBranchName(String branchName) {
