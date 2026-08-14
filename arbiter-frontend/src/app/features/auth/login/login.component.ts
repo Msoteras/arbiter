@@ -74,8 +74,10 @@ export class LoginComponent {
     if (err.status === 423) {
       return err.error?.detail ?? 'Cuenta bloqueada temporalmente. Probá de nuevo más tarde.';
     }
+    // Los campos vacíos ya los ataja canSubmit, así que un 400 del server es el sobre cifrado que
+    // no se pudo abrir: el backend rotó la clave al reiniciar, o el reloj del navegador está corrido.
     if (err.status === 400) {
-      return 'Completá email y contraseña.';
+      return err.error?.detail ?? 'No pudimos procesar el pedido. Recargá la página y probá de nuevo.';
     }
     // status 0 = no hubo respuesta del servidor: backend caído, sin conexión, timeout o CORS.
     if (err.status === 0) {

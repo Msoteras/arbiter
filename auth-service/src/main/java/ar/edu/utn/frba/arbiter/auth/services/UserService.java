@@ -50,6 +50,7 @@ public class UserService {
     private final Optional<Auth0UserProvisioner> auth0UserProvisioner;
     private final EmailDomainValidator emailDomainValidator;
     private final SendGridAdapter sendGridAdapter;
+    private final PasswordCipher passwordCipher;
 
     @Value("${arbiter.frontend.base-url:http://localhost:4200}")
     private String frontendBaseUrl;
@@ -116,7 +117,8 @@ public class UserService {
      * in Auth0 (with the password they chose) — if Auth0 fails, we don't touch anything local,
      * so the user can retry with the same link without the referente having to re-invite them.
      */
-    public void activateAccount(String token, String rawPassword) {
+    public void activateAccount(String token, String encryptedPassword) {
+        String rawPassword = passwordCipher.decrypt(encryptedPassword);
         User user = requireValidToken(token);
 
         if (auth0UserProvisioner.isPresent()) {
@@ -150,7 +152,8 @@ public class UserService {
      * The user already exists in Auth0 (unlike {@link #activateAccount}) — this only updates
      * the password there, then clears the local token.
      */
-    public void resetPassword(String token, String rawPassword) {
+    public void resetPassword(String token, String encryptedPassword) {
+        String rawPassword = passwordCipher.decrypt(encryptedPassword);
         User user = requireValidToken(token);
 
         if (auth0UserProvisioner.isPresent()) {

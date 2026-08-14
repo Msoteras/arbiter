@@ -40,6 +40,9 @@ public class SecurityConfig {
         http.authorizeHttpRequests(auth -> auth
                 .requestMatchers(
                         "/api/v1/auth/login",
+                        // Public by necessity: it's the first thing the browser asks for, before it
+                        // has anything to authenticate with. It's the public key, nothing to guard.
+                        "/api/v1/auth/public-key",
                         "/api/v1/auth/activate",
                         "/api/v1/auth/forgot-password",
                         "/api/v1/auth/reset-password",
