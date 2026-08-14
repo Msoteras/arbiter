@@ -12,9 +12,9 @@ import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.web.SecurityFilterChain;
 
 /**
- * Valida el mismo JWT que emite auth-service (H0001), mismo patrón que en cases-service y
- * classification-service. Sin sesión de servidor: el estado vive en el JWT (decisión de
- * arquitectura #13).
+ * Validates the same JWT auth-service issues (H0001), same pattern as cases-service and
+ * classification-service. No server session: the state lives in the JWT (architecture decision
+ * #13).
  */
 @Configuration
 @EnableMethodSecurity

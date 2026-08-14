@@ -5,42 +5,42 @@ import java.time.LocalDate;
 import java.util.List;
 
 /**
- * Lo que la pasada de visión saca de un adjunto: qué <b>dice</b> el documento y qué <b>parece</b>
- * el documento. Son dos cosas distintas y por eso viajan separadas.
+ * What the vision pass gets out of an attachment: what the document <b>says</b> and what the
+ * document <b>looks like</b>. Two different things, which is why they travel separately.
  *
- * <p>Mezclarlas sería un error caro: si "la tipografía del encabezado no coincide con el resto"
- * llegara dentro de la transcripción, el clasificador la leería como contenido del documento —
- * como si el papel lo dijera. Separadas, el prompt puede presentarlas por lo que son: una
- * observación del modelo sobre la imagen, no un dato del documento.
+ * <p>Mixing them would be an expensive mistake: if "the header's typeface doesn't match the rest"
+ * arrived inside the transcription, the classifier would read it as document content — as if the
+ * paper said it. Kept apart, the prompt can present them for what they are: the model's observation
+ * about the image, not a fact from the document.
  *
- * <p>Nace de D5: el modelo de visión ya tiene la imagen delante en la extracción, pero solo se le
- * pedía transcribir, así que la señal visual se perdía ahí. Mandarle la imagen al clasificador
- * habría costado miles de tokens de la ventana de 32k (decisión #2) y duplicado lo que el pipeline
- * de fraude ya hace por CLIP/pgvector (decisión #11); pedirle esto al paso que ya mira la imagen
- * no cuesta contexto extra.
+ * <p>It comes from D5: the vision model already has the image in front of it during extraction, but
+ * was only asked to transcribe, so the visual signal was lost there. Sending the image to the
+ * classifier would have cost thousands of tokens of the 32k window (decision #2) and duplicated what
+ * the fraud pipeline already does through CLIP/pgvector (decision #11); asking this of the step that
+ * already looks at the image costs no extra context.
  *
- * @param transcription  lo que el documento dice, en texto plano. Vacío si no se pudo leer.
- * @param visualFindings señales observables de manipulación o fabricación. <b>Vacío es lo normal</b>:
- *                       un documento común no tiene por qué generar ninguna. Nunca son concluyentes
- *                       — alimentan la lectura del analista, no una regla.
- * @param fields         los mismos datos, <b>tipados</b>, para que el código pueda compararlos.
+ * @param transcription  what the document says, in plain text. Empty if it couldn't be read.
+ * @param visualFindings observable signs of tampering or fabrication. <b>Empty is normal</b>: an
+ *                       ordinary document has no reason to raise any. They're never conclusive —
+ *                       they feed the analyst's reading, not a rule.
+ * @param fields         the same data, <b>typed</b>, so the code can compare it.
  */
 public record DocumentExtraction(String transcription, List<String> visualFindings, Fields fields) {
 
     /**
-     * Los datos del documento como campos y no como prosa. Existe porque comparar párrafos no da un
-     * resultado determinístico: para decir "el IMEI de la factura no es el del bien asegurado" hace
-     * falta el IMEI como dato, no una frase que lo mencione. Es lo que destraba
+     * The document's data as fields rather than prose. It exists because comparing paragraphs
+     * doesn't give a deterministic result: to say "the invoice's IMEI isn't the insured item's" you
+     * need the IMEI as data, not a sentence mentioning it. It's what unblocks
      * {@code DocumentInconsistencyEvaluator} (D4b).
      *
-     * <p>Todos nullable, y eso es lo normal: una foto del celular roto no tiene monto, una constancia
-     * policial no tiene IMEI. Null significa "el documento no lo dice", nunca "no coincide" — un
-     * campo ausente jamás debe leerse como una inconsistencia.
+     * <p>All nullable, and that's normal: a photo of the broken phone has no amount, a police
+     * certificate has no IMEI. Null means "the document doesn't say", never "doesn't match" — a
+     * missing field must never be read as an inconsistency.
      *
-     * @param documentDate    la fecha que figura en el documento (la del hecho o la de emisión)
+     * @param documentDate    the date on the document (the event's or the issue date)
      * @param amount          el importe total, si el documento tiene uno
-     * @param itemDescription el bien que el documento nombra ("Samsung Galaxy A56")
-     * @param imei            el IMEI que figura, normalizado a dígitos
+     * @param itemDescription the item the document names ("Samsung Galaxy A56")
+     * @param imei            the IMEI on it, normalized to digits
      * @param affectedParty   quién sufrió el hecho según el documento (D9, {@code covers_family_group})
      */
     public record Fields(
@@ -56,16 +56,17 @@ public record DocumentExtraction(String transcription, List<String> visualFindin
     }
 
     /**
-     * Quién sufrió el hecho, según lo que dice el documento. Es el dato que necesita la regla de
-     * {@code covers_family_group}: si la cobertura no alcanza al grupo familiar y el damnificado es
-     * un familiar, el siniestro no está cubierto (D9).
+     * Who suffered the event, according to the document. It's the data the
+     * {@code covers_family_group} rule needs: if the coverage doesn't reach the family group and the
+     * injured party is a relative, the claim isn't covered (D9).
      *
-     * <p>Existe como enum y no como texto libre a propósito: el modelo <b>extrae</b> el hecho, el
-     * código <b>decide</b> la regla. Una regla no puede depender de cómo el modelo redactó la frase.
+     * <p>It's an enum and not free text on purpose: the model <b>extracts</b> the fact, the code
+     * <b>decides</b> the rule. A rule can't depend on how the model phrased the sentence.
      *
-     * <p>{@link #DESCONOCIDO} es un valor de primera clase, no un error: si el documento no dice de
-     * quién era el equipo, la regla no participa. Adivinar "titular" por defecto haría pasar casos
-     * que no corresponden, y adivinar "familiar" rechazaría a gente por algo que nadie declaró.
+     * <p>{@link #DESCONOCIDO} is a first-class value, not an error: if the document doesn't say
+     * whose device it was, the rule doesn't take part. Defaulting to "titular" would let through
+     * cases that shouldn't pass, and defaulting to "familiar" would reject people over something
+     * nobody declared.
      */
     public enum AffectedParty {
         TITULAR,
@@ -80,7 +81,7 @@ public record DocumentExtraction(String transcription, List<String> visualFindin
         fields = fields == null ? Fields.none() : fields;
     }
 
-    /** Solo texto, sin señales visuales ni campos — el resultado de un fallback o de un mock. */
+    /** Text only, no visual signals or fields — the result of a fallback or a mock. */
     public static DocumentExtraction of(String transcription) {
         return new DocumentExtraction(transcription, List.of(), Fields.none());
     }

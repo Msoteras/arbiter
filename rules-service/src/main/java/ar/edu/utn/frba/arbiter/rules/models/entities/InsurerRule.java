@@ -26,9 +26,8 @@ import java.time.Instant;
  * whether it blocks Fast Track. {@code coverageId} points at cases-service's coverage:
  * same tenant schema, but another module owns it, so it stays a plain id and not a real FK.
  *
- * <p>No lleva aseguradora: la fila ya vive en el esquema de una, que es lo que la identifica.
- * Una columna con el id sería un segundo lugar donde dice a quién pertenece, y los dos podrían
- * discrepar.
+ * <p>It carries no insurer: the row already lives in one's schema, which is what identifies it. A
+ * column with the id would be a second place saying who it belongs to, and the two could disagree.
  */
 @Entity
 @Table(name = "insurer_rule")

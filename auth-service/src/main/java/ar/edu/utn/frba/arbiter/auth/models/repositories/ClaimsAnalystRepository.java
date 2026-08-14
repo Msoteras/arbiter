@@ -11,10 +11,9 @@ public interface ClaimsAnalystRepository extends JpaRepository<ClaimsAnalyst, Lo
     Optional<ClaimsAnalyst> findByUserId(Long userId);
 
     /**
-     * Los analistas de la aseguradora del request — la tabla es por esquema, así que el tenant
-     * resuelto ya decide de quién son. Alimenta el selector de asignación de expedientes.
-     *
-     * <p>Ordenado por apellido y nombre: es una lista para elegir una persona, no un log.
+     * The request insurer's analysts — the table is per-schema, so the resolved tenant already
+     * decides whose they are. Sorted by surname and name: it's a list to pick a person from,
+     * not a log.
      */
     List<ClaimsAnalyst> findAllByOrderBySurnameAscNameAsc();
 }

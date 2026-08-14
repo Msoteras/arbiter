@@ -7,6 +7,6 @@ import java.util.Optional;
 
 public interface BranchRepository extends JpaRepository<Branch, Long> {
 
-    /** El asegurado y el analista tienen el nombre del ramo (no el id): así resuelven su agenda. */
+    /** The insured and the analyst have the branch name (not the id): that's how they resolve its schedule. */
     Optional<Branch> findByName(String name);
 }

@@ -3,9 +3,9 @@ package ar.edu.utn.frba.arbiter.rules.dto;
 import java.util.List;
 
 /**
- * Las dos listas de texto libre del ramo, juntas — es como las consume el motor de clasificación:
- * ambas van al mismo prompt, así que pedirlas en un request en vez de dos evita un round-trip por
- * clasificación.
+ * The branch's two free-text lists, together — the way the classification engine consumes them:
+ * both go into the same prompt, so asking for them in one request instead of two saves a round-trip
+ * per classification.
  */
 public record RuleTextsDto(List<String> exclusions, List<String> businessRules) {
 

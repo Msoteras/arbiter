@@ -18,10 +18,10 @@ import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.when;
 
 /**
- * La pasada de extracción es el único momento en que alguien mira la imagen (D5): el clasificador
- * trabaja sobre texto. Lo que se prueba acá es que las dos mitades —lo que el documento dice y lo
- * que la imagen aparenta— salgan separadas, y que un documento que no se pudo leer no tumbe la
- * clasificación entera.
+ * The extraction pass is the only moment anyone looks at the image (D5): the classifier works on
+ * text. What's tested here is that both halves — what the document says and what the image looks
+ * like — come out separate, and that a document that couldn't be read doesn't bring down the whole
+ * classification.
  */
 @ExtendWith(MockitoExtension.class)
 class OllamaDocumentAnalyzerTest {
@@ -69,8 +69,8 @@ class OllamaDocumentAnalyzerTest {
     }
 
     /**
-     * Si el modelo no respeta el schema, se conserva el texto crudo como transcripción y no se
-     * inventa ningún hallazgo: una respuesta malformada no es evidencia de nada visual.
+     * If the model doesn't respect the schema, the raw text is kept as the transcription and no
+     * finding is invented: a malformed answer is no evidence of anything visual.
      */
     @Test
     void unparseableAnswerDegradesToRawTextWithoutFindings() {
@@ -92,7 +92,7 @@ class OllamaDocumentAnalyzerTest {
         assertThat(extraction.visualFindings()).isEmpty();
     }
 
-    /** Schema respetado pero transcripción vacía: es lo mismo que no haber podido leerlo. */
+    /** Schema respected but the transcription empty: same as not having been able to read it. */
     @Test
     void blankTranscriptionReadsAsAnUnreadableDocument() {
         modelAnswers("""

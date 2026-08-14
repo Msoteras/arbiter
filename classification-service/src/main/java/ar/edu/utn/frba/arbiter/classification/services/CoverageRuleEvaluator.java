@@ -11,15 +11,15 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
- * Evaluación determinística de las reglas duras de cobertura — hoy, las <b>exclusiones</b>: qué
- * hechos generadores NO cubre la cobertura del claim. Corre <b>antes</b> del gate de Fast Track (una
- * exclusión dura hace irrelevante al Fast Track) y sin LLM: es código que compara ids, no
- * interpretación del modelo. Cierra el D3 del handoff (nada validaba que el hecho generador
- * estuviera cubierto) y, junto con la escritura de {@code rule_result}, el D4c.
+ * Deterministic evaluation of the hard coverage rules — today, the <b>exclusions</b>: which claim
+ * causes the claim's coverage does NOT cover. It runs <b>before</b> the Fast Track gate (a hard
+ * exclusion makes Fast Track irrelevant) and without the LLM: it's code comparing ids, not model
+ * interpretation. It closes the handoff's D3 (nothing validated the claim cause was covered) and,
+ * together with writing {@code rule_result}, D4c.
  *
- * <p><b>No decide el expediente.</b> Produce un hallazgo, no una resolución: una exclusión bloquea
- * el Fast Track y deriva a revisión, pero la decisión sigue siendo del analista (CLAUDE.md #5,
- * human-in-the-loop). El resultado se audita en {@code rule_result} tanto en PASS como en FAIL.
+ * <p><b>It doesn't decide the case.</b> It produces a finding, not a resolution: an exclusion blocks
+ * Fast Track and routes to review, but the decision is still the analyst's (CLAUDE.md #5,
+ * human-in-the-loop). The result is audited in {@code rule_result} on both PASS and FAIL.
  */
 @Service
 public class CoverageRuleEvaluator {
@@ -28,8 +28,8 @@ public class CoverageRuleEvaluator {
     private static final String COVERAGE_EXCLUSION = "COVERAGE_EXCLUSION";
 
     /**
-     * @param excluded {@code true} si alguna exclusión dura aplica al hecho generador del claim.
-     * @param findings una fila por regla evaluada (PASS/FAIL), para auditar en {@code rule_result}.
+     * @param excluded {@code true} if any hard exclusion applies to the claim's claim cause.
+     * @param findings one row per evaluated rule (PASS/FAIL), to audit in {@code rule_result}.
      */
     public record Result(boolean excluded, List<RuleFinding> findings) {}
 
@@ -46,15 +46,15 @@ public class CoverageRuleEvaluator {
             if (!COVERAGE_EXCLUSION.equals(rule.ruleType())) {
                 continue;
             }
-            // Una exclusión sin hechos generadores configurados no excluye nada: no hay regla que
-            // evaluar ni que auditar (el referente puede dejar la lista vacía desde la UI).
+            // An exclusion with no claim causes configured excludes nothing: there's no rule to
+            // evaluate or audit (the referente can leave the list empty from the UI).
             if (rule.excludedClaimCauseIds() == null || rule.excludedClaimCauseIds().isEmpty()) {
                 continue;
             }
             boolean causeExcluded = claim.claimCauseId() != null
                     && rule.excludedClaimCauseIds().contains(claim.claimCauseId());
-            // PASS = la cobertura cubre el hecho generador (regla satisfecha);
-            // FAIL = lo excluye (la regla dispara).
+            // PASS = the coverage covers the claim cause (rule satisfied);
+            // FAIL = it excludes it (the rule fires).
             findings.add(new RuleFinding(
                     rule.id(),
                     rule.ruleType(),
@@ -72,7 +72,7 @@ public class CoverageRuleEvaluator {
         return new Result(excluded, findings);
     }
 
-    /** Motivos legibles para el analista, a partir de los findings que fallaron. */
+    /** Readable reasons for the analyst, from the findings that failed. */
     public List<String> excludedReasons(Result result, ClaimReport claim) {
         return result.findings().stream()
                 .filter(f -> !f.passed())

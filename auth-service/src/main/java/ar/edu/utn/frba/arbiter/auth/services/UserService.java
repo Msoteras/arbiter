@@ -50,6 +50,7 @@ public class UserService {
     private final Optional<Auth0UserProvisioner> auth0UserProvisioner;
     private final EmailDomainValidator emailDomainValidator;
     private final SendGridAdapter sendGridAdapter;
+    private final PasswordCipher passwordCipher;
 
     @Value("${arbiter.frontend.base-url:http://localhost:4200}")
     private String frontendBaseUrl;
@@ -66,9 +67,9 @@ public class UserService {
      * in the caller's own schema, already the active one for this request
      * (TenantResolvingFilter set it from the caller's own JWT).
      */
-    // Sin esto, un fallo a mitad de camino (ej. el insert de claims_analyst) deja el `users` y
-    // el `user_insurer` ya commiteados por separado: el email queda "trabado" con una cuenta a
-    // medio crear que ni activa ni se puede reintentar (choca con EmailAlreadyExistsException).
+    // Without this, a failure halfway through (say the claims_analyst insert) leaves `users` and
+    // `user_insurer` already committed separately: the email gets "stuck" on a half-created account
+    // that neither activates nor can be retried (it hits EmailAlreadyExistsException).
     @Transactional
     public UserResponse createUser(CreateUserRequest request, String callerEmail) {
         if (request.rol() != UserRole.ANALISTA_SINIESTROS) {
@@ -116,7 +117,8 @@ public class UserService {
      * in Auth0 (with the password they chose) — if Auth0 fails, we don't touch anything local,
      * so the user can retry with the same link without the referente having to re-invite them.
      */
-    public void activateAccount(String token, String rawPassword) {
+    public void activateAccount(String token, String encryptedPassword) {
+        String rawPassword = passwordCipher.decrypt(encryptedPassword);
         User user = requireValidToken(token);
 
         if (auth0UserProvisioner.isPresent()) {
@@ -150,7 +152,8 @@ public class UserService {
      * The user already exists in Auth0 (unlike {@link #activateAccount}) — this only updates
      * the password there, then clears the local token.
      */
-    public void resetPassword(String token, String rawPassword) {
+    public void resetPassword(String token, String encryptedPassword) {
+        String rawPassword = passwordCipher.decrypt(encryptedPassword);
         User user = requireValidToken(token);
 
         if (auth0UserProvisioner.isPresent()) {
@@ -229,10 +232,9 @@ public class UserService {
     }
 
     /**
-     * H0003 (Trello) - listado de usuarios con su rol actual, acotado a la aseguradora del
-     * referente que pide el listado (antes del multi-tenant esto devolvía TODOS los usuarios
-     * del sistema sin importar la aseguradora — un agujero de aislamiento real, no una
-     * simplificación intencional).
+     * H0003 (Trello) - users with their current role, narrowed to the insurer of the referente
+     * asking for the list (before multi-tenancy this returned EVERY user in the system regardless
+     * of insurer — a real isolation hole, not an intentional simplification).
      */
     public List<UserResponse> listUsers(String callerEmail) {
         User caller = userRepository.findByEmail(callerEmail)
@@ -251,14 +253,12 @@ public class UserService {
     }
 
     /**
-     * Analistas a los que se les puede asignar un expediente, para el selector de la bandeja. Por
-     * eso también lo puede consultar un analista y no solo el referente: asignar es acción de los
-     * dos roles operativos.
+     * Analysts a case can be assigned to, for the bandeja's picker. An analyst can ask for it too,
+     * not just the referente: assigning is an action of both operational roles.
      *
-     * <p>Sale de {@code claims_analyst} y no de {@code users}: ahí viven el nombre y el apellido, y
-     * al ser una tabla por esquema el listado ya queda acotado a la aseguradora del request sin
-     * ningún filtro extra — el aislamiento lo da el tenant (decisión de arquitectura #10). El id
-     * que devuelve es el que espera {@code cases.analyst_id}.
+     * <p>Comes from {@code claims_analyst} and not {@code users}: name and surname live there, and
+     * being a per-schema table it's already narrowed to the request's insurer with no extra filter
+     * (decision #10). The id it returns is the one {@code cases.analyst_id} expects.
      */
     public List<AnalystResponse> listAssignableAnalysts() {
         return claimsAnalystRepository.findAllByOrderBySurnameAscNameAsc().stream()
@@ -267,11 +267,11 @@ public class UserService {
     }
 
     /**
-     * Cambia el rol de un usuario. El referente puede promover a otro referente (no es una
-     * escalada real: ya tiene acceso completo), pero no puede cambiarse el rol a sí mismo —
-     * evita que se autodegrade o se bloquee sin querer. No migra la fila de perfil del rol
-     * viejo (claims_analyst/insured/insurer_referent) a la del rol nuevo — cambiar de rol es
-     * un caso borde que hoy no tiene un flujo real detrás, igual que en el esquema anterior.
+     * Changes a user's role. The referente can promote another referente (not a real escalation:
+     * they already have full access), but not change their own — it keeps them from demoting or
+     * locking themselves out by accident. The profile row of the old role
+     * (claims_analyst/insured/insurer_referent) is NOT migrated to the new one: changing roles is
+     * an edge case with no real flow behind it today.
      */
     public UserResponse updateRole(Long userId, UserRole newRole, String requestingEmail) {
         User user = userRepository.findById(userId).orElseThrow(() -> new UserNotFoundException(userId));
@@ -287,9 +287,9 @@ public class UserService {
     }
 
     /**
-     * Elimina un usuario definitivamente (wireframe "Eliminar", acción irreversible — no es una
-     * baja/desactivación). El referente no puede eliminarse a sí mismo, mismo motivo que
-     * {@link #updateRole}: evita quedarse sin acceso.
+     * Deletes a user for good (wireframe "Eliminar", irreversible — not a deactivation). The
+     * referente can't delete themselves, same reason as {@link #updateRole}: it keeps them from
+     * losing access.
      */
     public void deleteUser(Long userId, String requestingEmail) {
         User user = userRepository.findById(userId).orElseThrow(() -> new UserNotFoundException(userId));

@@ -1,14 +1,13 @@
 package ar.edu.utn.frba.arbiter.auth.dto;
 
 /**
- * Un analista al que se le puede asignar un expediente. Es un read model aparte de
- * {@code UserResponse} porque responde otra pregunta: no "qué cuentas hay en la plataforma"
- * (identidad, estado, rol, del esquema común) sino "a quién de esta aseguradora le puedo dar
- * este expediente".
+ * An analyst a case can be assigned to. Separate from {@code UserResponse} because it answers a
+ * different question: not "what accounts exist on the platform" but "who in this insurer can I
+ * hand this case to".
  *
- * <p>El {@code id} es el de {@code claims_analyst}, no el de {@code users}: es el que va en
- * {@code cases.analyst_id}. Al ser una tabla por esquema, <b>solo tiene sentido dentro de la
- * aseguradora que lo devolvió</b> — no lo compares entre tenants.
+ * <p>The {@code id} is {@code claims_analyst}'s, not {@code users}': it's the one that goes in
+ * {@code cases.analyst_id}. Being a per-schema table, it <b>only means anything inside the insurer
+ * that returned it</b> — don't compare it across tenants.
  */
 public record AnalystResponse(
         Long id,

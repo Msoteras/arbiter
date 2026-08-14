@@ -15,30 +15,29 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
- * Reglas duras temporales/de frecuencia, evaluadas por código (no interpretadas por el LLM). Hoy:
+ * Hard temporal/frequency rules, evaluated in code (not interpreted by the LLM). Today:
  * <ul>
- *   <li><b>D13</b> — vigencia de la póliza: el hecho tiene que caer dentro de {@code effectiveFrom..
+ *   <li><b>D13</b> — policy validity: the event has to fall within {@code effectiveFrom..
  *       effectiveTo}.</li>
- *   <li><b>D9</b> — carencia: el hecho no puede caer dentro de los {@code waiting_period_days}
- *       posteriores al alta de la póliza.</li>
- *   <li><b>D12</b> — plazo de la denuncia policial declarada. Umbral <b>provisorio</b> por
- *       propiedad (ver {@code policeReportDeadlineHours}), no configurable por aseguradora
- *       todavía.</li>
- *   <li><b>D11</b> — plazo de denuncia: {@code reportedAt - occurredAt} no puede superar el
- *       {@code report_deadline_hours} de la cobertura.</li>
- *   <li><b>D10</b> — tope de eventos por año: contar los siniestros del asegurado en el ramo dentro
- *       de los últimos 12 meses; el actual no puede superar {@code max_events_per_year}.</li>
+ *   <li><b>D9</b> — waiting period: the event can't fall within the {@code waiting_period_days}
+ *       following the policy's start.</li>
+ *   <li><b>D12</b> — deadline for the declared police report. <b>Provisional</b> threshold via
+ *       property (see {@code policeReportDeadlineHours}), not configurable per insurer yet.</li>
+ *   <li><b>D11</b> — reporting deadline: {@code reportedAt - occurredAt} can't exceed the
+ *       coverage's {@code report_deadline_hours}.</li>
+ *   <li><b>D10</b> — event cap per year: count the insured's claims in the branch within the last
+ *       12 months; the current one can't exceed {@code max_events_per_year}.</li>
  * </ul>
  *
- * <p>Estas reglas <b>bloquean el Fast Track</b> y aportan motivos legibles para el analista, en vez
- * de mandar el texto al LLM y que lo interprete. No cierran el expediente (human-in-the-loop): son
- * hallazgos, no una resolución. Cada regla solo se evalúa si tiene los datos que necesita; si falta
- * alguno, no participa (no bloquea a ciegas).
+ * <p>These rules <b>block Fast Track</b> and contribute readable reasons for the analyst, instead
+ * of shipping the text to the LLM for it to interpret. They don't close the case
+ * (human-in-the-loop): they're findings, not a resolution. Each rule is only evaluated if it has
+ * the data it needs; if any is missing, it doesn't take part (it doesn't block blindly).
  *
- * <p><b>Auditoría (rule_result):</b> a diferencia de las exclusiones de cobertura, estos límites son
- * columnas de {@code coverage}, no filas de {@code insurer_rule}, y {@code rule_result.rule_id} es FK
- * NOT NULL a {@code insurer_rule} — así que por ahora no se auditan en esa tabla (haría falta
- * modelarlos como reglas de aseguradora, igual que las exclusiones). Ver plan-reglas-evaluables.md §1.1.
+ * <p><b>Audit (rule_result):</b> unlike coverage exclusions, these limits are {@code coverage}
+ * columns, not {@code insurer_rule} rows, and {@code rule_result.rule_id} is a NOT NULL FK to
+ * {@code insurer_rule} — so for now they aren't audited in that table (they'd have to be modelled
+ * as insurer rules, like the exclusions). See plan-reglas-evaluables.md §1.1.
  */
 @Service
 public class TemporalRuleEvaluator {
@@ -46,18 +45,19 @@ public class TemporalRuleEvaluator {
     private static final Logger log = LoggerFactory.getLogger(TemporalRuleEvaluator.class);
 
     /**
-     * Plazo para hacer la denuncia policial, en horas desde el hecho (D12).
+     * Deadline to file the police report, in hours from the event (D12).
      *
-     * <p><b>Provisorio y a sabiendas.</b> Debería ser configurable por la aseguradora igual que el
-     * resto —decisión #12 del CLAUDE.md, y es la lección de D4a— pero hoy no tiene dónde vivir:
-     * {@code coverage} tiene una sola columna de plazo ({@code report_deadline_hours}) y ya la usa
-     * D11 para el plazo de denuncia <b>a la aseguradora</b>, que es otro plazo. Reusarla haría que
-     * un número gobierne dos reglas distintas.
+     * <p><b>Provisional, knowingly.</b> It should be configurable per insurer like the rest —
+     * decision #12 of CLAUDE.md, and it's D4a's lesson — but today it has nowhere to live:
+     * {@code coverage} has a single deadline column ({@code report_deadline_hours}) and D11 already
+     * uses it for the deadline to report <b>to the insurer</b>, which is a different deadline.
+     * Reusing it would make one number govern two distinct rules.
      *
-     * <p>Queda como propiedad y no como constante para que al menos se pueda cambiar por entorno sin
-     * recompilar. El fix de fondo es modelarlo como regla evaluable en {@code insurer_rule} —igual
-     * que la exclusión de cobertura de D3, que además trae auditoría en {@code rule_result} gratis—
-     * o sumar una columna al DER. Enhancement pendiente, decidido con Fede el 10/08.
+     * <p>It stays a property rather than a constant so it can at least be changed per environment
+     * without recompiling. The real fix is modelling it as an evaluable rule in
+     * {@code insurer_rule} — like D3's coverage exclusion, which also brings {@code rule_result}
+     * auditing for free — or adding a column to the DER. Pending enhancement, agreed with Fede on
+     * 10/08.
      */
     private final long policeReportDeadlineHours;
 
@@ -67,8 +67,8 @@ public class TemporalRuleEvaluator {
     }
 
     /**
-     * @param blocksFastTrack {@code true} si alguna regla temporal falló (no debe fast-trackear).
-     * @param reasons         motivos legibles de las reglas que fallaron, para el analista.
+     * @param blocksFastTrack {@code true} if any temporal rule failed (must not fast-track).
+     * @param reasons         readable reasons for the rules that failed, for the analyst.
      */
     public record Result(boolean blocksFastTrack, List<String> reasons) {}
 
@@ -88,7 +88,7 @@ public class TemporalRuleEvaluator {
         return new Result(block, reasons);
     }
 
-    /** D13 · el hecho tiene que estar dentro de la vigencia de la póliza. */
+    /** D13 · the event has to fall within the policy's validity. */
     private void evaluatePolicyInForce(ClaimReport claim, InsuredPolicy policy, List<String> reasons) {
         if (claim.eventDate() == null || policy.effectiveFrom() == null || policy.effectiveTo() == null) {
             return;
@@ -102,14 +102,15 @@ public class TemporalRuleEvaluator {
     }
 
     /**
-     * D9 · carencia: la cobertura no aplica durante los primeros {@code waiting_period_days} desde
-     * el alta de la póliza, aunque la póliza esté vigente. Existe para que no se contrate un seguro
-     * por un hecho ya ocurrido o inminente.
+     * D9 · waiting period: the coverage doesn't apply during the first
+     * {@code waiting_period_days} from the policy's start, even if the policy is in force. It
+     * exists so insurance isn't bought for an event that already happened or is imminent.
      *
-     * <p>Distinta de la vigencia (D13) aunque las dos miren las mismas fechas: la vigencia dice si
-     * había contrato, la carencia dice si ese contrato ya daba cobertura. Y distinta del
-     * {@code minPolicyAgeMonths} del Fast Track, que decide el <b>camino</b> (una póliza muy nueva
-     * no va por vía expedita) y no el <b>derecho</b>: acá el siniestro directamente no está cubierto.
+     * <p>Different from validity (D13) even though both look at the same dates: validity says
+     * whether there was a contract, the waiting period says whether that contract already provided
+     * cover. And different from Fast Track's {@code minPolicyAgeMonths}, which decides the
+     * <b>path</b> (a very new policy doesn't go the express way) and not the <b>entitlement</b>:
+     * here the claim simply isn't covered.
      */
     private void evaluateWaitingPeriod(
             ClaimReport claim, InsuredPolicy policy, BusinessRules rules, List<String> reasons) {
@@ -127,14 +128,15 @@ public class TemporalRuleEvaluator {
     }
 
     /**
-     * D12 · la denuncia policial no puede superar el plazo desde el hecho.
+     * D12 · the police report can't exceed the deadline from the event.
      *
-     * <p>Se evalúa sobre lo que <b>declaró</b> el asegurado. Que la constancia diga otra fecha es
-     * otra señal distinta, y la cruza {@code DocumentInconsistencyEvaluator}: una cosa es llegar
-     * tarde y otra es declarar una fecha que el papel no respalda.
+     * <p>It's evaluated on what the insured <b>declared</b>. The certificate saying another date is
+     * a different signal, crossed by {@code DocumentInconsistencyEvaluator}: filing late is one
+     * thing, declaring a date the paper doesn't back is another.
      *
-     * <p>Sin {@code policeReportAt} la regla no participa: "no hubo denuncia policial" es un caso
-     * legítimo (no todo hecho generador la lleva) y distinto de "hubo pero fuera de plazo".
+     * <p>Without {@code policeReportAt} the rule doesn't take part: "there was no police report" is
+     * a legitimate case (not every claim cause involves one) and distinct from "there was one but
+     * past the deadline".
      */
     private void evaluatePoliceReportDeadline(ClaimReport claim, List<String> reasons) {
         if (claim.policeReportAt() == null || claim.eventDate() == null) {
@@ -166,10 +168,10 @@ public class TemporalRuleEvaluator {
     }
 
     /**
-     * D10 · tope de eventos por año. Cuenta los siniestros previos del asegurado en el mismo ramo
-     * dentro de los 12 meses anteriores al hecho; el actual no puede superar el tope. El historial es
-     * por asegurado (no trae número de póliza), así que se acota por ramo como mejor aproximación a
-     * "por póliza".
+     * D10 · event cap per year. Counts the insured's prior claims in the same branch within the 12
+     * months before the event; the current one can't exceed the cap. The history is per insured (it
+     * carries no policy number), so it's narrowed by branch as the closest approximation to
+     * "per policy".
      */
     private void evaluateMaxAnnualEvents(ClaimReport claim, InsuredHistory history, BusinessRules rules, List<String> reasons) {
         if (rules.maxEventsPerYear() == null || claim.eventDate() == null || history.claims() == null) {

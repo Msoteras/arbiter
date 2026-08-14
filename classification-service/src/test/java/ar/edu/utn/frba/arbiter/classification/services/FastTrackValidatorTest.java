@@ -112,9 +112,9 @@ class FastTrackValidatorTest {
     }
 
     /**
-     * D14 · el caso que motivó el campo. Sin ventana, "máximo 1 siniestro previo" se compara contra
-     * el histórico completo, así que dos siniestros de 2024 dejan afuera del Fast Track a un cliente
-     * que hace dos años no reclama.
+     * D14 · the case that motivated the field. With no window, "at most 1 prior claim" is compared
+     * against the whole history, so two claims from 2024 lock a customer who hasn't claimed in two
+     * years out of Fast Track.
      */
     @Test
     void withoutWindow_priorClaimsCountTheWholeHistory() {
@@ -133,7 +133,7 @@ class FastTrackValidatorTest {
         assertThat(result.reasons()).anyMatch(r -> r.contains("Claims previos (2)"));
     }
 
-    /** Con ventana de 12 meses, esos mismos dos siniestros de 2024 ya no cuentan. */
+    /** With a 12-month window, those same two 2024 claims no longer count. */
     @Test
     void withWindow_onlyPriorClaimsInsideItCount() {
         BusinessRules rules = baseRules()
@@ -152,7 +152,7 @@ class FastTrackValidatorTest {
         assertThat(result.reasons()).anyMatch(r -> r.contains("en los últimos 12 meses"));
     }
 
-    /** La ventana se cuenta desde el hecho, no desde hoy: un siniestro de hace 3 meses sí entra. */
+    /** The window counts from the event, not from today: a claim from 3 months ago does count. */
     @Test
     void theWindowIsCountedBackFromTheEvent() {
         BusinessRules rules = baseRules()
@@ -200,7 +200,7 @@ class FastTrackValidatorTest {
         assertThat(result.reasons()).anyMatch(r -> r.contains("por debajo del mínimo"));
     }
 
-    /** El Fast Track solo procede sobre lo verificable: sin fecha de alta no se asume antigüedad. */
+    /** Fast Track only proceeds on what's verifiable: with no start date, no age is assumed. */
     @Test
     void withoutPolicyStartDate_theMinimumAgeCannotBeAsserted() {
         BusinessRules rules = baseRules()
@@ -271,7 +271,7 @@ class FastTrackValidatorTest {
                 .build();
     }
 
-    /** Historial con siniestros fechados, para poder probar la ventana (el hecho es 13/06/2026). */
+    /** History with dated claims, to be able to test the window (the event is 13/06/2026). */
     private InsuredHistory historyWithClaimsOn(LocalDate... dates) {
         return InsuredHistory.builder()
                 .insuredId("40.123.456")

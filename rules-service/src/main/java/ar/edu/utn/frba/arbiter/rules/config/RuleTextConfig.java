@@ -8,8 +8,8 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
 /**
- * Dos instancias de {@link RuleTextService}, una por lista de texto libre a nivel ramo
- * (docs/decisiones-reglas-a-validar.md, D3): exclusiones comunes y reglas de negocio.
+ * Two {@link RuleTextService} instances, one per branch-level free-text list
+ * (docs/decisiones-reglas-a-validar.md, D3): common exclusions and business rules.
  */
 @Configuration
 public class RuleTextConfig {

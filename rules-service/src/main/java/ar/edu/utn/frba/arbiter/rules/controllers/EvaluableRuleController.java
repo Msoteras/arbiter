@@ -16,9 +16,9 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 /**
- * Reglas duras evaluables por cobertura, servidas al motor de clasificación (no a un referente).
- * Hoy: exclusiones de cobertura (qué hechos generadores NO cubre). El CRUD del referente es un
- * incremento aparte (plan-reglas-evaluables.md, opción (a)): por ahora las reglas entran por seed.
+ * Hard evaluable rules per coverage, served to the classification engine (not to a referente).
+ * Today: coverage exclusions (which claim causes it does NOT cover). The referente's CRUD is a
+ * separate increment (plan-reglas-evaluables.md, option (a)): for now the rules come in via seed.
  */
 @RestController
 @RequestMapping("/api/v1/rules")

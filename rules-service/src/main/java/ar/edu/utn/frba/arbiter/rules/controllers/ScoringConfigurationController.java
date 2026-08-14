@@ -15,7 +15,7 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
-/** Scoring de fraude (factores + bandas) del referente. Una sola config por aseguradora, no por ramo. */
+/** The referente's fraud scoring (factors + bands). One config per insurer, not per branch. */
 @RestController
 @RequestMapping("/api/v1/rules/scoring")
 @RequiredArgsConstructor

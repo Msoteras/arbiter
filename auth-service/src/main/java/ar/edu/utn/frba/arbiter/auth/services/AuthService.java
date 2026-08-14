@@ -21,15 +21,20 @@ public class AuthService {
     private final JwtService jwtService;
     private final TenantResolver tenantResolver;
     private final TenantProfileService tenantProfileService;
+    private final PasswordCipher passwordCipher;
 
     /**
      * There's no JWT yet at this point — nothing to resolve a tenant from — so this
      * resolves and sets {@link TenantContext} itself for the one profile lookup it needs,
      * then clears it. Every other authenticated endpoint gets its tenant from
      * TenantResolvingFilter instead.
+     *
+     * <p>The envelope is opened here and not in {@link CredentialsAuthenticator}: it belongs to how
+     * the frontend ships the password, not to whoever validates credentials.
      */
     public LoginResponse login(LoginRequest request) {
-        User user = credentialsAuthenticator.authenticate(request.email(), request.password());
+        String password = passwordCipher.decrypt(request.password());
+        User user = credentialsAuthenticator.authenticate(request.email(), password);
 
         UserRole rol = user.getRoles().stream()
                 .findFirst()

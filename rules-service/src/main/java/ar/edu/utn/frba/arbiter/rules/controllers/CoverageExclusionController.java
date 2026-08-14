@@ -19,11 +19,11 @@ import org.springframework.web.bind.annotation.RestController;
 import java.util.List;
 
 /**
- * Backoffice del referente: exclusiones duras de cobertura (qué hechos generadores NO cubre cada
- * cobertura) y el catálogo de hechos generadores del ramo para poblar el selector. A diferencia de
- * las exclusiones en texto ({@link RuleTextController}), estas las evalúa el motor por código y las
- * audita en {@code rule_result}. El schema del tenant sale del JWT: el referente solo toca su
- * aseguradora.
+ * Referente backoffice: hard coverage exclusions (which claim causes each coverage does NOT cover)
+ * and the branch's claim cause catalog to populate the picker. Unlike the text exclusions
+ * ({@link RuleTextController}), these are evaluated by the engine in code and audited in
+ * {@code rule_result}. The tenant schema comes from the JWT: the referente only touches their own
+ * insurer.
  */
 @RestController
 @RequestMapping("/api/v1/rules")

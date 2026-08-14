@@ -7,6 +7,6 @@ import java.util.List;
 
 public interface ClaimCauseRepository extends JpaRepository<ClaimCause, Long> {
 
-    /** Hechos generadores de un ramo, para el fan-out de la agenda documental. */
+    /** A branch's claim causes, for the document schedule's fan-out. */
     List<ClaimCause> findByBranch_IdOrderByNameAsc(Long branchId);
 }

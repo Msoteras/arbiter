@@ -14,23 +14,23 @@ import org.springframework.transaction.annotation.Transactional;
 import java.util.List;
 
 /**
- * Lectura system-to-system de las reglas <b>duras evaluables</b> de una cobertura para el motor de
- * clasificación (sin rol REFERENTE, con token de servicio que lleva el tenant) — mismo criterio que
- * {@code /internal/fast-track} y {@code /internal/rule-texts}. Keyea por cobertura, que es lo que el
- * claim tiene a mano.
+ * System-to-system read of a coverage's <b>hard evaluable</b> rules for the classification engine
+ * (no REFERENTE role, with a service token carrying the tenant) — same criterion as
+ * {@code /internal/fast-track} and {@code /internal/rule-texts}. Keyed by coverage, which is what
+ * the claim has at hand.
  *
- * <p>Hoy el único tipo es {@code COVERAGE_EXCLUSION}: la lista negra de hechos generadores que la
- * cobertura no cubre, persistida como una fila de {@code insurer_rule} con {@code configuration}
- * JSONB. Esto cierra la asimetría del DER, donde no existe relación cobertura ↔ hecho generador
- * (ver plan-reglas-evaluables.md §1.2). El {@code id} de la regla viaja al motor porque es lo que
- * después va a {@code rule_result.rule_id} (auditoría, Disposición SSN 2/2023).
+ * <p>Today the only type is {@code COVERAGE_EXCLUSION}: the blacklist of claim causes the coverage
+ * doesn't cover, persisted as an {@code insurer_rule} row with {@code configuration} JSONB. This
+ * closes the DER's asymmetry, where no coverage ↔ claim cause relation exists (see
+ * plan-reglas-evaluables.md §1.2). The rule's {@code id} travels to the engine because it's what
+ * later goes into {@code rule_result.rule_id} (audit, SSN Disposition 2/2023).
  */
 @Service
 public class InternalEvaluableRuleService {
 
     private static final String COVERAGE_EXCLUSION = "COVERAGE_EXCLUSION";
-    // Self-instanciado (Jackson 2), igual que FastTrackRuleService: Spring Boot 4 autoconfigura un
-    // ObjectMapper de Jackson 3 (tools.jackson), así que no hay bean com.fasterxml para inyectar.
+    // Self-instantiated (Jackson 2), same as FastTrackRuleService: Spring Boot 4 autoconfigures a
+    // Jackson 3 ObjectMapper (tools.jackson), so there's no com.fasterxml bean to inject.
     private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
 
     private final InsurerRuleRepository ruleRepository;

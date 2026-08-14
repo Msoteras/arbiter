@@ -24,6 +24,7 @@ import ar.edu.utn.frba.arbiter.common.enums.UserRole;
 import ar.edu.utn.frba.arbiter.common.enums.UserStatus;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.api.BeforeEach;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
@@ -76,12 +77,25 @@ class UserServiceTest {
     @Mock
     private SendGridAdapter sendGridAdapter;
 
+    @Mock
+    private PasswordCipher passwordCipher;
+
     private UserService userService;
+
+    /**
+     * Sealing the envelope is PasswordCipherTest's job; here it just passes the password through so
+     * these tests keep reading as "activate with this password". Lenient because most never get to it.
+     */
+    @BeforeEach
+    void passwordCipherPassesThrough() {
+        lenient().when(passwordCipher.decrypt(anyString()))
+                .thenAnswer(invocation -> invocation.getArgument(0));
+    }
 
     private UserService userService(Optional<Auth0UserProvisioner> provisioner) {
         return new UserService(userRepository, claimsAnalystRepository, roleRepository,
                 userInsurerRepository, tenantResolver, tenantProfileService, provisioner,
-                emailDomainValidator, sendGridAdapter);
+                emailDomainValidator, sendGridAdapter, passwordCipher);
     }
 
     private CreateUserRequest analistaRequest() {

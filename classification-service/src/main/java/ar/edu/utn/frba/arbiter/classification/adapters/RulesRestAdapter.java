@@ -63,8 +63,8 @@ public class RulesRestAdapter implements RulesAdapter {
         if (coverageId == null) {
             return base;
         }
-        // Lecturas independientes a propósito: si una falla, las otras igual se aplican. Cada una
-        // cae a su parte del baseline sin tirar abajo la clasificación.
+        // Independent reads on purpose: if one fails the others still apply. Each falls back to its
+        // slice of the baseline without bringing the classification down.
         return overlayScoring(
                 overlayCoverageLimits(
                         overlayEvaluableRules(
@@ -75,11 +75,11 @@ public class RulesRestAdapter implements RulesAdapter {
     }
 
     /**
-     * El scoring de fraude (factores + bandas) que configura el referente. Es config única por
-     * aseguradora (no por cobertura), así que se lee sin coverageId. Reemplaza al baseline del mock
-     * cuando la aseguradora tiene una config habilitada; si no la tiene (o no se puede leer), deja el
-     * scoring de referencia del baseline. Esto es lo que hace que el panel de scoring del referente
-     * efectivamente afecte la clasificación (antes el scoring salía siempre del mock).
+     * The fraud scoring (factors + bands) the referente configures. It's a single config per insurer
+     * (not per coverage), so it's read without a coverageId. It replaces the mock baseline when the
+     * insurer has an enabled config; if it doesn't (or can't be read), the baseline's reference
+     * scoring stays. This is what makes the referente's scoring panel actually affect the
+     * classification — scoring used to always come from the mock.
      */
     private BusinessRules overlayScoring(BusinessRules rules) {
         try {
@@ -109,9 +109,8 @@ public class RulesRestAdapter implements RulesAdapter {
     }
 
     /**
-     * Los límites intrínsecos de la cobertura (plazo de denuncia D11, tope de eventos por año D10),
-     * que el motor evalúa por código. Best-effort como el resto; si no se pueden leer, deja el
-     * baseline.
+     * The coverage's intrinsic limits (reporting deadline D11, event cap per year D10), evaluated
+     * by the engine in code. Best-effort like the rest; if they can't be read, the baseline stays.
      */
     private BusinessRules overlayCoverageLimits(BusinessRules rules, Long coverageId) {
         try {
@@ -144,14 +143,14 @@ public class RulesRestAdapter implements RulesAdapter {
     }
 
     /**
-     * Las reglas duras evaluables de la cobertura (hoy: exclusiones de hecho generador). Reemplaza al
-     * baseline: si la aseguradora configuró exclusiones, mandan las suyas. Una lista vacía se trata
-     * como "no configurado" y deja el baseline.
+     * The coverage's hard evaluable rules (today: claim cause exclusions). Replaces the baseline: if
+     * the insurer configured exclusions, theirs win. An empty list is treated as "not configured"
+     * and leaves the baseline.
      *
-     * <p>Best-effort como los otros overlays, con un matiz que la clasificación no puede ignorar: si
-     * rules-service no responde, el resultado <b>no puede ser "pasa igual"</b> — pero el corte
-     * degradado (no aprobar por silencio del motor, derivar a revisión) todavía no está: por ahora
-     * cae al baseline como el resto. Queda anotado como pendiente en plan-reglas-evaluables.md §3.
+     * <p>Best-effort like the other overlays, with a caveat the classification can't ignore: if
+     * rules-service doesn't answer, the result <b>can't be "passes anyway"</b> — but the degraded
+     * path (don't approve on engine silence, route to review) isn't there yet: for now it falls back
+     * to the baseline like the rest. Noted as pending in plan-reglas-evaluables.md §3.
      */
     private BusinessRules overlayEvaluableRules(BusinessRules rules, Long coverageId) {
         try {
@@ -203,10 +202,10 @@ public class RulesRestAdapter implements RulesAdapter {
                             ft.priorClaimsWindowMonths(), ft.minPolicyAgeMonths(),
                             ft.requiresUpToDatePolicy(), ft.requiredDocumentTypes()));
 
-            // Los criterios en castellano se reemplazan junto con los umbrales, no se mezclan: la
-            // lista del mock describía otros números y llegaba al prompt contradiciendo a los que el
-            // referente había configurado. Si guardó una config sin criterios, el prompt va sin la
-            // sección — mejor eso que resucitar un texto que nadie del negocio escribió (D14).
+            // The Spanish criteria are replaced along with the thresholds, not merged: the mock's
+            // list described other numbers and reached the prompt contradicting the ones the
+            // referente had configured. If they saved a config with no criteria, the prompt goes
+            // without the section — better that than reviving text nobody in the business wrote (D14).
             if (ft.criteria() != null) {
                 overlaid.fastTrackCriteria(List.copyOf(ft.criteria()));
             }
@@ -219,9 +218,9 @@ public class RulesRestAdapter implements RulesAdapter {
     }
 
     /**
-     * Lo que el referente escribe en Coberturas (exclusiones) y Reglas de negocio. Reemplaza al
-     * baseline en vez de sumarse: si la aseguradora configuró sus reglas, las genéricas del mock no
-     * pintan nada. Una lista vacía se trata como "no configurado" y deja el baseline.
+     * What the referente writes in Coberturas (exclusions) and Reglas de negocio. It replaces the
+     * baseline instead of adding to it: if the insurer configured its rules, the mock's generic ones
+     * are irrelevant. An empty list is treated as "not configured" and leaves the baseline.
      */
     private BusinessRules overlayRuleTexts(BusinessRules rules, Long coverageId) {
         try {
@@ -255,9 +254,9 @@ public class RulesRestAdapter implements RulesAdapter {
     }
 
     /**
-     * La agenda documental que el referente configuró para el ramo de la cobertura. Reemplaza al
-     * baseline del mock: es lo que el gate de faltantes ({@code checkRequiredDocuments}) compara
-     * contra lo que el asegurado subió. Una lista vacía = "no configurado" y deja el baseline.
+     * The document schedule the referente configured for the coverage's branch. It replaces the
+     * mock baseline: it's what the missing-docs gate ({@code checkRequiredDocuments}) compares
+     * against what the insured uploaded. An empty list = "not configured" and leaves the baseline.
      */
     private BusinessRules overlayDocumentRequirements(BusinessRules rules, Long coverageId) {
         try {
@@ -321,11 +320,11 @@ public class RulesRestAdapter implements RulesAdapter {
         }
     }
 
-    /** Mirrors rules-service's ScoringConfigDto (factores + bandas del scoring de fraude). */
+    /** Mirrors rules-service's ScoringConfigDto (fraud scoring factors + bands). */
     private record ScoringResponse(Long id, boolean enabled, boolean fullAnalysisOnFastTrack,
                                    List<ScoringFactorJson> factors, List<ScoringBandJson> bands) {
 
-        /** Mapea al ScoringConfig de classification; null si alguna banda no es una RiskBand válida. */
+        /** Maps to classification's ScoringConfig; null if any band isn't a valid RiskBand. */
         BusinessRules.ScoringConfig toScoringConfig() {
             List<BusinessRules.ScoringConfig.FactorWeight> factorWeights = factors.stream()
                     .map(f -> BusinessRules.ScoringConfig.FactorWeight.builder()

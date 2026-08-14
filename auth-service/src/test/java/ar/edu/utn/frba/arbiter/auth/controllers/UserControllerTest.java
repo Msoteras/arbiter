@@ -40,10 +40,10 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 /**
- * H0002 - Alta de Usuarios. Tokens se emiten directo con JwtService en vez de pegarle a
- * /api/v1/auth/login: ese endpoint valida contra Auth0 de verdad ahora (no hay
- * DatabaseCredentialsAuthenticator al que apuntar en un test), así que login en sí lo
- * cubre Auth0AdapterTest con mocks — acá lo que se prueba es autorización y CRUD.
+ * H0002 - Alta de Usuarios. Tokens are issued straight from JwtService instead of hitting
+ * /api/v1/auth/login: that endpoint validates against the real Auth0 now (there's no
+ * DatabaseCredentialsAuthenticator to point at in a test), so login itself is covered by
+ * Auth0AdapterTest with mocks — what's tested here is authorization and CRUD.
  */
 // Dummy Auth0 domain: Auth0Config's AuthAPI bean needs a parseable URL to construct, even
 // though nothing here ever calls the real Auth0 API — tokens are minted directly via JwtService.

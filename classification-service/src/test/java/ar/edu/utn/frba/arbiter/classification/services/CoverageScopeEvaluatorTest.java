@@ -17,8 +17,8 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 /**
  * D9 · alcance de la cobertura: a quién alcanza ({@code covers_family_group}) y si le queda saldo
- * ({@code claim_exhausts_coverage}). Lo que más importa probar es cuándo la regla <b>no</b> dispara:
- * son reglas que le pueden costar la cobertura a alguien.
+ * ({@code claim_exhausts_coverage}). What matters most to test is when the rule does <b>not</b>
+ * fire: these are rules that can cost someone their coverage.
  */
 class CoverageScopeEvaluatorTest {
 
@@ -99,7 +99,7 @@ class CoverageScopeEvaluatorTest {
     }
 
     /**
-     * Lo más importante: si el documento no aclara de quién era el equipo, la regla no participa.
+     * The most important one: if the document doesn't say whose device it was, the rule sits out.
      * Que el papel no lo diga no puede costarle la cobertura a nadie.
      */
     @Test
@@ -110,7 +110,7 @@ class CoverageScopeEvaluatorTest {
         assertThat(result.blocksFastTrack()).isFalse();
     }
 
-    /** Sin documentos leídos tampoco hay dato: la regla no puede evaluarse. */
+    /** With no documents read there's no data either: the rule can't be evaluated. */
     @Test
     void withoutDocuments_theFamilyGroupRuleDoesNotParticipate() {
         CoverageScopeEvaluator.Result result = evaluator.evaluate(
@@ -119,7 +119,7 @@ class CoverageScopeEvaluatorTest {
         assertThat(result.blocksFastTrack()).isFalse();
     }
 
-    /** Sin la columna configurada la regla no existe para esa cobertura. */
+    /** With the column unconfigured the rule doesn't exist for that coverage. */
     @Test
     void withoutTheColumnConfigured_theRuleDoesNotParticipate() {
         CoverageScopeEvaluator.Result result = evaluator.evaluate(
@@ -148,7 +148,7 @@ class CoverageScopeEvaluatorTest {
         assertThat(result.blocksFastTrack()).isFalse();
     }
 
-    /** La cobertura se agota por póliza: un siniestro de otra póliza del mismo asegurado no cuenta. */
+    /** Coverage is exhausted per policy: a claim on another policy of the same insured doesn't count. */
     @Test
     void aSettledClaimOnAnotherPolicy_doesNotExhaustThisCoverage() {
         CoverageScopeEvaluator.Result result = evaluator.evaluate(

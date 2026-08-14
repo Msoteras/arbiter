@@ -12,13 +12,13 @@ import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.web.SecurityFilterChain;
 
 /**
- * Valida el mismo JWT que emite auth-service (H0001) — requiere el mismo JWT_SECRET.
+ * Validates the same JWT auth-service issues (H0001) — needs the same JWT_SECRET.
  * RBAC por endpoint vía {@code @PreAuthorize} en {@link ar.edu.utn.frba.arbiter.classification.controllers.ClaimController}
  * y {@link ar.edu.utn.frba.arbiter.classification.controllers.ClassificationController} (H0003).
- * cases-service reenvía el JWT del usuario original en las llamadas hechas dentro de un request
- * (alta de denuncia, decisión del analista); el poller en background firma un token de servicio
- * propio con el mismo secreto (ver {@code ClassificationServiceClient}). Sin sesión de servidor:
- * el estado vive en el JWT (decisión de arquitectura #13).
+ * cases-service forwards the original user's JWT on calls made inside a request (claim creation,
+ * analyst decision); the background poller signs its own service token with the same secret (see
+ * {@code ClassificationServiceClient}). No server session: the state lives in the JWT (architecture
+ * decision #13).
  */
 @Configuration
 @EnableMethodSecurity

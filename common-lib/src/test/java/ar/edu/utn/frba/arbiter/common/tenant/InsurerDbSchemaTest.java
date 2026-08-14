@@ -6,10 +6,9 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 /**
- * El pareo entre el esquema de Arbiter y el de la BD Aseguradora. Vale la pena testearlo aunque
- * sean cuatro líneas: cuando los dos adapters lo derivaban por su cuenta terminaron los dos
- * apuntando al esquema {@code aseguradora} pelado del modelo viejo, y eso solo se veía en un 500
- * después de un reseed limpio (D19).
+ * The pairing between Arbiter's schema and the insurer database's. Worth testing even at four
+ * lines: when both adapters derived it on their own they ended up pointing at the old model's bare
+ * {@code aseguradora} schema, and that only showed up as a 500 after a clean reseed (D19).
  */
 class InsurerDbSchemaTest {
 
@@ -20,8 +19,8 @@ class InsurerDbSchemaTest {
     }
 
     /**
-     * El fallback de {@code TenantContext} cuando no hay tenant resuelto. No tiene BD Aseguradora
-     * detrás: mejor romper acá que consultar un esquema inexistente y devolver "no tiene pólizas".
+     * {@code TenantContext}'s fallback when no tenant was resolved. It has no insurer database
+     * behind it: better to break here than to query a missing schema and answer "has no policies".
      */
     @Test
     void commonSchemaHasNoInsurerDatabase() {
@@ -37,7 +36,7 @@ class InsurerDbSchemaTest {
                 .isInstanceOf(IllegalStateException.class);
     }
 
-    /** El nombre se concatena en el SQL, así que un identificador raro no puede pasar. */
+    /** The name is concatenated into the SQL, so an odd identifier can't get through. */
     @Test
     void rejectsANameThatIsNotAPlainIdentifier() {
         assertThatThrownBy(() -> InsurerDbSchema.forTenant("arbiter_bbva; DROP SCHEMA public"))

@@ -24,7 +24,7 @@ public final class RiskFixtures {
         return claim(claimedAmount, EVENT_DATE);
     }
 
-    /** Con la fecha de denuncia policial que declaró el asegurado (D12). */
+    /** With the police report date the insured declared (D12). */
     public static ClaimReport claimWithPoliceReport(LocalDateTime policeReportAt) {
         return ClaimReport.builder()
                 .branch("Celulares")
