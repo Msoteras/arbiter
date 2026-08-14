@@ -36,6 +36,7 @@ public class CaseStatusService {
     private final CaseRepository caseRepository;
     private final CaseStatusHistoryRepository historyRepository;
     private final CaseStateCatalog caseStateCatalog;
+    private final CaseNotificationService notificationService;
 
     /**
      * The state every case is born in. Lives here rather than in {@code CaseServiceImpl} so the
@@ -48,6 +49,10 @@ public class CaseStatusService {
     /** Records the case's birth (null → its initial status). The case is already persisted. */
     public void recordCreation(Case caseRecord, StatusChangeActor actor, String reason) {
         appendHistory(caseRecord.getId(), null, caseRecord.getCurrentStatus(), actor, reason);
+        // "We got your claim" belongs to the birth and not to transition(): a case comes back to
+        // PENDING_CLASSIFICATION every time the insured uploads what was missing, and notifying
+        // there would greet them again on every upload.
+        notificationService.notifyStatusChange(caseRecord, PENDING_CLASSIFICATION);
     }
 
     /** Moves the case to a new status, records the transition, and persists the case. */
@@ -61,7 +66,15 @@ public class CaseStatusService {
         CaseState target = caseStateCatalog.resolve(to);
         appendHistory(caseRecord.getId(), caseRecord.getCurrentStatus(), target, actor, reason);
         caseRecord.setCurrentStatus(target);
-        return caseRepository.save(caseRecord);
+        Case saved = caseRepository.save(caseRecord);
+
+        // After persisting, never before: notifying about a move that then fails to save would tell
+        // the insured something that didn't happen. PENDING_CLASSIFICATION is excluded here — see
+        // recordCreation().
+        if (to != PENDING_CLASSIFICATION) {
+            notificationService.notifyStatusChange(saved, to);
+        }
+        return saved;
     }
 
     /**

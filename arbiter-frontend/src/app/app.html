@@ -245,15 +245,33 @@
   }
 
   <app-modal [open]="showNotifications()" heading="Notificaciones" (close)="closeNotifications()">
-    @if (notifications.hasUnread()) {
-      <p class="t-body">
-        Tenés {{ notifications.unreadCount() }}
-        {{
-          notifications.unreadCount() === 1 ? 'notificación sin leer' : 'notificaciones sin leer'
-        }}.
-      </p>
+    @if (notifications.loading()) {
+      <app-inline-loading message="Buscando novedades…" />
+    } @else if (notifications.items().length === 0) {
+      <app-empty-state
+        message="No tenés notificaciones"
+        [sub]="'Te avisamos acá y por mail cuando tu ' + caseNoun() + ' tenga novedades.'"
+      />
     } @else {
-      <p class="t-body">No tenés notificaciones sin leer.</p>
+      <ul class="notif-list">
+        @for (item of notifications.items(); track item.id) {
+          <li class="notif-item" [class.notif-item--unread]="!item.read">
+            <div class="notif-item__head">
+              <span class="t-field-label">{{ notificationTitle(item.type) }}</span>
+              @if (item.sentAt) {
+                <time class="t-note" [attr.datetime]="item.sentAt">{{ formatDateTime(item.sentAt) }}</time>
+              }
+            </div>
+            <p class="t-body">{{ item.content }}</p>
+            @if (item.caseId) {
+              <a class="notif-item__link t-note" [routerLink]="caseLink(item.caseId)"
+                 (click)="closeNotifications()">
+                Ver {{ caseNoun() }} #{{ item.caseId }} ›
+              </a>
+            }
+          </li>
+        }
+      </ul>
     }
     <ng-container modalActions>
       <app-button (click)="closeNotifications()">Entendido</app-button>
