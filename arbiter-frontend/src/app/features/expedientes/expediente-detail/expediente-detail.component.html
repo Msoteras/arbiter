@@ -140,10 +140,10 @@
                       [block]="true"
                       [items]="analystMenuItems()"
                       heading="Asignar a otro analista"
-                      [disabled]="assignSaving()"
+                      [disabled]="assignSaving() || analystsLoading()"
                       (itemSelected)="assignTo($event)"
                     >
-                      <span aria-hidden="true">⟳</span> Reasignar
+                      <span aria-hidden="true">⟳</span> {{ analystsLoading() ? 'Cargando…' : 'Reasignar' }}
                     </app-menu-button>
                     <app-menu-button
                       [items]="overflowMenuItems"
@@ -175,10 +175,10 @@
                       [block]="true"
                       [items]="analystMenuItems()"
                       heading="Asignar a otro analista"
-                      [disabled]="assignSaving()"
+                      [disabled]="assignSaving() || analystsLoading()"
                       (itemSelected)="assignTo($event)"
                     >
-                      Asignar a…
+                      {{ analystsLoading() ? 'Cargando…' : 'Asignar a…' }}
                     </app-menu-button>
                   </div>
                 }
@@ -205,7 +205,9 @@
               El asegurado tiene que subir la documentación faltante desde su portal. Cuando la
               cargue, el caso se vuelve a evaluar automáticamente.
             </p>
-            @if (missingDocLabels().length > 0) {
+            @if (documentsLoading()) {
+              <app-inline-loading [size]="20" message="Cargando documentación…" />
+            } @else if (missingDocLabels().length > 0) {
               <ul class="missing-docs-list">
                 @for (label of missingDocLabels(); track label) {
                   <li>{{ label }}</li>

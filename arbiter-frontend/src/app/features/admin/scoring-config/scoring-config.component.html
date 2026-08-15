@@ -1,4 +1,7 @@
 <app-card heading="Scoring de riesgo">
+  @if (loading()) {
+    <app-inline-loading [size]="26" message="Cargando scoring…" />
+  } @else {
   <p class="section-hint">
     Score paralelo de riesgo (señal para el analista, nunca decisión automática). Cada factor pesa
     sobre el total; el score mapea a una banda. Es una única configuración para toda la aseguradora:
@@ -73,4 +76,5 @@
       }
     </div>
   </div>
+  }
 </app-card>

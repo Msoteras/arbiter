@@ -27,6 +27,7 @@ import { TextareaComponent } from '../../../shared/ui/textarea/textarea.componen
 import { SelectComponent, SelectOption } from '../../../shared/ui/select/select.component';
 import { FilePreviewComponent } from '../../../shared/ui/file-preview/file-preview.component';
 import { CheckboxComponent } from '../../../shared/ui/checkbox/checkbox.component';
+import { InlineLoadingComponent } from '../../../shared/ui/inline-loading/inline-loading.component';
 
 // Wizard de alta de denuncia (asegurado) — 3 pasos con catálogos en cascada.
 type Step = 1 | 2 | 3;
@@ -68,6 +69,11 @@ type PoliciesState =
   | { status: 'ok'; list: Policy[] }
   | { status: 'error' };
 
+type ClaimTypesState =
+  | { status: 'idle' }
+  | { status: 'loading' }
+  | { status: 'ok'; list: ClaimType[] };
+
 @Component({
   selector: 'app-nueva-denuncia',
   imports: [
@@ -79,6 +85,7 @@ type PoliciesState =
     SelectComponent,
     CheckboxComponent,
     FilePreviewComponent,
+    InlineLoadingComponent,
   ],
   changeDetection: ChangeDetectionStrategy.OnPush,
   templateUrl: './nueva-denuncia.component.html',
@@ -153,19 +160,35 @@ export class NuevaDenunciaComponent {
   // Hechos generadores REALES del ramo de la póliza elegida. Antes eran una lista fija que no
   // coincidía con el catálogo por ramo (ej. "Rotura accidental" no existe en Tecnología, "Siniestro
   // general" en ninguno) → el backend tiraba 422 al crear el caso. Vacío hasta elegir póliza.
-  protected readonly claimTypes = toSignal(
+  // Estado explícito (en vez de solo el array) para poder mostrar un loader mientras el fetch está
+  // en vuelo: sin esto, al elegir póliza los chips de "¿Qué te pasó?" quedaban vacíos un instante,
+  // como si el ramo no tuviera hechos generadores en vez de estar cargándolos.
+  protected readonly claimTypesState = toSignal(
     toObservable(computed(() => this.selectedPolicy()?.branch ?? null)).pipe(
       switchMap((branch) =>
         branch
-          ? this.policyService.listClaimCauses(branch).pipe(catchError(() => of<string[]>([])))
-          : of<string[]>([]),
-      ),
-      map((names) =>
-        names.map((name): ClaimType => ({ key: name, label: name, claimCause: name })),
+          ? this.policyService.listClaimCauses(branch).pipe(
+              map(
+                (names): ClaimTypesState => ({
+                  status: 'ok',
+                  list: names.map((name): ClaimType => ({ key: name, label: name, claimCause: name })),
+                }),
+              ),
+              startWith<ClaimTypesState>({ status: 'loading' }),
+              catchError(() => of<ClaimTypesState>({ status: 'ok', list: [] })),
+            )
+          : of<ClaimTypesState>({ status: 'idle' }),
       ),
     ),
-    { initialValue: [] as ClaimType[] },
+    { initialValue: { status: 'idle' } as ClaimTypesState },
   );
+
+  protected readonly claimTypesLoading = computed(() => this.claimTypesState().status === 'loading');
+
+  protected readonly claimTypes = computed<ClaimType[]>(() => {
+    const s = this.claimTypesState();
+    return s.status === 'ok' ? s.list : [];
+  });
   protected readonly selectedType = signal<ClaimType | null>(null);
   // Al cambiar de ramo la causa elegida puede dejar de existir: se limpia para no mandar un hecho
   // generador que el backend rechazaría.
