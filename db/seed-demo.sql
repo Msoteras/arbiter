@@ -33,9 +33,14 @@
 -- PART 6 (at the end) piles extra volume on top of these core scenarios so the inbox,
 -- the referente dashboards and "Mis expedientes" look populated. It stays inside the
 -- same rule: the only insureds are Martina and Julián (both real, loginable users), so
--- there Julián also becomes a Provincia customer — no fake @example.com accounts. For a
--- one-time top-up of an already-seeded database without a destructive reset, the same
--- PART 6 rows ship standalone in db/seed-demo-extra.sql.
+-- there Julián also becomes a Provincia customer — no fake @example.com accounts.
+--
+-- PART 6 used to also ship standalone in db/seed-demo-extra.sql, for topping up an
+-- already-seeded database without a destructive reset. That copy drifted (missed the
+-- notification-recipient fix below) and, run after this file, duplicate-keyed on
+-- every PART 6 row — this file already has it inline. Retired 15/08; if a no-reset
+-- top-up script is needed again, cut a fresh one from this file's tail instead of
+-- reviving the old copy.
 --
 -- Usage:  psql "$DATABASE_URL" -f db/seed-demo.sql
 -- =============================================================================

@@ -10,11 +10,15 @@ Verifica los cuatro criterios de aceptación de la historia de umbrales de regla
 Más el gate de alta: una denuncia sobre una póliza sin cobertura **no crea expediente**.
 
 Todo lo de acá abajo está armado contra el seed actual (`db/init-multitenant.sql` +
-`db/datos-aseguradoras.sql`), no contra el mock. Ids y fechas verificados sobre el script, 13/08 y
-15/08/2026 (alcance aseguradora de vigencia/mora + `onArrears`, id 14).
-**Sin validar en vivo** — la base de Railway ni siquiera tiene sembradas las reglas duras todavía
-(seedeada desde una versión vieja del script, antes de esta historia); hace falta reinicializarla
-contra el `init-multitenant.sql` actual antes de poder correr este caso de punta a punta.
+`db/seed-demo.sql`, el par canónico — ver `scripts/db-railway.ps1`; no `db/datos-aseguradoras.sql`,
+que apunta al schema viejo pre-multitenant y no se usa), no contra el mock. Ids y fechas verificados
+sobre el script, 13/08 y 15/08/2026 (alcance aseguradora de vigencia/mora + `onArrears`, id 14).
+
+La base de Railway se seedeó originalmente desde una versión vieja del script, previa a esta
+historia, así que le faltaban las reglas duras — se cargaron a mano por SQL directo (15/08),
+con ids corridos (5-15 en bbva, 6-14 en provincia) porque la tabla ya tenía filas de antes
+(`FAST_TRACK`, `COVERAGE_EXCLUSION`, etc.) ocupando los ids bajos que el script usa para una base
+nueva. Los ids de §1 reflejan Railway tal como quedó, no los del script.
 
 ---
 
@@ -351,20 +355,19 @@ historia la mora nunca bloqueaba nada por su cuenta —solo era un criterio opci
 habría sido un cambio de comportamiento real para casos en curso, no una migración neutra como las
 otras cinco.
 
-`aseguradora.poliza` id 7 (Diego Sosa, `POL-CEL-2026-077`) tiene `estado_pago = 'SUSPENDIDA'` en
-`db/datos-aseguradoras.sql` — es la póliza con mora que ya trae el seed, pensada para ejercitar
-`policy_standing` en el scoring. Sirve para los dos casos de abajo.
+`aseguradora_bbva.poliza` **`POL-CEL-2025-201`** (Julián Pérez, DNI `30.555.777`) tiene
+`estado_pago = 'SUSPENDIDA'` en `db/seed-demo.sql` — es la póliza en mora que ya trae el seed
+canónico, pensada para ejercitar `policy_standing` en el scoring. Sirve para los dos casos de
+abajo. Julián **sí tiene login real sembrado** (`asegurado2.arbiter@gmail.com`, user id 5), así que
+se puede probar directo desde la UI sin workarounds.
 
 ### 9.1 · `onArrears = STANDBY` (motor, vía Fast Track/scoring)
 
 1. Como referente, en el recuadro **Hard Stop** del sidebar (junto a Scoring de riesgo, no dentro
    de ningún ramo), prender **"Mora de la póliza"** y dejar el selector en **"Dejar en
    standby"**. Guardar.
-2. Denunciar con `POL-CEL-2026-077` (asegurado Diego Sosa, DNI `41.333.999`) — cualquier hecho
-   generador y fecha razonable, con los 4 documentos. Diego no tiene login sembrado en
-   `arbiter_common.users` (solo existe en la BD Aseguradora), así que para probarlo desde la UI
-   hace falta un usuario portal con ese DNI, o pegarle directo al endpoint con un token de
-   `asegurado.arbiter@gmail.com` cuyo DNI se pise, o sumar el alta de Diego al seed de auth.
+2. Login como `asegurado2.arbiter@gmail.com` (Julián) → Nueva denuncia con `POL-CEL-2025-201` —
+   cualquier hecho generador y fecha razonable, con los 4 documentos.
 3. **Esperado:**
    - **Se crea el expediente** (esto es lo que distingue STANDBY de REJECT).
    - `blocksFastTrack = true` — el caso no da `FAST_TRACK` aunque el resto de los criterios
@@ -385,12 +388,12 @@ otras cinco.
 
 1. Como referente, en el recuadro **Hard Stop** del sidebar, con **"Mora de la póliza"** prendida, cambiar el
    selector a **"Rechazar en el alta"**. Guardar.
-2. Denunciar con `POL-CEL-2026-077` / Diego Sosa, igual que en 9.1.
-3. **Esperado:** **422**, mismo patrón que §6 — *"La póliza POL-CEL-2026-077 tiene un saldo
+2. Denunciar con `POL-CEL-2025-201` / Julián, igual que en 9.1.
+3. **Esperado:** **422**, mismo patrón que §6 — *"La póliza POL-CEL-2025-201 tiene un saldo
    pendiente de pago, así que no se puede iniciar el expediente hasta que se regularice."*
    **No se crea expediente**:
-   `SELECT count(*) FROM arbiter_bbva.cases WHERE policy_id = (...Diego Sosa...);` → **0** (o el
-   mismo conteo que antes del intento, si ya tenía casos previos).
+   `SELECT count(*) FROM arbiter_bbva.cases c JOIN arbiter_bbva.policy p ON p.id = c.policy_id
+   WHERE p.external_policy_number = 'POL-CEL-2025-201';` → mismo conteo que antes del intento.
 4. Volver a `STANDBY` y repetir: ahora sí se crea el expediente y cae en el flujo de 9.1.
 
 ## 10 · Lo que este caso NO cubre
