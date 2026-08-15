@@ -1,12 +1,17 @@
 package ar.edu.utn.frba.arbiter.cases.services;
 
+import ar.edu.utn.frba.arbiter.cases.config.tenant.CallerContext;
+import ar.edu.utn.frba.arbiter.cases.config.tenant.TenantContext;
+import ar.edu.utn.frba.arbiter.cases.dto.NotificationResponse;
 import ar.edu.utn.frba.arbiter.cases.exceptions.NotificationNotFoundException;
 import ar.edu.utn.frba.arbiter.cases.models.entities.Case;
 import ar.edu.utn.frba.arbiter.cases.models.entities.Notification;
+import ar.edu.utn.frba.arbiter.cases.models.repositories.InsurerRepository;
 import ar.edu.utn.frba.arbiter.cases.models.repositories.NotificationRepository;
 import ar.edu.utn.frba.arbiter.cases.models.repositories.UserRepository;
 import ar.edu.utn.frba.arbiter.common.email.SendGridAdapter;
 import ar.edu.utn.frba.arbiter.common.enums.CaseStatus;
+import ar.edu.utn.frba.arbiter.common.models.entities.Insurer;
 import ar.edu.utn.frba.arbiter.common.models.entities.User;
 import ar.edu.utn.frba.arbiter.common.models.entities.tenant.Insured;
 import org.junit.jupiter.api.AfterEach;
@@ -48,14 +53,19 @@ class CaseNotificationServiceTest {
     private UserRepository userRepository;
 
     @Mock
+    private InsurerRepository insurerRepository;
+
+    @Mock
     private SendGridAdapter sendGridAdapter;
 
     @InjectMocks
     private CaseNotificationService service;
 
     @AfterEach
-    void clearAuthentication() {
+    void clearRequestState() {
         SecurityContextHolder.clearContext();
+        CallerContext.clear();
+        TenantContext.clear();
     }
 
     @Test
@@ -140,7 +150,7 @@ class CaseNotificationServiceTest {
         authenticatedAs(ACCOUNT_EMAIL);
         when(notificationRepository.findByIdAndRecipientId(99L, 7L)).thenReturn(Optional.empty());
 
-        assertThatThrownBy(() -> service.markRead(99L))
+        assertThatThrownBy(() -> service.markRead(99L, null))
                 .isInstanceOf(NotificationNotFoundException.class);
         verify(notificationRepository, never()).save(any());
     }
@@ -154,7 +164,7 @@ class CaseNotificationServiceTest {
         when(notificationRepository.findByIdAndRecipientId(5L, 7L))
                 .thenReturn(Optional.of(alreadyRead));
 
-        service.markRead(5L);
+        service.markRead(5L, null);
 
         assertThat(alreadyRead.getReadAt()).isEqualTo(firstSeen);
         verify(notificationRepository, never()).save(any());
@@ -173,6 +183,60 @@ class CaseNotificationServiceTest {
         assertThat(two.isRead()).isTrue();
         assertThat(one.getReadAt()).isEqualTo(two.getReadAt());
         verify(notificationRepository).saveAll(List.of(one, two));
+    }
+
+    /**
+     * Un asegurado con pólizas en dos compañías tiene notificaciones en los dos esquemas. Leer solo
+     * el tenant activo le mostraba siniestros de las dos bajo una campana que contaba una.
+     */
+    @Test
+    void forCurrentUser_mergesEveryInsurerOfTheInsured() {
+        insuredOfBothInsurers();
+        when(notificationRepository.findByRecipientIdOrderByCreatedAtDesc(7L))
+                .thenAnswer(invocation -> List.of(notificationAt(
+                        "arbiter_provincia".equals(TenantContext.get())
+                                ? Instant.parse("2026-08-10T10:00:00Z")
+                                : Instant.parse("2026-08-01T10:00:00Z"))));
+
+        List<NotificationResponse> merged = service.forCurrentUser();
+
+        assertThat(merged).hasSize(2);
+        // Reordenado entre esquemas: la de Provincia es más nueva y va primero aunque BBVA se lea antes.
+        assertThat(merged.getFirst().insurerSlug()).isEqualTo("provincia");
+        assertThat(merged.getLast().insurerSlug()).isEqualTo("bbva");
+    }
+
+    @Test
+    void unreadCount_addsUpEveryInsurer() {
+        insuredOfBothInsurers();
+        when(notificationRepository.countByRecipientIdAndReadFalse(7L))
+                .thenAnswer(invocation -> "arbiter_provincia".equals(TenantContext.get()) ? 2L : 1L);
+
+        assertThat(service.unreadCountForCurrentUser()).isEqualTo(3L);
+    }
+
+    /** El tenant del request se restaura: si no, la conexión vuelve al pool viendo otro esquema. */
+    @Test
+    void reading_restoresTheRequestTenant() {
+        insuredOfBothInsurers();
+        when(notificationRepository.countByRecipientIdAndReadFalse(7L)).thenReturn(0L);
+
+        service.unreadCountForCurrentUser();
+
+        assertThat(TenantContext.get()).isEqualTo("arbiter_bbva");
+    }
+
+    private void insuredOfBothInsurers() {
+        authenticatedAs(ACCOUNT_EMAIL);
+        TenantContext.set("arbiter_bbva");
+        CallerContext.set(new CallerContext.Caller("42.987.654", List.of(1L, 2L), "arbiter_bbva"));
+        when(insurerRepository.findAllById(List.of(1L, 2L))).thenReturn(List.of(
+                Insurer.builder().id(1L).name("BBVA").schemaName("arbiter_bbva").active(true).build(),
+                Insurer.builder().id(2L).name("Provincia").schemaName("arbiter_provincia").active(true).build()));
+    }
+
+    private Notification notificationAt(Instant createdAt) {
+        return Notification.builder().id(1L).type("APPROVED").createdAt(createdAt).build();
     }
 
     private void savesWhatItIsGiven() {

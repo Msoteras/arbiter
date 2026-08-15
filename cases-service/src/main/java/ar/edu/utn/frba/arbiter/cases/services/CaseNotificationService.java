@@ -1,13 +1,17 @@
 package ar.edu.utn.frba.arbiter.cases.services;
 
+import ar.edu.utn.frba.arbiter.cases.config.tenant.CallerContext;
+import ar.edu.utn.frba.arbiter.cases.config.tenant.TenantContext;
 import ar.edu.utn.frba.arbiter.cases.dto.NotificationResponse;
 import ar.edu.utn.frba.arbiter.cases.exceptions.NotificationNotFoundException;
 import ar.edu.utn.frba.arbiter.cases.models.entities.Case;
 import ar.edu.utn.frba.arbiter.cases.models.entities.Notification;
+import ar.edu.utn.frba.arbiter.cases.models.repositories.InsurerRepository;
 import ar.edu.utn.frba.arbiter.cases.models.repositories.NotificationRepository;
 import ar.edu.utn.frba.arbiter.cases.models.repositories.UserRepository;
 import ar.edu.utn.frba.arbiter.common.email.SendGridAdapter;
 import ar.edu.utn.frba.arbiter.common.enums.CaseStatus;
+import ar.edu.utn.frba.arbiter.common.models.entities.Insurer;
 import ar.edu.utn.frba.arbiter.common.models.entities.User;
 import ar.edu.utn.frba.arbiter.common.models.entities.tenant.Insured;
 import lombok.RequiredArgsConstructor;
@@ -17,9 +21,12 @@ import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 
 import java.time.Instant;
+import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.function.Function;
 
 /**
  * Tells the insured their case moved, by email and in the in-app panel.
@@ -59,6 +66,7 @@ public class CaseNotificationService {
 
     private final NotificationRepository notificationRepository;
     private final UserRepository userRepository;
+    private final InsurerRepository insurerRepository;
     private final SendGridAdapter sendGridAdapter;
 
     /** Best-effort by contract: a delivery failure must never break the case transition. */
@@ -130,21 +138,96 @@ public class CaseNotificationService {
     }
 
     public List<NotificationResponse> forCurrentUser() {
-        return currentUserId()
-                .map(notificationRepository::findByRecipientIdOrderByCreatedAtDesc)
-                .orElseGet(List::of)
-                .stream()
-                .map(NotificationResponse::from)
+        Optional<Long> userId = currentUserId();
+        if (userId.isEmpty()) {
+            return List.of();
+        }
+        List<NotificationResponse> merged = acrossOwnInsurers(slug ->
+                notificationRepository.findByRecipientIdOrderByCreatedAtDesc(userId.get()).stream()
+                        .map(notification -> NotificationResponse.from(notification, slug))
+                        .toList());
+        // Re-sorted after merging: each schema comes back ordered on its own, and interleaving two
+        // insurers by date is the whole point of showing them in one panel.
+        return merged.stream()
+                .sorted(Comparator.comparing(NotificationResponse::createdAt).reversed())
                 .toList();
     }
 
     public long unreadCountForCurrentUser() {
-        return currentUserId().map(notificationRepository::countByRecipientIdAndReadFalse).orElse(0L);
+        return currentUserId()
+                .map(userId -> acrossOwnInsurers(slug ->
+                        List.of(notificationRepository.countByRecipientIdAndReadFalse(userId))))
+                .orElseGet(List::of)
+                .stream()
+                .mapToLong(Long::longValue)
+                .sum();
     }
 
-    /** Idempotent: the timestamp keeps the first time it was seen. */
-    public void markRead(Long notificationId) {
+    /**
+     * An insured can be a client of more than one insurer, and their notifications live in each
+     * insurer's schema — like their cases, which the portal already merges. Reading only the active
+     * tenant would show them siniestros from both companies under a bell that counts one.
+     *
+     * <p>For an analyst or a referente the list comes back empty and this runs once on the active
+     * tenant: they belong to a single insurer, and reaching into another would be a tenant leak.
+     * The schemas come from {@code insurerIds}, a <b>signed</b> claim, never from request input.
+     */
+    private <T> List<T> acrossOwnInsurers(Function<String, List<T>> perTenant) {
+        List<Insurer> insurers = ownInsurers();
+        if (insurers.isEmpty()) {
+            return perTenant.apply(null);
+        }
+        String callerTenant = TenantContext.get();
+        List<T> merged = new ArrayList<>();
+        try {
+            for (Insurer insurer : insurers) {
+                TenantContext.set(insurer.getSchemaName());
+                merged.addAll(perTenant.apply(InsurerSlug.of(insurer)));
+            }
+        } finally {
+            // Sin esto la conexión vuelve al pool viendo el esquema equivocado y se lo lleva puesto
+            // el próximo request. Mismo cuidado que en InsuredCaseAggregator.
+            TenantContext.set(callerTenant);
+        }
+        return merged;
+    }
+
+    private List<Insurer> ownInsurers() {
+        CallerContext.Caller caller = CallerContext.get();
+        if (caller.insuredId() == null || caller.insurerIds().isEmpty()) {
+            return List.of();
+        }
+        return insurerRepository.findAllById(caller.insurerIds()).stream()
+                .filter(Insurer::isActive)
+                .toList();
+    }
+
+    /**
+     * Idempotent: the timestamp keeps the first time it was seen.
+     *
+     * <p>{@code insurerSlug} disambiguates the id, which repeats across schemas. It's matched
+     * against the caller's own insurers, so naming another company's is a 404 and not a read of it.
+     */
+    public void markRead(Long notificationId, String insurerSlug) {
         Long userId = currentUserId().orElseThrow(NotificationNotFoundException::new);
+        if (insurerSlug == null || insurerSlug.isBlank()) {
+            markRead(notificationId, userId);
+            return;
+        }
+        Insurer insurer = ownInsurers().stream()
+                .filter(candidate -> InsurerSlug.matches(candidate, insurerSlug))
+                .findFirst()
+                .orElseThrow(NotificationNotFoundException::new);
+        String callerTenant = TenantContext.get();
+        try {
+            TenantContext.set(insurer.getSchemaName());
+            markRead(notificationId, userId);
+        } finally {
+            TenantContext.set(callerTenant);
+        }
+    }
+
+    private void markRead(Long notificationId, Long userId) {
         Notification notification = notificationRepository.findByIdAndRecipientId(notificationId, userId)
                 .orElseThrow(NotificationNotFoundException::new);
         if (notification.isRead()) {
@@ -155,9 +238,12 @@ public class CaseNotificationService {
         notificationRepository.save(notification);
     }
 
-    /** Opening the panel means the whole list was seen — one call beats one per notification. */
+    /**
+     * Opening the panel means the whole list was seen — one call beats one per notification. Clears
+     * every insurer's, because the panel showed every insurer's.
+     */
     public void markAllRead() {
-        currentUserId().ifPresent(userId -> {
+        currentUserId().ifPresent(userId -> acrossOwnInsurers(slug -> {
             Instant now = Instant.now();
             List<Notification> unread = notificationRepository.findByRecipientIdAndReadFalse(userId);
             unread.forEach(notification -> {
@@ -165,7 +251,8 @@ public class CaseNotificationService {
                 notification.setReadAt(now);
             });
             notificationRepository.saveAll(unread);
-        });
+            return List.of();
+        }));
     }
 
     private Optional<Long> currentUserId() {

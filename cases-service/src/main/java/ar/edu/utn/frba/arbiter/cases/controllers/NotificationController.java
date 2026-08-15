@@ -10,6 +10,7 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.util.List;
@@ -46,9 +47,11 @@ public class NotificationController {
     }
 
     @PostMapping("/{id}/read")
-    @Operation(summary = "Marcar una notificación como leída")
-    public ResponseEntity<Void> markRead(@PathVariable Long id) {
-        notificationService.markRead(id);
+    @Operation(summary = "Marcar una notificación como leída",
+            description = "El id se repite entre aseguradoras: `aseguradora` es el slug que lo desambigua.")
+    public ResponseEntity<Void> markRead(@PathVariable Long id,
+                                         @RequestParam(required = false) String aseguradora) {
+        notificationService.markRead(id, aseguradora);
         return ResponseEntity.noContent().build();
     }
 }

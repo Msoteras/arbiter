@@ -159,6 +159,27 @@
   border-color: var(--surface);
 }
 
+/* Contador de no leídas (campana del asegurado). Los roles internos siguen con el punto: hoy no
+   reciben notificaciones, así que un número ahí sería siempre un cero.
+   Va en el oscuro de énfasis y no en el semáforo --status-*: ese comunica estado del expediente,
+   y esto es un contador. El teal queda reservado a selección y foco. */
+.bell-count {
+  position: absolute;
+  top: 0;
+  right: 0;
+  min-width: var(--space-4);
+  padding: 0 var(--space-1);
+  border-radius: var(--radius-pill);
+  background: var(--action-primary-bg);
+  border: 2px solid var(--surface);
+  color: var(--action-primary-fg);
+  font-size: var(--font-size-2xs);
+  font-weight: var(--font-weight-bold);
+  line-height: var(--space-4);
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+}
+
 /* Columna de contenido (a la derecha de la sidebar): topbar fija + área ruteada. */
 .app-main {
   flex: 1 1 auto;

@@ -50,7 +50,7 @@
                 <path d="M13.73 21a2 2 0 0 1-3.46 0" stroke-linecap="round" stroke-linejoin="round" />
               </svg>
               @if (notifications.hasUnread()) {
-                <span class="bell-dot bell-dot--light" aria-hidden="true"></span>
+                <span class="bell-count" aria-hidden="true">{{ unreadBadge() }}</span>
               }
             </button>
             <button
@@ -266,8 +266,12 @@
             </div>
             <p class="t-body">{{ item.content }}</p>
             @if (item.caseId) {
-              <a class="notif-item__link t-note" [routerLink]="caseLink(item.caseId)"
-                 (click)="closeNotifications()">
+              <a
+                class="notif-item__link t-note"
+                [routerLink]="caseLink(item.caseId)"
+                [queryParams]="item.insurerSlug ? { aseguradora: item.insurerSlug } : {}"
+                (click)="closeNotifications()"
+              >
                 Ver {{ caseNoun() }} #{{ item.caseId }} ›
               </a>
             }

@@ -139,6 +139,12 @@ export class App {
 
   protected readonly showNotifications = signal(false);
 
+  /** Capped at 9+ so the bubble doesn't stretch and throw the bell off. */
+  protected readonly unreadBadge = computed(() => {
+    const count = this.notifications.unreadCount();
+    return count > 9 ? '9+' : String(count);
+  });
+
   protected openNotifications(): void {
     this.showNotifications.set(true);
     this.notifications.openPanel();
