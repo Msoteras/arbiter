@@ -165,17 +165,19 @@ export function esReprocesoPorDocumentacion(
 
 // Título tranquilizador para el hero del seguimiento (asegurado). Copy orientado a
 // la persona, no a la jerga interna — el detalle técnico vive en estadoLabel.
+// Al asegurado se le habla de "siniestro": el expediente es el caso administrativo que trabaja
+// el analista, y esa distinción no le sirve a quien solo quiere saber cómo viene lo suyo.
 const TITULOS_ASEGURADO: Record<CaseStatus, string> = {
   PENDING_CLASSIFICATION: 'Recibimos tu denuncia',
-  PENDING_ANALYST_REVIEW: 'Tu expediente está en análisis',
-  CLASSIFICATION_FAILED: 'Tu expediente está en análisis',
+  PENDING_ANALYST_REVIEW: 'Tu siniestro está en análisis',
+  CLASSIFICATION_FAILED: 'Tu siniestro está en análisis',
   AWAITING_DOCUMENTATION: 'Necesitamos algo de tu parte',
   APPROVED: 'Tu siniestro fue aprobado',
   REJECTED: 'Tu siniestro fue rechazado',
 };
 
 export function estadoTituloAsegurado(value: string): string {
-  return (TITULOS_ASEGURADO as Record<string, string>)[value] ?? 'Seguimiento de tu expediente';
+  return (TITULOS_ASEGURADO as Record<string, string>)[value] ?? 'Seguimiento de tu siniestro';
 }
 
 // Copy específico del reproceso tras carga de documentación: reconoce la acción del asegurado

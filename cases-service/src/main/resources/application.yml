@@ -41,6 +41,12 @@ spring:
 arbiter:
   classification-service:
     url: ${CLASSIFICATION_SERVICE_URL:http://localhost:8082}
+  email:
+    # Sin key el adapter loguea y no manda: el módulo levanta igual y las notificaciones
+    # quedan registradas en base aunque no salga el mail.
+    sendgrid-api-key: ${SENDGRID_API_KEY:}
+    from-address: ${SENDGRID_FROM_ADDRESS:no-reply@arbiter.test}
+    from-name: ${SENDGRID_FROM_NAME:Arbiter}
   auth:
     jwt:
       secret: ${JWT_SECRET:}

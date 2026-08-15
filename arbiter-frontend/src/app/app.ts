@@ -1,4 +1,4 @@
-import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, effect, inject, signal } from '@angular/core';
 import { toSignal } from '@angular/core/rxjs-interop';
 import { NavigationEnd, Router, RouterLink, RouterLinkActive, RouterOutlet } from '@angular/router';
 import { filter, map } from 'rxjs';
@@ -11,7 +11,21 @@ import { userRoleLabel } from './core/models/user-role';
 import { LogoComponent } from './shared/ui/logo/logo.component';
 import { ButtonComponent } from './shared/ui/button/button.component';
 import { ModalComponent } from './shared/ui/modal/modal.component';
+import { EmptyStateComponent } from './shared/ui/empty-state/empty-state.component';
+import { InlineLoadingComponent } from './shared/ui/inline-loading/inline-loading.component';
+import { formatDateTime } from './core/util/datetime';
 import { NuevaDenunciaComponent } from './features/expedientes/nueva-denuncia/nueva-denuncia.component';
+
+/**
+ * Headline per notification type. Deliberately not `estadoLabel` — that's the analyst's technical
+ * vocabulary. These only fire for an insured, so they say "siniestro" like the rest of the portal.
+ */
+const NOTIFICATION_TITLES: Record<string, string> = {
+  PENDING_CLASSIFICATION: 'Recibimos tu denuncia',
+  AWAITING_DOCUMENTATION: 'Necesitamos documentación',
+  APPROVED: 'Tu siniestro fue aprobado',
+  REJECTED: 'Novedades sobre tu siniestro',
+};
 
 @Component({
   selector: 'app-root',
@@ -23,6 +37,8 @@ import { NuevaDenunciaComponent } from './features/expedientes/nueva-denuncia/nu
     ButtonComponent,
     ModalComponent,
     NuevaDenunciaComponent,
+    EmptyStateComponent,
+    InlineLoadingComponent,
   ],
   changeDetection: ChangeDetectionStrategy.OnPush,
   // Desactiva TODAS las animaciones de @angular/animations (stagger, growBar, etc.) del árbol
@@ -48,6 +64,14 @@ export class App {
 
   constructor() {
     this.reduceMotionMql?.addEventListener('change', (e) => this.reduceMotion.set(e.matches));
+
+    // Tied to the session and not to the constructor: the session lives in memory, so on reload
+    // it's null for an instant and the count would come back empty.
+    effect(() => {
+      if (this.session.session()) {
+        this.notifications.refreshUnreadCount();
+      }
+    });
   }
 
   private readonly currentUrl = toSignal(
@@ -113,18 +137,47 @@ export class App {
     this.router.navigateByUrl('/inbox');
   }
 
-  // La campana abre un panel de notificaciones. Hoy el productor real (polling/SSE) no está
-  // cableado y el contador siempre es 0, así que el panel muestra el vacío honesto en vez de
-  // un ícono decorativo que no hacía nada (ver bug #4 del relevamiento de UX).
   protected readonly showNotifications = signal(false);
+
+  /** Capped at 9+ so the bubble doesn't stretch and throw the bell off. */
+  protected readonly unreadBadge = computed(() => {
+    const count = this.notifications.unreadCount();
+    return count > 9 ? '9+' : String(count);
+  });
 
   protected openNotifications(): void {
     this.showNotifications.set(true);
+    this.notifications.openPanel();
   }
 
   protected closeNotifications(): void {
-    this.notifications.markAllRead();
     this.showNotifications.set(false);
+  }
+
+  /** Same wording the insured sees on the case: no classification, no score. */
+  protected notificationTitle(type: string): string {
+    return NOTIFICATION_TITLES[type] ?? `Novedades de tu ${this.caseNoun()}`;
+  }
+
+  /**
+   * What to call a case in front of whoever is reading. The portal says "siniestro" everywhere —
+   * the expediente is the administrative case the analyst works on, not what the insured filed.
+   * The panel is shared by every role, so the word can't be hardcoded in the template.
+   */
+  protected readonly caseNoun = computed(() =>
+    this.session.session()?.rol === 'ASEGURADO' ? 'siniestro' : 'expediente',
+  );
+
+  /** The app's es-AR formatter, not Angular's DatePipe, which defaults to en-US. */
+  protected readonly formatDateTime = formatDateTime;
+
+  /**
+   * A case lives at a different path per role — the insured's is the read-only tracking screen,
+   * and {@code /cases/:id} is guarded for analista/referente. Linking to the wrong one doesn't 404:
+   * the guard bounces to the role's home, so the notification looks like it goes nowhere.
+   */
+  protected caseLink(caseId: number): string {
+    return this.session.session()?.rol === 'ASEGURADO' ? `/portal/cases/${caseId}` : `/cases/${caseId}`;
   }
 
   protected roleLabel(rol: string): string {
@@ -149,6 +202,7 @@ export class App {
   protected confirmLogout(): void {
     this.showLogoutConfirm.set(false);
     this.session.clear();
+    this.notifications.clear();
     // El próximo ingreso vuelve a tener su carga de marca completa (login → home).
     this.appReady.reset();
     this.router.navigateByUrl('/login');

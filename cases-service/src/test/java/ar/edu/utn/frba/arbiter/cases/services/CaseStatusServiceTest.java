@@ -32,6 +32,10 @@ class CaseStatusServiceTest {
     @Mock
     private CaseStateCatalog caseStateCatalog;
 
+    /** Notifying is a side effect of the transition, not part of it: these tests cover the move. */
+    @Mock
+    private CaseNotificationService notificationService;
+
     @InjectMocks
     private CaseStatusService caseStatusService;
 

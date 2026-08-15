@@ -133,6 +133,11 @@ services:
       DB_PASSWORD: ${DB_PASSWORD:?falta DB_PASSWORD en .env}
       JWT_SECRET: ${JWT_SECRET:?falta JWT_SECRET en .env}
       SPRING_PROFILES_ACTIVE: ${CASES_PROFILES:-insurer-db}
+      # Avisos de cambio de estado al asegurado. Sin la key el módulo levanta igual: la
+      # notificación queda registrada en base y solo no sale el mail.
+      SENDGRID_API_KEY: ${SENDGRID_API_KEY:-}
+      SENDGRID_FROM_ADDRESS: ${SENDGRID_FROM_ADDRESS:-no-reply@arbiter.test}
+      SENDGRID_FROM_NAME: ${SENDGRID_FROM_NAME:-Arbiter}
     depends_on:
       classification-service:
         condition: service_started
