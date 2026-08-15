@@ -1,5 +1,6 @@
 package ar.edu.utn.frba.arbiter.rules.config;
 
+import ar.edu.utn.frba.arbiter.common.enums.RuleType;
 import ar.edu.utn.frba.arbiter.rules.models.repositories.BranchRepository;
 import ar.edu.utn.frba.arbiter.rules.models.repositories.InsurerRuleHistoryRepository;
 import ar.edu.utn.frba.arbiter.rules.models.repositories.InsurerRuleRepository;
@@ -19,7 +20,7 @@ public class RuleTextConfig {
             InsurerRuleRepository ruleRepository,
             InsurerRuleHistoryRepository historyRepository,
             BranchRepository branchRepository) {
-        return new RuleTextService("EXCLUSIONS", "Exclusiones comunes", ruleRepository, historyRepository, branchRepository);
+        return new RuleTextService(RuleType.EXCLUSIONS.name(), "Exclusiones comunes", ruleRepository, historyRepository, branchRepository);
     }
 
     @Bean
@@ -27,6 +28,6 @@ public class RuleTextConfig {
             InsurerRuleRepository ruleRepository,
             InsurerRuleHistoryRepository historyRepository,
             BranchRepository branchRepository) {
-        return new RuleTextService("BUSINESS_RULES", "Reglas de negocio", ruleRepository, historyRepository, branchRepository);
+        return new RuleTextService(RuleType.BUSINESS_RULES.name(), "Reglas de negocio", ruleRepository, historyRepository, branchRepository);
     }
 }

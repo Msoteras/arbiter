@@ -25,7 +25,7 @@ import java.util.Set;
  * the current single-role source of truth until the migration to this model is decided.
  */
 @Entity
-@Table(name = "role")
+@Table(name = "role", schema = "arbiter_common")
 @Getter
 @Setter
 @NoArgsConstructor
@@ -47,6 +47,7 @@ public class Role {
     @ManyToMany(cascade = CascadeType.MERGE)
     @JoinTable(
             name = "role_permission",
+            schema = "arbiter_common",
             joinColumns = @JoinColumn(name = "role_id"),
             inverseJoinColumns = @JoinColumn(name = "permission_id"))
     private Set<Permission> permissions = new HashSet<>();

@@ -65,6 +65,7 @@ public class CaseServiceImpl implements CaseService {
     private final ClaimsAnalysisClient claimsAnalysisClient;
     private final ClaimsAnalystRepository claimsAnalystRepository;
     private final CaseReferenceResolver referenceResolver;
+    private final PolicyEligibilityValidator policyEligibilityValidator;
     private final CaseAnalysisRepository caseAnalysisRepository;
     private final CaseAccessPolicy accessPolicy;
     private final InsuredCaseAggregator insuredCaseAggregator;
@@ -102,9 +103,12 @@ public class CaseServiceImpl implements CaseService {
 
         // Every string in the request has to name something the tenant actually has; anything
         // that doesn't resolve fails with 422 rather than being stored as free text.
-        Policy policy = referenceResolver.resolvePolicy(request.policyNumber());
+        //
+        // The insured resolves first because the policy might not be synced yet, and the snapshot
+        // pulled from the insurer DB needs someone to point at as its holder.
         Insured insured = referenceResolver.applyDeclaredDetails(
                 referenceResolver.resolveInsured(request.insuredId()), request);
+        Policy policy = referenceResolver.resolvePolicy(request.policyNumber(), insured.getId());
 
         // Both resolved on their own; the pairing is what has to hold. Checked after resolving
         // because the policy's owner is an id, and the DNI only becomes one here. Objects.equals
@@ -113,6 +117,12 @@ public class CaseServiceImpl implements CaseService {
         if (!Objects.equals(insured.getId(), policy.getInsuredId())) {
             throw new PolicyInsuredMismatchException(request.policyNumber());
         }
+
+        // No contract with coverage means no claim to analyze: the case doesn't get created and
+        // the insured gets the reason on the spot, instead of waiting for an analyst to close by
+        // hand something that was never covered. Runs after the ownership check so an attempt to
+        // file against someone else's policy still fails on that and doesn't leak its coverage window.
+        policyEligibilityValidator.validate(request, policy.getCoverage());
 
         Case entity = Case.builder()
                 .claimCause(referenceResolver.resolveClaimCause(request.branch(), request.claimCause()))

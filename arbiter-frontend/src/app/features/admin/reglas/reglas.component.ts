@@ -12,6 +12,7 @@ import { BranchOption, BranchesService } from '../branches.service';
 import { FastTrackConfigDto, FastTrackRulesService } from '../fast-track-rules.service';
 import { CoverageDetail, CoverageUpsertRequest, CoveragesRulesService } from '../coverages-rules.service';
 import { ClaimCauseOption, CoverageExclusionsService } from '../coverage-exclusions.service';
+import { HARD_RULE_LABELS, HardRule, HardRuleType, HardRulesService } from '../hard-rules.service';
 import { DocumentRulesService } from '../document-rules.service';
 import { BusinessRulesTextService } from '../business-rules-text.service';
 import { ButtonComponent } from '../../../shared/ui/button/button.component';
@@ -58,6 +59,7 @@ export class ReglasComponent {
   private readonly ftService = inject(FastTrackRulesService);
   private readonly coveragesService = inject(CoveragesRulesService);
   private readonly exclusionsService = inject(CoverageExclusionsService);
+  private readonly hardRulesService = inject(HardRulesService);
   private readonly documentsService = inject(DocumentRulesService);
   private readonly rulesTextService = inject(BusinessRulesTextService);
 
@@ -250,6 +252,7 @@ export class ReglasComponent {
       next: (list) => {
         this.overlayCoverages(list);
         this.loadCoverageExclusions(list);
+        this.loadCoverageHardRules(list);
       },
       error: () => {
         /* backend caído: nos quedamos con el mock, sin romper la pantalla */
@@ -281,6 +284,8 @@ export class ReglasComponent {
       // Las exclusiones duras (por hecho generador) viven en rules-service, no en este detalle:
       // arrancan vacías y las completa loadCoverageExclusions.
       excludedClaimCauseIds: [],
+      // Same for the hard temporal rules: loadCoverageHardRules fills them in.
+      hardRules: [],
     }));
     this.loadedCoverages = coverages;
     this.draft.update((d) => (d ? { ...d, coverages } : d));
@@ -317,6 +322,40 @@ export class ReglasComponent {
     // Reflejarlo también en el baseline cargado, para que el diff de guardado no lo marque sucio.
     this.loadedCoverages = this.loadedCoverages.map((c) =>
       c.id === coverageId ? { ...c, excludedClaimCauseIds: ids } : c,
+    );
+  }
+
+  /**
+   * Fetches each persisted coverage's hard temporal rules (rules-service). Best-effort and
+   * independent per coverage, same as the exclusions: if one fails, the others still load.
+   */
+  private loadCoverageHardRules(list: CoverageDetail[]): void {
+    const draft = this.draft();
+    const branchId = draft ? this.branchIdOf(draft) : null;
+    if (branchId == null) {
+      return;
+    }
+    list.forEach((c) => {
+      this.hardRulesService.get(branchId, c.id).subscribe({
+        next: (rules) => this.setCoverageHardRules(String(c.id), rules),
+        error: () => {
+          /* best-effort */
+        },
+      });
+    });
+  }
+
+  private setCoverageHardRules(coverageId: string, rules: HardRule[]): void {
+    this.draft.update((d) =>
+      d
+        ? {
+            ...d,
+            coverages: d.coverages.map((c) => (c.id === coverageId ? { ...c, hardRules: rules } : c)),
+          }
+        : d,
+    );
+    this.loadedCoverages = this.loadedCoverages.map((c) =>
+      c.id === coverageId ? { ...c, hardRules: rules } : c,
     );
   }
 
@@ -416,8 +455,56 @@ export class ReglasComponent {
       claimExhaustsCoverage: false,
       exclusions: [],
       excludedClaimCauseIds: [],
+      hardRules: [],
     };
     this.draft.update((d) => (d ? { ...d, coverages: [...d.coverages, coverage] } : d));
+    this.markDirty();
+  }
+
+  // ───────────────── Hard temporal rules per coverage ─────────────────
+  /** The coverage's hard rules; empty while they haven't loaded or if the coverage is local. */
+  protected hardRulesOf(c: Coverage): HardRule[] {
+    return c.hardRules ?? [];
+  }
+
+  protected hardRuleLabel(type: HardRuleType): string {
+    return HARD_RULE_LABELS[type];
+  }
+
+  /** The police-report deadline is the only one with its own threshold: the rest take theirs from above. */
+  protected hasOwnThreshold(rule: HardRule): boolean {
+    return rule.ruleType === 'POLICE_DEADLINE';
+  }
+
+  protected policeDeadlineStr(c: Coverage): string {
+    const rule = this.hardRulesOf(c).find((r) => r.ruleType === 'POLICE_DEADLINE');
+    return this.intStr(rule?.deadlineHours ?? null);
+  }
+
+  protected setPoliceDeadline(coverageId: string, value: string): void {
+    this.patchHardRule(coverageId, 'POLICE_DEADLINE', (r) => ({
+      ...r,
+      deadlineHours: this.intFromStr(value),
+    }));
+  }
+
+  protected toggleHardRule(coverageId: string, type: HardRuleType): void {
+    this.patchHardRule(coverageId, type, (r) => ({ ...r, enabled: !r.enabled }));
+  }
+
+  private patchHardRule(coverageId: string, type: HardRuleType, patch: (rule: HardRule) => HardRule): void {
+    this.draft.update((d) =>
+      d
+        ? {
+            ...d,
+            coverages: d.coverages.map((c) =>
+              c.id === coverageId
+                ? { ...c, hardRules: this.hardRulesOf(c).map((r) => (r.ruleType === type ? patch(r) : r)) }
+                : c,
+            ),
+          }
+        : d,
+    );
     this.markDirty();
   }
 
@@ -670,6 +757,11 @@ export class ReglasComponent {
       ...toUpdate.map((c) =>
         this.exclusionsService.save(branchId, Number(c.id), c.excludedClaimCauseIds ?? []),
       ),
+      // Hard temporal rules, same criterion: only the already-persisted coverages. A newly
+      // created coverage configures them after the reload, once it has a real id.
+      ...toUpdate
+        .filter((c) => this.hardRulesOf(c).length > 0)
+        .map((c) => this.hardRulesService.save(branchId, Number(c.id), this.hardRulesOf(c))),
       this.rulesTextService.saveExclusions(branchId, d.commonExclusions),
     ];
 

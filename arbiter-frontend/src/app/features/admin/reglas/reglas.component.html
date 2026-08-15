@@ -170,6 +170,49 @@
                   </div>
 
                   <div class="cov-excl">
+                    <span class="t-field-label">Reglas duras que evalúa el motor</span>
+                    <p class="section-hint">
+                      Las que estén activas se evalúan en cada clasificación con los umbrales de
+                      arriba, bloquean el Fast Track si no se cumplen y quedan auditadas —se cumplan
+                      o no—. Las que apagues no se evalúan. El cambio rige desde la próxima
+                      clasificación.
+                    </p>
+                    @if (!canEditExclusions(c)) {
+                      <p class="t-note">Guardá la cobertura primero para configurar sus reglas duras.</p>
+                    } @else if (hardRulesOf(c).length === 0) {
+                      <p class="t-note">No se pudieron cargar las reglas duras de esta cobertura.</p>
+                    } @else {
+                      <div class="chips">
+                        @for (rule of hardRulesOf(c); track rule.ruleType) {
+                          <button
+                            type="button"
+                            class="chip"
+                            [class.active]="rule.enabled"
+                            [attr.aria-pressed]="rule.enabled"
+                            (click)="toggleHardRule(c.id, rule.ruleType)"
+                          >
+                            {{ hardRuleLabel(rule.ruleType) }}
+                          </button>
+                        }
+                      </div>
+                      <label class="fieldset">
+                        <span class="t-field-label">Plazo de la denuncia policial (horas)</span>
+                        <app-input
+                          type="number"
+                          [min]="0"
+                          [value]="policeDeadlineStr(c)"
+                          (valueChange)="setPoliceDeadline(c.id, $event)"
+                          placeholder="ej. 72"
+                        />
+                      </label>
+                      <p class="section-hint">
+                        Es el único plazo que se configura acá: los demás son los campos de la
+                        cobertura. Se cuenta desde el hecho, sobre la fecha que declara el asegurado.
+                      </p>
+                    }
+                  </div>
+
+                  <div class="cov-excl">
                     <span class="t-field-label">Exclusiones específicas</span>
                     <app-string-list-editor
                       [items]="c.exclusions"

@@ -154,6 +154,12 @@
             </p>
           }
 
+          <!-- The backend rejects these cases without creating the case; the warning is moved up
+               here so the insured doesn't fill out the whole form and upload documentation for nothing. -->
+          @if (eligibilityError(); as reason) {
+            <div class="submit-error" role="alert">{{ reason }}</div>
+          }
+
           <label class="field-label">¿Dónde pasó? *</label>
           <div class="location-fields">
             <div class="location-grid">

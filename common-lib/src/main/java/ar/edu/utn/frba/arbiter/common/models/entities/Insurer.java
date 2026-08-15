@@ -22,7 +22,7 @@ import lombok.Setter;
  * with the two definitions already starting to drift.
  */
 @Entity
-@Table(name = "insurer")
+@Table(name = "insurer", schema = "arbiter_common")
 @Getter
 @Setter
 @NoArgsConstructor

@@ -1,5 +1,6 @@
 package ar.edu.utn.frba.arbiter.cases.services;
 
+import ar.edu.utn.frba.arbiter.cases.adapters.InsurerAdapter;
 import ar.edu.utn.frba.arbiter.cases.config.tenant.CallerContext;
 import ar.edu.utn.frba.arbiter.cases.config.tenant.TenantContext;
 import ar.edu.utn.frba.arbiter.cases.exceptions.UnresolvedCaseReferenceException;
@@ -43,6 +44,9 @@ class PolicyTenantLocatorTest {
     @Mock
     private PolicyRepository policyRepository;
 
+    @Mock
+    private InsurerAdapter insurerAdapter;
+
     @InjectMocks
     private PolicyTenantLocator locator;
 
@@ -81,6 +85,8 @@ class PolicyTenantLocatorTest {
 
     @Test
     void unknownPolicyInEveryInsurer_fails422() {
+        // Neither synced nor in the insurer DB: only then does the number name nothing.
+        when(insurerAdapter.findPolicy(POLICY_NUMBER)).thenReturn(Optional.empty());
         TenantContext.set(CALLER_TENANT);
         CallerContext.set(new CallerContext.Caller("42.987.654", List.of(1L, 2L), CALLER_TENANT));
         when(insurerRepository.findAllById(List.of(1L, 2L))).thenReturn(List.of(
@@ -115,6 +121,7 @@ class PolicyTenantLocatorTest {
 
     @Test
     void restoresCallerTenantWhenNothingResolves() {
+        when(insurerAdapter.findPolicy(POLICY_NUMBER)).thenReturn(Optional.empty());
         TenantContext.set(CALLER_TENANT);
         CallerContext.set(new CallerContext.Caller("42.987.654", List.of(1L), CALLER_TENANT));
         when(insurerRepository.findAllById(List.of(1L)))

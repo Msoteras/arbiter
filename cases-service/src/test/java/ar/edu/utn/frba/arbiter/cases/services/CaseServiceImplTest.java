@@ -59,6 +59,7 @@ import java.util.Optional;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.*;
 
 @ExtendWith(MockitoExtension.class)
@@ -96,6 +97,9 @@ class CaseServiceImplTest {
 
     @Mock
     private PolicyTenantLocator policyTenantLocator;
+
+    @Mock
+    private PolicyEligibilityValidator policyEligibilityValidator;
 
     @InjectMocks
     private CaseServiceImpl caseService;
@@ -216,7 +220,13 @@ class CaseServiceImplTest {
     @Test
     void createCase_unresolvablePolicy_throwsAndPersistsNothing() {
         CaseRequest request = caseRequest();
-        when(referenceResolver.resolvePolicy("POL-CEL-2024-001"))
+        // El asegurado se resuelve antes que la póliza (la sincronización a demanda necesita a quién
+        // apuntar como titular), así que este test también lo necesita aunque no lo ejercite.
+        Insured insured = CaseFixtures.insured(CALLER_DNI, "Laura", "Fernández");
+        insured.setId(1L);
+        when(referenceResolver.resolveInsured(CALLER_DNI)).thenReturn(insured);
+        when(referenceResolver.applyDeclaredDetails(insured, request)).thenReturn(insured);
+        when(referenceResolver.resolvePolicy(eq("POL-CEL-2024-001"), eq(1L)))
                 .thenThrow(new UnresolvedCaseReferenceException("policy", "POL-CEL-2024-001"));
 
         assertThatThrownBy(() -> caseService.createCase(request, null))
@@ -239,7 +249,7 @@ class CaseServiceImplTest {
                 .isInstanceOf(InsuredIdentityMismatchException.class);
 
         // Falla antes de resolver nada: no se toca la base ni se encola una clasificación.
-        verify(referenceResolver, never()).resolvePolicy(any());
+        verify(referenceResolver, never()).resolvePolicy(any(), any());
         verify(caseRepository, never()).save(any());
         verify(claimsAnalysisClient, never()).analyzeAndPersist(any(), any());
     }
@@ -265,7 +275,7 @@ class CaseServiceImplTest {
         Policy someoneElsesPolicy = CaseFixtures.policy("POL-CEL-2024-001", "Celular Protegido Básico");
         someoneElsesPolicy.setInsuredId(99L);
 
-        when(referenceResolver.resolvePolicy(any())).thenReturn(someoneElsesPolicy);
+        when(referenceResolver.resolvePolicy(any(), any())).thenReturn(someoneElsesPolicy);
         when(referenceResolver.resolveInsured(any())).thenReturn(insured);
         when(referenceResolver.applyDeclaredDetails(any(), any())).thenReturn(insured);
 
@@ -285,7 +295,7 @@ class CaseServiceImplTest {
         Policy ownPolicy = CaseFixtures.policy("POL-CEL-2024-001", "Celular Protegido Básico");
         ownPolicy.setInsuredId(7L);
 
-        when(referenceResolver.resolvePolicy(any())).thenReturn(ownPolicy);
+        when(referenceResolver.resolvePolicy(any(), any())).thenReturn(ownPolicy);
         when(referenceResolver.resolveInsured(any())).thenReturn(insured);
         when(referenceResolver.applyDeclaredDetails(any(), any())).thenReturn(insured);
         when(referenceResolver.resolveClaimCause(any(), any()))
@@ -875,7 +885,7 @@ class CaseServiceImplTest {
     private void stubReferenceResolution() {
         Policy policy = CaseFixtures.policy("POL-CEL-2024-001", "Celular Protegido Básico");
         Insured insured = CaseFixtures.insured("40.123.456", "Laura", "Fernández");
-        when(referenceResolver.resolvePolicy(any())).thenReturn(policy);
+        when(referenceResolver.resolvePolicy(any(), any())).thenReturn(policy);
         when(referenceResolver.resolveInsured(any())).thenReturn(insured);
         when(referenceResolver.applyDeclaredDetails(any(), any())).thenReturn(insured);
         when(referenceResolver.resolveClaimCause(any(), any()))

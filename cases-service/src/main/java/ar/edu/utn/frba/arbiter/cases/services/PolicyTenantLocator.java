@@ -1,7 +1,9 @@
 package ar.edu.utn.frba.arbiter.cases.services;
 
+import ar.edu.utn.frba.arbiter.cases.adapters.InsurerAdapter;
 import ar.edu.utn.frba.arbiter.cases.config.tenant.CallerContext;
 import ar.edu.utn.frba.arbiter.cases.config.tenant.TenantContext;
+import ar.edu.utn.frba.arbiter.cases.dto.PolicyResponse;
 import ar.edu.utn.frba.arbiter.cases.exceptions.UnresolvedCaseReferenceException;
 import ar.edu.utn.frba.arbiter.cases.models.repositories.InsurerRepository;
 import ar.edu.utn.frba.arbiter.cases.models.repositories.PolicyRepository;
@@ -31,6 +33,7 @@ public class PolicyTenantLocator {
 
     private final InsurerRepository insurerRepository;
     private final PolicyRepository policyRepository;
+    private final InsurerAdapter insurerAdapter;
 
     /**
      * @return el esquema de la aseguradora que emitió la póliza
@@ -45,12 +48,13 @@ public class PolicyTenantLocator {
             return TenantContext.get();
         }
 
+        List<Insurer> insurers = insurerRepository.findAllById(insurerIds).stream()
+                .filter(Insurer::isActive)
+                .toList();
+
         String callerTenant = TenantContext.get();
         try {
-            for (Insurer insurer : insurerRepository.findAllById(insurerIds)) {
-                if (!insurer.isActive()) {
-                    continue;
-                }
+            for (Insurer insurer : insurers) {
                 TenantContext.set(insurer.getSchemaName());
                 if (policyRepository.findByExternalPolicyNumber(policyNumber).isPresent()) {
                     return insurer.getSchemaName();
@@ -61,6 +65,16 @@ public class PolicyTenantLocator {
             TenantContext.set(callerTenant);
         }
 
-        throw new UnresolvedCaseReferenceException("policy", policyNumber);
+        // No schema has it synced yet. That's not enough to say it doesn't exist: the portal lists
+        // policies reading the insurer DB live, so the insured could be filing against one Arbiter
+        // never copied (decision #10, the local snapshot). The company gets asked, and if it has
+        // it, the issuer comes from there — intake later creates the snapshot (PolicySynchronizer).
+        return insurerAdapter.findPolicy(policyNumber)
+                .map(PolicyResponse::insurerId)
+                .flatMap(insurerId -> insurers.stream()
+                        .filter(insurer -> String.valueOf(insurer.getId()).equals(insurerId))
+                        .findFirst())
+                .map(Insurer::getSchemaName)
+                .orElseThrow(() -> new UnresolvedCaseReferenceException("policy", policyNumber));
     }
 }

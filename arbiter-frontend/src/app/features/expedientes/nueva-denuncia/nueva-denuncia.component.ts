@@ -203,6 +203,49 @@ export class NuevaDenunciaComponent {
   protected readonly contactEmail = signal('');
   protected readonly contactPhone = signal('');
 
+  /**
+   * Reason this denuncia won't be able to register, or null if there's none. The backend rejects
+   * these cases with 422 and without creating the case (`PolicyEligibilityValidator`); the warning
+   * gets moved up to the step where the date is loaded, so the insured doesn't fill out the whole
+   * form and upload documentation only to find out at the end.
+   *
+   * <p>The waiting period can't be checked here: that deadline belongs to the coverage and the
+   * portal doesn't receive it. That case is still caught by the backend, and the message shows up
+   * on submit.
+   */
+  protected readonly eligibilityError = computed<string | null>(() => {
+    const policy = this.selectedPolicy();
+    const eventDate = this.eventDate();
+    if (!policy || !eventDate) {
+      return null;
+    }
+    // ISO dates (yyyy-mm-dd): lexicographic comparison is enough and avoids the timezone.
+    if (policy.effectiveFrom && eventDate < policy.effectiveFrom) {
+      return `La póliza ${policy.policyNumber} recién entró en vigencia el ${this.formatDate(
+        policy.effectiveFrom,
+      )}, así que un siniestro anterior a esa fecha no está cubierto y no vamos a poder registrar la denuncia.`;
+    }
+    if (policy.effectiveTo && eventDate > policy.effectiveTo) {
+      return `La póliza ${policy.policyNumber} venció el ${this.formatDate(
+        policy.effectiveTo,
+      )}, así que un siniestro posterior no está cubierto y no vamos a poder registrar la denuncia.`;
+    }
+    const policeReport = this.policeReportDate();
+    if (policeReport && policeReport < eventDate) {
+      return 'La denuncia policial no puede ser anterior al siniestro. Revisá las dos fechas.';
+    }
+    if (policeReport && policeReport > this.today) {
+      return 'La fecha de la denuncia policial no puede ser futura.';
+    }
+    return null;
+  });
+
+  /** dd/mm/yyyy from an ISO yyyy-mm-dd, without building a Date (which shifts the timezone). */
+  private formatDate(iso: string): string {
+    const [year, month, day] = iso.split('-');
+    return `${day}/${month}/${year}`;
+  }
+
   // El backend exige además insuredItem, eventDate y eventLocation (@NotBlank/@NotNull en
   // CaseRequest) — sin esto el asegurado llegaba al paso 3, adjuntaba documentación, y recién
   // ahí el submit fallaba con un error genérico.
@@ -212,6 +255,7 @@ export class NuevaDenunciaComponent {
       this.insuredItem().trim().length > 0 &&
       this.eventDate().trim().length > 0 &&
       this.eventDate() <= this.today &&
+      this.eligibilityError() === null &&
       this.buildEventLocation().trim().length > 0,
   );
 

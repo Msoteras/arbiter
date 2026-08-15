@@ -1,3 +1,4 @@
+import { HardRule } from '../../features/admin/hard-rules.service';
 import { RiskBand } from './risk-band';
 
 // Modelo de configuración de reglas administrado por el referente. Es Ramo-céntrico: el Ramo
@@ -38,6 +39,14 @@ export interface Coverage {
    * semilla no lo trae; el detalle real de la cobertura lo carga desde rules-service.
    */
   excludedClaimCauseIds?: number[];
+  /**
+   * Hard temporal rules the insurer has active for this coverage (coverage window, waiting
+   * period, deadlines, events cap, arrears). They're each rule's switch, not its threshold: the
+   * thresholds are the fields above, except the police-report deadline, which has no column of
+   * its own and travels inside its own rule. Optional: `HardRulesService` loads them from
+   * rules-service.
+   */
+  hardRules?: HardRule[];
 }
 
 /** Gate determinístico del Fast Track ("Siniestro Express"), configurado por ramo. */

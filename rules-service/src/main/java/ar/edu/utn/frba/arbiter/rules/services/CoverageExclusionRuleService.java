@@ -1,5 +1,6 @@
 package ar.edu.utn.frba.arbiter.rules.services;
 
+import ar.edu.utn.frba.arbiter.common.enums.RuleType;
 import ar.edu.utn.frba.arbiter.common.models.entities.Branch;
 import ar.edu.utn.frba.arbiter.rules.dto.CatalogOption;
 import ar.edu.utn.frba.arbiter.rules.dto.CoverageExclusionConfig;
@@ -36,7 +37,6 @@ import java.util.List;
 public class CoverageExclusionRuleService {
 
     private static final Logger log = LoggerFactory.getLogger(CoverageExclusionRuleService.class);
-    private static final String COVERAGE_EXCLUSION = "COVERAGE_EXCLUSION";
     // Self-instantiated (Jackson 2), same as FastTrackRuleService: Spring Boot 4 autoconfigures a
     // Jackson 3 ObjectMapper (tools.jackson), so there's no com.fasterxml bean to inject.
     private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
@@ -56,7 +56,7 @@ public class CoverageExclusionRuleService {
 
     @Transactional(readOnly = true)
     public CoverageExclusionConfig get(Long coverageId) {
-        return ruleRepository.findFirstByCoverageIdAndRuleType(coverageId, COVERAGE_EXCLUSION)
+        return ruleRepository.findFirstByCoverageIdAndRuleType(coverageId, RuleType.COVERAGE_EXCLUSION.name())
                 .map(rule -> deserialize(rule.getConfiguration()))
                 .orElseGet(() -> new CoverageExclusionConfig(List.of()));
     }
@@ -67,7 +67,7 @@ public class CoverageExclusionRuleService {
         Instant now = Instant.now();
 
         InsurerRule rule = ruleRepository
-                .findFirstByBranch_IdAndCoverageIdAndRuleType(branchId, coverageId, COVERAGE_EXCLUSION)
+                .findFirstByBranch_IdAndCoverageIdAndRuleType(branchId, coverageId, RuleType.COVERAGE_EXCLUSION.name())
                 .orElse(null);
 
         if (rule == null) {
@@ -77,7 +77,7 @@ public class CoverageExclusionRuleService {
                     .active(true)
                     .validFrom(now)
                     .name("Exclusiones de cobertura " + coverageId)
-                    .ruleType(COVERAGE_EXCLUSION)
+                    .ruleType(RuleType.COVERAGE_EXCLUSION.name())
                     .effect("RECHAZAR")
                     // A hard exclusion makes Fast Track irrelevant (the engine evaluates it first).
                     .blocksFastTrack(true)

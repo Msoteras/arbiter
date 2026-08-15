@@ -22,7 +22,7 @@ import lombok.Setter;
  * UNIQUE). Adding a row the enum doesn't know about is the next step of H0015, not this one.
  */
 @Entity
-@Table(name = "case_status")
+@Table(name = "case_status", schema = "arbiter_common")
 @Getter
 @Setter
 @NoArgsConstructor
