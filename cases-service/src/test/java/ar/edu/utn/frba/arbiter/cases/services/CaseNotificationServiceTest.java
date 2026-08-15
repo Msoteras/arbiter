@@ -25,6 +25,7 @@ import org.springframework.security.authentication.UsernamePasswordAuthenticatio
 import org.springframework.security.core.context.SecurityContextHolder;
 
 import java.time.Instant;
+import java.time.temporal.ChronoUnit;
 import java.util.List;
 import java.util.Optional;
 
@@ -185,45 +186,75 @@ class CaseNotificationServiceTest {
         verify(notificationRepository).saveAll(List.of(one, two));
     }
 
-    /**
-     * Un asegurado con pólizas en dos compañías tiene notificaciones en los dos esquemas. Leer solo
-     * el tenant activo le mostraba siniestros de las dos bajo una campana que contaba una.
-     */
+    /** Reading only the active tenant left a multi-insurer insured with a bell counting one. */
     @Test
     void forCurrentUser_mergesEveryInsurerOfTheInsured() {
         insuredOfBothInsurers();
-        when(notificationRepository.findByRecipientIdOrderByCreatedAtDesc(7L))
-                .thenAnswer(invocation -> List.of(notificationAt(
-                        "arbiter_provincia".equals(TenantContext.get())
-                                ? Instant.parse("2026-08-10T10:00:00Z")
-                                : Instant.parse("2026-08-01T10:00:00Z"))));
+        when(notificationRepository
+                .findByRecipientIdAndCreatedAtAfterOrderByCreatedAtDesc(eq(7L), any(), any()))
+                .thenAnswer(invocation -> "arbiter_provincia".equals(TenantContext.get())
+                        ? List.of(daysAgo(1), daysAgo(2), daysAgo(3))
+                        : List.of(daysAgo(10), daysAgo(11), daysAgo(12)));
 
         List<NotificationResponse> merged = service.forCurrentUser();
 
-        assertThat(merged).hasSize(2);
-        // Reordenado entre esquemas: la de Provincia es más nueva y va primero aunque BBVA se lea antes.
+        assertThat(merged).hasSize(6);
+        // Provincia's are newer and come first even though BBVA is read before it.
         assertThat(merged.getFirst().insurerSlug()).isEqualTo("provincia");
         assertThat(merged.getLast().insurerSlug()).isEqualTo("bbva");
+    }
+
+    /** The cap is global, not per schema: each one may bring up to the limit on its own. */
+    @Test
+    void forCurrentUser_capsAcrossSchemas() {
+        insuredOfBothInsurers();
+        when(notificationRepository
+                .findByRecipientIdAndCreatedAtAfterOrderByCreatedAtDesc(eq(7L), any(), any()))
+                .thenAnswer(invocation -> "arbiter_provincia".equals(TenantContext.get())
+                        ? List.of(daysAgo(1), daysAgo(2), daysAgo(3), daysAgo(4), daysAgo(5), daysAgo(6))
+                        : List.of(daysAgo(7), daysAgo(8), daysAgo(9), daysAgo(10), daysAgo(11), daysAgo(12)));
+
+        List<NotificationResponse> shown = service.forCurrentUser();
+
+        assertThat(shown).hasSize(6);
+        // The 6 newest are all Provincia's: the cut is by global date, not one slot per schema.
+        assertThat(shown).allMatch(item -> "provincia".equals(item.insurerSlug()));
     }
 
     @Test
     void unreadCount_addsUpEveryInsurer() {
         insuredOfBothInsurers();
-        when(notificationRepository.countByRecipientIdAndReadFalse(7L))
+        when(notificationRepository.countByRecipientIdAndReadFalseAndCreatedAtAfter(eq(7L), any()))
                 .thenAnswer(invocation -> "arbiter_provincia".equals(TenantContext.get()) ? 2L : 1L);
 
         assertThat(service.unreadCountForCurrentUser()).isEqualTo(3L);
     }
 
-    /** El tenant del request se restaura: si no, la conexión vuelve al pool viendo otro esquema. */
+    /** The badge never goes above what the panel can list. */
+    @Test
+    void unreadCount_neverExceedsThePanelCap() {
+        insuredOfBothInsurers();
+        when(notificationRepository.countByRecipientIdAndReadFalseAndCreatedAtAfter(eq(7L), any()))
+                .thenReturn(20L);
+
+        assertThat(service.unreadCountForCurrentUser()).isEqualTo(6L);
+    }
+
+    /** The request tenant is restored, or the connection returns to the pool on another schema. */
     @Test
     void reading_restoresTheRequestTenant() {
         insuredOfBothInsurers();
-        when(notificationRepository.countByRecipientIdAndReadFalse(7L)).thenReturn(0L);
+        when(notificationRepository.countByRecipientIdAndReadFalseAndCreatedAtAfter(eq(7L), any()))
+                .thenReturn(0L);
 
         service.unreadCountForCurrentUser();
 
         assertThat(TenantContext.get()).isEqualTo("arbiter_bbva");
+    }
+
+    /** Relative to today: against a moving window, a literal date falls out on its own. */
+    private Notification daysAgo(int days) {
+        return notificationAt(Instant.now().minus(days, ChronoUnit.DAYS));
     }
 
     private void insuredOfBothInsurers() {

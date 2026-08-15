@@ -141,12 +141,6 @@ export class App {
 
   protected readonly showNotifications = signal(false);
 
-  /** Capped at 9+ so the bubble doesn't stretch and throw the bell off. */
-  protected readonly unreadBadge = computed(() => {
-    const count = this.notifications.unreadCount();
-    return count > 9 ? '9+' : String(count);
-  });
-
   protected openNotifications(): void {
     this.showNotifications.set(true);
     this.notifications.openPanel();
@@ -168,6 +162,13 @@ export class App {
    */
   protected readonly caseNoun = computed(() =>
     this.session.session()?.rol === 'ASEGURADO' ? 'siniestro' : 'expediente',
+  );
+
+  /** Only the insured gets notified: promising an analyst a mail would be false. */
+  protected readonly emptyNotificationsHint = computed(() =>
+    this.session.session()?.rol === 'ASEGURADO'
+      ? 'Te avisamos acá y por mail cuando tu siniestro tenga novedades.'
+      : 'Los avisos sobre los expedientes que trabajás van a aparecer acá.',
   );
 
   /** The app's es-AR formatter, not Angular's DatePipe, which defaults to en-US. */
