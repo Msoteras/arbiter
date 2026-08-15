@@ -16,11 +16,15 @@ import ar.edu.utn.frba.arbiter.common.models.entities.User;
 import ar.edu.utn.frba.arbiter.common.models.entities.tenant.Insured;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 
 import java.time.Instant;
+import java.time.Period;
+import java.time.ZoneOffset;
+import java.time.ZonedDateTime;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
@@ -40,6 +44,12 @@ import java.util.function.Function;
 public class CaseNotificationService {
 
     private static final String CHANNEL = "EMAIL";
+
+    /** Cases live 7 days on average and 62 at worst, so anything older is closed history. */
+    private static final Period PANEL_WINDOW = Period.ofMonths(6);
+
+    /** Hard cap across every siniestro: a newer notice pushes the oldest one out of the panel. */
+    private static final int PANEL_LIMIT = 6;
 
     /**
      * Separate from the frontend's status labels, which collapse APPROVED and REJECTED into a
@@ -142,25 +152,40 @@ public class CaseNotificationService {
         if (userId.isEmpty()) {
             return List.of();
         }
+        // PANEL_LIMIT per schema and the cut after merging: the right cut is over the global list,
+        // and the top N of each schema always contains the global top N.
         List<NotificationResponse> merged = acrossOwnInsurers(slug ->
-                notificationRepository.findByRecipientIdOrderByCreatedAtDesc(userId.get()).stream()
+                notificationRepository
+                        .findByRecipientIdAndCreatedAtAfterOrderByCreatedAtDesc(
+                                userId.get(), windowStart(), PageRequest.of(0, PANEL_LIMIT))
+                        .stream()
                         .map(notification -> NotificationResponse.from(notification, slug))
                         .toList());
-        // Re-sorted after merging: each schema comes back ordered on its own, and interleaving two
-        // insurers by date is the whole point of showing them in one panel.
+        return newestFirst(merged).stream().limit(PANEL_LIMIT).toList();
+    }
+
+    /** Same window and cap as the list: a badge above what the panel lists reads as a bug. */
+    public long unreadCountForCurrentUser() {
+        long unread = currentUserId()
+                .map(userId -> acrossOwnInsurers(slug -> List.of(
+                        notificationRepository
+                                .countByRecipientIdAndReadFalseAndCreatedAtAfter(userId, windowStart()))))
+                .orElseGet(List::of)
+                .stream()
+                .mapToLong(Long::longValue)
+                .sum();
+        return Math.min(unread, PANEL_LIMIT);
+    }
+
+    /** Each schema comes back ordered on its own; interleaving them by date is the point. */
+    private List<NotificationResponse> newestFirst(List<NotificationResponse> merged) {
         return merged.stream()
                 .sorted(Comparator.comparing(NotificationResponse::createdAt).reversed())
                 .toList();
     }
 
-    public long unreadCountForCurrentUser() {
-        return currentUserId()
-                .map(userId -> acrossOwnInsurers(slug ->
-                        List.of(notificationRepository.countByRecipientIdAndReadFalse(userId))))
-                .orElseGet(List::of)
-                .stream()
-                .mapToLong(Long::longValue)
-                .sum();
+    private Instant windowStart() {
+        return ZonedDateTime.now(ZoneOffset.UTC).minus(PANEL_WINDOW).toInstant();
     }
 
     /**

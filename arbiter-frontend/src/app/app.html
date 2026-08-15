@@ -50,7 +50,7 @@
                 <path d="M13.73 21a2 2 0 0 1-3.46 0" stroke-linecap="round" stroke-linejoin="round" />
               </svg>
               @if (notifications.hasUnread()) {
-                <span class="bell-count" aria-hidden="true">{{ unreadBadge() }}</span>
+                <span class="bell-count" aria-hidden="true">{{ notifications.unreadCount() }}</span>
               }
             </button>
             <button
@@ -248,10 +248,7 @@
     @if (notifications.loading()) {
       <app-inline-loading message="Buscando novedades…" />
     } @else if (notifications.items().length === 0) {
-      <app-empty-state
-        message="No tenés notificaciones"
-        [sub]="'Te avisamos acá y por mail cuando tu ' + caseNoun() + ' tenga novedades.'"
-      />
+      <app-empty-state message="No tenés notificaciones" [sub]="emptyNotificationsHint()" />
     } @else {
       <ul class="notif-list">
         @for (item of notifications.items(); track item.id) {
