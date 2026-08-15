@@ -101,6 +101,12 @@ export interface RamoRules {
   id: string;
   name: string;
   coverages: Coverage[];
+  /**
+   * How many coverages the ramo has, from `/coverages/summary` — accurate for every ramo up
+   * front, unlike `coverages.length`, which stays 0 until the referente actually selects the
+   * ramo and its full detail loads. The sidebar badge reads this, not `coverages.length`.
+   */
+  coverageCount: number;
   /** Exclusiones comunes a todas las coberturas del ramo. */
   commonExclusions: string[];
   /** Agenda documental del ramo (códigos de tipo de documento). */

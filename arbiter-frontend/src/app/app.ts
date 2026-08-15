@@ -11,6 +11,7 @@ import { userRoleLabel } from './core/models/user-role';
 import { LogoComponent } from './shared/ui/logo/logo.component';
 import { ButtonComponent } from './shared/ui/button/button.component';
 import { ModalComponent } from './shared/ui/modal/modal.component';
+import { ToastStackComponent } from './shared/ui/toast/toast-stack.component';
 import { NuevaDenunciaComponent } from './features/expedientes/nueva-denuncia/nueva-denuncia.component';
 
 @Component({
@@ -22,6 +23,7 @@ import { NuevaDenunciaComponent } from './features/expedientes/nueva-denuncia/nu
     LogoComponent,
     ButtonComponent,
     ModalComponent,
+    ToastStackComponent,
     NuevaDenunciaComponent,
   ],
   changeDetection: ChangeDetectionStrategy.OnPush,
