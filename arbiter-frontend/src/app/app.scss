@@ -159,6 +159,27 @@
   border-color: var(--surface);
 }
 
+/* Contador de no leídas (campana del asegurado). Los roles internos siguen con el punto: hoy no
+   reciben notificaciones, así que un número ahí sería siempre un cero.
+   Va en el oscuro de énfasis y no en el semáforo --status-*: ese comunica estado del expediente,
+   y esto es un contador. El teal queda reservado a selección y foco. */
+.bell-count {
+  position: absolute;
+  top: 0;
+  right: 0;
+  min-width: var(--space-4);
+  padding: 0 var(--space-1);
+  border-radius: var(--radius-pill);
+  background: var(--action-primary-bg);
+  border: 2px solid var(--surface);
+  color: var(--action-primary-fg);
+  font-size: var(--font-size-2xs);
+  font-weight: var(--font-weight-bold);
+  line-height: var(--space-4);
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+}
+
 /* Columna de contenido (a la derecha de la sidebar): topbar fija + área ruteada. */
 .app-main {
   flex: 1 1 auto;
@@ -389,4 +410,52 @@
   .sidebar-user-meta {
     display: none;
   }
+}
+
+/* ─── Notifications panel ────────────────────────────────────────────────── */
+
+.notif-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  /* The list is the modal's body: it scrolls on its own instead of growing the dialog past
+     the viewport when there are many. */
+  max-height: 60vh;
+  overflow-y: auto;
+}
+
+.notif-item {
+  padding: var(--space-3);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-card);
+  background: var(--surface);
+}
+
+/* Unread is marked with the brand accent, the same role the rest of the app uses for selection —
+   not with the status palette, which is reserved for the case's own state. */
+.notif-item--unread {
+  background: var(--selected-bg);
+  border-color: var(--selected-border);
+}
+
+.notif-item__head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-3);
+  margin-bottom: var(--space-1);
+}
+
+.notif-item__link {
+  display: inline-block;
+  margin-top: var(--space-2);
+  color: var(--accent-fg);
+  text-decoration: none;
+}
+
+.notif-item__link:hover {
+  text-decoration: underline;
 }

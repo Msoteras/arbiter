@@ -687,6 +687,9 @@ BEGIN
             content         TEXT         NOT NULL,
             sent            BOOLEAN      NOT NULL DEFAULT FALSE,   -- enviada
             read            BOOLEAN      NOT NULL DEFAULT FALSE,   -- leida
+            -- When the notice was raised. Separate from sent_at, which stays NULL if the mail never
+            -- went out: the notification still exists and the panel has to date it.
+            created_at      TIMESTAMPTZ  NOT NULL DEFAULT now(),
             sent_at         TIMESTAMPTZ,
             read_at         TIMESTAMPTZ,
             recipient_id    BIGINT       NOT NULL REFERENCES arbiter_common.users(id),
