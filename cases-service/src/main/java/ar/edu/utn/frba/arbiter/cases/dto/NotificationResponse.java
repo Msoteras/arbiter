@@ -7,9 +7,9 @@ import java.time.Instant;
 /**
  * A notification as the insured's panel shows it.
  *
- * @param caseId what the panel links to, so the notification is actionable and not just a note
- * @param sentAt when the email went out; null if it never did (the table has no creation
- *               timestamp, so this is the only date available — see the story's pending items)
+ * @param caseId    what the panel links to, so the notification is actionable and not just a note
+ * @param createdAt what the panel dates it by — always set, unlike {@code sentAt}
+ * @param sentAt    when the email went out; null if it never did
  */
 public record NotificationResponse(
         Long id,
@@ -17,6 +17,7 @@ public record NotificationResponse(
         String type,
         String content,
         boolean read,
+        Instant createdAt,
         Instant sentAt
 ) {
 
@@ -27,6 +28,7 @@ public record NotificationResponse(
                 notification.getType(),
                 notification.getContent(),
                 notification.isRead(),
+                notification.getCreatedAt(),
                 notification.getSentAt());
     }
 }

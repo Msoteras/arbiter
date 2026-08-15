@@ -11,7 +11,9 @@ export interface Notification {
   type: string;
   content: string;
   read: boolean;
-  /** When the email went out; null if it never did. The table has no creation timestamp. */
+  /** When the notice was raised. Always set — this is what the panel dates by. */
+  createdAt: string;
+  /** When the email went out; null if it never did. */
   sentAt: string | null;
 }
 

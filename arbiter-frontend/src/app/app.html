@@ -258,8 +258,10 @@
           <li class="notif-item" [class.notif-item--unread]="!item.read">
             <div class="notif-item__head">
               <span class="t-field-label">{{ notificationTitle(item.type) }}</span>
-              @if (item.sentAt) {
-                <time class="t-note" [attr.datetime]="item.sentAt">{{ formatDateTime(item.sentAt) }}</time>
+              @if (item.createdAt) {
+                <time class="t-note" [attr.datetime]="item.createdAt">{{
+                  formatDateTime(item.createdAt)
+                }}</time>
               }
             </div>
             <p class="t-body">{{ item.content }}</p>

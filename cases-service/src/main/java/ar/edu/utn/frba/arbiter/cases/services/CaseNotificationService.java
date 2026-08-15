@@ -92,6 +92,7 @@ public class CaseNotificationService {
                 .type(newStatus.name())
                 .channel(CHANNEL)
                 .content(message.body())
+                .createdAt(Instant.now())
                 .sent(false)
                 .read(false)
                 .build());
@@ -130,7 +131,7 @@ public class CaseNotificationService {
 
     public List<NotificationResponse> forCurrentUser() {
         return currentUserId()
-                .map(notificationRepository::findByRecipientIdOrderByIdDesc)
+                .map(notificationRepository::findByRecipientIdOrderByCreatedAtDesc)
                 .orElseGet(List::of)
                 .stream()
                 .map(NotificationResponse::from)

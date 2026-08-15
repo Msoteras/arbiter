@@ -9,7 +9,7 @@ import java.util.Optional;
 public interface NotificationRepository extends JpaRepository<Notification, Long> {
 
     /** The recipient's panel: newest first, which is how a notification list is read. */
-    List<Notification> findByRecipientIdOrderByIdDesc(Long recipientId);
+    List<Notification> findByRecipientIdOrderByCreatedAtDesc(Long recipientId);
 
     long countByRecipientIdAndReadFalse(Long recipientId);
 

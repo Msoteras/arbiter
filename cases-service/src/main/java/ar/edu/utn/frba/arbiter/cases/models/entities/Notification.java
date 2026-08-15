@@ -18,10 +18,9 @@ import lombok.Setter;
 import java.time.Instant;
 
 /**
- * Record of a notification sent about a case ("notificacion" in the DER) — e.g. the
- * status-change emails CLAUDE.md's flow describes going out via SendGridAdapter. No
- * sender writes here yet; those emails are still fire-and-forget, not logged.
- * {@code recipientId} is a logical reference to a user (auth-service, another module).
+ * Record of a notification sent about a case ("notificacion" in the DER). Written by
+ * {@link ar.edu.utn.frba.arbiter.cases.services.CaseNotificationService} on every status change the
+ * insured is told about. {@code recipientId} is a logical reference to a user in arbiter_common.
  */
 @Entity
 @Table(name = "notification")
@@ -50,6 +49,10 @@ public class Notification {
 
     @Column(length = 30)
     private String channel;
+
+    /** When the notice was raised. Separate from {@code sentAt}, null if the mail never went out. */
+    @Column(name = "created_at", nullable = false)
+    private Instant createdAt;
 
     @Column(name = "sent_at")
     private Instant sentAt;
