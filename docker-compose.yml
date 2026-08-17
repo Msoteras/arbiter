@@ -127,6 +127,8 @@ services:
     environment:
       CLASSIFICATION_SERVICE_URL: http://classification-service:8082
       AUTH_SERVICE_URL: http://auth-service:8080
+      # Para leer la política de derivación a peritaje del ramo (umbral de monto).
+      RULES_SERVICE_URL: http://rules-service:8081
       DB_URL: jdbc:postgresql://postgres:5432/${DB_NAME:-arbiter}
       DB_USER: ${DB_USER:-arbiter}
       DB_PASSWORD: ${DB_PASSWORD:-arbiter}

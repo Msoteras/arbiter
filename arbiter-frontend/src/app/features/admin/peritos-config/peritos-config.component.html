@@ -1,0 +1,75 @@
+<app-card heading="Peritos">
+  <p class="section-hint">
+    Los estudios externos a los que el analista puede derivar un siniestro para verificarlo. Es el
+    listado que ve en el selector al derivar: si un ramo no tiene ninguno, no hay a quién derivarle
+    por más que la regla de monto lo habilite.
+  </p>
+
+  @if (loading()) {
+    <p class="t-note">Cargando…</p>
+  } @else if (peritos().length === 0 && !draft()) {
+    <app-empty-state
+      message="Todavía no hay peritos cargados"
+      sub="Sin peritos, el analista no puede derivar ningún expediente." />
+  } @else {
+    <ul class="peritos">
+      @for (p of peritos(); track p.id) {
+        <li class="perito" [class.inactive]="!p.active">
+          <div class="perito-data">
+            <span class="perito-name">
+              {{ p.name }}
+              @if (!p.active) { <span class="t-note">· inactivo</span> }
+            </span>
+            <span class="t-note">
+              {{ p.email }} · {{ ramoLabel(p) }}@if (p.zone) { · {{ p.zone }} }
+            </span>
+          </div>
+          <div class="perito-actions">
+            <app-button variant="secondary" (click)="edit(p)">Editar</app-button>
+            <app-button variant="secondary" (click)="remove(p)">Borrar</app-button>
+          </div>
+        </li>
+      }
+    </ul>
+  }
+
+  @if (draft(); as d) {
+    <div class="perito-form">
+      <span class="t-field-label">{{ d.id == null ? 'Nuevo perito' : 'Editando perito' }}</span>
+      <app-input
+        placeholder="Nombre del estudio"
+        [value]="d.name"
+        (valueChange)="setField('name', $event)" />
+      <app-input
+        type="email"
+        placeholder="Mail de contacto"
+        [value]="d.email"
+        (valueChange)="setField('email', $event)" />
+      <app-select
+        [options]="branchOptions()"
+        [value]="branchValue(d)"
+        (valueChange)="setBranch($event)" />
+      <app-input
+        placeholder="Zona (opcional)"
+        [value]="d.zone ?? ''"
+        (valueChange)="setField('zone', $event)" />
+      <app-checkbox [checked]="d.active" (checkedChange)="setField('active', $event)">
+        Activo
+      </app-checkbox>
+      <div class="perito-form-actions">
+        <app-button variant="secondary" (click)="cancel()">Cancelar</app-button>
+        <app-button [disabled]="!canSave() || saving()" (click)="save()">
+          {{ saving() ? 'Guardando…' : 'Guardar' }}
+        </app-button>
+      </div>
+    </div>
+  } @else {
+    <div class="add-perito">
+      <app-button variant="secondary" (click)="add()">Agregar perito</app-button>
+    </div>
+  }
+
+  @if (error()) {
+    <p class="t-note error">{{ error() }}</p>
+  }
+</app-card>

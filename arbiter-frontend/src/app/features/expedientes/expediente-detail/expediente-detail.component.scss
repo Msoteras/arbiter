@@ -51,6 +51,42 @@
 .registered { margin: var(--space-2) 0 0; font-size: var(--font-size-sm); font-weight: var(--font-weight-medium); color: var(--accent-fg); }
 .decision-btns { display: flex; gap: var(--space-2); }
 .decision-btns app-button { flex: 1; }
+/* Derivar va debajo y a lo ancho: no es una tercera decisión, es suspender para conseguir
+   evidencia — ponerlo en la misma fila lo leería como una salida más del expediente. */
+.decision-btns + app-button { margin-top: var(--space-2); }
+
+/* ===== Peritaje ===== */
+/* El ancho de lectura se acota en la CARD, no en el texto: con `.measure` sobre los párrafos
+   la línea cortaba antes del borde y quedaba un hueco a la derecha que se lee como un bug.
+   Acotando la caja, el texto llena la card y las dos cosas terminan en el mismo lugar. */
+.peritaje-card { max-width: 72ch; }
+.peritaje { display: grid; gap: var(--space-1); margin: 0 0 var(--space-3); }
+.peritaje dt { margin-top: var(--space-2); }
+.peritaje dt:first-child { margin-top: 0; }
+.peritaje dd { margin: 0; font-size: var(--font-size-body); color: var(--text-primary); }
+
+.peritaje-veredicto {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin-bottom: var(--space-2);
+}
+
+/* El input nativo va oculto: el kit no tiene selector de archivo propio, y así el control
+   visible sigue siendo un app-button (mismo patrón que app-doc-upload). */
+.informe-file {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  margin: var(--space-3) 0;
+  cursor: pointer;
+}
+.informe-file .t-field-label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
 
 /* ===== Asignación ===== */
 .assignee { display: flex; align-items: center; gap: var(--space-2); margin-bottom: var(--space-3); }

@@ -39,12 +39,28 @@
         <span class="ramo-meta">Toda la aseguradora</span>
       </button>
     </app-card>
+
+    <!-- ───────── Peritos: a quién puede derivar el analista. También es de toda la aseguradora ─────────
+         (cada perito puede especializarse en un ramo, pero el catálogo no pertenece a ninguno). -->
+    <app-card class="scoring-card">
+      <button
+        type="button"
+        class="ramo-item scoring-item"
+        [class.active]="view() === 'peritos'"
+        (click)="selectPeritos()"
+      >
+        <span class="ramo-name">Peritos</span>
+        <span class="ramo-meta">Toda la aseguradora</span>
+      </button>
+    </app-card>
     </div>
 
     <!-- ───────── Panel derecho: detalle del ramo o scoring ───────── -->
     <div class="editor">
       @if (view() === 'scoring') {
         <app-scoring-config />
+      } @else if (view() === 'peritos') {
+        <app-peritos-config />
       } @else if (draft(); as d) {
         <div class="editor-head">
           <div class="editor-title">

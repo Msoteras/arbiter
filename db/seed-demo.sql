@@ -277,6 +277,17 @@ INSERT INTO arbiter_bbva.case_status_history (reason, observation, actor, change
     ('Falta la foto del bien', NULL, 'SYSTEM', '2026-06-12 19:02:00+00', NULL, 1, 3, 4),
     ('Denuncia registrada', NULL, 'INSURED', '2026-07-31 12:00:00+00', 1, NULL, 1, 5);
 
+-- Peritos externos de BBVA. No son usuarios de Arbiter: el analista los contacta por
+-- mail. El primero es generalista (branch_id NULL, cubre los dos ramos); el segundo
+-- sólo Celulares. Las casillas son de prueba del equipo — el mail de derivación sale
+-- de verdad por SendGrid, así que no puede apuntar a una dirección inventada.
+INSERT INTO arbiter_bbva.expert_firm (id, name, email, zone, active, branch_id) VALUES
+    (1, 'Estudio Verifica S.R.L.',   'perito.arbiter@gmail.com', 'CABA y GBA',      TRUE, NULL),
+    (2, 'Peritajes Tecnológicos SA', 'perito.arbiter@gmail.com', 'CABA',            TRUE, 1);
+
+SELECT setval(pg_get_serial_sequence('arbiter_bbva.expert_firm','id'),
+              (SELECT MAX(id) FROM arbiter_bbva.expert_firm));
+
 -- =============================================================================
 -- PART 5 — Arbiter tenant: Provincia
 -- =============================================================================
@@ -388,6 +399,14 @@ INSERT INTO arbiter_provincia.case_status_history (reason, observation, actor, c
     ('El analista aprobó el siniestro', 'Documentación completa', 'ANALYST', '2026-05-21 10:30:00+00', 4, 2, 5, 1),
     ('Denuncia registrada', NULL, 'INSURED', '2026-07-05 11:15:00+00', 1, NULL, 1, 2),
     ('Clasificación disponible', 'Riesgo CRÍTICO: mora + reincidencia', 'SYSTEM', '2026-07-05 11:22:00+00', NULL, 1, 2, 2);
+
+-- Provincia trabaja con otro estudio: el catálogo es por tenant, y que las dos
+-- aseguradoras deriven al mismo perito sería el tipo de cruce que el multi-tenant evita.
+INSERT INTO arbiter_provincia.expert_firm (id, name, email, zone, active, branch_id) VALUES
+    (1, 'Peritos del Sur S.A.', 'perito.arbiter@gmail.com', 'La Plata', TRUE, NULL);
+
+SELECT setval(pg_get_serial_sequence('arbiter_provincia.expert_firm','id'),
+              (SELECT MAX(id) FROM arbiter_provincia.expert_firm));
 
 -- Notification sent to Martina when her case was approved.
 INSERT INTO arbiter_provincia.notification (type, channel, content, sent, read, sent_at, read_at,

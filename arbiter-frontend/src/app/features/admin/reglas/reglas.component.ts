@@ -18,6 +18,7 @@ import { ButtonComponent } from '../../../shared/ui/button/button.component';
 import { CardComponent } from '../../../shared/ui/card/card.component';
 import { EmptyStateComponent } from '../../../shared/ui/empty-state/empty-state.component';
 import { InputComponent } from '../../../shared/ui/input/input.component';
+import { PeritosConfigComponent } from '../peritos-config/peritos-config.component';
 import { ScoringConfigComponent } from '../scoring-config/scoring-config.component';
 import { StringListEditorComponent } from './string-list-editor.component';
 import { InlineLoadingComponent } from '../../../shared/ui/inline-loading/inline-loading.component';
@@ -44,6 +45,7 @@ type TabId = 'coberturas' | 'fastTrack' | 'documentacion' | 'reglas';
     CardComponent,
     EmptyStateComponent,
     InputComponent,
+    PeritosConfigComponent,
     ScoringConfigComponent,
     StringListEditorComponent,
     InlineLoadingComponent,
@@ -105,7 +107,7 @@ export class ReglasComponent {
   protected readonly selectedId = signal<string | null>(null);
   // Qué muestra el panel derecho: el detalle del ramo seleccionado ('ramo') o el scoring de la
   // aseguradora ('scoring'), que no pertenece a ningún ramo y se elige desde su propio recuadro.
-  protected readonly view = signal<'ramo' | 'scoring'>('ramo');
+  protected readonly view = signal<'ramo' | 'scoring' | 'peritos'>('ramo');
   protected readonly draft = signal<RamoRules | null>(null);
 
   constructor() {
@@ -153,6 +155,15 @@ export class ReglasComponent {
   /** El recuadro "Scoring de riesgo" de la izquierda: muestra el scoring de la aseguradora a la derecha. */
   protected selectScoring(): void {
     this.view.set('scoring');
+  }
+
+  /**
+   * Igual que el scoring: el catálogo de peritos es de toda la aseguradora, no de un ramo (aunque
+   * cada perito pueda especializarse en uno), así que va como recuadro aparte y no como solapa
+   * dentro del ramo — que haría creer que se configura por ramo.
+   */
+  protected selectPeritos(): void {
+    this.view.set('peritos');
   }
 
   protected select(r: RamoRules): void {

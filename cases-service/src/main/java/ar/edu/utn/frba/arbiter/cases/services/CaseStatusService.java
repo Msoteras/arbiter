@@ -29,8 +29,12 @@ public class CaseStatusService {
     private static final Map<CaseStatus, Set<CaseStatus>> VALID_TRANSITIONS = Map.of(
             PENDING_CLASSIFICATION,  Set.of(PENDING_ANALYST_REVIEW, AWAITING_DOCUMENTATION, CLASSIFICATION_FAILED),
             AWAITING_DOCUMENTATION,  Set.of(PENDING_CLASSIFICATION),
-            PENDING_ANALYST_REVIEW,  Set.of(APPROVED, REJECTED, PENDING_CLASSIFICATION),
-            CLASSIFICATION_FAILED,   Set.of(PENDING_CLASSIFICATION)
+            PENDING_ANALYST_REVIEW,  Set.of(APPROVED, REJECTED, PENDING_CLASSIFICATION, PENDING_EXPERT_REPORT),
+            CLASSIFICATION_FAILED,   Set.of(PENDING_CLASSIFICATION),
+            // Back to the analyst and nowhere else. A derived case can't be approved or rejected
+            // without its report — that is the whole point of having derived it — and it can't be
+            // derived twice, because there is no way out of here except through review.
+            PENDING_EXPERT_REPORT,   Set.of(PENDING_ANALYST_REVIEW)
     );
 
     private final CaseRepository caseRepository;

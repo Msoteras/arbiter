@@ -5,6 +5,7 @@ import { Observable } from 'rxjs';
 import { environment } from '../../../environments/environment';
 import { ExpedienteResponse } from '../../core/models/expediente';
 import { CaseDocument } from '../../core/models/case-document';
+import { ExpertVerdict, OpcionesDerivacion, Peritaje } from '../../core/models/peritaje';
 
 export interface CaseCreateRequest {
   branch: string;
@@ -261,6 +262,57 @@ export class ExpedienteService {
 
   analystWorkload(): Observable<AnalystWorkload[]> {
     return this.http.get<AnalystWorkload[]>(`${this.baseUrl}/analysts/workload`);
+  }
+
+  // ----- derivación a peritaje -----
+
+  /**
+   * Si este expediente se puede derivar y a quién. El umbral de monto sale del motor de reglas,
+   * así que la respuesta cambia por aseguradora y por ramo. También lo valida el backend al
+   * derivar: esto es para la pantalla, no es el control.
+   */
+  derivationOptions(caseId: number): Observable<OpcionesDerivacion> {
+    return this.http.get<OpcionesDerivacion>(`${this.baseUrl}/${caseId}/expert-assessment/options`);
+  }
+
+  /** El peritaje del expediente. 404 si nunca se derivó. */
+  peritaje(caseId: number): Observable<Peritaje> {
+    return this.http.get<Peritaje>(`${this.baseUrl}/${caseId}/expert-assessment`);
+  }
+
+  /**
+   * Deriva el expediente y le manda al perito los datos del siniestro por mail. No resuelve nada:
+   * el caso queda esperando el informe y vuelve al analista, que sigue siendo quien decide.
+   */
+  derivarAPeritaje(caseId: number, expertFirmId: number, reason: string): Observable<Peritaje> {
+    return this.http.post<Peritaje>(`${this.baseUrl}/${caseId}/expert-assessment`, {
+      expertFirmId,
+      reason,
+    });
+  }
+
+  /**
+   * Carga el informe que el analista recibió del perito y devuelve el expediente a revisión.
+   * NO re-clasifica: el informe es evidencia de una persona que inspeccionó el caso, y volver a
+   * pasarlo por el modelo solo lograría que lo repita o que lo contradiga.
+   */
+  cargarInformePericial(
+    caseId: number,
+    verdict: ExpertVerdict,
+    note: string,
+    report: File,
+  ): Observable<Peritaje> {
+    // Veredicto y nota van en el cuerpo, no en la query string: la nota es texto libre sobre un
+    // siniestro y puede traer datos del asegurado, que en la URL quedarían en los logs de nginx
+    // y de cualquier proxy en el medio. @RequestParam los toma igual de los campos del multipart.
+    const formData = new FormData();
+    formData.append('report', report);
+    formData.append('verdict', verdict);
+    formData.append('note', note);
+    return this.http.post<Peritaje>(
+      `${this.baseUrl}/${caseId}/expert-assessment/report`,
+      formData,
+    );
   }
 
   /**
