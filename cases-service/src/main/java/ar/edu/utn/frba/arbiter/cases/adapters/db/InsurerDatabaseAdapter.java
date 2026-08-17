@@ -68,12 +68,24 @@ public class InsurerDatabaseAdapter implements InsurerAdapter {
         return Optional.empty();
     }
 
-    /** El mismo documento puede tener pólizas en varias compañías → vista centralizada. */
+    /**
+     * El mismo documento puede tener pólizas en varias compañías → vista centralizada.
+     *
+     * <p>Solo pólizas vigentes hoy ({@code vigencia_hasta >= CURRENT_DATE}): esto alimenta el
+     * desplegable del alta de denuncia, y una póliza vencida ahí solo lleva al asegurado a
+     * completar todo el wizard para enterarse recién al final que {@link
+     * ar.edu.utn.frba.arbiter.cases.services.PolicyEligibilityValidator} la va a rechazar. El
+     * lookup puntual por número ({@link #findPolicy}) no filtra — a ese se llega por otros
+     * caminos (expediente ya creado, chequeo de elegibilidad) donde una póliza vencida es un
+     * resultado legítimo, no ruido.
+     */
     @Override
     public List<PolicyResponse> findPoliciesByInsured(String insuredId) {
         List<PolicyResponse> policies = new ArrayList<>();
         for (InsurerDatabase database : insurerDatabases.forCaller()) {
-            jdbc.query(POLICY_SELECT.formatted(database.schema()) + " WHERE a.documento = ? ORDER BY p.numero",
+            jdbc.query(POLICY_SELECT.formatted(database.schema())
+                                    + " WHERE a.documento = ? AND p.vigencia_hasta >= CURRENT_DATE"
+                                    + " ORDER BY p.numero",
                             this::mapRow,
                             insuredId)
                     .forEach(row -> policies.add(toResponse(row, database)));
