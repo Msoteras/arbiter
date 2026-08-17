@@ -2,7 +2,7 @@ import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@a
 import { toObservable, toSignal } from '@angular/core/rxjs-interop';
 import { ActivatedRoute, RouterLink } from '@angular/router';
 import { HttpErrorResponse } from '@angular/common/http';
-import { catchError, combineLatest, map, Observable, of, startWith, switchMap } from 'rxjs';
+import { catchError, combineLatest, finalize, map, Observable, of, startWith, switchMap } from 'rxjs';
 
 import { ExpedienteService, AnalystDecisionRequest } from '../expediente.service';
 import { DocumentAgendaService } from '../document-agenda.service';
@@ -47,6 +47,8 @@ type LoadState =
   | { status: 'loading' }
   | { status: 'ok'; data: ExpedienteResponse }
   | { status: 'error'; httpStatus: number };
+
+type DocsState = { status: 'loading' } | { status: 'ok'; list: CaseDocument[] };
 
 type TabId =
   | 'resumen'
@@ -236,6 +238,19 @@ export class ExpedienteDetailComponent {
   protected readonly confidencePercent = computed(() => {
     const d = this.data();
     return d ? Math.round(d.analysisConfidence * 100) : 0;
+  });
+
+  /**
+   * Si el resultado lo produjo el LLM o el gate determinístico de reglas.
+   *
+   * `FAST_TRACK` y `FALTA_DOCUMENTACION` no son recomendaciones del modelo: los decide el motor de
+   * reglas (CLAUDE.md decisión #6 — el LLM nunca puede devolver `FAST_TRACK`). Mostrarles
+   * "Confianza del modelo: 100%" es engañoso: no hay inferencia detrás, es un chequeo objetivo, y
+   * el 100% sale de un valor fijo que pone el backend, no de una medición.
+   */
+  protected readonly isDeterministicOutcome = computed(() => {
+    const c = this.data()?.analysisClassification;
+    return c === 'FAST_TRACK' || c === 'FALTA_DOCUMENTACION';
   });
 
   /** Grilla del expediente: real donde el backend lo da, null ("Sin datos") en el resto. */
@@ -572,9 +587,17 @@ export class ExpedienteDetailComponent {
   protected readonly assignSaving = signal(false);
   protected readonly assignError = signal<string | null>(null);
 
-  private readonly analysts = toSignal(this.users.listAnalysts().pipe(catchError(() => of([]))), {
-    initialValue: [],
-  });
+  // Sin esto, el menú "Asignar a…"/"Reasignar" se puede abrir mientras la lista de analistas
+  // todavía está en vuelo y mostrar un panel vacío, como si la aseguradora no tuviera analistas.
+  protected readonly analystsLoading = signal(true);
+
+  private readonly analysts = toSignal(
+    this.users.listAnalysts().pipe(
+      catchError(() => of([])),
+      finalize(() => this.analystsLoading.set(false)),
+    ),
+    { initialValue: [] },
+  );
 
   protected readonly analystMenuItems = computed<MenuItem[]>(() => {
     // "Asignar a otro analista": el que ya lo tiene no va en la lista (reasignárselo no es acción).
@@ -706,19 +729,34 @@ export class ExpedienteDetailComponent {
   /** La agenda documental es otra llamada al backend: se refresca con el mismo trigger. */
   protected readonly docsReloadToken = computed(() => this.reloadTrigger());
 
-  private readonly documents = toSignal(
+  // Estado explícito (no solo el array) para poder tapar el checklist de "Falta documentación"
+  // mientras esta request —independiente de la principal (getById)— todavía está en vuelo: sin
+  // esto, `missingDocLabels` computa con `documents()` en [] y por un instante lista TODOS los
+  // tipos requeridos como faltantes, aunque ya estén cargados.
+  private readonly documentsState = toSignal(
     combineLatest([
       this.route.paramMap.pipe(map((params) => params.get('id') ?? '')),
       toObservable(this.reloadTrigger),
     ]).pipe(
       switchMap(([id]) =>
         id
-          ? this.service.listDocuments(Number(id)).pipe(catchError(() => of<CaseDocument[]>([])))
-          : of<CaseDocument[]>([]),
+          ? this.service.listDocuments(Number(id)).pipe(
+              map((list): DocsState => ({ status: 'ok', list })),
+              startWith<DocsState>({ status: 'loading' }),
+              catchError(() => of<DocsState>({ status: 'ok', list: [] })),
+            )
+          : of<DocsState>({ status: 'ok', list: [] }),
       ),
     ),
-    { initialValue: [] as CaseDocument[] },
+    { initialValue: { status: 'loading' } as DocsState },
   );
+
+  protected readonly documentsLoading = computed(() => this.documentsState().status === 'loading');
+
+  private readonly documents = computed<CaseDocument[]>(() => {
+    const s = this.documentsState();
+    return s.status === 'ok' ? s.list : [];
+  });
 
   private readonly agenda = inject(DocumentAgendaService);
 

@@ -13,7 +13,7 @@ import lombok.NoArgsConstructor;
 import lombok.Setter;
 
 @Entity
-@Table(name = "permission")
+@Table(name = "permission", schema = "arbiter_common")
 @Getter
 @Setter
 @NoArgsConstructor

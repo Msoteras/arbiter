@@ -29,6 +29,7 @@ public class CaseReferenceResolver {
     private final ClaimCauseRepository claimCauseRepository;
     private final PolicyRepository policyRepository;
     private final InsuredRepository insuredRepository;
+    private final PolicySynchronizer policySynchronizer;
 
     /** {@code claim_cause} is unique per {@code (branch_id, name)}, so the branch resolves first. */
     public ClaimCause resolveClaimCause(String branchName, String claimCauseName) {
@@ -39,9 +40,16 @@ public class CaseReferenceResolver {
                         "claim cause for branch '" + branchName + "'", claimCauseName));
     }
 
-    public Policy resolvePolicy(String policyNumber) {
+    /**
+     * La póliza del snapshot local y, si todavía no está, la que trae la BD Aseguradora en el acto
+     * (decisión #10). Denunciar sobre una póliza que la compañía tiene pero Arbiter no copió es un
+     * caso normal —el portal lista las pólizas leyendo la compañía en vivo—, no un dato inválido:
+     * lo que falta es la sincronización, y se hace acá. El 422 queda para lo que de verdad no
+     * resuelve (ver {@link PolicySynchronizer}).
+     */
+    public Policy resolvePolicy(String policyNumber, Long insuredId) {
         return policyRepository.findByExternalPolicyNumber(policyNumber)
-                .orElseThrow(() -> new UnresolvedCaseReferenceException("policy", policyNumber));
+                .orElseGet(() -> policySynchronizer.importFromInsurer(policyNumber, insuredId));
     }
 
     /** The request's {@code insuredId} is the person's DNI, which is UNIQUE on {@code insured}. */

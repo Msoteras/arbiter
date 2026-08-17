@@ -4,6 +4,11 @@ import org.springframework.boot.testcontainers.service.connection.ServiceConnect
 import org.springframework.test.context.TestPropertySource;
 import org.testcontainers.postgresql.PostgreSQLContainer;
 
+import java.sql.Connection;
+import java.sql.DriverManager;
+import java.sql.SQLException;
+import java.sql.Statement;
+
 /**
  * Patrón "singleton container" (recomendado por Testcontainers para compartir un contenedor entre
  * varias clases de test): sin {@code @Testcontainers}/{@code @Container}, porque esas anotaciones
@@ -15,10 +20,12 @@ import org.testcontainers.postgresql.PostgreSQLContainer;
 // SecurityConfig requiere un JWT_SECRET real para levantar el contexto (H0003).
 //
 // ddl-auto se pisa a `update` solo acá: en producción es `validate` (el esquema lo define
-// db/init-multitenant.sql), pero estos tests arrancan contra un contenedor vacío y nadie corre el
-// script, así que sin esto no habría tablas contra las cuales validar. El peligro que motiva
-// `validate` —que Hibernate recree las tablas de arbiter_common adentro de cada esquema de
-// tenant— no aplica: acá no hay esquemas de tenant y todo cae en `public`.
+// db/init-multitenant.sql). Las entidades de common-lib son schema-qualified
+// (`arbiter_common`) — no caen en `public` como decía este comentario antes, Hibernate arma la
+// DDL como `create table arbiter_common.branch(...)` literal, y como `update` no crea esquemas
+// solo (`hibernate.hbm2ddl.create_namespaces` es false por default) hacía falta el CREATE SCHEMA
+// manual de acá abajo antes de arrancar el contexto. Sin él, cualquier IT que levante el
+// contexto completo rompe con "schema arbiter_common does not exist" contra un contenedor vacío.
 // Pendiente: hacer que el contenedor corra init-multitenant.sql, que es lo único que detectaría
 // un desfasaje entre las entidades y el esquema real.
 @TestPropertySource(properties = {
@@ -32,5 +39,12 @@ public abstract class AbstractPersistenceIT {
 
     static {
         POSTGRES.start();
+        try (Connection conn = DriverManager.getConnection(
+                POSTGRES.getJdbcUrl(), POSTGRES.getUsername(), POSTGRES.getPassword());
+             Statement stmt = conn.createStatement()) {
+            stmt.execute("CREATE SCHEMA IF NOT EXISTS arbiter_common");
+        } catch (SQLException e) {
+            throw new RuntimeException(e);
+        }
     }
 }

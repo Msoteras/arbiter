@@ -36,7 +36,9 @@ public class PurchaseToReportTimeEvaluator implements RiskFactorEvaluator {
                     "Fechas de vigencia o del hecho no disponibles — factor no evaluable");
         }
 
-        long days = ChronoUnit.DAYS.between(effectiveFrom, eventDate.toLocalDate());
+        // Días, no horas: es un heurístico de riesgo, no necesita la precisión que sí le hace
+        // falta a D13 (vigencia).
+        long days = ChronoUnit.DAYS.between(effectiveFrom.toLocalDate(), eventDate.toLocalDate());
         if (days < 0) {
             return Contribution.notEvaluable(factorId(),
                     "Fecha del hecho anterior a la vigencia de la póliza — factor no evaluable");

@@ -1,5 +1,6 @@
 package ar.edu.utn.frba.arbiter.cases.services;
 
+import ar.edu.utn.frba.arbiter.cases.adapters.InsurerAdapter;
 import ar.edu.utn.frba.arbiter.cases.config.tenant.CallerContext;
 import ar.edu.utn.frba.arbiter.cases.config.tenant.TenantContext;
 import ar.edu.utn.frba.arbiter.cases.exceptions.UnresolvedCaseReferenceException;
@@ -43,6 +44,9 @@ class PolicyTenantLocatorTest {
     @Mock
     private PolicyRepository policyRepository;
 
+    @Mock
+    private InsurerAdapter insurerAdapter;
+
     @InjectMocks
     private PolicyTenantLocator locator;
 
@@ -72,6 +76,7 @@ class PolicyTenantLocatorTest {
         when(insurerRepository.findAllById(List.of(1L, 2L))).thenReturn(List.of(
                 insurer(1L, "arbiter_bbva", true),
                 insurer(2L, "arbiter_provincia", true)));
+        // insurerAdapter no la tiene sincronizada / no responde: se cae al snapshot local.
         when(policyRepository.findByExternalPolicyNumber(POLICY_NUMBER))
                 .thenReturn(Optional.empty())
                 .thenReturn(Optional.of(policy()));
@@ -79,8 +84,35 @@ class PolicyTenantLocatorTest {
         assertThat(locator.locate(POLICY_NUMBER)).isEqualTo("arbiter_provincia");
     }
 
+    /**
+     * Bug real del 16/8: un snapshot local viejo/duplicado en el esquema equivocado
+     * (`arbiter_bbva.policy` con una fila de una póliza que en realidad es de Provincia) hacía
+     * que el alta terminara en la aseguradora que no era, porque el código de entonces confiaba
+     * en el primer esquema local que respondiera sin volver a preguntarle a la compañía. Ahora se
+     * pregunta primero a la aseguradora (fuente de verdad) y esa respuesta gana aunque el snapshot
+     * local tenga una fila — sin ese fallback ni siquiera hace falta.
+     */
+    @Test
+    void trustsTheInsurerOverAStaleLocalSnapshotInTheWrongSchema() {
+        TenantContext.set(CALLER_TENANT);
+        CallerContext.set(new CallerContext.Caller("30.555.777", List.of(1L, 2L), CALLER_TENANT));
+        when(insurerRepository.findAllById(List.of(1L, 2L))).thenReturn(List.of(
+                insurer(1L, "arbiter_bbva", true),
+                insurer(2L, "arbiter_provincia", true)));
+        when(insurerAdapter.findPolicy(POLICY_NUMBER)).thenReturn(Optional.of(
+                ar.edu.utn.frba.arbiter.cases.dto.PolicyResponse.builder()
+                        .policyNumber(POLICY_NUMBER)
+                        .insurerId("2")
+                        .build()));
+
+        assertThat(locator.locate(POLICY_NUMBER)).isEqualTo("arbiter_provincia");
+        verify(policyRepository, never()).findByExternalPolicyNumber(any());
+    }
+
     @Test
     void unknownPolicyInEveryInsurer_fails422() {
+        // Neither synced nor in the insurer DB: only then does the number name nothing.
+        when(insurerAdapter.findPolicy(POLICY_NUMBER)).thenReturn(Optional.empty());
         TenantContext.set(CALLER_TENANT);
         CallerContext.set(new CallerContext.Caller("42.987.654", List.of(1L, 2L), CALLER_TENANT));
         when(insurerRepository.findAllById(List.of(1L, 2L))).thenReturn(List.of(
@@ -115,10 +147,15 @@ class PolicyTenantLocatorTest {
 
     @Test
     void restoresCallerTenantWhenNothingResolves() {
+        when(insurerAdapter.findPolicy(POLICY_NUMBER)).thenReturn(Optional.empty());
         TenantContext.set(CALLER_TENANT);
-        CallerContext.set(new CallerContext.Caller("42.987.654", List.of(1L), CALLER_TENANT));
-        when(insurerRepository.findAllById(List.of(1L)))
-                .thenReturn(List.of(insurer(1L, "arbiter_provincia", true)));
+        // Dos aseguradoras a propósito: con una sola no hay ambigüedad que sondear (ver
+        // singleInsurer_skipsResolutionEntirely) y este test no ejercitaría el fallback al
+        // snapshot local que quiere probar.
+        CallerContext.set(new CallerContext.Caller("42.987.654", List.of(1L, 2L), CALLER_TENANT));
+        when(insurerRepository.findAllById(List.of(1L, 2L))).thenReturn(List.of(
+                insurer(1L, "arbiter_bbva", true),
+                insurer(2L, "arbiter_provincia", true)));
         when(policyRepository.findByExternalPolicyNumber(POLICY_NUMBER))
                 .thenReturn(Optional.empty());
 
@@ -135,10 +172,23 @@ class PolicyTenantLocatorTest {
         when(insurerRepository.findAllById(List.of(1L, 2L))).thenReturn(List.of(
                 insurer(1L, "arbiter_bbva", false),
                 insurer(2L, "arbiter_provincia", true)));
-        when(policyRepository.findByExternalPolicyNumber(POLICY_NUMBER))
-                .thenReturn(Optional.of(policy()));
+
+        // Una sola aseguradora activa queda tras filtrar: sin ambigüedad, se devuelve directo
+        // sin consultar ni a la compañía ni al snapshot local.
+        assertThat(locator.locate(POLICY_NUMBER)).isEqualTo("arbiter_provincia");
+        verify(policyRepository, never()).findByExternalPolicyNumber(any());
+    }
+
+    @Test
+    void singleInsurer_skipsResolutionEntirely() {
+        TenantContext.set(CALLER_TENANT);
+        CallerContext.set(new CallerContext.Caller("42.987.654", List.of(2L), CALLER_TENANT));
+        when(insurerRepository.findAllById(List.of(2L)))
+                .thenReturn(List.of(insurer(2L, "arbiter_provincia", true)));
 
         assertThat(locator.locate(POLICY_NUMBER)).isEqualTo("arbiter_provincia");
+        verify(insurerAdapter, never()).findPolicy(any());
+        verify(policyRepository, never()).findByExternalPolicyNumber(any());
     }
 
     /**

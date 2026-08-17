@@ -4,6 +4,8 @@ import ar.edu.utn.frba.arbiter.cases.dto.AnalystDecisionRequest;
 import ar.edu.utn.frba.arbiter.cases.dto.AnalystWorkloadResponse;
 import ar.edu.utn.frba.arbiter.cases.dto.AssignedCaseSummaryResponse;
 import ar.edu.utn.frba.arbiter.cases.dto.CaseDocumentResponse;
+import ar.edu.utn.frba.arbiter.cases.dto.EligibilityCheckRequest;
+import ar.edu.utn.frba.arbiter.cases.dto.EligibilityCheckResponse;
 import ar.edu.utn.frba.arbiter.cases.dto.LensSummaryResponse;
 import ar.edu.utn.frba.arbiter.cases.dto.CaseRequest;
 import ar.edu.utn.frba.arbiter.cases.dto.CaseResponse;
@@ -21,6 +23,15 @@ import java.util.Map;
 public interface CaseService {
 
     CaseResponse createCase(CaseRequest request, Map<String, MultipartFile> documents);
+
+    /**
+     * Same gate {@link #createCase} runs before it builds the {@code Case} (ownership, vigencia,
+     * carencia, mora), without creating anything. Lets the wizard block or warn before the insured
+     * fills out the rest of the form and uploads documentation, instead of finding out only at the
+     * very end. Never throws {@code PolicyNotEligibleException}/{@code PolicyInsuredMismatchException} —
+     * those become {@code eligible=false} instead, since a "you can't file this" isn't an error here.
+     */
+    EligibilityCheckResponse checkEligibility(EligibilityCheckRequest request);
 
     CaseResponse getCase(Long caseId);
 

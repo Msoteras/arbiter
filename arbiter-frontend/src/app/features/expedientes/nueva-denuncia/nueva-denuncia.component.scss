@@ -366,6 +366,18 @@ app-textarea {
   font-size: var(--font-size-md);
 }
 
+// El precheck de elegibilidad no respondió: no es un rechazo (--status-danger), es no saber —
+// tono de advertencia, no de bloqueo.
+.eligibility-unknown {
+  margin-top: var(--space-4);
+  padding: var(--space-3);
+  background: var(--surface-soft);
+  color: var(--status-warning);
+  border: 1px solid var(--status-warning);
+  border-radius: var(--radius-ctl);
+  font-size: var(--font-size-md);
+}
+
 /* ===== Barra de acciones (inline) ===== */
 .wizard-actions {
   display: flex;

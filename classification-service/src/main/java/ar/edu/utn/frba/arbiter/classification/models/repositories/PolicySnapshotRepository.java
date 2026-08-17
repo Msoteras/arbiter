@@ -1,5 +1,6 @@
 package ar.edu.utn.frba.arbiter.classification.models.repositories;
 
+import ar.edu.utn.frba.arbiter.classification.config.tenant.TenantContext;
 import lombok.RequiredArgsConstructor;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Repository;
@@ -63,13 +64,26 @@ public class PolicySnapshotRepository {
             return;
         }
         jdbcTemplate.update(
-                "UPDATE cases SET policy_snapshot_id = ? WHERE id = ?", insert(snapshot), caseId);
+                "UPDATE %s.cases SET policy_snapshot_id = ? WHERE id = ?".formatted(schema()),
+                insert(snapshot), caseId);
+    }
+
+    /**
+     * El esquema del tenant, explícito en cada query. {@code TenantConnectionProvider} solo
+     * enruta las conexiones de Hibernate: este repositorio usa {@code JdbcTemplate} crudo, que
+     * toma una conexión del pool con el {@code search_path} en {@code arbiter_common} — donde
+     * {@code cases} y {@code policy_snapshot} no existen. Sin calificar, todo esto fallaba con
+     * {@code relation "cases" does not exist} y el snapshot de auditoría (D27) no se escribía
+     * nunca, en silencio, porque el llamador lo trata como best-effort.
+     */
+    private static String schema() {
+        return TenantContext.schemaForSql();
     }
 
     /** Null if the case has no snapshot yet, or isn't in this schema. */
     private Long currentSnapshotId(Long caseId) {
         List<Long> ids = jdbcTemplate.query(
-                "SELECT policy_snapshot_id FROM cases WHERE id = ?",
+                "SELECT policy_snapshot_id FROM %s.cases WHERE id = ?".formatted(schema()),
                 (rs, rowNum) -> rs.getObject("policy_snapshot_id", Long.class),
                 caseId);
         return ids.isEmpty() ? null : ids.getFirst();
@@ -77,12 +91,12 @@ public class PolicySnapshotRepository {
 
     private Long insert(Snapshot snapshot) {
         return jdbcTemplate.queryForObject("""
-                        INSERT INTO policy_snapshot (external_policy_number, sum_insured, in_force,
+                        INSERT INTO %s.policy_snapshot (external_policy_number, sum_insured, in_force,
                                                      payments_up_to_date, previous_claims,
                                                      queried_at, insurer_db_payload)
                              VALUES (?, ?, ?, ?, ?, NOW(), ?::jsonb)
                           RETURNING id
-                        """,
+                        """.formatted(schema()),
                 Long.class,
                 snapshot.externalPolicyNumber(), snapshot.sumInsured(), snapshot.inForce(),
                 snapshot.paymentsUpToDate(), snapshot.previousClaims(), snapshot.payload());
@@ -91,12 +105,12 @@ public class PolicySnapshotRepository {
     /** {@code queried_at} se pisa también: la foto vigente es la de la última clasificación. */
     private void update(Long snapshotId, Snapshot snapshot) {
         jdbcTemplate.update("""
-                        UPDATE policy_snapshot
+                        UPDATE %s.policy_snapshot
                            SET external_policy_number = ?, sum_insured = ?, in_force = ?,
                                payments_up_to_date = ?, previous_claims = ?,
                                queried_at = NOW(), insurer_db_payload = ?::jsonb
                          WHERE id = ?
-                        """,
+                        """.formatted(schema()),
                 snapshot.externalPolicyNumber(), snapshot.sumInsured(), snapshot.inForce(),
                 snapshot.paymentsUpToDate(), snapshot.previousClaims(), snapshot.payload(),
                 snapshotId);

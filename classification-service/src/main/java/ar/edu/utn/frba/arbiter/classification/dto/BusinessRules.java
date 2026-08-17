@@ -16,15 +16,17 @@ public record BusinessRules(
         List<String> requiredDocumentTypes,
         ScoringConfig scoringConfig,
         List<EvaluableRule> evaluableRules,
-        // The coverage's intrinsic limits (coverage columns), evaluable in code: reporting deadline
-        // (D11) and event cap per year (D10). null = not configured ⇒ the matching rule isn't
-        // evaluated.
+        // The coverage's intrinsic limits (coverage columns), evaluable by code: report deadline
+        // (D11) and events-per-year cap (D10). null = not configured ⇒ the corresponding rule
+        // isn't evaluated.
         Long reportDeadlineHours,
         Integer maxEventsPerYear,
-        // Waiting period (D9): days from the policy's start where the coverage doesn't apply yet.
+        // Waiting period (D9): days since the policy's start date during which the coverage still
+        // doesn't apply.
         Integer waitingPeriodDays,
-        // Coverage scope (D9). The source is the coverage the referente configures, not the insurer
-        // DB's poliza.cubre_grupo_familiar — both exist and already contradict each other.
+        // Coverage scope (D9). The source is the coverage the referente configures, not
+        // poliza.cubre_grupo_familiar from the insurer DB — the two exist and already contradict
+        // each other.
         Boolean coversFamilyGroup,
         Boolean claimExhaustsCoverage
 ) {
@@ -33,9 +35,16 @@ public record BusinessRules(
      * A hard rule evaluated by code (not interpreted by the LLM), configured by the insurer.
      * {@code id} is the {@code insurer_rule} id and must survive the trip: it's what
      * {@code rule_result.rule_id} points at, and without it there's no audit trail
-     * (Disposición SSN 2/2023). Today the only {@code ruleType} is {@code COVERAGE_EXCLUSION}:
-     * the evaluator matches the claim's hecho generador against {@code excludedClaimCauseIds}
-     * <b>by id</b> (names repeat across branches; the id is unambiguous).
+     * (Disposición SSN 2/2023).
+     *
+     * <p>The parameters are nullable because a single list carries different types
+     * ({@link ar.edu.utn.frba.arbiter.common.enums.RuleType}): {@code COVERAGE_EXCLUSION} matches
+     * the claim's hecho generador against {@code excludedClaimCauseIds} <b>by id</b> (names repeat
+     * across branches, the id doesn't), and {@code POLICE_DEADLINE} carries its threshold in
+     * {@code deadlineHours}. The other hard rules arrive <b>with no parameters on purpose</b>: the
+     * row only says the insurer has the rule active, and the coverage sets the threshold (see
+     * {@code reportDeadlineHours}, {@code maxEventsPerYear}, {@code waitingPeriodDays} on this same
+     * record).
      */
     @Builder
     public record EvaluableRule(
@@ -43,7 +52,8 @@ public record BusinessRules(
             String ruleType,
             String effect,
             boolean blocksFastTrack,
-            List<Long> excludedClaimCauseIds
+            List<Long> excludedClaimCauseIds,
+            Long deadlineHours
     ) {}
 
     /**

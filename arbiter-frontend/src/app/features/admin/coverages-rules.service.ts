@@ -18,6 +18,12 @@ export interface CoverageDetail {
   exclusions: string[] | null;
 }
 
+/** One count per branch that has at least one coverage — mirrors CoverageSummary field for field. */
+export interface CoverageSummary {
+  branchId: number;
+  coverageCount: number;
+}
+
 export interface CoverageUpsertRequest {
   name: string;
   clause: string | null;
@@ -44,6 +50,11 @@ export class CoveragesRulesService {
     return this.http.get<CoverageDetail[]>(`${this.base}/detailed`, {
       params: { branchId: String(branchId) },
     });
+  }
+
+  /** Coverage counts for every branch in one call — populates the ramo list without visiting each one. */
+  summary(): Observable<CoverageSummary[]> {
+    return this.http.get<CoverageSummary[]>(`${this.base}/summary`);
   }
 
   create(branchId: number, request: CoverageUpsertRequest): Observable<CoverageDetail> {

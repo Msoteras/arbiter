@@ -1,5 +1,6 @@
 package ar.edu.utn.frba.arbiter.rules.services;
 
+import ar.edu.utn.frba.arbiter.common.enums.RuleType;
 import ar.edu.utn.frba.arbiter.common.models.entities.Branch;
 import ar.edu.utn.frba.arbiter.rules.dto.FastTrackConfigDto;
 import ar.edu.utn.frba.arbiter.rules.dto.FastTrackRuleResponse;
@@ -34,7 +35,6 @@ import java.time.Instant;
 public class FastTrackRuleService {
 
     private static final Logger log = LoggerFactory.getLogger(FastTrackRuleService.class);
-    private static final String FAST_TRACK = "FAST_TRACK";
     // Self-instantiated (Jackson 2), matching the *JsonConverter classes: Spring Boot 4 auto-configures
     // a Jackson 3 (tools.jackson) ObjectMapper, so there's no com.fasterxml bean to inject here.
     private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
@@ -45,7 +45,7 @@ public class FastTrackRuleService {
 
     @Transactional(readOnly = true)
     public FastTrackConfigDto get(Long branchId, Long coverageId) {
-        return ruleRepository.findFirstByBranch_IdAndCoverageIdAndRuleType(branchId, coverageId, FAST_TRACK)
+        return ruleRepository.findFirstByBranch_IdAndCoverageIdAndRuleType(branchId, coverageId, RuleType.FAST_TRACK.name())
                 .map(rule -> deserialize(rule.getConfiguration()))
                 .orElseGet(FastTrackConfigDto::empty);
     }
@@ -53,7 +53,7 @@ public class FastTrackRuleService {
     /** By coverage alone, for the system-to-system read from classification-service. */
     @Transactional(readOnly = true)
     public FastTrackConfigDto getByCoverage(Long coverageId) {
-        return ruleRepository.findFirstByCoverageIdAndRuleType(coverageId, FAST_TRACK)
+        return ruleRepository.findFirstByCoverageIdAndRuleType(coverageId, RuleType.FAST_TRACK.name())
                 .map(rule -> deserialize(rule.getConfiguration()))
                 .orElseGet(FastTrackConfigDto::empty);
     }
@@ -64,7 +64,7 @@ public class FastTrackRuleService {
         Instant now = Instant.now();
 
         InsurerRule rule = ruleRepository
-                .findFirstByBranch_IdAndCoverageIdAndRuleType(branchId, coverageId, FAST_TRACK)
+                .findFirstByBranch_IdAndCoverageIdAndRuleType(branchId, coverageId, RuleType.FAST_TRACK.name())
                 .orElse(null);
 
         if (rule == null) {
@@ -74,7 +74,7 @@ public class FastTrackRuleService {
                     .active(true)
                     .validFrom(now)
                     .name("Fast Track — cobertura " + coverageId)
-                    .ruleType(FAST_TRACK)
+                    .ruleType(RuleType.FAST_TRACK.name())
                     .blocksFastTrack(false)
                     .branch(branch)
                     .coverageId(coverageId)

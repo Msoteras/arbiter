@@ -1,6 +1,6 @@
 import { HttpErrorResponse } from '@angular/common/http';
 import { ChangeDetectionStrategy, Component, inject, signal } from '@angular/core';
-import { Observable, forkJoin, of } from 'rxjs';
+import { Observable, finalize, forkJoin, of } from 'rxjs';
 
 import {
   Coverage,
@@ -12,6 +12,16 @@ import { BranchOption, BranchesService } from '../branches.service';
 import { FastTrackConfigDto, FastTrackRulesService } from '../fast-track-rules.service';
 import { CoverageDetail, CoverageUpsertRequest, CoveragesRulesService } from '../coverages-rules.service';
 import { ClaimCauseOption, CoverageExclusionsService } from '../coverage-exclusions.service';
+import {
+  HARD_RULE_LABELS,
+  HardRule,
+  HardRuleType,
+  HardRulesService,
+  INSURER_HARD_RULE_LABELS,
+  InsurerHardRule,
+  InsurerHardRuleType,
+  OnArrears,
+} from '../hard-rules.service';
 import { DocumentRulesService } from '../document-rules.service';
 import { BusinessRulesTextService } from '../business-rules-text.service';
 import { ButtonComponent } from '../../../shared/ui/button/button.component';
@@ -22,6 +32,9 @@ import { PeritosConfigComponent } from '../peritos-config/peritos-config.compone
 import { ScoringConfigComponent } from '../scoring-config/scoring-config.component';
 import { StringListEditorComponent } from './string-list-editor.component';
 import { InlineLoadingComponent } from '../../../shared/ui/inline-loading/inline-loading.component';
+import { InfoTipComponent } from '../../../shared/ui/info-tip/info-tip.component';
+import { SelectComponent, SelectOption } from '../../../shared/ui/select/select.component';
+import { ToastService } from '../../../shared/ui/toast/toast.service';
 import { fadeInUp, listStagger, staggerReveal } from '../../../shared/animations';
 
 type TabId = 'coberturas' | 'fastTrack' | 'documentacion' | 'reglas';
@@ -34,8 +47,10 @@ type TabId = 'coberturas' | 'fastTrack' | 'documentacion' | 'reglas';
  * catálogo REAL (BranchesService → rules-service /branches): alta, renombre y baja pegan al backend.
  * Ojo: branch es un catálogo GLOBAL (compartido por todas las aseguradoras), no una config por
  * aseguradora — por eso el ABM administra el catálogo maestro.
- * El scoring de fraude NO es por ramo: es una config única por aseguradora y vive en una sección
- * aparte de la pantalla (ScoringConfigComponent), fuera de este master-detail.
+ * Ni el scoring de fraude ni Hard Stop (vigencia/mora) son por ramo: son config única por
+ * aseguradora y viven en sus propios recuadros del sidebar (ScoringConfigComponent /
+ * `loadInsurerHardRules`), fuera de este master-detail — vivían como solapa dentro del ramo hasta
+ * que esa presentación daba a entender, incorrectamente, que Hard Stop era por ramo.
  * Porcentajes en la UI (0..100) ↔ fracción (0..1) en el modelo, que es el contrato del back.
  */
 @Component({
@@ -49,6 +64,8 @@ type TabId = 'coberturas' | 'fastTrack' | 'documentacion' | 'reglas';
     ScoringConfigComponent,
     StringListEditorComponent,
     InlineLoadingComponent,
+    InfoTipComponent,
+    SelectComponent,
   ],
   changeDetection: ChangeDetectionStrategy.OnPush,
   animations: [staggerReveal, listStagger, fadeInUp],
@@ -60,8 +77,10 @@ export class ReglasComponent {
   private readonly ftService = inject(FastTrackRulesService);
   private readonly coveragesService = inject(CoveragesRulesService);
   private readonly exclusionsService = inject(CoverageExclusionsService);
+  private readonly hardRulesService = inject(HardRulesService);
   private readonly documentsService = inject(DocumentRulesService);
   private readonly rulesTextService = inject(BusinessRulesTextService);
+  private readonly toastService = inject(ToastService);
 
   // Estado de guardado real por solapa (Fast Track, Coberturas, Documentación y Reglas de negocio
   // persisten contra el backend, cada una con su propio botón — el "Guardar cambios" global sigue
@@ -100,15 +119,34 @@ export class ReglasComponent {
     { id: 'documentacion', label: 'Documentación' },
     { id: 'reglas', label: 'Reglas de negocio' },
   ];
-  protected readonly activeTab = signal<TabId>('coberturas');
+  // Preferencia de UI, no de sesión: sobrevive a cerrar el navegador (localStorage, no
+  // sessionStorage) porque no hay nada sensible en "qué solapa mirabas la última vez".
+  private static readonly LAST_TAB_KEY = 'arbiter.reglas.lastTab';
+  protected readonly activeTab = signal<TabId>(this.loadLastTab());
 
   protected readonly ramos = signal<RamoRules[]>([]);
   protected readonly ramosLoading = signal(true);
+  // Carga del detalle del ramo elegido. Sin esto el panel derecho se dibuja con el shell vacío
+  // apenas se clickea y va llenándose de a pedazos: se ve un ramo sin coberturas y, dentro de cada
+  // una, los mensajes de "no se pudieron cargar" de los bloques que todavía están en vuelo — como
+  // si hubiera fallado algo. Con el loader, el panel aparece ya armado.
+  protected readonly detailLoading = signal(false);
+  /** Ramo cuyo detalle se está cargando: descarta el conteo de uno que el referente ya dejó atrás. */
+  private detailToken: string | null = null;
+  private pendingDetail = 0;
   protected readonly selectedId = signal<string | null>(null);
   // Qué muestra el panel derecho: el detalle del ramo seleccionado ('ramo') o el scoring de la
   // aseguradora ('scoring'), que no pertenece a ningún ramo y se elige desde su propio recuadro.
-  protected readonly view = signal<'ramo' | 'scoring' | 'peritos'>('ramo');
+  protected readonly view = signal<'ramo' | 'scoring' | 'hardStop' | 'peritos'>('ramo');
   protected readonly draft = signal<RamoRules | null>(null);
+
+  // Último conteo de coberturas conocido (branchId → coverageCount). Cacheado acá porque
+  // refreshCoverageSummary() y la carga de ramos son dos HTTP calls independientes disparadas
+  // juntas en el constructor, sin orden garantizado: si el conteo llega antes que la lista de
+  // ramos, escribir directo sobre `ramos` (todavía vacío) lo perdía en silencio — el `.set()`
+  // posterior de la lista lo pisaba con el shell en 0. Guardarlo acá y reaplicarlo desde los dos
+  // puntos de resolución (cualquiera que llegue después) lo hace determinístico.
+  private coverageCounts = new Map<string, number>();
 
   constructor() {
     // La lista sale del catálogo real de ramos (tabla branch). Cada ramo arranca como un shell
@@ -118,12 +156,81 @@ export class ReglasComponent {
         const ramos = branches.map((b) => this.shellFromBranch(b));
         this.ramos.set(ramos);
         this.ramosLoading.set(false);
+        this.applyCoverageCounts();
         if (ramos.length > 0) {
           this.select(ramos[0]);
         }
       },
       error: () => this.ramosLoading.set(false),
     });
+    this.refreshCoverageSummary();
+    this.loadInsurerHardRules();
+  }
+
+  /**
+   * El conteo de "N coberturas" de la lista sale de un endpoint aparte, liviano, que trae todos
+   * los ramos de una — así el número es correcto de entrada, sin esperar a que el referente
+   * clickee cada ramo (que es lo único que dispara la carga del detalle completo). Se vuelve a
+   * llamar después de guardar coberturas, porque un alta/baja cambia el conteo.
+   */
+  private refreshCoverageSummary(): void {
+    this.coveragesService.summary().subscribe({
+      next: (counts) => {
+        this.coverageCounts = new Map(counts.map((c) => [String(c.branchId), c.coverageCount]));
+        this.applyCoverageCounts();
+      },
+      error: () => {
+        /* best-effort: la lista se queda con el último conteo conocido */
+      },
+    });
+  }
+
+  /** Aplica el último conteo cacheado sobre la lista de ramos actual. */
+  private applyCoverageCounts(): void {
+    if (this.coverageCounts.size === 0) {
+      return;
+    }
+    this.ramos.update((list) =>
+      list.map((r) => ({ ...r, coverageCount: this.coverageCounts.get(r.id) ?? r.coverageCount })),
+    );
+  }
+
+  /** Arranca la carga del detalle de un ramo: el panel derecho muestra el loader hasta que llegue todo. */
+  private beginDetailLoad(ramoId: string): void {
+    this.detailToken = ramoId;
+    this.pendingDetail = 0;
+    this.detailLoading.set(true);
+  }
+
+  /**
+   * Suma una request al detalle del ramo en curso. El loader se apaga recién cuando todas
+   * terminaron —bien o mal—, incluidas las que dispara la respuesta de coberturas (reglas duras y
+   * exclusiones de cada una), que son las que hacían aparecer los chips a destiempo. Las respuestas
+   * de un ramo que el referente ya dejó no cuentan: su loader no es el que está en pantalla.
+   */
+  private trackDetail<T>(ramoId: string, source: Observable<T>): Observable<T> {
+    if (this.detailToken !== ramoId) {
+      return source;
+    }
+    this.pendingDetail += 1;
+    return source.pipe(
+      finalize(() => {
+        if (this.detailToken !== ramoId) {
+          return;
+        }
+        this.pendingDetail -= 1;
+        if (this.pendingDetail === 0) {
+          this.detailLoading.set(false);
+        }
+      }),
+    );
+  }
+
+  /** Apaga el loader si no quedó nada en vuelo (ramo sin branchId real: no se pidió nada). */
+  private settleDetailLoad(): void {
+    if (this.pendingDetail === 0) {
+      this.detailLoading.set(false);
+    }
   }
 
   /** Shell de RamoRules a partir del ramo real: id + nombre; el resto lo llena el backend al select. */
@@ -132,6 +239,7 @@ export class ReglasComponent {
       id: String(branch.id),
       name: branch.name,
       coverages: [],
+      coverageCount: 0,
       commonExclusions: [],
       requiredDocuments: [],
       businessRules: [],
@@ -166,6 +274,11 @@ export class ReglasComponent {
     this.view.set('peritos');
   }
 
+  /** El recuadro "Hard Stop" de la izquierda: vigencia y mora, de toda la aseguradora, no del ramo. */
+  protected selectHardStop(): void {
+    this.view.set('hardStop');
+  }
+
   protected select(r: RamoRules): void {
     this.view.set('ramo');
     this.selectedId.set(r.id);
@@ -181,11 +294,13 @@ export class ReglasComponent {
     this.rulesError.set(null);
     this.renameSaved.set(false);
     this.renameError.set(null);
+    this.beginDetailLoad(r.id);
     this.loadClaimCauses(r);
     this.loadFastTrackFromBackend(r);
     this.loadCoveragesFromBackend(r);
     this.loadDocumentsFromBackend(r);
     this.loadBusinessRulesFromBackend(r);
+    this.settleDetailLoad();
   }
 
   /** Catálogo de hechos generadores del ramo, para el selector de exclusiones duras por cobertura. */
@@ -195,7 +310,7 @@ export class ReglasComponent {
     if (branchId == null) {
       return;
     }
-    this.exclusionsService.listClaimCauses(branchId).subscribe({
+    this.trackDetail(r.id, this.exclusionsService.listClaimCauses(branchId)).subscribe({
       next: (options) => this.claimCauses.set(options),
       error: () => {
         /* backend caído: el selector queda vacío, sin romper la pantalla */
@@ -213,7 +328,7 @@ export class ReglasComponent {
     if (branchId == null) {
       return;
     }
-    this.ftService.loadForBranch(branchId).subscribe({
+    this.trackDetail(r.id, this.ftService.loadForBranch(branchId)).subscribe({
       next: (dto) => this.overlayFastTrack(dto),
       error: () => {
         /* backend caído: nos quedamos con el mock, sin romper la pantalla */
@@ -257,16 +372,18 @@ export class ReglasComponent {
     if (branchId == null) {
       return;
     }
-    this.coveragesService.listDetailed(branchId).subscribe({
+    const ramoId = r.id;
+    this.trackDetail(ramoId, this.coveragesService.listDetailed(branchId)).subscribe({
       next: (list) => {
-        this.overlayCoverages(list);
-        this.loadCoverageExclusions(list);
+        this.overlayCoverages(ramoId, list);
+        this.loadCoverageExclusions(ramoId, list);
+        this.loadCoverageHardRules(ramoId, list);
       },
       error: () => {
         /* backend caído: nos quedamos con el mock, sin romper la pantalla */
       },
     });
-    this.rulesTextService.getExclusions(branchId).subscribe({
+    this.trackDetail(ramoId, this.rulesTextService.getExclusions(branchId)).subscribe({
       next: (items) => {
         this.draft.update((d) => (d ? { ...d, commonExclusions: items } : d));
       },
@@ -276,7 +393,7 @@ export class ReglasComponent {
     });
   }
 
-  private overlayCoverages(list: CoverageDetail[]): void {
+  private overlayCoverages(ramoId: string, list: CoverageDetail[]): void {
     const coverages: Coverage[] = list.map((c) => ({
       id: String(c.id),
       name: c.name,
@@ -292,9 +409,17 @@ export class ReglasComponent {
       // Las exclusiones duras (por hecho generador) viven en rules-service, no en este detalle:
       // arrancan vacías y las completa loadCoverageExclusions.
       excludedClaimCauseIds: [],
+      // Same for the hard temporal rules: loadCoverageHardRules fills them in.
+      hardRules: [],
     }));
     this.loadedCoverages = coverages;
-    this.draft.update((d) => (d ? { ...d, coverages } : d));
+    // Only touch the draft if it's still showing the ramo this response is for — the referente
+    // may have switched to a different ramo while the request was in flight, and a slow reply
+    // for the one they left shouldn't clobber what's on screen now. The sidebar's "N coberturas"
+    // badge doesn't depend on this: it reads coverageCount, populated separately from
+    // /coverages/summary (see refreshCoverageSummary) so it's accurate before any ramo is ever
+    // selected, not just after.
+    this.draft.update((d) => (d && d.id === ramoId ? { ...d, coverages } : d));
   }
 
   /**
@@ -303,9 +428,9 @@ export class ReglasComponent {
    * cargan. Solo para coberturas con id real; las altas locales (`cov-…`) todavía no existen en el
    * backend.
    */
-  private loadCoverageExclusions(list: CoverageDetail[]): void {
+  private loadCoverageExclusions(ramoId: string, list: CoverageDetail[]): void {
     list.forEach((c) => {
-      this.exclusionsService.get(c.id).subscribe({
+      this.trackDetail(ramoId, this.exclusionsService.get(c.id)).subscribe({
         next: (ids) => this.setCoverageExcludedIds(String(c.id), ids),
         error: () => {
           /* best-effort */
@@ -331,13 +456,47 @@ export class ReglasComponent {
     );
   }
 
+  /**
+   * Fetches each persisted coverage's hard temporal rules (rules-service). Best-effort and
+   * independent per coverage, same as the exclusions: if one fails, the others still load.
+   */
+  private loadCoverageHardRules(ramoId: string, list: CoverageDetail[]): void {
+    const draft = this.draft();
+    const branchId = draft ? this.branchIdOf(draft) : null;
+    if (branchId == null) {
+      return;
+    }
+    list.forEach((c) => {
+      this.trackDetail(ramoId, this.hardRulesService.get(branchId, c.id)).subscribe({
+        next: (rules) => this.setCoverageHardRules(String(c.id), rules),
+        error: () => {
+          /* best-effort */
+        },
+      });
+    });
+  }
+
+  private setCoverageHardRules(coverageId: string, rules: HardRule[]): void {
+    this.draft.update((d) =>
+      d
+        ? {
+            ...d,
+            coverages: d.coverages.map((c) => (c.id === coverageId ? { ...c, hardRules: rules } : c)),
+          }
+        : d,
+    );
+    this.loadedCoverages = this.loadedCoverages.map((c) =>
+      c.id === coverageId ? { ...c, hardRules: rules } : c,
+    );
+  }
+
   /** Trae la agenda documental real del ramo (rules-service, fan-out invisible en el backend). */
   private loadDocumentsFromBackend(r: RamoRules): void {
     const branchId = this.branchIdOf(r);
     if (branchId == null) {
       return;
     }
-    this.documentsService.get(branchId).subscribe({
+    this.trackDetail(r.id, this.documentsService.get(branchId)).subscribe({
       next: (types) => {
         this.draft.update((d) => (d ? { ...d, requiredDocuments: types } : d));
       },
@@ -353,7 +512,7 @@ export class ReglasComponent {
     if (branchId == null) {
       return;
     }
-    this.rulesTextService.getBusinessRules(branchId).subscribe({
+    this.trackDetail(r.id, this.rulesTextService.getBusinessRules(branchId)).subscribe({
       next: (items) => {
         this.draft.update((d) => (d ? { ...d, businessRules: items } : d));
       },
@@ -370,6 +529,14 @@ export class ReglasComponent {
 
   protected setTab(t: TabId): void {
     this.activeTab.set(t);
+    localStorage.setItem(ReglasComponent.LAST_TAB_KEY, t);
+  }
+
+  /** Arranca en la última solapa que el referente miró; si no hay nada guardado o quedó
+   * inválida (ej. venía de una versión vieja con otras solapas), cae a Coberturas. */
+  private loadLastTab(): TabId {
+    const saved = localStorage.getItem(ReglasComponent.LAST_TAB_KEY);
+    return this.tabs.some((t) => t.id === saved) ? (saved as TabId) : 'coberturas';
   }
 
   // ───────────────── Ramos: renombre ─────────────────
@@ -427,9 +594,133 @@ export class ReglasComponent {
       claimExhaustsCoverage: false,
       exclusions: [],
       excludedClaimCauseIds: [],
+      hardRules: [],
     };
     this.draft.update((d) => (d ? { ...d, coverages: [...d.coverages, coverage] } : d));
     this.markDirty();
+  }
+
+  // ───────────────── Hard temporal rules per coverage ─────────────────
+  /** The coverage's hard rules; empty while they haven't loaded or if the coverage is local. */
+  protected hardRulesOf(c: Coverage): HardRule[] {
+    return c.hardRules ?? [];
+  }
+
+  protected hardRuleLabel(type: HardRuleType): string {
+    return HARD_RULE_LABELS[type];
+  }
+
+  /** The police-report deadline is the only one with its own threshold: the rest take theirs from above. */
+  protected hasOwnThreshold(rule: HardRule): boolean {
+    return rule.ruleType === 'POLICE_DEADLINE';
+  }
+
+  protected policeDeadlineStr(c: Coverage): string {
+    const rule = this.hardRulesOf(c).find((r) => r.ruleType === 'POLICE_DEADLINE');
+    return this.intStr(rule?.deadlineHours ?? null);
+  }
+
+  protected setPoliceDeadline(coverageId: string, value: string): void {
+    this.patchHardRule(coverageId, 'POLICE_DEADLINE', (r) => ({
+      ...r,
+      deadlineHours: this.intFromStr(value),
+    }));
+  }
+
+  protected toggleHardRule(coverageId: string, type: HardRuleType): void {
+    this.patchHardRule(coverageId, type, (r) => ({ ...r, enabled: !r.enabled }));
+  }
+
+  private patchHardRule(coverageId: string, type: HardRuleType, patch: (rule: HardRule) => HardRule): void {
+    this.draft.update((d) =>
+      d
+        ? {
+            ...d,
+            coverages: d.coverages.map((c) =>
+              c.id === coverageId
+                ? { ...c, hardRules: this.hardRulesOf(c).map((r) => (r.ruleType === type ? patch(r) : r)) }
+                : c,
+            ),
+          }
+        : d,
+    );
+    this.markDirty();
+  }
+
+  // ───────────────── Hard Stop: reglas de toda la aseguradora ─────────────────
+  // Vigencia y mora no dependen de la cobertura elegida (D13, la póliza está o no vigente sin
+  // importar bajo qué cobertura se reclame), así que salen de un endpoint aparte que no lleva
+  // branchId/coverageId. Se cargan una sola vez al construir el componente, no por ramo — el
+  // contenido de esta pestaña es el mismo elijas el ramo que elijas.
+  protected readonly insurerHardRules = signal<InsurerHardRule[]>([]);
+  // Se carga una sola vez (no depende del ramo, así que `detailLoading` no la cubre) — sin esto,
+  // si el referente entra a la solapa Hard Stop mientras la request todavía está en vuelo, ve los
+  // chips en "Inactiva" por default como si ya hubiera cargado, en lugar de un loader.
+  protected readonly hardStopLoading = signal(true);
+  protected readonly hardStopSaving = signal(false);
+  protected readonly hardStopSaved = signal(false);
+
+  protected readonly onArrearsOptions: SelectOption[] = [
+    { value: 'REJECT', label: 'Rechazar en el alta' },
+    { value: 'STANDBY', label: 'Dejar en standby' },
+  ];
+
+  private loadInsurerHardRules(): void {
+    this.hardStopLoading.set(true);
+    this.hardRulesService
+      .getInsurerWide()
+      .pipe(finalize(() => this.hardStopLoading.set(false)))
+      .subscribe({
+        next: (rules) => this.insurerHardRules.set(rules),
+        error: () => {
+          /* backend caído: la pestaña queda vacía, sin romper la pantalla */
+        },
+      });
+  }
+
+  protected insurerHardRuleLabel(type: InsurerHardRuleType): string {
+    return INSURER_HARD_RULE_LABELS[type];
+  }
+
+  protected toggleInsurerHardRule(type: InsurerHardRuleType): void {
+    this.insurerHardRules.update((list) =>
+      list.map((r) => (r.ruleType === type ? { ...r, enabled: !r.enabled } : r)),
+    );
+    this.hardStopSaved.set(false);
+  }
+
+  protected setOnArrears(value: string): void {
+    this.insurerHardRules.update((list) =>
+      list.map((r) => (r.ruleType === 'POLICY_STANDING' ? { ...r, onArrears: value as OnArrears } : r)),
+    );
+    this.hardStopSaved.set(false);
+  }
+
+  protected policyStandingRule(): InsurerHardRule | undefined {
+    return this.insurerHardRules().find((r) => r.ruleType === 'POLICY_STANDING');
+  }
+
+  protected policyInForceRule(): InsurerHardRule | undefined {
+    return this.insurerHardRules().find((r) => r.ruleType === 'POLICY_IN_FORCE');
+  }
+
+  protected saveHardStop(): void {
+    if (this.hardStopSaving()) {
+      return;
+    }
+    this.hardStopSaving.set(true);
+    this.hardStopSaved.set(false);
+    this.hardRulesService.saveInsurerWide(this.insurerHardRules()).subscribe({
+      next: (rules) => {
+        this.insurerHardRules.set(rules);
+        this.hardStopSaving.set(false);
+        this.hardStopSaved.set(true);
+      },
+      error: (e: unknown) => {
+        this.hardStopSaving.set(false);
+        this.toastService.show(this.backendErrorMessage(e));
+      },
+    });
   }
 
   // ───────────────── Exclusiones duras por cobertura (hecho generador) ─────────────────
@@ -681,6 +972,11 @@ export class ReglasComponent {
       ...toUpdate.map((c) =>
         this.exclusionsService.save(branchId, Number(c.id), c.excludedClaimCauseIds ?? []),
       ),
+      // Hard temporal rules, same criterion: only the already-persisted coverages. A newly
+      // created coverage configures them after the reload, once it has a real id.
+      ...toUpdate
+        .filter((c) => this.hardRulesOf(c).length > 0)
+        .map((c) => this.hardRulesService.save(branchId, Number(c.id), this.hardRulesOf(c))),
       this.rulesTextService.saveExclusions(branchId, d.commonExclusions),
     ];
 
@@ -691,6 +987,8 @@ export class ReglasComponent {
         this.covSaved.set(true);
         // Recarga: los que eran altas ahora tienen id real del backend.
         this.loadCoveragesFromBackend(d);
+        // Un alta o baja de cobertura cambió el conteo que ve la lista de ramos.
+        this.refreshCoverageSummary();
       },
       error: (e: unknown) => {
         this.covSaving.set(false);
