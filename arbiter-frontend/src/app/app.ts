@@ -8,7 +8,14 @@ import {
   signal,
 } from '@angular/core';
 import { toSignal } from '@angular/core/rxjs-interop';
-import { NavigationEnd, Router, RouterLink, RouterLinkActive, RouterOutlet } from '@angular/router';
+import {
+  NavigationEnd,
+  NavigationStart,
+  Router,
+  RouterLink,
+  RouterLinkActive,
+  RouterOutlet,
+} from '@angular/router';
 import { filter, map } from 'rxjs';
 
 import { AuthSessionService } from './core/auth/auth-session.service';
@@ -19,6 +26,7 @@ import { userRoleLabel } from './core/models/user-role';
 import { LogoComponent } from './shared/ui/logo/logo.component';
 import { ButtonComponent } from './shared/ui/button/button.component';
 import { ModalComponent } from './shared/ui/modal/modal.component';
+import { NotificationsPanelComponent } from './core/notifications/notifications-panel.component';
 import { NuevaDenunciaComponent } from './features/expedientes/nueva-denuncia/nueva-denuncia.component';
 import { GlobalSearchComponent } from './features/expedientes/global-search/global-search.component';
 
@@ -38,6 +46,7 @@ const NAV_OPEN_KEY = 'arbiter.nav-open';
     ModalComponent,
     NuevaDenunciaComponent,
     GlobalSearchComponent,
+    NotificationsPanelComponent,
   ],
   changeDetection: ChangeDetectionStrategy.OnPush,
   // Desactiva TODAS las animaciones de @angular/animations (stagger, growBar, etc.) del árbol
@@ -76,12 +85,26 @@ export class App {
       // lo haya pedido; al ensancharse vuelve a lo que el usuario había elegido.
       this.navOpen.set(e.matches ? false : this.storedNavOpen());
     });
+
+    // Tied to the session and not to the constructor: the session lives in memory, so on reload
+    // it's null for an instant and the count would come back empty.
+    effect(() => {
+      if (this.session.session()) {
+        this.notifications.refreshUnreadCount();
+      }
+    });
   }
 
+  // Se escucha NavigationStart además de NavigationEnd: el outlet activa la ruta antes del End,
+  // así que mirando solo el End el marco llegaba tarde y la pantalla nueva se pintaba un frame
+  // sin chrome (al entrar recién logueado, la URL todavía era /login).
   private readonly currentUrl = toSignal(
     this.router.events.pipe(
-      filter((event): event is NavigationEnd => event instanceof NavigationEnd),
-      map((event) => event.urlAfterRedirects),
+      filter(
+        (event): event is NavigationStart | NavigationEnd =>
+          event instanceof NavigationStart || event instanceof NavigationEnd,
+      ),
+      map((event) => (event instanceof NavigationEnd ? event.urlAfterRedirects : event.url)),
     ),
     { initialValue: this.router.url },
   );
@@ -118,9 +141,7 @@ export class App {
   );
 
   /** "Inicio" es lo único que la topbar navega; cada rol aterriza en su propio home. */
-  protected readonly homeLink = computed(() =>
-    this.showAdminNav() ? '/insurer/home' : '/home',
-  );
+  protected readonly homeLink = computed(() => (this.showAdminNav() ? '/insurer/home' : '/home'));
 
   // Campana de la topbar interna (analista y referente). El asegurado también tiene campana, pero
   // en su propio topbar del portal (se renderiza directo ahí, sin pasar por este flag).
@@ -185,31 +206,44 @@ export class App {
   protected toggleProfile(event: MouseEvent): void {
     // Sin esto el click llega a document y el listener de abajo lo cierra en el mismo tick.
     event.stopPropagation();
+    // Los dos desplegables cuelgan de la misma esquina: abrir uno cierra al otro.
+    this.showNotifications.set(false);
     this.profileOpen.update((open) => !open);
   }
 
   @HostListener('document:click')
   protected onDocumentClick(): void {
-    if (this.profileOpen()) this.profileOpen.set(false);
+    this.profileOpen.set(false);
+    this.showNotifications.set(false);
   }
 
   @HostListener('document:keydown.escape')
   protected onEscape(): void {
-    if (this.profileOpen()) this.profileOpen.set(false);
+    this.profileOpen.set(false);
+    this.showNotifications.set(false);
     if (this.overlayNav() && this.navOpen()) this.navOpen.set(false);
   }
 
-  // La campana abre un panel de notificaciones. Hoy el productor real (polling/SSE) no está
-  // cableado y el contador siempre es 0, así que el panel muestra el vacío honesto en vez de
-  // un ícono decorativo que no hacía nada (ver bug #4 del relevamiento de UX).
+  // ───────────────── Notificaciones (desplegable anclado a la campana) ─────────────────
+  // Era un modal: tapaba la pantalla entera para mostrar una lista corta que se lee de un vistazo.
+  // Ahora se comporta como el menú de perfil — abre pegado a la campana y cierra al clickear
+  // afuera, con Escape o al abrir el otro menú.
   protected readonly showNotifications = signal(false);
 
-  protected openNotifications(): void {
+  protected toggleNotifications(event: MouseEvent): void {
+    // Sin esto el click llega a document y el listener de abajo lo cierra en el mismo tick.
+    event.stopPropagation();
+    if (this.showNotifications()) {
+      this.showNotifications.set(false);
+      return;
+    }
+    this.profileOpen.set(false);
     this.showNotifications.set(true);
+    // Abrir es "las vi": el servicio trae la lista y marca como leídas.
+    this.notifications.openPanel();
   }
 
   protected closeNotifications(): void {
-    this.notifications.markAllRead();
     this.showNotifications.set(false);
   }
 
@@ -236,6 +270,7 @@ export class App {
   protected confirmLogout(): void {
     this.showLogoutConfirm.set(false);
     this.session.clear();
+    this.notifications.clear();
     // El próximo ingreso vuelve a tener su carga de marca completa (login → home).
     this.appReady.reset();
     this.router.navigateByUrl('/login');

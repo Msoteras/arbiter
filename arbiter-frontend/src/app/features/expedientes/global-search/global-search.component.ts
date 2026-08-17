@@ -9,7 +9,15 @@ import {
 } from '@angular/core';
 import { toObservable, toSignal } from '@angular/core/rxjs-interop';
 import { Router } from '@angular/router';
-import { catchError, debounceTime, distinctUntilChanged, map, of, startWith, switchMap } from 'rxjs';
+import {
+  catchError,
+  debounceTime,
+  distinctUntilChanged,
+  map,
+  of,
+  startWith,
+  switchMap,
+} from 'rxjs';
 
 import { ExpedienteService } from '../expediente.service';
 import { ExpedienteResponse } from '../../../core/models/expediente';
@@ -67,7 +75,7 @@ const IDLE: SearchState = { items: [], loading: false, failed: false };
         aria-label="Buscar expedientes"
         [attr.aria-expanded]="panelOpen()"
         aria-controls="gsearch-panel"
-        placeholder="Buscar por N° de expediente, póliza o asegurado…"
+        placeholder="Buscar por N° de expediente, asegurado o N° de póliza…"
         [value]="query()"
         (input)="onInput($any($event.target).value)"
         (focus)="focused.set(true)"
@@ -139,12 +147,22 @@ const IDLE: SearchState = { items: [], loading: false, failed: false };
       flex: 1 1 auto;
       min-width: 0;
       font: inherit;
-      /* 16px en mobile evita el zoom de iOS al enfocar (misma regla que app-input). */
+      /* 16px en mobile evita el zoom de iOS al enfocar (misma regla que app-input); en desktop
+         baja a cuerpo para que el placeholder entre completo — es el que dice sobre qué se puede
+         buscar, y truncado deja al usuario creyendo que solo busca por N° de expediente. */
       font-size: var(--font-size-lg);
       background: none;
       border: none;
       outline: none;
       color: var(--chrome-fg);
+    }
+    @media (min-width: 641px) {
+      .gsearch-field {
+        font-size: var(--font-size-body);
+      }
+      .gsearch-field::placeholder {
+        font-size: var(--font-size-sm);
+      }
     }
     .gsearch-field::placeholder {
       color: var(--chrome-muted);

@@ -119,7 +119,7 @@
 /* El buscador va con las acciones, a la derecha: no es navegación, es una herramienta más de la
    barra — vive al lado de la campana. */
 .appbar-search {
-  flex: 0 1 320px;
+  flex: 0 1 340px;
   min-width: 0;
 }
 
@@ -161,6 +161,33 @@
 /* Variante del punto sobre superficie clara (campana del portal del asegurado). */
 .bell-dot--light {
   border-color: var(--surface);
+}
+
+/* Contador de no leídas. Va en el oscuro de énfasis y no en el semáforo --status-*: ese comunica
+   estado del expediente, y esto es un contador. El teal queda reservado a selección y foco.
+   El borde recorta contra la superficie de cada barra: clara en el portal, oscura en el chrome. */
+.bell-count {
+  position: absolute;
+  top: 0;
+  right: 0;
+  min-width: var(--space-4);
+  padding: 0 var(--space-1);
+  border-radius: var(--radius-pill);
+  background: var(--action-primary-bg);
+  border: 2px solid var(--surface);
+  color: var(--action-primary-fg);
+  font-size: var(--font-size-2xs);
+  font-weight: var(--font-weight-bold);
+  line-height: var(--space-4);
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+}
+/* Sobre el chrome oscuro el contador se invierte: fondo claro, texto oscuro, y recorta contra
+   la barra. Con --action-primary-* quedaba oscuro sobre oscuro. */
+.appbar .bell-count {
+  background: var(--chrome-fg);
+  color: var(--chrome-bg);
+  border-color: var(--chrome-bg);
 }
 
 /* ===== Perfil (único lugar donde aparece: la topbar) ===== */
@@ -480,4 +507,11 @@
   .topbar-user-name {
     display: none;
   }
+}
+/* ===== Notificaciones ===== */
+/* Contenedor relativo de la campana: el panel (app-notifications-panel) se ancla a ella. */
+.appbar-notifs,
+.topbar-notifs {
+  position: relative;
+  display: flex;
 }

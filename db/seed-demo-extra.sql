@@ -319,13 +319,20 @@ INSERT INTO arbiter_bbva.case_status_history (reason, observation, actor, change
     ('Denuncia registrada', NULL, 'INSURED', '2026-07-26 09:00:00+00', 5, NULL, 1, 20),
     ('La clasificación falló tras agotar reintentos', NULL, 'SYSTEM', '2026-07-26 09:06:00+00', NULL, 1, 4, 20);
 
+-- El destinatario sale del asegurado del caso y no de un id escrito a mano: escribirlo suelto
+-- ya mandó tres notificaciones de asegurado al analista (user 2), que las veía en su campana.
 INSERT INTO arbiter_bbva.notification (type, channel, content, sent, read, sent_at, read_at,
-                                   recipient_id, case_id) VALUES
-    ('CAMBIO_ESTADO', 'EMAIL', 'Tu siniestro fue aprobado. En los próximos días vas a recibir el detalle de la liquidación.', TRUE, FALSE, '2024-04-11 09:30:00+00', NULL, 1, 6),
-    ('CAMBIO_ESTADO', 'EMAIL', 'Tu siniestro fue aprobado. En los próximos días vas a recibir el detalle de la liquidación.', TRUE, FALSE, '2024-08-02 20:40:00+00', NULL, 2, 7),
-    ('CAMBIO_ESTADO', 'EMAIL', 'Tu siniestro fue rechazado. Podés ver el detalle y los motivos en el portal.', TRUE, FALSE, '2025-06-16 10:30:00+00', NULL, 1, 8),
-    ('CAMBIO_ESTADO', 'EMAIL', 'Tu siniestro fue rechazado. Podés ver el detalle y los motivos en el portal.', TRUE, FALSE, '2026-07-11 11:30:00+00', NULL, 2, 16),
-    ('CAMBIO_ESTADO', 'EMAIL', 'Tu siniestro fue rechazado. Podés ver el detalle y los motivos en el portal.', TRUE, FALSE, '2026-08-02 16:30:00+00', NULL, 1, 17);
+                                   recipient_id, case_id)
+SELECT v.type, v.channel, v.content, v.sent, v.read, v.sent_at, v.read_at, i.user_id, v.case_id
+FROM (VALUES
+    ('CAMBIO_ESTADO', 'EMAIL', 'Tu siniestro fue aprobado. En los próximos días vas a recibir el detalle de la liquidación.', TRUE, FALSE, TIMESTAMPTZ '2024-04-11 09:30:00+00', NULL::timestamptz, 6),
+    ('CAMBIO_ESTADO', 'EMAIL', 'Tu siniestro fue aprobado. En los próximos días vas a recibir el detalle de la liquidación.', TRUE, FALSE, TIMESTAMPTZ '2024-08-02 20:40:00+00', NULL, 7),
+    ('CAMBIO_ESTADO', 'EMAIL', 'Tu siniestro fue rechazado. Podés ver el detalle y los motivos en el portal.', TRUE, FALSE, TIMESTAMPTZ '2025-06-16 10:30:00+00', NULL, 8),
+    ('CAMBIO_ESTADO', 'EMAIL', 'Tu siniestro fue rechazado. Podés ver el detalle y los motivos en el portal.', TRUE, FALSE, TIMESTAMPTZ '2026-07-11 11:30:00+00', NULL, 16),
+    ('CAMBIO_ESTADO', 'EMAIL', 'Tu siniestro fue rechazado. Podés ver el detalle y los motivos en el portal.', TRUE, FALSE, TIMESTAMPTZ '2026-08-02 16:30:00+00', NULL, 17)
+) AS v(type, channel, content, sent, read, sent_at, read_at, case_id)
+JOIN arbiter_bbva.cases c ON c.id = v.case_id
+JOIN arbiter_bbva.insured i ON i.id = c.insured_id;
 
 -- ─── arbiter_provincia: casos nuevos ──────────────────────────────────────────────
 INSERT INTO arbiter_provincia.policy_snapshot (id, external_policy_number, sum_insured, in_force,
@@ -506,10 +513,15 @@ INSERT INTO arbiter_provincia.case_status_history (reason, observation, actor, c
     ('La clasificación falló tras agotar reintentos', NULL, 'SYSTEM', '2026-07-31 09:06:00+00', NULL, 1, 4, 14);
 
 INSERT INTO arbiter_provincia.notification (type, channel, content, sent, read, sent_at, read_at,
-                                   recipient_id, case_id) VALUES
-    ('CAMBIO_ESTADO', 'EMAIL', 'Tu siniestro fue aprobado. En los próximos días vas a recibir el detalle de la liquidación.', TRUE, FALSE, '2025-08-15 10:00:00+00', NULL, 2, 3),
-    ('CAMBIO_ESTADO', 'EMAIL', 'Tu siniestro fue aprobado. En los próximos días vas a recibir el detalle de la liquidación.', TRUE, FALSE, '2025-09-11 09:30:00+00', NULL, 1, 8),
-    ('CAMBIO_ESTADO', 'EMAIL', 'Tu siniestro fue rechazado. Podés ver el detalle y los motivos en el portal.', TRUE, FALSE, '2026-07-16 12:30:00+00', NULL, 1, 10);
+                                   recipient_id, case_id)
+SELECT v.type, v.channel, v.content, v.sent, v.read, v.sent_at, v.read_at, i.user_id, v.case_id
+FROM (VALUES
+    ('CAMBIO_ESTADO', 'EMAIL', 'Tu siniestro fue aprobado. En los próximos días vas a recibir el detalle de la liquidación.', TRUE, FALSE, TIMESTAMPTZ '2025-08-15 10:00:00+00', NULL::timestamptz, 3),
+    ('CAMBIO_ESTADO', 'EMAIL', 'Tu siniestro fue aprobado. En los próximos días vas a recibir el detalle de la liquidación.', TRUE, FALSE, TIMESTAMPTZ '2025-09-11 09:30:00+00', NULL, 8),
+    ('CAMBIO_ESTADO', 'EMAIL', 'Tu siniestro fue rechazado. Podés ver el detalle y los motivos en el portal.', TRUE, FALSE, TIMESTAMPTZ '2026-07-16 12:30:00+00', NULL, 10)
+) AS v(type, channel, content, sent, read, sent_at, read_at, case_id)
+JOIN arbiter_provincia.cases c ON c.id = v.case_id
+JOIN arbiter_provincia.insured i ON i.id = c.insured_id;
 
 -- Enlazar cada caso cerrado con su clasificación (human-in-the-loop).
 UPDATE arbiter_bbva.cases SET classification_id = 1 WHERE id = 6;

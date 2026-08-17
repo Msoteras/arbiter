@@ -1,8 +1,18 @@
-@if (showShell()) {
-  @if (showAseguradoNav()) {
-    <!-- El asegurado no gestiona una cola: su portal es liviano, con la navegación en una barra
-         superior horizontal en vez del chrome oscuro de los roles internos. -->
-    <div class="app-shell app-shell--top">
+<!-- Un solo <router-outlet> para toda la app, a propósito. Cuando había uno por rama del @if,
+     entrar recién logueado remontaba la pantalla: el outlet activa la ruta ANTES de que
+     `showShell()` se entere del cambio de URL, así que el home se creaba en la rama sin shell y
+     se destruía y recreaba al aparecer el chrome — se veían las tarjetas y enseguida el spinner
+     de "Actualizando…". El marco cambia alrededor del outlet; el outlet no se mueve. -->
+<div
+  class="app-frame"
+  [class.app-shell]="showShell()"
+  [class.app-shell--top]="showShell() && showAseguradoNav()"
+  [class.app-shell--chrome]="showShell() && !showAseguradoNav()"
+  [class.nav-open]="navOpen()"
+  [class.nav-overlay]="overlayNav()"
+>
+  @if (showShell()) {
+    @if (showAseguradoNav()) {
       <header class="topbar">
         <div class="topbar-brand">
           <app-logo variant="symbol" class="topbar-logo" />
@@ -23,36 +33,48 @@
           <div class="topbar-user">
             <span class="topbar-user-name">{{ s.nombre }} {{ s.apellido }}</span>
             <span class="topbar-avatar">{{ initials(s.nombre, s.apellido) }}</span>
-            <button
-              type="button"
-              class="topbar-bell"
-              (click)="openNotifications()"
-              [attr.aria-label]="
-                notifications.hasUnread()
-                  ? 'Notificaciones: ' + notifications.unreadCount() + ' sin leer'
-                  : 'Notificaciones'
-              "
-            >
-              <svg
-                width="18"
-                height="18"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                stroke-width="1.6"
-                aria-hidden="true"
+            <div class="topbar-notifs">
+              <button
+                type="button"
+                class="topbar-bell"
+                [attr.aria-expanded]="showNotifications()"
+                (click)="toggleNotifications($event)"
+                [attr.aria-label]="
+                  notifications.hasUnread()
+                    ? 'Notificaciones: ' + notifications.unreadCount() + ' sin leer'
+                    : 'Notificaciones'
+                "
               >
-                <path
-                  d="M18 8a6 6 0 1 0-12 0c0 7-3 9-3 9h18s-3-2-3-9"
-                  stroke-linecap="round"
-                  stroke-linejoin="round"
-                />
-                <path d="M13.73 21a2 2 0 0 1-3.46 0" stroke-linecap="round" stroke-linejoin="round" />
-              </svg>
-              @if (notifications.hasUnread()) {
-                <span class="bell-dot bell-dot--light" aria-hidden="true"></span>
+                <svg
+                  width="18"
+                  height="18"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="1.6"
+                  aria-hidden="true"
+                >
+                  <path
+                    d="M18 8a6 6 0 1 0-12 0c0 7-3 9-3 9h18s-3-2-3-9"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                  />
+                  <path
+                    d="M13.73 21a2 2 0 0 1-3.46 0"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                  />
+                </svg>
+                @if (notifications.hasUnread()) {
+                  <span class="bell-count" aria-hidden="true">{{
+                    notifications.unreadCount()
+                  }}</span>
+                }
+              </button>
+              @if (showNotifications()) {
+                <app-notifications-panel (close)="closeNotifications()" />
               }
-            </button>
+            </div>
             <button
               type="button"
               class="topbar-icon-btn"
@@ -85,34 +107,10 @@
           </div>
         }
       </header>
-
-      <main class="app-content">
-        <router-outlet />
-      </main>
-    </div>
-
-    <!-- Nueva denuncia como pop-up centrado sobre el portal. El wizard se carga diferido
-         (@defer) recién al abrirlo, así no pesa en el bundle inicial del asegurado. -->
-    <app-modal
-      [open]="newClaim.isOpen()"
-      heading="Nueva denuncia"
-      size="lg"
-      [hideActions]="true"
-      [dismissable]="false"
-      (close)="newClaim.close()"
-    >
-      @defer (when newClaim.isOpen()) {
-        <app-nueva-denuncia [embedded]="true" (close)="newClaim.close()" />
-      }
-    </app-modal>
-  } @else {
-    <!-- Roles internos (analista / referente): topbar fija de ancho completo + panel de navegación
-         desplegable debajo. El perfil vive solo en la topbar; el panel es solo secciones. -->
-    <div
-      class="app-shell app-shell--chrome"
-      [class.nav-open]="navOpen()"
-      [class.nav-overlay]="overlayNav()"
-    >
+    } @else {
+      <!-- Roles internos (analista / referente): topbar fija de ancho completo + panel de
+           navegación desplegable debajo. El perfil vive solo en la topbar; el panel es solo
+           secciones. -->
       <header class="appbar">
         <button
           type="button"
@@ -150,40 +148,48 @@
           <app-global-search class="appbar-search" />
 
           @if (showBell()) {
-            <button
-              type="button"
-              class="appbar-icon-btn"
-              (click)="openNotifications()"
-              [attr.aria-label]="
-                notifications.hasUnread()
-                  ? 'Notificaciones: ' + notifications.unreadCount() + ' sin leer'
-                  : 'Notificaciones'
-              "
-            >
-              <svg
-                width="18"
-                height="18"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                stroke-width="1.6"
-                aria-hidden="true"
+            <div class="appbar-notifs">
+              <button
+                type="button"
+                class="appbar-icon-btn"
+                [attr.aria-expanded]="showNotifications()"
+                (click)="toggleNotifications($event)"
+                [attr.aria-label]="
+                  notifications.hasUnread()
+                    ? 'Notificaciones: ' + notifications.unreadCount() + ' sin leer'
+                    : 'Notificaciones'
+                "
               >
-                <path
-                  d="M18 8a6 6 0 1 0-12 0c0 7-3 9-3 9h18s-3-2-3-9"
-                  stroke-linecap="round"
-                  stroke-linejoin="round"
-                />
-                <path
-                  d="M13.73 21a2 2 0 0 1-3.46 0"
-                  stroke-linecap="round"
-                  stroke-linejoin="round"
-                />
-              </svg>
-              @if (notifications.hasUnread()) {
-                <span class="bell-dot" aria-hidden="true"></span>
+                <svg
+                  width="18"
+                  height="18"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="1.6"
+                  aria-hidden="true"
+                >
+                  <path
+                    d="M18 8a6 6 0 1 0-12 0c0 7-3 9-3 9h18s-3-2-3-9"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                  />
+                  <path
+                    d="M13.73 21a2 2 0 0 1-3.46 0"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                  />
+                </svg>
+                @if (notifications.hasUnread()) {
+                  <span class="bell-count" aria-hidden="true">{{
+                    notifications.unreadCount()
+                  }}</span>
+                }
+              </button>
+              @if (showNotifications()) {
+                <app-notifications-panel (close)="closeNotifications()" />
               }
-            </button>
+            </div>
           }
 
           @if (session.session(); as s) {
@@ -206,7 +212,12 @@
                     <span class="profile-name">{{ s.nombre }} {{ s.apellido }}</span>
                     <span class="profile-role">{{ roleLabel(s.rol) }}</span>
                   </div>
-                  <button type="button" role="menuitem" class="profile-item" (click)="requestLogout()">
+                  <button
+                    type="button"
+                    role="menuitem"
+                    class="profile-item"
+                    (click)="requestLogout()"
+                  >
                     Cerrar sesión
                   </button>
                 </div>
@@ -230,6 +241,12 @@
             <a routerLink="/inbox" routerLinkActive="active"
               ><span class="nav-dot"></span>Bandeja</a
             >
+            <a routerLink="/insurer/dashboard" routerLinkActive="active"
+              ><span class="nav-dot"></span>Dashboard</a
+            >
+            <a routerLink="/insurer/reports" routerLinkActive="active"
+              ><span class="nav-dot"></span>Reportes</a
+            >
           }
           @if (showAdminNav()) {
             <a routerLink="/inbox" routerLinkActive="active"
@@ -252,28 +269,31 @@
           }
         </nav>
       </aside>
-
-      <main class="app-content">
-        <router-outlet />
-      </main>
-    </div>
+    }
   }
 
-  <app-modal [open]="showNotifications()" heading="Notificaciones" (close)="closeNotifications()">
-    @if (notifications.hasUnread()) {
-      <p class="t-body">
-        Tenés {{ notifications.unreadCount() }}
-        {{
-          notifications.unreadCount() === 1 ? 'notificación sin leer' : 'notificaciones sin leer'
-        }}.
-      </p>
-    } @else {
-      <p class="t-body">No tenés notificaciones sin leer.</p>
-    }
-    <ng-container modalActions>
-      <app-button (click)="closeNotifications()">Entendido</app-button>
-    </ng-container>
-  </app-modal>
+  <main class="app-content">
+    <router-outlet />
+  </main>
+</div>
+
+@if (showShell()) {
+  <!-- Nueva denuncia como pop-up centrado sobre el portal. El wizard se carga diferido
+       (@defer) recién al abrirlo, así no pesa en el bundle inicial del asegurado. -->
+  @if (showAseguradoNav()) {
+    <app-modal
+      [open]="newClaim.isOpen()"
+      heading="Nueva denuncia"
+      size="lg"
+      [hideActions]="true"
+      [dismissable]="false"
+      (close)="newClaim.close()"
+    >
+      @defer (when newClaim.isOpen()) {
+        <app-nueva-denuncia [embedded]="true" (close)="newClaim.close()" />
+      }
+    </app-modal>
+  }
 
   <app-modal [open]="showLogoutConfirm()" heading="Cerrar sesión" (close)="cancelLogout()">
     <p class="t-body">¿Seguro que querés finalizar tu sesión?</p>
@@ -282,6 +302,4 @@
       <app-button (click)="confirmLogout()">Cerrar sesión</app-button>
     </ng-container>
   </app-modal>
-} @else {
-  <router-outlet />
 }
