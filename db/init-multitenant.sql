@@ -764,7 +764,12 @@ BEGIN
              'WAITING_PERIOD',  'DERIVAR', 2, TRUE, 1, 1, '{}'),
             (6,  TRUE, '2026-01-01 00:00:00+00', 'Plazo de denuncia a la aseguradora (cobertura 1)',
              'REPORT_DEADLINE', 'DERIVAR', 3, TRUE, 1, 1, '{}'),
-            (7,  TRUE, '2026-01-01 00:00:00+00', 'Plazo de la denuncia policial (cobertura 1)',
+            -- Apagada por defecto (17/08): Mar consultó y el plazo de 72hs no es tan rígido como
+            -- para bloquear/derivar solo — importa más la fecha que tiene la denuncia policial en
+            -- sí (chequeo de coherencia, que sigue estando) que cuándo se sube a Arbiter. Sigue
+            -- existiendo como fila para que la aseguradora que la quiera estricta la prenda desde
+            -- el panel, sin deploy — mismo criterio que POLICY_STANDING.
+            (7,  FALSE, '2026-01-01 00:00:00+00', 'Plazo de la denuncia policial (cobertura 1)',
              'POLICE_DEADLINE', 'DERIVAR', 4, TRUE, 1, 1, '{"deadlineHours":72}'),
             (8,  TRUE, '2026-01-01 00:00:00+00', 'Tope de eventos por año (cobertura 1)',
              'MAX_EVENTS_YEAR', 'DERIVAR', 5, TRUE, 1, 1, '{}'),
@@ -772,7 +777,7 @@ BEGIN
              'WAITING_PERIOD',  'DERIVAR', 2, TRUE, 1, 2, '{}'),
             (11, TRUE, '2026-01-01 00:00:00+00', 'Plazo de denuncia a la aseguradora (cobertura 2)',
              'REPORT_DEADLINE', 'DERIVAR', 3, TRUE, 1, 2, '{}'),
-            (12, TRUE, '2026-01-01 00:00:00+00', 'Plazo de la denuncia policial (cobertura 2)',
+            (12, FALSE, '2026-01-01 00:00:00+00', 'Plazo de la denuncia policial (cobertura 2)',
              'POLICE_DEADLINE', 'DERIVAR', 4, TRUE, 1, 2, '{"deadlineHours":72}'),
             (13, TRUE, '2026-01-01 00:00:00+00', 'Tope de eventos por año (cobertura 2)',
              'MAX_EVENTS_YEAR', 'DERIVAR', 5, TRUE, 1, 2, '{}')
