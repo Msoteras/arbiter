@@ -3,6 +3,7 @@ import { DOCUMENT } from '@angular/common';
 
 import { ButtonComponent } from '../../shared/ui/button/button.component';
 import { BadgeComponent } from '../../shared/ui/badge/badge.component';
+import { InfoTipComponent } from '../../shared/ui/info-tip/info-tip.component';
 import { CardComponent } from '../../shared/ui/card/card.component';
 import { InputComponent } from '../../shared/ui/input/input.component';
 import { TextareaComponent } from '../../shared/ui/textarea/textarea.component';
@@ -21,6 +22,7 @@ import { MenuButtonComponent, MenuItem } from '../../shared/ui/menu-button/menu-
 import { SpinnerComponent } from '../../shared/ui/spinner/spinner.component';
 import { InlineLoadingComponent } from '../../shared/ui/inline-loading/inline-loading.component';
 import { StatTileComponent } from '../../shared/ui/stat-tile/stat-tile.component';
+import { ToastService } from '../../shared/ui/toast/toast.service';
 import { StatusTransition } from '../../core/models/expediente';
 
 interface Token {
@@ -53,6 +55,7 @@ interface Swatch {
   imports: [
     ButtonComponent,
     BadgeComponent,
+    InfoTipComponent,
     CardComponent,
     InputComponent,
     TextareaComponent,
@@ -254,6 +257,46 @@ interface Swatch {
           <app-badge tone="warning">Falta documentación</app-badge>
           <app-badge tone="danger">Rechazado</app-badge>
           <app-badge tone="info">En revisión</app-badge>
+        </div>
+      </section>
+
+      <section class="sg-block">
+        <h3 class="sg-h3">Info tip</h3>
+        <p class="sg-p">
+          Aclaración puntual al lado de un label — un solo dato, no un bloque entero (para eso
+          está <span class="mono">.section-hint</span>). Toggle por click, no hover: funciona
+          igual en mobile y con teclado.
+        </p>
+        <div class="row">
+          <span class="t-field-label">
+            Carencia (días)
+            <app-info-tip>
+              Durante la carencia la cobertura todavía no aplica, aunque la póliza esté vigente:
+              un siniestro dentro de ese plazo no se cubre.
+            </app-info-tip>
+          </span>
+        </div>
+      </section>
+
+      <section class="sg-block">
+        <h3 class="sg-h3">Toast</h3>
+        <p class="sg-p">
+          Aviso efímero, montado una sola vez en <span class="mono">app.html</span> y disparado
+          desde cualquier pantalla vía <span class="mono">ToastService.show()</span>. Reemplaza el
+          texto de error fijo al lado de un botón de guardar (ej. "El backend rechazó el
+          guardado") — el mensaje no debe quedar clavado en la pantalla, así que se muestra abajo
+          a la derecha y se cierra solo.
+        </p>
+        <div class="row">
+          <app-button variant="secondary" (click)="toastService.show('No se pudo guardar: el backend no respondió.', 'danger')">
+            Disparar error
+          </app-button>
+          <app-button variant="secondary" (click)="toastService.show('Cambios guardados en el motor.', 'ok')">
+            Disparar éxito
+          </app-button>
+          <app-button variant="secondary" (click)="toastService.show('rules-service tardó en responder — reintentando.', 'warning')">
+            Disparar warning
+          </app-button>
         </div>
       </section>
 
@@ -645,6 +688,7 @@ interface Swatch {
 })
 export class StyleguideComponent {
   private readonly doc = inject(DOCUMENT);
+  protected readonly toastService = inject(ToastService);
 
   protected readonly modalOpen = signal(false);
   protected readonly sidePanelOpen = signal(false);

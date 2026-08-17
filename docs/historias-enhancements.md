@@ -197,6 +197,51 @@ esto es bidireccional.
 
 ---
 
+## H0030 · Reintentos de clasificación más robustos ante una caída transitoria
+
+**Como** analista de siniestros
+**quiero** que una clasificación que falló por una caída momentánea de un servicio dependiente se
+reintente sola, sin que dependa de que alguien note el error y aprete "Reintentar clasificación" a
+mano
+**para** no tener expedientes trabados en `PENDING_CLASSIFICATION` (o vencidos a
+`CLASSIFICATION_FAILED`) por un blip de infraestructura que ya se resolvió.
+
+**Criterios de aceptación**
+- Los reintentos de `processClaimClassification` (`ClaimClassificationService`, hoy 3 intentos con
+  backoff 2s/4s) quedan espaciados en una ventana bastante más ancha que ~14 segundos — un
+  contenedor reiniciándose o un deploy tarda más que eso, y hoy los tres intentos se queman antes
+  de que la dependencia vuelva a estar arriba.
+- Al arrancar `cases-service` (o `classification-service`, según dónde termine viviendo la lógica),
+  el sistema barre los expedientes fallidos **por un motivo de infraestructura** (timeout, conexión
+  rechazada, 5xx) y los reencola automáticamente — sin esperar a que un analista entre y los
+  reintente a mano.
+- Se distingue "falló porque el servicio no respondía" de "falló por otra cosa" — no tiene sentido
+  reintentar solo algo que nunca va a resolver distinto (ver nota técnica).
+
+**Por qué importa**
+Encontrado el 17/08 probando con `rules-service` caído: `ClaimClassificationService.
+processClaimClassification` agota sus 3 reintentos en ~14 segundos y tira la excepción — no
+reintenta más. `ClassificationRefreshScheduler` (cases-service), que corre cada 5 segundos, **no
+vuelve a disparar la clasificación**, solo pregunta si ya hay un resultado; como nunca lo va a
+haber, el expediente suma intentos en el vacío durante `maxAttempts` × `interval-ms` (~10 minutos
+con los defaults) hasta que recién ahí pasa a `CLASSIFICATION_FAILED`. Arreglar la caída del lado de
+infra en el medio no cambia nada: el expediente sigue trabado hasta que alguien lo note y aprete
+"Reintentar clasificación" (el botón que ya existe, ver ítem 22 de `frontend-bugs-ux.md`).
+
+**Notas técnicas**
+- Separar, en `processClaimClassification`, las excepciones que valen la pena reintentar solas
+  (`ResourceAccessException`, `HttpServerErrorException` — infraestructura) de las que no (un 4xx de
+  negocio, por ejemplo). El `@Retryable` actual ya filtra por tipo de excepción
+  (`retryFor = {HttpServerErrorException.class, ResourceAccessException.class}`); lo que falta es
+  correr esos reintentos en una ventana más ancha, no solo agrandar el backoff dentro del mismo
+  intento de request.
+- El barrido de arranque necesita alguna forma de distinguir "falló por infraestructura" de "falló
+  por otra razón" para no reintentar indefinidamente algo que nunca va a cambiar — hoy
+  `CLASSIFICATION_FAILED` no guarda el motivo del último fallo en ningún lado consultable por este
+  barrido.
+
+---
+
 # Decisiones de negocio (no son historias)
 
 No se pueden estimar hasta que alguien del equipo las responda. Van como cards de decisión o se

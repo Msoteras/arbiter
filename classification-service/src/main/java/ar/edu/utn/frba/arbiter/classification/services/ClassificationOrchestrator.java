@@ -59,12 +59,14 @@ public class ClassificationOrchestrator {
         // Hard rules first: a coverage exclusion makes Fast Track irrelevant (D3).
         CoverageRuleEvaluator.Result exclusion = coverageRuleEvaluator.evaluate(claim, ctx.rules());
         if (exclusion.excluded()) {
-            return attachRuleFindings(coverageExclusionResponse(exclusion, claim), exclusion);
+            return attachRuleFindings(coverageExclusionResponse(exclusion, claim), exclusion.findings());
         }
 
-        // Temporal rules (D10/D11/D12/D13): they block Fast Track and add reasons for the analyst.
+        // Temporal rules (D9/D10/D11/D12/D13): block Fast Track, add reasons for the analyst,
+        // and leave their own auditable trace in rule_result.
         TemporalRuleEvaluator.Result temporal =
                 temporalRuleEvaluator.evaluate(claim, ctx.policy(), ctx.history(), ctx.rules());
+        List<RuleFinding> ruleFindings = mergeFindings(exclusion, temporal);
 
         // Coverage scope (D9). With no documents read it can only evaluate coverage already used
         // up; the family group needs the injured party, which comes from the extraction.
@@ -75,7 +77,7 @@ public class ClassificationOrchestrator {
         if (fastTrack.fastTrack() && !temporal.blocksFastTrack() && !scope.blocksFastTrack()) {
             log.info("[Orchestrator] Deterministic Fast Track — claim qualifies, skipping LLM. Reasons={}",
                     fastTrack.reasons());
-            return attachRuleFindings(fastTrackResponse(fastTrack), exclusion);
+            return attachRuleFindings(fastTrackResponse(fastTrack), ruleFindings);
         }
 
         log.info("[Orchestrator] Not Fast Track (fastTrack={}, temporalBlock={}, scopeBlock={}). "
@@ -85,7 +87,7 @@ public class ClassificationOrchestrator {
         engineFindings.addAll(scope.reasons());
         return appendReasons(
                 appendReasons(
-                        attachRuleFindings(classifyWithLlm(claim, ctx, engineFindings), exclusion),
+                        attachRuleFindings(classifyWithLlm(claim, ctx, engineFindings), ruleFindings),
                         temporal.reasons()),
                 scope.reasons());
     }
@@ -154,7 +156,8 @@ public class ClassificationOrchestrator {
                     // NOT NULL in the schema. A policy with no sum insured is broken data from the
                     // insurer's DB, not a real zero: the faithful value stays in the payload.
                     policy.insuredAmount() != null ? policy.insuredAmount() : BigDecimal.ZERO,
-                    policy.inForceOn(claim.eventDate() == null ? null : claim.eventDate().toLocalDate()),
+                    // Sin truncar a fecha: inForceOn ya compara por timestamp completo (D13).
+                    policy.inForceOn(claim.eventDate()),
                     policy.upToDate(),
                     ctx.history().previousClaimsCount(),
                     insurerPayload(policy, ctx.history())));
@@ -206,7 +209,8 @@ public class ClassificationOrchestrator {
         CoverageRuleEvaluator.Result exclusion = coverageRuleEvaluator.evaluate(claim, ctx.rules());
         if (exclusion.excluded()) {
             return new Resolution(
-                    attachRuleFindings(coverageExclusionResponse(exclusion, claim), exclusion), false, Map.of());
+                    attachRuleFindings(coverageExclusionResponse(exclusion, claim), exclusion.findings()),
+                    false, Map.of());
         }
 
         List<String> documentTypes = documents.stream().map(AttachmentDocument::type).toList();
@@ -214,16 +218,19 @@ public class ClassificationOrchestrator {
         if (!missingDocs.isEmpty()) {
             log.info("[Orchestrator] Missing required documents: {}", missingDocs);
             return new Resolution(
-                    attachRuleFindings(missingDocumentationResponse(missingDocs), exclusion), false, Map.of());
+                    attachRuleFindings(missingDocumentationResponse(missingDocs), exclusion.findings()),
+                    false, Map.of());
         }
 
         List<String> requiredForGate = requiredDocumentTypes(ctx.rules());
         Map<String, DocumentExtraction> gateExtractions = extractRequiredDocuments(documents, requiredForGate);
         Map<String, String> gateDocumentTexts = transcriptions(gateExtractions);
 
-        // Temporal rules (D10/D11/D12/D13): they block Fast Track and add reasons for the analyst.
+        // Temporal rules (D9/D10/D11/D12/D13): block Fast Track, add reasons for the analyst,
+        // and leave their own auditable trace in rule_result.
         TemporalRuleEvaluator.Result temporal =
                 temporalRuleEvaluator.evaluate(claim, ctx.policy(), ctx.history(), ctx.rules());
+        List<RuleFinding> ruleFindings = mergeFindings(exclusion, temporal);
 
         // Coverage scope (D9): family group and coverage already used up. It goes here and not
         // earlier because the family group depends on what the extraction read in the documents.
@@ -243,7 +250,7 @@ public class ClassificationOrchestrator {
                     : gateExtractions;
             log.info("[Orchestrator] Deterministic Fast Track — Reasons={} fullAnalysis={}",
                     fastTrack.reasons(), fullAnalysis);
-            return new Resolution(attachRuleFindings(fastTrackResponse(fastTrack), exclusion),
+            return new Resolution(attachRuleFindings(fastTrackResponse(fastTrack), ruleFindings),
                     fullAnalysis || !gateExtractions.isEmpty(), fastTrackExtractions);
         }
 
@@ -264,7 +271,7 @@ public class ClassificationOrchestrator {
         return new Resolution(
                 appendReasons(
                         appendReasons(
-                                attachRuleFindings(classifyWithLlm(claimWithOcr, ctx, engineFindings), exclusion),
+                                attachRuleFindings(classifyWithLlm(claimWithOcr, ctx, engineFindings), ruleFindings),
                                 temporal.reasons()),
                         fullScope.reasons()),
                 true,
@@ -392,11 +399,23 @@ public class ClassificationOrchestrator {
     }
 
     /** Hangs the evaluated rules' results (PASS/FAIL) so they get audited in rule_result. */
-    private ClassificationResponse attachRuleFindings(ClassificationResponse response, CoverageRuleEvaluator.Result exclusion) {
-        if (exclusion.findings().isEmpty()) {
+    private ClassificationResponse attachRuleFindings(ClassificationResponse response, List<RuleFinding> findings) {
+        if (findings.isEmpty()) {
             return response;
         }
-        return response.toBuilder().ruleFindings(exclusion.findings()).build();
+        return response.toBuilder().ruleFindings(findings).build();
+    }
+
+    /**
+     * The auditable trace of every hard rule that ran: the coverage exclusions and the temporal
+     * ones. They travel together because {@code rule_result} is one row per rule evaluated,
+     * regardless of which evaluator ran it — what tells them apart in the table is their
+     * {@code rule_type}.
+     */
+    private List<RuleFinding> mergeFindings(CoverageRuleEvaluator.Result exclusion, TemporalRuleEvaluator.Result temporal) {
+        List<RuleFinding> findings = new ArrayList<>(exclusion.findings());
+        findings.addAll(temporal.findings());
+        return findings;
     }
 
     /** Adds the temporal rules' reasons to the factors the analyst sees. */

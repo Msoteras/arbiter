@@ -66,8 +66,13 @@ public class InsurerRule {
     @Column(name = "blocks_fast_track", nullable = false)
     private boolean blocksFastTrack;
 
+    /**
+     * Null together with {@code coverageId} scopes the rule to the whole insurer instead of one
+     * branch/coverage — used by {@code POLICY_IN_FORCE} and {@code POLICY_STANDING} (see
+     * {@code RuleType#insurerScoped()}).
+     */
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "branch_id", nullable = false)
+    @JoinColumn(name = "branch_id")
     private Branch branch;
 
     @Column(name = "coverage_id")

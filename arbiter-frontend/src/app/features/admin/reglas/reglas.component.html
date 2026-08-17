@@ -16,7 +16,7 @@
             <li>
               <button type="button" class="ramo-item" [class.active]="isSelected(r)" (click)="select(r)">
                 <span class="ramo-name">{{ r.name }}</span>
-                <span class="ramo-meta">{{ r.coverages.length }} coberturas</span>
+                <span class="ramo-meta">{{ r.coverageCount }} coberturas</span>
               </button>
             </li>
           } @empty {
@@ -26,8 +26,23 @@
       }
     </app-card>
 
-    <!-- ───────── Scoring de riesgo: config única por aseguradora, no pertenece a ningún ramo ─────────
-         Por eso es un recuadro aparte; al elegirlo, el panel derecho muestra su configuración. -->
+    <!-- ───────── Hard Stop y Scoring: config única por aseguradora, no pertenecen a ningún ramo ─────
+         Por eso son recuadros aparte, fuera del master-detail de ramos; al elegir uno, el panel
+         derecho muestra su configuración. Antes Hard Stop era una tab dentro de cada ramo, pero eso
+         daba a entender que era por ramo cuando en realidad es una sola config para toda la
+         aseguradora (mismo motivo por el que Scoring ya vivía acá). -->
+    <app-card class="scoring-card">
+      <button
+        type="button"
+        class="ramo-item scoring-item"
+        [class.active]="view() === 'hardStop'"
+        (click)="selectHardStop()"
+      >
+        <span class="ramo-name">Hard Stop</span>
+        <span class="ramo-meta">Toda la aseguradora</span>
+      </button>
+    </app-card>
+
     <app-card class="scoring-card">
       <button
         type="button"
@@ -41,10 +56,82 @@
     </app-card>
     </div>
 
-    <!-- ───────── Panel derecho: detalle del ramo o scoring ───────── -->
+    <!-- ───────── Panel derecho: detalle del ramo, Hard Stop o scoring ───────── -->
     <div class="editor">
       @if (view() === 'scoring') {
         <app-scoring-config />
+      } @else if (view() === 'hardStop') {
+        @if (hardStopLoading()) {
+          <app-inline-loading [size]="26" message="Cargando Hard Stop…" />
+        } @else {
+          <app-card heading="Hard Stop">
+            <p class="section-hint">
+              Reglas que se evalúan en el alta de la denuncia, antes de que exista un expediente.
+              <app-info-tip>
+                Son las únicas reglas que le pueden impedir al asegurado crear su siniestro: ni
+                siquiera se abre el expediente, o se abre en forma condicional. El resto de las
+                reglas duras (carencia, plazos, tope de eventos) actúan después, sobre un
+                expediente que ya existe, y son por cobertura — se configuran desde la solapa
+                Coberturas de cada ramo.
+              </app-info-tip>
+            </p>
+
+            <div class="subsection-head">
+              <span class="t-field-label">Vigencia de la póliza</span>
+              <button
+                type="button"
+                class="chip"
+                [class.active]="policyInForceRule()?.enabled"
+                [attr.aria-pressed]="policyInForceRule()?.enabled ?? false"
+                (click)="toggleInsurerHardRule('POLICY_IN_FORCE')"
+              >
+                {{ policyInForceRule()?.enabled ? 'Activa' : 'Inactiva' }}
+              </button>
+            </div>
+            <p class="section-hint">
+              Si el hecho ocurrió fuera de la vigencia de la póliza, no se crea el expediente.
+            </p>
+
+            <div class="subsection-head">
+              <span class="t-field-label">Mora de la póliza</span>
+              <button
+                type="button"
+                class="chip"
+                [class.active]="policyStandingRule()?.enabled"
+                [attr.aria-pressed]="policyStandingRule()?.enabled ?? false"
+                (click)="toggleInsurerHardRule('POLICY_STANDING')"
+              >
+                {{ policyStandingRule()?.enabled ? 'Activa' : 'Inactiva' }}
+              </button>
+            </div>
+            @if (policyStandingRule()?.enabled) {
+              <label class="fieldset">
+                <span class="t-field-label">Si la póliza está en mora…</span>
+                <app-select
+                  [options]="onArrearsOptions"
+                  [value]="policyStandingRule()?.onArrears ?? 'STANDBY'"
+                  (valueChange)="setOnArrears($event)"
+                />
+              </label>
+            } @else {
+              <p class="section-hint">
+                Con la regla apagada, la mora sigue siendo un criterio de Fast Track y un factor
+                de scoring, como hasta ahora — no bloquea nada.
+              </p>
+            }
+
+            <div class="ft-save">
+              <div class="editor-actions">
+                <app-button [disabled]="hardStopSaving()" (click)="saveHardStop()">
+                  {{ hardStopSaving() ? 'Guardando…' : 'Guardar Hard Stop' }}
+                </app-button>
+                @if (hardStopSaved()) {
+                  <span class="saved-note">✓ Guardado en el motor</span>
+                }
+              </div>
+            </div>
+          </app-card>
+        }
       } @else if (draft(); as d) {
         <div class="editor-head">
           <div class="editor-title">
@@ -77,6 +164,9 @@
         @switch (activeTab()) {
           <!-- ============ COBERTURAS ============ -->
           @case ('coberturas') {
+            @if (detailLoading()) {
+              <app-inline-loading [size]="26" message="Cargando coberturas…" />
+            } @else {
             <div class="tab-panel" @fadeInUp>
               @for (c of d.coverages; track c.id) {
                 <app-card>
@@ -133,7 +223,13 @@
                       />
                     </label>
                     <label class="fieldset">
-                      <span class="t-field-label">Carencia (días)</span>
+                      <span class="t-field-label">
+                        Carencia (días)
+                        <app-info-tip>
+                          Durante la carencia la cobertura todavía no aplica, aunque la póliza esté
+                          vigente: un siniestro dentro de ese plazo no se cubre.
+                        </app-info-tip>
+                      </span>
                       <app-input
                         type="number"
                         [min]="0"
@@ -143,10 +239,6 @@
                       />
                     </label>
                   </div>
-                  <p class="section-hint">
-                    Durante la carencia la cobertura todavía no aplica, aunque la póliza esté
-                    vigente: un siniestro dentro de ese plazo no se cubre.
-                  </p>
 
                   <div class="chips">
                     <button
@@ -167,6 +259,49 @@
                     >
                       Un siniestro agota la cobertura
                     </button>
+                  </div>
+
+                  <div class="cov-excl">
+                    <span class="t-field-label">Reglas duras que evalúa el motor</span>
+                    <p class="section-hint">
+                      Las que estén activas se evalúan en cada clasificación con los umbrales de
+                      arriba, bloquean el Fast Track si no se cumplen y quedan auditadas —se cumplan
+                      o no—. Las que apagues no se evalúan. El cambio rige desde la próxima
+                      clasificación.
+                    </p>
+                    @if (!canEditExclusions(c)) {
+                      <p class="t-note">Guardá la cobertura primero para configurar sus reglas duras.</p>
+                    } @else if (hardRulesOf(c).length === 0) {
+                      <p class="t-note">No se pudieron cargar las reglas duras de esta cobertura.</p>
+                    } @else {
+                      <div class="chips">
+                        @for (rule of hardRulesOf(c); track rule.ruleType) {
+                          <button
+                            type="button"
+                            class="chip"
+                            [class.active]="rule.enabled"
+                            [attr.aria-pressed]="rule.enabled"
+                            (click)="toggleHardRule(c.id, rule.ruleType)"
+                          >
+                            {{ hardRuleLabel(rule.ruleType) }}
+                          </button>
+                        }
+                      </div>
+                      <label class="fieldset">
+                        <span class="t-field-label">Plazo de la denuncia policial (horas)</span>
+                        <app-input
+                          type="number"
+                          [min]="0"
+                          [value]="policeDeadlineStr(c)"
+                          (valueChange)="setPoliceDeadline(c.id, $event)"
+                          placeholder="ej. 72"
+                        />
+                      </label>
+                      <p class="section-hint">
+                        Es el único plazo que se configura acá: los demás son los campos de la
+                        cobertura. Se cuenta desde el hecho, sobre la fecha que declara el asegurado.
+                      </p>
+                    }
                   </div>
 
                   <div class="cov-excl">
@@ -240,10 +375,14 @@
                 </div>
               </div>
             </div>
+            }
           }
 
           <!-- ============ FAST TRACK ============ -->
           @case ('fastTrack') {
+            @if (detailLoading()) {
+              <app-inline-loading [size]="26" message="Cargando Fast Track…" />
+            } @else {
             <div class="tab-panel" @fadeInUp>
               <app-card heading="Fast Track (Siniestro Express)">
                 <p class="section-hint">
@@ -324,10 +463,14 @@
                 </div>
               </app-card>
             </div>
+            }
           }
 
           <!-- ============ DOCUMENTACIÓN ============ -->
           @case ('documentacion') {
+            @if (detailLoading()) {
+              <app-inline-loading [size]="26" message="Cargando documentación…" />
+            } @else {
             <div class="tab-panel" @fadeInUp>
               <app-card heading="Agenda documental">
                 <p class="section-hint">
@@ -357,10 +500,14 @@
                 </div>
               </app-card>
             </div>
+            }
           }
 
           <!-- ============ REGLAS DE NEGOCIO ============ -->
           @case ('reglas') {
+            @if (detailLoading()) {
+              <app-inline-loading [size]="26" message="Cargando reglas de negocio…" />
+            } @else {
             <div class="tab-panel" @fadeInUp>
               <app-card heading="Reglas de negocio">
                 <p class="section-hint">
@@ -390,6 +537,7 @@
                 </div>
               </app-card>
             </div>
+            }
           }
         }
       } @else {

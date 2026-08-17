@@ -66,7 +66,7 @@ class ClassificationOrchestratorScoringTest {
         when(coverageRuleEvaluator.evaluate(any(), any()))
                 .thenReturn(new CoverageRuleEvaluator.Result(false, List.of()));
         when(temporalRuleEvaluator.evaluate(any(), any(), any(), any()))
-                .thenReturn(new TemporalRuleEvaluator.Result(false, List.of()));
+                .thenReturn(TemporalRuleEvaluator.Result.empty());
         when(coverageScopeEvaluator.evaluate(any(), any(), any(), any()))
                 .thenReturn(new CoverageScopeEvaluator.Result(false, List.of()));
     }

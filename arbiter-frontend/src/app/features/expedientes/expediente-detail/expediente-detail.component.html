@@ -22,13 +22,36 @@
   <main class="det-content">
     <!-- Reasoning cards (orden de razonamiento) -->
     <div class="reasoning" @staggerReveal>
-      <app-card class="rcard reco" variant="ai" icon="✦" heading="Recomendación de Arbiter">
+      <!-- El encabezado y la letra chica cambian según quién produjo el resultado: el LLM (una
+           recomendación no vinculante que el analista aprueba o rechaza) o el motor de reglas
+           (un chequeo objetivo, sin confianza que mostrar). "Falta documentación" además no es
+           una decisión del analista en absoluto: la acción es del asegurado, que tiene que
+           completar la carga. -->
+      <app-card
+        class="rcard reco"
+        variant="ai"
+        icon="✦"
+        [heading]="isDeterministicOutcome() ? 'Resultado del motor de reglas' : 'Recomendación de Arbiter'"
+      >
         @if (classificationLabel()) {
           <div class="reco-body">
             <div class="reco-text">
               <p class="reco-value" [attr.data-tone]="classificationTone() !== 'neutral' ? classificationTone() : null">{{ classificationLabel() }}</p>
-              <p class="note">Confianza del modelo: {{ confidencePercent() }}%</p>
-              <p class="note">Es una recomendación no vinculante: la decisión se registra abajo (Aprobar / Rechazar).</p>
+              @if (!isDeterministicOutcome()) {
+                <p class="note">Confianza del modelo: {{ confidencePercent() }}%</p>
+                <p class="note">Es una recomendación no vinculante: la decisión se registra abajo (Aprobar / Rechazar).</p>
+              } @else if (needsDocs()) {
+                <p class="note">
+                  Lo determinó el motor de reglas, no el modelo: falta documentación obligatoria de
+                  la agenda del ramo. La carga la hace el asegurado desde su portal y el expediente
+                  se vuelve a clasificar solo cuando la complete — no requiere una decisión tuya.
+                </p>
+              } @else {
+                <p class="note">
+                  Lo determinó el motor de reglas, no el modelo. Agiliza el trámite pero no lo
+                  resuelve: la decisión se registra abajo (Aprobar / Rechazar).
+                </p>
+              }
             </div>
           </div>
         } @else {
@@ -74,6 +97,14 @@
                   <p class="rcard-note error">{{ retryError() }}</p>
                 }
               }
+            } @else if (needsDocs()) {
+              <!-- Hay clasificación, pero no le toca decidir al analista: el expediente espera que
+                   el asegurado complete la documentación. "Sin clasificación disponible" era
+                   directamente falso acá. -->
+              <p class="nodata">
+                Esperando que el asegurado cargue la documentación faltante. Cuando la complete, el
+                expediente se reclasifica y recién entonces pasa a tu decisión.
+              </p>
             } @else {
               <p class="nodata">Sin clasificación disponible todavía</p>
             }
@@ -140,10 +171,10 @@
                       [block]="true"
                       [items]="analystMenuItems()"
                       heading="Asignar a otro analista"
-                      [disabled]="assignSaving()"
+                      [disabled]="assignSaving() || analystsLoading()"
                       (itemSelected)="assignTo($event)"
                     >
-                      <span aria-hidden="true">⟳</span> Reasignar
+                      <span aria-hidden="true">⟳</span> {{ analystsLoading() ? 'Cargando…' : 'Reasignar' }}
                     </app-menu-button>
                     <app-menu-button
                       [items]="overflowMenuItems"
@@ -175,10 +206,10 @@
                       [block]="true"
                       [items]="analystMenuItems()"
                       heading="Asignar a otro analista"
-                      [disabled]="assignSaving()"
+                      [disabled]="assignSaving() || analystsLoading()"
                       (itemSelected)="assignTo($event)"
                     >
-                      Asignar a…
+                      {{ analystsLoading() ? 'Cargando…' : 'Asignar a…' }}
                     </app-menu-button>
                   </div>
                 }
@@ -205,7 +236,9 @@
               El asegurado tiene que subir la documentación faltante desde su portal. Cuando la
               cargue, el caso se vuelve a evaluar automáticamente.
             </p>
-            @if (missingDocLabels().length > 0) {
+            @if (documentsLoading()) {
+              <app-inline-loading [size]="20" message="Cargando documentación…" />
+            } @else if (missingDocLabels().length > 0) {
               <ul class="missing-docs-list">
                 @for (label of missingDocLabels(); track label) {
                   <li>{{ label }}</li>

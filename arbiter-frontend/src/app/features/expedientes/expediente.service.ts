@@ -15,7 +15,10 @@ export interface CaseCreateRequest {
   policyNumber: string;
   description: string;
   eventDate: string;
+  /** Solo la dirección a nivel calle. Localidad y provincia van en sus propios campos. */
   eventLocation: string;
+  province?: string;
+  locality?: string;
   // Fecha/hora en que el asegurado hizo la denuncia policial, tal como la declara. Opcional: no
   // todo hecho generador lleva denuncia policial (el wizard solo pide el dato cuando la agenda
   // documental del ramo incluye `police_report`).
@@ -30,6 +33,21 @@ export interface CaseCreateRequest {
   imageConsent: boolean;
   contactEmail?: string;
   contactPhone?: string;
+}
+
+export interface EligibilityCheckRequest {
+  insuredId: string;
+  policyNumber: string;
+  // Opcional: el wizard llama esto dos veces — apenas se elige la póliza (paso 1, sin fecha
+  // todavía, para pescar mora temprano) y de nuevo con la fecha cargada (paso 2, para vigencia y
+  // carencia). El backend ya sabe saltear los chequeos que necesitan fecha cuando no viene.
+  eventDate?: string;
+  policeReportAt?: string;
+}
+
+export interface EligibilityCheckResponse {
+  eligible: boolean;
+  reason: string | null;
 }
 
 // El backend solo acepta APPROVE/APROBAR o REJECT/RECHAZAR (human-in-the-loop:
@@ -171,6 +189,15 @@ export class ExpedienteService {
     if (params.assigned) query['assigned'] = 'true';
     if (params.fraudAlert) query['fraudAlert'] = 'true';
     return this.http.get<PagedResponse<ExpedienteResponse>>(this.baseUrl, { params: query });
+  }
+
+  /**
+   * Mismo gate que `create` corre antes de armar el expediente (vigencia, carencia, mora), sin
+   * crear nada. El wizard lo llama apenas tiene póliza + fecha del hecho, para bloquear o avisar
+   * antes de que el asegurado llene el resto del formulario y suba documentación.
+   */
+  checkEligibility(request: EligibilityCheckRequest): Observable<EligibilityCheckResponse> {
+    return this.http.post<EligibilityCheckResponse>(`${this.baseUrl}/eligibility`, request);
   }
 
   create(

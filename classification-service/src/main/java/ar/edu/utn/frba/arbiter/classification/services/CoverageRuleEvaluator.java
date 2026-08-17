@@ -3,6 +3,7 @@ package ar.edu.utn.frba.arbiter.classification.services;
 import ar.edu.utn.frba.arbiter.classification.dto.BusinessRules;
 import ar.edu.utn.frba.arbiter.classification.dto.RuleFinding;
 import ar.edu.utn.frba.arbiter.common.dto.ClaimReport;
+import ar.edu.utn.frba.arbiter.common.enums.RuleType;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
@@ -25,7 +26,6 @@ import java.util.List;
 public class CoverageRuleEvaluator {
 
     private static final Logger log = LoggerFactory.getLogger(CoverageRuleEvaluator.class);
-    private static final String COVERAGE_EXCLUSION = "COVERAGE_EXCLUSION";
 
     /**
      * @param excluded {@code true} if any hard exclusion applies to the claim's claim cause.
@@ -43,7 +43,7 @@ public class CoverageRuleEvaluator {
         boolean excluded = false;
 
         for (BusinessRules.EvaluableRule rule : evaluableRules) {
-            if (!COVERAGE_EXCLUSION.equals(rule.ruleType())) {
+            if (!RuleType.COVERAGE_EXCLUSION.name().equals(rule.ruleType())) {
                 continue;
             }
             // An exclusion with no claim causes configured excludes nothing: there's no rule to

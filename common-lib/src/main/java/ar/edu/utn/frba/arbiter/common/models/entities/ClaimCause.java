@@ -20,7 +20,7 @@ import lombok.Setter;
  * in CLAUDE.md's domain vocabulary. The central field the LLM classifies.
  */
 @Entity
-@Table(name = "claim_cause")
+@Table(name = "claim_cause", schema = "arbiter_common")
 @Getter
 @Setter
 @NoArgsConstructor

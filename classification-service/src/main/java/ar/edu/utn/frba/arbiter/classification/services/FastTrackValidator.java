@@ -160,11 +160,15 @@ public class FastTrackValidator {
                 .count();
     }
 
-    /** @return months between the policy's start and the event, or null if either date is missing. */
+    /**
+     * @return months between the policy's start and the event, or null if either date is missing.
+     *         Truncated to the day on both sides: policy age in months doesn't care about the hour
+     *         the way vigencia itself does (D13).
+     */
     private Long policyAgeMonths(ClaimReport claim, InsuredPolicy policy) {
         if (claim.eventDate() == null || policy.effectiveFrom() == null) {
             return null;
         }
-        return ChronoUnit.MONTHS.between(policy.effectiveFrom(), claim.eventDate().toLocalDate());
+        return ChronoUnit.MONTHS.between(policy.effectiveFrom().toLocalDate(), claim.eventDate().toLocalDate());
     }
 }

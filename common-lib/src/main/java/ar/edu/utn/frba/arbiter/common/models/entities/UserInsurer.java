@@ -25,7 +25,7 @@ import java.io.Serializable;
  * to be a logical cross-module reference instead).
  */
 @Entity
-@Table(name = "user_insurer")
+@Table(name = "user_insurer", schema = "arbiter_common")
 @IdClass(UserInsurer.Key.class)
 @Getter
 @Setter

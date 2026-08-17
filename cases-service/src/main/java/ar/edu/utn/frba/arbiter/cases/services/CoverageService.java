@@ -2,6 +2,7 @@ package ar.edu.utn.frba.arbiter.cases.services;
 
 import ar.edu.utn.frba.arbiter.cases.dto.CoverageDetailResponse;
 import ar.edu.utn.frba.arbiter.cases.dto.CoverageOption;
+import ar.edu.utn.frba.arbiter.cases.dto.CoverageSummary;
 import ar.edu.utn.frba.arbiter.cases.dto.CoverageUpsertRequest;
 import ar.edu.utn.frba.arbiter.cases.exceptions.CoverageNotFoundException;
 import ar.edu.utn.frba.arbiter.common.models.entities.tenant.Coverage;
@@ -39,6 +40,14 @@ public class CoverageService {
     public List<CoverageDetailResponse> listDetailedByBranch(Long branchId) {
         return coverageRepository.findByBranchIdOrderByNameAsc(branchId).stream()
                 .map(this::toDetail)
+                .toList();
+    }
+
+    /** One count per branch that has at least one coverage, for the referente's ramo list. */
+    @Transactional(readOnly = true)
+    public List<CoverageSummary> summary() {
+        return coverageRepository.countGroupedByBranch().stream()
+                .map(row -> new CoverageSummary(row.getBranchId(), row.getCoverageCount()))
                 .toList();
     }
 

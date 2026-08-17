@@ -2,6 +2,7 @@ package ar.edu.utn.frba.arbiter.cases.controllers;
 
 import ar.edu.utn.frba.arbiter.cases.dto.CoverageDetailResponse;
 import ar.edu.utn.frba.arbiter.cases.dto.CoverageOption;
+import ar.edu.utn.frba.arbiter.cases.dto.CoverageSummary;
 import ar.edu.utn.frba.arbiter.cases.dto.CoverageUpsertRequest;
 import ar.edu.utn.frba.arbiter.cases.services.CoverageService;
 import io.swagger.v3.oas.annotations.Operation;
@@ -50,6 +51,16 @@ public class CoverageController {
             description = "Igual que el listado simple, pero con los campos que edita la solapa Coberturas.")
     public List<CoverageDetailResponse> listDetailedByBranch(@RequestParam Long branchId) {
         return coverageService.listDetailedByBranch(branchId);
+    }
+
+    @GetMapping("/summary")
+    @PreAuthorize("hasRole('REFERENTE_ASEGURADORA')")
+    @Operation(summary = "Cantidad de coberturas por ramo",
+            description = "Un conteo por cada ramo con al menos una cobertura, para la lista de ramos "
+                    + "del panel de reglas — evita mostrar \"0 coberturas\" en un ramo que el referente "
+                    + "todavía no clickeó.")
+    public List<CoverageSummary> summary() {
+        return coverageService.summary();
     }
 
     @PostMapping

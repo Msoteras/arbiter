@@ -6,7 +6,7 @@ import ar.edu.utn.frba.arbiter.cases.dto.PolicyResponse.Coverage;
 import org.springframework.stereotype.Component;
 
 import java.math.BigDecimal;
-import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
 
@@ -30,7 +30,7 @@ public class MockInsurerAdapter implements InsurerAdapter {
                     .insuredName("Martina Soteras").insuredId("42.987.654")
                     .contactEmail("martina.soteras@example.com").contactPhone("11-5555-0001")
                     .branch("Celulares").insuredItem("Samsung Galaxy A56").product("Celular Protegido Premium")
-                    .effectiveFrom(LocalDate.of(2026, 1, 1)).effectiveTo(LocalDate.of(2027, 1, 1))
+                    .effectiveFrom(LocalDateTime.of(2026, 1, 1, 0, 0)).effectiveTo(LocalDateTime.of(2027, 1, 1, 23, 59, 59))
                     .upToDate(true)
                     .insuredAmount(new BigDecimal("1300000")).deductible(new BigDecimal("130000.00"))
                     .coverages(List.of(
@@ -46,7 +46,7 @@ public class MockInsurerAdapter implements InsurerAdapter {
                     .insuredName("Martina Soteras").insuredId("42.987.654")
                     .contactEmail("martina.soteras@example.com").contactPhone("11-5555-0001")
                     .branch("Tecnología Portátil").insuredItem("Lenovo ThinkPad T14s Gen 5").product("Seguro de Tecnología Portátil")
-                    .effectiveFrom(LocalDate.of(2026, 1, 1)).effectiveTo(LocalDate.of(2027, 1, 1))
+                    .effectiveFrom(LocalDateTime.of(2026, 1, 1, 0, 0)).effectiveTo(LocalDateTime.of(2027, 1, 1, 23, 59, 59))
                     .upToDate(true)
                     .insuredAmount(new BigDecimal("900000")).deductible(new BigDecimal("90000.00"))
                     .coverages(List.of(

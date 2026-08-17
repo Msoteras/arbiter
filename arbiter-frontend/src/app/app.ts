@@ -11,6 +11,7 @@ import { userRoleLabel } from './core/models/user-role';
 import { LogoComponent } from './shared/ui/logo/logo.component';
 import { ButtonComponent } from './shared/ui/button/button.component';
 import { ModalComponent } from './shared/ui/modal/modal.component';
+import { ToastStackComponent } from './shared/ui/toast/toast-stack.component';
 import { EmptyStateComponent } from './shared/ui/empty-state/empty-state.component';
 import { InlineLoadingComponent } from './shared/ui/inline-loading/inline-loading.component';
 import { formatDateTime } from './core/util/datetime';
@@ -36,6 +37,7 @@ const NOTIFICATION_TITLES: Record<string, string> = {
     LogoComponent,
     ButtonComponent,
     ModalComponent,
+    ToastStackComponent,
     NuevaDenunciaComponent,
     EmptyStateComponent,
     InlineLoadingComponent,

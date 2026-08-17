@@ -86,10 +86,11 @@ class ClassificationRefreshSchedulerTest {
 
         scheduler.refreshPendingCases();
 
-        ArgumentCaptor<Case> captor = ArgumentCaptor.forClass(Case.class);
-        verify(caseRepository).save(captor.capture());
-        assertThat(captor.getValue().getClassificationAttempts()).isEqualTo(1);
-        assertThat(captor.getValue().getStatus()).isEqualTo(CaseStatus.PENDING_CLASSIFICATION);
+        // Update puntual del contador, NO save() de la entidad entera: guardar la entidad
+        // reescribía toda la fila desde una copia vieja y revertía cambios concurrentes (un
+        // reintento del analista volvía solo a PENDING_CLASSIFICATION cada pocos segundos).
+        verify(caseRepository).updateClassificationAttempts(entity.getId(), 1);
+        verify(caseRepository, never()).save(any());
         verify(caseStatusService, never()).transition(any(), any(), any(), any());
     }
 
@@ -115,9 +116,8 @@ class ClassificationRefreshSchedulerTest {
 
         scheduler.refreshPendingCases();
 
-        ArgumentCaptor<Case> captor = ArgumentCaptor.forClass(Case.class);
-        verify(caseRepository).save(captor.capture());
-        assertThat(captor.getValue().getClassificationAttempts()).isEqualTo(1);
+        verify(caseRepository).updateClassificationAttempts(entity.getId(), 1);
+        verify(caseRepository, never()).save(any());
     }
 
     @Test
@@ -148,11 +148,14 @@ class ClassificationRefreshSchedulerTest {
         scheduler.refreshPendingCases();
 
         assertThat(resolved.getClassificationAttempts()).isEqualTo(0);
-        assertThat(unresolved.getClassificationAttempts()).isEqualTo(2);
         assertThat(unresolved.getStatus()).isEqualTo(CaseStatus.PENDING_CLASSIFICATION);
         assertThat(failing.getClassificationAttempts()).isEqualTo(3);
 
-        verify(caseRepository, times(1)).save(unresolved);   // only the still-pending one
+        // Solo al que sigue pendiente se le sube el contador; el que agotó los intentos pasa por
+        // la transición de estado. El contador ya no se persiste con save() — ver
+        // unresolvedCase_incrementsAttempts.
+        verify(caseRepository).updateClassificationAttempts(unresolved.getId(), 2);
+        verify(caseRepository, never()).save(any());
         verify(caseStatusService).transition(eq(failing), eq(CaseStatus.CLASSIFICATION_FAILED),
                 eq(StatusChangeActor.SYSTEM), any());
     }
