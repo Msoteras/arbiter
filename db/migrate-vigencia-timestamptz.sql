@@ -1,33 +1,23 @@
 -- Migración manual, una vez, contra la BD viva (Railway). No hay Flyway: db/init-multitenant.sql
--- solo corre al crear el volumen desde cero, así que este cambio (D13, vigencia con hora) nunca
--- se aplicó a la base que ya tenía datos. Este script lo hace a mano, preservando lo existente.
+-- solo corre al crear el volumen desde cero, así que los cambios de esquema no llegan solos a una
+-- base que ya tiene datos.
+--
+-- Historia de este archivo: primero se corrió con TIMESTAMPTZ (commit a28da47). Eso rompió
+-- distinto: rs.getObject(col, LocalDateTime.class) en InsurerDatabaseAdapter (JDBC crudo, no JPA)
+-- no puede leer una columna con timezone — el driver de Postgres exige OffsetDateTime/Instant para
+-- TIMESTAMPTZ. Este script corrige a TIMESTAMP (sin timezone), que es lo que quedó en
+-- db/init-multitenant.sql. AT TIME ZONE 'UTC' en el USING para que la conversión sea determinista
+-- sin depender del timezone de la sesión que corra esto (los valores se cargaron en UTC).
 
 BEGIN;
 
 ALTER TABLE aseguradora_bbva.poliza
-    ALTER COLUMN vigencia_desde TYPE TIMESTAMPTZ USING vigencia_desde::timestamptz,
-    ALTER COLUMN vigencia_hasta TYPE TIMESTAMPTZ USING (vigencia_hasta::date + time '23:59:59')::timestamptz;
+    ALTER COLUMN vigencia_desde TYPE TIMESTAMP USING (vigencia_desde AT TIME ZONE 'UTC'),
+    ALTER COLUMN vigencia_hasta TYPE TIMESTAMP USING (vigencia_hasta AT TIME ZONE 'UTC');
 
 ALTER TABLE aseguradora_provincia.poliza
-    ALTER COLUMN vigencia_desde TYPE TIMESTAMPTZ USING vigencia_desde::timestamptz,
-    ALTER COLUMN vigencia_hasta TYPE TIMESTAMPTZ USING (vigencia_hasta::date + time '23:59:59')::timestamptz;
-
--- Póliza modelo del proyecto (Proyecto Final/poliza.pdf), agregada al seed esta sesión pero nunca
--- insertada en la BD viva: vigencia con hora exacta, 12:00 a 12:00.
-INSERT INTO aseguradora_bbva.poliza (id, numero, nro_certificado, titular_id, rama, producto, bien_asegurado,
-                                     imei, vigencia_desde, vigencia_hasta, estado_contrato, estado_pago,
-                                     cuotas_pagas, cuotas_impagas, saldo_deuda, forma_pago, cubre_grupo_familiar)
-VALUES (11, '2364698', '621399', 1, 'Celulares', 'Celular Protegido Premium', 'Samsung Galaxy A55',
-        '360000000002364', '2026-06-14 12:00:00', '2026-09-14 12:00:00', 'ACTIVA', 'AL_DIA',
-        3, 0, 0.00, 'TARJETA DE CREDITO', FALSE)
-ON CONFLICT (id) DO NOTHING;
-
-SELECT setval(pg_get_serial_sequence('aseguradora_bbva.poliza', 'id'),
-              (SELECT MAX(id) FROM aseguradora_bbva.poliza));
-
-INSERT INTO aseguradora_bbva.cobertura (poliza_id, orden, nombre, suma_asegurada, franquicia_pct)
-SELECT 11, 1, 'Robo de celular', 1300000.00, 10.00
-WHERE NOT EXISTS (SELECT 1 FROM aseguradora_bbva.cobertura WHERE poliza_id = 11 AND orden = 1);
+    ALTER COLUMN vigencia_desde TYPE TIMESTAMP USING (vigencia_desde AT TIME ZONE 'UTC'),
+    ALTER COLUMN vigencia_hasta TYPE TIMESTAMP USING (vigencia_hasta AT TIME ZONE 'UTC');
 
 COMMIT;
 

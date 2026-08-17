@@ -908,12 +908,16 @@ BEGIN
             -- con el del bien" (D4b): sin esto, extraer el IMEI de la factura no servía de nada.
             imei                  VARCHAR(20),
             moneda                VARCHAR(3)    NOT NULL DEFAULT 'ARS',
-            -- TIMESTAMPTZ, no DATE: la póliza modelo (BBVA) fija la vigencia con hora exacta
-            -- ("desde las 12:00 hs del..."), y con solo la fecha un siniestro dos horas antes de
-            -- que arranque la vigencia, mismo día, pasaba el chequeo de PolicyEligibilityValidator
-            -- / TemporalRuleEvaluator (D13) como si estuviera cubierto.
-            vigencia_desde        TIMESTAMPTZ   NOT NULL,
-            vigencia_hasta        TIMESTAMPTZ   NOT NULL,
+            -- TIMESTAMP (sin timezone), no DATE: la póliza modelo (BBVA) fija la vigencia con hora
+            -- exacta ("desde las 12:00 hs del..."), y con solo la fecha un siniestro dos horas
+            -- antes de que arranque la vigencia, mismo día, pasaba el chequeo de
+            -- PolicyEligibilityValidator / TemporalRuleEvaluator (D13) como si estuviera cubierto.
+            -- Sin timezone a propósito: InsurerDatabaseAdapter la lee con JDBC crudo vía
+            -- rs.getObject(col, LocalDateTime.class), que el driver de Postgres rechaza para
+            -- TIMESTAMPTZ (pide OffsetDateTime/Instant) — y en el resto del dominio la fecha del
+            -- hecho tampoco lleva timezone, es LocalDateTime a secas.
+            vigencia_desde        TIMESTAMP     NOT NULL,
+            vigencia_hasta        TIMESTAMP     NOT NULL,
             estado_contrato       VARCHAR(20)   NOT NULL,
             estado_pago           VARCHAR(20)   NOT NULL,
             cuotas_pagas          INTEGER       NOT NULL DEFAULT 0,
