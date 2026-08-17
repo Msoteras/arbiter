@@ -78,7 +78,11 @@ type EligibilityState =
   | { status: 'idle' }
   | { status: 'checking' }
   | { status: 'ok' }
-  | { status: 'blocked'; reason: string };
+  | { status: 'blocked'; reason: string }
+  // El precheck no respondió (red, 5xx, o un 400 real de contrato). Distinto de 'ok': no
+  // sabemos si la póliza es elegible, no que sí lo sea. Sigue sin bloquear "Siguiente" — el
+  // gate real del submit final sigue estando — pero avisa en vez de quedar en silencio.
+  | { status: 'unknown' };
 
 @Component({
   selector: 'app-nueva-denuncia',
@@ -215,7 +219,15 @@ export class NuevaDenunciaComponent {
     }
   });
 
-  protected readonly step1Valid = computed(() => !!this.selectedPolicy() && !!this.selectedType());
+  // eligibilityError()/eligibilityChecking() están declarados más abajo (dependen de
+  // eligibilityCheck), pero como son signals el orden de declaración no importa para el computed.
+  protected readonly step1Valid = computed(
+    () =>
+      !!this.selectedPolicy() &&
+      !!this.selectedType() &&
+      this.eligibilityError() === null &&
+      !this.eligibilityChecking(),
+  );
 
   // Tope del input de fecha (docs/frontend-bugs-ux.md #16): un siniestro no puede haber
   // "ocurrido" en el futuro. La regla real vive en el backend (CaseRequest la valida de
@@ -269,19 +281,24 @@ export class NuevaDenunciaComponent {
    * vigencia/carencia (no external call needed for those) and rules-service being down already
    * fails open server-side for mora, so blocking the wizard over a transient check failure would
    * be strictly worse than the status quo.
+   *
+   * Fires as soon as there's a policy, `eventDate` or not: mora (`POLICY_STANDING`) doesn't need a
+   * date, only vigencia/carencia do, and the backend already skips those when `eventDate` is
+   * absent. That's what lets a rejected-for-arrears policy block right in step 1, at selection
+   * time, instead of only after the insured fills in the event date in step 2.
    */
   private readonly eligibilityCheck = toSignal(
     toObservable(
       computed(() => {
         const policy = this.selectedPolicy();
-        const eventDate = this.eventDate();
-        if (!policy || !eventDate || this.dateCoherenceError()) {
+        if (!policy || this.dateCoherenceError()) {
           return null;
         }
+        const eventDate = this.eventDate();
         return {
           insuredId: policy.insuredId,
           policyNumber: policy.policyNumber,
-          eventDate: eventDate + 'T' + (this.eventTime() || '00:00') + ':00',
+          eventDate: eventDate ? eventDate + 'T' + (this.eventTime() || '00:00') + ':00' : undefined,
           policeReportAt: this.policeReportDate()
             ? this.policeReportDate() + 'T' + (this.policeReportTime() || '00:00') + ':00'
             : undefined,
@@ -298,7 +315,7 @@ export class NuevaDenunciaComponent {
                   : { status: 'blocked', reason: res.reason ?? 'No se puede registrar la denuncia.' },
               ),
               startWith<EligibilityState>({ status: 'checking' }),
-              catchError(() => of<EligibilityState>({ status: 'ok' })),
+              catchError(() => of<EligibilityState>({ status: 'unknown' })),
             )
           : of<EligibilityState>({ status: 'idle' }),
       ),
@@ -307,6 +324,12 @@ export class NuevaDenunciaComponent {
   );
 
   protected readonly eligibilityChecking = computed(() => this.eligibilityCheck().status === 'checking');
+
+  // El precheck falló (red, backend caído, un 400 real) y no hay forma de saber si la póliza es
+  // elegible. No bloquea "Siguiente" — mismo criterio de fail-open que antes — pero el asegurado
+  // se entera de que no se pudo confirmar, en vez de ver la nada silenciosa de un chequeo que
+  // "pasó" sin haber corrido en realidad.
+  protected readonly eligibilityUnknown = computed(() => this.eligibilityCheck().status === 'unknown');
 
   protected readonly eligibilityError = computed<string | null>(() => {
     const dateError = this.dateCoherenceError();
@@ -328,7 +351,10 @@ export class NuevaDenunciaComponent {
       this.eventDate() <= this.today &&
       this.eligibilityError() === null &&
       !this.eligibilityChecking() &&
-      this.buildEventLocation().trim().length > 0,
+      // eventLocation es @NotBlank en el backend, y ahora es solo la calle: exigirla puntualmente
+      // en vez de "alguna de las cuatro partes cargadas", que dejaba pasar un submit con provincia
+      // y localidad pero sin dirección.
+      this.buildEventAddress().trim().length > 0,
   );
 
   // Step 3
@@ -422,11 +448,13 @@ export class NuevaDenunciaComponent {
     });
   }
 
-  private buildEventLocation(): string {
-    const parts = [this.calleNumero(), this.localidad(), this.provincia()].filter(
-      (p) => p.trim().length > 0,
-    );
-    const base = parts.join(', ');
+  /**
+   * Dirección a nivel calle, sin localidad ni provincia — esas dos viajan en sus propios campos
+   * del request y se guardan en `cases.locality`/`cases.province`. Antes esto concatenaba las
+   * cuatro partes en un solo string y era lo único que llegaba al backend.
+   */
+  private buildEventAddress(): string {
+    const base = this.calleNumero().trim();
     return this.entreCalles().trim() ? `${base} (entre ${this.entreCalles()})` : base;
   }
 
@@ -448,7 +476,12 @@ export class NuevaDenunciaComponent {
       policyNumber: policy.policyNumber,
       description: this.description(),
       eventDate: this.eventDate() + 'T' + (this.eventTime() || '00:00') + ':00',
-      eventLocation: this.buildEventLocation(),
+      // Solo la dirección a nivel calle. Localidad y provincia van aparte, en sus propios campos:
+      // concatenar las cuatro partes acá dejaba cases.locality/province en null y la ubicación
+      // como prosa imposible de filtrar o agrupar.
+      eventLocation: this.buildEventAddress(),
+      province: this.provincia() || undefined,
+      locality: this.localidad() || undefined,
       // Solo si se declaró: la columna es nullable y "no hubo denuncia policial" es un caso
       // legítimo, distinto de "hubo pero no sé cuándo". Mandar una fecha inventada sería peor
       // que no mandar nada, porque la regla del plazo la evaluaría como si fuera real.

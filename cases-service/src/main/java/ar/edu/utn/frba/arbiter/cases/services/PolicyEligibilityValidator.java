@@ -3,6 +3,7 @@ package ar.edu.utn.frba.arbiter.cases.services;
 import ar.edu.utn.frba.arbiter.cases.adapters.InsurerAdapter;
 import ar.edu.utn.frba.arbiter.cases.dto.PolicyResponse;
 import ar.edu.utn.frba.arbiter.cases.exceptions.PolicyNotEligibleException;
+import ar.edu.utn.frba.arbiter.common.models.entities.ClaimCause;
 import ar.edu.utn.frba.arbiter.common.models.entities.tenant.Coverage;
 import lombok.RequiredArgsConstructor;
 import org.slf4j.Logger;
@@ -10,8 +11,9 @@ import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestClientException;
 
-import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
+import java.util.List;
 
 /**
  * Basic policy validations at case <b>intake</b>: if the event doesn't fall under a contract with
@@ -50,6 +52,9 @@ public class PolicyEligibilityValidator {
 
     private static final Logger log = LoggerFactory.getLogger(PolicyEligibilityValidator.class);
 
+    /** Para los mensajes al asegurado: la vigencia lleva hora, y el mensaje tiene que mostrarla. */
+    private static final DateTimeFormatter DISPLAY_FORMAT = DateTimeFormatter.ofPattern("dd/MM/yyyy HH:mm");
+
     private final InsurerAdapter insurerAdapter;
     private final RulesServiceClient rulesServiceClient;
 
@@ -57,9 +62,14 @@ public class PolicyEligibilityValidator {
      * @param policyNumber   only used to look the policy up again against the insurer DB — the
      *                       resolved {@code coverage} already came from it, but arrears/vigencia
      *                       need fields {@code Coverage} doesn't carry.
+     * @param claimCause     the declared hecho generador. Nullable: the eligibility precheck
+     *                       (step 1/2 of the wizard, before "¿Qué te pasó?" is even asked) doesn't
+     *                       have one yet, so it skips {@link #assertCoverageIncludesClaimCause} —
+     *                       only the real {@code POST /cases} always has it and always runs the
+     *                       check.
      */
     public void validate(String policyNumber, LocalDateTime eventDate, LocalDateTime policeReportAt,
-                          Coverage coverage) {
+                          Coverage coverage, ClaimCause claimCause) {
         assertCoherentDates(eventDate, policeReportAt);
 
         PolicyResponse policy = insurerAdapter.findPolicy(policyNumber).orElse(null);
@@ -73,6 +83,43 @@ public class PolicyEligibilityValidator {
         assertInForceOnEventDate(eventDate, policy);
         assertOutsideWaitingPeriod(eventDate, policy, coverage);
         assertPolicyStanding(policy);
+        assertCoverageIncludesClaimCause(claimCause, coverage);
+    }
+
+    /**
+     * The wizard already filters "¿Qué te pasó?" so an excluded hecho generador never shows up
+     * (docs/handoff-validaciones-polizas.md), but that's a UI convenience — a client that posts
+     * straight to {@code POST /cases} skipping the dropdown was never stopped by anything server
+     * side. A coverage that explicitly doesn't cover a hecho generador is the same category as
+     * vigencia/carencia/mora above: not a matter for the LLM to weigh in on, the right being
+     * claimed doesn't exist for that cause. {@code COVERAGE_EXCLUSION} is a blacklist — no row
+     * (or an unreachable rules-service) means nothing is excluded, same "fail open" as
+     * {@link #assertPolicyStanding} and for the same reason: a rules-service blip shouldn't turn
+     * into a hard-down for every alta.
+     *
+     * <p>Doesn't replace {@code CoverageRuleEvaluator} in classification-service — that one still
+     * runs during classification and leaves the audited {@code rule_result} row (D3/D4c). This is
+     * the same fact checked earlier, at intake, so a claim that's provably not covered doesn't sit
+     * in an analyst's queue in the meantime.
+     */
+    private void assertCoverageIncludesClaimCause(ClaimCause claimCause, Coverage coverage) {
+        if (claimCause == null || coverage == null || coverage.getId() == null) {
+            return;
+        }
+        List<Long> excludedIds;
+        try {
+            excludedIds = rulesServiceClient.excludedClaimCauseIds(coverage.getId());
+        } catch (RestClientException e) {
+            log.warn("[PolicyEligibility] Couldn't reach rules-service for COVERAGE_EXCLUSION — "
+                    + "coverage match isn't validated at intake for this alta: {}", e.getMessage());
+            return;
+        }
+        if (!excludedIds.contains(claimCause.getId())) {
+            return;
+        }
+        throw new PolicyNotEligibleException(String.format(
+                "La cobertura \"%s\" no cubre \"%s\", así que no se puede iniciar el expediente.",
+                coverage.getName(), claimCause.getName()));
     }
 
     /**
@@ -130,17 +177,25 @@ public class PolicyEligibilityValidator {
         }
     }
 
-    /** The event has to have occurred while the policy was in force; otherwise no contract covers it. */
+    /**
+     * The event has to have occurred while the policy was in force; otherwise no contract covers it.
+     *
+     * <p>Compared as a full timestamp, not truncated to the day: the reference policy fixes
+     * vigencia with an exact hour ("desde las 12:00 hs del..."), and comparing only by date gave
+     * false accepts at the edge — an event two hours before coverage started, same calendar day,
+     * used to pass. {@code policy.effectiveFrom()/effectiveTo()} already carry the hour
+     * ({@code aseguradora_*.poliza.vigencia_desde/hasta} is {@code timestamptz}).
+     */
     private void assertInForceOnEventDate(LocalDateTime requestedEventDate, PolicyResponse policy) {
         if (requestedEventDate == null || policy.effectiveFrom() == null || policy.effectiveTo() == null) {
             return;
         }
-        LocalDate eventDate = requestedEventDate.toLocalDate();
-        if (eventDate.isBefore(policy.effectiveFrom()) || eventDate.isAfter(policy.effectiveTo())) {
+        if (requestedEventDate.isBefore(policy.effectiveFrom()) || requestedEventDate.isAfter(policy.effectiveTo())) {
             throw new PolicyNotEligibleException(String.format(
                     "La póliza %s no estaba vigente el %s (vigencia: %s a %s), así que el siniestro no "
                             + "está cubierto.",
-                    policy.policyNumber(), eventDate, policy.effectiveFrom(), policy.effectiveTo()));
+                    policy.policyNumber(), DISPLAY_FORMAT.format(requestedEventDate),
+                    DISPLAY_FORMAT.format(policy.effectiveFrom()), DISPLAY_FORMAT.format(policy.effectiveTo())));
         }
     }
 
@@ -155,13 +210,13 @@ public class PolicyEligibilityValidator {
                 || coverage == null || coverage.getWaitingPeriodDays() == null) {
             return;
         }
-        LocalDate eventDate = requestedEventDate.toLocalDate();
-        LocalDate coverageStart = policy.effectiveFrom().plusDays(coverage.getWaitingPeriodDays());
-        if (eventDate.isBefore(coverageStart)) {
+        LocalDateTime coverageStart = policy.effectiveFrom().plusDays(coverage.getWaitingPeriodDays());
+        if (requestedEventDate.isBefore(coverageStart)) {
             throw new PolicyNotEligibleException(String.format(
                     "La cobertura tiene una carencia de %d días desde el alta de la póliza (%s): recién "
                             + "cubre siniestros ocurridos a partir del %s.",
-                    coverage.getWaitingPeriodDays(), policy.effectiveFrom(), coverageStart));
+                    coverage.getWaitingPeriodDays(), DISPLAY_FORMAT.format(policy.effectiveFrom()),
+                    DISPLAY_FORMAT.format(coverageStart)));
         }
     }
 }

@@ -103,6 +103,20 @@
                       <span class="policy-warn">Póliza con premios adeudados</span>
                     }
                   </div>
+                  <!-- La mora (POLICY_STANDING) no necesita la fecha del hecho para evaluarse, así
+                       que el precheck ya puede confirmar acá, en el paso 1, si eso va a bloquear la
+                       denuncia — antes el badge de arriba decía "premios adeudados" sin aclarar si
+                       eso alcanzaba para impedir la denuncia o era solo un aviso. -->
+                  @if (eligibilityError(); as reason) {
+                    <div class="submit-error" role="alert">{{ reason }}</div>
+                  } @else if (eligibilityChecking()) {
+                    <app-inline-loading [size]="16" message="Verificando la póliza…" />
+                  } @else if (eligibilityUnknown()) {
+                    <div class="eligibility-unknown" role="status">
+                      En este momento no se puede determinar si tu póliza permite nuevos
+                      siniestros. Por favor, intentá de nuevo más tarde.
+                    </div>
+                  }
                 }
               }
             }
@@ -155,9 +169,18 @@
             <div class="submit-error" role="alert">{{ reason }}</div>
           } @else if (eligibilityChecking()) {
             <app-inline-loading [size]="16" message="Verificando la póliza…" />
+          } @else if (eligibilityUnknown()) {
+            <div class="eligibility-unknown" role="status">
+              En este momento no se puede determinar si tu póliza permite nuevos siniestros. Por
+              favor, intentá de nuevo más tarde.
+            </div>
           }
 
-          @if (requiresPoliceReport()) {
+          <!-- Se oculta con el resto del formulario cuando hay un bloqueo real (mora, vigencia,
+               carencia) — pero no cuando el propio error es de coherencia de fechas
+               (dateCoherenceError), porque ahí es justo el campo que hay que corregir: esconderlo
+               dejaría el error a la vista sin ninguna forma de arreglarlo. -->
+          @if (requiresPoliceReport() && (!eligibilityError() || dateCoherenceError())) {
             <label class="field-label">Fecha y hora de la denuncia policial</label>
             <div class="datetime-grid">
               <app-input type="date" [max]="today" [(value)]="policeReportDate" />

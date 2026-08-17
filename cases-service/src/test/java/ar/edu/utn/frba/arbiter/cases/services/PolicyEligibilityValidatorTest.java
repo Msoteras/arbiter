@@ -3,18 +3,23 @@ package ar.edu.utn.frba.arbiter.cases.services;
 import ar.edu.utn.frba.arbiter.cases.adapters.InsurerAdapter;
 import ar.edu.utn.frba.arbiter.cases.dto.PolicyResponse;
 import ar.edu.utn.frba.arbiter.cases.exceptions.PolicyNotEligibleException;
+import ar.edu.utn.frba.arbiter.common.models.entities.ClaimCause;
 import ar.edu.utn.frba.arbiter.common.models.entities.tenant.Coverage;
 import org.junit.jupiter.api.Test;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.util.List;
 import java.util.Optional;
 
 import org.springframework.web.client.ResourceAccessException;
 
 import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 /**
@@ -196,10 +201,62 @@ class PolicyEligibilityValidatorTest {
                 .doesNotThrowAnyException();
     }
 
+    // ── Exclusión de cobertura ───────────────────────────────────────────────
+
+    @Test
+    void aClaimCauseExcludedByTheCoverage_isRejected() {
+        givenPolicy(LocalDate.of(2026, 1, 1), LocalDate.of(2027, 1, 1));
+        when(rulesServiceClient.excludedClaimCauseIds(1L)).thenReturn(List.of(3L));
+
+        assertThatThrownBy(() -> validate(LocalDateTime.of(2026, 6, 13, 20, 0), null,
+                coverage(null, 1L, "Robo de celular"), claimCause(3L, "Hurto")))
+                .isInstanceOf(PolicyNotEligibleException.class)
+                .hasMessageContaining("no cubre");
+    }
+
+    @Test
+    void aClaimCauseNotExcluded_isAccepted() {
+        givenPolicy(LocalDate.of(2026, 1, 1), LocalDate.of(2027, 1, 1));
+        when(rulesServiceClient.excludedClaimCauseIds(1L)).thenReturn(List.of(3L));
+
+        assertThatCode(() -> validate(LocalDateTime.of(2026, 6, 13, 20, 0), null,
+                coverage(null, 1L, "Robo de celular"), claimCause(2L, "Robo en vía pública")))
+                .doesNotThrowAnyException();
+    }
+
+    /** The eligibility precheck (step 1/2, before "¿Qué te pasó?") doesn't have a claimCause yet. */
+    @Test
+    void withoutAClaimCause_theExclusionIsNotChecked() {
+        givenPolicy(LocalDate.of(2026, 1, 1), LocalDate.of(2027, 1, 1));
+
+        assertThatCode(() -> validate(LocalDateTime.of(2026, 6, 13, 20, 0), null,
+                coverage(null, 1L, "Robo de celular")))
+                .doesNotThrowAnyException();
+        verify(rulesServiceClient, never()).excludedClaimCauseIds(any());
+    }
+
+    /**
+     * rules-service unreachable does NOT reject: same fail-open reasoning as
+     * {@code whenRulesServiceIsUnreachable_arrearsIsNotValidated} above.
+     */
+    @Test
+    void whenRulesServiceIsUnreachableForExclusions_theClaimIsNotRejected() {
+        givenPolicy(LocalDate.of(2026, 1, 1), LocalDate.of(2027, 1, 1));
+        when(rulesServiceClient.excludedClaimCauseIds(1L)).thenThrow(new ResourceAccessException("Connection refused"));
+
+        assertThatCode(() -> validate(LocalDateTime.of(2026, 6, 13, 20, 0), null,
+                coverage(null, 1L, "Robo de celular"), claimCause(3L, "Hurto")))
+                .doesNotThrowAnyException();
+    }
+
     // ── Fixtures ───────────────────────────────────────────────────────────
 
     private void validate(LocalDateTime eventDate, LocalDateTime policeReportAt, Coverage coverage) {
-        validator.validate(POLICY_NUMBER, eventDate, policeReportAt, coverage);
+        validate(eventDate, policeReportAt, coverage, null);
+    }
+
+    private void validate(LocalDateTime eventDate, LocalDateTime policeReportAt, Coverage coverage, ClaimCause claimCause) {
+        validator.validate(POLICY_NUMBER, eventDate, policeReportAt, coverage, claimCause);
     }
 
     private void givenPolicy(LocalDate from, LocalDate to) {
@@ -209,15 +266,25 @@ class PolicyEligibilityValidatorTest {
     private void givenPolicy(LocalDate from, LocalDate to, boolean upToDate) {
         when(insurerAdapter.findPolicy(POLICY_NUMBER)).thenReturn(Optional.of(PolicyResponse.builder()
                 .policyNumber(POLICY_NUMBER)
-                .effectiveFrom(from)
-                .effectiveTo(to)
+                .effectiveFrom(from == null ? null : from.atStartOfDay())
+                .effectiveTo(to == null ? null : to.atStartOfDay())
                 .upToDate(upToDate)
                 .build()));
     }
 
     private Coverage coverage(Integer waitingPeriodDays) {
+        return coverage(waitingPeriodDays, null, null);
+    }
+
+    private Coverage coverage(Integer waitingPeriodDays, Long id, String name) {
         Coverage coverage = new Coverage();
+        coverage.setId(id);
+        coverage.setName(name);
         coverage.setWaitingPeriodDays(waitingPeriodDays);
         return coverage;
+    }
+
+    private ClaimCause claimCause(Long id, String name) {
+        return ClaimCause.builder().id(id).name(name).build();
     }
 }

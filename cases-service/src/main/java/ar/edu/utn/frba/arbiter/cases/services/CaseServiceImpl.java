@@ -13,6 +13,7 @@ import ar.edu.utn.frba.arbiter.cases.config.tenant.CallerContext;
 import ar.edu.utn.frba.arbiter.cases.config.tenant.TenantContext;
 import ar.edu.utn.frba.arbiter.cases.dto.StatusTransitionResponse;
 import ar.edu.utn.frba.arbiter.cases.models.repositories.InsurerRepository;
+import ar.edu.utn.frba.arbiter.common.models.entities.ClaimCause;
 import ar.edu.utn.frba.arbiter.common.models.entities.Insurer;
 import ar.edu.utn.frba.arbiter.cases.exceptions.AnalystNotFoundException;
 import ar.edu.utn.frba.arbiter.cases.exceptions.AnalystProfileNotFoundException;
@@ -121,15 +122,21 @@ public class CaseServiceImpl implements CaseService {
             throw new PolicyInsuredMismatchException(request.policyNumber());
         }
 
+        // Resolved before the eligibility gate so COVERAGE_EXCLUSION can be checked there too
+        // (the wizard already filters "¿Qué te pasó?" against it, but that's a UI convenience — a
+        // client posting straight to this endpoint isn't stopped by a dropdown).
+        ClaimCause claimCause = referenceResolver.resolveClaimCause(request.branch(), request.claimCause());
+
         // No contract with coverage means no claim to analyze: the case doesn't get created and
         // the insured gets the reason on the spot, instead of waiting for an analyst to close by
         // hand something that was never covered. Runs after the ownership check so an attempt to
         // file against someone else's policy still fails on that and doesn't leak its coverage window.
         policyEligibilityValidator.validate(
-                request.policyNumber(), request.eventDate(), request.policeReportAt(), policy.getCoverage());
+                request.policyNumber(), request.eventDate(), request.policeReportAt(), policy.getCoverage(),
+                claimCause);
 
         Case entity = Case.builder()
-                .claimCause(referenceResolver.resolveClaimCause(request.branch(), request.claimCause()))
+                .claimCause(claimCause)
                 .declaredItem(request.insuredItem())
                 .insured(insured)
                 .policy(policy)
@@ -138,6 +145,10 @@ public class CaseServiceImpl implements CaseService {
                 .occurredAt(request.eventDate())
                 .policeReportAt(request.policeReportAt())
                 .eventAddress(request.eventLocation())
+                // Normalizadas en sus propias columnas, no aplastadas dentro de eventAddress: es lo
+                // que permite filtrar/agrupar por zona sin parsear texto libre.
+                .province(blankToNull(request.province()))
+                .locality(blankToNull(request.locality()))
                 .claimedAmount(request.claimedAmount())
                 // Desde la denuncia, que es este mismo momento: `reportedAt` lo pone Hibernate
                 // recién al insertar, así que acá todavía es null.
@@ -180,12 +191,21 @@ public class CaseServiceImpl implements CaseService {
             if (!Objects.equals(insured.getId(), policy.getInsuredId())) {
                 throw new PolicyInsuredMismatchException(request.policyNumber());
             }
+            // claimCause null: el precheck corre en el paso 1/2, antes de "¿Qué te pasó?" — no
+            // tiene el hecho generador todavía, así que ese chequeo puntual solo se hace en el
+            // alta real (createCaseInIssuingTenant), que sí lo tiene siempre.
             policyEligibilityValidator.validate(
-                    request.policyNumber(), request.eventDate(), request.policeReportAt(), policy.getCoverage());
+                    request.policyNumber(), request.eventDate(), request.policeReportAt(), policy.getCoverage(),
+                    null);
             return EligibilityCheckResponse.ok();
         } catch (PolicyNotEligibleException | PolicyInsuredMismatchException e) {
             return EligibilityCheckResponse.notEligible(e.getMessage());
         }
+    }
+
+    /** Un campo opcional que llega vacío es "no lo cargó", no una cadena vacía guardada en base. */
+    private static String blankToNull(String value) {
+        return value == null || value.isBlank() ? null : value.trim();
     }
 
     /**

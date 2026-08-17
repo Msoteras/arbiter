@@ -15,7 +15,10 @@ export interface CaseCreateRequest {
   policyNumber: string;
   description: string;
   eventDate: string;
+  /** Solo la dirección a nivel calle. Localidad y provincia van en sus propios campos. */
   eventLocation: string;
+  province?: string;
+  locality?: string;
   // Fecha/hora en que el asegurado hizo la denuncia policial, tal como la declara. Opcional: no
   // todo hecho generador lleva denuncia policial (el wizard solo pide el dato cuando la agenda
   // documental del ramo incluye `police_report`).
@@ -35,7 +38,10 @@ export interface CaseCreateRequest {
 export interface EligibilityCheckRequest {
   insuredId: string;
   policyNumber: string;
-  eventDate: string;
+  // Opcional: el wizard llama esto dos veces — apenas se elige la póliza (paso 1, sin fecha
+  // todavía, para pescar mora temprano) y de nuevo con la fecha cargada (paso 2, para vigencia y
+  // carencia). El backend ya sabe saltear los chequeos que necesitan fecha cuando no viene.
+  eventDate?: string;
   policeReportAt?: string;
 }
 

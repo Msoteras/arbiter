@@ -156,7 +156,8 @@ class CaseReferenceResolverTest {
                 "Celulares", "Celular Protegido Básico", "Robo en vía pública",
                 "Motorola Edge 50 Pro", "40.123.456", "POL-CEL-2024-001",
                 "Me robaron el celular", LocalDateTime.of(2026, 6, 13, 19, 45),
-                "Estación Congreso, CABA", null, new BigDecimal("150000"),
+                "Av. Rivadavia 1234", "Buenos Aires", "CABA",
+                null, new BigDecimal("150000"),
                 pep, imageConsent, email, phone);
     }
 }

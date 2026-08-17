@@ -160,7 +160,41 @@ class CaseServiceImplTest {
         verify(caseRepository).save(captor.capture());
         assertThat(captor.getValue().getStatus()).isEqualTo(CaseStatus.PENDING_CLASSIFICATION);
 
+        // Ubicación normalizada en sus tres columnas: antes el wizard concatenaba todo en
+        // eventAddress y province/locality quedaban en null, dejando la zona del hecho como prosa
+        // no consultable.
+        assertThat(captor.getValue().getEventAddress()).isEqualTo("Av. Rivadavia 1234");
+        assertThat(captor.getValue().getProvince()).isEqualTo("Buenos Aires");
+        assertThat(captor.getValue().getLocality()).isEqualTo("CABA");
+
         verify(claimsAnalysisClient).analyzeAndPersist(eq(saved), eq(List.of()));
+    }
+
+    @Test
+    void createCase_blankProvinceAndLocalityBecomeNull() {
+        // Campos opcionales: si el asegurado no los carga, se guarda null y no una cadena vacía.
+        CaseRequest request = new CaseRequest(
+                "Celulares", "Celular Protegido Básico", "Robo en vía pública",
+                "Motorola Edge 50 Pro", CALLER_DNI, "POL-CEL-2024-001",
+                "Me robaron el celular", LocalDateTime.of(2026, 6, 13, 19, 45),
+                "Av. Rivadavia 1234", "   ", "",
+                null, new BigDecimal("150000"), false, false, null, null);
+        stubReferenceResolution();
+        when(caseStatusService.initialStatus()).thenReturn(CaseStates.of(CaseStatus.PENDING_CLASSIFICATION));
+        when(caseRepository.save(any(Case.class))).thenAnswer(inv -> {
+            Case e = inv.getArgument(0);
+            e.setId(1L);
+            return e;
+        });
+        when(claimsAnalysisClient.analyzeAndPersist(any(), any()))
+                .thenReturn(new AnalysisResult(null, 0.0, "in progress"));
+
+        caseService.createCase(request, null);
+
+        ArgumentCaptor<Case> captor = ArgumentCaptor.forClass(Case.class);
+        verify(caseRepository).save(captor.capture());
+        assertThat(captor.getValue().getProvince()).isNull();
+        assertThat(captor.getValue().getLocality()).isNull();
     }
 
     @Test
@@ -198,7 +232,9 @@ class CaseServiceImplTest {
                 "Celulares", "Celular Protegido Básico", "Robo en vía pública",
                 "Motorola Edge 50 Pro", "40.123.456", "POL-CEL-2024-001",
                 "Me robaron el celular en la estación de subte",
-                LocalDateTime.of(2026, 6, 13, 19, 45), "Estación Congreso, CABA",
+                LocalDateTime.of(2026, 6, 13, 19, 45), "Av. Rivadavia 1234",
+                "Buenos Aires", // province
+                "CABA", // locality
                 null, // policeReportAt
                 new BigDecimal("150000"),
                 false,
@@ -870,7 +906,7 @@ class CaseServiceImplTest {
     void checkEligibility_notEligibleWhenPolicyValidationFails() {
         stubPolicyAndInsuredResolution();
         doThrow(new PolicyNotEligibleException("La póliza no estaba vigente el 2026-06-13."))
-                .when(policyEligibilityValidator).validate(any(), any(), any(), any());
+                .when(policyEligibilityValidator).validate(any(), any(), any(), any(), any());
 
         EligibilityCheckResponse response = caseService.checkEligibility(eligibilityRequest());
 
@@ -916,7 +952,9 @@ class CaseServiceImplTest {
                 "POL-CEL-2024-001",
                 "Me robaron el celular en la estación de subte",
                 LocalDateTime.of(2026, 6, 13, 19, 45),
-                "Estación Congreso, CABA",
+                "Av. Rivadavia 1234",
+                "Buenos Aires", // province
+                "CABA", // locality
                 null, // policeReportAt
                 new BigDecimal("150000"),
                 false,
