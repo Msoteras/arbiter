@@ -3,7 +3,8 @@
 /* ===== Cabecera sticky (slim: solo identidad) ===== */
 .det-header {
   position: sticky;
-  top: 0;
+  /* Debajo de la topbar fija de la app, no atrás. */
+  top: var(--appbar-h);
   background: var(--surface);
   border-bottom: 1px solid var(--border-default);
   padding: var(--space-4) var(--space-6);

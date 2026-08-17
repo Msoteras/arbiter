@@ -92,6 +92,11 @@
   --font-weight-medium: 600;
   --font-weight-bold: 700;
 
+  /* ===== Layout del chrome =====
+     Alto de la topbar fija de los roles internos. Es global porque cualquier cabecera `sticky` de
+     una pantalla interna tiene que anclarse DEBAJO de ella, no atrás. */
+  --appbar-h: 56px;
+
   /* ===== Radios ===== */
   --radius-ctl: 8px; /* controles: botones, inputs */
   --radius-card: 12px;
