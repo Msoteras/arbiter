@@ -264,10 +264,13 @@ class PolicyEligibilityValidatorTest {
     }
 
     private void givenPolicy(LocalDate from, LocalDate to, boolean upToDate) {
+        // effectiveTo goes to the end of the day, not the start: these fixtures are date-only
+        // (no hour precision needed for what each test is checking), and theLastDayOfThePolicy_
+        // isStillCovered relies on the last calendar day still counting as covered.
         when(insurerAdapter.findPolicy(POLICY_NUMBER)).thenReturn(Optional.of(PolicyResponse.builder()
                 .policyNumber(POLICY_NUMBER)
                 .effectiveFrom(from == null ? null : from.atStartOfDay())
-                .effectiveTo(to == null ? null : to.atStartOfDay())
+                .effectiveTo(to == null ? null : to.atTime(23, 59, 59))
                 .upToDate(upToDate)
                 .build()));
     }
