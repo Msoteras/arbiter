@@ -112,6 +112,12 @@ export class DocUploadComponent {
 
   readonly caseId = input.required<number>();
   /**
+   * De qué aseguradora es el expediente — un asegurado con pólizas en más de una compañía puede
+   * estar subiendo documentación a un expediente que no vive en el tenant por defecto de su
+   * sesión (ver `ExpedienteService.getById`). Null para el analista/referente.
+   */
+  readonly insurerSlug = input<string | null>(null);
+  /**
    * Nombre del ramo del expediente: arma el uploader con los documentos que el ramo realmente
    * requiere (la agenda del referente), no con el catálogo completo. Sin ramo, cae al catálogo.
    */
@@ -217,7 +223,7 @@ export class DocUploadComponent {
     this.uploading.set(true);
     this.error.set(null);
 
-    this.service.uploadDocuments(this.caseId(), docs).subscribe({
+    this.service.uploadDocuments(this.caseId(), docs, this.insurerSlug()).subscribe({
       next: () => {
         this.uploading.set(false);
         this.uploaded.emit();

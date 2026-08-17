@@ -33,12 +33,18 @@ export class DocumentacionComponent {
   private readonly service = inject(ExpedienteService);
 
   protected readonly caseId = Number(this.route.snapshot.paramMap.get('id'));
+  /**
+   * Mismo motivo que en seguimiento: un asegurado con pólizas en más de una compañía puede tener
+   * este expediente en un tenant distinto del default de su sesión. La viene arrastrando la URL
+   * desde el link que trajo hasta acá (inicio, mis siniestros, seguimiento).
+   */
+  protected readonly insurerSlug = this.route.snapshot.queryParamMap.get('aseguradora');
 
   private readonly state = toSignal(
     this.route.paramMap.pipe(
       map((params) => params.get('id') ?? ''),
       switchMap((id) =>
-        this.service.getById(id).pipe(
+        this.service.getById(id, this.insurerSlug).pipe(
           map((data): LoadState => ({ status: 'ok', data })),
           startWith<LoadState>({ status: 'loading' }),
           catchError((err: HttpErrorResponse) =>
@@ -59,6 +65,8 @@ export class DocumentacionComponent {
   protected onUploaded(): void {
     // El backend ya recibió los documentos y re-encoló la clasificación: volvemos al
     // seguimiento, que va a mostrar el estado actualizado.
-    this.router.navigate(['/portal/cases', this.caseId]);
+    this.router.navigate(['/portal/cases', this.caseId], {
+      queryParams: this.insurerSlug ? { aseguradora: this.insurerSlug } : {},
+    });
   }
 }

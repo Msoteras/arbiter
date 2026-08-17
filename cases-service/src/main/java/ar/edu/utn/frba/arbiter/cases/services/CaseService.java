@@ -45,7 +45,12 @@ public interface CaseService {
 
     List<CaseDocumentResponse> getDocuments(Long caseId);
 
+    /** @param insurerSlug misma razón que {@link #getCase(Long, String)}: los ids de expediente se repiten entre esquemas. */
+    List<CaseDocumentResponse> getDocuments(Long caseId, String insurerSlug);
+
     CaseDocument getDocument(Long caseId, Long documentId);
+
+    CaseDocument getDocument(Long caseId, Long documentId, String insurerSlug);
 
     /**
      * Lista expedientes paginados, más recientes primero por defecto. Todos los filtros son
@@ -98,6 +103,9 @@ public interface CaseService {
                                      String q, RiskBand riskBand, Long analystId);
 
     CaseResponse addDocumentsAndReclassify(Long caseId, Map<String, MultipartFile> documents);
+
+    /** @param insurerSlug misma razón que {@link #getCase(Long, String)}: los ids de expediente se repiten entre esquemas. */
+    CaseResponse addDocumentsAndReclassify(Long caseId, Map<String, MultipartFile> documents, String insurerSlug);
 
     /**
      * Reintento manual de la clasificación para un expediente en {@code CLASSIFICATION_FAILED}. El

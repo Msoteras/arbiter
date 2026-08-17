@@ -212,15 +212,27 @@ export class ExpedienteService {
     return this.http.post<ExpedienteResponse>(this.baseUrl, formData);
   }
 
-  uploadDocuments(caseId: number, documents: Map<string, File>): Observable<ExpedienteResponse> {
+  /**
+   * `aseguradora`: mismo motivo que `getById` — un asegurado con pólizas en más de una compañía
+   * puede estar subiendo documentación a un expediente que no vive en el tenant por defecto de su
+   * sesión. `ExpedienteResponse.insurerSlug` (ya viene poblado desde el alta) es lo que hay que
+   * reenviar acá.
+   */
+  uploadDocuments(
+    caseId: number,
+    documents: Map<string, File>,
+    aseguradora?: string | null,
+  ): Observable<ExpedienteResponse> {
     const formData = new FormData();
     documents.forEach((file, type) => formData.append(type, file));
-    return this.http.post<ExpedienteResponse>(`${this.baseUrl}/${caseId}/documents`, formData);
+    const options = aseguradora ? { params: new HttpParams().set('aseguradora', aseguradora) } : {};
+    return this.http.post<ExpedienteResponse>(`${this.baseUrl}/${caseId}/documents`, formData, options);
   }
 
   /** Metadata de los adjuntos del expediente (sin el contenido). */
-  listDocuments(caseId: number): Observable<CaseDocument[]> {
-    return this.http.get<CaseDocument[]>(`${this.baseUrl}/${caseId}/documents`);
+  listDocuments(caseId: number, aseguradora?: string | null): Observable<CaseDocument[]> {
+    const options = aseguradora ? { params: new HttpParams().set('aseguradora', aseguradora) } : {};
+    return this.http.get<CaseDocument[]>(`${this.baseUrl}/${caseId}/documents`, options);
   }
 
   /**
@@ -228,9 +240,11 @@ export class ExpedienteService {
    * exige el JWT: el authInterceptor solo alcanza a las requests del HttpClient, una
    * navegación del browser saldría sin header y volvería 401.
    */
-  downloadDocument(caseId: number, documentId: number): Observable<Blob> {
+  downloadDocument(caseId: number, documentId: number, aseguradora?: string | null): Observable<Blob> {
+    const params = aseguradora ? new HttpParams().set('aseguradora', aseguradora) : undefined;
     return this.http.get(`${this.baseUrl}/${caseId}/documents/${documentId}`, {
       responseType: 'blob',
+      params,
     });
   }
 
