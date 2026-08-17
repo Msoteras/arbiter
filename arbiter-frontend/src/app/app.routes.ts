@@ -149,14 +149,18 @@ export const routes: Routes = [
   {
     path: 'insurer/dashboard',
     canActivate: [roleGuard],
-    data: { roles: ['REFERENTE_ASEGURADORA'] },
+    // El analista también los ve: son métricas de la operación, no configuración de la
+    // aseguradora (a diferencia de usuarios y reglas, que siguen siendo del referente).
+    data: { roles: ['REFERENTE_ASEGURADORA', 'ANALISTA_SINIESTROS'] },
     loadComponent: () =>
       import('./features/admin/dashboard/dashboard.component').then((m) => m.DashboardComponent),
   },
   {
     path: 'insurer/reports',
     canActivate: [roleGuard],
-    data: { roles: ['REFERENTE_ASEGURADORA'] },
+    // El analista también los ve: son métricas de la operación, no configuración de la
+    // aseguradora (a diferencia de usuarios y reglas, que siguen siendo del referente).
+    data: { roles: ['REFERENTE_ASEGURADORA', 'ANALISTA_SINIESTROS'] },
     loadComponent: () =>
       import('./features/admin/reportes/reportes.component').then((m) => m.ReportesComponent),
   },

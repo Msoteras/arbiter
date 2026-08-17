@@ -8,8 +8,8 @@ import {
   inject,
   signal,
 } from '@angular/core';
-import { toObservable, toSignal } from '@angular/core/rxjs-interop';
-import { Router, RouterLink } from '@angular/router';
+import { takeUntilDestroyed, toObservable, toSignal } from '@angular/core/rxjs-interop';
+import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import {
   catchError,
   debounceTime,
@@ -114,8 +114,19 @@ export class BandejaComponent {
   private readonly caseNav = inject(CaseNavigationService);
   private readonly session = inject(AuthSessionService);
   private readonly users = inject(UserAdminService);
+  private readonly route = inject(ActivatedRoute);
 
   constructor() {
+    // El buscador de la topbar deriva acá con ?q= al pedir "ver todos los resultados". Se lee en
+    // vivo (no solo al montar) porque la bandeja puede ya estar en pantalla cuando se busca.
+    this.route.queryParamMap.pipe(takeUntilDestroyed()).subscribe((params) => {
+      const q = params.get('q') ?? '';
+      if (q !== this.qDraft()) {
+        this.qDraft.set(q);
+        this.page.set(0);
+      }
+    });
+
     // Catálogo real de tipos de siniestro para el filtro (best-effort: si falla, queda vacío).
     this.service.claimCauseNames().subscribe({
       next: (names) => this.claimCauseOptions.set(names.map((n) => ({ value: n, label: n }))),
@@ -363,6 +374,14 @@ export class BandejaComponent {
   protected onSearchInput(v: string): void {
     this.qDraft.set(v);
     this.page.set(0);
+    // Se refleja en la URL para que ?q= no quede desincronizado con lo que se está viendo: si no,
+    // buscar de nuevo lo mismo desde la topbar no cambiaría la URL y la bandeja ignoraría el pedido.
+    this.router.navigate([], {
+      relativeTo: this.route,
+      queryParams: { q: v || null },
+      queryParamsHandling: 'merge',
+      replaceUrl: true,
+    });
   }
 
   // ───────────────── Panel de filtros (drawer lateral, aplicación diferida) ─────────────────

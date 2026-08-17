@@ -8,6 +8,7 @@ export type CaseStatus =
   | 'PENDING_ANALYST_REVIEW'
   | 'CLASSIFICATION_FAILED'
   | 'AWAITING_DOCUMENTATION'
+  | 'PENDING_EXPERT_REPORT'
   | 'APPROVED'
   | 'REJECTED';
 
@@ -16,6 +17,7 @@ const LABELS: Record<CaseStatus, string> = {
   PENDING_ANALYST_REVIEW: 'Pendiente de revisión',
   CLASSIFICATION_FAILED: 'Clasificación fallida',
   AWAITING_DOCUMENTATION: 'Falta documentación',
+  PENDING_EXPERT_REPORT: 'Derivado a peritaje',
   APPROVED: 'Aprobado',
   REJECTED: 'Rechazado',
 };
@@ -39,6 +41,8 @@ const DESCRIPCIONES: Record<CaseStatus, string> = {
     'El análisis automático no pudo completarse tras varios intentos. El caso no se pierde: un analista puede reintentar la clasificación a mano.',
   AWAITING_DOCUMENTATION:
     'Falta documentación obligatoria para poder evaluar el caso.',
+  PENDING_EXPERT_REPORT:
+    'El analista derivó el caso a un perito externo para verificar el hecho. El expediente espera el informe.',
   APPROVED: 'El siniestro fue aprobado por un analista.',
   REJECTED: 'El siniestro fue rechazado por un analista.',
 };
@@ -54,6 +58,8 @@ const PROXIMOS_PASOS: Record<CaseStatus, string> = {
     'Un analista reintenta la clasificación desde el detalle del expediente y sigue el flujo normal.',
   AWAITING_DOCUMENTATION:
     'Subí los documentos faltantes; al recibirlos, el caso se vuelve a evaluar automáticamente.',
+  PENDING_EXPERT_REPORT:
+    'Cuando llegue el informe, el analista lo carga y el caso vuelve a revisión para la decisión final.',
   APPROVED:
     'Vas a recibir un correo con el detalle de la resolución. No quedan pasos pendientes.',
   REJECTED:
@@ -75,6 +81,9 @@ const TONES: Record<CaseStatus, StatusTone> = {
   PENDING_ANALYST_REVIEW: 'info',
   CLASSIFICATION_FAILED: 'warning',
   AWAITING_DOCUMENTATION: 'warning',
+  // info y no warning: el expediente está en curso esperando a un tercero externo, y no hay
+  // nada que el analista pueda hacer — marcarlo en la bandeja pediría una atención que no aplica.
+  PENDING_EXPERT_REPORT: 'info',
   APPROVED: 'ok',
   REJECTED: 'danger',
 };
@@ -107,6 +116,7 @@ const SIMPLIFICADO: Record<CaseStatus, EstadoSimplificado> = {
   PENDING_ANALYST_REVIEW: 'EN_TRAMITE',
   CLASSIFICATION_FAILED: 'EN_TRAMITE',
   AWAITING_DOCUMENTATION: 'EN_TRAMITE',
+  PENDING_EXPERT_REPORT: 'EN_TRAMITE',
   APPROVED: 'TERMINADO',
   REJECTED: 'TERMINADO',
 };
@@ -172,6 +182,9 @@ const TITULOS_ASEGURADO: Record<CaseStatus, string> = {
   PENDING_ANALYST_REVIEW: 'Tu siniestro está en análisis',
   CLASSIFICATION_FAILED: 'Tu siniestro está en análisis',
   AWAITING_DOCUMENTATION: 'Necesitamos algo de tu parte',
+  // Idéntico a PENDING_ANALYST_REVIEW a propósito: para el asegurado la derivación no existe
+  // (insured_status = 'En análisis'). Nombrarla filtraría la sospecha que la motivó.
+  PENDING_EXPERT_REPORT: 'Tu siniestro está en análisis',
   APPROVED: 'Tu siniestro fue aprobado',
   REJECTED: 'Tu siniestro fue rechazado',
 };
@@ -205,6 +218,8 @@ const DESCRIPCIONES_ASEGURADO: Record<CaseStatus, string> = {
     'Un analista está revisando tu caso. No hace falta que hagas nada por ahora.',
   AWAITING_DOCUMENTATION:
     'Necesitamos que subas la documentación faltante para poder continuar.',
+  PENDING_EXPERT_REPORT:
+    'Un analista está revisando tu caso. Te avisamos ni bien haya novedades.',
   APPROVED: 'Tu siniestro fue aprobado. Vas a recibir el detalle por correo electrónico.',
   REJECTED: 'Tu siniestro fue rechazado. Vas a recibir los motivos por correo electrónico.',
 };
@@ -220,4 +235,59 @@ export function estadoDescripcionAseguradoEfectivo(
   return esReprocesoPorDocumentacion(currentStatus, pastStatuses)
     ? DESCRIPCION_REPROCESO_DOCUMENTACION
     : estadoDescripcionAsegurado(currentStatus);
+}
+
+/**
+ * Cómo se llama cada MOVIMIENTO del expediente en el seguimiento del asegurado. Saber que está
+ * "en trámite" no le dice si pasó algo, así que el hilo lista los movimientos reales — pero
+ * nombrados desde su lado, no con el estado técnico.
+ *
+ * Se mapea el ESTADO, nunca el `reason` del historial: ese texto es interno y trae cosas como
+ * "informe de peritaje recibido: FRAUD_CONFIRMED" o "clasificación: LLM_NO_RECOMIENDA_APROBAR".
+ * Renderizarlo filtraría de un saque la clasificación, el veredicto y el motivo de la derivación.
+ *
+ * `null` = movimiento que NO se le muestra: CLASSIFICATION_FAILED es una falla técnica interna que
+ * no le pide nada ni cambia nada de su lado, y contarla solo genera una consulta.
+ *
+ * @param fromStatus el estado del que viene, para distinguir movimientos que llegan al mismo lugar
+ *                   (volver de un peritaje no es lo mismo que entrar a revisión por primera vez).
+ */
+export function movimientoAseguradoLabel(toStatus: string, fromStatus: string | null): string | null {
+  // Las filas de asignación de analista se guardan con from == to (es el marcador que usa el
+  // timeline del analista para dibujarlas sin flecha). Para el asegurado no son un movimiento del
+  // expediente: sin esto, cada reasignación le repetía "un analista está revisando tu caso".
+  if (fromStatus !== null && fromStatus === toStatus) {
+    return null;
+  }
+
+  switch (toStatus) {
+    case 'PENDING_CLASSIFICATION':
+      if (fromStatus === null) {
+        return 'Denuncia recibida';
+      }
+      // El reintento manual del analista sobre un expediente que falló también vuelve acá, y no
+      // es que el asegurado haya mandado nada: es la contracara de no mostrar CLASSIFICATION_FAILED.
+      // Mostrarlo como "recibimos tu documentación" le inventaba una carga que nunca hizo.
+      if (fromStatus === 'CLASSIFICATION_FAILED') {
+        return null;
+      }
+      // Queda el caso real: subió lo que le faltaba (desde AWAITING_DOCUMENTATION, o desde la
+      // revisión del analista, que también admite carga de documentación).
+      return 'Recibimos tu documentación';
+    case 'AWAITING_DOCUMENTATION':
+      return 'Te pedimos documentación';
+    case 'PENDING_ANALYST_REVIEW':
+      // El peritaje sí se le cuenta —va a tener al perito contactándolo igual—, pero nunca por qué.
+      return fromStatus === 'PENDING_EXPERT_REPORT'
+        ? 'Verificación finalizada'
+        : 'Un analista está revisando tu caso';
+    case 'PENDING_EXPERT_REPORT':
+      return 'Enviado a verificación con un perito';
+    case 'APPROVED':
+      return 'Siniestro aprobado';
+    case 'REJECTED':
+      return 'Siniestro rechazado';
+    default:
+      return null;
+  }
 }

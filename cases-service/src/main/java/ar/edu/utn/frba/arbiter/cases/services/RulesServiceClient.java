@@ -1,13 +1,17 @@
 package ar.edu.utn.frba.arbiter.cases.services;
 
 import ar.edu.utn.frba.arbiter.cases.config.tenant.TenantContext;
+import ar.edu.utn.frba.arbiter.cases.exceptions.RulesUnavailableException;
 import ar.edu.utn.frba.arbiter.common.security.JwtSupport;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpHeaders;
 import org.springframework.stereotype.Component;
 import org.springframework.web.client.RestClient;
 
 import javax.crypto.SecretKey;
+import java.math.BigDecimal;
 import java.util.List;
 
 /**
@@ -21,6 +25,8 @@ import java.util.List;
  */
 @Component
 public class RulesServiceClient {
+
+    private static final Logger log = LoggerFactory.getLogger(RulesServiceClient.class);
 
     private final RestClient restClient;
     private final SecretKey jwtKey;
@@ -84,5 +90,46 @@ public class RulesServiceClient {
     }
 
     private record EvaluableRuleJson(String ruleType, List<Long> excludedClaimCauseIds) {
+    }
+
+    /**
+     * Si esta aseguradora deriva a peritaje los siniestros del ramo, y desde qué monto. El umbral
+     * es una regla de negocio y por eso vive en el motor (decisión #12), no como constante acá ni
+     * como una columna que cases-service pudiera leer por atrás.
+     *
+     * <p>Un motor caído NO es lo mismo que una aseguradora que no deriva: leer la falla como
+     * "deshabilitado" le mostraría al analista una política que el referente nunca configuró. Por
+     * eso falla explícito en vez de devolver {@link ExpertDerivationPolicy#disabled()}.
+     */
+    public ExpertDerivationPolicy expertDerivationPolicy(Long branchId) {
+        try {
+            String serviceToken = JwtSupport.issueServiceToken(jwtKey, "cases-service-peritaje", TenantContext.get());
+            ExpertDerivationPolicy policy = restClient.get()
+                    .uri(uri -> uri.path("/api/v1/rules/internal/expert-derivation")
+                            .queryParam("branchId", branchId).build())
+                    .header(HttpHeaders.AUTHORIZATION, "Bearer " + serviceToken)
+                    .retrieve()
+                    .body(ExpertDerivationPolicy.class);
+            return policy != null ? policy : ExpertDerivationPolicy.disabled();
+        } catch (Exception e) {
+            log.error("Could not read the expert derivation policy for branch {}", branchId, e);
+            throw new RulesUnavailableException(e);
+        }
+    }
+
+    /** Mirrors rules-service's ExpertDerivationDto. */
+    public record ExpertDerivationPolicy(boolean enabled, BigDecimal minClaimedAmount, Long ruleId) {
+
+        static ExpertDerivationPolicy disabled() {
+            return new ExpertDerivationPolicy(false, null, null);
+        }
+
+        /** Un monto reclamado nulo nunca supera el umbral: no hay contra qué compararlo. */
+        public boolean allows(BigDecimal claimedAmount) {
+            return enabled
+                    && claimedAmount != null
+                    && minClaimedAmount != null
+                    && claimedAmount.compareTo(minClaimedAmount) >= 0;
+        }
     }
 }

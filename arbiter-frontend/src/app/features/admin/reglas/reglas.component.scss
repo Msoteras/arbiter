@@ -16,7 +16,7 @@
 }
 
 /* ───────── Columna izquierda: ramos + scoring ───────── */
-.master-col { display: flex; flex-direction: column; gap: var(--space-4); position: sticky; top: var(--space-5); }
+.master-col { display: flex; flex-direction: column; gap: var(--space-4); position: sticky; top: calc(var(--appbar-h) + var(--space-5)); }
 
 /* ───────── Master: ramos ───────── */
 /* Recuadro "Scoring de riesgo": reusa el look de un ítem de ramo (mismo hover/estado activo teal). */
