@@ -198,4 +198,37 @@ class CaseSecurityTest extends AbstractPersistenceIT {
                         .header("Authorization", "Bearer " + tokenFor("ASEGURADO")))
                 .andExpect(status().isForbidden());
     }
+
+    /**
+     * Para el asegurado la derivación no existe: su expediente sigue 'En análisis'. Leer el
+     * peritaje le contaría que se sospecha de él, que es justo lo que el estado esconde.
+     */
+    @Test
+    void readExpertAssessment_asAsegurado_returns403() throws Exception {
+        mockMvc.perform(get("/api/v1/cases/1/expert-assessment")
+                        .header("Authorization", "Bearer " + tokenFor("ASEGURADO")))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
+    void deriveToExpert_asAsegurado_returns403() throws Exception {
+        mockMvc.perform(post("/api/v1/cases/1/expert-assessment")
+                        .header("Authorization", "Bearer " + tokenFor("ASEGURADO"))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"expertFirmId": 1, "reason": "sospecha"}
+                                """))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
+    void deriveToExpert_asAnalista_passesTheRoleGate() throws Exception {
+        mockMvc.perform(post("/api/v1/cases/999999/expert-assessment")
+                        .header("Authorization", "Bearer " + tokenFor("ANALISTA_SINIESTROS"))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"expertFirmId": 1, "reason": "banda crítica"}
+                                """))
+                .andExpect(status().isNotFound());
+    }
 }

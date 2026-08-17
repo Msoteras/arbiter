@@ -56,14 +56,16 @@
     </div>
   }
 
-  <!-- Hilo simplificado: SOLO los hitos visibles del asegurado, sin motivos internos
-       ni estados técnicos (la clasificación/decisión del analista no se muestra acá). -->
+  <!-- Movimientos del expediente. Los hitos de arriba dicen en qué etapa está; esto dice qué pasó.
+       Cada línea sale del ESTADO de la transición, nunca de su motivo interno: el asegurado ve que
+       su caso se derivó a verificación, no por qué (eso es la sospecha, y todavía no hay nada
+       probado). Tampoco ve la clasificación del modelo ni el veredicto del perito. -->
   <app-card heading="Seguimiento">
     <ol class="milestones">
-      @for (m of milestones(); track m.stage) {
-        <li class="milestone" [class.reached]="m.reached" [class.current]="m.current">
+      @for (m of movimientos(); track $index) {
+        <li class="milestone reached" [class.current]="m.current">
           <span class="ms-marker" aria-hidden="true">
-            @if (m.reached && !m.current) { <span class="ms-check">✓</span> }
+            @if (!m.current) { <span class="ms-check">✓</span> }
             @if (m.current) { <span class="ms-pulse"></span> }
           </span>
           <div class="ms-body">
@@ -71,11 +73,16 @@
               <span class="ms-label">{{ m.label }}</span>
               @if (m.current) { <span class="ms-now">Ahora</span> }
             </div>
-            @if (m.date) {
-              <span class="ms-date mono">{{ m.date }}</span>
-            } @else {
-              <span class="ms-date pending">Pendiente</span>
-            }
+            <span class="ms-date mono">{{ m.date }}</span>
+          </div>
+        </li>
+      }
+      @if (!isResolved()) {
+        <li class="milestone">
+          <span class="ms-marker" aria-hidden="true"></span>
+          <div class="ms-body">
+            <div class="ms-head"><span class="ms-label">Resolución</span></div>
+            <span class="ms-date pending">Pendiente</span>
           </div>
         </li>
       }

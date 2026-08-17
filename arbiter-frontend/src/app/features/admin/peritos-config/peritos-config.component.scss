@@ -1,0 +1,67 @@
+:host {
+  display: block;
+}
+
+.section-hint {
+  margin: 0 0 var(--space-4);
+  font-size: var(--font-size-xs);
+  color: var(--text-secondary);
+  max-width: 68ch;
+}
+
+.peritos {
+  list-style: none;
+  margin: 0 0 var(--space-4);
+  padding: 0;
+  display: grid;
+  gap: var(--space-2);
+}
+
+.perito {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  padding: var(--space-3);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-ctl);
+  background: var(--surface-soft);
+}
+
+/* Un perito desactivado sigue en la lista (el referente tiene que poder reactivarlo), pero no
+   compite visualmente con los que el analista sí puede elegir. */
+.perito.inactive { opacity: 0.6; }
+
+.perito-data { display: grid; gap: var(--space-1); min-width: 0; }
+.perito-name { font-weight: var(--font-weight-medium); color: var(--text-primary); }
+.perito-actions { display: flex; gap: var(--space-2); flex-shrink: 0; }
+
+.perito-form {
+  display: grid;
+  gap: var(--space-3);
+  margin-bottom: var(--space-3);
+  padding: var(--space-4);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-card);
+}
+
+.perito-form-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--space-2);
+}
+
+/* A la derecha y separado del estado vacío: pegado al recuadro se leía como parte del mensaje
+   en vez de como la acción de la sección. */
+.add-perito {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: var(--space-4);
+}
+
+.error { color: var(--status-danger); }
+
+@media (max-width: 640px) {
+  .perito { flex-direction: column; align-items: stretch; }
+  .perito-actions { justify-content: flex-end; }
+}

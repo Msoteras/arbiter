@@ -4,131 +4,135 @@
 
 .app-shell {
   display: flex;
+  flex-direction: column;
   min-height: 100vh;
   background: var(--surface-sunken);
 }
 
-/* ===== Sidebar de navegación (oscura) ===== */
-.sidebar {
-  flex: 0 0 236px;
-  position: sticky;
-  top: 0;
-  align-self: flex-start;
-  height: 100vh;
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-5);
-  padding: var(--space-4) var(--space-3);
-  background: var(--sidebar-bg);
-  color: var(--sidebar-fg);
+/* ===== Chrome de los roles internos (analista / referente) =====
+   Topbar fija + panel de navegación desplegable debajo. Comparten la superficie oscura
+   (--chrome-*): son el marco de la app, no contenido. */
+.app-shell--chrome {
+  --navpanel-w: 236px;
+  /* La topbar es `fixed`: el contenido arranca debajo de ella, no atrás. */
+  padding-top: var(--appbar-h);
 }
 
-.sidebar-brand {
+.appbar {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 40;
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
+  height: var(--appbar-h);
+  padding: 0 var(--space-4);
+  background: var(--chrome-bg);
+  color: var(--chrome-fg);
+}
+
+.appbar-burger {
+  flex: none;
+  display: flex;
+  padding: var(--space-2);
+  margin-left: calc(-1 * var(--space-2));
+  border: none;
+  background: none;
+  border-radius: var(--radius-ctl);
+  color: var(--chrome-muted);
+  cursor: pointer;
+  transition:
+    color var(--dur-1) ease,
+    background var(--dur-1) ease;
+}
+.appbar-burger:hover {
+  color: var(--chrome-fg);
+  background: var(--chrome-item-active);
+}
+
+.appbar-brand {
+  flex: none;
   display: flex;
   align-items: center;
   gap: var(--space-2);
-  padding: var(--space-1) var(--space-2);
+  color: var(--chrome-fg);
+  text-decoration: none;
 }
-.sidebar-logo {
-  --logo-size: 1.15rem;
+.appbar-logo {
+  --logo-size: 1.4rem;
   flex: none;
 }
-.sidebar-brand-name {
-  font-size: var(--font-size-lg);
+.appbar-brand-name {
+  font-size: var(--font-size-xl);
   font-weight: var(--font-weight-bold);
   letter-spacing: -0.02em;
 }
 
-.sidebar-nav {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-}
-.sidebar-nav a,
-.sidebar-nav .nav-item {
+/* Solo "Inicio" (+ el "volver" del detalle): el resto de las secciones vive en el panel. */
+.appbar-nav {
+  flex: none;
   display: flex;
   align-items: center;
-  gap: var(--space-3);
-  padding: var(--space-2) var(--space-3);
-  border-radius: var(--radius-ctl);
+  gap: var(--space-4);
+  margin-left: var(--space-2);
+}
+.appbar-nav a {
+  padding: var(--space-1) 0;
   font-size: var(--font-size-md);
-  color: var(--sidebar-muted);
+  color: var(--chrome-muted);
   text-decoration: none;
+  white-space: nowrap;
+  border-bottom: 2px solid transparent;
 }
-.sidebar-nav a:hover {
-  color: var(--sidebar-fg);
+.appbar-nav a:hover {
+  color: var(--chrome-fg);
 }
-.sidebar-nav a.active {
-  background: var(--sidebar-item-active);
-  color: var(--sidebar-fg);
+.appbar-nav a.active {
+  color: var(--chrome-fg);
   font-weight: var(--font-weight-medium);
+  border-bottom-color: var(--accent);
 }
-.nav-dot {
-  width: 7px;
-  height: 7px;
-  border-radius: 2px;
-  background: var(--c-ink-3);
-  flex: none;
+.appbar-back {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  font: inherit;
+  font-size: var(--font-size-md);
+  color: var(--chrome-muted);
+  background: none;
+  border: none;
+  padding: var(--space-1) var(--space-2);
+  border-radius: var(--radius-ctl);
+  white-space: nowrap;
+  cursor: pointer;
+  transition:
+    color var(--dur-1) ease,
+    background var(--dur-1) ease;
 }
-.sidebar-nav a.active .nav-dot {
-  background: var(--accent);
-}
-.sidebar-nav .is-disabled {
-  color: var(--c-ink-4);
-  cursor: default;
-}
-.sidebar-nav .nav-dev {
-  margin-top: var(--space-2);
-  font-size: var(--font-size-sm);
+.appbar-back:hover {
+  color: var(--chrome-fg);
+  background: var(--chrome-item-active);
 }
 
-/* Usuario + logout, anclados al pie. */
-.sidebar-user {
-  margin-top: auto;
+/* El buscador va con las acciones, a la derecha: no es navegación, es una herramienta más de la
+   barra — vive al lado de la campana.
+   El `min-width` es lo que necesita el placeholder completo a 11px (medido: 337px). Sin él, un
+   `flex-basis` solo es una sugerencia: apenas la barra aprieta, flexbox encoge el campo y el texto
+   que dice sobre qué se puede buscar queda cortado en "Buscar por N° de expediente, ase…". */
+.appbar-search {
+  flex: 0 1 440px;
+  min-width: 340px;
+}
+
+.appbar-actions {
+  margin-left: auto;
   display: flex;
   align-items: center;
   gap: var(--space-2);
-  padding-top: var(--space-4);
-  border-top: 1px solid var(--sidebar-hair);
 }
-.sidebar-avatar {
-  width: 32px;
-  height: 32px;
-  flex: none;
-  border-radius: var(--radius-pill);
-  background: var(--sidebar-avatar-bg);
-  color: var(--sidebar-fg);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: var(--font-size-sm);
-  font-weight: var(--font-weight-medium);
-}
-.sidebar-user-meta {
-  min-width: 0;
-  line-height: 1.3;
-}
-.sidebar-user-name {
-  display: block;
-  font-size: var(--font-size-sm);
-  font-weight: var(--font-weight-medium);
-  color: var(--sidebar-fg);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-.sidebar-user-role {
-  display: block;
-  font-size: var(--font-size-xs);
-  color: var(--sidebar-muted);
-}
-.sidebar-actions {
-  margin-left: auto;
-  flex: none;
-  display: flex;
-  gap: var(--space-1);
-}
-.sidebar-icon-btn {
+.appbar-icon-btn {
   position: relative;
   flex: none;
   display: flex;
@@ -136,12 +140,15 @@
   border: none;
   background: none;
   border-radius: var(--radius-ctl);
-  color: var(--sidebar-muted);
+  color: var(--chrome-muted);
   cursor: pointer;
+  transition:
+    color var(--dur-1) ease,
+    background var(--dur-1) ease;
 }
-.sidebar-icon-btn:hover {
-  color: var(--sidebar-fg);
-  background: var(--sidebar-item-active);
+.appbar-icon-btn:hover {
+  color: var(--chrome-fg);
+  background: var(--chrome-item-active);
 }
 /* Indicador de notificaciones sin leer, recortado sobre la superficie oscura. */
 .bell-dot {
@@ -152,17 +159,16 @@
   height: 8px;
   border-radius: var(--radius-pill);
   background: var(--status-info);
-  border: 2px solid var(--sidebar-bg);
+  border: 2px solid var(--chrome-bg);
 }
-/* Variante del punto sobre superficie clara (campana de la topbar). */
+/* Variante del punto sobre superficie clara (campana del portal del asegurado). */
 .bell-dot--light {
   border-color: var(--surface);
 }
 
-/* Contador de no leídas (campana del asegurado). Los roles internos siguen con el punto: hoy no
-   reciben notificaciones, así que un número ahí sería siempre un cero.
-   Va en el oscuro de énfasis y no en el semáforo --status-*: ese comunica estado del expediente,
-   y esto es un contador. El teal queda reservado a selección y foco. */
+/* Contador de no leídas. Va en el oscuro de énfasis y no en el semáforo --status-*: ese comunica
+   estado del expediente, y esto es un contador. El teal queda reservado a selección y foco.
+   El borde recorta contra la superficie de cada barra: clara en el portal, oscura en el chrome. */
 .bell-count {
   position: absolute;
   top: 0;
@@ -179,86 +185,171 @@
   text-align: center;
   font-variant-numeric: tabular-nums;
 }
-
-/* Columna de contenido (a la derecha de la sidebar): topbar fija + área ruteada. */
-.app-main {
-  flex: 1 1 auto;
-  min-width: 0;
-  display: flex;
-  flex-direction: column;
+/* Sobre el chrome oscuro el contador se invierte: fondo claro, texto oscuro, y recorta contra
+   la barra. Con --action-primary-* quedaba oscuro sobre oscuro. */
+.appbar .bell-count {
+  background: var(--chrome-fg);
+  color: var(--chrome-bg);
+  border-color: var(--chrome-bg);
 }
 
-/* ===== Barra superior del contenido (roles internos) ===== */
-.content-topbar {
-  position: sticky;
-  top: 0;
-  z-index: 15;
+/* ===== Perfil (único lugar donde aparece: la topbar) ===== */
+.appbar-profile {
+  position: relative;
+}
+.appbar-avatar-btn {
   display: flex;
-  align-items: center;
-  gap: var(--space-4);
-  min-height: 56px;
-  padding: var(--space-3) var(--space-6);
-  /* Barra "esmerilada": deja entrever el contenido al scrollear por debajo. */
-  background: color-mix(in srgb, var(--surface) 82%, transparent);
-  backdrop-filter: blur(8px);
-  border-bottom: 1px solid var(--border-subtle);
-}
-.content-topbar-title {
-  margin: 0;
-  font-size: var(--font-size-lg);
-  font-weight: var(--font-weight-medium);
-  letter-spacing: -0.01em;
-  color: var(--text-primary);
-}
-.content-topbar-actions {
-  margin-left: auto;
-  display: flex;
-  align-items: center;
-  gap: var(--space-2);
-}
-/* Botón "Volver a la bandeja" del detalle del expediente: liviano, tipo link. */
-.topbar-back {
-  display: inline-flex;
   align-items: center;
   gap: var(--space-1);
-  font: inherit;
-  font-size: var(--font-size-md);
-  color: var(--text-secondary);
-  background: none;
+  padding: var(--space-1);
   border: none;
-  padding: var(--space-1) var(--space-2);
-  margin-left: calc(-1 * var(--space-2));
-  border-radius: var(--radius-ctl);
+  background: none;
+  border-radius: var(--radius-pill);
+  color: var(--chrome-muted);
   cursor: pointer;
-  transition:
-    color var(--dur-1) ease,
-    background var(--dur-1) ease;
 }
-.topbar-back:hover {
-  color: var(--text-primary);
-  background: var(--surface-sunken);
+.appbar-avatar-btn:hover {
+  color: var(--chrome-fg);
+  background: var(--chrome-item-active);
 }
-.topbar-back-arrow {
-  font-size: 1.2em;
+.appbar-avatar {
+  width: 30px;
+  height: 30px;
+  flex: none;
+  border-radius: var(--radius-pill);
+  background: var(--chrome-avatar-bg);
+  color: var(--chrome-fg);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-medium);
+}
+.appbar-caret {
+  font-size: var(--font-size-2xs);
   line-height: 1;
 }
-.topbar-bell {
-  position: relative;
-  flex: none;
-  display: flex;
-  padding: var(--space-2);
-  border: none;
-  background: none;
-  border-radius: var(--radius-ctl);
-  color: var(--text-tertiary);
-  cursor: pointer;
-  transition:
-    color var(--dur-1) ease,
-    background var(--dur-1) ease;
+
+.profile-menu {
+  position: absolute;
+  top: calc(100% + var(--space-2));
+  right: 0;
+  z-index: 60;
+  min-width: 200px;
+  padding: var(--space-1);
+  background: var(--surface);
+  border: 1px solid var(--border-control);
+  border-radius: var(--radius-card);
+  box-shadow: var(--shadow-modal);
 }
-.topbar-bell:hover {
+.profile-head {
+  padding: var(--space-2) var(--space-3) var(--space-3);
+  border-bottom: 1px solid var(--border-subtle);
+  margin-bottom: var(--space-1);
+  line-height: 1.35;
+}
+.profile-name {
+  display: block;
+  font-size: var(--font-size-md);
+  font-weight: var(--font-weight-medium);
   color: var(--text-primary);
+}
+.profile-role {
+  display: block;
+  font-size: var(--font-size-xs);
+  color: var(--text-muted);
+}
+.profile-item {
+  display: block;
+  width: 100%;
+  font: inherit;
+  font-size: var(--font-size-md);
+  text-align: left;
+  padding: var(--space-2) var(--space-3);
+  border: none;
+  border-radius: var(--radius-ctl);
+  background: none;
+  color: var(--text-secondary);
+  cursor: pointer;
+}
+.profile-item:hover {
   background: var(--surface-sunken);
+  color: var(--text-primary);
+}
+
+/* ===== Panel de navegación desplegable ===== */
+.navpanel {
+  position: fixed;
+  top: var(--appbar-h);
+  bottom: 0;
+  left: 0;
+  z-index: 30;
+  width: var(--navpanel-w);
+  padding: var(--space-4) var(--space-3);
+  overflow-y: auto;
+  background: var(--chrome-bg);
+  color: var(--chrome-fg);
+  border-top: 1px solid var(--chrome-hair);
+  transform: translateX(-100%);
+  transition: transform var(--dur-2) var(--ease-standard);
+}
+.nav-open .navpanel {
+  transform: none;
+}
+
+.navpanel-group {
+  margin: 0 0 var(--space-1);
+  padding: var(--space-3) var(--space-3) var(--space-1);
+  font-size: var(--font-size-2xs);
+  font-weight: var(--font-weight-medium);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--chrome-muted);
+}
+.navpanel-group:first-child {
+  padding-top: 0;
+}
+
+.navpanel-nav {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.navpanel-nav a {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--radius-ctl);
+  font-size: var(--font-size-md);
+  color: var(--chrome-muted);
+  text-decoration: none;
+}
+.navpanel-nav a:hover {
+  color: var(--chrome-fg);
+}
+.navpanel-nav a.active {
+  background: var(--chrome-item-active);
+  color: var(--chrome-fg);
+  font-weight: var(--font-weight-medium);
+}
+.nav-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 2px;
+  background: var(--c-ink-3);
+  flex: none;
+}
+.navpanel-nav a.active .nav-dot {
+  background: var(--accent);
+}
+
+/* Superpuesto (pantalla angosta): fondo que atenúa el contenido y cierra al tocarlo. */
+.nav-scrim {
+  position: fixed;
+  inset: var(--appbar-h) 0 0 0;
+  z-index: 25;
+  background: var(--overlay-backdrop);
 }
 
 .app-content {
@@ -268,6 +359,51 @@
   // su paginación al pie). Las pantallas que no lo piden se dimensionan por su contenido igual.
   display: flex;
   flex-direction: column;
+}
+/* Abierto en pantalla ancha, el panel EMPUJA el contenido (es layout); angosto, se superpone. */
+.app-shell--chrome.nav-open:not(.nav-overlay) .app-content {
+  margin-left: var(--navpanel-w);
+}
+.app-shell--chrome .app-content {
+  transition: margin-left var(--dur-2) var(--ease-standard);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .navpanel,
+  .app-shell--chrome .app-content {
+    transition: none;
+  }
+}
+
+/* Antes de que el buscador tenga que encogerse (y cortar el placeholder, que es donde dice sobre
+   qué se puede buscar), lo que cede es el nombre de la marca: el símbolo alcanza para identificar
+   la app y libera el ancho justo. */
+@media (max-width: 900px) {
+  .appbar-brand-name {
+    display: none;
+  }
+}
+
+/* Recién acá el campo puede encogerse: ya no hay ancho para el placeholder completo, y cortarlo
+   es mejor que desbordar la barra. */
+@media (max-width: 720px) {
+  .appbar-search {
+    min-width: 0;
+  }
+}
+
+@media (max-width: 640px) {
+  .appbar {
+    gap: var(--space-2);
+    padding: 0 var(--space-3);
+  }
+  /* Ya sin lugar para nada, "Inicio" también cede: se llega igual desde el panel de la hamburguesa. */
+  .appbar-nav {
+    display: none;
+  }
+  .navpanel {
+    width: min(var(--navpanel-w), 82vw);
+  }
 }
 
 /* ===== Barra superior (portal del asegurado) ===== */
@@ -348,6 +484,24 @@
   font-size: var(--font-size-sm);
   font-weight: var(--font-weight-medium);
 }
+.topbar-bell {
+  position: relative;
+  flex: none;
+  display: flex;
+  padding: var(--space-2);
+  border: none;
+  background: none;
+  border-radius: var(--radius-ctl);
+  color: var(--text-tertiary);
+  cursor: pointer;
+  transition:
+    color var(--dur-1) ease,
+    background var(--dur-1) ease;
+}
+.topbar-bell:hover {
+  color: var(--text-primary);
+  background: var(--surface-sunken);
+}
 .topbar-icon-btn {
   flex: none;
   display: flex;
@@ -372,90 +526,10 @@
     display: none;
   }
 }
-
-/* ===== Mobile: la sidebar pasa a barra superior ===== */
-@media (max-width: 720px) {
-  .content-topbar {
-    padding: var(--space-3) var(--space-4);
-    min-height: 48px;
-  }
-  .app-shell {
-    flex-direction: column;
-  }
-  .sidebar {
-    flex: none;
-    position: static;
-    height: auto;
-    flex-direction: row;
-    align-items: center;
-    gap: var(--space-3);
-    padding: var(--space-2) var(--space-4);
-  }
-  .sidebar-nav {
-    flex-direction: row;
-    flex: 1 1 auto;
-    overflow-x: auto;
-  }
-  .sidebar-nav .nav-dot {
-    display: none;
-  }
-  .sidebar-nav .nav-dev {
-    margin-top: 0;
-  }
-  .sidebar-user {
-    margin-top: 0;
-    padding-top: 0;
-    border-top: none;
-  }
-  .sidebar-user-meta {
-    display: none;
-  }
-}
-
-/* ─── Notifications panel ────────────────────────────────────────────────── */
-
-.notif-list {
-  list-style: none;
-  margin: 0;
-  padding: 0;
+/* ===== Notificaciones ===== */
+/* Contenedor relativo de la campana: el panel (app-notifications-panel) se ancla a ella. */
+.appbar-notifs,
+.topbar-notifs {
+  position: relative;
   display: flex;
-  flex-direction: column;
-  gap: var(--space-2);
-  /* The list is the modal's body: it scrolls on its own instead of growing the dialog past
-     the viewport when there are many. */
-  max-height: 60vh;
-  overflow-y: auto;
-}
-
-.notif-item {
-  padding: var(--space-3);
-  border: 1px solid var(--border-subtle);
-  border-radius: var(--radius-card);
-  background: var(--surface);
-}
-
-/* Unread is marked with the brand accent, the same role the rest of the app uses for selection —
-   not with the status palette, which is reserved for the case's own state. */
-.notif-item--unread {
-  background: var(--selected-bg);
-  border-color: var(--selected-border);
-}
-
-.notif-item__head {
-  display: flex;
-  align-items: baseline;
-  justify-content: space-between;
-  gap: var(--space-3);
-  margin-bottom: var(--space-1);
-}
-
-.notif-item__link {
-  display: inline-block;
-  margin-top: var(--space-2);
-  color: var(--accent-fg);
-  text-decoration: none;
-}
-
-.notif-item__link:hover {
-  text-decoration: underline;
 }

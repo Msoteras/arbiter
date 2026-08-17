@@ -17,6 +17,13 @@ public enum CaseStatus {
      * Deliberately NOT in the analyst's queue.
      */
     AWAITING_DOCUMENTATION,
+    /**
+     * The analyst derived the case to an external expert and is waiting for their report. Not
+     * final and not a verdict: the case comes back to {@link #PENDING_ANALYST_REVIEW} once the
+     * report is in, and the analyst still decides. Nobody inside Arbiter acts meanwhile — the
+     * expert is outside the system and answers by email.
+     */
+    PENDING_EXPERT_REPORT,
     /** Final: the analyst approved the claim (set by the decision endpoint). */
     APPROVED,
     /** Final: the analyst rejected the claim (set by the decision endpoint). */
