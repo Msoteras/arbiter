@@ -176,11 +176,14 @@ class TemporalRuleEvaluatorTest {
         return policy(from, to, true);
     }
 
+    // Firma sin cambios (LocalDate): son ~25 llamados en este archivo, y ninguno necesita
+    // precisión de hora — el borde de la hora lo prueba InsuredPolicyTest, que es el dueño de
+    // inForceOn(). Acá alcanza con medianoche.
     private InsuredPolicy policy(LocalDate from, LocalDate to, boolean upToDate) {
         return InsuredPolicy.builder()
                 .policyNumber("POL-CEL-2024-001")
-                .effectiveFrom(from)
-                .effectiveTo(to)
+                .effectiveFrom(from == null ? null : from.atStartOfDay())
+                .effectiveTo(to == null ? null : to.atStartOfDay())
                 .upToDate(upToDate)
                 .insuredAmount(new BigDecimal("400000"))
                 .build();

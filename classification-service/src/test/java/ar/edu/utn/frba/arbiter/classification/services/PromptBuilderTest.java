@@ -43,8 +43,8 @@ class PromptBuilderTest {
                 .policyNumber("POL-CEL-2026-001")
                 .branch("Celulares")
                 .upToDate(true)
-                .effectiveFrom(LocalDate.of(2026, 1, 1))
-                .effectiveTo(LocalDate.of(2026, 12, 31))
+                .effectiveFrom(LocalDate.of(2026, 1, 1).atStartOfDay())
+                .effectiveTo(LocalDate.of(2026, 12, 31).atStartOfDay())
                 .insuredAmount(new BigDecimal("400000"))
                 .applicableClauses(List.of())
                 .build();

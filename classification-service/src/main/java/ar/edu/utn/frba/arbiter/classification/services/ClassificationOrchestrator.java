@@ -156,7 +156,8 @@ public class ClassificationOrchestrator {
                     // NOT NULL in the schema. A policy with no sum insured is broken data from the
                     // insurer's DB, not a real zero: the faithful value stays in the payload.
                     policy.insuredAmount() != null ? policy.insuredAmount() : BigDecimal.ZERO,
-                    policy.inForceOn(claim.eventDate() == null ? null : claim.eventDate().toLocalDate()),
+                    // Sin truncar a fecha: inForceOn ya compara por timestamp completo (D13).
+                    policy.inForceOn(claim.eventDate()),
                     policy.upToDate(),
                     ctx.history().previousClaimsCount(),
                     insurerPayload(policy, ctx.history())));

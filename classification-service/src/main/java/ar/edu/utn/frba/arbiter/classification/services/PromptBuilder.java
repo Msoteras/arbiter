@@ -132,7 +132,8 @@ public class PromptBuilder {
         sb.append("\nDATOS DE LA PÓLIZA:\n");
         sb.append("- Número: %s\n".formatted(policy.policyNumber()));
         sb.append("- Estado de pago: %s\n".formatted(policy.upToDate() ? "Al día" : "CON MORA"));
-        sb.append("- Vigencia: %s a %s\n".formatted(policy.effectiveFrom(), policy.effectiveTo()));
+        sb.append("- Vigencia: %s a %s\n".formatted(
+                EVENT_DATE_FORMAT.format(policy.effectiveFrom()), EVENT_DATE_FORMAT.format(policy.effectiveTo())));
         sb.append("- Suma asegurada: $%s\n".formatted(policy.insuredAmount()));
         sb.append("- Franquicia: $%s\n".formatted(policy.deductible()));
 

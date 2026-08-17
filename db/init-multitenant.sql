@@ -908,8 +908,12 @@ BEGIN
             -- con el del bien" (D4b): sin esto, extraer el IMEI de la factura no servía de nada.
             imei                  VARCHAR(20),
             moneda                VARCHAR(3)    NOT NULL DEFAULT 'ARS',
-            vigencia_desde        DATE          NOT NULL,
-            vigencia_hasta        DATE          NOT NULL,
+            -- TIMESTAMPTZ, no DATE: la póliza modelo (BBVA) fija la vigencia con hora exacta
+            -- ("desde las 12:00 hs del..."), y con solo la fecha un siniestro dos horas antes de
+            -- que arranque la vigencia, mismo día, pasaba el chequeo de PolicyEligibilityValidator
+            -- / TemporalRuleEvaluator (D13) como si estuviera cubierto.
+            vigencia_desde        TIMESTAMPTZ   NOT NULL,
+            vigencia_hasta        TIMESTAMPTZ   NOT NULL,
             estado_contrato       VARCHAR(20)   NOT NULL,
             estado_pago           VARCHAR(20)   NOT NULL,
             cuotas_pagas          INTEGER       NOT NULL DEFAULT 0,

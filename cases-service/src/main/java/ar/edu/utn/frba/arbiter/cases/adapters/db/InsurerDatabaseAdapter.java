@@ -12,7 +12,7 @@ import org.springframework.stereotype.Component;
 
 import java.math.BigDecimal;
 import java.math.RoundingMode;
-import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
@@ -71,9 +71,11 @@ public class InsurerDatabaseAdapter implements InsurerAdapter {
     /**
      * El mismo documento puede tener pólizas en varias compañías → vista centralizada.
      *
-     * <p>Solo pólizas vigentes hoy ({@code vigencia_hasta >= CURRENT_DATE}): esto alimenta el
-     * desplegable del alta de denuncia, y una póliza vencida ahí solo lleva al asegurado a
-     * completar todo el wizard para enterarse recién al final que {@link
+     * <p>Solo pólizas vigentes ahora mismo ({@code vigencia_hasta >= NOW()}, no {@code
+     * CURRENT_DATE}: la vigencia lleva hora, así que una póliza que vence hoy a las 08:00 ya no
+     * es vigente a las 14:00 aunque siga siendo "hoy"): esto alimenta el desplegable del alta de
+     * denuncia, y una póliza vencida ahí solo lleva al asegurado a completar todo el wizard para
+     * enterarse recién al final que {@link
      * ar.edu.utn.frba.arbiter.cases.services.PolicyEligibilityValidator} la va a rechazar. El
      * lookup puntual por número ({@link #findPolicy}) no filtra — a ese se llega por otros
      * caminos (expediente ya creado, chequeo de elegibilidad) donde una póliza vencida es un
@@ -84,7 +86,7 @@ public class InsurerDatabaseAdapter implements InsurerAdapter {
         List<PolicyResponse> policies = new ArrayList<>();
         for (InsurerDatabase database : insurerDatabases.forCaller()) {
             jdbc.query(POLICY_SELECT.formatted(database.schema())
-                                    + " WHERE a.documento = ? AND p.vigencia_hasta >= CURRENT_DATE"
+                                    + " WHERE a.documento = ? AND p.vigencia_hasta >= NOW()"
                                     + " ORDER BY p.numero",
                             this::mapRow,
                             insuredId)
@@ -141,8 +143,8 @@ public class InsurerDatabaseAdapter implements InsurerAdapter {
                 rs.getString("rama"),
                 rs.getString("producto"),
                 rs.getString("bien_asegurado"),
-                rs.getObject("vigencia_desde", LocalDate.class),
-                rs.getObject("vigencia_hasta", LocalDate.class),
+                rs.getObject("vigencia_desde", LocalDateTime.class),
+                rs.getObject("vigencia_hasta", LocalDateTime.class),
                 rs.getString("estado_pago"),
                 rs.getBigDecimal("saldo_deuda"),
                 rs.getString("documento"),
@@ -171,8 +173,8 @@ public class InsurerDatabaseAdapter implements InsurerAdapter {
             String rama,
             String producto,
             String bienAsegurado,
-            LocalDate vigenciaDesde,
-            LocalDate vigenciaHasta,
+            LocalDateTime vigenciaDesde,
+            LocalDateTime vigenciaHasta,
             String estadoPago,
             BigDecimal saldoDeuda,
             String documento,

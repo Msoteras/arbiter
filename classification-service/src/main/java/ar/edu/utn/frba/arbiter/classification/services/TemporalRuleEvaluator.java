@@ -12,6 +12,8 @@ import org.springframework.stereotype.Service;
 
 import java.time.Duration;
 import java.time.LocalDate;
+import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.EnumMap;
 import java.util.List;
@@ -66,6 +68,9 @@ import java.util.Map;
 public class TemporalRuleEvaluator {
 
     private static final Logger log = LoggerFactory.getLogger(TemporalRuleEvaluator.class);
+
+    /** Para los `evaluated_value`/mensajes: la vigencia lleva hora, y hay que mostrarla. */
+    private static final DateTimeFormatter DISPLAY_FORMAT = DateTimeFormatter.ofPattern("dd/MM/yyyy HH:mm");
 
     /**
      * @param blocksFastTrack {@code true} if any temporal rule failed (must not fast-track).
@@ -128,18 +133,28 @@ public class TemporalRuleEvaluator {
         }
     }
 
-    /** D13 · the event has to fall within the policy's coverage window. */
+    /**
+     * D13 · the event has to fall within the policy's coverage window.
+     *
+     * <p>Compared as a full timestamp, not truncated to the day: the reference policy fixes
+     * vigencia with an exact hour ("desde las 12:00 hs del..."), and comparing only by date gave
+     * false accepts at the edge — an event two hours before coverage started, same calendar day,
+     * used to pass ({@code policy.effectiveFrom()/effectiveTo()} already carry the hour).
+     */
     private void evaluatePolicyInForce(
             BusinessRules.EvaluableRule rule, ClaimReport claim, InsuredPolicy policy, Outcome outcome) {
         if (rule == null || claim.eventDate() == null
                 || policy.effectiveFrom() == null || policy.effectiveTo() == null) {
             return;
         }
-        LocalDate eventDate = claim.eventDate().toLocalDate();
+        LocalDateTime eventDate = claim.eventDate();
         outcome.record(rule, policy.inForceOn(eventDate),
-                "eventDate=" + eventDate + " coverageWindow=" + policy.effectiveFrom() + ".." + policy.effectiveTo(),
+                "eventDate=" + DISPLAY_FORMAT.format(eventDate) + " coverageWindow="
+                        + DISPLAY_FORMAT.format(policy.effectiveFrom()) + ".."
+                        + DISPLAY_FORMAT.format(policy.effectiveTo()),
                 String.format("The claim (%s) occurred outside the policy's coverage window (%s to %s)",
-                        eventDate, policy.effectiveFrom(), policy.effectiveTo()));
+                        DISPLAY_FORMAT.format(eventDate), DISPLAY_FORMAT.format(policy.effectiveFrom()),
+                        DISPLAY_FORMAT.format(policy.effectiveTo())));
     }
 
     /**
@@ -160,13 +175,15 @@ public class TemporalRuleEvaluator {
                 || claim.eventDate() == null || policy.effectiveFrom() == null) {
             return;
         }
-        LocalDate eventDate = claim.eventDate().toLocalDate();
-        LocalDate coverageStart = policy.effectiveFrom().plusDays(rules.waitingPeriodDays());
+        LocalDateTime eventDate = claim.eventDate();
+        LocalDateTime coverageStart = policy.effectiveFrom().plusDays(rules.waitingPeriodDays());
         outcome.record(rule, !eventDate.isBefore(coverageStart),
-                "eventDate=" + eventDate + " waitingPeriod=" + rules.waitingPeriodDays() + "d from " + policy.effectiveFrom(),
+                "eventDate=" + DISPLAY_FORMAT.format(eventDate) + " waitingPeriod="
+                        + rules.waitingPeriodDays() + "d from " + DISPLAY_FORMAT.format(policy.effectiveFrom()),
                 String.format("The claim (%s) occurred within the %d-day waiting period: coverage only "
                                 + "applies from %s (policy started on %s)",
-                        eventDate, rules.waitingPeriodDays(), coverageStart, policy.effectiveFrom()));
+                        DISPLAY_FORMAT.format(eventDate), rules.waitingPeriodDays(),
+                        DISPLAY_FORMAT.format(coverageStart), DISPLAY_FORMAT.format(policy.effectiveFrom())));
     }
 
     /**

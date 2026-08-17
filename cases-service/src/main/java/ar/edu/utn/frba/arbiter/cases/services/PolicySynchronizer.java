@@ -15,7 +15,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
 import java.time.Instant;
-import java.time.LocalDate;
+import java.time.LocalDateTime;
 
 /**
  * Pulls from the insurer DB a policy Arbiter doesn't have yet and persists it as a local snapshot
@@ -95,8 +95,8 @@ public class PolicySynchronizer {
      * asserting something that couldn't be verified.
      */
     private boolean inForceToday(PolicyResponse remote) {
-        LocalDate today = LocalDate.now();
-        return (remote.effectiveFrom() == null || !today.isBefore(remote.effectiveFrom()))
-                && (remote.effectiveTo() == null || !today.isAfter(remote.effectiveTo()));
+        LocalDateTime now = LocalDateTime.now();
+        return (remote.effectiveFrom() == null || !now.isBefore(remote.effectiveFrom()))
+                && (remote.effectiveTo() == null || !now.isAfter(remote.effectiveTo()));
     }
 }

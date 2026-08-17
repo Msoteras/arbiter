@@ -16,6 +16,7 @@ import org.springframework.stereotype.Component;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.util.List;
 
 /**
@@ -79,8 +80,8 @@ public class InsurerDatabaseAdapter implements InsurerAdapter {
                                 rs.getString("producto"),
                                 rs.getString("bien_asegurado"),
                                 rs.getString("imei"),
-                                rs.getObject("vigencia_desde", LocalDate.class),
-                                rs.getObject("vigencia_hasta", LocalDate.class),
+                                rs.getObject("vigencia_desde", LocalDateTime.class),
+                                rs.getObject("vigencia_hasta", LocalDateTime.class),
                                 rs.getString("estado_pago"),
                                 rs.getBigDecimal("saldo_deuda"),
                                 rs.getString("documento"),
@@ -159,9 +160,12 @@ public class InsurerDatabaseAdapter implements InsurerAdapter {
                 .filter(a -> a != null)
                 .reduce(BigDecimal.ZERO, BigDecimal::add);
 
+        // ::date acá porque customerSince es de granularidad diaria: no hace falta la hora, y
+        // castear en SQL evita tener que cambiar el tipo de InsuredHistory.customerSince por un
+        // cambio que no le importa a este campo.
         LocalDate customerSince = jdbc.query(
                         """
-                        SELECT MIN(p.vigencia_desde) AS since
+                        SELECT MIN(p.vigencia_desde)::date AS since
                         FROM %1$s.poliza     p
                         JOIN %1$s.asegurado  a ON a.id = p.titular_id
                         WHERE a.documento = ?
@@ -202,8 +206,8 @@ public class InsurerDatabaseAdapter implements InsurerAdapter {
             String producto,
             String bienAsegurado,
             String imei,
-            LocalDate vigenciaDesde,
-            LocalDate vigenciaHasta,
+            LocalDateTime vigenciaDesde,
+            LocalDateTime vigenciaHasta,
             String estadoPago,
             BigDecimal saldoDeuda,
             String documento,
