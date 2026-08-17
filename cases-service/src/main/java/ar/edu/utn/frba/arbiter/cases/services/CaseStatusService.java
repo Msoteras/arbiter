@@ -10,6 +10,7 @@ import ar.edu.utn.frba.arbiter.common.enums.CaseStatus;
 import ar.edu.utn.frba.arbiter.common.models.entities.CaseState;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
 import java.util.Map;
@@ -47,6 +48,7 @@ public class CaseStatusService {
     }
 
     /** Records the case's birth (null → its initial status). The case is already persisted. */
+    @Transactional
     public void recordCreation(Case caseRecord, StatusChangeActor actor, String reason) {
         appendHistory(caseRecord.getId(), null, caseRecord.getCurrentStatus(), actor, reason);
         // "We got your claim" belongs to the birth and not to transition(): a case comes back to
@@ -55,7 +57,17 @@ public class CaseStatusService {
         notificationService.notifyStatusChange(caseRecord, PENDING_CLASSIFICATION);
     }
 
-    /** Moves the case to a new status, records the transition, and persists the case. */
+    /**
+     * Moves the case to a new status, records the transition, and persists the case.
+     *
+     * <p>{@code @Transactional}: called from {@code ClassificationRefreshScheduler} (no HTTP
+     * request behind it, so no open-in-view or any other ambient session/transaction to piggyback
+     * on) — without this, the history save and the case save each needed their own implicit
+     * transaction to reliably flush, and in that codepath specifically one of them was failing
+     * with "No EntityManager with actual transaction available ... cannot reliably process
+     * 'flush' call". This also makes the two writes atomic, which they always should've been.
+     */
+    @Transactional
     public Case transition(Case caseRecord, CaseStatus to, StatusChangeActor actor, String reason) {
         CaseStatus from = caseRecord.getStatus();
         Set<CaseStatus> allowed = VALID_TRANSITIONS.getOrDefault(from, Set.of());
@@ -87,6 +99,7 @@ public class CaseStatusService {
      * uses to render it as a milestone without a status arrow. Human-in-the-loop is untouched:
      * having an owner is not a decision (decisión de arquitectura #5).
      */
+    @Transactional
     public void recordAssignment(Case caseRecord, String reason) {
         appendHistory(caseRecord.getId(), caseRecord.getCurrentStatus(), caseRecord.getCurrentStatus(),
                 StatusChangeActor.ANALYST, reason);
