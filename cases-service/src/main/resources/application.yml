@@ -41,6 +41,8 @@ spring:
 arbiter:
   classification-service:
     url: ${CLASSIFICATION_SERVICE_URL:http://localhost:8082}
+  rules-service:
+    url: ${RULES_SERVICE_URL:http://localhost:8081}
   auth:
     jwt:
       secret: ${JWT_SECRET:}

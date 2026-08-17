@@ -109,18 +109,32 @@
           }
 
           <label class="field-label">¿Qué te pasó?</label>
-          <div class="chips">
-            @for (t of claimTypes(); track t.key) {
-              <button
-                type="button"
-                class="chip"
-                [class.selected]="selectedType()?.key === t.key"
-                (click)="selectType(t)"
-              >
-                {{ t.label }}
-              </button>
-            }
-          </div>
+          <!-- Los chips no se dibujan hasta que llegan LAS DOS llamadas (hechos del ramo + cubiertos):
+               así ninguno aparece clickeable antes de saber si la póliza lo cubre. Mientras: spinner. -->
+          @if (catalogsLoading()) {
+            <app-inline-loading message="Cargando opciones…" />
+          } @else {
+            <div class="chips">
+              @for (t of claimTypes(); track t.key) {
+                <button
+                  type="button"
+                  class="chip"
+                  [class.selected]="selectedType()?.key === t.key"
+                  [class.not-covered]="selectedType()?.key === t.key && selectedTypeNotCovered()"
+                  (click)="selectType(t)"
+                >
+                  {{ t.label }}
+                </button>
+              }
+            </div>
+            <!-- Slot de altura fija: reserva la línea siempre para que el modal no cambie de tamaño
+                 cuando la nota aparece o se va. El @if adentro mantiene el anuncio del role="alert". -->
+            <div class="not-covered-slot">
+              @if (selectedTypeNotCovered()) {
+                <p class="not-covered-note" role="alert">Tu póliza no cubre esto.</p>
+              }
+            </div>
+          }
         </section>
       }
 

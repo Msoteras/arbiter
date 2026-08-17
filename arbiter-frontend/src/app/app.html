@@ -102,7 +102,12 @@
       (close)="newClaim.close()"
     >
       @defer (when newClaim.isOpen()) {
-        <app-nueva-denuncia [embedded]="true" (close)="newClaim.close()" />
+        <!-- El @if de adentro DESTRUYE el wizard al cerrar y lo recrea fresco al reabrir. Sin esto,
+             @defer monta el componente una vez y el modal solo lo oculta con CSS, así que quedaba
+             pegado en la pantalla de "¡Listo!" de la denuncia anterior en vez de empezar de cero. -->
+        @if (newClaim.isOpen()) {
+          <app-nueva-denuncia [embedded]="true" (close)="newClaim.close()" />
+        }
       }
     </app-modal>
   } @else {

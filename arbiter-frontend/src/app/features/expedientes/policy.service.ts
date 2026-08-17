@@ -33,4 +33,15 @@ export class PolicyService {
   listClaimCauses(branch: string): Observable<string[]> {
     return this.http.get<string[]>(this.claimCausesUrl, { params: { branch } });
   }
+
+  /**
+   * Hechos generadores que la póliza elegida SÍ cubre (por su cobertura). El wizard muestra todos los
+   * del ramo, pero marca en rojo el elegido que no esté en esta lista. Lista vacía ⇒ la póliza no
+   * cubre nada (cobertura sin inclusiones configuradas por el referente): fail-closed, se marcan todos.
+   */
+  listCoveredClaimCauses(policyNumber: string): Observable<string[]> {
+    return this.http.get<string[]>(
+      `${this.baseUrl}/${encodeURIComponent(policyNumber)}/covered-claim-causes`,
+    );
+  }
 }

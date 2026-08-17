@@ -49,6 +49,18 @@ public class CoverageInclusionController {
         return service.get(coverageId);
     }
 
+    @GetMapping("/coverage-inclusions/covered-claim-causes")
+    @PreAuthorize("isAuthenticated()")
+    @Operation(summary = "Nombres de los hechos generadores cubiertos por una cobertura",
+            description = "Nombres (no ids) de los hechos generadores que la cobertura SÍ cubre, para el "
+                    + "wizard de alta de denuncia: marca en rojo el hecho elegido que la póliza no cubre. "
+                    + "A diferencia del endpoint del referente, es de solo lectura y accesible a cualquier "
+                    + "usuario autenticado (el tenant del JWT recorta a su aseguradora). Whitelist vacía ⇒ "
+                    + "lista vacía (la cobertura no cubre nada).")
+    public List<String> coveredClaimCauses(@RequestParam Long coverageId) {
+        return service.listCoveredClaimCauseNames(coverageId);
+    }
+
     @PutMapping("/coverage-inclusions")
     @PreAuthorize("hasRole('REFERENTE_ASEGURADORA')")
     @Operation(summary = "Guardar hechos generadores cubiertos por una cobertura",

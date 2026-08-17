@@ -11,7 +11,7 @@ import {
 } from '@angular/core';
 import { toObservable, toSignal } from '@angular/core/rxjs-interop';
 import { Router, RouterLink } from '@angular/router';
-import { catchError, map, of, startWith, switchMap } from 'rxjs';
+import { catchError, forkJoin, map, of, startWith, switchMap } from 'rxjs';
 
 import { ExpedienteService, CaseCreateRequest } from '../expediente.service';
 import { PolicyService } from '../policy.service';
@@ -27,6 +27,7 @@ import { TextareaComponent } from '../../../shared/ui/textarea/textarea.componen
 import { SelectComponent, SelectOption } from '../../../shared/ui/select/select.component';
 import { FilePreviewComponent } from '../../../shared/ui/file-preview/file-preview.component';
 import { CheckboxComponent } from '../../../shared/ui/checkbox/checkbox.component';
+import { InlineLoadingComponent } from '../../../shared/ui/inline-loading/inline-loading.component';
 
 // Wizard de alta de denuncia (asegurado) — 3 pasos con catálogos en cascada.
 type Step = 1 | 2 | 3;
@@ -38,6 +39,13 @@ interface ClaimType {
   label: string;
   claimCause: string;
 }
+
+// Estado combinado de los dos catálogos que dependen de la póliza: los hechos del ramo (chips) y la
+// whitelist de cubiertos. 'ready' recién cuando AMBAS respuestas llegaron (ver el forkJoin de abajo).
+type CatalogsState =
+  | { status: 'idle' }
+  | { status: 'loading' }
+  | { status: 'ready'; types: ClaimType[]; covered: ReadonlySet<string> };
 
 interface DocSlot {
   type: string;
@@ -79,6 +87,7 @@ type PoliciesState =
     SelectComponent,
     CheckboxComponent,
     FilePreviewComponent,
+    InlineLoadingComponent,
   ],
   changeDetection: ChangeDetectionStrategy.OnPush,
   templateUrl: './nueva-denuncia.component.html',
@@ -150,34 +159,80 @@ export class NuevaDenunciaComponent {
     }
   });
 
-  // Hechos generadores REALES del ramo de la póliza elegida. Antes eran una lista fija que no
-  // coincidía con el catálogo por ramo (ej. "Rotura accidental" no existe en Tecnología, "Siniestro
-  // general" en ninguno) → el backend tiraba 422 al crear el caso. Vacío hasta elegir póliza.
-  protected readonly claimTypes = toSignal(
-    toObservable(computed(() => this.selectedPolicy()?.branch ?? null)).pipe(
-      switchMap((branch) =>
-        branch
-          ? this.policyService.listClaimCauses(branch).pipe(catchError(() => of<string[]>([])))
-          : of<string[]>([]),
-      ),
-      map((names) =>
-        names.map((name): ClaimType => ({ key: name, label: name, claimCause: name })),
+  // Los DOS catálogos que dependen de la póliza, pedidos EN PARALELO y presentados juntos: los hechos
+  // generadores del ramo (los chips a dibujar) y los que la póliza SÍ cubre (la whitelist). Con
+  // forkJoin no se emite 'ready' hasta que las dos respuestas llegan, así los chips nunca aparecen
+  // "clickeables" antes de saber si están cubiertos — mientras tanto el paso muestra 'loading'.
+  // Errores de red caen a lista vacía: el ramo sin hechos no rompe, y whitelist vacía ⇒ nada cubierto
+  // (fail-closed, igual que una cobertura sin inclusiones cargadas por el referente).
+  protected readonly catalogs = toSignal(
+    toObservable(this.selectedPolicy).pipe(
+      switchMap((policy) =>
+        policy
+          ? forkJoin({
+              types: this.policyService
+                .listClaimCauses(policy.branch)
+                .pipe(catchError(() => of<string[]>([]))),
+              covered: this.policyService
+                .listCoveredClaimCauses(policy.policyNumber)
+                .pipe(catchError(() => of<string[]>([]))),
+            }).pipe(
+              map(({ types, covered }): CatalogsState => ({
+                status: 'ready',
+                types: types.map((name) => ({ key: name, label: name, claimCause: name })),
+                covered: new Set(covered),
+              })),
+              startWith<CatalogsState>({ status: 'loading' }),
+            )
+          : of<CatalogsState>({ status: 'idle' }),
       ),
     ),
-    { initialValue: [] as ClaimType[] },
+    { initialValue: { status: 'idle' } as CatalogsState },
   );
+
+  /** Los chips a dibujar: los hechos del ramo, solo una vez que ambos catálogos cargaron. */
+  protected readonly claimTypes = computed<ClaimType[]>(() => {
+    const c = this.catalogs();
+    return c.status === 'ready' ? c.types : [];
+  });
+
+  /** Mientras se resuelven las dos llamadas: el paso muestra el spinner en vez de los chips. */
+  protected readonly catalogsLoading = computed(() => this.catalogs().status === 'loading');
+
   protected readonly selectedType = signal<ClaimType | null>(null);
-  // Al cambiar de ramo la causa elegida puede dejar de existir: se limpia para no mandar un hecho
-  // generador que el backend rechazaría.
+
+  // El hecho elegido no está entre los que cubre la póliza. Solo con los catálogos ya cargados
+  // ('ready'); si no hay hecho elegido, no marcamos.
+  protected readonly selectedTypeNotCovered = computed(() => {
+    const c = this.catalogs();
+    const type = this.selectedType();
+    if (!type || c.status !== 'ready') {
+      return false;
+    }
+    return !c.covered.has(type.claimCause);
+  });
+  // Al cambiar de póliza la causa elegida puede dejar de existir en el nuevo ramo: se limpia. Solo
+  // corre con los catálogos ya cargados, para no borrar la selección durante el 'loading'.
   private readonly resetSelectedType = effect(() => {
-    const types = this.claimTypes();
+    const c = this.catalogs();
+    if (c.status !== 'ready') {
+      return;
+    }
     const current = untracked(() => this.selectedType());
-    if (current && !types.some((t) => t.claimCause === current.claimCause)) {
+    if (current && !c.types.some((t) => t.claimCause === current.claimCause)) {
       this.selectedType.set(null);
     }
   });
 
-  protected readonly step1Valid = computed(() => !!this.selectedPolicy() && !!this.selectedType());
+  // No se puede avanzar con un hecho que la póliza no cubre, ni antes de que los catálogos carguen:
+  // denunciar un hecho no cubierto solo genera un caso que el motor va a rechazar.
+  protected readonly step1Valid = computed(
+    () =>
+      !!this.selectedPolicy() &&
+      !!this.selectedType() &&
+      this.catalogs().status === 'ready' &&
+      !this.selectedTypeNotCovered(),
+  );
 
   // Tope del input de fecha (docs/frontend-bugs-ux.md #16): un siniestro no puede haber
   // "ocurrido" en el futuro. La regla real vive en el backend (CaseRequest la valida de

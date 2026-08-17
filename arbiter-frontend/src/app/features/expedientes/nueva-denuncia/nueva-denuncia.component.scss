@@ -160,6 +160,29 @@
     color: var(--accent-fg);
     font-weight: var(--font-weight-medium);
   }
+  // Hecho elegido que la póliza no cubre: el semáforo pisa la selección de marca (borde + texto en
+  // rojo, sin fondo saturado — el color solo comunica estado, ver design system).
+  &.selected.not-covered {
+    background: var(--surface);
+    border-color: var(--status-danger);
+    color: var(--status-danger);
+  }
+}
+
+// Slot de altura fija bajo los chips: reserva una línea siempre, así el modal no salta de tamaño
+// cuando el aviso aparece/desaparece. `1lh` = alto de una línea al tamaño de la nota.
+.not-covered-slot {
+  margin-top: var(--space-2);
+  min-height: 1lh;
+  font-size: var(--font-size-body);
+}
+
+// Aviso de cobertura. Mismo criterio sobrio que .doc-error (solo color de estado, sin fondo).
+.not-covered-note {
+  margin: 0;
+  font-size: var(--font-size-body);
+  font-weight: var(--font-weight-medium);
+  color: var(--status-danger);
 }
 
 .field-label {

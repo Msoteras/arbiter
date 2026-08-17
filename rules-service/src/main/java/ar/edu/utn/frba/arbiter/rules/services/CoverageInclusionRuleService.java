@@ -68,6 +68,16 @@ public class CoverageInclusionRuleService {
                 .orElseGet(() -> new CoverageInclusionConfig(List.of()));
     }
 
+    /**
+     * Nombres de los hechos generadores que la cobertura SÍ cubre — para el wizard de alta de
+     * denuncia, que marca en rojo el hecho elegido que la póliza no cubre. Whitelist vacía (o sin
+     * regla) ⇒ lista vacía: la cobertura no cubre nada (mismo criterio fail-closed que el motor).
+     */
+    @Transactional(readOnly = true)
+    public List<String> listCoveredClaimCauseNames(Long coverageId) {
+        return claimCauseRepository.findCoveredClaimCauseNames(coverageId);
+    }
+
     @Transactional
     public CoverageInclusionResponse upsert(Long branchId, Long coverageId, CoverageInclusionConfig config, String actorEmail) {
         String json = serialize(config);

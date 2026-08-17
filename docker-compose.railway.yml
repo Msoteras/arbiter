@@ -128,6 +128,7 @@ services:
       - "8083:8083"
     environment:
       CLASSIFICATION_SERVICE_URL: http://classification-service:8082
+      RULES_SERVICE_URL: http://rules-service:8081
       DB_URL: ${DB_URL:?falta DB_URL en .env}
       DB_USER: ${DB_USER:?falta DB_USER en .env}
       DB_PASSWORD: ${DB_PASSWORD:?falta DB_PASSWORD en .env}

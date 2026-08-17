@@ -126,6 +126,7 @@ services:
       - "8083:8083"
     environment:
       CLASSIFICATION_SERVICE_URL: http://classification-service:8082
+      RULES_SERVICE_URL: http://rules-service:8081
       AUTH_SERVICE_URL: http://auth-service:8080
       DB_URL: jdbc:postgresql://postgres:5432/${DB_NAME:-arbiter}
       DB_USER: ${DB_USER:-arbiter}
