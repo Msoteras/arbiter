@@ -10,7 +10,7 @@
 } @else if (!showMissing() && presentCount() === 0) {
   <!-- Portal sin adjuntos: una lista y un visor vacíos no dicen nada, mejor una sola nota. -->
   <app-card [heading]="heading()">
-    <p class="t-note">Todavía no enviaste documentación para este expediente.</p>
+    <p class="t-note">No enviaste documentación para este expediente.</p>
   </app-card>
 } @else {
   <div class="docs-layout">
@@ -65,7 +65,7 @@
       @switch (p.status) {
         @case ('empty') {
           <div class="viewer-state">
-            <p class="t-note">Todavía no hay documentación cargada en este expediente.</p>
+            <p class="t-note">No hay documentación cargada en este expediente.</p>
           </div>
         }
         @case ('loading') {

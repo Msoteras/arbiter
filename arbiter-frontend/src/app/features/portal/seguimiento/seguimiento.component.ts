@@ -22,6 +22,7 @@ import { ExpedienteService } from '../../expedientes/expediente.service';
 import { CardComponent } from '../../../shared/ui/card/card.component';
 import { ButtonComponent } from '../../../shared/ui/button/button.component';
 import { CaseDocumentsComponent } from '../../expedientes/case-documents/case-documents.component';
+import { InlineLoadingComponent } from '../../../shared/ui/inline-loading/inline-loading.component';
 
 type LoadState =
   | { status: 'loading' }
@@ -51,7 +52,7 @@ const SIMPLIFICADO_LABEL: Record<EstadoSimplificado, string> = {
  */
 @Component({
   selector: 'app-seguimiento',
-  imports: [RouterLink, CardComponent, ButtonComponent, CaseDocumentsComponent],
+  imports: [RouterLink, CardComponent, ButtonComponent, CaseDocumentsComponent, InlineLoadingComponent],
   changeDetection: ChangeDetectionStrategy.OnPush,
   templateUrl: './seguimiento.component.html',
   styleUrl: './seguimiento.component.scss',

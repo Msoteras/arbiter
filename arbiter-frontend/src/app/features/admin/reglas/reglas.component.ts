@@ -138,6 +138,14 @@ export class ReglasComponent {
   protected readonly view = signal<'ramo' | 'scoring' | 'hardStop'>('ramo');
   protected readonly draft = signal<RamoRules | null>(null);
 
+  // Último conteo de coberturas conocido (branchId → coverageCount). Cacheado acá porque
+  // refreshCoverageSummary() y la carga de ramos son dos HTTP calls independientes disparadas
+  // juntas en el constructor, sin orden garantizado: si el conteo llega antes que la lista de
+  // ramos, escribir directo sobre `ramos` (todavía vacío) lo perdía en silencio — el `.set()`
+  // posterior de la lista lo pisaba con el shell en 0. Guardarlo acá y reaplicarlo desde los dos
+  // puntos de resolución (cualquiera que llegue después) lo hace determinístico.
+  private coverageCounts = new Map<string, number>();
+
   constructor() {
     // La lista sale del catálogo real de ramos (tabla branch). Cada ramo arranca como un shell
     // (solo id + nombre); el detalle de cada solapa se carga del backend al seleccionarlo.
@@ -146,6 +154,7 @@ export class ReglasComponent {
         const ramos = branches.map((b) => this.shellFromBranch(b));
         this.ramos.set(ramos);
         this.ramosLoading.set(false);
+        this.applyCoverageCounts();
         if (ramos.length > 0) {
           this.select(ramos[0]);
         }
@@ -165,15 +174,23 @@ export class ReglasComponent {
   private refreshCoverageSummary(): void {
     this.coveragesService.summary().subscribe({
       next: (counts) => {
-        const byBranch = new Map(counts.map((c) => [String(c.branchId), c.coverageCount]));
-        this.ramos.update((list) =>
-          list.map((r) => ({ ...r, coverageCount: byBranch.get(r.id) ?? 0 })),
-        );
+        this.coverageCounts = new Map(counts.map((c) => [String(c.branchId), c.coverageCount]));
+        this.applyCoverageCounts();
       },
       error: () => {
         /* best-effort: la lista se queda con el último conteo conocido */
       },
     });
+  }
+
+  /** Aplica el último conteo cacheado sobre la lista de ramos actual. */
+  private applyCoverageCounts(): void {
+    if (this.coverageCounts.size === 0) {
+      return;
+    }
+    this.ramos.update((list) =>
+      list.map((r) => ({ ...r, coverageCount: this.coverageCounts.get(r.id) ?? r.coverageCount })),
+    );
   }
 
   /** Arranca la carga del detalle de un ramo: el panel derecho muestra el loader hasta que llegue todo. */

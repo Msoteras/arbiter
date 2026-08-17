@@ -120,7 +120,7 @@
     heading="Documentación que enviaste"
     [showMissing]="false" />
 } @else if (loading()) {
-  <div class="state-wrap"><app-card><p class="t-note">Cargando tu siniestro…</p></app-card></div>
+  <div class="state-wrap"><app-inline-loading [size]="28" message="Cargando tu siniestro…" /></div>
 } @else if (notFound()) {
   <div class="state-wrap">
     <app-card>
