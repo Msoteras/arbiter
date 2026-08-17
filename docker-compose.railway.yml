@@ -113,6 +113,11 @@ services:
       DB_USER: ${DB_USER:?falta DB_USER en .env}
       DB_PASSWORD: ${DB_PASSWORD:?falta DB_PASSWORD en .env}
       JWT_SECRET: ${JWT_SECRET:?falta JWT_SECRET en .env}
+      # Faltaba acá (17/08): sin esto cae al default de application.yml (localhost:8081), que
+      # adentro del contenedor nunca resuelve a rules-service — RulesRestAdapter.getRules()
+      # rompe con "Connection refused" en cada clasificación. docker-compose.yml (el local) sí
+      # la tenía; se desalinearon los dos archivos.
+      RULES_SERVICE_URL: http://rules-service:8081
     depends_on:
       ollama-init:
         condition: service_completed_successfully
