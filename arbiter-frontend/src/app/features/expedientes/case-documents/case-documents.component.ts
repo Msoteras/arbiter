@@ -76,8 +76,11 @@ export class CaseDocumentsComponent {
    * De qué aseguradora es el expediente — mismo motivo que en `ExpedienteService.getById`: un
    * asegurado con pólizas en más de una compañía puede tener acá un expediente que no vive en el
    * tenant por defecto de su sesión. Null para el analista/referente (single-tenant, no ambiguo).
+   *
+   * <p>Acepta `undefined` además de `null` porque en `ExpedienteResponse` el campo es opcional
+   * (solo viene poblado en las vistas que mezclan compañías), y quien lo bindea lo pasa derecho.
    */
-  readonly insurerSlug = input<string | null>(null);
+  readonly insurerSlug = input<string | null | undefined>(null);
   /** Se bumpea desde el detalle al subir documentación, para refrescar la lista. */
   readonly reloadToken = input(0);
   /**
