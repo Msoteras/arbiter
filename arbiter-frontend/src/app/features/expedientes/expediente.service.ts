@@ -32,6 +32,18 @@ export interface CaseCreateRequest {
   contactPhone?: string;
 }
 
+export interface EligibilityCheckRequest {
+  insuredId: string;
+  policyNumber: string;
+  eventDate: string;
+  policeReportAt?: string;
+}
+
+export interface EligibilityCheckResponse {
+  eligible: boolean;
+  reason: string | null;
+}
+
 // El backend solo acepta APPROVE/APROBAR o REJECT/RECHAZAR (human-in-the-loop:
 // el analista aprueba o rechaza; no hay otras salidas). Sin analystId: cases-service
 // lo resuelve del JWT del que llama, no confía en lo que mande el cliente.
@@ -171,6 +183,15 @@ export class ExpedienteService {
     if (params.assigned) query['assigned'] = 'true';
     if (params.fraudAlert) query['fraudAlert'] = 'true';
     return this.http.get<PagedResponse<ExpedienteResponse>>(this.baseUrl, { params: query });
+  }
+
+  /**
+   * Mismo gate que `create` corre antes de armar el expediente (vigencia, carencia, mora), sin
+   * crear nada. El wizard lo llama apenas tiene póliza + fecha del hecho, para bloquear o avisar
+   * antes de que el asegurado llene el resto del formulario y suba documentación.
+   */
+  checkEligibility(request: EligibilityCheckRequest): Observable<EligibilityCheckResponse> {
+    return this.http.post<EligibilityCheckResponse>(`${this.baseUrl}/eligibility`, request);
   }
 
   create(

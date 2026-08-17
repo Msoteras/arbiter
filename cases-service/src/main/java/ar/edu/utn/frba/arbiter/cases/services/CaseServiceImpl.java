@@ -6,6 +6,8 @@ import ar.edu.utn.frba.arbiter.cases.dto.AssignedCaseSummaryResponse;
 import ar.edu.utn.frba.arbiter.cases.dto.CaseDocumentResponse;
 import ar.edu.utn.frba.arbiter.cases.dto.CaseRequest;
 import ar.edu.utn.frba.arbiter.cases.dto.CaseResponse;
+import ar.edu.utn.frba.arbiter.cases.dto.EligibilityCheckRequest;
+import ar.edu.utn.frba.arbiter.cases.dto.EligibilityCheckResponse;
 import ar.edu.utn.frba.arbiter.cases.dto.LensSummaryResponse;
 import ar.edu.utn.frba.arbiter.cases.config.tenant.CallerContext;
 import ar.edu.utn.frba.arbiter.cases.config.tenant.TenantContext;
@@ -21,6 +23,7 @@ import ar.edu.utn.frba.arbiter.cases.exceptions.InsuredIdentityMismatchException
 import ar.edu.utn.frba.arbiter.cases.exceptions.InvalidAnalystDecisionException;
 import ar.edu.utn.frba.arbiter.cases.exceptions.InvalidStatusTransitionException;
 import ar.edu.utn.frba.arbiter.cases.exceptions.PolicyInsuredMismatchException;
+import ar.edu.utn.frba.arbiter.cases.exceptions.PolicyNotEligibleException;
 import ar.edu.utn.frba.arbiter.cases.models.entities.CaseDocument;
 import ar.edu.utn.frba.arbiter.cases.models.entities.Case;
 import ar.edu.utn.frba.arbiter.common.models.entities.tenant.Insured;
@@ -122,7 +125,8 @@ public class CaseServiceImpl implements CaseService {
         // the insured gets the reason on the spot, instead of waiting for an analyst to close by
         // hand something that was never covered. Runs after the ownership check so an attempt to
         // file against someone else's policy still fails on that and doesn't leak its coverage window.
-        policyEligibilityValidator.validate(request, policy.getCoverage());
+        policyEligibilityValidator.validate(
+                request.policyNumber(), request.eventDate(), request.policeReportAt(), policy.getCoverage());
 
         Case entity = Case.builder()
                 .claimCause(referenceResolver.resolveClaimCause(request.branch(), request.claimCause()))
@@ -147,6 +151,41 @@ public class CaseServiceImpl implements CaseService {
         claimsAnalysisClient.analyzeAndPersist(saved, caseDocumentRepository.findByCaseId(saved.getId()));
 
         return toResponse(saved);
+    }
+
+    @Override
+    public EligibilityCheckResponse checkEligibility(EligibilityCheckRequest request) {
+        String issuingTenant = policyTenantLocator.locate(request.policyNumber());
+        String callerTenant = TenantContext.get();
+        TenantContext.set(issuingTenant);
+        try {
+            return checkEligibilityInIssuingTenant(request);
+        } finally {
+            TenantContext.set(callerTenant);
+        }
+    }
+
+    /**
+     * Same resolution {@link #createCaseInIssuingTenant} does up to (not including) building the
+     * {@code Case} entity — insured, policy, ownership, {@code PolicyEligibilityValidator}. Doesn't
+     * call {@code applyDeclaredDetails}: pep/imageConsent/contact fields aren't part of the
+     * eligibility question, and persisting them from a value the insured hasn't submitted yet would
+     * be premature — that write happens for real at {@link #createCaseInIssuingTenant}.
+     */
+    private EligibilityCheckResponse checkEligibilityInIssuingTenant(EligibilityCheckRequest request) {
+        assertFilingOwnDenuncia(request.insuredId());
+        try {
+            Insured insured = referenceResolver.resolveInsured(request.insuredId());
+            Policy policy = referenceResolver.resolvePolicy(request.policyNumber(), insured.getId());
+            if (!Objects.equals(insured.getId(), policy.getInsuredId())) {
+                throw new PolicyInsuredMismatchException(request.policyNumber());
+            }
+            policyEligibilityValidator.validate(
+                    request.policyNumber(), request.eventDate(), request.policeReportAt(), policy.getCoverage());
+            return EligibilityCheckResponse.ok();
+        } catch (PolicyNotEligibleException | PolicyInsuredMismatchException e) {
+            return EligibilityCheckResponse.notEligible(e.getMessage());
+        }
     }
 
     /**

@@ -1,7 +1,6 @@
 package ar.edu.utn.frba.arbiter.cases.services;
 
 import ar.edu.utn.frba.arbiter.cases.adapters.InsurerAdapter;
-import ar.edu.utn.frba.arbiter.cases.dto.CaseRequest;
 import ar.edu.utn.frba.arbiter.cases.dto.PolicyResponse;
 import ar.edu.utn.frba.arbiter.cases.exceptions.PolicyNotEligibleException;
 import ar.edu.utn.frba.arbiter.common.models.entities.tenant.Coverage;
@@ -54,20 +53,26 @@ public class PolicyEligibilityValidator {
     private final InsurerAdapter insurerAdapter;
     private final RulesServiceClient rulesServiceClient;
 
-    public void validate(CaseRequest request, Coverage coverage) {
-        assertCoherentDates(request);
+    /**
+     * @param policyNumber   only used to look the policy up again against the insurer DB — the
+     *                       resolved {@code coverage} already came from it, but arrears/vigencia
+     *                       need fields {@code Coverage} doesn't carry.
+     */
+    public void validate(String policyNumber, LocalDateTime eventDate, LocalDateTime policeReportAt,
+                          Coverage coverage) {
+        assertCoherentDates(eventDate, policeReportAt);
 
-        PolicyResponse policy = insurerAdapter.findPolicy(request.policyNumber()).orElse(null);
+        PolicyResponse policy = insurerAdapter.findPolicy(policyNumber).orElse(null);
         if (policy == null) {
             // The local policy already resolved (CaseReferenceResolver), so this is a mismatch
             // between the snapshot and the insurer DB. Not a reason to reject the denuncia.
             log.warn("[PolicyEligibility] Policy {} isn't in the insurer DB — coverage window and "
-                    + "waiting period aren't validated", request.policyNumber());
+                    + "waiting period aren't validated", policyNumber);
             return;
         }
-        assertInForceOnEventDate(request, policy);
-        assertOutsideWaitingPeriod(request, policy, coverage);
-        assertPolicyStanding(request, policy);
+        assertInForceOnEventDate(eventDate, policy);
+        assertOutsideWaitingPeriod(eventDate, policy, coverage);
+        assertPolicyStanding(policy);
     }
 
     /**
@@ -84,7 +89,7 @@ public class PolicyEligibilityValidator {
      * the Fast Track criterion and the scoring factor still catch it, same as before this rule
      * existed.
      */
-    private void assertPolicyStanding(CaseRequest request, PolicyResponse policy) {
+    private void assertPolicyStanding(PolicyResponse policy) {
         RulesServiceClient.PolicyStandingRule rule;
         try {
             rule = rulesServiceClient.policyStandingRule();
@@ -106,31 +111,31 @@ public class PolicyEligibilityValidator {
      * A police report before the event, or after today, isn't "suspicious": it's impossible.
      * Rejected as bad data instead of sent off to be analyzed.
      *
-     * <p>The event date isn't checked here: {@code CaseRequest.eventDate} is already
-     * {@code @NotNull @PastOrPresent} and the endpoint validates the request, so a future date
-     * never reaches this point. {@code policeReportAt}, on the other hand, is optional and carries
-     * no declarative constraint — it can't have one, because what bounds it is the event date.
+     * <p>The event date isn't checked here: both callers' {@code eventDate} is already
+     * {@code @NotNull @PastOrPresent} ({@code CaseRequest}, {@code EligibilityCheckRequest}) and
+     * the controller validates the request, so a future date never reaches this point.
+     * {@code policeReportAt}, on the other hand, is optional and carries no declarative
+     * constraint — it can't have one, because what bounds it is the event date.
      */
-    private void assertCoherentDates(CaseRequest request) {
-        LocalDateTime eventDate = request.eventDate();
-        if (eventDate == null || request.policeReportAt() == null) {
+    private void assertCoherentDates(LocalDateTime eventDate, LocalDateTime policeReportAt) {
+        if (eventDate == null || policeReportAt == null) {
             return;
         }
-        if (request.policeReportAt().isBefore(eventDate)) {
+        if (policeReportAt.isBefore(eventDate)) {
             throw new PolicyNotEligibleException(
                     "La denuncia policial no puede ser anterior al siniestro. Revisá las dos fechas.");
         }
-        if (request.policeReportAt().isAfter(LocalDateTime.now())) {
+        if (policeReportAt.isAfter(LocalDateTime.now())) {
             throw new PolicyNotEligibleException("La fecha de la denuncia policial no puede ser futura.");
         }
     }
 
     /** The event has to have occurred while the policy was in force; otherwise no contract covers it. */
-    private void assertInForceOnEventDate(CaseRequest request, PolicyResponse policy) {
-        if (request.eventDate() == null || policy.effectiveFrom() == null || policy.effectiveTo() == null) {
+    private void assertInForceOnEventDate(LocalDateTime requestedEventDate, PolicyResponse policy) {
+        if (requestedEventDate == null || policy.effectiveFrom() == null || policy.effectiveTo() == null) {
             return;
         }
-        LocalDate eventDate = request.eventDate().toLocalDate();
+        LocalDate eventDate = requestedEventDate.toLocalDate();
         if (eventDate.isBefore(policy.effectiveFrom()) || eventDate.isAfter(policy.effectiveTo())) {
             throw new PolicyNotEligibleException(String.format(
                     "La póliza %s no estaba vigente el %s (vigencia: %s a %s), así que el siniestro no "
@@ -145,12 +150,12 @@ public class PolicyEligibilityValidator {
      * against an event that already happened or is imminent, and that's why it's a rejection and
      * not just a note: during the waiting period the contract simply doesn't respond.
      */
-    private void assertOutsideWaitingPeriod(CaseRequest request, PolicyResponse policy, Coverage coverage) {
-        if (request.eventDate() == null || policy.effectiveFrom() == null
+    private void assertOutsideWaitingPeriod(LocalDateTime requestedEventDate, PolicyResponse policy, Coverage coverage) {
+        if (requestedEventDate == null || policy.effectiveFrom() == null
                 || coverage == null || coverage.getWaitingPeriodDays() == null) {
             return;
         }
-        LocalDate eventDate = request.eventDate().toLocalDate();
+        LocalDate eventDate = requestedEventDate.toLocalDate();
         LocalDate coverageStart = policy.effectiveFrom().plusDays(coverage.getWaitingPeriodDays());
         if (eventDate.isBefore(coverageStart)) {
             throw new PolicyNotEligibleException(String.format(

@@ -4,6 +4,8 @@ import ar.edu.utn.frba.arbiter.cases.config.tenant.CallerContext;
 import ar.edu.utn.frba.arbiter.cases.dto.AnalystDecisionRequest;
 import ar.edu.utn.frba.arbiter.cases.dto.CaseRequest;
 import ar.edu.utn.frba.arbiter.cases.dto.CaseResponse;
+import ar.edu.utn.frba.arbiter.cases.dto.EligibilityCheckRequest;
+import ar.edu.utn.frba.arbiter.cases.dto.EligibilityCheckResponse;
 import ar.edu.utn.frba.arbiter.cases.exceptions.AnalystNotFoundException;
 import ar.edu.utn.frba.arbiter.cases.exceptions.AnalystProfileNotFoundException;
 import ar.edu.utn.frba.arbiter.cases.exceptions.CaseNotFoundException;
@@ -11,6 +13,7 @@ import ar.edu.utn.frba.arbiter.cases.exceptions.InsuredIdentityMismatchException
 import ar.edu.utn.frba.arbiter.cases.exceptions.InvalidAnalystDecisionException;
 import ar.edu.utn.frba.arbiter.cases.exceptions.InvalidStatusTransitionException;
 import ar.edu.utn.frba.arbiter.cases.exceptions.PolicyInsuredMismatchException;
+import ar.edu.utn.frba.arbiter.cases.exceptions.PolicyNotEligibleException;
 import ar.edu.utn.frba.arbiter.cases.exceptions.UnresolvedCaseReferenceException;
 import ar.edu.utn.frba.arbiter.cases.models.entities.CaseDocument;
 import ar.edu.utn.frba.arbiter.cases.models.entities.Case;
@@ -841,6 +844,68 @@ class CaseServiceImplTest {
         assertThat(stored.getContent()).isEqualTo("new".getBytes());
     }
 
+    // ───────────────── checkEligibility ─────────────────
+    // Same resolution createCase does up to (not including) building the Case — see
+    // CaseServiceImpl#checkEligibilityInIssuingTenant's javadoc. What's under test here is that a
+    // PolicyNotEligibleException/PolicyInsuredMismatchException becomes eligible=false instead of
+    // propagating, and that nothing gets persisted either way.
+
+    private EligibilityCheckRequest eligibilityRequest() {
+        return new EligibilityCheckRequest(
+                CALLER_DNI, "POL-CEL-2024-001", LocalDateTime.of(2026, 6, 13, 19, 45), null);
+    }
+
+    @Test
+    void checkEligibility_eligibleWhenValidationPasses() {
+        stubPolicyAndInsuredResolution();
+
+        EligibilityCheckResponse response = caseService.checkEligibility(eligibilityRequest());
+
+        assertThat(response.eligible()).isTrue();
+        assertThat(response.reason()).isNull();
+        verify(caseRepository, never()).save(any());
+    }
+
+    @Test
+    void checkEligibility_notEligibleWhenPolicyValidationFails() {
+        stubPolicyAndInsuredResolution();
+        doThrow(new PolicyNotEligibleException("La póliza no estaba vigente el 2026-06-13."))
+                .when(policyEligibilityValidator).validate(any(), any(), any(), any());
+
+        EligibilityCheckResponse response = caseService.checkEligibility(eligibilityRequest());
+
+        assertThat(response.eligible()).isFalse();
+        assertThat(response.reason()).contains("no estaba vigente");
+        verify(caseRepository, never()).save(any());
+    }
+
+    @Test
+    void checkEligibility_notEligibleWhenPolicyBelongsToSomeoneElse() {
+        Insured insured = CaseFixtures.insured(CALLER_DNI, "Laura", "Fernández");
+        insured.setId(1L);
+        Policy someoneElsesPolicy = CaseFixtures.policy("POL-CEL-2024-001", "Celular Protegido Básico");
+        someoneElsesPolicy.setInsuredId(2L);
+        when(referenceResolver.resolveInsured(CALLER_DNI)).thenReturn(insured);
+        when(referenceResolver.resolvePolicy("POL-CEL-2024-001", 1L)).thenReturn(someoneElsesPolicy);
+
+        EligibilityCheckResponse response = caseService.checkEligibility(eligibilityRequest());
+
+        assertThat(response.eligible()).isFalse();
+        assertThat(response.reason()).contains("POL-CEL-2024-001");
+        verifyNoInteractions(policyEligibilityValidator);
+    }
+
+    @Test
+    void checkEligibility_rejectsCheckingForSomeoneElse() {
+        EligibilityCheckRequest request = new EligibilityCheckRequest(
+                "99.999.999", "POL-CEL-2024-001", LocalDateTime.of(2026, 6, 13, 19, 45), null);
+
+        assertThatThrownBy(() -> caseService.checkEligibility(request))
+                .isInstanceOf(InsuredIdentityMismatchException.class);
+
+        verifyNoInteractions(referenceResolver, policyEligibilityValidator);
+    }
+
     private CaseRequest caseRequest() {
         return new CaseRequest(
                 "Celulares",
@@ -879,14 +944,23 @@ class CaseServiceImplTest {
     }
 
     /**
-     * Every createCase test needs the four lookups to resolve; what varies is only what each one
-     * then asserts. Mirrors the graph {@link #caseRecord} builds.
+     * checkEligibility only resolves policy + insured (see
+     * CaseServiceImpl#checkEligibilityInIssuingTenant) — no claim cause, no declared details.
      */
-    private void stubReferenceResolution() {
+    private Insured stubPolicyAndInsuredResolution() {
         Policy policy = CaseFixtures.policy("POL-CEL-2024-001", "Celular Protegido Básico");
         Insured insured = CaseFixtures.insured("40.123.456", "Laura", "Fernández");
         when(referenceResolver.resolvePolicy(any(), any())).thenReturn(policy);
         when(referenceResolver.resolveInsured(any())).thenReturn(insured);
+        return insured;
+    }
+
+    /**
+     * Every createCase test needs the four lookups to resolve; what varies is only what each one
+     * then asserts. Mirrors the graph {@link #caseRecord} builds.
+     */
+    private void stubReferenceResolution() {
+        Insured insured = stubPolicyAndInsuredResolution();
         when(referenceResolver.applyDeclaredDetails(any(), any())).thenReturn(insured);
         when(referenceResolver.resolveClaimCause(any(), any()))
                 .thenReturn(CaseFixtures.claimCause("Celulares", "Robo en vía pública"));

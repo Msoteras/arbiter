@@ -1,13 +1,11 @@
 package ar.edu.utn.frba.arbiter.cases.services;
 
 import ar.edu.utn.frba.arbiter.cases.adapters.InsurerAdapter;
-import ar.edu.utn.frba.arbiter.cases.dto.CaseRequest;
 import ar.edu.utn.frba.arbiter.cases.dto.PolicyResponse;
 import ar.edu.utn.frba.arbiter.cases.exceptions.PolicyNotEligibleException;
 import ar.edu.utn.frba.arbiter.common.models.entities.tenant.Coverage;
 import org.junit.jupiter.api.Test;
 
-import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.Optional;
@@ -37,7 +35,7 @@ class PolicyEligibilityValidatorTest {
     void anEventInsideThePolicyPeriod_isAccepted() {
         givenPolicy(LocalDate.of(2026, 1, 1), LocalDate.of(2027, 1, 1));
 
-        assertThatCode(() -> validator.validate(request(LocalDateTime.of(2026, 6, 13, 20, 0), null), coverage(null)))
+        assertThatCode(() -> validate(LocalDateTime.of(2026, 6, 13, 20, 0), null, coverage(null)))
                 .doesNotThrowAnyException();
     }
 
@@ -45,7 +43,7 @@ class PolicyEligibilityValidatorTest {
     void anEventAfterThePolicyExpired_isRejected() {
         givenPolicy(LocalDate.of(2024, 1, 1), LocalDate.of(2026, 1, 1));
 
-        assertThatThrownBy(() -> validator.validate(request(LocalDateTime.of(2026, 6, 13, 20, 0), null), coverage(null)))
+        assertThatThrownBy(() -> validate(LocalDateTime.of(2026, 6, 13, 20, 0), null, coverage(null)))
                 .isInstanceOf(PolicyNotEligibleException.class)
                 .hasMessageContaining("no estaba vigente");
     }
@@ -54,7 +52,7 @@ class PolicyEligibilityValidatorTest {
     void anEventBeforeThePolicyStarted_isRejected() {
         givenPolicy(LocalDate.of(2026, 3, 1), LocalDate.of(2027, 3, 1));
 
-        assertThatThrownBy(() -> validator.validate(request(LocalDateTime.of(2026, 1, 5, 10, 0), null), coverage(null)))
+        assertThatThrownBy(() -> validate(LocalDateTime.of(2026, 1, 5, 10, 0), null, coverage(null)))
                 .isInstanceOf(PolicyNotEligibleException.class)
                 .hasMessageContaining("no estaba vigente");
     }
@@ -64,7 +62,7 @@ class PolicyEligibilityValidatorTest {
     void theLastDayOfThePolicy_isStillCovered() {
         givenPolicy(LocalDate.of(2025, 6, 14), LocalDate.of(2026, 6, 13));
 
-        assertThatCode(() -> validator.validate(request(LocalDateTime.of(2026, 6, 13, 23, 0), null), coverage(null)))
+        assertThatCode(() -> validate(LocalDateTime.of(2026, 6, 13, 23, 0), null, coverage(null)))
                 .doesNotThrowAnyException();
     }
 
@@ -74,7 +72,7 @@ class PolicyEligibilityValidatorTest {
     void anEventInsideTheWaitingPeriod_isRejected() {
         givenPolicy(LocalDate.of(2026, 6, 8), LocalDate.of(2027, 6, 8));
 
-        assertThatThrownBy(() -> validator.validate(request(LocalDateTime.of(2026, 6, 13, 20, 0), null), coverage(30)))
+        assertThatThrownBy(() -> validate(LocalDateTime.of(2026, 6, 13, 20, 0), null, coverage(30)))
                 .isInstanceOf(PolicyNotEligibleException.class)
                 .hasMessageContaining("carencia de 30 días");
     }
@@ -84,7 +82,7 @@ class PolicyEligibilityValidatorTest {
     void theDayTheWaitingPeriodEnds_isAlreadyCovered() {
         givenPolicy(LocalDate.of(2026, 5, 14), LocalDate.of(2027, 5, 14));
 
-        assertThatCode(() -> validator.validate(request(LocalDateTime.of(2026, 6, 13, 20, 0), null), coverage(30)))
+        assertThatCode(() -> validate(LocalDateTime.of(2026, 6, 13, 20, 0), null, coverage(30)))
                 .doesNotThrowAnyException();
     }
 
@@ -92,7 +90,7 @@ class PolicyEligibilityValidatorTest {
     void withoutAWaitingPeriodConfigured_nothingIsChecked() {
         givenPolicy(LocalDate.of(2026, 6, 12), LocalDate.of(2027, 6, 12));
 
-        assertThatCode(() -> validator.validate(request(LocalDateTime.of(2026, 6, 13, 20, 0), null), coverage(null)))
+        assertThatCode(() -> validate(LocalDateTime.of(2026, 6, 13, 20, 0), null, coverage(null)))
                 .doesNotThrowAnyException();
     }
 
@@ -102,7 +100,7 @@ class PolicyEligibilityValidatorTest {
     void aPoliceReportBeforeTheEvent_isRejected() {
         LocalDateTime event = LocalDateTime.now().minusDays(3);
 
-        assertThatThrownBy(() -> validator.validate(request(event, event.minusHours(5)), coverage(null)))
+        assertThatThrownBy(() -> validate(event, event.minusHours(5), coverage(null)))
                 .isInstanceOf(PolicyNotEligibleException.class)
                 .hasMessageContaining("no puede ser anterior al siniestro");
     }
@@ -111,7 +109,7 @@ class PolicyEligibilityValidatorTest {
     void aFuturePoliceReport_isRejected() {
         LocalDateTime event = LocalDateTime.now().minusDays(3);
 
-        assertThatThrownBy(() -> validator.validate(request(event, LocalDateTime.now().plusDays(1)), coverage(null)))
+        assertThatThrownBy(() -> validate(event, LocalDateTime.now().plusDays(1), coverage(null)))
                 .isInstanceOf(PolicyNotEligibleException.class)
                 .hasMessageContaining("denuncia policial no puede ser futura");
     }
@@ -127,7 +125,7 @@ class PolicyEligibilityValidatorTest {
     void whenTheInsurerDatabaseHasNoPolicy_theClaimIsNotRejected() {
         when(insurerAdapter.findPolicy(POLICY_NUMBER)).thenReturn(Optional.empty());
 
-        assertThatCode(() -> validator.validate(request(LocalDateTime.of(2026, 6, 13, 20, 0), null), coverage(30)))
+        assertThatCode(() -> validate(LocalDateTime.of(2026, 6, 13, 20, 0), null, coverage(30)))
                 .doesNotThrowAnyException();
     }
 
@@ -135,7 +133,7 @@ class PolicyEligibilityValidatorTest {
     void withoutPolicyDates_nothingIsChecked() {
         givenPolicy(null, null);
 
-        assertThatCode(() -> validator.validate(request(LocalDateTime.of(2026, 6, 13, 20, 0), null), coverage(30)))
+        assertThatCode(() -> validate(LocalDateTime.of(2026, 6, 13, 20, 0), null, coverage(30)))
                 .doesNotThrowAnyException();
     }
 
@@ -147,7 +145,7 @@ class PolicyEligibilityValidatorTest {
         when(rulesServiceClient.policyStandingRule())
                 .thenReturn(new RulesServiceClient.PolicyStandingRule(true, "REJECT"));
 
-        assertThatThrownBy(() -> validator.validate(request(LocalDateTime.of(2026, 6, 13, 20, 0), null), coverage(null)))
+        assertThatThrownBy(() -> validate(LocalDateTime.of(2026, 6, 13, 20, 0), null, coverage(null)))
                 .isInstanceOf(PolicyNotEligibleException.class)
                 .hasMessageContaining("saldo pendiente de pago");
     }
@@ -159,7 +157,7 @@ class PolicyEligibilityValidatorTest {
         when(rulesServiceClient.policyStandingRule())
                 .thenReturn(new RulesServiceClient.PolicyStandingRule(true, "STANDBY"));
 
-        assertThatCode(() -> validator.validate(request(LocalDateTime.of(2026, 6, 13, 20, 0), null), coverage(null)))
+        assertThatCode(() -> validate(LocalDateTime.of(2026, 6, 13, 20, 0), null, coverage(null)))
                 .doesNotThrowAnyException();
     }
 
@@ -169,7 +167,7 @@ class PolicyEligibilityValidatorTest {
         when(rulesServiceClient.policyStandingRule())
                 .thenReturn(new RulesServiceClient.PolicyStandingRule(false, null));
 
-        assertThatCode(() -> validator.validate(request(LocalDateTime.of(2026, 6, 13, 20, 0), null), coverage(null)))
+        assertThatCode(() -> validate(LocalDateTime.of(2026, 6, 13, 20, 0), null, coverage(null)))
                 .doesNotThrowAnyException();
     }
 
@@ -179,7 +177,7 @@ class PolicyEligibilityValidatorTest {
         when(rulesServiceClient.policyStandingRule())
                 .thenReturn(new RulesServiceClient.PolicyStandingRule(true, "REJECT"));
 
-        assertThatCode(() -> validator.validate(request(LocalDateTime.of(2026, 6, 13, 20, 0), null), coverage(null)))
+        assertThatCode(() -> validate(LocalDateTime.of(2026, 6, 13, 20, 0), null, coverage(null)))
                 .doesNotThrowAnyException();
     }
 
@@ -194,11 +192,15 @@ class PolicyEligibilityValidatorTest {
         when(rulesServiceClient.policyStandingRule())
                 .thenThrow(new ResourceAccessException("Connection refused"));
 
-        assertThatCode(() -> validator.validate(request(LocalDateTime.of(2026, 6, 13, 20, 0), null), coverage(null)))
+        assertThatCode(() -> validate(LocalDateTime.of(2026, 6, 13, 20, 0), null, coverage(null)))
                 .doesNotThrowAnyException();
     }
 
     // ── Fixtures ───────────────────────────────────────────────────────────
+
+    private void validate(LocalDateTime eventDate, LocalDateTime policeReportAt, Coverage coverage) {
+        validator.validate(POLICY_NUMBER, eventDate, policeReportAt, coverage);
+    }
 
     private void givenPolicy(LocalDate from, LocalDate to) {
         givenPolicy(from, to, true);
@@ -211,14 +213,6 @@ class PolicyEligibilityValidatorTest {
                 .effectiveTo(to)
                 .upToDate(upToDate)
                 .build()));
-    }
-
-    private CaseRequest request(LocalDateTime eventDate, LocalDateTime policeReportAt) {
-        return new CaseRequest(
-                "Celulares", "Celular Protegido Premium", "Robo en vía pública",
-                "Samsung Galaxy S25 Ultra", "42.987.654", POLICY_NUMBER, "...",
-                eventDate, "Av. Corrientes 1234", policeReportAt,
-                new BigDecimal("285000"), false, true, null, null);
     }
 
     private Coverage coverage(Integer waitingPeriodDays) {

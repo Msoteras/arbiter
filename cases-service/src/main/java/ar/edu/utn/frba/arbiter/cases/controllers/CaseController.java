@@ -7,6 +7,8 @@ import ar.edu.utn.frba.arbiter.cases.dto.AssignedCaseSummaryResponse;
 import ar.edu.utn.frba.arbiter.cases.dto.CaseDocumentResponse;
 import ar.edu.utn.frba.arbiter.cases.dto.CaseRequest;
 import ar.edu.utn.frba.arbiter.cases.dto.CaseResponse;
+import ar.edu.utn.frba.arbiter.cases.dto.EligibilityCheckRequest;
+import ar.edu.utn.frba.arbiter.cases.dto.EligibilityCheckResponse;
 import ar.edu.utn.frba.arbiter.cases.dto.LensSummaryResponse;
 import ar.edu.utn.frba.arbiter.cases.models.entities.CaseDocument;
 import ar.edu.utn.frba.arbiter.cases.services.CaseService;
@@ -60,6 +62,23 @@ public class CaseController {
     ) {
         CaseResponse response = caseService.createCase(request, documents);
         return ResponseEntity.accepted().body(response);
+    }
+
+    @PostMapping("/eligibility")
+    @PreAuthorize("hasRole('ASEGURADO')")
+    @Operation(summary = "Check whether a denuncia would be accepted",
+            description = """
+                    Runs the same intake gate as POST /cases (ownership, vigencia, carencia, mora)
+                    without creating anything. The wizard calls this once it has a policy and an
+                    event date, so it can block or warn before the insured fills out the rest of
+                    the form and uploads documentation — instead of finding out only at the end.
+                    Always 200; a non-eligible policy is `{eligible: false, reason: "..."}`, not an
+                    error.
+                    """)
+    public ResponseEntity<EligibilityCheckResponse> checkEligibility(
+            @RequestBody @Valid EligibilityCheckRequest request
+    ) {
+        return ResponseEntity.ok(caseService.checkEligibility(request));
     }
 
     @GetMapping("/{caseId}")

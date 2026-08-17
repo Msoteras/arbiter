@@ -11,7 +11,7 @@ import {
 } from '@angular/core';
 import { toObservable, toSignal } from '@angular/core/rxjs-interop';
 import { Router, RouterLink } from '@angular/router';
-import { catchError, map, of, startWith, switchMap } from 'rxjs';
+import { catchError, debounceTime, map, of, startWith, switchMap } from 'rxjs';
 
 import { ExpedienteService, CaseCreateRequest } from '../expediente.service';
 import { PolicyService } from '../policy.service';
@@ -73,6 +73,12 @@ type ClaimTypesState =
   | { status: 'idle' }
   | { status: 'loading' }
   | { status: 'ok'; list: ClaimType[] };
+
+type EligibilityState =
+  | { status: 'idle' }
+  | { status: 'checking' }
+  | { status: 'ok' }
+  | { status: 'blocked'; reason: string };
 
 @Component({
   selector: 'app-nueva-denuncia',
@@ -157,17 +163,26 @@ export class NuevaDenunciaComponent {
     }
   });
 
-  // Hechos generadores REALES del ramo de la póliza elegida. Antes eran una lista fija que no
-  // coincidía con el catálogo por ramo (ej. "Rotura accidental" no existe en Tecnología, "Siniestro
-  // general" en ninguno) → el backend tiraba 422 al crear el caso. Vacío hasta elegir póliza.
+  // Hechos generadores REALES del ramo de la póliza elegida, ya recortados por lo que la cobertura
+  // de esa póliza excluye (COVERAGE_EXCLUSION) — antes eran una lista fija que no coincidía con el
+  // catálogo por ramo (ej. "Rotura accidental" no existe en Tecnología, "Siniestro general" en
+  // ninguno) → el backend tiraba 422 al crear el caso, y después mostraba TODOS los del ramo sin
+  // mirar la cobertura → el motor recién detectaba la exclusión en la clasificación, con la
+  // documentación ya subida. Vacío hasta elegir póliza. Reacciona a policyNumber, no solo a branch:
+  // dos pólizas del mismo ramo pueden tener coberturas con exclusiones distintas.
   // Estado explícito (en vez de solo el array) para poder mostrar un loader mientras el fetch está
   // en vuelo: sin esto, al elegir póliza los chips de "¿Qué te pasó?" quedaban vacíos un instante,
   // como si el ramo no tuviera hechos generadores en vez de estar cargándolos.
   protected readonly claimTypesState = toSignal(
-    toObservable(computed(() => this.selectedPolicy()?.branch ?? null)).pipe(
-      switchMap((branch) =>
-        branch
-          ? this.policyService.listClaimCauses(branch).pipe(
+    toObservable(
+      computed(() => {
+        const policy = this.selectedPolicy();
+        return policy ? { branch: policy.branch, policyNumber: policy.policyNumber } : null;
+      }),
+    ).pipe(
+      switchMap((selected) =>
+        selected
+          ? this.policyService.listClaimCauses(selected.branch, selected.policyNumber).pipe(
               map(
                 (names): ClaimTypesState => ({
                   status: 'ok',
@@ -227,47 +242,80 @@ export class NuevaDenunciaComponent {
   protected readonly contactPhone = signal('');
 
   /**
-   * Reason this denuncia won't be able to register, or null if there's none. The backend rejects
-   * these cases with 422 and without creating the case (`PolicyEligibilityValidator`); the warning
-   * gets moved up to the step where the date is loaded, so the insured doesn't fill out the whole
-   * form and upload documentation only to find out at the end.
-   *
-   * <p>The waiting period can't be checked here: that deadline belongs to the coverage and the
-   * portal doesn't receive it. That case is still caught by the backend, and the message shows up
-   * on submit.
+   * The two date-coherence checks that need no backend round trip — instant, no debounce. Vigencia,
+   * carencia y mora salen de {@link backendEligibility}: son las que dependen de datos que el
+   * portal no trae de entrada (carencia) o de configuración del referente (mora, `onArrears`).
    */
-  protected readonly eligibilityError = computed<string | null>(() => {
-    const policy = this.selectedPolicy();
+  protected readonly dateCoherenceError = computed<string | null>(() => {
     const eventDate = this.eventDate();
-    if (!policy || !eventDate) {
+    const policeReport = this.policeReportDate();
+    if (!eventDate || !policeReport) {
       return null;
     }
-    // ISO dates (yyyy-mm-dd): lexicographic comparison is enough and avoids the timezone.
-    if (policy.effectiveFrom && eventDate < policy.effectiveFrom) {
-      return `La póliza ${policy.policyNumber} recién entró en vigencia el ${this.formatDate(
-        policy.effectiveFrom,
-      )}, así que un siniestro anterior a esa fecha no está cubierto y no vamos a poder registrar la denuncia.`;
-    }
-    if (policy.effectiveTo && eventDate > policy.effectiveTo) {
-      return `La póliza ${policy.policyNumber} venció el ${this.formatDate(
-        policy.effectiveTo,
-      )}, así que un siniestro posterior no está cubierto y no vamos a poder registrar la denuncia.`;
-    }
-    const policeReport = this.policeReportDate();
-    if (policeReport && policeReport < eventDate) {
+    if (policeReport < eventDate) {
       return 'La denuncia policial no puede ser anterior al siniestro. Revisá las dos fechas.';
     }
-    if (policeReport && policeReport > this.today) {
+    if (policeReport > this.today) {
       return 'La fecha de la denuncia policial no puede ser futura.';
     }
     return null;
   });
 
-  /** dd/mm/yyyy from an ISO yyyy-mm-dd, without building a Date (which shifts the timezone). */
-  private formatDate(iso: string): string {
-    const [year, month, day] = iso.split('-');
-    return `${day}/${month}/${year}`;
-  }
+  /**
+   * Same gate `POST /cases` runs at intake (vigencia, carencia, mora — `PolicyEligibilityValidator`
+   * via `POST /cases/eligibility`), so the insured finds out here instead of after filling out the
+   * rest of the form and uploading documentation. Debounced: fires as the policy/dates settle, not
+   * on every keystroke. Fails OPEN on a network error — the real gate at submit still enforces
+   * vigencia/carencia (no external call needed for those) and rules-service being down already
+   * fails open server-side for mora, so blocking the wizard over a transient check failure would
+   * be strictly worse than the status quo.
+   */
+  private readonly eligibilityCheck = toSignal(
+    toObservable(
+      computed(() => {
+        const policy = this.selectedPolicy();
+        const eventDate = this.eventDate();
+        if (!policy || !eventDate || this.dateCoherenceError()) {
+          return null;
+        }
+        return {
+          insuredId: policy.insuredId,
+          policyNumber: policy.policyNumber,
+          eventDate: eventDate + 'T' + (this.eventTime() || '00:00') + ':00',
+          policeReportAt: this.policeReportDate()
+            ? this.policeReportDate() + 'T' + (this.policeReportTime() || '00:00') + ':00'
+            : undefined,
+        };
+      }),
+    ).pipe(
+      debounceTime(400),
+      switchMap((req) =>
+        req
+          ? this.service.checkEligibility(req).pipe(
+              map((res): EligibilityState =>
+                res.eligible
+                  ? { status: 'ok' }
+                  : { status: 'blocked', reason: res.reason ?? 'No se puede registrar la denuncia.' },
+              ),
+              startWith<EligibilityState>({ status: 'checking' }),
+              catchError(() => of<EligibilityState>({ status: 'ok' })),
+            )
+          : of<EligibilityState>({ status: 'idle' }),
+      ),
+    ),
+    { initialValue: { status: 'idle' } as EligibilityState },
+  );
+
+  protected readonly eligibilityChecking = computed(() => this.eligibilityCheck().status === 'checking');
+
+  protected readonly eligibilityError = computed<string | null>(() => {
+    const dateError = this.dateCoherenceError();
+    if (dateError) {
+      return dateError;
+    }
+    const check = this.eligibilityCheck();
+    return check.status === 'blocked' ? check.reason : null;
+  });
 
   // El backend exige además insuredItem, eventDate y eventLocation (@NotBlank/@NotNull en
   // CaseRequest) — sin esto el asegurado llegaba al paso 3, adjuntaba documentación, y recién
@@ -279,6 +327,7 @@ export class NuevaDenunciaComponent {
       this.eventDate().trim().length > 0 &&
       this.eventDate() <= this.today &&
       this.eligibilityError() === null &&
+      !this.eligibilityChecking() &&
       this.buildEventLocation().trim().length > 0,
   );
 

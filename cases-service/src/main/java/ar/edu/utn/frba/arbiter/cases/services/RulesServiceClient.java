@@ -8,14 +8,16 @@ import org.springframework.stereotype.Component;
 import org.springframework.web.client.RestClient;
 
 import javax.crypto.SecretKey;
+import java.util.List;
 
 /**
- * System-to-system read of rules-service's insurer-scoped hard rules, for the intake gate
- * ({@link PolicyEligibilityValidator}) — same criterion {@code ClassificationServiceClient} uses
- * for its own internal calls. Always signs a fresh service token instead of forwarding the
- * caller's JWT: {@code createCase} may already have switched {@link TenantContext} to the
- * policy's issuing tenant (a different insurer than the one in the caller's login token), and
- * rules-service resolves its own tenant off the token it receives.
+ * System-to-system read of rules-service config that cases-service needs before or instead of
+ * classification — the intake gate's insurer-scoped hard rules ({@link PolicyEligibilityValidator})
+ * and, for the wizard, which claim causes a coverage excludes. Same criterion
+ * {@code ClassificationServiceClient} uses for its own internal calls. Always signs a fresh service
+ * token instead of forwarding the caller's JWT: {@code createCase} may already have switched
+ * {@link TenantContext} to the policy's issuing tenant (a different insurer than the one in the
+ * caller's login token), and rules-service resolves its own tenant off the token it receives.
  */
 @Component
 public class RulesServiceClient {
@@ -53,5 +55,34 @@ public class RulesServiceClient {
         public boolean rejectsAtIntake() {
             return enabled && "REJECT".equals(onArrears);
         }
+    }
+
+    /**
+     * Hechos generadores (claim_cause ids) the given coverage does NOT cover — a blacklist, not a
+     * whitelist: a coverage covers every claim cause of its branch except the ones listed here.
+     * Empty (not null) when the coverage has no {@code COVERAGE_EXCLUSION} row, active or not — same
+     * "no row ⇒ nothing excluded" the engine already applies.
+     */
+    public List<Long> excludedClaimCauseIds(Long coverageId) {
+        String serviceToken = JwtSupport.issueServiceToken(jwtKey, "cases-service-claim-causes", TenantContext.get());
+        EvaluableRulesResponse resp = restClient.get()
+                .uri(uri -> uri.path("/api/v1/rules/internal/evaluable").queryParam("coverageId", coverageId).build())
+                .header(HttpHeaders.AUTHORIZATION, "Bearer " + serviceToken)
+                .retrieve()
+                .body(EvaluableRulesResponse.class);
+        if (resp == null || resp.rules() == null) {
+            return List.of();
+        }
+        return resp.rules().stream()
+                .filter(r -> "COVERAGE_EXCLUSION".equals(r.ruleType()) && r.excludedClaimCauseIds() != null)
+                .flatMap(r -> r.excludedClaimCauseIds().stream())
+                .toList();
+    }
+
+    /** Mirrors rules-service's EvaluableRulesDto/EvaluableRuleDto (only the fields this client reads). */
+    private record EvaluableRulesResponse(List<EvaluableRuleJson> rules) {
+    }
+
+    private record EvaluableRuleJson(String ruleType, List<Long> excludedClaimCauseIds) {
     }
 }

@@ -417,3 +417,52 @@ se puede probar directo desde la UI sin workarounds.
   mismo argumento que ya vale para esas dos: la regla no resuelve un caso, evita que nazca uno. El
   relevamiento real de Mich prefiere `STANDBY` — `REJECT` es una opción que el referente puede
   elegir, no la recomendación de negocio por default.
+
+## 11 · Precheck de elegibilidad — bloquear antes de completar el wizard (nuevo, 15/08)
+
+Hasta acá, §6 y §9.2 describen el gate en el **submit final** (paso 3, con los 4 documentos ya
+subidos): el asegurado llenaba todo el wizard y recién ahí se enteraba, por el 422, de que la
+denuncia no se podía registrar. Nuevo endpoint `POST /api/v1/cases/eligibility` (rol ASEGURADO)
+corre exactamente la misma validación (`PolicyEligibilityValidator`: vigencia, carencia, mora) sin
+crear nada, y el wizard lo llama apenas hay póliza + fecha del hecho — bloquea "Siguiente" en el
+**paso 2**, antes de subir un solo documento.
+
+No reemplaza el gate del submit (`POST /cases` lo sigue corriendo igual): es el mismo chequeo,
+adelantado. Si el precheck no responde (rules-service caído, red), el wizard **no bloquea** — cae
+abierto, y el gate real del submit sigue estando.
+
+### Caso de prueba — Diego Sosa, `onArrears=REJECT` (el mismo de §9.2, ahora en el paso 2)
+
+1. Referente: Hard Stop → Mora activa, `onArrears=REJECT` (§9.2, paso 1).
+2. Asegurado: iniciar denuncia con `POL-CEL-2026-077` (Diego Sosa, DNI `41.333.999`). Elegir hecho
+   generador y cargar fecha del hecho — **sin llegar todavía al paso de documentación**.
+3. **Esperado:** apenas se completa la fecha (con un debounce corto, ~400ms), "Siguiente" se
+   deshabilita y aparece el mismo mensaje del backend que en §9.2 ("La póliza POL-CEL-2026-077 tiene
+   un saldo pendiente de pago…"). **No se llega al paso 3**, no hace falta subir nada para
+   confirmar el rechazo.
+4. Volver a `STANDBY` (o apagar la regla) y repetir: "Siguiente" se habilita, aparece el badge
+   informativo "Póliza con premios adeudados" (no bloqueante), y el wizard deja avanzar hasta el
+   submit normal (§9.1).
+
+### Caso de prueba — hechos generadores recortados por cobertura
+
+1. Asegurado: iniciar denuncia con `POL-CEL-2026-042` (cobertura "Robo de celular", branch
+   Celulares).
+2. En "¿Qué te pasó?", revisar las opciones ofrecidas.
+3. **Esperado:** **"Hurto" no aparece** en la lista — la cobertura "Robo de celular" lo excluye
+   (`insurer_rule` id 3 del seed, `COVERAGE_EXCLUSION`, ver `db/init-multitenant.sql` línea ~737).
+   El resto de los hechos generadores del ramo Celulares sí aparecen (la exclusión es lista negra,
+   no blanca).
+4. Contraprueba: elegir una póliza cuya cobertura no tenga ninguna `COVERAGE_EXCLUSION` configurada
+   → el selector muestra todos los hechos generadores del ramo, sin recortar nada.
+
+### Lo que este caso NO cubre
+
+- El precheck y el gate del submit son **dos llamadas independientes** al mismo
+  `PolicyEligibilityValidator`: no hay una sola verdad cacheada entre el paso 2 y el paso 3. Si algo
+  cambia en el medio (el referente apaga la regla mientras el asegurado está completando el
+  wizard), el paso 2 pudo haber mostrado un estado que ya no es el vigente al llegar al submit — es
+  una ventana chica, no se resolvió con un lock ni con revalidación forzada antes de enviar.
+- El caso de rules-service caído durante el precheck (fail-open, no bloquea) está descripto pero no
+  probado a mano — necesita bajar rules-service a mitad del wizard, similar al §8 pero desde el
+  lado del asegurado.
