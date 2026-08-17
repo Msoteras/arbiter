@@ -119,7 +119,7 @@
 /* El buscador va con las acciones, a la derecha: no es navegación, es una herramienta más de la
    barra — vive al lado de la campana. */
 .appbar-search {
-  flex: 0 1 340px;
+  flex: 0 1 420px;
   min-width: 0;
 }
 
@@ -372,14 +372,21 @@
   }
 }
 
+/* Antes de que el buscador tenga que encogerse (y cortar el placeholder, que es donde dice sobre
+   qué se puede buscar), lo que cede es el nombre de la marca: el símbolo alcanza para identificar
+   la app y libera el ancho justo. */
+@media (max-width: 900px) {
+  .appbar-brand-name {
+    display: none;
+  }
+}
+
 @media (max-width: 640px) {
   .appbar {
     gap: var(--space-2);
     padding: 0 var(--space-3);
   }
-  /* Sin lugar para todo: la marca y el "Inicio" ceden ante el buscador y las acciones — a "Inicio"
-     se llega igual desde el panel de la hamburguesa. */
-  .appbar-brand-name,
+  /* Ya sin lugar para nada, "Inicio" también cede: se llega igual desde el panel de la hamburguesa. */
   .appbar-nav {
     display: none;
   }

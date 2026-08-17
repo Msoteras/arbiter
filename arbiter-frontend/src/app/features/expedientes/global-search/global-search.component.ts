@@ -161,7 +161,7 @@ const IDLE: SearchState = { items: [], loading: false, failed: false };
         font-size: var(--font-size-body);
       }
       .gsearch-field::placeholder {
-        font-size: var(--font-size-sm);
+        font-size: var(--font-size-xs);
       }
     }
     .gsearch-field::placeholder {

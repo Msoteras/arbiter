@@ -26,6 +26,7 @@ import { userRoleLabel } from './core/models/user-role';
 import { LogoComponent } from './shared/ui/logo/logo.component';
 import { ButtonComponent } from './shared/ui/button/button.component';
 import { ModalComponent } from './shared/ui/modal/modal.component';
+import { LoadingComponent } from './shared/ui/loading/loading.component';
 import { NotificationsPanelComponent } from './core/notifications/notifications-panel.component';
 import { NuevaDenunciaComponent } from './features/expedientes/nueva-denuncia/nueva-denuncia.component';
 import { GlobalSearchComponent } from './features/expedientes/global-search/global-search.component';
@@ -34,6 +35,8 @@ import { GlobalSearchComponent } from './features/expedientes/global-search/glob
 const OVERLAY_NAV_QUERY = '(max-width: 1024px)';
 /** El panel recuerda si quedó abierto o cerrado entre recargas (solo en modo "empuja"). */
 const NAV_OPEN_KEY = 'arbiter.nav-open';
+/** Lo que dura el cierre de sesión en pantalla: alcanza para leerlo, no tanto como para estorbar. */
+const LOGOUT_DELAY_MS = 900;
 
 @Component({
   selector: 'app-root',
@@ -47,6 +50,7 @@ const NAV_OPEN_KEY = 'arbiter.nav-open';
     NuevaDenunciaComponent,
     GlobalSearchComponent,
     NotificationsPanelComponent,
+    LoadingComponent,
   ],
   changeDetection: ChangeDetectionStrategy.OnPush,
   // Desactiva TODAS las animaciones de @angular/animations (stagger, growBar, etc.) del árbol
@@ -267,12 +271,21 @@ export class App {
   protected cancelLogout(): void {
     this.showLogoutConfirm.set(false);
   }
+  /** Cerrar sesión muestra la carga de marca antes de soltar al login. */
+  protected readonly loggingOut = signal(false);
+
   protected confirmLogout(): void {
     this.showLogoutConfirm.set(false);
-    this.session.clear();
-    this.notifications.clear();
-    // El próximo ingreso vuelve a tener su carga de marca completa (login → home).
-    this.appReady.reset();
-    this.router.navigateByUrl('/login');
+    this.loggingOut.set(true);
+    // La sesión se limpia recién al final, no acá: limpiarla ahora tira abajo el shell detrás del
+    // overlay y la salida se ve como un parpadeo en vez de un cierre.
+    setTimeout(() => {
+      this.session.clear();
+      this.notifications.clear();
+      // El próximo ingreso vuelve a tener su carga de marca completa (login → home).
+      this.appReady.reset();
+      this.router.navigateByUrl('/login');
+      this.loggingOut.set(false);
+    }, LOGOUT_DELAY_MS);
   }
 }

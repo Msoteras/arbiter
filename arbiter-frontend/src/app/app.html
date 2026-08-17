@@ -303,3 +303,10 @@
     </ng-container>
   </app-modal>
 }
+
+<!-- La salida se cierra con la misma carga de marca con la que se entra: tapa el shell mientras se
+     limpia la sesión, así el login no aparece de golpe. Va afuera del shell porque tiene que
+     seguir en pantalla justo cuando el shell deja de existir. -->
+@if (loggingOut()) {
+  <app-loading message="Cerrando sesión" />
+}
