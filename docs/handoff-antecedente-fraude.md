@@ -114,13 +114,9 @@ La arquitectura del scoring está preparada para recibirlo: es **una clase nueva
 
 ## Pendientes que quedaron del peritaje (no bloquean, pero conviene cerrarlos)
 
-- **Contradicción front/back sobre el referente.** `POST /cases/{id}/decision` y los dos endpoints de
-  peritaje están anotados `hasAnyRole('ANALISTA_SINIESTROS', 'REFERENTE_ASEGURADORA')`, así que el
-  backend le permite decidir y derivar al referente; el frontend no le muestra los botones
-  (`canAct()` compara contra `ANALISTA_SINIESTROS`). Hay que elegir un lado. La usuaria todavía no
-  definió cuál.
-- **Copy de la card de decisión para el referente**: hoy lee "Pendiente de decisión del analista",
-  que parece que falta algo en vez de "esto no te toca".
+- **Copy de la card de decisión para el referente**: el referente ve el expediente de solo lectura
+  (`canAct()` en el detalle compara contra `ANALISTA_SINIESTROS`), pero la card lee "Pendiente de
+  decisión del analista", que parece que falta algo en vez de "esto no te toca".
 - **Sugerir la derivación desde el scoring**: cuando la banda es `HIGH`/`CRITICAL` y el expediente es
   elegible, destacar el botón. Se acordó que la sugerencia salga del lado determinístico y **no**
   como un sexto valor de `Classification` — la decisión #6 fija cinco categorías y el mapeo de
