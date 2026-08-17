@@ -8,14 +8,7 @@ import {
   signal,
 } from '@angular/core';
 import { toSignal } from '@angular/core/rxjs-interop';
-import {
-  NavigationEnd,
-  NavigationStart,
-  Router,
-  RouterLink,
-  RouterLinkActive,
-  RouterOutlet,
-} from '@angular/router';
+import { NavigationEnd, Router, RouterLink, RouterLinkActive, RouterOutlet } from '@angular/router';
 import { filter, map } from 'rxjs';
 
 import { AuthSessionService } from './core/auth/auth-session.service';
@@ -99,16 +92,15 @@ export class App {
     });
   }
 
-  // Se escucha NavigationStart además de NavigationEnd: el outlet activa la ruta antes del End,
-  // así que mirando solo el End el marco llegaba tarde y la pantalla nueva se pintaba un frame
-  // sin chrome (al entrar recién logueado, la URL todavía era /login).
+  // Solo NavigationEnd, no NavigationStart: el marco tiene que llegar DESPUÉS de que la pantalla
+  // nueva esté montada, no antes. Adelantándolo al Start, al entrar recién logueado el chrome
+  // aparecía mientras el outlet todavía mostraba el login — un frame de "app vacía" antes de la
+  // carga de marca. Al revés no se ve nada: el home pinta su `app-loading` a viewport completo
+  // apenas se monta, y el chrome se materializa detrás de ese overlay.
   private readonly currentUrl = toSignal(
     this.router.events.pipe(
-      filter(
-        (event): event is NavigationStart | NavigationEnd =>
-          event instanceof NavigationStart || event instanceof NavigationEnd,
-      ),
-      map((event) => (event instanceof NavigationEnd ? event.urlAfterRedirects : event.url)),
+      filter((event): event is NavigationEnd => event instanceof NavigationEnd),
+      map((event) => event.urlAfterRedirects),
     ),
     { initialValue: this.router.url },
   );

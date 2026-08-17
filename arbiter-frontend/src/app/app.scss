@@ -117,10 +117,13 @@
 }
 
 /* El buscador va con las acciones, a la derecha: no es navegación, es una herramienta más de la
-   barra — vive al lado de la campana. */
+   barra — vive al lado de la campana.
+   El `min-width` es lo que necesita el placeholder completo a 11px (medido: 337px). Sin él, un
+   `flex-basis` solo es una sugerencia: apenas la barra aprieta, flexbox encoge el campo y el texto
+   que dice sobre qué se puede buscar queda cortado en "Buscar por N° de expediente, ase…". */
 .appbar-search {
-  flex: 0 1 420px;
-  min-width: 0;
+  flex: 0 1 440px;
+  min-width: 340px;
 }
 
 .appbar-actions {
@@ -378,6 +381,14 @@
 @media (max-width: 900px) {
   .appbar-brand-name {
     display: none;
+  }
+}
+
+/* Recién acá el campo puede encogerse: ya no hay ancho para el placeholder completo, y cortarlo
+   es mejor que desbordar la barra. */
+@media (max-width: 720px) {
+  .appbar-search {
+    min-width: 0;
   }
 }
 
