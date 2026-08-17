@@ -223,6 +223,19 @@ export class ExpedienteDetailComponent {
     return d ? Math.round(d.analysisConfidence * 100) : 0;
   });
 
+  /**
+   * Si el resultado lo produjo el LLM o el gate determinístico de reglas.
+   *
+   * `FAST_TRACK` y `FALTA_DOCUMENTACION` no son recomendaciones del modelo: los decide el motor de
+   * reglas (CLAUDE.md decisión #6 — el LLM nunca puede devolver `FAST_TRACK`). Mostrarles
+   * "Confianza del modelo: 100%" es engañoso: no hay inferencia detrás, es un chequeo objetivo, y
+   * el 100% sale de un valor fijo que pone el backend, no de una medición.
+   */
+  protected readonly isDeterministicOutcome = computed(() => {
+    const c = this.data()?.analysisClassification;
+    return c === 'FAST_TRACK' || c === 'FALTA_DOCUMENTACION';
+  });
+
   /** Grilla del expediente: real donde el backend lo da, null ("Sin datos") en el resto. */
   protected readonly fields = computed<FieldItem[]>(() => {
     const d = this.data();
