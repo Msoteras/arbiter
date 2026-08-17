@@ -4,6 +4,11 @@ import org.springframework.boot.testcontainers.service.connection.ServiceConnect
 import org.springframework.test.context.TestPropertySource;
 import org.testcontainers.postgresql.PostgreSQLContainer;
 
+import java.sql.Connection;
+import java.sql.DriverManager;
+import java.sql.SQLException;
+import java.sql.Statement;
+
 /**
  * Same "singleton container" pattern as cases-service's {@code AbstractPersistenceIT}: no
  * {@code @Testcontainers}/{@code @Container}, because those annotations stop the container on each
@@ -20,12 +25,13 @@ import org.testcontainers.postgresql.PostgreSQLContainer;
 // empty, and the HS256 key can't be built from that.
 //
 // ddl-auto is overridden to `update` only here: in production it's `validate` (the schema is
-// defined by db/init-multitenant.sql), but these tests start against an empty container and nobody
-// runs the script. The danger that motivates `validate` — Hibernate recreating the arbiter_common
-// tables inside each tenant schema — doesn't apply: there are no tenant schemas here and everything
-// lands in `public`. Same trade-off, and same debt, as cases-service: the only thing that would
-// catch a drift between the entities and the real schema would be running init-multitenant.sql in
-// the container.
+// defined by db/init-multitenant.sql). common-lib's entities are schema-qualified
+// (`arbiter_common`) — they do NOT land in `public` as this comment used to claim; Hibernate emits
+// literal `create table arbiter_common.branch(...)` DDL. `update` doesn't create schemas on its own
+// (`hibernate.hbm2ddl.create_namespaces` defaults to false), so the CREATE SCHEMA below runs by
+// hand before the context boots. Same trade-off, and same debt, as cases-service: the only thing
+// that would catch a drift between the entities and the real schema would be running
+// init-multitenant.sql in the container.
 @TestPropertySource(properties = {
         "arbiter.auth.jwt.secret=test-secret-at-least-32-bytes-long-for-hs256",
         "spring.jpa.hibernate.ddl-auto=update"
@@ -37,5 +43,12 @@ public abstract class AbstractPersistenceIT {
 
     static {
         POSTGRES.start();
+        try (Connection conn = DriverManager.getConnection(
+                POSTGRES.getJdbcUrl(), POSTGRES.getUsername(), POSTGRES.getPassword());
+             Statement stmt = conn.createStatement()) {
+            stmt.execute("CREATE SCHEMA IF NOT EXISTS arbiter_common");
+        } catch (SQLException e) {
+            throw new RuntimeException(e);
+        }
     }
 }

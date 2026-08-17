@@ -9,6 +9,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Primary;
+import org.springframework.context.annotation.Profile;
 import org.springframework.core.ParameterizedTypeReference;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.client.SimpleClientHttpRequestFactory;
@@ -51,8 +52,16 @@ import java.util.List;
  * is a parallel signal that never gates a classification decision (see {@code BusinessRules
  * .ScoringConfig}'s javadoc), so losing it for one run isn't a reason to fail the whole thing.
  */
+// Excluded when the "test" profile is active: ClassificationOrchestratorIntegrationTest
+// (@ActiveProfiles("test")) runs the orchestrator synchronously and asserts against
+// MockRulesAdapter's baseline (coverage-scoped Fast Track thresholds, the Hurto exclusion on
+// coverage 1) — with this bean still @Primary there, it made a real HTTP call to whatever
+// happened to be listening on rules-service's port (a leftover local/Railway container, if any),
+// 401ing against a JWT_SECRET that doesn't match. Not a fake profile invented for this: it's the
+// same "test" this test class already activates.
 @Component
 @Primary
+@Profile("!test")
 public class RulesRestAdapter implements RulesAdapter {
 
     private static final Logger log = LoggerFactory.getLogger(RulesRestAdapter.class);
