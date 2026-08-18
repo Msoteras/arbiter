@@ -27,6 +27,7 @@ import ar.edu.utn.frba.arbiter.cases.models.repositories.CaseAnalysisRepository.
 import ar.edu.utn.frba.arbiter.cases.models.repositories.CaseDocumentRepository;
 import ar.edu.utn.frba.arbiter.cases.models.repositories.CaseRepository;
 import ar.edu.utn.frba.arbiter.cases.models.repositories.ClaimsAnalystRepository;
+import ar.edu.utn.frba.arbiter.cases.models.repositories.InsurerRepository;
 import ar.edu.utn.frba.arbiter.cases.support.CaseFixtures;
 import ar.edu.utn.frba.arbiter.cases.support.CaseStates;
 import ar.edu.utn.frba.arbiter.common.dto.ImageForensicReport;
@@ -104,6 +105,9 @@ class CaseServiceImplTest {
     @Mock
     private PolicyEligibilityValidator policyEligibilityValidator;
 
+    @Mock
+    private InsurerRepository insurerRepository;
+
     @InjectMocks
     private CaseServiceImpl caseService;
 
@@ -115,6 +119,17 @@ class CaseServiceImplTest {
     void noAnalysisByDefault() {
         lenient().when(caseAnalysisRepository.findByCaseId(any())).thenReturn(CaseAnalysis.none());
         lenient().when(caseAnalysisRepository.findByCaseIds(any())).thenReturn(Map.of());
+    }
+
+    /**
+     * createCase() ahora resuelve el insurerSlug/insurerName de la respuesta contra el tenant
+     * actual (para que el frontend pueda reenviarlo en llamadas posteriores sobre el expediente,
+     * si terminó en una aseguradora distinta de la del login). Sin aseguradora encontrada, la
+     * respuesta simplemente queda con esos dos campos en null — el mismo comportamiento de antes.
+     */
+    @BeforeEach
+    void noInsurerMatchByDefault() {
+        lenient().when(insurerRepository.findBySchemaName(any())).thenReturn(Optional.empty());
     }
 
     /**
