@@ -15,6 +15,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.ArgumentMatchers.anyMap;
 import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.when;
 
 /**
@@ -42,7 +43,10 @@ class OllamaDocumentAnalyzerTest {
     }
 
     private void modelAnswers(String content) {
-        when(client.chat(anyString(), anyList(), anyMap())).thenReturn(content);
+        // false: transcribir no se resuelve razonando, así que la extracción pide el modelo sin
+        // thinking (ver OllamaDocumentAnalyzer). Matchear el valor exacto y no anyBoolean() deja
+        // que este test falle si alguien lo prende sin querer.
+        when(client.chat(anyString(), anyList(), anyMap(), eq(false))).thenReturn(content);
     }
 
     @Test

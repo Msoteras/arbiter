@@ -193,7 +193,10 @@ public class OllamaDocumentAnalyzer implements DocumentAnalyzer {
     private DocumentExtraction extractFromImage(byte[] imageContent) {
         String base64 = Base64.getEncoder().encodeToString(imageContent);
 
-        String content = client.chat(documentExtractionPrompt, List.of(base64), OUTPUT_SCHEMA);
+        // Sin thinking: transcribir un documento es una tarea mecánica —leer lo que dice el papel—,
+        // no una que se resuelva razonando. El schema ya fuerza la forma de la salida, así que el
+        // razonamiento solo agrega minutos y consume el presupuesto de num_predict sin aportar.
+        String content = client.chat(documentExtractionPrompt, List.of(base64), OUTPUT_SCHEMA, false);
 
         if (content.isEmpty()) {
             log.warn("[Ollama] Document analysis returned empty content");

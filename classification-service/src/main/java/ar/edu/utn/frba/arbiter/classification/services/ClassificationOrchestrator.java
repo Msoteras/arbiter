@@ -8,6 +8,8 @@ import ar.edu.utn.frba.arbiter.classification.adapters.ClaimClassifier;
 import ar.edu.utn.frba.arbiter.common.dto.ClaimReport;
 import ar.edu.utn.frba.arbiter.common.dto.ImageForensicReport;
 import ar.edu.utn.frba.arbiter.classification.dto.*;
+import ar.edu.utn.frba.arbiter.classification.models.entities.DocumentAnalysis;
+import ar.edu.utn.frba.arbiter.classification.models.repositories.DocumentAnalysisRepository;
 import ar.edu.utn.frba.arbiter.classification.models.repositories.PolicySnapshotRepository;
 import ar.edu.utn.frba.arbiter.classification.services.risk.RiskContext;
 import ar.edu.utn.frba.arbiter.classification.services.risk.RiskScore;
@@ -19,6 +21,7 @@ import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 
 import java.math.BigDecimal;
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -43,6 +46,7 @@ public class ClassificationOrchestrator {
     private final RiskScoringService riskScoringService;
     private final ImageFraudAnalysisService imageFraudAnalysisService;
     private final PolicySnapshotRepository policySnapshotRepository;
+    private final DocumentAnalysisRepository documentAnalysisRepository;
     private final ObjectMapper objectMapper;
 
     /** Classifies a claim whose attachments' OCR has already been resolved. */
@@ -127,10 +131,81 @@ public class ClassificationOrchestrator {
         Context ctx = fetchContext(claim);
         recordPolicySnapshot(caseId, claim, ctx);
         Resolution resolution = resolveClassification(claim, documents, ctx);
+        recordDocumentExtractions(documents, resolution.extractions());
         ImageForensicReport forensic = resolution.documentationAnalyzed()
                 ? runImageFraudAnalysis(caseId, documents)
                 : null;
         return withRiskScore(resolution.response(), claim, ctx, forensic, resolution.extractions());
+    }
+
+    /**
+     * Persists what the vision pass read out of each attachment (H0031). Until now this was
+     * computed on every run — it feeds the prompt and {@code DocumentInconsistencyEvaluator} — and
+     * then dropped when the run ended, so the analyst only ever saw the indirect result (a risk
+     * factor naming the field, without the value).
+     *
+     * <p>Keyed by document type on the extraction side and by {@code documentId} on the attachment
+     * side, joined here: within a case {@code case_documents} is unique per type, which is the same
+     * assumption the extraction itself makes (the schedule asks for "a police report", not several).
+     * An attachment with no {@code documentId} is skipped — the isolated flow has no stored row to
+     * point the FK at.
+     *
+     * <p>Best-effort, like the policy snapshot and the fraud cascade around it: a supporting read
+     * that fails to write must not sink a classification an analyst is waiting on.
+     */
+    private void recordDocumentExtractions(
+            List<AttachmentDocument> documents, Map<String, DocumentExtraction> extractions) {
+        if (extractions.isEmpty()) {
+            return;
+        }
+        try {
+            Map<String, Long> documentIdByType = new LinkedHashMap<>();
+            for (AttachmentDocument document : documents) {
+                if (document.documentId() != null) {
+                    documentIdByType.put(document.type(), document.documentId());
+                }
+            }
+
+            List<DocumentAnalysis> rows = new ArrayList<>();
+            for (Map.Entry<String, DocumentExtraction> entry : extractions.entrySet()) {
+                Long documentId = documentIdByType.get(entry.getKey());
+                if (documentId != null) {
+                    rows.add(toDocumentAnalysis(documentId, entry.getValue()));
+                }
+            }
+            if (rows.isEmpty()) {
+                return;
+            }
+
+            // The extraction is redone on every reclassification and the table holds one row per
+            // document, so the old ones go first — otherwise the unique constraint rejects the write.
+            documentAnalysisRepository.deleteByCaseDocumentIdIn(
+                    rows.stream().map(DocumentAnalysis::getCaseDocumentId).toList());
+            documentAnalysisRepository.saveAll(rows);
+            log.info("[Orchestrator] {} document extraction(s) recorded", rows.size());
+        } catch (Exception e) {
+            log.error("[Orchestrator] Could not record the document extractions — the classification "
+                    + "proceeds, but the analyst won't see what each document said: {}", e.getMessage(), e);
+        }
+    }
+
+    private DocumentAnalysis toDocumentAnalysis(Long documentId, DocumentExtraction extraction) {
+        DocumentExtraction.Fields fields = extraction.fields();
+        DocumentAnalysis row = new DocumentAnalysis();
+        row.setCaseDocumentId(documentId);
+        row.setTranscription(extraction.transcription());
+        row.setDocumentDate(fields.documentDate());
+        row.setAmount(fields.amount());
+        row.setItemDescription(fields.itemDescription());
+        row.setImei(fields.imei());
+        // The column is NOT NULL and DESCONOCIDO is a real answer, not a missing one: the
+        // extraction leaves it null when the model didn't state it, which means the same thing.
+        row.setAffectedParty(fields.affectedParty() == null
+                ? DocumentExtraction.AffectedParty.DESCONOCIDO
+                : fields.affectedParty());
+        row.setExtractedAt(Instant.now());
+        extraction.visualFindings().forEach(row::addVisualFinding);
+        return row;
     }
 
     /**

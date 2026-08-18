@@ -6,6 +6,7 @@ import ar.edu.utn.frba.arbiter.cases.dto.AssignedCaseSummaryResponse;
 import ar.edu.utn.frba.arbiter.cases.dto.CaseDocumentResponse;
 import ar.edu.utn.frba.arbiter.cases.dto.CaseRequest;
 import ar.edu.utn.frba.arbiter.cases.dto.CaseResponse;
+import ar.edu.utn.frba.arbiter.cases.dto.DocumentAnalysisSummary;
 import ar.edu.utn.frba.arbiter.cases.dto.EligibilityCheckRequest;
 import ar.edu.utn.frba.arbiter.cases.dto.EligibilityCheckResponse;
 import ar.edu.utn.frba.arbiter.cases.dto.LensSummaryResponse;
@@ -32,6 +33,7 @@ import ar.edu.utn.frba.arbiter.cases.models.entities.Policy;
 import ar.edu.utn.frba.arbiter.cases.models.entities.StatusChangeActor;
 import ar.edu.utn.frba.arbiter.cases.models.repositories.CaseAnalysisRepository;
 import ar.edu.utn.frba.arbiter.cases.models.repositories.CaseAnalysisRepository.CaseAnalysis;
+import ar.edu.utn.frba.arbiter.cases.models.repositories.CaseDocumentAnalysisRepository;
 import ar.edu.utn.frba.arbiter.cases.models.repositories.CaseDocumentRepository;
 import ar.edu.utn.frba.arbiter.cases.models.repositories.CaseRepository;
 import ar.edu.utn.frba.arbiter.cases.models.repositories.CaseSpecifications;
@@ -72,6 +74,7 @@ public class CaseServiceImpl implements CaseService {
     private final CaseReferenceResolver referenceResolver;
     private final PolicyEligibilityValidator policyEligibilityValidator;
     private final CaseAnalysisRepository caseAnalysisRepository;
+    private final CaseDocumentAnalysisRepository caseDocumentAnalysisRepository;
     private final CaseAccessPolicy accessPolicy;
     private final InsuredCaseAggregator insuredCaseAggregator;
     private final PolicyTenantLocator policyTenantLocator;
@@ -170,7 +173,8 @@ public class CaseServiceImpl implements CaseService {
         Insurer issuer = insurerRepository.findBySchemaName(TenantContext.get()).orElse(null);
         return toResponse(saved, null, CaseAnalysis.none(),
                 issuer == null ? null : InsurerSlug.of(issuer),
-                issuer == null ? null : issuer.getName());
+                issuer == null ? null : issuer.getName(),
+                List.of());
     }
 
     @Override
@@ -385,7 +389,8 @@ public class CaseServiceImpl implements CaseService {
         List<StatusTransitionResponse> history = caseStatusService.history(caseId).stream()
                 .map(StatusTransitionResponse::from)
                 .toList();
-        return toResponse(entity, history, caseAnalysisRepository.findByCaseId(caseId));
+        return toResponse(entity, history, caseAnalysisRepository.findByCaseId(caseId),
+                caseDocumentAnalysisRepository.findByCaseId(caseId));
     }
 
     @Override
@@ -470,7 +475,7 @@ public class CaseServiceImpl implements CaseService {
      */
     private Page<CaseResponse> toInsuredResponses(Page<InsuredCaseAggregator.InsuredCase> page) {
         return page.map(it -> toResponse(it.caseRecord(), null, CaseAnalysis.none(),
-                it.insurerSlug(), it.insurerName()));
+                it.insurerSlug(), it.insurerName(), List.of()));
     }
 
     /** Resuelve el análisis joineado de toda una página de una sola vez. */
@@ -657,11 +662,19 @@ public class CaseServiceImpl implements CaseService {
      */
     private CaseResponse toResponse(Case entity, List<StatusTransitionResponse> history,
                                      CaseAnalysis analysis) {
-        return toResponse(entity, history, analysis, null, null);
+        return toResponse(entity, history, analysis, null, null, List.of());
+    }
+
+    /** Sólo el detalle trae los datos extraídos; ver el javadoc del campo en {@link CaseResponse}. */
+    private CaseResponse toResponse(Case entity, List<StatusTransitionResponse> history,
+                                     CaseAnalysis analysis,
+                                     List<DocumentAnalysisSummary> documentAnalyses) {
+        return toResponse(entity, history, analysis, null, null, documentAnalyses);
     }
 
     private CaseResponse toResponse(Case entity, List<StatusTransitionResponse> history,
-                                     CaseAnalysis analysis, String insurerSlug, String insurerName) {
+                                     CaseAnalysis analysis, String insurerSlug, String insurerName,
+                                     List<DocumentAnalysisSummary> documentAnalyses) {
         // Mientras el expediente está de vuelta en clasificación, la corrida anterior sigue siendo
         // la última fila de llm_analysis. Mostrarla diría que hay una recomendación vigente cuando
         // justamente se está recalculando, así que en ese estado no se surface ninguna.
@@ -688,7 +701,7 @@ public class CaseServiceImpl implements CaseService {
                 entity.getClaimedAmount(),
                 classificationOf(entity, current),
                 confidenceOf(entity, current),
-                detailOf(entity, current),
+                reasonsOf(entity, current),
                 entity.getRiskScore(),
                 entity.getRiskBand(),
                 current.riskBreakdown(),
@@ -697,7 +710,8 @@ public class CaseServiceImpl implements CaseService {
                 entity.getAnalyst() == null ? null : fullName(entity.getAnalyst()),
                 entity.getReportedAt(),
                 entity.getUpdatedAt(),
-                history
+                history,
+                documentAnalyses
         );
     }
 
@@ -727,16 +741,17 @@ public class CaseServiceImpl implements CaseService {
         return analysis.confidence() != null ? analysis.confidence() : 0.0;
     }
 
-    private String detailOf(Case entity, CaseAnalysis analysis) {
+    /**
+     * Uno por fila, tal como está en {@code llm_reason} — no se aplana a un string acá; ver el
+     * javadoc de {@link CaseResponse#analysisReasons()}.
+     */
+    private List<String> reasonsOf(Case entity, CaseAnalysis analysis) {
         // Mismo criterio que classificationOf: los motivos de llm_reason son de la corrida
         // anterior, y atribuírselos a un Fast Track sería darle razones que no son suyas.
         if (wasFastTracked(entity)) {
-            return "Fast track classification available";
+            return List.of();
         }
-        if (!analysis.factors().isEmpty()) {
-            return String.join(", ", analysis.factors());
-        }
-        return analysis.classification() == null ? null : "Classification completed";
+        return analysis.factors();
     }
 
     private boolean wasFastTracked(Case entity) {

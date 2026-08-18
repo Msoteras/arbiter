@@ -56,7 +56,14 @@ public record CaseResponse(
         BigDecimal claimedAmount,
         Classification analysisClassification,
         double analysisConfidence,
-        String analysisDetail,
+        /**
+         * Los motivos detrás de {@code analysisClassification}, uno por fila — {@code llm_reason}
+         * (classification-service) es una tabla de una fila por motivo, no una sola columna de
+         * texto (DER), así que acá viaja igual: una lista, no un string armado con
+         * {@code String.join}. Vacía cuando no hay motivos que mostrar (Fast Track, o sin
+         * clasificación todavía).
+         */
+        List<String> analysisReasons,
         Double riskScore,
         RiskBand riskBand,
         List<RiskBreakdownItem> riskBreakdown,
@@ -71,6 +78,13 @@ public record CaseResponse(
         Instant createdAt,
         Instant updatedAt,
         /** Full transition trail with timestamps; null on list endpoints (only GET /{id} loads it). */
-        List<StatusTransitionResponse> statusHistory
+        List<StatusTransitionResponse> statusHistory,
+        /**
+         * Lo que el modelo leyó de cada adjunto (H0031). Como {@code statusHistory}, sólo lo carga
+         * {@code GET /{id}}: en un listado sería un join por fila. Vacía cuando el expediente no se
+         * clasificó, se resolvió por Fast Track sin leer nada, o se clasificó antes de que esta
+         * tabla existiera — la solapa simplemente no aparece.
+         */
+        List<DocumentAnalysisSummary> documentAnalyses
 ) {
 }

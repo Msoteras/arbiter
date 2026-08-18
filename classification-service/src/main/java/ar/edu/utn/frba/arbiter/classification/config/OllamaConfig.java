@@ -8,16 +8,37 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
+import org.springframework.http.client.SimpleClientHttpRequestFactory;
 import org.springframework.web.client.RestClient;
 
 @Configuration
 @EnableConfigurationProperties(OllamaProperties.class)
 public class OllamaConfig {
 
+    /**
+     * <b>Sin read timeout a propósito.</b> Corriendo por CPU una sola inferencia legítima ya tardó
+     * ~58 minutos, y la curva de tokens/seg se degrada con el contexto, así que cualquier número
+     * que se elija corre el riesgo de cortar una respuesta que iba a llegar bien. Además, el modo
+     * de falla que realmente se vio (el runner de Ollama muerto por falta de memoria) no deja la
+     * conexión colgada: Ollama responde <b>500</b>, que {@code @Retryable} en
+     * {@code ClaimClassificationService} ya maneja. El timeout habría sido para un cuelgue sin
+     * respuesta, que no es lo que pasa acá.
+     *
+     * <p>Contra el otro riesgo —un loop de repetición del modelo generando para siempre— la
+     * defensa es {@code num_predict} ({@link OllamaClient}), que lo corta por cantidad de tokens
+     * en vez de por reloj.
+     *
+     * <p>El connect timeout sí queda: si Ollama no está levantado, eso falla en segundos y no hay
+     * razón para esperar.
+     */
     @Bean
     public RestClient ollamaRestClient(OllamaProperties properties) {
+        SimpleClientHttpRequestFactory requestFactory = new SimpleClientHttpRequestFactory();
+        requestFactory.setConnectTimeout(10_000);
+
         return RestClient.builder()
                 .baseUrl(properties.baseUrl())
+                .requestFactory(requestFactory)
                 .defaultHeader(HttpHeaders.CONTENT_TYPE, MediaType.APPLICATION_JSON_VALUE)
                 .defaultHeader(HttpHeaders.ACCEPT, MediaType.APPLICATION_JSON_VALUE)
                 .build();
