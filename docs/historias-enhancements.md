@@ -180,23 +180,6 @@ Las dos pantallas dicen "TODO MOCK" en su propio encabezado.
 
 ---
 
-## H0029 · Conversación entre el asegurado y el analista
-
-**Como** analista de siniestros
-**quiero** pedirle aclaraciones al asegurado desde el expediente
-**para** no resolver a ciegas ni tener que llamarlo por fuera del sistema.
-
-**Criterios de aceptación**
-- Hilo de mensajes por expediente, visible para las dos partes.
-- El asegurado recibe aviso de un mensaje nuevo.
-- Los mensajes quedan en la trazabilidad del expediente.
-
-**Por qué importa**
-La solapa "Conversación" del detalle del expediente es un **placeholder vacío**. Distinto de H0026:
-esto es bidireccional.
-
----
-
 ## H0030 · Reintentos de clasificación más robustos ante una caída transitoria
 
 **Como** analista de siniestros
@@ -239,6 +222,64 @@ infra en el medio no cambia nada: el expediente sigue trabado hasta que alguien 
   por otra razón" para no reintentar indefinidamente algo que nunca va a cambiar — hoy
   `CLASSIFICATION_FAILED` no guarda el motivo del último fallo en ningún lado consultable por este
   barrido.
+
+---
+
+## H0031 · Persistir y mostrar los datos que el modelo extrajo de cada documento
+
+**Para implementar, no solo para evaluar** — no es un bug (nada se rompe si no se hace), pero es
+importante: el dato ya se calcula en cada clasificación y hoy se tira. Antes de tocar el schema,
+**esto va al DER primero** (`docs/arbiter der.mdj` — es la fuente de verdad, no se documentan
+desvíos). La propuesta de entidad exacta (`document_extraction` + `document_visual_finding`, con
+columnas) está en `docs/handoff-ollama-cpu-y-scheduler.md`, sección de esta misma historia — no se
+duplica acá para que no queden dos versiones desalineadas.
+
+**Como** analista de siniestros
+**quiero** ver, por cada documento adjunto, los datos que el modelo leyó (fecha, importe, ítem,
+IMEI, a quién le pasó) y si coinciden con la póliza
+**para** entender de un vistazo qué dijo cada papel sin tener que abrirlo y compararlo a mano.
+
+**Criterios de aceptación**
+- El detalle del expediente tiene una solapa ("Datos extraídos") con, por documento adjunto, los
+  campos tipados que el modelo extrajo y las señales visuales que encontró (si hubo alguna).
+- Cuando un campo del documento no coincide con el dato equivalente de la póliza/bien asegurado
+  (ej. IMEI), queda marcado como discrepancia, no como un valor más de la lista.
+- Un documento sin ese campo (ej. una foto del bien no tiene importe) se muestra como "no
+  aplica", nunca como una discrepancia — un campo ausente no es lo mismo que un campo que no
+  matchea (mismo criterio que ya usa `DocumentInconsistencyEvaluator` con `null`).
+- El dato queda persistido y auditable: no se recalcula ni desaparece si se vuelve a mirar el
+  expediente más tarde.
+
+**Por qué importa**
+`classification-service` ya hace esta extracción — `OllamaDocumentAnalyzer` produce un
+`DocumentExtraction` (transcripción + `Fields` tipados: `documentDate`, `amount`,
+`itemDescription`, `imei`, `affectedParty` + `visualFindings`) por cada documento, y
+`ClassificationOrchestrator` ya lo usa para armar el prompt y alimentar
+`DocumentInconsistencyEvaluator` (el factor de riesgo que compara IMEI). El dato existe y ya se
+calculó — hoy se descarta apenas termina esa corrida, así que el analista nunca lo ve, solo el
+resultado indirecto (un factor de riesgo con el nombre del campo, sin el valor). La solapa "Datos
+extraídos" del detalle del expediente es un placeholder vacío esperando exactamente esto.
+
+Relacionada con H0023 (cruce de IMEI): H0023 es más chica y depende de que el IMEI del bien
+asegurado exista del lado de Arbiter; esta historia es la pieza que falta para que el analista
+vea el IMEI *del documento* en primer lugar, más el resto de los campos.
+
+**Notas técnicas**
+1. Entidad nueva en `classification-service` (algo como `document_extraction`, una fila por
+   documento adjunto) que persista lo que hoy vive solo en memoria dentro de
+   `ClassificationOrchestrator.resolveClassification`/`extractAllAttachments` — mismo espíritu que
+   `ClassificationLog`, es dato de auditoría del análisis.
+2. Endpoint REST interno para que `cases-service` lo consulte (ej.
+   `GET /claims/{id}/document-extractions`), siguiendo el mismo patrón que ya usa para traer la
+   clasificación.
+3. Sumar el campo a `CaseResponse`/`ExpedienteResponse` (`List<DocumentExtractionSummary>`, con
+   tipo de documento, campos y si matcheó o no contra la póliza).
+4. Frontend: ya está lista la solapa "Datos extraídos" del lado del componente
+   (`expediente-detail.component.ts`/`.html`) — hoy oculta de `tabs()` porque no hay nada que
+   mostrar. Con el endpoint arriba, solo falta el `computed` que la vuelva a sumar a la lista
+   cuando `analysisReasons`-style haya datos, y el bloque de template que los liste (ver el
+   `@case ('datos')` que ya existe como stub, y el patrón de la solapa "Razones" recién agregada
+   como referencia de cómo se gatea una tab por presencia de datos).
 
 ---
 
