@@ -30,8 +30,19 @@ name: arbiter-railway
 services:
 
   # ─── LLM ─────────────────────────────────────────────────────────────────
+  # Los mem_limit de todo este archivo existen por un OOM real (18/08): el kernel mató el
+  # proceso de llama-server en medio de una clasificación ("signal: killed"). Sin límites,
+  # cada JVM se dimensiona sola contra la memoria TOTAL que ve (default del JVM: heap máximo
+  # = 25% de la RAM disponible), así que 5 servicios Java podían comprometer bastante más
+  # memoria de la que hay y dejar sin aire justo al que más necesita. Ahora cada uno tiene
+  # su techo y la suma entra con margen en lo que Docker tiene asignado.
   ollama:
     image: ollama/ollama:latest
+    # El más grande a propósito: acá viven los pesos del modelo (~6 GB con qwen3-vl Q4_K_M)
+    # más el KV cache, que se reserva según num_ctx (32k) y no según lo que se use. Con 12g se
+    # midió 11,86 GB en uso (98,9%) durante una clasificación real, así que ese techo estaba
+    # justo en el borde de repetir el OOM que ya matamos una vez.
+    mem_limit: 14g
     environment:
       OLLAMA_NUM_PARALLEL: "1"
     volumes:
@@ -47,7 +58,7 @@ services:
 
   ollama-init:
     image: ollama/ollama:latest
-    entrypoint: ["/bin/sh", "-c", "ollama pull qwen3-vl"]
+    entrypoint: ["/bin/sh", "-c", "ollama pull qwen3-vl:8b-instruct"]
     environment:
       OLLAMA_HOST: http://ollama:11434
     depends_on:
@@ -59,6 +70,7 @@ services:
   clip-embedding:
     build:
       context: ./embedding-service
+    mem_limit: 2g
     ports:
       - "8000:8000"
     healthcheck:
@@ -73,9 +85,14 @@ services:
     build:
       context: .
       dockerfile: auth-service/Dockerfile
+    mem_limit: 768m
     ports:
       - "8080:8080"
     environment:
+      # Con mem_limit puesto el JVM (container-aware desde Java 10) toma como techo el 25% del
+      # límite por default, que acá serían 256 MB y se queda corto. 75% usa bien lo asignado
+      # dejando espacio para metaspace/threads/off-heap, que no entran en el heap.
+      JAVA_TOOL_OPTIONS: -XX:MaxRAMPercentage=75.0
       # DB_URL ya viene en formato JDBC con ?sslmode=require en el .env — se
       # pasa tal cual, sin reconstruirla como hace el compose local con `postgres`.
       DB_URL: ${DB_URL:?falta DB_URL en .env}
@@ -99,12 +116,15 @@ services:
     build:
       context: .
       dockerfile: classification-service/Dockerfile
+    # Un poco más que el resto: rasteriza PDFs a imagen en memoria antes de mandarlos al modelo.
+    mem_limit: 1536m
     ports:
       - "8082:8082"
     environment:
+      JAVA_TOOL_OPTIONS: -XX:MaxRAMPercentage=75.0
       SPRING_PROFILES_ACTIVE: ${CLASSIFICATION_PROFILES:-insurer-db}
       OLLAMA_BASE_URL: http://ollama:11434
-      OLLAMA_MODEL: ${OLLAMA_MODEL:-qwen3-vl}
+      OLLAMA_MODEL: ${OLLAMA_MODEL:-qwen3-vl:8b-instruct}
       OLLAMA_NUM_CTX: ${OLLAMA_NUM_CTX:-32768}
       EMBEDDING_SERVICE_URL: http://clip-embedding:8000
       GOOGLE_VISION_ENABLED: ${GOOGLE_VISION_ENABLED:-false}
@@ -129,9 +149,12 @@ services:
     build:
       context: .
       dockerfile: cases-service/Dockerfile
+    # Un poco más que el resto: recibe los adjuntos por multipart (hasta 10 MB por archivo).
+    mem_limit: 1g
     ports:
       - "8083:8083"
     environment:
+      JAVA_TOOL_OPTIONS: -XX:MaxRAMPercentage=75.0
       CLASSIFICATION_SERVICE_URL: http://classification-service:8082
       RULES_SERVICE_URL: http://rules-service:8081
       DB_URL: ${DB_URL:?falta DB_URL en .env}
@@ -155,9 +178,11 @@ services:
     build:
       context: .
       dockerfile: rules-service/Dockerfile
+    mem_limit: 768m
     ports:
       - "8081:8081"
     environment:
+      JAVA_TOOL_OPTIONS: -XX:MaxRAMPercentage=75.0
       DB_URL: ${DB_URL:?falta DB_URL en .env}
       DB_USER: ${DB_USER:?falta DB_USER en .env}
       DB_PASSWORD: ${DB_PASSWORD:?falta DB_PASSWORD en .env}
@@ -170,9 +195,11 @@ services:
     build:
       context: .
       dockerfile: reports-service/Dockerfile
+    mem_limit: 768m
     ports:
       - "8084:8084"
     environment:
+      JAVA_TOOL_OPTIONS: -XX:MaxRAMPercentage=75.0
       DB_URL: ${DB_URL:?falta DB_URL en .env}
       DB_USER: ${DB_USER:?falta DB_USER en .env}
       DB_PASSWORD: ${DB_PASSWORD:?falta DB_PASSWORD en .env}

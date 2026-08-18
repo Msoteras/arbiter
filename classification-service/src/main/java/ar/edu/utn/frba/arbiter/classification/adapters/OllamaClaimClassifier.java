@@ -50,7 +50,12 @@ public class OllamaClaimClassifier implements ClaimClassifier {
         }
         log.debug("[Ollama] Full prompt sent:\n{}", prompt);
 
-        String content = client.chat(prompt, List.of(), OUTPUT_SCHEMA);
+        // Sin thinking, igual que la extracción: el schema ya obliga al modelo a explicitar sus
+        // `factores`, que ES el razonamiento que le pedimos —y el que después ve el analista—, así
+        // que una fase de razonamiento previa e invisible duplicaría el trabajo. Corriendo por CPU
+        // eso son decenas de minutos por caso. Si algún día se corre con GPU y se quiere evaluar si
+        // pensar mejora la recomendación, es cambiar este false y medir.
+        String content = client.chat(prompt, List.of(), OUTPUT_SCHEMA, false);
         if (content.isEmpty()) {
             throw new InvalidClassificationException("Ollama returned an empty response");
         }
