@@ -1,7 +1,7 @@
 # Historias de usuario — enhancements pendientes
 
-**Fecha:** 10/08/2026 · **Origen:** lo que quedó abierto al cerrar los 31 defectos del
-[handoff de pruebas y defectos](handoff-pruebas-y-defectos.md).
+**Fecha:** 10/08/2026 · **Origen:** lo que quedó abierto al cerrar los 31 defectos del handoff de
+pruebas y defectos (el doc se borró el 18/08 al quedar sin nada abierto que no estuviera ya acá).
 
 Cada bloque es **una card de Trello**: el título va en el nombre de la card y el resto en la
 descripción. La numeración arranca en H0021 asumiendo que el documento de HU llega hasta H0020 —
@@ -280,6 +280,67 @@ vea el IMEI *del documento* en primer lugar, más el resto de los campos.
    cuando `analysisReasons`-style haya datos, y el bloque de template que los liste (ver el
    `@case ('datos')` que ya existe como stub, y el patrón de la solapa "Razones" recién agregada
    como referencia de cómo se gatea una tab por presencia de datos).
+
+---
+
+## H0032 · Mostrar la traza de reglas duras que ya se audita y nadie lee
+
+**Prioridad alta — más barata que H0031 y toca directo la auditoría de la Disposición SSN
+2/2023.** No hace falta tocar el DER ni crear ninguna tabla: `rule_result` (`resultado_regla`)
+existe, está en el DER, y **ya se escribe** en cada clasificación — el gap es solo que nadie la
+lee de vuelta.
+
+**Como** analista de siniestros
+**quiero** ver, por expediente, cada regla dura que se evaluó (exclusión de cobertura, plazos,
+carencia, tope de eventos) con su resultado — no solo las que bloquearon algo
+**para** auditar la clasificación completa, no solo el motivo que terminó importando.
+
+**Criterios de aceptación**
+- El detalle del expediente muestra una lista de reglas evaluadas: tipo de regla, resultado
+  (PASS/FAIL) y el valor evaluado (ej. `"claimCause=Hurto (id=3)"`).
+- Se ven **las que pasaron, no solo las que fallaron** — hoy el analista solo se entera de las que
+  bloquean algo (porque esas sí llegan como texto a "Razones"); las que se evaluaron y no
+  encontraron nada quedan invisibles, y son justamente la prueba de que se revisó todo, no solo lo
+  que saltó.
+- Un expediente sin ninguna regla dura evaluada (ej. resuelto por LLM sin reglas de por medio) no
+  muestra nada — mismo criterio que "Razones"/"Peritaje": sin datos, no se ocupa espacio.
+
+**Por qué importa**
+`ClassificationResultsService.saveRuleResults` (`classification-service`) escribe una fila en
+`rule_result` por cada regla — exclusión de cobertura, D9-D13 — **con ambos resultados**, PASS y
+FAIL, exactamente porque la Disposición SSN 2/2023 pide "qué regla se evaluó y con qué resultado",
+no solo los rechazos. Ese trabajo ya está hecho y ya cumple la norma del lado de la escritura. Pero
+la tab "Razones" (esta misma sesión) solo muestra el subconjunto que ya venía como prosa en
+`llm_reason` — que es **estrictamente más chico**: `TemporalRuleEvaluator` arma `reasons` (texto,
+solo lo que bloquea) y `findings` (una fila por regla evaluada, `rule_result`) como dos listas
+separadas, y solo la primera llega a pantalla. El registro completo, el que de verdad prueba que
+se auditó todo, se escribe y se descarta sin que nadie lo mire — es auditoría de papel, no de
+pantalla.
+
+**Notas técnicas**
+1. `RuleResultRepository` no tiene ningún método de consulta (`extends JpaRepository` a secas) —
+   agregar `findByCaseId(Long caseId)` o similar.
+2. Endpoint REST interno en `classification-service` (ej. `GET /claims/{id}/rule-results`), mismo
+   patrón que el resto.
+3. Sumar a `CaseResponse`/`ExpedienteResponse` (`List<RuleResultSummary>`: tipo de regla, resultado,
+   valor evaluado — sin exponer `ruleId` crudo, alcanza con el tipo para que el analista entienda
+   qué se evaluó).
+4. Frontend: puede vivir dentro de la tab "Razones" ya existente (como una sección aparte,
+   "Trazabilidad completa" o similar, debajo de los motivos en prosa) en vez de una tab nueva —
+   son la misma pregunta del analista ("por qué se clasificó así"), solo con dos niveles de
+   detalle. Evaluar con Fede si conviene separarlo.
+5. De paso: `RuleResult.java` tenía un javadoc que decía *"no rule engine evaluates anything into
+   this table yet"* — ya no es cierto (`ClassificationResultsService` sí escribe), se corrigió el
+   comentario en esta misma sesión para que no vuelva a leerse como "tabla sin implementar".
+
+**Extra, menor, no amerita card propia:** `LlmAnalysis` también persiste `model`, `promptVersion`,
+`latencyMs` y `analyzedAt` (`ClassificationResultsService.saveResult`) y `getStatus`/`ClaimResponse`
+no los devuelve — se pierden en el camino igual que `rule_result`, pero es metadata más de
+ingeniería/soporte (qué modelo corrió, cuánto tardó) que de decisión del analista. Si en algún
+momento se arma un panel de diagnóstico/soporte para ver clasificaciones lentas o con modelo
+distinto al esperado (relevante después de los bugs de este mismo handoff — ver
+`docs/handoff-ollama-cpu-y-scheduler.md`), es la misma extensión de `ClaimResponse`/`CaseResponse`
+que pide H0032, sumando estos 4 campos.
 
 ---
 
