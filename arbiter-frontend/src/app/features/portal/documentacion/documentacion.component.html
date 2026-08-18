@@ -21,7 +21,9 @@
     [caseId]="caseId"
     [insurerSlug]="insurerSlug"
     [branch]="data()?.branch ?? null"
-    (uploaded)="onUploaded()" />
+    [claimCause]="data()?.claimCause ?? null"
+    (uploaded)="onUploaded()"
+  />
 </app-card>
 
 <p class="autosend-note">

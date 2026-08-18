@@ -91,16 +91,19 @@ export class CaseDocumentsComponent {
   readonly showMissing = input(true);
   readonly heading = input('Agenda documental');
   /**
-   * Nombre del ramo del expediente. Con esto el checklist se arma contra la agenda REAL que
-   * configuró el referente para ese ramo, no contra el catálogo completo. Sin ramo (o sin agenda
-   * configurada) cae al catálogo completo.
+   * Ramo y hecho generador del expediente. Con esto el checklist se arma contra la agenda REAL que
+   * configuró el referente para esa combinación, no contra el catálogo completo. Sin ambos (o sin
+   * agenda configurada) cae al catálogo completo.
    */
   readonly branch = input<string | null>(null);
+  readonly claimCause = input<string | null>(null);
 
-  /** Tipos de documento requeridos del ramo (o el catálogo completo como fallback). */
+  /** Tipos de documento requeridos del ramo + hecho generador (o el catálogo completo como fallback). */
   private readonly requiredTypes = toSignal(
-    toObservable(this.branch).pipe(
-      switchMap((branch) => (branch ? this.agenda.slotsForBranch(branch) : of(CASE_DOCUMENT_TYPES))),
+    toObservable(computed(() => ({ branch: this.branch(), claimCause: this.claimCause() }))).pipe(
+      switchMap(({ branch, claimCause }) =>
+        branch && claimCause ? this.agenda.slotsForBranch(branch, claimCause) : of(CASE_DOCUMENT_TYPES),
+      ),
     ),
     { initialValue: CASE_DOCUMENT_TYPES as readonly CaseDocumentType[] },
   );

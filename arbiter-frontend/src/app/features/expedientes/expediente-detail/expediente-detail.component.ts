@@ -771,10 +771,15 @@ export class ExpedienteDetailComponent {
 
   private readonly agenda = inject(DocumentAgendaService);
 
-  /** La agenda REAL del ramo del expediente (la que configuró el referente), o el catálogo completo. */
+  /**
+   * La agenda REAL del ramo + hecho generador del expediente (la que configuró el referente), o el
+   * catálogo completo.
+   */
   private readonly requiredDocTypes = toSignal(
-    toObservable(computed(() => this.data()?.branch ?? null)).pipe(
-      switchMap((branch) => (branch ? this.agenda.slotsForBranch(branch) : of(CASE_DOCUMENT_TYPES))),
+    toObservable(computed(() => ({ branch: this.data()?.branch ?? null, claimCause: this.data()?.claimCause ?? null }))).pipe(
+      switchMap(({ branch, claimCause }) =>
+        branch && claimCause ? this.agenda.slotsForBranch(branch, claimCause) : of(CASE_DOCUMENT_TYPES),
+      ),
     ),
     { initialValue: CASE_DOCUMENT_TYPES as readonly CaseDocumentType[] },
   );

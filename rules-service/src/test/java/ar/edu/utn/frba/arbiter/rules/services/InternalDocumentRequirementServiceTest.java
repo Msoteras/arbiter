@@ -12,9 +12,10 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 /**
- * El motor solo tiene el {@code coverageId}; la agenda se guarda por ramo. El servicio cruza
- * coverage → branch and returns that branch's schedule; with no coverage or no branch, an empty
- * list (the engine composes over its baseline and never falls over missing config).
+ * The engine only has the {@code coverageId} and the claim-cause name; the schedule is stored by
+ * branch + claim cause. The service resolves coverage → branch and returns that claim cause's
+ * schedule; with no coverage or no branch, an empty list (the engine composes over its baseline and
+ * never falls over missing config).
  */
 class InternalDocumentRequirementServiceTest {
 
@@ -28,15 +29,16 @@ class InternalDocumentRequirementServiceTest {
         Coverage coverage = mock(Coverage.class);
         when(coverage.getBranchId()).thenReturn(2L);
         when(coverageRepository.findById(10L)).thenReturn(Optional.of(coverage));
-        when(documentRequirements.get(2L)).thenReturn(List.of("police_report", "imei_deregistration"));
+        when(documentRequirements.getByBranchIdAndClaimCauseName(2L, "Hurto"))
+                .thenReturn(List.of("police_report", "imei_deregistration"));
 
-        assertThat(service.getByCoverage(10L)).containsExactly("police_report", "imei_deregistration");
+        assertThat(service.getByCoverage(10L, "Hurto")).containsExactly("police_report", "imei_deregistration");
     }
 
     @Test
     void returnsEmptyWhenCoverageDoesNotExist() {
         when(coverageRepository.findById(99L)).thenReturn(Optional.empty());
 
-        assertThat(service.getByCoverage(99L)).isEmpty();
+        assertThat(service.getByCoverage(99L, "Hurto")).isEmpty();
     }
 }

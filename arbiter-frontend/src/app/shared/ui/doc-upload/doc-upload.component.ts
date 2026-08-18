@@ -118,10 +118,12 @@ export class DocUploadComponent {
    */
   readonly insurerSlug = input<string | null>(null);
   /**
-   * Nombre del ramo del expediente: arma el uploader con los documentos que el ramo realmente
-   * requiere (la agenda del referente), no con el catálogo completo. Sin ramo, cae al catálogo.
+   * Ramo y hecho generador del expediente: arman el uploader con los documentos que esa
+   * combinación realmente requiere (la agenda del referente), no con el catálogo completo. Sin
+   * ambos, cae al catálogo.
    */
   readonly branch = input<string | null>(null);
+  readonly claimCause = input<string | null>(null);
   /** Se emite cuando el backend aceptó los documentos (el caso vuelve a clasificación). */
   readonly uploaded = output<void>();
 
@@ -129,10 +131,12 @@ export class DocUploadComponent {
     CASE_DOCUMENT_TYPES.map(({ type, label }) => ({ type, label, file: null })),
   );
 
-  /** Tipos requeridos del ramo (o el catálogo completo como fallback). */
+  /** Tipos requeridos del ramo + hecho generador (o el catálogo completo como fallback). */
   private readonly requiredTypes = toSignal(
-    toObservable(this.branch).pipe(
-      switchMap((branch) => (branch ? this.agenda.slotsForBranch(branch) : of(CASE_DOCUMENT_TYPES))),
+    toObservable(computed(() => ({ branch: this.branch(), claimCause: this.claimCause() }))).pipe(
+      switchMap(({ branch, claimCause }) =>
+        branch && claimCause ? this.agenda.slotsForBranch(branch, claimCause) : of(CASE_DOCUMENT_TYPES),
+      ),
     ),
     { initialValue: CASE_DOCUMENT_TYPES as readonly CaseDocumentType[] },
   );
