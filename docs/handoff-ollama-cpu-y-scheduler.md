@@ -442,6 +442,15 @@ por CPU lleva 1h+, así que las 88 filas viejas siguen con su texto original. Si
 base limpia, es un `UPDATE ... replace(reason, '**', '')` sobre los dos esquemas — no se hizo para
 no tocar datos sin avisar.
 
+> **Actualización (18/8, más tarde):** se corrió sobre Railway, con autorización explícita del
+> usuario. Se verificó primero con `SELECT` que eran exactamente esas 5 filas (todas del caso 16,
+> `arbiter_provincia.llm_reason.id IN (39,42,43,45,48)` — coincide con lo que reportaste), después
+> `UPDATE arbiter_provincia.llm_reason SET reason = replace(reason, '**', '') WHERE reason LIKE
+> '%**%'` (acotado a `arbiter_provincia`, que era donde estaban las 5 — `arbiter_bbva` seguía en 0).
+> `UPDATE 5`, verificado que no queda ninguna fila con `**` en ese esquema, y las 5 leen bien (sin
+> dobles espacios ni cortes raros donde estaba el `**`). No se tocó `arbiter_bbva` ni ningún otro
+> dato. Este punto queda cerrado.
+
 ### Tu punto 4 — `DocumentExtraction`: revisado, **no es un problema**
 
 `transcription` y `visualFindings` **nunca llegan a la pantalla**: cero referencias en todo el
