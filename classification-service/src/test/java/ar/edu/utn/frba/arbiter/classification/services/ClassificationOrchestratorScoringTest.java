@@ -5,6 +5,7 @@ import ar.edu.utn.frba.arbiter.classification.adapters.DocumentAnalyzer;
 import ar.edu.utn.frba.arbiter.classification.adapters.InsurerAdapter;
 import ar.edu.utn.frba.arbiter.classification.adapters.RulesAdapter;
 import ar.edu.utn.frba.arbiter.classification.dto.ClassificationResponse;
+import ar.edu.utn.frba.arbiter.classification.models.repositories.DocumentAnalysisRepository;
 import ar.edu.utn.frba.arbiter.classification.models.repositories.PolicySnapshotRepository;
 import ar.edu.utn.frba.arbiter.classification.services.risk.RiskFixtures;
 import ar.edu.utn.frba.arbiter.classification.services.risk.RiskScore;
@@ -51,6 +52,7 @@ class ClassificationOrchestratorScoringTest {
     @Mock private RiskScoringService riskScoringService;
     @Mock private ImageFraudAnalysisService imageFraudAnalysisService;
     @Mock private PolicySnapshotRepository policySnapshotRepository;
+    @Mock private DocumentAnalysisRepository documentAnalysisRepository;
     @Spy private ObjectMapper objectMapper = new ObjectMapper().registerModule(new JavaTimeModule());
 
     @InjectMocks private ClassificationOrchestrator orchestrator;

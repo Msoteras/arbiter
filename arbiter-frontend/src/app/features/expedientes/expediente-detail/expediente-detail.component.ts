@@ -9,9 +9,19 @@ import { DocumentAgendaService } from '../document-agenda.service';
 import { CaseNavigationService } from '../case-navigation.service';
 import { AuthSessionService } from '../../../core/auth/auth-session.service';
 import { UserAdminService } from '../../../core/auth/user-admin.service';
-import { ExpedienteResponse, RiskBreakdownItem, StatusTransition } from '../../../core/models/expediente';
+import {
+  DocumentAnalysis,
+  ExpedienteResponse,
+  RiskBreakdownItem,
+  StatusTransition,
+} from '../../../core/models/expediente';
 import { riskFactorLabel } from '../../../core/models/business-rules';
-import { CASE_DOCUMENT_TYPES, CaseDocument, CaseDocumentType } from '../../../core/models/case-document';
+import {
+  CASE_DOCUMENT_TYPES,
+  CaseDocument,
+  CaseDocumentType,
+  documentTypeLabel,
+} from '../../../core/models/case-document';
 import { clasificacionLabel, clasificacionTone } from '../../../core/models/clasificacion';
 import {
   ExpertVerdict,
@@ -250,6 +260,50 @@ export class ExpedienteDetailComponent {
   protected readonly analysisReasons = computed<string[]>(() => this.data()?.analysisReasons ?? []);
 
   /**
+   * Lo que el modelo leyó de cada adjunto (H0031). Vacío mientras no se clasificó, en un Fast
+   * Track que no abrió ningún documento, o en expedientes clasificados antes de que esto se
+   * persistiera — en los tres casos la tab no aparece (ver `tabs`).
+   */
+  protected readonly documentAnalyses = computed<DocumentAnalysis[]>(
+    () => this.data()?.documentAnalyses ?? [],
+  );
+
+  protected documentLabel(type: string): string {
+    return documentTypeLabel(type);
+  }
+
+  /**
+   * Los campos tipados de un documento, ya listos para la grilla. Se arman acá y no en el
+   * template para que el orden sea uno solo y "no aplica" salga de un `null` explícito: un campo
+   * que el documento no trae NO es una discrepancia, y mezclarlos haría que la pantalla acuse al
+   * asegurado por un dato que nadie declaró.
+   */
+  protected extractedFields(doc: DocumentAnalysis): FieldItem[] {
+    return [
+      { label: 'Fecha del documento', value: doc.documentDate ? formatDateTime(doc.documentDate) : null },
+      { label: 'Importe', value: doc.amount == null ? null : `$${doc.amount.toLocaleString()}` },
+      { label: 'Bien que nombra', value: doc.itemDescription },
+      { label: 'IMEI', value: doc.imei, mono: true },
+      { label: 'Damnificado', value: this.affectedPartyLabel(doc.affectedParty) },
+    ];
+  }
+
+  /**
+   * `DESCONOCIDO` no es un dato faltante: es que el documento no dice de quién era el equipo, y
+   * en ese caso la regla de grupo familiar directamente no participa. Por eso se muestra como un
+   * valor propio y no como "Sin datos".
+   */
+  private affectedPartyLabel(affectedParty: string): string {
+    const labels: Record<string, string> = {
+      TITULAR: 'El titular de la póliza',
+      FAMILIAR: 'Un familiar',
+      TERCERO: 'Un tercero',
+      DESCONOCIDO: 'No lo aclara el documento',
+    };
+    return labels[affectedParty] ?? affectedParty;
+  }
+
+  /**
    * Si el resultado lo produjo el LLM o el gate determinístico de reglas.
    *
    * `FAST_TRACK` y `FALTA_DOCUMENTACION` no son recomendaciones del modelo: los decide el motor de
@@ -294,12 +348,14 @@ export class ExpedienteDetailComponent {
   // "Peritaje" solo existe si el expediente se derivó, y "Razones" solo si el LLM dejó motivos:
   // una solapa vacía en la mayoría de los casos sería ruido, y en ambas la ausencia de datos es
   // el caso esperado (Fast Track/Falta documentación no tienen motivos; no toda derivación pasa).
-  // 'datos' y 'conversacion' se ocultan hasta que haya un campo real que las respalde — no se
-  // borraron del tipo ni del `@switch` del template, solo se sacan de la lista visible, para no
-  // perder el lugar ya pensado en la pantalla. Ver las historias en el handoff
-  // (docs/handoff-ollama-cpu-y-scheduler.md) para qué dato de la API destraba cada una.
+  // 'conversacion' sigue oculta: no hay entidad de mensajería todavía, así que estaría siempre
+  // vacía. No se borró del tipo ni del `@switch` del template, solo de la lista visible, para no
+  // perder el lugar ya pensado en la pantalla (ver la historia en el handoff).
   protected readonly tabs = computed<{ id: TabId; label: string }[]>(() => [
     { id: 'resumen' as TabId, label: 'Resumen' },
+    ...(this.documentAnalyses().length > 0
+      ? [{ id: 'datos' as TabId, label: 'Datos extraídos' }]
+      : []),
     { id: 'imagenes' as TabId, label: 'Análisis de imágenes' },
     { id: 'riesgo' as TabId, label: 'Desglose de riesgo' },
     ...(this.analysisReasons().length > 0 ? [{ id: 'razones' as TabId, label: 'Razones' }] : []),

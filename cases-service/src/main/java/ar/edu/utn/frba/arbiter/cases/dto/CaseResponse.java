@@ -78,6 +78,13 @@ public record CaseResponse(
         Instant createdAt,
         Instant updatedAt,
         /** Full transition trail with timestamps; null on list endpoints (only GET /{id} loads it). */
-        List<StatusTransitionResponse> statusHistory
+        List<StatusTransitionResponse> statusHistory,
+        /**
+         * Lo que el modelo leyó de cada adjunto (H0031). Como {@code statusHistory}, sólo lo carga
+         * {@code GET /{id}}: en un listado sería un join por fila. Vacía cuando el expediente no se
+         * clasificó, se resolvió por Fast Track sin leer nada, o se clasificó antes de que esta
+         * tabla existiera — la solapa simplemente no aparece.
+         */
+        List<DocumentAnalysisSummary> documentAnalyses
 ) {
 }

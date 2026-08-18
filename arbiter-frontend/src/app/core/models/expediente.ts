@@ -26,6 +26,32 @@ export interface RiskBreakdownItem {
   rationale: string;
 }
 
+/**
+ * Lo que el modelo leyó de un adjunto — espejo de DocumentAnalysisSummary del back (H0031).
+ *
+ * Un campo en `null` significa **"el documento no lo dice"**, nunca "no coincide": una foto del
+ * bien no trae importe y una denuncia policial no trae IMEI. Se muestra como "No aplica", jamás
+ * como discrepancia — leer un campo ausente como inconsistencia sería acusar al asegurado por
+ * algo que nadie declaró.
+ */
+export interface DocumentAnalysis {
+  /** El slot de la agenda documental que cumple el adjunto (`police_report`, …). */
+  documentType: string;
+  /** Lo que dice el documento, en texto plano. */
+  transcription: string;
+  documentDate: string | null;
+  amount: number | null;
+  itemDescription: string | null;
+  imei: string | null;
+  /** TITULAR | FAMILIAR | TERCERO | DESCONOCIDO — quién sufrió el hecho según el documento. */
+  affectedParty: string;
+  /**
+   * Señales de manipulación que el modelo de visión notó en la imagen. **Vacío es lo normal**, y
+   * que esté vacío no prueba que el documento sea auténtico.
+   */
+  visualFindings: string[];
+}
+
 // Espejo de CaseResponse del cases-service (GET /api/v1/cases/{id})
 export interface ExpedienteResponse {
   id: number;
@@ -86,4 +112,10 @@ export interface ExpedienteResponse {
   updatedAt: string;
   /** Solo viene en GET /{id}; en listados es null. */
   statusHistory: StatusTransition[] | null;
+  /**
+   * Lo que el modelo leyó de cada adjunto. Como `statusHistory`, solo viene en GET /{id} — en un
+   * listado sería un join por fila. Vacío cuando el expediente no se clasificó, se resolvió por
+   * Fast Track sin leer nada, o se clasificó antes de que esto existiera.
+   */
+  documentAnalyses: DocumentAnalysis[];
 }

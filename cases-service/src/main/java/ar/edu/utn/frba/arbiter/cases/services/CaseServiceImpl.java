@@ -6,6 +6,7 @@ import ar.edu.utn.frba.arbiter.cases.dto.AssignedCaseSummaryResponse;
 import ar.edu.utn.frba.arbiter.cases.dto.CaseDocumentResponse;
 import ar.edu.utn.frba.arbiter.cases.dto.CaseRequest;
 import ar.edu.utn.frba.arbiter.cases.dto.CaseResponse;
+import ar.edu.utn.frba.arbiter.cases.dto.DocumentAnalysisSummary;
 import ar.edu.utn.frba.arbiter.cases.dto.EligibilityCheckRequest;
 import ar.edu.utn.frba.arbiter.cases.dto.EligibilityCheckResponse;
 import ar.edu.utn.frba.arbiter.cases.dto.LensSummaryResponse;
@@ -32,6 +33,7 @@ import ar.edu.utn.frba.arbiter.cases.models.entities.Policy;
 import ar.edu.utn.frba.arbiter.cases.models.entities.StatusChangeActor;
 import ar.edu.utn.frba.arbiter.cases.models.repositories.CaseAnalysisRepository;
 import ar.edu.utn.frba.arbiter.cases.models.repositories.CaseAnalysisRepository.CaseAnalysis;
+import ar.edu.utn.frba.arbiter.cases.models.repositories.CaseDocumentAnalysisRepository;
 import ar.edu.utn.frba.arbiter.cases.models.repositories.CaseDocumentRepository;
 import ar.edu.utn.frba.arbiter.cases.models.repositories.CaseRepository;
 import ar.edu.utn.frba.arbiter.cases.models.repositories.CaseSpecifications;
@@ -72,6 +74,7 @@ public class CaseServiceImpl implements CaseService {
     private final CaseReferenceResolver referenceResolver;
     private final PolicyEligibilityValidator policyEligibilityValidator;
     private final CaseAnalysisRepository caseAnalysisRepository;
+    private final CaseDocumentAnalysisRepository caseDocumentAnalysisRepository;
     private final CaseAccessPolicy accessPolicy;
     private final InsuredCaseAggregator insuredCaseAggregator;
     private final PolicyTenantLocator policyTenantLocator;
@@ -170,7 +173,8 @@ public class CaseServiceImpl implements CaseService {
         Insurer issuer = insurerRepository.findBySchemaName(TenantContext.get()).orElse(null);
         return toResponse(saved, null, CaseAnalysis.none(),
                 issuer == null ? null : InsurerSlug.of(issuer),
-                issuer == null ? null : issuer.getName());
+                issuer == null ? null : issuer.getName(),
+                List.of());
     }
 
     @Override
@@ -385,7 +389,8 @@ public class CaseServiceImpl implements CaseService {
         List<StatusTransitionResponse> history = caseStatusService.history(caseId).stream()
                 .map(StatusTransitionResponse::from)
                 .toList();
-        return toResponse(entity, history, caseAnalysisRepository.findByCaseId(caseId));
+        return toResponse(entity, history, caseAnalysisRepository.findByCaseId(caseId),
+                caseDocumentAnalysisRepository.findByCaseId(caseId));
     }
 
     @Override
@@ -470,7 +475,7 @@ public class CaseServiceImpl implements CaseService {
      */
     private Page<CaseResponse> toInsuredResponses(Page<InsuredCaseAggregator.InsuredCase> page) {
         return page.map(it -> toResponse(it.caseRecord(), null, CaseAnalysis.none(),
-                it.insurerSlug(), it.insurerName()));
+                it.insurerSlug(), it.insurerName(), List.of()));
     }
 
     /** Resuelve el análisis joineado de toda una página de una sola vez. */
@@ -657,11 +662,19 @@ public class CaseServiceImpl implements CaseService {
      */
     private CaseResponse toResponse(Case entity, List<StatusTransitionResponse> history,
                                      CaseAnalysis analysis) {
-        return toResponse(entity, history, analysis, null, null);
+        return toResponse(entity, history, analysis, null, null, List.of());
+    }
+
+    /** Sólo el detalle trae los datos extraídos; ver el javadoc del campo en {@link CaseResponse}. */
+    private CaseResponse toResponse(Case entity, List<StatusTransitionResponse> history,
+                                     CaseAnalysis analysis,
+                                     List<DocumentAnalysisSummary> documentAnalyses) {
+        return toResponse(entity, history, analysis, null, null, documentAnalyses);
     }
 
     private CaseResponse toResponse(Case entity, List<StatusTransitionResponse> history,
-                                     CaseAnalysis analysis, String insurerSlug, String insurerName) {
+                                     CaseAnalysis analysis, String insurerSlug, String insurerName,
+                                     List<DocumentAnalysisSummary> documentAnalyses) {
         // Mientras el expediente está de vuelta en clasificación, la corrida anterior sigue siendo
         // la última fila de llm_analysis. Mostrarla diría que hay una recomendación vigente cuando
         // justamente se está recalculando, así que en ese estado no se surface ninguna.
@@ -697,7 +710,8 @@ public class CaseServiceImpl implements CaseService {
                 entity.getAnalyst() == null ? null : fullName(entity.getAnalyst()),
                 entity.getReportedAt(),
                 entity.getUpdatedAt(),
-                history
+                history,
+                documentAnalyses
         );
     }
 

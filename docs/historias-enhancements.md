@@ -225,14 +225,16 @@ infra en el medio no cambia nada: el expediente sigue trabado hasta que alguien 
 
 ---
 
-## H0031 · Persistir y mostrar los datos que el modelo extrajo de cada documento
+## ~~H0031 · Persistir y mostrar los datos que el modelo extrajo de cada documento~~ — ✅ HECHA (18/08)
 
-**Para implementar, no solo para evaluar** — no es un bug (nada se rompe si no se hace), pero es
-importante: el dato ya se calcula en cada clasificación y hoy se tira. Antes de tocar el schema,
-**esto va al DER primero** (`docs/arbiter der.mdj` — es la fuente de verdad, no se documentan
-desvíos). La propuesta de entidad exacta (`document_extraction` + `document_visual_finding`, con
-columnas) está en `docs/handoff-ollama-cpu-y-scheduler.md`, sección de esta misma historia — no se
-duplica acá para que no queden dos versiones desalineadas.
+> **Implementada el 18/08.** Las tablas son `document_analysis` + `document_visual_finding` (no
+> `document_extraction` como decía la propuesta: `DocumentExtraction` ya es el nombre del DTO
+> transitorio, y `*_analysis` es la familia que ya usan `llm_analysis` / `risk_analysis` /
+> `image_analysis`). **Falta sumarlas al DER** (`docs/arbiter der.mdj`, StarUML, a mano) — el
+> esquema y el código ya están, el diagrama es lo único que quedó atrás. Columnas exactas en
+> `db/migrations/2026-08-18-datos-extraidos.sql`.
+>
+> **No cargar esta card.** Se deja el texto como registro de por qué existía.
 
 **Como** analista de siniestros
 **quiero** ver, por cada documento adjunto, los datos que el modelo leyó (fecha, importe, ítem,

@@ -267,7 +267,58 @@
         }
       }
 
-      @case ('datos') { <app-empty-state message="Datos extraídos por IA + coincidencia con la póliza" sub="Pendiente de datos de IA" /> }
+      <!-- Lo que el modelo leyó de cada adjunto. Un campo vacío se muestra "No aplica" y NUNCA
+           como discrepancia: que un documento no diga algo no es que no coincida. -->
+      @case ('datos') {
+        @if (documentAnalyses().length > 0) {
+          <div class="extracted-grid">
+            @for (doc of documentAnalyses(); track doc.documentType) {
+              <app-card [heading]="documentLabel(doc.documentType)">
+                <dl class="fields">
+                  @for (f of extractedFields(doc); track f.label) {
+                    <div class="field">
+                      <dt class="t-field-label">{{ f.label }}</dt>
+                      @if (f.value) {
+                        <dd [class.mono]="f.mono">{{ f.value }}</dd>
+                      } @else {
+                        <dd class="nodata">No aplica</dd>
+                      }
+                    </div>
+                  }
+                </dl>
+
+                <!-- Observación sobre la IMAGEN, no contenido del documento: se separa a propósito
+                     para que no se lea como si el papel lo dijera. Nunca es concluyente. -->
+                @if (doc.visualFindings.length > 0) {
+                  <div class="visual-findings">
+                    <span class="t-field-label">Señales en la imagen</span>
+                    <ul>
+                      @for (finding of doc.visualFindings; track $index) {
+                        <li>{{ finding }}</li>
+                      }
+                    </ul>
+                    <p class="t-note">
+                      Son observaciones del modelo sobre la imagen, no contenido del documento. Por
+                      sí solas no confirman fraude.
+                    </p>
+                  </div>
+                }
+
+                @if (doc.transcription) {
+                  <details class="transcription">
+                    <summary class="t-field-label">Ver lo que se leyó del documento</summary>
+                    <p class="t-body">{{ doc.transcription }}</p>
+                  </details>
+                }
+              </app-card>
+            }
+          </div>
+        } @else {
+          <app-empty-state
+            message="Todavía no se leyó ningún documento de este expediente"
+            sub="Se completa al clasificar (no aplica en Fast Track sin documentación)." />
+        }
+      }
       @case ('imagenes') { <app-forensic-analysis [caseId]="d.id" [report]="d.forensicReport" /> }
       @case ('riesgo') {
         <app-card heading="Desglose del score de fraude">

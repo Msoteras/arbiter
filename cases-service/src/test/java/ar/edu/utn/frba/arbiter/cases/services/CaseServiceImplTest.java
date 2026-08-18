@@ -24,6 +24,7 @@ import ar.edu.utn.frba.arbiter.cases.models.entities.Policy;
 import ar.edu.utn.frba.arbiter.cases.models.entities.StatusChangeActor;
 import ar.edu.utn.frba.arbiter.cases.models.repositories.CaseAnalysisRepository;
 import ar.edu.utn.frba.arbiter.cases.models.repositories.CaseAnalysisRepository.CaseAnalysis;
+import ar.edu.utn.frba.arbiter.cases.models.repositories.CaseDocumentAnalysisRepository;
 import ar.edu.utn.frba.arbiter.cases.models.repositories.CaseDocumentRepository;
 import ar.edu.utn.frba.arbiter.cases.models.repositories.CaseRepository;
 import ar.edu.utn.frba.arbiter.cases.models.repositories.ClaimsAnalystRepository;
@@ -94,6 +95,9 @@ class CaseServiceImplTest {
     private CaseAnalysisRepository caseAnalysisRepository;
 
     @Mock
+    private CaseDocumentAnalysisRepository caseDocumentAnalysisRepository;
+
+    @Mock
     private CaseAccessPolicy accessPolicy;
 
     @Mock
@@ -119,6 +123,9 @@ class CaseServiceImplTest {
     void noAnalysisByDefault() {
         lenient().when(caseAnalysisRepository.findByCaseId(any())).thenReturn(CaseAnalysis.none());
         lenient().when(caseAnalysisRepository.findByCaseIds(any())).thenReturn(Map.of());
+        // Sin extracciones por default: el mock devolvería null, y el real devuelve lista vacía
+        // cuando el expediente no se clasificó todavía — que es el caso de casi todos los tests.
+        lenient().when(caseDocumentAnalysisRepository.findByCaseId(any())).thenReturn(List.of());
     }
 
     /**

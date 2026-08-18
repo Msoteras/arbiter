@@ -593,3 +593,57 @@ min y seguía en el cuarto adjunto.
 "Datos extraídos" y "Conversación" quedan como las dejaste. Falta que Fede confirme el alcance,
 sobre todo si la extracción OCR + matching contra póliza entra en este sprint. Coincidimos en que
 "Conversación" es de otro tamaño: sin entidad de mensajería, es de punta a punta.
+
+---
+
+# H0031 "Datos extraídos" — implementada (18/8, Aylén)
+
+Se hizo de punta a punta. El dato que `classification-service` venía calculando y tirando en cada
+corrida ahora se persiste, viaja y se ve.
+
+**Nombre de las tablas: `document_analysis` + `document_visual_finding`**, no `document_extraction`
+como decía mi propuesta. Dos razones: `DocumentExtraction` ya es el DTO transitorio y tener una
+entidad homónima obliga a calificar el paquete en cada archivo que use las dos; y `*_analysis` es
+la familia que ya existe (`llm_analysis`, `risk_analysis`, `image_analysis`), producida acá por el
+`DocumentAnalyzer`. La forma general no cambió: dos tablas, FK a `case_documents` (el dato es por
+documento, no por expediente), hallazgos visuales en filas y no en un array serializado.
+
+| Paso | Estado |
+|---|---|
+| Tablas en `init-multitenant.sql` + migración idempotente | ✅ `db/migrations/2026-08-18-datos-extraidos.sql` |
+| Migración aplicada a Railway | ✅ verificado: las 2 tablas en los 2 esquemas de tenant |
+| Entidades + repositorio en classification-service | ✅ `DocumentAnalysis`, `DocumentVisualFinding` |
+| Persistencia en el flujo real | ✅ `ClassificationOrchestrator.recordDocumentExtractions` |
+| Lectura + `CaseResponse.documentAnalyses` | ✅ `CaseDocumentAnalysisRepository` |
+| Tab "Datos extraídos" de vuelta en pantalla | ✅ condicional, igual que "Razones" |
+| **Sumar las 2 entidades al DER** | ❌ **queda para vos** — es StarUML, a mano |
+
+**Decisiones que conviene conocer antes de tocarlo:**
+
+- **Se lee por SQL, no por REST.** La historia decía "endpoint REST interno", pero el precedente
+  del repo para exactamente esto es `CaseAnalysisRepository`, que documenta por qué: las tablas
+  viven en el **mismo esquema de tenant** que `cases`, así que es un query y no un salto HTTP.
+  Mismo idiom (JDBC plano sobre la conexión de Hibernate, para que el `search_path` multi-tenant
+  aplique). `cases-service` sólo lee; el dueño sigue siendo classification-service.
+- **Sólo en el detalle, nunca en listados.** `documentAnalyses` se puebla en `GET /cases/{id}` y va
+  vacía en la bandeja, igual que `statusHistory`. A propósito no existe un `findByCaseIds`: si
+  estuviera, alguien lo llamaría desde el listado y sería un join por fila.
+- **Una fila por documento, se pisa al reclasificar** (`UNIQUE (case_document_id)`), a diferencia de
+  `llm_analysis` que es append-only. Lo que audita la Disposición 2/2023 es la recomendación y sus
+  motivos; esto es la lectura de apoyo, y guardar cada extracción del mismo PDF sin cambios sería
+  ruido. Por eso el repo borra las anteriores antes de escribir — con `@Transactional`, porque un
+  derived delete no lo es solo y explota con `TransactionRequiredException`.
+- **Best-effort**, como el policy snapshot: si falla el guardado se loguea error y la clasificación
+  sigue. Un dato de apoyo que no escribe no puede voltear una clasificación que un analista espera.
+- **`null` es "el documento no lo dice", NUNCA "no coincide".** Está sostenido en las 3 capas: la
+  columna es nullable, el DTO lo documenta, y la pantalla lo muestra como "No aplica". Tratar un
+  campo ausente como discrepancia sería acusar al asegurado por algo que nadie declaró.
+- **Los expedientes ya clasificados no tienen datos** y la tab no les aparece: la extracción vieja
+  nunca se guardó y no hay de dónde sacarla. Se llena en la próxima clasificación de cada uno.
+
+**Lo que NO se hizo, y por qué:** el criterio de aceptación "marcar discrepancia contra la póliza"
+quedó afuera. Depende de H0023 — el IMEI del bien asegurado vive sólo en `aseguradora_*.poliza.imei`
+y no está en la `policy` local, así que no hay contra qué comparar del lado de Arbiter. Hoy la
+discrepancia ya se ve, pero por otro lado: `DocumentInconsistencyEvaluator` la levanta como factor
+del score y sale en la solapa "Desglose de riesgo". Con H0023 cerrada, marcarla también acá es
+sumar la comparación al mapeo, no rehacer nada.
