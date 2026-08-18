@@ -199,6 +199,49 @@ tab "Razones" y su gating condicional son un buen primer caso.
 
 ---
 
+## Para Fede: chequear si el texto que devuelve el LLM trae markdown sin renderizar
+
+Reportado por el usuario mirando la tab "Razones" ya en pantalla: el texto de los motivos "pareciera
+tener formateo o algo, se ve raro porque tiene `**` como si quisiera ponerle negrita" — asteriscos
+dobles sueltos, sin ningún efecto visual, en el medio de la oración. **No se confirmó todavía contra
+una respuesta real** (no hay logs a mano de la corrida que la mostró — se perdieron al reiniciarse
+el contenedor, ver más abajo), pero el código deja una hipótesis bastante fuerte de por qué pasa.
+
+**Lo que se encontró leyendo el prompt (`classification-service/src/main/resources/prompts/classification-v4.md`):**
+el prompt entero está escrito en Markdown pesado — `**Ramo:**`, `**reglas duras**`,
+`**hechos establecidos**`, `**recomendación no vinculante**`, etc., todo el documento usa negrita
+para enfatizar. Nada en la sección "Tarea de clasificación" le dice al modelo que sus propios
+`factores` (el array de strings que arma como salida) tienen que ser **texto plano, sin Markdown**.
+Es plausible que el modelo, viendo que todo el prompt que recibe usa `**palabra**` para enfatizar,
+imite el mismo estilo al redactar sus propios motivos — y como `factors` en el schema
+(`OllamaClaimClassifier.OUTPUT_SCHEMA`) es `{"type": "array", "items": {"type": "string"}}` sin
+ninguna restricción de formato, nada se lo impide. Del otro lado, `analysisReasons` viaja tal cual
+llega del modelo — sin ningún paso de sanitización — y el template lo interpola crudo
+(`{{ reason }}`, Angular, sin parser de Markdown), así que si el modelo manda
+`"**Múltiples siniestros previos** sin objeción reciente"`, eso es exactamente lo que ve el
+analista, asteriscos incluidos.
+
+**Qué chequear / decidir:**
+1. Confirmarlo contra una respuesta real — correr una clasificación y mirar `content` en el log
+   (`OllamaClaimClassifier`, `log.debug("[Ollama] Raw content: {}", content)`, o el campo
+   `output_raw`/`llm_reason.reason` en la base) para ver si de verdad trae `**`.
+2. Si se confirma, dos caminos (no excluyentes, pero probablemente alcanza con uno):
+   - **Instruir al modelo**: sumar una línea explícita en la sección "Tarea de clasificación" del
+     prompt — algo como "Los factores van en texto plano, sin Markdown ni asteriscos" — es el fix
+     más barato y ataca la causa, no el síntoma.
+   - **Sanear en el parseo**: `OllamaClaimClassifier.parseResponse` podría limpiar `**`/`*`/`_` de
+     cada factor antes de armar el `ClassificationResponse`, como red de seguridad aunque el prompt
+     se lo pida bien (los modelos no siempre obedecen instrucciones de formato al 100%).
+3. Lo que **no** parece correcto es renderizar Markdown en el frontend (que el `**` se vuelva
+   negrita de verdad): el resto de la pantalla no usa Markdown en ningún lado, y el input viene de
+   un modelo, no de alguien escribiendo con intención de formato — más fácil de razonar si el dato
+   que persiste `llm_reason` es siempre texto plano, auditable, sin marcas.
+4. Vale la pena mirar si el mismo problema aparece en `DocumentExtraction.transcription`/
+   `visualFindings` (los prompts de extracción, `extraccion-documento-v3.md`, también usan
+   Markdown) — no se revisó en esta pasada, pero es la misma causa potencial.
+
+---
+
 ## Para Fede: UX review pendiente en esta misma pantalla — posible card muerta/duplicada
 
 Al mover los motivos a la tab "Razones", el usuario miró un screenshot de la tab "Resumen" y
