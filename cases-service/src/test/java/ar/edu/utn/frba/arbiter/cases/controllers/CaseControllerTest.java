@@ -252,7 +252,7 @@ class CaseControllerTest {
                 LocalDateTime.of(2026, 6, 13, 19, 45), "CABA",
                 new BigDecimal("150000"),
                 Classification.FAST_TRACK, 1.0,
-                "Low amount, first claim, policy up to date",
+                List.of("Low amount", "first claim", "policy up to date"),
                 null, null, null, null, null, null,
                 Instant.parse("2026-06-13T22:50:00Z"),
                 Instant.parse("2026-06-13T22:55:00Z"),
@@ -272,7 +272,8 @@ class CaseControllerTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.analysisClassification").value("FAST_TRACK"))
                 .andExpect(jsonPath("$.analysisConfidence").value(1.0))
-                .andExpect(jsonPath("$.analysisDetail").value("Low amount, first claim, policy up to date"))
+                .andExpect(jsonPath("$.analysisReasons.length()").value(3))
+                .andExpect(jsonPath("$.analysisReasons[0]").value("Low amount"))
                 .andExpect(jsonPath("$.statusHistory.length()").value(2))
                 .andExpect(jsonPath("$.statusHistory[0].toStatus").value("PENDING_CLASSIFICATION"))
                 .andExpect(jsonPath("$.statusHistory[1].actor").value("SYSTEM"))

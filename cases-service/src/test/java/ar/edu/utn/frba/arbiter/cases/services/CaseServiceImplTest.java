@@ -369,8 +369,8 @@ class CaseServiceImplTest {
 
     @Test
     void getCase_joinsTheClassificationFromLlmAnalysis() {
-        // La recomendación ya no es columna de `cases`: sale del join, y el detalle se arma
-        // concatenando los motivos (llm_reason).
+        // La recomendación ya no es columna de `cases`: sale del join, y los motivos viajan uno
+        // por fila (llm_reason), no aplanados a un string — respeta el DER.
         Case entity = caseRecord(1L, CaseStatus.PENDING_ANALYST_REVIEW);
         when(caseRepository.findById(1L)).thenReturn(Optional.of(entity));
         when(caseAnalysisRepository.findByCaseId(1L)).thenReturn(new CaseAnalysis(
@@ -383,7 +383,7 @@ class CaseServiceImplTest {
         assertThat(response.status()).isEqualTo(CaseStatus.PENDING_ANALYST_REVIEW);
         assertThat(response.analysisClassification()).isEqualTo(Classification.LLM_RECOMIENDA_APROBAR);
         assertThat(response.analysisConfidence()).isEqualTo(0.87);
-        assertThat(response.analysisDetail()).isEqualTo("Monto bajo, Primer siniestro");
+        assertThat(response.analysisReasons()).containsExactly("Monto bajo", "Primer siniestro");
     }
 
     @Test
@@ -398,7 +398,9 @@ class CaseServiceImplTest {
 
         assertThat(response.analysisClassification()).isEqualTo(Classification.FAST_TRACK);
         assertThat(response.analysisConfidence()).isEqualTo(1.0);
-        assertThat(response.analysisDetail()).isEqualTo("Fast track classification available");
+        // Sin motivos propios: los de llm_reason (si los hay) son de la corrida anterior, y
+        // atribuírselos al Fast Track le daría razones que no son suyas.
+        assertThat(response.analysisReasons()).isEmpty();
     }
 
     @Test
@@ -414,7 +416,7 @@ class CaseServiceImplTest {
 
         assertThat(response.analysisClassification()).isNull();
         assertThat(response.analysisConfidence()).isEqualTo(0.0);
-        assertThat(response.analysisDetail()).isNull();
+        assertThat(response.analysisReasons()).isEmpty();
     }
 
     @Test
@@ -467,7 +469,7 @@ class CaseServiceImplTest {
         assertThat(response.status()).isEqualTo(CaseStatus.PENDING_CLASSIFICATION);
         assertThat(response.analysisClassification()).isNull();
         assertThat(response.analysisConfidence()).isEqualTo(0.0);
-        assertThat(response.analysisDetail()).isNull();
+        assertThat(response.analysisReasons()).isEmpty();
 
         verify(caseStatusService).transition(eq(entity), eq(CaseStatus.PENDING_CLASSIFICATION),
                 eq(StatusChangeActor.INSURED), any());

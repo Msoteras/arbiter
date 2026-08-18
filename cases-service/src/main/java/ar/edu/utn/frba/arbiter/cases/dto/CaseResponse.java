@@ -56,7 +56,14 @@ public record CaseResponse(
         BigDecimal claimedAmount,
         Classification analysisClassification,
         double analysisConfidence,
-        String analysisDetail,
+        /**
+         * Los motivos detrás de {@code analysisClassification}, uno por fila — {@code llm_reason}
+         * (classification-service) es una tabla de una fila por motivo, no una sola columna de
+         * texto (DER), así que acá viaja igual: una lista, no un string armado con
+         * {@code String.join}. Vacía cuando no hay motivos que mostrar (Fast Track, o sin
+         * clasificación todavía).
+         */
+        List<String> analysisReasons,
         Double riskScore,
         RiskBand riskBand,
         List<RiskBreakdownItem> riskBreakdown,

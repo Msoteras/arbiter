@@ -688,7 +688,7 @@ public class CaseServiceImpl implements CaseService {
                 entity.getClaimedAmount(),
                 classificationOf(entity, current),
                 confidenceOf(entity, current),
-                detailOf(entity, current),
+                reasonsOf(entity, current),
                 entity.getRiskScore(),
                 entity.getRiskBand(),
                 current.riskBreakdown(),
@@ -727,16 +727,17 @@ public class CaseServiceImpl implements CaseService {
         return analysis.confidence() != null ? analysis.confidence() : 0.0;
     }
 
-    private String detailOf(Case entity, CaseAnalysis analysis) {
+    /**
+     * Uno por fila, tal como está en {@code llm_reason} — no se aplana a un string acá; ver el
+     * javadoc de {@link CaseResponse#analysisReasons()}.
+     */
+    private List<String> reasonsOf(Case entity, CaseAnalysis analysis) {
         // Mismo criterio que classificationOf: los motivos de llm_reason son de la corrida
         // anterior, y atribuírselos a un Fast Track sería darle razones que no son suyas.
         if (wasFastTracked(entity)) {
-            return "Fast track classification available";
+            return List.of();
         }
-        if (!analysis.factors().isEmpty()) {
-            return String.join(", ", analysis.factors());
-        }
-        return analysis.classification() == null ? null : "Classification completed";
+        return analysis.factors();
     }
 
     private boolean wasFastTracked(Case entity) {

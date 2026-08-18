@@ -76,7 +76,12 @@ export interface ExpedienteResponse {
   assignedAnalystName: string | null;
   analysisClassification: Clasificacion | string;
   analysisConfidence: number;
-  analysisDetail: string;
+  /**
+   * Los motivos detrás de `analysisClassification`, uno por elemento — espejo de `llm_reason`
+   * (una fila por motivo), no un string armado con join. Vacío en Fast Track (los motivos serían
+   * de la corrida anterior, no del gate) o cuando todavía no hay clasificación.
+   */
+  analysisReasons: string[];
   createdAt: string;
   updatedAt: string;
   /** Solo viene en GET /{id}; en listados es null. */

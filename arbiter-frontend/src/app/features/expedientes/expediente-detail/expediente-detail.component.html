@@ -312,6 +312,19 @@
           }
         </app-card>
       }
+      @case ('razones') {
+        <app-card heading="Razones de la clasificación">
+          @if (analysisReasons().length > 0) {
+            <ul class="reasons-list">
+              @for (reason of analysisReasons(); track $index) {
+                <li>{{ reason }}</li>
+              }
+            </ul>
+          } @else {
+            <app-empty-state message="Sin motivos para este expediente" />
+          }
+        </app-card>
+      }
       @case ('documentacion') {
         <app-case-documents [caseId]="d.id" [reloadToken]="docsReloadToken()" [branch]="d.branch" />
       }

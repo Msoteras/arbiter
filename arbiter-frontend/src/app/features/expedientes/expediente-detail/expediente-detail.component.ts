@@ -55,6 +55,7 @@ type TabId =
   | 'datos'
   | 'imagenes'
   | 'riesgo'
+  | 'razones'
   | 'documentacion'
   | 'peritaje'
   | 'conversacion'
@@ -241,6 +242,14 @@ export class ExpedienteDetailComponent {
   });
 
   /**
+   * Los motivos detrás de la clasificación — `analysisReasons` en la API, una fila por motivo
+   * (espejo de `llm_reason`, no un string armado con join). Vacío en Fast Track/Falta
+   * documentación (son resultados del gate de reglas, no del LLM) o sin clasificación todavía;
+   * la tab "Razones" se oculta en ese caso (ver `tabs`).
+   */
+  protected readonly analysisReasons = computed<string[]>(() => this.data()?.analysisReasons ?? []);
+
+  /**
    * Si el resultado lo produjo el LLM o el gate determinístico de reglas.
    *
    * `FAST_TRACK` y `FALTA_DOCUMENTACION` no son recomendaciones del modelo: los decide el motor de
@@ -282,16 +291,20 @@ export class ExpedienteDetailComponent {
   protected readonly history = computed<StatusTransition[]>(() => this.data()?.statusHistory ?? []);
 
   // ----- tabs -----
-  // "Peritaje" solo existe si el expediente se derivó: una solapa vacía en la mayoría de los casos
-  // sería ruido, y la derivación es la excepción, no el flujo normal.
+  // "Peritaje" solo existe si el expediente se derivó, y "Razones" solo si el LLM dejó motivos:
+  // una solapa vacía en la mayoría de los casos sería ruido, y en ambas la ausencia de datos es
+  // el caso esperado (Fast Track/Falta documentación no tienen motivos; no toda derivación pasa).
+  // 'datos' y 'conversacion' se ocultan hasta que haya un campo real que las respalde — no se
+  // borraron del tipo ni del `@switch` del template, solo se sacan de la lista visible, para no
+  // perder el lugar ya pensado en la pantalla. Ver las historias en el handoff
+  // (docs/handoff-ollama-cpu-y-scheduler.md) para qué dato de la API destraba cada una.
   protected readonly tabs = computed<{ id: TabId; label: string }[]>(() => [
     { id: 'resumen' as TabId, label: 'Resumen' },
-    { id: 'datos' as TabId, label: 'Datos extraídos' },
     { id: 'imagenes' as TabId, label: 'Análisis de imágenes' },
     { id: 'riesgo' as TabId, label: 'Desglose de riesgo' },
+    ...(this.analysisReasons().length > 0 ? [{ id: 'razones' as TabId, label: 'Razones' }] : []),
     { id: 'documentacion' as TabId, label: 'Documentación' },
     ...(this.peritaje() ? [{ id: 'peritaje' as TabId, label: 'Peritaje' }] : []),
-    { id: 'conversacion' as TabId, label: 'Conversación' },
     { id: 'historial' as TabId, label: 'Historial' },
   ]);
   protected readonly activeTab = signal<TabId>('resumen');
