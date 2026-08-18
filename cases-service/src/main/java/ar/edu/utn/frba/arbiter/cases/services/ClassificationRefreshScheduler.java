@@ -7,6 +7,7 @@ import ar.edu.utn.frba.arbiter.cases.models.repositories.CaseRepository;
 import ar.edu.utn.frba.arbiter.cases.models.repositories.InsurerRepository;
 import ar.edu.utn.frba.arbiter.common.enums.CaseStatus;
 import ar.edu.utn.frba.arbiter.common.models.entities.Insurer;
+import jakarta.annotation.PostConstruct;
 import lombok.RequiredArgsConstructor;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -38,6 +39,16 @@ public class ClassificationRefreshScheduler {
 
     @Value("${arbiter.classification-refresh.max-attempts:120}")
     private int maxAttempts;
+
+    @Value("${arbiter.classification-refresh.interval-ms:5000}")
+    private long intervalMs;
+
+    /** La ventana efectiva, para no tener que deducirla de cuándo se rindió el barrido. */
+    @PostConstruct
+    void logWindow() {
+        log.info("[Refresh] Ventana: interval-ms={} x max-attempts={} = {} min",
+                intervalMs, maxAttempts, (intervalMs * maxAttempts) / 60000);
+    }
 
     @Scheduled(fixedDelayString = "${arbiter.classification-refresh.interval-ms:5000}")
     public void refreshPendingCases() {

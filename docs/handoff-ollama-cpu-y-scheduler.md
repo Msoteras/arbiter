@@ -482,6 +482,112 @@ Se eliminó. Sobre tu punto 2: `.col-side` es un `flex column` con `gap`, así q
 ("Analista asignado") no hizo falta tocar el SCSS — verificado en vivo en el expediente #17.
 `EmptyStateComponent` sigue importado porque lo usan otras cinco partes del template.
 
+## Dos hallazgos NUEVOS sobre tu scheduler (18/8, corriendo el caso 29)
+
+Salieron de mirar `case_status_history` del expediente 29 mientras se intentaba la verificación en
+vivo. **Los dos son de tu bug #4, no los tocamos.**
+
+### A · ~~El bloque `classification-refresh` no se bindea~~ — **FALSA ALARMA, tu fix anda**
+
+> **Cerrado el 18/8, más tarde.** Se agregó un `@PostConstruct` que loguea la ventana efectiva y
+> dice: `[Refresh] Ventana: interval-ms=20000 x max-attempts=540 = 180 min`. **El binding funciona
+> y tu config se aplica.** El log quedó en el código, que igual sirve para no volver a deducir la
+> ventana desde afuera.
+>
+> Lo más probable es que las fallas de "121 reintentos" salieran de una **imagen anterior a tu fix**:
+> al arrancar Docker Desktop se relevantó solo el stack con imágenes de 3 días atrás, y el jar se
+> inspeccionó recién más tarde, ya con la imagen nueva — o sea que se sacó una conclusión sobre
+> fallas viejas mirando un binario distinto. **No hay nada que arreglar acá.**
+>
+> Lo que sigue abajo se deja como registro de lo que se descartó, por si el síntoma reaparece.
+
+### El análisis original (ya no aplica)
+
+El caso falló tres veces con `"clasificación fallida tras 121 reintentos"` / `"tras 120"`, y 120 es
+el default del código (`@Value("${arbiter.classification-refresh.max-attempts:120}")`).
+
+**No es solo `max-attempts`: también se ignora `interval-ms`.** La aritmética lo prueba sin
+necesidad de leer la propiedad — el reintento manual fue 21:16:52 y falló 21:35:36 tras 121
+intentos: **9,4 s por intento**. Con `interval-ms: 20000`, 120 intentos serían 48 minutos, no 19.
+Y 9,4 s ≈ los 5000 ms del default más lo que tarda cada barrido. Que fallen las dos juntas descarta
+un typo en una clave: no se bindea el bloque.
+
+Hipótesis descartadas, cada una con evidencia (para no repetir el camino):
+
+| | resultado |
+|---|---|
+| El jar corre una versión vieja del yml | ❌ se extrajo `BOOT-INF/classes/application.yml` del contenedor: dice 540 |
+| Clave `arbiter:` duplicada (en YAML la segunda pisa a la primera, sin avisar) | ❌ una sola, línea 41 |
+| Varios documentos YAML separados por `---` | ❌ ninguno |
+| Tabs o indentación rota | ❌ `cat -A`: 4 espacios, sin tabs |
+| Otro `application.yml` en el classpath | ❌ uno solo dentro del jar |
+| `application-insurer-db.yml` (el perfil activo) | ❌ no existe |
+| `SPRING_CONFIG_LOCATION` u otra env pisando | ❌ solo `SPRING_PROFILES_ACTIVE=insurer-db` |
+| Volumen montado sobre la config | ❌ el contenedor no tiene mounts |
+
+Todo lo estático está impecable. **No se pudo determinar la causa desde afuera del proceso**:
+`/actuator/env` responde 401 y no se llegó a mirar el valor efectivo en runtime.
+
+**Próximo paso sugerido:** un `log.info` de `maxAttempts` en un `@PostConstruct` del scheduler. Si
+arranca en 120, el binding nunca ocurrió y hay que mirar cómo se crea el bean; si dice 540 y aun así
+falla a los 121, el problema está en el contador y no en la config.
+
+### B · Cada transición se registra dos veces
+
+```
+21:35:36  PENDING_CLASSIFICATION → CLASSIFICATION_FAILED  SYSTEM  tras 121 reintentos
+21:35:38  PENDING_CLASSIFICATION → CLASSIFICATION_FAILED  SYSTEM  tras 121 reintentos
+```
+
+Pasó las **tres** veces que falló (20:35, 21:14, 21:35), siempre con 2-3 s de diferencia.
+
+**Mecanismo probable.** Las dos filas están a 2 s, y con `fixedDelay` de 5 s dos ticks no pueden
+estar tan cerca: **no son dos barridos, es uno solo**. Adentro de un barrido:
+
+```java
+for (Insurer insurer : insurerRepository.findByActiveTrue()) {
+    TenantContext.set(insurer.getSchemaName());
+    refreshPendingCasesForCurrentTenant();
+}
+```
+
+Dos aseguradoras activas (BBVA y Provincia, esquemas distintos — se verificó en
+`arbiter_common.insurer`) = dos iteraciones separadas por lo que tarda cada una, ~2 s. Si en la
+segunda el `TenantContext.set()` **no alcanza a cambiar el esquema de la conexión ya abierta**,
+vuelve a consultar BBVA, encuentra el caso todavía en `PENDING_CLASSIFICATION` —la transición
+anterior puede no haber commiteado— y lo marca fallido de nuevo.
+
+Encaja con las tres piezas observadas: los 2 s, que ambas filas caigan en `arbiter_bbva`, y que haya
+pasado las tres veces. Y es coherente con que `cases-service` evita transacciones explícitas
+justamente por el cambio de tenant.
+
+**Cómo confirmarlo:** un `log.info` de `TenantContext.get()` al entrar a
+`refreshPendingCasesForCurrentTenant()`. Si en las dos iteraciones imprime `arbiter_bbva`, está
+confirmado.
+
+Ensucia el historial que ve el analista y la auditoría del expediente.
+
+## Sobre correr esto en la máquina de Fede — no es viable
+
+Se intentó la verificación en vivo del Markdown y se abandonó. Para que no se repita el intento:
+
+| | máquina de Aylén | la de Fede |
+|---|---|---|
+| RAM física | 32 GB | **16 GB** |
+| WSL2 | 24 GB | 13 GB (era 8 por default, se subió con `.wslconfig`) |
+| Lectura de 1 PDF | ~40 s | **~12 min** |
+
+Con los `mem_limit` del repo (20.75 GB) el kernel mataba `llama-server` igual que en tu bug #1. Se
+bajaron a ~11.75 GB en un `docker-compose.override.yml` local (gitignoreado, no afecta a nadie) y
+ahí dejó de morir, pero a 12 min por documento la corrida completa no cierra: el caso 29 llevaba 45
+min y seguía en el cuarto adjunto.
+
+**Detalle que costó encontrar:** `docker-compose.override.yml` **no se carga** si se pasa
+`-f docker-compose.railway.yml` explícito. Hay que nombrarlo:
+`docker compose -f docker-compose.railway.yml -f docker-compose.override.yml up -d`.
+
+**Pedido concreto:** que la corrida de verificación del prompt la hagas vos en tu máquina.
+
 ## 3 · Las dos historias — sin decidir todavía
 
 "Datos extraídos" y "Conversación" quedan como las dejaste. Falta que Fede confirme el alcance,
