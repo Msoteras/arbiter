@@ -12,6 +12,9 @@ import java.io.IOException;
 import java.net.InetSocketAddress;
 import java.net.ServerSocket;
 import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -105,6 +108,31 @@ class RulesRestAdapterTest {
 
         BusinessRules baseline = new MockRulesAdapter().getRules("Celulares", 1L, "Robo en vía pública");
         assertThat(rules.scoringConfig()).isEqualTo(baseline.scoringConfig());
+    }
+
+    /**
+     * The adapter once called document-requirements without claimCause and rules-service answered
+     * 400 on every classification. Nothing here asserted the query string, so it went unnoticed.
+     */
+    @Test
+    void everyCallCarriesTheQueryParamsRulesServiceRequires() throws IOException {
+        List<String> requested = Collections.synchronizedList(new ArrayList<>());
+        server = startServer(exchange -> {
+            requested.add(exchange.getRequestURI().toString());
+            respondEmpty(exchange);
+        });
+        RulesRestAdapter adapter = adapterPointingAt(baseUrl());
+
+        adapter.getRules("Celulares", 1L, "Robo en vía pública");
+
+        assertThat(requested).filteredOn(uri -> uri.contains("document-requirements"))
+                .allSatisfy(uri -> assertThat(uri)
+                        .contains("coverageId=1")
+                        .contains("claimCause=Robo"));
+        assertThat(requested).filteredOn(uri -> uri.contains("/internal/")
+                        && !uri.contains("/internal/scoring"))
+                .isNotEmpty()
+                .allSatisfy(uri -> assertThat(uri).contains("coverageId=1"));
     }
 
     // ── Infra ────────────────────────────────────────────────────────────────

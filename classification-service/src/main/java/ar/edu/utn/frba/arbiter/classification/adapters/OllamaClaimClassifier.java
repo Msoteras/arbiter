@@ -13,6 +13,7 @@ import org.springframework.stereotype.Service;
 
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 
 @Service
 @RequiredArgsConstructor
@@ -71,7 +72,8 @@ public class OllamaClaimClassifier implements ClaimClassifier {
         try {
             ModelOutput output = objectMapper.readValue(contentJson, ModelOutput.class);
             Classification classification = Classification.valueOf(output.classification());
-            return new ClassificationResponse(classification, output.factors(), output.confidence(), false);
+            return new ClassificationResponse(
+                    classification, plainText(output.factors()), output.confidence(), false);
         } catch (IllegalArgumentException e) {
             throw new InvalidClassificationException(
                     "The model returned an invalid classification value: " + contentJson, e);
@@ -79,6 +81,17 @@ public class OllamaClaimClassifier implements ClaimClassifier {
             throw new InvalidClassificationException(
                     "Could not parse model response: " + contentJson, e);
         }
+    }
+
+    /** Only asterisks: factors carry real underscores (police_report, last_connection). */
+    private List<String> plainText(List<String> factors) {
+        if (factors == null) {
+            return List.of();
+        }
+        return factors.stream()
+                .filter(Objects::nonNull)
+                .map(factor -> factor.replace("*", "").trim())
+                .toList();
     }
 
     private record ModelOutput(String classification, List<String> factors, double confidence) {}

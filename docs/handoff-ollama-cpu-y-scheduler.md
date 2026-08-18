@@ -402,3 +402,79 @@ la dimensione antes de comprometerla.
    Provincia no mencionan nada de esto — no hacía falta tocarlas para este handoff, pero si alguien
    arma un nuevo caso de prueba con documentos reales, la referencia de tiempos esperados
    ("segundos") ya no aplica corriendo por CPU.
+
+---
+
+# Respuesta de Fede (18/8) — trabajado sobre esta misma rama
+
+Los tres puntos que dejaste para mí, con lo que se hizo. Todo commiteado acá; `mvn test` completo
+en verde (**544 tests**) después de los cambios.
+
+## 1 · Markdown en los factores del LLM — **confirmado y arreglado**
+
+No hizo falta correr una clasificación nueva: ya había 88 motivos persistidos en `llm_reason` para
+mirar. El resultado confirma tu hipótesis y la afina:
+
+| | motivos | con `**` |
+|---|---|---|
+| `arbiter_bbva` | 39 | 0 |
+| `arbiter_provincia` | 49 | **5** |
+
+Las 5 son **todas del LLM** — largas, narrativas ("Esto sugiere que `**`no son documentos
+reales`**`, lo cual es..."). Las que no tienen markdown son mensajes del **motor de reglas**, cortos
+y con plantilla ("Falta documento requerido: police_report"). O sea que el modelo imita el estilo
+del prompt solo cuando redacta libre: ~6% de los motivos, siempre para enfatizar.
+
+Se hicieron **los dos** caminos que proponías, y no uno solo. Razón: el modelo ya cumple solo en el
+94% de los casos sin que nadie se lo pida, así que una línea en el prompt probablemente lo lleve a
+~100% — pero "probablemente" no alcanza para una tabla auditable (Disposición 2/2023).
+
+- **Prompt** (`classification-v4.md`, sección "Tarea de clasificación"): una línea pidiendo texto
+  plano, explicando que la pantalla del analista no interpreta formato.
+- **Saneo** en `OllamaClaimClassifier.parseResponse` → `plainText(...)`. **Solo asteriscos.**
+  Sacar guiones bajos habría roto contenido real: los factores traen `police_report` y
+  `last_connection`. `output_raw` sigue guardando la respuesta del modelo verbatim.
+- **Tests nuevos** (`OllamaClaimClassifierTest`, no existía): uno fija que se limpie el `**`, otro
+  que **no** se toquen los guiones bajos.
+
+**Lo que no se pudo verificar en vivo:** el fix aplica a clasificaciones **nuevas**, y una corrida
+por CPU lleva 1h+, así que las 88 filas viejas siguen con su texto original. Si querés dejar la
+base limpia, es un `UPDATE ... replace(reason, '**', '')` sobre los dos esquemas — no se hizo para
+no tocar datos sin avisar.
+
+### Tu punto 4 — `DocumentExtraction`: revisado, **no es un problema**
+
+`transcription` y `visualFindings` **nunca llegan a la pantalla**: cero referencias en todo el
+frontend. No se persisten como texto visible — alimentan el prompt de clasificación
+(`attachmentsOcr`) y el `RiskContext` del scoring. Markdown ahí no se le muestra a nadie.
+
+También se revisó `foldForensicTraces`, que es el otro camino por el que entra texto a `factors`
+**después** del saneo del parser: arma los rastros con `String.format` sobre datos estructurados
+(nombre de archivo, % de similitud, URLs), no con prosa del modelo. Sin riesgo.
+
+Queda un efecto de segundo orden, anotado por si alguna vez molesta: la transcripción entra al
+prompt de clasificación, así que si trae `**`, el modelo ve Markdown en su propio input y es más
+probable que lo imite. Es marginal comparado con la causa principal — el prompt de clasificación
+tiene 19 marcas de negrita propias contra 9 del de extracción — así que **no se tocó**.
+
+## 2 · Card "Sugerencia del sistema" — **confirmada muerta y eliminada**
+
+Tu lectura era correcta y se verificó por dos lados: en el HTML es un `app-empty-state`
+incondicional, sin ningún `@if`; y en el `.ts` no hay una sola mención a "sugerencia"/"suggestion",
+o sea que no hay binding ni campo que la alimente.
+
+Antes de sacarla se chequeó si había algo útil para cablearle: se cruzaron **los 9 campos** que
+expone `ExpedienteResponse` (`forensicReport`, `riskBreakdown`, `analysisReasons`,
+`analysisConfidence`, `analysisClassification`, `pep`, `riskScore`, `riskBand`, `statusHistory`)
+contra lo que renderiza la pantalla — **todos ya están bindeados en algún lado**. No quedaba dato
+huérfano que mostrar, así que no había nada que cablear.
+
+Se eliminó. Sobre tu punto 2: `.col-side` es un `flex column` con `gap`, así que con una sola card
+("Analista asignado") no hizo falta tocar el SCSS — verificado en vivo en el expediente #17.
+`EmptyStateComponent` sigue importado porque lo usan otras cinco partes del template.
+
+## 3 · Las dos historias — sin decidir todavía
+
+"Datos extraídos" y "Conversación" quedan como las dejaste. Falta que Fede confirme el alcance,
+sobre todo si la extracción OCR + matching contra póliza entra en este sprint. Coincidimos en que
+"Conversación" es de otro tamaño: sin entidad de mensajería, es de punta a punta.
