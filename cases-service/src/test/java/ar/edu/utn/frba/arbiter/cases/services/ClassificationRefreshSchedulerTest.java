@@ -19,9 +19,12 @@ import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyInt;
+import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.*;
 
@@ -52,6 +55,10 @@ class ClassificationRefreshSchedulerTest {
         // before it is ever called, which strict stubs would otherwise flag.
         lenient().when(insurerRepository.findByActiveTrue())
                 .thenReturn(List.of(insurer(1L, "arbiter_bbva")));
+        // Por default el barrido se queda con el turno (el CAS del contador devuelve 1 fila). Los
+        // tests de concurrencia lo pisan con 0 para simular que otro llegó primero.
+        lenient().when(caseRepository.advanceClassificationAttempts(anyLong(), anyInt(), anyInt()))
+                .thenReturn(1);
         setMaxAttempts(3);
     }
 
@@ -85,10 +92,10 @@ class ClassificationRefreshSchedulerTest {
 
         scheduler.refreshPendingCases();
 
-        // Update puntual del contador, NO save() de la entidad entera: guardar la entidad
-        // reescribía toda la fila desde una copia vieja y revertía cambios concurrentes (un
+        // Update puntual y condicional del contador, NO save() de la entidad entera: guardar la
+        // entidad reescribía toda la fila desde una copia vieja y revertía cambios concurrentes (un
         // reintento del analista volvía solo a PENDING_CLASSIFICATION cada pocos segundos).
-        verify(caseRepository).updateClassificationAttempts(entity.getId(), 1);
+        verify(caseRepository).advanceClassificationAttempts(entity.getId(), 0, 1);
         verify(caseRepository, never()).save(any());
         verify(caseStatusService, never()).transition(any(), any(), any(), any());
     }
@@ -98,13 +105,53 @@ class ClassificationRefreshSchedulerTest {
         Case entity = pendingCase(2);
         when(caseRepository.findByStatus(CaseStatus.PENDING_CLASSIFICATION)).thenReturn(List.of(entity));
         when(claimsAnalysisClient.refreshClassification(entity)).thenReturn(false);
+        when(caseRepository.findById(entity.getId())).thenReturn(Optional.of(entity));
 
         scheduler.refreshPendingCases();
 
-        assertThat(entity.getClassificationAttempts()).isEqualTo(3);
+        verify(caseRepository).advanceClassificationAttempts(entity.getId(), 2, 3);
         verify(caseStatusService).transition(eq(entity), eq(CaseStatus.CLASSIFICATION_FAILED),
                 eq(StatusChangeActor.SYSTEM), any());
         verify(caseRepository, never()).save(any());
+    }
+
+    /**
+     * La regresión de las transiciones duplicadas: la base de Railway es compartida, así que hay
+     * más de un barrido corriendo contra los mismos expedientes. El que no se queda con el turno
+     * (el CAS del contador no actualiza ninguna fila) no puede marcar nada como fallido — si no,
+     * quedan dos filas idénticas en case_status_history.
+     */
+    @Test
+    void anotherSweepAlreadyAdvancedTheCase_doesNotTransitionAgain() {
+        Case entity = pendingCase(2);
+        when(caseRepository.findByStatus(CaseStatus.PENDING_CLASSIFICATION)).thenReturn(List.of(entity));
+        when(claimsAnalysisClient.refreshClassification(entity)).thenReturn(false);
+        when(caseRepository.advanceClassificationAttempts(entity.getId(), 2, 3)).thenReturn(0);
+
+        scheduler.refreshPendingCases();
+
+        verify(caseStatusService, never()).transition(any(), any(), any(), any());
+        verify(caseRepository, never()).findById(any());
+    }
+
+    /**
+     * Entre que el barrido leyó el expediente y se le agotaron los intentos pueden pasar minutos.
+     * Si en el medio salió de PENDING_CLASSIFICATION (lo reintentó un analista, o llegó el
+     * resultado), marcarlo fallido con la copia vieja escribiría una transición que no corresponde.
+     */
+    @Test
+    void caseLeftPendingBeforeGivingUp_doesNotTransition() {
+        Case entity = pendingCase(2);
+        when(caseRepository.findByStatus(CaseStatus.PENDING_CLASSIFICATION)).thenReturn(List.of(entity));
+        when(claimsAnalysisClient.refreshClassification(entity)).thenReturn(false);
+
+        Case reclassified = pendingCase(2);
+        reclassified.setCurrentStatus(CaseStates.of(CaseStatus.PENDING_ANALYST_REVIEW));
+        when(caseRepository.findById(entity.getId())).thenReturn(Optional.of(reclassified));
+
+        scheduler.refreshPendingCases();
+
+        verify(caseStatusService, never()).transition(any(), any(), any(), any());
     }
 
     @Test
@@ -115,7 +162,7 @@ class ClassificationRefreshSchedulerTest {
 
         scheduler.refreshPendingCases();
 
-        verify(caseRepository).updateClassificationAttempts(entity.getId(), 1);
+        verify(caseRepository).advanceClassificationAttempts(entity.getId(), 0, 1);
         verify(caseRepository, never()).save(any());
     }
 
@@ -124,10 +171,11 @@ class ClassificationRefreshSchedulerTest {
         Case entity = pendingCase(2);
         when(caseRepository.findByStatus(CaseStatus.PENDING_CLASSIFICATION)).thenReturn(List.of(entity));
         when(claimsAnalysisClient.refreshClassification(entity)).thenThrow(new RuntimeException("timeout"));
+        when(caseRepository.findById(entity.getId())).thenReturn(Optional.of(entity));
 
         scheduler.refreshPendingCases();
 
-        assertThat(entity.getClassificationAttempts()).isEqualTo(3);
+        verify(caseRepository).advanceClassificationAttempts(entity.getId(), 2, 3);
         verify(caseStatusService).transition(eq(entity), eq(CaseStatus.CLASSIFICATION_FAILED),
                 eq(StatusChangeActor.SYSTEM), any());
     }
@@ -143,17 +191,17 @@ class ClassificationRefreshSchedulerTest {
         when(claimsAnalysisClient.refreshClassification(resolved)).thenReturn(true);
         when(claimsAnalysisClient.refreshClassification(unresolved)).thenReturn(false);
         when(claimsAnalysisClient.refreshClassification(failing)).thenReturn(false);
+        when(caseRepository.findById(failing.getId())).thenReturn(Optional.of(failing));
 
         scheduler.refreshPendingCases();
 
         assertThat(resolved.getClassificationAttempts()).isEqualTo(0);
         assertThat(unresolved.getStatus()).isEqualTo(CaseStatus.PENDING_CLASSIFICATION);
-        assertThat(failing.getClassificationAttempts()).isEqualTo(3);
 
         // Solo al que sigue pendiente se le sube el contador; el que agotó los intentos pasa por
         // la transición de estado. El contador ya no se persiste con save() — ver
         // unresolvedCase_incrementsAttempts.
-        verify(caseRepository).updateClassificationAttempts(unresolved.getId(), 2);
+        verify(caseRepository).advanceClassificationAttempts(unresolved.getId(), 1, 2);
         verify(caseRepository, never()).save(any());
         verify(caseStatusService).transition(eq(failing), eq(CaseStatus.CLASSIFICATION_FAILED),
                 eq(StatusChangeActor.SYSTEM), any());

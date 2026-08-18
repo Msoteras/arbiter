@@ -54,6 +54,36 @@ public interface CaseRepository extends JpaRepository<Case, Long>, JpaSpecificat
     @Query("update Case c set c.classificationAttempts = :attempts where c.id = :caseId")
     void updateClassificationAttempts(@Param("caseId") Long caseId, @Param("attempts") int attempts);
 
+    /**
+     * Igual que {@link #updateClassificationAttempts}, pero <b>condicional</b>: sólo avanza el
+     * contador si en la base sigue valiendo lo que el barrido leyó. Un compare-and-set.
+     *
+     * <p>Existe porque el contador lo escriben varios barridos a la vez. No es hipotético: la base
+     * de Railway es <b>compartida por todo el equipo</b>, así que cada desarrollador que levanta el
+     * stack local suma un {@code ClassificationRefreshScheduler} más barriendo LOS MISMOS
+     * expedientes. Sin condición, dos barridos leen 120, los dos escriben 121, y los dos se creen
+     * con derecho a marcar el expediente como fallido — de ahí las transiciones duplicadas en
+     * {@code case_status_history}, dos filas con el mismo número de reintentos separadas por
+     * segundos.
+     *
+     * <p>Con la condición, el segundo actualiza 0 filas y se retira: el avance del contador es lo
+     * que hace de turno, y sólo uno se lo puede quedar por vuelta.
+     *
+     * @param expected el valor que el barrido leyó; si ya cambió, no se pisa
+     * @return 1 si este barrido se quedó con el turno, 0 si otro llegó primero
+     */
+    @Transactional
+    @Modifying(flushAutomatically = true, clearAutomatically = true)
+    @Query("""
+            update Case c
+               set c.classificationAttempts = :attempts
+             where c.id = :caseId
+               and c.classificationAttempts = :expected
+            """)
+    int advanceClassificationAttempts(@Param("caseId") Long caseId,
+                                      @Param("expected") int expected,
+                                      @Param("attempts") int attempts);
+
     /** Fila de {@link #countActiveByAnalyst(Collection)}: un analista y cuántos activos tiene. */
     interface AnalystCaseCount {
         Long getAnalystId();

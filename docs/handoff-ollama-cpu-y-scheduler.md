@@ -641,6 +641,84 @@ documento, no por expediente), hallazgos visuales en filas y no en un array seri
 - **Los expedientes ya clasificados no tienen datos** y la tab no les aparece: la extracción vieja
   nunca se guardó y no hay de dónde sacarla. Se llena en la próxima clasificación de cada uno.
 
+---
+
+# Transiciones duplicadas (tu hallazgo B) — causa encontrada y arreglada
+
+Fede: tu hipótesis era que el `TenantContext.set()` de la segunda aseguradora no alcanzaba a
+cambiar el esquema y el barrido volvía a leer el primero. **Es otra cosa, y es peor**: no es un
+barrido leyendo dos veces, son **dos barridos distintos**.
+
+## Lo que se verificó (y una corrección de mi parte)
+
+Antes que nada: yo había repetido tu "el fix de la ventana anda" como hecho comprobado, y **no lo
+había comprobado**. Yendo a los datos:
+
+- El contenedor local de cases-service arrancó **20:37:52** y su jar tiene `interval-ms: 20000` /
+  `max-attempts: 540` (leído del `application.yml` adentro del jar; no hay perfil, ni env, ni
+  config externa que lo pise — lo revisé).
+- Las fallas de las 21:14 y 21:35 sobre el caso 29 dicen **"tras 120/121 reintentos"**, o sea la
+  ventana vieja, y ocurrieron con ese contenedor arriba. Parecía la prueba de que el binding no
+  anda.
+- **Pero no las escribió ese contenedor**: sus logs no tienen una sola línea de refresh ni un solo
+  `marked as CLASSIFICATION_FAILED`. Cero.
+
+O sea: esas filas salieron de **tu** instancia, contra la **misma base de Railway**. Con lo cual
+esas filas no prueban ni refutan el binding — tu log del `@PostConstruct` sigue siendo la única
+evidencia directa, y dice 540. Me retracto de haberlo afirmado sin mirar.
+
+## La causa de las duplicadas
+
+**La base de Railway es compartida por todo el equipo, y el scheduler no lo sabe.** Cada
+desarrollador que levanta el stack local suma otro `ClassificationRefreshScheduler` barriendo los
+mismos expedientes de los mismos esquemas. Encima de eso, el código no resiste que haya más de uno:
+
+```java
+int attempts = caseRecord.getClassificationAttempts() + 1;   // lee de una copia en memoria
+if (attempts >= maxAttempts) { caseStatusService.transition(caseRecord, ...); }
+```
+
+`caseRecord` se cargó al principio del barrido, y `transition()` valida la transición contra **el
+estado que trae esa copia**, no contra la base. Dos barridos leen 120, los dos calculan 121, los
+dos ven `PENDING_CLASSIFICATION` en su copia, y los dos escriben la transición. De ahí las dos
+filas con **el mismo número de reintentos** separadas por 2-3 s — que es justamente lo que no
+cerraba con la teoría de los dos ticks (con `fixedDelay` no pueden estar tan cerca).
+
+Y explica lo que la teoría del tenant no explicaba: que las duplicadas del caso 29 estén en
+`arbiter_bbva` y las del 16 en `arbiter_provincia`, **cada una en su propio esquema**. Si el
+`search_path` se hubiera quedado pegado, las dos habrían caído en el mismo. Cada instancia barre
+bien los dos tenants; lo que falla es que se pisan entre ellas.
+
+También explica por qué los casos viejos (21, 7, 6, 5) tienen una sola fila y los de estos días
+vienen de a dos: antes había un solo stack corriendo.
+
+## El arreglo
+
+Compare-and-set sobre el contador, que pasa a hacer de turno:
+
+- `CaseRepository.advanceClassificationAttempts(id, expected, attempts)` — `update ... where id = :id
+  and classification_attempts = :expected`. Devuelve 1 si se quedó con el turno, 0 si otro llegó
+  primero. El que saca 0 se retira sin tocar nada.
+- Antes de marcar fallido, el expediente se **relee de la base** y sólo se transiciona si sigue en
+  `PENDING_CLASSIFICATION`. Entre que el barrido lo leyó y se le agotan los intentos pueden pasar
+  minutos: si en el medio un analista lo reintentó o llegó el resultado, la copia vieja pasaría
+  igual la validación de `transition()` y escribiría una transición que no corresponde.
+
+De paso cierra el *lost update* del contador que quedaba abierto desde la sesión anterior: dos
+barridos ya no pueden escribir el mismo valor pisándose.
+
+Dos tests nuevos en `ClassificationRefreshSchedulerTest`, que son la regresión de esto:
+`anotherSweepAlreadyAdvancedTheCase_doesNotTransitionAgain` y
+`caseLeftPendingBeforeGivingUp_doesNotTransition`.
+
+**Lo que el arreglo NO hace:** no evita que varias instancias barran la misma base — sólo hace que
+convivir sea inocuo. Si el equipo quiere que el barrido corra en un solo lado, eso es una decisión
+aparte (un flag para apagar el scheduler en los stacks locales sería lo más barato). Vale la pena
+conversarlo: hoy, cualquiera que levante el stack para trabajar en otra cosa está marcando
+expedientes como fallidos en la base que usan todos.
+
+---
+
 **Lo que NO se hizo, y por qué:** el criterio de aceptación "marcar discrepancia contra la póliza"
 quedó afuera. Depende de H0023 — el IMEI del bien asegurado vive sólo en `aseguradora_*.poliza.imei`
 y no está en la `policy` local, así que no hay contra qué comparar del lado de Arbiter. Hoy la
