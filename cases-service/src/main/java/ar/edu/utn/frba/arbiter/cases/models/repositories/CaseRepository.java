@@ -9,6 +9,7 @@ import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.util.Collection;
 import java.util.List;
@@ -39,7 +40,16 @@ public interface CaseRepository extends JpaRepository<Case, Long>, JpaSpecificat
      *
      * <p>{@code flushAutomatically}/{@code clearAutomatically} keep the in-memory entity from
      * shadowing the value this just wrote.
+     *
+     * <p>{@code @Transactional} explícito: llamado desde el scheduler (sin request/JWT detrás),
+     * el auto-wrap transaccional que Spring Data le da por defecto a un método {@code @Modifying}
+     * no alcanzaba a cubrir el {@code flush} — mismo síntoma que rompía en
+     * {@code CaseStatusService} y en {@code ClassificationResultsService.getStatus}
+     * ("No EntityManager with actual transaction available ... cannot reliably process 'flush'
+     * call"), acá también resuelto haciendo la transacción explícita en vez de confiar en la
+     * implícita.
      */
+    @Transactional
     @Modifying(flushAutomatically = true, clearAutomatically = true)
     @Query("update Case c set c.classificationAttempts = :attempts where c.id = :caseId")
     void updateClassificationAttempts(@Param("caseId") Long caseId, @Param("attempts") int attempts);

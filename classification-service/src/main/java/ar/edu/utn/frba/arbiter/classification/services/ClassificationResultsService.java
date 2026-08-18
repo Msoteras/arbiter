@@ -146,8 +146,17 @@ public class ClassificationResultsService {
         }
     }
 
-    /** Latest classification for a case; classification fields stay null until one exists. */
-    @Transactional(readOnly = true)
+    /**
+     * Latest classification for a case; classification fields stay null until one exists.
+     *
+     * <p>{@code readOnly} y no plano: con {@code readOnly = true} este método —llamado
+     * repetidamente por el sweep de {@code cases-service}, tanto desde una request real como desde
+     * el scheduler sin JWT detrás— reventaba con "No EntityManager with actual transaction
+     * available for current thread - cannot reliably process 'flush' call" pese a que el
+     * interceptor de Spring sí abría la transacción (visible en el stack trace). Sin writes en el
+     * método, sacar {@code readOnly} no cambia el comportamiento, solo evita el modo que rompía.
+     */
+    @Transactional
     public ClaimResponse getStatus(Long caseId) {
         Optional<LlmAnalysis> analysis = llmAnalysisRepository.findFirstByCaseIdOrderByIdDesc(caseId);
         Optional<RiskAnalysis> risk = riskAnalysisRepository.findFirstByCaseIdOrderByIdDesc(caseId);
@@ -222,7 +231,8 @@ public class ClassificationResultsService {
         };
     }
 
-    @Transactional(readOnly = true)
+    /** Same reasoning as {@link #getStatus}: plain, not readOnly — see its javadoc. */
+    @Transactional
     public String getContent() {
         List<LlmAnalysis> entries = llmAnalysisRepository.findAllByOrderByIdAsc();
         if (entries.isEmpty()) {

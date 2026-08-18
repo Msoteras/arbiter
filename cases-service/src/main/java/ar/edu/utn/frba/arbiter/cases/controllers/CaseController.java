@@ -258,8 +258,11 @@ public class CaseController {
                     filename, content type, size in bytes, and upload timestamp. Does NOT
                     return the binary content — use the per-document download endpoint for that.
                     """)
-    public ResponseEntity<List<CaseDocumentResponse>> listDocuments(@PathVariable Long caseId) {
-        return ResponseEntity.ok(caseService.getDocuments(caseId));
+    public ResponseEntity<List<CaseDocumentResponse>> listDocuments(
+            @PathVariable Long caseId,
+            @RequestParam(required = false) String aseguradora
+    ) {
+        return ResponseEntity.ok(caseService.getDocuments(caseId, aseguradora));
     }
 
     @GetMapping("/{caseId}/documents/{documentId}")
@@ -268,9 +271,10 @@ public class CaseController {
             description = "Returns the binary content of a specific document attached to the case.")
     public ResponseEntity<byte[]> downloadDocument(
             @PathVariable Long caseId,
-            @PathVariable Long documentId
+            @PathVariable Long documentId,
+            @RequestParam(required = false) String aseguradora
     ) {
-        CaseDocument doc = caseService.getDocument(caseId, documentId);
+        CaseDocument doc = caseService.getDocument(caseId, documentId, aseguradora);
         return ResponseEntity.ok()
                 .contentType(MediaType.parseMediaType(doc.getContentType()))
                 .header("Content-Disposition", "inline; filename=\"" + doc.getFilename() + "\"")
@@ -292,9 +296,10 @@ public class CaseController {
                     """)
     public ResponseEntity<CaseResponse> uploadDocuments(
             @PathVariable Long caseId,
-            @RequestParam Map<String, MultipartFile> documents
+            @RequestParam Map<String, MultipartFile> documents,
+            @RequestParam(required = false) String aseguradora
     ) {
-        CaseResponse response = caseService.addDocumentsAndReclassify(caseId, documents);
+        CaseResponse response = caseService.addDocumentsAndReclassify(caseId, documents, aseguradora);
         return ResponseEntity.accepted().body(response);
     }
 

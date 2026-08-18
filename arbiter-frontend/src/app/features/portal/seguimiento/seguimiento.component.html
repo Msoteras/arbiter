@@ -124,6 +124,7 @@
   <app-case-documents
     class="docs-section"
     [caseId]="d.id"
+    [insurerSlug]="d.insurerSlug"
     heading="Documentación que enviaste"
     [showMissing]="false" />
 } @else if (loading()) {

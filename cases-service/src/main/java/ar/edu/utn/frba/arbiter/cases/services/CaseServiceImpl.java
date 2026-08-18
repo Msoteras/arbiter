@@ -58,6 +58,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.function.Supplier;
 
 @Service
 @RequiredArgsConstructor
@@ -161,7 +162,15 @@ public class CaseServiceImpl implements CaseService {
         storeDocuments(saved.getId(), documents);
         claimsAnalysisClient.analyzeAndPersist(saved, caseDocumentRepository.findByCaseId(saved.getId()));
 
-        return toResponse(saved);
+        // The insured may be a client of more than one company, and the case just landed in
+        // whichever one issued the policy (policyTenantLocator), not necessarily the tenant their
+        // JWT defaults to. Without insurerSlug on this very first response, the frontend has no way
+        // to tell every later call (documents, detail) which schema to look in — they'd all 404 the
+        // moment the case landed outside the login's default tenant.
+        Insurer issuer = insurerRepository.findBySchemaName(TenantContext.get()).orElse(null);
+        return toResponse(saved, null, CaseAnalysis.none(),
+                issuer == null ? null : InsurerSlug.of(issuer),
+                issuer == null ? null : issuer.getName());
     }
 
     @Override
@@ -226,31 +235,39 @@ public class CaseServiceImpl implements CaseService {
 
     @Override
     public CaseResponse addDocumentsAndReclassify(Long caseId, Map<String, MultipartFile> documents) {
-        // Same ownership check as the reads: an ASEGURADO can only add documents to their own case.
-        // This was a plain findById, so anyone could upload to a stranger's case and force it to
-        // reclassify (D1). 404 and not 403 for the reason CaseAccessPolicy documents: case ids are
-        // sequential, and a 403 would map the table.
-        Case entity = readableCase(caseId);
+        return addDocumentsAndReclassify(caseId, documents, null);
+    }
 
-        storeDocuments(caseId, documents);
+    @Override
+    public CaseResponse addDocumentsAndReclassify(Long caseId, Map<String, MultipartFile> documents, String insurerSlug) {
+        return withInsurerTenant(caseId, insurerSlug, () -> {
+            // Same ownership check as the reads: an ASEGURADO can only add documents to their own
+            // case. This was a plain findById, so anyone could upload to a stranger's case and force
+            // it to reclassify (D1). 404 and not 403 for the reason CaseAccessPolicy documents: case
+            // ids are sequential, and a 403 would map the table.
+            Case entity = readableCase(caseId);
 
-        // Clear the cached risk so the recalculation window reads as "sin scorear"/recalculando,
-        // never a stale band. It's re-populated by the classification poll once the new score lands.
-        // The model's recommendation needs no reset: llm_analysis is append-only, and while the
-        // case is back in PENDING_CLASSIFICATION toResponse doesn't surface the previous run.
-        entity.setRiskScore(null);
-        entity.setRiskBand(null);
-        // false y no null: la columna es NOT NULL. Para quien lee es lo mismo, wasFastTracked()
-        // ya trata los dos igual.
-        entity.setDeterministicFastTrack(false);
-        // Fresh classification cycle: without this reset, attempts accumulated in previous
-        // cycles would push the case to CLASSIFICATION_FAILED prematurely.
-        entity.setClassificationAttempts(0);
-        caseStatusService.transition(entity, CaseStatus.PENDING_CLASSIFICATION,
-                StatusChangeActor.INSURED, "documentación adicional subida");
+            storeDocuments(caseId, documents);
 
-        claimsAnalysisClient.analyzeAndPersist(entity, caseDocumentRepository.findByCaseId(caseId));
-        return toResponse(entity);
+            // Clear the cached risk so the recalculation window reads as "sin scorear"/recalculando,
+            // never a stale band. It's re-populated by the classification poll once the new score
+            // lands. The model's recommendation needs no reset: llm_analysis is append-only, and
+            // while the case is back in PENDING_CLASSIFICATION toResponse doesn't surface the
+            // previous run.
+            entity.setRiskScore(null);
+            entity.setRiskBand(null);
+            // false y no null: la columna es NOT NULL. Para quien lee es lo mismo, wasFastTracked()
+            // ya trata los dos igual.
+            entity.setDeterministicFastTrack(false);
+            // Fresh classification cycle: without this reset, attempts accumulated in previous
+            // cycles would push the case to CLASSIFICATION_FAILED prematurely.
+            entity.setClassificationAttempts(0);
+            caseStatusService.transition(entity, CaseStatus.PENDING_CLASSIFICATION,
+                    StatusChangeActor.INSURED, "documentación adicional subida");
+
+            claimsAnalysisClient.analyzeAndPersist(entity, caseDocumentRepository.findByCaseId(caseId));
+            return toResponse(entity);
+        });
     }
 
     @Override
@@ -321,12 +338,29 @@ public class CaseServiceImpl implements CaseService {
      */
     @Override
     public CaseResponse getCase(Long caseId, String insurerSlug) {
+        return withInsurerTenant(caseId, insurerSlug, () -> loadCase(caseId));
+    }
+
+    /**
+     * Runs {@code action} against the tenant {@code insurerSlug} names, restoring the caller's own
+     * tenant afterward — same need as {@link #getCase(Long, String)} originally solved alone: case
+     * ids are sequential per schema, so "expediente 16" is ambiguous for anyone with policies in
+     * more than one company, and every endpoint that takes an existing {@code caseId} (not just the
+     * detail one) can land on the wrong tenant if the JWT's default isn't the one that issued it.
+     *
+     * <p>Null/blank runs under whatever tenant is already set — the JWT's default, which is all a
+     * single-insurer caller (every analyst/referente, and an insured with just one company) ever
+     * needs.
+     *
+     * @throws CaseNotFoundException if the slug doesn't match any of the caller's own insurers —
+     *         404 and not 403, same reasoning as an expediente ajeno: don't confirm which tenants exist.
+     */
+    private <T> T withInsurerTenant(Long caseId, String insurerSlug, Supplier<T> action) {
         if (insurerSlug == null || insurerSlug.isBlank()) {
-            return loadCase(caseId);
+            return action.get();
         }
         // El slug viene del pedido, así que sólo se busca entre las aseguradoras del claim
-        // firmado: es lo que impide nombrar la de otra compañía. Si no está, 404 y no 403 —
-        // mismo criterio que un expediente ajeno, para no confirmar qué tenants existen.
+        // firmado: es lo que impide nombrar la de otra compañía.
         Insurer insurer = insurerRepository.findAllById(CallerContext.get().insurerIds()).stream()
                 .filter(Insurer::isActive)
                 .filter(candidate -> InsurerSlug.matches(candidate, insurerSlug))
@@ -336,7 +370,7 @@ public class CaseServiceImpl implements CaseService {
         String callerTenant = TenantContext.get();
         try {
             TenantContext.set(insurer.getSchemaName());
-            return loadCase(caseId);
+            return action.get();
         } finally {
             // Igual que en el agregador: si no se restaura, la conexión vuelve al pool viendo el
             // esquema equivocado y se lo lleva puesto el próximo request.
@@ -538,19 +572,33 @@ public class CaseServiceImpl implements CaseService {
 
     @Override
     public List<CaseDocumentResponse> getDocuments(Long caseId) {
-        // Los adjuntos son parte del expediente: si no podés leerlo, tampoco su documentación.
-        readableCase(caseId);
-        return caseDocumentRepository.findByCaseId(caseId).stream()
-                .map(CaseDocumentResponse::from)
-                .toList();
+        return getDocuments(caseId, null);
+    }
+
+    @Override
+    public List<CaseDocumentResponse> getDocuments(Long caseId, String insurerSlug) {
+        return withInsurerTenant(caseId, insurerSlug, () -> {
+            // Los adjuntos son parte del expediente: si no podés leerlo, tampoco su documentación.
+            readableCase(caseId);
+            return caseDocumentRepository.findByCaseId(caseId).stream()
+                    .map(CaseDocumentResponse::from)
+                    .toList();
+        });
     }
 
     @Override
     public CaseDocument getDocument(Long caseId, Long documentId) {
-        readableCase(caseId);
-        return caseDocumentRepository.findById(documentId)
-                .filter(doc -> doc.getCaseId().equals(caseId))
-                .orElseThrow(() -> new DocumentNotFoundException(caseId, documentId));
+        return getDocument(caseId, documentId, null);
+    }
+
+    @Override
+    public CaseDocument getDocument(Long caseId, Long documentId, String insurerSlug) {
+        return withInsurerTenant(caseId, insurerSlug, () -> {
+            readableCase(caseId);
+            return caseDocumentRepository.findById(documentId)
+                    .filter(doc -> doc.getCaseId().equals(caseId))
+                    .orElseThrow(() -> new DocumentNotFoundException(caseId, documentId));
+        });
     }
 
     private Case readableCase(Long caseId) {

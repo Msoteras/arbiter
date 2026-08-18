@@ -726,6 +726,17 @@ export class ExpedienteDetailComponent {
     this.data()?.analysisClassification === 'FALTA_DOCUMENTACION'
   );
 
+  /**
+   * "Decisión del analista" solo tiene sentido cuando hay (o hubo) algo que decidir. Mientras el
+   * expediente espera que el asegurado suba lo que falta, no hay ninguna decisión pendiente ni
+   * tomada — el título mentía sobre qué mostraba la card.
+   */
+  protected readonly decisionCardHeading = computed(() =>
+    this.decisionState() === 'not-ready' && this.needsDocs() && !this.derivado() && !this.isFailed()
+      ? 'Estado del expediente'
+      : 'Decisión del analista'
+  );
+
   /** La agenda documental es otra llamada al backend: se refresca con el mismo trigger. */
   protected readonly docsReloadToken = computed(() => this.reloadTrigger());
 

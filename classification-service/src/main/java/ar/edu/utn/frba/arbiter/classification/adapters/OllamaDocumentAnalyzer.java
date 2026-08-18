@@ -139,10 +139,12 @@ public class OllamaDocumentAnalyzer implements DocumentAnalyzer {
                         document.getNumberOfPages(), MAX_PDF_PAGES);
             }
 
+            log.info("[Ollama] PDF has {} page(s) to read", pageCount);
             StringBuilder transcription = new StringBuilder();
             List<String> findings = new ArrayList<>();
             DocumentExtraction.Fields fields = DocumentExtraction.Fields.none();
             for (int page = 0; page < pageCount; page++) {
+                log.info("[Ollama] Rendering and reading page {}/{}...", page + 1, pageCount);
                 BufferedImage image = renderer.renderImageWithDPI(page, 150);
                 DocumentExtraction pageExtraction = extractFromImage(toPng(image));
 
@@ -157,6 +159,7 @@ public class OllamaDocumentAnalyzer implements DocumentAnalyzer {
 
                 fields = mergeFields(fields, pageExtraction.fields());
             }
+            log.info("[Ollama] PDF fully read — {} page(s)", pageCount);
             return new DocumentExtraction(transcription.toString().trim(), findings, fields);
         } catch (IOException e) {
             throw new InvalidClassificationException("Could not render PDF document for analysis", e);

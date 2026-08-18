@@ -1,4 +1,7 @@
-<a class="breadcrumb" [routerLink]="['/portal/cases', caseId]">‹ Volver al seguimiento</a>
+<a
+  class="breadcrumb"
+  [routerLink]="['/portal/cases', caseId]"
+  [queryParams]="insurerSlug ? { aseguradora: insurerSlug } : {}">‹ Volver al seguimiento</a>
 
 <header class="page-head">
   <h1 class="t-page-title">Documentación adicional</h1>
@@ -16,6 +19,7 @@
 <app-card heading="Documentos requeridos">
   <app-doc-upload
     [caseId]="caseId"
+    [insurerSlug]="insurerSlug"
     [branch]="data()?.branch ?? null"
     [claimCause]="data()?.claimCause ?? null"
     (uploaded)="onUploaded()"

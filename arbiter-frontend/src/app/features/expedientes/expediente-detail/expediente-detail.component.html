@@ -62,7 +62,7 @@
         <app-fraud-gauge [band]="riskGaugeBand()" [emptyLabel]="riskGaugeEmptyLabel()" />
       </app-card>
 
-      <app-card class="rcard" heading="Decisión del analista">
+      <app-card class="rcard" [heading]="decisionCardHeading()">
         @switch (decisionState()) {
           @case ('approved') {
             <p class="registered">✓ Registrado: Aprobado</p>

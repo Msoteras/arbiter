@@ -72,6 +72,15 @@ export class CaseDocumentsComponent {
   private readonly destroyRef = inject(DestroyRef);
 
   readonly caseId = input.required<number>();
+  /**
+   * De qué aseguradora es el expediente — mismo motivo que en `ExpedienteService.getById`: un
+   * asegurado con pólizas en más de una compañía puede tener acá un expediente que no vive en el
+   * tenant por defecto de su sesión. Null para el analista/referente (single-tenant, no ambiguo).
+   *
+   * <p>Acepta `undefined` además de `null` porque en `ExpedienteResponse` el campo es opcional
+   * (solo viene poblado en las vistas que mezclan compañías), y quien lo bindea lo pasa derecho.
+   */
+  readonly insurerSlug = input<string | null | undefined>(null);
   /** Se bumpea desde el detalle al subir documentación, para refrescar la lista. */
   readonly reloadToken = input(0);
   /**
@@ -100,9 +109,13 @@ export class CaseDocumentsComponent {
   );
 
   private readonly state = toSignal(
-    combineLatest([toObservable(this.caseId), toObservable(this.reloadToken)]).pipe(
-      switchMap(([id]) =>
-        this.service.listDocuments(id).pipe(
+    combineLatest([
+      toObservable(this.caseId),
+      toObservable(this.reloadToken),
+      toObservable(this.insurerSlug),
+    ]).pipe(
+      switchMap(([id, , slug]) =>
+        this.service.listDocuments(id, slug).pipe(
           map((data): ListState => ({ status: 'ok', data })),
           startWith<ListState>({ status: 'loading' }),
           catchError((_err: HttpErrorResponse) => of<ListState>({ status: 'error' })),
@@ -165,7 +178,7 @@ export class CaseDocumentsComponent {
     this.preview.set({ status: 'loading', doc });
 
     this.service
-      .downloadDocument(this.caseId(), doc.id)
+      .downloadDocument(this.caseId(), doc.id, this.insurerSlug())
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe({
         next: (blob) => {
