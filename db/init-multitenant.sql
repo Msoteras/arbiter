@@ -843,18 +843,26 @@ BEGIN
         $ddl$, p_schema);
 
     -- Regla dura EVALUABLE por código (a diferencia de las de arriba, que son ejemplos sin motor).
-    -- Caso 6 del handoff, "Hurto no cubierto": la cobertura de robo (id 1) excluye el hecho generador
-    -- Hurto (claim_cause id 3). `configuration` JSONB = lista negra de claim_cause; classification la
-    -- lee por /internal/evaluable y matchea por id. blocks_fast_track = TRUE: una exclusión dura hace
-    -- irrelevante al Fast Track. La evalúa CoverageRuleEvaluator y deja fila en rule_result (D3/D4c).
-    -- OJO (handoff §8): confirmar los ids de coverage/claim_cause contra Railway antes de fijarlos —
-    -- Tecnología pasó de branch 3 a 2 en el último reseed.
+    -- Lista BLANCA de hechos generadores cubiertos, no negra: sin fila para una cobertura, no cubre
+    -- nada — el referente tiene que declarar explícitamente qué cubre cada una (antes era al revés,
+    -- COVERAGE_EXCLUSION, y una cobertura sin regla cubría todo por default, un fail-open peligroso).
+    -- Caso 6 del handoff, "Hurto no cubierto": la cobertura de robo (id 1) solo cubre el hecho
+    -- generador Robo en vía pública (claim_cause id 2) — Hurto (id 3) no está en su lista, así que
+    -- queda no cubierto. La cobertura de Hurto (id 2) cubre a su vez Hurto (claim_cause id 3).
+    -- `configuration` JSONB = lista de claim_cause incluidos; classification la lee por
+    -- /internal/evaluable y matchea por id. blocks_fast_track = TRUE: un hecho generador no cubierto
+    -- hace irrelevante al Fast Track. La evalúa CoverageRuleEvaluator y deja fila en rule_result
+    -- (D3/D4c). OJO (handoff §8): confirmar los ids de coverage/claim_cause contra Railway antes de
+    -- fijarlos — Tecnología pasó de branch 3 a 2 en el último reseed.
     EXECUTE format($ddl$
         INSERT INTO %I.insurer_rule (id, active, valid_from, name, rule_type, effect, priority,
                                      blocks_fast_track, branch_id, coverage_id, configuration) VALUES
             (3, TRUE, '2026-01-01 00:00:00+00',
-             'La cobertura de robo no cubre el hurto', 'COVERAGE_EXCLUSION', 'RECHAZAR', 1,
-             TRUE, 1, 1, '{"excludedClaimCauseIds":[3]}')
+             'La cobertura de robo cubre robo en vía pública', 'COVERAGE_INCLUSION', 'RECHAZAR', 1,
+             TRUE, 1, 1, '{"includedClaimCauseIds":[2]}'),
+            (4, TRUE, '2026-01-01 00:00:00+00',
+             'La cobertura de hurto cubre hurto', 'COVERAGE_INCLUSION', 'RECHAZAR', 1,
+             TRUE, 1, 2, '{"includedClaimCauseIds":[3]}')
         $ddl$, p_schema);
 
     -- TEMPORAL hard rules, coverage-scoped: one row per rule and per coverage. The row is the
@@ -1071,12 +1079,16 @@ BEGIN
             -- con el del bien" (D4b): sin esto, extraer el IMEI de la factura no servía de nada.
             imei                  VARCHAR(20),
             moneda                VARCHAR(3)    NOT NULL DEFAULT 'ARS',
-            -- TIMESTAMPTZ, no DATE: la póliza modelo (BBVA) fija la vigencia con hora exacta
-            -- ("desde las 12:00 hs del..."), y con solo la fecha un siniestro dos horas antes de
-            -- que arranque la vigencia, mismo día, pasaba el chequeo de PolicyEligibilityValidator
-            -- / TemporalRuleEvaluator (D13) como si estuviera cubierto.
-            vigencia_desde        TIMESTAMPTZ   NOT NULL,
-            vigencia_hasta        TIMESTAMPTZ   NOT NULL,
+            -- TIMESTAMP (sin timezone), no DATE: la póliza modelo (BBVA) fija la vigencia con hora
+            -- exacta ("desde las 12:00 hs del..."), y con solo la fecha un siniestro dos horas
+            -- antes de que arranque la vigencia, mismo día, pasaba el chequeo de
+            -- PolicyEligibilityValidator / TemporalRuleEvaluator (D13) como si estuviera cubierto.
+            -- Sin timezone a propósito: InsurerDatabaseAdapter la lee con JDBC crudo vía
+            -- rs.getObject(col, LocalDateTime.class), que el driver de Postgres rechaza para
+            -- TIMESTAMPTZ (pide OffsetDateTime/Instant) — y en el resto del dominio la fecha del
+            -- hecho tampoco lleva timezone, es LocalDateTime a secas.
+            vigencia_desde        TIMESTAMP     NOT NULL,
+            vigencia_hasta        TIMESTAMP     NOT NULL,
             estado_contrato       VARCHAR(20)   NOT NULL,
             estado_pago           VARCHAR(20)   NOT NULL,
             cuotas_pagas          INTEGER       NOT NULL DEFAULT 0,

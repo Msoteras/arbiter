@@ -109,10 +109,15 @@
           </div>
 
           <div class="case-actions">
-            <a [routerLink]="['/portal/cases', d.id]" class="grow">
+            <a
+              [routerLink]="['/portal/cases', d.id]"
+              [queryParams]="d.insurerSlug ? { aseguradora: d.insurerSlug } : {}"
+              class="grow">
               <app-button [block]="true">Ver seguimiento del caso</app-button>
             </a>
-            <a [routerLink]="['/portal/cases', d.id, 'documentacion']">
+            <a
+              [routerLink]="['/portal/cases', d.id, 'documentacion']"
+              [queryParams]="d.insurerSlug ? { aseguradora: d.insurerSlug } : {}">
               <app-button variant="secondary">Ver mis documentos</app-button>
             </a>
           </div>

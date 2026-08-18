@@ -109,8 +109,8 @@ export interface RamoRules {
   coverageCount: number;
   /** Exclusiones comunes a todas las coberturas del ramo. */
   commonExclusions: string[];
-  /** Agenda documental del ramo (códigos de tipo de documento). */
-  requiredDocuments: string[];
+  /** Agenda documental por hecho generador (claimCauseId → códigos de tipo de documento). */
+  requiredDocumentsByClaimCause: { [claimCauseId: number]: string[] };
   /** Reglas de negocio en texto libre. */
   businessRules: string[];
   fastTrack: FastTrackConfig;

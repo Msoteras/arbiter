@@ -77,8 +77,9 @@
             }
             @case ('error') {
               <p class="step-hint">
-                No pudimos cargar tus pólizas. Probá de nuevo en unos minutos.
+                No pudimos cargar tus pólizas.
               </p>
+              <app-button variant="secondary" size="sm" (click)="retryPolicies()">Reintentar</app-button>
             }
             @case ('ok') {
               @if (policies().length === 0) {
@@ -151,7 +152,7 @@
           <app-input
             placeholder="Ej: Samsung Galaxy A56"
             [(value)]="insuredItem"
-            [readonly]="!!selectedPolicy()?.insuredItem"
+            [readonly]="lockInsuredItem()"
           />
 
           <label class="field-label">Fecha y hora del hecho *</label>

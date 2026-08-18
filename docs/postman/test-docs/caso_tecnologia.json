@@ -1,0 +1,17 @@
+ {
+  "branch": "Tecnología Portátil",
+  "product": "Seguro de Tecnología Portátil",
+  "claimCause": "Robo en vía pública",
+  "insuredItem": "Apple MacBook Air 15\" M3 512 GB",
+  "insuredId": "42.987.654",
+  "policyNumber": "POL-TEC-2026-311",
+  "description": "Volvía de cursar y esperaba el colectivo en Av. Medrano y Av. Corrientes con la mochila al hombro. Dos personas en moto me arrancaron la mochila de un tirón y escaparon por Av. Corrientes; adentro llevaba mi notebook. Bloqueé el equipo en forma remota esa misma noche desde el celular y radiqué la denuncia en la Comisaría Vecinal 5-A de Almagro.",
+  "eventDate": "2026-08-14T22:10:00",
+  "eventLocation": "Av. Medrano 900, Almagro, C.A.B.A.",
+  "policeReportAt": "2026-08-14T23:35:00",
+  "claimedAmount": 1980000,
+  "pep": false,
+  "imageConsent": true,
+  "contactEmail": "martina.soteras@example.com",
+  "contactPhone": "11-5555-0001"
+}

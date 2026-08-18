@@ -726,6 +726,17 @@ export class ExpedienteDetailComponent {
     this.data()?.analysisClassification === 'FALTA_DOCUMENTACION'
   );
 
+  /**
+   * "Decisión del analista" solo tiene sentido cuando hay (o hubo) algo que decidir. Mientras el
+   * expediente espera que el asegurado suba lo que falta, no hay ninguna decisión pendiente ni
+   * tomada — el título mentía sobre qué mostraba la card.
+   */
+  protected readonly decisionCardHeading = computed(() =>
+    this.decisionState() === 'not-ready' && this.needsDocs() && !this.derivado() && !this.isFailed()
+      ? 'Estado del expediente'
+      : 'Decisión del analista'
+  );
+
   /** La agenda documental es otra llamada al backend: se refresca con el mismo trigger. */
   protected readonly docsReloadToken = computed(() => this.reloadTrigger());
 
@@ -760,10 +771,15 @@ export class ExpedienteDetailComponent {
 
   private readonly agenda = inject(DocumentAgendaService);
 
-  /** La agenda REAL del ramo del expediente (la que configuró el referente), o el catálogo completo. */
+  /**
+   * La agenda REAL del ramo + hecho generador del expediente (la que configuró el referente), o el
+   * catálogo completo.
+   */
   private readonly requiredDocTypes = toSignal(
-    toObservable(computed(() => this.data()?.branch ?? null)).pipe(
-      switchMap((branch) => (branch ? this.agenda.slotsForBranch(branch) : of(CASE_DOCUMENT_TYPES))),
+    toObservable(computed(() => ({ branch: this.data()?.branch ?? null, claimCause: this.data()?.claimCause ?? null }))).pipe(
+      switchMap(({ branch, claimCause }) =>
+        branch && claimCause ? this.agenda.slotsForBranch(branch, claimCause) : of(CASE_DOCUMENT_TYPES),
+      ),
     ),
     { initialValue: CASE_DOCUMENT_TYPES as readonly CaseDocumentType[] },
   );

@@ -130,16 +130,29 @@ export class NuevaDenunciaComponent {
   private readonly insuredId = this.session.insuredId();
 
   // Step 1 — pólizas del asegurado (de todas las aseguradoras) para elegir.
+  // Atado a policiesRetry (no un Observable directo): un fetch que falla una vez (backend caído,
+  // red) quedaba en 'error' para siempre, porque toSignal solo se suscribe una vez al construir el
+  // componente — sin esta indirección no había forma de reintentar sin recargar la página entera.
+  private readonly policiesRetry = signal(0);
+
   protected readonly policiesState = toSignal(
-    this.insuredId
-      ? this.policyService.listByInsured(this.insuredId).pipe(
-          map((list): PoliciesState => ({ status: 'ok', list })),
-          startWith<PoliciesState>({ status: 'loading' }),
-          catchError(() => of<PoliciesState>({ status: 'error' })),
-        )
-      : of<PoliciesState>({ status: 'no-identity' }),
+    toObservable(this.policiesRetry).pipe(
+      switchMap(() =>
+        this.insuredId
+          ? this.policyService.listByInsured(this.insuredId).pipe(
+              map((list): PoliciesState => ({ status: 'ok', list })),
+              startWith<PoliciesState>({ status: 'loading' }),
+              catchError(() => of<PoliciesState>({ status: 'error' })),
+            )
+          : of<PoliciesState>({ status: 'no-identity' }),
+      ),
+    ),
     { initialValue: { status: 'loading' } as PoliciesState },
   );
+
+  protected retryPolicies(): void {
+    this.policiesRetry.update((n) => n + 1);
+  }
 
   protected readonly policies = computed<Policy[]>(() => {
     const s = this.policiesState();
@@ -158,10 +171,19 @@ export class NuevaDenunciaComponent {
     () => this.policies().find((p) => p.policyNumber === this.selectedPolicyNumber()) ?? null,
   );
 
+  // Tecnología Portátil no ata la póliza a un equipo fijo como Celulares (el titular puede
+  // denunciar cualquier notebook/tablet que tenga en ese momento, no siempre la que quedó
+  // registrada en el alta) — autocompletar y bloquear el campo con el insuredItem de la póliza le
+  // mentiría al asegurado sobre qué bien puede declarar.
+  protected readonly lockInsuredItem = computed<boolean>(() => {
+    const policy = this.selectedPolicy();
+    return !!policy?.insuredItem && policy.branch !== 'Tecnología Portátil';
+  });
+
   private readonly autofillEffect = effect(() => {
     const policy = this.selectedPolicy();
     if (policy) {
-      if (policy.insuredItem) this.insuredItem.set(policy.insuredItem);
+      if (policy.insuredItem && this.lockInsuredItem()) this.insuredItem.set(policy.insuredItem);
       if (policy.contactEmail) this.contactEmail.set(policy.contactEmail);
       if (policy.contactPhone) this.contactPhone.set(policy.contactPhone);
     }
@@ -286,6 +308,12 @@ export class NuevaDenunciaComponent {
    * date, only vigencia/carencia do, and the backend already skips those when `eventDate` is
    * absent. That's what lets a rejected-for-arrears policy block right in step 1, at selection
    * time, instead of only after the insured fills in the event date in step 2.
+   *
+   * <p>Once `eventDate` has a value, it waits for `eventTime` too instead of defaulting it to
+   * medianoche right away: con D13 comparando por hora exacta, chequear contra las 00:00 mientras
+   * el asegurado todavía está por escribir la hora real tira un resultado que no es el que
+   * corresponde — y al tipear la hora, un segundo chequeo lo pisa un instante después. Mejor
+   * esperar los dos campos que mostrar una respuesta que va a cambiar sola.
    */
   private readonly eligibilityCheck = toSignal(
     toObservable(
@@ -295,10 +323,14 @@ export class NuevaDenunciaComponent {
           return null;
         }
         const eventDate = this.eventDate();
+        const eventTime = this.eventTime();
+        if (eventDate && !eventTime) {
+          return null;
+        }
         return {
           insuredId: policy.insuredId,
           policyNumber: policy.policyNumber,
-          eventDate: eventDate ? eventDate + 'T' + (this.eventTime() || '00:00') + ':00' : undefined,
+          eventDate: eventDate ? eventDate + 'T' + eventTime + ':00' : undefined,
           policeReportAt: this.policeReportDate()
             ? this.policeReportDate() + 'T' + (this.policeReportTime() || '00:00') + ':00'
             : undefined,
@@ -362,13 +394,18 @@ export class NuevaDenunciaComponent {
     CASE_DOCUMENT_TYPES.map(({ type, label }) => ({ type, label, file: null, error: null })),
   );
 
-  // El asegurado sube exactamente lo que el referente configuró como requerido para el ramo de la
-  // póliza elegida (o el catálogo completo si ese ramo no tiene agenda). Al cambiar de póliza, se
-  // rearman los slots según la agenda de su ramo.
+  // El asegurado sube exactamente lo que el referente configuró como requerido para el ramo + hecho
+  // generador elegidos (o el catálogo completo si esa combinación no tiene agenda). Al cambiar de
+  // póliza o de hecho generador, se rearman los slots según esa agenda.
   private readonly requiredDocTypes = toSignal(
-    toObservable(computed(() => this.selectedPolicy()?.branch ?? null)).pipe(
-      switchMap((branch) =>
-        branch ? this.agenda.slotsForBranch(branch) : of(CASE_DOCUMENT_TYPES),
+    toObservable(
+      computed(() => ({
+        branch: this.selectedPolicy()?.branch ?? null,
+        claimCause: this.selectedType()?.claimCause ?? null,
+      })),
+    ).pipe(
+      switchMap(({ branch, claimCause }) =>
+        branch && claimCause ? this.agenda.slotsForBranch(branch, claimCause) : of(CASE_DOCUMENT_TYPES),
       ),
     ),
     { initialValue: CASE_DOCUMENT_TYPES as readonly CaseDocumentType[] },

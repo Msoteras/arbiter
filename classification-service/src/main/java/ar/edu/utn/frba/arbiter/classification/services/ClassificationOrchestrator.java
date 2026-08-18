@@ -22,6 +22,7 @@ import org.springframework.stereotype.Service;
 
 import java.math.BigDecimal;
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
@@ -481,11 +482,19 @@ public class ClassificationOrchestrator {
         if (requiredTypes.isEmpty()) {
             return Map.of();
         }
-        return documents.stream()
+        List<AttachmentDocument> toExtract = documents.stream()
                 .filter(doc -> requiredTypes.contains(doc.type()))
-                .collect(Collectors.toMap(
-                        AttachmentDocument::type,
-                        doc -> documentAnalyzer.extract(doc.content(), doc.contentType())));
+                .toList();
+        log.info("[Orchestrator] Reading {} required document(s) with Ollama, before the Fast Track gate: {}",
+                toExtract.size(), toExtract.stream().map(AttachmentDocument::type).toList());
+        Map<String, DocumentExtraction> extractions = new LinkedHashMap<>();
+        for (int i = 0; i < toExtract.size(); i++) {
+            AttachmentDocument doc = toExtract.get(i);
+            log.info("[Orchestrator] Reading document {}/{} with Ollama: '{}'...", i + 1, toExtract.size(), doc.type());
+            extractions.put(doc.type(), documentAnalyzer.extract(doc.content(), doc.contentType()));
+        }
+        log.info("[Orchestrator] Done reading the required document(s)");
+        return extractions;
     }
 
     /**
@@ -505,12 +514,23 @@ public class ClassificationOrchestrator {
      */
     private Map<String, DocumentExtraction> extractAllAttachments(
             List<AttachmentDocument> documents, Map<String, DocumentExtraction> alreadyExtracted) {
-        return documents.stream()
-                .collect(Collectors.toMap(
-                        AttachmentDocument::type,
-                        doc -> alreadyExtracted.containsKey(doc.type())
-                                ? alreadyExtracted.get(doc.type())
-                                : documentAnalyzer.extract(doc.content(), doc.contentType())));
+        log.info("[Orchestrator] Reading {} attachment(s) with Ollama: {}",
+                documents.size(), documents.stream().map(AttachmentDocument::type).toList());
+        Map<String, DocumentExtraction> extractions = new LinkedHashMap<>();
+        for (int i = 0; i < documents.size(); i++) {
+            AttachmentDocument doc = documents.get(i);
+            if (alreadyExtracted.containsKey(doc.type())) {
+                log.info("[Orchestrator] '{}' ({}/{}) already read at the gate, reusing it",
+                        doc.type(), i + 1, documents.size());
+                extractions.put(doc.type(), alreadyExtracted.get(doc.type()));
+            } else {
+                log.info("[Orchestrator] Reading attachment {}/{} with Ollama: '{}'...",
+                        i + 1, documents.size(), doc.type());
+                extractions.put(doc.type(), documentAnalyzer.extract(doc.content(), doc.contentType()));
+            }
+        }
+        log.info("[Orchestrator] Done reading the attachment(s)");
+        return extractions;
     }
 
     /** The text that goes into the prompt, in the order the attachments arrived. */
