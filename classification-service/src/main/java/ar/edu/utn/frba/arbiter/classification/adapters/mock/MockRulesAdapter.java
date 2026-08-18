@@ -181,7 +181,24 @@ public class MockRulesAdapter implements RulesAdapter {
     @Override
     public BusinessRules getRules(String branchId, Long coverageId, String claimCauseId) {
         BusinessRules rules = coverageId == null ? null : RULES_BY_COVERAGE.get(coverageId);
-        return rules != null ? rules : defaultGenericRules(branchId, claimCauseId);
+        return withFraudRecordPolicy(rules != null ? rules : defaultGenericRules(branchId, claimCauseId));
+    }
+
+    /**
+     * Off in the baseline, unlike the scoring config: a fraud record weighs on a <b>person</b>, so
+     * an insurer gets that behavior only by turning the rule on themselves (Ley 25.326). The mock
+     * standing in for an unreachable rules-service must not be what starts counting someone's past
+     * against them.
+     */
+    @Override
+    public BusinessRules.FraudRecordPolicy getFraudRecordPolicy() {
+        return BusinessRules.FraudRecordPolicy.disabled();
+    }
+
+    private BusinessRules withFraudRecordPolicy(BusinessRules rules) {
+        return rules.fraudRecordPolicy() != null
+                ? rules
+                : rules.toBuilder().fraudRecordPolicy(getFraudRecordPolicy()).build();
     }
 
     private BusinessRules defaultGenericRules(String branchId, String claimCauseId) {

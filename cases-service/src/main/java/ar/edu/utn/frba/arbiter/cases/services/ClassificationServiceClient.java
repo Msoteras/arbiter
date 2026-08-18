@@ -8,6 +8,8 @@ import ar.edu.utn.frba.arbiter.cases.models.entities.Case;
 import ar.edu.utn.frba.arbiter.cases.models.entities.StatusChangeActor;
 import ar.edu.utn.frba.arbiter.common.dto.ClaimReport;
 import ar.edu.utn.frba.arbiter.common.dto.ClaimResponse;
+import ar.edu.utn.frba.arbiter.common.dto.FraudRecordRequest;
+import ar.edu.utn.frba.arbiter.common.dto.FraudRecordResponse;
 import ar.edu.utn.frba.arbiter.common.enums.CaseStatus;
 import ar.edu.utn.frba.arbiter.common.enums.Classification;
 import ar.edu.utn.frba.arbiter.common.security.JwtSupport;
@@ -217,6 +219,32 @@ public class ClassificationServiceClient implements ClaimsAnalysisClient {
 
         Object classificationId = response == null ? null : response.get("classificationId");
         return classificationId instanceof Number number ? number.longValue() : null;
+    }
+
+    @Override
+    public FraudRecordResponse registerFraudRecord(FraudRecordRequest request) {
+        return restClient.post()
+                .uri("/api/v1/fraud-records")
+                .header(HttpHeaders.AUTHORIZATION, authorizationHeader())
+                .contentType(MediaType.APPLICATION_JSON)
+                .body(request)
+                .retrieve()
+                .body(FraudRecordResponse.class);
+    }
+
+    /**
+     * Errors are not swallowed: an empty list would read as "este asegurado no tiene antecedentes",
+     * which is the one wrong answer to give an analyst deciding a claim. Let it surface.
+     */
+    @Override
+    public List<FraudRecordResponse> fraudRecordsOf(String insuredDni) {
+        List<FraudRecordResponse> records = restClient.get()
+                .uri("/api/v1/fraud-records/insured/{insuredDni}", insuredDni)
+                .header(HttpHeaders.AUTHORIZATION, authorizationHeader())
+                .retrieve()
+                .body(new ParameterizedTypeReference<>() {
+                });
+        return records == null ? List.of() : records;
     }
 
 }

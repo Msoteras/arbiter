@@ -8,6 +8,8 @@ import ar.edu.utn.frba.arbiter.classification.adapters.ClaimClassifier;
 import ar.edu.utn.frba.arbiter.common.dto.ClaimReport;
 import ar.edu.utn.frba.arbiter.common.dto.ImageForensicReport;
 import ar.edu.utn.frba.arbiter.classification.dto.*;
+import ar.edu.utn.frba.arbiter.classification.models.entities.InsuredFraudRecord;
+import ar.edu.utn.frba.arbiter.classification.models.repositories.InsuredFraudRecordRepository;
 import ar.edu.utn.frba.arbiter.classification.models.repositories.PolicySnapshotRepository;
 import ar.edu.utn.frba.arbiter.classification.services.risk.RiskContext;
 import ar.edu.utn.frba.arbiter.classification.services.risk.RiskScore;
@@ -36,12 +38,14 @@ public class ClassificationOrchestrator {
     private final CoverageRuleEvaluator coverageRuleEvaluator;
     private final CoverageScopeEvaluator coverageScopeEvaluator;
     private final TemporalRuleEvaluator temporalRuleEvaluator;
+    private final FraudRecordRuleEvaluator fraudRecordRuleEvaluator;
     private final FastTrackValidator fastTrackValidator;
     private final DocumentAnalyzer documentAnalyzer;
     private final PromptBuilder promptBuilder;
     private final RiskScoringService riskScoringService;
     private final ImageFraudAnalysisService imageFraudAnalysisService;
     private final PolicySnapshotRepository policySnapshotRepository;
+    private final InsuredFraudRecordRepository fraudRecordRepository;
     private final ObjectMapper objectMapper;
 
     /** Classifies a claim whose attachments' OCR has already been resolved. */
@@ -66,7 +70,9 @@ public class ClassificationOrchestrator {
         // and leave their own auditable trace in rule_result.
         TemporalRuleEvaluator.Result temporal =
                 temporalRuleEvaluator.evaluate(claim, ctx.policy(), ctx.history(), ctx.rules());
-        List<RuleFinding> ruleFindings = mergeFindings(exclusion, temporal);
+        FraudRecordRuleEvaluator.Result fraud =
+                fraudRecordRuleEvaluator.evaluate(ctx.rules(), ctx.fraudRecords());
+        List<RuleFinding> ruleFindings = mergeFindings(exclusion, temporal, fraud);
 
         // Coverage scope (D9). With no documents read it can only evaluate coverage already used
         // up; the family group needs the injured party, which comes from the extraction.
@@ -74,22 +80,25 @@ public class ClassificationOrchestrator {
                 coverageScopeEvaluator.evaluate(claim, ctx.history(), ctx.rules(), Map.of());
 
         FastTrackValidator.Result fastTrack = fastTrackValidator.evaluate(claim, ctx.policy(), ctx.history(), ctx.rules(), null);
-        if (fastTrack.fastTrack() && !temporal.blocksFastTrack() && !scope.blocksFastTrack()) {
+        if (fastTrack.fastTrack() && !temporal.blocksFastTrack() && !scope.blocksFastTrack()
+                && !fraud.blocksFastTrack()) {
             log.info("[Orchestrator] Deterministic Fast Track — claim qualifies, skipping LLM. Reasons={}",
                     fastTrack.reasons());
             return attachRuleFindings(fastTrackResponse(fastTrack), ruleFindings);
         }
 
-        log.info("[Orchestrator] Not Fast Track (fastTrack={}, temporalBlock={}, scopeBlock={}). "
+        log.info("[Orchestrator] Not Fast Track (fastTrack={}, temporalBlock={}, scopeBlock={}, fraudBlock={}). "
                         + "Building prompt and sending to LLM...",
-                fastTrack.reasons(), temporal.reasons(), scope.reasons());
+                fastTrack.reasons(), temporal.reasons(), scope.reasons(), fraud.blocksFastTrack());
         List<String> engineFindings = engineFindings(exclusion, temporal);
         engineFindings.addAll(scope.reasons());
         return appendReasons(
                 appendReasons(
-                        attachRuleFindings(classifyWithLlm(claim, ctx, engineFindings), ruleFindings),
-                        temporal.reasons()),
-                scope.reasons());
+                        appendReasons(
+                                attachRuleFindings(classifyWithLlm(claim, ctx, engineFindings), ruleFindings),
+                                temporal.reasons()),
+                        scope.reasons()),
+                fraud.reasons());
     }
 
     /**
@@ -230,7 +239,11 @@ public class ClassificationOrchestrator {
         // and leave their own auditable trace in rule_result.
         TemporalRuleEvaluator.Result temporal =
                 temporalRuleEvaluator.evaluate(claim, ctx.policy(), ctx.history(), ctx.rules());
-        List<RuleFinding> ruleFindings = mergeFindings(exclusion, temporal);
+        // The insured's fraud record: the only hard rule that isn't about this claim. Whether it
+        // vetoes Fast Track is the insurer's call, on the rule row.
+        FraudRecordRuleEvaluator.Result fraud =
+                fraudRecordRuleEvaluator.evaluate(ctx.rules(), ctx.fraudRecords());
+        List<RuleFinding> ruleFindings = mergeFindings(exclusion, temporal, fraud);
 
         // Coverage scope (D9): family group and coverage already used up. It goes here and not
         // earlier because the family group depends on what the extraction read in the documents.
@@ -239,7 +252,8 @@ public class ClassificationOrchestrator {
 
         FastTrackValidator.Result fastTrack =
                 fastTrackValidator.evaluate(claim, ctx.policy(), ctx.history(), ctx.rules(), gateDocumentTexts);
-        if (fastTrack.fastTrack() && !temporal.blocksFastTrack() && !scope.blocksFastTrack()) {
+        if (fastTrack.fastTrack() && !temporal.blocksFastTrack() && !scope.blocksFastTrack()
+                && !fraud.blocksFastTrack()) {
             // The insurer may want the full fraud analysis even on Fast Track (per-insurer flag). When
             // on, extract every attachment and mark the documentation as analyzed so the image-fraud
             // cascade runs and the score comes out complete — not just on structured-data factors.
@@ -254,9 +268,9 @@ public class ClassificationOrchestrator {
                     fullAnalysis || !gateExtractions.isEmpty(), fastTrackExtractions);
         }
 
-        log.info("[Orchestrator] Not Fast Track (fastTrack={}, temporalBlock={}, scopeBlock={}). "
+        log.info("[Orchestrator] Not Fast Track (fastTrack={}, temporalBlock={}, scopeBlock={}, fraudBlock={}). "
                         + "Extracting remaining document(s)...",
-                fastTrack.reasons(), temporal.reasons(), scope.reasons());
+                fastTrack.reasons(), temporal.reasons(), scope.reasons(), fraud.blocksFastTrack());
         Map<String, DocumentExtraction> extractions = extractAllAttachments(documents, gateExtractions);
         ClaimReport claimWithOcr = withAttachmentsOcr(claim, renderAttachments(documents, extractions));
 
@@ -271,9 +285,12 @@ public class ClassificationOrchestrator {
         return new Resolution(
                 appendReasons(
                         appendReasons(
-                                attachRuleFindings(classifyWithLlm(claimWithOcr, ctx, engineFindings), ruleFindings),
-                                temporal.reasons()),
-                        fullScope.reasons()),
+                                appendReasons(
+                                        attachRuleFindings(
+                                                classifyWithLlm(claimWithOcr, ctx, engineFindings), ruleFindings),
+                                        temporal.reasons()),
+                                fullScope.reasons()),
+                        fraud.reasons()),
                 true,
                 extractions);
     }
@@ -296,8 +313,8 @@ public class ClassificationOrchestrator {
                 .factors(foldForensicTraces(classification.factors(), forensic))
                 .build();
         try {
-            RiskScore riskScore = riskScoringService.score(
-                    new RiskContext(claim, ctx.policy(), ctx.history(), ctx.rules(), forensic, extractions));
+            RiskScore riskScore = riskScoringService.score(new RiskContext(
+                    claim, ctx.policy(), ctx.history(), ctx.rules(), forensic, extractions, ctx.fraudRecords()));
             log.info("[Orchestrator] Risk score attached — scored={} score={} band={}",
                     riskScore.scored(), String.format("%.3f", riskScore.score()), riskScore.band());
             return enriched.toBuilder().riskScore(riskScore).build();
@@ -321,7 +338,8 @@ public class ClassificationOrchestrator {
         return merged;
     }
 
-    private record Context(InsuredPolicy policy, InsuredHistory history, BusinessRules rules) {}
+    private record Context(InsuredPolicy policy, InsuredHistory history, BusinessRules rules,
+                           List<InsuredFraudRecord> fraudRecords) {}
 
     private Context fetchContext(ClaimReport claim) {
         log.debug("[Orchestrator] Fetching policy '{}'...", claim.policyNumber());
@@ -340,7 +358,16 @@ public class ClassificationOrchestrator {
         log.info("[Orchestrator] Rules OK — {} rules, {} exclusions, {} fast-track criteria",
                 rules.rules().size(), rules.exclusions().size(), rules.fastTrackCriteria().size());
 
-        return new Context(policy, history, rules);
+        // What this insurer already determined about the person, not about this claim. Read here
+        // with the rest of the context so the score and the hard rule work off one snapshot, and
+        // read locally: the table is this module's, so it costs a query and not a REST hop.
+        List<InsuredFraudRecord> fraudRecords =
+                fraudRecordRepository.findByInsuredDniOrderByDeclaredAtDesc(claim.insuredId());
+        if (!fraudRecords.isEmpty()) {
+            log.info("[Orchestrator] Insured has {} fraud record(s) on file", fraudRecords.size());
+        }
+
+        return new Context(policy, history, rules, fraudRecords);
     }
 
     private ClassificationResponse classifyWithLlm(ClaimReport claim, Context ctx, List<String> engineFindings) {
@@ -412,9 +439,12 @@ public class ClassificationOrchestrator {
      * regardless of which evaluator ran it — what tells them apart in the table is their
      * {@code rule_type}.
      */
-    private List<RuleFinding> mergeFindings(CoverageRuleEvaluator.Result exclusion, TemporalRuleEvaluator.Result temporal) {
+    private List<RuleFinding> mergeFindings(CoverageRuleEvaluator.Result exclusion,
+                                            TemporalRuleEvaluator.Result temporal,
+                                            FraudRecordRuleEvaluator.Result fraud) {
         List<RuleFinding> findings = new ArrayList<>(exclusion.findings());
         findings.addAll(temporal.findings());
+        findings.addAll(fraud.findings());
         return findings;
     }
 

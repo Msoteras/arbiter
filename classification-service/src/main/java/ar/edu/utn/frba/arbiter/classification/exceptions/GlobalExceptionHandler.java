@@ -17,6 +17,22 @@ public class GlobalExceptionHandler {
         return problem;
     }
 
+    @ExceptionHandler(FraudRecordAlreadyExistsException.class)
+    public ProblemDetail handleFraudRecordAlreadyExists(FraudRecordAlreadyExistsException ex) {
+        ProblemDetail problem = ProblemDetail.forStatus(HttpStatusCode.valueOf(409));
+        problem.setTitle("Antecedente ya registrado");
+        problem.setDetail(ex.getMessage());
+        return problem;
+    }
+
+    @ExceptionHandler(UnsupportedFraudRecordException.class)
+    public ProblemDetail handleUnsupportedFraudRecord(UnsupportedFraudRecordException ex) {
+        ProblemDetail problem = ProblemDetail.forStatus(HttpStatusCode.valueOf(422));
+        problem.setTitle("Antecedente sin respaldo");
+        problem.setDetail(ex.getMessage());
+        return problem;
+    }
+
     @ExceptionHandler(IllegalArgumentException.class)
     public ProblemDetail handleIllegalArgument(IllegalArgumentException ex) {
         ProblemDetail problem = ProblemDetail.forStatus(HttpStatusCode.valueOf(400));

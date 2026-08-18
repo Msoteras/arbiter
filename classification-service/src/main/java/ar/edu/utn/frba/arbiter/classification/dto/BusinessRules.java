@@ -15,6 +15,7 @@ public record BusinessRules(
         FastTrackThresholds fastTrackThresholds,
         List<String> requiredDocumentTypes,
         ScoringConfig scoringConfig,
+        FraudRecordPolicy fraudRecordPolicy,
         List<EvaluableRule> evaluableRules,
         // The coverage's intrinsic limits (coverage columns), evaluable by code: report deadline
         // (D11) and events-per-year cap (D10). null = not configured ⇒ the corresponding rule
@@ -55,6 +56,35 @@ public record BusinessRules(
             List<Long> excludedClaimCauseIds,
             Long deadlineHours
     ) {}
+
+    /**
+     * The insurer's policy on fraud records ({@code insurer_rule} of type {@code FRAUD_RECORD}):
+     * whether a record from an earlier claim counts against this one, for how long, and whether it
+     * disqualifies the claim from Fast Track.
+     *
+     * <p>Insurer-wide, not per coverage — the record is about the person, not about which coverage
+     * they claimed under. Never null in a {@code BusinessRules} that came through the adapter: an
+     * insurer with nothing configured gets {@link FraudRecordPolicy#disabled()}, which reads the
+     * same as having no fraud records at all.
+     *
+     * @param ruleId what a fraud-record {@code rule_result} points at. Null when disabled, and then
+     *               nothing is evaluated, so nothing needs a row to point at
+     */
+    @Builder
+    public record FraudRecordPolicy(
+            Long ruleId,
+            boolean enabled,
+            int windowMonths,
+            boolean blocksFastTrack
+    ) {
+
+        /** Default window when the insurer turned the rule on without setting one: five years. */
+        public static final int DEFAULT_WINDOW_MONTHS = 60;
+
+        public static FraudRecordPolicy disabled() {
+            return new FraudRecordPolicy(null, false, DEFAULT_WINDOW_MONTHS, false);
+        }
+    }
 
     /**
      * Deterministically evaluable thresholds (no LLM) to decide Fast Track.
