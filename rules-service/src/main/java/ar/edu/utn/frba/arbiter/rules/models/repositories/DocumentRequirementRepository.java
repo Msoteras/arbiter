@@ -7,7 +7,7 @@ import java.util.List;
 
 public interface DocumentRequirementRepository extends JpaRepository<DocumentRequirement, Long> {
 
-    List<DocumentRequirement> findByBranch_Id(Long branchId);
+    List<DocumentRequirement> findByBranch_IdAndClaimCause_Id(Long branchId, Long claimCauseId);
 
     void deleteByBranch_IdAndClaimCause_Id(Long branchId, Long claimCauseId);
 }

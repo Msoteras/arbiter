@@ -490,16 +490,32 @@
             <div class="tab-panel" @fadeInUp>
               <app-card heading="Agenda documental">
                 <p class="section-hint">
-                  Documentos obligatorios para considerar el expediente completo. Si falta alguno, el
-                  estado queda en "Falta documentación".
+                  Documentos obligatorios <strong>según el hecho generador</strong>, para considerar el
+                  expediente completo. Si falta alguno, el estado queda en "Falta documentación".
                 </p>
-                <div class="chips">
-                  @for (doc of docTypes; track doc.code) {
-                    <button type="button" class="chip" [class.active]="isDocRequired(doc.code)" [attr.aria-pressed]="isDocRequired(doc.code)" (click)="toggleDoc(doc.code)">
-                      {{ doc.label }}
-                    </button>
+                @if (claimCauses().length === 0) {
+                  <p class="section-hint">Este ramo todavía no tiene hechos generadores cargados.</p>
+                } @else {
+                  <p class="section-hint">Hecho generador</p>
+                  <div class="chips">
+                    @for (cause of claimCauses(); track cause.id) {
+                      <button type="button" class="chip" [class.active]="selectedDocClaimCauseId() === cause.id" [attr.aria-pressed]="selectedDocClaimCauseId() === cause.id" (click)="selectDocClaimCause(cause.id)">
+                        {{ cause.name }}
+                      </button>
+                    }
+                  </div>
+
+                  @if (selectedDocClaimCauseName(); as name) {
+                    <p class="section-hint">Documentos requeridos para «{{ name }}»</p>
                   }
-                </div>
+                  <div class="chips">
+                    @for (doc of docTypes; track doc.code) {
+                      <button type="button" class="chip" [class.active]="isDocRequired(doc.code)" [attr.aria-pressed]="isDocRequired(doc.code)" (click)="toggleDoc(doc.code)">
+                        {{ doc.label }}
+                      </button>
+                    }
+                  </div>
+                }
 
                 <div class="ft-save">
                   <div class="editor-actions">

@@ -137,6 +137,12 @@ acordados:
 - **Todo `aseguradora_id` adentro de un esquema de tenant se eliminó**, por lo mismo.
 - **`claim_cause` es única por `(branch_id, name)`**, no globalmente: el mismo hecho
   generador aplica a varias ramas.
+- **La regla `COVERAGE_EXCLUSION` original (lista negra de hechos generadores NO
+  cubiertos) se reemplazó por `COVERAGE_INCLUSION` (lista blanca de los que SÍ cubre)**:
+  el default de "sin regla, cubre todo" dejaba pasar denuncias de hechos generadores que
+  la cobertura nunca tuvo que cubrir sin que nadie configurara nada (fail-open). Ahora
+  "sin regla, no cubre nada" — el referente tiene que declarar explícitamente qué cubre
+  cada cobertura.
 
 Ojo con esto al abrir el `.mdj`: al momento de escribir esto **todavía tenía `regla` y
 el `regla_id` de `regla_aseguradora`**. Si lo regenerás desde el modelo sin borrarlos,
