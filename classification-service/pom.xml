@@ -68,6 +68,15 @@
             <artifactId>jackson-databind</artifactId>
         </dependency>
 
+        <!-- java.time para el ObjectMapper de Jackson 2 (OllamaConfig): sin este módulo, serializar
+             un LocalDate explota, y es lo que dejaba en null el payload de auditoría del snapshot
+             de póliza. Ya estaba en el classpath por transitividad; se declara para poder
+             importarlo en tiempo de compilación. -->
+        <dependency>
+            <groupId>com.fasterxml.jackson.datatype</groupId>
+            <artifactId>jackson-datatype-jsr310</artifactId>
+        </dependency>
+
         <dependency>
             <groupId>org.apache.pdfbox</groupId>
             <artifactId>pdfbox</artifactId>

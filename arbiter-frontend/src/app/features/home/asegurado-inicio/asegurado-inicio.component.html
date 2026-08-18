@@ -4,7 +4,7 @@
   <div class="inicio" @staggerReveal>
     <header class="hero">
       <div class="hero-text">
-        <span class="eyebrow">Tu expediente</span>
+        <span class="eyebrow">Tu siniestro</span>
         <h1 class="t-hero-title">{{ saludo }}, {{ nombre() }}</h1>
         <p class="hero-sub">
           Seguí el estado de tu denuncia. Te avisamos por acá y por mail cuando haya novedades.
@@ -166,7 +166,7 @@
               />
             </svg>
           </span>
-          <div class="tile-title">Mis expedientes</div>
+          <div class="tile-title">Mis siniestros</div>
           <div class="tile-desc">
             {{ enCurso() }} en curso · {{ cerrados() }}
             {{ cerrados() === 1 ? 'cerrado' : 'cerrados' }}. Revisá el historial.

@@ -126,6 +126,7 @@ services:
       - "8083:8083"
     environment:
       CLASSIFICATION_SERVICE_URL: http://classification-service:8082
+      # Gate de elegibilidad del alta (Hard Stop) y política de derivación a peritaje del ramo.
       RULES_SERVICE_URL: http://rules-service:8081
       AUTH_SERVICE_URL: http://auth-service:8080
       DB_URL: jdbc:postgresql://postgres:5432/${DB_NAME:-arbiter}
@@ -137,6 +138,8 @@ services:
       SPRING_PROFILES_ACTIVE: ${CASES_PROFILES:-insurer-db}
     depends_on:
       classification-service:
+        condition: service_started
+      rules-service:
         condition: service_started
       postgres:
         condition: service_healthy

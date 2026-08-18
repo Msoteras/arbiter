@@ -7,14 +7,13 @@ import { catchError, combineLatest, map, of, startWith, switchMap } from 'rxjs';
 import { InsuredSessionService } from '../../../core/auth/insured-session.service';
 import { ExpedienteResponse } from '../../../core/models/expediente';
 import {
-  EstadoSimplificado,
   estadoDescripcionAseguradoEfectivo,
   estadoLabel,
-  estadoSimplificado,
   estadoSimplificadoEfectivo,
   estadoTituloAseguradoEfectivo,
   estadoTone,
   isEstadoFinal,
+  movimientoAseguradoLabel,
 } from '../../../core/models/estado';
 import { StatusTone } from '../../../core/models/status-tone';
 import { formatDateTime } from '../../../core/util/datetime';
@@ -22,25 +21,19 @@ import { ExpedienteService } from '../../expedientes/expediente.service';
 import { CardComponent } from '../../../shared/ui/card/card.component';
 import { ButtonComponent } from '../../../shared/ui/button/button.component';
 import { CaseDocumentsComponent } from '../../expedientes/case-documents/case-documents.component';
+import { InlineLoadingComponent } from '../../../shared/ui/inline-loading/inline-loading.component';
 
 type LoadState =
   | { status: 'loading' }
   | { status: 'ok'; data: ExpedienteResponse }
   | { status: 'error'; httpStatus: number };
 
-interface Milestone {
-  stage: EstadoSimplificado;
+/** Un movimiento real del expediente, ya traducido al vocabulario del asegurado. */
+interface Movimiento {
   label: string;
-  date: string | null;
-  reached: boolean;
+  date: string;
   current: boolean;
 }
-
-const SIMPLIFICADO_LABEL: Record<EstadoSimplificado, string> = {
-  DENUNCIADO: 'Denuncia recibida',
-  EN_TRAMITE: 'En trámite',
-  TERMINADO: 'Terminado',
-};
 
 /**
  * Seguimiento de un expediente para el asegurado: hero con estado tranquilizador,
@@ -51,7 +44,7 @@ const SIMPLIFICADO_LABEL: Record<EstadoSimplificado, string> = {
  */
 @Component({
   selector: 'app-seguimiento',
-  imports: [RouterLink, CardComponent, ButtonComponent, CaseDocumentsComponent],
+  imports: [RouterLink, CardComponent, ButtonComponent, CaseDocumentsComponent, InlineLoadingComponent],
   changeDetection: ChangeDetectionStrategy.OnPush,
   templateUrl: './seguimiento.component.html',
   styleUrl: './seguimiento.component.scss',
@@ -149,31 +142,25 @@ export class SeguimientoComponent {
   protected readonly needsDocs = computed(() => this.data()?.status === 'AWAITING_DOCUMENTATION');
 
   /**
-   * Hilo simplificado para el asegurado: solo los 3 hitos del ciclo visible
-   * (Denunciado → En trámite → Terminado) con la fecha en que se alcanzó cada uno.
-   * Derivado del historial pero SIN exponer motivos ("clasificación: FAST_TRACK"),
-   * estados técnicos ni la decisión interna del analista — eso es vista del analista.
+   * Los movimientos del expediente, en el idioma del asegurado. Los tres hitos de arriba dicen en
+   * qué ETAPA está; esto dice QUÉ PASÓ — que era lo que faltaba: "en trámite" durante tres semanas
+   * no distingue un expediente que avanza de uno olvidado.
+   *
+   * Se arma mapeando el ESTADO de cada transición, nunca su {@code reason}: ese campo es interno y
+   * trae la clasificación del modelo y el veredicto del peritaje. Las transiciones que no
+   * significan nada para el asegurado (una falla técnica de clasificación) no se listan.
    */
-  protected readonly milestones = computed<Milestone[]>(() => {
-    const d = this.data();
-    if (!d) {
-      return [];
-    }
-    const history = d.statusHistory ?? [];
-    const order: EstadoSimplificado[] = ['DENUNCIADO', 'EN_TRAMITE', 'TERMINADO'];
-    const currentIndex = order.indexOf(estadoSimplificadoEfectivo(d.status, this.pastStatuses()));
+  protected readonly movimientos = computed<Movimiento[]>(() => {
+    const visibles = (this.data()?.statusHistory ?? [])
+      .map((h) => ({ label: movimientoAseguradoLabel(h.toStatus, h.fromStatus), changedAt: h.changedAt }))
+      .filter((m): m is { label: string; changedAt: string } => m.label !== null);
 
-    return order.map((stage, i) => {
-      const hit = history.find((h) => estadoSimplificado(h.toStatus) === stage);
-      const date = hit?.changedAt ?? (stage === 'DENUNCIADO' ? d.createdAt : null);
-      return {
-        stage,
-        label: SIMPLIFICADO_LABEL[stage],
-        date: date ? formatDateTime(date, '') : null,
-        reached: i <= currentIndex,
-        current: i === currentIndex,
-      };
-    });
+    return visibles.map((m, i) => ({
+      label: m.label,
+      date: formatDateTime(m.changedAt, ''),
+      // El último es el estado actual: ahí va el pulso, no en un hito genérico.
+      current: i === visibles.length - 1,
+    }));
   });
 
   protected readonly fechaDenuncia = computed(() => formatDateTime(this.data()?.createdAt));

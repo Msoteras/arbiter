@@ -13,34 +13,34 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * Contradicciones entre lo que dicen los documentos adjuntos y lo que dice el siniestro (H0012).
+ * Contradictions between what the attached documents say and what the claim says (H0012).
  *
- * <p>Fue un stub hasta el 10/08 porque el OCR devolvía <b>texto libre</b>: comparar párrafos no da
- * un resultado determinístico, y este factor tiene que serlo. Lo que lo destrabó fue que la pasada
- * de extracción empezara a devolver los datos como <b>campos tipados</b>
- * ({@link DocumentExtraction.Fields}) — el modelo lee, el código compara (D4b, mismo patrón que D4a).
+ * <p>It was a stub until 10/08 because OCR returned <b>free text</b>: comparing paragraphs doesn't
+ * give a deterministic result, and this factor has to be one. What unblocked it was the extraction
+ * pass starting to return the data as <b>typed fields</b> ({@link DocumentExtraction.Fields}) — the
+ * model reads, the code compares (D4b, same pattern as D4a).
  *
- * <p><b>Un campo ausente nunca es una inconsistencia.</b> Una constancia policial no trae IMEI y una
- * foto del equipo no trae monto: null significa "el documento no lo dice", y confundirlo con "no
- * coincide" convertiría cada adjunto incompleto en una sospecha de fraude.
+ * <p><b>A missing field is never an inconsistency.</b> A police certificate carries no IMEI and a
+ * photo of the device carries no amount: null means "the document doesn't say", and confusing it
+ * with "doesn't match" would turn every incomplete attachment into a fraud suspicion.
  *
- * <p>Sin documentos examinados el factor se declara <b>no evaluable</b> en vez de aportar 0.0: un
- * expediente sin adjuntos analizados no es un expediente consistente, es uno del que no sabemos
- * nada, y un 0.0 le bajaría el score a todo el mundo.
+ * <p>With no documents examined the factor is declared <b>not evaluable</b> instead of contributing
+ * 0.0: a case with no attachments analyzed isn't a consistent case, it's one we know nothing about,
+ * and a 0.0 would lower everyone's score.
  */
 @Component
 public class DocumentInconsistencyEvaluator implements RiskFactorEvaluator {
 
-    /** Diferencia tolerada entre el monto del documento y el reclamado: redondeos, IVA, envío. */
+    /** Tolerated gap between the document's amount and the claimed one: rounding, VAT, shipping. */
     private static final BigDecimal AMOUNT_TOLERANCE_RATIO = new BigDecimal("0.10");
 
-    /** Un documento fechado más de una semana antes del hecho ya no es "del hecho". */
+    /** A document dated more than a week before the event is no longer "of the event". */
     private static final int DOCUMENT_DATE_TOLERANCE_DAYS = 7;
 
-    /** Cada contradicción encontrada suma esto; con dos el factor ya satura. */
+    /** Each contradiction found adds this; two of them already saturate the factor. */
     private static final double SCORE_PER_FINDING = 0.5;
 
-    /** Tipo de adjunto de la constancia policial, el mismo que usa la agenda documental. */
+    /** Attachment type of the police certificate, the same the document schedule uses. */
     private static final String POLICE_REPORT_TYPE = "police_report";
 
     @Override
@@ -73,9 +73,9 @@ public class DocumentInconsistencyEvaluator implements RiskFactorEvaluator {
     }
 
     /**
-     * El cruce que motivó el factor: el IMEI que figura en el documento contra el del bien
-     * asegurado. Solo corre si la póliza tiene IMEI (ramo Celulares); en Tecnología Portátil no hay
-     * contra qué comparar y el chequeo no participa.
+     * The cross-check that motivated the factor: the IMEI on the document against the insured
+     * item's. It only runs if the policy has an IMEI (Celulares branch); in Tecnología Portátil
+     * there's nothing to compare against and the check doesn't take part.
      */
     private void checkImei(
             RiskContext context, String type, DocumentExtraction.Fields fields, List<String> findings) {
@@ -91,9 +91,9 @@ public class DocumentInconsistencyEvaluator implements RiskFactorEvaluator {
     }
 
     /**
-     * La fecha del documento no puede ser anterior al hecho: una factura de reparación o una
-     * constancia policial se emiten después. Se tolera una semana hacia atrás para el caso legítimo
-     * de la factura de compra del equipo, que sí es previa.
+     * The document's date can't precede the event: a repair invoice or a police certificate are
+     * issued afterwards. A week backwards is tolerated for the legitimate case of the device's
+     * purchase invoice, which is genuinely earlier.
      */
     private void checkDocumentDate(
             RiskContext context, String type, DocumentExtraction.Fields fields, List<String> findings) {
@@ -110,14 +110,13 @@ public class DocumentInconsistencyEvaluator implements RiskFactorEvaluator {
     }
 
     /**
-     * D12 · lo que el asegurado <b>declaró</b> sobre su denuncia policial contra lo que dice la
-     * constancia. Es la señal que le da sentido a haber guardado las dos fechas por separado: una
-     * cosa es haber denunciado tarde (eso lo evalúa la regla del plazo) y otra es declarar una fecha
-     * que el papel no respalda.
+     * D12 · what the insured <b>declared</b> about their police report against what the certificate
+     * says. It's the signal that justifies storing both dates separately: reporting late is one
+     * thing (the deadline rule evaluates that), declaring a date the paper doesn't back is another.
      *
-     * <p>Se compara por día y no por hora: el asegurado declara hora exacta, la constancia
-     * habitualmente no, y exigir que coincidan al minuto convertiría en sospechoso a cualquiera que
-     * redondeó.
+     * <p>Compared by day and not by hour: the insured declares an exact time, the certificate
+     * usually doesn't, and demanding a match to the minute would make anyone who rounded look
+     * suspicious.
      */
     private void checkDeclaredPoliceReportDate(
             RiskContext context, Map<String, DocumentExtraction> documents, List<String> findings) {
@@ -137,7 +136,7 @@ public class DocumentInconsistencyEvaluator implements RiskFactorEvaluator {
         }
     }
 
-    /** El importe del documento contra el monto reclamado, con tolerancia por redondeos e impuestos. */
+    /** The document's amount against the claimed one, tolerating rounding and taxes. */
     private void checkAmount(
             RiskContext context, String type, DocumentExtraction.Fields fields, List<String> findings) {
         BigDecimal claimed = context.claim() == null ? null : context.claim().claimedAmount();

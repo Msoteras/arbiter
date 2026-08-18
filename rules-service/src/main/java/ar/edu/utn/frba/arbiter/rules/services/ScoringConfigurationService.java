@@ -22,9 +22,9 @@ import org.springframework.transaction.annotation.Transactional;
 import java.time.Instant;
 
 /**
- * Scoring de fraude (factores + bandas) de la aseguradora, para la solapa Scoring del referente.
- * Una sola fila por tenant: todos los ramos comparten el mismo scoring. Cada guardado snapshotea
- * la versión anterior en {@code scoring_configuration_history} (append-only, mismo patrón que
+ * The insurer's fraud scoring (factors + bands), for the referente's Scoring tab. A single row per
+ * tenant: every branch shares the same scoring. Each save snapshots the previous version into
+ * {@code scoring_configuration_history} (append-only, same pattern as
  * {@link FastTrackRuleService}).
  */
 @Service

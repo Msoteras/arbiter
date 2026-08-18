@@ -1,7 +1,6 @@
 package ar.edu.utn.frba.arbiter.cases.controllers;
 
 import ar.edu.utn.frba.arbiter.cases.dto.PolicyResponse;
-import ar.edu.utn.frba.arbiter.cases.services.PolicyCoverageService;
 import ar.edu.utn.frba.arbiter.cases.services.PolicyService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -28,7 +27,6 @@ import java.util.List;
 public class PolicyController {
 
     private final PolicyService policyService;
-    private final PolicyCoverageService policyCoverageService;
 
     @GetMapping
     @PreAuthorize("hasAnyRole('ASEGURADO', 'REFERENTE_ASEGURADORA')")
@@ -53,19 +51,5 @@ public class PolicyController {
                     """)
     public ResponseEntity<PolicyResponse> getByNumber(@PathVariable String policyNumber) {
         return ResponseEntity.ok(policyService.getByNumber(policyNumber));
-    }
-
-    @GetMapping("/{policyNumber}/covered-claim-causes")
-    @PreAuthorize("hasRole('ASEGURADO')")
-    @Operation(summary = "Hechos generadores que la póliza cubre",
-            description = """
-                    Nombres de los hechos generadores que la cobertura de esta póliza SÍ cubre, para el
-                    wizard de alta de denuncia: sobre el catálogo del ramo, marca en rojo el hecho elegido
-                    que la póliza no cubre. Un ASEGURADO solo puede preguntar por sus propias pólizas —
-                    404 sobre una ajena, para no confirmar que el número existe. Whitelist vacía (o
-                    cobertura sin regla de inclusión) ⇒ lista vacía: la póliza no cubre nada.
-                    """)
-    public ResponseEntity<List<String>> coveredClaimCauses(@PathVariable String policyNumber) {
-        return ResponseEntity.ok(policyCoverageService.coveredClaimCauses(policyNumber));
     }
 }

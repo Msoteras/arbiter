@@ -16,11 +16,11 @@ import org.springframework.transaction.annotation.Transactional;
 import java.util.List;
 
 /**
- * Agenda documental (AgendaDocumental) de un ramo, para la solapa Documentación del referente. El
- * DER (document_requirement / "requisito_documental") keyea por rama + hecho generador, y desde
- * D5 (docs/decisiones-reglas-a-validar.md) la pantalla también edita por hecho generador — ya no
- * hace fan-out de una lista plana a todos los hechos generadores del ramo. Sin historial: el DER no
- * tiene "historial_requisito_documental".
+ * A branch's AgendaDocumental, for the referente's Documentación tab. The DER
+ * (document_requirement / "requisito_documental") keys by branch + claim cause, and since D5
+ * (docs/decisiones-reglas-a-validar.md) the screen edits it per claim cause too — no longer fanning
+ * a flat list out to every claim cause of the branch. No history: the DER has no
+ * "historial_requisito_documental".
  */
 @Service
 @RequiredArgsConstructor
@@ -39,9 +39,9 @@ public class DocumentRequirementService {
     }
 
     /**
-     * Igual que {@link #get(Long, Long)} pero resolviendo el hecho generador por nombre dentro de un
-     * ramo ya conocido por id — lo que el motor tiene a mano (ver {@code ClaimReport.claimCause()}).
-     * Hecho generador desconocido en ese ramo ⇒ lista vacía.
+     * Same as {@link #get(Long, Long)} but resolving the claim cause by name within a branch already
+     * known by id — what the engine has at hand (see {@code ClaimReport.claimCause()}). Unknown claim
+     * cause in that branch ⇒ empty list.
      */
     @Transactional(readOnly = true)
     public List<String> getByBranchIdAndClaimCauseName(Long branchId, String claimCauseName) {

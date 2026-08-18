@@ -26,13 +26,13 @@ public class PromptBuilder {
     private final String promptTemplate;
 
     /**
-     * El template se resuelve <b>desde</b> la versión configurada
-     * ({@code arbiter.ollama.prompt-version}), que es la que {@code ClassificationResultsService}
-     * persiste en {@code llm_analysis.prompt_version} para la auditoría de la Disposición SSN
-     * 2/2023. Antes eran dos constantes independientes —el classpath acá y la versión en el yml— y
-     * ya se desincronizaron una vez: el template era v2 y se auditaba como v1. Ahora el archivo que
-     * se manda y la versión que se audita no pueden discrepar, y bumpear la versión sin crear el
-     * archivo rompe al arrancar, que es cuando se quiere saber.
+     * The template is resolved <b>from</b> the configured version
+     * ({@code arbiter.ollama.prompt-version}), which is what {@code ClassificationResultsService}
+     * persists in {@code llm_analysis.prompt_version} for SSN Disposition 2/2023's audit. They used
+     * to be two independent constants — the classpath here and the version in the yml — and they
+     * already drifted once: the template was v2 and it was audited as v1. Now the file that gets
+     * sent and the version that gets audited can't disagree, and bumping the version without
+     * creating the file breaks at startup, which is when you want to find out.
      */
     public PromptBuilder(OllamaProperties properties, ResourceLoader resourceLoader) throws IOException {
         Resource promptResource =
@@ -66,8 +66,8 @@ public class PromptBuilder {
                 ? "No especificado"
                 : request.eventLocation();
 
-        // claimedAmount es nullable (el wizard no lo exige): sin dato va texto, no null — String.replace
-        // no acepta reemplazo null.
+        // claimedAmount is nullable (the wizard doesn't require it): with no value it sends text,
+        // not null — String.replace doesn't accept a null replacement.
         String claimedAmount = request.claimedAmount() == null
                 ? "No declarado"
                 : formatAmount(request.claimedAmount());
@@ -87,18 +87,18 @@ public class PromptBuilder {
                 .replace("{{insuredHistory}}", history);
     }
 
-    /** Monto reclamado con separador de miles (es-AR): 1234567 → "$1.234.567". */
+    /** Claimed amount with thousands separator (es-AR): 1234567 → "$1.234.567". */
     private static String formatAmount(BigDecimal amount) {
         return "$" + NumberFormat.getNumberInstance(Locale.of("es", "AR")).format(amount);
     }
 
     /**
-     * Un adjunto, como lo ve el clasificador: la transcripción y —aparte, bajo un encabezado
-     * propio— lo que la pasada de visión observó en la imagen (D5).
+     * One attachment, as the classifier sees it: the transcription and — separately, under its own
+     * heading — what the vision pass observed in the image (D5).
      *
-     * <p>La separación es el punto: sin encabezado, "la firma está pixelada" se lee como si el
-     * documento lo dijera. El texto del encabezado le dice al modelo de dónde salió y cuánto pesa;
-     * el prompt de clasificación lo repite del otro lado.
+     * <p>The separation is the point: without a heading, "the signature is pixelated" reads as if
+     * the document said it. The heading text tells the model where it came from and how much it
+     * weighs; the classification prompt repeats it on the other side.
      */
     public String renderAttachment(String documentType, DocumentExtraction extraction) {
         String rendered = documentType + ": " + extraction.transcription();
@@ -132,7 +132,8 @@ public class PromptBuilder {
         sb.append("\nDATOS DE LA PÓLIZA:\n");
         sb.append("- Número: %s\n".formatted(policy.policyNumber()));
         sb.append("- Estado de pago: %s\n".formatted(policy.upToDate() ? "Al día" : "CON MORA"));
-        sb.append("- Vigencia: %s a %s\n".formatted(policy.effectiveFrom(), policy.effectiveTo()));
+        sb.append("- Vigencia: %s a %s\n".formatted(
+                EVENT_DATE_FORMAT.format(policy.effectiveFrom()), EVENT_DATE_FORMAT.format(policy.effectiveTo())));
         sb.append("- Suma asegurada: $%s\n".formatted(policy.insuredAmount()));
         sb.append("- Franquicia: $%s\n".formatted(policy.deductible()));
 

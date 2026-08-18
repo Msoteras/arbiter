@@ -2,7 +2,7 @@ import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@a
 import { toObservable, toSignal } from '@angular/core/rxjs-interop';
 import { ActivatedRoute, RouterLink } from '@angular/router';
 import { HttpErrorResponse } from '@angular/common/http';
-import { catchError, combineLatest, map, Observable, of, startWith, switchMap } from 'rxjs';
+import { catchError, combineLatest, finalize, map, Observable, of, startWith, switchMap } from 'rxjs';
 
 import { ExpedienteService, AnalystDecisionRequest } from '../expediente.service';
 import { DocumentAgendaService } from '../document-agenda.service';
@@ -13,6 +13,13 @@ import { ExpedienteResponse, RiskBreakdownItem, StatusTransition } from '../../.
 import { riskFactorLabel } from '../../../core/models/business-rules';
 import { CASE_DOCUMENT_TYPES, CaseDocument, CaseDocumentType } from '../../../core/models/case-document';
 import { clasificacionLabel, clasificacionTone } from '../../../core/models/clasificacion';
+import {
+  ExpertVerdict,
+  OpcionesDerivacion,
+  Peritaje,
+  veredictoLabel,
+  veredictoTone,
+} from '../../../core/models/peritaje';
 import {
   estadoLabel,
   estadoSimplificadoLabel,
@@ -30,6 +37,7 @@ import { CardComponent } from '../../../shared/ui/card/card.component';
 import { ButtonComponent } from '../../../shared/ui/button/button.component';
 import { BadgeComponent } from '../../../shared/ui/badge/badge.component';
 import { ModalComponent } from '../../../shared/ui/modal/modal.component';
+import { SelectComponent, SelectOption } from '../../../shared/ui/select/select.component';
 import { TextareaComponent } from '../../../shared/ui/textarea/textarea.component';
 import { MenuButtonComponent, MenuItem } from '../../../shared/ui/menu-button/menu-button.component';
 import { InlineLoadingComponent } from '../../../shared/ui/inline-loading/inline-loading.component';
@@ -40,7 +48,17 @@ type LoadState =
   | { status: 'ok'; data: ExpedienteResponse }
   | { status: 'error'; httpStatus: number };
 
-type TabId = 'resumen' | 'datos' | 'imagenes' | 'riesgo' | 'documentacion' | 'conversacion' | 'historial';
+type DocsState = { status: 'loading' } | { status: 'ok'; list: CaseDocument[] };
+
+type TabId =
+  | 'resumen'
+  | 'datos'
+  | 'imagenes'
+  | 'riesgo'
+  | 'documentacion'
+  | 'peritaje'
+  | 'conversacion'
+  | 'historial';
 type Verb = 'aprobar' | 'rechazar';
 
 /** value=null → la sección muestra "Sin datos" (el backend no provee este campo). */
@@ -59,6 +77,7 @@ interface FieldItem { label: string; value: string | null; mono?: boolean; full?
     ButtonComponent,
     BadgeComponent,
     ModalComponent,
+    SelectComponent,
     TextareaComponent,
     MenuButtonComponent,
     InlineLoadingComponent,
@@ -221,6 +240,19 @@ export class ExpedienteDetailComponent {
     return d ? Math.round(d.analysisConfidence * 100) : 0;
   });
 
+  /**
+   * Si el resultado lo produjo el LLM o el gate determinístico de reglas.
+   *
+   * `FAST_TRACK` y `FALTA_DOCUMENTACION` no son recomendaciones del modelo: los decide el motor de
+   * reglas (CLAUDE.md decisión #6 — el LLM nunca puede devolver `FAST_TRACK`). Mostrarles
+   * "Confianza del modelo: 100%" es engañoso: no hay inferencia detrás, es un chequeo objetivo, y
+   * el 100% sale de un valor fijo que pone el backend, no de una medición.
+   */
+  protected readonly isDeterministicOutcome = computed(() => {
+    const c = this.data()?.analysisClassification;
+    return c === 'FAST_TRACK' || c === 'FALTA_DOCUMENTACION';
+  });
+
   /** Grilla del expediente: real donde el backend lo da, null ("Sin datos") en el resto. */
   protected readonly fields = computed<FieldItem[]>(() => {
     const d = this.data();
@@ -250,15 +282,18 @@ export class ExpedienteDetailComponent {
   protected readonly history = computed<StatusTransition[]>(() => this.data()?.statusHistory ?? []);
 
   // ----- tabs -----
-  protected readonly tabs: { id: TabId; label: string }[] = [
-    { id: 'resumen', label: 'Resumen' },
-    { id: 'datos', label: 'Datos extraídos' },
-    { id: 'imagenes', label: 'Análisis de imágenes' },
-    { id: 'riesgo', label: 'Desglose de riesgo' },
-    { id: 'documentacion', label: 'Documentación' },
-    { id: 'conversacion', label: 'Conversación' },
-    { id: 'historial', label: 'Historial' },
-  ];
+  // "Peritaje" solo existe si el expediente se derivó: una solapa vacía en la mayoría de los casos
+  // sería ruido, y la derivación es la excepción, no el flujo normal.
+  protected readonly tabs = computed<{ id: TabId; label: string }[]>(() => [
+    { id: 'resumen' as TabId, label: 'Resumen' },
+    { id: 'datos' as TabId, label: 'Datos extraídos' },
+    { id: 'imagenes' as TabId, label: 'Análisis de imágenes' },
+    { id: 'riesgo' as TabId, label: 'Desglose de riesgo' },
+    { id: 'documentacion' as TabId, label: 'Documentación' },
+    ...(this.peritaje() ? [{ id: 'peritaje' as TabId, label: 'Peritaje' }] : []),
+    { id: 'conversacion' as TabId, label: 'Conversación' },
+    { id: 'historial' as TabId, label: 'Historial' },
+  ]);
   protected readonly activeTab = signal<TabId>('resumen');
   setTab(t: TabId): void {
     this.activeTab.set(t);
@@ -337,6 +372,187 @@ export class ExpedienteDetailComponent {
     });
   }
 
+  // ----- derivación a peritaje -----
+  // Derivar no es un veredicto: suspende el expediente para conseguir evidencia. Por eso va por
+  // su propio endpoint y no por /decision, que es el registro auditable de la resolución.
+  // Frente a indicios de fraude, rechazar apoyándose en una sospecha del modelo no alcanza: el
+  // rechazo exige una causa de exclusión, y el peritaje es lo que convierte la sospecha en hecho.
+  protected readonly derivado = computed(() => this.data()?.status === 'PENDING_EXPERT_REPORT');
+
+  /** Se pide junto con el expediente: sin esto no se sabe si ofrecer el botón ni a quién derivar. */
+  private readonly derivationOptions = toSignal(
+    combineLatest([
+      this.route.paramMap.pipe(map((params) => params.get('id') ?? '')),
+      toObservable(this.reloadTrigger),
+    ]).pipe(
+      switchMap(([id]) =>
+        this.service.derivationOptions(id as unknown as number).pipe(
+          catchError(() => of<OpcionesDerivacion | null>(null)),
+        ),
+      ),
+    ),
+    { initialValue: null as OpcionesDerivacion | null },
+  );
+
+  /** 404 mientras el expediente no se derivó — es el caso normal, no un error. */
+  protected readonly peritaje = toSignal(
+    combineLatest([
+      this.route.paramMap.pipe(map((params) => params.get('id') ?? '')),
+      toObservable(this.reloadTrigger),
+    ]).pipe(
+      switchMap(([id]) =>
+        this.service
+          .peritaje(id as unknown as number)
+          .pipe(catchError(() => of<Peritaje | null>(null))),
+      ),
+    ),
+    { initialValue: null as Peritaje | null },
+  );
+
+  protected readonly puedeDerivar = computed(
+    () => this.canAct() && this.decisionState() === 'pending' && !this.peritaje(),
+  );
+
+  /** Habilitado por la regla de la aseguradora Y con peritos a quien mandarlo. */
+  protected readonly derivacionHabilitada = computed(
+    () => this.derivationOptions()?.eligible === true,
+  );
+
+  /**
+   * Por qué no se puede derivar. Sin esto el botón queda apagado sin explicación, y el analista
+   * no tiene forma de saber si es una política de la compañía o que falta cargar peritos.
+   */
+  protected readonly motivoNoDerivable = computed<string | null>(() => {
+    const options = this.derivationOptions();
+    if (!options || options.eligible) {
+      return null;
+    }
+    if (options.minClaimedAmount == null) {
+      return 'Esta aseguradora no deriva a peritaje los siniestros de este ramo.';
+    }
+    if (options.firms.length === 0) {
+      return 'No hay peritos cargados para este ramo.';
+    }
+    return `El monto reclamado no alcanza el mínimo para derivar (${this.formatMonto(options.minClaimedAmount)}).`;
+  });
+
+  protected readonly peritoOptions = computed<SelectOption[]>(() =>
+    (this.derivationOptions()?.firms ?? []).map((firm) => ({
+      value: String(firm.id),
+      // El ramo distingue al especialista del generalista, y la zona importa porque para peritar
+      // un equipo hay que tenerlo delante.
+      label: [firm.name, firm.branchName ?? 'todos los ramos', firm.zone]
+        .filter(Boolean)
+        .join(' · '),
+    })),
+  );
+
+  protected readonly showDerivar = signal(false);
+  protected readonly peritoElegido = signal('');
+  protected readonly motivoDerivacion = signal('');
+  protected readonly derivarSaving = signal(false);
+  protected readonly derivarError = signal<string | null>(null);
+
+  askDerivar(): void {
+    this.peritoElegido.set('');
+    this.motivoDerivacion.set('');
+    this.derivarError.set(null);
+    this.showDerivar.set(true);
+  }
+
+  cancelDerivar(): void {
+    this.showDerivar.set(false);
+  }
+
+  confirmDerivar(): void {
+    const d = this.data();
+    const perito = this.peritoElegido();
+    const motivo = this.motivoDerivacion().trim();
+    if (!d || !perito || !motivo) {
+      return;
+    }
+    this.derivarSaving.set(true);
+    this.derivarError.set(null);
+    this.service.derivarAPeritaje(d.id, Number(perito), motivo).subscribe({
+      next: () => {
+        this.derivarSaving.set(false);
+        this.showDerivar.set(false);
+        this.reloadTrigger.update((v) => v + 1);
+      },
+      error: (err: HttpErrorResponse) => {
+        this.derivarSaving.set(false);
+        this.derivarError.set(err.error?.detail || 'No se pudo derivar el expediente');
+      },
+    });
+  }
+
+  // ----- carga del informe del perito -----
+  protected readonly showInforme = signal(false);
+  protected readonly veredicto = signal('');
+  protected readonly notaVeredicto = signal('');
+  protected readonly informeFile = signal<File | null>(null);
+  protected readonly informeSaving = signal(false);
+  protected readonly informeError = signal<string | null>(null);
+
+  protected readonly veredictoOptions: SelectOption[] = [
+    { value: 'FRAUD_CONFIRMED', label: 'Fraude confirmado' },
+    { value: 'FRAUD_DISCARDED', label: 'Fraude descartado' },
+    { value: 'INCONCLUSIVE', label: 'No concluyente' },
+  ];
+
+  askInforme(): void {
+    this.veredicto.set('');
+    this.notaVeredicto.set('');
+    this.informeFile.set(null);
+    this.informeError.set(null);
+    this.showInforme.set(true);
+  }
+
+  cancelInforme(): void {
+    this.showInforme.set(false);
+  }
+
+  onInformeFile(event: Event): void {
+    const input = event.target as HTMLInputElement;
+    this.informeFile.set(input.files?.[0] ?? null);
+  }
+
+  confirmInforme(): void {
+    const d = this.data();
+    const file = this.informeFile();
+    const verdict = this.veredicto() as ExpertVerdict;
+    if (!d || !file || !verdict) {
+      return;
+    }
+    this.informeSaving.set(true);
+    this.informeError.set(null);
+    this.service
+      .cargarInformePericial(d.id, verdict, this.notaVeredicto().trim(), file)
+      .subscribe({
+        next: () => {
+          this.informeSaving.set(false);
+          this.showInforme.set(false);
+          this.reloadTrigger.update((v) => v + 1);
+        },
+        error: (err: HttpErrorResponse) => {
+          this.informeSaving.set(false);
+          this.informeError.set(err.error?.detail || 'No se pudo cargar el informe');
+        },
+      });
+  }
+
+  veredictoLabel = veredictoLabel;
+  veredictoTone = veredictoTone;
+  formatDateTime = formatDateTime;
+
+  private formatMonto(amount: number): string {
+    return new Intl.NumberFormat('es-AR', {
+      style: 'currency',
+      currency: 'ARS',
+      maximumFractionDigits: 0,
+    }).format(amount);
+  }
+
   // ----- reintento manual de la clasificación (expediente en CLASSIFICATION_FAILED) -----
   // El scheduler solo barre PENDING_CLASSIFICATION, así que un caso que agotó los reintentos queda
   // varado hasta que el analista lo reencola a mano (bugs-ux #22). No resuelve el caso: lo devuelve
@@ -371,9 +587,17 @@ export class ExpedienteDetailComponent {
   protected readonly assignSaving = signal(false);
   protected readonly assignError = signal<string | null>(null);
 
-  private readonly analysts = toSignal(this.users.listAnalysts().pipe(catchError(() => of([]))), {
-    initialValue: [],
-  });
+  // Sin esto, el menú "Asignar a…"/"Reasignar" se puede abrir mientras la lista de analistas
+  // todavía está en vuelo y mostrar un panel vacío, como si la aseguradora no tuviera analistas.
+  protected readonly analystsLoading = signal(true);
+
+  private readonly analysts = toSignal(
+    this.users.listAnalysts().pipe(
+      catchError(() => of([])),
+      finalize(() => this.analystsLoading.set(false)),
+    ),
+    { initialValue: [] },
+  );
 
   protected readonly analystMenuItems = computed<MenuItem[]>(() => {
     // "Asignar a otro analista": el que ya lo tiene no va en la lista (reasignárselo no es acción).
@@ -505,19 +729,34 @@ export class ExpedienteDetailComponent {
   /** La agenda documental es otra llamada al backend: se refresca con el mismo trigger. */
   protected readonly docsReloadToken = computed(() => this.reloadTrigger());
 
-  private readonly documents = toSignal(
+  // Estado explícito (no solo el array) para poder tapar el checklist de "Falta documentación"
+  // mientras esta request —independiente de la principal (getById)— todavía está en vuelo: sin
+  // esto, `missingDocLabels` computa con `documents()` en [] y por un instante lista TODOS los
+  // tipos requeridos como faltantes, aunque ya estén cargados.
+  private readonly documentsState = toSignal(
     combineLatest([
       this.route.paramMap.pipe(map((params) => params.get('id') ?? '')),
       toObservable(this.reloadTrigger),
     ]).pipe(
       switchMap(([id]) =>
         id
-          ? this.service.listDocuments(Number(id)).pipe(catchError(() => of<CaseDocument[]>([])))
-          : of<CaseDocument[]>([]),
+          ? this.service.listDocuments(Number(id)).pipe(
+              map((list): DocsState => ({ status: 'ok', list })),
+              startWith<DocsState>({ status: 'loading' }),
+              catchError(() => of<DocsState>({ status: 'ok', list: [] })),
+            )
+          : of<DocsState>({ status: 'ok', list: [] }),
       ),
     ),
-    { initialValue: [] as CaseDocument[] },
+    { initialValue: { status: 'loading' } as DocsState },
   );
+
+  protected readonly documentsLoading = computed(() => this.documentsState().status === 'loading');
+
+  private readonly documents = computed<CaseDocument[]>(() => {
+    const s = this.documentsState();
+    return s.status === 'ok' ? s.list : [];
+  });
 
   private readonly agenda = inject(DocumentAgendaService);
 

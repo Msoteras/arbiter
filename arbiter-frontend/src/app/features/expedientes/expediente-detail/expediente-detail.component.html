@@ -1,9 +1,5 @@
 @if (data(); as d) {
   <header class="det-header" @fadeInUp>
-    <a class="back-link" routerLink="/inbox">
-      <span class="back-arrow" aria-hidden="true">‹</span> Volver a mis expedientes
-    </a>
-
     <div class="det-header-row">
       <div class="identity">
         <h1 class="t-page-title mono">Expediente #{{ d.id }}</h1>
@@ -26,16 +22,35 @@
   <main class="det-content">
     <!-- Reasoning cards (orden de razonamiento) -->
     <div class="reasoning" @staggerReveal>
-      <app-card class="rcard reco" variant="ai" icon="✦" heading="Recomendación de Arbiter">
+      <!-- El encabezado y la letra chica cambian según quién produjo el resultado: el LLM (una
+           recomendación no vinculante que el analista aprueba o rechaza) o el motor de reglas
+           (un chequeo objetivo, sin confianza que mostrar). "Falta documentación" además no es
+           una decisión del analista en absoluto: la acción es del asegurado, que tiene que
+           completar la carga. -->
+      <app-card
+        class="rcard reco"
+        variant="ai"
+        icon="✦"
+        [heading]="isDeterministicOutcome() ? 'Resultado del motor de reglas' : 'Recomendación de Arbiter'"
+      >
         @if (classificationLabel()) {
           <div class="reco-body">
             <div class="reco-text">
               <p class="reco-value" [attr.data-tone]="classificationTone() !== 'neutral' ? classificationTone() : null">{{ classificationLabel() }}</p>
-              @if (data()?.analysisDetail; as detail) {
-                <p class="t-body reco-detail">{{ detail }}</p>
+              @if (!isDeterministicOutcome()) {
+                <p class="note">Confianza del modelo: {{ confidencePercent() }}%</p>
+              } @else if (needsDocs()) {
+                <p class="note">
+                  Lo determinó el motor de reglas, no el modelo: falta documentación obligatoria de
+                  la agenda del ramo. La carga la hace el asegurado desde su portal y el expediente
+                  se vuelve a clasificar solo cuando la complete — no requiere una decisión tuya.
+                </p>
+              } @else {
+                <p class="note">
+                  Lo determinó el motor de reglas, no el modelo. Agiliza el trámite pero no lo
+                  resuelve: la decisión se registra abajo (Aprobar / Rechazar).
+                </p>
               }
-              <p class="note">Confianza del modelo: {{ confidencePercent() }}%</p>
-              <p class="note">Es una recomendación no vinculante: la decisión se registra abajo (Aprobar / Rechazar).</p>
             </div>
           </div>
         } @else {
@@ -61,12 +76,31 @@
                 <app-button variant="secondary" [block]="true" [disabled]="decisionSaving()" (click)="askDecision('rechazar')">Rechazar</app-button>
                 <app-button variant="secondary" [block]="true" [disabled]="decisionSaving()" (click)="askDecision('aprobar')">Aprobar</app-button>
               </div>
+              @if (puedeDerivar()) {
+                <app-button
+                  variant="secondary"
+                  [block]="true"
+                  [disabled]="!derivacionHabilitada() || decisionSaving()"
+                  (click)="askDerivar()"
+                >
+                  Derivar a peritaje
+                </app-button>
+                @if (motivoNoDerivable(); as motivo) {
+                  <p class="rcard-note">{{ motivo }}</p>
+                }
+              }
             } @else {
               <p class="nodata">Pendiente de decisión del analista</p>
             }
           }
           @default {
-            @if (isFailed()) {
+            @if (derivado()) {
+              <!-- Con el panel movido a su solapa, sin esta línea el analista no tendría desde
+                   dónde cargar el informe ni por qué el expediente está frenado. -->
+              <p class="nodata">
+                El expediente está en peritaje. Cargá el informe desde la solapa <strong>Peritaje</strong>.
+              </p>
+            } @else if (isFailed()) {
               <p class="nodata">No se pudo clasificar automáticamente tras varios intentos.</p>
               @if (canAct()) {
                 <app-button
@@ -81,6 +115,14 @@
                   <p class="rcard-note error">{{ retryError() }}</p>
                 }
               }
+            } @else if (needsDocs()) {
+              <!-- Hay clasificación, pero no le toca decidir al analista: el expediente espera que
+                   el asegurado complete la documentación. "Sin clasificación disponible" era
+                   directamente falso acá. -->
+              <p class="nodata">
+                Esperando que el asegurado cargue la documentación faltante. Cuando la complete, el
+                expediente se reclasifica y recién entonces pasa a tu decisión.
+              </p>
             } @else {
               <p class="nodata">Sin clasificación disponible todavía</p>
             }
@@ -93,11 +135,12 @@
           <p class="rcard-note error">{{ decisionError() }}</p>
         }
       </app-card>
+
     </div>
 
     <!-- Tabs -->
     <nav class="tabs" role="tablist">
-      @for (t of tabs; track t.id) {
+      @for (t of tabs(); track t.id) {
         <button role="tab" class="tab" [class.active]="activeTab() === t.id"
           [attr.aria-selected]="activeTab() === t.id" (click)="setTab(t.id)">{{ t.label }}</button>
       }
@@ -147,10 +190,10 @@
                       [block]="true"
                       [items]="analystMenuItems()"
                       heading="Asignar a otro analista"
-                      [disabled]="assignSaving()"
+                      [disabled]="assignSaving() || analystsLoading()"
                       (itemSelected)="assignTo($event)"
                     >
-                      <span aria-hidden="true">⟳</span> Reasignar
+                      <span aria-hidden="true">⟳</span> {{ analystsLoading() ? 'Cargando…' : 'Reasignar' }}
                     </app-menu-button>
                     <app-menu-button
                       [items]="overflowMenuItems"
@@ -182,10 +225,10 @@
                       [block]="true"
                       [items]="analystMenuItems()"
                       heading="Asignar a otro analista"
-                      [disabled]="assignSaving()"
+                      [disabled]="assignSaving() || analystsLoading()"
                       (itemSelected)="assignTo($event)"
                     >
-                      Asignar a…
+                      {{ analystsLoading() ? 'Cargando…' : 'Asignar a…' }}
                     </app-menu-button>
                   </div>
                 }
@@ -212,7 +255,9 @@
               El asegurado tiene que subir la documentación faltante desde su portal. Cuando la
               cargue, el caso se vuelve a evaluar automáticamente.
             </p>
-            @if (missingDocLabels().length > 0) {
+            @if (documentsLoading()) {
+              <app-inline-loading [size]="20" message="Cargando documentación…" />
+            } @else if (missingDocLabels().length > 0) {
               <ul class="missing-docs-list">
                 @for (label of missingDocLabels(); track label) {
                   <li>{{ label }}</li>
@@ -268,7 +313,50 @@
         </app-card>
       }
       @case ('documentacion') {
-        <app-case-documents [caseId]="d.id" [reloadToken]="docsReloadToken()" [branch]="d.branch" [claimCause]="d.claimCause" />
+        <app-case-documents [caseId]="d.id" [reloadToken]="docsReloadToken()" [branch]="d.branch" />
+      }
+      <!-- Peritaje: la evidencia del perito NO reemplaza a la recomendación del modelo — el informe
+           no re-clasifica, el analista lee las dos y decide. La solapa solo existe si hubo derivación. -->
+      @case ('peritaje') {
+        @if (peritaje(); as p) {
+          <app-card class="peritaje-card" heading="Peritaje">
+            <dl class="peritaje">
+              <dt class="t-field-label">Perito</dt>
+              <dd>{{ p.expertName }} @if (p.zone) { · {{ p.zone }} }</dd>
+              <dt class="t-field-label">Derivado por</dt>
+              <dd>{{ p.derivedByName }} · {{ formatDateTime(p.derivedAt) }}</dd>
+              <dt class="t-field-label">Motivo de la derivación</dt>
+              <dd>{{ p.reason }}</dd>
+            </dl>
+
+            @if (!p.notified) {
+              <p class="rcard-note error">
+                No se pudo avisarle al perito por mail. Contactalo por fuera antes de esperar el informe.
+              </p>
+            }
+
+            @if (p.verdict) {
+              <div class="peritaje-veredicto">
+                <app-badge variant="solid" [tone]="veredictoTone(p.verdict)">
+                  {{ veredictoLabel(p.verdict) }}
+                </app-badge>
+                <span class="t-note">{{ formatDateTime(p.reportReceivedAt) }}</span>
+              </div>
+              @if (p.verdictNote) {
+                <p class="t-body">{{ p.verdictNote }}</p>
+              }
+              <p class="t-note">El informe queda como adjunto del expediente, en la solapa Documentación.</p>
+            } @else {
+              <p class="nodata">Esperando el informe del perito.</p>
+              @if (canAct()) {
+                <app-button variant="secondary" (click)="askInforme()">Cargar informe</app-button>
+              }
+            }
+            @if (informeError()) {
+              <p class="rcard-note error">{{ informeError() }}</p>
+            }
+          </app-card>
+        }
       }
       @case ('conversacion') { <app-empty-state message="Conversación con el asegurado" /> }
       @case ('historial') {
@@ -312,5 +400,68 @@
   <ng-container modalActions>
     <app-button variant="secondary" (click)="cancelDecision()">Cancelar</app-button>
     <app-button [disabled]="!justification().trim()" (click)="confirmDecision()">Confirmar</app-button>
+  </ng-container>
+</app-modal>
+
+<!-- Derivación a peritaje. El perito sale del catálogo de la aseguradora y no de un mail escrito
+     a mano: así queda registro de con quién trabaja la compañía. -->
+<app-modal [open]="showDerivar()" heading="Derivar a peritaje" (close)="cancelDerivar()">
+  <p class="t-note">
+    Le vamos a mandar al perito los datos del siniestro a verificar. No se le manda la
+    clasificación ni el nivel de riesgo: se le pide verificar hechos.
+  </p>
+  <app-select
+    [options]="peritoOptions()"
+    placeholder="Elegí un perito…"
+    [(value)]="peritoElegido"
+  />
+  <app-textarea
+    [rows]="3"
+    placeholder="Motivo de la derivación (obligatorio)…"
+    [(value)]="motivoDerivacion"
+  />
+  @if (derivarError()) {
+    <p class="rcard-note error">{{ derivarError() }}</p>
+  }
+  <ng-container modalActions>
+    <app-button variant="secondary" (click)="cancelDerivar()">Cancelar</app-button>
+    <app-button
+      [disabled]="!peritoElegido() || !motivoDerivacion().trim() || derivarSaving()"
+      (click)="confirmDerivar()"
+    >
+      {{ derivarSaving() ? 'Derivando…' : 'Derivar' }}
+    </app-button>
+  </ng-container>
+</app-modal>
+
+<!-- Carga del informe pericial. El expediente vuelve a revisión con el veredicto al lado de la
+     clasificación; NO se re-clasifica. -->
+<app-modal [open]="showInforme()" heading="Cargar informe del perito" (close)="cancelInforme()">
+  <p class="t-note">
+    El expediente vuelve a tu revisión con el informe al lado de la recomendación del modelo. La
+    decisión sigue siendo tuya.
+  </p>
+  <app-select
+    [options]="veredictoOptions"
+    placeholder="Conclusión del perito…"
+    [(value)]="veredicto"
+  />
+  <label class="informe-file">
+    <input type="file" accept=".pdf,image/*" (change)="onInformeFile($event)" hidden />
+    <span class="t-field-label">{{ informeFile()?.name || 'Ningún archivo elegido' }}</span>
+    <app-button variant="secondary">Elegir informe</app-button>
+  </label>
+  <app-textarea [rows]="3" placeholder="Nota (opcional)…" [(value)]="notaVeredicto" />
+  @if (informeError()) {
+    <p class="rcard-note error">{{ informeError() }}</p>
+  }
+  <ng-container modalActions>
+    <app-button variant="secondary" (click)="cancelInforme()">Cancelar</app-button>
+    <app-button
+      [disabled]="!veredicto() || !informeFile() || informeSaving()"
+      (click)="confirmInforme()"
+    >
+      {{ informeSaving() ? 'Guardando…' : 'Guardar informe' }}
+    </app-button>
   </ng-container>
 </app-modal>

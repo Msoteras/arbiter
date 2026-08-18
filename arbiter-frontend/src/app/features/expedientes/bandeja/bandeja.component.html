@@ -215,6 +215,18 @@
               />
             </label>
 
+            @if (isReferente()) {
+              <label class="filter-field">
+                <span class="t-field-label">Analista</span>
+                <app-select
+                  [value]="draftAnalyst()"
+                  (valueChange)="draftAnalyst.set($event)"
+                  [options]="analystOptions()"
+                  placeholder="Todos los analistas"
+                />
+              </label>
+            }
+
             <label class="filter-field">
               <span class="t-field-label">Fecha del hecho — desde</span>
               <app-input

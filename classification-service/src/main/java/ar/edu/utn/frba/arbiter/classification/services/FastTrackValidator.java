@@ -46,7 +46,7 @@ public class FastTrackValidator {
         }
 
         // priorClaimsWindowMonths no cuenta como criterio activo: no decide por sí solo, solo acota
-        // la ventana de maxPriorClaims. Sin ese límite configurado, no evalúa nada.
+        // maxPriorClaims' window. With that limit unconfigured, it evaluates nothing.
         if (thresholds.maxClaimedAmountRatio() == null
                 && thresholds.maxPriorClaims() == null
                 && thresholds.minPolicyAgeMonths() == null
@@ -96,8 +96,8 @@ public class FastTrackValidator {
         if (thresholds.minPolicyAgeMonths() != null) {
             Long ageMonths = policyAgeMonths(claim, policy);
             if (ageMonths == null) {
-                // Sin fecha de alta de la póliza o sin fecha del hecho no se puede afirmar la
-                // antigüedad, y el Fast Track solo procede sobre lo verificable.
+                // Without the policy's start date or the event's date the age can't be asserted,
+                // and Fast Track only proceeds on what's verifiable.
                 eligible = false;
                 reasons.add("No se pudo determinar la antigüedad de la póliza — no aplica Fast Track");
             } else if (ageMonths >= thresholds.minPolicyAgeMonths()) {
@@ -140,15 +140,14 @@ public class FastTrackValidator {
     }
 
     /**
-     * Siniestros previos que cuentan contra el límite. Sin ventana configurada usa el conteo
-     * histórico completo, que es exactamente lo que hacía antes de que el campo existiera: el
-     * límite se comparaba contra los siniestros de toda la vida del asegurado, así que "máximo 1
-     * previo" dejaba fuera del Fast Track, para siempre, a un cliente de quince años con dos
-     * siniestros viejos (D14).
+     * Prior claims counting against the limit. With no window configured it uses the full
+     * historical count, which is exactly what it did before the field existed: the limit was
+     * compared against the insured's lifetime claims, so "at most 1 prior" locked a fifteen-year
+     * customer with two old claims out of Fast Track forever (D14).
      *
-     * <p>La ventana se cuenta hacia atrás desde el <b>hecho</b> y no desde hoy, igual que el tope
-     * de eventos anuales de {@code TemporalRuleEvaluator}: el criterio es la situación del
-     * asegurado cuando ocurrió el siniestro, no cuando alguien mira el expediente.
+     * <p>The window counts backwards from the <b>event</b> and not from today, like
+     * {@code TemporalRuleEvaluator}'s annual cap: the criterion is the insured's situation when the
+     * claim occurred, not when someone looks at the case.
      */
     private int priorClaimsInWindow(ClaimReport claim, InsuredHistory history, Integer windowMonths) {
         if (windowMonths == null || claim.eventDate() == null || history.claims() == null) {
@@ -161,11 +160,15 @@ public class FastTrackValidator {
                 .count();
     }
 
-    /** @return meses entre el alta de la póliza y el hecho, o null si falta alguna de las dos fechas. */
+    /**
+     * @return months between the policy's start and the event, or null if either date is missing.
+     *         Truncated to the day on both sides: policy age in months doesn't care about the hour
+     *         the way vigencia itself does (D13).
+     */
     private Long policyAgeMonths(ClaimReport claim, InsuredPolicy policy) {
         if (claim.eventDate() == null || policy.effectiveFrom() == null) {
             return null;
         }
-        return ChronoUnit.MONTHS.between(policy.effectiveFrom(), claim.eventDate().toLocalDate());
+        return ChronoUnit.MONTHS.between(policy.effectiveFrom().toLocalDate(), claim.eventDate().toLocalDate());
     }
 }

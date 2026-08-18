@@ -12,10 +12,10 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 /**
- * El motor solo tiene el {@code coverageId} y el nombre del hecho generador; la agenda se guarda
- * por ramo + hecho generador. El servicio cruza cobertura → ramo y devuelve la agenda de ese hecho
- * generador; sin cobertura o sin ramo, lista vacía (el motor compone sobre su baseline y nunca se
- * cae por falta de config).
+ * The engine only has the {@code coverageId} and the claim-cause name; the schedule is stored by
+ * branch + claim cause. The service resolves coverage → branch and returns that claim cause's
+ * schedule; with no coverage or no branch, an empty list (the engine composes over its baseline and
+ * never falls over missing config).
  */
 class InternalDocumentRequirementServiceTest {
 

@@ -2,9 +2,11 @@ package ar.edu.utn.frba.arbiter.rules.controllers;
 
 import ar.edu.utn.frba.arbiter.rules.dto.CoverageLimitsDto;
 import ar.edu.utn.frba.arbiter.rules.dto.EvaluableRulesDto;
+import ar.edu.utn.frba.arbiter.rules.dto.ExpertDerivationDto;
 import ar.edu.utn.frba.arbiter.rules.dto.ScoringConfigDto;
 import ar.edu.utn.frba.arbiter.rules.services.InternalCoverageLimitsService;
 import ar.edu.utn.frba.arbiter.rules.services.InternalEvaluableRuleService;
+import ar.edu.utn.frba.arbiter.rules.services.InternalExpertDerivationService;
 import ar.edu.utn.frba.arbiter.rules.services.ScoringConfigurationService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -16,9 +18,9 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 /**
- * Reglas duras evaluables por cobertura, servidas al motor de clasificación (no a un referente).
- * Hoy: exclusiones de cobertura (qué hechos generadores NO cubre). El CRUD del referente es un
- * incremento aparte (plan-reglas-evaluables.md, opción (a)): por ahora las reglas entran por seed.
+ * Hard evaluable rules per coverage, served to the classification engine (not to a referente).
+ * Today: coverage exclusions (which claim causes it does NOT cover). The referente's CRUD is a
+ * separate increment (plan-reglas-evaluables.md, option (a)): for now the rules come in via seed.
  */
 @RestController
 @RequestMapping("/api/v1/rules")
@@ -29,6 +31,7 @@ public class EvaluableRuleController {
     private final InternalEvaluableRuleService internalEvaluableRules;
     private final InternalCoverageLimitsService internalCoverageLimits;
     private final ScoringConfigurationService scoringConfigurationService;
+    private final InternalExpertDerivationService internalExpertDerivation;
 
     @GetMapping("/internal/evaluable")
     @PreAuthorize("isAuthenticated()")
@@ -59,5 +62,17 @@ public class EvaluableRuleController {
                     + "baseline. Es lo que hace que el panel de scoring del referente afecte la clasificación.")
     public ScoringConfigDto internalScoring() {
         return scoringConfigurationService.get();
+    }
+
+    @GetMapping("/internal/expert-derivation")
+    @PreAuthorize("isAuthenticated()")
+    @Operation(summary = "[interno] Política de derivación a peritaje del ramo",
+            description = "Lectura system-to-system para cases-service: si esta aseguradora deriva "
+                    + "siniestros de este ramo a un perito externo, y desde qué monto reclamado. Sin regla "
+                    + "configurada ⇒ enabled=false, y el analista no ve la opción de derivar: el peritaje "
+                    + "es opt-in, porque abajo de cierto monto cuesta más que el siniestro. No decide nada "
+                    + "—habilita—: quién y cuándo deriva sigue siendo el analista.")
+    public ExpertDerivationDto internalExpertDerivation(@RequestParam Long branchId) {
+        return internalExpertDerivation.getByBranch(branchId);
     }
 }

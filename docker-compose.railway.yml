@@ -113,6 +113,11 @@ services:
       DB_USER: ${DB_USER:?falta DB_USER en .env}
       DB_PASSWORD: ${DB_PASSWORD:?falta DB_PASSWORD en .env}
       JWT_SECRET: ${JWT_SECRET:?falta JWT_SECRET en .env}
+      # Faltaba acá (17/08): sin esto cae al default de application.yml (localhost:8081), que
+      # adentro del contenedor nunca resuelve a rules-service — RulesRestAdapter.getRules()
+      # rompe con "Connection refused" en cada clasificación. docker-compose.yml (el local) sí
+      # la tenía; se desalinearon los dos archivos.
+      RULES_SERVICE_URL: http://rules-service:8081
     depends_on:
       ollama-init:
         condition: service_completed_successfully
@@ -134,8 +139,15 @@ services:
       DB_PASSWORD: ${DB_PASSWORD:?falta DB_PASSWORD en .env}
       JWT_SECRET: ${JWT_SECRET:?falta JWT_SECRET en .env}
       SPRING_PROFILES_ACTIVE: ${CASES_PROFILES:-insurer-db}
+      # Avisos de cambio de estado al asegurado. Sin la key el módulo levanta igual: la
+      # notificación queda registrada en base y solo no sale el mail.
+      SENDGRID_API_KEY: ${SENDGRID_API_KEY:-}
+      SENDGRID_FROM_ADDRESS: ${SENDGRID_FROM_ADDRESS:-no-reply@arbiter.test}
+      SENDGRID_FROM_NAME: ${SENDGRID_FROM_NAME:-Arbiter}
     depends_on:
       classification-service:
+        condition: service_started
+      rules-service:
         condition: service_started
     restart: on-failure
 

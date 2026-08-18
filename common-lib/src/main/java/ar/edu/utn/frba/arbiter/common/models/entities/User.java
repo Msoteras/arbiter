@@ -31,7 +31,7 @@ import java.util.Set;
  * {@code claims_analyst} / {@code insurer_referent}).
  */
 @Entity
-@Table(name = "users")
+@Table(name = "users", schema = "arbiter_common")
 @Getter
 @Setter
 @NoArgsConstructor
@@ -104,6 +104,7 @@ public class User {
     @ManyToMany(fetch = FetchType.EAGER)
     @JoinTable(
             name = "user_role",
+            schema = "arbiter_common",
             joinColumns = @JoinColumn(name = "user_id"),
             inverseJoinColumns = @JoinColumn(name = "role_id"))
     private Set<Role> roles = new HashSet<>();

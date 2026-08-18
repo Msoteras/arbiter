@@ -11,7 +11,7 @@ import {
 } from '@angular/core';
 import { toObservable, toSignal } from '@angular/core/rxjs-interop';
 import { Router, RouterLink } from '@angular/router';
-import { catchError, forkJoin, map, of, startWith, switchMap } from 'rxjs';
+import { catchError, debounceTime, map, of, startWith, switchMap } from 'rxjs';
 
 import { ExpedienteService, CaseCreateRequest } from '../expediente.service';
 import { PolicyService } from '../policy.service';
@@ -39,13 +39,6 @@ interface ClaimType {
   label: string;
   claimCause: string;
 }
-
-// Estado combinado de los dos catálogos que dependen de la póliza: los hechos del ramo (chips) y la
-// whitelist de cubiertos. 'ready' recién cuando AMBAS respuestas llegaron (ver el forkJoin de abajo).
-type CatalogsState =
-  | { status: 'idle' }
-  | { status: 'loading' }
-  | { status: 'ready'; types: ClaimType[]; covered: ReadonlySet<string> };
 
 interface DocSlot {
   type: string;
@@ -75,6 +68,21 @@ type PoliciesState =
   | { status: 'no-identity' }
   | { status: 'ok'; list: Policy[] }
   | { status: 'error' };
+
+type ClaimTypesState =
+  | { status: 'idle' }
+  | { status: 'loading' }
+  | { status: 'ok'; list: ClaimType[] };
+
+type EligibilityState =
+  | { status: 'idle' }
+  | { status: 'checking' }
+  | { status: 'ok' }
+  | { status: 'blocked'; reason: string }
+  // El precheck no respondió (red, 5xx, o un 400 real de contrato). Distinto de 'ok': no
+  // sabemos si la póliza es elegible, no que sí lo sea. Sigue sin bloquear "Siguiente" — el
+  // gate real del submit final sigue estando — pero avisa en vez de quedar en silencio.
+  | { status: 'unknown' };
 
 @Component({
   selector: 'app-nueva-denuncia',
@@ -159,79 +167,66 @@ export class NuevaDenunciaComponent {
     }
   });
 
-  // Los DOS catálogos que dependen de la póliza, pedidos EN PARALELO y presentados juntos: los hechos
-  // generadores del ramo (los chips a dibujar) y los que la póliza SÍ cubre (la whitelist). Con
-  // forkJoin no se emite 'ready' hasta que las dos respuestas llegan, así los chips nunca aparecen
-  // "clickeables" antes de saber si están cubiertos — mientras tanto el paso muestra 'loading'.
-  // Errores de red caen a lista vacía: el ramo sin hechos no rompe, y whitelist vacía ⇒ nada cubierto
-  // (fail-closed, igual que una cobertura sin inclusiones cargadas por el referente).
-  protected readonly catalogs = toSignal(
-    toObservable(this.selectedPolicy).pipe(
-      switchMap((policy) =>
-        policy
-          ? forkJoin({
-              types: this.policyService
-                .listClaimCauses(policy.branch)
-                .pipe(catchError(() => of<string[]>([]))),
-              covered: this.policyService
-                .listCoveredClaimCauses(policy.policyNumber)
-                .pipe(catchError(() => of<string[]>([]))),
-            }).pipe(
-              map(({ types, covered }): CatalogsState => ({
-                status: 'ready',
-                types: types.map((name) => ({ key: name, label: name, claimCause: name })),
-                covered: new Set(covered),
-              })),
-              startWith<CatalogsState>({ status: 'loading' }),
+  // Hechos generadores REALES del ramo de la póliza elegida, ya recortados por lo que la cobertura
+  // de esa póliza excluye (COVERAGE_EXCLUSION) — antes eran una lista fija que no coincidía con el
+  // catálogo por ramo (ej. "Rotura accidental" no existe en Tecnología, "Siniestro general" en
+  // ninguno) → el backend tiraba 422 al crear el caso, y después mostraba TODOS los del ramo sin
+  // mirar la cobertura → el motor recién detectaba la exclusión en la clasificación, con la
+  // documentación ya subida. Vacío hasta elegir póliza. Reacciona a policyNumber, no solo a branch:
+  // dos pólizas del mismo ramo pueden tener coberturas con exclusiones distintas.
+  // Estado explícito (en vez de solo el array) para poder mostrar un loader mientras el fetch está
+  // en vuelo: sin esto, al elegir póliza los chips de "¿Qué te pasó?" quedaban vacíos un instante,
+  // como si el ramo no tuviera hechos generadores en vez de estar cargándolos.
+  protected readonly claimTypesState = toSignal(
+    toObservable(
+      computed(() => {
+        const policy = this.selectedPolicy();
+        return policy ? { branch: policy.branch, policyNumber: policy.policyNumber } : null;
+      }),
+    ).pipe(
+      switchMap((selected) =>
+        selected
+          ? this.policyService.listClaimCauses(selected.branch, selected.policyNumber).pipe(
+              map(
+                (names): ClaimTypesState => ({
+                  status: 'ok',
+                  list: names.map((name): ClaimType => ({ key: name, label: name, claimCause: name })),
+                }),
+              ),
+              startWith<ClaimTypesState>({ status: 'loading' }),
+              catchError(() => of<ClaimTypesState>({ status: 'ok', list: [] })),
             )
-          : of<CatalogsState>({ status: 'idle' }),
+          : of<ClaimTypesState>({ status: 'idle' }),
       ),
     ),
-    { initialValue: { status: 'idle' } as CatalogsState },
+    { initialValue: { status: 'idle' } as ClaimTypesState },
   );
 
-  /** Los chips a dibujar: los hechos del ramo, solo una vez que ambos catálogos cargaron. */
+  protected readonly claimTypesLoading = computed(() => this.claimTypesState().status === 'loading');
+
   protected readonly claimTypes = computed<ClaimType[]>(() => {
-    const c = this.catalogs();
-    return c.status === 'ready' ? c.types : [];
+    const s = this.claimTypesState();
+    return s.status === 'ok' ? s.list : [];
   });
-
-  /** Mientras se resuelven las dos llamadas: el paso muestra el spinner en vez de los chips. */
-  protected readonly catalogsLoading = computed(() => this.catalogs().status === 'loading');
-
   protected readonly selectedType = signal<ClaimType | null>(null);
-
-  // El hecho elegido no está entre los que cubre la póliza. Solo con los catálogos ya cargados
-  // ('ready'); si no hay hecho elegido, no marcamos.
-  protected readonly selectedTypeNotCovered = computed(() => {
-    const c = this.catalogs();
-    const type = this.selectedType();
-    if (!type || c.status !== 'ready') {
-      return false;
-    }
-    return !c.covered.has(type.claimCause);
-  });
-  // Al cambiar de póliza la causa elegida puede dejar de existir en el nuevo ramo: se limpia. Solo
-  // corre con los catálogos ya cargados, para no borrar la selección durante el 'loading'.
+  // Al cambiar de ramo la causa elegida puede dejar de existir: se limpia para no mandar un hecho
+  // generador que el backend rechazaría.
   private readonly resetSelectedType = effect(() => {
-    const c = this.catalogs();
-    if (c.status !== 'ready') {
-      return;
-    }
+    const types = this.claimTypes();
     const current = untracked(() => this.selectedType());
-    if (current && !c.types.some((t) => t.claimCause === current.claimCause)) {
+    if (current && !types.some((t) => t.claimCause === current.claimCause)) {
       this.selectedType.set(null);
     }
   });
 
-  // No se puede avanzar con un hecho que la póliza no cubre, ni antes de que los catálogos carguen:
-  // denunciar un hecho no cubierto solo genera un caso que el motor va a rechazar.
+  // eligibilityError()/eligibilityChecking() están declarados más abajo (dependen de
+  // eligibilityCheck), pero como son signals el orden de declaración no importa para el computed.
   protected readonly step1Valid = computed(
     () =>
       !!this.selectedPolicy() &&
       !!this.selectedType() &&
-      this.catalogs().status === 'ready' &&
-      !this.selectedTypeNotCovered(),
+      this.eligibilityError() === null &&
+      !this.eligibilityChecking(),
   );
 
   // Tope del input de fecha (docs/frontend-bugs-ux.md #16): un siniestro no puede haber
@@ -258,6 +253,93 @@ export class NuevaDenunciaComponent {
   protected readonly contactEmail = signal('');
   protected readonly contactPhone = signal('');
 
+  /**
+   * The two date-coherence checks that need no backend round trip — instant, no debounce. Vigencia,
+   * carencia y mora salen de {@link backendEligibility}: son las que dependen de datos que el
+   * portal no trae de entrada (carencia) o de configuración del referente (mora, `onArrears`).
+   */
+  protected readonly dateCoherenceError = computed<string | null>(() => {
+    const eventDate = this.eventDate();
+    const policeReport = this.policeReportDate();
+    if (!eventDate || !policeReport) {
+      return null;
+    }
+    if (policeReport < eventDate) {
+      return 'La denuncia policial no puede ser anterior al siniestro. Revisá las dos fechas.';
+    }
+    if (policeReport > this.today) {
+      return 'La fecha de la denuncia policial no puede ser futura.';
+    }
+    return null;
+  });
+
+  /**
+   * Same gate `POST /cases` runs at intake (vigencia, carencia, mora — `PolicyEligibilityValidator`
+   * via `POST /cases/eligibility`), so the insured finds out here instead of after filling out the
+   * rest of the form and uploading documentation. Debounced: fires as the policy/dates settle, not
+   * on every keystroke. Fails OPEN on a network error — the real gate at submit still enforces
+   * vigencia/carencia (no external call needed for those) and rules-service being down already
+   * fails open server-side for mora, so blocking the wizard over a transient check failure would
+   * be strictly worse than the status quo.
+   *
+   * Fires as soon as there's a policy, `eventDate` or not: mora (`POLICY_STANDING`) doesn't need a
+   * date, only vigencia/carencia do, and the backend already skips those when `eventDate` is
+   * absent. That's what lets a rejected-for-arrears policy block right in step 1, at selection
+   * time, instead of only after the insured fills in the event date in step 2.
+   */
+  private readonly eligibilityCheck = toSignal(
+    toObservable(
+      computed(() => {
+        const policy = this.selectedPolicy();
+        if (!policy || this.dateCoherenceError()) {
+          return null;
+        }
+        const eventDate = this.eventDate();
+        return {
+          insuredId: policy.insuredId,
+          policyNumber: policy.policyNumber,
+          eventDate: eventDate ? eventDate + 'T' + (this.eventTime() || '00:00') + ':00' : undefined,
+          policeReportAt: this.policeReportDate()
+            ? this.policeReportDate() + 'T' + (this.policeReportTime() || '00:00') + ':00'
+            : undefined,
+        };
+      }),
+    ).pipe(
+      debounceTime(400),
+      switchMap((req) =>
+        req
+          ? this.service.checkEligibility(req).pipe(
+              map((res): EligibilityState =>
+                res.eligible
+                  ? { status: 'ok' }
+                  : { status: 'blocked', reason: res.reason ?? 'No se puede registrar la denuncia.' },
+              ),
+              startWith<EligibilityState>({ status: 'checking' }),
+              catchError(() => of<EligibilityState>({ status: 'unknown' })),
+            )
+          : of<EligibilityState>({ status: 'idle' }),
+      ),
+    ),
+    { initialValue: { status: 'idle' } as EligibilityState },
+  );
+
+  protected readonly eligibilityChecking = computed(() => this.eligibilityCheck().status === 'checking');
+
+  // El precheck falló (red, backend caído, un 400 real) y no hay forma de saber si la póliza es
+  // elegible. No bloquea "Siguiente" — mismo criterio de fail-open que antes — pero el asegurado
+  // se entera de que no se pudo confirmar, en vez de ver la nada silenciosa de un chequeo que
+  // "pasó" sin haber corrido en realidad.
+  protected readonly eligibilityUnknown = computed(() => this.eligibilityCheck().status === 'unknown');
+
+  protected readonly eligibilityError = computed<string | null>(() => {
+    const dateError = this.dateCoherenceError();
+    if (dateError) {
+      return dateError;
+    }
+    const check = this.eligibilityCheck();
+    return check.status === 'blocked' ? check.reason : null;
+  });
+
   // El backend exige además insuredItem, eventDate y eventLocation (@NotBlank/@NotNull en
   // CaseRequest) — sin esto el asegurado llegaba al paso 3, adjuntaba documentación, y recién
   // ahí el submit fallaba con un error genérico.
@@ -267,7 +349,12 @@ export class NuevaDenunciaComponent {
       this.insuredItem().trim().length > 0 &&
       this.eventDate().trim().length > 0 &&
       this.eventDate() <= this.today &&
-      this.buildEventLocation().trim().length > 0,
+      this.eligibilityError() === null &&
+      !this.eligibilityChecking() &&
+      // eventLocation es @NotBlank en el backend, y ahora es solo la calle: exigirla puntualmente
+      // en vez de "alguna de las cuatro partes cargadas", que dejaba pasar un submit con provincia
+      // y localidad pero sin dirección.
+      this.buildEventAddress().trim().length > 0,
   );
 
   // Step 3
@@ -275,9 +362,9 @@ export class NuevaDenunciaComponent {
     CASE_DOCUMENT_TYPES.map(({ type, label }) => ({ type, label, file: null, error: null })),
   );
 
-  // El asegurado sube exactamente lo que el referente configuró como requerido para el ramo +
-  // hecho generador elegidos (o el catálogo completo si esa combinación no tiene agenda). Al
-  // cambiar de póliza o de hecho generador, se rearman los slots según esa agenda.
+  // El asegurado sube exactamente lo que el referente configuró como requerido para el ramo + hecho
+  // generador elegidos (o el catálogo completo si esa combinación no tiene agenda). Al cambiar de
+  // póliza o de hecho generador, se rearman los slots según esa agenda.
   private readonly requiredDocTypes = toSignal(
     toObservable(
       computed(() => ({
@@ -366,11 +453,13 @@ export class NuevaDenunciaComponent {
     });
   }
 
-  private buildEventLocation(): string {
-    const parts = [this.calleNumero(), this.localidad(), this.provincia()].filter(
-      (p) => p.trim().length > 0,
-    );
-    const base = parts.join(', ');
+  /**
+   * Dirección a nivel calle, sin localidad ni provincia — esas dos viajan en sus propios campos
+   * del request y se guardan en `cases.locality`/`cases.province`. Antes esto concatenaba las
+   * cuatro partes en un solo string y era lo único que llegaba al backend.
+   */
+  private buildEventAddress(): string {
+    const base = this.calleNumero().trim();
     return this.entreCalles().trim() ? `${base} (entre ${this.entreCalles()})` : base;
   }
 
@@ -392,7 +481,12 @@ export class NuevaDenunciaComponent {
       policyNumber: policy.policyNumber,
       description: this.description(),
       eventDate: this.eventDate() + 'T' + (this.eventTime() || '00:00') + ':00',
-      eventLocation: this.buildEventLocation(),
+      // Solo la dirección a nivel calle. Localidad y provincia van aparte, en sus propios campos:
+      // concatenar las cuatro partes acá dejaba cases.locality/province en null y la ubicación
+      // como prosa imposible de filtrar o agrupar.
+      eventLocation: this.buildEventAddress(),
+      province: this.provincia() || undefined,
+      locality: this.localidad() || undefined,
       // Solo si se declaró: la columna es nullable y "no hubo denuncia policial" es un caso
       // legítimo, distinto de "hubo pero no sé cuándo". Mandar una fecha inventada sería peor
       // que no mandar nada, porque la regla del plazo la evaluaría como si fuera real.

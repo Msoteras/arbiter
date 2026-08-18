@@ -9,15 +9,15 @@ import org.springframework.transaction.annotation.Transactional;
 import java.util.List;
 
 /**
- * Lectura system-to-system de la agenda documental para el motor de clasificación.
+ * System-to-system read of the document schedule for the classification engine.
  *
- * <p>Misma asimetría de claves que {@link InternalRuleTextService}: el referente configura la agenda
- * por ramo + hecho generador con ids, pero el claim que llega al motor solo trae un {@code coverageId}
- * y el hecho generador como nombre (ver {@code ClaimReport}). Así que acá se resuelve cobertura →
- * ramo, y el nombre del hecho generador → su id dentro de ese ramo, y recién después se leen los
- * tipos de documento requeridos. Es lo que el gate de faltantes
- * ({@code ClassificationOrchestrator.checkRequiredDocuments}) usa para decidir si al expediente le
- * falta documentación — antes salía del mock, ahora de lo que el referente configuró.
+ * <p>Same key asymmetry as {@link InternalRuleTextService}: the referente configures the schedule
+ * by branch + claim cause with ids, but the claim reaching the engine only carries a
+ * {@code coverageId} and the claim cause as a name (see {@code ClaimReport}). So coverage → branch
+ * is resolved here, and the claim-cause name → its id within that branch, and only then are the
+ * required document types read. It's what the missing-documents gate
+ * ({@code ClassificationOrchestrator.checkRequiredDocuments}) uses to decide whether a case is
+ * missing documentation — it used to come from the mock, now from what the referente configured.
  */
 @Service
 @RequiredArgsConstructor
@@ -27,9 +27,9 @@ public class InternalDocumentRequirementService {
     private final DocumentRequirementService documentRequirements;
 
     /**
-     * Devuelve vacío —no 404— cuando la cobertura no existe, el ramo no tiene ese hecho generador, o
-     * no tiene agenda: el motor compone esto sobre su baseline y una clasificación no se puede caer
-     * porque falte configuración.
+     * Returns empty — not 404 — when the coverage doesn't exist, the branch has no such claim cause,
+     * or there's no schedule: the engine composes this over its baseline, and a classification can't
+     * fall over missing config.
      */
     @Transactional(readOnly = true)
     public List<String> getByCoverage(Long coverageId, String claimCauseName) {

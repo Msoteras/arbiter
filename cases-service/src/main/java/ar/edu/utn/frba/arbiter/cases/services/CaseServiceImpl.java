@@ -6,10 +6,14 @@ import ar.edu.utn.frba.arbiter.cases.dto.AssignedCaseSummaryResponse;
 import ar.edu.utn.frba.arbiter.cases.dto.CaseDocumentResponse;
 import ar.edu.utn.frba.arbiter.cases.dto.CaseRequest;
 import ar.edu.utn.frba.arbiter.cases.dto.CaseResponse;
+import ar.edu.utn.frba.arbiter.cases.dto.EligibilityCheckRequest;
+import ar.edu.utn.frba.arbiter.cases.dto.EligibilityCheckResponse;
+import ar.edu.utn.frba.arbiter.cases.dto.LensSummaryResponse;
 import ar.edu.utn.frba.arbiter.cases.config.tenant.CallerContext;
 import ar.edu.utn.frba.arbiter.cases.config.tenant.TenantContext;
 import ar.edu.utn.frba.arbiter.cases.dto.StatusTransitionResponse;
 import ar.edu.utn.frba.arbiter.cases.models.repositories.InsurerRepository;
+import ar.edu.utn.frba.arbiter.common.models.entities.ClaimCause;
 import ar.edu.utn.frba.arbiter.common.models.entities.Insurer;
 import ar.edu.utn.frba.arbiter.cases.exceptions.AnalystNotFoundException;
 import ar.edu.utn.frba.arbiter.cases.exceptions.AnalystProfileNotFoundException;
@@ -20,6 +24,7 @@ import ar.edu.utn.frba.arbiter.cases.exceptions.InsuredIdentityMismatchException
 import ar.edu.utn.frba.arbiter.cases.exceptions.InvalidAnalystDecisionException;
 import ar.edu.utn.frba.arbiter.cases.exceptions.InvalidStatusTransitionException;
 import ar.edu.utn.frba.arbiter.cases.exceptions.PolicyInsuredMismatchException;
+import ar.edu.utn.frba.arbiter.cases.exceptions.PolicyNotEligibleException;
 import ar.edu.utn.frba.arbiter.cases.models.entities.CaseDocument;
 import ar.edu.utn.frba.arbiter.cases.models.entities.Case;
 import ar.edu.utn.frba.arbiter.common.models.entities.tenant.Insured;
@@ -64,6 +69,7 @@ public class CaseServiceImpl implements CaseService {
     private final ClaimsAnalysisClient claimsAnalysisClient;
     private final ClaimsAnalystRepository claimsAnalystRepository;
     private final CaseReferenceResolver referenceResolver;
+    private final PolicyEligibilityValidator policyEligibilityValidator;
     private final CaseAnalysisRepository caseAnalysisRepository;
     private final CaseAccessPolicy accessPolicy;
     private final InsuredCaseAggregator insuredCaseAggregator;
@@ -101,9 +107,12 @@ public class CaseServiceImpl implements CaseService {
 
         // Every string in the request has to name something the tenant actually has; anything
         // that doesn't resolve fails with 422 rather than being stored as free text.
-        Policy policy = referenceResolver.resolvePolicy(request.policyNumber());
+        //
+        // The insured resolves first because the policy might not be synced yet, and the snapshot
+        // pulled from the insurer DB needs someone to point at as its holder.
         Insured insured = referenceResolver.applyDeclaredDetails(
                 referenceResolver.resolveInsured(request.insuredId()), request);
+        Policy policy = referenceResolver.resolvePolicy(request.policyNumber(), insured.getId());
 
         // Both resolved on their own; the pairing is what has to hold. Checked after resolving
         // because the policy's owner is an id, and the DNI only becomes one here. Objects.equals
@@ -113,8 +122,21 @@ public class CaseServiceImpl implements CaseService {
             throw new PolicyInsuredMismatchException(request.policyNumber());
         }
 
+        // Resolved before the eligibility gate so COVERAGE_EXCLUSION can be checked there too
+        // (the wizard already filters "¿Qué te pasó?" against it, but that's a UI convenience — a
+        // client posting straight to this endpoint isn't stopped by a dropdown).
+        ClaimCause claimCause = referenceResolver.resolveClaimCause(request.branch(), request.claimCause());
+
+        // No contract with coverage means no claim to analyze: the case doesn't get created and
+        // the insured gets the reason on the spot, instead of waiting for an analyst to close by
+        // hand something that was never covered. Runs after the ownership check so an attempt to
+        // file against someone else's policy still fails on that and doesn't leak its coverage window.
+        policyEligibilityValidator.validate(
+                request.policyNumber(), request.eventDate(), request.policeReportAt(), policy.getCoverage(),
+                claimCause);
+
         Case entity = Case.builder()
-                .claimCause(referenceResolver.resolveClaimCause(request.branch(), request.claimCause()))
+                .claimCause(claimCause)
                 .declaredItem(request.insuredItem())
                 .insured(insured)
                 .policy(policy)
@@ -123,6 +145,10 @@ public class CaseServiceImpl implements CaseService {
                 .occurredAt(request.eventDate())
                 .policeReportAt(request.policeReportAt())
                 .eventAddress(request.eventLocation())
+                // Normalizadas en sus propias columnas, no aplastadas dentro de eventAddress: es lo
+                // que permite filtrar/agrupar por zona sin parsear texto libre.
+                .province(blankToNull(request.province()))
+                .locality(blankToNull(request.locality()))
                 .claimedAmount(request.claimedAmount())
                 // Desde la denuncia, que es este mismo momento: `reportedAt` lo pone Hibernate
                 // recién al insertar, así que acá todavía es null.
@@ -136,6 +162,50 @@ public class CaseServiceImpl implements CaseService {
         claimsAnalysisClient.analyzeAndPersist(saved, caseDocumentRepository.findByCaseId(saved.getId()));
 
         return toResponse(saved);
+    }
+
+    @Override
+    public EligibilityCheckResponse checkEligibility(EligibilityCheckRequest request) {
+        String issuingTenant = policyTenantLocator.locate(request.policyNumber());
+        String callerTenant = TenantContext.get();
+        TenantContext.set(issuingTenant);
+        try {
+            return checkEligibilityInIssuingTenant(request);
+        } finally {
+            TenantContext.set(callerTenant);
+        }
+    }
+
+    /**
+     * Same resolution {@link #createCaseInIssuingTenant} does up to (not including) building the
+     * {@code Case} entity — insured, policy, ownership, {@code PolicyEligibilityValidator}. Doesn't
+     * call {@code applyDeclaredDetails}: pep/imageConsent/contact fields aren't part of the
+     * eligibility question, and persisting them from a value the insured hasn't submitted yet would
+     * be premature — that write happens for real at {@link #createCaseInIssuingTenant}.
+     */
+    private EligibilityCheckResponse checkEligibilityInIssuingTenant(EligibilityCheckRequest request) {
+        assertFilingOwnDenuncia(request.insuredId());
+        try {
+            Insured insured = referenceResolver.resolveInsured(request.insuredId());
+            Policy policy = referenceResolver.resolvePolicy(request.policyNumber(), insured.getId());
+            if (!Objects.equals(insured.getId(), policy.getInsuredId())) {
+                throw new PolicyInsuredMismatchException(request.policyNumber());
+            }
+            // claimCause null: el precheck corre en el paso 1/2, antes de "¿Qué te pasó?" — no
+            // tiene el hecho generador todavía, así que ese chequeo puntual solo se hace en el
+            // alta real (createCaseInIssuingTenant), que sí lo tiene siempre.
+            policyEligibilityValidator.validate(
+                    request.policyNumber(), request.eventDate(), request.policeReportAt(), policy.getCoverage(),
+                    null);
+            return EligibilityCheckResponse.ok();
+        } catch (PolicyNotEligibleException | PolicyInsuredMismatchException e) {
+            return EligibilityCheckResponse.notEligible(e.getMessage());
+        }
+    }
+
+    /** Un campo opcional que llega vacío es "no lo cargó", no una cadena vacía guardada en base. */
+    private static String blankToNull(String value) {
+        return value == null || value.isBlank() ? null : value.trim();
     }
 
     /**
@@ -287,7 +357,7 @@ public class CaseServiceImpl implements CaseService {
     @Override
     public Page<CaseResponse> listCases(CaseStatus status, String claimCause, String policyNumber,
                                          String insuredId, LocalDate eventDateFrom, LocalDate eventDateTo,
-                                         String q, RiskBand riskBand, boolean assignedToMe,
+                                         String q, RiskBand riskBand, Long analystId, boolean assignedToMe,
                                          boolean unassigned, boolean fraudAlert, boolean assigned,
                                          Pageable pageable) {
         if (accessPolicy.currentUserIsInsured()) {
@@ -297,7 +367,9 @@ public class CaseServiceImpl implements CaseService {
                     status, claimCause, policyNumber, eventDateFrom, eventDateTo, q, riskBand, pageable));
         }
 
-        Long ownerId = null;
+        // "Los míos" gana sobre el filtro explícito: si vienen los dos, el analista está mirando su
+        // propia bandeja y el id de otro no tendría sentido.
+        Long ownerId = analystId;
         if (assignedToMe) {
             ownerId = currentAnalystId().orElse(null);
             if (ownerId == null) {
@@ -312,6 +384,35 @@ public class CaseServiceImpl implements CaseService {
                 status, claimCause, policyNumber, insuredId, eventDateFrom, eventDateTo, q, riskBand,
                 ownerId, unassigned, fraudAlert, assigned);
         return toResponses(caseRepository.findAll(spec, pageable));
+    }
+
+    @Override
+    public LensSummaryResponse lensSummary(CaseStatus status, String claimCause, String policyNumber,
+                                            String insuredId, LocalDate eventDateFrom, LocalDate eventDateTo,
+                                            String q, RiskBand riskBand, Long analystId) {
+        // "Míos" necesita saber quién es "yo"; para el referente no hay perfil de analista y queda 0.
+        Long me = currentAnalystId().orElse(null);
+        return new LensSummaryResponse(
+                count(status, claimCause, policyNumber, insuredId, eventDateFrom, eventDateTo, q, riskBand,
+                        analystId, false, false, false),
+                me == null ? 0 : count(status, claimCause, policyNumber, insuredId, eventDateFrom, eventDateTo,
+                        q, riskBand, me, false, false, false),
+                count(status, claimCause, policyNumber, insuredId, eventDateFrom, eventDateTo, q, riskBand,
+                        analystId, false, false, true),
+                count(status, claimCause, policyNumber, insuredId, eventDateFrom, eventDateTo, q, riskBand,
+                        analystId, true, false, false),
+                count(status, claimCause, policyNumber, insuredId, eventDateFrom, eventDateTo, q, riskBand,
+                        analystId, false, true, false));
+    }
+
+    private long count(CaseStatus status, String claimCause, String policyNumber, String insuredId,
+                       LocalDate eventDateFrom, LocalDate eventDateTo, String q, RiskBand riskBand,
+                       Long analystId, boolean unassigned, boolean fraudAlert, boolean assigned) {
+        Specification<Case> spec = CaseSpecifications.withFilters(
+                status, claimCause, policyNumber, insuredId, eventDateFrom, eventDateTo, q, riskBand,
+                analystId, unassigned, fraudAlert, assigned);
+        // Sin ningún filtro la spec queda null, y count(null) explota — findAll(null, pageable) no.
+        return spec == null ? caseRepository.count() : caseRepository.count(spec);
     }
 
     /**

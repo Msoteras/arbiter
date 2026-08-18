@@ -1,3 +1,4 @@
+import { HardRule } from '../../features/admin/hard-rules.service';
 import { RiskBand } from './risk-band';
 
 // Modelo de configuración de reglas administrado por el referente. Es Ramo-céntrico: el Ramo
@@ -33,12 +34,19 @@ export interface Coverage {
   /** Exclusiones específicas de esta cobertura, en texto libre (van al prompt del LLM). */
   exclusions: string[];
   /**
-   * Hechos generadores (claim_cause ids) que esta cobertura SÍ cubre — inclusión DURA que evalúa
-   * el motor por código (COVERAGE_INCLUSION) y audita en rule_result, no el LLM. Opcional: el mock
-   * semilla no lo trae; el detalle real de la cobertura lo carga desde rules-service. Sin config,
-   * la cobertura no cubre ningún hecho generador (lista blanca, no negra).
+   * Hechos generadores (claim_cause ids) que esta cobertura NO cubre — exclusión DURA que evalúa
+   * el motor por código (COVERAGE_EXCLUSION) y audita en rule_result, no el LLM. Opcional: el mock
+   * semilla no lo trae; el detalle real de la cobertura lo carga desde rules-service.
    */
-  includedClaimCauseIds?: number[];
+  excludedClaimCauseIds?: number[];
+  /**
+   * Hard temporal rules the insurer has active for this coverage (coverage window, waiting
+   * period, deadlines, events cap, arrears). They're each rule's switch, not its threshold: the
+   * thresholds are the fields above, except the police-report deadline, which has no column of
+   * its own and travels inside its own rule. Optional: `HardRulesService` loads them from
+   * rules-service.
+   */
+  hardRules?: HardRule[];
 }
 
 /** Gate determinístico del Fast Track ("Siniestro Express"), configurado por ramo. */
@@ -93,10 +101,16 @@ export interface RamoRules {
   id: string;
   name: string;
   coverages: Coverage[];
+  /**
+   * How many coverages the ramo has, from `/coverages/summary` — accurate for every ramo up
+   * front, unlike `coverages.length`, which stays 0 until the referente actually selects the
+   * ramo and its full detail loads. The sidebar badge reads this, not `coverages.length`.
+   */
+  coverageCount: number;
   /** Exclusiones comunes a todas las coberturas del ramo. */
   commonExclusions: string[];
-  /** Agenda documental del ramo, por hecho generador (id → códigos de tipo de documento). */
-  requiredDocumentsByClaimCause: Record<number, string[]>;
+  /** Agenda documental por hecho generador (claimCauseId → códigos de tipo de documento). */
+  requiredDocumentsByClaimCause: { [claimCauseId: number]: string[] };
   /** Reglas de negocio en texto libre. */
   businessRules: string[];
   fastTrack: FastTrackConfig;

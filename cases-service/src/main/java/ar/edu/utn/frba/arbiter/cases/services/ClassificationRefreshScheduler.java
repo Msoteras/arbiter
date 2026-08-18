@@ -76,15 +76,25 @@ public class ClassificationRefreshScheduler {
         }
     }
 
+    /**
+     * Sube el contador y, al agotarse, marca el expediente como fallido.
+     *
+     * <p>El contador se escribe con un update puntual y no con {@code save(caseRecord)}: la
+     * entidad se cargó al principio del barrido, y guardarla entera reescribía toda la fila desde
+     * esa copia vieja, revirtiendo en silencio cualquier cambio hecho en el medio — el caso
+     * concreto que lo destapó fue un expediente que volvía solo de {@code CLASSIFICATION_FAILED}
+     * a {@code PENDING_CLASSIFICATION} cada pocos segundos, deshaciendo el reintento del analista.
+     * El barrido es dueño del contador y de nada más.
+     */
     private void incrementAttempts(Case caseRecord) {
         int attempts = caseRecord.getClassificationAttempts() + 1;
-        caseRecord.setClassificationAttempts(attempts);
         if (attempts >= maxAttempts) {
             log.error("Case {} marked as CLASSIFICATION_FAILED after {} attempts", caseRecord.getId(), attempts);
+            caseRecord.setClassificationAttempts(attempts);
             caseStatusService.transition(caseRecord, CaseStatus.CLASSIFICATION_FAILED,
                     StatusChangeActor.SYSTEM, "clasificación fallida tras " + attempts + " reintentos");
         } else {
-            caseRepository.save(caseRecord);
+            caseRepository.updateClassificationAttempts(caseRecord.getId(), attempts);
         }
     }
 }

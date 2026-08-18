@@ -24,7 +24,7 @@ public final class RiskFixtures {
         return claim(claimedAmount, EVENT_DATE);
     }
 
-    /** Con la fecha de denuncia policial que declaró el asegurado (D12). */
+    /** With the police report date the insured declared (D12). */
     public static ClaimReport claimWithPoliceReport(LocalDateTime policeReportAt) {
         return ClaimReport.builder()
                 .branch("Celulares")
@@ -62,15 +62,19 @@ public final class RiskFixtures {
         return policy(upToDate, insuredAmount, POLICY_START);
     }
 
+    // Firma pública sin cambios (LocalDate): son 8 tests los que llaman esto, y ninguno necesita
+    // precisión de hora — solo InsuredPolicyTest (probado aparte) ejercita el borde de la hora.
+    // La conversión a LocalDateTime queda adentro, a medianoche.
     public static InsuredPolicy policy(boolean upToDate, BigDecimal insuredAmount, LocalDate effectiveFrom) {
+        LocalDateTime from = effectiveFrom == null ? null : effectiveFrom.atStartOfDay();
         return InsuredPolicy.builder()
                 .policyNumber("POL-CEL-2024-001")
                 .insuredName("Laura Fernández")
                 .insuredId("40.123.456")
                 .branch("Celulares")
                 .product("Celular Protegido Básico")
-                .effectiveFrom(effectiveFrom)
-                .effectiveTo(effectiveFrom == null ? null : effectiveFrom.plusYears(1))
+                .effectiveFrom(from)
+                .effectiveTo(from == null ? null : from.plusYears(1))
                 .upToDate(upToDate)
                 .insuredAmount(insuredAmount)
                 .deductible(new BigDecimal("50000"))

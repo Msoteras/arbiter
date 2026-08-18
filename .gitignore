@@ -58,5 +58,5 @@ skills-lock.json
 .env
 .env.local
 
-### Override local de Compose (puertos/ajustes por máquina) — no va al repo ###
+### Override local de Docker Compose (config de entorno, no del proyecto) ###
 docker-compose.override.yml

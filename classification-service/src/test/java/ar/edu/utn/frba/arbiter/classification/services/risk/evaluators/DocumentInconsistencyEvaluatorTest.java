@@ -16,9 +16,9 @@ import java.util.Map;
 import static org.assertj.core.api.Assertions.assertThat;
 
 /**
- * D4b · el factor dejó de ser un stub. Lo que se prueba acá es que compare **campos**, y sobre todo
- * que un campo ausente no se lea como una contradicción: una constancia policial no trae IMEI, y eso
- * no puede convertirse en una señal de fraude.
+ * D4b · the factor stopped being a stub. What's tested here is that it compares **fields**, and
+ * above all that a missing field isn't read as a contradiction: a police certificate carries no
+ * IMEI, and that can't turn into a fraud signal.
  */
 class DocumentInconsistencyEvaluatorTest {
 
@@ -34,8 +34,8 @@ class DocumentInconsistencyEvaluatorTest {
                 .insuredId("40.123.456")
                 .branch("Celulares")
                 .imei(INSURED_IMEI)
-                .effectiveFrom(RiskFixtures.POLICY_START)
-                .effectiveTo(RiskFixtures.POLICY_START.plusYears(1))
+                .effectiveFrom(RiskFixtures.POLICY_START.atStartOfDay())
+                .effectiveTo(RiskFixtures.POLICY_START.plusYears(1).atStartOfDay())
                 .upToDate(true)
                 .insuredAmount(new BigDecimal("400000"))
                 .coverages(List.of())
@@ -57,12 +57,12 @@ class DocumentInconsistencyEvaluatorTest {
         return new DocumentExtraction("texto del documento", List.of(), fields);
     }
 
-    /** Solo los campos que este test hace variar; el resto va vacío. */
+    /** Only the fields this test varies; the rest go empty. */
     private DocumentExtraction.Fields fields(LocalDate documentDate, BigDecimal amount, String imei) {
         return new DocumentExtraction.Fields(documentDate, amount, null, imei, null);
     }
 
-    /** Sin documentos analizados no se sabe nada: no evaluable, no un 0.0 que abarataría el score. */
+    /** With no documents analyzed nothing is known: not evaluable, not a 0.0 that would cheapen the score. */
     @Test
     void withoutAnalyzedDocuments_isNotEvaluable() {
         Contribution c = evaluator.evaluate(context(policyWithImei(), Map.of()));
@@ -71,7 +71,7 @@ class DocumentInconsistencyEvaluatorTest {
         assertThat(c.rationale()).contains("no evaluable");
     }
 
-    /** El cruce que motivó el factor. */
+    /** The cross-check that motivated the factor. */
     @Test
     void anImeiThatDoesNotMatchTheInsuredItem_isAnInconsistency() {
         Contribution c = evaluator.evaluate(context(policyWithImei(), Map.of(
@@ -90,8 +90,8 @@ class DocumentInconsistencyEvaluatorTest {
     }
 
     /**
-     * Lo más importante del evaluador: null es "el documento no lo dice", nunca "no coincide". Una
-     * constancia policial sin IMEI no puede sumar riesgo.
+     * The evaluator's most important property: null is "the document doesn't say", never "doesn't
+     * match". A police certificate with no IMEI can't add risk.
      */
     @Test
     void aMissingFieldIsNeverAnInconsistency() {
@@ -113,7 +113,7 @@ class DocumentInconsistencyEvaluatorTest {
         assertThat(c.score()).isEqualTo(0.0);
     }
 
-    /** Una constancia fechada meses antes del hecho no puede ser de ese hecho. */
+    /** A certificate dated months before the event can't be about that event. */
     @Test
     void aDocumentDatedBeforeTheEvent_isAnInconsistency() {
         Contribution c = evaluator.evaluate(context(policyWithImei(), Map.of(
@@ -123,7 +123,7 @@ class DocumentInconsistencyEvaluatorTest {
         assertThat(c.rationale()).contains("anterior al hecho");
     }
 
-    /** La factura de compra del equipo es legítimamente previa: la tolerancia la deja pasar. */
+    /** The device's purchase invoice is legitimately earlier: the tolerance lets it through. */
     @Test
     void aDocumentDatedAFewDaysBefore_isTolerated() {
         Contribution c = evaluator.evaluate(context(policyWithImei(), Map.of(
@@ -142,7 +142,7 @@ class DocumentInconsistencyEvaluatorTest {
         assertThat(c.rationale()).contains("difiere del monto reclamado");
     }
 
-    /** Diferencias chicas (IVA, redondeo, envío) no son contradicciones. */
+    /** Small gaps (VAT, rounding, shipping) aren't contradictions. */
     @Test
     void anAmountWithinToleranceIsNotAnInconsistency() {
         Contribution c = evaluator.evaluate(context(policyWithImei(), Map.of(
@@ -152,8 +152,8 @@ class DocumentInconsistencyEvaluatorTest {
     }
 
     /**
-     * D12 · lo declarado por el asegurado contra lo que dice la constancia. Es la señal que
-     * justifica guardar las dos fechas por separado.
+     * D12 · what the insured declared against what the certificate says. It's the signal that
+     * justifies storing both dates separately.
      */
     @Test
     void aPoliceReportDatedDifferentlyFromWhatWasDeclared_isAnInconsistency() {
@@ -171,7 +171,7 @@ class DocumentInconsistencyEvaluatorTest {
         assertThat(c.rationale()).contains("declaró haber denunciado");
     }
 
-    /** Mismo día declarado y en el papel: no hay contradicción (no se compara la hora). */
+    /** Same day declared and on the paper: no contradiction (the time isn't compared). */
     @Test
     void aPoliceReportMatchingTheDeclaredDay_isNotAnInconsistency() {
         RiskContext context = new RiskContext(

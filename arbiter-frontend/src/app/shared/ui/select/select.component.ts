@@ -187,13 +187,16 @@ export class SelectComponent {
   });
 
   constructor() {
-    // El panel es `fixed`: no acompaña a lo que scrollea, así que se cierra. En captura, para
-    // enterarse del scroll de contenedores internos, que no burbujea a window. Excepción: el
-    // propio panel tiene `overflow-y: auto` para listas largas de opciones — sin el chequeo de
-    // target, scrollear esa lista se confundía con "el usuario scrolleó la página" y se cerraba.
+    // El panel es `fixed`: no acompaña a lo que scrollea, así que se cierra cuando scrollea un
+    // contenedor externo (se despegaría del trigger). En captura, para enterarse del scroll de
+    // contenedores internos, que no burbujea a window.
+    // PERO el propio panel tiene scroll interno (max-height 40vh): si el usuario está recorriendo
+    // las opciones, ese scroll NO debe cerrarlo (si no, con muchas opciones no se puede bajar).
     const onScroll = (event: Event) => {
       if (!this.open()) return;
-      if (event.target instanceof Node && this.host.nativeElement.contains(event.target)) return;
+      const panel = this.host.nativeElement.querySelector('.panel');
+      const target = event.target as Node | null;
+      if (panel && target && panel.contains(target)) return; // scroll dentro del listado: no cerrar
       this.open.set(false);
     };
     document.addEventListener('scroll', onScroll, true);

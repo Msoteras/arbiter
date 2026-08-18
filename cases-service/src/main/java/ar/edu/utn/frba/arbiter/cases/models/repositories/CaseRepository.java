@@ -5,6 +5,7 @@ import ar.edu.utn.frba.arbiter.common.enums.CaseStatus;
 import ar.edu.utn.frba.arbiter.common.enums.RiskBand;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
+import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
@@ -26,6 +27,22 @@ public interface CaseRepository extends JpaRepository<Case, Long>, JpaSpecificat
     List<Case> findByCurrentStatusName(String statusName);
 
     List<Case> findByRiskBand(RiskBand riskBand);
+
+    /**
+     * Bumps only the attempt counter, without touching the rest of the row.
+     *
+     * <p>{@code ClassificationRefreshScheduler} used {@code save(caseRecord)} for this, which
+     * writes the <b>whole</b> entity from a copy loaded at the start of the sweep — so any change
+     * made to that case in between (an analyst's retry, a status transition, a manual fix) got
+     * silently reverted on the next tick, every few seconds. The counter is the only thing the
+     * sweep owns, so it's the only thing it should write.
+     *
+     * <p>{@code flushAutomatically}/{@code clearAutomatically} keep the in-memory entity from
+     * shadowing the value this just wrote.
+     */
+    @Modifying(flushAutomatically = true, clearAutomatically = true)
+    @Query("update Case c set c.classificationAttempts = :attempts where c.id = :caseId")
+    void updateClassificationAttempts(@Param("caseId") Long caseId, @Param("attempts") int attempts);
 
     /** Fila de {@link #countActiveByAnalyst(Collection)}: un analista y cuántos activos tiene. */
     interface AnalystCaseCount {

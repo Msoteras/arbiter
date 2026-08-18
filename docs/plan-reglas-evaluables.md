@@ -3,9 +3,8 @@
 **Fecha:** 09/08/2026 · **Rama:** `feature/fix-defectos-aylen` · **Estado:** ✅ **implementado (10/08)** —
 pasos 1–7. Decisión §2: se hizo primero la **(a)** (backend + seed) y luego la **(b)** conectando la
 pantalla. **Paso 6 hecho**: prompt `classification-v3` con el veredicto determinístico del motor
-inyectado ("no re-decidir") — cubre exclusiones y las reglas temporales D10/D11/D13. **Pendiente:**
-solo el corte degradado del paso 3 (si rules-service no responde, no aprobar por silencio). **Sin
-validar en vivo.**
+inyectado ("no re-decidir") — cubre exclusiones y las reglas temporales D10/D11/D13. El corte
+degradado del paso 3 se cerró el 13/08 (ver más abajo). **Sin validar en vivo.**
 
 **Cierra:** D3, D4a (la parte de exclusiones), D4c del
 [handoff de pruebas y defectos](handoff-pruebas-y-defectos.md).
@@ -29,6 +28,33 @@ Es la historia #1 de la lista de candidatas del handoff (§7), la que ahí figur
 ## 1 · Los tres hallazgos que fijan el diseño
 
 No hay que volver a discutir estos puntos: el modelo de datos y el código existente ya los deciden.
+
+> **Continuación (13/08) — reglas duras temporales configurables y auditables.** Lo que este plan
+> dejaba afuera (§1.1: "una regla hardcodeada no se puede auditar") se cerró para D9/D10/D11/D12/D13.
+> Cada regla temporal es ahora **una fila de `insurer_rule`** por cobertura, con `rule_type` propio
+> (`POLICY_IN_FORCE`, `WAITING_PERIOD`, `REPORT_DEADLINE`, `POLICE_DEADLINE`, `MAX_EVENTS_YEAR` —
+> todos ≤20 chars, que es el largo de la columna). La fila es el **interruptor**, no el umbral: los
+> umbrales siguen siendo columnas de `coverage`, porque son términos del contrato y no política de
+> la compañía. La excepción es `POLICE_DEADLINE`, que guarda su plazo en el `configuration` JSONB
+> porque no tiene columna — con esto muere la propiedad
+> `arbiter.rules.police-report-deadline-hours`, fija en 72 hs para todas las aseguradoras contra la
+> decisión #12. `TemporalRuleEvaluator` devuelve `RuleFinding` y sus PASS/FAIL se escriben en
+> `rule_result` por el mismo camino que las exclusiones. CRUD del referente en
+> `HardRuleService`/`HardRuleController` + chips en la solapa Coberturas.
+>
+> **Corte degradado (paso 3) — cerrado (13/08), pero no como decía el paso 3.** La idea original de
+> "no aprobar por silencio, derivar a revisión manual" quedó descartada: eso sigue siendo una
+> resolución con reglas que nadie evaluó, sin importar a qué clasificación derive. Lo que se
+> implementó es más simple y no inventa un camino nuevo — reusa el pipeline de reintento que
+> `ClaimClassificationService`/`ClassificationRefreshScheduler` ya tenían para cualquier
+> clasificación que no cierra: `RulesRestAdapter` dejó de tragarse
+> `ResourceAccessException`/`HttpServerErrorException` en los cinco overlays que gatean una decisión
+> (Fast Track, reglas duras evaluables, límites de cobertura, textos, agenda documental) y las deja
+> subir. `@Retryable` reintenta 3 veces con backoff; si sigue caído, no se persiste nada y el caso
+> queda sin clasificar hasta que el poller de cases-service lo marca `CLASSIFICATION_FAILED` tras
+> agotar los intentos — reintentable por el analista, como cualquier otro caso trabado. El único
+> overlay que sigue siendo best-effort es el de scoring: es una señal paralela que nunca gatea una
+> decisión, documentado aparte.
 
 ### 1.1 `rule_result.rule_id` es FK NOT NULL a `insurer_rule`
 
@@ -133,10 +159,15 @@ auditoría posible. Es el mismo motivo por el que hoy `Case.scoringConfiguration
   cae al baseline sin tirar abajo la clasificación. Es el contrato que ya documenta el javadoc del
   adapter.
 
-> ⚠️ Con una diferencia importante respecto de Fast Track: si las reglas evaluables **no se pueden
-> leer**, el resultado no puede ser "pasa igual". Decidir el modo degradado: lo razonable es no
+> ⚠️ ~~Con una diferencia importante respecto de Fast Track: si las reglas evaluables no se pueden
+> leer, el resultado no puede ser "pasa igual". Decidir el modo degradado: lo razonable es no
 > escribir `rule_result` y que el caso vaya a `LLM_SOLICITA_REVISION_MANUAL`, nunca aprobar por
-> silencio del motor de reglas.
+> silencio del motor de reglas.~~ **Descartado (13/08).** Derivar a revisión manual también es
+> resolver el caso con reglas que nadie evaluó — el problema no es a qué clasificación cae, es que
+> cae a alguna. Lo que se hizo en su lugar: la lectura de estos cinco overlays dejó de ser
+> best-effort, la excepción de conectividad sube, y el caso queda sin clasificar hasta
+> `CLASSIFICATION_FAILED` por el mecanismo de reintento que ya existía. Ver la nota al principio del
+> documento y el javadoc de `RulesRestAdapter`.
 
 ### Paso 4 · `CoverageRuleEvaluator` en classification-service
 

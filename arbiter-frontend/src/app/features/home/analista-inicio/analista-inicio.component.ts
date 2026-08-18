@@ -153,19 +153,21 @@ export class AnalistaInicioComponent {
   protected readonly distSegments = computed<DistSegment[]>(() => {
     const c = this.counts();
     if (!c) return [];
+    // `enTramite` es TODO lo abierto, así que incluye a `pendientes`: sumarlos acá contaba dos
+    // veces los mismos expedientes y las barras daban más que la bandeja. Mismo motivo por el que
+    // "Riesgo alto" quedó afuera.
     return [
       { label: 'Pendientes', value: c.pendientes, tone: 'info' },
-      { label: 'En trámite', value: c.enTramite, tone: 'warning' },
+      { label: 'Otros en trámite', value: Math.max(0, c.enTramite - c.pendientes), tone: 'warning' },
       { label: 'Resueltos', value: c.resueltos, tone: 'ok' },
     ];
   });
 
-  // Denominador de las barras: total del caseload activo (suma de los tres estados). Nunca 0 para
-  // no dividir por cero; `hasCaseload` decide si mostrar las barras o el vacío.
-  protected readonly distTotal = computed(() => {
-    const c = this.counts();
-    return c ? c.pendientes + c.enTramite + c.resueltos : 0;
-  });
+  // Denominador de las barras: la suma de los segmentos, que ahora sí son disjuntos y dan el
+  // caseload real. Nunca 0 para no dividir por cero; `hasCaseload` decide si mostrar el vacío.
+  protected readonly distTotal = computed(() =>
+    this.distSegments().reduce((sum, segment) => sum + segment.value, 0),
+  );
   protected readonly hasCaseload = computed(() => this.distTotal() > 0);
   protected readonly riesgo = computed(() => this.counts()?.riesgo ?? 0);
 

@@ -1,8 +1,10 @@
 package ar.edu.utn.frba.arbiter.rules.services;
 
-import ar.edu.utn.frba.arbiter.rules.dto.CoverageInclusionConfig;
+import ar.edu.utn.frba.arbiter.common.enums.RuleType;
+import ar.edu.utn.frba.arbiter.rules.dto.CoverageExclusionConfig;
 import ar.edu.utn.frba.arbiter.rules.dto.EvaluableRuleDto;
 import ar.edu.utn.frba.arbiter.rules.dto.EvaluableRulesDto;
+import ar.edu.utn.frba.arbiter.rules.dto.HardRuleConfig;
 import ar.edu.utn.frba.arbiter.rules.exceptions.InvalidRuleConfigurationException;
 import ar.edu.utn.frba.arbiter.rules.models.entities.InsurerRule;
 import ar.edu.utn.frba.arbiter.rules.models.repositories.InsurerRuleRepository;
@@ -11,27 +13,48 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.ArrayList;
 import java.util.List;
 
 /**
- * Lectura system-to-system de las reglas <b>duras evaluables</b> de una cobertura para el motor de
- * clasificación (sin rol REFERENTE, con token de servicio que lleva el tenant) — mismo criterio que
- * {@code /internal/fast-track} y {@code /internal/rule-texts}. Keyea por cobertura, que es lo que el
- * claim tiene a mano.
+ * System-to-system read of a coverage's <b>hard evaluable rules</b> for the classification engine
+ * (no REFERENTE role, service token carrying the tenant) — same criterion as
+ * {@code /internal/fast-track} and {@code /internal/rule-texts}. Keyed by coverage, which is what
+ * the claim has at hand — except the insurer-wide rules below, which need no key at all.
  *
- * <p>Hoy el único tipo es {@code COVERAGE_INCLUSION}: la lista de hechos generadores que la
- * cobertura SÍ cubre, persistida como una fila de {@code insurer_rule} con {@code configuration}
- * JSONB. Esto cierra la asimetría del DER, donde no existe relación cobertura ↔ hecho generador
- * (ver plan-reglas-evaluables.md §1.2). El {@code id} de la regla viaja al motor porque es lo que
- * después va a {@code rule_result.rule_id} (auditoría, Disposición SSN 2/2023).
+ * <p>Returns three families in the same flat list — {@code TemporalRuleEvaluator} treats them all
+ * the same regardless of scope, only the storage differs:
+ * <ul>
+ *   <li>{@code COVERAGE_EXCLUSION}: the blacklist of hechos generadores the coverage doesn't
+ *       cover. Closes the DER's asymmetry, where no coverage ↔ hecho generador relation exists
+ *       (see plan-reglas-evaluables.md §1.2).</li>
+ *   <li>The active coverage-scoped hard temporal rules ({@link RuleType#coverageScoped()}):
+ *       waiting period, deadlines, events cap. They travel with almost no parameters because the
+ *       threshold belongs to the coverage; what the row contributes is that the rule is active —
+ *       without it the engine doesn't evaluate it — and the {@code id} {@code rule_result} is
+ *       going to point at.</li>
+ *   <li>The active insurer-wide hard temporal rules ({@link RuleType#insurerScoped()}): coverage
+ *       window, arrears. Same shape, but the row has no branch/coverage — one per insurer, not
+ *       one per coverage.</li>
+ * </ul>
+ *
+ * <p>Only <b>active</b> rules are returned: a rule the referente turned off is, to the engine, a
+ * rule that doesn't exist.
  */
 @Service
 public class InternalEvaluableRuleService {
 
-    private static final String COVERAGE_INCLUSION = "COVERAGE_INCLUSION";
-    // Self-instanciado (Jackson 2), igual que FastTrackRuleService: Spring Boot 4 autoconfigura un
-    // ObjectMapper de Jackson 3 (tools.jackson), así que no hay bean com.fasterxml para inyectar.
+    // Self-instantiated (Jackson 2), same as FastTrackRuleService: Spring Boot 4 auto-configures a
+    // Jackson 3 (tools.jackson) ObjectMapper, so there's no com.fasterxml bean to inject.
     private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
+
+    private static final List<String> COVERAGE_SCOPED_RULE_NAMES = RuleType.coverageScoped().stream()
+            .map(Enum::name)
+            .toList();
+
+    private static final List<String> INSURER_SCOPED_RULE_NAMES = RuleType.insurerScoped().stream()
+            .map(Enum::name)
+            .toList();
 
     private final InsurerRuleRepository ruleRepository;
 
@@ -41,31 +64,70 @@ public class InternalEvaluableRuleService {
 
     @Transactional(readOnly = true)
     public EvaluableRulesDto getByCoverage(Long coverageId) {
-        return ruleRepository.findFirstByCoverageIdAndRuleType(coverageId, COVERAGE_INCLUSION)
+        List<EvaluableRuleDto> rules = new ArrayList<>();
+
+        ruleRepository.findFirstByCoverageIdAndRuleType(coverageId, RuleType.COVERAGE_EXCLUSION.name())
                 .filter(InsurerRule::isActive)
-                .map(this::toDto)
-                .map(dto -> new EvaluableRulesDto(List.of(dto)))
-                .orElseGet(EvaluableRulesDto::empty);
+                .map(this::toExclusionDto)
+                .ifPresent(rules::add);
+
+        ruleRepository.findByCoverageIdAndRuleTypeIn(coverageId, COVERAGE_SCOPED_RULE_NAMES).stream()
+                .filter(InsurerRule::isActive)
+                .map(this::toTemporalDto)
+                .forEach(rules::add);
+
+        ruleRepository.findByBranch_IdIsNullAndCoverageIdIsNullAndRuleTypeIn(INSURER_SCOPED_RULE_NAMES).stream()
+                .filter(InsurerRule::isActive)
+                .map(this::toTemporalDto)
+                .forEach(rules::add);
+
+        return rules.isEmpty() ? EvaluableRulesDto.empty() : new EvaluableRulesDto(rules);
     }
 
-    private EvaluableRuleDto toDto(InsurerRule rule) {
-        CoverageInclusionConfig config = deserialize(rule.getConfiguration());
+    private EvaluableRuleDto toExclusionDto(InsurerRule rule) {
         return new EvaluableRuleDto(
                 rule.getId(),
                 rule.getRuleType(),
                 rule.getEffect(),
                 rule.isBlocksFastTrack(),
-                config.includedClaimCauseIds());
+                deserializeExclusion(rule.getConfiguration()).excludedClaimCauseIds(),
+                null);
     }
 
-    private CoverageInclusionConfig deserialize(String json) {
+    private EvaluableRuleDto toTemporalDto(InsurerRule rule) {
+        return new EvaluableRuleDto(
+                rule.getId(),
+                rule.getRuleType(),
+                rule.getEffect(),
+                rule.isBlocksFastTrack(),
+                null,
+                deserializeHardRule(rule.getConfiguration()).deadlineHours());
+    }
+
+    private CoverageExclusionConfig deserializeExclusion(String json) {
         if (json == null || json.isBlank()) {
-            return new CoverageInclusionConfig(List.of());
+            return new CoverageExclusionConfig(List.of());
         }
         try {
-            return OBJECT_MAPPER.readValue(json, CoverageInclusionConfig.class);
+            return OBJECT_MAPPER.readValue(json, CoverageExclusionConfig.class);
         } catch (JsonProcessingException e) {
-            throw new InvalidRuleConfigurationException("Configuración de inclusión ilegible: " + e.getOriginalMessage());
+            throw new InvalidRuleConfigurationException("Unreadable exclusion configuration: " + e.getOriginalMessage());
+        }
+    }
+
+    /**
+     * An unreadable configuration here does <b>not</b> sink the read: the rule travels without a
+     * threshold and the engine discards it on its own. Different from the exclusion, where the
+     * JSON <i>is</i> the rule; for the temporal ones the JSON is empty on purpose most of the time.
+     */
+    private HardRuleConfig deserializeHardRule(String json) {
+        if (json == null || json.isBlank()) {
+            return HardRuleConfig.empty();
+        }
+        try {
+            return OBJECT_MAPPER.readValue(json, HardRuleConfig.class);
+        } catch (JsonProcessingException e) {
+            return HardRuleConfig.empty();
         }
     }
 }

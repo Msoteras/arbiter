@@ -30,8 +30,8 @@ el esquema único anterior. No los mezcles con estos.
 | Esquema | Contenido |
 |---|---|
 | `arbiter_common` | 10 tablas: registro de tenants, identidad, RBAC y catálogos globales |
-| `arbiter_bbva` | 24 tablas — datos de BBVA |
-| `arbiter_provincia` | 24 tablas — datos de Provincia |
+| `arbiter_bbva` | 26 tablas — datos de BBVA |
+| `arbiter_provincia` | 26 tablas — datos de Provincia |
 | `aseguradora_bbva` | 5 tablas — "BD Aseguradora" simulada de BBVA |
 | `aseguradora_provincia` | 5 tablas — ídem Provincia |
 

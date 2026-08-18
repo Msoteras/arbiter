@@ -830,6 +830,33 @@ Se documenta para que quede registro de que se revisó y no como una alarma — 
 
 ---
 
+## 🟢 28. "¿Dónde pasó?" son campos de texto libre, no un desplegable en cascada
+
+**Archivo:** [`nueva-denuncia.component.html:178-186`](../arbiter-frontend/src/app/features/expedientes/nueva-denuncia/nueva-denuncia.component.html)
+
+Hoy `provincia` y `localidad` son dos `app-input` de texto libre, sin ningún catálogo detrás:
+
+```html
+<div class="location-grid">
+  <app-input placeholder="Provincia" [(value)]="provincia" />
+  <app-input placeholder="Localidad" [(value)]="localidad" />
+</div>
+```
+
+Encontrado probando el wizard el 16/8: sería más fácil de completar (y más consistente, sin
+errores de tipeo/mayúsculas ni variantes del mismo lugar) si `provincia` fuera un desplegable y
+`localidad` un segundo desplegable dependiente de la provincia elegida — mismo patrón de
+catálogos en cascada que ya usa el resto del wizard (hechos generadores, agenda documental).
+
+**⏳ PENDIENTE — a pedido explícito del usuario (16/8): "dejalo como algo pendiente".** No
+implementar todavía, queda anotado para no perderlo de vista.
+
+**Fix sugerido:** un catálogo de provincias/localidades (fijo del lado del frontend alcanza —
+no varía por aseguradora, a diferencia de los catálogos que sí vienen de rules-service) y
+reemplazar los dos `app-input` por dos `app-select` en cascada.
+
+---
+
 ## Resumen para priorizar
 
 **Cerrados (22 ítems + #25 marcado fuera de alcance).** Los del 4/8 verificados en vivo; los del
@@ -871,5 +898,10 @@ siguientes y el #25 (fuera de alcance).
 | 14 | Notificaciones sin cablear | Módulo de notificaciones no implementado aún (sprint siguiente) |
 | 25 | PEP se persiste pero no se ve nunca | Es un dato de la póliza, no del expediente |
 
-**Abiertos:** ninguno. Todos los bugs funcionales están cerrados; lo que queda (#8, #9, #14) es
-funcionalidad de sprints siguientes y #25 es de otro dominio (ver "Fuera de alcance").
+**Abiertos:** ningún bug funcional. Lo que queda (#8, #9, #14) es funcionalidad de sprints
+siguientes, #25 es de otro dominio (ver "Fuera de alcance"), y #28 es una mejora de UX pendiente
+a pedido del usuario (no es un bug — el campo funciona, solo sería más fácil de completar).
+
+| # | Ítem | Motivo |
+|---|------|--------|
+| 28 | "¿Dónde pasó?" en texto libre en vez de desplegable en cascada | Pendiente a pedido del usuario (16/8), no bloquea nada |

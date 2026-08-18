@@ -1,6 +1,6 @@
 package ar.edu.utn.frba.arbiter.rules.exceptions;
 
-/** Ya existe un ramo con ese nombre (el catálogo es global y el nombre es único). */
+/** A branch with that name already exists (the catalog is global and the name is unique). */
 public class BranchNameConflictException extends RuntimeException {
 
     public BranchNameConflictException(String name) {

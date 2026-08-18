@@ -12,8 +12,8 @@ import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.web.SecurityFilterChain;
 
 /**
- * Login queda público (es el único punto de entrada sin JWT); todo lo demás requiere estar
- * autenticado. Sin sesión de servidor (decisión de arquitectura #13): el estado vive en el JWT.
+ * Login stays public (it's the only entry point without a JWT); everything else needs to be
+ * authenticated. No server session (architecture decision #13): the state lives in the JWT.
  */
 @Configuration
 @EnableMethodSecurity
@@ -40,6 +40,9 @@ public class SecurityConfig {
         http.authorizeHttpRequests(auth -> auth
                 .requestMatchers(
                         "/api/v1/auth/login",
+                        // Public by necessity: it's the first thing the browser asks for, before it
+                        // has anything to authenticate with. It's the public key, nothing to guard.
+                        "/api/v1/auth/public-key",
                         "/api/v1/auth/activate",
                         "/api/v1/auth/forgot-password",
                         "/api/v1/auth/reset-password",

@@ -1,5 +1,6 @@
 import { HttpErrorResponse } from '@angular/common/http';
 import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
+import { finalize } from 'rxjs';
 
 import { RISK_FACTORS, ScoringConfig } from '../../../core/models/business-rules';
 import { RISK_BANDS, RiskBand, riskBandLabel } from '../../../core/models/risk-band';
@@ -7,6 +8,7 @@ import { ScoringConfigDto, ScoringRulesService } from '../scoring-rules.service'
 import { ButtonComponent } from '../../../shared/ui/button/button.component';
 import { CardComponent } from '../../../shared/ui/card/card.component';
 import { InputComponent } from '../../../shared/ui/input/input.component';
+import { InlineLoadingComponent } from '../../../shared/ui/inline-loading/inline-loading.component';
 
 /**
  * Scoring de fraude de la aseguradora. Es UNA sola configuración por aseguradora, no por ramo: el
@@ -19,7 +21,7 @@ import { InputComponent } from '../../../shared/ui/input/input.component';
  */
 @Component({
   selector: 'app-scoring-config',
-  imports: [ButtonComponent, CardComponent, InputComponent],
+  imports: [ButtonComponent, CardComponent, InputComponent, InlineLoadingComponent],
   changeDetection: ChangeDetectionStrategy.OnPush,
   templateUrl: './scoring-config.component.html',
   styleUrl: './scoring-config.component.scss',
@@ -32,6 +34,12 @@ export class ScoringConfigComponent {
   protected readonly bandLabel = riskBandLabel;
 
   protected readonly draft = signal<ScoringConfig>(this.skeleton());
+
+  // El componente se destruye y se recrea cada vez que el referente vuelve a este recuadro (ver
+  // `@if (view() === 'scoring')` en reglas.component.html), así que `load()` corre de nuevo en
+  // cada entrada — sin este flag, esa carga es invisible y el panel se ve armado con el skeleton
+  // vacío hasta que llega la respuesta real.
+  protected readonly loading = signal(true);
 
   protected readonly saving = signal(false);
   protected readonly saved = signal(false);
@@ -59,7 +67,7 @@ export class ScoringConfigComponent {
   }
 
   constructor() {
-    this.load();
+    this.load(true);
   }
 
   /**
@@ -80,22 +88,32 @@ export class ScoringConfigComponent {
    * Trae el scoring real de la aseguradora. Sin config aún ⇒ el backend devuelve una vacía (sin
    * bandas): completamos con las 4 bandas por defecto para que el referente las vea. Best-effort:
    * si el backend está caído, se queda con el skeleton sin romper la pantalla.
+   *
+   * `showLoading` solo se prende en la carga inicial: el reload que dispara `saveScoring()` ya
+   * tiene su propio indicador (el botón en "Guardando…"), tapar todo el panel de nuevo ahí sería
+   * redundante y haría parpadear la pantalla apenas guardaste.
    */
-  private load(): void {
-    this.scoringService.get().subscribe({
-      next: (dto) => {
-        const bands = dto.bands.length ? dto.bands : this.skeleton().bands;
-        this.draft.set({
-          enabled: true,
-          fullAnalysisOnFastTrack: dto.fullAnalysisOnFastTrack ?? false,
-          factors: dto.factors,
-          bands,
-        });
-      },
-      error: () => {
-        /* backend caído: nos quedamos con el skeleton */
-      },
-    });
+  private load(showLoading = false): void {
+    if (showLoading) {
+      this.loading.set(true);
+    }
+    this.scoringService
+      .get()
+      .pipe(finalize(() => this.loading.set(false)))
+      .subscribe({
+        next: (dto) => {
+          const bands = dto.bands.length ? dto.bands : this.skeleton().bands;
+          this.draft.set({
+            enabled: true,
+            fullAnalysisOnFastTrack: dto.fullAnalysisOnFastTrack ?? false,
+            factors: dto.factors,
+            bands,
+          });
+        },
+        error: () => {
+          /* backend caído: nos quedamos con el skeleton */
+        },
+      });
   }
 
   protected isFactorActive(id: string): boolean {

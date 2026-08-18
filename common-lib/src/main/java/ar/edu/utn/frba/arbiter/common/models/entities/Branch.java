@@ -17,7 +17,7 @@ import lombok.Setter;
  * vocabulary.
  */
 @Entity
-@Table(name = "branch")
+@Table(name = "branch", schema = "arbiter_common")
 @Getter
 @Setter
 @NoArgsConstructor

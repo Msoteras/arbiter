@@ -56,18 +56,20 @@ public class ClassificationOrchestrator {
 
     private ClassificationResponse resolveClassification(ClaimReport claim, Context ctx) {
 
-        // Reglas duras primero: un hecho generador no cubierto hace irrelevante al Fast Track (D3).
-        CoverageRuleEvaluator.Result coverage = coverageRuleEvaluator.evaluate(claim, ctx.rules());
-        if (coverage.notCovered()) {
-            return attachRuleFindings(notCoveredResponse(coverage, claim), coverage);
+        // Hard rules first: a coverage exclusion makes Fast Track irrelevant (D3).
+        CoverageRuleEvaluator.Result exclusion = coverageRuleEvaluator.evaluate(claim, ctx.rules());
+        if (exclusion.excluded()) {
+            return attachRuleFindings(coverageExclusionResponse(exclusion, claim), exclusion.findings());
         }
 
-        // Reglas temporales (D10/D11/D12/D13): bloquean Fast Track y suman motivos para el analista.
+        // Temporal rules (D9/D10/D11/D12/D13): block Fast Track, add reasons for the analyst,
+        // and leave their own auditable trace in rule_result.
         TemporalRuleEvaluator.Result temporal =
                 temporalRuleEvaluator.evaluate(claim, ctx.policy(), ctx.history(), ctx.rules());
+        List<RuleFinding> ruleFindings = mergeFindings(exclusion, temporal);
 
-        // Alcance de cobertura (D9). Sin documentos leídos solo puede evaluar la cobertura ya
-        // consumida; el grupo familiar necesita el damnificado, que sale de la extracción.
+        // Coverage scope (D9). With no documents read it can only evaluate coverage already used
+        // up; the family group needs the injured party, which comes from the extraction.
         CoverageScopeEvaluator.Result scope =
                 coverageScopeEvaluator.evaluate(claim, ctx.history(), ctx.rules(), Map.of());
 
@@ -75,17 +77,17 @@ public class ClassificationOrchestrator {
         if (fastTrack.fastTrack() && !temporal.blocksFastTrack() && !scope.blocksFastTrack()) {
             log.info("[Orchestrator] Deterministic Fast Track — claim qualifies, skipping LLM. Reasons={}",
                     fastTrack.reasons());
-            return attachRuleFindings(fastTrackResponse(fastTrack), coverage);
+            return attachRuleFindings(fastTrackResponse(fastTrack), ruleFindings);
         }
 
         log.info("[Orchestrator] Not Fast Track (fastTrack={}, temporalBlock={}, scopeBlock={}). "
                         + "Building prompt and sending to LLM...",
                 fastTrack.reasons(), temporal.reasons(), scope.reasons());
-        List<String> engineFindings = engineFindings(coverage, temporal);
+        List<String> engineFindings = engineFindings(exclusion, temporal);
         engineFindings.addAll(scope.reasons());
         return appendReasons(
                 appendReasons(
-                        attachRuleFindings(classifyWithLlm(claim, ctx, engineFindings), coverage),
+                        attachRuleFindings(classifyWithLlm(claim, ctx, engineFindings), ruleFindings),
                         temporal.reasons()),
                 scope.reasons());
     }
@@ -151,10 +153,11 @@ public class ClassificationOrchestrator {
             InsuredPolicy policy = ctx.policy();
             policySnapshotRepository.save(caseId, new PolicySnapshotRepository.Snapshot(
                     policy.policyNumber(),
-                    // NOT NULL en el esquema. Una póliza sin suma asegurada es un dato roto de la BD
-                    // Aseguradora, no un cero real: lo fiel queda en el payload.
+                    // NOT NULL in the schema. A policy with no sum insured is broken data from the
+                    // insurer's DB, not a real zero: the faithful value stays in the payload.
                     policy.insuredAmount() != null ? policy.insuredAmount() : BigDecimal.ZERO,
-                    policy.inForceOn(claim.eventDate() == null ? null : claim.eventDate().toLocalDate()),
+                    // Sin truncar a fecha: inForceOn ya compara por timestamp completo (D13).
+                    policy.inForceOn(claim.eventDate()),
                     policy.upToDate(),
                     ctx.history().previousClaimsCount(),
                     insurerPayload(policy, ctx.history())));
@@ -165,7 +168,7 @@ public class ClassificationOrchestrator {
         }
     }
 
-    /** Las dos respuestas de la BD Aseguradora, enteras: es el registro fiel del que salen las columnas. */
+    /** Both insurer-DB answers, whole: it's the faithful record the columns are derived from. */
     private String insurerPayload(InsuredPolicy policy, InsuredHistory history) {
         try {
             return objectMapper.writeValueAsString(Map.of("policy", policy, "history", history));
@@ -197,16 +200,17 @@ public class ClassificationOrchestrator {
     private record Resolution(
             ClassificationResponse response,
             boolean documentationAnalyzed,
-            /** Lo que la pasada de visión leyó de cada adjunto, por tipo. Vacío si no se analizó ninguno. */
+            /** What the vision pass read from each attachment, by type. Empty if none was analyzed. */
             Map<String, DocumentExtraction> extractions) {}
 
     private Resolution resolveClassification(ClaimReport claim, List<AttachmentDocument> documents, Context ctx) {
-        // Reglas duras primero: un hecho generador no cubierto corta antes que el gate documental y
-        // el Fast Track (D3). No se analizan documentos ni imágenes: ya resuelve el camino.
-        CoverageRuleEvaluator.Result coverage = coverageRuleEvaluator.evaluate(claim, ctx.rules());
-        if (coverage.notCovered()) {
+        // Hard rules first: a coverage exclusion cuts in before the document gate and Fast Track
+        // (D3). No documents or images are analyzed — the exclusion already settles the path.
+        CoverageRuleEvaluator.Result exclusion = coverageRuleEvaluator.evaluate(claim, ctx.rules());
+        if (exclusion.excluded()) {
             return new Resolution(
-                    attachRuleFindings(notCoveredResponse(coverage, claim), coverage), false, Map.of());
+                    attachRuleFindings(coverageExclusionResponse(exclusion, claim), exclusion.findings()),
+                    false, Map.of());
         }
 
         List<String> documentTypes = documents.stream().map(AttachmentDocument::type).toList();
@@ -214,19 +218,22 @@ public class ClassificationOrchestrator {
         if (!missingDocs.isEmpty()) {
             log.info("[Orchestrator] Missing required documents: {}", missingDocs);
             return new Resolution(
-                    attachRuleFindings(missingDocumentationResponse(missingDocs), coverage), false, Map.of());
+                    attachRuleFindings(missingDocumentationResponse(missingDocs), exclusion.findings()),
+                    false, Map.of());
         }
 
         List<String> requiredForGate = requiredDocumentTypes(ctx.rules());
         Map<String, DocumentExtraction> gateExtractions = extractRequiredDocuments(documents, requiredForGate);
         Map<String, String> gateDocumentTexts = transcriptions(gateExtractions);
 
-        // Reglas temporales (D10/D11/D12/D13): bloquean Fast Track y suman motivos para el analista.
+        // Temporal rules (D9/D10/D11/D12/D13): block Fast Track, add reasons for the analyst,
+        // and leave their own auditable trace in rule_result.
         TemporalRuleEvaluator.Result temporal =
                 temporalRuleEvaluator.evaluate(claim, ctx.policy(), ctx.history(), ctx.rules());
+        List<RuleFinding> ruleFindings = mergeFindings(exclusion, temporal);
 
-        // Alcance de la cobertura (D9): grupo familiar y cobertura ya consumida. Va acá y no antes
-        // porque el grupo familiar depende de lo que la extracción haya leído en los documentos.
+        // Coverage scope (D9): family group and coverage already used up. It goes here and not
+        // earlier because the family group depends on what the extraction read in the documents.
         CoverageScopeEvaluator.Result scope =
                 coverageScopeEvaluator.evaluate(claim, ctx.history(), ctx.rules(), gateExtractions);
 
@@ -243,7 +250,7 @@ public class ClassificationOrchestrator {
                     : gateExtractions;
             log.info("[Orchestrator] Deterministic Fast Track — Reasons={} fullAnalysis={}",
                     fastTrack.reasons(), fullAnalysis);
-            return new Resolution(attachRuleFindings(fastTrackResponse(fastTrack), coverage),
+            return new Resolution(attachRuleFindings(fastTrackResponse(fastTrack), ruleFindings),
                     fullAnalysis || !gateExtractions.isEmpty(), fastTrackExtractions);
         }
 
@@ -253,18 +260,18 @@ public class ClassificationOrchestrator {
         Map<String, DocumentExtraction> extractions = extractAllAttachments(documents, gateExtractions);
         ClaimReport claimWithOcr = withAttachmentsOcr(claim, renderAttachments(documents, extractions));
 
-        // El alcance se re-evalúa con TODOS los documentos ya leídos: el gate solo había extraído los
-        // que exige el Fast Track, y el dato de quién es el damnificado puede estar en cualquiera.
+        // Scope is re-evaluated with ALL documents read: the gate had only extracted the ones Fast
+        // Track requires, and who the injured party is can be in any of them.
         CoverageScopeEvaluator.Result fullScope =
                 coverageScopeEvaluator.evaluate(claim, ctx.history(), ctx.rules(), extractions);
 
-        List<String> engineFindings = engineFindings(coverage, temporal);
+        List<String> engineFindings = engineFindings(exclusion, temporal);
         engineFindings.addAll(fullScope.reasons());
 
         return new Resolution(
                 appendReasons(
                         appendReasons(
-                                attachRuleFindings(classifyWithLlm(claimWithOcr, ctx, engineFindings), coverage),
+                                attachRuleFindings(classifyWithLlm(claimWithOcr, ctx, engineFindings), ruleFindings),
                                 temporal.reasons()),
                         fullScope.reasons()),
                 true,
@@ -375,34 +382,43 @@ public class ClassificationOrchestrator {
     }
 
     /**
-     * Un hecho generador no cubierto no cierra el expediente (CLAUDE.md #5, human-in-the-loop):
-     * deriva a revisión del analista con el motivo a la vista y sin llamar al LLM. Determinístico,
-     * como el Fast Track y el FALTA_DOCUMENTACION, pero en sentido contrario. {@code
-     * LLM_NO_RECOMIENDA_APROBAR} (no {@code LLM_SOLICITA_REVISION_MANUAL}): la regla no es un caso
-     * ambiguo que necesite ojo humano extra, es una certeza — "esta cobertura no cubre esto" — así
-     * que la recomendación tiene que sonar tan directa como el motivo. El hallazgo queda auditado en
-     * {@code rule_result} vía {@code ruleFindings}.
+     * A hard exclusion doesn't close the case (CLAUDE.md #5, human-in-the-loop): it routes to the
+     * analyst with the reason in plain sight and without calling the LLM. Deterministic, like Fast
+     * Track and FALTA_DOCUMENTACION, but in the opposite direction. The finding is audited in
+     * {@code rule_result} via {@code ruleFindings}.
      */
-    private ClassificationResponse notCoveredResponse(CoverageRuleEvaluator.Result coverage, ClaimReport claim) {
-        log.info("[Orchestrator] Hecho generador no cubierto — deriva a revisión manual sin LLM. claimCause='{}'",
+    private ClassificationResponse coverageExclusionResponse(CoverageRuleEvaluator.Result exclusion, ClaimReport claim) {
+        log.info("[Orchestrator] Coverage exclusion — deriva a revisión manual sin LLM. claimCause='{}'",
                 claim.claimCause());
         return ClassificationResponse.builder()
-                .classification(Classification.LLM_NO_RECOMIENDA_APROBAR)
-                .factors(coverageRuleEvaluator.notCoveredReasons(coverage, claim))
+                .classification(Classification.LLM_SOLICITA_REVISION_MANUAL)
+                .factors(coverageRuleEvaluator.excludedReasons(exclusion, claim))
                 .confidence(1.0)
                 .deterministicFastTrack(false)
                 .build();
     }
 
-    /** Cuelga los resultados de reglas evaluadas (PASS/FAIL) para que se auditen en rule_result. */
-    private ClassificationResponse attachRuleFindings(ClassificationResponse response, CoverageRuleEvaluator.Result coverage) {
-        if (coverage.findings().isEmpty()) {
+    /** Hangs the evaluated rules' results (PASS/FAIL) so they get audited in rule_result. */
+    private ClassificationResponse attachRuleFindings(ClassificationResponse response, List<RuleFinding> findings) {
+        if (findings.isEmpty()) {
             return response;
         }
-        return response.toBuilder().ruleFindings(coverage.findings()).build();
+        return response.toBuilder().ruleFindings(findings).build();
     }
 
-    /** Suma los motivos de las reglas temporales a los factores visibles del analista. */
+    /**
+     * The auditable trace of every hard rule that ran: the coverage exclusions and the temporal
+     * ones. They travel together because {@code rule_result} is one row per rule evaluated,
+     * regardless of which evaluator ran it — what tells them apart in the table is their
+     * {@code rule_type}.
+     */
+    private List<RuleFinding> mergeFindings(CoverageRuleEvaluator.Result exclusion, TemporalRuleEvaluator.Result temporal) {
+        List<RuleFinding> findings = new ArrayList<>(exclusion.findings());
+        findings.addAll(temporal.findings());
+        return findings;
+    }
+
+    /** Adds the temporal rules' reasons to the factors the analyst sees. */
     private ClassificationResponse appendReasons(ClassificationResponse response, List<String> reasons) {
         if (reasons.isEmpty()) {
             return response;
@@ -443,9 +459,9 @@ public class ClassificationOrchestrator {
     }
 
     /**
-     * El gate documental solo mira que el documento requerido esté y se haya podido leer, así que
-     * recibe la transcripción sola: las señales visuales son interpretativas y no pueden decidir un
-     * Fast Track (es la lección de D4a — lo determinístico se evalúa, lo interpretativo se muestra).
+     * The document gate only checks the required document is there and could be read, so it gets
+     * the transcription alone: visual signals are interpretive and can't decide a Fast Track (D4a's
+     * lesson — the deterministic is evaluated, the interpretive is shown).
      */
     private Map<String, String> transcriptions(Map<String, DocumentExtraction> extractions) {
         return extractions.entrySet().stream()
@@ -453,9 +469,9 @@ public class ClassificationOrchestrator {
     }
 
     /**
-     * Todos los adjuntos leídos, reusando los que el gate ya extrajo. Indexado por tipo, igual que
-     * {@link #extractRequiredDocuments}: el flujo asume un documento por tipo (la agenda documental
-     * pide "una denuncia policial", no varias).
+     * Every attachment read, reusing the ones the gate already extracted. Indexed by type, like
+     * {@link #extractRequiredDocuments}: the flow assumes one document per type (the schedule asks
+     * for "a police report", not several).
      */
     private Map<String, DocumentExtraction> extractAllAttachments(
             List<AttachmentDocument> documents, Map<String, DocumentExtraction> alreadyExtracted) {
@@ -467,7 +483,7 @@ public class ClassificationOrchestrator {
                                 : documentAnalyzer.extract(doc.content(), doc.contentType())));
     }
 
-    /** El texto que va al prompt, en el orden en que llegaron los adjuntos. */
+    /** The text that goes into the prompt, in the order the attachments arrived. */
     private List<String> renderAttachments(
             List<AttachmentDocument> documents, Map<String, DocumentExtraction> extractions) {
         return documents.stream()
@@ -519,15 +535,14 @@ public class ClassificationOrchestrator {
     }
 
     /**
-     * El veredicto de las reglas duras que el motor ya evaluó (D4a paso 6), para inyectar en el prompt
-     * como hecho establecido: los incumplimientos temporales (plazo/vigencia/frecuencia) y, si había
-     * regla de inclusión y el hecho generador estaba en la lista, la confirmación de que la cobertura
-     * lo cubre.
+     * The verdict of the hard rules the engine already evaluated (D4a step 6), to inject into the
+     * prompt as established fact: the temporal breaches (deadline/validity/frequency) and, if there
+     * was an exclusion rule that didn't apply, confirmation that the coverage covers the claim cause.
      */
-    private List<String> engineFindings(CoverageRuleEvaluator.Result coverage, TemporalRuleEvaluator.Result temporal) {
+    private List<String> engineFindings(CoverageRuleEvaluator.Result exclusion, TemporalRuleEvaluator.Result temporal) {
         List<String> findings = new ArrayList<>(temporal.reasons());
-        if (!coverage.findings().isEmpty() && coverage.findings().stream().allMatch(f -> f.passed())) {
-            findings.add("La cobertura cubre el hecho generador declarado (regla de inclusión evaluada: está cubierto).");
+        if (!exclusion.findings().isEmpty() && exclusion.findings().stream().allMatch(f -> f.passed())) {
+            findings.add("La cobertura cubre el hecho generador declarado (regla de exclusión evaluada: no aplica).");
         }
         return findings;
     }

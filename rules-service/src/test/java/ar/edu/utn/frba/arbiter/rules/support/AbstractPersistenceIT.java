@@ -4,27 +4,34 @@ import org.springframework.boot.testcontainers.service.connection.ServiceConnect
 import org.springframework.test.context.TestPropertySource;
 import org.testcontainers.postgresql.PostgreSQLContainer;
 
+import java.sql.Connection;
+import java.sql.DriverManager;
+import java.sql.SQLException;
+import java.sql.Statement;
+
 /**
- * Mismo patrón "singleton container" que el {@code AbstractPersistenceIT} de cases-service: sin
- * {@code @Testcontainers}/{@code @Container}, porque esas anotaciones paran el contenedor en el
- * {@code afterAll} de cada clase y con un field estático heredado eso lo mata para la clase
- * siguiente de la misma corrida. Se arranca una vez en el bloque estático y vive hasta que Ryuk lo
- * limpia al terminar el proceso de test.
+ * Same "singleton container" pattern as cases-service's {@code AbstractPersistenceIT}: no
+ * {@code @Testcontainers}/{@code @Container}, because those annotations stop the container on each
+ * class's {@code afterAll}, and with an inherited static field that kills it for the next class of
+ * the same run. It starts once in the static block and lives until Ryuk cleans it up when the test
+ * process ends.
  *
- * <p>Sin esto, un {@code @SpringBootTest} de rules-service intentaba levantar el contexto contra el
- * Postgres del {@code application.yml} (default {@code localhost:5432}, usuario {@code arbiter}) y
- * fallaba con {@code FATAL: la autentificación password falló} en cualquier máquina que no tuviera
- * esa base local — el módulo no tenía ninguna infraestructura de test (D18).
+ * <p>Without this, a rules-service {@code @SpringBootTest} tried to start the context against the
+ * Postgres in {@code application.yml} (default {@code localhost:5432}, user {@code arbiter}) and
+ * failed with a password authentication error on any machine without that local database — the
+ * module had no test infrastructure at all (D18).
  */
-// SecurityConfig necesita un JWT_SECRET real para levantar el contexto: en application.yml el
-// default es vacío, y ahí la key de HS256 no se puede construir.
+// SecurityConfig needs a real JWT_SECRET to start the context: the application.yml default is
+// empty, and the HS256 key can't be built from that.
 //
-// ddl-auto se pisa a `update` solo acá: en producción es `validate` (el esquema lo define
-// db/init-multitenant.sql), pero estos tests arrancan contra un contenedor vacío y nadie corre el
-// script. El peligro que motiva `validate` —que Hibernate recree las tablas de arbiter_common
-// adentro de cada esquema de tenant— no aplica: acá no hay esquemas de tenant y todo cae en
-// `public`. Mismo trade-off, y misma deuda, que en cases-service: lo único que detectaría un
-// desfasaje entre las entidades y el esquema real sería correr init-multitenant.sql en el contenedor.
+// ddl-auto is overridden to `update` only here: in production it's `validate` (the schema is
+// defined by db/init-multitenant.sql). common-lib's entities are schema-qualified
+// (`arbiter_common`) — they do NOT land in `public` as this comment used to claim; Hibernate emits
+// literal `create table arbiter_common.branch(...)` DDL. `update` doesn't create schemas on its own
+// (`hibernate.hbm2ddl.create_namespaces` defaults to false), so the CREATE SCHEMA below runs by
+// hand before the context boots. Same trade-off, and same debt, as cases-service: the only thing
+// that would catch a drift between the entities and the real schema would be running
+// init-multitenant.sql in the container.
 @TestPropertySource(properties = {
         "arbiter.auth.jwt.secret=test-secret-at-least-32-bytes-long-for-hs256",
         "spring.jpa.hibernate.ddl-auto=update"
@@ -36,5 +43,12 @@ public abstract class AbstractPersistenceIT {
 
     static {
         POSTGRES.start();
+        try (Connection conn = DriverManager.getConnection(
+                POSTGRES.getJdbcUrl(), POSTGRES.getUsername(), POSTGRES.getPassword());
+             Statement stmt = conn.createStatement()) {
+            stmt.execute("CREATE SCHEMA IF NOT EXISTS arbiter_common");
+        } catch (SQLException e) {
+            throw new RuntimeException(e);
+        }
     }
 }

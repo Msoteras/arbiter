@@ -40,6 +40,11 @@ arbiter:
     login:
       max-failed-attempts: 5
       lockout-minutes: 15
+    password-encryption:
+      # RSA privada (PKCS#8, base64). Vacío genera una al arrancar, que alcanza para desarrollo pero
+      # no para más de una instancia: cada una tendría la suya y los logins fallarían salteado.
+      #   openssl genpkey -algorithm RSA -pkeyopt rsa_keygen_bits:2048 | openssl pkcs8 -topk8 -nocrypt -outform DER | base64 -w0
+      private-key: ${PASSWORD_ENCRYPTION_PRIVATE_KEY:}
     auth0:
       domain: ${AUTH0_DOMAIN:}
       client-id: ${AUTH0_LOGIN_CLIENT_ID:}

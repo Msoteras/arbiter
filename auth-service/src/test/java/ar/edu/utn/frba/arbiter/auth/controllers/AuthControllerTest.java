@@ -7,6 +7,7 @@ import ar.edu.utn.frba.arbiter.auth.exceptions.InvalidCredentialsException;
 import ar.edu.utn.frba.arbiter.auth.exceptions.InvalidInviteTokenException;
 import ar.edu.utn.frba.arbiter.auth.exceptions.InviteTokenExpiredException;
 import ar.edu.utn.frba.arbiter.auth.services.AuthService;
+import ar.edu.utn.frba.arbiter.auth.services.PasswordCipher;
 import ar.edu.utn.frba.arbiter.auth.services.UserService;
 import ar.edu.utn.frba.arbiter.common.enums.UserRole;
 import org.junit.jupiter.api.Test;
@@ -40,6 +41,13 @@ class AuthControllerTest {
 
     @MockitoBean
     private UserService userService;
+
+    /**
+     * The controller injects it to expose the public key. Decrypting belongs to AuthService, mocked
+     * here, so these tests don't care about the envelope and send any string.
+     */
+    @MockitoBean
+    private PasswordCipher passwordCipher;
 
     @Test
     void login_validCredentials_returns200WithToken() throws Exception {

@@ -7,6 +7,9 @@ import ar.edu.utn.frba.arbiter.cases.dto.AssignedCaseSummaryResponse;
 import ar.edu.utn.frba.arbiter.cases.dto.CaseDocumentResponse;
 import ar.edu.utn.frba.arbiter.cases.dto.CaseRequest;
 import ar.edu.utn.frba.arbiter.cases.dto.CaseResponse;
+import ar.edu.utn.frba.arbiter.cases.dto.EligibilityCheckRequest;
+import ar.edu.utn.frba.arbiter.cases.dto.EligibilityCheckResponse;
+import ar.edu.utn.frba.arbiter.cases.dto.LensSummaryResponse;
 import ar.edu.utn.frba.arbiter.cases.models.entities.CaseDocument;
 import ar.edu.utn.frba.arbiter.cases.services.CaseService;
 import ar.edu.utn.frba.arbiter.common.enums.CaseStatus;
@@ -59,6 +62,23 @@ public class CaseController {
     ) {
         CaseResponse response = caseService.createCase(request, documents);
         return ResponseEntity.accepted().body(response);
+    }
+
+    @PostMapping("/eligibility")
+    @PreAuthorize("hasRole('ASEGURADO')")
+    @Operation(summary = "Check whether a denuncia would be accepted",
+            description = """
+                    Runs the same intake gate as POST /cases (ownership, vigencia, carencia, mora)
+                    without creating anything. The wizard calls this once it has a policy and an
+                    event date, so it can block or warn before the insured fills out the rest of
+                    the form and uploads documentation — instead of finding out only at the end.
+                    Always 200; a non-eligible policy is `{eligible: false, reason: "..."}`, not an
+                    error.
+                    """)
+    public ResponseEntity<EligibilityCheckResponse> checkEligibility(
+            @RequestBody @Valid EligibilityCheckRequest request
+    ) {
+        return ResponseEntity.ok(caseService.checkEligibility(request));
     }
 
     @GetMapping("/{caseId}")
@@ -117,6 +137,7 @@ public class CaseController {
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate eventDateTo,
             @RequestParam(required = false) String q,
             @RequestParam(required = false) RiskBand riskBand,
+            @RequestParam(required = false) Long analystId,
             @RequestParam(defaultValue = "false") boolean assignedToMe,
             @RequestParam(defaultValue = "false") boolean unassigned,
             @RequestParam(defaultValue = "false") boolean fraudAlert,
@@ -125,7 +146,7 @@ public class CaseController {
     ) {
         Page<CaseResponse> response = caseService.listCases(
                 status, claimCause, policyNumber, insuredId, eventDateFrom, eventDateTo, q, riskBand,
-                assignedToMe, unassigned, fraudAlert, assigned, pageable);
+                analystId, assignedToMe, unassigned, fraudAlert, assigned, pageable);
         return ResponseEntity.ok(response);
     }
 
@@ -163,6 +184,35 @@ public class CaseController {
                     """)
     public ResponseEntity<CaseResponse> unassignAnalyst(@PathVariable Long caseId) {
         return ResponseEntity.ok(caseService.unassignAnalyst(caseId));
+    }
+
+    @GetMapping("/lens-summary")
+    @PreAuthorize("hasAnyRole('ANALISTA_SINIESTROS', 'REFERENTE_ASEGURADORA')")
+    @Operation(summary = "Conteos de las lentes de la bandeja",
+            description = """
+                    Devuelve de una sola vez cuántos expedientes hay en cada lente (todos, míos,
+                    asignados, sin asignar, alerta de fraude) para los filtros que se pasen — los
+                    mismos que acepta el listado.
+
+                    Existe para no pedir una lente por request: eran cinco llamadas por cada cambio
+                    de filtro, y cada una traía además una fila entera solo para leerle el total.
+                    Acá se cuenta sin materializar filas.
+
+                    "Míos" da 0 para el referente, que no tiene perfil de analista en el tenant.
+                    """)
+    public ResponseEntity<LensSummaryResponse> lensSummary(
+            @RequestParam(required = false) CaseStatus status,
+            @RequestParam(required = false) String claimCause,
+            @RequestParam(required = false) String policyNumber,
+            @RequestParam(required = false) String insuredId,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate eventDateFrom,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate eventDateTo,
+            @RequestParam(required = false) String q,
+            @RequestParam(required = false) RiskBand riskBand,
+            @RequestParam(required = false) Long analystId
+    ) {
+        return ResponseEntity.ok(caseService.lensSummary(
+                status, claimCause, policyNumber, insuredId, eventDateFrom, eventDateTo, q, riskBand, analystId));
     }
 
     @GetMapping("/analysts/workload")

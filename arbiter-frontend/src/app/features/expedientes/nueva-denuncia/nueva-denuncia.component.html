@@ -103,16 +103,28 @@
                       <span class="policy-warn">Póliza con premios adeudados</span>
                     }
                   </div>
+                  <!-- La mora (POLICY_STANDING) no necesita la fecha del hecho para evaluarse, así
+                       que el precheck ya puede confirmar acá, en el paso 1, si eso va a bloquear la
+                       denuncia — antes el badge de arriba decía "premios adeudados" sin aclarar si
+                       eso alcanzaba para impedir la denuncia o era solo un aviso. -->
+                  @if (eligibilityError(); as reason) {
+                    <div class="submit-error" role="alert">{{ reason }}</div>
+                  } @else if (eligibilityChecking()) {
+                    <app-inline-loading [size]="16" message="Verificando la póliza…" />
+                  } @else if (eligibilityUnknown()) {
+                    <div class="eligibility-unknown" role="status">
+                      En este momento no se puede determinar si tu póliza permite nuevos
+                      siniestros. Por favor, intentá de nuevo más tarde.
+                    </div>
+                  }
                 }
               }
             }
           }
 
           <label class="field-label">¿Qué te pasó?</label>
-          <!-- Los chips no se dibujan hasta que llegan LAS DOS llamadas (hechos del ramo + cubiertos):
-               así ninguno aparece clickeable antes de saber si la póliza lo cubre. Mientras: spinner. -->
-          @if (catalogsLoading()) {
-            <app-inline-loading message="Cargando opciones…" />
+          @if (claimTypesLoading()) {
+            <app-inline-loading [size]="20" message="Cargando hechos generadores…" />
           } @else {
             <div class="chips">
               @for (t of claimTypes(); track t.key) {
@@ -120,18 +132,10 @@
                   type="button"
                   class="chip"
                   [class.selected]="selectedType()?.key === t.key"
-                  [class.not-covered]="selectedType()?.key === t.key && selectedTypeNotCovered()"
                   (click)="selectType(t)"
                 >
                   {{ t.label }}
                 </button>
-              }
-            </div>
-            <!-- Slot de altura fija: reserva la línea siempre para que el modal no cambie de tamaño
-                 cuando la nota aparece o se va. El @if adentro mantiene el anuncio del role="alert". -->
-            <div class="not-covered-slot">
-              @if (selectedTypeNotCovered()) {
-                <p class="not-covered-note" role="alert">Tu póliza no cubre esto.</p>
               }
             </div>
           }
@@ -156,7 +160,27 @@
             <app-input type="time" [(value)]="eventTime" placeholder="Hora aprox." />
           </div>
 
-          @if (requiresPoliceReport()) {
+          <!-- Right under the field it's actually about (policy + this date): buried further down
+               past the police-report block it read as an unrelated mid-form error instead of a
+               validation of the date just above it. The backend rejects these cases without
+               creating the case, so this still fires before the insured fills out the whole form
+               and uploads documentation for nothing. -->
+          @if (eligibilityError(); as reason) {
+            <div class="submit-error" role="alert">{{ reason }}</div>
+          } @else if (eligibilityChecking()) {
+            <app-inline-loading [size]="16" message="Verificando la póliza…" />
+          } @else if (eligibilityUnknown()) {
+            <div class="eligibility-unknown" role="status">
+              En este momento no se puede determinar si tu póliza permite nuevos siniestros. Por
+              favor, intentá de nuevo más tarde.
+            </div>
+          }
+
+          <!-- Se oculta con el resto del formulario cuando hay un bloqueo real (mora, vigencia,
+               carencia) — pero no cuando el propio error es de coherencia de fechas
+               (dateCoherenceError), porque ahí es justo el campo que hay que corregir: esconderlo
+               dejaría el error a la vista sin ninguna forma de arreglarlo. -->
+          @if (requiresPoliceReport() && (!eligibilityError() || dateCoherenceError())) {
             <label class="field-label">Fecha y hora de la denuncia policial</label>
             <div class="datetime-grid">
               <app-input type="date" [max]="today" [(value)]="policeReportDate" />
@@ -168,41 +192,48 @@
             </p>
           }
 
-          <label class="field-label">¿Dónde pasó? *</label>
-          <div class="location-fields">
-            <div class="location-grid">
-              <app-input placeholder="Provincia" [(value)]="provincia" />
-              <app-input placeholder="Localidad" [(value)]="localidad" />
+          <!-- Nothing past this point matters if the case above is a hard block — filling out
+               location/description/contact for a claim that can't be filed is wasted effort, and
+               showing those fields made the eligibility error read as just another note instead of
+               a stop sign. Kept visible while `eligibilityChecking()` so the fields already filled
+               in don't flicker away during the debounce/round trip on every date edit. -->
+          @if (!eligibilityError()) {
+            <label class="field-label">¿Dónde pasó? *</label>
+            <div class="location-fields">
+              <div class="location-grid">
+                <app-input placeholder="Provincia" [(value)]="provincia" />
+                <app-input placeholder="Localidad" [(value)]="localidad" />
+              </div>
+              <app-input placeholder="Calle y número" [(value)]="calleNumero" />
+              <app-input placeholder="Entre calles (opcional)" [(value)]="entreCalles" />
             </div>
-            <app-input placeholder="Calle y número" [(value)]="calleNumero" />
-            <app-input placeholder="Entre calles (opcional)" [(value)]="entreCalles" />
-          </div>
 
-          <label class="field-label">Monto reclamado (opcional)</label>
-          <app-input type="number" placeholder="$" [(value)]="claimedAmount" />
+            <label class="field-label">Monto reclamado (opcional)</label>
+            <app-input type="number" placeholder="$" [(value)]="claimedAmount" />
 
-          <label class="field-label">Descripción del hecho *</label>
-          <app-textarea
-            [rows]="5"
-            placeholder="Describí lo que pasó con el mayor detalle posible"
-            [(value)]="description"
-          />
-
-          <label class="field-label">Datos de contacto</label>
-          <div class="location-grid">
-            <app-input
-              type="email"
-              placeholder="Email"
-              [(value)]="contactEmail"
-              [readonly]="!!selectedPolicy()?.contactEmail"
+            <label class="field-label">Descripción del hecho</label>
+            <app-textarea
+              [rows]="5"
+              placeholder="Describí lo que pasó con el mayor detalle posible"
+              [(value)]="description"
             />
-            <app-input
-              type="tel"
-              placeholder="Teléfono"
-              [(value)]="contactPhone"
-              [readonly]="!!selectedPolicy()?.contactPhone"
-            />
-          </div>
+
+            <label class="field-label">Datos de contacto</label>
+            <div class="location-grid">
+              <app-input
+                type="email"
+                placeholder="Email"
+                [(value)]="contactEmail"
+                [readonly]="!!selectedPolicy()?.contactEmail"
+              />
+              <app-input
+                type="tel"
+                placeholder="Teléfono"
+                [(value)]="contactPhone"
+                [readonly]="!!selectedPolicy()?.contactPhone"
+              />
+            </div>
+          }
         </section>
       }
 

@@ -20,9 +20,9 @@ public record InsuredHistory(
             String claimId,
             LocalDate date,
             /**
-             * La póliza sobre la que se hizo el siniestro. Sin esto no se puede saber si un
-             * siniestro previo consumió <b>esta</b> cobertura o la de otra póliza del mismo
-             * asegurado, que es lo que necesita {@code claim_exhausts_coverage} (D9).
+             * The policy the claim was made against. Without it there's no way to tell whether a
+             * prior claim consumed <b>this</b> coverage or another policy's from the same insured,
+             * which is what {@code claim_exhausts_coverage} needs (D9).
              */
             String policyNumber,
             String branch,

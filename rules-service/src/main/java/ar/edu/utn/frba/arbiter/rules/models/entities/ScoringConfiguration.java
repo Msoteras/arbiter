@@ -19,8 +19,8 @@ import java.time.Instant;
  * data-driven config that classification-service's RiskScoringService already expects
  * to receive as {@code BusinessRules.ScoringConfig} (currently served by MockRulesAdapter).
  *
- * <p>Una sola fila por aseguradora (tabla per-tenant, sin columna de ramo): todos los ramos
- * comparten el mismo scoring, a diferencia de Fast Track y la agenda documental.
+ * <p>A single row per insurer (per-tenant table, no branch column): every branch shares the same
+ * scoring, unlike Fast Track and the document schedule.
  */
 @Entity
 @Table(name = "scoring_configuration")
@@ -45,10 +45,10 @@ public class ScoringConfiguration {
     private Instant validFrom;
 
     /**
-     * Si los siniestros Fast Track de esta aseguradora igual pasan por el análisis pesado (OCR de
-     * todos los adjuntos + cascada de fraude de imágenes) para que su score salga completo, en vez
-     * de solo con los factores de datos estructurados. Default false: el Fast Track queda rápido. No
-     * vetea el Fast Track — el score es señal paralela; solo decide cuánto análisis corre.
+     * Whether this insurer's Fast Track claims still go through the heavy analysis (OCR of every
+     * attachment + the image fraud cascade) so their score comes out complete, instead of only from
+     * the structured-data factors. Defaults to false: Fast Track stays fast. It doesn't veto Fast
+     * Track — the score is a parallel signal; it only decides how much analysis runs.
      */
     @Column(name = "full_analysis_on_fast_track", nullable = false)
     private boolean fullAnalysisOnFastTrack;

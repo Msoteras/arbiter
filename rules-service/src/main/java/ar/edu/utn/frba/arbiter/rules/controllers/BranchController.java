@@ -22,10 +22,10 @@ import org.springframework.web.bind.annotation.RestController;
 import java.util.List;
 
 /**
- * CRUD del catálogo de ramos (tabla global {@code branch}), para el backoffice del referente. La
- * lista puebla la pantalla de reglas; el alta/renombre/baja administran el catálogo compartido. Ojo:
- * {@code branch} es global (no per-tenant), así que crear o borrar un ramo afecta a todas las
- * aseguradoras — es un catálogo maestro, no una config por aseguradora.
+ * CRUD of the branch catalog (global {@code branch} table), for the referente's backoffice. The
+ * list populates the rules screen; create/rename/delete administer the shared catalog. Careful:
+ * {@code branch} is global (not per-tenant), so creating or deleting a branch affects every insurer
+ * — it's a master catalog, not a per-insurer config.
  */
 @RestController
 @RequestMapping("/api/v1/rules")
