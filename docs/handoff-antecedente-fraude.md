@@ -6,6 +6,10 @@ en otra conversación, sin tener que reconstruir el contexto.
 
 Fecha: 2026-08-17.
 
+> **Estado (2026-08-17): el backend está implementado.** Ver "Lo que quedó construido" al final.
+> Falta el frontend (acción de confirmar en el detalle + alerta del antecedente + sección del
+> referente para la ventana). Lo de acá arriba se deja como está porque es el porqué del diseño.
+
 ---
 
 ## El problema, en una línea
@@ -92,23 +96,32 @@ La arquitectura del scoring está preparada para recibirlo: es **una clase nueva
 
 ---
 
-## Preguntas abiertas
+## Preguntas que estaban abiertas, y cómo se cerraron
 
-1. **¿Puede haber antecedente sin peritaje?** La usuaria dijo que sí (la lista negra). Falta definir
-   qué evidencia mínima se le exige al analista para registrarlo, y cómo se muestra que ese
-   antecedente es más débil que uno pericial.
-2. **¿La ventana es global de la aseguradora o por ramo?** Con dos ramos, global parece suficiente.
-3. **¿Dónde se registra?** Tabla propia por tenant (algo como `insured_fraud_record`) vs. escribir
-   `Case.fraudDetermined` y derivar el antecedente de los expedientes. La tabla propia permite
-   procedencia (qué expediente, qué informe, qué analista, qué fecha) y vigencia; la columna sola no.
-4. **¿Qué pasa cuando el peritaje descarta el fraude?** También es información valiosa y protege al
-   asegurado de que lo vuelvan a derivar por lo mismo. ¿Se registra como "peritaje realizado, sin
-   hallazgo" o no se registra nada?
-5. **¿El asegurado ve algo de esto?** Por lo resuelto en el peritaje, la respuesta por defecto es no
-   — pero conviene decidirlo explícitamente porque acá el dato es más sensible.
-6. **Ley 25.326 (datos personales).** Marcar a una persona como defraudador es un dato sensible con
-   consecuencias. Vale al menos dejar dicho en la defensa por qué el antecedente exige respaldo
-   pericial y por qué tiene vencimiento.
+1. **¿Puede haber antecedente sin peritaje?** Sí. El origen `ANALYST_DECLARED` existe y se distingue
+   del pericial de tres formas: exige un motivo escrito de **20 caracteres mínimo** (el texto que un
+   colega va a leer dentro de años al lado de una marca sobre una persona), no referencia ningún
+   peritaje (constraint de BD), y la respuesta trae `scores=false` para que la pantalla pueda decir
+   por qué esa alerta no mueve el gauge en vez de dejarlo implícito.
+2. **¿La ventana es global de la aseguradora o por ramo?** Global. Una sola fila `insurer_rule`
+   `FRAUD_RECORD` sin ramo ni cobertura: el antecedente es de la persona, no de la cobertura que
+   afectó. Si mañana hace falta por ramo, se desdobla sin migrar datos.
+3. **¿Dónde se registra?** Tabla propia, `<tenant>.insured_fraud_record`, en
+   **classification-service**. Es el módulo que ya guarda memoria entre denuncias (los embeddings de
+   pgvector) y el que la lee en el camino caliente del scoring; ponerla en cases-service habría
+   agregado un hop REST por cada denuncia scoreada y un ciclo en el grafo de módulos. `Case
+   .fraudDetermined` **también** se escribe ahora, desde cases-service.
+4. **¿Qué pasa cuando el peritaje descarta el fraude?** No se registra antecedente. El dato ya está
+   en el `expert_assessment` del expediente; meter un "no-antecedente" en la tabla que después
+   alimenta scoring y motor de reglas mezcla dos cosas distintas. Si se quiere que se vea en la
+   próxima denuncia, sale de mostrar el historial de peritajes del asegurado.
+5. **¿El asegurado ve algo de esto?** No. Los endpoints son `ANALISTA_SINIESTROS` /
+   `REFERENTE_ASEGURADORA`, igual que el peritaje.
+6. **Ley 25.326 (datos personales).** Es el porqué de tres decisiones que quedaron en el código y
+   conviene defender así: el antecedente **vence** (ventana configurable, y la vigencia se calcula,
+   no se guarda — un flag guardado necesitaría un job y quedaría mal el día que el referente cambia
+   la ventana); solo el **respaldo pericial** puntúa; y el registro **no se edita nunca**, para que
+   qué dice y quién lo dijo sigan siendo legibles después.
 
 ---
 
@@ -127,6 +140,51 @@ La arquitectura del scoring está preparada para recibirlo: es **una clase nueva
 
 ---
 
+## Lo que quedó construido (backend completo)
+
+**common-lib** — `FraudRecordSource` (`EXPERT_BACKED` / `ANALYST_DECLARED`), `RuleType.FRAUD_RECORD`
+(+ `RuleType.insurerWide()`, que es la consulta del motor; `insurerScoped()` sigue siendo el par que
+edita el panel de reglas duras), y los DTOs `FraudRecordRequest` / `FraudRecordResponse`.
+
+**classification-service** — dueño del antecedente.
+- `InsuredFraudRecord` + repository + `InsuredFraudRecordService`.
+- `POST /api/v1/fraud-records` y `GET /api/v1/fraud-records/insured/{dni}` (internos).
+- `FraudHistoryEvaluator` (factor `fraud_history`): 1.0 si hay antecedente pericial vigente, 0.0 si
+  no, **no evaluable** si la aseguradora no configuró la política. Varios antecedentes no acumulan.
+- `FraudRecordRuleEvaluator`: el veto de Fast Track, con su `rule_result` PASS/FAIL.
+- `BusinessRules.FraudRecordPolicy` + `RulesAdapter.getFraudRecordPolicy()`. El overlay **propaga**
+  el error si rules-service no responde (a diferencia del de scoring): puede vetar Fast Track, y
+  tragarse la caída expeditaría un siniestro que la aseguradora decidió no expeditar.
+
+**rules-service** — `FraudRecordRuleService` + `GET/PUT /api/v1/rules/fraud-record-rule` (referente)
+y `GET /api/v1/rules/internal/fraud-record-rule` (motor). Cada cambio deja snapshot en el historial.
+
+**cases-service** — `POST /api/v1/cases/{id}/fraud-record` (solo `PENDING_ANALYST_REVIEW` o
+`REJECTED`; desde `APPROVED` no, pagar y marcar fraude se contradicen) y
+`GET /api/v1/cases/{id}/fraud-record/insured`. Escribe `Case.fraudDetermined` y valida contra el
+veredicto guardado que el respaldo pericial exista de verdad.
+
+**SQL** — tabla + índice + factor `fraud_history` (peso 0.60) + regla sembrada activa con ventana de
+60 meses y veto encendido, en `db/init-multitenant.sql`, y
+`db/migrations/2026-08-17-antecedente-fraude.sql` para Railway (idempotente, **depende de** la
+migración del peritaje porque referencia `expert_assessment`).
+
+**Tests** — 20 unitarios nuevos: `FraudHistoryEvaluatorTest`, `FraudRecordRuleEvaluatorTest`,
+`InsuredFraudRecordServiceTest`, `FraudRecordServiceTest`.
+
+## Lo que falta (frontend)
+
+1. **Acción de confirmar el antecedente** en el detalle del expediente, al lado del peritaje: elegir
+   origen y escribir el motivo. Con peritaje `FRAUD_CONFIRMED` presente, `EXPERT_BACKED` debería ser
+   el default; sin él, la opción tendría que estar deshabilitada y no fallar recién en el submit.
+2. **Alerta del antecedente vigente** al abrir un expediente cuyo asegurado ya tiene uno. Hay que
+   distinguir visualmente los tres estados que devuelve el endpoint: vigente y puntúa, vigente sin
+   respaldo pericial (`scores=false`), y vencido (`inForce=false`).
+3. **Sección del referente** para la ventana y el veto (`fraud-record-rule`), en la pantalla de
+   reglas. Sin esto la política solo se cambia por API.
+4. **Label del factor `fraud_history`** en `core/models/business-rules.ts`, o el panel de scoring lo
+   muestra con el código crudo.
+
 ## Contexto operativo
 
 - La base compartida (Railway) **ya tiene aplicada** la migración `db/migrations/2026-08-17-peritaje.sql`.
@@ -134,3 +192,8 @@ La arquitectura del scoring está preparada para recibirlo: es **una clase nueva
   confirmado y el 11 con fraude descartado. Sirven como datos de partida para este flujo.
 - Umbrales sembrados: $500.000 para Celulares, $700.000 para Tecnología Portátil.
 - Los peritos de demo apuntan a `perito.arbiter@gmail.com` (el mail sale de verdad por SendGrid).
+- **Antes de desplegar el código del antecedente**, aplicar
+  `db/migrations/2026-08-17-antecedente-fraude.sql` sobre Railway: los servicios corren con
+  `ddl-auto=validate` y sin la tabla classification-service no levanta.
+- El expediente 2 de BBVA (Julián Pérez, peritaje con fraude confirmado) es el candidato natural
+  para probar el flujo entero: registrar el antecedente ahí y ver qué le pasa a su denuncia siguiente.
