@@ -218,7 +218,7 @@ class CaseControllerTest {
     @Test
     void uploadDocuments_returns202() throws Exception {
         CaseResponse response = caseResponse(1L, CaseStatus.PENDING_CLASSIFICATION);
-        when(caseService.addDocumentsAndReclassify(eq(1L), any())).thenReturn(response);
+        when(caseService.addDocumentsAndReclassify(eq(1L), any(), isNull())).thenReturn(response);
 
         MockMultipartFile doc = new MockMultipartFile(
                 "police_report", "denuncia.pdf", MediaType.APPLICATION_PDF_VALUE, "pdf content".getBytes()
@@ -231,7 +231,7 @@ class CaseControllerTest {
 
     @Test
     void uploadDocuments_caseNotFound_returns404() throws Exception {
-        when(caseService.addDocumentsAndReclassify(eq(999L), any()))
+        when(caseService.addDocumentsAndReclassify(eq(999L), any(), isNull()))
                 .thenThrow(new CaseNotFoundException(999L));
 
         MockMultipartFile doc = new MockMultipartFile(
