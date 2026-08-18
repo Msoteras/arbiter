@@ -643,6 +643,38 @@ documento, no por expediente), hallazgos visuales en filas y no en un array seri
 
 ---
 
+# `cases.classification_id` vacío tras el retry — **no es un bug, cerrado**
+
+Fede, al verificar el reintento manual anotaste "queda pendiente que `classification_id` sigue
+vacío". Lo investigué: **está bien que esté vacío**, y el que confunde es el nombre de la columna.
+
+`classification_id` no apunta a la clasificación del modelo — apunta a `case_classification`, que
+en el DER es `clasificacion_expediente`: **la fila con la decisión del analista**. Esa fila no
+existe hasta que alguien aprueba o rechaza, así que un expediente recién reclasificado, que está
+esperando revisión, no tiene a qué apuntar todavía. El javadoc del campo en `Case.java` ya lo dice
+("Null until the analyst decides — the row doesn't exist before that"), pero el nombre tira para el
+otro lado y por eso se lee como un dato faltante.
+
+Verificado contra Railway, y el invariante se cumple exacto:
+
+| | `classification_id` |
+|---|---|
+| Los 7 expedientes con decisión (`APPROVED`/`REJECTED`) | **todos seteados** (7, 1, 2, 3, 8, 4, 5) |
+| Expedientes en `PENDING_ANALYST_REVIEW` | **0 con valor** — ninguno lo tiene, como corresponde |
+| Caso 29, el tuyo, tras el retry | null, y en `PENDING_ANALYST_REVIEW` |
+
+O sea que el mecanismo funciona: `CaseServiceImpl` lo setea con el id que devuelve
+`forwardAnalystDecision`, en el flujo de la decisión, y sólo ahí.
+
+Un detalle que aparece de paso y también está bien: `case_classification.llm_analysis_id` es null
+en la fila 7. Es un Fast Track — no deja fila en `llm_analysis` pero igual necesita decisión del
+analista (decisión de arquitectura #5), de ahí que la FK sea nullable.
+
+No se tocó nada. Si en algún momento molesta lo del nombre, renombrar la columna sería contradecir
+al DER, así que la salida barata es el javadoc que ya está.
+
+---
+
 # Transiciones duplicadas (tu hallazgo B) — causa encontrada y arreglada
 
 Fede: tu hipótesis era que el `TenantContext.set()` de la segunda aseguradora no alcanzaba a
