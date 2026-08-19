@@ -945,10 +945,14 @@ BEGIN
             (2, 'purchase_proof',      TRUE, NULL, 1, 2),
             (3, 'imei_deregistration', TRUE, NULL, 1, 2),
             (4, 'last_connection',     TRUE, NULL, 1, 2),
+            -- Tecnología Portátil / Daño accidental: no IMEI deregistration and no last-connection
+            -- capture — those are phone-theft documents and this branch covers notebooks (the
+            -- policy seed already leaves their imei NULL). Damage is evidenced by a repair quote
+            -- and a photo of the item.
             (5, 'police_report',       TRUE, NULL, 2, 6),
             (6, 'purchase_proof',      TRUE, NULL, 2, 6),
-            (7, 'imei_deregistration', TRUE, NULL, 2, 6),
-            (8, 'last_connection',     TRUE, NULL, 2, 6)
+            (7, 'repair_quote',        TRUE, NULL, 2, 6),
+            (8, 'item_photo',          TRUE, NULL, 2, 6)
         $ddl$, p_schema);
 
     -- Same values as classification-service's MockRulesAdapter.DEFAULT_SCORING_CONFIG

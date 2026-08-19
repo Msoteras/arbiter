@@ -93,7 +93,7 @@ class TemporalRuleEvaluatorTest {
                 rules(null, null));
 
         assertThat(result.blocksFastTrack()).isTrue();
-        assertThat(result.reasons()).anyMatch(r -> r.contains("Police report past the deadline"));
+        assertThat(result.reasons()).anyMatch(r -> r.contains("Denuncia policial fuera de plazo"));
     }
 
     /**
@@ -123,7 +123,7 @@ class TemporalRuleEvaluatorTest {
                 rules(null, null));
 
         assertThat(result.blocksFastTrack()).isTrue();
-        assertThat(result.reasons()).anyMatch(r -> r.contains("predates the event"));
+        assertThat(result.reasons()).anyMatch(r -> r.contains("La denuncia policial declarada es anterior al hecho"));
     }
 
     /** "No police report was filed" is legitimate: the rule doesn't participate, doesn't block blindly. */
@@ -244,7 +244,7 @@ class TemporalRuleEvaluatorTest {
                 rulesWithWaitingPeriod(30));
 
         assertThat(result.blocksFastTrack()).isTrue();
-        assertThat(result.reasons()).anyMatch(r -> r.contains("within the 30-day waiting period"));
+        assertThat(result.reasons()).anyMatch(r -> r.contains("período de carencia de 30 días"));
     }
 
     /** Same case, one day after the waiting period ends: covered. */
@@ -290,7 +290,7 @@ class TemporalRuleEvaluatorTest {
                 claim(null), policy(LocalDate.of(2024, 1, 1), LocalDate.of(2026, 6, 1)), history(List.of()), rules(null, null));
 
         assertThat(result.blocksFastTrack()).isTrue();
-        assertThat(result.reasons()).anyMatch(r -> r.contains("coverage window"));
+        assertThat(result.reasons()).anyMatch(r -> r.contains("fuera de la vigencia de la póliza"));
     }
 
     @Test
@@ -310,7 +310,7 @@ class TemporalRuleEvaluatorTest {
                 history(List.of()), rules(72L, null));
 
         assertThat(result.blocksFastTrack()).isTrue();
-        assertThat(result.reasons()).anyMatch(r -> r.contains("past the deadline"));
+        assertThat(result.reasons()).anyMatch(r -> r.contains("Denuncia fuera de plazo"));
     }
 
     @Test
@@ -329,7 +329,7 @@ class TemporalRuleEvaluatorTest {
                 history(List.of()), rules(72L, null));
 
         assertThat(result.blocksFastTrack()).isTrue();
-        assertThat(result.reasons()).anyMatch(r -> r.contains("predates"));
+        assertThat(result.reasons()).anyMatch(r -> r.contains("La denuncia declarada es anterior al hecho"));
     }
 
     // ── D10 · events-per-year cap ───────────────────────────────────────────
@@ -341,7 +341,7 @@ class TemporalRuleEvaluatorTest {
                 history(List.of(priorClaim(LocalDate.of(2026, 2, 1), "Celulares"))), rules(null, 1));
 
         assertThat(result.blocksFastTrack()).isTrue();
-        assertThat(result.reasons()).anyMatch(r -> r.contains("cap"));
+        assertThat(result.reasons()).anyMatch(r -> r.contains("Supera el tope"));
     }
 
     @Test
@@ -400,7 +400,7 @@ class TemporalRuleEvaluatorTest {
                 rulesWith(List.of(active(14L, RuleType.POLICY_STANDING))));
 
         assertThat(result.blocksFastTrack()).isTrue();
-        assertThat(result.reasons()).anyMatch(r -> r.contains("outstanding balance"));
+        assertThat(result.reasons()).anyMatch(r -> r.contains("saldo impago"));
         assertThat(result.findings()).singleElement().satisfies(f -> {
             assertThat(f.result()).isEqualTo("FAIL");
             assertThat(f.ruleId()).isEqualTo(14L);

@@ -152,7 +152,7 @@ public class TemporalRuleEvaluator {
                 "eventDate=" + DISPLAY_FORMAT.format(eventDate) + " coverageWindow="
                         + DISPLAY_FORMAT.format(policy.effectiveFrom()) + ".."
                         + DISPLAY_FORMAT.format(policy.effectiveTo()),
-                String.format("The claim (%s) occurred outside the policy's coverage window (%s to %s)",
+                String.format("El siniestro (%s) ocurrió fuera de la vigencia de la póliza (%s a %s)",
                         DISPLAY_FORMAT.format(eventDate), DISPLAY_FORMAT.format(policy.effectiveFrom()),
                         DISPLAY_FORMAT.format(policy.effectiveTo())));
     }
@@ -180,8 +180,8 @@ public class TemporalRuleEvaluator {
         outcome.record(rule, !eventDate.isBefore(coverageStart),
                 "eventDate=" + DISPLAY_FORMAT.format(eventDate) + " waitingPeriod="
                         + rules.waitingPeriodDays() + "d from " + DISPLAY_FORMAT.format(policy.effectiveFrom()),
-                String.format("The claim (%s) occurred within the %d-day waiting period: coverage only "
-                                + "applies from %s (policy started on %s)",
+                String.format("El siniestro (%s) ocurrió dentro del período de carencia de %d días: "
+                                + "la cobertura recién rige desde el %s (la póliza empezó el %s)",
                         DISPLAY_FORMAT.format(eventDate), rules.waitingPeriodDays(),
                         DISPLAY_FORMAT.format(coverageStart), DISPLAY_FORMAT.format(policy.effectiveFrom())));
     }
@@ -209,11 +209,11 @@ public class TemporalRuleEvaluator {
         String evaluatedValue = "policeReportAt=+" + hours + "h max=" + rule.deadlineHours() + "h";
         if (hours < 0) {
             outcome.record(rule, false, evaluatedValue,
-                    "The declared police report predates the event — inconsistent data");
+                    "La denuncia policial declarada es anterior al hecho — datos inconsistentes");
             return;
         }
         outcome.record(rule, hours <= rule.deadlineHours(), evaluatedValue,
-                String.format("Police report past the deadline: %d hs since the event, over the %d hs maximum",
+                String.format("Denuncia policial fuera de plazo: %d hs desde el hecho, sobre un máximo de %d hs",
                         hours, rule.deadlineHours()));
     }
 
@@ -228,12 +228,12 @@ public class TemporalRuleEvaluator {
         String evaluatedValue = "reportedAt=+" + hours + "h max=" + rules.reportDeadlineHours() + "h";
         if (hours < 0) {
             outcome.record(rule, false, evaluatedValue,
-                    "The declared report predates the event — inconsistent data");
+                    "La denuncia declarada es anterior al hecho — datos inconsistentes");
             return;
         }
         outcome.record(rule, hours <= rules.reportDeadlineHours(), evaluatedValue,
-                String.format("Report past the deadline: %d hs since the event, over the coverage's %d hs maximum",
-                        hours, rules.reportDeadlineHours()));
+                String.format("Denuncia fuera de plazo: %d hs desde el hecho, sobre el máximo de %d hs "
+                                + "de la cobertura", hours, rules.reportDeadlineHours()));
     }
 
     /**
@@ -259,8 +259,8 @@ public class TemporalRuleEvaluator {
         // The current claim isn't in the history yet: it would be the (priorInWindow + 1)-th.
         outcome.record(rule, priorInWindow + 1 <= rules.maxEventsPerYear(),
                 "events12m=" + (priorInWindow + 1) + " max=" + rules.maxEventsPerYear(),
-                String.format("Over the cap of %d claim(s) per year: %d prior claim(s) in the trailing 12 months",
-                        rules.maxEventsPerYear(), priorInWindow));
+                String.format("Supera el tope de %d siniestro(s) por año: %d siniestro(s) previo(s) "
+                                + "en los últimos 12 meses", rules.maxEventsPerYear(), priorInWindow));
     }
 
     /**
@@ -280,8 +280,8 @@ public class TemporalRuleEvaluator {
             return;
         }
         outcome.record(rule, policy.upToDate(), "upToDate=" + policy.upToDate(),
-                "The policy has an outstanding balance — how many installments are unpaid and whether "
-                        + "the event falls within an unpaid billing period needs the analyst's judgment call");
+                "La póliza tiene saldo impago — cuántas cuotas se adeudan y si el hecho cae dentro de un "
+                        + "período no abonado queda a criterio del analista");
     }
 
     /**
