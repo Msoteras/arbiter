@@ -14,6 +14,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
+import java.util.Optional;
 
 /**
  * A branch's AgendaDocumental, for the referente's Documentación tab. The DER
@@ -45,9 +46,19 @@ public class DocumentRequirementService {
      */
     @Transactional(readOnly = true)
     public List<String> getByBranchIdAndClaimCauseName(Long branchId, String claimCauseName) {
+        return findByBranchIdAndClaimCauseName(branchId, claimCauseName).orElse(List.of());
+    }
+
+    /**
+     * Same read, but telling apart "this claim cause requires no documents" (an empty list inside
+     * the Optional) from "there is no such claim cause in this branch" (empty Optional). The engine
+     * needs the distinction to know whether it may fall back to its baseline; the callers that just
+     * render a checklist don't, and keep using the plain method above.
+     */
+    @Transactional(readOnly = true)
+    public Optional<List<String>> findByBranchIdAndClaimCauseName(Long branchId, String claimCauseName) {
         return claimCauseRepository.findByBranch_IdAndName(branchId, claimCauseName)
-                .map(claimCause -> get(branchId, claimCause.getId()))
-                .orElse(List.of());
+                .map(claimCause -> get(branchId, claimCause.getId()));
     }
 
     /**

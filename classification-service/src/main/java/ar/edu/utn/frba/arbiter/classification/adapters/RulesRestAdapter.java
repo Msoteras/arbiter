@@ -276,7 +276,11 @@ public class RulesRestAdapter implements RulesAdapter {
                 .header(HttpHeaders.AUTHORIZATION, serviceToken())
                 .retrieve()
                 .body(new ParameterizedTypeReference<List<String>>() {});
-        if (agenda == null || agenda.isEmpty()) {
+        // Empty is an answer ("this claim cause needs no documents"), null is the absence of one
+        // (unknown coverage or claim cause). Treating both as "not configured" meant a referente who
+        // cleared every document from the panel still got the baseline's — see the null contract in
+        // InternalDocumentRequirementService.
+        if (agenda == null) {
             log.debug("[RulesRestAdapter] No document agenda in DB for coverage {} — using baseline", coverageId);
             return rules;
         }

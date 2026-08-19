@@ -568,7 +568,7 @@ SELECT setval('user_insurer_id_seq', (SELECT MAX(id) FROM user_insurer));
 -- Martina's profile — same DNI/contact already used across the seeded cases and in
 -- MockInsurerAdapter, not invented here.
 INSERT INTO insured (id, name, last_name, dni, email, phone, case_count, user_id, pep) VALUES
-    (1, 'Martina', 'Soteras', '42.987.654', 'martina.soteras@example.com', '11-5555-0001', 3, 1, FALSE);
+    (1, 'Martina', 'Soteras', '42.987.654', 'asegurado.arbiter@gmail.com', '11-5555-0001', 3, 1, FALSE);
 
 SELECT setval('insured_id_seq', (SELECT MAX(id) FROM insured));
 
@@ -659,7 +659,7 @@ VALUES
      'Samsung Galaxy S25 Ultra', '42.987.654', 'Martina Soteras', 'POL-CEL-2026-042',
      'Se me cayó el celular de las manos en mi casa. Se rompió la pantalla pero el equipo funciona normalmente',
      '2026-06-14 08:30:00', 'Casa', 285000.00,
-     FALSE, 'martina.soteras@example.com', '11-5555-0001',
+     FALSE, 'asegurado.arbiter@gmail.com', '11-5555-0001',
      'PENDING_ANALYST_REVIEW', 'FAST_TRACK', 1.0,
      'Monto reclamado (21.9% de la suma asegurada) dentro del límite de Fast Track (50.0%), Póliza al día con sus pagos',
      TRUE,
@@ -695,7 +695,7 @@ VALUES
      'iPhone 16 Pro', '42.987.654', 'Martina Soteras', 'POL-CEL-2026-042',
      'El celular desapareció pero no sé si me lo robaron o lo perdí. No estoy seguro qué pasó exactamente',
      '2026-06-12 18:30:00', 'Colectivo línea 159', 1200000.00,
-     FALSE, 'martina.soteras@example.com', '11-5555-0001',
+     FALSE, 'asegurado.arbiter@gmail.com', '11-5555-0001',
      'AWAITING_DOCUMENTATION', 'FALTA_DOCUMENTACION', 1.0,
      'Falta documento requerido: item_photo',
      FALSE,
@@ -708,7 +708,7 @@ VALUES
      'iPhone 16 Pro', '42.987.654', NULL, 'POL-CEL-2026-042',
      'El celular desapareció pero no sé si me lo robaron o lo perdí. No estoy seguro qué pasó exactamente',
      '2026-06-12 18:30:00', 'Colectivo línea 159', 1200000.00,
-     FALSE, 'martina.soteras@example.com', '11-5555-0001',
+     FALSE, 'asegurado.arbiter@gmail.com', '11-5555-0001',
      'PENDING_CLASSIFICATION', NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, 0);
 
 -- Reset the sequence so the next INSERT uses id=6

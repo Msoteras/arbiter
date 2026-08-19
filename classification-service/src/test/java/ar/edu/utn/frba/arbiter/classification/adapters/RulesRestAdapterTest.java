@@ -135,6 +135,39 @@ class RulesRestAdapterTest {
                 .allSatisfy(uri -> assertThat(uri).contains("coverageId=1"));
     }
 
+    /**
+     * A referente who clears every document from the panel means it: the engine must not put the
+     * baseline's back. Folding "configured as none" into "not configured" left cases stuck in
+     * AWAITING_DOCUMENTATION demanding a police report the panel no longer listed.
+     */
+    @Test
+    void emptyAgenda_isHonoured_notReadAsUnconfigured() throws IOException {
+        server = startServer(this::respondEmpty);
+        RulesRestAdapter adapter = adapterPointingAt(baseUrl());
+
+        BusinessRules rules = adapter.getRules("Celulares", 1L, "Caída");
+
+        assertThat(rules.requiredDocumentTypes()).isEmpty();
+    }
+
+    /** No answer at all (unknown coverage or claim cause) is the case that does fall back. */
+    @Test
+    void noAgendaAnswer_fallsBackToBaseline() throws IOException {
+        server = startServer(exchange -> {
+            if (exchange.getRequestURI().getPath().contains("document-requirements")) {
+                exchange.sendResponseHeaders(200, -1);
+            } else {
+                respondEmpty(exchange);
+            }
+        });
+        RulesRestAdapter adapter = adapterPointingAt(baseUrl());
+
+        BusinessRules rules = adapter.getRules("Celulares", 1L, "Caída");
+
+        BusinessRules baseline = new MockRulesAdapter().getRules("Celulares", 1L, "Caída");
+        assertThat(rules.requiredDocumentTypes()).isEqualTo(baseline.requiredDocumentTypes());
+    }
+
     // ── Infra ────────────────────────────────────────────────────────────────
 
     private RulesRestAdapter adapterPointingAt(String url) {
