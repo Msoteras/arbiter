@@ -8,7 +8,8 @@
 //
 // El motor PDF (Helvetica + WinAnsiEncoding, texto seleccionable) vive en lib-pdf.js, compartido
 // con el generador de Tecnología Portátil.
-// Uso: node generar-fixtures.js <directorio-destino>
+// Uso: node generar-fixtures.js [directorio-destino]
+//      Sin argumento escribe en docs/postman/test-docs/fraude/fast-track/
 
 const fs = require('fs');
 const path = require('path');
@@ -381,11 +382,14 @@ function lastConnection() {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-const outDir = process.argv[2];
-if (!outDir) {
-  console.error('Uso: node make-docs.js <directorio-destino>');
-  process.exit(1);
-}
+// Destino por defecto: la carpeta del escenario, junto al resto de sus fixtures. Se puede pisar
+// pasando un directorio (sirve para generar en un temporal y comparar antes de reemplazar).
+const outDir = process.argv[2]
+  ? path.resolve(process.argv[2])
+  : path.join(__dirname, 'fraude', 'fast-track');
+fs.mkdirSync(outDir, { recursive: true });
+console.log(`Destino: ${outDir}
+`);
 
 const documents = [
   ['denuncia_policial_fast_track.pdf', policeReport(), 'police_report'],

@@ -90,18 +90,21 @@ Cualquiera que falle bloquea el Fast Track, aunque los cinco umbrales hayan pasa
 
 ```
 docs/postman/test-docs/
-├── generar-fixtures.js                ← genera todo lo de abajo
-├── caso_fast_track.json               → parte multipart  case
-├── denuncia_policial_fast_track.pdf   → parte multipart  police_report
-├── factura_compra_fast_track.pdf      → parte multipart  purchase_proof
-├── baja_imei_fast_track.pdf           → parte multipart  imei_deregistration
-├── ultima_conexion_fast_track.pdf     → parte multipart  last_connection
-└── foto_equipo_fast_track.jpg         → parte multipart  item_photo   (opcional, ver §3.3)
+├── generar-fixtures.js                    ← genera todo lo de abajo
+├── foto_equipo_para_fraude.jpg            → parte multipart  item_photo   (opcional, ver §3.3)
+└── fraude/fast-track/
+    ├── caso_fast_track.json               → parte multipart  case
+    ├── denuncia_policial_fast_track.pdf   → parte multipart  police_report
+    ├── factura_compra_fast_track.pdf      → parte multipart  purchase_proof
+    ├── baja_imei_fast_track.pdf           → parte multipart  imei_deregistration
+    └── ultima_conexion_fast_track.pdf     → parte multipart  last_connection
 ```
 
 ```bash
-node docs/postman/test-docs/generar-fixtures.js docs/postman/test-docs
+node docs/postman/test-docs/generar-fixtures.js
 ```
+
+Cómo funciona el generador, y cómo sumar un escenario propio reusando el motor: [README de fixtures](../postman/test-docs/README.md).
 
 **El set caduca a las 72 hs y hay que regenerarlo.** `cases.reported_at` es `@CreationTimestamp`
 —el momento en que se crea el expediente— y la regla D11 compara `reportedAt − eventDate` contra
@@ -145,7 +148,7 @@ Que sean de 1 sola página importa: `OllamaDocumentAnalyzer` rasteriza el PDF a 
 
 ### 3.3 · La foto: opcional, y no inocente
 
-`foto_equipo_fast_track.jpg` es una foto real de un Samsung Galaxy A56 5G (1280×2276, ~600 KB),
+`foto_equipo_para_fraude.jpg` es una foto real de un Samsung Galaxy A56 5G (1280×2276, ~600 KB),
 tomada a mano sobre una mesa — como llega la foto de un asegurado, no un render de prensa.
 Wikimedia Commons, [`File:SmsnGlxA565gBack2026040500.jpg`](https://commons.wikimedia.org/wiki/File:SmsnGlxA565gBack2026040500.jpg),
 autor OnionBulb, CC BY-SA 4.0.
@@ -171,20 +174,22 @@ pide un solo documento en vez de cuatro. El caso "pasaría" por una caída de se
 estar bien armado.
 
 ```bash
-node docs/postman/test-docs/generar-fixtures.js docs/postman/test-docs
+node docs/postman/test-docs/generar-fixtures.js
 
 TOKEN=$(curl -s -X POST http://localhost:8080/api/v1/auth/login \
   -H 'Content-Type: application/json' \
   -d '{"email":"asegurado.arbiter@gmail.com","password":"asegurado.arbiter123"}' \
   | sed -n 's/.*"token":"\([^"]*\)".*/\1/p')
 
+FT=docs/postman/test-docs/fraude/fast-track
+
 curl -X POST http://localhost:8083/api/v1/cases \
   -H "Authorization: Bearer $TOKEN" \
-  -F "case=<docs/postman/test-docs/caso_fast_track.json;type=application/json" \
-  -F "police_report=@docs/postman/test-docs/denuncia_policial_fast_track.pdf;type=application/pdf" \
-  -F "purchase_proof=@docs/postman/test-docs/factura_compra_fast_track.pdf;type=application/pdf" \
-  -F "imei_deregistration=@docs/postman/test-docs/baja_imei_fast_track.pdf;type=application/pdf" \
-  -F "last_connection=@docs/postman/test-docs/ultima_conexion_fast_track.pdf;type=application/pdf"
+  -F "case=<$FT/caso_fast_track.json;type=application/json" \
+  -F "police_report=@$FT/denuncia_policial_fast_track.pdf;type=application/pdf" \
+  -F "purchase_proof=@$FT/factura_compra_fast_track.pdf;type=application/pdf" \
+  -F "imei_deregistration=@$FT/baja_imei_fast_track.pdf;type=application/pdf" \
+  -F "last_connection=@$FT/ultima_conexion_fast_track.pdf;type=application/pdf"
 ```
 
 Dos detalles del `curl` que cuestan una tarde si no se saben:

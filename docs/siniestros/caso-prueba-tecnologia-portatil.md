@@ -5,16 +5,20 @@ de [Celulares](caso-prueba-fast-track-celulares.md). Cuatro PDFs + el payload de
 generados desde un único objeto para que no puedan divergir entre sí.
 
 ```bash
-node docs/postman/test-docs/generar-fixtures-tecnologia.js docs/postman/test-docs
+node docs/postman/test-docs/generar-fixtures-tecnologia.js
 ```
+
+Cómo funciona el generador, y cómo sumar un escenario propio reusando el motor: [README de fixtures](../postman/test-docs/README.md).
 
 ```
 docs/postman/test-docs/
-├── caso_tecnologia.json               → parte multipart  case
-├── denuncia_policial_tecnologia.pdf   → parte multipart  police_report
-├── factura_compra_tecnologia.pdf      → parte multipart  purchase_proof
-├── bloqueo_equipo_tecnologia.pdf      → parte multipart  imei_deregistration
-└── ultima_conexion_tecnologia.pdf     → parte multipart  last_connection
+├── generar-fixtures-tecnologia.js         ← genera todo lo de abajo
+└── fraude/tec-portatil/
+    ├── caso_tecnologia.json               → parte multipart  case
+    ├── denuncia_policial_tecnologia.pdf   → parte multipart  police_report
+    ├── factura_compra_tecnologia.pdf      → parte multipart  purchase_proof
+    ├── bloqueo_equipo_tecnologia.pdf      → parte multipart  imei_deregistration
+    └── ultima_conexion_tecnologia.pdf     → parte multipart  last_connection
 ```
 
 > **El nombre del archivo no lo lee el backend.** Lo que el sistema usa es el **nombre de la parte
@@ -179,15 +183,17 @@ La cadena temporal que comparten los cuatro documentos:
 ## 6 · Cómo correrlo
 
 ```bash
-node docs/postman/test-docs/generar-fixtures-tecnologia.js docs/postman/test-docs
+node docs/postman/test-docs/generar-fixtures-tecnologia.js
+
+TEC=docs/postman/test-docs/fraude/tec-portatil
 
 curl -X POST http://localhost:8083/api/v1/cases \
   -H "Authorization: Bearer $TOKEN" \
-  -F "case=<docs/postman/test-docs/caso_tecnologia.json;type=application/json" \
-  -F "police_report=@docs/postman/test-docs/denuncia_policial_tecnologia.pdf;type=application/pdf" \
-  -F "purchase_proof=@docs/postman/test-docs/factura_compra_tecnologia.pdf;type=application/pdf" \
-  -F "imei_deregistration=@docs/postman/test-docs/bloqueo_equipo_tecnologia.pdf;type=application/pdf" \
-  -F "last_connection=@docs/postman/test-docs/ultima_conexion_tecnologia.pdf;type=application/pdf"
+  -F "case=<$TEC/caso_tecnologia.json;type=application/json" \
+  -F "police_report=@$TEC/denuncia_policial_tecnologia.pdf;type=application/pdf" \
+  -F "purchase_proof=@$TEC/factura_compra_tecnologia.pdf;type=application/pdf" \
+  -F "imei_deregistration=@$TEC/bloqueo_equipo_tecnologia.pdf;type=application/pdf" \
+  -F "last_connection=@$TEC/ultima_conexion_tecnologia.pdf;type=application/pdf"
 ```
 
 El `case` va **desde archivo** (`=<`, no `=@`): con `@` curl lo manda como parte de archivo y Spring

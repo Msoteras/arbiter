@@ -19,7 +19,8 @@
 // corresponde al bien. `DocumentInconsistencyEvaluator.checkImei` no participa acá porque la póliza
 // del ramo no tiene IMEI (poliza.imei = NULL en el seed), así que no hay cruce que falsear.
 //
-// Uso: node generar-fixtures-tecnologia.js <directorio-destino>
+// Uso: node generar-fixtures-tecnologia.js [directorio-destino]
+//      Sin argumento escribe en docs/postman/test-docs/fraude/tec-portatil/
 
 const fs = require('fs');
 const path = require('path');
@@ -425,11 +426,14 @@ function lastConnection() {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-const outDir = process.argv[2];
-if (!outDir) {
-  console.error('Uso: node generar-fixtures-tecnologia.js <directorio-destino>');
-  process.exit(1);
-}
+// Destino por defecto: la carpeta del escenario, junto al resto de sus fixtures. Se puede pisar
+// pasando un directorio (sirve para generar en un temporal y comparar antes de reemplazar).
+const outDir = process.argv[2]
+  ? path.resolve(process.argv[2])
+  : path.join(__dirname, 'fraude', 'tec-portatil');
+fs.mkdirSync(outDir, { recursive: true });
+console.log(`Destino: ${outDir}
+`);
 
 const documents = [
   ['denuncia_policial_tecnologia.pdf', policeReport(), 'police_report'],

@@ -21,7 +21,7 @@ BT /F1 9 Tf 169.39 717.89 Td (Actuaci\363n N\260 5A-2026-009341 \227 Libro de Gu
 0.6 w 56 701.39 m 539.28 701.39 l S
 BT /F2 9.5 Tf 56.00 693.39 Td (DATOS DE LA ACTUACI\323N) Tj ET
 BT /F2 9 Tf 56 680.89 Td (Fecha y hora de recepci\363n:) Tj ET
-BT /F1 9 Tf 206.00 680.89 Td (14/08/2026, 23:35 hs.) Tj ET
+BT /F1 9 Tf 206.00 680.89 Td (18/08/2026, 23:35 hs.) Tj ET
 BT /F2 9 Tf 56 669.89 Td (Funcionario interviniente:) Tj ET
 BT /F1 9 Tf 206.00 669.89 Td (Of. Ppal. Carla V. Duarte \(Leg. 38.902\)) Tj ET
 BT /F2 9 Tf 56 658.89 Td (Car\341tula provisoria:) Tj ET
@@ -39,7 +39,7 @@ BT /F2 9 Tf 56 586.39 Td (Tel\351fono:) Tj ET
 BT /F1 9 Tf 206.00 586.39 Td (11-5555-0001 \227 Correo: martina.soteras@example.com) Tj ET
 BT /F2 9.5 Tf 56.00 570.39 Td (DATOS DEL HECHO) Tj ET
 BT /F2 9 Tf 56 557.89 Td (Fecha y hora del hecho:) Tj ET
-BT /F1 9 Tf 206.00 557.89 Td (14/08/2026, aproximadamente 22:10 hs.) Tj ET
+BT /F1 9 Tf 206.00 557.89 Td (18/08/2026, aproximadamente 22:10 hs.) Tj ET
 BT /F2 9 Tf 56 546.89 Td (Lugar:) Tj ET
 BT /F1 9 Tf 206.00 546.89 Td (Av. Medrano al 900, intersecci\363n con Av. Corrientes,) Tj ET
 BT /F1 9 Tf 56.00 535.89 Td (             barrio de Almagro, C.A.B.A. \227 v\355a p\372blica.) Tj ET
@@ -86,7 +86,7 @@ endobj
 << /Type /Font /Subtype /Type1 /BaseFont /Helvetica-Bold /Encoding /WinAnsiEncoding >>
 endobj
 7 0 obj
-<< /Title (Acta de denuncia 5A-2026-009341) /Author (Policia de la Ciudad de Buenos Aires) /Subject (Robo en via publica de equipo portatil - documento simulado de prueba) /Producer (Arbiter test fixture) /CreationDate (D:20260814233500-03'00') >>
+<< /Title (Acta de denuncia 5A-2026-009341) /Author (Policia de la Ciudad de Buenos Aires) /Subject (Robo en via publica de equipo portatil - documento simulado de prueba) /Producer (Arbiter test fixture) /CreationDate (D:20260818233500-03'00') >>
 endobj
 xref
 0 8
