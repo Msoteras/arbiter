@@ -10,3 +10,10 @@ const LABELS: Record<UserRole, string> = {
 export function userRoleLabel(value: string): string {
   return (LABELS as Record<string, string>)[value] ?? value;
 }
+
+/** Cada rol aterriza en su propio home, que resume su trabajo y linkea al resto de su sección. */
+export function homeRouteFor(rol: UserRole): string {
+  if (rol === 'ASEGURADO') return '/portal/home';
+  if (rol === 'REFERENTE_ASEGURADORA') return '/insurer/home';
+  return '/home';
+}

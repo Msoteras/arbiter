@@ -127,13 +127,21 @@ La arquitectura del scoring está preparada para recibirlo: es **una clase nueva
 
 ## Pendientes que quedaron del peritaje (no bloquean, pero conviene cerrarlos)
 
-- **Copy de la card de decisión para el referente**: el referente ve el expediente de solo lectura
-  (`canAct()` en el detalle compara contra `ANALISTA_SINIESTROS`), pero la card lee "Pendiente de
-  decisión del analista", que parece que falta algo en vez de "esto no te toca".
-- **Sugerir la derivación desde el scoring**: cuando la banda es `HIGH`/`CRITICAL` y el expediente es
-  elegible, destacar el botón. Se acordó que la sugerencia salga del lado determinístico y **no**
-  como un sexto valor de `Classification` — la decisión #6 fija cinco categorías y el mapeo de
-  tipologías está construido sobre ellas.
+- ~~**Contradicción front/back sobre el referente**~~ — **resuelto (19/8)** para decisión, asignación
+  y reintento. El criterio que se eligió: el referente **supervisa** (asigna, reasigna, destraba una
+  clasificación fallida) pero **no decide**. `decision` quedó en `hasRole('ANALISTA_SINIESTROS')` en
+  cases-service **y en classification-service**, que tenía su propio `POST /claims/{id}/decision` con
+  ambos roles — una vía para registrar una decisión salteándose el único módulo que resuelve quién
+  decide contra `claims_analyst`, y además atribuyéndola a cualquier `analystId` del body.
+  **Sigue abierto:** los dos endpoints de peritaje (`POST /expert-assessments` y `/report`) todavía
+  admiten al referente en el backend mientras el front se los esconde.
+- ~~**Copy de la card de decisión para el referente**~~ — **resuelto (19/8)**: ahora dice quién tiene
+  la decisión y qué puede hacer él ("Espera la decisión de {analista}. Podés reasignarlo si hace
+  falta").
+- ~~**Sugerir la derivación desde el scoring**~~ — **resuelto (19/8)**: con banda `HIGH`/`CRITICAL` y
+  derivación elegible, el botón pasa a variante `accent` con una nota en `--status-risk`. Se exige
+  también que esté habilitada: sugerir un botón deshabilitado por monto mínimo sería peor que no
+  sugerir nada.
 - **Reintentos de clasificación**: se vieron expedientes con `"clasificación fallida tras 501
   reintentos"` y transiciones triplicadas en el historial. Es data anterior al fix de estabilización
   que trajo develop, pero si reaparece en expedientes nuevos hay que mirarlo.

@@ -4,7 +4,7 @@ import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 
 import { AuthSessionService } from '../../../core/auth/auth-session.service';
 import { AuthService } from '../../../core/auth/auth.service';
-import { UserRole } from '../../../core/models/user-role';
+import { homeRouteFor } from '../../../core/models/user-role';
 import { ButtonComponent } from '../../../shared/ui/button/button.component';
 import { InputComponent } from '../../../shared/ui/input/input.component';
 import { LogoComponent } from '../../../shared/ui/logo/logo.component';
@@ -47,7 +47,7 @@ export class LoginComponent {
     this.authService.login({ email: this.email().trim(), password: this.password() }).subscribe({
       next: (response) => {
         this.session.start(response);
-        this.router.navigateByUrl(this.homeFor(response.rol));
+        this.router.navigateByUrl(homeRouteFor(response.rol));
       },
       error: (err: HttpErrorResponse) => {
         this.submitting.set(false);
@@ -57,13 +57,6 @@ export class LoginComponent {
         this.errorMessage.set(this.messageFor(err));
       },
     });
-  }
-
-  /** Each role lands on its own home, which sums up its work and links to the rest of its section. */
-  private homeFor(rol: UserRole): string {
-    if (rol === 'ASEGURADO') return '/portal/home';
-    if (rol === 'REFERENTE_ASEGURADORA') return '/insurer/home';
-    return '/home';
   }
 
   private messageFor(err: HttpErrorResponse): string {
