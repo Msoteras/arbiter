@@ -97,7 +97,7 @@ public class RulesRestAdapter implements RulesAdapter {
                                 overlayEvaluableRules(
                                         overlayDocumentRequirements(
                                                 overlayRuleTexts(overlayFastTrack(base, coverageId), coverageId),
-                                                coverageId),
+                                                coverageId, claimCauseId),
                                         coverageId),
                                 coverageId)));
     }
@@ -291,19 +291,31 @@ public class RulesRestAdapter implements RulesAdapter {
     }
 
     /**
-     * The document agenda the referente configured for the coverage's branch. Replaces the mock
-     * baseline: it's what the missing-docs gate ({@code checkRequiredDocuments}) compares against
-     * what the insured uploaded. An empty list (200 with no rows) is "not configured" and keeps
-     * the baseline; if rules-service doesn't respond, it propagates — see the class javadoc.
+     * The document agenda the referente configured for the coverage's branch <b>and claim cause</b>.
+     * Replaces the mock baseline: it's what the missing-docs gate ({@code checkRequiredDocuments})
+     * compares against what the insured uploaded. An empty list (200 with no rows) is "not
+     * configured" and keeps the baseline; if rules-service doesn't respond, it propagates — see the
+     * class javadoc.
+     *
+     * <p>{@code claimCause} viaja como <b>nombre</b>, no como id: es lo único que trae el
+     * {@code ClaimReport} que llega al motor, y rules-service lo resuelve a id contra el ramo de la
+     * cobertura ({@code InternalDocumentRequirementService}). Es obligatorio desde que la agenda
+     * documental se segmentó por hecho generador — antes bastaba el ramo, y omitirlo ahora devuelve
+     * 400 y voltea la clasificación entera.
      */
-    private BusinessRules overlayDocumentRequirements(BusinessRules rules, Long coverageId) {
+    private BusinessRules overlayDocumentRequirements(BusinessRules rules, Long coverageId, String claimCause) {
         List<String> agenda = restClient.get()
                 .uri(uri -> uri.path("/api/v1/rules/document-requirements/internal")
-                        .queryParam("coverageId", coverageId).build())
+                        .queryParam("coverageId", coverageId)
+                        .queryParam("claimCause", claimCause).build())
                 .header(HttpHeaders.AUTHORIZATION, serviceToken())
                 .retrieve()
                 .body(new ParameterizedTypeReference<List<String>>() {});
-        if (agenda == null || agenda.isEmpty()) {
+        // Empty is an answer ("this claim cause needs no documents"), null is the absence of one
+        // (unknown coverage or claim cause). Treating both as "not configured" meant a referente who
+        // cleared every document from the panel still got the baseline's — see the null contract in
+        // InternalDocumentRequirementService.
+        if (agenda == null) {
             log.debug("[RulesRestAdapter] No document agenda in DB for coverage {} — using baseline", coverageId);
             return rules;
         }

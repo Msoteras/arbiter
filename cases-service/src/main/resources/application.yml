@@ -43,6 +43,16 @@ arbiter:
     url: ${CLASSIFICATION_SERVICE_URL:http://localhost:8082}
   rules-service:
     url: ${RULES_SERVICE_URL:http://localhost:8081}
+  classification-refresh:
+    # Defaults del código (5000ms / 120 intentos ⇒ 10 min de ventana total) asumían una
+    # clasificación rápida. Corriendo Ollama por CPU (sin GPU) se midieron casos reales de 20 min
+    # a más de 1 hora — el scheduler se rendía y marcaba CLASSIFICATION_FAILED con la clasificación
+    # todavía en curso en classification-service, que terminaba bien más tarde sin que nadie lo
+    # notara (18/08, caso 16: reintentó "fallar" 7 veces mientras el resultado real ya estaba
+    # persistido). 20s x 540 = 3hs de ventana, mismo criterio que el timeout de OllamaClient: mejor
+    # holgado que cortar algo que iba a terminar bien.
+    interval-ms: 20000
+    max-attempts: 540
   email:
     # Sin key el adapter loguea y no manda: el módulo levanta igual y las notificaciones
     # quedan registradas en base aunque no salga el mail.

@@ -24,9 +24,11 @@ import ar.edu.utn.frba.arbiter.cases.models.entities.Policy;
 import ar.edu.utn.frba.arbiter.cases.models.entities.StatusChangeActor;
 import ar.edu.utn.frba.arbiter.cases.models.repositories.CaseAnalysisRepository;
 import ar.edu.utn.frba.arbiter.cases.models.repositories.CaseAnalysisRepository.CaseAnalysis;
+import ar.edu.utn.frba.arbiter.cases.models.repositories.CaseDocumentAnalysisRepository;
 import ar.edu.utn.frba.arbiter.cases.models.repositories.CaseDocumentRepository;
 import ar.edu.utn.frba.arbiter.cases.models.repositories.CaseRepository;
 import ar.edu.utn.frba.arbiter.cases.models.repositories.ClaimsAnalystRepository;
+import ar.edu.utn.frba.arbiter.cases.models.repositories.InsurerRepository;
 import ar.edu.utn.frba.arbiter.cases.support.CaseFixtures;
 import ar.edu.utn.frba.arbiter.cases.support.CaseStates;
 import ar.edu.utn.frba.arbiter.common.dto.ImageForensicReport;
@@ -93,6 +95,9 @@ class CaseServiceImplTest {
     private CaseAnalysisRepository caseAnalysisRepository;
 
     @Mock
+    private CaseDocumentAnalysisRepository caseDocumentAnalysisRepository;
+
+    @Mock
     private CaseAccessPolicy accessPolicy;
 
     @Mock
@@ -103,6 +108,9 @@ class CaseServiceImplTest {
 
     @Mock
     private PolicyEligibilityValidator policyEligibilityValidator;
+
+    @Mock
+    private InsurerRepository insurerRepository;
 
     @InjectMocks
     private CaseServiceImpl caseService;
@@ -115,6 +123,20 @@ class CaseServiceImplTest {
     void noAnalysisByDefault() {
         lenient().when(caseAnalysisRepository.findByCaseId(any())).thenReturn(CaseAnalysis.none());
         lenient().when(caseAnalysisRepository.findByCaseIds(any())).thenReturn(Map.of());
+        // Sin extracciones por default: el mock devolvería null, y el real devuelve lista vacía
+        // cuando el expediente no se clasificó todavía — que es el caso de casi todos los tests.
+        lenient().when(caseDocumentAnalysisRepository.findByCaseId(any())).thenReturn(List.of());
+    }
+
+    /**
+     * createCase() ahora resuelve el insurerSlug/insurerName de la respuesta contra el tenant
+     * actual (para que el frontend pueda reenviarlo en llamadas posteriores sobre el expediente,
+     * si terminó en una aseguradora distinta de la del login). Sin aseguradora encontrada, la
+     * respuesta simplemente queda con esos dos campos en null — el mismo comportamiento de antes.
+     */
+    @BeforeEach
+    void noInsurerMatchByDefault() {
+        lenient().when(insurerRepository.findBySchemaName(any())).thenReturn(Optional.empty());
     }
 
     /**
@@ -354,8 +376,8 @@ class CaseServiceImplTest {
 
     @Test
     void getCase_joinsTheClassificationFromLlmAnalysis() {
-        // La recomendación ya no es columna de `cases`: sale del join, y el detalle se arma
-        // concatenando los motivos (llm_reason).
+        // La recomendación ya no es columna de `cases`: sale del join, y los motivos viajan uno
+        // por fila (llm_reason), no aplanados a un string — respeta el DER.
         Case entity = caseRecord(1L, CaseStatus.PENDING_ANALYST_REVIEW);
         when(caseRepository.findById(1L)).thenReturn(Optional.of(entity));
         when(caseAnalysisRepository.findByCaseId(1L)).thenReturn(new CaseAnalysis(
@@ -368,7 +390,7 @@ class CaseServiceImplTest {
         assertThat(response.status()).isEqualTo(CaseStatus.PENDING_ANALYST_REVIEW);
         assertThat(response.analysisClassification()).isEqualTo(Classification.LLM_RECOMIENDA_APROBAR);
         assertThat(response.analysisConfidence()).isEqualTo(0.87);
-        assertThat(response.analysisDetail()).isEqualTo("Monto bajo, Primer siniestro");
+        assertThat(response.analysisReasons()).containsExactly("Monto bajo", "Primer siniestro");
     }
 
     @Test
@@ -383,7 +405,9 @@ class CaseServiceImplTest {
 
         assertThat(response.analysisClassification()).isEqualTo(Classification.FAST_TRACK);
         assertThat(response.analysisConfidence()).isEqualTo(1.0);
-        assertThat(response.analysisDetail()).isEqualTo("Fast track classification available");
+        // Sin motivos propios: los de llm_reason (si los hay) son de la corrida anterior, y
+        // atribuírselos al Fast Track le daría razones que no son suyas.
+        assertThat(response.analysisReasons()).isEmpty();
     }
 
     @Test
@@ -399,7 +423,7 @@ class CaseServiceImplTest {
 
         assertThat(response.analysisClassification()).isNull();
         assertThat(response.analysisConfidence()).isEqualTo(0.0);
-        assertThat(response.analysisDetail()).isNull();
+        assertThat(response.analysisReasons()).isEmpty();
     }
 
     @Test
@@ -452,7 +476,7 @@ class CaseServiceImplTest {
         assertThat(response.status()).isEqualTo(CaseStatus.PENDING_CLASSIFICATION);
         assertThat(response.analysisClassification()).isNull();
         assertThat(response.analysisConfidence()).isEqualTo(0.0);
-        assertThat(response.analysisDetail()).isNull();
+        assertThat(response.analysisReasons()).isEmpty();
 
         verify(caseStatusService).transition(eq(entity), eq(CaseStatus.PENDING_CLASSIFICATION),
                 eq(StatusChangeActor.INSURED), any());

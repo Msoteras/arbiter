@@ -64,7 +64,7 @@ INSERT INTO arbiter_common.user_insurer (user_id, insurer_id) VALUES
 -- =============================================================================
 
 INSERT INTO aseguradora_bbva.asegurado (id, documento, cuil, nombre, apellido, email, telefono) VALUES
-    (1, '42.987.654', '27-42987654-1', 'Martina', 'Soteras', 'martina.soteras@example.com',    '11-5555-0001'),
+    (1, '42.987.654', '27-42987654-1', 'Martina', 'Soteras', 'asegurado.arbiter@gmail.com',    '11-5555-0001'),
     (2, '30.555.777', '20-30555777-3', 'Julián',  'Pérez',   'asegurado2.arbiter@gmail.com',   '11-5555-0002');
 
 SELECT setval(pg_get_serial_sequence('aseguradora_bbva.asegurado','id'),
@@ -112,7 +112,7 @@ INSERT INTO aseguradora_bbva.siniestro_historico (poliza_id, asegurado_id, fecha
 
 -- Same document as BBVA's asegurado(1): Martina holds policies with both companies.
 INSERT INTO aseguradora_provincia.asegurado (id, documento, cuil, nombre, apellido, email, telefono) VALUES
-    (1, '42.987.654', '27-42987654-1', 'Martina',  'Soteras', 'martina.soteras@example.com',  '11-5555-0001');
+    (1, '42.987.654', '27-42987654-1', 'Martina',  'Soteras', 'asegurado.arbiter@gmail.com',  '11-5555-0001');
 
 SELECT setval(pg_get_serial_sequence('aseguradora_provincia.asegurado','id'),
               (SELECT MAX(id) FROM aseguradora_provincia.asegurado));
@@ -308,7 +308,7 @@ SELECT setval(pg_get_serial_sequence('arbiter_provincia.coverage','id'),
 
 -- Same person as arbiter_bbva.insured(1) — one identity, two tenants, no shared row.
 INSERT INTO arbiter_provincia.insured (id, name, surname, dni, email, phone, case_count, pep, user_id) VALUES
-    (1, 'Martina',  'Soteras', '42.987.654', 'martina.soteras@example.com',  '11-5555-0001', 2, FALSE, 1);
+    (1, 'Martina',  'Soteras', '42.987.654', 'asegurado.arbiter@gmail.com',  '11-5555-0001', 2, FALSE, 1);
 
 SELECT setval(pg_get_serial_sequence('arbiter_provincia.insured','id'),
               (SELECT MAX(id) FROM arbiter_provincia.insured));

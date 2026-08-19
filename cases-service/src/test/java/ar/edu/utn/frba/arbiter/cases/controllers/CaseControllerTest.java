@@ -1,6 +1,7 @@
 package ar.edu.utn.frba.arbiter.cases.controllers;
 
 import ar.edu.utn.frba.arbiter.cases.dto.CaseResponse;
+import ar.edu.utn.frba.arbiter.cases.dto.DocumentAnalysisSummary;
 import ar.edu.utn.frba.arbiter.cases.dto.StatusTransitionResponse;
 import ar.edu.utn.frba.arbiter.cases.exceptions.CaseExceptionHandler;
 import ar.edu.utn.frba.arbiter.cases.exceptions.CaseNotFoundException;
@@ -218,7 +219,7 @@ class CaseControllerTest {
     @Test
     void uploadDocuments_returns202() throws Exception {
         CaseResponse response = caseResponse(1L, CaseStatus.PENDING_CLASSIFICATION);
-        when(caseService.addDocumentsAndReclassify(eq(1L), any())).thenReturn(response);
+        when(caseService.addDocumentsAndReclassify(eq(1L), any(), isNull())).thenReturn(response);
 
         MockMultipartFile doc = new MockMultipartFile(
                 "police_report", "denuncia.pdf", MediaType.APPLICATION_PDF_VALUE, "pdf content".getBytes()
@@ -231,7 +232,7 @@ class CaseControllerTest {
 
     @Test
     void uploadDocuments_caseNotFound_returns404() throws Exception {
-        when(caseService.addDocumentsAndReclassify(eq(999L), any()))
+        when(caseService.addDocumentsAndReclassify(eq(999L), any(), isNull()))
                 .thenThrow(new CaseNotFoundException(999L));
 
         MockMultipartFile doc = new MockMultipartFile(
@@ -252,7 +253,7 @@ class CaseControllerTest {
                 LocalDateTime.of(2026, 6, 13, 19, 45), "CABA",
                 new BigDecimal("150000"),
                 Classification.FAST_TRACK, 1.0,
-                "Low amount, first claim, policy up to date",
+                List.of("Low amount", "first claim", "policy up to date"),
                 null, null, null, null, null, null,
                 Instant.parse("2026-06-13T22:50:00Z"),
                 Instant.parse("2026-06-13T22:55:00Z"),
@@ -264,7 +265,15 @@ class CaseControllerTest {
                                 CaseStatus.PENDING_ANALYST_REVIEW,
                                 StatusChangeActor.SYSTEM, "clasificación: FAST_TRACK",
                                 Instant.parse("2026-06-13T22:55:00Z"))
-                )
+                ),
+                // Un adjunto con un campo leído (el importe) y otro que el documento no trae
+                // (el IMEI): null viaja como null, que la pantalla muestra "no aplica" y NUNCA
+                // como discrepancia.
+                List.of(new DocumentAnalysisSummary(
+                        "purchase_proof", "Factura de compra…",
+                        LocalDate.of(2026, 5, 30), new BigDecimal("150000"),
+                        "Motorola Edge 50 Pro", null, "TITULAR",
+                        List.of("La tipografía del encabezado no coincide con el resto")))
         );
         when(caseService.getCase(1L, (String) null)).thenReturn(response);
 
@@ -272,11 +281,19 @@ class CaseControllerTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.analysisClassification").value("FAST_TRACK"))
                 .andExpect(jsonPath("$.analysisConfidence").value(1.0))
-                .andExpect(jsonPath("$.analysisDetail").value("Low amount, first claim, policy up to date"))
+                .andExpect(jsonPath("$.analysisReasons.length()").value(3))
+                .andExpect(jsonPath("$.analysisReasons[0]").value("Low amount"))
                 .andExpect(jsonPath("$.statusHistory.length()").value(2))
                 .andExpect(jsonPath("$.statusHistory[0].toStatus").value("PENDING_CLASSIFICATION"))
                 .andExpect(jsonPath("$.statusHistory[1].actor").value("SYSTEM"))
-                .andExpect(jsonPath("$.statusHistory[1].changedAt").exists());
+                .andExpect(jsonPath("$.statusHistory[1].changedAt").exists())
+                .andExpect(jsonPath("$.documentAnalyses.length()").value(1))
+                .andExpect(jsonPath("$.documentAnalyses[0].documentType").value("purchase_proof"))
+                .andExpect(jsonPath("$.documentAnalyses[0].amount").value(150000))
+                // El campo que el documento no dice viaja null, no ausente ni "" — es lo que le
+                // permite al front distinguir "no aplica" de un valor que no coincide.
+                .andExpect(jsonPath("$.documentAnalyses[0].imei").doesNotExist())
+                .andExpect(jsonPath("$.documentAnalyses[0].visualFindings.length()").value(1));
     }
 
     @Test
@@ -311,7 +328,8 @@ class CaseControllerTest {
                 null, null, null, null, null, null,
                 Instant.parse("2026-06-13T22:50:00Z"),
                 Instant.parse("2026-06-13T22:50:00Z"),
-                null
+                null,
+                List.of()
         );
     }
 }

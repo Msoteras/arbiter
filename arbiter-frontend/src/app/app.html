@@ -290,7 +290,12 @@
       (close)="newClaim.close()"
     >
       @defer (when newClaim.isOpen()) {
-        <app-nueva-denuncia [embedded]="true" (close)="newClaim.close()" />
+        <!-- The @if destroys the wizard on close: @defer renders once and never tears down, so
+             without it the component kept its submitted state and reopening showed the previous
+             confirmation instead of a blank step 1 — a second denuncia was impossible. -->
+        @if (newClaim.isOpen()) {
+          <app-nueva-denuncia [embedded]="true" (close)="newClaim.close()" />
+        }
       }
     </app-modal>
   }

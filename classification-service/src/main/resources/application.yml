@@ -35,7 +35,7 @@ arbiter:
     url: ${RULES_SERVICE_URL:http://localhost:8081}
   ollama:
     base-url: ${OLLAMA_BASE_URL:http://localhost:11434}
-    model: ${OLLAMA_MODEL:qwen3-vl}
+    model: ${OLLAMA_MODEL:qwen3-vl:8b-instruct}
     # Fuente única: PromptBuilder carga prompts/<esta versión>.md y esto es lo que se persiste en
     # llm_analysis.prompt_version (auditoría SSN 2/2023). Bumpearla sin crear el archivo rompe al
     # arrancar, a propósito.

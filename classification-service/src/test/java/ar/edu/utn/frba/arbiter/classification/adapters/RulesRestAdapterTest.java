@@ -12,6 +12,9 @@ import java.io.IOException;
 import java.net.InetSocketAddress;
 import java.net.ServerSocket;
 import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -105,6 +108,68 @@ class RulesRestAdapterTest {
 
         BusinessRules baseline = new MockRulesAdapter().getRules("Celulares", 1L, "Robo en vía pública");
         assertThat(rules.scoringConfig()).isEqualTo(baseline.scoringConfig());
+    }
+
+    /**
+     * The adapter once called document-requirements without claimCause and rules-service answered
+     * 400 on every classification. Nothing here asserted the query string, so it went unnoticed.
+     */
+    @Test
+    void everyCallCarriesTheQueryParamsRulesServiceRequires() throws IOException {
+        List<String> requested = Collections.synchronizedList(new ArrayList<>());
+        server = startServer(exchange -> {
+            requested.add(exchange.getRequestURI().toString());
+            respondEmpty(exchange);
+        });
+        RulesRestAdapter adapter = adapterPointingAt(baseUrl());
+
+        adapter.getRules("Celulares", 1L, "Robo en vía pública");
+
+        assertThat(requested).filteredOn(uri -> uri.contains("document-requirements"))
+                .allSatisfy(uri -> assertThat(uri)
+                        .contains("coverageId=1")
+                        .contains("claimCause=Robo"));
+        // Los endpoints de toda la aseguradora quedan afuera: no llevan cobertura porque no
+        // dependen de ninguna (el scoring es uno solo por compañía, y el antecedente de fraude es
+        // de la persona, no de la cobertura que afectó).
+        List<String> insurerWide = List.of("/internal/scoring", "/internal/fraud-record-rule");
+        assertThat(requested).filteredOn(uri -> uri.contains("/internal/")
+                        && insurerWide.stream().noneMatch(uri::contains))
+                .isNotEmpty()
+                .allSatisfy(uri -> assertThat(uri).contains("coverageId=1"));
+    }
+
+    /**
+     * A referente who clears every document from the panel means it: the engine must not put the
+     * baseline's back. Folding "configured as none" into "not configured" left cases stuck in
+     * AWAITING_DOCUMENTATION demanding a police report the panel no longer listed.
+     */
+    @Test
+    void emptyAgenda_isHonoured_notReadAsUnconfigured() throws IOException {
+        server = startServer(this::respondEmpty);
+        RulesRestAdapter adapter = adapterPointingAt(baseUrl());
+
+        BusinessRules rules = adapter.getRules("Celulares", 1L, "Caída");
+
+        assertThat(rules.requiredDocumentTypes()).isEmpty();
+    }
+
+    /** No answer at all (unknown coverage or claim cause) is the case that does fall back. */
+    @Test
+    void noAgendaAnswer_fallsBackToBaseline() throws IOException {
+        server = startServer(exchange -> {
+            if (exchange.getRequestURI().getPath().contains("document-requirements")) {
+                exchange.sendResponseHeaders(200, -1);
+            } else {
+                respondEmpty(exchange);
+            }
+        });
+        RulesRestAdapter adapter = adapterPointingAt(baseUrl());
+
+        BusinessRules rules = adapter.getRules("Celulares", 1L, "Caída");
+
+        BusinessRules baseline = new MockRulesAdapter().getRules("Celulares", 1L, "Caída");
+        assertThat(rules.requiredDocumentTypes()).isEqualTo(baseline.requiredDocumentTypes());
     }
 
     // ── Infra ────────────────────────────────────────────────────────────────

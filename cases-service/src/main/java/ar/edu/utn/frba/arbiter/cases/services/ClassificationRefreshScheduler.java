@@ -7,6 +7,7 @@ import ar.edu.utn.frba.arbiter.cases.models.repositories.CaseRepository;
 import ar.edu.utn.frba.arbiter.cases.models.repositories.InsurerRepository;
 import ar.edu.utn.frba.arbiter.common.enums.CaseStatus;
 import ar.edu.utn.frba.arbiter.common.models.entities.Insurer;
+import jakarta.annotation.PostConstruct;
 import lombok.RequiredArgsConstructor;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -38,6 +39,16 @@ public class ClassificationRefreshScheduler {
 
     @Value("${arbiter.classification-refresh.max-attempts:120}")
     private int maxAttempts;
+
+    @Value("${arbiter.classification-refresh.interval-ms:5000}")
+    private long intervalMs;
+
+    /** La ventana efectiva, para no tener que deducirla de cuándo se rindió el barrido. */
+    @PostConstruct
+    void logWindow() {
+        log.info("[Refresh] Ventana: interval-ms={} x max-attempts={} = {} min",
+                intervalMs, maxAttempts, (intervalMs * maxAttempts) / 60000);
+    }
 
     @Scheduled(fixedDelayString = "${arbiter.classification-refresh.interval-ms:5000}")
     public void refreshPendingCases() {
@@ -85,16 +96,42 @@ public class ClassificationRefreshScheduler {
      * concreto que lo destapó fue un expediente que volvía solo de {@code CLASSIFICATION_FAILED}
      * a {@code PENDING_CLASSIFICATION} cada pocos segundos, deshaciendo el reintento del analista.
      * El barrido es dueño del contador y de nada más.
+     *
+     * <p>Y ese update es <b>condicional</b>, porque el barrido no corre solo: la base de Railway es
+     * compartida por el equipo, así que cada stack local levantado suma otro scheduler barriendo
+     * los mismos expedientes. Avanzar el contador es lo que hace de turno — el que lo consigue
+     * sigue, el que llega tarde se retira. Sin eso, dos barridos leían el mismo valor, los dos lo
+     * daban por agotado y los dos marcaban el expediente como fallido, dejando en
+     * {@code case_status_history} dos filas idénticas con el mismo número de reintentos.
      */
     private void incrementAttempts(Case caseRecord) {
-        int attempts = caseRecord.getClassificationAttempts() + 1;
-        if (attempts >= maxAttempts) {
-            log.error("Case {} marked as CLASSIFICATION_FAILED after {} attempts", caseRecord.getId(), attempts);
-            caseRecord.setClassificationAttempts(attempts);
-            caseStatusService.transition(caseRecord, CaseStatus.CLASSIFICATION_FAILED,
-                    StatusChangeActor.SYSTEM, "clasificación fallida tras " + attempts + " reintentos");
-        } else {
-            caseRepository.updateClassificationAttempts(caseRecord.getId(), attempts);
+        int previous = caseRecord.getClassificationAttempts();
+        int attempts = previous + 1;
+
+        if (caseRepository.advanceClassificationAttempts(caseRecord.getId(), previous, attempts) == 0) {
+            // Otro barrido ya avanzó este expediente en esta vuelta: es su turno, no el nuestro.
+            log.debug("Case {} already advanced by another sweep, skipping", caseRecord.getId());
+            return;
         }
+
+        if (attempts < maxAttempts) {
+            return;
+        }
+
+        // Releído de la base y no reusando `caseRecord`: la copia del barrido es de hace varios
+        // segundos y transition() valida la transición contra el estado que traiga la entidad. Con
+        // la copia vieja, un expediente que ya salió de PENDING_CLASSIFICATION (lo reintentó un
+        // analista, u otro barrido lo resolvió) pasaría igual la validación y se le escribiría una
+        // transición que no corresponde.
+        caseRepository.findById(caseRecord.getId())
+                .filter(fresh -> fresh.getStatus() == CaseStatus.PENDING_CLASSIFICATION)
+                .ifPresentOrElse(fresh -> {
+                    log.error("Case {} marked as CLASSIFICATION_FAILED after {} attempts",
+                            fresh.getId(), attempts);
+                    caseStatusService.transition(fresh, CaseStatus.CLASSIFICATION_FAILED,
+                            StatusChangeActor.SYSTEM,
+                            "clasificación fallida tras " + attempts + " reintentos");
+                }, () -> log.debug("Case {} left PENDING_CLASSIFICATION before the sweep gave up",
+                        caseRecord.getId()));
     }
 }
