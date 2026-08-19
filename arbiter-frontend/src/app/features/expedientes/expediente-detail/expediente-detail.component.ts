@@ -691,12 +691,18 @@ export class ExpedienteDetailComponent {
   );
 
   /**
-   * Solo el analista opera sobre el expediente (asignar, decidir, aceptar/modificar la
-   * clasificación, reintentar). El referente lo ve de solo lectura.
+   * Decidir, reintentar y cargar el informe de peritaje son del analista. El referente no decide
+   * (decisión #5 de CLAUDE.md, y el backend lo rechaza con 403 al resolverlo contra claims_analyst).
    */
   protected readonly canAct = computed(
     () => this.session.session()?.rol === 'ANALISTA_SINIESTROS',
   );
+
+  /** Repartir trabajo también es del referente: para eso ve la carga del equipo. */
+  protected readonly canAssign = computed(() => {
+    const rol = this.session.session()?.rol;
+    return rol === 'ANALISTA_SINIESTROS' || rol === 'REFERENTE_ASEGURADORA';
+  });
 
   protected readonly assignedName = computed(() => this.data()?.assignedAnalystName ?? null);
   protected readonly isAssigned = computed(() => this.data()?.assignedAnalystId != null);

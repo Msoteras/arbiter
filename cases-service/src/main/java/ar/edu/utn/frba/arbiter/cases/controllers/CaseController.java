@@ -304,7 +304,7 @@ public class CaseController {
     }
 
     @PostMapping("/{caseId}/retry-classification")
-    @PreAuthorize("hasAnyRole('ANALISTA_SINIESTROS', 'REFERENTE_ASEGURADORA')")
+    @PreAuthorize("hasRole('ANALISTA_SINIESTROS')")
     @Operation(summary = "Reintentar la clasificación de un expediente fallido",
             description = """
                     Vuelve a poner en cola la clasificación de un expediente que quedó en
@@ -319,8 +319,10 @@ public class CaseController {
         return ResponseEntity.accepted().body(caseService.retryClassification(caseId));
     }
 
+    // Solo el analista: la decisión se atribuye resolviendo al que llama contra claims_analyst, así
+    // que un referente ya venía recibiendo 403 acá. Decisión #5 de CLAUDE.md.
     @PostMapping("/{caseId}/decision")
-    @PreAuthorize("hasAnyRole('ANALISTA_SINIESTROS', 'REFERENTE_ASEGURADORA')")
+    @PreAuthorize("hasRole('ANALISTA_SINIESTROS')")
     @Operation(summary = "Persist the analyst's decision",
             description = "Forwards the analyst decision to classification-service so it is persisted in the audit trail.")
     public ResponseEntity<Map<String, Object>> recordDecision(

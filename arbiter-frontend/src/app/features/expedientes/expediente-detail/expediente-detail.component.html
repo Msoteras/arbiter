@@ -183,7 +183,7 @@
                     }
                   </div>
                 </div>
-                @if (canAct()) {
+                @if (canAssign()) {
                   <div class="assign-actions">
                     <app-menu-button
                       class="grow"
@@ -208,7 +208,7 @@
                 }
               } @else {
                 <p class="nodata">Sin asignar</p>
-                @if (canAct()) {
+                @if (canAssign()) {
                   <div class="assign-actions">
                     @if (canTake()) {
                       <app-button
