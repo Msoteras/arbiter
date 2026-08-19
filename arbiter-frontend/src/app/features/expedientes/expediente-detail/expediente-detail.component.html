@@ -105,7 +105,7 @@
               </p>
             } @else if (isFailed()) {
               <p class="nodata">No se pudo clasificar automáticamente tras varios intentos.</p>
-              @if (canRetry()) {
+              @if (canGestionar()) {
                 <app-button
                   variant="secondary"
                   [block]="true"
@@ -186,7 +186,7 @@
                     }
                   </div>
                 </div>
-                @if (canAssign()) {
+                @if (canGestionar()) {
                   <div class="assign-actions">
                     <app-menu-button
                       class="grow"
@@ -211,7 +211,7 @@
                 }
               } @else {
                 <p class="nodata">Sin asignar</p>
-                @if (canAssign()) {
+                @if (canGestionar()) {
                   <div class="assign-actions">
                     @if (canTake()) {
                       <app-button
@@ -412,7 +412,7 @@
               <p class="t-note">El informe queda como adjunto del expediente, en la solapa Documentación.</p>
             } @else {
               <p class="nodata">Esperando el informe del perito.</p>
-              @if (canAct()) {
+              @if (canGestionar()) {
                 <app-button variant="secondary" (click)="askInforme()">Cargar informe</app-button>
               }
             }

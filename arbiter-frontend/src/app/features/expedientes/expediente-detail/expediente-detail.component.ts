@@ -717,14 +717,15 @@ export class ExpedienteDetailComponent {
     () => this.session.session()?.rol === 'ANALISTA_SINIESTROS',
   );
 
-  /** Repartir trabajo también es del referente: para eso ve la carga del equipo. */
-  protected readonly canAssign = computed(() => {
+  /**
+   * Mover el expediente sin resolverlo: asignar, reasignar, destrabar una clasificación fallida y
+   * cargar el informe del perito. El referente las comparte con el analista porque ninguna atribuye
+   * una decisión — para eso ve la carga del equipo.
+   */
+  protected readonly canGestionar = computed(() => {
     const rol = this.session.session()?.rol;
     return rol === 'ANALISTA_SINIESTROS' || rol === 'REFERENTE_ASEGURADORA';
   });
-
-  /** Destrabar una clasificación fallida es la misma potestad de supervisión que reasignar. */
-  protected readonly canRetry = this.canAssign;
 
   protected readonly assignedName = computed(() => this.data()?.assignedAnalystName ?? null);
   protected readonly isAssigned = computed(() => this.data()?.assignedAnalystId != null);
