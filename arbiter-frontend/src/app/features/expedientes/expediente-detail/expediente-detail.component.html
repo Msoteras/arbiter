@@ -77,8 +77,11 @@
                 <app-button variant="secondary" [block]="true" [disabled]="decisionSaving()" (click)="askDecision('aprobar')">Aprobar</app-button>
               </div>
               @if (puedeDerivar()) {
+                @if (sugerenciaDerivacion(); as sugerencia) {
+                  <p class="rcard-note suggested">{{ sugerencia }}</p>
+                }
                 <app-button
-                  variant="secondary"
+                  [variant]="derivacionSugerida() ? 'accent' : 'secondary'"
                   [block]="true"
                   [disabled]="!derivacionHabilitada() || decisionSaving()"
                   (click)="askDerivar()"
@@ -90,7 +93,7 @@
                 }
               }
             } @else {
-              <p class="nodata">Pendiente de decisión del analista</p>
+              <p class="nodata">{{ esperaDecisionTexto() }}</p>
             }
           }
           @default {
