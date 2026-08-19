@@ -1,0 +1,32 @@
+:host { display: block; }
+
+/* Mismo tratamiento que las otras secciones de la pantalla de reglas (Hard Stop, Scoring): el
+   chip es el toggle, y la letra chica explica la consecuencia de dejarlo en cada posición. */
+.section-hint { margin: 0 0 var(--space-3); color: var(--text-secondary); font-size: var(--font-size-sm); }
+.subsection-head { display: flex; align-items: center; gap: var(--space-3); margin: var(--space-4) 0 var(--space-2); }
+.fieldset { display: flex; flex-direction: column; gap: var(--space-1); max-width: 220px; }
+.warn-note { margin: var(--space-2) 0 0; color: var(--status-danger); font-size: var(--font-size-sm); }
+.saved-note { color: var(--status-ok); font-size: var(--font-size-sm); }
+.editor-actions { display: flex; align-items: center; gap: var(--space-2); }
+.ft-save {
+  margin-top: var(--space-4);
+  padding-top: var(--space-4);
+  border-top: 1px solid var(--border-default);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.chip {
+  font: inherit;
+  font-size: var(--font-size-xs);
+  padding: var(--space-1) var(--space-3);
+  border: 1px solid var(--border-control);
+  border-radius: var(--radius-pill);
+  background: var(--surface);
+  color: var(--text-secondary);
+  cursor: pointer;
+}
+.chip:hover { border-color: var(--border-strong); }
+.chip.active { background: var(--selected-bg); border-color: var(--selected-border); color: var(--accent-fg); }
+.chip:focus-visible { outline: none; border-color: var(--border-focus); box-shadow: var(--focus-ring); }

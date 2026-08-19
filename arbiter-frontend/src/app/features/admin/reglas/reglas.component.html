@@ -55,6 +55,21 @@
       </button>
     </app-card>
 
+    <!-- ───────── Antecedente de fraude: la memoria de la persona entre denuncias. De toda la
+         aseguradora igual que las anteriores — el antecedente pesa sobre quien denuncia, no sobre
+         la cobertura que haya afectado esta vez. -->
+    <app-card class="scoring-card">
+      <button
+        type="button"
+        class="ramo-item scoring-item"
+        [class.active]="view() === 'fraude'"
+        (click)="selectFraude()"
+      >
+        <span class="ramo-name">Antecedente de fraude</span>
+        <span class="ramo-meta">Toda la aseguradora</span>
+      </button>
+    </app-card>
+
     <!-- ───────── Peritos: a quién puede derivar el analista. También es de toda la aseguradora ─────────
          (cada perito puede especializarse en un ramo, pero el catálogo no pertenece a ninguno). -->
     <app-card class="scoring-card">
@@ -76,6 +91,8 @@
         <app-scoring-config />
       } @else if (view() === 'peritos') {
         <app-peritos-config />
+      } @else if (view() === 'fraude') {
+        <app-fraude-config />
       } @else if (view() === 'hardStop') {
         @if (hardStopLoading()) {
           <app-inline-loading [size]="26" message="Cargando Hard Stop…" />

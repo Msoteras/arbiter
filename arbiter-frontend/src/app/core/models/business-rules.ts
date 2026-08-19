@@ -132,6 +132,7 @@ export const RISK_FACTORS: RiskFactorDef[] = [
   { id: 'document_inconsistency', label: 'Inconsistencias en la documentación' },
   { id: 'image_reuse', label: 'Imagen reutilizada de otra denuncia' },
   { id: 'image_web_match', label: 'Imagen publicada en la web' },
+  { id: 'fraud_history', label: 'Antecedente de fraude del asegurado' },
 ];
 
 export function riskFactorLabel(id: string): string {

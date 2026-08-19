@@ -30,6 +30,7 @@ import { EmptyStateComponent } from '../../../shared/ui/empty-state/empty-state.
 import { InputComponent } from '../../../shared/ui/input/input.component';
 import { PeritosConfigComponent } from '../peritos-config/peritos-config.component';
 import { ScoringConfigComponent } from '../scoring-config/scoring-config.component';
+import { FraudeConfigComponent } from '../fraude-config/fraude-config.component';
 import { StringListEditorComponent } from './string-list-editor.component';
 import { InlineLoadingComponent } from '../../../shared/ui/inline-loading/inline-loading.component';
 import { InfoTipComponent } from '../../../shared/ui/info-tip/info-tip.component';
@@ -62,6 +63,7 @@ type TabId = 'coberturas' | 'fastTrack' | 'documentacion' | 'reglas';
     InputComponent,
     PeritosConfigComponent,
     ScoringConfigComponent,
+    FraudeConfigComponent,
     StringListEditorComponent,
     InlineLoadingComponent,
     InfoTipComponent,
@@ -144,7 +146,7 @@ export class ReglasComponent {
   protected readonly selectedId = signal<string | null>(null);
   // Qué muestra el panel derecho: el detalle del ramo seleccionado ('ramo') o el scoring de la
   // aseguradora ('scoring'), que no pertenece a ningún ramo y se elige desde su propio recuadro.
-  protected readonly view = signal<'ramo' | 'scoring' | 'hardStop' | 'peritos'>('ramo');
+  protected readonly view = signal<'ramo' | 'scoring' | 'hardStop' | 'peritos' | 'fraude'>('ramo');
   protected readonly draft = signal<RamoRules | null>(null);
 
   // Último conteo de coberturas conocido (branchId → coverageCount). Cacheado acá porque
@@ -284,6 +286,15 @@ export class ReglasComponent {
   /** El recuadro "Hard Stop" de la izquierda: vigencia y mora, de toda la aseguradora, no del ramo. */
   protected selectHardStop(): void {
     this.view.set('hardStop');
+  }
+
+  /**
+   * El recuadro "Antecedente de fraude": cuánto tiempo pesa un fraude comprobado y si le saca el
+   * Fast Track a la denuncia siguiente. También de toda la aseguradora — el antecedente es de la
+   * persona, y con qué cobertura vuelva a denunciar no cambia lo que se determinó sobre ella.
+   */
+  protected selectFraude(): void {
+    this.view.set('fraude');
   }
 
   protected select(r: RamoRules): void {

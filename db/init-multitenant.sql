@@ -985,7 +985,7 @@ BEGIN
     -- Política de antecedentes de fraude, una por aseguradora (branch_id y coverage_id NULL): el
     -- antecedente es de la persona, no de la cobertura que afectó. La ventana es lo que la hace
     -- defendible — un fraude de hace seis años no puede pesar como uno del año pasado, y dónde cae
-    -- esa línea es decisión de la compañía, no nuestra (Ley 25.326). Cinco años acá.
+    -- esa línea es decisión de la compañía, no nuestra (Ley 25.326). Tres años acá.
     --
     -- blocks_fast_track=TRUE: a alguien con un fraude verificado no se le vuelve a resolver un
     -- siniestro por la vía expedita. No rechaza nada — el effect es DERIVAR: el antecedente no es
@@ -998,7 +998,7 @@ BEGIN
         INSERT INTO %I.insurer_rule (id, active, valid_from, name, rule_type, effect, priority,
                                      blocks_fast_track, branch_id, coverage_id, configuration) VALUES
             (17, TRUE, '2026-01-01 00:00:00+00', 'Antecedente de fraude del asegurado',
-             'FRAUD_RECORD', 'DERIVAR', 1, TRUE, NULL, NULL, '{"windowMonths":60}')
+             'FRAUD_RECORD', 'DERIVAR', 1, TRUE, NULL, NULL, '{"windowMonths":36}')
         $ddl$, p_schema);
 
     -- AgendaDocumental sembrada con los códigos CANÓNICOS de tipo de documento — los mismos que usa

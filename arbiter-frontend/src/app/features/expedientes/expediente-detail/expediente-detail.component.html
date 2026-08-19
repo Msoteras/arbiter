@@ -141,6 +141,54 @@
 
     </div>
 
+    <!-- Antecedente de fraude del asegurado. Va arriba de las solapas y no adentro de una: es lo
+         único de la pantalla que no habla de ESTE siniestro sino de la persona que lo denuncia, y
+         el analista tiene que verlo antes de decidir, no si se le ocurre abrir la solapa. -->
+    @if (mostrarAntecedente()) {
+      <app-card class="fraude-card" heading="Antecedente de fraude del asegurado">
+        @for (a of antecedentesPrevios(); track a.id) {
+          <div class="fraude-item" [attr.data-tone]="estadoAntecedenteTone(a)">
+            <div class="fraude-item-head">
+              <app-badge variant="solid" [tone]="estadoAntecedenteTone(a)">
+                {{ estadoAntecedenteLabel(a) }}
+              </app-badge>
+              <span class="t-note">
+                Expediente #{{ a.caseId }} · {{ formatDateTime(a.declaredAt) }}
+              </span>
+            </div>
+            <p class="t-body">{{ a.reason }}</p>
+            <!-- Que exista y que cuente son dos cosas distintas, y decirlo evita que un antecedente
+                 declarado sin peritaje se lea como si hubiera movido el medidor de riesgo. -->
+            <p class="t-note">{{ efectoAntecedente(a) }} Lo registró {{ a.declaredByAnalystName }}.</p>
+          </div>
+        } @empty {
+          @if (!antecedentePropio()) {
+            <p class="nodata">El asegurado no tiene antecedentes de fraude registrados.</p>
+          }
+        }
+
+        @if (antecedentePropio(); as propio) {
+          <div class="fraude-item propio" [attr.data-tone]="estadoAntecedenteTone(propio)">
+            <div class="fraude-item-head">
+              <app-badge variant="strong" [tone]="estadoAntecedenteTone(propio)">
+                Este expediente · {{ origenAntecedenteLabel(propio.source) }}
+              </app-badge>
+              <span class="t-note">{{ formatDateTime(propio.declaredAt) }}</span>
+            </div>
+            <p class="t-body">{{ propio.reason }}</p>
+            <p class="t-note">Lo registró {{ propio.declaredByAnalystName }}.</p>
+          </div>
+        } @else if (puedeRegistrarAntecedente()) {
+          <app-button variant="secondary" (click)="askAntecedente()">
+            Registrar antecedente de fraude
+          </app-button>
+        }
+        @if (antecedenteError()) {
+          <p class="rcard-note error">{{ antecedenteError() }}</p>
+        }
+      </app-card>
+    }
+
     <!-- Tabs -->
     <nav class="tabs" role="tablist">
       @for (t of tabs(); track t.id) {
@@ -494,6 +542,55 @@
       (click)="confirmDerivar()"
     >
       {{ derivarSaving() ? 'Derivando…' : 'Derivar' }}
+    </app-button>
+  </ng-container>
+</app-modal>
+
+<!-- Registro del antecedente. Es un acto sobre la PERSONA, no sobre el expediente, así que el
+     modal dice antes de confirmar qué va a pasar en sus denuncias siguientes. -->
+<app-modal
+  [open]="showAntecedente()"
+  heading="Registrar antecedente de fraude"
+  (close)="cancelAntecedente()"
+>
+  <p class="t-body">
+    Queda asentado sobre el asegurado, no sobre este expediente, y va a pesar en sus denuncias
+    siguientes mientras esté dentro de la ventana de vigencia que configuró la aseguradora.
+  </p>
+
+  <label class="t-field-label" for="ant-origen">Respaldo</label>
+  <app-select id="ant-origen" [options]="origenOptions()" [(value)]="origenElegido" />
+  <p class="rcard-note">{{ efectoOrigenElegido() }}</p>
+  @if (origenOptions().length === 1) {
+    <p class="rcard-note">
+      El respaldo pericial solo está disponible si el expediente tiene un peritaje con fraude
+      confirmado.
+    </p>
+  }
+
+  <label class="t-field-label" for="ant-motivo">Motivo</label>
+  <app-textarea
+    id="ant-motivo"
+    [rows]="3"
+    placeholder="Qué se determinó y con qué evidencia…"
+    [(value)]="motivoAntecedente"
+  />
+  <!-- El mínimo no es un capricho del formulario: es el texto que otro analista va a leer dentro
+       de años al lado de una marca sobre una persona. -->
+  @if (motivoAntecedenteCorto()) {
+    <p class="rcard-note">Contá qué se determinó (mínimo {{ motivoAntecedenteMin }} caracteres).</p>
+  }
+
+  @if (antecedenteError()) {
+    <p class="rcard-note error">{{ antecedenteError() }}</p>
+  }
+  <ng-container modalActions>
+    <app-button variant="secondary" (click)="cancelAntecedente()">Cancelar</app-button>
+    <app-button
+      [disabled]="!origenElegido() || motivoAntecedenteCorto() || antecedenteSaving()"
+      (click)="confirmAntecedente()"
+    >
+      {{ antecedenteSaving() ? 'Registrando…' : 'Registrar antecedente' }}
     </app-button>
   </ng-container>
 </app-modal>

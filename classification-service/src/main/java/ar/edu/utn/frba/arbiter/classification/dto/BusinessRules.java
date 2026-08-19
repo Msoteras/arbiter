@@ -78,8 +78,8 @@ public record BusinessRules(
             boolean blocksFastTrack
     ) {
 
-        /** Default window when the insurer turned the rule on without setting one: five years. */
-        public static final int DEFAULT_WINDOW_MONTHS = 60;
+        /** Default window when the insurer turned the rule on without setting one: three years. */
+        public static final int DEFAULT_WINDOW_MONTHS = 36;
 
         public static FraudRecordPolicy disabled() {
             return new FraudRecordPolicy(null, false, DEFAULT_WINDOW_MONTHS, false);

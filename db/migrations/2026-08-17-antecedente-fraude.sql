@@ -92,7 +92,7 @@ BEGIN
             $sql$, tenant, tenant, tenant);
 
         -- ─── La política de la aseguradora ───────────────────────────────────
-        -- Ventana de cinco años y veto de Fast Track. Una sola fila por aseguradora
+        -- Ventana de tres años y veto de Fast Track. Una sola fila por aseguradora
         -- (branch_id y coverage_id NULL): el antecedente es de la persona, no de la
         -- cobertura que afectó. El effect es DERIVAR y nunca RECHAZAR — el
         -- antecedente no es "una causa legal o convencional de exclusión" de ESTE
@@ -104,7 +104,7 @@ BEGIN
             INSERT INTO %I.insurer_rule (active, valid_from, name, rule_type, effect, priority,
                                          blocks_fast_track, branch_id, coverage_id, configuration)
             SELECT TRUE, '2026-01-01 00:00:00+00', 'Antecedente de fraude del asegurado',
-                   'FRAUD_RECORD', 'DERIVAR', 1, TRUE, NULL, NULL, '{"windowMonths":60}'
+                   'FRAUD_RECORD', 'DERIVAR', 1, TRUE, NULL, NULL, '{"windowMonths":36}'
             WHERE NOT EXISTS (
                 SELECT 1 FROM %I.insurer_rule
                  WHERE rule_type = 'FRAUD_RECORD' AND branch_id IS NULL AND coverage_id IS NULL)

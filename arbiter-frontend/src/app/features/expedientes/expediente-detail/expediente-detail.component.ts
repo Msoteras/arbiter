@@ -31,6 +31,15 @@ import {
   veredictoTone,
 } from '../../../core/models/peritaje';
 import {
+  AntecedenteFraude,
+  MOTIVO_ANTECEDENTE_MIN,
+  OrigenAntecedente,
+  efectoAntecedente,
+  estadoAntecedenteLabel,
+  estadoAntecedenteTone,
+  origenAntecedenteLabel,
+} from '../../../core/models/antecedente-fraude';
+import {
   estadoLabel,
   estadoSimplificadoLabel,
   estadoTone,
@@ -628,6 +637,131 @@ export class ExpedienteDetailComponent {
         },
       });
   }
+
+  // ----- antecedente de fraude del asegurado -----
+  // Registrar el antecedente NO es lo mismo que subir el informe del perito. El perito verifica un
+  // hecho de ESTE siniestro; decidir que ese hecho acompañe a la persona en su próxima denuncia es
+  // otro acto, y es del analista. Por eso va aparte y queda con su nombre y su motivo: una marca
+  // sobre una persona necesita alguien que se haga cargo (Ley 25.326), no un "lo dijo el informe".
+  private readonly antecedentes = toSignal(
+    combineLatest([
+      this.route.paramMap.pipe(map((params) => params.get('id') ?? '')),
+      toObservable(this.reloadTrigger),
+    ]).pipe(
+      switchMap(([id]) =>
+        this.service
+          .antecedentesFraude(id as unknown as number)
+          .pipe(catchError(() => of<AntecedenteFraude[]>([]))),
+      ),
+    ),
+    { initialValue: [] as AntecedenteFraude[] },
+  );
+
+  /** Los de OTROS expedientes: lo que el analista tiene que saber antes de decidir este. */
+  protected readonly antecedentesPrevios = computed(() =>
+    this.antecedentes().filter((a) => a.caseId !== this.data()?.id),
+  );
+
+  /** El que este expediente ya originó, si lo hay: un expediente da un antecedente, no dos. */
+  protected readonly antecedentePropio = computed(
+    () => this.antecedentes().find((a) => a.caseId === this.data()?.id) ?? null,
+  );
+
+  /**
+   * Solo el analista, sobre un expediente que ya tiene la clasificación en la mano (o que ya
+   * rechazó), y una sola vez. Desde APROBADO no aparece: pagar el siniestro y marcarlo como fraude
+   * se contradicen. El backend lo valida igual — esto es para la pantalla, no es el control.
+   */
+  protected readonly puedeRegistrarAntecedente = computed(() => {
+    const status = this.data()?.status;
+    return (
+      this.canAct() &&
+      !this.antecedentePropio() &&
+      (status === 'PENDING_ANALYST_REVIEW' || status === 'REJECTED')
+    );
+  });
+
+  protected readonly mostrarAntecedente = computed(
+    () =>
+      this.antecedentesPrevios().length > 0 ||
+      this.antecedentePropio() != null ||
+      this.puedeRegistrarAntecedente(),
+  );
+
+  /** Con peritaje de fraude confirmado, el respaldo pericial es lo que corresponde por defecto. */
+  private readonly peritajeConfirmaFraude = computed(
+    () => this.peritaje()?.verdict === 'FRAUD_CONFIRMED',
+  );
+
+  /**
+   * Sin peritaje confirmado la opción pericial ni se ofrece, en vez de ofrecerla y fallar recién en
+   * el submit: el backend la valida contra el veredicto guardado, no contra lo que diga el
+   * formulario, y un desplegable que acepta algo que después rebota es peor que uno más corto.
+   */
+  protected readonly origenOptions = computed<SelectOption[]>(() => [
+    ...(this.peritajeConfirmaFraude()
+      ? [{ value: 'EXPERT_BACKED', label: origenAntecedenteLabel('EXPERT_BACKED') }]
+      : []),
+    { value: 'ANALYST_DECLARED', label: origenAntecedenteLabel('ANALYST_DECLARED') },
+  ]);
+
+  protected readonly showAntecedente = signal(false);
+  protected readonly origenElegido = signal('');
+  protected readonly motivoAntecedente = signal('');
+  protected readonly antecedenteSaving = signal(false);
+  protected readonly antecedenteError = signal<string | null>(null);
+
+  protected readonly motivoAntecedenteMin = MOTIVO_ANTECEDENTE_MIN;
+
+  /** El mínimo se avisa mientras escribe, no cuando vuelve el 400. */
+  protected readonly motivoAntecedenteCorto = computed(
+    () => this.motivoAntecedente().trim().length < MOTIVO_ANTECEDENTE_MIN,
+  );
+
+  /** Lo que va a pasar con lo que está por registrar, dicho antes de que confirme. */
+  protected readonly efectoOrigenElegido = computed(() =>
+    this.origenElegido() === 'EXPERT_BACKED'
+      ? 'Va a sumar al nivel de riesgo de sus próximas denuncias y, si la aseguradora lo configuró así, a impedirles la vía rápida.'
+      : 'Va a aparecer como alerta en sus próximas denuncias, pero no suma al nivel de riesgo: sin peritaje detrás, una sospecha que mueve el score termina alimentándose sola.',
+  );
+
+  askAntecedente(): void {
+    this.origenElegido.set(this.peritajeConfirmaFraude() ? 'EXPERT_BACKED' : 'ANALYST_DECLARED');
+    this.motivoAntecedente.set('');
+    this.antecedenteError.set(null);
+    this.showAntecedente.set(true);
+  }
+
+  cancelAntecedente(): void {
+    this.showAntecedente.set(false);
+  }
+
+  confirmAntecedente(): void {
+    const d = this.data();
+    const source = this.origenElegido() as OrigenAntecedente;
+    const reason = this.motivoAntecedente().trim();
+    if (!d || !source || this.motivoAntecedenteCorto()) {
+      return;
+    }
+    this.antecedenteSaving.set(true);
+    this.antecedenteError.set(null);
+    this.service.registrarAntecedente(d.id, { source, reason }).subscribe({
+      next: () => {
+        this.antecedenteSaving.set(false);
+        this.showAntecedente.set(false);
+        this.reloadTrigger.update((v) => v + 1);
+      },
+      error: (err: HttpErrorResponse) => {
+        this.antecedenteSaving.set(false);
+        this.antecedenteError.set(err.error?.detail || 'No se pudo registrar el antecedente');
+      },
+    });
+  }
+
+  estadoAntecedenteLabel = estadoAntecedenteLabel;
+  estadoAntecedenteTone = estadoAntecedenteTone;
+  efectoAntecedente = efectoAntecedente;
+  origenAntecedenteLabel = origenAntecedenteLabel;
 
   veredictoLabel = veredictoLabel;
   veredictoTone = veredictoTone;

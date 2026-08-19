@@ -30,8 +30,8 @@ public record FraudRecordRuleDto(
         boolean blocksFastTrack
 ) {
 
-    /** Default window when the rule is turned on without one: five years. */
-    public static final int DEFAULT_WINDOW_MONTHS = 60;
+    /** Default window when the rule is turned on without one: three years. */
+    public static final int DEFAULT_WINDOW_MONTHS = 36;
 
     /** How an insurer that never configured the rule behaves: fraud records exist, but don't count. */
     public static FraudRecordRuleDto disabled() {
