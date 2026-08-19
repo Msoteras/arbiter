@@ -723,6 +723,9 @@ export class ExpedienteDetailComponent {
     return rol === 'ANALISTA_SINIESTROS' || rol === 'REFERENTE_ASEGURADORA';
   });
 
+  /** Destrabar una clasificación fallida es la misma potestad de supervisión que reasignar. */
+  protected readonly canRetry = this.canAssign;
+
   protected readonly assignedName = computed(() => this.data()?.assignedAnalystName ?? null);
   protected readonly isAssigned = computed(() => this.data()?.assignedAnalystId != null);
 

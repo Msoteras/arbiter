@@ -20,10 +20,12 @@ negocio), cada una con su propio botón "Guardar X", mismo patrón que Fast Trac
   (regla a nivel ramo), `configuration` JSONB = array de strings. Mismo historial
   append-only que Fast Track.
 - **D4 confirmada**: `insuredAmount` no se envía al backend, sigue siendo informativo.
-- **D5 resuelta con fan-out**: `document_requirement` se activó tal cual (branch +
-  claim_cause). El backend hace el fan-out él mismo (a diferencia de Fast Track, que lo
-  hace el frontend): `DocumentRequirementService.upsert` escribe la misma lista para
-  todos los hechos generadores del ramo.
+- **D5 resuelta por hecho generador**: `document_requirement` se activó tal cual (branch +
+  claim_cause) y la pantalla edita **cada hecho generador por separado**, sin fan-out.
+  `DocumentRequirementService.upsert(branchId, claimCauseId, …)` escribe solo el hecho
+  generador que recibe, y el front tiene su propio selector
+  (`reglas.component.ts`, `selectDocClaimCause` / `requiredDocumentsByClaimCause`).
+  Ver la sección D5 más abajo.
 - **Scoring — decisión nueva, no estaba en D1-D6**: `scoring_configuration` no tenía
   `branch_id` (era una config única por aseguradora); la UI la modela por ramo. Se
   eligió agregar `branch_id UNIQUE` a la tabla (migración chica en
@@ -112,12 +114,12 @@ asegurado, no como dato del catálogo de reglas.
 
 ## D5 · Agenda documental: la UI la keyea por **ramo**, el DER por **ramo + hecho generador**
 
-**Abierto.** `RamoRules.requiredDocuments` es una lista plana por ramo. El DER
-(`requisito_documental`) la keyea por `rama_id` **+** `hecho_generador_id` (y además
-tiene `banda_riesgo` y `obligatorio`). La UI hoy no distingue por hecho generador.
+**Resuelta: la UI abre el detalle por hecho generador**, se descartó la simplificación por
+ramo. La solapa Documentación tiene un selector y guarda solo el hecho generador
+seleccionado.
 
-**A validar:** si se acepta la simplificación por ramo (todos los hechos generadores
-del ramo comparten agenda) o si la UI debe abrir el detalle por hecho generador.
+El fan-out estuvo activo un tiempo antes de eso: por eso hay aseguradoras con la misma
+lista repetida en todos sus hechos generadores, residuo de esa etapa y no una decisión.
 
 ---
 

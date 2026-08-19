@@ -303,8 +303,10 @@ public class CaseController {
         return ResponseEntity.accepted().body(response);
     }
 
+    // También el referente: destrabar un expediente clavado es supervisión, no decidirlo. No
+    // resuelve al que llama porque no atribuye nada — solo reencola la clasificación.
     @PostMapping("/{caseId}/retry-classification")
-    @PreAuthorize("hasRole('ANALISTA_SINIESTROS')")
+    @PreAuthorize("hasAnyRole('ANALISTA_SINIESTROS', 'REFERENTE_ASEGURADORA')")
     @Operation(summary = "Reintentar la clasificación de un expediente fallido",
             description = """
                     Vuelve a poner en cola la clasificación de un expediente que quedó en
