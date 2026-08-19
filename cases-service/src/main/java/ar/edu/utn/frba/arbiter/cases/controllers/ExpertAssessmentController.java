@@ -71,8 +71,10 @@ public class ExpertAssessmentController {
                 .orElseThrow(() -> new ExpertAssessmentNotFoundException(caseId)));
     }
 
+    // Solo el analista: la derivación queda atribuida (ExpertAssessment.derivedBy es un
+    // ClaimsAnalyst) y el servicio ya devolvía 403 al referente por no tener perfil.
     @PostMapping
-    @PreAuthorize("hasAnyRole('ANALISTA_SINIESTROS', 'REFERENTE_ASEGURADORA')")
+    @PreAuthorize("hasRole('ANALISTA_SINIESTROS')")
     @Operation(summary = "Derivar el expediente a un perito",
             description = """
                     Pasa el expediente a PENDING_EXPERT_REPORT y le manda al perito, por mail, los
@@ -90,6 +92,8 @@ public class ExpertAssessmentController {
         return ResponseEntity.accepted().body(expertAssessmentService.derive(caseId, request));
     }
 
+    // También el referente: transcribe el veredicto del perito y devuelve el caso a la cola del
+    // analista, que sigue siendo quien decide. No atribuye nada a quien lo sube.
     @PostMapping(value = "/report", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     @PreAuthorize("hasAnyRole('ANALISTA_SINIESTROS', 'REFERENTE_ASEGURADORA')")
     @Operation(summary = "Cargar el informe del perito",

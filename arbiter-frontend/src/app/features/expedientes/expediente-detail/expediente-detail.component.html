@@ -77,8 +77,11 @@
                 <app-button variant="secondary" [block]="true" [disabled]="decisionSaving()" (click)="askDecision('aprobar')">Aprobar</app-button>
               </div>
               @if (puedeDerivar()) {
+                @if (sugerenciaDerivacion(); as sugerencia) {
+                  <p class="rcard-note suggested">{{ sugerencia }}</p>
+                }
                 <app-button
-                  variant="secondary"
+                  [variant]="derivacionSugerida() ? 'accent' : 'secondary'"
                   [block]="true"
                   [disabled]="!derivacionHabilitada() || decisionSaving()"
                   (click)="askDerivar()"
@@ -90,7 +93,7 @@
                 }
               }
             } @else {
-              <p class="nodata">Pendiente de decisión del analista</p>
+              <p class="nodata">{{ esperaDecisionTexto() }}</p>
             }
           }
           @default {
@@ -102,7 +105,7 @@
               </p>
             } @else if (isFailed()) {
               <p class="nodata">No se pudo clasificar automáticamente tras varios intentos.</p>
-              @if (canAct()) {
+              @if (canGestionar()) {
                 <app-button
                   variant="secondary"
                   [block]="true"
@@ -183,7 +186,7 @@
                     }
                   </div>
                 </div>
-                @if (canAct()) {
+                @if (canGestionar()) {
                   <div class="assign-actions">
                     <app-menu-button
                       class="grow"
@@ -208,7 +211,7 @@
                 }
               } @else {
                 <p class="nodata">Sin asignar</p>
-                @if (canAct()) {
+                @if (canGestionar()) {
                   <div class="assign-actions">
                     @if (canTake()) {
                       <app-button
@@ -409,7 +412,7 @@
               <p class="t-note">El informe queda como adjunto del expediente, en la solapa Documentación.</p>
             } @else {
               <p class="nodata">Esperando el informe del perito.</p>
-              @if (canAct()) {
+              @if (canGestionar()) {
                 <app-button variant="secondary" (click)="askInforme()">Cargar informe</app-button>
               }
             }

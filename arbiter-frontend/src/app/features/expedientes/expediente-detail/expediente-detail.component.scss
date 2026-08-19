@@ -40,6 +40,7 @@
 }
 .rcard-note { margin: var(--space-2) 0 0; font-size: var(--font-size-xs); color: var(--text-muted); }
 .rcard-note.error { color: var(--status-danger); }
+.rcard-note.suggested { color: var(--status-risk); }
 .reco-value { margin: 0; font-size: var(--font-size-lg); font-weight: var(--font-weight-medium); color: var(--text-primary); line-height: 1.25; }
 /* Acento sobrio de semáforo: borde izquierdo por tono, sin pintar el texto. */
 .reco-value[data-tone] { padding-left: var(--space-3); border-left: 3px solid var(--border-strong); }

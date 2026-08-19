@@ -935,24 +935,50 @@ BEGIN
     -- AgendaDocumental sembrada con los códigos CANÓNICOS de tipo de documento — los mismos que usa
     -- el alta de denuncia y classification (police_report / purchase_proof / imei_deregistration /
     -- last_connection). Antes se sembraba con códigos ad-hoc (DNI/DENUNCIA_POLICIAL/…) que el front
-    -- no reconocía, y por eso la solapa Documentación no mostraba los defaults. Se siembra para
-    -- Celulares · "Robo en vía pública" (claim_cause 2) y Tecnología Portátil · "Daño accidental"
-    -- (claim_cause 6). El referente la amplía/recorta desde la pantalla de reglas (solapa
-    -- Documentación), que persiste sobre esta misma tabla.
+    -- no reconocía, y por eso la solapa Documentación no mostraba los defaults. El referente la
+    -- amplía/recorta desde la pantalla de reglas (solapa Documentación), que persiste sobre esta
+    -- misma tabla.
+    -- Every claim cause of both branches is seeded, not just two: the schedule is what tells the
+    -- engine a case is missing documentation, and a claim cause with no rows means "requires
+    -- none". Leaving five of the seven empty let a theft be reported with no police report at all.
+    --
+    -- The lists differ by what the claim cause IS, not by branch:
+    --   · theft (Robo en vía pública, Hurto) → police report + proof of purchase, plus IMEI
+    --     deregistration and last-connection capture ONLY for Celulares; a notebook has no IMEI.
+    --   · damage (Caída, Rotura accidental, Daño accidental) → proof of purchase + repair quote +
+    --     photo of the item. No police report: there is no crime to report.
     EXECUTE format($ddl$
         INSERT INTO %I.document_requirement (id, document_type, mandatory, risk_band, branch_id, claim_cause_id) VALUES
-            (1, 'police_report',       TRUE, NULL, 1, 2),
-            (2, 'purchase_proof',      TRUE, NULL, 1, 2),
-            (3, 'imei_deregistration', TRUE, NULL, 1, 2),
-            (4, 'last_connection',     TRUE, NULL, 1, 2),
-            -- Tecnología Portátil / Daño accidental: no IMEI deregistration and no last-connection
-            -- capture — those are phone-theft documents and this branch covers notebooks (the
-            -- policy seed already leaves their imei NULL). Damage is evidenced by a repair quote
-            -- and a photo of the item.
-            (5, 'police_report',       TRUE, NULL, 2, 6),
-            (6, 'purchase_proof',      TRUE, NULL, 2, 6),
-            (7, 'repair_quote',        TRUE, NULL, 2, 6),
-            (8, 'item_photo',          TRUE, NULL, 2, 6)
+            -- Celulares · Robo en vía pública
+            ( 1, 'police_report',       TRUE, NULL, 1, 2),
+            ( 2, 'purchase_proof',      TRUE, NULL, 1, 2),
+            ( 3, 'imei_deregistration', TRUE, NULL, 1, 2),
+            ( 4, 'last_connection',     TRUE, NULL, 1, 2),
+            -- Celulares · Hurto
+            ( 5, 'police_report',       TRUE, NULL, 1, 3),
+            ( 6, 'purchase_proof',      TRUE, NULL, 1, 3),
+            ( 7, 'imei_deregistration', TRUE, NULL, 1, 3),
+            ( 8, 'last_connection',     TRUE, NULL, 1, 3),
+            -- Celulares · Caída
+            ( 9, 'purchase_proof',      TRUE, NULL, 1, 4),
+            (10, 'repair_quote',        TRUE, NULL, 1, 4),
+            (11, 'item_photo',          TRUE, NULL, 1, 4),
+            -- Celulares · Rotura accidental
+            (12, 'purchase_proof',      TRUE, NULL, 1, 1),
+            (13, 'repair_quote',        TRUE, NULL, 1, 1),
+            (14, 'item_photo',          TRUE, NULL, 1, 1),
+            -- Tecnología Portátil · Daño accidental
+            (15, 'purchase_proof',      TRUE, NULL, 2, 6),
+            (16, 'repair_quote',        TRUE, NULL, 2, 6),
+            (17, 'item_photo',          TRUE, NULL, 2, 6),
+            -- Tecnología Portátil · Robo en vía pública
+            (18, 'police_report',       TRUE, NULL, 2, 7),
+            (19, 'purchase_proof',      TRUE, NULL, 2, 7),
+            (20, 'item_photo',          TRUE, NULL, 2, 7),
+            -- Tecnología Portátil · Hurto
+            (21, 'police_report',       TRUE, NULL, 2, 8),
+            (22, 'purchase_proof',      TRUE, NULL, 2, 8),
+            (23, 'item_photo',          TRUE, NULL, 2, 8)
         $ddl$, p_schema);
 
     -- Same values as classification-service's MockRulesAdapter.DEFAULT_SCORING_CONFIG

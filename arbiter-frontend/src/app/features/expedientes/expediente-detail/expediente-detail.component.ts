@@ -36,6 +36,7 @@ import {
   estadoTone,
   riskBandEmptyLabel,
 } from '../../../core/models/estado';
+import { RiskBand, riskBandLabel } from '../../../core/models/risk-band';
 import { StatusTone } from '../../../core/models/status-tone';
 import { formatDateTime } from '../../../core/util/datetime';
 import { FraudGaugeComponent } from '../../../shared/ui/fraud-gauge/fraud-gauge.component';
@@ -488,6 +489,24 @@ export class ExpedienteDetailComponent {
   );
 
   /**
+   * Con riesgo alto o crítico se sugiere el peritaje. La sugerencia sale del lado determinístico
+   * (banda del scoring) y no de una sexta categoría de Classification: la decisión #6 fija cinco.
+   * Sigue siendo el analista el que decide — esto solo destaca el botón.
+   */
+  protected readonly derivacionSugerida = computed(() => {
+    const band = this.data()?.riskBand;
+    return (band === 'HIGH' || band === 'CRITICAL') && this.derivacionHabilitada();
+  });
+
+  protected readonly sugerenciaDerivacion = computed<string | null>(() => {
+    if (!this.derivacionSugerida()) {
+      return null;
+    }
+    const band = this.data()?.riskBand as RiskBand;
+    return `Riesgo ${riskBandLabel(band).toLowerCase()}: se sugiere derivar a peritaje antes de decidir.`;
+  });
+
+  /**
    * Por qué no se puede derivar. Sin esto el botón queda apagado sin explicación, y el analista
    * no tiene forma de saber si es una política de la compañía o que falta cargar peritos.
    */
@@ -691,15 +710,33 @@ export class ExpedienteDetailComponent {
   );
 
   /**
-   * Solo el analista opera sobre el expediente (asignar, decidir, aceptar/modificar la
-   * clasificación, reintentar). El referente lo ve de solo lectura.
+   * Decidir, reintentar y cargar el informe de peritaje son del analista. El referente no decide
+   * (decisión #5 de CLAUDE.md, y el backend lo rechaza con 403 al resolverlo contra claims_analyst).
    */
   protected readonly canAct = computed(
     () => this.session.session()?.rol === 'ANALISTA_SINIESTROS',
   );
 
+  /**
+   * Mover el expediente sin resolverlo: asignar, reasignar, destrabar una clasificación fallida y
+   * cargar el informe del perito. El referente las comparte con el analista porque ninguna atribuye
+   * una decisión — para eso ve la carga del equipo.
+   */
+  protected readonly canGestionar = computed(() => {
+    const rol = this.session.session()?.rol;
+    return rol === 'ANALISTA_SINIESTROS' || rol === 'REFERENTE_ASEGURADORA';
+  });
+
   protected readonly assignedName = computed(() => this.data()?.assignedAnalystName ?? null);
   protected readonly isAssigned = computed(() => this.data()?.assignedAnalystId != null);
+
+  /** Para el referente: la decisión no es suya, pero repartirla sí. */
+  protected readonly esperaDecisionTexto = computed(() => {
+    const analista = this.assignedName();
+    return analista
+      ? `Espera la decisión de ${analista}. Podés reasignarlo si hace falta.`
+      : 'Espera la decisión de un analista. Asignalo para que alguien lo tome.';
+  });
 
   /** True cuando el expediente está asignado al analista logueado (para el "Vos"). */
   protected readonly isMine = computed(() => {
