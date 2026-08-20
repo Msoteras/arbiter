@@ -416,7 +416,10 @@
                   </span>
                 </p>
 
-                <div class="cov-section">
+                <!-- Las tres secciones en un contenedor con gap propio: colgadas directo de la
+                     card quedaban pegadas entre sí, porque la card no separa a sus hijos. -->
+                <div class="ft-sections">
+                  <div class="cov-section">
                   <span class="t-section-label">Condiciones para habilitar el Fast Track</span>
                   <p class="section-hint">
                     Activá solo los umbrales que quieras exigir. Los que dejes apagados no se
@@ -600,6 +603,8 @@
                     addLabel="+ Agregar criterio"
                     emptyText="Sin criterios descriptivos."
                   />
+                </div>
+
                 </div>
 
                 <app-save-bar

@@ -153,6 +153,10 @@
 .ft-head { display: flex; align-items: center; gap: var(--space-3); flex-wrap: wrap; margin-bottom: var(--space-3); }
 .ft-head .card-title { margin: 0; }
 /* Aviso de contexto, no de alarma: fondo tenue y el ícono en el azul de "info" del semáforo. */
+/* Mismo aire entre secciones que el cuerpo del acordeón de Coberturas, para que las dos solapas
+   respiren igual. */
+.ft-sections { display: flex; flex-direction: column; gap: var(--space-5); }
+
 .ft-banner {
   display: flex;
   gap: var(--space-3);
