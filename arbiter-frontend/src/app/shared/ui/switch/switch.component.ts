@@ -51,10 +51,14 @@ import { ChangeDetectionStrategy, Component, input, model } from '@angular/core'
       box-shadow: var(--shadow-card);
       transition: transform var(--dur-1) ease;
     }
-    /* El mismo par relleno que el botón "accent" (--action-accent-*), que es el rol semántico del
-       sistema para un control lleno de acento: teal fuerte, para que lo blanco encima pase AA.
-       Los componentes no consumen --accent ni los primitivos --c-* directo. */
-    .track[aria-checked='true'] { background: var(--action-accent-bg); }
+    /* --accent-fill y no --action-accent-bg: ese es el teal FUERTE del botón sólido, pensado para
+       que un texto blanco encima pase AA, y en un toggle se veía apagado. El sistema ya dice que
+       los rellenos activos (y nombra los toggles) van con el teal de marca; --accent-fill es ese
+       rol, con su borde para que el control se distinga del fondo. */
+    .track[aria-checked='true'] {
+      background: var(--accent-fill);
+      border-color: var(--accent-fill-border);
+    }
     .track[aria-checked='true'] .knob { transform: translateX(18px); }
     .track:disabled { cursor: default; opacity: 0.55; }
     .track:focus-visible { outline: none; box-shadow: var(--focus-ring); }

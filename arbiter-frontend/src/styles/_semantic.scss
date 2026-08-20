@@ -48,6 +48,12 @@
      la selección tintada usa el par --selected-bg/--selected-border.
      El anillo de foco de inputs/controles es --focus-ring. */
   --accent-fg: var(--accent-strong);
+  /* Relleno de un control activo (el toggle prendido): el teal de marca, no --accent-fg, que es
+     para texto. Existe como rol para que los componentes no consuman --accent directo, y con su
+     borde propio en teal fuerte: el relleno claro solo no llega a 3:1 contra la superficie, y sin
+     el borde el control se pierde de vista aunque el estado se lea por la perilla. */
+  --accent-fill: var(--accent);
+  --accent-fill-border: var(--accent-strong);
   --selected-bg: var(--accent-soft);
   --selected-border: var(--accent-soft-border);
   --border-focus: var(--accent);
