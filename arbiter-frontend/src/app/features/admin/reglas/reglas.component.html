@@ -63,61 +63,94 @@
         @if (hardStopLoading()) {
           <app-inline-loading [size]="26" message="Cargando Hard Stop…" />
         } @else {
-          <app-card heading="Hard Stop">
-            <p class="section-hint">
-              Reglas que se evalúan en el alta de la denuncia, antes de que exista un expediente.
-              <app-info-tip>
-                Son las únicas reglas que le pueden impedir al asegurado crear su siniestro: ni
-                siquiera se abre el expediente, o se abre en forma condicional. El resto de las
-                reglas duras (carencia, plazos, tope de eventos) actúan después, sobre un
-                expediente que ya existe, y son por cobertura — se configuran desde la solapa
-                Coberturas de cada ramo.
-              </app-info-tip>
+          <app-card>
+            <div class="ft-head">
+              <h2 class="card-title">Hard Stop</h2>
+              <app-badge variant="solid" tone="danger">Reglas que bloquean</app-badge>
+            </div>
+
+            <!-- En rojo y no como letra chica: son las únicas reglas de toda la pantalla que le
+                 pueden impedir al asegurado crear su siniestro, y el resto de las solapas configura
+                 cosas que pasan después, sobre un expediente que ya existe. -->
+            <p class="hs-banner">
+              <span class="hs-banner-icon" aria-hidden="true">!</span>
+              <span>
+                Se evalúan en el <strong>alta de la denuncia, antes de que exista un expediente</strong>.
+                Si una regla activa no se cumple, la denuncia no llega a crearse. Usalas solo para
+                bloqueos objetivos e indiscutibles.
+              </span>
             </p>
 
-            <div class="subsection-head">
-              <span class="t-field-label">Vigencia de la póliza</span>
-              <button
-                type="button"
-                class="chip"
-                [class.active]="policyInForceRule()?.enabled"
-                [attr.aria-pressed]="policyInForceRule()?.enabled ?? false"
-                (click)="toggleInsurerHardRule('POLICY_IN_FORCE')"
-              >
-                {{ policyInForceRule()?.enabled ? 'Activa' : 'Inactiva' }}
-              </button>
-            </div>
-            <p class="section-hint">
-              Si el hecho ocurrió fuera de la vigencia de la póliza, no se crea el expediente.
-            </p>
+            <ul class="hs-rules">
+              <li class="hs-rule" [class.on]="policyInForceRule()?.enabled">
+                <div class="hs-rule-text">
+                  <span class="t-field-label">Vigencia de la póliza</span>
+                  <p class="rule-hint">
+                    Si el hecho ocurrió fuera de la vigencia de la póliza, la denuncia no se da de
+                    alta y no se crea el expediente.
+                  </p>
+                  <span class="hs-effect" [class.blocks]="policyInForceRule()?.enabled">
+                    {{ policyInForceRule()?.enabled
+                      ? 'Bloquea el alta — no se crea el expediente'
+                      : 'No bloquea el alta' }}
+                  </span>
+                </div>
+                <div class="hs-rule-switch">
+                  <span class="t-note">{{ policyInForceRule()?.enabled ? 'Activa' : 'Inactiva' }}</span>
+                  <button
+                    type="button"
+                    class="rule-switch"
+                    role="switch"
+                    [attr.aria-checked]="policyInForceRule()?.enabled ?? false"
+                    aria-label="Vigencia de la póliza"
+                    (click)="toggleInsurerHardRule('POLICY_IN_FORCE')"
+                  >
+                    <span class="knob" aria-hidden="true"></span>
+                  </button>
+                </div>
+              </li>
 
-            <div class="subsection-head">
-              <span class="t-field-label">Mora de la póliza</span>
-              <button
-                type="button"
-                class="chip"
-                [class.active]="policyStandingRule()?.enabled"
-                [attr.aria-pressed]="policyStandingRule()?.enabled ?? false"
-                (click)="toggleInsurerHardRule('POLICY_STANDING')"
-              >
-                {{ policyStandingRule()?.enabled ? 'Activa' : 'Inactiva' }}
-              </button>
-            </div>
-            @if (policyStandingRule()?.enabled) {
-              <label class="fieldset">
-                <span class="t-field-label">Si la póliza está en mora…</span>
-                <app-select
-                  [options]="onArrearsOptions"
-                  [value]="policyStandingRule()?.onArrears ?? 'STANDBY'"
-                  (valueChange)="setOnArrears($event)"
-                />
-              </label>
-            } @else {
-              <p class="section-hint">
-                Con la regla apagada, la mora sigue siendo un criterio de Fast Track y un factor
-                de scoring, como hasta ahora — no bloquea nada.
-              </p>
-            }
+              <!-- La mora es la única que, estando activa, puede NO bloquear: depende de qué se
+                   elija abajo. Por eso el chip lee `arrearsBlocks()` y no solo `enabled`. -->
+              <li class="hs-rule" [class.on]="policyStandingRule()?.enabled">
+                <div class="hs-rule-text">
+                  <span class="t-field-label">Mora de la póliza</span>
+                  @if (policyStandingRule()?.enabled) {
+                    <label class="fieldset hs-arrears">
+                      <span class="t-field-label">Si la póliza está en mora…</span>
+                      <app-select
+                        [options]="onArrearsOptions"
+                        [value]="policyStandingRule()?.onArrears ?? 'STANDBY'"
+                        (valueChange)="setOnArrears($event)"
+                      />
+                    </label>
+                  } @else {
+                    <p class="rule-hint">
+                      Con la regla apagada, la mora sigue siendo un criterio de Fast Track y un
+                      factor de scoring, como hasta ahora — no bloquea nada.
+                    </p>
+                  }
+                  <span class="hs-effect" [class.blocks]="arrearsBlocks()">
+                    {{ arrearsBlocks()
+                      ? 'Bloquea el alta — no se crea el expediente'
+                      : 'No bloquea el alta' }}
+                  </span>
+                </div>
+                <div class="hs-rule-switch">
+                  <span class="t-note">{{ policyStandingRule()?.enabled ? 'Activa' : 'Inactiva' }}</span>
+                  <button
+                    type="button"
+                    class="rule-switch"
+                    role="switch"
+                    [attr.aria-checked]="policyStandingRule()?.enabled ?? false"
+                    aria-label="Mora de la póliza"
+                    (click)="toggleInsurerHardRule('POLICY_STANDING')"
+                  >
+                    <span class="knob" aria-hidden="true"></span>
+                  </button>
+                </div>
+              </li>
+            </ul>
 
             <app-save-bar
               [dirty]="hardStopDirty()"

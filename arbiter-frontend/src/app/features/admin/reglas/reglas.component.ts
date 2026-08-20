@@ -832,6 +832,16 @@ export class ReglasComponent {
     return this.insurerHardRules().find((r) => r.ruleType === 'POLICY_IN_FORCE');
   }
 
+  /**
+   * Si la mora, tal como está configurada, efectivamente bloquea el alta. Es la única regla de Hard
+   * Stop donde estar activa no alcanza: con `STANDBY` la denuncia se crea igual y la mora se evalúa
+   * después, en la clasificación. Decirlo en la pantalla evita prometer un bloqueo que no ocurre.
+   */
+  protected arrearsBlocks(): boolean {
+    const rule = this.policyStandingRule();
+    return rule?.enabled === true && rule.onArrears === 'REJECT';
+  }
+
   protected saveHardStop(): void {
     if (this.hardStopSaving()) {
       return;
