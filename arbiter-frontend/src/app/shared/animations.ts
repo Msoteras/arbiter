@@ -103,3 +103,28 @@ export const growBar = trigger('growBar', [
     animate('700ms 120ms cubic-bezier(0.16, 1, 0.3, 1)'),
   ]),
 ]);
+
+/**
+ * Apertura y cierre de un acordeón: la altura crece desde 0 hasta la real ({@code height: '*'}),
+ * con un fade que acompaña.
+ *
+ * También se anima el {@code margin-top}, no solo la altura: el panel tiene margen propio, y sin
+ * eso el espacio aparecía de golpe al empezar la animación y el contenido de abajo pegaba un salto
+ * antes de que el panel llegara a abrirse.
+ *
+ * El cierre es más corto que la apertura (180 vs 240ms) y con {@code ease-in}: al abrir se está
+ * esperando a ver algo, al cerrar ya se decidió y demorarlo se siente lento.
+ */
+export const accordion = trigger('accordion', [
+  transition(':enter', [
+    style({ height: 0, opacity: 0, marginTop: 0, overflow: 'hidden' }),
+    animate(
+      '240ms cubic-bezier(0.16, 1, 0.3, 1)',
+      style({ height: '*', opacity: 1, marginTop: '*' }),
+    ),
+  ]),
+  transition(':leave', [
+    style({ overflow: 'hidden' }),
+    animate('180ms ease-in', style({ height: 0, opacity: 0, marginTop: 0 })),
+  ]),
+]);

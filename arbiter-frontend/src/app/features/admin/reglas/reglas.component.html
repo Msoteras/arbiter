@@ -190,7 +190,7 @@
                       [attr.aria-expanded]="isCoverageOpen(c)"
                       (click)="toggleCoverage(c)"
                     >
-                      <span class="cov-caret" aria-hidden="true">{{ isCoverageOpen(c) ? '▾' : '▸' }}</span>
+                      <span class="cov-caret" [class.open]="isCoverageOpen(c)" aria-hidden="true">▸</span>
                       <span class="cov-title">{{ c.name || 'Cobertura sin nombre' }}</span>
                       @if (!isCoverageOpen(c)) {
                         <span class="cov-chips">
@@ -208,7 +208,7 @@
                   </div>
 
                   @if (isCoverageOpen(c)) {
-                    <div class="cov-body">
+                    <div class="cov-body" @accordion>
                       <span class="t-section-label">Datos de la cobertura</span>
                       <div class="cov-fields">
                         <label class="fieldset grow">

@@ -132,7 +132,16 @@
   color: inherit;
 }
 .cov-toggle:focus-visible { outline: none; box-shadow: var(--focus-ring); border-radius: var(--radius-ctl); }
-.cov-caret { color: var(--text-tertiary); font-size: var(--font-size-xs); }
+.cov-caret {
+  color: var(--text-tertiary);
+  font-size: var(--font-size-xs);
+  display: inline-block;
+  transition: transform var(--dur-1) ease;
+}
+.cov-caret.open { transform: rotate(90deg); }
+@media (prefers-reduced-motion: reduce) {
+  .cov-caret { transition: none; }
+}
 .cov-title { font-weight: var(--font-weight-medium); color: var(--text-primary); }
 /* Los chips del resumen se van a una segunda línea antes que empujar el título fuera de la card. */
 .cov-chips { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2); min-width: 0; }

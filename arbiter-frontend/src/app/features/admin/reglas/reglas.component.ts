@@ -38,7 +38,7 @@ import { InfoTipComponent } from '../../../shared/ui/info-tip/info-tip.component
 import { BadgeComponent } from '../../../shared/ui/badge/badge.component';
 import { SelectComponent, SelectOption } from '../../../shared/ui/select/select.component';
 import { ToastService } from '../../../shared/ui/toast/toast.service';
-import { fadeInUp, listStagger, staggerReveal } from '../../../shared/animations';
+import { accordion, fadeInUp, listStagger, staggerReveal } from '../../../shared/animations';
 
 type TabId = 'coberturas' | 'exclusiones' | 'fastTrack' | 'documentacion' | 'reglas';
 
@@ -77,7 +77,7 @@ type GeneralView = 'hardStop' | 'scoring' | 'fraude' | 'peritos';
     SelectComponent,
   ],
   changeDetection: ChangeDetectionStrategy.OnPush,
-  animations: [staggerReveal, listStagger, fadeInUp],
+  animations: [staggerReveal, listStagger, fadeInUp, accordion],
   templateUrl: './reglas.component.html',
   styleUrl: './reglas.component.scss',
 })
