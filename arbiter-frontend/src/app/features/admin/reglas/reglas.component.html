@@ -159,189 +159,191 @@
 
         @switch (activeTab()) {
           <!-- ============ COBERTURAS ============ -->
+          <!-- Acordeón: una cobertura abierta por vez. Con todas desplegadas la solapa era una tira
+               de formularios idénticos donde no se veía dónde terminaba una y empezaba la otra. -->
           @case ('coberturas') {
             @if (detailLoading()) {
               <app-inline-loading [size]="26" message="Cargando coberturas…" />
             } @else {
             <div class="tab-panel" @fadeInUp>
+              <div class="cov-head">
+                <p class="cov-count t-note">
+                  {{ d.coverages.length }}
+                  {{ d.coverages.length === 1 ? 'cobertura en este ramo' : 'coberturas en este ramo' }}
+                </p>
+                <app-button variant="secondary" (click)="addCoverage()">+ Agregar cobertura</app-button>
+              </div>
+
+              <!-- Una vez arriba y no repetida adentro de cada cobertura: es lo mismo para todas. -->
+              <p class="section-hint">
+                Los umbrales de cada cobertura los evalúa el motor en cada clasificación: si no se
+                cumplen, el siniestro pierde el Fast Track y pasa a revisión del analista. No
+                rechazan nada por sí solos, y quedan auditados se cumplan o no.
+              </p>
+
               @for (c of d.coverages; track c.id) {
-                <app-card>
-                  <div class="cov-top">
-                    <label class="fieldset grow">
-                      <span class="t-field-label">Cobertura</span>
-                      <app-input
-                        [value]="c.name"
-                        (valueChange)="setCoverageField(c.id, { name: $event })"
-                        placeholder="Nombre de la cobertura"
-                      />
-                    </label>
+                <app-card class="cov-card" [class.open]="isCoverageOpen(c)">
+                  <div class="cov-summary">
+                    <button
+                      type="button"
+                      class="cov-toggle"
+                      [attr.aria-expanded]="isCoverageOpen(c)"
+                      (click)="toggleCoverage(c)"
+                    >
+                      <span class="cov-caret" aria-hidden="true">{{ isCoverageOpen(c) ? '▾' : '▸' }}</span>
+                      <span class="cov-title">{{ c.name || 'Cobertura sin nombre' }}</span>
+                      @if (!isCoverageOpen(c)) {
+                        <span class="cov-chips">
+                          @for (chip of coverageSummary(c); track chip) {
+                            <app-badge variant="solid">{{ chip }}</app-badge>
+                          } @empty {
+                            <span class="t-note">Sin umbrales configurados</span>
+                          }
+                        </span>
+                      }
+                    </button>
                     <button type="button" class="remove-cov" (click)="removeCoverage(c.id)">
                       Quitar cobertura
                     </button>
                   </div>
 
-                  <div class="cov-fields">
-                    <label class="fieldset">
-                      <span class="t-field-label">Cláusula</span>
-                      <app-input
-                        [value]="c.clause"
-                        (valueChange)="setCoverageField(c.id, { clause: $event })"
-                        placeholder="ej. 340"
-                      />
-                    </label>
-                    <label class="fieldset">
-                      <span class="t-field-label">Franquicia (%)</span>
-                      <app-input
-                        type="number"
-                        [min]="0"
-                        [value]="coverageDeductiblePct(c)"
-                        (valueChange)="setCoverageDeductible(c.id, $event)"
-                      />
-                    </label>
-                    <label class="fieldset">
-                      <span class="t-field-label">Plazo de denuncia (días)</span>
-                      <app-input
-                        type="number"
-                        [min]="0"
-                        [value]="coverageReportingWindowStr(c)"
-                        (valueChange)="setCoverageReportingWindow(c.id, $event)"
-                        placeholder="—"
-                      />
-                    </label>
-                    <label class="fieldset">
-                      <span class="t-field-label">Máx. eventos por año</span>
-                      <app-input
-                        type="number"
-                        [min]="0"
-                        [value]="coverageMaxClaimsStr(c)"
-                        (valueChange)="setCoverageMaxClaims(c.id, $event)"
-                        placeholder="Sin límite"
-                      />
-                    </label>
-                    <label class="fieldset">
-                      <span class="t-field-label">
-                        Carencia (días)
-                        <app-info-tip>
-                          Durante la carencia la cobertura todavía no aplica, aunque la póliza esté
-                          vigente: un siniestro dentro de ese plazo no se cubre.
-                        </app-info-tip>
-                      </span>
-                      <app-input
-                        type="number"
-                        [min]="0"
-                        [value]="coverageWaitingPeriodStr(c)"
-                        (valueChange)="setCoverageWaitingPeriod(c.id, $event)"
-                        placeholder="Sin carencia"
-                      />
-                    </label>
-                  </div>
+                  @if (isCoverageOpen(c)) {
+                    <div class="cov-body">
+                      <span class="t-section-label">Datos de la cobertura</span>
+                      <div class="cov-fields">
+                        <label class="fieldset grow">
+                          <span class="t-field-label">Nombre</span>
+                          <app-input
+                            [value]="c.name"
+                            (valueChange)="setCoverageField(c.id, { name: $event })"
+                            placeholder="Nombre de la cobertura"
+                          />
+                        </label>
+                        <label class="fieldset">
+                          <span class="t-field-label">Cláusula</span>
+                          <app-input
+                            [value]="c.clause"
+                            (valueChange)="setCoverageField(c.id, { clause: $event })"
+                            placeholder="ej. 340"
+                          />
+                        </label>
+                        <label class="fieldset">
+                          <span class="t-field-label">Franquicia (%)</span>
+                          <app-input
+                            type="number"
+                            [min]="0"
+                            [value]="coverageDeductiblePct(c)"
+                            (valueChange)="setCoverageDeductible(c.id, $event)"
+                          />
+                        </label>
+                      </div>
 
-                  <div class="chips">
-                    <button
-                      type="button"
-                      class="chip"
-                      [class.active]="c.coversFamilyGroup"
-                      [attr.aria-pressed]="c.coversFamilyGroup"
-                      (click)="toggleCoverageFamilyGroup(c)"
-                    >
-                      Alcanza al grupo familiar
-                    </button>
-                    <button
-                      type="button"
-                      class="chip"
-                      [class.active]="c.claimExhaustsCoverage"
-                      [attr.aria-pressed]="c.claimExhaustsCoverage"
-                      (click)="toggleCoverageExhausts(c)"
-                    >
-                      Un siniestro agota la cobertura
-                    </button>
-                  </div>
-
-                  <div class="cov-excl">
-                    <span class="t-field-label">Reglas duras que evalúa el motor</span>
-                    <p class="section-hint">
-                      Las que estén activas se evalúan en cada clasificación con los umbrales de
-                      arriba, bloquean el Fast Track si no se cumplen y quedan auditadas —se cumplan
-                      o no—. Las que apagues no se evalúan. El cambio rige desde la próxima
-                      clasificación.
-                    </p>
-                    @if (!canEditExclusions(c)) {
-                      <p class="t-note">Guardá la cobertura primero para configurar sus reglas duras.</p>
-                    } @else if (hardRulesOf(c).length === 0) {
-                      <p class="t-note">No se pudieron cargar las reglas duras de esta cobertura.</p>
-                    } @else {
                       <div class="chips">
-                        @for (rule of hardRulesOf(c); track rule.ruleType) {
-                          <button
-                            type="button"
-                            class="chip"
-                            [class.active]="rule.enabled"
-                            [attr.aria-pressed]="rule.enabled"
-                            (click)="toggleHardRule(c.id, rule.ruleType)"
-                          >
-                            {{ hardRuleLabel(rule.ruleType) }}
-                          </button>
+                        <button
+                          type="button"
+                          class="chip"
+                          [class.active]="c.coversFamilyGroup"
+                          [attr.aria-pressed]="c.coversFamilyGroup"
+                          (click)="toggleCoverageFamilyGroup(c)"
+                        >
+                          Alcanza al grupo familiar
+                        </button>
+                        <button
+                          type="button"
+                          class="chip"
+                          [class.active]="c.claimExhaustsCoverage"
+                          [attr.aria-pressed]="c.claimExhaustsCoverage"
+                          (click)="toggleCoverageExhausts(c)"
+                        >
+                          Un siniestro agota la cobertura
+                        </button>
+                      </div>
+
+                      <!-- Interruptor y umbral en la misma fila: antes se prendía la regla acá y su
+                           número se cargaba en otra sección, sin nada que dijera que eran lo mismo. -->
+                      <div class="cov-section">
+                        <span class="t-section-label">Reglas que evalúa el motor</span>
+                        @if (!canEditExclusions(c)) {
+                          <p class="t-note">Guardá la cobertura primero para configurar sus reglas.</p>
+                        } @else if (orderedHardRules(c).length === 0) {
+                          <p class="t-note">No se pudieron cargar las reglas de esta cobertura.</p>
+                        } @else {
+                          <ul class="rule-rows">
+                            @for (rule of orderedHardRules(c); track rule.ruleType) {
+                              <li class="rule-row" [class.off]="!rule.enabled">
+                                <button
+                                  type="button"
+                                  class="rule-switch"
+                                  role="switch"
+                                  [attr.aria-checked]="rule.enabled"
+                                  [attr.aria-label]="hardRuleLabel(rule.ruleType)"
+                                  (click)="toggleHardRule(c.id, rule.ruleType)"
+                                >
+                                  <span class="knob" aria-hidden="true"></span>
+                                </button>
+                                <div class="rule-text">
+                                  <span class="t-field-label">{{ hardRuleLabel(rule.ruleType) }}</span>
+                                  <p class="rule-hint">{{ hardRuleHint(rule.ruleType) }}</p>
+                                </div>
+                                <div class="rule-value">
+                                  <app-input
+                                    type="number"
+                                    [min]="0"
+                                    [value]="hardRuleValue(c, rule.ruleType)"
+                                    (valueChange)="setHardRuleValue(c, rule.ruleType, $event)"
+                                    placeholder="—"
+                                  />
+                                  <span class="t-note">{{ hardRuleUnit(rule.ruleType) }}</span>
+                                </div>
+                              </li>
+                            }
+                          </ul>
                         }
                       </div>
-                      <label class="fieldset">
-                        <span class="t-field-label">Plazo de la denuncia policial (horas)</span>
-                        <app-input
-                          type="number"
-                          [min]="0"
-                          [value]="policeDeadlineStr(c)"
-                          (valueChange)="setPoliceDeadline(c.id, $event)"
-                          placeholder="ej. 72"
+
+                      <div class="cov-section">
+                        <span class="t-section-label">Exclusiones de esta cobertura</span>
+                        <app-string-list-editor
+                          [items]="c.exclusions"
+                          (itemsChange)="setCoverageField(c.id, { exclusions: $event })"
+                          placeholder="Exclusión específica de esta cobertura…"
+                          addLabel="+ Agregar exclusión"
+                          emptyText="Sin exclusiones específicas."
                         />
-                      </label>
-                      <p class="section-hint">
-                        Es el único plazo que se configura acá: los demás son los campos de la
-                        cobertura. Se cuenta desde el hecho, sobre la fecha que declara el asegurado.
-                      </p>
-                    }
-                  </div>
+                      </div>
 
-                  <div class="cov-excl">
-                    <span class="t-field-label">Exclusiones específicas</span>
-                    <app-string-list-editor
-                      [items]="c.exclusions"
-                      (itemsChange)="setCoverageField(c.id, { exclusions: $event })"
-                      placeholder="Exclusión específica de esta cobertura…"
-                      addLabel="+ Agregar exclusión"
-                      emptyText="Sin exclusiones específicas."
-                    />
-                  </div>
-
-                  <div class="cov-excl">
-                    <span class="t-field-label">Hechos generadores NO cubiertos</span>
-                    <p class="section-hint">
-                      Exclusión dura: si se denuncia uno de estos hechos sobre esta cobertura, el
-                      motor lo detecta por regla (bloquea Fast Track y deriva a revisión), no el
-                      modelo.
-                    </p>
-                    @if (!canEditExclusions(c)) {
-                      <p class="t-note">Guardá la cobertura primero para configurar sus exclusiones.</p>
-                    } @else if (claimCauses().length === 0) {
-                      <p class="t-note">No hay hechos generadores en este ramo.</p>
-                    } @else {
-                      <div class="chips">
-                        @for (cause of claimCauses(); track cause.id) {
-                          <button
-                            type="button"
-                            class="chip"
-                            [class.active]="isCauseExcluded(c, cause.id)"
-                            [attr.aria-pressed]="isCauseExcluded(c, cause.id)"
-                            (click)="toggleExcludedCause(c.id, cause.id)"
-                          >
-                            {{ cause.name }}
-                          </button>
+                      <div class="cov-section">
+                        <span class="t-section-label">Hechos generadores NO cubiertos</span>
+                        <p class="section-hint">
+                          Si se denuncia uno de estos sobre esta cobertura, lo detecta el motor por
+                          regla —no el modelo—: bloquea Fast Track y deriva a revisión.
+                        </p>
+                        @if (!canEditExclusions(c)) {
+                          <p class="t-note">Guardá la cobertura primero para configurar sus exclusiones.</p>
+                        } @else if (claimCauses().length === 0) {
+                          <p class="t-note">No hay hechos generadores en este ramo.</p>
+                        } @else {
+                          <div class="chips">
+                            @for (cause of claimCauses(); track cause.id) {
+                              <button
+                                type="button"
+                                class="chip"
+                                [class.active]="isCauseExcluded(c, cause.id)"
+                                [attr.aria-pressed]="isCauseExcluded(c, cause.id)"
+                                (click)="toggleExcludedCause(c.id, cause.id)"
+                              >
+                                {{ cause.name }}
+                              </button>
+                            }
+                          </div>
                         }
                       </div>
-                    }
-                  </div>
+                    </div>
+                  }
                 </app-card>
+              } @empty {
+                <p class="t-note">Este ramo todavía no tiene coberturas.</p>
               }
-
-              <app-button variant="secondary" (click)="addCoverage()">+ Agregar cobertura</app-button>
 
               <app-save-bar
                 [dirty]="covDirty()"

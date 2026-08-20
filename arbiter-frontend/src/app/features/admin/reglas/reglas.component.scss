@@ -109,9 +109,88 @@
 .warn-note { margin: 0; color: var(--status-warning); font-size: var(--font-size-xs); }
 
 /* ───────── Coberturas ───────── */
-.cov-top { display: flex; align-items: flex-end; gap: var(--space-3); }
 .fieldset { display: flex; flex-direction: column; gap: var(--space-1); }
 .fieldset.grow { flex: 1 1 auto; }
+/* ───────── Coberturas: acordeón ───────── */
+.cov-head { display: flex; align-items: center; justify-content: space-between; gap: var(--space-3); margin-bottom: var(--space-2); }
+.cov-count { margin: 0; }
+
+.cov-card { margin-bottom: var(--space-3); }
+/* La cabecera es todo el ancho y clickeable: cerrada, la card entera es el control de abrir. */
+.cov-summary { display: flex; align-items: center; gap: var(--space-3); }
+.cov-toggle {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: 0;
+  border: 0;
+  background: none;
+  text-align: left;
+  cursor: pointer;
+  color: inherit;
+}
+.cov-toggle:focus-visible { outline: none; box-shadow: var(--focus-ring); border-radius: var(--radius-ctl); }
+.cov-caret { color: var(--text-tertiary); font-size: var(--font-size-xs); }
+.cov-title { font-weight: var(--font-weight-medium); color: var(--text-primary); }
+/* Los chips del resumen se van a una segunda línea antes que empujar el título fuera de la card. */
+.cov-chips { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2); min-width: 0; }
+
+.cov-body { margin-top: var(--space-4); display: flex; flex-direction: column; gap: var(--space-4); }
+.cov-section { display: flex; flex-direction: column; gap: var(--space-2); }
+.cov-section .section-hint { margin: 0; }
+
+/* ───────── Reglas del motor: interruptor, texto y umbral en un renglón ───────── */
+.rule-rows { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; }
+.rule-row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-3) 0;
+}
+.rule-row + .rule-row { border-top: 1px solid var(--border-subtle); }
+.rule-text { flex: 1 1 auto; min-width: 0; }
+.rule-hint { margin: var(--space-1) 0 0; color: var(--text-secondary); font-size: var(--font-size-xs); }
+.rule-value { display: flex; align-items: center; gap: var(--space-2); flex: 0 0 auto; }
+.rule-value app-input { width: 88px; }
+/* Apagada, la fila se atenúa pero no se esconde: el umbral sigue siendo editable, así el referente
+   puede dejar cargado el número antes de prender la regla. */
+.rule-row.off .rule-text, .rule-row.off .rule-value { opacity: 0.55; }
+
+/* Interruptor: la forma dice el estado (la perilla se corre), no solo el color. */
+.rule-switch {
+  flex: 0 0 auto;
+  width: 36px;
+  height: 20px;
+  padding: 2px;
+  border: 1px solid var(--border-control);
+  border-radius: var(--radius-pill);
+  background: var(--surface-sunken);
+  cursor: pointer;
+  transition: background-color var(--dur-1) ease, border-color var(--dur-1) ease;
+}
+.rule-switch .knob {
+  display: block;
+  width: 14px;
+  height: 14px;
+  border-radius: var(--radius-pill);
+  background: var(--text-tertiary);
+  transition: transform var(--dur-1) ease, background-color var(--dur-1) ease;
+}
+.rule-switch[aria-checked='true'] { background: var(--selected-bg); border-color: var(--selected-border); }
+.rule-switch[aria-checked='true'] .knob { transform: translateX(16px); background: var(--accent-fg); }
+.rule-switch:focus-visible { outline: none; box-shadow: var(--focus-ring); }
+@media (prefers-reduced-motion: reduce) {
+  .rule-switch, .rule-switch .knob { transition: none; }
+}
+
+@media (max-width: 640px) {
+  /* En angosto el umbral baja debajo del texto en vez de comprimir las dos columnas. */
+  .rule-row { flex-wrap: wrap; }
+  .rule-value { width: 100%; padding-left: calc(36px + var(--space-3)); }
+}
+
 .remove-cov {
   flex-shrink: 0;
   font: inherit;
@@ -125,8 +204,7 @@
 }
 .remove-cov:hover { border-color: var(--status-danger); color: var(--status-danger); }
 
-.cov-fields { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: var(--space-3); margin-top: var(--space-3); }
-.cov-excl { margin-top: var(--space-3); display: flex; flex-direction: column; gap: var(--space-2); }
+.cov-fields { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: var(--space-3); }
 
 /* Campos numéricos en grilla (fast track, parámetros) */
 .grid-fields { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: var(--space-3); }

@@ -35,6 +35,7 @@ import { SaveBarComponent } from '../../../shared/ui/save-bar/save-bar.component
 import { StringListEditorComponent } from './string-list-editor.component';
 import { InlineLoadingComponent } from '../../../shared/ui/inline-loading/inline-loading.component';
 import { InfoTipComponent } from '../../../shared/ui/info-tip/info-tip.component';
+import { BadgeComponent } from '../../../shared/ui/badge/badge.component';
 import { SelectComponent, SelectOption } from '../../../shared/ui/select/select.component';
 import { ToastService } from '../../../shared/ui/toast/toast.service';
 import { fadeInUp, listStagger, staggerReveal } from '../../../shared/animations';
@@ -72,6 +73,7 @@ type GeneralView = 'hardStop' | 'scoring' | 'fraude' | 'peritos';
     StringListEditorComponent,
     InlineLoadingComponent,
     InfoTipComponent,
+    BadgeComponent,
     SelectComponent,
   ],
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -380,6 +382,7 @@ export class ReglasComponent {
     this.selectedId.set(r.id);
     this.draft.set(structuredClone(r));
     this.persisted.set(structuredClone(r));
+    this.expandedCoverageId.set(null);
     this.activeTab.set('coberturas');
     this.ftError.set(null);
     this.covError.set(null);
@@ -714,6 +717,9 @@ export class ReglasComponent {
       hardRules: [],
     };
     this.draft.update((d) => (d ? { ...d, coverages: [...d.coverages, coverage] } : d));
+    // Se abre sola: con el acordeón cerrado, agregar una cobertura sumaba un renglón vacío al pie
+    // y parecía que el botón no había hecho nada.
+    this.expandedCoverageId.set(coverage.id);
     this.markDirty();
   }
 
@@ -889,6 +895,9 @@ export class ReglasComponent {
 
   protected removeCoverage(id: string): void {
     this.draft.update((d) => (d ? { ...d, coverages: d.coverages.filter((c) => c.id !== id) } : d));
+    if (this.expandedCoverageId() === id) {
+      this.expandedCoverageId.set(null);
+    }
     this.markDirty();
   }
 
@@ -929,6 +938,124 @@ export class ReglasComponent {
 
   protected coverageWaitingPeriodStr(c: Coverage): string {
     return this.intStr(c.waitingPeriodDays);
+  }
+
+  // ───────────────── Coberturas: acordeón + filas de reglas ─────────────────
+  /**
+   * Qué cobertura está abierta. Una por vez: con todas desplegadas la solapa era una tira de
+   * formularios idénticos donde no se distinguía dónde terminaba una y empezaba la otra, y el
+   * referente edita de a una.
+   */
+  protected readonly expandedCoverageId = signal<string | null>(null);
+
+  protected isCoverageOpen(c: Coverage): boolean {
+    return this.expandedCoverageId() === c.id;
+  }
+
+  protected toggleCoverage(c: Coverage): void {
+    this.expandedCoverageId.update((open) => (open === c.id ? null : c.id));
+  }
+
+  /**
+   * El resumen que se ve con la cobertura cerrada: lo que la distingue de las otras, en el orden en
+   * que se configura adentro. Se omite lo que no está configurado en vez de mostrarlo en "—": una
+   * fila de guiones no dice nada y esconde lo que sí tiene valor.
+   */
+  protected coverageSummary(c: Coverage): string[] {
+    const chips: string[] = [];
+    if (c.deductibleRatio != null) {
+      chips.push(`Franquicia ${this.pctFromRatio(c.deductibleRatio)}%`);
+    }
+    if (c.waitingPeriodDays != null) {
+      chips.push(`Carencia ${c.waitingPeriodDays} d`);
+    }
+    if (c.reportingWindowDays != null) {
+      chips.push(`Denuncia ${c.reportingWindowDays} d`);
+    }
+    const police = this.hardRulesOf(c).find((r) => r.ruleType === 'POLICE_DEADLINE');
+    if (police?.deadlineHours != null) {
+      chips.push(`Policial ${police.deadlineHours} h`);
+    }
+    if (c.maxAnnualClaims != null) {
+      chips.push(`Máx. ${c.maxAnnualClaims}/año`);
+    }
+    const excluded = (c.excludedClaimCauseIds ?? []).length;
+    if (excluded > 0) {
+      chips.push(excluded === 1 ? '1 hecho excluido' : `${excluded} hechos excluidos`);
+    }
+    return chips;
+  }
+
+  /**
+   * Las reglas duras en un orden fijo y no en el que las devuelva el backend: la lista se lee de
+   * corrido y cambiar de cobertura no tiene que reordenar lo que el referente venía mirando.
+   */
+  private static readonly HARD_RULE_ORDER: HardRuleType[] = [
+    'WAITING_PERIOD',
+    'REPORT_DEADLINE',
+    'POLICE_DEADLINE',
+    'MAX_EVENTS_YEAR',
+  ];
+
+  protected orderedHardRules(c: Coverage): HardRule[] {
+    const rules = this.hardRulesOf(c);
+    return ReglasComponent.HARD_RULE_ORDER.map((type) =>
+      rules.find((r) => r.ruleType === type),
+    ).filter((r): r is HardRule => r != null);
+  }
+
+  /** Qué evalúa cada regla, en una línea, al lado de su interruptor. */
+  protected hardRuleHint(type: HardRuleType): string {
+    switch (type) {
+      case 'WAITING_PERIOD':
+        return 'Días desde el alta de la póliza en los que la cobertura todavía no aplica.';
+      case 'REPORT_DEADLINE':
+        return 'Plazo para denunciar el siniestro a la aseguradora, contado desde el hecho.';
+      case 'POLICE_DEADLINE':
+        return 'Plazo para hacer la denuncia policial, sobre la fecha que declara el asegurado.';
+      case 'MAX_EVENTS_YEAR':
+        return 'Cuántos siniestros puede tener el asegurado en esta cobertura en 12 meses.';
+    }
+  }
+
+  protected hardRuleUnit(type: HardRuleType): string {
+    return type === 'POLICE_DEADLINE' ? 'horas' : type === 'MAX_EVENTS_YEAR' ? 'por año' : 'días';
+  }
+
+  /**
+   * El umbral de cada regla. Tres viven en columnas de la cobertura (son términos del contrato) y
+   * el de la denuncia policial en la regla misma, que es la única sin columna propia. La pantalla
+   * no tiene por qué mostrar esa diferencia: acá se unifica el acceso, y el interruptor queda al
+   * lado del número que gobierna en vez de dos secciones más arriba.
+   */
+  protected hardRuleValue(c: Coverage, type: HardRuleType): string {
+    switch (type) {
+      case 'WAITING_PERIOD':
+        return this.intStr(c.waitingPeriodDays);
+      case 'REPORT_DEADLINE':
+        return this.intStr(c.reportingWindowDays);
+      case 'POLICE_DEADLINE':
+        return this.policeDeadlineStr(c);
+      case 'MAX_EVENTS_YEAR':
+        return this.intStr(c.maxAnnualClaims);
+    }
+  }
+
+  protected setHardRuleValue(c: Coverage, type: HardRuleType, value: string): void {
+    switch (type) {
+      case 'WAITING_PERIOD':
+        this.setCoverageWaitingPeriod(c.id, value);
+        return;
+      case 'REPORT_DEADLINE':
+        this.setCoverageReportingWindow(c.id, value);
+        return;
+      case 'POLICE_DEADLINE':
+        this.setPoliceDeadline(c.id, value);
+        return;
+      case 'MAX_EVENTS_YEAR':
+        this.setCoverageMaxClaims(c.id, value);
+        return;
+    }
   }
 
   protected toggleCoverageFamilyGroup(c: Coverage): void {
