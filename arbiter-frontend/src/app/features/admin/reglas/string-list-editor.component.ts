@@ -45,8 +45,25 @@ import { BadgeComponent } from '../../../shared/ui/badge/badge.component';
                 (valueChange)="update($index, $event)"
                 [placeholder]="placeholder()"
               />
-              <app-button variant="secondary" size="sm" (click)="stopEditing()">Listo</app-button>
+              <button
+                type="button"
+                class="icon-btn confirm"
+                [attr.aria-label]="'Listo'"
+                (click)="stopEditing()"
+              >
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" aria-hidden="true">
+                  <path d="M5 13l4 4L19 7" stroke-linecap="round" stroke-linejoin="round" />
+                </svg>
+              </button>
             } @else {
+              @if (marker()) {
+                <span class="row-marker" aria-hidden="true">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4">
+                    <line x1="18" y1="6" x2="6" y2="18" stroke-linecap="round" />
+                    <line x1="6" y1="6" x2="18" y2="18" stroke-linecap="round" />
+                  </svg>
+                </span>
+              }
               <div class="text">
                 <p class="item-text">{{ item || placeholder() }}</p>
                 @if (badge()) {
@@ -100,10 +117,26 @@ import { BadgeComponent } from '../../../shared/ui/badge/badge.component';
     .item-text { margin: 0; color: var(--text-primary); }
     .empty { margin: 0 0 var(--space-1); padding: var(--space-2) 0; }
 
-    /* Las acciones aparecen con el hover o el foco, pero nunca se esconden del todo del teclado:
-       con :focus-within siguen siendo alcanzables tabulando. */
-    .row-actions { flex: 0 0 auto; display: flex; gap: var(--space-1); opacity: 0.55; transition: opacity var(--dur-1) ease; }
-    .item:hover .row-actions, .item:focus-within .row-actions { opacity: 1; }
+    /* Cada acción con su color, siempre a la vista: editar en el acento de marca y quitar en el
+       rojo de peligro. Escondidas hasta el hover se descubrían de casualidad, y en touch no hay
+       hover que valga. El color va solo en el ícono — sin relleno — para no gritar desde una lista. */
+    .row-actions { flex: 0 0 auto; display: flex; gap: var(--space-1); }
+
+    /* Marca de "no cubierto" al principio de la fila. Decorativa: lo que la fila significa ya lo
+       dicen el título de la sección y el badge, así que va aria-hidden. */
+    .row-marker {
+      flex: 0 0 auto;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 22px;
+      height: 22px;
+      border-radius: var(--radius-ctl);
+      /* Fondo derivado del token de peligro, sin inventar uno nuevo en la paleta. */
+      background: color-mix(in srgb, var(--status-danger) 10%, transparent);
+      color: var(--status-danger);
+    }
+    .row-marker svg { width: 14px; height: 14px; }
     .icon-btn {
       display: flex;
       align-items: center;
@@ -114,11 +147,12 @@ import { BadgeComponent } from '../../../shared/ui/badge/badge.component';
       background: none;
       border: 1px solid var(--border-control);
       border-radius: var(--radius-ctl);
-      color: var(--text-tertiary);
+      color: var(--accent-fg);
       cursor: pointer;
     }
-    .icon-btn:hover { border-color: var(--border-strong); color: var(--text-secondary); }
-    .icon-btn.danger:hover { border-color: var(--status-danger); color: var(--status-danger); }
+    .icon-btn:hover { border-color: var(--selected-border); background: var(--selected-bg); }
+    .icon-btn.danger { color: var(--status-danger); }
+    .icon-btn.danger:hover { border-color: var(--status-danger); background: none; }
     .icon-btn:focus-visible { outline: none; border-color: var(--border-focus); box-shadow: var(--focus-ring); }
     .icon-btn svg { width: 16px; height: 16px; }
 
@@ -159,6 +193,8 @@ export class StringListEditorComponent {
   readonly emptyCta = input('');
   /** Etiqueta igual para toda la lista: quién usa estos textos (el motor, el analista, el modelo). */
   readonly badge = input('');
+  /** Marca decorativa al principio de cada fila (la ✗ de "no cubierto", en las exclusiones). */
+  readonly marker = input(false);
 
   readonly itemsChange = output<string[]>();
 
