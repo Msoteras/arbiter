@@ -25,6 +25,9 @@ import java.time.LocalDateTime;
 import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.not;
+import static org.hamcrest.Matchers.startsWith;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.never;
@@ -212,12 +215,18 @@ class ClassificationServiceClientTest {
         server.verify();
     }
 
+    /**
+     * La excepción al reenvío: acá se firma un token de servicio. El analystId lo resuelve este
+     * módulo contra claims_analyst, así que con el del usuario el endpoint quedaba alcanzable
+     * directo y un analista podía firmar la decisión a nombre de otro.
+     */
     @Test
-    void forwardAnalystDecision_forwardsIncomingAuthorizationHeader() {
-        when(currentRequest.getHeader(HttpHeaders.AUTHORIZATION)).thenReturn("Bearer original-user-token");
+    void forwardAnalystDecision_signsAServiceTokenInsteadOfForwardingTheUsers() {
+        // Sin stub del header entrante a propósito: no se lee.
         server.expect(requestTo(BASE_URL + "/api/v1/claims/9/decision"))
                 .andExpect(method(POST))
-                .andExpect(header(HttpHeaders.AUTHORIZATION, "Bearer original-user-token"))
+                .andExpect(header(HttpHeaders.AUTHORIZATION, not(equalTo("Bearer original-user-token"))))
+                .andExpect(header(HttpHeaders.AUTHORIZATION, startsWith("Bearer ")))
                 .andRespond(withSuccess());
 
         client.forwardAnalystDecision(9L, new AnalystDecisionRequest(1L, "APPROVE", null, null));

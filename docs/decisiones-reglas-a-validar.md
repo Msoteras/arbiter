@@ -36,9 +36,9 @@ negocio), cada una con su propio botón "Guardar X", mismo patrón que Fast Trac
   nada más la leía todavía, así que se mantuvo esa unidad. El service convierte
   ratio (UI, 0..1) ↔ puntos porcentuales (DB) multiplicando/dividiendo por 100.
 
-**Sigue sin resolver**: el alta/baja/rename de `Ramo` (Branch) sigue en el mock
-`RulesConfigService` — no hay CRUD de Branch en el backend. El botón global "Guardar
-cambios" solo cubre eso; cada solapa tiene el suyo propio para lo demás.
+**Resuelto después**: el alta/baja/rename de `Ramo` (Branch) ya persiste contra el backend —
+`BranchController` expone GET/POST `/rules/branches` y PUT/DELETE `/rules/branches/{id}`, y el
+front lo consume desde `branches.service.ts`, que reemplazó al mock `RulesConfigService`.
 
 ---
 

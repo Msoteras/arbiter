@@ -87,11 +87,10 @@ public class ClaimController {
         return ResponseEntity.ok(resultsService.getStatus(caseId));
     }
 
-    // Solo el analista, igual que la puerta de entrada en cases-service: acá llega su JWT reenviado
-    // tal cual. Con el referente incluido, quedaba una vía para registrar una decisión salteándose
-    // cases-service, que es el único que resuelve quién decide contra claims_analyst.
+    // Solo token de servicio (sin claim `rol`): el analystId viaja en el body y cases-service es el
+    // único que lo resuelve contra claims_analyst.
     @PostMapping("/{caseId}/decision")
-    @PreAuthorize("hasRole('ANALISTA_SINIESTROS')")
+    @PreAuthorize("authentication.authorities.isEmpty()")
     @Operation(
             summary = "Persist the analyst's final decision",
             description = "Stores the analyst's verdict for the classification already produced for the case."
