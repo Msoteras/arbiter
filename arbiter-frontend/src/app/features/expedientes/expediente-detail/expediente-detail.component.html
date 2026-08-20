@@ -607,11 +607,22 @@
     placeholder="Conclusión del perito…"
     [(value)]="veredicto"
   />
-  <label class="informe-file">
-    <input type="file" accept=".pdf,image/*" (change)="onInformeFile($event)" hidden />
+  <!-- El input se abre desde el botón por referencia, y NO envolviendo todo en un <label>: un
+       <button> adentro de un label es "contenido interactivo", y el navegador saltea la activación
+       del label cuando el click cae ahí. Así estaba antes y el botón no hacía nada — el picker solo
+       abría si le pegabas al texto de al lado. Los otros upload de la app (doc-upload, nueva
+       denuncia) usan label con texto suelto, que sí funciona. -->
+  <div class="informe-file">
+    <input
+      #informeInput
+      type="file"
+      accept=".pdf,image/*"
+      (change)="onInformeFile($event)"
+      hidden
+    />
     <span class="t-field-label">{{ informeFile()?.name || 'Ningún archivo elegido' }}</span>
-    <app-button variant="secondary">Elegir informe</app-button>
-  </label>
+    <app-button variant="secondary" (click)="informeInput.click()">Elegir informe</app-button>
+  </div>
   <app-textarea [rows]="3" placeholder="Nota (opcional)…" [(value)]="notaVeredicto" />
   @if (informeError()) {
     <p class="rcard-note error">{{ informeError() }}</p>
