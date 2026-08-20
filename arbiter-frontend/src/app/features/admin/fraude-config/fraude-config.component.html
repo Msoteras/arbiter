@@ -6,14 +6,19 @@
       Qué pasa cuando alguien que ya defraudó vuelve a denunciar.
       <app-info-tip>
         El antecedente lo registra un analista sobre el asegurado, desde el expediente donde se
-        determinó el fraude. Solo pesa el que tiene peritaje detrás: el declarado sin peritaje se le
-        muestra al analista y nada más — una sospecha que mueve el puntaje termina alimentando el
-        puntaje de la denuncia siguiente, y la persona no tiene forma de salir de esa bola de nieve.
+        determinó el fraude. Pesa en el nivel de riesgo, que es explícito y auditable: se puede
+        mostrar cuánto sumó y por qué. Al modelo no se le cuenta — si supiera que la persona
+        defraudó antes, después no habría forma de saber si su recomendación sale de la denuncia o
+        del prejuicio.
+
+        Solo pesa el antecedente con peritaje detrás: el declarado sin peritaje se le muestra al
+        analista y nada más — una sospecha que mueve el puntaje termina alimentando el puntaje de la
+        denuncia siguiente, y la persona no tiene forma de salir de esa bola de nieve.
       </app-info-tip>
     </p>
 
     <div class="setting">
-      <span class="t-field-label" id="ant-usar">Usar el antecedente al analizar denuncias nuevas</span>
+      <span class="t-field-label" id="ant-usar">Sumar el antecedente al nivel de riesgo</span>
       <div class="segmented" role="radiogroup" aria-labelledby="ant-usar">
         <button
           type="button"

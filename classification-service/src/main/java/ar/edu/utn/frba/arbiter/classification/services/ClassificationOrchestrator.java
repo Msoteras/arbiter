@@ -664,6 +664,17 @@ public class ClassificationOrchestrator {
      * prompt as established fact: the temporal breaches (deadline/validity/frequency) and, if there
      * was an exclusion rule that didn't apply, confirmation that the coverage covers the claim cause.
      */
+    /**
+     * Lo que el motor ya resolvió por código y viaja al prompt como hecho establecido, para que el
+     * LLM no lo vuelva a decidir.
+     *
+     * <p><b>El antecedente de fraude queda deliberadamente afuera</b> (decisión #6 del handoff, y la
+     * misma razón por la que el score tampoco entra): decirle al modelo que esta persona defraudó
+     * antes contamina toda su lectura interpretativa, y después no hay forma de saber si la
+     * recomendación sale de la denuncia o del prejuicio. Sus motivos se agregan a la respuesta
+     * <i>después</i> de que el clasificador contestó — ver {@code resolveClassification}. Sumarlos
+     * acá los metería en el prompt en silencio.
+     */
     private List<String> engineFindings(CoverageRuleEvaluator.Result exclusion, TemporalRuleEvaluator.Result temporal) {
         List<String> findings = new ArrayList<>(temporal.reasons());
         if (!exclusion.findings().isEmpty() && exclusion.findings().stream().allMatch(f -> f.passed())) {
