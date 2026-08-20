@@ -14,6 +14,13 @@
 const fs = require('fs');
 const path = require('path');
 const { plus, d, hm, hms, iso, pdfDate, cuit, Page, letterhead, footer, build } = require('./lib-pdf');
+const { PROFILES, variantFromArgv, outDirFromArgv, defaultOutDir } = require('./perfiles');
+
+// Quién firma los documentos y si llevan la leyenda de simulado. `--veridica` cambia las dos cosas
+// a la vez: el layout es el mismo, el caso es el mismo, cambia el firmante y el pie.
+const VARIANT = variantFromArgv();
+const PROFILE = PROFILES[VARIANT];
+const G = PROFILE.g;
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Fechas — relativas a la corrida, no fijas.
@@ -46,16 +53,7 @@ const CARRIER_ISSUE_AT = new Date(Math.min(plus(EVENT_AT, 875).getTime(), NOW.ge
 // Datos del caso — única fuente de verdad para los cuatro documentos
 // ─────────────────────────────────────────────────────────────────────────────
 const CASE = {
-  insured: {
-    formal: 'SOTERAS, Martina',
-    display: 'Martina Soteras',
-    dni: '42.987.654',
-    cuil: '27-42987654-1',
-    birth: '14/03/1996',
-    address: 'Av. Rivadavia 3150, piso 4° "B", C.A.B.A.',
-    phone: '11-5555-0001',
-    email: 'martina.soteras@example.com',
-  },
+  insured: PROFILE.insured,
   device: {
     brand: 'SAMSUNG',
     model: 'Galaxy A56 5G',
@@ -63,7 +61,7 @@ const CASE = {
     storage: '256 GB',
     imei: '356938035643809',
   },
-  line: '11-5555-0001',
+  line: PROFILE.insured.phone,
   event: {
     date: d(EVENT_AT),
     time: hm(EVENT_AT),
@@ -125,10 +123,10 @@ function policeReport() {
   p.field('Carátula provisoria:', 'ROBO (art. 164 del Código Penal de la Nación)');
   p.gap(5);
 
-  p.section('DATOS DE LA DENUNCIANTE');
+  p.section(`DATOS ${G.DEL} DENUNCIANTE`);
   p.field('Apellido y nombre:', insured.formal);
   p.field('Documento:', `DNI ${insured.dni} — CUIL ${insured.cuil}`);
-  p.field('Nacionalidad:', `argentina — Fecha de nacimiento: ${insured.birth}`);
+  p.field('Nacionalidad:', `argentin${G.a} — Fecha de nacimiento: ${insured.birth}`);
   p.field('Domicilio:', insured.address);
   p.field('Teléfono:', `${insured.phone} — Correo: ${insured.email}`);
   p.gap(5);
@@ -139,15 +137,15 @@ function policeReport() {
   p.text('             barrio de Balvanera, C.A.B.A. — vía pública.', { size: 9 });
   p.gap(5);
 
-  p.section('RELATO DE LA DENUNCIANTE');
+  p.section(`RELATO ${G.DEL} DENUNCIANTE`);
   [
-    `Que siendo aproximadamente las ${event.time} horas del día de la fecha, la denunciante se`,
+    `Que siendo aproximadamente las ${event.time} horas del día de la fecha, ${G.el} denunciante se`,
     'encontraba caminando por la vereda de Av. Rivadavia al 2800 en dirección al oeste,',
     'sosteniendo su teléfono celular en la mano derecha mientras consultaba una aplicación',
-    'de transporte público. Que en esas circunstancias fue abordada por un masculino que',
+    `de transporte público. Que en esas circunstancias fue abordad${G.a} por un masculino que`,
     'circulaba en bicicleta, quien mediante un tirón le arrebató el aparato de la mano y se',
-    'dio a la fuga por calle Pasco en dirección al sur. Que la denunciante no sufrió',
-    'lesiones ni fue amenazada con arma alguna, y no puede aportar mayores datos',
+    `dio a la fuga por calle Pasco en dirección al sur. Que ${G.el} denunciante no sufrió`,
+    `lesiones ni fue amenazad${G.a} con arma alguna, y no puede aportar mayores datos`,
     'filiatorios del autor, describiéndolo como de aproximadamente 25 años, contextura',
     'delgada, campera oscura y gorra. Que sobre la intersección mencionada existen',
     'cámaras del Sistema de Monitoreo Público de la Ciudad.',
@@ -157,7 +155,7 @@ function policeReport() {
   p.section('OBJETO SUSTRAÍDO');
   p.text(`Un (1) teléfono celular marca ${device.brand}, modelo ${device.model}, color gris,`, { size: 9 });
   p.text(`capacidad ${device.storage}, IMEI ${device.imei}, línea ${CASE.line}.`, { size: 9 });
-  p.text(`La denunciante manifiesta haber solicitado el bloqueo de la línea y del IMEI ante`, { size: 9 });
+  p.text(`${G.El} denunciante manifiesta haber solicitado el bloqueo de la línea y del IMEI ante`, { size: 9 });
   p.text(`la empresa prestataria del servicio el mismo día del hecho, a las ${hm(BLOCK_REQUESTED_AT)} hs.`, { size: 9 });
   p.gap(5);
 
@@ -166,16 +164,16 @@ function policeReport() {
   p.text('   Poder Judicial de la C.A.B.A.', { size: 9 });
   p.text('•  Se solicitó el resguardo de las imágenes de las cámaras del Sistema de Monitoreo', { size: 9 });
   p.text('   Público correspondientes a la fecha y franja horaria del hecho.', { size: 9 });
-  p.text('•  Se extiende la presente constancia a la denunciante a los fines que estime', { size: 9 });
+  p.text(`•  Se extiende la presente constancia ${G.al} denunciante a los fines que estime`, { size: 9 });
   p.text('   corresponder ante su compañía aseguradora.', { size: 9 });
   p.gap(14);
-  p.text('Previa lectura y ratificación, firma la denunciante por ante el funcionario actuante.', { size: 9 });
+  p.text(`Previa lectura y ratificación, firma ${G.el} denunciante por ante el funcionario actuante.`, { size: 9 });
   p.gap(26);
   p.text('...........................................                    ...........................................', { size: 9 });
-  p.text(`        ${insured.display}                                     Of. Sub. R. A. Benítez`, { size: 8.5 });
+  p.text(`        ${insured.display.padEnd(15)}                                     Of. Sub. R. A. Benítez`, { size: 8.5 });
   p.text(`        DNI ${insured.dni}                                      Comisaría Vecinal 3-B`, { size: 8.5 });
 
-  footer(p);
+  if (PROFILE.disclaimer) footer(p);
   return build(p, {
     title: `Acta de denuncia ${policeReport.number}`,
     author: 'Policia de la Ciudad de Buenos Aires',
@@ -232,7 +230,7 @@ function purchaseProof() {
   p.text('El presente comprobante acredita la titularidad del equipo detallado. Conservar para', { size: 8.5 });
   p.text('gestiones de garantía o ante la compañía aseguradora.', { size: 8.5 });
 
-  footer(p);
+  if (PROFILE.disclaimer) footer(p);
   return build(p, {
     title: `Factura B ${purchase.invoice}`,
     author: retailer.name,
@@ -285,24 +283,24 @@ function imeiDeregistration() {
     'A partir de la fecha y hora de efectivización, el equipo identificado con el IMEI',
     'consignado queda inhabilitado para operar en las redes de telefonía móvil del país,',
     'cualquiera sea la tarjeta SIM que se le coloque. La línea asociada fue suspendida en',
-    'el mismo acto y su titularidad se mantiene a nombre de la solicitante.',
+    `el mismo acto y su titularidad se mantiene a nombre ${G.del} solicitante.`,
   ].forEach((l) => p.text(l, { size: 9 }));
   p.gap(8);
   [
     'Se deja constancia de que la solicitud de bloqueo fue recibida con anterioridad a la',
-    'radicación de la denuncia policial, conforme lo declarado por la titular al momento',
+    `radicación de la denuncia policial, conforme lo declarado ${G.por} titular al momento`,
     'del reclamo telefónico.',
   ].forEach((l) => p.text(l, { size: 9 }));
   p.gap(10);
 
-  p.text('La presente se extiende a pedido de la titular para ser presentada ante su compañía', { size: 8.5 });
+  p.text(`La presente se extiende a pedido ${G.del} titular para ser presentada ante su compañía`, { size: 8.5 });
   p.text('aseguradora.', { size: 8.5 });
   p.gap(26);
   p.text('...........................................', { size: 9 });
   p.text('        Mesa de Gestiones', { size: 8.5 });
   p.text(`        ${carrier.name}`, { size: 8.5 });
 
-  footer(p);
+  if (PROFILE.disclaimer) footer(p);
   return build(p, {
     title: 'Constancia de bloqueo y baja de IMEI BLQ-2026-0884517',
     author: carrier.name,
@@ -372,7 +370,7 @@ function lastConnection() {
   p.text('        Área Técnica — Registros de Red', { size: 8.5 });
   p.text(`        ${carrier.name}`, { size: 8.5 });
 
-  footer(p);
+  if (PROFILE.disclaimer) footer(p);
   return build(p, {
     title: 'Constancia de ultimo registro en red REG-2026-0884518',
     author: carrier.name,
@@ -384,9 +382,7 @@ function lastConnection() {
 // ─────────────────────────────────────────────────────────────────────────────
 // Destino por defecto: la carpeta del escenario, junto al resto de sus fixtures. Se puede pisar
 // pasando un directorio (sirve para generar en un temporal y comparar antes de reemplazar).
-const outDir = process.argv[2]
-  ? path.resolve(process.argv[2])
-  : path.join(__dirname, 'fraude', 'fast-track');
+const outDir = outDirFromArgv() || defaultOutDir(__dirname, VARIANT, 'fast-track');
 fs.mkdirSync(outDir, { recursive: true });
 console.log(`Destino: ${outDir}
 `);

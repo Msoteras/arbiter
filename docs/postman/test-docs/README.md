@@ -9,22 +9,48 @@ razón para eso — se vencen (ver §2).
 ```
 docs/postman/test-docs/
 ├── lib-pdf.js                      motor PDF + helpers de fecha (compartido)
+├── perfiles.js                     quién firma cada variante (ver más abajo)
 ├── generar-fixtures.js             escenario Celulares · Fast Track
 ├── generar-fixtures-tecnologia.js  escenario Tecnología Portátil · Robo
 ├── foto_equipo_para_fraude.jpg     foto real de un A56 (dispara la cascada forense)
 ├── denuncia_policial_ambigua.pdf   fixture viejo, suelto
-└── fraude/
-    ├── fast-track/                 ← salida del 1er generador (4 PDFs + caso_fast_track.json)
-    └── tec-portatil/               ← salida del 2do generador (4 PDFs + caso_tecnologia.json)
+├── fraude/
+│   ├── fast-track/                 ← 4 PDFs + caso_fast_track.json
+│   └── tec-portatil/               ← 4 PDFs + caso_tecnologia.json
+└── veridica/
+    ├── fast-track/                 ← los mismos 4, otra variante
+    └── tec-portatil/
 ```
 
-Los `.js` son **la fuente**; lo que está dentro de `fraude/` es **la salida**, y se pisa cada vez que
-corrés el generador. Si querés cambiar un dato de un caso, se toca el script, nunca el PDF.
+Los `.js` son **la fuente**; lo que está dentro de `fraude/` y `veridica/` es **la salida**, y se
+pisa cada vez que corrés el generador. Si querés cambiar un dato de un caso, se toca el script, nunca
+el PDF.
 
 Cada escenario tiene su documento explicando qué prueba y qué significa cada documento:
 
 - [caso-prueba-fast-track-celulares.md](../../siniestros/caso-prueba-fast-track-celulares.md)
 - [caso-prueba-tecnologia-portatil.md](../../siniestros/caso-prueba-tecnologia-portatil.md)
+
+### Las dos variantes
+
+Son **el mismo caso, el mismo layout y las mismas fechas**: lo único que cambia es quién firma y si
+la página lleva la leyenda de simulado.
+
+| | `fraude/` | `veridica/` |
+|---|---|---|
+| Firmante | Martina Soteras — DNI 42.987.654 | Roman Castillo — DNI 33.845.219 |
+| Leyenda "documento simulado" al pie | sí | **no** |
+| Para qué | el juego de siempre, autoexplicativo | probar el pipeline sin que el modelo de visión lea un cartel que le anticipa que el papel es de prueba |
+
+Los dos perfiles viven en [`perfiles.js`](perfiles.js), que también resuelve la concordancia de
+género del relato: un acta que dice "la denunciante" sobre un hombre es el tipo de detalle que
+delata un documento armado a las apuntadas.
+
+> **Los de `veridica/` no se distinguen a simple vista de un documento real.** Las empresas y los
+> números siguen siendo ficticios y el archivo se sigue identificando como fixture en los metadatos
+> del PDF (`/Keywords`, `/Producer`, `/Subject`) — que no se ven en la página ni entran al OCR, así
+> que no ensucian la prueba. Pero sin la leyenda al pie, impresos o reenviados fuera del repo, no hay
+> nada que le avise a una persona que son de prueba. Que no salgan de acá.
 
 ## 2 · Generar (o renovar) un set
 
@@ -34,6 +60,17 @@ Desde la raíz del repo, sin argumentos: cada script escribe en la carpeta de su
 node docs/postman/test-docs/generar-fixtures.js             # → fraude/fast-track/
 node docs/postman/test-docs/generar-fixtures-tecnologia.js  # → fraude/tec-portatil/
 ```
+
+Con `--veridica` los mismos dos scripts escriben la otra variante:
+
+```bash
+node docs/postman/test-docs/generar-fixtures.js --veridica             # → veridica/fast-track/
+node docs/postman/test-docs/generar-fixtures-tecnologia.js --veridica  # → veridica/tec-portatil/
+```
+
+No hay un script por variante a propósito: el layout de los documentos es el mismo, y duplicarlo
+significaría que arreglar una redacción hay que hacerlo en cuatro archivos y que el día que alguien
+se olvide de uno, las variantes divergen en silencio.
 
 Se le puede pasar otro destino (`node ... /tmp/prueba`) para generar aparte y comparar antes de pisar
 lo que hay.
@@ -114,6 +151,10 @@ se confunden al leer los logs.
 **6 · Documentá el caso** en `docs/siniestros/caso-prueba-<escenario>.md`: qué clasificación espera,
 por qué, y qué aporta cada documento.
 
+Las dos variantes te salen gratis: si tomás el firmante de `PROFILE.insured`, envolvés el `footer(p)`
+en `if (PROFILE.disclaimer)` y usás las piezas de `G` para la concordancia, tu escenario responde a
+`--veridica` sin una línea más.
+
 ### Lo que te da `lib-pdf.js`
 
 | Pieza | Para qué |
@@ -158,6 +199,7 @@ actuación correcta— lo garantiza el que lo escribió.
 
 ## 6 · Qué se sube al repo
 
-**Todo: los tres `.js`, los JSON y los PDFs.** Los `.js` no son opcionales — `generar-fixtures.js`
-hace `require('./lib-pdf')`, así que uno sin el otro no arranca. Y sin los generadores, cuando el set
-se vence (3 o 4 días) nadie lo puede renovar: quedan PDFs que ya no prueban lo que dicen probar.
+**Todo: los cuatro `.js`, los JSON y los PDFs.** Los `.js` no son opcionales — `generar-fixtures.js`
+hace `require('./lib-pdf')` y `require('./perfiles')`, así que sueltos no arrancan. Y sin los
+generadores, cuando el set se vence (3 o 4 días) nadie lo puede renovar: quedan PDFs que ya no
+prueban lo que dicen probar.

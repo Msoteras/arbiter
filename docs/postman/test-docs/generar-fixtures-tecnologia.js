@@ -25,6 +25,13 @@
 const fs = require('fs');
 const path = require('path');
 const { plus, d, hm, hms, iso, pdfDate, cuit, Page, letterhead, footer, build, MARGIN } = require('./lib-pdf');
+const { PROFILES, variantFromArgv, outDirFromArgv, defaultOutDir } = require('./perfiles');
+
+// Quién firma los documentos y si llevan la leyenda de simulado. `--veridica` cambia las dos cosas
+// a la vez: el layout es el mismo, el caso es el mismo, cambia el firmante y el pie.
+const VARIANT = variantFromArgv();
+const PROFILE = PROFILES[VARIANT];
+const G = PROFILE.g;
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Fechas — relativas a la corrida, no fijas.
@@ -42,7 +49,7 @@ const EVENT_AT = new Date(NOW);
 EVENT_AT.setDate(EVENT_AT.getDate() - 1);
 EVENT_AT.setHours(22, 10, 0, 0);
 
-// La cadena del caso: el equipo se roba, la damnificada lo bloquea desde el celular, el equipo se
+// La cadena del caso: el equipo se roba, quien denuncia lo bloquea desde el celular, el equipo se
 // conecta a una red abierta minutos después, recibe el bloqueo y no vuelve a aparecer. Recién
 // después va a la comisaría.
 const LOCK_REQUESTED_AT = plus(EVENT_AT, 18, 5);    // +18 min — lo bloqueó desde el teléfono
@@ -61,16 +68,7 @@ const SERVICE_ISSUE_AT = new Date(Math.min(plus(EVENT_AT, 770).getTime(), NOW.ge
 // Martina Soteras. Es la única póliza del ramo que existe en la BD.
 // ─────────────────────────────────────────────────────────────────────────────
 const CASE = {
-  insured: {
-    formal: 'SOTERAS, Martina',
-    display: 'Martina Soteras',
-    dni: '42.987.654',
-    cuil: '27-42987654-1',
-    birth: '14/03/1996',
-    address: 'Av. Rivadavia 3150, piso 4° "B", C.A.B.A.',
-    phone: '11-5555-0001',
-    email: 'martina.soteras@example.com',
-  },
+  insured: PROFILE.insured,
   // Sin IMEI: una notebook no tiene módem de telefonía. El identificador que cruza los cuatro
   // documentos es el número de serie, y la MAC de Wi-Fi aparece en los dos del service.
   device: {
@@ -107,7 +105,6 @@ const CASE = {
     network: 'WiFi abierta "CABA-WiFi-Publico"',
     ip: '181.44.117.203',
     area: 'Av. Corrientes al 4200, Almagro, C.A.B.A. — radio estimado 250 m',
-    account: 'martina.soteras@example.com',
   },
   purchase: {
     date: '26/02/2026',
@@ -149,10 +146,10 @@ function policeReport() {
   p.field('Carátula provisoria:', 'ROBO (art. 164 del Código Penal de la Nación)');
   p.gap(5);
 
-  p.section('DATOS DE LA DENUNCIANTE');
+  p.section(`DATOS ${G.DEL} DENUNCIANTE`);
   p.field('Apellido y nombre:', insured.formal);
   p.field('Documento:', `DNI ${insured.dni} — CUIL ${insured.cuil}`);
-  p.field('Nacionalidad:', `argentina — Fecha de nacimiento: ${insured.birth}`);
+  p.field('Nacionalidad:', `argentin${G.a} — Fecha de nacimiento: ${insured.birth}`);
   p.field('Domicilio:', insured.address);
   p.field('Teléfono:', `${insured.phone} — Correo: ${insured.email}`);
   p.gap(5);
@@ -163,16 +160,16 @@ function policeReport() {
   p.text('             barrio de Almagro, C.A.B.A. — vía pública.', { size: 9 });
   p.gap(5);
 
-  p.section('RELATO DE LA DENUNCIANTE');
+  p.section(`RELATO ${G.DEL} DENUNCIANTE`);
   [
-    `Que siendo aproximadamente las ${event.time} horas del día de la fecha, la denunciante se`,
+    `Que siendo aproximadamente las ${event.time} horas del día de la fecha, ${G.el} denunciante se`,
     'encontraba aguardando el transporte público en la parada ubicada sobre Av. Medrano al 900,',
     'de regreso de sus clases, llevando una mochila colgada del hombro derecho. Que en esas',
-    'circunstancias fue sorprendida por dos masculinos que circulaban en una motocicleta de',
+    `circunstancias fue sorprendid${G.a} por dos masculinos que circulaban en una motocicleta de`,
     'baja cilindrada, y que el acompañante, sin descender del rodado, le arrancó la mochila de',
-    'un tirón, dándose ambos a la fuga por Av. Corrientes en dirección al oeste. Que la',
+    `un tirón, dándose ambos a la fuga por Av. Corrientes en dirección al oeste. Que ${G.el}`,
     'denunciante cayó al suelo por el tirón, sin sufrir lesiones que requirieran asistencia',
-    'médica, y no fue amenazada con arma alguna. Que no pudo observar el dominio del rodado',
+    `médica, y no fue amenazad${G.a} con arma alguna. Que no pudo observar el dominio del rodado`,
     'ni aportar mayores datos filiatorios de los autores. Que dentro de la mochila se',
     'encontraba su computadora portátil de uso personal y de estudio, además de material de',
     'cursada sin valor comercial. Que sobre la intersección existen cámaras del Sistema de',
@@ -185,7 +182,7 @@ function policeReport() {
   p.text(`color ${device.color}, ${device.specs}, N° de serie ${device.serial}.`, { size: 9 });
   p.text('El equipo no posee IMEI por no contar con módem de telefonía móvil; se identifica por', { size: 9 });
   p.text('su número de serie. Una (1) mochila de tela color negro, sin valor declarado.', { size: 9 });
-  p.text(`La denunciante manifiesta haber activado el bloqueo remoto del equipo desde su teléfono`, { size: 9 });
+  p.text(`${G.El} denunciante manifiesta haber activado el bloqueo remoto del equipo desde su teléfono`, { size: 9 });
   p.text(`celular el mismo día del hecho, a las ${hm(LOCK_REQUESTED_AT)} hs.`, { size: 9 });
   p.gap(5);
 
@@ -194,16 +191,16 @@ function policeReport() {
   p.text('   Poder Judicial de la C.A.B.A.', { size: 9 });
   p.text('•  Se solicitó el resguardo de las imágenes de las cámaras del Sistema de Monitoreo', { size: 9 });
   p.text('   Público correspondientes a la fecha y franja horaria del hecho.', { size: 9 });
-  p.text('•  Se extiende la presente constancia a la denunciante a los fines que estime', { size: 9 });
+  p.text(`•  Se extiende la presente constancia ${G.al} denunciante a los fines que estime`, { size: 9 });
   p.text('   corresponder ante su compañía aseguradora.', { size: 9 });
   p.gap(12);
-  p.text('Previa lectura y ratificación, firma la denunciante por ante el funcionario actuante.', { size: 9 });
+  p.text(`Previa lectura y ratificación, firma ${G.el} denunciante por ante el funcionario actuante.`, { size: 9 });
   p.gap(24);
   p.text('...........................................                    ...........................................', { size: 9 });
-  p.text(`        ${insured.display}                                     Of. Ppal. C. V. Duarte`, { size: 8.5 });
+  p.text(`        ${insured.display.padEnd(15)}                                     Of. Ppal. C. V. Duarte`, { size: 8.5 });
   p.text(`        DNI ${insured.dni}                                      Comisaría Vecinal 5-A`, { size: 8.5 });
 
-  footer(p);
+  if (PROFILE.disclaimer) footer(p);
   return build(p, {
     title: `Acta de denuncia ${CASE.policeReport.number}`,
     author: 'Policia de la Ciudad de Buenos Aires',
@@ -260,7 +257,7 @@ function purchaseProof() {
   p.text('El presente comprobante acredita la titularidad del equipo detallado. Conservar para', { size: 8.5 });
   p.text('gestiones de garantía o ante la compañía aseguradora.', { size: 8.5 });
 
-  footer(p);
+  if (PROFILE.disclaimer) footer(p);
   return build(p, {
     title: `Factura B ${purchase.invoice}`,
     author: retailer.name,
@@ -324,26 +321,26 @@ function deviceLock() {
   [
     'A partir de la fecha y hora de aplicación, el equipo identificado con el número de serie',
     'consignado queda bloqueado contra la cuenta de su titular: no puede desbloquearse, borrarse,',
-    'reinstalarse ni asociarse a otra cuenta sin las credenciales de la denunciante. El registro',
+    `reinstalarse ni asociarse a otra cuenta sin las credenciales ${G.del} denunciante. El registro`,
     'del número de serie impide además su ingreso a la red de servicio técnico autorizado para',
     'reparación o venta de partes.',
   ].forEach((l) => p.text(l, { size: 9 }));
   p.gap(8);
   [
-    'Se deja constancia de que el bloqueo fue solicitado por la titular con anterioridad a la',
+    `Se deja constancia de que el bloqueo fue solicitado ${G.por} titular con anterioridad a la`,
     'radicación de la denuncia policial, y que el equipo lo recibió y aplicó al reconectarse a',
     'una red inalámbrica (ver constancia de última conexión registrada).',
   ].forEach((l) => p.text(l, { size: 9 }));
   p.gap(10);
 
-  p.text('La presente se extiende a pedido de la titular para ser presentada ante su compañía', { size: 8.5 });
+  p.text(`La presente se extiende a pedido ${G.del} titular para ser presentada ante su compañía`, { size: 8.5 });
   p.text('aseguradora.', { size: 8.5 });
   p.gap(22);
   p.text('...........................................', { size: 9 });
   p.text('        Mesa de Gestiones', { size: 8.5 });
   p.text(`        ${service.name}`, { size: 8.5 });
 
-  footer(p);
+  if (PROFILE.disclaimer) footer(p);
   return build(p, {
     title: `Constancia de bloqueo remoto ${lock.number}`,
     author: service.name,
@@ -373,7 +370,7 @@ function lastConnection() {
   p.field('Marca y modelo:', `${device.brand} ${device.model}`);
   p.field('N° de serie:', device.serial);
   p.field('Dirección MAC (Wi-Fi):', device.mac);
-  p.field('Cuenta asociada:', lc.account);
+  p.field('Cuenta asociada:', insured.email);
   p.gap(6);
 
   p.section('ÚLTIMOS REGISTROS DEL SERVICIO');
@@ -416,7 +413,7 @@ function lastConnection() {
   p.text('        Área Técnica — Servicio de localización', { size: 8.5 });
   p.text(`        ${service.name}`, { size: 8.5 });
 
-  footer(p);
+  if (PROFILE.disclaimer) footer(p);
   return build(p, {
     title: 'Informe de ultima conexion registrada REG-2026-0031205',
     author: service.name,
@@ -428,9 +425,7 @@ function lastConnection() {
 // ─────────────────────────────────────────────────────────────────────────────
 // Destino por defecto: la carpeta del escenario, junto al resto de sus fixtures. Se puede pisar
 // pasando un directorio (sirve para generar en un temporal y comparar antes de reemplazar).
-const outDir = process.argv[2]
-  ? path.resolve(process.argv[2])
-  : path.join(__dirname, 'fraude', 'tec-portatil');
+const outDir = outDirFromArgv() || defaultOutDir(__dirname, VARIANT, 'tec-portatil');
 fs.mkdirSync(outDir, { recursive: true });
 console.log(`Destino: ${outDir}
 `);

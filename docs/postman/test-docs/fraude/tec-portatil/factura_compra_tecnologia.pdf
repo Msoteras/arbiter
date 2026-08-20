@@ -69,7 +69,7 @@ endobj
 << /Type /Font /Subtype /Type1 /BaseFont /Helvetica-Bold /Encoding /WinAnsiEncoding >>
 endobj
 7 0 obj
-<< /Title (Factura B 0005-00019432) /Author (Tecnodata Distribuidora S.A.) /Subject (Comprobante de compra del equipo portatil - documento simulado de prueba) /Producer (Arbiter test fixture) /CreationDate (D:20260226164500-03'00') >>
+<< /Title (Factura B 0005-00019432) /Author (Tecnodata Distribuidora S.A.) /Subject (Comprobante de compra del equipo portatil - documento simulado de prueba) /Keywords (fixture de prueba, sistema Arbiter, documento generado, no es un documento real) /Producer (Arbiter test fixture) /CreationDate (D:20260226164500-03'00') >>
 endobj
 xref
 0 8
@@ -84,5 +84,5 @@ xref
 trailer
 << /Size 8 /Root 1 0 R /Info 7 0 R >>
 startxref
-3874
+3966
 %%EOF
