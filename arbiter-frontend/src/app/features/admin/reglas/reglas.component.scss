@@ -215,12 +215,15 @@
   border-radius: var(--radius-pill);
   background: var(--text-tertiary);
 }
+/* Con el acento y no en rojo: el aviso de arriba ya dice que estas reglas bloquean, y acá el chip
+   solo informa cómo quedó configurada la regla — que es un estado activo, justo para lo que el
+   sistema reserva el acento. Dos rojos en la misma card competían entre sí. */
 .hs-effect.blocks {
-  border-color: color-mix(in srgb, var(--status-danger) 35%, transparent);
-  background: color-mix(in srgb, var(--status-danger) 7%, transparent);
-  color: var(--status-danger);
+  border-color: var(--selected-border);
+  background: var(--selected-bg);
+  color: var(--accent-fg);
 }
-.hs-effect.blocks::before { background: var(--status-danger); }
+.hs-effect.blocks::before { background: var(--accent-fg); }
 
 /* ───────── Agenda documental: matriz documento × hecho generador ───────── */
 /* Las columnas de hechos generadores se centran; la primera (el documento) es la etiqueta y

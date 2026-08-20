@@ -789,7 +789,9 @@ export class ReglasComponent {
 
   protected readonly onArrearsOptions: SelectOption[] = [
     { value: 'REJECT', label: 'Rechazar en el alta' },
-    { value: 'STANDBY', label: 'Dejar en standby' },
+    // "Standby" no decía qué pasa: la denuncia se crea igual y la mora se evalúa después, en la
+    // clasificación. La etiqueta ahora cuenta eso en vez de nombrar un estado interno.
+    { value: 'STANDBY', label: 'Permitir el alta y evaluar después' },
   ];
 
   private loadInsurerHardRules(): void {
