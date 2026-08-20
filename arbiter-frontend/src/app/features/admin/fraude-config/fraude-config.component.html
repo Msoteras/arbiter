@@ -1,7 +1,7 @@
 @if (loading()) {
   <app-inline-loading [size]="26" message="Cargando antecedentes de fraude…" />
 } @else if (rule(); as r) {
-  <app-card heading="Antecedente de fraude">
+  <app-card class="seccion" heading="Antecedente de fraude">
     <p class="section-hint">
       Qué pasa cuando alguien que ya defraudó vuelve a denunciar.
       <app-info-tip>
@@ -12,92 +12,82 @@
     </p>
 
     <div class="setting">
-      <span class="t-field-label" id="ant-usar">Sumar el antecedente al nivel de riesgo</span>
-      <div class="segmented" role="radiogroup" aria-labelledby="ant-usar">
+      <div class="setting-text">
+        <!-- <label for> y no aria-labelledby: app-input no reenvía ese atributo al input interno,
+             pero sí expone su id, así que el label real es lo que efectivamente lo rotula. -->
+        <label class="t-field-label" for="ant-ventana">¿Cuánto tiempo sigue pesando?</label>
+        <p class="setting-note">
+          Cuánto puede pesar un antecedente en el nivel de riesgo antes de vencer solo. Que sume, y
+          cuánto, se configura en Scoring de riesgo.
+        </p>
+      </div>
+      <div class="window">
+        <app-input
+          id="ant-ventana"
+          type="number"
+          [min]="windowMin"
+          [max]="windowMaxAttr"
+          [value]="windowValue()"
+          (valueChange)="setWindow($event)"
+        />
+        <span class="t-note">meses · ≈ {{ windowEquivalente() }}</span>
+      </div>
+    </div>
+    @if (windowInvalida()) {
+      <p class="warn-note">La ventana tiene que estar entre {{ windowMin }} y {{ windowMax }} meses.</p>
+    }
+
+    <div class="setting">
+      <div class="setting-text">
+        <span class="t-field-label" id="ant-ft">¿Le quita el Fast Track a la denuncia nueva?</span>
+        <p class="setting-note">
+          No rechaza nada: el siniestro se resuelve igual, pero lo revisa un analista en vez de
+          salir por la vía rápida.
+        </p>
+      </div>
+      <div class="segmented" role="radiogroup" aria-labelledby="ant-ft">
         <button
           type="button"
           role="radio"
-          [class.active]="r.enabled"
-          [attr.aria-checked]="r.enabled"
-          (click)="setEnabled(true)"
+          [class.active]="r.blocksFastTrack"
+          [attr.aria-checked]="r.blocksFastTrack"
+          (click)="setBlocksFastTrack(true)"
         >
           Sí
         </button>
         <button
           type="button"
           role="radio"
-          [class.active]="!r.enabled"
-          [attr.aria-checked]="!r.enabled"
-          (click)="setEnabled(false)"
+          [class.active]="!r.blocksFastTrack"
+          [attr.aria-checked]="!r.blocksFastTrack"
+          (click)="setBlocksFastTrack(false)"
         >
           No
         </button>
       </div>
     </div>
 
-    @if (r.enabled) {
-      <div class="setting">
-        <!-- <label for> y no aria-labelledby: app-input no reenvía ese atributo al input interno,
-             pero sí expone su id, así que el label real es lo que efectivamente lo rotula. -->
-        <label class="t-field-label" for="ant-ventana">Cuánto tiempo sigue pesando</label>
-        <div class="window">
-          <app-input
-            id="ant-ventana"
-            type="number"
-            [min]="windowMin"
-            [max]="windowMaxAttr"
-            [value]="windowValue()"
-            (valueChange)="setWindow($event)"
-          />
-          <span class="t-note">meses · equivale a {{ windowEquivalente() }}</span>
-        </div>
-      </div>
-      @if (windowInvalida()) {
-        <p class="warn-note">La ventana tiene que estar entre {{ windowMin }} y {{ windowMax }} meses.</p>
-      }
-
-      <div class="setting">
-        <span class="t-field-label" id="ant-ft">Sacarle la vía rápida a la denuncia nueva</span>
-        <div class="segmented" role="radiogroup" aria-labelledby="ant-ft">
-          <button
-            type="button"
-            role="radio"
-            [class.active]="r.blocksFastTrack"
-            [attr.aria-checked]="r.blocksFastTrack"
-            (click)="setBlocksFastTrack(true)"
-          >
-            Sí
-          </button>
-          <button
-            type="button"
-            role="radio"
-            [class.active]="!r.blocksFastTrack"
-            [attr.aria-checked]="!r.blocksFastTrack"
-            (click)="setBlocksFastTrack(false)"
-          >
-            No
-          </button>
-        </div>
-      </div>
-    } @else {
-      <p class="section-hint">
-        Los antecedentes se siguen registrando y el analista los sigue viendo en el expediente. Lo
-        único que no pasa es que sumen al nivel de riesgo ni que bloqueen la vía rápida.
-      </p>
-    }
-
-    <div class="ft-save">
-      <div class="editor-actions">
-        <app-button [disabled]="saving() || windowInvalida()" (click)="save()">
-          {{ saving() ? 'Guardando…' : 'Guardar antecedentes' }}
-        </app-button>
-        @if (saved()) {
-          <span class="saved-note">✓ Guardado en el motor</span>
+    <!-- Barra de guardado: el estado a la izquierda, las acciones a la derecha. "Guardar" arranca
+         deshabilitado y solo se prende cuando hay algo distinto de lo último guardado, así el botón
+         dice la verdad sobre si queda trabajo por persistir. -->
+    <div class="save-bar">
+      <span class="save-state" [class.dirty]="dirty()">
+        @if (error()) {
+          <span class="warn-note">{{ error() }}</span>
+        } @else if (dirty()) {
+          Cambios sin guardar
+        } @else {
+          <span aria-hidden="true">✓</span> Todo guardado
         }
+      </span>
+      <div class="save-actions">
+        <app-button variant="secondary" [disabled]="!dirty() || saving()" (click)="discard()">
+          Descartar
+        </app-button>
+        <app-button [disabled]="!dirty() || saving() || windowInvalida()" (click)="save()">
+          {{ saving() ? 'Guardando…' : 'Guardar cambios' }}
+        </app-button>
       </div>
-      @if (error(); as err) {
-        <p class="warn-note">{{ err }}</p>
-      }
     </div>
   </app-card>
 }

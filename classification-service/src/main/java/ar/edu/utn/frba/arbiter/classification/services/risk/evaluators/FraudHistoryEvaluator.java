@@ -22,9 +22,10 @@ import java.util.List;
  * out of a loop that feeds on itself. In-force is decided by the insurer's window — an old fraud
  * stops counting on its own, without anyone having to remember to clear it.
  *
- * <p>Not evaluable when the insurer has the rule off: with no configured window there's no
- * defensible answer to "does a 2019 record still count", and the factor drops out of the weighted
- * average rather than contributing a 0.0 that would read as "this person has a clean record".
+ * <p>Whether it counts at all is decided by the insurer including this factor in its scoring
+ * config, like every other factor — not by a second switch of its own. What the {@code FRAUD_RECORD}
+ * rule contributes is the <b>window</b>; with no rule configured the default window applies, because
+ * "sin configurar" can't mean "cuenta para siempre".
  *
  * <p>One in-force record is already the maximum. A second one says the same thing the first did —
  * that this insured has defrauded and it was verified — and grading "twice" above "once" would put
@@ -41,12 +42,9 @@ public class FraudHistoryEvaluator implements RiskFactorEvaluator {
     @Override
     public Contribution evaluate(RiskContext context) {
         BusinessRules.FraudRecordPolicy policy = context.rules() == null
-                ? null
+                || context.rules().fraudRecordPolicy() == null
+                ? BusinessRules.FraudRecordPolicy.unconfigured()
                 : context.rules().fraudRecordPolicy();
-        if (policy == null || !policy.enabled()) {
-            return Contribution.notEvaluable(factorId(),
-                    "La aseguradora no tiene configurada la política de antecedentes de fraude");
-        }
 
         LocalDate today = LocalDate.now();
         List<InsuredFraudRecord> counting = context.fraudRecords().stream()

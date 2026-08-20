@@ -48,7 +48,8 @@ public class FraudRecordRuleEvaluator {
 
     public Result evaluate(BusinessRules rules, List<InsuredFraudRecord> fraudRecords) {
         BusinessRules.FraudRecordPolicy policy = rules == null ? null : rules.fraudRecordPolicy();
-        if (policy == null || !policy.enabled() || policy.ruleId() == null) {
+        // Sin fila no hay nada que evaluar ni a qué apuntar desde rule_result (su FK es NOT NULL).
+        if (policy == null || policy.ruleId() == null) {
             return Result.empty();
         }
 

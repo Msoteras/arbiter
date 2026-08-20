@@ -119,18 +119,17 @@ public class RulesRestAdapter implements RulesAdapter {
                 .header(HttpHeaders.AUTHORIZATION, serviceToken())
                 .retrieve()
                 .body(FraudRecordRuleResponse.class);
-        if (rule == null || !rule.isEnabled()) {
-            log.debug("[RulesRestAdapter] Fraud record rule off (or not configured) — records don't count");
-            return BusinessRules.FraudRecordPolicy.disabled();
+        if (rule == null || rule.ruleId() == null) {
+            log.debug("[RulesRestAdapter] No fraud record rule configured — default window, no veto");
+            return BusinessRules.FraudRecordPolicy.unconfigured();
         }
         int windowMonths = rule.windowMonths() == null
                 ? BusinessRules.FraudRecordPolicy.DEFAULT_WINDOW_MONTHS
                 : rule.windowMonths();
-        log.info("[RulesRestAdapter] Fraud record rule active — windowMonths={} blocksFastTrack={}",
+        log.info("[RulesRestAdapter] Fraud record rule loaded — windowMonths={} blocksFastTrack={}",
                 windowMonths, rule.vetoesFastTrack());
         return BusinessRules.FraudRecordPolicy.builder()
                 .ruleId(rule.ruleId())
-                .enabled(true)
                 .windowMonths(windowMonths)
                 .blocksFastTrack(rule.vetoesFastTrack())
                 .build();
@@ -361,11 +360,7 @@ public class RulesRestAdapter implements RulesAdapter {
      * would sink the whole classification.
      */
     private record FraudRecordRuleResponse(
-            Long ruleId, Boolean enabled, Integer windowMonths, Boolean blocksFastTrack) {
-
-        boolean isEnabled() {
-            return Boolean.TRUE.equals(enabled);
-        }
+            Long ruleId, Integer windowMonths, Boolean blocksFastTrack) {
 
         boolean vetoesFastTrack() {
             return Boolean.TRUE.equals(blocksFastTrack);

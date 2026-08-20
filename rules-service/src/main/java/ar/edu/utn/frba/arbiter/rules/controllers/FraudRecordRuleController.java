@@ -30,8 +30,10 @@ public class FraudRecordRuleController {
     @GetMapping("/fraud-record-rule")
     @PreAuthorize("hasRole('REFERENTE_ASEGURADORA')")
     @Operation(summary = "Política de antecedentes de fraude",
-            description = "La aseguradora que nunca la configuró la recibe apagada (enabled=false): "
-                    + "los antecedentes se registran y se ven, pero no puntúan ni vetan.")
+            description = "Ventana de vigencia y veto de Fast Track. Si el antecedente puntúa, y "
+                    + "cuánto, se configura en el scoring junto al resto de los factores. La "
+                    + "aseguradora que nunca configuró la regla recibe ruleId=null: ventana por "
+                    + "defecto y nada vetado.")
     public FraudRecordRuleDto get() {
         return service.get();
     }
@@ -50,8 +52,9 @@ public class FraudRecordRuleController {
     @PreAuthorize("isAuthenticated()")
     @Operation(summary = "[interno] Política de antecedentes de fraude",
             description = "Lectura system-to-system para classification-service (sin rol REFERENTE): "
-                    + "la usa el motor para saber si el antecedente cuenta y con qué ventana. La regla "
-                    + "es de toda la aseguradora, así que no lleva ramo ni cobertura.")
+                    + "la usa el motor para saber con qué ventana sigue vigente un antecedente y si "
+                    + "veta el Fast Track. La regla es de toda la aseguradora, así que no lleva ramo "
+                    + "ni cobertura.")
     public FraudRecordRuleDto internalGet() {
         return service.get();
     }

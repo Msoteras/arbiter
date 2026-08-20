@@ -27,9 +27,10 @@ import java.time.Instant;
  * a shared shape, and this one is configured by a window rather than an on-arrears mode. Folding it
  * in would mean a DTO whose fields only apply to one of three rules.
  *
- * <p>Opt-in like every other hard rule: with no row, or the row inactive, fraud records don't score
- * and don't block. They stay visible to the analyst either way — what a person can see about the
- * case in front of them was never the engine's to switch off.
+ * <p>Opt-in like every other hard rule: with no row, nothing vetoes Fast Track. Whether the record
+ * scores is not decided here but in the scoring config, alongside every other factor. And the
+ * analyst sees the record either way — what a person can see about the case in front of them was
+ * never the engine's to switch off.
  */
 @Service
 @RequiredArgsConstructor
@@ -50,12 +51,12 @@ public class FraudRecordRuleService {
     public FraudRecordRuleDto get() {
         return ruleRepository
                 .findFirstByBranch_IdIsNullAndCoverageIdIsNullAndRuleType(RuleType.FRAUD_RECORD.name())
+                .filter(InsurerRule::isActive)
                 .map(rule -> new FraudRecordRuleDto(
                         rule.getId(),
-                        rule.isActive(),
                         windowMonthsOf(rule),
                         rule.isBlocksFastTrack()))
-                .orElseGet(FraudRecordRuleDto::disabled);
+                .orElseGet(FraudRecordRuleDto::unconfigured);
     }
 
     @Transactional
@@ -72,7 +73,10 @@ public class FraudRecordRuleService {
 
         if (rule == null) {
             InsurerRule created = ruleRepository.save(InsurerRule.builder()
-                    .active(requested.enabled())
+                    // Siempre activa: la fila existe para llevar la ventana y el veto, y el "no
+                    // cuenta" se expresa donde corresponde — el veto en su propio flag, el puntaje
+                    // sacando el factor del scoring. Un tercer estado acá solo agregaba ambigüedad.
+                    .active(true)
                     .validFrom(now)
                     .name(RULE_NAME)
                     .ruleType(RuleType.FRAUD_RECORD.name())
@@ -85,10 +89,9 @@ public class FraudRecordRuleService {
                     .coverageId(null)
                     .configuration(json)
                     .build());
-            log.info("[FraudRecordRule] created — enabled={} windowMonths={} blocksFastTrack={} by={}",
-                    requested.enabled(), windowMonths, requested.blocksFastTrack(), actorEmail);
-            return new FraudRecordRuleDto(
-                    created.getId(), created.isActive(), windowMonths, created.isBlocksFastTrack());
+            log.info("[FraudRecordRule] created — windowMonths={} blocksFastTrack={} by={}",
+                    windowMonths, requested.blocksFastTrack(), actorEmail);
+            return new FraudRecordRuleDto(created.getId(), windowMonths, created.isBlocksFastTrack());
         }
 
         historyRepository.save(InsurerRuleHistory.builder()
@@ -101,15 +104,15 @@ public class FraudRecordRuleService {
                 .changedBy(null)
                 .build());
 
-        rule.setActive(requested.enabled());
+        rule.setActive(true);
         rule.setBlocksFastTrack(requested.blocksFastTrack());
         rule.setConfiguration(json);
         rule.setValidFrom(now);
         ruleRepository.save(rule);
-        log.info("[FraudRecordRule] updated — enabled={} windowMonths={} blocksFastTrack={} by={}",
-                requested.enabled(), windowMonths, requested.blocksFastTrack(), actorEmail);
+        log.info("[FraudRecordRule] updated — windowMonths={} blocksFastTrack={} by={}",
+                windowMonths, requested.blocksFastTrack(), actorEmail);
 
-        return new FraudRecordRuleDto(rule.getId(), rule.isActive(), windowMonths, rule.isBlocksFastTrack());
+        return new FraudRecordRuleDto(rule.getId(), windowMonths, rule.isBlocksFastTrack());
     }
 
     /**

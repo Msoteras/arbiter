@@ -36,14 +36,28 @@
 .segmented button.active { background: var(--selected-bg); color: var(--accent-fg); font-weight: var(--font-weight-medium); }
 .segmented button:focus-visible { outline: none; box-shadow: var(--focus-ring); }
 
-.warn-note { margin: var(--space-2) 0 0; color: var(--status-danger); font-size: var(--font-size-sm); }
-.saved-note { color: var(--status-ok); font-size: var(--font-size-sm); }
-.editor-actions { display: flex; align-items: center; gap: var(--space-2); }
-.ft-save {
+/* Cada decisión: rótulo + explicación a la izquierda, control a la derecha, separadas por una
+   línea. La explicación va debajo del rótulo y no como .section-hint suelta, así se lee junto a
+   lo que configura y no como un párrafo huérfano. */
+.setting-text { min-width: 0; }
+.setting-note { margin: var(--space-1) 0 0; color: var(--text-secondary); font-size: var(--font-size-xs); }
+.setting + .setting { border-top: 1px solid var(--border-subtle); padding-top: var(--space-4); }
+
+/* Barra de guardado: estado a la izquierda, acciones a la derecha. */
+.save-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-4);
+  flex-wrap: wrap;
   margin-top: var(--space-5);
   padding-top: var(--space-4);
   border-top: 1px solid var(--border-default);
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-3);
 }
+.save-actions { display: flex; align-items: center; gap: var(--space-2); }
+/* Guardado en verde de estado; pendiente en gris, no en rojo: tener cambios sin guardar no es un
+   error, y pintarlo de alarma le pone urgencia a algo que el referente está haciendo a propósito. */
+.save-state { font-size: var(--font-size-sm); color: var(--status-ok); }
+.save-state.dirty { color: var(--text-secondary); }
+
+.warn-note { margin: var(--space-2) 0 0; color: var(--status-danger); font-size: var(--font-size-sm); }

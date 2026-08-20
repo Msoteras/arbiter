@@ -77,9 +77,10 @@ public class InsuredFraudRecordService {
     private FraudRecordResponse toResponse(
             InsuredFraudRecord record, BusinessRules.FraudRecordPolicy policy, LocalDate today) {
         boolean inForce = record.inForce(policy.windowMonths(), today);
-        // An insurer with the rule off still sees its records; what it doesn't get is any of them
-        // counting. Same reading the engine does, so screen and score can't tell different stories.
-        boolean scores = policy.enabled() && record.counts(policy.windowMonths(), today);
+        // "Pesa en el motor" = con respaldo pericial y dentro de la ventana. Cuánto mueve el número
+        // depende del peso que la aseguradora le haya dado al factor en su scoring, que es donde se
+        // configura eso — acá se responde si el antecedente califica, no cuánto suma.
+        boolean scores = record.counts(policy.windowMonths(), today);
         return new FraudRecordResponse(
                 record.getId(),
                 record.getInsuredDni(),

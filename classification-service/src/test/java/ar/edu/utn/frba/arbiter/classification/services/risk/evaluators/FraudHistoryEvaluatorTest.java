@@ -21,12 +21,20 @@ class FraudHistoryEvaluatorTest {
 
     private final FraudHistoryEvaluator evaluator = new FraudHistoryEvaluator();
 
+    /**
+     * Sin regla configurada el factor igual se evalúa, con la ventana por defecto: que el
+     * antecedente puntúe o no lo decide la aseguradora incluyendo el factor en su scoring, no un
+     * segundo interruptor. "Sin configurar" tampoco puede significar "cuenta para siempre".
+     */
     @Test
-    void notEvaluableWhenTheInsurerHasNoFraudRecordPolicy() {
-        Contribution contribution = evaluator.evaluate(context(disabledPolicy(), expertBacked(monthsAgo(1))));
+    void withNoRuleConfiguredItStillGradesWithTheDefaultWindow() {
+        Contribution reciente = evaluator.evaluate(context(sinRegla(), expertBacked(monthsAgo(1))));
+        Contribution viejo = evaluator.evaluate(
+                context(sinRegla(), expertBacked(monthsAgo(BusinessRules.FraudRecordPolicy.DEFAULT_WINDOW_MONTHS + 1))));
 
-        assertThat(contribution.evaluable()).isFalse();
-        assertThat(contribution.rationale()).contains("no tiene configurada");
+        assertThat(reciente.evaluable()).isTrue();
+        assertThat(reciente.score()).isEqualTo(1.0);
+        assertThat(viejo.score()).isEqualTo(0.0);
     }
 
     @Test
@@ -103,11 +111,11 @@ class FraudHistoryEvaluatorTest {
 
     private BusinessRules.FraudRecordPolicy activePolicy() {
         return BusinessRules.FraudRecordPolicy.builder()
-                .ruleId(17L).enabled(true).windowMonths(WINDOW_MONTHS).blocksFastTrack(true).build();
+                .ruleId(17L).windowMonths(WINDOW_MONTHS).blocksFastTrack(true).build();
     }
 
-    private BusinessRules.FraudRecordPolicy disabledPolicy() {
-        return BusinessRules.FraudRecordPolicy.disabled();
+    private BusinessRules.FraudRecordPolicy sinRegla() {
+        return BusinessRules.FraudRecordPolicy.unconfigured();
     }
 
     private List<InsuredFraudRecord> expertBacked(Instant declaredAt) {

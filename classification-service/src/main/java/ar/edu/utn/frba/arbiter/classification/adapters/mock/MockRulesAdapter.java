@@ -185,14 +185,13 @@ public class MockRulesAdapter implements RulesAdapter {
     }
 
     /**
-     * Off in the baseline, unlike the scoring config: a fraud record weighs on a <b>person</b>, so
-     * an insurer gets that behavior only by turning the rule on themselves (Ley 25.326). The mock
-     * standing in for an unreachable rules-service must not be what starts counting someone's past
-     * against them.
+     * Sin fila en el baseline: el veto de Fast Track pesa sobre una <b>persona</b>, así que solo lo
+     * activa la aseguradora configurándolo (Ley 25.326). El mock, que es lo que queda cuando
+     * rules-service no responde, no puede ser quien empiece a vetarle siniestros a alguien.
      */
     @Override
     public BusinessRules.FraudRecordPolicy getFraudRecordPolicy() {
-        return BusinessRules.FraudRecordPolicy.disabled();
+        return BusinessRules.FraudRecordPolicy.unconfigured();
     }
 
     private BusinessRules withFraudRecordPolicy(BusinessRules rules) {

@@ -18,10 +18,12 @@ import { InlineLoadingComponent } from '../../../shared/ui/inline-loading/inline
  * de TODA la aseguradora y no de un ramo: el antecedente pesa sobre la persona, y con qué cobertura
  * denunció la próxima vez no cambia lo que se determinó sobre ella.
  *
- * Son dos decisiones, y las dos son de la compañía y no nuestras:
- * cuánto tiempo un fraude comprobado sigue contando, y si además le saca la vía rápida a la
- * denuncia siguiente. Apagada, los antecedentes se siguen registrando y viendo — lo único que no
- * pasa es que cuenten.
+ * Son dos decisiones, y las dos son de la compañía y no nuestras: cuánto tiempo un fraude
+ * comprobado sigue contando, y si le saca la vía rápida a la denuncia siguiente.
+ *
+ * Si el antecedente suma al nivel de riesgo —y cuánto— NO se decide acá sino en el scoring, con el
+ * resto de los factores. Un segundo interruptor para lo mismo dejaba que esta pantalla dijera que
+ * el antecedente puntúa mientras el scoring ni siquiera tenía el factor cargado.
  */
 @Component({
   selector: 'app-fraude-config',
@@ -34,10 +36,27 @@ export class FraudeConfigComponent {
   private readonly service = inject(FraudRuleService);
 
   protected readonly rule = signal<FraudRecordRule | null>(null);
+  /** Lo último que confirmó el backend. Es contra esto que se decide si hay cambios sin guardar. */
+  private readonly persisted = signal<FraudRecordRule | null>(null);
   protected readonly loading = signal(true);
   protected readonly saving = signal(false);
-  protected readonly saved = signal(false);
   protected readonly error = signal<string | null>(null);
+
+  /**
+   * Hay algo distinto de lo último guardado. Se compara el objeto entero y no se lleva un flag a
+   * mano: con un flag, volver un valor a como estaba dejaba el botón habilitado igual, ofreciendo
+   * guardar un cambio que no existe.
+   */
+  protected readonly dirty = computed(() => {
+    const current = this.rule();
+    const saved = this.persisted();
+    return (
+      current != null &&
+      saved != null &&
+      (current.windowMonths !== saved.windowMonths ||
+        current.blocksFastTrack !== saved.blocksFastTrack)
+    );
+  });
 
   protected readonly windowMin = WINDOW_MONTHS_MIN;
   protected readonly windowMax = WINDOW_MONTHS_MAX;
@@ -78,6 +97,7 @@ export class FraudeConfigComponent {
     this.service.get().subscribe({
       next: (rule) => {
         this.rule.set(rule);
+        this.persisted.set({ ...rule });
         this.loading.set(false);
       },
       error: (err: HttpErrorResponse) => {
@@ -85,10 +105,6 @@ export class FraudeConfigComponent {
         this.error.set(err.error?.detail || 'No se pudo cargar la política de antecedentes');
       },
     });
-  }
-
-  protected setEnabled(enabled: boolean): void {
-    this.patch({ enabled });
   }
 
   protected setBlocksFastTrack(blocksFastTrack: boolean): void {
@@ -104,7 +120,15 @@ export class FraudeConfigComponent {
 
   private patch(change: Partial<FraudRecordRule>): void {
     this.rule.update((current) => (current ? { ...current, ...change } : current));
-    this.saved.set(false);
+    this.error.set(null);
+  }
+
+  /** Vuelve a lo último guardado. Sin esto, deshacer un cambio implicaba recargar la pantalla. */
+  protected discard(): void {
+    const saved = this.persisted();
+    if (saved) {
+      this.rule.set({ ...saved });
+    }
     this.error.set(null);
   }
 
@@ -118,8 +142,8 @@ export class FraudeConfigComponent {
     this.service.save(rule).subscribe({
       next: (saved) => {
         this.rule.set(saved);
+        this.persisted.set({ ...saved });
         this.saving.set(false);
-        this.saved.set(true);
       },
       error: (err: HttpErrorResponse) => {
         this.saving.set(false);

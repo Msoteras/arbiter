@@ -26,63 +26,29 @@
       }
     </app-card>
 
-    <!-- ───────── Hard Stop y Scoring: config única por aseguradora, no pertenecen a ningún ramo ─────
-         Por eso son recuadros aparte, fuera del master-detail de ramos; al elegir uno, el panel
-         derecho muestra su configuración. Antes Hard Stop era una tab dentro de cada ramo, pero eso
-         daba a entender que era por ramo cuando en realidad es una sola config para toda la
-         aseguradora (mismo motivo por el que Scoring ya vivía acá). -->
-    <app-card class="scoring-card">
-      <button
-        type="button"
-        class="ramo-item scoring-item"
-        [class.active]="view() === 'hardStop'"
-        (click)="selectHardStop()"
-      >
-        <span class="ramo-name">Hard Stop</span>
-        <span class="ramo-meta">Toda la aseguradora</span>
-      </button>
+    <!-- ───────── Reglas generales: la config que NO es de ningún ramo ─────────
+         Las cuatro comparten alcance (toda la aseguradora) y comportamiento (elegir una cambia el
+         panel derecho), así que van en una sola card con ese título, igual que los ramos van bajo
+         "Ramos". Antes era una card suelta por sección: cuatro recuadros repitiendo "Toda la
+         aseguradora" abajo de cada nombre, sin nada que dijera que eran un grupo. -->
+    <app-card class="list-card" heading="Reglas generales">
+      <p class="list-sub t-note">Toda la aseguradora</p>
+      <ul class="ramo-list">
+        @for (s of generalSections; track s.id) {
+          <li>
+            <button
+              type="button"
+              class="ramo-item general"
+              [class.active]="view() === s.id"
+              (click)="selectGeneral(s.id)"
+            >
+              <span class="ramo-name">{{ s.label }}</span>
+            </button>
+          </li>
+        }
+      </ul>
     </app-card>
 
-    <app-card class="scoring-card">
-      <button
-        type="button"
-        class="ramo-item scoring-item"
-        [class.active]="view() === 'scoring'"
-        (click)="selectScoring()"
-      >
-        <span class="ramo-name">Scoring de riesgo</span>
-        <span class="ramo-meta">Toda la aseguradora</span>
-      </button>
-    </app-card>
-
-    <!-- ───────── Antecedente de fraude: la memoria de la persona entre denuncias. De toda la
-         aseguradora igual que las anteriores — el antecedente pesa sobre quien denuncia, no sobre
-         la cobertura que haya afectado esta vez. -->
-    <app-card class="scoring-card">
-      <button
-        type="button"
-        class="ramo-item scoring-item"
-        [class.active]="view() === 'fraude'"
-        (click)="selectFraude()"
-      >
-        <span class="ramo-name">Antecedente de fraude</span>
-        <span class="ramo-meta">Toda la aseguradora</span>
-      </button>
-    </app-card>
-
-    <!-- ───────── Peritos: a quién puede derivar el analista. También es de toda la aseguradora ─────────
-         (cada perito puede especializarse en un ramo, pero el catálogo no pertenece a ninguno). -->
-    <app-card class="scoring-card">
-      <button
-        type="button"
-        class="ramo-item scoring-item"
-        [class.active]="view() === 'peritos'"
-        (click)="selectPeritos()"
-      >
-        <span class="ramo-name">Peritos</span>
-        <span class="ramo-meta">Toda la aseguradora</span>
-      </button>
-    </app-card>
     </div>
 
     <!-- ───────── Panel derecho: detalle del ramo, Hard Stop o scoring ───────── -->

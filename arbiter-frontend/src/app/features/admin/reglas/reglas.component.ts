@@ -40,6 +40,9 @@ import { fadeInUp, listStagger, staggerReveal } from '../../../shared/animations
 
 type TabId = 'coberturas' | 'fastTrack' | 'documentacion' | 'reglas';
 
+/** Las vistas del panel derecho que no dependen del ramo elegido. */
+type GeneralView = 'hardStop' | 'scoring' | 'fraude' | 'peritos';
+
 /**
  * Configuración de reglas del referente, Ramo-céntrica. Master (lista de ramos) + detalle con
  * solapas: Coberturas, Fast Track, Documentación y Reglas. Trabaja sobre un draft en memoria por
@@ -146,7 +149,7 @@ export class ReglasComponent {
   protected readonly selectedId = signal<string | null>(null);
   // Qué muestra el panel derecho: el detalle del ramo seleccionado ('ramo') o el scoring de la
   // aseguradora ('scoring'), que no pertenece a ningún ramo y se elige desde su propio recuadro.
-  protected readonly view = signal<'ramo' | 'scoring' | 'hardStop' | 'peritos' | 'fraude'>('ramo');
+  protected readonly view = signal<'ramo' | GeneralView>('ramo');
   protected readonly draft = signal<RamoRules | null>(null);
 
   // Último conteo de coberturas conocido (branchId → coverageCount). Cacheado acá porque
@@ -269,32 +272,20 @@ export class ReglasComponent {
     return this.view() === 'ramo' && this.selectedId() === r.id;
   }
 
-  /** El recuadro "Scoring de riesgo" de la izquierda: muestra el scoring de la aseguradora a la derecha. */
-  protected selectScoring(): void {
-    this.view.set('scoring');
-  }
-
   /**
-   * Igual que el scoring: el catálogo de peritos es de toda la aseguradora, no de un ramo (aunque
-   * cada perito pueda especializarse en uno), así que va como recuadro aparte y no como solapa
-   * dentro del ramo — que haría creer que se configura por ramo.
+   * Las secciones que NO son de un ramo: valen para toda la aseguradora y elegir una cambia el
+   * panel derecho. Están juntas en una lista y no como cards sueltas porque son un grupo — el
+   * alcance lo dice el encabezado una vez, en vez de repetirse abajo de cada nombre.
    */
-  protected selectPeritos(): void {
-    this.view.set('peritos');
-  }
+  protected readonly generalSections: { id: GeneralView; label: string }[] = [
+    { id: 'hardStop', label: 'Hard Stop' },
+    { id: 'scoring', label: 'Scoring de riesgo' },
+    { id: 'fraude', label: 'Antecedente de fraude' },
+    { id: 'peritos', label: 'Peritos' },
+  ];
 
-  /** El recuadro "Hard Stop" de la izquierda: vigencia y mora, de toda la aseguradora, no del ramo. */
-  protected selectHardStop(): void {
-    this.view.set('hardStop');
-  }
-
-  /**
-   * El recuadro "Antecedente de fraude": cuánto tiempo pesa un fraude comprobado y si le saca el
-   * Fast Track a la denuncia siguiente. También de toda la aseguradora — el antecedente es de la
-   * persona, y con qué cobertura vuelva a denunciar no cambia lo que se determinó sobre ella.
-   */
-  protected selectFraude(): void {
-    this.view.set('fraude');
+  protected selectGeneral(section: GeneralView): void {
+    this.view.set(section);
   }
 
   protected select(r: RamoRules): void {

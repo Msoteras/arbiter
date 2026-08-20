@@ -20,11 +20,11 @@ class FraudRecordRuleEvaluatorTest {
 
     private final FraudRecordRuleEvaluator evaluator = new FraudRecordRuleEvaluator();
 
-    /** No row, no evaluation — and nothing in rule_result to point at either. */
+    /** Sin fila no hay nada que evaluar, ni a qué apuntar desde rule_result. */
     @Test
-    void ruleOffEvaluatesNothing() {
+    void withNoRuleConfiguredNothingIsEvaluated() {
         FraudRecordRuleEvaluator.Result result = evaluator.evaluate(
-                rulesWith(BusinessRules.FraudRecordPolicy.disabled()), expertBacked(monthsAgo(1)));
+                rulesWith(BusinessRules.FraudRecordPolicy.unconfigured()), expertBacked(monthsAgo(1)));
 
         assertThat(result.blocksFastTrack()).isFalse();
         assertThat(result.findings()).isEmpty();
@@ -96,7 +96,7 @@ class FraudRecordRuleEvaluatorTest {
 
     private BusinessRules.FraudRecordPolicy policy(boolean blocksFastTrack) {
         return BusinessRules.FraudRecordPolicy.builder()
-                .ruleId(17L).enabled(true).windowMonths(WINDOW_MONTHS).blocksFastTrack(blocksFastTrack).build();
+                .ruleId(17L).windowMonths(WINDOW_MONTHS).blocksFastTrack(blocksFastTrack).build();
     }
 
     private List<InsuredFraudRecord> expertBacked(Instant declaredAt) {

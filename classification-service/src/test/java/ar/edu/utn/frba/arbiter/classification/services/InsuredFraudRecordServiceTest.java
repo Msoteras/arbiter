@@ -104,17 +104,22 @@ class InsuredFraudRecordServiceTest {
                 });
     }
 
-    /** The insurer with the rule off sees its records; none of them count. */
+    /**
+     * Sin regla configurada la ventana es la de por defecto: un antecedente reciente sigue
+     * vigente y calificando, y uno más viejo que esa ventana ya no.
+     */
     @Test
-    void withThePolicyOffNothingScores() {
-        when(rulesAdapter.getFraudRecordPolicy()).thenReturn(BusinessRules.FraudRecordPolicy.disabled());
-        InsuredFraudRecord recent = record(FraudRecordSource.EXPERT_BACKED, 5L);
-        recent.setDeclaredAt(Instant.now());
-        when(repository.findByInsuredDniOrderByDeclaredAtDesc(DNI)).thenReturn(List.of(recent));
+    void withNoRuleConfiguredTheDefaultWindowApplies() {
+        when(rulesAdapter.getFraudRecordPolicy())
+                .thenReturn(BusinessRules.FraudRecordPolicy.unconfigured());
+        InsuredFraudRecord viejo = record(FraudRecordSource.EXPERT_BACKED, 5L);
+        viejo.setDeclaredAt(Instant.now().minus(
+                31L * (BusinessRules.FraudRecordPolicy.DEFAULT_WINDOW_MONTHS + 1), ChronoUnit.DAYS));
+        when(repository.findByInsuredDniOrderByDeclaredAtDesc(DNI)).thenReturn(List.of(viejo));
 
         assertThat(service.findByInsured(DNI)).singleElement()
                 .satisfies(response -> {
-                    assertThat(response.inForce()).isTrue();
+                    assertThat(response.inForce()).isFalse();
                     assertThat(response.scores()).isFalse();
                 });
     }
@@ -140,6 +145,6 @@ class InsuredFraudRecordServiceTest {
 
     private BusinessRules.FraudRecordPolicy activePolicy() {
         return BusinessRules.FraudRecordPolicy.builder()
-                .ruleId(17L).enabled(true).windowMonths(60).blocksFastTrack(true).build();
+                .ruleId(17L).windowMonths(60).blocksFastTrack(true).build();
     }
 }

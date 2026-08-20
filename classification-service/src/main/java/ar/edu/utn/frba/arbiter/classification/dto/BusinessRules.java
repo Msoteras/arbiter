@@ -59,30 +59,35 @@ public record BusinessRules(
 
     /**
      * The insurer's policy on fraud records ({@code insurer_rule} of type {@code FRAUD_RECORD}):
-     * whether a record from an earlier claim counts against this one, for how long, and whether it
-     * disqualifies the claim from Fast Track.
+     * how long a record keeps counting, and whether it disqualifies the claim from Fast Track.
      *
      * <p>Insurer-wide, not per coverage — the record is about the person, not about which coverage
-     * they claimed under. Never null in a {@code BusinessRules} that came through the adapter: an
-     * insurer with nothing configured gets {@link FraudRecordPolicy#disabled()}, which reads the
-     * same as having no fraud records at all.
+     * they claimed under.
      *
-     * @param ruleId what a fraud-record {@code rule_result} points at. Null when disabled, and then
-     *               nothing is evaluated, so nothing needs a row to point at
+     * <p><b>It does not say whether the record scores.</b> That's decided where every other factor
+     * is: the insurer's {@link ScoringConfig}, by including {@code fraud_history} and giving it a
+     * weight. Having a second switch here let the two disagree — the referente's panel could claim
+     * the record was scoring while the scoring config didn't even list the factor.
+     *
+     * @param ruleId what a fraud-record {@code rule_result} points at. Null when the insurer never
+     *               configured the rule, and then the Fast Track veto isn't evaluated at all
      */
     @Builder
     public record FraudRecordPolicy(
             Long ruleId,
-            boolean enabled,
             int windowMonths,
             boolean blocksFastTrack
     ) {
 
-        /** Default window when the insurer turned the rule on without setting one: three years. */
+        /** Window applied when the insurer never set one: three years. */
         public static final int DEFAULT_WINDOW_MONTHS = 36;
 
-        public static FraudRecordPolicy disabled() {
-            return new FraudRecordPolicy(null, false, DEFAULT_WINDOW_MONTHS, false);
+        /**
+         * No rule row. The window falls back to the default (a record still ages out — "sin
+         * configurar" can't mean "cuenta para siempre") and nothing vetoes Fast Track.
+         */
+        public static FraudRecordPolicy unconfigured() {
+            return new FraudRecordPolicy(null, DEFAULT_WINDOW_MONTHS, false);
         }
     }
 
