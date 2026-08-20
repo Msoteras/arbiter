@@ -5,7 +5,7 @@ import { finalize } from 'rxjs';
 import { RISK_FACTORS, ScoringConfig } from '../../../core/models/business-rules';
 import { RISK_BANDS, RiskBand, riskBandLabel } from '../../../core/models/risk-band';
 import { ScoringConfigDto, ScoringRulesService } from '../scoring-rules.service';
-import { ButtonComponent } from '../../../shared/ui/button/button.component';
+import { BadgeComponent } from '../../../shared/ui/badge/badge.component';
 import { CardComponent } from '../../../shared/ui/card/card.component';
 import { SaveBarComponent } from '../../../shared/ui/save-bar/save-bar.component';
 import { InputComponent } from '../../../shared/ui/input/input.component';
@@ -23,7 +23,7 @@ import { InlineLoadingComponent } from '../../../shared/ui/inline-loading/inline
 @Component({
   selector: 'app-scoring-config',
   imports: [
-    ButtonComponent,
+    BadgeComponent,
     CardComponent,
     InputComponent,
     InlineLoadingComponent,
@@ -86,6 +86,92 @@ export class ScoringConfigComponent {
       return '—';
     }
     return `${Math.round((factor.weight / total) * 1000) / 10}%`;
+  }
+
+  /**
+   * Los factores en dos grupos, porque no cuestan lo mismo. Los de datos salen de lo que el
+   * expediente ya tiene y corren siempre; los de documentos e imágenes exigen leer los adjuntos y
+   * comparar imágenes, y en Fast Track pueden no correr (ver `fullAnalysisOnFastTrack`). Verlos
+   * mezclados escondía que prender uno del segundo grupo tiene un costo que el otro no.
+   */
+  protected readonly factorGroups: { title: string; hint: string; ids: string[] }[] = [
+    {
+      title: 'Datos del siniestro y del asegurado',
+      hint: 'corren siempre',
+      ids: [
+        'amount_ratio',
+        'claim_frequency',
+        'policy_standing',
+        'purchase_to_report_time',
+        'fraud_history',
+      ],
+    },
+    {
+      title: 'Documentos e imágenes',
+      hint: 'análisis pesado — puede no correr en Fast Track',
+      ids: ['document_inconsistency', 'image_reuse', 'image_web_match'],
+    },
+  ];
+
+  protected factorsOf(group: { ids: string[] }): { id: string; label: string }[] {
+    return group.ids
+      .map((id) => this.riskFactors.find((f) => f.id === id))
+      .filter((f): f is { id: string; label: string } => f != null);
+  }
+
+  /**
+   * Cuánto pesa el factor sobre el total de los activos, como ancho de barra. Es la misma cuenta
+   * que hace el motor (peso / suma de pesos activos), así que la barra muestra el reparto real y
+   * no el número crudo, que por sí solo no dice nada — los pesos son relativos entre sí.
+   */
+  protected effectiveWeightRatio(factorId: string): number {
+    const total = this.totalWeight();
+    const factor = this.draft().factors.find((f) => f.factorId === factorId);
+    if (!factor || total === 0) {
+      return 0;
+    }
+    return (factor.weight / total) * 100;
+  }
+
+  /** El tramo de puntaje de cada banda, leído de los cortes configurados. */
+  protected bandRangeLabel(band: RiskBand): string {
+    const cuts = RISK_BANDS.map((b) => this.bandCutValue(b));
+    const index = RISK_BANDS.indexOf(band);
+    const from = cuts[index];
+    const next = cuts[index + 1];
+    // El último tramo llega a 100; los otros terminan justo antes de donde empieza el siguiente.
+    return next == null ? `Puntaje ${from}–100` : `Puntaje ${from}–${Math.max(from, next - 1)}`;
+  }
+
+  private bandCutValue(band: RiskBand): number {
+    if (band === 'LOW') {
+      return 0;
+    }
+    const cut = this.draft().bands.find((b) => b.band === band);
+    return cut ? Math.round(cut.minScoreInclusive * 100) : 0;
+  }
+
+  /** Ancho de cada tramo en la barra de bandas, para que refleje los cortes configurados. */
+  protected bandWidth(band: RiskBand): number {
+    const index = RISK_BANDS.indexOf(band);
+    const from = this.bandCutValue(band);
+    const next = RISK_BANDS[index + 1];
+    const to = next ? this.bandCutValue(next) : 100;
+    return Math.max(0, to - from);
+  }
+
+  /** Mismo semáforo que el fraud-gauge del expediente: el referente ve los colores que verá el analista. */
+  protected bandTone(band: RiskBand): string {
+    switch (band) {
+      case 'LOW':
+        return 'ok';
+      case 'MEDIUM':
+        return 'warning';
+      case 'HIGH':
+        return 'risk';
+      case 'CRITICAL':
+        return 'danger';
+    }
   }
 
   constructor() {
