@@ -97,16 +97,11 @@
                 </div>
                 <div class="hs-rule-switch">
                   <span class="t-note">{{ policyInForceRule()?.enabled ? 'Activa' : 'Inactiva' }}</span>
-                  <button
-                    type="button"
-                    class="rule-switch"
-                    role="switch"
-                    [attr.aria-checked]="policyInForceRule()?.enabled ?? false"
-                    aria-label="Vigencia de la póliza"
-                    (click)="toggleInsurerHardRule('POLICY_IN_FORCE')"
-                  >
-                    <span class="knob" aria-hidden="true"></span>
-                  </button>
+                  <app-switch
+                    [checked]="policyInForceRule()?.enabled ?? false"
+                    ariaLabel="Vigencia de la póliza"
+                    (checkedChange)="toggleInsurerHardRule('POLICY_IN_FORCE')"
+                  />
                 </div>
               </li>
 
@@ -138,16 +133,11 @@
                 </div>
                 <div class="hs-rule-switch">
                   <span class="t-note">{{ policyStandingRule()?.enabled ? 'Activa' : 'Inactiva' }}</span>
-                  <button
-                    type="button"
-                    class="rule-switch"
-                    role="switch"
-                    [attr.aria-checked]="policyStandingRule()?.enabled ?? false"
-                    aria-label="Mora de la póliza"
-                    (click)="toggleInsurerHardRule('POLICY_STANDING')"
-                  >
-                    <span class="knob" aria-hidden="true"></span>
-                  </button>
+                  <app-switch
+                    [checked]="policyStandingRule()?.enabled ?? false"
+                    ariaLabel="Mora de la póliza"
+                    (checkedChange)="toggleInsurerHardRule('POLICY_STANDING')"
+                  />
                 </div>
               </li>
             </ul>
@@ -304,16 +294,11 @@
                           <ul class="rule-rows">
                             @for (rule of orderedHardRules(c); track rule.ruleType) {
                               <li class="rule-row" [class.off]="!rule.enabled">
-                                <button
-                                  type="button"
-                                  class="rule-switch"
-                                  role="switch"
-                                  [attr.aria-checked]="rule.enabled"
-                                  [attr.aria-label]="hardRuleLabel(rule.ruleType)"
-                                  (click)="toggleHardRule(c.id, rule.ruleType)"
-                                >
-                                  <span class="knob" aria-hidden="true"></span>
-                                </button>
+                                <app-switch
+                                  [checked]="rule.enabled"
+                                  [ariaLabel]="hardRuleLabel(rule.ruleType)"
+                                  (checkedChange)="toggleHardRule(c.id, rule.ruleType)"
+                                />
                                 <div class="rule-text">
                                   <span class="t-field-label">{{ hardRuleLabel(rule.ruleType) }}</span>
                                   <p class="rule-hint">{{ hardRuleHint(rule.ruleType) }}</p>
@@ -470,16 +455,11 @@
 
                   <ul class="rule-rows">
                     <li class="rule-row" [class.off]="!ftActive('minPolicyAgeMonths')">
-                      <button
-                        type="button"
-                        class="rule-switch"
-                        role="switch"
-                        [attr.aria-checked]="ftActive('minPolicyAgeMonths')"
-                        aria-label="Antigüedad mínima de la póliza"
-                        (click)="toggleFtThreshold('minPolicyAgeMonths')"
-                      >
-                        <span class="knob" aria-hidden="true"></span>
-                      </button>
+                      <app-switch
+                        [checked]="ftActive('minPolicyAgeMonths')"
+                        ariaLabel="Antigüedad mínima de la póliza"
+                        (checkedChange)="toggleFtThreshold('minPolicyAgeMonths')"
+                      />
                       <div class="rule-text">
                         <span class="t-field-label">Antigüedad mínima de la póliza</span>
                         <p class="rule-hint">
@@ -502,16 +482,11 @@
                     </li>
 
                     <li class="rule-row" [class.off]="!ftActive('maxPriorClaims')">
-                      <button
-                        type="button"
-                        class="rule-switch"
-                        role="switch"
-                        [attr.aria-checked]="ftActive('maxPriorClaims')"
-                        aria-label="Siniestros previos máximos"
-                        (click)="toggleFtThreshold('maxPriorClaims')"
-                      >
-                        <span class="knob" aria-hidden="true"></span>
-                      </button>
+                      <app-switch
+                        [checked]="ftActive('maxPriorClaims')"
+                        ariaLabel="Siniestros previos máximos"
+                        (checkedChange)="toggleFtThreshold('maxPriorClaims')"
+                      />
                       <div class="rule-text">
                         <span class="t-field-label">Siniestros previos máximos</span>
                         <p class="rule-hint">
@@ -555,16 +530,11 @@
                     }
 
                     <li class="rule-row" [class.off]="!ftActive('maxClaimedAmountRatio')">
-                      <button
-                        type="button"
-                        class="rule-switch"
-                        role="switch"
-                        [attr.aria-checked]="ftActive('maxClaimedAmountRatio')"
-                        aria-label="Monto reclamado máximo"
-                        (click)="toggleFtThreshold('maxClaimedAmountRatio')"
-                      >
-                        <span class="knob" aria-hidden="true"></span>
-                      </button>
+                      <app-switch
+                        [checked]="ftActive('maxClaimedAmountRatio')"
+                        ariaLabel="Monto reclamado máximo"
+                        (checkedChange)="toggleFtThreshold('maxClaimedAmountRatio')"
+                      />
                       <div class="rule-text">
                         <span class="t-field-label">Monto reclamado máximo</span>
                         <p class="rule-hint">
@@ -587,16 +557,11 @@
                     </li>
 
                     <li class="rule-row" [class.off]="!d.fastTrack.requiresUpToDatePolicy">
-                      <button
-                        type="button"
-                        class="rule-switch"
-                        role="switch"
-                        [attr.aria-checked]="d.fastTrack.requiresUpToDatePolicy"
-                        aria-label="Exige póliza al día"
-                        (click)="toggleFtRequiresUpToDate()"
-                      >
-                        <span class="knob" aria-hidden="true"></span>
-                      </button>
+                      <app-switch
+                        [checked]="d.fastTrack.requiresUpToDatePolicy"
+                        ariaLabel="Exige póliza al día"
+                        (checkedChange)="toggleFtRequiresUpToDate()"
+                      />
                       <div class="rule-text">
                         <span class="t-field-label">Exige póliza al día</span>
                         <p class="rule-hint">

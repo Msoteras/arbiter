@@ -30,16 +30,11 @@
       <ul class="rule-rows">
         @for (f of factorsOf(group); track f.id) {
           <li class="rule-row" [class.off]="!isFactorActive(f.id)">
-            <button
-              type="button"
-              class="rule-switch"
-              role="switch"
-              [attr.aria-checked]="isFactorActive(f.id)"
-              [attr.aria-label]="f.label"
-              (click)="toggleFactor(f.id)"
-            >
-              <span class="knob" aria-hidden="true"></span>
-            </button>
+            <app-switch
+              [checked]="isFactorActive(f.id)"
+              [ariaLabel]="f.label"
+              (checkedChange)="toggleFactor(f.id)"
+            />
             <div class="rule-text">
               <span class="t-field-label">{{ f.label }}</span>
             </div>
@@ -108,16 +103,11 @@
     <span class="t-section-label">En Fast Track</span>
     <ul class="rule-rows">
       <li class="rule-row" [class.off]="!fullAnalysisOnFastTrack()">
-        <button
-          type="button"
-          class="rule-switch"
-          role="switch"
-          [attr.aria-checked]="fullAnalysisOnFastTrack()"
-          aria-label="Analizar documentos e imágenes aunque el siniestro vaya por Fast Track"
-          (click)="toggleFullAnalysisOnFastTrack()"
-        >
-          <span class="knob" aria-hidden="true"></span>
-        </button>
+        <app-switch
+          [checked]="fullAnalysisOnFastTrack()"
+          ariaLabel="Analizar documentos e imágenes aunque el siniestro vaya por Fast Track"
+          (checkedChange)="toggleFullAnalysisOnFastTrack()"
+        />
         <div class="rule-text">
           <span class="t-field-label">
             Analizar documentos e imágenes aunque el siniestro vaya por Fast Track

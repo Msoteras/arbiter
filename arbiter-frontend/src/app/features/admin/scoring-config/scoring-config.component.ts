@@ -6,6 +6,7 @@ import { RISK_FACTORS, ScoringConfig } from '../../../core/models/business-rules
 import { RISK_BANDS, RiskBand, riskBandLabel } from '../../../core/models/risk-band';
 import { ScoringConfigDto, ScoringRulesService } from '../scoring-rules.service';
 import { BadgeComponent } from '../../../shared/ui/badge/badge.component';
+import { SwitchComponent } from '../../../shared/ui/switch/switch.component';
 import { CardComponent } from '../../../shared/ui/card/card.component';
 import { SaveBarComponent } from '../../../shared/ui/save-bar/save-bar.component';
 import { InputComponent } from '../../../shared/ui/input/input.component';
@@ -24,6 +25,7 @@ import { InlineLoadingComponent } from '../../../shared/ui/inline-loading/inline
   selector: 'app-scoring-config',
   imports: [
     BadgeComponent,
+    SwitchComponent,
     CardComponent,
     InputComponent,
     InlineLoadingComponent,

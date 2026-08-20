@@ -324,31 +324,6 @@
 .rule-row.off .rule-text, .rule-row.off .rule-value { opacity: 0.55; }
 
 /* Interruptor: la forma dice el estado (la perilla se corre), no solo el color. */
-.rule-switch {
-  flex: 0 0 auto;
-  width: 36px;
-  height: 20px;
-  padding: 2px;
-  border: 1px solid var(--border-control);
-  border-radius: var(--radius-pill);
-  background: var(--surface-sunken);
-  cursor: pointer;
-  transition: background-color var(--dur-1) ease, border-color var(--dur-1) ease;
-}
-.rule-switch .knob {
-  display: block;
-  width: 14px;
-  height: 14px;
-  border-radius: var(--radius-pill);
-  background: var(--text-tertiary);
-  transition: transform var(--dur-1) ease, background-color var(--dur-1) ease;
-}
-.rule-switch[aria-checked='true'] { background: var(--selected-bg); border-color: var(--selected-border); }
-.rule-switch[aria-checked='true'] .knob { transform: translateX(16px); background: var(--accent-fg); }
-.rule-switch:focus-visible { outline: none; box-shadow: var(--focus-ring); }
-@media (prefers-reduced-motion: reduce) {
-  .rule-switch, .rule-switch .knob { transition: none; }
-}
 
 @media (max-width: 640px) {
   /* En angosto el umbral baja debajo del texto en vez de comprimir las dos columnas. */

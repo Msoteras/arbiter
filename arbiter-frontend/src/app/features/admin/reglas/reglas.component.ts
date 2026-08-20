@@ -36,6 +36,7 @@ import { StringListEditorComponent } from './string-list-editor.component';
 import { InlineLoadingComponent } from '../../../shared/ui/inline-loading/inline-loading.component';
 import { InfoTipComponent } from '../../../shared/ui/info-tip/info-tip.component';
 import { BadgeComponent } from '../../../shared/ui/badge/badge.component';
+import { SwitchComponent } from '../../../shared/ui/switch/switch.component';
 import { TableComponent } from '../../../shared/ui/table/table.component';
 import { CheckboxComponent } from '../../../shared/ui/checkbox/checkbox.component';
 import { SelectComponent, SelectOption } from '../../../shared/ui/select/select.component';
@@ -76,6 +77,7 @@ type GeneralView = 'hardStop' | 'scoring' | 'fraude' | 'peritos';
     InlineLoadingComponent,
     InfoTipComponent,
     BadgeComponent,
+    SwitchComponent,
     TableComponent,
     CheckboxComponent,
     SelectComponent,

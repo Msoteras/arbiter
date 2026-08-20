@@ -14,10 +14,10 @@
 .sc-group-hint { color: var(--text-muted); }
 
 /* ── Filas de factor ──────────────────────────────────────────────────────────
-   Mismas clases que las reglas de Coberturas, Fast Track y Hard Stop (.rule-rows,
-   .rule-row, .rule-switch, .rule-value): son la misma clase de decisión — prender algo y
-   ponerle un número — y conviene que se vean igual en toda la pantalla de reglas. Como el
-   componente tiene su propia encapsulación, las reglas se repiten acá. */
+   Mismas clases que las reglas de Coberturas, Fast Track y Hard Stop (.rule-rows, .rule-row,
+   .rule-value): son la misma clase de decisión — prender algo y ponerle un número — y conviene
+   que se vean igual en toda la pantalla de reglas. Como el componente tiene su propia
+   encapsulación, las reglas se repiten acá; el interruptor en sí es app-switch, del kit. */
 .rule-rows { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; }
 .rule-row { display: flex; align-items: center; gap: var(--space-3); padding: var(--space-3) 0; }
 .rule-row + .rule-row { border-top: 1px solid var(--border-subtle); }
@@ -28,31 +28,6 @@
 .rule-off-note { flex: 0 0 auto; font-style: italic; }
 .rule-row.off .rule-text, .rule-row.off .rule-value { opacity: 0.55; }
 
-.rule-switch {
-  flex: 0 0 auto;
-  width: 36px;
-  height: 20px;
-  padding: 2px;
-  border: 1px solid var(--border-control);
-  border-radius: var(--radius-pill);
-  background: var(--surface-sunken);
-  cursor: pointer;
-  transition: background-color var(--dur-1) ease, border-color var(--dur-1) ease;
-}
-.rule-switch .knob {
-  display: block;
-  width: 14px;
-  height: 14px;
-  border-radius: var(--radius-pill);
-  background: var(--text-tertiary);
-  transition: transform var(--dur-1) ease, background-color var(--dur-1) ease;
-}
-.rule-switch[aria-checked='true'] { background: var(--selected-bg); border-color: var(--selected-border); }
-.rule-switch[aria-checked='true'] .knob { transform: translateX(16px); background: var(--accent-fg); }
-.rule-switch:focus-visible { outline: none; box-shadow: var(--focus-ring); }
-@media (prefers-reduced-motion: reduce) {
-  .rule-switch, .rule-switch .knob { transition: none; }
-}
 
 /* ── Reparto del peso ─────────────────────────────────────────────────────────
    La barra dice cuánto pesa el factor sobre el total de los activos, que es la cuenta que hace el

@@ -22,6 +22,7 @@ import { MenuButtonComponent, MenuItem } from '../../shared/ui/menu-button/menu-
 import { SpinnerComponent } from '../../shared/ui/spinner/spinner.component';
 import { InlineLoadingComponent } from '../../shared/ui/inline-loading/inline-loading.component';
 import { SaveBarComponent } from '../../shared/ui/save-bar/save-bar.component';
+import { SwitchComponent } from '../../shared/ui/switch/switch.component';
 import { StatTileComponent } from '../../shared/ui/stat-tile/stat-tile.component';
 import { ToastService } from '../../shared/ui/toast/toast.service';
 import { StatusTransition } from '../../core/models/expediente';
@@ -75,6 +76,7 @@ interface Swatch {
     SpinnerComponent,
     InlineLoadingComponent,
     SaveBarComponent,
+    SwitchComponent,
     StatTileComponent,
   ],
   template: `
@@ -556,6 +558,26 @@ interface Swatch {
           <app-spinner [size]="16" />
           <app-spinner [size]="24" />
           <app-spinner [size]="48" />
+        </div>
+      </section>
+
+      <section class="sg-block">
+        <h3 class="sg-h3">Switch</h3>
+        <p class="sg-p">
+          Encendido/apagado, donde la decisión es "esto corre o no corre" y el efecto es inmediato
+          sobre lo que hay al lado: una regla del motor, un factor del scoring. Para elegir de una
+          lista está <span class="mono">app-select</span>; para marcar items de un conjunto,
+          <span class="mono">app-checkbox</span>; para filtrar o alternar una vista, el chip.
+        </p>
+        <p class="sg-p">
+          El estado se lee por la posición de la perilla además de por el color, así que no depende
+          de distinguir el teal del gris. El nombre va en <span class="mono">ariaLabel</span>: en
+          las pantallas donde se usa, el rótulo visible es un elemento aparte, al lado.
+        </p>
+        <div class="row">
+          <app-switch [checked]="true" ariaLabel="Ejemplo encendido" />
+          <app-switch [checked]="false" ariaLabel="Ejemplo apagado" />
+          <app-switch [checked]="true" [disabled]="true" ariaLabel="Ejemplo deshabilitado" />
         </div>
       </section>
 
