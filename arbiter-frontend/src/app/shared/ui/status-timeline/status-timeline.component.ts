@@ -2,6 +2,7 @@ import { ChangeDetectionStrategy, Component, computed, input } from '@angular/co
 
 import { StatusTransition } from '../../../core/models/expediente';
 import { CaseStatus, estadoLabel, estadoTone, isEstadoFinal } from '../../../core/models/estado';
+import { historialNota } from '../../../core/models/historial-nota';
 import { StatusTone } from '../../../core/models/status-tone';
 import { formatDateTime } from '../../../core/util/datetime';
 import { BadgeComponent } from '../badge/badge.component';
@@ -68,7 +69,7 @@ const PROXIMO_PASO_ANALISTA: Partial<Record<CaseStatus, string>> = {
             </div>
             <div class="meta">
               <span class="actor">{{ actor(h.actor) }}</span>
-              <span class="reason">{{ h.reason }}</span>
+              <span class="reason">{{ nota(h.reason) }}</span>
             </div>
           </div>
         </li>
@@ -162,6 +163,11 @@ export class StatusTimelineComponent {
 
   protected estado(status: string): string {
     return estadoLabel(status);
+  }
+
+  /** El motivo del backend trae el literal del enum incrustado; acá se lee en español. */
+  protected nota(reason: string): string {
+    return historialNota(reason);
   }
 
   protected actor(actor: StatusTransition['actor']): string {

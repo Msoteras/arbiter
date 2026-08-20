@@ -40,7 +40,7 @@
 }
 /* Antecedente de fraude. El color entra solo por el borde izquierdo y el punto del badge, como
    en .reco-value: es información sobre una persona y saturarla de rojo la vuelve un veredicto. */
-.fraude-card { margin: 0 0 var(--space-4); }
+.fraude-card { margin-top: var(--space-3); }
 .fraude-item { padding-left: var(--space-3); border-left: 3px solid var(--border-strong); }
 .fraude-item + .fraude-item { margin-top: var(--space-3); }
 .fraude-item[data-tone='warning'] { border-left-color: var(--status-warning); }
