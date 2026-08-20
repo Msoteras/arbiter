@@ -343,20 +343,6 @@
 
               <app-button variant="secondary" (click)="addCoverage()">+ Agregar cobertura</app-button>
 
-              <app-card heading="Exclusiones comunes del ramo">
-                <p class="section-hint">
-                  Situaciones NO cubiertas por ninguna cobertura. Condiciones objetivas que evalúa
-                  el motor de reglas, no el modelo.
-                </p>
-                <app-string-list-editor
-                  [items]="d.commonExclusions"
-                  (itemsChange)="setCommonExclusions($event)"
-                  placeholder="Exclusión común…"
-                  addLabel="+ Agregar exclusión"
-                  emptyText="Sin exclusiones comunes."
-                />
-              </app-card>
-
               <app-save-bar
                 [dirty]="covDirty()"
                 [saving]="covSaving()"
@@ -366,6 +352,39 @@
               />
             </div>
             }
+          }
+
+          <!-- ============ EXCLUSIONES COMUNES ============ -->
+          <!-- Solapa propia y no un recuadro al pie de Coberturas: no son de ninguna cobertura sino
+               del ramo entero, y ahí abajo quedaban como un apéndice de la lista de coberturas. Su
+               guardado también es propio — es otro endpoint (rules-service), así que separarlas no
+               obliga a guardar las coberturas para cambiar una exclusión. -->
+          @case ('exclusiones') {
+            <app-card heading="Exclusiones comunes del ramo">
+              <p class="section-hint">
+                Situaciones NO cubiertas por ninguna cobertura del ramo. Condiciones objetivas que
+                evalúa el motor de reglas, no el modelo.
+                <app-info-tip>
+                  Distintas de las exclusiones de cada cobertura, que se configuran en Coberturas:
+                  aquellas dicen qué hecho generador no cubre una cobertura puntual, y estas valen
+                  para todo el ramo sin importar bajo qué cobertura entre el siniestro.
+                </app-info-tip>
+              </p>
+              <app-string-list-editor
+                [items]="d.commonExclusions"
+                (itemsChange)="setCommonExclusions($event)"
+                placeholder="Exclusión común…"
+                addLabel="+ Agregar exclusión"
+                emptyText="Sin exclusiones comunes."
+              />
+              <app-save-bar
+                [dirty]="exclDirty()"
+                [saving]="exclSaving()"
+                [error]="exclError()"
+                (save)="saveCommonExclusions()"
+                (discard)="discardCommonExclusions()"
+              />
+            </app-card>
           }
 
           <!-- ============ FAST TRACK ============ -->

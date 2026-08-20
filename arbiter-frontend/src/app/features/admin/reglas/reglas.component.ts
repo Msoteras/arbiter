@@ -39,7 +39,7 @@ import { SelectComponent, SelectOption } from '../../../shared/ui/select/select.
 import { ToastService } from '../../../shared/ui/toast/toast.service';
 import { fadeInUp, listStagger, staggerReveal } from '../../../shared/animations';
 
-type TabId = 'coberturas' | 'fastTrack' | 'documentacion' | 'reglas';
+type TabId = 'coberturas' | 'exclusiones' | 'fastTrack' | 'documentacion' | 'reglas';
 
 /** Las vistas del panel derecho que no dependen del ramo elegido. */
 type GeneralView = 'hardStop' | 'scoring' | 'fraude' | 'peritos';
@@ -97,6 +97,9 @@ export class ReglasComponent {
 
   protected readonly covSaving = signal(false);
   protected readonly covError = signal<string | null>(null);
+
+  protected readonly exclSaving = signal(false);
+  protected readonly exclError = signal<string | null>(null);
   private loadedCoverages: Coverage[] = [];
 
   protected readonly docSaving = signal(false);
@@ -125,6 +128,7 @@ export class ReglasComponent {
 
   protected readonly tabs: { id: TabId; label: string }[] = [
     { id: 'coberturas', label: 'Coberturas' },
+    { id: 'exclusiones', label: 'Exclusiones comunes' },
     { id: 'fastTrack', label: 'Fast Track' },
     { id: 'documentacion', label: 'Documentación' },
     { id: 'reglas', label: 'Reglas de negocio' },
@@ -204,14 +208,20 @@ export class ReglasComponent {
     });
   }
 
-  protected readonly covDirty = computed(() => this.sliceChanged('coverages', 'commonExclusions'));
+  protected readonly covDirty = computed(() => this.sliceChanged('coverages'));
+  protected readonly exclDirty = computed(() => this.sliceChanged('commonExclusions'));
   protected readonly ftDirty = computed(() => this.sliceChanged('fastTrack'));
   protected readonly docDirty = computed(() => this.sliceChanged('requiredDocumentsByClaimCause'));
   protected readonly rulesDirty = computed(() => this.sliceChanged('businessRules'));
 
   protected discardCoverages(): void {
-    this.restoreSlice('coverages', 'commonExclusions');
+    this.restoreSlice('coverages');
     this.covError.set(null);
+  }
+
+  protected discardCommonExclusions(): void {
+    this.restoreSlice('commonExclusions');
+    this.exclError.set(null);
   }
 
   protected discardFastTrack(): void {
@@ -373,6 +383,7 @@ export class ReglasComponent {
     this.activeTab.set('coberturas');
     this.ftError.set(null);
     this.covError.set(null);
+    this.exclError.set(null);
     this.docError.set(null);
     this.rulesError.set(null);
     this.renameSaved.set(false);
@@ -1080,6 +1091,36 @@ export class ReglasComponent {
    * `loadedCoverages`) y las exclusiones comunes (rules-service), en un solo botón porque
    * comparten la solapa Coberturas.
    */
+  /**
+   * Las exclusiones comunes del ramo, contra su propio endpoint de rules-service. Aparte de
+   * `saveCoverages` desde que son solapa propia: arrastrarlas ahí obligaba a guardar todas las
+   * coberturas para cambiar una línea de texto, y persistía una pantalla desde otra.
+   */
+  protected saveCommonExclusions(): void {
+    const d = this.draft();
+    if (!d || this.exclSaving()) {
+      return;
+    }
+    this.exclError.set(null);
+    const branchId = this.branchIdOf(d);
+    if (branchId == null) {
+      this.exclError.set('Este ramo todavía no existe en el backend.');
+      return;
+    }
+
+    this.exclSaving.set(true);
+    this.rulesTextService.saveExclusions(branchId, d.commonExclusions).subscribe({
+      next: () => {
+        this.exclSaving.set(false);
+        this.markPersisted('commonExclusions');
+      },
+      error: (e: unknown) => {
+        this.exclSaving.set(false);
+        this.exclError.set(this.backendErrorMessage(e));
+      },
+    });
+  }
+
   protected saveCoverages(): void {
     const d = this.draft();
     if (!d || this.covSaving()) {
@@ -1111,14 +1152,13 @@ export class ReglasComponent {
       ...toUpdate
         .filter((c) => this.hardRulesOf(c).length > 0)
         .map((c) => this.hardRulesService.save(branchId, Number(c.id), this.hardRulesOf(c))),
-      this.rulesTextService.saveExclusions(branchId, d.commonExclusions),
     ];
 
     this.covSaving.set(true);
     forkJoin(requests.length ? requests : [of(null)]).subscribe({
       next: () => {
         this.covSaving.set(false);
-        this.markPersisted('coverages', 'commonExclusions');
+        this.markPersisted('coverages');
         // Recarga: los que eran altas ahora tienen id real del backend.
         this.loadCoveragesFromBackend(d);
         // Un alta o baja de cobertura cambió el conteo que ve la lista de ramos.
