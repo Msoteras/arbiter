@@ -36,6 +36,8 @@ import { StringListEditorComponent } from './string-list-editor.component';
 import { InlineLoadingComponent } from '../../../shared/ui/inline-loading/inline-loading.component';
 import { InfoTipComponent } from '../../../shared/ui/info-tip/info-tip.component';
 import { BadgeComponent } from '../../../shared/ui/badge/badge.component';
+import { TableComponent } from '../../../shared/ui/table/table.component';
+import { CheckboxComponent } from '../../../shared/ui/checkbox/checkbox.component';
 import { SelectComponent, SelectOption } from '../../../shared/ui/select/select.component';
 import { ToastService } from '../../../shared/ui/toast/toast.service';
 import { accordion, fadeInUp, listStagger, staggerReveal } from '../../../shared/animations';
@@ -74,6 +76,8 @@ type GeneralView = 'hardStop' | 'scoring' | 'fraude' | 'peritos';
     InlineLoadingComponent,
     InfoTipComponent,
     BadgeComponent,
+    TableComponent,
+    CheckboxComponent,
     SelectComponent,
   ],
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -115,12 +119,6 @@ export class ReglasComponent {
   // exclusiones duras por cobertura como para la solapa Documentación (agenda por hecho generador,
   // D5). Se cargan del backend al elegir el ramo.
   protected readonly claimCauses = signal<ClaimCauseOption[]>([]);
-  // Hecho generador activo en la solapa Documentación — arranca en el primero del ramo.
-  protected readonly selectedDocClaimCauseId = signal<number | null>(null);
-  // Su nombre, para el encabezado "Documentos requeridos para «X»".
-  protected readonly selectedDocClaimCauseName = computed(
-    () => this.claimCauses().find((c) => c.id === this.selectedDocClaimCauseId())?.name ?? null,
-  );
 
   // Renombre del ramo (lo único editable del ramo desde acá: el alta y la baja no se exponen en la
   // UI — el catálogo de ramos es fijo, lo administra el seed).
@@ -402,7 +400,6 @@ export class ReglasComponent {
   /** Catálogo de hechos generadores del ramo, para el selector de exclusiones duras por cobertura. */
   private loadClaimCauses(r: RamoRules): void {
     this.claimCauses.set([]);
-    this.selectedDocClaimCauseId.set(null);
     const branchId = this.branchIdOf(r);
     if (branchId == null) {
       return;
@@ -410,13 +407,9 @@ export class ReglasComponent {
     this.trackDetail(r.id, this.exclusionsService.listClaimCauses(branchId)).subscribe({
       next: (options) => {
         this.claimCauses.set(options);
-        // La agenda documental se edita por hecho generador (D5): con el catálogo ya en mano se
-        // elige el primero y se le carga su agenda.
-        const first = options[0]?.id ?? null;
-        this.selectedDocClaimCauseId.set(first);
-        if (first != null) {
-          this.loadDocumentsFromBackend(r, first);
-        }
+        // La agenda documental es por hecho generador (D5) y se edita como matriz documento ×
+        // hecho generador, así que se cargan las N agendas y no solo la del primero.
+        options.forEach((option) => this.loadDocumentsFromBackend(r, option.id));
       },
       error: () => {
         /* backend caído: el selector queda vacío, sin romper la pantalla */
@@ -1071,42 +1064,8 @@ export class ReglasComponent {
   }
 
   // ───────────────── Documentación (por hecho generador) ─────────────────
-  protected selectDocClaimCause(claimCauseId: number): void {
-    if (this.selectedDocClaimCauseId() === claimCauseId) {
-      return;
-    }
-    this.selectedDocClaimCauseId.set(claimCauseId);
-    this.docError.set(null);
-    const d = this.draft();
-    if (d) {
-      this.loadDocumentsFromBackend(d, claimCauseId);
-    }
-  }
 
-  protected isDocRequired(code: string): boolean {
-    const claimCauseId = this.selectedDocClaimCauseId();
-    if (claimCauseId == null) {
-      return false;
-    }
-    return this.draft()?.requiredDocumentsByClaimCause[claimCauseId]?.includes(code) ?? false;
-  }
 
-  protected toggleDoc(code: string): void {
-    const claimCauseId = this.selectedDocClaimCauseId();
-    if (claimCauseId == null) {
-      return;
-    }
-    this.draft.update((d) => {
-      if (!d) {
-        return d;
-      }
-      const current = d.requiredDocumentsByClaimCause[claimCauseId] ?? [];
-      const has = current.includes(code);
-      const next = has ? current.filter((c) => c !== code) : [...current, code];
-      return { ...d, requiredDocumentsByClaimCause: { ...d.requiredDocumentsByClaimCause, [claimCauseId]: next } };
-    });
-    this.markDirty();
-  }
 
   // ───────────────── Fast Track (siempre activo; no hay toggle) ─────────────────
   // ───────────────── Fast Track: umbrales como interruptor + valor ─────────────────
@@ -1373,8 +1332,7 @@ export class ReglasComponent {
   // ───────────────── Documentación: persistencia real (rules-service) ─────────────────
   protected saveDocuments(): void {
     const d = this.draft();
-    const claimCauseId = this.selectedDocClaimCauseId();
-    if (!d || this.docSaving() || claimCauseId == null) {
+    if (!d || this.docSaving()) {
       return;
     }
     this.docError.set(null);
@@ -1383,14 +1341,26 @@ export class ReglasComponent {
       this.docError.set('Este ramo todavía no existe en el backend.');
       return;
     }
+    const changed = this.changedClaimCauses();
+    if (changed.length === 0) {
+      return;
+    }
+
     this.docSaving.set(true);
-    const documentTypes = d.requiredDocumentsByClaimCause[claimCauseId] ?? [];
-    this.documentsService.save(branchId, claimCauseId, documentTypes).subscribe({
+    forkJoin(
+      changed.map((claimCauseId) =>
+        this.documentsService.save(
+          branchId,
+          claimCauseId,
+          d.requiredDocumentsByClaimCause[claimCauseId] ?? [],
+        ),
+      ),
+    ).subscribe({
       next: () => {
         this.docSaving.set(false);
         this.markPersisted('requiredDocumentsByClaimCause');
         // Recarga desde el backend para reflejar exactamente lo que quedó persistido.
-        this.loadDocumentsFromBackend(d, claimCauseId);
+        changed.forEach((claimCauseId) => this.loadDocumentsFromBackend(d, claimCauseId));
       },
       error: (e: unknown) => {
         this.docSaving.set(false);
@@ -1398,6 +1368,54 @@ export class ReglasComponent {
       },
     });
   }
+  // ───────────────── Agenda documental: matriz documento × hecho generador ─────────────────
+  /**
+   * La agenda se edita como matriz, así que se necesitan TODAS las agendas del ramo a la vez y no
+   * la del hecho generador elegido. Antes se cargaba de a una, al ir tocando cada chip.
+   */
+  protected isDocRequiredFor(claimCauseId: number, code: string): boolean {
+    return this.draft()?.requiredDocumentsByClaimCause[claimCauseId]?.includes(code) ?? false;
+  }
+
+  protected toggleDocFor(claimCauseId: number, code: string): void {
+    this.draft.update((d) => {
+      if (!d) {
+        return d;
+      }
+      const current = d.requiredDocumentsByClaimCause[claimCauseId] ?? [];
+      const next = current.includes(code)
+        ? current.filter((c) => c !== code)
+        : [...current, code];
+      return {
+        ...d,
+        requiredDocumentsByClaimCause: { ...d.requiredDocumentsByClaimCause, [claimCauseId]: next },
+      };
+    });
+    this.markDirty();
+  }
+
+  /** El contador de cada columna: cuántos documentos exige ese hecho generador. */
+  protected requiredCountLabel(claimCauseId: number): string {
+    const count = this.draft()?.requiredDocumentsByClaimCause[claimCauseId]?.length ?? 0;
+    if (count === 0) {
+      return 'sin obligatorios';
+    }
+    return count === 1 ? '1 obligatorio' : `${count} obligatorios`;
+  }
+
+  /**
+   * Los hechos generadores cuya agenda quedó distinta de lo guardado. Se guarda solo eso y no todo
+   * el ramo: cada agenda es un PUT propio, y mandar los cuatro por cambiar una casilla escribe
+   * encima de lo que otro haya tocado mientras tanto.
+   */
+  private changedClaimCauses(): number[] {
+    const current = this.draft()?.requiredDocumentsByClaimCause ?? {};
+    const base = this.persisted()?.requiredDocumentsByClaimCause ?? {};
+    return this.claimCauses()
+      .map((c) => c.id)
+      .filter((id) => JSON.stringify(current[id] ?? []) !== JSON.stringify(base[id] ?? []));
+  }
+
 
   // ───────────────── Reglas de negocio: persistencia real (rules-service) ─────────────────
   protected saveBusinessRules(): void {

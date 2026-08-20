@@ -149,6 +149,22 @@
 .cov-section .section-hint { margin: 0; }
 
 
+
+/* ───────── Agenda documental: matriz documento × hecho generador ───────── */
+/* Las columnas de hechos generadores se centran; la primera (el documento) es la etiqueta y
+   manda a la izquierda. */
+.doc-col { text-align: center !important; vertical-align: bottom; }
+.doc-col-name { display: block; color: var(--text-secondary); }
+.doc-col-count { display: block; margin-top: var(--space-1); font-size: var(--font-size-2xs); color: var(--text-muted); text-transform: none; letter-spacing: 0; }
+/* La columna del documento no va en mayúsculas ni atenuada como un th de encabezado: es contenido
+   de la fila, no rótulo de columna. */
+.doc-row-name { font-weight: var(--font-weight-regular); color: var(--text-primary); white-space: normal !important; }
+.doc-cell { text-align: center; }
+/* El checkbox del kit trae 40px de alto y etiqueta al lado; dentro de la celda solo se necesita el
+   cuadrito, centrado (el nombre va en .sr-only para el lector de pantalla). */
+.doc-cell app-checkbox { display: inline-block; }
+.doc-cell ::ng-deep .cb { min-height: 0; justify-content: center; gap: 0; }
+
 /* ───────── Fast Track ───────── */
 .ft-head { display: flex; align-items: center; gap: var(--space-3); flex-wrap: wrap; margin-bottom: var(--space-3); }
 .ft-head .card-title { margin: 0; }
