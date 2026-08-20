@@ -159,11 +159,30 @@
 /* La columna del documento no va en mayúsculas ni atenuada como un th de encabezado: es contenido
    de la fila, no rótulo de columna. */
 .doc-row-name { font-weight: var(--font-weight-regular); color: var(--text-primary); white-space: normal !important; }
-.doc-cell { text-align: center; }
+.doc-cell { text-align: center !important; }
 /* El checkbox del kit trae 40px de alto y etiqueta al lado; dentro de la celda solo se necesita el
    cuadrito, centrado (el nombre va en .sr-only para el lector de pantalla). */
 .doc-cell app-checkbox { display: inline-block; }
+/* Sin ancho propio la casilla se apoya en el text-align de la celda; con width:100% se centraba
+   respecto de la celda pero no respecto del encabezado cuando el padding es asimétrico. */
 .doc-cell ::ng-deep .cb { min-height: 0; justify-content: center; gap: 0; }
+
+/* Leyenda de la matriz: cuadritos del mismo tamaño y color que las casillas reales. */
+.doc-legend { display: flex; gap: var(--space-4); margin: var(--space-3) 0 0; font-size: var(--font-size-xs); color: var(--text-secondary); }
+.doc-legend-item { display: inline-flex; align-items: center; gap: var(--space-2); }
+.doc-legend-box { width: 14px; height: 14px; border: 1px solid var(--border-control); border-radius: 3px; background: var(--surface); }
+.doc-legend-box.on { background: var(--accent-strong); border-color: var(--accent-strong); position: relative; }
+.doc-legend-box.on::after {
+  content: '';
+  position: absolute;
+  left: 4px;
+  top: 1px;
+  width: 4px;
+  height: 8px;
+  border: solid var(--text-on-emphasis);
+  border-width: 0 2px 2px 0;
+  transform: rotate(45deg);
+}
 
 /* ───────── Fast Track ───────── */
 .ft-head { display: flex; align-items: center; gap: var(--space-3); flex-wrap: wrap; margin-bottom: var(--space-3); }

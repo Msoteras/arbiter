@@ -673,6 +673,17 @@
                       }
                     </tbody>
                   </app-table>
+
+                  <!-- Qué significa cada casilla: una tilde sola es ambigua entre "obligatorio" y
+                       "presente", y acá quiere decir lo primero. -->
+                  <p class="doc-legend">
+                    <span class="doc-legend-item">
+                      <span class="doc-legend-box on" aria-hidden="true"></span> Obligatorio
+                    </span>
+                    <span class="doc-legend-item">
+                      <span class="doc-legend-box" aria-hidden="true"></span> No requerido
+                    </span>
+                  </p>
                 }
 
                 <app-save-bar
