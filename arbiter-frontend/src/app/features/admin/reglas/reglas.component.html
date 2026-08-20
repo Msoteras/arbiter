@@ -377,8 +377,16 @@
                 (itemsChange)="setCommonExclusions($event)"
                 placeholder="Exclusión común…"
                 addLabel="+ Agregar exclusión"
-                emptyText="Sin exclusiones comunes."
-              />
+                badge="Motor de reglas"
+                emptyTitle="Sin exclusiones comunes"
+                emptyHint="Situaciones que ninguna cobertura del ramo cubre. Por ejemplo: «Daño estético que no afecta el funcionamiento del equipo»."
+                emptyCta="+ Agregar primera exclusión"
+              >
+                <svg emptyIcon viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" width="26" height="26" aria-hidden="true">
+                  <circle cx="12" cy="12" r="9" />
+                  <line x1="6" y1="18" x2="18" y2="6" stroke-linecap="round" />
+                </svg>
+              </app-string-list-editor>
               <app-save-bar
                 [dirty]="exclDirty()"
                 [saving]="exclSaving()"
@@ -714,8 +722,16 @@
                   (itemsChange)="setBusinessRules($event)"
                   placeholder="Descripción de la regla…"
                   addLabel="+ Agregar regla"
-                  emptyText="Sin reglas configuradas."
-                />
+                  badge="Analista + modelo"
+                  emptyTitle="Todavía no cargaste reglas de negocio"
+                  emptyHint="Sirven para orientar al analista y al modelo. Por ejemplo: «Si el asegurado tuvo 2 o más robos en los últimos 12 meses, derivar a un analista senior»."
+                  emptyCta="+ Agregar primera regla"
+                >
+                  <svg emptyIcon viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" width="26" height="26" aria-hidden="true">
+                    <path d="M6 3h9l4 4v14H6z" stroke-linejoin="round" />
+                    <path d="M9 12h7M9 16h7" stroke-linecap="round" />
+                  </svg>
+                </app-string-list-editor>
 
                 <app-save-bar
                   [dirty]="rulesDirty()"
