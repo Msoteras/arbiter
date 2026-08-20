@@ -1109,6 +1109,59 @@ export class ReglasComponent {
   }
 
   // ───────────────── Fast Track (siempre activo; no hay toggle) ─────────────────
+  // ───────────────── Fast Track: umbrales como interruptor + valor ─────────────────
+  /**
+   * Un umbral está activo cuando tiene valor: `null` significa "no se evalúa". Antes eso se
+   * expresaba dejando el campo vacío, y un campo vacío se lee como "me falta cargarlo", no como
+   * una decisión. Con el interruptor la decisión queda dicha, y apagar no pierde el número: se
+   * guarda el último para poder volver a prenderlo sin recordarlo.
+   */
+  private readonly ftLastValues = new Map<string, number>();
+
+  /**
+   * Valor con el que arranca un umbral recién prendido. Son los del seed, que es lo que la
+   * aseguradora tiene hoy configurado: prender un umbral no debería estrenar una política que
+   * nadie eligió, solo la que ya venía por defecto.
+   */
+  private static readonly FT_DEFAULTS: Record<string, number> = {
+    minPolicyAgeMonths: 3,
+    maxPriorClaims: 0,
+    priorClaimsWindowMonths: 12,
+    maxClaimedAmountRatio: 50,
+  };
+
+  protected ftActive(field: 'minPolicyAgeMonths' | 'maxPriorClaims' | 'priorClaimsWindowMonths' | 'maxClaimedAmountRatio'): boolean {
+    return this.draft()?.fastTrack[field] != null;
+  }
+
+  protected toggleFtThreshold(
+    field: 'minPolicyAgeMonths' | 'maxPriorClaims' | 'priorClaimsWindowMonths' | 'maxClaimedAmountRatio',
+  ): void {
+    const ft = this.draft()?.fastTrack;
+    if (!ft) {
+      return;
+    }
+    if (ft[field] != null) {
+      // Se recuerda antes de apagar: volver a prenderlo devuelve lo que había, no el default.
+      const current = field === 'maxClaimedAmountRatio' ? (ft[field] ?? 0) * 100 : ft[field];
+      if (current != null) {
+        this.ftLastValues.set(field, current);
+      }
+      this.patchFastTrack((c) => ({ ...c, [field]: null }));
+      // La ventana solo acota los siniestros previos: sin ese umbral no tiene qué acotar.
+      if (field === 'maxPriorClaims') {
+        this.patchFastTrack((c) => ({ ...c, priorClaimsWindowMonths: null }));
+      }
+      return;
+    }
+    const restored = this.ftLastValues.get(field) ?? ReglasComponent.FT_DEFAULTS[field];
+    if (field === 'maxClaimedAmountRatio') {
+      this.setFtMaxRatio(String(restored));
+    } else {
+      this.patchFastTrack((c) => ({ ...c, [field]: restored }));
+    }
+  }
+
   protected setMinPolicyAge(v: string): void {
     this.patchFastTrack((ft) => ({ ...ft, minPolicyAgeMonths: this.intFromStr(v) }));
   }

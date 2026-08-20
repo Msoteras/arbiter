@@ -390,84 +390,225 @@
           }
 
           <!-- ============ FAST TRACK ============ -->
+          <!-- Mismo patrón de fila que las reglas de cada cobertura (interruptor + qué evalúa +
+               umbral): son la misma clase de decisión, y verlas iguales en las dos solapas evita
+               tener que volver a aprender la pantalla. -->
           @case ('fastTrack') {
             @if (detailLoading()) {
               <app-inline-loading [size]="26" message="Cargando Fast Track…" />
             } @else {
             <div class="tab-panel" @fadeInUp>
-              <app-card heading="Fast Track (Siniestro Express)">
-                <p class="section-hint">
-                  Gate determinístico que agiliza el caso (siempre activo, es parte del análisis).
-                  Nunca lo resuelve solo: siempre revisa un analista.
+              <app-card>
+                <div class="ft-head">
+                  <h2 class="card-title">Fast Track</h2>
+                  <span class="t-note">Siniestro express</span>
+                  <!-- El Fast Track no se apaga: es parte del análisis. El badge lo dice en vez de
+                       ofrecer un interruptor que no existe. -->
+                  <app-badge variant="solid" tone="ok">Siempre activo</app-badge>
+                </div>
+
+                <p class="ft-banner">
+                  <span class="ft-banner-icon" aria-hidden="true">i</span>
+                  <span>
+                    Gate determinístico que agiliza el caso. <strong>Nunca lo resuelve solo</strong>:
+                    siempre lo revisa un analista. Solo decide si el expediente entra por la vía
+                    rápida.
+                  </span>
                 </p>
 
-                <div class="subsection">
-                    <span class="t-field-label">Umbrales evaluables</span>
-                    <div class="grid-fields">
-                      <label class="fieldset">
-                        <span class="th-label">Antigüedad mínima de la póliza (meses)</span>
-                        <app-input type="number" [min]="0" [value]="ftMinAgeStr()" (valueChange)="setMinPolicyAge($event)" placeholder="Sin mínimo" />
-                      </label>
-                      <label class="fieldset">
-                        <span class="th-label">Siniestros previos máx.</span>
-                        <app-input type="number" [min]="0" [value]="ftMaxPriorStr()" (valueChange)="setMaxPriorClaims($event)" placeholder="Sin límite" />
-                      </label>
-                      <label class="fieldset">
-                        <span class="th-label">Ventana de siniestros previos (meses)</span>
-                        <app-input type="number" [min]="0" [value]="ftWindowStr()" (valueChange)="setPriorClaimsWindow($event)" placeholder="—" />
-                      </label>
-                      <label class="fieldset">
-                        <span class="th-label">Monto reclamado máx. (% de la suma asegurada)</span>
-                        <app-input type="number" [min]="0" [value]="ftMaxRatioPct()" (valueChange)="setFtMaxRatio($event)" placeholder="Sin límite" />
-                      </label>
-                    </div>
-                    <button
-                      type="button"
-                      class="chip"
-                      [class.active]="d.fastTrack.requiresUpToDatePolicy"
-                      [attr.aria-pressed]="d.fastTrack.requiresUpToDatePolicy"
-                      (click)="toggleFtRequiresUpToDate()"
-                    >
-                      Exige póliza al día
-                    </button>
-                  </div>
-
-                  <div class="subsection">
-                    <span class="t-field-label">Documentos que exige el Fast Track</span>
-                    <div class="chips">
-                      @for (doc of docTypes; track doc.code) {
-                        <button type="button" class="chip" [class.active]="isFtDoc(doc.code)" [attr.aria-pressed]="isFtDoc(doc.code)" (click)="toggleFtDoc(doc.code)">
-                          {{ doc.label }}
-                        </button>
-                      }
-                    </div>
-                  </div>
-
-                  <div class="subsection">
-                    <span class="t-field-label">Criterios (descriptivos)</span>
-                    <app-string-list-editor
-                      [items]="d.fastTrack.criteria"
-                      (itemsChange)="setFtCriteria($event)"
-                      placeholder="Criterio de Fast Track…"
-                      addLabel="+ Agregar criterio"
-                      emptyText="Sin criterios descriptivos."
-                    />
-                  </div>
-
-                <div class="ft-save">
+                <div class="cov-section">
+                  <span class="t-section-label">Condiciones para habilitar el Fast Track</span>
                   <p class="section-hint">
-                    Los umbrales de arriba son los que decide el motor. Los criterios descriptivos
-                    no deciden: se le pasan al modelo como descripción de la política, así que
-                    conviene que digan lo mismo que los números.
+                    Activá solo los umbrales que quieras exigir. Los que dejes apagados no se
+                    evalúan.
                   </p>
-                  <app-save-bar
-                    [dirty]="ftDirty()"
-                    [saving]="ftSaving()"
-                    [error]="ftError()"
-                    (save)="saveFastTrack()"
-                    (discard)="discardFastTrack()"
+
+                  <ul class="rule-rows">
+                    <li class="rule-row" [class.off]="!ftActive('minPolicyAgeMonths')">
+                      <button
+                        type="button"
+                        class="rule-switch"
+                        role="switch"
+                        [attr.aria-checked]="ftActive('minPolicyAgeMonths')"
+                        aria-label="Antigüedad mínima de la póliza"
+                        (click)="toggleFtThreshold('minPolicyAgeMonths')"
+                      >
+                        <span class="knob" aria-hidden="true"></span>
+                      </button>
+                      <div class="rule-text">
+                        <span class="t-field-label">Antigüedad mínima de la póliza</span>
+                        <p class="rule-hint">
+                          La póliza tiene que tener al menos esta antigüedad para ir por vía rápida.
+                        </p>
+                      </div>
+                      @if (ftActive('minPolicyAgeMonths')) {
+                        <div class="rule-value">
+                          <app-input
+                            type="number"
+                            [min]="0"
+                            [value]="ftMinAgeStr()"
+                            (valueChange)="setMinPolicyAge($event)"
+                          />
+                          <span class="t-note">meses</span>
+                        </div>
+                      } @else {
+                        <span class="rule-off-note t-note">Sin mínimo</span>
+                      }
+                    </li>
+
+                    <li class="rule-row" [class.off]="!ftActive('maxPriorClaims')">
+                      <button
+                        type="button"
+                        class="rule-switch"
+                        role="switch"
+                        [attr.aria-checked]="ftActive('maxPriorClaims')"
+                        aria-label="Siniestros previos máximos"
+                        (click)="toggleFtThreshold('maxPriorClaims')"
+                      >
+                        <span class="knob" aria-hidden="true"></span>
+                      </button>
+                      <div class="rule-text">
+                        <span class="t-field-label">Siniestros previos máximos</span>
+                        <p class="rule-hint">
+                          Cuántos siniestros anteriores admite el asegurado y sigue siendo apto.
+                        </p>
+                      </div>
+                      @if (ftActive('maxPriorClaims')) {
+                        <div class="rule-value">
+                          <app-input
+                            type="number"
+                            [min]="0"
+                            [value]="ftMaxPriorStr()"
+                            (valueChange)="setMaxPriorClaims($event)"
+                          />
+                          <span class="t-note">previos</span>
+                        </div>
+                      } @else {
+                        <span class="rule-off-note t-note">Sin límite</span>
+                      }
+                    </li>
+
+                    <!-- Sangrada y solo visible con el umbral de arriba prendido: la ventana no
+                         decide nada sola, únicamente acota qué siniestros previos se cuentan. -->
+                    @if (ftActive('maxPriorClaims')) {
+                      <li class="rule-row nested" @accordion>
+                        <div class="rule-text">
+                          <span class="t-field-label">Ventana de siniestros previos</span>
+                          <p class="rule-hint">Cuántos meses hacia atrás se cuentan esos siniestros.</p>
+                        </div>
+                        <div class="rule-value">
+                          <app-input
+                            type="number"
+                            [min]="0"
+                            [value]="ftWindowStr()"
+                            (valueChange)="setPriorClaimsWindow($event)"
+                            placeholder="Todo el historial"
+                          />
+                          <span class="t-note">meses</span>
+                        </div>
+                      </li>
+                    }
+
+                    <li class="rule-row" [class.off]="!ftActive('maxClaimedAmountRatio')">
+                      <button
+                        type="button"
+                        class="rule-switch"
+                        role="switch"
+                        [attr.aria-checked]="ftActive('maxClaimedAmountRatio')"
+                        aria-label="Monto reclamado máximo"
+                        (click)="toggleFtThreshold('maxClaimedAmountRatio')"
+                      >
+                        <span class="knob" aria-hidden="true"></span>
+                      </button>
+                      <div class="rule-text">
+                        <span class="t-field-label">Monto reclamado máximo</span>
+                        <p class="rule-hint">
+                          Tope del reclamo, como porcentaje de la suma asegurada.
+                        </p>
+                      </div>
+                      @if (ftActive('maxClaimedAmountRatio')) {
+                        <div class="rule-value">
+                          <app-input
+                            type="number"
+                            [min]="0"
+                            [value]="ftMaxRatioPct()"
+                            (valueChange)="setFtMaxRatio($event)"
+                          />
+                          <span class="t-note">% de la suma</span>
+                        </div>
+                      } @else {
+                        <span class="rule-off-note t-note">Sin límite</span>
+                      }
+                    </li>
+
+                    <li class="rule-row" [class.off]="!d.fastTrack.requiresUpToDatePolicy">
+                      <button
+                        type="button"
+                        class="rule-switch"
+                        role="switch"
+                        [attr.aria-checked]="d.fastTrack.requiresUpToDatePolicy"
+                        aria-label="Exige póliza al día"
+                        (click)="toggleFtRequiresUpToDate()"
+                      >
+                        <span class="knob" aria-hidden="true"></span>
+                      </button>
+                      <div class="rule-text">
+                        <span class="t-field-label">Exige póliza al día</span>
+                        <p class="rule-hint">
+                          La póliza no puede tener cuotas vencidas al momento del hecho.
+                        </p>
+                      </div>
+                      <!-- Sin número que cargar: la condición es el interruptor mismo. -->
+                      <span class="rule-off-note t-note">
+                        {{ d.fastTrack.requiresUpToDatePolicy ? 'Sí' : 'No se exige' }}
+                      </span>
+                    </li>
+                  </ul>
+                </div>
+
+                <div class="cov-section">
+                  <span class="t-section-label">Documentos que exige el Fast Track</span>
+                  <p class="section-hint">
+                    Si falta alguno de los marcados, el caso no va por vía rápida. Tocá para incluir
+                    o quitar.
+                  </p>
+                  <div class="chips">
+                    @for (doc of docTypes; track doc.code) {
+                      <button
+                        type="button"
+                        class="chip"
+                        [class.active]="isFtDoc(doc.code)"
+                        [attr.aria-pressed]="isFtDoc(doc.code)"
+                        (click)="toggleFtDoc(doc.code)"
+                      >
+                        {{ doc.label }}
+                      </button>
+                    }
+                  </div>
+                </div>
+
+                <div class="cov-section">
+                  <span class="t-section-label">Criterios descriptivos</span>
+                  <p class="section-hint">
+                    No deciden nada: se le pasan al modelo como descripción de la política, así que
+                    conviene que digan lo mismo que los umbrales de arriba.
+                  </p>
+                  <app-string-list-editor
+                    [items]="d.fastTrack.criteria"
+                    (itemsChange)="setFtCriteria($event)"
+                    placeholder="Criterio de Fast Track…"
+                    addLabel="+ Agregar criterio"
+                    emptyText="Sin criterios descriptivos."
                   />
                 </div>
+
+                <app-save-bar
+                  [dirty]="ftDirty()"
+                  [saving]="ftSaving()"
+                  [error]="ftError()"
+                  (save)="saveFastTrack()"
+                  (discard)="discardFastTrack()"
+                />
               </app-card>
             </div>
             }
@@ -508,17 +649,13 @@
                   </div>
                 }
 
-                <div class="ft-save">
-                  <div class="editor-actions">
-                    <app-save-bar
-                      [dirty]="docDirty()"
-                      [saving]="docSaving()"
-                      [error]="docError()"
-                      (save)="saveDocuments()"
-                      (discard)="discardDocuments()"
-                    />
-                  </div>
-                </div>
+                <app-save-bar
+                  [dirty]="docDirty()"
+                  [saving]="docSaving()"
+                  [error]="docError()"
+                  (save)="saveDocuments()"
+                  (discard)="discardDocuments()"
+                />
               </app-card>
             </div>
             }
@@ -543,17 +680,13 @@
                   emptyText="Sin reglas configuradas."
                 />
 
-                <div class="ft-save">
-                  <div class="editor-actions">
-                    <app-save-bar
-                      [dirty]="rulesDirty()"
-                      [saving]="rulesSaving()"
-                      [error]="rulesError()"
-                      (save)="saveBusinessRules()"
-                      (discard)="discardBusinessRules()"
-                    />
-                  </div>
-                </div>
+                <app-save-bar
+                  [dirty]="rulesDirty()"
+                  [saving]="rulesSaving()"
+                  [error]="rulesError()"
+                  (save)="saveBusinessRules()"
+                  (discard)="discardBusinessRules()"
+                />
               </app-card>
             </div>
             }

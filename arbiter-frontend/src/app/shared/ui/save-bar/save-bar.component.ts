@@ -44,7 +44,9 @@ import { ButtonComponent } from '../button/button.component';
     </div>
   `,
   styles: `
-    :host { display: block; }
+    /* width:100% y no solo display:block: metida en un contenedor flex (pasó en dos solapas), el
+       host se encogía al ancho del contenido y los botones terminaban pegados a la izquierda. */
+    :host { display: block; width: 100%; }
     .save-bar {
       display: flex;
       align-items: center;
