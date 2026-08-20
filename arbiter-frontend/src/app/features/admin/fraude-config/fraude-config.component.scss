@@ -43,21 +43,4 @@
 .setting-note { margin: var(--space-1) 0 0; color: var(--text-secondary); font-size: var(--font-size-xs); }
 .setting + .setting { border-top: 1px solid var(--border-subtle); padding-top: var(--space-4); }
 
-/* Barra de guardado: estado a la izquierda, acciones a la derecha. */
-.save-bar {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--space-4);
-  flex-wrap: wrap;
-  margin-top: var(--space-5);
-  padding-top: var(--space-4);
-  border-top: 1px solid var(--border-default);
-}
-.save-actions { display: flex; align-items: center; gap: var(--space-2); }
-/* Guardado en verde de estado; pendiente en gris, no en rojo: tener cambios sin guardar no es un
-   error, y pintarlo de alarma le pone urgencia a algo que el referente está haciendo a propósito. */
-.save-state { font-size: var(--font-size-sm); color: var(--status-ok); }
-.save-state.dirty { color: var(--text-secondary); }
-
 .warn-note { margin: var(--space-2) 0 0; color: var(--status-danger); font-size: var(--font-size-sm); }

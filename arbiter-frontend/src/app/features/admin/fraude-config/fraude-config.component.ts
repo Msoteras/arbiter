@@ -7,11 +7,11 @@ import {
   WINDOW_MONTHS_MAX,
   WINDOW_MONTHS_MIN,
 } from '../fraude-rule.service';
-import { ButtonComponent } from '../../../shared/ui/button/button.component';
 import { CardComponent } from '../../../shared/ui/card/card.component';
 import { InputComponent } from '../../../shared/ui/input/input.component';
 import { InfoTipComponent } from '../../../shared/ui/info-tip/info-tip.component';
 import { InlineLoadingComponent } from '../../../shared/ui/inline-loading/inline-loading.component';
+import { SaveBarComponent } from '../../../shared/ui/save-bar/save-bar.component';
 
 /**
  * Política de antecedentes de fraude de la aseguradora. Como el scoring y los peritos, es config
@@ -27,7 +27,13 @@ import { InlineLoadingComponent } from '../../../shared/ui/inline-loading/inline
  */
 @Component({
   selector: 'app-fraude-config',
-  imports: [ButtonComponent, CardComponent, InputComponent, InfoTipComponent, InlineLoadingComponent],
+  imports: [
+    CardComponent,
+    InputComponent,
+    InfoTipComponent,
+    InlineLoadingComponent,
+    SaveBarComponent,
+  ],
   changeDetection: ChangeDetectionStrategy.OnPush,
   templateUrl: './fraude-config.component.html',
   styleUrl: './fraude-config.component.scss',

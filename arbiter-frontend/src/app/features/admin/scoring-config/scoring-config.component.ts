@@ -7,6 +7,7 @@ import { RISK_BANDS, RiskBand, riskBandLabel } from '../../../core/models/risk-b
 import { ScoringConfigDto, ScoringRulesService } from '../scoring-rules.service';
 import { ButtonComponent } from '../../../shared/ui/button/button.component';
 import { CardComponent } from '../../../shared/ui/card/card.component';
+import { SaveBarComponent } from '../../../shared/ui/save-bar/save-bar.component';
 import { InputComponent } from '../../../shared/ui/input/input.component';
 import { InlineLoadingComponent } from '../../../shared/ui/inline-loading/inline-loading.component';
 
@@ -21,7 +22,13 @@ import { InlineLoadingComponent } from '../../../shared/ui/inline-loading/inline
  */
 @Component({
   selector: 'app-scoring-config',
-  imports: [ButtonComponent, CardComponent, InputComponent, InlineLoadingComponent],
+  imports: [
+    ButtonComponent,
+    CardComponent,
+    InputComponent,
+    InlineLoadingComponent,
+    SaveBarComponent,
+  ],
   changeDetection: ChangeDetectionStrategy.OnPush,
   templateUrl: './scoring-config.component.html',
   styleUrl: './scoring-config.component.scss',
@@ -42,8 +49,23 @@ export class ScoringConfigComponent {
   protected readonly loading = signal(true);
 
   protected readonly saving = signal(false);
-  protected readonly saved = signal(false);
   protected readonly error = signal<string | null>(null);
+  /** Lo último que confirmó el backend: contra esto se decide si quedan cambios sin guardar. */
+  private readonly persisted = signal<ScoringConfig | null>(null);
+
+  protected readonly dirty = computed(() => {
+    const base = this.persisted();
+    return base != null && JSON.stringify(this.draft()) !== JSON.stringify(base);
+  });
+
+  /** Vuelve a lo último guardado, sin recargar la pantalla. */
+  protected discard(): void {
+    const base = this.persisted();
+    if (base) {
+      this.draft.set(structuredClone(base));
+    }
+    this.error.set(null);
+  }
 
   /**
    * Los pesos son **relativos**: el motor divide por el total (`score = Σ(puntaje × peso) / Σ(peso)`),
@@ -103,12 +125,14 @@ export class ScoringConfigComponent {
       .subscribe({
         next: (dto) => {
           const bands = dto.bands.length ? dto.bands : this.skeleton().bands;
-          this.draft.set({
+          const loaded: ScoringConfig = {
             enabled: true,
             fullAnalysisOnFastTrack: dto.fullAnalysisOnFastTrack ?? false,
             factors: dto.factors,
             bands,
-          });
+          };
+          this.draft.set(loaded);
+          this.persisted.set(structuredClone(loaded));
         },
         error: () => {
           /* backend caído: nos quedamos con el skeleton */
@@ -172,7 +196,6 @@ export class ScoringConfigComponent {
       return;
     }
     this.error.set(null);
-    this.saved.set(false);
     const sc = this.draft();
     const dto: ScoringConfigDto = {
       enabled: true,
@@ -185,7 +208,6 @@ export class ScoringConfigComponent {
     this.scoringService.save(dto).subscribe({
       next: () => {
         this.saving.set(false);
-        this.saved.set(true);
         // Recarga desde el backend para reflejar exactamente lo que quedó persistido.
         this.load();
       },
@@ -198,7 +220,6 @@ export class ScoringConfigComponent {
 
   private patch(fn: (sc: ScoringConfig) => ScoringConfig): void {
     this.draft.update(fn);
-    this.saved.set(false);
   }
 
   private backendErrorMessage(e: unknown): string {

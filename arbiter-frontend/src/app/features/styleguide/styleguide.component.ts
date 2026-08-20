@@ -21,6 +21,7 @@ import { StatusTimelineComponent } from '../../shared/ui/status-timeline/status-
 import { MenuButtonComponent, MenuItem } from '../../shared/ui/menu-button/menu-button.component';
 import { SpinnerComponent } from '../../shared/ui/spinner/spinner.component';
 import { InlineLoadingComponent } from '../../shared/ui/inline-loading/inline-loading.component';
+import { SaveBarComponent } from '../../shared/ui/save-bar/save-bar.component';
 import { StatTileComponent } from '../../shared/ui/stat-tile/stat-tile.component';
 import { ToastService } from '../../shared/ui/toast/toast.service';
 import { StatusTransition } from '../../core/models/expediente';
@@ -73,6 +74,7 @@ interface Swatch {
     MenuButtonComponent,
     SpinnerComponent,
     InlineLoadingComponent,
+    SaveBarComponent,
     StatTileComponent,
   ],
   template: `
@@ -552,6 +554,25 @@ interface Swatch {
       </section>
 
       <section class="sg-block">
+        <h3 class="sg-h3">Save bar</h3>
+        <p class="sg-p">
+          Pie de una sección editable: estado a la izquierda, descartar y guardar a la derecha.
+          <span class="mono">dirty</span> gobierna todo — sin cambios no hay nada que guardar ni que
+          descartar, y los dos botones se apagan. Así el botón dice la verdad sobre si queda trabajo
+          por persistir, en vez de estar siempre habilitado.
+        </p>
+        <p class="sg-p">
+          <span class="mono">canSave</span> es la validación propia de la sección (un número fuera
+          de rango, por ejemplo). Va aparte de <span class="mono">dirty</span> para que un botón
+          deshabilitado signifique una sola cosa por vez.
+        </p>
+        <app-save-bar [dirty]="false" (save)="noop()" (discard)="noop()" />
+        <app-save-bar [dirty]="true" (save)="noop()" (discard)="noop()" />
+        <app-save-bar [dirty]="true" [saving]="true" (save)="noop()" (discard)="noop()" />
+        <app-save-bar [dirty]="true" error="No se pudo guardar: el motor no respondió" (save)="noop()" (discard)="noop()" />
+      </section>
+
+      <section class="sg-block">
         <h3 class="sg-h3">Inline loading</h3>
         <p class="sg-p">
           Carga "en el lugar": spinner + mensaje opcional, dentro de una pantalla que ya tiene su
@@ -709,6 +730,9 @@ export class StyleguideComponent {
     { value: 'xlsx', label: 'Excel (.xlsx)' },
   ];
   protected readonly sampleMenuChoice = signal('');
+
+  /** La vitrina no guarda nada: los botones existen para mostrar los estados, no para hacer algo. */
+  protected noop(): void {}
 
   protected onSampleMenuSelect(value: string): void {
     this.sampleMenuChoice.set(value);

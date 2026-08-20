@@ -119,16 +119,13 @@
               </p>
             }
 
-            <div class="ft-save">
-              <div class="editor-actions">
-                <app-button [disabled]="hardStopSaving()" (click)="saveHardStop()">
-                  {{ hardStopSaving() ? 'Guardando…' : 'Guardar Hard Stop' }}
-                </app-button>
-                @if (hardStopSaved()) {
-                  <span class="saved-note">✓ Guardado en el motor</span>
-                }
-              </div>
-            </div>
+            <app-save-bar
+              [dirty]="hardStopDirty()"
+              [saving]="hardStopSaving()"
+              [error]="hardStopError()"
+              (save)="saveHardStop()"
+              (discard)="discardHardStop()"
+            />
           </app-card>
         }
       } @else if (draft(); as d) {
@@ -360,19 +357,13 @@
                 />
               </app-card>
 
-              <div class="ft-save">
-                <div class="editor-actions">
-                  <app-button [disabled]="covSaving()" (click)="saveCoverages()">
-                    {{ covSaving() ? 'Guardando…' : 'Guardar coberturas' }}
-                  </app-button>
-                  @if (covSaved()) {
-                    <span class="saved-note">✓ Guardado en el motor</span>
-                  }
-                  @if (covError(); as err) {
-                    <span class="warn-note">{{ err }}</span>
-                  }
-                </div>
-              </div>
+              <app-save-bar
+                [dirty]="covDirty()"
+                [saving]="covSaving()"
+                [error]="covError()"
+                (save)="saveCoverages()"
+                (discard)="discardCoverages()"
+              />
             </div>
             }
           }
@@ -448,17 +439,13 @@
                     no deciden: se le pasan al modelo como descripción de la política, así que
                     conviene que digan lo mismo que los números.
                   </p>
-                  <div class="editor-actions">
-                    <app-button [disabled]="ftSaving()" (click)="saveFastTrack()">
-                      {{ ftSaving() ? 'Guardando…' : 'Guardar Fast Track' }}
-                    </app-button>
-                    @if (ftSaved()) {
-                      <span class="saved-note">✓ Guardado en el motor</span>
-                    }
-                    @if (ftError(); as err) {
-                      <span class="warn-note">{{ err }}</span>
-                    }
-                  </div>
+                  <app-save-bar
+                    [dirty]="ftDirty()"
+                    [saving]="ftSaving()"
+                    [error]="ftError()"
+                    (save)="saveFastTrack()"
+                    (discard)="discardFastTrack()"
+                  />
                 </div>
               </app-card>
             </div>
@@ -502,15 +489,13 @@
 
                 <div class="ft-save">
                   <div class="editor-actions">
-                    <app-button [disabled]="docSaving()" (click)="saveDocuments()">
-                      {{ docSaving() ? 'Guardando…' : 'Guardar documentación' }}
-                    </app-button>
-                    @if (docSaved()) {
-                      <span class="saved-note">✓ Guardado en el motor</span>
-                    }
-                    @if (docError(); as err) {
-                      <span class="warn-note">{{ err }}</span>
-                    }
+                    <app-save-bar
+                      [dirty]="docDirty()"
+                      [saving]="docSaving()"
+                      [error]="docError()"
+                      (save)="saveDocuments()"
+                      (discard)="discardDocuments()"
+                    />
                   </div>
                 </div>
               </app-card>
@@ -539,15 +524,13 @@
 
                 <div class="ft-save">
                   <div class="editor-actions">
-                    <app-button [disabled]="rulesSaving()" (click)="saveBusinessRules()">
-                      {{ rulesSaving() ? 'Guardando…' : 'Guardar reglas de negocio' }}
-                    </app-button>
-                    @if (rulesSaved()) {
-                      <span class="saved-note">✓ Guardado en el motor</span>
-                    }
-                    @if (rulesError(); as err) {
-                      <span class="warn-note">{{ err }}</span>
-                    }
+                    <app-save-bar
+                      [dirty]="rulesDirty()"
+                      [saving]="rulesSaving()"
+                      [error]="rulesError()"
+                      (save)="saveBusinessRules()"
+                      (discard)="discardBusinessRules()"
+                    />
                   </div>
                 </div>
               </app-card>

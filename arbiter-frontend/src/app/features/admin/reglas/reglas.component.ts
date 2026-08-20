@@ -31,6 +31,7 @@ import { InputComponent } from '../../../shared/ui/input/input.component';
 import { PeritosConfigComponent } from '../peritos-config/peritos-config.component';
 import { ScoringConfigComponent } from '../scoring-config/scoring-config.component';
 import { FraudeConfigComponent } from '../fraude-config/fraude-config.component';
+import { SaveBarComponent } from '../../../shared/ui/save-bar/save-bar.component';
 import { StringListEditorComponent } from './string-list-editor.component';
 import { InlineLoadingComponent } from '../../../shared/ui/inline-loading/inline-loading.component';
 import { InfoTipComponent } from '../../../shared/ui/info-tip/info-tip.component';
@@ -67,6 +68,7 @@ type GeneralView = 'hardStop' | 'scoring' | 'fraude' | 'peritos';
     PeritosConfigComponent,
     ScoringConfigComponent,
     FraudeConfigComponent,
+    SaveBarComponent,
     StringListEditorComponent,
     InlineLoadingComponent,
     InfoTipComponent,
@@ -91,20 +93,16 @@ export class ReglasComponent {
   // persisten contra el backend, cada una con su propio botón — el "Guardar cambios" global sigue
   // existiendo solo para el nombre del ramo, que todavía es mock (alta/baja de ramo también).
   protected readonly ftSaving = signal(false);
-  protected readonly ftSaved = signal(false);
   protected readonly ftError = signal<string | null>(null);
 
   protected readonly covSaving = signal(false);
-  protected readonly covSaved = signal(false);
   protected readonly covError = signal<string | null>(null);
   private loadedCoverages: Coverage[] = [];
 
   protected readonly docSaving = signal(false);
-  protected readonly docSaved = signal(false);
   protected readonly docError = signal<string | null>(null);
 
   protected readonly rulesSaving = signal(false);
-  protected readonly rulesSaved = signal(false);
   protected readonly rulesError = signal<string | null>(null);
 
   protected readonly docTypes = DOCUMENT_TYPES;
@@ -151,6 +149,85 @@ export class ReglasComponent {
   // aseguradora ('scoring'), que no pertenece a ningún ramo y se elige desde su propio recuadro.
   protected readonly view = signal<'ramo' | GeneralView>('ramo');
   protected readonly draft = signal<RamoRules | null>(null);
+
+  /**
+   * Lo último que confirmó el backend, por solapa. Contra esto se decide si hay cambios sin
+   * guardar: un flag "tocado" dejaba el botón habilitado después de deshacer un cambio a mano,
+   * ofreciendo guardar algo que ya no existía.
+   *
+   * Se sincroniza por porción y no entero, porque las cargas del backend caen en momentos
+   * distintos (la agenda documental se recarga al cambiar de hecho generador, con el referente ya
+   * editando otra solapa): un sync completo ahí le borraría los cambios pendientes de las demás.
+   */
+  private readonly persisted = signal<RamoRules | null>(null);
+
+  private markPersisted(...fields: (keyof RamoRules)[]): void {
+    const current = this.draft();
+    if (!current) {
+      return;
+    }
+    this.persisted.update((base) => {
+      const next: RamoRules = base ? { ...base } : structuredClone(current);
+      for (const field of fields) {
+        Object.assign(next, { [field]: structuredClone(current[field]) });
+      }
+      return next;
+    });
+  }
+
+  private sliceChanged(...fields: (keyof RamoRules)[]): boolean {
+    const current = this.draft();
+    const base = this.persisted();
+    if (!current || !base) {
+      return false;
+    }
+    return fields.some(
+      (field) => JSON.stringify(current[field]) !== JSON.stringify(base[field]),
+    );
+  }
+
+  /** Vuelve la porción de la solapa a lo último guardado, sin tocar las otras. */
+  private restoreSlice(...fields: (keyof RamoRules)[]): void {
+    const base = this.persisted();
+    if (!base) {
+      return;
+    }
+    this.draft.update((current) => {
+      if (!current) {
+        return current;
+      }
+      const next: RamoRules = { ...current };
+      for (const field of fields) {
+        Object.assign(next, { [field]: structuredClone(base[field]) });
+      }
+      return next;
+    });
+  }
+
+  protected readonly covDirty = computed(() => this.sliceChanged('coverages', 'commonExclusions'));
+  protected readonly ftDirty = computed(() => this.sliceChanged('fastTrack'));
+  protected readonly docDirty = computed(() => this.sliceChanged('requiredDocumentsByClaimCause'));
+  protected readonly rulesDirty = computed(() => this.sliceChanged('businessRules'));
+
+  protected discardCoverages(): void {
+    this.restoreSlice('coverages', 'commonExclusions');
+    this.covError.set(null);
+  }
+
+  protected discardFastTrack(): void {
+    this.restoreSlice('fastTrack');
+    this.ftError.set(null);
+  }
+
+  protected discardDocuments(): void {
+    this.restoreSlice('requiredDocumentsByClaimCause');
+    this.docError.set(null);
+  }
+
+  protected discardBusinessRules(): void {
+    this.restoreSlice('businessRules');
+    this.rulesError.set(null);
+  }
 
   // Último conteo de coberturas conocido (branchId → coverageCount). Cacheado acá porque
   // refreshCoverageSummary() y la carga de ramos son dos HTTP calls independientes disparadas
@@ -292,14 +369,11 @@ export class ReglasComponent {
     this.view.set('ramo');
     this.selectedId.set(r.id);
     this.draft.set(structuredClone(r));
+    this.persisted.set(structuredClone(r));
     this.activeTab.set('coberturas');
-    this.ftSaved.set(false);
     this.ftError.set(null);
-    this.covSaved.set(false);
     this.covError.set(null);
-    this.docSaved.set(false);
     this.docError.set(null);
-    this.rulesSaved.set(false);
     this.rulesError.set(null);
     this.renameSaved.set(false);
     this.renameError.set(null);
@@ -378,6 +452,7 @@ export class ReglasComponent {
           }
         : d,
     );
+    this.markPersisted('fastTrack');
   }
 
   /**
@@ -404,6 +479,7 @@ export class ReglasComponent {
     this.trackDetail(ramoId, this.rulesTextService.getExclusions(branchId)).subscribe({
       next: (items) => {
         this.draft.update((d) => (d ? { ...d, commonExclusions: items } : d));
+        this.markPersisted('commonExclusions');
       },
       error: () => {
         /* best-effort */
@@ -438,6 +514,7 @@ export class ReglasComponent {
     // /coverages/summary (see refreshCoverageSummary) so it's accurate before any ramo is ever
     // selected, not just after.
     this.draft.update((d) => (d && d.id === ramoId ? { ...d, coverages } : d));
+    this.markPersisted('coverages');
   }
 
   /**
@@ -472,6 +549,7 @@ export class ReglasComponent {
     this.loadedCoverages = this.loadedCoverages.map((c) =>
       c.id === coverageId ? { ...c, excludedClaimCauseIds: ids } : c,
     );
+    this.markPersisted('coverages');
   }
 
   /**
@@ -506,6 +584,7 @@ export class ReglasComponent {
     this.loadedCoverages = this.loadedCoverages.map((c) =>
       c.id === coverageId ? { ...c, hardRules: rules } : c,
     );
+    this.markPersisted('coverages');
   }
 
   /** Trae del backend la agenda documental real de un hecho generador puntual del ramo. */
@@ -524,6 +603,7 @@ export class ReglasComponent {
               }
             : d,
         );
+        this.markPersisted('requiredDocumentsByClaimCause');
       },
       error: () => {
         /* backend caído: nos quedamos con el mock, sin romper la pantalla */
@@ -540,6 +620,7 @@ export class ReglasComponent {
     this.trackDetail(r.id, this.rulesTextService.getBusinessRules(branchId)).subscribe({
       next: (items) => {
         this.draft.update((d) => (d ? { ...d, businessRules: items } : d));
+        this.markPersisted('businessRules');
       },
       error: () => {
         /* backend caído: nos quedamos con el mock, sin romper la pantalla */
@@ -683,7 +764,18 @@ export class ReglasComponent {
   // chips en "Inactiva" por default como si ya hubiera cargado, en lugar de un loader.
   protected readonly hardStopLoading = signal(true);
   protected readonly hardStopSaving = signal(false);
-  protected readonly hardStopSaved = signal(false);
+  protected readonly hardStopError = signal<string | null>(null);
+  /** Lo último que confirmó el backend, para decidir si quedan cambios sin guardar. */
+  private readonly persistedHardRules = signal<InsurerHardRule[]>([]);
+
+  protected readonly hardStopDirty = computed(
+    () => JSON.stringify(this.insurerHardRules()) !== JSON.stringify(this.persistedHardRules()),
+  );
+
+  protected discardHardStop(): void {
+    this.insurerHardRules.set(structuredClone(this.persistedHardRules()));
+    this.hardStopError.set(null);
+  }
 
   protected readonly onArrearsOptions: SelectOption[] = [
     { value: 'REJECT', label: 'Rechazar en el alta' },
@@ -696,7 +788,10 @@ export class ReglasComponent {
       .getInsurerWide()
       .pipe(finalize(() => this.hardStopLoading.set(false)))
       .subscribe({
-        next: (rules) => this.insurerHardRules.set(rules),
+        next: (rules) => {
+          this.insurerHardRules.set(rules);
+          this.persistedHardRules.set(structuredClone(rules));
+        },
         error: () => {
           /* backend caído: la pestaña queda vacía, sin romper la pantalla */
         },
@@ -711,14 +806,12 @@ export class ReglasComponent {
     this.insurerHardRules.update((list) =>
       list.map((r) => (r.ruleType === type ? { ...r, enabled: !r.enabled } : r)),
     );
-    this.hardStopSaved.set(false);
   }
 
   protected setOnArrears(value: string): void {
     this.insurerHardRules.update((list) =>
       list.map((r) => (r.ruleType === 'POLICY_STANDING' ? { ...r, onArrears: value as OnArrears } : r)),
     );
-    this.hardStopSaved.set(false);
   }
 
   protected policyStandingRule(): InsurerHardRule | undefined {
@@ -734,15 +827,16 @@ export class ReglasComponent {
       return;
     }
     this.hardStopSaving.set(true);
-    this.hardStopSaved.set(false);
+    this.hardStopError.set(null);
     this.hardRulesService.saveInsurerWide(this.insurerHardRules()).subscribe({
       next: (rules) => {
         this.insurerHardRules.set(rules);
+        this.persistedHardRules.set(structuredClone(rules));
         this.hardStopSaving.set(false);
-        this.hardStopSaved.set(true);
       },
       error: (e: unknown) => {
         this.hardStopSaving.set(false);
+        this.hardStopError.set(this.backendErrorMessage(e));
         this.toastService.show(this.backendErrorMessage(e));
       },
     });
@@ -844,7 +938,6 @@ export class ReglasComponent {
       return;
     }
     this.selectedDocClaimCauseId.set(claimCauseId);
-    this.docSaved.set(false);
     this.docError.set(null);
     const d = this.draft();
     if (d) {
@@ -949,7 +1042,6 @@ export class ReglasComponent {
       return;
     }
     this.ftError.set(null);
-    this.ftSaved.set(false);
     const branchId = this.branchIdOf(d);
     if (branchId == null) {
       this.ftError.set('Este ramo todavía no existe en el backend.');
@@ -971,7 +1063,7 @@ export class ReglasComponent {
     this.ftService.saveForBranch(branchId, dto).subscribe({
       next: () => {
         this.ftSaving.set(false);
-        this.ftSaved.set(true);
+        this.markPersisted('fastTrack');
         // Recarga desde el backend para reflejar exactamente lo que quedó persistido.
         this.loadFastTrackFromBackend(d);
       },
@@ -994,7 +1086,6 @@ export class ReglasComponent {
       return;
     }
     this.covError.set(null);
-    this.covSaved.set(false);
     const branchId = this.branchIdOf(d);
     if (branchId == null) {
       this.covError.set('Este ramo todavía no existe en el backend.');
@@ -1027,7 +1118,7 @@ export class ReglasComponent {
     forkJoin(requests.length ? requests : [of(null)]).subscribe({
       next: () => {
         this.covSaving.set(false);
-        this.covSaved.set(true);
+        this.markPersisted('coverages', 'commonExclusions');
         // Recarga: los que eran altas ahora tienen id real del backend.
         this.loadCoveragesFromBackend(d);
         // Un alta o baja de cobertura cambió el conteo que ve la lista de ramos.
@@ -1067,7 +1158,6 @@ export class ReglasComponent {
       return;
     }
     this.docError.set(null);
-    this.docSaved.set(false);
     const branchId = this.branchIdOf(d);
     if (branchId == null) {
       this.docError.set('Este ramo todavía no existe en el backend.');
@@ -1078,7 +1168,7 @@ export class ReglasComponent {
     this.documentsService.save(branchId, claimCauseId, documentTypes).subscribe({
       next: () => {
         this.docSaving.set(false);
-        this.docSaved.set(true);
+        this.markPersisted('requiredDocumentsByClaimCause');
         // Recarga desde el backend para reflejar exactamente lo que quedó persistido.
         this.loadDocumentsFromBackend(d, claimCauseId);
       },
@@ -1096,7 +1186,6 @@ export class ReglasComponent {
       return;
     }
     this.rulesError.set(null);
-    this.rulesSaved.set(false);
     const branchId = this.branchIdOf(d);
     if (branchId == null) {
       this.rulesError.set('Este ramo todavía no existe en el backend.');
@@ -1106,7 +1195,7 @@ export class ReglasComponent {
     this.rulesTextService.saveBusinessRules(branchId, d.businessRules).subscribe({
       next: () => {
         this.rulesSaving.set(false);
-        this.rulesSaved.set(true);
+        this.markPersisted('businessRules');
         // Recarga desde el backend para reflejar exactamente lo que quedó persistido.
         this.loadBusinessRulesFromBackend(d);
       },

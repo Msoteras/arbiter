@@ -63,18 +63,12 @@
     </button>
   </div>
 
-  <div class="ft-save">
-    <div class="editor-actions">
-      <app-button [disabled]="saving()" (click)="saveScoring()">
-        {{ saving() ? 'Guardando…' : 'Guardar scoring' }}
-      </app-button>
-      @if (saved()) {
-        <span class="saved-note">✓ Guardado en el motor</span>
-      }
-      @if (error(); as err) {
-        <span class="warn-note">{{ err }}</span>
-      }
-    </div>
-  </div>
+  <app-save-bar
+    [dirty]="dirty()"
+    [saving]="saving()"
+    [error]="error()"
+    (save)="saveScoring()"
+    (discard)="discard()"
+  />
   }
 </app-card>
