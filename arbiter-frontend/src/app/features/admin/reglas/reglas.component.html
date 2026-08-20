@@ -637,10 +637,10 @@
                 @if (claimCauses().length === 0) {
                   <p class="section-hint">Este ramo todavía no tiene hechos generadores cargados.</p>
                 } @else {
-                  <app-table>
+                  <app-table [fixed]="true">
                     <thead>
                       <tr>
-                        <th scope="col">Documento</th>
+                        <th scope="col" class="doc-head-name">Documento</th>
                         @for (cause of claimCauses(); track cause.id) {
                           <th scope="col" class="doc-col">
                             <span class="doc-col-name">{{ cause.name }}</span>

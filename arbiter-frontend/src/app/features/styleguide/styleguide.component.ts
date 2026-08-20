@@ -468,6 +468,12 @@ interface Swatch {
           contenido se proyecta como <span class="mono">thead</span>/<span class="mono">tbody</span>
           nativos. Va dentro de <span class="mono">app-card [flush]</span> para que llegue al borde.
         </p>
+        <p class="sg-p">
+          <span class="mono">[fixed]="true"</span> reparte el ancho por columna en vez de por
+          contenido: las que no declaran ancho quedan todas iguales. Para una matriz (ej. la agenda
+          documental) es lo que corresponde — por contenido, cada columna mide lo que mide su
+          título y la grilla se ve torcida.
+        </p>
         <app-card [flush]="true">
           <app-table>
             <thead>

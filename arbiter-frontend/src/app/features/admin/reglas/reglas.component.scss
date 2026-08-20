@@ -153,7 +153,15 @@
 /* ───────── Agenda documental: matriz documento × hecho generador ───────── */
 /* Las columnas de hechos generadores se centran; la primera (el documento) es la etiqueta y
    manda a la izquierda. */
+/* Con la tabla en `fixed`, las columnas sin ancho declarado se reparten el resto en partes
+   iguales: alcanza con fijar la primera (la del documento) para que las de hechos generadores
+   queden equidistantes, sin importar cuánto mida cada título. */
 .doc-col { text-align: center !important; vertical-align: bottom; }
+/* Los títulos largos ("Robo en vía pública") ahora envuelven en vez de desbordar su columna. */
+.doc-col, .doc-col-name { white-space: normal !important; }
+/* El ancho sale de la primera fila (así funciona table-layout: fixed), así que va en el th del
+   encabezado y no en el de cada fila del cuerpo, donde se ignora. */
+.doc-head-name { width: 34%; }
 .doc-col-name { display: block; color: var(--text-secondary); }
 .doc-col-count { display: block; margin-top: var(--space-1); font-size: var(--font-size-2xs); color: var(--text-muted); text-transform: none; letter-spacing: 0; }
 /* La columna del documento no va en mayúsculas ni atenuada como un th de encabezado: es contenido
