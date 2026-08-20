@@ -1,71 +1,80 @@
 @if (loading()) {
-  <app-inline-loading [size]="26" message="Cargando antecedentes de fraude…" />
+  <app-inline-loading [size]="26" message="Cargando gestión de fraude…" />
 } @else if (rule(); as r) {
-  <app-card class="seccion" heading="Antecedente de fraude">
+  <app-card heading="Gestión de fraude">
     <p class="section-hint">
-      Qué pasa cuando alguien que ya defraudó vuelve a denunciar.
-      <app-info-tip>
-        Lo registra un analista sobre el asegurado, desde el expediente donde se determinó el
-        fraude. Solo pesa el que tiene peritaje detrás. Al modelo no se le cuenta: pesa en el
-        nivel de riesgo, que es explícito y auditable.
-      </app-info-tip>
+      Cómo tratás a quien ya defraudó y a qué peritos externos podés derivar un siniestro para
+      verificarlo.
     </p>
 
-    <div class="setting">
-      <div class="setting-text">
-        <!-- <label for> y no aria-labelledby: app-input no reenvía ese atributo al input interno,
-             pero sí expone su id, así que el label real es lo que efectivamente lo rotula. -->
-        <label class="t-field-label" for="ant-ventana">¿Cuánto tiempo sigue pesando?</label>
-        <p class="setting-note">
-          Cuánto puede pesar un antecedente en el nivel de riesgo antes de vencer solo. Que sume, y
-          cuánto, se configura en Scoring de riesgo.
-        </p>
-      </div>
-      <div class="window">
-        <app-input
-          id="ant-ventana"
-          type="number"
-          [min]="windowMin"
-          [max]="windowMaxAttr"
-          [value]="windowValue()"
-          (valueChange)="setWindow($event)"
-        />
-        <span class="t-note">meses · ≈ {{ windowEquivalente() }}</span>
-      </div>
-    </div>
-    @if (windowInvalida()) {
-      <p class="warn-note">La ventana tiene que estar entre {{ windowMin }} y {{ windowMax }} meses.</p>
-    }
+    <div class="sc-section">
+      <span class="t-section-label">Antecedente de reincidencia</span>
+      <p class="section-hint">
+        Qué pasa cuando alguien que ya defraudó vuelve a denunciar. No rechaza nada por sí solo:
+        es una señal.
+        <app-info-tip>
+          Lo registra un analista sobre el asegurado, desde el expediente donde se determinó el
+          fraude. Solo pesa el que tiene peritaje detrás. Al modelo no se le cuenta: pesa en el
+          nivel de riesgo, que es explícito y auditable.
+        </app-info-tip>
+      </p>
 
-    <div class="setting">
-      <div class="setting-text">
-        <span class="t-field-label" id="ant-ft">¿Le quita el Fast Track a la denuncia nueva?</span>
-        <p class="setting-note">
-          No rechaza nada: el siniestro se resuelve igual, pero lo revisa un analista en vez de
-          salir por la vía rápida.
-        </p>
-      </div>
-      <div class="segmented" role="radiogroup" aria-labelledby="ant-ft">
-        <button
-          type="button"
-          role="radio"
-          [class.active]="r.blocksFastTrack"
-          [attr.aria-checked]="r.blocksFastTrack"
-          (click)="setBlocksFastTrack(true)"
-        >
-          Sí
-        </button>
-        <button
-          type="button"
-          role="radio"
-          [class.active]="!r.blocksFastTrack"
-          [attr.aria-checked]="!r.blocksFastTrack"
-          (click)="setBlocksFastTrack(false)"
-        >
-          No
-        </button>
-      </div>
+      <ul class="rule-rows">
+        <li class="rule-row">
+          <div class="rule-text">
+            <!-- <label for> y no aria-labelledby: app-input no reenvía ese atributo al input
+                 interno, pero sí expone su id, así que el label real es lo que lo rotula. -->
+            <label class="t-field-label" for="ant-ventana">¿Cuánto tiempo sigue pesando?</label>
+            <p class="rule-hint">
+              Cuánto puede pesar un antecedente en el nivel de riesgo antes de vencer solo. Qué
+              tanto suma se configura en Scoring de riesgo.
+            </p>
+          </div>
+          <div class="rule-value window">
+            <app-input
+              id="ant-ventana"
+              type="number"
+              [min]="windowMin"
+              [max]="windowMaxAttr"
+              [value]="windowValue()"
+              (valueChange)="setWindow($event)"
+            />
+            <span class="t-note">meses</span>
+            <span class="window-eq t-note">≈ {{ windowEquivalente() }}</span>
+          </div>
+        </li>
+        @if (windowInvalida()) {
+          <li class="rule-row">
+            <p class="warn-note">
+              La ventana tiene que estar entre {{ windowMin }} y {{ windowMax }} meses.
+            </p>
+          </li>
+        }
+
+        <li class="rule-row" [class.off]="!r.blocksFastTrack">
+          <div class="rule-text">
+            <span class="t-field-label" id="ant-ft">¿Le quita el Fast Track a la denuncia nueva?</span>
+            <p class="rule-hint">
+              No rechaza nada: el siniestro se resuelve igual, pero lo revisa un analista en vez de
+              salir por la vía rápida.
+            </p>
+          </div>
+          <div class="rule-value">
+            <span class="t-note">{{ r.blocksFastTrack ? 'Sí, lo pierde' : 'No' }}</span>
+            <app-switch
+              [checked]="r.blocksFastTrack"
+              [ariaLabel]="'¿Le quita el Fast Track a la denuncia nueva?'"
+              (checkedChange)="setBlocksFastTrack($event)"
+            />
+          </div>
+        </li>
+      </ul>
     </div>
+
+    <!-- Los peritos van en la misma sección y no en una aparte: apuntan a lo mismo — qué hace la
+         aseguradora frente a un fraude. Persisten al instante (alta, edición y baja pegan directo),
+         así que la barra de abajo gobierna solo la regla de arriba. -->
+    <app-peritos-config />
 
     <app-save-bar
       [dirty]="dirty()"

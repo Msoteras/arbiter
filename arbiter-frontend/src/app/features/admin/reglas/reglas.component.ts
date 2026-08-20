@@ -28,7 +28,6 @@ import { ButtonComponent } from '../../../shared/ui/button/button.component';
 import { CardComponent } from '../../../shared/ui/card/card.component';
 import { EmptyStateComponent } from '../../../shared/ui/empty-state/empty-state.component';
 import { InputComponent } from '../../../shared/ui/input/input.component';
-import { PeritosConfigComponent } from '../peritos-config/peritos-config.component';
 import { ScoringConfigComponent } from '../scoring-config/scoring-config.component';
 import { FraudeConfigComponent } from '../fraude-config/fraude-config.component';
 import { SaveBarComponent } from '../../../shared/ui/save-bar/save-bar.component';
@@ -46,7 +45,7 @@ import { accordion, fadeInUp, listStagger, staggerReveal } from '../../../shared
 type TabId = 'coberturas' | 'exclusiones' | 'fastTrack' | 'documentacion' | 'reglas';
 
 /** Las vistas del panel derecho que no dependen del ramo elegido. */
-type GeneralView = 'hardStop' | 'scoring' | 'fraude' | 'peritos';
+type GeneralView = 'hardStop' | 'scoring' | 'fraude';
 
 /**
  * Configuración de reglas del referente, Ramo-céntrica. Master (lista de ramos) + detalle con
@@ -69,7 +68,6 @@ type GeneralView = 'hardStop' | 'scoring' | 'fraude' | 'peritos';
     CardComponent,
     EmptyStateComponent,
     InputComponent,
-    PeritosConfigComponent,
     ScoringConfigComponent,
     FraudeConfigComponent,
     SaveBarComponent,
@@ -369,8 +367,9 @@ export class ReglasComponent {
   protected readonly generalSections: { id: GeneralView; label: string }[] = [
     { id: 'hardStop', label: 'Hard Stop' },
     { id: 'scoring', label: 'Scoring de riesgo' },
-    { id: 'fraude', label: 'Antecedente de fraude' },
-    { id: 'peritos', label: 'Peritos' },
+    // Antecedente y peritos eran dos entradas: apuntan a lo mismo (qué hace la compañía frente a
+    // un fraude) y se usan en el mismo momento, así que ahora son una sección sola.
+    { id: 'fraude', label: 'Gestión de fraude' },
   ];
 
   protected selectGeneral(section: GeneralView): void {

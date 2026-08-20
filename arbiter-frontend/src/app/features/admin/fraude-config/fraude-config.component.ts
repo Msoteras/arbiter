@@ -12,8 +12,20 @@ import { InputComponent } from '../../../shared/ui/input/input.component';
 import { InfoTipComponent } from '../../../shared/ui/info-tip/info-tip.component';
 import { InlineLoadingComponent } from '../../../shared/ui/inline-loading/inline-loading.component';
 import { SaveBarComponent } from '../../../shared/ui/save-bar/save-bar.component';
+import { SwitchComponent } from '../../../shared/ui/switch/switch.component';
+import { PeritosConfigComponent } from '../peritos-config/peritos-config.component';
 
 /**
+ * Gestión de fraude de la aseguradora: el antecedente de reincidencia y el catálogo de peritos.
+ *
+ * Las dos cosas viven juntas porque contestan la misma pregunta —qué hace la compañía frente a un
+ * fraude— y porque se usan en el mismo momento: el peritaje es lo que convierte una sospecha en el
+ * hecho verificado del que después sale el antecedente.
+ *
+ * La barra de guardado gobierna solo la regla: el catálogo de peritos persiste al instante (alta,
+ * edición y baja pegan directo contra el backend), así que para esa parte no hay nada pendiente que
+ * guardar.
+ *
  * Política de antecedentes de fraude de la aseguradora. Como el scoring y los peritos, es config
  * de TODA la aseguradora y no de un ramo: el antecedente pesa sobre la persona, y con qué cobertura
  * denunció la próxima vez no cambia lo que se determinó sobre ella.
@@ -33,6 +45,8 @@ import { SaveBarComponent } from '../../../shared/ui/save-bar/save-bar.component
     InfoTipComponent,
     InlineLoadingComponent,
     SaveBarComponent,
+    SwitchComponent,
+    PeritosConfigComponent,
   ],
   changeDetection: ChangeDetectionStrategy.OnPush,
   templateUrl: './fraude-config.component.html',
@@ -116,6 +130,7 @@ export class FraudeConfigComponent {
   protected setBlocksFastTrack(blocksFastTrack: boolean): void {
     this.patch({ blocksFastTrack });
   }
+
 
   protected setWindow(value: string): void {
     // Vacío no es cero: dejar 0 haría que todo antecedente naciera vencido. Se queda en lo que
