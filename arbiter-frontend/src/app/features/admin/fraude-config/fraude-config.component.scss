@@ -1,32 +1,49 @@
 :host { display: block; }
 
-/* Mismo tratamiento que las otras secciones de la pantalla de reglas (Hard Stop, Scoring): el
-   chip es el toggle, y la letra chica explica la consecuencia de dejarlo en cada posición. */
+/* Sin max-width: la letra chica usa el ancho de la card, como el resto de la pantalla de reglas.
+   Un tope de medida acá cortaba el renglón a media card y se leía como un defecto de layout. */
 .section-hint { margin: 0 0 var(--space-3); color: var(--text-secondary); font-size: var(--font-size-sm); }
-.subsection-head { display: flex; align-items: center; gap: var(--space-3); margin: var(--space-4) 0 var(--space-2); }
-.fieldset { display: flex; flex-direction: column; gap: var(--space-1); max-width: 220px; }
+
+/* Cada decisión en su renglón: rótulo a la izquierda, control a la derecha. El rótulo NO queda
+   dentro de la caja angosta del campo — con el ancho del input encima se partía en dos líneas
+   teniendo media card libre al lado. */
+.setting {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-4);
+  flex-wrap: wrap;
+  margin: var(--space-4) 0 0;
+}
+
+/* El ancho se limita al input, no al renglón. */
+.window { display: flex; align-items: center; gap: var(--space-3); }
+.window app-input { width: 96px; }
+
+/* Sí/No a la vista los dos, en vez de un chip que hay que apretar para descubrir el otro estado. */
+.segmented { display: inline-flex; border: 1px solid var(--border-control); border-radius: var(--radius-pill); overflow: hidden; }
+.segmented button {
+  font: inherit;
+  font-size: var(--font-size-xs);
+  padding: var(--space-1) var(--space-4);
+  border: 0;
+  background: var(--surface);
+  color: var(--text-secondary);
+  cursor: pointer;
+}
+.segmented button + button { border-left: 1px solid var(--border-control); }
+.segmented button:hover:not(.active) { background: var(--surface-soft); }
+.segmented button.active { background: var(--selected-bg); color: var(--accent-fg); font-weight: var(--font-weight-medium); }
+.segmented button:focus-visible { outline: none; box-shadow: var(--focus-ring); }
+
 .warn-note { margin: var(--space-2) 0 0; color: var(--status-danger); font-size: var(--font-size-sm); }
 .saved-note { color: var(--status-ok); font-size: var(--font-size-sm); }
 .editor-actions { display: flex; align-items: center; gap: var(--space-2); }
 .ft-save {
-  margin-top: var(--space-4);
+  margin-top: var(--space-5);
   padding-top: var(--space-4);
   border-top: 1px solid var(--border-default);
   display: flex;
   flex-direction: column;
   gap: var(--space-3);
 }
-
-.chip {
-  font: inherit;
-  font-size: var(--font-size-xs);
-  padding: var(--space-1) var(--space-3);
-  border: 1px solid var(--border-control);
-  border-radius: var(--radius-pill);
-  background: var(--surface);
-  color: var(--text-secondary);
-  cursor: pointer;
-}
-.chip:hover { border-color: var(--border-strong); }
-.chip.active { background: var(--selected-bg); border-color: var(--selected-border); color: var(--accent-fg); }
-.chip:focus-visible { outline: none; border-color: var(--border-focus); box-shadow: var(--focus-ring); }

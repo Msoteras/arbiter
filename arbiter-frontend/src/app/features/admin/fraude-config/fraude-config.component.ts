@@ -87,12 +87,12 @@ export class FraudeConfigComponent {
     });
   }
 
-  protected toggleEnabled(): void {
-    this.patch({ enabled: !this.rule()!.enabled });
+  protected setEnabled(enabled: boolean): void {
+    this.patch({ enabled });
   }
 
-  protected toggleBlocksFastTrack(): void {
-    this.patch({ blocksFastTrack: !this.rule()!.blocksFastTrack });
+  protected setBlocksFastTrack(blocksFastTrack: boolean): void {
+    this.patch({ blocksFastTrack });
   }
 
   protected setWindow(value: string): void {

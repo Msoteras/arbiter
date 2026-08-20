@@ -12,55 +12,74 @@
       </app-info-tip>
     </p>
 
-    <div class="subsection-head">
-      <span class="t-field-label">Los antecedentes cuentan</span>
-      <button
-        type="button"
-        class="chip"
-        [class.active]="r.enabled"
-        [attr.aria-pressed]="r.enabled"
-        (click)="toggleEnabled()"
-      >
-        {{ r.enabled ? 'Sí' : 'No' }}
-      </button>
+    <div class="setting">
+      <span class="t-field-label" id="ant-usar">Usar el antecedente al analizar denuncias nuevas</span>
+      <div class="segmented" role="radiogroup" aria-labelledby="ant-usar">
+        <button
+          type="button"
+          role="radio"
+          [class.active]="r.enabled"
+          [attr.aria-checked]="r.enabled"
+          (click)="setEnabled(true)"
+        >
+          Sí
+        </button>
+        <button
+          type="button"
+          role="radio"
+          [class.active]="!r.enabled"
+          [attr.aria-checked]="!r.enabled"
+          (click)="setEnabled(false)"
+        >
+          No
+        </button>
+      </div>
     </div>
 
     @if (r.enabled) {
-      <label class="fieldset">
-        <span class="t-field-label">Cuánto tiempo sigue contando, en meses</span>
-        <app-input
-          type="number"
-          [min]="windowMin"
-          [max]="windowMaxAttr"
-          [value]="windowValue()"
-          (valueChange)="setWindow($event)"
-        />
-      </label>
-      <p class="section-hint">
-        Equivale a {{ windowEquivalente() }}. Se cuenta desde el día en que se registró el
-        antecedente; pasado ese plazo deja de pesar solo, sin que nadie tenga que ir a borrarlo.
-      </p>
+      <div class="setting">
+        <!-- <label for> y no aria-labelledby: app-input no reenvía ese atributo al input interno,
+             pero sí expone su id, así que el label real es lo que efectivamente lo rotula. -->
+        <label class="t-field-label" for="ant-ventana">Cuánto tiempo sigue pesando</label>
+        <div class="window">
+          <app-input
+            id="ant-ventana"
+            type="number"
+            [min]="windowMin"
+            [max]="windowMaxAttr"
+            [value]="windowValue()"
+            (valueChange)="setWindow($event)"
+          />
+          <span class="t-note">meses · equivale a {{ windowEquivalente() }}</span>
+        </div>
+      </div>
       @if (windowInvalida()) {
         <p class="warn-note">La ventana tiene que estar entre {{ windowMin }} y {{ windowMax }} meses.</p>
       }
 
-      <div class="subsection-head">
-        <span class="t-field-label">Además, le saca el Fast Track a la denuncia nueva</span>
-        <button
-          type="button"
-          class="chip"
-          [class.active]="r.blocksFastTrack"
-          [attr.aria-pressed]="r.blocksFastTrack"
-          (click)="toggleBlocksFastTrack()"
-        >
-          {{ r.blocksFastTrack ? 'Sí' : 'No' }}
-        </button>
+      <div class="setting">
+        <span class="t-field-label" id="ant-ft">Sacarle la vía rápida a la denuncia nueva</span>
+        <div class="segmented" role="radiogroup" aria-labelledby="ant-ft">
+          <button
+            type="button"
+            role="radio"
+            [class.active]="r.blocksFastTrack"
+            [attr.aria-checked]="r.blocksFastTrack"
+            (click)="setBlocksFastTrack(true)"
+          >
+            Sí
+          </button>
+          <button
+            type="button"
+            role="radio"
+            [class.active]="!r.blocksFastTrack"
+            [attr.aria-checked]="!r.blocksFastTrack"
+            (click)="setBlocksFastTrack(false)"
+          >
+            No
+          </button>
+        </div>
       </div>
-      <p class="section-hint">
-        No rechaza nada: el siniestro se resuelve igual, pero lo mira un analista en vez de salir
-        por la vía rápida. Rechazarlo exigiría una causa de exclusión del contrato, y haber
-        defraudado antes no lo es.
-      </p>
     } @else {
       <p class="section-hint">
         Los antecedentes se siguen registrando y el analista los sigue viendo en el expediente. Lo
