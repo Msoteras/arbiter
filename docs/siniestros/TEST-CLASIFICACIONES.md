@@ -106,6 +106,9 @@ ollama serve  # verifica que el modelo Qwen3-VL está cargado
 
 ## Notas
 
+- El caso de referencia de `FAST_TRACK` (BBVA, ramo Celulares, con denuncia policial y foto del
+  equipo reales) está documentado aparte en
+  [caso-prueba-fast-track-celulares.md](caso-prueba-fast-track-celulares.md).
 - Los fixtures están en `classification-service/src/test/resources/fixtures/`
 - Cada fixture es un JSON con `nombre`, `clasificacionEsperada`, y el `request` a enviar
 - El script enriquece los requests con valores dummy para campos obligatorios (aseguradoDni, polizaNumero, fechaHecho) que no están en los fixtures

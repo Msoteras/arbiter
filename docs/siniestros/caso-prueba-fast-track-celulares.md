@@ -1,6 +1,6 @@
 # Caso de prueba — Fast Track (Express) · BBVA · Ramo Celulares
 
-Caso de referencia del **gate determinístico**: la denuncia pasa las tres compuertas que gobiernan
+Caso de referencia del **gate determinístico**: la denuncia pasa las cuatro compuertas que gobiernan
 la vía expedita, así que se resuelve sin invocar al LLM y el expediente llega al analista listo
 para decidir.
 
@@ -35,11 +35,12 @@ el umbral está pensado para dejar pasar.
 
 ## 2 · Por qué tiene que dar `FAST_TRACK`
 
-No alcanza con los umbrales. El orquestador exige que **tres evaluadores** den verde a la vez
-([ClassificationOrchestrator:235](../../classification-service/src/main/java/ar/edu/utn/frba/arbiter/classification/services/ClassificationOrchestrator.java#L235)):
+No alcanza con los umbrales. El orquestador exige que **cuatro evaluadores** den verde a la vez
+([ClassificationOrchestrator:331](../../classification-service/src/main/java/ar/edu/utn/frba/arbiter/classification/services/ClassificationOrchestrator.java#L331)):
 
 ```java
-if (fastTrack.fastTrack() && !temporal.blocksFastTrack() && !scope.blocksFastTrack())
+if (fastTrack.fastTrack() && !temporal.blocksFastTrack() && !scope.blocksFastTrack()
+        && !fraud.blocksFastTrack())
 ```
 
 y antes de llegar ahí ya se descartaron la exclusión de cobertura y la falta de documentación.
@@ -49,7 +50,7 @@ y antes de llegar ahí ya se descartaron la exclusión de cobertura y la falta d
 | Compuerta | Qué pide | Este caso |
 |---|---|---|
 | `CoverageRuleEvaluator` — exclusión de cobertura | el hecho generador no puede estar en la lista negra de la cobertura | la cobertura 1 excluye **Hurto** (id 3); acá es **Robo** (id 2) ✅ |
-| Agenda documental | los 4 documentos del ramo, adjuntos | los 4 van en el request ✅ |
+| Agenda documental | los documentos que la agenda pide para **ramo + hecho generador** (Celulares · Robo: los 4) | los 4 van en el request ✅ |
 
 ### 2.1 · Los umbrales — `FastTrackValidator`
 
@@ -86,22 +87,42 @@ Cualquiera que falle bloquea el Fast Track, aunque los cinco umbrales hayan pasa
 | `covers_family_group` | `false` — la cobertura no alcanza al grupo familiar | la damnificada es la titular | ✅ |
 | `claim_exhausts_coverage` | `false` en la cobertura 1 | la regla no participa | ✅ |
 
+### 2.4 · Los antecedentes de fraude — `FraudRecordRuleEvaluator`
+
+El cuarto evaluador del gate, sumado con la derivación a perito. Es la única regla dura que no mira
+el siniestro sino a la persona: un antecedente **verificado por perito** y todavía dentro de la
+ventana de la aseguradora deja al asegurado fuera de la vía expedita.
+
+| Regla | Configurado | Este caso | ¿Pasa? |
+|---|---|---|---|
+| `FRAUD_RECORD` sobre el asegurado | la regla decide si el antecedente bloquea, y con qué ventana | el seed no carga ningún `insured_fraud_record`, así que no hay antecedente que evaluar | ✅ |
+
+Para el caso espejo: cargarle a la asegurada un antecedente con respaldo pericial y vigente, y
+verificar que el expediente pierda el Fast Track sin ser rechazado — el antecedente manda a revisión
+humana, no resuelve.
+
 ## 3 · Los fixtures y por qué se regeneran
 
 ```
 docs/postman/test-docs/
-├── generar-fixtures.js                ← genera todo lo de abajo
-├── caso_fast_track.json               → parte multipart  case
-├── denuncia_policial_fast_track.pdf   → parte multipart  police_report
-├── factura_compra_fast_track.pdf      → parte multipart  purchase_proof
-├── baja_imei_fast_track.pdf           → parte multipart  imei_deregistration
-├── ultima_conexion_fast_track.pdf     → parte multipart  last_connection
-└── foto_equipo_fast_track.jpg         → parte multipart  item_photo   (opcional, ver §3.3)
+├── generar-fixtures.js                        ← genera los cuatro casos del ramo
+├── foto_equipo_para_fraude.jpg                → parte multipart  item_photo   (opcional, ver §3.3)
+└── conMarcaDePrueba/celulares/robo/
+    ├── caso_robo.json                         → parte multipart  case
+    ├── denuncia_policial_celulares.pdf        → parte multipart  police_report
+    ├── factura_compra_celulares.pdf           → parte multipart  purchase_proof
+    ├── baja_imei_celulares.pdf                → parte multipart  imei_deregistration
+    └── ultima_conexion_celulares.pdf          → parte multipart  last_connection
 ```
 
 ```bash
-node docs/postman/test-docs/generar-fixtures.js docs/postman/test-docs
+node docs/postman/test-docs/generar-fixtures.js
 ```
+
+El mismo script escribe los otros tres hechos generadores del ramo —`hurto/`, `caida/` y
+`rotura accidental/`—, cada uno con la documentación que su agenda exige. El inventario completo,
+y cómo sumar un escenario propio reusando el motor, están en el
+[README de fixtures](../postman/test-docs/README.md).
 
 **El set caduca a las 72 hs y hay que regenerarlo.** `cases.reported_at` es `@CreationTimestamp`
 —el momento en que se crea el expediente— y la regla D11 compara `reportedAt − eventDate` contra
@@ -110,14 +131,15 @@ días después de escrito, sin que nada avise. Por eso el generador ancla el hec
 19:25**: fecha relativa, hora fija, siempre entre 24 y 49 hs antes de la corrida. El script imprime
 la fecha exacta de vencimiento al terminar.
 
-Los cinco archivos salen de un **único objeto `CASE`**, así que la coherencia entre el payload y los
-documentos está garantizada por construcción y no por copiar a mano. El IMEI, el DNI, la línea, el
+Los archivos de cada caso salen de un **único objeto de escenario**, así que la coherencia entre el
+payload y los documentos está garantizada por construcción y no por copiar a mano. El IMEI, el DNI, la línea, el
 modelo y las fechas son los mismos en todos.
 
 ### 3.1 · Convención de nombre
 
-`<qué_es>_<escenario>.<ext>` — prefijo = el documento, sufijo = el escenario de prueba
-(`fast_track`, `ambigua`, …), igual que el `denuncia_policial_ambigua.pdf` que ya existía.
+`<qué_es>_<ramo>.<ext>` — el prefijo dice qué documento es y el sufijo de qué ramo; **el hecho
+generador lo da la carpeta**, así que el mismo nombre se repite en `robo/` y en `hurto/` con otro
+contenido.
 
 **El nombre de archivo no lo lee el backend.** Lo que el sistema usa es el **nombre de la parte
 multipart** (`police_report`, `purchase_proof`, `imei_deregistration`, `last_connection`,
@@ -145,7 +167,7 @@ Que sean de 1 sola página importa: `OllamaDocumentAnalyzer` rasteriza el PDF a 
 
 ### 3.3 · La foto: opcional, y no inocente
 
-`foto_equipo_fast_track.jpg` es una foto real de un Samsung Galaxy A56 5G (1280×2276, ~600 KB),
+`foto_equipo_para_fraude.jpg` es una foto real de un Samsung Galaxy A56 5G (1280×2276, ~600 KB),
 tomada a mano sobre una mesa — como llega la foto de un asegurado, no un render de prensa.
 Wikimedia Commons, [`File:SmsnGlxA565gBack2026040500.jpg`](https://commons.wikimedia.org/wiki/File:SmsnGlxA565gBack2026040500.jpg),
 autor OnionBulb, CC BY-SA 4.0.
@@ -171,20 +193,22 @@ pide un solo documento en vez de cuatro. El caso "pasaría" por una caída de se
 estar bien armado.
 
 ```bash
-node docs/postman/test-docs/generar-fixtures.js docs/postman/test-docs
+node docs/postman/test-docs/generar-fixtures.js
 
 TOKEN=$(curl -s -X POST http://localhost:8080/api/v1/auth/login \
   -H 'Content-Type: application/json' \
   -d '{"email":"asegurado.arbiter@gmail.com","password":"asegurado.arbiter123"}' \
   | sed -n 's/.*"token":"\([^"]*\)".*/\1/p')
 
+C=docs/postman/test-docs/conMarcaDePrueba/celulares/robo
+
 curl -X POST http://localhost:8083/api/v1/cases \
   -H "Authorization: Bearer $TOKEN" \
-  -F "case=<docs/postman/test-docs/caso_fast_track.json;type=application/json" \
-  -F "police_report=@docs/postman/test-docs/denuncia_policial_fast_track.pdf;type=application/pdf" \
-  -F "purchase_proof=@docs/postman/test-docs/factura_compra_fast_track.pdf;type=application/pdf" \
-  -F "imei_deregistration=@docs/postman/test-docs/baja_imei_fast_track.pdf;type=application/pdf" \
-  -F "last_connection=@docs/postman/test-docs/ultima_conexion_fast_track.pdf;type=application/pdf"
+  -F "case=<$C/caso_robo.json;type=application/json" \
+  -F "police_report=@$C/denuncia_policial_celulares.pdf;type=application/pdf" \
+  -F "purchase_proof=@$C/factura_compra_celulares.pdf;type=application/pdf" \
+  -F "imei_deregistration=@$C/baja_imei_celulares.pdf;type=application/pdf" \
+  -F "last_connection=@$C/ultima_conexion_celulares.pdf;type=application/pdf"
 ```
 
 Dos detalles del `curl` que cuestan una tarde si no se saben:

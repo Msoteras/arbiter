@@ -5,16 +5,22 @@ de [Celulares](caso-prueba-fast-track-celulares.md). Cuatro PDFs + el payload de
 generados desde un único objeto para que no puedan divergir entre sí.
 
 ```bash
-node docs/postman/test-docs/generar-fixtures-tecnologia.js docs/postman/test-docs
+node docs/postman/test-docs/generar-fixtures-tecnologia.js
 ```
+
+El mismo script escribe los otros dos hechos generadores del ramo —`hurto/` y `danio_acc/`—, cada
+uno con la documentación que su agenda exige. El inventario completo, y cómo sumar un escenario propio
+reusando el motor, están en el [README de fixtures](../postman/test-docs/README.md).
 
 ```
 docs/postman/test-docs/
-├── caso_tecnologia.json               → parte multipart  case
-├── denuncia_policial_tecnologia.pdf   → parte multipart  police_report
-├── factura_compra_tecnologia.pdf      → parte multipart  purchase_proof
-├── bloqueo_equipo_tecnologia.pdf      → parte multipart  imei_deregistration
-└── ultima_conexion_tecnologia.pdf     → parte multipart  last_connection
+├── generar-fixtures-tecnologia.js         ← genera los tres casos del ramo
+└── conMarcaDePrueba/tec-portatil/robo/
+    ├── caso_robo.json                     → parte multipart  case
+    ├── denuncia_policial_tecnologia.pdf   → parte multipart  police_report
+    ├── factura_compra_tecnologia.pdf      → parte multipart  purchase_proof
+    ├── bloqueo_equipo_tecnologia.pdf      → parte multipart  imei_deregistration
+    └── ultima_conexion_tecnologia.pdf     → parte multipart  last_connection
 ```
 
 > **El nombre del archivo no lo lee el backend.** Lo que el sistema usa es el **nombre de la parte
@@ -23,18 +29,32 @@ docs/postman/test-docs/
 
 ---
 
-## 1 · Por qué el hecho generador es robo y no daño accidental
+## 1 · Por qué el hecho generador es robo, y qué pide hoy la agenda
 
-La agenda documental del ramo 2 hoy pide **los mismos cuatro documentos que Celulares**
-([init-multitenant.sql:738-741](../../db/init-multitenant.sql#L738-L741)), y esos cuatro solo se
-sostienen juntos si hubo sustracción: en un daño accidental no existe ni la denuncia policial ni una
-constancia de última conexión. El set se armó **para la agenda que hay**, sin reconfigurarla.
+> **La agenda del ramo cambió en `develop`.** Cuando se armó este set, el ramo 2 pedía los mismos
+> cuatro documentos que Celulares para cualquier hecho generador. Desde D5 la agenda se configura
+> **por hecho generador**, y el seed la reescribió con criterio
+> ([init-multitenant.sql:1039-1050](../../db/init-multitenant.sql#L1039-L1050)). El set se realineó:
+> ver §7.
 
-Además la agenda es **por ramo, no por hecho generador**: el panel del referente escribe la misma
-lista para los tres hechos generadores del ramo
-([DocumentRequirementService.java:59-77](../../rules-service/src/main/java/ar/edu/utn/frba/arbiter/rules/services/DocumentRequirementService.java#L59-L77)).
-No se puede pedir presupuesto de reparación para daño accidental y denuncia policial para robo sin
-tocar código.
+Hoy el seed pide, para el ramo Tecnología Portátil:
+
+| Hecho generador | Documentos obligatorios |
+|---|---|
+| Daño accidental (6) | `purchase_proof` · `repair_quote` · `item_photo` |
+| **Robo en vía pública (7)** | **`police_report` · `purchase_proof` · `item_photo`** |
+| Hurto (8) | `police_report` · `purchase_proof` · `item_photo` |
+
+El hecho generador de este set sigue siendo **robo**, y ahora por un motivo más fuerte que antes: es
+el único de los tres al que una denuncia policial le corresponde de verdad. Lo que cambió es el
+resto de la lista — la agenda ya no pide `imei_deregistration` ni `last_connection` para una
+notebook, que era justo lo que este set había tenido que resolver inventando el equivalente para un
+equipo sin IMEI.
+
+La lectura también dejó de ser por ramo: el motor resuelve ramo **+ hecho generador**
+([DocumentRequirementService.java:35-40](../../rules-service/src/main/java/ar/edu/utn/frba/arbiter/rules/services/DocumentRequirementService.java#L35-L40)),
+así que dos hechos generadores del mismo ramo pueden pedir cosas distintas — que es exactamente lo
+que hacen.
 
 ## 2 · En qué se diferencia del set de Celulares
 
@@ -96,6 +116,9 @@ Qué se puede mutar:
 
 ### `imei_deregistration` — Constancia de bloqueo del equipo · `bloqueo_equipo_tecnologia.pdf`
 
+> **La agenda ya no lo exige para este ramo** (§1). Sigue siendo un adjunto válido y el LLM lo lee
+> cuando el caso no fast-trackea, pero no cuenta para el gate de documentación.
+
 El equivalente para una notebook de la baja de IMEI. Un equipo portátil no se da de baja de una red
 móvil —no está en ninguna—: se **bloquea contra la cuenta del fabricante** y su número de serie
 queda registrado como sustraído.
@@ -117,6 +140,8 @@ Qué se puede mutar:
 
 ### `last_connection` — Informe de última conexión · `ultima_conexion_tecnologia.pdf`
 
+> **Tampoco lo exige ya la agenda** (§1), con el mismo alcance que el anterior.
+
 **Corrobora hora y lugar del hecho con un dato técnico**, independiente del relato: el equipo estaba
 en la red del campus hasta minutos antes, se conectó una última vez a una red Wi-Fi abierta a pocas
 cuadras del lugar del robo, recibió ahí el comando de bloqueo, y no volvió a aparecer.
@@ -134,17 +159,20 @@ Qué se puede mutar:
 ## 4 · Qué documentos lee el sistema en cada camino
 
 Esto no es obvio y cambia lo que se puede afirmar de una corrida
-([ClassificationOrchestrator.java:203-246](../../classification-service/src/main/java/ar/edu/utn/frba/arbiter/classification/services/ClassificationOrchestrator.java#L203-L246)):
+([ClassificationOrchestrator.java:300-352](../../classification-service/src/main/java/ar/edu/utn/frba/arbiter/classification/services/ClassificationOrchestrator.java#L300-L352)):
 
 | Momento | Qué documentos se leen |
 |---|---|
-| Gate de la agenda | **ninguno** — solo verifica que los cuatro *tipos* estén adjuntos. Si falta uno, corta con `FALTA_DOCUMENTACION` y no analiza nada |
+| Gate de la agenda | **ninguno** — solo verifica que los *tipos* exigidos estén adjuntos. Si falta uno, corta con `FALTA_DOCUMENTACION` y no analiza nada |
 | Gate de Fast Track | **solo la denuncia policial** (los que pide `requiredDocumentTypes`) |
-| Si dio Fast Track | ahí termina: los otros tres **nunca se OCRean** |
-| Si NO dio Fast Track | se extraen **los cuatro** y su texto entra al prompt del LLM |
+| Si dio Fast Track | por defecto ahí termina: el resto **no se OCREA**… |
+| …salvo que el tenant tenga `full_analysis_on_fast_track` | entonces sí se extraen todos, aunque el veredicto ya esté decidido |
+| Si NO dio Fast Track | se extraen **todos** y su texto entra al prompt del LLM |
 
-O sea: en una corrida que da `FAST_TRACK`, tres de los cuatro PDFs solo se usaron para completar la
-agenda. Para ejercitar la lectura del modelo hay que armar un caso que **no** pase el gate.
+O sea: en una corrida que da `FAST_TRACK` con la configuración por defecto, los demás PDFs solo
+sirvieron para completar la agenda. Para ejercitar la lectura del modelo hay que armar un caso que
+**no** pase el gate, o prender `full_analysis_on_fast_track` en la configuración de scoring del
+tenant (el seed lo deja en `FALSE`).
 
 Que sean de **una sola página** importa por lo mismo: `OllamaDocumentAnalyzer` rasteriza el PDF a
 150 DPI y manda **cada página** al modelo de visión. Un PDF de 5 páginas son 5 inferencias.
@@ -179,15 +207,17 @@ La cadena temporal que comparten los cuatro documentos:
 ## 6 · Cómo correrlo
 
 ```bash
-node docs/postman/test-docs/generar-fixtures-tecnologia.js docs/postman/test-docs
+node docs/postman/test-docs/generar-fixtures-tecnologia.js
+
+T=docs/postman/test-docs/conMarcaDePrueba/tec-portatil/robo
 
 curl -X POST http://localhost:8083/api/v1/cases \
   -H "Authorization: Bearer $TOKEN" \
-  -F "case=<docs/postman/test-docs/caso_tecnologia.json;type=application/json" \
-  -F "police_report=@docs/postman/test-docs/denuncia_policial_tecnologia.pdf;type=application/pdf" \
-  -F "purchase_proof=@docs/postman/test-docs/factura_compra_tecnologia.pdf;type=application/pdf" \
-  -F "imei_deregistration=@docs/postman/test-docs/bloqueo_equipo_tecnologia.pdf;type=application/pdf" \
-  -F "last_connection=@docs/postman/test-docs/ultima_conexion_tecnologia.pdf;type=application/pdf"
+  -F "case=<$T/caso_robo.json;type=application/json" \
+  -F "police_report=@$T/denuncia_policial_tecnologia.pdf;type=application/pdf" \
+  -F "purchase_proof=@$T/factura_compra_tecnologia.pdf;type=application/pdf" \
+  -F "imei_deregistration=@$T/bloqueo_equipo_tecnologia.pdf;type=application/pdf" \
+  -F "last_connection=@$T/ultima_conexion_tecnologia.pdf;type=application/pdf"
 ```
 
 El `case` va **desde archivo** (`=<`, no `=@`): con `@` curl lo manda como parte de archivo y Spring
@@ -205,7 +235,15 @@ acentos, y rasterizan a 150 DPI (1240×1753). Coherencia cruzada comprobada por 
 el nº de serie y el DNI aparecen en los cuatro, la MAC y el nº de constancia de bloqueo en los dos
 del service, el nº de actuación policial en los dos que corresponde.
 
-**Dos cosas del entorno frenan la corrida, y ninguna es de los documentos:**
+**El set cubre la agenda completa.** Robo en Tecnología Portátil pide `police_report` +
+`purchase_proof` + `item_photo`: los dos PDFs están en la carpeta y la foto es
+`foto_notebook_para_fraude.jpg`, en la raíz de `test-docs` — un MacBook Air Medianoche, el color que
+declara la póliza. Se adjunta desde ahí (ver el README de fixtures para el detalle y las salvedades
+de las fotos). Los otros dos PDFs del set —`imei_deregistration` y `last_connection`— ya no los pide
+la agenda: no estorban, el gate solo mira que estén los requeridos, y siguen entrando al prompt del
+LLM cuando el caso no fast-trackea.
+
+**Lo que sigue frenando la corrida son dos cosas del entorno, ninguna de los documentos:**
 
 1. **El asegurado de prueba no llega a esa póliza.** `POL-TEC-2026-311` vive en `arbiter_provincia`,
    y `PolicyTenantLocator` busca solo entre las aseguradoras del token, que salen de `user_insurer` —
