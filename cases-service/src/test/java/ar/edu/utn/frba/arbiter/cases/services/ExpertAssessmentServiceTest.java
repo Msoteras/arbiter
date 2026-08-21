@@ -82,6 +82,9 @@ class ExpertAssessmentServiceTest {
     @Mock
     private RulesServiceClient rulesServiceClient;
 
+    @Mock
+    private FraudRecordService fraudRecordService;
+
     @InjectMocks
     private ExpertAssessmentService expertAssessmentService;
 
@@ -191,6 +194,54 @@ class ExpertAssessmentServiceTest {
 
         verify(caseStatusService).transition(eq(caseRecord), eq(CaseStatus.PENDING_ANALYST_REVIEW),
                 eq(StatusChangeActor.ANALYST), any());
+    }
+
+    /**
+     * El perito ya probó el hecho: pedirle al analista un segundo clic para que llegue al legajo de
+     * la persona agregaba un paso que se olvida, y olvidarlo deja a alguien sin marca con un informe
+     * que dice lo contrario.
+     */
+    @Test
+    void receiveReport_confirmingFraud_recordsItOnTheInsured() {
+        givenAReportCanBeFiled();
+
+        expertAssessmentService.receiveReport(CASE_ID, ExpertVerdict.FRAUD_CONFIRMED,
+                "El equipo ya estaba dañado antes de la vigencia",
+                new MockMultipartFile("report", "informe.pdf", "application/pdf", "PDF".getBytes()));
+
+        ArgumentCaptor<String> reason = ArgumentCaptor.forClass(String.class);
+        verify(fraudRecordService).registerFromExpertReport(eq(CASE_ID), reason.capture());
+        // El motivo tiene que decir quién lo encontró y qué escribió: es lo que se lee años después
+        // al lado de la marca sobre la persona.
+        assertThat(reason.getValue())
+                .contains("Estudio Verifica S.R.L.")
+                .contains("El equipo ya estaba dañado antes de la vigencia");
+    }
+
+    /** Descartado o no concluyente no dejan nada sobre la persona. */
+    @Test
+    void receiveReport_withoutConfirmedFraud_recordsNothingOnTheInsured() {
+        givenAReportCanBeFiled();
+
+        expertAssessmentService.receiveReport(CASE_ID, ExpertVerdict.FRAUD_DISCARDED, "Todo en regla",
+                new MockMultipartFile("report", "informe.pdf", "application/pdf", "PDF".getBytes()));
+
+        verify(fraudRecordService, never()).registerFromExpertReport(any(), any());
+    }
+
+    private void givenAReportCanBeFiled() {
+        when(caseRepository.findById(CASE_ID))
+                .thenReturn(Optional.of(caseInStatus(CaseStatus.PENDING_EXPERT_REPORT)));
+        when(expertAssessmentRepository.findByCaseId(CASE_ID)).thenReturn(Optional.of(awaitingAssessment()));
+        when(caseDocumentRepository.findByCaseIdAndType(CASE_ID, "expert_report"))
+                .thenReturn(Optional.empty());
+        when(caseDocumentRepository.save(any(CaseDocument.class))).thenAnswer(invocation -> {
+            CaseDocument saved = invocation.getArgument(0);
+            saved.setId(42L);
+            return saved;
+        });
+        when(expertAssessmentRepository.save(any(ExpertAssessment.class)))
+                .thenAnswer(invocation -> invocation.getArgument(0));
     }
 
     /**
