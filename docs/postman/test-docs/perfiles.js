@@ -1,11 +1,11 @@
-// Los dos juegos de fixtures son el mismo caso con distinto firmante. Acá vive lo único que cambia
-// entre las variantes, para que los generadores conserven una sola copia del layout de cada
+// Los dos juegos de fixtures son los mismos casos con distinto firmante. Acá vive lo único que
+// cambia entre las variantes, para que los generadores conserven una sola copia del layout de cada
 // documento:
 //
-//   fraude/    Martina Soteras, con la leyenda de "documento simulado" al pie de cada página.
-//   veridica/  Roman Castillo, sin leyenda: la hoja queda como llegaría la de un asegurado real.
-//              Es para probar el pipeline sin que el modelo de visión lea un cartel que le anticipa
-//              que el documento es de prueba.
+//   conMarcaDePrueba/  Martina Soteras, con la leyenda de "documento simulado" al pie de cada página.
+//   sinMarca/          Roman Castillo, sin leyenda: la hoja queda como llegaría la de un asegurado
+//                      real. Es para probar el pipeline sin que el modelo de visión lea un cartel
+//                      que le anticipa que el documento es de prueba.
 //
 // Los PDFs de las dos variantes se siguen identificando como fixtures en los metadatos
 // (/Subject, /Keywords, /Producer): no se ven en la página ni entran al OCR, pero acompañan al
@@ -20,7 +20,8 @@ const FEMENINO = { el: 'la', El: 'La', del: 'de la', al: 'a la', por: 'por la', 
 const MASCULINO = { el: 'el', El: 'El', del: 'del', al: 'al', por: 'por el', DEL: 'DEL', a: 'o' };
 
 const PROFILES = {
-  fraude: {
+  conMarca: {
+    folder: 'conMarcaDePrueba',
     disclaimer: true,
     g: FEMENINO,
     insured: {
@@ -34,7 +35,8 @@ const PROFILES = {
       email: 'martina.soteras@example.com',
     },
   },
-  veridica: {
+  sinMarca: {
+    folder: 'sinMarca',
     disclaimer: false,
     g: MASCULINO,
     insured: {
@@ -50,20 +52,15 @@ const PROFILES = {
   },
 };
 
-/** `--veridica` en la línea de comandos; sin flag, el juego de siempre. */
+/** `--sin-marca` en la línea de comandos; sin flag, el juego con leyenda. */
 function variantFromArgv(argv = process.argv) {
-  return argv.includes('--veridica') ? 'veridica' : 'fraude';
+  return argv.includes('--sin-marca') ? 'sinMarca' : 'conMarca';
 }
 
-/** El destino que no es un flag, si lo pasaron. */
+/** El destino que no es un flag, si lo pasaron: reemplaza a la raíz de la variante. */
 function outDirFromArgv(argv = process.argv) {
   const positional = argv.slice(2).filter((a) => !a.startsWith('--'));
   return positional.length ? path.resolve(positional[0]) : null;
 }
 
-/** Destino por defecto de cada variante: <test-docs>/<variante>/<escenario>. */
-function defaultOutDir(baseDir, variant, scenario) {
-  return path.join(baseDir, variant, scenario);
-}
-
-module.exports = { PROFILES, variantFromArgv, outDirFromArgv, defaultOutDir };
+module.exports = { PROFILES, variantFromArgv, outDirFromArgv };

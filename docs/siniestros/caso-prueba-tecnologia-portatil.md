@@ -8,13 +8,15 @@ generados desde un único objeto para que no puedan divergir entre sí.
 node docs/postman/test-docs/generar-fixtures-tecnologia.js
 ```
 
-Cómo funciona el generador, y cómo sumar un escenario propio reusando el motor: [README de fixtures](../postman/test-docs/README.md).
+El mismo script escribe los otros dos hechos generadores del ramo —`hurto/` y `danio_acc/`—, cada
+uno con la documentación que su agenda exige. El inventario completo, y cómo sumar un escenario propio
+reusando el motor, están en el [README de fixtures](../postman/test-docs/README.md).
 
 ```
 docs/postman/test-docs/
-├── generar-fixtures-tecnologia.js         ← genera todo lo de abajo
-└── fraude/tec-portatil/
-    ├── caso_tecnologia.json               → parte multipart  case
+├── generar-fixtures-tecnologia.js         ← genera los tres casos del ramo
+└── conMarcaDePrueba/tec-portatil/robo/
+    ├── caso_robo.json                     → parte multipart  case
     ├── denuncia_policial_tecnologia.pdf   → parte multipart  police_report
     ├── factura_compra_tecnologia.pdf      → parte multipart  purchase_proof
     ├── bloqueo_equipo_tecnologia.pdf      → parte multipart  imei_deregistration
@@ -29,10 +31,11 @@ docs/postman/test-docs/
 
 ## 1 · Por qué el hecho generador es robo, y qué pide hoy la agenda
 
-> ⚠️ **La agenda del ramo cambió en `develop` y este set quedó desalineado.** Cuando se armó, el
-> ramo 2 pedía los mismos cuatro documentos que Celulares para cualquier hecho generador. Desde D5
-> la agenda se configura **por hecho generador**, y el seed la reescribió con criterio
-> ([init-multitenant.sql:1039-1050](../../db/init-multitenant.sql#L1039-L1050)). Ver §7.
+> **La agenda del ramo cambió en `develop`.** Cuando se armó este set, el ramo 2 pedía los mismos
+> cuatro documentos que Celulares para cualquier hecho generador. Desde D5 la agenda se configura
+> **por hecho generador**, y el seed la reescribió con criterio
+> ([init-multitenant.sql:1039-1050](../../db/init-multitenant.sql#L1039-L1050)). El set se realineó:
+> ver §7.
 
 Hoy el seed pide, para el ramo Tecnología Portátil:
 
@@ -206,15 +209,15 @@ La cadena temporal que comparten los cuatro documentos:
 ```bash
 node docs/postman/test-docs/generar-fixtures-tecnologia.js
 
-TEC=docs/postman/test-docs/fraude/tec-portatil
+T=docs/postman/test-docs/conMarcaDePrueba/tec-portatil/robo
 
 curl -X POST http://localhost:8083/api/v1/cases \
   -H "Authorization: Bearer $TOKEN" \
-  -F "case=<$TEC/caso_tecnologia.json;type=application/json" \
-  -F "police_report=@$TEC/denuncia_policial_tecnologia.pdf;type=application/pdf" \
-  -F "purchase_proof=@$TEC/factura_compra_tecnologia.pdf;type=application/pdf" \
-  -F "imei_deregistration=@$TEC/bloqueo_equipo_tecnologia.pdf;type=application/pdf" \
-  -F "last_connection=@$TEC/ultima_conexion_tecnologia.pdf;type=application/pdf"
+  -F "case=<$T/caso_robo.json;type=application/json" \
+  -F "police_report=@$T/denuncia_policial_tecnologia.pdf;type=application/pdf" \
+  -F "purchase_proof=@$T/factura_compra_tecnologia.pdf;type=application/pdf" \
+  -F "imei_deregistration=@$T/bloqueo_equipo_tecnologia.pdf;type=application/pdf" \
+  -F "last_connection=@$T/ultima_conexion_tecnologia.pdf;type=application/pdf"
 ```
 
 El `case` va **desde archivo** (`=<`, no `=@`): con `@` curl lo manda como parte de archivo y Spring
@@ -232,26 +235,22 @@ acentos, y rasterizan a 150 DPI (1240×1753). Coherencia cruzada comprobada por 
 el nº de serie y el DNI aparecen en los cuatro, la MAC y el nº de constancia de bloqueo en los dos
 del service, el nº de actuación policial en los dos que corresponde.
 
-**Tres cosas frenan la corrida. La primera es del set; las otras dos, del entorno:**
+**El set cubre la agenda completa.** Robo en Tecnología Portátil pide `police_report` +
+`purchase_proof` + `item_photo`: los dos PDFs están en la carpeta y la foto es
+`foto_notebook_para_fraude.jpg`, en la raíz de `test-docs` — un MacBook Air Medianoche, el color que
+declara la póliza. Se adjunta desde ahí (ver el README de fixtures para el detalle y las salvedades
+de las fotos). Los otros dos PDFs del set —`imei_deregistration` y `last_connection`— ya no los pide
+la agenda: no estorban, el gate solo mira que estén los requeridos, y siguen entrando al prompt del
+LLM cuando el caso no fast-trackea.
 
-1. **El set ya no cumple la agenda del ramo.** Robo en Tecnología Portátil pide `police_report` +
-   `purchase_proof` + **`item_photo`**. Los dos primeros están; la foto no, y el generador no la
-   produce — es un archivo de imagen, no un PDF. Mientras falte, la clasificación corta en
-   `FALTA_DOCUMENTACION` antes de llegar al Fast Track. Tres salidas:
-   - sacar una foto propia de una notebook y sumarla al set como `item_photo`;
-   - usar una de licencia libre, como se hizo con `foto_equipo_para_fraude.jpg` (pero ojo: al venir
-     de la web, Vision la encuentra publicada e infla `image_web_match`);
-   - o que el referente saque `item_photo` de la agenda del ramo desde la pantalla de Reglas.
+**Lo que sigue frenando la corrida son dos cosas del entorno, ninguna de los documentos:**
 
-   Los otros dos PDFs del set —`imei_deregistration` y `last_connection`— ya no los pide la agenda.
-   No estorban (el gate solo mira que estén los requeridos, no que no sobren) y siguen entrando al
-   prompt del LLM cuando el caso no fast-trackea, pero dejaron de pesar en el veredicto.
-2. **El asegurado de prueba no llega a esa póliza.** `POL-TEC-2026-311` vive en `arbiter_provincia`,
+1. **El asegurado de prueba no llega a esa póliza.** `POL-TEC-2026-311` vive en `arbiter_provincia`,
    y `PolicyTenantLocator` busca solo entre las aseguradoras del token, que salen de `user_insurer` —
    el usuario 1 tiene únicamente BBVA, así que el alta responde 422. El seed ya modela a Martina como
    asegurada de Provincia (`arbiter_provincia.insured(1).user_id = 1`); falta la fila
    `user_insurer (1, 2)`.
-3. **La clasificación se cae después del alta.** El `MockInsurerAdapter` de classification no tiene
+2. **La clasificación se cae después del alta.** El `MockInsurerAdapter` de classification no tiene
    ninguna póliza del ramo y `getPolicy` tira excepción ante un número desconocido; con el perfil
    `insurer-db` reaparece el defecto ya conocido (consulta `aseguradora.poliza`, que no existe en el
    esquema por tenant — ver §6 del [caso de Celulares](caso-prueba-fast-track-celulares.md)).

@@ -1,0 +1,19 @@
+{
+  "branch": "Tecnología Portátil",
+  "product": "Seguro de Tecnología Portátil",
+  "claimCause": "Hurto",
+  "insuredItem": "Apple MacBook Air 15\" M3 512 GB",
+  "insuredId": "42.987.654",
+  "policyNumber": "POL-TEC-2026-311",
+  "description": "Estaba estudiando en la sala de lectura de la biblioteca con la mochila colgada del respaldo de la silla. Fui hasta el mostrador a devolver un libro y cuando volví la mochila no estaba, con la notebook adentro. Nadie vio nada. Denuncié esa tarde y pedí el bloqueo del equipo, pero como no se volvió a conectar quedó pendiente de aplicarse.",
+  "eventDate": "2026-08-20T16:20:00",
+  "eventLocation": "Av. Díaz Vélez 4200, sala de lectura de la biblioteca popular",
+  "locality": "Almagro",
+  "province": "Ciudad Autónoma de Buenos Aires",
+  "policeReportAt": "2026-08-20T18:25:00",
+  "claimedAmount": 1980000,
+  "pep": false,
+  "imageConsent": true,
+  "contactEmail": "martina.soteras@example.com",
+  "contactPhone": "11-5555-0001"
+}

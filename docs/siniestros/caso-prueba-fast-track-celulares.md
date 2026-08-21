@@ -105,21 +105,24 @@ humana, no resuelve.
 
 ```
 docs/postman/test-docs/
-├── generar-fixtures.js                    ← genera todo lo de abajo
-├── foto_equipo_para_fraude.jpg            → parte multipart  item_photo   (opcional, ver §3.3)
-└── fraude/fast-track/
-    ├── caso_fast_track.json               → parte multipart  case
-    ├── denuncia_policial_fast_track.pdf   → parte multipart  police_report
-    ├── factura_compra_fast_track.pdf      → parte multipart  purchase_proof
-    ├── baja_imei_fast_track.pdf           → parte multipart  imei_deregistration
-    └── ultima_conexion_fast_track.pdf     → parte multipart  last_connection
+├── generar-fixtures.js                        ← genera los cuatro casos del ramo
+├── foto_equipo_para_fraude.jpg                → parte multipart  item_photo   (opcional, ver §3.3)
+└── conMarcaDePrueba/celulares/robo/
+    ├── caso_robo.json                         → parte multipart  case
+    ├── denuncia_policial_celulares.pdf        → parte multipart  police_report
+    ├── factura_compra_celulares.pdf           → parte multipart  purchase_proof
+    ├── baja_imei_celulares.pdf                → parte multipart  imei_deregistration
+    └── ultima_conexion_celulares.pdf          → parte multipart  last_connection
 ```
 
 ```bash
 node docs/postman/test-docs/generar-fixtures.js
 ```
 
-Cómo funciona el generador, y cómo sumar un escenario propio reusando el motor: [README de fixtures](../postman/test-docs/README.md).
+El mismo script escribe los otros tres hechos generadores del ramo —`hurto/`, `caida/` y
+`rotura accidental/`—, cada uno con la documentación que su agenda exige. El inventario completo,
+y cómo sumar un escenario propio reusando el motor, están en el
+[README de fixtures](../postman/test-docs/README.md).
 
 **El set caduca a las 72 hs y hay que regenerarlo.** `cases.reported_at` es `@CreationTimestamp`
 —el momento en que se crea el expediente— y la regla D11 compara `reportedAt − eventDate` contra
@@ -128,14 +131,15 @@ días después de escrito, sin que nada avise. Por eso el generador ancla el hec
 19:25**: fecha relativa, hora fija, siempre entre 24 y 49 hs antes de la corrida. El script imprime
 la fecha exacta de vencimiento al terminar.
 
-Los cinco archivos salen de un **único objeto `CASE`**, así que la coherencia entre el payload y los
-documentos está garantizada por construcción y no por copiar a mano. El IMEI, el DNI, la línea, el
+Los archivos de cada caso salen de un **único objeto de escenario**, así que la coherencia entre el
+payload y los documentos está garantizada por construcción y no por copiar a mano. El IMEI, el DNI, la línea, el
 modelo y las fechas son los mismos en todos.
 
 ### 3.1 · Convención de nombre
 
-`<qué_es>_<escenario>.<ext>` — prefijo = el documento, sufijo = el escenario de prueba
-(`fast_track`, `ambigua`, …), igual que el `denuncia_policial_ambigua.pdf` que ya existía.
+`<qué_es>_<ramo>.<ext>` — el prefijo dice qué documento es y el sufijo de qué ramo; **el hecho
+generador lo da la carpeta**, así que el mismo nombre se repite en `robo/` y en `hurto/` con otro
+contenido.
 
 **El nombre de archivo no lo lee el backend.** Lo que el sistema usa es el **nombre de la parte
 multipart** (`police_report`, `purchase_proof`, `imei_deregistration`, `last_connection`,
@@ -196,15 +200,15 @@ TOKEN=$(curl -s -X POST http://localhost:8080/api/v1/auth/login \
   -d '{"email":"asegurado.arbiter@gmail.com","password":"asegurado.arbiter123"}' \
   | sed -n 's/.*"token":"\([^"]*\)".*/\1/p')
 
-FT=docs/postman/test-docs/fraude/fast-track
+C=docs/postman/test-docs/conMarcaDePrueba/celulares/robo
 
 curl -X POST http://localhost:8083/api/v1/cases \
   -H "Authorization: Bearer $TOKEN" \
-  -F "case=<$FT/caso_fast_track.json;type=application/json" \
-  -F "police_report=@$FT/denuncia_policial_fast_track.pdf;type=application/pdf" \
-  -F "purchase_proof=@$FT/factura_compra_fast_track.pdf;type=application/pdf" \
-  -F "imei_deregistration=@$FT/baja_imei_fast_track.pdf;type=application/pdf" \
-  -F "last_connection=@$FT/ultima_conexion_fast_track.pdf;type=application/pdf"
+  -F "case=<$C/caso_robo.json;type=application/json" \
+  -F "police_report=@$C/denuncia_policial_celulares.pdf;type=application/pdf" \
+  -F "purchase_proof=@$C/factura_compra_celulares.pdf;type=application/pdf" \
+  -F "imei_deregistration=@$C/baja_imei_celulares.pdf;type=application/pdf" \
+  -F "last_connection=@$C/ultima_conexion_celulares.pdf;type=application/pdf"
 ```
 
 Dos detalles del `curl` que cuestan una tarde si no se saben:

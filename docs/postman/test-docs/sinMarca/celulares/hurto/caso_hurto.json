@@ -1,0 +1,19 @@
+{
+  "branch": "Celulares",
+  "product": "Celular Protegido Premium",
+  "claimCause": "Hurto",
+  "insuredItem": "SAMSUNG Galaxy A56 5G 256 GB",
+  "insuredId": "33.845.219",
+  "policyNumber": "POL-CEL-2026-042",
+  "description": "Viajaba en el subte línea B en hora pico, con el celular en el bolsillo exterior del abrigo. Al bajar en Ángel Gallardo quise usarlo y ya no estaba; no sentí nada ni vi a nadie. Fui a la comisaría esa misma tarde y pedí el bloqueo del IMEI apenas llegué a mi casa.",
+  "eventDate": "2026-08-20T13:40:00",
+  "eventLocation": "Estación Ángel Gallardo, Línea B de subterráneos, andén dirección Juan Manuel de Rosas",
+  "locality": "Villa Crespo",
+  "province": "Ciudad Autónoma de Buenos Aires",
+  "policeReportAt": "2026-08-20T16:35:00",
+  "claimedAmount": 620000,
+  "pep": false,
+  "imageConsent": true,
+  "contactEmail": "roman.castillo@example.com",
+  "contactPhone": "11-5555-0007"
+}

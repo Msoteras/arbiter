@@ -1,0 +1,19 @@
+{
+  "branch": "Celulares",
+  "product": "Celular Protegido Premium",
+  "claimCause": "Robo en vía pública",
+  "insuredItem": "SAMSUNG Galaxy A56 5G 256 GB",
+  "insuredId": "42.987.654",
+  "policyNumber": "POL-CEL-2026-042",
+  "description": "Caminaba por Av. Rivadavia al 2800 con el celular en la mano consultando la app de transporte cuando un hombre en bicicleta me lo arrebató y escapó por calle Pasco. Hice la denuncia policial esa misma noche en la Comisaría Vecinal 3-B y pedí el bloqueo del IMEI a la compañía telefónica.",
+  "eventDate": "2026-08-20T19:25:00",
+  "eventLocation": "Av. Rivadavia 2800, entre Pasco y Alberti",
+  "locality": "Balvanera",
+  "province": "Ciudad Autónoma de Buenos Aires",
+  "policeReportAt": "2026-08-20T21:40:00",
+  "claimedAmount": 620000,
+  "pep": false,
+  "imageConsent": true,
+  "contactEmail": "martina.soteras@example.com",
+  "contactPhone": "11-5555-0001"
+}
