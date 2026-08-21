@@ -313,7 +313,7 @@ export class ScoringConfigComponent {
   private backendErrorMessage(e: unknown): string {
     if (e instanceof HttpErrorResponse) {
       if (e.status === 403) {
-        return 'No tenés permiso para editar el scoring (se requiere rol Referente).';
+        return 'No tenés permiso para editar el puntaje de riesgo (se requiere rol Referente).';
       }
       if (e.status === 0) {
         return 'No se pudo contactar al backend de reglas (¿el servicio está arriba?).';

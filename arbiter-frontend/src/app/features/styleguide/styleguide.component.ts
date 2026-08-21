@@ -565,7 +565,7 @@ interface Swatch {
         <h3 class="sg-h3">Switch</h3>
         <p class="sg-p">
           Encendido/apagado, donde la decisión es "esto corre o no corre" y el efecto es inmediato
-          sobre lo que hay al lado: una regla del motor, un factor del scoring. Para elegir de una
+          sobre lo que hay al lado: una regla del motor, un factor del puntaje. Para elegir de una
           lista está <span class="mono">app-select</span>; para marcar items de un conjunto,
           <span class="mono">app-checkbox</span>; para filtrar o alternar una vista, el chip.
         </p>
