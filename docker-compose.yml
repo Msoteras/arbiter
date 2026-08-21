@@ -34,10 +34,12 @@ services:
       retries: 12
       start_period: 10s
 
-  # Pulls the models into the volume on first run; no-op if already cached.
+  # Pulls the model into the volume on first run; no-op if already cached. Reads the same
+  # OLLAMA_MODEL that classification-service uses, so swapping models is one env var and not
+  # an edit here plus an edit there — the pull and the caller can't drift apart.
   ollama-init:
     image: ollama/ollama:latest
-    entrypoint: ["/bin/sh", "-c", "ollama pull qwen3-vl:8b-instruct"]
+    entrypoint: ["/bin/sh", "-c", "ollama pull ${OLLAMA_MODEL:-qwen3-vl:8b-instruct}"]
     environment:
       OLLAMA_HOST: http://ollama:11434
     depends_on:

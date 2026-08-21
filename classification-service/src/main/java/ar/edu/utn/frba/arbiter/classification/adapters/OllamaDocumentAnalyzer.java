@@ -23,6 +23,7 @@ import java.time.LocalDate;
 import java.time.format.DateTimeParseException;
 import java.util.ArrayList;
 import java.util.Base64;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -51,27 +52,49 @@ public class OllamaDocumentAnalyzer implements DocumentAnalyzer {
     /**
      * Forcing the shape is what keeps the two halves apart. Without it the model returns prose and
      * an "observación:" line inside the transcription reads as if the document said it.
+     *
+     * <p><b>Ordered on purpose.</b> The model fills the fields in the order the schema lists them,
+     * and it has no scratch space: the grammar only lets it emit valid JSON, so when it wants to
+     * reason before answering it writes that reasoning into whichever string is open. Measured on
+     * 20/08: with {@code fields} generated last, ~3000 characters of deliberation about
+     * {@code documentDate}, {@code imei} and {@code affectedParty} landed inside
+     * {@code transcription} — stored as if the report said it, and one step from blowing the
+     * {@code num_predict} ceiling mid-string, which loses the whole document.
+     *
+     * <p>{@code Map.of} can't be used here: its iteration order is randomized per JVM, so the same
+     * build sent the fields in a different order on each restart and runs weren't reproducible.
+     * Transcribe first, then extract from what was read, then look at the image — the same order
+     * the prompt shows.
      */
-    private static final Map<String, Object> OUTPUT_SCHEMA = Map.of(
+    private static final Map<String, Object> OUTPUT_SCHEMA = orderedMap(
             "type", "object",
-            "properties", Map.of(
+            "properties", orderedMap(
                     "transcription", Map.of("type", "string"),
-                    "visualFindings", Map.of("type", "array", "items", Map.of("type", "string")),
                     // All nullable: a document has no reason to carry all four. The schema doesn't
                     // require them so the model doesn't invent what's missing.
-                    "fields", Map.of(
+                    "fields", orderedMap(
                             "type", "object",
-                            "properties", Map.of(
+                            "properties", orderedMap(
                                     "documentDate", Map.of("type", List.of("string", "null")),
                                     "amount", Map.of("type", List.of("number", "null")),
                                     "itemDescription", Map.of("type", List.of("string", "null")),
                                     "imei", Map.of("type", List.of("string", "null")),
                                     "affectedParty", Map.of("enum",
                                             List.of("TITULAR", "FAMILIAR", "TERCERO", "DESCONOCIDO"))
-                            ))
+                            )),
+                    "visualFindings", Map.of("type", "array", "items", Map.of("type", "string"))
             ),
             "required", List.of("transcription", "visualFindings")
     );
+
+    /** Insertion-ordered, so the serialized schema keeps the field order written above. */
+    private static Map<String, Object> orderedMap(Object... keysAndValues) {
+        Map<String, Object> map = new LinkedHashMap<>();
+        for (int i = 0; i < keysAndValues.length; i += 2) {
+            map.put((String) keysAndValues[i], keysAndValues[i + 1]);
+        }
+        return map;
+    }
 
     private final OllamaClient client;
     private final ObjectMapper objectMapper;
@@ -80,7 +103,7 @@ public class OllamaDocumentAnalyzer implements DocumentAnalyzer {
     public OllamaDocumentAnalyzer(
             OllamaClient client,
             ObjectMapper objectMapper,
-            @Value("classpath:prompts/extraccion-documento-v3.md") Resource documentExtractionPromptResource
+            @Value("classpath:prompts/extraccion-documento-v4.md") Resource documentExtractionPromptResource
     ) throws IOException {
         this.client = client;
         this.objectMapper = objectMapper;

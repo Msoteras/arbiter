@@ -5,17 +5,20 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.core.io.ClassPathResource;
 
 import java.io.IOException;
+import java.util.Map;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.ArgumentMatchers.anyMap;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 /**
@@ -39,7 +42,7 @@ class OllamaDocumentAnalyzerTest {
         analyzer = new OllamaDocumentAnalyzer(
                 client,
                 new ObjectMapper(),
-                new ClassPathResource("prompts/extraccion-documento-v3.md"));
+                new ClassPathResource("prompts/extraccion-documento-v4.md"));
     }
 
     private void modelAnswers(String content) {
@@ -105,5 +108,33 @@ class OllamaDocumentAnalyzerTest {
 
         assertThat(analyzer.extract(SOME_IMAGE, "image/jpeg").transcription())
                 .contains("No se pudo extraer contenido");
+    }
+
+    /**
+     * The order is the fix, not decoration. The model fills the fields in the order the schema
+     * lists them and has nowhere else to write: the grammar only admits valid JSON, so when it
+     * wants to reason before answering it does so inside whichever string is open. With
+     * {@code fields} last, ~3000 characters of deliberation about {@code imei} and
+     * {@code affectedParty} ended up inside {@code transcription} — read by the analyst as if the
+     * report said it (measured 20/08).
+     *
+     * <p>Going back to {@code Map.of} would break this silently: its iteration order is randomized
+     * per JVM, so it wouldn't even fail consistently.
+     */
+    @Test
+    void theSchemaAsksForTheFieldsInOrder() {
+        modelAnswers("""
+                {"transcription": "Factura B 0001-00023456", "visualFindings": []}
+                """);
+
+        analyzer.extract(SOME_IMAGE, "image/jpeg");
+
+        ArgumentCaptor<Map<String, Object>> schema = ArgumentCaptor.captor();
+        verify(client).chat(anyString(), anyList(), schema.capture(), eq(false));
+
+        @SuppressWarnings("unchecked")
+        Map<String, Object> properties = (Map<String, Object>) schema.getValue().get("properties");
+        assertThat(properties.keySet())
+                .containsExactly("transcription", "fields", "visualFindings");
     }
 }
