@@ -133,6 +133,11 @@ services:
       DB_USER: ${DB_USER:-arbiter}
       DB_PASSWORD: ${DB_PASSWORD:-arbiter}
       JWT_SECRET: ${JWT_SECRET:-+CV3wiE5lScQGEx1PvKLNuWmaqxixDsm8EIFifgfq8thgguF84p+GI10Rs/1wSTl}
+      # No solo auth manda mails: de acá salen el aviso de cambio de estado al asegurado y la
+      # solicitud de peritaje al perito. Sin estas vars el adapter loguea y no manda nada.
+      SENDGRID_API_KEY: ${SENDGRID_API_KEY:-}
+      SENDGRID_FROM_ADDRESS: ${SENDGRID_FROM_ADDRESS:-no-reply@arbiter.test}
+      SENDGRID_FROM_NAME: ${SENDGRID_FROM_NAME:-Arbiter}
       # Lee las pólizas del asegurado desde la BD Aseguradora (schema `aseguradora`) vía
       # InsurerDatabaseAdapter. Sin el perfil, usa el MockInsurerAdapter en memoria.
       SPRING_PROFILES_ACTIVE: ${CASES_PROFILES:-insurer-db}
