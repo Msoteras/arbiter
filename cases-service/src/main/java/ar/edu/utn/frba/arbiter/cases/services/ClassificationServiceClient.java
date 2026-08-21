@@ -206,11 +206,14 @@ public class ClassificationServiceClient implements ClaimsAnalysisClient {
                 : CaseStatus.PENDING_ANALYST_REVIEW;
     }
 
+    /** Token de servicio y no el del usuario: así el endpoint no queda alcanzable directo. */
     @Override
     public Long forwardAnalystDecision(Long caseId, AnalystDecisionRequest request) {
+        String serviceToken = JwtSupport.issueServiceToken(
+                jwtKey, "cases-service-decision", TenantContext.get());
         Map<String, Object> response = restClient.post()
                 .uri("/api/v1/claims/{caseId}/decision", caseId)
-                .header(HttpHeaders.AUTHORIZATION, authorizationHeader())
+                .header(HttpHeaders.AUTHORIZATION, "Bearer " + serviceToken)
                 .contentType(MediaType.APPLICATION_JSON)
                 .body(request)
                 .retrieve()

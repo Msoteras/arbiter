@@ -895,12 +895,13 @@ siguientes y el #25 (fuera de alcance).
 |---|------|--------|
 | 8 | El referente tiene una sola pantalla | Suma pantallas con el módulo de Reportes y Métricas (sprint siguiente) |
 | 9 | `reports-service` inalcanzable desde el front | Módulo de Reportes y Métricas no implementado aún (sprint siguiente) |
-| 14 | Notificaciones sin cablear | Módulo de notificaciones no implementado aún (sprint siguiente) |
+| 14 | ~~Notificaciones sin cablear~~ | **Cerrado**: campana con contador, panel y mail por SendGrid (`NotificationController` + `core/notifications/`) |
 | 25 | PEP se persiste pero no se ve nunca | Es un dato de la póliza, no del expediente |
 
-**Abiertos:** ningún bug funcional. Lo que queda (#8, #9, #14) es funcionalidad de sprints
-siguientes, #25 es de otro dominio (ver "Fuera de alcance"), y #28 es una mejora de UX pendiente
-a pedido del usuario (no es un bug — el campo funciona, solo sería más fácil de completar).
+**Abiertos:** ningún bug funcional. Lo que queda (#8 y #9) depende del módulo de Reportes, que
+sigue siendo un andamiaje sin controllers ni endpoints; #25 es de otro dominio (ver "Fuera de
+alcance"), y #28 es una mejora de UX pendiente a pedido del usuario (no es un bug — el campo
+funciona, solo sería más fácil de completar).
 
 | # | Ítem | Motivo |
 |---|------|--------|

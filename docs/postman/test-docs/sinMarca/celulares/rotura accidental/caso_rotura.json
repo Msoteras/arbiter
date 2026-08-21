@@ -1,0 +1,18 @@
+{
+  "branch": "Celulares",
+  "product": "Celular Protegido Premium",
+  "claimCause": "Rotura accidental",
+  "insuredItem": "SAMSUNG Galaxy A56 5G 256 GB",
+  "insuredId": "33.845.219",
+  "policyNumber": "POL-CEL-2026-350",
+  "description": "Estaba trabajando en el escritorio y volqué un vaso de agua sobre el celular. Lo apagué y lo sequé, pero ya no volvió a encender. Al día siguiente lo llevé al service y el presupuesto dice que entró líquido a la placa.",
+  "eventDate": "2026-08-20T20:40:00",
+  "eventLocation": "Av. Rivadavia 3150, piso 4° \"B\" — domicilio particular",
+  "locality": "Almagro",
+  "province": "Ciudad Autónoma de Buenos Aires",
+  "claimedAmount": 333000,
+  "pep": false,
+  "imageConsent": true,
+  "contactEmail": "roman.castillo@example.com",
+  "contactPhone": "11-5555-0007"
+}

@@ -191,7 +191,17 @@ INSERT INTO arbiter_common.users (id, auth0_sub, email, active, activated) VALUE
     -- Real team accounts, one per insurer. They exist in Auth0, but the login reads the local
     -- row before validating there, so without these a re-init locks them out.
     (7, 'auth0|seed-analista-provincia-2', 'mocciafederico@hotmail.com',            TRUE, TRUE),
-    (8, 'auth0|seed-analista-bbva-2',      'federico21433@hotmail.com',             TRUE, TRUE);
+    (8, 'auth0|seed-analista-bbva-2',      'federico21433@hotmail.com',             TRUE, TRUE),
+    -- Second identity for the sinMarca test-doc variant (Roman Castillo, see
+    -- docs/postman/test-docs/perfiles.js): documents without the "documento simulado" banner,
+    -- so the vision model reads them without a cartel that gives away the test. Needs his own
+    -- policyholder chain (below) or the claim rejects on DNI/policy mismatch, same as any
+    -- insured filing against a policy that isn't theirs (D2).
+    -- TODO: 'auth0|seed-asegurado-roman' is a placeholder, not a real Auth0 sub — swap it for
+    -- the real one once Fede provisions asandoval01228@gmail.com in Auth0 (same treatment
+    -- user(5)/Julián got in 6a71248c6b9165b91b479173 once his account went from placeholder to
+    -- real). Until then this account can't actually complete an Auth0 login.
+    (9, 'auth0|seed-asegurado-roman',      'asandoval01228@gmail.com',               TRUE, TRUE);
 
 SELECT setval(pg_get_serial_sequence('arbiter_common.users', 'id'),
               (SELECT MAX(id) FROM arbiter_common.users));
@@ -206,13 +216,16 @@ SELECT setval(pg_get_serial_sequence('arbiter_common.role', 'id'),
               (SELECT MAX(id) FROM arbiter_common.role));
 
 INSERT INTO arbiter_common.user_role (user_id, role_id) VALUES
-    (1, 1), (2, 2), (3, 3), (4, 2), (6, 3), (7, 2), (8, 2);
+    (1, 1), (2, 2), (3, 3), (4, 2), (6, 3), (7, 2), (8, 2), (9, 1);
 
 -- permission / role_permission stay empty on purpose — no permission catalog has been
 -- defined yet, and seeding invented ones would be made-up data.
 
+-- user(9) = Roman: BBVA (his Celulares policy) and Provincia (his Tecnología Portátil
+-- policy) — same two-tenant pattern Martina already demonstrates, mirrored for the
+-- sinMarca variant so it can exercise both fixture sets end to end.
 INSERT INTO arbiter_common.user_insurer (user_id, insurer_id) VALUES
-    (1, 1), (2, 1), (3, 1), (4, 2), (6, 2), (7, 2), (8, 1);
+    (1, 1), (2, 1), (3, 1), (4, 2), (6, 2), (7, 2), (8, 1), (9, 1), (9, 2);
 
 -- Los dos ramos que el negocio cubre hoy. Hogar quedó fuera por ahora (no se trabaja con ese
 -- ramo todavía), así que Tecnología Portátil pasa a ser el branch 2 y los ids quedan contiguos.

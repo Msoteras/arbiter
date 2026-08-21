@@ -1,0 +1,18 @@
+{
+  "branch": "Celulares",
+  "product": "Celular Protegido Premium",
+  "claimCause": "Caída",
+  "insuredItem": "SAMSUNG Galaxy A56 5G 256 GB",
+  "insuredId": "42.987.654",
+  "policyNumber": "POL-CEL-2026-042",
+  "description": "Al bajar del colectivo se me resbaló el celular de la mano y cayó de pantalla contra el cordón de la vereda. El vidrio quedó astillado y el táctil dejó de responder en la mitad inferior. Lo llevé al service esa misma mañana y me hicieron el presupuesto.",
+  "eventDate": "2026-08-20T08:50:00",
+  "eventLocation": "Av. Warnes 2300, sobre la vereda, al descender del colectivo",
+  "locality": "La Paternal",
+  "province": "Ciudad Autónoma de Buenos Aires",
+  "claimedAmount": 203000,
+  "pep": false,
+  "imageConsent": true,
+  "contactEmail": "martina.soteras@example.com",
+  "contactPhone": "11-5555-0001"
+}

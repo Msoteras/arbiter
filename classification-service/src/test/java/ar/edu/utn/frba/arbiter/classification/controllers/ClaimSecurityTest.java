@@ -121,16 +121,34 @@ class ClaimSecurityTest extends AbstractPersistenceIT {
                 .andExpect(status().isForbidden());
     }
 
+    /**
+     * El analystId viaja en el body, así que un analista llamando directo podía atribuirle la
+     * decisión a otro. Solo pasa el token de servicio de cases-service, que es quien lo resuelve.
+     */
     @Test
-    void recordDecision_asAnalista_passesTheRoleGate() throws Exception {
-        // No prior classification for case 999999 on purpose: if it gets past @PreAuthorize, the
-        // business logic answers 422 (InvalidClassificationException) instead of 401/403.
+    void recordDecision_asAnalista_isRejected() throws Exception {
         mockMvc.perform(post("/api/v1/claims/999999/decision")
                         .header("Authorization", "Bearer " + tokenFor("ANALISTA_SINIESTROS"))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
                                 {"analystId": 1, "decision": "APPROVE"}
                                 """))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
+    void recordDecision_withServiceToken_passesTheGate() throws Exception {
+        // Case 999999 no existe: si pasa el gate, la lógica responde 422 y no 401/403.
+        mockMvc.perform(post("/api/v1/claims/999999/decision")
+                        .header("Authorization", "Bearer " + serviceToken())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"analystId": 1, "decision": "APPROVE"}
+                                """))
                 .andExpect(status().isUnprocessableContent());
+    }
+
+    private String serviceToken() {
+        return JwtSupport.issueServiceToken(JwtSupport.key(SECRET), "cases-service-decision");
     }
 }
