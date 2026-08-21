@@ -18,9 +18,11 @@
 /* ───────── Columna izquierda: ramos + scoring ───────── */
 .master-col { display: flex; flex-direction: column; gap: var(--space-4); position: sticky; top: calc(var(--appbar-h) + var(--space-5)); }
 
-/* ───────── Master: ramos ───────── */
-/* Recuadro "Scoring de riesgo": reusa el look de un ítem de ramo (mismo hover/estado activo teal). */
-.scoring-item { width: 100%; }
+/* ───────── Master: ramos y reglas generales ───────── */
+/* El alcance se dice una vez, en el encabezado de la lista, y no abajo de cada nombre. */
+.list-sub { margin: calc(var(--space-2) * -1) 0 var(--space-3); }
+/* Las generales no tienen segunda línea, así que el ítem no necesita la altura de dos renglones. */
+.ramo-item.general { flex-direction: row; align-items: center; }
 .ramo-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: var(--space-1); }
 .ramo-item {
   width: 100%;
@@ -36,7 +38,17 @@
   cursor: pointer;
 }
 .ramo-item:hover { background: var(--surface-sunken); }
-.ramo-item.active { background: var(--selected-bg); border-color: var(--selected-border); color: var(--text-primary); }
+/* Activo: barra de acento a la izquierda sobre fondo tenue, en vez del recuadro teal lleno. El
+   énfasis queda en el borde y el nombre, y la card blanca del panel derecho sigue siendo lo que
+   pesa en la pantalla. */
+.ramo-item.active {
+  background: var(--surface-soft);
+  border-color: transparent;
+  border-left: 3px solid var(--accent-fg);
+  padding-left: calc(var(--space-3) - 2px);
+  color: var(--text-primary);
+}
+.ramo-item.active .ramo-name { color: var(--accent-fg); }
 .ramo-name { font-weight: var(--font-weight-medium); }
 .ramo-meta { font-size: var(--font-size-xs); color: var(--text-tertiary); }
 .ramo-empty { padding: var(--space-2) var(--space-3); }
@@ -89,17 +101,236 @@
 .subsection { margin-top: var(--space-4); display: flex; flex-direction: column; gap: var(--space-2); }
 
 /* Footer de guardado del Fast Track (persistencia real contra el backend). */
-.ft-save { margin-top: var(--space-4); padding-top: var(--space-4); border-top: 1px solid var(--border-default); display: flex; flex-direction: column; gap: var(--space-3); }
-.ft-save .section-hint { margin: 0; }
 /* Un chip suelto (ej. "Exige póliza al día") no debe estirarse a todo el ancho. */
 .subsection > .chip { align-self: flex-start; }
-.subsection-head { display: flex; align-items: center; justify-content: space-between; gap: var(--space-2); }
 .warn-note { margin: 0; color: var(--status-warning); font-size: var(--font-size-xs); }
 
 /* ───────── Coberturas ───────── */
-.cov-top { display: flex; align-items: flex-end; gap: var(--space-3); }
 .fieldset { display: flex; flex-direction: column; gap: var(--space-1); }
 .fieldset.grow { flex: 1 1 auto; }
+/* ───────── Coberturas: acordeón ───────── */
+.cov-head { display: flex; align-items: center; justify-content: space-between; gap: var(--space-3); margin-bottom: var(--space-2); }
+.cov-count { margin: 0; }
+
+.cov-card { margin-bottom: var(--space-3); }
+/* La cabecera es todo el ancho y clickeable: cerrada, la card entera es el control de abrir. */
+.cov-summary { display: flex; align-items: center; gap: var(--space-3); }
+.cov-toggle {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: 0;
+  border: 0;
+  background: none;
+  text-align: left;
+  cursor: pointer;
+  color: inherit;
+}
+.cov-toggle:focus-visible { outline: none; box-shadow: var(--focus-ring); border-radius: var(--radius-ctl); }
+.cov-caret {
+  color: var(--text-tertiary);
+  font-size: var(--font-size-xs);
+  display: inline-block;
+  transition: transform var(--dur-1) ease;
+}
+.cov-caret.open { transform: rotate(90deg); }
+@media (prefers-reduced-motion: reduce) {
+  .cov-caret { transition: none; }
+}
+.cov-title { font-weight: var(--font-weight-medium); color: var(--text-primary); }
+/* Los chips del resumen se van a una segunda línea antes que empujar el título fuera de la card. */
+.cov-chips { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2); min-width: 0; }
+
+.cov-body { margin-top: var(--space-4); display: flex; flex-direction: column; gap: var(--space-4); }
+.cov-section { display: flex; flex-direction: column; gap: var(--space-2); }
+.cov-section .section-hint { margin: 0; }
+
+
+
+
+/* ───────── Hard Stop ───────── */
+/* El aviso va en rojo, a diferencia del de Fast Track: son las únicas reglas de la pantalla que le
+   pueden impedir al asegurado crear su siniestro. El resto configura lo que pasa después. */
+.hs-banner {
+  display: flex;
+  gap: var(--space-3);
+  margin: 0 0 var(--space-4);
+  padding: var(--space-3);
+  border: 1px solid color-mix(in srgb, var(--status-danger) 35%, transparent);
+  border-radius: var(--radius-ctl);
+  background: color-mix(in srgb, var(--status-danger) 7%, transparent);
+  color: var(--text-secondary);
+  font-size: var(--font-size-sm);
+}
+.hs-banner-icon {
+  flex: 0 0 auto;
+  width: 18px;
+  height: 18px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--radius-pill);
+  background: var(--status-danger);
+  color: var(--text-on-emphasis);
+  font-size: var(--font-size-2xs);
+  font-weight: var(--font-weight-bold);
+}
+
+.hs-rules { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: var(--space-3); }
+.hs-rule {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--space-4);
+  padding: var(--space-4);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-card);
+}
+/* Activa con el acento de marca, igual que el resto de los estados activos de la app: el rojo se
+   reserva para el aviso y para la consecuencia, que es donde dice algo. */
+.hs-rule.on { border-left: 3px solid var(--accent-fg); background: var(--surface-soft); }
+.hs-rule-text { min-width: 0; display: flex; flex-direction: column; gap: var(--space-2); align-items: flex-start; }
+.hs-rule-text .rule-hint { margin: 0; }
+.hs-rule-switch { flex: 0 0 auto; display: flex; align-items: center; gap: var(--space-2); }
+.hs-arrears { max-width: 260px; }
+
+/* La consecuencia, dicha en una línea: en rojo solo cuando de verdad bloquea. */
+.hs-effect {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-1) var(--space-3);
+  border-radius: var(--radius-pill);
+  border: 1px solid var(--border-control);
+  background: var(--surface);
+  color: var(--text-muted);
+  font-size: var(--font-size-xs);
+}
+.hs-effect::before {
+  content: '';
+  width: 6px;
+  height: 6px;
+  border-radius: var(--radius-pill);
+  background: var(--text-tertiary);
+}
+/* Con el acento y no en rojo: el aviso de arriba ya dice que estas reglas bloquean, y acá el chip
+   solo informa cómo quedó configurada la regla — que es un estado activo, justo para lo que el
+   sistema reserva el acento. Dos rojos en la misma card competían entre sí. */
+.hs-effect.blocks {
+  border-color: var(--selected-border);
+  background: var(--selected-bg);
+  color: var(--accent-fg);
+}
+.hs-effect.blocks::before { background: var(--accent-fg); }
+
+/* ───────── Agenda documental: matriz documento × hecho generador ───────── */
+/* Las columnas de hechos generadores se centran; la primera (el documento) es la etiqueta y
+   manda a la izquierda. */
+/* Con la tabla en `fixed`, las columnas sin ancho declarado se reparten el resto en partes
+   iguales: alcanza con fijar la primera (la del documento) para que las de hechos generadores
+   queden equidistantes, sin importar cuánto mida cada título. */
+.doc-col { text-align: center !important; vertical-align: bottom; }
+/* Los títulos largos ("Robo en vía pública") ahora envuelven en vez de desbordar su columna. */
+.doc-col, .doc-col-name { white-space: normal !important; }
+/* El ancho sale de la primera fila (así funciona table-layout: fixed), así que va en el th del
+   encabezado y no en el de cada fila del cuerpo, donde se ignora. */
+.doc-head-name { width: 34%; }
+.doc-col-name { display: block; color: var(--text-secondary); }
+.doc-col-count { display: block; margin-top: var(--space-1); font-size: var(--font-size-2xs); color: var(--text-muted); text-transform: none; letter-spacing: 0; }
+/* La columna del documento no va en mayúsculas ni atenuada como un th de encabezado: es contenido
+   de la fila, no rótulo de columna. */
+.doc-row-name { font-weight: var(--font-weight-regular); color: var(--text-primary); white-space: normal !important; }
+.doc-cell { text-align: center !important; }
+/* El checkbox del kit trae 40px de alto y etiqueta al lado; dentro de la celda solo se necesita el
+   cuadrito, centrado (el nombre va en .sr-only para el lector de pantalla). */
+.doc-cell app-checkbox { display: inline-block; }
+/* Sin ancho propio la casilla se apoya en el text-align de la celda; con width:100% se centraba
+   respecto de la celda pero no respecto del encabezado cuando el padding es asimétrico. */
+.doc-cell ::ng-deep .cb { min-height: 0; justify-content: center; gap: 0; }
+
+/* Leyenda de la matriz: cuadritos del mismo tamaño y color que las casillas reales. */
+.doc-legend { display: flex; gap: var(--space-4); margin: var(--space-3) 0 0; font-size: var(--font-size-xs); color: var(--text-secondary); }
+.doc-legend-item { display: inline-flex; align-items: center; gap: var(--space-2); }
+.doc-legend-box { width: 14px; height: 14px; border: 1px solid var(--border-control); border-radius: 3px; background: var(--surface); }
+.doc-legend-box.on { background: var(--accent-strong); border-color: var(--accent-strong); position: relative; }
+.doc-legend-box.on::after {
+  content: '';
+  position: absolute;
+  left: 4px;
+  top: 1px;
+  width: 4px;
+  height: 8px;
+  border: solid var(--text-on-emphasis);
+  border-width: 0 2px 2px 0;
+  transform: rotate(45deg);
+}
+
+/* ───────── Fast Track ───────── */
+.ft-head { display: flex; align-items: center; gap: var(--space-3); flex-wrap: wrap; margin-bottom: var(--space-3); }
+.ft-head .card-title { margin: 0; }
+/* Aviso de contexto, no de alarma: fondo tenue y el ícono en el azul de "info" del semáforo. */
+/* Mismo aire entre secciones que el cuerpo del acordeón de Coberturas, para que las dos solapas
+   respiren igual. */
+.ft-sections { display: flex; flex-direction: column; gap: var(--space-5); }
+
+.ft-banner {
+  display: flex;
+  gap: var(--space-3);
+  margin: 0 0 var(--space-4);
+  padding: var(--space-3);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-ctl);
+  background: var(--surface-soft);
+  color: var(--text-secondary);
+  font-size: var(--font-size-sm);
+}
+.ft-banner-icon {
+  flex: 0 0 auto;
+  width: 18px;
+  height: 18px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--radius-pill);
+  border: 1px solid var(--status-info);
+  color: var(--status-info);
+  font-size: var(--font-size-2xs);
+  font-weight: var(--font-weight-bold);
+}
+
+/* Lo que reemplaza al umbral cuando la condición está apagada: dice qué pasa sin ella, en vez de
+   dejar el renglón mudo o mostrar un campo vacío que se lee como "falta cargar esto". */
+.rule-off-note { flex: 0 0 auto; font-style: italic; }
+/* La ventana de siniestros previos cuelga del umbral de arriba, y la sangría lo dice. */
+.rule-row.nested { padding-left: calc(36px + var(--space-3)); background: var(--surface-soft); }
+
+/* ───────── Reglas del motor: interruptor, texto y umbral en un renglón ───────── */
+.rule-rows { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; }
+.rule-row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-3) 0;
+}
+.rule-row + .rule-row { border-top: 1px solid var(--border-subtle); }
+.rule-text { flex: 1 1 auto; min-width: 0; }
+.rule-hint { margin: var(--space-1) 0 0; color: var(--text-secondary); font-size: var(--font-size-xs); }
+.rule-value { display: flex; align-items: center; gap: var(--space-2); flex: 0 0 auto; }
+.rule-value app-input { width: 88px; }
+/* Apagada, la fila se atenúa pero no se esconde: el umbral sigue siendo editable, así el referente
+   puede dejar cargado el número antes de prender la regla. */
+.rule-row.off .rule-text, .rule-row.off .rule-value { opacity: 0.55; }
+
+/* Interruptor: la forma dice el estado (la perilla se corre), no solo el color. */
+
+@media (max-width: 640px) {
+  /* En angosto el umbral baja debajo del texto en vez de comprimir las dos columnas. */
+  .rule-row { flex-wrap: wrap; }
+  .rule-value { width: 100%; padding-left: calc(36px + var(--space-3)); }
+}
+
 .remove-cov {
   flex-shrink: 0;
   font: inherit;
@@ -113,12 +344,9 @@
 }
 .remove-cov:hover { border-color: var(--status-danger); color: var(--status-danger); }
 
-.cov-fields { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: var(--space-3); margin-top: var(--space-3); }
-.cov-excl { margin-top: var(--space-3); display: flex; flex-direction: column; gap: var(--space-2); }
+.cov-fields { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: var(--space-3); }
 
 /* Campos numéricos en grilla (fast track, parámetros) */
-.grid-fields { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: var(--space-3); }
-.th-label { font-size: var(--font-size-xs); color: var(--text-tertiary); }
 
 /* Chips de selección (teal de marca vía roles --selected-*) */
 .chips { display: flex; flex-wrap: wrap; gap: var(--space-2); }

@@ -6,6 +6,10 @@ import { environment } from '../../../environments/environment';
 import { ExpedienteResponse } from '../../core/models/expediente';
 import { CaseDocument } from '../../core/models/case-document';
 import { ExpertVerdict, OpcionesDerivacion, Peritaje } from '../../core/models/peritaje';
+import {
+  AntecedenteFraude,
+  RegistrarAntecedenteRequest,
+} from '../../core/models/antecedente-fraude';
 
 export interface CaseCreateRequest {
   branch: string;
@@ -354,6 +358,32 @@ export class ExpedienteService {
       `${this.baseUrl}/${caseId}/expert-assessment/report`,
       formData,
     );
+  }
+
+  // ----- antecedente de fraude del asegurado -----
+
+  /**
+   * Los antecedentes del asegurado de este expediente, incluido el que este mismo expediente pueda
+   * haber originado. Vienen también los vencidos: que hubo un antecedente y ya no cuenta es una
+   * respuesta distinta de que no haya habido ninguno, y el analista necesita las dos.
+   */
+  antecedentesFraude(caseId: number): Observable<AntecedenteFraude[]> {
+    return this.http.get<AntecedenteFraude[]>(`${this.baseUrl}/${caseId}/fraud-record/insured`);
+  }
+
+  /**
+   * Marca que este expediente terminó en fraude y deja el antecedente sobre la persona, para que
+   * pese en sus denuncias siguientes. No lo decide el sistema ni el perito: lo registra el analista
+   * y queda con su nombre y su motivo.
+   *
+   * `EXPERT_BACKED` exige que el expediente tenga un peritaje con fraude confirmado — el backend lo
+   * valida contra el veredicto guardado, así que elegirlo sin peritaje devuelve 422.
+   */
+  registrarAntecedente(
+    caseId: number,
+    request: RegistrarAntecedenteRequest,
+  ): Observable<AntecedenteFraude> {
+    return this.http.post<AntecedenteFraude>(`${this.baseUrl}/${caseId}/fraud-record`, request);
   }
 
   /**

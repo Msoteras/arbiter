@@ -74,7 +74,18 @@ public enum RuleType {
      * anniversary date — which doesn't exist in any schema today. A separate story if the full
      * model is wanted.
      */
-    POLICY_STANDING(true);
+    POLICY_STANDING(true),
+
+    /**
+     * The insured has a fraud record from an earlier claim. Opt-in like every other hard rule: with
+     * no active row the engine doesn't look at fraud records at all, neither to score nor to block.
+     *
+     * <p>It's the only evaluable rule that isn't about <i>this</i> claim, which is why it carries
+     * its own parameter instead of reading a coverage column: {@code windowMonths}, how long a
+     * record keeps counting. A fraud from six years ago can't weigh the same as one from last
+     * year, and where that line falls is the insurer's call, not ours.
+     */
+    FRAUD_RECORD(true);
 
     private final boolean evaluable;
 
@@ -121,5 +132,17 @@ public enum RuleType {
      */
     public static List<RuleType> insurerScoped() {
         return List.of(POLICY_IN_FORCE, POLICY_STANDING);
+    }
+
+    /**
+     * Every rule whose {@code insurer_rule} row is stored insurer-wide ({@code branch_id} and
+     * {@code coverage_id} both null) — {@link #insurerScoped()} plus {@link #FRAUD_RECORD}. This is
+     * the query the engine uses to pull them; {@code insurerScoped()} stays the pair the
+     * referente's "reglas de la aseguradora" panel edits together, and the fraud record is kept out
+     * of it because it's configured differently (a window, not an on-arrears mode) and isn't
+     * temporal.
+     */
+    public static List<RuleType> insurerWide() {
+        return List.of(POLICY_IN_FORCE, POLICY_STANDING, FRAUD_RECORD);
     }
 }

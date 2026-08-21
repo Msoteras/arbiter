@@ -108,6 +108,12 @@ public class CaseExceptionHandler extends ResponseEntityExceptionHandler {
         return ProblemDetail.forStatusAndDetail(HttpStatusCode.valueOf(404), ex.getMessage());
     }
 
+    /** El expediente no está en condiciones de originar un antecedente de fraude. */
+    @ExceptionHandler(FraudRecordNotAllowedException.class)
+    public ProblemDetail handleFraudRecordNotAllowed(FraudRecordNotAllowedException ex) {
+        return ProblemDetail.forStatusAndDetail(HttpStatusCode.valueOf(422), ex.getMessage());
+    }
+
     /** La regla de la aseguradora no habilita derivar este expediente. */
     @ExceptionHandler(DerivationNotAllowedException.class)
     public ProblemDetail handleDerivationNotAllowed(DerivationNotAllowedException ex) {

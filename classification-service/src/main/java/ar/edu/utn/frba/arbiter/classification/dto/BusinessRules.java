@@ -15,6 +15,7 @@ public record BusinessRules(
         FastTrackThresholds fastTrackThresholds,
         List<String> requiredDocumentTypes,
         ScoringConfig scoringConfig,
+        FraudRecordPolicy fraudRecordPolicy,
         List<EvaluableRule> evaluableRules,
         // The coverage's intrinsic limits (coverage columns), evaluable by code: report deadline
         // (D11) and events-per-year cap (D10). null = not configured ⇒ the corresponding rule
@@ -55,6 +56,40 @@ public record BusinessRules(
             List<Long> excludedClaimCauseIds,
             Long deadlineHours
     ) {}
+
+    /**
+     * The insurer's policy on fraud records ({@code insurer_rule} of type {@code FRAUD_RECORD}):
+     * how long a record keeps counting, and whether it disqualifies the claim from Fast Track.
+     *
+     * <p>Insurer-wide, not per coverage — the record is about the person, not about which coverage
+     * they claimed under.
+     *
+     * <p><b>It does not say whether the record scores.</b> That's decided where every other factor
+     * is: the insurer's {@link ScoringConfig}, by including {@code fraud_history} and giving it a
+     * weight. Having a second switch here let the two disagree — the referente's panel could claim
+     * the record was scoring while the scoring config didn't even list the factor.
+     *
+     * @param ruleId what a fraud-record {@code rule_result} points at. Null when the insurer never
+     *               configured the rule, and then the Fast Track veto isn't evaluated at all
+     */
+    @Builder
+    public record FraudRecordPolicy(
+            Long ruleId,
+            int windowMonths,
+            boolean blocksFastTrack
+    ) {
+
+        /** Window applied when the insurer never set one: three years. */
+        public static final int DEFAULT_WINDOW_MONTHS = 36;
+
+        /**
+         * No rule row. The window falls back to the default (a record still ages out — "sin
+         * configurar" can't mean "cuenta para siempre") and nothing vetoes Fast Track.
+         */
+        public static FraudRecordPolicy unconfigured() {
+            return new FraudRecordPolicy(null, DEFAULT_WINDOW_MONTHS, false);
+        }
+    }
 
     /**
      * Deterministically evaluable thresholds (no LLM) to decide Fast Track.

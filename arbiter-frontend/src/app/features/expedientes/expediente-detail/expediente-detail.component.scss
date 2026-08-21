@@ -38,6 +38,19 @@
   gap: var(--space-3);
   margin: 0 0 var(--space-4);
 }
+/* Antecedente de fraude. El color entra solo por el borde izquierdo y el punto del badge, como
+   en .reco-value: es información sobre una persona y saturarla de rojo la vuelve un veredicto. */
+
+.fraude-item { padding-left: var(--space-3); border-left: 3px solid var(--border-strong); }
+.fraude-item + .fraude-item { margin-top: var(--space-3); }
+.fraude-item[data-tone='warning'] { border-left-color: var(--status-warning); }
+.fraude-item[data-tone='danger'] { border-left-color: var(--status-danger); }
+.fraude-item-head { display: flex; align-items: center; gap: var(--space-2); flex-wrap: wrap; }
+.fraude-item p { margin: var(--space-2) 0 0; }
+/* El que originó ESTE expediente va separado de los previos: no es contexto, es lo que se hizo acá. */
+.fraude-item.propio { margin-top: var(--space-4); padding-top: var(--space-3); border-top: 1px solid var(--border-subtle); }
+.fraude-card app-button { margin-top: var(--space-3); }
+
 .rcard-note { margin: var(--space-2) 0 0; font-size: var(--font-size-xs); color: var(--text-muted); }
 .rcard-note.error { color: var(--status-danger); }
 .rcard-note.suggested { color: var(--status-risk); }
@@ -82,7 +95,6 @@
   justify-content: space-between;
   gap: var(--space-3);
   margin: var(--space-3) 0;
-  cursor: pointer;
 }
 .informe-file .t-field-label {
   overflow: hidden;

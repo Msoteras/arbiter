@@ -44,7 +44,10 @@ import { ChangeDetectionStrategy, Component, input, model } from '@angular/core'
       width: 18px;
       height: 18px;
       flex-shrink: 0;
-      accent-color: var(--accent);
+      /* --accent-strong y no --accent: el color del tilde lo elige el navegador por contraste
+         contra el relleno, y con el teal de marca (claro) le toca un tilde oscuro que se lee mal.
+         Con el teal fuerte el tilde sale blanco, que además es como está en el diseño. */
+      accent-color: var(--accent-strong);
       cursor: inherit;
     }
 

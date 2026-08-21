@@ -1,0 +1,29 @@
+:host { display: block; }
+
+/* Sin max-width: la letra chica usa el ancho de la card, como el resto de la pantalla de reglas.
+   Un tope de medida acá cortaba el renglón a media card y se leía como un defecto de layout. */
+.section-hint { margin: 0 0 var(--space-3); color: var(--text-secondary); font-size: var(--font-size-sm); }
+
+.sc-section { margin-top: var(--space-5); display: flex; flex-direction: column; gap: var(--space-2); }
+
+/* ── Filas ────────────────────────────────────────────────────────────────────
+   Mismas clases que las reglas de Coberturas, Fast Track, Hard Stop y Scoring: es la misma clase
+   de decisión y conviene que se vea igual en toda la pantalla. El interruptor en sí es app-switch,
+   del kit; acá quedan solo la fila y su tipografía, que la encapsulación obliga a repetir. */
+.rule-rows { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; }
+.rule-row { display: flex; align-items: center; gap: var(--space-3); padding: var(--space-3) 0; }
+.rule-row + .rule-row { border-top: 1px solid var(--border-subtle); }
+.rule-text { flex: 1 1 auto; min-width: 0; }
+.rule-hint { margin: var(--space-1) 0 0; color: var(--text-secondary); font-size: var(--font-size-xs); }
+.rule-value { display: flex; align-items: center; gap: var(--space-2); flex: 0 0 auto; }
+.rule-row.off .rule-text { opacity: 0.55; }
+
+/* El ancho se limita al input, no al renglón: con el tope en la fila, el rótulo se partía en dos
+   líneas teniendo media card libre al lado. */
+.window app-input { width: 88px; }
+/* El equivalente en años va debajo de la unidad, no al lado: en un renglón con el rótulo largo a
+   la izquierda, sumarlo en línea empujaba el campo. */
+.window { flex-wrap: wrap; justify-content: flex-end; }
+.window-eq { flex-basis: 100%; text-align: right; }
+
+.warn-note { margin: 0; color: var(--status-danger); font-size: var(--font-size-sm); }

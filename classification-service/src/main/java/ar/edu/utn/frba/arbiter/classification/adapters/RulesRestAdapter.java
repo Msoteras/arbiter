@@ -92,13 +92,47 @@ public class RulesRestAdapter implements RulesAdapter {
         // the exception propagates whole (see the class javadoc). Only overlayScoring, at the end,
         // stays best-effort.
         return overlayScoring(
-                overlayCoverageLimits(
-                        overlayEvaluableRules(
-                                overlayDocumentRequirements(
-                                        overlayRuleTexts(overlayFastTrack(base, coverageId), coverageId),
-                                        coverageId, claimCauseId),
-                                coverageId),
-                        coverageId));
+                overlayFraudRecordPolicy(
+                        overlayCoverageLimits(
+                                overlayEvaluableRules(
+                                        overlayDocumentRequirements(
+                                                overlayRuleTexts(overlayFastTrack(base, coverageId), coverageId),
+                                                coverageId, claimCauseId),
+                                        coverageId),
+                                coverageId)));
+    }
+
+    /**
+     * The insurer's fraud-record policy. Insurer-wide, so no coverageId — same as the scoring
+     * config, but <b>not</b> best-effort like it: this one can veto Fast Track, and swallowing an
+     * outage would expedite a claim the insurer decided not to expedite. It rides the same
+     * propagate-and-retry path as the other overlays (see the class javadoc).
+     */
+    private BusinessRules overlayFraudRecordPolicy(BusinessRules rules) {
+        return rules.toBuilder().fraudRecordPolicy(getFraudRecordPolicy()).build();
+    }
+
+    @Override
+    public BusinessRules.FraudRecordPolicy getFraudRecordPolicy() {
+        FraudRecordRuleResponse rule = restClient.get()
+                .uri("/api/v1/rules/internal/fraud-record-rule")
+                .header(HttpHeaders.AUTHORIZATION, serviceToken())
+                .retrieve()
+                .body(FraudRecordRuleResponse.class);
+        if (rule == null || rule.ruleId() == null) {
+            log.debug("[RulesRestAdapter] No fraud record rule configured — default window, no veto");
+            return BusinessRules.FraudRecordPolicy.unconfigured();
+        }
+        int windowMonths = rule.windowMonths() == null
+                ? BusinessRules.FraudRecordPolicy.DEFAULT_WINDOW_MONTHS
+                : rule.windowMonths();
+        log.info("[RulesRestAdapter] Fraud record rule loaded — windowMonths={} blocksFastTrack={}",
+                windowMonths, rule.vetoesFastTrack());
+        return BusinessRules.FraudRecordPolicy.builder()
+                .ruleId(rule.ruleId())
+                .windowMonths(windowMonths)
+                .blocksFastTrack(rule.vetoesFastTrack())
+                .build();
     }
 
     /**
@@ -318,6 +352,20 @@ public class RulesRestAdapter implements RulesAdapter {
             boolean blocksFastTrack,
             List<Long> excludedClaimCauseIds,
             Long deadlineHours) {}
+
+    /**
+     * Mirrors rules-service's FraudRecordRuleDto (window + Fast Track veto). Boxed booleans, not
+     * primitives: "this insurer configured nothing" is a 200 with an empty body, and a primitive
+     * would turn that legitimate answer into a parse error — which, since this overlay propagates,
+     * would sink the whole classification.
+     */
+    private record FraudRecordRuleResponse(
+            Long ruleId, Integer windowMonths, Boolean blocksFastTrack) {
+
+        boolean vetoesFastTrack() {
+            return Boolean.TRUE.equals(blocksFastTrack);
+        }
+    }
 
     /** Mirrors rules-service's CoverageLimitsDto (report deadline + events-per-year cap). */
     private record CoverageLimitsResponse(

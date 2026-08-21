@@ -181,7 +181,23 @@ public class MockRulesAdapter implements RulesAdapter {
     @Override
     public BusinessRules getRules(String branchId, Long coverageId, String claimCauseId) {
         BusinessRules rules = coverageId == null ? null : RULES_BY_COVERAGE.get(coverageId);
-        return rules != null ? rules : defaultGenericRules(branchId, claimCauseId);
+        return withFraudRecordPolicy(rules != null ? rules : defaultGenericRules(branchId, claimCauseId));
+    }
+
+    /**
+     * Sin fila en el baseline: el veto de Fast Track pesa sobre una <b>persona</b>, así que solo lo
+     * activa la aseguradora configurándolo (Ley 25.326). El mock, que es lo que queda cuando
+     * rules-service no responde, no puede ser quien empiece a vetarle siniestros a alguien.
+     */
+    @Override
+    public BusinessRules.FraudRecordPolicy getFraudRecordPolicy() {
+        return BusinessRules.FraudRecordPolicy.unconfigured();
+    }
+
+    private BusinessRules withFraudRecordPolicy(BusinessRules rules) {
+        return rules.fraudRecordPolicy() != null
+                ? rules
+                : rules.toBuilder().fraudRecordPolicy(getFraudRecordPolicy()).build();
     }
 
     private BusinessRules defaultGenericRules(String branchId, String claimCauseId) {

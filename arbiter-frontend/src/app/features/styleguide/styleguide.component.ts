@@ -21,6 +21,8 @@ import { StatusTimelineComponent } from '../../shared/ui/status-timeline/status-
 import { MenuButtonComponent, MenuItem } from '../../shared/ui/menu-button/menu-button.component';
 import { SpinnerComponent } from '../../shared/ui/spinner/spinner.component';
 import { InlineLoadingComponent } from '../../shared/ui/inline-loading/inline-loading.component';
+import { SaveBarComponent } from '../../shared/ui/save-bar/save-bar.component';
+import { SwitchComponent } from '../../shared/ui/switch/switch.component';
 import { StatTileComponent } from '../../shared/ui/stat-tile/stat-tile.component';
 import { ToastService } from '../../shared/ui/toast/toast.service';
 import { StatusTransition } from '../../core/models/expediente';
@@ -73,6 +75,8 @@ interface Swatch {
     MenuButtonComponent,
     SpinnerComponent,
     InlineLoadingComponent,
+    SaveBarComponent,
+    SwitchComponent,
     StatTileComponent,
   ],
   template: `
@@ -466,6 +470,12 @@ interface Swatch {
           contenido se proyecta como <span class="mono">thead</span>/<span class="mono">tbody</span>
           nativos. Va dentro de <span class="mono">app-card [flush]</span> para que llegue al borde.
         </p>
+        <p class="sg-p">
+          <span class="mono">[fixed]="true"</span> reparte el ancho por columna en vez de por
+          contenido: las que no declaran ancho quedan todas iguales. Para una matriz (ej. la agenda
+          documental) es lo que corresponde — por contenido, cada columna mide lo que mide su
+          título y la grilla se ve torcida.
+        </p>
         <app-card [flush]="true">
           <app-table>
             <thead>
@@ -549,6 +559,45 @@ interface Swatch {
           <app-spinner [size]="24" />
           <app-spinner [size]="48" />
         </div>
+      </section>
+
+      <section class="sg-block">
+        <h3 class="sg-h3">Switch</h3>
+        <p class="sg-p">
+          Encendido/apagado, donde la decisión es "esto corre o no corre" y el efecto es inmediato
+          sobre lo que hay al lado: una regla del motor, un factor del puntaje. Para elegir de una
+          lista está <span class="mono">app-select</span>; para marcar items de un conjunto,
+          <span class="mono">app-checkbox</span>; para filtrar o alternar una vista, el chip.
+        </p>
+        <p class="sg-p">
+          El estado se lee por la posición de la perilla además de por el color, así que no depende
+          de distinguir el teal del gris. El nombre va en <span class="mono">ariaLabel</span>: en
+          las pantallas donde se usa, el rótulo visible es un elemento aparte, al lado.
+        </p>
+        <div class="row">
+          <app-switch [checked]="true" ariaLabel="Ejemplo encendido" />
+          <app-switch [checked]="false" ariaLabel="Ejemplo apagado" />
+          <app-switch [checked]="true" [disabled]="true" ariaLabel="Ejemplo deshabilitado" />
+        </div>
+      </section>
+
+      <section class="sg-block">
+        <h3 class="sg-h3">Save bar</h3>
+        <p class="sg-p">
+          Pie de una sección editable: estado a la izquierda, descartar y guardar a la derecha.
+          <span class="mono">dirty</span> gobierna todo — sin cambios no hay nada que guardar ni que
+          descartar, y los dos botones se apagan. Así el botón dice la verdad sobre si queda trabajo
+          por persistir, en vez de estar siempre habilitado.
+        </p>
+        <p class="sg-p">
+          <span class="mono">canSave</span> es la validación propia de la sección (un número fuera
+          de rango, por ejemplo). Va aparte de <span class="mono">dirty</span> para que un botón
+          deshabilitado signifique una sola cosa por vez.
+        </p>
+        <app-save-bar [dirty]="false" (save)="noop()" (discard)="noop()" />
+        <app-save-bar [dirty]="true" (save)="noop()" (discard)="noop()" />
+        <app-save-bar [dirty]="true" [saving]="true" (save)="noop()" (discard)="noop()" />
+        <app-save-bar [dirty]="true" error="No se pudo guardar: el motor no respondió" (save)="noop()" (discard)="noop()" />
       </section>
 
       <section class="sg-block">
@@ -709,6 +758,9 @@ export class StyleguideComponent {
     { value: 'xlsx', label: 'Excel (.xlsx)' },
   ];
   protected readonly sampleMenuChoice = signal('');
+
+  /** La vitrina no guarda nada: los botones existen para mostrar los estados, no para hacer algo. */
+  protected noop(): void {}
 
   protected onSampleMenuSelect(value: string): void {
     this.sampleMenuChoice.set(value);

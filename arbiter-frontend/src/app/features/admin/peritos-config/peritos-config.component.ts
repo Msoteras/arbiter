@@ -9,6 +9,7 @@ import { CheckboxComponent } from '../../../shared/ui/checkbox/checkbox.componen
 import { InputComponent } from '../../../shared/ui/input/input.component';
 import { SelectComponent, SelectOption } from '../../../shared/ui/select/select.component';
 import { EmptyStateComponent } from '../../../shared/ui/empty-state/empty-state.component';
+import { BadgeComponent } from '../../../shared/ui/badge/badge.component';
 
 /** Fila en edición. `id` null = alta. */
 interface PeritoDraft extends PeritoRequest {
@@ -32,6 +33,7 @@ interface PeritoDraft extends PeritoRequest {
     InputComponent,
     SelectComponent,
     EmptyStateComponent,
+    BadgeComponent,
   ],
   changeDetection: ChangeDetectionStrategy.OnPush,
   templateUrl: './peritos-config.component.html',

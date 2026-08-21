@@ -129,8 +129,12 @@ class RulesRestAdapterTest {
                 .allSatisfy(uri -> assertThat(uri)
                         .contains("coverageId=1")
                         .contains("claimCause=Robo"));
+        // Los endpoints de toda la aseguradora quedan afuera: no llevan cobertura porque no
+        // dependen de ninguna (el scoring es uno solo por compañía, y el antecedente de fraude es
+        // de la persona, no de la cobertura que afectó).
+        List<String> insurerWide = List.of("/internal/scoring", "/internal/fraud-record-rule");
         assertThat(requested).filteredOn(uri -> uri.contains("/internal/")
-                        && !uri.contains("/internal/scoring"))
+                        && insurerWide.stream().noneMatch(uri::contains))
                 .isNotEmpty()
                 .allSatisfy(uri -> assertThat(uri).contains("coverageId=1"));
     }

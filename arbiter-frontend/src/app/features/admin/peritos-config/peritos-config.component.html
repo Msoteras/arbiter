@@ -1,8 +1,22 @@
-<app-card heading="Peritos">
+<!-- Sin app-card propia: esta lista es una sección DENTRO de "Gestión de fraude", y una card
+     adentro de otra card se lee como dos temas distintos cuando es uno solo. -->
+<div class="sc-section">
+  <div class="sc-section-head">
+    <span class="t-section-label">Peritos de verificación</span>
+    @if (!draft()) {
+      <app-button variant="secondary" (click)="add()">+ Agregar perito</app-button>
+    }
+  </div>
   <p class="section-hint">
-    Los estudios externos a los que el analista puede derivar un siniestro para verificarlo. Es el
-    listado que ve en el selector al derivar: si un ramo no tiene ninguno, no hay a quién derivarle
-    por más que la regla de monto lo habilite.
+    Estudios externos a los que el analista puede derivar un siniestro. Aparecen en el selector al
+    derivar; si un ramo no tiene ninguno, no hay a quién derivar por más que la regla de monto lo
+    habilite.
+  </p>
+  <!-- La barra de abajo gobierna la regla del antecedente, no esta lista: sin este aviso, "Todo
+       guardado" después de tocar un perito se lee como que el cambio no se registró. -->
+  <p class="autosave t-note">
+    <span aria-hidden="true">✓</span>
+    Los peritos se guardan solos al confirmar cada uno: no hace falta usar «Guardar cambios».
   </p>
 
   @if (loading()) {
@@ -18,7 +32,11 @@
           <div class="perito-data">
             <span class="perito-name">
               {{ p.name }}
-              @if (!p.active) { <span class="t-note">· inactivo</span> }
+              <!-- El estado como badge y no como "· inactivo" al final del nombre: un perito
+                   inactivo no aparece en el selector al derivar, así que conviene que salte. -->
+              <app-badge variant="solid" [tone]="p.active ? 'ok' : 'neutral'">
+                {{ p.active ? 'Activo' : 'Inactivo' }}
+              </app-badge>
             </span>
             <span class="t-note">
               {{ p.email }} · {{ ramoLabel(p) }}@if (p.zone) { · {{ p.zone }} }
@@ -26,7 +44,7 @@
           </div>
           <div class="perito-actions">
             <app-button variant="secondary" (click)="edit(p)">Editar</app-button>
-            <app-button variant="secondary" (click)="remove(p)">Borrar</app-button>
+            <button type="button" class="danger-btn" (click)="remove(p)">Borrar</button>
           </div>
         </li>
       }
@@ -59,17 +77,13 @@
       <div class="perito-form-actions">
         <app-button variant="secondary" (click)="cancel()">Cancelar</app-button>
         <app-button [disabled]="!canSave() || saving()" (click)="save()">
-          {{ saving() ? 'Guardando…' : 'Guardar' }}
+          {{ saving() ? 'Guardando…' : 'Guardar perito' }}
         </app-button>
       </div>
-    </div>
-  } @else {
-    <div class="add-perito">
-      <app-button variant="secondary" (click)="add()">Agregar perito</app-button>
     </div>
   }
 
   @if (error()) {
     <p class="t-note error">{{ error() }}</p>
   }
-</app-card>
+</div>

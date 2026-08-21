@@ -6,6 +6,7 @@ import ar.edu.utn.frba.arbiter.classification.adapters.InsurerAdapter;
 import ar.edu.utn.frba.arbiter.classification.adapters.RulesAdapter;
 import ar.edu.utn.frba.arbiter.classification.dto.ClassificationResponse;
 import ar.edu.utn.frba.arbiter.classification.models.repositories.DocumentAnalysisRepository;
+import ar.edu.utn.frba.arbiter.classification.models.repositories.InsuredFraudRecordRepository;
 import ar.edu.utn.frba.arbiter.classification.models.repositories.PolicySnapshotRepository;
 import ar.edu.utn.frba.arbiter.classification.services.risk.RiskFixtures;
 import ar.edu.utn.frba.arbiter.classification.services.risk.RiskScore;
@@ -46,12 +47,14 @@ class ClassificationOrchestratorScoringTest {
     @Mock private CoverageRuleEvaluator coverageRuleEvaluator;
     @Mock private CoverageScopeEvaluator coverageScopeEvaluator;
     @Mock private TemporalRuleEvaluator temporalRuleEvaluator;
+    @Mock private FraudRecordRuleEvaluator fraudRecordRuleEvaluator;
     @Mock private FastTrackValidator fastTrackValidator;
     @Mock private DocumentAnalyzer documentAnalyzer;
     @Mock private PromptBuilder promptBuilder;
     @Mock private RiskScoringService riskScoringService;
     @Mock private ImageFraudAnalysisService imageFraudAnalysisService;
     @Mock private PolicySnapshotRepository policySnapshotRepository;
+    @Mock private InsuredFraudRecordRepository fraudRecordRepository;
     @Mock private DocumentAnalysisRepository documentAnalysisRepository;
     @Spy private ObjectMapper objectMapper = new ObjectMapper().registerModule(new JavaTimeModule());
 
@@ -69,6 +72,8 @@ class ClassificationOrchestratorScoringTest {
                 .thenReturn(new CoverageRuleEvaluator.Result(false, List.of()));
         when(temporalRuleEvaluator.evaluate(any(), any(), any(), any()))
                 .thenReturn(TemporalRuleEvaluator.Result.empty());
+        when(fraudRecordRuleEvaluator.evaluate(any(), any()))
+                .thenReturn(FraudRecordRuleEvaluator.Result.empty());
         when(coverageScopeEvaluator.evaluate(any(), any(), any(), any()))
                 .thenReturn(new CoverageScopeEvaluator.Result(false, List.of()));
     }

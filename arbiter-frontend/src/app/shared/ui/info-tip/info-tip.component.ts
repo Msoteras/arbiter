@@ -1,4 +1,6 @@
-import { ChangeDetectionStrategy, Component, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, ElementRef, inject, signal } from '@angular/core';
+
+import { OverlayPosition, anchorToTrigger } from '../overlay-position';
 
 /**
  * Ícono "i" al lado de un label, para una aclaración puntual que no amerita un
@@ -7,6 +9,11 @@ import { ChangeDetectionStrategy, Component, signal } from '@angular/core';
  *
  * Toggle por click en vez de solo hover: en mobile no hay hover, y así funciona
  * igual con teclado (foco + Enter/Space, nativo de `<button>`) que con mouse o touch.
+ *
+ * La burbuja es `fixed` y se ancla con {@link anchorToTrigger}, igual que los menús y los selects
+ * del kit: siendo `absolute` la recortaba cualquier ancestro con overflow, y además abría siempre
+ * hacia arriba — con un texto que no entraba arriba del ícono, se veía cortada. Ahora cae hacia el
+ * lado donde hay lugar.
  */
 @Component({
   selector: 'app-info-tip',
@@ -30,7 +37,14 @@ import { ChangeDetectionStrategy, Component, signal } from '@angular/core';
         </svg>
       </button>
       @if (open()) {
-        <span class="bubble" role="tooltip"><ng-content /></span>
+        <span
+          class="bubble"
+          role="tooltip"
+          [style.top.px]="pos().top"
+          [style.bottom.px]="pos().bottom"
+          [style.left.px]="pos().left"
+          [style.right.px]="pos().right"
+        ><ng-content /></span>
       }
     </span>
   `,
@@ -54,13 +68,11 @@ import { ChangeDetectionStrategy, Component, signal } from '@angular/core';
     .trigger svg { width: 15px; height: 15px; }
 
     .bubble {
-      position: absolute;
-      z-index: 20;
-      bottom: calc(100% + var(--space-2));
-      left: 50%;
-      transform: translateX(-50%);
+      position: fixed;
+      z-index: 50;
       width: max-content;
-      max-width: 260px;
+      /* min() y no un ancho fijo: en mobile 260px se sale de pantalla anclado a la izquierda. */
+      max-width: min(280px, calc(100vw - var(--space-4) * 2));
       padding: var(--space-2) var(--space-3);
       border-radius: var(--radius-ctl);
       border: 1px solid var(--border-default);
@@ -74,10 +86,33 @@ import { ChangeDetectionStrategy, Component, signal } from '@angular/core';
   `,
 })
 export class InfoTipComponent {
+  /** Alto estimado de la burbuja para decidir el lado; no hace falta medirla antes de dibujarla. */
+  private static readonly ESTIMATED_HEIGHT = 140;
+
+  private readonly host = inject(ElementRef<HTMLElement>);
+
   protected readonly open = signal(false);
+  /** Coordenadas de viewport (la burbuja es `fixed`). Null en el eje que no se fija. */
+  protected readonly pos = signal<OverlayPosition>({
+    top: null,
+    bottom: null,
+    left: null,
+    right: null,
+    width: null,
+  });
 
   protected toggle(event: MouseEvent): void {
     event.stopPropagation();
+    if (!this.open()) {
+      const trigger = this.host.nativeElement.getBoundingClientRect();
+      // Se ancla al borde más lejano del costado de pantalla donde está el ícono: anclando
+      // siempre a la izquierda, un tip del lado derecho se iba de pantalla — el mismo problema
+      // que arriba, espejado.
+      const align = trigger.left > document.documentElement.clientWidth / 2 ? 'end' : 'start';
+      this.pos.set(
+        anchorToTrigger(trigger, InfoTipComponent.ESTIMATED_HEIGHT, align),
+      );
+    }
     this.open.update((v) => !v);
   }
 

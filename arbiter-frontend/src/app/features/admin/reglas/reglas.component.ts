@@ -28,16 +28,24 @@ import { ButtonComponent } from '../../../shared/ui/button/button.component';
 import { CardComponent } from '../../../shared/ui/card/card.component';
 import { EmptyStateComponent } from '../../../shared/ui/empty-state/empty-state.component';
 import { InputComponent } from '../../../shared/ui/input/input.component';
-import { PeritosConfigComponent } from '../peritos-config/peritos-config.component';
 import { ScoringConfigComponent } from '../scoring-config/scoring-config.component';
+import { FraudeConfigComponent } from '../fraude-config/fraude-config.component';
+import { SaveBarComponent } from '../../../shared/ui/save-bar/save-bar.component';
 import { StringListEditorComponent } from './string-list-editor.component';
 import { InlineLoadingComponent } from '../../../shared/ui/inline-loading/inline-loading.component';
 import { InfoTipComponent } from '../../../shared/ui/info-tip/info-tip.component';
+import { BadgeComponent } from '../../../shared/ui/badge/badge.component';
+import { SwitchComponent } from '../../../shared/ui/switch/switch.component';
+import { TableComponent } from '../../../shared/ui/table/table.component';
+import { CheckboxComponent } from '../../../shared/ui/checkbox/checkbox.component';
 import { SelectComponent, SelectOption } from '../../../shared/ui/select/select.component';
 import { ToastService } from '../../../shared/ui/toast/toast.service';
-import { fadeInUp, listStagger, staggerReveal } from '../../../shared/animations';
+import { accordion, fadeInUp, listStagger, staggerReveal } from '../../../shared/animations';
 
-type TabId = 'coberturas' | 'fastTrack' | 'documentacion' | 'reglas';
+type TabId = 'coberturas' | 'exclusiones' | 'fastTrack' | 'documentacion' | 'reglas';
+
+/** Las vistas del panel derecho que no dependen del ramo elegido. */
+type GeneralView = 'hardStop' | 'scoring' | 'fraude';
 
 /**
  * Configuración de reglas del referente, Ramo-céntrica. Master (lista de ramos) + detalle con
@@ -60,15 +68,20 @@ type TabId = 'coberturas' | 'fastTrack' | 'documentacion' | 'reglas';
     CardComponent,
     EmptyStateComponent,
     InputComponent,
-    PeritosConfigComponent,
     ScoringConfigComponent,
+    FraudeConfigComponent,
+    SaveBarComponent,
     StringListEditorComponent,
     InlineLoadingComponent,
     InfoTipComponent,
+    BadgeComponent,
+    SwitchComponent,
+    TableComponent,
+    CheckboxComponent,
     SelectComponent,
   ],
   changeDetection: ChangeDetectionStrategy.OnPush,
-  animations: [staggerReveal, listStagger, fadeInUp],
+  animations: [staggerReveal, listStagger, fadeInUp, accordion],
   templateUrl: './reglas.component.html',
   styleUrl: './reglas.component.scss',
 })
@@ -86,20 +99,19 @@ export class ReglasComponent {
   // persisten contra el backend, cada una con su propio botón — el "Guardar cambios" global sigue
   // existiendo solo para el nombre del ramo, que todavía es mock (alta/baja de ramo también).
   protected readonly ftSaving = signal(false);
-  protected readonly ftSaved = signal(false);
   protected readonly ftError = signal<string | null>(null);
 
   protected readonly covSaving = signal(false);
-  protected readonly covSaved = signal(false);
   protected readonly covError = signal<string | null>(null);
+
+  protected readonly exclSaving = signal(false);
+  protected readonly exclError = signal<string | null>(null);
   private loadedCoverages: Coverage[] = [];
 
   protected readonly docSaving = signal(false);
-  protected readonly docSaved = signal(false);
   protected readonly docError = signal<string | null>(null);
 
   protected readonly rulesSaving = signal(false);
-  protected readonly rulesSaved = signal(false);
   protected readonly rulesError = signal<string | null>(null);
 
   protected readonly docTypes = DOCUMENT_TYPES;
@@ -107,12 +119,6 @@ export class ReglasComponent {
   // exclusiones duras por cobertura como para la solapa Documentación (agenda por hecho generador,
   // D5). Se cargan del backend al elegir el ramo.
   protected readonly claimCauses = signal<ClaimCauseOption[]>([]);
-  // Hecho generador activo en la solapa Documentación — arranca en el primero del ramo.
-  protected readonly selectedDocClaimCauseId = signal<number | null>(null);
-  // Su nombre, para el encabezado "Documentos requeridos para «X»".
-  protected readonly selectedDocClaimCauseName = computed(
-    () => this.claimCauses().find((c) => c.id === this.selectedDocClaimCauseId())?.name ?? null,
-  );
 
   // Renombre del ramo (lo único editable del ramo desde acá: el alta y la baja no se exponen en la
   // UI — el catálogo de ramos es fijo, lo administra el seed).
@@ -122,6 +128,7 @@ export class ReglasComponent {
 
   protected readonly tabs: { id: TabId; label: string }[] = [
     { id: 'coberturas', label: 'Coberturas' },
+    { id: 'exclusiones', label: 'Exclusiones comunes' },
     { id: 'fastTrack', label: 'Fast Track' },
     { id: 'documentacion', label: 'Documentación' },
     { id: 'reglas', label: 'Reglas de negocio' },
@@ -144,8 +151,93 @@ export class ReglasComponent {
   protected readonly selectedId = signal<string | null>(null);
   // Qué muestra el panel derecho: el detalle del ramo seleccionado ('ramo') o el scoring de la
   // aseguradora ('scoring'), que no pertenece a ningún ramo y se elige desde su propio recuadro.
-  protected readonly view = signal<'ramo' | 'scoring' | 'hardStop' | 'peritos'>('ramo');
+  protected readonly view = signal<'ramo' | GeneralView>('ramo');
   protected readonly draft = signal<RamoRules | null>(null);
+
+  /**
+   * Lo último que confirmó el backend, por solapa. Contra esto se decide si hay cambios sin
+   * guardar: un flag "tocado" dejaba el botón habilitado después de deshacer un cambio a mano,
+   * ofreciendo guardar algo que ya no existía.
+   *
+   * Se sincroniza por porción y no entero, porque las cargas del backend caen en momentos
+   * distintos (la agenda documental se recarga al cambiar de hecho generador, con el referente ya
+   * editando otra solapa): un sync completo ahí le borraría los cambios pendientes de las demás.
+   */
+  private readonly persisted = signal<RamoRules | null>(null);
+
+  private markPersisted(...fields: (keyof RamoRules)[]): void {
+    const current = this.draft();
+    if (!current) {
+      return;
+    }
+    this.persisted.update((base) => {
+      const next: RamoRules = base ? { ...base } : structuredClone(current);
+      for (const field of fields) {
+        Object.assign(next, { [field]: structuredClone(current[field]) });
+      }
+      return next;
+    });
+  }
+
+  private sliceChanged(...fields: (keyof RamoRules)[]): boolean {
+    const current = this.draft();
+    const base = this.persisted();
+    if (!current || !base) {
+      return false;
+    }
+    return fields.some(
+      (field) => JSON.stringify(current[field]) !== JSON.stringify(base[field]),
+    );
+  }
+
+  /** Vuelve la porción de la solapa a lo último guardado, sin tocar las otras. */
+  private restoreSlice(...fields: (keyof RamoRules)[]): void {
+    const base = this.persisted();
+    if (!base) {
+      return;
+    }
+    this.draft.update((current) => {
+      if (!current) {
+        return current;
+      }
+      const next: RamoRules = { ...current };
+      for (const field of fields) {
+        Object.assign(next, { [field]: structuredClone(base[field]) });
+      }
+      return next;
+    });
+  }
+
+  protected readonly covDirty = computed(() => this.sliceChanged('coverages'));
+  protected readonly exclDirty = computed(() => this.sliceChanged('commonExclusions'));
+  protected readonly ftDirty = computed(() => this.sliceChanged('fastTrack'));
+  protected readonly docDirty = computed(() => this.sliceChanged('requiredDocumentsByClaimCause'));
+  protected readonly rulesDirty = computed(() => this.sliceChanged('businessRules'));
+
+  protected discardCoverages(): void {
+    this.restoreSlice('coverages');
+    this.covError.set(null);
+  }
+
+  protected discardCommonExclusions(): void {
+    this.restoreSlice('commonExclusions');
+    this.exclError.set(null);
+  }
+
+  protected discardFastTrack(): void {
+    this.restoreSlice('fastTrack');
+    this.ftError.set(null);
+  }
+
+  protected discardDocuments(): void {
+    this.restoreSlice('requiredDocumentsByClaimCause');
+    this.docError.set(null);
+  }
+
+  protected discardBusinessRules(): void {
+    this.restoreSlice('businessRules');
+    this.rulesError.set(null);
+  }
 
   // Último conteo de coberturas conocido (branchId → coverageCount). Cacheado acá porque
   // refreshCoverageSummary() y la carga de ramos son dos HTTP calls independientes disparadas
@@ -267,37 +359,34 @@ export class ReglasComponent {
     return this.view() === 'ramo' && this.selectedId() === r.id;
   }
 
-  /** El recuadro "Scoring de riesgo" de la izquierda: muestra el scoring de la aseguradora a la derecha. */
-  protected selectScoring(): void {
-    this.view.set('scoring');
-  }
-
   /**
-   * Igual que el scoring: el catálogo de peritos es de toda la aseguradora, no de un ramo (aunque
-   * cada perito pueda especializarse en uno), así que va como recuadro aparte y no como solapa
-   * dentro del ramo — que haría creer que se configura por ramo.
+   * Las secciones que NO son de un ramo: valen para toda la aseguradora y elegir una cambia el
+   * panel derecho. Están juntas en una lista y no como cards sueltas porque son un grupo — el
+   * alcance lo dice el encabezado una vez, en vez de repetirse abajo de cada nombre.
    */
-  protected selectPeritos(): void {
-    this.view.set('peritos');
-  }
+  protected readonly generalSections: { id: GeneralView; label: string }[] = [
+    { id: 'hardStop', label: 'Hard Stop' },
+    { id: 'scoring', label: 'Puntaje de riesgo' },
+    // Antecedente y peritos eran dos entradas: apuntan a lo mismo (qué hace la compañía frente a
+    // un fraude) y se usan en el mismo momento, así que ahora son una sección sola.
+    { id: 'fraude', label: 'Gestión de fraude' },
+  ];
 
-  /** El recuadro "Hard Stop" de la izquierda: vigencia y mora, de toda la aseguradora, no del ramo. */
-  protected selectHardStop(): void {
-    this.view.set('hardStop');
+  protected selectGeneral(section: GeneralView): void {
+    this.view.set(section);
   }
 
   protected select(r: RamoRules): void {
     this.view.set('ramo');
     this.selectedId.set(r.id);
     this.draft.set(structuredClone(r));
+    this.persisted.set(structuredClone(r));
+    this.expandedCoverageId.set(null);
     this.activeTab.set('coberturas');
-    this.ftSaved.set(false);
     this.ftError.set(null);
-    this.covSaved.set(false);
     this.covError.set(null);
-    this.docSaved.set(false);
+    this.exclError.set(null);
     this.docError.set(null);
-    this.rulesSaved.set(false);
     this.rulesError.set(null);
     this.renameSaved.set(false);
     this.renameError.set(null);
@@ -312,7 +401,6 @@ export class ReglasComponent {
   /** Catálogo de hechos generadores del ramo, para el selector de exclusiones duras por cobertura. */
   private loadClaimCauses(r: RamoRules): void {
     this.claimCauses.set([]);
-    this.selectedDocClaimCauseId.set(null);
     const branchId = this.branchIdOf(r);
     if (branchId == null) {
       return;
@@ -320,13 +408,9 @@ export class ReglasComponent {
     this.trackDetail(r.id, this.exclusionsService.listClaimCauses(branchId)).subscribe({
       next: (options) => {
         this.claimCauses.set(options);
-        // La agenda documental se edita por hecho generador (D5): con el catálogo ya en mano se
-        // elige el primero y se le carga su agenda.
-        const first = options[0]?.id ?? null;
-        this.selectedDocClaimCauseId.set(first);
-        if (first != null) {
-          this.loadDocumentsFromBackend(r, first);
-        }
+        // La agenda documental es por hecho generador (D5) y se edita como matriz documento ×
+        // hecho generador, así que se cargan las N agendas y no solo la del primero.
+        options.forEach((option) => this.loadDocumentsFromBackend(r, option.id));
       },
       error: () => {
         /* backend caído: el selector queda vacío, sin romper la pantalla */
@@ -376,6 +460,7 @@ export class ReglasComponent {
           }
         : d,
     );
+    this.markPersisted('fastTrack');
   }
 
   /**
@@ -402,6 +487,7 @@ export class ReglasComponent {
     this.trackDetail(ramoId, this.rulesTextService.getExclusions(branchId)).subscribe({
       next: (items) => {
         this.draft.update((d) => (d ? { ...d, commonExclusions: items } : d));
+        this.markPersisted('commonExclusions');
       },
       error: () => {
         /* best-effort */
@@ -436,6 +522,7 @@ export class ReglasComponent {
     // /coverages/summary (see refreshCoverageSummary) so it's accurate before any ramo is ever
     // selected, not just after.
     this.draft.update((d) => (d && d.id === ramoId ? { ...d, coverages } : d));
+    this.markPersisted('coverages');
   }
 
   /**
@@ -470,6 +557,7 @@ export class ReglasComponent {
     this.loadedCoverages = this.loadedCoverages.map((c) =>
       c.id === coverageId ? { ...c, excludedClaimCauseIds: ids } : c,
     );
+    this.markPersisted('coverages');
   }
 
   /**
@@ -504,6 +592,7 @@ export class ReglasComponent {
     this.loadedCoverages = this.loadedCoverages.map((c) =>
       c.id === coverageId ? { ...c, hardRules: rules } : c,
     );
+    this.markPersisted('coverages');
   }
 
   /** Trae del backend la agenda documental real de un hecho generador puntual del ramo. */
@@ -522,6 +611,7 @@ export class ReglasComponent {
               }
             : d,
         );
+        this.markPersisted('requiredDocumentsByClaimCause');
       },
       error: () => {
         /* backend caído: nos quedamos con el mock, sin romper la pantalla */
@@ -538,6 +628,7 @@ export class ReglasComponent {
     this.trackDetail(r.id, this.rulesTextService.getBusinessRules(branchId)).subscribe({
       next: (items) => {
         this.draft.update((d) => (d ? { ...d, businessRules: items } : d));
+        this.markPersisted('businessRules');
       },
       error: () => {
         /* backend caído: nos quedamos con el mock, sin romper la pantalla */
@@ -620,6 +711,9 @@ export class ReglasComponent {
       hardRules: [],
     };
     this.draft.update((d) => (d ? { ...d, coverages: [...d.coverages, coverage] } : d));
+    // Se abre sola: con el acordeón cerrado, agregar una cobertura sumaba un renglón vacío al pie
+    // y parecía que el botón no había hecho nada.
+    this.expandedCoverageId.set(coverage.id);
     this.markDirty();
   }
 
@@ -681,11 +775,24 @@ export class ReglasComponent {
   // chips en "Inactiva" por default como si ya hubiera cargado, en lugar de un loader.
   protected readonly hardStopLoading = signal(true);
   protected readonly hardStopSaving = signal(false);
-  protected readonly hardStopSaved = signal(false);
+  protected readonly hardStopError = signal<string | null>(null);
+  /** Lo último que confirmó el backend, para decidir si quedan cambios sin guardar. */
+  private readonly persistedHardRules = signal<InsurerHardRule[]>([]);
+
+  protected readonly hardStopDirty = computed(
+    () => JSON.stringify(this.insurerHardRules()) !== JSON.stringify(this.persistedHardRules()),
+  );
+
+  protected discardHardStop(): void {
+    this.insurerHardRules.set(structuredClone(this.persistedHardRules()));
+    this.hardStopError.set(null);
+  }
 
   protected readonly onArrearsOptions: SelectOption[] = [
     { value: 'REJECT', label: 'Rechazar en el alta' },
-    { value: 'STANDBY', label: 'Dejar en standby' },
+    // "Standby" no decía qué pasa: la denuncia se crea igual y la mora se evalúa después, en la
+    // clasificación. La etiqueta ahora cuenta eso en vez de nombrar un estado interno.
+    { value: 'STANDBY', label: 'Permitir el alta y evaluar después' },
   ];
 
   private loadInsurerHardRules(): void {
@@ -694,7 +801,10 @@ export class ReglasComponent {
       .getInsurerWide()
       .pipe(finalize(() => this.hardStopLoading.set(false)))
       .subscribe({
-        next: (rules) => this.insurerHardRules.set(rules),
+        next: (rules) => {
+          this.insurerHardRules.set(rules);
+          this.persistedHardRules.set(structuredClone(rules));
+        },
         error: () => {
           /* backend caído: la pestaña queda vacía, sin romper la pantalla */
         },
@@ -709,14 +819,12 @@ export class ReglasComponent {
     this.insurerHardRules.update((list) =>
       list.map((r) => (r.ruleType === type ? { ...r, enabled: !r.enabled } : r)),
     );
-    this.hardStopSaved.set(false);
   }
 
   protected setOnArrears(value: string): void {
     this.insurerHardRules.update((list) =>
       list.map((r) => (r.ruleType === 'POLICY_STANDING' ? { ...r, onArrears: value as OnArrears } : r)),
     );
-    this.hardStopSaved.set(false);
   }
 
   protected policyStandingRule(): InsurerHardRule | undefined {
@@ -727,20 +835,31 @@ export class ReglasComponent {
     return this.insurerHardRules().find((r) => r.ruleType === 'POLICY_IN_FORCE');
   }
 
+  /**
+   * Si la mora, tal como está configurada, efectivamente bloquea el alta. Es la única regla de Hard
+   * Stop donde estar activa no alcanza: con `STANDBY` la denuncia se crea igual y la mora se evalúa
+   * después, en la clasificación. Decirlo en la pantalla evita prometer un bloqueo que no ocurre.
+   */
+  protected arrearsBlocks(): boolean {
+    const rule = this.policyStandingRule();
+    return rule?.enabled === true && rule.onArrears === 'REJECT';
+  }
+
   protected saveHardStop(): void {
     if (this.hardStopSaving()) {
       return;
     }
     this.hardStopSaving.set(true);
-    this.hardStopSaved.set(false);
+    this.hardStopError.set(null);
     this.hardRulesService.saveInsurerWide(this.insurerHardRules()).subscribe({
       next: (rules) => {
         this.insurerHardRules.set(rules);
+        this.persistedHardRules.set(structuredClone(rules));
         this.hardStopSaving.set(false);
-        this.hardStopSaved.set(true);
       },
       error: (e: unknown) => {
         this.hardStopSaving.set(false);
+        this.hardStopError.set(this.backendErrorMessage(e));
         this.toastService.show(this.backendErrorMessage(e));
       },
     });
@@ -782,6 +901,9 @@ export class ReglasComponent {
 
   protected removeCoverage(id: string): void {
     this.draft.update((d) => (d ? { ...d, coverages: d.coverages.filter((c) => c.id !== id) } : d));
+    if (this.expandedCoverageId() === id) {
+      this.expandedCoverageId.set(null);
+    }
     this.markDirty();
   }
 
@@ -824,6 +946,124 @@ export class ReglasComponent {
     return this.intStr(c.waitingPeriodDays);
   }
 
+  // ───────────────── Coberturas: acordeón + filas de reglas ─────────────────
+  /**
+   * Qué cobertura está abierta. Una por vez: con todas desplegadas la solapa era una tira de
+   * formularios idénticos donde no se distinguía dónde terminaba una y empezaba la otra, y el
+   * referente edita de a una.
+   */
+  protected readonly expandedCoverageId = signal<string | null>(null);
+
+  protected isCoverageOpen(c: Coverage): boolean {
+    return this.expandedCoverageId() === c.id;
+  }
+
+  protected toggleCoverage(c: Coverage): void {
+    this.expandedCoverageId.update((open) => (open === c.id ? null : c.id));
+  }
+
+  /**
+   * El resumen que se ve con la cobertura cerrada: lo que la distingue de las otras, en el orden en
+   * que se configura adentro. Se omite lo que no está configurado en vez de mostrarlo en "—": una
+   * fila de guiones no dice nada y esconde lo que sí tiene valor.
+   */
+  protected coverageSummary(c: Coverage): string[] {
+    const chips: string[] = [];
+    if (c.deductibleRatio != null) {
+      chips.push(`Franquicia ${this.pctFromRatio(c.deductibleRatio)}%`);
+    }
+    if (c.waitingPeriodDays != null) {
+      chips.push(`Carencia ${c.waitingPeriodDays} d`);
+    }
+    if (c.reportingWindowDays != null) {
+      chips.push(`Denuncia ${c.reportingWindowDays} d`);
+    }
+    const police = this.hardRulesOf(c).find((r) => r.ruleType === 'POLICE_DEADLINE');
+    if (police?.deadlineHours != null) {
+      chips.push(`Policial ${police.deadlineHours} h`);
+    }
+    if (c.maxAnnualClaims != null) {
+      chips.push(`Máx. ${c.maxAnnualClaims}/año`);
+    }
+    const excluded = (c.excludedClaimCauseIds ?? []).length;
+    if (excluded > 0) {
+      chips.push(excluded === 1 ? '1 hecho excluido' : `${excluded} hechos excluidos`);
+    }
+    return chips;
+  }
+
+  /**
+   * Las reglas duras en un orden fijo y no en el que las devuelva el backend: la lista se lee de
+   * corrido y cambiar de cobertura no tiene que reordenar lo que el referente venía mirando.
+   */
+  private static readonly HARD_RULE_ORDER: HardRuleType[] = [
+    'WAITING_PERIOD',
+    'REPORT_DEADLINE',
+    'POLICE_DEADLINE',
+    'MAX_EVENTS_YEAR',
+  ];
+
+  protected orderedHardRules(c: Coverage): HardRule[] {
+    const rules = this.hardRulesOf(c);
+    return ReglasComponent.HARD_RULE_ORDER.map((type) =>
+      rules.find((r) => r.ruleType === type),
+    ).filter((r): r is HardRule => r != null);
+  }
+
+  /** Qué evalúa cada regla, en una línea, al lado de su interruptor. */
+  protected hardRuleHint(type: HardRuleType): string {
+    switch (type) {
+      case 'WAITING_PERIOD':
+        return 'Días desde el alta de la póliza en los que la cobertura todavía no aplica.';
+      case 'REPORT_DEADLINE':
+        return 'Plazo para denunciar el siniestro a la aseguradora, contado desde el hecho.';
+      case 'POLICE_DEADLINE':
+        return 'Plazo para hacer la denuncia policial, sobre la fecha que declara el asegurado.';
+      case 'MAX_EVENTS_YEAR':
+        return 'Cuántos siniestros puede tener el asegurado en esta cobertura en 12 meses.';
+    }
+  }
+
+  protected hardRuleUnit(type: HardRuleType): string {
+    return type === 'POLICE_DEADLINE' ? 'horas' : type === 'MAX_EVENTS_YEAR' ? 'por año' : 'días';
+  }
+
+  /**
+   * El umbral de cada regla. Tres viven en columnas de la cobertura (son términos del contrato) y
+   * el de la denuncia policial en la regla misma, que es la única sin columna propia. La pantalla
+   * no tiene por qué mostrar esa diferencia: acá se unifica el acceso, y el interruptor queda al
+   * lado del número que gobierna en vez de dos secciones más arriba.
+   */
+  protected hardRuleValue(c: Coverage, type: HardRuleType): string {
+    switch (type) {
+      case 'WAITING_PERIOD':
+        return this.intStr(c.waitingPeriodDays);
+      case 'REPORT_DEADLINE':
+        return this.intStr(c.reportingWindowDays);
+      case 'POLICE_DEADLINE':
+        return this.policeDeadlineStr(c);
+      case 'MAX_EVENTS_YEAR':
+        return this.intStr(c.maxAnnualClaims);
+    }
+  }
+
+  protected setHardRuleValue(c: Coverage, type: HardRuleType, value: string): void {
+    switch (type) {
+      case 'WAITING_PERIOD':
+        this.setCoverageWaitingPeriod(c.id, value);
+        return;
+      case 'REPORT_DEADLINE':
+        this.setCoverageReportingWindow(c.id, value);
+        return;
+      case 'POLICE_DEADLINE':
+        this.setPoliceDeadline(c.id, value);
+        return;
+      case 'MAX_EVENTS_YEAR':
+        this.setCoverageMaxClaims(c.id, value);
+        return;
+    }
+  }
+
   protected toggleCoverageFamilyGroup(c: Coverage): void {
     this.setCoverageField(c.id, { coversFamilyGroup: !c.coversFamilyGroup });
   }
@@ -837,45 +1077,63 @@ export class ReglasComponent {
   }
 
   // ───────────────── Documentación (por hecho generador) ─────────────────
-  protected selectDocClaimCause(claimCauseId: number): void {
-    if (this.selectedDocClaimCauseId() === claimCauseId) {
-      return;
-    }
-    this.selectedDocClaimCauseId.set(claimCauseId);
-    this.docSaved.set(false);
-    this.docError.set(null);
-    const d = this.draft();
-    if (d) {
-      this.loadDocumentsFromBackend(d, claimCauseId);
-    }
-  }
 
-  protected isDocRequired(code: string): boolean {
-    const claimCauseId = this.selectedDocClaimCauseId();
-    if (claimCauseId == null) {
-      return false;
-    }
-    return this.draft()?.requiredDocumentsByClaimCause[claimCauseId]?.includes(code) ?? false;
-  }
 
-  protected toggleDoc(code: string): void {
-    const claimCauseId = this.selectedDocClaimCauseId();
-    if (claimCauseId == null) {
-      return;
-    }
-    this.draft.update((d) => {
-      if (!d) {
-        return d;
-      }
-      const current = d.requiredDocumentsByClaimCause[claimCauseId] ?? [];
-      const has = current.includes(code);
-      const next = has ? current.filter((c) => c !== code) : [...current, code];
-      return { ...d, requiredDocumentsByClaimCause: { ...d.requiredDocumentsByClaimCause, [claimCauseId]: next } };
-    });
-    this.markDirty();
-  }
 
   // ───────────────── Fast Track (siempre activo; no hay toggle) ─────────────────
+  // ───────────────── Fast Track: umbrales como interruptor + valor ─────────────────
+  /**
+   * Un umbral está activo cuando tiene valor: `null` significa "no se evalúa". Antes eso se
+   * expresaba dejando el campo vacío, y un campo vacío se lee como "me falta cargarlo", no como
+   * una decisión. Con el interruptor la decisión queda dicha, y apagar no pierde el número: se
+   * guarda el último para poder volver a prenderlo sin recordarlo.
+   */
+  private readonly ftLastValues = new Map<string, number>();
+
+  /**
+   * Valor con el que arranca un umbral recién prendido. Son los del seed, que es lo que la
+   * aseguradora tiene hoy configurado: prender un umbral no debería estrenar una política que
+   * nadie eligió, solo la que ya venía por defecto.
+   */
+  private static readonly FT_DEFAULTS: Record<string, number> = {
+    minPolicyAgeMonths: 3,
+    maxPriorClaims: 0,
+    priorClaimsWindowMonths: 12,
+    maxClaimedAmountRatio: 50,
+  };
+
+  protected ftActive(field: 'minPolicyAgeMonths' | 'maxPriorClaims' | 'priorClaimsWindowMonths' | 'maxClaimedAmountRatio'): boolean {
+    return this.draft()?.fastTrack[field] != null;
+  }
+
+  protected toggleFtThreshold(
+    field: 'minPolicyAgeMonths' | 'maxPriorClaims' | 'priorClaimsWindowMonths' | 'maxClaimedAmountRatio',
+  ): void {
+    const ft = this.draft()?.fastTrack;
+    if (!ft) {
+      return;
+    }
+    if (ft[field] != null) {
+      // Se recuerda antes de apagar: volver a prenderlo devuelve lo que había, no el default.
+      const current = field === 'maxClaimedAmountRatio' ? (ft[field] ?? 0) * 100 : ft[field];
+      if (current != null) {
+        this.ftLastValues.set(field, current);
+      }
+      this.patchFastTrack((c) => ({ ...c, [field]: null }));
+      // La ventana solo acota los siniestros previos: sin ese umbral no tiene qué acotar.
+      if (field === 'maxPriorClaims') {
+        this.patchFastTrack((c) => ({ ...c, priorClaimsWindowMonths: null }));
+      }
+      return;
+    }
+    const restored = this.ftLastValues.get(field) ?? ReglasComponent.FT_DEFAULTS[field];
+    if (field === 'maxClaimedAmountRatio') {
+      this.setFtMaxRatio(String(restored));
+    } else {
+      this.patchFastTrack((c) => ({ ...c, [field]: restored }));
+    }
+  }
+
   protected setMinPolicyAge(v: string): void {
     this.patchFastTrack((ft) => ({ ...ft, minPolicyAgeMonths: this.intFromStr(v) }));
   }
@@ -947,7 +1205,6 @@ export class ReglasComponent {
       return;
     }
     this.ftError.set(null);
-    this.ftSaved.set(false);
     const branchId = this.branchIdOf(d);
     if (branchId == null) {
       this.ftError.set('Este ramo todavía no existe en el backend.');
@@ -969,7 +1226,7 @@ export class ReglasComponent {
     this.ftService.saveForBranch(branchId, dto).subscribe({
       next: () => {
         this.ftSaving.set(false);
-        this.ftSaved.set(true);
+        this.markPersisted('fastTrack');
         // Recarga desde el backend para reflejar exactamente lo que quedó persistido.
         this.loadFastTrackFromBackend(d);
       },
@@ -986,13 +1243,42 @@ export class ReglasComponent {
    * `loadedCoverages`) y las exclusiones comunes (rules-service), en un solo botón porque
    * comparten la solapa Coberturas.
    */
+  /**
+   * Las exclusiones comunes del ramo, contra su propio endpoint de rules-service. Aparte de
+   * `saveCoverages` desde que son solapa propia: arrastrarlas ahí obligaba a guardar todas las
+   * coberturas para cambiar una línea de texto, y persistía una pantalla desde otra.
+   */
+  protected saveCommonExclusions(): void {
+    const d = this.draft();
+    if (!d || this.exclSaving()) {
+      return;
+    }
+    this.exclError.set(null);
+    const branchId = this.branchIdOf(d);
+    if (branchId == null) {
+      this.exclError.set('Este ramo todavía no existe en el backend.');
+      return;
+    }
+
+    this.exclSaving.set(true);
+    this.rulesTextService.saveExclusions(branchId, d.commonExclusions).subscribe({
+      next: () => {
+        this.exclSaving.set(false);
+        this.markPersisted('commonExclusions');
+      },
+      error: (e: unknown) => {
+        this.exclSaving.set(false);
+        this.exclError.set(this.backendErrorMessage(e));
+      },
+    });
+  }
+
   protected saveCoverages(): void {
     const d = this.draft();
     if (!d || this.covSaving()) {
       return;
     }
     this.covError.set(null);
-    this.covSaved.set(false);
     const branchId = this.branchIdOf(d);
     if (branchId == null) {
       this.covError.set('Este ramo todavía no existe en el backend.');
@@ -1018,14 +1304,13 @@ export class ReglasComponent {
       ...toUpdate
         .filter((c) => this.hardRulesOf(c).length > 0)
         .map((c) => this.hardRulesService.save(branchId, Number(c.id), this.hardRulesOf(c))),
-      this.rulesTextService.saveExclusions(branchId, d.commonExclusions),
     ];
 
     this.covSaving.set(true);
     forkJoin(requests.length ? requests : [of(null)]).subscribe({
       next: () => {
         this.covSaving.set(false);
-        this.covSaved.set(true);
+        this.markPersisted('coverages');
         // Recarga: los que eran altas ahora tienen id real del backend.
         this.loadCoveragesFromBackend(d);
         // Un alta o baja de cobertura cambió el conteo que ve la lista de ramos.
@@ -1060,25 +1345,35 @@ export class ReglasComponent {
   // ───────────────── Documentación: persistencia real (rules-service) ─────────────────
   protected saveDocuments(): void {
     const d = this.draft();
-    const claimCauseId = this.selectedDocClaimCauseId();
-    if (!d || this.docSaving() || claimCauseId == null) {
+    if (!d || this.docSaving()) {
       return;
     }
     this.docError.set(null);
-    this.docSaved.set(false);
     const branchId = this.branchIdOf(d);
     if (branchId == null) {
       this.docError.set('Este ramo todavía no existe en el backend.');
       return;
     }
+    const changed = this.changedClaimCauses();
+    if (changed.length === 0) {
+      return;
+    }
+
     this.docSaving.set(true);
-    const documentTypes = d.requiredDocumentsByClaimCause[claimCauseId] ?? [];
-    this.documentsService.save(branchId, claimCauseId, documentTypes).subscribe({
+    forkJoin(
+      changed.map((claimCauseId) =>
+        this.documentsService.save(
+          branchId,
+          claimCauseId,
+          d.requiredDocumentsByClaimCause[claimCauseId] ?? [],
+        ),
+      ),
+    ).subscribe({
       next: () => {
         this.docSaving.set(false);
-        this.docSaved.set(true);
+        this.markPersisted('requiredDocumentsByClaimCause');
         // Recarga desde el backend para reflejar exactamente lo que quedó persistido.
-        this.loadDocumentsFromBackend(d, claimCauseId);
+        changed.forEach((claimCauseId) => this.loadDocumentsFromBackend(d, claimCauseId));
       },
       error: (e: unknown) => {
         this.docSaving.set(false);
@@ -1086,6 +1381,54 @@ export class ReglasComponent {
       },
     });
   }
+  // ───────────────── Agenda documental: matriz documento × hecho generador ─────────────────
+  /**
+   * La agenda se edita como matriz, así que se necesitan TODAS las agendas del ramo a la vez y no
+   * la del hecho generador elegido. Antes se cargaba de a una, al ir tocando cada chip.
+   */
+  protected isDocRequiredFor(claimCauseId: number, code: string): boolean {
+    return this.draft()?.requiredDocumentsByClaimCause[claimCauseId]?.includes(code) ?? false;
+  }
+
+  protected toggleDocFor(claimCauseId: number, code: string): void {
+    this.draft.update((d) => {
+      if (!d) {
+        return d;
+      }
+      const current = d.requiredDocumentsByClaimCause[claimCauseId] ?? [];
+      const next = current.includes(code)
+        ? current.filter((c) => c !== code)
+        : [...current, code];
+      return {
+        ...d,
+        requiredDocumentsByClaimCause: { ...d.requiredDocumentsByClaimCause, [claimCauseId]: next },
+      };
+    });
+    this.markDirty();
+  }
+
+  /** El contador de cada columna: cuántos documentos exige ese hecho generador. */
+  protected requiredCountLabel(claimCauseId: number): string {
+    const count = this.draft()?.requiredDocumentsByClaimCause[claimCauseId]?.length ?? 0;
+    if (count === 0) {
+      return 'sin obligatorios';
+    }
+    return count === 1 ? '1 obligatorio' : `${count} obligatorios`;
+  }
+
+  /**
+   * Los hechos generadores cuya agenda quedó distinta de lo guardado. Se guarda solo eso y no todo
+   * el ramo: cada agenda es un PUT propio, y mandar los cuatro por cambiar una casilla escribe
+   * encima de lo que otro haya tocado mientras tanto.
+   */
+  private changedClaimCauses(): number[] {
+    const current = this.draft()?.requiredDocumentsByClaimCause ?? {};
+    const base = this.persisted()?.requiredDocumentsByClaimCause ?? {};
+    return this.claimCauses()
+      .map((c) => c.id)
+      .filter((id) => JSON.stringify(current[id] ?? []) !== JSON.stringify(base[id] ?? []));
+  }
+
 
   // ───────────────── Reglas de negocio: persistencia real (rules-service) ─────────────────
   protected saveBusinessRules(): void {
@@ -1094,7 +1437,6 @@ export class ReglasComponent {
       return;
     }
     this.rulesError.set(null);
-    this.rulesSaved.set(false);
     const branchId = this.branchIdOf(d);
     if (branchId == null) {
       this.rulesError.set('Este ramo todavía no existe en el backend.');
@@ -1104,7 +1446,7 @@ export class ReglasComponent {
     this.rulesTextService.saveBusinessRules(branchId, d.businessRules).subscribe({
       next: () => {
         this.rulesSaving.set(false);
-        this.rulesSaved.set(true);
+        this.markPersisted('businessRules');
         // Recarga desde el backend para reflejar exactamente lo que quedó persistido.
         this.loadBusinessRulesFromBackend(d);
       },
