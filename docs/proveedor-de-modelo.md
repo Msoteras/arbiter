@@ -21,6 +21,9 @@ Eso significa que `docker compose up -d` levanta todo **menos Ollama**, y la cla
 recién al primer siniestro con un `Connection refused` contra `ollama:11434` — el stack arranca sin
 error, así que la causa no es obvia.
 
+Aplica a los **dos** archivos, `docker-compose.yml` y `docker-compose.railway.yml`: se mantienen
+alineados a propósito (ya se desalinearon una vez con `RULES_SERVICE_URL` y costó una tarde).
+
 **El arreglo es una línea en tu `.env`:**
 
 ```
@@ -72,10 +75,14 @@ En Windows la ruta suele ser `C:/Users/<vos>/AppData/Roaming/gcloud/...`; en Lin
 `~/.config/gcloud/...`. Hay un ejemplo comentado en `docker-compose.yml`, en el bloque de
 `classification-service`.
 
-**c. Levantar:**
+**c. Levantar** — con el compose que uses habitualmente:
 
 ```bash
 docker compose up -d --build classification-service
+```
+
+```bash
+docker compose -f docker-compose.railway.yml up -d --build classification-service
 ```
 
 Si en los logs aparece `[Gemini] Vertex backend — project=... location=global model=...`, quedó.
