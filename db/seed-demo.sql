@@ -962,5 +962,91 @@ FROM (SELECT DISTINCT ON (case_id) case_id, risk_score, risk_band
       FROM arbiter_provincia.risk_analysis ORDER BY case_id, analyzed_at DESC) ra
 WHERE ra.case_id = c.id;
 
+-- =============================================================================
+-- PART 7 — Roman Castillo: policyholder chain for the sinMarca test-doc variant
+--
+-- docs/postman/test-docs/perfiles.js documents two signers for the same fixture
+-- scenarios: Martina (conMarcaDePrueba, with the "documento simulado" banner) and Roman
+-- (sinMarca, without it — for exercising the vision model without a cartel that gives
+-- away the test up front). Martina's chain is real (PART 1-5); Roman's login-only
+-- identity is seeded in init-multitenant.sql (user 9) but he had no policyholder chain
+-- at all, so his fixtures pointed at Martina's POL-CEL-2026-042 with his own DNI — a
+-- real mismatch, not a fixture quirk: PolicyEligibilityValidator (D2) rejects a claim
+-- whose DNI doesn't match the policy's titular. This gives him his own policy on each
+-- tenant, mirroring Martina's numbers so the sinMarca fixtures behave the same way hers
+-- do (see caso-prueba-fast-track-celulares.md §2.1 for why 620.000 against 1.300.000
+-- clears the Fast Track ratio).
+--
+-- New ids only, placed after every earlier PART so nothing here collides with the
+-- volume PART 6 already piled onto the same tables.
+-- =============================================================================
+
+INSERT INTO aseguradora_bbva.asegurado (id, documento, cuil, nombre, apellido, email, telefono) VALUES
+    (3, '33.845.219', '20-33845219-6', 'Roman', 'Castillo', 'asandoval01228@gmail.com', '11-5555-0007');
+SELECT setval(pg_get_serial_sequence('aseguradora_bbva.asegurado','id'),
+              (SELECT MAX(id) FROM aseguradora_bbva.asegurado));
+
+-- Same Samsung A56, same numbers as Martina's POL-CEL-2026-042 (policy 1) — the sinMarca
+-- fixtures describe the identical scenario, just narrated by Roman instead of her.
+INSERT INTO aseguradora_bbva.poliza (id, numero, nro_certificado, titular_id, rama, producto, bien_asegurado,
+                                     imei, vigencia_desde, vigencia_hasta, estado_contrato, estado_pago,
+                                     cuotas_pagas, cuotas_impagas, saldo_deuda, forma_pago, cubre_grupo_familiar) VALUES
+    (12, 'POL-CEL-2026-350', '621350', 3, 'Celulares', 'Celular Protegido Premium', 'Samsung Galaxy A56',
+     '359000000000350', '2026-01-01','2027-01-01 23:59:59','ACTIVA','AL_DIA', 6, 0, 0.00, 'TARJETA DE CREDITO', TRUE);
+SELECT setval(pg_get_serial_sequence('aseguradora_bbva.poliza','id'),
+              (SELECT MAX(id) FROM aseguradora_bbva.poliza));
+
+INSERT INTO aseguradora_bbva.cobertura (poliza_id, orden, nombre, suma_asegurada, franquicia_pct) VALUES
+    (12, 1, 'Robo de celular', 1300000.00, 10.00),
+    (12, 2, 'Hurto',            650000.00, 10.00);
+-- No siniestro_historico: a clean policyholder, same as Martina's policy 1 — this is the
+-- Fast Track reference case, not a risk-factor scenario.
+
+INSERT INTO aseguradora_provincia.asegurado (id, documento, cuil, nombre, apellido, email, telefono) VALUES
+    (3, '33.845.219', '20-33845219-6', 'Roman', 'Castillo', 'asandoval01228@gmail.com', '11-5555-0007');
+SELECT setval(pg_get_serial_sequence('aseguradora_provincia.asegurado','id'),
+              (SELECT MAX(id) FROM aseguradora_provincia.asegurado));
+
+-- Same MacBook Air M3 15", same numbers as Martina's POL-TEC-2026-311 (policy 1).
+INSERT INTO aseguradora_provincia.poliza (id, numero, nro_certificado, titular_id, rama, producto, bien_asegurado,
+                                          imei, vigencia_desde, vigencia_hasta, estado_contrato, estado_pago,
+                                          cuotas_pagas, cuotas_impagas, saldo_deuda, forma_pago,
+                                          max_eventos_anuales, segundo_evento_pct, cubre_grupo_familiar,
+                                          datos_proveedor) VALUES
+    (8, 'POL-TEC-2026-350', '700910', 3, 'Tecnología Portátil', 'Seguro de Tecnología Portátil', 'MacBook Air M3 15"',
+     NULL, '2026-03-01','2027-03-01 23:59:59','ACTIVA','AL_DIA', 4, 0, 0.00, 'TARJETA DE CREDITO', 2, 50.00, FALSE,
+     '{"codRamaSegR":7,"nroPolizaR":2365304,"nroCertificadoR":700910,"descProductoR":"07 150 TEC PORT","importePrimaTarifa":2762.5,"importePremio":3406.17,"clausulaAjuste":"AJUSTE TASA FIJA","codClausulaAjuste":105}'::jsonb);
+SELECT setval(pg_get_serial_sequence('aseguradora_provincia.poliza','id'),
+              (SELECT MAX(id) FROM aseguradora_provincia.poliza));
+
+INSERT INTO aseguradora_provincia.cobertura (poliza_id, orden, nombre, suma_asegurada, franquicia_pct) VALUES
+    (8, 1, 'Robo de celular', 170000.00, 10.00),
+    (8, 2, 'Daño accidental',  90000.00, 10.00);
+
+-- Local (Arbiter tenant) copies, same pattern as PART 4/5.
+INSERT INTO arbiter_bbva.insured (id, name, surname, dni, email, phone, case_count, pep, user_id) VALUES
+    (3, 'Roman', 'Castillo', '33.845.219', 'asandoval01228@gmail.com', '11-5555-0007', 0, FALSE, 9);
+SELECT setval(pg_get_serial_sequence('arbiter_bbva.insured','id'),
+              (SELECT MAX(id) FROM arbiter_bbva.insured));
+
+INSERT INTO arbiter_bbva.policy (id, external_policy_number, product, sum_insured, in_force, insured_id, coverage_id) VALUES
+    (11, 'POL-CEL-2026-350', 'Celular Protegido Premium', 1300000.00, TRUE, 3, 1);
+SELECT setval(pg_get_serial_sequence('arbiter_bbva.policy','id'),
+              (SELECT MAX(id) FROM arbiter_bbva.policy));
+
+INSERT INTO arbiter_provincia.insured (id, name, surname, dni, email, phone, case_count, pep, user_id) VALUES
+    (3, 'Roman', 'Castillo', '33.845.219', 'asandoval01228@gmail.com', '11-5555-0007', 0, FALSE, 9);
+SELECT setval(pg_get_serial_sequence('arbiter_provincia.insured','id'),
+              (SELECT MAX(id) FROM arbiter_provincia.insured));
+
+-- coverage_id 3 = 'Daño accidental' (arbiter_provincia.coverage, PART 5) — same one Martina's
+-- Tecnología policy points at.
+INSERT INTO arbiter_provincia.policy (id, external_policy_number, product, sum_insured, in_force, insured_id, coverage_id) VALUES
+    (8, 'POL-TEC-2026-350', 'Seguro de Tecnología Portátil', 90000.00, TRUE, 3, 3);
+SELECT setval(pg_get_serial_sequence('arbiter_provincia.policy','id'),
+              (SELECT MAX(id) FROM arbiter_provincia.policy));
+
+-- No policy_snapshot rows: those are written by classification-service on the first real
+-- run against these policies (D27), not something to pre-seed.
 
 COMMIT;

@@ -57,20 +57,22 @@ function emitidaLaMananaSiguiente(evento, minutos) {
 // ─────────────────────────────────────────────────────────────────────────────
 // Constantes del ramo
 //
-// La póliza es POL-TEC-2026-311 (seed-demo.sql): Tecnología Portátil, MacBook Air M3 15".
-// Es la única póliza del ramo que existe en la BD.
+// La póliza sale de perfiles.js — cada variante tiene la suya (mismos montos que la de
+// Martina, número propio; ver el comentario de policies.sinMarca ahí). Antes las dos
+// compartían POL-TEC-2026-311 y el DNI de Roman terminaba denunciando contra una póliza
+// que no era suya — PolicyEligibilityValidator (D2) lo rechaza siempre.
 // ─────────────────────────────────────────────────────────────────────────────
 const BRANCH = 'Tecnología Portátil';
 const PRODUCT = 'Seguro de Tecnología Portátil';
-const POLICY_NUMBER = 'POL-TEC-2026-311';
+const POLICY_NUMBER = PROFILE.policies.tecnologia.number;
 
 const DEVICE = {
   brand: 'APPLE',
   model: 'MacBook Air 15" (M3, 2024)',
   specs: '16 GB RAM / 512 GB SSD',
   color: 'Medianoche',
-  serial: 'H7QWK3F9LM',
-  mac: 'A4:83:E7:2C:91:5B',
+  serial: PROFILE.policies.tecnologia.serial,
+  mac: VARIANT === 'sinMarca' ? 'B6:1A:C4:7E:03:9D' : 'A4:83:E7:2C:91:5B',
 };
 
 const PURCHASE = {

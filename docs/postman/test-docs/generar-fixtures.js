@@ -58,15 +58,17 @@ function emitidaLaMananaSiguiente(evento, minutos) {
 // ─────────────────────────────────────────────────────────────────────────────
 const BRANCH = 'Celulares';
 const PRODUCT = 'Celular Protegido Premium';
-const POLICY_NUMBER = 'POL-CEL-2026-042';
+// De perfiles.js: cada variante tiene SU propia póliza (mismos montos, número propio) —
+// ver el comentario de policies.sinMarca ahí para el porqué.
+const POLICY_NUMBER = PROFILE.policies.celulares.number;
 
 const DEVICE = {
   brand: 'SAMSUNG',
   model: 'Galaxy A56 5G',
   color: 'Gris (Awesome Graphite)',
   storage: '256 GB',
-  imei: '356938035643809',
-  serial: 'RZ8W60K3XPL',
+  imei: PROFILE.policies.celulares.imei,
+  serial: PROFILE.policies.celulares.serial,
 };
 
 const LINE = INSURED.phone;
