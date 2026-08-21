@@ -15,7 +15,7 @@ public class Auth0Config {
         return AuthAPI.newBuilder(auth0.domain(), auth0.clientId(), auth0.clientSecret()).build();
     }
 
-    /** Cliente M2M usado solo para pedir tokens de la Management API (alta de usuarios). */
+    /** M2M client used only to request Management API tokens (user creation). */
     @Bean
     public AuthAPI auth0ManagementAuthApi(AuthProperties properties) {
         AuthProperties.Auth0 auth0 = properties.auth0();

@@ -235,10 +235,19 @@ docker build -t classification-img -f classification-service/Dockerfile .
 Ollama (para dev local):
 
 ```bash
-ollama pull qwen3-vl                                 # primera vez
+ollama pull qwen3-vl:8b-instruct                     # primera vez (ver nota: instruct, NO el tag pelado)
 ollama serve                                          # default: http://localhost:11434
 # Configurar el contexto a 32k vía Modelfile (PARAMETER num_ctx 32768)
 ```
+
+> **Usar `:8b-instruct`, no `qwen3-vl` a secas.** El tag pelado resuelve a `qwen3-vl:8b-thinking`,
+> que razona antes de cada respuesta y **no se le puede apagar**: se probó contra Ollama 0.30.8 que
+> ignora tanto `think: false` en la request como la directiva `/no_think` de Qwen. Los tokens de
+> razonamiento van a `message.thinking`, no a `message.content`, así que consumen el presupuesto de
+> `num_predict` sin aportar a la respuesta — con el tope en 4096 el modelo se quedaba pensando y
+> devolvía **0 caracteres** después de 27 minutos por documento. La variante `-instruct` es el mismo
+> modelo (8B, Q4_K_M, 6.1 GB, visión) sin esa fase. Para transcribir un documento el razonamiento no
+> aporta: el JSON schema ya fuerza la forma de la salida.
 
 ---
 

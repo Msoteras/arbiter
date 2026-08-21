@@ -26,10 +26,10 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 /**
- * H0003 - RBAC por endpoint. classification-service era el único módulo sin ningún control de
- * acceso (sin @PreAuthorize, sin SecurityConfig, alcanzable sin JWT desde cualquier caller con
- * acceso de red al puerto 8082); esto lo cierra. Tokens firmados a mano con el mismo secreto de
- * test (ver {@link AbstractPersistenceIT}) porque este módulo solo valida el JWT, no lo emite.
+ * H0003 - per-endpoint RBAC. classification-service was the only module with no access control at
+ * all (no @PreAuthorize, no SecurityConfig, reachable without a JWT from any caller with network
+ * access to port 8082); this closes it. Tokens signed by hand with the same test secret (see
+ * {@link AbstractPersistenceIT}) because this module only validates the JWT, it doesn't issue it.
  */
 @SpringBootTest
 @AutoConfigureMockMvc
@@ -41,9 +41,9 @@ class ClaimSecurityTest extends AbstractPersistenceIT {
     private MockMvc mockMvc;
 
     /**
-     * {@code cases} vive en el esquema de cases-service, no en el contenedor de este módulo — sin
-     * mockearlo, cualquier endpoint que lo lea muere con "relation does not exist" antes de llegar
-     * a lo que este test mide, que es el gate de RBAC.
+     * {@code cases} lives in cases-service's schema, not in this module's container — without
+     * mocking it, any endpoint reading it dies with "relation does not exist" before reaching what
+     * this test measures, which is the RBAC gate.
      */
     @MockitoBean
     private CaseOutcomeRepository caseOutcomeRepository;
@@ -121,16 +121,34 @@ class ClaimSecurityTest extends AbstractPersistenceIT {
                 .andExpect(status().isForbidden());
     }
 
+    /**
+     * El analystId viaja en el body, así que un analista llamando directo podía atribuirle la
+     * decisión a otro. Solo pasa el token de servicio de cases-service, que es quien lo resuelve.
+     */
     @Test
-    void recordDecision_asAnalista_passesTheRoleGate() throws Exception {
-        // Sin clasificación previa para el caso 999999 a propósito: si pasa el @PreAuthorize,
-        // la lógica de negocio responde 422 (InvalidClassificationException) en vez de 401/403.
+    void recordDecision_asAnalista_isRejected() throws Exception {
         mockMvc.perform(post("/api/v1/claims/999999/decision")
                         .header("Authorization", "Bearer " + tokenFor("ANALISTA_SINIESTROS"))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
                                 {"analystId": 1, "decision": "APPROVE"}
                                 """))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
+    void recordDecision_withServiceToken_passesTheGate() throws Exception {
+        // Case 999999 no existe: si pasa el gate, la lógica responde 422 y no 401/403.
+        mockMvc.perform(post("/api/v1/claims/999999/decision")
+                        .header("Authorization", "Bearer " + serviceToken())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"analystId": 1, "decision": "APPROVE"}
+                                """))
                 .andExpect(status().isUnprocessableContent());
+    }
+
+    private String serviceToken() {
+        return JwtSupport.issueServiceToken(JwtSupport.key(SECRET), "cases-service-decision");
     }
 }

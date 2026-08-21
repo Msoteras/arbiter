@@ -1,63 +1,132 @@
-<app-card heading="Scoring de riesgo">
+@if (loading()) {
+  <app-inline-loading [size]="26" message="Cargando puntaje de riesgo…" />
+} @else {
+<app-card>
+  <div class="sc-head">
+    <h2 class="card-title">Puntaje de riesgo</h2>
+    <!-- Lo primero que se lee: el score no resuelve nada solo. Es la decisión de arquitectura que
+         gobierna toda esta pantalla, y dicha acá arriba no hace falta repetirla en cada factor. -->
+    <app-badge variant="solid" tone="info">Señal para el analista · nunca decide solo</app-badge>
+    <app-badge variant="solid">Toda la aseguradora</app-badge>
+  </div>
+
   <p class="section-hint">
-    Score paralelo de riesgo (señal para el analista, nunca decisión automática). Cada factor pesa
-    sobre el total; el score mapea a una banda. Es una única configuración para toda la aseguradora:
-    se aplica igual a todos los ramos, no se configura por ramo.
+    Puntaje paralelo de riesgo. Cada factor pesa sobre el total y el resultado cae en una banda.
+    Configuración única: aplica igual a todos los ramos.
   </p>
 
-  <div class="subsection">
-    <div class="subsection-head">
-      <span class="t-field-label">Factores y pesos</span>
+  <div class="sc-section">
+    <div class="sc-section-head">
+      <span class="t-section-label">Factores y pesos</span>
+      <span class="t-note">
+        Pesos relativos · no hace falta que sumen 100 · «pesa %» = peso sobre los factores activos
+      </span>
     </div>
-    <p class="section-hint">
-      Los pesos son relativos entre sí: no hace falta que sumen 100%. Al lado de cada uno se muestra
-      cuánto pesa efectivamente sobre el total de los factores activos, que es lo que aplica el motor.
-    </p>
-    <ul class="factors">
-      @for (f of riskFactors; track f.id) {
-        <li class="factor">
-          <button type="button" class="chip factor-chip" [class.active]="isFactorActive(f.id)" [attr.aria-pressed]="isFactorActive(f.id)" (click)="toggleFactor(f.id)">
-            {{ f.label }}
-          </button>
-          @if (isFactorActive(f.id)) {
-            <label class="factor-weight">
-              <app-input type="number" [min]="0" [value]="factorWeightPct(f.id)" (valueChange)="setFactorWeight(f.id, $event)" />
-              <span class="pct">%</span>
-            </label>
-            <span class="factor-effective">pesa {{ effectiveWeightPct(f.id) }}</span>
-          }
-        </li>
-      }
-    </ul>
+
+    @for (group of factorGroups; track group.title) {
+      <p class="sc-group">
+        {{ group.title }} <span class="sc-group-hint">· {{ group.hint }}</span>
+      </p>
+      <ul class="rule-rows">
+        @for (f of factorsOf(group); track f.id) {
+          <li class="rule-row" [class.off]="!isFactorActive(f.id)">
+            <app-switch
+              [checked]="isFactorActive(f.id)"
+              [ariaLabel]="f.label"
+              (checkedChange)="toggleFactor(f.id)"
+            />
+            <div class="rule-text">
+              <span class="t-field-label">{{ f.label }}</span>
+            </div>
+            @if (isFactorActive(f.id)) {
+              <!-- La barra muestra el reparto real (peso sobre el total de los activos), que es lo
+                   que aplica el motor. El número crudo solo no dice nada: los pesos son relativos. -->
+              <div class="sc-share">
+                <span class="sc-bar" aria-hidden="true">
+                  <span class="sc-bar-fill" [style.width.%]="effectiveWeightRatio(f.id)"></span>
+                </span>
+                <span class="sc-share-note">pesa {{ effectiveWeightPct(f.id) }}</span>
+              </div>
+              <div class="rule-value">
+                <app-input
+                  type="number"
+                  [min]="0"
+                  [value]="factorWeightPct(f.id)"
+                  (valueChange)="setFactorWeight(f.id, $event)"
+                />
+                <span class="t-note">%</span>
+              </div>
+            } @else {
+              <span class="rule-off-note t-note">No se evalúa</span>
+            }
+          </li>
+        }
+      </ul>
+    }
   </div>
 
-  <div class="subsection">
-    <span class="t-field-label">Bandas de riesgo (score mínimo, %)</span>
-    <ul class="bands">
+  <div class="sc-section">
+    <span class="t-section-label">Bandas de riesgo</span>
+    <!-- La barra usa los cortes configurados, así que el ancho de cada tramo cambia al editarlos:
+         se ve de una qué tan angosta quedó una banda antes de guardar. -->
+    <span class="sc-bands-bar" aria-hidden="true">
       @for (band of riskBands; track band) {
-        <li class="band">
-          <span class="band-name">{{ bandLabel(band) }}</span>
-          @if (band === 'LOW') {
-            <app-input type="number" [value]="'0'" [readonly]="true" />
-          } @else {
-            <app-input type="number" [min]="0" [value]="bandCutPct(band)" (valueChange)="setBandCut(band, $event)" />
-          }
+        <span class="sc-bands-seg" [attr.data-tone]="bandTone(band)" [style.width.%]="bandWidth(band)"></span>
+      }
+    </span>
+    <ul class="sc-bands">
+      @for (band of riskBands; track band) {
+        <li class="sc-band">
+          <span class="sc-band-name" [attr.data-tone]="bandTone(band)">{{ bandLabel(band) }}</span>
+          <span class="sc-band-range">{{ bandRangeLabel(band) }}</span>
+          <label class="sc-band-cut">
+            <span class="t-note">desde</span>
+            @if (band === 'LOW') {
+              <!-- La más baja arranca en 0 por definición: si no, habría puntajes sin banda. -->
+              <app-input type="number" [value]="'0'" [readonly]="true" />
+            } @else {
+              <app-input
+                type="number"
+                [min]="0"
+                [value]="bandCutPct(band)"
+                (valueChange)="setBandCut(band, $event)"
+              />
+            }
+            <span class="t-note">%</span>
+          </label>
         </li>
       }
     </ul>
   </div>
 
-  <div class="ft-save">
-    <div class="editor-actions">
-      <app-button [disabled]="saving()" (click)="saveScoring()">
-        {{ saving() ? 'Guardando…' : 'Guardar scoring' }}
-      </app-button>
-      @if (saved()) {
-        <span class="saved-note">✓ Guardado en el motor</span>
-      }
-      @if (error(); as err) {
-        <span class="warn-note">{{ err }}</span>
-      }
-    </div>
+  <div class="sc-section">
+    <span class="t-section-label">En Fast Track</span>
+    <ul class="rule-rows">
+      <li class="rule-row" [class.off]="!fullAnalysisOnFastTrack()">
+        <app-switch
+          [checked]="fullAnalysisOnFastTrack()"
+          ariaLabel="Analizar documentos e imágenes aunque el siniestro vaya por Fast Track"
+          (checkedChange)="toggleFullAnalysisOnFastTrack()"
+        />
+        <div class="rule-text">
+          <span class="t-field-label">
+            Analizar documentos e imágenes aunque el siniestro vaya por Fast Track
+          </span>
+          <p class="rule-hint">
+            Por defecto no corre para no frenar el carril rápido: el puntaje sale parcial, solo con
+            los factores de datos.
+          </p>
+        </div>
+      </li>
+    </ul>
   </div>
+
+  <app-save-bar
+    [dirty]="dirty()"
+    [saving]="saving()"
+    [error]="error()"
+    (save)="saveScoring()"
+    (discard)="discard()"
+  />
 </app-card>
+}

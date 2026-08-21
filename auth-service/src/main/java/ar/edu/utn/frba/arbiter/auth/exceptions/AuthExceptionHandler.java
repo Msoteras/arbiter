@@ -13,6 +13,12 @@ public class AuthExceptionHandler {
         return ProblemDetail.forStatusAndDetail(HttpStatusCode.valueOf(401), ex.getMessage());
     }
 
+    /** 400 rather than 401: the credentials didn't fail, the request couldn't be read. */
+    @ExceptionHandler(InvalidEncryptedPasswordException.class)
+    public ProblemDetail handleInvalidEncryptedPassword(InvalidEncryptedPasswordException ex) {
+        return ProblemDetail.forStatusAndDetail(HttpStatusCode.valueOf(400), ex.getMessage());
+    }
+
     @ExceptionHandler(AccountLockedException.class)
     public ProblemDetail handleAccountLocked(AccountLockedException ex) {
         return ProblemDetail.forStatusAndDetail(HttpStatusCode.valueOf(423), ex.getMessage());

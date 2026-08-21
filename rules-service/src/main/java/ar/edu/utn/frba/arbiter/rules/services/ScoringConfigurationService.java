@@ -22,9 +22,9 @@ import org.springframework.transaction.annotation.Transactional;
 import java.time.Instant;
 
 /**
- * Scoring de fraude (factores + bandas) de la aseguradora, para la solapa Scoring del referente.
- * Una sola fila por tenant: todos los ramos comparten el mismo scoring. Cada guardado snapshotea
- * la versión anterior en {@code scoring_configuration_history} (append-only, mismo patrón que
+ * The insurer's fraud scoring (factors + bands), for the referente's Scoring tab. A single row per
+ * tenant: every branch shares the same scoring. Each save snapshots the previous version into
+ * {@code scoring_configuration_history} (append-only, same pattern as
  * {@link FastTrackRuleService}).
  */
 @Service
@@ -55,6 +55,7 @@ public class ScoringConfigurationService {
             config = ScoringConfiguration.builder()
                     .name("Scoring de la aseguradora")
                     .active(dto.enabled())
+                    .fullAnalysisOnFastTrack(dto.fullAnalysisOnFastTrack())
                     .validFrom(now)
                     .build();
             config = scoringConfigurationRepository.save(config);
@@ -75,6 +76,7 @@ public class ScoringConfigurationService {
         factorWeightRepository.deleteByScoringConfiguration_Id(config.getId());
         scoreBandRepository.deleteByScoringConfiguration_Id(config.getId());
         config.setActive(dto.enabled());
+        config.setFullAnalysisOnFastTrack(dto.fullAnalysisOnFastTrack());
         config.setValidFrom(now);
         scoringConfigurationRepository.save(config);
         saveChildren(config, dto);
@@ -103,6 +105,7 @@ public class ScoringConfigurationService {
         return new ScoringConfigDto(
                 config.getId(),
                 config.isActive(),
+                config.isFullAnalysisOnFastTrack(),
                 factorWeightRepository.findByScoringConfiguration_Id(config.getId()).stream()
                         .map(f -> new FactorWeightDto(f.getFactorCode(), f.getWeight()))
                         .toList(),

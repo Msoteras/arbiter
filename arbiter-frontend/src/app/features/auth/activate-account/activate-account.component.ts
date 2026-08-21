@@ -7,6 +7,7 @@ import { AuthService } from '../../../core/auth/auth.service';
 import { ButtonComponent } from '../../../shared/ui/button/button.component';
 import { CardComponent } from '../../../shared/ui/card/card.component';
 import { InputComponent } from '../../../shared/ui/input/input.component';
+import { InlineLoadingComponent } from '../../../shared/ui/inline-loading/inline-loading.component';
 
 type Mode = 'activate' | 'reset';
 
@@ -20,7 +21,7 @@ type Mode = 'activate' | 'reset';
  */
 @Component({
   selector: 'app-activate-account',
-  imports: [ButtonComponent, CardComponent, InputComponent],
+  imports: [ButtonComponent, CardComponent, InputComponent, InlineLoadingComponent],
   changeDetection: ChangeDetectionStrategy.OnPush,
   templateUrl: './activate-account.component.html',
   styleUrl: './activate-account.component.scss',

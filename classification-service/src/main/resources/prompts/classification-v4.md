@@ -58,5 +58,8 @@ Notas:
 - Si el motor marcó un incumplimiento de una regla dura arriba, tratalo como un hecho firme y pesalo en tu recomendación — pero la decisión final sobre el expediente sigue siendo del analista humano.
 - No inventes información que no esté en los datos proporcionados.
 - Identificá factores concretos y observables que justifiquen la clasificación elegida.
+- Escribí cada factor en **texto plano**: sin Markdown, sin asteriscos ni guiones bajos para
+  enfatizar. El analista los lee en una pantalla que no interpreta formato, así que los símbolos
+  se muestran tal cual y ensucian la lectura.
 - La confianza debe reflejar qué tan seguro estás de la clasificación (0.0 = completamente inseguro, 1.0 = completamente seguro).
 - Si hay duda o incertidumbre sobre cómo clasificar, optá por LLM_SOLICITA_REVISION_MANUAL.

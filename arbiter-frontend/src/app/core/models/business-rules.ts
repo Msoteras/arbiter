@@ -1,3 +1,4 @@
+import { HardRule } from '../../features/admin/hard-rules.service';
 import { RiskBand } from './risk-band';
 
 // Modelo de configuración de reglas administrado por el referente. Es Ramo-céntrico: el Ramo
@@ -38,6 +39,14 @@ export interface Coverage {
    * semilla no lo trae; el detalle real de la cobertura lo carga desde rules-service.
    */
   excludedClaimCauseIds?: number[];
+  /**
+   * Hard temporal rules the insurer has active for this coverage (coverage window, waiting
+   * period, deadlines, events cap, arrears). They're each rule's switch, not its threshold: the
+   * thresholds are the fields above, except the police-report deadline, which has no column of
+   * its own and travels inside its own rule. Optional: `HardRulesService` loads them from
+   * rules-service.
+   */
+  hardRules?: HardRule[];
 }
 
 /** Gate determinístico del Fast Track ("Siniestro Express"), configurado por ramo. */
@@ -77,6 +86,12 @@ export interface RiskBandCut {
  */
 export interface ScoringConfig {
   enabled: boolean;
+  /**
+   * Si el Fast Track de la aseguradora igual corre el análisis pesado (OCR + fraude de imágenes)
+   * para que su score de fraude salga completo. false (default) = Fast Track rápido, score parcial.
+   * No vetea el Fast Track — el score es señal paralela; solo decide cuánto análisis corre.
+   */
+  fullAnalysisOnFastTrack: boolean;
   factors: FactorWeight[];
   bands: RiskBandCut[];
 }
@@ -86,10 +101,16 @@ export interface RamoRules {
   id: string;
   name: string;
   coverages: Coverage[];
+  /**
+   * How many coverages the ramo has, from `/coverages/summary` — accurate for every ramo up
+   * front, unlike `coverages.length`, which stays 0 until the referente actually selects the
+   * ramo and its full detail loads. The sidebar badge reads this, not `coverages.length`.
+   */
+  coverageCount: number;
   /** Exclusiones comunes a todas las coberturas del ramo. */
   commonExclusions: string[];
-  /** Agenda documental del ramo (códigos de tipo de documento). */
-  requiredDocuments: string[];
+  /** Agenda documental por hecho generador (claimCauseId → códigos de tipo de documento). */
+  requiredDocumentsByClaimCause: { [claimCauseId: number]: string[] };
   /** Reglas de negocio en texto libre. */
   businessRules: string[];
   fastTrack: FastTrackConfig;
@@ -111,6 +132,7 @@ export const RISK_FACTORS: RiskFactorDef[] = [
   { id: 'document_inconsistency', label: 'Inconsistencias en la documentación' },
   { id: 'image_reuse', label: 'Imagen reutilizada de otra denuncia' },
   { id: 'image_web_match', label: 'Imagen publicada en la web' },
+  { id: 'fraud_history', label: 'Antecedente de fraude del asegurado' },
 ];
 
 export function riskFactorLabel(id: string): string {

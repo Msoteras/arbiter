@@ -1,6 +1,6 @@
 # Caso de prueba — Fast Track (Express) · BBVA · Ramo Celulares
 
-Caso de referencia del **gate determinístico**: la denuncia pasa las tres compuertas que gobiernan
+Caso de referencia del **gate determinístico**: la denuncia pasa las cuatro compuertas que gobiernan
 la vía expedita, así que se resuelve sin invocar al LLM y el expediente llega al analista listo
 para decidir.
 
@@ -35,11 +35,12 @@ el umbral está pensado para dejar pasar.
 
 ## 2 · Por qué tiene que dar `FAST_TRACK`
 
-No alcanza con los umbrales. El orquestador exige que **tres evaluadores** den verde a la vez
-([ClassificationOrchestrator:235](../../classification-service/src/main/java/ar/edu/utn/frba/arbiter/classification/services/ClassificationOrchestrator.java#L235)):
+No alcanza con los umbrales. El orquestador exige que **cuatro evaluadores** den verde a la vez
+([ClassificationOrchestrator:331](../../classification-service/src/main/java/ar/edu/utn/frba/arbiter/classification/services/ClassificationOrchestrator.java#L331)):
 
 ```java
-if (fastTrack.fastTrack() && !temporal.blocksFastTrack() && !scope.blocksFastTrack())
+if (fastTrack.fastTrack() && !temporal.blocksFastTrack() && !scope.blocksFastTrack()
+        && !fraud.blocksFastTrack())
 ```
 
 y antes de llegar ahí ya se descartaron la exclusión de cobertura y la falta de documentación.
@@ -49,7 +50,7 @@ y antes de llegar ahí ya se descartaron la exclusión de cobertura y la falta d
 | Compuerta | Qué pide | Este caso |
 |---|---|---|
 | `CoverageRuleEvaluator` — exclusión de cobertura | el hecho generador no puede estar en la lista negra de la cobertura | la cobertura 1 excluye **Hurto** (id 3); acá es **Robo** (id 2) ✅ |
-| Agenda documental | los 4 documentos del ramo, adjuntos | los 4 van en el request ✅ |
+| Agenda documental | los documentos que la agenda pide para **ramo + hecho generador** (Celulares · Robo: los 4) | los 4 van en el request ✅ |
 
 ### 2.1 · Los umbrales — `FastTrackValidator`
 
@@ -85,6 +86,20 @@ Cualquiera que falle bloquea el Fast Track, aunque los cinco umbrales hayan pasa
 |---|---|---|---|
 | `covers_family_group` | `false` — la cobertura no alcanza al grupo familiar | la damnificada es la titular | ✅ |
 | `claim_exhausts_coverage` | `false` en la cobertura 1 | la regla no participa | ✅ |
+
+### 2.4 · Los antecedentes de fraude — `FraudRecordRuleEvaluator`
+
+El cuarto evaluador del gate, sumado con la derivación a perito. Es la única regla dura que no mira
+el siniestro sino a la persona: un antecedente **verificado por perito** y todavía dentro de la
+ventana de la aseguradora deja al asegurado fuera de la vía expedita.
+
+| Regla | Configurado | Este caso | ¿Pasa? |
+|---|---|---|---|
+| `FRAUD_RECORD` sobre el asegurado | la regla decide si el antecedente bloquea, y con qué ventana | el seed no carga ningún `insured_fraud_record`, así que no hay antecedente que evaluar | ✅ |
+
+Para el caso espejo: cargarle a la asegurada un antecedente con respaldo pericial y vigente, y
+verificar que el expediente pierda el Fast Track sin ser rechazado — el antecedente manda a revisión
+humana, no resuelve.
 
 ## 3 · Los fixtures y por qué se regeneran
 

@@ -1,10 +1,15 @@
 package ar.edu.utn.frba.arbiter.cases.controllers;
 
 import ar.edu.utn.frba.arbiter.cases.dto.AnalystDecisionRequest;
+import ar.edu.utn.frba.arbiter.cases.dto.AnalystWorkloadResponse;
 import ar.edu.utn.frba.arbiter.cases.dto.AssignAnalystRequest;
+import ar.edu.utn.frba.arbiter.cases.dto.AssignedCaseSummaryResponse;
 import ar.edu.utn.frba.arbiter.cases.dto.CaseDocumentResponse;
 import ar.edu.utn.frba.arbiter.cases.dto.CaseRequest;
 import ar.edu.utn.frba.arbiter.cases.dto.CaseResponse;
+import ar.edu.utn.frba.arbiter.cases.dto.EligibilityCheckRequest;
+import ar.edu.utn.frba.arbiter.cases.dto.EligibilityCheckResponse;
+import ar.edu.utn.frba.arbiter.cases.dto.LensSummaryResponse;
 import ar.edu.utn.frba.arbiter.cases.models.entities.CaseDocument;
 import ar.edu.utn.frba.arbiter.cases.services.CaseService;
 import ar.edu.utn.frba.arbiter.common.enums.CaseStatus;
@@ -57,6 +62,23 @@ public class CaseController {
     ) {
         CaseResponse response = caseService.createCase(request, documents);
         return ResponseEntity.accepted().body(response);
+    }
+
+    @PostMapping("/eligibility")
+    @PreAuthorize("hasRole('ASEGURADO')")
+    @Operation(summary = "Check whether a denuncia would be accepted",
+            description = """
+                    Runs the same intake gate as POST /cases (ownership, vigencia, carencia, mora)
+                    without creating anything. The wizard calls this once it has a policy and an
+                    event date, so it can block or warn before the insured fills out the rest of
+                    the form and uploads documentation — instead of finding out only at the end.
+                    Always 200; a non-eligible policy is `{eligible: false, reason: "..."}`, not an
+                    error.
+                    """)
+    public ResponseEntity<EligibilityCheckResponse> checkEligibility(
+            @RequestBody @Valid EligibilityCheckRequest request
+    ) {
+        return ResponseEntity.ok(caseService.checkEligibility(request));
     }
 
     @GetMapping("/{caseId}")
@@ -115,12 +137,16 @@ public class CaseController {
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate eventDateTo,
             @RequestParam(required = false) String q,
             @RequestParam(required = false) RiskBand riskBand,
+            @RequestParam(required = false) Long analystId,
             @RequestParam(defaultValue = "false") boolean assignedToMe,
+            @RequestParam(defaultValue = "false") boolean unassigned,
+            @RequestParam(defaultValue = "false") boolean fraudAlert,
+            @RequestParam(defaultValue = "false") boolean assigned,
             @PageableDefault(size = 20, sort = "id", direction = Sort.Direction.DESC) Pageable pageable
     ) {
         Page<CaseResponse> response = caseService.listCases(
                 status, claimCause, policyNumber, insuredId, eventDateFrom, eventDateTo, q, riskBand,
-                assignedToMe, pageable);
+                analystId, assignedToMe, unassigned, fraudAlert, assigned, pageable);
         return ResponseEntity.ok(response);
     }
 
@@ -160,6 +186,69 @@ public class CaseController {
         return ResponseEntity.ok(caseService.unassignAnalyst(caseId));
     }
 
+    @GetMapping("/lens-summary")
+    @PreAuthorize("hasAnyRole('ANALISTA_SINIESTROS', 'REFERENTE_ASEGURADORA')")
+    @Operation(summary = "Conteos de las lentes de la bandeja",
+            description = """
+                    Devuelve de una sola vez cuántos expedientes hay en cada lente (todos, míos,
+                    asignados, sin asignar, alerta de fraude) para los filtros que se pasen — los
+                    mismos que acepta el listado.
+
+                    Existe para no pedir una lente por request: eran cinco llamadas por cada cambio
+                    de filtro, y cada una traía además una fila entera solo para leerle el total.
+                    Acá se cuenta sin materializar filas.
+
+                    "Míos" da 0 para el referente, que no tiene perfil de analista en el tenant.
+                    """)
+    public ResponseEntity<LensSummaryResponse> lensSummary(
+            @RequestParam(required = false) CaseStatus status,
+            @RequestParam(required = false) String claimCause,
+            @RequestParam(required = false) String policyNumber,
+            @RequestParam(required = false) String insuredId,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate eventDateFrom,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate eventDateTo,
+            @RequestParam(required = false) String q,
+            @RequestParam(required = false) RiskBand riskBand,
+            @RequestParam(required = false) Long analystId
+    ) {
+        return ResponseEntity.ok(caseService.lensSummary(
+                status, claimCause, policyNumber, insuredId, eventDateFrom, eventDateTo, q, riskBand, analystId));
+    }
+
+    @GetMapping("/analysts/workload")
+    @PreAuthorize("hasRole('REFERENTE_ASEGURADORA')")
+    @Operation(summary = "Carga de trabajo por analista",
+            description = """
+                    Devuelve, para cada analista de la aseguradora, cuántos expedientes ACTIVOS
+                    (no resueltos) tiene asignados. Alimenta el panel "Carga del equipo" del inicio
+                    del referente, que lo usa para repartir trabajo de un vistazo.
+
+                    Incluye a los analistas sin expedientes asignados (con cero): la vista es del
+                    equipo completo, no solo de los ocupados. Ordenado de más a menos cargado.
+
+                    Solo el referente: es una vista de gestión del equipo. El recorte por aseguradora
+                    lo resuelve el esquema del tenant, así que los conteos ya son de una sola compañía.
+                    """)
+    public ResponseEntity<List<AnalystWorkloadResponse>> analystWorkload() {
+        return ResponseEntity.ok(caseService.analystWorkload());
+    }
+
+    @GetMapping("/assigned/summary")
+    @PreAuthorize("hasRole('ANALISTA_SINIESTROS')")
+    @Operation(summary = "Resumen de mis expedientes asignados",
+            description = """
+                    Devuelve el resumen de los expedientes asignados al analista logueado: total,
+                    conteo por estado, y cuántos tienen alerta de fraude alta o crítica. Alimenta
+                    las tarjetas de su pantalla de inicio en una sola llamada (en vez de un conteo
+                    por estado a la vez).
+
+                    Quién es "yo" lo resuelve el backend contra el token —el id de analista es local
+                    al esquema de la aseguradora—, no lo manda el cliente.
+                    """)
+    public ResponseEntity<AssignedCaseSummaryResponse> assignedCaseSummary() {
+        return ResponseEntity.ok(caseService.assignedCaseSummary());
+    }
+
     @GetMapping("/{caseId}/documents")
     @PreAuthorize("isAuthenticated()")
     @Operation(summary = "List documents for a case",
@@ -169,8 +258,11 @@ public class CaseController {
                     filename, content type, size in bytes, and upload timestamp. Does NOT
                     return the binary content — use the per-document download endpoint for that.
                     """)
-    public ResponseEntity<List<CaseDocumentResponse>> listDocuments(@PathVariable Long caseId) {
-        return ResponseEntity.ok(caseService.getDocuments(caseId));
+    public ResponseEntity<List<CaseDocumentResponse>> listDocuments(
+            @PathVariable Long caseId,
+            @RequestParam(required = false) String aseguradora
+    ) {
+        return ResponseEntity.ok(caseService.getDocuments(caseId, aseguradora));
     }
 
     @GetMapping("/{caseId}/documents/{documentId}")
@@ -179,9 +271,10 @@ public class CaseController {
             description = "Returns the binary content of a specific document attached to the case.")
     public ResponseEntity<byte[]> downloadDocument(
             @PathVariable Long caseId,
-            @PathVariable Long documentId
+            @PathVariable Long documentId,
+            @RequestParam(required = false) String aseguradora
     ) {
-        CaseDocument doc = caseService.getDocument(caseId, documentId);
+        CaseDocument doc = caseService.getDocument(caseId, documentId, aseguradora);
         return ResponseEntity.ok()
                 .contentType(MediaType.parseMediaType(doc.getContentType()))
                 .header("Content-Disposition", "inline; filename=\"" + doc.getFilename() + "\"")
@@ -203,12 +296,15 @@ public class CaseController {
                     """)
     public ResponseEntity<CaseResponse> uploadDocuments(
             @PathVariable Long caseId,
-            @RequestParam Map<String, MultipartFile> documents
+            @RequestParam Map<String, MultipartFile> documents,
+            @RequestParam(required = false) String aseguradora
     ) {
-        CaseResponse response = caseService.addDocumentsAndReclassify(caseId, documents);
+        CaseResponse response = caseService.addDocumentsAndReclassify(caseId, documents, aseguradora);
         return ResponseEntity.accepted().body(response);
     }
 
+    // También el referente: destrabar un expediente clavado es supervisión, no decidirlo. No
+    // resuelve al que llama porque no atribuye nada — solo reencola la clasificación.
     @PostMapping("/{caseId}/retry-classification")
     @PreAuthorize("hasAnyRole('ANALISTA_SINIESTROS', 'REFERENTE_ASEGURADORA')")
     @Operation(summary = "Reintentar la clasificación de un expediente fallido",
@@ -225,8 +321,10 @@ public class CaseController {
         return ResponseEntity.accepted().body(caseService.retryClassification(caseId));
     }
 
+    // Solo el analista: la decisión se atribuye resolviendo al que llama contra claims_analyst, así
+    // que un referente ya venía recibiendo 403 acá. Decisión #5 de CLAUDE.md.
     @PostMapping("/{caseId}/decision")
-    @PreAuthorize("hasAnyRole('ANALISTA_SINIESTROS', 'REFERENTE_ASEGURADORA')")
+    @PreAuthorize("hasRole('ANALISTA_SINIESTROS')")
     @Operation(summary = "Persist the analyst's decision",
             description = "Forwards the analyst decision to classification-service so it is persisted in the audit trail.")
     public ResponseEntity<Map<String, Object>> recordDecision(

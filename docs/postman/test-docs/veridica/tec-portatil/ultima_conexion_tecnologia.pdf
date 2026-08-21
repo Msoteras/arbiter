@@ -21,7 +21,7 @@ BT /F2 12.5 Tf 170.45 731.39 Td (INFORME DE \332LTIMA CONEXI\323N REGISTRADA) Tj
 BT /F2 9 Tf 56 703.39 Td (Informe N\260:) Tj ET
 BT /F1 9 Tf 206.00 703.39 Td (REG-2026-0031205) Tj ET
 BT /F2 9 Tf 56 692.39 Td (Fecha de emisi\363n:) Tj ET
-BT /F1 9 Tf 206.00 692.39 Td (19/08/2026) Tj ET
+BT /F1 9 Tf 206.00 692.39 Td (21/08/2026) Tj ET
 BT /F2 9 Tf 56 681.39 Td (Solicitado por:) Tj ET
 BT /F1 9 Tf 206.00 681.39 Td (Roman Castillo, DNI 33.845.219) Tj ET
 BT /F2 9.5 Tf 56.00 664.39 Td (EQUIPO CONSULTADO) Tj ET
@@ -35,13 +35,13 @@ BT /F2 9 Tf 56 618.89 Td (Cuenta asociada:) Tj ET
 BT /F1 9 Tf 206.00 618.89 Td (roman.castillo@example.com) Tj ET
 BT /F2 9.5 Tf 56.00 601.89 Td (\332LTIMOS REGISTROS DEL SERVICIO) Tj ET
 BT /F2 8.5 Tf 56.00 587.39 Td (Fecha y hora                Evento                            Red / origen) Tj ET
-BT /F1 8.5 Tf 56.00 575.39 Td (18/08/2026  21:47:27        Conexi\363n a red inal\341mbrica     Campus-Alumnos \(WPA2\)) Tj ET
-BT /F1 8.5 Tf 56.00 564.89 Td (18/08/2026  22:06:41        Sincronizaci\363n de datos        Campus-Alumnos \(WPA2\)) Tj ET
-BT /F1 8.5 Tf 56.00 554.39 Td (18/08/2026  22:28:05        Bloqueo remoto solicitado      dispositivo asociado \227 pendiente) Tj ET
-BT /F1 8.5 Tf 56.00 543.89 Td (18/08/2026  22:31:19        Bloqueo aplicado / \372ltima      181.44.117.203 \227 red abierta) Tj ET
+BT /F1 8.5 Tf 56.00 575.39 Td (20/08/2026  21:47:27        Conexi\363n a red inal\341mbrica     Campus-Alumnos \(WPA2\)) Tj ET
+BT /F1 8.5 Tf 56.00 564.89 Td (20/08/2026  22:06:41        Sincronizaci\363n de datos        Campus-Alumnos \(WPA2\)) Tj ET
+BT /F1 8.5 Tf 56.00 554.39 Td (20/08/2026  22:28:05        Bloqueo remoto solicitado      dispositivo asociado \227 pendiente) Tj ET
+BT /F1 8.5 Tf 56.00 543.89 Td (20/08/2026  22:31:19        Bloqueo aplicado / \372ltima      181.44.117.203 \227 red abierta) Tj ET
 BT /F2 9.5 Tf 56.00 523.39 Td (RESULTADO DE LA CONSULTA) Tj ET
 BT /F2 9 Tf 56 510.89 Td (\332ltimo registro:) Tj ET
-BT /F1 9 Tf 206.00 510.89 Td (18/08/2026, 22:31:19 hs.) Tj ET
+BT /F1 9 Tf 206.00 510.89 Td (20/08/2026, 22:31:19 hs.) Tj ET
 BT /F2 9 Tf 56 499.89 Td (Red utilizada:) Tj ET
 BT /F1 9 Tf 206.00 499.89 Td (WiFi abierta "CABA-WiFi-Publico") Tj ET
 BT /F2 9 Tf 56 488.89 Td (Direcci\363n IP p\372blica:) Tj ET
@@ -72,7 +72,7 @@ endobj
 << /Type /Font /Subtype /Type1 /BaseFont /Helvetica-Bold /Encoding /WinAnsiEncoding >>
 endobj
 7 0 obj
-<< /Title (Informe de ultima conexion registrada REG-2026-0031205) /Author (TecnoService Argentina S.R.L.) /Subject (Ultima conexion del equipo portatil - documento simulado de prueba) /Keywords (fixture de prueba, sistema Arbiter, documento generado, no es un documento real) /Producer (Arbiter test fixture) /CreationDate (D:20260819110000-03'00') >>
+<< /Title (Informe de ultima conexion registrada REG-2026-0031205) /Author (TecnoService Argentina S.R.L.) /Subject (Ultima conexion del equipo portatil - documento simulado de prueba) /Keywords (fixture de prueba, sistema Arbiter, documento generado, no es un documento real) /Producer (Arbiter test fixture) /CreationDate (D:20260821012100-03'00') >>
 endobj
 xref
 0 8

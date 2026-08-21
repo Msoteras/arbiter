@@ -26,16 +26,17 @@ arbiter/
 ├── common-lib/                # Tipos compartidos entre módulos (enums, DTOs, excepciones)
 ├── classification-service/    # Módulo de Análisis y Clasificación — puerto 8082
 ├── cases-service/             # Módulo de Expedientes — puerto 8083
-├── arbiter-frontend/          # SPA Angular 20 — puerto 5173
-├── auth-service/              # Gestión de usuarios (scaffold) — puerto 8080
-├── rules-service/             # Motor de reglas (scaffold) — puerto 8081
+├── arbiter-frontend/          # SPA Angular 20 — puerto 4200
+├── auth-service/              # Gestión de usuarios (Auth0 + JWT + RBAC) — puerto 8080
+├── rules-service/             # Motor de reglas de negocio — puerto 8081
 ├── reports-service/           # Reportes y estadísticas (scaffold) — puerto 8084
 └── docs/                      # Documentación, colecciones Postman y scripts
 ```
 
 Cada servicio backend es una aplicación Spring Boot independiente que declara `common-lib` como
-dependencia local del reactor. `auth`, `rules` y `reports` están scaffoldeados pero todavía no
-implementados (comentados en el POM padre).
+dependencia local del reactor. Los 6 módulos backend están activos en el POM padre; `reports-service`
+es el único que sigue siendo scaffold (config multi-tenant + la entidad `Metric`, sin controllers ni
+servicios todavía).
 
 ---
 
@@ -74,7 +75,7 @@ así que el flujo completo corre sin Ollama prendido.
 ```bash
 cd arbiter-frontend
 npm install
-npm start          # http://localhost:5173
+npm start          # http://localhost:4200
 ```
 
 ### Todo junto (Docker Compose)
@@ -88,9 +89,32 @@ docker compose up --build
 > El contexto de build de cada imagen es **siempre la raíz** del proyecto (el multi-módulo necesita
 > el POM padre + `common-lib`). Ver los `Dockerfile` de cada servicio.
 
+### Todo junto, contra la base de Railway
+
+`docker-compose.railway.yml` es la variante que **no** trae su propio Postgres: los módulos
+backend + Ollama + el sidecar de embeddings corren en Docker igual, pero apuntan a la base
+compartida de Railway (`DB_URL`/`DB_USER`/`DB_PASSWORD` del `.env` de la raíz). Sin riesgo de
+mezclar datos con el Postgres local de `docker-compose.yml`, porque no lo levanta.
+
+```bash
+docker compose -f docker-compose.railway.yml up --build -d
+```
+
+Reconstruir solo un servicio puntual después de tocar su código:
+
+```bash
+docker compose -f docker-compose.railway.yml up --build -d cases-service
+```
+
+> Prerequisito: la base de Railway ya tiene que tener el esquema y el seed cargados
+> (`scripts/db-railway.ps1 all`). Con `ddl-auto=validate`, si falta algo el contenedor no arranca —
+> mirá sus logs, Hibernate dice tabla/columna/tipo. `scripts/db-railway.ps1 check` confirma que el
+> esquema está al día sin tocar nada.
+
 ---
 
 ## Estado del proyecto
 
-Implementados: `classification-service`, `cases-service`, `common-lib`, `arbiter-frontend`.
-Scaffold pendiente de implementación: `auth-service`, `rules-service`, `reports-service`.
+Implementados: `classification-service`, `cases-service`, `common-lib`, `arbiter-frontend`,
+`auth-service` (Auth0 + JWT + RBAC), `rules-service` (motor de reglas de negocio).
+Scaffold pendiente de implementación: `reports-service`.

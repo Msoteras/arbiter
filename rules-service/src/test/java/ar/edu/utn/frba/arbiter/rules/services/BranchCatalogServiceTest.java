@@ -22,7 +22,7 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
-/** ABM del catálogo global de ramos: unicidad de nombre, not-found y guarda de baja. Mockito puro. */
+/** Global branch catalog CRUD: name uniqueness, not-found and the delete guard. Plain Mockito. */
 class BranchCatalogServiceTest {
 
     private final BranchRepository branchRepository = mock(BranchRepository.class);

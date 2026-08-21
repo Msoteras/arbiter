@@ -3,6 +3,7 @@ import { DOCUMENT } from '@angular/common';
 
 import { ButtonComponent } from '../../shared/ui/button/button.component';
 import { BadgeComponent } from '../../shared/ui/badge/badge.component';
+import { InfoTipComponent } from '../../shared/ui/info-tip/info-tip.component';
 import { CardComponent } from '../../shared/ui/card/card.component';
 import { InputComponent } from '../../shared/ui/input/input.component';
 import { TextareaComponent } from '../../shared/ui/textarea/textarea.component';
@@ -18,6 +19,12 @@ import { LogoComponent } from '../../shared/ui/logo/logo.component';
 import { FilePreviewComponent } from '../../shared/ui/file-preview/file-preview.component';
 import { StatusTimelineComponent } from '../../shared/ui/status-timeline/status-timeline.component';
 import { MenuButtonComponent, MenuItem } from '../../shared/ui/menu-button/menu-button.component';
+import { SpinnerComponent } from '../../shared/ui/spinner/spinner.component';
+import { InlineLoadingComponent } from '../../shared/ui/inline-loading/inline-loading.component';
+import { SaveBarComponent } from '../../shared/ui/save-bar/save-bar.component';
+import { SwitchComponent } from '../../shared/ui/switch/switch.component';
+import { StatTileComponent } from '../../shared/ui/stat-tile/stat-tile.component';
+import { ToastService } from '../../shared/ui/toast/toast.service';
 import { StatusTransition } from '../../core/models/expediente';
 
 interface Token {
@@ -50,6 +57,7 @@ interface Swatch {
   imports: [
     ButtonComponent,
     BadgeComponent,
+    InfoTipComponent,
     CardComponent,
     InputComponent,
     TextareaComponent,
@@ -65,6 +73,11 @@ interface Swatch {
     FilePreviewComponent,
     StatusTimelineComponent,
     MenuButtonComponent,
+    SpinnerComponent,
+    InlineLoadingComponent,
+    SaveBarComponent,
+    SwitchComponent,
+    StatTileComponent,
   ],
   template: `
     <div class="sg">
@@ -252,6 +265,46 @@ interface Swatch {
       </section>
 
       <section class="sg-block">
+        <h3 class="sg-h3">Info tip</h3>
+        <p class="sg-p">
+          Aclaración puntual al lado de un label — un solo dato, no un bloque entero (para eso
+          está <span class="mono">.section-hint</span>). Toggle por click, no hover: funciona
+          igual en mobile y con teclado.
+        </p>
+        <div class="row">
+          <span class="t-field-label">
+            Carencia (días)
+            <app-info-tip>
+              Durante la carencia la cobertura todavía no aplica, aunque la póliza esté vigente:
+              un siniestro dentro de ese plazo no se cubre.
+            </app-info-tip>
+          </span>
+        </div>
+      </section>
+
+      <section class="sg-block">
+        <h3 class="sg-h3">Toast</h3>
+        <p class="sg-p">
+          Aviso efímero, montado una sola vez en <span class="mono">app.html</span> y disparado
+          desde cualquier pantalla vía <span class="mono">ToastService.show()</span>. Reemplaza el
+          texto de error fijo al lado de un botón de guardar (ej. "El backend rechazó el
+          guardado") — el mensaje no debe quedar clavado en la pantalla, así que se muestra abajo
+          a la derecha y se cierra solo.
+        </p>
+        <div class="row">
+          <app-button variant="secondary" (click)="toastService.show('No se pudo guardar: el backend no respondió.', 'danger')">
+            Disparar error
+          </app-button>
+          <app-button variant="secondary" (click)="toastService.show('Cambios guardados en el motor.', 'ok')">
+            Disparar éxito
+          </app-button>
+          <app-button variant="secondary" (click)="toastService.show('rules-service tardó en responder — reintentando.', 'warning')">
+            Disparar warning
+          </app-button>
+        </div>
+      </section>
+
+      <section class="sg-block">
         <h3 class="sg-h3">Card</h3>
         <div class="row cards">
           <app-card heading="Resumen del siniestro">
@@ -417,6 +470,12 @@ interface Swatch {
           contenido se proyecta como <span class="mono">thead</span>/<span class="mono">tbody</span>
           nativos. Va dentro de <span class="mono">app-card [flush]</span> para que llegue al borde.
         </p>
+        <p class="sg-p">
+          <span class="mono">[fixed]="true"</span> reparte el ancho por columna en vez de por
+          contenido: las que no declaran ancho quedan todas iguales. Para una matriz (ej. la agenda
+          documental) es lo que corresponde — por contenido, cada columna mide lo que mide su
+          título y la grilla se ve torcida.
+        </p>
         <app-card [flush]="true">
           <app-table>
             <thead>
@@ -486,6 +545,98 @@ interface Swatch {
           cualquier envío modificaría un expediente. Se ve en el detalle del expediente (cuando
           falta documentación) y en el portal del asegurado.
         </p>
+      </section>
+
+      <section class="sg-block">
+        <h3 class="sg-h3">Spinner</h3>
+        <p class="sg-p">
+          El símbolo de Arbiter girando, sin texto. El trazo va en
+          <span class="mono">currentColor</span>, así que hereda el color de donde se lo ponga —
+          blanco sobre un botón oscuro, tinta sobre papel.
+        </p>
+        <div class="row">
+          <app-spinner [size]="16" />
+          <app-spinner [size]="24" />
+          <app-spinner [size]="48" />
+        </div>
+      </section>
+
+      <section class="sg-block">
+        <h3 class="sg-h3">Switch</h3>
+        <p class="sg-p">
+          Encendido/apagado, donde la decisión es "esto corre o no corre" y el efecto es inmediato
+          sobre lo que hay al lado: una regla del motor, un factor del puntaje. Para elegir de una
+          lista está <span class="mono">app-select</span>; para marcar items de un conjunto,
+          <span class="mono">app-checkbox</span>; para filtrar o alternar una vista, el chip.
+        </p>
+        <p class="sg-p">
+          El estado se lee por la posición de la perilla además de por el color, así que no depende
+          de distinguir el teal del gris. El nombre va en <span class="mono">ariaLabel</span>: en
+          las pantallas donde se usa, el rótulo visible es un elemento aparte, al lado.
+        </p>
+        <div class="row">
+          <app-switch [checked]="true" ariaLabel="Ejemplo encendido" />
+          <app-switch [checked]="false" ariaLabel="Ejemplo apagado" />
+          <app-switch [checked]="true" [disabled]="true" ariaLabel="Ejemplo deshabilitado" />
+        </div>
+      </section>
+
+      <section class="sg-block">
+        <h3 class="sg-h3">Save bar</h3>
+        <p class="sg-p">
+          Pie de una sección editable: estado a la izquierda, descartar y guardar a la derecha.
+          <span class="mono">dirty</span> gobierna todo — sin cambios no hay nada que guardar ni que
+          descartar, y los dos botones se apagan. Así el botón dice la verdad sobre si queda trabajo
+          por persistir, en vez de estar siempre habilitado.
+        </p>
+        <p class="sg-p">
+          <span class="mono">canSave</span> es la validación propia de la sección (un número fuera
+          de rango, por ejemplo). Va aparte de <span class="mono">dirty</span> para que un botón
+          deshabilitado signifique una sola cosa por vez.
+        </p>
+        <app-save-bar [dirty]="false" (save)="noop()" (discard)="noop()" />
+        <app-save-bar [dirty]="true" (save)="noop()" (discard)="noop()" />
+        <app-save-bar [dirty]="true" [saving]="true" (save)="noop()" (discard)="noop()" />
+        <app-save-bar [dirty]="true" error="No se pudo guardar: el motor no respondió" (save)="noop()" (discard)="noop()" />
+      </section>
+
+      <section class="sg-block">
+        <h3 class="sg-h3">Inline loading</h3>
+        <p class="sg-p">
+          Carga "en el lugar": spinner + mensaje opcional, dentro de una pantalla que ya tiene su
+          shell visible. Es la contraparte liviana de <span class="mono">app-loading</span>.
+        </p>
+        <app-inline-loading message="Cargando expedientes…" />
+        <app-inline-loading />
+      </section>
+
+      <section class="sg-block">
+        <h3 class="sg-h3">Loading (pantalla completa)</h3>
+        <p class="sg-p">
+          Overlay a viewport completo con el spinner de marca y un mensaje. Se reserva al arranque
+          (login → primer home), cuando todavía no hay shell que mostrar.
+        </p>
+        <p class="sg-p">
+          No se muestra vivo acá porque taparía la vitrina entera. Para verlo, cerrá sesión y volvé
+          a entrar.
+        </p>
+      </section>
+
+      <section class="sg-block">
+        <h3 class="sg-h3">Stat tile</h3>
+        <p class="sg-p">
+          La tarjeta de métrica de las pantallas de inicio. <span class="mono">tone</span> se usa
+          solo cuando el número comunica algo: <span class="mono">accent</span> para el dato propio
+          a resaltar, <span class="mono">danger</span> para una alerta. Con
+          <span class="mono">loading</span> muestra un guion en vez de un 0 que después salta a su
+          valor real y se lee como "no hay nada".
+        </p>
+        <div class="row cards">
+          <app-stat-tile [value]="14" label="Total expedientes" sub="en la aseguradora" />
+          <app-stat-tile [value]="5" tone="accent" label="Pendientes" sub="asignados a vos" />
+          <app-stat-tile [value]="3" tone="danger" label="Riesgo alto" sub="requieren atención" />
+          <app-stat-tile [loading]="true" label="Resueltos" sub="en total" />
+        </div>
       </section>
     </div>
   `,
@@ -586,6 +737,7 @@ interface Swatch {
 })
 export class StyleguideComponent {
   private readonly doc = inject(DOCUMENT);
+  protected readonly toastService = inject(ToastService);
 
   protected readonly modalOpen = signal(false);
   protected readonly sidePanelOpen = signal(false);
@@ -606,6 +758,9 @@ export class StyleguideComponent {
     { value: 'xlsx', label: 'Excel (.xlsx)' },
   ];
   protected readonly sampleMenuChoice = signal('');
+
+  /** La vitrina no guarda nada: los botones existen para mostrar los estados, no para hacer algo. */
+  protected noop(): void {}
 
   protected onSampleMenuSelect(value: string): void {
     this.sampleMenuChoice.set(value);

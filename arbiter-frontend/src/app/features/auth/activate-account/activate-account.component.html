@@ -10,7 +10,7 @@
   <section class="form-pane">
     <app-card class="login-card">
       @if (tokenStatus() === 'checking') {
-        <h2 class="t-page-title">Validando el link…</h2>
+        <app-inline-loading [size]="28" message="Validando el link…" />
       } @else if (tokenStatus() === 'invalid') {
         <h2 class="t-page-title">Link inválido</h2>
         <p class="t-note">

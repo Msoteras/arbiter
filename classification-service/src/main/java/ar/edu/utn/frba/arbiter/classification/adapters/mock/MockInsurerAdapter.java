@@ -9,6 +9,7 @@ import org.springframework.stereotype.Component;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Map;
 
@@ -22,8 +23,8 @@ public class MockInsurerAdapter implements InsurerAdapter {
                     .insuredId("12345678")
                     .branch("SUCURSAL-1")
                     .product("CELULAR")
-                    .effectiveFrom(LocalDate.of(2024, 1, 1))
-                    .effectiveTo(LocalDate.of(2027, 12, 31))
+                    .effectiveFrom(LocalDateTime.of(2024, 1, 1, 0, 0))
+                    .effectiveTo(LocalDateTime.of(2027, 12, 31, 23, 59, 59))
                     .upToDate(true)
                     .insuredAmount(new BigDecimal("500000"))
                     .deductible(new BigDecimal("50000"))
@@ -45,8 +46,8 @@ public class MockInsurerAdapter implements InsurerAdapter {
                     .product("Celular Protegido Básico")
                     .insuredItem("Motorola Edge 50 Pro")
                     .imei("351000000000042")
-                    .effectiveFrom(LocalDate.of(2024, 3, 1))
-                    .effectiveTo(LocalDate.of(2027, 3, 1))
+                    .effectiveFrom(LocalDateTime.of(2024, 3, 1, 0, 0))
+                    .effectiveTo(LocalDateTime.of(2027, 3, 1, 23, 59, 59))
                     .upToDate(true)
                     .insuredAmount(new BigDecimal("400000"))
                     .deductible(new BigDecimal("50000"))
@@ -72,8 +73,8 @@ public class MockInsurerAdapter implements InsurerAdapter {
                     .insuredId("30.555.777")
                     .branch("Celulares")
                     .product("Celular Protegido Premium")
-                    .effectiveFrom(LocalDate.of(2025, 6, 1))
-                    .effectiveTo(LocalDate.of(2026, 6, 1))
+                    .effectiveFrom(LocalDateTime.of(2025, 6, 1, 0, 0))
+                    .effectiveTo(LocalDateTime.of(2026, 6, 1, 23, 59, 59))
                     .upToDate(true)
                     .insuredAmount(new BigDecimal("1200000"))
                     .deductible(new BigDecimal("80000"))
@@ -99,8 +100,8 @@ public class MockInsurerAdapter implements InsurerAdapter {
                     .insuredId("42.987.654")
                     .branch("Celulares")
                     .product("Celular Protegido Premium")
-                    .effectiveFrom(LocalDate.of(2026, 1, 10))
-                    .effectiveTo(LocalDate.of(2027, 1, 10))
+                    .effectiveFrom(LocalDateTime.of(2026, 1, 10, 0, 0))
+                    .effectiveTo(LocalDateTime.of(2027, 1, 10, 23, 59, 59))
                     .upToDate(true)
                     .insuredAmount(new BigDecimal("1300000"))
                     .deductible(new BigDecimal("57000"))

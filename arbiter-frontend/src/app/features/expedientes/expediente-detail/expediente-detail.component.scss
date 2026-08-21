@@ -3,24 +3,13 @@
 /* ===== Cabecera sticky (slim: solo identidad) ===== */
 .det-header {
   position: sticky;
-  top: 0;
+  /* Debajo de la topbar fija de la app, no atrás. */
+  top: var(--appbar-h);
   background: var(--surface);
   border-bottom: 1px solid var(--border-default);
   padding: var(--space-4) var(--space-6);
   z-index: 10;
 }
-.back-link {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--space-1);
-  font-size: var(--font-size-sm);
-  font-weight: var(--font-weight-medium);
-  color: var(--accent-fg);
-  text-decoration: none;
-  margin-bottom: var(--space-3);
-}
-.back-link:hover { text-decoration: underline; }
-.back-arrow { font-size: var(--font-size-lg); line-height: 1; }
 .det-header-row { display: flex; align-items: center; justify-content: space-between; gap: var(--space-4); flex-wrap: wrap; }
 .identity { display: flex; align-items: center; gap: var(--space-3); flex-wrap: wrap; }
 .identity h1 { margin: 0; }
@@ -49,8 +38,22 @@
   gap: var(--space-3);
   margin: 0 0 var(--space-4);
 }
+/* Antecedente de fraude. El color entra solo por el borde izquierdo y el punto del badge, como
+   en .reco-value: es información sobre una persona y saturarla de rojo la vuelve un veredicto. */
+
+.fraude-item { padding-left: var(--space-3); border-left: 3px solid var(--border-strong); }
+.fraude-item + .fraude-item { margin-top: var(--space-3); }
+.fraude-item[data-tone='warning'] { border-left-color: var(--status-warning); }
+.fraude-item[data-tone='danger'] { border-left-color: var(--status-danger); }
+.fraude-item-head { display: flex; align-items: center; gap: var(--space-2); flex-wrap: wrap; }
+.fraude-item p { margin: var(--space-2) 0 0; }
+/* El que originó ESTE expediente va separado de los previos: no es contexto, es lo que se hizo acá. */
+.fraude-item.propio { margin-top: var(--space-4); padding-top: var(--space-3); border-top: 1px solid var(--border-subtle); }
+.fraude-card app-button { margin-top: var(--space-3); }
+
 .rcard-note { margin: var(--space-2) 0 0; font-size: var(--font-size-xs); color: var(--text-muted); }
 .rcard-note.error { color: var(--status-danger); }
+.rcard-note.suggested { color: var(--status-risk); }
 .reco-value { margin: 0; font-size: var(--font-size-lg); font-weight: var(--font-weight-medium); color: var(--text-primary); line-height: 1.25; }
 /* Acento sobrio de semáforo: borde izquierdo por tono, sin pintar el texto. */
 .reco-value[data-tone] { padding-left: var(--space-3); border-left: 3px solid var(--border-strong); }
@@ -59,9 +62,45 @@
 .reco-value[data-tone='risk'] { border-left-color: var(--status-risk); }
 .reco-value[data-tone='danger'] { border-left-color: var(--status-danger); }
 .reco-value[data-tone='info'] { border-left-color: var(--status-info); }
+.reco-detail { margin: var(--space-2) 0 0; color: var(--text-secondary); }
 .registered { margin: var(--space-2) 0 0; font-size: var(--font-size-sm); font-weight: var(--font-weight-medium); color: var(--accent-fg); }
 .decision-btns { display: flex; gap: var(--space-2); }
 .decision-btns app-button { flex: 1; }
+/* Derivar va debajo y a lo ancho: no es una tercera decisión, es suspender para conseguir
+   evidencia — ponerlo en la misma fila lo leería como una salida más del expediente. */
+.decision-btns + app-button { margin-top: var(--space-2); }
+
+/* ===== Peritaje ===== */
+/* El ancho de lectura se acota en la CARD, no en el texto: con `.measure` sobre los párrafos
+   la línea cortaba antes del borde y quedaba un hueco a la derecha que se lee como un bug.
+   Acotando la caja, el texto llena la card y las dos cosas terminan en el mismo lugar. */
+.peritaje-card { max-width: 72ch; }
+.peritaje { display: grid; gap: var(--space-1); margin: 0 0 var(--space-3); }
+.peritaje dt { margin-top: var(--space-2); }
+.peritaje dt:first-child { margin-top: 0; }
+.peritaje dd { margin: 0; font-size: var(--font-size-body); color: var(--text-primary); }
+
+.peritaje-veredicto {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin-bottom: var(--space-2);
+}
+
+/* El input nativo va oculto: el kit no tiene selector de archivo propio, y así el control
+   visible sigue siendo un app-button (mismo patrón que app-doc-upload). */
+.informe-file {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  margin: var(--space-3) 0;
+}
+.informe-file .t-field-label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
 
 /* ===== Asignación ===== */
 .assignee { display: flex; align-items: center; gap: var(--space-2); margin-bottom: var(--space-3); }
@@ -104,7 +143,56 @@
 .det-content { padding: var(--space-5) var(--space-6) var(--space-7); }
 .state-wrap { padding: var(--space-5); max-width: 760px; }
 
+// Carga del expediente: spinner centrado en la página (no arriba a un costado).
+.detail-loading {
+  min-height: 70vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
 .note { margin: var(--space-1) 0 0; font-size: var(--font-size-xs); color: var(--text-muted); }
+
+/* Motivos detrás de la clasificación, tab "Razones" (analysisReasons, uno por fila). */
+.reasons-list {
+  margin: 0;
+  padding-left: var(--space-4);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+.reasons-list li { font-size: var(--font-size-body); color: var(--text-secondary); line-height: 1.4; }
+
+/* ===== Datos extraídos (una card por adjunto leído) ===== */
+.extracted-grid { display: grid; grid-template-columns: 1fr 1fr; gap: var(--space-3); align-items: start; }
+
+/* Las señales de la imagen van visualmente separadas de los campos: son una observación sobre
+   la foto, no algo que el documento diga, y mezclarlas las haría leer como contenido. */
+.visual-findings {
+  margin-top: var(--space-4);
+  padding-top: var(--space-3);
+  border-top: 1px solid var(--border-subtle);
+}
+.visual-findings ul {
+  margin: var(--space-2) 0 var(--space-2);
+  padding-left: var(--space-4);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+.visual-findings li { font-size: var(--font-size-sm); color: var(--text-secondary); line-height: 1.4; }
+
+/* La transcripción entera es larga y rara vez es lo que el analista busca primero: va plegada,
+   disponible sin empujar los campos fuera de la vista. */
+.transcription { margin-top: var(--space-3); }
+.transcription summary { cursor: pointer; }
+.transcription p {
+  margin: var(--space-2) 0 0;
+  max-width: 68ch;
+  text-wrap: pretty;
+  color: var(--text-secondary);
+  white-space: pre-line;
+}
 
 /* ===== Resumen ===== */
 .resumen-grid { display: grid; grid-template-columns: 1.6fr 1fr; gap: var(--space-3); }
@@ -142,6 +230,7 @@ app-textarea { display: block; margin: var(--space-3) 0; }
 @media (max-width: 820px) {
   .resumen-grid { grid-template-columns: 1fr; }
   .fields { grid-template-columns: 1fr; }
+  .extracted-grid { grid-template-columns: 1fr; }
 }
 
 .risk-score { margin: 0.75rem 0 0.25rem; font-size: 0.95rem; }

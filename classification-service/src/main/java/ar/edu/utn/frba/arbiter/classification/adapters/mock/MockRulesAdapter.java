@@ -1,5 +1,6 @@
 package ar.edu.utn.frba.arbiter.classification.adapters.mock;
 
+import ar.edu.utn.frba.arbiter.common.enums.RuleType;
 import ar.edu.utn.frba.arbiter.classification.adapters.RulesAdapter;
 import ar.edu.utn.frba.arbiter.classification.dto.BusinessRules;
 import ar.edu.utn.frba.arbiter.classification.services.risk.RiskFactorIds;
@@ -52,6 +53,37 @@ public class MockRulesAdapter implements RulesAdapter {
         return BusinessRules.ScoringConfig.Band.builder().band(band).minScoreInclusive(minScoreInclusive).build();
     }
 
+    /**
+     * An active hard temporal rule. The ids mirror the ones in {@code init-multitenant.sql}'s
+     * seed: the baseline has to be swappable with whatever rules-service serves without changing
+     * behavior, and in the case-bound flow that id ends up in {@code rule_result.rule_id}.
+     */
+    private static BusinessRules.EvaluableRule temporalRule(long id, RuleType type) {
+        return BusinessRules.EvaluableRule.builder()
+                .id(id)
+                .ruleType(type.name())
+                // A failed hard rule doesn't reject on its own (human-in-the-loop): it derives to
+                // the analyst.
+                .effect("DERIVAR")
+                .blocksFastTrack(true)
+                .build();
+    }
+
+    /**
+     * The police-report deadline is the only hard rule with its own threshold (the rest take it
+     * from the coverage). 72h was the value of the property that used to govern every insurer
+     * before the rule became configurable; it stays as the mock's baseline.
+     */
+    private static BusinessRules.EvaluableRule policeDeadlineRule(long id, long deadlineHours) {
+        return BusinessRules.EvaluableRule.builder()
+                .id(id)
+                .ruleType(RuleType.POLICE_DEADLINE.name())
+                .effect("DERIVAR")
+                .blocksFastTrack(true)
+                .deadlineHours(deadlineHours)
+                .build();
+    }
+
     // Keyed by coverage id: the DER scopes regla_aseguradora by rama + cobertura, NOT by hecho
     // generador (getRules gets the claim cause separately, for the document-requirement axis).
     // Seed coverage ids: 1 = "Robo de celular" (robo en vía pública), 2 = "Hurto". A claim cause
@@ -85,19 +117,28 @@ public class MockRulesAdapter implements RulesAdapter {
                             .build())
                     .requiredDocumentTypes(List.of("police_report"))
                     .scoringConfig(DEFAULT_SCORING_CONFIG)
-                    // Límites de la cobertura (D10/D11), espejo del seed: plazo 72 hs, 2 eventos/año.
+                    // Coverage limits (D10/D11), mirroring the seed: 72 h deadline, 2 events/year.
                     .reportDeadlineHours(72L)
                     .maxEventsPerYear(2)
-                    // Caso 6 del handoff ("Hurto no cubierto"): la cobertura de robo (id 1) excluye
-                    // el hecho generador Hurto (claim_cause id 3). Lista negra: un robo (cause 2) no
-                    // se ve afectado. Espeja el seed COVERAGE_EXCLUSION de init-multitenant.sql.
-                    .evaluableRules(List.of(BusinessRules.EvaluableRule.builder()
-                            .id(3L)
-                            .ruleType("COVERAGE_EXCLUSION")
-                            .effect("RECHAZAR")
-                            .blocksFastTrack(true)
-                            .excludedClaimCauseIds(List.of(3L))
-                            .build()))
+                    .waitingPeriodDays(30)
+                    // Hard evaluable rules, mirroring init-multitenant.sql's seed. The exclusion is
+                    // handoff case 6 ("Hurto not covered"): the robbery coverage (id 1) excludes
+                    // the hecho generador Hurto (claim_cause id 3). Blacklist: a robbery (cause 2)
+                    // isn't affected. The temporal ones ship with the insurer at full strength:
+                    // without their row, the engine simply doesn't evaluate them.
+                    .evaluableRules(List.of(
+                            BusinessRules.EvaluableRule.builder()
+                                    .id(3L)
+                                    .ruleType(RuleType.COVERAGE_EXCLUSION.name())
+                                    .effect("RECHAZAR")
+                                    .blocksFastTrack(true)
+                                    .excludedClaimCauseIds(List.of(3L))
+                                    .build(),
+                            temporalRule(4L, RuleType.POLICY_IN_FORCE),
+                            temporalRule(5L, RuleType.WAITING_PERIOD),
+                            temporalRule(6L, RuleType.REPORT_DEADLINE),
+                            policeDeadlineRule(7L, 72L),
+                            temporalRule(8L, RuleType.MAX_EVENTS_YEAR)))
                     .build(),
 
             2L, BusinessRules.builder()
@@ -124,16 +165,39 @@ public class MockRulesAdapter implements RulesAdapter {
                             .build())
                     .requiredDocumentTypes(List.of("police_report"))
                     .scoringConfig(DEFAULT_SCORING_CONFIG)
-                    // Límites de la cobertura (D10/D11), espejo del seed: plazo 72 hs, 1 evento/año.
+                    // Coverage limits (D10/D11), mirroring the seed: 72 h deadline, 1 event/year.
                     .reportDeadlineHours(72L)
                     .maxEventsPerYear(1)
+                    .waitingPeriodDays(30)
+                    .evaluableRules(List.of(
+                            temporalRule(9L, RuleType.POLICY_IN_FORCE),
+                            temporalRule(10L, RuleType.WAITING_PERIOD),
+                            temporalRule(11L, RuleType.REPORT_DEADLINE),
+                            policeDeadlineRule(12L, 72L),
+                            temporalRule(13L, RuleType.MAX_EVENTS_YEAR)))
                     .build()
     );
 
     @Override
     public BusinessRules getRules(String branchId, Long coverageId, String claimCauseId) {
         BusinessRules rules = coverageId == null ? null : RULES_BY_COVERAGE.get(coverageId);
-        return rules != null ? rules : defaultGenericRules(branchId, claimCauseId);
+        return withFraudRecordPolicy(rules != null ? rules : defaultGenericRules(branchId, claimCauseId));
+    }
+
+    /**
+     * Sin fila en el baseline: el veto de Fast Track pesa sobre una <b>persona</b>, así que solo lo
+     * activa la aseguradora configurándolo (Ley 25.326). El mock, que es lo que queda cuando
+     * rules-service no responde, no puede ser quien empiece a vetarle siniestros a alguien.
+     */
+    @Override
+    public BusinessRules.FraudRecordPolicy getFraudRecordPolicy() {
+        return BusinessRules.FraudRecordPolicy.unconfigured();
+    }
+
+    private BusinessRules withFraudRecordPolicy(BusinessRules rules) {
+        return rules.fraudRecordPolicy() != null
+                ? rules
+                : rules.toBuilder().fraudRecordPolicy(getFraudRecordPolicy()).build();
     }
 
     private BusinessRules defaultGenericRules(String branchId, String claimCauseId) {

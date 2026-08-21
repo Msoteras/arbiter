@@ -17,6 +17,8 @@ public final class RiskFactorIds {
     public static final String IMAGE_REUSE = "image_reuse";
     /** Claim image found already published on the web (stock/catalog/marketplace). */
     public static final String IMAGE_WEB_MATCH = "image_web_match";
+    /** The insured has an expert-backed fraud record from an earlier claim, still in force. */
+    public static final String FRAUD_HISTORY = "fraud_history";
 
     private RiskFactorIds() {}
 }

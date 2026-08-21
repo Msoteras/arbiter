@@ -57,8 +57,8 @@ public class OllamaDocumentAnalyzer implements DocumentAnalyzer {
             "properties", Map.of(
                     "transcription", Map.of("type", "string"),
                     "visualFindings", Map.of("type", "array", "items", Map.of("type", "string")),
-                    // Todos nullable: un documento no tiene por qué traer los cuatro. El schema no
-                    // los exige para que el modelo no invente lo que falta.
+                    // All nullable: a document has no reason to carry all four. The schema doesn't
+                    // require them so the model doesn't invent what's missing.
                     "fields", Map.of(
                             "type", "object",
                             "properties", Map.of(
@@ -139,10 +139,12 @@ public class OllamaDocumentAnalyzer implements DocumentAnalyzer {
                         document.getNumberOfPages(), MAX_PDF_PAGES);
             }
 
+            log.info("[Ollama] PDF has {} page(s) to read", pageCount);
             StringBuilder transcription = new StringBuilder();
             List<String> findings = new ArrayList<>();
             DocumentExtraction.Fields fields = DocumentExtraction.Fields.none();
             for (int page = 0; page < pageCount; page++) {
+                log.info("[Ollama] Rendering and reading page {}/{}...", page + 1, pageCount);
                 BufferedImage image = renderer.renderImageWithDPI(page, 150);
                 DocumentExtraction pageExtraction = extractFromImage(toPng(image));
 
@@ -157,6 +159,7 @@ public class OllamaDocumentAnalyzer implements DocumentAnalyzer {
 
                 fields = mergeFields(fields, pageExtraction.fields());
             }
+            log.info("[Ollama] PDF fully read — {} page(s)", pageCount);
             return new DocumentExtraction(transcription.toString().trim(), findings, fields);
         } catch (IOException e) {
             throw new InvalidClassificationException("Could not render PDF document for analysis", e);
@@ -164,9 +167,9 @@ public class OllamaDocumentAnalyzer implements DocumentAnalyzer {
     }
 
     /**
-     * Un PDF es un documento, no varios: sus campos son los del conjunto. Gana la primera página que
-     * traiga cada dato — el IMEI suele estar en la primera y el total en la última, así que quedarse
-     * solo con una perdería la mitad.
+     * A PDF is one document, not several: its fields are the set's. The first page carrying each
+     * value wins — the IMEI is usually on the first and the total on the last, so keeping only one
+     * would lose half.
      */
     private DocumentExtraction.Fields mergeFields(
             DocumentExtraction.Fields accumulated, DocumentExtraction.Fields page) {
@@ -190,7 +193,10 @@ public class OllamaDocumentAnalyzer implements DocumentAnalyzer {
     private DocumentExtraction extractFromImage(byte[] imageContent) {
         String base64 = Base64.getEncoder().encodeToString(imageContent);
 
-        String content = client.chat(documentExtractionPrompt, List.of(base64), OUTPUT_SCHEMA);
+        // Sin thinking: transcribir un documento es una tarea mecánica —leer lo que dice el papel—,
+        // no una que se resuelva razonando. El schema ya fuerza la forma de la salida, así que el
+        // razonamiento solo agrega minutos y consume el presupuesto de num_predict sin aportar.
+        String content = client.chat(documentExtractionPrompt, List.of(base64), OUTPUT_SCHEMA, false);
 
         if (content.isEmpty()) {
             log.warn("[Ollama] Document analysis returned empty content");
@@ -223,9 +229,9 @@ public class OllamaDocumentAnalyzer implements DocumentAnalyzer {
     }
 
     /**
-     * Un campo que no se puede interpretar queda en null, no rompe la extracción: el resto del
-     * documento sigue sirviendo. Y null nunca se lee como inconsistencia aguas abajo — "el documento
-     * no lo dice" y "no coincide" son cosas distintas.
+     * A field that can't be interpreted stays null, it doesn't break the extraction: the rest of
+     * the document is still useful. And null is never read as an inconsistency downstream — "the
+     * document doesn't say" and "doesn't match" are different things.
      */
     private DocumentExtraction.Fields toFields(ModelFields fields) {
         if (fields == null) {
@@ -239,7 +245,7 @@ public class OllamaDocumentAnalyzer implements DocumentAnalyzer {
                 parseAffectedParty(fields.affectedParty()));
     }
 
-    /** Un valor que no es del enum se trata como "el documento no lo dice", no como un error. */
+    /** A value outside the enum is treated as "the document doesn't say", not as an error. */
     private DocumentExtraction.AffectedParty parseAffectedParty(String raw) {
         if (raw == null || raw.isBlank()) {
             return null;
@@ -264,7 +270,7 @@ public class OllamaDocumentAnalyzer implements DocumentAnalyzer {
         }
     }
 
-    /** Solo dígitos: el modelo puede devolverlo con espacios o guiones y no es una diferencia real. */
+    /** Digits only: the model may return it with spaces or dashes and that's no real difference. */
     private String normalizeImei(String raw) {
         if (raw == null) {
             return null;
@@ -279,7 +285,7 @@ public class OllamaDocumentAnalyzer implements DocumentAnalyzer {
 
     private record ModelOutput(String transcription, List<String> visualFindings, ModelFields fields) {}
 
-    /** La fecha llega como texto y el IMEI puede venir con separadores: se normalizan al mapear. */
+    /** The date arrives as text and the IMEI may carry separators: both normalized on mapping. */
     private record ModelFields(String documentDate, BigDecimal amount, String itemDescription, String imei,
                                String affectedParty) {}
 }

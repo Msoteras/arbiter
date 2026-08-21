@@ -98,12 +98,12 @@ public class ClassificationResultsService {
     }
 
     /**
-     * Audita las reglas duras evaluadas (hoy, exclusiones de cobertura) en {@code rule_result} —
-     * cierra el D4c: la tabla existía con entidad y repository pero cero escritores. Se escribe tanto
-     * el PASS como el FAIL: la auditoría de la Disposición SSN 2/2023 es "qué regla se evaluó y con
-     * qué resultado", no solo los rechazos. {@code rule_id} es FK NOT NULL a {@code insurer_rule}, y
-     * viaja desde la regla evaluada. Solo en el flujo con {@code caseId}: la fila referencia
-     * {@code cases(id)}, así que el flujo aislado (sin expediente) no escribe.
+     * Audits the hard rules evaluated (today, coverage exclusions) in {@code rule_result} — closes
+     * D4c: the table existed with an entity and repository but zero writers. Both PASS and FAIL are
+     * written: SSN Disposition 2/2023's audit is "which rule was evaluated and with what result",
+     * not just the rejections. {@code rule_id} is a NOT NULL FK to {@code insurer_rule} and travels
+     * from the evaluated rule. Only in the flow with a {@code caseId}: the row references
+     * {@code cases(id)}, so the isolated flow (no case) doesn't write.
      */
     private void saveRuleResults(Long caseId, ClassificationResponse response) {
         if (caseId == null || response.ruleFindings() == null || response.ruleFindings().isEmpty()) {
@@ -139,15 +139,24 @@ public class ClassificationResultsService {
         analysis.setRiskBreakdown(riskScore.breakdown());
         riskAnalysisRepository.save(analysis);
 
-        // Con qué configuración se calculó (D29). Null cuando el scoring salió del baseline y no de
-        // una fila del referente: ahí no hay nada que apuntar, y la FK lo rechazaría.
+        // Which configuration computed it (D29). Null when the scoring came from the baseline and
+        // not from a referente row: there's nothing to point at, and the FK would reject it.
         if (riskScore.scoringConfigurationId() != null) {
             caseOutcomeRepository.saveScoringConfiguration(caseId, riskScore.scoringConfigurationId());
         }
     }
 
-    /** Latest classification for a case; classification fields stay null until one exists. */
-    @Transactional(readOnly = true)
+    /**
+     * Latest classification for a case; classification fields stay null until one exists.
+     *
+     * <p>{@code readOnly} y no plano: con {@code readOnly = true} este método —llamado
+     * repetidamente por el sweep de {@code cases-service}, tanto desde una request real como desde
+     * el scheduler sin JWT detrás— reventaba con "No EntityManager with actual transaction
+     * available for current thread - cannot reliably process 'flush' call" pese a que el
+     * interceptor de Spring sí abría la transacción (visible en el stack trace). Sin writes en el
+     * método, sacar {@code readOnly} no cambia el comportamiento, solo evita el modo que rompía.
+     */
+    @Transactional
     public ClaimResponse getStatus(Long caseId) {
         Optional<LlmAnalysis> analysis = llmAnalysisRepository.findFirstByCaseIdOrderByIdDesc(caseId);
         Optional<RiskAnalysis> risk = riskAnalysisRepository.findFirstByCaseIdOrderByIdDesc(caseId);
@@ -155,24 +164,23 @@ public class ClassificationResultsService {
 
         return ClaimResponse.builder()
                 .caseId(caseId)
-                // El Fast Track manda cuando está: un Fast Track no deja fila en llm_analysis, y
-                // esa tabla es append-only, así que si se preguntara primero por ella ganaría la
-                // corrida ANTERIOR. Pasa al reclasificar (subir la documentación que faltaba y
-                // que el gate resuelva Fast Track): quedaba mostrándose el FALTA_DOCUMENTACION
-                // viejo. El flag no tiene ese problema porque se reescribe en cada corrida, así
-                // que en true significa siempre "la última fue Fast Track".
+                // Fast Track wins when present: a Fast Track leaves no llm_analysis row, and that
+                // table is append-only, so asking it first would let the PREVIOUS run win. It
+                // happens on reclassification (uploading the missing documentation and having the
+                // gate resolve Fast Track): the old FALTA_DOCUMENTACION stayed on screen. The flag
+                // doesn't have that problem because it's rewritten on every run, so true always
+                // means "the last one was Fast Track".
                 .classification(outcome.wasFastTrack()
                         ? Classification.FAST_TRACK
                         : analysis.map(LlmAnalysis::getRecommendation).orElse(null))
-                // Double.valueOf y no 1.0 a secas: con el literal primitivo, el ternario se tipa
-                // como double y desempaqueta la rama nula, que revienta con NPE.
+                // Double.valueOf and not a bare 1.0: with the primitive literal the ternary types
+                // as double and unboxes the null branch, which blows up with an NPE.
                 .confidence(outcome.wasFastTrack()
                         ? Double.valueOf(1.0)
                         : analysis.map(a -> a.getConfidence() != null ? a.getConfidence().doubleValue() : null)
                                 .orElse(null))
-                // Sin motivos en un Fast Track: los de la corrida anterior fundamentan otra
-                // clasificación, mostrarlos al lado de FAST_TRACK sería atribuirle razones que no
-                // son suyas.
+                // No factors on a Fast Track: the previous run's back a different classification,
+                // and showing them next to FAST_TRACK would attribute reasons that aren't its own.
                 .factors(outcome.wasFastTrack()
                         ? null
                         : analysis.map(a -> a.getReasons().stream().map(LlmReason::getReason).toList())
@@ -223,7 +231,8 @@ public class ClassificationResultsService {
         };
     }
 
-    @Transactional(readOnly = true)
+    /** Same reasoning as {@link #getStatus}: plain, not readOnly — see its javadoc. */
+    @Transactional
     public String getContent() {
         List<LlmAnalysis> entries = llmAnalysisRepository.findAllByOrderByIdAsc();
         if (entries.isEmpty()) {

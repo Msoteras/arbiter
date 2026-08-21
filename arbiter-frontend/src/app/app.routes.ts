@@ -1,5 +1,6 @@
 import { Routes } from '@angular/router';
 
+import { guestGuard } from './core/auth/guest.guard';
 import { roleGuard } from './core/auth/role.guard';
 
 export const routes: Routes = [
@@ -7,6 +8,7 @@ export const routes: Routes = [
 
   {
     path: 'login',
+    canActivate: [guestGuard],
     loadComponent: () =>
       import('./features/auth/login/login.component').then((m) => m.LoginComponent),
   },
@@ -31,6 +33,37 @@ export const routes: Routes = [
     loadComponent: () =>
       import('./features/auth/activate-account/activate-account.component').then(
         (m) => m.ActivateAccountComponent,
+      ),
+  },
+
+  // ----- Pantallas de inicio (una por rol) -----
+  // Cada rol aterriza acá después del login. El home es su propia sección: no comparten
+  // componente porque el contenido y los datos son distintos por rol.
+  {
+    path: 'home',
+    canActivate: [roleGuard],
+    data: { roles: ['ANALISTA_SINIESTROS'] },
+    loadComponent: () =>
+      import('./features/home/analista-inicio/analista-inicio.component').then(
+        (m) => m.AnalistaInicioComponent,
+      ),
+  },
+  {
+    path: 'insurer/home',
+    canActivate: [roleGuard],
+    data: { roles: ['REFERENTE_ASEGURADORA'] },
+    loadComponent: () =>
+      import('./features/home/referente-inicio/referente-inicio.component').then(
+        (m) => m.ReferenteInicioComponent,
+      ),
+  },
+  {
+    path: 'portal/home',
+    canActivate: [roleGuard],
+    data: { roles: ['ASEGURADO'] },
+    loadComponent: () =>
+      import('./features/home/asegurado-inicio/asegurado-inicio.component').then(
+        (m) => m.AseguradoInicioComponent,
       ),
   },
 
@@ -118,14 +151,18 @@ export const routes: Routes = [
   {
     path: 'insurer/dashboard',
     canActivate: [roleGuard],
-    data: { roles: ['REFERENTE_ASEGURADORA'] },
+    // El analista también los ve: son métricas de la operación, no configuración de la
+    // aseguradora (a diferencia de usuarios y reglas, que siguen siendo del referente).
+    data: { roles: ['REFERENTE_ASEGURADORA', 'ANALISTA_SINIESTROS'] },
     loadComponent: () =>
       import('./features/admin/dashboard/dashboard.component').then((m) => m.DashboardComponent),
   },
   {
     path: 'insurer/reports',
     canActivate: [roleGuard],
-    data: { roles: ['REFERENTE_ASEGURADORA'] },
+    // El analista también los ve: son métricas de la operación, no configuración de la
+    // aseguradora (a diferencia de usuarios y reglas, que siguen siendo del referente).
+    data: { roles: ['REFERENTE_ASEGURADORA', 'ANALISTA_SINIESTROS'] },
     loadComponent: () =>
       import('./features/admin/reportes/reportes.component').then((m) => m.ReportesComponent),
   },

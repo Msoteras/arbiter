@@ -3,6 +3,8 @@ package ar.edu.utn.frba.arbiter.cases.services;
 import ar.edu.utn.frba.arbiter.cases.dto.AnalystDecisionRequest;
 import ar.edu.utn.frba.arbiter.cases.models.entities.CaseDocument;
 import ar.edu.utn.frba.arbiter.cases.models.entities.Case;
+import ar.edu.utn.frba.arbiter.common.dto.FraudRecordRequest;
+import ar.edu.utn.frba.arbiter.common.dto.FraudRecordResponse;
 
 import java.util.List;
 
@@ -33,4 +35,14 @@ public interface ClaimsAnalysisClient {
      *         {@code cases.classification_id}; null if the response didn't carry one.
      */
     Long forwardAnalystDecision(Long caseId, AnalystDecisionRequest request);
+
+    /**
+     * Registers a fraud record against an insured. Rides this boundary and not one of its own
+     * because classification-service owns the record: it's the module that reads it while scoring
+     * the insured's next claim.
+     */
+    FraudRecordResponse registerFraudRecord(FraudRecordRequest request);
+
+    /** The insured's fraud records, lapsed ones included (each says whether it's still in force). */
+    List<FraudRecordResponse> fraudRecordsOf(String insuredDni);
 }

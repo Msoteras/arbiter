@@ -48,6 +48,12 @@
      la selección tintada usa el par --selected-bg/--selected-border.
      El anillo de foco de inputs/controles es --focus-ring. */
   --accent-fg: var(--accent-strong);
+  /* Relleno de un control activo (el toggle prendido): el teal de marca, no --accent-fg, que es
+     para texto. Existe como rol para que los componentes no consuman --accent directo, y con su
+     borde propio en teal fuerte: el relleno claro solo no llega a 3:1 contra la superficie, y sin
+     el borde el control se pierde de vista aunque el estado se lea por la perilla. */
+  --accent-fill: var(--accent);
+  --accent-fill-border: var(--accent-strong);
   --selected-bg: var(--accent-soft);
   --selected-border: var(--accent-soft-border);
   --border-focus: var(--accent);
@@ -61,13 +67,15 @@
   --brand-panel-bg: linear-gradient(160deg, var(--accent-strong) 0%, var(--accent-deep) 55%, var(--accent-deepest) 100%);
   --brand-panel-fg: var(--c-on-ink);
 
-  /* ===== Sidebar de navegación (analista / referente) ===== */
-  --sidebar-bg: var(--c-ink);
-  --sidebar-fg: var(--c-on-ink);
-  --sidebar-muted: var(--c-muted-2);
-  --sidebar-item-active: var(--c-ink-raised);
-  --sidebar-hair: var(--c-ink-hair);
-  --sidebar-avatar-bg: var(--c-ink-raised-2);
+  /* ===== Chrome de la app (topbar fija + panel de navegación, analista / referente) =====
+     Antes se llamaban --sidebar-*, pero la topbar comparte exactamente la misma superficie
+     oscura: es un solo tratamiento de "marco de la app", no dos. */
+  --chrome-bg: var(--c-ink);
+  --chrome-fg: var(--c-on-ink);
+  --chrome-muted: var(--c-muted-2);
+  --chrome-item-active: var(--c-ink-raised);
+  --chrome-hair: var(--c-ink-hair);
+  --chrome-avatar-bg: var(--c-ink-raised-2);
 
   /* ===== Acción secundaria (botón con borde) ===== */
   --action-secondary-bg: var(--c-bg);
@@ -89,4 +97,9 @@
   --status-risk: var(--accent-orange);
   --status-danger: var(--accent-red);
   --status-info: var(--accent-blue);
+
+  /* Superficie tenue de alerta: fondo tintado para tarjetas que comunican riesgo (ej. la
+     tarjeta de "Alertas de fraude" del inicio). Par superficie + borde, como --selected-*. */
+  --surface-danger-soft: var(--accent-red-soft);
+  --border-danger-soft: var(--accent-red-soft-border);
 }

@@ -1,8 +1,14 @@
-:host { display: block; }
+// La pantalla ocupa al menos el alto disponible del área de contenido, para poder anclar la
+// paginación al pie cuando hay pocas filas (ver `app-pagination` más abajo).
+:host {
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 auto;
+}
 
 .bandeja {
+  flex: 1 1 auto;
   padding: var(--space-5) var(--space-6) var(--space-7);
-  max-width: 1440px;
   display: flex;
   flex-direction: column;
   gap: var(--space-4);
@@ -18,6 +24,14 @@
 .bandeja-head-text { min-width: 0; }
 .bandeja-sub { margin: var(--space-1) 0 0; font-size: var(--font-size-body); color: var(--text-muted); }
 
+// Primera carga: el spinner ocupa el alto disponible y queda centrado (sin la caja de filtros).
+.first-load {
+  flex: 1 1 auto;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
 .btn-with-icon { display: inline-flex; align-items: center; gap: var(--space-2); }
 
 // ───────────────── Lente "Míos" / "Todos" ─────────────────
@@ -25,6 +39,7 @@
 // segmento activo, sin colores ni primitivas nuevas.
 .lens {
   display: flex;
+  flex-wrap: wrap;
   gap: var(--space-5);
   border-bottom: 1px solid var(--border-default);
 }
@@ -59,25 +74,147 @@
   padding: 1px var(--space-2);
 }
 .lens-tab.active .lens-count { color: var(--accent-fg); background: var(--selected-bg); }
-
-// ───────────────── Barra de filtros ─────────────────
-.filters {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: flex-end;
-  gap: var(--space-4);
+// Lente "Alerta de fraude": el triángulo va en color de peligro (semáforo), el resto sobrio.
+.lens-tab--alert .lens-alert-mark { color: var(--status-danger); font-size: 0.85em; }
+.lens-tab--alert.active { border-bottom-color: var(--status-danger); }
+.lens-tab--alert.active .lens-count {
+  color: var(--status-danger);
+  background: var(--surface-danger-soft);
 }
+
+// ───────────────── Barra: búsqueda + botón Filtros ─────────────────
+.toolbar {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+}
+.toolbar .search {
+  flex: 1 1 auto;
+  display: block;
+  min-width: 0;
+}
+
+.filters-btn { display: inline-flex; align-items: center; gap: var(--space-2); }
+// Badge con la cantidad de filtros aplicados.
+.filters-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 5px;
+  border-radius: var(--radius-pill);
+  background: var(--accent-strong);
+  color: var(--text-on-emphasis);
+  font-size: var(--font-size-2xs);
+  font-weight: var(--font-weight-medium);
+}
+
+// ───────────────── Popover de filtros (anclado al botón) ─────────────────
+.filters-anchor { position: relative; flex: none; }
+.filters-pop {
+  position: absolute;
+  top: calc(100% + var(--space-2));
+  right: 0;
+  z-index: 30;
+  width: min(560px, calc(100vw - 2 * var(--space-5)));
+  padding: var(--space-4);
+  background: var(--surface);
+  border: 1px solid var(--border-control);
+  border-radius: var(--radius-modal);
+  box-shadow: var(--shadow-pop);
+  // Entrada suave al abrir (baja unos px + fade). El cierre es inmediato (el @if desmonta).
+  animation: filters-pop-in var(--dur-2) var(--ease-out);
+}
+@keyframes filters-pop-in {
+  from { opacity: 0; transform: translateY(-6px) scale(0.98); }
+  to { opacity: 1; transform: none; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .filters-pop { animation: none; }
+}
+.filters-pop-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: var(--space-3);
+}
+.filters-pop-title {
+  font-size: var(--font-size-md);
+  font-weight: var(--font-weight-medium);
+  color: var(--text-primary);
+}
+.filters-pop-close {
+  border: none;
+  background: none;
+  cursor: pointer;
+  color: var(--text-muted);
+  font-size: var(--font-size-md);
+  line-height: 1;
+  padding: var(--space-1);
+  border-radius: var(--radius-ctl);
+}
+.filters-pop-close:hover { color: var(--text-primary); background: var(--surface-sunken); }
+.filters-pop-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--space-3) var(--space-4);
+}
+.filters-pop-foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  margin-top: var(--space-4);
+  padding-top: var(--space-3);
+  border-top: 1px solid var(--border-subtle);
+}
+// Campo de filtro (etiqueta + control), reusado en la grilla del popover.
 .filter-field {
   display: flex;
   flex-direction: column;
   gap: var(--space-1);
-  min-width: 180px;
-  flex: 1 1 180px;
+  min-width: 0;
 }
-.filter-field.grow { flex: 2 1 260px; }
 
-@media (max-width: 720px) {
-  .filter-field { flex-basis: 100%; }
+// ───────────────── Chips de filtros aplicados ─────────────────
+.active-chips {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+}
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-1) var(--space-3);
+  border: 1px solid var(--border-control);
+  border-radius: var(--radius-pill);
+  background: var(--surface);
+  color: var(--text-secondary);
+  font: inherit;
+  font-size: var(--font-size-xs);
+  cursor: pointer;
+  transition:
+    border-color var(--dur-1) ease,
+    color var(--dur-1) ease;
+}
+.chip:hover { border-color: var(--border-strong); color: var(--text-primary); }
+.chip-x { color: var(--text-muted); }
+.chip-clear {
+  border: none;
+  background: none;
+  cursor: pointer;
+  color: var(--accent-fg);
+  font: inherit;
+  font-size: var(--font-size-xs);
+  padding: var(--space-1) var(--space-2);
+}
+.chip-clear:hover { text-decoration: underline; }
+
+@media (max-width: 560px) {
+  .filters-pop-grid { grid-template-columns: 1fr; }
 }
 
 // ───────────────── Tabla ─────────────────
@@ -88,10 +225,20 @@
 // docs/frontend-bugs-ux.md #12 y el guardrail del design system al respecto.
 .table-scroll { overflow-x: auto; }
 
-table { width: 100%; border-collapse: collapse; font-size: var(--font-size-body); }
-th, td { text-align: left; padding: var(--space-3) var(--space-4); white-space: nowrap; }
-th:first-child, td:first-child { padding-left: var(--space-5); }
-th:last-child, td:last-child { padding-right: var(--space-5); }
+// Fuente y padding compactos: la tabla tiene 9 columnas y en una laptop al zoom por defecto
+// (100%) no entraba. Con 12px + padding chico + las columnas de texto acotadas, entra sin scroll
+// horizontal en anchos de ~1130px de contenido; el scroll queda solo como red de seguridad para
+// pantallas realmente angostas o zoom fuerte.
+table { width: 100%; border-collapse: collapse; font-size: var(--font-size-sm); }
+th, td { text-align: left; padding: var(--space-2); white-space: nowrap; vertical-align: middle; }
+th:first-child, td:first-child { padding-left: var(--space-3); }
+th:last-child, td:last-child { padding-right: var(--space-3); }
+// Las dos columnas de texto libre (Asegurado, Tipo de siniestro) envuelven a dos líneas y se
+// acotan: así la tabla achica su ancho mínimo en vez de forzar el scroll. El resto queda en una
+// línea.
+td:nth-child(3), td:nth-child(4) { white-space: normal; }
+td:nth-child(3) { max-width: 150px; }
+td:nth-child(4) { min-width: 100px; max-width: 150px; }
 
 thead th {
   font-size: var(--font-size-2xs);
@@ -142,9 +289,9 @@ tbody tr:not(:last-child) td { border-bottom: 1px solid var(--border-subtle); }
 // a otro analista o liberar. Todo visible siempre — sin hover-reveal — como pide el diseño.
 .assign-cell {
   cursor: default;
-  width: 220px; // fija para que el reparto de columnas no baile entre filas asignadas y no
+  width: 172px; // fija para que el reparto de columnas no baile entre filas asignadas y no
 }
-th:last-child { width: 220px; }
+th:last-child { width: 172px; }
 
 .assign-row {
   display: flex;
@@ -191,7 +338,10 @@ th:last-child { width: 220px; }
 }
 
 // ───────────────── Paginación como pie de página ─────────────────
+// `margin-top: auto` la empuja al pie del área de contenido cuando hay pocas filas (la pantalla
+// ocupa todo el alto vía el flex de :host), en vez de quedar flotando justo debajo de la tabla.
 app-pagination {
+  margin-top: auto;
   border-top: 1px solid var(--border-default);
   padding: var(--space-4) var(--space-5) 0;
 }

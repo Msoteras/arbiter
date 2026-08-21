@@ -12,9 +12,14 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 /**
- * El motor solo tiene el {@code coverageId}; la agenda se guarda por ramo. El servicio cruza
- * cobertura → ramo y devuelve la agenda de ese ramo; sin cobertura o sin ramo, lista vacía (el
- * motor compone sobre su baseline y nunca se cae por falta de config).
+ * The engine only has the {@code coverageId} and the claim-cause name; the schedule is stored by
+ * branch + claim cause. The service resolves coverage → branch and returns that claim cause's
+ * schedule.
+ *
+ * <p>What it answers with when there's nothing to return is the whole point: an <b>empty list</b>
+ * means "needs no documents" and {@code null} means "couldn't resolve it". The engine only falls
+ * back to its baseline on the second — folding both into an empty list made a referente who cleared
+ * every document from the panel still get the baseline's.
  */
 class InternalDocumentRequirementServiceTest {
 
@@ -25,18 +30,42 @@ class InternalDocumentRequirementServiceTest {
 
     @Test
     void resolvesCoverageToBranchAndReturnsItsAgenda() {
-        Coverage coverage = mock(Coverage.class);
-        when(coverage.getBranchId()).thenReturn(2L);
-        when(coverageRepository.findById(10L)).thenReturn(Optional.of(coverage));
-        when(documentRequirements.get(2L)).thenReturn(List.of("police_report", "imei_deregistration"));
+        coverageBelongsToBranch(10L, 2L);
+        when(documentRequirements.findByBranchIdAndClaimCauseName(2L, "Hurto"))
+                .thenReturn(Optional.of(List.of("police_report", "imei_deregistration")));
 
-        assertThat(service.getByCoverage(10L)).containsExactly("police_report", "imei_deregistration");
+        assertThat(service.getByCoverage(10L, "Hurto")).containsExactly("police_report", "imei_deregistration");
+    }
+
+    /** The case that was broken: the referente cleared them all, and that has to reach the engine. */
+    @Test
+    void returnsEmptyListWhenTheClaimCauseNeedsNoDocuments() {
+        coverageBelongsToBranch(10L, 2L);
+        when(documentRequirements.findByBranchIdAndClaimCauseName(2L, "Caída"))
+                .thenReturn(Optional.of(List.of()));
+
+        assertThat(service.getByCoverage(10L, "Caída")).isEmpty();
     }
 
     @Test
-    void returnsEmptyWhenCoverageDoesNotExist() {
+    void returnsNullWhenCoverageDoesNotExist() {
         when(coverageRepository.findById(99L)).thenReturn(Optional.empty());
 
-        assertThat(service.getByCoverage(99L)).isEmpty();
+        assertThat(service.getByCoverage(99L, "Hurto")).isNull();
+    }
+
+    @Test
+    void returnsNullWhenTheBranchHasNoSuchClaimCause() {
+        coverageBelongsToBranch(10L, 2L);
+        when(documentRequirements.findByBranchIdAndClaimCauseName(2L, "Inexistente"))
+                .thenReturn(Optional.empty());
+
+        assertThat(service.getByCoverage(10L, "Inexistente")).isNull();
+    }
+
+    private void coverageBelongsToBranch(Long coverageId, Long branchId) {
+        Coverage coverage = mock(Coverage.class);
+        when(coverage.getBranchId()).thenReturn(branchId);
+        when(coverageRepository.findById(coverageId)).thenReturn(Optional.of(coverage));
     }
 }

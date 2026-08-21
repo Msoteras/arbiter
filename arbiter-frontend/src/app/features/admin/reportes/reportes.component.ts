@@ -3,6 +3,7 @@ import { ChangeDetectionStrategy, Component, signal } from '@angular/core';
 import { CardComponent } from '../../../shared/ui/card/card.component';
 import { ButtonComponent } from '../../../shared/ui/button/button.component';
 import { SelectComponent, SelectOption } from '../../../shared/ui/select/select.component';
+import { listStagger, staggerReveal } from '../../../shared/animations';
 
 type Format = 'CSV' | 'Excel' | 'PDF';
 
@@ -23,6 +24,7 @@ interface RecentReport {
   selector: 'app-reportes',
   imports: [CardComponent, ButtonComponent, SelectComponent],
   changeDetection: ChangeDetectionStrategy.OnPush,
+  animations: [staggerReveal, listStagger],
   templateUrl: './reportes.component.html',
   styleUrl: './reportes.component.scss',
 })

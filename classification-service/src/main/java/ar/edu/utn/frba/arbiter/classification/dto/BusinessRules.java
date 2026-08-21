@@ -15,16 +15,19 @@ public record BusinessRules(
         FastTrackThresholds fastTrackThresholds,
         List<String> requiredDocumentTypes,
         ScoringConfig scoringConfig,
+        FraudRecordPolicy fraudRecordPolicy,
         List<EvaluableRule> evaluableRules,
-        // Límites intrínsecos de la cobertura (columnas de coverage), evaluables por código:
-        // plazo de denuncia (D11) y tope de eventos por año (D10). null = no configurado ⇒ la regla
-        // correspondiente no se evalúa.
+        // The coverage's intrinsic limits (coverage columns), evaluable by code: report deadline
+        // (D11) and events-per-year cap (D10). null = not configured ⇒ the corresponding rule
+        // isn't evaluated.
         Long reportDeadlineHours,
         Integer maxEventsPerYear,
-        // Carencia (D9): días desde el alta de la póliza en que la cobertura todavía no aplica.
+        // Waiting period (D9): days since the policy's start date during which the coverage still
+        // doesn't apply.
         Integer waitingPeriodDays,
-        // Alcance de la cobertura (D9). La fuente es la cobertura que configura el referente, no
-        // poliza.cubre_grupo_familiar de la BD Aseguradora — las dos existen y ya se contradicen.
+        // Coverage scope (D9). The source is the coverage the referente configures, not
+        // poliza.cubre_grupo_familiar from the insurer DB — the two exist and already contradict
+        // each other.
         Boolean coversFamilyGroup,
         Boolean claimExhaustsCoverage
 ) {
@@ -33,9 +36,16 @@ public record BusinessRules(
      * A hard rule evaluated by code (not interpreted by the LLM), configured by the insurer.
      * {@code id} is the {@code insurer_rule} id and must survive the trip: it's what
      * {@code rule_result.rule_id} points at, and without it there's no audit trail
-     * (Disposición SSN 2/2023). Today the only {@code ruleType} is {@code COVERAGE_EXCLUSION}:
-     * the evaluator matches the claim's hecho generador against {@code excludedClaimCauseIds}
-     * <b>by id</b> (names repeat across branches; the id is unambiguous).
+     * (Disposición SSN 2/2023).
+     *
+     * <p>The parameters are nullable because a single list carries different types
+     * ({@link ar.edu.utn.frba.arbiter.common.enums.RuleType}): {@code COVERAGE_EXCLUSION} matches
+     * the claim's hecho generador against {@code excludedClaimCauseIds} <b>by id</b> (names repeat
+     * across branches, the id doesn't), and {@code POLICE_DEADLINE} carries its threshold in
+     * {@code deadlineHours}. The other hard rules arrive <b>with no parameters on purpose</b>: the
+     * row only says the insurer has the rule active, and the coverage sets the threshold (see
+     * {@code reportDeadlineHours}, {@code maxEventsPerYear}, {@code waitingPeriodDays} on this same
+     * record).
      */
     @Builder
     public record EvaluableRule(
@@ -43,8 +53,43 @@ public record BusinessRules(
             String ruleType,
             String effect,
             boolean blocksFastTrack,
-            List<Long> excludedClaimCauseIds
+            List<Long> excludedClaimCauseIds,
+            Long deadlineHours
     ) {}
+
+    /**
+     * The insurer's policy on fraud records ({@code insurer_rule} of type {@code FRAUD_RECORD}):
+     * how long a record keeps counting, and whether it disqualifies the claim from Fast Track.
+     *
+     * <p>Insurer-wide, not per coverage — the record is about the person, not about which coverage
+     * they claimed under.
+     *
+     * <p><b>It does not say whether the record scores.</b> That's decided where every other factor
+     * is: the insurer's {@link ScoringConfig}, by including {@code fraud_history} and giving it a
+     * weight. Having a second switch here let the two disagree — the referente's panel could claim
+     * the record was scoring while the scoring config didn't even list the factor.
+     *
+     * @param ruleId what a fraud-record {@code rule_result} points at. Null when the insurer never
+     *               configured the rule, and then the Fast Track veto isn't evaluated at all
+     */
+    @Builder
+    public record FraudRecordPolicy(
+            Long ruleId,
+            int windowMonths,
+            boolean blocksFastTrack
+    ) {
+
+        /** Window applied when the insurer never set one: three years. */
+        public static final int DEFAULT_WINDOW_MONTHS = 36;
+
+        /**
+         * No rule row. The window falls back to the default (a record still ages out — "sin
+         * configurar" can't mean "cuenta para siempre") and nothing vetoes Fast Track.
+         */
+        public static FraudRecordPolicy unconfigured() {
+            return new FraudRecordPolicy(null, DEFAULT_WINDOW_MONTHS, false);
+        }
+    }
 
     /**
      * Deterministically evaluable thresholds (no LLM) to decide Fast Track.
@@ -56,12 +101,12 @@ public record BusinessRules(
             Double maxClaimedAmountRatio,
             Integer maxPriorClaims,
             /**
-             * Ventana en meses sobre la que se cuenta {@code maxPriorClaims}. Null = histórico
-             * completo, que es como se comportaba antes de existir el campo: el límite se
-             * comparaba contra los siniestros de toda la vida del asegurado (D14).
+             * Window in months over which {@code maxPriorClaims} is counted. Null = the whole
+             * history, which is how it behaved before the field existed: the limit was compared
+             * against the insured's lifetime claims (D14).
              */
             Integer priorClaimsWindowMonths,
-            /** Antigüedad mínima de la póliza al momento del hecho, en meses. Null = no se exige. */
+            /** Minimum policy age at the time of the event, in months. Null = not required. */
             Integer minPolicyAgeMonths,
             Boolean requiresUpToDatePolicy,
             List<String> requiredDocumentTypes
@@ -76,14 +121,23 @@ public record BusinessRules(
     @Builder
     public record ScoringConfig(
             /**
-             * Fila de {@code scoring_configuration} de la que salió esta config. Viaja para poder
-             * escribir {@code cases.scoring_configuration_id}: sin eso, un score auditado no dice
-             * con qué configuración se calculó, y el referente puede haberla cambiado desde
-             * entonces (D29). Null cuando el scoring es el baseline del mock, que no es una fila.
+             * The {@code scoring_configuration} row this config came from. It travels so
+             * {@code cases.scoring_configuration_id} can be written: without it, an audited score
+             * doesn't say which configuration computed it, and the referente may have changed it
+             * since (D29). Null when the scoring is the mock baseline, which isn't a row.
              */
             Long id,
             List<FactorWeight> factors,
-            List<Band> bands
+            List<Band> bands,
+            /**
+             * Whether Fast Track claims still get the full (heavy) analysis — OCR of every attachment
+             * plus the image-fraud cascade — so their fraud score comes out complete instead of only
+             * on structured-data factors. {@code false} (default) keeps Fast Track fast: it skips that
+             * analysis and the score is partial. Per-insurer, configured by the referente: some want
+             * the expedited lane to stay quick, others want the fraud read done regardless. It never
+             * gates Fast Track — the score is a parallel signal — it only decides how much runs.
+             */
+            boolean fullAnalysisOnFastTrack
     ) {
 
         /** A risk factor that is active for this insurer, and how much it weighs in the sum. */

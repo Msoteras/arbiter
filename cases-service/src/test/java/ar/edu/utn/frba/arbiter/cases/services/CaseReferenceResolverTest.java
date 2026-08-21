@@ -6,6 +6,7 @@ import ar.edu.utn.frba.arbiter.common.models.entities.tenant.Insured;
 import ar.edu.utn.frba.arbiter.cases.models.repositories.BranchRepository;
 import ar.edu.utn.frba.arbiter.cases.models.repositories.ClaimCauseRepository;
 import ar.edu.utn.frba.arbiter.cases.models.repositories.InsuredRepository;
+import ar.edu.utn.frba.arbiter.cases.models.entities.Policy;
 import ar.edu.utn.frba.arbiter.cases.models.repositories.PolicyRepository;
 import ar.edu.utn.frba.arbiter.cases.support.CaseFixtures;
 import ar.edu.utn.frba.arbiter.common.models.entities.Branch;
@@ -23,12 +24,16 @@ import java.util.Optional;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 /**
- * Resolver de strings a FKs. Lo que se prueba acá es la decisión de que un valor que no matchea
- * **falla** (422) en vez de guardarse como texto libre: el wizard solo ofrece pólizas ya
- * sincronizadas, así que un valor que no resuelve es un error real, no un caso a tolerar.
+ * Resolver of strings to FKs. What's being tested here is the decision that a value that doesn't
+ * match **fails** (422) instead of being saved as free text.
+ *
+ * <p>The policy is the exception, on purpose: the portal lists policies reading the insurer DB
+ * live, so one that isn't in the local snapshot isn't invalid data — it's one Arbiter hasn't
+ * copied yet. That one syncs on demand (decision #10) instead of failing.
  */
 @ExtendWith(MockitoExtension.class)
 class CaseReferenceResolverTest {
@@ -44,6 +49,9 @@ class CaseReferenceResolverTest {
 
     @Mock
     private InsuredRepository insuredRepository;
+
+    @Mock
+    private PolicySynchronizer policySynchronizer;
 
     @InjectMocks
     private CaseReferenceResolver resolver;
@@ -84,13 +92,25 @@ class CaseReferenceResolverTest {
     }
 
     @Test
-    void resolvePolicy_unsyncedPolicy_throws() {
-        // El caso que motivó la decisión: una póliza que todavía no bajó de la BD Aseguradora.
-        when(policyRepository.findByExternalPolicyNumber("POL-NUEVA")).thenReturn(Optional.empty());
+    void resolvePolicy_alreadySynced_doesNotHitTheInsurer() {
+        Policy local = new Policy();
+        when(policyRepository.findByExternalPolicyNumber("POL-CEL-2026-042")).thenReturn(Optional.of(local));
 
-        assertThatThrownBy(() -> resolver.resolvePolicy("POL-NUEVA"))
-                .isInstanceOf(UnresolvedCaseReferenceException.class)
-                .hasMessageContaining("POL-NUEVA");
+        assertThat(resolver.resolvePolicy("POL-CEL-2026-042", 1L)).isSameAs(local);
+        verifyNoInteractions(policySynchronizer);
+    }
+
+    /**
+     * A policy the company has but Arbiter never copied gets synced on the spot, not rejected: the
+     * insured is looking at it in the portal, which reads the insurer DB live.
+     */
+    @Test
+    void resolvePolicy_unsyncedPolicy_isImportedOnDemand() {
+        Policy imported = new Policy();
+        when(policyRepository.findByExternalPolicyNumber("POL-NUEVA")).thenReturn(Optional.empty());
+        when(policySynchronizer.importFromInsurer("POL-NUEVA", 1L)).thenReturn(imported);
+
+        assertThat(resolver.resolvePolicy("POL-NUEVA", 1L)).isSameAs(imported);
     }
 
     @Test
@@ -136,7 +156,8 @@ class CaseReferenceResolverTest {
                 "Celulares", "Celular Protegido Básico", "Robo en vía pública",
                 "Motorola Edge 50 Pro", "40.123.456", "POL-CEL-2024-001",
                 "Me robaron el celular", LocalDateTime.of(2026, 6, 13, 19, 45),
-                "Estación Congreso, CABA", null, new BigDecimal("150000"),
+                "Av. Rivadavia 1234", "Buenos Aires", "CABA",
+                null, new BigDecimal("150000"),
                 pep, imageConsent, email, phone);
     }
 }

@@ -6,7 +6,7 @@ import jakarta.validation.constraints.NotBlank;
 
 import java.math.BigDecimal;
 
-/** Umbral que mapea un score normalizado a una RiskBand — "configuracion_banda" en el DER. */
+/** Threshold mapping a normalized score to a RiskBand — "configuracion_banda" in the DER. */
 public record ScoreBandCutDto(
         @NotBlank String band,
         @DecimalMin("0.0") @DecimalMax("1.0") BigDecimal minScoreInclusive) {}

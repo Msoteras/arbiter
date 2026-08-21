@@ -1,5 +1,6 @@
 package ar.edu.utn.frba.arbiter.rules.services;
 
+import ar.edu.utn.frba.arbiter.common.enums.RuleType;
 import ar.edu.utn.frba.arbiter.common.models.entities.Branch;
 import ar.edu.utn.frba.arbiter.rules.dto.CatalogOption;
 import ar.edu.utn.frba.arbiter.rules.dto.CoverageExclusionConfig;
@@ -24,21 +25,20 @@ import java.time.Instant;
 import java.util.List;
 
 /**
- * Backoffice del referente: qué hechos generadores NO cubre una cobertura (la "exclusión dura" que el
- * motor evalúa por código y audita en {@code rule_result}, a diferencia de las exclusiones en texto
- * que solo van al prompt). Se persiste como una fila {@code COVERAGE_EXCLUSION} de {@link InsurerRule}
- * con {@code configuration} JSONB = {@link CoverageExclusionConfig} (lista de {@code claim_cause} ids).
- * Cada cambio deja snapshot en {@code insurer_rule_history} (auditoría append-only), igual que Fast
- * Track. El schema del tenant se resuelve del JWT, así que el referente solo ve/edita su aseguradora.
+ * Referente backoffice: which claim causes a coverage does NOT cover (the "hard exclusion" the
+ * engine evaluates in code and audits in {@code rule_result}, unlike the text exclusions that only
+ * reach the prompt). Persisted as a {@code COVERAGE_EXCLUSION} row of {@link InsurerRule} with
+ * {@code configuration} JSONB = {@link CoverageExclusionConfig} (a list of {@code claim_cause} ids).
+ * Every change leaves a snapshot in {@code insurer_rule_history} (append-only audit), same as Fast
+ * Track. The tenant schema comes from the JWT, so the referente only sees and edits their insurer.
  */
 @Service
 @RequiredArgsConstructor
 public class CoverageExclusionRuleService {
 
     private static final Logger log = LoggerFactory.getLogger(CoverageExclusionRuleService.class);
-    private static final String COVERAGE_EXCLUSION = "COVERAGE_EXCLUSION";
-    // Self-instanciado (Jackson 2), igual que FastTrackRuleService: Spring Boot 4 autoconfigura un
-    // ObjectMapper de Jackson 3 (tools.jackson), así que no hay bean com.fasterxml para inyectar.
+    // Self-instantiated (Jackson 2), same as FastTrackRuleService: Spring Boot 4 autoconfigures a
+    // Jackson 3 ObjectMapper (tools.jackson), so there's no com.fasterxml bean to inject.
     private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
 
     private final InsurerRuleRepository ruleRepository;
@@ -46,7 +46,7 @@ public class CoverageExclusionRuleService {
     private final BranchRepository branchRepository;
     private final ClaimCauseRepository claimCauseRepository;
 
-    /** Hechos generadores del ramo, para poblar el selector de exclusiones (id + nombre). */
+    /** The branch's claim causes, to populate the exclusion picker (id + name). */
     @Transactional(readOnly = true)
     public List<CatalogOption> listClaimCauses(Long branchId) {
         return claimCauseRepository.findByBranch_IdOrderByNameAsc(branchId).stream()
@@ -56,7 +56,7 @@ public class CoverageExclusionRuleService {
 
     @Transactional(readOnly = true)
     public CoverageExclusionConfig get(Long coverageId) {
-        return ruleRepository.findFirstByCoverageIdAndRuleType(coverageId, COVERAGE_EXCLUSION)
+        return ruleRepository.findFirstByCoverageIdAndRuleType(coverageId, RuleType.COVERAGE_EXCLUSION.name())
                 .map(rule -> deserialize(rule.getConfiguration()))
                 .orElseGet(() -> new CoverageExclusionConfig(List.of()));
     }
@@ -67,7 +67,7 @@ public class CoverageExclusionRuleService {
         Instant now = Instant.now();
 
         InsurerRule rule = ruleRepository
-                .findFirstByBranch_IdAndCoverageIdAndRuleType(branchId, coverageId, COVERAGE_EXCLUSION)
+                .findFirstByBranch_IdAndCoverageIdAndRuleType(branchId, coverageId, RuleType.COVERAGE_EXCLUSION.name())
                 .orElse(null);
 
         if (rule == null) {
@@ -77,9 +77,9 @@ public class CoverageExclusionRuleService {
                     .active(true)
                     .validFrom(now)
                     .name("Exclusiones de cobertura " + coverageId)
-                    .ruleType(COVERAGE_EXCLUSION)
+                    .ruleType(RuleType.COVERAGE_EXCLUSION.name())
                     .effect("RECHAZAR")
-                    // Una exclusión dura hace irrelevante al Fast Track (el motor la evalúa primero).
+                    // A hard exclusion makes Fast Track irrelevant (the engine evaluates it first).
                     .blocksFastTrack(true)
                     .branch(branch)
                     .coverageId(coverageId)
@@ -90,7 +90,7 @@ public class CoverageExclusionRuleService {
             return new CoverageExclusionResponse(rule.getId(), branchId, coverageId, config.excludedClaimCauseIds());
         }
 
-        // Snapshot de la versión que se va a pisar, antes de tocarla (auditoría append-only).
+        // Snapshot of the version about to be overwritten, before touching it (append-only audit).
         historyRepository.save(InsurerRuleHistory.builder()
                 .configVersion(rule.getConfiguration() == null ? "{}" : rule.getConfiguration())
                 .changedAt(now)

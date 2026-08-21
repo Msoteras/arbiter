@@ -9,14 +9,15 @@ import org.springframework.transaction.annotation.Transactional;
 import java.util.List;
 
 /**
- * Lectura system-to-system de la agenda documental para el motor de clasificación.
+ * System-to-system read of the document schedule for the classification engine.
  *
- * <p>Misma asimetría de claves que {@link InternalRuleTextService}: el referente configura la agenda
- * <b>por ramo</b>, pero el claim que llega al motor solo trae un {@code coverageId} (el ramo y el
- * hecho generador le llegan como nombres, ver {@code ClaimReport}). Así que acá se resuelve
- * cobertura → ramo y recién después se leen los tipos de documento requeridos. Es lo que el gate de
- * faltantes ({@code ClassificationOrchestrator.checkRequiredDocuments}) usa para decidir si al
- * expediente le falta documentación — antes salía del mock, ahora de lo que el referente configuró.
+ * <p>Same key asymmetry as {@link InternalRuleTextService}: the referente configures the schedule
+ * by branch + claim cause with ids, but the claim reaching the engine only carries a
+ * {@code coverageId} and the claim cause as a name (see {@code ClaimReport}). So coverage → branch
+ * is resolved here, and the claim-cause name → its id within that branch, and only then are the
+ * required document types read. It's what the missing-documents gate
+ * ({@code ClassificationOrchestrator.checkRequiredDocuments}) uses to decide whether a case is
+ * missing documentation — it used to come from the mock, now from what the referente configured.
  */
 @Service
 @RequiredArgsConstructor
@@ -26,17 +27,24 @@ public class InternalDocumentRequirementService {
     private final DocumentRequirementService documentRequirements;
 
     /**
-     * Devuelve vacío —no 404— cuando la cobertura no existe o el ramo no tiene agenda: el motor
-     * compone esto sobre su baseline y una clasificación no se puede caer porque falte configuración.
+     * The schedule the referente configured, or {@code null} when it couldn't be resolved at all —
+     * unknown coverage, or a branch with no such claim cause.
+     *
+     * <p>The distinction matters: an <b>empty list</b> is an answer ("this claim cause needs no
+     * documents"), {@code null} is the absence of one. The engine composes this over its baseline,
+     * and folding both into an empty list made a referente who cleared every document from the
+     * panel fall back to the baseline's — the panel showed none and the engine still demanded one.
+     * Never 404: a classification can't fall over missing config.
      */
     @Transactional(readOnly = true)
-    public List<String> getByCoverage(Long coverageId) {
+    public List<String> getByCoverage(Long coverageId, String claimCauseName) {
         Long branchId = coverageRepository.findById(coverageId)
                 .map(Coverage::getBranchId)
                 .orElse(null);
         if (branchId == null) {
-            return List.of();
+            return null;
         }
-        return documentRequirements.get(branchId);
+        return documentRequirements.findByBranchIdAndClaimCauseName(branchId, claimCauseName)
+                .orElse(null);
     }
 }

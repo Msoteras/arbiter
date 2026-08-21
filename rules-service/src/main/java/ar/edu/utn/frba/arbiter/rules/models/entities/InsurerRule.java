@@ -26,9 +26,8 @@ import java.time.Instant;
  * whether it blocks Fast Track. {@code coverageId} points at cases-service's coverage:
  * same tenant schema, but another module owns it, so it stays a plain id and not a real FK.
  *
- * <p>No lleva aseguradora: la fila ya vive en el esquema de una, que es lo que la identifica.
- * Una columna con el id sería un segundo lugar donde dice a quién pertenece, y los dos podrían
- * discrepar.
+ * <p>It carries no insurer: the row already lives in one's schema, which is what identifies it. A
+ * column with the id would be a second place saying who it belongs to, and the two could disagree.
  */
 @Entity
 @Table(name = "insurer_rule")
@@ -67,8 +66,13 @@ public class InsurerRule {
     @Column(name = "blocks_fast_track", nullable = false)
     private boolean blocksFastTrack;
 
+    /**
+     * Null together with {@code coverageId} scopes the rule to the whole insurer instead of one
+     * branch/coverage — used by {@code POLICY_IN_FORCE} and {@code POLICY_STANDING} (see
+     * {@code RuleType#insurerScoped()}).
+     */
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "branch_id", nullable = false)
+    @JoinColumn(name = "branch_id")
     private Branch branch;
 
     @Column(name = "coverage_id")

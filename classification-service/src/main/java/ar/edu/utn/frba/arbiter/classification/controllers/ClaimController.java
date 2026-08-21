@@ -87,8 +87,10 @@ public class ClaimController {
         return ResponseEntity.ok(resultsService.getStatus(caseId));
     }
 
+    // Solo token de servicio (sin claim `rol`): el analystId viaja en el body y cases-service es el
+    // único que lo resuelve contra claims_analyst.
     @PostMapping("/{caseId}/decision")
-    @PreAuthorize("hasAnyRole('ANALISTA_SINIESTROS', 'REFERENTE_ASEGURADORA')")
+    @PreAuthorize("authentication.authorities.isEmpty()")
     @Operation(
             summary = "Persist the analyst's final decision",
             description = "Stores the analyst's verdict for the classification already produced for the case."

@@ -120,3 +120,11 @@ El DTO es más plano que el schema, así que el adapter deriva algunos campos:
   que correr los `psql` a mano la primera vez o cuando quieras resetear datos.
 - **Los tests no se ven afectados:** sin el perfil, el bean activo sigue siendo el mock, así que
   la suite (58 tests) pasa igual.
+- **Martina tiene un mail de prueba en `asegurado.email` (18/8).** En los dos esquemas
+  (`aseguradora_bbva` y `aseguradora_provincia`) el dni 42.987.654 figura con
+  `martina.soteras@example.com`, mientras que Julián (30.555.777) ya tiene uno real.
+  Se ve en el wizard de nueva denuncia, en "Datos de contacto", y **no se puede editar**: el campo
+  es `[readonly]` cuando la póliza trae mail, porque muestra lo que la aseguradora tiene
+  registrado — es correcto que sea así, el dato viejo es el del seed.
+  **No afecta las notificaciones**, que salen de `arbiter_*.insured.email` (otra tabla, otro
+  esquema). Si molesta para una demo, es un UPDATE de una fila por esquema.

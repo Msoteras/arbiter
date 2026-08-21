@@ -4,6 +4,8 @@ import ar.edu.utn.frba.arbiter.cases.config.tenant.CallerContext;
 import ar.edu.utn.frba.arbiter.cases.dto.AnalystDecisionRequest;
 import ar.edu.utn.frba.arbiter.cases.dto.CaseRequest;
 import ar.edu.utn.frba.arbiter.cases.dto.CaseResponse;
+import ar.edu.utn.frba.arbiter.cases.dto.EligibilityCheckRequest;
+import ar.edu.utn.frba.arbiter.cases.dto.EligibilityCheckResponse;
 import ar.edu.utn.frba.arbiter.cases.exceptions.AnalystNotFoundException;
 import ar.edu.utn.frba.arbiter.cases.exceptions.AnalystProfileNotFoundException;
 import ar.edu.utn.frba.arbiter.cases.exceptions.CaseNotFoundException;
@@ -11,6 +13,7 @@ import ar.edu.utn.frba.arbiter.cases.exceptions.InsuredIdentityMismatchException
 import ar.edu.utn.frba.arbiter.cases.exceptions.InvalidAnalystDecisionException;
 import ar.edu.utn.frba.arbiter.cases.exceptions.InvalidStatusTransitionException;
 import ar.edu.utn.frba.arbiter.cases.exceptions.PolicyInsuredMismatchException;
+import ar.edu.utn.frba.arbiter.cases.exceptions.PolicyNotEligibleException;
 import ar.edu.utn.frba.arbiter.cases.exceptions.UnresolvedCaseReferenceException;
 import ar.edu.utn.frba.arbiter.cases.models.entities.CaseDocument;
 import ar.edu.utn.frba.arbiter.cases.models.entities.Case;
@@ -21,9 +24,11 @@ import ar.edu.utn.frba.arbiter.cases.models.entities.Policy;
 import ar.edu.utn.frba.arbiter.cases.models.entities.StatusChangeActor;
 import ar.edu.utn.frba.arbiter.cases.models.repositories.CaseAnalysisRepository;
 import ar.edu.utn.frba.arbiter.cases.models.repositories.CaseAnalysisRepository.CaseAnalysis;
+import ar.edu.utn.frba.arbiter.cases.models.repositories.CaseDocumentAnalysisRepository;
 import ar.edu.utn.frba.arbiter.cases.models.repositories.CaseDocumentRepository;
 import ar.edu.utn.frba.arbiter.cases.models.repositories.CaseRepository;
 import ar.edu.utn.frba.arbiter.cases.models.repositories.ClaimsAnalystRepository;
+import ar.edu.utn.frba.arbiter.cases.models.repositories.InsurerRepository;
 import ar.edu.utn.frba.arbiter.cases.support.CaseFixtures;
 import ar.edu.utn.frba.arbiter.cases.support.CaseStates;
 import ar.edu.utn.frba.arbiter.common.dto.ImageForensicReport;
@@ -59,6 +64,7 @@ import java.util.Optional;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.*;
 
 @ExtendWith(MockitoExtension.class)
@@ -89,6 +95,9 @@ class CaseServiceImplTest {
     private CaseAnalysisRepository caseAnalysisRepository;
 
     @Mock
+    private CaseDocumentAnalysisRepository caseDocumentAnalysisRepository;
+
+    @Mock
     private CaseAccessPolicy accessPolicy;
 
     @Mock
@@ -96,6 +105,12 @@ class CaseServiceImplTest {
 
     @Mock
     private PolicyTenantLocator policyTenantLocator;
+
+    @Mock
+    private PolicyEligibilityValidator policyEligibilityValidator;
+
+    @Mock
+    private InsurerRepository insurerRepository;
 
     @InjectMocks
     private CaseServiceImpl caseService;
@@ -108,6 +123,20 @@ class CaseServiceImplTest {
     void noAnalysisByDefault() {
         lenient().when(caseAnalysisRepository.findByCaseId(any())).thenReturn(CaseAnalysis.none());
         lenient().when(caseAnalysisRepository.findByCaseIds(any())).thenReturn(Map.of());
+        // Sin extracciones por default: el mock devolvería null, y el real devuelve lista vacía
+        // cuando el expediente no se clasificó todavía — que es el caso de casi todos los tests.
+        lenient().when(caseDocumentAnalysisRepository.findByCaseId(any())).thenReturn(List.of());
+    }
+
+    /**
+     * createCase() ahora resuelve el insurerSlug/insurerName de la respuesta contra el tenant
+     * actual (para que el frontend pueda reenviarlo en llamadas posteriores sobre el expediente,
+     * si terminó en una aseguradora distinta de la del login). Sin aseguradora encontrada, la
+     * respuesta simplemente queda con esos dos campos en null — el mismo comportamiento de antes.
+     */
+    @BeforeEach
+    void noInsurerMatchByDefault() {
+        lenient().when(insurerRepository.findBySchemaName(any())).thenReturn(Optional.empty());
     }
 
     /**
@@ -153,7 +182,41 @@ class CaseServiceImplTest {
         verify(caseRepository).save(captor.capture());
         assertThat(captor.getValue().getStatus()).isEqualTo(CaseStatus.PENDING_CLASSIFICATION);
 
+        // Ubicación normalizada en sus tres columnas: antes el wizard concatenaba todo en
+        // eventAddress y province/locality quedaban en null, dejando la zona del hecho como prosa
+        // no consultable.
+        assertThat(captor.getValue().getEventAddress()).isEqualTo("Av. Rivadavia 1234");
+        assertThat(captor.getValue().getProvince()).isEqualTo("Buenos Aires");
+        assertThat(captor.getValue().getLocality()).isEqualTo("CABA");
+
         verify(claimsAnalysisClient).analyzeAndPersist(eq(saved), eq(List.of()));
+    }
+
+    @Test
+    void createCase_blankProvinceAndLocalityBecomeNull() {
+        // Campos opcionales: si el asegurado no los carga, se guarda null y no una cadena vacía.
+        CaseRequest request = new CaseRequest(
+                "Celulares", "Celular Protegido Básico", "Robo en vía pública",
+                "Motorola Edge 50 Pro", CALLER_DNI, "POL-CEL-2024-001",
+                "Me robaron el celular", LocalDateTime.of(2026, 6, 13, 19, 45),
+                "Av. Rivadavia 1234", "   ", "",
+                null, new BigDecimal("150000"), false, false, null, null);
+        stubReferenceResolution();
+        when(caseStatusService.initialStatus()).thenReturn(CaseStates.of(CaseStatus.PENDING_CLASSIFICATION));
+        when(caseRepository.save(any(Case.class))).thenAnswer(inv -> {
+            Case e = inv.getArgument(0);
+            e.setId(1L);
+            return e;
+        });
+        when(claimsAnalysisClient.analyzeAndPersist(any(), any()))
+                .thenReturn(new AnalysisResult(null, 0.0, "in progress"));
+
+        caseService.createCase(request, null);
+
+        ArgumentCaptor<Case> captor = ArgumentCaptor.forClass(Case.class);
+        verify(caseRepository).save(captor.capture());
+        assertThat(captor.getValue().getProvince()).isNull();
+        assertThat(captor.getValue().getLocality()).isNull();
     }
 
     @Test
@@ -191,7 +254,9 @@ class CaseServiceImplTest {
                 "Celulares", "Celular Protegido Básico", "Robo en vía pública",
                 "Motorola Edge 50 Pro", "40.123.456", "POL-CEL-2024-001",
                 "Me robaron el celular en la estación de subte",
-                LocalDateTime.of(2026, 6, 13, 19, 45), "Estación Congreso, CABA",
+                LocalDateTime.of(2026, 6, 13, 19, 45), "Av. Rivadavia 1234",
+                "Buenos Aires", // province
+                "CABA", // locality
                 null, // policeReportAt
                 new BigDecimal("150000"),
                 false,
@@ -216,7 +281,13 @@ class CaseServiceImplTest {
     @Test
     void createCase_unresolvablePolicy_throwsAndPersistsNothing() {
         CaseRequest request = caseRequest();
-        when(referenceResolver.resolvePolicy("POL-CEL-2024-001"))
+        // El asegurado se resuelve antes que la póliza (la sincronización a demanda necesita a quién
+        // apuntar como titular), así que este test también lo necesita aunque no lo ejercite.
+        Insured insured = CaseFixtures.insured(CALLER_DNI, "Laura", "Fernández");
+        insured.setId(1L);
+        when(referenceResolver.resolveInsured(CALLER_DNI)).thenReturn(insured);
+        when(referenceResolver.applyDeclaredDetails(insured, request)).thenReturn(insured);
+        when(referenceResolver.resolvePolicy(eq("POL-CEL-2024-001"), eq(1L)))
                 .thenThrow(new UnresolvedCaseReferenceException("policy", "POL-CEL-2024-001"));
 
         assertThatThrownBy(() -> caseService.createCase(request, null))
@@ -239,7 +310,7 @@ class CaseServiceImplTest {
                 .isInstanceOf(InsuredIdentityMismatchException.class);
 
         // Falla antes de resolver nada: no se toca la base ni se encola una clasificación.
-        verify(referenceResolver, never()).resolvePolicy(any());
+        verify(referenceResolver, never()).resolvePolicy(any(), any());
         verify(caseRepository, never()).save(any());
         verify(claimsAnalysisClient, never()).analyzeAndPersist(any(), any());
     }
@@ -265,7 +336,7 @@ class CaseServiceImplTest {
         Policy someoneElsesPolicy = CaseFixtures.policy("POL-CEL-2024-001", "Celular Protegido Básico");
         someoneElsesPolicy.setInsuredId(99L);
 
-        when(referenceResolver.resolvePolicy(any())).thenReturn(someoneElsesPolicy);
+        when(referenceResolver.resolvePolicy(any(), any())).thenReturn(someoneElsesPolicy);
         when(referenceResolver.resolveInsured(any())).thenReturn(insured);
         when(referenceResolver.applyDeclaredDetails(any(), any())).thenReturn(insured);
 
@@ -285,7 +356,7 @@ class CaseServiceImplTest {
         Policy ownPolicy = CaseFixtures.policy("POL-CEL-2024-001", "Celular Protegido Básico");
         ownPolicy.setInsuredId(7L);
 
-        when(referenceResolver.resolvePolicy(any())).thenReturn(ownPolicy);
+        when(referenceResolver.resolvePolicy(any(), any())).thenReturn(ownPolicy);
         when(referenceResolver.resolveInsured(any())).thenReturn(insured);
         when(referenceResolver.applyDeclaredDetails(any(), any())).thenReturn(insured);
         when(referenceResolver.resolveClaimCause(any(), any()))
@@ -305,8 +376,8 @@ class CaseServiceImplTest {
 
     @Test
     void getCase_joinsTheClassificationFromLlmAnalysis() {
-        // La recomendación ya no es columna de `cases`: sale del join, y el detalle se arma
-        // concatenando los motivos (llm_reason).
+        // La recomendación ya no es columna de `cases`: sale del join, y los motivos viajan uno
+        // por fila (llm_reason), no aplanados a un string — respeta el DER.
         Case entity = caseRecord(1L, CaseStatus.PENDING_ANALYST_REVIEW);
         when(caseRepository.findById(1L)).thenReturn(Optional.of(entity));
         when(caseAnalysisRepository.findByCaseId(1L)).thenReturn(new CaseAnalysis(
@@ -319,7 +390,7 @@ class CaseServiceImplTest {
         assertThat(response.status()).isEqualTo(CaseStatus.PENDING_ANALYST_REVIEW);
         assertThat(response.analysisClassification()).isEqualTo(Classification.LLM_RECOMIENDA_APROBAR);
         assertThat(response.analysisConfidence()).isEqualTo(0.87);
-        assertThat(response.analysisDetail()).isEqualTo("Monto bajo, Primer siniestro");
+        assertThat(response.analysisReasons()).containsExactly("Monto bajo", "Primer siniestro");
     }
 
     @Test
@@ -334,7 +405,9 @@ class CaseServiceImplTest {
 
         assertThat(response.analysisClassification()).isEqualTo(Classification.FAST_TRACK);
         assertThat(response.analysisConfidence()).isEqualTo(1.0);
-        assertThat(response.analysisDetail()).isEqualTo("Fast track classification available");
+        // Sin motivos propios: los de llm_reason (si los hay) son de la corrida anterior, y
+        // atribuírselos al Fast Track le daría razones que no son suyas.
+        assertThat(response.analysisReasons()).isEmpty();
     }
 
     @Test
@@ -350,7 +423,7 @@ class CaseServiceImplTest {
 
         assertThat(response.analysisClassification()).isNull();
         assertThat(response.analysisConfidence()).isEqualTo(0.0);
-        assertThat(response.analysisDetail()).isNull();
+        assertThat(response.analysisReasons()).isEmpty();
     }
 
     @Test
@@ -403,7 +476,7 @@ class CaseServiceImplTest {
         assertThat(response.status()).isEqualTo(CaseStatus.PENDING_CLASSIFICATION);
         assertThat(response.analysisClassification()).isNull();
         assertThat(response.analysisConfidence()).isEqualTo(0.0);
-        assertThat(response.analysisDetail()).isNull();
+        assertThat(response.analysisReasons()).isEmpty();
 
         verify(caseStatusService).transition(eq(entity), eq(CaseStatus.PENDING_CLASSIFICATION),
                 eq(StatusChangeActor.INSURED), any());
@@ -831,6 +904,68 @@ class CaseServiceImplTest {
         assertThat(stored.getContent()).isEqualTo("new".getBytes());
     }
 
+    // ───────────────── checkEligibility ─────────────────
+    // Same resolution createCase does up to (not including) building the Case — see
+    // CaseServiceImpl#checkEligibilityInIssuingTenant's javadoc. What's under test here is that a
+    // PolicyNotEligibleException/PolicyInsuredMismatchException becomes eligible=false instead of
+    // propagating, and that nothing gets persisted either way.
+
+    private EligibilityCheckRequest eligibilityRequest() {
+        return new EligibilityCheckRequest(
+                CALLER_DNI, "POL-CEL-2024-001", LocalDateTime.of(2026, 6, 13, 19, 45), null);
+    }
+
+    @Test
+    void checkEligibility_eligibleWhenValidationPasses() {
+        stubPolicyAndInsuredResolution();
+
+        EligibilityCheckResponse response = caseService.checkEligibility(eligibilityRequest());
+
+        assertThat(response.eligible()).isTrue();
+        assertThat(response.reason()).isNull();
+        verify(caseRepository, never()).save(any());
+    }
+
+    @Test
+    void checkEligibility_notEligibleWhenPolicyValidationFails() {
+        stubPolicyAndInsuredResolution();
+        doThrow(new PolicyNotEligibleException("La póliza no estaba vigente el 2026-06-13."))
+                .when(policyEligibilityValidator).validate(any(), any(), any(), any(), any());
+
+        EligibilityCheckResponse response = caseService.checkEligibility(eligibilityRequest());
+
+        assertThat(response.eligible()).isFalse();
+        assertThat(response.reason()).contains("no estaba vigente");
+        verify(caseRepository, never()).save(any());
+    }
+
+    @Test
+    void checkEligibility_notEligibleWhenPolicyBelongsToSomeoneElse() {
+        Insured insured = CaseFixtures.insured(CALLER_DNI, "Laura", "Fernández");
+        insured.setId(1L);
+        Policy someoneElsesPolicy = CaseFixtures.policy("POL-CEL-2024-001", "Celular Protegido Básico");
+        someoneElsesPolicy.setInsuredId(2L);
+        when(referenceResolver.resolveInsured(CALLER_DNI)).thenReturn(insured);
+        when(referenceResolver.resolvePolicy("POL-CEL-2024-001", 1L)).thenReturn(someoneElsesPolicy);
+
+        EligibilityCheckResponse response = caseService.checkEligibility(eligibilityRequest());
+
+        assertThat(response.eligible()).isFalse();
+        assertThat(response.reason()).contains("POL-CEL-2024-001");
+        verifyNoInteractions(policyEligibilityValidator);
+    }
+
+    @Test
+    void checkEligibility_rejectsCheckingForSomeoneElse() {
+        EligibilityCheckRequest request = new EligibilityCheckRequest(
+                "99.999.999", "POL-CEL-2024-001", LocalDateTime.of(2026, 6, 13, 19, 45), null);
+
+        assertThatThrownBy(() -> caseService.checkEligibility(request))
+                .isInstanceOf(InsuredIdentityMismatchException.class);
+
+        verifyNoInteractions(referenceResolver, policyEligibilityValidator);
+    }
+
     private CaseRequest caseRequest() {
         return new CaseRequest(
                 "Celulares",
@@ -841,7 +976,9 @@ class CaseServiceImplTest {
                 "POL-CEL-2024-001",
                 "Me robaron el celular en la estación de subte",
                 LocalDateTime.of(2026, 6, 13, 19, 45),
-                "Estación Congreso, CABA",
+                "Av. Rivadavia 1234",
+                "Buenos Aires", // province
+                "CABA", // locality
                 null, // policeReportAt
                 new BigDecimal("150000"),
                 false,
@@ -869,14 +1006,23 @@ class CaseServiceImplTest {
     }
 
     /**
+     * checkEligibility only resolves policy + insured (see
+     * CaseServiceImpl#checkEligibilityInIssuingTenant) — no claim cause, no declared details.
+     */
+    private Insured stubPolicyAndInsuredResolution() {
+        Policy policy = CaseFixtures.policy("POL-CEL-2024-001", "Celular Protegido Básico");
+        Insured insured = CaseFixtures.insured("40.123.456", "Laura", "Fernández");
+        when(referenceResolver.resolvePolicy(any(), any())).thenReturn(policy);
+        when(referenceResolver.resolveInsured(any())).thenReturn(insured);
+        return insured;
+    }
+
+    /**
      * Every createCase test needs the four lookups to resolve; what varies is only what each one
      * then asserts. Mirrors the graph {@link #caseRecord} builds.
      */
     private void stubReferenceResolution() {
-        Policy policy = CaseFixtures.policy("POL-CEL-2024-001", "Celular Protegido Básico");
-        Insured insured = CaseFixtures.insured("40.123.456", "Laura", "Fernández");
-        when(referenceResolver.resolvePolicy(any())).thenReturn(policy);
-        when(referenceResolver.resolveInsured(any())).thenReturn(insured);
+        Insured insured = stubPolicyAndInsuredResolution();
         when(referenceResolver.applyDeclaredDetails(any(), any())).thenReturn(insured);
         when(referenceResolver.resolveClaimCause(any(), any()))
                 .thenReturn(CaseFixtures.claimCause("Celulares", "Robo en vía pública"));

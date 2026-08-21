@@ -1,7 +1,15 @@
 import { DOCUMENT } from '@angular/common';
-import { ChangeDetectionStrategy, Component, computed, effect, inject, signal } from '@angular/core';
-import { toObservable, toSignal } from '@angular/core/rxjs-interop';
-import { Router, RouterLink } from '@angular/router';
+import {
+  ChangeDetectionStrategy,
+  Component,
+  computed,
+  effect,
+  HostListener,
+  inject,
+  signal,
+} from '@angular/core';
+import { takeUntilDestroyed, toObservable, toSignal } from '@angular/core/rxjs-interop';
+import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import {
   catchError,
   debounceTime,
@@ -21,7 +29,12 @@ import { AuthSessionService } from '../../../core/auth/auth-session.service';
 import { UserAdminService } from '../../../core/auth/user-admin.service';
 import { ExpedienteResponse } from '../../../core/models/expediente';
 import { clasificacionLabel, clasificacionTone } from '../../../core/models/clasificacion';
-import { CaseStatus, estadoLabel, estadoTone, riskBandEmptyLabel } from '../../../core/models/estado';
+import {
+  CaseStatus,
+  estadoLabel,
+  estadoTone,
+  riskBandEmptyLabel,
+} from '../../../core/models/estado';
 import { StatusTone } from '../../../core/models/status-tone';
 import { CardComponent } from '../../../shared/ui/card/card.component';
 import { BadgeComponent } from '../../../shared/ui/badge/badge.component';
@@ -31,7 +44,12 @@ import { SelectComponent, SelectOption } from '../../../shared/ui/select/select.
 import { PaginationComponent } from '../../../shared/ui/pagination/pagination.component';
 import { FraudGaugeComponent } from '../../../shared/ui/fraud-gauge/fraud-gauge.component';
 import { EmptyStateComponent } from '../../../shared/ui/empty-state/empty-state.component';
-import { MenuButtonComponent, MenuItem } from '../../../shared/ui/menu-button/menu-button.component';
+import {
+  MenuButtonComponent,
+  MenuItem,
+} from '../../../shared/ui/menu-button/menu-button.component';
+import { InlineLoadingComponent } from '../../../shared/ui/inline-loading/inline-loading.component';
+import { fadeStagger, staggerReveal } from '../../../shared/animations';
 
 // Campos por los que GET /api/v1/cases acepta ordenar (propiedades reales de la entidad Case
 // en cases-service — Spring Data ordena por propiedad JPA, no por nombre de columna SQL).
@@ -59,8 +77,15 @@ type LoadState =
   | { status: 'ok'; data: ExpedienteResponse[]; totalElements: number; totalPages: number }
   | { status: 'error' };
 
-/** "Míos" = expedientes asignados al usuario logueado; "Todos" = sin recorte por analista. */
-type Lens = 'mine' | 'all';
+/**
+ * Lente de pertenencia de la bandeja del analista:
+ *  - `mine`       → asignados al usuario logueado (solo analista)
+ *  - `all`        → sin recorte por analista
+ *  - `assigned`   → con analista, sin importar quién (bandeja del referente)
+ *  - `unassigned` → sin analista todavía
+ *  - `fraud`      → con alerta de fraude (riesgo alto/crítico)
+ */
+type Lens = 'mine' | 'all' | 'assigned' | 'unassigned' | 'fraud';
 
 @Component({
   selector: 'app-bandeja',
@@ -75,8 +100,10 @@ type Lens = 'mine' | 'all';
     FraudGaugeComponent,
     EmptyStateComponent,
     MenuButtonComponent,
+    InlineLoadingComponent,
   ],
   changeDetection: ChangeDetectionStrategy.OnPush,
+  animations: [fadeStagger, staggerReveal],
   templateUrl: './bandeja.component.html',
   styleUrl: './bandeja.component.scss',
 })
@@ -87,8 +114,19 @@ export class BandejaComponent {
   private readonly caseNav = inject(CaseNavigationService);
   private readonly session = inject(AuthSessionService);
   private readonly users = inject(UserAdminService);
+  private readonly route = inject(ActivatedRoute);
 
   constructor() {
+    // El buscador de la topbar deriva acá con ?q= al pedir "ver todos los resultados". Se lee en
+    // vivo (no solo al montar) porque la bandeja puede ya estar en pantalla cuando se busca.
+    this.route.queryParamMap.pipe(takeUntilDestroyed()).subscribe((params) => {
+      const q = params.get('q') ?? '';
+      if (q !== this.qDraft()) {
+        this.qDraft.set(q);
+        this.page.set(0);
+      }
+    });
+
     // Catálogo real de tipos de siniestro para el filtro (best-effort: si falla, queda vacío).
     this.service.claimCauseNames().subscribe({
       next: (names) => this.claimCauseOptions.set(names.map((n) => ({ value: n, label: n }))),
@@ -96,6 +134,20 @@ export class BandejaComponent {
         /* backend caído: el filtro queda sin opciones, sin romper la bandeja */
       },
     });
+
+    // El equipo de analistas, para el filtro del referente. El endpoint es solo de ese rol, así
+    // que ni se pide para un analista.
+    if (this.isReferente()) {
+      this.service.analystWorkload().subscribe({
+        next: (team) =>
+          this.analystOptions.set(
+            team.map((a) => ({ value: String(a.analystId), label: a.name })),
+          ),
+        error: () => {
+          /* mismo criterio que arriba: sin opciones, sin romper */
+        },
+      });
+    }
   }
 
   // ───────────────── Lente: "Míos" vs "Todos" ─────────────────
@@ -122,13 +174,14 @@ export class BandejaComponent {
   protected readonly statusFilter = signal('');
   protected readonly claimCauseFilter = signal('');
   protected readonly riskBandFilter = signal('');
+  protected readonly analystFilter = signal('');
   protected readonly eventDateFrom = signal('');
   protected readonly eventDateTo = signal('');
   protected readonly qDraft = signal('');
   protected readonly sortField = signal<SortField>('id');
   protected readonly sortDir = signal<SortDir>('desc');
   protected readonly page = signal(0);
-  protected readonly size = signal(20);
+  protected readonly size = signal(10);
 
   // La búsqueda libre se debounce para no pegarle al backend en cada tecla; el resto de los
   // filtros dispara al toque (son selects/fechas, no texto libre).
@@ -144,6 +197,7 @@ export class BandejaComponent {
     status: this.statusFilter() || undefined,
     claimCause: this.claimCauseFilter() || undefined,
     riskBand: (this.riskBandFilter() || undefined) as ExpedienteListParams['riskBand'],
+    analystId: this.analystFilter() ? Number(this.analystFilter()) : undefined,
     eventDateFrom: this.eventDateFrom() || undefined,
     eventDateTo: this.eventDateTo() || undefined,
     q: this.qDebounced() || undefined,
@@ -161,6 +215,9 @@ export class BandejaComponent {
   private readonly viewFilters = computed<ExpedienteListParams>(() => ({
     ...this.activeFilters(),
     assignedToMe: this.lens() === 'mine',
+    assigned: this.lens() === 'assigned',
+    unassigned: this.lens() === 'unassigned',
+    fraudAlert: this.lens() === 'fraud',
   }));
 
   private readonly requestParams = computed<ExpedienteListParams & { reload: number }>(() => ({
@@ -174,14 +231,12 @@ export class BandejaComponent {
     toObservable(this.requestParams).pipe(
       switchMap((params) =>
         this.service.list(params).pipe(
-          map(
-            (page): LoadState => ({
-              status: 'ok',
-              data: page.content,
-              totalElements: page.totalElements,
-              totalPages: page.totalPages,
-            }),
-          ),
+          map((page): LoadState => ({
+            status: 'ok',
+            data: page.content,
+            totalElements: page.totalElements,
+            totalPages: page.totalPages,
+          })),
           startWith<LoadState>({ status: 'loading' }),
           catchError(() => of<LoadState>({ status: 'error' })),
         ),
@@ -192,6 +247,19 @@ export class BandejaComponent {
 
   protected readonly loading = computed(() => this.state().status === 'loading');
   protected readonly hasError = computed(() => this.state().status === 'error');
+
+  // La bandeja NO usa la pantalla de carga de marca a viewport completo: esa se reserva al
+  // arranque (login → home). Acá la carga se muestra con un spinner en el lugar, sin tapar la
+  // pantalla. Se distingue la PRIMERA carga (spinner solo, sin la caja de filtros —queda raro
+  // mostrarla vacía) de los refetch por filtro/lente/paginado (los filtros quedan y el spinner
+  // reemplaza solo a la tabla).
+  protected readonly hasLoaded = signal(false);
+  private readonly latchLoaded = effect(() => {
+    if (!this.loading()) {
+      this.hasLoaded.set(true);
+    }
+  });
+  protected readonly firstLoad = computed(() => this.loading() && !this.hasLoaded());
 
   protected readonly cases = computed<ExpedienteResponse[]>(() => {
     const s = this.state();
@@ -219,9 +287,10 @@ export class BandejaComponent {
   );
 
   /**
-   * Conteo de cada lente para mostrarlo al lado del toggle ("Míos 4 · Todos 57"). Se piden con
-   * `size: 1` porque solo interesa `totalElements`, no las filas. Respetan los filtros vigentes:
-   * el número tiene que decir cuántos hay *de lo que estás mirando*, no del total absoluto.
+   * Conteo de cada lente para mostrarlo al lado del toggle ("Míos 4 · Todos 57"). Respetan los
+   * filtros vigentes: el número tiene que decir cuántos hay *de lo que estás mirando*, no del total
+   * absoluto. Un solo request — antes era uno por lente, y cada uno traía una fila entera solo para
+   * leerle el total.
    */
   private readonly counts = toSignal(
     toObservable(
@@ -231,21 +300,19 @@ export class BandejaComponent {
       })),
     ).pipe(
       switchMap(({ filters }) =>
-        forkJoin({
-          mine: this.service
-            .list({ ...filters, assignedToMe: true, page: 0, size: 1 })
-            .pipe(map((p) => p.totalElements)),
-          all: this.service
-            .list({ ...filters, page: 0, size: 1 })
-            .pipe(map((p) => p.totalElements)),
-        }).pipe(catchError(() => of({ mine: 0, all: 0 }))),
+        this.service
+          .lensSummary(filters)
+          .pipe(catchError(() => of({ mine: 0, all: 0, assigned: 0, unassigned: 0, fraud: 0 }))),
       ),
     ),
-    { initialValue: { mine: 0, all: 0 } },
+    { initialValue: { mine: 0, all: 0, assigned: 0, unassigned: 0, fraud: 0 } },
   );
 
   protected readonly mineCount = computed(() => this.counts().mine);
   protected readonly allCount = computed(() => this.counts().all);
+  protected readonly assignedCount = computed(() => this.counts().assigned);
+  protected readonly unassignedCount = computed(() => this.counts().unassigned);
+  protected readonly fraudCount = computed(() => this.counts().fraud);
 
   protected readonly hasActiveFilters = computed(
     () =>
@@ -279,6 +346,9 @@ export class BandejaComponent {
   // lista hardcodeada con valores que no existían ("Siniestro general") y filtraba vacío.
   protected readonly claimCauseOptions = signal<SelectOption[]>([]);
 
+  /** Equipo de analistas de la aseguradora. Vacío para el analista: el filtro no se le muestra. */
+  protected readonly analystOptions = signal<SelectOption[]>([]);
+
   // Mismas 4 etiquetas que usa app-fraud-gauge para band 1-4, para no inventar un vocabulario
   // paralelo de "nivel de riesgo" entre el filtro y la columna que lo muestra.
   protected readonly riskBandOptions: SelectOption[] = [
@@ -300,44 +370,141 @@ export class BandejaComponent {
     { field: 'analyst.surname', label: 'Analista' },
   ];
 
-  // ───────────────── Handlers de filtros (todos resetean a página 0) ─────────────────
-  protected onStatusChange(v: string): void {
-    this.statusFilter.set(v);
-    this.page.set(0);
-  }
-
-  protected onClaimCauseChange(v: string): void {
-    this.claimCauseFilter.set(v);
-    this.page.set(0);
-  }
-
-  protected onRiskBandChange(v: string): void {
-    this.riskBandFilter.set(v);
-    this.page.set(0);
-  }
-
-  protected onDateFromChange(v: string): void {
-    this.eventDateFrom.set(v);
-    this.page.set(0);
-  }
-
-  protected onDateToChange(v: string): void {
-    this.eventDateTo.set(v);
-    this.page.set(0);
-  }
-
+  // La búsqueda queda fuera del panel (barra siempre visible) y es en vivo (debounced).
   protected onSearchInput(v: string): void {
     this.qDraft.set(v);
     this.page.set(0);
+    // Se refleja en la URL para que ?q= no quede desincronizado con lo que se está viendo: si no,
+    // buscar de nuevo lo mismo desde la topbar no cambiaría la URL y la bandeja ignoraría el pedido.
+    this.router.navigate([], {
+      relativeTo: this.route,
+      queryParams: { q: v || null },
+      queryParamsHandling: 'merge',
+      replaceUrl: true,
+    });
   }
 
-  protected clearFilters(): void {
+  // ───────────────── Panel de filtros (drawer lateral, aplicación diferida) ─────────────────
+  // Estado/tipo/riesgo/fechas se editan en un panel que se desliza desde la derecha y se aplican
+  // al confirmar ("Aplicar filtros"), no en vivo. Los aplicados (statusFilter/…) manejan la tabla;
+  // los "draft" son lo que se está editando en el panel (se descartan si se cierra sin aplicar).
+  protected readonly filtersOpen = signal(false);
+  protected readonly draftStatus = signal('');
+  protected readonly draftClaimCause = signal('');
+  protected readonly draftRiskBand = signal('');
+  protected readonly draftAnalyst = signal('');
+  protected readonly draftDateFrom = signal('');
+  protected readonly draftDateTo = signal('');
+
+  protected openFilters(): void {
+    this.draftStatus.set(this.statusFilter());
+    this.draftClaimCause.set(this.claimCauseFilter());
+    this.draftRiskBand.set(this.riskBandFilter());
+    this.draftAnalyst.set(this.analystFilter());
+    this.draftDateFrom.set(this.eventDateFrom());
+    this.draftDateTo.set(this.eventDateTo());
+    this.filtersOpen.set(true);
+  }
+  protected closeFilters(): void {
+    this.filtersOpen.set(false);
+  }
+  protected toggleFilters(): void {
+    if (this.filtersOpen()) {
+      this.closeFilters();
+    } else {
+      this.openFilters();
+    }
+  }
+
+  // Cierre del popover: click fuera del ancla (el botón + el panel viven dentro de .filters-anchor)
+  // o Escape. Mismo enfoque que el kit (menu-button/select), sin backdrop.
+  @HostListener('document:click', ['$event'])
+  protected onDocumentClick(event: MouseEvent): void {
+    if (!this.filtersOpen()) return;
+    const target = event.target as HTMLElement | null;
+    if (target && !target.closest('.filters-anchor')) {
+      this.closeFilters();
+    }
+  }
+  @HostListener('document:keydown.escape')
+  protected onEscape(): void {
+    if (this.filtersOpen()) {
+      this.closeFilters();
+    }
+  }
+  protected applyFilters(): void {
+    this.statusFilter.set(this.draftStatus());
+    this.claimCauseFilter.set(this.draftClaimCause());
+    this.riskBandFilter.set(this.draftRiskBand());
+    this.analystFilter.set(this.draftAnalyst());
+    this.eventDateFrom.set(this.draftDateFrom());
+    this.eventDateTo.set(this.draftDateTo());
+    this.page.set(0);
+    this.filtersOpen.set(false);
+  }
+  /** Vacía los campos del panel (draft), sin aplicar todavía. */
+  protected clearDraft(): void {
+    this.draftStatus.set('');
+    this.draftClaimCause.set('');
+    this.draftRiskBand.set('');
+    this.draftAnalyst.set('');
+    this.draftDateFrom.set('');
+    this.draftDateTo.set('');
+  }
+
+  // Cantidad de filtros aplicados (sin contar la búsqueda) → badge del botón "Filtros".
+  protected readonly activeFilterCount = computed(() => {
+    let n = 0;
+    if (this.statusFilter()) n++;
+    if (this.claimCauseFilter()) n++;
+    if (this.riskBandFilter()) n++;
+    if (this.analystFilter()) n++;
+    if (this.eventDateFrom()) n++;
+    if (this.eventDateTo()) n++;
+    return n;
+  });
+
+  // Chips de los filtros aplicados: se ven y se quitan sin abrir el panel.
+  protected readonly activeChips = computed<{ key: string; label: string }[]>(() => {
+    const chips: { key: string; label: string }[] = [];
+    if (this.statusFilter())
+      chips.push({ key: 'status', label: `Estado: ${estadoLabel(this.statusFilter())}` });
+    if (this.claimCauseFilter())
+      chips.push({ key: 'claimCause', label: `Tipo: ${this.claimCauseFilter()}` });
+    if (this.riskBandFilter())
+      chips.push({ key: 'riskBand', label: `Fraude: ${this.riskBandLabel(this.riskBandFilter())}` });
+    if (this.analystFilter())
+      chips.push({ key: 'analyst', label: `Analista: ${this.analystName(this.analystFilter())}` });
+    if (this.eventDateFrom())
+      chips.push({ key: 'dateFrom', label: `Desde: ${this.formatDate(this.eventDateFrom())}` });
+    if (this.eventDateTo())
+      chips.push({ key: 'dateTo', label: `Hasta: ${this.formatDate(this.eventDateTo())}` });
+    return chips;
+  });
+
+  protected removeChip(key: string): void {
+    switch (key) {
+      case 'status': this.statusFilter.set(''); break;
+      case 'claimCause': this.claimCauseFilter.set(''); break;
+      case 'riskBand': this.riskBandFilter.set(''); break;
+      case 'analyst': this.analystFilter.set(''); break;
+      case 'dateFrom': this.eventDateFrom.set(''); break;
+      case 'dateTo': this.eventDateTo.set(''); break;
+    }
+    this.page.set(0);
+  }
+
+  private analystName(id: string): string {
+    return this.analystOptions().find((o) => o.value === id)?.label ?? id;
+  }
+
+  /** "Limpiar todo": quita todos los filtros aplicados (la búsqueda no se toca). */
+  protected clearAllChips(): void {
     this.statusFilter.set('');
     this.claimCauseFilter.set('');
     this.riskBandFilter.set('');
     this.eventDateFrom.set('');
     this.eventDateTo.set('');
-    this.qDraft.set('');
     this.page.set(0);
   }
 
@@ -373,10 +540,9 @@ export class BandejaComponent {
   protected readonly assignError = signal<string | null>(null);
 
   /** Analistas asignables. Se piden una vez; el selector de "Asignar a…" se arma con esto. */
-  private readonly analysts = toSignal(
-    this.users.listAnalysts().pipe(catchError(() => of([]))),
-    { initialValue: [] },
-  );
+  private readonly analysts = toSignal(this.users.listAnalysts().pipe(catchError(() => of([]))), {
+    initialValue: [],
+  });
 
   protected readonly analystMenuItems = computed<MenuItem[]>(() =>
     this.analysts().map((a) => ({ value: String(a.id), label: `${a.nombre} ${a.apellido}` })),
@@ -404,6 +570,11 @@ export class BandejaComponent {
    */
   protected readonly canAssign = computed(
     () => this.session.session()?.rol === 'ANALISTA_SINIESTROS',
+  );
+
+  /** El referente ve la bandeja de supervisión: sin "Míos", pero con lentes de asignación/fraude. */
+  protected readonly isReferente = computed(
+    () => this.session.session()?.rol === 'REFERENTE_ASEGURADORA',
   );
 
   protected isMine(c: ExpedienteResponse): boolean {
@@ -604,7 +775,11 @@ export class BandejaComponent {
   private downloadCsv(rows: ExpedienteResponse[]): void {
     const lines = [
       BandejaComponent.EXPORT_HEADER.join(','),
-      ...rows.map((r) => this.toRowCells(r).map((v) => this.csvEscape(v)).join(',')),
+      ...rows.map((r) =>
+        this.toRowCells(r)
+          .map((v) => this.csvEscape(v))
+          .join(','),
+      ),
     ];
     // BOM al inicio para que Excel abra el UTF-8 sin desarmar tildes/ñ.
     const blob = new Blob(['﻿' + lines.join('\r\n')], { type: 'text/csv;charset=utf-8;' });

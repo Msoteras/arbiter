@@ -19,10 +19,10 @@ import org.springframework.transaction.annotation.Transactional;
 import java.util.List;
 
 /**
- * CRUD del catálogo de ramos (tabla global {@code arbiter_common.branch}). Es el catálogo compartido
- * por todas las aseguradoras: qué ramos existen, no cuáles vende cada una (eso lo restringe cada
- * tenant con sus coberturas / agenda documental). Por eso crear o borrar un ramo toca el catálogo
- * global — lo administra el referente, con nombre único.
+ * CRUD of the branch catalog (global {@code arbiter_common.branch} table). It's the catalog shared
+ * by every insurer: which branches exist, not which ones each sells (that's narrowed per tenant by
+ * its coverages / document schedule). That's why creating or deleting a branch touches the global
+ * catalog — the referente administers it, with a unique name.
  */
 @Service
 @RequiredArgsConstructor
@@ -69,8 +69,8 @@ public class BranchCatalogService {
     @Transactional
     public void delete(Long id) {
         Branch branch = branchRepository.findById(id).orElseThrow(() -> new BranchNotFoundException(id));
-        // Chequeo explícito de los hechos generadores (mismo esquema común) para dar un 409 claro;
-        // las referencias per-tenant (coberturas, reglas) las ataja el FK y se traducen en el catch.
+        // Explicit check on claim causes (same common schema) to give a clear 409; the per-tenant
+        // references (coverages, rules) are caught by the FK and translated in the catch.
         if (!claimCauseRepository.findByBranch_IdOrderByNameAsc(id).isEmpty()) {
             throw new BranchInUseException(id);
         }

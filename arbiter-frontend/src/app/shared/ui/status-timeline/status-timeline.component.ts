@@ -1,7 +1,8 @@
 import { ChangeDetectionStrategy, Component, computed, input } from '@angular/core';
 
 import { StatusTransition } from '../../../core/models/expediente';
-import { estadoLabel, estadoTone, isEstadoFinal, proximoPaso } from '../../../core/models/estado';
+import { CaseStatus, estadoLabel, estadoTone, isEstadoFinal } from '../../../core/models/estado';
+import { historialNota } from '../../../core/models/historial-nota';
 import { StatusTone } from '../../../core/models/status-tone';
 import { formatDateTime } from '../../../core/util/datetime';
 import { BadgeComponent } from '../badge/badge.component';
@@ -10,6 +11,22 @@ const ACTOR_LABELS: Record<StatusTransition['actor'], string> = {
   SYSTEM: 'Sistema',
   INSURED: 'Asegurado',
   ANALYST: 'Analista',
+};
+
+/**
+ * Este componente solo lo usa la vista del analista (expediente-detail) — el portal del asegurado
+ * arma su propio timeline aparte (seguimiento.component). Por eso el "próximo paso" tiene su
+ * propio texto acá en vez de reusar `proximoPaso()` de core/models/estado: ese está escrito en
+ * segunda persona para el asegurado ("Subí los documentos faltantes", "Vas a recibir un correo…")
+ * y sonaba raro —o directamente incorrecto— leído por el analista, que no es a quien le habla.
+ */
+const PROXIMO_PASO_ANALISTA: Partial<Record<CaseStatus, string>> = {
+  PENDING_CLASSIFICATION: 'El motor de reglas y el modelo todavía están evaluando el caso.',
+  AWAITING_DOCUMENTATION: 'Esperando que el asegurado suba la documentación que falta.',
+  CLASSIFICATION_FAILED: 'Podés reintentar la clasificación desde la card de arriba.',
+  PENDING_EXPERT_REPORT: 'Esperando el informe del perito para volver a revisión.',
+  // PENDING_ANALYST_REVIEW no tiene entrada: la card de decisión ya le muestra los botones,
+  // repetir "está esperando tu decisión" acá abajo sería ruido.
 };
 
 /**
@@ -52,7 +69,7 @@ const ACTOR_LABELS: Record<StatusTransition['actor'], string> = {
             </div>
             <div class="meta">
               <span class="actor">{{ actor(h.actor) }}</span>
-              <span class="reason">{{ h.reason }}</span>
+              <span class="reason">{{ nota(h.reason) }}</span>
             </div>
           </div>
         </li>
@@ -129,7 +146,9 @@ export class StatusTimelineComponent {
   readonly currentStatus = input.required<string>();
 
   protected readonly nextStep = computed(() =>
-    isEstadoFinal(this.currentStatus()) ? '' : proximoPaso(this.currentStatus()),
+    isEstadoFinal(this.currentStatus())
+      ? ''
+      : (PROXIMO_PASO_ANALISTA[this.currentStatus() as CaseStatus] ?? ''),
   );
   protected readonly hasNextStep = computed(() => this.nextStep() !== '');
   protected readonly currentTone = computed<StatusTone>(() => estadoTone(this.currentStatus()));
@@ -144,6 +163,11 @@ export class StatusTimelineComponent {
 
   protected estado(status: string): string {
     return estadoLabel(status);
+  }
+
+  /** El motivo del backend trae el literal del enum incrustado; acá se lee en español. */
+  protected nota(reason: string): string {
+    return historialNota(reason);
   }
 
   protected actor(actor: StatusTransition['actor']): string {

@@ -18,17 +18,17 @@ import java.util.List;
 import static org.assertj.core.api.Assertions.assertThat;
 
 /**
- * Lo que el referente configura tiene que terminar en el prompt: es la razón de ser del backoffice
- * de reglas. Sin esto, {@code RulesRestAdapter} puede traer los textos de la BD y perderlos acá sin
- * que nada falle — el modelo simplemente clasifica peor y nadie se entera.
+ * What the referente configures has to end up in the prompt: it's the rules backoffice's whole
+ * point. Without this, {@code RulesRestAdapter} can fetch the texts from the DB and lose them here
+ * with nothing failing — the model simply classifies worse and nobody finds out.
  */
 class PromptBuilderTest {
 
     private PromptBuilder promptBuilder;
 
     /**
-     * Se construye igual que en producción —desde la versión configurada— y no apuntando a un
-     * archivo fijo: así el test también verifica que el template de la versión que se audita exista
+     * Built the same way as in production — from the configured version — and not pointing at a
+     * fixed file: this way the test also verifies the template of the audited version exists
      * de verdad en el classpath.
      */
     @BeforeEach
@@ -43,8 +43,8 @@ class PromptBuilderTest {
                 .policyNumber("POL-CEL-2026-001")
                 .branch("Celulares")
                 .upToDate(true)
-                .effectiveFrom(LocalDate.of(2026, 1, 1))
-                .effectiveTo(LocalDate.of(2026, 12, 31))
+                .effectiveFrom(LocalDate.of(2026, 1, 1).atStartOfDay())
+                .effectiveTo(LocalDate.of(2026, 12, 31).atStartOfDay())
                 .insuredAmount(new BigDecimal("400000"))
                 .applicableClauses(List.of())
                 .build();
@@ -105,7 +105,7 @@ class PromptBuilderTest {
         assertThat(promptBuilder.buildFullPrompt(request)).contains("Regla configurada por el referente");
     }
 
-    /** D5: la fecha del hecho, el lugar y el monto reclamado ahora viajan al prompt. */
+    /** D5: the event's date, location and claimed amount now travel to the prompt. */
     @Test
     void buildFullPrompt_includesEventDateLocationAndClaimedAmount() {
         ClassificationRequest request = ClassificationRequest.builder()
@@ -128,7 +128,7 @@ class PromptBuilderTest {
         assertThat(prompt).contains("1.234.567");
     }
 
-    /** D4a paso 6: el veredicto del motor (reglas duras ya evaluadas) se inyecta en el prompt. */
+    /** D4a step 6: the engine's verdict (hard rules already evaluated) is injected into the prompt. */
     @Test
     void buildFullPrompt_injectsEngineEvaluation() {
         ClassificationRequest withFinding = ClassificationRequest.builder()
@@ -149,7 +149,7 @@ class PromptBuilderTest {
                 .contains("no encontró incumplimientos de reglas duras");
     }
 
-    /** El monto es opcional (el wizard no lo exige): sin dato, el prompt dice "No declarado", no null. */
+    /** The amount is optional (the wizard doesn't require it): with no value the prompt says "No declarado", not null. */
     @Test
     void buildFullPrompt_showsClaimedAmountAsNotDeclaredWhenNull() {
         ClassificationRequest request = ClassificationRequest.builder()
@@ -171,7 +171,7 @@ class PromptBuilderTest {
     }
 
     /**
-     * D5: la señal visual de la pasada de extracción tiene que llegar al clasificador <b>separada</b>
+     * D5: the extraction pass's visual signal has to reach the classifier <b>separately</b>
      * de la transcripción. Si se mezclaran, el modelo leería "la firma está pixelada" como si lo
      * dijera el documento.
      */
@@ -190,7 +190,7 @@ class PromptBuilderTest {
                 .contains("tipografía distinta al resto del formulario");
     }
 
-    /** Sin hallazgos —el caso normal— no se agrega ningún encabezado que sugiera sospecha. */
+    /** With no findings — the normal case — no heading suggesting suspicion is added. */
     @Test
     void renderAttachment_addsNothingWhenThereAreNoVisualFindings() {
         String rendered = promptBuilder.renderAttachment(
@@ -200,7 +200,7 @@ class PromptBuilderTest {
         assertThat(rendered).doesNotContain("Observado en la imagen");
     }
 
-    /** El bloque del template que le dice al modelo cómo pesar esas señales. */
+    /** The template block that tells the model how to weigh those signals. */
     @Test
     void buildFullPrompt_explainsHowToWeighVisualFindings() {
         ClassificationRequest request = ClassificationRequest.builder()

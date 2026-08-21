@@ -10,6 +10,7 @@ import ar.edu.utn.frba.arbiter.common.enums.CaseStatus;
 import ar.edu.utn.frba.arbiter.common.models.entities.CaseState;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
 import java.util.Map;
@@ -29,13 +30,18 @@ public class CaseStatusService {
     private static final Map<CaseStatus, Set<CaseStatus>> VALID_TRANSITIONS = Map.of(
             PENDING_CLASSIFICATION,  Set.of(PENDING_ANALYST_REVIEW, AWAITING_DOCUMENTATION, CLASSIFICATION_FAILED),
             AWAITING_DOCUMENTATION,  Set.of(PENDING_CLASSIFICATION),
-            PENDING_ANALYST_REVIEW,  Set.of(APPROVED, REJECTED, PENDING_CLASSIFICATION),
-            CLASSIFICATION_FAILED,   Set.of(PENDING_CLASSIFICATION)
+            PENDING_ANALYST_REVIEW,  Set.of(APPROVED, REJECTED, PENDING_CLASSIFICATION, PENDING_EXPERT_REPORT),
+            CLASSIFICATION_FAILED,   Set.of(PENDING_CLASSIFICATION),
+            // Back to the analyst and nowhere else. A derived case can't be approved or rejected
+            // without its report — that is the whole point of having derived it — and it can't be
+            // derived twice, because there is no way out of here except through review.
+            PENDING_EXPERT_REPORT,   Set.of(PENDING_ANALYST_REVIEW)
     );
 
     private final CaseRepository caseRepository;
     private final CaseStatusHistoryRepository historyRepository;
     private final CaseStateCatalog caseStateCatalog;
+    private final CaseNotificationService notificationService;
 
     /**
      * The state every case is born in. Lives here rather than in {@code CaseServiceImpl} so the
@@ -46,11 +52,26 @@ public class CaseStatusService {
     }
 
     /** Records the case's birth (null → its initial status). The case is already persisted. */
+    @Transactional
     public void recordCreation(Case caseRecord, StatusChangeActor actor, String reason) {
         appendHistory(caseRecord.getId(), null, caseRecord.getCurrentStatus(), actor, reason);
+        // "We got your claim" belongs to the birth and not to transition(): a case comes back to
+        // PENDING_CLASSIFICATION every time the insured uploads what was missing, and notifying
+        // there would greet them again on every upload.
+        notificationService.notifyStatusChange(caseRecord, PENDING_CLASSIFICATION);
     }
 
-    /** Moves the case to a new status, records the transition, and persists the case. */
+    /**
+     * Moves the case to a new status, records the transition, and persists the case.
+     *
+     * <p>{@code @Transactional}: called from {@code ClassificationRefreshScheduler} (no HTTP
+     * request behind it, so no open-in-view or any other ambient session/transaction to piggyback
+     * on) — without this, the history save and the case save each needed their own implicit
+     * transaction to reliably flush, and in that codepath specifically one of them was failing
+     * with "No EntityManager with actual transaction available ... cannot reliably process
+     * 'flush' call". This also makes the two writes atomic, which they always should've been.
+     */
+    @Transactional
     public Case transition(Case caseRecord, CaseStatus to, StatusChangeActor actor, String reason) {
         CaseStatus from = caseRecord.getStatus();
         Set<CaseStatus> allowed = VALID_TRANSITIONS.getOrDefault(from, Set.of());
@@ -61,7 +82,15 @@ public class CaseStatusService {
         CaseState target = caseStateCatalog.resolve(to);
         appendHistory(caseRecord.getId(), caseRecord.getCurrentStatus(), target, actor, reason);
         caseRecord.setCurrentStatus(target);
-        return caseRepository.save(caseRecord);
+        Case saved = caseRepository.save(caseRecord);
+
+        // After persisting, never before: notifying about a move that then fails to save would tell
+        // the insured something that didn't happen. PENDING_CLASSIFICATION is excluded here — see
+        // recordCreation().
+        if (to != PENDING_CLASSIFICATION) {
+            notificationService.notifyStatusChange(saved, to);
+        }
+        return saved;
     }
 
     /**
@@ -74,6 +103,7 @@ public class CaseStatusService {
      * uses to render it as a milestone without a status arrow. Human-in-the-loop is untouched:
      * having an owner is not a decision (decisión de arquitectura #5).
      */
+    @Transactional
     public void recordAssignment(Case caseRecord, String reason) {
         appendHistory(caseRecord.getId(), caseRecord.getCurrentStatus(), caseRecord.getCurrentStatus(),
                 StatusChangeActor.ANALYST, reason);

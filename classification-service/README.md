@@ -106,7 +106,7 @@ If you have Ollama installed locally:
 ollama serve
 
 # Terminal 2: Download model (first time)
-ollama pull qwen3-vl
+ollama pull qwen3-vl:8b-instruct
 
 # Terminal 3: Spring Boot service
 mvn spring-boot:run -pl classification-service
@@ -119,7 +119,7 @@ Service starts at `http://localhost:8082`
 | Variable | Default | Description |
 |---|---|---|
 | `OLLAMA_BASE_URL` | `http://localhost:11434` | Ollama server URL |
-| `OLLAMA_MODEL` | `qwen3-vl` | Model to use for classification |
+| `OLLAMA_MODEL` | `qwen3-vl:8b-instruct` | Model to use for classification |
 
 ## Test Fixtures
 

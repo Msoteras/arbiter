@@ -3,10 +3,10 @@ package ar.edu.utn.frba.arbiter.rules.dto;
 import java.util.List;
 
 /**
- * Forma del {@code configuration} (JSONB) de una regla {@code COVERAGE_EXCLUSION}: la lista negra de
- * hechos generadores que la cobertura NO cubre. Lista negra a propósito (no blanca): una cobertura
- * sin regla se comporta igual que hoy —acepta todo—, así que agregar exclusiones es aditivo y no
- * rompe el flujo existente.
+ * Shape of a {@code COVERAGE_EXCLUSION} rule's {@code configuration} (JSONB): the blacklist of
+ * claim causes the coverage does NOT cover. A blacklist on purpose (not a whitelist): a coverage
+ * with no rule behaves as it does today — accepts everything — so adding exclusions is additive and
+ * doesn't break the existing flow.
  */
 public record CoverageExclusionConfig(List<Long> excludedClaimCauseIds) {
 

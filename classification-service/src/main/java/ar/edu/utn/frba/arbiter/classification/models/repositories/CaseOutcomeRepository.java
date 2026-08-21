@@ -1,5 +1,6 @@
 package ar.edu.utn.frba.arbiter.classification.models.repositories;
 
+import ar.edu.utn.frba.arbiter.classification.config.tenant.TenantContext;
 import lombok.RequiredArgsConstructor;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Repository;
@@ -32,14 +33,27 @@ public class CaseOutcomeRepository {
 
     private final JdbcTemplate jdbcTemplate;
 
+    /**
+     * El esquema del tenant, explícito. {@code TenantConnectionProvider} solo enruta las conexiones
+     * de Hibernate; este repositorio usa {@code JdbcTemplate} crudo y recibe una conexión del pool
+     * con el {@code search_path} en {@code arbiter_common}, donde {@code cases} no existe. Ver el
+     * javadoc de {@code TenantContext#schemaForSql()}.
+     */
+    private static String schema() {
+        return TenantContext.schemaForSql();
+    }
+
     /** Records that the deterministic gate resolved this case, with no model run. */
     public void markFastTracked(Long caseId) {
-        jdbcTemplate.update("UPDATE cases SET was_fast_track = TRUE WHERE id = ?", caseId);
+        jdbcTemplate.update(
+                "UPDATE %s.cases SET was_fast_track = TRUE WHERE id = ?".formatted(schema()), caseId);
     }
 
     /** The cast is needed because the column is jsonb and the codec hands us plain text. */
     public void saveForensicReport(Long caseId, String reportJson) {
-        jdbcTemplate.update("UPDATE cases SET forensic_report = ?::jsonb WHERE id = ?", reportJson, caseId);
+        jdbcTemplate.update(
+                "UPDATE %s.cases SET forensic_report = ?::jsonb WHERE id = ?".formatted(schema()),
+                reportJson, caseId);
     }
 
     /**
@@ -49,7 +63,8 @@ public class CaseOutcomeRepository {
      */
     public void saveScoringConfiguration(Long caseId, Long scoringConfigurationId) {
         jdbcTemplate.update(
-                "UPDATE cases SET scoring_configuration_id = ? WHERE id = ?", scoringConfigurationId, caseId);
+                "UPDATE %s.cases SET scoring_configuration_id = ? WHERE id = ?".formatted(schema()),
+                scoringConfigurationId, caseId);
     }
 
     // The rest of the read model (analysis_classification, risk_score, risk_band, ...) is NOT
@@ -64,10 +79,10 @@ public class CaseOutcomeRepository {
     public CaseOutcome findOutcome(Long caseId) {
         List<CaseOutcome> rows = jdbcTemplate.query("""
                         SELECT c.was_fast_track, c.forensic_report, i.name, i.surname
-                          FROM cases c
-                          JOIN insured i ON i.id = c.insured_id
+                          FROM %1$s.cases c
+                          JOIN %1$s.insured i ON i.id = c.insured_id
                          WHERE c.id = ?
-                        """,
+                        """.formatted(schema()),
                 (rs, rowNum) -> new CaseOutcome(
                         rs.getBoolean("was_fast_track"),
                         rs.getString("forensic_report"),

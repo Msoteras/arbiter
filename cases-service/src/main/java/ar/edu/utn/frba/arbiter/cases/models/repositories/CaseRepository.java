@@ -5,8 +5,13 @@ import ar.edu.utn.frba.arbiter.common.enums.CaseStatus;
 import ar.edu.utn.frba.arbiter.common.enums.RiskBand;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
+import org.springframework.data.jpa.repository.Modifying;
+import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
+import org.springframework.transaction.annotation.Transactional;
 
+import java.util.Collection;
 import java.util.List;
 
 @Repository
@@ -23,4 +28,114 @@ public interface CaseRepository extends JpaRepository<Case, Long>, JpaSpecificat
     List<Case> findByCurrentStatusName(String statusName);
 
     List<Case> findByRiskBand(RiskBand riskBand);
+
+    /**
+     * Bumps only the attempt counter, without touching the rest of the row.
+     *
+     * <p>{@code ClassificationRefreshScheduler} used {@code save(caseRecord)} for this, which
+     * writes the <b>whole</b> entity from a copy loaded at the start of the sweep — so any change
+     * made to that case in between (an analyst's retry, a status transition, a manual fix) got
+     * silently reverted on the next tick, every few seconds. The counter is the only thing the
+     * sweep owns, so it's the only thing it should write.
+     *
+     * <p>{@code flushAutomatically}/{@code clearAutomatically} keep the in-memory entity from
+     * shadowing the value this just wrote.
+     *
+     * <p>{@code @Transactional} explícito: llamado desde el scheduler (sin request/JWT detrás),
+     * el auto-wrap transaccional que Spring Data le da por defecto a un método {@code @Modifying}
+     * no alcanzaba a cubrir el {@code flush} — mismo síntoma que rompía en
+     * {@code CaseStatusService} y en {@code ClassificationResultsService.getStatus}
+     * ("No EntityManager with actual transaction available ... cannot reliably process 'flush'
+     * call"), acá también resuelto haciendo la transacción explícita en vez de confiar en la
+     * implícita.
+     */
+    @Transactional
+    @Modifying(flushAutomatically = true, clearAutomatically = true)
+    @Query("update Case c set c.classificationAttempts = :attempts where c.id = :caseId")
+    void updateClassificationAttempts(@Param("caseId") Long caseId, @Param("attempts") int attempts);
+
+    /**
+     * Igual que {@link #updateClassificationAttempts}, pero <b>condicional</b>: sólo avanza el
+     * contador si en la base sigue valiendo lo que el barrido leyó. Un compare-and-set.
+     *
+     * <p>Existe porque el contador lo escriben varios barridos a la vez. No es hipotético: la base
+     * de Railway es <b>compartida por todo el equipo</b>, así que cada desarrollador que levanta el
+     * stack local suma un {@code ClassificationRefreshScheduler} más barriendo LOS MISMOS
+     * expedientes. Sin condición, dos barridos leen 120, los dos escriben 121, y los dos se creen
+     * con derecho a marcar el expediente como fallido — de ahí las transiciones duplicadas en
+     * {@code case_status_history}, dos filas con el mismo número de reintentos separadas por
+     * segundos.
+     *
+     * <p>Con la condición, el segundo actualiza 0 filas y se retira: el avance del contador es lo
+     * que hace de turno, y sólo uno se lo puede quedar por vuelta.
+     *
+     * @param expected el valor que el barrido leyó; si ya cambió, no se pisa
+     * @return 1 si este barrido se quedó con el turno, 0 si otro llegó primero
+     */
+    @Transactional
+    @Modifying(flushAutomatically = true, clearAutomatically = true)
+    @Query("""
+            update Case c
+               set c.classificationAttempts = :attempts
+             where c.id = :caseId
+               and c.classificationAttempts = :expected
+            """)
+    int advanceClassificationAttempts(@Param("caseId") Long caseId,
+                                      @Param("expected") int expected,
+                                      @Param("attempts") int attempts);
+
+    /** Fila de {@link #countActiveByAnalyst(Collection)}: un analista y cuántos activos tiene. */
+    interface AnalystCaseCount {
+        Long getAnalystId();
+
+        long getTotal();
+    }
+
+    /**
+     * Cuenta expedientes ACTIVOS (los que no están en un estado final) agrupados por analista
+     * asignado, en un solo query por el esquema del tenant activo. Solo aparecen analistas con al
+     * menos un expediente activo; los que no tienen ninguno los completa el service con cero, para
+     * que el panel muestre a todo el equipo. Los expedientes sin asignar quedan afuera
+     * ({@code c.analyst is not null}).
+     *
+     * @param finalStatuses nombres de los estados terminales a excluir (APPROVED, REJECTED)
+     */
+    @Query("""
+            select c.analyst.id as analystId, count(c) as total
+            from Case c
+            where c.analyst is not null
+              and c.currentStatus.name not in :finalStatuses
+            group by c.analyst.id
+            """)
+    List<AnalystCaseCount> countActiveByAnalyst(@Param("finalStatuses") Collection<String> finalStatuses);
+
+    /** Fila de {@link #countByStatusForAnalyst(Long)}: un estado y cuántos expedientes hay en él. */
+    interface StatusCount {
+        String getStatus();
+
+        long getTotal();
+    }
+
+    /**
+     * Cuenta los expedientes asignados a un analista agrupados por estado, en un solo query. Base
+     * del resumen del inicio del analista (pendientes / en trámite / resueltos). Solo aparecen los
+     * estados con al menos un expediente; el resto es cero.
+     */
+    @Query("""
+            select c.currentStatus.name as status, count(c) as total
+            from Case c
+            where c.analyst.id = :analystId
+            group by c.currentStatus.name
+            """)
+    List<StatusCount> countByStatusForAnalyst(@Param("analystId") Long analystId);
+
+    /** Cuántos expedientes del analista tienen una de las bandas de riesgo dadas (ej. HIGH, CRITICAL). */
+    @Query("""
+            select count(c)
+            from Case c
+            where c.analyst.id = :analystId
+              and c.riskBand in :bands
+            """)
+    long countByAnalystAndRiskBandIn(@Param("analystId") Long analystId,
+                                     @Param("bands") Collection<RiskBand> bands);
 }

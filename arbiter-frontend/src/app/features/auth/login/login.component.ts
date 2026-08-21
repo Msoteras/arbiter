@@ -4,7 +4,7 @@ import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 
 import { AuthSessionService } from '../../../core/auth/auth-session.service';
 import { AuthService } from '../../../core/auth/auth.service';
-import { UserRole } from '../../../core/models/user-role';
+import { homeRouteFor } from '../../../core/models/user-role';
 import { ButtonComponent } from '../../../shared/ui/button/button.component';
 import { InputComponent } from '../../../shared/ui/input/input.component';
 import { LogoComponent } from '../../../shared/ui/logo/logo.component';
@@ -25,8 +25,8 @@ export class LoginComponent {
   protected readonly email = signal('');
   protected readonly password = signal('');
   protected readonly submitting = signal(false);
-  // sessionExpired: lo agrega authInterceptor tras un 401 en cualquier llamada /api —
-  // sin esto el usuario no tenía forma de saber que lo que pasó fue que venció el token.
+  // sessionExpired: authInterceptor adds it after a 401 on any /api call — without it the user had
+  // no way of knowing what happened was that the token expired.
   protected readonly errorMessage = signal<string | null>(
     this.route.snapshot.queryParamMap.has('sessionExpired')
       ? 'Tu sesión expiró. Ingresá de nuevo.'
@@ -47,24 +47,16 @@ export class LoginComponent {
     this.authService.login({ email: this.email().trim(), password: this.password() }).subscribe({
       next: (response) => {
         this.session.start(response);
-        this.router.navigateByUrl(this.homeFor(response.rol));
+        this.router.navigateByUrl(homeRouteFor(response.rol));
       },
       error: (err: HttpErrorResponse) => {
         this.submitting.set(false);
-        // El detalle real (status + payload) va a consola/observabilidad; el usuario ve un
-        // mensaje acotado. Sin esto, un 500 y un backend caído eran indistinguibles a la hora
-        // de diagnosticar, dependiendo del relato del usuario.
-        console.error('Login falló', { status: err.status, detail: err.error });
+        // The real detail goes to the console; the user sees a narrow message. Without this, a 500
+        // and a downed backend were indistinguishable when diagnosing.
+        console.error('Login failed', { status: err.status, detail: err.error });
         this.errorMessage.set(this.messageFor(err));
       },
     });
-  }
-
-  /** El home de cada rol es su propia sección — el referente ya no aterriza en la bandeja del analista. */
-  private homeFor(rol: UserRole): string {
-    if (rol === 'ASEGURADO') return '/portal';
-    if (rol === 'REFERENTE_ASEGURADORA') return '/insurer/users';
-    return '/inbox';
   }
 
   private messageFor(err: HttpErrorResponse): string {
@@ -74,14 +66,16 @@ export class LoginComponent {
     if (err.status === 423) {
       return err.error?.detail ?? 'Cuenta bloqueada temporalmente. Probá de nuevo más tarde.';
     }
+    // canSubmit already catches empty fields, so a 400 from the server means the sealed password
+    // couldn't be opened: the backend rotated its key on restart, or the browser clock is off.
     if (err.status === 400) {
-      return 'Completá email y contraseña.';
+      return err.error?.detail ?? 'No pudimos procesar el pedido. Recargá la página y probá de nuevo.';
     }
-    // status 0 = no hubo respuesta del servidor: backend caído, sin conexión, timeout o CORS.
+    // status 0 = no response from the server: backend down, no connection, timeout or CORS.
     if (err.status === 0) {
       return 'No pudimos conectar con el servidor. Revisá tu conexión a internet; si el problema persiste, avisá a soporte.';
     }
-    // 5xx: el backend respondió con un error propio — no es un problema transitorio de red.
+    // 5xx: the backend answered with an error of its own — not a transient network problem.
     if (err.status >= 500) {
       return 'El servicio no está disponible por el momento. Ya estamos al tanto; probá de nuevo en unos minutos o avisá a soporte si sigue.';
     }

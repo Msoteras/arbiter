@@ -10,9 +10,9 @@ import javax.naming.directory.InitialDirContext;
 import java.util.Hashtable;
 
 /**
- * Chequea que el dominio del email tenga registros MX (DNS) antes de darlo de alta —
- * filtra dominios inventados (asdf.qwerty) sin necesidad de mandar un mail real.
- * No verifica que la casilla puntual exista, solo que el dominio pueda recibir correo.
+ * Checks the email's domain has MX records (DNS) before creating it — filters out made-up domains
+ * (asdf.qwerty) without sending a real mail. It doesn't verify the specific mailbox exists, only
+ * that the domain can receive mail.
  */
 @Component
 public class EmailDomainValidator {

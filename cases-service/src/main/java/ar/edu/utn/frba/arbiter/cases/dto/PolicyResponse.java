@@ -3,7 +3,7 @@ package ar.edu.utn.frba.arbiter.cases.dto;
 import lombok.Builder;
 
 import java.math.BigDecimal;
-import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.util.List;
 
 /**
@@ -11,6 +11,11 @@ import java.util.List;
  * aseguradora ({@code insurerId}/{@code insurerName}): un mismo asegurado puede tener
  * pólizas de distintas aseguradoras en la plataforma, y las ve centralizadas acá.
  * Los datos salen de la BD Aseguradora vía {@code InsurerAdapter}.
+ *
+ * <p>{@code effectiveFrom}/{@code effectiveTo} llevan hora, no solo fecha: la póliza modelo (BBVA)
+ * fija la vigencia con hora exacta ("desde las 12:00 hs del..."), y comparar solo por fecha da
+ * falsos aceptados en el borde — un siniestro dos horas antes de que arranque la vigencia, mismo
+ * día, pasaba el chequeo. {@code aseguradora_*.poliza.vigencia_desde/hasta} es {@code timestamptz}.
  */
 @Builder
 public record PolicyResponse(
@@ -24,8 +29,8 @@ public record PolicyResponse(
         String branch,
         String insuredItem,
         String product,
-        LocalDate effectiveFrom,
-        LocalDate effectiveTo,
+        LocalDateTime effectiveFrom,
+        LocalDateTime effectiveTo,
         boolean upToDate,
         BigDecimal insuredAmount,
         BigDecimal deductible,

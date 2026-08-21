@@ -1,48 +1,67 @@
 :host { display: block; }
 
-.section-hint { margin: 0 0 var(--space-3); color: var(--text-secondary); font-size: var(--font-size-sm); }
+.section-hint { margin: 0 0 var(--space-4); color: var(--text-secondary); font-size: var(--font-size-sm); }
 
-.subsection { margin-top: var(--space-4); display: flex; flex-direction: column; gap: var(--space-2); }
-.subsection-head { display: flex; align-items: center; justify-content: space-between; gap: var(--space-2); }
+.sc-head { display: flex; align-items: center; gap: var(--space-3); flex-wrap: wrap; margin-bottom: var(--space-3); }
+.sc-head .card-title { margin: 0; }
 
-.chip {
-  font: inherit;
-  font-size: var(--font-size-sm);
-  padding: var(--space-1) var(--space-3);
-  border: 1px solid var(--border-control);
-  border-radius: var(--radius-pill);
-  background: var(--surface);
-  color: var(--text-secondary);
-  cursor: pointer;
+.sc-section { margin-top: var(--space-5); display: flex; flex-direction: column; gap: var(--space-2); }
+.sc-section-head { display: flex; align-items: baseline; justify-content: space-between; gap: var(--space-3); flex-wrap: wrap; }
+
+/* Encabezado de cada grupo de factores: el nombre en tono de etiqueta y, al lado, qué implica el
+   grupo (los de documentos e imágenes cuestan un análisis pesado). */
+.sc-group { margin: var(--space-3) 0 0; font-size: var(--font-size-xs); color: var(--text-secondary); }
+.sc-group-hint { color: var(--text-muted); }
+
+/* ── Filas de factor ──────────────────────────────────────────────────────────
+   Mismas clases que las reglas de Coberturas, Fast Track y Hard Stop (.rule-rows, .rule-row,
+   .rule-value): son la misma clase de decisión — prender algo y ponerle un número — y conviene
+   que se vean igual en toda la pantalla de reglas. Como el componente tiene su propia
+   encapsulación, las reglas se repiten acá; el interruptor en sí es app-switch, del kit. */
+.rule-rows { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; }
+.rule-row { display: flex; align-items: center; gap: var(--space-3); padding: var(--space-3) 0; }
+.rule-row + .rule-row { border-top: 1px solid var(--border-subtle); }
+.rule-text { flex: 1 1 auto; min-width: 0; }
+.rule-hint { margin: var(--space-1) 0 0; color: var(--text-secondary); font-size: var(--font-size-xs); }
+.rule-value { display: flex; align-items: center; gap: var(--space-2); flex: 0 0 auto; }
+.rule-value app-input { width: 88px; }
+.rule-off-note { flex: 0 0 auto; font-style: italic; }
+.rule-row.off .rule-text, .rule-row.off .rule-value { opacity: 0.55; }
+
+
+/* ── Reparto del peso ─────────────────────────────────────────────────────────
+   La barra dice cuánto pesa el factor sobre el total de los activos, que es la cuenta que hace el
+   motor. Sin ella, "45" y "35" no dicen nada: los pesos son relativos y su efecto depende de qué
+   otros factores estén prendidos. */
+.sc-share { flex: 0 0 auto; width: 120px; display: flex; flex-direction: column; gap: var(--space-1); }
+.sc-bar { display: block; height: 4px; border-radius: var(--radius-pill); background: var(--surface-sunken); overflow: hidden; }
+.sc-bar-fill { display: block; height: 100%; background: var(--accent-fg); }
+.sc-share-note { font-size: var(--font-size-2xs); color: var(--text-muted); font-variant-numeric: tabular-nums; }
+
+/* ── Bandas ───────────────────────────────────────────────────────────────────
+   Los tramos de la barra salen de los cortes configurados, así que editarlos la mueve: se ve
+   antes de guardar si una banda quedó demasiado angosta. */
+.sc-bands-bar { display: flex; height: 8px; border-radius: var(--radius-pill); overflow: hidden; margin: var(--space-2) 0 var(--space-3); }
+.sc-bands-seg[data-tone='ok'] { background: var(--status-ok); }
+.sc-bands-seg[data-tone='warning'] { background: var(--status-warning); }
+.sc-bands-seg[data-tone='risk'] { background: var(--status-risk); }
+.sc-bands-seg[data-tone='danger'] { background: var(--status-danger); }
+
+.sc-bands { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: var(--space-3); }
+.sc-band { display: flex; flex-direction: column; gap: var(--space-1); }
+/* Punto de color y nombre, igual que el semáforo del gauge que después ve el analista. */
+.sc-band-name { display: inline-flex; align-items: center; gap: var(--space-2); font-weight: var(--font-weight-medium); color: var(--text-primary); }
+.sc-band-name::before { content: ''; width: 8px; height: 8px; border-radius: var(--radius-pill); }
+.sc-band-name[data-tone='ok']::before { background: var(--status-ok); }
+.sc-band-name[data-tone='warning']::before { background: var(--status-warning); }
+.sc-band-name[data-tone='risk']::before { background: var(--status-risk); }
+.sc-band-name[data-tone='danger']::before { background: var(--status-danger); }
+.sc-band-range { font-size: var(--font-size-xs); color: var(--text-muted); font-variant-numeric: tabular-nums; }
+.sc-band-cut { display: flex; align-items: center; gap: var(--space-2); }
+.sc-band-cut app-input { width: 88px; }
+
+@media (max-width: 640px) {
+  /* En angosto, el reparto y el peso bajan debajo del nombre en vez de comprimirse. */
+  .rule-row { flex-wrap: wrap; }
+  .sc-share { width: 100%; }
 }
-.chip:hover { border-color: var(--border-strong); }
-.chip.active { background: var(--selected-bg); border-color: var(--selected-border); color: var(--accent-fg); }
-
-/* Factores + pesos */
-.factors { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: var(--space-2); }
-.factor { display: flex; align-items: center; gap: var(--space-2); }
-.factor-chip { flex: 1 1 auto; text-align: left; }
-.factor-weight { display: flex; align-items: center; gap: var(--space-1); flex-shrink: 0; }
-.factor-weight app-input { width: 84px; }
-.pct { color: var(--text-tertiary); font-size: var(--font-size-sm); }
-/* Peso efectivo (peso / total de los activos): es lo que el motor aplica, no lo que se tipeó. */
-.factor-effective {
-  flex-shrink: 0;
-  min-width: 9ch;
-  text-align: right;
-  color: var(--text-tertiary);
-  font-size: var(--font-size-xs);
-  font-variant-numeric: tabular-nums;
-}
-
-/* Bandas */
-.bands { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: var(--space-3); }
-.band { display: flex; flex-direction: column; gap: var(--space-1); }
-.band-name { font-size: var(--font-size-xs); color: var(--text-tertiary); }
-.band app-input { width: 110px; }
-
-/* Footer de guardado (persistencia real contra el backend). */
-.ft-save { margin-top: var(--space-4); padding-top: var(--space-4); border-top: 1px solid var(--border-default); display: flex; flex-direction: column; gap: var(--space-3); }
-.editor-actions { display: flex; align-items: center; gap: var(--space-2); }
-.saved-note { color: var(--status-ok); font-size: var(--font-size-sm); }
-.warn-note { margin: 0; color: var(--status-warning); font-size: var(--font-size-xs); }

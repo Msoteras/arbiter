@@ -4,6 +4,8 @@ import ar.edu.utn.frba.arbiter.classification.adapters.ClaimClassifier;
 import ar.edu.utn.frba.arbiter.classification.adapters.DocumentAnalyzer;
 import ar.edu.utn.frba.arbiter.classification.adapters.InsurerAdapter;
 import ar.edu.utn.frba.arbiter.classification.adapters.RulesAdapter;
+import ar.edu.utn.frba.arbiter.classification.models.repositories.DocumentAnalysisRepository;
+import ar.edu.utn.frba.arbiter.classification.models.repositories.InsuredFraudRecordRepository;
 import ar.edu.utn.frba.arbiter.classification.models.repositories.PolicySnapshotRepository;
 import ar.edu.utn.frba.arbiter.classification.models.repositories.PolicySnapshotRepository.Snapshot;
 import ar.edu.utn.frba.arbiter.classification.services.risk.RiskFixtures;
@@ -32,9 +34,9 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 /**
- * D27 · la foto de la póliza sobre la que se clasificó. Sin esto la clasificación no es
- * reproducible: los dos factores que salen de la BD Aseguradora ({@code policy_standing},
- * {@code claim_frequency}) se leen en vivo de un sistema que sigue cambiando.
+ * D27 · the snapshot of the policy the classification ran on. Without it the classification isn't
+ * reproducible: the two factors coming from the insurer's DB ({@code policy_standing},
+ * {@code claim_frequency}) are read live from a system that keeps changing.
  */
 @ExtendWith(MockitoExtension.class)
 class ClassificationOrchestratorSnapshotTest {
@@ -47,17 +49,20 @@ class ClassificationOrchestratorSnapshotTest {
     @Mock private CoverageRuleEvaluator coverageRuleEvaluator;
     @Mock private CoverageScopeEvaluator coverageScopeEvaluator;
     @Mock private TemporalRuleEvaluator temporalRuleEvaluator;
+    @Mock private FraudRecordRuleEvaluator fraudRecordRuleEvaluator;
     @Mock private FastTrackValidator fastTrackValidator;
     @Mock private DocumentAnalyzer documentAnalyzer;
     @Mock private PromptBuilder promptBuilder;
     @Mock private RiskScoringService riskScoringService;
     @Mock private ImageFraudAnalysisService imageFraudAnalysisService;
     @Mock private PolicySnapshotRepository policySnapshotRepository;
+    @Mock private InsuredFraudRecordRepository fraudRecordRepository;
+    @Mock private DocumentAnalysisRepository documentAnalysisRepository;
     @Spy private ObjectMapper objectMapper = new ObjectMapper().registerModule(new JavaTimeModule());
 
     @InjectMocks private ClassificationOrchestrator orchestrator;
 
-    /** Fast Track sin documentos: la ruta más corta que igual pasa por el snapshot. */
+    /** Fast Track with no documents: the shortest path, which still goes through the snapshot. */
     @BeforeEach
     void stubContext() {
         when(insurerAdapter.getPolicy(any())).thenReturn(RiskFixtures.policy(true, new BigDecimal("400000")));
@@ -66,7 +71,9 @@ class ClassificationOrchestratorSnapshotTest {
         when(coverageRuleEvaluator.evaluate(any(), any()))
                 .thenReturn(new CoverageRuleEvaluator.Result(false, List.of()));
         when(temporalRuleEvaluator.evaluate(any(), any(), any(), any()))
-                .thenReturn(new TemporalRuleEvaluator.Result(false, List.of()));
+                .thenReturn(TemporalRuleEvaluator.Result.empty());
+        when(fraudRecordRuleEvaluator.evaluate(any(), any()))
+                .thenReturn(FraudRecordRuleEvaluator.Result.empty());
         when(coverageScopeEvaluator.evaluate(any(), any(), any(), any()))
                 .thenReturn(new CoverageScopeEvaluator.Result(false, List.of()));
         when(fastTrackValidator.evaluate(any(), any(), any(), any(), any()))
@@ -91,7 +98,7 @@ class ClassificationOrchestratorSnapshotTest {
         assertThat(snapshot.inForce()).isTrue();            // el hecho cae dentro de la vigencia
     }
 
-    /** El payload crudo es el registro fiel: las columnas son su lectura ya interpretada. */
+    /** The raw payload is the faithful record: the columns are its already-interpreted reading. */
     @Test
     void keepsTheRawInsurerAnswer() {
         orchestrator.classify(CASE_ID, RiskFixtures.claim(new BigDecimal("100000")), List.of());
@@ -112,7 +119,7 @@ class ClassificationOrchestratorSnapshotTest {
         assertThat(capturedSnapshot().inForce()).isFalse();
     }
 
-    /** La clasificación aislada (endpoint de prueba) no tiene expediente donde colgar la foto. */
+    /** The isolated classification (test endpoint) has no case to hang the snapshot on. */
     @Test
     void isolatedClassificationRecordsNothing() {
         orchestrator.classify(RiskFixtures.claim(new BigDecimal("100000")), List.of());
@@ -121,8 +128,8 @@ class ClassificationOrchestratorSnapshotTest {
     }
 
     /**
-     * Best-effort, igual que el scoring y la cascada de fraude: una fila de auditoría que no se
-     * puede escribir no puede voltear una clasificación que un analista está esperando.
+     * Best-effort, like the scoring and the fraud cascade: an audit row that can't be written must
+     * not sink a classification an analyst is waiting on.
      */
     @Test
     void aFailedSnapshotDoesNotBreakTheClassification() {

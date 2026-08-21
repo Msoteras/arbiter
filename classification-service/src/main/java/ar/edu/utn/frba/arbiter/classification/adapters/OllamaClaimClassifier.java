@@ -13,6 +13,7 @@ import org.springframework.stereotype.Service;
 
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 
 @Service
 @RequiredArgsConstructor
@@ -50,7 +51,12 @@ public class OllamaClaimClassifier implements ClaimClassifier {
         }
         log.debug("[Ollama] Full prompt sent:\n{}", prompt);
 
-        String content = client.chat(prompt, List.of(), OUTPUT_SCHEMA);
+        // Sin thinking, igual que la extracción: el schema ya obliga al modelo a explicitar sus
+        // `factores`, que ES el razonamiento que le pedimos —y el que después ve el analista—, así
+        // que una fase de razonamiento previa e invisible duplicaría el trabajo. Corriendo por CPU
+        // eso son decenas de minutos por caso. Si algún día se corre con GPU y se quiere evaluar si
+        // pensar mejora la recomendación, es cambiar este false y medir.
+        String content = client.chat(prompt, List.of(), OUTPUT_SCHEMA, false);
         if (content.isEmpty()) {
             throw new InvalidClassificationException("Ollama returned an empty response");
         }
@@ -66,7 +72,8 @@ public class OllamaClaimClassifier implements ClaimClassifier {
         try {
             ModelOutput output = objectMapper.readValue(contentJson, ModelOutput.class);
             Classification classification = Classification.valueOf(output.classification());
-            return new ClassificationResponse(classification, output.factors(), output.confidence(), false);
+            return new ClassificationResponse(
+                    classification, plainText(output.factors()), output.confidence(), false);
         } catch (IllegalArgumentException e) {
             throw new InvalidClassificationException(
                     "The model returned an invalid classification value: " + contentJson, e);
@@ -74,6 +81,17 @@ public class OllamaClaimClassifier implements ClaimClassifier {
             throw new InvalidClassificationException(
                     "Could not parse model response: " + contentJson, e);
         }
+    }
+
+    /** Only asterisks: factors carry real underscores (police_report, last_connection). */
+    private List<String> plainText(List<String> factors) {
+        if (factors == null) {
+            return List.of();
+        }
+        return factors.stream()
+                .filter(Objects::nonNull)
+                .map(factor -> factor.replace("*", "").trim())
+                .toList();
     }
 
     private record ModelOutput(String classification, List<String> factors, double confidence) {}

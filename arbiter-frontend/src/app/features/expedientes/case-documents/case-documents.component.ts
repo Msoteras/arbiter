@@ -27,6 +27,7 @@ import {
 } from '../../../core/models/case-document';
 import { CardComponent } from '../../../shared/ui/card/card.component';
 import { BadgeComponent } from '../../../shared/ui/badge/badge.component';
+import { InlineLoadingComponent } from '../../../shared/ui/inline-loading/inline-loading.component';
 
 type ListState =
   | { status: 'loading' }
@@ -60,7 +61,7 @@ type PreviewState =
 @Component({
   selector: 'app-case-documents',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [CardComponent, BadgeComponent],
+  imports: [CardComponent, BadgeComponent, InlineLoadingComponent],
   templateUrl: './case-documents.component.html',
   styleUrl: './case-documents.component.scss',
 })
@@ -71,6 +72,15 @@ export class CaseDocumentsComponent {
   private readonly destroyRef = inject(DestroyRef);
 
   readonly caseId = input.required<number>();
+  /**
+   * De qué aseguradora es el expediente — mismo motivo que en `ExpedienteService.getById`: un
+   * asegurado con pólizas en más de una compañía puede tener acá un expediente que no vive en el
+   * tenant por defecto de su sesión. Null para el analista/referente (single-tenant, no ambiguo).
+   *
+   * <p>Acepta `undefined` además de `null` porque en `ExpedienteResponse` el campo es opcional
+   * (solo viene poblado en las vistas que mezclan compañías), y quien lo bindea lo pasa derecho.
+   */
+  readonly insurerSlug = input<string | null | undefined>(null);
   /** Se bumpea desde el detalle al subir documentación, para refrescar la lista. */
   readonly reloadToken = input(0);
   /**
@@ -81,24 +91,31 @@ export class CaseDocumentsComponent {
   readonly showMissing = input(true);
   readonly heading = input('Agenda documental');
   /**
-   * Nombre del ramo del expediente. Con esto el checklist se arma contra la agenda REAL que
-   * configuró el referente para ese ramo, no contra el catálogo completo. Sin ramo (o sin agenda
-   * configurada) cae al catálogo completo.
+   * Ramo y hecho generador del expediente. Con esto el checklist se arma contra la agenda REAL que
+   * configuró el referente para esa combinación, no contra el catálogo completo. Sin ambos (o sin
+   * agenda configurada) cae al catálogo completo.
    */
   readonly branch = input<string | null>(null);
+  readonly claimCause = input<string | null>(null);
 
-  /** Tipos de documento requeridos del ramo (o el catálogo completo como fallback). */
+  /** Tipos de documento requeridos del ramo + hecho generador (o el catálogo completo como fallback). */
   private readonly requiredTypes = toSignal(
-    toObservable(this.branch).pipe(
-      switchMap((branch) => (branch ? this.agenda.slotsForBranch(branch) : of(CASE_DOCUMENT_TYPES))),
+    toObservable(computed(() => ({ branch: this.branch(), claimCause: this.claimCause() }))).pipe(
+      switchMap(({ branch, claimCause }) =>
+        branch && claimCause ? this.agenda.slotsForBranch(branch, claimCause) : of(CASE_DOCUMENT_TYPES),
+      ),
     ),
     { initialValue: CASE_DOCUMENT_TYPES as readonly CaseDocumentType[] },
   );
 
   private readonly state = toSignal(
-    combineLatest([toObservable(this.caseId), toObservable(this.reloadToken)]).pipe(
-      switchMap(([id]) =>
-        this.service.listDocuments(id).pipe(
+    combineLatest([
+      toObservable(this.caseId),
+      toObservable(this.reloadToken),
+      toObservable(this.insurerSlug),
+    ]).pipe(
+      switchMap(([id, , slug]) =>
+        this.service.listDocuments(id, slug).pipe(
           map((data): ListState => ({ status: 'ok', data })),
           startWith<ListState>({ status: 'loading' }),
           catchError((_err: HttpErrorResponse) => of<ListState>({ status: 'error' })),
@@ -161,7 +178,7 @@ export class CaseDocumentsComponent {
     this.preview.set({ status: 'loading', doc });
 
     this.service
-      .downloadDocument(this.caseId(), doc.id)
+      .downloadDocument(this.caseId(), doc.id, this.insurerSlug())
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe({
         next: (blob) => {

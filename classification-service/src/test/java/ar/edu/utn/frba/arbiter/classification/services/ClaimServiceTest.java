@@ -56,13 +56,13 @@ class AnalystDecisionTest {
     private ClassificationResultsService resultsService;
 
     /**
-     * {@code JpaRepository.save} devuelve la entidad ya persistida, y {@code
-     * recordAnalystDecision} usa su id para que cases-service pueda apuntar
-     * {@code cases.classification_id} al veredicto. El mock devolvía null.
+     * {@code JpaRepository.save} returns the already-persisted entity, and {@code
+     * recordAnalystDecision} uses its id so cases-service can point
+     * {@code cases.classification_id} at the verdict. The mock returned null.
      *
-     * <p>Se devuelve una instancia distinta y no el argumento: los tests capturan lo que se le
-     * pasó a {@code save} y verifican que va sin id (es una fila nueva), así que asignárselo al
-     * argumento invalidaría justamente eso.
+     * <p>A different instance is returned and not the argument: the tests capture what was passed
+     * to {@code save} and check it goes without an id (it's a new row), so assigning it to the
+     * argument would invalidate exactly that.
      */
     @BeforeEach
     void savedDecisionComesBackWithAnId() {
@@ -78,8 +78,8 @@ class AnalystDecisionTest {
 
     @Test
     void recordAnalystDecision_returnsTheIdOfThePersistedDecision() {
-        // Es lo que ata el expediente a la corrida del modelo que respaldó el veredicto: sin este
-        // id, cases.classification_id queda null y se pierde el vínculo para la auditoría.
+        // It's what ties the case to the model run that backed the verdict: without this id,
+        // cases.classification_id stays null and the audit link is lost.
         Long caseId = 42L;
         when(llmAnalysisRepository.findFirstByCaseIdOrderByIdDesc(caseId))
                 .thenReturn(Optional.of(analysis(caseId, Classification.LLM_RECOMIENDA_APROBAR)));
@@ -92,8 +92,8 @@ class AnalystDecisionTest {
 
     @Test
     void recordAnalystDecision_freezesTheAttemptCounterOntoTheAuditRow() {
-        // El contador vivo es cases.classification_attempts; su valor final tiene que quedar en el
-        // registro auditable, que antes siempre se guardaba en 0.
+        // The live counter is cases.classification_attempts; its final value has to land in the
+        // auditable record, which used to always be stored as 0.
         Long caseId = 42L;
         when(llmAnalysisRepository.findFirstByCaseIdOrderByIdDesc(caseId))
                 .thenReturn(Optional.of(analysis(caseId, Classification.LLM_RECOMIENDA_APROBAR)));
@@ -105,7 +105,7 @@ class AnalystDecisionTest {
 
     @Test
     void recordAnalystDecision_withoutAnAttemptCount_defaultsToZero() {
-        // La columna es NOT NULL y el campo del request es opcional (un caller viejo no lo manda).
+        // The column is NOT NULL and the request field is optional (an old caller doesn't send it).
         Long caseId = 42L;
         when(llmAnalysisRepository.findFirstByCaseIdOrderByIdDesc(caseId))
                 .thenReturn(Optional.of(analysis(caseId, Classification.LLM_RECOMIENDA_APROBAR)));
@@ -129,8 +129,8 @@ class AnalystDecisionTest {
         assertThat(saved.getLlmAnalysis()).isSameAs(analysis);
         assertThat(saved.getAnalystId()).isEqualTo(1L);
         assertThat(saved.getDecision()).isEqualTo("APPROVE");
-        // El registro auditable de la Disposición SSN 2/2023 tiene que guardar el motivo, no
-        // descartarlo — bug encontrado porque el front lo pedía y nunca lo mandaba.
+        // SSN Disposition 2/2023's auditable record has to store the justification, not drop it —
+        // a bug found because the front asked for it and never sent it.
         assertThat(saved.getAnalystJustification()).isEqualTo("Documentación completa y consistente");
         assertThat(saved.getDecidedAt()).isNotNull();
     }

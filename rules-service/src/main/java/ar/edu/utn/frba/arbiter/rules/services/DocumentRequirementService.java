@@ -13,15 +13,14 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.util.ArrayList;
 import java.util.List;
+import java.util.Optional;
 
 /**
- * Agenda documental (AgendaDocumental) de un ramo, para la solapa Documentación del referente. El
- * DER (document_requirement / "requisito_documental") keyea por rama + hecho generador; la pantalla
- * la edita como una lista plana por ramo (docs/decisiones-reglas-a-validar.md, D5). Resolvemos la
- * diferencia con el mismo patrón que Fast Track usa con las coberturas: fan-out — la misma lista se
- * escribe para todos los hechos generadores del ramo. Sin historial: el DER no tiene
+ * A branch's AgendaDocumental, for the referente's Documentación tab. The DER
+ * (document_requirement / "requisito_documental") keys by branch + claim cause, and since D5
+ * (docs/decisiones-reglas-a-validar.md) the screen edits it per claim cause too — no longer fanning
+ * a flat list out to every claim cause of the branch. No history: the DER has no
  * "historial_requisito_documental".
  */
 @Service
@@ -33,48 +32,68 @@ public class DocumentRequirementService {
     private final BranchRepository branchRepository;
 
     @Transactional(readOnly = true)
-    public List<String> get(Long branchId) {
-        return documentRequirementRepository.findByBranch_Id(branchId).stream()
+    public List<String> get(Long branchId, Long claimCauseId) {
+        return documentRequirementRepository.findByBranch_IdAndClaimCause_Id(branchId, claimCauseId).stream()
                 .map(DocumentRequirement::getDocumentType)
                 .distinct()
                 .toList();
     }
 
     /**
-     * Igual que {@link #get(Long)} pero resolviendo el ramo por nombre — es lo que el asegurado (al
-     * subir) y el analista (checklist de faltantes) tienen a mano; el id numérico solo lo maneja el
-     * referente. Ramo desconocido ⇒ lista vacía.
+     * Same as {@link #get(Long, Long)} but resolving the claim cause by name within a branch already
+     * known by id — what the engine has at hand (see {@code ClaimReport.claimCause()}). Unknown claim
+     * cause in that branch ⇒ empty list.
      */
     @Transactional(readOnly = true)
-    public List<String> getByBranchName(String branchName) {
+    public List<String> getByBranchIdAndClaimCauseName(Long branchId, String claimCauseName) {
+        return findByBranchIdAndClaimCauseName(branchId, claimCauseName).orElse(List.of());
+    }
+
+    /**
+     * Same read, but telling apart "this claim cause requires no documents" (an empty list inside
+     * the Optional) from "there is no such claim cause in this branch" (empty Optional). The engine
+     * needs the distinction to know whether it may fall back to its baseline; the callers that just
+     * render a checklist don't, and keep using the plain method above.
+     */
+    @Transactional(readOnly = true)
+    public Optional<List<String>> findByBranchIdAndClaimCauseName(Long branchId, String claimCauseName) {
+        return claimCauseRepository.findByBranch_IdAndName(branchId, claimCauseName)
+                .map(claimCause -> get(branchId, claimCause.getId()));
+    }
+
+    /**
+     * Igual que {@link #getByBranchIdAndClaimCauseName(Long, String)} pero resolviendo también el
+     * ramo por nombre — es lo que el asegurado (al subir) y el analista (checklist de faltantes)
+     * tienen a mano; los ids numéricos solo los maneja el referente. Ramo desconocido ⇒ lista vacía.
+     */
+    @Transactional(readOnly = true)
+    public List<String> getByBranchAndClaimCauseNames(String branchName, String claimCauseName) {
         return branchRepository.findByName(branchName)
-                .map(branch -> get(branch.getId()))
+                .map(branch -> getByBranchIdAndClaimCauseName(branch.getId(), claimCauseName))
                 .orElse(List.of());
     }
 
     @Transactional
-    public List<DocumentRequirementDto> upsert(Long branchId, List<String> documentTypes) {
+    public List<DocumentRequirementDto> upsert(Long branchId, Long claimCauseId, List<String> documentTypes) {
         Branch branch = branchRepository.findById(branchId)
                 .orElseThrow(() -> new BranchNotFoundException(branchId));
-        List<ClaimCause> claimCauses = claimCauseRepository.findByBranch_IdOrderByNameAsc(branchId);
-        if (claimCauses.isEmpty()) {
-            throw new InvalidRuleConfigurationException(
-                    "El ramo no tiene hechos generadores cargados en el catálogo.");
-        }
-        List<DocumentRequirementDto> persisted = new ArrayList<>();
-        for (ClaimCause claimCause : claimCauses) {
-            documentRequirementRepository.deleteByBranch_IdAndClaimCause_Id(branchId, claimCause.getId());
-            List<DocumentRequirement> requirements = documentTypes.stream()
-                    .map(type -> DocumentRequirement.builder()
-                            .documentType(type)
-                            .mandatory(true)
-                            .branch(branch)
-                            .claimCause(claimCause)
-                            .build())
-                    .toList();
-            documentRequirementRepository.saveAll(requirements).forEach(saved -> persisted.add(new DocumentRequirementDto(
-                    saved.getId(), saved.getDocumentType(), saved.getClaimCause().getId(), saved.isMandatory())));
-        }
-        return persisted;
+        ClaimCause claimCause = claimCauseRepository.findById(claimCauseId)
+                .filter(cc -> cc.getBranch().getId().equals(branchId))
+                .orElseThrow(() -> new InvalidRuleConfigurationException(
+                        "El hecho generador " + claimCauseId + " no pertenece al ramo " + branchId + "."));
+
+        documentRequirementRepository.deleteByBranch_IdAndClaimCause_Id(branchId, claimCauseId);
+        List<DocumentRequirement> requirements = documentTypes.stream()
+                .map(type -> DocumentRequirement.builder()
+                        .documentType(type)
+                        .mandatory(true)
+                        .branch(branch)
+                        .claimCause(claimCause)
+                        .build())
+                .toList();
+        return documentRequirementRepository.saveAll(requirements).stream()
+                .map(saved -> new DocumentRequirementDto(
+                        saved.getId(), saved.getDocumentType(), saved.getClaimCause().getId(), saved.isMandatory()))
+                .toList();
     }
 }

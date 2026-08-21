@@ -1,0 +1,90 @@
+<!-- Card propia y separada de la del antecedente: los peritos se guardan solos y el antecedente
+     no, así que la barra "Guardar cambios" queda pegada a lo único que gobierna en vez de flotar
+     abajo de las dos cosas. -->
+<app-card>
+  <div class="sc-section-head">
+    <span class="t-section-label">Peritos de verificación</span>
+    @if (!draft()) {
+      <app-button variant="secondary" (click)="add()">+ Agregar perito</app-button>
+    }
+  </div>
+  <p class="section-hint">
+    Estudios externos a los que el analista puede derivar un siniestro. Aparecen en el selector al
+    derivar; si un ramo no tiene ninguno, no hay a quién derivar por más que la regla de monto lo
+    habilite.
+  </p>
+  <!-- La barra de abajo gobierna la regla del antecedente, no esta lista: sin este aviso, "Todo
+       guardado" después de tocar un perito se lee como que el cambio no se registró. -->
+  <p class="autosave t-note">
+    <span aria-hidden="true">✓</span>
+    Los peritos se guardan solos al confirmar cada uno: no hace falta usar «Guardar cambios».
+  </p>
+
+  @if (loading()) {
+    <p class="t-note">Cargando…</p>
+  } @else if (peritos().length === 0 && !draft()) {
+    <app-empty-state
+      message="Todavía no hay peritos cargados"
+      sub="Sin peritos, el analista no puede derivar ningún expediente." />
+  } @else {
+    <ul class="peritos">
+      @for (p of peritos(); track p.id) {
+        <li class="perito" [class.inactive]="!p.active">
+          <div class="perito-data">
+            <span class="perito-name">
+              {{ p.name }}
+              <!-- El estado como badge y no como "· inactivo" al final del nombre: un perito
+                   inactivo no aparece en el selector al derivar, así que conviene que salte. -->
+              <app-badge variant="solid" [tone]="p.active ? 'ok' : 'neutral'">
+                {{ p.active ? 'Activo' : 'Inactivo' }}
+              </app-badge>
+            </span>
+            <span class="t-note">
+              {{ p.email }} · {{ ramoLabel(p) }}@if (p.zone) { · {{ p.zone }} }
+            </span>
+          </div>
+          <div class="perito-actions">
+            <app-button variant="secondary" (click)="edit(p)">Editar</app-button>
+            <button type="button" class="danger-btn" (click)="remove(p)">Borrar</button>
+          </div>
+        </li>
+      }
+    </ul>
+  }
+
+  @if (draft(); as d) {
+    <div class="perito-form">
+      <span class="t-field-label">{{ d.id == null ? 'Nuevo perito' : 'Editando perito' }}</span>
+      <app-input
+        placeholder="Nombre del estudio"
+        [value]="d.name"
+        (valueChange)="setField('name', $event)" />
+      <app-input
+        type="email"
+        placeholder="Mail de contacto"
+        [value]="d.email"
+        (valueChange)="setField('email', $event)" />
+      <app-select
+        [options]="branchOptions()"
+        [value]="branchValue(d)"
+        (valueChange)="setBranch($event)" />
+      <app-input
+        placeholder="Zona (opcional)"
+        [value]="d.zone ?? ''"
+        (valueChange)="setField('zone', $event)" />
+      <app-checkbox [checked]="d.active" (checkedChange)="setField('active', $event)">
+        Activo
+      </app-checkbox>
+      <div class="perito-form-actions">
+        <app-button variant="secondary" (click)="cancel()">Cancelar</app-button>
+        <app-button [disabled]="!canSave() || saving()" (click)="save()">
+          {{ saving() ? 'Guardando…' : 'Guardar perito' }}
+        </app-button>
+      </div>
+    </div>
+  }
+
+  @if (error()) {
+    <p class="t-note error">{{ error() }}</p>
+  }
+</app-card>

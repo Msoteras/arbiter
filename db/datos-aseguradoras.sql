@@ -136,7 +136,7 @@ INSERT INTO aseguradora.compania (id, nombre, cuit, ssn_registro) VALUES
 
 -- ─── Asegurados ──────────────────────────────────────────────────────────────
 INSERT INTO aseguradora.asegurado (id, aseguradora_id, documento, cuil, nombre, apellido, email, telefono) VALUES
-    ( 1, 1, '42.987.654', '27-42987654-1', 'Martina',  'Soteras',  'martina.soteras@example.com',  '11-5555-0001'),  -- 0 previos
+    ( 1, 1, '42.987.654', '27-42987654-1', 'Martina',  'Soteras',  'asegurado.arbiter@gmail.com',  '11-5555-0001'),  -- 0 previos
     ( 2, 1, '30.555.777', '20-30555777-3', 'Julián',   'Pérez',    'julian.perez@example.com',     '11-5555-0002'),  -- 3 previos (reincidente)
     ( 3, 1, '44655366',   '20-44655366-9', 'Lucas',    'Martínez', 'lucas.martinez@example.com',   '11-5555-0003'),  -- 0 previos
     ( 4, 2, '35.111.222', '27-35111222-4', 'Carla',    'Gómez',    'carla.gomez@example.com',      '11-5555-0004'),  -- 0 previos
@@ -148,7 +148,7 @@ INSERT INTO aseguradora.asegurado (id, aseguradora_id, documento, cuil, nombre, 
     (10, 3, '45.111.888', '27-45111888-3', 'Brenda',   'Molina',   'brenda.molina@example.com',    '11-5555-0010'),  -- 0 previos (La Segunda)
     -- Martina TAMBIÉN es cliente de Provincia (mismo documento, otra compañía):
     -- ejercita la vista centralizada multi-aseguradora del portal (GET /policies?insuredId=…)
-    (11, 2, '42.987.654', '27-42987654-1', 'Martina',  'Soteras',  'martina.soteras@example.com',  '11-5555-0001');
+    (11, 2, '42.987.654', '27-42987654-1', 'Martina',  'Soteras',  'asegurado.arbiter@gmail.com',  '11-5555-0001');
 
 -- ─── Pólizas ─────────────────────────────────────────────────────────────────
 INSERT INTO aseguradora.poliza (id, aseguradora_id, numero, nro_certificado, titular_id, rama, producto,

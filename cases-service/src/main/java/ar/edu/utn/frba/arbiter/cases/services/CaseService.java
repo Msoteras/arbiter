@@ -1,7 +1,12 @@
 package ar.edu.utn.frba.arbiter.cases.services;
 
 import ar.edu.utn.frba.arbiter.cases.dto.AnalystDecisionRequest;
+import ar.edu.utn.frba.arbiter.cases.dto.AnalystWorkloadResponse;
+import ar.edu.utn.frba.arbiter.cases.dto.AssignedCaseSummaryResponse;
 import ar.edu.utn.frba.arbiter.cases.dto.CaseDocumentResponse;
+import ar.edu.utn.frba.arbiter.cases.dto.EligibilityCheckRequest;
+import ar.edu.utn.frba.arbiter.cases.dto.EligibilityCheckResponse;
+import ar.edu.utn.frba.arbiter.cases.dto.LensSummaryResponse;
 import ar.edu.utn.frba.arbiter.cases.dto.CaseRequest;
 import ar.edu.utn.frba.arbiter.cases.dto.CaseResponse;
 import ar.edu.utn.frba.arbiter.cases.models.entities.CaseDocument;
@@ -19,6 +24,15 @@ public interface CaseService {
 
     CaseResponse createCase(CaseRequest request, Map<String, MultipartFile> documents);
 
+    /**
+     * Same gate {@link #createCase} runs before it builds the {@code Case} (ownership, vigencia,
+     * carencia, mora), without creating anything. Lets the wizard block or warn before the insured
+     * fills out the rest of the form and uploads documentation, instead of finding out only at the
+     * very end. Never throws {@code PolicyNotEligibleException}/{@code PolicyInsuredMismatchException} —
+     * those become {@code eligible=false} instead, since a "you can't file this" isn't an error here.
+     */
+    EligibilityCheckResponse checkEligibility(EligibilityCheckRequest request);
+
     CaseResponse getCase(Long caseId);
 
     /**
@@ -31,7 +45,12 @@ public interface CaseService {
 
     List<CaseDocumentResponse> getDocuments(Long caseId);
 
+    /** @param insurerSlug misma razón que {@link #getCase(Long, String)}: los ids de expediente se repiten entre esquemas. */
+    List<CaseDocumentResponse> getDocuments(Long caseId, String insurerSlug);
+
     CaseDocument getDocument(Long caseId, Long documentId);
+
+    CaseDocument getDocument(Long caseId, Long documentId, String insurerSlug);
 
     /**
      * Lista expedientes paginados, más recientes primero por defecto. Todos los filtros son
@@ -51,12 +70,42 @@ public interface CaseService {
      * <p>Es un booleano y no un id porque el id de analista es local al esquema: quién es "yo"
      * se resuelve acá contra el token, no lo manda el frontend. Para un rol sin perfil de
      * analista en el tenant (el referente) la lente devuelve vacío, no todo.
+     *
+     * <p>{@code analystId} es el filtro "Analista" del referente, y sí viaja del frontend: el id sale
+     * de la lista que le dio {@code /analysts/workload}, y el esquema del tenant ya acota a su
+     * aseguradora. Es distinto de {@code assignedToMe}, que resuelve "yo" contra el token.
+     *
+     * <p>{@code unassigned} (lente "Sin asignar": expedientes sin analista), {@code assigned}
+     * (lente "Asignados": con analista, la bandeja del referente) y {@code fraudAlert} (lente
+     * "Alerta de fraude": riesgo HIGH/CRITICAL) son las otras lentes de la bandeja. A diferencia de
+     * {@code assignedToMe}, no dependen del "yo": son filtros booleanos puros.
      */
     Page<CaseResponse> listCases(CaseStatus status, String claimCause, String policyNumber, String insuredId,
                                   LocalDate eventDateFrom, LocalDate eventDateTo, String q, RiskBand riskBand,
-                                  boolean assignedToMe, Pageable pageable);
+                                  Long analystId, boolean assignedToMe, boolean unassigned, boolean fraudAlert,
+                                  boolean assigned, Pageable pageable);
+
+    /** Overload para las lentes "Míos"/"Todos" (sin las lentes de asignación ni alerta de fraude). */
+    default Page<CaseResponse> listCases(CaseStatus status, String claimCause, String policyNumber, String insuredId,
+                                          LocalDate eventDateFrom, LocalDate eventDateTo, String q, RiskBand riskBand,
+                                          boolean assignedToMe, Pageable pageable) {
+        return listCases(status, claimCause, policyNumber, insuredId, eventDateFrom, eventDateTo, q, riskBand,
+                null, assignedToMe, false, false, false, pageable);
+    }
+
+    /**
+     * Los cinco conteos de las lentes de una sola vez, sobre los mismos filtros que el listado.
+     * Cuenta con {@code count(spec)}: no trae filas ni joinea el análisis, a diferencia de pedir
+     * cada lente con {@code size=1} solo para leer el total.
+     */
+    LensSummaryResponse lensSummary(CaseStatus status, String claimCause, String policyNumber,
+                                     String insuredId, LocalDate eventDateFrom, LocalDate eventDateTo,
+                                     String q, RiskBand riskBand, Long analystId);
 
     CaseResponse addDocumentsAndReclassify(Long caseId, Map<String, MultipartFile> documents);
+
+    /** @param insurerSlug misma razón que {@link #getCase(Long, String)}: los ids de expediente se repiten entre esquemas. */
+    CaseResponse addDocumentsAndReclassify(Long caseId, Map<String, MultipartFile> documents, String insurerSlug);
 
     /**
      * Reintento manual de la clasificación para un expediente en {@code CLASSIFICATION_FAILED}. El
@@ -83,4 +132,18 @@ public interface CaseService {
 
     /** Libera el expediente: vuelve a quedar sin dueño, visible en "Todos" y en ninguna lente "Míos". */
     CaseResponse unassignAnalyst(Long caseId);
+
+    /**
+     * Carga de trabajo del equipo: cada analista del tenant con su cantidad de expedientes activos
+     * (no resueltos) asignados. Incluye a los analistas sin expedientes, con cero. Ordenado de más
+     * a menos cargado. Es la vista que usa el referente para repartir trabajo.
+     */
+    List<AnalystWorkloadResponse> analystWorkload();
+
+    /**
+     * Resumen de los expedientes asignados al analista logueado (conteo por estado + total + cuántos
+     * de riesgo alto/crítico), para las tarjetas de su inicio. El "yo" se resuelve contra el token;
+     * un rol sin perfil de analista recibe el resumen vacío.
+     */
+    AssignedCaseSummaryResponse assignedCaseSummary();
 }

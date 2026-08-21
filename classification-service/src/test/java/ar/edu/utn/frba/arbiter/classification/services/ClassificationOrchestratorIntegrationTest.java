@@ -204,11 +204,11 @@ class ClassificationOrchestratorIntegrationTest extends AbstractPersistenceIT {
                 .branch("Celulares")
                 .product("Celular Protegido Básico")
                 .claimCause("Robo en vía pública")
-                // Sin esto no hay Fast Track que probar: las reglas se scopean por cobertura
-                // (MockRulesAdapter.RULES_BY_COVERAGE), así que un claim sin coverageId cae a las
-                // genéricas, que no traen thresholds — el caso terminaba en el LLM y el mock sin
-                // stub devolvía null (D18). Cobertura 1 = "Robo de celular", la del hecho generador
-                // de este claim.
+                // Without this there's no Fast Track to test: the rules are scoped by coverage
+                // (MockRulesAdapter.RULES_BY_COVERAGE), so a claim with no coverageId falls to the
+                // generic ones, which carry no thresholds — the case ended up at the LLM and the
+                // unstubbed mock returned null (D18). Coverage 1 = "Robo de celular", this claim's
+                // claim cause.
                 .coverageId(1L)
                 .insuredItem("Motorola Edge 50 Pro - IMEI 351000000000042")
                 .insuredId("40.123.456")
@@ -260,9 +260,9 @@ class ClassificationOrchestratorIntegrationTest extends AbstractPersistenceIT {
 
     @Test
     void hurtoOnRobberyCoverage_isExcludedByRule_withoutCallingLLM() {
-        // Caso 6 del handoff ("Hurto no cubierto"): cobertura 1 = "Robo de celular", que excluye el
-        // hecho generador Hurto (claim_cause 3) vía la regla COVERAGE_EXCLUSION del baseline. La
-        // exclusión dura corta antes del Fast Track y del LLM, y deja el hallazgo para rule_result.
+        // Handoff case 6 ("Hurto no cubierto"): coverage 1 = "Robo de celular", which excludes the
+        // Hurto claim cause (claim_cause 3) via the baseline's COVERAGE_EXCLUSION rule. The hard
+        // exclusion cuts in before Fast Track and the LLM, leaving the finding for rule_result.
         ClaimReport claim = ClaimReport.builder()
                 .branch("Celulares")
                 .product("Celular Protegido Básico")
