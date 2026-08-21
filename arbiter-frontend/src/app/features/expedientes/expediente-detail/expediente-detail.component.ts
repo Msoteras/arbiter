@@ -47,7 +47,7 @@ import {
 } from '../../../core/models/estado';
 import { RiskBand, riskBandLabel } from '../../../core/models/risk-band';
 import { StatusTone } from '../../../core/models/status-tone';
-import { formatDateTime } from '../../../core/util/datetime';
+import { formatDate, formatDateTime } from '../../../core/util/datetime';
 import { FraudGaugeComponent } from '../../../shared/ui/fraud-gauge/fraud-gauge.component';
 import { EmptyStateComponent } from '../../../shared/ui/empty-state/empty-state.component';
 import { StatusTimelineComponent } from '../../../shared/ui/status-timeline/status-timeline.component';
@@ -290,7 +290,8 @@ export class ExpedienteDetailComponent {
    */
   protected extractedFields(doc: DocumentAnalysis): FieldItem[] {
     return [
-      { label: 'Fecha del documento', value: doc.documentDate ? formatDateTime(doc.documentDate) : null },
+      // formatDate y no formatDateTime: el backend lo guarda en una columna DATE, sin hora.
+      { label: 'Fecha del documento', value: doc.documentDate ? formatDate(doc.documentDate) : null },
       { label: 'Importe', value: doc.amount == null ? null : `$${doc.amount.toLocaleString()}` },
       { label: 'Bien que nombra', value: doc.itemDescription },
       { label: 'IMEI', value: doc.imei, mono: true },
