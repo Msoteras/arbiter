@@ -366,7 +366,7 @@ export class ReglasComponent {
    */
   protected readonly generalSections: { id: GeneralView; label: string }[] = [
     { id: 'hardStop', label: 'Hard Stop' },
-    { id: 'scoring', label: 'Scoring de riesgo' },
+    { id: 'scoring', label: 'Puntaje de riesgo' },
     // Antecedente y peritos eran dos entradas: apuntan a lo mismo (qué hace la compañía frente a
     // un fraude) y se usan en el mismo momento, así que ahora son una sección sola.
     { id: 'fraude', label: 'Gestión de fraude' },
