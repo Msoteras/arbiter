@@ -1,10 +1,15 @@
-:host { display: block; }
+/* Dos cards apiladas: el encabezado de la sección va afuera y las separa el gap. */
+:host { display: flex; flex-direction: column; gap: var(--space-4); }
+
+.gf-head { display: flex; flex-direction: column; gap: var(--space-1); }
+.gf-head h2 { margin: 0; }
+.gf-head .section-hint { margin: 0; }
+.sc-section-head { display: flex; align-items: center; justify-content: space-between; gap: var(--space-3); flex-wrap: wrap; margin-bottom: var(--space-2); }
 
 /* Sin max-width: la letra chica usa el ancho de la card, como el resto de la pantalla de reglas.
    Un tope de medida acá cortaba el renglón a media card y se leía como un defecto de layout. */
 .section-hint { margin: 0 0 var(--space-3); color: var(--text-secondary); font-size: var(--font-size-sm); }
 
-.sc-section { margin-top: var(--space-5); display: flex; flex-direction: column; gap: var(--space-2); }
 
 /* ── Filas ────────────────────────────────────────────────────────────────────
    Mismas clases que las reglas de Coberturas, Fast Track, Hard Stop y Scoring: es la misma clase

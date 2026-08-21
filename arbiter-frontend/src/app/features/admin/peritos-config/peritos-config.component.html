@@ -1,6 +1,7 @@
-<!-- Sin app-card propia: esta lista es una sección DENTRO de "Gestión de fraude", y una card
-     adentro de otra card se lee como dos temas distintos cuando es uno solo. -->
-<div class="sc-section">
+<!-- Card propia y separada de la del antecedente: los peritos se guardan solos y el antecedente
+     no, así que la barra "Guardar cambios" queda pegada a lo único que gobierna en vez de flotar
+     abajo de las dos cosas. -->
+<app-card>
   <div class="sc-section-head">
     <span class="t-section-label">Peritos de verificación</span>
     @if (!draft()) {
@@ -86,4 +87,4 @@
   @if (error()) {
     <p class="t-note error">{{ error() }}</p>
   }
-</div>
+</app-card>
