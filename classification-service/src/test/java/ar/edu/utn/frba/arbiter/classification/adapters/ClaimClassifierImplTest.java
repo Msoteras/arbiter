@@ -19,21 +19,21 @@ import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
-class OllamaClaimClassifierTest {
+class ClaimClassifierImplTest {
 
     @Mock
-    private OllamaClient client;
+    private LlmClient client;
 
     @Mock
     private PromptBuilder promptBuilder;
 
-    private OllamaClaimClassifier classifier;
+    private ClaimClassifierImpl classifier;
 
     @BeforeEach
     void setUp() {
-        classifier = new OllamaClaimClassifier(client, new ObjectMapper(), promptBuilder);
+        classifier = new ClaimClassifierImpl(client, new ObjectMapper(), promptBuilder);
         lenient().when(promptBuilder.buildFullPrompt(any())).thenReturn("prompt");
-        lenient().when(client.numCtx()).thenReturn(32768);
+        lenient().when(client.contextWindow()).thenReturn(32768);
         lenient().when(client.model()).thenReturn("qwen3-vl:8b-instruct");
     }
 

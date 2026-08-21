@@ -30,7 +30,7 @@ import java.util.Map;
  * Reads an attached document with Qwen3-VL's vision capability: what it says (OCR, ready to inject
  * into the classification prompt) and what it looks like (signs of manipulation). PDFs are
  * rasterized page by page first — the model only accepts images. HTTP is delegated to
- * {@link OllamaClient}.
+ * {@link LlmClient}.
  *
  * <p>This is the <b>only</b> pass that has the image in front of it. The classifier itself works on
  * text: sending it the images would spend thousands of tokens of the 32k window (decision #2) on
@@ -39,9 +39,9 @@ import java.util.Map;
  * that's what {@code visualFindings} is for (D5).
  */
 @Service
-public class OllamaDocumentAnalyzer implements DocumentAnalyzer {
+public class DocumentAnalyzerImpl implements DocumentAnalyzer {
 
-    private static final Logger log = LoggerFactory.getLogger(OllamaDocumentAnalyzer.class);
+    private static final Logger log = LoggerFactory.getLogger(DocumentAnalyzerImpl.class);
 
     /** Qwen3-VL via Ollama only accepts images (jpg/png/webp/...), not PDF — needs rasterizing first. */
     private static final int MAX_PDF_PAGES = 5;
@@ -73,12 +73,12 @@ public class OllamaDocumentAnalyzer implements DocumentAnalyzer {
             "required", List.of("transcription", "visualFindings")
     );
 
-    private final OllamaClient client;
+    private final LlmClient client;
     private final ObjectMapper objectMapper;
     private final String documentExtractionPrompt;
 
-    public OllamaDocumentAnalyzer(
-            OllamaClient client,
+    public DocumentAnalyzerImpl(
+            LlmClient client,
             ObjectMapper objectMapper,
             @Value("classpath:prompts/extraccion-documento-v3.md") Resource documentExtractionPromptResource
     ) throws IOException {
@@ -89,7 +89,7 @@ public class OllamaDocumentAnalyzer implements DocumentAnalyzer {
 
     @Override
     public DocumentExtraction extract(byte[] content, String contentType) {
-        log.info("[Ollama] Starting document analysis — model={} contentType={} sizeBytes={} magicBytes={} decodableByJava={}",
+        log.info("[LLM] Starting document analysis — model={} contentType={} sizeBytes={} magicBytes={} decodableByJava={}",
                 client.model(), contentType, content.length, magicBytesHex(content), isDecodableImage(content));
 
         if (isPdf(contentType, content)) {
@@ -135,16 +135,16 @@ public class OllamaDocumentAnalyzer implements DocumentAnalyzer {
             PDFRenderer renderer = new PDFRenderer(document);
             int pageCount = Math.min(document.getNumberOfPages(), MAX_PDF_PAGES);
             if (document.getNumberOfPages() > MAX_PDF_PAGES) {
-                log.warn("[Ollama] PDF has {} pages, only analyzing the first {}",
+                log.warn("[LLM] PDF has {} pages, only analyzing the first {}",
                         document.getNumberOfPages(), MAX_PDF_PAGES);
             }
 
-            log.info("[Ollama] PDF has {} page(s) to read", pageCount);
+            log.info("[LLM] PDF has {} page(s) to read", pageCount);
             StringBuilder transcription = new StringBuilder();
             List<String> findings = new ArrayList<>();
             DocumentExtraction.Fields fields = DocumentExtraction.Fields.none();
             for (int page = 0; page < pageCount; page++) {
-                log.info("[Ollama] Rendering and reading page {}/{}...", page + 1, pageCount);
+                log.info("[LLM] Rendering and reading page {}/{}...", page + 1, pageCount);
                 BufferedImage image = renderer.renderImageWithDPI(page, 150);
                 DocumentExtraction pageExtraction = extractFromImage(toPng(image));
 
@@ -159,7 +159,7 @@ public class OllamaDocumentAnalyzer implements DocumentAnalyzer {
 
                 fields = mergeFields(fields, pageExtraction.fields());
             }
-            log.info("[Ollama] PDF fully read — {} page(s)", pageCount);
+            log.info("[LLM] PDF fully read — {} page(s)", pageCount);
             return new DocumentExtraction(transcription.toString().trim(), findings, fields);
         } catch (IOException e) {
             throw new InvalidClassificationException("Could not render PDF document for analysis", e);
@@ -199,14 +199,14 @@ public class OllamaDocumentAnalyzer implements DocumentAnalyzer {
         String content = client.chat(documentExtractionPrompt, List.of(base64), OUTPUT_SCHEMA, false);
 
         if (content.isEmpty()) {
-            log.warn("[Ollama] Document analysis returned empty content");
+            log.warn("[LLM] Document analysis returned empty content");
             return DocumentExtraction.of(UNREADABLE);
         }
 
         DocumentExtraction extraction = parse(content);
-        log.info("[Ollama] Document analysis done — {} chars transcribed, {} visual finding(s)",
+        log.info("[LLM] Document analysis done — {} chars transcribed, {} visual finding(s)",
                 extraction.transcription().length(), extraction.visualFindings().size());
-        log.debug("[Ollama] Extraction:\n{}", extraction);
+        log.debug("[LLM] Extraction:\n{}", extraction);
         return extraction;
     }
 
@@ -223,7 +223,7 @@ public class OllamaDocumentAnalyzer implements DocumentAnalyzer {
                     : output.transcription();
             return new DocumentExtraction(transcription, output.visualFindings(), toFields(output.fields()));
         } catch (Exception e) {
-            log.warn("[Ollama] Could not parse document extraction, keeping the raw text: {}", e.getMessage());
+            log.warn("[LLM] Could not parse document extraction, keeping the raw text: {}", e.getMessage());
             return DocumentExtraction.of(contentJson);
         }
     }
@@ -253,7 +253,7 @@ public class OllamaDocumentAnalyzer implements DocumentAnalyzer {
         try {
             return DocumentExtraction.AffectedParty.valueOf(raw.trim().toUpperCase());
         } catch (IllegalArgumentException e) {
-            log.debug("[Ollama] Unknown affectedParty '{}' — left empty", raw);
+            log.debug("[LLM] Unknown affectedParty '{}' — left empty", raw);
             return null;
         }
     }
@@ -265,7 +265,7 @@ public class OllamaDocumentAnalyzer implements DocumentAnalyzer {
         try {
             return LocalDate.parse(raw.trim());
         } catch (DateTimeParseException e) {
-            log.debug("[Ollama] Unparseable document date '{}' — left empty", raw);
+            log.debug("[LLM] Unparseable document date '{}' — left empty", raw);
             return null;
         }
     }

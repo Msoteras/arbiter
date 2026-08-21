@@ -6,6 +6,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Component;
 import org.springframework.web.client.RestClient;
 
@@ -20,10 +21,14 @@ import java.util.Map;
 /**
  * Low-level Ollama transport: owns the {@code /api/chat} protocol (request shape, num_ctx
  * option, NDJSON stream accumulation). Adapters build prompts and parse results on top of
- * this; they don't touch HTTP. See {@link OllamaClaimClassifier}, {@link OllamaDocumentAnalyzer}.
+ * this; they don't touch HTTP. See {@link ClaimClassifierImpl}, {@link DocumentAnalyzerImpl}.
+ *
+ * <p>The default provider: a model running on our own infrastructure is what the architecture
+ * document describes, so this is what gets wired when {@code arbiter.llm.provider} says nothing.
  */
 @Component
-public class OllamaClient {
+@ConditionalOnProperty(name = "arbiter.llm.provider", havingValue = "ollama", matchIfMissing = true)
+public class OllamaClient implements LlmClient {
 
     private static final Logger log = LoggerFactory.getLogger(OllamaClient.class);
 
@@ -53,10 +58,12 @@ public class OllamaClient {
         this.numPredict = numPredict;
     }
 
-    public int numCtx() {
+    @Override
+    public int contextWindow() {
         return numCtx;
     }
 
+    @Override
     public String model() {
         return properties.model();
     }
@@ -85,6 +92,7 @@ public class OllamaClient {
      *               {@code -instruct} no tiene fase de razonamiento. Esto viaja igual porque es la
      *               instrucción correcta a la API y deja la intención explícita.
      */
+    @Override
     public String chat(String prompt, List<String> images, Map<String, Object> format, boolean think) {
         ChatRequest request = new ChatRequest(
                 properties.model(),

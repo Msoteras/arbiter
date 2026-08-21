@@ -1,6 +1,7 @@
 package ar.edu.utn.frba.arbiter.classification.services;
 
-import ar.edu.utn.frba.arbiter.classification.config.OllamaProperties;
+import ar.edu.utn.frba.arbiter.classification.adapters.LlmClient;
+import ar.edu.utn.frba.arbiter.classification.config.LlmProperties;
 import ar.edu.utn.frba.arbiter.classification.dto.ClassificationResponse;
 import ar.edu.utn.frba.arbiter.classification.dto.RuleFinding;
 import ar.edu.utn.frba.arbiter.classification.models.entities.LlmAnalysis;
@@ -50,7 +51,8 @@ class ClassificationResultsServiceTest {
     @Mock private RiskAnalysisRepository riskAnalysisRepository;
     @Mock private CaseOutcomeRepository caseOutcomeRepository;
     @Mock private RuleResultRepository ruleResultRepository;
-    @Mock private OllamaProperties ollamaProperties;
+    @Mock private LlmClient llmClient;
+    @Mock private LlmProperties llmProperties;
 
     @InjectMocks private ClassificationResultsService service;
 
