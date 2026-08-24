@@ -35,12 +35,10 @@ public record CaseRequest(
         /** Fecha/hora de la denuncia policial, si el hecho tuvo una. No todo siniestro la requiere. */
         LocalDateTime policeReportAt,
         BigDecimal claimedAmount,
-        @NotNull Boolean pep,
-        /**
-         * Insured's consent to have claim images analyzed for fraud indicators (H0009):
-         * internal reuse detection + web search. Declarative, same treatment as {@code pep}.
-         */
-        @NotNull Boolean imageConsent,
+        // PEP comes from the insurer's data, not the claim form. Ignored if sent.
+        Boolean pep,
+        // Image consent is captured during onboarding, not per claim. Ignored if sent.
+        Boolean imageConsent,
         String contactEmail,
         String contactPhone
 ) {

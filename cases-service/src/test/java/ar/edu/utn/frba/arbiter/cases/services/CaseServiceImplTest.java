@@ -200,7 +200,7 @@ class CaseServiceImplTest {
                 "Motorola Edge 50 Pro", CALLER_DNI, "POL-CEL-2024-001",
                 "Me robaron el celular", LocalDateTime.of(2026, 6, 13, 19, 45),
                 "Av. Rivadavia 1234", "   ", "",
-                null, new BigDecimal("150000"), false, false, null, null);
+                null, new BigDecimal("150000"), null, null, null, null);
         stubReferenceResolution();
         when(caseStatusService.initialStatus()).thenReturn(CaseStates.of(CaseStatus.PENDING_CLASSIFICATION));
         when(caseRepository.save(any(Case.class))).thenAnswer(inv -> {
@@ -247,9 +247,8 @@ class CaseServiceImplTest {
 
     @Test
     void createCase_routesDeclaredDetailsToTheInsured() {
-        // pep/imageConsent/contacto describen a la persona, no al siniestro: desde el DER viven en
-        // `insured`. El alta solo los reenvía — que efectivamente se apliquen es de
-        // CaseReferenceResolverTest.
+        // contacto describe a la persona, no al siniestro: desde el DER vive en `insured`.
+        // pep e imageConsent ya no se tocan acá — vienen del onboarding/perfil.
         CaseRequest request = new CaseRequest(
                 "Celulares", "Celular Protegido Básico", "Robo en vía pública",
                 "Motorola Edge 50 Pro", "40.123.456", "POL-CEL-2024-001",
@@ -259,8 +258,7 @@ class CaseServiceImplTest {
                 "CABA", // locality
                 null, // policeReportAt
                 new BigDecimal("150000"),
-                false,
-                true, // imageConsent: el asegurado aceptó el análisis forense de sus imágenes (H0009)
+                null, null,
                 "test@example.com", "11-5555-0000"
         );
         Insured insured = CaseFixtures.insured("40.123.456", "Laura", "Fernández");
@@ -981,8 +979,7 @@ class CaseServiceImplTest {
                 "CABA", // locality
                 null, // policeReportAt
                 new BigDecimal("150000"),
-                false,
-                false,
+                null, null,
                 "test@example.com",
                 "11-5555-0000"
         );

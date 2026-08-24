@@ -48,6 +48,7 @@ public class AuthService {
         String nombre = null;
         String apellido = null;
         String insuredId = null;
+        Boolean onboardingComplete = null;
         String tenantSchema = primaryInsurer.map(Insurer::getSchemaName).orElse(null);
 
         if (tenantSchema != null) {
@@ -58,6 +59,7 @@ public class AuthService {
                     nombre = profile.get().name();
                     apellido = profile.get().surname();
                     insuredId = profile.get().dni();
+                    onboardingComplete = profile.get().onboardingComplete();
                 }
             } finally {
                 TenantContext.clear();
@@ -65,7 +67,7 @@ public class AuthService {
         }
 
         JwtService.IssuedToken issuedToken = jwtService.issue(
-                user, rol, nombre, apellido, insuredId, insurerIds, tenantSchema);
+                user, rol, nombre, apellido, insuredId, onboardingComplete, insurerIds, tenantSchema);
 
         return new LoginResponse(
                 issuedToken.token(),
@@ -75,6 +77,7 @@ public class AuthService {
                 rol,
                 nombre,
                 apellido,
-                insuredId);
+                insuredId,
+                onboardingComplete);
     }
 }

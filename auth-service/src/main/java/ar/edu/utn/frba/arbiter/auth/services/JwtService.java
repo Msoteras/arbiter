@@ -67,7 +67,7 @@ public class JwtService {
      */
     public IssuedToken issue(
             User user, UserRole rol, String nombre, String apellido, String insuredId,
-            List<Long> insurerIds, String tenantSchema
+            Boolean onboardingComplete, List<Long> insurerIds, String tenantSchema
     ) {
         Instant now = Instant.now();
         Instant expiresAt = now.plus(Duration.ofMinutes(properties.jwt().expirationMinutes()));
@@ -79,6 +79,9 @@ public class JwtService {
                 .claim("apellido", apellido);
         if (insuredId != null) {
             builder.claim("insuredId", insuredId);
+        }
+        if (onboardingComplete != null) {
+            builder.claim("onboardingComplete", onboardingComplete);
         }
         if (!insurerIds.isEmpty()) {
             builder.claim("insurerIds", insurerIds);

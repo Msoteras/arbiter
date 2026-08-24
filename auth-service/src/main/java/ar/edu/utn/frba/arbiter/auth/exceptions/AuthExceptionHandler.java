@@ -73,4 +73,14 @@ public class AuthExceptionHandler {
     public ProblemDetail handleUserAlreadyActive(UserAlreadyActiveException ex) {
         return ProblemDetail.forStatusAndDetail(HttpStatusCode.valueOf(400), ex.getMessage());
     }
+
+    @ExceptionHandler(OnboardingAlreadyCompleteException.class)
+    public ProblemDetail handleOnboardingAlreadyComplete(OnboardingAlreadyCompleteException ex) {
+        return ProblemDetail.forStatusAndDetail(HttpStatusCode.valueOf(409), ex.getMessage());
+    }
+
+    @ExceptionHandler(InsuredProfileNotFoundException.class)
+    public ProblemDetail handleInsuredProfileNotFound(InsuredProfileNotFoundException ex) {
+        return ProblemDetail.forStatusAndDetail(HttpStatusCode.valueOf(404), ex.getMessage());
+    }
 }

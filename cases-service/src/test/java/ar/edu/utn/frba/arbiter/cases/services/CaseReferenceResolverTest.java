@@ -123,41 +123,51 @@ class CaseReferenceResolverTest {
     }
 
     @Test
-    void applyDeclaredDetails_writesPepConsentAndContactOntoThePerson() {
+    void applyDeclaredDetails_writesContactOntoThePerson() {
         Insured insured = CaseFixtures.insured("40.123.456", "Laura", "Fernández");
         when(insuredRepository.save(any(Insured.class))).thenAnswer(inv -> inv.getArgument(0));
 
-        Insured updated = resolver.applyDeclaredDetails(insured, request(true, true,
+        Insured updated = resolver.applyDeclaredDetails(insured, request(
                 "laura@example.com", "11-5555-0000"));
 
-        assertThat(updated.isPep()).isTrue();
-        assertThat(updated.isImageConsent()).isTrue();
         assertThat(updated.getEmail()).isEqualTo("laura@example.com");
         assertThat(updated.getPhone()).isEqualTo("11-5555-0000");
     }
 
     @Test
     void applyDeclaredDetails_nullContact_keepsWhatTheInsuredAlreadyHad() {
-        // El alta no borra un contacto ya cargado sólo porque el formulario vino sin él.
         Insured insured = CaseFixtures.insured("40.123.456", "Laura", "Fernández");
         insured.setEmail("previo@example.com");
         insured.setPhone("11-4444-0000");
         when(insuredRepository.save(any(Insured.class))).thenAnswer(inv -> inv.getArgument(0));
 
-        Insured updated = resolver.applyDeclaredDetails(insured, request(false, false, null, null));
+        Insured updated = resolver.applyDeclaredDetails(insured, request(null, null));
 
         assertThat(updated.getEmail()).isEqualTo("previo@example.com");
         assertThat(updated.getPhone()).isEqualTo("11-4444-0000");
-        assertThat(updated.isPep()).isFalse();
     }
 
-    private CaseRequest request(boolean pep, boolean imageConsent, String email, String phone) {
+    @Test
+    void applyDeclaredDetails_doesNotTouchPepOrImageConsent() {
+        Insured insured = CaseFixtures.insured("40.123.456", "Laura", "Fernández");
+        insured.setPep(true);
+        insured.setImageConsent(true);
+        when(insuredRepository.save(any(Insured.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        Insured updated = resolver.applyDeclaredDetails(insured, request(
+                "laura@example.com", null));
+
+        assertThat(updated.isPep()).isTrue();
+        assertThat(updated.isImageConsent()).isTrue();
+    }
+
+    private CaseRequest request(String email, String phone) {
         return new CaseRequest(
                 "Celulares", "Celular Protegido Básico", "Robo en vía pública",
                 "Motorola Edge 50 Pro", "40.123.456", "POL-CEL-2024-001",
                 "Me robaron el celular", LocalDateTime.of(2026, 6, 13, 19, 45),
                 "Av. Rivadavia 1234", "Buenos Aires", "CABA",
                 null, new BigDecimal("150000"),
-                pep, imageConsent, email, phone);
+                null, null, email, phone);
     }
 }

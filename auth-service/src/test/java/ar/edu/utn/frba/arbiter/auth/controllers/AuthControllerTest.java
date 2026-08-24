@@ -53,7 +53,7 @@ class AuthControllerTest {
     void login_validCredentials_returns200WithToken() throws Exception {
         LoginResponse response = new LoginResponse(
                 "signed.jwt.token", Instant.now().plusSeconds(3600), 2L,
-                "analista@arbiter.test", UserRole.ANALISTA_SINIESTROS, "Lucas", "Gómez", null);
+                "analista@arbiter.test", UserRole.ANALISTA_SINIESTROS, "Lucas", "Gómez", null, null);
         when(authService.login(any())).thenReturn(response);
 
         mockMvc.perform(post("/api/v1/auth/login")

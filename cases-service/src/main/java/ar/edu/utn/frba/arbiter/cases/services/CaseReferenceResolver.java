@@ -59,13 +59,10 @@ public class CaseReferenceResolver {
     }
 
     /**
-     * Refreshes the declarative fields the denuncia form captures. They describe the person, not
-     * the claim, so they live on {@code insured} — filing a case is simply the moment the insured
-     * last stated them.
+     * Refreshes the contact fields the denuncia form captures. PEP comes from the insurer's data
+     * and image consent is captured during onboarding — neither belongs in the claim form anymore.
      */
     public Insured applyDeclaredDetails(Insured insured, CaseRequest request) {
-        insured.setPep(Boolean.TRUE.equals(request.pep()));
-        insured.setImageConsent(Boolean.TRUE.equals(request.imageConsent()));
         if (request.contactEmail() != null) {
             insured.setEmail(request.contactEmail());
         }

@@ -42,5 +42,9 @@ public record ClaimReport(
         // crossing the two is precisely the signal (D12). Nullable — not every claim cause involves
         // a police report, and there the deadline rule isn't evaluable.
         LocalDateTime policeReportAt,
+        // Whether the insured gave consent to send their images to external services (Google Vision
+        // web search). Captured during onboarding, not per claim. When false the internal CLIP
+        // analysis still runs (never leaves the host), but the web escalation is skipped.
+        boolean imageConsent,
         List<String> attachmentsOcr
 ) {}

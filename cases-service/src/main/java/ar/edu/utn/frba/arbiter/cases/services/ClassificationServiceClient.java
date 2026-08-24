@@ -107,6 +107,7 @@ public class ClassificationServiceClient implements ClaimsAnalysisClient {
                 // capturaba desde el 09/08 y se quedaba en cases-service: sin esto el motor no
                 // podía evaluar el plazo ni cruzarlo contra la fecha que dice la constancia.
                 .policeReportAt(caseRecord.getPoliceReportAt())
+                .imageConsent(caseRecord.getInsured().isImageConsent())
                 .attachmentsOcr(List.of())
                 .build();
 

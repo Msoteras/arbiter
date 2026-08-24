@@ -22,7 +22,7 @@ import java.util.Optional;
 @RequiredArgsConstructor
 public class TenantProfileService {
 
-    public record Profile(String name, String surname, String dni) {}
+    public record Profile(String name, String surname, String dni, Boolean onboardingComplete) {}
 
     private final InsuredRepository insuredRepository;
     private final ClaimsAnalystRepository claimsAnalystRepository;
@@ -31,11 +31,11 @@ public class TenantProfileService {
     public Optional<Profile> find(UserRole role, Long userId) {
         return switch (role) {
             case ASEGURADO -> insuredRepository.findByUserId(userId)
-                    .map(i -> new Profile(i.getName(), i.getSurname(), i.getDni()));
+                    .map(i -> new Profile(i.getName(), i.getSurname(), i.getDni(), i.isOnboardingComplete()));
             case ANALISTA_SINIESTROS -> claimsAnalystRepository.findByUserId(userId)
-                    .map(c -> new Profile(c.getName(), c.getSurname(), null));
+                    .map(c -> new Profile(c.getName(), c.getSurname(), null, null));
             case REFERENTE_ASEGURADORA -> insurerReferentRepository.findByUserId(userId)
-                    .map(r -> new Profile(r.getName(), r.getSurname(), null));
+                    .map(r -> new Profile(r.getName(), r.getSurname(), null, null));
         };
     }
 

@@ -51,7 +51,7 @@ public class ImageFraudAnalysisService {
     private final ImageEmbeddingService imageEmbeddingService;
     private final GoogleVisionClient googleVisionClient;
 
-    public ImageForensicReport analyze(Long caseId, List<AttachmentDocument> documents) {
+    public ImageForensicReport analyze(Long caseId, List<AttachmentDocument> documents, boolean imageConsent) {
         List<ImageFinding> findings = new ArrayList<>();
         int imagesAnalyzed = 0;
         int webSearchesPerformed = 0;
@@ -73,7 +73,7 @@ public class ImageFraudAnalysisService {
 
             WebFinding webFinding = null;
             if (internalMatches.isEmpty()) {
-                webFinding = findOnWeb(label, imageBase64); // escalate only when no internal match
+                webFinding = findOnWeb(label, imageBase64, imageConsent);
                 if (webFinding != null) {
                     webSearchesPerformed++;
                     // Persist it on the row the internal pass wrote, so "suspicious because it's
@@ -133,10 +133,14 @@ public class ImageFraudAnalysisService {
         }
     }
 
-    /** @return the web finding, or null when the search wasn't performed (disabled or failed). */
-    private WebFinding findOnWeb(String label, String imageBase64) {
+    /** @return the web finding, or null when the search wasn't performed (disabled, no consent, or failed). */
+    private WebFinding findOnWeb(String label, String imageBase64, boolean imageConsent) {
+        if (!imageConsent) {
+            log.debug("[ImageFraud] Web search skipped for '{}' — insured did not consent", label);
+            return null;
+        }
         if (!googleVisionClient.isEnabled()) {
-            return null; // not searched — the UI must not read this as "found nothing"
+            return null;
         }
         try {
             WebImageMatch match = googleVisionClient.detectWebMatches(imageBase64);

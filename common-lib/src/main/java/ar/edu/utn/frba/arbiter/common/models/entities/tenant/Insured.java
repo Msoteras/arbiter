@@ -16,6 +16,8 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
 
+import java.time.Instant;
+
 /**
  * The insured person ("Asegurado" in CLAUDE.md's domain vocabulary). {@code dni} is what
  * {@code JwtService} puts in the {@code insuredId} claim.
@@ -73,6 +75,19 @@ public class Insured {
     @Column(name = "image_consent", nullable = false)
     @Builder.Default
     private boolean imageConsent = false;
+
+    @Column(name = "image_consent_version", length = 20)
+    private String imageConsentVersion;
+
+    @Column(name = "image_consent_at")
+    private Instant imageConsentAt;
+
+    @Column(name = "onboarding_complete", nullable = false)
+    @Builder.Default
+    private boolean onboardingComplete = false;
+
+    @Column(name = "onboarding_completed_at")
+    private Instant onboardingCompletedAt;
 
     // No unique constraint on the join column: the DER draws one profile per user, but the schema
     // does not enforce it, and claiming it here would put the entity ahead of the table.
