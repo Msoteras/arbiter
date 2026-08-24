@@ -1,0 +1,158 @@
+@if (loading()) {
+  <app-loading message="Preparando tu bienvenida" sub="Aguardá un momento" />
+} @else {
+  <div class="onboarding">
+    <header class="welcome">
+      <app-logo variant="symbol" class="welcome-logo" />
+      <span class="eyebrow">Primer ingreso</span>
+      <h1 class="t-hero-title">Hola, {{ nombre() }}</h1>
+      <p class="welcome-sub measure">
+        Antes de empezar, confirmá tus datos de contacto y elegí tus preferencias.
+      </p>
+    </header>
+
+    @if (loadError()) {
+      <div class="load-error" role="alert">
+        <p class="t-body">No pudimos cargar tus datos en este momento.</p>
+        <p class="t-note">Podés completar el formulario igual.</p>
+      </div>
+    }
+
+    <!-- Tus pólizas: solo lectura. Es contexto, no algo que se edite acá. -->
+    @if (policiesLoading()) {
+      <section class="section">
+        <h2 class="section-title">
+          <span class="section-icon" aria-hidden="true">
+            <svg width="16" height="16" viewBox="0 0 20 20" fill="none">
+              <rect x="3" y="4" width="14" height="12" rx="2" stroke="currentColor" stroke-width="1.5" />
+              <path d="M3 8h14" stroke="currentColor" stroke-width="1.5" />
+            </svg>
+          </span>
+          <span class="t-section-label">Tus pólizas</span>
+        </h2>
+        <p class="t-note">Cargando…</p>
+      </section>
+    } @else if (policies().length > 0) {
+      <section class="section">
+        <h2 class="section-title">
+          <span class="section-icon" aria-hidden="true">
+            <svg width="16" height="16" viewBox="0 0 20 20" fill="none">
+              <rect x="3" y="4" width="14" height="12" rx="2" stroke="currentColor" stroke-width="1.5" />
+              <path d="M3 8h14" stroke="currentColor" stroke-width="1.5" />
+            </svg>
+          </span>
+          <span class="t-section-label">Tus pólizas</span>
+        </h2>
+        <ul class="policies">
+          @for (p of policies(); track p.policyNumber) {
+            <li class="policy">
+              <div class="policy-head">
+                <span class="policy-insurer">{{ p.insurerName }}</span>
+                <span class="policy-number mono">{{ p.policyNumber }}</span>
+              </div>
+              <div class="policy-item">{{ p.insuredItem ?? p.product }}</div>
+              <dl class="policy-meta">
+                <div>
+                  <dt>Ramo</dt>
+                  <dd>{{ p.branch }}</dd>
+                </div>
+                <div>
+                  <dt>Vigencia</dt>
+                  <dd class="tabular">{{ vigencia(p) }}</dd>
+                </div>
+              </dl>
+            </li>
+          }
+        </ul>
+      </section>
+    }
+
+    <!-- Datos de contacto: lo único editable del paso. -->
+    <section class="section">
+      <h2 class="section-title">
+        <span class="section-icon" aria-hidden="true">
+          <svg width="16" height="16" viewBox="0 0 20 20" fill="none">
+            <path d="M3 6l7 5 7-5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" />
+            <rect x="3" y="5" width="14" height="10" rx="2" stroke="currentColor" stroke-width="1.5" />
+          </svg>
+        </span>
+        <span class="t-section-label">Tus datos de contacto</span>
+      </h2>
+      <p class="section-note">Los usamos para avisarte cómo avanza cada denuncia.</p>
+
+      <div class="fields">
+        <div class="field">
+          <label class="t-field-label" for="onboarding-email">Email</label>
+          <app-input
+            id="onboarding-email"
+            type="email"
+            autocomplete="email"
+            placeholder="tunombre@email.com"
+            [(value)]="email"
+          />
+          @if (email().length > 0 && !emailValid()) {
+            <p class="field-error">Revisá el email: no parece una dirección válida.</p>
+          }
+        </div>
+
+        <div class="field">
+          <label class="t-field-label" for="onboarding-phone">Teléfono</label>
+          <app-input
+            id="onboarding-phone"
+            type="tel"
+            autocomplete="tel"
+            placeholder="11 5555-0000"
+            [(value)]="phone"
+          />
+          @if (phone().length > 0 && !phoneValid()) {
+            <p class="field-error">Revisá el teléfono: parece incompleto.</p>
+          }
+        </div>
+      </div>
+    </section>
+
+    <!-- Consentimientos. El de imágenes es libre; PEP es informativo. -->
+    <section class="section">
+      <h2 class="section-title">
+        <span class="section-icon" aria-hidden="true">
+          <svg width="16" height="16" viewBox="0 0 20 20" fill="none">
+            <path d="M10 2.5l6 2.5v4.5c0 3.4-2.4 6.4-6 8.5-3.6-2.1-6-5.1-6-8.5V5l6-2.5z" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round" />
+          </svg>
+        </span>
+        <span class="t-section-label">Tus consentimientos</span>
+      </h2>
+
+      <div class="consent">
+        <app-checkbox [(checked)]="imageConsent">{{ consentSummary }}</app-checkbox>
+        <p class="consent-detail">{{ consentDetail }}</p>
+        <p class="consent-meta t-note">Podés cambiarlo cuando quieras desde tu perfil.</p>
+      </div>
+
+      <!-- PEP no se declara acá: viene de la póliza/KYC de la aseguradora. Se muestra para que
+           la persona sepa qué figura de ella y a quién reclamarle si no es correcto. -->
+      <div class="pep">
+        <div class="pep-row">
+          <span class="pep-label">Persona Expuesta Políticamente (PEP)</span>
+          <span class="pep-value" [class.is-yes]="pep()">{{ pep() ? 'Sí' : 'No' }}</span>
+        </div>
+        <p class="t-note">Lo informa tu aseguradora. Si no es correcto, contactate con ella.</p>
+      </div>
+    </section>
+
+    @if (submitError()) {
+      <p class="submit-error" role="alert">{{ submitError() }}</p>
+    }
+
+    <div class="actions">
+      <app-button
+        variant="accent"
+        [block]="true"
+        [disabled]="!canSubmit()"
+        [loading]="submitting()"
+        (click)="submit()"
+      >
+        Continuar al portal
+      </app-button>
+    </div>
+  </div>
+}

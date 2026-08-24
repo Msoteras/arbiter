@@ -1,0 +1,172 @@
+:host {
+  display: block;
+}
+
+.perfil {
+  padding: var(--space-5) var(--space-4) var(--space-7);
+  max-width: 660px;
+  margin: 0 auto;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-5);
+}
+
+@media (min-width: 640px) {
+  .perfil {
+    padding: var(--space-6) var(--space-6) var(--space-7);
+  }
+}
+
+.head .t-page-title {
+  margin-top: var(--space-2);
+}
+.eyebrow {
+  font-size: var(--font-size-2xs);
+  font-weight: var(--font-weight-medium);
+  text-transform: uppercase;
+  letter-spacing: 0.14em;
+  color: var(--accent-fg);
+}
+.head-sub {
+  margin: var(--space-2) 0 0;
+  font-size: var(--font-size-md);
+  color: var(--text-muted);
+  line-height: 1.55;
+}
+
+.load-error {
+  padding: var(--space-3) var(--space-4);
+  border: 1px solid var(--border-danger-soft);
+  border-radius: var(--radius-card);
+  background: var(--surface-danger-soft);
+}
+.load-error p {
+  margin: 0;
+}
+.load-error .t-note {
+  margin-top: var(--space-1);
+}
+
+// ───────────────── Secciones ─────────────────
+.section {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+// Mismo chip teal que la pantalla de bienvenida: las dos son "mi cuenta", tienen que leerse
+// como la misma familia.
+.section-title {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin: 0;
+}
+.section-icon {
+  flex: none;
+  width: 26px;
+  height: 26px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--radius-ctl);
+  background: var(--selected-bg);
+  color: var(--accent-fg);
+}
+.section .t-note {
+  margin: 0;
+}
+
+// ───────────────── Datos de solo lectura ─────────────────
+.readonly {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  margin: 0;
+  padding: var(--space-3) var(--space-4);
+  border: 1px solid var(--border-default);
+  border-left: 3px solid var(--accent);
+  border-radius: var(--radius-card);
+  background: var(--surface-soft);
+}
+.readonly > div {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-3);
+}
+.readonly dt {
+  font-size: var(--font-size-body);
+  color: var(--text-muted);
+}
+.readonly dd {
+  margin: 0;
+  font-size: var(--font-size-body);
+  font-weight: var(--font-weight-medium);
+  color: var(--text-primary);
+  text-align: right;
+}
+// PEP en "Sí": dato informativo, no una alarma. Teal de marca, nunca el semáforo.
+.readonly dd.is-yes {
+  color: var(--accent-fg);
+}
+
+// ───────────────── Campos ─────────────────
+.fields {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+@media (min-width: 640px) {
+  .fields {
+    flex-direction: row;
+  }
+  .field {
+    flex: 1;
+  }
+}
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  min-width: 0;
+}
+.field-error {
+  margin: 0;
+  font-size: var(--font-size-2xs);
+  color: var(--status-danger);
+}
+
+// ───────────────── Consentimiento ─────────────────
+.consent {
+  padding: var(--space-3) var(--space-4);
+  border: 1px solid var(--border-ai);
+  border-radius: var(--radius-card);
+  background: var(--surface-ai);
+}
+.consent-detail {
+  margin: 0;
+  font-size: var(--font-size-body);
+  color: var(--text-secondary);
+  line-height: 1.55;
+}
+.consent-meta {
+  margin: var(--space-2) 0 0;
+}
+
+// ───────────────── Acciones ─────────────────
+.save-error {
+  margin: 0;
+  padding: var(--space-3) var(--space-4);
+  border: 1px solid var(--border-danger-soft);
+  border-radius: var(--radius-card);
+  background: var(--surface-danger-soft);
+  font-size: var(--font-size-body);
+  color: var(--text-primary);
+}
+
+.actions {
+  display: flex;
+  justify-content: flex-end;
+  padding-top: var(--space-3);
+}

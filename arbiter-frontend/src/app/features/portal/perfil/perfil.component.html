@@ -1,0 +1,131 @@
+@if (loading()) {
+  <app-loading message="Cargando tu perfil" sub="Aguardá un momento" />
+} @else if (loadError()) {
+  <div class="perfil">
+    <div class="load-error" role="alert">
+      <p class="t-body">No pudimos cargar tu perfil en este momento.</p>
+      <p class="t-note">Probá recargar la página.</p>
+    </div>
+  </div>
+} @else if (profile(); as p) {
+  <div class="perfil">
+    <header class="head">
+      <span class="eyebrow">Mi cuenta</span>
+      <h1 class="t-page-title">Mi perfil</h1>
+      <p class="head-sub measure">
+        Tus datos de contacto y tus consentimientos.
+      </p>
+    </header>
+
+    <!-- Identidad: sale de la aseguradora, no se edita desde el portal. -->
+    <section class="section">
+      <h2 class="section-title">
+        <span class="section-icon" aria-hidden="true">
+          <svg width="16" height="16" viewBox="0 0 20 20" fill="none">
+            <circle cx="10" cy="7" r="3" stroke="currentColor" stroke-width="1.5" />
+            <path d="M4 16.5c0-2.5 2.7-4 6-4s6 1.5 6 4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" />
+          </svg>
+        </span>
+        <span class="t-section-label">Tus datos</span>
+      </h2>
+      <dl class="readonly">
+        <div>
+          <dt>Nombre</dt>
+          <dd>{{ p.name }} {{ p.surname }}</dd>
+        </div>
+        <div>
+          <dt>DNI</dt>
+          <dd class="mono">{{ p.dni }}</dd>
+        </div>
+        <div>
+          <dt>Persona Expuesta Políticamente (PEP)</dt>
+          <dd [class.is-yes]="p.pep">{{ p.pep ? 'Sí' : 'No' }}</dd>
+        </div>
+      </dl>
+      <p class="t-note">Los informa tu aseguradora. Si algo no es correcto, contactate con ella.</p>
+    </section>
+
+    <!-- Contacto: editable. -->
+    <section class="section">
+      <h2 class="section-title">
+        <span class="section-icon" aria-hidden="true">
+          <svg width="16" height="16" viewBox="0 0 20 20" fill="none">
+            <path d="M3 6l7 5 7-5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" />
+            <rect x="3" y="5" width="14" height="10" rx="2" stroke="currentColor" stroke-width="1.5" />
+          </svg>
+        </span>
+        <span class="t-section-label">Datos de contacto</span>
+      </h2>
+
+      <div class="fields">
+        <div class="field">
+          <label class="t-field-label" for="perfil-email">Email</label>
+          <app-input
+            id="perfil-email"
+            type="email"
+            autocomplete="email"
+            placeholder="tunombre@email.com"
+            [(value)]="email"
+          />
+          @if (email().length > 0 && !emailValid()) {
+            <p class="field-error">Revisá el email: no parece una dirección válida.</p>
+          }
+        </div>
+
+        <div class="field">
+          <label class="t-field-label" for="perfil-phone">Teléfono</label>
+          <app-input
+            id="perfil-phone"
+            type="tel"
+            autocomplete="tel"
+            placeholder="11 5555-0000"
+            [(value)]="phone"
+          />
+          @if (phone().length > 0 && !phoneValid()) {
+            <p class="field-error">Revisá el teléfono: parece incompleto.</p>
+          }
+        </div>
+      </div>
+    </section>
+
+    <!-- Consentimiento: revocable en cualquier momento. -->
+    <section class="section">
+      <h2 class="section-title">
+        <span class="section-icon" aria-hidden="true">
+          <svg width="16" height="16" viewBox="0 0 20 20" fill="none">
+            <path d="M10 2.5l6 2.5v4.5c0 3.4-2.4 6.4-6 8.5-3.6-2.1-6-5.1-6-8.5V5l6-2.5z" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round" />
+          </svg>
+        </span>
+        <span class="t-section-label">Análisis de imágenes</span>
+      </h2>
+
+      <div class="consent">
+        <app-checkbox [(checked)]="imageConsent">{{ consentSummary }}</app-checkbox>
+        <p class="consent-detail">{{ consentDetail }}</p>
+
+        @if (consentAt()) {
+          <p class="consent-meta t-note">
+            Guardado el {{ consentAt() }}
+            @if (consentVersion()) {
+              · versión {{ consentVersion() }}
+            }
+          </p>
+        }
+      </div>
+
+      <p class="t-note measure">
+        Si lo desactivás, aplica a tus próximas denuncias. Los análisis ya hechos no se borran.
+      </p>
+    </section>
+
+    @if (saveError()) {
+      <p class="save-error" role="alert">{{ saveError() }}</p>
+    }
+
+    <div class="actions">
+      <app-button variant="accent" [disabled]="!canSave()" [loading]="saving()" (click)="save()">
+        Guardar cambios
+      </app-button>
+    </div>
+  </div>
+}

@@ -27,6 +27,8 @@ export interface LoginResponse {
   apellido: string;
   /** The insured's DNI (null for analista/referente). */
   insuredId: string | null;
+  /** Whether the insured already went through first-time onboarding. Null for other roles. */
+  onboardingComplete: boolean | null;
 }
 
 @Injectable({ providedIn: 'root' })

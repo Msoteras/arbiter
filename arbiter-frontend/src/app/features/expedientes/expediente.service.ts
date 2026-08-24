@@ -34,8 +34,6 @@ export interface CaseCreateRequest {
   // que le daría contenido al DocumentInconsistencyEvaluator (D4b).
   policeReportAt?: string;
   claimedAmount?: number;
-  pep: boolean;
-  imageConsent: boolean;
   contactEmail?: string;
   contactPhone?: string;
 }

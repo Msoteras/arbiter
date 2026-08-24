@@ -1,6 +1,7 @@
 import { Routes } from '@angular/router';
 
 import { guestGuard } from './core/auth/guest.guard';
+import { onboardingGuard, onboardingPendingGuard } from './core/auth/onboarding.guard';
 import { roleGuard } from './core/auth/role.guard';
 
 export const routes: Routes = [
@@ -59,7 +60,7 @@ export const routes: Routes = [
   },
   {
     path: 'portal/home',
-    canActivate: [roleGuard],
+    canActivate: [roleGuard, onboardingGuard],
     data: { roles: ['ASEGURADO'] },
     loadComponent: () =>
       import('./features/home/asegurado-inicio/asegurado-inicio.component').then(
@@ -96,9 +97,27 @@ export const routes: Routes = [
   },
 
   // ----- Portal del asegurado -----
+  // H0009 — primer ingreso. Va sin `onboardingGuard` (se redirige a sí misma) y con
+  // `onboardingPendingGuard` en su lugar: quien ya lo completó no vuelve a verla.
+  {
+    path: 'portal/onboarding',
+    canActivate: [roleGuard, onboardingPendingGuard],
+    data: { roles: ['ASEGURADO'] },
+    loadComponent: () =>
+      import('./features/portal/onboarding/onboarding.component').then(
+        (m) => m.OnboardingComponent,
+      ),
+  },
+  {
+    path: 'portal/profile',
+    canActivate: [roleGuard, onboardingGuard],
+    data: { roles: ['ASEGURADO'] },
+    loadComponent: () =>
+      import('./features/portal/perfil/perfil.component').then((m) => m.PerfilComponent),
+  },
   {
     path: 'portal',
-    canActivate: [roleGuard],
+    canActivate: [roleGuard, onboardingGuard],
     data: { roles: ['ASEGURADO'] },
     loadComponent: () =>
       import('./features/portal/mis-expedientes/mis-expedientes.component').then(
@@ -107,7 +126,7 @@ export const routes: Routes = [
   },
   {
     path: 'portal/cases/:id',
-    canActivate: [roleGuard],
+    canActivate: [roleGuard, onboardingGuard],
     data: { roles: ['ASEGURADO'] },
     loadComponent: () =>
       import('./features/portal/seguimiento/seguimiento.component').then(
@@ -116,7 +135,7 @@ export const routes: Routes = [
   },
   {
     path: 'portal/cases/:id/documentacion',
-    canActivate: [roleGuard],
+    canActivate: [roleGuard, onboardingGuard],
     data: { roles: ['ASEGURADO'] },
     loadComponent: () =>
       import('./features/portal/documentacion/documentacion.component').then(
@@ -125,7 +144,7 @@ export const routes: Routes = [
   },
   {
     path: 'new-claim',
-    canActivate: [roleGuard],
+    canActivate: [roleGuard, onboardingGuard],
     data: { roles: ['ASEGURADO'] },
     loadComponent: () =>
       import('./features/expedientes/nueva-denuncia/nueva-denuncia.component').then(
