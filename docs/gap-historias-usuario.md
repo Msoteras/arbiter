@@ -287,7 +287,17 @@ Nota: `classification-service` **ya resolvió** su lado — `RulesRestAdapter` e
 
 ---
 
-## 5 · Google Vision: consentimiento decorativo
+## 5 · Google Vision: consentimiento decorativo — ✅ cerrado
+
+> **Cerrado (25/08/2026).** Los cuatro puntos del cierre están implementados: `imageConsent` viaja
+> en `ClaimReport` (cases → classification), llega a `ImageFraudAnalysisService.analyze(...)`,
+> gatea **solo** la escalada a Google Vision —el CLIP interno sigue corriendo, nunca sale del
+> host— y queda registrado en `ImageForensicReport.imageConsent` con su traza para el analista
+> ("no se buscó en internet — el asegurado no dio su consentimiento"). El campo es `Boolean` y no
+> primitivo: `null` distingue los reportes anteriores al cambio de un rechazo real.
+>
+> Lo que sigue abierto es lo del paper: el párrafo sobre la cascada como **niveles de exposición
+> del dato**. Lo de abajo queda como el porqué del diseño.
 
 `insured.image_consent` se pide en el formulario de denuncia, viaja en `CaseRequest`, se persiste en
 `CaseReferenceResolver` — y **nadie lo lee nunca**. `ClaimReport` (el contrato cases →

@@ -430,7 +430,7 @@ class CaseServiceImplTest {
                 new ImageForensicReport.InternalMatch(4L, "item_photo", "IMG_2831.jpg", 0.97);
         ImageForensicReport.ImageFinding finding =
                 new ImageForensicReport.ImageFinding("item_photo-0", "item_photo", List.of(match), null);
-        ImageForensicReport report = new ImageForensicReport(1, 0, List.of(finding));
+        ImageForensicReport report = new ImageForensicReport(1, 0, true, List.of(finding));
 
         Case entity = caseRecord(1L, CaseStatus.PENDING_ANALYST_REVIEW);
         entity.setForensicReport(report);

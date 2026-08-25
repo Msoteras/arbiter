@@ -106,6 +106,24 @@ class ImageFraudAnalysisServiceTest {
         assertThat(report.findings().getFirst().webFinding()).isNull();
         assertThat(report.webSearchesPerformed()).isZero();
         verifyNoInteractions(googleVisionClient);
+        // Recorded, not just acted upon: zero searches alone can't tell a refusal apart from an
+        // image that needed no escalation. Ley 25.326 cares about the refusal specifically.
+        assertThat(report.imageConsent()).isFalse();
+    }
+
+    /**
+     * The analyst has to be able to tell "we looked and found nothing" from "we were not allowed to
+     * look". Without this line the absence of a web finding reads as absence of evidence.
+     */
+    @Test
+    void noConsentIsSpelledOutInTheTraces() {
+        internalReturns();
+        ImageForensicReport report = service.analyze(1L, List.of(image("damage_photo")), false);
+
+        List<String> traces = service.renderTraces(report);
+
+        assertThat(traces).anySatisfy(t -> assertThat(t).contains("no dio su consentimiento"));
+        assertThat(traces).noneSatisfy(t -> assertThat(t).contains("tampoco se encontró"));
     }
 
     @Test

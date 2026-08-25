@@ -37,7 +37,7 @@ Es la card que desbloquea las otras dos cosas que quedaron a medias:
 
 **Notas técnicas**
 Modelarlas como filas de `insurer_rule` con `rule_type` propio y configuración en el JSONB, igual que
-`COVERAGE_EXCLUSION` (ver `plan-reglas-evaluables.md` §1.1). Las columnas de `coverage` pasan a ser
+`COVERAGE_EXCLUSION`. Las columnas de `coverage` pasan a ser
 el default cuando no hay regla, o se migran.
 
 ---

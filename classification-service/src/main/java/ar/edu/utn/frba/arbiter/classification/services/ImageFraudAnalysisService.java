@@ -85,8 +85,10 @@ public class ImageFraudAnalysisService {
             findings.add(new ImageFinding(label, doc.type(), internalMatches, webFinding));
         }
 
-        log.info("[ImageFraud] caseId={} images={} webSearches={}", caseId, imagesAnalyzed, webSearchesPerformed);
-        return new ImageForensicReport(imagesAnalyzed, webSearchesPerformed, List.copyOf(findings));
+        log.info("[ImageFraud] caseId={} images={} webSearches={} consent={}",
+                caseId, imagesAnalyzed, webSearchesPerformed, imageConsent);
+        return new ImageForensicReport(
+                imagesAnalyzed, webSearchesPerformed, imageConsent, List.copyOf(findings));
     }
 
     /**
@@ -105,7 +107,18 @@ public class ImageFraudAnalysisService {
             traces.add(String.format("Imagen '%s': sin coincidencias con adjuntos de siniestros previos", f.documentType()));
 
             if (f.webFinding() == null) {
-                continue; // web not searched (disabled or failed) — nothing more to say for this image
+                // Not searched. Say WHY when the reason is the person's refusal: for the analyst it
+                // is the difference between "no evidence" and "we were not allowed to look", and it
+                // is the trace that shows the consent was actually honoured. The other reasons
+                // (integration off, call failed) are operational and say nothing about the claim.
+                // Only on an explicit refusal: a null means the report predates the field, and
+                // saying "they didn't consent" about it would be inventing an answer.
+                if (Boolean.FALSE.equals(report.imageConsent())) {
+                    traces.add(String.format(
+                            "Imagen '%s': no se buscó en internet — el asegurado no dio su consentimiento",
+                            f.documentType()));
+                }
+                continue;
             }
             if (!f.webFinding().found()) {
                 traces.add(String.format("Imagen '%s': tampoco se encontró publicada en internet", f.documentType()));

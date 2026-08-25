@@ -1,7 +1,10 @@
 # Gaps del flujo — Módulo de Análisis y Clasificación
 
 > Contraste entre el flujo aprobado ([`diagrama-flujo-clasificacion.pdf`](diagrama-flujo-clasificacion.pdf))
-> y lo que hoy está implementado en `classification-service` + `cases-service`.
+> y lo que está implementado en `classification-service` + `cases-service`.
+>
+> **Estado: los nueve gaps (A–I) están cerrados.** El documento queda como registro de qué faltaba
+> y cómo se resolvió cada uno — no hay nada abierto que rastrear acá.
 
 El diagrama define este recorrido:
 
@@ -127,7 +130,7 @@ trunco en `PENDING_ANALYST_REVIEW`, incumpliendo la auditoría de la Disposició
 
 ---
 
-## Gaps conocidos y aceptados (no bloqueantes)
+## Gaps que se aceptaron como no bloqueantes en su momento
 
 - ~~**Gap D — Análisis de fraude en el prompt.**~~ **Resuelto.** El diagrama lista "análisis de
   fraude" como parte del contexto. Reglas e historial se inyectan en el prompt (`PromptBuilder`); la
@@ -136,18 +139,19 @@ trunco en `PENDING_ANALYST_REVIEW`, incumpliendo la auditoría de la Disposició
   reutilizada de otro siniestro), y si no matchea, Google Vision Web Detection (imagen publicada en
   internet, opt-in). El resultado va al `RiskContext` y al reporte forense del `ClaimResponse`.
   Lo único que queda abierto es activar los dos factores de imagen en el score → **Gap H**.
-- **Gap E — Analista asignado.** El diagrama dice "al analista **asignado**". No hay usuarios, roles
-  ni asignación porque dependen de `auth-service` (Auth0), que no está levantado. Mientras tanto el
-  `analystId` del Gap B se puede recibir como campo del request.
-- **Gap F — Filtro por aseguradora en la búsqueda de expedientes.** La historia "Búsqueda y filtrado
-  de expedientes" (Sprint 6) pide filtrar `GET /api/v1/cases` por aseguradora según el rol del
-  usuario autenticado. No implementado: depende de dos piezas que no existen todavía — `auth-service`
-  (Auth0/JWT, mismo gap que E) y el esquema multi-tenant por aseguradora (decisión de arquitectura
-  #10, `PostgreSQL` con schema separado por aseguradora). Filtrar "por aseguradora" no es un `WHERE`
-  más sobre una columna: es resolver a qué schema de Postgres apuntar antes de correr la query. Sin
-  el JWT no hay tenant que resolver. `GET /api/v1/cases` sí quedó extendido con el resto de los
-  filtros de la historia (`status`, `claimCause`, `policyNumber`, `insuredId`, rango de
-  `eventDate`) más paginación (`CaseServiceImpl.listCases`, `CaseSpecifications`).
+- ~~**Gap E — Analista asignado.**~~ **Resuelto.** Lo que lo bloqueaba —que `auth-service` no
+  estuviera levantado— dejó de ser cierto: Auth0 + JWT + RBAC funcionan, y la asignación existe
+  (`AssignAnalystRequest`, más los filtros `assignedToMe`/`unassigned` de `GET /api/v1/cases`).
+  El analista se autoasigna con "Tomar" desde la bandeja o se lo asigna el referente.
+- ~~**Gap F — Filtro por aseguradora en la búsqueda de expedientes.**~~ **Resuelto (por
+  construcción).** Dependía de dos piezas que hoy existen: `auth-service` (mismo desbloqueo que
+  el Gap E) y el multi-tenant por esquema. Con las dos, el filtro **dejó de ser un filtro**:
+  `TenantResolvingFilter` resuelve el esquema desde el JWT antes de la query, así que
+  `GET /api/v1/cases` solo puede ver los expedientes de la aseguradora del que pregunta. No hay
+  `WHERE` de aseguradora que agregar — el aislamiento es del esquema, no de la consulta. El resto
+  de los filtros de la historia (`status`, `claimCause`, `policyNumber`, `insuredId`, rango de
+  `eventDate`) más paginación ya estaban en `CaseServiceImpl.listCases` / `CaseSpecifications`.
+
 - ~~**Gap G — Filtro por nivel de alerta de fraude en la búsqueda de expedientes.**~~ **Resuelto.**
   El HU oficial de H0011 ("Búsqueda y filtrado de expedientes") lista "nivel de alerta de fraude"
   como criterio de búsqueda; la card de Trello que se usó para scopear el Sprint 6 no lo incluyó, y
@@ -168,14 +172,12 @@ trunco en `PENDING_ANALYST_REVIEW`, incumpliendo la auditoría de la Disposició
   falta de data. `PURCHASE_TO_REPORT_TIME` sigue inactivo (su problema es data de proxy, no dilución).
   Pendiente menor: los **pesos de imagen son provisionales** — la calibración fina (pesos + cortes de
   banda) es decisión de negocio.
-- **Gap I — Snapshot de inputs crudos del scoring (auditoría Disp. 2/2023).** Hoy `classification_log`
-  persiste el resultado del scoring (`risk_score`, `risk_band`, `risk_breakdown` con `rawScore`/`weight`/
-  `weightedContribution`/`rationale` por factor) al momento de la clasificación, y **no** se recalcula
-  al consultar. Pero **no** se snapshotean los **inputs crudos estructurados** con los que se calculó
-  (los `BigDecimal` de monto reclamado/suma asegurada, el `InsuredHistory` completo, fechas de póliza):
-  solo quedan los scores derivados y el `rationale` en prosa (que echa algunos inputs, ej. "Monto
-  reclamado es 90% de la suma asegurada"). Como esos datos vienen de la **BD Aseguradora** (sistema de
-  la aseguradora, que puede cambiar después), no se puede reconstruir el input exacto a posteriori. Para
-  una auditoría 2/2023 estricta ("los datos con que se calculó"), evaluar persistir también un snapshot
-  de inputs (una columna JSON `scoring_inputs` en `classification_log`, o una tabla aparte). No
-  bloqueante: el breakdown + rationale ya dan trazabilidad parcial del *cómo*, falta el *con qué* exacto.
+- ~~**Gap I — Snapshot de inputs crudos del scoring (auditoría Disp. 2/2023).**~~ **Resuelto.**
+  Lo que faltaba era el *con qué*: quedaban los scores derivados pero no los inputs crudos que
+  vinieron de la BD Aseguradora, que es un sistema externo y cambia — así que una reclasificación
+  posterior no era reproducible. Lo cierra `policy_snapshot` (`poliza_consultada`), que
+  `ClassificationOrchestrator.recordPolicySnapshot()` escribe justo donde esa respuesta entra en la
+  decisión: número de póliza, suma asegurada, vigencia a la fecha del hecho, estado de pago y
+  siniestros previos en columnas, más el `InsuredPolicy` y el `InsuredHistory` **enteros** en
+  `insurer_db_payload` (JSONB). Es best-effort a propósito: si el snapshot no se puede escribir se
+  loguea como error pero la clasificación sigue, porque hay un analista esperándola.
