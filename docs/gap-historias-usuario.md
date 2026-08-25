@@ -183,6 +183,18 @@ y son reglas evaluables (`COVERAGE_EXCLUSION` servida por `rules-service`, evalu
 `CoverageRuleEvaluator` antes del gate de Fast Track). Una exclusión objetiva ya no es criterio del
 modelo.
 
+### 🟡 Menores del frontend
+
+Lo único que quedaba abierto del log de bugs de UX (borrado el 25/08: 24 de sus 29 ítems estaban
+cerrados, y los demás ya se rastrean acá).
+
+- **El analista no ve la declaración PEP.** Se pide, viaja y se persiste en `insured.pep`, pero
+  ninguna pantalla la muestra: `grep pep` sobre el detalle del expediente no devuelve nada. Un dato
+  que se pide y nadie mira es peor que no pedirlo.
+- **"¿Dónde pasó?" sigue siendo texto libre.** `provincia` y `localidad` son dos `app-input` en el
+  wizard, no un desplegable en cascada. Ya viajan y se persisten en columnas propias, así que el
+  dato es agrupable — lo que falta es que no se pueda escribir cualquier cosa.
+
 ### 🟡 Menores
 
 - **H0005**: `CaseDocument` no tiene estado de validación → "el asegurado no puede modificar

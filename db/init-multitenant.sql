@@ -339,7 +339,7 @@ BEGIN
             is_individual                   BOOLEAN       NOT NULL DEFAULT TRUE,
             waiting_period_days             INTEGER,                 -- carencia_dias
             branch_id                       BIGINT        NOT NULL REFERENCES arbiter_common.branch(id),
-            -- clause y exclusions: sin respaldo en el DER (decisiones-reglas-a-validar.md, D3/D7).
+            -- clause y exclusions: sin respaldo en el DER.
             clause                          VARCHAR(20),
             exclusions                      JSONB
         )$ddl$, p_schema);

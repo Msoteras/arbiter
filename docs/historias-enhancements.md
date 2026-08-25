@@ -209,7 +209,7 @@ vuelve a disparar la clasificación**, solo pregunta si ya hay un resultado; com
 haber, el expediente suma intentos en el vacío durante `maxAttempts` × `interval-ms` (~10 minutos
 con los defaults) hasta que recién ahí pasa a `CLASSIFICATION_FAILED`. Arreglar la caída del lado de
 infra en el medio no cambia nada: el expediente sigue trabado hasta que alguien lo note y aprete
-"Reintentar clasificación" (el botón que ya existe, ver ítem 22 de `frontend-bugs-ux.md`).
+"Reintentar clasificación" (el botón que ya existe).
 
 **Notas técnicas**
 - Separar, en `processClaimClassification`, las excepciones que valen la pena reintentar solas
@@ -340,8 +340,7 @@ pantalla.
 no los devuelve — se pierden en el camino igual que `rule_result`, pero es metadata más de
 ingeniería/soporte (qué modelo corrió, cuánto tardó) que de decisión del analista. Si en algún
 momento se arma un panel de diagnóstico/soporte para ver clasificaciones lentas o con modelo
-distinto al esperado (relevante después de los bugs de este mismo handoff — ver
-`docs/handoff-ollama-cpu-y-scheduler.md`), es la misma extensión de `ClaimResponse`/`CaseResponse`
+distinto al esperado), es la misma extensión de `ClaimResponse`/`CaseResponse`
 que pide H0032, sumando estos 4 campos.
 
 ---
@@ -366,3 +365,16 @@ mismo hecho guardado dos veces.
 `Tomador` y `N° de certificado` se sacaron de la ficha del expediente porque en nuestro modelo cada
 póliza es individual y el certificado es 1:1 con ella. Vuelven las dos juntas si algún día se modela
 la póliza colectiva — que es como BBVA vende de verdad, a través del banco.
+
+---
+
+## Del handoff de Ollama por CPU (borrado el 25/08)
+
+Lo único que seguía abierto de ese documento; el resto era registro de bugs ya arreglados, y la
+advertencia del tag `:8b-instruct` vive mejor explicada en `CLAUDE.md`.
+
+- **Historia "Conversación" — sin decidir.** No hay entidad de mensajería, así que es de punta a
+  punta: entidad, endpoints, panel. Falta confirmar el alcance antes de estimarla. (Su hermana,
+  H0031 "Datos extraídos", se implementó el 18/08.)
+- **`RulesRestAdapterTest` no valida query params.** No es bloqueante, pero es la razón por la que
+  un bug de parámetros pasó desapercibido — la clase de hueco que se repite.
