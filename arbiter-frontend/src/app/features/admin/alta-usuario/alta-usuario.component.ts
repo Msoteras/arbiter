@@ -6,8 +6,10 @@ import { ButtonComponent } from '../../../shared/ui/button/button.component';
 import { InputComponent } from '../../../shared/ui/input/input.component';
 
 /**
- * H0002 - Alta de Usuarios. Por ahora solo crea cuentas ANALISTA_SINIESTROS (ver CLAUDE.md,
- * decisión #8) — el selector de rol no está porque hoy hay un solo valor válido.
+ * H0002 - Alta de Usuarios. Crea cuentas ANALISTA_SINIESTROS: no hay selector de rol porque es
+ * el único valor que este formulario admite, y el backend rechaza cualquier otro.
+ * Los asegurados NO salen de acá — se dan de alta en bloque desde la base de la aseguradora
+ * ("Dar de alta asegurados" en UsuariosComponent), que es de donde viene su identidad.
  * Auth0 Phase 3: the referente no longer sets a password — the user is left "pending" and
  * gets an email to choose their own (see ActivateAccountComponent).
  * Vive dentro de un app-modal abierto desde UsuariosComponent (patrón del wireframe).

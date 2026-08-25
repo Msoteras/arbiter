@@ -11,10 +11,7 @@
 
   @if (provisionStarted()) {
     <app-card class="provision-notice">
-      <p class="t-body">
-        El alta masiva está corriendo. Las cuentas se van creando y las invitaciones salen de a
-        poco, así que el listado se completa de a tandas.
-      </p>
+      <p class="t-body">El alta está corriendo. El listado se completa de a tandas.</p>
       <app-button variant="secondary" (click)="refresh()">Actualizar listado</app-button>
     </app-card>
   }
@@ -129,15 +126,10 @@
   (close)="showProvisionConfirm.set(false)"
 >
   <p class="t-body">
-    Se van a crear las cuentas de todos tus asegurados con póliza vigente, tomando sus datos de la
-    base de la aseguradora, y <strong>cada uno va a recibir un mail</strong> para elegir su
-    contraseña.
+    Se van a crear las cuentas de tus asegurados con póliza vigente y
+    <strong>cada uno va a recibir un mail</strong> para elegir su contraseña.
   </p>
-  <p class="t-note">
-    A quien ya tenga cuenta no se le duplica ni se le vuelve a escribir: se lo reconoce por su email
-    y solo se le suman las pólizas de esta aseguradora. Los mails salen de a poco, así que el alta
-    tarda un rato en completarse.
-  </p>
+  <p class="t-note">A quien ya tenga cuenta no se le escribe de nuevo.</p>
   <ng-container modalActions>
     <app-button variant="secondary" [disabled]="provisioning()" (click)="showProvisionConfirm.set(false)">
       Cancelar

@@ -28,8 +28,9 @@ import java.time.Instant;
  * ({@code pep}, {@code imageConsent}, contact). Both had their own copy and the two had already
  * drifted: auth's {@code caseCount} was nullable and it was missing {@code imageConsent} entirely.
  *
- * <p>"Alta de asegurados" is still a separate, not-yet-built flow (decision #8) — the seeded
- * ASEGURADO users never went through a real sign-up.
+ * <p>Rows come from the insurer's own directory, not from anyone typing them in: the bulk "dar de
+ * alta asegurados" run mirrors {@code aseguradora_*.asegurado} and provisions the account behind
+ * each one. The seeded ASEGURADO users predate that flow and never went through a real sign-up.
  */
 @Entity
 @Table(name = "insured")

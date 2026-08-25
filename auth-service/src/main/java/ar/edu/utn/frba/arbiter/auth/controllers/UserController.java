@@ -37,10 +37,12 @@ public class UserController {
     @Operation(summary = "Dar de alta un usuario",
             description = """
                     El referente de una aseguradora invita a un nuevo usuario, que queda
-                    "pendiente" hasta que elige su propia contraseña por mail (Auth0). Por ahora
-                    solo admite rol ANALISTA_SINIESTROS — el asegurado no se da de alta por acá
-                    (ver CLAUDE.md decisión #8). Queda vinculado a la misma aseguradora del
-                    referente que lo invita.
+                    "pendiente" hasta que elige su propia contraseña por mail (Auth0). Queda
+                    vinculado a la misma aseguradora del referente que lo invita.
+
+                    Solo admite rol ANALISTA_SINIESTROS. Los asegurados no se dan de alta acá:
+                    su identidad es dato de la compañía, así que van por el alta masiva
+                    (POST /asegurados/alta-masiva).
                     """)
     public ResponseEntity<UserResponse> createUser(
             @RequestBody @Valid CreateUserRequest request, Authentication authentication) {
