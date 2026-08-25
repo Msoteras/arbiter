@@ -147,8 +147,16 @@ public class UserService {
      * <p>Returns an already-issued session so the frontend can start it straight away instead of
      * bouncing the person to a login screen for the password they just chose — see
      * {@link AuthService#issueSessionFor}.
+     *
+     * <p>Deliberately NOT {@code @Transactional}: {@code issueSessionFor} sets {@link TenantContext}
+     * mid-flow to read the tenant profile, and a single shared Hibernate session across that switch
+     * pins to whichever schema was live at the FIRST query — same failure mode open-in-view being
+     * off exists to avoid (see application.yml), just reproduced at the method level instead of the
+     * request level. Each repository call below gets its own short transaction instead, so it picks
+     * up whatever TenantContext is current when IT runs. The one local write
+     * ({@code userRepository.save}) needs no atomicity with anything else — Auth0 provisioning is
+     * external and was never going to roll back with it anyway.
      */
-    @Transactional
     public LoginResponse activateAccount(String token, String encryptedPassword) {
         String rawPassword = passwordCipher.decrypt(encryptedPassword);
         User user = requireValidToken(token);
@@ -226,8 +234,14 @@ public class UserService {
      * returning a session instead of nothing: whoever just reset their password already proved
      * they own the mailbox and chose the new one, so there's nothing left for a login screen to
      * ask them.
+     *
+     * <p>Not {@code @Transactional} — same reason as {@link #activateAccount}: it ends in the same
+     * {@code issueSessionFor} tenant switch, and one shared session across it pins to the wrong
+     * schema. This is the flow the bug actually surfaced in: a hung "reset password" request that
+     * turned out to be {@code relation "insured" does not exist}, from exactly this method sharing
+     * a session between {@code requireValidToken}'s query (before any tenant is known) and
+     * {@code issueSessionFor}'s (in the tenant it resolves).
      */
-    @Transactional
     public LoginResponse resetPassword(String token, String encryptedPassword) {
         String rawPassword = passwordCipher.decrypt(encryptedPassword);
         User user = requireValidToken(token);
