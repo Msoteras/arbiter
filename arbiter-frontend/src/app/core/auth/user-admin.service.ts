@@ -89,6 +89,6 @@ export class UserAdminService {
    * vincula esta aseguradora.
    */
   provisionInsured(): Observable<void> {
-    return this.http.post<void>(`${this.baseUrl}/asegurados/alta-masiva`, {});
+    return this.http.post<void>(`${this.baseUrl}/insured/bulk-provision`, {});
   }
 }

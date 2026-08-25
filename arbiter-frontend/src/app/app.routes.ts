@@ -134,7 +134,7 @@ export const routes: Routes = [
       ),
   },
   {
-    path: 'portal/cases/:id/documentacion',
+    path: 'portal/cases/:id/documents',
     canActivate: [roleGuard, onboardingGuard],
     data: { roles: ['ASEGURADO'] },
     loadComponent: () =>

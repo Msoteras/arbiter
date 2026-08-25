@@ -42,7 +42,7 @@ public class UserController {
 
                     Solo admite rol ANALISTA_SINIESTROS. Los asegurados no se dan de alta acá:
                     su identidad es dato de la compañía, así que van por el alta masiva
-                    (POST /asegurados/alta-masiva).
+                    (POST /insured/bulk-provision).
                     """)
     public ResponseEntity<UserResponse> createUser(
             @RequestBody @Valid CreateUserRequest request, Authentication authentication) {
@@ -50,7 +50,7 @@ public class UserController {
         return ResponseEntity.status(HttpStatus.CREATED).body(response);
     }
 
-    @PostMapping("/asegurados/alta-masiva")
+    @PostMapping("/insured/bulk-provision")
     @PreAuthorize("hasRole('REFERENTE_ASEGURADORA')")
     @Operation(summary = "Dar de alta usuarios (asegurados, en bloque)",
             description = """

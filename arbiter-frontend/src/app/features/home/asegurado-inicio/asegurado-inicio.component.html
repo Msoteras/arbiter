@@ -116,7 +116,7 @@
               <app-button [block]="true">Ver seguimiento del caso</app-button>
             </a>
             <a
-              [routerLink]="['/portal/cases', d.id, 'documentacion']"
+              [routerLink]="['/portal/cases', d.id, 'documents']"
               [queryParams]="d.insurerSlug ? { aseguradora: d.insurerSlug } : {}">
               <app-button variant="secondary">Ver mis documentos</app-button>
             </a>

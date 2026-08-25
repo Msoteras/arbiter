@@ -40,7 +40,7 @@ interface Movimiento {
  * acción requerida cuando falta documentación, y timeline de trazabilidad. A
  * diferencia de la vista del analista, acá NO se muestra la recomendación del modelo
  * — el asegurado ve estado y próximos pasos; la clasificación es insumo del analista.
- * La carga de documentación vive en su propia pantalla (portal/cases/:id/documentacion).
+ * La carga de documentación vive en su propia pantalla (portal/cases/:id/documents).
  */
 @Component({
   selector: 'app-seguimiento',
@@ -167,7 +167,7 @@ export class SeguimientoComponent {
 
   protected readonly fechaHecho = computed(() => formatDateTime(this.data()?.eventDate));
 
-  protected goToDocumentacion(): void {
-    this.router.navigate(['documentacion'], { relativeTo: this.route });
+  protected goToDocuments(): void {
+    this.router.navigate(['documents'], { relativeTo: this.route });
   }
 }
