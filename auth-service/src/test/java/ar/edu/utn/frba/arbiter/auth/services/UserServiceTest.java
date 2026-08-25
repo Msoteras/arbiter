@@ -80,6 +80,9 @@ class UserServiceTest {
     @Mock
     private PasswordCipher passwordCipher;
 
+    @Mock
+    private InsuredProvisioningService insuredProvisioningService;
+
     private UserService userService;
 
     /**
@@ -95,7 +98,7 @@ class UserServiceTest {
     private UserService userService(Optional<Auth0UserProvisioner> provisioner) {
         return new UserService(userRepository, claimsAnalystRepository, roleRepository,
                 userInsurerRepository, tenantResolver, tenantProfileService, provisioner,
-                emailDomainValidator, sendGridAdapter, passwordCipher);
+                emailDomainValidator, sendGridAdapter, passwordCipher, insuredProvisioningService);
     }
 
     private CreateUserRequest analistaRequest() {

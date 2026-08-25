@@ -1,6 +1,7 @@
 package ar.edu.utn.frba.arbiter.auth.services;
 
 import ar.edu.utn.frba.arbiter.common.models.entities.tenant.ClaimsAnalyst;
+import ar.edu.utn.frba.arbiter.common.models.entities.tenant.Insured;
 import ar.edu.utn.frba.arbiter.common.models.entities.User;
 import ar.edu.utn.frba.arbiter.auth.models.repositories.ClaimsAnalystRepository;
 import ar.edu.utn.frba.arbiter.auth.models.repositories.InsuredRepository;
@@ -37,6 +38,32 @@ public class TenantProfileService {
             case REFERENTE_ASEGURADORA -> insurerReferentRepository.findByUserId(userId)
                     .map(r -> new Profile(r.getName(), r.getSurname(), null, null));
         };
+    }
+
+    /**
+     * The insured's tenant profile, created by the bulk "dar de alta usuarios" run from the
+     * company's own directory.
+     *
+     * <p>Keyed by document, and a no-op when the row is already there: by then it may carry consent
+     * and onboarding state the person set themselves, which the insurer's directory knows nothing
+     * about and must not overwrite.
+     *
+     * @return whether it created the row
+     */
+    public boolean createInsuredIfMissing(
+            User user, String name, String surname, String dni, String email, String phone) {
+        if (insuredRepository.findByDni(dni).isPresent()) {
+            return false;
+        }
+        insuredRepository.save(Insured.builder()
+                .name(name)
+                .surname(surname)
+                .dni(dni)
+                .email(email)
+                .phone(phone)
+                .user(user)
+                .build());
+        return true;
     }
 
     /** Only ANALISTA_SINIESTROS gets created through the Usuarios panel today (decision #8). */

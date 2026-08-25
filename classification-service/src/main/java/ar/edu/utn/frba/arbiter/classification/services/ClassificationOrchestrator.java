@@ -142,7 +142,7 @@ public class ClassificationOrchestrator {
         Resolution resolution = resolveClassification(claim, documents, ctx);
         recordDocumentExtractions(documents, resolution.extractions());
         ImageForensicReport forensic = resolution.documentationAnalyzed()
-                ? runImageFraudAnalysis(caseId, documents, claim.imageConsent())
+                ? runImageFraudAnalysis(caseId, documents, Boolean.TRUE.equals(claim.imageConsent()))
                 : null;
         return withRiskScore(resolution.response(), claim, ctx, forensic, resolution.extractions());
     }

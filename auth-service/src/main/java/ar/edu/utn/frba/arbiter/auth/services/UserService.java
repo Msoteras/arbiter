@@ -3,6 +3,7 @@ package ar.edu.utn.frba.arbiter.auth.services;
 import ar.edu.utn.frba.arbiter.auth.dto.AnalystResponse;
 import ar.edu.utn.frba.arbiter.auth.dto.CreateUserRequest;
 import ar.edu.utn.frba.arbiter.auth.dto.UserResponse;
+import ar.edu.utn.frba.arbiter.auth.config.tenant.TenantContext;
 import ar.edu.utn.frba.arbiter.auth.exceptions.CannotChangeOwnRoleException;
 import ar.edu.utn.frba.arbiter.auth.exceptions.CannotDeleteOwnAccountException;
 import ar.edu.utn.frba.arbiter.auth.exceptions.EmailAlreadyExistsException;
@@ -51,6 +52,7 @@ public class UserService {
     private final EmailDomainValidator emailDomainValidator;
     private final SendGridAdapter sendGridAdapter;
     private final PasswordCipher passwordCipher;
+    private final InsuredProvisioningService insuredProvisioningService;
 
     @Value("${arbiter.frontend.base-url:http://localhost:4200}")
     private String frontendBaseUrl;
@@ -110,6 +112,24 @@ public class UserService {
         }
 
         return toResponse(saved, request.nombre(), request.apellido(), UserRole.ANALISTA_SINIESTROS);
+    }
+
+    /**
+     * "Dar de alta usuarios": kicks off the bulk provisioning of the referente's own insured, from
+     * the company's directory. Returns as soon as the run is dispatched — the work happens off the
+     * request thread.
+     *
+     * <p>The tenant is read <b>here</b>, on the request thread, because {@link TenantContext} is a
+     * {@code ThreadLocal} that will not survive the hand-off. The insurer comes from the caller's
+     * own membership, never from the request, so a referente can only ever provision their own book.
+     */
+    public void provisionInsuredAccounts(String callerEmail) {
+        User caller = userRepository.findByEmail(callerEmail)
+                .orElseThrow(() -> new IllegalStateException("Usuario autenticado no encontrado: " + callerEmail));
+        Long insurerId = tenantResolver.insurerIdsFor(caller.getId()).stream().findFirst()
+                .orElseThrow(() -> new IllegalStateException("Referente sin aseguradora asignada: " + callerEmail));
+
+        insuredProvisioningService.provisionAsync(TenantContext.get(), insurerId);
     }
 
     /**

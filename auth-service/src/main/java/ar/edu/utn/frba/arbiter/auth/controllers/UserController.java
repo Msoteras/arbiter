@@ -48,6 +48,25 @@ public class UserController {
         return ResponseEntity.status(HttpStatus.CREATED).body(response);
     }
 
+    @PostMapping("/asegurados/alta-masiva")
+    @PreAuthorize("hasRole('REFERENTE_ASEGURADORA')")
+    @Operation(summary = "Dar de alta usuarios (asegurados, en bloque)",
+            description = """
+                    Lee los asegurados con póliza vigente de la BD de la aseguradora del referente
+                    y les crea la cuenta en la plataforma, invitándolos por mail a elegir su
+                    contraseña. Desde ahí siguen el onboarding de primer ingreso (H0009).
+
+                    Es idempotente: a quien ya tiene cuenta no se la duplica — se lo reconoce por
+                    email y solo se le vincula esta aseguradora, que es lo que le suma sus pólizas.
+                    Los mails salen de a poco para no disparar un envío masivo de una.
+
+                    Responde 202: la corrida sigue en segundo plano y su resultado queda en el log.
+                    """)
+    public ResponseEntity<Void> provisionInsuredAccounts(Authentication authentication) {
+        userService.provisionInsuredAccounts(authentication.getName());
+        return ResponseEntity.accepted().build();
+    }
+
     @GetMapping
     @PreAuthorize("hasRole('REFERENTE_ASEGURADORA')")
     @Operation(summary = "Listar usuarios",
