@@ -1,5 +1,6 @@
 package ar.edu.utn.frba.arbiter.auth.services;
 
+import ar.edu.utn.frba.arbiter.auth.exceptions.InsuredProfileConflictException;
 import ar.edu.utn.frba.arbiter.common.models.entities.tenant.ClaimsAnalyst;
 import ar.edu.utn.frba.arbiter.common.models.entities.tenant.Insured;
 import ar.edu.utn.frba.arbiter.common.models.entities.User;
@@ -44,15 +45,25 @@ public class TenantProfileService {
      * The insured's tenant profile, created by the bulk "dar de alta usuarios" run from the
      * company's own directory.
      *
-     * <p>Keyed by document, and a no-op when the row is already there: by then it may carry consent
-     * and onboarding state the person set themselves, which the insurer's directory knows nothing
-     * about and must not overwrite.
+     * <p>Keyed by document, and a no-op when the row is already there <b>for this same user</b>: by
+     * then it may carry consent and onboarding state the person set themselves, which the insurer's
+     * directory knows nothing about and must not overwrite.
+     *
+     * <p>A row under a different user is a different story — see
+     * {@link InsuredProfileConflictException}. Treating it as "nothing to do" would report the
+     * person as already provisioned while pairing them with somebody else's login.
      *
      * @return whether it created the row
+     * @throws InsuredProfileConflictException if the document already belongs to another user
      */
     public boolean createInsuredIfMissing(
             User user, String name, String surname, String dni, String email, String phone) {
-        if (insuredRepository.findByDni(dni).isPresent()) {
+        Optional<Insured> existing = insuredRepository.findByDni(dni);
+        if (existing.isPresent()) {
+            Long ownerId = existing.get().getUser().getId();
+            if (!ownerId.equals(user.getId())) {
+                throw new InsuredProfileConflictException(dni, ownerId, user.getId());
+            }
             return false;
         }
         insuredRepository.save(Insured.builder()
