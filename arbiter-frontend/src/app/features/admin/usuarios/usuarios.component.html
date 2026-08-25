@@ -134,7 +134,7 @@
     <app-button variant="secondary" [disabled]="provisioning()" (click)="showProvisionConfirm.set(false)">
       Cancelar
     </app-button>
-    <app-button [disabled]="provisioning()" (click)="confirmProvision()">
+    <app-button [loading]="provisioning()" (click)="confirmProvision()">
       {{ provisioning() ? 'Iniciando…' : 'Dar de alta y enviar invitaciones' }}
     </app-button>
   </ng-container>

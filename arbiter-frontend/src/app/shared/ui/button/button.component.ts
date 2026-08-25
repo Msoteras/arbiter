@@ -97,7 +97,13 @@ type Size = 'md' | 'sm';
       background: var(--action-accent-bg-hover);
       border-color: var(--action-accent-bg-hover);
     }
-    .btn:disabled {
+    /* :not(.loading) es a propósito: [loading] también marca el <button> nativo como disabled
+       (ver el template — sin eso el click seguiría entrando), y sin esta exclusión CUALQUIER
+       botón "cargando" de la app perdía su color de marca y se veía apagado/roto en vez de
+       mostrar el spinner sobre su variante normal — pasaba en el submit del login, "Guardar" del
+       perfil, "Tomar" de la bandeja, y en todo lo que usara [loading]. Un disabled de verdad
+       (sin loading) sigue apagándose como corresponde. */
+    .btn:disabled:not(.loading) {
       color: var(--text-muted);
       background: var(--surface-sunken);
       border-color: var(--border-subtle);

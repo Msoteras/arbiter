@@ -113,13 +113,11 @@ export class PerfilComponent {
     () => this.dirty() && this.emailValid() && this.phoneValid() && !this.saving(),
   );
 
-  /** Desde cuándo rige el consentimiento guardado, y a qué texto corresponde. */
+  /** Desde cuándo rige el consentimiento guardado. */
   protected readonly consentAt = computed(() => {
     const at = this.profile()?.imageConsentAt;
     return at ? new Date(at).toLocaleDateString('es-AR') : null;
   });
-
-  protected readonly consentVersion = computed(() => this.profile()?.imageConsentVersion ?? null);
 
   protected save(): void {
     const profile = this.profile();

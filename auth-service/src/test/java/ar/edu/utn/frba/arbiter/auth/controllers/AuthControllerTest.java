@@ -124,15 +124,19 @@ class AuthControllerTest {
     }
 
     @Test
-    void resetPassword_validToken_returns204() throws Exception {
-        doNothing().when(userService).resetPassword(anyString(), anyString());
+    void resetPassword_validToken_returnsAnAlreadyIssuedSession() throws Exception {
+        LoginResponse session = new LoginResponse(
+                "signed.jwt.token", Instant.now().plusSeconds(3600), 2L,
+                "analista@arbiter.test", UserRole.ANALISTA_SINIESTROS, "Lucas", "Gómez", null, null);
+        when(userService.resetPassword(anyString(), anyString())).thenReturn(session);
 
         mockMvc.perform(post("/api/v1/auth/reset-password")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
                                 {"token": "tok-456", "password": "OtraPass456!"}
                                 """))
-                .andExpect(status().isNoContent());
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.token").value("signed.jwt.token"));
     }
 
     @Test

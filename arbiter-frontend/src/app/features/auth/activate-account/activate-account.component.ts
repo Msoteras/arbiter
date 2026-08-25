@@ -3,11 +3,14 @@ import { HttpErrorResponse } from '@angular/common/http';
 import { ChangeDetectionStrategy, Component, OnInit, computed, inject, signal } from '@angular/core';
 import { ActivatedRoute, Router } from '@angular/router';
 
+import { AuthSessionService } from '../../../core/auth/auth-session.service';
 import { AuthService } from '../../../core/auth/auth.service';
+import { homeRouteFor } from '../../../core/models/user-role';
 import { ButtonComponent } from '../../../shared/ui/button/button.component';
 import { CardComponent } from '../../../shared/ui/card/card.component';
 import { InputComponent } from '../../../shared/ui/input/input.component';
 import { InlineLoadingComponent } from '../../../shared/ui/inline-loading/inline-loading.component';
+import { LogoComponent } from '../../../shared/ui/logo/logo.component';
 
 type Mode = 'activate' | 'reset';
 
@@ -18,16 +21,24 @@ type Mode = 'activate' | 'reset';
  * which drives the copy and which endpoint the submit hits. Before showing the form it validates
  * the token against the backend (GET /invite-tokens/{token}) without consuming it, so a made-up
  * or expired token in the URL never gets to see the password form.
+ *
+ * <p>Both endpoints now return an already-issued session (backend: AuthService.issueSessionFor),
+ * so a successful submit starts it and routes straight into the app — same as LoginComponent —
+ * instead of showing a "you're done, go log in" screen. For an ASEGURADO activating for the first
+ * time, `homeRouteFor` sends them to `/portal/home` and `onboardingGuard` takes it from there
+ * into onboarding, since the token this session started with still carries
+ * `onboardingComplete: false`.
  */
 @Component({
   selector: 'app-activate-account',
-  imports: [ButtonComponent, CardComponent, InputComponent, InlineLoadingComponent],
+  imports: [ButtonComponent, CardComponent, InputComponent, InlineLoadingComponent, LogoComponent],
   changeDetection: ChangeDetectionStrategy.OnPush,
   templateUrl: './activate-account.component.html',
   styleUrl: './activate-account.component.scss',
 })
 export class ActivateAccountComponent implements OnInit {
   private readonly authService = inject(AuthService);
+  private readonly session = inject(AuthSessionService);
   private readonly route = inject(ActivatedRoute);
   private readonly router = inject(Router);
   private readonly location = inject(Location);
@@ -43,7 +54,6 @@ export class ActivateAccountComponent implements OnInit {
   protected readonly confirmPassword = signal('');
   protected readonly submitting = signal(false);
   protected readonly errorMessage = signal<string | null>(null);
-  protected readonly activated = signal(false);
 
   protected readonly copy =
     this.mode === 'reset'
@@ -51,21 +61,17 @@ export class ActivateAccountComponent implements OnInit {
           brandTitle: 'Restablecé tu contraseña',
           brandTag: 'Elegí una contraseña nueva para volver a entrar a Arbiter.',
           formTitle: 'Elegí tu contraseña nueva',
-          formNote: 'Con esto vas a poder iniciar sesión de nuevo en Arbiter.',
+          formNote: 'Con esto quedás adentro, sin tener que volver a loguearte.',
           submitLabel: 'Restablecer contraseña',
           submittingLabel: 'Restableciendo…',
-          successTitle: '¡Listo!',
-          successNote: 'Tu contraseña se actualizó. Ya podés iniciar sesión.',
         }
       : {
           brandTitle: 'Activá tu cuenta',
           brandTag: 'Elegí tu contraseña para terminar de configurar tu acceso a Arbiter.',
           formTitle: 'Elegí tu contraseña',
-          formNote: 'Con esto activás tu cuenta y ya podés iniciar sesión en Arbiter.',
+          formNote: 'Con esto activás tu cuenta y entrás directo, sin tener que loguearte de nuevo.',
           submitLabel: 'Activar cuenta',
           submittingLabel: 'Activando…',
-          successTitle: '¡Listo!',
-          successNote: 'Tu cuenta ya está activada. Ya podés iniciar sesión con tu contraseña.',
         };
 
   /**
@@ -132,19 +138,18 @@ export class ActivateAccountComponent implements OnInit {
         : this.authService.activate(this.token, this.password());
 
     request$.subscribe({
-      next: () => {
-        this.submitting.set(false);
-        this.activated.set(true);
+      // No submitting.set(false) here on purpose: the button stays in its loading state right up
+      // until the route change swaps this component out — resetting it first would flash the
+      // form back to normal for an instant before navigating away.
+      next: (response) => {
+        this.session.start(response);
+        this.router.navigateByUrl(homeRouteFor(response.rol));
       },
       error: (err: HttpErrorResponse) => {
         this.submitting.set(false);
         this.errorMessage.set(this.messageFor(err));
       },
     });
-  }
-
-  protected goToLogin(): void {
-    this.router.navigateByUrl('/login');
   }
 
   private messageFor(err: HttpErrorResponse): string {

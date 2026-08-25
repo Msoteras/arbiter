@@ -2,6 +2,7 @@ package ar.edu.utn.frba.arbiter.auth.services;
 
 import ar.edu.utn.frba.arbiter.auth.dto.AnalystResponse;
 import ar.edu.utn.frba.arbiter.auth.dto.CreateUserRequest;
+import ar.edu.utn.frba.arbiter.auth.dto.LoginResponse;
 import ar.edu.utn.frba.arbiter.auth.dto.UserResponse;
 import ar.edu.utn.frba.arbiter.auth.config.tenant.TenantContext;
 import ar.edu.utn.frba.arbiter.auth.exceptions.CannotChangeOwnRoleException;
@@ -53,6 +54,7 @@ public class UserService {
     private final SendGridAdapter sendGridAdapter;
     private final PasswordCipher passwordCipher;
     private final InsuredProvisioningService insuredProvisioningService;
+    private final AuthService authService;
 
     @Value("${arbiter.frontend.base-url:http://localhost:4200}")
     private String frontendBaseUrl;
@@ -136,8 +138,13 @@ public class UserService {
      * The invited user lands here from the email link. Only at this point do we create them
      * in Auth0 (with the password they chose) — if Auth0 fails, we don't touch anything local,
      * so the user can retry with the same link without the referente having to re-invite them.
+     *
+     * <p>Returns an already-issued session so the frontend can start it straight away instead of
+     * bouncing the person to a login screen for the password they just chose — see
+     * {@link AuthService#issueSessionFor}.
      */
-    public void activateAccount(String token, String encryptedPassword) {
+    @Transactional
+    public LoginResponse activateAccount(String token, String encryptedPassword) {
         String rawPassword = passwordCipher.decrypt(encryptedPassword);
         User user = requireValidToken(token);
 
@@ -149,7 +156,8 @@ public class UserService {
         user.setInviteToken(null);
         user.setInviteExpiresAt(null);
         user.setActivated(true);
-        userRepository.save(user);
+        User saved = userRepository.save(user);
+        return authService.issueSessionFor(saved);
     }
 
     /**
@@ -170,9 +178,13 @@ public class UserService {
 
     /**
      * The user already exists in Auth0 (unlike {@link #activateAccount}) — this only updates
-     * the password there, then clears the local token.
+     * the password there, then clears the local token. Same reasoning as activation for
+     * returning a session instead of nothing: whoever just reset their password already proved
+     * they own the mailbox and chose the new one, so there's nothing left for a login screen to
+     * ask them.
      */
-    public void resetPassword(String token, String encryptedPassword) {
+    @Transactional
+    public LoginResponse resetPassword(String token, String encryptedPassword) {
         String rawPassword = passwordCipher.decrypt(encryptedPassword);
         User user = requireValidToken(token);
 
@@ -182,7 +194,8 @@ public class UserService {
 
         user.setInviteToken(null);
         user.setInviteExpiresAt(null);
-        userRepository.save(user);
+        User saved = userRepository.save(user);
+        return authService.issueSessionFor(saved);
     }
 
     /**

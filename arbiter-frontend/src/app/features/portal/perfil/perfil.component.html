@@ -101,12 +101,10 @@
         <p class="consent-detail">{{ consentDetail }}</p>
 
         @if (consentAt()) {
-          <p class="consent-meta t-note">
-            Guardado el {{ consentAt() }}
-            @if (consentVersion()) {
-              · versión {{ consentVersion() }}
-            }
-          </p>
+          <!-- La versión del texto legal aceptado (imageConsentVersion) queda persistida para la
+               trazabilidad de Ley 25.326, pero no tiene ningún significado para el asegurado —
+               mostrarle "versión 1.0" es jerga interna sin contexto. La fecha sí le dice algo. -->
+          <p class="consent-meta t-note">Guardado el {{ consentAt() }}</p>
         }
       </div>
     </section>
