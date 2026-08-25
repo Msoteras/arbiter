@@ -21,7 +21,6 @@ arbiter/
 │       ├── TEST-CLASIFICACIONES.md
 │       ├── MAPEO_TIPOLOGIAS_CLASIFICACIONES.md
 │       ├── OLLAMA_STREAMING.md
-│       ├── GAPS-FLUJO.md              # Desvíos vs. el flujo aprobado
 │       └── diagrama-flujo-clasificacion.pdf
 │
 ├── common-lib/                        # Tipos compartidos entre módulos (enums, DTOs, excepciones)
@@ -72,7 +71,6 @@ arbiter/
 | Entender la arquitectura                  | [`CLAUDE.md`](../CLAUDE.md) — "Arquitectura"                 |
 | Entender el modelo de dominio             | [`CLAUDE.md`](../CLAUDE.md) — "Modelo de dominio"            |
 | Ver un ejemplo de denuncia + clasificación| `docs/siniestros/TEST-CLASIFICACIONES.md`                   |
-| Ver qué falta vs. el flujo aprobado       | `docs/siniestros/GAPS-FLUJO.md`                             |
 | Debuggear el flujo / correr tests         | `docs/siniestros/TESTING.md`                                |
 | Probar endpoints con Postman              | `docs/postman/`                                             |
 | Correr el módulo localmente               | `classification-service/README.md`                          |
