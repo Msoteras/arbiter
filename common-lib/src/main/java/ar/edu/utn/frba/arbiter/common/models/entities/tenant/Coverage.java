@@ -30,7 +30,7 @@ import java.util.List;
  *
  * <p>{@code deductible} is stored in percentage points (10.00 = 10%), not a 0..1 fraction —
  * matches the existing seed data. {@code clause} and {@code exclusions} have no backing table
- * in the DER (docs/decisiones-reglas-a-validar.md, D3/D7): parked here in JSONB.
+ * in the DER: parked here in JSONB.
  */
 @Entity
 @Table(name = "coverage")

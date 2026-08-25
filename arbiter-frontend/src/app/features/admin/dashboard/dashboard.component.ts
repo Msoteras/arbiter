@@ -29,7 +29,7 @@ interface RiesgoSlice {
 
 /**
  * Panel del referente — tablero operativo de la aseguradora. TODO EL DATO ES MOCK: el módulo de
- * Reportes y Métricas todavía no existe en el backend (ver docs/frontend-bugs-ux.md #9). Esta
+ * Reportes y Métricas todavía no existe en el backend. Esta
  * pantalla es la maqueta viva de cómo se va a ver cuando se conecte.
  */
 @Component({

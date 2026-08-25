@@ -53,8 +53,7 @@ public class InsurerRuleHistory {
     private Instant validTo;
 
     // Column is rule_id in the real DDL — the DER's original name for it, kept even though
-    // the FK target is insurer_rule (there's no common "rule" table to point at instead;
-    // see README-multitenant.md).
+    // the FK target is insurer_rule (there's no common "rule" table to point at instead).
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "rule_id", nullable = false)
     private InsurerRule insurerRule;

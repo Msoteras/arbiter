@@ -117,7 +117,7 @@ export class NuevaDenunciaComponent {
   protected readonly steps: Step[] = [1, 2, 3];
   protected readonly step = signal<Step>(1);
   // El paso más lejano ya alcanzado — permite ir y volver libremente dentro de lo ya
-  // completado sin reabrir la validación de "Continuar" cada vez (docs/frontend-bugs-ux.md #21).
+  // completado sin reabrir la validación de "Continuar" cada vez.
   protected readonly maxStepReached = signal<Step>(1);
   protected readonly submitting = signal(false);
   protected readonly submitError = signal<string | null>(null);
@@ -249,7 +249,7 @@ export class NuevaDenunciaComponent {
       !this.eligibilityChecking(),
   );
 
-  // Tope del input de fecha (docs/frontend-bugs-ux.md #16): un siniestro no puede haber
+  // Tope del input de fecha: un siniestro no puede haber
   // "ocurrido" en el futuro. La regla real vive en el backend (CaseRequest la valida de
   // nuevo); esto es solo la ayuda visual del datepicker.
   protected readonly today = new Date().toISOString().slice(0, 10);

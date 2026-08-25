@@ -95,7 +95,7 @@ export function estadoTone(value: string): StatusTone {
 /**
  * Texto del gauge de fraude cuando no hay `riskBand`: distingue por qué falta, en vez del
  * "Sin datos" ambiguo. "En proceso" (todavía clasificando), "No aplica" (Fast Track: el modelo
- * no corre) y "Sin evaluar" (el resto). Ver docs/frontend-bugs-ux.md #20.
+ * no corre) y "Sin evaluar" (el resto).
  */
 export function riskBandEmptyLabel(status: string, classification: string | null): string {
   if (status === 'PENDING_CLASSIFICATION') {

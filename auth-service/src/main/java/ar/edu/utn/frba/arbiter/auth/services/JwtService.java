@@ -63,7 +63,7 @@ public class JwtService {
      *
      * {@code insurerIds} lists every insurer the user belongs to; {@code tenantSchema} is
      * the one this session actually resolved to (see TenantResolver — first insurer wins
-     * until the multi-insurer login UX is decided, per README-multitenant.md).
+     * until the multi-insurer login UX is decided).
      */
     public IssuedToken issue(
             User user, UserRole rol, String nombre, String apellido, String insuredId,

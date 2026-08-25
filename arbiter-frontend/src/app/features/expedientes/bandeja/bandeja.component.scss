@@ -221,8 +221,7 @@
 .table-card { padding: 0; }
 
 // Sin esto, en móvil la tabla (8 columnas, todas nowrap) empujaba el ancho de la
-// página entera en vez de scrollear en su propio contenedor — ver
-// docs/frontend-bugs-ux.md #12 y el guardrail del design system al respecto.
+// página entera en vez de scrollear en su propio contenedor.
 .table-scroll { overflow-x: auto; }
 
 // Fuente y padding compactos: la tabla tiene 9 columnas y en una laptop al zoom por defecto

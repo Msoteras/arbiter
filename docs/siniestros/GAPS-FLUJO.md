@@ -134,9 +134,8 @@ trunco en `PENDING_ANALYST_REVIEW`, incumpliendo la auditoría de la Disposició
   detección de imágenes se implementó como una **cascada** aparte (`ImageFraudAnalysisService`, corre
   en el orchestrator cuando se analiza documentación —Fast Track con documento incluido—): primero CLIP + pgvector contra la base (imagen
   reutilizada de otro siniestro), y si no matchea, Google Vision Web Detection (imagen publicada en
-  internet, opt-in). El resultado va al `RiskContext` y al reporte forense del `ClaimResponse`. Ver
-  `docs/image-fraud-scoring-integration.md`. Lo único que queda abierto es activar los dos factores
-  de imagen en el score → **Gap H**.
+  internet, opt-in). El resultado va al `RiskContext` y al reporte forense del `ClaimResponse`.
+  Lo único que queda abierto es activar los dos factores de imagen en el score → **Gap H**.
 - **Gap E — Analista asignado.** El diagrama dice "al analista **asignado**". No hay usuarios, roles
   ni asignación porque dependen de `auth-service` (Auth0), que no está levantado. Mientras tanto el
   `analystId` del Gap B se puede recibir como campo del request.
@@ -168,7 +167,7 @@ trunco en `PENDING_ANALYST_REVIEW`, incumpliendo la auditoría de la Disposició
   `PurchaseToReportTime` y `DocumentInconsistency` también declaran `notEvaluable` en sus casos de
   falta de data. `PURCHASE_TO_REPORT_TIME` sigue inactivo (su problema es data de proxy, no dilución).
   Pendiente menor: los **pesos de imagen son provisionales** — la calibración fina (pesos + cortes de
-  banda) es decisión de negocio. Ver `docs/image-fraud-scoring-integration.md`.
+  banda) es decisión de negocio.
 - **Gap I — Snapshot de inputs crudos del scoring (auditoría Disp. 2/2023).** Hoy `classification_log`
   persiste el resultado del scoring (`risk_score`, `risk_band`, `risk_breakdown` con `rawScore`/`weight`/
   `weightedContribution`/`rationale` por factor) al momento de la clasificación, y **no** se recalcula

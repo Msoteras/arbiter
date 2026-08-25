@@ -12,7 +12,7 @@ import { AuthSessionService } from '../auth/auth-session.service';
  *
  * También maneja el 401 global: sin esto, un token vencido (60 min, H0001) hacía que
  * cada pantalla mostrara su propio error genérico sin decirle al usuario que tenía que
- * volver a loguearse — ver docs/frontend-bugs-ux.md #6.
+ * volver a loguearse.
  */
 export const authInterceptor: HttpInterceptorFn = (req, next) => {
   const session = inject(AuthSessionService);

@@ -18,9 +18,9 @@ import java.util.Optional;
 
 /**
  * A branch's AgendaDocumental, for the referente's Documentación tab. The DER
- * (document_requirement / "requisito_documental") keys by branch + claim cause, and since D5
- * (docs/decisiones-reglas-a-validar.md) the screen edits it per claim cause too — no longer fanning
- * a flat list out to every claim cause of the branch. No history: the DER has no
+ * (document_requirement / "requisito_documental") keys by branch + claim cause, and the screen
+ * edits it per claim cause too — no longer fanning a flat list out to every claim cause of the
+ * branch. No history: the DER has no
  * "historial_requisito_documental".
  */
 @Service

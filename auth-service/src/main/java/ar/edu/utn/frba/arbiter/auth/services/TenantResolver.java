@@ -31,8 +31,7 @@ public class TenantResolver {
      * Which insurer to route this session's requests to. A user belonging to more than
      * one insurer (the demo seed's Martina Soteras is exactly this case) isn't
      * disambiguated yet — picking the first one is a known simplification until the
-     * login UX for that case is decided (see README-multitenant.md, "Resolución del
-     * tenant por request").
+     * login UX for that case is decided.
      */
     public Optional<Insurer> primaryInsurerFor(Long userId) {
         return insurerIdsFor(userId).stream()
