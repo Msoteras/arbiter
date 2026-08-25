@@ -61,10 +61,10 @@ export class SeguimientoComponent {
     combineLatest([this.route.paramMap, this.route.queryParamMap]).pipe(
       map(([params, query]) => ({
         id: params.get('id') ?? '',
-        aseguradora: query.get('aseguradora'),
+        insurer: query.get('insurer'),
       })),
-      switchMap(({ id, aseguradora }) =>
-        this.service.getById(id, aseguradora).pipe(
+      switchMap(({ id, insurer }) =>
+        this.service.getById(id, insurer).pipe(
           map((data): LoadState => ({ status: 'ok', data })),
           startWith<LoadState>({ status: 'loading' }),
           catchError((err: HttpErrorResponse) =>

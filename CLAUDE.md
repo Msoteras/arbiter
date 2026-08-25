@@ -100,7 +100,7 @@ Estos términos vienen del relevamiento de una aseguradora real (BBVA Seguros, A
    5. autocompletar Domicilio de riesgo + Datos filiatorios
    6. POST alta de Denuncia (con descripción + adjuntos)
    ```
-   El frontend tiene que pedir cada paso y mostrar las opciones del siguiente. El backend expone endpoints de catálogo: `GET /siniestros/catalogos/hechos-generadores?polizaId=…`, etc.
+   El frontend tiene que pedir cada paso y mostrar las opciones del siguiente. El backend expone endpoints de catálogo en `rules-service` (`GET /api/v1/rules/branches`, `GET /api/v1/rules/claim-causes`, etc.).
 
 2. **El LLM clasifica mejor con campos estructurados.** El prompt no recibe solo texto libre de la denuncia: recibe `{ ramo, producto, hechoGenerador, bien, descripcionLibre, adjuntosOCR, imagen }`. Los campos estructurados son contexto duro que ancla la inferencia.
 
@@ -257,7 +257,7 @@ ollama serve                                          # default: http://localhos
 - **Records para DTOs y eventos**. Inmutables, sin Lombok salvo `@Builder` cuando hay muchos campos opcionales.
 - **Constructor injection siempre** (`@RequiredArgsConstructor`). Nunca `@Autowired` en campos.
 - **Excepciones de dominio** en `exceptions/` + un `@RestControllerAdvice` por módulo que las traduce a `ProblemDetail` (RFC 7807).
-- **Endpoints REST en plural y kebab-case si aplica**: `/api/v1/siniestros`, `/api/v1/siniestros/{id}/clasificacion`.
+- **Endpoints REST en plural y kebab-case si aplica**: `/api/v1/cases`, `/api/v1/cases/{caseId}/fraud-record`.
 - **Tipos compartidos** (DTOs públicos entre módulos, enums de dominio, excepciones base) van a `common-lib`. Lo interno de un módulo NO.
 - **Las entidades JPA del esquema común van a `common-lib`**, en `common/models/entities/`. Son las 10 tablas de `arbiter_common` (`insurer`, `users`, `user_insurer`, `role`, `permission`, `role_permission`, `user_role`, `branch`, `claim_cause`, `case_status`): no son de ningún módulo, son de la plataforma, y varios módulos necesitan leerlas. Definirlas una sola vez evita que se desincronicen — `Insurer` llegó a estar duplicada en `auth-service` y `rules-service`. **Los repositories NO se comparten**: cada módulo declara el suyo con las queries que necesita, apuntando a la entidad de `common-lib`.
 - **Las entidades de un esquema de aseguradora son del módulo dueño**, con una excepción acotada: cuando **más de un módulo** necesita la misma tabla de tenant, va a `common/models/entities/tenant/` (ver el `package-info` de ese paquete). Hoy la única es `Insured`, que auth-service y cases-service declaraban por separado y ya habían divergido. La distinción entre los dos paquetes importa: el padre son tablas con **una sola fila para toda la plataforma**; `tenant/` son tablas que existen **una vez por aseguradora**, y qué fila se lee depende del tenant resuelto. No sumes entidades ahí por las dudas: si la usa un solo módulo, va en ese módulo.

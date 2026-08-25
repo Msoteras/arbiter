@@ -54,7 +54,7 @@
             <a
               class="case-card"
               [routerLink]="['/portal/cases', c.id]"
-              [queryParams]="c.insurerSlug ? { aseguradora: c.insurerSlug } : {}"
+              [queryParams]="c.insurerSlug ? { insurer: c.insurerSlug } : {}"
             >
               <div class="case-head">
                 <!-- La aseguradora va al lado del número porque el número se repite entre
