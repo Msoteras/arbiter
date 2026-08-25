@@ -11,11 +11,29 @@ import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.LocalDate;
 import java.util.Collection;
 import java.util.List;
 
 @Repository
 public interface CaseRepository extends JpaRepository<Case, Long>, JpaSpecificationExecutor<Case> {
+
+    /**
+     * Non-terminal cases whose response deadline is on or before {@code threshold} — the pool the
+     * deadline sweep looks at each day. Terminal cases are excluded in SQL ({@code finalStatuses} =
+     * APPROVED, REJECTED): an answered case is never overdue, no matter how close its deadline was.
+     *
+     * @param threshold     the sweep asks for {@code today + 2} (critical or worse); the exact
+     *                      priority per case is then resolved with {@code DeadlinePriority.of}
+     * @param finalStatuses names of the terminal states to exclude
+     */
+    @Query("""
+            select c from Case c
+            where c.responseDeadline <= :threshold
+              and c.currentStatus.name not in :finalStatuses
+            """)
+    List<Case> findUnansweredDueBy(@Param("threshold") LocalDate threshold,
+                                   @Param("finalStatuses") Collection<String> finalStatuses);
 
     /**
      * Cases sitting in a given state. Takes the enum and navigates to {@code case_status.name}

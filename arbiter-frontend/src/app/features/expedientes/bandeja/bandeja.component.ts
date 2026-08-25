@@ -30,6 +30,12 @@ import { UserAdminService } from '../../../core/auth/user-admin.service';
 import { ExpedienteResponse } from '../../../core/models/expediente';
 import { clasificacionLabel, clasificacionTone } from '../../../core/models/clasificacion';
 import {
+  DeadlinePriority,
+  deadlinePriorityLabel,
+  deadlinePriorityTone,
+  isDeadlinePrioritized,
+} from '../../../core/models/deadline-priority';
+import {
   CaseStatus,
   estadoLabel,
   estadoTone,
@@ -60,6 +66,7 @@ type SortField =
   | 'claimCause'
   | 'eventDate'
   | 'claimedAmount'
+  | 'responseDeadline'
   | 'riskBand'
   | 'analysisClassification'
   // Path anidado: el analista es una relación, no una columna. Ordenar por apellido es lo que
@@ -361,6 +368,7 @@ export class BandejaComponent {
   protected readonly columns: ColumnDef[] = [
     { field: 'id', label: 'N°' },
     { field: 'status', label: 'Estado' },
+    { field: 'responseDeadline', label: 'Plazo' },
     { field: 'insuredName', label: 'Asegurado' },
     { field: 'claimCause', label: 'Tipo de siniestro' },
     { field: 'eventDate', label: 'Fecha del hecho' },
@@ -667,6 +675,18 @@ export class BandejaComponent {
 
   protected clasificacionTone(value: string): StatusTone {
     return clasificacionTone(value);
+  }
+
+  protected deadlineTone(priority: DeadlinePriority): StatusTone {
+    return deadlinePriorityTone(priority);
+  }
+
+  protected deadlineLabel(c: ExpedienteResponse): string {
+    return deadlinePriorityLabel(c.deadlinePriority, c.responseDeadline);
+  }
+
+  protected deadlinePrioritized(c: ExpedienteResponse): boolean {
+    return isDeadlinePrioritized(c.deadlinePriority);
   }
 
   private static readonly RISK_BAND_GAUGE: Record<string, 1 | 2 | 3 | 4> = {

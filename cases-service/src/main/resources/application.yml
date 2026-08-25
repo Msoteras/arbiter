@@ -53,6 +53,11 @@ arbiter:
     # holgado que cortar algo que iba a terminar bien.
     interval-ms: 20000
     max-attempts: 540
+  deadline-sweep:
+    # Barre a diario los expedientes por vencer el plazo de respuesta (art. 56) y notifica al
+    # analista los críticos/vencidos. Diario porque el plazo es a nivel día. En dev, bajarlo a
+    # cada minuto (0 * * * * *) para probar el flujo sin esperar al horario.
+    cron: ${DEADLINE_SWEEP_CRON:0 0 8 * * *}
   email:
     # Sin key el adapter loguea y no manda: el módulo levanta igual y las notificaciones
     # quedan registradas en base aunque no salga el mail.

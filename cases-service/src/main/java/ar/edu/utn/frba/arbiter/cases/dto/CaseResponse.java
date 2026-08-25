@@ -4,10 +4,12 @@ import ar.edu.utn.frba.arbiter.common.dto.ImageForensicReport;
 import ar.edu.utn.frba.arbiter.common.dto.RiskBreakdownItem;
 import ar.edu.utn.frba.arbiter.common.enums.CaseStatus;
 import ar.edu.utn.frba.arbiter.common.enums.Classification;
+import ar.edu.utn.frba.arbiter.common.enums.DeadlinePriority;
 import ar.edu.utn.frba.arbiter.common.enums.RiskBand;
 
 import java.math.BigDecimal;
 import java.time.Instant;
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.List;
 
@@ -77,6 +79,14 @@ public record CaseResponse(
         String assignedAnalystName,
         Instant createdAt,
         Instant updatedAt,
+        /** Fecha límite legal para expedirse (art. 56 Ley 17.418): denuncia + 30 días. */
+        LocalDate responseDeadline,
+        /**
+         * Urgencia frente a ese plazo (semáforo de la bandeja). Derivada de {@code responseDeadline},
+         * la fecha actual y si el expediente ya fue resuelto — no se persiste. {@code NONE} para
+         * casos con más de 10 días o ya respondidos.
+         */
+        DeadlinePriority deadlinePriority,
         /** Full transition trail with timestamps; null on list endpoints (only GET /{id} loads it). */
         List<StatusTransitionResponse> statusHistory,
         /**

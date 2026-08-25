@@ -9,6 +9,7 @@ import ar.edu.utn.frba.arbiter.cases.models.entities.StatusChangeActor;
 import ar.edu.utn.frba.arbiter.cases.services.CaseService;
 import ar.edu.utn.frba.arbiter.common.enums.CaseStatus;
 import ar.edu.utn.frba.arbiter.common.enums.Classification;
+import ar.edu.utn.frba.arbiter.common.enums.DeadlinePriority;
 import ar.edu.utn.frba.arbiter.common.enums.RiskBand;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -113,6 +114,20 @@ class CaseControllerTest {
                 .andExpect(jsonPath("$.content[0].id").value(2))
                 .andExpect(jsonPath("$.content[1].id").value(1))
                 .andExpect(jsonPath("$.totalElements").value(2));
+    }
+
+    @Test
+    void listCases_sortByResponseDeadline_isAccepted() throws Exception {
+        // El orden "prioritarios primero" de la bandeja: sort por la fecha límite de respuesta.
+        Pageable byDeadline = PageRequest.of(0, 20, Sort.by(Sort.Direction.ASC, "responseDeadline"));
+        when(caseService.listCases(isNull(), isNull(), isNull(), isNull(), isNull(), isNull(), isNull(),
+                isNull(), isNull(), eq(false), eq(false), eq(false), eq(false), eq(byDeadline)))
+                .thenReturn(new PageImpl<>(List.of(caseResponse(1L, CaseStatus.PENDING_ANALYST_REVIEW)),
+                        byDeadline, 1));
+
+        mockMvc.perform(get("/api/v1/cases").param("sort", "responseDeadline,asc"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.content.length()").value(1));
     }
 
     @Test
@@ -257,6 +272,7 @@ class CaseControllerTest {
                 null, null, null, null, null, null,
                 Instant.parse("2026-06-13T22:50:00Z"),
                 Instant.parse("2026-06-13T22:55:00Z"),
+                LocalDate.of(2026, 7, 13), DeadlinePriority.NONE,
                 List.of(
                         new StatusTransitionResponse(null, CaseStatus.PENDING_CLASSIFICATION,
                                 StatusChangeActor.INSURED, "denuncia registrada",
@@ -281,6 +297,9 @@ class CaseControllerTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.analysisClassification").value("FAST_TRACK"))
                 .andExpect(jsonPath("$.analysisConfidence").value(1.0))
+                // Semáforo de vencimiento: fecha límite + prioridad derivada viajan en el read model.
+                .andExpect(jsonPath("$.responseDeadline").value("2026-07-13"))
+                .andExpect(jsonPath("$.deadlinePriority").value("NONE"))
                 .andExpect(jsonPath("$.analysisReasons.length()").value(3))
                 .andExpect(jsonPath("$.analysisReasons[0]").value("Low amount"))
                 .andExpect(jsonPath("$.statusHistory.length()").value(2))
@@ -328,6 +347,7 @@ class CaseControllerTest {
                 null, null, null, null, null, null,
                 Instant.parse("2026-06-13T22:50:00Z"),
                 Instant.parse("2026-06-13T22:50:00Z"),
+                LocalDate.of(2026, 7, 13), DeadlinePriority.NONE,
                 null,
                 List.of()
         );

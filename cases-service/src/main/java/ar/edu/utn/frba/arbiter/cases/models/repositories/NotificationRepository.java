@@ -23,4 +23,12 @@ public interface NotificationRepository extends JpaRepository<Notification, Long
      * this anyone could clear someone else's notifications by guessing ids.
      */
     Optional<Notification> findByIdAndRecipientId(Long id, Long recipientId);
+
+    /**
+     * Whether this recipient was already told about this case at this level. The deadline sweep
+     * runs daily, so without this it would re-notify the same critical case every morning. A case
+     * escalating from CRITICAL to OVERDUE has a different {@code type}, so it notifies once more —
+     * the intended escalation, not a duplicate.
+     */
+    boolean existsByCaseEntityIdAndRecipientIdAndType(Long caseId, Long recipientId, String type);
 }
