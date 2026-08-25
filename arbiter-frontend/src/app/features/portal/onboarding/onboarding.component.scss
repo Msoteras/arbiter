@@ -82,12 +82,6 @@
   background: var(--selected-bg);
   color: var(--accent-fg);
 }
-.section-note {
-  margin: calc(var(--space-2) * -1) 0 0;
-  font-size: var(--font-size-body);
-  color: var(--text-muted);
-  line-height: 1.5;
-}
 .section .t-note {
   margin: 0;
 }

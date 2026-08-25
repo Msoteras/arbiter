@@ -27,13 +27,6 @@
   letter-spacing: 0.14em;
   color: var(--accent-fg);
 }
-.head-sub {
-  margin: var(--space-2) 0 0;
-  font-size: var(--font-size-md);
-  color: var(--text-muted);
-  line-height: 1.55;
-}
-
 .load-error {
   padding: var(--space-3) var(--space-4);
   border: 1px solid var(--border-danger-soft);
