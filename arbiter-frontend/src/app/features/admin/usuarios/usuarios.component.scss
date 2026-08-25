@@ -7,6 +7,17 @@
   margin-bottom: var(--space-4);
 }
 
+.head-actions { display: flex; gap: var(--space-2); align-items: center; flex-wrap: wrap; }
+
+/* El aviso de "está corriendo" queda hasta que se recarga: la corrida es asincrónica y no hay
+   forma de saber desde acá cuándo terminó, así que esconderlo solo con un timer mentiría. */
+.provision-notice {
+  display: block;
+  margin-bottom: var(--space-4);
+
+  p { margin: 0 0 var(--space-3); }
+}
+
 /* El tratamiento visual y el estado deshabilitado los pone app-select; acá solo el ancho
    para que la columna no se estire con el rol más largo. */
 .role-select { display: block; min-width: 200px; }
