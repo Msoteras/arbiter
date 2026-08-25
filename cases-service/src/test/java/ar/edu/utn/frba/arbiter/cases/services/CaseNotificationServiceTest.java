@@ -72,6 +72,7 @@ class CaseNotificationServiceTest {
     @Test
     void notifyStatusChange_writesTheRowAndSendsTheEmail() {
         savesWhatItIsGiven();
+        when(sendGridAdapter.send(anyString(), anyString(), anyString())).thenReturn(true);
 
         service.notifyStatusChange(caseWith(insuredWith(INSURED_EMAIL)), CaseStatus.APPROVED);
 
@@ -80,7 +81,24 @@ class CaseNotificationServiceTest {
         assertThat(saved.getRecipientId()).isEqualTo(7L);
         assertThat(saved.getCreatedAt()).isNotNull();
         assertThat(saved.isRead()).isFalse();
+        assertThat(saved.isSent()).isTrue();
+        assertThat(saved.getSentAt()).isNotNull();
         verify(sendGridAdapter).send(eq(INSURED_EMAIL), anyString(), anyString());
+    }
+
+    /**
+     * Regression: with no API key the adapter logs and returns without sending, and the row used to
+     * be stamped sent=true anyway — the panel showed a mail the insured never got.
+     */
+    @Test
+    void notifyStatusChange_doesNotMarkSentWhenNothingWentOut() {
+        savesWhatItIsGiven();
+        when(sendGridAdapter.send(anyString(), anyString(), anyString())).thenReturn(false);
+
+        service.notifyStatusChange(caseWith(insuredWith(INSURED_EMAIL)), CaseStatus.APPROVED);
+
+        assertThat(firstSaved().isSent()).isFalse();
+        assertThat(firstSaved().getSentAt()).isNull();
     }
 
     /** Only what asks the insured for something or is the outcome; the rest is internal traffic. */

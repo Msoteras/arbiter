@@ -27,6 +27,9 @@ class SendGridAdapterTest {
             assertThatCode(() -> adapter.send("destinatario@example.com", "Asunto", "<p>Hola</p>"))
                     .doesNotThrowAnyException();
 
+            // false, not just "no exception": quien anota "notificado" tiene que poder distinguir
+            // esto de un envío real.
+            assertThat(adapter.send("destinatario@example.com", "Asunto", "<p>Hola</p>")).isFalse();
             assertThat(mocked.constructed()).isEmpty();
         }
     }
@@ -37,7 +40,7 @@ class SendGridAdapterTest {
 
         try (MockedConstruction<SendGrid> mocked = mockConstruction(SendGrid.class,
                 (mock, context) -> when(mock.api(any(Request.class))).thenReturn(new Response(202, "", Map.of())))) {
-            adapter.send("destinatario@example.com", "Asunto", "<p>Hola</p>");
+            assertThat(adapter.send("destinatario@example.com", "Asunto", "<p>Hola</p>")).isTrue();
 
             verify(mocked.constructed().get(0)).api(any(Request.class));
         }

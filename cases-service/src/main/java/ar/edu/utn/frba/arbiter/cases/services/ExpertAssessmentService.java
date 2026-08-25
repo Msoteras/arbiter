@@ -63,6 +63,7 @@ public class ExpertAssessmentService {
     private final CaseStatusService caseStatusService;
     private final ExpertNotificationService expertNotificationService;
     private final RulesServiceClient rulesServiceClient;
+    private final FraudRecordService fraudRecordService;
 
     /**
      * Whether this case can be derived, and to whom. Eligibility is the insurer's rule (the
@@ -125,6 +126,9 @@ public class ExpertAssessmentService {
     /**
      * Files the expert's report and hands the case back to the analyst. The verdict and the
      * document land together — a verdict with no report behind it is a claim, not evidence.
+     *
+     * <p>A {@code FRAUD_CONFIRMED} verdict also leaves the fraud record on the insured, without a
+     * second click: see {@link FraudRecordService#registerFromExpertReport}.
      */
     @Transactional
     public ExpertAssessmentResponse receiveReport(Long caseId, ExpertVerdict verdict, String note,
@@ -148,7 +152,23 @@ public class ExpertAssessmentService {
         caseStatusService.transition(caseRecord, CaseStatus.PENDING_ANALYST_REVIEW,
                 StatusChangeActor.ANALYST, "informe de peritaje recibido: " + verdict);
 
+        // After the transition, and only for a confirmed fraud: the record needs the case back in
+        // PENDING_ANALYST_REVIEW to be allowed, and a verdict that proves fraud should not depend
+        // on the analyst remembering a second click to reach the person's file.
+        if (verdict == ExpertVerdict.FRAUD_CONFIRMED) {
+            fraudRecordService.registerFromExpertReport(caseId, fraudRecordReason(assessment, note));
+        }
+
         return ExpertAssessmentResponse.from(assessment);
+    }
+
+    /**
+     * What a colleague reads years from now next to the mark on the person: who found it and what
+     * they wrote. The expert's note goes in whole — it is the evidence, not a summary of it.
+     */
+    private String fraudRecordReason(ExpertAssessment assessment, String note) {
+        String header = "Peritaje de " + assessment.getExpertName() + ": fraude confirmado.";
+        return note == null || note.isBlank() ? header : header + " " + note.trim();
     }
 
     private CaseDocument storeReport(Long caseId, MultipartFile report) {

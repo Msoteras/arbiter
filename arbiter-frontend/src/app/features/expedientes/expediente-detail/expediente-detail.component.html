@@ -547,6 +547,29 @@
   </ng-container>
 </app-modal>
 
+<!-- Confirmación de la derivación. El expediente ya cambió de estado abajo, y sin este acuse el
+     analista no sabe si salió: es la única señal de que al perito se le mandó el mail. -->
+@if (derivacionHecha(); as p) {
+  <app-modal [open]="true" heading="Derivación enviada" (close)="cerrarDerivacionHecha()">
+    <p class="t-body">
+      El expediente <strong>#{{ data()?.id }}</strong> fue derivado con éxito a
+      <strong>{{ p.expertName }}</strong>.
+    </p>
+    <p class="t-note">
+      @if (p.notified) {
+        Le mandamos por mail los datos del siniestro a verificar. El expediente queda esperando el
+        informe y vuelve a tu revisión cuando lo cargues.
+      } @else {
+        El expediente quedó derivado, pero el mail al perito no salió: avisale por otra vía antes
+        de esperar el informe.
+      }
+    </p>
+    <ng-container modalActions>
+      <app-button (click)="cerrarDerivacionHecha()">Volver al expediente</app-button>
+    </ng-container>
+  </app-modal>
+}
+
 <!-- Registro del antecedente. Es un acto sobre la PERSONA, no sobre el expediente, así que el
      modal dice antes de confirmar qué va a pasar en sus denuncias siguientes. -->
 <app-modal
@@ -625,6 +648,14 @@
     <app-button variant="secondary" (click)="informeInput.click()">Elegir informe</app-button>
   </div>
   <app-textarea [rows]="3" placeholder="Nota (opcional)…" [(value)]="notaVeredicto" />
+  <!-- Lo que se firma al guardar: el veredicto del perito no queda solo en el expediente, deja la
+       marca sobre la persona. Y esa marca no se da de baja desde la aplicación. -->
+  @if (veredictoConfirmaFraude()) {
+    <p class="rcard-note">
+      Al guardar queda registrado el antecedente de fraude sobre el asegurado, con tu nombre y la
+      nota del perito. Va a pesar en sus denuncias siguientes mientras esté vigente.
+    </p>
+  }
   @if (informeError()) {
     <p class="rcard-note error">{{ informeError() }}</p>
   }

@@ -21,6 +21,7 @@ import {
   CaseDocument,
   CaseDocumentType,
   documentFormatLabel,
+  documentTypeLabel,
   formatFileSize,
   isPreviewableImage,
   isPreviewablePdf,
@@ -39,6 +40,8 @@ interface DocRow {
   type: string;
   label: string;
   doc: CaseDocument | null;
+  /** Adjunto que no ocupa un casillero de la agenda (hoy, el informe pericial). */
+  extra: boolean;
 }
 
 type PreviewState =
@@ -128,23 +131,62 @@ export class CaseDocumentsComponent {
   protected readonly loading = computed(() => this.state().status === 'loading');
   protected readonly hasError = computed(() => this.state().status === 'error');
 
-  private readonly documents = computed<CaseDocument[]>(() => {
+  private readonly allDocuments = computed<CaseDocument[]>(() => {
     const s = this.state();
     return s.status === 'ok' ? s.data : [];
   });
 
-  /** Las 4 filas del checklist; con showMissing=false quedan solo las cargadas. */
+  /** Los que ocupan un casillero de la agenda: son los que cuentan para "N de M". */
+  private readonly agendaDocuments = computed<CaseDocument[]>(() => {
+    const slots = new Set(this.requiredTypes().map((t) => t.type));
+    return this.allDocuments().filter((d) => slots.has(d.type));
+  });
+
+  /**
+   * Lo adjunto al expediente que no sale de la agenda — hoy, el informe que el analista carga
+   * cuando vuelve el perito. Se lista igual (si no, queda un documento que el visor abre pero la
+   * lista no ofrece), pero fuera del checklist: no es un casillero que el asegurado deba llenar.
+   *
+   * <p>En el portal no se muestra: esa sección es "la documentación que enviaste", y el informe
+   * pericial no lo mandó el asegurado ni es suyo para leer.
+   */
+  private readonly extraDocuments = computed<CaseDocument[]>(() => {
+    if (!this.showMissing()) return [];
+    const slots = new Set(this.requiredTypes().map((t) => t.type));
+    return this.allDocuments().filter((d) => !slots.has(d.type));
+  });
+
+  /** Lo visible en esta vista, en el orden de la lista. Es lo que el visor puede abrir. */
+  private readonly documents = computed<CaseDocument[]>(() => [
+    ...this.agendaDocuments(),
+    ...this.extraDocuments(),
+  ]);
+
+  /** Las filas del checklist; con showMissing=false quedan solo las cargadas. */
   protected readonly rows = computed<DocRow[]>(() => {
-    const docs = this.documents();
+    const docs = this.agendaDocuments();
     const all = this.requiredTypes().map(({ type, label }) => ({
       type,
       label,
       doc: docs.find((d) => d.type === type) ?? null,
+      extra: false,
     }));
-    return this.showMissing() ? all : all.filter((r) => r.doc);
+    const agenda = this.showMissing() ? all : all.filter((r) => r.doc);
+    return [
+      ...agenda,
+      ...this.extraDocuments().map((doc) => ({
+        type: doc.type,
+        label: documentTypeLabel(doc.type),
+        doc,
+        extra: true,
+      })),
+    ];
   });
 
-  protected readonly presentCount = computed(() => this.documents().length);
+  /** Índice de la primera fila fuera de agenda, para separarlas con su encabezado. -1 si no hay. */
+  protected readonly firstExtraIndex = computed(() => this.rows().findIndex((r) => r.extra));
+
+  protected readonly presentCount = computed(() => this.agendaDocuments().length);
   protected readonly totalCount = computed(() => this.requiredTypes().length);
 
   protected readonly preview = signal<PreviewState>({ status: 'empty' });
