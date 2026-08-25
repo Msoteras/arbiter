@@ -13,6 +13,7 @@ import ar.edu.utn.frba.arbiter.auth.exceptions.InviteTokenExpiredException;
 import ar.edu.utn.frba.arbiter.auth.exceptions.RoleNotAllowedException;
 import ar.edu.utn.frba.arbiter.auth.exceptions.UserAlreadyActiveException;
 import ar.edu.utn.frba.arbiter.auth.exceptions.UserNotFoundException;
+import ar.edu.utn.frba.arbiter.common.models.entities.Insurer;
 import ar.edu.utn.frba.arbiter.common.models.entities.Role;
 import ar.edu.utn.frba.arbiter.common.models.entities.User;
 import ar.edu.utn.frba.arbiter.common.models.entities.UserInsurer;
@@ -24,6 +25,8 @@ import ar.edu.utn.frba.arbiter.common.email.SendGridAdapter;
 import ar.edu.utn.frba.arbiter.common.enums.UserRole;
 import ar.edu.utn.frba.arbiter.common.enums.UserStatus;
 import lombok.RequiredArgsConstructor;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -39,6 +42,8 @@ import java.util.UUID;
 @Service
 @RequiredArgsConstructor
 public class UserService {
+
+    private static final Logger log = LoggerFactory.getLogger(UserService.class);
 
     private static final long INVITE_VALIDITY_HOURS = 48;
     private static final long RESET_VALIDITY_HOURS = 2;
@@ -157,23 +162,62 @@ public class UserService {
         user.setInviteExpiresAt(null);
         user.setActivated(true);
         User saved = userRepository.save(user);
+        log.info("[Auth] Cuenta activada — userId={} email={}", saved.getId(), saved.getEmail());
         return authService.issueSessionFor(saved);
     }
 
     /**
      * "Forgot my password": if the email exists, generates a new token (reusing the same invite
      * columns) and sends the link. Responds the same way whether or not the email exists — no
-     * leaking which addresses are registered in the system. No authenticated tenant to read a
-     * display name from at this point, so the email greets by address instead of by name.
+     * leaking which addresses are registered in the system, not even in what gets logged: the
+     * unknown-email case is silent here on purpose. See {@link #greetingFor} for how the mail
+     * greets the person.
      */
     public void requestPasswordReset(String email) {
-        userRepository.findByEmail(email).ifPresent(user -> {
-            user.setInviteToken(UUID.randomUUID().toString());
-            user.setInviteExpiresAt(Instant.now().plus(RESET_VALIDITY_HOURS, ChronoUnit.HOURS));
-            userRepository.save(user);
-            sendGridAdapter.send(user.getEmail(), "Restablecé tu contraseña en Arbiter",
-                    resetEmailBody(user.getEmail(), user.getInviteToken()));
-        });
+        Optional<User> found = userRepository.findByEmail(email);
+        if (found.isEmpty()) {
+            log.info("[Auth] Reset de contraseña pedido para un email no registrado");
+            return;
+        }
+        User user = found.get();
+        user.setInviteToken(UUID.randomUUID().toString());
+        user.setInviteExpiresAt(Instant.now().plus(RESET_VALIDITY_HOURS, ChronoUnit.HOURS));
+        userRepository.save(user);
+        sendGridAdapter.send(user.getEmail(), "Restablecé tu contraseña en Arbiter",
+                resetEmailBody(greetingFor(user), user.getInviteToken()));
+        log.info("[Auth] Mail de reset enviado — userId={} email={}", user.getId(), user.getEmail());
+    }
+
+    /**
+     * First name if it can be resolved, the email otherwise. There is no JWT yet at this point
+     * (this fires off an anonymous "forgot my password" request), so unlike every other place
+     * that reads a profile, the tenant has to be resolved here too — same steps
+     * {@link AuthService#issueSessionFor} takes right before issuing a token, just without the
+     * token at the end. A role with no membership anywhere, or a profile row that's missing,
+     * falls back to the email: the reset still has to go out either way.
+     */
+    private String greetingFor(User user) {
+        // Null-safe on purpose: Hibernate never hands back null for a mapped collection, but a
+        // User built with .builder() and no .roles(...) — every existing test fixture that isn't
+        // about roles — does, since @Builder ignores the field initializer without @Builder.Default.
+        Optional<UserRole> rol = user.getRoles() == null
+                ? Optional.empty()
+                : user.getRoles().stream().findFirst().map(Role::getCode).map(UserRole::valueOf);
+        Optional<Insurer> primaryInsurer = rol.isPresent()
+                ? tenantResolver.primaryInsurerFor(user.getId())
+                : Optional.empty();
+        if (primaryInsurer.isEmpty()) {
+            return user.getEmail();
+        }
+        TenantContext.set(primaryInsurer.get().getSchemaName());
+        try {
+            return tenantProfileService.find(rol.get(), user.getId())
+                    .map(TenantProfileService.Profile::name)
+                    .filter(name -> name != null && !name.isBlank())
+                    .orElse(user.getEmail());
+        } finally {
+            TenantContext.clear();
+        }
     }
 
     /**
@@ -195,6 +239,7 @@ public class UserService {
         user.setInviteToken(null);
         user.setInviteExpiresAt(null);
         User saved = userRepository.save(user);
+        log.info("[Auth] Contraseña restablecida — userId={} email={}", saved.getId(), saved.getEmail());
         return authService.issueSessionFor(saved);
     }
 

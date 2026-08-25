@@ -13,6 +13,7 @@ import ar.edu.utn.frba.arbiter.auth.exceptions.InviteTokenExpiredException;
 import ar.edu.utn.frba.arbiter.auth.exceptions.RoleNotAllowedException;
 import ar.edu.utn.frba.arbiter.auth.exceptions.UserAlreadyActiveException;
 import ar.edu.utn.frba.arbiter.auth.exceptions.UserNotFoundException;
+import ar.edu.utn.frba.arbiter.common.models.entities.Insurer;
 import ar.edu.utn.frba.arbiter.common.models.entities.Role;
 import ar.edu.utn.frba.arbiter.common.models.entities.User;
 import ar.edu.utn.frba.arbiter.common.models.entities.UserInsurer;
@@ -311,6 +312,12 @@ class UserServiceTest {
         verifyNoInteractions(authService);
     }
 
+    /**
+     * No role on this fixture (same as every other test in the file that doesn't care about
+     * roles) — greetingFor has to fall back to the email rather than NPE on a null
+     * {@code roles} collection, which is what {@code User.builder()} leaves it as without an
+     * explicit {@code .roles(...)}.
+     */
     @Test
     void requestPasswordReset_existingEmail_generatesTokenAndSendsMail() {
         userService = userService(Optional.empty());
@@ -323,7 +330,33 @@ class UserServiceTest {
         verify(userRepository).save(captor.capture());
         assertThat(captor.getValue().getInviteToken()).isNotBlank();
         assertThat(captor.getValue().getInviteExpiresAt()).isAfter(Instant.now());
-        verify(sendGridAdapter).send(eq("analista.test@arbiter.test"), anyString(), anyString());
+        ArgumentCaptor<String> bodyCaptor = ArgumentCaptor.forClass(String.class);
+        verify(sendGridAdapter).send(eq("analista.test@arbiter.test"), anyString(), bodyCaptor.capture());
+        assertThat(bodyCaptor.getValue()).contains("Hola analista.test@arbiter.test,");
+    }
+
+    /**
+     * The case the fallback above exists for NOT to fire: a real account has a role and a
+     * resolvable tenant profile, so the mail should greet by first name — not the email — same
+     * as every other mail this module sends.
+     */
+    @Test
+    void requestPasswordReset_resolvableProfile_greetsByFirstName() {
+        userService = userService(Optional.empty());
+        Role insuredRole = Role.builder().id(1L).code("ASEGURADO").name("Asegurado").build();
+        User existing = User.builder().id(7L).email("camila@example.test")
+                .roles(new HashSet<>(Set.of(insuredRole))).build();
+        when(userRepository.findByEmail("camila@example.test")).thenReturn(Optional.of(existing));
+        Insurer insurer = Insurer.builder().id(1L).schemaName("arbiter_bbva").build();
+        when(tenantResolver.primaryInsurerFor(7L)).thenReturn(Optional.of(insurer));
+        when(tenantProfileService.find(UserRole.ASEGURADO, 7L))
+                .thenReturn(Optional.of(new TenantProfileService.Profile("Camila", "Ferreyra", "38.412.905", false)));
+
+        userService.requestPasswordReset("camila@example.test");
+
+        ArgumentCaptor<String> bodyCaptor = ArgumentCaptor.forClass(String.class);
+        verify(sendGridAdapter).send(eq("camila@example.test"), anyString(), bodyCaptor.capture());
+        assertThat(bodyCaptor.getValue()).contains("Hola Camila,");
     }
 
     @Test
