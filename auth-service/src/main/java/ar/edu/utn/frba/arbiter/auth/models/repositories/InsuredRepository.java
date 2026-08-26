@@ -8,4 +8,6 @@ import java.util.Optional;
 public interface InsuredRepository extends JpaRepository<Insured, Long> {
 
     Optional<Insured> findByUserId(Long userId);
+
+    Optional<Insured> findByDni(String dni);
 }

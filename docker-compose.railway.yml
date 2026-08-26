@@ -100,6 +100,9 @@ services:
       DB_PASSWORD: ${DB_PASSWORD:?falta DB_PASSWORD en .env}
       JWT_SECRET: ${JWT_SECRET:?falta JWT_SECRET en .env}
       JWT_EXPIRATION_MINUTES: ${JWT_EXPIRATION_MINUTES:-60}
+      # Sin esto, InsuredDirectoryDatabaseAdapter (alta masiva de asegurados) nunca se activa y
+      # cae en el mock silencioso — mismo patrón que classification-service/cases-service abajo.
+      SPRING_PROFILES_ACTIVE: ${AUTH_PROFILES:-insurer-db}
       AUTH_PROVIDER: ${AUTH_PROVIDER:-auth0}
       AUTH0_DOMAIN: ${AUTH0_DOMAIN:-}
       AUTH0_LOGIN_CLIENT_ID: ${AUTH0_LOGIN_CLIENT_ID:-}

@@ -34,7 +34,7 @@ spring:
     multipart:
       # El default de Spring es 1MB por archivo — menos de lo que pesa una foto de celular
       # común. Con la agenda documental de una denuncia (varios adjuntos), el request
-      # completo también necesita más margen. docs/frontend-bugs-ux.md #15.
+      # completo también necesita más margen.
       max-file-size: 10MB
       max-request-size: 30MB
 

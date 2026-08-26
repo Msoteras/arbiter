@@ -2,7 +2,9 @@ package ar.edu.utn.frba.arbiter.auth.services;
 
 import ar.edu.utn.frba.arbiter.auth.dto.AnalystResponse;
 import ar.edu.utn.frba.arbiter.auth.dto.CreateUserRequest;
+import ar.edu.utn.frba.arbiter.auth.dto.LoginResponse;
 import ar.edu.utn.frba.arbiter.auth.dto.UserResponse;
+import ar.edu.utn.frba.arbiter.auth.config.tenant.TenantContext;
 import ar.edu.utn.frba.arbiter.auth.exceptions.CannotChangeOwnRoleException;
 import ar.edu.utn.frba.arbiter.auth.exceptions.CannotDeleteOwnAccountException;
 import ar.edu.utn.frba.arbiter.auth.exceptions.EmailAlreadyExistsException;
@@ -11,6 +13,7 @@ import ar.edu.utn.frba.arbiter.auth.exceptions.InviteTokenExpiredException;
 import ar.edu.utn.frba.arbiter.auth.exceptions.RoleNotAllowedException;
 import ar.edu.utn.frba.arbiter.auth.exceptions.UserAlreadyActiveException;
 import ar.edu.utn.frba.arbiter.auth.exceptions.UserNotFoundException;
+import ar.edu.utn.frba.arbiter.common.models.entities.Insurer;
 import ar.edu.utn.frba.arbiter.common.models.entities.Role;
 import ar.edu.utn.frba.arbiter.common.models.entities.User;
 import ar.edu.utn.frba.arbiter.common.models.entities.UserInsurer;
@@ -22,6 +25,8 @@ import ar.edu.utn.frba.arbiter.common.email.SendGridAdapter;
 import ar.edu.utn.frba.arbiter.common.enums.UserRole;
 import ar.edu.utn.frba.arbiter.common.enums.UserStatus;
 import lombok.RequiredArgsConstructor;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -38,6 +43,8 @@ import java.util.UUID;
 @RequiredArgsConstructor
 public class UserService {
 
+    private static final Logger log = LoggerFactory.getLogger(UserService.class);
+
     private static final long INVITE_VALIDITY_HOURS = 48;
     private static final long RESET_VALIDITY_HOURS = 2;
 
@@ -51,6 +58,8 @@ public class UserService {
     private final EmailDomainValidator emailDomainValidator;
     private final SendGridAdapter sendGridAdapter;
     private final PasswordCipher passwordCipher;
+    private final InsuredProvisioningService insuredProvisioningService;
+    private final AuthService authService;
 
     @Value("${arbiter.frontend.base-url:http://localhost:4200}")
     private String frontendBaseUrl;
@@ -113,11 +122,42 @@ public class UserService {
     }
 
     /**
+     * "Dar de alta usuarios": kicks off the bulk provisioning of the referente's own insured, from
+     * the company's directory. Returns as soon as the run is dispatched — the work happens off the
+     * request thread.
+     *
+     * <p>The tenant is read <b>here</b>, on the request thread, because {@link TenantContext} is a
+     * {@code ThreadLocal} that will not survive the hand-off. The insurer comes from the caller's
+     * own membership, never from the request, so a referente can only ever provision their own book.
+     */
+    public void provisionInsuredAccounts(String callerEmail) {
+        User caller = userRepository.findByEmail(callerEmail)
+                .orElseThrow(() -> new IllegalStateException("Usuario autenticado no encontrado: " + callerEmail));
+        Long insurerId = tenantResolver.insurerIdsFor(caller.getId()).stream().findFirst()
+                .orElseThrow(() -> new IllegalStateException("Referente sin aseguradora asignada: " + callerEmail));
+
+        insuredProvisioningService.provisionAsync(TenantContext.get(), insurerId);
+    }
+
+    /**
      * The invited user lands here from the email link. Only at this point do we create them
      * in Auth0 (with the password they chose) — if Auth0 fails, we don't touch anything local,
      * so the user can retry with the same link without the referente having to re-invite them.
+     *
+     * <p>Returns an already-issued session so the frontend can start it straight away instead of
+     * bouncing the person to a login screen for the password they just chose — see
+     * {@link AuthService#issueSessionFor}.
+     *
+     * <p>Deliberately NOT {@code @Transactional}: {@code issueSessionFor} sets {@link TenantContext}
+     * mid-flow to read the tenant profile, and a single shared Hibernate session across that switch
+     * pins to whichever schema was live at the FIRST query — same failure mode open-in-view being
+     * off exists to avoid (see application.yml), just reproduced at the method level instead of the
+     * request level. Each repository call below gets its own short transaction instead, so it picks
+     * up whatever TenantContext is current when IT runs. The one local write
+     * ({@code userRepository.save}) needs no atomicity with anything else — Auth0 provisioning is
+     * external and was never going to roll back with it anyway.
      */
-    public void activateAccount(String token, String encryptedPassword) {
+    public LoginResponse activateAccount(String token, String encryptedPassword) {
         String rawPassword = passwordCipher.decrypt(encryptedPassword);
         User user = requireValidToken(token);
 
@@ -129,30 +169,80 @@ public class UserService {
         user.setInviteToken(null);
         user.setInviteExpiresAt(null);
         user.setActivated(true);
-        userRepository.save(user);
+        User saved = userRepository.save(user);
+        log.info("[Auth] Cuenta activada — userId={} email={}", saved.getId(), saved.getEmail());
+        return authService.issueSessionFor(saved);
     }
 
     /**
      * "Forgot my password": if the email exists, generates a new token (reusing the same invite
      * columns) and sends the link. Responds the same way whether or not the email exists — no
-     * leaking which addresses are registered in the system. No authenticated tenant to read a
-     * display name from at this point, so the email greets by address instead of by name.
+     * leaking which addresses are registered in the system, not even in what gets logged: the
+     * unknown-email case is silent here on purpose. See {@link #greetingFor} for how the mail
+     * greets the person.
      */
     public void requestPasswordReset(String email) {
-        userRepository.findByEmail(email).ifPresent(user -> {
-            user.setInviteToken(UUID.randomUUID().toString());
-            user.setInviteExpiresAt(Instant.now().plus(RESET_VALIDITY_HOURS, ChronoUnit.HOURS));
-            userRepository.save(user);
-            sendGridAdapter.send(user.getEmail(), "Restablecé tu contraseña en Arbiter",
-                    resetEmailBody(user.getEmail(), user.getInviteToken()));
-        });
+        Optional<User> found = userRepository.findByEmail(email);
+        if (found.isEmpty()) {
+            log.info("[Auth] Reset de contraseña pedido para un email no registrado");
+            return;
+        }
+        User user = found.get();
+        user.setInviteToken(UUID.randomUUID().toString());
+        user.setInviteExpiresAt(Instant.now().plus(RESET_VALIDITY_HOURS, ChronoUnit.HOURS));
+        userRepository.save(user);
+        sendGridAdapter.send(user.getEmail(), "Restablecé tu contraseña en Arbiter",
+                resetEmailBody(greetingFor(user), user.getInviteToken()));
+        log.info("[Auth] Mail de reset enviado — userId={} email={}", user.getId(), user.getEmail());
+    }
+
+    /**
+     * First name if it can be resolved, the email otherwise. There is no JWT yet at this point
+     * (this fires off an anonymous "forgot my password" request), so unlike every other place
+     * that reads a profile, the tenant has to be resolved here too — same steps
+     * {@link AuthService#issueSessionFor} takes right before issuing a token, just without the
+     * token at the end. A role with no membership anywhere, or a profile row that's missing,
+     * falls back to the email: the reset still has to go out either way.
+     */
+    private String greetingFor(User user) {
+        // Null-safe on purpose: Hibernate never hands back null for a mapped collection, but a
+        // User built with .builder() and no .roles(...) — every existing test fixture that isn't
+        // about roles — does, since @Builder ignores the field initializer without @Builder.Default.
+        Optional<UserRole> rol = user.getRoles() == null
+                ? Optional.empty()
+                : user.getRoles().stream().findFirst().map(Role::getCode).map(UserRole::valueOf);
+        Optional<Insurer> primaryInsurer = rol.isPresent()
+                ? tenantResolver.primaryInsurerFor(user.getId())
+                : Optional.empty();
+        if (primaryInsurer.isEmpty()) {
+            return user.getEmail();
+        }
+        TenantContext.set(primaryInsurer.get().getSchemaName());
+        try {
+            return tenantProfileService.find(rol.get(), user.getId())
+                    .map(TenantProfileService.Profile::name)
+                    .filter(name -> name != null && !name.isBlank())
+                    .orElse(user.getEmail());
+        } finally {
+            TenantContext.clear();
+        }
     }
 
     /**
      * The user already exists in Auth0 (unlike {@link #activateAccount}) — this only updates
-     * the password there, then clears the local token.
+     * the password there, then clears the local token. Same reasoning as activation for
+     * returning a session instead of nothing: whoever just reset their password already proved
+     * they own the mailbox and chose the new one, so there's nothing left for a login screen to
+     * ask them.
+     *
+     * <p>Not {@code @Transactional} — same reason as {@link #activateAccount}: it ends in the same
+     * {@code issueSessionFor} tenant switch, and one shared session across it pins to the wrong
+     * schema. This is the flow the bug actually surfaced in: a hung "reset password" request that
+     * turned out to be {@code relation "insured" does not exist}, from exactly this method sharing
+     * a session between {@code requireValidToken}'s query (before any tenant is known) and
+     * {@code issueSessionFor}'s (in the tenant it resolves).
      */
-    public void resetPassword(String token, String encryptedPassword) {
+    public LoginResponse resetPassword(String token, String encryptedPassword) {
         String rawPassword = passwordCipher.decrypt(encryptedPassword);
         User user = requireValidToken(token);
 
@@ -162,7 +252,9 @@ public class UserService {
 
         user.setInviteToken(null);
         user.setInviteExpiresAt(null);
-        userRepository.save(user);
+        User saved = userRepository.save(user);
+        log.info("[Auth] Contraseña restablecida — userId={} email={}", saved.getId(), saved.getEmail());
+        return authService.issueSessionFor(saved);
     }
 
     /**

@@ -65,10 +65,12 @@ public class AuthController {
 
                     `password` viaja cifrada, igual que en `/login`: es el sobre `ARB1.<base64>`
                     armado con la clave de `/public-key`.
+
+                    Devuelve una sesión ya iniciada (mismo shape que `/login`) — quien acaba de
+                    elegir su contraseña no tiene nada más que tipear en una pantalla de login.
                     """)
-    public ResponseEntity<Void> activate(@RequestBody @Valid ActivateAccountRequest request) {
-        userService.activateAccount(request.token(), request.password());
-        return ResponseEntity.noContent().build();
+    public ResponseEntity<LoginResponse> activate(@RequestBody @Valid ActivateAccountRequest request) {
+        return ResponseEntity.ok(userService.activateAccount(request.token(), request.password()));
     }
 
     @GetMapping("/invite-tokens/{token}")
@@ -104,9 +106,11 @@ public class AuthController {
 
                     `password` viaja cifrada, igual que en `/login`: es el sobre `ARB1.<base64>`
                     armado con la clave de `/public-key`.
+
+                    Devuelve una sesión ya iniciada (mismo shape que `/login`) — quien acaba de
+                    elegir la contraseña nueva no tiene nada más que tipear en una pantalla de login.
                     """)
-    public ResponseEntity<Void> resetPassword(@RequestBody @Valid ResetPasswordRequest request) {
-        userService.resetPassword(request.token(), request.password());
-        return ResponseEntity.noContent().build();
+    public ResponseEntity<LoginResponse> resetPassword(@RequestBody @Valid ResetPasswordRequest request) {
+        return ResponseEntity.ok(userService.resetPassword(request.token(), request.password()));
     }
 }

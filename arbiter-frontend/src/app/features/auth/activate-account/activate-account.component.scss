@@ -2,28 +2,26 @@
 
 .login-page { display: flex; min-height: 100vh; }
 
+/* Mismo token que login/forgot-password (--brand-panel-bg): esta pantalla tenía su propio
+   gradiente armado con --action-primary-bg (el ink oscuro del botón primario) en vez del teal
+   de marca, así que no matcheaba con el resto del flujo de auth. */
 .brand-pane {
   flex: 1 1 auto;
   display: flex;
   align-items: center;
   justify-content: center;
   padding: var(--space-7);
-  background: linear-gradient(160deg, var(--action-primary-bg) 0%, var(--text-secondary) 55%, var(--text-tertiary) 100%);
-  color: var(--text-on-emphasis);
+  background: var(--brand-panel-bg);
+  color: var(--brand-panel-fg);
 }
 
 .brand-pane-inner { max-width: 420px; width: 100%; }
 
+/* Era un <span> de texto ("Arbiter" en una píldora con borde) en vez del ícono real —
+   ahora es <app-logo>, que escala con --logo-size (ver logo.component.ts). */
 .brand-mark {
-  display: inline-block;
+  --logo-size: 2.5rem;
   margin-bottom: var(--space-6);
-  padding: var(--space-1) var(--space-3);
-  border: 1px solid rgba(255, 255, 255, 0.35);
-  border-radius: var(--radius-ctl);
-  font-size: var(--font-size-sm);
-  font-weight: var(--font-weight-bold);
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
 }
 
 .brand-title {

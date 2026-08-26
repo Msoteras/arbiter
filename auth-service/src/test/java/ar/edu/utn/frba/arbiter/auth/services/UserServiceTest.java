@@ -1,6 +1,7 @@
 package ar.edu.utn.frba.arbiter.auth.services;
 
 import ar.edu.utn.frba.arbiter.auth.dto.CreateUserRequest;
+import ar.edu.utn.frba.arbiter.auth.dto.LoginResponse;
 import ar.edu.utn.frba.arbiter.auth.dto.UserResponse;
 import ar.edu.utn.frba.arbiter.auth.exceptions.Auth0ProvisioningException;
 import ar.edu.utn.frba.arbiter.auth.exceptions.CannotChangeOwnRoleException;
@@ -12,6 +13,7 @@ import ar.edu.utn.frba.arbiter.auth.exceptions.InviteTokenExpiredException;
 import ar.edu.utn.frba.arbiter.auth.exceptions.RoleNotAllowedException;
 import ar.edu.utn.frba.arbiter.auth.exceptions.UserAlreadyActiveException;
 import ar.edu.utn.frba.arbiter.auth.exceptions.UserNotFoundException;
+import ar.edu.utn.frba.arbiter.common.models.entities.Insurer;
 import ar.edu.utn.frba.arbiter.common.models.entities.Role;
 import ar.edu.utn.frba.arbiter.common.models.entities.User;
 import ar.edu.utn.frba.arbiter.common.models.entities.UserInsurer;
@@ -43,6 +45,7 @@ import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
@@ -80,6 +83,12 @@ class UserServiceTest {
     @Mock
     private PasswordCipher passwordCipher;
 
+    @Mock
+    private InsuredProvisioningService insuredProvisioningService;
+
+    @Mock
+    private AuthService authService;
+
     private UserService userService;
 
     /**
@@ -95,7 +104,8 @@ class UserServiceTest {
     private UserService userService(Optional<Auth0UserProvisioner> provisioner) {
         return new UserService(userRepository, claimsAnalystRepository, roleRepository,
                 userInsurerRepository, tenantResolver, tenantProfileService, provisioner,
-                emailDomainValidator, sendGridAdapter, passwordCipher);
+                emailDomainValidator, sendGridAdapter, passwordCipher, insuredProvisioningService,
+                authService);
     }
 
     private CreateUserRequest analistaRequest() {
@@ -202,6 +212,11 @@ class UserServiceTest {
         assertThat(captor.getValue().getId()).isEqualTo(42L);
     }
 
+    private LoginResponse dummySession() {
+        return new LoginResponse("signed.jwt.token", Instant.now().plusSeconds(3600), 9L,
+                "nuevo.analista@arbiter.test", UserRole.ANALISTA_SINIESTROS, "Lucas", "Gómez", null, null);
+    }
+
     @Test
     void activateAccount_validToken_provisionsInAuth0AndSetsAuthSub() {
         userService = userService(Optional.of(auth0UserProvisioner));
@@ -212,15 +227,24 @@ class UserServiceTest {
         when(userRepository.findByInviteToken("tok-123")).thenReturn(Optional.of(pending));
         when(auth0UserProvisioner.createUser("nuevo.analista@arbiter.test", "NuevaPass123!"))
                 .thenReturn("auth0|new-user-id");
+        when(userRepository.save(any(User.class))).thenAnswer(inv -> inv.getArgument(0));
+        LoginResponse session = dummySession();
+        when(authService.issueSessionFor(any(User.class))).thenReturn(session);
 
-        userService.activateAccount("tok-123", "NuevaPass123!");
+        LoginResponse result = userService.activateAccount("tok-123", "NuevaPass123!");
 
+        // The session comes from AuthService.issueSessionFor, not built here — activation's job
+        // is establishing the account, not resolving roles/tenant/JWT a second way.
+        assertThat(result).isSameAs(session);
         ArgumentCaptor<User> captor = ArgumentCaptor.forClass(User.class);
         verify(userRepository).save(captor.capture());
         assertThat(captor.getValue().getAuth0Sub()).isEqualTo("auth0|new-user-id");
         assertThat(captor.getValue().getInviteToken()).isNull();
         assertThat(captor.getValue().getInviteExpiresAt()).isNull();
         assertThat(captor.getValue().isActivated()).isTrue();
+        // Issued off the SAVED user, not the pre-activation one — otherwise the token this builds
+        // could carry the stale placeholder auth0Sub instead of the real one just set above.
+        verify(authService).issueSessionFor(captor.getValue());
     }
 
     @Test
@@ -231,6 +255,8 @@ class UserServiceTest {
                 .inviteToken("tok-123").inviteExpiresAt(Instant.now().plusSeconds(3600))
                 .build();
         when(userRepository.findByInviteToken("tok-123")).thenReturn(Optional.of(pending));
+        when(userRepository.save(any(User.class))).thenAnswer(inv -> inv.getArgument(0));
+        when(authService.issueSessionFor(any(User.class))).thenReturn(dummySession());
 
         userService.activateAccount("tok-123", "NuevaPass123!");
 
@@ -246,6 +272,7 @@ class UserServiceTest {
 
         assertThatThrownBy(() -> userService.activateAccount("bad-token", "NuevaPass123!"))
                 .isInstanceOf(InvalidInviteTokenException.class);
+        verifyNoInteractions(authService);
     }
 
     @Test
@@ -261,6 +288,7 @@ class UserServiceTest {
                 .isInstanceOf(InviteTokenExpiredException.class);
 
         verify(userRepository, never()).save(any());
+        verifyNoInteractions(authService);
     }
 
     @Test
@@ -280,8 +308,16 @@ class UserServiceTest {
 
         verify(userRepository, never()).save(any());
         assertThat(pending.getInviteToken()).isEqualTo("tok-123");
+        // Failing before the save means no session for a half-activated account either.
+        verifyNoInteractions(authService);
     }
 
+    /**
+     * No role on this fixture (same as every other test in the file that doesn't care about
+     * roles) — greetingFor has to fall back to the email rather than NPE on a null
+     * {@code roles} collection, which is what {@code User.builder()} leaves it as without an
+     * explicit {@code .roles(...)}.
+     */
     @Test
     void requestPasswordReset_existingEmail_generatesTokenAndSendsMail() {
         userService = userService(Optional.empty());
@@ -294,7 +330,33 @@ class UserServiceTest {
         verify(userRepository).save(captor.capture());
         assertThat(captor.getValue().getInviteToken()).isNotBlank();
         assertThat(captor.getValue().getInviteExpiresAt()).isAfter(Instant.now());
-        verify(sendGridAdapter).send(eq("analista.test@arbiter.test"), anyString(), anyString());
+        ArgumentCaptor<String> bodyCaptor = ArgumentCaptor.forClass(String.class);
+        verify(sendGridAdapter).send(eq("analista.test@arbiter.test"), anyString(), bodyCaptor.capture());
+        assertThat(bodyCaptor.getValue()).contains("Hola analista.test@arbiter.test,");
+    }
+
+    /**
+     * The case the fallback above exists for NOT to fire: a real account has a role and a
+     * resolvable tenant profile, so the mail should greet by first name — not the email — same
+     * as every other mail this module sends.
+     */
+    @Test
+    void requestPasswordReset_resolvableProfile_greetsByFirstName() {
+        userService = userService(Optional.empty());
+        Role insuredRole = Role.builder().id(1L).code("ASEGURADO").name("Asegurado").build();
+        User existing = User.builder().id(7L).email("camila@example.test")
+                .roles(new HashSet<>(Set.of(insuredRole))).build();
+        when(userRepository.findByEmail("camila@example.test")).thenReturn(Optional.of(existing));
+        Insurer insurer = Insurer.builder().id(1L).schemaName("arbiter_bbva").build();
+        when(tenantResolver.primaryInsurerFor(7L)).thenReturn(Optional.of(insurer));
+        when(tenantProfileService.find(UserRole.ASEGURADO, 7L))
+                .thenReturn(Optional.of(new TenantProfileService.Profile("Camila", "Ferreyra", "38.412.905", false)));
+
+        userService.requestPasswordReset("camila@example.test");
+
+        ArgumentCaptor<String> bodyCaptor = ArgumentCaptor.forClass(String.class);
+        verify(sendGridAdapter).send(eq("camila@example.test"), anyString(), bodyCaptor.capture());
+        assertThat(bodyCaptor.getValue()).contains("Hola Camila,");
     }
 
     @Test
@@ -316,14 +378,19 @@ class UserServiceTest {
                 .inviteToken("tok-456").inviteExpiresAt(Instant.now().plusSeconds(3600))
                 .build();
         when(userRepository.findByInviteToken("tok-456")).thenReturn(Optional.of(active));
+        when(userRepository.save(any(User.class))).thenAnswer(inv -> inv.getArgument(0));
+        LoginResponse session = dummySession();
+        when(authService.issueSessionFor(any(User.class))).thenReturn(session);
 
-        userService.resetPassword("tok-456", "OtraPass456!");
+        LoginResponse result = userService.resetPassword("tok-456", "OtraPass456!");
 
+        assertThat(result).isSameAs(session);
         verify(auth0UserProvisioner).updatePassword("analista.test@arbiter.test", "OtraPass456!");
         ArgumentCaptor<User> captor = ArgumentCaptor.forClass(User.class);
         verify(userRepository).save(captor.capture());
         assertThat(captor.getValue().getInviteToken()).isNull();
         assertThat(captor.getValue().getInviteExpiresAt()).isNull();
+        verify(authService).issueSessionFor(captor.getValue());
     }
 
     @Test
@@ -333,6 +400,7 @@ class UserServiceTest {
 
         assertThatThrownBy(() -> userService.resetPassword("bad-token", "OtraPass456!"))
                 .isInstanceOf(InvalidInviteTokenException.class);
+        verifyNoInteractions(authService);
     }
 
     @Test
@@ -348,6 +416,7 @@ class UserServiceTest {
                 .isInstanceOf(InviteTokenExpiredException.class);
 
         verify(userRepository, never()).save(any());
+        verifyNoInteractions(authService);
     }
 
     @Test

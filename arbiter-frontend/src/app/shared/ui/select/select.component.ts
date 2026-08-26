@@ -170,7 +170,7 @@ export class SelectComponent {
   /** Bloquea la apertura (ej. mientras se guarda el cambio contra el backend). */
   readonly disabled = input(false);
   /** Para asociar un `<label for>` — sin esto el trigger nunca tenía id propio, solo sus
-   * sub-elementos internos (listbox/opciones). Ver docs/frontend-bugs-ux.md #4. */
+   * sub-elementos internos (listbox/opciones). */
   readonly id = input<string | null>(null);
 
   protected readonly resolvedId = computed(() => this.id() ?? this.autoId);

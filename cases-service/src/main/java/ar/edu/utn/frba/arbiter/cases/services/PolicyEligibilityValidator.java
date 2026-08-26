@@ -87,8 +87,8 @@ public class PolicyEligibilityValidator {
     }
 
     /**
-     * The wizard already filters "¿Qué te pasó?" so an excluded hecho generador never shows up
-     * (docs/handoff-validaciones-polizas.md), but that's a UI convenience — a client that posts
+     * The wizard already filters "¿Qué te pasó?" so an excluded hecho generador never shows up,
+     * but that's a UI convenience — a client that posts
      * straight to {@code POST /cases} skipping the dropdown was never stopped by anything server
      * side. A coverage that explicitly doesn't cover a hecho generador is the same category as
      * vigencia/carencia/mora above: not a matter for the LLM to weigh in on, the right being

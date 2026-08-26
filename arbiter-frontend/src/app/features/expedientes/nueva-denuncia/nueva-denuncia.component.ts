@@ -26,7 +26,6 @@ import { InputComponent } from '../../../shared/ui/input/input.component';
 import { TextareaComponent } from '../../../shared/ui/textarea/textarea.component';
 import { SelectComponent, SelectOption } from '../../../shared/ui/select/select.component';
 import { FilePreviewComponent } from '../../../shared/ui/file-preview/file-preview.component';
-import { CheckboxComponent } from '../../../shared/ui/checkbox/checkbox.component';
 import { InlineLoadingComponent } from '../../../shared/ui/inline-loading/inline-loading.component';
 
 // Wizard de alta de denuncia (asegurado) — 3 pasos con catálogos en cascada.
@@ -93,7 +92,6 @@ type EligibilityState =
     InputComponent,
     TextareaComponent,
     SelectComponent,
-    CheckboxComponent,
     FilePreviewComponent,
     InlineLoadingComponent,
   ],
@@ -119,7 +117,7 @@ export class NuevaDenunciaComponent {
   protected readonly steps: Step[] = [1, 2, 3];
   protected readonly step = signal<Step>(1);
   // El paso más lejano ya alcanzado — permite ir y volver libremente dentro de lo ya
-  // completado sin reabrir la validación de "Continuar" cada vez (docs/frontend-bugs-ux.md #21).
+  // completado sin reabrir la validación de "Continuar" cada vez.
   protected readonly maxStepReached = signal<Step>(1);
   protected readonly submitting = signal(false);
   protected readonly submitError = signal<string | null>(null);
@@ -251,7 +249,7 @@ export class NuevaDenunciaComponent {
       !this.eligibilityChecking(),
   );
 
-  // Tope del input de fecha (docs/frontend-bugs-ux.md #16): un siniestro no puede haber
+  // Tope del input de fecha: un siniestro no puede haber
   // "ocurrido" en el futuro. La regla real vive en el backend (CaseRequest la valida de
   // nuevo); esto es solo la ayuda visual del datepicker.
   protected readonly today = new Date().toISOString().slice(0, 10);
@@ -427,12 +425,6 @@ export class NuevaDenunciaComponent {
     this.requiredDocTypes().some(({ type }) => type === 'police_report'),
   );
 
-  // Consentimiento para enviar las imágenes a un proveedor externo de verificación
-  // antifraude (H0009 / docs/frontend-analisis-forense.md). A diferencia de PEP, este
-  // consentimiento tiene que ser LIBRE (Ley 25.326, transferencia internacional de datos):
-  // negarse NO puede impedir la denuncia — por eso no gatea "Enviar denuncia".
-  protected readonly imageConsent = signal(false);
-
   selectType(t: ClaimType): void {
     this.selectedType.set(t);
   }
@@ -526,11 +518,10 @@ export class NuevaDenunciaComponent {
         ? this.policeReportDate() + 'T' + (this.policeReportTime() || '00:00') + ':00'
         : undefined,
       claimedAmount: this.claimedAmount() ? Number(this.claimedAmount()) : undefined,
-      // PEP ya no se declara en la denuncia: es un dato del asegurado que viene de la póliza/KYC,
-      // no algo que se pregunte acá. Se manda false solo para satisfacer el contrato actual —
-      // el backend debe resolver la condición PEP desde el registro del asegurado, no del request.
-      pep: false,
-      imageConsent: this.imageConsent(),
+      // PEP y consentimiento de imágenes ya no viajan en la denuncia: son datos de la PERSONA,
+      // no del siniestro (viven en Insured, no en Case). PEP sale de la póliza/KYC de la
+      // aseguradora; el consentimiento se da una vez en el onboarding (H0009) y se cambia desde
+      // "Mi perfil". El backend los ignora si se mandan.
       contactEmail: this.contactEmail() || undefined,
       contactPhone: this.contactPhone() || undefined,
     };

@@ -17,7 +17,7 @@ interface RecentReport {
 
 /**
  * Panel del referente — generación y descarga de reportes. TODO MOCK: el módulo de Reportes y
- * Métricas todavía no está en el backend (ver docs/frontend-bugs-ux.md #9). El form no genera nada
+ * Métricas todavía no está en el backend. El form no genera nada
  * real; es la maqueta viva de la pantalla.
  */
 @Component({

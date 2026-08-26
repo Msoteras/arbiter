@@ -1,7 +1,7 @@
 <div class="login-page">
   <section class="brand-pane">
     <div class="brand-pane-inner">
-      <span class="brand-mark">Arbiter</span>
+      <app-logo variant="symbol" class="brand-mark" />
       <h1 class="brand-title">{{ copy.brandTitle }}</h1>
       <p class="brand-tag">{{ copy.brandTag }}</p>
     </div>
@@ -16,10 +16,6 @@
         <p class="t-note">
           Este link no es válido o venció. Pedí uno nuevo y volvé a intentar.
         </p>
-      } @else if (activated()) {
-        <h2 class="t-page-title">{{ copy.successTitle }}</h2>
-        <p class="t-note">{{ copy.successNote }}</p>
-        <app-button type="button" [block]="true" (click)="goToLogin()">Ir a iniciar sesión</app-button>
       } @else {
         <form (submit)="$event.preventDefault(); submit()">
           <h2 class="t-page-title">{{ copy.formTitle }}</h2>
@@ -67,7 +63,7 @@
             <p class="error">{{ errorMessage() }}</p>
           }
 
-          <app-button type="submit" [block]="true" [disabled]="!canSubmit() || submitting()">
+          <app-button type="submit" [block]="true" [disabled]="!canSubmit()" [loading]="submitting()">
             {{ submitting() ? copy.submittingLabel : copy.submitLabel }}
           </app-button>
         </form>

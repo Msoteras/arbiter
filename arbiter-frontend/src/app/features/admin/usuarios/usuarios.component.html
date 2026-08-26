@@ -1,8 +1,20 @@
 <div class="usuarios-page" @staggerReveal>
   <header class="page-head">
     <h1 class="t-page-title">Usuarios</h1>
-    <app-button (click)="showCreatePanel.set(true)">+ Nuevo usuario</app-button>
+    <div class="head-actions">
+      <app-button variant="secondary" (click)="showProvisionConfirm.set(true)">
+        Dar de alta asegurados
+      </app-button>
+      <app-button (click)="showCreatePanel.set(true)">+ Nuevo usuario</app-button>
+    </div>
   </header>
+
+  @if (provisionStarted()) {
+    <app-card class="provision-notice">
+      <p class="t-body">El alta está corriendo. El listado se completa de a tandas.</p>
+      <app-button variant="secondary" (click)="refresh()">Actualizar listado</app-button>
+    </app-card>
+  }
 
   @if (loading()) {
     <app-inline-loading message="Cargando usuarios…" />
@@ -106,4 +118,24 @@
 
 <app-modal [open]="showCreatePanel()" heading="Nuevo usuario" variant="side" (close)="showCreatePanel.set(false)">
   <app-alta-usuario (created)="onCreated($event)" (cancel)="showCreatePanel.set(false)" />
+</app-modal>
+
+<app-modal
+  [open]="showProvisionConfirm()"
+  heading="Dar de alta asegurados"
+  (close)="showProvisionConfirm.set(false)"
+>
+  <p class="t-body">
+    Se van a crear las cuentas de tus asegurados con póliza vigente y
+    <strong>cada uno va a recibir un mail</strong> para elegir su contraseña.
+  </p>
+  <p class="t-note">A quien ya tenga cuenta no se le escribe de nuevo.</p>
+  <ng-container modalActions>
+    <app-button variant="secondary" [disabled]="provisioning()" (click)="showProvisionConfirm.set(false)">
+      Cancelar
+    </app-button>
+    <app-button [loading]="provisioning()" (click)="confirmProvision()">
+      {{ provisioning() ? 'Iniciando…' : 'Dar de alta y enviar invitaciones' }}
+    </app-button>
+  </ng-container>
 </app-modal>

@@ -1,6 +1,8 @@
 # Brecha entre lo documentado y lo implementado
 
-**Fecha del barrido:** 09/08/2026 · **Base:** `feature/front-details` (adelantada respecto de `develop`).
+**Fecha del barrido:** 09/08/2026 · **Base:** `feature/front-details`.
+**Reverificado contra el código:** 25/08/2026 (`feature/onboarding-asegurado`). Lo que se cerró
+desde entonces está marcado en su sección; lo que sigue abierto se dejó como estaba.
 
 Este documento cruza tres fuentes contra el código y registra las diferencias. No es una lista
 de bugs: la mayoría son cosas que todavía no se implementaron y que sí están en el roadmap. Lo
@@ -101,12 +103,13 @@ Peso extra: el paper lista *Reportes* como uno de los cinco módulos funcionales
 referente como quien "consulta los reportes operativos". Es un módulo declarado en la arquitectura
 publicada.
 
-### 🔴 H0016 — Notificaciones automáticas al asegurado
+### ✅ H0016 — Notificaciones automáticas al asegurado — **cerrado**
 
-`SendGridAdapter` existe en `common-lib` pero **solo lo usa auth-service** (invitaciones y reset de
-contraseña). La entidad `Notification` en cases-service está creada y su propio javadoc lo admite:
-*"No sender writes here yet"*. No sale mail por denuncia recibida, cambio de estado, documentación
-requerida ni resolución final.
+Ya hay emisor: `CaseNotificationService` (cases-service) manda mail y aviso en el panel en los
+cuatro momentos que faltaban — denuncia recibida (`PENDING_CLASSIFICATION`), documentación
+requerida (`AWAITING_DOCUMENTATION`) y resolución (`APPROVED` / `REJECTED`) — más
+`ExpertNotificationService` para la derivación a perito. Solo esos estados: el resto es tráfico
+interno y contarlo filtraría lo que la historia prohíbe (clasificación, score, motivos).
 
 El paper lo afirma dos veces como capacidad existente (§2.2 y §3.2) y lo usa como el ataque directo
 al 63,5% de asegurados que hoy tienen que llamar a la aseguradora — es el principal argumento de
@@ -120,8 +123,9 @@ configuración del umbral en reglas. **Depende de cerrar §1 primero.**
 
 ### 🔴 H0006 + H0010 — Estados del ciclo de vida
 
-Los 6 estados actuales (`PENDING_CLASSIFICATION`, `PENDING_ANALYST_REVIEW`,
-`CLASSIFICATION_FAILED`, `AWAITING_DOCUMENTATION`, `APPROVED`, `REJECTED`) se usan de verdad y son
+Los 7 estados actuales (`PENDING_CLASSIFICATION`, `PENDING_ANALYST_REVIEW`,
+`CLASSIFICATION_FAILED`, `AWAITING_DOCUMENTATION`, `PENDING_EXPERT_REPORT`, `APPROVED`,
+`REJECTED`) se usan de verdad y son
 coherentes con el flujo implementado. El problema es que las HU declaran los 12 estados oficiales
 del NSIN001 y falta la mitad. Ver §4 — va junto con el refactor de transiciones.
 
@@ -136,13 +140,14 @@ hace. El paper (§1.1) describe las categorías operativas reales de la asegurad
 técnico*— y afirma que el Fast Track automatiza esa clasificación. Si esa es la intención, H0008 es
 la HU que la cubre y hay que alinearla a esos nombres.
 
-### 🟠 H0004 — Validaciones de la denuncia
+### 🟠 H0004 — Validaciones de la denuncia — **parcialmente cerrado**
 
-`CaseReferenceResolver.resolvePolicy` solo hace `findByExternalPolicyNumber`. **No valida** ninguna
-de las tres cosas que el paper (§1.1) describe como el chequeo manual que Arbiter automatiza:
-vigencia de la póliza a la fecha del siniestro, ausencia de deudas, y cobertura del hecho. Tampoco
-valida que la póliza pertenezca a ese asegurado (resuelve póliza e insured por separado, sin
-cruzarlos).
+✅ Las tres validaciones del paper (§1.1) las hace hoy `PolicyEligibilityValidator`: vigencia a la
+fecha del hecho, mora, carencia y exclusión de cobertura, todas en el alta y antes de que exista
+expediente.
+
+Sigue abierto: que la póliza **pertenezca a ese asegurado** (se resuelven póliza e insured por
+separado, sin cruzarlos).
 
 Faltan además: el mail de confirmación con número de expediente y la aclaración del Art. 56, y las
 72 h de §1.
@@ -156,10 +161,12 @@ los vea y los pueda corregir — `grep -rn "ocr\|extract" arbiter-frontend/src` 
 
 ### 🟠 H0014 — Justificación de la decisión
 
-`AnalystDecisionRequest.justification` es un `String` sin `@NotBlank`, y `recordAnalystDecision` no
-compara la decisión contra la recomendación del modelo. El criterio "si decide diferente debe
-ingresar justificación escrita" no está. Falta también **Derivar** como tercera opción (solo hay
-`APPROVE`/`REJECT`).
+`AnalystDecisionRequest.justification` sigue siendo un `String` sin `@NotBlank`, y
+`recordAnalystDecision` no compara la decisión contra la recomendación del modelo: el criterio "si
+decide diferente debe ingresar justificación escrita" no está.
+
+✅ **Derivar** sí existe, aunque como flujo aparte y no como tercera opción de la decisión:
+derivación a perito con su propio estado (`PENDING_EXPERT_REPORT`) y su notificación.
 
 El paper afirma en §2.2 que la clasificación requiere "la aprobación o el rechazo explícito y
 **justificado** de un analista". Es un `@NotBlank` condicional: el arreglo más chico de esta lista
@@ -171,9 +178,22 @@ con la mayor exposición.
 el Fast Track de rechazo (póliza vencida, cobertura inaplicable), que tanto la HU como el paper
 piden explícitamente ("agilizando tanto las aprobaciones como los rechazos", §2.2).
 
-Relacionado: las **exclusiones** de cobertura del referente hoy viajan como *texto al prompt del
-LLM* (commit `0ed76ec`), pero CLAUDE.md las define como reglas **evaluables** en `rules-service`.
-Una exclusión objetiva no debería ser criterio del modelo.
+✅ Lo relacionado ya se cerró: las **exclusiones** de cobertura dejaron de ser texto para el prompt
+y son reglas evaluables (`COVERAGE_EXCLUSION` servida por `rules-service`, evaluada por
+`CoverageRuleEvaluator` antes del gate de Fast Track). Una exclusión objetiva ya no es criterio del
+modelo.
+
+### 🟡 Menores del frontend
+
+Lo único que quedaba abierto del log de bugs de UX (borrado el 25/08: 24 de sus 29 ítems estaban
+cerrados, y los demás ya se rastrean acá).
+
+- **El analista no ve la declaración PEP.** Se pide, viaja y se persiste en `insured.pep`, pero
+  ninguna pantalla la muestra: `grep pep` sobre el detalle del expediente no devuelve nada. Un dato
+  que se pide y nadie mira es peor que no pedirlo.
+- **"¿Dónde pasó?" sigue siendo texto libre.** `provincia` y `localidad` son dos `app-input` en el
+  wizard, no un desplegable en cascada. Ya viajan y se persisten en columnas propias, así que el
+  dato es agrupable — lo que falta es que no se pueda escribir cualquier cosa.
 
 ### 🟡 Menores
 
@@ -287,7 +307,17 @@ Nota: `classification-service` **ya resolvió** su lado — `RulesRestAdapter` e
 
 ---
 
-## 5 · Google Vision: consentimiento decorativo
+## 5 · Google Vision: consentimiento decorativo — ✅ cerrado
+
+> **Cerrado (25/08/2026).** Los cuatro puntos del cierre están implementados: `imageConsent` viaja
+> en `ClaimReport` (cases → classification), llega a `ImageFraudAnalysisService.analyze(...)`,
+> gatea **solo** la escalada a Google Vision —el CLIP interno sigue corriendo, nunca sale del
+> host— y queda registrado en `ImageForensicReport.imageConsent` con su traza para el analista
+> ("no se buscó en internet — el asegurado no dio su consentimiento"). El campo es `Boolean` y no
+> primitivo: `null` distingue los reportes anteriores al cambio de un rechazo real.
+>
+> Lo que sigue abierto es lo del paper: el párrafo sobre la cascada como **niveles de exposición
+> del dato**. Lo de abajo queda como el porqué del diseño.
 
 `insured.image_consent` se pide en el formulario de denuncia, viaja en `CaseRequest`, se persiste en
 `CaseReferenceResolver` — y **nadie lo lee nunca**. `ClaimReport` (el contrato cases →

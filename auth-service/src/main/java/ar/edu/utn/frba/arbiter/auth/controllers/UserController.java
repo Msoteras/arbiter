@@ -37,15 +37,36 @@ public class UserController {
     @Operation(summary = "Dar de alta un usuario",
             description = """
                     El referente de una aseguradora invita a un nuevo usuario, que queda
-                    "pendiente" hasta que elige su propia contraseña por mail (Auth0). Por ahora
-                    solo admite rol ANALISTA_SINIESTROS — el asegurado no se da de alta por acá
-                    (ver CLAUDE.md decisión #8). Queda vinculado a la misma aseguradora del
-                    referente que lo invita.
+                    "pendiente" hasta que elige su propia contraseña por mail (Auth0). Queda
+                    vinculado a la misma aseguradora del referente que lo invita.
+
+                    Solo admite rol ANALISTA_SINIESTROS. Los asegurados no se dan de alta acá:
+                    su identidad es dato de la compañía, así que van por el alta masiva
+                    (POST /insured/bulk-provision).
                     """)
     public ResponseEntity<UserResponse> createUser(
             @RequestBody @Valid CreateUserRequest request, Authentication authentication) {
         UserResponse response = userService.createUser(request, authentication.getName());
         return ResponseEntity.status(HttpStatus.CREATED).body(response);
+    }
+
+    @PostMapping("/insured/bulk-provision")
+    @PreAuthorize("hasRole('REFERENTE_ASEGURADORA')")
+    @Operation(summary = "Dar de alta usuarios (asegurados, en bloque)",
+            description = """
+                    Lee los asegurados con póliza vigente de la BD de la aseguradora del referente
+                    y les crea la cuenta en la plataforma, invitándolos por mail a elegir su
+                    contraseña. Desde ahí siguen el onboarding de primer ingreso (H0009).
+
+                    Es idempotente: a quien ya tiene cuenta no se la duplica — se lo reconoce por
+                    email y solo se le vincula esta aseguradora, que es lo que le suma sus pólizas.
+                    Los mails salen de a poco para no disparar un envío masivo de una.
+
+                    Responde 202: la corrida sigue en segundo plano y su resultado queda en el log.
+                    """)
+    public ResponseEntity<Void> provisionInsuredAccounts(Authentication authentication) {
+        userService.provisionInsuredAccounts(authentication.getName());
+        return ResponseEntity.accepted().build();
     }
 
     @GetMapping

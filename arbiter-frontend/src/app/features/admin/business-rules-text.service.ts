@@ -15,7 +15,7 @@ export interface RuleTextResponse {
 /**
  * Exclusiones comunes (solapa Coberturas) y reglas de negocio en texto libre (solapa Reglas de
  * negocio) contra rules-service. Sin tabla propia en el DER — el backend las persiste como
- * InsurerRule con rule_type de texto (docs/decisiones-reglas-a-validar.md, D3).
+ * InsurerRule con rule_type de texto.
  */
 @Injectable({ providedIn: 'root' })
 export class BusinessRulesTextService {
