@@ -89,6 +89,29 @@ docker compose up --build
 > El contexto de build de cada imagen es **siempre la raíz** del proyecto (el multi-módulo necesita
 > el POM padre + `common-lib`). Ver los `Dockerfile` de cada servicio.
 
+### Ollama local vs. Gemini (Vertex)
+
+`classification-service` sirve el modelo con `LLM_PROVIDER` (`ollama`, default, u `gemini`). Los
+dos wrappers de `scripts/` levantan todo el stack ya apuntado a uno u otro, sin tocar el `.env`:
+
+```powershell
+.\scripts\dev-ollama.ps1   # Ollama local (perfil "ollama": arranca ollama + ollama-init)
+.\scripts\dev-gemini.ps1   # Gemini por Vertex — no levanta Ollama
+```
+
+`dev-gemini.ps1` necesita, una sola vez por máquina y con una cuenta que tenga permiso sobre el
+proyecto de Vertex:
+
+```bash
+gcloud auth application-default login
+```
+
+Sin login, el script avisa y no levanta nada. Con login, resuelve solo la credencial (ADC) y la
+monta de solo lectura vía `docker-compose.gemini.yml` — no hace falta escribir ningún
+`docker-compose.override.yml` a mano para esto.
+
+Cualquier flag extra se pasa a `docker compose up`, ej. `.\scripts\dev-gemini.ps1 --build -d`.
+
 ### Todo junto, contra la base de Railway
 
 `docker-compose.railway.yml` es la variante que **no** trae su propio Postgres: los módulos
