@@ -15,8 +15,7 @@ import org.testcontainers.postgresql.PostgreSQLContainer;
  * third instance of the same problem).
  *
  * <p>Once the module has real controllers and services (today it's only the {@code Metric} entity
- * and its repository — see the epic 9 gap in {@code docs/gap-historias-usuario.md}), this class is
- * the base their persistence tests will hang off.
+ * and its repository), this class is the base their persistence tests will hang off.
  */
 // SecurityConfig needs a real JWT_SECRET to start the context: the yml default is empty and the
 // HS256 key can't be built from that.

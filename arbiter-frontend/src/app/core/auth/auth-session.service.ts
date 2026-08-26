@@ -15,6 +15,9 @@ export interface AuthSession {
   /** DNI del asegurado (null para analista/referente). Sale del login; el portal lo usa
       sin volver a pedirlo. */
   insuredId: string | null;
+  /** Si el asegurado ya pasó el primer ingreso (H0009). Null para analista/referente, que no
+      tienen onboarding. Lo lee `onboardingGuard` en cada navegación al portal. */
+  onboardingComplete: boolean | null;
 }
 
 /**

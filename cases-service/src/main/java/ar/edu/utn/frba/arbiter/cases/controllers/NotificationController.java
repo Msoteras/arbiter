@@ -48,10 +48,10 @@ public class NotificationController {
 
     @PostMapping("/{id}/read")
     @Operation(summary = "Marcar una notificación como leída",
-            description = "El id se repite entre aseguradoras: `aseguradora` es el slug que lo desambigua.")
+            description = "El id se repite entre aseguradoras: `insurer` es el slug que lo desambigua.")
     public ResponseEntity<Void> markRead(@PathVariable Long id,
-                                         @RequestParam(required = false) String aseguradora) {
-        notificationService.markRead(id, aseguradora);
+                                         @RequestParam(required = false) String insurer) {
+        notificationService.markRead(id, insurer);
         return ResponseEntity.noContent().build();
     }
 }

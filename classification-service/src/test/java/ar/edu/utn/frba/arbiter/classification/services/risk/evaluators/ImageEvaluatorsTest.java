@@ -37,7 +37,7 @@ class ImageEvaluatorsTest {
 
     @Test
     void reuse_evaluableZeroWhenAnalyzedButNoInternalMatches() {
-        ImageForensicReport report = new ImageForensicReport(1, 1,
+        ImageForensicReport report = new ImageForensicReport(1, 1, true,
                 List.of(finding(List.of(), new WebFinding(0, 0, List.of(), null))));
         Contribution c = reuse.evaluate(ctx(report));
         // Analyzed and found no reuse: a genuine low-risk 0, NOT "not evaluable".
@@ -47,7 +47,7 @@ class ImageEvaluatorsTest {
 
     @Test
     void reuse_scoresMaxSimilarity() {
-        ImageForensicReport report = new ImageForensicReport(2, 0, List.of(
+        ImageForensicReport report = new ImageForensicReport(2, 0, true, List.of(
                 finding(List.of(new InternalMatch(8734L, "item_photo", "a.jpg", 0.81)), null),
                 finding(List.of(new InternalMatch(9002L, "item_photo", "b.jpg", 0.96)), null)));
 
@@ -61,7 +61,7 @@ class ImageEvaluatorsTest {
 
     @Test
     void web_notEvaluableWhenNoSearchPerformed() {
-        ImageForensicReport report = new ImageForensicReport(1, 0,
+        ImageForensicReport report = new ImageForensicReport(1, 0, true,
                 List.of(finding(List.of(), null)));
         Contribution c = web.evaluate(ctx(report));
         assertThat(c.evaluable()).isFalse();
@@ -70,7 +70,7 @@ class ImageEvaluatorsTest {
 
     @Test
     void web_evaluableZeroWhenSearchedButNothingFound() {
-        ImageForensicReport report = new ImageForensicReport(1, 1,
+        ImageForensicReport report = new ImageForensicReport(1, 1, true,
                 List.of(finding(List.of(), new WebFinding(0, 0, List.of(), null))));
         Contribution c = web.evaluate(ctx(report));
         // Searched and found nothing on the web: a genuine low-risk 0, NOT "not evaluable".
@@ -80,7 +80,7 @@ class ImageEvaluatorsTest {
 
     @Test
     void web_exactMatchScoresHigh() {
-        ImageForensicReport report = new ImageForensicReport(1, 1, List.of(
+        ImageForensicReport report = new ImageForensicReport(1, 1, true, List.of(
                 finding(List.of(), new WebFinding(1, 0, List.of(new WebFinding.Page("u", "t")), "nike"))));
 
         Contribution c = web.evaluate(ctx(report));
@@ -92,7 +92,7 @@ class ImageEvaluatorsTest {
     void web_partialMatchesScoreLowerThanExact() {
         WebFinding partialOnly = new WebFinding(0, 3,
                 List.of(new WebFinding.Page("u1", "t1"), new WebFinding.Page("u2", "t2")), "iphone");
-        ImageForensicReport report = new ImageForensicReport(1, 1, List.of(finding(List.of(), partialOnly)));
+        ImageForensicReport report = new ImageForensicReport(1, 1, true, List.of(finding(List.of(), partialOnly)));
 
         double score = web.evaluate(ctx(report)).score();
 
@@ -104,7 +104,7 @@ class ImageEvaluatorsTest {
         WebFinding heavy = new WebFinding(5, 20,
                 List.of(new WebFinding.Page("u", "t"), new WebFinding.Page("u", "t"),
                         new WebFinding.Page("u", "t"), new WebFinding.Page("u", "t")), "x");
-        ImageForensicReport report = new ImageForensicReport(1, 1, List.of(finding(List.of(), heavy)));
+        ImageForensicReport report = new ImageForensicReport(1, 1, true, List.of(finding(List.of(), heavy)));
 
         assertThat(web.evaluate(ctx(report)).score()).isLessThanOrEqualTo(1.0);
     }

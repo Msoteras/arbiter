@@ -142,7 +142,7 @@ public class ClassificationOrchestrator {
         Resolution resolution = resolveClassification(claim, documents, ctx);
         recordDocumentExtractions(documents, resolution.extractions());
         ImageForensicReport forensic = resolution.documentationAnalyzed()
-                ? runImageFraudAnalysis(caseId, documents)
+                ? runImageFraudAnalysis(caseId, documents, Boolean.TRUE.equals(claim.imageConsent()))
                 : null;
         return withRiskScore(resolution.response(), claim, ctx, forensic, resolution.extractions());
     }
@@ -267,11 +267,12 @@ public class ClassificationOrchestrator {
      * @return the report, or null when there's no case (isolated flow) or no images to analyze.
      *         Whether it's called at all is decided by the caller from {@link Resolution}.
      */
-    private ImageForensicReport runImageFraudAnalysis(Long caseId, List<AttachmentDocument> documents) {
+    private ImageForensicReport runImageFraudAnalysis(
+            Long caseId, List<AttachmentDocument> documents, boolean imageConsent) {
         if (caseId == null) {
             return null;
         }
-        ImageForensicReport report = imageFraudAnalysisService.analyze(caseId, documents);
+        ImageForensicReport report = imageFraudAnalysisService.analyze(caseId, documents, imageConsent);
         return report.imagesAnalyzed() == 0 ? null : report;
     }
 
@@ -632,6 +633,7 @@ public class ClassificationOrchestrator {
                 .claimedAmount(claim.claimedAmount())
                 .reportedAt(claim.reportedAt())
                 .policeReportAt(claim.policeReportAt())
+                .imageConsent(claim.imageConsent())
                 .attachmentsOcr(attachmentsOcr)
                 .build();
     }

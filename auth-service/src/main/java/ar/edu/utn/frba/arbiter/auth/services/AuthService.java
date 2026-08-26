@@ -35,7 +35,23 @@ public class AuthService {
     public LoginResponse login(LoginRequest request) {
         String password = passwordCipher.decrypt(request.password());
         User user = credentialsAuthenticator.authenticate(request.email(), password);
+        return issueSessionFor(user);
+    }
 
+    /**
+     * Issues a session for a user whose identity is already established — activation and
+     * password reset land here too, right after they finish (see {@link UserService}), so the
+     * person who just proved they own the mailbox and chose a password walks straight into the
+     * app instead of being sent to a login screen to type the password they just set. For an
+     * ASEGURADO activating for the first time that also means landing directly in onboarding: the
+     * frontend routes by role off the token this returns, and {@code onboardingGuard} takes it
+     * from there.
+     *
+     * <p>Not exposed as its own endpoint — only ever called from inside another flow that has
+     * already verified who the user is (credentials here, an invite/reset token in
+     * {@link UserService}).
+     */
+    public LoginResponse issueSessionFor(User user) {
         UserRole rol = user.getRoles().stream()
                 .findFirst()
                 .map(Role::getCode)
@@ -48,6 +64,7 @@ public class AuthService {
         String nombre = null;
         String apellido = null;
         String insuredId = null;
+        Boolean onboardingComplete = null;
         String tenantSchema = primaryInsurer.map(Insurer::getSchemaName).orElse(null);
 
         if (tenantSchema != null) {
@@ -58,6 +75,7 @@ public class AuthService {
                     nombre = profile.get().name();
                     apellido = profile.get().surname();
                     insuredId = profile.get().dni();
+                    onboardingComplete = profile.get().onboardingComplete();
                 }
             } finally {
                 TenantContext.clear();
@@ -65,7 +83,7 @@ public class AuthService {
         }
 
         JwtService.IssuedToken issuedToken = jwtService.issue(
-                user, rol, nombre, apellido, insuredId, insurerIds, tenantSchema);
+                user, rol, nombre, apellido, insuredId, onboardingComplete, insurerIds, tenantSchema);
 
         return new LoginResponse(
                 issuedToken.token(),
@@ -75,6 +93,7 @@ public class AuthService {
                 rol,
                 nombre,
                 apellido,
-                insuredId);
+                insuredId,
+                onboardingComplete);
     }
 }

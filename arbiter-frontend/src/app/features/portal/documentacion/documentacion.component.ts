@@ -38,7 +38,7 @@ export class DocumentacionComponent {
    * este expediente en un tenant distinto del default de su sesión. La viene arrastrando la URL
    * desde el link que trajo hasta acá (inicio, mis siniestros, seguimiento).
    */
-  protected readonly insurerSlug = this.route.snapshot.queryParamMap.get('aseguradora');
+  protected readonly insurerSlug = this.route.snapshot.queryParamMap.get('insurer');
 
   private readonly state = toSignal(
     this.route.paramMap.pipe(
@@ -66,7 +66,7 @@ export class DocumentacionComponent {
     // El backend ya recibió los documentos y re-encoló la clasificación: volvemos al
     // seguimiento, que va a mostrar el estado actualizado.
     this.router.navigate(['/portal/cases', this.caseId], {
-      queryParams: this.insurerSlug ? { aseguradora: this.insurerSlug } : {},
+      queryParams: this.insurerSlug ? { insurer: this.insurerSlug } : {},
     });
   }
 }

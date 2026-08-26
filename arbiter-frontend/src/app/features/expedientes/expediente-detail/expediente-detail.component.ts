@@ -47,7 +47,7 @@ import {
 } from '../../../core/models/estado';
 import { RiskBand, riskBandLabel } from '../../../core/models/risk-band';
 import { StatusTone } from '../../../core/models/status-tone';
-import { formatDateTime } from '../../../core/util/datetime';
+import { formatDate, formatDateTime } from '../../../core/util/datetime';
 import { FraudGaugeComponent } from '../../../shared/ui/fraud-gauge/fraud-gauge.component';
 import { EmptyStateComponent } from '../../../shared/ui/empty-state/empty-state.component';
 import { StatusTimelineComponent } from '../../../shared/ui/status-timeline/status-timeline.component';
@@ -290,7 +290,8 @@ export class ExpedienteDetailComponent {
    */
   protected extractedFields(doc: DocumentAnalysis): FieldItem[] {
     return [
-      { label: 'Fecha del documento', value: doc.documentDate ? formatDateTime(doc.documentDate) : null },
+      // formatDate y no formatDateTime: el backend lo guarda en una columna DATE, sin hora.
+      { label: 'Fecha del documento', value: doc.documentDate ? formatDate(doc.documentDate) : null },
       { label: 'Importe', value: doc.amount == null ? null : `$${doc.amount.toLocaleString()}` },
       { label: 'Bien que nombra', value: doc.itemDescription },
       { label: 'IMEI', value: doc.imei, mono: true },
@@ -571,9 +572,10 @@ export class ExpedienteDetailComponent {
     this.derivarSaving.set(true);
     this.derivarError.set(null);
     this.service.derivarAPeritaje(d.id, Number(perito), motivo).subscribe({
-      next: () => {
+      next: (peritaje) => {
         this.derivarSaving.set(false);
         this.showDerivar.set(false);
+        this.derivacionHecha.set(peritaje);
         this.reloadTrigger.update((v) => v + 1);
       },
       error: (err: HttpErrorResponse) => {
@@ -583,6 +585,17 @@ export class ExpedienteDetailComponent {
     });
   }
 
+  /**
+   * El peritaje recién creado, mientras se muestra la confirmación. Cerrar el modal y ya: debajo
+   * cambian el estado, las acciones y la solapa de peritaje todas juntas, y sin una confirmación
+   * el analista no tiene cómo saber si el mail salió o si el botón no hizo nada.
+   */
+  protected readonly derivacionHecha = signal<Peritaje | null>(null);
+
+  cerrarDerivacionHecha(): void {
+    this.derivacionHecha.set(null);
+  }
+
   // ----- carga del informe del perito -----
   protected readonly showInforme = signal(false);
   protected readonly veredicto = signal('');
@@ -590,6 +603,12 @@ export class ExpedienteDetailComponent {
   protected readonly informeFile = signal<File | null>(null);
   protected readonly informeSaving = signal(false);
   protected readonly informeError = signal<string | null>(null);
+
+  /**
+   * Guardar "fraude confirmado" no deja solo el informe: registra el antecedente sobre la persona.
+   * El modal lo avisa antes, porque el antecedente no tiene baja desde la aplicación.
+   */
+  protected readonly veredictoConfirmaFraude = computed(() => this.veredicto() === 'FRAUD_CONFIRMED');
 
   protected readonly veredictoOptions: SelectOption[] = [
     { value: 'FRAUD_CONFIRMED', label: 'Fraude confirmado' },

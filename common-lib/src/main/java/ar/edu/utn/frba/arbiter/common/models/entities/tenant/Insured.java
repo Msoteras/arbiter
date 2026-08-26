@@ -16,6 +16,8 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
 
+import java.time.Instant;
+
 /**
  * The insured person ("Asegurado" in CLAUDE.md's domain vocabulary). {@code dni} is what
  * {@code JwtService} puts in the {@code insuredId} claim.
@@ -26,8 +28,9 @@ import lombok.Setter;
  * ({@code pep}, {@code imageConsent}, contact). Both had their own copy and the two had already
  * drifted: auth's {@code caseCount} was nullable and it was missing {@code imageConsent} entirely.
  *
- * <p>"Alta de asegurados" is still a separate, not-yet-built flow (decision #8) — the seeded
- * ASEGURADO users never went through a real sign-up.
+ * <p>Rows come from the insurer's own directory, not from anyone typing them in: the bulk "dar de
+ * alta asegurados" run mirrors {@code aseguradora_*.asegurado} and provisions the account behind
+ * each one. The seeded ASEGURADO users predate that flow and never went through a real sign-up.
  */
 @Entity
 @Table(name = "insured")
@@ -73,6 +76,19 @@ public class Insured {
     @Column(name = "image_consent", nullable = false)
     @Builder.Default
     private boolean imageConsent = false;
+
+    @Column(name = "image_consent_version", length = 20)
+    private String imageConsentVersion;
+
+    @Column(name = "image_consent_at")
+    private Instant imageConsentAt;
+
+    @Column(name = "onboarding_complete", nullable = false)
+    @Builder.Default
+    private boolean onboardingComplete = false;
+
+    @Column(name = "onboarding_completed_at")
+    private Instant onboardingCompletedAt;
 
     // No unique constraint on the join column: the DER draws one profile per user, but the schema
     // does not enforce it, and claiming it here would put the entity ahead of the table.

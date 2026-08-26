@@ -26,8 +26,8 @@ import java.util.List;
  * the same regardless of scope, only the storage differs:
  * <ul>
  *   <li>{@code COVERAGE_EXCLUSION}: the blacklist of hechos generadores the coverage doesn't
- *       cover. Closes the DER's asymmetry, where no coverage ↔ hecho generador relation exists
- *       (see plan-reglas-evaluables.md §1.2).</li>
+ *       cover. Closes the DER's asymmetry, where no coverage ↔ hecho generador relation
+ *       exists.</li>
  *   <li>The active coverage-scoped hard temporal rules ({@link RuleType#coverageScoped()}):
  *       waiting period, deadlines, events cap. They travel with almost no parameters because the
  *       threshold belongs to the coverage; what the row contributes is that the rule is active —

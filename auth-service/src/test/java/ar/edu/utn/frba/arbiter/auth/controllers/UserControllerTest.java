@@ -127,7 +127,7 @@ class UserControllerTest extends AbstractPersistenceIT {
 
     private String tokenFor(Long userId, UserRole rol) {
         User user = userRepository.findById(userId).orElseThrow();
-        var issued = jwtService.issue(user, rol, "Test", "User", null, List.of(1L), "arbiter_bbva");
+        var issued = jwtService.issue(user, rol, "Test", "User", null, null, List.of(1L), "arbiter_bbva");
         return issued.token();
     }
 

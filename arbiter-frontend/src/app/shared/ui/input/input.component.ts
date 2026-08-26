@@ -94,7 +94,7 @@ import { ChangeDetectionStrategy, Component, computed, input, model, signal } fr
 export class InputComponent {
   private static autoIdCounter = 0;
   /** Genera el id si el caller no pasó uno, para que ningún <input> quede sin id posible de
-   * asociar a un `<label for>` — ver docs/frontend-bugs-ux.md #4. */
+   * asociar a un `<label for>`. */
   private readonly autoId = `app-input-${InputComponent.autoIdCounter++}`;
 
   readonly value = model('');

@@ -27,6 +27,8 @@ export interface LoginResponse {
   apellido: string;
   /** The insured's DNI (null for analista/referente). */
   insuredId: string | null;
+  /** Whether the insured already went through first-time onboarding. Null for other roles. */
+  onboardingComplete: boolean | null;
 }
 
 @Injectable({ providedIn: 'root' })
@@ -42,11 +44,15 @@ export class AuthService {
     );
   }
 
-  /** Auth0 Phase 3: the invited user picks their own password here — only then do we create them in Auth0. */
-  activate(token: string, password: string): Observable<void> {
+  /**
+   * Auth0 Phase 3: the invited user picks their own password here — only then do we create them
+   * in Auth0. Returns an already-issued session (same shape as `login()`) so the caller can start
+   * it straight away instead of sending the person to type the password they just chose again.
+   */
+  activate(token: string, password: string): Observable<LoginResponse> {
     return this.sealed(password).pipe(
       switchMap((sealedPassword) =>
-        this.http.post<void>(`${this.baseUrl}/activate`, { token, password: sealedPassword }),
+        this.http.post<LoginResponse>(`${this.baseUrl}/activate`, { token, password: sealedPassword }),
       ),
     );
   }
@@ -61,11 +67,15 @@ export class AuthService {
     return this.http.post<void>(`${this.baseUrl}/forgot-password`, { email });
   }
 
-  /** The user already exists in Auth0 — this only updates their password. */
-  resetPassword(token: string, password: string): Observable<void> {
+  /**
+   * The user already exists in Auth0 — this only updates their password. Same as `activate()`:
+   * returns an already-issued session instead of nothing, since there's nothing left for a login
+   * screen to ask someone who just proved they own the mailbox and chose a new password.
+   */
+  resetPassword(token: string, password: string): Observable<LoginResponse> {
     return this.sealed(password).pipe(
       switchMap((sealedPassword) =>
-        this.http.post<void>(`${this.baseUrl}/reset-password`, { token, password: sealedPassword }),
+        this.http.post<LoginResponse>(`${this.baseUrl}/reset-password`, { token, password: sealedPassword }),
       ),
     );
   }

@@ -63,7 +63,7 @@ const NOTIFICATION_TITLES: Record<string, string> = {
                 <a
                   class="notif-item__link t-note"
                   [routerLink]="caseLink(item.caseId)"
-                  [queryParams]="item.insurerSlug ? { aseguradora: item.insurerSlug } : {}"
+                  [queryParams]="item.insurerSlug ? { insurer: item.insurerSlug } : {}"
                   (click)="close.emit()"
                 >
                   Ver {{ caseNoun() }} #{{ item.caseId }} ›

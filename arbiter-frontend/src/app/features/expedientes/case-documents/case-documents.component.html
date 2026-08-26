@@ -25,7 +25,12 @@
       </p>
 
       <ul class="doc-items">
-        @for (row of rows(); track row.type) {
+        @for (row of rows(); track row.type; let i = $index) {
+          @if (i === firstExtraIndex()) {
+            <!-- El informe pericial no es un casillero de la agenda: se lista, pero aparte, para
+                 que "N de M documentos cargados" siga contando lo que el asegurado tiene que subir. -->
+            <li class="doc-section t-section-label">Otros documentos del expediente</li>
+          }
           <li class="doc-item" [class.missing]="!row.doc">
             @if (row.doc) {
               <button

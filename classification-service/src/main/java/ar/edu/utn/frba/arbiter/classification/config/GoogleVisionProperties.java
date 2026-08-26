@@ -5,8 +5,7 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
 /**
  * Google Cloud Vision (Web Detection) settings. Disabled by default: this is the only
  * integration that sends claim images OUTSIDE our infrastructure, so it must be an explicit
- * opt-in per deployment and requires the insured's consent (see
- * {@code docs/image-fraud-scoring-integration.md}).
+ * opt-in per deployment and requires the insured's consent.
  *
  * <p>{@code apiKey} always comes from an environment variable — never commit it.
  */

@@ -149,13 +149,9 @@ public class CaseServiceImpl implements CaseService {
                 .occurredAt(request.eventDate())
                 .policeReportAt(request.policeReportAt())
                 .eventAddress(request.eventLocation())
-                // Normalizadas en sus propias columnas, no aplastadas dentro de eventAddress: es lo
-                // que permite filtrar/agrupar por zona sin parsear texto libre.
                 .province(blankToNull(request.province()))
                 .locality(blankToNull(request.locality()))
                 .claimedAmount(request.claimedAmount())
-                // Desde la denuncia, que es este mismo momento: `reportedAt` lo pone Hibernate
-                // recién al insertar, así que acá todavía es null.
                 .responseDeadline(LocalDate.now().plusDays(RESPONSE_TERM_DAYS))
                 .currentStatus(caseStatusService.initialStatus())
                 .build();

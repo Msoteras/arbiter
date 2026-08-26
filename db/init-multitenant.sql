@@ -294,9 +294,11 @@ BEGIN
             phone           VARCHAR(30),
             case_count      INTEGER      NOT NULL DEFAULT 0,  -- cantidad_expedientes
             pep             BOOLEAN      NOT NULL DEFAULT FALSE,
-            -- Consent to use their images. Belongs to the person, not to each claim — the
-            -- current code has it on the case, which is a bug pending a fix.
-            image_consent   BOOLEAN      NOT NULL DEFAULT FALSE,
+            image_consent           BOOLEAN      NOT NULL DEFAULT FALSE,
+            image_consent_version   VARCHAR(20),
+            image_consent_at        TIMESTAMPTZ,
+            onboarding_complete     BOOLEAN      NOT NULL DEFAULT FALSE,
+            onboarding_completed_at TIMESTAMPTZ,
             user_id         BIGINT       NOT NULL REFERENCES arbiter_common.users(id)
         )$ddl$, p_schema);
 
@@ -337,7 +339,7 @@ BEGIN
             is_individual                   BOOLEAN       NOT NULL DEFAULT TRUE,
             waiting_period_days             INTEGER,                 -- carencia_dias
             branch_id                       BIGINT        NOT NULL REFERENCES arbiter_common.branch(id),
-            -- clause y exclusions: sin respaldo en el DER (decisiones-reglas-a-validar.md, D3/D7).
+            -- clause y exclusions: sin respaldo en el DER.
             clause                          VARCHAR(20),
             exclusions                      JSONB
         )$ddl$, p_schema);

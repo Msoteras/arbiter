@@ -15,8 +15,7 @@ import java.util.regex.Pattern;
  * One shared {@link DataSource}, one schema per tenant — switches which schema a
  * borrowed connection sees via {@code SET search_path}, not a different DataSource per
  * tenant (there's only one database). The common schema is always appended after the
- * tenant's own, per the ordering README-multitenant.md documents: resolve in the tenant
- * first, fall back to the common catalogs.
+ * tenant's own: resolve in the tenant first, fall back to the common catalogs.
  */
 @Component
 @RequiredArgsConstructor

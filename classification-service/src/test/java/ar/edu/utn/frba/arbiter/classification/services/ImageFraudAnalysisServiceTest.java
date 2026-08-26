@@ -44,7 +44,7 @@ class ImageFraudAnalysisServiceTest {
     void skipsNonImageAttachments() {
         AttachmentDocument pdf = new AttachmentDocument(null, "police_report", new byte[]{1}, "application/pdf");
 
-        ImageForensicReport report = service.analyze(1L, List.of(pdf));
+        ImageForensicReport report = service.analyze(1L, List.of(pdf), true);
 
         assertThat(report.imagesAnalyzed()).isZero();
         assertThat(report.findings()).isEmpty();
@@ -55,7 +55,7 @@ class ImageFraudAnalysisServiceTest {
     void internalMatchStopsTheCascade() {
         internalReturns(new DuplicateImageMatch(42L, 555L, "photo-0", "stolen.jpg", 0.97));
 
-        ImageForensicReport report = service.analyze(1L, List.of(image("damage_photo")));
+        ImageForensicReport report = service.analyze(1L, List.of(image("damage_photo")), true);
 
         ImageFinding finding = report.findings().getFirst();
         assertThat(finding.internalMatches()).hasSize(1);
@@ -74,7 +74,7 @@ class ImageFraudAnalysisServiceTest {
                 2, 5, List.of(new WebImageMatch.MatchedPage("https://ml.com/pub", "Publicación")), "iphone");
         when(googleVisionClient.detectWebMatches(anyString())).thenReturn(match);
 
-        ImageForensicReport report = service.analyze(1L, List.of(image("damage_photo")));
+        ImageForensicReport report = service.analyze(1L, List.of(image("damage_photo")), true);
 
         ImageFinding finding = report.findings().getFirst();
         assertThat(finding.internalMatches()).isEmpty();
@@ -89,7 +89,7 @@ class ImageFraudAnalysisServiceTest {
         internalReturns();
         when(googleVisionClient.isEnabled()).thenReturn(false);
 
-        ImageForensicReport report = service.analyze(1L, List.of(image("damage_photo")));
+        ImageForensicReport report = service.analyze(1L, List.of(image("damage_photo")), true);
 
         // null webFinding = "not searched", distinct from "searched and found nothing".
         assertThat(report.findings().getFirst().webFinding()).isNull();
@@ -98,12 +98,41 @@ class ImageFraudAnalysisServiceTest {
     }
 
     @Test
+    void noConsentSkipsWebSearchEvenWhenEnabled() {
+        internalReturns();
+
+        ImageForensicReport report = service.analyze(1L, List.of(image("damage_photo")), false);
+
+        assertThat(report.findings().getFirst().webFinding()).isNull();
+        assertThat(report.webSearchesPerformed()).isZero();
+        verifyNoInteractions(googleVisionClient);
+        // Recorded, not just acted upon: zero searches alone can't tell a refusal apart from an
+        // image that needed no escalation. Ley 25.326 cares about the refusal specifically.
+        assertThat(report.imageConsent()).isFalse();
+    }
+
+    /**
+     * The analyst has to be able to tell "we looked and found nothing" from "we were not allowed to
+     * look". Without this line the absence of a web finding reads as absence of evidence.
+     */
+    @Test
+    void noConsentIsSpelledOutInTheTraces() {
+        internalReturns();
+        ImageForensicReport report = service.analyze(1L, List.of(image("damage_photo")), false);
+
+        List<String> traces = service.renderTraces(report);
+
+        assertThat(traces).anySatisfy(t -> assertThat(t).contains("no dio su consentimiento"));
+        assertThat(traces).noneSatisfy(t -> assertThat(t).contains("tampoco se encontró"));
+    }
+
+    @Test
     void cleanImageWithWebEnabledIsSearchedButEmpty() {
         internalReturns();
         when(googleVisionClient.isEnabled()).thenReturn(true);
         when(googleVisionClient.detectWebMatches(anyString())).thenReturn(WebImageMatch.none());
 
-        ImageForensicReport report = service.analyze(1L, List.of(image("damage_photo")));
+        ImageForensicReport report = service.analyze(1L, List.of(image("damage_photo")), true);
 
         // Searched, found nothing: webFinding is present but not found() — and it counts as a search.
         assertThat(report.findings().getFirst().webFinding()).isNotNull();
@@ -118,7 +147,7 @@ class ImageFraudAnalysisServiceTest {
         when(googleVisionClient.isEnabled()).thenReturn(true);
         when(googleVisionClient.detectWebMatches(anyString())).thenReturn(WebImageMatch.none());
 
-        ImageForensicReport report = service.analyze(1L, List.of(image("damage_photo")));
+        ImageForensicReport report = service.analyze(1L, List.of(image("damage_photo")), true);
 
         assertThat(report.findings().getFirst().internalMatches()).isEmpty();
         assertThat(report.webSearchesPerformed()).isEqualTo(1);
@@ -130,7 +159,7 @@ class ImageFraudAnalysisServiceTest {
         when(googleVisionClient.isEnabled()).thenReturn(true);
         when(googleVisionClient.detectWebMatches(anyString())).thenThrow(new RuntimeException("Vision 500"));
 
-        ImageForensicReport report = service.analyze(1L, List.of(image("damage_photo")));
+        ImageForensicReport report = service.analyze(1L, List.of(image("damage_photo")), true);
 
         assertThat(report.findings().getFirst().webFinding()).isNull();
         assertThat(report.webSearchesPerformed()).isZero();
@@ -146,7 +175,7 @@ class ImageFraudAnalysisServiceTest {
         when(googleVisionClient.isEnabled()).thenReturn(true);
         when(googleVisionClient.detectWebMatches(anyString())).thenReturn(WebImageMatch.none());
 
-        ImageForensicReport report = service.analyze(1L, List.of(image("front"), image("back")));
+        ImageForensicReport report = service.analyze(1L, List.of(image("front"), image("back")), true);
 
         assertThat(report.imagesAnalyzed()).isEqualTo(2);
         assertThat(report.findings().get(0).internalMatches()).hasSize(1);
@@ -159,7 +188,7 @@ class ImageFraudAnalysisServiceTest {
     @Test
     void renderTracesDescribesInternalMatch() {
         internalReturns(new DuplicateImageMatch(42L, 555L, "photo-0", "stolen.jpg", 0.97));
-        ImageForensicReport report = service.analyze(1L, List.of(image("damage_photo")));
+        ImageForensicReport report = service.analyze(1L, List.of(image("damage_photo")), true);
 
         List<String> traces = service.renderTraces(report);
 
@@ -172,7 +201,7 @@ class ImageFraudAnalysisServiceTest {
         internalReturns();
         when(googleVisionClient.isEnabled()).thenReturn(true);
         when(googleVisionClient.detectWebMatches(anyString())).thenReturn(WebImageMatch.none());
-        ImageForensicReport report = service.analyze(1L, List.of(image("damage_photo")));
+        ImageForensicReport report = service.analyze(1L, List.of(image("damage_photo")), true);
 
         List<String> traces = service.renderTraces(report);
 

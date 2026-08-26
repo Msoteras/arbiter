@@ -14,7 +14,7 @@ export interface DocumentRequirementDto {
 
 /**
  * Agenda documental de un hecho generador de un ramo (solapa Documentación) contra rules-service.
- * Desde D5 (docs/decisiones-reglas-a-validar.md) la pantalla edita por hecho generador — ya no hay
+ * La pantalla edita por hecho generador — ya no hay
  * fan-out a los demás hechos generadores del ramo.
  */
 @Injectable({ providedIn: 'root' })

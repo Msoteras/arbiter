@@ -42,5 +42,15 @@ public record ClaimReport(
         // crossing the two is precisely the signal (D12). Nullable — not every claim cause involves
         // a police report, and there the deadline rule isn't evaluable.
         LocalDateTime policeReportAt,
+        // Whether the insured gave consent to send their images to external services (Google Vision
+        // web search). Captured during onboarding, not per claim. When it isn't granted the internal
+        // CLIP analysis still runs (it never leaves the host), only the web escalation is skipped.
+        //
+        // Boxed, and absence means NO: a primitive would make this record undeserializable from any
+        // JSON that omits the field, because Jackson 3 keeps FAIL_ON_NULL_FOR_PRIMITIVES on and a
+        // record's missing property reaches the canonical constructor as null. Fail-closed is also
+        // the only safe reading of a consent flag — "nobody said" cannot mean "go ahead and send
+        // their photos to a third party".
+        Boolean imageConsent,
         List<String> attachmentsOcr
 ) {}

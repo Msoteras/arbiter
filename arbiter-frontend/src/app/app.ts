@@ -110,14 +110,19 @@ export class App {
     { initialValue: this.router.url },
   );
 
-  // Las pantallas de autenticación son standalone (sin sesión todavía): pantalla completa,
-  // sin el chrome de la app. Se comparan por path, ignorando el query (activación y reset
-  // llevan el token en la URL).
-  private static readonly AUTH_ROUTES = [
+  // Pantallas standalone: ocupan todo el alto, sin el chrome de la app. Se comparan por path,
+  // ignorando el query (activación y reset llevan el token en la URL).
+  //
+  // Las de autenticación lo son por no tener sesión todavía. `/portal/onboarding` sí tiene
+  // sesión, pero también va sin chrome: es un paso obligatorio del que no se puede salir
+  // (onboardingGuard rebota todo el portal hasta completarlo), así que mostrar la navegación
+  // sería ofrecer links que devuelven al mismo lugar.
+  private static readonly CHROMELESS_ROUTES = [
     '/login',
     '/forgot-password',
     '/activate-account',
     '/reset-password',
+    '/portal/onboarding',
   ];
   // El shell exige sesión, no solo "no estar en una ruta de auth": la sesión vive en memoria y se
   // pierde al recargar, así que al refrescar una ruta protegida la URL sigue siendo /inbox por un
@@ -125,7 +130,8 @@ export class App {
   // vacío ese instante — el "flash" del layout interno al recargar.
   protected readonly showShell = computed(
     () =>
-      this.session.session() !== null && !App.AUTH_ROUTES.includes(this.currentUrl().split('?')[0]),
+      this.session.session() !== null &&
+      !App.CHROMELESS_ROUTES.includes(this.currentUrl().split('?')[0]),
   );
 
   // H0003 - RBAC: cada rol ve solo su propia sección de la navegación (el referente incluida —

@@ -16,5 +16,7 @@ public record LoginResponse(
         String apellido,
         /** The insured's DNI (null for analista/referente). The front uses it for the portal
             without asking again — see User.insuredId. */
-        String insuredId
+        String insuredId,
+        /** Whether the insured completed the first-login onboarding (null for non-ASEGURADO). */
+        Boolean onboardingComplete
 ) {}
