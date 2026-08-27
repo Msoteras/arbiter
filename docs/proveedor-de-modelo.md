@@ -118,8 +118,8 @@ de solo lectura en el contenedor — no hay que escribir ningún `docker-compose
 esto.
 
 **El proyecto de cuota no es opcional** aunque parezca redundante: sin él, Vertex rechaza las
-llamadas con un error de permisos que no dice que el problema es ese. Por eso van los tres comandos
-y en ese orden.
+llamadas con un error de permisos que no dice que el problema es ese. Por eso van los cuatro
+comandos y en ese orden.
 
 Si falla con `PERMISSION_DENIED`, te falta el rol **Consumidor de Service Usage** de la tabla de
 arriba — pedíselo al dueño del proyecto y volvé a correrlo. No hace falta rehacer el login.
