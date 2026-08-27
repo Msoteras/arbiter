@@ -70,13 +70,30 @@ gasta el crédito del proyecto, no queda registro de quién hizo qué, y revocar
 clave para todos. Además termina circulando por chat.
 
 **✅ Permiso en IAM, con tu propia cuenta.** El dueño del proyecto te agrega desde
-**IAM y administración → Otorgar acceso** con el rol **Usuario de Vertex AI**
-(`roles/aiplatform.user`).
+**IAM y administración → Otorgar acceso** con **dos** roles:
+
+| Rol | Para qué |
+|-----|----------|
+| **Usuario de Vertex AI** (`roles/aiplatform.user`) | llamar al modelo |
+| **Consumidor de Service Usage** (`roles/serviceusage.serviceUsageConsumer`) | poder fijar el proyecto de cuota |
+
+**Los dos, no solo el primero.** `aiplatform.user` no trae `serviceusage.services.use`, y sin ese
+permiso el paso de abajo falla con este warning, que es fácil pasar por alto porque el login sí se
+completa:
+
+```
+Cannot find a quota project to add to ADC. You might receive a "quota exceeded"
+or "API not enabled" error.
+```
 
 ### 2.2 · Tu credencial local
 
 Con `gcloud` instalado (en Windows: `winget install --id Google.CloudSDK --exact`, y abrí una
 terminal nueva después para que tome el PATH):
+
+```bash
+gcloud auth login
+```
 
 ```bash
 gcloud config set project project-fb32e998-d84b-4d72-911
@@ -90,16 +107,44 @@ gcloud auth application-default login
 gcloud auth application-default set-quota-project project-fb32e998-d84b-4d72-911
 ```
 
+**Los dos `login` son distintos y hacen falta los dos.** `gcloud auth login` autentica el *CLI*
+—es el que usa el `set-quota-project` del final—, y `application-default login` genera la credencial
+que consumen las *librerías*, o sea la que va al contenedor. Si salteás el primero, el último
+comando falla con `This command is authenticated as None`.
+
 Eso genera **tu** credencial de ADC, con tu cuenta. No viaja ningún secreto, cada llamada queda
 registrada a tu nombre, y se revoca sacándote de IAM. `dev-gemini.ps1` la encuentra sola y la monta
 de solo lectura en el contenedor — no hay que escribir ningún `docker-compose.override.yml` para
 esto.
 
 **El proyecto de cuota no es opcional** aunque parezca redundante: sin él, Vertex rechaza las
-llamadas con un error de permisos que no dice que el problema es ese. Por eso van los tres comandos
-y en ese orden.
+llamadas con un error de permisos que no dice que el problema es ese. Por eso van los cuatro
+comandos y en ese orden.
 
-### 2.3 · Alternativa: tu propio proyecto
+Si falla con `PERMISSION_DENIED`, te falta el rol **Consumidor de Service Usage** de la tabla de
+arriba — pedíselo al dueño del proyecto y volvé a correrlo. No hace falta rehacer el login.
+
+### 2.3 · Si tu cuenta es institucional y te dice `USER_BLOCKED_BY_ADMIN`
+
+```
+Authentication error: 7; Error Details: User not allowed to access GCP services.
+reason: USER_BLOCKED_BY_ADMIN
+```
+
+Esto **no** se arregla con roles: los roles dicen qué podés hacer *dentro* del proyecto, y este
+error es anterior — el administrador del Workspace de **tu** organización (`@frba.utn.edu.ar`, o el
+dominio de tu trabajo) tiene deshabilitado el servicio de Google Cloud para sus cuentas. Es común en
+cuentas de facultad.
+
+La salida es usar una **cuenta personal de Gmail**: pedile al dueño del proyecto que te agregue con
+esa, y rehacé los cuatro comandos de arriba eligiéndola en el navegador. Verificá con qué cuenta
+quedaste:
+
+```bash
+gcloud auth list
+```
+
+### 2.4 · Alternativa: tu propio proyecto
 
 Si preferís no consumir el crédito de otro, abrí tu propio proyecto de GCP: son **USD 300 por
 cuenta, válidos 90 días desde el alta**, y cada expediente cuesta centavos. Habilitá la API con
