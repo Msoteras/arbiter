@@ -11,6 +11,8 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.core.io.ClassPathResource;
 
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
+import java.util.List;
 import java.util.Map;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -42,7 +44,7 @@ class OllamaDocumentAnalyzerTest {
         analyzer = new OllamaDocumentAnalyzer(
                 client,
                 new ObjectMapper(),
-                new ClassPathResource("prompts/extraccion-documento-v4.md"));
+                new ClassPathResource("prompts/extraccion-documento-v5.md"));
     }
 
     private void modelAnswers(String content) {
@@ -136,5 +138,37 @@ class OllamaDocumentAnalyzerTest {
         Map<String, Object> properties = (Map<String, Object>) schema.getValue().get("properties");
         assertThat(properties.keySet())
                 .containsExactly("transcription", "fields", "visualFindings");
+    }
+
+    /**
+     * {@code fields} has to be required. When it was optional the model dropped it to save effort —
+     * measured 21/08 on cases 33 and 20: perfect transcriptions, every field null. Nothing failed;
+     * {@code DocumentInconsistencyEvaluator} simply had nothing to compare, so the IMEI-against-item
+     * and amount-against-claim checks stopped happening and no log said so.
+     */
+    @Test
+    void theSchemaDemandsTheTypedFields() {
+        modelAnswers("""
+                {"transcription": "Factura B 0001-00023456", "fields": {}, "visualFindings": []}
+                """);
+
+        analyzer.extract(SOME_IMAGE, "image/jpeg");
+
+        ArgumentCaptor<Map<String, Object>> schema = ArgumentCaptor.captor();
+        verify(client).chat(anyString(), anyList(), schema.capture(), eq(false));
+
+        @SuppressWarnings("unchecked")
+        List<String> required = (List<String>) schema.getValue().get("required");
+        assertThat(required).contains("fields");
+    }
+
+    /** The prompt has to ask for the fields, not just the schema — that was the actual regression. */
+    @Test
+    void thePromptDoesNotTellTheModelToOmitTheFields() throws IOException {
+        String prompt = new ClassPathResource("prompts/extraccion-documento-v5.md")
+                .getContentAsString(StandardCharsets.UTF_8);
+
+        assertThat(prompt).contains("no significa que haya que omitir");
+        assertThat(prompt).doesNotContain("nada de listar `documentDate`");
     }
 }

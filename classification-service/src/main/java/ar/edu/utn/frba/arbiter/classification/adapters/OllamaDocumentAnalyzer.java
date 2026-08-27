@@ -70,8 +70,10 @@ public class OllamaDocumentAnalyzer implements DocumentAnalyzer {
             "type", "object",
             "properties", orderedMap(
                     "transcription", Map.of("type", "string"),
-                    // All nullable: a document has no reason to carry all four. The schema doesn't
-                    // require them so the model doesn't invent what's missing.
+                    // Each key nullable, the object itself required: a document has no reason to
+                    // carry all five, so null says "the paper doesn't state it" without the model
+                    // inventing what's missing — but skipping the object altogether is not an
+                    // option (see the required list below).
                     "fields", orderedMap(
                             "type", "object",
                             "properties", orderedMap(
@@ -84,7 +86,12 @@ public class OllamaDocumentAnalyzer implements DocumentAnalyzer {
                             )),
                     "visualFindings", Map.of("type", "array", "items", Map.of("type", "string"))
             ),
-            "required", List.of("transcription", "visualFindings")
+            // fields is required so the model can't drop it to save effort — its own keys stay
+            // optional, so "the document doesn't say it" is still expressible as null. Leaving it
+            // out was silent damage: the transcription looked perfect while
+            // DocumentInconsistencyEvaluator had nothing to compare and every check it makes —
+            // IMEI against the insured item, amount against the claim — quietly did nothing.
+            "required", List.of("transcription", "fields", "visualFindings")
     );
 
     /** Insertion-ordered, so the serialized schema keeps the field order written above. */
@@ -103,7 +110,7 @@ public class OllamaDocumentAnalyzer implements DocumentAnalyzer {
     public OllamaDocumentAnalyzer(
             OllamaClient client,
             ObjectMapper objectMapper,
-            @Value("classpath:prompts/extraccion-documento-v4.md") Resource documentExtractionPromptResource
+            @Value("classpath:prompts/extraccion-documento-v5.md") Resource documentExtractionPromptResource
     ) throws IOException {
         this.client = client;
         this.objectMapper = objectMapper;

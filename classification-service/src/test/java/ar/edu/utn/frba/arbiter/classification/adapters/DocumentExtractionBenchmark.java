@@ -195,7 +195,7 @@ class DocumentExtractionBenchmark {
         // would be measuring something else.
         OllamaClient client = new OllamaClient(restClient(baseUrl), properties, mapper, 32768, 4096);
         return new OllamaDocumentAnalyzer(client, mapper,
-                new ClassPathResource("prompts/extraccion-documento-v4.md"));
+                new ClassPathResource("prompts/extraccion-documento-v5.md"));
     }
 
     private RestClient restClient(String baseUrl) {
