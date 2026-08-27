@@ -1,16 +1,22 @@
 <#
 .SYNOPSIS
-    Levanta Arbiter completo con Gemini (Vertex AI) como motor de clasificación.
+    Levanta Arbiter contra la BD de Railway, con Gemini (Vertex AI) como motor
+    de clasificación.
 
 .DESCRIPTION
-    Resuelve la credencial ADC de esta máquina y arranca con
-    docker-compose.gemini.yml combinado sobre el compose base. No levanta
-    Ollama (te ahorrás ~11 GB de RAM), y no toca tu .env.
+    Usa docker-compose.railway.yml, así que NO levanta Postgres local: los
+    módulos apuntan a la base compartida de Railway (DB_URL/DB_USER/DB_PASSWORD
+    del .env de la raíz). Tampoco levanta Ollama — te ahorrás ~11 GB de RAM.
 
-    Prerequisito, una sola vez por máquina, con una cuenta que tenga permiso
-    sobre el proyecto de Vertex:
+    Resuelve sola la credencial ADC de esta máquina y la monta de solo lectura.
+    No toca tu .env.
 
+    Prerequisito, una sola vez por máquina, con una cuenta con rol Usuario de
+    Vertex AI sobre el proyecto:
+
+        gcloud config set project <project-id>
         gcloud auth application-default login
+        gcloud auth application-default set-quota-project <project-id>
 
     Cualquier argumento extra se pasa tal cual a `docker compose up`.
 
@@ -36,7 +42,7 @@ if ($null -eq $IsWindows -or $IsWindows) {
 }
 
 if (-not (Test-Path $adcPath)) {
-    Write-Error "No se encontró la credencial ADC en $adcPath.`nCorré primero (con una cuenta que tenga permiso sobre el proyecto de Vertex):`n  gcloud auth application-default login"
+    Write-Error "No se encontró la credencial ADC en $adcPath.`nCorré primero (con una cuenta con rol Usuario de Vertex AI sobre el proyecto):`n  gcloud config set project <project-id>`n  gcloud auth application-default login`n  gcloud auth application-default set-quota-project <project-id>"
 }
 
 $env:GOOGLE_ADC_HOST_PATH = $adcPath
@@ -49,15 +55,11 @@ $env:GOOGLE_ADC_HOST_PATH = $adcPath
 # declara el perfil "gemini", así que activarlo no levanta nada extra.
 $env:COMPOSE_PROFILES = 'gemini'
 
-# Al pasar -f explícito, Compose deja de autoincluir docker-compose.override.yml —
-# hay que sumarlo a mano si existe, o quien lo use para apuntar a Railway (u otro
-# ajuste local) termina levantando contra el Postgres local por accidente.
-$composeFiles = @('-f', 'docker-compose.yml')
-if (Test-Path 'docker-compose.override.yml') {
-    $composeFiles += @('-f', 'docker-compose.override.yml')
-}
-$composeFiles += @('-f', 'docker-compose.gemini.yml')
+# docker-compose.override.yml queda deliberadamente afuera: es el override del stack
+# LOCAL (docker-compose.yml), y lo que trae —redirigir DB_URL a Railway— ya lo hace este
+# compose de entrada. Para ajustes propios de este stack existe docker-compose.railway.override.yml.
+$composeFiles = @('-f', 'docker-compose.railway.yml', '-f', 'docker-compose.gemini.yml')
 
-Write-Host "Levantando Arbiter con Gemini (Vertex)..." -ForegroundColor Cyan
+Write-Host "Levantando Arbiter con Gemini (Vertex), contra la BD de Railway..." -ForegroundColor Cyan
 Write-Host "Credencial: $adcPath" -ForegroundColor DarkGray
 docker compose @composeFiles up @args
