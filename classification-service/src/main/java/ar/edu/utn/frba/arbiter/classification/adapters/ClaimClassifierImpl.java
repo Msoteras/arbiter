@@ -17,9 +17,9 @@ import java.util.Objects;
 
 @Service
 @RequiredArgsConstructor
-public class OllamaClaimClassifier implements ClaimClassifier {
+public class ClaimClassifierImpl implements ClaimClassifier {
 
-    private static final Logger log = LoggerFactory.getLogger(OllamaClaimClassifier.class);
+    private static final Logger log = LoggerFactory.getLogger(ClaimClassifierImpl.class);
 
     private static final Map<String, Object> OUTPUT_SCHEMA = Map.of(
             "type", "object",
@@ -34,7 +34,7 @@ public class OllamaClaimClassifier implements ClaimClassifier {
             "required", List.of("classification", "factors", "confidence")
     );
 
-    private final OllamaClient client;
+    private final LlmClient client;
     private final ObjectMapper objectMapper;
     private final PromptBuilder promptBuilder;
 
@@ -43,13 +43,13 @@ public class OllamaClaimClassifier implements ClaimClassifier {
         String prompt = promptBuilder.buildFullPrompt(request);
         int estimatedTokens = prompt.length() / 4;
 
-        log.info("[Ollama] Classifying — model={} branch='{}' claimCause='{}' estimated_tokens=~{} num_ctx={}",
-                client.model(), request.branch(), request.claimCause(), estimatedTokens, client.numCtx());
-        if (estimatedTokens > client.numCtx()) {
-            log.warn("[Ollama] Prompt (~{} tokens) exceeds num_ctx ({}) — Ollama will silently drop the overflow",
-                    estimatedTokens, client.numCtx());
+        log.info("[LLM] Classifying — model={} branch='{}' claimCause='{}' estimated_tokens=~{} num_ctx={}",
+                client.model(), request.branch(), request.claimCause(), estimatedTokens, client.contextWindow());
+        if (estimatedTokens > client.contextWindow()) {
+            log.warn("[LLM] Prompt (~{} tokens) exceeds num_ctx ({}) — Ollama will silently drop the overflow",
+                    estimatedTokens, client.contextWindow());
         }
-        log.debug("[Ollama] Full prompt sent:\n{}", prompt);
+        log.debug("[LLM] Full prompt sent:\n{}", prompt);
 
         // Sin thinking, igual que la extracción: el schema ya obliga al modelo a explicitar sus
         // `factores`, que ES el razonamiento que le pedimos —y el que después ve el analista—, así
@@ -60,10 +60,10 @@ public class OllamaClaimClassifier implements ClaimClassifier {
         if (content.isEmpty()) {
             throw new InvalidClassificationException("Ollama returned an empty response");
         }
-        log.debug("[Ollama] Raw content: {}", content);
+        log.debug("[LLM] Raw content: {}", content);
 
         ClassificationResponse result = parseResponse(content);
-        log.info("[Ollama] Classification: {} | confidence: {} | factors: {}",
+        log.info("[LLM] Classification: {} | confidence: {} | factors: {}",
                 result.classification(), result.confidence(), result.factors().size());
         return result;
     }

@@ -1,6 +1,6 @@
 package ar.edu.utn.frba.arbiter.classification.services;
 
-import ar.edu.utn.frba.arbiter.classification.config.OllamaProperties;
+import ar.edu.utn.frba.arbiter.classification.config.LlmProperties;
 import ar.edu.utn.frba.arbiter.classification.dto.BusinessRules;
 import ar.edu.utn.frba.arbiter.classification.dto.ClassificationRequest;
 import ar.edu.utn.frba.arbiter.classification.dto.DocumentExtraction;
@@ -34,7 +34,7 @@ class PromptBuilderTest {
     @BeforeEach
     void setUp() throws IOException {
         promptBuilder = new PromptBuilder(
-                new OllamaProperties(null, "qwen3-vl", "classification-v4"),
+                new LlmProperties("ollama", "classification-v4"),
                 new DefaultResourceLoader());
     }
 

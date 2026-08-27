@@ -1,6 +1,6 @@
 package ar.edu.utn.frba.arbiter.classification.services;
 
-import ar.edu.utn.frba.arbiter.classification.config.OllamaProperties;
+import ar.edu.utn.frba.arbiter.classification.config.LlmProperties;
 import ar.edu.utn.frba.arbiter.classification.dto.BusinessRules;
 import ar.edu.utn.frba.arbiter.classification.dto.ClassificationRequest;
 import ar.edu.utn.frba.arbiter.classification.dto.DocumentExtraction;
@@ -27,14 +27,14 @@ public class PromptBuilder {
 
     /**
      * The template is resolved <b>from</b> the configured version
-     * ({@code arbiter.ollama.prompt-version}), which is what {@code ClassificationResultsService}
+     * ({@code arbiter.llm.prompt-version}), which is what {@code ClassificationResultsService}
      * persists in {@code llm_analysis.prompt_version} for SSN Disposition 2/2023's audit. They used
      * to be two independent constants — the classpath here and the version in the yml — and they
      * already drifted once: the template was v2 and it was audited as v1. Now the file that gets
      * sent and the version that gets audited can't disagree, and bumping the version without
      * creating the file breaks at startup, which is when you want to find out.
      */
-    public PromptBuilder(OllamaProperties properties, ResourceLoader resourceLoader) throws IOException {
+    public PromptBuilder(LlmProperties properties, ResourceLoader resourceLoader) throws IOException {
         Resource promptResource =
                 resourceLoader.getResource("classpath:prompts/" + properties.promptVersion() + ".md");
         this.promptTemplate = promptResource.getContentAsString(StandardCharsets.UTF_8);

@@ -1,6 +1,6 @@
 package ar.edu.utn.frba.arbiter.classification.services;
 
-import ar.edu.utn.frba.arbiter.classification.config.OllamaProperties;
+import ar.edu.utn.frba.arbiter.classification.config.LlmProperties;
 import ar.edu.utn.frba.arbiter.classification.dto.AnalystDecisionRequest;
 import ar.edu.utn.frba.arbiter.classification.exceptions.InvalidClassificationException;
 import ar.edu.utn.frba.arbiter.classification.models.entities.CaseClassification;
@@ -50,7 +50,7 @@ class AnalystDecisionTest {
     private CaseOutcomeRepository caseOutcomeRepository;
 
     @Mock
-    private OllamaProperties ollamaProperties;
+    private LlmProperties llmProperties;
 
     @InjectMocks
     private ClassificationResultsService resultsService;

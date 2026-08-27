@@ -33,14 +33,34 @@ arbiter:
       secret: ${JWT_SECRET:}
   rules-service:
     url: ${RULES_SERVICE_URL:http://localhost:8081}
-  ollama:
-    base-url: ${OLLAMA_BASE_URL:http://localhost:11434}
-    model: ${OLLAMA_MODEL:qwen3-vl:8b-instruct}
+  llm:
+    # Quién sirve el modelo: `ollama` (default) o `gemini`. El default NO es un detalle: es el
+    # despliegue que describe el documento de arquitectura, y nadie tiene que empezar a pegarle a
+    # una API paga por bajarse una rama.
+    provider: ${LLM_PROVIDER:ollama}
     # Fuente única: PromptBuilder carga prompts/<esta versión>.md y esto es lo que se persiste en
     # llm_analysis.prompt_version (auditoría SSN 2/2023). Bumpearla sin crear el archivo rompe al
     # arrancar, a propósito.
     prompt-version: classification-v4
+  ollama:
+    base-url: ${OLLAMA_BASE_URL:http://localhost:11434}
+    model: ${OLLAMA_MODEL:qwen3-vl:8b-instruct}
     num-ctx: ${OLLAMA_NUM_CTX:32768}
+  gemini:
+    # Sin API key: el SDK autentica por ADC (`gcloud auth application-default login` en la máquina,
+    # service account en Docker), así que no hay secreto que pueda terminar versionado acá.
+    project: ${GOOGLE_CLOUD_PROJECT:}
+    # `global` y no una región concreta: los Gemini 3 solo se sirven desde el endpoint global y
+    # desde las multirregión `us`/`eu`. La contra es que con `global` no se controla dónde ocurre
+    # el procesamiento, así que el día que haya datos reales esto pasa a `us` o `eu` (o a una
+    # región, con el modelo que esa región tenga) y ahí sí se puede afirmar residencia de datos.
+    location: ${GOOGLE_CLOUD_LOCATION:global}
+    model: ${GEMINI_MODEL:gemini-3.5-flash}
+    # Equivalente a num-predict de Ollama: al modelo se le pide un JSON chico, y una generación
+    # desbocada acá se factura.
+    max-output-tokens: ${GEMINI_MAX_OUTPUT_TOKENS:4096}
+    # Solo para avisar antes de desbordar; la ventana real la fija el modelo, no nosotros.
+    context-window: ${GEMINI_CONTEXT_WINDOW:1000000}
   embedding:
     service-url: ${EMBEDDING_SERVICE_URL:http://localhost:8000}
     model: ${EMBEDDING_MODEL:clip-vit-b-32-openai}

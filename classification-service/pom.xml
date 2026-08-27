@@ -77,6 +77,14 @@
             <artifactId>jackson-datatype-jsr310</artifactId>
         </dependency>
 
+        <!-- Gemini por Vertex, detrás de LlmClient junto a Ollama. Trae su propia cadena de
+             credenciales (ADC), así que no hace falta sumar google-auth aparte. -->
+        <dependency>
+            <groupId>com.google.genai</groupId>
+            <artifactId>google-genai</artifactId>
+            <version>1.67.0</version>
+        </dependency>
+
         <dependency>
             <groupId>org.apache.pdfbox</groupId>
             <artifactId>pdfbox</artifactId>

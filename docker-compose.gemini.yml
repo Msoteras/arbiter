@@ -1,0 +1,25 @@
+# =============================================================================
+# Fragmento para levantar classification-service con Gemini (Vertex) en vez de
+# Ollama local. Se combina con el compose base:
+#
+#   docker compose -f docker-compose.yml -f docker-compose.gemini.yml up
+#
+# o directo, con el wrapper que resuelve la credencial:
+#
+#   .\scripts\dev-gemini.ps1
+#
+# No trae secretos: GOOGLE_ADC_HOST_PATH es la ruta LOCAL del archivo que dejó
+# `gcloud auth application-default login` en tu máquina (distinta por usuario y
+# por SO) — nunca se versiona el archivo en sí, solo se monta de solo lectura.
+# El profile "ollama" no se activa acá, así que ollama/ollama-init ni se crean.
+# =============================================================================
+services:
+  classification-service:
+    environment:
+      LLM_PROVIDER: gemini
+      GOOGLE_CLOUD_PROJECT: ${GOOGLE_CLOUD_PROJECT:-project-fb32e998-d84b-4d72-911}
+      GOOGLE_CLOUD_LOCATION: ${GOOGLE_CLOUD_LOCATION:-global}
+      GEMINI_MODEL: ${GEMINI_MODEL:-gemini-3.5-flash}
+      GOOGLE_APPLICATION_CREDENTIALS: /secrets/adc.json
+    volumes:
+      - ${GOOGLE_ADC_HOST_PATH:?falta GOOGLE_ADC_HOST_PATH — usá scripts\dev-gemini.ps1, que la resuelve sola}:/secrets/adc.json:ro

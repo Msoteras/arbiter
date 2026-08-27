@@ -25,18 +25,18 @@ import static org.mockito.Mockito.when;
  * classification.
  */
 @ExtendWith(MockitoExtension.class)
-class OllamaDocumentAnalyzerTest {
+class DocumentAnalyzerImplTest {
 
     private static final byte[] SOME_IMAGE = "not-really-an-image".getBytes();
 
     @Mock
-    private OllamaClient client;
+    private LlmClient client;
 
-    private OllamaDocumentAnalyzer analyzer;
+    private DocumentAnalyzerImpl analyzer;
 
     @BeforeEach
     void setUp() throws IOException {
-        analyzer = new OllamaDocumentAnalyzer(
+        analyzer = new DocumentAnalyzerImpl(
                 client,
                 new ObjectMapper(),
                 new ClassPathResource("prompts/extraccion-documento-v3.md"));
@@ -44,7 +44,7 @@ class OllamaDocumentAnalyzerTest {
 
     private void modelAnswers(String content) {
         // false: transcribir no se resuelve razonando, así que la extracción pide el modelo sin
-        // thinking (ver OllamaDocumentAnalyzer). Matchear el valor exacto y no anyBoolean() deja
+        // thinking (ver DocumentAnalyzerImpl). Matchear el valor exacto y no anyBoolean() deja
         // que este test falle si alguien lo prende sin querer.
         when(client.chat(anyString(), anyList(), anyMap(), eq(false))).thenReturn(content);
     }

@@ -1,6 +1,7 @@
 package ar.edu.utn.frba.arbiter.classification.services;
 
-import ar.edu.utn.frba.arbiter.classification.config.OllamaProperties;
+import ar.edu.utn.frba.arbiter.classification.adapters.LlmClient;
+import ar.edu.utn.frba.arbiter.classification.config.LlmProperties;
 import ar.edu.utn.frba.arbiter.classification.dto.AnalystDecisionRequest;
 import ar.edu.utn.frba.arbiter.classification.dto.ClassificationResponse;
 import ar.edu.utn.frba.arbiter.classification.exceptions.InvalidClassificationException;
@@ -60,7 +61,13 @@ public class ClassificationResultsService {
     private final RiskAnalysisRepository riskAnalysisRepository;
     private final CaseOutcomeRepository caseOutcomeRepository;
     private final RuleResultRepository ruleResultRepository;
-    private final OllamaProperties ollamaProperties;
+    /**
+     * Read for {@code llm_analysis.model}, not from a properties record: with more than one
+     * provider wired, the configured Ollama model name would be persisted even when Gemini was
+     * the one that answered — an audit trail naming a model that never ran.
+     */
+    private final LlmClient llmClient;
+    private final LlmProperties llmProperties;
 
     @Transactional
     public void saveResult(
@@ -78,8 +85,8 @@ public class ClassificationResultsService {
             LlmAnalysis analysis = new LlmAnalysis();
             analysis.setCaseId(caseId);
             analysis.setRecommendation(response.classification());
-            analysis.setModel(ollamaProperties.model());
-            analysis.setPromptVersion(ollamaProperties.promptVersion());
+            analysis.setModel(llmClient.model());
+            analysis.setPromptVersion(llmProperties.promptVersion());
             analysis.setConfidence(BigDecimal.valueOf(response.confidence()));
             analysis.setLatencyMs((int) latencyMs);
             analysis.setAnalyzedAt(Instant.now());
