@@ -92,6 +92,10 @@ Con `gcloud` instalado (en Windows: `winget install --id Google.CloudSDK --exact
 terminal nueva después para que tome el PATH):
 
 ```bash
+gcloud auth login
+```
+
+```bash
 gcloud config set project project-fb32e998-d84b-4d72-911
 ```
 
@@ -103,6 +107,11 @@ gcloud auth application-default login
 gcloud auth application-default set-quota-project project-fb32e998-d84b-4d72-911
 ```
 
+**Los dos `login` son distintos y hacen falta los dos.** `gcloud auth login` autentica el *CLI*
+—es el que usa el `set-quota-project` del final—, y `application-default login` genera la credencial
+que consumen las *librerías*, o sea la que va al contenedor. Si salteás el primero, el último
+comando falla con `This command is authenticated as None`.
+
 Eso genera **tu** credencial de ADC, con tu cuenta. No viaja ningún secreto, cada llamada queda
 registrada a tu nombre, y se revoca sacándote de IAM. `dev-gemini.ps1` la encuentra sola y la monta
 de solo lectura en el contenedor — no hay que escribir ningún `docker-compose.override.yml` para
@@ -112,10 +121,30 @@ esto.
 llamadas con un error de permisos que no dice que el problema es ese. Por eso van los tres comandos
 y en ese orden.
 
-Si el tercero falla con `PERMISSION_DENIED`, te falta el rol **Consumidor de Service Usage** de la
-tabla de arriba — pedíselo al dueño del proyecto y volvé a correrlo. No hace falta rehacer el login.
+Si falla con `PERMISSION_DENIED`, te falta el rol **Consumidor de Service Usage** de la tabla de
+arriba — pedíselo al dueño del proyecto y volvé a correrlo. No hace falta rehacer el login.
 
-### 2.3 · Alternativa: tu propio proyecto
+### 2.3 · Si tu cuenta es institucional y te dice `USER_BLOCKED_BY_ADMIN`
+
+```
+Authentication error: 7; Error Details: User not allowed to access GCP services.
+reason: USER_BLOCKED_BY_ADMIN
+```
+
+Esto **no** se arregla con roles: los roles dicen qué podés hacer *dentro* del proyecto, y este
+error es anterior — el administrador del Workspace de **tu** organización (`@frba.utn.edu.ar`, o el
+dominio de tu trabajo) tiene deshabilitado el servicio de Google Cloud para sus cuentas. Es común en
+cuentas de facultad.
+
+La salida es usar una **cuenta personal de Gmail**: pedile al dueño del proyecto que te agregue con
+esa, y rehacé los cuatro comandos de arriba eligiéndola en el navegador. Verificá con qué cuenta
+quedaste:
+
+```bash
+gcloud auth list
+```
+
+### 2.4 · Alternativa: tu propio proyecto
 
 Si preferís no consumir el crédito de otro, abrí tu propio proyecto de GCP: son **USD 300 por
 cuenta, válidos 90 días desde el alta**, y cada expediente cuesta centavos. Habilitá la API con
