@@ -1,12 +1,13 @@
 <#
 .SYNOPSIS
-    Levanta Arbiter completo con Ollama local como motor de clasificación.
+    Levanta Arbiter contra la BD de Railway, con Ollama local como motor de
+    clasificación.
 
 .DESCRIPTION
-    Fija LLM_PROVIDER=ollama y prende el profile "ollama" (así arrancan los
-    contenedores ollama/ollama-init) para este proceso, sin tocar tu .env.
-    El resto de las variables (DB, JWT, Auth0, SendGrid...) se siguen leyendo
-    del .env de la raíz, como siempre.
+    Usa docker-compose.railway.yml, así que NO levanta Postgres local: los
+    módulos apuntan a la base compartida de Railway (DB_URL/DB_USER/DB_PASSWORD
+    del .env de la raíz). Ollama sí corre acá al lado, con su perfil de compose
+    activado. No toca tu .env.
 
     Cualquier argumento extra se pasa tal cual a `docker compose up`.
 
@@ -26,16 +27,12 @@ Set-Location (Split-Path -Parent $PSScriptRoot)
 $env:LLM_PROVIDER = 'ollama'
 $env:COMPOSE_PROFILES = 'ollama'
 
-# Al pasar -f explícito, Compose deja de autoincluir docker-compose.override.yml — hay que
-# sumarlo a mano si existe, o quien lo use para apuntar a Railway termina levantando contra
-# el Postgres local. docker-compose.ollama.yml va último a propósito: un override que fije
+# docker-compose.override.yml queda deliberadamente afuera: es el override del stack LOCAL
+# (docker-compose.yml), y lo que trae —redirigir DB_URL a Railway— ya lo hace este compose de
+# entrada. docker-compose.ollama.yml va último a propósito: un override que fije
 # `LLM_PROVIDER: gemini` literal no lo pisa ninguna variable de entorno, y sin este archivo
-# el script clasificaría por Gemini en silencio.
-$composeFiles = @('-f', 'docker-compose.yml')
-if (Test-Path 'docker-compose.override.yml') {
-    $composeFiles += @('-f', 'docker-compose.override.yml')
-}
-$composeFiles += @('-f', 'docker-compose.ollama.yml')
+# el script podría clasificar por Gemini en silencio.
+$composeFiles = @('-f', 'docker-compose.railway.yml', '-f', 'docker-compose.ollama.yml')
 
-Write-Host "Levantando Arbiter con Ollama local..." -ForegroundColor Cyan
+Write-Host "Levantando Arbiter con Ollama local, contra la BD de Railway..." -ForegroundColor Cyan
 docker compose @composeFiles up @args

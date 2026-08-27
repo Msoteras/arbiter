@@ -14,9 +14,12 @@ falta una sola vez, y cómo verificar que quedó andando.
 
 ## 1 · Arranque rápido
 
-**No hace falta tocar el `.env` ni el `docker-compose.override.yml`.** Cada script fija su
-proveedor y su perfil de compose, y pisa lo que digan esos archivos. Tu configuración actual
-—incluido el override que apunta a Railway— sigue funcionando igual.
+Los dos scripts levantan el stack **contra la BD de Railway** (`docker-compose.railway.yml`): no
+arrancan Postgres local, los módulos apuntan a la base compartida con el `DB_URL`/`DB_USER`/
+`DB_PASSWORD` de tu `.env`. Es el mismo stack de siempre, con el proveedor de modelo ya elegido.
+
+**No hace falta tocar el `.env`.** Cada script fija su proveedor y su perfil de compose, y pisa lo
+que diga ese archivo.
 
 **Ollama local** (el default, como veníamos):
 
@@ -39,8 +42,17 @@ Los dos aceptan flags de `docker compose` al final (`-d` los deja corriendo en b
 .\scripts\dev-gemini.ps1 --build -d
 ```
 
-Son intercambiables: `docker compose down` y levantás con el otro. Para verificar cuál quedó
-activo, mirá la sección 3.
+Son intercambiables: bajás con el comando de abajo y levantás con el otro. Para verificar cuál
+quedó activo, mirá la sección 3.
+
+```powershell
+docker compose -f docker-compose.railway.yml down
+```
+
+> **Prerequisito:** la base de Railway ya tiene que tener el esquema y el seed cargados
+> (`scripts/db-railway.ps1 all`). Con `ddl-auto=validate`, si falta algo el contenedor no arranca —
+> mirá sus logs, Hibernate dice tabla/columna/tipo. `scripts/db-railway.ps1 check` confirma que el
+> esquema está al día sin tocar nada.
 
 > Si PowerShell bloquea los `.ps1` con un error de *execution policy*, una vez por máquina:
 > `Set-ExecutionPolicy -Scope CurrentUser RemoteSigned`.
@@ -106,8 +118,11 @@ y exportá tu project id como `GOOGLE_CLOUD_PROJECT` antes de correr el script (
 Al arrancar, `classification-service` loguea qué proveedor quedó activo:
 
 ```powershell
-docker logs arbiter-classification-service-1 | Select-String "Gemini|Ollama|Started"
+docker logs arbiter-railway-classification-service-1 | Select-String "Gemini|Ollama|Started"
 ```
+
+> El contenedor se llama `arbiter-railway-*` y no `arbiter-*`: `docker-compose.railway.yml` fija
+> `name: arbiter-railway` a propósito, para que este stack y el local no se pisen por nombre.
 
 Con Gemini tiene que aparecer:
 
@@ -160,10 +175,22 @@ y los factores.
 
 ## 5 · Levantar sin los scripts
 
-Los scripts son una comodidad, no un requisito. A mano, el proveedor sale de `LLM_PROVIDER`
-(`arbiter.llm.provider`), y el contenedor de Ollama está detrás de un **perfil de compose** para que
-quien use Gemini no se baje 6 GB de pesos ni les reserve la RAM (se midieron **11,16 GB** en uso por
-ese contenedor).
+Los scripts son una comodidad, no un requisito. Equivalen a:
+
+```bash
+docker compose -f docker-compose.railway.yml -f docker-compose.ollama.yml up --build -d
+```
+
+```bash
+docker compose -f docker-compose.railway.yml -f docker-compose.gemini.yml up --build -d
+```
+
+con `COMPOSE_PROFILES` puesto (`ollama` para el primero, cualquier otra cosa para el segundo) y,
+para Gemini, `GOOGLE_ADC_HOST_PATH` apuntando a tu credencial.
+
+A mano, el proveedor sale de `LLM_PROVIDER` (`arbiter.llm.provider`), y el contenedor de Ollama está
+detrás de un **perfil de compose** para que quien use Gemini no se baje 6 GB de pesos ni les reserve
+la RAM (se midieron **11,16 GB** en uso por ese contenedor).
 
 Eso implica que un `docker compose up -d` pelado levanta todo **menos Ollama**, y la clasificación
 falla recién al primer siniestro con un `Connection refused` contra `ollama:11434` — el stack

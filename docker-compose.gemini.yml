@@ -1,8 +1,8 @@
 # =============================================================================
 # Fragmento para levantar classification-service con Gemini (Vertex) en vez de
-# Ollama local. Se combina con el compose base:
+# Ollama local. Se combina con el compose que uses:
 #
-#   docker compose -f docker-compose.yml -f docker-compose.gemini.yml up
+#   docker compose -f docker-compose.railway.yml -f docker-compose.gemini.yml up
 #
 # o directo, con el wrapper que resuelve la credencial:
 #
