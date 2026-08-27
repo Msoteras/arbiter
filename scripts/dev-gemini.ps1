@@ -42,6 +42,15 @@ if (-not (Test-Path $adcPath)) {
 
 $env:GOOGLE_ADC_HOST_PATH = $adcPath
 
+# Al pasar -f explícito, Compose deja de autoincluir docker-compose.override.yml —
+# hay que sumarlo a mano si existe, o quien lo use para apuntar a Railway (u otro
+# ajuste local) termina levantando contra el Postgres local por accidente.
+$composeFiles = @('-f', 'docker-compose.yml')
+if (Test-Path 'docker-compose.override.yml') {
+    $composeFiles += @('-f', 'docker-compose.override.yml')
+}
+$composeFiles += @('-f', 'docker-compose.gemini.yml')
+
 Write-Host "Levantando Arbiter con Gemini (Vertex)..." -ForegroundColor Cyan
 Write-Host "Credencial: $adcPath" -ForegroundColor DarkGray
-docker compose -f docker-compose.yml -f docker-compose.gemini.yml up @ComposeArgs
+docker compose @composeFiles up @ComposeArgs
