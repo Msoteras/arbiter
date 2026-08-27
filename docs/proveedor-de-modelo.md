@@ -70,8 +70,21 @@ gasta el crédito del proyecto, no queda registro de quién hizo qué, y revocar
 clave para todos. Además termina circulando por chat.
 
 **✅ Permiso en IAM, con tu propia cuenta.** El dueño del proyecto te agrega desde
-**IAM y administración → Otorgar acceso** con el rol **Usuario de Vertex AI**
-(`roles/aiplatform.user`).
+**IAM y administración → Otorgar acceso** con **dos** roles:
+
+| Rol | Para qué |
+|-----|----------|
+| **Usuario de Vertex AI** (`roles/aiplatform.user`) | llamar al modelo |
+| **Consumidor de Service Usage** (`roles/serviceusage.serviceUsageConsumer`) | poder fijar el proyecto de cuota |
+
+**Los dos, no solo el primero.** `aiplatform.user` no trae `serviceusage.services.use`, y sin ese
+permiso el paso de abajo falla con este warning, que es fácil pasar por alto porque el login sí se
+completa:
+
+```
+Cannot find a quota project to add to ADC. You might receive a "quota exceeded"
+or "API not enabled" error.
+```
 
 ### 2.2 · Tu credencial local
 
@@ -98,6 +111,9 @@ esto.
 **El proyecto de cuota no es opcional** aunque parezca redundante: sin él, Vertex rechaza las
 llamadas con un error de permisos que no dice que el problema es ese. Por eso van los tres comandos
 y en ese orden.
+
+Si el tercero falla con `PERMISSION_DENIED`, te falta el rol **Consumidor de Service Usage** de la
+tabla de arriba — pedíselo al dueño del proyecto y volvé a correrlo. No hace falta rehacer el login.
 
 ### 2.3 · Alternativa: tu propio proyecto
 
