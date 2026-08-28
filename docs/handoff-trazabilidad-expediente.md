@@ -97,40 +97,55 @@ antecedentes"). Acá la trazabilidad es contexto: perderla no puede tumbar el de
 
 ## Verificado en vivo (28/08)
 
-Stack reconstruido de cero (`dev-gemini.ps1 --build`) contra Railway, con el analista de BBVA sobre
-el **expediente #38** (Martina Soteras, 6 reglas evaluadas, snapshot, 5 pólizas):
+Stack reconstruido de cero (`dev-gemini.ps1 --build`) contra Railway, ya con `develop` mergeado, con
+el analista de BBVA.
+
+**Expediente #38** (Martina Soteras, 6 reglas evaluadas, snapshot, 5 pólizas):
 
 - Las 6 reglas se listan con las que **cumplen** incluidas, con su frase legible.
 - La póliza al clasificar muestra suma asegurada, vigencia, mora y siniestros previos, con la fecha
   de la consulta.
 - Las otras 4 pólizas del asegurado salen bien, sin la del siniestro.
-- Tests: 217 en classification + 237 en cases, en verde.
+
+**El monto nuevo, end to end.** Se reintentó la clasificación (botón del analista, Gemini) de dos
+expedientes que estaban trabados en `CLASSIFICATION_FAILED` desde la época de Ollama, y los dos
+escribieron el snapshot con la columna:
+
+| Caso | Asegurado | `previous_claims` | `total_amount_claimed` |
+|---|---|---|---|
+| #37 | Martina Soteras | 0 | $ 0 |
+| #22 | Julián Pérez | 3 | $ 1.350.000 |
+
+El 0 del #37 es el valor real, no un vacío: contrastado contra `aseguradora_bbva.siniestro_historico`,
+Martina no tiene siniestros previos. El #22 coincide exacto con los 3 del histórico de Julián.
+
+**Nota sobre el barrido de recuperación:** los 6 expedientes en `CLASSIFICATION_FAILED` tienen
+`classification_failure_reason` en NULL (fallaron antes de que la columna existiera), así que el
+barrido nuevo — que filtra por `INFRASTRUCTURE` — no los reencola solo. Los dos reintentos fueron
+manuales.
+
+Tests con Testcontainers incluidos (`mvn verify -Pit`): **271 en cases + 221 en classification**, en
+verde. `mvn test` a secas da menos porque develop separó los ITs bajo el tag `it`.
 
 ---
 
 ## Lo que queda abierto
 
-**1. El monto todavía no se vio poblado.** La columna se creó después de los snapshots que hay en
-Railway, así que todos muestran "Sin datos". Se puebla sola en la próxima clasificación de cada
-expediente; falta pasar un expediente por una reclasificación real para verlo end to end. No hay
-backfill posible: el histórico de la BD Aseguradora ya se movió, y completarlo con el valor de hoy
-sería exactamente lo que el snapshot existe para evitar.
-
-**2. La suma asegurada de los Hurtos va a mostrar la de Robo.** `arbiter_*.policy` aplana las
+**1. La suma asegurada de los Hurtos va a mostrar la de Robo.** `arbiter_*.policy` aplana las
 coberturas a una sola (`coverage_id`, `sum_insured`) mientras la BD Aseguradora modela varias por
 póliza — verificado: las 11 pólizas de BBVA tienen `coverage_id = 1`. Es anterior a esta historia y
 **Aylén es la indicada** para decir si es simplificación deliberada o gap. Detalle en
 `docs/handoff-modelos-y-rendimiento.md` §4ter A. Conviene avisarle antes de que el número quede a la
 vista del analista.
 
-**3. `GET /cases/{id}` le manda al asegurado datos pensados para el analista.** El endpoint es
+**2. `GET /cases/{id}` le manda al asegurado datos pensados para el analista.** El endpoint es
 compartido (`isAuthenticated()`), así que un asegurado que pide su propio expediente recibe
 `riskBreakdown`, `forensicReport`, `documentAnalyses` y ahora también `ruleResults` y
 `policySnapshot`. Son datos **de él**, no de terceros, y el recorte hoy lo hace el frontend
 (el portal del asegurado tiene otra pantalla). No lo introdujo esta historia — es el patrón que ya
 tenían los tres campos anteriores — pero da para una historia propia de redacción por rol.
 
-**4. "Monto total reclamado" suma `monto_indemnizado`.** Es lo que ya hacía `InsuredHistory` y lo
+**3. "Monto total reclamado" suma `monto_indemnizado`.** Es lo que ya hacía `InsuredHistory` y lo
 que el prompt viene llamando "Monto total reclamado histórico" desde siempre; se mantuvo el nombre
 por consistencia. Si el negocio distingue reclamado de indemnizado, hay que separarlos en la BD
 Aseguradora primero.
