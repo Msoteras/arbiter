@@ -403,7 +403,7 @@ public class CaseServiceImpl implements CaseService {
                                          String insuredId, LocalDate eventDateFrom, LocalDate eventDateTo,
                                          String q, RiskBand riskBand, Long analystId, boolean assignedToMe,
                                          boolean unassigned, boolean fraudAlert, boolean assigned,
-                                         Pageable pageable) {
+                                         boolean dueSoon, Pageable pageable) {
         if (accessPolicy.currentUserIsInsured()) {
             // El asegurado ve los suyos de TODAS sus aseguradoras, no solo la del tenant activo.
             // Las lentes no le aplican: no tiene expedientes "asignados" ni bandeja de fraude.
@@ -424,10 +424,20 @@ public class CaseServiceImpl implements CaseService {
             }
         }
 
-        Specification<Case> spec = CaseSpecifications.withFilters(
+        Specification<Case> spec = withDueSoon(CaseSpecifications.withFilters(
                 status, claimCause, policyNumber, insuredId, eventDateFrom, eventDateTo, q, riskBand,
-                ownerId, unassigned, fraudAlert, assigned);
+                ownerId, unassigned, fraudAlert, assigned), dueSoon);
         return toResponses(caseRepository.findAll(spec, pageable));
+    }
+
+    /** Umbral del filtro "por vencer" = mismo borde que el semáforo (deadlinePriority ≠ NONE). */
+    private Specification<Case> withDueSoon(Specification<Case> base, boolean dueSoon) {
+        if (!dueSoon) {
+            return base;
+        }
+        Specification<Case> due = CaseSpecifications.dueSoonBefore(
+                LocalDate.now(clock).plusDays(DeadlinePriority.WATCH_DAYS));
+        return base == null ? due : base.and(due);
     }
 
     @Override

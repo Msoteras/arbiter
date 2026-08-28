@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="23 16 622 157" width="1244" height="314">
+  <title>Arbiter — lockup negro (fondo transparente)</title>
+  <defs>
+    <mask id="eyeKnock" maskUnits="userSpaceOnUse" x="0" y="0" width="200" height="200">
+      <rect width="200" height="200" fill="#fff"></rect>
+      <circle cx="59" cy="141" r="27.5" fill="#000"></circle>
+    </mask></defs>
+  <path d="M157.6 93.3A58 58 0 1 1 106.7 42.4" fill="none" stroke="#111111" stroke-width="17" mask="url(#eyeKnock)"></path><g transform="translate(141,59)"><path d="M0 -27V27M-23.4 -13.5L23.4 13.5M-23.4 13.5L23.4 -13.5" fill="none" stroke="#111111" stroke-width="12"></path></g><circle cx="59" cy="141" r="21" fill="none" stroke="#111111" stroke-width="12"></circle><circle cx="59" cy="141" r="7" fill="#111111"></circle>
+  <text x="200" y="152.7" font-family="Helvetica, Helvetica Neue, Arial, sans-serif" font-weight="700" font-size="152" letter-spacing="-10.64" fill="#111111">Arbiter</text>
+</svg>

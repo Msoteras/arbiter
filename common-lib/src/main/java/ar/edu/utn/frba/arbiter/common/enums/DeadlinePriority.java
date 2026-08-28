@@ -26,7 +26,9 @@ public enum DeadlinePriority {
     /** The deadline already passed and the case is still unanswered. */
     OVERDUE;
 
-    private static final long WATCH_DAYS = 10;
+    /** Días desde hoy a partir de los cuales un caso empieza a marcarse (el borde de WATCH). Público
+     *  para que el filtro "por vencer" de la bandeja use el mismo umbral que el semáforo. */
+    public static final long WATCH_DAYS = 10;
     private static final long URGENT_DAYS = 5;
     private static final long CRITICAL_DAYS = 2;
 

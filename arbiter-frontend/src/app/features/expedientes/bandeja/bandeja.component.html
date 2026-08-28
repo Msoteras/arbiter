@@ -332,7 +332,7 @@
                   @if (deadlinePrioritized(c)) {
                     <app-badge [tone]="deadlineTone(c.deadlinePriority)">{{ deadlineLabel(c) }}</app-badge>
                   } @else {
-                    <span class="t-note">—</span>
+                    <span class="t-note">{{ formatDate(c.responseDeadline) }}</span>
                   }
                 </td>
                 <td>
