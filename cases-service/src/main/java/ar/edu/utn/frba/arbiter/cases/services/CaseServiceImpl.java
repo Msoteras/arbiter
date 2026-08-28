@@ -498,7 +498,8 @@ public class CaseServiceImpl implements CaseService {
 
         entity.setAnalyst(analyst);
         caseRepository.save(entity);
-        caseStatusService.recordAssignment(entity, "expediente asignado a " + fullName(analyst));
+        caseStatusService.recordAssignment(entity, accessPolicy.currentAssignmentActor(),
+                "expediente asignado a " + fullName(analyst));
 
         return loadCase(caseId);
     }
@@ -511,7 +512,7 @@ public class CaseServiceImpl implements CaseService {
         ClaimsAnalyst previous = entity.getAnalyst();
         entity.setAnalyst(null);
         caseRepository.save(entity);
-        caseStatusService.recordAssignment(entity, previous == null
+        caseStatusService.recordAssignment(entity, accessPolicy.currentAssignmentActor(), previous == null
                 ? "expediente liberado"
                 : "expediente liberado (estaba asignado a " + fullName(previous) + ")");
 
