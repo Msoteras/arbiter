@@ -118,6 +118,60 @@ token del repo.
 El CI **no despliega**: es solo el gate. Quien despliega es Railway. Esa separación es a propósito
 — no hay credenciales de Railway dando vueltas en los secrets de GitHub.
 
+## Quién puede mergear a `main`
+
+Como el merge a `main` es lo que dispara el despliegue, `main` necesita protección. Hoy **no tiene
+ninguna** y hay que agregarla.
+
+Esto **no es un hook de git**: los hooks son locales, no saben nada de PRs ni de aprobaciones y se
+saltean con `--no-verify`. Es *branch protection*, que corre del lado de GitHub. Y **la tiene que
+aplicar alguien con rol de admin en el repo** — al día de hoy, solo `Msoteras`.
+
+Con exigir **1 aprobación** alcanza para lo que se busca: GitHub no permite aprobar tu propio PR,
+así que el que abre el PR nunca puede ser quien lo aprueba.
+
+```bash
+gh api repos/Msoteras/arbiter/branches/main/protection -X PUT --input - <<'JSON'
+{
+  "required_status_checks": {
+    "strict": true,
+    "contexts": ["Backend (Java 21)", "Frontend (Angular 20)", "Ruteo dev == ruteo prod"]
+  },
+  "enforce_admins": false,
+  "required_pull_request_reviews": {
+    "required_approving_review_count": 1,
+    "dismiss_stale_reviews": true,
+    "require_code_owner_reviews": false
+  },
+  "restrictions": null,
+  "allow_force_pushes": false,
+  "allow_deletions": false
+}
+JSON
+```
+
+Qué hace cada cosa:
+
+- **`required_approving_review_count: 1`** — lo que pediste: alguien distinto del autor tiene que
+  aprobar.
+- **`contexts`** — los tres jobs de `.github/workflows/ci.yml`. Los nombres tienen que coincidir
+  exactos con el `name:` de cada job, o GitHub espera para siempre un check que nunca llega.
+- **`strict: true`** — la rama del PR tiene que estar actualizada con `main` antes de mergear.
+- **`dismiss_stale_reviews: true`** — un push nuevo invalida las aprobaciones anteriores; si no,
+  se aprueba una versión y se mergea otra.
+- **`allow_force_pushes: false`** y **`allow_deletions: false`** — nadie reescribe ni borra `main`.
+- **`enforce_admins: false`** — deja a la admin saltear la regla en una emergencia. Ponerlo en
+  `true` es más estricto, pero si el CI se rompe no hay forma de mergear un arreglo.
+
+> Si el comando falla pidiendo un upgrade de plan: el repo es **privado**, y la branch protection
+> clásica no está disponible en todos los planes para repos privados. En ese caso la alternativa
+> son los *Rulesets* (Settings → Rules → Rulesets), que expresan lo mismo.
+
+Alternativa complementaria: un `.github/CODEOWNERS` hace que GitHub pida review automáticamente a
+quien corresponda. No se agregó porque con 8 colaboradores y sin un mapa de propiedad claro, un
+`*` termina embudando todos los PR en una sola persona. Vale la pena si más adelante se reparten
+áreas.
+
 ## Orden de despliegue
 
 El orden importa solo por las URLs internas: un servicio que arranca antes que su dependiente
