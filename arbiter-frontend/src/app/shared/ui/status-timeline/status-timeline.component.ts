@@ -11,6 +11,7 @@ const ACTOR_LABELS: Record<StatusTransition['actor'], string> = {
   SYSTEM: 'Sistema',
   INSURED: 'Asegurado',
   ANALYST: 'Analista',
+  REFERENT: 'Referente',
 };
 
 /**
