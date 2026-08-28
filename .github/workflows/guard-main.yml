@@ -1,0 +1,32 @@
+name: Guard main
+
+# `main` es lo que se despliega, y el flujo acordado es que todo pase por `develop` primero: ahí
+# se integra, ahí corre el CI contra el resto del trabajo del equipo. Un PR de una rama de feature
+# directo a `main` se saltea esa integración y despliega código que nunca convivió con lo demás.
+#
+# Esto no impide ABRIR el PR — lo que hace es dejar el check en rojo para que no se pueda mergear.
+# Para que sea efectivo, este job tiene que estar en los required status checks de la protección de
+# `main` (ver docs/despliegue-railway.md); si no, queda como advertencia y alguien lo puede ignorar.
+on:
+  pull_request:
+    branches: [main]
+
+jobs:
+  only-from-develop:
+    name: PR a main solo desde develop
+    runs-on: ubuntu-latest
+    steps:
+      - name: Verificar la rama de origen
+        # La rama viaja por env y no interpolada dentro del script: un nombre de rama es texto que
+        # elige quien abre el PR, y metido directo en el shell se convierte en ejecución de código.
+        env:
+          HEAD_REF: ${{ github.head_ref }}
+        run: |
+          if [ "$HEAD_REF" = "develop" ]; then
+            echo "Origen: $HEAD_REF — OK."
+            exit 0
+          fi
+          echo "::error::Este PR viene de '$HEAD_REF' y main solo acepta PRs desde 'develop'."
+          echo ""
+          echo "Mergeá tu rama a develop primero y después abrí el PR develop -> main."
+          exit 1

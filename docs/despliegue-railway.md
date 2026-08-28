@@ -135,7 +135,12 @@ gh api repos/Msoteras/arbiter/branches/main/protection -X PUT --input - <<'JSON'
 {
   "required_status_checks": {
     "strict": true,
-    "contexts": ["Backend (Java 21)", "Frontend (Angular 20)", "Ruteo dev == ruteo prod"]
+    "contexts": [
+      "Backend (Java 21)",
+      "Frontend (Angular 20)",
+      "Ruteo dev == ruteo prod",
+      "PR a main solo desde develop"
+    ]
   },
   "enforce_admins": false,
   "required_pull_request_reviews": {
@@ -154,8 +159,17 @@ Qué hace cada cosa:
 
 - **`required_approving_review_count: 1`** — lo que pediste: alguien distinto del autor tiene que
   aprobar.
-- **`contexts`** — los tres jobs de `.github/workflows/ci.yml`. Los nombres tienen que coincidir
-  exactos con el `name:` de cada job, o GitHub espera para siempre un check que nunca llega.
+- **`contexts`** — los tres jobs de `.github/workflows/ci.yml` más el de
+  `.github/workflows/guard-main.yml`, que rechaza cualquier PR a `main` que no venga de `develop`.
+  Los nombres tienen que coincidir exactos con el `name:` de cada job, o GitHub espera para
+  siempre un check que nunca llega.
+
+  > Ese último check es lo que hace cumplir "todo pasa por develop". El workflow por sí solo no
+  > impide abrir el PR: lo deja en rojo. Si no está en esta lista, es una advertencia que
+  > cualquiera puede ignorar al mergear.
+  >
+  > Contra: también bloquea un hotfix directo a `main`. Con `enforce_admins: false` la admin puede
+  > saltearlo en una emergencia; si eso pasa seguido, conviene aceptar además `hotfix/*`.
 - **`strict: true`** — la rama del PR tiene que estar actualizada con `main` antes de mergear.
 - **`dismiss_stale_reviews: true`** — un push nuevo invalida las aprobaciones anteriores; si no,
   se aprueba una versión y se mergea otra.
