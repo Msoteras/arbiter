@@ -70,6 +70,8 @@ export interface ExpedienteResponse {
   branch: string;
   product: string;
   claimCause: string;
+  /** The coverage the case is filed under — the one `policySnapshot.sumInsured` belongs to. */
+  coverage: string | null;
   insuredItem: string;
   insuredId: string;
   /** Nombre real del asegurado, resuelto por classification-service al clasificar. Null hasta entonces. */

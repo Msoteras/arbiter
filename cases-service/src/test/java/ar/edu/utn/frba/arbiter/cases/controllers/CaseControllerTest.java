@@ -262,7 +262,7 @@ class CaseControllerTest {
     void getCase_withClassificationResult_returnsFullResponse() throws Exception {
         CaseResponse response = new CaseResponse(
                 1L, null, null, CaseStatus.PENDING_ANALYST_REVIEW,
-                "Celulares", "Celular Protegido Básico", "Robo en vía pública",
+                "Celulares", "Celular Protegido Básico", "Robo en vía pública", "Robo de celular",
                 "Motorola Edge 50 Pro", "40.123.456", "Laura Fernández", false, "POL-CEL-2024-001",
                 "Me robaron el celular",
                 LocalDateTime.of(2026, 6, 13, 19, 45), "CABA",
@@ -339,7 +339,7 @@ class CaseControllerTest {
     private CaseResponse caseResponse(Long id, CaseStatus status) {
         return new CaseResponse(
                 id, null, null, status,
-                "Celulares", "Celular Protegido Básico", "Robo en vía pública",
+                "Celulares", "Celular Protegido Básico", "Robo en vía pública", "Robo de celular",
                 "Motorola Edge 50 Pro", "40.123.456", "Laura Fernández", false, "POL-CEL-2024-001",
                 "Me robaron el celular",
                 LocalDateTime.of(2026, 6, 13, 19, 45), "CABA",

@@ -22,18 +22,28 @@ const RULE_TYPE_LABELS: Record<string, string> = {
   COVERAGE_EXCLUSION: 'Exclusión de cobertura',
   COVERAGE_INCLUSION: 'Alcance de la cobertura',
   FRAUD_RECORD: 'Antecedente de fraude',
+  // The engine never writes it (the gate leaves no rule_result), but the demo seed does.
+  FAST_TRACK: 'Criterio de Fast Track',
 };
 
 export function ruleTypeLabel(ruleType: string): string {
   return RULE_TYPE_LABELS[ruleType] ?? ruleType;
 }
 
+// The engine writes PASS/FAIL; the demo seed wrote CUMPLE/NO_CUMPLE, and those rows are live.
+// Anything else is shown verbatim and without a tone: calling an unknown literal a failure would
+// accuse a rule that may well have passed.
+const PASSED = ['PASS', 'CUMPLE'];
+const FAILED = ['FAIL', 'NO_CUMPLE'];
+
 export function ruleResultLabel(result: string): string {
-  return result === 'PASS' ? 'Cumple' : 'No cumple';
+  if (PASSED.includes(result)) return 'Cumple';
+  return FAILED.includes(result) ? 'No cumple' : result;
 }
 
 export function ruleResultTone(result: string): StatusTone {
-  return result === 'PASS' ? 'ok' : 'danger';
+  if (PASSED.includes(result)) return 'ok';
+  return FAILED.includes(result) ? 'danger' : 'neutral';
 }
 
 /**

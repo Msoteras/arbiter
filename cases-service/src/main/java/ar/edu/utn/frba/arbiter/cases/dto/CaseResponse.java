@@ -41,6 +41,12 @@ public record CaseResponse(
         String branch,
         String product,
         String claimCause,
+        /**
+         * The coverage the case is filed under, and the one {@code policySnapshot.sumInsured}
+         * belongs to. Shown next to that amount because they can differ from the claim cause: the
+         * case inherits the policy's single coverage (see docs/temas-a-discutir.md).
+         */
+        String coverage,
         String insuredItem,
         String insuredId,
         /** Nullable hasta que la primera clasificación resuelve (ver Case.insuredName). */

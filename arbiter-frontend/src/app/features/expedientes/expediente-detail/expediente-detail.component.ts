@@ -379,6 +379,7 @@ export class ExpedienteDetailComponent {
     const s = this.policySnapshot();
     return [
       { label: 'N° de póliza', value: s?.externalPolicyNumber ?? null, mono: true },
+      { label: 'Cobertura', value: this.data()?.coverage ?? null },
       { label: 'Suma asegurada', value: s ? this.formatMonto(s.sumInsured) : null },
       { label: 'Vigencia al momento del hecho', value: s ? (s.inForce ? 'Vigente' : 'No vigente') : null },
       { label: 'Estado de pago', value: s ? (s.paymentsUpToDate ? 'Al día' : 'En mora') : null },

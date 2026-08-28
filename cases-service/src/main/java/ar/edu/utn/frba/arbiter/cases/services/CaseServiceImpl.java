@@ -730,6 +730,7 @@ public class CaseServiceImpl implements CaseService {
                 entity.getClaimCause().getBranch().getName(),
                 entity.getPolicy().getProduct(),
                 entity.getClaimCause().getName(),
+                entity.getCoverage() == null ? null : entity.getCoverage().getName(),
                 entity.getDeclaredItem(),
                 entity.getInsured().getDni(),
                 entity.getInsured().fullName(),
@@ -779,7 +780,15 @@ public class CaseServiceImpl implements CaseService {
         }
     }
 
+    /**
+     * Empty for the insured: the tab is the analyst's audit trail, and this story is not the place
+     * to widen what the portal already shows. The fields that reached them before it
+     * ({@code riskBreakdown}, {@code forensicReport}, {@code documentAnalyses}) are left as they were.
+     */
     private Traceability traceabilityOf(Case entity) {
+        if (accessPolicy.currentUserIsInsured()) {
+            return Traceability.none();
+        }
         return new Traceability(
                 claimsAnalysisClient.ruleResultsOf(entity.getId()),
                 caseRepository.findPolicySnapshot(entity.getId()).map(CaseServiceImpl::snapshotOf)
