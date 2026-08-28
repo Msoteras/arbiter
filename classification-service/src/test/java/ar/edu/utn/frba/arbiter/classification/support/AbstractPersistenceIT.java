@@ -1,5 +1,6 @@
 package ar.edu.utn.frba.arbiter.classification.support;
 
+import org.junit.jupiter.api.Tag;
 import org.springframework.boot.testcontainers.service.connection.ServiceConnection;
 import org.springframework.test.context.TestPropertySource;
 import org.testcontainers.postgresql.PostgreSQLContainer;
@@ -27,6 +28,7 @@ import org.testcontainers.postgresql.PostgreSQLContainer;
         "arbiter.auth.jwt.secret=test-secret-at-least-32-bytes-long-for-hs256",
         "spring.jpa.hibernate.ddl-auto=update"
 })
+@Tag("it")
 public abstract class AbstractPersistenceIT {
 
     @ServiceConnection

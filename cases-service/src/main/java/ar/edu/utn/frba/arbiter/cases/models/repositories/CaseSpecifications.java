@@ -48,6 +48,20 @@ public final class CaseSpecifications {
                 .orElse(null); // sin filtros: JpaSpecificationExecutor trata null como "sin restricción"
     }
 
+    /**
+     * Lente "Por vencer": expedientes NO resueltos (estado ≠ APPROVED/REJECTED) cuyo plazo de
+     * respuesta cae en o antes de {@code threshold} — incluye los ya vencidos, que son los más
+     * urgentes. El llamador pasa {@code hoy + DeadlinePriority.WATCH_DAYS} para que coincida con el
+     * semáforo (deadlinePriority ≠ NONE). Se compone con {@code .and()} sobre {@link #withFilters}
+     * en vez de sumar un parámetro más a esa firma ya larga.
+     */
+    public static Specification<Case> dueSoonBefore(LocalDate threshold) {
+        return (root, query, cb) -> cb.and(
+                cb.lessThanOrEqualTo(root.get("responseDeadline"), threshold),
+                cb.not(root.get("currentStatus").get("name").in(
+                        CaseStatus.APPROVED.name(), CaseStatus.REJECTED.name())));
+    }
+
     /** Overload para las lentes "Míos"/"Todos" (sin las lentes de asignación ni alerta de fraude). */
     public static Specification<Case> withFilters(CaseStatus status, String claimCause, String policyNumber,
                                                     String insuredId, LocalDate eventDateFrom, LocalDate eventDateTo,

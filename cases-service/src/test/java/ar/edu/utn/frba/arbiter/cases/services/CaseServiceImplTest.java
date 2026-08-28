@@ -54,8 +54,11 @@ import org.springframework.security.authentication.UsernamePasswordAuthenticatio
 import org.springframework.security.core.context.SecurityContextHolder;
 
 import java.math.BigDecimal;
+import java.time.Clock;
+import java.time.Instant;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.ZoneOffset;
 
 import java.util.List;
 import java.util.Map;
@@ -112,6 +115,9 @@ class CaseServiceImplTest {
     @Mock
     private InsurerRepository insurerRepository;
 
+    @Mock
+    private Clock clock;
+
     @InjectMocks
     private CaseServiceImpl caseService;
 
@@ -121,6 +127,9 @@ class CaseServiceImplTest {
      */
     @BeforeEach
     void noAnalysisByDefault() {
+        // toResponse() computa la prioridad de vencimiento con LocalDate.now(clock).
+        lenient().when(clock.instant()).thenReturn(Instant.parse("2026-06-15T12:00:00Z"));
+        lenient().when(clock.getZone()).thenReturn(ZoneOffset.UTC);
         lenient().when(caseAnalysisRepository.findByCaseId(any())).thenReturn(CaseAnalysis.none());
         lenient().when(caseAnalysisRepository.findByCaseIds(any())).thenReturn(Map.of());
         // Sin extracciones por default: el mock devolvería null, y el real devuelve lista vacía

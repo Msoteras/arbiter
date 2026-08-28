@@ -28,6 +28,15 @@
     <lombok.version>1.18.34</lombok.version>
     <springdoc.version>2.8.6</springdoc.version>
     <jjwt.version>0.12.6</jjwt.version>
+
+    <!-- Maven 3.8.x fija surefire en 2.12.4 (solo JUnit4) porque usamos el BOM de Spring, no el
+         parent que gestiona plugins. Sin este pin, NINGÚN test JUnit5 corre ("Tests run: 0"). -->
+    <maven.surefire.version>3.2.5</maven.surefire.version>
+    <jacoco.version>0.8.12</jacoco.version>
+    <!-- Split unit/IT por tag JUnit5 "it": por default se excluyen los ITs (Testcontainers, Docker)
+         para que `mvn test` sea rápido; el perfil `it` los corre. -->
+    <test.excluded.groups>it</test.excluded.groups>
+    <test.groups></test.groups>
   </properties>
 
   <dependencyManagement>
@@ -122,6 +131,51 @@
         </annotationProcessorPaths>
       </configuration>
     </plugin>
+
+    <!-- Surefire moderno: sin esto Maven usa 2.12.4 y no descubre los JUnit5. `it` excluido por
+         default (los ITs Testcontainers corren con -Pit). -->
+    <plugin>
+      <groupId>org.apache.maven.plugins</groupId>
+      <artifactId>maven-surefire-plugin</artifactId>
+      <version>${maven.surefire.version}</version>
+      <configuration>
+        <excludedGroups>${test.excluded.groups}</excludedGroups>
+        <groups>${test.groups}</groups>
+      </configuration>
+    </plugin>
+
+    <!-- Cobertura: solo reporte (target/site/jacoco), sin gate que rompa el build. -->
+    <plugin>
+      <groupId>org.jacoco</groupId>
+      <artifactId>jacoco-maven-plugin</artifactId>
+      <version>${jacoco.version}</version>
+      <executions>
+        <execution>
+          <id>prepare-agent</id>
+          <goals>
+            <goal>prepare-agent</goal>
+          </goals>
+        </execution>
+        <execution>
+          <id>report</id>
+          <phase>verify</phase>
+          <goals>
+            <goal>report</goal>
+          </goals>
+        </execution>
+      </executions>
+    </plugin>
   </plugins>
 </build>
+
+<profiles>
+  <!-- `mvn verify -Pit`: corre los tests tagueados @Tag("it") (Testcontainers, requieren Docker). -->
+  <profile>
+    <id>it</id>
+    <properties>
+      <test.excluded.groups></test.excluded.groups>
+      <test.groups>it</test.groups>
+    </properties>
+  </profile>
+</profiles>
 </project>

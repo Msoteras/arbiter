@@ -41,6 +41,7 @@ import ar.edu.utn.frba.arbiter.cases.models.repositories.ClaimsAnalystRepository
 import ar.edu.utn.frba.arbiter.common.models.entities.tenant.ClaimsAnalyst;
 import ar.edu.utn.frba.arbiter.common.enums.CaseStatus;
 import ar.edu.utn.frba.arbiter.common.enums.Classification;
+import ar.edu.utn.frba.arbiter.common.enums.DeadlinePriority;
 import ar.edu.utn.frba.arbiter.common.enums.RiskBand;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
@@ -52,6 +53,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.io.IOException;
+import java.time.Clock;
 import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.Comparator;
@@ -79,6 +81,9 @@ public class CaseServiceImpl implements CaseService {
     private final InsuredCaseAggregator insuredCaseAggregator;
     private final PolicyTenantLocator policyTenantLocator;
     private final InsurerRepository insurerRepository;
+    // Mismo reloj que DeadlineSweepScheduler: la prioridad de vencimiento del read model y la del
+    // barrido se computan contra la misma referencia (y es fijable en tests).
+    private final Clock clock;
 
     /**
      * Ley 17.418 art. 56: the insurer has 30 days from the denuncia to pronounce itself, and
@@ -399,7 +404,7 @@ public class CaseServiceImpl implements CaseService {
                                          String insuredId, LocalDate eventDateFrom, LocalDate eventDateTo,
                                          String q, RiskBand riskBand, Long analystId, boolean assignedToMe,
                                          boolean unassigned, boolean fraudAlert, boolean assigned,
-                                         Pageable pageable) {
+                                         boolean dueSoon, Pageable pageable) {
         if (accessPolicy.currentUserIsInsured()) {
             // El asegurado ve los suyos de TODAS sus aseguradoras, no solo la del tenant activo.
             // Las lentes no le aplican: no tiene expedientes "asignados" ni bandeja de fraude.
@@ -420,10 +425,20 @@ public class CaseServiceImpl implements CaseService {
             }
         }
 
-        Specification<Case> spec = CaseSpecifications.withFilters(
+        Specification<Case> spec = withDueSoon(CaseSpecifications.withFilters(
                 status, claimCause, policyNumber, insuredId, eventDateFrom, eventDateTo, q, riskBand,
-                ownerId, unassigned, fraudAlert, assigned);
+                ownerId, unassigned, fraudAlert, assigned), dueSoon);
         return toResponses(caseRepository.findAll(spec, pageable));
+    }
+
+    /** Umbral del filtro "por vencer" = mismo borde que el semáforo (deadlinePriority ≠ NONE). */
+    private Specification<Case> withDueSoon(Specification<Case> base, boolean dueSoon) {
+        if (!dueSoon) {
+            return base;
+        }
+        Specification<Case> due = CaseSpecifications.dueSoonBefore(
+                LocalDate.now(clock).plusDays(DeadlinePriority.WATCH_DAYS));
+        return base == null ? due : base.and(due);
     }
 
     @Override
@@ -712,9 +727,17 @@ public class CaseServiceImpl implements CaseService {
                 entity.getAnalyst() == null ? null : fullName(entity.getAnalyst()),
                 entity.getReportedAt(),
                 entity.getUpdatedAt(),
+                entity.getResponseDeadline(),
+                DeadlinePriority.of(entity.getResponseDeadline(), LocalDate.now(clock), isResponded(entity)),
                 history,
                 documentAnalyses
         );
+    }
+
+    /** Answered = the analyst reached a terminal verdict; such a case is never flagged as due. */
+    private boolean isResponded(Case entity) {
+        CaseStatus status = entity.getStatus();
+        return status == CaseStatus.APPROVED || status == CaseStatus.REJECTED;
     }
 
     /**
