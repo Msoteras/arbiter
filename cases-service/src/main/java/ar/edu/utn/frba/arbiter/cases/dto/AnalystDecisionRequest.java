@@ -10,7 +10,10 @@ import jakarta.validation.constraints.NotBlank;
  *                               it from the caller's JWT before forwarding, the side that already
  *                               knows the user.
  * @param justification          the analyst's stated reason for the decision — the audit trail
- *                               Disposición SSN 2/2023 requires. Persisted verbatim on {@code
+ *                               Disposición SSN 2/2023 requires. Always mandatory, agreeing with
+ *                               the model or not: the paper (§2.2) requires every decision to be
+ *                               explicit and justified, not just the ones that override the
+ *                               recommendation. Persisted verbatim on {@code
  *                               case_classification.analyst_justification}.
  * @param classificationAttempts how many classification attempts the case took before landing on
  *                               the analyst's desk. The live counter is {@code
@@ -23,6 +26,6 @@ import jakarta.validation.constraints.NotBlank;
 public record AnalystDecisionRequest(
         Long analystId,
         @NotBlank(message = "decision is required") String decision,
-        String justification,
+        @NotBlank(message = "justification is required") String justification,
         Integer classificationAttempts
 ) {}

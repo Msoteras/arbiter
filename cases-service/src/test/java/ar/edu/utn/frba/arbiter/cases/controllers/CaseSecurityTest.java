@@ -133,15 +133,36 @@ class CaseSecurityTest extends AbstractPersistenceIT {
                 .andExpect(status().isForbidden());
     }
 
+    // Los bodies de acá abajo llevan `justification` porque es obligatoria (@NotBlank): la
+    // validación del @RequestBody corre ANTES que el @PreAuthorize, así que un body incompleto
+    // devuelve 400 y estos tests dejarían de medir el gate de seguridad, que es lo suyo.
+
     @Test
     void recordDecision_asAsegurado_returns403() throws Exception {
         mockMvc.perform(post("/api/v1/cases/1/decision")
                         .header("Authorization", "Bearer " + tokenFor("ASEGURADO"))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
-                                {"analystId": 1, "decision": "APPROVE"}
+                                {"analystId": 1, "decision": "APPROVE",
+                                 "justification": "Documentación completa"}
                                 """))
                 .andExpect(status().isForbidden());
+    }
+
+    /**
+     * La contracara: la justificación es obligatoria para toda decisión, coincida o no con el
+     * modelo (el paper §2.2 exige que cada decisión quede explícita y fundada). Sin este test, que
+     * volviera a ser opcional no rompería nada.
+     */
+    @Test
+    void recordDecision_withoutJustification_isRejected() throws Exception {
+        mockMvc.perform(post("/api/v1/cases/999999/decision")
+                        .header("Authorization", "Bearer " + tokenFor("ANALISTA_SINIESTROS"))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"analystId": 1, "decision": "APPROVE"}
+                                """))
+                .andExpect(status().isBadRequest());
     }
 
     @Test
@@ -152,7 +173,8 @@ class CaseSecurityTest extends AbstractPersistenceIT {
                         .header("Authorization", "Bearer " + tokenFor("ANALISTA_SINIESTROS"))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
-                                {"analystId": 1, "decision": "APPROVE"}
+                                {"analystId": 1, "decision": "APPROVE",
+                                 "justification": "Documentación completa"}
                                 """))
                 .andExpect(status().isNotFound());
     }

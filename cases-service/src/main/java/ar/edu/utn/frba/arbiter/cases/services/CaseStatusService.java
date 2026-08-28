@@ -104,9 +104,9 @@ public class CaseStatusService {
      * having an owner is not a decision (decisión de arquitectura #5).
      */
     @Transactional
-    public void recordAssignment(Case caseRecord, String reason) {
+    public void recordAssignment(Case caseRecord, StatusChangeActor actor, String reason) {
         appendHistory(caseRecord.getId(), caseRecord.getCurrentStatus(), caseRecord.getCurrentStatus(),
-                StatusChangeActor.ANALYST, reason);
+                actor, reason);
     }
 
     public List<CaseStatusHistory> history(Long caseId) {

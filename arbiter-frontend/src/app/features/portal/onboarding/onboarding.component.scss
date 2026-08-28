@@ -1,0 +1,233 @@
+:host {
+  display: block;
+}
+
+.onboarding {
+  padding: var(--space-5) var(--space-4) var(--space-7);
+  max-width: 660px;
+  margin: 0 auto;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-5);
+}
+
+@media (min-width: 640px) {
+  .onboarding {
+    padding: var(--space-6) var(--space-6) var(--space-7);
+  }
+}
+
+// ───────────────── Bienvenida ─────────────────
+.welcome {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+}
+.welcome-logo {
+  margin-bottom: var(--space-4);
+}
+.eyebrow {
+  font-size: var(--font-size-2xs);
+  font-weight: var(--font-weight-medium);
+  text-transform: uppercase;
+  letter-spacing: 0.14em;
+  color: var(--accent-fg);
+}
+.welcome .t-hero-title {
+  margin-top: var(--space-2);
+}
+.welcome-sub {
+  margin: var(--space-2) 0 0;
+  font-size: var(--font-size-md);
+  color: var(--text-muted);
+  line-height: 1.55;
+}
+
+.load-error {
+  padding: var(--space-3) var(--space-4);
+  border: 1px solid var(--border-danger-soft);
+  border-radius: var(--radius-card);
+  background: var(--surface-danger-soft);
+}
+.load-error p {
+  margin: 0;
+}
+.load-error .t-note {
+  margin-top: var(--space-1);
+}
+
+// ───────────────── Secciones ─────────────────
+.section {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+// Título con chip teal: el mismo par selected-bg + accent-fg que usa el resto de la app
+// (info-box del home, chips activos de reglas, contadores de la bandeja).
+.section-title {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin: 0;
+}
+.section-icon {
+  flex: none;
+  width: 26px;
+  height: 26px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--radius-ctl);
+  background: var(--selected-bg);
+  color: var(--accent-fg);
+}
+.section .t-note {
+  margin: 0;
+}
+
+// ───────────────── Pólizas (solo lectura) ─────────────────
+.policies {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+.policy {
+  padding: var(--space-3) var(--space-4);
+  // Filo teal a la izquierda: marca la póliza como "tuyo" sin teñir toda la tarjeta.
+  border: 1px solid var(--border-default);
+  border-left: 3px solid var(--accent);
+  border-radius: var(--radius-card);
+  background: var(--surface-soft);
+}
+.policy-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-3);
+}
+.policy-insurer {
+  font-size: var(--font-size-2xs);
+  font-weight: var(--font-weight-medium);
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: var(--accent-fg);
+}
+.policy-number {
+  font-size: var(--font-size-2xs);
+  color: var(--text-tertiary);
+}
+.policy-item {
+  margin-top: var(--space-1);
+  font-size: var(--font-size-md);
+  font-weight: var(--font-weight-medium);
+  color: var(--text-primary);
+}
+.policy-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2) var(--space-5);
+  margin: var(--space-2) 0 0;
+}
+.policy-meta dt {
+  font-size: var(--font-size-2xs);
+  color: var(--text-muted);
+}
+.policy-meta dd {
+  margin: 0;
+  font-size: var(--font-size-body);
+  color: var(--text-secondary);
+}
+
+// ───────────────── Campos ─────────────────
+.fields {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+@media (min-width: 640px) {
+  .fields {
+    flex-direction: row;
+  }
+  .field {
+    flex: 1;
+  }
+}
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  min-width: 0;
+}
+.field-error {
+  margin: 0;
+  font-size: var(--font-size-2xs);
+  color: var(--status-danger);
+}
+
+// ───────────────── Consentimientos ─────────────────
+// Lavado teal: es el bloque donde la persona decide algo, no solo lee.
+.consent {
+  padding: var(--space-3) var(--space-4);
+  border: 1px solid var(--border-ai);
+  border-radius: var(--radius-card);
+  background: var(--surface-ai);
+}
+.consent-detail {
+  margin: 0;
+  font-size: var(--font-size-body);
+  color: var(--text-secondary);
+  line-height: 1.55;
+}
+.consent-meta {
+  margin: var(--space-2) 0 0;
+}
+
+.pep {
+  padding: var(--space-3) var(--space-4);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-card);
+  background: var(--surface-soft);
+}
+.pep-row {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-3);
+  margin-bottom: var(--space-1);
+}
+.pep-label {
+  font-size: var(--font-size-body);
+  color: var(--text-primary);
+}
+// Dato informativo, no un estado de riesgo: el "Sí" se distingue por peso y teal de marca,
+// nunca por el semáforo (--status-*), que acá comunicaría una alarma que no existe.
+.pep-value {
+  font-size: var(--font-size-body);
+  font-weight: var(--font-weight-medium);
+  color: var(--text-secondary);
+}
+.pep-value.is-yes {
+  color: var(--accent-fg);
+}
+.pep .t-note {
+  margin: 0;
+}
+
+// ───────────────── Acciones ─────────────────
+.submit-error {
+  margin: 0;
+  padding: var(--space-3) var(--space-4);
+  border: 1px solid var(--border-danger-soft);
+  border-radius: var(--radius-card);
+  background: var(--surface-danger-soft);
+  font-size: var(--font-size-body);
+  color: var(--text-primary);
+}
+
+.actions {
+  padding-top: var(--space-3);
+}

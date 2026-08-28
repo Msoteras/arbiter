@@ -83,10 +83,10 @@
               <li class="hs-rule" [class.on]="policyInForceRule()?.enabled">
                 <div class="hs-rule-text">
                   <span class="t-field-label">Vigencia de la póliza</span>
-                  <p class="rule-hint">
-                    Si el hecho ocurrió fuera de la vigencia de la póliza, la denuncia no se da de
-                    alta y no se crea el expediente.
-                  </p>
+                  <!-- El hint dice la CONDICIÓN; el efecto lo dice el badge de abajo, y que el
+                       bloqueo impide crear el expediente ya lo dijo el banner de la sección.
+                       Decirlo tres veces no lo hacía más claro. -->
+                  <p class="rule-hint">Si el hecho ocurrió fuera de la vigencia de la póliza.</p>
                   <span class="hs-effect" [class.blocks]="policyInForceRule()?.enabled">
                     {{ policyInForceRule()?.enabled
                       ? 'Bloquea el alta — no se crea el expediente'
@@ -460,9 +460,6 @@
                       />
                       <div class="rule-text">
                         <span class="t-field-label">Antigüedad mínima de la póliza</span>
-                        <p class="rule-hint">
-                          La póliza tiene que tener al menos esta antigüedad para ir por vía rápida.
-                        </p>
                       </div>
                       @if (ftActive('minPolicyAgeMonths')) {
                         <div class="rule-value">
@@ -487,9 +484,6 @@
                       />
                       <div class="rule-text">
                         <span class="t-field-label">Siniestros previos máximos</span>
-                        <p class="rule-hint">
-                          Cuántos siniestros anteriores admite el asegurado y sigue siendo apto.
-                        </p>
                       </div>
                       @if (ftActive('maxPriorClaims')) {
                         <div class="rule-value">

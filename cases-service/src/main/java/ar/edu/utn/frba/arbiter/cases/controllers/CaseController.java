@@ -93,9 +93,9 @@ public class CaseController {
                     """)
     public ResponseEntity<CaseResponse> getCase(
             @PathVariable Long caseId,
-            @RequestParam(required = false) String aseguradora
+            @RequestParam(required = false) String insurer
     ) {
-        CaseResponse response = caseService.getCase(caseId, aseguradora);
+        CaseResponse response = caseService.getCase(caseId, insurer);
         return ResponseEntity.ok(response);
     }
 
@@ -265,9 +265,9 @@ public class CaseController {
                     """)
     public ResponseEntity<List<CaseDocumentResponse>> listDocuments(
             @PathVariable Long caseId,
-            @RequestParam(required = false) String aseguradora
+            @RequestParam(required = false) String insurer
     ) {
-        return ResponseEntity.ok(caseService.getDocuments(caseId, aseguradora));
+        return ResponseEntity.ok(caseService.getDocuments(caseId, insurer));
     }
 
     @GetMapping("/{caseId}/documents/{documentId}")
@@ -277,9 +277,9 @@ public class CaseController {
     public ResponseEntity<byte[]> downloadDocument(
             @PathVariable Long caseId,
             @PathVariable Long documentId,
-            @RequestParam(required = false) String aseguradora
+            @RequestParam(required = false) String insurer
     ) {
-        CaseDocument doc = caseService.getDocument(caseId, documentId, aseguradora);
+        CaseDocument doc = caseService.getDocument(caseId, documentId, insurer);
         return ResponseEntity.ok()
                 .contentType(MediaType.parseMediaType(doc.getContentType()))
                 .header("Content-Disposition", "inline; filename=\"" + doc.getFilename() + "\"")
@@ -302,9 +302,9 @@ public class CaseController {
     public ResponseEntity<CaseResponse> uploadDocuments(
             @PathVariable Long caseId,
             @RequestParam Map<String, MultipartFile> documents,
-            @RequestParam(required = false) String aseguradora
+            @RequestParam(required = false) String insurer
     ) {
-        CaseResponse response = caseService.addDocumentsAndReclassify(caseId, documents, aseguradora);
+        CaseResponse response = caseService.addDocumentsAndReclassify(caseId, documents, insurer);
         return ResponseEntity.accepted().body(response);
     }
 

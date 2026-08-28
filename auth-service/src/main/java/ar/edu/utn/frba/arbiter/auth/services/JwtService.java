@@ -63,11 +63,11 @@ public class JwtService {
      *
      * {@code insurerIds} lists every insurer the user belongs to; {@code tenantSchema} is
      * the one this session actually resolved to (see TenantResolver — first insurer wins
-     * until the multi-insurer login UX is decided, per README-multitenant.md).
+     * until the multi-insurer login UX is decided).
      */
     public IssuedToken issue(
             User user, UserRole rol, String nombre, String apellido, String insuredId,
-            List<Long> insurerIds, String tenantSchema
+            Boolean onboardingComplete, List<Long> insurerIds, String tenantSchema
     ) {
         Instant now = Instant.now();
         Instant expiresAt = now.plus(Duration.ofMinutes(properties.jwt().expirationMinutes()));
@@ -79,6 +79,9 @@ public class JwtService {
                 .claim("apellido", apellido);
         if (insuredId != null) {
             builder.claim("insuredId", insuredId);
+        }
+        if (onboardingComplete != null) {
+            builder.claim("onboardingComplete", onboardingComplete);
         }
         if (!insurerIds.isEmpty()) {
             builder.claim("insurerIds", insurerIds);

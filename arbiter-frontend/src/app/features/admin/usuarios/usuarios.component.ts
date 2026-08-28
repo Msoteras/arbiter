@@ -15,6 +15,7 @@ import { ModalComponent } from '../../../shared/ui/modal/modal.component';
 import { TableComponent } from '../../../shared/ui/table/table.component';
 import { SelectComponent, SelectOption } from '../../../shared/ui/select/select.component';
 import { InlineLoadingComponent } from '../../../shared/ui/inline-loading/inline-loading.component';
+import { ToastService } from '../../../shared/ui/toast/toast.service';
 import { fadeStagger, staggerReveal } from '../../../shared/animations';
 
 /**
@@ -34,6 +35,7 @@ import { fadeStagger, staggerReveal } from '../../../shared/animations';
 export class UsuariosComponent {
   private readonly service = inject(UserAdminService);
   private readonly session = inject(AuthSessionService);
+  private readonly toastService = inject(ToastService);
 
   protected readonly roles: UserRole[] = ['ASEGURADO', 'ANALISTA_SINIESTROS', 'REFERENTE_ASEGURADORA'];
 
@@ -72,9 +74,43 @@ export class UsuariosComponent {
   protected readonly resendError = signal<string | null>(null);
   protected readonly resendOkId = signal<number | null>(null);
 
+  // Alta masiva de asegurados. Detrás de una confirmación porque manda mails reales a gente de
+  // verdad y no hay forma de deshacerlo: una vez que salieron, salieron.
+  protected readonly showProvisionConfirm = signal(false);
+  protected readonly provisioning = signal(false);
+  protected readonly provisionStarted = signal(false);
+
   protected readonly isEmpty = computed(() => !this.loading() && !this.hasError() && this.users().length === 0);
 
   constructor() {
+    this.load();
+  }
+
+  /**
+   * Arranca el alta masiva. El backend responde 202 y sigue trabajando: no hay resumen que mostrar
+   * acá, así que la pantalla dice que arrancó y deja recargar el listado para ver cómo van
+   * apareciendo las cuentas.
+   */
+  protected confirmProvision(): void {
+    this.provisioning.set(true);
+    this.service.provisionInsured().subscribe({
+      next: () => {
+        this.provisioning.set(false);
+        this.showProvisionConfirm.set(false);
+        this.provisionStarted.set(true);
+      },
+      error: (err: HttpErrorResponse) => {
+        this.provisioning.set(false);
+        this.showProvisionConfirm.set(false);
+        this.toastService.show(
+          err.error?.detail ?? 'No se pudo iniciar el alta masiva. Probá de nuevo.',
+        );
+      },
+    });
+  }
+
+  protected refresh(): void {
+    this.provisionStarted.set(false);
     this.load();
   }
 

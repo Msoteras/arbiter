@@ -33,9 +33,24 @@ export const CASE_DOCUMENT_TYPES: readonly CaseDocumentType[] = DOCUMENT_TYPES.m
   label: d.label,
 }));
 
+/**
+ * Tipos que el expediente puede llevar SIN estar en la agenda documental: no los exige el referente
+ * ni los sube el asegurado, los deja el propio flujo del caso. Hoy el único es el informe que el
+ * analista carga cuando vuelve el perito (`expert_report`, ver ExpertAssessmentService). Van
+ * aparte de `CASE_DOCUMENT_TYPES` a propósito: sumarlos ahí los volvería casilleros del checklist
+ * y opciones del uploader del asegurado, que es justo lo que no son.
+ */
+export const NON_AGENDA_DOCUMENT_TYPES: readonly CaseDocumentType[] = [
+  { type: 'expert_report', label: 'Informe pericial' },
+];
+
 /** Etiqueta legible del tipo; si el backend manda uno desconocido, se muestra crudo. */
 export function documentTypeLabel(type: string): string {
-  return CASE_DOCUMENT_TYPES.find((t) => t.type === type)?.label ?? type;
+  return (
+    CASE_DOCUMENT_TYPES.find((t) => t.type === type)?.label ??
+    NON_AGENDA_DOCUMENT_TYPES.find((t) => t.type === type)?.label ??
+    type
+  );
 }
 
 export function isPreviewableImage(contentType: string): boolean {

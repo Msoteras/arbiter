@@ -14,8 +14,8 @@ public record CaseRequest(
         @NotBlank String insuredId,
         @NotBlank String policyNumber,
         @NotBlank String description,
-        // Un siniestro no puede haber "ocurrido" en el futuro — docs/frontend-bugs-ux.md #16.
-        // El front ya pone un max=hoy en el datepicker; esto es la regla real.
+        // Un siniestro no puede haber "ocurrido" en el futuro. El front ya pone un max=hoy
+        // en el datepicker; esto es la regla real.
         @NotNull @PastOrPresent LocalDateTime eventDate,
         /**
          * Dirección del hecho a nivel calle ("Av. Rivadavia 1234 (entre X e Y)"), SIN localidad ni
@@ -35,12 +35,10 @@ public record CaseRequest(
         /** Fecha/hora de la denuncia policial, si el hecho tuvo una. No todo siniestro la requiere. */
         LocalDateTime policeReportAt,
         BigDecimal claimedAmount,
-        @NotNull Boolean pep,
-        /**
-         * Insured's consent to have claim images analyzed for fraud indicators (H0009):
-         * internal reuse detection + web search. Declarative, same treatment as {@code pep}.
-         */
-        @NotNull Boolean imageConsent,
+        // PEP comes from the insurer's data, not the claim form. Ignored if sent.
+        Boolean pep,
+        // Image consent is captured during onboarding, not per claim. Ignored if sent.
+        Boolean imageConsent,
         String contactEmail,
         String contactPhone
 ) {

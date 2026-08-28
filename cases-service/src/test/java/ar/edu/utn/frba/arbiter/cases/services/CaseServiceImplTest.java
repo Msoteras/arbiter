@@ -209,7 +209,7 @@ class CaseServiceImplTest {
                 "Motorola Edge 50 Pro", CALLER_DNI, "POL-CEL-2024-001",
                 "Me robaron el celular", LocalDateTime.of(2026, 6, 13, 19, 45),
                 "Av. Rivadavia 1234", "   ", "",
-                null, new BigDecimal("150000"), false, false, null, null);
+                null, new BigDecimal("150000"), null, null, null, null);
         stubReferenceResolution();
         when(caseStatusService.initialStatus()).thenReturn(CaseStates.of(CaseStatus.PENDING_CLASSIFICATION));
         when(caseRepository.save(any(Case.class))).thenAnswer(inv -> {
@@ -256,9 +256,8 @@ class CaseServiceImplTest {
 
     @Test
     void createCase_routesDeclaredDetailsToTheInsured() {
-        // pep/imageConsent/contacto describen a la persona, no al siniestro: desde el DER viven en
-        // `insured`. El alta solo los reenvía — que efectivamente se apliquen es de
-        // CaseReferenceResolverTest.
+        // contacto describe a la persona, no al siniestro: desde el DER vive en `insured`.
+        // pep e imageConsent ya no se tocan acá — vienen del onboarding/perfil.
         CaseRequest request = new CaseRequest(
                 "Celulares", "Celular Protegido Básico", "Robo en vía pública",
                 "Motorola Edge 50 Pro", "40.123.456", "POL-CEL-2024-001",
@@ -268,8 +267,7 @@ class CaseServiceImplTest {
                 "CABA", // locality
                 null, // policeReportAt
                 new BigDecimal("150000"),
-                false,
-                true, // imageConsent: el asegurado aceptó el análisis forense de sus imágenes (H0009)
+                null, null,
                 "test@example.com", "11-5555-0000"
         );
         Insured insured = CaseFixtures.insured("40.123.456", "Laura", "Fernández");
@@ -441,7 +439,7 @@ class CaseServiceImplTest {
                 new ImageForensicReport.InternalMatch(4L, "item_photo", "IMG_2831.jpg", 0.97);
         ImageForensicReport.ImageFinding finding =
                 new ImageForensicReport.ImageFinding("item_photo-0", "item_photo", List.of(match), null);
-        ImageForensicReport report = new ImageForensicReport(1, 0, List.of(finding));
+        ImageForensicReport report = new ImageForensicReport(1, 0, true, List.of(finding));
 
         Case entity = caseRecord(1L, CaseStatus.PENDING_ANALYST_REVIEW);
         entity.setForensicReport(report);
@@ -648,10 +646,27 @@ class CaseServiceImplTest {
         Case entity = caseRecord(1L, CaseStatus.PENDING_ANALYST_REVIEW);
         when(caseRepository.findById(1L)).thenReturn(Optional.of(entity));
         when(claimsAnalystRepository.findById(7L)).thenReturn(Optional.of(analyst(7L, "Lucas", "Gómez")));
+        when(accessPolicy.currentAssignmentActor()).thenReturn(StatusChangeActor.ANALYST);
 
         caseService.assignAnalyst(1L, 7L);
 
-        verify(caseStatusService).recordAssignment(entity, "expediente asignado a Lucas Gómez");
+        verify(caseStatusService).recordAssignment(entity, StatusChangeActor.ANALYST,
+                "expediente asignado a Lucas Gómez");
+    }
+
+    @Test
+    void assignAnalyst_calledByReferent_attributesTheHistoryRowToTheReferent() {
+        // El endpoint es compartido entre ANALISTA_SINIESTROS y REFERENTE_ASEGURADORA — el
+        // historial no puede atribuirle todo al analista solo porque es el caso más común.
+        Case entity = caseRecord(1L, CaseStatus.PENDING_ANALYST_REVIEW);
+        when(caseRepository.findById(1L)).thenReturn(Optional.of(entity));
+        when(claimsAnalystRepository.findById(7L)).thenReturn(Optional.of(analyst(7L, "Lucas", "Gómez")));
+        when(accessPolicy.currentAssignmentActor()).thenReturn(StatusChangeActor.REFERENT);
+
+        caseService.assignAnalyst(1L, 7L);
+
+        verify(caseStatusService).recordAssignment(entity, StatusChangeActor.REFERENT,
+                "expediente asignado a Lucas Gómez");
     }
 
     @Test
@@ -693,12 +708,13 @@ class CaseServiceImplTest {
         Case entity = caseRecord(1L, CaseStatus.PENDING_ANALYST_REVIEW);
         entity.setAnalyst(analyst(7L, "Lucas", "Gómez"));
         when(caseRepository.findById(1L)).thenReturn(Optional.of(entity));
+        when(accessPolicy.currentAssignmentActor()).thenReturn(StatusChangeActor.ANALYST);
 
         CaseResponse response = caseService.unassignAnalyst(1L);
 
         assertThat(response.assignedAnalystId()).isNull();
         assertThat(response.assignedAnalystName()).isNull();
-        verify(caseStatusService).recordAssignment(entity,
+        verify(caseStatusService).recordAssignment(entity, StatusChangeActor.ANALYST,
                 "expediente liberado (estaba asignado a Lucas Gómez)");
     }
 
@@ -706,11 +722,12 @@ class CaseServiceImplTest {
     void unassignAnalyst_alreadyUnassigned_isIdempotent() {
         Case entity = caseRecord(1L, CaseStatus.PENDING_ANALYST_REVIEW);
         when(caseRepository.findById(1L)).thenReturn(Optional.of(entity));
+        when(accessPolicy.currentAssignmentActor()).thenReturn(StatusChangeActor.ANALYST);
 
         CaseResponse response = caseService.unassignAnalyst(1L);
 
         assertThat(response.assignedAnalystId()).isNull();
-        verify(caseStatusService).recordAssignment(entity, "expediente liberado");
+        verify(caseStatusService).recordAssignment(entity, StatusChangeActor.ANALYST, "expediente liberado");
     }
 
     private static ClaimsAnalyst analyst(Long id, String name, String surname) {
@@ -990,8 +1007,7 @@ class CaseServiceImplTest {
                 "CABA", // locality
                 null, // policeReportAt
                 new BigDecimal("150000"),
-                false,
-                false,
+                null, null,
                 "test@example.com",
                 "11-5555-0000"
         );

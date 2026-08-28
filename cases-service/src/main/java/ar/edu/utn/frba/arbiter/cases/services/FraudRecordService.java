@@ -63,6 +63,28 @@ public class FraudRecordService {
     private final ClaimsAnalystRepository claimsAnalystRepository;
     private final ClaimsAnalysisClient classificationClient;
 
+    /**
+     * The record an expert-confirmed report leaves on its own, with no second click. The expert
+     * already proved the fact and the analyst filing the report is transcribing it, so asking them
+     * to state it again added a step that gets forgotten — and a forgotten step here means the
+     * person walks away unmarked with a report that says otherwise. {@code ANALYST_DECLARED} stays
+     * manual: that one IS a judgment call and needs somebody to write down why.
+     *
+     * <p>No-op if the case already has a record — the analyst may have declared it before the
+     * report arrived, and a duplicate would blow up the filing over something already recorded.
+     */
+    @Transactional
+    public Optional<FraudRecordResponse> registerFromExpertReport(Long caseId, String reason) {
+        boolean alreadyRecorded = insuredRecords(caseId).stream()
+                .anyMatch(record -> caseId.equals(record.caseId()));
+        if (alreadyRecorded) {
+            log.info("[FraudRecord] Case {} already had a record — expert report adds none", caseId);
+            return Optional.empty();
+        }
+        return Optional.of(register(caseId,
+                new RegisterFraudRecordRequest(FraudRecordSource.EXPERT_BACKED, reason)));
+    }
+
     @Transactional
     public FraudRecordResponse register(Long caseId, RegisterFraudRecordRequest request) {
         Case caseRecord = findCase(caseId);

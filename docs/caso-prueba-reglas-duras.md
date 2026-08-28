@@ -293,7 +293,7 @@ anterior al siniestro."* No se crea expediente.
 
 ## 8 · Corte degradado — rules-service caído (nuevo, 13/08)
 
-Cierra el pendiente de `plan-reglas-evaluables.md` §3. Con `RulesRestAdapter` propagando la falla en
+Con `RulesRestAdapter` propagando la falla en
 vez de caer al mock (unit tests en `RulesRestAdapterTest`), falta la vuelta end-to-end con el stack
 arriba:
 

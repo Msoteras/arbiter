@@ -18,7 +18,7 @@ import java.util.stream.Stream;
  * así el service no necesita condicionales para armar el where dinámico.
  *
  * <p>No hay spec de aseguradora: depende de auth-service (rol del usuario autenticado) y del
- * esquema multi-tenant, ninguno de los dos levantado todavía (ver GAPS-FLUJO.md, Gap F).
+ * esquema multi-tenant.
  */
 public final class CaseSpecifications {
 

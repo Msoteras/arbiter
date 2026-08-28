@@ -34,10 +34,9 @@
           <!-- <label for> y no aria-labelledby: app-input no reenvía ese atributo al input
                interno, pero sí expone su id, así que el label real es lo que lo rotula. -->
           <label class="t-field-label" for="ant-ventana">¿Cuánto tiempo sigue pesando?</label>
-          <p class="rule-hint">
-            Cuánto puede pesar un antecedente en el nivel de riesgo antes de vencer solo. Qué
-            tanto suma se configura en Puntaje de riesgo.
-          </p>
+          <!-- La primera mitad repetía la etiqueta ("cuánto tiempo sigue pesando"). Lo que la
+               etiqueta NO dice es dónde se configura cuánto suma, que es lo único que queda. -->
+          <p class="rule-hint">Qué tanto suma se configura en Puntaje de riesgo.</p>
         </div>
         <div class="rule-value window">
           <app-input

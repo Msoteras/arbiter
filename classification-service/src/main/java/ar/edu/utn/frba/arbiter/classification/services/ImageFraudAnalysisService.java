@@ -51,7 +51,7 @@ public class ImageFraudAnalysisService {
     private final ImageEmbeddingService imageEmbeddingService;
     private final GoogleVisionClient googleVisionClient;
 
-    public ImageForensicReport analyze(Long caseId, List<AttachmentDocument> documents) {
+    public ImageForensicReport analyze(Long caseId, List<AttachmentDocument> documents, boolean imageConsent) {
         List<ImageFinding> findings = new ArrayList<>();
         int imagesAnalyzed = 0;
         int webSearchesPerformed = 0;
@@ -73,7 +73,7 @@ public class ImageFraudAnalysisService {
 
             WebFinding webFinding = null;
             if (internalMatches.isEmpty()) {
-                webFinding = findOnWeb(label, imageBase64); // escalate only when no internal match
+                webFinding = findOnWeb(label, imageBase64, imageConsent);
                 if (webFinding != null) {
                     webSearchesPerformed++;
                     // Persist it on the row the internal pass wrote, so "suspicious because it's
@@ -85,8 +85,10 @@ public class ImageFraudAnalysisService {
             findings.add(new ImageFinding(label, doc.type(), internalMatches, webFinding));
         }
 
-        log.info("[ImageFraud] caseId={} images={} webSearches={}", caseId, imagesAnalyzed, webSearchesPerformed);
-        return new ImageForensicReport(imagesAnalyzed, webSearchesPerformed, List.copyOf(findings));
+        log.info("[ImageFraud] caseId={} images={} webSearches={} consent={}",
+                caseId, imagesAnalyzed, webSearchesPerformed, imageConsent);
+        return new ImageForensicReport(
+                imagesAnalyzed, webSearchesPerformed, imageConsent, List.copyOf(findings));
     }
 
     /**
@@ -105,7 +107,18 @@ public class ImageFraudAnalysisService {
             traces.add(String.format("Imagen '%s': sin coincidencias con adjuntos de siniestros previos", f.documentType()));
 
             if (f.webFinding() == null) {
-                continue; // web not searched (disabled or failed) — nothing more to say for this image
+                // Not searched. Say WHY when the reason is the person's refusal: for the analyst it
+                // is the difference between "no evidence" and "we were not allowed to look", and it
+                // is the trace that shows the consent was actually honoured. The other reasons
+                // (integration off, call failed) are operational and say nothing about the claim.
+                // Only on an explicit refusal: a null means the report predates the field, and
+                // saying "they didn't consent" about it would be inventing an answer.
+                if (Boolean.FALSE.equals(report.imageConsent())) {
+                    traces.add(String.format(
+                            "Imagen '%s': no se buscó en internet — el asegurado no dio su consentimiento",
+                            f.documentType()));
+                }
+                continue;
             }
             if (!f.webFinding().found()) {
                 traces.add(String.format("Imagen '%s': tampoco se encontró publicada en internet", f.documentType()));
@@ -133,10 +146,14 @@ public class ImageFraudAnalysisService {
         }
     }
 
-    /** @return the web finding, or null when the search wasn't performed (disabled or failed). */
-    private WebFinding findOnWeb(String label, String imageBase64) {
+    /** @return the web finding, or null when the search wasn't performed (disabled, no consent, or failed). */
+    private WebFinding findOnWeb(String label, String imageBase64, boolean imageConsent) {
+        if (!imageConsent) {
+            log.debug("[ImageFraud] Web search skipped for '{}' — insured did not consent", label);
+            return null;
+        }
         if (!googleVisionClient.isEnabled()) {
-            return null; // not searched — the UI must not read this as "found nothing"
+            return null;
         }
         try {
             WebImageMatch match = googleVisionClient.detectWebMatches(imageBase64);

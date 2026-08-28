@@ -39,7 +39,7 @@ export interface CoverageUpsertRequest {
 /**
  * CRUD real de coberturas (solapa Coberturas del referente) contra cases-service, dueño de la
  * tabla Coverage. `insuredAmount` no tiene equivalente acá a propósito: no existe tope de suma
- * asegurada por cobertura en el DER (docs/decisiones-reglas-a-validar.md, D4) — vive en la póliza.
+ * asegurada por cobertura en el DER — vive en la póliza.
  */
 @Injectable({ providedIn: 'root' })
 export class CoveragesRulesService {

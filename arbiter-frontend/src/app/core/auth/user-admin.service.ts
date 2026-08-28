@@ -76,4 +76,19 @@ export class UserAdminService {
   resendInvite(id: number): Observable<UserResponse> {
     return this.http.post<UserResponse>(`${this.baseUrl}/${id}/resend-invite`, {});
   }
+
+  /**
+   * Da de alta en bloque a los asegurados con póliza vigente de la aseguradora del referente,
+   * leídos de la BD de la compañía, y les manda la invitación para elegir contraseña.
+   *
+   * Responde **202 sin cuerpo**: la corrida sigue en segundo plano y va creando cuentas y mandando
+   * mails de a poco, así que no hay un total que devolver en el momento. Por eso esto no resuelve
+   * con un resumen — para ver el resultado hay que recargar el listado.
+   *
+   * Es idempotente: a quien ya tiene cuenta no se la duplica (se lo reconoce por email), solo se le
+   * vincula esta aseguradora.
+   */
+  provisionInsured(): Observable<void> {
+    return this.http.post<void>(`${this.baseUrl}/insured/bulk-provision`, {});
+  }
 }

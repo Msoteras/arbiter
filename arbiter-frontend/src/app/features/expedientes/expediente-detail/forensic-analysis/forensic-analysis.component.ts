@@ -26,7 +26,7 @@ const DOC_TYPE_LABELS: Record<string, string> = {
 /**
  * Tab "Análisis forense" del panel del analista (H0009). Cruza cada hallazgo de
  * `ImageForensicReport` con el adjunto real del expediente para mostrar la imagen
- * analizada junto a sus coincidencias (ver docs/frontend-analisis-forense.md):
+ * analizada junto a sus coincidencias:
  *
  * - Coincidencia interna (otro siniestro): se muestra la imagen del siniestro previo
  *   lado a lado con la propia, más el % de similitud (comparación directa).
@@ -132,7 +132,7 @@ export class ForensicAnalysisComponent implements OnDestroy {
 
   /**
    * Descarga, para cada match interno, la imagen del siniestro previo (`matchedCaseId`) —
-   * comparación lado a lado (docs/frontend-analisis-forense.md). Traer un documento de OTRO
+   * comparación lado a lado. Traer un documento de OTRO
    * expediente es legítimo acá: `CaseAccessPolicy.assertCanRead` acota al ASEGURADO a los
    * propios, pero el analista ve todos los de su aseguradora — que es justo lo que esta
    * comparación necesita.

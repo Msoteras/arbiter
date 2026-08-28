@@ -34,8 +34,6 @@ export interface CaseCreateRequest {
   // que le daría contenido al DocumentInconsistencyEvaluator (D4b).
   policeReportAt?: string;
   claimedAmount?: number;
-  pep: boolean;
-  imageConsent: boolean;
   contactEmail?: string;
   contactPhone?: string;
 }
@@ -159,13 +157,13 @@ export class ExpedienteService {
   }
 
   /**
-   * `aseguradora` sólo lo manda el portal del asegurado, y sólo hace falta si es cliente de más de
+   * `insurer` sólo lo manda el portal del asegurado, y sólo hace falta si es cliente de más de
    * una compañía: los números de expediente se repiten entre aseguradoras, así que sin esto el
    * back siempre resolvía contra la del login y los de la otra quedaban inalcanzables. El back lo
    * valida contra el token, no confía en el parámetro.
    */
-  getById(id: string | number, aseguradora?: string | null): Observable<ExpedienteResponse> {
-    const options = aseguradora ? { params: new HttpParams().set('aseguradora', aseguradora) } : {};
+  getById(id: string | number, insurer?: string | null): Observable<ExpedienteResponse> {
+    const options = insurer ? { params: new HttpParams().set('insurer', insurer) } : {};
     return this.http.get<ExpedienteResponse>(`${this.baseUrl}/${id}`, options);
   }
 
@@ -218,7 +216,7 @@ export class ExpedienteService {
   }
 
   /**
-   * `aseguradora`: mismo motivo que `getById` — un asegurado con pólizas en más de una compañía
+   * `insurer`: mismo motivo que `getById` — un asegurado con pólizas en más de una compañía
    * puede estar subiendo documentación a un expediente que no vive en el tenant por defecto de su
    * sesión. `ExpedienteResponse.insurerSlug` (ya viene poblado desde el alta) es lo que hay que
    * reenviar acá.
@@ -226,17 +224,17 @@ export class ExpedienteService {
   uploadDocuments(
     caseId: number,
     documents: Map<string, File>,
-    aseguradora?: string | null,
+    insurer?: string | null,
   ): Observable<ExpedienteResponse> {
     const formData = new FormData();
     documents.forEach((file, type) => formData.append(type, file));
-    const options = aseguradora ? { params: new HttpParams().set('aseguradora', aseguradora) } : {};
+    const options = insurer ? { params: new HttpParams().set('insurer', insurer) } : {};
     return this.http.post<ExpedienteResponse>(`${this.baseUrl}/${caseId}/documents`, formData, options);
   }
 
   /** Metadata de los adjuntos del expediente (sin el contenido). */
-  listDocuments(caseId: number, aseguradora?: string | null): Observable<CaseDocument[]> {
-    const options = aseguradora ? { params: new HttpParams().set('aseguradora', aseguradora) } : {};
+  listDocuments(caseId: number, insurer?: string | null): Observable<CaseDocument[]> {
+    const options = insurer ? { params: new HttpParams().set('insurer', insurer) } : {};
     return this.http.get<CaseDocument[]>(`${this.baseUrl}/${caseId}/documents`, options);
   }
 
@@ -245,8 +243,8 @@ export class ExpedienteService {
    * exige el JWT: el authInterceptor solo alcanza a las requests del HttpClient, una
    * navegación del browser saldría sin header y volvería 401.
    */
-  downloadDocument(caseId: number, documentId: number, aseguradora?: string | null): Observable<Blob> {
-    const params = aseguradora ? new HttpParams().set('aseguradora', aseguradora) : undefined;
+  downloadDocument(caseId: number, documentId: number, insurer?: string | null): Observable<Blob> {
+    const params = insurer ? new HttpParams().set('insurer', insurer) : undefined;
     return this.http.get(`${this.baseUrl}/${caseId}/documents/${documentId}`, {
       responseType: 'blob',
       params,

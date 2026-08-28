@@ -1,6 +1,7 @@
 package ar.edu.utn.frba.arbiter.classification.models.repositories;
 
 import ar.edu.utn.frba.arbiter.classification.config.tenant.TenantContext;
+import ar.edu.utn.frba.arbiter.common.enums.ClassificationFailureReason;
 import lombok.RequiredArgsConstructor;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Repository;
@@ -65,6 +66,33 @@ public class CaseOutcomeRepository {
         jdbcTemplate.update(
                 "UPDATE %s.cases SET scoring_configuration_id = ? WHERE id = ?".formatted(schema()),
                 scoringConfigurationId, caseId);
+    }
+
+    /**
+     * Records why the last async run gave up, when {@code caseId} isn't null (the isolated flow
+     * has no case to write to). {@code caseId} may not exist in this tenant yet — a service token
+     * classification triggered before the case's own insert commits — so a 0-row update is not an
+     * error, just a run that had nothing to record onto.
+     */
+    public void recordClassificationFailure(Long caseId, ClassificationFailureReason reason, String message) {
+        if (caseId == null) {
+            return;
+        }
+        jdbcTemplate.update(
+                ("UPDATE %s.cases SET classification_failure_reason = ?, "
+                        + "classification_failure_message = ? WHERE id = ?").formatted(schema()),
+                reason.name(), message, caseId);
+    }
+
+    /** Clears a stale failure once a run actually succeeds — a resolved case shouldn't look failed. */
+    public void clearClassificationFailure(Long caseId) {
+        if (caseId == null) {
+            return;
+        }
+        jdbcTemplate.update(
+                ("UPDATE %s.cases SET classification_failure_reason = NULL, "
+                        + "classification_failure_message = NULL WHERE id = ?").formatted(schema()),
+                caseId);
     }
 
     // The rest of the read model (analysis_classification, risk_score, risk_band, ...) is NOT

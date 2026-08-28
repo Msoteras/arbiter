@@ -20,7 +20,7 @@ import org.springframework.web.bind.annotation.RestController;
 /**
  * Hard evaluable rules per coverage, served to the classification engine (not to a referente).
  * Today: coverage exclusions (which claim causes it does NOT cover). The referente's CRUD is a
- * separate increment (plan-reglas-evaluables.md, option (a)): for now the rules come in via seed.
+ * separate increment: for now the rules come in via seed.
  */
 @RestController
 @RequestMapping("/api/v1/rules")

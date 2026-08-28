@@ -10,7 +10,8 @@ import jakarta.validation.constraints.NotNull;
  *                               that already knows the user, so by the time it reaches here it's
  *                               always populated.
  * @param justification          the analyst's stated reason for the decision — the audit trail
- *                               Disposición SSN 2/2023 requires. Persisted verbatim on {@code
+ *                               Disposición SSN 2/2023 requires. Always mandatory, agreeing with
+ *                               the model or not. Persisted verbatim on {@code
  *                               case_classification.analyst_justification}.
  * @param classificationAttempts how many attempts the case took before reaching the analyst,
  *                               carried over from {@code cases.classification_attempts} so the
@@ -19,6 +20,6 @@ import jakarta.validation.constraints.NotNull;
 public record AnalystDecisionRequest(
         @NotNull(message = "analystId is required") Long analystId,
         @NotBlank(message = "decision is required") String decision,
-        String justification,
+        @NotBlank(message = "justification is required") String justification,
         Integer classificationAttempts
 ) {}

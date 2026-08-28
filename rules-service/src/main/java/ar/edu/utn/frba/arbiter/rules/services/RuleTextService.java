@@ -20,8 +20,8 @@ import java.time.Instant;
 import java.util.List;
 
 /**
- * Branch-level free text with no table of its own in the DER (docs/decisiones-reglas-a-validar.md,
- * D3): common exclusions and business rules in prose. It reuses the same mechanism as Fast Track
+ * Branch-level free text with no table of its own in the DER: common exclusions and business
+ * rules in prose. It reuses the same mechanism as Fast Track
  * ({@link InsurerRule} + append-only history), but with {@code coverage_id} null (a branch-level
  * rule, valid per the DER) and a different {@code rule_type} per list. One {@code ruleType}
  * per instance — two beans, one per list, see {@link ar.edu.utn.frba.arbiter.rules.config.RuleTextConfig}.

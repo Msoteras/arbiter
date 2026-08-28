@@ -123,7 +123,11 @@ public class CaseNotificationService {
 
     private void send(Notification notification, String address, Message message, Case caseRecord) {
         try {
-            sendGridAdapter.send(address, message.subject(), body(message, caseRecord));
+            // sent=true only if the mail really went out: with no API key the adapter no-ops, and
+            // marking those as sent hides from the panel exactly what never reached the insured.
+            if (!sendGridAdapter.send(address, message.subject(), body(message, caseRecord))) {
+                return;
+            }
             notification.setSent(true);
             notification.setSentAt(Instant.now());
             notificationRepository.save(notification);

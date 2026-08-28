@@ -1,0 +1,14 @@
+# =============================================================================
+# Fragmento simétrico a docker-compose.gemini.yml: fija Ollama como proveedor.
+#
+#   .\scripts\dev-ollama.ps1
+#
+# Existe para que el script gane sobre cualquier override que fije `LLM_PROVIDER: gemini`
+# como valor literal: eso no lo pisa ninguna variable de entorno, así que sin este archivo
+# `dev-ollama.ps1` podría clasificar por Gemini en silencio. Pasado último en la cadena
+# de -f, decide.
+# =============================================================================
+services:
+  classification-service:
+    environment:
+      LLM_PROVIDER: ollama

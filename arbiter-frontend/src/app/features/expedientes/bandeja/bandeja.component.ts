@@ -29,6 +29,7 @@ import { AuthSessionService } from '../../../core/auth/auth-session.service';
 import { UserAdminService } from '../../../core/auth/user-admin.service';
 import { ExpedienteResponse } from '../../../core/models/expediente';
 import { clasificacionLabel, clasificacionTone } from '../../../core/models/clasificacion';
+import { formatDate as formatDateUtil } from '../../../core/util/datetime';
 import {
   DeadlinePriority,
   deadlinePriorityLabel,
@@ -704,8 +705,10 @@ export class BandejaComponent {
     return riskBandEmptyLabel(c.status, c.analysisClassification);
   }
 
+  // Delega en el util: `new Date('2026-08-20')` se parsea como UTC y en Argentina retrocede al
+  // día anterior, que es como una denuncia policial terminaba mostrándose antes del siniestro.
   protected formatDate(value: string): string {
-    return new Date(value).toLocaleDateString('es-AR');
+    return formatDateUtil(value);
   }
 
   protected formatAmount(value: number | null): string {

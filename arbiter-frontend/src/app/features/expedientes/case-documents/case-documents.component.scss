@@ -24,6 +24,15 @@
 
 .doc-item + .doc-item { border-top: 1px solid var(--border-subtle); }
 
+/* Separador de los adjuntos que no son de la agenda. Borde arriba en vez de + .doc-item
+   porque abre grupo: lo que sigue ya no es checklist. */
+.doc-section {
+  margin-top: var(--space-2);
+  padding: var(--space-3) var(--space-3) var(--space-1);
+  border-top: 1px solid var(--border-subtle);
+  color: var(--text-muted);
+}
+
 .doc-btn {
   display: flex;
   flex-direction: column;

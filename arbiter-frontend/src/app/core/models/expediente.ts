@@ -7,7 +7,7 @@ import { ImageForensicReport } from './forensic';
 export interface StatusTransition {
   fromStatus: string | null;
   toStatus: string;
-  actor: 'SYSTEM' | 'INSURED' | 'ANALYST';
+  actor: 'SYSTEM' | 'INSURED' | 'ANALYST' | 'REFERENT';
   reason: string;
   changedAt: string;
 }

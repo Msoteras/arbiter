@@ -1,5 +1,7 @@
 server:
-  port: 8082
+  # ${PORT} is what the platform injects (Railway); the literal stays as the local
+  # default so docker-compose and `mvn spring-boot:run` keep the ports the team knows.
+  port: ${PORT:8082}
 
 spring:
   application:
@@ -11,6 +13,11 @@ spring:
     url: ${DB_URL:jdbc:postgresql://localhost:5432/arbiter}
     username: ${DB_USER:arbiter}
     password: ${DB_PASSWORD:arbiter}
+    hikari:
+      # Five and not Hikari's default ten: with the services deployed plus every developer's
+      # local stack pointing at the same Postgres, the defaults alone exhaust a small plan's
+      # connection limit.
+      maximum-pool-size: ${DB_POOL_SIZE:5}
   jpa:
     # Off, not just best-practice: with multi-tenancy, an open-in-view session opens (and
     # resolves its tenant) on the request's first query and stays pinned to it for the rest
@@ -33,6 +40,17 @@ arbiter:
       secret: ${JWT_SECRET:}
   rules-service:
     url: ${RULES_SERVICE_URL:http://localhost:8081}
+  classification:
+    retry:
+      # Ventana del @Retryable de ClaimClassificationService para HttpServerErrorException /
+      # ResourceAccessException (caída de un dependiente, ej. rules-service). Antes eran 3
+      # intentos fijos con 2s/4s de espera (~14s en total): se agotaban mucho antes de que un
+      # contenedor terminara de reiniciar o un deploy volviera a responder. Con estos defaults
+      # (6 intentos, 15s doblando hasta 60s entre cada uno) la ventana total ronda los 4-5 min.
+      max-attempts: ${CLASSIFICATION_RETRY_MAX_ATTEMPTS:6}
+      initial-delay-ms: ${CLASSIFICATION_RETRY_INITIAL_DELAY_MS:15000}
+      multiplier: ${CLASSIFICATION_RETRY_MULTIPLIER:2.0}
+      max-delay-ms: ${CLASSIFICATION_RETRY_MAX_DELAY_MS:60000}
   llm:
     # Quién sirve el modelo: `ollama` (default) o `gemini`. El default NO es un detalle: es el
     # despliegue que describe el documento de arquitectura, y nadie tiene que empezar a pegarle a
@@ -75,3 +93,15 @@ arbiter:
 logging:
   level:
     ar.edu.utn.frba.arbiter: ${LOG_LEVEL:INFO}
+
+management:
+  endpoints:
+    web:
+      exposure:
+        # Health only: this is the platform probe, not an ops console. Anything else exposed
+        # here would be reachable from the internet on whichever service gets a public domain.
+        include: health
+  endpoint:
+    health:
+      probes:
+        enabled: true
