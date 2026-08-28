@@ -7,6 +7,7 @@ import ar.edu.utn.frba.arbiter.cases.dto.AssignedCaseSummaryResponse;
 import ar.edu.utn.frba.arbiter.cases.dto.CaseDocumentResponse;
 import ar.edu.utn.frba.arbiter.cases.dto.CaseRequest;
 import ar.edu.utn.frba.arbiter.cases.dto.CaseResponse;
+import ar.edu.utn.frba.arbiter.cases.dto.PolicyResponse;
 import ar.edu.utn.frba.arbiter.cases.dto.EligibilityCheckRequest;
 import ar.edu.utn.frba.arbiter.cases.dto.EligibilityCheckResponse;
 import ar.edu.utn.frba.arbiter.cases.dto.LensSummaryResponse;
@@ -319,6 +320,16 @@ public class CaseController {
                     """)
     public ResponseEntity<CaseResponse> retryClassification(@PathVariable Long caseId) {
         return ResponseEntity.accepted().body(caseService.retryClassification(caseId));
+    }
+
+    // Scoped to the case, not a DNI lookup: the analyst only reaches the policies of someone whose
+    // case they can already read.
+    @GetMapping("/{caseId}/insured-policies")
+    @PreAuthorize("hasAnyRole('ANALISTA_SINIESTROS', 'REFERENTE_ASEGURADORA')")
+    @Operation(summary = "Policies of the case's insured",
+            description = "All of them, across insurers — the one being claimed is only part of the context.")
+    public ResponseEntity<List<PolicyResponse>> getInsuredPolicies(@PathVariable Long caseId) {
+        return ResponseEntity.ok(caseService.getInsuredPolicies(caseId));
     }
 
     // Solo el analista: la decisión se atribuye resolviendo al que llama contra claims_analyst, así

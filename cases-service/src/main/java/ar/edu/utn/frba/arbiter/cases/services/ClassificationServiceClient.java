@@ -10,6 +10,7 @@ import ar.edu.utn.frba.arbiter.common.dto.ClaimReport;
 import ar.edu.utn.frba.arbiter.common.dto.ClaimResponse;
 import ar.edu.utn.frba.arbiter.common.dto.FraudRecordRequest;
 import ar.edu.utn.frba.arbiter.common.dto.FraudRecordResponse;
+import ar.edu.utn.frba.arbiter.common.dto.RuleResultResponse;
 import ar.edu.utn.frba.arbiter.common.enums.CaseStatus;
 import ar.edu.utn.frba.arbiter.common.enums.Classification;
 import ar.edu.utn.frba.arbiter.common.security.JwtSupport;
@@ -25,6 +26,7 @@ import org.springframework.stereotype.Component;
 import org.springframework.util.LinkedMultiValueMap;
 import org.springframework.util.MultiValueMap;
 import org.springframework.web.client.RestClient;
+import org.springframework.web.client.RestClientException;
 import org.springframework.web.client.RestClientResponseException;
 
 import javax.crypto.SecretKey;
@@ -249,6 +251,26 @@ public class ClassificationServiceClient implements ClaimsAnalysisClient {
                 .body(new ParameterizedTypeReference<>() {
                 });
         return records == null ? List.of() : records;
+    }
+
+    /**
+     * Unlike {@link #fraudRecordsOf}, a failure here degrades to empty: the traceability tab is
+     * context, and losing it must not take the whole case detail down with it.
+     */
+    @Override
+    public List<RuleResultResponse> ruleResultsOf(Long caseId) {
+        try {
+            List<RuleResultResponse> results = restClient.get()
+                    .uri("/api/v1/claims/{caseId}/rule-results", caseId)
+                    .header(HttpHeaders.AUTHORIZATION, authorizationHeader())
+                    .retrieve()
+                    .body(new ParameterizedTypeReference<>() {
+                    });
+            return results == null ? List.of() : results;
+        } catch (RestClientException e) {
+            log.warn("[ClaimsAnalysis] Could not read rule results for case {}: {}", caseId, e.getMessage());
+            return List.of();
+        }
     }
 
 }

@@ -5,6 +5,7 @@ import ar.edu.utn.frba.arbiter.cases.models.entities.CaseDocument;
 import ar.edu.utn.frba.arbiter.cases.models.entities.Case;
 import ar.edu.utn.frba.arbiter.common.dto.FraudRecordRequest;
 import ar.edu.utn.frba.arbiter.common.dto.FraudRecordResponse;
+import ar.edu.utn.frba.arbiter.common.dto.RuleResultResponse;
 
 import java.util.List;
 
@@ -45,4 +46,7 @@ public interface ClaimsAnalysisClient {
 
     /** The insured's fraud records, lapsed ones included (each says whether it's still in force). */
     List<FraudRecordResponse> fraudRecordsOf(String insuredDni);
+
+    /** Rules evaluated for the case, passes included. Empty on a Fast Track. */
+    List<RuleResultResponse> ruleResultsOf(Long caseId);
 }

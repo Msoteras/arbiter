@@ -1,6 +1,7 @@
 package ar.edu.utn.frba.arbiter.cases.dto;
 
 import ar.edu.utn.frba.arbiter.common.dto.ImageForensicReport;
+import ar.edu.utn.frba.arbiter.common.dto.RuleResultResponse;
 import ar.edu.utn.frba.arbiter.common.dto.RiskBreakdownItem;
 import ar.edu.utn.frba.arbiter.common.enums.CaseStatus;
 import ar.edu.utn.frba.arbiter.common.enums.Classification;
@@ -85,6 +86,19 @@ public record CaseResponse(
          * clasificó, se resolvió por Fast Track sin leer nada, o se clasificó antes de que esta
          * tabla existiera — la solapa simplemente no aparece.
          */
-        List<DocumentAnalysisSummary> documentAnalyses
+        List<DocumentAnalysisSummary> documentAnalyses,
+        /**
+         * Every hard rule evaluated, passes included. Like {@code statusHistory}, only
+         * {@code GET /{id}} loads it. Empty on a Fast Track: the gate resolves on its own criteria
+         * and writes no rules.
+         */
+        List<RuleResultResponse> ruleResults,
+        /**
+         * What the insurer DB answered when the case was classified, not what it answers today —
+         * the analyst auditing a decision needs the numbers it was made with.
+         */
+        PolicySnapshotResponse policySnapshot,
+        /** Every policy of this insured, not just the claimed one. Only {@code GET /{id}}. */
+        List<PolicyResponse> insuredPolicies
 ) {
 }

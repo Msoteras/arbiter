@@ -19,6 +19,7 @@ import ar.edu.utn.frba.arbiter.classification.models.repositories.RuleResultRepo
 import ar.edu.utn.frba.arbiter.classification.services.risk.RiskScore;
 import ar.edu.utn.frba.arbiter.common.dto.ClaimResponse;
 import ar.edu.utn.frba.arbiter.common.dto.ImageForensicReport;
+import ar.edu.utn.frba.arbiter.common.dto.RuleResultResponse;
 import ar.edu.utn.frba.arbiter.common.enums.Classification;
 import lombok.RequiredArgsConstructor;
 import org.slf4j.Logger;
@@ -163,6 +164,20 @@ public class ClassificationResultsService {
      * interceptor de Spring sí abría la transacción (visible en el stack trace). Sin writes en el
      * método, sacar {@code readOnly} no cambia el comportamiento, solo evita el modo que rompía.
      */
+    /** Empty when none ran: a Fast Track resolves on the gate and writes no rows here. */
+    @Transactional
+    public List<RuleResultResponse> getRuleResults(Long caseId) {
+        return ruleResultRepository.findByCaseIdOrderByEvaluatedAtAsc(caseId).stream()
+                .map(r -> new RuleResultResponse(
+                        r.getId(),
+                        r.getRuleType(),
+                        r.getResult(),
+                        r.getEvaluatedValue(),
+                        r.getScoreContribution(),
+                        r.getEvaluatedAt()))
+                .toList();
+    }
+
     @Transactional
     public ClaimResponse getStatus(Long caseId) {
         Optional<LlmAnalysis> analysis = llmAnalysisRepository.findFirstByCaseIdOrderByIdDesc(caseId);
