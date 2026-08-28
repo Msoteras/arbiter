@@ -53,6 +53,12 @@ arbiter:
     # holgado que cortar algo que iba a terminar bien.
     interval-ms: 20000
     max-attempts: 540
+    # Barrido aparte (mismo ClassificationRefreshScheduler) que reencola los CLASSIFICATION_FAILED
+    # cuyo motivo fue INFRASTRUCTURE. Deliberadamente mucho más espaciado que interval-ms: el
+    # @Retryable de processClaimClassification ya gasta varios minutos reintentando antes de que un
+    # caso llegue a CLASSIFICATION_FAILED, así que reencolarlo segundos después solo martillaría un
+    # dependiente que sigue caído. 5 min le da margen a esa ventana antes de volver a intentar.
+    recovery-interval-ms: 300000
   email:
     # Sin key el adapter loguea y no manda: el módulo levanta igual y las notificaciones
     # quedan registradas en base aunque no salga el mail.

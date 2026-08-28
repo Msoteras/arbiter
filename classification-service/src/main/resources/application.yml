@@ -33,6 +33,17 @@ arbiter:
       secret: ${JWT_SECRET:}
   rules-service:
     url: ${RULES_SERVICE_URL:http://localhost:8081}
+  classification:
+    retry:
+      # Ventana del @Retryable de ClaimClassificationService para HttpServerErrorException /
+      # ResourceAccessException (caída de un dependiente, ej. rules-service). Antes eran 3
+      # intentos fijos con 2s/4s de espera (~14s en total): se agotaban mucho antes de que un
+      # contenedor terminara de reiniciar o un deploy volviera a responder. Con estos defaults
+      # (6 intentos, 15s doblando hasta 60s entre cada uno) la ventana total ronda los 4-5 min.
+      max-attempts: ${CLASSIFICATION_RETRY_MAX_ATTEMPTS:6}
+      initial-delay-ms: ${CLASSIFICATION_RETRY_INITIAL_DELAY_MS:15000}
+      multiplier: ${CLASSIFICATION_RETRY_MULTIPLIER:2.0}
+      max-delay-ms: ${CLASSIFICATION_RETRY_MAX_DELAY_MS:60000}
   llm:
     # Quién sirve el modelo: `ollama` (default) o `gemini`. El default NO es un detalle: es el
     # despliegue que describe el documento de arquitectura, y nadie tiene que empezar a pegarle a

@@ -2,6 +2,7 @@ package ar.edu.utn.frba.arbiter.cases.models.repositories;
 
 import ar.edu.utn.frba.arbiter.cases.models.entities.Case;
 import ar.edu.utn.frba.arbiter.common.enums.CaseStatus;
+import ar.edu.utn.frba.arbiter.common.enums.ClassificationFailureReason;
 import ar.edu.utn.frba.arbiter.common.enums.RiskBand;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
@@ -28,6 +29,19 @@ public interface CaseRepository extends JpaRepository<Case, Long>, JpaSpecificat
     List<Case> findByCurrentStatusName(String statusName);
 
     List<Case> findByRiskBand(RiskBand riskBand);
+
+    /**
+     * Cases stuck in {@code CLASSIFICATION_FAILED} for a reason worth auto-requeuing —
+     * {@code ClassificationRefreshScheduler.recoverInfrastructureFailures}. Same enum-to-name
+     * navigation as {@link #findByStatus}: the state itself is a catalog row, not a column.
+     */
+    default List<Case> findFailedByReason(ClassificationFailureReason reason) {
+        return findByCurrentStatusNameAndClassificationFailureReason(
+                CaseStatus.CLASSIFICATION_FAILED.name(), reason);
+    }
+
+    List<Case> findByCurrentStatusNameAndClassificationFailureReason(
+            String statusName, ClassificationFailureReason reason);
 
     /**
      * Bumps only the attempt counter, without touching the rest of the row.
@@ -83,6 +97,41 @@ public interface CaseRepository extends JpaRepository<Case, Long>, JpaSpecificat
     int advanceClassificationAttempts(@Param("caseId") Long caseId,
                                       @Param("expected") int expected,
                                       @Param("attempts") int attempts);
+
+    /**
+     * El compare-and-set del barrido de recuperación, con el mismo rol que
+     * {@link #advanceClassificationAttempts} tiene en el otro: quedarse con el turno.
+     *
+     * <p>Limpiar el motivo es lo que hace de token porque es el campo que significa exactamente
+     * "este expediente está esperando que lo reencolen": el que consigue pasarlo de
+     * {@code INFRASTRUCTURE} a null se lo quedó, el que llega tarde actualiza 0 filas y se retira.
+     * Sin esto, dos barridos leen el mismo {@code CLASSIFICATION_FAILED}, los dos pasan el filtro y
+     * los dos reencolan — dos clasificaciones y dos filas en {@code case_status_history}, el mismo
+     * bug que el CAS del otro barrido existe para prevenir. Con un solo proceso no se nota; con la
+     * instancia desplegada corriendo al lado de los stacks locales del equipo, sí.
+     *
+     * <p>Limpiarlo además es correcto por sí solo: el motivo describe la corrida anterior, y a
+     * partir de acá el expediente vuelve a clasificarse. Si la corrida nueva falla, se escribe uno
+     * fresco ({@code CaseOutcomeRepository.recordClassificationFailure}); si sale bien, ya estaba
+     * limpio ({@code ClassificationResultsService.saveResult} lo limpia igual).
+     *
+     * <p><b>Ventana conocida:</b> si la transición de estado falla justo después de este update, el
+     * expediente queda {@code CLASSIFICATION_FAILED} sin motivo y este barrido no lo vuelve a
+     * levantar — sale por el botón manual del analista. Es una ventana angosta (un error de base
+     * entre dos escrituras) y se prefirió a la alternativa, que es reencolar de más.
+     *
+     * @return 1 si este barrido se quedó con el turno, 0 si otro llegó primero
+     */
+    @Transactional
+    @Modifying(flushAutomatically = true, clearAutomatically = true)
+    @Query("""
+            update Case c
+               set c.classificationFailureReason = null
+             where c.id = :caseId
+               and c.classificationFailureReason = :expected
+            """)
+    int claimFailedCaseForRequeue(@Param("caseId") Long caseId,
+                                  @Param("expected") ClassificationFailureReason expected);
 
     /** Fila de {@link #countActiveByAnalyst(Collection)}: un analista y cuántos activos tiene. */
     interface AnalystCaseCount {
