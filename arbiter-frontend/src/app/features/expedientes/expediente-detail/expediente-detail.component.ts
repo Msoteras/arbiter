@@ -16,6 +16,15 @@ import {
   StatusTransition,
 } from '../../../core/models/expediente';
 import { riskFactorLabel } from '../../../core/models/business-rules';
+import { Policy } from '../../../core/models/policy';
+import {
+  PolicySnapshot,
+  RuleResult,
+  ruleEvaluationText,
+  ruleResultLabel,
+  ruleResultTone,
+  ruleTypeLabel,
+} from '../../../core/models/trazabilidad';
 import {
   CASE_DOCUMENT_TYPES,
   CaseDocument,
@@ -76,6 +85,7 @@ type TabId =
   | 'imagenes'
   | 'riesgo'
   | 'razones'
+  | 'trazabilidad'
   | 'documentacion'
   | 'peritaje'
   | 'conversacion'
@@ -352,6 +362,50 @@ export class ExpedienteDetailComponent {
     ];
   });
 
+  // ----- trazabilidad -----
+  protected readonly ruleResults = computed<RuleResult[]>(() => this.data()?.ruleResults ?? []);
+
+  protected readonly policySnapshot = computed<PolicySnapshot | null>(
+    () => this.data()?.policySnapshot ?? null,
+  );
+
+  /** The others: this claim's policy is already in the summary. */
+  protected readonly otrasPolizas = computed<Policy[]>(() => {
+    const d = this.data();
+    return (d?.insuredPolicies ?? []).filter((p) => p.policyNumber !== d?.policyNumber);
+  });
+
+  protected readonly snapshotFields = computed<FieldItem[]>(() => {
+    const s = this.policySnapshot();
+    return [
+      { label: 'N° de póliza', value: s?.externalPolicyNumber ?? null, mono: true },
+      { label: 'Suma asegurada', value: s ? this.formatMonto(s.sumInsured) : null },
+      { label: 'Vigencia al momento del hecho', value: s ? (s.inForce ? 'Vigente' : 'No vigente') : null },
+      { label: 'Estado de pago', value: s ? (s.paymentsUpToDate ? 'Al día' : 'En mora') : null },
+      { label: 'Siniestros previos', value: s ? String(s.previousClaims) : null },
+      {
+        label: 'Monto total reclamado',
+        value: s?.totalAmountClaimed != null ? this.formatMonto(s.totalAmountClaimed) : null,
+      },
+    ];
+  });
+
+  protected readonly hayTrazabilidad = computed(
+    () =>
+      this.ruleResults().length > 0 ||
+      this.policySnapshot() != null ||
+      this.otrasPolizas().length > 0 ||
+      this.antecedentes().length > 0,
+  );
+
+  protected vigencia(p: Policy): string {
+    return `${formatDate(p.effectiveFrom)} — ${formatDate(p.effectiveTo)}`;
+  }
+
+  protected monto(value: number | null): string | null {
+    return value == null ? null : this.formatMonto(value);
+  }
+
   // ----- historial de estados (GET /{id} lo trae con timestamps de cada transición) -----
   protected readonly history = computed<StatusTransition[]>(() => this.data()?.statusHistory ?? []);
 
@@ -370,6 +424,7 @@ export class ExpedienteDetailComponent {
     { id: 'imagenes' as TabId, label: 'Análisis de imágenes' },
     { id: 'riesgo' as TabId, label: 'Desglose de riesgo' },
     ...(this.analysisReasons().length > 0 ? [{ id: 'razones' as TabId, label: 'Razones' }] : []),
+    ...(this.hayTrazabilidad() ? [{ id: 'trazabilidad' as TabId, label: 'Trazabilidad' }] : []),
     { id: 'documentacion' as TabId, label: 'Documentación' },
     ...(this.peritaje() ? [{ id: 'peritaje' as TabId, label: 'Peritaje' }] : []),
     { id: 'historial' as TabId, label: 'Historial' },
@@ -785,6 +840,11 @@ export class ExpedienteDetailComponent {
   veredictoLabel = veredictoLabel;
   veredictoTone = veredictoTone;
   formatDateTime = formatDateTime;
+
+  ruleTypeLabel = ruleTypeLabel;
+  ruleResultLabel = ruleResultLabel;
+  ruleResultTone = ruleResultTone;
+  ruleEvaluationText = ruleEvaluationText;
 
   private formatMonto(amount: number): string {
     return new Intl.NumberFormat('es-AR', {

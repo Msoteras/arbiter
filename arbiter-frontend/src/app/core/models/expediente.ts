@@ -1,5 +1,7 @@
 import { Clasificacion } from './clasificacion';
 import { ImageForensicReport } from './forensic';
+import { Policy } from './policy';
+import { PolicySnapshot, RuleResult } from './trazabilidad';
 
 // Espejo de StatusTransitionResponse del cases-service.
 // `fromStatus` es null en la fila de creación del expediente.
@@ -118,4 +120,10 @@ export interface ExpedienteResponse {
    * Fast Track sin leer nada, o se clasificó antes de que esto existiera.
    */
   documentAnalyses: DocumentAnalysis[];
+  /** Every hard rule evaluated, passes included. Only in GET /{id}; empty on a Fast Track. */
+  ruleResults: RuleResult[];
+  /** The policy as the insurer DB answered it at classification time. */
+  policySnapshot: PolicySnapshot | null;
+  /** Every policy of this insured, not just the claimed one. Only in GET /{id}. */
+  insuredPolicies: Policy[];
 }

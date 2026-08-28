@@ -425,6 +425,137 @@
           }
         </app-card>
       }
+      <!-- Everything comes from what was persisted at classification time. -->
+      @case ('trazabilidad') {
+        <div class="traza">
+          <app-card heading="Reglas evaluadas">
+            @if (ruleResults().length > 0) {
+              <div class="traza-scroll">
+                <table class="traza-table">
+                  <thead>
+                    <tr><th>Regla</th><th>Resultado</th><th>Qué se evaluó</th></tr>
+                  </thead>
+                  <tbody>
+                    @for (r of ruleResults(); track r.id) {
+                      <tr>
+                        <td>{{ ruleTypeLabel(r.ruleType) }}</td>
+                        <td>
+                          <app-badge variant="solid" [tone]="ruleResultTone(r.result)">
+                            {{ ruleResultLabel(r.result) }}
+                          </app-badge>
+                        </td>
+                        <td class="traza-valor">{{ ruleEvaluationText(r.ruleType, r.evaluatedValue) }}</td>
+                      </tr>
+                    }
+                  </tbody>
+                </table>
+              </div>
+              <span class="t-note">
+                Se listan todas las que corrieron, incluidas las que cumplen.
+                Evaluadas el {{ formatDateTime(ruleResults()[0].evaluatedAt) }}.
+              </span>
+            } @else {
+              <p class="nodata">
+                No se evaluó ninguna regla dura en este expediente. Un Fast Track resuelve por el
+                gate de reglas y no deja evaluaciones.
+              </p>
+            }
+          </app-card>
+
+          <app-card heading="La póliza al momento de clasificar">
+            @if (policySnapshot(); as s) {
+              <dl class="fields">
+                @for (f of snapshotFields(); track f.label) {
+                  <div class="field">
+                    <dt class="t-field-label">{{ f.label }}</dt>
+                    @if (f.value) {
+                      <dd [class.mono]="f.mono">{{ f.value }}</dd>
+                    } @else {
+                      <dd class="nodata">Sin datos</dd>
+                    }
+                  </div>
+                }
+              </dl>
+              <span class="t-note">
+                Consultado a la aseguradora el {{ formatDateTime(s.queriedAt) }}. No es el estado
+                de hoy: es el que vio la clasificación.
+              </span>
+            } @else {
+              <p class="nodata">
+                Este expediente todavía no tiene la foto de la póliza: se toma al clasificar.
+              </p>
+            }
+          </app-card>
+
+          <app-card heading="Otras pólizas del asegurado">
+            @if (otrasPolizas().length > 0) {
+              <div class="traza-scroll">
+                <table class="traza-table">
+                  <thead>
+                    <tr><th>Póliza</th><th>Cobertura</th><th>Vigencia</th><th>Suma asegurada</th><th>Pago</th></tr>
+                  </thead>
+                  <tbody>
+                    @for (p of otrasPolizas(); track p.policyNumber) {
+                      <tr>
+                        <td class="mono">{{ p.policyNumber }}</td>
+                        <td>
+                          <span class="traza-ramo">{{ p.branch }}</span>
+                          <span class="traza-sub">{{ p.product }}</span>
+                        </td>
+                        <td>{{ vigencia(p) }}</td>
+                        <td class="traza-num">{{ monto(p.insuredAmount) }}</td>
+                        <td>
+                          <app-badge variant="solid" [tone]="p.upToDate ? 'ok' : 'danger'">
+                            {{ p.upToDate ? 'Al día' : 'En mora' }}
+                          </app-badge>
+                        </td>
+                      </tr>
+                    }
+                  </tbody>
+                </table>
+              </div>
+            } @else {
+              <p class="nodata">
+                El asegurado no tiene otras pólizas vigentes además de la de este siniestro.
+              </p>
+            }
+          </app-card>
+
+          <!-- Read-only: registering one is an act on the person and stays in the summary card.
+               Only when there are any — the summary already says when there are none. -->
+          @if (antecedentesPrevios().length > 0 || antecedentePropio()) {
+          <app-card heading="Antecedentes de fraude del asegurado">
+            @for (a of antecedentesPrevios(); track a.id) {
+              <div class="fraude-item" [attr.data-tone]="estadoAntecedenteTone(a)">
+                <div class="fraude-item-head">
+                  <app-badge variant="solid" [tone]="estadoAntecedenteTone(a)">
+                    {{ estadoAntecedenteLabel(a) }}
+                  </app-badge>
+                  <span class="t-note">
+                    Expediente #{{ a.caseId }} · {{ formatDateTime(a.declaredAt) }}
+                  </span>
+                </div>
+                <p class="t-body">{{ a.reason }}</p>
+                <p class="t-note">{{ efectoAntecedente(a) }} Lo registró {{ a.declaredByAnalystName }}.</p>
+              </div>
+            }
+
+            @if (antecedentePropio(); as propio) {
+              <div class="fraude-item propio" [attr.data-tone]="estadoAntecedenteTone(propio)">
+                <div class="fraude-item-head">
+                  <app-badge variant="strong" [tone]="estadoAntecedenteTone(propio)">
+                    Este expediente · {{ origenAntecedenteLabel(propio.source) }}
+                  </app-badge>
+                  <span class="t-note">{{ formatDateTime(propio.declaredAt) }}</span>
+                </div>
+                <p class="t-body">{{ propio.reason }}</p>
+                <p class="t-note">Lo registró {{ propio.declaredByAnalystName }}.</p>
+              </div>
+            }
+          </app-card>
+          }
+        </div>
+      }
       @case ('documentacion') {
         <app-case-documents [caseId]="d.id" [reloadToken]="docsReloadToken()" [branch]="d.branch" />
       }

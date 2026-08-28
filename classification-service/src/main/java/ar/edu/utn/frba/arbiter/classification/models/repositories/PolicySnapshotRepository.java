@@ -36,6 +36,8 @@ public class PolicySnapshotRepository {
 
     /**
      * @param inForce whether the policy temporally covered the event's date
+     * @param totalAmountClaimed what those {@code previousClaims} added up to — the count alone
+     *                           doesn't say how big that history was
      * @param payload the insurer DB's raw answer, whole — it's the faithful record, of which the
      *                columns above are the already-interpreted reading
      */
@@ -45,6 +47,7 @@ public class PolicySnapshotRepository {
             boolean inForce,
             boolean paymentsUpToDate,
             int previousClaims,
+            BigDecimal totalAmountClaimed,
             String payload
     ) {}
 
@@ -93,13 +96,15 @@ public class PolicySnapshotRepository {
         return jdbcTemplate.queryForObject("""
                         INSERT INTO %s.policy_snapshot (external_policy_number, sum_insured, in_force,
                                                      payments_up_to_date, previous_claims,
-                                                     queried_at, insurer_db_payload)
-                             VALUES (?, ?, ?, ?, ?, NOW(), ?::jsonb)
+                                                     total_amount_claimed, queried_at,
+                                                     insurer_db_payload)
+                             VALUES (?, ?, ?, ?, ?, ?, NOW(), ?::jsonb)
                           RETURNING id
                         """.formatted(schema()),
                 Long.class,
                 snapshot.externalPolicyNumber(), snapshot.sumInsured(), snapshot.inForce(),
-                snapshot.paymentsUpToDate(), snapshot.previousClaims(), snapshot.payload());
+                snapshot.paymentsUpToDate(), snapshot.previousClaims(),
+                snapshot.totalAmountClaimed(), snapshot.payload());
     }
 
     /** {@code queried_at} se pisa también: la foto vigente es la de la última clasificación. */
@@ -108,11 +113,13 @@ public class PolicySnapshotRepository {
                         UPDATE %s.policy_snapshot
                            SET external_policy_number = ?, sum_insured = ?, in_force = ?,
                                payments_up_to_date = ?, previous_claims = ?,
-                               queried_at = NOW(), insurer_db_payload = ?::jsonb
+                               total_amount_claimed = ?, queried_at = NOW(),
+                               insurer_db_payload = ?::jsonb
                          WHERE id = ?
                         """.formatted(schema()),
                 snapshot.externalPolicyNumber(), snapshot.sumInsured(), snapshot.inForce(),
-                snapshot.paymentsUpToDate(), snapshot.previousClaims(), snapshot.payload(),
+                snapshot.paymentsUpToDate(), snapshot.previousClaims(),
+                snapshot.totalAmountClaimed(), snapshot.payload(),
                 snapshotId);
     }
 }

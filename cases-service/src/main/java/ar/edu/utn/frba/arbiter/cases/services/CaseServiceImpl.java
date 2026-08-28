@@ -753,17 +753,19 @@ public class CaseServiceImpl implements CaseService {
     private Traceability traceabilityOf(Case entity) {
         return new Traceability(
                 claimsAnalysisClient.ruleResultsOf(entity.getId()),
-                snapshotOf(entity.getPolicySnapshot()),
+                caseRepository.findPolicySnapshot(entity.getId()).map(CaseServiceImpl::snapshotOf)
+                        .orElse(null),
                 policyService.listByInsured(entity.getInsured().getDni()));
     }
 
     private static PolicySnapshotResponse snapshotOf(PolicySnapshot snapshot) {
-        return snapshot == null ? null : new PolicySnapshotResponse(
+        return new PolicySnapshotResponse(
                 snapshot.getExternalPolicyNumber(),
                 snapshot.getSumInsured(),
                 snapshot.isInForce(),
                 snapshot.isPaymentsUpToDate(),
                 snapshot.getPreviousClaims(),
+                snapshot.getTotalAmountClaimed(),
                 snapshot.getQueriedAt());
     }
 

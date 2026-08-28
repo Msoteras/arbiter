@@ -1,6 +1,7 @@
 package ar.edu.utn.frba.arbiter.cases.models.repositories;
 
 import ar.edu.utn.frba.arbiter.cases.models.entities.Case;
+import ar.edu.utn.frba.arbiter.cases.models.entities.PolicySnapshot;
 import ar.edu.utn.frba.arbiter.common.enums.CaseStatus;
 import ar.edu.utn.frba.arbiter.common.enums.RiskBand;
 import org.springframework.data.jpa.repository.JpaRepository;
@@ -13,6 +14,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.util.Collection;
 import java.util.List;
+import java.util.Optional;
 
 @Repository
 public interface CaseRepository extends JpaRepository<Case, Long>, JpaSpecificationExecutor<Case> {
@@ -138,4 +140,13 @@ public interface CaseRepository extends JpaRepository<Case, Long>, JpaSpecificat
             """)
     long countByAnalystAndRiskBandIn(@Param("analystId") Long analystId,
                                      @Param("bands") Collection<RiskBand> bands);
+
+    /**
+     * The case's snapshot, already loaded. {@code Case.policySnapshot} is LAZY and the detail is
+     * mapped outside any transaction, so reading it off the entity threw
+     * {@code LazyInitializationException}. Making it EAGER would join it on every listing too,
+     * where nobody reads it.
+     */
+    @Query("select c.policySnapshot from Case c where c.id = :caseId")
+    Optional<PolicySnapshot> findPolicySnapshot(@Param("caseId") Long caseId);
 }

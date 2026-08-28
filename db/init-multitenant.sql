@@ -373,6 +373,9 @@ BEGIN
             in_force                BOOLEAN       NOT NULL,
             payments_up_to_date     BOOLEAN       NOT NULL,   -- al_dia → policy_standing factor
             previous_claims         INTEGER       NOT NULL DEFAULT 0,  -- → claim_frequency factor
+            -- Sum of siniestro_historico.monto_indemnizado, frozen next to the count. Nullable
+            -- unlike previous_claims: a 0 would read as "never claimed a peso".
+            total_amount_claimed    NUMERIC(15,2),
             queried_at              TIMESTAMPTZ   NOT NULL DEFAULT NOW(),
             insurer_db_payload      JSONB                     -- payload_bd_aseguradora
         )$ddl$, p_schema);

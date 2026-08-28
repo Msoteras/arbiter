@@ -242,3 +242,24 @@ app-textarea { display: block; margin: var(--space-3) 0; }
 .factor-rationale { display: block; opacity: 0.65; font-size: 0.8rem; }
 .factor-contrib { text-align: right; white-space: nowrap; font-variant-numeric: tabular-nums; }
 .factor-detail { display: block; opacity: 0.6; font-size: 0.75rem; }
+
+/* ===== Trazabilidad ===== */
+.traza { display: grid; gap: var(--space-4); }
+.traza-scroll { overflow-x: auto; }
+.traza-table { width: 100%; border-collapse: collapse; font-size: var(--font-size-sm); }
+.traza-table th {
+  text-align: left;
+  padding-bottom: var(--space-2);
+  color: var(--text-tertiary);
+  font-weight: var(--font-weight-medium);
+}
+.traza-table td {
+  padding: var(--space-2) var(--space-4) var(--space-2) 0;
+  border-top: 1px solid var(--border-subtle);
+  vertical-align: top;
+}
+.traza-table th:last-child, .traza-table td:last-child { padding-right: 0; }
+.traza-valor { color: var(--text-secondary); }
+.traza-ramo { display: block; }
+.traza-sub { display: block; color: var(--text-tertiary); font-size: var(--font-size-xs); }
+.traza-num { white-space: nowrap; font-variant-numeric: tabular-nums; }

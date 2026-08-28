@@ -2,7 +2,7 @@
 
 **Rama:** `feature/trazabilidad-expediente` (desde `develop` en `fdcbccf`)
 **Card:** Trello #144 · Sprint 9 · Fede
-**Estado:** backend terminado (puntos 1–3), **falta el frontend** (punto 4)
+**Estado:** backend y frontend terminados, verificados en vivo contra Railway con el stack de Gemini.
 
 ---
 
@@ -10,12 +10,14 @@
 
 Una sola solapa del expediente donde el analista vea, junto: cada **regla dura evaluada** (con su
 resultado, no solo las que bloquearon), el **estado de la póliza al momento de clasificar**, **todas
-las pólizas** del asegurado en esa aseguradora y sus **antecedentes de fraude**. Todo sale de lo ya
-persistido — nada se recalcula ni se pide en vivo.
+las pólizas** del asegurado en esa aseguradora, la **cantidad y el monto** de sus siniestros previos,
+y sus **antecedentes de fraude**. Todo sale de lo ya persistido — nada se recalcula ni se pide en vivo.
 
 ---
 
-## Lo hecho (compila; 73 tests verdes en cases + 15 en classification)
+## Lo hecho
+
+### Backend (commit `3555855`)
 
 | Punto | Archivo | Qué |
 |---|---|---|
@@ -29,80 +31,106 @@ persistido — nada se recalcula ni se pide en vivo.
 | 3 | `PolicySnapshotResponse` | DTO nuevo (cases-service) |
 | 3 | `ClaimsAnalysisClient` / `ClassificationServiceClient` | `ruleResultsOf(caseId)` |
 
-### Tres decisiones que conviene no deshacer
+### El monto histórico, que no estaba persistido
+
+La card pide "cantidad de siniestros previos **y monto total reclamado**". El count vivía en
+`policy_snapshot.previous_claims`; el monto no vivía en ningún lado: classification-service lo
+calcula en cada corrida (`InsuredHistory.totalAmountClaimed`, que suma
+`siniestro_historico.monto_indemnizado`), lo mete en el prompt y lo tira.
+
+- Columna nueva `policy_snapshot.total_amount_claimed`, **nullable** al revés que el count: un
+  snapshot anterior a la columna no tiene manera de saber el monto, y un 0 se leería como "nunca
+  reclamó un peso". La pantalla muestra "Sin datos" en esos.
+- La escribe `PolicySnapshotRepository` (classification-service), donde ya se escribía el resto de
+  la foto. La lee la entidad `PolicySnapshot` de cases-service.
+- `db/init-multitenant.sql` actualizado + `db/migrations/2026-08-28-monto-historico-snapshot.sql`
+  para las bases que ya existen. **Ya aplicada en Railway** (los dos esquemas).
+
+### Bug encontrado al levantarlo: el backend de ayer no funcionaba contra una base real
+
+`GET /cases/{id}` devolvía **500** — `LazyInitializationException` sobre
+`PolicySnapshot`. `Case.policySnapshot` es `@ManyToOne(LAZY)` y `loadCase` mapea fuera de toda
+transacción, así que el proxy nunca se podía inicializar. Los tests no lo agarran porque mockean
+los repositorios.
+
+Resuelto con `CaseRepository.findPolicySnapshot(caseId)` (query explícita) en vez de `getPolicySnapshot()`
+sobre la entidad. No se pasó la relación a EAGER a propósito: se joinearía también en cada listado,
+donde nadie la lee.
+
+### Frontend — la solapa
+
+`core/models/trazabilidad.ts` (nuevo) + la solapa "Trazabilidad" en `expediente-detail`, con el
+mismo gateo por presencia de datos que "Razones"/"Peritaje". Tres secciones fijas y una condicional:
+
+| Sección | Fuente |
+|---|---|
+| Reglas evaluadas | `CaseResponse.ruleResults` |
+| La póliza al momento de clasificar | `CaseResponse.policySnapshot` |
+| Otras pólizas del asegurado | `CaseResponse.insuredPolicies`, menos la de este siniestro |
+| Antecedentes de fraude | `GET /cases/{id}/fraud-record/insured` (de Mar), **solo si hay** |
+
+**`evaluated_value` se traduce a una frase.** El motor lo escribe como pares `clave=valor`
+(`reportedAt=+20h max=72h`, `eventDate=... coverageWindow=...`): es el registro de auditoría y en la
+base queda tal cual, pero en pantalla era una línea de log. `ruleEvaluationText()` lo convierte por
+tipo de regla ("Denunciado 20 h después del hecho · máximo 72 h"). Mismos números, no se recalcula
+nada. Un tipo de regla desconocido cae al literal crudo antes que esconderse.
+
+**Los antecedentes quedan en modo lectura y solo si existen.** Registrar un antecedente es un acto
+sobre la persona y su tarjeta sigue en el Resumen, con el botón. Repetir la tarjeta vacía en
+Trazabilidad daba dos carteles diciendo lo mismo — y la card pide los antecedentes "si los hay".
+
+### Tres decisiones del backend que conviene no deshacer
 
 **El acceso a las pólizas sale del caso, no del DNI.** `getInsuredPolicies` corre `readableCase`
-(que ya hace `accessPolicy.assertCanRead`) y recién ahí pide las pólizas. El analista llega a ellas
-**a través de un expediente que ya puede leer**. Por eso NO se tocó el `@PreAuthorize` de
-`GET /policies?insuredId=`: sumarle el rol ahí le daría acceso a cualquier asegurado por DNI.
+(que ya hace `accessPolicy.assertCanRead`) y recién ahí pide las pólizas. Por eso NO se tocó el
+`@PreAuthorize` de `GET /policies?insuredId=`: sumarle el rol ahí le daría acceso a cualquier
+asegurado por DNI.
 
 **Las reglas degradan a lista vacía si classification-service no responde** — al revés que
 `fraudRecordsOf`, que deja explotar el error a propósito (una lista vacía se leería como "no tiene
 antecedentes"). Acá la trazabilidad es contexto: perderla no puede tumbar el detalle del expediente.
 
-**Los tres bloques van agrupados en el record `Traceability`** dentro de `CaseServiceImpl`. Sin eso
-el mapper `toResponse` pasaba de 6 a 9 parámetros y cada endpoint de listado tenía que pasar tres
-vacíos. Solo `GET /cases/{id}` lo puebla (`traceabilityOf`); el resto usa `Traceability.none()`.
+**Los tres bloques van agrupados en el record `Traceability`** dentro de `CaseServiceImpl`. Solo
+`GET /cases/{id}` lo puebla; el resto usa `Traceability.none()`.
 
 ---
 
-## Lo que falta — punto 4, el frontend
+## Verificado en vivo (28/08)
 
-Una solapa nueva en `expediente-detail.component`. **Ya está todo el patrón**: el componente tiene
-siete solapas y el gateo por presencia de datos se resuelve en una línea
-(`expediente-detail.component.ts:372`):
+Stack reconstruido de cero (`dev-gemini.ps1 --build`) contra Railway, con el analista de BBVA sobre
+el **expediente #38** (Martina Soteras, 6 reglas evaluadas, snapshot, 5 pólizas):
 
-```typescript
-...(this.peritaje() ? [{ id: 'peritaje' as TabId, label: 'Peritaje' }] : []),
-```
-
-**Alcance acordado con Fede:** *una sola* solapa "Trazabilidad" con las cuatro secciones, no cuatro
-pestañas. Es lo que pide la card ("en una sola solapa") y el componente ya tiene siete.
-
-Las cuatro secciones y de dónde salen:
-
-| Sección | Fuente |
-|---|---|
-| Reglas evaluadas | `CaseResponse.ruleResults` — ya viaja |
-| Póliza al clasificar | `CaseResponse.policySnapshot` — ya viaja |
-| Otras pólizas del asegurado | `CaseResponse.insuredPolicies` — ya viaja |
-| Antecedentes de fraude | `GET /api/v1/cases/{caseId}/fraud-record/...` — **ya existía**, es de Mar |
-
-> **Ese cuarto punto de la card ya estaba hecho.** Mar dejó el endpoint devolviendo
-> `List<FraudRecordResponse>`, con los vencidos incluidos (`inForce=false`) y marcando cuáles
-> puntúan (`scores`). El front solo lo consume; no hay que tocar su lógica.
-
-Recordar el **design system** (CLAUDE.md): `app-card`, `app-badge` con `tone` para el semáforo
-PASS/FAIL, tokens semánticos, clases `.t-*`. Nada de hex/px crudos.
+- Las 6 reglas se listan con las que **cumplen** incluidas, con su frase legible.
+- La póliza al clasificar muestra suma asegurada, vigencia, mora y siniestros previos, con la fecha
+  de la consulta.
+- Las otras 4 pólizas del asegurado salen bien, sin la del siniestro.
+- Tests: 217 en classification + 237 en cases, en verde.
 
 ---
 
-## Dato que la solapa va a exponer, y no es un bug de esta historia
+## Lo que queda abierto
 
-El `policySnapshot` muestra la **suma asegurada congelada al clasificar**. En los casos de Hurto eso
-va a mostrar la suma de **Robo**, porque `arbiter_*.policy` aplana las coberturas a una sola
-(`coverage_id`, `sum_insured`) mientras la BD Aseguradora modela varias por póliza — verificado: las
-11 pólizas de BBVA tienen `coverage_id = 1`. Detalle completo en
-`docs/handoff-modelos-y-rendimiento.md` §4ter A.
+**1. El monto todavía no se vio poblado.** La columna se creó después de los snapshots que hay en
+Railway, así que todos muestran "Sin datos". Se puebla sola en la próxima clasificación de cada
+expediente; falta pasar un expediente por una reclasificación real para verlo end to end. No hay
+backfill posible: el histórico de la BD Aseguradora ya se movió, y completarlo con el valor de hoy
+sería exactamente lo que el snapshot existe para evitar.
 
-Es anterior a esta historia y **Aylén es la indicada** para decir si es simplificación deliberada o
-gap. Conviene avisarle antes de que el número quede a la vista del analista.
+**2. La suma asegurada de los Hurtos va a mostrar la de Robo.** `arbiter_*.policy` aplana las
+coberturas a una sola (`coverage_id`, `sum_insured`) mientras la BD Aseguradora modela varias por
+póliza — verificado: las 11 pólizas de BBVA tienen `coverage_id = 1`. Es anterior a esta historia y
+**Aylén es la indicada** para decir si es simplificación deliberada o gap. Detalle en
+`docs/handoff-modelos-y-rendimiento.md` §4ter A. Conviene avisarle antes de que el número quede a la
+vista del analista.
 
----
+**3. `GET /cases/{id}` le manda al asegurado datos pensados para el analista.** El endpoint es
+compartido (`isAuthenticated()`), así que un asegurado que pide su propio expediente recibe
+`riskBreakdown`, `forensicReport`, `documentAnalyses` y ahora también `ruleResults` y
+`policySnapshot`. Son datos **de él**, no de terceros, y el recorte hoy lo hace el frontend
+(el portal del asegurado tiene otra pantalla). No lo introdujo esta historia — es el patrón que ya
+tenían los tres campos anteriores — pero da para una historia propia de redacción por rol.
 
-## Contexto de la jornada (27/08)
-
-- **Develop trae Gemini por Vertex**, mergeado por Mar (PRs #51–#53). `LlmClient` como interfaz con
-  `OllamaClient` y `GeminiClient` detrás; `OllamaDocumentAnalyzer` → `DocumentAnalyzerImpl`. Se
-  levanta con `.\scripts\dev-ollama.ps1` o `.\scripts\dev-gemini.ps1`. Setup en
-  `docs/proveedor-de-modelo.md`.
-- **Gemini medido contra Qwen**, mismo caso y mismos documentos: **1 min 31 s contra 2 h 17 min**
-  (90×), mismo veredicto, y `fields` **sí se puebla** con el prompt v4 — la regresión que
-  arreglamos con el v5 era específica de Qwen.
-- **gcloud queda configurado** en la máquina de Fede con `mocciafederico@hotmail.com` (su Hotmail ya
-  era cuenta de Google, así que el binding de IAM de Mar funcionó tal cual).
-- **Ojo en PowerShell:** `gcloud` a secas rebota por la ExecutionPolicy — hay que usar
-  **`gcloud.cmd`**. No está en el doc de Mar y le va a pasar al resto del equipo.
-- La rama `feature/investigacion-modelos` quedó aparte con los prompts v4/v5 y el banco de pruebas,
-  sin mergear. El merge a develop da **un solo conflicto de dos líneas** (`orderedMap` contra el
-  cambio de `OllamaClient` a `LlmClient`).
+**4. "Monto total reclamado" suma `monto_indemnizado`.** Es lo que ya hacía `InsuredHistory` y lo
+que el prompt viene llamando "Monto total reclamado histórico" desde siempre; se mantuvo el nombre
+por consistencia. Si el negocio distingue reclamado de indemnizado, hay que separarlos en la BD
+Aseguradora primero.

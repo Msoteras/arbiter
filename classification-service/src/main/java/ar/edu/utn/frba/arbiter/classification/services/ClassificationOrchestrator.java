@@ -245,6 +245,7 @@ public class ClassificationOrchestrator {
                     policy.inForceOn(claim.eventDate()),
                     policy.upToDate(),
                     ctx.history().previousClaimsCount(),
+                    ctx.history().totalAmountClaimed(),
                     insurerPayload(policy, ctx.history())));
             log.info("[Orchestrator] Policy snapshot recorded for case {}", caseId);
         } catch (Exception e) {
