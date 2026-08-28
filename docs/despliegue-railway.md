@@ -23,6 +23,23 @@ Seis servicios de Railway, todos desde el mismo repo. **Solo uno tiene dominio p
 `reports-service` **no se despliega**: hoy no tiene ni un controller. Tiene Dockerfile y
 `application.yml` al día, así que sumarlo después es crear el servicio y nada más.
 
+### `clip-embedding`: por qué el Config File Path lleva la ruta completa
+
+**El campo "Config File Path" nunca sigue el Root Directory** — es lo único documentado sin
+ambigüedad por Railway: *"The Railway Config File does not follow the Root Directory path. You
+have to specify the absolute path (...), for example: /backend/railway.toml"* — así que aunque el
+Root Directory de este servicio sea `embedding-service`, ese campo del dashboard tiene que llevar
+igual `embedding-service/railway.json`, no `railway.json` a secas. Ya está así en la tabla; queda
+anotado para que nadie lo "simplifique" después pensando que es redundante.
+
+El `dockerfilePath: "Dockerfile"` (relativo) *adentro* de ese `railway.json` sí es correcto tal
+como está — pero eso Railway no lo documenta con la misma claridad, así que se verificó a mano en
+vez de asumirlo: un build con el contexto acotado a `embedding-service/` únicamente (lo que Root
+Directory produce, según su propia doc: *"Railway will only pull down files from that
+directory"*) compila limpio y el contenedor levanta respetando `$PORT`. Si algún día Railway
+cambia este comportamiento, el signo va a ser un build que falla buscando `Dockerfile` en la raíz
+del repo en vez de en `embedding-service/`.
+
 Que los backends no tengan dominio público es deliberado: se llegan solo por la red privada
 (`*.railway.internal`), y lo único expuesto a internet es el frontend. Eso es lo que reemplaza al
 Nginx del documento de arquitectura como terminador de TLS — Railway termina TLS, y el Nginx que
@@ -58,6 +75,31 @@ Tres cosas propias de Supabase a tener en cuenta al armar el `DB_URL`:
 
 Las migraciones manuales de `db/migrate-*.sql` **no** hacen falta sobre una base nueva: ya están
 incorporadas a `init-multitenant.sql`. Solo aplican a bases que ya existían.
+
+### Verificar que quedó consistente
+
+No hay Flyway/Liquibase, así que no hay una fuente automática de verdad de "esto ya se aplicó" —
+son 12 archivos sueltos (`db/migrate-*.sql` + `db/migrations/*.sql`) sin tabla de control. Antes de
+dar por buena la base nueva (o para chequear la de Railway mientras siga en pie), corré:
+
+```bash
+python scripts/check-schema-consistency.py
+```
+
+Compara tabla por tabla y columna por columna lo que `db/init-multitenant.sql` define contra lo
+que la base tiene de verdad (lee `DB_URL`/`DB_USER`/`DB_PASSWORD` de `.env`, arranca un cliente
+`psql` descartable vía Docker). **Solo mira estructura** — no tipos, constraints, índices, ni las
+migraciones que no son un simple `ADD COLUMN` (un `DELETE`, un índice `UNIQUE` que puede fallar en
+silencio si hay duplicados). Esas se siguen confirmando a mano, una por una — el script lo recuerda
+al final si encuentra algo.
+
+Corrido contra Railway (28/08): estructura consistente salvo una, real y ya identificada —
+`policy_snapshot.total_amount_claimed` existe en las dos bases de tenant pero no está en
+`init-multitenant.sql`. Es drift, no una migración pendiente: ningún código la lee ni la escribe
+(`InsurerDatabaseAdapter` calcula `totalAmountClaimed` al vuelo desde los casos, no la lee de esta
+columna). No bloquea nada — una Supabase nueva, armada desde `init-multitenant.sql`, simplemente no
+va a tener esta columna, y como nadie la usa no rompe. Queda como housekeeping: o se agrega al
+script (si en algún momento se decide persistirla) o se documenta como deuda y se ignora.
 
 ---
 
@@ -135,7 +177,12 @@ gh api repos/Msoteras/arbiter/branches/main/protection -X PUT --input - <<'JSON'
 {
   "required_status_checks": {
     "strict": true,
-    "contexts": ["Backend (Java 21)", "Frontend (Angular 20)", "Ruteo dev == ruteo prod"]
+    "contexts": [
+      "Backend (Java 21)",
+      "Frontend (Angular 20)",
+      "Ruteo dev == ruteo prod",
+      "PR a main solo desde develop"
+    ]
   },
   "enforce_admins": false,
   "required_pull_request_reviews": {
@@ -154,8 +201,17 @@ Qué hace cada cosa:
 
 - **`required_approving_review_count: 1`** — lo que pediste: alguien distinto del autor tiene que
   aprobar.
-- **`contexts`** — los tres jobs de `.github/workflows/ci.yml`. Los nombres tienen que coincidir
-  exactos con el `name:` de cada job, o GitHub espera para siempre un check que nunca llega.
+- **`contexts`** — los tres jobs de `.github/workflows/ci.yml` más el de
+  `.github/workflows/guard-main.yml`, que rechaza cualquier PR a `main` que no venga de `develop`.
+  Los nombres tienen que coincidir exactos con el `name:` de cada job, o GitHub espera para
+  siempre un check que nunca llega.
+
+  > Ese último check es lo que hace cumplir "todo pasa por develop". El workflow por sí solo no
+  > impide abrir el PR: lo deja en rojo. Si no está en esta lista, es una advertencia que
+  > cualquiera puede ignorar al mergear.
+  >
+  > Contra: también bloquea un hotfix directo a `main`. Con `enforce_admins: false` la admin puede
+  > saltearlo en una emergencia; si eso pasa seguido, conviene aceptar además `hotfix/*`.
 - **`strict: true`** — la rama del PR tiene que estar actualizada con `main` antes de mergear.
 - **`dismiss_stale_reviews: true`** — un push nuevo invalida las aprobaciones anteriores; si no,
   se aprueba una versión y se mergea otra.
