@@ -23,9 +23,18 @@ RUN mvn -pl classification-service -am clean package -DskipTests -q
 # --- Stage 2: runtime ---
 FROM eclipse-temurin:21-jre-alpine
 
+# Unprivileged: nothing in here needs root.
+RUN addgroup -S arbiter && adduser -S -G arbiter arbiter
+
 WORKDIR /app
 COPY --from=build /build/classification-service/target/*.jar app.jar
 
+USER arbiter
+
 EXPOSE 8082
 
-ENTRYPOINT ["java", "-jar", "app.jar"]
+# Explicit -Duser.timezone: containers default to UTC while the team's laptops run UTC-3, and this
+# domain evaluates legal deadlines off local dates — see the ZoneId.systemDefault() calls in this
+# module. Java ships its own tzdb, so no tzdata package is needed. Set here and not in
+# JAVA_TOOL_OPTIONS because the compose files already use that variable for heap sizing.
+ENTRYPOINT ["java", "-Duser.timezone=America/Argentina/Buenos_Aires", "-jar", "app.jar"]

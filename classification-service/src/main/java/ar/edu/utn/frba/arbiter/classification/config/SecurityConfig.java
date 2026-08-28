@@ -45,6 +45,9 @@ public class SecurityConfig {
         http.addFilterAfter(tenantFilter, JwtAuthenticationFilter.class);
         http.authorizeHttpRequests(auth -> auth
                 .requestMatchers("/v3/api-docs/**", "/swagger-ui/**").permitAll()
+                // The platform's liveness probe has no JWT to present. Only `health` is exposed
+                // (see application.yml), so this opens a status word, nothing else.
+                .requestMatchers("/actuator/health", "/actuator/health/**").permitAll()
                 .anyRequest().authenticated());
         return http.build();
     }

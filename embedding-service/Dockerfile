@@ -14,6 +14,13 @@ RUN python -c "import open_clip; open_clip.create_model_and_transforms('ViT-B-32
 
 COPY app.py .
 
+# Unprivileged: nothing in here needs root. After the weights are baked in above, so the pip
+# installs and the model download still run as root at build time.
+RUN useradd --create-home --shell /bin/false arbiter && chown -R arbiter:arbiter /app
+USER arbiter
+
 EXPOSE 8000
 
-CMD ["uvicorn", "app:app", "--host", "0.0.0.0", "--port", "8000"]
+# Shell form on purpose: ${PORT} has to expand at runtime, and the exec form does no expansion.
+# 8000 stays as the default so docker-compose and local runs are unchanged.
+CMD uvicorn app:app --host 0.0.0.0 --port ${PORT:-8000}
