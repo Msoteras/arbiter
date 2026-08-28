@@ -450,15 +450,9 @@
                   </tbody>
                 </table>
               </div>
-              <span class="t-note">
-                Se listan todas las que corrieron, incluidas las que cumplen.
-                Evaluadas el {{ formatDateTime(ruleResults()[0].evaluatedAt) }}.
-              </span>
+              <span class="t-note">Evaluadas el {{ formatDateTime(ruleResults()[0].evaluatedAt) }}.</span>
             } @else {
-              <p class="nodata">
-                No se evaluó ninguna regla dura en este expediente. Pasa cuando se resuelve antes
-                de llegar al motor de reglas: por Fast Track o por falta de documentación.
-              </p>
+              <p class="nodata">El expediente se resolvió antes de llegar al motor de reglas.</p>
             }
           </app-card>
 
@@ -476,15 +470,9 @@
                   </div>
                 }
               </dl>
-              <span class="t-note">
-                La suma es la de esa cobertura, no la del hecho denunciado. Consultado a la
-                aseguradora el {{ formatDateTime(s.queriedAt) }}: no es el estado de hoy, es el que
-                vio la clasificación.
-              </span>
+              <span class="t-note">Valores de esa cobertura al {{ formatDateTime(s.queriedAt) }}, no los de hoy.</span>
             } @else {
-              <p class="nodata">
-                Este expediente todavía no tiene la foto de la póliza: se toma al clasificar.
-              </p>
+              <p class="nodata">Todavía no hay foto: se toma al clasificar.</p>
             }
           </app-card>
 
@@ -516,9 +504,7 @@
                 </table>
               </div>
             } @else {
-              <p class="nodata">
-                El asegurado no tiene otras pólizas vigentes además de la de este siniestro.
-              </p>
+              <p class="nodata">Sin otras pólizas vigentes.</p>
             }
           </app-card>
 

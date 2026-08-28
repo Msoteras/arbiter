@@ -425,7 +425,7 @@ export class ExpedienteDetailComponent {
     { id: 'imagenes' as TabId, label: 'Análisis de imágenes' },
     { id: 'riesgo' as TabId, label: 'Desglose de riesgo' },
     ...(this.analysisReasons().length > 0 ? [{ id: 'razones' as TabId, label: 'Razones' }] : []),
-    ...(this.hayTrazabilidad() ? [{ id: 'trazabilidad' as TabId, label: 'Trazabilidad' }] : []),
+    ...(this.hayTrazabilidad() ? [{ id: 'trazabilidad' as TabId, label: 'Respaldo' }] : []),
     { id: 'documentacion' as TabId, label: 'Documentación' },
     ...(this.peritaje() ? [{ id: 'peritaje' as TabId, label: 'Peritaje' }] : []),
     { id: 'historial' as TabId, label: 'Historial' },
