@@ -110,13 +110,18 @@ class ClaimSecurityTest extends AbstractPersistenceIT {
                 .andExpect(status().isOk());
     }
 
+    // Los bodies de acá abajo llevan `justification` porque es obligatoria (@NotBlank): la
+    // validación del @RequestBody corre ANTES que el @PreAuthorize, así que un body incompleto
+    // devuelve 400 y estos tests dejarían de medir el gate de seguridad, que es lo suyo.
+
     @Test
     void recordDecision_asAsegurado_returns403() throws Exception {
         mockMvc.perform(post("/api/v1/claims/1/decision")
                         .header("Authorization", "Bearer " + tokenFor("ASEGURADO"))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
-                                {"analystId": 1, "decision": "APPROVE"}
+                                {"analystId": 1, "decision": "APPROVE",
+                                 "justification": "Documentación completa"}
                                 """))
                 .andExpect(status().isForbidden());
     }
@@ -131,7 +136,8 @@ class ClaimSecurityTest extends AbstractPersistenceIT {
                         .header("Authorization", "Bearer " + tokenFor("ANALISTA_SINIESTROS"))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
-                                {"analystId": 1, "decision": "APPROVE"}
+                                {"analystId": 1, "decision": "APPROVE",
+                                 "justification": "Documentación completa"}
                                 """))
                 .andExpect(status().isForbidden());
     }
@@ -143,7 +149,8 @@ class ClaimSecurityTest extends AbstractPersistenceIT {
                         .header("Authorization", "Bearer " + serviceToken())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
-                                {"analystId": 1, "decision": "APPROVE"}
+                                {"analystId": 1, "decision": "APPROVE",
+                                 "justification": "Documentación completa"}
                                 """))
                 .andExpect(status().isUnprocessableContent());
     }

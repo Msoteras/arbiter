@@ -1,5 +1,6 @@
 package ar.edu.utn.frba.arbiter.cases.support;
 
+import org.junit.jupiter.api.Tag;
 import org.springframework.boot.testcontainers.service.connection.ServiceConnection;
 import org.springframework.test.context.TestPropertySource;
 import org.testcontainers.postgresql.PostgreSQLContainer;
@@ -28,6 +29,9 @@ import java.sql.Statement;
 // contexto completo rompe con "schema arbiter_common does not exist" contra un contenedor vacío.
 // Pendiente: hacer que el contenedor corra init-multitenant.sql, que es lo único que detectaría
 // un desfasaje entre las entidades y el esquema real.
+// @Tag("it"): las subclases (ITs con Testcontainers) heredan el tag y quedan fuera del `mvn test`
+// rápido (surefire las excluye); corren con `mvn verify -Pit`, que sí levanta Docker.
+@Tag("it")
 @TestPropertySource(properties = {
         "arbiter.auth.jwt.secret=test-secret-at-least-32-bytes-long-for-hs256",
         "spring.jpa.hibernate.ddl-auto=update"

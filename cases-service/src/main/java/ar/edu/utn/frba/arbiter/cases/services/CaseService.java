@@ -80,18 +80,22 @@ public interface CaseService {
      * (lente "Asignados": con analista, la bandeja del referente) y {@code fraudAlert} (lente
      * "Alerta de fraude": riesgo HIGH/CRITICAL) son las otras lentes de la bandeja. A diferencia de
      * {@code assignedToMe}, no dependen del "yo": son filtros booleanos puros.
+     *
+     * <p>{@code dueSoon} (lente "Por vencer": {@code deadlinePriority != NONE}, ver
+     * {@link ar.edu.utn.frba.arbiter.common.enums.DeadlinePriority}) es otro filtro booleano puro,
+     * combinable con el resto igual que {@code unassigned}/{@code assigned}/{@code fraudAlert}.
      */
     Page<CaseResponse> listCases(CaseStatus status, String claimCause, String policyNumber, String insuredId,
                                   LocalDate eventDateFrom, LocalDate eventDateTo, String q, RiskBand riskBand,
                                   Long analystId, boolean assignedToMe, boolean unassigned, boolean fraudAlert,
-                                  boolean assigned, Pageable pageable);
+                                  boolean assigned, boolean dueSoon, Pageable pageable);
 
-    /** Overload para las lentes "Míos"/"Todos" (sin las lentes de asignación ni alerta de fraude). */
+    /** Overload para las lentes "Míos"/"Todos" (sin las lentes de asignación, fraude ni vencimiento). */
     default Page<CaseResponse> listCases(CaseStatus status, String claimCause, String policyNumber, String insuredId,
                                           LocalDate eventDateFrom, LocalDate eventDateTo, String q, RiskBand riskBand,
                                           boolean assignedToMe, Pageable pageable) {
         return listCases(status, claimCause, policyNumber, insuredId, eventDateFrom, eventDateTo, q, riskBand,
-                null, assignedToMe, false, false, false, pageable);
+                null, assignedToMe, false, false, false, false, pageable);
     }
 
     /**

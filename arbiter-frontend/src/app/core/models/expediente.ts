@@ -1,4 +1,5 @@
 import { Clasificacion } from './clasificacion';
+import { DeadlinePriority } from './deadline-priority';
 import { ImageForensicReport } from './forensic';
 import { Policy } from './policy';
 import { PolicySnapshot, RuleResult } from './trazabilidad';
@@ -8,7 +9,7 @@ import { PolicySnapshot, RuleResult } from './trazabilidad';
 export interface StatusTransition {
   fromStatus: string | null;
   toStatus: string;
-  actor: 'SYSTEM' | 'INSURED' | 'ANALYST';
+  actor: 'SYSTEM' | 'INSURED' | 'ANALYST' | 'REFERENT';
   reason: string;
   changedAt: string;
 }
@@ -112,6 +113,13 @@ export interface ExpedienteResponse {
   analysisReasons: string[];
   createdAt: string;
   updatedAt: string;
+  /** Fecha límite legal para responder (art. 56): denuncia + 30 días, ISO yyyy-MM-dd. */
+  responseDeadline: string;
+  /**
+   * Urgencia frente a ese plazo (semáforo de la bandeja). Derivado en el back de `responseDeadline`
+   * y el estado; `NONE` para casos con más de 10 días o ya resueltos.
+   */
+  deadlinePriority: DeadlinePriority;
   /** Solo viene en GET /{id}; en listados es null. */
   statusHistory: StatusTransition[] | null;
   /**

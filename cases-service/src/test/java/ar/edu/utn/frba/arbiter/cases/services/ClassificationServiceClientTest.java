@@ -32,6 +32,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 import static org.springframework.http.HttpMethod.GET;
 import static org.springframework.http.HttpMethod.POST;
@@ -213,6 +214,33 @@ class ClassificationServiceClientTest {
         client.analyzeAndPersist(entity, List.<CaseDocument>of());
 
         server.verify();
+    }
+
+    /**
+     * The startup recovery sweep has no request behind it — touching {@code currentRequest} there
+     * throws "No thread-bound request found" — so this path always signs a service token instead
+     * of resolving the header off it, unlike {@link #analyzeAndPersist_forwardsIncomingAuthorizationHeader}.
+     */
+    @Test
+    void analyzeAndPersistAsSystem_signsAServiceTokenInsteadOfTouchingTheRequest() {
+        Case entity = pendingCase(10L);
+        server.expect(requestTo(BASE_URL + "/api/v1/claims"))
+                .andExpect(method(POST))
+                .andExpect(request -> {
+                    String authHeader = request.getHeaders().getFirst(HttpHeaders.AUTHORIZATION);
+                    assertThat(authHeader).startsWith("Bearer ");
+                    var claims = io.jsonwebtoken.Jwts.parser()
+                            .verifyWith(JwtSupport.key(JWT_SECRET)).build()
+                            .parseSignedClaims(authHeader.substring(7))
+                            .getPayload();
+                    assertThat(claims.getSubject()).isEqualTo("cases-service-recovery");
+                })
+                .andRespond(withSuccess());
+
+        client.analyzeAndPersistAsSystem(entity, List.<CaseDocument>of());
+
+        server.verify();
+        verifyNoInteractions(currentRequest);
     }
 
     /**

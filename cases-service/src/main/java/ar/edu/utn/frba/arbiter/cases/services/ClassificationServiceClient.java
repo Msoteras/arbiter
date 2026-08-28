@@ -86,6 +86,29 @@ public class ClassificationServiceClient implements ClaimsAnalysisClient {
 
     @Override
     public AnalysisResult analyzeAndPersist(Case caseRecord, List<CaseDocument> documents) {
+        postClassify(caseRecord, documents, authorizationHeaderForCurrentTenant());
+        // The case is already PENDING_CLASSIFICATION (set by the caller); this only fires the request.
+        return new AnalysisResult(null, 0.0, "Classification in progress");
+    }
+
+    /**
+     * {@link #analyzeAndPersist} always resolves its auth header off {@code currentRequest}
+     * (directly, or through {@link #authorizationHeaderForCurrentTenant()}'s fallback) — fine for
+     * every existing caller, which all run inside a real HTTP request. The startup recovery sweep
+     * doesn't: it fires from an {@code ApplicationReadyEvent} listener with no request in scope, so
+     * touching {@code currentRequest} there throws "No thread-bound request found". This mints a
+     * service token unconditionally instead, the same mechanism {@link #refreshClassification}
+     * already uses for its own request-less polling call.
+     */
+    @Override
+    public AnalysisResult analyzeAndPersistAsSystem(Case caseRecord, List<CaseDocument> documents) {
+        String serviceToken = JwtSupport.issueServiceToken(
+                jwtKey, "cases-service-recovery", TenantContext.get());
+        postClassify(caseRecord, documents, "Bearer " + serviceToken);
+        return new AnalysisResult(null, 0.0, "Classification in progress");
+    }
+
+    private void postClassify(Case caseRecord, List<CaseDocument> documents, String authorizationHeader) {
         // The contract with classification-service is unchanged: still plain strings, only now
         // read off the joins instead of off denormalized columns.
         ClaimReport claim = ClaimReport.builder()
@@ -127,14 +150,11 @@ public class ClassificationServiceClient implements ClaimsAnalysisClient {
 
         restClient.post()
                 .uri("/api/v1/claims")
-                .header(HttpHeaders.AUTHORIZATION, authorizationHeaderForCurrentTenant())
+                .header(HttpHeaders.AUTHORIZATION, authorizationHeader)
                 .contentType(MediaType.MULTIPART_FORM_DATA)
                 .body(body)
                 .retrieve()
                 .toBodilessEntity();
-
-        // The case is already PENDING_CLASSIFICATION (set by the caller); this only fires the request.
-        return new AnalysisResult(null, 0.0, "Classification in progress");
     }
 
     private ByteArrayResource toResource(CaseDocument document) {

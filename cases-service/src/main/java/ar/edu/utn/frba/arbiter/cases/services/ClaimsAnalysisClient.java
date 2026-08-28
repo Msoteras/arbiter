@@ -23,6 +23,13 @@ public interface ClaimsAnalysisClient {
     AnalysisResult analyzeAndPersist(Case caseRecord, List<CaseDocument> documents);
 
     /**
+     * Same trigger as {@link #analyzeAndPersist}, for callers with no HTTP request behind them
+     * (e.g. {@code ClassificationRefreshScheduler}'s infrastructure-failure recovery sweep) —
+     * signs a service token instead of forwarding a caller's JWT, since there isn't one to forward.
+     */
+    AnalysisResult analyzeAndPersistAsSystem(Case caseRecord, List<CaseDocument> documents);
+
+    /**
      * Single, non-blocking attempt to pull the classification result.
      * Returns true if classification is now available, false if still pending.
      */

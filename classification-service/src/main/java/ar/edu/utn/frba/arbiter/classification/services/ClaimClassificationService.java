@@ -2,7 +2,9 @@ package ar.edu.utn.frba.arbiter.classification.services;
 
 import ar.edu.utn.frba.arbiter.classification.dto.AttachmentDocument;
 import ar.edu.utn.frba.arbiter.classification.dto.ClassificationResponse;
+import ar.edu.utn.frba.arbiter.classification.models.repositories.CaseOutcomeRepository;
 import ar.edu.utn.frba.arbiter.common.dto.ClaimReport;
+import ar.edu.utn.frba.arbiter.common.enums.ClassificationFailureReason;
 import lombok.RequiredArgsConstructor;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -28,6 +30,7 @@ public class ClaimClassificationService {
 
     private final ClassificationOrchestrator classificationOrchestrator;
     private final ClassificationResultsService resultsService;
+    private final CaseOutcomeRepository caseOutcomeRepository;
 
     /**
      * Trigger async classification for a persisted claim.
@@ -37,8 +40,12 @@ public class ClaimClassificationService {
     @Async("classificationExecutor")
     @Retryable(
             retryFor = {HttpServerErrorException.class, ResourceAccessException.class},
-            maxAttempts = 3,
-            backoff = @Backoff(delay = 2000, multiplier = 2.0)
+            maxAttemptsExpression = "${arbiter.classification.retry.max-attempts:6}",
+            backoff = @Backoff(
+                    delayExpression = "${arbiter.classification.retry.initial-delay-ms:15000}",
+                    multiplierExpression = "${arbiter.classification.retry.multiplier:2.0}",
+                    maxDelayExpression = "${arbiter.classification.retry.max-delay-ms:60000}"
+            )
     )
     public void processIsolatedClassification(ClaimReport claim, List<AttachmentDocument> documents) {
         log.info("[ClaimClassificationService] ▶ Starting isolated async classification — policy='{}' insuredId='{}'",
@@ -66,12 +73,23 @@ public class ClaimClassificationService {
      * Async classification for a real case (POST /api/v1/claims, called by cases-service).
      * Persists the result tagged with the caseId — that's the only signal this module gives
      * back; whoever owns the case lifecycle (cases-service) polls GET /api/v1/claims/{caseId}.
+     *
+     * <p>{@code @Retryable}'s window is wide on purpose (defaults to ~6 attempts, 15s doubling up
+     * to 60s between them — several minutes total): the old 3 attempts / 2s-4s backoff (~14s)
+     * exhausted long before a restarting container or an in-progress deploy of a dependency (e.g.
+     * rules-service) came back, so every blip needed an analyst noticing and pressing retry by
+     * hand. Configurable via {@code arbiter.classification.retry.*} rather than hardcoded so the
+     * window can be tuned without a redeploy of this module.
      */
     @Async("classificationExecutor")
     @Retryable(
             retryFor = {HttpServerErrorException.class, ResourceAccessException.class},
-            maxAttempts = 3,
-            backoff = @Backoff(delay = 2000, multiplier = 2.0)
+            maxAttemptsExpression = "${arbiter.classification.retry.max-attempts:6}",
+            backoff = @Backoff(
+                    delayExpression = "${arbiter.classification.retry.initial-delay-ms:15000}",
+                    multiplierExpression = "${arbiter.classification.retry.multiplier:2.0}",
+                    maxDelayExpression = "${arbiter.classification.retry.max-delay-ms:60000}"
+            )
     )
     public void processClaimClassification(Long caseId, ClaimReport claim, List<AttachmentDocument> documents) {
         log.info("[ClaimClassificationService] ▶ Starting async classification — caseId={} policy='{}' insuredId='{}'",
@@ -92,8 +110,24 @@ public class ClaimClassificationService {
         } catch (Exception e) {
             log.error("[ClaimClassificationService] ✗ Error processing caseId={} after retries — {}",
                     caseId, e.getMessage(), e);
+            // Only recorded when caseId != null — the isolated flow above has no case row to
+            // write onto, and recordClassificationFailure is a no-op for a null id.
+            caseOutcomeRepository.recordClassificationFailure(caseId, classifyFailure(e), e.getMessage());
             throw new RuntimeException("Classification failed for case " + caseId + " after retries", e);
         }
+    }
+
+    /**
+     * {@link #processClaimClassification}'s {@code retryFor} already draws this exact line for
+     * what's worth retrying automatically — connectivity/5xx from a dependency (rules-service,
+     * chiefly) — so reuse it here instead of a second, drifting definition. Everything else
+     * (a 4xx, a bug, bad input) is {@code OTHER}: retrying it would just fail the same way again,
+     * which is why cases-service's startup recovery sweep only requeues {@code INFRASTRUCTURE}.
+     */
+    private ClassificationFailureReason classifyFailure(Exception e) {
+        return (e instanceof HttpServerErrorException || e instanceof ResourceAccessException)
+                ? ClassificationFailureReason.INFRASTRUCTURE
+                : ClassificationFailureReason.OTHER;
     }
 
     /**

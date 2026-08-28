@@ -77,6 +77,10 @@ public class ClassificationResultsService {
             ImageForensicReport forensicReport,
             long latencyMs
     ) {
+        // A run that reaches here succeeded — clear any failure recorded by a previous attempt,
+        // otherwise a case that self-healed on a later retry would still read as failed.
+        caseOutcomeRepository.clearClassificationFailure(caseId);
+
         if (response.deterministicFastTrack()) {
             // No llm_analysis row: the model never ran. The outcome is recorded on the case,
             // which is the only place that can tell "fast tracked" from "not classified yet".

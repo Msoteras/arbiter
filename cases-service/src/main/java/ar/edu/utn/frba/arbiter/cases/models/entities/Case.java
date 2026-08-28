@@ -2,6 +2,7 @@ package ar.edu.utn.frba.arbiter.cases.models.entities;
 
 import ar.edu.utn.frba.arbiter.common.dto.ImageForensicReport;
 import ar.edu.utn.frba.arbiter.common.enums.CaseStatus;
+import ar.edu.utn.frba.arbiter.common.enums.ClassificationFailureReason;
 import ar.edu.utn.frba.arbiter.common.enums.RiskBand;
 import ar.edu.utn.frba.arbiter.common.models.entities.CaseState;
 import ar.edu.utn.frba.arbiter.common.models.entities.ClaimCause;
@@ -251,6 +252,22 @@ public class Case {
     @Builder.Default
     @Column(name = "classification_attempts", nullable = false)
     private int classificationAttempts = 0;
+
+    /**
+     * Why the last async classification run gave up, written read-only by classification-service
+     * through {@code CaseOutcomeRepository} — same pattern as {@link #deterministicFastTrack} and
+     * {@link #riskScore}: async, so there's no request left to answer by the time it fails. Null
+     * while pending or once a run succeeds ({@code ClassificationResultsService.saveResult} clears
+     * it). {@code ClassificationRefreshScheduler.recoverInfrastructureFailures} reads this to
+     * decide which {@code CLASSIFICATION_FAILED} cases are worth auto-requeuing: only
+     * {@code INFRASTRUCTURE} is — anything else would just fail the same way again.
+     */
+    @Enumerated(EnumType.STRING)
+    @Column(name = "classification_failure_reason", length = 20)
+    private ClassificationFailureReason classificationFailureReason;
+
+    @Column(name = "classification_failure_message", columnDefinition = "TEXT")
+    private String classificationFailureMessage;
 
     /**
      * The {@code case_classification} row holding the analyst's verdict — and through its

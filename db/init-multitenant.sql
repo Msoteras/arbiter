@@ -524,6 +524,13 @@ BEGIN
             -- case_classification: the analyst's row only exists once they decide, which is
             -- after this counter has done its job (marking CLASSIFICATION_FAILED).
             classification_attempts     INTEGER       NOT NULL DEFAULT 0,
+            -- Structured cause of the last failed classification run, written by
+            -- classification-service the same way as was_fast_track: async, so there's no
+            -- request left to answer by the time it gives up. Cleared once a run succeeds.
+            -- INFRASTRUCTURE vs. OTHER is what the startup recovery sweep in cases-service
+            -- filters on — no point auto-requeuing a case that will just fail the same way.
+            classification_failure_reason  VARCHAR(20),
+            classification_failure_message TEXT,
             -- The analyst's note adjusting the score WITHOUT overwriting it. Distinct from
             -- case_classification.analyst_justification: this is written while the case is
             -- still open, that one is part of the verdict.
