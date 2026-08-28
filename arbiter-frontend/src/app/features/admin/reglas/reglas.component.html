@@ -1,0 +1,744 @@
+<div class="rules-page" @staggerReveal>
+  <header class="rules-head">
+    <h1 class="t-page-title">Configuración de reglas</h1>
+  </header>
+
+  <div class="rules-layout">
+    <!-- ───────── Columna izquierda: ramos + scoring ───────── -->
+    <div class="master-col">
+    <!-- ───────── Master: ramos ───────── -->
+    <app-card class="list-card" heading="Ramos">
+      @if (ramosLoading()) {
+        <app-inline-loading [size]="22" message="Cargando ramos…" />
+      } @else {
+        <ul class="ramo-list" @listStagger>
+          @for (r of ramos(); track r.id) {
+            <li>
+              <button type="button" class="ramo-item" [class.active]="isSelected(r)" (click)="select(r)">
+                <span class="ramo-name">{{ r.name }}</span>
+                <span class="ramo-meta">{{ r.coverageCount }} coberturas</span>
+              </button>
+            </li>
+          } @empty {
+            <li class="ramo-empty t-note">No hay ramos configurados.</li>
+          }
+        </ul>
+      }
+    </app-card>
+
+    <!-- ───────── Reglas generales: la config que NO es de ningún ramo ─────────
+         Las cuatro comparten alcance (toda la aseguradora) y comportamiento (elegir una cambia el
+         panel derecho), así que van en una sola card con ese título, igual que los ramos van bajo
+         "Ramos". Antes era una card suelta por sección: cuatro recuadros repitiendo "Toda la
+         aseguradora" abajo de cada nombre, sin nada que dijera que eran un grupo. -->
+    <app-card class="list-card" heading="Reglas generales">
+      <p class="list-sub t-note">Toda la aseguradora</p>
+      <ul class="ramo-list">
+        @for (s of generalSections; track s.id) {
+          <li>
+            <button
+              type="button"
+              class="ramo-item general"
+              [class.active]="view() === s.id"
+              (click)="selectGeneral(s.id)"
+            >
+              <span class="ramo-name">{{ s.label }}</span>
+            </button>
+          </li>
+        }
+      </ul>
+    </app-card>
+
+    </div>
+
+    <!-- ───────── Panel derecho: detalle del ramo, Hard Stop o scoring ───────── -->
+    <div class="editor">
+      @if (view() === 'scoring') {
+        <app-scoring-config />
+      } @else if (view() === 'fraude') {
+        <app-fraude-config />
+      } @else if (view() === 'hardStop') {
+        @if (hardStopLoading()) {
+          <app-inline-loading [size]="26" message="Cargando Hard Stop…" />
+        } @else {
+          <app-card>
+            <div class="ft-head">
+              <h2 class="card-title">Hard Stop</h2>
+              <app-badge variant="solid" tone="danger">Reglas que bloquean</app-badge>
+            </div>
+
+            <!-- En rojo y no como letra chica: son las únicas reglas de toda la pantalla que le
+                 pueden impedir al asegurado crear su siniestro, y el resto de las solapas configura
+                 cosas que pasan después, sobre un expediente que ya existe. -->
+            <p class="hs-banner">
+              <span class="hs-banner-icon" aria-hidden="true">!</span>
+              <span>
+                Se evalúan en el <strong>alta de la denuncia, antes de que exista un expediente</strong>.
+                Si una regla activa no se cumple, la denuncia no llega a crearse. Usalas solo para
+                bloqueos objetivos e indiscutibles.
+              </span>
+            </p>
+
+            <ul class="hs-rules">
+              <li class="hs-rule" [class.on]="policyInForceRule()?.enabled">
+                <div class="hs-rule-text">
+                  <span class="t-field-label">Vigencia de la póliza</span>
+                  <!-- El hint dice la CONDICIÓN; el efecto lo dice el badge de abajo, y que el
+                       bloqueo impide crear el expediente ya lo dijo el banner de la sección.
+                       Decirlo tres veces no lo hacía más claro. -->
+                  <p class="rule-hint">Si el hecho ocurrió fuera de la vigencia de la póliza.</p>
+                  <span class="hs-effect" [class.blocks]="policyInForceRule()?.enabled">
+                    {{ policyInForceRule()?.enabled
+                      ? 'Bloquea el alta — no se crea el expediente'
+                      : 'No bloquea el alta' }}
+                  </span>
+                </div>
+                <div class="hs-rule-switch">
+                  <span class="t-note">{{ policyInForceRule()?.enabled ? 'Activa' : 'Inactiva' }}</span>
+                  <app-switch
+                    [checked]="policyInForceRule()?.enabled ?? false"
+                    ariaLabel="Vigencia de la póliza"
+                    (checkedChange)="toggleInsurerHardRule('POLICY_IN_FORCE')"
+                  />
+                </div>
+              </li>
+
+              <!-- La mora es la única que, estando activa, puede NO bloquear: depende de qué se
+                   elija abajo. Por eso el chip lee `arrearsBlocks()` y no solo `enabled`. -->
+              <li class="hs-rule" [class.on]="policyStandingRule()?.enabled">
+                <div class="hs-rule-text">
+                  <span class="t-field-label">Mora de la póliza</span>
+                  @if (policyStandingRule()?.enabled) {
+                    <label class="fieldset hs-arrears">
+                      <span class="t-field-label">Si la póliza está en mora…</span>
+                      <app-select
+                        [options]="onArrearsOptions"
+                        [value]="policyStandingRule()?.onArrears ?? 'STANDBY'"
+                        (valueChange)="setOnArrears($event)"
+                      />
+                    </label>
+                  } @else {
+                    <p class="rule-hint">
+                      Con la regla apagada, la mora sigue siendo un criterio de Fast Track y un
+                      factor del puntaje de riesgo.
+                    </p>
+                  }
+                  <span class="hs-effect" [class.blocks]="arrearsBlocks()">
+                    {{ arrearsBlocks()
+                      ? 'Bloquea el alta — no se crea el expediente'
+                      : 'No bloquea el alta' }}
+                  </span>
+                </div>
+                <div class="hs-rule-switch">
+                  <span class="t-note">{{ policyStandingRule()?.enabled ? 'Activa' : 'Inactiva' }}</span>
+                  <app-switch
+                    [checked]="policyStandingRule()?.enabled ?? false"
+                    ariaLabel="Mora de la póliza"
+                    (checkedChange)="toggleInsurerHardRule('POLICY_STANDING')"
+                  />
+                </div>
+              </li>
+            </ul>
+
+            <app-save-bar
+              [dirty]="hardStopDirty()"
+              [saving]="hardStopSaving()"
+              [error]="hardStopError()"
+              (save)="saveHardStop()"
+              (discard)="discardHardStop()"
+            />
+          </app-card>
+        }
+      } @else if (draft(); as d) {
+        <div class="editor-head">
+          <div class="editor-title">
+            <span class="t-section-label">Nombre del ramo</span>
+            <app-input class="ramo-name-field" [value]="d.name" (valueChange)="setName($event)" placeholder="Nombre del ramo" />
+          </div>
+          <div class="editor-actions">
+            @if (renameSaved()) { <span class="saved-note">✓ Nombre guardado</span> }
+            @if (renameError(); as err) { <span class="warn-note">{{ err }}</span> }
+            <app-button variant="secondary" [disabled]="renaming()" (click)="saveName()">
+              {{ renaming() ? 'Guardando…' : 'Renombrar' }}
+            </app-button>
+          </div>
+        </div>
+
+        <nav class="tabs" role="tablist">
+          @for (t of tabs; track t.id) {
+            <button
+              role="tab"
+              class="tab"
+              [class.active]="activeTab() === t.id"
+              [attr.aria-selected]="activeTab() === t.id"
+              (click)="setTab(t.id)"
+            >
+              {{ t.label }}
+            </button>
+          }
+        </nav>
+
+        @switch (activeTab()) {
+          <!-- ============ COBERTURAS ============ -->
+          <!-- Acordeón: una cobertura abierta por vez. Con todas desplegadas la solapa era una tira
+               de formularios idénticos donde no se veía dónde terminaba una y empezaba la otra. -->
+          @case ('coberturas') {
+            @if (detailLoading()) {
+              <app-inline-loading [size]="26" message="Cargando coberturas…" />
+            } @else {
+            <div class="tab-panel" @fadeInUp>
+              <div class="cov-head">
+                <p class="cov-count t-note">
+                  {{ d.coverages.length }}
+                  {{ d.coverages.length === 1 ? 'cobertura en este ramo' : 'coberturas en este ramo' }}
+                </p>
+                <app-button variant="secondary" (click)="addCoverage()">+ Agregar cobertura</app-button>
+              </div>
+
+              <!-- Una vez arriba y no repetida adentro de cada cobertura: es lo mismo para todas. -->
+              <p class="section-hint">
+                Los umbrales de cada cobertura los evalúa el motor en cada clasificación: si no se
+                cumplen, el siniestro pierde el Fast Track y pasa a revisión del analista. No
+                rechazan nada por sí solos, y quedan auditados se cumplan o no.
+              </p>
+
+              @for (c of d.coverages; track c.id) {
+                <app-card class="cov-card" [class.open]="isCoverageOpen(c)">
+                  <div class="cov-summary">
+                    <button
+                      type="button"
+                      class="cov-toggle"
+                      [attr.aria-expanded]="isCoverageOpen(c)"
+                      (click)="toggleCoverage(c)"
+                    >
+                      <span class="cov-caret" [class.open]="isCoverageOpen(c)" aria-hidden="true">▸</span>
+                      <span class="cov-title">{{ c.name || 'Cobertura sin nombre' }}</span>
+                      @if (!isCoverageOpen(c)) {
+                        <span class="cov-chips">
+                          @for (chip of coverageSummary(c); track chip) {
+                            <app-badge variant="solid">{{ chip }}</app-badge>
+                          } @empty {
+                            <span class="t-note">Sin umbrales configurados</span>
+                          }
+                        </span>
+                      }
+                    </button>
+                    <button type="button" class="remove-cov" (click)="removeCoverage(c.id)">
+                      Quitar cobertura
+                    </button>
+                  </div>
+
+                  @if (isCoverageOpen(c)) {
+                    <div class="cov-body" @accordion>
+                      <span class="t-section-label">Datos de la cobertura</span>
+                      <div class="cov-fields">
+                        <label class="fieldset grow">
+                          <span class="t-field-label">Nombre</span>
+                          <app-input
+                            [value]="c.name"
+                            (valueChange)="setCoverageField(c.id, { name: $event })"
+                            placeholder="Nombre de la cobertura"
+                          />
+                        </label>
+                        <label class="fieldset">
+                          <span class="t-field-label">Cláusula</span>
+                          <app-input
+                            [value]="c.clause"
+                            (valueChange)="setCoverageField(c.id, { clause: $event })"
+                            placeholder="ej. 340"
+                          />
+                        </label>
+                        <label class="fieldset">
+                          <span class="t-field-label">Franquicia (%)</span>
+                          <app-input
+                            type="number"
+                            [min]="0"
+                            [value]="coverageDeductiblePct(c)"
+                            (valueChange)="setCoverageDeductible(c.id, $event)"
+                          />
+                        </label>
+                      </div>
+
+                      <div class="chips">
+                        <button
+                          type="button"
+                          class="chip"
+                          [class.active]="c.coversFamilyGroup"
+                          [attr.aria-pressed]="c.coversFamilyGroup"
+                          (click)="toggleCoverageFamilyGroup(c)"
+                        >
+                          Alcanza al grupo familiar
+                        </button>
+                        <button
+                          type="button"
+                          class="chip"
+                          [class.active]="c.claimExhaustsCoverage"
+                          [attr.aria-pressed]="c.claimExhaustsCoverage"
+                          (click)="toggleCoverageExhausts(c)"
+                        >
+                          Un siniestro agota la cobertura
+                        </button>
+                      </div>
+
+                      <!-- Interruptor y umbral en la misma fila: antes se prendía la regla acá y su
+                           número se cargaba en otra sección, sin nada que dijera que eran lo mismo. -->
+                      <div class="cov-section">
+                        <span class="t-section-label">Reglas que evalúa el motor</span>
+                        @if (!canEditExclusions(c)) {
+                          <p class="t-note">Guardá la cobertura primero para configurar sus reglas.</p>
+                        } @else if (orderedHardRules(c).length === 0) {
+                          <p class="t-note">No se pudieron cargar las reglas de esta cobertura.</p>
+                        } @else {
+                          <ul class="rule-rows">
+                            @for (rule of orderedHardRules(c); track rule.ruleType) {
+                              <li class="rule-row" [class.off]="!rule.enabled">
+                                <app-switch
+                                  [checked]="rule.enabled"
+                                  [ariaLabel]="hardRuleLabel(rule.ruleType)"
+                                  (checkedChange)="toggleHardRule(c.id, rule.ruleType)"
+                                />
+                                <div class="rule-text">
+                                  <span class="t-field-label">{{ hardRuleLabel(rule.ruleType) }}</span>
+                                  <p class="rule-hint">{{ hardRuleHint(rule.ruleType) }}</p>
+                                </div>
+                                <div class="rule-value">
+                                  <app-input
+                                    type="number"
+                                    [min]="0"
+                                    [value]="hardRuleValue(c, rule.ruleType)"
+                                    (valueChange)="setHardRuleValue(c, rule.ruleType, $event)"
+                                    placeholder="—"
+                                  />
+                                  <span class="t-note">{{ hardRuleUnit(rule.ruleType) }}</span>
+                                </div>
+                              </li>
+                            }
+                          </ul>
+                        }
+                      </div>
+
+                      <div class="cov-section">
+                        <span class="t-section-label">Exclusiones de esta cobertura</span>
+                        <app-string-list-editor
+                          [items]="c.exclusions"
+                          (itemsChange)="setCoverageField(c.id, { exclusions: $event })"
+                          placeholder="Exclusión específica de esta cobertura…"
+                          addLabel="+ Agregar exclusión"
+                          emptyText="Sin exclusiones específicas."
+                        />
+                      </div>
+
+                      <div class="cov-section">
+                        <span class="t-section-label">Hechos generadores NO cubiertos</span>
+                        <p class="section-hint">
+                          Si se denuncia uno de estos sobre esta cobertura, lo detecta el motor por
+                          regla —no el modelo—: bloquea Fast Track y deriva a revisión.
+                        </p>
+                        @if (!canEditExclusions(c)) {
+                          <p class="t-note">Guardá la cobertura primero para configurar sus exclusiones.</p>
+                        } @else if (claimCauses().length === 0) {
+                          <p class="t-note">No hay hechos generadores en este ramo.</p>
+                        } @else {
+                          <div class="chips">
+                            @for (cause of claimCauses(); track cause.id) {
+                              <button
+                                type="button"
+                                class="chip"
+                                [class.active]="isCauseExcluded(c, cause.id)"
+                                [attr.aria-pressed]="isCauseExcluded(c, cause.id)"
+                                (click)="toggleExcludedCause(c.id, cause.id)"
+                              >
+                                {{ cause.name }}
+                              </button>
+                            }
+                          </div>
+                        }
+                      </div>
+                    </div>
+                  }
+                </app-card>
+              } @empty {
+                <p class="t-note">Este ramo todavía no tiene coberturas.</p>
+              }
+
+              <app-save-bar
+                [dirty]="covDirty()"
+                [saving]="covSaving()"
+                [error]="covError()"
+                (save)="saveCoverages()"
+                (discard)="discardCoverages()"
+              />
+            </div>
+            }
+          }
+
+          <!-- ============ EXCLUSIONES COMUNES ============ -->
+          <!-- Solapa propia y no un recuadro al pie de Coberturas: no son de ninguna cobertura sino
+               del ramo entero, y ahí abajo quedaban como un apéndice de la lista de coberturas. Su
+               guardado también es propio — es otro endpoint (rules-service), así que separarlas no
+               obliga a guardar las coberturas para cambiar una exclusión. -->
+          @case ('exclusiones') {
+            <app-card heading="Exclusiones comunes del ramo">
+              <p class="section-hint">
+                Situaciones NO cubiertas por ninguna cobertura del ramo. Condiciones objetivas que
+                evalúa el motor de reglas, no el modelo.
+                <app-info-tip>
+                  Distintas de las exclusiones de cada cobertura, que se configuran en Coberturas:
+                  aquellas dicen qué hecho generador no cubre una cobertura puntual, y estas valen
+                  para todo el ramo sin importar bajo qué cobertura entre el siniestro.
+                </app-info-tip>
+              </p>
+              <app-string-list-editor
+                [items]="d.commonExclusions"
+                (itemsChange)="setCommonExclusions($event)"
+                placeholder="Exclusión común…"
+                addLabel="+ Agregar exclusión"
+                badge="Motor de reglas"
+                [marker]="true"
+                emptyTitle="Sin exclusiones comunes"
+                emptyHint="Situaciones que ninguna cobertura del ramo cubre. Por ejemplo: «Daño estético que no afecta el funcionamiento del equipo»."
+                emptyCta="+ Agregar primera exclusión"
+              >
+                <svg emptyIcon viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" width="26" height="26" aria-hidden="true">
+                  <circle cx="12" cy="12" r="9" />
+                  <line x1="6" y1="18" x2="18" y2="6" stroke-linecap="round" />
+                </svg>
+              </app-string-list-editor>
+              <app-save-bar
+                [dirty]="exclDirty()"
+                [saving]="exclSaving()"
+                [error]="exclError()"
+                (save)="saveCommonExclusions()"
+                (discard)="discardCommonExclusions()"
+              />
+            </app-card>
+          }
+
+          <!-- ============ FAST TRACK ============ -->
+          <!-- Mismo patrón de fila que las reglas de cada cobertura (interruptor + qué evalúa +
+               umbral): son la misma clase de decisión, y verlas iguales en las dos solapas evita
+               tener que volver a aprender la pantalla. -->
+          @case ('fastTrack') {
+            @if (detailLoading()) {
+              <app-inline-loading [size]="26" message="Cargando Fast Track…" />
+            } @else {
+            <div class="tab-panel" @fadeInUp>
+              <app-card>
+                <div class="ft-head">
+                  <h2 class="card-title">Fast Track</h2>
+                  <span class="t-note">Siniestro express</span>
+                  <!-- El Fast Track no se apaga: es parte del análisis. El badge lo dice en vez de
+                       ofrecer un interruptor que no existe. -->
+                  <app-badge variant="solid" tone="ok">Siempre activo</app-badge>
+                </div>
+
+                <p class="ft-banner">
+                  <span class="ft-banner-icon" aria-hidden="true">i</span>
+                  <span>
+                    Gate determinístico que agiliza el caso. <strong>Nunca lo resuelve solo</strong>:
+                    siempre lo revisa un analista. Solo decide si el expediente entra por la vía
+                    rápida.
+                  </span>
+                </p>
+
+                <!-- Las tres secciones en un contenedor con gap propio: colgadas directo de la
+                     card quedaban pegadas entre sí, porque la card no separa a sus hijos. -->
+                <div class="ft-sections">
+                  <div class="cov-section">
+                  <span class="t-section-label">Condiciones para habilitar el Fast Track</span>
+                  <p class="section-hint">
+                    Activá solo los umbrales que quieras exigir. Los que dejes apagados no se
+                    evalúan.
+                  </p>
+
+                  <ul class="rule-rows">
+                    <li class="rule-row" [class.off]="!ftActive('minPolicyAgeMonths')">
+                      <app-switch
+                        [checked]="ftActive('minPolicyAgeMonths')"
+                        ariaLabel="Antigüedad mínima de la póliza"
+                        (checkedChange)="toggleFtThreshold('minPolicyAgeMonths')"
+                      />
+                      <div class="rule-text">
+                        <span class="t-field-label">Antigüedad mínima de la póliza</span>
+                      </div>
+                      @if (ftActive('minPolicyAgeMonths')) {
+                        <div class="rule-value">
+                          <app-input
+                            type="number"
+                            [min]="0"
+                            [value]="ftMinAgeStr()"
+                            (valueChange)="setMinPolicyAge($event)"
+                          />
+                          <span class="t-note">meses</span>
+                        </div>
+                      } @else {
+                        <span class="rule-off-note t-note">Sin mínimo</span>
+                      }
+                    </li>
+
+                    <li class="rule-row" [class.off]="!ftActive('maxPriorClaims')">
+                      <app-switch
+                        [checked]="ftActive('maxPriorClaims')"
+                        ariaLabel="Siniestros previos máximos"
+                        (checkedChange)="toggleFtThreshold('maxPriorClaims')"
+                      />
+                      <div class="rule-text">
+                        <span class="t-field-label">Siniestros previos máximos</span>
+                      </div>
+                      @if (ftActive('maxPriorClaims')) {
+                        <div class="rule-value">
+                          <app-input
+                            type="number"
+                            [min]="0"
+                            [value]="ftMaxPriorStr()"
+                            (valueChange)="setMaxPriorClaims($event)"
+                          />
+                          <span class="t-note">previos</span>
+                        </div>
+                      } @else {
+                        <span class="rule-off-note t-note">Sin límite</span>
+                      }
+                    </li>
+
+                    <!-- Sangrada y solo visible con el umbral de arriba prendido: la ventana no
+                         decide nada sola, únicamente acota qué siniestros previos se cuentan. -->
+                    @if (ftActive('maxPriorClaims')) {
+                      <li class="rule-row nested" @accordion>
+                        <div class="rule-text">
+                          <span class="t-field-label">Ventana de siniestros previos</span>
+                          <p class="rule-hint">Cuántos meses hacia atrás se cuentan esos siniestros.</p>
+                        </div>
+                        <div class="rule-value">
+                          <app-input
+                            type="number"
+                            [min]="0"
+                            [value]="ftWindowStr()"
+                            (valueChange)="setPriorClaimsWindow($event)"
+                            placeholder="Todo el historial"
+                          />
+                          <span class="t-note">meses</span>
+                        </div>
+                      </li>
+                    }
+
+                    <li class="rule-row" [class.off]="!ftActive('maxClaimedAmountRatio')">
+                      <app-switch
+                        [checked]="ftActive('maxClaimedAmountRatio')"
+                        ariaLabel="Monto reclamado máximo"
+                        (checkedChange)="toggleFtThreshold('maxClaimedAmountRatio')"
+                      />
+                      <div class="rule-text">
+                        <span class="t-field-label">Monto reclamado máximo</span>
+                        <p class="rule-hint">
+                          Tope del reclamo, como porcentaje de la suma asegurada.
+                        </p>
+                      </div>
+                      @if (ftActive('maxClaimedAmountRatio')) {
+                        <div class="rule-value">
+                          <app-input
+                            type="number"
+                            [min]="0"
+                            [value]="ftMaxRatioPct()"
+                            (valueChange)="setFtMaxRatio($event)"
+                          />
+                          <span class="t-note">% de la suma</span>
+                        </div>
+                      } @else {
+                        <span class="rule-off-note t-note">Sin límite</span>
+                      }
+                    </li>
+
+                    <li class="rule-row" [class.off]="!d.fastTrack.requiresUpToDatePolicy">
+                      <app-switch
+                        [checked]="d.fastTrack.requiresUpToDatePolicy"
+                        ariaLabel="Exige póliza al día"
+                        (checkedChange)="toggleFtRequiresUpToDate()"
+                      />
+                      <div class="rule-text">
+                        <span class="t-field-label">Exige póliza al día</span>
+                        <p class="rule-hint">
+                          La póliza no puede tener cuotas vencidas al momento del hecho.
+                        </p>
+                      </div>
+                      <!-- Sin número que cargar: la condición es el interruptor mismo. -->
+                      <span class="rule-off-note t-note">
+                        {{ d.fastTrack.requiresUpToDatePolicy ? 'Sí' : 'No se exige' }}
+                      </span>
+                    </li>
+                  </ul>
+                </div>
+
+                <div class="cov-section">
+                  <span class="t-section-label">Documentos que exige el Fast Track</span>
+                  <p class="section-hint">
+                    Si falta alguno de los marcados, el caso no va por vía rápida. Tocá para incluir
+                    o quitar.
+                  </p>
+                  <div class="chips">
+                    @for (doc of docTypes; track doc.code) {
+                      <button
+                        type="button"
+                        class="chip"
+                        [class.active]="isFtDoc(doc.code)"
+                        [attr.aria-pressed]="isFtDoc(doc.code)"
+                        (click)="toggleFtDoc(doc.code)"
+                      >
+                        {{ doc.label }}
+                      </button>
+                    }
+                  </div>
+                </div>
+
+                <div class="cov-section">
+                  <span class="t-section-label">Criterios descriptivos</span>
+                  <p class="section-hint">
+                    No deciden nada: se le pasan al modelo como descripción de la política, así que
+                    conviene que digan lo mismo que los umbrales de arriba.
+                  </p>
+                  <app-string-list-editor
+                    [items]="d.fastTrack.criteria"
+                    (itemsChange)="setFtCriteria($event)"
+                    placeholder="Criterio de Fast Track…"
+                    addLabel="+ Agregar criterio"
+                    emptyText="Sin criterios descriptivos."
+                  />
+                </div>
+
+                </div>
+
+                <app-save-bar
+                  [dirty]="ftDirty()"
+                  [saving]="ftSaving()"
+                  [error]="ftError()"
+                  (save)="saveFastTrack()"
+                  (discard)="discardFastTrack()"
+                />
+              </app-card>
+            </div>
+            }
+          }
+
+          <!-- ============ DOCUMENTACIÓN ============ -->
+          <!-- Matriz documento × hecho generador. Antes había que elegir un hecho generador y ver su
+               lista de a una: comparar qué pedía cada uno obligaba a ir y volver entre chips, y era
+               justo lo que se necesita mirar de una agenda documental. -->
+          @case ('documentacion') {
+            @if (detailLoading()) {
+              <app-inline-loading [size]="26" message="Cargando documentación…" />
+            } @else {
+            <div class="tab-panel" @fadeInUp>
+              <app-card heading="Agenda documental">
+                <p class="section-hint">
+                  Marcá qué documentos son obligatorios para cada hecho generador. Si falta alguno de
+                  los marcados, el expediente queda en <strong>"Falta documentación"</strong> y no se
+                  considera completo.
+                </p>
+                @if (claimCauses().length === 0) {
+                  <p class="section-hint">Este ramo todavía no tiene hechos generadores cargados.</p>
+                } @else {
+                  <app-table [fixed]="true">
+                    <thead>
+                      <tr>
+                        <th scope="col" class="doc-head-name">Documento</th>
+                        @for (cause of claimCauses(); track cause.id) {
+                          <th scope="col" class="doc-col">
+                            <span class="doc-col-name">{{ cause.name }}</span>
+                            <!-- El conteo evita tener que contar tildes para saber qué tan exigente
+                                 quedó cada hecho generador. -->
+                            <span class="doc-col-count">{{ requiredCountLabel(cause.id) }}</span>
+                          </th>
+                        }
+                      </tr>
+                    </thead>
+                    <tbody>
+                      @for (doc of docTypes; track doc.code) {
+                        <tr>
+                          <th scope="row" class="doc-row-name">{{ doc.label }}</th>
+                          @for (cause of claimCauses(); track cause.id) {
+                            <td class="doc-cell">
+                              <app-checkbox
+                                [checked]="isDocRequiredFor(cause.id, doc.code)"
+                                (checkedChange)="toggleDocFor(cause.id, doc.code)"
+                              >
+                                <!-- La casilla sola no dice qué marca: el nombre va para el lector
+                                     de pantalla, que no tiene cómo cruzar fila y columna. -->
+                                <span class="sr-only">
+                                  {{ doc.label }} obligatorio para {{ cause.name }}
+                                </span>
+                              </app-checkbox>
+                            </td>
+                          }
+                        </tr>
+                      }
+                    </tbody>
+                  </app-table>
+
+                  <!-- Qué significa cada casilla: una tilde sola es ambigua entre "obligatorio" y
+                       "presente", y acá quiere decir lo primero. -->
+                  <p class="doc-legend">
+                    <span class="doc-legend-item">
+                      <span class="doc-legend-box on" aria-hidden="true"></span> Obligatorio
+                    </span>
+                    <span class="doc-legend-item">
+                      <span class="doc-legend-box" aria-hidden="true"></span> No requerido
+                    </span>
+                  </p>
+                }
+
+                <app-save-bar
+                  [dirty]="docDirty()"
+                  [saving]="docSaving()"
+                  [error]="docError()"
+                  (save)="saveDocuments()"
+                  (discard)="discardDocuments()"
+                />
+              </app-card>
+            </div>
+            }
+          }
+
+          <!-- ============ REGLAS DE NEGOCIO ============ -->
+          @case ('reglas') {
+            @if (detailLoading()) {
+              <app-inline-loading [size]="26" message="Cargando reglas de negocio…" />
+            } @else {
+            <div class="tab-panel" @fadeInUp>
+              <app-card heading="Reglas de negocio">
+                <p class="section-hint">
+                  Condiciones y criterios que el analista y el modelo deben tener en cuenta al
+                  evaluar el siniestro.
+                </p>
+                <app-string-list-editor
+                  [items]="d.businessRules"
+                  (itemsChange)="setBusinessRules($event)"
+                  placeholder="Descripción de la regla…"
+                  addLabel="+ Agregar regla"
+                  badge="Analista + modelo"
+                  emptyTitle="Todavía no cargaste reglas de negocio"
+                  emptyHint="Sirven para orientar al analista y al modelo. Por ejemplo: «Si el asegurado tuvo 2 o más robos en los últimos 12 meses, derivar a un analista senior»."
+                  emptyCta="+ Agregar primera regla"
+                >
+                  <svg emptyIcon viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" width="26" height="26" aria-hidden="true">
+                    <path d="M6 3h9l4 4v14H6z" stroke-linejoin="round" />
+                    <path d="M9 12h7M9 16h7" stroke-linecap="round" />
+                  </svg>
+                </app-string-list-editor>
+
+                <app-save-bar
+                  [dirty]="rulesDirty()"
+                  [saving]="rulesSaving()"
+                  [error]="rulesError()"
+                  (save)="saveBusinessRules()"
+                  (discard)="discardBusinessRules()"
+                />
+              </app-card>
+            </div>
+            }
+          }
+        }
+      } @else {
+        <app-empty-state message="Elegí un ramo para configurarlo" />
+      }
+    </div>
+  </div>
+</div>

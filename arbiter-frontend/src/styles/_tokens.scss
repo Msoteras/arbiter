@@ -1,0 +1,125 @@
+/* ============================================================
+   Arbiter · Design System — CAPA 1: TOKENS PRIMITIVOS
+   Valores crudos. La "verdad" del sistema.
+   Regla de diseño: neutros cálidos ("papel") + teal de marca como
+   acento de estados activos/selección; el semáforo technicolor
+   queda reservado a señales de estado.
+   No consumir estos tokens directo en componentes → usar la
+   capa semántica (_semantic.scss).
+   Referencia visual: docs/prototipo/arbiter-hifi.html
+   ============================================================ */
+:root {
+  /* ===== Color de acento / marca =====
+     Único "perilla" de tema: maneja los estados activos, la selección
+     y la identidad de marca. Cambiarlo re-tematiza la app entera
+     (editable en vivo desde /styleguide). */
+  --accent: #00a99d;
+  --accent-strong: #0b6f68; /* teal apto para texto (6:1 sobre blanco) */
+  --accent-deep: #095c56; /* stops del gradiente del panel de marca */
+  --accent-deepest: #083f3b;
+  --accent-soft: #e6f4f2; /* fondo tintado de selección */
+  --accent-soft-border: #b9e3de;
+  --accent-wash: #f0faf8; /* lavado teal muy tenue (tope del gradiente de cards IA) */
+  --accent-veil: rgba(0, 169, 157, 0.15); /* anillo de foco */
+
+  /* ===== Paleta accent · technicolor =====
+     Colores de acento fuera de la escala neutra. Uso previsto como
+     semáforo de estado: verde=ok, amarillo=atención, naranja=riesgo
+     medio-alto, rojo=riesgo, azul=info. */
+  --accent-green: #00a99d;
+  --accent-yellow: #f2b705;
+  --accent-orange: #e8632a;
+  --accent-red: #e63329;
+  --accent-blue: #2e4a9e;
+  /* Lavado tenue de alerta (fondos tintados de señales de riesgo, ej. tarjeta de fraude). */
+  --accent-red-soft: #fdeceb;
+  --accent-red-soft-border: #f4c9c5;
+
+  /* ===== Color — texto ===== */
+  --c-ink: #191c1f; /* negro de marca */
+  --c-ink-strong: #000000;
+  --c-ink-2: #3a3f45;
+  --c-ink-3: #545a61;
+  --c-ink-4: #5c6167;
+  --c-ink-raised: #2a2e33; /* item activo/hover sobre superficie oscura (sidebar) */
+  --c-ink-raised-2: #3a3f45; /* avatar sobre superficie oscura */
+  --c-ink-hair: #2a2e33; /* separador sobre superficie oscura */
+  --c-muted: #6c7278; /* calibrado para 4.5:1 sobre blanco (WCAG AA) */
+  --c-muted-2: #9aa0a6;
+  --c-muted-3: #b4b9b1;
+  --c-on-ink: #ffffff; /* texto sobre fondo oscuro */
+
+  /* ===== Color — bordes (neutros cálidos) ===== */
+  --c-divider: #f0efe8;
+  --c-border: #e5e4dd;
+  --c-border-2: #dcdbd2;
+  --c-border-3: #cfd3cd;
+  --c-border-strong: #a9aea6;
+
+  /* ===== Color — fondos (papel cálido) ===== */
+  --c-bg: #ffffff;
+  --c-bg-soft: #fbfaf7;
+  --c-bg-soft-2: #f4f3ee; /* lienzo de la app */
+  --c-bg-head: #faf9f6;
+
+  /* ===== Espaciado (base 4px) ===== */
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 24px;
+  --space-6: 32px;
+  --space-7: 40px;
+
+  /* ===== Tipografía — familias =====
+     Arimo (clon open-source de Helvetica, auto-hospedado en styles.scss) con
+     Helvetica/Arial de fallback métricamente idéntico. */
+  --font-sans: 'Arimo', 'Helvetica Neue', Helvetica, Arial, sans-serif;
+  --font-mono: 'Roboto Mono', ui-monospace, 'SFMono-Regular', Menlo, monospace;
+
+  /* ===== Tipografía — escala ===== */
+  --font-size-2xs: 10px; /* labels uppercase */
+  --font-size-xs: 11px;
+  --font-size-sm: 12px;
+  --font-size-body: 13px; /* cuerpo por defecto */
+  --font-size-md: 14px;
+  --font-size-lg: 16px;
+  --font-size-xl: 22px; /* títulos de página */
+  --font-size-2xl: 28px; /* títulos hero (login, portal) */
+
+  /* ===== Tipografía — pesos ===== */
+  --font-weight-regular: 400;
+  --font-weight-medium: 600;
+  --font-weight-bold: 700;
+
+  /* ===== Layout del chrome =====
+     Alto de la topbar fija de los roles internos. Es global porque cualquier cabecera `sticky` de
+     una pantalla interna tiene que anclarse DEBAJO de ella, no atrás. */
+  --appbar-h: 56px;
+
+  /* ===== Radios ===== */
+  --radius-ctl: 8px; /* controles: botones, inputs */
+  --radius-card: 12px;
+  --radius-modal: 14px;
+  --radius-pill: 999px;
+
+  /* ===== Sombras / overlay ===== */
+  --shadow-card: 0 1px 2px rgba(0, 0, 0, 0.03);
+  /* Elevación al hover de una card interactiva / tile: apenas más marcada que la de reposo. */
+  --shadow-card-hover: 0 6px 20px rgba(25, 28, 31, 0.08);
+  /* Popover / panel flotante (ej. campana de notificaciones anclada a la topbar). */
+  --shadow-pop: 0 12px 32px rgba(25, 28, 31, 0.16);
+  --shadow-modal: 0 10px 40px rgba(25, 28, 31, 0.18);
+  --overlay-backdrop: rgba(25, 28, 31, 0.4);
+
+  /* ===== Movimiento =====
+     Duraciones y curvas compartidas para transiciones/animaciones CSS. Las animaciones
+     de @angular/animations llevan sus tiempos literales (la DSL no lee custom properties),
+     pero se alinean a estos valores. La curva "out" es un ease-out expresivo (arranca
+     rápido y desacelera) para entradas y hovers. */
+  --dur-1: 120ms; /* micro-feedback (hover de control) */
+  --dur-2: 200ms; /* transición estándar */
+  --dur-3: 340ms; /* entrada de superficie (card/modal) */
+  --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+  --ease-standard: cubic-bezier(0.2, 0, 0, 1);
+}

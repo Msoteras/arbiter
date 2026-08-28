@@ -1,0 +1,70 @@
+:host { display: block; min-height: 100%; }
+
+.login-page { display: flex; min-height: 100vh; }
+
+/* Mismo token que login/forgot-password (--brand-panel-bg): esta pantalla tenía su propio
+   gradiente armado con --action-primary-bg (el ink oscuro del botón primario) en vez del teal
+   de marca, así que no matcheaba con el resto del flujo de auth. */
+.brand-pane {
+  flex: 1 1 auto;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--space-7);
+  background: var(--brand-panel-bg);
+  color: var(--brand-panel-fg);
+}
+
+.brand-pane-inner { max-width: 420px; width: 100%; }
+
+/* Era un <span> de texto ("Arbiter" en una píldora con borde) en vez del ícono real —
+   ahora es <app-logo>, que escala con --logo-size (ver logo.component.ts). */
+.brand-mark {
+  --logo-size: 2.5rem;
+  margin-bottom: var(--space-6);
+}
+
+.brand-title {
+  margin: 0 0 var(--space-4);
+  font-size: clamp(var(--font-size-xl), 2.5vw, 2.75rem);
+  font-weight: var(--font-weight-medium);
+  line-height: 1.2;
+}
+.brand-tag { margin: 0; color: rgba(255, 255, 255, 0.75); font-size: var(--font-size-md); line-height: 1.55; }
+
+.form-pane {
+  flex: 0 0 460px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--space-5);
+  background: var(--surface);
+}
+
+.login-card { width: 100%; max-width: 360px; }
+
+.login-card form { display: flex; flex-direction: column; gap: var(--space-3); }
+
+.field-label {
+  display: block;
+  font-size: var(--font-size-body);
+  font-weight: var(--font-weight-medium);
+  color: var(--text-tertiary);
+  margin-top: var(--space-2);
+}
+
+.error { margin: 0; color: var(--status-danger); font-size: var(--font-size-xs); }
+
+.password-issues {
+  list-style: none;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+@media (max-width: 860px) {
+  .login-page { flex-direction: column; }
+  .brand-pane { flex: 0 0 auto; padding: var(--space-6) var(--space-5); }
+  .form-pane { flex: 1 1 auto; }
+}

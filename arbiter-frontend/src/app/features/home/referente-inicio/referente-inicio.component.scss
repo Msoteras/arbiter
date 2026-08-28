@@ -1,0 +1,237 @@
+:host {
+  display: block;
+}
+
+// Carga parcial (revisita al home): spinner centrado en el área de contenido, sin tapar el shell.
+.partial-load {
+  min-height: 60vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.inicio {
+  padding: var(--space-5) var(--space-6) var(--space-7);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-5);
+}
+
+// ───────────────── Encabezado / saludo (banner de marca) ─────────────────
+.hero {
+  position: relative;
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-4);
+  padding: var(--space-5) var(--space-6);
+  border-radius: var(--radius-card);
+  background: var(--brand-panel-bg);
+  color: var(--brand-panel-fg);
+  box-shadow: var(--shadow-card);
+}
+// Halo suave arriba a la derecha (mismo recurso que el inicio del analista): profundidad sin
+// sumar color nuevo. Decorativo.
+.hero::after {
+  content: '';
+  position: absolute;
+  top: -55%;
+  right: -6%;
+  width: 340px;
+  height: 340px;
+  border-radius: var(--radius-pill);
+  background: radial-gradient(
+    circle,
+    color-mix(in srgb, var(--brand-panel-fg) 16%, transparent),
+    transparent 70%
+  );
+  pointer-events: none;
+}
+.hero-text {
+  position: relative;
+  min-width: 0;
+}
+.hero .t-hero-title {
+  color: var(--brand-panel-fg);
+}
+.hero-sub {
+  margin: var(--space-2) 0 0;
+  font-size: var(--font-size-body);
+  color: color-mix(in srgb, var(--brand-panel-fg) 82%, transparent);
+}
+.hero-cta {
+  position: relative;
+  flex: none;
+  font-size: var(--font-size-body);
+  color: var(--brand-panel-fg);
+  text-decoration: none;
+  white-space: nowrap;
+}
+.hero-cta:hover {
+  text-decoration: underline;
+}
+
+// ───────────────── Tarjetas de métrica ─────────────────
+.stats {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: var(--space-4);
+}
+
+// ───────────────── Columnas inferiores ─────────────────
+.cols {
+  display: grid;
+  grid-template-columns: 1.6fr 1fr;
+  gap: var(--space-4);
+  align-items: start;
+}
+
+.alert-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+// Fila como "chip" clickeable: resalte + leve desplazamiento al hover (igual que el inicio del
+// analista), en vez de separadores.
+.alert-item {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-2) var(--space-3);
+  margin: 0 calc(-1 * var(--space-2));
+  border-radius: var(--radius-ctl);
+  text-decoration: none;
+  transition:
+    background var(--dur-1) ease,
+    transform var(--dur-1) var(--ease-out);
+}
+.alert-item:hover {
+  background: var(--surface-soft);
+  transform: translateX(2px);
+}
+.alert-item:hover .alert-id {
+  text-decoration: underline;
+}
+
+.alert-main {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+  margin-right: auto;
+}
+.alert-id {
+  font-size: var(--font-size-body);
+  font-weight: var(--font-weight-medium);
+  color: var(--accent-fg);
+}
+.alert-meta {
+  font-size: var(--font-size-xs);
+  color: var(--text-muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.alert-tags {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  flex: none;
+}
+// Chevron tenue que aparece al hover, para reforzar que la fila lleva al expediente.
+.alert-chevron {
+  flex: none;
+  color: var(--text-muted);
+  opacity: 0;
+  transform: translateX(-4px);
+  transition:
+    opacity var(--dur-1) ease,
+    transform var(--dur-1) var(--ease-out);
+}
+.alert-item:hover .alert-chevron {
+  opacity: 1;
+  transform: translateX(0);
+}
+
+.see-all {
+  display: inline-block;
+  margin-top: var(--space-3);
+  font-size: var(--font-size-xs);
+  color: var(--accent-fg);
+  text-decoration: none;
+}
+.see-all:hover {
+  text-decoration: underline;
+}
+
+// ───────────────── Carga del equipo ─────────────────
+.team-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+.team-row {
+  display: grid;
+  grid-template-columns: minmax(120px, 200px) 1fr auto;
+  align-items: center;
+  gap: var(--space-4);
+}
+.team-name {
+  font-size: var(--font-size-body);
+  color: var(--text-primary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.team-bar {
+  display: block;
+  height: 8px;
+  border-radius: var(--radius-pill);
+  background: var(--surface-sunken);
+  overflow: hidden;
+}
+.team-bar-fill {
+  display: block;
+  height: 100%;
+  min-width: 2px;
+  border-radius: var(--radius-pill);
+  background: var(--accent);
+}
+.team-count {
+  font-size: var(--font-size-sm);
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+
+// ───────────────── Responsive ─────────────────
+@media (max-width: 960px) {
+  .stats {
+    grid-template-columns: repeat(2, 1fr);
+  }
+  .cols {
+    grid-template-columns: 1fr;
+  }
+}
+@media (max-width: 520px) {
+  .team-row {
+    grid-template-columns: 1fr auto;
+  }
+  .team-bar {
+    display: none;
+  }
+}
+@media (max-width: 720px) {
+  .inicio {
+    padding: var(--space-4) var(--space-4) var(--space-6);
+  }
+  .hero {
+    flex-direction: column;
+  }
+}

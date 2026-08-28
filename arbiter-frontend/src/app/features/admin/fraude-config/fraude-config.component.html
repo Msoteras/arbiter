@@ -1,0 +1,90 @@
+@if (loading()) {
+  <app-inline-loading [size]="26" message="Cargando gestión de fraude…" />
+} @else if (rule(); as r) {
+  <!-- Encabezado afuera de las cards: las dos de abajo son la misma sección, pero se guardan
+       distinto (los peritos al instante, el antecedente con el botón), y meterlas en una sola card
+       obligaba a que una barra de guardado hablara por las dos. -->
+  <header class="gf-head">
+    <h2 class="t-section-label">Gestión de fraude</h2>
+    <p class="section-hint">
+      Cómo tratás a quien ya defraudó y a qué peritos externos podés derivar un siniestro para
+      verificarlo.
+    </p>
+  </header>
+
+  <app-peritos-config />
+
+  <app-card class="gf-card">
+    <div class="sc-section-head">
+      <span class="t-section-label">Antecedente de reincidencia</span>
+    </div>
+    <p class="section-hint">
+      Qué pasa cuando alguien que ya defraudó vuelve a denunciar. No rechaza nada por sí solo:
+      es una señal.
+      <app-info-tip>
+        Lo registra un analista sobre el asegurado, desde el expediente donde se determinó el
+        fraude. Solo pesa el que tiene peritaje detrás. Al modelo no se le cuenta: pesa en el
+        nivel de riesgo, que es explícito y auditable.
+      </app-info-tip>
+    </p>
+
+    <ul class="rule-rows">
+      <li class="rule-row">
+        <div class="rule-text">
+          <!-- <label for> y no aria-labelledby: app-input no reenvía ese atributo al input
+               interno, pero sí expone su id, así que el label real es lo que lo rotula. -->
+          <label class="t-field-label" for="ant-ventana">¿Cuánto tiempo sigue pesando?</label>
+          <!-- La primera mitad repetía la etiqueta ("cuánto tiempo sigue pesando"). Lo que la
+               etiqueta NO dice es dónde se configura cuánto suma, que es lo único que queda. -->
+          <p class="rule-hint">Qué tanto suma se configura en Puntaje de riesgo.</p>
+        </div>
+        <div class="rule-value window">
+          <app-input
+            id="ant-ventana"
+            type="number"
+            [min]="windowMin"
+            [max]="windowMaxAttr"
+            [value]="windowValue()"
+            (valueChange)="setWindow($event)"
+          />
+          <span class="t-note">meses</span>
+          <span class="window-eq t-note">≈ {{ windowEquivalente() }}</span>
+        </div>
+      </li>
+      @if (windowInvalida()) {
+        <li class="rule-row">
+          <p class="warn-note">
+            La ventana tiene que estar entre {{ windowMin }} y {{ windowMax }} meses.
+          </p>
+        </li>
+      }
+
+      <li class="rule-row" [class.off]="!r.blocksFastTrack">
+        <div class="rule-text">
+          <span class="t-field-label" id="ant-ft">¿Le quita el Fast Track a la denuncia nueva?</span>
+          <p class="rule-hint">
+            No rechaza nada: el siniestro se resuelve igual, pero lo revisa un analista en vez de
+            salir por la vía rápida.
+          </p>
+        </div>
+        <div class="rule-value">
+          <span class="t-note">{{ r.blocksFastTrack ? 'Sí, lo pierde' : 'No' }}</span>
+          <app-switch
+            [checked]="r.blocksFastTrack"
+            [ariaLabel]="'¿Le quita el Fast Track a la denuncia nueva?'"
+            (checkedChange)="setBlocksFastTrack($event)"
+          />
+        </div>
+      </li>
+    </ul>
+
+    <app-save-bar
+      [dirty]="dirty()"
+      [saving]="saving()"
+      [error]="error()"
+      [canSave]="!windowInvalida()"
+      (save)="save()"
+      (discard)="discard()"
+    />
+  </app-card>
+}

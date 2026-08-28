@@ -1,0 +1,59 @@
+<div class="reportes" @staggerReveal>
+  <header class="rep-head">
+    <h1 class="t-page-title">Reportes</h1>
+    <p class="rep-sub">Generá un reporte a medida o descargá uno reciente</p>
+  </header>
+
+  <div class="rep-grid">
+    <app-card heading="Nuevo reporte">
+      <div class="field">
+        <label class="t-field-label" for="rep-tipo">Tipo</label>
+        <app-select id="rep-tipo" [options]="typeOptions" [(value)]="reportType" />
+      </div>
+
+      <div class="field">
+        <label class="t-field-label" for="rep-periodo">Período</label>
+        <app-select id="rep-periodo" [options]="periodOptions" [(value)]="period" />
+      </div>
+
+      <div class="field">
+        <span class="t-field-label">Formato</span>
+        <div class="format-toggle" role="group" aria-label="Formato del reporte">
+          @for (f of formats; track f) {
+            <button
+              type="button"
+              class="format-opt"
+              [class.active]="format() === f"
+              [attr.aria-pressed]="format() === f"
+              (click)="setFormat(f)"
+            >
+              {{ f }}
+            </button>
+          }
+        </div>
+      </div>
+
+      <app-button [block]="true">Generar reporte</app-button>
+    </app-card>
+
+    <app-card heading="Recientes">
+      <ul class="recent-list" @listStagger>
+        @for (r of recent; track r.name) {
+          <li class="recent-item">
+            <span class="recent-icon" aria-hidden="true">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6">
+                <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" stroke-linecap="round" stroke-linejoin="round" />
+                <polyline points="14 2 14 8 20 8" stroke-linecap="round" stroke-linejoin="round" />
+              </svg>
+            </span>
+            <div class="recent-text">
+              <p class="recent-name">{{ r.name }}</p>
+              <p class="recent-meta">{{ r.format }} · {{ r.size }} · {{ r.when }}</p>
+            </div>
+            <button type="button" class="recent-download">Descargar</button>
+          </li>
+        }
+      </ul>
+    </app-card>
+  </div>
+</div>

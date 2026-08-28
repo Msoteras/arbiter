@@ -1,0 +1,222 @@
+services:
+
+  # ─── Persistence ────────────────────────────────────────────────────────
+  postgres:
+    image: pgvector/pgvector:pg16
+    environment:
+      POSTGRES_DB: ${DB_NAME:-arbiter}
+      POSTGRES_USER: ${DB_USER:-arbiter}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-arbiter}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-arbiter} -d ${DB_NAME:-arbiter}"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 10s
+
+  # ─── LLM ─────────────────────────────────────────────────────────────────
+  # Solo arranca con el perfil `ollama` (COMPOSE_PROFILES=ollama en el .env). Quien corra el
+  # modelo por Gemini no tiene por qué bajarse 6 GB de pesos ni reservarles la RAM.
+  ollama:
+    profiles: ["ollama"]
+    image: ollama/ollama:latest
+    environment:
+      OLLAMA_NUM_PARALLEL: "1"
+    volumes:
+      - ollama_data:/root/.ollama
+    ports:
+      - "11434:11434"
+    healthcheck:
+      test: ["CMD", "ollama", "list"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 10s
+
+  # Pulls the models into the volume on first run; no-op if already cached.
+  ollama-init:
+    profiles: ["ollama"]
+    image: ollama/ollama:latest
+    entrypoint: ["/bin/sh", "-c", "ollama pull qwen3-vl:8b-instruct"]
+    environment:
+      OLLAMA_HOST: http://ollama:11434
+    depends_on:
+      ollama:
+        condition: service_healthy
+    restart: on-failure
+
+  # ─── Embeddings (CLIP sidecar) ──────────────────────────────────────────
+  # Deterministic image embeddings for duplicate detection: the same image
+  # always yields the same 512-dim vector. Ollama has no working image
+  # embedding model, so this runs CLIP ViT-B-32 in a small Python service.
+  clip-embedding:
+    build:
+      context: ./embedding-service
+    ports:
+      - "8000:8000"
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 30s
+
+  # ─── Backend modules ────────────────────────────────────────────────────
+  auth-service:
+    build:
+      context: .
+      dockerfile: auth-service/Dockerfile
+    ports:
+      - "8080:8080"
+    environment:
+      DB_URL: jdbc:postgresql://postgres:5432/${DB_NAME:-arbiter}
+      DB_USER: ${DB_USER:-arbiter}
+      DB_PASSWORD: ${DB_PASSWORD:-arbiter}
+      JWT_SECRET: ${JWT_SECRET:-+CV3wiE5lScQGEx1PvKLNuWmaqxixDsm8EIFifgfq8thgguF84p+GI10Rs/1wSTl}
+      # Sin esto, InsuredDirectoryDatabaseAdapter (alta masiva de asegurados) nunca se activa y
+      # cae en el mock silencioso — mismo patrón que classification-service/cases-service abajo.
+      SPRING_PROFILES_ACTIVE: ${AUTH_PROFILES:-insurer-db}
+      AUTH_PROVIDER: ${AUTH_PROVIDER:-auth0}
+      AUTH0_DOMAIN: ${AUTH0_DOMAIN:-}
+      AUTH0_LOGIN_CLIENT_ID: ${AUTH0_LOGIN_CLIENT_ID:-}
+      AUTH0_LOGIN_CLIENT_SECRET: ${AUTH0_LOGIN_CLIENT_SECRET:-}
+      AUTH0_MGMT_CLIENT_ID: ${AUTH0_MGMT_CLIENT_ID:-}
+      AUTH0_MGMT_CLIENT_SECRET: ${AUTH0_MGMT_CLIENT_SECRET:-}
+      SENDGRID_API_KEY: ${SENDGRID_API_KEY:-}
+      SENDGRID_FROM_ADDRESS: ${SENDGRID_FROM_ADDRESS:-no-reply@arbiter.test}
+      SENDGRID_FROM_NAME: ${SENDGRID_FROM_NAME:-Arbiter}
+      FRONTEND_BASE_URL: ${FRONTEND_BASE_URL:-http://localhost:4200}
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: on-failure
+
+  classification-service:
+    build:
+      context: .
+      dockerfile: classification-service/Dockerfile
+    ports:
+      - "8082:8082"
+    environment:
+      # Reads policies/history from the seeded "BD Aseguradora" (schema `aseguradora`)
+      # via InsurerDatabaseAdapter. Unset it to fall back to the in-memory MockInsurerAdapter.
+      SPRING_PROFILES_ACTIVE: ${CLASSIFICATION_PROFILES:-insurer-db}
+      # Quién sirve el modelo. `ollama` (default) exige COMPOSE_PROFILES=ollama en el .env, o
+      # el contenedor del modelo no existe; `gemini` no levanta nada local.
+      LLM_PROVIDER: ${LLM_PROVIDER:-ollama}
+      OLLAMA_BASE_URL: http://ollama:11434
+      OLLAMA_MODEL: ${OLLAMA_MODEL:-qwen3-vl:8b-instruct}
+      # Gemini por Vertex. Sin API key: el SDK autentica por ADC, así que lo que viaja es el
+      # archivo de la service account montado abajo, nunca un secreto en el yml.
+      GOOGLE_CLOUD_PROJECT: ${GOOGLE_CLOUD_PROJECT:-}
+      GOOGLE_CLOUD_LOCATION: ${GOOGLE_CLOUD_LOCATION:-global}
+      GEMINI_MODEL: ${GEMINI_MODEL:-gemini-3.5-flash}
+      GOOGLE_APPLICATION_CREDENTIALS: ${GOOGLE_APPLICATION_CREDENTIALS:-}
+      # Para usar Gemini hay que montar la credencial, y eso va en el docker-compose.override.yml
+      # de cada uno (gitignored, igual que el DB_URL de Railway). Con service account:
+      #   services:
+      #     classification-service:
+      #       environment:
+      #         LLM_PROVIDER: gemini
+      #         GOOGLE_APPLICATION_CREDENTIALS: /secrets/gcp.json
+      #       volumes:
+      #         - ./gcp-sa.json:/secrets/gcp.json:ro
+      # O reusando el login de la máquina (`gcloud auth application-default login`):
+      #         - ${APPDATA}/gcloud/application_default_credentials.json:/secrets/gcp.json:ro
+      EMBEDDING_SERVICE_URL: http://clip-embedding:8000
+      # Opt-in: sends images to Google. Set both in your .env (never commit the key).
+      GOOGLE_VISION_ENABLED: ${GOOGLE_VISION_ENABLED:-false}
+      GOOGLE_VISION_API_KEY: ${GOOGLE_VISION_API_KEY:-}
+      DB_URL: jdbc:postgresql://postgres:5432/${DB_NAME:-arbiter}
+      DB_USER: ${DB_USER:-arbiter}
+      DB_PASSWORD: ${DB_PASSWORD:-arbiter}
+      JWT_SECRET: ${JWT_SECRET:-+CV3wiE5lScQGEx1PvKLNuWmaqxixDsm8EIFifgfq8thgguF84p+GI10Rs/1wSTl}
+      RULES_SERVICE_URL: http://rules-service:8081
+    depends_on:
+      ollama-init:
+        condition: service_completed_successfully
+        # Sin el perfil `ollama` este servicio no existe, y sin `required: false` compose
+        # se negaría a levantar classification-service por una dependencia que nadie pidió.
+        required: false
+      postgres:
+        condition: service_healthy
+      clip-embedding:
+        condition: service_healthy
+    restart: on-failure
+
+  cases-service:
+    build:
+      context: .
+      dockerfile: cases-service/Dockerfile
+    ports:
+      - "8083:8083"
+    environment:
+      CLASSIFICATION_SERVICE_URL: http://classification-service:8082
+      # Gate de elegibilidad del alta (Hard Stop) y política de derivación a peritaje del ramo.
+      RULES_SERVICE_URL: http://rules-service:8081
+      AUTH_SERVICE_URL: http://auth-service:8080
+      DB_URL: jdbc:postgresql://postgres:5432/${DB_NAME:-arbiter}
+      DB_USER: ${DB_USER:-arbiter}
+      DB_PASSWORD: ${DB_PASSWORD:-arbiter}
+      JWT_SECRET: ${JWT_SECRET:-+CV3wiE5lScQGEx1PvKLNuWmaqxixDsm8EIFifgfq8thgguF84p+GI10Rs/1wSTl}
+      # No solo auth manda mails: de acá salen el aviso de cambio de estado al asegurado y la
+      # solicitud de peritaje al perito. Sin estas vars el adapter loguea y no manda nada.
+      SENDGRID_API_KEY: ${SENDGRID_API_KEY:-}
+      SENDGRID_FROM_ADDRESS: ${SENDGRID_FROM_ADDRESS:-no-reply@arbiter.test}
+      SENDGRID_FROM_NAME: ${SENDGRID_FROM_NAME:-Arbiter}
+      # Lee las pólizas del asegurado desde la BD Aseguradora (schema `aseguradora`) vía
+      # InsurerDatabaseAdapter. Sin el perfil, usa el MockInsurerAdapter en memoria.
+      SPRING_PROFILES_ACTIVE: ${CASES_PROFILES:-insurer-db}
+    depends_on:
+      classification-service:
+        condition: service_started
+      rules-service:
+        condition: service_started
+      postgres:
+        condition: service_healthy
+    restart: on-failure
+
+  rules-service:
+    build:
+      context: .
+      dockerfile: rules-service/Dockerfile
+    ports:
+      - "8081:8081"
+    environment:
+      DB_URL: jdbc:postgresql://postgres:5432/${DB_NAME:-arbiter}
+      DB_USER: ${DB_USER:-arbiter}
+      DB_PASSWORD: ${DB_PASSWORD:-arbiter}
+      # Igual que el resto: su SecurityConfig arma el JwtAuthenticationFilter al
+      # levantar, así que sin secreto no arranca (falla con "key byte array is 0 bits").
+      JWT_SECRET: ${JWT_SECRET:-+CV3wiE5lScQGEx1PvKLNuWmaqxixDsm8EIFifgfq8thgguF84p+GI10Rs/1wSTl}
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: on-failure
+
+  reports-service:
+    build:
+      context: .
+      dockerfile: reports-service/Dockerfile
+    ports:
+      - "8084:8084"
+    environment:
+      DB_URL: jdbc:postgresql://postgres:5432/${DB_NAME:-arbiter}
+      DB_USER: ${DB_USER:-arbiter}
+      DB_PASSWORD: ${DB_PASSWORD:-arbiter}
+      JWT_SECRET: ${JWT_SECRET:-+CV3wiE5lScQGEx1PvKLNuWmaqxixDsm8EIFifgfq8thgguF84p+GI10Rs/1wSTl}
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: on-failure
+
+  # TODO: add the remaining services as they get implemented:
+  # arbiter-frontend   → port 5173
+
+volumes:
+  ollama_data:
+  postgres_data:

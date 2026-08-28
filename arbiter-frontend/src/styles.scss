@@ -1,0 +1,55 @@
+/* ===== Arbiter — Design System =====
+   Fuente de verdad de estilos. Capas separadas:
+   - styles/_tokens.scss   → valores primitivos (paleta, espaciado, tipografía…)
+   - styles/_semantic.scss → roles semánticos (text-*, surface-*, action-*)
+   Los componentes consumen SOLO tokens semánticos.
+   Guardrail: prohibido hex/px crudos fuera de _tokens.scss. */
+@use 'styles/tokens';
+@use 'styles/semantic';
+@use 'styles/typography';
+
+/* Arimo — clon open-source (Apache 2.0) métricamente idéntico a Helvetica/Arial.
+   Auto-hospedado para render consistente en todo OS. Fuente variable: un solo
+   archivo cubre los pesos 400–700. Arial queda de fallback (mismas métricas → sin
+   layout shift mientras carga). */
+@font-face {
+  font-family: 'Arimo';
+  font-style: normal;
+  font-weight: 400 700;
+  font-display: swap;
+  src: url('/fonts/arimo-latin.woff2') format('woff2');
+}
+
+* { box-sizing: border-box; }
+html, body { height: 100%; }
+
+body {
+  margin: 0;
+  font-family: var(--font-sans);
+  font-size: var(--font-size-body);
+  line-height: 1.5;
+  color: var(--text-primary);
+  background: var(--surface);
+  font-synthesis: none;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* Subrayados anclados a las métricas de la fuente (no a la posición del browser). */
+a {
+  text-underline-offset: 2px;
+  text-decoration-thickness: from-font;
+}
+
+/* Botón-enlace inline (ej. "Cambiar" en el portal del asegurado).
+   Los <button> no heredan font-family: sin `font: inherit` caen en el font del UA. */
+.link-btn {
+  border: none;
+  background: none;
+  cursor: pointer;
+  padding: 0;
+  font: inherit;
+  font-size: var(--font-size-sm);
+  color: var(--text-tertiary);
+  text-decoration: underline;
+}

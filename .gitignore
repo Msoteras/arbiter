@@ -48,3 +48,26 @@ build/
 ### Frontend ###
 arbiter-frontend/node_modules/
 arbiter-frontend/dist/
+
+### Tooling de agentes / skills (local, no del proyecto) ###
+.agents/
+.claude/
+skills-lock.json
+
+### Secretos locales (API keys, credentials) — never commit ###
+.env
+.env.local
+
+# Service account de GCP para Gemini/Vertex. El archivo ES la credencial: quien lo tenga
+# factura contra el proyecto. Va montado por docker-compose.override.yml, nunca versionado.
+gcp-sa.json
+*-sa.json
+application_default_credentials.json
+
+### Override local de Docker Compose (config de entorno, no del proyecto) ###
+docker-compose.override.yml
+
+### Artefactos generados en runtime ###
+# ClassificationResultsService lo reescribe en cada clasificación — no es fuente, es salida.
+resultados-clasificaciones.md
+**/resultados-clasificaciones.md

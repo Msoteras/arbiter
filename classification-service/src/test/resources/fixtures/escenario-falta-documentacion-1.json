@@ -1,0 +1,16 @@
+{
+  "name": "Caso válido pero sin factura de compra del bien",
+  "expectedClassification": "FALTA_DOCUMENTACION",
+  "request": {
+    "branch": "Celulares",
+    "product": "Celular Protegido Premium",
+    "claimCause": "Robo en vía pública",
+    "insuredItem": "Samsung Galaxy S25 Ultra - IMEI 354000000000200",
+    "description": "El jueves 12 de junio a las 20:15 hs, salía de una tienda en Av. Corrientes y un sujeto en bicicleta me arrancó el celular. Hice denuncia policial inmediatamente. El celular lo compré hace unos meses en una tienda pero no encuentro el comprobante, debe estar en casa en algún lado.",
+    "attachmentsOcr": [
+      "DENUNCIA POLICIAL Nro 2026/33456 - Comisaría 14ta CABA\nFecha: 12/06/2026 20:45 hs\nDenunciante: Gabriela Sánchez DNI 38.777.888\nHecho: Robo de teléfono celular en vía pública\nLugar: Av. Corrientes y 9 de Julio, Centro, CABA\nFecha del hecho: 12/06/2026 20:15 hs\nDescripción del sujeto: Varón en bicicleta color roja"
+    ],
+    "insurerRules": "- Se requiere comprobante de compra para validar el bien.\n- Denuncia policial dentro de 48 hs: OK\n- Sin comprobante se puede solicitar: factura fiscal, boleta de compra, comprobante de pago.",
+    "insuredHistory": "HISTORIAL DE SINIESTROS — Asegurada: Gabriela Sánchez (DNI 38.777.888)\n\nSin siniestros previos registrados.\n\nAntigüedad como asegurada: 6 meses (desde diciembre 2025).\nPólizas activas: 1 (Celular Protegido Premium).\nPagos: Al día."
+  }
+}

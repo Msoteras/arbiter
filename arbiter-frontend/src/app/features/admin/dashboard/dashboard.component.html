@@ -1,0 +1,68 @@
+<div class="dash" @staggerReveal>
+  <header class="dash-head">
+    <div class="dash-head-text">
+      <h1 class="t-page-title">Dashboard de métricas</h1>
+      <p class="dash-sub">Rendimiento operativo de la aseguradora</p>
+    </div>
+    <app-menu-button [items]="periodOptions" align="end" (itemSelected)="setPeriod($event)">
+      {{ period() }} <span aria-hidden="true">▾</span>
+    </app-menu-button>
+  </header>
+
+  <section class="stats" aria-label="Indicadores del período">
+    @for (s of stats; track s.label) {
+      <app-card [heading]="s.label">
+        <p class="stat-value" [class.danger]="s.danger">{{ s.value }}</p>
+        <p class="stat-sub" [class.danger]="s.danger">{{ s.sub }}</p>
+      </app-card>
+    }
+  </section>
+
+  <section class="panels">
+    <app-card heading="Expedientes por estado">
+      <div class="bars">
+        @for (e of estados; track e.label) {
+          <div class="bar-col">
+            <span class="bar-value">{{ e.value }}</span>
+            <div class="bar-track">
+              <div
+                class="bar tone-{{ e.tone }}"
+                [style.height.%]="(e.value / maxEstado) * 100"
+              ></div>
+            </div>
+            <span class="bar-label">{{ e.label }}</span>
+          </div>
+        }
+      </div>
+    </app-card>
+
+    <app-card heading="Riesgo de fraude">
+      <div class="riesgo">
+        <div class="donut-wrap">
+          <svg viewBox="0 0 36 36" class="donut" role="img" aria-label="Distribución de riesgo de fraude">
+            <circle class="donut-track" cx="18" cy="18" r="15.915" />
+            @for (r of riesgo; track r.label) {
+              <circle
+                class="donut-seg tone-{{ r.tone }}"
+                cx="18"
+                cy="18"
+                r="15.915"
+                [attr.stroke-dasharray]="r.pct + ' ' + (100 - r.pct)"
+                [attr.stroke-dashoffset]="r.dashOffset"
+              />
+            }
+          </svg>
+          <div class="donut-center">
+            <span class="donut-total">{{ totalCasos }}</span>
+            <span class="donut-cap">casos</span>
+          </div>
+        </div>
+        <ul class="legend">
+          @for (r of riesgo; track r.label) {
+            <li><span class="dot tone-{{ r.tone }}"></span>{{ r.label }} · {{ r.pct }}%</li>
+          }
+        </ul>
+      </div>
+    </app-card>
+  </section>
+</div>

@@ -1,0 +1,940 @@
+{
+	"info": {
+		"_postman_id": "b2c3d4e5-f6a7-4b8c-9d0e-1f2a3b4c5d6e",
+		"name": "Arbiter — End-to-End: Case → Classification → Decision",
+		"description": "Exercises the real cross-module flow:\n\n1. **POST** a case to cases-service (multipart: `case` JSON part + optional `documents`), which persists it and calls classification-service.\n2. **GET** the case — poll until classification resolves.\n3. **POST** the analyst's decision (APROBAR / RECHAZAR) → transitions to APPROVED / REJECTED.\n\n**State machine**:\n- `PENDING_CLASSIFICATION` → classification runs (scheduler polls every 5s)\n- `PENDING_ANALYST_REVIEW` → analyst must act (FAST_TRACK / LLM result available)\n- `AWAITING_DOCUMENTATION` → insured must upload missing docs (FALTA_DOCUMENTACION)\n- `APPROVED` / `REJECTED` → final, set by analyst decision\n\n**Requirements**: both `cases-service` (port 8083) and `classification-service` (port 8082) up.\n\n**Mock policies** (from classification-service's MockInsurerAdapter):\n- POL-001 (insuredId 12345678) — Asegurado de prueba, sum insured 500.000\n- POL-CEL-2024-001 (insuredId 40.123.456) — Laura Fernández, sum insured 400.000, 0 prior claims\n- POL-CEL-2025-099 (insuredId 30.555.777) — Marcelo Gómez, sum insured 1.200.000, 3 prior claims\n- POL-CEL-2026-042 (insuredId 42.987.654) — Sofía Martínez, sum insured 1.300.000, 0 prior claims\n\n**Scenario 5 — FALTA_DOCUMENTACION**: crea un caso de robo SIN adjuntar denuncia policial. Las reglas mock para 'Robo' requieren `police_report` + `item_photo`, así que la clasificación devuelve FALTA_DOCUMENTACION → el caso queda en `AWAITING_DOCUMENTATION`. Luego se suben los documentos faltantes vía POST /{id}/documents, el caso vuelve a `PENDING_CLASSIFICATION`, y al re-clasificarse llega a `PENDING_ANALYST_REVIEW`.\n\n**Scenario 6 — Decisión del analista**: aprueba el caso 1 (Fast Track) y rechaza el caso 3 (reincidente).\n\n**Scenario 8 — Búsqueda y filtrado (`8️⃣`)**: a diferencia de los escenarios 1-7, no crea sus propios casos — corre contra los 5 cases fijos que siembra `db/init.sql` (ids 1-5). Sembrar antes de correr este bloque:\n```\nGet-Content db\\init.sql | docker exec -i arbiter-postgres-1 psql -U arbiter -d arbiter\n```\nSi corriste los escenarios 1-7 antes en la misma base, los ids ya no van a ser 1-5 — volvé a sembrar con el comando de arriba para que los ids documentados en cada request coincidan.",
+		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+	},
+	"item": [
+		{
+			"name": "1️⃣ Create case — FAST_TRACK (screen break, low amount)",
+			"event": [
+				{
+					"listen": "test",
+					"script": {
+						"exec": [
+							"const body = pm.response.json();",
+							"pm.collectionVariables.set('caseId', body.id || body.caseId);",
+							"pm.collectionVariables.set('caseId_fastTrack', body.id || body.caseId);"
+						]
+					}
+				}
+			],
+			"request": {
+				"method": "POST",
+				"header": [],
+				"url": {
+					"raw": "{{casesBaseUrl}}/api/v1/cases",
+					"host": [
+						"{{casesBaseUrl}}"
+					],
+					"path": [
+						"api",
+						"v1",
+						"cases"
+					]
+				},
+				"body": {
+					"mode": "formdata",
+					"formdata": [
+						{
+							"key": "case",
+							"value": "{\n  \"branch\": \"Celulares\",\n  \"product\": \"Celular Protegido Premium\",\n  \"claimCause\": \"Rotura accidental\",\n  \"insuredItem\": \"Samsung Galaxy S25 Ultra\",\n  \"insuredId\": \"42.987.654\",\n  \"policyNumber\": \"POL-CEL-2026-042\",\n  \"description\": \"Se me cayó el celular de las manos en mi casa. Se rompió la pantalla pero el equipo funciona normalmente\",\n  \"eventDate\": \"2026-06-14T08:30:00\",\n  \"eventLocation\": \"Casa\",\n  \"claimedAmount\": 285000\n}",
+							"contentType": "application/json",
+							"type": "text"
+						},
+						{
+							"key": "invoice",
+							"type": "file",
+							"src": [],
+							"description": "Optional: equipment purchase invoice"
+						},
+						{
+							"key": "quote",
+							"type": "file",
+							"src": [],
+							"description": "Optional: authorized repair quote"
+						}
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "1️⃣ ▶ Get case (Fast Track resolves instantly)",
+			"request": {
+				"method": "GET",
+				"header": [],
+				"url": {
+					"raw": "{{casesBaseUrl}}/api/v1/cases/{{caseId}}",
+					"host": [
+						"{{casesBaseUrl}}"
+					],
+					"path": [
+						"api",
+						"v1",
+						"cases",
+						"{{caseId}}"
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "2️⃣ Create case — FAST_TRACK (street theft, low amount)",
+			"event": [
+				{
+					"listen": "test",
+					"script": {
+						"exec": [
+							"const body = pm.response.json();",
+							"pm.collectionVariables.set('caseId', body.id || body.caseId);"
+						]
+					}
+				}
+			],
+			"request": {
+				"method": "POST",
+				"header": [],
+				"url": {
+					"raw": "{{casesBaseUrl}}/api/v1/cases",
+					"host": [
+						"{{casesBaseUrl}}"
+					],
+					"path": [
+						"api",
+						"v1",
+						"cases"
+					]
+				},
+				"body": {
+					"mode": "formdata",
+					"formdata": [
+						{
+							"key": "case",
+							"value": "{\n  \"branch\": \"Celulares\",\n  \"product\": \"Celular Protegido Básico\",\n  \"claimCause\": \"Robo en vía pública\",\n  \"insuredItem\": \"Motorola Edge 50 Pro\",\n  \"insuredId\": \"40.123.456\",\n  \"policyNumber\": \"POL-CEL-2024-001\",\n  \"description\": \"Me robaron el celular en la estación de subte. Hice denuncia policial el mismo día\",\n  \"eventDate\": \"2026-06-13T19:45:00\",\n  \"eventLocation\": \"Estación Congreso, CABA\",\n  \"claimedAmount\": 150000\n}",
+							"contentType": "application/json",
+							"type": "text"
+						},
+						{
+							"key": "police_report",
+							"type": "file",
+							"src": [],
+							"description": "Optional: police report"
+						},
+						{
+							"key": "invoice",
+							"type": "file",
+							"src": [],
+							"description": "Optional: equipment purchase invoice"
+						}
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "2️⃣ ▶ Get case (Fast Track resolves instantly)",
+			"request": {
+				"method": "GET",
+				"header": [],
+				"url": {
+					"raw": "{{casesBaseUrl}}/api/v1/cases/{{caseId}}",
+					"host": [
+						"{{casesBaseUrl}}"
+					],
+					"path": [
+						"api",
+						"v1",
+						"cases",
+						"{{caseId}}"
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "3️⃣ Create case — LLM_NO_RECOMIENDA_APROBAR (recidivist, high amount)",
+			"event": [
+				{
+					"listen": "test",
+					"script": {
+						"exec": [
+							"const body = pm.response.json();",
+							"pm.collectionVariables.set('caseId', body.id || body.caseId);",
+							"pm.collectionVariables.set('caseId_reincidente', body.id || body.caseId);"
+						]
+					}
+				}
+			],
+			"request": {
+				"method": "POST",
+				"header": [],
+				"url": {
+					"raw": "{{casesBaseUrl}}/api/v1/cases",
+					"host": [
+						"{{casesBaseUrl}}"
+					],
+					"path": [
+						"api",
+						"v1",
+						"cases"
+					]
+				},
+				"body": {
+					"mode": "formdata",
+					"formdata": [
+						{
+							"key": "case",
+							"value": "{\n  \"branch\": \"Celulares\",\n  \"product\": \"Celular Protegido Premium\",\n  \"claimCause\": \"Robo en vía pública\",\n  \"insuredItem\": \"iPhone 16 Pro Max\",\n  \"insuredId\": \"30.555.777\",\n  \"policyNumber\": \"POL-CEL-2025-099\",\n  \"description\": \"Me robaron el celular pero no me acuerdo bien dónde ni cuándo. Fue el martes o miércoles pasado, creo que cerca de Palermo\",\n  \"eventDate\": \"2026-06-10T23:00:00\",\n  \"eventLocation\": \"Palermo o Belgrano (no precisa)\",\n  \"claimedAmount\": 950000\n}",
+							"contentType": "application/json",
+							"type": "text"
+						},
+						{
+							"key": "police_report",
+							"type": "file",
+							"src": [],
+							"description": "Optional: police report"
+						}
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "3️⃣ ▶ Get case (falls to LLM — may need a couple of GETs)",
+			"request": {
+				"method": "GET",
+				"header": [],
+				"url": {
+					"raw": "{{casesBaseUrl}}/api/v1/cases/{{caseId}}",
+					"host": [
+						"{{casesBaseUrl}}"
+					],
+					"path": [
+						"api",
+						"v1",
+						"cases",
+						"{{caseId}}"
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "4️⃣ Create case — LLM_SOLICITA_REVISION_MANUAL (ambiguous, lost or stolen)",
+			"event": [
+				{
+					"listen": "test",
+					"script": {
+						"exec": [
+							"const body = pm.response.json();",
+							"pm.collectionVariables.set('caseId', body.id || body.caseId);"
+						]
+					}
+				}
+			],
+			"request": {
+				"method": "POST",
+				"header": [],
+				"url": {
+					"raw": "{{casesBaseUrl}}/api/v1/cases",
+					"host": [
+						"{{casesBaseUrl}}"
+					],
+					"path": [
+						"api",
+						"v1",
+						"cases"
+					]
+				},
+				"body": {
+					"mode": "formdata",
+					"formdata": [
+						{
+							"key": "case",
+							"value": "{\n  \"branch\": \"Celulares\",\n  \"product\": \"Celular Protegido Premium\",\n  \"claimCause\": \"Robo en vía pública\",\n  \"insuredItem\": \"iPhone 16 Pro\",\n  \"insuredId\": \"42.987.654\",\n  \"policyNumber\": \"POL-CEL-2026-042\",\n  \"description\": \"El celular desapareció pero no sé si me lo robaron o lo perdí. No estoy seguro qué pasó exactamente\",\n  \"eventDate\": \"2026-06-12T18:30:00\",\n  \"eventLocation\": \"Colectivo línea 159\",\n  \"claimedAmount\": 1200000\n}",
+							"contentType": "application/json",
+							"type": "text"
+						},
+						{
+							"key": "police_report",
+							"type": "file",
+							"src": [],
+							"description": "Optional: unclear/vague police report"
+						}
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "4️⃣ ▶ Get case (falls to LLM — may need a couple of GETs)",
+			"request": {
+				"method": "GET",
+				"header": [],
+				"url": {
+					"raw": "{{casesBaseUrl}}/api/v1/cases/{{caseId}}",
+					"host": [
+						"{{casesBaseUrl}}"
+					],
+					"path": [
+						"api",
+						"v1",
+						"cases",
+						"{{caseId}}"
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "5️⃣ Create case — FALTA_DOCUMENTACION (robo sin denuncia policial)",
+			"event": [
+				{
+					"listen": "test",
+					"script": {
+						"exec": [
+							"const body = pm.response.json();",
+							"pm.collectionVariables.set('caseId', body.id || body.caseId);"
+						]
+					}
+				}
+			],
+			"request": {
+				"method": "POST",
+				"header": [],
+				"url": {
+					"raw": "{{casesBaseUrl}}/api/v1/cases",
+					"host": [
+						"{{casesBaseUrl}}"
+					],
+					"path": [
+						"api",
+						"v1",
+						"cases"
+					]
+				},
+				"body": {
+					"mode": "formdata",
+					"formdata": [
+						{
+							"key": "case",
+							"value": "{\n  \"branch\": \"Celulares\",\n  \"product\": \"Celular Protegido Básico\",\n  \"claimCause\": \"Robo en vía pública\",\n  \"insuredItem\": \"Xiaomi Redmi Note 13\",\n  \"insuredId\": \"40.123.456\",\n  \"policyNumber\": \"POL-CEL-2024-001\",\n  \"description\": \"Me robaron el celular mientras esperaba el colectivo. No adjunto denuncia policial todavía porque no tuve tiempo de ir a la comisaría\",\n  \"eventDate\": \"2026-06-20T21:15:00\",\n  \"eventLocation\": \"Parada de colectivo en Av. Rivadavia 5400, CABA\",\n  \"claimedAmount\": 180000\n}",
+							"contentType": "application/json",
+							"type": "text"
+						}
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "5️⃣ ▶ Get case (should show AWAITING_DOCUMENTATION)",
+			"request": {
+				"method": "GET",
+				"header": [],
+				"url": {
+					"raw": "{{casesBaseUrl}}/api/v1/cases/{{caseId}}",
+					"host": [
+						"{{casesBaseUrl}}"
+					],
+					"path": [
+						"api",
+						"v1",
+						"cases",
+						"{{caseId}}"
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "5️⃣ ▶▶ Upload missing documents and re-classify",
+			"request": {
+				"method": "POST",
+				"header": [],
+				"url": {
+					"raw": "{{casesBaseUrl}}/api/v1/cases/{{caseId}}/documents",
+					"host": [
+						"{{casesBaseUrl}}"
+					],
+					"path": [
+						"api",
+						"v1",
+						"cases",
+						"{{caseId}}",
+						"documents"
+					]
+				},
+				"body": {
+					"mode": "formdata",
+					"formdata": [
+						{
+							"key": "police_report",
+							"type": "file",
+							"src": [],
+							"description": "Denuncia policial del incidente"
+						},
+						{
+							"key": "item_photo",
+							"type": "file",
+							"src": [],
+							"description": "Foto del bien siniestrado"
+						}
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "5️⃣ ▶▶▶ Get case after re-classification",
+			"request": {
+				"method": "GET",
+				"header": [],
+				"url": {
+					"raw": "{{casesBaseUrl}}/api/v1/cases/{{caseId}}",
+					"host": [
+						"{{casesBaseUrl}}"
+					],
+					"path": [
+						"api",
+						"v1",
+						"cases",
+						"{{caseId}}"
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "6️⃣ Analyst APPROVES case 1 (Fast Track)",
+			"request": {
+				"method": "POST",
+				"header": [
+					{
+						"key": "Content-Type",
+						"value": "application/json"
+					}
+				],
+				"url": {
+					"raw": "{{casesBaseUrl}}/api/v1/cases/{{caseId_fastTrack}}/decision",
+					"host": [
+						"{{casesBaseUrl}}"
+					],
+					"path": [
+						"api",
+						"v1",
+						"cases",
+						"{{caseId_fastTrack}}",
+						"decision"
+					]
+				},
+				"body": {
+					"mode": "raw",
+					"raw": "{\n  \"analystId\": \"analyst-sandoval\",\n  \"decision\": \"APROBAR\"\n}"
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "6️⃣ ▶ Get case 1 (should show APPROVED)",
+			"request": {
+				"method": "GET",
+				"header": [],
+				"url": {
+					"raw": "{{casesBaseUrl}}/api/v1/cases/{{caseId_fastTrack}}",
+					"host": [
+						"{{casesBaseUrl}}"
+					],
+					"path": [
+						"api",
+						"v1",
+						"cases",
+						"{{caseId_fastTrack}}"
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "7️⃣ Analyst REJECTS case 3 (reincidente)",
+			"request": {
+				"method": "POST",
+				"header": [
+					{
+						"key": "Content-Type",
+						"value": "application/json"
+					}
+				],
+				"url": {
+					"raw": "{{casesBaseUrl}}/api/v1/cases/{{caseId_reincidente}}/decision",
+					"host": [
+						"{{casesBaseUrl}}"
+					],
+					"path": [
+						"api",
+						"v1",
+						"cases",
+						"{{caseId_reincidente}}",
+						"decision"
+					]
+				},
+				"body": {
+					"mode": "raw",
+					"raw": "{\n  \"analystId\": \"analyst-sandoval\",\n  \"decision\": \"RECHAZAR\"\n}"
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "7️⃣ ▶ Get case 3 (should show REJECTED)",
+			"request": {
+				"method": "GET",
+				"header": [],
+				"url": {
+					"raw": "{{casesBaseUrl}}/api/v1/cases/{{caseId_reincidente}}",
+					"host": [
+						"{{casesBaseUrl}}"
+					],
+					"path": [
+						"api",
+						"v1",
+						"cases",
+						"{{caseId_reincidente}}"
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "🎯 (H0012) Score de riesgo en el Case (read model / CaseResponse)",
+			"event": [
+				{
+					"listen": "test",
+					"script": {
+						"exec": [
+							"// Verifica que el score de riesgo (señal paralela, downstream de la clasificación)",
+							"// viaja por el poll existente y se expone en el CaseResponse. Usa el caso Fast Track,",
+							"// que resuelve al instante y también se puntúa.",
+							"const body = pm.response.json();",
+							"pm.test('200 OK', () => pm.response.to.have.status(200));",
+							"",
+							"if (!body.analysisClassification) {",
+							"    pm.test('Clasificacion resuelta (si falla, reintenta este GET: el scheduler pollea cada 5s)',",
+							"        () => pm.expect(body.analysisClassification, 'analysisClassification').to.not.be.null);",
+							"    return;",
+							"}",
+							"",
+							"const BANDS = ['LOW', 'MEDIUM', 'HIGH', 'CRITICAL'];",
+							"",
+							"pm.test('H0012 — el CaseResponse expone riskScore, riskBand y riskBreakdown', () => {",
+							"    pm.expect(body).to.have.property('riskScore');",
+							"    pm.expect(body).to.have.property('riskBand');",
+							"    pm.expect(body).to.have.property('riskBreakdown');",
+							"});",
+							"",
+							"if (body.riskBand === null) {",
+							"    // 'sin scorear': sin ScoringConfig el motor da 0.0/LOW, pero el read model lo muestra",
+							"    // como null (nunca un LOW real). Con el mock actual todo ramo tiene config, asi que",
+							"    // esta rama normalmente no se da; queda documentada.",
+							"    pm.test('Sin scorear => riskScore y riskBreakdown tambien null (nunca LOW)', () => {",
+							"        pm.expect(body.riskScore, 'riskScore').to.be.null;",
+							"        pm.expect(body.riskBreakdown, 'riskBreakdown').to.be.null;",
+							"    });",
+							"} else {",
+							"    pm.test('Banda valida y score en [0,1]', () => {",
+							"        pm.expect(BANDS).to.include(body.riskBand);",
+							"        pm.expect(body.riskScore).to.be.a('number').within(0, 1);",
+							"    });",
+							"    pm.test('Breakdown por factor bien formado (rawScore*weight = weightedContribution)', () => {",
+							"        pm.expect(body.riskBreakdown).to.be.an('array').that.is.not.empty;",
+							"        body.riskBreakdown.forEach(f => {",
+							"            ['factorId', 'rawScore', 'weight', 'weightedContribution', 'rationale']",
+							"                .forEach(k => pm.expect(f, 'factor.' + k).to.have.property(k));",
+							"            pm.expect(f.weightedContribution, f.factorId).to.be.closeTo(f.rawScore * f.weight, 1e-6);",
+							"        });",
+							"    });",
+							"    pm.test('Score = suma ponderada normalizada por el peso total', () => {",
+							"        const wSum = body.riskBreakdown.reduce((a, f) => a + f.weightedContribution, 0);",
+							"        const totalW = body.riskBreakdown.reduce((a, f) => a + f.weight, 0);",
+							"        pm.expect(body.riskScore).to.be.closeTo(wSum / totalW, 1e-6);",
+							"    });",
+							"}"
+						]
+					}
+				}
+			],
+			"request": {
+				"method": "GET",
+				"header": [],
+				"url": {
+					"raw": "{{casesBaseUrl}}/api/v1/cases/{{caseId_fastTrack}}",
+					"host": [
+						"{{casesBaseUrl}}"
+					],
+					"path": [
+						"api",
+						"v1",
+						"cases",
+						"{{caseId_fastTrack}}"
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "🎯 (H0012) Snapshot autoritativo del score (classification-service / ClaimResponse)",
+			"event": [
+				{
+					"listen": "test",
+					"script": {
+						"exec": [
+							"// El CaseResponse cachea el score; la fuente de verdad e inmutable es el ClassificationLog,",
+							"// expuesto por classification-service en GET /api/v1/claims/{caseId}. Ambos deben coincidir.",
+							"const body = pm.response.json();",
+							"pm.test('200 OK', () => pm.response.to.have.status(200));",
+							"",
+							"if (!body.classification) {",
+							"    pm.test('Clasificacion disponible (si falla, reintenta este GET)',",
+							"        () => pm.expect(body.classification, 'classification').to.not.be.null);",
+							"    return;",
+							"}",
+							"",
+							"const BANDS = ['LOW', 'MEDIUM', 'HIGH', 'CRITICAL'];",
+							"",
+							"pm.test('El snapshot autoritativo (ClaimResponse) trae riskScore, riskBand y riskBreakdown', () => {",
+							"    pm.expect(body).to.have.property('riskScore');",
+							"    pm.expect(body).to.have.property('riskBand');",
+							"    pm.expect(body).to.have.property('riskBreakdown');",
+							"});",
+							"",
+							"if (body.riskBand !== null) {",
+							"    pm.test('Banda valida, score en [0,1] y consistente con el breakdown', () => {",
+							"        pm.expect(BANDS).to.include(body.riskBand);",
+							"        pm.expect(body.riskScore).to.be.within(0, 1);",
+							"        const wSum = body.riskBreakdown.reduce((a, f) => a + f.weightedContribution, 0);",
+							"        const totalW = body.riskBreakdown.reduce((a, f) => a + f.weight, 0);",
+							"        pm.expect(body.riskScore).to.be.closeTo(wSum / totalW, 1e-6);",
+							"    });",
+							"}"
+						]
+					}
+				}
+			],
+			"request": {
+				"method": "GET",
+				"header": [],
+				"url": {
+					"raw": "{{classificationBaseUrl}}/api/v1/claims/{{caseId_fastTrack}}",
+					"host": [
+						"{{classificationBaseUrl}}"
+					],
+					"path": [
+						"api",
+						"v1",
+						"claims",
+						"{{caseId_fastTrack}}"
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "📋 (debug) Get full results table directly from classification-service",
+			"request": {
+				"method": "GET",
+				"header": [],
+				"url": {
+					"raw": "{{classificationBaseUrl}}/api/v1/classifications/results",
+					"host": [
+						"{{classificationBaseUrl}}"
+					],
+					"path": [
+						"api",
+						"v1",
+						"classifications",
+						"results"
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "8️⃣ Búsqueda: sin filtros, primera página (paginación por defecto: size=20)",
+			"request": {
+				"method": "GET",
+				"header": [],
+				"url": {
+					"raw": "{{casesBaseUrl}}/api/v1/cases",
+					"host": [
+						"{{casesBaseUrl}}"
+					],
+					"path": [
+						"api",
+						"v1",
+						"cases"
+					],
+					"query": []
+				},
+				"description": "Usa los datos sembrados por db/init.sql (5 cases fijos, ids 1-5). Respuesta paginada: mirar content, totalElements, totalPages."
+			},
+			"response": []
+		},
+		{
+			"name": "8️⃣ Búsqueda: por estado (status=AWAITING_DOCUMENTATION)",
+			"request": {
+				"method": "GET",
+				"header": [],
+				"url": {
+					"raw": "{{casesBaseUrl}}/api/v1/cases?status=AWAITING_DOCUMENTATION",
+					"host": [
+						"{{casesBaseUrl}}"
+					],
+					"path": [
+						"api",
+						"v1",
+						"cases"
+					],
+					"query": [
+						{
+							"key": "status",
+							"value": "AWAITING_DOCUMENTATION"
+						}
+					]
+				},
+				"description": "Con los datos de init.sql debería devolver los cases 3 y 4."
+			},
+			"response": []
+		},
+		{
+			"name": "8️⃣ Búsqueda: por tipo de siniestro (claimCause)",
+			"request": {
+				"method": "GET",
+				"header": [],
+				"url": {
+					"raw": "{{casesBaseUrl}}/api/v1/cases?claimCause=Robo en vía pública",
+					"host": [
+						"{{casesBaseUrl}}"
+					],
+					"path": [
+						"api",
+						"v1",
+						"cases"
+					],
+					"query": [
+						{
+							"key": "claimCause",
+							"value": "Robo en vía pública"
+						}
+					]
+				},
+				"description": "Con los datos de init.sql debería devolver los cases 2, 3, 4 y 5."
+			},
+			"response": []
+		},
+		{
+			"name": "8️⃣ Búsqueda: por número de póliza (policyNumber)",
+			"request": {
+				"method": "GET",
+				"header": [],
+				"url": {
+					"raw": "{{casesBaseUrl}}/api/v1/cases?policyNumber=POL-CEL-2026-042",
+					"host": [
+						"{{casesBaseUrl}}"
+					],
+					"path": [
+						"api",
+						"v1",
+						"cases"
+					],
+					"query": [
+						{
+							"key": "policyNumber",
+							"value": "POL-CEL-2026-042"
+						}
+					]
+				},
+				"description": "Con los datos de init.sql debería devolver los cases 1, 4 y 5 (mismo asegurado/póliza)."
+			},
+			"response": []
+		},
+		{
+			"name": "8️⃣ Búsqueda: por asegurado (insuredId)",
+			"request": {
+				"method": "GET",
+				"header": [],
+				"url": {
+					"raw": "{{casesBaseUrl}}/api/v1/cases?insuredId=42.987.654",
+					"host": [
+						"{{casesBaseUrl}}"
+					],
+					"path": [
+						"api",
+						"v1",
+						"cases"
+					],
+					"query": [
+						{
+							"key": "insuredId",
+							"value": "42.987.654"
+						}
+					]
+				},
+				"description": "Con los datos de init.sql debería devolver los cases 1, 4 y 5."
+			},
+			"response": []
+		},
+		{
+			"name": "8️⃣ Búsqueda: por rango de fechas del hecho (eventDateFrom/eventDateTo)",
+			"request": {
+				"method": "GET",
+				"header": [],
+				"url": {
+					"raw": "{{casesBaseUrl}}/api/v1/cases?eventDateFrom=2026-06-12&eventDateTo=2026-06-14",
+					"host": [
+						"{{casesBaseUrl}}"
+					],
+					"path": [
+						"api",
+						"v1",
+						"cases"
+					],
+					"query": [
+						{
+							"key": "eventDateFrom",
+							"value": "2026-06-12"
+						},
+						{
+							"key": "eventDateTo",
+							"value": "2026-06-14"
+						}
+					]
+				},
+				"description": "Con los datos de init.sql debería devolver los cases 1, 4 y 5 (excluye el 06-10 y el 06-30)."
+			},
+			"response": []
+		},
+		{
+			"name": "8️⃣ Búsqueda: filtros combinados + orden (status + rango de fechas + sort)",
+			"request": {
+				"method": "GET",
+				"header": [],
+				"url": {
+					"raw": "{{casesBaseUrl}}/api/v1/cases?status=AWAITING_DOCUMENTATION&eventDateFrom=2026-06-01&eventDateTo=2026-06-30&sort=eventDate,desc",
+					"host": [
+						"{{casesBaseUrl}}"
+					],
+					"path": [
+						"api",
+						"v1",
+						"cases"
+					],
+					"query": [
+						{
+							"key": "status",
+							"value": "AWAITING_DOCUMENTATION"
+						},
+						{
+							"key": "eventDateFrom",
+							"value": "2026-06-01"
+						},
+						{
+							"key": "eventDateTo",
+							"value": "2026-06-30"
+						},
+						{
+							"key": "sort",
+							"value": "eventDate,desc"
+						}
+					]
+				},
+				"description": "Combina varios filtros a la vez; con init.sql debería devolver los cases 3 y 4, case 3 primero (eventDate 30/6, más reciente que el 12/6 del case 4)."
+			},
+			"response": []
+		},
+		{
+			"name": "8️⃣ Paginación: page=0&size=2 (más recientes primero)",
+			"request": {
+				"method": "GET",
+				"header": [],
+				"url": {
+					"raw": "{{casesBaseUrl}}/api/v1/cases?page=0&size=2",
+					"host": [
+						"{{casesBaseUrl}}"
+					],
+					"path": [
+						"api",
+						"v1",
+						"cases"
+					],
+					"query": [
+						{
+							"key": "page",
+							"value": "0"
+						},
+						{
+							"key": "size",
+							"value": "2"
+						}
+					]
+				},
+				"description": "Con init.sql (5 cases) debería devolver primero los cases 5 y 4 (id desc), totalElements=5, totalPages=3."
+			},
+			"response": []
+		},
+		{
+			"name": "8️⃣ Búsqueda de texto libre (q): por nombre del asegurado",
+			"request": {
+				"method": "GET",
+				"header": [],
+				"url": {
+					"raw": "{{casesBaseUrl}}/api/v1/cases?q=Sof%C3%ADa",
+					"host": [
+						"{{casesBaseUrl}}"
+					],
+					"path": [
+						"api",
+						"v1",
+						"cases"
+					],
+					"query": [
+						{
+							"key": "q",
+							"value": "Sofía"
+						}
+					]
+				},
+				"description": "Con init.sql debería devolver los cases 1 y 4 (insuredName=\"Sofía Martínez\", case-insensitive substring). El case 5 comparte insuredId pero todavía no tiene insuredName resuelto (null hasta la primera clasificación) — no matchea. También matchea por policyNumber/insuredId (substring) o por id (exacto, si q es numérico)."
+			},
+			"response": []
+		}
+	],
+	"variable": [
+		{
+			"key": "casesBaseUrl",
+			"value": "http://localhost:8083",
+			"type": "string"
+		},
+		{
+			"key": "classificationBaseUrl",
+			"value": "http://localhost:8082",
+			"type": "string"
+		},
+		{
+			"key": "caseId",
+			"value": "",
+			"type": "string"
+		},
+		{
+			"key": "caseId_fastTrack",
+			"value": "",
+			"type": "string"
+		},
+		{
+			"key": "caseId_reincidente",
+			"value": "",
+			"type": "string"
+		}
+	]
+}

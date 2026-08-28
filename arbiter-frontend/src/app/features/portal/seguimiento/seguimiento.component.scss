@@ -1,0 +1,174 @@
+:host {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  padding: var(--space-5) var(--space-6) var(--space-7);
+  /* 760px dejaba la pantalla del asegurado con aire de sobra en desktop y todo se leía como una
+     vista mobile estirada. Va alineado con "Mis siniestros" para que pasar de una a otra no
+     cambie el ancho de la columna. */
+  max-width: 960px;
+  margin: 0 auto;
+}
+
+@keyframes msPulse {
+  0%, 100% { opacity: 0.55; transform: scale(1); }
+  50% { opacity: 1; transform: scale(1.25); }
+}
+
+.breadcrumb {
+  font-size: var(--font-size-sm);
+  color: var(--accent-fg);
+  text-decoration: none;
+}
+.breadcrumb:hover { text-decoration: underline; }
+
+/* ===== Hero ===== */
+.hero { display: flex; flex-direction: column; gap: var(--space-2); }
+.hero h1 { margin: 0; }
+.eyebrow {
+  font-size: var(--font-size-2xs);
+  font-weight: var(--font-weight-medium);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--accent-fg);
+}
+.hero-sub { margin: 0; font-size: var(--font-size-md); color: var(--text-secondary); }
+
+.simple-progress { display: flex; align-items: center; margin-top: var(--space-3); }
+.simple-step {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-medium);
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+.simple-step.done { color: var(--accent-fg); }
+.simple-step.current { color: var(--text-primary); }
+.simple-check { color: var(--accent); }
+.simple-sep {
+  flex: 1;
+  height: 2px;
+  min-width: var(--space-5);
+  margin: 0 var(--space-2);
+  border-radius: var(--radius-pill);
+  background: var(--border-default);
+}
+.simple-sep.done { background: var(--accent); }
+
+/* ===== Acción requerida ===== */
+.action-required {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-4);
+  border-radius: var(--radius-card);
+  box-shadow: var(--shadow-card);
+}
+.action-required[data-tone='warning'] { background: var(--surface-soft); border: 1px solid var(--status-warning); }
+.action-required[data-tone='ok'],
+.action-required[data-tone='info'] { background: var(--accent-soft); border: 1px solid var(--accent-soft-border); }
+.action-required[data-tone='danger'] { background: var(--surface); border: 1px solid var(--status-danger); }
+
+.action-icon {
+  flex: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  border-radius: var(--radius-ctl);
+  color: var(--text-primary);
+}
+.action-required[data-tone='warning'] .action-icon { background: var(--status-warning); color: var(--text-primary); }
+.action-required[data-tone='ok'] .action-icon,
+.action-required[data-tone='info'] .action-icon { background: var(--accent); color: var(--text-on-emphasis); }
+.action-required[data-tone='danger'] .action-icon { background: var(--status-danger); color: var(--text-on-emphasis); }
+
+.action-body { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: var(--space-1); }
+.action-tag {
+  font-size: var(--font-size-md);
+  font-weight: var(--font-weight-medium);
+  color: var(--text-primary);
+}
+.action-text { margin: 0; font-size: var(--font-size-body); color: var(--text-secondary); }
+
+/* ===== Hilo de hitos simplificado (asegurado) ===== */
+.milestones { list-style: none; margin: 0; padding: 0; }
+.milestone {
+  position: relative;
+  padding: 0 0 var(--space-5) var(--space-6);
+  min-height: 40px;
+}
+.milestone:not(:last-child)::before {
+  content: '';
+  position: absolute;
+  left: 12px;
+  top: 24px;
+  bottom: 0;
+  width: 2px;
+  background: var(--border-default);
+}
+.milestone.reached:not(:last-child)::before { background: var(--accent); }
+.ms-marker {
+  position: absolute;
+  left: 0;
+  top: 1px;
+  width: 26px;
+  height: 26px;
+  border-radius: var(--radius-pill);
+  background: var(--surface);
+  border: 2px solid var(--border-strong);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.milestone.reached .ms-marker { background: var(--accent); border-color: var(--accent); }
+.milestone.current .ms-marker { background: var(--surface); border-color: var(--accent); }
+.ms-check { color: var(--text-on-emphasis); font-size: var(--font-size-sm); }
+.ms-pulse {
+  width: 9px;
+  height: 9px;
+  border-radius: var(--radius-pill);
+  background: var(--accent);
+  animation: msPulse 2s ease-in-out infinite;
+}
+.ms-body { display: flex; flex-direction: column; gap: 2px; padding-top: 3px; }
+.ms-head { display: flex; align-items: center; gap: var(--space-2); }
+.ms-label { font-size: var(--font-size-md); color: var(--text-secondary); }
+.milestone.reached .ms-label,
+.milestone.current .ms-label { color: var(--text-primary); font-weight: var(--font-weight-medium); }
+.ms-now {
+  font-size: var(--font-size-2xs);
+  font-weight: var(--font-weight-medium);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--accent-fg);
+  background: var(--accent-soft);
+  padding: 2px var(--space-2);
+  border-radius: var(--radius-pill);
+}
+.ms-date { font-size: var(--font-size-xs); color: var(--text-muted); }
+.ms-date.pending { font-style: italic; }
+
+/* ===== Detalle ===== */
+/* Dos columnas cuando hay ancho: en una sola, con la card más grande, los datos quedaban como
+   una tira finita contra el borde izquierdo y la mitad derecha vacía. */
+.fields {
+  margin: 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: var(--space-3) var(--space-5);
+}
+.field dd { margin: 0; font-size: var(--font-size-body); font-variant-numeric: tabular-nums; text-wrap: pretty; }
+
+.state-wrap { padding: var(--space-5) 0; }
+.t-note a { color: var(--accent-fg); }
+
+@media (max-width: 520px) {
+  .action-required { flex-direction: column; align-items: stretch; }
+}
+
+/* Documentación enviada: separa la sección de la card de la denuncia. */
+.docs-section { display: block; margin-top: var(--space-4); }

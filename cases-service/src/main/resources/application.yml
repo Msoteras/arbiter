@@ -1,0 +1,89 @@
+server:
+  # ${PORT} is what the platform injects (Railway); the literal stays as the local
+  # default so docker-compose and `mvn spring-boot:run` keep the ports the team knows.
+  port: ${PORT:8083}
+
+spring:
+  application:
+    name: cases-service
+  datasource:
+    url: ${DB_URL:jdbc:postgresql://localhost:5432/arbiter}
+    username: ${DB_USER:arbiter}
+    password: ${DB_PASSWORD:arbiter}
+    hikari:
+      # Five and not Hikari's default ten: with the services deployed plus every developer's
+      # local stack pointing at the same Postgres, the defaults alone exhaust a small plan's
+      # connection limit.
+      maximum-pool-size: ${DB_POOL_SIZE:5}
+  jpa:
+    # Off, not just best-practice: with multi-tenancy, an open-in-view session opens (and
+    # resolves its tenant) on the request's first query and stays pinned to it for the rest
+    # of the request — see auth-service's application.yml for the concrete bug this caused
+    # there.
+    open-in-view: false
+    hibernate:
+      # `validate`, nunca `update`: con el search_path multi-tenant, en `update` Hibernate
+      # recrea las tablas de arbiter_common adentro de cada esquema de aseguradora apenas no
+      # las encuentra calificadas. El esquema lo define db/init-multitenant.sql y punto.
+      ddl-auto: validate
+    properties:
+      hibernate:
+        format_sql: true
+        hbm2ddl:
+          # Ver el comentario de auth-service: con las entidades repartidas entre
+          # arbiter_common y el esquema del tenant, `grouped` sólo mira el esquema por
+          # defecto y da por faltantes las del común.
+          jdbc_metadata_extraction_strategy: individually
+  threads:
+    virtual:
+      enabled: true
+  servlet:
+    multipart:
+      # El default de Spring es 1MB por archivo — menos de lo que pesa una foto de celular
+      # común. Con la agenda documental de una denuncia (varios adjuntos), el request
+      # completo también necesita más margen.
+      max-file-size: 10MB
+      max-request-size: 30MB
+
+arbiter:
+  classification-service:
+    url: ${CLASSIFICATION_SERVICE_URL:http://localhost:8082}
+  rules-service:
+    url: ${RULES_SERVICE_URL:http://localhost:8081}
+  classification-refresh:
+    # Defaults del código (5000ms / 120 intentos ⇒ 10 min de ventana total) asumían una
+    # clasificación rápida. Corriendo Ollama por CPU (sin GPU) se midieron casos reales de 20 min
+    # a más de 1 hora — el scheduler se rendía y marcaba CLASSIFICATION_FAILED con la clasificación
+    # todavía en curso en classification-service, que terminaba bien más tarde sin que nadie lo
+    # notara (18/08, caso 16: reintentó "fallar" 7 veces mientras el resultado real ya estaba
+    # persistido). 20s x 540 = 3hs de ventana, mismo criterio que el timeout de OllamaClient: mejor
+    # holgado que cortar algo que iba a terminar bien.
+    interval-ms: 20000
+    max-attempts: 540
+    # Barrido aparte (mismo ClassificationRefreshScheduler) que reencola los CLASSIFICATION_FAILED
+    # cuyo motivo fue INFRASTRUCTURE. Deliberadamente mucho más espaciado que interval-ms: el
+    # @Retryable de processClaimClassification ya gasta varios minutos reintentando antes de que un
+    # caso llegue a CLASSIFICATION_FAILED, así que reencolarlo segundos después solo martillaría un
+    # dependiente que sigue caído. 5 min le da margen a esa ventana antes de volver a intentar.
+    recovery-interval-ms: 300000
+  email:
+    # Sin key el adapter loguea y no manda: el módulo levanta igual y las notificaciones
+    # quedan registradas en base aunque no salga el mail.
+    sendgrid-api-key: ${SENDGRID_API_KEY:}
+    from-address: ${SENDGRID_FROM_ADDRESS:no-reply@arbiter.test}
+    from-name: ${SENDGRID_FROM_NAME:Arbiter}
+  auth:
+    jwt:
+      secret: ${JWT_SECRET:}
+
+management:
+  endpoints:
+    web:
+      exposure:
+        # Health only: this is the platform probe, not an ops console. Anything else exposed
+        # here would be reachable from the internet on whichever service gets a public domain.
+        include: health
+  endpoint:
+    health:
+      probes:
+        enabled: true

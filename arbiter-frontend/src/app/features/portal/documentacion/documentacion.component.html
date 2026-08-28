@@ -1,0 +1,32 @@
+<a
+  class="breadcrumb"
+  [routerLink]="['/portal/cases', caseId]"
+  [queryParams]="insurerSlug ? { insurer: insurerSlug } : {}">‹ Volver al seguimiento</a>
+
+<header class="page-head">
+  <h1 class="t-page-title">Documentación adicional</h1>
+  @if (data(); as d) {
+    <p class="subtitle measure">
+      Necesitamos algunos documentos para avanzar con tu siniestro
+      <span class="mono">#{{ d.id }}</span>.
+    </p>
+    <p class="subtitle-2 measure">La lista depende de lo que te pasó ({{ d.claimCause }}).</p>
+  } @else if (loading()) {
+    <p class="subtitle">Cargando tu siniestro…</p>
+  }
+</header>
+
+<app-card heading="Documentos requeridos">
+  <app-doc-upload
+    [caseId]="caseId"
+    [insurerSlug]="insurerSlug"
+    [branch]="data()?.branch ?? null"
+    [claimCause]="data()?.claimCause ?? null"
+    (uploaded)="onUploaded()"
+  />
+</app-card>
+
+<p class="autosend-note">
+  <span aria-hidden="true">ℹ</span>
+  Los documentos se envían automáticamente al analista ni bien terminan de cargarse.
+</p>

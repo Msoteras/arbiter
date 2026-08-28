@@ -1,0 +1,32 @@
+<!-- Decía "por ahora el alta de asegurados no se hace desde acá", que dejó de ser cierto: se hace
+     con «Dar de alta asegurados», que los trae de la base de la aseguradora en bloque. Este
+     formulario sigue siendo solo para analistas, así que ahora apunta al otro camino. -->
+<p class="t-note">
+  Creá una cuenta de analista. Le va a llegar un mail para elegir su contraseña.
+  Los asegurados se dan de alta con «Dar de alta asegurados».
+</p>
+
+<form class="form-card" (submit)="$event.preventDefault(); submit()">
+  <label class="field-label" for="nombre">Nombre</label>
+  <app-input id="nombre" [value]="nombre()" (valueChange)="nombre.set($event)" />
+
+  <label class="field-label" for="apellido">Apellido</label>
+  <app-input id="apellido" [value]="apellido()" (valueChange)="apellido.set($event)" />
+
+  <label class="field-label" for="email">Email</label>
+  <app-input id="email" type="email" [value]="email()" (valueChange)="email.set($event)" />
+
+  <span class="field-label">Rol</span>
+  <p class="t-body mono role-display">Analista de siniestros</p>
+
+  @if (errorMessage()) {
+    <p class="error">{{ errorMessage() }}</p>
+  }
+
+  <div class="form-actions">
+    <app-button type="button" variant="secondary" (click)="cancel.emit()">Cancelar</app-button>
+    <app-button type="submit" [disabled]="!canSubmit() || submitting()">
+      {{ submitting() ? 'Creando…' : 'Crear usuario' }}
+    </app-button>
+  </div>
+</form>

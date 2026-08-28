@@ -1,5 +1,7 @@
 server:
-  port: 8081
+  # ${PORT} is what the platform injects (Railway); the literal stays as the local
+  # default so docker-compose and `mvn spring-boot:run` keep the ports the team knows.
+  port: ${PORT:8080}
 
 spring:
   application:
@@ -7,3 +9,78 @@ spring:
   threads:
     virtual:
       enabled: true
+  datasource:
+    url: ${DB_URL:jdbc:postgresql://localhost:5432/arbiter}
+    username: ${DB_USER:arbiter}
+    password: ${DB_PASSWORD:arbiter}
+    hikari:
+      # Five and not Hikari's default ten: with the services deployed plus every developer's
+      # local stack pointing at the same Postgres, the defaults alone exhaust a small plan's
+      # connection limit.
+      maximum-pool-size: ${DB_POOL_SIZE:5}
+  jpa:
+    # Off, not just best-practice: with multi-tenancy, an open-in-view session opens (and
+    # resolves its tenant) on the request's first query and stays pinned to it — AuthService
+    # sets the real tenant afterward, so a shared session would keep querying the wrong schema
+    # for the rest of the request.
+    open-in-view: false
+    hibernate:
+      ddl-auto: validate
+    properties:
+      hibernate:
+        format_sql: true
+        hbm2ddl:
+          # Las entidades viven repartidas entre arbiter_common y el esquema del tenant. La
+          # estrategia por defecto (`grouped`) pide la metadata de UN solo esquema: el
+          # `current_schema()` de la conexión, que es el primero del search_path, o sea el del
+          # tenant. Con eso, al validar, toda tabla del común figura como faltante aunque el
+          # search_path la resuelva bien en runtime. `individually` la pide tabla por tabla y
+          # sí atraviesa el search_path.
+          jdbc_metadata_extraction_strategy: individually
+
+arbiter:
+  auth:
+    provider: ${AUTH_PROVIDER:auth0}
+    jwt:
+      secret: ${JWT_SECRET:}
+      expiration-minutes: ${JWT_EXPIRATION_MINUTES:60}
+    login:
+      max-failed-attempts: 5
+      lockout-minutes: 15
+    password-encryption:
+      # RSA privada (PKCS#8, base64). Vacío genera una al arrancar, que alcanza para desarrollo pero
+      # no para más de una instancia: cada una tendría la suya y los logins fallarían salteado.
+      #   openssl genpkey -algorithm RSA -pkeyopt rsa_keygen_bits:2048 | openssl pkcs8 -topk8 -nocrypt -outform DER | base64 -w0
+      private-key: ${PASSWORD_ENCRYPTION_PRIVATE_KEY:}
+    auth0:
+      domain: ${AUTH0_DOMAIN:}
+      client-id: ${AUTH0_LOGIN_CLIENT_ID:}
+      client-secret: ${AUTH0_LOGIN_CLIENT_SECRET:}
+      connection: Username-Password-Authentication
+    management-api:
+      client-id: ${AUTH0_MGMT_CLIENT_ID:}
+      client-secret: ${AUTH0_MGMT_CLIENT_SECRET:}
+  email:
+    sendgrid-api-key: ${SENDGRID_API_KEY:}
+    from-address: ${SENDGRID_FROM_ADDRESS:no-reply@arbiter.test}
+    from-name: ${SENDGRID_FROM_NAME:Arbiter}
+  frontend:
+    base-url: ${FRONTEND_BASE_URL:http://localhost:4200}
+
+springdoc:
+  api-docs:
+    path: /v3/api-docs
+  swagger-ui:
+    path: /swagger-ui.html
+
+management:
+  endpoints:
+    web:
+      exposure:
+        # Health only: this is the platform probe, not an ops console. Anything else exposed
+        # here would be reachable from the internet on whichever service gets a public domain.
+        include: health
+  endpoint:
+    health:
+      probes:
+        enabled: true

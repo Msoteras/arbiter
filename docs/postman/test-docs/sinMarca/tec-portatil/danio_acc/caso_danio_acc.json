@@ -1,0 +1,18 @@
+{
+  "branch": "Tecnología Portátil",
+  "product": "Seguro de Tecnología Portátil",
+  "claimCause": "Daño accidental",
+  "insuredItem": "Apple MacBook Air 15\" M3 512 GB",
+  "insuredId": "33.845.219",
+  "policyNumber": "POL-TEC-2026-350",
+  "description": "Estaba trabajando en el escritorio con la notebook abierta y volqué la taza de café sobre el teclado. La apagué y la puse boca abajo, pero cuando quise encenderla más tarde ya no dio señal. La llevé al servicio técnico autorizado y me presupuestaron el cambio del teclado y la parte superior del equipo.",
+  "eventDate": "2026-08-20T10:15:00",
+  "eventLocation": "Av. Warnes 1470, piso 2° \"A\" — domicilio particular, escritorio de trabajo",
+  "locality": "La Paternal",
+  "province": "Ciudad Autónoma de Buenos Aires",
+  "claimedAmount": 757000,
+  "pep": false,
+  "imageConsent": true,
+  "contactEmail": "roman.castillo@example.com",
+  "contactPhone": "11-5555-0007"
+}

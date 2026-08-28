@@ -1,0 +1,105 @@
+/* ============================================================
+   Arbiter · Design System — CAPA 2: TOKENS SEMÁNTICOS
+   Roles. Mapean a la capa primitiva (_tokens.scss).
+   Los componentes del kit consumen SOLO estos tokens, nunca
+   los primitivos ni valores crudos. Acá vive el "tema": el día
+   que se sume dark mode o branding por aseguradora, se cambia
+   este archivo (o se sobreescribe bajo un [data-theme]) y todo
+   el sistema se adapta sin tocar componentes.
+   ============================================================ */
+:root {
+  /* ===== Texto ===== */
+  --text-primary: var(--c-ink);
+  --text-secondary: var(--c-ink-2);
+  --text-tertiary: var(--c-ink-3);
+  --text-muted: var(--c-muted);
+  --text-on-emphasis: var(--c-on-ink);
+
+  /* ===== Superficies ===== */
+  --surface: var(--c-bg);
+  --surface-soft: var(--c-bg-soft);
+  --surface-sunken: var(--c-bg-soft-2);
+  --surface-head: var(--c-bg-head);
+
+  /* ===== Bordes ===== */
+  --border-subtle: var(--c-divider);
+  --border-default: var(--c-border);
+  --border-control: var(--c-border-3);
+  --border-strong: var(--c-border-strong);
+
+  /* ===== Acción primaria (botón sólido) =====
+     El botón primario es oscuro (tinta de marca); el teal queda para
+     estados activos/selección — ver "Acento de marca" más abajo. */
+  --action-primary-bg: var(--c-ink);
+  --action-primary-bg-hover: var(--c-ink-strong);
+  --action-primary-fg: var(--c-on-ink);
+
+  /* ===== Acción de acento (botón sólido teal) =====
+     Excepción acotada a la regla de arriba: CTA teal para acciones que
+     conviene resaltar con el acento de marca (ej. "Asignarme" en la bandeja).
+     Usa --accent-strong (no --accent) para que el texto blanco pase AA. */
+  --action-accent-bg: var(--accent-strong);
+  --action-accent-bg-hover: var(--accent-deep);
+  --action-accent-fg: var(--c-on-ink);
+
+  /* ===== Acento de marca (estados activos / selección / IA) =====
+     Rellenos activos (stepper, toggles, timeline, tab activo) usan
+     --accent; texto/íconos teal sobre claro usan --accent-fg (AA);
+     la selección tintada usa el par --selected-bg/--selected-border.
+     El anillo de foco de inputs/controles es --focus-ring. */
+  --accent-fg: var(--accent-strong);
+  /* Relleno de un control activo (el toggle prendido): el teal de marca, no --accent-fg, que es
+     para texto. Existe como rol para que los componentes no consuman --accent directo, y con su
+     borde propio en teal fuerte: el relleno claro solo no llega a 3:1 contra la superficie, y sin
+     el borde el control se pierde de vista aunque el estado se lea por la perilla. */
+  --accent-fill: var(--accent);
+  --accent-fill-border: var(--accent-strong);
+  --selected-bg: var(--accent-soft);
+  --selected-border: var(--accent-soft-border);
+  --border-focus: var(--accent);
+  --focus-ring: 0 0 0 3px var(--accent-veil);
+
+  /* Superficie de cards de IA (sugerencias / recomendaciones del modelo, ✦). */
+  --surface-ai: linear-gradient(180deg, var(--accent-wash), var(--surface) 62%);
+  --border-ai: var(--accent-soft-border);
+
+  /* ===== Panel de marca (login / hero) ===== */
+  --brand-panel-bg: linear-gradient(160deg, var(--accent-strong) 0%, var(--accent-deep) 55%, var(--accent-deepest) 100%);
+  --brand-panel-fg: var(--c-on-ink);
+
+  /* ===== Chrome de la app (topbar fija + panel de navegación, analista / referente) =====
+     Antes se llamaban --sidebar-*, pero la topbar comparte exactamente la misma superficie
+     oscura: es un solo tratamiento de "marco de la app", no dos. */
+  --chrome-bg: var(--c-ink);
+  --chrome-fg: var(--c-on-ink);
+  --chrome-muted: var(--c-muted-2);
+  --chrome-item-active: var(--c-ink-raised);
+  --chrome-hair: var(--c-ink-hair);
+  --chrome-avatar-bg: var(--c-ink-raised-2);
+
+  /* ===== Acción secundaria (botón con borde) ===== */
+  --action-secondary-bg: var(--c-bg);
+  --action-secondary-fg: var(--c-ink);
+  --action-secondary-border: var(--c-border-3);
+  --action-secondary-border-hover: var(--c-ink);
+
+  /* ===== Estado / semáforo =====
+     Rol semántico de la paleta technicolor. Uso reservado a señales de
+     estado/resolución (badges, marcadores, notas), NO decorativo. Los
+     componentes consumen estos roles, nunca los primitivos --accent-*.
+       ok      → resuelto a favor / recomendación positiva  (verde)
+       warning → requiere atención / falta algo             (amarillo)
+       risk    → riesgo medio-alto (gauge de fraude "Alto") (naranja)
+       danger  → resuelto en contra / riesgo / error        (rojo)
+       info    → en curso / neutral informativo             (azul) */
+  --status-ok: var(--accent-green);
+  --status-warning: var(--accent-yellow);
+  --status-risk: var(--accent-orange);
+  --status-danger: var(--accent-red);
+  --status-info: var(--accent-blue);
+
+  /* Superficie tenue de alerta: fondo tintado para tarjetas que comunican riesgo (ej. la
+     tarjeta de "Alertas de fraude" del inicio). Par superficie + borde, como --selected-*. */
+  --surface-danger-soft: var(--accent-red-soft);
+  --border-danger-soft: var(--accent-red-soft-border);
+}

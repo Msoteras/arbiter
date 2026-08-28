@@ -1,0 +1,244 @@
+:host { display: block; }
+
+/* ===== Cabecera sticky (slim: solo identidad) ===== */
+.det-header {
+  position: sticky;
+  /* Debajo de la topbar fija de la app, no atrás. */
+  top: var(--appbar-h);
+  background: var(--surface);
+  border-bottom: 1px solid var(--border-default);
+  padding: var(--space-4) var(--space-6);
+  z-index: 10;
+}
+.det-header-row { display: flex; align-items: center; justify-content: space-between; gap: var(--space-4); flex-wrap: wrap; }
+.identity { display: flex; align-items: center; gap: var(--space-3); flex-wrap: wrap; }
+.identity h1 { margin: 0; }
+.subtitle { margin: var(--space-2) 0 0; font-size: var(--font-size-body); color: var(--text-muted); }
+
+/* Navegación entre expedientes */
+.case-nav { display: flex; gap: var(--space-2); flex: none; }
+.nav-link {
+  font-size: var(--font-size-sm);
+  color: var(--text-secondary);
+  text-decoration: none;
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid var(--border-control);
+  border-radius: var(--radius-ctl);
+  white-space: nowrap;
+}
+.nav-link:hover { border-color: var(--action-secondary-border-hover); color: var(--text-primary); }
+.nav-link.disabled { opacity: 0.4; pointer-events: none; }
+
+.nodata { color: var(--text-muted); font-size: var(--font-size-body); }
+
+/* ===== Reasoning cards (el borde/padding los da app-card) ===== */
+.reasoning {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: var(--space-3);
+  margin: 0 0 var(--space-4);
+}
+/* Antecedente de fraude. El color entra solo por el borde izquierdo y el punto del badge, como
+   en .reco-value: es información sobre una persona y saturarla de rojo la vuelve un veredicto. */
+
+.fraude-item { padding-left: var(--space-3); border-left: 3px solid var(--border-strong); }
+.fraude-item + .fraude-item { margin-top: var(--space-3); }
+.fraude-item[data-tone='warning'] { border-left-color: var(--status-warning); }
+.fraude-item[data-tone='danger'] { border-left-color: var(--status-danger); }
+.fraude-item-head { display: flex; align-items: center; gap: var(--space-2); flex-wrap: wrap; }
+.fraude-item p { margin: var(--space-2) 0 0; }
+/* El que originó ESTE expediente va separado de los previos: no es contexto, es lo que se hizo acá. */
+.fraude-item.propio { margin-top: var(--space-4); padding-top: var(--space-3); border-top: 1px solid var(--border-subtle); }
+.fraude-card app-button { margin-top: var(--space-3); }
+
+.rcard-note { margin: var(--space-2) 0 0; font-size: var(--font-size-xs); color: var(--text-muted); }
+.rcard-note.error { color: var(--status-danger); }
+.rcard-note.suggested { color: var(--status-risk); }
+.reco-value { margin: 0; font-size: var(--font-size-lg); font-weight: var(--font-weight-medium); color: var(--text-primary); line-height: 1.25; }
+/* Acento sobrio de semáforo: borde izquierdo por tono, sin pintar el texto. */
+.reco-value[data-tone] { padding-left: var(--space-3); border-left: 3px solid var(--border-strong); }
+.reco-value[data-tone='ok'] { border-left-color: var(--status-ok); }
+.reco-value[data-tone='warning'] { border-left-color: var(--status-warning); }
+.reco-value[data-tone='risk'] { border-left-color: var(--status-risk); }
+.reco-value[data-tone='danger'] { border-left-color: var(--status-danger); }
+.reco-value[data-tone='info'] { border-left-color: var(--status-info); }
+.reco-detail { margin: var(--space-2) 0 0; color: var(--text-secondary); }
+.registered { margin: var(--space-2) 0 0; font-size: var(--font-size-sm); font-weight: var(--font-weight-medium); color: var(--accent-fg); }
+.decision-btns { display: flex; gap: var(--space-2); }
+.decision-btns app-button { flex: 1; }
+/* Derivar va debajo y a lo ancho: no es una tercera decisión, es suspender para conseguir
+   evidencia — ponerlo en la misma fila lo leería como una salida más del expediente. */
+.decision-btns + app-button { margin-top: var(--space-2); }
+
+/* ===== Peritaje ===== */
+/* El ancho de lectura se acota en la CARD, no en el texto: con `.measure` sobre los párrafos
+   la línea cortaba antes del borde y quedaba un hueco a la derecha que se lee como un bug.
+   Acotando la caja, el texto llena la card y las dos cosas terminan en el mismo lugar. */
+.peritaje-card { max-width: 72ch; }
+.peritaje { display: grid; gap: var(--space-1); margin: 0 0 var(--space-3); }
+.peritaje dt { margin-top: var(--space-2); }
+.peritaje dt:first-child { margin-top: 0; }
+.peritaje dd { margin: 0; font-size: var(--font-size-body); color: var(--text-primary); }
+
+.peritaje-veredicto {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin-bottom: var(--space-2);
+}
+
+/* El input nativo va oculto: el kit no tiene selector de archivo propio, y así el control
+   visible sigue siendo un app-button (mismo patrón que app-doc-upload). */
+.informe-file {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  margin: var(--space-3) 0;
+}
+.informe-file .t-field-label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* ===== Asignación ===== */
+.assignee { display: flex; align-items: center; gap: var(--space-2); margin-bottom: var(--space-3); }
+.assignee-avatar {
+  flex-shrink: 0;
+  width: 34px;
+  height: 34px;
+  border-radius: var(--radius-pill);
+  background: var(--selected-bg);
+  color: var(--accent-fg);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-weight-medium);
+}
+.assignee-text { min-width: 0; }
+.assignee-name { margin: 0; font-size: var(--font-size-body); font-weight: var(--font-weight-medium); color: var(--text-primary); }
+.assignee-sub { margin: var(--space-1) 0 0; font-size: var(--font-size-xs); color: var(--text-muted); }
+/* Los triggers principales ("+ Asignarme" / "Asignar a…" / "⟳ Reasignar") reparten el ancho por
+   igual; el "…" queda chico al lado. */
+.assign-actions { display: flex; gap: var(--space-2); align-items: center; }
+.assign-actions > app-button,
+.assign-actions > .grow { flex: 1; min-width: 0; }
+
+/* ===== Tabs ===== */
+.tabs {
+  display: flex;
+  gap: var(--space-5);
+  overflow-x: auto;
+  overflow-y: hidden; /* evita el scrollbar vertical fantasma que fuerza overflow-x:auto */
+  border-bottom: 1px solid var(--border-default);
+  margin-bottom: var(--space-5);
+}
+.tab { border: none; background: none; cursor: pointer; font: inherit; font-size: var(--font-size-body); color: var(--text-muted); padding: var(--space-3) 0; border-bottom: 2px solid transparent; white-space: nowrap; margin-bottom: -1px; }
+.tab:hover { color: var(--text-secondary); }
+.tab.active { color: var(--text-primary); border-bottom-color: var(--text-primary); font-weight: var(--font-weight-medium); }
+
+/* ===== Contenido ===== */
+.det-content { padding: var(--space-5) var(--space-6) var(--space-7); }
+.state-wrap { padding: var(--space-5); max-width: 760px; }
+
+// Carga del expediente: spinner centrado en la página (no arriba a un costado).
+.detail-loading {
+  min-height: 70vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.note { margin: var(--space-1) 0 0; font-size: var(--font-size-xs); color: var(--text-muted); }
+
+/* Motivos detrás de la clasificación, tab "Razones" (analysisReasons, uno por fila). */
+.reasons-list {
+  margin: 0;
+  padding-left: var(--space-4);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+.reasons-list li { font-size: var(--font-size-body); color: var(--text-secondary); line-height: 1.4; }
+
+/* ===== Datos extraídos (una card por adjunto leído) ===== */
+.extracted-grid { display: grid; grid-template-columns: 1fr 1fr; gap: var(--space-3); align-items: start; }
+
+/* Las señales de la imagen van visualmente separadas de los campos: son una observación sobre
+   la foto, no algo que el documento diga, y mezclarlas las haría leer como contenido. */
+.visual-findings {
+  margin-top: var(--space-4);
+  padding-top: var(--space-3);
+  border-top: 1px solid var(--border-subtle);
+}
+.visual-findings ul {
+  margin: var(--space-2) 0 var(--space-2);
+  padding-left: var(--space-4);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+.visual-findings li { font-size: var(--font-size-sm); color: var(--text-secondary); line-height: 1.4; }
+
+/* La transcripción entera es larga y rara vez es lo que el analista busca primero: va plegada,
+   disponible sin empujar los campos fuera de la vista. */
+.transcription { margin-top: var(--space-3); }
+.transcription summary { cursor: pointer; }
+.transcription p {
+  margin: var(--space-2) 0 0;
+  max-width: 68ch;
+  text-wrap: pretty;
+  color: var(--text-secondary);
+  white-space: pre-line;
+}
+
+/* ===== Resumen ===== */
+.resumen-grid { display: grid; grid-template-columns: 1.6fr 1fr; gap: var(--space-3); }
+.col-main, .col-side { display: flex; flex-direction: column; gap: var(--space-3); }
+
+/* Recomendación: texto a la izquierda, botones en columna a la derecha. */
+.reco-body { display: flex; align-items: center; justify-content: space-between; gap: var(--space-4); }
+.reco-text { min-width: 0; }
+.accept-col { display: flex; flex-direction: column; gap: var(--space-1); flex: none; width: 96px; }
+.fields { margin: 0; display: grid; grid-template-columns: 1fr 1fr; gap: var(--space-3) var(--space-4); }
+.field.full { grid-column: 1 / -1; }
+.field dd { margin: 0; font-size: var(--font-size-body); font-variant-numeric: tabular-nums; }
+.field.full dd { max-width: 68ch; text-wrap: pretty; }
+.field dd.nodata { font-size: var(--font-size-body); }
+
+.missing-docs-card { margin-top: var(--space-3); }
+.missing-docs-note { margin: 0 0 var(--space-3); }
+.missing-docs-list {
+  margin: 0;
+  padding-left: var(--space-4);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  color: var(--text-secondary);
+  font-size: var(--font-size-body);
+}
+
+/* textarea del modal de justificación */
+app-textarea { display: block; margin: var(--space-3) 0; }
+
+/* ===== Responsive ===== */
+@media (max-width: 980px) {
+  .reasoning { grid-template-columns: 1fr; }
+}
+@media (max-width: 820px) {
+  .resumen-grid { grid-template-columns: 1fr; }
+  .fields { grid-template-columns: 1fr; }
+  .extracted-grid { grid-template-columns: 1fr; }
+}
+
+.risk-score { margin: 0.75rem 0 0.25rem; font-size: 0.95rem; }
+.risk-breakdown { margin-top: 0.5rem; }
+.breakdown-table { width: 100%; border-collapse: collapse; font-size: 0.85rem; margin-top: 0.35rem; }
+.breakdown-table th { text-align: left; font-weight: 600; opacity: 0.7; padding: 0.2rem 0; }
+.breakdown-table td { padding: 0.3rem 0; border-top: 1px solid rgba(128,128,128,0.2); vertical-align: top; }
+.factor-name { display: block; }
+.factor-rationale { display: block; opacity: 0.65; font-size: 0.8rem; }
+.factor-contrib { text-align: right; white-space: nowrap; font-variant-numeric: tabular-nums; }
+.factor-detail { display: block; opacity: 0.6; font-size: 0.75rem; }

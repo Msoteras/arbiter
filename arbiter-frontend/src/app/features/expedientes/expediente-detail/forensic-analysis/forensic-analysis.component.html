@@ -1,0 +1,108 @@
+@if (report(); as r) {
+  @if (r.findings.length > 0) {
+    <p class="t-note summary">
+      {{ r.imagesAnalyzed }} imagen(es) analizada(s) · {{ r.webSearchesPerformed }} búsqueda(s) en internet
+    </p>
+
+    <div class="findings-grid">
+      @for (finding of r.findings; track finding.label) {
+        <app-card [heading]="docLabel(finding.documentType)">
+          <div class="finding-body">
+            <div class="finding-image">
+              @if (imageUrls()[finding.label]; as url) {
+                <img [src]="url" [alt]="docLabel(finding.documentType)" />
+                <a
+                  class="img-download"
+                  [href]="url"
+                  [download]="imageFilenames()[finding.label] || docLabel(finding.documentType)"
+                >
+                  <svg width="14" height="14" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+                    <path d="M8 2v8m0 0 3-3m-3 3L5 7M3 13h10" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" />
+                  </svg>
+                  Descargar imagen
+                </a>
+              } @else if (imageLoadFailed()[finding.label]) {
+                <div class="img-placeholder">No se pudo cargar la imagen</div>
+              } @else {
+                <div class="img-placeholder is-loading">
+                  <app-spinner [size]="22" />
+                  <span>Cargando imagen…</span>
+                </div>
+              }
+            </div>
+
+            <div class="finding-details">
+              @if (alertLevel(finding); as level) {
+                <app-severity-label [level]="level" />
+              }
+
+              @if (isClean(finding)) {
+                <p class="clean-note">✓ Sin coincidencias — ni con siniestros previos ni en internet</p>
+              }
+
+              @for (m of finding.internalMatches; track matchKey(m)) {
+                <div class="match-row">
+                  <p class="match-text">
+                    <strong>{{ m.similarity * 100 | number: '1.0-0' }}% similar</strong>
+                    a un adjunto del siniestro <span class="mono">#{{ m.matchedCaseId }}</span> —
+                    comparación directa:
+                  </p>
+                  <div class="compare-pair">
+                    <div class="compare-item">
+                      <span class="compare-label">Este expediente</span>
+                      @if (imageUrls()[finding.label]; as ownUrl) {
+                        <img [src]="ownUrl" alt="Imagen de este expediente" />
+                      } @else {
+                        <div class="img-placeholder small">—</div>
+                      }
+                    </div>
+                    <div class="compare-item">
+                      <span class="compare-label">Siniestro #{{ m.matchedCaseId }}</span>
+                      @if (matchedImageUrls()[matchKey(m)]; as matchedUrl) {
+                        <img [src]="matchedUrl" [alt]="'Imagen del siniestro #' + m.matchedCaseId" />
+                      } @else if (matchedImageLoadFailed()[matchKey(m)]) {
+                        <div class="img-placeholder small">No disponible</div>
+                      } @else {
+                        <div class="img-placeholder small"><app-spinner [size]="16" /></div>
+                      }
+                    </div>
+                  </div>
+                </div>
+              }
+
+              @if (finding.webFinding; as web) {
+                @if (webFound(web)) {
+                  <div class="match-row">
+                    <p class="match-text">
+                      Publicada en internet — {{ web.fullMatches }} copia(s) exacta(s),
+                      {{ web.partialMatches }} parcial(es)
+                      @if (web.bestGuessLabel) {
+                        · identificada como "{{ web.bestGuessLabel }}"
+                      }
+                    </p>
+                    @if (web.pages.length > 0) {
+                      <p class="verify-note">Verificar en internet:</p>
+                      <ul class="web-links">
+                        @for (p of web.pages; track p.url) {
+                          <li>
+                            <a [href]="p.url" target="_blank" rel="noopener noreferrer">
+                              {{ p.title || p.url }} ↗
+                            </a>
+                          </li>
+                        }
+                      </ul>
+                    }
+                  </div>
+                }
+              }
+            </div>
+          </div>
+        </app-card>
+      }
+    </div>
+  } @else {
+    <app-empty-state message="El expediente no tiene imágenes adjuntas para analizar" />
+  }
+} @else {
+  <app-empty-state message="Análisis forense de imágenes (no corrió: Fast Track o sin imágenes adjuntas)" />
+}
