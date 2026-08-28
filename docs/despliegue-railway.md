@@ -120,71 +120,51 @@ El CI **no despliega**: es solo el gate. Quien despliega es Railway. Esa separac
 
 ## Quién puede mergear a `main`
 
-Como el merge a `main` es lo que dispara el despliegue, `main` necesita protección. Hoy **no tiene
-ninguna** y hay que agregarla.
+Ya está configurado, con **rulesets** (Settings → Rules → Rulesets), no con la branch protection
+clásica. Hay dos, `Protección main` y `develop`, y ambos aplican lo mismo:
 
-Esto **no es un hook de git**: los hooks son locales, no saben nada de PRs ni de aprobaciones y se
-saltean con `--no-verify`. Es *branch protection*, que corre del lado de GitHub. Y **la tiene que
-aplicar alguien con rol de admin en el repo** — al día de hoy, solo `Msoteras`.
+| Regla | Efecto |
+|---|---|
+| `pull_request` con 1 aprobación | Nadie mergea solo. GitHub no deja aprobar el propio PR, así que el que aprueba es siempre otra persona |
+| `require_last_push_approval` | Un push después de aprobar invalida la aprobación: no se aprueba una versión y se mergea otra |
+| `dismiss_stale_reviews_on_push` | Ídem, descarta las reviews viejas |
+| `non_fast_forward` | Nadie reescribe la historia de esas ramas |
+| `deletion` | Nadie las borra |
 
-Con exigir **1 aprobación** alcanza para lo que se busca: GitHub no permite aprobar tu propio PR,
-así que el que abre el PR nunca puede ser quien lo aprueba.
+Consecuencia práctica: **ni `main` ni `develop` aceptan push directo.** Todo entra por PR, incluido
+lo que antes se pusheaba a `develop` sin más.
 
-```bash
-gh api repos/Msoteras/arbiter/branches/main/protection -X PUT --input - <<'JSON'
-{
-  "required_status_checks": {
-    "strict": true,
-    "contexts": [
-      "Backend (Java 21)",
-      "Frontend (Angular 20)",
-      "Ruteo dev == ruteo prod",
-      "PR a main solo desde develop"
-    ]
-  },
-  "enforce_admins": false,
-  "required_pull_request_reviews": {
-    "required_approving_review_count": 1,
-    "dismiss_stale_reviews": true,
-    "require_code_owner_reviews": false
-  },
-  "restrictions": null,
-  "allow_force_pushes": false,
-  "allow_deletions": false
-}
-JSON
-```
+Ojo que esto **no es un hook de git**: los hooks son locales, no ven PRs ni aprobaciones y se
+saltean con `--no-verify`. Los rulesets corren del lado de GitHub, y solo puede tocarlos quien
+tenga rol de admin en el repo (hoy, `Msoteras`).
 
-Qué hace cada cosa:
+### Los checks del CI no son obligatorios
 
-- **`required_approving_review_count: 1`** — lo que pediste: alguien distinto del autor tiene que
-  aprobar.
-- **`contexts`** — los tres jobs de `.github/workflows/ci.yml` más el de
-  `.github/workflows/guard-main.yml`, que rechaza cualquier PR a `main` que no venga de `develop`.
-  Los nombres tienen que coincidir exactos con el `name:` de cada job, o GitHub espera para
-  siempre un check que nunca llega.
+Ninguno de los dos rulesets tiene `required_status_checks`. O sea que el CI y el guard de
+`guard-main.yml` **informan pero no bloquean**: si están en rojo, el PR se puede mergear igual.
 
-  > Ese último check es lo que hace cumplir "todo pasa por develop". El workflow por sí solo no
-  > impide abrir el PR: lo deja en rojo. Si no está en esta lista, es una advertencia que
-  > cualquiera puede ignorar al mergear.
-  >
-  > Contra: también bloquea un hotfix directo a `main`. Con `enforce_admins: false` la admin puede
-  > saltearlo en una emergencia; si eso pasa seguido, conviene aceptar además `hotfix/*`.
-- **`strict: true`** — la rama del PR tiene que estar actualizada con `main` antes de mergear.
-- **`dismiss_stale_reviews: true`** — un push nuevo invalida las aprobaciones anteriores; si no,
-  se aprueba una versión y se mergea otra.
-- **`allow_force_pushes: false`** y **`allow_deletions: false`** — nadie reescribe ni borra `main`.
-- **`enforce_admins: false`** — deja a la admin saltear la regla en una emergencia. Ponerlo en
-  `true` es más estricto, pero si el CI se rompe no hay forma de mergear un arreglo.
+Es una decisión tomada, no un olvido. Si en algún momento se quiere que además bloqueen, hay que
+agregar estos cuatro contexts al ruleset de `main` (los nombres tienen que coincidir exactos con
+el `name:` de cada job, o GitHub espera para siempre un check que nunca llega):
 
-> Si el comando falla pidiendo un upgrade de plan: el repo es **privado**, y la branch protection
-> clásica no está disponible en todos los planes para repos privados. En ese caso la alternativa
-> son los *Rulesets* (Settings → Rules → Rulesets), que expresan lo mismo.
+- `Backend (Java 21)`
+- `Frontend (Angular 20)`
+- `Ruteo dev == ruteo prod`
+- `PR a main solo desde develop`
 
-Alternativa complementaria: un `.github/CODEOWNERS` hace que GitHub pida review automáticamente a
-quien corresponda. No se agregó porque con 8 colaboradores y sin un mapa de propiedad claro, un
-`*` termina embudando todos los PR en una sola persona. Vale la pena si más adelante se reparten
-áreas.
+### De dónde puede venir un PR a `main`
+
+`.github/workflows/guard-main.yml` acepta solo `develop` y `hotfix/*`, y rechaza cualquier otra
+rama: un PR de una feature directo a `main` se saltea la integración en `develop` y despliega
+código que nunca convivió con el resto.
+
+**Un hotfix mergeado a `main` no vuelve solo a `develop`.** Hay que mergearlo también ahí, o el
+próximo despliegue de `develop` lo pisa. El workflow lo avisa con un warning, pero avisar es todo
+lo que puede hacer.
+
+Alternativa complementaria, no agregada: un `.github/CODEOWNERS` hace que GitHub pida review
+automáticamente a quien corresponda. Con 8 colaboradores y sin un mapa de propiedad claro, un `*`
+termina embudando todos los PR en una sola persona. Vale la pena si más adelante se reparten áreas.
 
 ## Orden de despliegue
 

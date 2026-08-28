@@ -4,9 +4,13 @@ name: Guard main
 # se integra, ahí corre el CI contra el resto del trabajo del equipo. Un PR de una rama de feature
 # directo a `main` se saltea esa integración y despliega código que nunca convivió con lo demás.
 #
-# Esto no impide ABRIR el PR — lo que hace es dejar el check en rojo para que no se pueda mergear.
-# Para que sea efectivo, este job tiene que estar en los required status checks de la protección de
-# `main` (ver docs/despliegue-railway.md); si no, queda como advertencia y alguien lo puede ignorar.
+# La excepción son las `hotfix/*`: un arreglo urgente en producción no puede quedar esperando a que
+# todo lo que haya en develop esté listo para salir. La contracara es que un hotfix mergeado acá
+# NO vuelve solo a develop — hay que mergearlo de nuevo ahí, o el próximo despliegue lo pisa.
+#
+# Esto no impide ABRIR el PR — lo que hace es dejar el check en rojo. Para que además impida
+# mergear, el job tiene que estar en los required status checks del ruleset de `main`; hoy no lo
+# está (ver docs/despliegue-railway.md), así que funciona como señal, no como barrera.
 on:
   pull_request:
     branches: [main]
@@ -22,11 +26,19 @@ jobs:
         env:
           HEAD_REF: ${{ github.head_ref }}
         run: |
-          if [ "$HEAD_REF" = "develop" ]; then
-            echo "Origen: $HEAD_REF — OK."
-            exit 0
-          fi
-          echo "::error::Este PR viene de '$HEAD_REF' y main solo acepta PRs desde 'develop'."
+          case "$HEAD_REF" in
+            develop)
+              echo "Origen: develop — OK."
+              exit 0
+              ;;
+            hotfix/*)
+              echo "Origen: $HEAD_REF — OK, es un hotfix."
+              echo "::warning::Acordate de mergear '$HEAD_REF' también a develop: un hotfix que" \
+                   "solo entra a main lo pisa el próximo despliegue."
+              exit 0
+              ;;
+          esac
+          echo "::error::Este PR viene de '$HEAD_REF'. main solo acepta PRs desde 'develop' o desde una rama 'hotfix/*'."
           echo ""
           echo "Mergeá tu rama a develop primero y después abrí el PR develop -> main."
           exit 1
