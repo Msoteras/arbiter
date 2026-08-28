@@ -426,7 +426,7 @@
         </app-card>
       }
       <!-- Everything comes from what was persisted at classification time. -->
-      @case ('trazabilidad') {
+      @case ('analisis') {
         <div class="traza">
           <app-card heading="Reglas evaluadas">
             @if (ruleResults().length > 0) {
@@ -455,7 +455,10 @@
               <p class="nodata">El expediente se resolvió antes de llegar al motor de reglas.</p>
             }
           </app-card>
-
+        </div>
+      }
+      @case ('asegurado') {
+        <div class="traza">
           <app-card heading="La póliza al momento de clasificar">
             @if (policySnapshot(); as s) {
               <dl class="fields">

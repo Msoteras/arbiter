@@ -85,7 +85,8 @@ type TabId =
   | 'imagenes'
   | 'riesgo'
   | 'razones'
-  | 'trazabilidad'
+  | 'analisis'
+  | 'asegurado'
   | 'documentacion'
   | 'peritaje'
   | 'conversacion'
@@ -391,9 +392,8 @@ export class ExpedienteDetailComponent {
     ];
   });
 
-  protected readonly hayTrazabilidad = computed(
+  protected readonly hayDatosAsegurado = computed(
     () =>
-      this.ruleResults().length > 0 ||
       this.policySnapshot() != null ||
       this.otrasPolizas().length > 0 ||
       this.antecedentes().length > 0,
@@ -425,7 +425,12 @@ export class ExpedienteDetailComponent {
     { id: 'imagenes' as TabId, label: 'Análisis de imágenes' },
     { id: 'riesgo' as TabId, label: 'Desglose de riesgo' },
     ...(this.analysisReasons().length > 0 ? [{ id: 'razones' as TabId, label: 'Razones' }] : []),
-    ...(this.hayTrazabilidad() ? [{ id: 'trazabilidad' as TabId, label: 'Respaldo' }] : []),
+    ...(this.ruleResults().length > 0
+      ? [{ id: 'analisis' as TabId, label: 'Análisis realizado' }]
+      : []),
+    ...(this.hayDatosAsegurado()
+      ? [{ id: 'asegurado' as TabId, label: 'Datos del asegurado' }]
+      : []),
     { id: 'documentacion' as TabId, label: 'Documentación' },
     ...(this.peritaje() ? [{ id: 'peritaje' as TabId, label: 'Peritaje' }] : []),
     { id: 'historial' as TabId, label: 'Historial' },
