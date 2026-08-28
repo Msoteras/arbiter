@@ -909,12 +909,13 @@ export class ExpedienteDetailComponent {
 
   /**
    * Fecha de la asignación vigente, sacada del historial: la asignación deja un hito con
-   * fromStatus == toStatus y actor ANALYST (ver CaseStatusService.recordAssignment). El último de
-   * esos hitos, estando asignado, es la asignación actual.
+   * fromStatus == toStatus y actor ANALYST o REFERENT — el endpoint de asignación admite ambos
+   * roles (ver CaseAccessPolicy.currentAssignmentActor / CaseStatusService.recordAssignment). El
+   * último de esos hitos, estando asignado, es la asignación actual.
    */
   private readonly assignedSince = computed<string | null>(() => {
     const milestones = (this.data()?.statusHistory ?? []).filter(
-      (t) => t.fromStatus === t.toStatus && t.actor === 'ANALYST',
+      (t) => t.fromStatus === t.toStatus && (t.actor === 'ANALYST' || t.actor === 'REFERENT'),
     );
     const last = milestones.at(-1);
     return last

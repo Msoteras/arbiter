@@ -3,6 +3,7 @@ package ar.edu.utn.frba.arbiter.cases.services;
 import ar.edu.utn.frba.arbiter.cases.config.tenant.CallerContext;
 import ar.edu.utn.frba.arbiter.cases.exceptions.CaseNotFoundException;
 import ar.edu.utn.frba.arbiter.cases.models.entities.Case;
+import ar.edu.utn.frba.arbiter.cases.models.entities.StatusChangeActor;
 import ar.edu.utn.frba.arbiter.cases.support.CaseFixtures;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
@@ -99,5 +100,21 @@ class CaseAccessPolicyTest {
         // Sin Authentication no hay rol ASEGURADO que restringir. No es un agujero: llegar acá ya
         // exige haber pasado el filtro de seguridad, que rechaza el anónimo antes.
         assertThat(policy.currentUserIsInsured()).isFalse();
+    }
+
+    @Test
+    void currentAssignmentActor_forAnalyst_isAnalyst() {
+        authenticateAs("ROLE_ANALISTA_SINIESTROS");
+
+        assertThat(policy.currentAssignmentActor()).isEqualTo(StatusChangeActor.ANALYST);
+    }
+
+    @Test
+    void currentAssignmentActor_forReferent_isReferent() {
+        // El endpoint de asignación es compartido entre los dos roles; el historial necesita
+        // distinguirlos en vez de atribuirle todo al analista.
+        authenticateAs("ROLE_REFERENTE_ASEGURADORA");
+
+        assertThat(policy.currentAssignmentActor()).isEqualTo(StatusChangeActor.REFERENT);
     }
 }

@@ -637,10 +637,27 @@ class CaseServiceImplTest {
         Case entity = caseRecord(1L, CaseStatus.PENDING_ANALYST_REVIEW);
         when(caseRepository.findById(1L)).thenReturn(Optional.of(entity));
         when(claimsAnalystRepository.findById(7L)).thenReturn(Optional.of(analyst(7L, "Lucas", "Gómez")));
+        when(accessPolicy.currentAssignmentActor()).thenReturn(StatusChangeActor.ANALYST);
 
         caseService.assignAnalyst(1L, 7L);
 
-        verify(caseStatusService).recordAssignment(entity, "expediente asignado a Lucas Gómez");
+        verify(caseStatusService).recordAssignment(entity, StatusChangeActor.ANALYST,
+                "expediente asignado a Lucas Gómez");
+    }
+
+    @Test
+    void assignAnalyst_calledByReferent_attributesTheHistoryRowToTheReferent() {
+        // El endpoint es compartido entre ANALISTA_SINIESTROS y REFERENTE_ASEGURADORA — el
+        // historial no puede atribuirle todo al analista solo porque es el caso más común.
+        Case entity = caseRecord(1L, CaseStatus.PENDING_ANALYST_REVIEW);
+        when(caseRepository.findById(1L)).thenReturn(Optional.of(entity));
+        when(claimsAnalystRepository.findById(7L)).thenReturn(Optional.of(analyst(7L, "Lucas", "Gómez")));
+        when(accessPolicy.currentAssignmentActor()).thenReturn(StatusChangeActor.REFERENT);
+
+        caseService.assignAnalyst(1L, 7L);
+
+        verify(caseStatusService).recordAssignment(entity, StatusChangeActor.REFERENT,
+                "expediente asignado a Lucas Gómez");
     }
 
     @Test
@@ -682,12 +699,13 @@ class CaseServiceImplTest {
         Case entity = caseRecord(1L, CaseStatus.PENDING_ANALYST_REVIEW);
         entity.setAnalyst(analyst(7L, "Lucas", "Gómez"));
         when(caseRepository.findById(1L)).thenReturn(Optional.of(entity));
+        when(accessPolicy.currentAssignmentActor()).thenReturn(StatusChangeActor.ANALYST);
 
         CaseResponse response = caseService.unassignAnalyst(1L);
 
         assertThat(response.assignedAnalystId()).isNull();
         assertThat(response.assignedAnalystName()).isNull();
-        verify(caseStatusService).recordAssignment(entity,
+        verify(caseStatusService).recordAssignment(entity, StatusChangeActor.ANALYST,
                 "expediente liberado (estaba asignado a Lucas Gómez)");
     }
 
@@ -695,11 +713,12 @@ class CaseServiceImplTest {
     void unassignAnalyst_alreadyUnassigned_isIdempotent() {
         Case entity = caseRecord(1L, CaseStatus.PENDING_ANALYST_REVIEW);
         when(caseRepository.findById(1L)).thenReturn(Optional.of(entity));
+        when(accessPolicy.currentAssignmentActor()).thenReturn(StatusChangeActor.ANALYST);
 
         CaseResponse response = caseService.unassignAnalyst(1L);
 
         assertThat(response.assignedAnalystId()).isNull();
-        verify(caseStatusService).recordAssignment(entity, "expediente liberado");
+        verify(caseStatusService).recordAssignment(entity, StatusChangeActor.ANALYST, "expediente liberado");
     }
 
     private static ClaimsAnalyst analyst(Long id, String name, String surname) {

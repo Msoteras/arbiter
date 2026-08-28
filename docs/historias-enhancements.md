@@ -12,7 +12,18 @@ tachada abajo, no hay que cargarla.
 
 ---
 
-## H0021 · Reglas duras configurables por la aseguradora
+## ~~H0021 · Reglas duras configurables por la aseguradora~~ — ✅ HECHA
+
+> Confirmada implementada al planificar el sprint 9 (26/08). `HardRuleController`/`HardRuleDto`
+> (por cobertura: carencia, plazo de denuncia, plazo de denuncia policial, tope de eventos) +
+> `InsurerHardRuleController`/`InsurerHardRuleDto` (de toda la aseguradora: vigencia, mora) cubren
+> los cuatro umbrales que pedía la historia, con `PUT` desde el panel del referente y snapshot en
+> el historial. El plazo de denuncia policial —el que estaba hardcodeado en 72h— ya no lo está: el
+> propio javadoc de `HardRuleController` lo dice ("until now the police-report deadline was a fixed
+> 72h property for every company, against decision #12"). Auditoría también cerrada:
+> `TemporalRuleEvaluator` escribe `RuleFinding` PASS/FAIL a `rule_result` contra filas reales de
+> `insurer_rule`, ya no contra columnas sueltas de `coverage` sin nada que apuntar. **No cargar
+> esta card.** Se deja el texto como registro de por qué existía.
 
 **Como** referente de la aseguradora
 **quiero** configurar los umbrales de las reglas duras (plazo de denuncia policial, carencia, tope de
@@ -124,7 +135,13 @@ por SQL. La pantalla ya existe, es sumarle campos.
 
 ---
 
-## H0026 · Avisarle al asegurado cuando cambia el estado de su expediente
+## ~~H0026 · Avisarle al asegurado cuando cambia el estado de su expediente~~ — ✅ HECHA (25/08)
+
+> Es H0016 (`gap-historias-usuario.md` §2), que se cerró el 25/08 mientras este doc seguía
+> describiendo el gap de antes: `CaseNotificationService` (cases-service) ya manda mail y aviso en
+> el panel en los cuatro momentos — denuncia recibida, documentación requerida, aprobado, rechazado
+> — más `ExpertNotificationService` para la derivación a perito. **No cargar esta card**, ya está
+> hecha. Se deja el texto como registro de por qué existía.
 
 **Como** asegurado
 **quiero** recibir un mail cuando mi expediente cambia de estado
@@ -144,6 +161,11 @@ SendGrid hoy solo se usa para invitar usuarios en auth-service.
 ---
 
 ## H0027 · Alertar el vencimiento del plazo legal de respuesta
+
+> **Es H0017**, no una card nueva — el análisis completo (por qué el reloj arranca mal, el orden de
+> implementación, la dependencia con el modelo de plazos) vive en `gap-historias-usuario.md` §1 y
+> §2. Lo de acá abajo es la misma historia en formato de card; cargar **una sola**, con este texto
+> como descripción y el link al gap doc para el detalle técnico.
 
 **Como** analista de siniestros
 **quiero** que el sistema me avise antes de que venza el plazo legal para expedirme
@@ -181,6 +203,18 @@ Las dos pantallas dicen "TODO MOCK" en su propio encabezado.
 ---
 
 ## H0030 · Reintentos de clasificación más robustos ante una caída transitoria
+
+> **Reverificado al planificar el sprint 9 (26/08).** Sigue abierta — nada de lo que describe el
+> reintento automático cambió. Lo que sí existía **antes** de esta historia, y no hay que
+> confundir con lo que falta: el botón manual "Reintentar clasificación"
+> (`POST /{id}/retry-classification`, `CaseServiceImpl.retryClassification`) — eso nunca fue el
+> gap. Lo que sigue faltando, confirmado línea por línea:
+> - `ClaimClassificationService`: `@Retryable(maxAttempts = 3, backoff = @Backoff(delay = 2000,
+>   multiplier = 2.0))` en los dos métodos — sigue siendo la ventana de ~14s.
+> - `ClassificationRefreshScheduler`: al agotarse los reintentos solo escribe un string en el
+>   motivo de la transición (`"clasificación fallida tras N reintentos"`) — no hay ninguna columna
+>   consultable que distinga infraestructura de negocio, y no hay ningún barrido que reencole
+>   `CLASSIFICATION_FAILED` al arrancar.
 
 **Como** analista de siniestros
 **quiero** que una clasificación que falló por una caída momentánea de un servicio dependiente se
@@ -285,52 +319,76 @@ vea el IMEI *del documento* en primer lugar, más el resto de los campos.
 
 ---
 
-## H0032 · Mostrar la traza de reglas duras que ya se audita y nadie lee
+## H0032 · Trazabilidad completa del expediente: reglas evaluadas + relación del asegurado con la compañía
 
-**Prioridad alta — más barata que H0031 y toca directo la auditoría de la Disposición SSN
-2/2023.** No hace falta tocar el DER ni crear ninguna tabla: `rule_result` (`resultado_regla`)
-existe, está en el DER, y **ya se escribe** en cada clasificación — el gap es solo que nadie la
-lee de vuelta.
+> **Ampliada al planificar el sprint 9 (26/08).** Empezó como "mostrar `rule_result`" nada más;
+> se le sumó una segunda mitad — la relación del asegurado con la aseguradora (pólizas, mora,
+> historial) — porque comparte el mismo diagnóstico: el dato ya existe, ya se calculó, y hoy nadie
+> lo lee. Las dos mitades pueden convivir en la misma solapa nueva del detalle del expediente.
+
+**Prioridad alta** — más barata que H0031 y toca directo la auditoría de la Disposición SSN
+2/2023. Ninguna de las dos mitades necesita tabla nueva ni tocar el DER: todo el dato ya se
+persiste, el gap es pura lectura.
 
 **Como** analista de siniestros
-**quiero** ver, por expediente, cada regla dura que se evaluó (exclusión de cobertura, plazos,
-carencia, tope de eventos) con su resultado — no solo las que bloquearon algo
-**para** auditar la clasificación completa, no solo el motivo que terminó importando.
+**quiero** ver, en una sola solapa del expediente, tanto cada regla dura que se evaluó (con su
+resultado, no solo las que bloquearon algo) como toda la relación del asegurado con la
+aseguradora — sus pólizas, si está al día, cuántos siniestros tuvo antes y si tiene antecedentes
+**para** auditar la clasificación completa y entender el contexto del asegurado sin cruzar datos a
+mano ni pedirlos aparte.
 
 **Criterios de aceptación**
-- El detalle del expediente muestra una lista de reglas evaluadas: tipo de regla, resultado
-  (PASS/FAIL) y el valor evaluado (ej. `"claimCause=Hurto (id=3)"`).
-- Se ven **las que pasaron, no solo las que fallaron** — hoy el analista solo se entera de las que
-  bloquean algo (porque esas sí llegan como texto a "Razones"); las que se evaluaron y no
-  encontraron nada quedan invisibles, y son justamente la prueba de que se revisó todo, no solo lo
-  que saltó.
-- Un expediente sin ninguna regla dura evaluada (ej. resuelto por LLM sin reglas de por medio) no
-  muestra nada — mismo criterio que "Razones"/"Peritaje": sin datos, no se ocupa espacio.
+
+*Reglas evaluadas:*
+- Lista de reglas evaluadas: tipo, resultado (PASS/FAIL), valor evaluado (ej.
+  `"claimCause=Hurto (id=3)"`).
+- Se ven las que **pasaron**, no solo las que fallaron — hoy solo llegan a pantalla las que
+  bloquean algo (como texto en "Razones"); las que se evaluaron sin encontrar nada quedan
+  invisibles, y son justamente la prueba de que se revisó todo.
+- Sin reglas evaluadas (ej. resuelto por LLM sin reglas de por medio), no se muestra nada — mismo
+  criterio que "Razones"/"Peritaje".
+
+*Relación del asegurado con la compañía:*
+- Estado de pago de la póliza **al momento en que se clasificó** (al día / en mora), con la fecha
+  de esa consulta — no el estado actual si cambió después.
+- Todas las pólizas activas del asegurado en esta aseguradora, no solo la de este siniestro.
+- Cantidad de siniestros previos y monto total reclamado históricamente.
+- Antecedentes de fraude declarados, si los hay, con quién los declaró y cuándo.
+- Todo lee de lo que ya está persistido — nada se recalcula ni se pide en vivo a la aseguradora al
+  abrir la pantalla.
 
 **Por qué importa**
-`ClassificationResultsService.saveRuleResults` (`classification-service`) escribe una fila en
-`rule_result` por cada regla — exclusión de cobertura, D9-D13 — **con ambos resultados**, PASS y
-FAIL, exactamente porque la Disposición SSN 2/2023 pide "qué regla se evaluó y con qué resultado",
-no solo los rechazos. Ese trabajo ya está hecho y ya cumple la norma del lado de la escritura. Pero
-la tab "Razones" (esta misma sesión) solo muestra el subconjunto que ya venía como prosa en
-`llm_reason` — que es **estrictamente más chico**: `TemporalRuleEvaluator` arma `reasons` (texto,
-solo lo que bloquea) y `findings` (una fila por regla evaluada, `rule_result`) como dos listas
-separadas, y solo la primera llega a pantalla. El registro completo, el que de verdad prueba que
-se auditó todo, se escribe y se descarta sin que nadie lo mire — es auditoría de papel, no de
-pantalla.
+Las dos mitades comparten el mismo problema: el dato ya existe y ya se calculó, y hoy se descarta
+o queda enterrado.
+- `rule_result` se escribe completo (PASS y FAIL) por `ClassificationResultsService.saveRuleResults`
+  — la exclusión de cobertura y D9-D13, exactamente porque la Disposición SSN 2/2023 pide "qué
+  regla se evaluó y con qué resultado", no solo los rechazos. La tab "Razones" solo muestra el
+  subconjunto que ya venía como prosa en `llm_reason`: `TemporalRuleEvaluator` arma `reasons`
+  (texto, solo lo que bloquea) y `findings` (una fila por regla, `rule_result`) como dos listas
+  separadas, y solo la primera llega a pantalla. Es auditoría de papel, no de pantalla.
+- `policy_snapshot` (D27) congela suma asegurada, estado de pago y siniestros previos al momento
+  de clasificar — y no lo lee nadie.
+- El resto de las pólizas del asegurado: hoy **solo el asegurado y el referente** pueden verlas
+  (`PolicyController`, `@PreAuthorize hasAnyRole('ASEGURADO', 'REFERENTE_ASEGURADORA')`) — el
+  analista, que es quien más las necesita para decidir, no tiene acceso. El servicio que las trae
+  (`PolicyService.listByInsured`) ya existe y es reusable; falta el camino para el analista.
+- Antecedentes de fraude (`InsuredFraudRecord`) existen como entidad pero no aparecen en el
+  detalle del expediente, solo en la configuración del referente.
 
 **Notas técnicas**
 1. `RuleResultRepository` no tiene ningún método de consulta (`extends JpaRepository` a secas) —
-   agregar `findByCaseId(Long caseId)` o similar.
-2. Endpoint REST interno en `classification-service` (ej. `GET /claims/{id}/rule-results`), mismo
-   patrón que el resto.
-3. Sumar a `CaseResponse`/`ExpedienteResponse` (`List<RuleResultSummary>`: tipo de regla, resultado,
-   valor evaluado — sin exponer `ruleId` crudo, alcanza con el tipo para que el analista entienda
-   qué se evaluó).
-4. Frontend: puede vivir dentro de la tab "Razones" ya existente (como una sección aparte,
-   "Trazabilidad completa" o similar, debajo de los motivos en prosa) en vez de una tab nueva —
-   son la misma pregunta del analista ("por qué se clasificó así"), solo con dos niveles de
-   detalle. Evaluar con Fede si conviene separarlo.
+   agregar `findByCaseId(Long caseId)`.
+2. Endpoint interno en `classification-service` (ej. `GET /claims/{id}/rule-results`), mismo
+   patrón que el resto de lo interno.
+3. Endpoint nuevo en `cases-service` para "pólizas del asegurado de este expediente" — reusa
+   `PolicyService.listByInsured`, pero `@PreAuthorize` para `ANALISTA_SINIESTROS` scoped al
+   `insuredId` **de ese caso puntual**, no una consulta libre por cualquier DNI.
+4. Sumar a `CaseResponse`/`ExpedienteResponse`: `List<RuleResultSummary>` (tipo, resultado, valor
+   evaluado — sin exponer `ruleId` crudo), el `policy_snapshot` del caso, `List<PolicyResponse>` de
+   las otras pólizas, y los antecedentes de fraude si existen.
+5. Frontend: solapa nueva en `expediente-detail.component` (o secciones dentro de "Razones" si al
+   final se decide no separarla — evaluar con el equipo). Reusa el patrón de gateo por presencia
+   de datos que ya usan "Razones"/"Peritaje"/"Datos extraídos": sin datos, la tab no aparece.
 5. De paso: `RuleResult.java` tenía un javadoc que decía *"no rule engine evaluates anything into
    this table yet"* — ya no es cierto (`ClassificationResultsService` sí escribe), se corrigió el
    comentario en esta misma sesión para que no vuelva a leerse como "tabla sin implementar".
@@ -347,24 +405,31 @@ que pide H0032, sumando estos 4 campos.
 
 # Decisiones de negocio (no son historias)
 
-No se pueden estimar hasta que alguien del equipo las responda. Van como cards de decisión o se
-resuelven en una reunión.
+Resueltas al planificar el sprint 9 (26/08), salvo la que sigue marcada pendiente.
 
-**1 · ¿Qué son `fraud_determined` y `destination`?**
-Dos columnas de `cases` que están en el DER y no escribe nadie. Hoy el analista solo aprueba o
-rechaza. `destination` no tiene valores definidos en ninguna fuente — el DER la dibuja como un
-`VARCHAR(40)` suelto. ¿Son salidas reales del proceso (pago / rechazo / derivación a investigación) o
-quedaron del modelo? Hasta que se conteste no se les inventa semántica.
+**1 · `fraud_determined` — ✅ respondida. `destination` — sigue pendiente.**
+No eran dos incógnitas del mismo tamaño. `fraud_determined` **ya está implementado**:
+`FraudRecordService.register()` lo pone en `true` cuando un analista determina fraude sobre un
+caso — con o sin respaldo pericial (`ExpertAssessment` + `ExpertVerdict.FRAUD_CONFIRMED`), acotado
+a los estados donde la determinación tiene sentido (`PENDING_ANALYST_REVIEW`, `REJECTED` — nunca
+sobre un `APPROVED`, pagar y marcar fraude a la vez se contradicen), y con el registro completo del
+lado de `classification-service` (quién lo declaró, cuándo, con qué respaldo). No es un stub.
 
-**2 · ¿`is_individual` es la negación de `covers_family_group`?**
-El seed es consistente con esa lectura (`covers_family_group=FALSE` / `is_individual=TRUE` en las
-dos coberturas). Si lo es, hay que **dropearla del DER o derivarla**, no dejar las dos vivas: es el
-mismo hecho guardado dos veces.
+`destination` sigue sin ninguna referencia en todo el código (`grep` no devuelve nada) y sin
+valores definidos en ninguna fuente — el DER la dibuja como un `VARCHAR(40)` suelto. Esta parte de
+la decisión sigue abierta: ¿es una salida real del proceso (pago / rechazo / derivación a
+investigación) o quedó de un modelo viejo que `fraud_determined` + el flujo de peritaje ya
+reemplazaron? Dado que la funcionalidad real (derivación a perito, determinación de fraude) ya se
+construyó por otro lado, es candidata a **dropearse del DER** en vez de implementarse — a confirmar
+con el equipo.
 
-**3 · ¿Modelamos pólizas colectivas?**
-`Tomador` y `N° de certificado` se sacaron de la ficha del expediente porque en nuestro modelo cada
-póliza es individual y el certificado es 1:1 con ella. Vuelven las dos juntas si algún día se modela
-la póliza colectiva — que es como BBVA vende de verdad, a través del banco.
+**2 · `is_individual` es la negación de `covers_family_group` — ✅ confirmado, es un detalle del DER, no una historia.**
+Confirmado por el equipo. No genera card de desarrollo: es una corrección del DER (dropear la
+columna redundante o documentar la derivación), no un cambio de código ni de comportamiento.
+
+**3 · ¿Modelamos pólizas colectivas? — ✅ no, decidido.**
+No se modelan. `Tomador` y `N° de certificado` quedan afuera de la ficha del expediente, tal como
+están hoy — cada póliza sigue siendo individual, 1:1 con su certificado.
 
 ---
 

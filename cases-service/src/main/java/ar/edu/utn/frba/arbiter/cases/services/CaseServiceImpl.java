@@ -282,6 +282,11 @@ public class CaseServiceImpl implements CaseService {
         entity.setRiskBand(null);
         entity.setDeterministicFastTrack(false);
         entity.setClassificationAttempts(0);
+        // El motivo describe la corrida anterior, que este reintento deja atrás. Sin limpiarlo, el
+        // expediente sigue cargando un INFRASTRUCTURE viejo mientras vuelve a clasificarse — y si la
+        // corrida nueva falla por otra cosa, el barrido de recuperación lo ve como recuperable.
+        entity.setClassificationFailureReason(null);
+        entity.setClassificationFailureMessage(null);
         // transition guards the state machine: only CLASSIFICATION_FAILED → PENDING_CLASSIFICATION
         // is allowed, so a stale retry from any other state 409s instead of silently re-queueing.
         caseStatusService.transition(entity, CaseStatus.PENDING_CLASSIFICATION,
@@ -498,7 +503,8 @@ public class CaseServiceImpl implements CaseService {
 
         entity.setAnalyst(analyst);
         caseRepository.save(entity);
-        caseStatusService.recordAssignment(entity, "expediente asignado a " + fullName(analyst));
+        caseStatusService.recordAssignment(entity, accessPolicy.currentAssignmentActor(),
+                "expediente asignado a " + fullName(analyst));
 
         return loadCase(caseId);
     }
@@ -511,7 +517,7 @@ public class CaseServiceImpl implements CaseService {
         ClaimsAnalyst previous = entity.getAnalyst();
         entity.setAnalyst(null);
         caseRepository.save(entity);
-        caseStatusService.recordAssignment(entity, previous == null
+        caseStatusService.recordAssignment(entity, accessPolicy.currentAssignmentActor(), previous == null
                 ? "expediente liberado"
                 : "expediente liberado (estaba asignado a " + fullName(previous) + ")");
 

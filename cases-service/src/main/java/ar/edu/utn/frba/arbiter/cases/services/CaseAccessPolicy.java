@@ -3,6 +3,7 @@ package ar.edu.utn.frba.arbiter.cases.services;
 import ar.edu.utn.frba.arbiter.cases.config.tenant.CallerContext;
 import ar.edu.utn.frba.arbiter.cases.exceptions.CaseNotFoundException;
 import ar.edu.utn.frba.arbiter.cases.models.entities.Case;
+import ar.edu.utn.frba.arbiter.cases.models.entities.StatusChangeActor;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.GrantedAuthority;
 import org.springframework.security.core.context.SecurityContextHolder;
@@ -22,6 +23,7 @@ import org.springframework.stereotype.Component;
 public class CaseAccessPolicy {
 
     private static final String INSURED_ROLE = "ROLE_ASEGURADO";
+    private static final String REFERENT_ROLE = "ROLE_REFERENTE_ASEGURADORA";
 
     /**
      * Fails as {@link CaseNotFoundException} (404) rather than a 403 on purpose: telling a
@@ -44,12 +46,26 @@ public class CaseAccessPolicy {
 
     /** True when the caller's role is ASEGURADO — the only role scoped to its own cases. */
     public boolean currentUserIsInsured() {
+        return hasAuthority(INSURED_ROLE);
+    }
+
+    /**
+     * Which of the two roles that can own an ownership change (assign/reassign/release) is
+     * actually calling — {@code ANALISTA_SINIESTROS} and {@code REFERENTE_ASEGURADORA} share the
+     * endpoint (see {@code CaseController#assignAnalyst}), and the audit trail needs to tell them
+     * apart instead of attributing every call to the analyst.
+     */
+    public StatusChangeActor currentAssignmentActor() {
+        return hasAuthority(REFERENT_ROLE) ? StatusChangeActor.REFERENT : StatusChangeActor.ANALYST;
+    }
+
+    private boolean hasAuthority(String authority) {
         Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
         if (authentication == null) {
             return false;
         }
         return authentication.getAuthorities().stream()
                 .map(GrantedAuthority::getAuthority)
-                .anyMatch(INSURED_ROLE::equals);
+                .anyMatch(authority::equals);
     }
 }

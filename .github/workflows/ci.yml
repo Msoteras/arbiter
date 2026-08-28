@@ -1,0 +1,73 @@
+name: CI
+
+# Gate de calidad, no de despliegue: el deploy lo dispara Railway solo, al mergear a `main`.
+# Con "Wait for CI" activado en Railway (ver docs/despliegue-railway.md), este workflow es lo que
+# tiene que pasar en verde antes de que Railway construya nada.
+#
+# Corre en los PR hacia develop y hacia main, y además en el push a main — ese último es el que
+# Railway mira para decidir si despliega.
+on:
+  pull_request:
+    branches: [develop, main]
+  push:
+    branches: [main]
+
+# Un PR con varios pushes seguidos no necesita N corridas completas: la última manda.
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  backend:
+    name: Backend (Java 21)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Configurar JDK 21
+        uses: actions/setup-java@v4
+        with:
+          java-version: '21'
+          distribution: temurin
+          cache: maven
+
+      # Reactor completo y no módulo por módulo: common-lib es dependencia de los cinco, y un
+      # build parcial toma el jar viejo del repositorio local en vez del código del PR — el
+      # síntoma es un `cannot find symbol` sobre algo que sí está en la rama.
+      - name: Build + tests
+        run: mvn -B -ntp verify
+
+  frontend:
+    name: Frontend (Angular 20)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: arbiter-frontend
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Configurar Node 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: arbiter-frontend/package-lock.json
+
+      - name: Instalar dependencias
+        run: npm ci
+
+      - name: Build de producción
+        run: npm run build -- --configuration production
+
+  # Las dos tablas de ruteo del frontend (proxy.conf.json para `ng serve`,
+  # nginx.conf.template para el despliegue) tienen que declarar las mismas rutas. Una ruta
+  # agregada solo en la primera anda todo el desarrollo y da 404 recién en producción, que es
+  # exactamente el tipo de error que nadie encuentra hasta la demo.
+  routing-parity:
+    name: Ruteo dev == ruteo prod
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Comparar proxy.conf.json contra nginx.conf.template
+        run: python3 scripts/check-routing-parity.py

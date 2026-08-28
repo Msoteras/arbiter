@@ -10,5 +10,7 @@ public enum StatusChangeActor {
     /** The insured: registered the claim, uploaded additional documentation. */
     INSURED,
     /** An analyst: approved or rejected the claim (decision endpoint — pending auth). */
-    ANALYST
+    ANALYST,
+    /** An insurer referent (REFERENTE_ASEGURADORA): assigned/reassigned/released a case they don't own. */
+    REFERENT
 }

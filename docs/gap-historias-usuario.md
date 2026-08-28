@@ -64,9 +64,14 @@ de negocio, umbrales y flujos sin desarrollo").
 El paper (§1.1) cita cuatro plazos; el código modela uno (mal, por D2). Los tres restantes no
 tienen HU:
 
-- **72 h del asegurado para denunciar** desde el hecho. Validable hoy mismo comparando
-  `eventDate` contra el momento de la denuncia. Es la regla más barata de todas y la única que
-  puede rechazar una denuncia en el acto.
+- ~~**72 h del asegurado para denunciar** desde el hecho.~~ **Implementada** — es D11
+  (`RuleType.REPORT_DEADLINE`), evaluada y auditada por `TemporalRuleEvaluator` igual que el resto
+  de las reglas duras temporales, con umbral en `coverage.report_deadline_hours` (configurable por
+  cobertura desde el panel, no hardcodeado). Matiz importante: **no rechaza la denuncia al alta**
+  — evalúa durante la clasificación, bloquea el Fast Track y deriva a analista si se pasó del
+  plazo. No es un gap: rechazar en el acto, sin que nadie revise, chocaría con la decisión #5
+  (human-in-the-loop obligatorio). El diseño actual (deriva a revisión, no rechaza solo) es más
+  conservador que lo que este documento proponía originalmente.
 - **15 días para el pago** una vez aceptado el siniestro. Requiere un estado posterior a
   `APPROVED` — se conecta con el estado *Liquidado* que pide H0010 (ver §4).
 - **Prescripción a los 18 meses** de la denuncia para siniestros no gestionados. Es justamente lo
@@ -81,7 +86,8 @@ tienen HU:
 
 1. Fijar `responseDeadline` cuando la agenda documental queda satisfecha, no al crear el caso.
 2. Mover el plazo a configuración de reglas por ramo.
-3. Sumar las 72 h como validación de alta de denuncia.
+3. ~~Sumar las 72 h como validación de alta de denuncia~~ — ya está (D11/`REPORT_DEADLINE`, ver
+   más abajo). No hace falta duplicarla como gate de intake.
 4. Sumar los 18 meses y los 15 días de pago cuando entren los estados nuevos (§4).
 5. Recién entonces, la alerta al 80% del plazo (H0017) tiene sobre qué calcular.
 
@@ -129,16 +135,18 @@ Los 7 estados actuales (`PENDING_CLASSIFICATION`, `PENDING_ANALYST_REVIEW`,
 coherentes con el flujo implementado. El problema es que las HU declaran los 12 estados oficiales
 del NSIN001 y falta la mitad. Ver §4 — va junto con el refactor de transiciones.
 
-### 🟠 H0008 — Clasificación automática del tipo de siniestro
+### 🟠 H0008 — Clasificación automática del tipo de siniestro — **no hace falta implementarla**
 
-No existe. El hecho generador lo **elige el asegurado** en el wizard y `CaseReferenceResolver` solo
-lo valida contra el catálogo. El modelo produce una recomendación de resolución, que es H0014.
+Confirmado al planificar el sprint 9 (26/08): **no se necesita** clasificar automáticamente el
+"tipo de siniestro" como paso aparte — no es una decisión pendiente, es un diseño ya cerrado. El
+hecho generador lo elige el asegurado en el wizard, y el Fast Track (determinístico, D9-D13) más
+la recomendación del modelo (H0014) ya cubren el rol que el paper (§1.1) le da a esas categorías
+—*exprés, documentación reducida/amplia, urgente, derivación a servicio técnico*— sin necesitar
+una clasificación de tipo separada.
 
-Decisión pendiente: implementarla, o reescribir H0008 para que describa lo que el modelo realmente
-hace. El paper (§1.1) describe las categorías operativas reales de la aseguradora de referencia
-—*siniestro exprés, documentación reducida, documentación amplia, urgente, derivación a servicio
-técnico*— y afirma que el Fast Track automatiza esa clasificación. Si esa es la intención, H0008 es
-la HU que la cubre y hay que alinearla a esos nombres.
+Lo único que queda: **reescribir H0008** para que describa el mecanismo real (Fast Track +
+recomendación del modelo) en vez de una "clasificación automática" que no existe como paso propio.
+Es corrección de documento, no desarrollo.
 
 ### 🟠 H0004 — Validaciones de la denuncia — **parcialmente cerrado**
 
@@ -152,12 +160,26 @@ separado, sin cruzarlos).
 Faltan además: el mail de confirmación con número de expediente y la aclaración del Art. 56, y las
 72 h de §1.
 
-### 🟠 H0007 — Extracción de datos de documentos
+### 🟠 H0007 — Extracción de datos de documentos — **se solapa con H0031, más chica de lo que parecía**
 
-`OllamaDocumentAnalyzer` transcribe el documento a **texto libre** con Qwen3-VL y lo inyecta en el
-prompt. De los cuatro criterios de aceptación está uno. Faltan: datos **estructurados** (nro de
-factura, marca, modelo, nro de serie), validación contra los datos de la póliza, y que el analista
-los vea y los pueda corregir — `grep -rn "ocr\|extract" arbiter-frontend/src` no devuelve nada.
+Reverificado al planificar el sprint 9 (26/08). H0031 (hecha el 18/08) ya cubre la mitad de esto —
+la extracción **sí** produce datos tipados (`DocumentExtraction.Fields`), no solo texto libre, y el
+analista **sí** los ve en la solapa "Datos extraídos". Lo que queda, confirmado contra el código:
+
+- **Los campos no son exactamente los que pedía la HU.** Hoy es `documentDate`, `amount`,
+  `itemDescription` (texto libre — no separa marca/modelo), `imei`, `affectedParty`. No hay campo
+  de nro de factura ni marca/modelo/nro de serie por separado.
+- **"Corregir" no existe, solo "ver".** La solapa es de solo lectura (`<dl>` sin ningún `app-input`
+  ni acción) — el analista no puede editar un valor mal leído.
+- **La validación es contra la denuncia, no contra la póliza.** `DocumentInconsistencyEvaluator`
+  compara `amount`/`documentDate` del documento contra lo que el asegurado declaró en el
+  formulario (`claimedAmount`, `eventDate`) — no contra los datos de la póliza (suma asegurada,
+  bien asegurado declarado en el alta de la aseguradora). Son comparaciones distintas y hoy solo
+  existe una.
+
+Si el equipo decide que esto alcanza (el corazón de la HU — "que el modelo lea el documento y el
+analista lo vea"— ya está), corresponde reescribirla. Si no, la card que queda es mucho más chica
+que la original: agregar campos puntuales + hacerlos editables + sumar el cruce contra la póliza.
 
 ### 🟠 H0014 — Justificación de la decisión
 
