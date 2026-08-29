@@ -9,24 +9,34 @@ que arreglar, con el diagnóstico ya hecho para que el arreglo no arranque de ce
 
 ---
 
-## Login — la nota de soporte queda ilegible sobre la cordillera
+## Login — la nota de soporte quedaba ilegible sobre la cordillera
 
-**Encontrado:** 28/08/2026, probando la solapa de trazabilidad después de mergear `develop`.
+**Encontrado:** 28/08/2026. **Mitigado:** 29/08/2026. **Queda una vuelta pendiente.**
 
-**Qué pasa:** el texto "¿No podés ingresar o necesitás una cuenta? Contactá a soporte." se
-superpone con la imagen de la cordillera y pierde contraste hasta volverse ilegible.
+**Qué pasaba:** el texto "¿No podés ingresar o necesitás una cuenta? Contactá a soporte." se
+superponía con la cordillera y perdía contraste hasta volverse ilegible.
 
-**Por qué:** `.mtn` es `position: absolute; bottom: 0; width: 100%`, así que su altura depende del
-ancho del viewport; `.support-note` usa `--text-secondary`, un gris cálido calibrado contra el
-papel (`--surface`), no contra el teal de la imagen. En viewports anchos y de poca altura la
-cordillera sube lo suficiente como para quedar detrás del texto, y ahí el par de colores no llega
-al contraste AA que el design system se compromete a cumplir.
+**Por qué:** `.mtn` es `position: absolute; bottom: 0; width: 100%`, así que su alto sale de la
+proporción del PNG (0,435) y **lo manda el ancho de la pantalla**: a 1900px de ancho mide 827 de
+alto y le sube por encima al texto. En pantallas angostas no se nota — de ahí que el media query de
+mobile ya reservara espacio con `padding-bottom` y el caso que faltaba fuera el inverso.
 
-**Archivos:** `arbiter-frontend/src/app/features/auth/login/login.component.scss`
-(`.mtn` línea 18, `.support-note` línea 97).
+**Cómo quedó:** la nota tiene papel propio (`background: var(--surface-sunken)` + padding + radio
+pill) y tinta plena. Sobre el papel la pastilla es invisible (mismo color); sobre la montaña
+aparece como halo y el texto se lee contra fondo sólido. Contraste real 15,4 contra los 2,93 de
+antes. El layout no se tocó.
 
-**A tener en cuenta al arreglarlo:** el media query de ≤768px ya reserva espacio con
-`padding-bottom`, y el de alturas muy chicas directamente esconde la cordillera — el caso que se
-escapa es el intermedio (ancho grande, alto medio). Conviene resolverlo por reserva de espacio o
-por un scrim detrás del texto, no subiéndole el peso a la tipografía: el problema es el fondo, no
-la fuente.
+**Dos intentos que no funcionaron, para no repetirlos:**
+
+1. **Sacar la imagen de `absolute` y ponerla en el flujo** como última fila de la columna, para que
+   su alto lo mandara el espacio sobrante. Funciona y no tiene números mágicos, pero cambia
+   bastante el layout y a Fede no le cerró visualmente.
+2. **Subir solo el contraste del texto** (`--text-primary`): daba 4,72 y pasaba AA en las 35
+   combinaciones de pantalla medidas (900–2560 de ancho × 700–1200 de alto)… y **seguía sin
+   leerse**. El ratio de contraste asume fondo sólido; acá el fondo es una textura ditherizada, y
+   la varianza entre nieve y roca rompe la legibilidad aunque el número cierre. Vale como
+   recordatorio de que la métrica no alcanza sola cuando el fondo es una imagen.
+
+**Lo que queda:** Fede quedó a medias conforme — la idea es **bajar la cordillera** para que no le
+llegue al texto y la pastilla deje de hacer falta. Si se hace, conviene medir dónde queda el borde
+superior de la imagen en pantallas anchas antes y después, porque su alto depende del ancho.
