@@ -84,7 +84,6 @@ type TabId =
   | 'datos'
   | 'imagenes'
   | 'riesgo'
-  | 'razones'
   | 'analisis'
   | 'asegurado'
   | 'documentacion'
@@ -424,8 +423,7 @@ export class ExpedienteDetailComponent {
       : []),
     { id: 'imagenes' as TabId, label: 'Análisis de imágenes' },
     { id: 'riesgo' as TabId, label: 'Desglose de riesgo' },
-    ...(this.analysisReasons().length > 0 ? [{ id: 'razones' as TabId, label: 'Razones' }] : []),
-    ...(this.ruleResults().length > 0
+    ...(this.ruleResults().length > 0 || this.analysisReasons().length > 0
       ? [{ id: 'analisis' as TabId, label: 'Análisis realizado' }]
       : []),
     ...(this.hayDatosAsegurado()

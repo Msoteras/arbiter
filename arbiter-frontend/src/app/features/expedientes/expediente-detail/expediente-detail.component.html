@@ -412,19 +412,6 @@
           }
         </app-card>
       }
-      @case ('razones') {
-        <app-card heading="Razones de la clasificación">
-          @if (analysisReasons().length > 0) {
-            <ul class="reasons-list">
-              @for (reason of analysisReasons(); track $index) {
-                <li>{{ reason }}</li>
-              }
-            </ul>
-          } @else {
-            <app-empty-state message="Sin motivos para este expediente" />
-          }
-        </app-card>
-      }
       <!-- Everything comes from what was persisted at classification time. -->
       @case ('analisis') {
         <div class="traza">
@@ -455,6 +442,17 @@
               <p class="nodata">El expediente se resolvió antes de llegar al motor de reglas.</p>
             }
           </app-card>
+
+          <!-- Below the rules: the engine runs first, and the model reads on top of it. -->
+          @if (analysisReasons().length > 0) {
+            <app-card heading="Razones del modelo">
+              <ul class="reasons-list">
+                @for (reason of analysisReasons(); track $index) {
+                  <li>{{ reason }}</li>
+                }
+              </ul>
+            </app-card>
+          }
         </div>
       }
       @case ('asegurado') {
