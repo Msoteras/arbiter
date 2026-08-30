@@ -443,7 +443,9 @@
               </div>
               <span class="t-note">Evaluadas el {{ formatDateTime(ruleResults()[0].evaluatedAt) }}.</span>
             } @else {
-              <p class="nodata">El expediente se resolvió antes de llegar al motor de reglas.</p>
+              <p class="nodata traza-sin-reglas" [class.error]="ruleResultsUnavailable()">
+                {{ sinReglasMotivo() }}
+              </p>
             }
           </app-card>
 

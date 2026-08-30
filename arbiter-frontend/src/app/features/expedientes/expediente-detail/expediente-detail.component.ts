@@ -365,6 +365,41 @@ export class ExpedienteDetailComponent {
   // ----- trazabilidad -----
   protected readonly ruleResults = computed<RuleResult[]>(() => this.data()?.ruleResults ?? []);
 
+  /**
+   * No se pudieron leer. Distinto de "no corrió ninguna": aquello es un dato del expediente, esto
+   * lo es de este request, y afirmar lo primero cuando pasó lo segundo es inventar.
+   */
+  protected readonly ruleResultsUnavailable = computed(() => this.data()?.ruleResults === null);
+
+  /**
+   * Por qué no hay reglas que mostrar. Ninguna de las causas es Fast Track: el gate corre DESPUÉS
+   * de las reglas duras, así que un Fast Track llena la tabla con todas en PASS. Queda vacío
+   * cuando la aseguradora no tiene ninguna activa, o cuando la denuncia frenó en el chequeo de
+   * documentación obligatoria, que vuelve antes de los evaluadores temporal y de fraude.
+   */
+  protected readonly sinReglasMotivo = computed(() => {
+    if (this.ruleResultsUnavailable()) {
+      return 'No se pudieron leer las reglas evaluadas. Volvé a intentar en unos minutos.';
+    }
+    if (this.needsDocs()) {
+      return 'Todavía no se evaluaron: el expediente está esperando documentación obligatoria. '
+        + 'Se evalúan cuando se complete y vuelva a clasificarse.';
+    }
+    return 'No hay reglas duras activas para esta cobertura.';
+  });
+
+  /**
+   * La solapa existe si hay algo que contar del análisis: reglas, razones del modelo, o una
+   * clasificación que explique por qué no hay reglas. Sin clasificar no aparece — ahí "no hay
+   * reglas activas" sería falso, todavía no corrieron.
+   */
+  protected readonly hayAnalisis = computed(
+    () =>
+      this.ruleResults().length > 0 ||
+      this.ruleResultsUnavailable() ||
+      !!this.data()?.analysisClassification,
+  );
+
   protected readonly policySnapshot = computed<PolicySnapshot | null>(
     () => this.data()?.policySnapshot ?? null,
   );
@@ -410,9 +445,10 @@ export class ExpedienteDetailComponent {
   protected readonly history = computed<StatusTransition[]>(() => this.data()?.statusHistory ?? []);
 
   // ----- tabs -----
-  // "Peritaje" solo existe si el expediente se derivó, y "Razones" solo si el LLM dejó motivos:
-  // una solapa vacía en la mayoría de los casos sería ruido, y en ambas la ausencia de datos es
-  // el caso esperado (Fast Track/Falta documentación no tienen motivos; no toda derivación pasa).
+  // "Peritaje" solo existe si el expediente se derivó, y "Análisis realizado" solo si ya se
+  // clasificó: una solapa vacía en la mayoría de los casos sería ruido, y en ambas la ausencia de
+  // datos es el caso esperado (no toda derivación pasa; un expediente sin clasificar todavía no
+  // tiene ni reglas ni razones que contar).
   // 'conversacion' sigue oculta: no hay entidad de mensajería todavía, así que estaría siempre
   // vacía. No se borró del tipo ni del `@switch` del template, solo de la lista visible, para no
   // perder el lugar ya pensado en la pantalla (ver la historia en el handoff).
@@ -423,9 +459,7 @@ export class ExpedienteDetailComponent {
       : []),
     { id: 'imagenes' as TabId, label: 'Análisis de imágenes' },
     { id: 'riesgo' as TabId, label: 'Desglose de riesgo' },
-    ...(this.ruleResults().length > 0 || this.analysisReasons().length > 0
-      ? [{ id: 'analisis' as TabId, label: 'Análisis realizado' }]
-      : []),
+    ...(this.hayAnalisis() ? [{ id: 'analisis' as TabId, label: 'Análisis realizado' }] : []),
     ...(this.hayDatosAsegurado()
       ? [{ id: 'asegurado' as TabId, label: 'Datos del asegurado' }]
       : []),

@@ -54,6 +54,9 @@ public interface ClaimsAnalysisClient {
     /** The insured's fraud records, lapsed ones included (each says whether it's still in force). */
     List<FraudRecordResponse> fraudRecordsOf(String insuredDni);
 
-    /** Rules evaluated for the case, passes included. Empty on a Fast Track. */
+    /**
+     * Rules evaluated for the case, passes included — a Fast Track carries them too, all passing.
+     * Empty when none ran; {@code null} when they couldn't be read.
+     */
     List<RuleResultResponse> ruleResultsOf(Long caseId);
 }

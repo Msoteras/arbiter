@@ -783,6 +783,9 @@ public class CaseServiceImpl implements CaseService {
     /**
      * The traceability tab's three blocks. Grouped so the mapper doesn't grow three more
      * parameters that every list-endpoint caller has to pass empty.
+     *
+     * @param ruleResults null when they couldn't be read — never null for "none ran", which is
+     *                    the empty list. See {@code CaseResponse.ruleResults}.
      */
     private record Traceability(List<RuleResultResponse> ruleResults,
                                 PolicySnapshotResponse policySnapshot,

@@ -94,7 +94,8 @@ public class ClaimController {
     @PreAuthorize("isAuthenticated()")
     @Operation(
             summary = "Rules evaluated for a case",
-            description = "Every hard rule that ran, passes included. Empty when none did (Fast Track)."
+            description = "Every hard rule that ran, passes included — a Fast Track carries them too, "
+                    + "all passing. Empty only when no rule ran at all."
     )
     @ApiResponse(responseCode = "200", description = "Rules evaluated, in evaluation order")
     public ResponseEntity<List<RuleResultResponse>> getRuleResults(@PathVariable Long caseId) {

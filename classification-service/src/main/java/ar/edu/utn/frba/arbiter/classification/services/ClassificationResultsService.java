@@ -168,7 +168,11 @@ public class ClassificationResultsService {
      * interceptor de Spring sí abría la transacción (visible en el stack trace). Sin writes en el
      * método, sacar {@code readOnly} no cambia el comportamiento, solo evita el modo que rompía.
      */
-    /** Empty when none ran: a Fast Track resolves on the gate and writes no rows here. */
+    /**
+     * Empty when no rule ran — the insurer has none active, or the claim stopped at the
+     * missing-documents check. A Fast Track is <b>not</b> one of those cases: the hard rules run
+     * before the gate and their passes are written here.
+     */
     @Transactional
     public List<RuleResultResponse> getRuleResults(Long caseId) {
         return ruleResultRepository.findByCaseIdOrderByEvaluatedAtAsc(caseId).stream()

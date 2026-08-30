@@ -274,8 +274,11 @@ public class ClassificationServiceClient implements ClaimsAnalysisClient {
     }
 
     /**
-     * Unlike {@link #fraudRecordsOf}, a failure here degrades to empty: the traceability tab is
-     * context, and losing it must not take the whole case detail down with it.
+     * Unlike {@link #fraudRecordsOf}, a failure here doesn't propagate: the traceability tab is
+     * context, and losing it must not take the whole case detail down with it. It degrades to
+     * {@code null} and not to an empty list, because the two say different things on screen — an
+     * empty list is "no rule ran", which would be a claim about the classification we can't make
+     * when we couldn't even read it.
      */
     @Override
     public List<RuleResultResponse> ruleResultsOf(Long caseId) {
@@ -286,10 +289,11 @@ public class ClassificationServiceClient implements ClaimsAnalysisClient {
                     .retrieve()
                     .body(new ParameterizedTypeReference<>() {
                     });
+            // A 200 with no body is a genuine "none ran", not a read failure.
             return results == null ? List.of() : results;
         } catch (RestClientException e) {
             log.warn("[ClaimsAnalysis] Could not read rule results for case {}: {}", caseId, e.getMessage());
-            return List.of();
+            return null;
         }
     }
 

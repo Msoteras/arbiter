@@ -130,8 +130,14 @@ export interface ExpedienteResponse {
    * Fast Track sin leer nada, o se clasificó antes de que esto existiera.
    */
   documentAnalyses: DocumentAnalysis[];
-  /** Every hard rule evaluated, passes included. Only in GET /{id}; empty on a Fast Track. */
-  ruleResults: RuleResult[];
+  /**
+   * Las reglas duras evaluadas, PASS incluidos — un Fast Track también las trae, todas en PASS
+   * (el gate corre después de las reglas). Solo en GET /{id}.
+   *
+   * Vacío = no corrió ninguna. `null` = no se pudieron leer. No es lo mismo y en pantalla se dice
+   * distinto: lo primero es un dato del expediente, lo segundo de este request.
+   */
+  ruleResults: RuleResult[] | null;
   /** The policy as the insurer DB answered it at classification time. */
   policySnapshot: PolicySnapshot | null;
   /** Every policy of this insured, not just the claimed one. Only in GET /{id}. */
