@@ -1,0 +1,5 @@
+# The team works on Windows with core.autocrlf=true, which rewrites LF to CRLF on checkout.
+# A shell script with CRLF endings fails inside a Linux container with a misleading
+# "no such file or directory" — the shell reads the \r as part of the interpreter path.
+# Docker entrypoints have to stay LF no matter what platform checks them out.
+*.sh text eol=lf
