@@ -18,27 +18,76 @@ Seis servicios de Railway, todos desde el mismo repo. **Solo uno tiene dominio p
 | `rules-service` | `/` | `rules-service/railway.json` | No | |
 | `classification-service` | `/` | `classification-service/railway.json` | No | |
 | `cases-service` | `/` | `cases-service/railway.json` | No | |
-| `clip-embedding` | `embedding-service` | `embedding-service/railway.json` | No | **Root Directory distinto**: su Dockerfile copia con rutas relativas a esa carpeta |
+| `clip-embedding` | `/` | `embedding-service/Dockerfile` | No | Contexto en la raíz como los demás (ver abajo) |
 
 `reports-service` **no se despliega**: hoy no tiene ni un controller. Tiene Dockerfile y
 `application.yml` al día, así que sumarlo después es crear el servicio y nada más.
 
-### `clip-embedding`: por qué el Config File Path lleva la ruta completa
+### Los `railway.json` no se usan: Config as Code quedó deprecado
 
-**El campo "Config File Path" nunca sigue el Root Directory** — es lo único documentado sin
-ambigüedad por Railway: *"The Railway Config File does not follow the Root Directory path. You
-have to specify the absolute path (...), for example: /backend/railway.toml"* — así que aunque el
-Root Directory de este servicio sea `embedding-service`, ese campo del dashboard tiene que llevar
-igual `embedding-service/railway.json`, no `railway.json` a secas. Ya está así en la tabla; queda
-anotado para que nadie lo "simplifique" después pensando que es redundante.
+**Railway deprecó Config as Code y el corte nos dejó afuera por 48 horas.** Desde el **2026-08-28**
+los servicios que nunca usaron Config as Code **no pueden habilitarlo**, y los nuestros nunca lo
+usaron. Los `railway.json` del repo no se leen ni se van a leer; el reemplazo oficial es
+[Infrastructure as Code](https://docs.railway.com/infrastructure-as-code) (`.railway/railway.ts`).
 
-El `dockerfilePath: "Dockerfile"` (relativo) *adentro* de ese `railway.json` sí es correcto tal
-como está — pero eso Railway no lo documenta con la misma claridad, así que se verificó a mano en
-vez de asumirlo: un build con el contexto acotado a `embedding-service/` únicamente (lo que Root
-Directory produce, según su propia doc: *"Railway will only pull down files from that
-directory"*) compila limpio y el contenedor levanta respetando `$PORT`. Si algún día Railway
-cambia este comportamiento, el signo va a ser un build que falla buscando `Dockerfile` en la raíz
-del repo en vez de en `embedding-service/`.
+**No migramos a IaC**: es TypeScript + `npm install railway` + `railway config plan/apply` corrido
+**a mano** (no se dispara en el push). Meter una dependencia npm y un archivo TS en un monorepo Java
+para una config que se carga una vez no se justifica. Todo lo que decían los `railway.json` tiene
+equivalente vigente:
+
+| Lo que decía el `railway.json` | Dónde va ahora |
+|---|---|
+| `build.dockerfilePath` | Variable de servicio `RAILWAY_DOCKERFILE_PATH` — **no está deprecada** |
+| `build.builder: DOCKERFILE` | Se activa solo al encontrar el Dockerfile; si no, Settings → Build → Builder |
+| `deploy.healthcheckPath` / `healthcheckTimeout` | Settings → Deploy → Healthcheck |
+| `deploy.restartPolicyType` / `MaxRetries` | Settings → Deploy → Restart Policy (`ON_FAILURE`, 10) |
+
+`RAILWAY_DOCKERFILE_PATH` **se resuelve desde la raíz del repositorio, no desde el Root
+Directory** (igual que el viejo Config File Path). Los seis servicios llevan Root Directory `/` y
+la ruta completa desde la raíz — sin excepciones, ver la sección de `clip-embedding` más abajo.
+
+Si no se carga `RAILWAY_DOCKERFILE_PATH`, Railway no encuentra ningún Dockerfile en la raíz,
+**cae a autodetección** con su builder de Java (Railpack) y el deploy muere. No falla al construir
+— falla al arrancar, que es peor, porque el build sale en verde.
+
+Cómo se reconoce que pasó eso:
+
+| Señal | Por qué |
+|---|---|
+| El build compila **los 5 backends** en vez de uno | Railpack vio el POM multi-módulo de la raíz y buildeó el reactor entero. Los Dockerfiles hacen lo contrario: un `sed` borra los otros módulos del POM padre y corren `mvn -pl <modulo> -am` |
+| `The requested profile "production" could not be activated because it does not exist` | Es un perfil de **Maven**, no de Spring. Lo inyecta Railpack (`mvn ... -Pproduction`). No hay ningún perfil de Spring que crear: la config del proyecto es toda por variables de entorno |
+| `Error: Unable to access jarfile target/*jar` en loop | Es el start command por defecto de Railpack, corriendo contra la raíz del repo — donde el POM padre es `packaging: pom` y nunca va a haber un jar. El ENTRYPOINT propio es `java -Duser.timezone=... -jar app.jar` desde `/app` |
+
+Valores por servicio (restart policy `ON_FAILURE` / 10 en los seis):
+
+| Servicio | `RAILWAY_DOCKERFILE_PATH` | Healthcheck | Timeout |
+|---|---|---|---|
+| `arbiter-frontend` | `arbiter-frontend/Dockerfile` | `/` | 120 |
+| `auth-service` | `auth-service/Dockerfile` | `/actuator/health` | 300 |
+| `rules-service` | `rules-service/Dockerfile` | `/actuator/health` | 300 |
+| `classification-service` | `classification-service/Dockerfile` | `/actuator/health` | 600 |
+| `cases-service` | `cases-service/Dockerfile` | `/actuator/health` | 300 |
+| `clip-embedding` | `embedding-service/Dockerfile` | `/health` | 600 |
+
+### Los seis builds tienen el contexto en la raíz, `clip-embedding` incluido
+
+**`RAILWAY_DOCKERFILE_PATH` se resuelve desde la raíz del repositorio, no desde el Root
+Directory.** Eso deja sin salida a cualquier servicio que quiera un contexto acotado a su carpeta:
+el Root Directory define el **contexto**, la variable define **dónde está el Dockerfile**, y los
+dos no pueden apuntar a lugares distintos. Con Root Directory `embedding-service`, la variable en
+`Dockerfile` falla (`couldn't locate the dockerfile at path Dockerfile`) y en
+`embedding-service/Dockerfile` tampoco resuelve de forma confiable.
+
+Por eso `embedding-service/Dockerfile` **copia con rutas desde la raíz** (`COPY
+embedding-service/app.py .`), igual que los cinco restantes, y los dos `docker-compose` lo
+construyen con `context: .` + `dockerfile: embedding-service/Dockerfile`. No necesita nada de
+afuera de su carpeta —a diferencia de los backends Java, que sí precisan el POM padre y
+`common-lib`—, pero comparte la regla para que no haya excepciones que recordar:
+
+> **Root Directory `/` y `RAILWAY_DOCKERFILE_PATH=<servicio>/Dockerfile` en los seis.**
+
+Si alguien "simplifica" ese Dockerfile sacándole el prefijo `embedding-service/` a los `COPY`, el
+build local con `context: .` va a fallar con `"/app.py": not found`.
 
 Que los backends no tengan dominio público es deliberado: se llegan solo por la red privada
 (`*.railway.internal`), y lo único expuesto a internet es el frontend. Eso es lo que reemplaza al
@@ -119,12 +168,34 @@ declara módulo por módulo. En Railway se cargan las mismas, con estas diferenc
 | `EMBEDDING_SERVICE_URL` | `http://clip-embedding.railway.internal:8000` |
 | `LLM_PROVIDER` | **`gemini`** — ver abajo |
 | `OLLAMA_BASE_URL` | No se setea: no hay Ollama en Railway |
+| `SPRING_PROFILES_ACTIVE` | **`insurer-db`** en `auth-service`, `classification-service` y `cases-service`. No es un perfil de entorno: activa los adapters que leen la BD Aseguradora (`InsurerDatabaseAdapter`, `InsuredDirectoryDatabaseAdapter`), que son `@Primary` sobre los mocks. **Sin él no falla nada**: los tres arrancan, pasan el healthcheck y sirven pólizas y asegurados **inventados** por `MockInsurerAdapter` / `MockInsuredDirectoryAdapter`. El único rastro es un `log.warn` al arrancar |
 | `JWT_SECRET` | **El mismo valor en los 5 servicios.** Si difieren, los tokens de servicio entre módulos se rechazan y el síntoma es un 401 sin explicación |
 | `PASSWORD_ENCRYPTION_PRIVATE_KEY` | Ver abajo |
-| `PORT` | La inyecta Railway sola. No setearla a mano |
+| `PORT` | **Setearla a mano** en cada backend: `auth-service` 8080, `rules-service` 8081, `classification-service` 8082, `cases-service` 8083. Ver abajo |
+| `JAVA_TOOL_OPTIONS` | **`-XX:MaxRAMPercentage=75.0` en los 4 backends.** No está en los Dockerfiles (solo en `docker-compose.railway.yml`), así que en Railway hay que cargarla a mano. Sin ella la JVM toma como heap máximo el **25%** de la memoria del contenedor y Spring Boot con JPA se queda corto: GC constante y OOM bajo carga |
 
 El frontend además necesita las cuatro `*_SERVICE_URL` que consume su Nginx (ya vienen con default
 en su Dockerfile, apuntando a los nombres `.railway.internal` de la tabla de arriba).
+
+### Por qué `PORT` va fijada a mano
+
+Railway inyecta un `PORT` propio si no la definís, y los backends escuchan en `${PORT:<puerto de
+siempre>}`, así que obedecen. **Pero el frontend tiene los upstreams cableados a puertos fijos**
+(`:8080`, `:8081`, `:8082`, `:8083`, en `nginx.conf.template` vía los defaults del Dockerfile). Si
+Railway asigna otro, nginx sigue buscando en el de siempre y no encuentra nada.
+
+El modo de fallo es especialmente feo: si Railway asigna 8080 por defecto, **`auth-service` anda y
+los otros tres no**. Un 502 parcial en tres de cuatro backends parece un problema de esos servicios,
+no de configuración de red.
+
+Fijando `PORT` por servicio, la red privada queda alineada con la tabla de puertos del `CLAUDE.md`,
+con `docker-compose` y con lo que ya espera el frontend. La alternativa —referenciar el puerto ajeno
+desde el frontend con `${{auth-service.PORT}}`— son cuatro variables más para el mismo resultado.
+
+**Los nombres de los servicios en Railway tienen que ser exactos**, porque los hostnames
+`*.railway.internal` se derivan de ellos: `auth-service`, `rules-service`, `classification-service`,
+`cases-service`, `clip-embedding`. Un servicio llamado `auth` en vez de `auth-service` da 502 en
+todas sus rutas sin ningún mensaje que explique por qué.
 
 ### `LLM_PROVIDER=gemini` es una desviación consciente
 
