@@ -3,11 +3,21 @@
   flex-direction: column;
   gap: var(--space-4);
   padding: var(--space-5) var(--space-6) var(--space-7);
-  /* 760px dejaba la pantalla del asegurado con aire de sobra en desktop y todo se leía como una
-     vista mobile estirada. Va alineado con "Mis siniestros" para que pasar de una a otra no
-     cambie el ancho de la columna. */
-  max-width: 960px;
+  max-width: 1200px;
   margin: 0 auto;
+}
+
+@media (min-width: 900px) {
+  :host {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  }
+
+  :host > * { grid-column: 1 / -1; }
+  .seguimiento-card,
+  .chat-section { grid-column: span 1; }
+
+  .docs-section { margin-top: 0; }
 }
 
 @keyframes msPulse {
@@ -163,6 +173,10 @@
 }
 .field dd { margin: 0; font-size: var(--font-size-body); font-variant-numeric: tabular-nums; text-wrap: pretty; }
 
+@media (min-width: 620px) {
+  .field.wide { grid-column: 2 / -1; }
+}
+
 .state-wrap { padding: var(--space-5) 0; }
 .t-note a { color: var(--accent-fg); }
 
@@ -172,4 +186,5 @@
 
 /* Documentación enviada: separa la sección de la card de la denuncia. */
 .docs-section,
-.chat-section { display: block; margin-top: var(--space-4); }
+.chat-section { display: block; }
+.docs-section { margin-top: var(--space-4); }
