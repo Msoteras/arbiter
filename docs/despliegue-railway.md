@@ -11,23 +11,28 @@ La BD **no** va en Railway: va en **Supabase** (ver "Base de datos" abajo).
 
 Seis servicios de Railway, todos desde el mismo repo. **Solo uno tiene dominio público.**
 
-| Servicio Railway | Root Directory | Config as code | Público | Notas |
+| Servicio Railway | Root Directory | `RAILWAY_DOCKERFILE_PATH` | Público | Notas |
 |---|---|---|---|---|
-| `arbiter-frontend` | `/` | `arbiter-frontend/railway.json` | **Sí** | Sirve la SPA y hace de reverse proxy de `/api/v1/*` |
-| `auth-service` | `/` | `auth-service/railway.json` | No | |
-| `rules-service` | `/` | `rules-service/railway.json` | No | |
-| `classification-service` | `/` | `classification-service/railway.json` | No | |
-| `cases-service` | `/` | `cases-service/railway.json` | No | |
+| `arbiter-frontend` | `/` | `arbiter-frontend/Dockerfile` | **Sí** | Sirve la SPA y hace de reverse proxy de `/api/v1/*` |
+| `auth-service` | `/` | `auth-service/Dockerfile` | No | |
+| `rules-service` | `/` | `rules-service/Dockerfile` | No | |
+| `classification-service` | `/` | `classification-service/Dockerfile` | No | |
+| `cases-service` | `/` | `cases-service/Dockerfile` | No | |
 | `clip-embedding` | `/` | `embedding-service/Dockerfile` | No | Contexto en la raíz como los demás (ver abajo) |
+
+**El nombre del servicio en Railway tiene que ser exactamente el de esta tabla**: los hostnames
+`*.railway.internal` se derivan de él y el Nginx del frontend los tiene cableados.
 
 `reports-service` **no se despliega**: hoy no tiene ni un controller. Tiene Dockerfile y
 `application.yml` al día, así que sumarlo después es crear el servicio y nada más.
 
-### Los `railway.json` no se usan: Config as Code quedó deprecado
+### Por qué no hay `railway.json`: Config as Code quedó deprecado
 
 **Railway deprecó Config as Code y el corte nos dejó afuera por 48 horas.** Desde el **2026-08-28**
 los servicios que nunca usaron Config as Code **no pueden habilitarlo**, y los nuestros nunca lo
-usaron. Los `railway.json` del repo no se leen ni se van a leer; el reemplazo oficial es
+usaron. Los seis `railway.json` que había en el repo no se iban a leer nunca, así que se borraron
+el 30/08 en vez de dejarlos como trampa para el próximo que los lea y asuma que la configuración
+está versionada. El reemplazo oficial es
 [Infrastructure as Code](https://docs.railway.com/infrastructure-as-code) (`.railway/railway.ts`).
 
 **No migramos a IaC**: es TypeScript + `npm install railway` + `railway config plan/apply` corrido
@@ -68,6 +73,28 @@ Valores por servicio (restart policy `ON_FAILURE` / 10 en los seis):
 | `classification-service` | `classification-service/Dockerfile` | `/actuator/health` | 600 |
 | `cases-service` | `cases-service/Dockerfile` | `/actuator/health` | 300 |
 | `clip-embedding` | `embedding-service/Dockerfile` | `/health` | 600 |
+
+### Watch Paths: que un push no rebuildee los seis
+
+Los seis servicios apuntan al mismo repo, así que **por defecto cualquier push a `main` dispara
+seis builds** — cuatro de ellos compilaciones de Maven completas. Settings → Build → *Watch Paths*
+(reglas estilo `.gitignore`) acota cada servicio a lo que realmente lo afecta:
+
+| Servicio | Watch Paths |
+|---|---|
+| `auth-service` | `/auth-service/**`, `/common-lib/**`, `/pom.xml` |
+| `rules-service` | `/rules-service/**`, `/common-lib/**`, `/pom.xml` |
+| `classification-service` | `/classification-service/**`, `/common-lib/**`, `/pom.xml` |
+| `cases-service` | `/cases-service/**`, `/common-lib/**`, `/pom.xml` |
+| `arbiter-frontend` | `/arbiter-frontend/**` |
+| `clip-embedding` | `/embedding-service/**` |
+
+`common-lib` y el POM padre van en los cuatro backends porque un cambio ahí **sí** los afecta a
+todos: es la dependencia real que declaran sus Dockerfiles, no una precaución. Sacarlos es el error
+que produce el peor síntoma posible — un módulo desplegado contra una versión vieja de `common-lib`,
+sin ningún build fallado que lo delate.
+
+El frontend y `clip-embedding` no los necesitan: no dependen de Maven.
 
 ### Los seis builds tienen el contexto en la raíz, `clip-embedding` incluido
 
@@ -359,7 +386,7 @@ simplemente falla los primeros health checks y Railway lo reintenta.
 - Los 5 backends escuchan en `${PORT:<puerto de siempre>}`, así que Railway les puede asignar el
   suyo sin romper docker-compose ni `mvn spring-boot:run`.
 - `/actuator/health` expuesto y permitido sin JWT en los 5 (solo `health`, nada más del actuator).
-  Es el `healthcheckPath` de cada `railway.json`.
+  Es el healthcheck que se carga en Settings → Deploy de cada servicio.
 - Pool de conexiones acotado a 5 por servicio (`DB_POOL_SIZE`), en vez de los 10 por defecto de
   Hikari.
 - Todas las imágenes corren con usuario sin privilegios.
@@ -374,7 +401,9 @@ simplemente falla los primeros health checks y Railway lo reintenta.
   **se niega a levantar** si el nombre no resuelve — o sea que el frontend entraba en crash-loop
   si arrancaba antes que los backends, o mientras alguno estuviera caído. Verificado: con los
   cuatro backends ausentes, la SPA sirve 200 y solo las rutas `/api/v1/*` dan 502.
-- `railway.json` para los 6 servicios desplegables.
+- **No hay `railway.json`**: se borraron (30/08) al quedar Config as Code deprecado sin que
+  pudiéramos habilitarlo. Toda la configuración de despliegue vive en el dashboard de Railway y
+  está documentada acá — este archivo es la única fuente de verdad.
 
 ## Pendiente
 
