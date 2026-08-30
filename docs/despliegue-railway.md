@@ -168,6 +168,7 @@ declara módulo por módulo. En Railway se cargan las mismas, con estas diferenc
 | `EMBEDDING_SERVICE_URL` | `http://clip-embedding.railway.internal:8000` |
 | `LLM_PROVIDER` | **`gemini`** — ver abajo |
 | `OLLAMA_BASE_URL` | No se setea: no hay Ollama en Railway |
+| `GOOGLE_APPLICATION_CREDENTIALS_B64` | Solo `classification-service`. La service-account key de Vertex en base64 — ver "La credencial de Vertex en Railway" abajo. **No** `GOOGLE_APPLICATION_CREDENTIALS`, que espera una ruta a un archivo que en Railway no existe |
 | `SPRING_PROFILES_ACTIVE` | **`insurer-db`** en `auth-service`, `classification-service` y `cases-service`. No es un perfil de entorno: activa los adapters que leen la BD Aseguradora (`InsurerDatabaseAdapter`, `InsuredDirectoryDatabaseAdapter`), que son `@Primary` sobre los mocks. **Sin él no falla nada**: los tres arrancan, pasan el healthcheck y sirven pólizas y asegurados **inventados** por `MockInsurerAdapter` / `MockInsuredDirectoryAdapter`. El único rastro es un `log.warn` al arrancar |
 | `JWT_SECRET` | **El mismo valor en los 5 servicios.** Si difieren, los tokens de servicio entre módulos se rechazan y el síntoma es un 401 sin explicación |
 | `PASSWORD_ENCRYPTION_PRIVATE_KEY` | Ver abajo |
@@ -207,6 +208,43 @@ Se acordó arrancar con Gemini para las primeras pruebas y volver a Ollama despu
 explícita, no un cambio de decisión.** Para volver a Ollama hay que levantarlo en una máquina con
 GPU fuera de Railway y apuntarle `OLLAMA_BASE_URL` — el código ya soporta las dos vías y se cambia
 con una variable.
+
+#### La credencial de Vertex en Railway
+
+`GeminiConfig` construye el cliente con `.vertexAI(true)` y autentica por **ADC**, que solo lee la
+credencial de un **archivo** apuntado por `GOOGLE_APPLICATION_CREDENTIALS`. En Compose eso se
+resuelve montando el archivo (`docker-compose.railway.vertex.yml`); en Railway no hay dónde montar
+nada.
+
+**No se cambió a API key**, aunque sería más simple: llegaría a la Gemini Developer API en vez de
+Vertex, cuyo tier gratuito puede usar los prompts para mejorar los productos de Google. Con datos
+de siniestros de personas reales eso sería una segunda desviación de privacidad encima de la que ya
+representa usar Gemini.
+
+La solución es `classification-service/docker-entrypoint.sh`: si existe
+`GOOGLE_APPLICATION_CREDENTIALS_B64`, escribe la credencial a `/tmp/gcp-adc.json`, exporta
+`GOOGLE_APPLICATION_CREDENTIALS` y recién ahí lanza la JVM. Si la variable no está, no hace nada —
+por eso Compose sigue funcionando igual, con su archivo montado.
+
+**Va en base64 y no como JSON crudo** porque una service-account key es multilínea y el Raw Editor
+de Railway parsea `CLAVE=valor` línea por línea: pegando el JSON directo se trunca en el primer
+salto de línea.
+
+Para generar el valor, desde donde tengas el JSON de la service account:
+
+```bash
+base64 -w0 service-account.json
+```
+
+En PowerShell:
+
+```powershell
+[Convert]::ToBase64String([IO.File]::ReadAllBytes("service-account.json"))
+```
+
+Hace falta **una service account creada en el proyecto de GCP con permiso sobre Vertex AI**, no la
+credencial personal de `gcloud auth application-default login` que usa el override de Compose: esa
+está atada al usuario y a su máquina.
 
 ### `PASSWORD_ENCRYPTION_PRIVATE_KEY`
 
