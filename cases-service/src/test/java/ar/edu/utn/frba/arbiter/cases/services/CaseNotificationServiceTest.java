@@ -28,6 +28,7 @@ import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import java.util.List;
 import java.util.Optional;
+import java.util.stream.IntStream;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatCode;
@@ -46,6 +47,9 @@ class CaseNotificationServiceTest {
 
     private static final String INSURED_EMAIL = "martina@example.com";
     private static final String ACCOUNT_EMAIL = "martina.cuenta@example.com";
+
+    /** Mirrors the service's own cap, which is private. */
+    private static final int PANEL_LIMIT = 12;
 
     @Mock
     private NotificationRepository notificationRepository;
@@ -229,13 +233,13 @@ class CaseNotificationServiceTest {
         when(notificationRepository
                 .findByRecipientIdAndCreatedAtAfterOrderByCreatedAtDesc(eq(7L), any(), any()))
                 .thenAnswer(invocation -> "arbiter_provincia".equals(TenantContext.get())
-                        ? List.of(daysAgo(1), daysAgo(2), daysAgo(3), daysAgo(4), daysAgo(5), daysAgo(6))
-                        : List.of(daysAgo(7), daysAgo(8), daysAgo(9), daysAgo(10), daysAgo(11), daysAgo(12)));
+                        ? daysAgoRange(1, PANEL_LIMIT)
+                        : daysAgoRange(PANEL_LIMIT + 1, PANEL_LIMIT));
 
         List<NotificationResponse> shown = service.forCurrentUser();
 
-        assertThat(shown).hasSize(6);
-        // The 6 newest are all Provincia's: the cut is by global date, not one slot per schema.
+        assertThat(shown).hasSize(PANEL_LIMIT);
+        // The newest ones are all Provincia's: the cut is by global date, not one slot per schema.
         assertThat(shown).allMatch(item -> "provincia".equals(item.insurerSlug()));
     }
 
@@ -253,9 +257,9 @@ class CaseNotificationServiceTest {
     void unreadCount_neverExceedsThePanelCap() {
         insuredOfBothInsurers();
         when(notificationRepository.countByRecipientIdAndReadFalseAndCreatedAtAfter(eq(7L), any()))
-                .thenReturn(20L);
+                .thenReturn(40L);
 
-        assertThat(service.unreadCountForCurrentUser()).isEqualTo(6L);
+        assertThat(service.unreadCountForCurrentUser()).isEqualTo(PANEL_LIMIT);
     }
 
     /** The request tenant is restored, or the connection returns to the pool on another schema. */
@@ -273,6 +277,11 @@ class CaseNotificationServiceTest {
     /** Relative to today: against a moving window, a literal date falls out on its own. */
     private Notification daysAgo(int days) {
         return notificationAt(Instant.now().minus(days, ChronoUnit.DAYS));
+    }
+
+    /** {@code count} notices, newest first, starting {@code firstDaysAgo} days back. */
+    private List<Notification> daysAgoRange(int firstDaysAgo, int count) {
+        return IntStream.range(0, count).mapToObj(i -> daysAgo(firstDaysAgo + i)).toList();
     }
 
     private void insuredOfBothInsurers() {

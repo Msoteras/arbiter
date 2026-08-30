@@ -171,4 +171,5 @@
 }
 
 /* Documentación enviada: separa la sección de la card de la denuncia. */
-.docs-section { display: block; margin-top: var(--space-4); }
+.docs-section,
+.chat-section { display: block; margin-top: var(--space-4); }

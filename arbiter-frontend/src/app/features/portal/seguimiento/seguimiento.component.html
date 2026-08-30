@@ -127,6 +127,14 @@
     [insurerSlug]="d.insurerSlug"
     heading="Documentación que enviaste"
     [showMissing]="false" />
+
+  <!-- Where to ask. Until now the rejection email invited them to get in touch without saying how. -->
+  <app-case-chat
+    class="chat-section"
+    [caseId]="d.id"
+    [insurer]="d.insurerSlug"
+    heading="Consultas sobre tu siniestro"
+    counterparty="Equipo de siniestros" />
 } @else if (loading()) {
   <div class="state-wrap"><app-inline-loading [size]="28" message="Cargando tu siniestro…" /></div>
 } @else if (notFound()) {

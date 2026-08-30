@@ -8,24 +8,6 @@ Cada entrada: qué se sabe, qué falta decidir, y qué bloquea mientras siga sin
 
 ---
 
-## Conversación con el asegurado
-
-**Qué se sabe:** cuando el analista necesita pedir algo puntual (más documentación, una
-aclaración), el sistema tiene que contemplar una conversación con el asegurado — por mail, por
-chat dentro del portal, o los dos. No hay más especificación que esa frase.
-
-**Qué falta decidir:**
-- Canal: mail, chat en el portal, o ambos.
-- Direccionalidad: ¿el asegurado puede responder y que le llegue al analista dentro de Arbiter, o
-  el pedido se resuelve subiendo documentación sin conversación real de ida y vuelta?
-- Alcance: ¿libre (el analista escribe lo que quiera) o atado a un ítem puntual de la
-  `AgendaDocumental`?
-
-**Bloquea:** no hay nada construido para esto — ni entidad, ni endpoint, ni pantalla. Es
-greenfield completo; no conviene estimarla sin cerrar lo de arriba.
-
----
-
 ## H0015 tras la decisión de transiciones fijas
 
 **Qué se sabe:** las transiciones de estado del expediente van a ser **fijas**, no configurables
