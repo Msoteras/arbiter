@@ -23,6 +23,23 @@ Seis servicios de Railway, todos desde el mismo repo. **Solo uno tiene dominio p
 `reports-service` **no se despliega**: hoy no tiene ni un controller. Tiene Dockerfile y
 `application.yml` al día, así que sumarlo después es crear el servicio y nada más.
 
+### `clip-embedding`: por qué el Config File Path lleva la ruta completa
+
+**El campo "Config File Path" nunca sigue el Root Directory** — es lo único documentado sin
+ambigüedad por Railway: *"The Railway Config File does not follow the Root Directory path. You
+have to specify the absolute path (...), for example: /backend/railway.toml"* — así que aunque el
+Root Directory de este servicio sea `embedding-service`, ese campo del dashboard tiene que llevar
+igual `embedding-service/railway.json`, no `railway.json` a secas. Ya está así en la tabla; queda
+anotado para que nadie lo "simplifique" después pensando que es redundante.
+
+El `dockerfilePath: "Dockerfile"` (relativo) *adentro* de ese `railway.json` sí es correcto tal
+como está — pero eso Railway no lo documenta con la misma claridad, así que se verificó a mano en
+vez de asumirlo: un build con el contexto acotado a `embedding-service/` únicamente (lo que Root
+Directory produce, según su propia doc: *"Railway will only pull down files from that
+directory"*) compila limpio y el contenedor levanta respetando `$PORT`. Si algún día Railway
+cambia este comportamiento, el signo va a ser un build que falla buscando `Dockerfile` en la raíz
+del repo en vez de en `embedding-service/`.
+
 Que los backends no tengan dominio público es deliberado: se llegan solo por la red privada
 (`*.railway.internal`), y lo único expuesto a internet es el frontend. Eso es lo que reemplaza al
 Nginx del documento de arquitectura como terminador de TLS — Railway termina TLS, y el Nginx que
@@ -58,6 +75,34 @@ Tres cosas propias de Supabase a tener en cuenta al armar el `DB_URL`:
 
 Las migraciones manuales de `db/migrate-*.sql` **no** hacen falta sobre una base nueva: ya están
 incorporadas a `init-multitenant.sql`. Solo aplican a bases que ya existían.
+
+### Verificar que quedó consistente
+
+No hay Flyway/Liquibase, así que no hay una fuente automática de verdad de "esto ya se aplicó" —
+son 12 archivos sueltos (`db/migrate-*.sql` + `db/migrations/*.sql`) sin tabla de control. Antes de
+dar por buena la base nueva (o para chequear la de Railway mientras siga en pie), corré:
+
+```bash
+python scripts/check-schema-consistency.py
+```
+
+Compara tabla por tabla y columna por columna lo que `db/init-multitenant.sql` define contra lo
+que la base tiene de verdad (lee `DB_URL`/`DB_USER`/`DB_PASSWORD` de `.env`, arranca un cliente
+`psql` descartable vía Docker). **Solo mira estructura** — no tipos, constraints, índices, ni las
+migraciones que no son un simple `ADD COLUMN` (un `DELETE`, un índice `UNIQUE` que puede fallar en
+silencio si hay duplicados). Esas se siguen confirmando a mano, una por una — el script lo recuerda
+al final si encuentra algo.
+
+Corrido contra Railway (28/08): estructura consistente salvo una, real y ya resuelta —
+`policy_snapshot.total_amount_claimed` existía en las dos bases de tenant sin estar en
+`init-multitenant.sql`. Era drift puro, sin dueño: ninguna entidad JPA la mapea, ningún SQL del
+repo la toca. El monto total reclamado histórico existe como concepto, pero es del **siniestro**,
+no de la póliza — `InsurerDatabaseAdapter.getHistory()` lo calcula al vuelo sumando
+`aseguradora_*.siniestro_historico.monto_indemnizado`, tabla que ya estaba completa en
+`init-multitenant.sql` y con datos realistas en `seed-demo.sql` (los 3 siniestros de Julián Pérez,
+los 2 de Federico Aguirre). Esta columna era una versión mal ubicada de lo mismo. Se dropeó de
+Railway con `db/migrate-drop-policy-snapshot-total-amount-claimed.sql`; una Supabase nueva armada
+desde `init-multitenant.sql` directamente nunca la va a tener.
 
 ---
 
