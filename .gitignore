@@ -71,3 +71,7 @@ docker-compose.override.yml
 # ClassificationResultsService lo reescribe en cada clasificación — no es fuente, es salida.
 resultados-clasificaciones.md
 **/resultados-clasificaciones.md
+
+# Iteraciones de diseño / handoffs: material de trabajo, no del repo
+/Iteraciones Technicolor dithering/
+/Iteraciones Technicolor dithering.zip

@@ -1,4 +1,5 @@
 import { Clasificacion } from './clasificacion';
+import { DeadlinePriority } from './deadline-priority';
 import { ImageForensicReport } from './forensic';
 
 // Espejo de StatusTransitionResponse del cases-service.
@@ -110,6 +111,13 @@ export interface ExpedienteResponse {
   analysisReasons: string[];
   createdAt: string;
   updatedAt: string;
+  /** Fecha límite legal para responder (art. 56): denuncia + 30 días, ISO yyyy-MM-dd. */
+  responseDeadline: string;
+  /**
+   * Urgencia frente a ese plazo (semáforo de la bandeja). Derivado en el back de `responseDeadline`
+   * y el estado; `NONE` para casos con más de 10 días o ya resueltos.
+   */
+  deadlinePriority: DeadlinePriority;
   /** Solo viene en GET /{id}; en listados es null. */
   statusHistory: StatusTransition[] | null;
   /**

@@ -1,0 +1,9 @@
+# Local, untracked. Monta la credencial ADC (gcloud auth application-default login)
+# en classification-service para que el stack railway use Gemini por Vertex.
+# Uso: docker compose -f docker-compose.railway.yml -f docker-compose.railway.vertex.yml up -d
+services:
+  classification-service:
+    environment:
+      GOOGLE_APPLICATION_CREDENTIALS: /secrets/adc.json
+    volumes:
+      - /home/valentinaalberio/.config/gcloud/application_default_credentials.json:/secrets/adc.json:ro

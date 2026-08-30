@@ -1,32 +1,27 @@
 <div class="login-page">
-  <div class="login-card">
-    <section class="brand-pane">
-      <div class="brand-block">
-        <app-logo variant="symbol" class="brand-mark" />
-        <h1 class="brand-name">Arbiter</h1>
-        <p class="brand-sub">Gestión de siniestros</p>
-      </div>
-    </section>
+  <!-- Cordillera ditherizada a sangre en el borde inferior. Decorativa. -->
+  <img class="mtn" src="/brand/mtn-teal-cutout.png" alt="" aria-hidden="true" />
 
-    <section class="form-pane">
-      <div class="form-sheet">
-        <form (submit)="$event.preventDefault(); submit()">
-        <span class="t-section-label">Ingresar</span>
-        <h2 class="t-hero-title form-title">Bienvenido de nuevo</h2>
-        <p class="t-note form-sub">Ingresá con tu email y contraseña para acceder a Arbiter.</p>
+  <div class="stack">
+    <app-logo variant="lockup" class="brand-lockup" />
 
-        <label class="field-label" for="login-email">Email</label>
+    <form class="card" (submit)="$event.preventDefault(); submit()">
+      <div class="field">
+        <label class="field-label" for="login-email">Correo</label>
         <app-input
           id="login-email"
           type="email"
           autocomplete="username"
+          placeholder="analista@aseguradora.com"
           [value]="email()"
           (valueChange)="email.set($event)"
         />
+      </div>
 
+      <div class="field">
         <div class="field-label-row">
           <label class="field-label" for="login-password">Contraseña</label>
-          <a class="field-link" routerLink="/forgot-password">¿Olvidaste tu contraseña?</a>
+          <a class="field-link" routerLink="/forgot-password">Olvidé mi contraseña</a>
         </div>
         <app-input
           id="login-password"
@@ -36,20 +31,19 @@
           [value]="password()"
           (valueChange)="password.set($event)"
         />
-
-        @if (errorMessage()) {
-          <p class="error">{{ errorMessage() }}</p>
-        }
-
-        <app-button type="submit" [block]="true" [loading]="submitting()" [disabled]="!canSubmit()">
-          {{ submitting() ? 'Ingresando…' : 'Ingresar →' }}
-        </app-button>
-
-          <p class="t-note hint">
-            ¿No podés ingresar o necesitás una cuenta? Contactá a soporte.
-          </p>
-        </form>
       </div>
-    </section>
+
+      @if (errorMessage()) {
+        <p class="error" role="alert" aria-live="polite">{{ errorMessage() }}</p>
+      }
+
+      <app-button type="submit" [block]="true" [loading]="submitting()" [disabled]="!canSubmit()">
+        {{ submitting() ? 'Entrando…' : 'Entrar' }}
+      </app-button>
+    </form>
+
+    <p class="support-note t-note">
+      ¿No podés ingresar o necesitás una cuenta? Contactá a soporte.
+    </p>
   </div>
 </div>

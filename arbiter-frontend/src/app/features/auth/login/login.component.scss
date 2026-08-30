@@ -1,100 +1,74 @@
 :host { display: block; min-height: 100%; }
 
-/* Pantalla completa: panel de marca a toda altura + formulario centrado
-   (layout del prototipo 1a, sin la card flotante). */
+/* Concepto 7g: papel cálido, columna centrada (lockup → card → nota de soporte)
+   y la cordillera ditherizada a sangre en el borde inferior. */
 .login-page {
-  min-height: 100vh;
-  display: flex;
-}
-
-.login-card {
-  display: flex;
-  width: 100%;
-}
-
-/* ===== Panel de marca (teal): solo el logo, sin copy ===== */
-.brand-pane {
-  flex: 0 0 clamp(380px, 46vw, 680px);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: var(--space-7) var(--space-6);
-  background: var(--brand-panel-bg);
-  color: var(--brand-panel-fg);
   position: relative;
   overflow: hidden;
-}
-/* Brillo radial superior, como el prototipo. */
-.brand-pane::after {
-  content: '';
-  position: absolute;
-  inset: 0;
-  background: radial-gradient(120% 80% at 100% 0%, rgba(255, 255, 255, 0.1), transparent 55%);
-  pointer-events: none;
-}
-
-.brand-block {
-  position: relative;
-  z-index: 1;
+  min-height: 100vh;
   display: flex;
   flex-direction: column;
   align-items: center;
-  text-align: center;
-  gap: var(--space-3);
-}
-.brand-mark { --logo-size: 3.25rem; }
-.brand-name {
-  margin: 0;
-  font-size: clamp(var(--font-size-xl), 2.4vw, 2rem);
-  font-weight: var(--font-weight-medium);
-  letter-spacing: 0.01em;
-  line-height: 1;
-}
-.brand-sub {
-  margin: 0;
-  font-size: var(--font-size-xs);
-  letter-spacing: 0.14em;
-  text-transform: uppercase;
-  color: rgba(255, 255, 255, 0.65);
-}
-
-/* ===== Panel del formulario ===== */
-.form-pane {
-  flex: 1 1 auto;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: var(--space-6);
+  padding: 150px var(--space-5) var(--space-7);
   background: var(--surface-sunken);
 }
 
-/* Hoja elevada: mismo color que el fondo, separada solo por la sombra. */
-.form-sheet {
+/* PNG con alfa apoyado sobre el papel, sin caja ni borde: el ancho manda y el
+   alto sigue la proporción. Puramente decorativa. */
+.mtn {
+  position: absolute;
+  left: 0;
+  bottom: 0;
+  /* Asset en alta resolución (2000px de ancho): a sangre y nítido hasta viewports
+     anchos. PNG con alfa apoyado sobre el papel, sin caja. Decorativo. */
   width: 100%;
-  max-width: 620px;
-  padding: var(--space-7);
-  background: var(--surface-soft);
-  border-radius: var(--radius-modal);
-  box-shadow: var(--shadow-modal);
+  height: auto;
+  display: block;
+  z-index: 0;
+  opacity: 0.8;
+  pointer-events: none;
+  user-select: none;
 }
 
-form {
+.stack {
+  position: relative;
+  z-index: 1;
+  width: 100%;
+  max-width: 384px;
   display: flex;
   flex-direction: column;
-  gap: var(--space-3);
+  align-items: center;
+  gap: var(--space-6);
 }
 
-.form-title { margin: 0; }
-.form-sub { margin: 0 0 var(--space-2); }
+.brand-lockup {
+  --logo-size: 1.9rem;
+  font-size: var(--font-size-2xl);
+}
+
+.card {
+  width: 100%;
+  box-sizing: border-box;
+  background: var(--surface);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-card);
+  padding: var(--space-6);
+  box-shadow: var(--shadow-card);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
 
 .field-label {
-  display: block;
-  font-size: var(--font-size-xs);
+  font-size: var(--font-size-body);
   font-weight: var(--font-weight-medium);
-  text-transform: uppercase;
-  letter-spacing: 0.06em;
-  color: var(--text-tertiary);
-  margin-top: var(--space-2);
+  color: var(--text-primary);
 }
 
 .field-label-row {
@@ -103,27 +77,48 @@ form {
   justify-content: space-between;
   gap: var(--space-3);
 }
-.field-label-row .field-label { margin-top: var(--space-2); }
 
 .field-link {
-  font-size: var(--font-size-xs);
-  color: var(--accent-fg);
+  font-size: var(--font-size-body);
+  color: var(--text-secondary);
   text-decoration: none;
 }
-.field-link:hover { color: var(--accent); text-decoration: underline; }
-
-.error { margin: 0; color: var(--status-danger); font-size: var(--font-size-xs); }
-
-.hint {
-  margin: var(--space-2) 0 0;
-  padding-top: var(--space-4);
-  border-top: 1px solid var(--border-subtle);
-  color: var(--text-muted);
+.field-link:hover {
+  color: var(--accent-fg);
+  text-decoration: underline;
 }
 
-@media (max-width: 860px) {
-  .login-card { flex-direction: column; }
-  .brand-pane { flex: 0 0 auto; padding: var(--space-6) var(--space-5); }
-  .brand-mark { --logo-size: 1.6rem; }
-  .form-pane { align-items: flex-start; padding: var(--space-6) var(--space-5); }
+.error {
+  margin: 0;
+  color: var(--status-danger);
+  font-size: var(--font-size-sm);
+}
+
+.support-note {
+  margin: 0;
+  text-align: center;
+  color: var(--text-secondary);
+}
+
+/* Mobile: card centrada verticalmente; la cordillera queda como franja baja.
+   Se reserva su espacio con padding-bottom para que la card no se apoye encima. */
+@media (max-width: 768px) {
+  .login-page {
+    min-height: 100dvh;
+    justify-content: center;
+    padding: var(--space-5);
+    padding-bottom: 200px;
+  }
+  .stack { gap: var(--space-5); }
+  .card { padding: var(--space-5); }
+  .brand-lockup {
+    --logo-size: 1.6rem;
+    font-size: var(--font-size-xl);
+  }
+}
+
+/* Alturas muy chicas: la cordillera estorba → ocultar y recuperar el espacio. */
+@media (max-height: 640px) {
+  .mtn { display: none; }
+  .login-page { padding-bottom: var(--space-5); }
 }

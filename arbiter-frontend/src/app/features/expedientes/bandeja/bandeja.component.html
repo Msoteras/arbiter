@@ -329,6 +329,13 @@
                   <app-badge [tone]="estadoTone(c.status)">{{ estadoLabel(c.status) }}</app-badge>
                 </td>
                 <td>
+                  @if (deadlinePrioritized(c)) {
+                    <app-badge [tone]="deadlineTone(c.deadlinePriority)">{{ deadlineLabel(c) }}</app-badge>
+                  } @else {
+                    <span class="t-note">{{ formatDate(c.responseDeadline) }}</span>
+                  }
+                </td>
+                <td>
                   <span [class.t-note]="!c.insuredName">{{ displayInsured(c) }}</span>
                   <br />
                   <span class="t-note mono">{{ displayInsuredId(c) }}</span>

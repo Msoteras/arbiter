@@ -1,5 +1,6 @@
 package ar.edu.utn.frba.arbiter.auth.support;
 
+import org.junit.jupiter.api.Tag;
 import org.springframework.boot.testcontainers.service.connection.ServiceConnection;
 import org.springframework.test.context.TestPropertySource;
 import org.testcontainers.postgresql.PostgreSQLContainer;
@@ -23,6 +24,7 @@ import java.sql.Statement;
 // false por default). De ahí el CREATE SCHEMA manual acá abajo, antes de que arranque el
 // contexto de Spring.
 @TestPropertySource(properties = "spring.jpa.hibernate.ddl-auto=update")
+@Tag("it")
 public abstract class AbstractPersistenceIT {
 
     @ServiceConnection

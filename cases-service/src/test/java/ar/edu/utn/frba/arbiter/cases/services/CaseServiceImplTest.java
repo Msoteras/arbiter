@@ -8,6 +8,8 @@ import ar.edu.utn.frba.arbiter.cases.dto.EligibilityCheckRequest;
 import ar.edu.utn.frba.arbiter.cases.dto.EligibilityCheckResponse;
 import ar.edu.utn.frba.arbiter.cases.exceptions.AnalystNotFoundException;
 import ar.edu.utn.frba.arbiter.cases.exceptions.AnalystProfileNotFoundException;
+import ar.edu.utn.frba.arbiter.cases.exceptions.CaseAssignedToAnotherAnalystException;
+import ar.edu.utn.frba.arbiter.cases.exceptions.CaseNotAssignedException;
 import ar.edu.utn.frba.arbiter.cases.exceptions.CaseNotFoundException;
 import ar.edu.utn.frba.arbiter.cases.exceptions.InsuredIdentityMismatchException;
 import ar.edu.utn.frba.arbiter.cases.exceptions.InvalidAnalystDecisionException;
@@ -54,8 +56,11 @@ import org.springframework.security.authentication.UsernamePasswordAuthenticatio
 import org.springframework.security.core.context.SecurityContextHolder;
 
 import java.math.BigDecimal;
+import java.time.Clock;
+import java.time.Instant;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.ZoneOffset;
 
 import java.util.List;
 import java.util.Map;
@@ -112,6 +117,9 @@ class CaseServiceImplTest {
     @Mock
     private InsurerRepository insurerRepository;
 
+    @Mock
+    private Clock clock;
+
     @InjectMocks
     private CaseServiceImpl caseService;
 
@@ -121,6 +129,9 @@ class CaseServiceImplTest {
      */
     @BeforeEach
     void noAnalysisByDefault() {
+        // toResponse() computa la prioridad de vencimiento con LocalDate.now(clock).
+        lenient().when(clock.instant()).thenReturn(Instant.parse("2026-06-15T12:00:00Z"));
+        lenient().when(clock.getZone()).thenReturn(ZoneOffset.UTC);
         lenient().when(caseAnalysisRepository.findByCaseId(any())).thenReturn(CaseAnalysis.none());
         lenient().when(caseAnalysisRepository.findByCaseIds(any())).thenReturn(Map.of());
         // Sin extracciones por default: el mock devolvería null, y el real devuelve lista vacía
@@ -756,6 +767,7 @@ class CaseServiceImplTest {
     @Test
     void recordAnalystDecision_approve_transitionsToApproved() {
         Case entity = caseRecord(1L, CaseStatus.PENDING_ANALYST_REVIEW);
+        entity.setAnalyst(ClaimsAnalyst.builder().id(7L).build());
         when(caseRepository.findById(1L)).thenReturn(Optional.of(entity));
         authenticateAs("analista@example.com");
         when(claimsAnalystRepository.findByEmail("analista@example.com"))
@@ -810,6 +822,45 @@ class CaseServiceImplTest {
                 .isInstanceOf(AnalystProfileNotFoundException.class);
 
         verify(claimsAnalysisClient, never()).forwardAnalystDecision(any(), any());
+    }
+
+    /**
+     * Decidir es lo que gana el que tiene el expediente asignado. Sin analista asignado no hay
+     * a quién dejarle decidir — fuerza el orden asignar → decidir en vez de que la decisión
+     * funcione como una asignación implícita.
+     */
+    @Test
+    void recordAnalystDecision_caseNotAssigned_throwsBeforeForwarding() {
+        Case entity = caseRecord(1L, CaseStatus.PENDING_ANALYST_REVIEW);
+        when(caseRepository.findById(1L)).thenReturn(Optional.of(entity));
+        authenticateAs("analista@example.com");
+        when(claimsAnalystRepository.findByEmail("analista@example.com"))
+                .thenReturn(Optional.of(ClaimsAnalyst.builder().id(7L).build()));
+
+        assertThatThrownBy(() -> caseService.recordAnalystDecision(1L,
+                new AnalystDecisionRequest(null, "APPROVE", null, null)))
+                .isInstanceOf(CaseNotAssignedException.class);
+
+        verify(claimsAnalysisClient, never()).forwardAnalystDecision(any(), any());
+        verify(caseStatusService, never()).transition(any(), any(), any(), any());
+    }
+
+    /** Otro analista con rol válido y perfil propio, pero el expediente no es suyo. */
+    @Test
+    void recordAnalystDecision_assignedToAnotherAnalyst_throwsBeforeForwarding() {
+        Case entity = caseRecord(1L, CaseStatus.PENDING_ANALYST_REVIEW);
+        entity.setAnalyst(ClaimsAnalyst.builder().id(7L).build());
+        when(caseRepository.findById(1L)).thenReturn(Optional.of(entity));
+        authenticateAs("otro.analista@example.com");
+        when(claimsAnalystRepository.findByEmail("otro.analista@example.com"))
+                .thenReturn(Optional.of(ClaimsAnalyst.builder().id(9L).build()));
+
+        assertThatThrownBy(() -> caseService.recordAnalystDecision(1L,
+                new AnalystDecisionRequest(null, "APPROVE", null, null)))
+                .isInstanceOf(CaseAssignedToAnotherAnalystException.class);
+
+        verify(claimsAnalysisClient, never()).forwardAnalystDecision(any(), any());
+        verify(caseStatusService, never()).transition(any(), any(), any(), any());
     }
 
     @Test

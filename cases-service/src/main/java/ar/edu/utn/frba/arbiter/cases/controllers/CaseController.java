@@ -127,6 +127,10 @@ public class CaseController {
                     Es "de quién es el expediente", no "qué expedientes puede ver este usuario":
                     lo segundo ya lo resuelve el esquema del tenant, que acota el listado a una
                     sola aseguradora.
+
+                    `dueSoon=true` acota a los expedientes con semáforo de vencimiento activo
+                    (`deadlinePriority != NONE`: 10 días o menos hasta el plazo de respuesta del
+                    art. 56, o ya vencidos) — la lente "Por vencer".
                     """)
     public ResponseEntity<Page<CaseResponse>> listCases(
             @RequestParam(required = false) CaseStatus status,
@@ -142,11 +146,12 @@ public class CaseController {
             @RequestParam(defaultValue = "false") boolean unassigned,
             @RequestParam(defaultValue = "false") boolean fraudAlert,
             @RequestParam(defaultValue = "false") boolean assigned,
+            @RequestParam(defaultValue = "false") boolean dueSoon,
             @PageableDefault(size = 20, sort = "id", direction = Sort.Direction.DESC) Pageable pageable
     ) {
         Page<CaseResponse> response = caseService.listCases(
                 status, claimCause, policyNumber, insuredId, eventDateFrom, eventDateTo, q, riskBand,
-                analystId, assignedToMe, unassigned, fraudAlert, assigned, pageable);
+                analystId, assignedToMe, unassigned, fraudAlert, assigned, dueSoon, pageable);
         return ResponseEntity.ok(response);
     }
 
@@ -323,10 +328,14 @@ public class CaseController {
 
     // Solo el analista: la decisión se atribuye resolviendo al que llama contra claims_analyst, así
     // que un referente ya venía recibiendo 403 acá. Decisión #5 de CLAUDE.md.
+    // Y no cualquier analista: caseService.recordAnalystDecision valida además que sea el
+    // asignado al expediente puntual — @PreAuthorize acá solo filtra por rol.
     @PostMapping("/{caseId}/decision")
     @PreAuthorize("hasRole('ANALISTA_SINIESTROS')")
     @Operation(summary = "Persist the analyst's decision",
-            description = "Forwards the analyst decision to classification-service so it is persisted in the audit trail.")
+            description = "Forwards the analyst decision to classification-service so it is persisted in the audit "
+                    + "trail. Only the analyst the case is assigned to may decide — 409 if it isn't assigned to "
+                    + "anyone yet, 403 if it's assigned to someone else.")
     public ResponseEntity<Map<String, Object>> recordDecision(
             @PathVariable Long caseId,
             @RequestBody @Valid AnalystDecisionRequest request
