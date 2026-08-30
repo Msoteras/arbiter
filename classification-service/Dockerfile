@@ -29,12 +29,17 @@ RUN addgroup -S arbiter && adduser -S -G arbiter arbiter
 WORKDIR /app
 COPY --from=build /build/classification-service/target/*.jar app.jar
 
+# Writes the Vertex service-account key out of GOOGLE_APPLICATION_CREDENTIALS_B64 when that
+# variable is set, then execs the JVM. See the comments in the script itself.
+COPY --chmod=0755 classification-service/docker-entrypoint.sh /app/docker-entrypoint.sh
+
 USER arbiter
 
 EXPOSE 8082
 
-# Explicit -Duser.timezone: containers default to UTC while the team's laptops run UTC-3, and this
-# domain evaluates legal deadlines off local dates — see the ZoneId.systemDefault() calls in this
-# module. Java ships its own tzdb, so no tzdata package is needed. Set here and not in
-# JAVA_TOOL_OPTIONS because the compose files already use that variable for heap sizing.
-ENTRYPOINT ["java", "-Duser.timezone=America/Argentina/Buenos_Aires", "-jar", "app.jar"]
+# The -Duser.timezone lives inside the script now, unchanged: containers default to UTC while the
+# team's laptops run UTC-3, and this domain evaluates legal deadlines off local dates — see the
+# ZoneId.systemDefault() calls in this module. Java ships its own tzdb, so no tzdata package is
+# needed. It is not in JAVA_TOOL_OPTIONS because the compose files already use that variable for
+# heap sizing and would overwrite it.
+ENTRYPOINT ["/app/docker-entrypoint.sh"]
