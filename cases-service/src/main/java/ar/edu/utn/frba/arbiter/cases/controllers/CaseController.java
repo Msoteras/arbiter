@@ -339,10 +339,14 @@ public class CaseController {
 
     // Solo el analista: la decisión se atribuye resolviendo al que llama contra claims_analyst, así
     // que un referente ya venía recibiendo 403 acá. Decisión #5 de CLAUDE.md.
+    // Y no cualquier analista: caseService.recordAnalystDecision valida además que sea el
+    // asignado al expediente puntual — @PreAuthorize acá solo filtra por rol.
     @PostMapping("/{caseId}/decision")
     @PreAuthorize("hasRole('ANALISTA_SINIESTROS')")
     @Operation(summary = "Persist the analyst's decision",
-            description = "Forwards the analyst decision to classification-service so it is persisted in the audit trail.")
+            description = "Forwards the analyst decision to classification-service so it is persisted in the audit "
+                    + "trail. Only the analyst the case is assigned to may decide — 409 if it isn't assigned to "
+                    + "anyone yet, 403 if it's assigned to someone else.")
     public ResponseEntity<Map<String, Object>> recordDecision(
             @PathVariable Long caseId,
             @RequestBody @Valid AnalystDecisionRequest request

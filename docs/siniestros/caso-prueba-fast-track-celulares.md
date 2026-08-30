@@ -233,7 +233,7 @@ curl -s "http://localhost:8083/api/v1/cases/$ID" -H "Authorization: Bearer $TOKE
 | `analysisClassification` | `FAST_TRACK` |
 | `analysisConfidence` | `1.0` (el gate es determinístico) |
 | Factores | los motivos del validador, uno por umbral evaluado |
-| Fila en `llm_analysis` | **ninguna** — por diseño Fast Track no deja fila ahí (ver bug #8 del [plan de pruebas](../plan-pruebas-multitenant.md)) |
+| Fila en `llm_analysis` | **ninguna** — por diseño Fast Track no deja fila ahí (el `CHECK` de la tabla lo impide; el modelo nunca corre para este circuito) |
 | `cases.was_fast_track` | `true` — de acá sale la clasificación que se muestra |
 | `riskScore` | poblado; banda baja si **no** se adjuntó la foto |
 
@@ -292,8 +292,8 @@ con conexiones muertas contra Railway (se arregla reiniciando los módulos).
 **`InsurerDatabaseAdapter` no habla con la BD real.** El código —en `classification-service`, en
 `cases-service` y en todas las ramas, incluida `develop`— consulta `aseguradora.poliza` y joinea por
 `p.aseguradora_id`. La base de Railway tiene `aseguradora_bbva` y `aseguradora_provincia`, y en un
-esquema por tenant la columna `aseguradora_id` ya no existe (mismo razonamiento que el bug #3 del
-[plan de pruebas](../plan-pruebas-multitenant.md)). Con el perfil `insurer-db` la clasificación
+esquema por tenant la columna `aseguradora_id` ya no existe: adentro de un esquema de tenant el
+esquema **es** la aseguradora, así que la columna sobra. Con el perfil `insurer-db` la clasificación
 revienta con `relation "aseguradora.poliza" does not exist`, y `GET /policies` devuelve 500.
 
 Mientras no se resuelva, el caso corre con `CLASSIFICATION_PROFILES=default` (`MockInsurerAdapter`),
