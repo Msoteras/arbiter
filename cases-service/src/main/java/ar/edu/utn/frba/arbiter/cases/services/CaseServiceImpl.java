@@ -18,6 +18,8 @@ import ar.edu.utn.frba.arbiter.common.models.entities.ClaimCause;
 import ar.edu.utn.frba.arbiter.common.models.entities.Insurer;
 import ar.edu.utn.frba.arbiter.cases.exceptions.AnalystNotFoundException;
 import ar.edu.utn.frba.arbiter.cases.exceptions.AnalystProfileNotFoundException;
+import ar.edu.utn.frba.arbiter.cases.exceptions.CaseAssignedToAnotherAnalystException;
+import ar.edu.utn.frba.arbiter.cases.exceptions.CaseNotAssignedException;
 import ar.edu.utn.frba.arbiter.cases.exceptions.CaseNotFoundException;
 import ar.edu.utn.frba.arbiter.cases.exceptions.DocumentNotFoundException;
 import ar.edu.utn.frba.arbiter.cases.exceptions.DocumentReadException;
@@ -653,6 +655,17 @@ public class CaseServiceImpl implements CaseService {
         String callerEmail = SecurityContextHolder.getContext().getAuthentication().getName();
         ClaimsAnalyst analyst = claimsAnalystRepository.findByEmail(callerEmail)
                 .orElseThrow(() -> new AnalystProfileNotFoundException(callerEmail));
+
+        // Decidir es lo que gana el que tiene el expediente asignado, no cualquier
+        // ANALISTA_SINIESTROS del tenant — @PreAuthorize solo valida el rol, esto valida el
+        // expediente puntual. Sin analista asignado no hay a quién dejarle decidir: fuerza el
+        // orden asignar → decidir en vez de que una decisión funcione como asignación implícita.
+        if (entity.getAnalyst() == null) {
+            throw new CaseNotAssignedException(caseId);
+        }
+        if (!entity.getAnalyst().getId().equals(analyst.getId())) {
+            throw new CaseAssignedToAnotherAnalystException(caseId);
+        }
 
         // El contador vivo es de `cases`; el registro auditable se queda con su valor final, así
         // que se lo mandamos nosotros — el frontend no lo conoce, igual que con analystId.

@@ -403,6 +403,54 @@ que pide H0032, sumando estos 4 campos.
 
 ---
 
+## H0033 · Blindar la decisión y la asignación del expediente contra condiciones de carrera
+
+> **Detectada auditando la planilla de casos de prueba QA (28/08)** — el caso "Operación
+> concurrente sobre un mismo expediente" se sacó de este ciclo porque hoy el sistema no garantiza
+> el comportamiento que describía.
+
+**Como** analista de siniestros
+**quiero** que dos decisiones o dos asignaciones simultáneas sobre el mismo expediente no puedan
+pisarse entre sí
+**para** que nunca queden dos decisiones auditadas para un expediente que en `cases-service` solo
+refleja el estado de una, ni una asignación se pierda silenciosamente.
+
+**Criterios de aceptación**
+- Si dos analistas deciden (aprobar/rechazar) el mismo expediente casi al mismo tiempo, solo una de
+  las dos decisiones prospera; la otra falla con un error explícito (409, no un 200 que después
+  queda pisado).
+- Lo mismo para asignar/reasignar/liberar en simultáneo: el resultado final es consistente con el
+  orden real de llegada, no con "quién terminó de guardar último".
+- El registro auditable de `classification-service` no termina con dos decisiones para un
+  expediente que en `cases-service` refleja el estado de una sola.
+
+**Por qué importa**
+`CaseStatusService.transition` lee `caseRecord.getStatus()` del objeto en memoria y llama a
+`caseRepository.save(caseRecord)` sin releer el estado vigente en la base ni tomar ningún lock. La
+entidad `Case` no tiene `@Version` (ni lock optimista ni pesimista) en ningún lugar del código
+(confirmado por búsqueda global). Dos requests que carguen el mismo expediente en
+`PENDING_ANALYST_REVIEW` casi al mismo tiempo pasan las dos la validación de transición válida, y
+las dos escriben — gana la que persiste último, sin que la otra reciba ningún error. `assignAnalyst`
+/`unassignAnalyst` (`CaseServiceImpl`) tienen el mismo patrón de lectura-modificación-escritura sin
+relectura.
+
+Agrava esto que `recordAnalystDecision` llama primero a `forwardAnalystDecision` (que persiste la
+decisión en el log auditable de `classification-service`) y recién después transiciona
+localmente: un caso así deja **dos decisiones auditadas** del lado remoto para un expediente que
+localmente termina con un solo estado — contradice el punto 7 de las decisiones de arquitectura
+(100% de las clasificaciones auditadas) y el principio de "un expediente, una decisión vigente".
+
+**Notas técnicas**
+- Agregar `@Version` (`Long` o `int`) a `Case` — locking optimista estándar de JPA/Hibernate; en un
+  conflicto, `caseRepository.save(...)` tira `OptimisticLockingFailureException`.
+- Capturar esa excepción en `CaseExceptionHandler` y traducirla a 409, no a un 500 genérico.
+- Mismo tratamiento en `assignAnalyst`/`unassignAnalyst`.
+- Revisar el orden de las dos escrituras en `recordAnalystDecision`: con el lock puesto, evaluar si
+  conviene transicionar localmente primero y recién después forwardear al log remoto, para no dejar
+  ahí una decisión que después pierde la carrera localmente — hoy es al revés.
+
+---
+
 # Decisiones de negocio (no son historias)
 
 Resueltas al planificar el sprint 9 (26/08), salvo la que sigue marcada pendiente.
