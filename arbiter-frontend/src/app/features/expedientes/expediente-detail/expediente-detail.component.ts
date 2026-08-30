@@ -937,6 +937,27 @@ export class ExpedienteDetailComponent {
     return id != null && id === this.myAnalystId();
   });
 
+  /**
+   * Aprobar/rechazar es del que tiene el expediente asignado, no de cualquier analista — el
+   * backend ya lo exige (403 si es de otro, 409 si no tiene dueño) desde que se detectó que
+   * cualquier ANALISTA_SINIESTROS podía decidir sobre cualquier expediente. Antes de este chequeo,
+   * `canAct()` solo → el botón quedaba habilitado igual y el click terminaba pegando contra esos
+   * códigos, con un mensaje genérico de error en vez de guiar hacia "Asignarme"/"Reasignar", que
+   * están en la misma pantalla, en la card de al lado.
+   */
+  protected readonly canDecide = computed(() => this.canAct() && this.isMine());
+
+  /** Por qué no puede decidir alguien con rol de analista pero sin este expediente asignado. */
+  protected readonly decisionBlockedReason = computed(() => {
+    if (!this.isAssigned()) {
+      return 'Asignate el expediente para poder decidir.';
+    }
+    const analista = this.assignedName();
+    return analista
+      ? `Asignado a ${analista}. Solo esa persona puede aprobar o rechazar.`
+      : 'Expediente asignado a otro analista.';
+  });
+
   /** Iniciales del analista asignado para el avatar (hasta 2). */
   protected readonly analystInitials = computed(() =>
     (this.assignedName() ?? '')

@@ -72,10 +72,14 @@
           }
           @case ('pending') {
             @if (canAct()) {
-              <div class="decision-btns">
-                <app-button variant="secondary" [block]="true" [disabled]="decisionSaving()" (click)="askDecision('rechazar')">Rechazar</app-button>
-                <app-button variant="secondary" [block]="true" [disabled]="decisionSaving()" (click)="askDecision('aprobar')">Aprobar</app-button>
-              </div>
+              @if (canDecide()) {
+                <div class="decision-btns">
+                  <app-button variant="secondary" [block]="true" [disabled]="decisionSaving()" (click)="askDecision('rechazar')">Rechazar</app-button>
+                  <app-button variant="secondary" [block]="true" [disabled]="decisionSaving()" (click)="askDecision('aprobar')">Aprobar</app-button>
+                </div>
+              } @else {
+                <p class="nodata">{{ decisionBlockedReason() }}</p>
+              }
               @if (puedeDerivar()) {
                 @if (sugerenciaDerivacion(); as sugerencia) {
                   <p class="rcard-note suggested">{{ sugerencia }}</p>
