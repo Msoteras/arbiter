@@ -75,7 +75,8 @@ services:
   # ─── Embeddings (CLIP sidecar) ──────────────────────────────────────────
   clip-embedding:
     build:
-      context: ./embedding-service
+      context: .
+      dockerfile: embedding-service/Dockerfile
     mem_limit: 2g
     ports:
       - "8000:8000"

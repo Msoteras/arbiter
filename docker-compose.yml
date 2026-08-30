@@ -55,7 +55,8 @@ services:
   # embedding model, so this runs CLIP ViT-B-32 in a small Python service.
   clip-embedding:
     build:
-      context: ./embedding-service
+      context: .
+      dockerfile: embedding-service/Dockerfile
     ports:
       - "8000:8000"
     healthcheck:
