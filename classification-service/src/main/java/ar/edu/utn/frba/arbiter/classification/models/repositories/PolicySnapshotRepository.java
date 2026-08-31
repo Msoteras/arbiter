@@ -36,8 +36,11 @@ public class PolicySnapshotRepository {
 
     /**
      * @param inForce whether the policy temporally covered the event's date
-     * @param totalAmountClaimed what those {@code previousClaims} added up to — the count alone
-     *                           doesn't say how big that history was
+     * @param totalAmountClaimed what those {@code previousClaims} were settled for — the count
+     *                           alone doesn't say how big that history was. It's what was
+     *                           <b>paid</b>, over every policy of the insured: it is not the
+     *                           balance left on this coverage, and subtracting it from
+     *                           {@code sumInsured} means nothing
      * @param payload the insurer DB's raw answer, whole — it's the faithful record, of which the
      *                columns above are the already-interpreted reading
      */

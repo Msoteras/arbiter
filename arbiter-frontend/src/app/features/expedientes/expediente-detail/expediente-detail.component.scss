@@ -265,3 +265,4 @@ app-textarea { display: block; margin: var(--space-3) 0; }
 .traza-num { white-space: nowrap; font-variant-numeric: tabular-nums; }
 /* Solo el fallo de lectura se tiñe: las otras dos causas de tabla vacía son información, no error. */
 .traza-sin-reglas.error { color: var(--status-danger); }
+.traza-subhead { margin: var(--space-4) 0 var(--space-2); color: var(--text-secondary); }

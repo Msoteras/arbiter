@@ -142,7 +142,12 @@ export interface PolicySnapshot {
   inForce: boolean;
   paymentsUpToDate: boolean;
   previousClaims: number;
-  /** Null on snapshots older than the column — "Sin datos", never a zero. */
+  /**
+   * Lo que la compañía pagó por los siniestros previos del asegurado, en todas sus pólizas y
+   * ramos — no lo que él reclamó, ni el saldo de esta cobertura. Por eso en pantalla va aparte de
+   * la suma asegurada: restarlos no significa nada. Null en snapshots anteriores a la columna:
+   * "Sin datos", nunca un cero.
+   */
   totalAmountClaimed: number | null;
   queriedAt: string;
 }

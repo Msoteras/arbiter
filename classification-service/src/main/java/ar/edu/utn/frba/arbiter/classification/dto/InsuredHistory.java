@@ -10,6 +10,12 @@ import java.util.List;
 public record InsuredHistory(
         String insuredId,
         int previousClaimsCount,
+        /**
+         * Sum of {@code amountSettled} over {@link #claims} — what the company paid, not what was
+         * claimed. The name is a misnomer kept for stability. Scoped to the insured, so it spans
+         * every policy and branch they hold: it says nothing about what this coverage has left
+         * (that's {@code claim_exhausts_coverage}, counted per policy).
+         */
         BigDecimal totalAmountClaimed,
         LocalDate customerSince,
         List<ClaimRecord> claims

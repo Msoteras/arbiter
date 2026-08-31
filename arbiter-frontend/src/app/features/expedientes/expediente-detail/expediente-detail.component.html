@@ -465,19 +465,27 @@
         <div class="traza">
           <app-card heading="La póliza al momento de clasificar">
             @if (policySnapshot(); as s) {
-              <dl class="fields">
-                @for (f of snapshotFields(); track f.label) {
-                  <div class="field">
-                    <dt class="t-field-label">{{ f.label }}</dt>
-                    @if (f.value) {
-                      <dd [class.mono]="f.mono">{{ f.value }}</dd>
-                    } @else {
-                      <dd class="nodata">Sin datos</dd>
-                    }
-                  </div>
+              @for (g of snapshotGroups(); track $index) {
+                @if (g.heading) {
+                  <h4 class="t-section-label traza-subhead">{{ g.heading }}</h4>
                 }
-              </dl>
-              <span class="t-note">Valores de esa cobertura al {{ formatDateTime(s.queriedAt) }}, no los de hoy.</span>
+                <dl class="fields">
+                  @for (f of g.fields; track f.label) {
+                    <div class="field">
+                      <dt class="t-field-label">{{ f.label }}</dt>
+                      @if (f.value) {
+                        <dd [class.mono]="f.mono">{{ f.value }}</dd>
+                      } @else {
+                        <dd class="nodata">Sin datos</dd>
+                      }
+                    </div>
+                  }
+                </dl>
+              }
+              <span class="t-note">
+                Valores al {{ formatDateTime(s.queriedAt) }}, no los de hoy. La suma asegurada es la
+                de esa cobertura.
+              </span>
             } @else {
               <p class="nodata">Todavía no hay foto: se toma al clasificar.</p>
             }

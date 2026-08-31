@@ -410,21 +410,43 @@ export class ExpedienteDetailComponent {
     return (d?.insuredPolicies ?? []).filter((p) => p.policyNumber !== d?.policyNumber);
   });
 
-  protected readonly snapshotFields = computed<FieldItem[]>(() => {
-    const s = this.policySnapshot();
-    return [
-      { label: 'N° de póliza', value: s?.externalPolicyNumber ?? null, mono: true },
-      { label: 'Cobertura', value: this.data()?.coverage ?? null },
-      { label: 'Suma asegurada', value: s ? this.formatMonto(s.sumInsured) : null },
-      { label: 'Vigencia al momento del hecho', value: s ? (s.inForce ? 'Vigente' : 'No vigente') : null },
-      { label: 'Estado de pago', value: s ? (s.paymentsUpToDate ? 'Al día' : 'En mora') : null },
-      { label: 'Siniestros previos', value: s ? String(s.previousClaims) : null },
-      {
-        label: 'Monto total reclamado',
-        value: s?.totalAmountClaimed != null ? this.formatMonto(s.totalAmountClaimed) : null,
-      },
-    ];
-  });
+  /**
+   * Dos bloques y no una sola lista: los últimos dos campos son del asegurado en toda la compañía,
+   * no de esta póliza. Mezclados con la suma asegurada invitaban a restarlos, y esa resta no
+   * significa nada — el total abarca todas sus pólizas y ramos, no lo consumido de esta cobertura.
+   */
+  protected readonly snapshotGroups = computed<{ heading: string | null; fields: FieldItem[] }[]>(
+    () => {
+      const s = this.policySnapshot();
+      return [
+        {
+          heading: null,
+          fields: [
+            { label: 'N° de póliza', value: s?.externalPolicyNumber ?? null, mono: true },
+            { label: 'Cobertura', value: this.data()?.coverage ?? null },
+            { label: 'Suma asegurada', value: s ? this.formatMonto(s.sumInsured) : null },
+            {
+              label: 'Vigencia al momento del hecho',
+              value: s ? (s.inForce ? 'Vigente' : 'No vigente') : null,
+            },
+            { label: 'Estado de pago', value: s ? (s.paymentsUpToDate ? 'Al día' : 'En mora') : null },
+          ],
+        },
+        {
+          heading: 'Historial del asegurado en la compañía',
+          fields: [
+            { label: 'Siniestros previos', value: s ? String(s.previousClaims) : null },
+            {
+              // Es monto_indemnizado: lo que la compañía pagó, no lo que le reclamaron. El nombre
+              // del campo quedó mal desde el origen (totalAmountClaimed); el label dice la verdad.
+              label: 'Total indemnizado',
+              value: s?.totalAmountClaimed != null ? this.formatMonto(s.totalAmountClaimed) : null,
+            },
+          ],
+        },
+      ];
+    },
+  );
 
   protected readonly hayDatosAsegurado = computed(
     () =>
