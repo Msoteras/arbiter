@@ -120,9 +120,12 @@ public record CaseResponse(
         /**
          * What the insurer DB answered when the case was classified, not what it answers today —
          * the analyst auditing a decision needs the numbers it was made with.
+         *
+         * <p>The insured's <i>current</i> policies deliberately don't travel here: they'd mean an
+         * insurer-DB round trip on every case open, for a panel most reads never look at, and
+         * they'd go stale the moment they arrived. They're their own call
+         * ({@code GET /cases/{id}/insured-policies}), made when the analyst asks for them.
          */
-        PolicySnapshotResponse policySnapshot,
-        /** Every policy of this insured, not just the claimed one. Only {@code GET /{id}}. */
-        List<PolicyResponse> insuredPolicies
+        PolicySnapshotResponse policySnapshot
 ) {
 }

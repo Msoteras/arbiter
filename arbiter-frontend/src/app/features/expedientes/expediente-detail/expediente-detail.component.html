@@ -416,9 +416,38 @@
           }
         </app-card>
       }
-      <!-- Everything comes from what was persisted at classification time. -->
+      <!-- Todo sale de lo que se persistió al clasificar: acá no se pide nada en vivo. La foto va
+           primero porque es el insumo — con estos datos se evaluaron las reglas de abajo. -->
       @case ('analisis') {
         <div class="traza">
+          <app-card heading="La póliza al momento de clasificar">
+            @if (policySnapshot(); as s) {
+              @for (g of snapshotGroups(); track $index) {
+                @if (g.heading) {
+                  <h4 class="t-section-label traza-subhead">{{ g.heading }}</h4>
+                }
+                <dl class="fields">
+                  @for (f of g.fields; track f.label) {
+                    <div class="field">
+                      <dt class="t-field-label">{{ f.label }}</dt>
+                      @if (f.value) {
+                        <dd [class.mono]="f.mono">{{ f.value }}</dd>
+                      } @else {
+                        <dd class="nodata">Sin datos</dd>
+                      }
+                    </div>
+                  }
+                </dl>
+              }
+              <span class="t-note">
+                Valores al {{ formatDateTime(s.queriedAt) }}, no los de hoy. La suma asegurada es la
+                de esa cobertura.
+              </span>
+            } @else {
+              <p class="nodata">Todavía no hay foto: se toma al clasificar.</p>
+            }
+          </app-card>
+
           <app-card heading="Reglas evaluadas">
             @if (ruleResults().length > 0) {
               <div class="traza-scroll">
@@ -463,45 +492,22 @@
       }
       @case ('asegurado') {
         <div class="traza">
-          <app-card heading="La póliza al momento de clasificar">
-            @if (policySnapshot(); as s) {
-              @for (g of snapshotGroups(); track $index) {
-                @if (g.heading) {
-                  <h4 class="t-section-label traza-subhead">{{ g.heading }}</h4>
-                }
-                <dl class="fields">
-                  @for (f of g.fields; track f.label) {
-                    <div class="field">
-                      <dt class="t-field-label">{{ f.label }}</dt>
-                      @if (f.value) {
-                        <dd [class.mono]="f.mono">{{ f.value }}</dd>
-                      } @else {
-                        <dd class="nodata">Sin datos</dd>
-                      }
-                    </div>
-                  }
-                </dl>
-              }
-              <span class="t-note">
-                Valores al {{ formatDateTime(s.queriedAt) }}, no los de hoy. La suma asegurada es la
-                de esa cobertura.
-              </span>
-            } @else {
-              <p class="nodata">Todavía no hay foto: se toma al clasificar.</p>
-            }
-          </app-card>
-
-          <app-card heading="Otras pólizas del asegurado">
-            @if (otrasPolizas().length > 0) {
+          <app-card heading="Sus pólizas vigentes con la compañía">
+            @if (polizasDelAsegurado().length > 0) {
               <div class="traza-scroll">
                 <table class="traza-table">
                   <thead>
                     <tr><th>Póliza</th><th>Cobertura</th><th>Vigencia</th><th>Suma asegurada</th><th>Pago</th></tr>
                   </thead>
                   <tbody>
-                    @for (p of otrasPolizas(); track p.policyNumber) {
-                      <tr>
-                        <td class="mono">{{ p.policyNumber }}</td>
+                    @for (p of polizasDelAsegurado(); track p.policyNumber) {
+                      <tr [class.traza-fila-propia]="esPolizaDelSiniestro(p)">
+                        <td class="mono">
+                          {{ p.policyNumber }}
+                          @if (esPolizaDelSiniestro(p)) {
+                            <span class="traza-sub">la de esta denuncia</span>
+                          }
+                        </td>
                         <td>
                           <span class="traza-ramo">{{ p.branch }}</span>
                           <span class="traza-sub">{{ p.product }}</span>
@@ -518,8 +524,9 @@
                   </tbody>
                 </table>
               </div>
+              <span class="t-note">Estado de hoy, no el del momento de la denuncia.</span>
             } @else {
-              <p class="nodata">Sin otras pólizas vigentes.</p>
+              <p class="nodata">Sin pólizas vigentes con la compañía.</p>
             }
           </app-card>
 

@@ -266,3 +266,5 @@ app-textarea { display: block; margin: var(--space-3) 0; }
 /* Solo el fallo de lectura se tiñe: las otras dos causas de tabla vacía son información, no error. */
 .traza-sin-reglas.error { color: var(--status-danger); }
 .traza-subhead { margin: var(--space-4) 0 var(--space-2); color: var(--text-secondary); }
+/* La póliza de esta denuncia entre las otras: se marca, no se resalta — sigue siendo una fila más. */
+.traza-fila-propia td { background: var(--surface-sunken); }

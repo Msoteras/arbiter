@@ -769,8 +769,7 @@ public class CaseServiceImpl implements CaseService {
                 history,
                 documentAnalyses,
                 traceability.ruleResults(),
-                traceability.policySnapshot(),
-                traceability.insuredPolicies()
+                traceability.policySnapshot()
         );
     }
 
@@ -781,25 +780,24 @@ public class CaseServiceImpl implements CaseService {
     }
 
     /**
-     * The traceability tab's three blocks. Grouped so the mapper doesn't grow three more
-     * parameters that every list-endpoint caller has to pass empty.
+     * What the analysis tab reads, all of it persisted at classification time. Grouped so the
+     * mapper doesn't grow two more parameters that every list-endpoint caller has to pass empty.
      *
      * @param ruleResults null when they couldn't be read — never null for "none ran", which is
      *                    the empty list. See {@code CaseResponse.ruleResults}.
      */
     private record Traceability(List<RuleResultResponse> ruleResults,
-                                PolicySnapshotResponse policySnapshot,
-                                List<PolicyResponse> insuredPolicies) {
+                                PolicySnapshotResponse policySnapshot) {
 
         static Traceability none() {
-            return new Traceability(List.of(), null, List.of());
+            return new Traceability(List.of(), null);
         }
     }
 
     /**
-     * Empty for the insured: the tab is the analyst's audit trail, and this story is not the place
-     * to widen what the portal already shows. The fields that reached them before it
-     * ({@code riskBreakdown}, {@code forensicReport}, {@code documentAnalyses}) are left as they were.
+     * Empty for the insured: this is the analyst's audit trail, and the portal is not the place to
+     * widen what it already shows. The fields that reached them before it ({@code riskBreakdown},
+     * {@code forensicReport}, {@code documentAnalyses}) are left as they were.
      */
     private Traceability traceabilityOf(Case entity) {
         if (accessPolicy.currentUserIsInsured()) {
@@ -808,8 +806,7 @@ public class CaseServiceImpl implements CaseService {
         return new Traceability(
                 claimsAnalysisClient.ruleResultsOf(entity.getId()),
                 caseRepository.findPolicySnapshot(entity.getId()).map(CaseServiceImpl::snapshotOf)
-                        .orElse(null),
-                policyService.listByInsured(entity.getInsured().getDni()));
+                        .orElse(null));
     }
 
     private static PolicySnapshotResponse snapshotOf(PolicySnapshot snapshot) {

@@ -1,7 +1,6 @@
 import { Clasificacion } from './clasificacion';
 import { DeadlinePriority } from './deadline-priority';
 import { ImageForensicReport } from './forensic';
-import { Policy } from './policy';
 import { PolicySnapshot, RuleResult } from './trazabilidad';
 
 // Espejo de StatusTransitionResponse del cases-service.
@@ -138,8 +137,10 @@ export interface ExpedienteResponse {
    * distinto: lo primero es un dato del expediente, lo segundo de este request.
    */
   ruleResults: RuleResult[] | null;
-  /** The policy as the insurer DB answered it at classification time. */
+  /**
+   * La póliza tal como la contestó la BD Aseguradora al clasificar. Las pólizas actuales del
+   * asegurado NO vienen acá: se piden aparte al abrir su solapa, para no pegarle a la BD
+   * Aseguradora en cada apertura del expediente.
+   */
   policySnapshot: PolicySnapshot | null;
-  /** Every policy of this insured, not just the claimed one. Only in GET /{id}. */
-  insuredPolicies: Policy[];
 }

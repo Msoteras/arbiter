@@ -397,6 +397,7 @@ export class ExpedienteDetailComponent {
     () =>
       this.ruleResults().length > 0 ||
       this.ruleResultsUnavailable() ||
+      this.policySnapshot() != null ||
       !!this.data()?.analysisClassification,
   );
 
@@ -404,11 +405,32 @@ export class ExpedienteDetailComponent {
     () => this.data()?.policySnapshot ?? null,
   );
 
-  /** The others: this claim's policy is already in the summary. */
-  protected readonly otrasPolizas = computed<Policy[]>(() => {
-    const d = this.data();
-    return (d?.insuredPolicies ?? []).filter((p) => p.policyNumber !== d?.policyNumber);
-  });
+  // ----- pólizas del asegurado (datos de HOY, no de la clasificación) -----
+  // Carga diferida por su propio endpoint: son una consulta a la BD Aseguradora y la mayoría de
+  // las aperturas del expediente no las mira. Mismo patrón que los antecedentes de fraude.
+  private readonly polizas = toSignal(
+    combineLatest([
+      this.route.paramMap.pipe(map((params) => params.get('id') ?? '')),
+      toObservable(this.reloadTrigger),
+    ]).pipe(
+      switchMap(([id]) =>
+        this.service
+          .polizasDelAsegurado(id as unknown as number)
+          .pipe(catchError(() => of<Policy[]>([]))),
+      ),
+    ),
+    { initialValue: [] as Policy[] },
+  );
+
+  /**
+   * Todas, la de esta denuncia incluida — se marca, no se esconde: el analista está mirando la
+   * relación completa de la persona con la compañía, y la póliza del siniestro es parte de eso.
+   */
+  protected readonly polizasDelAsegurado = computed<Policy[]>(() => this.polizas());
+
+  protected esPolizaDelSiniestro(p: Policy): boolean {
+    return p.policyNumber === this.data()?.policyNumber;
+  }
 
   /**
    * Dos bloques y no una sola lista: los últimos dos campos son del asegurado en toda la compañía,
@@ -448,11 +470,12 @@ export class ExpedienteDetailComponent {
     },
   );
 
+  /**
+   * La solapa existe si hay algo de la persona que mostrar. Las pólizas cuentan aunque lleguen
+   * tarde: se piden aparte, así que al abrir el expediente todavía no están.
+   */
   protected readonly hayDatosAsegurado = computed(
-    () =>
-      this.policySnapshot() != null ||
-      this.otrasPolizas().length > 0 ||
-      this.antecedentes().length > 0,
+    () => this.polizasDelAsegurado().length > 0 || this.antecedentes().length > 0,
   );
 
   protected vigencia(p: Policy): string {
