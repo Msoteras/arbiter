@@ -21,6 +21,10 @@ const RULE_TYPE_LABELS: Record<string, string> = {
   ...INSURER_HARD_RULE_LABELS,
   COVERAGE_EXCLUSION: 'Exclusión de cobertura',
   COVERAGE_INCLUSION: 'Alcance de la cobertura',
+  // Las dos de alcance (D9) se configuran en la cobertura, no en la solapa de reglas duras, así
+  // que no tienen label del que colgarse arriba.
+  COVERS_FAMILY_GROUP: 'Alcance al grupo familiar',
+  CLAIM_EXHAUSTS_COVERAGE: 'Cobertura consumida por un siniestro previo',
   FRAUD_RECORD: 'Antecedente de fraude',
   // The engine never writes it (the gate leaves no rule_result), but the demo seed does.
   FAST_TRACK: 'Criterio de Fast Track',
@@ -51,6 +55,12 @@ export function ruleResultTone(result: string): StatusTone {
  * record and stays untouched in the DB; the analyst gets the sentence. Same numbers, nothing is
  * recomputed here.
  */
+const DAMNIFICADO: Record<string, string> = {
+  TITULAR: 'el titular',
+  FAMILIAR: 'un familiar',
+  TERCERO: 'un tercero',
+};
+
 export function ruleEvaluationText(ruleType: string, evaluatedValue: string | null): string {
   if (!evaluatedValue) {
     return '—';
@@ -90,6 +100,21 @@ export function ruleEvaluationText(ruleType: string, evaluatedValue: string | nu
       return t['claimCause']
         ? `Hecho generador: ${t['claimCause'].replace(/\s*\(id=\d+\)$/, '')}`
         : evaluatedValue;
+    case 'COVERS_FAMILY_GROUP':
+      // Solo se escribe fila cuando algún documento dijo quién fue el damnificado: si nadie lo
+      // dijo la regla queda sin evaluar y no llega hasta acá.
+      return t['affectedParty']
+        ? `Damnificado: ${DAMNIFICADO[t['affectedParty']] ?? t['affectedParty']} · la cobertura no alcanza al grupo familiar`
+        : evaluatedValue;
+    case 'CLAIM_EXHAUSTS_COVERAGE': {
+      const previos = Number(t['settledClaimsOnPolicy']);
+      if (!t['settledClaimsOnPolicy'] || Number.isNaN(previos)) {
+        return evaluatedValue;
+      }
+      return previos === 0
+        ? 'Sin siniestros liquidados previos sobre esta póliza'
+        : `${previos} ${previos === 1 ? 'siniestro liquidado previo' : 'siniestros liquidados previos'} sobre esta póliza · un siniestro agota la cobertura`;
+    }
     default:
       // FRAUD_RECORD already comes as prose; an unknown type shows raw rather than hiding.
       return evaluatedValue.charAt(0).toUpperCase() + evaluatedValue.slice(1);

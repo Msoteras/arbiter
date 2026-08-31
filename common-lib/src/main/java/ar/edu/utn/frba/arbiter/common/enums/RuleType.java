@@ -85,7 +85,27 @@ public enum RuleType {
      * record keeps counting. A fraud from six years ago can't weigh the same as one from last
      * year, and where that line falls is the insurer's call, not ours.
      */
-    FRAUD_RECORD(true);
+    FRAUD_RECORD(true),
+
+    /**
+     * D9 · whether the coverage reaches the cohabiting family group or only the holder. Evaluated
+     * by {@code CoverageScopeEvaluator} over the injured party the extraction read from the
+     * documents.
+     *
+     * <p>Unlike every rule above, this one and {@link #CLAIM_EXHAUSTS_COVERAGE} are <b>not</b>
+     * {@code insurer_rule} rows: they're {@code coverage} columns, edited in the Coberturas tab.
+     * They have no rule id, which is why {@code rule_result.rule_id} is nullable — being auditable
+     * and being a row of the rules table are two different things.
+     */
+    COVERS_FAMILY_GROUP(true),
+
+    /**
+     * D9 · whether a settled claim exhausts the coverage for the period. It's the fourth check the
+     * insurer's own procedure spells out ("que las coberturas contratadas no se encuentren agotadas
+     * por siniestros previos"). Counted per policy, not per insured. See
+     * {@link #COVERS_FAMILY_GROUP} on why it carries no rule id.
+     */
+    CLAIM_EXHAUSTS_COVERAGE(true);
 
     private final boolean evaluable;
 

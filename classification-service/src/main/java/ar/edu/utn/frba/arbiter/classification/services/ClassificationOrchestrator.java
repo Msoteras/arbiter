@@ -77,12 +77,14 @@ public class ClassificationOrchestrator {
                 temporalRuleEvaluator.evaluate(claim, ctx.policy(), ctx.history(), ctx.rules());
         FraudRecordRuleEvaluator.Result fraud =
                 fraudRecordRuleEvaluator.evaluate(ctx.rules(), ctx.fraudRecords());
-        List<RuleFinding> ruleFindings = mergeFindings(exclusion, temporal, fraud);
 
         // Coverage scope (D9). With no documents read it can only evaluate coverage already used
         // up; the family group needs the injured party, which comes from the extraction.
         CoverageScopeEvaluator.Result scope =
                 coverageScopeEvaluator.evaluate(claim, ctx.history(), ctx.rules(), Map.of());
+
+        // After the scope, not before: its two rules are audited like the rest.
+        List<RuleFinding> ruleFindings = mergeFindings(exclusion, temporal, fraud, scope);
 
         FastTrackValidator.Result fastTrack = fastTrackValidator.evaluate(claim, ctx.policy(), ctx.history(), ctx.rules(), null);
         if (fastTrack.fastTrack() && !temporal.blocksFastTrack() && !scope.blocksFastTrack()
@@ -321,12 +323,14 @@ public class ClassificationOrchestrator {
         // vetoes Fast Track is the insurer's call, on the rule row.
         FraudRecordRuleEvaluator.Result fraud =
                 fraudRecordRuleEvaluator.evaluate(ctx.rules(), ctx.fraudRecords());
-        List<RuleFinding> ruleFindings = mergeFindings(exclusion, temporal, fraud);
 
         // Coverage scope (D9): family group and coverage already used up. It goes here and not
         // earlier because the family group depends on what the extraction read in the documents.
         CoverageScopeEvaluator.Result scope =
                 coverageScopeEvaluator.evaluate(claim, ctx.history(), ctx.rules(), gateExtractions);
+
+        // The gate's own trace: if the claim Fast Tracks below, these are the rules that decided.
+        List<RuleFinding> ruleFindings = mergeFindings(exclusion, temporal, fraud, scope);
 
         FastTrackValidator.Result fastTrack =
                 fastTrackValidator.evaluate(claim, ctx.policy(), ctx.history(), ctx.rules(), gateDocumentTexts);
@@ -360,12 +364,15 @@ public class ClassificationOrchestrator {
         List<String> engineFindings = engineFindings(exclusion, temporal);
         engineFindings.addAll(fullScope.reasons());
 
+        // fullScope y no `scope`: la foto que vale es la de todos los documentos leídos, y es la
+        // que hay que auditar — el gate solo había extraído los que el Fast Track exige.
         return new Resolution(
                 appendReasons(
                         appendReasons(
                                 appendReasons(
                                         attachRuleFindings(
-                                                classifyWithLlm(claimWithOcr, ctx, engineFindings), ruleFindings),
+                                                classifyWithLlm(claimWithOcr, ctx, engineFindings),
+                                                mergeFindings(exclusion, temporal, fraud, fullScope)),
                                         temporal.reasons()),
                                 fullScope.reasons()),
                         fraud.reasons()),
@@ -512,17 +519,19 @@ public class ClassificationOrchestrator {
     }
 
     /**
-     * The auditable trace of every hard rule that ran: the coverage exclusions and the temporal
-     * ones. They travel together because {@code rule_result} is one row per rule evaluated,
-     * regardless of which evaluator ran it — what tells them apart in the table is their
-     * {@code rule_type}.
+     * The auditable trace of every hard rule that ran: the coverage exclusions, the temporal ones,
+     * the fraud record and the coverage scope. They travel together because {@code rule_result} is
+     * one row per rule evaluated, regardless of which evaluator ran it — what tells them apart in
+     * the table is their {@code rule_type}.
      */
     private List<RuleFinding> mergeFindings(CoverageRuleEvaluator.Result exclusion,
                                             TemporalRuleEvaluator.Result temporal,
-                                            FraudRecordRuleEvaluator.Result fraud) {
+                                            FraudRecordRuleEvaluator.Result fraud,
+                                            CoverageScopeEvaluator.Result scope) {
         List<RuleFinding> findings = new ArrayList<>(exclusion.findings());
         findings.addAll(temporal.findings());
         findings.addAll(fraud.findings());
+        findings.addAll(scope.findings());
         return findings;
     }
 

@@ -25,6 +25,38 @@ describe('trazabilidad', () => {
     });
   });
 
+  // Las dos reglas de alcance de cobertura (D9). Se configuran en la cobertura y no en la solapa
+  // de reglas duras, así que no heredan label de ahí: el suyo vive en este archivo.
+  describe('reglas de alcance de cobertura', () => {
+    it('les pone nombre en castellano', () => {
+      expect(ruleTypeLabel('COVERS_FAMILY_GROUP')).toBe('Alcance al grupo familiar');
+      expect(ruleTypeLabel('CLAIM_EXHAUSTS_COVERAGE')).toBe(
+        'Cobertura consumida por un siniestro previo',
+      );
+    });
+
+    it('dice quién fue el damnificado en castellano', () => {
+      expect(ruleEvaluationText('COVERS_FAMILY_GROUP', 'affectedParty=FAMILIAR')).toBe(
+        'Damnificado: un familiar · la cobertura no alcanza al grupo familiar',
+      );
+      expect(ruleEvaluationText('COVERS_FAMILY_GROUP', 'affectedParty=TITULAR')).toBe(
+        'Damnificado: el titular · la cobertura no alcanza al grupo familiar',
+      );
+    });
+
+    it('distingue el cero de la ausencia de dato al contar siniestros liquidados', () => {
+      expect(ruleEvaluationText('CLAIM_EXHAUSTS_COVERAGE', 'settledClaimsOnPolicy=0 max=0')).toBe(
+        'Sin siniestros liquidados previos sobre esta póliza',
+      );
+      expect(ruleEvaluationText('CLAIM_EXHAUSTS_COVERAGE', 'settledClaimsOnPolicy=1 max=0')).toBe(
+        '1 siniestro liquidado previo sobre esta póliza · un siniestro agota la cobertura',
+      );
+      expect(ruleEvaluationText('CLAIM_EXHAUSTS_COVERAGE', 'settledClaimsOnPolicy=2 max=0')).toBe(
+        '2 siniestros liquidados previos sobre esta póliza · un siniestro agota la cobertura',
+      );
+    });
+  });
+
   describe('ruleEvaluationText', () => {
     it('arma la frase de cada tipo de regla con los mismos números del literal', () => {
       expect(
