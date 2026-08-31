@@ -34,20 +34,18 @@ export function ruleTypeLabel(ruleType: string): string {
   return RULE_TYPE_LABELS[ruleType] ?? ruleType;
 }
 
-// The engine writes PASS/FAIL; the demo seed wrote CUMPLE/NO_CUMPLE, and those rows are live.
-// Anything else is shown verbatim and without a tone: calling an unknown literal a failure would
-// accuse a rule that may well have passed.
-const PASSED = ['PASS', 'CUMPLE'];
-const FAILED = ['FAIL', 'NO_CUMPLE'];
-
+// El motor escribe PASS/FAIL y es el único vocabulario: los CUMPLE/NO_CUMPLE de un seed viejo se
+// migraron en los datos (db/migrations/2026-08-30-rule-result-literales-en-ingles.sql).
+// Cualquier otro literal se muestra tal cual y sin tono: dar por fallada una regla que no
+// reconocemos sería acusarla de algo que quizás cumplió.
 export function ruleResultLabel(result: string): string {
-  if (PASSED.includes(result)) return 'Cumple';
-  return FAILED.includes(result) ? 'No cumple' : result;
+  if (result === 'PASS') return 'Cumple';
+  return result === 'FAIL' ? 'No cumple' : result;
 }
 
 export function ruleResultTone(result: string): StatusTone {
-  if (PASSED.includes(result)) return 'ok';
-  return FAILED.includes(result) ? 'danger' : 'neutral';
+  if (result === 'PASS') return 'ok';
+  return result === 'FAIL' ? 'danger' : 'neutral';
 }
 
 /**

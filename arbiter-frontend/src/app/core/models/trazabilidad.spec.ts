@@ -7,14 +7,19 @@ import {
 
 describe('trazabilidad', () => {
   describe('ruleResultTone / ruleResultLabel', () => {
-    it('entiende los dos vocabularios: el del motor y el del seed demo', () => {
+    it('traduce el vocabulario del motor', () => {
       expect(ruleResultTone('PASS')).toBe('ok');
-      expect(ruleResultTone('CUMPLE')).toBe('ok');
       expect(ruleResultTone('FAIL')).toBe('danger');
-      expect(ruleResultTone('NO_CUMPLE')).toBe('danger');
 
-      expect(ruleResultLabel('CUMPLE')).toBe('Cumple');
-      expect(ruleResultLabel('NO_CUMPLE')).toBe('No cumple');
+      expect(ruleResultLabel('PASS')).toBe('Cumple');
+      expect(ruleResultLabel('FAIL')).toBe('No cumple');
+    });
+
+    // Los CUMPLE/NO_CUMPLE del seed viejo ya no existen: se migraron en los datos. Si alguna base
+    // quedó sin migrar, caen acá — se ven crudos y sin tono, que es degradar prolijo y no mentir.
+    it('trata el vocabulario viejo como cualquier literal desconocido', () => {
+      expect(ruleResultTone('CUMPLE')).toBe('neutral');
+      expect(ruleResultLabel('CUMPLE')).toBe('CUMPLE');
     });
 
     // El bug: todo lo que no era PASS se pintaba como fallo, y un Fast Track que había cumplido
