@@ -486,8 +486,9 @@ sistema —ni perder el rastro de lo que se pidió— cada vez que falta algo.
 - **No acepta adjuntos.** Siguen entrando por la pantalla de documentación, que les asigna tipo,
   dispara la reclasificación y los manda al análisis del modelo — todo eso se saltearía un archivo
   subido por el chat.
-- **No es tiempo real.** Sondeo cada 15 s: la decisión #13 es REST stateless y nada acá justifica
-  estrenar WebSockets.
+- **Es tiempo real, por WebSocket.** Arrancó con sondeo cada 15 s por la decisión #13 (REST
+  stateless); el 31/08 el equipo quitó esa restricción y el hilo pasó a entregar por socket. El
+  sondeo quedó en 60 s como respaldo. Escribir sigue por REST.
 
 **Por qué importa**
 No había ningún canal. El mail de rechazo dice textual *"si querés conocer los motivos o no estás
