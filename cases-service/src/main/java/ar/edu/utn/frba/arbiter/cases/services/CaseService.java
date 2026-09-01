@@ -9,6 +9,7 @@ import ar.edu.utn.frba.arbiter.cases.dto.EligibilityCheckResponse;
 import ar.edu.utn.frba.arbiter.cases.dto.LensSummaryResponse;
 import ar.edu.utn.frba.arbiter.cases.dto.CaseRequest;
 import ar.edu.utn.frba.arbiter.cases.dto.CaseResponse;
+import ar.edu.utn.frba.arbiter.cases.dto.PolicyResponse;
 import ar.edu.utn.frba.arbiter.cases.models.entities.CaseDocument;
 import ar.edu.utn.frba.arbiter.common.enums.CaseStatus;
 import ar.edu.utn.frba.arbiter.common.enums.RiskBand;
@@ -120,6 +121,12 @@ public interface CaseService {
      * la máquina de estados rechaza (409) el reintento desde cualquier otro estado.
      */
     CaseResponse retryClassification(Long caseId);
+
+    /**
+     * Every policy the case's insured holds, not just the one being claimed. Scoped to the case on
+     * purpose: the analyst gets the context of whoever they're reviewing, not a lookup by DNI.
+     */
+    List<PolicyResponse> getInsuredPolicies(Long caseId);
 
     void recordAnalystDecision(Long caseId, AnalystDecisionRequest request);
 

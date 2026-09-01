@@ -262,9 +262,9 @@ SELECT setval(pg_get_serial_sequence('arbiter_bbva.risk_analysis','id'),
 -- Rule evaluations behind case 1's Fast Track and case 2's block.
 INSERT INTO arbiter_bbva.rule_result (rule_type, result, evaluated_value, score_contribution,
                                       evaluated_at, rule_id, case_id) VALUES
-    ('FAST_TRACK', 'CUMPLE',    '0.219', 0.0986, '2026-06-14 08:35:30+00', 1, 1),
-    ('FAST_TRACK', 'CUMPLE',    'AL_DIA', 0.0000, '2026-06-14 08:35:31+00', 2, 1),
-    ('FAST_TRACK', 'NO_CUMPLE', '0.792', 0.3563, '2026-06-11 09:10:30+00', 1, 2);
+    ('FAST_TRACK', 'PASS',      '0.219', 0.0986, '2026-06-14 08:35:30+00', 1, 1),
+    ('FAST_TRACK', 'PASS',      'AL_DIA', 0.0000, '2026-06-14 08:35:31+00', 2, 1),
+    ('FAST_TRACK', 'FAIL',      '0.792', 0.3563, '2026-06-11 09:10:30+00', 1, 2);
 
 -- actor: who drove each transition. SYSTEM rows have no changed_by — an automated
 -- transition has no user behind it, which is exactly why actor can't be derived from it.
@@ -393,8 +393,8 @@ UPDATE arbiter_provincia.cases SET classification_id = 1 WHERE id = 1;
 
 INSERT INTO arbiter_provincia.rule_result (rule_type, result, evaluated_value, score_contribution,
                                            evaluated_at, rule_id, case_id) VALUES
-    ('FAST_TRACK', 'NO_CUMPLE', '0.844',  0.3800, '2026-07-05 11:20:30+00', 1, 2),
-    ('FAST_TRACK', 'NO_CUMPLE', 'SUSPENDIDA', 0.2000, '2026-07-05 11:20:31+00', 2, 2);
+    ('FAST_TRACK', 'FAIL',      '0.844',  0.3800, '2026-07-05 11:20:30+00', 1, 2),
+    ('FAST_TRACK', 'FAIL',      'SUSPENDIDA', 0.2000, '2026-07-05 11:20:31+00', 2, 2);
 
 INSERT INTO arbiter_provincia.case_status_history (reason, observation, actor, changed_at, changed_by,
                                                    initial_status_id, final_status_id, case_id) VALUES
@@ -686,12 +686,12 @@ SELECT setval(pg_get_serial_sequence('arbiter_bbva.risk_analysis','id'), (SELECT
 
 INSERT INTO arbiter_bbva.rule_result (rule_type, result, evaluated_value, score_contribution,
                                   evaluated_at, rule_id, case_id) VALUES
-    ('COVERAGE_INCLUSION', 'NO_CUMPLE', 'Hurto', 0.0000, '2025-06-16 10:05:00+00', 3, 8),
-    ('FAST_TRACK', 'CUMPLE', '0.940', 0.423, '2026-08-01 18:25:00+00', 1, 11),
-    ('FAST_TRACK', 'CUMPLE', 'AL_DIA', 0.0000, '2026-08-01 18:25:00+00', 2, 11),
-    ('FAST_TRACK', 'CUMPLE', '0.200', 0.09, '2026-08-03 12:20:00+00', 1, 12),
-    ('FAST_TRACK', 'CUMPLE', 'AL_DIA', 0.0000, '2026-08-03 12:20:00+00', 2, 12),
-    ('COVERAGE_INCLUSION', 'NO_CUMPLE', 'Hurto', 0.0000, '2026-08-02 16:05:00+00', 3, 17);
+    ('COVERAGE_INCLUSION', 'FAIL',      'Hurto', 0.0000, '2025-06-16 10:05:00+00', 3, 8),
+    ('FAST_TRACK', 'PASS', '0.940', 0.423, '2026-08-01 18:25:00+00', 1, 11),
+    ('FAST_TRACK', 'PASS', 'AL_DIA', 0.0000, '2026-08-01 18:25:00+00', 2, 11),
+    ('FAST_TRACK', 'PASS', '0.200', 0.09, '2026-08-03 12:20:00+00', 1, 12),
+    ('FAST_TRACK', 'PASS', 'AL_DIA', 0.0000, '2026-08-03 12:20:00+00', 2, 12),
+    ('COVERAGE_INCLUSION', 'FAIL',      'Hurto', 0.0000, '2026-08-02 16:05:00+00', 3, 17);
 
 INSERT INTO arbiter_bbva.case_classification (id, decision, analyst_justification, decided_at,
                                           classification_attempts, llm_analysis_id, analyst_id) VALUES
@@ -888,8 +888,8 @@ SELECT setval(pg_get_serial_sequence('arbiter_provincia.risk_analysis','id'), (S
 
 INSERT INTO arbiter_provincia.rule_result (rule_type, result, evaluated_value, score_contribution,
                                   evaluated_at, rule_id, case_id) VALUES
-    ('FAST_TRACK', 'CUMPLE', '0.583', 0.2625, '2026-08-04 11:25:00+00', 1, 13),
-    ('FAST_TRACK', 'CUMPLE', 'AL_DIA', 0.0000, '2026-08-04 11:25:00+00', 2, 13);
+    ('FAST_TRACK', 'PASS', '0.583', 0.2625, '2026-08-04 11:25:00+00', 1, 13),
+    ('FAST_TRACK', 'PASS', 'AL_DIA', 0.0000, '2026-08-04 11:25:00+00', 2, 13);
 
 INSERT INTO arbiter_provincia.case_classification (id, decision, analyst_justification, decided_at,
                                           classification_attempts, llm_analysis_id, analyst_id) VALUES

@@ -4,6 +4,7 @@ import ar.edu.utn.frba.arbiter.classification.dto.BusinessRules;
 import ar.edu.utn.frba.arbiter.classification.dto.DocumentExtraction;
 import ar.edu.utn.frba.arbiter.classification.dto.DocumentExtraction.AffectedParty;
 import ar.edu.utn.frba.arbiter.classification.dto.InsuredHistory;
+import ar.edu.utn.frba.arbiter.classification.dto.RuleFinding;
 import ar.edu.utn.frba.arbiter.common.dto.ClaimReport;
 import org.junit.jupiter.api.Test;
 
@@ -163,5 +164,79 @@ class CoverageScopeEvaluatorTest {
                 claim(), history(priorClaim(POLICY, "LIQUIDADO")), rules(null, false), Map.of());
 
         assertThat(result.blocksFastTrack()).isFalse();
+    }
+
+    // ─── rastro auditable (SSN 2/2023) ────────────────────────────────────────────
+    // Las dos reglas frenaban el Fast Track sin dejar fila en rule_result, así que el analista
+    // veía el motivo en prosa pero no la regla. Van sin ruleId a propósito: son columnas de
+    // `coverage`, no filas de `insurer_rule`.
+
+    @Test
+    void anExhaustedCoverage_leavesAnAuditableFailure() {
+        CoverageScopeEvaluator.Result result = evaluator.evaluate(
+                claim(), history(priorClaim(POLICY, "LIQUIDADO")), rules(null, true), Map.of());
+
+        assertThat(result.findings()).singleElement().satisfies(f -> {
+            assertThat(f.ruleType()).isEqualTo("CLAIM_EXHAUSTS_COVERAGE");
+            assertThat(f.result()).isEqualTo("FAIL");
+            assertThat(f.evaluatedValue()).isEqualTo("settledClaimsOnPolicy=1 max=0");
+            assertThat(f.ruleId()).isNull();
+        });
+    }
+
+    /** El punto de la historia: que se vean las que pasaron, no solo las que fallaron. */
+    @Test
+    void aCoverageWithBalanceLeft_leavesAnAuditablePass() {
+        CoverageScopeEvaluator.Result result = evaluator.evaluate(
+                claim(), history(priorClaim(POLICY, "RECHAZADO")), rules(null, true), Map.of());
+
+        assertThat(result.blocksFastTrack()).isFalse();
+        assertThat(result.findings()).singleElement()
+                .extracting(RuleFinding::ruleType, RuleFinding::result)
+                .containsExactly("CLAIM_EXHAUSTS_COVERAGE", "PASS");
+    }
+
+    @Test
+    void aFamilyMemberOnACoverageThatExcludesThem_leavesAnAuditableFailure() {
+        CoverageScopeEvaluator.Result result = evaluator.evaluate(
+                claim(), history(), rules(false, null), documentSaying(AffectedParty.FAMILIAR));
+
+        assertThat(result.findings()).singleElement()
+                .extracting(RuleFinding::ruleType, RuleFinding::result, RuleFinding::evaluatedValue)
+                .containsExactly("COVERS_FAMILY_GROUP", "FAIL", "affectedParty=FAMILIAR");
+    }
+
+    @Test
+    void aHolderOnACoverageThatExcludesTheFamily_leavesAnAuditablePass() {
+        CoverageScopeEvaluator.Result result = evaluator.evaluate(
+                claim(), history(), rules(false, null), documentSaying(AffectedParty.TITULAR));
+
+        assertThat(result.findings()).singleElement()
+                .extracting(RuleFinding::ruleType, RuleFinding::result, RuleFinding::evaluatedValue)
+                .containsExactly("COVERS_FAMILY_GROUP", "PASS", "affectedParty=TITULAR");
+    }
+
+    /**
+     * Sin evaluar es un tercer estado y no escribe fila: que ningún papel diga de quién era el
+     * equipo no puede contar ni a favor ni en contra. Un PASS acá diría que se verificó algo que
+     * nadie verificó.
+     */
+    @Test
+    void anUnknownInjuredParty_leavesNoTraceAtAll() {
+        CoverageScopeEvaluator.Result result = evaluator.evaluate(
+                claim(), history(), rules(false, null), documentSaying(AffectedParty.DESCONOCIDO));
+
+        assertThat(result.blocksFastTrack()).isFalse();
+        assertThat(result.findings()).isEmpty();
+    }
+
+    /** Regla apagada, regla que no se evalúa: tampoco deja rastro. */
+    @Test
+    void rulesTurnedOff_leaveNoTrace() {
+        CoverageScopeEvaluator.Result result = evaluator.evaluate(
+                claim(), history(priorClaim(POLICY, "LIQUIDADO")), rules(null, null),
+                documentSaying(AffectedParty.FAMILIAR));
+
+        assertThat(result.findings()).isEmpty();
     }
 }

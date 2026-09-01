@@ -119,6 +119,9 @@ class CaseServiceImplTest {
     private InsurerRepository insurerRepository;
 
     @Mock
+    private PolicyService policyService;
+
+    @Mock
     private InsurerTenantScope tenantScope;
 
     @Mock
