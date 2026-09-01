@@ -40,11 +40,9 @@
               @if (!isDeterministicOutcome()) {
                 <p class="note">Confianza del modelo: {{ confidencePercent() }}%</p>
               } @else if (needsDocs()) {
-                <p class="note">
-                  Lo determinó el motor de reglas, no el modelo: falta documentación obligatoria de
-                  la agenda del ramo. La carga la hace el asegurado desde su portal y el expediente
-                  se vuelve a clasificar solo cuando la complete — no requiere una decisión tuya.
-                </p>
+                <!-- Sin el "lo determinó el motor de reglas, no el modelo": el encabezado de la
+                     card ya lo dice cuando el resultado es determinístico. -->
+                <p class="note">Falta documentación obligatoria de la agenda del ramo.</p>
               } @else {
                 <p class="note">
                   Lo determinó el motor de reglas, no el modelo. Agiliza el trámite pero no lo
@@ -420,7 +418,7 @@
            primero porque es el insumo — con estos datos se evaluaron las reglas de abajo. -->
       @case ('analisis') {
         <div class="traza">
-          <app-card heading="La póliza al momento de clasificar">
+          <app-card heading="Datos de clasificación">
             @if (policySnapshot(); as s) {
               @for (g of snapshotGroups(); track $index) {
                 @if (g.heading) {
@@ -440,8 +438,7 @@
                 </dl>
               }
               <span class="t-note">
-                Valores al {{ formatDateTime(s.queriedAt) }}, no los de hoy. La suma asegurada es la
-                de esa cobertura.
+                Valores al {{ formatDateTime(s.queriedAt) }}. La suma asegurada es la de esa cobertura.
               </span>
             } @else {
               <p class="nodata">Todavía no hay foto: se toma al clasificar.</p>
@@ -494,37 +491,75 @@
         <div class="traza">
           <app-card heading="Sus pólizas vigentes con la compañía">
             @if (polizasDelAsegurado().length > 0) {
-              <div class="traza-scroll">
-                <table class="traza-table">
-                  <thead>
-                    <tr><th>Póliza</th><th>Cobertura</th><th>Vigencia</th><th>Suma asegurada</th><th>Pago</th></tr>
-                  </thead>
-                  <tbody>
-                    @for (p of polizasDelAsegurado(); track p.policyNumber) {
-                      <tr [class.traza-fila-propia]="esPolizaDelSiniestro(p)">
-                        <td class="mono">
-                          {{ p.policyNumber }}
-                          @if (esPolizaDelSiniestro(p)) {
-                            <span class="traza-sub">la de esta denuncia</span>
-                          }
-                        </td>
-                        <td>
-                          <span class="traza-ramo">{{ p.branch }}</span>
-                          <span class="traza-sub">{{ p.product }}</span>
-                        </td>
-                        <td>{{ vigencia(p) }}</td>
-                        <td class="traza-num">{{ monto(p.insuredAmount) }}</td>
-                        <td>
-                          <app-badge variant="solid" [tone]="p.upToDate ? 'ok' : 'danger'">
-                            {{ p.upToDate ? 'Al día' : 'En mora' }}
-                          </app-badge>
-                        </td>
-                      </tr>
-                    }
-                  </tbody>
-                </table>
-              </div>
-              <span class="t-note">Estado de hoy, no el del momento de la denuncia.</span>
+              @for (g of gruposDePolizas(); track g.heading) {
+                <h4 class="t-section-label traza-subhead">{{ g.heading }}</h4>
+                <div class="traza-scroll">
+                  <table class="traza-table">
+                    <thead>
+                      <!-- "Ramo / Producto" y no "Cobertura": eso es lo que muestra la columna. Las
+                           coberturas de verdad son varias por póliza y viven en el desplegable. -->
+                      <tr><th>Póliza</th><th>Ramo / Producto</th><th>Vigencia</th><th>Suma asegurada</th><th>Pago</th></tr>
+                    </thead>
+                    <tbody>
+                      @for (p of g.polizas; track p.policyNumber) {
+                        <tr>
+                          <td>
+                            <button
+                              type="button"
+                              class="cov-toggle"
+                              [attr.aria-expanded]="estaAbierta(p)"
+                              (click)="togglePoliza(p)"
+                            >
+                              <span class="cov-caret" [class.open]="estaAbierta(p)" aria-hidden="true">▸</span>
+                              <span class="cov-toggle-texto">
+                                <span class="mono">{{ p.policyNumber }}</span>
+                                <!-- El conteo es lo que delata que hay algo para abrir: la flecha
+                                     sola pasaba desapercibida. -->
+                                <span class="cov-hint">
+                                  {{ p.coverages.length }}
+                                  {{ p.coverages.length === 1 ? 'cobertura' : 'coberturas' }}
+                                </span>
+                              </span>
+                            </button>
+                          </td>
+                          <td>
+                            <span class="traza-ramo">{{ p.branch }}</span>
+                            <span class="traza-sub">{{ p.product }}</span>
+                          </td>
+                          <td>{{ vigencia(p) }}</td>
+                          <td class="traza-num">{{ monto(p.insuredAmount) }}</td>
+                          <td>
+                            <app-badge variant="solid" [tone]="p.upToDate ? 'ok' : 'danger'">
+                              {{ p.upToDate ? 'Al día' : 'En mora' }}
+                            </app-badge>
+                          </td>
+                        </tr>
+                        @if (estaAbierta(p)) {
+                          <tr class="traza-fila-coberturas">
+                            <td colspan="5">
+                              @if (p.coverages.length > 0) {
+                                <dl class="coberturas">
+                                  @for (c of p.coverages; track c.code) {
+                                    <div class="cobertura">
+                                      <dt>{{ c.description }}</dt>
+                                      <dd class="traza-num">
+                                        {{ monto(c.insuredAmount) }}
+                                        <span class="traza-sub">franquicia {{ monto(c.deductible) }}</span>
+                                      </dd>
+                                    </div>
+                                  }
+                                </dl>
+                              } @else {
+                                <p class="nodata">Esta póliza no tiene coberturas cargadas.</p>
+                              }
+                            </td>
+                          </tr>
+                        }
+                      }
+                    </tbody>
+                  </table>
+                </div>
+              }
             } @else {
               <p class="nodata">Sin pólizas vigentes con la compañía.</p>
             }

@@ -157,3 +157,17 @@ export const DOCUMENT_TYPES: DocumentTypeDef[] = [
 export function documentTypeLabel(code: string): string {
   return DOCUMENT_TYPES.find((d) => d.code === code)?.label ?? code;
 }
+
+/**
+ * Las razones llegan del backend con el código del documento adentro de la frase ("Falta documento
+ * requerido: police_report"), porque los literales van en inglés y traducirlos es del frontend
+ * (CLAUDE.md). Acá se cambian por su label: al analista el código interno no le dice nada.
+ */
+export function conLabelesDeDocumento(reason: string): string {
+  return DOCUMENT_TYPES.reduce(
+    // String.raw y no un template literal común: ahí `\b` es el carácter de retroceso, no
+    // el límite de palabra de la expresión regular, y así escrito no coincidía con nada.
+    (texto, d) => texto.replace(new RegExp(String.raw`\b${d.code}\b`, 'g'), d.label),
+    reason,
+  );
+}

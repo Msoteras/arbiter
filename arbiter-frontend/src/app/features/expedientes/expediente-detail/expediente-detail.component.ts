@@ -15,7 +15,7 @@ import {
   RiskBreakdownItem,
   StatusTransition,
 } from '../../../core/models/expediente';
-import { riskFactorLabel } from '../../../core/models/business-rules';
+import { conLabelesDeDocumento, riskFactorLabel } from '../../../core/models/business-rules';
 import { Policy } from '../../../core/models/policy';
 import {
   PolicySnapshot,
@@ -277,7 +277,9 @@ export class ExpedienteDetailComponent {
    * documentación (son resultados del gate de reglas, no del LLM) o sin clasificación todavía;
    * la tab "Razones" se oculta en ese caso (ver `tabs`).
    */
-  protected readonly analysisReasons = computed<string[]>(() => this.data()?.analysisReasons ?? []);
+  protected readonly analysisReasons = computed<string[]>(() =>
+    (this.data()?.analysisReasons ?? []).map(conLabelesDeDocumento),
+  );
 
   /**
    * Lo que el modelo leyó de cada adjunto (H0031). Vacío mientras no se clasificó, en un Fast
@@ -428,8 +430,39 @@ export class ExpedienteDetailComponent {
    */
   protected readonly polizasDelAsegurado = computed<Policy[]>(() => this.polizas());
 
-  protected esPolizaDelSiniestro(p: Policy): boolean {
-    return p.policyNumber === this.data()?.policyNumber;
+  /**
+   * La del siniestro primero y bajo su propio título, en vez de marcada dentro de la lista: es la
+   * que el analista está mirando, y encontrarla entre las otras por una etiqueta al costado hacía
+   * trabajar de más.
+   *
+   * <p>Puede no estar: el listado trae sólo las vigentes hoy, así que una póliza que venció después
+   * de la denuncia no aparece. En ese caso no se muestra el título, no un bloque vacío.
+   */
+  protected readonly gruposDePolizas = computed<{ heading: string; polizas: Policy[] }[]>(() => {
+    const numero = this.data()?.policyNumber;
+    const todas = this.polizasDelAsegurado();
+    const propia = todas.filter((p) => p.policyNumber === numero);
+    const otras = todas.filter((p) => p.policyNumber !== numero);
+    return [
+      ...(propia.length > 0 ? [{ heading: 'Póliza del expediente', polizas: propia }] : []),
+      ...(otras.length > 0
+        ? [{ heading: propia.length > 0 ? 'Sus otras pólizas' : 'Sus pólizas', polizas: otras }]
+        : []),
+    ];
+  });
+
+  // Las coberturas van plegadas y de a una: son varias por póliza, y desplegarlas todas convierte
+  // la tabla en un muro. Mismo patrón de despliegue que la pantalla de reglas.
+  private readonly polizaAbierta = signal<string | null>(null);
+
+  protected estaAbierta(p: Policy): boolean {
+    return this.polizaAbierta() === p.policyNumber;
+  }
+
+  protected togglePoliza(p: Policy): void {
+    this.polizaAbierta.update((abierta) =>
+      abierta === p.policyNumber ? null : p.policyNumber,
+    );
   }
 
   /**
@@ -442,7 +475,7 @@ export class ExpedienteDetailComponent {
       const s = this.policySnapshot();
       return [
         {
-          heading: null,
+          heading: 'Póliza',
           fields: [
             { label: 'N° de póliza', value: s?.externalPolicyNumber ?? null, mono: true },
             { label: 'Cobertura', value: this.data()?.coverage ?? null },
@@ -455,7 +488,7 @@ export class ExpedienteDetailComponent {
           ],
         },
         {
-          heading: 'Historial del asegurado en la compañía',
+          heading: 'Historial',
           fields: [
             { label: 'Siniestros previos', value: s ? String(s.previousClaims) : null },
             {
