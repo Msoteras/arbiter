@@ -138,6 +138,8 @@
 .tab { border: none; background: none; cursor: pointer; font: inherit; font-size: var(--font-size-body); color: var(--text-muted); padding: var(--space-3) 0; border-bottom: 2px solid transparent; white-space: nowrap; margin-bottom: -1px; }
 .tab:hover { color: var(--text-secondary); }
 .tab.active { color: var(--text-primary); border-bottom-color: var(--text-primary); font-weight: var(--font-weight-medium); }
+/* Unread dot: the brand accent is already this bar's "something here" colour. */
+.tab-dot { display: inline-block; width: 6px; height: 6px; margin-left: var(--space-1); border-radius: var(--radius-pill); background: var(--accent-fg); vertical-align: middle; }
 
 /* ===== Contenido ===== */
 .det-content { padding: var(--space-5) var(--space-6) var(--space-7); }

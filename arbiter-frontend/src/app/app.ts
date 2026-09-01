@@ -7,9 +7,9 @@ import {
   inject,
   signal,
 } from '@angular/core';
-import { toSignal } from '@angular/core/rxjs-interop';
+import { takeUntilDestroyed, toSignal } from '@angular/core/rxjs-interop';
 import { NavigationEnd, Router, RouterLink, RouterLinkActive, RouterOutlet } from '@angular/router';
-import { filter, map } from 'rxjs';
+import { filter, interval, map } from 'rxjs';
 
 import { AuthSessionService } from './core/auth/auth-session.service';
 import { AppReadyService } from './core/app-ready.service';
@@ -34,6 +34,8 @@ const OVERLAY_NAV_QUERY = '(max-width: 1024px)';
 const NAV_OPEN_KEY = 'arbiter.nav-open';
 /** Lo que dura el cierre de sesión en pantalla: alcanza para leerlo, no tanto como para estorbar. */
 const LOGOUT_DELAY_MS = 900;
+/** Cada cuánto se vuelve a pedir el contador de la campana. */
+const UNREAD_POLL_MS = 30_000;
 
 @Component({
   selector: 'app-root',
@@ -95,6 +97,16 @@ export class App {
         this.notifications.refreshUnreadCount();
       }
     });
+
+    // The effect above runs once per session, so a notice arriving with the screen open went
+    // unseen until a reload. Not asked while the tab is hidden: nobody is watching the bell.
+    interval(UNREAD_POLL_MS)
+      .pipe(takeUntilDestroyed())
+      .subscribe(() => {
+        if (this.session.session() && document.visibilityState === 'visible') {
+          this.notifications.refreshUnreadCount();
+        }
+      });
   }
 
   // Solo NavigationEnd, no NavigationStart: el marco tiene que llegar DESPUÉS de que la pantalla

@@ -48,8 +48,14 @@ public class CaseNotificationService {
     /** Cases live 7 days on average and 62 at worst, so anything older is closed history. */
     private static final Period PANEL_WINDOW = Period.ofMonths(6);
 
-    /** Hard cap across every siniestro: a newer notice pushes the oldest one out of the panel. */
-    private static final int PANEL_LIMIT = 6;
+    /**
+     * Hard cap across every siniestro: a newer notice pushes the oldest one out of the panel.
+     * Raised from 6 when case messages started sharing the bell with status changes — at 6 a
+     * conversation could push the resolution of a claim out of sight. Twelve covers roughly the
+     * last three cases end to end for an insured with policies at two companies, and the panel
+     * scrolls (max-height 60vh), so it is the badge that bounds this, not the layout.
+     */
+    private static final int PANEL_LIMIT = 12;
 
     /**
      * Separate from the frontend's status labels, which collapse APPROVED and REJECTED into a
@@ -176,8 +182,11 @@ public class CaseNotificationService {
     /**
      * The insurer's contact address, falling back to the account's. {@code insured} is a snapshot
      * of the insurer's DB so its email can be stale or absent; the account's always exists.
+     *
+     * <p>Public because {@link MessageNotificationService} reaches the same person by the same
+     * rule — how you contact an insured belongs here, and copying it would let the two drift.
      */
-    private Optional<String> recipientEmail(Insured insured) {
+    public Optional<String> recipientEmail(Insured insured) {
         if (insured.getEmail() != null && !insured.getEmail().isBlank()) {
             return Optional.of(insured.getEmail());
         }

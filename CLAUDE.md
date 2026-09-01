@@ -136,7 +136,7 @@ Estas decisiones están **cerradas y aprobadas** (doc v1.0, 27/05/2026). No las 
     - **Cómo se materializa la integración (confirmado con Aylén, 31/7):** Arbiter persiste **snapshots locales** de lo que le pasa la BD Aseguradora (`Poliza`, `Cobertura`, `BienAsegurado`, `Asegurado`) — no se consulta la BD externa en vivo en cada request. Un cron (o consulta a demanda) trae los datos y los mapea a las entidades propias de Arbiter. Sin esto, Arbiter no funciona de forma autónoma/consistente. Esto no contradice "integración por base de datos compartida": es el mecanismo concreto que la implementa.
 11. **pgvector** para detectar imágenes reutilizadas entre denuncias (similitud de embeddings). **No** delegues esta comparación al modelo de visión: el LLM analiza solo la imagen del siniestro en curso.
 12. **Reglas de negocio dinámicas en BD**, administradas por el referente. **No** implementar Strategy en código para variar por aseguradora — eso requiere redeploy por cada cambio.
-13. **API REST stateless** (sesión en el JWT, no en server). Habilita escalado horizontal.
+13. ~~**API REST stateless.**~~ **Quitada el 31/08/2026:** el chat entrega por WebSocket. Sigue vigente lo que citan los `SecurityConfig`: sesión en el JWT, sin sesión de servidor ni CSRF. Con el broker en memoria, `cases-service` corre en una sola instancia.
 14. **Nginx como reverse proxy + terminación SSL.** Centraliza certificados. El backend no se expone directo a internet.
 15. **Despliegue en Docker** sobre Railway/AWS. RDS para Postgres, S3 (+ Glacier a 30d, borrado a 180d) para adjuntos, ECR para imágenes.
 

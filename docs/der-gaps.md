@@ -48,6 +48,21 @@ más específicas.
 
 ---
 
+## `case_message` — la tabla existe y el DER no la tiene
+
+**Encontrado:** 31/08/2026, al implementar la conversación entre el asegurado y el analista (H0034).
+
+El DER modela `notificacion` (saliente y automática) pero ninguna entidad de conversación. La
+implementación agregó `case_message` en cada esquema de aseguradora: `case_id`, `sender_id` →
+`arbiter_common.users`, `sender_role` (INSURED/ANALYST, congelado al escribir), `body`,
+`created_at`, `read_at`. Es una tabla por tenant, dueña de `cases-service`, y no reemplaza a
+`notificacion`: esa sigue existiendo y ahora también registra los avisos de mensaje nuevo.
+
+**Acción:** agregarla al DER. No hay ambigüedad que resolver ni decisión pendiente — es un
+faltante, y el esquema ya está en `db/init-multitenant.sql` y aplicado.
+
+---
+
 ## Plantilla para la próxima entrada
 
 ```

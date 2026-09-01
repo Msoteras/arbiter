@@ -63,6 +63,7 @@ import java.time.LocalDateTime;
 import java.time.ZoneOffset;
 
 import java.util.List;
+import java.util.function.Supplier;
 import java.util.Map;
 import java.util.Optional;
 
@@ -118,6 +119,9 @@ class CaseServiceImplTest {
     private InsurerRepository insurerRepository;
 
     @Mock
+    private InsurerTenantScope tenantScope;
+
+    @Mock
     private Clock clock;
 
     @Mock
@@ -162,6 +166,13 @@ class CaseServiceImplTest {
     @BeforeEach
     void noInsurerMatchByDefault() {
         lenient().when(insurerRepository.findBySchemaName(any())).thenReturn(Optional.empty());
+    }
+
+    /** No slug in these tests: the scope runs the action on the tenant already set. */
+    @BeforeEach
+    void runOnTheCallersTenant() {
+        lenient().when(tenantScope.forCase(any(), any(), any()))
+                .thenAnswer(invocation -> invocation.getArgument(2, Supplier.class).get());
     }
 
     /**
