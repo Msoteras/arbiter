@@ -26,9 +26,11 @@ import java.util.Objects;
  *       one on the same policy has nothing left to answer with.</li>
  *   <li><b>suma asegurada</b> — a coverage that does <i>not</i> exhaust on a single settled claim
  *       can still run out through accumulation: prior settled amounts plus this claim can't exceed
- *       {@code policy.insuredAmount()} (doc de dominio BBVA §6.4). Not a {@code coverage} column —
- *       the limit is a fact the insurer DB already carries on the policy, so there's nothing for the
- *       referente to configure.</li>
+ *       the sum insured (doc de dominio BBVA §6.4). Nothing for the referente to configure: the
+ *       limit is a fact the insurer DB carries. It belongs to the <b>coverage</b> and not to the
+ *       policy — {@code policy.insuredAmount()} here is already narrowed to the coverage that
+ *       answers for this claim ({@code InsuredPolicy.forCoverage}), so comparing against it is
+ *       comparing against the right ceiling.</li>
  * </ul>
  *
  * <p><b>Why the LLM doesn't decide the first one.</b> Knowing whose device it was requires reading

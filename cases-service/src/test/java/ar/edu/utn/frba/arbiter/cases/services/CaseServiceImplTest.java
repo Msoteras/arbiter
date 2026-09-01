@@ -120,6 +120,9 @@ class CaseServiceImplTest {
     @Mock
     private Clock clock;
 
+    @Mock
+    private PolicyCoverageResolver policyCoverageResolver;
+
     @InjectMocks
     private CaseServiceImpl caseService;
 
@@ -127,6 +130,17 @@ class CaseServiceImplTest {
      * Por defecto no hay clasificación joineada. Es lo que devuelve el repositorio para un
      * expediente recién creado, y deja que cada test que sí la necesita la sobrescriba.
      */
+    /**
+     * Por defecto la póliza tiene una sola cobertura contratada y es la que responde por cualquier
+     * hecho. Los tests que necesitan varias la sobrescriben — acá lo que se prueba es el alta, no
+     * la resolución de cobertura (eso vive en {@link PolicyCoverageResolverTest}).
+     */
+    @BeforeEach
+    void oneContractedCoverageByDefault() {
+        lenient().when(policyCoverageResolver.resolveFor(any(), any()))
+                .thenReturn(CaseFixtures.policyCoverage(1L, CaseFixtures.coverage("Celulares"), 1));
+    }
+
     @BeforeEach
     void noAnalysisByDefault() {
         // toResponse() computa la prioridad de vencimiento con LocalDate.now(clock).

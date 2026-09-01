@@ -52,6 +52,47 @@ public record InsuredPolicy(
         return !instant.isBefore(effectiveFrom) && !instant.isAfter(effectiveTo);
     }
 
+    /**
+     * The same policy with {@code insuredAmount}/{@code deductible} set to the terms of the
+     * coverage that answers for the claim being classified.
+     *
+     * <p>Those two top-level fields are a convenience the whole engine reads — Fast Track's amount
+     * ratio, the {@code amount_ratio} risk factor, the sum-insured exhaustion check, the prompt,
+     * the audited {@code policy_snapshot}. They used to be filled with {@code coverages.get(0)},
+     * whichever risk the company happened to list first, so a hurto on a policy covering robo and
+     * hurto was measured against the robo sum insured. Narrowing once, where the policy is fetched,
+     * fixes every one of those readers at the same time.
+     *
+     * <p>An unknown or absent name leaves the policy untouched: falling back to the first coverage
+     * is what the code did before, and it's better than a null sum insured that silently disables
+     * every rule that divides by it.
+     */
+    public InsuredPolicy forCoverage(String coverageName) {
+        if (coverageName == null || coverages == null) {
+            return this;
+        }
+        return coverages.stream()
+                .filter(coverage -> coverageName.equalsIgnoreCase(coverage.description()))
+                .findFirst()
+                .map(coverage -> InsuredPolicy.builder()
+                        .policyNumber(policyNumber)
+                        .insuredName(insuredName)
+                        .insuredId(insuredId)
+                        .branch(branch)
+                        .product(product)
+                        .insuredItem(insuredItem)
+                        .imei(imei)
+                        .effectiveFrom(effectiveFrom)
+                        .effectiveTo(effectiveTo)
+                        .upToDate(upToDate)
+                        .insuredAmount(coverage.insuredAmount())
+                        .deductible(coverage.deductible())
+                        .coverages(coverages)
+                        .applicableClauses(applicableClauses)
+                        .build())
+                .orElse(this);
+    }
+
     @Builder
     public record PolicyCoverage(
             String code,

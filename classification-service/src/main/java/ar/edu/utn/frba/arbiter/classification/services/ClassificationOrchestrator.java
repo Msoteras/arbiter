@@ -448,9 +448,13 @@ public class ClassificationOrchestrator {
 
     private Context fetchContext(ClaimReport claim) {
         log.debug("[Orchestrator] Fetching policy '{}'...", claim.policyNumber());
-        InsuredPolicy policy = insurerAdapter.getPolicy(claim.policyNumber());
-        log.info("[Orchestrator] Policy OK — insured='{}' upToDate={} insuredAmount={}",
-                policy.insuredName(), policy.upToDate(), policy.insuredAmount());
+        // Narrowed to the coverage that answers for this claim: a policy has several, each with
+        // its own sum insured and deductible, and everything downstream (Fast Track, amount_ratio,
+        // the exhaustion check, the prompt, the audited snapshot) reads the top-level pair.
+        InsuredPolicy policy = insurerAdapter.getPolicy(claim.policyNumber())
+                .forCoverage(claim.coverageName());
+        log.info("[Orchestrator] Policy OK — insured='{}' upToDate={} coverage='{}' insuredAmount={}",
+                policy.insuredName(), policy.upToDate(), claim.coverageName(), policy.insuredAmount());
 
         log.debug("[Orchestrator] Fetching history for insuredId '{}'...", claim.insuredId());
         InsuredHistory history = insurerAdapter.getHistory(claim.insuredId());

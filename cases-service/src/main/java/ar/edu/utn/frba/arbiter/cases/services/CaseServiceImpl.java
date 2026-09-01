@@ -32,6 +32,7 @@ import ar.edu.utn.frba.arbiter.cases.models.entities.CaseDocument;
 import ar.edu.utn.frba.arbiter.cases.models.entities.Case;
 import ar.edu.utn.frba.arbiter.common.models.entities.tenant.Insured;
 import ar.edu.utn.frba.arbiter.cases.models.entities.Policy;
+import ar.edu.utn.frba.arbiter.cases.models.entities.PolicyCoverage;
 import ar.edu.utn.frba.arbiter.cases.models.entities.StatusChangeActor;
 import ar.edu.utn.frba.arbiter.cases.models.repositories.CaseAnalysisRepository;
 import ar.edu.utn.frba.arbiter.cases.models.repositories.CaseAnalysisRepository.CaseAnalysis;
@@ -80,6 +81,7 @@ public class CaseServiceImpl implements CaseService {
     private final CaseAnalysisRepository caseAnalysisRepository;
     private final CaseDocumentAnalysisRepository caseDocumentAnalysisRepository;
     private final CaseAccessPolicy accessPolicy;
+    private final PolicyCoverageResolver policyCoverageResolver;
     private final InsuredCaseAggregator insuredCaseAggregator;
     private final PolicyTenantLocator policyTenantLocator;
     private final InsurerRepository insurerRepository;
@@ -135,16 +137,21 @@ public class CaseServiceImpl implements CaseService {
         // the insured gets the reason on the spot, instead of waiting for an analyst to close by
         // hand something that was never covered. Runs after the ownership check so an attempt to
         // file against someone else's policy still fails on that and doesn't leak its coverage window.
+        // Cuál de las coberturas de la póliza responde por lo denunciado. Antes salía de la póliza
+        // (que tenía una sola), así que un hurto sobre una póliza que cubre robo Y hurto se
+        // evaluaba contra la cobertura de robo — con su franquicia, su carencia y su plazo.
+        PolicyCoverage contracted = policyCoverageResolver.resolveFor(policy.getId(), claimCause.getId());
+
         policyEligibilityValidator.validate(
-                request.policyNumber(), request.eventDate(), request.policeReportAt(), policy.getCoverage(),
-                claimCause);
+                request.policyNumber(), request.eventDate(), request.policeReportAt(),
+                contracted.getCoverage(), claimCause);
 
         Case entity = Case.builder()
                 .claimCause(claimCause)
                 .declaredItem(request.insuredItem())
                 .insured(insured)
                 .policy(policy)
-                .coverage(policy.getCoverage())
+                .coverage(contracted.getCoverage())
                 .description(request.description())
                 .occurredAt(request.eventDate())
                 .policeReportAt(request.policeReportAt())
@@ -203,8 +210,12 @@ public class CaseServiceImpl implements CaseService {
             // claimCause null: el precheck corre en el paso 1/2, antes de "¿Qué te pasó?" — no
             // tiene el hecho generador todavía, así que ese chequeo puntual solo se hace en el
             // alta real (createCaseInIssuingTenant), que sí lo tiene siempre.
+            // claimCauseId null por lo mismo: sin hecho generador se chequea contra la primera
+            // cobertura contratada, que es lo único evaluable en este paso (la vigencia y la mora
+            // son de la póliza, no de la cobertura).
             policyEligibilityValidator.validate(
-                    request.policyNumber(), request.eventDate(), request.policeReportAt(), policy.getCoverage(),
+                    request.policyNumber(), request.eventDate(), request.policeReportAt(),
+                    policyCoverageResolver.resolveFor(policy.getId(), null).getCoverage(),
                     null);
             return EligibilityCheckResponse.ok();
         } catch (PolicyNotEligibleException | PolicyInsuredMismatchException e) {
