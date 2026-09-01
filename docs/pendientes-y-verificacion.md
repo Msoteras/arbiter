@@ -57,30 +57,23 @@ cubrir un IT y hay que mirar a mano una vez desplegado:
 
 ---
 
-## 2 · Decisión abierta: qué se hace con los expedientes ya creados
+## 2 · Expedientes ya creados con la cobertura vieja — decidido: se dejan
 
-**Qué se sabe.** El alta quedó arreglada de acá en adelante, y las pólizas también. Lo que no se
-tocó son los expedientes que ya existen: `cases.coverage_id` sigue apuntando a la cobertura que
-eligió el modelo viejo, y su `policy_snapshot` tiene congelada la suma asegurada de esa cobertura.
-En Railway son los tres expedientes de Hurto colgados de Robo de celular.
+**Qué pasó.** Los expedientes creados antes del arreglo tienen `cases.coverage_id` apuntando a la
+cobertura que elegía el modelo viejo (siempre la primera de la póliza), y su `policy_snapshot` tiene
+congelada la suma asegurada de esa cobertura. En Railway son los tres expedientes de Hurto colgados
+de Robo de celular. El arreglo corrige el momento del alta; a estos no los vuelve a leer nadie.
 
-**Qué falta decidir.** No es un `UPDATE`: cambiar la cobertura de un expediente cambia los
-parámetros con los que se evaluaron sus reglas duras (carencia, plazo de denuncia, tope de eventos,
-franquicia, inclusión de cobertura), así que hay que **reclasificarlos**, y eso reescribe
-resultados que un analista puede haber mirado ya. Tres caminos:
+**Decidido (01/09/2026): se dejan como están.** La base es de prueba y, en el peor caso, se levanta
+de cero con `reset → init → seed`, que ya nace con el modelo nuevo. Corregirlos no valía el costo:
+no es un `UPDATE`, porque la cobertura lleva los parámetros con los que se evaluaron las reglas
+duras del expediente (carencia, plazo de denuncia, tope de eventos, franquicia, exclusiones), así
+que dejar el dato consistente exige reclasificar y eso reescribe recomendaciones ya emitidas.
 
-- **Reclasificar los afectados.** Queda todo consistente; se pierde la clasificación anterior, que
-  igual queda en el log inmutable.
-- **Corregir solo `coverage_id`** y dejar la clasificación vieja. El expediente apunta bien pero su
-  resultado se calculó con otros parámetros: inconsistente, aunque auditable.
-- **Dejarlos.** Arrastran el dato viejo; la mitigación de la solapa de trazabilidad ya aclara de
-  qué cobertura es la suma.
-
-**Bloquea.** Nada del despliegue. Pero conviene cerrarlo antes de mostrar esos expedientes en la
-defensa, porque el número que muestran no es el de su hecho generador.
-
-La consulta para listar los afectados está al pie de
-`db/migrations/2026-09-01-policy-coverage.sql` (verificación 3).
+**Si en algún momento hay que hacerlo sobre datos que importen**, el camino limpio existe desde que
+se sumó la reapertura: reabrir con motivo → reclasificar → volver a decidir. Queda la traza completa
+en `case_status_history` de por qué se tocó el expediente. La consulta para listar los afectados
+está al pie de `db/migrations/2026-09-01-policy-coverage.sql` (verificación 3).
 
 ---
 

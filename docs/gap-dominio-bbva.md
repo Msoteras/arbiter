@@ -287,8 +287,14 @@ creación con `LocalDate.now()` en vez del `Clock` inyectado (el resto del cálc
 `countActiveByAnalyst` seguían diciendo "APPROVED, REJECTED" cuando los llamadores ya pasan listas
 más largas.
 
-**Queda abierto (no es un bug, es cobertura):** `LapseSweepScheduler` y el gate de prescripción de
-`ClassificationOrchestrator` no tienen test propio. La interrupción/reanudación del plazo sí
+**Deuda de tests ✅ cerrada (01/09/2026):** `LapseSweepScheduler`
+(`LapseSweepSchedulerTest`, mismo esqueleto que `DeadlineSweepSchedulerTest`), el gate de
+prescripción de `ClassificationOrchestrator`
+(`ClassificationOrchestratorPrescriptionTest` — incluye el borde de "1 año y un día" y el caso sin
+`reportedAt` donde el gate no participa) y el endpoint de reapertura, que no tenía test propio en
+ninguna capa (`CaseServiceImplTest` para la orquestación del service — actor, prefijo del motivo,
+404, propagación del 409 — y `CaseControllerTest` para el contrato HTTP: 200, 400 por `reason`
+vacío, 404, 409). La interrupción/reanudación del plazo ya tenía cobertura
 (`CaseStatusServiceTest.transition_toLapsed_doesNotResumeTheDeadline` y el de peritaje).
 
 ---
@@ -520,11 +526,13 @@ Railway son los tres expedientes de Hurto colgados de Robo de celular.
 Recalcularlos no es un `UPDATE`: cambiar la cobertura de un expediente cambia los parámetros con
 los que se evaluaron sus reglas duras (carencia, plazo de denuncia, tope de eventos, franquicia,
 inclusión de cobertura), o sea que hay que **reclasificarlos** y eso reescribe resultados que un
-analista pudo haber mirado ya. Las opciones son reclasificar los afectados, corregir solo
-`coverage_id` dejando la clasificación vieja como está (queda inconsistente pero auditable), o
-dejarlos y que arrastren el dato viejo. Es decisión del equipo y necesita su propia verificación —
-por eso no va junto con esta migración. La consulta para listarlos está al pie del archivo de
-migración.
+analista pudo haber mirado ya.
+
+**Decidido (01/09/2026): se dejan como están.** La base es de prueba y en el peor caso se levanta de
+cero con `reset → init → seed`, que ya nace con el modelo nuevo — no justifica reclasificar. Si
+alguna vez hay que corregirlos sobre datos que importen, el camino limpio es reabrir con motivo,
+reclasificar y volver a decidir (punto 11), que deja la traza en `case_status_history`. La consulta
+para listarlos está al pie del archivo de migración.
 
 Mientras tanto sigue en pie la mitigación que ya estaba: la solapa de trazabilidad aclara de qué
 cobertura es la suma asegurada, así que el número no se lee como si fuera la del hecho denunciado.
@@ -553,9 +561,9 @@ que sigue siendo más conservador de lo que debería.
 | 12 | Exclusiones de cobertura del seed (estaban cargadas con un rule_type inexistente) | ✅ Resuelto 01/09/2026 | — |
 | 12 | Aviso al referente cuando una cobertura no excluye nada | ✅ Resuelto 01/09/2026 | — |
 | 12 | Invertir a lista blanca (cobertura sin regla no cubre nada) | Descartado 01/09/2026 — no reabrir | — |
-| 12 | Expedientes ya creados con la cobertura vieja (¿reclasificar?) | No hecho — a decidir | Media |
+| 12 | Expedientes ya creados con la cobertura vieja | Se dejan — decidido 01/09/2026 (base de prueba) | — |
 | 3 | Reservas (SPL) como control | No existe | Baja/a decidir |
 | 10 | Consistencia interna de `LAPSED` (carga del analista, tableros, filtro de bandeja, tono al asegurado) | ✅ Resuelto 31/08/2026 | — |
 | 5 | Comentario desactualizado en `DocumentRequirement` | ✅ Resuelto 31/08/2026 | — |
-| 10 | Test de `LapseSweepScheduler` y del gate de prescripción | No existe | Baja |
+| 10 | Test de `LapseSweepScheduler`, gate de prescripción y endpoint de reapertura | ✅ Resuelto 01/09/2026 | — |
 | 7, 8 | Fraude, roles, segmento | Ya cubierto o deliberado | — |
