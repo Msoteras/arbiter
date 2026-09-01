@@ -1,4 +1,12 @@
-import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
+import {
+  ChangeDetectionStrategy,
+  Component,
+  computed,
+  effect,
+  inject,
+  signal,
+  untracked,
+} from '@angular/core';
 import { toObservable, toSignal } from '@angular/core/rxjs-interop';
 import { ActivatedRoute, RouterLink } from '@angular/router';
 import { HttpErrorResponse } from '@angular/common/http';
@@ -7,6 +15,7 @@ import { catchError, combineLatest, finalize, map, Observable, of, startWith, sw
 import { ExpedienteService, AnalystDecisionRequest } from '../expediente.service';
 import { DocumentAgendaService } from '../document-agenda.service';
 import { CaseNavigationService } from '../case-navigation.service';
+import { CaseMessagesService } from '../case-messages.service';
 import { AuthSessionService } from '../../../core/auth/auth-session.service';
 import { UserAdminService } from '../../../core/auth/user-admin.service';
 import {
@@ -62,6 +71,7 @@ import { EmptyStateComponent } from '../../../shared/ui/empty-state/empty-state.
 import { StatusTimelineComponent } from '../../../shared/ui/status-timeline/status-timeline.component';
 import { ForensicAnalysisComponent } from './forensic-analysis/forensic-analysis.component';
 import { CaseDocumentsComponent } from '../case-documents/case-documents.component';
+import { CaseChatComponent } from '../case-chat/case-chat.component';
 import { CardComponent } from '../../../shared/ui/card/card.component';
 import { ButtonComponent } from '../../../shared/ui/button/button.component';
 import { BadgeComponent } from '../../../shared/ui/badge/badge.component';
@@ -104,6 +114,7 @@ interface FieldItem { label: string; value: string | null; mono?: boolean; full?
     StatusTimelineComponent,
     ForensicAnalysisComponent,
     CaseDocumentsComponent,
+    CaseChatComponent,
     CardComponent,
     ButtonComponent,
     BadgeComponent,
@@ -124,6 +135,25 @@ export class ExpedienteDetailComponent {
   private readonly caseNav = inject(CaseNavigationService);
   private readonly session = inject(AuthSessionService);
   private readonly users = inject(UserAdminService);
+  private readonly messages = inject(CaseMessagesService);
+
+  constructor() {
+    // The dot has to be there before the analyst opens the tab, so the count is fetched with the
+    // case and not when the thread mounts. Keyed on the id and not on data(), which comes back as a
+    // new object on every refetch and asked for the thread twice per open.
+    effect(() => {
+      const id = this.loadedCaseId();
+      untracked(() => {
+        this.unreadMessages.set(0);
+        if (id) {
+          this.messages.thread(id).subscribe({
+            next: (thread) => this.unreadMessages.set(thread.unread),
+            error: () => undefined,
+          });
+        }
+      });
+    });
+  }
 
   /** Bumped after a decision is recorded, to refetch the case and reflect the real backend status. */
   private readonly reloadTrigger = signal(0);
@@ -159,6 +189,9 @@ export class ExpedienteDetailComponent {
     const s = this.state();
     return s.status === 'error' && s.httpStatus === 404;
   });
+
+  /** The loaded case's id, which unlike {@link data} only changes when the case actually does. */
+  private readonly loadedCaseId = computed<number | null>(() => this.data()?.id ?? null);
 
   // Anterior/siguiente según el orden de la bandeja (no por id correlativo). null cuando no hay
   // vecino (borde de la lista) o cuando se entró por deep-link sin pasar por la bandeja.
@@ -524,13 +557,10 @@ export class ExpedienteDetailComponent {
 
   // ----- tabs -----
   // "Peritaje" solo existe si el expediente se derivó, y "Análisis realizado" solo si ya se
-  // clasificó: una solapa vacía en la mayoría de los casos sería ruido, y en ambas la ausencia de
-  // datos es el caso esperado (no toda derivación pasa; un expediente sin clasificar todavía no
-  // tiene ni reglas ni razones que contar).
-  // 'conversacion' sigue oculta: no hay entidad de mensajería todavía, así que estaría siempre
-  // vacía. No se borró del tipo ni del `@switch` del template, solo de la lista visible, para no
-  // perder el lugar ya pensado en la pantalla (ver la historia en el handoff).
-  protected readonly tabs = computed<{ id: TabId; label: string }[]>(() => [
+  // clasificó: una solapa vacía en la mayoría de los casos sería ruido.
+  // 'conversacion' is always shown, unlike those two: an empty thread isn't noise, it's where
+  // talking to the insured starts. It carries a dot when something is unread.
+  protected readonly tabs = computed<{ id: TabId; label: string; dot?: boolean }[]>(() => [
     { id: 'resumen' as TabId, label: 'Resumen' },
     ...(this.documentAnalyses().length > 0
       ? [{ id: 'datos' as TabId, label: 'Datos extraídos' }]
@@ -543,8 +573,16 @@ export class ExpedienteDetailComponent {
       : []),
     { id: 'documentacion' as TabId, label: 'Documentación' },
     ...(this.peritaje() ? [{ id: 'peritaje' as TabId, label: 'Peritaje' }] : []),
+    { id: 'conversacion' as TabId, label: 'Conversación', dot: this.unreadMessages() > 0 },
     { id: 'historial' as TabId, label: 'Historial' },
   ]);
+
+  /**
+   * Unread messages from the insured. Fetched apart from the case and not as one more
+   * `CaseResponse` field: the same DTO builds the inbox, so counting per row would be one query
+   * per listed case.
+   */
+  protected readonly unreadMessages = signal(0);
   protected readonly activeTab = signal<TabId>('resumen');
   setTab(t: TabId): void {
     this.activeTab.set(t);

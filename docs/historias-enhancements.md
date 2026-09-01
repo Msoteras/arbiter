@@ -451,6 +451,60 @@ localmente termina con un solo estado — contradice el punto 7 de las decisione
 
 ---
 
+## ~~H0034 · Conversación entre el asegurado y el analista~~ — ✅ HECHA (30/08)
+
+> Es la card [#145](https://trello.com/c/53Bvc7BO) ("Resolver Comunicacion con Asegurado"), cuya
+> descripción entera era *"mail o chat"*. Las tres decisiones que la bloqueaban —canal,
+> direccionalidad y alcance— las cerró el equipo el 30/08 y con eso se implementó; la sección
+> "Conversación con el asegurado" de `temas-a-discutir.md` se borró al quedar resuelta.
+
+**Como** analista de siniestros **quiero** pedirle una aclaración o un documento puntual al
+asegurado desde el expediente, y que me pueda contestar ahí mismo, **para** no tener que salir del
+sistema —ni perder el rastro de lo que se pidió— cada vez que falta algo.
+
+**Como** asegurado **quiero** poder preguntar sobre mi siniestro y responder lo que me pidan
+**para** no quedarme sin saber cómo comunicarme.
+
+**Criterios de aceptación**
+
+- Un hilo por expediente, cronológico, con los dos lados. Cada mensaje dice quién lo escribió y
+  cuándo, y si la otra parte ya lo leyó.
+- El analista lo ve como una solapa más del expediente, con un punto cuando hay algo sin leer.
+- El asegurado lo ve en el seguimiento de su siniestro.
+- El referente **lee** el hilo y no escribe, igual que ve la bandeja.
+- Nadie ve el hilo de un expediente ajeno: pedirlo devuelve 404, no 403.
+- Cada mensaje nuevo avisa a la otra parte. Al asegurado por mail —sin el texto del mensaje, con
+  el link al portal— y **uno solo por racha sin leer**. Al analista, aviso in-app.
+- Se puede escribir hasta **7 días después** de resuelto el expediente. Pasado ese plazo el hilo
+  queda de lectura, con el motivo a la vista.
+
+**Fuera de alcance, decidido**
+
+- **No mueve el expediente.** Un mensaje no dispara `AWAITING_DOCUMENTATION`: ese estado lo pone la
+  clasificación y lo cierra la subida del documento, y darle una segunda puerta haría que "esperando
+  al asegurado" signifique dos cosas distintas.
+- **No acepta adjuntos.** Siguen entrando por la pantalla de documentación, que les asigna tipo,
+  dispara la reclasificación y los manda al análisis del modelo — todo eso se saltearía un archivo
+  subido por el chat.
+- **Es tiempo real, por WebSocket.** Arrancó con sondeo cada 15 s por la decisión #13 (REST
+  stateless); el 31/08 el equipo quitó esa restricción y el hilo pasó a entregar por socket. El
+  sondeo quedó en 60 s como respaldo. Escribir sigue por REST.
+
+**Por qué importa**
+No había ningún canal. El mail de rechazo dice textual *"si querés conocer los motivos o no estás
+de acuerdo, podés comunicarte con nosotros"* y hasta ahora esa frase no llevaba a ningún lado. Del
+lado del analista, pedir una aclaración implicaba salir del sistema, con lo cual el pedido no
+quedaba registrado en ningún lado.
+
+**Notas técnicas**
+`case_message` por tenant (`db/migrations/2026-08-30-chat-asegurado.sql`), `CaseMessageService` +
+`CaseMessageController` (`GET`/`POST /cases/{id}/messages`, `POST .../read`), reusando
+`CaseAccessPolicy` para el acceso y la tabla `notification` para el aviso. El plazo de los 7 días
+es `arbiter.messaging.reply-window-days`. El componente del hilo (`app-case-chat`) es uno solo para
+los dos portales.
+
+---
+
 # Decisiones de negocio (no son historias)
 
 Resueltas al planificar el sprint 9 (26/08), salvo la que sigue marcada pendiente.

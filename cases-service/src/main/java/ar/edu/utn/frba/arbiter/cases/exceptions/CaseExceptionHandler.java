@@ -120,6 +120,12 @@ public class CaseExceptionHandler extends ResponseEntityExceptionHandler {
         return ProblemDetail.forStatusAndDetail(HttpStatusCode.valueOf(404), ex.getMessage());
     }
 
+    /** Se venció la ventana para escribir en el expediente ya resuelto. */
+    @ExceptionHandler(ClosedConversationException.class)
+    public ProblemDetail handleClosedConversation(ClosedConversationException ex) {
+        return ProblemDetail.forStatusAndDetail(HttpStatusCode.valueOf(409), ex.getMessage());
+    }
+
     /** El expediente no está en condiciones de originar un antecedente de fraude. */
     @ExceptionHandler(FraudRecordNotAllowedException.class)
     public ProblemDetail handleFraudRecordNotAllowed(FraudRecordNotAllowedException ex) {

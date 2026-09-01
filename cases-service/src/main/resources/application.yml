@@ -71,6 +71,11 @@ arbiter:
     # analista los críticos/vencidos. Diario porque el plazo es a nivel día. En dev, bajarlo a
     # cada minuto (0 * * * * *) para probar el flujo sin esperar al horario.
     cron: ${DEADLINE_SWEEP_CRON:0 0 8 * * *}
+  messaging:
+    # Días que la conversación del expediente sigue abierta después de resuelto. No es una regla
+    # de la aseguradora (no se evalúa contra nada, no la configura el referente): es hasta cuándo
+    # atendemos el reclamo del mail de rechazo, que invita a comunicarse.
+    reply-window-days: ${REPLY_WINDOW_DAYS:7}
   email:
     # Sin key el adapter loguea y no manda: el módulo levanta igual y las notificaciones
     # quedan registradas en base aunque no salga el mail.

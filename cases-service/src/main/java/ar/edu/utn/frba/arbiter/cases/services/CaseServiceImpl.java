@@ -69,7 +69,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
-import java.util.function.Supplier;
 
 @Service
 @RequiredArgsConstructor
@@ -89,6 +88,7 @@ public class CaseServiceImpl implements CaseService {
     private final PolicyTenantLocator policyTenantLocator;
     private final InsurerRepository insurerRepository;
     private final PolicyService policyService;
+    private final InsurerTenantScope tenantScope;
     // Mismo reloj que DeadlineSweepScheduler: la prioridad de vencimiento del read model y la del
     // barrido se computan contra la misma referencia (y es fijable en tests).
     private final Clock clock;
@@ -253,7 +253,7 @@ public class CaseServiceImpl implements CaseService {
 
     @Override
     public CaseResponse addDocumentsAndReclassify(Long caseId, Map<String, MultipartFile> documents, String insurerSlug) {
-        return withInsurerTenant(caseId, insurerSlug, () -> {
+        return tenantScope.forCase(caseId, insurerSlug, () -> {
             // Same ownership check as the reads: an ASEGURADO can only add documents to their own
             // case. This was a plain findById, so anyone could upload to a stranger's case and force
             // it to reclassify (D1). 404 and not 403 for the reason CaseAccessPolicy documents: case
@@ -356,44 +356,7 @@ public class CaseServiceImpl implements CaseService {
      */
     @Override
     public CaseResponse getCase(Long caseId, String insurerSlug) {
-        return withInsurerTenant(caseId, insurerSlug, () -> loadCase(caseId));
-    }
-
-    /**
-     * Runs {@code action} against the tenant {@code insurerSlug} names, restoring the caller's own
-     * tenant afterward — same need as {@link #getCase(Long, String)} originally solved alone: case
-     * ids are sequential per schema, so "expediente 16" is ambiguous for anyone with policies in
-     * more than one company, and every endpoint that takes an existing {@code caseId} (not just the
-     * detail one) can land on the wrong tenant if the JWT's default isn't the one that issued it.
-     *
-     * <p>Null/blank runs under whatever tenant is already set — the JWT's default, which is all a
-     * single-insurer caller (every analyst/referente, and an insured with just one company) ever
-     * needs.
-     *
-     * @throws CaseNotFoundException if the slug doesn't match any of the caller's own insurers —
-     *         404 and not 403, same reasoning as an expediente ajeno: don't confirm which tenants exist.
-     */
-    private <T> T withInsurerTenant(Long caseId, String insurerSlug, Supplier<T> action) {
-        if (insurerSlug == null || insurerSlug.isBlank()) {
-            return action.get();
-        }
-        // El slug viene del pedido, así que sólo se busca entre las aseguradoras del claim
-        // firmado: es lo que impide nombrar la de otra compañía.
-        Insurer insurer = insurerRepository.findAllById(CallerContext.get().insurerIds()).stream()
-                .filter(Insurer::isActive)
-                .filter(candidate -> InsurerSlug.matches(candidate, insurerSlug))
-                .findFirst()
-                .orElseThrow(() -> new CaseNotFoundException(caseId));
-
-        String callerTenant = TenantContext.get();
-        try {
-            TenantContext.set(insurer.getSchemaName());
-            return action.get();
-        } finally {
-            // Igual que en el agregador: si no se restaura, la conexión vuelve al pool viendo el
-            // esquema equivocado y se lo lleva puesto el próximo request.
-            TenantContext.set(callerTenant);
-        }
+        return tenantScope.forCase(caseId, insurerSlug, () -> loadCase(caseId));
     }
 
     private CaseResponse loadCase(Long caseId) {
@@ -607,7 +570,7 @@ public class CaseServiceImpl implements CaseService {
 
     @Override
     public List<CaseDocumentResponse> getDocuments(Long caseId, String insurerSlug) {
-        return withInsurerTenant(caseId, insurerSlug, () -> {
+        return tenantScope.forCase(caseId, insurerSlug, () -> {
             // Los adjuntos son parte del expediente: si no podés leerlo, tampoco su documentación.
             readableCase(caseId);
             return caseDocumentRepository.findByCaseId(caseId).stream()
@@ -623,7 +586,7 @@ public class CaseServiceImpl implements CaseService {
 
     @Override
     public CaseDocument getDocument(Long caseId, Long documentId, String insurerSlug) {
-        return withInsurerTenant(caseId, insurerSlug, () -> {
+        return tenantScope.forCase(caseId, insurerSlug, () -> {
             readableCase(caseId);
             return caseDocumentRepository.findById(documentId)
                     .filter(doc -> doc.getCaseId().equals(caseId))

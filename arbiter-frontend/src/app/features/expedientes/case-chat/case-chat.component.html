@@ -1,0 +1,55 @@
+@if (loading()) {
+  <app-inline-loading message="Cargando la conversación…" />
+} @else if (loadError()) {
+  <app-card>
+    <p class="t-note">No se pudo cargar la conversación. Probá de nuevo en un momento.</p>
+  </app-card>
+} @else {
+  <app-card [heading]="heading()">
+    @if (messages().length === 0) {
+      <p class="t-note empty">
+        Todavía no hay mensajes en este expediente.
+        @if (canPost()) {
+          Escribí abajo para empezar.
+        }
+      </p>
+    } @else {
+      <ol class="thread" #threadBox>
+        @for (m of messages(); track m.id) {
+          <li class="msg" [class.mine]="m.mine">
+            <div class="bubble">
+              <p class="meta t-note">
+                <span class="who">{{ label(m) }}</span>
+                <span class="at tabular">{{ when(m) }}</span>
+              </p>
+              <p class="body">{{ m.body }}</p>
+            </div>
+          </li>
+        }
+      </ol>
+    }
+
+    @if (canPost()) {
+      <div class="composer">
+        <app-textarea
+          [(value)]="draft"
+          [rows]="3"
+          placeholder="Escribí tu mensaje…"
+        />
+        <div class="composer-foot">
+          <span class="t-note count tabular" [class.over]="draft().length > maxLength">
+            {{ draft().length }}/{{ maxLength }}
+          </span>
+          <app-button (click)="send()" [disabled]="!canSend() || draft().length > maxLength">
+            {{ sending() ? 'Enviando…' : 'Enviar' }}
+          </app-button>
+        </div>
+        @if (sendError()) {
+          <p class="t-note error">{{ sendError() }}</p>
+        }
+      </div>
+    } @else if (closedNotice()) {
+      <p class="t-note closed">{{ closedNotice() }}</p>
+    }
+  </app-card>
+}
