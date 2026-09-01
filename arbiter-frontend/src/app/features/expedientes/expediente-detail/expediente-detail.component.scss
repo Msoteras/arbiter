@@ -293,9 +293,22 @@ app-textarea { display: block; margin: var(--space-3) 0; }
 @media (prefers-reduced-motion: reduce) {
   .cov-caret { transition: none; }
 }
-.traza-fila-coberturas td { border-top: 0; padding-top: 0; }
-.coberturas { margin: 0 0 var(--space-2) var(--space-5); display: grid; gap: var(--space-2); }
-.cobertura { display: flex; justify-content: space-between; gap: var(--space-4); max-width: 32rem; }
-.cobertura dt { color: var(--text-secondary); }
-.cobertura dd { margin: 0; }
+.traza-fila-cobertura td { border-top: 0; padding-top: 0; padding-bottom: var(--space-2); }
+/* Qualified with the table: .traza-table td sets padding-left:0 and wins on specificity. */
+.traza-table td.cobertura-nombre {
+  padding-left: var(--space-6);
+  color: var(--text-secondary);
+}
 
+
+/* Fixed widths: on auto layout, expanding a policy adds cells and the browser redistributes,
+   so every column shifted. min-width keeps narrow screens scrolling instead of squeezing. */
+.traza-polizas {
+  table-layout: fixed;
+  min-width: 44rem;
+}
+.traza-polizas th:nth-child(1) { width: 22%; }
+.traza-polizas th:nth-child(2) { width: 24%; }
+.traza-polizas th:nth-child(3) { width: 20%; }
+.traza-polizas th:nth-child(4) { width: 20%; }
+.traza-polizas th:nth-child(5) { width: 14%; }

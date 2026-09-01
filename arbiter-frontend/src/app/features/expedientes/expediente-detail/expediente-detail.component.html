@@ -494,7 +494,7 @@
               @for (g of gruposDePolizas(); track g.heading) {
                 <h4 class="t-section-label traza-subhead">{{ g.heading }}</h4>
                 <div class="traza-scroll">
-                  <table class="traza-table">
+                  <table class="traza-table traza-polizas">
                     <thead>
                       <!-- "Ramo / Producto" y no "Cobertura": eso es lo que muestra la columna. Las
                            coberturas de verdad son varias por póliza y viven en el desplegable. -->
@@ -535,25 +535,22 @@
                           </td>
                         </tr>
                         @if (estaAbierta(p)) {
-                          <tr class="traza-fila-coberturas">
-                            <td colspan="5">
-                              @if (p.coverages.length > 0) {
-                                <dl class="coberturas">
-                                  @for (c of p.coverages; track c.code) {
-                                    <div class="cobertura">
-                                      <dt>{{ c.description }}</dt>
-                                      <dd class="traza-num">
-                                        {{ monto(c.insuredAmount) }}
-                                        <span class="traza-sub">franquicia {{ monto(c.deductible) }}</span>
-                                      </dd>
-                                    </div>
-                                  }
-                                </dl>
-                              } @else {
-                                <p class="nodata">Esta póliza no tiene coberturas cargadas.</p>
-                              }
-                            </td>
-                          </tr>
+                          @for (c of p.coverages; track c.code) {
+                            <tr class="traza-fila-cobertura">
+                              <td colspan="3" class="cobertura-nombre">{{ c.description }}</td>
+                              <td class="traza-num">
+                                {{ monto(c.insuredAmount) }}
+                                <span class="traza-sub">franquicia {{ monto(c.deductible) }}</span>
+                              </td>
+                              <td></td>
+                            </tr>
+                          } @empty {
+                            <tr class="traza-fila-cobertura">
+                              <td colspan="5" class="cobertura-nombre nodata">
+                                Esta póliza no tiene coberturas cargadas.
+                              </td>
+                            </tr>
+                          }
                         }
                       }
                     </tbody>
