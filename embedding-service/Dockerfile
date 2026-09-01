@@ -1,3 +1,11 @@
+# Build context: project root, like every other image in the repo.
+# docker build -t clip-embedding-img -f embedding-service/Dockerfile .
+#
+# This image needs nothing from outside its own folder, but the context is the root anyway so
+# that all six services share one rule. Railway resolves RAILWAY_DOCKERFILE_PATH from the
+# repository root and the build context from Root Directory, and those two cannot point at
+# different places — a folder-scoped context here would leave the Dockerfile unfindable.
+
 FROM python:3.11-slim
 
 WORKDIR /app
@@ -6,13 +14,13 @@ WORKDIR /app
 # build. Both must come from the same index or their versions mismatch.
 RUN pip install --no-cache-dir torch torchvision --index-url https://download.pytorch.org/whl/cpu
 
-COPY requirements.txt .
+COPY embedding-service/requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
 # Bake the CLIP weights into the image so startup doesn't depend on network
 RUN python -c "import open_clip; open_clip.create_model_and_transforms('ViT-B-32', pretrained='openai')"
 
-COPY app.py .
+COPY embedding-service/app.py .
 
 # Unprivileged: nothing in here needs root. After the weights are baked in above, so the pip
 # installs and the model download still run as root at build time.
