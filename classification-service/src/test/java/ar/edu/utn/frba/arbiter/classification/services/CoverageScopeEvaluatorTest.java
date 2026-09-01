@@ -25,6 +25,10 @@ class CoverageScopeEvaluatorTest {
 
     private static final String POLICY = "POL-CEL-2024-001";
 
+    /** Las dos coberturas de una póliza de celulares: cada una con su propia suma asegurada. */
+    private static final String ROBO = "Robo de celular";
+    private static final String HURTO = "Hurto";
+
     private final CoverageScopeEvaluator evaluator = new CoverageScopeEvaluator();
 
     private ClaimReport claim() {
@@ -42,6 +46,7 @@ class CoverageScopeEvaluatorTest {
         return ClaimReport.builder()
                 .branch("Celulares")
                 .claimCause("Robo en vía pública")
+                .coverageName(ROBO)
                 .insuredId("40.123.456")
                 .policyNumber(POLICY)
                 .description("...")
@@ -76,12 +81,19 @@ class CoverageScopeEvaluatorTest {
         return priorClaim(policyNumber, status, null);
     }
 
-    private InsuredHistory.ClaimRecord priorClaim(String policyNumber, String status, BigDecimal amountSettled) {
+    private InsuredHistory.ClaimRecord priorClaim(
+            String policyNumber, String status, BigDecimal amountSettled) {
+        return priorClaim(policyNumber, status, amountSettled, ROBO);
+    }
+
+    private InsuredHistory.ClaimRecord priorClaim(
+            String policyNumber, String status, BigDecimal amountSettled, String coverageName) {
         return InsuredHistory.ClaimRecord.builder()
                 .claimId("H-1")
                 .date(LocalDate.of(2025, 8, 1))
                 .policyNumber(policyNumber)
                 .branch("Celulares")
+                .coverageName(coverageName)
                 .status(status)
                 .amountSettled(amountSettled)
                 .build();
@@ -205,6 +217,37 @@ class CoverageScopeEvaluatorTest {
         CoverageScopeEvaluator.Result result = evaluator.evaluate(
                 claim(new BigDecimal("30000")), policy(new BigDecimal("100000")),
                 history(priorClaim(POLICY, "LIQUIDADO", new BigDecimal("50000"))),
+                rules(null, false), Map.of());
+
+        assertThat(result.blocksFastTrack()).isFalse();
+    }
+
+    /**
+     * El motivo del cambio: la suma asegurada es de la COBERTURA y no hay tope agregado de póliza
+     * (confirmado con la analista, 01/09/2026). Un robo liquidado no consume nada del techo de
+     * hurto. Antes se sumaba todo lo liquidado de la póliza contra el techo de una sola cobertura,
+     * y esto reportaba la cobertura agotada sin que se hubiera denunciado un solo hurto.
+     */
+    @Test
+    void settledClaimsOnAnotherCoverage_doNotConsumeThisOne() {
+        CoverageScopeEvaluator.Result result = evaluator.evaluate(
+                claim(new BigDecimal("60000")), policy(new BigDecimal("100000")),
+                history(priorClaim(POLICY, "LIQUIDADO", new BigDecimal("90000"), HURTO)),
+                rules(null, false), Map.of());
+
+        assertThat(result.blocksFastTrack()).isFalse();
+    }
+
+    /**
+     * Un previo sin cobertura imputada por la compañía se saltea en vez de cargarlo contra la
+     * cobertura equivocada: la regla solo bloquea Fast Track y le da un motivo al analista, y un
+     * motivo falso es peor que uno que falta.
+     */
+    @Test
+    void priorClaimsWithNoCoverageOnRecord_areLeftOut() {
+        CoverageScopeEvaluator.Result result = evaluator.evaluate(
+                claim(new BigDecimal("60000")), policy(new BigDecimal("100000")),
+                history(priorClaim(POLICY, "LIQUIDADO", new BigDecimal("90000"), null)),
                 rules(null, false), Map.of());
 
         assertThat(result.blocksFastTrack()).isFalse();

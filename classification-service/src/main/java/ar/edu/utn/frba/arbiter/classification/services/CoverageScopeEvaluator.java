@@ -25,12 +25,11 @@ import java.util.Objects;
  *   <li><b>{@code claim_exhausts_coverage}</b> — if a settled claim exhausts the coverage, the next
  *       one on the same policy has nothing left to answer with.</li>
  *   <li><b>suma asegurada</b> — a coverage that does <i>not</i> exhaust on a single settled claim
- *       can still run out through accumulation: prior settled amounts plus this claim can't exceed
- *       the sum insured (doc de dominio BBVA §6.4). Nothing for the referente to configure: the
- *       limit is a fact the insurer DB carries. It belongs to the <b>coverage</b> and not to the
- *       policy — {@code policy.insuredAmount()} here is already narrowed to the coverage that
- *       answers for this claim ({@code InsuredPolicy.forCoverage}), so comparing against it is
- *       comparing against the right ceiling.</li>
+ *       can still run out through accumulation: prior settled amounts <b>on that same coverage</b>
+ *       plus this claim can't exceed its sum insured (doc de dominio BBVA §6.4). Nothing for the
+ *       referente to configure: the limit is a fact the insurer DB carries. Both sides are per
+ *       coverage — {@code policy.insuredAmount()} arrives narrowed by
+ *       {@code InsuredPolicy.forCoverage}, and the history is filtered by coverage too.</li>
  * </ul>
  *
  * <p><b>Why the LLM doesn't decide the first one.</b> Knowing whose device it was requires reading
@@ -119,11 +118,23 @@ public class CoverageScopeEvaluator {
 
     /**
      * Complements {@link #evaluateExhaustedCoverage}: a coverage that doesn't exhaust on any single
-     * settled claim can still run out by accumulation. Sums every settled claim on the same policy
-     * plus this one and compares against {@code policy.insuredAmount()} — no period boundary
-     * modeled (same limitation as {@code POLICY_STANDING}'s arrears tiers: installment/policy-year
-     * boundaries aren't in any schema today), so this is a lifetime total against what the history
-     * returned, not a per-renewal reset.
+     * settled claim can still run out by accumulation.
+     *
+     * <p><b>Per coverage, not per policy.</b> The sum insured belongs to the coverage and there is
+     * no aggregate policy ceiling on top of it (confirmed with the analyst, 01/09/2026), so what
+     * consumes a coverage is what was settled <i>against that same coverage</i>. Summing everything
+     * settled on the policy and comparing it to one coverage's ceiling mixed two different things:
+     * on the seed's póliza 1 a settled robo of 700.000 would report the hurto coverage (650.000) as
+     * exhausted without a single hurto ever having been filed.
+     *
+     * <p>A prior claim whose coverage the company didn't record is left out rather than imputed by
+     * guessing — same criterion the rest of the hard rules use for missing data. That makes the rule
+     * permissive on incomplete history, which is the right side to err on: it only blocks Fast Track
+     * and hands the analyst a reason, and a wrong reason is worse than a missing one.
+     *
+     * <p>No period boundary modeled (same limitation as {@code POLICY_STANDING}'s arrears tiers:
+     * installment/policy-year boundaries aren't in any schema today), so this is a lifetime total
+     * against what the history returned, not a per-renewal reset.
      *
      * <p>Missing {@code insuredAmount} or {@code claimedAmount} means the rule doesn't participate —
      * same criterion {@link FastTrackValidator} uses for its amount ratio.
@@ -131,11 +142,13 @@ public class CoverageScopeEvaluator {
     private void evaluateSumInsuredLimit(
             ClaimReport claim, InsuredPolicy policy, InsuredHistory history, List<String> reasons) {
         if (policy.insuredAmount() == null || policy.insuredAmount().signum() == 0
-                || claim.claimedAmount() == null || history.claims() == null || claim.policyNumber() == null) {
+                || claim.claimedAmount() == null || history.claims() == null
+                || claim.policyNumber() == null || claim.coverageName() == null) {
             return;
         }
         BigDecimal settledSoFar = history.claims().stream()
                 .filter(record -> claim.policyNumber().equals(record.policyNumber()))
+                .filter(record -> claim.coverageName().equalsIgnoreCase(record.coverageName()))
                 .filter(record -> SETTLED.equalsIgnoreCase(record.status()))
                 .map(record -> record.amountSettled() != null ? record.amountSettled() : record.amountClaimed())
                 .filter(Objects::nonNull)
@@ -143,9 +156,9 @@ public class CoverageScopeEvaluator {
         BigDecimal projectedTotal = settledSoFar.add(claim.claimedAmount());
         if (projectedTotal.compareTo(policy.insuredAmount()) > 0) {
             reasons.add(String.format(
-                    "La suma de siniestros liquidados previos (%s) más este reclamo (%s) supera la suma "
-                            + "asegurada de la póliza (%s)",
-                    settledSoFar, claim.claimedAmount(), policy.insuredAmount()));
+                    "La suma de siniestros liquidados previos sobre la cobertura '%s' (%s) más este "
+                            + "reclamo (%s) supera su suma asegurada (%s)",
+                    claim.coverageName(), settledSoFar, claim.claimedAmount(), policy.insuredAmount()));
         }
     }
 }

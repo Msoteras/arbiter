@@ -26,8 +26,11 @@ psql "$DATABASE_URL" -f db/migrations/2026-09-01-policy-coverage.sql
 ```bash
 psql "$DATABASE_URL" -f db/migrations/2026-09-01-coverage-exclusion-viva.sql
 ```
+```bash
+psql "$DATABASE_URL" -f db/migrations/2026-09-01-historico-cobertura.sql
+```
 
-Las tres son idempotentes. La segunda es la única que dropea columnas
+Las cuatro son idempotentes. La segunda es la única que dropea columnas
 (`policy.coverage_id`, `policy.sum_insured`), y lo hace después de backfillear.
 
 **Verificación posterior** (las consultas completas están comentadas al pie de cada archivo):
@@ -38,6 +41,8 @@ Las tres son idempotentes. La segunda es la única que dropea columnas
 - `arbiter_common.case_status` tiene que tener la fila 8, `LAPSED`.
 - Cada cobertura tiene que tener su fila `COVERAGE_EXCLUSION` activa, y **ninguna**
   `COVERAGE_INCLUSION` activa.
+- Los siniestros del histórico tienen que quedar imputados a una cobertura. Los que queden en NULL
+  son los que la regla de agotamiento va a saltear: revisar que sean los esperados y no todos.
 
 ### Smoke test manual que queda
 
@@ -113,9 +118,9 @@ Ninguno de estos rompe nada hoy; es deuda:
 
 ## 5 · Deuda menor detectada de paso
 
-- `aseguradora.siniestro_historico` no tiene `cobertura_id`, solo `causa`. El acumulado del
-  agotamiento por monto suma los siniestros liquidados **de la póliza**, no los de la cobertura, así
-  que es más conservador de lo que debería.
+- ~~`aseguradora.siniestro_historico` no tiene `cobertura_id`.~~ Resuelto 01/09/2026: la columna
+  existe y el agotamiento por monto acumula por cobertura. Ver la migración
+  `2026-09-01-historico-cobertura.sql`.
 - `db/init.sql` es el script single-tenant anterior a la migración multi-esquema. No lo referencia
   nada y quedó desactualizado (tiene `policy.insured_amount`). Candidato a borrar.
 - `DeadlineSweepScheduler` tiene un comentario en castellano; la convención del proyecto es

@@ -537,11 +537,34 @@ para listarlos está al pie del archivo de migración.
 Mientras tanto sigue en pie la mitigación que ya estaba: la solapa de trazabilidad aclara de qué
 cobertura es la suma asegurada, así que el número no se lee como si fuera la del hecho denunciado.
 
-### Otro pendiente menor
+### Agotamiento por monto, ahora por cobertura ✅ resuelto (01/09/2026)
 
-`aseguradora.siniestro_historico` no tiene `cobertura_id`, solo `causa`. El acumulado del
-agotamiento por monto (punto 6) suma los liquidados **de la póliza**, no los de la cobertura, así
-que sigue siendo más conservador de lo que debería.
+Quedaba un cabo suelto del punto 6: `aseguradora.siniestro_historico` no tenía `cobertura_id`, así
+que el acumulado sumaba los liquidados **de la póliza**. Con la suma asegurada ya estrechada a la
+cobertura que corresponde, eso dejó de ser "conservador" y pasó a ser una comparación mal apareada:
+numerador de la póliza contra denominador de una cobertura. En la póliza 1 del seed, un robo
+liquidado por 700.000 reportaba la cobertura de hurto (650.000) como agotada sin que se hubiera
+denunciado un solo hurto. No rechazaba nada —la regla bloquea Fast Track y aporta motivos— pero le
+daba al analista un motivo falso.
+
+Consultado con la analista (01/09/2026): **el monto es por cobertura y no hay tope agregado de
+póliza**, y el registro histórico real debería traer la cobertura. Con eso:
+
+- `aseguradora.siniestro_historico` lleva `cobertura_id` (nullable), y `ClaimRecord` lo transporta
+  como `coverageName` — por nombre, que es como se puentea todo contra la BD Aseguradora.
+- `evaluateSumInsuredLimit` filtra el historial por cobertura además de por póliza. Un previo sin
+  cobertura imputada se **saltea** en vez de cargarlo contra la equivocada: la regla queda permisiva
+  ante historial incompleto, que es el lado correcto para errar cuando lo único que produce es un
+  motivo para el analista.
+- Migración `2026-09-01-historico-cobertura.sql`, con backfill por nombre para las causas que hoy lo
+  determinan sin ambigüedad. Lo que no se puede determinar queda en NULL.
+
+**Charla pendiente:** la analista marcó que la relación hecho generador ↔ cobertura puede no ser
+lineal — una póliza podría tener dos coberturas que respondan por el mismo hecho. Eso no afecta a
+esta regla (el histórico trae la cobertura, no se infiere), pero sí al **alta**: ahí
+`PolicyCoverageResolver` desempata por el orden de la compañía cuando más de una responde. Las
+opciones son que el referente declare una prioridad, que elija el analista, o dejarlo. Va a una
+charla aparte.
 
 ---
 
@@ -562,6 +585,8 @@ que sigue siendo más conservador de lo que debería.
 | 12 | Aviso al referente cuando una cobertura no excluye nada | ✅ Resuelto 01/09/2026 | — |
 | 12 | Invertir a lista blanca (cobertura sin regla no cubre nada) | Descartado 01/09/2026 — no reabrir | — |
 | 12 | Expedientes ya creados con la cobertura vieja | Se dejan — decidido 01/09/2026 (base de prueba) | — |
+| 12 | Agotamiento por monto acumulado por cobertura (histórico con `cobertura_id`) | ✅ Resuelto 01/09/2026 | — |
+| 12 | Hecho generador ↔ cobertura no lineal: cómo desempatar en el alta | A charlar | Media |
 | 3 | Reservas (SPL) como control | No existe | Baja/a decidir |
 | 10 | Consistencia interna de `LAPSED` (carga del analista, tableros, filtro de bandeja, tono al asegurado) | ✅ Resuelto 31/08/2026 | — |
 | 5 | Comentario desactualizado en `DocumentRequirement` | ✅ Resuelto 31/08/2026 | — |
