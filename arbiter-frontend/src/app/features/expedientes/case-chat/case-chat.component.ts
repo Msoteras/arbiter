@@ -16,25 +16,33 @@ import {
 } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { HttpErrorResponse } from '@angular/common/http';
-import { interval } from 'rxjs';
+import { Subscription, interval } from 'rxjs';
 
 import { CaseMessagesService } from '../case-messages.service';
-import { CaseMessage, CaseMessageThread, MESSAGE_MAX_LENGTH } from '../../../core/models/case-message';
+import { CaseMessagesSocketService } from '../case-messages-socket.service';
+import {
+  CaseMessage,
+  CaseMessageEvent,
+  CaseMessageThread,
+  MESSAGE_MAX_LENGTH,
+} from '../../../core/models/case-message';
 import { formatDateTime } from '../../../core/util/datetime';
 import { CardComponent } from '../../../shared/ui/card/card.component';
 import { ButtonComponent } from '../../../shared/ui/button/button.component';
 import { TextareaComponent } from '../../../shared/ui/textarea/textarea.component';
 import { InlineLoadingComponent } from '../../../shared/ui/inline-loading/inline-loading.component';
 
-/** How often the thread is re-fetched while the screen is open. */
-const POLL_MS = 15_000;
+/**
+ * Fallback only. Messages arrive over the socket; this covers the minutes after a deploy when the
+ * front is new and the backend still isn't, and any network that blocks WebSockets outright.
+ */
+const POLL_MS = 60_000;
 
 /**
  * A case thread, for both sides: the analyst tab and the insured portal.
  *
- * Polls instead of holding a connection open — decision #13 is stateless REST, and nothing here
- * justifies introducing WebSockets. Marks incoming messages read on load: the component only
- * exists while someone is looking at the thread.
+ * Messages arrive over a STOMP socket; the poll above is only a fallback. Sending stays on REST.
+ * Marks incoming messages read on arrival: the component only exists while someone is looking.
  */
 @Component({
   selector: 'app-case-chat',
@@ -45,6 +53,7 @@ const POLL_MS = 15_000;
 })
 export class CaseChatComponent {
   private readonly service = inject(CaseMessagesService);
+  private readonly socket = inject(CaseMessagesSocketService);
   private readonly destroyRef = inject(DestroyRef);
   private readonly injector = inject(Injector);
 
@@ -103,6 +112,8 @@ export class CaseChatComponent {
 
   /** Set when the move to the bottom shouldn't depend on where the reader was — first load, own send. */
   private stickToBottom = true;
+  private watching: string | null = null;
+  private socketSubscription?: Subscription;
 
   private atBottom(): boolean {
     const box = this.threadBox()?.nativeElement;
@@ -154,6 +165,39 @@ export class CaseChatComponent {
     return formatDateTime(message.createdAt);
   }
 
+  /** Opened after the first load: the destination comes with the thread, the client never builds it. */
+  private listen(topic: string): void {
+    if (this.watching === topic) {
+      return;
+    }
+    this.watching = topic;
+    this.socketSubscription?.unsubscribe();
+    this.socketSubscription = this.socket
+      .watch(topic)
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe((event) => this.receive(event));
+  }
+
+  /** A pushed message carries no `mine`: one payload goes to both sides, so it is placed here. */
+  private receive(event: CaseMessageEvent): void {
+    const current = this.thread();
+    if (!current || current.messages.some((m) => m.id === event.id)) {
+      return;
+    }
+    const mine = event.sender === current.viewerSide;
+    this.append({
+      id: event.id,
+      sender: event.sender,
+      mine,
+      body: event.body,
+      createdAt: event.createdAt,
+      readAt: null,
+    });
+    if (!mine) {
+      this.markRead(this.caseId());
+    }
+  }
+
   private load(caseId: number, first: boolean): void {
     if (!caseId) {
       return;
@@ -166,6 +210,7 @@ export class CaseChatComponent {
         this.thread.set(thread);
         this.loading.set(false);
         this.loadError.set(false);
+        this.listen(thread.topic);
         if (thread.unread > 0) {
           this.markRead(caseId);
         } else {

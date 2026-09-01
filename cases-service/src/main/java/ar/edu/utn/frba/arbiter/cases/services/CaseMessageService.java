@@ -1,5 +1,7 @@
 package ar.edu.utn.frba.arbiter.cases.services;
 
+import ar.edu.utn.frba.arbiter.cases.config.tenant.TenantContext;
+import ar.edu.utn.frba.arbiter.cases.dto.CaseMessageEvent;
 import ar.edu.utn.frba.arbiter.cases.dto.CaseMessageResponse;
 import ar.edu.utn.frba.arbiter.cases.dto.CaseMessageThreadResponse;
 import ar.edu.utn.frba.arbiter.cases.exceptions.CaseNotFoundException;
@@ -14,7 +16,9 @@ import ar.edu.utn.frba.arbiter.cases.models.repositories.CaseStatusHistoryReposi
 import ar.edu.utn.frba.arbiter.cases.models.repositories.UserRepository;
 import ar.edu.utn.frba.arbiter.common.models.entities.User;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
@@ -38,6 +42,7 @@ import java.util.List;
  */
 @Service
 @RequiredArgsConstructor
+@Slf4j
 public class CaseMessageService {
 
     private final CaseMessageRepository messageRepository;
@@ -47,6 +52,7 @@ public class CaseMessageService {
     private final CaseAccessPolicy accessPolicy;
     private final InsurerTenantScope tenantScope;
     private final MessageNotificationService notificationService;
+    private final SimpMessagingTemplate messagingTemplate;
     private final Clock clock;
 
     /**
@@ -69,7 +75,9 @@ public class CaseMessageService {
                     messages.stream().map(m -> CaseMessageResponse.from(m, m.getSenderRole() == party)).toList(),
                     (int) messages.stream().filter(m -> isIncomingUnread(m, party)).count(),
                     open && isParty(party),
-                    open ? null : new ClosedConversationException(replyWindowDays).getMessage());
+                    open ? null : new ClosedConversationException(replyWindowDays).getMessage(),
+                    CaseTopic.of(TenantContext.get(), caseId),
+                    isParty(party) ? party.name() : null);
         });
     }
 
@@ -99,8 +107,19 @@ public class CaseMessageService {
             if (!recipientAlreadyPending) {
                 notificationService.notifyNewMessage(caseRecord, party);
             }
+            broadcast(caseId, saved);
             return CaseMessageResponse.from(saved, true);
         });
+    }
+
+    /** Best-effort: the message is saved already, and a broker failure must not fail the POST. */
+    private void broadcast(Long caseId, CaseMessage saved) {
+        try {
+            messagingTemplate.convertAndSend(
+                    CaseTopic.of(TenantContext.get(), caseId), CaseMessageEvent.from(saved));
+        } catch (RuntimeException ex) {
+            log.error("Could not push message {} of case {}", saved.getId(), caseId, ex);
+        }
     }
 
     /** Explicit, so opening the case doesn't clear a badge the reader never looked at. */

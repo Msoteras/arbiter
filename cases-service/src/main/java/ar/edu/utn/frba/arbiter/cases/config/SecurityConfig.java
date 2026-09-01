@@ -11,6 +11,8 @@ import org.springframework.security.config.annotation.method.configuration.Enabl
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.web.SecurityFilterChain;
 
+import javax.crypto.SecretKey;
+
 /**
  * Valida el mismo JWT que emite auth-service (H0001) — requiere el mismo JWT_SECRET.
  * RBAC por endpoint vía {@code @PreAuthorize} en {@link ar.edu.utn.frba.arbiter.cases.controllers.CaseController}
@@ -22,6 +24,11 @@ public class SecurityConfig {
 
     @Value("${arbiter.auth.jwt.secret}")
     private String jwtSecret;
+
+    @Bean
+    public SecretKey jwtKey() {
+        return JwtSupport.key(jwtSecret);
+    }
 
     @Bean
     public JwtAuthenticationFilter jwtAuthenticationFilter() {
@@ -44,6 +51,9 @@ public class SecurityConfig {
                 // The platform's liveness probe has no JWT to present. Only `health` is exposed
                 // (see application.yml), so this opens a status word, nothing else.
                 .requestMatchers("/actuator/health", "/actuator/health/**").permitAll()
+                // A browser cannot set Authorization on a WebSocket handshake; identity is checked
+                // on the CONNECT frame instead (StompAuthChannelInterceptor).
+                .requestMatchers("/api/v1/ws/**").permitAll()
                 .anyRequest().authenticated());
         return http.build();
     }

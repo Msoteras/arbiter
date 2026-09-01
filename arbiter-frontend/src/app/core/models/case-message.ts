@@ -11,12 +11,24 @@ export interface CaseMessage {
   readAt: string | null;
 }
 
+export interface CaseMessageEvent {
+  id: number;
+  caseId: number;
+  sender: MessageSender;
+  body: string;
+  createdAt: string;
+}
+
 export interface CaseMessageThread {
   messages: CaseMessage[];
   unread: number;
   canPost: boolean;
   /** Why not, already worded for whoever reads it. Null while the thread is open. */
   closedNotice: string | null;
+  /** STOMP destination for this thread; the server builds it because the tenant is part of it. */
+  topic: string;
+  /** Which side the viewer is on, to place a pushed message. Null for a referente. */
+  viewerSide: MessageSender | null;
 }
 
 /** The backend's cap (`CaseMessageRequest`), mirrored to warn before sending. */

@@ -10,10 +10,16 @@ import java.util.List;
  * @param canPost      whether the caller may write right now, decided server-side so the two
  *                     clients don't each reimplement the closing rule and drift apart
  * @param closedNotice why not, written for whoever is reading it; null while the thread is open
+ * @param topic        the STOMP destination for this thread. Handed over rather than derived by the
+ *                     client: the tenant is part of it and the client has no business building it.
+ * @param viewerSide   which side the caller is on, so a pushed message —which has one payload for
+ *                     both— can be placed without asking the server again. Null for a referente.
  */
 public record CaseMessageThreadResponse(
         List<CaseMessageResponse> messages,
         int unread,
         boolean canPost,
-        String closedNotice
+        String closedNotice,
+        String topic,
+        String viewerSide
 ) {}

@@ -28,6 +28,7 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.mockito.junit.jupiter.MockitoSettings;
 import org.mockito.quality.Strictness;
+import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
@@ -78,6 +79,8 @@ class CaseMessageServiceTest {
     private InsurerTenantScope tenantScope;
     @Mock
     private MessageNotificationService notificationService;
+    @Mock
+    private SimpMessagingTemplate messagingTemplate;
 
     private final CaseAccessPolicy accessPolicy = new CaseAccessPolicy();
     private final Clock clock = Clock.fixed(NOW, ZoneOffset.UTC);
@@ -87,7 +90,7 @@ class CaseMessageServiceTest {
     @BeforeEach
     void setUp() {
         service = new CaseMessageService(messageRepository, caseRepository, statusHistoryRepository,
-                userRepository, accessPolicy, tenantScope, notificationService, clock);
+                userRepository, accessPolicy, tenantScope, notificationService, messagingTemplate, clock);
         ReflectionTestUtils.setField(service, "replyWindowDays", 7);
 
         when(tenantScope.forCase(any(), any(), any()))
