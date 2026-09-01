@@ -262,7 +262,10 @@ INSERT INTO arbiter_common.case_status (id, name, description, insured_status, i
     (6, 'REJECTED',               'El analista rechazó el siniestro',                 'Rechazado',             TRUE),
     -- El asegurado ve 'En análisis': que su siniestro se haya derivado a un perito es
     -- tráfico interno, y contárselo filtraría la sospecha que motivó la derivación.
-    (7, 'PENDING_EXPERT_REPORT',  'Derivado a peritaje, esperando el informe',        'En análisis',           FALSE);
+    (7, 'PENDING_EXPERT_REPORT',  'Derivado a peritaje, esperando el informe',        'En análisis',           FALSE),
+    -- Caducidad por inacción (regla interna, 18 meses desde la denuncia sin movimiento):
+    -- distinta de un rechazo, así que el asegurado sí se entera de que el expediente se cerró.
+    (8, 'LAPSED',                 'Caducado por 18 meses de inacción del asegurado',  'Caducado',              TRUE);
 
 SELECT setval(pg_get_serial_sequence('arbiter_common.case_status', 'id'),
               (SELECT MAX(id) FROM arbiter_common.case_status));

@@ -4,6 +4,7 @@ import ar.edu.utn.frba.arbiter.classification.dto.BusinessRules;
 import ar.edu.utn.frba.arbiter.classification.dto.DocumentExtraction;
 import ar.edu.utn.frba.arbiter.classification.dto.DocumentExtraction.AffectedParty;
 import ar.edu.utn.frba.arbiter.classification.dto.InsuredHistory;
+import ar.edu.utn.frba.arbiter.classification.dto.InsuredPolicy;
 import ar.edu.utn.frba.arbiter.common.dto.ClaimReport;
 import org.junit.jupiter.api.Test;
 
@@ -37,6 +38,22 @@ class CoverageScopeEvaluatorTest {
                 .build();
     }
 
+    private ClaimReport claim(BigDecimal claimedAmount) {
+        return ClaimReport.builder()
+                .branch("Celulares")
+                .claimCause("Robo en vía pública")
+                .insuredId("40.123.456")
+                .policyNumber(POLICY)
+                .description("...")
+                .eventDate(LocalDateTime.of(2026, 6, 13, 20, 0))
+                .claimedAmount(claimedAmount)
+                .build();
+    }
+
+    private InsuredPolicy policy(BigDecimal insuredAmount) {
+        return InsuredPolicy.builder().policyNumber(POLICY).insuredAmount(insuredAmount).build();
+    }
+
     private BusinessRules rules(Boolean coversFamilyGroup, Boolean claimExhaustsCoverage) {
         return BusinessRules.builder()
                 .branchId("Celulares")
@@ -56,12 +73,17 @@ class CoverageScopeEvaluatorTest {
     }
 
     private InsuredHistory.ClaimRecord priorClaim(String policyNumber, String status) {
+        return priorClaim(policyNumber, status, null);
+    }
+
+    private InsuredHistory.ClaimRecord priorClaim(String policyNumber, String status, BigDecimal amountSettled) {
         return InsuredHistory.ClaimRecord.builder()
                 .claimId("H-1")
                 .date(LocalDate.of(2025, 8, 1))
                 .policyNumber(policyNumber)
                 .branch("Celulares")
                 .status(status)
+                .amountSettled(amountSettled)
                 .build();
     }
 
@@ -76,7 +98,7 @@ class CoverageScopeEvaluatorTest {
     @Test
     void aFamilyMemberOnACoverageThatExcludesThem_blocksFastTrack() {
         CoverageScopeEvaluator.Result result = evaluator.evaluate(
-                claim(), history(), rules(false, null), documentSaying(AffectedParty.FAMILIAR));
+                claim(), policy(null), history(), rules(false, null), documentSaying(AffectedParty.FAMILIAR));
 
         assertThat(result.blocksFastTrack()).isTrue();
         assertThat(result.reasons()).anyMatch(r -> r.contains("grupo familiar"));
@@ -85,7 +107,7 @@ class CoverageScopeEvaluatorTest {
     @Test
     void aFamilyMemberOnACoverageThatIncludesThem_doesNotBlock() {
         CoverageScopeEvaluator.Result result = evaluator.evaluate(
-                claim(), history(), rules(true, null), documentSaying(AffectedParty.FAMILIAR));
+                claim(), policy(null), history(), rules(true, null), documentSaying(AffectedParty.FAMILIAR));
 
         assertThat(result.blocksFastTrack()).isFalse();
     }
@@ -93,7 +115,7 @@ class CoverageScopeEvaluatorTest {
     @Test
     void theTitularIsNeverAFamilyGroupProblem() {
         CoverageScopeEvaluator.Result result = evaluator.evaluate(
-                claim(), history(), rules(false, null), documentSaying(AffectedParty.TITULAR));
+                claim(), policy(null), history(), rules(false, null), documentSaying(AffectedParty.TITULAR));
 
         assertThat(result.blocksFastTrack()).isFalse();
     }
@@ -105,7 +127,7 @@ class CoverageScopeEvaluatorTest {
     @Test
     void anUnknownAffectedParty_doesNotBlock() {
         CoverageScopeEvaluator.Result result = evaluator.evaluate(
-                claim(), history(), rules(false, null), documentSaying(AffectedParty.DESCONOCIDO));
+                claim(), policy(null), history(), rules(false, null), documentSaying(AffectedParty.DESCONOCIDO));
 
         assertThat(result.blocksFastTrack()).isFalse();
     }
@@ -114,7 +136,7 @@ class CoverageScopeEvaluatorTest {
     @Test
     void withoutDocuments_theFamilyGroupRuleDoesNotParticipate() {
         CoverageScopeEvaluator.Result result = evaluator.evaluate(
-                claim(), history(), rules(false, null), Map.of());
+                claim(), policy(null), history(), rules(false, null), Map.of());
 
         assertThat(result.blocksFastTrack()).isFalse();
     }
@@ -123,7 +145,7 @@ class CoverageScopeEvaluatorTest {
     @Test
     void withoutTheColumnConfigured_theRuleDoesNotParticipate() {
         CoverageScopeEvaluator.Result result = evaluator.evaluate(
-                claim(), history(), rules(null, null), documentSaying(AffectedParty.FAMILIAR));
+                claim(), policy(null), history(), rules(null, null), documentSaying(AffectedParty.FAMILIAR));
 
         assertThat(result.blocksFastTrack()).isFalse();
     }
@@ -133,7 +155,7 @@ class CoverageScopeEvaluatorTest {
     @Test
     void aSettledPriorClaimOnTheSamePolicy_exhaustsTheCoverage() {
         CoverageScopeEvaluator.Result result = evaluator.evaluate(
-                claim(), history(priorClaim(POLICY, "LIQUIDADO")), rules(null, true), Map.of());
+                claim(), policy(null), history(priorClaim(POLICY, "LIQUIDADO")), rules(null, true), Map.of());
 
         assertThat(result.blocksFastTrack()).isTrue();
         assertThat(result.reasons()).anyMatch(r -> r.contains("ya fue consumida"));
@@ -143,7 +165,7 @@ class CoverageScopeEvaluatorTest {
     @Test
     void aRejectedPriorClaim_doesNotExhaustTheCoverage() {
         CoverageScopeEvaluator.Result result = evaluator.evaluate(
-                claim(), history(priorClaim(POLICY, "RECHAZADO")), rules(null, true), Map.of());
+                claim(), policy(null), history(priorClaim(POLICY, "RECHAZADO")), rules(null, true), Map.of());
 
         assertThat(result.blocksFastTrack()).isFalse();
     }
@@ -152,7 +174,7 @@ class CoverageScopeEvaluatorTest {
     @Test
     void aSettledClaimOnAnotherPolicy_doesNotExhaustThisCoverage() {
         CoverageScopeEvaluator.Result result = evaluator.evaluate(
-                claim(), history(priorClaim("POL-OTRA-999", "LIQUIDADO")), rules(null, true), Map.of());
+                claim(), policy(null), history(priorClaim("POL-OTRA-999", "LIQUIDADO")), rules(null, true), Map.of());
 
         assertThat(result.blocksFastTrack()).isFalse();
     }
@@ -160,7 +182,74 @@ class CoverageScopeEvaluatorTest {
     @Test
     void aCoverageThatDoesNotExhaust_neverBlocks() {
         CoverageScopeEvaluator.Result result = evaluator.evaluate(
-                claim(), history(priorClaim(POLICY, "LIQUIDADO")), rules(null, false), Map.of());
+                claim(), policy(null), history(priorClaim(POLICY, "LIQUIDADO")), rules(null, false), Map.of());
+
+        assertThat(result.blocksFastTrack()).isFalse();
+    }
+
+    // ─── suma asegurada (monto acumulado) ──────────────────────────────────────────
+
+    @Test
+    void settledClaimsPlusThisOne_exceedingTheInsuredAmount_blocks() {
+        CoverageScopeEvaluator.Result result = evaluator.evaluate(
+                claim(new BigDecimal("60000")), policy(new BigDecimal("100000")),
+                history(priorClaim(POLICY, "LIQUIDADO", new BigDecimal("50000"))),
+                rules(null, false), Map.of());
+
+        assertThat(result.blocksFastTrack()).isTrue();
+        assertThat(result.reasons()).anyMatch(r -> r.contains("suma asegurada"));
+    }
+
+    @Test
+    void settledClaimsPlusThisOne_withinTheInsuredAmount_doesNotBlock() {
+        CoverageScopeEvaluator.Result result = evaluator.evaluate(
+                claim(new BigDecimal("30000")), policy(new BigDecimal("100000")),
+                history(priorClaim(POLICY, "LIQUIDADO", new BigDecimal("50000"))),
+                rules(null, false), Map.of());
+
+        assertThat(result.blocksFastTrack()).isFalse();
+    }
+
+    /** Un siniestro rechazado no consumió nada de la suma asegurada. */
+    @Test
+    void rejectedPriorClaims_doNotCountTowardTheInsuredAmount() {
+        CoverageScopeEvaluator.Result result = evaluator.evaluate(
+                claim(new BigDecimal("60000")), policy(new BigDecimal("100000")),
+                history(priorClaim(POLICY, "RECHAZADO", new BigDecimal("90000"))),
+                rules(null, false), Map.of());
+
+        assertThat(result.blocksFastTrack()).isFalse();
+    }
+
+    /** La suma asegurada es por póliza: lo liquidado en otra póliza no cuenta acá. */
+    @Test
+    void settledClaimsOnAnotherPolicy_doNotCountTowardThisInsuredAmount() {
+        CoverageScopeEvaluator.Result result = evaluator.evaluate(
+                claim(new BigDecimal("60000")), policy(new BigDecimal("100000")),
+                history(priorClaim("POL-OTRA-999", "LIQUIDADO", new BigDecimal("90000"))),
+                rules(null, false), Map.of());
+
+        assertThat(result.blocksFastTrack()).isFalse();
+    }
+
+    /** Sin `insuredAmount` no hay contra qué comparar: la regla no participa. */
+    @Test
+    void withoutInsuredAmount_theRuleDoesNotParticipate() {
+        CoverageScopeEvaluator.Result result = evaluator.evaluate(
+                claim(new BigDecimal("999999")), policy(null),
+                history(priorClaim(POLICY, "LIQUIDADO", new BigDecimal("999999"))),
+                rules(null, false), Map.of());
+
+        assertThat(result.blocksFastTrack()).isFalse();
+    }
+
+    /** Sin `claimedAmount` en el reclamo actual, tampoco hay nada que sumar todavía. */
+    @Test
+    void withoutClaimedAmount_theRuleDoesNotParticipate() {
+        CoverageScopeEvaluator.Result result = evaluator.evaluate(
+                claim(), policy(new BigDecimal("100000")),
+                history(priorClaim(POLICY, "LIQUIDADO", new BigDecimal("999999"))),
+                rules(null, false), Map.of());
 
         assertThat(result.blocksFastTrack()).isFalse();
     }

@@ -137,8 +137,11 @@ export class AseguradoInicioComponent {
         label: 'Resolución',
         n: 3,
         // El último nodo se marca "done" cuando el caso se resolvió, con el tono del desenlace.
+        // Verde solo si el siniestro se aprobó: los otros dos desenlaces terminales (rechazo y
+        // caducidad) no son buenas noticias, y pintar un caducado de verde le decía al asegurado
+        // lo contrario de lo que pasó.
         state: resuelto ? 'done' : 'pending',
-        tone: resuelto ? (d.status === 'REJECTED' ? 'danger' : 'ok') : undefined,
+        tone: resuelto ? (d.status === 'APPROVED' ? 'ok' : 'danger') : undefined,
       },
     ];
   });
@@ -168,7 +171,8 @@ export class AseguradoInicioComponent {
   protected estadoTone(status: string): StatusTone {
     const simple = estadoSimplificado(status);
     if (simple === 'TERMINADO') {
-      return status === 'REJECTED' ? 'danger' : 'ok';
+      // Mismo criterio que el tono del stepper: verde solo para APPROVED.
+      return status === 'APPROVED' ? 'ok' : 'danger';
     }
     return 'info';
   }

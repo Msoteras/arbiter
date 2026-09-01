@@ -6,7 +6,7 @@ import { catchError, map, of, startWith } from 'rxjs';
 import { AuthSessionService } from '../../../core/auth/auth-session.service';
 import { ExpedienteService } from '../../expedientes/expediente.service';
 import { ExpedienteResponse } from '../../../core/models/expediente';
-import { estadoLabel, estadoTone } from '../../../core/models/estado';
+import { ESTADOS_FINALES, estadoLabel, estadoTone } from '../../../core/models/estado';
 import { StatusTone } from '../../../core/models/status-tone';
 import { fechaLarga, saludoSegunHora } from '../../../core/util/datetime';
 import { CardComponent } from '../../../shared/ui/card/card.component';
@@ -73,12 +73,15 @@ export class AnalistaInicioComponent {
 
   // ───────────────── Conteos del encabezado ─────────────────
   // Una sola llamada al resumen de mis expedientes asignados (el backend resuelve "yo" contra el
-  // token y agrupa por estado). "En trámite" = total menos resueltos (APPROVED + REJECTED).
+  // token y agrupa por estado). "En trámite" = total menos resueltos (los estados terminales).
   private readonly countsState = toSignal(
     this.service.assignedSummary().pipe(
       map((s): CountsState => {
         const pendientes = s.byStatus['PENDING_ANALYST_REVIEW'] ?? 0;
-        const resueltos = (s.byStatus['APPROVED'] ?? 0) + (s.byStatus['REJECTED'] ?? 0);
+        // LAPSED cuenta como resuelto: caducado por inacción es una resolución cerrada
+        // (isEstadoFinal), y sin él los expedientes caducados quedaban en "En trámite" para
+        // siempre, porque nada los saca de ese estado.
+        const resueltos = ESTADOS_FINALES.reduce((acc, e) => acc + (s.byStatus[e] ?? 0), 0);
         return {
           status: 'ok',
           counts: {

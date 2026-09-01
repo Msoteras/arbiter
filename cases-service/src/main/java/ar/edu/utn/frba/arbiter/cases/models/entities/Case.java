@@ -125,7 +125,10 @@ public class Case {
 
     /**
      * When the insurer must have answered by: 30 days from the denuncia, per Ley 17.418 art. 56.
-     * Set at creation — see {@code CaseServiceImpl.RESPONSE_TERM_DAYS}.
+     * Set at creation and reset to a fresh 30 days every time the case leaves a status that
+     * interrupts the term (see {@code CaseStatusService.RESPONSE_TERM_DAYS},
+     * {@code CaseStatusService.PAUSING_STATUSES}) — the doc de dominio BBVA (§1, §8) models the
+     * term as running again in full, not resuming the days left, once the requirement is met.
      */
     @Column(name = "response_deadline", nullable = false)
     private LocalDate responseDeadline;

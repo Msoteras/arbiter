@@ -10,6 +10,7 @@ import ar.edu.utn.frba.arbiter.cases.dto.CaseResponse;
 import ar.edu.utn.frba.arbiter.cases.dto.EligibilityCheckRequest;
 import ar.edu.utn.frba.arbiter.cases.dto.EligibilityCheckResponse;
 import ar.edu.utn.frba.arbiter.cases.dto.LensSummaryResponse;
+import ar.edu.utn.frba.arbiter.cases.dto.ReopenCaseRequest;
 import ar.edu.utn.frba.arbiter.cases.models.entities.CaseDocument;
 import ar.edu.utn.frba.arbiter.cases.services.CaseService;
 import ar.edu.utn.frba.arbiter.common.enums.CaseStatus;
@@ -177,6 +178,37 @@ public class CaseController {
             @RequestBody @Valid AssignAnalystRequest request
     ) {
         return ResponseEntity.ok(caseService.assignAnalyst(caseId, request.analystId()));
+    }
+
+    @PostMapping("/{caseId}/reopen")
+    @PreAuthorize("hasAnyRole('ANALISTA_SINIESTROS', 'REFERENTE_ASEGURADORA')")
+    @Operation(summary = "Reabrir un expediente cerrado",
+            description = """
+                    Devuelve al escritorio del analista (PENDING_ANALYST_REVIEW) un expediente que
+                    ya estaba cerrado — APPROVED, REJECTED o LAPSED. Es la "rehabilitación" del
+                    procedimiento de siniestros: sin ella los tres estados terminales son
+                    callejones sin salida, y ni un error del analista ni la documentación que el
+                    asegurado trae después de que el expediente caducó tienen arreglo dentro del
+                    sistema.
+
+                    Reabrir NO es un veredicto nuevo ni lo revierte: la decisión anterior ocurrió y
+                    su registro de auditoría es inmutable. Tampoco borra el riesgo ni el
+                    antecedente de fraude, que son hechos del siniestro. Lo único que hace es
+                    volver a poner a una persona a decidir (decisión de arquitectura #5), con el
+                    plazo del art. 56 corriendo de nuevo desde cero: reabrir para corregir un error
+                    no puede entregar un expediente ya vencido.
+
+                    El `reason` es obligatorio — es la única explicación que queda en el historial.
+                    Habilitado para ambos roles por el mismo criterio que asignar: reabrir no
+                    resuelve nada, y corregir la operación es tan del referente como del analista.
+                    Desde un estado no terminal responde 409: no hay nada que reabrir en un
+                    expediente que sigue abierto.
+                    """)
+    public ResponseEntity<CaseResponse> reopenCase(
+            @PathVariable Long caseId,
+            @RequestBody @Valid ReopenCaseRequest request
+    ) {
+        return ResponseEntity.ok(caseService.reopenCase(caseId, request.reason()));
     }
 
     @DeleteMapping("/{caseId}/assign")

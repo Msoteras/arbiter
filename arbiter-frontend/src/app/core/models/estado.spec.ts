@@ -1,4 +1,4 @@
-import { movimientoAseguradoLabel } from './estado';
+import { estadoSimplificadoEfectivo, movimientoAseguradoLabel } from './estado';
 
 /**
  * El seguimiento del asegurado lista los movimientos del expediente, y ese listado sale de acá.
@@ -40,6 +40,23 @@ describe('movimientoAseguradoLabel', () => {
       .toBe('Enviado a verificación con un perito');
   });
 
+  /**
+   * Una reapertura vuelve al mismo PENDING_ANALYST_REVIEW que una clasificación normal, pero para
+   * el asegurado no es lo mismo: ya recibió el mail de la resolución anterior. El motivo de la
+   * reapertura no se le cuenta nunca — es interno.
+   */
+  it('nombra la reapertura de un expediente cerrado', () => {
+    expect(movimientoAseguradoLabel('PENDING_ANALYST_REVIEW', 'APPROVED'))
+      .toBe('Reabrimos tu siniestro');
+    expect(movimientoAseguradoLabel('PENDING_ANALYST_REVIEW', 'REJECTED'))
+      .toBe('Reabrimos tu siniestro');
+    expect(movimientoAseguradoLabel('PENDING_ANALYST_REVIEW', 'LAPSED'))
+      .toBe('Reabrimos tu siniestro');
+    // Y la clasificación normal sigue siendo la de siempre.
+    expect(movimientoAseguradoLabel('PENDING_ANALYST_REVIEW', 'PENDING_CLASSIFICATION'))
+      .toBe('Un analista está revisando tu caso');
+  });
+
   it('distingue volver del peritaje de entrar a revisión por primera vez', () => {
     expect(movimientoAseguradoLabel('PENDING_ANALYST_REVIEW', 'PENDING_EXPERT_REPORT'))
       .toBe('Verificación finalizada');
@@ -72,6 +89,7 @@ describe('movimientoAseguradoLabel', () => {
       'APPROVED',
       'REJECTED',
       'CLASSIFICATION_FAILED',
+      'LAPSED',
     ];
     const desde = [null, ...estados];
 
@@ -83,5 +101,37 @@ describe('movimientoAseguradoLabel', () => {
         }
       }
     }
+  });
+});
+
+/**
+ * El progreso que ve el asegurado es monótono para que el stepper no vuelva al día 1 cuando el
+ * estado técnico retrocede dentro del trámite. Pero "Terminado" tiene que seguir significando
+ * "terminado ahora": una reapertura es un retroceso real.
+ */
+describe('estadoSimplificadoEfectivo', () => {
+  it('no retrocede cuando el asegurado sube documentación', () => {
+    expect(
+      estadoSimplificadoEfectivo('PENDING_CLASSIFICATION', [
+        'PENDING_CLASSIFICATION',
+        'AWAITING_DOCUMENTATION',
+      ]),
+    ).toBe('EN_TRAMITE');
+  });
+
+  it('marca Terminado solo mientras el expediente está cerrado', () => {
+    expect(estadoSimplificadoEfectivo('APPROVED', ['PENDING_ANALYST_REVIEW'])).toBe('TERMINADO');
+    expect(estadoSimplificadoEfectivo('LAPSED', ['AWAITING_DOCUMENTATION'])).toBe('TERMINADO');
+  });
+
+  it('vuelve a En trámite cuando un expediente cerrado se reabre', () => {
+    // Reapertura: el expediente pasó por un terminal pero hoy está de nuevo en revisión. Sin el
+    // techo, el máximo histórico lo dejaba clavado en "Terminado" sobre un caso reabierto.
+    expect(
+      estadoSimplificadoEfectivo('PENDING_ANALYST_REVIEW', ['PENDING_ANALYST_REVIEW', 'REJECTED']),
+    ).toBe('EN_TRAMITE');
+    expect(
+      estadoSimplificadoEfectivo('PENDING_ANALYST_REVIEW', ['AWAITING_DOCUMENTATION', 'LAPSED']),
+    ).toBe('EN_TRAMITE');
   });
 });

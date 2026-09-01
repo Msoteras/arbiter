@@ -72,7 +72,29 @@ public class CaseNotificationService {
             CaseStatus.REJECTED, new Message(
                     "Novedades sobre tu siniestro",
                     "Revisamos tu siniestro y no fue aprobado. Si querés conocer los motivos o no "
-                            + "estás de acuerdo, podés comunicarte con nosotros."));
+                            + "estás de acuerdo, podés comunicarte con nosotros."),
+            CaseStatus.LAPSED, new Message(
+                    "Tu siniestro caducó por falta de documentación",
+                    "Cerramos tu siniestro porque pasaron más de 18 meses desde la denuncia sin que "
+                            + "recibiéramos la documentación que te habíamos pedido. Si todavía "
+                            + "querés continuar con el reclamo, comunicate con nosotros."));
+
+    /**
+     * Reopening doesn't fit {@link #MESSAGES}, which is keyed by destination status: a reopened
+     * case lands in {@code PENDING_ANALYST_REVIEW}, and putting a message there would greet the
+     * insured on every ordinary classification that reaches the analyst's desk. The notice belongs
+     * to the <b>move</b>, not to where it lands, so it has its own entry point.
+     *
+     * <p>Says nothing about why. The reason the analyst typed is internal (it can name a suspicion,
+     * an error, a fraud lead) — the insured gets the fact, and the invitation to ask.
+     */
+    private static final String REOPENED_TYPE = "REOPENED";
+
+    private static final Message REOPENED_MESSAGE = new Message(
+            "Reabrimos tu siniestro",
+            "Volvimos a abrir tu siniestro y un analista lo está revisando de nuevo. "
+                    + "Te vamos a avisar por este medio cuando haya una resolución. Si querés saber "
+                    + "más, podés comunicarte con nosotros.");
 
     private final NotificationRepository notificationRepository;
     private final UserRepository userRepository;
@@ -81,20 +103,34 @@ public class CaseNotificationService {
 
     /** Best-effort by contract: a delivery failure must never break the case transition. */
     public void notifyStatusChange(Case caseRecord, CaseStatus newStatus) {
+        Message message = MESSAGES.get(newStatus);
+        if (message == null) {
+            return;
+        }
+        notify(caseRecord, newStatus.name(), message);
+    }
+
+    /**
+     * Tells the insured a case that was already closed is open again. Called from
+     * {@code CaseStatusService.transition} when the move comes out of a terminal status, so it
+     * fires no matter who reopens the case — and inside the same transaction, which is what lets
+     * it read the insured off the entity.
+     */
+    public void notifyReopened(Case caseRecord) {
+        notify(caseRecord, REOPENED_TYPE, REOPENED_MESSAGE);
+    }
+
+    private void notify(Case caseRecord, String type, Message message) {
         try {
-            Message message = MESSAGES.get(newStatus);
-            if (message == null) {
-                return;
-            }
-            deliver(caseRecord, newStatus, message);
+            deliver(caseRecord, type, message);
         } catch (Exception | LinkageError e) {
             // LinkageError too: a missing mail SDK surfaces as NoClassDefFoundError, which isn't an
             // Exception, and cost us a 500 on an approval that had already been applied.
-            log.error("Could not notify case {} moving to {}", caseRecord.getId(), newStatus, e);
+            log.error("Could not notify case {} ({})", caseRecord.getId(), type, e);
         }
     }
 
-    private void deliver(Case caseRecord, CaseStatus newStatus, Message message) {
+    private void deliver(Case caseRecord, String type, Message message) {
         Insured insured = caseRecord.getInsured();
         if (insured == null || insured.getUser() == null) {
             // recipient_id is NOT NULL, so an insured who never signed up can't have a row.
@@ -107,7 +143,7 @@ public class CaseNotificationService {
         Notification notification = notificationRepository.save(Notification.builder()
                 .recipientId(insured.getUser().getId())
                 .caseEntity(caseRecord)
-                .type(newStatus.name())
+                .type(type)
                 .channel(CHANNEL)
                 .content(message.body())
                 .createdAt(Instant.now())

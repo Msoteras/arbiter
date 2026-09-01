@@ -43,6 +43,7 @@ import {
   estadoLabel,
   estadoSimplificadoLabel,
   estadoTone,
+  isEstadoFinal,
   riskBandEmptyLabel,
 } from '../../../core/models/estado';
 import { RiskBand, riskBandLabel } from '../../../core/models/risk-band';
@@ -390,10 +391,15 @@ export class ExpedienteDetailComponent {
   };
 
   /** Fuente de verdad: el estado del expediente en el backend, no un flag local. */
-  protected readonly decisionState = computed<'pending' | 'approved' | 'rejected' | 'not-ready'>(() => {
+  protected readonly decisionState = computed<
+    'pending' | 'approved' | 'rejected' | 'lapsed' | 'not-ready'
+  >(() => {
     switch (this.data()?.status) {
       case 'APPROVED': return 'approved';
       case 'REJECTED': return 'rejected';
+      // Terminal pero sin decisión detrás: lo cerró el sistema por inacción del asegurado. En
+      // 'not-ready' la card decía "Sin clasificación disponible todavía", que es falso.
+      case 'LAPSED': return 'lapsed';
       case 'PENDING_ANALYST_REVIEW': return 'pending';
       default: return 'not-ready';
     }
@@ -448,6 +454,52 @@ export class ExpedienteDetailComponent {
       error: (err: HttpErrorResponse) => {
         this.decisionSaving.set(false);
         this.decisionError.set(err.error?.detail || 'No se pudo registrar la decisión');
+      },
+    });
+  }
+
+  // ----- reapertura de un expediente cerrado ("rehabilitación") -----
+  // Los tres terminales son callejones sin salida: sin esto, un error del analista o la
+  // documentación que el asegurado trae después de que el expediente caducó no tienen arreglo.
+  // La comparte el referente con el analista (canGestionar) por el mismo criterio que asignar:
+  // reabrir no resuelve nada, solo vuelve a poner el expediente frente a una persona.
+  protected readonly showReopen = signal(false);
+  protected readonly reopenReason = signal('');
+  protected readonly reopening = signal(false);
+  protected readonly reopenError = signal<string | null>(null);
+
+  protected readonly puedeReabrir = computed(
+    () => this.canGestionar() && isEstadoFinal(this.data()?.status ?? ''),
+  );
+
+  askReopen(): void {
+    this.reopenReason.set('');
+    this.reopenError.set(null);
+    this.showReopen.set(true);
+  }
+
+  cancelReopen(): void {
+    this.showReopen.set(false);
+  }
+
+  confirmReopen(): void {
+    const d = this.data();
+    const reason = this.reopenReason().trim();
+    if (!d || !reason) {
+      return;
+    }
+
+    this.reopening.set(true);
+    this.reopenError.set(null);
+    this.service.reopen(d.id, reason).subscribe({
+      next: () => {
+        this.showReopen.set(false);
+        this.reopening.set(false);
+        this.reloadTrigger.update((v) => v + 1);
+      },
+      error: (err: HttpErrorResponse) => {
+        this.reopening.set(false);
+        this.reopenError.set(err.error?.detail || 'No se pudo reabrir el expediente');
       },
     });
   }

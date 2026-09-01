@@ -70,6 +70,14 @@
           @case ('rejected') {
             <p class="registered">✓ Registrado: Rechazado</p>
           }
+          @case ('lapsed') {
+            <!-- Nadie decidió: el expediente se cerró solo por inacción del asegurado. Sin esta
+                 rama caía en el @default y mostraba "Sin clasificación disponible todavía". -->
+            <p class="nodata">
+              Cerrado por caducidad: pasaron 18 meses desde la denuncia sin que el asegurado
+              trajera la documentación pedida.
+            </p>
+          }
           @case ('pending') {
             @if (canAct()) {
               @if (canDecide()) {
@@ -133,6 +141,23 @@
             } @else {
               <p class="nodata">Sin clasificación disponible todavía</p>
             }
+          }
+        }
+        @if (puedeReabrir()) {
+          <!-- Fuera del @switch: vale para los tres terminales por igual. Reabrir no revierte la
+               decisión anterior (su registro es inmutable), solo devuelve el expediente a una
+               persona. -->
+          <app-button
+            variant="secondary"
+            [block]="true"
+            [disabled]="reopening()"
+            (click)="askReopen()"
+          >
+            {{ reopening() ? 'Reabriendo…' : 'Reabrir expediente' }}
+          </app-button>
+          <p class="rcard-note">Vuelve a revisión con el plazo de respuesta corriendo de nuevo.</p>
+          @if (reopenError()) {
+            <p class="rcard-note error">{{ reopenError() }}</p>
           }
         }
         @if (decisionSaving()) {
@@ -517,6 +542,22 @@
   <ng-container modalActions>
     <app-button variant="secondary" (click)="cancelDecision()">Cancelar</app-button>
     <app-button [disabled]="!justification().trim()" (click)="confirmDecision()">Confirmar</app-button>
+  </ng-container>
+</app-modal>
+
+<!-- Reapertura. El motivo es obligatorio por la misma razón que la justificación de una decisión:
+     es lo único que le explica al que audite por qué un expediente cerrado volvió a abrirse. -->
+<app-modal [open]="showReopen()" heading="Reabrir expediente" (close)="cancelReopen()">
+  <p class="t-note">
+    El expediente vuelve a revisión del analista con el plazo de respuesta corriendo de nuevo. No se
+    borra la resolución anterior: queda en el historial, y el motivo que escribas también.
+  </p>
+  <app-textarea [rows]="3" placeholder="Motivo de la reapertura (obligatorio)…" [(value)]="reopenReason" />
+  <ng-container modalActions>
+    <app-button variant="secondary" (click)="cancelReopen()">Cancelar</app-button>
+    <app-button [disabled]="!reopenReason().trim() || reopening()" (click)="confirmReopen()">
+      Reabrir
+    </app-button>
   </ng-container>
 </app-modal>
 

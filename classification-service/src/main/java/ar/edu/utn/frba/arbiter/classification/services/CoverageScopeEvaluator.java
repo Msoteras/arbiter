@@ -3,14 +3,17 @@ package ar.edu.utn.frba.arbiter.classification.services;
 import ar.edu.utn.frba.arbiter.classification.dto.BusinessRules;
 import ar.edu.utn.frba.arbiter.classification.dto.DocumentExtraction;
 import ar.edu.utn.frba.arbiter.classification.dto.InsuredHistory;
+import ar.edu.utn.frba.arbiter.classification.dto.InsuredPolicy;
 import ar.edu.utn.frba.arbiter.common.dto.ClaimReport;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 
+import java.math.BigDecimal;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 
 /**
  * How far the coverage reaches: who it covers and whether it has anything left (D9). Two
@@ -21,6 +24,11 @@ import java.util.Map;
  *       injured party is a relative, the event isn't covered.</li>
  *   <li><b>{@code claim_exhausts_coverage}</b> — if a settled claim exhausts the coverage, the next
  *       one on the same policy has nothing left to answer with.</li>
+ *   <li><b>suma asegurada</b> — a coverage that does <i>not</i> exhaust on a single settled claim
+ *       can still run out through accumulation: prior settled amounts plus this claim can't exceed
+ *       {@code policy.insuredAmount()} (doc de dominio BBVA §6.4). Not a {@code coverage} column —
+ *       the limit is a fact the insurer DB already carries on the policy, so there's nothing for the
+ *       referente to configure.</li>
  * </ul>
  *
  * <p><b>Why the LLM doesn't decide the first one.</b> Knowing whose device it was requires reading
@@ -50,6 +58,7 @@ public class CoverageScopeEvaluator {
 
     public Result evaluate(
             ClaimReport claim,
+            InsuredPolicy policy,
             InsuredHistory history,
             BusinessRules rules,
             Map<String, DocumentExtraction> documents) {
@@ -58,6 +67,7 @@ public class CoverageScopeEvaluator {
 
         evaluateFamilyGroup(rules, documents, reasons);
         evaluateExhaustedCoverage(claim, history, rules, reasons);
+        evaluateSumInsuredLimit(claim, policy, history, reasons);
 
         boolean block = !reasons.isEmpty();
         if (block) {
@@ -102,6 +112,38 @@ public class CoverageScopeEvaluator {
         if (alreadySettled) {
             reasons.add("La cobertura ya fue consumida por un siniestro liquidado previo sobre esta "
                     + "póliza (un siniestro agota la cobertura)");
+        }
+    }
+
+    /**
+     * Complements {@link #evaluateExhaustedCoverage}: a coverage that doesn't exhaust on any single
+     * settled claim can still run out by accumulation. Sums every settled claim on the same policy
+     * plus this one and compares against {@code policy.insuredAmount()} — no period boundary
+     * modeled (same limitation as {@code POLICY_STANDING}'s arrears tiers: installment/policy-year
+     * boundaries aren't in any schema today), so this is a lifetime total against what the history
+     * returned, not a per-renewal reset.
+     *
+     * <p>Missing {@code insuredAmount} or {@code claimedAmount} means the rule doesn't participate —
+     * same criterion {@link FastTrackValidator} uses for its amount ratio.
+     */
+    private void evaluateSumInsuredLimit(
+            ClaimReport claim, InsuredPolicy policy, InsuredHistory history, List<String> reasons) {
+        if (policy.insuredAmount() == null || policy.insuredAmount().signum() == 0
+                || claim.claimedAmount() == null || history.claims() == null || claim.policyNumber() == null) {
+            return;
+        }
+        BigDecimal settledSoFar = history.claims().stream()
+                .filter(record -> claim.policyNumber().equals(record.policyNumber()))
+                .filter(record -> SETTLED.equalsIgnoreCase(record.status()))
+                .map(record -> record.amountSettled() != null ? record.amountSettled() : record.amountClaimed())
+                .filter(Objects::nonNull)
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+        BigDecimal projectedTotal = settledSoFar.add(claim.claimedAmount());
+        if (projectedTotal.compareTo(policy.insuredAmount()) > 0) {
+            reasons.add(String.format(
+                    "La suma de siniestros liquidados previos (%s) más este reclamo (%s) supera la suma "
+                            + "asegurada de la póliza (%s)",
+                    settledSoFar, claim.claimedAmount(), policy.insuredAmount()));
         }
     }
 }
