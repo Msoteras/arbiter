@@ -39,6 +39,22 @@ Las tres son idempotentes. La segunda es la única que dropea columnas
 - Cada cobertura tiene que tener su fila `COVERAGE_EXCLUSION` activa, y **ninguna**
   `COVERAGE_INCLUSION` activa.
 
+### Smoke test manual que queda
+
+`PolicyCoverageTests` ya cubre el núcleo del bug contra Postgres (importación de las dos
+coberturas, resolución del hurto contra la suya, y el número que se congela). Lo que **no** puede
+cubrir un IT y hay que mirar a mano una vez desplegado:
+
+1. **El selector del wizard.** Entrar como asegurado con una póliza de celulares y confirmar que
+   "Hurto" aparece entre los hechos generadores. Antes no aparecía.
+2. **El salto a classification.** Que el expediente creado quede con la cobertura de hurto y que la
+   clasificación se haya evaluado con los parámetros de esa cobertura (carencia, plazo, franquicia),
+   no con los de robo. Se ve en la solapa de trazabilidad.
+3. **El aviso al referente.** Panel de reglas → solapa Coberturas: una cobertura sin exclusiones
+   tiene que mostrar el badge "Cubre todo el ramo" con la tarjeta cerrada.
+4. **Reapertura.** Reabrir un expediente cerrado: vuelve a revisión, le llega el mail al asegurado
+   y el plazo arranca de cero.
+
 ---
 
 ## 2 · Decisión abierta: qué se hace con los expedientes ya creados
@@ -93,8 +109,12 @@ Ninguno de estos rompe nada hoy; es deuda:
 - El gate de prescripción de `ClassificationOrchestrator` no tiene test.
 - `CaseServiceImpl.reopenCase` y el endpoint `POST /cases/{id}/reopen` no tienen test de service ni
   de controller (sí lo tiene la máquina de estados y el notificador).
-- `PolicySynchronizer` no tiene test contra base real: los suyos son unitarios con el repositorio
-  mockeado, así que el backfill multi-cobertura no se ejercita contra Postgres.
+- ~~`PolicySynchronizer` no tiene test contra base real.~~ Cubierto por `PolicyCoverageTests`
+  (IT): importa una póliza con dos coberturas, resuelve un hurto contra la de hurto con su propia
+  suma asegurada, verifica que el wizard ofrezca los dos hechos y que la búsqueda de póliza por
+  número siga funcionando contra Hibernate real. Ese último caso existe por el `@EntityGraph` que
+  quedó apuntando a un atributo borrado: invisible con el repositorio mockeado, y una excepción en
+  cada alta de denuncia contra la base.
 
 ---
 
