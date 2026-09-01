@@ -82,9 +82,10 @@ está al pie de `db/migrations/2026-09-01-policy-coverage.sql` (verificación 3)
 
 ---
 
-## 3 · Decisiones que tomé yo sobre la marcha y conviene ratificar
+## 3 · Decisiones tomadas sobre la marcha — ratificadas por el equipo (01/09/2026)
 
-Ninguna bloquea, pero las anoto porque no fueron consultadas antes de codear:
+Se tomaron sin consultar antes de codear y el equipo las revisó después: ninguna resultó crítica.
+Quedan acá como registro, no como pendiente. No reabrir sin un caso nuevo.
 
 - **La cobertura del expediente se elige por el hecho generador denunciado**, no la elige el
   asegurado en el wizard. El vínculo sale de la regla `COVERAGE_EXCLUSION` que ya administra el
