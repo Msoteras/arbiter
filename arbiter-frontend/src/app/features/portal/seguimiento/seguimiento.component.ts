@@ -21,6 +21,7 @@ import { ExpedienteService } from '../../expedientes/expediente.service';
 import { CardComponent } from '../../../shared/ui/card/card.component';
 import { ButtonComponent } from '../../../shared/ui/button/button.component';
 import { CaseDocumentsComponent } from '../../expedientes/case-documents/case-documents.component';
+import { CaseChatComponent } from '../../expedientes/case-chat/case-chat.component';
 import { InlineLoadingComponent } from '../../../shared/ui/inline-loading/inline-loading.component';
 
 type LoadState =
@@ -44,7 +45,7 @@ interface Movimiento {
  */
 @Component({
   selector: 'app-seguimiento',
-  imports: [RouterLink, CardComponent, ButtonComponent, CaseDocumentsComponent, InlineLoadingComponent],
+  imports: [RouterLink, CardComponent, ButtonComponent, CaseDocumentsComponent, CaseChatComponent, InlineLoadingComponent],
   changeDetection: ChangeDetectionStrategy.OnPush,
   templateUrl: './seguimiento.component.html',
   styleUrl: './seguimiento.component.scss',
