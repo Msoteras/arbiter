@@ -757,6 +757,73 @@ class CaseServiceImplTest {
         verify(caseStatusService).recordAssignment(entity, StatusChangeActor.ANALYST, "expediente liberado");
     }
 
+    // ─── reopenCase ("rehabilitación", doc de dominio BBVA) ────────────────────────
+
+    @Test
+    void reopenCase_transitionsBackToAnalystReviewWithThePrefixedReason() {
+        Case entity = caseRecord(1L, CaseStatus.APPROVED);
+        when(caseRepository.findById(1L)).thenReturn(Optional.of(entity));
+        when(accessPolicy.currentAssignmentActor()).thenReturn(StatusChangeActor.ANALYST);
+
+        caseService.reopenCase(1L, "el analista se equivocó");
+
+        // El motivo se guarda con prefijo: es lo único que va a quedar en el historial, y sin el
+        // prefijo una fila de reapertura se leería igual que un motivo de decisión cualquiera.
+        verify(caseStatusService).transition(entity, CaseStatus.PENDING_ANALYST_REVIEW,
+                StatusChangeActor.ANALYST, "expediente reabierto: el analista se equivocó");
+    }
+
+    @Test
+    void reopenCase_attributesTheHistoryRowToWhoeverIsCalling() {
+        // El endpoint es compartido entre ANALISTA_SINIESTROS y REFERENTE_ASEGURADORA, igual que
+        // assignAnalyst — no puede atribuirle la reapertura a un rol fijo.
+        Case entity = caseRecord(1L, CaseStatus.LAPSED);
+        when(caseRepository.findById(1L)).thenReturn(Optional.of(entity));
+        when(accessPolicy.currentAssignmentActor()).thenReturn(StatusChangeActor.REFERENT);
+
+        caseService.reopenCase(1L, "llegó la documentación que faltaba");
+
+        verify(caseStatusService).transition(entity, CaseStatus.PENDING_ANALYST_REVIEW,
+                StatusChangeActor.REFERENT, "expediente reabierto: llegó la documentación que faltaba");
+    }
+
+    @Test
+    void reopenCase_returnsTheReloadedCase() {
+        Case entity = caseRecord(1L, CaseStatus.REJECTED);
+        when(caseRepository.findById(1L)).thenReturn(Optional.of(entity));
+        when(accessPolicy.currentAssignmentActor()).thenReturn(StatusChangeActor.ANALYST);
+
+        CaseResponse response = caseService.reopenCase(1L, "nueva evidencia");
+
+        assertThat(response.id()).isEqualTo(1L);
+    }
+
+    @Test
+    void reopenCase_unknownCase_throwsNotFound() {
+        when(caseRepository.findById(99L)).thenReturn(Optional.empty());
+
+        assertThatThrownBy(() -> caseService.reopenCase(99L, "motivo"))
+                .isInstanceOf(CaseNotFoundException.class);
+        verify(caseStatusService, never()).transition(any(), any(), any(), any());
+    }
+
+    /**
+     * La guarda de 409 vive en {@code CaseStatusService.transition} (un expediente no terminal no
+     * tiene salida a PENDING_ANALYST_REVIEW) — acá solo se verifica que el service no la absorbe ni
+     * la traduce, la deja propagar tal cual para que el controller la mapee.
+     */
+    @Test
+    void reopenCase_notTerminal_propagatesTheStateMachinesRefusal() {
+        Case entity = caseRecord(1L, CaseStatus.PENDING_ANALYST_REVIEW);
+        when(caseRepository.findById(1L)).thenReturn(Optional.of(entity));
+        when(accessPolicy.currentAssignmentActor()).thenReturn(StatusChangeActor.ANALYST);
+        doThrow(new InvalidStatusTransitionException(CaseStatus.PENDING_ANALYST_REVIEW, CaseStatus.PENDING_ANALYST_REVIEW))
+                .when(caseStatusService).transition(eq(entity), eq(CaseStatus.PENDING_ANALYST_REVIEW), any(), any());
+
+        assertThatThrownBy(() -> caseService.reopenCase(1L, "motivo"))
+                .isInstanceOf(InvalidStatusTransitionException.class);
+    }
+
     private static ClaimsAnalyst analyst(Long id, String name, String surname) {
         return ClaimsAnalyst.builder()
                 .id(id)
