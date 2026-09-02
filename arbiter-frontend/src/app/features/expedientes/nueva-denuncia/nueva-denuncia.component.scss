@@ -135,33 +135,6 @@
   color: var(--accent-fg);
 }
 
-.chips {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--space-2);
-}
-.chip {
-  padding: var(--space-2) var(--space-5);
-  border-radius: var(--radius-pill);
-  border: 1px solid var(--border-control);
-  background: var(--surface);
-  font: inherit;
-  font-size: var(--font-size-md);
-  cursor: pointer;
-  transition: all 0.15s;
-  color: var(--text-secondary);
-
-  &:hover {
-    border-color: var(--action-secondary-border-hover);
-  }
-  &.selected {
-    background: var(--selected-bg);
-    border-color: var(--accent);
-    color: var(--accent-fg);
-    font-weight: var(--font-weight-medium);
-  }
-}
-
 .field-label {
   display: block;
   font-size: var(--font-size-body);
@@ -216,6 +189,16 @@ app-textarea {
   grid-template-columns: 1fr 1fr;
   gap: var(--space-3);
 }
+
+/* Cada mitad del grid con su propio rótulo: el placeholder no se renderiza en los inputs de
+   fecha y hora, así que sin esto los dos campos quedaban sin nombre. */
+.subfield {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+.time-shortcuts { margin-top: var(--space-2); }
 
 .location-fields {
   display: flex;

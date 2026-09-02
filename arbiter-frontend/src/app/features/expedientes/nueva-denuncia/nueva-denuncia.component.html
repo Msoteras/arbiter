@@ -127,18 +127,12 @@
           @if (claimTypesLoading()) {
             <app-inline-loading [size]="20" message="Cargando hechos generadores…" />
           } @else {
-            <div class="chips">
-              @for (t of claimTypes(); track t.key) {
-                <button
-                  type="button"
-                  class="chip"
-                  [class.selected]="selectedType()?.key === t.key"
-                  (click)="selectType(t)"
-                >
-                  {{ t.label }}
-                </button>
-              }
-            </div>
+            <app-chip-group
+              [options]="claimTypeOptions()"
+              [value]="selectedType()?.key ?? ''"
+              (valueChange)="selectClaimType($event)"
+              ariaLabel="Hecho generador"
+            />
           }
         </section>
       }
@@ -155,11 +149,36 @@
             [readonly]="lockInsuredItem()"
           />
 
-          <label class="field-label">Fecha y hora del hecho *</label>
+          <label class="field-label">¿Cuándo pasó? *</label>
+          <!-- Label propio por campo: los navegadores IGNORAN el placeholder en type="date" y
+               type="time", así que el "Hora aprox." que había acá no se veía nunca — el campo
+               mostraba `--:--` pelado. -->
           <div class="datetime-grid">
-            <app-input type="date" [max]="today" [(value)]="eventDate" />
-            <app-input type="time" [(value)]="eventTime" placeholder="Hora aprox." />
+            <label class="subfield">
+              <span class="t-note">Fecha</span>
+              <app-input type="date" [max]="today" [(value)]="eventDate" />
+            </label>
+            <label class="subfield">
+              <span class="t-note">Hora</span>
+              <app-input type="time" [(value)]="eventTime" />
+            </label>
           </div>
+          <!-- Atajo para el caso normal: al asegurado al que le robaron el celular rara vez le
+               consta "20:47", pero sí "a la noche". El chip escribe una hora representativa en el
+               campo de arriba, que sigue siendo el dato — el que la sabe exacta la corrige. -->
+          <app-chip-group
+            class="time-shortcuts"
+            size="sm"
+            [allowDeselect]="true"
+            [options]="timeSlots"
+            [value]="eventTimeSlot()"
+            (valueChange)="setEventTimeSlot($event)"
+            ariaLabel="Franja horaria aproximada del hecho"
+          />
+          <p class="t-note">
+            Si no te acordás la hora exacta, elegí la franja: la usamos para verificar los plazos de
+            tu cobertura, no hace falta que sea al minuto.
+          </p>
 
           <!-- Right under the field it's actually about (policy + this date): buried further down
                past the police-report block it read as an unrelated mid-form error instead of a
@@ -177,16 +196,30 @@
             </div>
           }
 
-          <!-- Se oculta con el resto del formulario cuando hay un bloqueo real (mora, vigencia,
-               carencia) — pero no cuando el propio error es de coherencia de fechas
-               (dateCoherenceError), porque ahí es justo el campo que hay que corregir: esconderlo
-               dejaría el error a la vista sin ninguna forma de arreglarlo. -->
-          @if (requiresPoliceReport() && (!eligibilityError() || dateCoherenceError())) {
-            <label class="field-label">Fecha y hora de la denuncia policial</label>
+          <!-- Se oculta solo ante un bloqueo real de la póliza (mora, vigencia, carencia). Un
+               error de coherencia de fechas NO lo esconde: es justo el campo que hay que
+               corregir. -->
+          @if (requiresPoliceReport() && !policyBlocked()) {
+            <label class="field-label">¿Cuándo hiciste la denuncia policial?</label>
             <div class="datetime-grid">
-              <app-input type="date" [max]="today" [(value)]="policeReportDate" />
-              <app-input type="time" [(value)]="policeReportTime" placeholder="Hora aprox." />
+              <label class="subfield">
+                <span class="t-note">Fecha</span>
+                <app-input type="date" [max]="today" [(value)]="policeReportDate" />
+              </label>
+              <label class="subfield">
+                <span class="t-note">Hora</span>
+                <app-input type="time" [(value)]="policeReportTime" />
+              </label>
             </div>
+            <app-chip-group
+              class="time-shortcuts"
+              size="sm"
+              [allowDeselect]="true"
+              [options]="timeSlots"
+              [value]="policeTimeSlot()"
+              (valueChange)="setPoliceTimeSlot($event)"
+              ariaLabel="Franja horaria aproximada de la denuncia policial"
+            />
             <p class="t-note">
               Si todavía no hiciste la denuncia policial, dejá el campo vacío. La constancia se
               adjunta en el paso siguiente.
@@ -197,8 +230,11 @@
                location/description/contact for a claim that can't be filed is wasted effort, and
                showing those fields made the eligibility error read as just another note instead of
                a stop sign. Kept visible while `eligibilityChecking()` so the fields already filled
-               in don't flicker away during the debounce/round trip on every date edit. -->
-          @if (!eligibilityError()) {
+               in don't flicker away during the debounce/round trip on every date edit.
+               `policyBlocked()` y no `eligibilityError()`: una incoherencia entre las dos fechas se
+               arregla en los campos de arriba, así que colapsar el formulario por eso dejaba al
+               asegurado con medio paso vacío y sin entender qué había pasado. -->
+          @if (!policyBlocked()) {
             <label class="field-label">¿Dónde pasó? *</label>
             <div class="location-fields">
               <div class="location-grid">
@@ -242,7 +278,14 @@
       @if (step() === 3) {
         <section class="step-content">
           <h2 class="step-title">Adjuntá documentación</h2>
-          <p class="step-hint">Los documentos ayudan a agilizar el análisis de tu caso.</p>
+          @if (docsRequired()) {
+            <p class="step-hint">Esta documentación es obligatoria para poder evaluar tu caso.</p>
+          } @else {
+            <p class="step-hint">
+              No tenemos documentación obligatoria para este tipo de caso. Podés adjuntar algo si
+              te ayuda a respaldarlo.
+            </p>
+          }
 
           @for (slot of docSlots(); track slot.type; let i = $index) {
             <div class="doc-slot" [class.filled]="!!slot.file">
