@@ -244,3 +244,73 @@ app-textarea { display: block; margin: var(--space-3) 0; }
 .factor-rationale { display: block; opacity: 0.65; font-size: 0.8rem; }
 .factor-contrib { text-align: right; white-space: nowrap; font-variant-numeric: tabular-nums; }
 .factor-detail { display: block; opacity: 0.6; font-size: 0.75rem; }
+
+/* ===== Trazabilidad ===== */
+.traza { display: grid; gap: var(--space-4); }
+.traza-scroll { overflow-x: auto; }
+.traza-table { width: 100%; border-collapse: collapse; font-size: var(--font-size-sm); }
+.traza-table th {
+  text-align: left;
+  padding-bottom: var(--space-2);
+  color: var(--text-tertiary);
+  font-weight: var(--font-weight-medium);
+}
+.traza-table td {
+  padding: var(--space-2) var(--space-4) var(--space-2) 0;
+  border-top: 1px solid var(--border-subtle);
+  vertical-align: top;
+}
+.traza-table th:last-child, .traza-table td:last-child { padding-right: 0; }
+.traza-valor { color: var(--text-secondary); }
+.traza-ramo { display: block; }
+.traza-sub { display: block; color: var(--text-tertiary); font-size: var(--font-size-xs); }
+.traza-num { white-space: nowrap; font-variant-numeric: tabular-nums; }
+/* Solo el fallo de lectura se tiñe: las otras dos causas de tabla vacía son información, no error. */
+.traza-sin-reglas.error { color: var(--status-danger); }
+.traza-subhead { margin: var(--space-4) 0 var(--space-2); color: var(--text-secondary); }
+/* Despliegue de coberturas: mismo patrón que la pantalla de reglas (.cov-toggle / .cov-caret). */
+.cov-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: 0;
+  border: 0;
+  background: none;
+  font: inherit;
+  color: inherit;
+  cursor: pointer;
+}
+.cov-toggle:focus-visible { outline: none; box-shadow: var(--focus-ring); border-radius: var(--radius-ctl); }
+.cov-caret {
+  color: var(--accent-fg);
+  font-size: var(--font-size-body);
+  display: inline-block;
+  transition: transform var(--dur-1) ease;
+}
+.cov-toggle-texto { display: flex; flex-direction: column; align-items: flex-start; }
+/* Acento de marca porque es un toggle: es de los estados que el design system le reserva. */
+.cov-hint { color: var(--accent-fg); font-size: var(--font-size-xs); }
+.cov-toggle:hover .cov-hint { text-decoration: underline; }
+.cov-caret.open { transform: rotate(90deg); }
+@media (prefers-reduced-motion: reduce) {
+  .cov-caret { transition: none; }
+}
+.traza-fila-cobertura td { border-top: 0; padding-top: 0; padding-bottom: var(--space-2); }
+/* Qualified with the table: .traza-table td sets padding-left:0 and wins on specificity. */
+.traza-table td.cobertura-nombre {
+  padding-left: var(--space-6);
+  color: var(--text-secondary);
+}
+
+
+/* Fixed widths: on auto layout, expanding a policy adds cells and the browser redistributes,
+   so every column shifted. min-width keeps narrow screens scrolling instead of squeezing. */
+.traza-polizas {
+  table-layout: fixed;
+  min-width: 44rem;
+}
+.traza-polizas th:nth-child(1) { width: 22%; }
+.traza-polizas th:nth-child(2) { width: 24%; }
+.traza-polizas th:nth-child(3) { width: 20%; }
+.traza-polizas th:nth-child(4) { width: 20%; }
+.traza-polizas th:nth-child(5) { width: 14%; }

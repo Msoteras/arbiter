@@ -75,7 +75,7 @@ class ClassificationOrchestratorScoringTest {
         when(fraudRecordRuleEvaluator.evaluate(any(), any()))
                 .thenReturn(FraudRecordRuleEvaluator.Result.empty());
         when(coverageScopeEvaluator.evaluate(any(), any(), any(), any(), any()))
-                .thenReturn(new CoverageScopeEvaluator.Result(false, List.of()));
+                .thenReturn(CoverageScopeEvaluator.Result.none());
     }
 
     @Test

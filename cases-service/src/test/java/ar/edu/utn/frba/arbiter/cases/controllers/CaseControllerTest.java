@@ -264,7 +264,7 @@ class CaseControllerTest {
     void getCase_withClassificationResult_returnsFullResponse() throws Exception {
         CaseResponse response = new CaseResponse(
                 1L, null, null, CaseStatus.PENDING_ANALYST_REVIEW,
-                "Celulares", "Celular Protegido Básico", "Robo en vía pública",
+                "Celulares", "Celular Protegido Básico", "Robo en vía pública", "Robo de celular",
                 "Motorola Edge 50 Pro", "40.123.456", "Laura Fernández", false, "POL-CEL-2024-001",
                 "Me robaron el celular",
                 LocalDateTime.of(2026, 6, 13, 19, 45), "CABA",
@@ -291,7 +291,8 @@ class CaseControllerTest {
                         "purchase_proof", "Factura de compra…",
                         LocalDate.of(2026, 5, 30), new BigDecimal("150000"),
                         "Motorola Edge 50 Pro", null, "TITULAR",
-                        List.of("La tipografía del encabezado no coincide con el resto")))
+                        List.of("La tipografía del encabezado no coincide con el resto"))),
+                List.of(), null
         );
         when(caseService.getCase(1L, (String) null)).thenReturn(response);
 
@@ -385,7 +386,7 @@ class CaseControllerTest {
     private CaseResponse caseResponse(Long id, CaseStatus status) {
         return new CaseResponse(
                 id, null, null, status,
-                "Celulares", "Celular Protegido Básico", "Robo en vía pública",
+                "Celulares", "Celular Protegido Básico", "Robo en vía pública", "Robo de celular",
                 "Motorola Edge 50 Pro", "40.123.456", "Laura Fernández", false, "POL-CEL-2024-001",
                 "Me robaron el celular",
                 LocalDateTime.of(2026, 6, 13, 19, 45), "CABA",
@@ -396,7 +397,7 @@ class CaseControllerTest {
                 Instant.parse("2026-06-13T22:50:00Z"),
                 LocalDate.of(2026, 7, 13), DeadlinePriority.NONE,
                 null,
-                List.of()
+                List.of(), List.of(), null
         );
     }
 }

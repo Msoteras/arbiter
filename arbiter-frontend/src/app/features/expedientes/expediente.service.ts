@@ -5,6 +5,7 @@ import { Observable } from 'rxjs';
 import { environment } from '../../../environments/environment';
 import { ExpedienteResponse } from '../../core/models/expediente';
 import { CaseDocument } from '../../core/models/case-document';
+import { Policy } from '../../core/models/policy';
 import { ExpertVerdict, OpcionesDerivacion, Peritaje } from '../../core/models/peritaje';
 import {
   AntecedenteFraude,
@@ -370,6 +371,17 @@ export class ExpedienteService {
       `${this.baseUrl}/${caseId}/expert-assessment/report`,
       formData,
     );
+  }
+
+  /**
+   * Las pólizas vigentes del asegurado de este expediente, la de la denuncia incluida. Va por su
+   * propio endpoint y no dentro del detalle: son datos de HOY, se piden solo cuando el analista
+   * abre su solapa, y meterlas en el detalle costaba una consulta a la BD Aseguradora en cada
+   * apertura del expediente. El recorte lo hace el expediente, no un DNI: se llega a estas pólizas
+   * a través de un caso que el analista ya puede leer.
+   */
+  polizasDelAsegurado(caseId: number): Observable<Policy[]> {
+    return this.http.get<Policy[]>(`${this.baseUrl}/${caseId}/insured-policies`);
   }
 
   // ----- antecedente de fraude del asegurado -----

@@ -66,7 +66,8 @@ class ClassificationOrchestratorSnapshotTest {
     @BeforeEach
     void stubContext() {
         when(insurerAdapter.getPolicy(any())).thenReturn(RiskFixtures.policy(true, new BigDecimal("400000")));
-        when(insurerAdapter.getHistory(any())).thenReturn(RiskFixtures.history(2));
+        when(insurerAdapter.getHistory(any()))
+                .thenReturn(RiskFixtures.history(2, new BigDecimal("2440000")));
         when(rulesAdapter.getRules(any(), any(), any())).thenReturn(RiskFixtures.rules(null));
         when(coverageRuleEvaluator.evaluate(any(), any()))
                 .thenReturn(new CoverageRuleEvaluator.Result(false, List.of()));
@@ -75,7 +76,7 @@ class ClassificationOrchestratorSnapshotTest {
         when(fraudRecordRuleEvaluator.evaluate(any(), any()))
                 .thenReturn(FraudRecordRuleEvaluator.Result.empty());
         when(coverageScopeEvaluator.evaluate(any(), any(), any(), any(), any()))
-                .thenReturn(new CoverageScopeEvaluator.Result(false, List.of()));
+                .thenReturn(CoverageScopeEvaluator.Result.none());
         when(fastTrackValidator.evaluate(any(), any(), any(), any(), any()))
                 .thenReturn(new FastTrackValidator.Result(true, List.of("ok")));
     }
@@ -95,6 +96,8 @@ class ClassificationOrchestratorSnapshotTest {
         assertThat(snapshot.sumInsured()).isEqualByComparingTo("400000");
         assertThat(snapshot.paymentsUpToDate()).isTrue();   // → factor policy_standing
         assertThat(snapshot.previousClaims()).isEqualTo(2); // → factor claim_frequency
+        // The amount is frozen next to the count: alone, neither says how big that history was.
+        assertThat(snapshot.totalAmountClaimed()).isEqualByComparingTo("2440000");
         assertThat(snapshot.inForce()).isTrue();            // el hecho cae dentro de la vigencia
     }
 

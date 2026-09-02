@@ -49,7 +49,8 @@ public class RuleResult {
     @Column(name = "evaluated_at", nullable = false)
     private Instant evaluatedAt;
 
-    @Column(name = "rule_id", nullable = false)
+    /** Null for the coverage-scope rules: they live on the coverage, not in {@code insurer_rule}. */
+    @Column(name = "rule_id")
     private Long ruleId;
 
     @Column(name = "case_id", nullable = false)

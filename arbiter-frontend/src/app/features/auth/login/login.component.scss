@@ -94,10 +94,18 @@
   font-size: var(--font-size-sm);
 }
 
+/* En pantallas anchas la cordillera sube —su alto sale de la proporción del PNG, así que lo manda
+   el ancho— y la nota queda encima. Subir el contraste del texto no alcanzaba: la relación daba
+   4,72 (AA) pero el fondo es una textura ditherizada, y contra eso el ratio no modela nada. Se le
+   da papel propio: del mismo color que la página, así que sobre el papel es invisible y solo
+   aparece como halo donde hay montaña detrás. */
 .support-note {
   margin: 0;
   text-align: center;
-  color: var(--text-secondary);
+  color: var(--text-primary);
+  background: var(--surface-sunken);
+  padding: var(--space-2) var(--space-4);
+  border-radius: var(--radius-pill);
 }
 
 /* Mobile: card centrada verticalmente; la cordillera queda como franja baja.

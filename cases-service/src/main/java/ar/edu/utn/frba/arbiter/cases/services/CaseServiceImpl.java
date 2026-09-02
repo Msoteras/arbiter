@@ -10,6 +10,8 @@ import ar.edu.utn.frba.arbiter.cases.dto.DocumentAnalysisSummary;
 import ar.edu.utn.frba.arbiter.cases.dto.EligibilityCheckRequest;
 import ar.edu.utn.frba.arbiter.cases.dto.EligibilityCheckResponse;
 import ar.edu.utn.frba.arbiter.cases.dto.LensSummaryResponse;
+import ar.edu.utn.frba.arbiter.cases.dto.PolicyResponse;
+import ar.edu.utn.frba.arbiter.cases.dto.PolicySnapshotResponse;
 import ar.edu.utn.frba.arbiter.cases.config.tenant.CallerContext;
 import ar.edu.utn.frba.arbiter.cases.config.tenant.TenantContext;
 import ar.edu.utn.frba.arbiter.cases.dto.StatusTransitionResponse;
@@ -33,6 +35,7 @@ import ar.edu.utn.frba.arbiter.cases.models.entities.Case;
 import ar.edu.utn.frba.arbiter.common.models.entities.tenant.Insured;
 import ar.edu.utn.frba.arbiter.cases.models.entities.Policy;
 import ar.edu.utn.frba.arbiter.cases.models.entities.PolicyCoverage;
+import ar.edu.utn.frba.arbiter.cases.models.entities.PolicySnapshot;
 import ar.edu.utn.frba.arbiter.cases.models.entities.StatusChangeActor;
 import ar.edu.utn.frba.arbiter.cases.models.repositories.CaseAnalysisRepository;
 import ar.edu.utn.frba.arbiter.cases.models.repositories.CaseAnalysisRepository.CaseAnalysis;
@@ -42,6 +45,7 @@ import ar.edu.utn.frba.arbiter.cases.models.repositories.CaseRepository;
 import ar.edu.utn.frba.arbiter.cases.models.repositories.CaseSpecifications;
 import ar.edu.utn.frba.arbiter.cases.models.repositories.ClaimsAnalystRepository;
 import ar.edu.utn.frba.arbiter.common.models.entities.tenant.ClaimsAnalyst;
+import ar.edu.utn.frba.arbiter.common.dto.RuleResultResponse;
 import ar.edu.utn.frba.arbiter.common.enums.CaseStatus;
 import ar.edu.utn.frba.arbiter.common.enums.Classification;
 import ar.edu.utn.frba.arbiter.common.enums.DeadlinePriority;
@@ -53,6 +57,7 @@ import org.springframework.data.jpa.domain.Specification;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.io.IOException;
@@ -84,6 +89,7 @@ public class CaseServiceImpl implements CaseService {
     private final InsuredCaseAggregator insuredCaseAggregator;
     private final PolicyTenantLocator policyTenantLocator;
     private final InsurerRepository insurerRepository;
+    private final PolicyService policyService;
     private final InsurerTenantScope tenantScope;
     // Mismo reloj que DeadlineSweepScheduler: la prioridad de vencimiento del read model y la del
     // barrido se computan contra la misma referencia (y es fijable en tests).
@@ -364,8 +370,8 @@ public class CaseServiceImpl implements CaseService {
         List<StatusTransitionResponse> history = caseStatusService.history(caseId).stream()
                 .map(StatusTransitionResponse::from)
                 .toList();
-        return toResponse(entity, history, caseAnalysisRepository.findByCaseId(caseId),
-                caseDocumentAnalysisRepository.findByCaseId(caseId));
+        return toResponse(entity, history, caseAnalysisRepository.findByCaseId(caseId), null, null,
+                caseDocumentAnalysisRepository.findByCaseId(caseId), traceabilityOf(entity));
     }
 
     @Override
@@ -617,6 +623,15 @@ public class CaseServiceImpl implements CaseService {
         });
     }
 
+    @Override
+    @Transactional(readOnly = true)
+    public List<PolicyResponse> getInsuredPolicies(Long caseId) {
+        // readableCase is the whole authorization: the analyst reaches these policies through a
+        // case they can already read, never by asking for a DNI.
+        Case entity = readableCase(caseId);
+        return policyService.listByInsured(entity.getInsured().getDni());
+    }
+
     private Case readableCase(Long caseId) {
         Case entity = caseRepository.findById(caseId)
                 .orElseThrow(() -> new CaseNotFoundException(caseId));
@@ -684,19 +699,27 @@ public class CaseServiceImpl implements CaseService {
      */
     private CaseResponse toResponse(Case entity, List<StatusTransitionResponse> history,
                                      CaseAnalysis analysis) {
-        return toResponse(entity, history, analysis, null, null, List.of());
+        return toResponse(entity, history, analysis, null, null, List.of(), Traceability.none());
     }
 
     /** Sólo el detalle trae los datos extraídos; ver el javadoc del campo en {@link CaseResponse}. */
     private CaseResponse toResponse(Case entity, List<StatusTransitionResponse> history,
                                      CaseAnalysis analysis,
                                      List<DocumentAnalysisSummary> documentAnalyses) {
-        return toResponse(entity, history, analysis, null, null, documentAnalyses);
+        return toResponse(entity, history, analysis, null, null, documentAnalyses, Traceability.none());
     }
 
     private CaseResponse toResponse(Case entity, List<StatusTransitionResponse> history,
                                      CaseAnalysis analysis, String insurerSlug, String insurerName,
                                      List<DocumentAnalysisSummary> documentAnalyses) {
+        return toResponse(entity, history, analysis, insurerSlug, insurerName, documentAnalyses,
+                Traceability.none());
+    }
+
+    private CaseResponse toResponse(Case entity, List<StatusTransitionResponse> history,
+                                     CaseAnalysis analysis, String insurerSlug, String insurerName,
+                                     List<DocumentAnalysisSummary> documentAnalyses,
+                                     Traceability traceability) {
         // Mientras el expediente está de vuelta en clasificación, la corrida anterior sigue siendo
         // la última fila de llm_analysis. Mostrarla diría que hay una recomendación vigente cuando
         // justamente se está recalculando, así que en ese estado no se surface ninguna.
@@ -712,6 +735,7 @@ public class CaseServiceImpl implements CaseService {
                 entity.getClaimCause().getBranch().getName(),
                 entity.getPolicy().getProduct(),
                 entity.getClaimCause().getName(),
+                entity.getCoverage() == null ? null : entity.getCoverage().getName(),
                 entity.getDeclaredItem(),
                 entity.getInsured().getDni(),
                 entity.getInsured().fullName(),
@@ -735,7 +759,9 @@ public class CaseServiceImpl implements CaseService {
                 entity.getResponseDeadline(),
                 DeadlinePriority.of(entity.getResponseDeadline(), LocalDate.now(clock), isDeadlineInactive(entity)),
                 history,
-                documentAnalyses
+                documentAnalyses,
+                traceability.ruleResults(),
+                traceability.policySnapshot()
         );
     }
 
@@ -747,6 +773,47 @@ public class CaseServiceImpl implements CaseService {
      */
     private boolean isDeadlineInactive(Case entity) {
         return !CaseStatusService.isDeadlineRunning(entity.getStatus());
+    }
+
+    /**
+     * What the analysis tab reads, all of it persisted at classification time. Grouped so the
+     * mapper doesn't grow two more parameters that every list-endpoint caller has to pass empty.
+     *
+     * @param ruleResults null when they couldn't be read — never null for "none ran", which is
+     *                    the empty list. See {@code CaseResponse.ruleResults}.
+     */
+    private record Traceability(List<RuleResultResponse> ruleResults,
+                                PolicySnapshotResponse policySnapshot) {
+
+        static Traceability none() {
+            return new Traceability(List.of(), null);
+        }
+    }
+
+    /**
+     * Empty for the insured: this is the analyst's audit trail, and the portal is not the place to
+     * widen what it already shows. The fields that reached them before it ({@code riskBreakdown},
+     * {@code forensicReport}, {@code documentAnalyses}) are left as they were.
+     */
+    private Traceability traceabilityOf(Case entity) {
+        if (accessPolicy.currentUserIsInsured()) {
+            return Traceability.none();
+        }
+        return new Traceability(
+                claimsAnalysisClient.ruleResultsOf(entity.getId()),
+                caseRepository.findPolicySnapshot(entity.getId()).map(CaseServiceImpl::snapshotOf)
+                        .orElse(null));
+    }
+
+    private static PolicySnapshotResponse snapshotOf(PolicySnapshot snapshot) {
+        return new PolicySnapshotResponse(
+                snapshot.getExternalPolicyNumber(),
+                snapshot.getSumInsured(),
+                snapshot.isInForce(),
+                snapshot.isPaymentsUpToDate(),
+                snapshot.getPreviousClaims(),
+                snapshot.getTotalAmountClaimed(),
+                snapshot.getQueriedAt());
     }
 
     /**
