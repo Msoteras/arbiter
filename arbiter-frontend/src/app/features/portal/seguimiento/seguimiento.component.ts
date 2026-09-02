@@ -7,8 +7,8 @@ import { catchError, combineLatest, map, of, startWith, switchMap } from 'rxjs';
 import { InsuredSessionService } from '../../../core/auth/insured-session.service';
 import { ExpedienteResponse } from '../../../core/models/expediente';
 import {
+  estadoBadgeLabelAsegurado,
   estadoDescripcionAseguradoEfectivo,
-  estadoLabel,
   estadoSimplificadoEfectivo,
   estadoTituloAseguradoEfectivo,
   estadoTone,
@@ -101,7 +101,7 @@ export class SeguimientoComponent {
 
   protected readonly statusLabel = computed(() => {
     const d = this.data();
-    return d ? estadoLabel(d.status) : '';
+    return d ? estadoBadgeLabelAsegurado(d.status) : '';
   });
 
   // Los `toStatus` del historial: insumo del progreso EFECTIVO (monótono) y del copy

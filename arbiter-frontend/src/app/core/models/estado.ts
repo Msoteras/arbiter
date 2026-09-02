@@ -28,6 +28,31 @@ export function estadoLabel(value: string): string {
   return (LABELS as Record<string, string>)[value] ?? value;
 }
 
+// Etiqueta del badge para el asegurado (portal, definición del equipo). Sigue las mismas 3 fases
+// que el stepper de asegurado-inicio ("Denuncia recibida → En análisis → Resolución" — ver
+// ORDEN/estadoSimplificado): Recibido solo mientras está en la primera fase (PENDING_CLASSIFICATION);
+// todo lo que el stepper ya cuenta como "En análisis" (revisión del analista, una falla técnica de
+// clasificación, la derivación a peritaje — sin nombrar cuál de las tres, para no filtrar jerga
+// interna ni la sospecha de una derivación) muestra "En análisis" acá también, para no contradecir
+// al stepper que ya avanzó. Falta documentación es la excepción: aunque el stepper la cuenta dentro
+// de "En análisis", es accionable y se mantiene distinguible. Resolución se abre en sus 3 desenlaces
+// reales: Aprobado, Rechazado y Caducado (este último separado a propósito — mentiría que fue un
+// rechazo activo del analista cuando en realidad venció por falta de documentación).
+const BADGE_ASEGURADO: Record<CaseStatus, string> = {
+  PENDING_CLASSIFICATION: 'Recibido',
+  PENDING_ANALYST_REVIEW: 'En análisis',
+  CLASSIFICATION_FAILED: 'En análisis',
+  AWAITING_DOCUMENTATION: 'Falta documentación',
+  PENDING_EXPERT_REPORT: 'En análisis',
+  APPROVED: 'Aprobado',
+  REJECTED: 'Rechazado',
+  LAPSED: 'Caducado',
+};
+
+export function estadoBadgeLabelAsegurado(value: string): string {
+  return (BADGE_ASEGURADO as Record<string, string>)[value] ?? estadoLabel(value);
+}
+
 /**
  * Estados terminales: el expediente ya tiene resolución, no hay próximos pasos. Espejo de
  * `case_status.is_final` en la base y de `CaseServiceImpl.FINAL_STATUS_NAMES` en el backend.

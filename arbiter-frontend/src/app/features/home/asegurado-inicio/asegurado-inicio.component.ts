@@ -8,6 +8,7 @@ import { InsuredSessionService } from '../../../core/auth/insured-session.servic
 import { ExpedienteResponse } from '../../../core/models/expediente';
 import {
   EstadoSimplificado,
+  estadoBadgeLabelAsegurado,
   estadoDescripcionAsegurado,
   estadoSimplificado,
   estadoSimplificadoLabel,
@@ -166,6 +167,12 @@ export class AseguradoInicioComponent {
 
   protected estadoSimplificadoLabel(status: string): string {
     return estadoSimplificadoLabel(status);
+  }
+
+  // El badge del case-card muestra el estado puntual (Recibido/Falta documentación/Aprobado/
+  // Rechazado), no el balde de 3 pasos del stepper de abajo — mismo criterio que mis-expedientes.
+  protected estadoBadgeLabel(status: string): string {
+    return estadoBadgeLabelAsegurado(status);
   }
 
   protected estadoTone(status: string): StatusTone {

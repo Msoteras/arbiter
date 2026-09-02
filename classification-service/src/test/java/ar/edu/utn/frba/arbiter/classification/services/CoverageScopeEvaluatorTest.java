@@ -306,7 +306,7 @@ class CoverageScopeEvaluatorTest {
     @Test
     void anExhaustedCoverage_leavesAnAuditableFailure() {
         CoverageScopeEvaluator.Result result = evaluator.evaluate(
-                claim(), history(priorClaim(POLICY, "LIQUIDADO")), rules(null, true), Map.of());
+                claim(), policy(null), history(priorClaim(POLICY, "LIQUIDADO")), rules(null, true), Map.of());
 
         assertThat(result.findings()).singleElement().satisfies(f -> {
             assertThat(f.ruleType()).isEqualTo("CLAIM_EXHAUSTS_COVERAGE");
@@ -320,7 +320,7 @@ class CoverageScopeEvaluatorTest {
     @Test
     void aCoverageWithBalanceLeft_leavesAnAuditablePass() {
         CoverageScopeEvaluator.Result result = evaluator.evaluate(
-                claim(), history(priorClaim(POLICY, "RECHAZADO")), rules(null, true), Map.of());
+                claim(), policy(null), history(priorClaim(POLICY, "RECHAZADO")), rules(null, true), Map.of());
 
         assertThat(result.blocksFastTrack()).isFalse();
         assertThat(result.findings()).singleElement()
@@ -331,7 +331,7 @@ class CoverageScopeEvaluatorTest {
     @Test
     void aFamilyMemberOnACoverageThatExcludesThem_leavesAnAuditableFailure() {
         CoverageScopeEvaluator.Result result = evaluator.evaluate(
-                claim(), history(), rules(false, null), documentSaying(AffectedParty.FAMILIAR));
+                claim(), policy(null), history(), rules(false, null), documentSaying(AffectedParty.FAMILIAR));
 
         assertThat(result.findings()).singleElement()
                 .extracting(RuleFinding::ruleType, RuleFinding::result, RuleFinding::evaluatedValue)
@@ -341,7 +341,7 @@ class CoverageScopeEvaluatorTest {
     @Test
     void aHolderOnACoverageThatExcludesTheFamily_leavesAnAuditablePass() {
         CoverageScopeEvaluator.Result result = evaluator.evaluate(
-                claim(), history(), rules(false, null), documentSaying(AffectedParty.TITULAR));
+                claim(), policy(null), history(), rules(false, null), documentSaying(AffectedParty.TITULAR));
 
         assertThat(result.findings()).singleElement()
                 .extracting(RuleFinding::ruleType, RuleFinding::result, RuleFinding::evaluatedValue)
@@ -356,7 +356,7 @@ class CoverageScopeEvaluatorTest {
     @Test
     void anUnknownInjuredParty_leavesNoTraceAtAll() {
         CoverageScopeEvaluator.Result result = evaluator.evaluate(
-                claim(), history(), rules(false, null), documentSaying(AffectedParty.DESCONOCIDO));
+                claim(), policy(null), history(), rules(false, null), documentSaying(AffectedParty.DESCONOCIDO));
 
         assertThat(result.blocksFastTrack()).isFalse();
         assertThat(result.findings()).isEmpty();
@@ -366,7 +366,7 @@ class CoverageScopeEvaluatorTest {
     @Test
     void rulesTurnedOff_leaveNoTrace() {
         CoverageScopeEvaluator.Result result = evaluator.evaluate(
-                claim(), history(priorClaim(POLICY, "LIQUIDADO")), rules(null, null),
+                claim(), policy(null), history(priorClaim(POLICY, "LIQUIDADO")), rules(null, null),
                 documentSaying(AffectedParty.FAMILIAR));
 
         assertThat(result.findings()).isEmpty();
