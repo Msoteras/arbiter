@@ -28,6 +28,7 @@ import ar.edu.utn.frba.arbiter.cases.exceptions.DocumentReadException;
 import ar.edu.utn.frba.arbiter.cases.exceptions.InsuredIdentityMismatchException;
 import ar.edu.utn.frba.arbiter.cases.exceptions.InvalidAnalystDecisionException;
 import ar.edu.utn.frba.arbiter.cases.exceptions.InvalidStatusTransitionException;
+import ar.edu.utn.frba.arbiter.cases.exceptions.MissingRequiredDocumentsException;
 import ar.edu.utn.frba.arbiter.cases.exceptions.PolicyInsuredMismatchException;
 import ar.edu.utn.frba.arbiter.cases.exceptions.PolicyNotEligibleException;
 import ar.edu.utn.frba.arbiter.cases.models.entities.CaseDocument;
@@ -70,6 +71,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.Set;
+import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
@@ -82,6 +85,7 @@ public class CaseServiceImpl implements CaseService {
     private final ClaimsAnalystRepository claimsAnalystRepository;
     private final CaseReferenceResolver referenceResolver;
     private final PolicyEligibilityValidator policyEligibilityValidator;
+    private final RulesServiceClient rulesServiceClient;
     private final CaseAnalysisRepository caseAnalysisRepository;
     private final CaseDocumentAnalysisRepository caseDocumentAnalysisRepository;
     private final CaseAccessPolicy accessPolicy;
@@ -107,6 +111,38 @@ public class CaseServiceImpl implements CaseService {
             return createCaseInIssuingTenant(request, documents);
         } finally {
             TenantContext.set(callerTenant);
+        }
+    }
+
+    /**
+     * The schedule is the contract for a complete case, so a denuncia that doesn't carry every
+     * required document isn't filed at all. Until now only the wizard checked this, and a client
+     * posting straight to the endpoint filed a theft with no police report — a contract only the
+     * client enforces isn't one.
+     *
+     * <p>Exactly the schedule, no more and no less: every row the referente saves is persisted
+     * mandatory, so the whole list is required, and a claim cause with no schedule requires
+     * nothing.
+     *
+     * <p>An unreadable schedule ({@code null}, as opposed to an empty one) lets the denuncia
+     * through. Leaving the insured out because a service of ours is down would be worse than
+     * taking in a case whose completeness we check later — which is what the engine's own
+     * missing-documents gate already does over the same schedule. Persisting that it came in
+     * unverified and retrying the check afterwards is its own story (gap doc §13).
+     */
+    private void assertRequiredDocumentsPresent(
+            String branch, String claimCause, Map<String, MultipartFile> documents) {
+        List<String> required = rulesServiceClient.requiredDocumentTypes(branch, claimCause);
+        if (required == null || required.isEmpty()) {
+            return;
+        }
+        Set<String> attached = documents == null ? Set.of() : documents.entrySet().stream()
+                .filter(entry -> entry.getValue() != null && !entry.getValue().isEmpty())
+                .map(Map.Entry::getKey)
+                .collect(Collectors.toSet());
+        List<String> missing = required.stream().filter(type -> !attached.contains(type)).toList();
+        if (!missing.isEmpty()) {
+            throw new MissingRequiredDocumentsException(missing);
         }
     }
 
@@ -151,6 +187,8 @@ public class CaseServiceImpl implements CaseService {
         policyEligibilityValidator.validate(
                 request.policyNumber(), request.eventDate(), request.policeReportAt(),
                 contracted.getCoverage(), claimCause);
+
+        assertRequiredDocumentsPresent(request.branch(), request.claimCause(), documents);
 
         Case entity = Case.builder()
                 .claimCause(claimCause)

@@ -14,6 +14,7 @@ import ar.edu.utn.frba.arbiter.cases.exceptions.CaseNotFoundException;
 import ar.edu.utn.frba.arbiter.cases.exceptions.InsuredIdentityMismatchException;
 import ar.edu.utn.frba.arbiter.cases.exceptions.InvalidAnalystDecisionException;
 import ar.edu.utn.frba.arbiter.cases.exceptions.InvalidStatusTransitionException;
+import ar.edu.utn.frba.arbiter.cases.exceptions.MissingRequiredDocumentsException;
 import ar.edu.utn.frba.arbiter.cases.exceptions.PolicyInsuredMismatchException;
 import ar.edu.utn.frba.arbiter.cases.exceptions.PolicyNotEligibleException;
 import ar.edu.utn.frba.arbiter.cases.exceptions.UnresolvedCaseReferenceException;
@@ -114,6 +115,9 @@ class CaseServiceImplTest {
 
     @Mock
     private PolicyEligibilityValidator policyEligibilityValidator;
+
+    @Mock
+    private RulesServiceClient rulesServiceClient;
 
     @Mock
     private InsurerRepository insurerRepository;
@@ -985,6 +989,100 @@ class CaseServiceImplTest {
         CaseResponse response = caseService.getCase(1L);
 
         assertThat(response.analysisConfidence()).isEqualTo(0.0);
+    }
+
+    /**
+     * La agenda es el contrato de "expediente completo", y hasta ahora solo la miraba el wizard:
+     * un cliente pegando directo contra el endpoint daba de alta un robo sin denuncia policial.
+     */
+    @Test
+    void createCase_missingARequiredDocument_isRejectedAndNothingIsPersisted() {
+        CaseRequest request = caseRequest();
+        stubReferenceResolution();
+        when(rulesServiceClient.requiredDocumentTypes("Celulares", "Robo en vía pública"))
+                .thenReturn(List.of("police_report", "purchase_proof"));
+
+        MockMultipartFile police = new MockMultipartFile(
+                "police_report", "denuncia.pdf", "application/pdf", "pdf-bytes".getBytes());
+
+        assertThatThrownBy(() -> caseService.createCase(request, Map.of("police_report", police)))
+                .isInstanceOf(MissingRequiredDocumentsException.class)
+                .hasMessageContaining("purchase_proof");
+
+        verify(caseRepository, never()).save(any(Case.class));
+    }
+
+    /** Un archivo vacío ocupa el slot pero no es el documento: cuenta como faltante. */
+    @Test
+    void createCase_emptyFileDoesNotCountAsTheDocument() {
+        CaseRequest request = caseRequest();
+        stubReferenceResolution();
+        when(rulesServiceClient.requiredDocumentTypes(any(), any()))
+                .thenReturn(List.of("police_report"));
+
+        MockMultipartFile empty = new MockMultipartFile(
+                "police_report", "vacio.pdf", "application/pdf", new byte[0]);
+
+        assertThatThrownBy(() -> caseService.createCase(request, Map.of("police_report", empty)))
+                .isInstanceOf(MissingRequiredDocumentsException.class);
+    }
+
+    @Test
+    void createCase_withEveryRequiredDocument_goesThrough() {
+        CaseRequest request = caseRequest();
+        Case saved = caseRecord(1L, CaseStatus.PENDING_CLASSIFICATION);
+        stubReferenceResolution();
+        when(rulesServiceClient.requiredDocumentTypes(any(), any()))
+                .thenReturn(List.of("police_report"));
+        when(caseRepository.save(any(Case.class))).thenReturn(saved);
+        when(caseDocumentRepository.findByCaseIdAndType(eq(1L), any())).thenReturn(Optional.empty());
+        when(caseDocumentRepository.findByCaseId(1L)).thenReturn(List.of());
+        when(claimsAnalysisClient.analyzeAndPersist(any(), any()))
+                .thenReturn(new AnalysisResult(null, 0.0, "in progress"));
+
+        MockMultipartFile police = new MockMultipartFile(
+                "police_report", "denuncia.pdf", "application/pdf", "pdf-bytes".getBytes());
+
+        caseService.createCase(request, Map.of("police_report", police));
+
+        verify(caseRepository).save(any(Case.class));
+    }
+
+    /**
+     * Lista vacía es una respuesta ("este hecho generador no pide documentos"); null es que no se
+     * pudo leer la agenda. Ninguna de las dos frena la denuncia, pero por motivos distintos — ver
+     * {@code CaseServiceImpl.assertRequiredDocumentsPresent}.
+     */
+    @Test
+    void createCase_withoutAReadableSchedule_doesNotDemandAnything() {
+        CaseRequest request = caseRequest();
+        Case saved = caseRecord(1L, CaseStatus.PENDING_CLASSIFICATION);
+        stubReferenceResolution();
+        when(rulesServiceClient.requiredDocumentTypes(any(), any())).thenReturn(null);
+        when(caseRepository.save(any(Case.class))).thenReturn(saved);
+        when(caseDocumentRepository.findByCaseId(1L)).thenReturn(List.of());
+        when(claimsAnalysisClient.analyzeAndPersist(any(), any()))
+                .thenReturn(new AnalysisResult(null, 0.0, "in progress"));
+
+        caseService.createCase(request, Map.of());
+
+        verify(caseRepository).save(any(Case.class));
+    }
+
+    @Test
+    void createCase_withAnEmptySchedule_doesNotDemandAnything() {
+        CaseRequest request = caseRequest();
+        Case saved = caseRecord(1L, CaseStatus.PENDING_CLASSIFICATION);
+        stubReferenceResolution();
+        when(rulesServiceClient.requiredDocumentTypes(any(), any())).thenReturn(List.of());
+        when(caseRepository.save(any(Case.class))).thenReturn(saved);
+        when(caseDocumentRepository.findByCaseId(1L)).thenReturn(List.of());
+        when(claimsAnalysisClient.analyzeAndPersist(any(), any()))
+                .thenReturn(new AnalysisResult(null, 0.0, "in progress"));
+
+        caseService.createCase(request, Map.of());
+
+        verify(caseRepository).save(any(Case.class));
     }
 
     @Test

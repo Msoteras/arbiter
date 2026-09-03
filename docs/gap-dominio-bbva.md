@@ -217,12 +217,13 @@ cualquier denuncia sin un solo adjunto, en silencio.
 
 ### Lo que queda — próximo sprint
 
-**1 · El gate vive solo en el frontend.** `cases-service` sigue aceptando el alta sin adjuntos, así
-que quien pegue contra la API directamente esquiva la validación. La agenda es el contrato de
-"expediente completo", y un contrato que solo verifica el cliente no es un contrato. Va del lado de
-`cases-service`, en el alta.
+**1 · El gate del backend ✅ resuelto (02/09/2026).** `CaseServiceImpl.assertRequiredDocumentsPresent`
+lee la agenda por `RulesServiceClient.requiredDocumentTypes` y rechaza con 422
+(`MissingRequiredDocumentsException`) el alta que no traiga todos los documentos. Un archivo vacío
+no cuenta como el documento. Cubierto por cinco tests en `CaseServiceImplTest`.
 
-**2 · Con rules-service caído no se puede evaluar en serio, y hoy se resuelve dejando pasar.** El
+**2 · Con rules-service caído no se puede evaluar en serio, y hoy se resuelve dejando pasar**
+(historia **H0036** del próximo sprint). El
 wizard reintenta dos veces y, si la agenda sigue sin responder, crea el expediente igual y lo dice
 en pantalla — dejar al asegurado afuera porque un servicio nuestro no anda sería peor. Pero eso no
 es una evaluación: es una evaluación **postergada** que hoy nadie retoma. Lo que corresponde es
@@ -628,8 +629,8 @@ charla aparte.
 | 12 | Agotamiento por monto acumulado por cobertura (histórico con `cobertura_id`) | ✅ Resuelto 01/09/2026 | — |
 | 12 | Hecho generador ↔ cobertura no lineal: cómo desempatar en el alta | A charlar | Media |
 | 13 | Exigir la agenda documental obligatoria en el alta (frontend) | ✅ Resuelto 02/09/2026 | — |
-| 13 | Mismo gate del lado de `cases-service` (hoy la API acepta el alta sin adjuntos) | No existe | Alta |
-| 13 | Verificación postergada + reintento cuando rules-service no responde en el alta | No existe | Media |
+| 13 | Mismo gate del lado de `cases-service` | ✅ Resuelto 02/09/2026 | — |
+| 13 | Verificación postergada + reintento cuando rules-service no responde (H0036) | Próximo sprint | Media |
 | 3 | Reservas (SPL) como control | No existe | Baja/a decidir |
 | 10 | Consistencia interna de `LAPSED` (carga del analista, tableros, filtro de bandeja, tono al asegurado) | ✅ Resuelto 31/08/2026 | — |
 | 5 | Comentario desactualizado en `DocumentRequirement` | ✅ Resuelto 31/08/2026 | — |

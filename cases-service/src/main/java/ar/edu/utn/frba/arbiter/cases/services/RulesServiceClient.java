@@ -6,6 +6,7 @@ import ar.edu.utn.frba.arbiter.common.security.JwtSupport;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.core.ParameterizedTypeReference;
 import org.springframework.http.HttpHeaders;
 import org.springframework.stereotype.Component;
 import org.springframework.web.client.RestClient;
@@ -90,6 +91,38 @@ public class RulesServiceClient {
     }
 
     private record EvaluableRuleJson(String ruleType, List<Long> excludedClaimCauseIds) {
+    }
+
+    /**
+     * The document schedule the referente configured for that branch + claim cause, by NAME — the
+     * same read the wizard does, so both gates answer off one source instead of two lists that
+     * drift. Every row saved from the panel is persisted mandatory
+     * ({@code DocumentRequirementService.upsert}), so the whole list is required.
+     *
+     * <p>Returns {@code null} when the schedule couldn't be read at all, which is NOT the same as
+     * an empty list: empty is an answer ("this claim cause needs no documents"), null is the
+     * absence of one. Same distinction rules-service makes internally
+     * ({@code InternalDocumentRequirementService.getByCoverage}) and the wizard makes on screen.
+     * Today the caller lets a denuncia through on null rather than leaving the insured out because
+     * a service of ours is down; persisting that it came in unverified and retrying afterwards is
+     * its own story (gap doc §13).
+     */
+    public List<String> requiredDocumentTypes(String branch, String claimCause) {
+        try {
+            String serviceToken = JwtSupport.issueServiceToken(jwtKey, "cases-service-documents", TenantContext.get());
+            return restClient.get()
+                    .uri(uri -> uri.path("/api/v1/rules/document-requirements/for-branch")
+                            .queryParam("branch", branch)
+                            .queryParam("claimCause", claimCause)
+                            .build())
+                    .header(HttpHeaders.AUTHORIZATION, "Bearer " + serviceToken)
+                    .retrieve()
+                    .body(new ParameterizedTypeReference<List<String>>() {});
+        } catch (Exception e) {
+            log.error("Could not read the document schedule for branch '{}' / claim cause '{}'",
+                    branch, claimCause, e);
+            return null;
+        }
     }
 
     /**
