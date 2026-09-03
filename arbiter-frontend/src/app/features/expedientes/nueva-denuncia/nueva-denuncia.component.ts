@@ -673,6 +673,34 @@ export class NuevaDenunciaComponent {
   protected readonly docsCount = computed(() => this.docSlots().filter((d) => d.file).length);
 
   /**
+   * Schedule slots still without a file — what stops the claim from being filed.
+   *
+   * <p>Exactly the schedule, no more and no less: every row the referente saves is persisted
+   * mandatory (see {@code DocumentRequirementService.upsert}), so when there IS a schedule every
+   * slot on screen is required. When there isn't one — unconfigured combination, or rules-service
+   * down — {@code requiredDocsState} falls back to the whole catalogue as merely offered, and
+   * nothing is demanded: a claim must not be blocked by a schedule nobody configured.
+   */
+  protected readonly missingDocs = computed(() =>
+    this.docsRequired() ? this.docSlots().filter((slot) => !slot.file) : [],
+  );
+
+  protected readonly missingDocLabels = computed(() =>
+    this.missingDocs().map((slot) => slot.label).join(', '),
+  );
+
+  protected readonly canSubmit = computed(() => !this.submitting() && this.missingDocs().length === 0);
+
+  /**
+   * The insured declared they haven't filed the police report, but the schedule demands the
+   * certificate. Says so in step 2 instead of letting them fill in the whole form and find out at
+   * the upload step that they cannot finish.
+   */
+  protected readonly policeReportMissingBlocks = computed(
+    () => this.docsRequired() && this.requiresPoliceReport() && !this.policeReportFiled(),
+  );
+
+  /**
    * Si el ramo pide constancia de denuncia policial, entonces el hecho generador la lleva y tiene
    * sentido preguntar cuándo se hizo. Se deriva de la agenda documental del referente —la misma
    * fuente que arma los slots de adjuntos— en vez de una lista propia de hechos generadores: así
@@ -772,7 +800,7 @@ export class NuevaDenunciaComponent {
   submit(): void {
     const type = this.selectedType();
     const policy = this.selectedPolicy();
-    if (!type || !policy || this.submitting()) return;
+    if (!type || !policy || !this.canSubmit()) return;
 
     this.submitting.set(true);
     this.submitError.set(null);

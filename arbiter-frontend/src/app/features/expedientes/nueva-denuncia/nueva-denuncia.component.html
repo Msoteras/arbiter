@@ -221,15 +221,18 @@
               />
               <span class="t-note">{{ policeReportFiled() ? 'Sí, ya la hice' : 'Todavía no' }}</span>
             </div>
-            @if (!policeReportFiled()) {
-              <!-- Para estos hechos generadores la constancia es documento OBLIGATORIO de la agenda
-                   y además hay plazo (D12), así que la nota dice la consecuencia, no solo que se
-                   puede seguir. El plazo exacto sale de la cobertura y el wizard no lo tiene, por
-                   eso no se nombra un número. -->
+            @if (policeReportMissingBlocks()) {
+              <!-- La agenda de este hecho generador pide la constancia y todo lo que el referente
+                   guarda es obligatorio, así que sin ella la denuncia no se puede enviar. Se dice
+                   acá y no recién en el paso 3, para no hacerle completar el formulario entero. -->
               <p class="t-note">
-                Podés seguir con la denuncia, pero tu expediente va a quedar incompleto hasta que
-                subas la constancia, y para este tipo de siniestro hay un plazo para hacerla. Hacela
-                cuanto antes y subila desde el seguimiento de tu expediente.
+                Para este tipo de siniestro la constancia de la denuncia policial es obligatoria: vas
+                a poder seguir cargando los datos, pero no enviar la denuncia hasta adjuntarla.
+              </p>
+            } @else if (!policeReportFiled()) {
+              <p class="t-note">
+                Podés seguir con la denuncia. Cuando tengas la constancia, subila desde el
+                seguimiento de tu expediente.
               </p>
             }
           }
@@ -375,6 +378,12 @@
             </div>
           }
 
+          @if (missingDocs().length) {
+            <p class="doc-missing" role="status">
+              Para enviar la denuncia falta adjuntar: {{ missingDocLabels() }}.
+            </p>
+          }
+
           @if (submitError()) {
             <div class="submit-error">{{ submitError() }}</div>
           }
@@ -404,7 +413,7 @@
             Continuar →
           </app-button>
         } @else {
-          <app-button [disabled]="submitting()" (click)="submit()">
+          <app-button [disabled]="!canSubmit()" (click)="submit()">
             {{ submitting() ? 'Enviando…' : 'Enviar denuncia →' }}
           </app-button>
         }

@@ -205,6 +205,12 @@ app-textarea {
 
 /* El switch con su estado escrito al lado: la perilla dice sí/no por posición, el texto lo dice
    con palabras. */
+.doc-missing {
+  margin-top: var(--space-3);
+  font-size: var(--font-size-sm);
+  color: var(--status-warning);
+}
+
 .toggle-row {
   display: flex;
   align-items: center;
