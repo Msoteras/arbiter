@@ -19,7 +19,10 @@ public final class InsurerSlug {
     }
 
     public static String of(Insurer insurer) {
-        String schema = insurer.getSchemaName();
+        return fromSchema(insurer.getSchemaName());
+    }
+
+    public static String fromSchema(String schema) {
         return schema.startsWith(SCHEMA_PREFIX) ? schema.substring(SCHEMA_PREFIX.length()) : schema;
     }
 

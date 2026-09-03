@@ -84,10 +84,14 @@ public final class RiskFixtures {
     }
 
     public static InsuredHistory history(int previousClaimsCount) {
+        return history(previousClaimsCount, BigDecimal.ZERO);
+    }
+
+    public static InsuredHistory history(int previousClaimsCount, BigDecimal totalAmountClaimed) {
         return InsuredHistory.builder()
                 .insuredId("40.123.456")
                 .previousClaimsCount(previousClaimsCount)
-                .totalAmountClaimed(BigDecimal.ZERO)
+                .totalAmountClaimed(totalAmountClaimed)
                 .customerSince(LocalDate.of(2024, 3, 1))
                 .claims(List.of())
                 .build();

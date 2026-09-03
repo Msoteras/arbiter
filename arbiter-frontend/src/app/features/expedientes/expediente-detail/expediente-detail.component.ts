@@ -1,4 +1,12 @@
-import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
+import {
+  ChangeDetectionStrategy,
+  Component,
+  computed,
+  effect,
+  inject,
+  signal,
+  untracked,
+} from '@angular/core';
 import { toObservable, toSignal } from '@angular/core/rxjs-interop';
 import { ActivatedRoute, RouterLink } from '@angular/router';
 import { HttpErrorResponse } from '@angular/common/http';
@@ -7,6 +15,7 @@ import { catchError, combineLatest, finalize, map, Observable, of, startWith, sw
 import { ExpedienteService, AnalystDecisionRequest } from '../expediente.service';
 import { DocumentAgendaService } from '../document-agenda.service';
 import { CaseNavigationService } from '../case-navigation.service';
+import { CaseMessagesService } from '../case-messages.service';
 import { AuthSessionService } from '../../../core/auth/auth-session.service';
 import { UserAdminService } from '../../../core/auth/user-admin.service';
 import {
@@ -15,7 +24,16 @@ import {
   RiskBreakdownItem,
   StatusTransition,
 } from '../../../core/models/expediente';
-import { riskFactorLabel } from '../../../core/models/business-rules';
+import { conLabelesDeDocumento, riskFactorLabel } from '../../../core/models/business-rules';
+import { Policy } from '../../../core/models/policy';
+import {
+  PolicySnapshot,
+  RuleResult,
+  ruleEvaluationText,
+  ruleResultLabel,
+  ruleResultTone,
+  ruleTypeLabel,
+} from '../../../core/models/trazabilidad';
 import {
   CASE_DOCUMENT_TYPES,
   CaseDocument,
@@ -43,6 +61,7 @@ import {
   estadoLabel,
   estadoSimplificadoLabel,
   estadoTone,
+  isEstadoFinal,
   riskBandEmptyLabel,
 } from '../../../core/models/estado';
 import { RiskBand, riskBandLabel } from '../../../core/models/risk-band';
@@ -53,6 +72,7 @@ import { EmptyStateComponent } from '../../../shared/ui/empty-state/empty-state.
 import { StatusTimelineComponent } from '../../../shared/ui/status-timeline/status-timeline.component';
 import { ForensicAnalysisComponent } from './forensic-analysis/forensic-analysis.component';
 import { CaseDocumentsComponent } from '../case-documents/case-documents.component';
+import { CaseChatComponent } from '../case-chat/case-chat.component';
 import { CardComponent } from '../../../shared/ui/card/card.component';
 import { ButtonComponent } from '../../../shared/ui/button/button.component';
 import { BadgeComponent } from '../../../shared/ui/badge/badge.component';
@@ -75,7 +95,8 @@ type TabId =
   | 'datos'
   | 'imagenes'
   | 'riesgo'
-  | 'razones'
+  | 'analisis'
+  | 'asegurado'
   | 'documentacion'
   | 'peritaje'
   | 'conversacion'
@@ -94,6 +115,7 @@ interface FieldItem { label: string; value: string | null; mono?: boolean; full?
     StatusTimelineComponent,
     ForensicAnalysisComponent,
     CaseDocumentsComponent,
+    CaseChatComponent,
     CardComponent,
     ButtonComponent,
     BadgeComponent,
@@ -114,6 +136,25 @@ export class ExpedienteDetailComponent {
   private readonly caseNav = inject(CaseNavigationService);
   private readonly session = inject(AuthSessionService);
   private readonly users = inject(UserAdminService);
+  private readonly messages = inject(CaseMessagesService);
+
+  constructor() {
+    // The dot has to be there before the analyst opens the tab, so the count is fetched with the
+    // case and not when the thread mounts. Keyed on the id and not on data(), which comes back as a
+    // new object on every refetch and asked for the thread twice per open.
+    effect(() => {
+      const id = this.loadedCaseId();
+      untracked(() => {
+        this.unreadMessages.set(0);
+        if (id) {
+          this.messages.thread(id).subscribe({
+            next: (thread) => this.unreadMessages.set(thread.unread),
+            error: () => undefined,
+          });
+        }
+      });
+    });
+  }
 
   /** Bumped after a decision is recorded, to refetch the case and reflect the real backend status. */
   private readonly reloadTrigger = signal(0);
@@ -149,6 +190,9 @@ export class ExpedienteDetailComponent {
     const s = this.state();
     return s.status === 'error' && s.httpStatus === 404;
   });
+
+  /** The loaded case's id, which unlike {@link data} only changes when the case actually does. */
+  private readonly loadedCaseId = computed<number | null>(() => this.data()?.id ?? null);
 
   // Anterior/siguiente según el orden de la bandeja (no por id correlativo). null cuando no hay
   // vecino (borde de la lista) o cuando se entró por deep-link sin pasar por la bandeja.
@@ -267,7 +311,9 @@ export class ExpedienteDetailComponent {
    * documentación (son resultados del gate de reglas, no del LLM) o sin clasificación todavía;
    * la tab "Razones" se oculta en ese caso (ver `tabs`).
    */
-  protected readonly analysisReasons = computed<string[]>(() => this.data()?.analysisReasons ?? []);
+  protected readonly analysisReasons = computed<string[]>(() =>
+    (this.data()?.analysisReasons ?? []).map(conLabelesDeDocumento),
+  );
 
   /**
    * Lo que el modelo leyó de cada adjunto (H0031). Vacío mientras no se clasificó, en un Fast
@@ -352,28 +398,192 @@ export class ExpedienteDetailComponent {
     ];
   });
 
+  // ----- trazabilidad -----
+  protected readonly ruleResults = computed<RuleResult[]>(() => this.data()?.ruleResults ?? []);
+
+  /**
+   * No se pudieron leer. Distinto de "no corrió ninguna": aquello es un dato del expediente, esto
+   * lo es de este request, y afirmar lo primero cuando pasó lo segundo es inventar.
+   */
+  protected readonly ruleResultsUnavailable = computed(() => this.data()?.ruleResults === null);
+
+  /**
+   * Por qué no hay reglas que mostrar. Ninguna de las causas es Fast Track: el gate corre DESPUÉS
+   * de las reglas duras, así que un Fast Track llena la tabla con todas en PASS. Queda vacío
+   * cuando la aseguradora no tiene ninguna activa, o cuando la denuncia frenó en el chequeo de
+   * documentación obligatoria, que vuelve antes de los evaluadores temporal y de fraude.
+   */
+  protected readonly sinReglasMotivo = computed(() => {
+    if (this.ruleResultsUnavailable()) {
+      return 'No se pudieron leer las reglas evaluadas. Volvé a intentar en unos minutos.';
+    }
+    if (this.needsDocs()) {
+      return 'Todavía no se evaluaron: el expediente está esperando documentación obligatoria. '
+        + 'Se evalúan cuando se complete y vuelva a clasificarse.';
+    }
+    return 'No hay reglas duras activas para esta cobertura.';
+  });
+
+  /**
+   * La solapa existe si hay algo que contar del análisis: reglas, razones del modelo, o una
+   * clasificación que explique por qué no hay reglas. Sin clasificar no aparece — ahí "no hay
+   * reglas activas" sería falso, todavía no corrieron.
+   */
+  protected readonly hayAnalisis = computed(
+    () =>
+      this.ruleResults().length > 0 ||
+      this.ruleResultsUnavailable() ||
+      this.policySnapshot() != null ||
+      !!this.data()?.analysisClassification,
+  );
+
+  protected readonly policySnapshot = computed<PolicySnapshot | null>(
+    () => this.data()?.policySnapshot ?? null,
+  );
+
+  // ----- pólizas del asegurado (datos de HOY, no de la clasificación) -----
+  // Carga diferida por su propio endpoint: son una consulta a la BD Aseguradora y la mayoría de
+  // las aperturas del expediente no las mira. Mismo patrón que los antecedentes de fraude.
+  private readonly polizas = toSignal(
+    combineLatest([
+      this.route.paramMap.pipe(map((params) => params.get('id') ?? '')),
+      toObservable(this.reloadTrigger),
+    ]).pipe(
+      switchMap(([id]) =>
+        this.service
+          .polizasDelAsegurado(id as unknown as number)
+          .pipe(catchError(() => of<Policy[]>([]))),
+      ),
+    ),
+    { initialValue: [] as Policy[] },
+  );
+
+  /**
+   * Todas, la de esta denuncia incluida — se marca, no se esconde: el analista está mirando la
+   * relación completa de la persona con la compañía, y la póliza del siniestro es parte de eso.
+   */
+  protected readonly polizasDelAsegurado = computed<Policy[]>(() => this.polizas());
+
+  /**
+   * La del siniestro primero y bajo su propio título, en vez de marcada dentro de la lista: es la
+   * que el analista está mirando, y encontrarla entre las otras por una etiqueta al costado hacía
+   * trabajar de más.
+   *
+   * <p>Puede no estar: el listado trae sólo las vigentes hoy, así que una póliza que venció después
+   * de la denuncia no aparece. En ese caso no se muestra el título, no un bloque vacío.
+   */
+  protected readonly gruposDePolizas = computed<{ heading: string; polizas: Policy[] }[]>(() => {
+    const numero = this.data()?.policyNumber;
+    const todas = this.polizasDelAsegurado();
+    const propia = todas.filter((p) => p.policyNumber === numero);
+    const otras = todas.filter((p) => p.policyNumber !== numero);
+    return [
+      ...(propia.length > 0 ? [{ heading: 'Póliza del expediente', polizas: propia }] : []),
+      ...(otras.length > 0
+        ? [{ heading: propia.length > 0 ? 'Sus otras pólizas' : 'Sus pólizas', polizas: otras }]
+        : []),
+    ];
+  });
+
+  // Las coberturas van plegadas y de a una: son varias por póliza, y desplegarlas todas convierte
+  // la tabla en un muro. Mismo patrón de despliegue que la pantalla de reglas.
+  private readonly polizaAbierta = signal<string | null>(null);
+
+  protected estaAbierta(p: Policy): boolean {
+    return this.polizaAbierta() === p.policyNumber;
+  }
+
+  protected togglePoliza(p: Policy): void {
+    this.polizaAbierta.update((abierta) =>
+      abierta === p.policyNumber ? null : p.policyNumber,
+    );
+  }
+
+  /**
+   * Dos bloques y no una sola lista: los últimos dos campos son del asegurado en toda la compañía,
+   * no de esta póliza. Mezclados con la suma asegurada invitaban a restarlos, y esa resta no
+   * significa nada — el total abarca todas sus pólizas y ramos, no lo consumido de esta cobertura.
+   */
+  protected readonly snapshotGroups = computed<{ heading: string | null; fields: FieldItem[] }[]>(
+    () => {
+      const s = this.policySnapshot();
+      return [
+        {
+          heading: 'Póliza',
+          fields: [
+            { label: 'N° de póliza', value: s?.externalPolicyNumber ?? null, mono: true },
+            { label: 'Cobertura', value: this.data()?.coverage ?? null },
+            { label: 'Suma asegurada', value: s ? this.formatMonto(s.sumInsured) : null },
+            {
+              label: 'Vigencia al momento del hecho',
+              value: s ? (s.inForce ? 'Vigente' : 'No vigente') : null,
+            },
+            { label: 'Estado de pago', value: s ? (s.paymentsUpToDate ? 'Al día' : 'En mora') : null },
+          ],
+        },
+        {
+          heading: 'Historial',
+          fields: [
+            { label: 'Siniestros previos', value: s ? String(s.previousClaims) : null },
+            {
+              // Es monto_indemnizado: lo que la compañía pagó, no lo que le reclamaron. El nombre
+              // del campo quedó mal desde el origen (totalAmountClaimed); el label dice la verdad.
+              label: 'Total indemnizado',
+              value: s?.totalAmountClaimed != null ? this.formatMonto(s.totalAmountClaimed) : null,
+            },
+          ],
+        },
+      ];
+    },
+  );
+
+  /**
+   * La solapa existe si hay algo de la persona que mostrar. Las pólizas cuentan aunque lleguen
+   * tarde: se piden aparte, así que al abrir el expediente todavía no están.
+   */
+  protected readonly hayDatosAsegurado = computed(
+    () => this.polizasDelAsegurado().length > 0 || this.antecedentes().length > 0,
+  );
+
+  protected vigencia(p: Policy): string {
+    return `${formatDate(p.effectiveFrom)} — ${formatDate(p.effectiveTo)}`;
+  }
+
+  protected monto(value: number | null): string | null {
+    return value == null ? null : this.formatMonto(value);
+  }
+
   // ----- historial de estados (GET /{id} lo trae con timestamps de cada transición) -----
   protected readonly history = computed<StatusTransition[]>(() => this.data()?.statusHistory ?? []);
 
   // ----- tabs -----
-  // "Peritaje" solo existe si el expediente se derivó, y "Razones" solo si el LLM dejó motivos:
-  // una solapa vacía en la mayoría de los casos sería ruido, y en ambas la ausencia de datos es
-  // el caso esperado (Fast Track/Falta documentación no tienen motivos; no toda derivación pasa).
-  // 'conversacion' sigue oculta: no hay entidad de mensajería todavía, así que estaría siempre
-  // vacía. No se borró del tipo ni del `@switch` del template, solo de la lista visible, para no
-  // perder el lugar ya pensado en la pantalla (ver la historia en el handoff).
-  protected readonly tabs = computed<{ id: TabId; label: string }[]>(() => [
+  // "Peritaje" solo existe si el expediente se derivó, y "Análisis realizado" solo si ya se
+  // clasificó: una solapa vacía en la mayoría de los casos sería ruido.
+  // 'conversacion' is always shown, unlike those two: an empty thread isn't noise, it's where
+  // talking to the insured starts. It carries a dot when something is unread.
+  protected readonly tabs = computed<{ id: TabId; label: string; dot?: boolean }[]>(() => [
     { id: 'resumen' as TabId, label: 'Resumen' },
     ...(this.documentAnalyses().length > 0
       ? [{ id: 'datos' as TabId, label: 'Datos extraídos' }]
       : []),
     { id: 'imagenes' as TabId, label: 'Análisis de imágenes' },
     { id: 'riesgo' as TabId, label: 'Desglose de riesgo' },
-    ...(this.analysisReasons().length > 0 ? [{ id: 'razones' as TabId, label: 'Razones' }] : []),
+    ...(this.hayAnalisis() ? [{ id: 'analisis' as TabId, label: 'Análisis realizado' }] : []),
+    ...(this.hayDatosAsegurado()
+      ? [{ id: 'asegurado' as TabId, label: 'Datos del asegurado' }]
+      : []),
     { id: 'documentacion' as TabId, label: 'Documentación' },
     ...(this.peritaje() ? [{ id: 'peritaje' as TabId, label: 'Peritaje' }] : []),
+    { id: 'conversacion' as TabId, label: 'Conversación', dot: this.unreadMessages() > 0 },
     { id: 'historial' as TabId, label: 'Historial' },
   ]);
+
+  /**
+   * Unread messages from the insured. Fetched apart from the case and not as one more
+   * `CaseResponse` field: the same DTO builds the inbox, so counting per row would be one query
+   * per listed case.
+   */
+  protected readonly unreadMessages = signal(0);
   protected readonly activeTab = signal<TabId>('resumen');
   setTab(t: TabId): void {
     this.activeTab.set(t);
@@ -390,10 +600,15 @@ export class ExpedienteDetailComponent {
   };
 
   /** Fuente de verdad: el estado del expediente en el backend, no un flag local. */
-  protected readonly decisionState = computed<'pending' | 'approved' | 'rejected' | 'not-ready'>(() => {
+  protected readonly decisionState = computed<
+    'pending' | 'approved' | 'rejected' | 'lapsed' | 'not-ready'
+  >(() => {
     switch (this.data()?.status) {
       case 'APPROVED': return 'approved';
       case 'REJECTED': return 'rejected';
+      // Terminal pero sin decisión detrás: lo cerró el sistema por inacción del asegurado. En
+      // 'not-ready' la card decía "Sin clasificación disponible todavía", que es falso.
+      case 'LAPSED': return 'lapsed';
       case 'PENDING_ANALYST_REVIEW': return 'pending';
       default: return 'not-ready';
     }
@@ -448,6 +663,52 @@ export class ExpedienteDetailComponent {
       error: (err: HttpErrorResponse) => {
         this.decisionSaving.set(false);
         this.decisionError.set(err.error?.detail || 'No se pudo registrar la decisión');
+      },
+    });
+  }
+
+  // ----- reapertura de un expediente cerrado ("rehabilitación") -----
+  // Los tres terminales son callejones sin salida: sin esto, un error del analista o la
+  // documentación que el asegurado trae después de que el expediente caducó no tienen arreglo.
+  // La comparte el referente con el analista (canGestionar) por el mismo criterio que asignar:
+  // reabrir no resuelve nada, solo vuelve a poner el expediente frente a una persona.
+  protected readonly showReopen = signal(false);
+  protected readonly reopenReason = signal('');
+  protected readonly reopening = signal(false);
+  protected readonly reopenError = signal<string | null>(null);
+
+  protected readonly puedeReabrir = computed(
+    () => this.canGestionar() && isEstadoFinal(this.data()?.status ?? ''),
+  );
+
+  askReopen(): void {
+    this.reopenReason.set('');
+    this.reopenError.set(null);
+    this.showReopen.set(true);
+  }
+
+  cancelReopen(): void {
+    this.showReopen.set(false);
+  }
+
+  confirmReopen(): void {
+    const d = this.data();
+    const reason = this.reopenReason().trim();
+    if (!d || !reason) {
+      return;
+    }
+
+    this.reopening.set(true);
+    this.reopenError.set(null);
+    this.service.reopen(d.id, reason).subscribe({
+      next: () => {
+        this.showReopen.set(false);
+        this.reopening.set(false);
+        this.reloadTrigger.update((v) => v + 1);
+      },
+      error: (err: HttpErrorResponse) => {
+        this.reopening.set(false);
+        this.reopenError.set(err.error?.detail || 'No se pudo reabrir el expediente');
       },
     });
   }
@@ -785,6 +1046,11 @@ export class ExpedienteDetailComponent {
   veredictoLabel = veredictoLabel;
   veredictoTone = veredictoTone;
   formatDateTime = formatDateTime;
+
+  ruleTypeLabel = ruleTypeLabel;
+  ruleResultLabel = ruleResultLabel;
+  ruleResultTone = ruleResultTone;
+  ruleEvaluationText = ruleEvaluationText;
 
   private formatMonto(amount: number): string {
     return new Intl.NumberFormat('es-AR', {

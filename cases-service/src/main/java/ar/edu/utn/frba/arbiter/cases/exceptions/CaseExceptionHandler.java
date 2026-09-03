@@ -120,6 +120,12 @@ public class CaseExceptionHandler extends ResponseEntityExceptionHandler {
         return ProblemDetail.forStatusAndDetail(HttpStatusCode.valueOf(404), ex.getMessage());
     }
 
+    /** Se venció la ventana para escribir en el expediente ya resuelto. */
+    @ExceptionHandler(ClosedConversationException.class)
+    public ProblemDetail handleClosedConversation(ClosedConversationException ex) {
+        return ProblemDetail.forStatusAndDetail(HttpStatusCode.valueOf(409), ex.getMessage());
+    }
+
     /** El expediente no está en condiciones de originar un antecedente de fraude. */
     @ExceptionHandler(FraudRecordNotAllowedException.class)
     public ProblemDetail handleFraudRecordNotAllowed(FraudRecordNotAllowedException ex) {
@@ -164,6 +170,17 @@ public class CaseExceptionHandler extends ResponseEntityExceptionHandler {
      * the waiting period, or impossible dates). The wizard shows the detail as-is: it's written
      * for the insured.
      */
+    /**
+     * The denuncia doesn't carry the documents the schedule requires. Same 422 as the eligibility
+     * gate and for the same reason: the request is fine, what fails is what it's filed against.
+     */
+    @ExceptionHandler(MissingRequiredDocumentsException.class)
+    public ProblemDetail handleMissingRequiredDocuments(MissingRequiredDocumentsException ex) {
+        ProblemDetail problem = ProblemDetail.forStatusAndDetail(HttpStatusCode.valueOf(422), ex.getMessage());
+        problem.setProperty("missingDocumentTypes", ex.getMissingDocumentTypes());
+        return problem;
+    }
+
     @ExceptionHandler(PolicyNotEligibleException.class)
     public ProblemDetail handlePolicyNotEligible(PolicyNotEligibleException ex) {
         return ProblemDetail.forStatusAndDetail(HttpStatusCode.valueOf(422), ex.getMessage());

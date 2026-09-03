@@ -1,59 +1,84 @@
-# ArbiterFrontend
+# arbiter-frontend
 
-This project was generated using [Angular CLI](https://github.com/angular/angular-cli) version 20.3.30.
+SPA Angular 20 (standalone components, signals, `ChangeDetectionStrategy.OnPush`) del sistema de
+gestión de siniestros Arbiter. Sirve tres experiencias distintas según el rol del usuario
+(`ANALISTA_SINIESTROS`, `REFERENTE_ASEGURADORA`, `ASEGURADO`) sobre la misma app.
 
-## Development server
+Arquitectura, modelo de dominio y decisiones cerradas están documentadas en el
+[`CLAUDE.md`](../CLAUDE.md) de la raíz. Este README es solo lo específico del frontend.
 
-To start a local development server, run:
+## Requisitos
 
-```bash
-ng serve
-```
+- Node 20+
+- Los backends corriendo (ver el [`Readme.md`](../Readme.md) de la raíz) — en dev, esta app no les
+  pega directo: los rutea `proxy.conf.json` por path.
 
-Once the server is running, open your browser and navigate to `http://localhost:4200/`. The application will automatically reload whenever you modify any of the source files.
-
-## Code scaffolding
-
-Angular CLI includes powerful code scaffolding tools. To generate a new component, run:
-
-```bash
-ng generate component component-name
-```
-
-For a complete list of available schematics (such as `components`, `directives`, or `pipes`), run:
+## Desarrollo local
 
 ```bash
-ng generate --help
+npm install
+npm start          # ng serve → http://localhost:4200
 ```
 
-## Building
+`npm start` corre con `--proxy-config proxy.conf.json` (ver `angular.json`), así que
+`environment.apiBaseUrl` es siempre `/api/v1` relativo — nunca un host:puerto hardcodeado. El proxy
+resuelve cada path al módulo backend que lo sirve:
 
-To build the project run:
+| Path | Backend | Puerto |
+|---|---|---|
+| `/api/v1/auth` | `auth-service` | 8080 |
+| `/api/v1/rules` | `rules-service` | 8081 |
+| `/api/v1/claims` | `classification-service` | 8082 |
+| `/api/v1/cases`, `/api/v1/notifications`, `/api/v1/policies`, `/api/v1/claim-causes`, `/api/v1/coverages`, `/api/v1/expert-firms` | `cases-service` | 8083 |
+
+En producción el mismo ruteo por path lo hace Nginx (ver `docs/despliegue-railway.md`).
 
 ```bash
-ng build
+npm run build       # build de producción a dist/
+npm run watch        # build en modo desarrollo con watch
+npm test             # unit tests (Karma + Jasmine)
 ```
 
-This will compile your project and store the build artifacts in the `dist/` directory. By default, the production build optimizes your application for performance and speed.
+## Rutas principales
 
-## Running unit tests
+Cada rol aterriza en su propio home tras el login (`app.routes.ts`); `roleGuard` valida el rol
+contra el JWT y `onboardingGuard`/`onboardingPendingGuard` fuerzan el flujo de alta del asegurado
+(H0009) antes de dejarlo entrar al resto del portal.
 
-To execute unit tests with the [Karma](https://karma-runner.github.io) test runner, use the following command:
+| Rol | Home | Resto de sus pantallas |
+|---|---|---|
+| `ANALISTA_SINIESTROS` | `/home` | `/inbox` (bandeja), `/cases/:id` (detalle + decisión), `/insurer/dashboard`, `/insurer/reports` (solo lectura) |
+| `REFERENTE_ASEGURADORA` | `/insurer/home` | `/insurer/users`, `/insurer/rules`, `/insurer/dashboard`, `/insurer/reports`, y `/inbox`/`/cases/:id` en modo solo lectura (sin asignar ni decidir) |
+| `ASEGURADO` | `/portal/home` | `/portal/onboarding`, `/new-claim` (wizard de denuncia), `/portal` (mis expedientes), `/portal/cases/:id` (seguimiento), `/portal/cases/:id/documents`, `/portal/profile` |
 
-```bash
-ng test
+`/styleguide` es la vitrina viva del design system (cualquier sesión autenticada puede entrar, no es
+de un rol en particular) — ver la sección siguiente.
+
+## Design System
+
+El proyecto tiene un design system propio en `src/styles/` (`_tokens.scss` → primitivos,
+`_semantic.scss` → roles que consumen los componentes, `_typography.scss` → clases `.t-*`) y un kit
+de componentes en `src/app/shared/ui/` (`app-button`, `app-badge`, `app-card`, `app-input`,
+`app-modal`, `app-table`, `app-fraud-gauge`, `app-status-timeline`, `app-doc-upload`, entre otros).
+
+**Toda UI nueva tiene que usar este sistema** — no traer Tailwind, no valores hex/px crudos fuera de
+`_tokens.scss`, no reimplementar botones/cards/inputs a mano. El detalle completo (qué capa consume
+qué, reglas accionables, cuándo sumar algo a `/styleguide`) está en la sección "Design System del
+frontend" de [`CLAUDE.md`](../CLAUDE.md).
+
+## Estructura
+
 ```
-
-## Running end-to-end tests
-
-For end-to-end (e2e) testing, run:
-
-```bash
-ng e2e
+src/app/
+├── core/               # auth (JWT, guards), cliente http, modelos de dominio, notificaciones
+├── shared/ui/          # kit de componentes del design system
+├── features/
+│   ├── auth/            # login, activar cuenta, recuperar contraseña
+│   ├── home/            # un home por rol: analista-inicio, referente-inicio, asegurado-inicio
+│   ├── expedientes/      # bandeja del analista, detalle de expediente, wizard de nueva denuncia
+│   ├── portal/           # portal del asegurado: onboarding, mis expedientes, seguimiento, perfil
+│   ├── admin/            # panel del referente: usuarios, reglas, dashboard, reportes
+│   └── styleguide/       # vitrina del design system
+├── app.routes.ts
+└── app.config.ts
 ```
-
-Angular CLI does not come with an end-to-end testing framework by default. You can choose one that suits your needs.
-
-## Additional Resources
-
-For more information on using the Angular CLI, including detailed command references, visit the [Angular CLI Overview and Command Reference](https://angular.dev/tools/cli) page.

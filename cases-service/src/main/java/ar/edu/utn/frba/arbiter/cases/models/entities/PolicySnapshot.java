@@ -27,7 +27,10 @@ import java.time.Instant;
  * <p>{@code paymentsUpToDate} and {@code previousClaims} are what the scoring engine reads for
  * the {@code policy_standing} and {@code claim_frequency} factors.
  *
- * <p>No caller writes here yet — {@code InsurerAdapter} calls aren't logged today.
+ * <p>This is the <b>read</b> side. classification-service writes it (its
+ * {@code PolicySnapshotRepository}, plain JDBC), because that's where the insurer's answer enters
+ * the decision — taking the snapshot here, on creation, would record data the classification never
+ * saw.
  */
 @Entity
 @Table(name = "policy_snapshot")
@@ -56,6 +59,10 @@ public class PolicySnapshot {
 
     @Column(name = "previous_claims", nullable = false)
     private Integer previousClaims;
+
+    /** Nullable, unlike the count: a zero would read as "never claimed a peso". */
+    @Column(name = "total_amount_claimed")
+    private BigDecimal totalAmountClaimed;
 
     @Column(name = "queried_at", nullable = false)
     private Instant queriedAt;

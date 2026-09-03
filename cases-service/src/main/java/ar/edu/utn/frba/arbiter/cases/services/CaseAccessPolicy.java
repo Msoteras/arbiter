@@ -24,6 +24,7 @@ public class CaseAccessPolicy {
 
     private static final String INSURED_ROLE = "ROLE_ASEGURADO";
     private static final String REFERENT_ROLE = "ROLE_REFERENTE_ASEGURADORA";
+    private static final String ANALYST_ROLE = "ROLE_ANALISTA_SINIESTROS";
 
     /**
      * Fails as {@link CaseNotFoundException} (404) rather than a 403 on purpose: telling a
@@ -57,6 +58,21 @@ public class CaseAccessPolicy {
      */
     public StatusChangeActor currentAssignmentActor() {
         return hasAuthority(REFERENT_ROLE) ? StatusChangeActor.REFERENT : StatusChangeActor.ANALYST;
+    }
+
+    /**
+     * Which side of a case's conversation the caller is on. {@code REFERENT} is a reader, not a
+     * party: they see the thread the same way they see the rest of the case, and don't write to it.
+     * Null for anyone else — no role outside these three reaches a case at all.
+     */
+    public StatusChangeActor currentParty() {
+        if (hasAuthority(INSURED_ROLE)) {
+            return StatusChangeActor.INSURED;
+        }
+        if (hasAuthority(ANALYST_ROLE)) {
+            return StatusChangeActor.ANALYST;
+        }
+        return hasAuthority(REFERENT_ROLE) ? StatusChangeActor.REFERENT : null;
     }
 
     private boolean hasAuthority(String authority) {

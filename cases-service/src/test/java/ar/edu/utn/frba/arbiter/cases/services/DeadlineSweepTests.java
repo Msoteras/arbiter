@@ -12,6 +12,7 @@ import ar.edu.utn.frba.arbiter.cases.models.repositories.CoverageRepository;
 import ar.edu.utn.frba.arbiter.cases.models.repositories.InsuredRepository;
 import ar.edu.utn.frba.arbiter.cases.models.repositories.InsurerRepository;
 import ar.edu.utn.frba.arbiter.cases.models.repositories.NotificationRepository;
+import ar.edu.utn.frba.arbiter.cases.models.repositories.PolicyCoverageRepository;
 import ar.edu.utn.frba.arbiter.cases.models.repositories.PolicyRepository;
 import ar.edu.utn.frba.arbiter.cases.models.repositories.UserRepository;
 import ar.edu.utn.frba.arbiter.cases.support.AbstractPersistenceIT;
@@ -24,6 +25,7 @@ import ar.edu.utn.frba.arbiter.common.models.entities.ClaimCause;
 import ar.edu.utn.frba.arbiter.common.models.entities.Insurer;
 import ar.edu.utn.frba.arbiter.common.models.entities.User;
 import ar.edu.utn.frba.arbiter.common.models.entities.tenant.ClaimsAnalyst;
+import ar.edu.utn.frba.arbiter.common.models.entities.tenant.Coverage;
 import ar.edu.utn.frba.arbiter.common.models.entities.tenant.Insured;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -73,6 +75,7 @@ class DeadlineSweepTests extends AbstractPersistenceIT {
     @Autowired private InsuredRepository insuredRepository;
     @Autowired private PolicyRepository policyRepository;
     @Autowired private CoverageRepository coverageRepository;
+    @Autowired private PolicyCoverageRepository policyCoverageRepository;
     @Autowired private UserRepository userRepository;
 
     private ClaimsAnalyst analystA;
@@ -93,9 +96,13 @@ class DeadlineSweepTests extends AbstractPersistenceIT {
     @Test
     void sweep_notifiesCriticalAndOverdue_andIsIdempotent() {
         Case critical = save(CaseStatus.PENDING_ANALYST_REVIEW, TODAY.plusDays(1), "POL-C", "1", analystA);
-        Case overdue = save(CaseStatus.AWAITING_DOCUMENTATION, TODAY.minusDays(3), "POL-O", "2", null);
+        Case overdue = save(CaseStatus.PENDING_ANALYST_REVIEW, TODAY.minusDays(3), "POL-O", "2", null);
         Case urgent = save(CaseStatus.PENDING_ANALYST_REVIEW, TODAY.plusDays(4), "POL-U", "3", analystA);
         Case approved = save(CaseStatus.APPROVED, TODAY.plusDays(1), "POL-A", "4", analystA);
+        // Plazo interrumpido: el expediente espera al asegurado, así que su responseDeadline es una
+        // fecha congelada y no una urgencia real (CaseStatusService.PAUSING_STATUSES). Vencido hace
+        // 3 días y aun así no se notifica.
+        Case paused = save(CaseStatus.AWAITING_DOCUMENTATION, TODAY.minusDays(3), "POL-P", "5", analystA);
 
         scheduler.sweepDeadlines();
 
@@ -109,9 +116,10 @@ class DeadlineSweepTests extends AbstractPersistenceIT {
                 .allMatch(n -> n.getType().equals("DEADLINE_OVERDUE"))
                 .extracting(Notification::getRecipientId)
                 .containsExactlyInAnyOrder(analystA.getUser().getId(), analystB.getUser().getId());
-        // Urgente (>2 días) y aprobado (terminal) → nada.
+        // Urgente (>2 días), aprobado (terminal) y pausado (plazo interrumpido) → nada.
         assertThat(notificationsFor(urgent)).isEmpty();
         assertThat(notificationsFor(approved)).isEmpty();
+        assertThat(notificationsFor(paused)).isEmpty();
         // 1 (crítico) + 2 (vencido a los dos analistas) = 3 mails.
         verify(sendGridAdapter, times(3)).send(anyString(), anyString(), anyString());
 
@@ -138,7 +146,7 @@ class DeadlineSweepTests extends AbstractPersistenceIT {
                 .declaredItem("Samsung A56")
                 .insured(owner)
                 .policy(policy)
-                .coverage(policy.getCoverage())
+                .coverage(testCoverage())
                 .description("caso de prueba")
                 .occurredAt(deadline.minusDays(30).atStartOfDay())
                 .eventAddress("CABA")
@@ -180,9 +188,27 @@ class DeadlineSweepTests extends AbstractPersistenceIT {
     private Policy policy(String policyNumber, Insured owner) {
         return policyRepository.findByExternalPolicyNumber(policyNumber).orElseGet(() -> {
             Policy policy = CaseFixtures.policy(policyNumber, "Celular Protegido Básico");
-            policy.setCoverage(coverageRepository.save(policy.getCoverage()));
             policy.setInsuredId(owner.getId());
-            return policyRepository.save(policy);
+            return withCoverage(policyRepository.save(policy));
         });
+    }
+
+    /**
+     * La cobertura del catálogo del tenant. Idempotente, mismo patrón que {@code claimCause()}:
+     * varias pólizas de un test comparten la definición, que es lo que pasa en la realidad.
+     */
+    private Coverage testCoverage() {
+        return coverageRepository.findByName("Cobertura Celulares")
+                .orElseGet(() -> coverageRepository.save(CaseFixtures.coverage("Celulares")));
+    }
+
+    /**
+     * Deja la póliza con su cobertura contratada. Desde que una póliza tiene VARIAS coberturas, la
+     * suma asegurada vive en {@code policy_coverage} y no en {@code policy}, así que sin esta fila
+     * la póliza no tiene contra qué evaluarse.
+     */
+    private Policy withCoverage(Policy policy) {
+        policyCoverageRepository.save(CaseFixtures.policyCoverage(policy.getId(), testCoverage(), 1));
+        return policy;
     }
 }

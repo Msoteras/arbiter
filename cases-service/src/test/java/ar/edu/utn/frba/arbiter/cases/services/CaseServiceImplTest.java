@@ -14,6 +14,7 @@ import ar.edu.utn.frba.arbiter.cases.exceptions.CaseNotFoundException;
 import ar.edu.utn.frba.arbiter.cases.exceptions.InsuredIdentityMismatchException;
 import ar.edu.utn.frba.arbiter.cases.exceptions.InvalidAnalystDecisionException;
 import ar.edu.utn.frba.arbiter.cases.exceptions.InvalidStatusTransitionException;
+import ar.edu.utn.frba.arbiter.cases.exceptions.MissingRequiredDocumentsException;
 import ar.edu.utn.frba.arbiter.cases.exceptions.PolicyInsuredMismatchException;
 import ar.edu.utn.frba.arbiter.cases.exceptions.PolicyNotEligibleException;
 import ar.edu.utn.frba.arbiter.cases.exceptions.UnresolvedCaseReferenceException;
@@ -63,6 +64,7 @@ import java.time.LocalDateTime;
 import java.time.ZoneOffset;
 
 import java.util.List;
+import java.util.function.Supplier;
 import java.util.Map;
 import java.util.Optional;
 
@@ -115,10 +117,22 @@ class CaseServiceImplTest {
     private PolicyEligibilityValidator policyEligibilityValidator;
 
     @Mock
+    private RulesServiceClient rulesServiceClient;
+
+    @Mock
     private InsurerRepository insurerRepository;
 
     @Mock
+    private PolicyService policyService;
+
+    @Mock
+    private InsurerTenantScope tenantScope;
+
+    @Mock
     private Clock clock;
+
+    @Mock
+    private PolicyCoverageResolver policyCoverageResolver;
 
     @InjectMocks
     private CaseServiceImpl caseService;
@@ -127,6 +141,17 @@ class CaseServiceImplTest {
      * Por defecto no hay clasificación joineada. Es lo que devuelve el repositorio para un
      * expediente recién creado, y deja que cada test que sí la necesita la sobrescriba.
      */
+    /**
+     * Por defecto la póliza tiene una sola cobertura contratada y es la que responde por cualquier
+     * hecho. Los tests que necesitan varias la sobrescriben — acá lo que se prueba es el alta, no
+     * la resolución de cobertura (eso vive en {@link PolicyCoverageResolverTest}).
+     */
+    @BeforeEach
+    void oneContractedCoverageByDefault() {
+        lenient().when(policyCoverageResolver.resolveFor(any(), any()))
+                .thenReturn(CaseFixtures.policyCoverage(1L, CaseFixtures.coverage("Celulares"), 1));
+    }
+
     @BeforeEach
     void noAnalysisByDefault() {
         // toResponse() computa la prioridad de vencimiento con LocalDate.now(clock).
@@ -148,6 +173,13 @@ class CaseServiceImplTest {
     @BeforeEach
     void noInsurerMatchByDefault() {
         lenient().when(insurerRepository.findBySchemaName(any())).thenReturn(Optional.empty());
+    }
+
+    /** No slug in these tests: the scope runs the action on the tenant already set. */
+    @BeforeEach
+    void runOnTheCallersTenant() {
+        lenient().when(tenantScope.forCase(any(), any(), any()))
+                .thenAnswer(invocation -> invocation.getArgument(2, Supplier.class).get());
     }
 
     /**
@@ -732,6 +764,73 @@ class CaseServiceImplTest {
         verify(caseStatusService).recordAssignment(entity, StatusChangeActor.ANALYST, "expediente liberado");
     }
 
+    // ─── reopenCase ("rehabilitación", doc de dominio BBVA) ────────────────────────
+
+    @Test
+    void reopenCase_transitionsBackToAnalystReviewWithThePrefixedReason() {
+        Case entity = caseRecord(1L, CaseStatus.APPROVED);
+        when(caseRepository.findById(1L)).thenReturn(Optional.of(entity));
+        when(accessPolicy.currentAssignmentActor()).thenReturn(StatusChangeActor.ANALYST);
+
+        caseService.reopenCase(1L, "el analista se equivocó");
+
+        // El motivo se guarda con prefijo: es lo único que va a quedar en el historial, y sin el
+        // prefijo una fila de reapertura se leería igual que un motivo de decisión cualquiera.
+        verify(caseStatusService).transition(entity, CaseStatus.PENDING_ANALYST_REVIEW,
+                StatusChangeActor.ANALYST, "expediente reabierto: el analista se equivocó");
+    }
+
+    @Test
+    void reopenCase_attributesTheHistoryRowToWhoeverIsCalling() {
+        // El endpoint es compartido entre ANALISTA_SINIESTROS y REFERENTE_ASEGURADORA, igual que
+        // assignAnalyst — no puede atribuirle la reapertura a un rol fijo.
+        Case entity = caseRecord(1L, CaseStatus.LAPSED);
+        when(caseRepository.findById(1L)).thenReturn(Optional.of(entity));
+        when(accessPolicy.currentAssignmentActor()).thenReturn(StatusChangeActor.REFERENT);
+
+        caseService.reopenCase(1L, "llegó la documentación que faltaba");
+
+        verify(caseStatusService).transition(entity, CaseStatus.PENDING_ANALYST_REVIEW,
+                StatusChangeActor.REFERENT, "expediente reabierto: llegó la documentación que faltaba");
+    }
+
+    @Test
+    void reopenCase_returnsTheReloadedCase() {
+        Case entity = caseRecord(1L, CaseStatus.REJECTED);
+        when(caseRepository.findById(1L)).thenReturn(Optional.of(entity));
+        when(accessPolicy.currentAssignmentActor()).thenReturn(StatusChangeActor.ANALYST);
+
+        CaseResponse response = caseService.reopenCase(1L, "nueva evidencia");
+
+        assertThat(response.id()).isEqualTo(1L);
+    }
+
+    @Test
+    void reopenCase_unknownCase_throwsNotFound() {
+        when(caseRepository.findById(99L)).thenReturn(Optional.empty());
+
+        assertThatThrownBy(() -> caseService.reopenCase(99L, "motivo"))
+                .isInstanceOf(CaseNotFoundException.class);
+        verify(caseStatusService, never()).transition(any(), any(), any(), any());
+    }
+
+    /**
+     * La guarda de 409 vive en {@code CaseStatusService.transition} (un expediente no terminal no
+     * tiene salida a PENDING_ANALYST_REVIEW) — acá solo se verifica que el service no la absorbe ni
+     * la traduce, la deja propagar tal cual para que el controller la mapee.
+     */
+    @Test
+    void reopenCase_notTerminal_propagatesTheStateMachinesRefusal() {
+        Case entity = caseRecord(1L, CaseStatus.PENDING_ANALYST_REVIEW);
+        when(caseRepository.findById(1L)).thenReturn(Optional.of(entity));
+        when(accessPolicy.currentAssignmentActor()).thenReturn(StatusChangeActor.ANALYST);
+        doThrow(new InvalidStatusTransitionException(CaseStatus.PENDING_ANALYST_REVIEW, CaseStatus.PENDING_ANALYST_REVIEW))
+                .when(caseStatusService).transition(eq(entity), eq(CaseStatus.PENDING_ANALYST_REVIEW), any(), any());
+
+        assertThatThrownBy(() -> caseService.reopenCase(1L, "motivo"))
+                .isInstanceOf(InvalidStatusTransitionException.class);
+    }
+
     private static ClaimsAnalyst analyst(Long id, String name, String surname) {
         return ClaimsAnalyst.builder()
                 .id(id)
@@ -890,6 +989,100 @@ class CaseServiceImplTest {
         CaseResponse response = caseService.getCase(1L);
 
         assertThat(response.analysisConfidence()).isEqualTo(0.0);
+    }
+
+    /**
+     * La agenda es el contrato de "expediente completo", y hasta ahora solo la miraba el wizard:
+     * un cliente pegando directo contra el endpoint daba de alta un robo sin denuncia policial.
+     */
+    @Test
+    void createCase_missingARequiredDocument_isRejectedAndNothingIsPersisted() {
+        CaseRequest request = caseRequest();
+        stubReferenceResolution();
+        when(rulesServiceClient.requiredDocumentTypes("Celulares", "Robo en vía pública"))
+                .thenReturn(List.of("police_report", "purchase_proof"));
+
+        MockMultipartFile police = new MockMultipartFile(
+                "police_report", "denuncia.pdf", "application/pdf", "pdf-bytes".getBytes());
+
+        assertThatThrownBy(() -> caseService.createCase(request, Map.of("police_report", police)))
+                .isInstanceOf(MissingRequiredDocumentsException.class)
+                .hasMessageContaining("purchase_proof");
+
+        verify(caseRepository, never()).save(any(Case.class));
+    }
+
+    /** Un archivo vacío ocupa el slot pero no es el documento: cuenta como faltante. */
+    @Test
+    void createCase_emptyFileDoesNotCountAsTheDocument() {
+        CaseRequest request = caseRequest();
+        stubReferenceResolution();
+        when(rulesServiceClient.requiredDocumentTypes(any(), any()))
+                .thenReturn(List.of("police_report"));
+
+        MockMultipartFile empty = new MockMultipartFile(
+                "police_report", "vacio.pdf", "application/pdf", new byte[0]);
+
+        assertThatThrownBy(() -> caseService.createCase(request, Map.of("police_report", empty)))
+                .isInstanceOf(MissingRequiredDocumentsException.class);
+    }
+
+    @Test
+    void createCase_withEveryRequiredDocument_goesThrough() {
+        CaseRequest request = caseRequest();
+        Case saved = caseRecord(1L, CaseStatus.PENDING_CLASSIFICATION);
+        stubReferenceResolution();
+        when(rulesServiceClient.requiredDocumentTypes(any(), any()))
+                .thenReturn(List.of("police_report"));
+        when(caseRepository.save(any(Case.class))).thenReturn(saved);
+        when(caseDocumentRepository.findByCaseIdAndType(eq(1L), any())).thenReturn(Optional.empty());
+        when(caseDocumentRepository.findByCaseId(1L)).thenReturn(List.of());
+        when(claimsAnalysisClient.analyzeAndPersist(any(), any()))
+                .thenReturn(new AnalysisResult(null, 0.0, "in progress"));
+
+        MockMultipartFile police = new MockMultipartFile(
+                "police_report", "denuncia.pdf", "application/pdf", "pdf-bytes".getBytes());
+
+        caseService.createCase(request, Map.of("police_report", police));
+
+        verify(caseRepository).save(any(Case.class));
+    }
+
+    /**
+     * Lista vacía es una respuesta ("este hecho generador no pide documentos"); null es que no se
+     * pudo leer la agenda. Ninguna de las dos frena la denuncia, pero por motivos distintos — ver
+     * {@code CaseServiceImpl.assertRequiredDocumentsPresent}.
+     */
+    @Test
+    void createCase_withoutAReadableSchedule_doesNotDemandAnything() {
+        CaseRequest request = caseRequest();
+        Case saved = caseRecord(1L, CaseStatus.PENDING_CLASSIFICATION);
+        stubReferenceResolution();
+        when(rulesServiceClient.requiredDocumentTypes(any(), any())).thenReturn(null);
+        when(caseRepository.save(any(Case.class))).thenReturn(saved);
+        when(caseDocumentRepository.findByCaseId(1L)).thenReturn(List.of());
+        when(claimsAnalysisClient.analyzeAndPersist(any(), any()))
+                .thenReturn(new AnalysisResult(null, 0.0, "in progress"));
+
+        caseService.createCase(request, Map.of());
+
+        verify(caseRepository).save(any(Case.class));
+    }
+
+    @Test
+    void createCase_withAnEmptySchedule_doesNotDemandAnything() {
+        CaseRequest request = caseRequest();
+        Case saved = caseRecord(1L, CaseStatus.PENDING_CLASSIFICATION);
+        stubReferenceResolution();
+        when(rulesServiceClient.requiredDocumentTypes(any(), any())).thenReturn(List.of());
+        when(caseRepository.save(any(Case.class))).thenReturn(saved);
+        when(caseDocumentRepository.findByCaseId(1L)).thenReturn(List.of());
+        when(claimsAnalysisClient.analyzeAndPersist(any(), any()))
+                .thenReturn(new AnalysisResult(null, 0.0, "in progress"));
+
+        caseService.createCase(request, Map.of());
+
+        verify(caseRepository).save(any(Case.class));
     }
 
     @Test

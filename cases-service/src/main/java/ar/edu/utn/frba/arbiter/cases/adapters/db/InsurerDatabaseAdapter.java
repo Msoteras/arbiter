@@ -106,15 +106,21 @@ public class InsurerDatabaseAdapter implements InsurerAdapter {
                 """.formatted(database.schema()),
                 (rs, i) -> {
                     BigDecimal sum = rs.getBigDecimal("suma_asegurada");
+                    BigDecimal pct = rs.getBigDecimal("franquicia_pct");
                     return Coverage.builder()
                             .code("COB-" + rs.getInt("orden"))
                             .description(rs.getString("nombre"))
                             .insuredAmount(sum)
-                            .deductible(absoluteDeductible(sum, rs.getBigDecimal("franquicia_pct")))
+                            .deductible(absoluteDeductible(sum, pct))
+                            .deductiblePct(pct)
                             .build();
                 },
                 row.id());
 
+        // insuredAmount/deductible de la póliza son los de la PRIMERA cobertura y se mantienen solo
+        // para el resumen del portal (la tarjeta de la póliza, que muestra un número). Todo lo que
+        // decide algo —reglas, Fast Track, agotamiento— tiene que leer `coverages` y quedarse con
+        // la que corresponde al hecho denunciado: acá no hay una suma asegurada de la póliza.
         Coverage primary = coverages.isEmpty() ? null : coverages.get(0);
         return PolicyResponse.builder()
                 .policyNumber(row.numero())

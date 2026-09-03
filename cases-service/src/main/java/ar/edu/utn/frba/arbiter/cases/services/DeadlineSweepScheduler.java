@@ -37,9 +37,17 @@ public class DeadlineSweepScheduler {
 
     private static final Logger log = LoggerFactory.getLogger(DeadlineSweepScheduler.class);
 
-    /** Terminal states: an answered case is never due. Kept in sync with {@code isResponded}. */
-    private static final List<String> TERMINAL_STATUSES =
-            List.of(CaseStatus.APPROVED.name(), CaseStatus.REJECTED.name());
+    /**
+     * Never due: a terminal case was already answered (or, for {@code LAPSED}, closed by inaction
+     * instead), and the two {@code CaseStatusService.PAUSING_STATUSES} mean the art. 56 term is
+     * currently interrupted — its {@code responseDeadline} is a frozen, stale date (see
+     * {@code CaseStatusService.resumeDeadlineIfInterrupted}). Listed out rather than built from
+     * the {@code PAUSING_STATUSES} set so this stays in a fixed order (a {@code Set.of()}'s
+     * iteration order isn't a contract). Kept in sync with {@code CaseServiceImpl.isDeadlineInactive}.
+     */
+    private static final List<String> DEADLINE_INACTIVE_STATUSES = List.of(
+            CaseStatus.APPROVED.name(), CaseStatus.REJECTED.name(), CaseStatus.LAPSED.name(),
+            CaseStatus.AWAITING_DOCUMENTATION.name(), CaseStatus.PENDING_EXPERT_REPORT.name());
 
     /** Only critical or worse notifies; a case is critical at 2 days out, so that's the query window. */
     private static final long NOTIFY_WINDOW_DAYS = 2;
@@ -70,13 +78,13 @@ public class DeadlineSweepScheduler {
 
     private void sweepCurrentTenant(LocalDate today) {
         LocalDate threshold = today.plusDays(NOTIFY_WINDOW_DAYS);
-        List<Case> due = caseRepository.findUnansweredDueBy(threshold, TERMINAL_STATUSES);
+        List<Case> due = caseRepository.findUnansweredDueBy(threshold, DEADLINE_INACTIVE_STATUSES);
         if (due.isEmpty()) {
             return;
         }
         log.debug("Deadline sweep: {} case(s) at/under {} in {}", due.size(), threshold, TenantContext.get());
         for (Case caseRecord : due) {
-            // responded=false: the query already excluded terminal cases.
+            // responded=false: the query already excluded terminal and paused cases.
             DeadlinePriority priority =
                     DeadlinePriority.of(caseRecord.getResponseDeadline(), today, false);
             // Con NOTIFY_WINDOW_DAYS=2 todo lo que trae la query es CRITICAL u OVERDUE, así que el

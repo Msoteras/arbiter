@@ -15,6 +15,7 @@ import ar.edu.utn.frba.arbiter.classification.models.repositories.RuleResultRepo
 import ar.edu.utn.frba.arbiter.classification.services.risk.RiskScore;
 import ar.edu.utn.frba.arbiter.common.dto.ClaimResponse;
 import ar.edu.utn.frba.arbiter.common.dto.RiskBreakdownItem;
+import ar.edu.utn.frba.arbiter.common.dto.RuleResultResponse;
 import ar.edu.utn.frba.arbiter.common.enums.Classification;
 import ar.edu.utn.frba.arbiter.common.enums.RiskBand;
 import org.junit.jupiter.api.Test;
@@ -248,5 +249,50 @@ class ClassificationResultsServiceTest {
         analysis.addReason("factor-1");
         analysis.addReason("factor-2");
         return analysis;
+    }
+
+    /** Only the failures reach the screen today; "all passed" and "nothing ran" must differ. */
+    @Test
+    void ruleResultsIncludeThePasses() {
+        when(ruleResultRepository.findByCaseIdOrderByEvaluatedAtAsc(7L)).thenReturn(List.of(
+                ruleResult(1L, "POLICY_IN_FORCE", "PASS", "eventDate=20/08/2026 coverageWindow=01/01/2026..01/01/2027"),
+                ruleResult(2L, "REPORT_DEADLINE", "FAIL", "reportedAt=+99h max=72h")));
+
+        List<RuleResultResponse> results = service.getRuleResults(7L);
+
+        assertThat(results).extracting(RuleResultResponse::result).containsExactly("PASS", "FAIL");
+        assertThat(results).extracting(RuleResultResponse::ruleType)
+                .containsExactly("POLICY_IN_FORCE", "REPORT_DEADLINE");
+    }
+
+    @Test
+    void ruleResultsCarryTheEvaluatedValue() {
+        when(ruleResultRepository.findByCaseIdOrderByEvaluatedAtAsc(7L)).thenReturn(List.of(
+                ruleResult(1L, "REPORT_DEADLINE", "FAIL", "reportedAt=+99h max=72h")));
+
+        assertThat(service.getRuleResults(7L))
+                .singleElement()
+                .extracting(RuleResultResponse::evaluatedValue)
+                .isEqualTo("reportedAt=+99h max=72h");
+    }
+
+    /** Empty is a normal answer: a Fast Track writes no rows here. */
+    @Test
+    void aCaseWithNoRulesEvaluatedYieldsAnEmptyList() {
+        when(ruleResultRepository.findByCaseIdOrderByEvaluatedAtAsc(7L)).thenReturn(List.of());
+
+        assertThat(service.getRuleResults(7L)).isEmpty();
+    }
+
+    private static RuleResult ruleResult(Long id, String type, String result, String evaluatedValue) {
+        RuleResult row = new RuleResult();
+        row.setId(id);
+        row.setCaseId(7L);
+        row.setRuleId(id);
+        row.setRuleType(type);
+        row.setResult(result);
+        row.setEvaluatedValue(evaluatedValue);
+        row.setEvaluatedAt(Instant.now());
+        return row;
     }
 }

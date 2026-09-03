@@ -10,6 +10,12 @@ import java.util.List;
 public record InsuredHistory(
         String insuredId,
         int previousClaimsCount,
+        /**
+         * Sum of {@code amountSettled} over {@link #claims} — what the company paid, not what was
+         * claimed. The name is a misnomer kept for stability. Scoped to the insured, so it spans
+         * every policy and branch they hold: it says nothing about what this coverage has left
+         * (that's {@code claim_exhausts_coverage}, counted per policy).
+         */
         BigDecimal totalAmountClaimed,
         LocalDate customerSince,
         List<ClaimRecord> claims
@@ -26,6 +32,17 @@ public record InsuredHistory(
              */
             String policyNumber,
             String branch,
+            /**
+             * The coverage that answered for the claim. What the sum-insured exhaustion rule
+             * accumulates against: the limit belongs to the coverage, not to the policy — there is
+             * no aggregate policy ceiling (confirmed with the analyst, 01/09/2026), so a settled
+             * robo consumes the robo coverage and leaves the hurto one untouched.
+             *
+             * <p>Null when the company's record doesn't say. The rule then leaves that claim out
+             * rather than imputing it to a coverage by guessing, which is the same criterion the
+             * rest of the hard rules use for missing data.
+             */
+            String coverageName,
             String claimCause,
             String affectedItem,
             String status,
