@@ -11,14 +11,26 @@ import {
 } from '@angular/core';
 import { toObservable, toSignal } from '@angular/core/rxjs-interop';
 import { Router, RouterLink } from '@angular/router';
-import { catchError, debounceTime, map, of, startWith, switchMap } from 'rxjs';
+import {
+  catchError,
+  debounceTime,
+  distinctUntilChanged,
+  map,
+  of,
+  retry,
+  scan,
+  startWith,
+  switchMap,
+} from 'rxjs';
 
 import { ExpedienteService, CaseCreateRequest } from '../expediente.service';
 import { PolicyService } from '../policy.service';
 import { DocumentAgendaService } from '../document-agenda.service';
 import { ExpedienteResponse } from '../../../core/models/expediente';
 import { Policy } from '../../../core/models/policy';
-import { CASE_DOCUMENT_TYPES, CaseDocumentType } from '../../../core/models/case-document';
+import { ChipGroupComponent, ChipOption } from '../../../shared/ui/chip-group/chip-group.component';
+import { addDays, isPoliceReportBeforeEvent, isTypedDate, todayIso } from '../../../core/util/datetime';
+import { CASE_DOCUMENT_TYPES, CaseDocumentType, documentTypeLabel } from '../../../core/models/case-document';
 import { InsuredSessionService } from '../../../core/auth/insured-session.service';
 import { ButtonComponent } from '../../../shared/ui/button/button.component';
 import { CardComponent } from '../../../shared/ui/card/card.component';
@@ -27,6 +39,7 @@ import { TextareaComponent } from '../../../shared/ui/textarea/textarea.componen
 import { SelectComponent, SelectOption } from '../../../shared/ui/select/select.component';
 import { FilePreviewComponent } from '../../../shared/ui/file-preview/file-preview.component';
 import { InlineLoadingComponent } from '../../../shared/ui/inline-loading/inline-loading.component';
+import { SwitchComponent } from '../../../shared/ui/switch/switch.component';
 
 // Wizard de alta de denuncia (asegurado) — 3 pasos con catálogos en cascada.
 type Step = 1 | 2 | 3;
@@ -45,6 +58,32 @@ interface DocSlot {
   file: File | null;
   error: string | null;
 }
+
+/**
+ * Three states, not two — the same distinction rules-service already makes internally between an
+ * empty schedule and a missing answer (see {@code InternalDocumentRequirementService.getByCoverage}):
+ *
+ * <ul>
+ *   <li>`configured` — the referente set a schedule for this branch + claim cause. Every row saved
+ *       from the panel is persisted mandatory, so all of these are required to file.
+ *   <li>`none` — the backend answered, and the answer is "no documents". An edge case (an
+ *       unconfigured combination), not an error: the full catalogue is OFFERED and nothing is
+ *       demanded, so the insured is never left unable to attach anything.
+ *   <li>`unavailable` — rules-service didn't answer. This is NOT "no documents": we cannot know
+ *       what to demand, so demanding nothing would be pretending we checked. The claim is still
+ *       filed (leaving the insured out because our own service is down would be worse) and the
+ *       completeness check falls to the backend, which evaluates it again over the real schedule.
+ * </ul>
+ */
+type RequiredDocsStatus = 'configured' | 'none' | 'unavailable';
+
+interface RequiredDocsState {
+  status: RequiredDocsStatus;
+  slots: readonly CaseDocumentType[];
+}
+
+/** What is shown when there is no schedule to go by: offered, never demanded. */
+const OFFERED_DOCS: RequiredDocsState = { status: 'none', slots: CASE_DOCUMENT_TYPES };
 
 // Mismo tope que cases-service (spring.servlet.multipart.max-file-size) — validar acá
 // evita esperar la subida completa para recién ahí enterarse de que no entra. El
@@ -70,12 +109,17 @@ type PoliciesState =
 
 type ClaimTypesState =
   | { status: 'idle' }
-  | { status: 'loading' }
+  // `list` en loading es la tanda ANTERIOR, que se sigue mostrando mientras llega la nueva. Sin
+  // esto, cualquier recarga vaciaba los chips y los volvía a dibujar: el titileo.
+  | { status: 'loading'; list?: ClaimType[] }
   | { status: 'ok'; list: ClaimType[] };
 
 type EligibilityState =
   | { status: 'idle' }
-  | { status: 'checking' }
+  // `previous` es el veredicto que seguía mostrándose mientras se revalida. Sin él, cada
+  // rechequeo cambiaba el bloque por el loader "Verificando la póliza…" y lo devolvía: como ese
+  // bloque está en el paso 1, justo arriba de los chips, el modal cambiaba de alto y titilaba.
+  | { status: 'checking'; previous?: EligibilityState }
   | { status: 'ok' }
   | { status: 'blocked'; reason: string }
   // El precheck no respondió (red, 5xx, o un 400 real de contrato). Distinto de 'ok': no
@@ -83,9 +127,34 @@ type EligibilityState =
   // gate real del submit final sigue estando — pero avisa en vez de quedar en silencio.
   | { status: 'unknown' };
 
+/** Hora representativa de cada franja: el medio, no el borde. */
+const SLOT_TIMES: Record<string, string> = {
+  madrugada: '03:00',
+  manana: '09:00',
+  tarde: '15:00',
+  noche: '21:00',
+};
+
+/**
+ * La franja a la que pertenece una hora ya cargada, para que el chip refleje el campo en vez de
+ * competir con él. Los cortes siguen cómo se habla del día en castellano rioplatense: la tarde
+ * arranca al mediodía y la noche cuando cae la luz, no cada seis horas exactas.
+ */
+function slotOf(time: string): string {
+  if (!/^\d{2}:\d{2}$/.test(time)) {
+    return '';
+  }
+  const hour = Number(time.slice(0, 2));
+  if (hour < 6) return 'madrugada';
+  if (hour < 12) return 'manana';
+  if (hour < 19) return 'tarde';
+  return 'noche';
+}
+
 @Component({
   selector: 'app-nueva-denuncia',
   imports: [
+    ChipGroupComponent,
     RouterLink,
     ButtonComponent,
     CardComponent,
@@ -94,6 +163,7 @@ type EligibilityState =
     SelectComponent,
     FilePreviewComponent,
     InlineLoadingComponent,
+    SwitchComponent,
   ],
   changeDetection: ChangeDetectionStrategy.OnPush,
   templateUrl: './nueva-denuncia.component.html',
@@ -204,6 +274,12 @@ export class NuevaDenunciaComponent {
         return policy ? { branch: policy.branch, policyNumber: policy.policyNumber } : null;
       }),
     ).pipe(
+      // El computed de arriba devuelve un objeto NUEVO en cada recálculo, así que toObservable lo
+      // ve distinto aunque branch y policyNumber sean los mismos — y volvía a pedir la lista, con
+      // su parpadeo de loading, cada vez que se rearmaba `policies()`. Se compara por valor.
+      distinctUntilChanged(
+        (a, b) => a?.branch === b?.branch && a?.policyNumber === b?.policyNumber,
+      ),
       switchMap((selected) =>
         selected
           ? this.policyService.listClaimCauses(selected.branch, selected.policyNumber).pipe(
@@ -218,15 +294,26 @@ export class NuevaDenunciaComponent {
             )
           : of<ClaimTypesState>({ status: 'idle' }),
       ),
+      // Arrastra la lista ya cargada al estado de loading siguiente: al recargar, los chips se
+      // quedan en pantalla en vez de desaparecer y volver.
+      scan(
+        (prev, next): ClaimTypesState =>
+          next.status === 'loading' && prev.status === 'ok' ? { status: 'loading', list: prev.list } : next,
+        { status: 'idle' } as ClaimTypesState,
+      ),
     ),
     { initialValue: { status: 'idle' } as ClaimTypesState },
   );
 
-  protected readonly claimTypesLoading = computed(() => this.claimTypesState().status === 'loading');
+  /** Solo cuando NO hay nada que mostrar: si ya hay chips, se recarga sin vaciarlos. */
+  protected readonly claimTypesLoading = computed(() => {
+    const s = this.claimTypesState();
+    return s.status === 'loading' && !s.list?.length;
+  });
 
   protected readonly claimTypes = computed<ClaimType[]>(() => {
     const s = this.claimTypesState();
-    return s.status === 'ok' ? s.list : [];
+    return s.status === 'ok' ? s.list : (s.status === 'loading' ? (s.list ?? []) : []);
   });
   protected readonly selectedType = signal<ClaimType | null>(null);
   // Al cambiar de ramo la causa elegida puede dejar de existir: se limpia para no mandar un hecho
@@ -252,7 +339,7 @@ export class NuevaDenunciaComponent {
   // Tope del input de fecha: un siniestro no puede haber
   // "ocurrido" en el futuro. La regla real vive en el backend (CaseRequest la valida de
   // nuevo); esto es solo la ayuda visual del datepicker.
-  protected readonly today = new Date().toISOString().slice(0, 10);
+  protected readonly today = todayIso();
 
   // Step 2
   protected readonly description = signal('');
@@ -269,6 +356,124 @@ export class NuevaDenunciaComponent {
   // desde el principio; el wizard nunca lo mandaba, así que la regla era inverificable (D12).
   protected readonly policeReportDate = signal('');
   protected readonly policeReportTime = signal('');
+  /**
+   * Whether the insured already filed the police report. Used to be answered by leaving the date
+   * blank, which cannot tell "I haven't filed it yet" apart from "I skipped the field" — and the
+   * reporting-deadline rule (D12) reads that same date, so the difference matters.
+   *
+   * <p>Starts ON, and only shows up for a claim cause whose schedule asks for a police report
+   * (theft). For those, filing the claim already holding the report is the normal path — the
+   * insured comes from the station — and the report is a MANDATORY document of the schedule, so
+   * not having it is the exception and has to be declared as such. Defaulting to off presented
+   * the exception as the norm, and made it a one-tap way of leaving D12 unevaluated.
+   */
+  protected readonly policeReportFiled = signal(true);
+
+  /** Turning it off clears the date: a report that was un-declared must not reach the backend. */
+  setPoliceReportFiled(filed: boolean): void {
+    this.policeReportFiled.set(filed);
+    if (!filed) {
+      this.policeReportDate.set('');
+      this.policeReportTime.set('');
+    }
+  }
+  /**
+   * Franjas horarias del atajo. La hora representativa es el medio de cada franja, no su borde:
+   * elegir "Noche" pone 21:00 y no 19:00, así una franja no empuja el dato contra el límite de un
+   * plazo (D11 cuenta horas desde el hecho) solo por haber sido elegida.
+   *
+   * El dato sigue siendo el campo de hora: el chip lo escribe, no lo reemplaza. Por eso la franja
+   * se DERIVA de la hora cargada — si el asegurado la corrige a mano, el chip se acomoda solo en
+   * vez de quedar marcando algo que ya no es cierto.
+   */
+  protected readonly timeSlots: readonly ChipOption[] = [
+    { value: 'madrugada', label: 'Madrugada' },
+    { value: 'manana', label: 'Mañana' },
+    { value: 'tarde', label: 'Tarde' },
+    { value: 'noche', label: 'Noche' },
+  ];
+
+  /**
+   * The exact date behind each relative chip. Built once: the wizard is filled in one sitting, and
+   * a claim reported across midnight is better off keeping the day it started on than having the
+   * chips shift under the insured mid-form.
+   */
+  private readonly eventDateShortcuts: Record<string, string> = {
+    hoy: this.today,
+    ayer: addDays(this.today, -1),
+    anteayer: addDays(this.today, -2),
+  };
+
+  /**
+   * Relative shortcuts for the event date. The insured knows "ayer", not "2026-06-12", and making
+   * them do that conversion is where they get it wrong. Three days cover the overwhelming majority
+   * — a claim is reported within days, which is the same window the reporting deadline cares about.
+   *
+   * <p>Same contract as the time slots: the chip WRITES the date field, it does not replace it.
+   * Anything older is typed in the field, which stays visible and is still the actual value.
+   */
+  protected readonly eventDateOptions: readonly ChipOption[] = [
+    { value: 'hoy', label: 'Hoy' },
+    { value: 'ayer', label: 'Ayer' },
+    { value: 'anteayer', label: 'Anteayer' },
+  ];
+
+  /** Derived from the field, so typing a date by hand lights up the matching chip. */
+  protected readonly eventDateShortcut = computed(() => {
+    const date = this.eventDate();
+    return Object.keys(this.eventDateShortcuts).find((k) => this.eventDateShortcuts[k] === date) ?? '';
+  });
+
+  selectEventDateShortcut(key: string): void {
+    this.eventDate.set(this.eventDateShortcuts[key] ?? '');
+  }
+
+  /**
+   * The police report date is offered RELATIVE to the event, not in absolute terms. That is what
+   * makes the common path incapable of expressing a report filed before the claim it reports:
+   * every option is on or after the event date. The coherence error stops being the usual way of
+   * finding out about the rule and goes back to being the rare edge.
+   */
+  protected readonly policeDateOptions = computed<ChipOption[]>(() => {
+    const options: ChipOption[] = [{ value: 'mismo', label: 'El mismo día' }];
+    // Offering "al día siguiente" for a claim that happened today would be offering tomorrow.
+    if (this.eventDate() !== this.today) {
+      options.push({ value: 'siguiente', label: 'Al día siguiente' });
+    }
+    return options;
+  });
+
+  /** Without an event date there is nothing to anchor to, and the chips would write ''. */
+  protected readonly policeDateAnchored = computed(() => isTypedDate(this.eventDate()));
+
+  protected readonly policeDateShortcut = computed(() => {
+    const police = this.policeReportDate();
+    const event = this.eventDate();
+    if (!isTypedDate(police) || !isTypedDate(event)) {
+      return '';
+    }
+    if (police === event) {
+      return 'mismo';
+    }
+    return police === addDays(event, 1) ? 'siguiente' : '';
+  });
+
+  selectPoliceDateShortcut(key: string): void {
+    const event = this.eventDate();
+    this.policeReportDate.set(key === 'siguiente' ? addDays(event, 1) : event);
+  }
+
+  protected readonly eventTimeSlot = computed(() => slotOf(this.eventTime()));
+  protected readonly policeTimeSlot = computed(() => slotOf(this.policeReportTime()));
+
+  setEventTimeSlot(slot: string): void {
+    this.eventTime.set(SLOT_TIMES[slot] ?? '');
+  }
+
+  setPoliceTimeSlot(slot: string): void {
+    this.policeReportTime.set(SLOT_TIMES[slot] ?? '');
+  }
+
   protected readonly claimedAmount = signal<string>('');
   protected readonly contactEmail = signal('');
   protected readonly contactPhone = signal('');
@@ -280,18 +485,35 @@ export class NuevaDenunciaComponent {
    */
   protected readonly dateCoherenceError = computed<string | null>(() => {
     const eventDate = this.eventDate();
-    const policeReport = this.policeReportDate();
-    if (!eventDate || !policeReport) {
+    const policeDate = this.policeReportDate();
+    // Mientras alguna de las dos siga a medio tipear no se valida nada: ver isTypedDate.
+    if (!isTypedDate(eventDate) || !isTypedDate(policeDate)) {
       return null;
     }
-    if (policeReport < eventDate) {
-      return 'La denuncia policial no puede ser anterior al siniestro. Revisá las dos fechas.';
-    }
-    if (policeReport > this.today) {
+    if (policeDate > this.today) {
       return 'La fecha de la denuncia policial no puede ser futura.';
     }
-    return null;
+    const eventTime = this.eventTime();
+    const policeTime = this.policeReportTime();
+    if (!isPoliceReportBeforeEvent(eventDate, eventTime, policeDate, policeTime)) {
+      return null;
+    }
+    // Mismo día: el error nombra las dos horas, que es el dato que hay que mirar. En días
+    // distintos alcanza con las fechas.
+    return policeDate === eventDate
+      ? `Ese día el siniestro fue a las ${eventTime}, así que la denuncia policial no pudo ser a las ${policeTime}.`
+      : 'La denuncia policial no puede ser anterior al siniestro. Revisá las dos fechas.';
   });
+
+  /**
+   * Un bloqueo real de la póliza (mora, vigencia, carencia): ahí no hay nada que el asegurado
+   * pueda corregir en el formulario y el resto de los campos no tiene sentido. Se distingue del
+   * error de coherencia de fechas, que se arregla justo ahí arriba — esconderle el formulario por
+   * eso lo dejaba mirando un error sin forma de resolverlo.
+   */
+  protected readonly policyBlocked = computed(
+    () => this.eligibilityError() !== null && this.dateCoherenceError() === null,
+  );
 
   /**
    * Same gate `POST /cases` runs at intake (vigencia, carencia, mora — `PolicyEligibilityValidator`
@@ -335,6 +557,16 @@ export class NuevaDenunciaComponent {
         };
       }),
     ).pipe(
+      // Tercer stream con el mismo patrón que claimTypesState y requiredDocsState: el computed de
+      // arriba arma un objeto NUEVO en cada recálculo, así que toObservable lo ve distinto aunque
+      // el pedido sea idéntico y se volvía a chequear de gusto. Se compara por contenido.
+      distinctUntilChanged(
+        (a, b) =>
+          a?.insuredId === b?.insuredId &&
+          a?.policyNumber === b?.policyNumber &&
+          a?.eventDate === b?.eventDate &&
+          a?.policeReportAt === b?.policeReportAt,
+      ),
       debounceTime(400),
       switchMap((req) =>
         req
@@ -349,24 +581,46 @@ export class NuevaDenunciaComponent {
             )
           : of<EligibilityState>({ status: 'idle' }),
       ),
+      // El estado de revalidación arrastra el veredicto ya conocido, para que la pantalla no
+      // vuelva a "no sé nada" cada vez que se rechequea.
+      scan(
+        (prev, next): EligibilityState =>
+          next.status === 'checking' && (prev.status === 'ok' || prev.status === 'blocked')
+            ? { status: 'checking', previous: prev }
+            : next,
+        { status: 'idle' } as EligibilityState,
+      ),
     ),
     { initialValue: { status: 'idle' } as EligibilityState },
   );
 
-  protected readonly eligibilityChecking = computed(() => this.eligibilityCheck().status === 'checking');
+  /**
+   * El veredicto vigente: mientras se revalida, sigue siendo el anterior. Así el bloque de estado
+   * de la póliza no parpadea entre "bloqueada" y el loader en cada rechequeo.
+   */
+  private readonly eligibilityVerdict = computed<EligibilityState>(() => {
+    const check = this.eligibilityCheck();
+    return check.status === 'checking' ? (check.previous ?? check) : check;
+  });
+
+  /** Solo cuando NO hay veredicto que mostrar: revalidar con uno previo no muestra el loader. */
+  protected readonly eligibilityChecking = computed(() => {
+    const check = this.eligibilityCheck();
+    return check.status === 'checking' && !check.previous;
+  });
 
   // El precheck falló (red, backend caído, un 400 real) y no hay forma de saber si la póliza es
   // elegible. No bloquea "Siguiente" — mismo criterio de fail-open que antes — pero el asegurado
   // se entera de que no se pudo confirmar, en vez de ver la nada silenciosa de un chequeo que
   // "pasó" sin haber corrido en realidad.
-  protected readonly eligibilityUnknown = computed(() => this.eligibilityCheck().status === 'unknown');
+  protected readonly eligibilityUnknown = computed(() => this.eligibilityVerdict().status === 'unknown');
 
   protected readonly eligibilityError = computed<string | null>(() => {
     const dateError = this.dateCoherenceError();
     if (dateError) {
       return dateError;
     }
-    const check = this.eligibilityCheck();
+    const check = this.eligibilityVerdict();
     return check.status === 'blocked' ? check.reason : null;
   });
 
@@ -395,25 +649,83 @@ export class NuevaDenunciaComponent {
   // El asegurado sube exactamente lo que el referente configuró como requerido para el ramo + hecho
   // generador elegidos (o el catálogo completo si esa combinación no tiene agenda). Al cambiar de
   // póliza o de hecho generador, se rearman los slots según esa agenda.
-  private readonly requiredDocTypes = toSignal(
+  private readonly requiredDocsState = toSignal(
     toObservable(
       computed(() => ({
         branch: this.selectedPolicy()?.branch ?? null,
         claimCause: this.selectedType()?.claimCause ?? null,
       })),
     ).pipe(
+      // Mismo motivo que en claimTypesState, y acá el costo era peor que un parpadeo: cada emisión
+      // vuelve a correr rebuildDocSlots, que rearma los slots desde cero y se lleva puestos los
+      // archivos ya adjuntados.
+      distinctUntilChanged((a, b) => a.branch === b.branch && a.claimCause === b.claimCause),
       switchMap(({ branch, claimCause }) =>
-        branch && claimCause ? this.agenda.slotsForBranch(branch, claimCause) : of(CASE_DOCUMENT_TYPES),
+        branch && claimCause
+          ? this.agenda.getForBranch(branch, claimCause).pipe(
+              // A blip must not be read as "this claim cause needs no documents". Two retries with
+              // a pause first; only a schedule that stays unreachable becomes 'unavailable'.
+              retry({ count: 2, delay: 1000 }),
+              map((codes): RequiredDocsState =>
+                codes.length
+                  ? {
+                      status: 'configured',
+                      slots: codes.map((type) => ({ type, label: documentTypeLabel(type) })),
+                    }
+                  : OFFERED_DOCS,
+              ),
+              catchError(() =>
+                of<RequiredDocsState>({ status: 'unavailable', slots: CASE_DOCUMENT_TYPES }),
+              ),
+            )
+          : of<RequiredDocsState>(OFFERED_DOCS),
       ),
     ),
-    { initialValue: CASE_DOCUMENT_TYPES as readonly CaseDocumentType[] },
+    { initialValue: OFFERED_DOCS },
   );
   private readonly rebuildDocSlots = effect(() => {
-    const types = this.requiredDocTypes();
-    this.docSlots.set(types.map(({ type, label }) => ({ type, label, file: null, error: null })));
+    const { slots } = this.requiredDocsState();
+    this.docSlots.set(slots.map(({ type, label }) => ({ type, label, file: null, error: null })));
   });
 
+  /** Si hay agenda real configurada para este ramo + hecho generador: la documentación no es
+   *  una sugerencia, es requisito para poder evaluar el caso (ver RequiredDocsState). */
+  protected readonly docsRequired = computed(() => this.requiredDocsState().status === 'configured');
+
+  /** rules-service no contestó: no sabemos qué exigir, y no es lo mismo que no exigir nada. */
+  protected readonly docsUnavailable = computed(
+    () => this.requiredDocsState().status === 'unavailable',
+  );
+
   protected readonly docsCount = computed(() => this.docSlots().filter((d) => d.file).length);
+
+  /**
+   * Schedule slots still without a file — what stops the claim from being filed.
+   *
+   * <p>Exactly the schedule, no more and no less: every row the referente saves is persisted
+   * mandatory (see {@code DocumentRequirementService.upsert}), so when there IS a schedule every
+   * slot on screen is required. When there isn't one — unconfigured combination, or rules-service
+   * down — {@code requiredDocsState} falls back to the whole catalogue as merely offered, and
+   * nothing is demanded: a claim must not be blocked by a schedule nobody configured.
+   */
+  protected readonly missingDocs = computed(() =>
+    this.docsRequired() ? this.docSlots().filter((slot) => !slot.file) : [],
+  );
+
+  protected readonly missingDocLabels = computed(() =>
+    this.missingDocs().map((slot) => slot.label).join(', '),
+  );
+
+  protected readonly canSubmit = computed(() => !this.submitting() && this.missingDocs().length === 0);
+
+  /**
+   * The insured declared they haven't filed the police report, but the schedule demands the
+   * certificate. Says so in step 2 instead of letting them fill in the whole form and find out at
+   * the upload step that they cannot finish.
+   */
+  protected readonly policeReportMissingBlocks = computed(
+    () => this.docsRequired() && this.requiresPoliceReport() && !this.policeReportFiled(),
+  );
 
   /**
    * Si el ramo pide constancia de denuncia policial, entonces el hecho generador la lleva y tiene
@@ -422,11 +734,36 @@ export class NuevaDenunciaComponent {
    * el día que el referente saque `police_report` de un ramo, el campo desaparece solo.
    */
   protected readonly requiresPoliceReport = computed(() =>
-    this.requiredDocTypes().some(({ type }) => type === 'police_report'),
+    this.requiredDocsState().slots.some(({ type }) => type === 'police_report'),
   );
 
-  selectType(t: ClaimType): void {
-    this.selectedType.set(t);
+  /**
+   * Switching to a claim cause that needs no police report (rotura, caída: there is no crime to
+   * report) drops whatever was declared for the previous one. Without this, reporting a theft,
+   * going back and picking an accidental breakage kept sending a `policeReportAt` the new cause
+   * has no business carrying — and left the toggle off for the next theft.
+   */
+  private readonly resetPoliceReport = effect(() => {
+    if (!this.requiresPoliceReport()) {
+      untracked(() => {
+        this.policeReportFiled.set(true);
+        this.policeReportDate.set('');
+        this.policeReportTime.set('');
+      });
+    }
+  });
+
+  /** Los hechos generadores como los consume `app-chip-group`: la clave identifica, el label se lee. */
+  protected readonly claimTypeOptions = computed<ChipOption[]>(() =>
+    this.claimTypes().map((t) => ({ value: t.key, label: t.label })),
+  );
+
+  /**
+   * El chip devuelve la clave; el resto del wizard trabaja con el {@link ClaimType} entero (usa
+   * `claimCause` para la agenda documental y el alta), así que se resuelve acá.
+   */
+  selectClaimType(key: string): void {
+    this.selectedType.set(this.claimTypes().find((t) => t.key === key) ?? null);
   }
 
   next(): void {
@@ -490,7 +827,7 @@ export class NuevaDenunciaComponent {
   submit(): void {
     const type = this.selectedType();
     const policy = this.selectedPolicy();
-    if (!type || !policy || this.submitting()) return;
+    if (!type || !policy || !this.canSubmit()) return;
 
     this.submitting.set(true);
     this.submitError.set(null);

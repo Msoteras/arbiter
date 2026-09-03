@@ -297,6 +297,43 @@ class CaseNotificationServiceTest {
         return Notification.builder().id(1L).type("APPROVED").createdAt(createdAt).build();
     }
 
+    /**
+     * La reapertura no se puede distinguir por el estado destino (una clasificación normal llega
+     * al mismo PENDING_ANALYST_REVIEW), así que tiene su propia entrada y su propio `type` — si
+     * reusara el del estado, el panel del asegurado diría "en revisión" sobre un expediente que
+     * en realidad se reabrió.
+     */
+    @Test
+    void notifyReopened_writesItsOwnTypeAndSendsTheEmail() {
+        savesWhatItIsGiven();
+        when(sendGridAdapter.send(anyString(), anyString(), anyString())).thenReturn(true);
+
+        service.notifyReopened(caseWith(insuredWith(INSURED_EMAIL)));
+
+        Notification saved = firstSaved();
+        assertThat(saved.getType()).isEqualTo("REOPENED");
+        assertThat(saved.isSent()).isTrue();
+        verify(sendGridAdapter).send(eq(INSURED_EMAIL), anyString(), anyString());
+    }
+
+    /**
+     * El motivo que escribe el analista es interno (puede nombrar una sospecha, un error, una pista
+     * de fraude). Al asegurado se le cuenta el hecho, nunca el porqué —
+     * [[project-asegurado-vs-analista-visibility]].
+     */
+    @Test
+    void notifyReopened_saysNothingAboutWhy() {
+        savesWhatItIsGiven();
+        when(sendGridAdapter.send(anyString(), anyString(), anyString())).thenReturn(true);
+
+        service.notifyReopened(caseWith(insuredWith(INSURED_EMAIL)));
+
+        ArgumentCaptor<String> body = ArgumentCaptor.forClass(String.class);
+        verify(sendGridAdapter).send(anyString(), anyString(), body.capture());
+        assertThat(body.getValue().toLowerCase())
+                .doesNotContain("fraude", "riesgo", "sospech", "clasificac", "motivo");
+    }
+
     private void savesWhatItIsGiven() {
         when(notificationRepository.save(any(Notification.class)))
                 .thenAnswer(invocation -> invocation.getArgument(0));

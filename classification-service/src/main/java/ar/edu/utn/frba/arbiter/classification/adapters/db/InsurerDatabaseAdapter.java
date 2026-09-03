@@ -137,10 +137,11 @@ public class InsurerDatabaseAdapter implements InsurerAdapter {
         List<ClaimRecord> claims = jdbc.query(
                 """
                 SELECT h.id, h.fecha_ocurrencia, h.causa, h.estado_resolucion,
-                       h.monto_indemnizado, p.rama, p.numero
+                       h.monto_indemnizado, p.rama, p.numero, c.nombre AS cobertura
                 FROM %1$s.siniestro_historico h
                 JOIN %1$s.asegurado a ON a.id = h.asegurado_id
                 JOIN %1$s.poliza     p ON p.id = h.poliza_id
+                LEFT JOIN %1$s.cobertura c ON c.id = h.cobertura_id
                 WHERE a.documento = ?
                 ORDER BY h.fecha_ocurrencia
                 """.formatted(schema),
@@ -149,6 +150,9 @@ public class InsurerDatabaseAdapter implements InsurerAdapter {
                         .date(rs.getObject("fecha_ocurrencia", LocalDate.class))
                         .policyNumber(rs.getString("numero"))
                         .branch(rs.getString("rama"))
+                        // LEFT JOIN: un histórico sin cobertura imputada llega null y la regla de
+                        // agotamiento lo saltea, en vez de cargarlo contra la cobertura equivocada.
+                        .coverageName(rs.getString("cobertura"))
                         .claimCause(rs.getString("causa"))
                         .status(rs.getString("estado_resolucion"))
                         .amountSettled(rs.getBigDecimal("monto_indemnizado"))

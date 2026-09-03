@@ -27,5 +27,12 @@ public enum CaseStatus {
     /** Final: the analyst approved the claim (set by the decision endpoint). */
     APPROVED,
     /** Final: the analyst rejected the claim (set by the decision endpoint). */
-    REJECTED
+    REJECTED,
+    /**
+     * Final: closed by {@code LapseSweepScheduler} after 18 months with no movement from the
+     * insured since the denuncia while stuck in {@link #AWAITING_DOCUMENTATION} — "inacción del
+     * asegurado ante requerimientos" (regla interna, distinta de la prescripción legal). SYSTEM-driven,
+     * never chosen by an analyst.
+     */
+    LAPSED
 }

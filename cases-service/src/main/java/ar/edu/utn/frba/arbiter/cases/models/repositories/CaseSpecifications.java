@@ -7,6 +7,7 @@ import jakarta.persistence.criteria.Predicate;
 import org.springframework.data.jpa.domain.Specification;
 
 import java.time.LocalDate;
+import java.util.List;
 import java.util.Objects;
 import java.util.stream.Stream;
 
@@ -49,17 +50,21 @@ public final class CaseSpecifications {
     }
 
     /**
-     * Lente "Por vencer": expedientes NO resueltos (estado ≠ APPROVED/REJECTED) cuyo plazo de
-     * respuesta cae en o antes de {@code threshold} — incluye los ya vencidos, que son los más
-     * urgentes. El llamador pasa {@code hoy + DeadlinePriority.WATCH_DAYS} para que coincida con el
-     * semáforo (deadlinePriority ≠ NONE). Se compone con {@code .and()} sobre {@link #withFilters}
-     * en vez de sumar un parámetro más a esa firma ya larga.
+     * Lente "Por vencer": expedientes con el plazo del art. 56 corriendo de verdad (no terminal,
+     * no {@code LAPSED}, y no en un estado que lo tiene interrumpido —
+     * {@code CaseStatusService.PAUSING_STATUSES}, cuyo {@code responseDeadline} es una fecha
+     * congelada y no una urgencia real) cuyo plazo cae en o antes de {@code threshold} — incluye
+     * los ya vencidos, que son los más urgentes. El llamador pasa
+     * {@code hoy + DeadlinePriority.WATCH_DAYS} para que coincida con el semáforo
+     * (deadlinePriority ≠ NONE). Se compone con {@code .and()} sobre {@link #withFilters} en vez
+     * de sumar un parámetro más a esa firma ya larga.
      */
     public static Specification<Case> dueSoonBefore(LocalDate threshold) {
         return (root, query, cb) -> cb.and(
                 cb.lessThanOrEqualTo(root.get("responseDeadline"), threshold),
-                cb.not(root.get("currentStatus").get("name").in(
-                        CaseStatus.APPROVED.name(), CaseStatus.REJECTED.name())));
+                cb.not(root.get("currentStatus").get("name").in(List.of(
+                        CaseStatus.APPROVED.name(), CaseStatus.REJECTED.name(), CaseStatus.LAPSED.name(),
+                        CaseStatus.AWAITING_DOCUMENTATION.name(), CaseStatus.PENDING_EXPERT_REPORT.name()))));
     }
 
     /** Overload para las lentes "Míos"/"Todos" (sin las lentes de asignación ni alerta de fraude). */

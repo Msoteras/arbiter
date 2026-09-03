@@ -145,6 +145,23 @@ public interface CaseService {
     CaseResponse unassignAnalyst(Long caseId);
 
     /**
+     * Reabre un expediente cerrado y lo devuelve al escritorio del analista
+     * ({@code PENDING_ANALYST_REVIEW}). Es la "rehabilitación" del doc de dominio BBVA: sin esto
+     * los tres estados terminales son callejones sin salida y el error de un analista —o la
+     * documentación que el asegurado trae después de que el expediente caducó— no tiene arreglo
+     * dentro del sistema.
+     *
+     * <p>Reabrir NO es un veredicto nuevo: no toca la decisión anterior (que quedó en el registro
+     * inmutable de clasificación, y sí ocurrió) ni el riesgo ni el antecedente de fraude. Solo
+     * vuelve a poner a una persona a decidir, coherente con la decisión de arquitectura #5. El
+     * {@code reason} es obligatorio porque es la única explicación que va a quedar en el historial.
+     *
+     * <p>Desde un estado no terminal la máquina de estados lo rechaza con 409 — no hay nada que
+     * reabrir en un expediente que sigue abierto.
+     */
+    CaseResponse reopenCase(Long caseId, String reason);
+
+    /**
      * Carga de trabajo del equipo: cada analista del tenant con su cantidad de expedientes activos
      * (no resueltos) asignados. Incluye a los analistas sin expedientes, con cero. Ordenado de más
      * a menos cargado. Es la vista que usa el referente para repartir trabajo.

@@ -875,6 +875,21 @@ export class ReglasComponent {
     return (c.excludedClaimCauseIds ?? []).includes(causeId);
   }
 
+  /**
+   * Una cobertura sin ningún hecho generador excluido cubre todo su ramo. No es inválido —puede ser
+   * exactamente lo contratado—, pero sí es lo que decide con qué suma asegurada se liquida, así que
+   * se avisa. Ver [[project-reglas-duras-interruptor-vs-umbral]].
+   */
+  protected hasExcludedCauses(c: Coverage): boolean {
+    return (c.excludedClaimCauseIds ?? []).length > 0;
+  }
+
+  /** "los 4 hechos generadores" / "el único hecho generador", para que el aviso sea concreto. */
+  protected coveredCausesLabel(): string {
+    const total = this.claimCauses().length;
+    return total === 1 ? 'el único hecho generador' : `los ${total} hechos generadores`;
+  }
+
   protected toggleExcludedCause(id: string, causeId: number): void {
     this.draft.update((d) =>
       d

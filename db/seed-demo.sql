@@ -99,11 +99,17 @@ INSERT INTO aseguradora_bbva.cobertura (poliza_id, orden, nombre, suma_asegurada
     (5, 2, 'Hurto',            400000.00, 15.00);
 
 -- Julián, policy 2: 3 previous → claim_frequency saturates at 1.0.
-INSERT INTO aseguradora_bbva.siniestro_historico (poliza_id, asegurado_id, fecha_ocurrencia, causa,
-                                                  estado_resolucion, monto_indemnizado) VALUES
-    (2, 2, '2025-11-18', 'Robo en vía pública', 'LIQUIDADO', 640000.00),
-    (2, 2, '2026-02-05', 'Robo en vía pública', 'LIQUIDADO', 710000.00),
-    (2, 2, '2026-04-22', 'Robo en vía pública', 'RECHAZADO', NULL);
+-- cobertura_id: cada previo se imputa a la cobertura que lo respondió, que es contra cuyo techo
+-- consume (la suma asegurada es de la cobertura, no de la póliza). Se resuelve por subconsulta
+-- porque los ids de cobertura son seriales y cambian con cada reseed.
+INSERT INTO aseguradora_bbva.siniestro_historico (poliza_id, cobertura_id, asegurado_id, fecha_ocurrencia,
+                                                  causa, estado_resolucion, monto_indemnizado) VALUES
+    (2, (SELECT id FROM aseguradora_bbva.cobertura WHERE poliza_id = 2 AND nombre = 'Robo de celular'),
+     2, '2025-11-18', 'Robo en vía pública', 'LIQUIDADO', 640000.00),
+    (2, (SELECT id FROM aseguradora_bbva.cobertura WHERE poliza_id = 2 AND nombre = 'Robo de celular'),
+     2, '2026-02-05', 'Robo en vía pública', 'LIQUIDADO', 710000.00),
+    (2, (SELECT id FROM aseguradora_bbva.cobertura WHERE poliza_id = 2 AND nombre = 'Robo de celular'),
+     2, '2026-04-22', 'Robo en vía pública', 'RECHAZADO', NULL);
 -- Policies 1, 3, 4 and 5 have none → claim_frequency = 0 on those claims.
 
 -- =============================================================================
@@ -141,10 +147,13 @@ INSERT INTO aseguradora_provincia.cobertura (poliza_id, orden, nombre, suma_aseg
     (2, 1, 'Robo de celular', 900000.00, 10.00),
     (3, 1, 'Robo de celular', 700000.00, 10.00);
 
-INSERT INTO aseguradora_provincia.siniestro_historico (poliza_id, asegurado_id, fecha_ocurrencia, causa,
-                                                       estado_resolucion, monto_indemnizado) VALUES
-    (2, 1, '2025-09-15', 'Robo en vía pública', 'LIQUIDADO', 410000.00),
-    (2, 1, '2026-02-20', 'Robo en vía pública', 'LIQUIDADO', 480000.00);
+INSERT INTO aseguradora_provincia.siniestro_historico (poliza_id, cobertura_id, asegurado_id,
+                                                       fecha_ocurrencia, causa, estado_resolucion,
+                                                       monto_indemnizado) VALUES
+    (2, (SELECT id FROM aseguradora_provincia.cobertura WHERE poliza_id = 2 AND nombre = 'Robo de celular'),
+     1, '2025-09-15', 'Robo en vía pública', 'LIQUIDADO', 410000.00),
+    (2, (SELECT id FROM aseguradora_provincia.cobertura WHERE poliza_id = 2 AND nombre = 'Robo de celular'),
+     1, '2026-02-20', 'Robo en vía pública', 'LIQUIDADO', 480000.00);
 
 -- =============================================================================
 -- PART 4 — Arbiter tenant: BBVA
@@ -161,12 +170,22 @@ SELECT setval(pg_get_serial_sequence('arbiter_bbva.insured','id'),
               (SELECT MAX(id) FROM arbiter_bbva.insured));
 
 -- Local snapshots of the policies above. coverage 1 = 'Robo de celular', 2 = 'Hurto'.
-INSERT INTO arbiter_bbva.policy (id, external_policy_number, product, sum_insured, in_force, insured_id, coverage_id) VALUES
-    (1, 'POL-CEL-2026-042', 'Celular Protegido Premium', 1300000.00, TRUE, 1, 1),
-    (2, 'POL-CEL-2025-099', 'Celular Protegido Premium', 1200000.00, TRUE, 2, 1),
-    (3, '2030405',          'Celular Protegido Básico',   200000.00, TRUE, 2, 1),
-    (4, 'POL-CEL-2026-118', 'Celular Protegido Básico',   800000.00, TRUE, 1, 1),
-    (5, 'POL-CEL-2026-205', 'Celular Protegido Premium', 1500000.00, TRUE, 1, 1);
+INSERT INTO arbiter_bbva.policy (id, external_policy_number, product, in_force, insured_id) VALUES
+    (1, 'POL-CEL-2026-042', 'Celular Protegido Premium', TRUE, 1),
+    (2, 'POL-CEL-2025-099', 'Celular Protegido Premium', TRUE, 2),
+    (3, '2030405',          'Celular Protegido Básico',  TRUE, 2),
+    (4, 'POL-CEL-2026-118', 'Celular Protegido Básico',  TRUE, 1),
+    (5, 'POL-CEL-2026-205', 'Celular Protegido Premium', TRUE, 1);
+
+-- Coberturas contratadas de cada póliza. Espejo de aseguradora.cobertura: una póliza de celulares
+-- cubre robo Y hurto, cada una con su propia suma asegurada (el hurto siempre por menos — es el
+-- criterio de la compañía en datos-aseguradoras.sql).
+INSERT INTO arbiter_bbva.policy_coverage (policy_id, coverage_id, display_order, sum_insured, deductible_pct) VALUES
+    (1, 1, 1, 1300000.00, 10.00), (1, 2, 2,  650000.00, 10.00),
+    (2, 1, 1, 1200000.00, 10.00),
+    (3, 1, 1,  200000.00, 10.00), (3, 2, 2,   50000.00,  0.00),
+    (4, 1, 1,  800000.00, 10.00),
+    (5, 1, 1, 1500000.00, 10.00), (5, 2, 2,  400000.00, 15.00);
 
 SELECT setval(pg_get_serial_sequence('arbiter_bbva.policy','id'),
               (SELECT MAX(id) FROM arbiter_bbva.policy));
@@ -306,6 +325,16 @@ INSERT INTO arbiter_provincia.coverage (id, name, description, report_deadline_h
 SELECT setval(pg_get_serial_sequence('arbiter_provincia.coverage','id'),
               (SELECT MAX(id) FROM arbiter_provincia.coverage));
 
+-- Qué NO cubre la cobertura de Daño accidental (COVERAGE_EXCLUSION, la lista negra que evalúa
+-- CoverageRuleEvaluator). Sin esta fila la cobertura cubre TODO el ramo, que es el fail-open que
+-- hace que un robo denunciado sobre ella pase el gate. Ramo 2 (Tecnología Portátil) tiene
+-- claim_cause 6 Daño accidental, 7 Robo en vía pública, 8 Hurto: se excluyen los dos últimos.
+INSERT INTO arbiter_provincia.insurer_rule (active, valid_from, name, rule_type, effect, priority,
+                                            blocks_fast_track, branch_id, coverage_id, configuration) VALUES
+    (TRUE, '2026-01-01 00:00:00+00',
+     'La cobertura de daño accidental solo cubre daño accidental', 'COVERAGE_EXCLUSION', 'RECHAZAR', 1,
+     TRUE, 2, 3, '{"excludedClaimCauseIds":[7,8]}');
+
 -- Same person as arbiter_bbva.insured(1) — one identity, two tenants, no shared row.
 INSERT INTO arbiter_provincia.insured (id, name, surname, dni, email, phone, case_count, pep, user_id) VALUES
     (1, 'Martina',  'Soteras', '42.987.654', 'asegurado.arbiter@gmail.com',  '11-5555-0001', 2, FALSE, 1);
@@ -313,10 +342,18 @@ INSERT INTO arbiter_provincia.insured (id, name, surname, dni, email, phone, cas
 SELECT setval(pg_get_serial_sequence('arbiter_provincia.insured','id'),
               (SELECT MAX(id) FROM arbiter_provincia.insured));
 
-INSERT INTO arbiter_provincia.policy (id, external_policy_number, product, sum_insured, in_force, insured_id, coverage_id) VALUES
-    (1, 'POL-TEC-2026-311', 'Seguro de Tecnología Portátil',  90000.00, TRUE, 1, 3),
-    (2, 'POL-CEL-2026-501', 'Celular Protegido',             900000.00, TRUE, 1, 1),
-    (3, 'POL-CEL-2026-777', 'Celular Protegido',             700000.00, TRUE, 1, 1);
+INSERT INTO arbiter_provincia.policy (id, external_policy_number, product, in_force, insured_id) VALUES
+    (1, 'POL-TEC-2026-311', 'Seguro de Tecnología Portátil', TRUE, 1),
+    (2, 'POL-CEL-2026-501', 'Celular Protegido',             TRUE, 1),
+    (3, 'POL-CEL-2026-777', 'Celular Protegido',             TRUE, 1);
+
+-- La póliza 1 es de Tecnología Portátil (ramo 2): su única cobertura es Daño accidental (3). Las
+-- de celulares llevan robo + hurto, como en BBVA. Una cobertura de otro ramo en la misma póliza
+-- sería inconsistente con coverage.branch_id, así que no se mezcla.
+INSERT INTO arbiter_provincia.policy_coverage (policy_id, coverage_id, display_order, sum_insured, deductible_pct) VALUES
+    (1, 3, 1,   90000.00, 10.00),
+    (2, 1, 1,  900000.00, 10.00), (2, 2, 2, 300000.00, 10.00),
+    (3, 1, 1,  700000.00, 10.00);
 
 SELECT setval(pg_get_serial_sequence('arbiter_provincia.policy','id'),
               (SELECT MAX(id) FROM arbiter_provincia.policy));
@@ -503,20 +540,33 @@ INSERT INTO aseguradora_provincia.cobertura (poliza_id, orden, nombre, suma_aseg
     (7, 1, 'Robo de celular', 1600000.00, 10.00);
 
 -- ─── Snapshots locales de las pólizas nuevas (arbiter tenant) ────────────────
-INSERT INTO arbiter_bbva.policy (id, external_policy_number, product, sum_insured, in_force, insured_id, coverage_id) VALUES
-    (6, 'POL-CEL-2024-010', 'Celular Protegido Premium', 900000.00, TRUE, 1, 1),
-    (7, 'POL-CEL-2024-055', 'Celular Protegido Básico', 300000.00, TRUE, 2, 1),
-    (8, 'POL-CEL-2025-140', 'Celular Protegido Premium', 1400000.00, TRUE, 1, 1),
-    (9, 'POL-CEL-2025-201', 'Celular Protegido Premium', 1100000.00, TRUE, 2, 1),
-    (10, 'POL-CEL-2026-260', 'Celular Protegido Básico', 500000.00, TRUE, 1, 1);
+INSERT INTO arbiter_bbva.policy (id, external_policy_number, product, in_force, insured_id) VALUES
+    (6, 'POL-CEL-2024-010', 'Celular Protegido Premium', TRUE, 1),
+    (7, 'POL-CEL-2024-055', 'Celular Protegido Básico',  TRUE, 2),
+    (8, 'POL-CEL-2025-140', 'Celular Protegido Premium', TRUE, 1),
+    (9, 'POL-CEL-2025-201', 'Celular Protegido Premium', TRUE, 2),
+    (10, 'POL-CEL-2026-260', 'Celular Protegido Básico', TRUE, 1);
+
+INSERT INTO arbiter_bbva.policy_coverage (policy_id, coverage_id, display_order, sum_insured, deductible_pct) VALUES
+    (6, 1, 1,  900000.00, 10.00), (6, 2, 2, 450000.00, 10.00),
+    (7, 1, 1,  300000.00, 10.00),
+    (8, 1, 1, 1400000.00, 10.00), (8, 2, 2, 700000.00, 10.00),
+    (9, 1, 1, 1100000.00, 10.00),
+    (10, 1, 1, 500000.00, 10.00), (10, 2, 2, 250000.00, 10.00);
 SELECT setval(pg_get_serial_sequence('arbiter_bbva.policy','id'),
               (SELECT MAX(id) FROM arbiter_bbva.policy));
 
-INSERT INTO arbiter_provincia.policy (id, external_policy_number, product, sum_insured, in_force, insured_id, coverage_id) VALUES
-    (4, 'POL-CEL-2025-820', 'Celular Protegido', 800000.00, TRUE, 2, 1),
-    (5, 'POL-CEL-2026-905', 'Celular Protegido', 450000.00, TRUE, 2, 1),
-    (6, 'POL-TEC-2025-410', 'Seguro de Tecnología Portátil', 120000.00, TRUE, 1, 3),
-    (7, 'POL-CEL-2026-980', 'Celular Protegido', 1600000.00, TRUE, 1, 1);
+INSERT INTO arbiter_provincia.policy (id, external_policy_number, product, in_force, insured_id) VALUES
+    (4, 'POL-CEL-2025-820', 'Celular Protegido', TRUE, 2),
+    (5, 'POL-CEL-2026-905', 'Celular Protegido', TRUE, 2),
+    (6, 'POL-TEC-2025-410', 'Seguro de Tecnología Portátil', TRUE, 1),
+    (7, 'POL-CEL-2026-980', 'Celular Protegido', TRUE, 1);
+
+INSERT INTO arbiter_provincia.policy_coverage (policy_id, coverage_id, display_order, sum_insured, deductible_pct) VALUES
+    (4, 1, 1,  800000.00, 10.00), (4, 2, 2, 400000.00, 10.00),
+    (5, 1, 1,  450000.00, 10.00),
+    (6, 3, 1,  120000.00, 10.00),
+    (7, 1, 1, 1600000.00, 10.00), (7, 2, 2, 800000.00, 10.00);
 SELECT setval(pg_get_serial_sequence('arbiter_provincia.policy','id'),
               (SELECT MAX(id) FROM arbiter_provincia.policy));
 
@@ -1029,8 +1079,11 @@ INSERT INTO arbiter_bbva.insured (id, name, surname, dni, email, phone, case_cou
 SELECT setval(pg_get_serial_sequence('arbiter_bbva.insured','id'),
               (SELECT MAX(id) FROM arbiter_bbva.insured));
 
-INSERT INTO arbiter_bbva.policy (id, external_policy_number, product, sum_insured, in_force, insured_id, coverage_id) VALUES
-    (11, 'POL-CEL-2026-350', 'Celular Protegido Premium', 1300000.00, TRUE, 3, 1);
+INSERT INTO arbiter_bbva.policy (id, external_policy_number, product, in_force, insured_id) VALUES
+    (11, 'POL-CEL-2026-350', 'Celular Protegido Premium', TRUE, 3);
+
+INSERT INTO arbiter_bbva.policy_coverage (policy_id, coverage_id, display_order, sum_insured, deductible_pct) VALUES
+    (11, 1, 1, 1300000.00, 10.00), (11, 2, 2, 650000.00, 10.00);
 SELECT setval(pg_get_serial_sequence('arbiter_bbva.policy','id'),
               (SELECT MAX(id) FROM arbiter_bbva.policy));
 
@@ -1041,8 +1094,11 @@ SELECT setval(pg_get_serial_sequence('arbiter_provincia.insured','id'),
 
 -- coverage_id 3 = 'Daño accidental' (arbiter_provincia.coverage, PART 5) — same one Martina's
 -- Tecnología policy points at.
-INSERT INTO arbiter_provincia.policy (id, external_policy_number, product, sum_insured, in_force, insured_id, coverage_id) VALUES
-    (8, 'POL-TEC-2026-350', 'Seguro de Tecnología Portátil', 90000.00, TRUE, 3, 3);
+INSERT INTO arbiter_provincia.policy (id, external_policy_number, product, in_force, insured_id) VALUES
+    (8, 'POL-TEC-2026-350', 'Seguro de Tecnología Portátil', TRUE, 3);
+
+INSERT INTO arbiter_provincia.policy_coverage (policy_id, coverage_id, display_order, sum_insured, deductible_pct) VALUES
+    (8, 3, 1, 90000.00, 10.00);
 SELECT setval(pg_get_serial_sequence('arbiter_provincia.policy','id'),
               (SELECT MAX(id) FROM arbiter_provincia.policy));
 

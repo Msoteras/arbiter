@@ -24,6 +24,7 @@ import org.springframework.stereotype.Service;
 
 import java.math.BigDecimal;
 import java.time.Instant;
+import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -35,6 +36,22 @@ import java.util.stream.Collectors;
 public class ClassificationOrchestrator {
 
     private static final Logger log = LoggerFactory.getLogger(ClassificationOrchestrator.class);
+
+    /**
+     * Art. 58 Ley 17.418, párr. 1: the insured's right to claim prescribes 1 year after the
+     * obligation becomes exigible — read here as 1 year from the event, the same simplification
+     * the doc de dominio BBVA's own worked example uses ("alguien denuncia hoy un siniestro que
+     * pasó hace dos años... el derecho vence al año del hecho"). Scoped to the ramos patrimoniales
+     * this platform covers today (Celulares, Tecnología Portátil) — the 3-year term for Vida or
+     * reclamos de terceros doesn't apply to any configured branch, so it isn't modeled.
+     *
+     * <p>A plain constant, not an {@code insurer_rule} like the D9-D13 temporal rules: it's the
+     * law, not a term of the contract, so it isn't the referente's to turn off — same reasoning as
+     * {@code CaseStatusService.RESPONSE_TERM_DAYS}.
+     */
+    private static final long PRESCRIPTION_YEARS = 1;
+
+    private static final DateTimeFormatter DISPLAY_DATE = DateTimeFormatter.ofPattern("dd/MM/yyyy");
 
     private final ClaimClassifier classifier;
     private final RulesAdapter rulesAdapter;
@@ -65,6 +82,11 @@ public class ClassificationOrchestrator {
 
     private ClassificationResponse resolveClassification(ClaimReport claim, Context ctx) {
 
+        // Prescripción first: a time-barred claim makes every other hard rule moot (art. 58).
+        if (isPrescribed(claim)) {
+            return prescriptionResponse(claim);
+        }
+
         // Hard rules first: a coverage exclusion makes Fast Track irrelevant (D3).
         CoverageRuleEvaluator.Result exclusion = coverageRuleEvaluator.evaluate(claim, ctx.rules());
         if (exclusion.excluded()) {
@@ -81,7 +103,7 @@ public class ClassificationOrchestrator {
         // Coverage scope (D9). With no documents read it can only evaluate coverage already used
         // up; the family group needs the injured party, which comes from the extraction.
         CoverageScopeEvaluator.Result scope =
-                coverageScopeEvaluator.evaluate(claim, ctx.history(), ctx.rules(), Map.of());
+                coverageScopeEvaluator.evaluate(claim, ctx.policy(), ctx.history(), ctx.rules(), Map.of());
 
         // After the scope, not before: its two rules are audited like the rest.
         List<RuleFinding> ruleFindings = mergeFindings(exclusion, temporal, fraud, scope);
@@ -293,6 +315,12 @@ public class ClassificationOrchestrator {
             Map<String, DocumentExtraction> extractions) {}
 
     private Resolution resolveClassification(ClaimReport claim, List<AttachmentDocument> documents, Context ctx) {
+        // Prescripción first: a time-barred claim makes every other hard rule moot (art. 58). No
+        // documents or images are analyzed — there's nothing left to check.
+        if (isPrescribed(claim)) {
+            return new Resolution(prescriptionResponse(claim), false, Map.of());
+        }
+
         // Hard rules first: a coverage exclusion cuts in before the document gate and Fast Track
         // (D3). No documents or images are analyzed — the exclusion already settles the path.
         CoverageRuleEvaluator.Result exclusion = coverageRuleEvaluator.evaluate(claim, ctx.rules());
@@ -327,7 +355,7 @@ public class ClassificationOrchestrator {
         // Coverage scope (D9): family group and coverage already used up. It goes here and not
         // earlier because the family group depends on what the extraction read in the documents.
         CoverageScopeEvaluator.Result scope =
-                coverageScopeEvaluator.evaluate(claim, ctx.history(), ctx.rules(), gateExtractions);
+                coverageScopeEvaluator.evaluate(claim, ctx.policy(), ctx.history(), ctx.rules(), gateExtractions);
 
         // The gate's own trace: if the claim Fast Tracks below, these are the rules that decided.
         List<RuleFinding> ruleFindings = mergeFindings(exclusion, temporal, fraud, scope);
@@ -359,7 +387,7 @@ public class ClassificationOrchestrator {
         // Scope is re-evaluated with ALL documents read: the gate had only extracted the ones Fast
         // Track requires, and who the injured party is can be in any of them.
         CoverageScopeEvaluator.Result fullScope =
-                coverageScopeEvaluator.evaluate(claim, ctx.history(), ctx.rules(), extractions);
+                coverageScopeEvaluator.evaluate(claim, ctx.policy(), ctx.history(), ctx.rules(), extractions);
 
         List<String> engineFindings = engineFindings(exclusion, temporal);
         engineFindings.addAll(fullScope.reasons());
@@ -428,9 +456,13 @@ public class ClassificationOrchestrator {
 
     private Context fetchContext(ClaimReport claim) {
         log.debug("[Orchestrator] Fetching policy '{}'...", claim.policyNumber());
-        InsuredPolicy policy = insurerAdapter.getPolicy(claim.policyNumber());
-        log.info("[Orchestrator] Policy OK — insured='{}' upToDate={} insuredAmount={}",
-                policy.insuredName(), policy.upToDate(), policy.insuredAmount());
+        // Narrowed to the coverage that answers for this claim: a policy has several, each with
+        // its own sum insured and deductible, and everything downstream (Fast Track, amount_ratio,
+        // the exhaustion check, the prompt, the audited snapshot) reads the top-level pair.
+        InsuredPolicy policy = insurerAdapter.getPolicy(claim.policyNumber())
+                .forCoverage(claim.coverageName());
+        log.info("[Orchestrator] Policy OK — insured='{}' upToDate={} coverage='{}' insuredAmount={}",
+                policy.insuredName(), policy.upToDate(), claim.coverageName(), policy.insuredAmount());
 
         log.debug("[Orchestrator] Fetching history for insuredId '{}'...", claim.insuredId());
         InsuredHistory history = insurerAdapter.getHistory(claim.insuredId());
@@ -505,6 +537,40 @@ public class ClassificationOrchestrator {
         return ClassificationResponse.builder()
                 .classification(Classification.LLM_SOLICITA_REVISION_MANUAL)
                 .factors(coverageRuleEvaluator.excludedReasons(exclusion, claim))
+                .confidence(1.0)
+                .deterministicFastTrack(false)
+                .build();
+    }
+
+    /**
+     * Art. 58 Ley 17.418: the claim is older than {@link #PRESCRIPTION_YEARS} — the insured's
+     * right to claim it is already time-barred. Deterministic and code-evaluated like a coverage
+     * exclusion, and for the same reason: there's nothing interpretive left for the LLM to add,
+     * and running it would spend a full inference on a claim the analyst rejects without
+     * analyzing anything else (doc de dominio BBVA, worked example in §9's discussion).
+     *
+     * <p>Doesn't close the case by itself (CLAUDE.md #5, human-in-the-loop): the analyst still has
+     * to reject formally with cause. But unlike a coverage exclusion — which can turn on a fact
+     * only the analyst can weigh, and so asks for {@code LLM_SOLICITA_REVISION_MANUAL} — a
+     * prescripción is a closed legal question once the two dates are read: nothing left to
+     * review, so the recommendation is a straight {@code LLM_NO_RECOMIENDA_APROBAR}.
+     */
+    private boolean isPrescribed(ClaimReport claim) {
+        if (claim.eventDate() == null || claim.reportedAt() == null) {
+            return false;
+        }
+        return claim.reportedAt().isAfter(claim.eventDate().plusYears(PRESCRIPTION_YEARS));
+    }
+
+    private ClassificationResponse prescriptionResponse(ClaimReport claim) {
+        log.info("[Orchestrator] Claim prescribed (eventDate={}, reportedAt={}) — sugiere rechazo "
+                        + "sin LLM", claim.eventDate(), claim.reportedAt());
+        return ClassificationResponse.builder()
+                .classification(Classification.LLM_NO_RECOMIENDA_APROBAR)
+                .factors(List.of(String.format(
+                        "El hecho ocurrió el %s, hace más de %d año(s) — el derecho del asegurado está "
+                                + "prescripto (art. 58, Ley 17.418) y corresponde rechazar sin más análisis",
+                        DISPLAY_DATE.format(claim.eventDate()), PRESCRIPTION_YEARS)))
                 .confidence(1.0)
                 .deterministicFastTrack(false)
                 .build();

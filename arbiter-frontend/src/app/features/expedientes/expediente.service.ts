@@ -279,6 +279,20 @@ export class ExpedienteService {
     return this.http.post<ExpedienteResponse>(`${this.baseUrl}/${caseId}/assign`, { analystId });
   }
 
+  /**
+   * Reabre un expediente cerrado (APPROVED / REJECTED / LAPSED) y lo devuelve a la revisión del
+   * analista. Es la "rehabilitación" del procedimiento de siniestros: sin ella los estados
+   * terminales son callejones sin salida y un error —o la documentación que el asegurado trae
+   * después de que el expediente caducó— no tiene arreglo.
+   *
+   * No revierte la decisión anterior (su registro de auditoría es inmutable): solo vuelve a poner
+   * a una persona a decidir. `reason` es obligatorio, es lo único que queda en el historial.
+   * Desde un estado no terminal el backend responde 409.
+   */
+  reopen(caseId: number, reason: string): Observable<ExpedienteResponse> {
+    return this.http.post<ExpedienteResponse>(`${this.baseUrl}/${caseId}/reopen`, { reason });
+  }
+
   /** Libera el expediente: queda sin dueño y disponible para que lo tome otro analista. */
   unassign(caseId: number): Observable<ExpedienteResponse> {
     return this.http.delete<ExpedienteResponse>(`${this.baseUrl}/${caseId}/assign`);

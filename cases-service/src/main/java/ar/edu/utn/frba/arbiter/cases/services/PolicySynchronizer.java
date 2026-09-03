@@ -4,7 +4,9 @@ import ar.edu.utn.frba.arbiter.cases.adapters.InsurerAdapter;
 import ar.edu.utn.frba.arbiter.cases.dto.PolicyResponse;
 import ar.edu.utn.frba.arbiter.cases.exceptions.UnresolvedCaseReferenceException;
 import ar.edu.utn.frba.arbiter.cases.models.entities.Policy;
+import ar.edu.utn.frba.arbiter.cases.models.entities.PolicyCoverage;
 import ar.edu.utn.frba.arbiter.cases.models.repositories.CoverageRepository;
+import ar.edu.utn.frba.arbiter.cases.models.repositories.PolicyCoverageRepository;
 import ar.edu.utn.frba.arbiter.cases.models.repositories.PolicyRepository;
 import ar.edu.utn.frba.arbiter.common.models.entities.tenant.Coverage;
 import lombok.RequiredArgsConstructor;
@@ -16,6 +18,8 @@ import org.springframework.transaction.annotation.Transactional;
 import java.math.BigDecimal;
 import java.time.Instant;
 import java.time.LocalDateTime;
+import java.util.ArrayList;
+import java.util.List;
 
 /**
  * Pulls from the insurer DB a policy Arbiter doesn't have yet and persists it as a local snapshot
@@ -29,12 +33,18 @@ import java.time.LocalDateTime;
  * message claimed something didn't exist that the screen had just offered them. What was missing
  * wasn't the data, it was the sync.
  *
- * <p><b>What can genuinely be missing is the coverage.</b> {@code policy.coverage_id} is NOT NULL
- * and points at a tenant {@code coverage}, which is referente configuration (deadlines, waiting
- * period, events cap) and not something the insurer DB knows — from there only name, insured
- * amount and deductible come in. If the policy's branch has no coverage created yet, this fails
- * naming the coverage and not the policy — the referente has to create it, and creating one here
- * on its own would leave a coverage with no rule at all, which is worse than the error.
+ * <p><b>What can genuinely be missing is the coverage.</b> Each contracted coverage points at a
+ * tenant {@code coverage}, which is referente configuration (deadlines, waiting period, events cap)
+ * and not something the insurer DB knows — from there only name, insured amount and deductible come
+ * in. If none of the policy's coverages is configured on this tenant, this fails naming them and
+ * not the policy: the referente has to create them, and creating one here on its own would leave a
+ * coverage with no rule at all, which is worse than the error.
+ *
+ * <p><b>All of them, not the first one.</b> This used to keep {@code coverages.get(0)} because
+ * {@code policy} carried a single {@code coverage_id}. A real policy covers several risks — robo
+ * and hurto on the same phone, each with its own sum insured — so every one the company returns
+ * becomes a {@link PolicyCoverage} row. Dropping the rest meant the insured couldn't file for a
+ * cause their contract covers: the wizard filters the claim causes by the coverages on file.
  */
 @Service
 @RequiredArgsConstructor
@@ -44,6 +54,7 @@ public class PolicySynchronizer {
 
     private final InsurerAdapter insurerAdapter;
     private final PolicyRepository policyRepository;
+    private final PolicyCoverageRepository policyCoverageRepository;
     private final CoverageRepository coverageRepository;
 
     /**
@@ -60,31 +71,62 @@ public class PolicySynchronizer {
         Policy snapshot = policyRepository.save(Policy.builder()
                 .externalPolicyNumber(remote.policyNumber())
                 .product(remote.product())
-                .sumInsured(remote.insuredAmount() == null ? BigDecimal.ZERO : remote.insuredAmount())
                 .inForce(inForceToday(remote))
                 .syncedAt(Instant.now())
                 .insuredId(insuredId)
-                .coverage(resolveCoverage(remote))
                 .build());
 
-        log.info("[PolicySynchronizer] On-demand snapshot created for policy {} (coverage '{}')",
-                policyNumber, snapshot.getCoverage().getName());
+        List<PolicyCoverage> contracted = importCoverages(remote, snapshot.getId());
+        log.info("[PolicySynchronizer] On-demand snapshot created for policy {} ({} coverage(s): {})",
+                policyNumber, contracted.size(),
+                contracted.stream().map(pc -> pc.getCoverage().getName()).toList());
         return snapshot;
     }
 
     /**
-     * The policy's primary coverage (the first one the company returns), matched by name against
-     * the tenant's. It's the only possible bridge: the insurer DB doesn't know our ids.
+     * Every coverage the company returns, matched by name against the tenant's catalog — the only
+     * possible bridge, since the insurer DB doesn't know our ids.
+     *
+     * <p>A coverage the referente hasn't configured is skipped with a warning rather than failing
+     * the whole import: one unconfigured risk shouldn't block filing against the ones that are
+     * configured. It only fails when <b>none</b> of them resolves, because then there is no
+     * contract to evaluate anything against.
      */
-    private Coverage resolveCoverage(PolicyResponse remote) {
-        String name = remote.coverages() == null || remote.coverages().isEmpty()
-                ? null
-                : remote.coverages().get(0).description();
-        if (name == null) {
-            throw new UnresolvedCaseReferenceException("coverage for policy", remote.policyNumber());
+    private List<PolicyCoverage> importCoverages(PolicyResponse remote, Long policyId) {
+        List<PolicyResponse.Coverage> remoteCoverages =
+                remote.coverages() == null ? List.of() : remote.coverages();
+        List<PolicyCoverage> saved = new ArrayList<>();
+        List<String> unresolved = new ArrayList<>();
+        int order = 1;
+        for (PolicyResponse.Coverage remoteCoverage : remoteCoverages) {
+            String name = remoteCoverage.description();
+            Coverage catalogued = name == null ? null : coverageRepository.findByName(name).orElse(null);
+            if (catalogued == null) {
+                unresolved.add(name);
+                continue;
+            }
+            saved.add(policyCoverageRepository.save(PolicyCoverage.builder()
+                    .policyId(policyId)
+                    .coverage(catalogued)
+                    .displayOrder(order++)
+                    .sumInsured(remoteCoverage.insuredAmount() == null
+                            ? BigDecimal.ZERO : remoteCoverage.insuredAmount())
+                    .deductiblePct(remoteCoverage.deductiblePct())
+                    .build()));
         }
-        return coverageRepository.findByName(name)
-                .orElseThrow(() -> new UnresolvedCaseReferenceException("coverage", name));
+        if (!unresolved.isEmpty()) {
+            log.warn("[PolicySynchronizer] Policy {}: {} coverage(s) not configured on this tenant, "
+                    + "skipped: {}", remote.policyNumber(), unresolved.size(), unresolved);
+        }
+        if (saved.isEmpty()) {
+            // Naming the coverages and not the policy: the policy is there, what's missing is the
+            // referente's configuration for the risks it covers. With no coverages at all in the
+            // answer there's nothing to name, so the policy is the best pointer left.
+            throw unresolved.isEmpty()
+                    ? new UnresolvedCaseReferenceException("coverage for policy", remote.policyNumber())
+                    : new UnresolvedCaseReferenceException("coverage", String.join(", ", unresolved));
+        }
+        return saved;
     }
 
     /**

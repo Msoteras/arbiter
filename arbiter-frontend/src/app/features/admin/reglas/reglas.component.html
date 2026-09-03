@@ -215,6 +215,12 @@
                       <span class="cov-title">{{ c.name || 'Cobertura sin nombre' }}</span>
                       @if (!isCoverageOpen(c)) {
                         <span class="cov-chips">
+                          <!-- Visible con la cobertura cerrada: sin esto había que abrirla una por
+                               una para enterarse, y de esto depende con qué suma asegurada se
+                               liquida. Punto de semáforo, no fondo saturado: es para revisar. -->
+                          @if (!hasExcludedCauses(c)) {
+                            <app-badge variant="solid" tone="warning">Cubre todo el ramo</app-badge>
+                          }
                           @for (chip of coverageSummary(c); track chip) {
                             <app-badge variant="solid">{{ chip }}</app-badge>
                           } @empty {
@@ -352,6 +358,18 @@
                               </button>
                             }
                           </div>
+                          <!-- Avisa, no bloquea: una cobertura que cubre todo el ramo puede ser
+                               correcta. Pero acá se define con qué suma asegurada se liquida un
+                               siniestro, así que dejarlo pasar en silencio no es una opción. -->
+                          @if (!hasExcludedCauses(c)) {
+                            <p class="warn-note cov-warning measure" role="status">
+                              No excluye ningún hecho generador, así que cubre
+                              {{ coveredCausesLabel() }} del ramo. Puede ser lo que querés. Tené en
+                              cuenta que, si una póliza contrata varias coberturas, la que no excluye
+                              nada es la que termina respondiendo, y el siniestro se liquida con
+                              <strong>su</strong> suma asegurada y <strong>su</strong> franquicia.
+                            </p>
+                          }
                         }
                       </div>
                     </div>

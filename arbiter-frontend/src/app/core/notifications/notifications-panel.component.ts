@@ -16,6 +16,10 @@ const NOTIFICATION_TITLES: Record<string, string> = {
   AWAITING_DOCUMENTATION: 'Necesitamos documentación',
   APPROVED: 'Tu siniestro fue aprobado',
   REJECTED: 'Novedades sobre tu siniestro',
+  LAPSED: 'Tu siniestro caducó',
+  // REOPENED no es un CaseStatus: una reapertura aterriza en PENDING_ANALYST_REVIEW, igual que
+  // una clasificación normal, así que el backend le da su propio `type` para poder distinguirla.
+  REOPENED: 'Reabrimos tu siniestro',
 };
 
 /**
