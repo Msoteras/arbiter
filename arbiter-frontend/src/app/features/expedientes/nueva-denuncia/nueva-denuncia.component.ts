@@ -17,6 +17,7 @@ import {
   distinctUntilChanged,
   map,
   of,
+  retry,
   scan,
   startWith,
   switchMap,
@@ -59,17 +60,30 @@ interface DocSlot {
 }
 
 /**
- * `mandatory` distingue la agenda REAL del referente (para ese ramo + hecho generador, algo
- * está configurado como requerido) de la caída al catálogo completo cuando no hay nada
- * configurado — ese catálogo no es una lista de obligatorios, es "podés adjuntar esto si te
- * sirve" para no dejar al asegurado sin poder subir nada. Antes de esta distinción el wizard le
- * decía a los dos casos lo mismo ("ayuda a agilizar"), que en el caso con agenda real es falso:
- * esos documentos son obligatorios, no una sugerencia.
+ * Three states, not two — the same distinction rules-service already makes internally between an
+ * empty schedule and a missing answer (see {@code InternalDocumentRequirementService.getByCoverage}):
+ *
+ * <ul>
+ *   <li>`configured` — the referente set a schedule for this branch + claim cause. Every row saved
+ *       from the panel is persisted mandatory, so all of these are required to file.
+ *   <li>`none` — the backend answered, and the answer is "no documents". An edge case (an
+ *       unconfigured combination), not an error: the full catalogue is OFFERED and nothing is
+ *       demanded, so the insured is never left unable to attach anything.
+ *   <li>`unavailable` — rules-service didn't answer. This is NOT "no documents": we cannot know
+ *       what to demand, so demanding nothing would be pretending we checked. The claim is still
+ *       filed (leaving the insured out because our own service is down would be worse) and the
+ *       completeness check falls to the backend, which evaluates it again over the real schedule.
+ * </ul>
  */
+type RequiredDocsStatus = 'configured' | 'none' | 'unavailable';
+
 interface RequiredDocsState {
-  mandatory: boolean;
+  status: RequiredDocsStatus;
   slots: readonly CaseDocumentType[];
 }
+
+/** What is shown when there is no schedule to go by: offered, never demanded. */
+const OFFERED_DOCS: RequiredDocsState = { status: 'none', slots: CASE_DOCUMENT_TYPES };
 
 // Mismo tope que cases-service (spring.servlet.multipart.max-file-size) — validar acá
 // evita esperar la subida completa para recién ahí enterarse de que no entra. El
@@ -649,17 +663,25 @@ export class NuevaDenunciaComponent {
       switchMap(({ branch, claimCause }) =>
         branch && claimCause
           ? this.agenda.getForBranch(branch, claimCause).pipe(
+              // A blip must not be read as "this claim cause needs no documents". Two retries with
+              // a pause first; only a schedule that stays unreachable becomes 'unavailable'.
+              retry({ count: 2, delay: 1000 }),
               map((codes): RequiredDocsState =>
                 codes.length
-                  ? { mandatory: true, slots: codes.map((type) => ({ type, label: documentTypeLabel(type) })) }
-                  : { mandatory: false, slots: CASE_DOCUMENT_TYPES },
+                  ? {
+                      status: 'configured',
+                      slots: codes.map((type) => ({ type, label: documentTypeLabel(type) })),
+                    }
+                  : OFFERED_DOCS,
               ),
-              catchError(() => of<RequiredDocsState>({ mandatory: false, slots: CASE_DOCUMENT_TYPES })),
+              catchError(() =>
+                of<RequiredDocsState>({ status: 'unavailable', slots: CASE_DOCUMENT_TYPES }),
+              ),
             )
-          : of<RequiredDocsState>({ mandatory: false, slots: CASE_DOCUMENT_TYPES }),
+          : of<RequiredDocsState>(OFFERED_DOCS),
       ),
     ),
-    { initialValue: { mandatory: false, slots: CASE_DOCUMENT_TYPES } as RequiredDocsState },
+    { initialValue: OFFERED_DOCS },
   );
   private readonly rebuildDocSlots = effect(() => {
     const { slots } = this.requiredDocsState();
@@ -668,7 +690,12 @@ export class NuevaDenunciaComponent {
 
   /** Si hay agenda real configurada para este ramo + hecho generador: la documentación no es
    *  una sugerencia, es requisito para poder evaluar el caso (ver RequiredDocsState). */
-  protected readonly docsRequired = computed(() => this.requiredDocsState().mandatory);
+  protected readonly docsRequired = computed(() => this.requiredDocsState().status === 'configured');
+
+  /** rules-service no contestó: no sabemos qué exigir, y no es lo mismo que no exigir nada. */
+  protected readonly docsUnavailable = computed(
+    () => this.requiredDocsState().status === 'unavailable',
+  );
 
   protected readonly docsCount = computed(() => this.docSlots().filter((d) => d.file).length);
 

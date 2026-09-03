@@ -332,6 +332,15 @@
           <h2 class="step-title">Adjuntá documentación</h2>
           @if (docsRequired()) {
             <p class="step-hint">Esta documentación es obligatoria para poder evaluar tu caso.</p>
+          } @else if (docsUnavailable()) {
+            <!-- No es lo mismo que "no hace falta nada": no pudimos leer la agenda. Se dice, se deja
+                 enviar igual —dejarlo afuera porque un servicio NUESTRO no responde sería peor— y
+                 la verificación queda del lado del backend, que la vuelve a hacer contra la agenda
+                 real cuando pueda leerla. -->
+            <p class="step-hint">
+              No pudimos verificar qué documentación pide tu tipo de siniestro. Podés enviar la
+              denuncia igual: si falta algo, te lo vamos a pedir desde el seguimiento.
+            </p>
           } @else {
             <p class="step-hint">
               No tenemos documentación obligatoria para este tipo de caso. Podés adjuntar algo si
