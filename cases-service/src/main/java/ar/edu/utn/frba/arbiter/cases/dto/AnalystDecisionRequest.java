@@ -1,5 +1,6 @@
 package ar.edu.utn.frba.arbiter.cases.dto;
 
+import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
 
 /**
@@ -22,10 +23,17 @@ import jakarta.validation.constraints.NotBlank;
  *                               auditable row here. Not sent by the frontend — cases-service fills
  *                               it in from the case when it forwards the decision, same as
  *                               {@code analystId}.
+ * @param settlement             how much gets paid, required when approving and rejected when
+ *                               rejecting. Determining the amount is a step of the analyst's job
+ *                               (NSIN001 §5.2.1.2), not a follow-up: approving without saying how
+ *                               much leaves the company with a claim it owes an unknown sum on.
+ *                               Never forwarded to classification-service — that module audits the
+ *                               verdict, and the money is cases-service's own record.
  */
 public record AnalystDecisionRequest(
         Long analystId,
         @NotBlank(message = "decision is required") String decision,
         @NotBlank(message = "justification is required") String justification,
-        Integer classificationAttempts
+        Integer classificationAttempts,
+        @Valid SettlementDecisionRequest settlement
 ) {}

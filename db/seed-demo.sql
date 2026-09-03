@@ -298,10 +298,17 @@ SELECT setval(pg_get_serial_sequence('arbiter_bbva.expert_firm','id'),
 -- =============================================================================
 
 -- Provincia sells Tecnología Portátil, so it needs a coverage BBVA does not have.
+-- settlement_basis = LESSER_OF_SUM_AND_REPLACEMENT: es lo que exige el art. 7 (Bases de
+-- Indemnización) de la cláusula 340 en Tecnología Portátil — el asegurador no paga más que el
+-- menor entre la suma asegurada y lo que cuesta reponer el bien. Dos eventos al año, el segundo
+-- al 50%, como dicen las condiciones particulares de la póliza modelo.
 INSERT INTO arbiter_provincia.coverage (id, name, description, report_deadline_hours, max_events_per_year,
                                         covers_family_group, deductible, claim_exhausts_coverage,
-                                        is_individual, waiting_period_days, branch_id) VALUES
-    (3, 'Daño accidental', 'Cobertura por daño accidental de equipo portátil', 96, 2, FALSE, 10.00, FALSE, TRUE, 30, 2);
+                                        is_individual, waiting_period_days, branch_id,
+                                        settlement_basis, second_event_percentage,
+                                        deduct_pending_installments, deduct_overdue_balance) VALUES
+    (3, 'Daño accidental', 'Cobertura por daño accidental de equipo portátil', 96, 2, FALSE, 10.00, FALSE, TRUE, 30, 2,
+     'LESSER_OF_SUM_AND_REPLACEMENT', 50.00, FALSE, TRUE);
 
 SELECT setval(pg_get_serial_sequence('arbiter_provincia.coverage','id'),
               (SELECT MAX(id) FROM arbiter_provincia.coverage));
@@ -322,10 +329,14 @@ SELECT setval(pg_get_serial_sequence('arbiter_provincia.policy','id'),
               (SELECT MAX(id) FROM arbiter_provincia.policy));
 
 INSERT INTO arbiter_provincia.policy_snapshot (id, external_policy_number, sum_insured, in_force,
-                                               payments_up_to_date, previous_claims, queried_at) VALUES
-    (1, 'POL-TEC-2026-311',  90000.00, TRUE, TRUE,  0, '2026-05-20 14:05:00+00'),
+                                               payments_up_to_date, previous_claims, queried_at,
+                                               effective_to, installment_amount, overdue_balance,
+                                               events_in_year) VALUES
+    (1, 'POL-TEC-2026-311',  90000.00, TRUE, TRUE,  0, '2026-05-20 14:05:00+00',
+     '2027-03-01 23:59:59+00', 1800.00,    0.00, 1),
     -- In arrears and with history — policy_standing and claim_frequency both fire.
-    (2, 'POL-CEL-2026-501', 900000.00, TRUE, FALSE, 2, '2026-07-05 11:20:00+00');
+    (2, 'POL-CEL-2026-501', 900000.00, TRUE, FALSE, 2, '2026-07-05 11:20:00+00',
+     '2027-01-01 23:59:59+00', 18000.00, 54000.00, 3);
 
 SELECT setval(pg_get_serial_sequence('arbiter_provincia.policy_snapshot','id'),
               (SELECT MAX(id) FROM arbiter_provincia.policy_snapshot));
@@ -391,6 +402,43 @@ SELECT setval(pg_get_serial_sequence('arbiter_provincia.case_classification','id
 
 UPDATE arbiter_provincia.cases SET classification_id = 1 WHERE id = 1;
 
+-- Cuánto se pagó, y de dónde salió. Sin esta fila el expediente cerrado mostraba "Aprobado" sin
+-- decir el monto, que es lo primero que el asegurado quiere saber.
+--
+-- La cobertura liquida por el menor entre suma asegurada y valor de reposición: el presupuesto de
+-- reparación acredita $38.000, muy por debajo de los $90.000 asegurados, así que ése es el techo.
+-- La franquicia es el 10% de la SUMA ASEGURADA ($9.000), no del techo — así lo dicen las
+-- condiciones particulares. 38.000 − 9.000 = 29.000, y el analista confirmó ese número sin
+-- ajustarlo (por eso adjustment_reason va en NULL).
+--
+-- OJO con `formula`: este caso es un DAÑO (rotura de pantalla), no una pérdida total, y la
+-- fórmula de reparación es el bloque 3 — todavía no existe. Va como TOTAL_LOSS porque es el
+-- único literal que acepta el CHECK. Da el número correcto igual, porque con esta configuración
+-- de cobertura las dos fórmulas coinciden (el techo es el presupuesto y no se descuentan cuotas:
+-- la póliza no se extingue). Cuando entre REPAIR, esta fila se reetiqueta.
+INSERT INTO arbiter_provincia.case_settlement
+    (id, case_id, formula, sum_insured, settlement_basis, replacement_value, deductible_rate,
+     event_ordinal, event_percentage, pending_installments, installment_amount,
+     deductible_amount, pending_installments_amount, overdue_balance_amount,
+     calculated_amount, settled_amount, adjustment_reason,
+     coverage_id, policy_snapshot_id, analyst_id, calculated_at, confirmed_at) VALUES
+    (1, 1, 'TOTAL_LOSS', 90000.00, 'LESSER_OF_SUM_AND_REPLACEMENT', 38000.00, 10.00,
+     1, 100.00, 0, 1800.00,
+     9000.00, 0.00, 0.00,
+     29000.00, 29000.00, NULL,
+     3, 1, 1, '2026-05-21 10:29:00+00', '2026-05-21 10:30:00+00');
+
+-- $29.000 entra holgado en la atribución de Tecnología Portátil ($50.000), así que la firma del
+-- analista alcanzó: status AUTHORIZED y sin segundo firmante que registrar. La bandeja de
+-- autorizaciones del referente arranca vacía a propósito — se llena cuando alguien determina un
+-- monto por encima del tope, que es justo lo que hay que mostrar en la demo.
+UPDATE arbiter_provincia.case_settlement
+   SET status = 'AUTHORIZED', authority_limit = 50000.00
+ WHERE case_id = 1;
+
+SELECT setval(pg_get_serial_sequence('arbiter_provincia.case_settlement','id'),
+              (SELECT MAX(id) FROM arbiter_provincia.case_settlement));
+
 INSERT INTO arbiter_provincia.rule_result (rule_type, result, evaluated_value, score_contribution,
                                            evaluated_at, rule_id, case_id) VALUES
     ('FAST_TRACK', 'FAIL',      '0.844',  0.3800, '2026-07-05 11:20:30+00', 1, 2),
@@ -417,7 +465,7 @@ SELECT setval(pg_get_serial_sequence('arbiter_provincia.expert_firm','id'),
 INSERT INTO arbiter_provincia.notification (type, channel, content, sent, read, sent_at, read_at,
                                             recipient_id, case_id) VALUES
     ('CAMBIO_ESTADO', 'EMAIL',
-     'Tu siniestro fue aprobado. En los próximos días vas a recibir el detalle de la liquidación.',
+     'Tu siniestro fue aprobado. Monto a pagar: $ 29.000,00.',
      TRUE, TRUE, '2026-05-21 10:31:00+00', '2026-05-21 18:02:00+00', 1, 1);
 
 -- =============================================================================
@@ -1048,5 +1096,40 @@ SELECT setval(pg_get_serial_sequence('arbiter_provincia.policy','id'),
 
 -- No policy_snapshot rows: those are written by classification-service on the first real
 -- run against these policies (D27), not something to pre-seed.
+
+-- =============================================================================
+-- PART 8 — Importe de cuota del premio, para poder liquidar
+-- =============================================================================
+-- La determinación del monto a pagar descuenta las cuotas que quedan por vencer, y para
+-- eso hace falta el importe de cada una. El HAR de la aseguradora no lo trae, así que acá
+-- se deriva, al final y de una sola vez, en vez de repetirlo en los siete bloques de
+-- pólizas de arriba.
+--
+-- Dos criterios, en este orden:
+--   1. Con cuotas impagas, manda el saldo real (saldo_deuda / cuotas_impagas). Si no, la
+--      cuota y la deuda de la misma póliza se contradirían en pantalla.
+--   2. Sin deuda, el 2% mensual de la suma asegurada más alta de la póliza. No es un
+--      número inventado: es lo que dan las dos pólizas BBVA de referencia — $3.606,53
+--      sobre $180.000 en Celulares (2,00%) y $1.872,11 sobre $86.500 en Tecnología
+--      Portátil (2,16%).
+UPDATE aseguradora_bbva.poliza p
+   SET importe_cuota = CASE
+           WHEN p.cuotas_impagas > 0 AND p.saldo_deuda > 0
+               THEN ROUND(p.saldo_deuda / p.cuotas_impagas, 2)
+           ELSE ROUND(COALESCE(c.suma_asegurada, 0) * 0.02, 2)
+       END
+  FROM (SELECT poliza_id, MAX(suma_asegurada) AS suma_asegurada
+          FROM aseguradora_bbva.cobertura GROUP BY poliza_id) c
+ WHERE c.poliza_id = p.id;
+
+UPDATE aseguradora_provincia.poliza p
+   SET importe_cuota = CASE
+           WHEN p.cuotas_impagas > 0 AND p.saldo_deuda > 0
+               THEN ROUND(p.saldo_deuda / p.cuotas_impagas, 2)
+           ELSE ROUND(COALESCE(c.suma_asegurada, 0) * 0.02, 2)
+       END
+  FROM (SELECT poliza_id, MAX(suma_asegurada) AS suma_asegurada
+          FROM aseguradora_provincia.cobertura GROUP BY poliza_id) c
+ WHERE c.poliza_id = p.id;
 
 COMMIT;

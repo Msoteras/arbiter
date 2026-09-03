@@ -7,6 +7,7 @@ import {
   DOCUMENT_TYPES,
   FastTrackConfig,
   RamoRules,
+  SettlementBasis,
 } from '../../../core/models/business-rules';
 import { BranchOption, BranchesService } from '../branches.service';
 import { FastTrackConfigDto, FastTrackRulesService } from '../fast-track-rules.service';
@@ -28,6 +29,7 @@ import { ButtonComponent } from '../../../shared/ui/button/button.component';
 import { CardComponent } from '../../../shared/ui/card/card.component';
 import { EmptyStateComponent } from '../../../shared/ui/empty-state/empty-state.component';
 import { InputComponent } from '../../../shared/ui/input/input.component';
+import { AtribucionesConfigComponent } from '../atribuciones-config/atribuciones-config.component';
 import { ScoringConfigComponent } from '../scoring-config/scoring-config.component';
 import { FraudeConfigComponent } from '../fraude-config/fraude-config.component';
 import { SaveBarComponent } from '../../../shared/ui/save-bar/save-bar.component';
@@ -45,7 +47,7 @@ import { accordion, fadeInUp, listStagger, staggerReveal } from '../../../shared
 type TabId = 'coberturas' | 'exclusiones' | 'fastTrack' | 'documentacion' | 'reglas';
 
 /** Las vistas del panel derecho que no dependen del ramo elegido. */
-type GeneralView = 'hardStop' | 'scoring' | 'fraude';
+type GeneralView = 'hardStop' | 'scoring' | 'fraude' | 'atribuciones';
 
 /**
  * Configuración de reglas del referente, Ramo-céntrica. Master (lista de ramos) + detalle con
@@ -70,6 +72,7 @@ type GeneralView = 'hardStop' | 'scoring' | 'fraude';
     InputComponent,
     ScoringConfigComponent,
     FraudeConfigComponent,
+    AtribucionesConfigComponent,
     SaveBarComponent,
     StringListEditorComponent,
     InlineLoadingComponent,
@@ -370,6 +373,9 @@ export class ReglasComponent {
     // Antecedente y peritos eran dos entradas: apuntan a lo mismo (qué hace la compañía frente a
     // un fraude) y se usan en el mismo momento, así que ahora son una sección sola.
     { id: 'fraude', label: 'Gestión de fraude' },
+    // Los topes son por ramo, pero se leen de una: el referente los compara entre sí, y
+    // repartirlos en el detalle de cada ramo lo obliga a entrar y salir para ver el panorama.
+    { id: 'atribuciones', label: 'Atribuciones de liquidación' },
   ];
 
   protected selectGeneral(section: GeneralView): void {
@@ -507,6 +513,10 @@ export class ReglasComponent {
       waitingPeriodDays: c.waitingPeriodDays,
       coversFamilyGroup: c.coversFamilyGroup,
       claimExhaustsCoverage: c.claimExhaustsCoverage,
+      settlementBasis: c.settlementBasis ?? 'SUM_INSURED',
+      secondEventRatio: c.secondEventRatio,
+      deductPendingInstallments: c.deductPendingInstallments,
+      deductOverdueBalance: c.deductOverdueBalance,
       exclusions: c.exclusions ?? [],
       // Las exclusiones duras (por hecho generador) viven en rules-service, no en este detalle:
       // arrancan vacías y las completa loadCoverageExclusions.
@@ -706,6 +716,13 @@ export class ReglasComponent {
       waitingPeriodDays: null,
       coversFamilyGroup: false,
       claimExhaustsCoverage: false,
+      // Por defecto, lo que dice el manual de Celulares: techo = suma asegurada y sin deducciones
+      // más allá de la franquicia. Prenderlas cambia cuánto cobra el asegurado, así que es una
+      // decisión explícita del referente y no un default.
+      settlementBasis: 'SUM_INSURED',
+      secondEventRatio: null,
+      deductPendingInstallments: false,
+      deductOverdueBalance: false,
       exclusions: [],
       excludedClaimCauseIds: [],
       hardRules: [],
@@ -1072,6 +1089,39 @@ export class ReglasComponent {
     this.setCoverageField(c.id, { claimExhaustsCoverage: !c.claimExhaustsCoverage });
   }
 
+  // ───────────────── Coberturas: determinación del monto a pagar ─────────────────
+  /**
+   * Las dos formas de fijar el techo indemnizable que traen los productos relevados. No hay una
+   * tercera: son las dos que están escritas en las condiciones generales.
+   */
+  protected readonly settlementBasisOptions: SelectOption[] = [
+    { value: 'SUM_INSURED', label: 'La suma asegurada' },
+    {
+      value: 'LESSER_OF_SUM_AND_REPLACEMENT',
+      label: 'El menor entre la suma asegurada y el valor de reposición',
+    },
+  ];
+
+  protected setCoverageSettlementBasis(id: string, value: string): void {
+    this.setCoverageField(id, { settlementBasis: value as SettlementBasis });
+  }
+
+  protected coverageSecondEventPct(c: Coverage): string {
+    return this.pctFromRatio(c.secondEventRatio);
+  }
+
+  protected setCoverageSecondEvent(id: string, value: string): void {
+    this.setCoverageField(id, { secondEventRatio: this.ratioFromPct(value) });
+  }
+
+  protected toggleDeductPendingInstallments(c: Coverage): void {
+    this.setCoverageField(c.id, { deductPendingInstallments: !c.deductPendingInstallments });
+  }
+
+  protected toggleDeductOverdueBalance(c: Coverage): void {
+    this.setCoverageField(c.id, { deductOverdueBalance: !c.deductOverdueBalance });
+  }
+
   protected setCommonExclusions(items: string[]): void {
     this.patch({ commonExclusions: items });
   }
@@ -1333,6 +1383,10 @@ export class ReglasComponent {
       waitingPeriodDays: c.waitingPeriodDays,
       coversFamilyGroup: c.coversFamilyGroup,
       claimExhaustsCoverage: c.claimExhaustsCoverage,
+      settlementBasis: c.settlementBasis,
+      secondEventRatio: c.secondEventRatio,
+      deductPendingInstallments: c.deductPendingInstallments,
+      deductOverdueBalance: c.deductOverdueBalance,
       exclusions: c.exclusions,
     };
   }

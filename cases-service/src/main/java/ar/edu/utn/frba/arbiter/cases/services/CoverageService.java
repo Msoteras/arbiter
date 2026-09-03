@@ -5,6 +5,7 @@ import ar.edu.utn.frba.arbiter.cases.dto.CoverageOption;
 import ar.edu.utn.frba.arbiter.cases.dto.CoverageSummary;
 import ar.edu.utn.frba.arbiter.cases.dto.CoverageUpsertRequest;
 import ar.edu.utn.frba.arbiter.cases.exceptions.CoverageNotFoundException;
+import ar.edu.utn.frba.arbiter.common.enums.SettlementBasis;
 import ar.edu.utn.frba.arbiter.common.models.entities.tenant.Coverage;
 import ar.edu.utn.frba.arbiter.cases.models.repositories.CoverageRepository;
 import lombok.RequiredArgsConstructor;
@@ -93,6 +94,14 @@ public class CoverageService {
         coverage.setWaitingPeriodDays(request.waitingPeriodDays());
         coverage.setCoversFamilyGroup(request.coversFamilyGroup());
         coverage.setClaimExhaustsCoverage(request.claimExhaustsCoverage());
+        // Determinación del monto a pagar. El basis nunca queda null: la columna es NOT NULL y
+        // "sin elegir" no es una opción de negocio — toda cobertura liquida de alguna forma.
+        coverage.setSettlementBasis(request.settlementBasis() == null
+                ? SettlementBasis.SUM_INSURED : request.settlementBasis());
+        coverage.setSecondEventPercentage(request.secondEventRatio() == null
+                ? null : request.secondEventRatio().multiply(HUNDRED));
+        coverage.setDeductPendingInstallments(request.deductPendingInstallments());
+        coverage.setDeductOverdueBalance(request.deductOverdueBalance());
     }
 
     private CoverageDetailResponse toDetail(Coverage coverage) {
@@ -108,6 +117,11 @@ public class CoverageService {
                 coverage.getWaitingPeriodDays(),
                 coverage.isCoversFamilyGroup(),
                 coverage.isClaimExhaustsCoverage(),
+                coverage.getSettlementBasis(),
+                coverage.getSecondEventPercentage() == null
+                        ? null : coverage.getSecondEventPercentage().divide(HUNDRED),
+                coverage.isDeductPendingInstallments(),
+                coverage.isDeductOverdueBalance(),
                 coverage.getExclusions());
     }
 }

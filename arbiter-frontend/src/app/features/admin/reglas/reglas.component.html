@@ -57,6 +57,8 @@
         <app-scoring-config />
       } @else if (view() === 'fraude') {
         <app-fraude-config />
+      } @else if (view() === 'atribuciones') {
+        <app-atribuciones-config />
       } @else if (view() === 'hardStop') {
         @if (hardStopLoading()) {
           <app-inline-loading [size]="26" message="Cargando Hard Stop…" />
@@ -315,6 +317,67 @@
                             }
                           </ul>
                         }
+                      </div>
+
+                      <!-- Cuánto se paga cuando el siniestro se aprueba. Va acá y no en una
+                           pantalla aparte porque son parámetros de la cobertura, igual que la
+                           franquicia: lo que cambia entre productos es esto, no el procedimiento. -->
+                      <div class="cov-section">
+                        <span class="t-section-label">Determinación del monto a pagar</span>
+                        <p class="section-hint">
+                          El analista no fija el monto a mano: el sistema lo calcula con estos
+                          parámetros y él confirma o ajusta con una justificación.
+                        </p>
+                        <div class="cov-fields">
+                          <label class="fieldset grow">
+                            <span class="t-field-label">Techo indemnizable</span>
+                            <app-select
+                              [options]="settlementBasisOptions"
+                              [value]="c.settlementBasis"
+                              (valueChange)="setCoverageSettlementBasis(c.id, $event)"
+                            />
+                          </label>
+                          <label class="fieldset">
+                            <span class="t-field-label">2.º evento del año (%)</span>
+                            <app-input
+                              type="number"
+                              [min]="0"
+                              [value]="coverageSecondEventPct(c)"
+                              (valueChange)="setCoverageSecondEvent(c.id, $event)"
+                              placeholder="—"
+                            />
+                          </label>
+                        </div>
+                        <ul class="rule-rows">
+                          <li class="rule-row" [class.off]="!c.deductPendingInstallments">
+                            <app-switch
+                              [checked]="c.deductPendingInstallments"
+                              ariaLabel="Descontar las cuotas a vencer"
+                              (checkedChange)="toggleDeductPendingInstallments(c)"
+                            />
+                            <div class="rule-text">
+                              <span class="t-field-label">Descontar las cuotas a vencer</span>
+                              <p class="rule-hint">
+                                La pérdida total extingue la póliza, así que el premio que resta del
+                                año se cobra de la indemnización.
+                              </p>
+                            </div>
+                          </li>
+                          <li class="rule-row" [class.off]="!c.deductOverdueBalance">
+                            <app-switch
+                              [checked]="c.deductOverdueBalance"
+                              ariaLabel="Descontar la deuda vencida"
+                              (checkedChange)="toggleDeductOverdueBalance(c)"
+                            />
+                            <div class="rule-text">
+                              <span class="t-field-label">Descontar la deuda vencida</span>
+                              <p class="rule-hint">
+                                Saldo impago del contrato a la fecha del siniestro (cláusula 102,
+                                art. 5).
+                              </p>
+                            </div>
+                          </li>
+                        </ul>
                       </div>
 
                       <div class="cov-section">

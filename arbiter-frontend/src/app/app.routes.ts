@@ -168,6 +168,18 @@ export const routes: Routes = [
       import('./features/admin/reglas/reglas.component').then((m) => m.ReglasComponent),
   },
   {
+    // Bandeja de firma del referente: liquidaciones que superaron la atribución del analista.
+    // Fuera de 'insurer/rules' a propósito — esto no se configura, se resuelve, y es trabajo
+    // sobre expedientes concretos como la bandeja, no una pantalla de parámetros.
+    path: 'insurer/settlements',
+    canActivate: [roleGuard],
+    data: { roles: ['REFERENTE_ASEGURADORA'] },
+    loadComponent: () =>
+      import('./features/admin/autorizaciones/autorizaciones.component').then(
+        (m) => m.AutorizacionesComponent,
+      ),
+  },
+  {
     path: 'insurer/dashboard',
     canActivate: [roleGuard],
     // El analista también los ve: son métricas de la operación, no configuración de la

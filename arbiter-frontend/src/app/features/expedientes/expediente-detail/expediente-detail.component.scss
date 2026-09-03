@@ -314,3 +314,68 @@ app-textarea { display: block; margin: var(--space-3) 0; }
 .traza-polizas th:nth-child(3) { width: 20%; }
 .traza-polizas th:nth-child(4) { width: 20%; }
 .traza-polizas th:nth-child(5) { width: 14%; }
+
+/* ── Hoja de liquidación (modal de aprobación) ─────────────────────────────── */
+/* La cuenta se lee de arriba abajo como en el manual del producto: el techo, lo que se le
+   descuenta, y el total separado por una línea. Sin color de fondo: es un cálculo, no un
+   estado — el semáforo se reserva para los avisos. */
+.settlement { display: flex; flex-direction: column; gap: var(--space-3); }
+
+/* Local: `.fieldset` vive en la solapa de reglas, y los estilos de componente no se comparten. */
+.settlement .fieldset { display: flex; flex-direction: column; gap: var(--space-1); }
+
+.settlement-sheet {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-card);
+  background: var(--surface-soft);
+}
+
+.settlement-line {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-3);
+  padding: var(--space-2) var(--space-3);
+}
+
+.settlement-line + .settlement-line { border-top: 1px solid var(--border-subtle); }
+
+.settlement-concept {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  font-size: var(--font-size-body);
+  color: var(--text-primary);
+}
+
+.settlement-amount {
+  font-size: var(--font-size-body);
+  color: var(--text-primary);
+  white-space: nowrap;
+}
+
+.settlement-line.deduction .settlement-concept,
+.settlement-line.deduction .settlement-amount { color: var(--text-secondary); }
+
+/* El total es lo que el analista firma: peso, borde más fuerte y nada de color. */
+.settlement-line.total {
+  border-top: 1px solid var(--border-strong);
+  font-weight: var(--font-weight-bold);
+}
+
+.settlement-line.total .settlement-amount { font-weight: var(--font-weight-bold); }
+
+.rcard-note.warning { color: var(--status-warning); }
+
+/* El importe y el botón de recalcular en la misma fila: separar el valor de reposición de la
+   acción que lo aplica dejaba al analista tipeando sin que pasara nada. */
+.settlement-replacement {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.settlement-replacement app-input { flex: 1 1 auto; }

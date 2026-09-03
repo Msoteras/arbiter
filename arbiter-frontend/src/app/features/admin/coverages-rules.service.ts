@@ -4,6 +4,9 @@ import { Observable } from 'rxjs';
 
 import { environment } from '../../../environments/environment';
 
+/** Cómo se calcula el techo indemnizable de la cobertura. Calca el enum SettlementBasis. */
+export type SettlementBasis = 'SUM_INSURED' | 'LESSER_OF_SUM_AND_REPLACEMENT';
+
 /** Cobertura tal como la persiste cases-service — calca CoverageDetailResponse campo por campo. */
 export interface CoverageDetail {
   id: number;
@@ -15,6 +18,11 @@ export interface CoverageDetail {
   waitingPeriodDays: number | null;
   coversFamilyGroup: boolean;
   claimExhaustsCoverage: boolean;
+  settlementBasis: SettlementBasis;
+  /** Fracción 0..1 como `deductibleRatio` (0.5 = 50%). `null` = el 2.º evento no reduce nada. */
+  secondEventRatio: number | null;
+  deductPendingInstallments: boolean;
+  deductOverdueBalance: boolean;
   exclusions: string[] | null;
 }
 
@@ -33,6 +41,10 @@ export interface CoverageUpsertRequest {
   waitingPeriodDays: number | null;
   coversFamilyGroup: boolean;
   claimExhaustsCoverage: boolean;
+  settlementBasis: SettlementBasis;
+  secondEventRatio: number | null;
+  deductPendingInstallments: boolean;
+  deductOverdueBalance: boolean;
   exclusions: string[];
 }
 

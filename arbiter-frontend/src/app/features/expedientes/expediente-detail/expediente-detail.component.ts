@@ -12,7 +12,7 @@ import { ActivatedRoute, RouterLink } from '@angular/router';
 import { HttpErrorResponse } from '@angular/common/http';
 import { catchError, combineLatest, finalize, map, Observable, of, startWith, switchMap } from 'rxjs';
 
-import { ExpedienteService, AnalystDecisionRequest } from '../expediente.service';
+import { ExpedienteService, AnalystDecisionRequest, Settlement } from '../expediente.service';
 import { DocumentAgendaService } from '../document-agenda.service';
 import { CaseNavigationService } from '../case-navigation.service';
 import { CaseMessagesService } from '../case-messages.service';
@@ -77,6 +77,7 @@ import { ButtonComponent } from '../../../shared/ui/button/button.component';
 import { BadgeComponent } from '../../../shared/ui/badge/badge.component';
 import { ModalComponent } from '../../../shared/ui/modal/modal.component';
 import { SelectComponent, SelectOption } from '../../../shared/ui/select/select.component';
+import { InputComponent } from '../../../shared/ui/input/input.component';
 import { TextareaComponent } from '../../../shared/ui/textarea/textarea.component';
 import { MenuButtonComponent, MenuItem } from '../../../shared/ui/menu-button/menu-button.component';
 import { InlineLoadingComponent } from '../../../shared/ui/inline-loading/inline-loading.component';
@@ -120,6 +121,7 @@ interface FieldItem { label: string; value: string | null; mono?: boolean; full?
     BadgeComponent,
     ModalComponent,
     SelectComponent,
+    InputComponent,
     TextareaComponent,
     MenuButtonComponent,
     InlineLoadingComponent,
@@ -618,10 +620,29 @@ export class ExpedienteDetailComponent {
     return v ? this.verbLabels[v] : '';
   }
 
+  /** Aprobar es también determinar el monto, y el título del modal tiene que decirlo. */
+  protected readonly decisionModalHeading = computed(() =>
+    this.pendingDecision() === 'aprobar'
+      ? 'Aprobar y determinar el monto a pagar'
+      : 'Justificar decisión: Rechazar',
+  );
+
+  protected readonly confirmDisabled = computed(() =>
+    this.pendingDecision() === 'aprobar'
+      ? this.approvalBlockedReason() !== null
+      : !this.justification().trim(),
+  );
+
   askDecision(v: Verb): void {
     this.pendingDecision.set(v);
     this.justification.set('');
     this.decisionError.set(null);
+    // Se limpia el borrador de liquidación en cada apertura: si el analista canceló una
+    // aprobación, lo que había tipeado no tiene que reaparecer la próxima vez.
+    this.replacementInput.set('');
+    this.replacementApplied.set(null);
+    this.settledAmountInput.set('');
+    this.adjustmentReason.set('');
     this.showJustify.set(true);
   }
   cancelDecision(): void {
@@ -630,7 +651,11 @@ export class ExpedienteDetailComponent {
   }
   confirmDecision(): void {
     const verb = this.pendingDecision();
-    if (!this.justification().trim() || !verb) {
+    if (!verb) {
+      return;
+    }
+    // Aprobar exige además el monto; rechazar, solo la justificación.
+    if (verb === 'aprobar' ? this.approvalBlockedReason() !== null : !this.justification().trim()) {
       return;
     }
 
@@ -642,6 +667,15 @@ export class ExpedienteDetailComponent {
     const decisionPayload: AnalystDecisionRequest = {
       decision: verb === 'aprobar' ? 'APPROVE' : 'REJECT',
       justification: this.justification().trim(),
+      // Rechazar no paga nada: mandar una liquidación ahí lo rechaza el backend.
+      settlement:
+        verb === 'aprobar'
+          ? {
+              replacementValue: this.replacementApplied(),
+              settledAmount: this.amountToAuthorize() as number,
+              adjustmentReason: this.settlementAdjusted() ? this.adjustmentReason().trim() : null,
+            }
+          : null,
     };
 
     this.decisionSaving.set(true);
@@ -660,6 +694,117 @@ export class ExpedienteDetailComponent {
       },
     });
   }
+
+  // ----- determinación del monto a pagar -----
+  // El analista no fija el monto a mano: el backend lo calcula con los parámetros de la cobertura
+  // y devuelve la cuenta explicada línea por línea. Acá solo se muestra y se confirma o se ajusta
+  // con justificación — la misma forma que tiene la clasificación (decisión #5).
+
+  /** Valor de reposición que el analista está probando, como lo tipeó. */
+  protected readonly replacementInput = signal('');
+  /** El que efectivamente se le pidió al backend. Cambiarlo re-pide la propuesta. */
+  private readonly replacementApplied = signal<number | null>(null);
+
+  /**
+   * La liquidación del expediente: la ya autorizada si la hay, si no la propuesta. Se pide siempre
+   * (no solo al aprobar) porque también es lo que se muestra en un expediente ya resuelto. Un 403
+   * —el asegurado no puede verla— cae en null y la card simplemente no la muestra.
+   */
+  protected readonly settlement = toSignal(
+    combineLatest([
+      this.route.paramMap.pipe(map((params) => params.get('id') ?? '')),
+      toObservable(this.reloadTrigger),
+      toObservable(this.replacementApplied),
+    ]).pipe(
+      switchMap(([id, , replacementValue]) =>
+        this.service
+          .settlement(id as unknown as number, replacementValue)
+          .pipe(catchError(() => of<Settlement | null>(null))),
+      ),
+    ),
+    { initialValue: null as Settlement | null },
+  );
+
+  /**
+   * La liquidación ya la firmó el analista y espera al referente. El expediente sigue en revisión
+   * —para el asegurado esto es interno— pero el analista no tiene nada más que hacer acá, así que
+   * los botones de decidir dejan lugar a un cartel que dice por qué.
+   */
+  protected readonly esperandoAutorizacion = computed(
+    () => this.settlement()?.status === 'PENDING_AUTHORIZATION',
+  );
+
+  /** El referente la devolvió: vuelve a estar en manos del analista, con un motivo para corregir. */
+  protected readonly liquidacionDevuelta = computed(
+    () => this.settlement()?.status === 'RETURNED',
+  );
+
+  /**
+   * Este monto va a necesitar la firma del referente. Se calcula sobre la propuesta, antes de
+   * confirmar: enterarse recién después de aprobar es enterarse tarde, y el analista puede querer
+   * revisar el valor de reposición antes de mandar el expediente a una cola de espera.
+   */
+  protected readonly requiereReferente = computed(() => {
+    const limit = this.settlement()?.authorityLimit;
+    const amount = this.amountToAuthorize();
+    return limit != null && amount != null && amount > limit;
+  });
+
+  protected applyReplacementValue(): void {
+    const raw = this.replacementInput().trim();
+    this.replacementApplied.set(raw === '' ? null : Number(raw));
+  }
+
+  /** Lo que el analista tipeó si quiere otro monto; vacío = se paga lo calculado. */
+  protected readonly settledAmountInput = signal('');
+  protected readonly adjustmentReason = signal('');
+
+  /**
+   * El monto que se va a autorizar: el ajuste del analista, o lo calculado si no tocó nada. Null
+   * mientras no hay propuesta o lo tipeado no es un número — ahí no hay nada que confirmar.
+   */
+  protected readonly amountToAuthorize = computed<number | null>(() => {
+    const raw = this.settledAmountInput().trim();
+    if (raw === '') {
+      return this.settlement()?.calculatedAmount ?? null;
+    }
+    const parsed = Number(raw);
+    return Number.isFinite(parsed) && parsed >= 0 ? parsed : null;
+  });
+
+  /** Si difiere de lo calculado hay que decir por qué: es lo único que hace auditable el ajuste. */
+  protected readonly settlementAdjusted = computed(() => {
+    const proposed = this.settlement()?.calculatedAmount;
+    const authorized = this.amountToAuthorize();
+    return proposed != null && authorized != null && authorized !== proposed;
+  });
+
+  /** La suma asegurada es el límite máximo a indemnizar (art. 3), no algo que se justifique. */
+  protected readonly settlementAboveSumInsured = computed(() => {
+    const settlement = this.settlement();
+    const authorized = this.amountToAuthorize();
+    return settlement != null && authorized != null && authorized > settlement.sumInsured;
+  });
+
+  /** Por qué no se puede confirmar todavía. Null = se puede. */
+  protected readonly approvalBlockedReason = computed<string | null>(() => {
+    if (!this.settlement()) {
+      return 'No se pudo calcular el monto a pagar.';
+    }
+    if (this.amountToAuthorize() == null) {
+      return 'El monto a pagar tiene que ser un número.';
+    }
+    if (this.settlementAboveSumInsured()) {
+      return 'El monto no puede superar la suma asegurada.';
+    }
+    if (this.settlementAdjusted() && !this.adjustmentReason().trim()) {
+      return 'Ajustaste el monto: hace falta justificar el ajuste.';
+    }
+    if (!this.justification().trim()) {
+      return 'La decisión tiene que quedar justificada.';
+    }
+    return null;
+  });
 
   // ----- derivación a peritaje -----
   // Derivar no es un veredicto: suspende el expediente para conseguir evidencia. Por eso va por
@@ -1005,6 +1150,23 @@ export class ExpedienteDetailComponent {
       style: 'currency',
       currency: 'ARS',
       maximumFractionDigits: 0,
+    }).format(amount);
+  }
+
+  /**
+   * Como {@link formatMonto} pero con centavos. En la hoja de liquidación sí importan: es plata
+   * que el analista autoriza, y redondear en pantalla lo dejaría firmando un número que no es el
+   * que se guarda.
+   */
+  protected montoExacto(amount: number | null): string {
+    if (amount == null) {
+      return '—';
+    }
+    return new Intl.NumberFormat('es-AR', {
+      style: 'currency',
+      currency: 'ARS',
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
     }).format(amount);
   }
 

@@ -28,6 +28,18 @@ public record InsuredPolicy(
         LocalDateTime effectiveFrom,
         LocalDateTime effectiveTo,
         boolean upToDate,
+        /**
+         * What each premium installment costs. {@code upToDate} says whether the policy owes
+         * anything; this says what one installment is worth, which is what the settlement needs to
+         * price the instalments still to fall due. Null where the insurer's DB doesn't carry it.
+         */
+        BigDecimal installmentAmount,
+        /**
+         * Arrears already due, in money ({@code aseguradora.poliza.saldo_deuda}). {@code upToDate}
+         * is the boolean reading of this same fact — the rules only need to know whether there's
+         * debt, the settlement needs to know how much (clause 102, article 5).
+         */
+        BigDecimal overdueBalance,
         BigDecimal insuredAmount,
         BigDecimal deductible,
         List<PolicyCoverage> coverages,

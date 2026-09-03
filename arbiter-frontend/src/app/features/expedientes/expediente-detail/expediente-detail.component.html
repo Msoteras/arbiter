@@ -64,12 +64,41 @@
         @switch (decisionState()) {
           @case ('approved') {
             <p class="registered">✓ Registrado: Aprobado</p>
+            @if (settlement(); as s) {
+              @if (s.confirmed) {
+                <p class="rcard-note">
+                  Monto a pagar: <strong>{{ montoExacto(s.settledAmount) }}</strong>
+                </p>
+                @if (s.adjustmentReason) {
+                  <p class="rcard-note">
+                    Ajustado sobre {{ montoExacto(s.calculatedAmount) }}: {{ s.adjustmentReason }}
+                  </p>
+                }
+              }
+            }
           }
           @case ('rejected') {
             <p class="registered">✓ Registrado: Rechazado</p>
           }
           @case ('pending') {
-            @if (canAct()) {
+            @if (esperandoAutorizacion()) {
+              <!-- El analista ya decidió: lo que falta es la firma del referente sobre el monto.
+                   Mostrar los botones acá lo invitaría a decidir de nuevo algo que ya resolvió. -->
+              <p class="registered">⏳ Esperando autorización del referente</p>
+              @if (settlement(); as s) {
+                <p class="rcard-note">
+                  Monto determinado: <strong>{{ montoExacto(s.settledAmount) }}</strong>, por encima
+                  del tope de {{ montoExacto(s.authorityLimit) }} del ramo.
+                </p>
+              }
+            } @else if (canAct()) {
+              @if (liquidacionDevuelta() && settlement(); as s) {
+                <!-- Devuelta no es rechazada: el expediente sigue siendo suyo y puede volver a
+                     determinar el monto. El motivo es lo único que tiene para saber qué corregir. -->
+                <p class="rcard-note warning">
+                  El referente devolvió la liquidación: {{ s.returnReason }}
+                </p>
+              }
               @if (canDecide()) {
                 <div class="decision-btns">
                   <app-button variant="secondary" [block]="true" [disabled]="decisionSaving()" (click)="askDecision('rechazar')">Rechazar</app-button>
@@ -683,17 +712,103 @@
   </div>
 }
 
-<!-- Modal de justificación (gobierno: toda decisión queda justificada/auditada) -->
-<app-modal
-  [open]="showJustify()"
-  heading="Justificar decisión: {{ verbLabel(pendingDecision()) }}"
-  (close)="cancelDecision()"
->
+<!-- Modal de decisión (gobierno: toda decisión queda justificada/auditada). Al aprobar suma la
+     determinación del monto: el procedimiento de la compañía las trata como un solo acto del
+     analista, y aprobar sin monto deja al siniestro debiendo una suma que nadie fijó. -->
+<app-modal [open]="showJustify()" [heading]="decisionModalHeading()" (close)="cancelDecision()">
+  @if (pendingDecision() === 'aprobar') {
+    @if (settlement(); as s) {
+      <div class="settlement">
+        <span class="t-section-label">Cómo se llega al monto</span>
+        <ul class="settlement-sheet">
+          @for (line of s.breakdown; track $index) {
+            <li
+              class="settlement-line"
+              [class.deduction]="line.kind === 'DEDUCTION'"
+              [class.total]="line.kind === 'TOTAL'"
+            >
+              <span class="settlement-concept">
+                {{ line.concept }}
+                @if (line.detail) {
+                  <span class="t-note">{{ line.detail }}</span>
+                }
+              </span>
+              <span class="settlement-amount tabular">
+                @if (line.kind === 'DEDUCTION') {
+                  −
+                }{{ montoExacto(line.amount) }}
+              </span>
+            </li>
+          }
+        </ul>
+
+        @for (aviso of s.warnings; track $index) {
+          <p class="rcard-note warning">{{ aviso }}</p>
+        }
+
+        <!-- El valor de reposición sale de la factura o el presupuesto que ya están en el
+             expediente. Solo baja el techo en las coberturas que liquidan por el menor de los
+             dos; en las demás queda registrado igual, como respaldo del monto. -->
+        <label class="fieldset">
+          <span class="t-field-label">Valor de reposición acreditado</span>
+          <div class="settlement-replacement">
+            <app-input
+              type="number"
+              [min]="0"
+              [value]="replacementInput()"
+              (valueChange)="replacementInput.set($event)"
+              placeholder="Sin acreditar"
+            />
+            <app-button variant="secondary" (click)="applyReplacementValue()">Recalcular</app-button>
+          </div>
+        </label>
+
+        <label class="fieldset">
+          <span class="t-field-label">Monto a pagar</span>
+          <app-input
+            type="number"
+            [min]="0"
+            [value]="settledAmountInput()"
+            (valueChange)="settledAmountInput.set($event)"
+            [placeholder]="montoExacto(s.calculatedAmount)"
+          />
+          <p class="t-note">
+            Vacío se autoriza lo calculado ({{ montoExacto(s.calculatedAmount) }}). Tope: la suma
+            asegurada, {{ montoExacto(s.sumInsured) }}.
+          </p>
+        </label>
+
+        @if (requiereReferente() && settlement(); as s) {
+          <p class="rcard-note warning">
+            Este monto supera tu atribución para el ramo ({{ montoExacto(s.authorityLimit) }}).
+            Al confirmar, el expediente queda esperando la autorización del referente.
+          </p>
+        }
+
+        @if (settlementAdjusted()) {
+          <label class="fieldset">
+            <span class="t-field-label">Justificación del ajuste</span>
+            <app-textarea
+              [rows]="2"
+              placeholder="Por qué el monto difiere del calculado…"
+              [(value)]="adjustmentReason"
+            />
+          </label>
+        }
+      </div>
+    } @else {
+      <p class="nodata">No se pudo calcular el monto a pagar para este expediente.</p>
+    }
+  }
+
   <p class="t-note">Toda decisión del analista queda justificada y auditada (human-in-the-loop).</p>
   <app-textarea [rows]="4" placeholder="Justificación (obligatoria)…" [(value)]="justification" />
+  @if (pendingDecision() === 'aprobar' && approvalBlockedReason(); as motivo) {
+    <p class="rcard-note error">{{ motivo }}</p>
+  }
   <ng-container modalActions>
     <app-button variant="secondary" (click)="cancelDecision()">Cancelar</app-button>
-    <app-button [disabled]="!justification().trim()" (click)="confirmDecision()">Confirmar</app-button>
+    <app-button [disabled]="confirmDisabled()" (click)="confirmDecision()">Confirmar</app-button>
   </ng-container>
 </app-modal>
 

@@ -27,11 +27,13 @@ import ar.edu.utn.frba.arbiter.cases.exceptions.DocumentNotFoundException;
 import ar.edu.utn.frba.arbiter.cases.exceptions.DocumentReadException;
 import ar.edu.utn.frba.arbiter.cases.exceptions.InsuredIdentityMismatchException;
 import ar.edu.utn.frba.arbiter.cases.exceptions.InvalidAnalystDecisionException;
+import ar.edu.utn.frba.arbiter.cases.exceptions.InvalidSettlementException;
 import ar.edu.utn.frba.arbiter.cases.exceptions.InvalidStatusTransitionException;
 import ar.edu.utn.frba.arbiter.cases.exceptions.PolicyInsuredMismatchException;
 import ar.edu.utn.frba.arbiter.cases.exceptions.PolicyNotEligibleException;
 import ar.edu.utn.frba.arbiter.cases.models.entities.CaseDocument;
 import ar.edu.utn.frba.arbiter.cases.models.entities.Case;
+import ar.edu.utn.frba.arbiter.cases.models.entities.CaseSettlement;
 import ar.edu.utn.frba.arbiter.common.models.entities.tenant.Insured;
 import ar.edu.utn.frba.arbiter.cases.models.entities.Policy;
 import ar.edu.utn.frba.arbiter.cases.models.entities.PolicySnapshot;
@@ -43,9 +45,11 @@ import ar.edu.utn.frba.arbiter.cases.models.repositories.CaseDocumentRepository;
 import ar.edu.utn.frba.arbiter.cases.models.repositories.CaseRepository;
 import ar.edu.utn.frba.arbiter.cases.models.repositories.CaseSpecifications;
 import ar.edu.utn.frba.arbiter.cases.models.repositories.ClaimsAnalystRepository;
+import ar.edu.utn.frba.arbiter.cases.models.repositories.UserRepository;
 import ar.edu.utn.frba.arbiter.common.models.entities.tenant.ClaimsAnalyst;
 import ar.edu.utn.frba.arbiter.common.dto.RuleResultResponse;
 import ar.edu.utn.frba.arbiter.common.enums.CaseStatus;
+import ar.edu.utn.frba.arbiter.common.enums.SettlementStatus;
 import ar.edu.utn.frba.arbiter.common.enums.Classification;
 import ar.edu.utn.frba.arbiter.common.enums.DeadlinePriority;
 import ar.edu.utn.frba.arbiter.common.enums.RiskBand;
@@ -86,6 +90,8 @@ public class CaseServiceImpl implements CaseService {
     private final CaseAccessPolicy accessPolicy;
     private final InsuredCaseAggregator insuredCaseAggregator;
     private final PolicyTenantLocator policyTenantLocator;
+    private final SettlementService settlementService;
+    private final UserRepository userRepository;
     private final InsurerRepository insurerRepository;
     private final PolicyService policyService;
     private final InsurerTenantScope tenantScope;
@@ -610,7 +616,13 @@ public class CaseServiceImpl implements CaseService {
         return entity;
     }
 
+    /**
+     * {@code @Transactional} porque desde que la decisión también determina el monto acá se
+     * escriben dos cosas —la liquidación y la transición del expediente— y un expediente aprobado
+     * sin liquidación (o al revés) es peor que una decisión que falló entera.
+     */
     @Override
+    @Transactional
     public void recordAnalystDecision(Long caseId, AnalystDecisionRequest request) {
         Case entity = caseRepository.findById(caseId)
                 .orElseThrow(() -> new CaseNotFoundException(caseId));
@@ -645,17 +657,99 @@ public class CaseServiceImpl implements CaseService {
             throw new CaseAssignedToAnotherAnalystException(caseId);
         }
 
+        // Aprobar es también determinar cuánto se paga: el procedimiento de la compañía lo trata
+        // como un solo acto del analista (NSIN001 §5.2.1.2), y aprobar sin monto deja a la
+        // aseguradora con un siniestro que debe por una suma que nadie fijó. Se valida antes de
+        // mandar nada: una decisión que va a fallar no tiene que llegar al log de auditoría.
+        if (targetStatus == CaseStatus.APPROVED && request.settlement() == null) {
+            throw InvalidSettlementException.missing();
+        }
+        if (targetStatus == CaseStatus.REJECTED && request.settlement() != null) {
+            throw InvalidSettlementException.notApplicable();
+        }
+
+        // Primero la liquidación, porque puede frenar todo lo demás: si el monto supera la
+        // atribución del analista para el ramo (Anexo II), la aprobación NO se registra todavía
+        // —queda esperando al referente— y el expediente se queda donde está. Registrarla igual
+        // dejaría un veredicto que no surtió efecto, y si el referente después la devuelve,
+        // dos decisiones para un mismo siniestro.
+        if (targetStatus == CaseStatus.APPROVED) {
+            CaseSettlement settlement = settlementService.confirm(
+                    entity, analyst.getId(), request.justification(), request.settlement());
+            if (settlement.getStatus() == SettlementStatus.PENDING_AUTHORIZATION) {
+                return;
+            }
+        }
+
+        resolve(entity, targetStatus, analyst.getId(), request.decision(), request.justification());
+    }
+
+    /**
+     * Registra la decisión del analista y mueve el expediente. Sale de
+     * {@link #recordAnalystDecision} porque hay dos momentos en que esto ocurre: cuando el monto
+     * entra en la atribución del analista (ahí mismo) y cuando el referente autoriza uno que la
+     * superaba (más tarde, desde {@link #authorizeSettlement}). Es el mismo acto y tiene que
+     * dejar el mismo rastro.
+     */
+    private void resolve(Case entity, CaseStatus targetStatus, Long analystId,
+                         String decision, String justification) {
         // El contador vivo es de `cases`; el registro auditable se queda con su valor final, así
         // que se lo mandamos nosotros — el frontend no lo conoce, igual que con analystId.
+        // La liquidación NO viaja: classification-service audita el veredicto, la plata es
+        // registro propio de este módulo.
         AnalystDecisionRequest audited = new AnalystDecisionRequest(
-                analyst.getId(), request.decision(), request.justification(), entity.getClassificationAttempts());
+                analystId, decision, justification, entity.getClassificationAttempts(), null);
 
         // The decision row is created there, so its id only exists after the call. Storing it
         // links the case to the model run the verdict was based on.
-        entity.setClassificationId(claimsAnalysisClient.forwardAnalystDecision(caseId, audited));
+        entity.setClassificationId(claimsAnalysisClient.forwardAnalystDecision(entity.getId(), audited));
 
         caseStatusService.transition(entity, targetStatus,
-                StatusChangeActor.ANALYST, "decisión del analista: " + request.decision());
+                StatusChangeActor.ANALYST, "decisión del analista: " + decision);
+    }
+
+    /**
+     * El referente firma un monto que superaba la atribución del analista, y recién ahí la
+     * aprobación surte efecto: se registra la decisión con la justificación que el analista había
+     * dejado en custodia, y el expediente pasa a APROBADO (que es lo que dispara el mail con el
+     * monto). Para el asegurado, todo esto fue un solo paso.
+     */
+    @Override
+    @Transactional
+    public void authorizeSettlement(Long caseId) {
+        Case entity = caseRepository.findById(caseId)
+                .orElseThrow(() -> new CaseNotFoundException(caseId));
+
+        CaseSettlement pending = settlementService.require(caseId);
+        // Se lee ANTES de marcarla: markAuthorized la vacía, porque a partir de ahí la
+        // justificación vive en case_classification.
+        String justification = pending.getPendingJustification();
+        Long analystId = pending.getAnalystId();
+
+        settlementService.markAuthorized(caseId, currentUserId());
+        resolve(entity, CaseStatus.APPROVED, analystId, "APPROVE", justification);
+    }
+
+    /**
+     * El referente devuelve la liquidación con un motivo. El expediente no se mueve —nunca salió
+     * de la revisión del analista— y no hay decisión que deshacer, justamente porque no se había
+     * registrado ninguna.
+     */
+    @Override
+    @Transactional
+    public void returnSettlement(Long caseId, String reason) {
+        settlementService.returnToAnalyst(caseId, currentUserId(), reason);
+    }
+
+    /** El id del que llama, resuelto contra arbiter_common.users por el mail del JWT. */
+    private Long currentUserId() {
+        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+        if (authentication == null) {
+            return null;
+        }
+        return userRepository.findByEmail(authentication.getName())
+                .map(ar.edu.utn.frba.arbiter.common.models.entities.User::getId)
+                .orElse(null);
     }
 
     /** Recién creado o recién reencolado: todavía no hay clasificación que mostrar. */

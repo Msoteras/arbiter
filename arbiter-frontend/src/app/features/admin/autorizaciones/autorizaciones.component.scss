@@ -1,0 +1,53 @@
+.page { display: flex; flex-direction: column; gap: var(--space-4); }
+
+.page-head { display: flex; flex-direction: column; gap: var(--space-1); }
+.page-sub { margin: 0; max-width: 68ch; }
+
+.queue { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: var(--space-3); }
+
+.row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-4);
+  list-style: none;
+}
+
+.row-main { display: flex; flex-direction: column; gap: var(--space-1); min-width: 0; }
+
+.row-title { display: flex; align-items: center; gap: var(--space-2); flex-wrap: wrap; }
+
+.case-link {
+  font-size: var(--font-size-body);
+  font-weight: var(--font-weight-medium);
+  color: var(--text-primary);
+  text-decoration: none;
+}
+.case-link:hover { text-decoration: underline; }
+
+.row-meta { margin: 0; }
+
+/* El monto y su relación con el tope, juntos: es lo que el referente está juzgando. */
+.row-amounts {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: var(--space-1);
+  white-space: nowrap;
+}
+
+.amount {
+  font-size: var(--font-size-lg);
+  font-weight: var(--font-weight-bold);
+  color: var(--text-primary);
+}
+
+.row-actions { display: flex; gap: var(--space-2); }
+
+.page-error { margin: 0; font-size: var(--font-size-xs); color: var(--status-danger); }
+
+@media (max-width: 820px) {
+  .row { flex-direction: column; align-items: stretch; }
+  .row-amounts { align-items: flex-start; }
+  .row-actions { justify-content: flex-end; }
+}
