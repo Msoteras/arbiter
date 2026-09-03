@@ -403,6 +403,32 @@ que pide H0032, sumando estos 4 campos.
 
 ---
 
+## H0034 · Guardar QUIÉN cambió cada regla, no solo su nombre en un texto
+
+> **Detectada al implementar la vista de historial de cambios de reglas (01/09)** — la vista ya está
+> hecha y funciona; esto es el dato que le falta para cerrar del todo.
+
+**Como** referente de la aseguradora
+**quiero** ver quién hizo cada cambio de configuración como un dato del registro
+**para** poder filtrar por autor y que la auditoría sea consultable, no solo legible.
+
+**Criterios de aceptación**
+- `insurer_rule_history.changed_by` y `scoring_configuration_history.changed_by` se completan al
+  guardar (hoy se escriben siempre en `null`).
+- El historial expone el autor como campo propio y se puede filtrar por él.
+
+**Por qué importa**
+Las dos tablas tienen la columna `changed_by BIGINT REFERENCES insurer_referent(id)` y ninguno de
+los seis servicios que escriben historial la completa: pasan `.changedBy(null)` y meten el mail del
+actor **dentro del texto de `reason`** ("Fast Track actualizado por referente@bbva.com"). Se lee
+bien y por eso la vista lo muestra tal cual, pero es prosa: no se puede filtrar por autor, no
+sobrevive a que alguien cambie el formato del mensaje, y si mañana se quiere el nombre y apellido
+en vez del mail hay que reparsear texto. El trabajo real no es la columna sino resolver
+mail → `insurer_referent.id`: los servicios reciben `actorEmail` (sale del JWT) y la identidad vive
+en `arbiter_common.users`, así que rules-service necesita ese lookup o que el id viaje en el token.
+
+---
+
 ## H0033 · Blindar la decisión y la asignación del expediente contra condiciones de carrera
 
 > **Detectada auditando la planilla de casos de prueba QA (28/08)** — el caso "Operación

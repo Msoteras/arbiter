@@ -4,6 +4,7 @@ import ar.edu.utn.frba.arbiter.common.enums.RuleType;
 import ar.edu.utn.frba.arbiter.common.models.entities.Branch;
 import ar.edu.utn.frba.arbiter.rules.dto.FastTrackConfigDto;
 import ar.edu.utn.frba.arbiter.rules.dto.FastTrackRuleResponse;
+import ar.edu.utn.frba.arbiter.rules.dto.InsurerRuleSnapshot;
 import ar.edu.utn.frba.arbiter.rules.exceptions.BranchNotFoundException;
 import ar.edu.utn.frba.arbiter.rules.exceptions.InvalidRuleConfigurationException;
 import ar.edu.utn.frba.arbiter.rules.models.entities.InsurerRule;
@@ -90,7 +91,8 @@ public class FastTrackRuleService {
         // email, not the insurer_referent id — the actor is recorded in `reason` until a userId
         // claim (or an email->referent lookup) is wired.
         historyRepository.save(InsurerRuleHistory.builder()
-                .configVersion(rule.getConfiguration() == null ? "{}" : rule.getConfiguration())
+                .configVersion(InsurerRuleSnapshot.serialize(
+                        rule.isActive(), rule.isBlocksFastTrack(), rule.getConfiguration()))
                 .changedAt(now)
                 .validFrom(rule.getValidFrom())
                 .validTo(now)

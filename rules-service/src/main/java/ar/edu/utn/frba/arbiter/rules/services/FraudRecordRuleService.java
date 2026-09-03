@@ -3,6 +3,7 @@ package ar.edu.utn.frba.arbiter.rules.services;
 import ar.edu.utn.frba.arbiter.common.enums.RuleType;
 import ar.edu.utn.frba.arbiter.rules.dto.FraudRecordRuleConfig;
 import ar.edu.utn.frba.arbiter.rules.dto.FraudRecordRuleDto;
+import ar.edu.utn.frba.arbiter.rules.dto.InsurerRuleSnapshot;
 import ar.edu.utn.frba.arbiter.rules.exceptions.InvalidRuleConfigurationException;
 import ar.edu.utn.frba.arbiter.rules.models.entities.InsurerRule;
 import ar.edu.utn.frba.arbiter.rules.models.entities.InsurerRuleHistory;
@@ -95,11 +96,12 @@ public class FraudRecordRuleService {
         }
 
         historyRepository.save(InsurerRuleHistory.builder()
-                .configVersion(rule.getConfiguration() == null ? "{}" : rule.getConfiguration())
+                .configVersion(InsurerRuleSnapshot.serialize(
+                        rule.isActive(), rule.isBlocksFastTrack(), rule.getConfiguration()))
                 .changedAt(now)
                 .validFrom(rule.getValidFrom())
                 .validTo(now)
-                .reason("Fraud record rule updated by " + actorEmail)
+                .reason("Antecedente de fraude actualizado por " + actorEmail)
                 .insurerRule(rule)
                 .changedBy(null)
                 .build());

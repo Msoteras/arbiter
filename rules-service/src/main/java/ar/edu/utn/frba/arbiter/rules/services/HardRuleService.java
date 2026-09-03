@@ -4,6 +4,7 @@ import ar.edu.utn.frba.arbiter.common.enums.RuleType;
 import ar.edu.utn.frba.arbiter.common.models.entities.Branch;
 import ar.edu.utn.frba.arbiter.rules.dto.HardRuleConfig;
 import ar.edu.utn.frba.arbiter.rules.dto.HardRuleDto;
+import ar.edu.utn.frba.arbiter.rules.dto.InsurerRuleSnapshot;
 import ar.edu.utn.frba.arbiter.rules.exceptions.BranchNotFoundException;
 import ar.edu.utn.frba.arbiter.rules.exceptions.InvalidRuleConfigurationException;
 import ar.edu.utn.frba.arbiter.rules.models.entities.InsurerRule;
@@ -145,11 +146,12 @@ public class HardRuleService {
 
         // Snapshot of the version about to be overwritten, before touching it (append-only audit).
         historyRepository.save(InsurerRuleHistory.builder()
-                .configVersion(rule.getConfiguration() == null ? "{}" : rule.getConfiguration())
+                .configVersion(InsurerRuleSnapshot.serialize(
+                        rule.isActive(), rule.isBlocksFastTrack(), rule.getConfiguration()))
                 .changedAt(now)
                 .validFrom(rule.getValidFrom())
                 .validTo(now)
-                .reason("Hard rule " + requested.ruleType() + " updated by " + actorEmail)
+                .reason("Regla dura actualizada por " + actorEmail)
                 .insurerRule(rule)
                 .changedBy(null)
                 .build());

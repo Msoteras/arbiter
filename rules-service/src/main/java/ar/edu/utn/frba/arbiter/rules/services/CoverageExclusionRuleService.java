@@ -5,6 +5,7 @@ import ar.edu.utn.frba.arbiter.common.models.entities.Branch;
 import ar.edu.utn.frba.arbiter.rules.dto.CatalogOption;
 import ar.edu.utn.frba.arbiter.rules.dto.CoverageExclusionConfig;
 import ar.edu.utn.frba.arbiter.rules.dto.CoverageExclusionResponse;
+import ar.edu.utn.frba.arbiter.rules.dto.InsurerRuleSnapshot;
 import ar.edu.utn.frba.arbiter.rules.exceptions.BranchNotFoundException;
 import ar.edu.utn.frba.arbiter.rules.exceptions.InvalidRuleConfigurationException;
 import ar.edu.utn.frba.arbiter.rules.models.entities.InsurerRule;
@@ -92,7 +93,8 @@ public class CoverageExclusionRuleService {
 
         // Snapshot of the version about to be overwritten, before touching it (append-only audit).
         historyRepository.save(InsurerRuleHistory.builder()
-                .configVersion(rule.getConfiguration() == null ? "{}" : rule.getConfiguration())
+                .configVersion(InsurerRuleSnapshot.serialize(
+                        rule.isActive(), rule.isBlocksFastTrack(), rule.getConfiguration()))
                 .changedAt(now)
                 .validFrom(rule.getValidFrom())
                 .validTo(now)
