@@ -9,6 +9,7 @@ import ar.edu.utn.frba.arbiter.common.enums.Classification;
 import ar.edu.utn.frba.arbiter.common.models.entities.Branch;
 import ar.edu.utn.frba.arbiter.common.models.entities.CaseState;
 import ar.edu.utn.frba.arbiter.common.models.entities.ClaimCause;
+import ar.edu.utn.frba.arbiter.common.models.entities.tenant.Coverage;
 import ar.edu.utn.frba.arbiter.common.models.entities.tenant.Insured;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
@@ -71,6 +72,9 @@ class CaseAnalysisRepositoryTests extends AbstractPersistenceIT {
 
     @Autowired
     private CoverageRepository coverageRepository;
+
+    @Autowired
+    private PolicyCoverageRepository policyCoverageRepository;
 
     @Autowired
     private UserRepository userRepository;
@@ -149,16 +153,15 @@ class CaseAnalysisRepositoryTests extends AbstractPersistenceIT {
         Policy policy = policyRepository.findByExternalPolicyNumber("POL-IT-" + dni)
                 .orElseGet(() -> {
                     Policy p = CaseFixtures.policy("POL-IT-" + dni, "Celular Protegido Básico");
-                    p.setCoverage(coverageRepository.save(p.getCoverage()));
                     p.setInsuredId(owner.getId());
-                    return policyRepository.save(p);
+                    return withCoverage(policyRepository.save(p));
                 });
         Case entity = caseRepository.save(Case.builder()
                 .claimCause(claimCause("Celulares", "Robo en vía pública"))
                 .declaredItem("Samsung A56")
                 .insured(owner)
                 .policy(policy)
-                .coverage(policy.getCoverage())
+                .coverage(testCoverage())
                 .description("Descripción de prueba")
                 .occurredAt(eventDate.atStartOfDay())
                 .eventAddress("CABA")
@@ -268,5 +271,24 @@ class CaseAnalysisRepositoryTests extends AbstractPersistenceIT {
 
         assertThat(result.get(caseA).classification()).isEqualTo(Classification.LLM_RECOMIENDA_APROBAR);
         assertThat(result.get(caseB).classification()).isEqualTo(Classification.LLM_NO_RECOMIENDA_APROBAR);
+    }
+
+    /**
+     * La cobertura del catálogo del tenant. Idempotente, mismo patrón que {@code claimCause()}:
+     * varias pólizas de un test comparten la definición, que es lo que pasa en la realidad.
+     */
+    private Coverage testCoverage() {
+        return coverageRepository.findByName("Cobertura Celulares")
+                .orElseGet(() -> coverageRepository.save(CaseFixtures.coverage("Celulares")));
+    }
+
+    /**
+     * Deja la póliza con su cobertura contratada. Desde que una póliza tiene VARIAS coberturas, la
+     * suma asegurada vive en {@code policy_coverage} y no en {@code policy}, así que sin esta fila
+     * la póliza no tiene contra qué evaluarse.
+     */
+    private Policy withCoverage(Policy policy) {
+        policyCoverageRepository.save(CaseFixtures.policyCoverage(policy.getId(), testCoverage(), 1));
+        return policy;
     }
 }

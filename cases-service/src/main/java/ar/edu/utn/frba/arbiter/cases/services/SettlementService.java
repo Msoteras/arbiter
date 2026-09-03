@@ -8,9 +8,11 @@ import ar.edu.utn.frba.arbiter.cases.exceptions.InvalidSettlementException;
 import ar.edu.utn.frba.arbiter.cases.exceptions.SettlementNotFoundException;
 import ar.edu.utn.frba.arbiter.cases.models.entities.Case;
 import ar.edu.utn.frba.arbiter.cases.models.entities.CaseSettlement;
+import ar.edu.utn.frba.arbiter.cases.models.entities.PolicyCoverage;
 import ar.edu.utn.frba.arbiter.cases.models.entities.PolicySnapshot;
 import ar.edu.utn.frba.arbiter.cases.models.repositories.CaseRepository;
 import ar.edu.utn.frba.arbiter.cases.models.repositories.CaseSettlementRepository;
+import ar.edu.utn.frba.arbiter.cases.models.repositories.PolicyCoverageRepository;
 import ar.edu.utn.frba.arbiter.common.enums.SettlementBasis;
 import ar.edu.utn.frba.arbiter.common.enums.SettlementStatus;
 import ar.edu.utn.frba.arbiter.common.models.entities.tenant.Coverage;
@@ -54,6 +56,7 @@ public class SettlementService {
     private final CaseSettlementRepository settlementRepository;
     private final SettlementCalculator calculator;
     private final SettlementAuthorityService authorityService;
+    private final PolicyCoverageRepository policyCoverageRepository;
 
     /**
      * What this case pays. The settlement already authorized if there is one, otherwise the
@@ -75,7 +78,8 @@ public class SettlementService {
 
         PolicySnapshot snapshot = caseRepository.findPolicySnapshot(caseId).orElse(null);
         Coverage coverage = caseRecord.getCoverage();
-        CaseSettlement proposal = calculator.calculate(caseRecord, coverage, snapshot, replacementValue);
+        CaseSettlement proposal = calculator.calculate(
+                caseRecord, coverage, policyCoverageOf(caseRecord), snapshot, replacementValue);
         // El tope vigente, para que el analista vea ANTES de firmar que este monto va a necesitar
         // al referente. Enterarse recién al confirmar es enterarse tarde.
         proposal.setAuthorityLimit(authorityService.limitFor(branchIdOf(caseRecord)));
@@ -105,8 +109,8 @@ public class SettlementService {
         }
 
         PolicySnapshot snapshot = caseRepository.findPolicySnapshot(caseRecord.getId()).orElse(null);
-        CaseSettlement settlement = calculator.calculate(
-                caseRecord, caseRecord.getCoverage(), snapshot, request.replacementValue());
+        CaseSettlement settlement = calculator.calculate(caseRecord, caseRecord.getCoverage(),
+                policyCoverageOf(caseRecord), snapshot, request.replacementValue());
 
         BigDecimal authorized = request.settledAmount();
         if (authorized.compareTo(settlement.getSumInsured()) > 0) {
@@ -161,6 +165,23 @@ public class SettlementService {
         // En custodia mientras espera: la decisión todavía no se registró, y cuando el referente
         // autorice hay que reenviarla con la justificación que escribió el analista, no una nueva.
         settlement.setPendingJustification(needsReferente ? justification : null);
+    }
+
+    /**
+     * Los términos que ESTA póliza contrató para la cobertura del expediente: su suma asegurada y
+     * su franquicia. Una póliza no tiene una suma asegurada sola —cubre robo y hurto con montos
+     * distintos—, así que el par (póliza, cobertura) es lo que identifica el número.
+     *
+     * <p>Solo se usa como respaldo del snapshot, que es lo que la aseguradora respondió cuando se
+     * denunció el siniestro. Null si la póliza todavía no sincronizó esa cobertura.
+     */
+    private PolicyCoverage policyCoverageOf(Case caseRecord) {
+        if (caseRecord.getPolicy() == null || caseRecord.getCoverage() == null) {
+            return null;
+        }
+        return policyCoverageRepository
+                .findByPolicyIdAndCoverageId(caseRecord.getPolicy().getId(), caseRecord.getCoverage().getId())
+                .orElse(null);
     }
 
     /** The branch hangs off the claim cause — {@code cases} has no column of its own for it. */

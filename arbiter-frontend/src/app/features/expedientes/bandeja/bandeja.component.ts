@@ -335,13 +335,18 @@ export class BandejaComponent {
   );
 
   // ───────────────── Catálogos de los selects ─────────────────
+  // Los 8 valores de CaseStatus, en el orden del ciclo de vida. Van todos: la lista se quedó dos
+  // veces atrás del enum (PENDING_EXPERT_REPORT y LAPSED), y un estado que existe en la bandeja
+  // pero no en su filtro es un expediente que el analista no puede aislar.
   private static readonly STATUS_VALUES: CaseStatus[] = [
     'PENDING_CLASSIFICATION',
     'PENDING_ANALYST_REVIEW',
     'CLASSIFICATION_FAILED',
     'AWAITING_DOCUMENTATION',
+    'PENDING_EXPERT_REPORT',
     'APPROVED',
     'REJECTED',
+    'LAPSED',
   ];
 
   protected readonly statusOptions: SelectOption[] = BandejaComponent.STATUS_VALUES.map((s) => ({

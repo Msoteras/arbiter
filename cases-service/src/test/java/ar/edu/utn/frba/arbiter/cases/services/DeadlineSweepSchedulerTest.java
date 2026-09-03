@@ -48,13 +48,14 @@ class DeadlineSweepSchedulerTest {
     }
 
     @Test
-    void queriesTwoDaysOut_excludingTerminalStates() {
+    void queriesTwoDaysOut_excludingTerminalAndPausingStates() {
         when(caseRepository.findUnansweredDueBy(any(), any())).thenReturn(List.of());
 
         scheduler.sweepDeadlines();
 
         verify(caseRepository).findUnansweredDueBy(
-                eq(TODAY.plusDays(2)), eq(List.of("APPROVED", "REJECTED")));
+                eq(TODAY.plusDays(2)),
+                eq(List.of("APPROVED", "REJECTED", "LAPSED", "AWAITING_DOCUMENTATION", "PENDING_EXPERT_REPORT")));
         verifyNoInteractions(analystNotificationService);
     }
 

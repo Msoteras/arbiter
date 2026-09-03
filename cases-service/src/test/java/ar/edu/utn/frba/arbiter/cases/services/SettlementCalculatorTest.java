@@ -3,6 +3,7 @@ package ar.edu.utn.frba.arbiter.cases.services;
 import ar.edu.utn.frba.arbiter.cases.models.entities.Case;
 import ar.edu.utn.frba.arbiter.cases.models.entities.CaseSettlement;
 import ar.edu.utn.frba.arbiter.cases.models.entities.Policy;
+import ar.edu.utn.frba.arbiter.cases.models.entities.PolicyCoverage;
 import ar.edu.utn.frba.arbiter.cases.models.entities.PolicySnapshot;
 import ar.edu.utn.frba.arbiter.common.enums.SettlementBasis;
 import ar.edu.utn.frba.arbiter.common.models.entities.tenant.Coverage;
@@ -36,7 +37,8 @@ class SettlementCalculatorTest {
         PolicySnapshot snapshot = snapshot("300000.00", LocalDate.of(2024, 1, 1), "5000.00", null, 1);
         Case claim = claim(LocalDateTime.of(2023, 6, 1, 10, 0));
 
-        CaseSettlement settlement = calculator.calculate(claim, coverage, snapshot, null);
+        CaseSettlement settlement = calculator.calculate(
+                claim, coverage, null, snapshot, null);
 
         assertThat(settlement.getDeductibleAmount()).isEqualByComparingTo("30000.00");
         assertThat(settlement.getPendingInstallments()).isEqualTo(7);
@@ -54,7 +56,7 @@ class SettlementCalculatorTest {
         PolicySnapshot snapshot = snapshot("1000000.00", LocalDate.of(2027, 1, 1), null, null, 1);
 
         CaseSettlement settlement = calculator.calculate(
-                claim(LocalDateTime.of(2026, 6, 1, 10, 0)), coverage, snapshot, new BigDecimal("600000.00"));
+                claim(LocalDateTime.of(2026, 6, 1, 10, 0)), coverage, null, snapshot, new BigDecimal("600000.00"));
 
         // 600.000 de techo, menos 100.000 de franquicia (10% de la SUMA ASEGURADA, no del techo).
         assertThat(settlement.getDeductibleAmount()).isEqualByComparingTo("100000.00");
@@ -68,7 +70,7 @@ class SettlementCalculatorTest {
         PolicySnapshot snapshot = snapshot("1000000.00", LocalDate.of(2027, 1, 1), null, null, 1);
 
         CaseSettlement settlement = calculator.calculate(
-                claim(LocalDateTime.of(2026, 6, 1, 10, 0)), coverage, snapshot, null);
+                claim(LocalDateTime.of(2026, 6, 1, 10, 0)), coverage, null, snapshot, null);
 
         assertThat(settlement.getCalculatedAmount()).isEqualByComparingTo("900000.00");
     }
@@ -80,7 +82,7 @@ class SettlementCalculatorTest {
         PolicySnapshot snapshot = snapshot("1000000.00", LocalDate.of(2027, 1, 1), null, null, 1);
 
         CaseSettlement settlement = calculator.calculate(
-                claim(LocalDateTime.of(2026, 6, 1, 10, 0)), coverage, snapshot, new BigDecimal("1500000.00"));
+                claim(LocalDateTime.of(2026, 6, 1, 10, 0)), coverage, null, snapshot, new BigDecimal("1500000.00"));
 
         assertThat(settlement.getCalculatedAmount()).isEqualByComparingTo("900000.00");
     }
@@ -96,7 +98,7 @@ class SettlementCalculatorTest {
         PolicySnapshot snapshot = snapshot("800000.00", LocalDate.of(2027, 1, 1), null, null, 2);
 
         CaseSettlement settlement = calculator.calculate(
-                claim(LocalDateTime.of(2026, 6, 1, 10, 0)), coverage, snapshot, null);
+                claim(LocalDateTime.of(2026, 6, 1, 10, 0)), coverage, null, snapshot, null);
 
         assertThat(settlement.getEventOrdinal()).isEqualTo(2);
         assertThat(settlement.getEventPercentage()).isEqualByComparingTo("50.00");
@@ -111,7 +113,7 @@ class SettlementCalculatorTest {
         PolicySnapshot snapshot = snapshot("800000.00", LocalDate.of(2027, 1, 1), null, null, 2);
 
         CaseSettlement settlement = calculator.calculate(
-                claim(LocalDateTime.of(2026, 6, 1, 10, 0)), coverage, snapshot, null);
+                claim(LocalDateTime.of(2026, 6, 1, 10, 0)), coverage, null, snapshot, null);
 
         assertThat(settlement.getEventPercentage()).isEqualByComparingTo("100.00");
         assertThat(settlement.getCalculatedAmount()).isEqualByComparingTo("720000.00");
@@ -124,9 +126,9 @@ class SettlementCalculatorTest {
         Case claim = claim(LocalDateTime.of(2026, 6, 1, 10, 0));
 
         CaseSettlement off = calculator.calculate(
-                claim, coverage(SettlementBasis.SUM_INSURED, "10.00", null, false, false), snapshot, null);
+                claim, coverage(SettlementBasis.SUM_INSURED, "10.00", null, false, false), null, snapshot, null);
         CaseSettlement on = calculator.calculate(
-                claim, coverage(SettlementBasis.SUM_INSURED, "10.00", null, false, true), snapshot, null);
+                claim, coverage(SettlementBasis.SUM_INSURED, "10.00", null, false, true), null, snapshot, null);
 
         assertThat(off.getOverdueBalanceAmount()).isEqualByComparingTo("0.00");
         assertThat(off.getCalculatedAmount()).isEqualByComparingTo("450000.00");
@@ -144,7 +146,7 @@ class SettlementCalculatorTest {
         PolicySnapshot snapshot = snapshot("100000.00", LocalDate.of(2027, 1, 1), null, "500000.00", 1);
 
         CaseSettlement settlement = calculator.calculate(
-                claim(LocalDateTime.of(2026, 6, 1, 10, 0)), coverage, snapshot, null);
+                claim(LocalDateTime.of(2026, 6, 1, 10, 0)), coverage, null, snapshot, null);
 
         assertThat(settlement.getCalculatedAmount()).isEqualByComparingTo("0.00");
     }
@@ -160,7 +162,7 @@ class SettlementCalculatorTest {
         PolicySnapshot snapshot = snapshot("500000.00", LocalDate.of(2027, 1, 1), null, null, 1);
 
         CaseSettlement settlement = calculator.calculate(
-                claim(LocalDateTime.of(2026, 6, 1, 10, 0)), coverage, snapshot, null);
+                claim(LocalDateTime.of(2026, 6, 1, 10, 0)), coverage, null, snapshot, null);
 
         assertThat(settlement.getPendingInstallmentsAmount()).isEqualByComparingTo("0.00");
         assertThat(settlement.getCalculatedAmount()).isEqualByComparingTo("450000.00");
@@ -173,7 +175,7 @@ class SettlementCalculatorTest {
         PolicySnapshot snapshot = snapshot("500000.00", LocalDate.of(2026, 1, 1), "5000.00", null, 1);
 
         CaseSettlement settlement = calculator.calculate(
-                claim(LocalDateTime.of(2026, 6, 1, 10, 0)), coverage, snapshot, null);
+                claim(LocalDateTime.of(2026, 6, 1, 10, 0)), coverage, null, snapshot, null);
 
         assertThat(settlement.getPendingInstallments()).isZero();
         assertThat(settlement.getPendingInstallmentsAmount()).isEqualByComparingTo("0.00");
@@ -181,19 +183,42 @@ class SettlementCalculatorTest {
 
     /**
      * Cases filed before the snapshot existed still have to be settleable — falling back to the
-     * synced policy beats refusing to put a number on them.
+     * synced coverage beats refusing to put a number on them. It reads {@code policy_coverage} and
+     * not the policy because a policy has no single sum insured: it covers robo and hurto with a
+     * different amount each.
      */
     @Test
-    void fallsBackToThePolicyWhenThereIsNoSnapshot() {
+    void fallsBackToThePolicyCoverageWhenThereIsNoSnapshot() {
         Coverage coverage = coverage(SettlementBasis.SUM_INSURED, "10.00", null, true, true);
 
         CaseSettlement settlement = calculator.calculate(
-                claim(LocalDateTime.of(2026, 6, 1, 10, 0)), coverage, null, null);
+                claim(LocalDateTime.of(2026, 6, 1, 10, 0)), coverage,
+                policyCoverage("1300000.00", null), null, null);
 
         assertThat(settlement.getSumInsured()).isEqualByComparingTo("1300000.00");
         assertThat(settlement.getPendingInstallmentsAmount()).isEqualByComparingTo("0.00");
         assertThat(settlement.getOverdueBalanceAmount()).isEqualByComparingTo("0.00");
         assertThat(settlement.getCalculatedAmount()).isEqualByComparingTo("1170000.00");
+    }
+
+    /**
+     * Cuando la póliza trae su propia franquicia, esa gana sobre la que el referente configuró en
+     * la cobertura: la de la cobertura es el default de la compañía para ese riesgo, la de la
+     * póliza es la que se escribió en ESTE contrato. Se le descuenta a un asegurado concreto, no
+     * a un promedio.
+     */
+    @Test
+    void thePolicyOwnFranchiseWinsOverTheCoverageDefault() {
+        Coverage coverage = coverage(SettlementBasis.SUM_INSURED, "10.00", null, false, false);
+        PolicySnapshot snapshot = snapshot("800000.00", LocalDate.of(2027, 1, 1), null, null, 1);
+
+        CaseSettlement settlement = calculator.calculate(
+                claim(LocalDateTime.of(2026, 6, 1, 10, 0)), coverage,
+                policyCoverage("800000.00", "20.00"), snapshot, null);
+
+        assertThat(settlement.getDeductibleRate()).isEqualByComparingTo("20.00");
+        assertThat(settlement.getDeductibleAmount()).isEqualByComparingTo("160000.00");
+        assertThat(settlement.getCalculatedAmount()).isEqualByComparingTo("640000.00");
     }
 
     /** Every input the sheet was built from is frozen on the row, not just the result. */
@@ -203,7 +228,7 @@ class SettlementCalculatorTest {
         PolicySnapshot snapshot = snapshot("800000.00", LocalDate.of(2027, 1, 1), "16000.00", "32000.00", 2);
 
         CaseSettlement settlement = calculator.calculate(
-                claim(LocalDateTime.of(2026, 6, 1, 10, 0)), coverage, snapshot, new BigDecimal("700000.00"));
+                claim(LocalDateTime.of(2026, 6, 1, 10, 0)), coverage, null, snapshot, new BigDecimal("700000.00"));
 
         assertThat(settlement.getFormula()).isEqualTo(SettlementCalculator.TOTAL_LOSS);
         assertThat(settlement.getSettlementBasis()).isEqualTo(SettlementBasis.LESSER_OF_SUM_AND_REPLACEMENT);
@@ -249,7 +274,17 @@ class SettlementCalculatorTest {
         return Case.builder()
                 .id(1L)
                 .occurredAt(occurredAt)
-                .policy(Policy.builder().id(1L).sumInsured(new BigDecimal("1300000.00")).build())
+                .policy(Policy.builder().id(1L).build())
+                .build();
+    }
+
+    /** Los términos que la póliza contrató para esta cobertura: su suma y su franquicia. */
+    private PolicyCoverage policyCoverage(String sumInsured, String deductiblePct) {
+        return PolicyCoverage.builder()
+                .policyId(1L)
+                .displayOrder(1)
+                .sumInsured(new BigDecimal(sumInsured))
+                .deductiblePct(deductiblePct == null ? null : new BigDecimal(deductiblePct))
                 .build();
     }
 }

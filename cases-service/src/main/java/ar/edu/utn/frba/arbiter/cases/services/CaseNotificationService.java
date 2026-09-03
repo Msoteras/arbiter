@@ -85,7 +85,29 @@ public class CaseNotificationService {
             CaseStatus.REJECTED, new Message(
                     "Novedades sobre tu siniestro",
                     "Revisamos tu siniestro y no fue aprobado. Si querés conocer los motivos o no "
-                            + "estás de acuerdo, podés comunicarte con nosotros."));
+                            + "estás de acuerdo, podés comunicarte con nosotros."),
+            CaseStatus.LAPSED, new Message(
+                    "Tu siniestro caducó por falta de documentación",
+                    "Cerramos tu siniestro porque pasaron más de 18 meses desde la denuncia sin que "
+                            + "recibiéramos la documentación que te habíamos pedido. Si todavía "
+                            + "querés continuar con el reclamo, comunicate con nosotros."));
+
+    /**
+     * Reopening doesn't fit {@link #MESSAGES}, which is keyed by destination status: a reopened
+     * case lands in {@code PENDING_ANALYST_REVIEW}, and putting a message there would greet the
+     * insured on every ordinary classification that reaches the analyst's desk. The notice belongs
+     * to the <b>move</b>, not to where it lands, so it has its own entry point.
+     *
+     * <p>Says nothing about why. The reason the analyst typed is internal (it can name a suspicion,
+     * an error, a fraud lead) — the insured gets the fact, and the invitation to ask.
+     */
+    private static final String REOPENED_TYPE = "REOPENED";
+
+    private static final Message REOPENED_MESSAGE = new Message(
+            "Reabrimos tu siniestro",
+            "Volvimos a abrir tu siniestro y un analista lo está revisando de nuevo. "
+                    + "Te vamos a avisar por este medio cuando haya una resolución. Si querés saber "
+                    + "más, podés comunicarte con nosotros.");
 
     /** Los importes se le muestran al asegurado con formato argentino, no con el del servidor. */
     private static final Locale AR = Locale.forLanguageTag("es-AR");
@@ -98,20 +120,34 @@ public class CaseNotificationService {
 
     /** Best-effort by contract: a delivery failure must never break the case transition. */
     public void notifyStatusChange(Case caseRecord, CaseStatus newStatus) {
+        Message message = MESSAGES.get(newStatus);
+        if (message == null) {
+            return;
+        }
+        notify(caseRecord, newStatus.name(), message);
+    }
+
+    /**
+     * Tells the insured a case that was already closed is open again. Called from
+     * {@code CaseStatusService.transition} when the move comes out of a terminal status, so it
+     * fires no matter who reopens the case — and inside the same transaction, which is what lets
+     * it read the insured off the entity.
+     */
+    public void notifyReopened(Case caseRecord) {
+        notify(caseRecord, REOPENED_TYPE, REOPENED_MESSAGE);
+    }
+
+    private void notify(Case caseRecord, String type, Message message) {
         try {
-            Message message = MESSAGES.get(newStatus);
-            if (message == null) {
-                return;
-            }
-            deliver(caseRecord, newStatus, message);
+            deliver(caseRecord, type, message);
         } catch (Exception | LinkageError e) {
             // LinkageError too: a missing mail SDK surfaces as NoClassDefFoundError, which isn't an
             // Exception, and cost us a 500 on an approval that had already been applied.
-            log.error("Could not notify case {} moving to {}", caseRecord.getId(), newStatus, e);
+            log.error("Could not notify case {} ({})", caseRecord.getId(), type, e);
         }
     }
 
-    private void deliver(Case caseRecord, CaseStatus newStatus, Message message) {
+    private void deliver(Case caseRecord, String type, Message message) {
         Insured insured = caseRecord.getInsured();
         if (insured == null || insured.getUser() == null) {
             // recipient_id is NOT NULL, so an insured who never signed up can't have a row.
@@ -124,7 +160,7 @@ public class CaseNotificationService {
         Notification notification = notificationRepository.save(Notification.builder()
                 .recipientId(insured.getUser().getId())
                 .caseEntity(caseRecord)
-                .type(newStatus.name())
+                .type(type)
                 .channel(CHANNEL)
                 .content(message.body())
                 .createdAt(Instant.now())
@@ -133,17 +169,17 @@ public class CaseNotificationService {
                 .build());
 
         recipientEmail(insured).ifPresentOrElse(
-                address -> send(notification, address, message, caseRecord, newStatus),
+                address -> send(notification, address, message, caseRecord, type),
                 () -> log.warn("No email for the insured of case {}, notification {} not sent",
                         caseRecord.getId(), notification.getId()));
     }
 
     private void send(Notification notification, String address, Message message, Case caseRecord,
-                      CaseStatus newStatus) {
+                      String type) {
         try {
             // sent=true only if the mail really went out: with no API key the adapter no-ops, and
             // marking those as sent hides from the panel exactly what never reached the insured.
-            if (!sendGridAdapter.send(address, message.subject(), body(message, caseRecord, newStatus))) {
+            if (!sendGridAdapter.send(address, message.subject(), body(message, caseRecord, type))) {
                 return;
             }
             notification.setSent(true);
@@ -313,13 +349,13 @@ public class CaseNotificationService {
         return userRepository.findByEmail(authentication.getName()).map(User::getId);
     }
 
-    private String body(Message message, Case caseRecord, CaseStatus newStatus) {
+    private String body(Message message, Case caseRecord, String type) {
         return """
                 <p>Hola,</p>
                 <p>%s</p>%s
                 <p>Siniestro <strong>#%d</strong>.</p>
                 <p>Arbiter</p>
-                """.formatted(message.body(), approvedAmountLine(caseRecord, newStatus), caseRecord.getId());
+                """.formatted(message.body(), approvedAmountLine(caseRecord, type), caseRecord.getId());
     }
 
     /**
@@ -332,8 +368,8 @@ public class CaseNotificationService {
      * menciona. Best-effort como el resto del servicio — que no se pueda leer el monto no puede
      * hacer que no salga el aviso de que le aprobaron el siniestro.
      */
-    private String approvedAmountLine(Case caseRecord, CaseStatus newStatus) {
-        if (newStatus != CaseStatus.APPROVED) {
+    private String approvedAmountLine(Case caseRecord, String type) {
+        if (!CaseStatus.APPROVED.name().equals(type)) {
             return "";
         }
         try {

@@ -10,6 +10,7 @@ import ar.edu.utn.frba.arbiter.cases.models.entities.Policy;
 import ar.edu.utn.frba.arbiter.cases.models.entities.PolicySnapshot;
 import ar.edu.utn.frba.arbiter.cases.models.repositories.CaseRepository;
 import ar.edu.utn.frba.arbiter.cases.models.repositories.CaseSettlementRepository;
+import ar.edu.utn.frba.arbiter.cases.models.repositories.PolicyCoverageRepository;
 import ar.edu.utn.frba.arbiter.common.enums.SettlementBasis;
 import ar.edu.utn.frba.arbiter.common.enums.SettlementStatus;
 import ar.edu.utn.frba.arbiter.common.models.entities.Branch;
@@ -50,6 +51,9 @@ class SettlementServiceTest {
     @Mock
     private SettlementAuthorityService authorityService;
 
+    @Mock
+    private PolicyCoverageRepository policyCoverageRepository;
+
     /** Real, not mocked: the arithmetic under test is exactly the point of these cases. */
     @Spy
     private SettlementCalculator calculator = new SettlementCalculator();
@@ -64,7 +68,7 @@ class SettlementServiceTest {
         claim = Case.builder()
                 .id(1L)
                 .occurredAt(LocalDateTime.of(2026, 6, 1, 10, 0))
-                .policy(Policy.builder().id(1L).sumInsured(new BigDecimal("800000.00")).build())
+                .policy(Policy.builder().id(1L).build())
                 .coverage(coverage(SettlementBasis.SUM_INSURED, "10.00", true))
                 .build();
 

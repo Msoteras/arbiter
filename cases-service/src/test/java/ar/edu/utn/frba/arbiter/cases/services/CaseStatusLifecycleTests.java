@@ -2,6 +2,7 @@ package ar.edu.utn.frba.arbiter.cases.services;
 
 import ar.edu.utn.frba.arbiter.cases.models.entities.Case;
 import ar.edu.utn.frba.arbiter.cases.models.entities.CaseStatusHistory;
+import ar.edu.utn.frba.arbiter.common.models.entities.tenant.Coverage;
 import ar.edu.utn.frba.arbiter.common.models.entities.tenant.Insured;
 import ar.edu.utn.frba.arbiter.cases.models.entities.Policy;
 import ar.edu.utn.frba.arbiter.cases.models.entities.StatusChangeActor;
@@ -11,6 +12,7 @@ import ar.edu.utn.frba.arbiter.cases.models.repositories.CaseStateRepository;
 import ar.edu.utn.frba.arbiter.cases.models.repositories.ClaimCauseRepository;
 import ar.edu.utn.frba.arbiter.cases.models.repositories.CoverageRepository;
 import ar.edu.utn.frba.arbiter.cases.models.repositories.InsuredRepository;
+import ar.edu.utn.frba.arbiter.cases.models.repositories.PolicyCoverageRepository;
 import ar.edu.utn.frba.arbiter.cases.models.repositories.PolicyRepository;
 import ar.edu.utn.frba.arbiter.cases.models.repositories.UserRepository;
 import ar.edu.utn.frba.arbiter.cases.support.AbstractPersistenceIT;
@@ -74,6 +76,9 @@ class CaseStatusLifecycleTests extends AbstractPersistenceIT {
     private CoverageRepository coverageRepository;
 
     @Autowired
+    private PolicyCoverageRepository policyCoverageRepository;
+
+    @Autowired
     private UserRepository userRepository;
 
     /**
@@ -135,16 +140,15 @@ class CaseStatusLifecycleTests extends AbstractPersistenceIT {
         person.setUser(userRepository.save(CaseFixtures.user("laura@example.com")));
         Insured insured = insuredRepository.save(person);
         Policy policy = CaseFixtures.policy("POL-CEL-2024-001", "Celular Protegido Básico");
-        policy.setCoverage(coverageRepository.save(policy.getCoverage()));
         policy.setInsuredId(insured.getId());
-        policy = policyRepository.save(policy);
+        policy = withCoverage(policyRepository.save(policy));
 
         return Case.builder()
                 .claimCause(claimCause)
                 .declaredItem("Motorola Edge 50 Pro")
                 .insured(insured)
                 .policy(policy)
-                .coverage(policy.getCoverage())
+                .coverage(testCoverage())
                 .description("Me robaron el celular en la estación de subte")
                 .occurredAt(LocalDateTime.of(2026, 6, 13, 19, 45))
                 .eventAddress("Estación Congreso, CABA")
@@ -152,5 +156,24 @@ class CaseStatusLifecycleTests extends AbstractPersistenceIT {
                 .responseDeadline(LocalDate.of(2026, 7, 13))
                 .currentStatus(caseStatusService.initialStatus())
                 .build();
+    }
+
+    /**
+     * La cobertura del catálogo del tenant. Idempotente, mismo patrón que {@code claimCause()}:
+     * varias pólizas de un test comparten la definición, que es lo que pasa en la realidad.
+     */
+    private Coverage testCoverage() {
+        return coverageRepository.findByName("Cobertura Celulares")
+                .orElseGet(() -> coverageRepository.save(CaseFixtures.coverage("Celulares")));
+    }
+
+    /**
+     * Deja la póliza con su cobertura contratada. Desde que una póliza tiene VARIAS coberturas, la
+     * suma asegurada vive en {@code policy_coverage} y no en {@code policy}, así que sin esta fila
+     * la póliza no tiene contra qué evaluarse.
+     */
+    private Policy withCoverage(Policy policy) {
+        policyCoverageRepository.save(CaseFixtures.policyCoverage(policy.getId(), testCoverage(), 1));
+        return policy;
     }
 }

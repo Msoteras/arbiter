@@ -48,6 +48,44 @@ function parseLocal(value: string | Date): Date {
  * <p>Con una fecha sin hora cae a solo fecha: inventar "00:00" para un dato que nunca tuvo hora
  * es afirmar una precisión que el documento no tiene.
  */
+/**
+ * Si la fecha ya está tipeada del todo (`yyyy-MM-dd` con año de cuatro dígitos).
+ *
+ * Existe porque un `<input type="date">` emite en cada tecla: escribir el año 2026 pasa por
+ * `0002-…`, `0020-…` y `0202-…`, todas cadenas de fecha válidas y todas anteriores a cualquier
+ * siniestro. Validar coherencia sobre esos valores intermedios hacía saltar el error tres veces
+ * mientras el asegurado todavía estaba escribiendo, y lo agarraba antes de que llegara a la hora.
+ *
+ * No valida el dato —de eso se encargan el `max` del input y el backend—: solo distingue
+ * "todavía está escribiendo" de "ya escribió".
+ */
+export function isTypedDate(value: string): boolean {
+  return DATE_ONLY.test(value) && value.slice(0, 4) >= '1000';
+}
+
+/**
+ * Si la denuncia policial declarada es anterior al siniestro. Las horas solo deciden cuando la
+ * fecha es la misma y ambas están cargadas: comparar por fecha sola dejaba pasar una denuncia
+ * policial a las 08:00 de un siniestro de las 20:00, que es justo la incoherencia que hay que
+ * atajar (y que el backend sí detecta — D12 compara con hora).
+ *
+ * Devuelve `false` ante cualquier dato incompleto: la duda no es una incoherencia.
+ */
+export function isPoliceReportBeforeEvent(
+  eventDate: string,
+  eventTime: string,
+  policeDate: string,
+  policeTime: string,
+): boolean {
+  if (!isTypedDate(eventDate) || !isTypedDate(policeDate)) {
+    return false;
+  }
+  if (policeDate !== eventDate) {
+    return policeDate < eventDate;
+  }
+  return !!eventTime && !!policeTime && policeTime < eventTime;
+}
+
 export function formatDateTime(value: string | Date | null | undefined, fallback = '—'): string {
   if (!value) {
     return fallback;
@@ -93,4 +131,33 @@ export function fechaLarga(now: Date = new Date()): string {
     month: 'long',
   });
   return texto.charAt(0).toUpperCase() + texto.slice(1);
+}
+
+/**
+ * Today as `yyyy-MM-dd` in LOCAL time.
+ *
+ * `new Date().toISOString().slice(0, 10)` is UTC: from 21:00 in Argentina (UTC−3) it already
+ * returns tomorrow. That silently lifted the "no future date" cap of the wizard for three hours
+ * every night, and it would break the relative-day shortcuts outright — "Hoy" writing tomorrow.
+ */
+export function todayIso(now: Date = new Date()): string {
+  const month = `${now.getMonth() + 1}`.padStart(2, '0');
+  const day = `${now.getDate()}`.padStart(2, '0');
+  return `${now.getFullYear()}-${month}-${day}`;
+}
+
+/**
+ * Shifts a `yyyy-MM-dd` date by whole days, staying on the calendar.
+ *
+ * The arithmetic runs in UTC on purpose: shifting a local `Date` across a DST boundary lands on
+ * 23:00 of the previous day and silently drops one. Returns '' for anything that is not a
+ * complete date, so a half-typed input never yields a real-looking result.
+ */
+export function addDays(isoDate: string, days: number): string {
+  if (!isTypedDate(isoDate)) {
+    return '';
+  }
+  const shifted = new Date(`${isoDate}T00:00:00Z`);
+  shifted.setUTCDate(shifted.getUTCDate() + days);
+  return shifted.toISOString().slice(0, 10);
 }

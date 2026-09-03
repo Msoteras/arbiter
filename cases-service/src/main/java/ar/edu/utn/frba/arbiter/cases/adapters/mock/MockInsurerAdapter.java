@@ -35,9 +35,9 @@ public class MockInsurerAdapter implements InsurerAdapter {
                     .insuredAmount(new BigDecimal("1300000")).deductible(new BigDecimal("130000.00"))
                     .coverages(List.of(
                             Coverage.builder().code("COB-1").description("Robo de celular")
-                                    .insuredAmount(new BigDecimal("1300000")).deductible(new BigDecimal("130000.00")).build(),
+                                    .insuredAmount(new BigDecimal("1300000")).deductible(new BigDecimal("130000.00")).deductiblePct(new BigDecimal("10.00")).build(),
                             Coverage.builder().code("COB-2").description("Hurto")
-                                    .insuredAmount(new BigDecimal("650000")).deductible(new BigDecimal("65000.00")).build()
+                                    .insuredAmount(new BigDecimal("650000")).deductible(new BigDecimal("65000.00")).deductiblePct(new BigDecimal("10.00")).build()
                     ))
                     .build(),
             PolicyResponse.builder()
@@ -51,9 +51,9 @@ public class MockInsurerAdapter implements InsurerAdapter {
                     .insuredAmount(new BigDecimal("900000")).deductible(new BigDecimal("90000.00"))
                     .coverages(List.of(
                             Coverage.builder().code("COB-1").description("Robo de celular")
-                                    .insuredAmount(new BigDecimal("900000")).deductible(new BigDecimal("90000.00")).build(),
+                                    .insuredAmount(new BigDecimal("900000")).deductible(new BigDecimal("90000.00")).deductiblePct(new BigDecimal("10.00")).build(),
                             Coverage.builder().code("COB-2").description("Daño accidental")
-                                    .insuredAmount(new BigDecimal("120000")).deductible(new BigDecimal("12000.00")).build()
+                                    .insuredAmount(new BigDecimal("120000")).deductible(new BigDecimal("12000.00")).deductiblePct(new BigDecimal("10.00")).build()
                     ))
                     .build()
     );

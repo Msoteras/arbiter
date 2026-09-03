@@ -37,11 +37,23 @@ public record PolicyResponse(
         List<Coverage> coverages
 ) {
 
+    /**
+     * Una cobertura contratada en la póliza. Son VARIAS: una póliza de celulares cubre robo y
+     * hurto, cada una con su suma asegurada y su franquicia propias.
+     *
+     * @param deductible    franquicia en valor absoluto, ya calculada sobre {@code insuredAmount} —
+     *                      es lo que consumen las reglas
+     * @param deductiblePct la misma franquicia como la da la compañía, en puntos porcentuales
+     *                      (10.00 = 10%). Viaja además del absoluto porque es el dato crudo que se
+     *                      persiste en {@code policy_coverage}: guardar solo el derivado lo deja
+     *                      desfasado apenas cambia la suma asegurada que lo produjo.
+     */
     @Builder
     public record Coverage(
             String code,
             String description,
             BigDecimal insuredAmount,
-            BigDecimal deductible
+            BigDecimal deductible,
+            BigDecimal deductiblePct
     ) {}
 }

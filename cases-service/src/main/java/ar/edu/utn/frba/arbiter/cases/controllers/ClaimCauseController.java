@@ -4,7 +4,7 @@ import ar.edu.utn.frba.arbiter.cases.config.tenant.CallerContext;
 import ar.edu.utn.frba.arbiter.cases.models.entities.Policy;
 import ar.edu.utn.frba.arbiter.cases.models.repositories.ClaimCauseRepository;
 import ar.edu.utn.frba.arbiter.cases.services.CaseReferenceResolver;
-import ar.edu.utn.frba.arbiter.cases.services.RulesServiceClient;
+import ar.edu.utn.frba.arbiter.cases.services.PolicyCoverageResolver;
 import ar.edu.utn.frba.arbiter.common.models.entities.ClaimCause;
 import ar.edu.utn.frba.arbiter.common.models.entities.tenant.Insured;
 import io.swagger.v3.oas.annotations.Operation;
@@ -45,7 +45,7 @@ public class ClaimCauseController {
 
     private final ClaimCauseRepository claimCauseRepository;
     private final CaseReferenceResolver referenceResolver;
-    private final RulesServiceClient rulesServiceClient;
+    private final PolicyCoverageResolver policyCoverageResolver;
 
     @GetMapping
     @PreAuthorize("isAuthenticated()")
@@ -80,7 +80,10 @@ public class ClaimCauseController {
             }
             Insured insured = referenceResolver.resolveInsured(insuredId);
             Policy policy = referenceResolver.resolvePolicy(policyNumber, insured.getId());
-            return Set.copyOf(rulesServiceClient.excludedClaimCauseIds(policy.getCoverage().getId()));
+            // Unión de lo que cubren TODAS las coberturas de la póliza: un hecho se ofrece si al
+            // menos una responde por él. Filtrar por una sola cobertura le escondía al asegurado
+            // hechos que su póliza cubre.
+            return policyCoverageResolver.excludedClaimCauseIds(policy.getId());
         } catch (RuntimeException e) {
             log.warn("[ClaimCause] Couldn't resolve coverage exclusions for policy {} — showing the "
                     + "unfiltered list: {}", policyNumber, e.getMessage());

@@ -30,13 +30,18 @@ arbiter/
 ├── auth-service/              # Gestión de usuarios (Auth0 + JWT + RBAC) — puerto 8080
 ├── rules-service/             # Motor de reglas de negocio — puerto 8081
 ├── reports-service/           # Reportes y estadísticas (scaffold) — puerto 8084
+├── embedding-service/         # Sidecar Python (CLIP) para detección de imágenes duplicadas
 └── docs/                      # Documentación, colecciones Postman y scripts
 ```
 
-Cada servicio backend es una aplicación Spring Boot independiente que declara `common-lib` como
+Cada servicio backend Spring Boot es una aplicación independiente que declara `common-lib` como
 dependencia local del reactor. Los 6 módulos backend están activos en el POM padre; `reports-service`
 es el único que sigue siendo scaffold (config multi-tenant + la entidad `Metric`, sin controllers ni
 servicios todavía).
+
+`embedding-service` no es Java/Maven: es un servicio Python chico (`app.py`, sin puerto fijo en la
+tabla de arriba porque no es un módulo del dominio) que sirve embeddings CLIP ViT-B-32. Lo consume
+`classification-service` (`EMBEDDING_SERVICE_URL`) para pgvector — ver decisión #11 en `CLAUDE.md`.
 
 ---
 
@@ -139,5 +144,6 @@ docker compose -f docker-compose.railway.yml up --build -d cases-service
 ## Estado del proyecto
 
 Implementados: `classification-service`, `cases-service`, `common-lib`, `arbiter-frontend`,
-`auth-service` (Auth0 + JWT + RBAC), `rules-service` (motor de reglas de negocio).
+`auth-service` (Auth0 + JWT + RBAC), `rules-service` (motor de reglas de negocio),
+`embedding-service` (sidecar CLIP para detección de imágenes duplicadas).
 Scaffold pendiente de implementación: `reports-service`.

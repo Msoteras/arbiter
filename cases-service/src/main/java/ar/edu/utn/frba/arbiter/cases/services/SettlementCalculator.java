@@ -2,6 +2,7 @@ package ar.edu.utn.frba.arbiter.cases.services;
 
 import ar.edu.utn.frba.arbiter.cases.models.entities.Case;
 import ar.edu.utn.frba.arbiter.cases.models.entities.CaseSettlement;
+import ar.edu.utn.frba.arbiter.cases.models.entities.PolicyCoverage;
 import ar.edu.utn.frba.arbiter.cases.models.entities.PolicySnapshot;
 import ar.edu.utn.frba.arbiter.common.enums.SettlementBasis;
 import ar.edu.utn.frba.arbiter.common.models.entities.tenant.Coverage;
@@ -64,9 +65,9 @@ public class SettlementCalculator {
      * @param replacementValue what the analyst accredited from the file, or null if they haven't
      *                         recorded one yet
      */
-    public CaseSettlement calculate(Case caseRecord, Coverage coverage, PolicySnapshot snapshot,
-                                    BigDecimal replacementValue) {
-        BigDecimal sumInsured = sumInsured(caseRecord, snapshot);
+    public CaseSettlement calculate(Case caseRecord, Coverage coverage, PolicyCoverage policyCoverage,
+                                    PolicySnapshot snapshot, BigDecimal replacementValue) {
+        BigDecimal sumInsured = sumInsured(policyCoverage, snapshot);
         SettlementBasis basis = coverage.getSettlementBasis() == null
                 ? SettlementBasis.SUM_INSURED
                 : coverage.getSettlementBasis();
@@ -77,7 +78,7 @@ public class SettlementCalculator {
         BigDecimal eventPercentage = eventPercentage(coverage, eventOrdinal);
         BigDecimal cappedAmount = percentageOf(ceiling, eventPercentage);
 
-        BigDecimal deductibleAmount = percentageOf(sumInsured, coverage.getDeductible());
+        BigDecimal deductibleAmount = percentageOf(sumInsured, deductibleRate(coverage, policyCoverage));
 
         int pendingInstallments = coverage.isDeductPendingInstallments()
                 ? pendingInstallments(caseRecord, snapshot)
@@ -107,7 +108,7 @@ public class SettlementCalculator {
                 .sumInsured(sumInsured)
                 .settlementBasis(basis)
                 .replacementValue(replacementValue)
-                .deductibleRate(coverage.getDeductible())
+                .deductibleRate(deductibleRate(coverage, policyCoverage))
                 .eventOrdinal(eventOrdinal)
                 .eventPercentage(eventPercentage)
                 .pendingInstallments(pendingInstallments)
@@ -123,19 +124,40 @@ public class SettlementCalculator {
     }
 
     /**
-     * The snapshot first, the synced policy only as a fallback. The snapshot is what the insurer
-     * answered when this claim was filed; the local policy keeps being re-synced, so using it
-     * would let a settlement drift after the fact. Cases filed before the snapshot existed fall
-     * back rather than refusing to be settled.
+     * The snapshot first, the synced {@code policy_coverage} only as a fallback. The snapshot is
+     * what the insurer answered when this claim was filed; the local copy keeps being re-synced, so
+     * using it would let a settlement drift after the fact. Cases filed before the snapshot existed
+     * fall back rather than refusing to be settled.
+     *
+     * <p>The fallback reads the coverage's sum insured and not the policy's, because a policy
+     * doesn't have one: it covers robo and hurto with a different amount each, and there is no
+     * aggregate ceiling over them.
      */
-    private BigDecimal sumInsured(Case caseRecord, PolicySnapshot snapshot) {
+    private BigDecimal sumInsured(PolicyCoverage policyCoverage, PolicySnapshot snapshot) {
         if (snapshot != null && snapshot.getSumInsured() != null) {
             return money(snapshot.getSumInsured());
         }
-        if (caseRecord.getPolicy() != null && caseRecord.getPolicy().getSumInsured() != null) {
-            return money(caseRecord.getPolicy().getSumInsured());
+        if (policyCoverage != null && policyCoverage.getSumInsured() != null) {
+            return money(policyCoverage.getSumInsured());
         }
         return BigDecimal.ZERO;
+    }
+
+    /**
+     * The franchise this policy actually contracted for this coverage, falling back to the rate the
+     * referente configured on the coverage.
+     *
+     * <p>The order matters and it isn't the obvious one: {@code coverage.deductible} is the
+     * insurer's default for that risk, while {@code policy_coverage.deductible_pct} is the term
+     * written into <b>this</b> contract, synced from their DB. When they differ it's because this
+     * policy was sold with a different franchise, and the contract wins — the analyst is deducting
+     * from what a specific insured is owed, not from an average.
+     */
+    private BigDecimal deductibleRate(Coverage coverage, PolicyCoverage policyCoverage) {
+        if (policyCoverage != null && policyCoverage.getDeductiblePct() != null) {
+            return policyCoverage.getDeductiblePct();
+        }
+        return coverage.getDeductible();
     }
 
     /**

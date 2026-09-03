@@ -10,7 +10,8 @@ export type CaseStatus =
   | 'AWAITING_DOCUMENTATION'
   | 'PENDING_EXPERT_REPORT'
   | 'APPROVED'
-  | 'REJECTED';
+  | 'REJECTED'
+  | 'LAPSED';
 
 const LABELS: Record<CaseStatus, string> = {
   PENDING_CLASSIFICATION: 'Pendiente de clasificación',
@@ -20,15 +21,49 @@ const LABELS: Record<CaseStatus, string> = {
   PENDING_EXPERT_REPORT: 'Derivado a peritaje',
   APPROVED: 'Aprobado',
   REJECTED: 'Rechazado',
+  LAPSED: 'Caducado',
 };
 
 export function estadoLabel(value: string): string {
   return (LABELS as Record<string, string>)[value] ?? value;
 }
 
-/** Estados terminales: el expediente ya tiene resolución, no hay próximos pasos. */
+// Etiqueta del badge para el asegurado (portal, definición del equipo). Sigue las mismas 3 fases
+// que el stepper de asegurado-inicio ("Denuncia recibida → En análisis → Resolución" — ver
+// ORDEN/estadoSimplificado): Recibido solo mientras está en la primera fase (PENDING_CLASSIFICATION);
+// todo lo que el stepper ya cuenta como "En análisis" (revisión del analista, una falla técnica de
+// clasificación, la derivación a peritaje — sin nombrar cuál de las tres, para no filtrar jerga
+// interna ni la sospecha de una derivación) muestra "En análisis" acá también, para no contradecir
+// al stepper que ya avanzó. Falta documentación es la excepción: aunque el stepper la cuenta dentro
+// de "En análisis", es accionable y se mantiene distinguible. Resolución se abre en sus 3 desenlaces
+// reales: Aprobado, Rechazado y Caducado (este último separado a propósito — mentiría que fue un
+// rechazo activo del analista cuando en realidad venció por falta de documentación).
+const BADGE_ASEGURADO: Record<CaseStatus, string> = {
+  PENDING_CLASSIFICATION: 'Recibido',
+  PENDING_ANALYST_REVIEW: 'En análisis',
+  CLASSIFICATION_FAILED: 'En análisis',
+  AWAITING_DOCUMENTATION: 'Falta documentación',
+  PENDING_EXPERT_REPORT: 'En análisis',
+  APPROVED: 'Aprobado',
+  REJECTED: 'Rechazado',
+  LAPSED: 'Caducado',
+};
+
+export function estadoBadgeLabelAsegurado(value: string): string {
+  return (BADGE_ASEGURADO as Record<string, string>)[value] ?? estadoLabel(value);
+}
+
+/**
+ * Estados terminales: el expediente ya tiene resolución, no hay próximos pasos. Espejo de
+ * `case_status.is_final` en la base y de `CaseServiceImpl.FINAL_STATUS_NAMES` en el backend.
+ * Se exporta la lista (y no solo el predicado) porque los tableros cuentan "resueltos" sumando
+ * estos estados: enumerarlos a mano en cada pantalla fue lo que dejó a LAPSED contando como
+ * "en trámite" cuando se sumó el estado.
+ */
+export const ESTADOS_FINALES: readonly CaseStatus[] = ['APPROVED', 'REJECTED', 'LAPSED'];
+
 export function isEstadoFinal(value: string): boolean {
-  return value === 'APPROVED' || value === 'REJECTED';
+  return (ESTADOS_FINALES as readonly string[]).includes(value);
 }
 
 // Qué significa cada estado para quien sigue el expediente (asegurado o analista).
@@ -45,6 +80,8 @@ const DESCRIPCIONES: Record<CaseStatus, string> = {
     'El analista derivó el caso a un perito externo para verificar el hecho. El expediente espera el informe.',
   APPROVED: 'El siniestro fue aprobado por un analista.',
   REJECTED: 'El siniestro fue rechazado por un analista.',
+  LAPSED:
+    'El expediente caducó: pasaron más de 18 meses desde la denuncia sin que el asegurado trajera la documentación pedida.',
 };
 
 // Próximo paso esperado desde cada estado. Refleja el flujo real del backend:
@@ -64,6 +101,7 @@ const PROXIMOS_PASOS: Record<CaseStatus, string> = {
     'Vas a recibir un correo con el detalle de la resolución. No quedan pasos pendientes.',
   REJECTED:
     'Vas a recibir un correo con los motivos del rechazo. No quedan pasos pendientes.',
+  LAPSED: 'No quedan pasos pendientes: el expediente se cerró por caducidad.',
 };
 
 export function estadoDescripcion(value: string): string {
@@ -86,6 +124,7 @@ const TONES: Record<CaseStatus, StatusTone> = {
   PENDING_EXPERT_REPORT: 'info',
   APPROVED: 'ok',
   REJECTED: 'danger',
+  LAPSED: 'danger',
 };
 
 export function estadoTone(value: string): StatusTone {
@@ -119,6 +158,7 @@ const SIMPLIFICADO: Record<CaseStatus, EstadoSimplificado> = {
   PENDING_EXPERT_REPORT: 'EN_TRAMITE',
   APPROVED: 'TERMINADO',
   REJECTED: 'TERMINADO',
+  LAPSED: 'TERMINADO',
 };
 
 const SIMPLIFICADO_LABELS: Record<EstadoSimplificado, string> = {
@@ -155,7 +195,13 @@ export function estadoSimplificadoEfectivo(
   const maxIndex = [currentStatus, ...pastStatuses]
     .map((s) => SIMPLIFICADO_ORDER.indexOf(estadoSimplificado(s)))
     .reduce((max, i) => Math.max(max, i), 0);
-  return SIMPLIFICADO_ORDER[maxIndex];
+  // Techo: "Terminado" solo si el expediente está terminado AHORA. La monotonía existe para que
+  // el stepper no retroceda cuando el estado técnico vuelve atrás dentro del trámite (subir
+  // documentación devuelve el caso a PENDING_CLASSIFICATION), no para dejarlo clavado en el
+  // último paso. Una reapertura sí es un retroceso real —el expediente estaba resuelto y volvió a
+  // revisión— y sin este techo el asegurado seguía viendo "Terminado" sobre un caso reabierto.
+  const cap = isEstadoFinal(currentStatus) ? 2 : 1;
+  return SIMPLIFICADO_ORDER[Math.min(maxIndex, cap)];
 }
 
 /**
@@ -187,6 +233,7 @@ const TITULOS_ASEGURADO: Record<CaseStatus, string> = {
   PENDING_EXPERT_REPORT: 'Tu siniestro está en análisis',
   APPROVED: 'Tu siniestro fue aprobado',
   REJECTED: 'Tu siniestro fue rechazado',
+  LAPSED: 'Tu siniestro caducó',
 };
 
 export function estadoTituloAsegurado(value: string): string {
@@ -222,6 +269,8 @@ const DESCRIPCIONES_ASEGURADO: Record<CaseStatus, string> = {
     'Un analista está revisando tu caso. Te avisamos ni bien haya novedades.',
   APPROVED: 'Tu siniestro fue aprobado. Vas a recibir el detalle por correo electrónico.',
   REJECTED: 'Tu siniestro fue rechazado. Vas a recibir los motivos por correo electrónico.',
+  LAPSED:
+    'Cerramos tu siniestro por falta de la documentación que te pedimos. Vas a recibir el detalle por correo electrónico.',
 };
 
 export function estadoDescripcionAsegurado(value: string): string {
@@ -278,15 +327,25 @@ export function movimientoAseguradoLabel(toStatus: string, fromStatus: string | 
       return 'Te pedimos documentación';
     case 'PENDING_ANALYST_REVIEW':
       // El peritaje sí se le cuenta —va a tener al perito contactándolo igual—, pero nunca por qué.
-      return fromStatus === 'PENDING_EXPERT_REPORT'
-        ? 'Verificación finalizada'
-        : 'Un analista está revisando tu caso';
+      if (fromStatus === 'PENDING_EXPERT_REPORT') {
+        return 'Verificación finalizada';
+      }
+      // Reapertura: el expediente estaba cerrado y volvió a revisión. Se nombra como lo que es —
+      // el asegurado ya recibió el mail de la resolución anterior, y "un analista está revisando
+      // tu caso" no le explicaría por qué su siniestro resuelto volvió a moverse. El motivo, en
+      // cambio, no se le cuenta nunca: es interno.
+      if (fromStatus !== null && isEstadoFinal(fromStatus)) {
+        return 'Reabrimos tu siniestro';
+      }
+      return 'Un analista está revisando tu caso';
     case 'PENDING_EXPERT_REPORT':
       return 'Enviado a verificación con un perito';
     case 'APPROVED':
       return 'Siniestro aprobado';
     case 'REJECTED':
       return 'Siniestro rechazado';
+    case 'LAPSED':
+      return 'Siniestro caducado por falta de documentación';
     default:
       return null;
   }

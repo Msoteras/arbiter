@@ -71,11 +71,14 @@ export class ReferenteInicioComponent {
       total: this.count({}),
       aprobados: this.count({ status: 'APPROVED' }),
       rechazados: this.count({ status: 'REJECTED' }),
+      // Caducados: un expediente cerrado por inacción está resuelto, no activo. Sin esta cuenta
+      // quedaba sumado a "activos" para siempre, porque nada lo saca de LAPSED.
+      caducados: this.count({ status: 'LAPSED' }),
       alto: this.count({ riskBand: 'HIGH' }),
       critico: this.count({ riskBand: 'CRITICAL' }),
     }).pipe(
-      map(({ total, aprobados, rechazados, alto, critico }): CountsState => {
-        const resueltos = aprobados + rechazados;
+      map(({ total, aprobados, rechazados, caducados, alto, critico }): CountsState => {
+        const resueltos = aprobados + rechazados + caducados;
         return {
           status: 'ok',
           counts: {

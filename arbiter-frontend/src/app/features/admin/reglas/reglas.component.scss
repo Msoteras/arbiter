@@ -350,6 +350,11 @@
 
 /* Chips de selección (teal de marca vía roles --selected-*) */
 .chips { display: flex; flex-wrap: wrap; gap: var(--space-2); }
+
+/* Aviso de cobertura sin exclusiones. Solo texto en el color de warning del semáforo, sin fondo:
+   es una advertencia para revisar, no un error que impida guardar. El ancho de lectura lo pone la
+   utilidad .measure del sistema de tipografía. */
+.cov-warning { margin-top: var(--space-3); }
 .chip {
   font: inherit;
   font-size: var(--font-size-sm);

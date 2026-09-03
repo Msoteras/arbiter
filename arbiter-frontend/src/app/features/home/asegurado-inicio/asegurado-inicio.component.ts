@@ -8,6 +8,7 @@ import { InsuredSessionService } from '../../../core/auth/insured-session.servic
 import { ExpedienteResponse } from '../../../core/models/expediente';
 import {
   EstadoSimplificado,
+  estadoBadgeLabelAsegurado,
   estadoDescripcionAsegurado,
   estadoSimplificado,
   estadoSimplificadoLabel,
@@ -137,8 +138,11 @@ export class AseguradoInicioComponent {
         label: 'Resolución',
         n: 3,
         // El último nodo se marca "done" cuando el caso se resolvió, con el tono del desenlace.
+        // Verde solo si el siniestro se aprobó: los otros dos desenlaces terminales (rechazo y
+        // caducidad) no son buenas noticias, y pintar un caducado de verde le decía al asegurado
+        // lo contrario de lo que pasó.
         state: resuelto ? 'done' : 'pending',
-        tone: resuelto ? (d.status === 'REJECTED' ? 'danger' : 'ok') : undefined,
+        tone: resuelto ? (d.status === 'APPROVED' ? 'ok' : 'danger') : undefined,
       },
     ];
   });
@@ -165,10 +169,17 @@ export class AseguradoInicioComponent {
     return estadoSimplificadoLabel(status);
   }
 
+  // El badge del case-card muestra el estado puntual (Recibido/Falta documentación/Aprobado/
+  // Rechazado), no el balde de 3 pasos del stepper de abajo — mismo criterio que mis-expedientes.
+  protected estadoBadgeLabel(status: string): string {
+    return estadoBadgeLabelAsegurado(status);
+  }
+
   protected estadoTone(status: string): StatusTone {
     const simple = estadoSimplificado(status);
     if (simple === 'TERMINADO') {
-      return status === 'REJECTED' ? 'danger' : 'ok';
+      // Mismo criterio que el tono del stepper: verde solo para APPROVED.
+      return status === 'APPROVED' ? 'ok' : 'danger';
     }
     return 'info';
   }

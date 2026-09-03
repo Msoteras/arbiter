@@ -22,6 +22,7 @@ import { MenuButtonComponent, MenuItem } from '../../shared/ui/menu-button/menu-
 import { SpinnerComponent } from '../../shared/ui/spinner/spinner.component';
 import { InlineLoadingComponent } from '../../shared/ui/inline-loading/inline-loading.component';
 import { SaveBarComponent } from '../../shared/ui/save-bar/save-bar.component';
+import { ChipGroupComponent, ChipOption } from '../../shared/ui/chip-group/chip-group.component';
 import { SwitchComponent } from '../../shared/ui/switch/switch.component';
 import { StatTileComponent } from '../../shared/ui/stat-tile/stat-tile.component';
 import { ToastService } from '../../shared/ui/toast/toast.service';
@@ -55,6 +56,7 @@ interface Swatch {
   selector: 'app-styleguide',
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [
+    ChipGroupComponent,
     ButtonComponent,
     BadgeComponent,
     InfoTipComponent,
@@ -582,6 +584,50 @@ interface Swatch {
       </section>
 
       <section class="sg-block">
+        <h3 class="sg-h3">Chip group</h3>
+        <p class="sg-p">
+          Selección única entre POCAS opciones (dos a cinco) que conviene ver todas de una: elegir
+          entre ellas es la tarea, no un detalle. Con más opciones está
+          <span class="mono">app-select</span>, que las guarda detrás de un clic; para encender algo
+          puntual, <span class="mono">app-switch</span>; para marcar varios de un conjunto,
+          <span class="mono">app-checkbox</span>.
+        </p>
+        <p class="sg-p">
+          Es un <span class="mono">radiogroup</span> real —cada chip lleva
+          <span class="mono">role="radio"</span>—, así el lector de pantalla anuncia "1 de 4" y las
+          flechas funcionan como en cualquier grupo de radios. El seleccionado se distingue por
+          borde, fondo y peso además del color.
+        </p>
+        <p class="sg-p">
+          <span class="mono">md</span> (default) es una elección principal de la pantalla: el
+          "¿Qué te pasó?" del alta de denuncia, que en mobile tiene que ser un target cómodo.
+        </p>
+        <div class="row">
+          <app-chip-group
+            [options]="claimTypeDemo"
+            [(value)]="claimTypeDemoValue"
+            ariaLabel="Hecho generador de ejemplo"
+          />
+        </div>
+        <p class="sg-p">
+          <span class="mono">sm</span> es un control secundario que acompaña a otro campo. En el
+          alta acelera la hora sin reemplazarla: el chip escribe una hora representativa en el input,
+          que sigue siendo el dato — si el asegurado la corrige a mano, la franja se acomoda sola.
+          Ahí va con <span class="mono">allowDeselect</span>, porque vaciar es una respuesta válida;
+          apagado (el default) el grupo se comporta como un radio: una vez elegido, hay uno elegido.
+        </p>
+        <div class="row">
+          <app-chip-group
+            size="sm"
+            [allowDeselect]="true"
+            [options]="timeSlotDemo"
+            [(value)]="timeSlotDemoValue"
+            ariaLabel="Franja horaria de ejemplo"
+          />
+        </div>
+      </section>
+
+      <section class="sg-block">
         <h3 class="sg-h3">Save bar</h3>
         <p class="sg-p">
           Pie de una sección editable: estado a la izquierda, descartar y guardar a la derecha.
@@ -736,6 +782,24 @@ interface Swatch {
   `,
 })
 export class StyleguideComponent {
+  /** Demo del chip group: las mismas franjas que usa el alta de denuncia. */
+  protected readonly timeSlotDemo: readonly ChipOption[] = [
+    { value: 'madrugada', label: 'Madrugada' },
+    { value: 'manana', label: 'Mañana' },
+    { value: 'tarde', label: 'Tarde' },
+    { value: 'noche', label: 'Noche' },
+  ];
+  protected readonly timeSlotDemoValue = signal('tarde');
+
+  /** Demo del tamaño `md`: los hechos generadores del ramo Celulares. */
+  protected readonly claimTypeDemo: readonly ChipOption[] = [
+    { value: 'robo', label: 'Robo en vía pública' },
+    { value: 'hurto', label: 'Hurto' },
+    { value: 'rotura', label: 'Rotura accidental' },
+    { value: 'caida', label: 'Caída' },
+  ];
+  protected readonly claimTypeDemoValue = signal('hurto');
+
   private readonly doc = inject(DOCUMENT);
   protected readonly toastService = inject(ToastService);
 
