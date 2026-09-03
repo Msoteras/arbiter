@@ -222,9 +222,14 @@
               <span class="t-note">{{ policeReportFiled() ? 'Sí, ya la hice' : 'Todavía no' }}</span>
             </div>
             @if (!policeReportFiled()) {
+              <!-- Para estos hechos generadores la constancia es documento OBLIGATORIO de la agenda
+                   y además hay plazo (D12), así que la nota dice la consecuencia, no solo que se
+                   puede seguir. El plazo exacto sale de la cobertura y el wizard no lo tiene, por
+                   eso no se nombra un número. -->
               <p class="t-note">
-                Podés seguir igual: la denuncia policial no frena el alta. Cuando la tengas, subí la
-                constancia desde el seguimiento de tu expediente.
+                Podés seguir con la denuncia, pero tu expediente va a quedar incompleto hasta que
+                subas la constancia, y para este tipo de siniestro hay un plazo para hacerla. Hacela
+                cuanto antes y subila desde el seguimiento de tu expediente.
               </p>
             }
           }

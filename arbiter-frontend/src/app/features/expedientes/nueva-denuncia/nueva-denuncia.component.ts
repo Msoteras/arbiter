@@ -345,9 +345,15 @@ export class NuevaDenunciaComponent {
   /**
    * Whether the insured already filed the police report. Used to be answered by leaving the date
    * blank, which cannot tell "I haven't filed it yet" apart from "I skipped the field" — and the
-   * reporting-deadline rule reads that same date, so the difference matters.
+   * reporting-deadline rule (D12) reads that same date, so the difference matters.
+   *
+   * <p>Starts ON, and only shows up for a claim cause whose schedule asks for a police report
+   * (theft). For those, filing the claim already holding the report is the normal path — the
+   * insured comes from the station — and the report is a MANDATORY document of the schedule, so
+   * not having it is the exception and has to be declared as such. Defaulting to off presented
+   * the exception as the norm, and made it a one-tap way of leaving D12 unevaluated.
    */
-  protected readonly policeReportFiled = signal(false);
+  protected readonly policeReportFiled = signal(true);
 
   /** Turning it off clears the date: a report that was un-declared must not reach the backend. */
   setPoliceReportFiled(filed: boolean): void {
@@ -675,6 +681,22 @@ export class NuevaDenunciaComponent {
   protected readonly requiresPoliceReport = computed(() =>
     this.requiredDocsState().slots.some(({ type }) => type === 'police_report'),
   );
+
+  /**
+   * Switching to a claim cause that needs no police report (rotura, caída: there is no crime to
+   * report) drops whatever was declared for the previous one. Without this, reporting a theft,
+   * going back and picking an accidental breakage kept sending a `policeReportAt` the new cause
+   * has no business carrying — and left the toggle off for the next theft.
+   */
+  private readonly resetPoliceReport = effect(() => {
+    if (!this.requiresPoliceReport()) {
+      untracked(() => {
+        this.policeReportFiled.set(true);
+        this.policeReportDate.set('');
+        this.policeReportTime.set('');
+      });
+    }
+  });
 
   /** Los hechos generadores como los consume `app-chip-group`: la clave identifica, el label se lee. */
   protected readonly claimTypeOptions = computed<ChipOption[]>(() =>
