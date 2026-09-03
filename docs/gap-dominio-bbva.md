@@ -196,6 +196,46 @@ al mock explícitamente como baseline.
 
 ---
 
+## 13. La agenda documental no se exigía en el alta ✅ parcial (02/09/2026)
+
+**Qué pasaba.** El botón "Enviar denuncia" del wizard solo miraba si ya se estaba enviando. Una
+denuncia de robo se podía mandar con **cero** adjuntos, aunque la agenda del referente pida
+constancia policial, comprobante de compra, baja de IMEI y última conexión.
+
+**Resuelto en el frontend (02/09/2026).** Se exige la agenda de ese ramo + hecho generador, ni de
+más ni de menos. Todo lo que el referente guarda queda `mandatory = true`
+(`DocumentRequirementService.upsert`), así que cuando hay agenda cada slot en pantalla es
+obligatorio. El paso 3 nombra lo que falta; el paso 2 avisa antes si el asegurado declaró que
+todavía no hizo la denuncia policial y la constancia es obligatoria.
+
+De paso se separaron dos casos que el wizard colapsaba en uno: **agenda vacía** (el backend
+contestó y ese hecho generador no pide documentos — caso borde de una combinación sin configurar)
+y **agenda ilegible** (rules-service no respondió). Es la misma distinción que rules-service ya
+hace puertas adentro entre lista vacía y `null`
+(`InternalDocumentRequirementService.getByCoverage`). Sin eso, un rules-service caído dejaba pasar
+cualquier denuncia sin un solo adjunto, en silencio.
+
+### Lo que queda — próximo sprint
+
+**1 · El gate vive solo en el frontend.** `cases-service` sigue aceptando el alta sin adjuntos, así
+que quien pegue contra la API directamente esquiva la validación. La agenda es el contrato de
+"expediente completo", y un contrato que solo verifica el cliente no es un contrato. Va del lado de
+`cases-service`, en el alta.
+
+**2 · Con rules-service caído no se puede evaluar en serio, y hoy se resuelve dejando pasar.** El
+wizard reintenta dos veces y, si la agenda sigue sin responder, crea el expediente igual y lo dice
+en pantalla — dejar al asegurado afuera porque un servicio nuestro no anda sería peor. Pero eso no
+es una evaluación: es una evaluación **postergada** que hoy nadie retoma. Lo que corresponde es
+persistir que el expediente entró sin verificar y reintentar la verificación después, cuando
+rules-service vuelva, marcando `AWAITING_DOCUMENTATION` si efectivamente faltaba algo.
+
+Encaja con lo que ya hace el módulo: la clasificación es asincrónica con reintento, y
+`AWAITING_DOCUMENTATION` no es un estado exclusivo de este camino — un expediente también puede
+caer ahí por documentación rechazada o por un umbral de riesgo antes de terminar de evaluar. O sea
+que el estado ya existe y ya lo alimentan otras causas; falta esta.
+
+---
+
 ## 6. Agotamiento de cobertura por monto ✅ resuelto (31/08/2026)
 
 El doc (§6.4) pide verificar que "las coberturas contratadas... no estén agotadas por siniestros
@@ -587,6 +627,9 @@ charla aparte.
 | 12 | Expedientes ya creados con la cobertura vieja | Se dejan — decidido 01/09/2026 (base de prueba) | — |
 | 12 | Agotamiento por monto acumulado por cobertura (histórico con `cobertura_id`) | ✅ Resuelto 01/09/2026 | — |
 | 12 | Hecho generador ↔ cobertura no lineal: cómo desempatar en el alta | A charlar | Media |
+| 13 | Exigir la agenda documental obligatoria en el alta (frontend) | ✅ Resuelto 02/09/2026 | — |
+| 13 | Mismo gate del lado de `cases-service` (hoy la API acepta el alta sin adjuntos) | No existe | Alta |
+| 13 | Verificación postergada + reintento cuando rules-service no responde en el alta | No existe | Media |
 | 3 | Reservas (SPL) como control | No existe | Baja/a decidir |
 | 10 | Consistencia interna de `LAPSED` (carga del analista, tableros, filtro de bandeja, tono al asegurado) | ✅ Resuelto 31/08/2026 | — |
 | 5 | Comentario desactualizado en `DocumentRequirement` | ✅ Resuelto 31/08/2026 | — |
