@@ -28,7 +28,7 @@ import { DocumentAgendaService } from '../document-agenda.service';
 import { ExpedienteResponse } from '../../../core/models/expediente';
 import { Policy } from '../../../core/models/policy';
 import { ChipGroupComponent, ChipOption } from '../../../shared/ui/chip-group/chip-group.component';
-import { isPoliceReportBeforeEvent, isTypedDate } from '../../../core/util/datetime';
+import { addDays, isPoliceReportBeforeEvent, isTypedDate, todayIso } from '../../../core/util/datetime';
 import { CASE_DOCUMENT_TYPES, CaseDocumentType, documentTypeLabel } from '../../../core/models/case-document';
 import { InsuredSessionService } from '../../../core/auth/insured-session.service';
 import { ButtonComponent } from '../../../shared/ui/button/button.component';
@@ -323,7 +323,7 @@ export class NuevaDenunciaComponent {
   // Tope del input de fecha: un siniestro no puede haber
   // "ocurrido" en el futuro. La regla real vive en el backend (CaseRequest la valida de
   // nuevo); esto es solo la ayuda visual del datepicker.
-  protected readonly today = new Date().toISOString().slice(0, 10);
+  protected readonly today = todayIso();
 
   // Step 2
   protected readonly description = signal('');
@@ -355,6 +355,76 @@ export class NuevaDenunciaComponent {
     { value: 'tarde', label: 'Tarde' },
     { value: 'noche', label: 'Noche' },
   ];
+
+  /**
+   * The exact date behind each relative chip. Built once: the wizard is filled in one sitting, and
+   * a claim reported across midnight is better off keeping the day it started on than having the
+   * chips shift under the insured mid-form.
+   */
+  private readonly eventDateShortcuts: Record<string, string> = {
+    hoy: this.today,
+    ayer: addDays(this.today, -1),
+    anteayer: addDays(this.today, -2),
+  };
+
+  /**
+   * Relative shortcuts for the event date. The insured knows "ayer", not "2026-06-12", and making
+   * them do that conversion is where they get it wrong. Three days cover the overwhelming majority
+   * — a claim is reported within days, which is the same window the reporting deadline cares about.
+   *
+   * <p>Same contract as the time slots: the chip WRITES the date field, it does not replace it.
+   * Anything older is typed in the field, which stays visible and is still the actual value.
+   */
+  protected readonly eventDateOptions: readonly ChipOption[] = [
+    { value: 'hoy', label: 'Hoy' },
+    { value: 'ayer', label: 'Ayer' },
+    { value: 'anteayer', label: 'Anteayer' },
+  ];
+
+  /** Derived from the field, so typing a date by hand lights up the matching chip. */
+  protected readonly eventDateShortcut = computed(() => {
+    const date = this.eventDate();
+    return Object.keys(this.eventDateShortcuts).find((k) => this.eventDateShortcuts[k] === date) ?? '';
+  });
+
+  selectEventDateShortcut(key: string): void {
+    this.eventDate.set(this.eventDateShortcuts[key] ?? '');
+  }
+
+  /**
+   * The police report date is offered RELATIVE to the event, not in absolute terms. That is what
+   * makes the common path incapable of expressing a report filed before the claim it reports:
+   * every option is on or after the event date. The coherence error stops being the usual way of
+   * finding out about the rule and goes back to being the rare edge.
+   */
+  protected readonly policeDateOptions = computed<ChipOption[]>(() => {
+    const options: ChipOption[] = [{ value: 'mismo', label: 'El mismo día' }];
+    // Offering "al día siguiente" for a claim that happened today would be offering tomorrow.
+    if (this.eventDate() !== this.today) {
+      options.push({ value: 'siguiente', label: 'Al día siguiente' });
+    }
+    return options;
+  });
+
+  /** Without an event date there is nothing to anchor to, and the chips would write ''. */
+  protected readonly policeDateAnchored = computed(() => isTypedDate(this.eventDate()));
+
+  protected readonly policeDateShortcut = computed(() => {
+    const police = this.policeReportDate();
+    const event = this.eventDate();
+    if (!isTypedDate(police) || !isTypedDate(event)) {
+      return '';
+    }
+    if (police === event) {
+      return 'mismo';
+    }
+    return police === addDays(event, 1) ? 'siguiente' : '';
+  });
+
+  selectPoliceDateShortcut(key: string): void {
+    const event = this.eventDate();
+    this.policeReportDate.set(key === 'siguiente' ? addDays(event, 1) : event);
+  }
 
   protected readonly eventTimeSlot = computed(() => slotOf(this.eventTime()));
   protected readonly policeTimeSlot = computed(() => slotOf(this.policeReportTime()));

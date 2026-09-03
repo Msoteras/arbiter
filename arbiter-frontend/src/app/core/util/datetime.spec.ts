@@ -1,6 +1,10 @@
-import { formatDate, formatDateTime,
+import {
+  addDays,
+  formatDate,
+  formatDateTime,
   isPoliceReportBeforeEvent,
   isTypedDate,
+  todayIso,
 } from './datetime';
 
 /**
@@ -95,5 +99,45 @@ describe('isPoliceReportBeforeEvent', () => {
   it('se calla mientras la fecha está a medio tipear', () => {
     expect(isPoliceReportBeforeEvent('2026-06-13', '20:00', '0202-06-13', '')).toBeFalse();
     expect(isPoliceReportBeforeEvent('2026-06-13', '20:00', '', '')).toBeFalse();
+  });
+});
+
+describe('todayIso', () => {
+  it('usa la fecha local, no la UTC', () => {
+    // 22:30 del 13/06 en Argentina (UTC−3) ya es el 14/06 en UTC. La fecha del día es la que ve
+    // el asegurado en su reloj, así que tiene que decir 13.
+    const lateNight = new Date(2026, 5, 13, 22, 30);
+    expect(todayIso(lateNight)).toBe('2026-06-13');
+  });
+
+  it('rellena mes y día con cero', () => {
+    expect(todayIso(new Date(2026, 0, 5))).toBe('2026-01-05');
+  });
+});
+
+describe('addDays', () => {
+  it('retrocede y avanza días', () => {
+    expect(addDays('2026-06-13', -1)).toBe('2026-06-12');
+    expect(addDays('2026-06-13', 1)).toBe('2026-06-14');
+  });
+
+  it('cruza el fin de mes y el fin de año', () => {
+    expect(addDays('2026-03-01', -1)).toBe('2026-02-28');
+    expect(addDays('2026-01-01', -1)).toBe('2025-12-31');
+  });
+
+  /**
+   * En Argentina el cambio de hora ya no se aplica, pero la app corre en el navegador del
+   * asegurado y nada garantiza su zona. Restar 24 h sobre un Date local en una noche de DST cae
+   * a las 23:00 del día anterior y se come un día; por eso la cuenta va en UTC.
+   */
+  it('no se corre en un cambio de hora', () => {
+    expect(addDays('2026-10-18', -1)).toBe('2026-10-17');
+    expect(addDays('2026-11-01', -1)).toBe('2026-10-31');
+  });
+
+  it('devuelve vacío con una fecha a medio tipear', () => {
+    expect(addDays('0202-06-13', -1)).toBe('');
+    expect(addDays('', -1)).toBe('');
   });
 });

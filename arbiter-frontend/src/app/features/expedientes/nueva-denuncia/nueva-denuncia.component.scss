@@ -199,6 +199,9 @@ app-textarea {
 }
 
 .time-shortcuts { margin-top: var(--space-2); }
+/* Van ARRIBA de los campos que completan, al revés que los de hora: son la respuesta rápida a la
+   pregunta del rótulo, no un ajuste de lo ya cargado. */
+.date-shortcuts { margin-bottom: var(--space-2); }
 
 .location-fields {
   display: flex;

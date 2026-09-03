@@ -132,3 +132,32 @@ export function fechaLarga(now: Date = new Date()): string {
   });
   return texto.charAt(0).toUpperCase() + texto.slice(1);
 }
+
+/**
+ * Today as `yyyy-MM-dd` in LOCAL time.
+ *
+ * `new Date().toISOString().slice(0, 10)` is UTC: from 21:00 in Argentina (UTC−3) it already
+ * returns tomorrow. That silently lifted the "no future date" cap of the wizard for three hours
+ * every night, and it would break the relative-day shortcuts outright — "Hoy" writing tomorrow.
+ */
+export function todayIso(now: Date = new Date()): string {
+  const month = `${now.getMonth() + 1}`.padStart(2, '0');
+  const day = `${now.getDate()}`.padStart(2, '0');
+  return `${now.getFullYear()}-${month}-${day}`;
+}
+
+/**
+ * Shifts a `yyyy-MM-dd` date by whole days, staying on the calendar.
+ *
+ * The arithmetic runs in UTC on purpose: shifting a local `Date` across a DST boundary lands on
+ * 23:00 of the previous day and silently drops one. Returns '' for anything that is not a
+ * complete date, so a half-typed input never yields a real-looking result.
+ */
+export function addDays(isoDate: string, days: number): string {
+  if (!isTypedDate(isoDate)) {
+    return '';
+  }
+  const shifted = new Date(`${isoDate}T00:00:00Z`);
+  shifted.setUTCDate(shifted.getUTCDate() + days);
+  return shifted.toISOString().slice(0, 10);
+}

@@ -150,6 +150,16 @@
           />
 
           <label class="field-label">¿Cuándo pasó? *</label>
+          <!-- Atajo relativo antes de los campos: el que denuncia a los pocos días —la enorme
+               mayoría— resuelve la fecha con un toque y no vuelve a mirar el input. -->
+          <app-chip-group
+            class="date-shortcuts"
+            size="sm"
+            [options]="eventDateOptions"
+            [value]="eventDateShortcut()"
+            (valueChange)="selectEventDateShortcut($event)"
+            ariaLabel="Fecha del hecho"
+          />
           <!-- Label propio por campo: los navegadores IGNORAN el placeholder en type="date" y
                type="time", así que el "Hora aprox." que había acá no se veía nunca — el campo
                mostraba `--:--` pelado. -->
@@ -201,10 +211,27 @@
                corregir. -->
           @if (requiresPoliceReport() && !policyBlocked()) {
             <label class="field-label">¿Cuándo hiciste la denuncia policial?</label>
+            <!-- Relativos a la fecha del hecho: así ninguna de las opciones puede ser anterior al
+                 siniestro que denuncia. -->
+            @if (policeDateAnchored()) {
+              <app-chip-group
+                class="date-shortcuts"
+                size="sm"
+                [options]="policeDateOptions()"
+                [value]="policeDateShortcut()"
+                (valueChange)="selectPoliceDateShortcut($event)"
+                ariaLabel="Fecha de la denuncia policial"
+              />
+            }
             <div class="datetime-grid">
               <label class="subfield">
                 <span class="t-note">Fecha</span>
-                <app-input type="date" [max]="today" [(value)]="policeReportDate" />
+                <app-input
+                  type="date"
+                  [min]="eventDate()"
+                  [max]="today"
+                  [(value)]="policeReportDate"
+                />
               </label>
               <label class="subfield">
                 <span class="t-note">Hora</span>

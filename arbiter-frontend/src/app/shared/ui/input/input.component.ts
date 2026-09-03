@@ -101,7 +101,8 @@ export class InputComponent {
   readonly type = input<'text' | 'number' | 'email' | 'date' | 'password' | 'time' | 'tel'>('text');
   readonly id = input<string | null>(null);
   readonly placeholder = input('');
-  readonly min = input<number | null>(null);
+  /** Number for a numeric field, `yyyy-MM-dd` for a date one — it goes straight to `attr.min`. */
+  readonly min = input<string | number | null>(null);
   readonly max = input<string | null>(null);
   readonly autocomplete = input<string | null>(null);
   readonly readonly = input(false);
