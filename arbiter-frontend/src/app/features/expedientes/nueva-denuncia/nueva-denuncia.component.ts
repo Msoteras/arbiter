@@ -38,6 +38,7 @@ import { TextareaComponent } from '../../../shared/ui/textarea/textarea.componen
 import { SelectComponent, SelectOption } from '../../../shared/ui/select/select.component';
 import { FilePreviewComponent } from '../../../shared/ui/file-preview/file-preview.component';
 import { InlineLoadingComponent } from '../../../shared/ui/inline-loading/inline-loading.component';
+import { SwitchComponent } from '../../../shared/ui/switch/switch.component';
 
 // Wizard de alta de denuncia (asegurado) — 3 pasos con catálogos en cascada.
 type Step = 1 | 2 | 3;
@@ -148,6 +149,7 @@ function slotOf(time: string): string {
     SelectComponent,
     FilePreviewComponent,
     InlineLoadingComponent,
+    SwitchComponent,
   ],
   changeDetection: ChangeDetectionStrategy.OnPush,
   templateUrl: './nueva-denuncia.component.html',
@@ -340,6 +342,21 @@ export class NuevaDenunciaComponent {
   // desde el principio; el wizard nunca lo mandaba, así que la regla era inverificable (D12).
   protected readonly policeReportDate = signal('');
   protected readonly policeReportTime = signal('');
+  /**
+   * Whether the insured already filed the police report. Used to be answered by leaving the date
+   * blank, which cannot tell "I haven't filed it yet" apart from "I skipped the field" — and the
+   * reporting-deadline rule reads that same date, so the difference matters.
+   */
+  protected readonly policeReportFiled = signal(false);
+
+  /** Turning it off clears the date: a report that was un-declared must not reach the backend. */
+  setPoliceReportFiled(filed: boolean): void {
+    this.policeReportFiled.set(filed);
+    if (!filed) {
+      this.policeReportDate.set('');
+      this.policeReportTime.set('');
+    }
+  }
   /**
    * Franjas horarias del atajo. La hora representativa es el medio de cada franja, no su borde:
    * elegir "Noche" pone 21:00 y no 19:00, así una franja no empuja el dato contra el límite de un

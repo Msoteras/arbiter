@@ -203,6 +203,15 @@ app-textarea {
    pregunta del rótulo, no un ajuste de lo ya cargado. */
 .date-shortcuts { margin-bottom: var(--space-2); }
 
+/* El switch con su estado escrito al lado: la perilla dice sí/no por posición, el texto lo dice
+   con palabras. */
+.toggle-row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin-bottom: var(--space-2);
+}
+
 .location-fields {
   display: flex;
   flex-direction: column;

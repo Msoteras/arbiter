@@ -210,7 +210,27 @@
                error de coherencia de fechas NO lo esconde: es justo el campo que hay que
                corregir. -->
           @if (requiresPoliceReport() && !policyBlocked()) {
-            <label class="field-label">¿Cuándo hiciste la denuncia policial?</label>
+            <label class="field-label">¿Ya hiciste la denuncia policial?</label>
+            <!-- Antes esto se contestaba dejando el campo de fecha vacío, explicado en una nota
+                 abajo: un campo en blanco no distingue "todavía no la hice" de "me lo salteé". -->
+            <div class="toggle-row">
+              <app-switch
+                [checked]="policeReportFiled()"
+                (checkedChange)="setPoliceReportFiled($event)"
+                ariaLabel="¿Ya hiciste la denuncia policial?"
+              />
+              <span class="t-note">{{ policeReportFiled() ? 'Sí, ya la hice' : 'Todavía no' }}</span>
+            </div>
+            @if (!policeReportFiled()) {
+              <p class="t-note">
+                Podés seguir igual: la denuncia policial no frena el alta. Cuando la tengas, subí la
+                constancia desde el seguimiento de tu expediente.
+              </p>
+            }
+          }
+
+          @if (requiresPoliceReport() && !policyBlocked() && policeReportFiled()) {
+            <label class="field-label">¿Cuándo la hiciste?</label>
             <!-- Relativos a la fecha del hecho: así ninguna de las opciones puede ser anterior al
                  siniestro que denuncia. -->
             @if (policeDateAnchored()) {
@@ -247,10 +267,7 @@
               (valueChange)="setPoliceTimeSlot($event)"
               ariaLabel="Franja horaria aproximada de la denuncia policial"
             />
-            <p class="t-note">
-              Si todavía no hiciste la denuncia policial, dejá el campo vacío. La constancia se
-              adjunta en el paso siguiente.
-            </p>
+            <p class="t-note">La constancia se adjunta en el paso siguiente.</p>
           }
 
           <!-- Nothing past this point matters if the case above is a hard block — filling out
