@@ -95,6 +95,13 @@ public class FraudRecordRuleService {
             return new FraudRecordRuleDto(created.getId(), windowMonths, created.isBlocksFastTrack());
         }
 
+        // Un guardado que no cambia nada no es un cambio y no deja rastro en la auditoría.
+        if (InsurerRuleSnapshot.unchanged(
+                rule.isActive(), rule.isBlocksFastTrack(), rule.getConfiguration(),
+                true, requested.blocksFastTrack(), json)) {
+            return new FraudRecordRuleDto(rule.getId(), windowMonths, rule.isBlocksFastTrack());
+        }
+
         historyRepository.save(InsurerRuleHistory.builder()
                 .configVersion(InsurerRuleSnapshot.serialize(
                         rule.isActive(), rule.isBlocksFastTrack(), rule.getConfiguration()))

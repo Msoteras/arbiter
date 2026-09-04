@@ -72,6 +72,13 @@ public class RuleTextService {
             return new RuleTextResponse(rule.getId(), branchId, ruleType, items);
         }
 
+        // Un guardado que no cambia nada no es un cambio y no deja rastro en la auditoría.
+        if (InsurerRuleSnapshot.unchanged(
+                rule.isActive(), rule.isBlocksFastTrack(), rule.getConfiguration(),
+                rule.isActive(), rule.isBlocksFastTrack(), json)) {
+            return new RuleTextResponse(rule.getId(), branchId, ruleType, items);
+        }
+
         historyRepository.save(InsurerRuleHistory.builder()
                 .configVersion(InsurerRuleSnapshot.serialize(
                         rule.isActive(), rule.isBlocksFastTrack(), rule.getConfiguration()))

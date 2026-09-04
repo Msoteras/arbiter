@@ -169,6 +169,52 @@ class RuleChangeHistoryServiceTest {
                 "configuration", "Daño estético", "Daño estético · Uso comercial"));
     }
 
+    /**
+     * A history of changes shows changes. A save that left the rule exactly as it was is a row in
+     * the table but not a change, and the panel's catalog-wide save produced one per untouched
+     * rule: editing a single deadline buried it under five entries saying nothing happened.
+     */
+    @Test
+    void leavesOutASaveThatChangedNothing() {
+        InsurerRule untouched = policeDeadlineRule("{\"deadlineHours\":72}", true);
+        InsurerRule edited = InsurerRule.builder()
+                .id(8L).name("Tope de eventos por año").ruleType(RuleType.MAX_EVENTS_YEAR.name())
+                .active(true).blocksFastTrack(true).coverageId(9L)
+                .configuration("{\"deadlineHours\":96}").validFrom(T1).build();
+        when(ruleHistoryRepository.findAllForHistory()).thenReturn(List.of(
+                // Identical before and after: the referente saved without touching this one.
+                history(1L, untouched, T1, T2, "{\"active\":true,\"blocksFastTrack\":true,"
+                        + "\"configuration\":{\"deadlineHours\":72}}"),
+                history(2L, edited, T1, T2, "{\"active\":true,\"blocksFastTrack\":true,"
+                        + "\"configuration\":{\"deadlineHours\":72}}")));
+        noScoringHistory();
+
+        List<RuleChangeEntry> entries = page().getContent();
+
+        assertThat(entries).hasSize(1);
+        assertThat(entries.get(0).changes())
+                .containsExactly(new RuleFieldChange("deadlineHours", "72", "96"));
+    }
+
+    /**
+     * A partial row's empty {@code changes} means "not recorded", not "nothing happened" — it may
+     * be hiding a real change. Filtering it out would drop something that did occur, the opposite
+     * of the noise being removed.
+     */
+    @Test
+    void keepsAPartialRowEvenWithNothingToShow() {
+        InsurerRule rule = policeDeadlineRule("{\"deadlineHours\":72}", true);
+        when(ruleHistoryRepository.findAllForHistory()).thenReturn(List.of(
+                history(1L, rule, T1, T2, "{\"deadlineHours\":72}")));
+        noScoringHistory();
+
+        assertThat(page().getContent()).singleElement()
+                .satisfies(entry -> {
+                    assertThat(entry.changes()).isEmpty();
+                    assertThat(entry.partial()).isTrue();
+                });
+    }
+
     /** The scope the referente needs to tell two rules of the same type apart. */
     @Test
     void resolvesBranchAndCoverageNames() {

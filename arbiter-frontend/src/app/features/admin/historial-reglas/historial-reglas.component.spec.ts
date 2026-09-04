@@ -126,19 +126,12 @@ describe('HistorialReglasComponent', () => {
    * "no quedó registrado", no "no cambió nada". Decir lo segundo sería afirmar algo que nadie
    * registró.
    */
-  it('distingue el registro parcial de un guardado sin cambios', async () => {
+  it('explica el registro parcial en vez de dar a entender que no cambió nada', async () => {
     await mount([entry({ changes: [], partial: true })]);
 
     expect(text()).toContain('Registro parcial');
     expect(text()).toContain('Registro anterior al detalle campo por campo');
-    expect(text()).not.toContain('sin cambios en sus parámetros');
-  });
-
-  it('dice explícitamente cuando se guardó sin tocar nada', async () => {
-    await mount([entry({ changes: [], partial: false })]);
-
-    expect(text()).toContain('sin cambios en sus parámetros');
-    expect(text()).not.toContain('Registro parcial');
+    expect(text()).not.toContain('sin cambios');
   });
 
   it('traduce los booleanos y marca el valor ausente', async () => {

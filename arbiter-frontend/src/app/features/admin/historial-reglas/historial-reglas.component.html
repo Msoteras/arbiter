@@ -112,18 +112,15 @@
                 </li>
               }
             </ul>
-          } @else if (row.entry.partial) {
-            <!-- Distinto de "no cambió nada": esta versión se guardó antes de que el historial
-                 registrara el estado de la regla, así que el dato no existe. Decir "sin cambios"
-                 acá sería afirmar algo que la auditoría nunca registró. -->
+          } @else {
+            <!-- Sin campos, la entrada solo puede ser un registro parcial: el backend ya no
+                 devuelve los guardados que no cambiaron nada. Esta versión se guardó antes de que
+                 el historial registrara el estado de la regla, así que el dato no existe — decir
+                 "sin cambios" acá sería afirmar algo que la auditoría nunca registró. -->
             <p class="hr-nochange t-note">
               Registro anterior al detalle campo por campo: de esta versión quedó la fecha y el
-              motivo, no el valor de cada parámetro.
+              autor, no el valor de cada parámetro.
             </p>
-          } @else {
-            <!-- Puede pasar si alguien guarda sin tocar nada. Se dice, no se esconde: la fila
-                 existe en la auditoría y ocultarla haría que el historial no cuadre con la tabla. -->
-            <p class="hr-nochange t-note">Se guardó la regla sin cambios en sus parámetros.</p>
           }
 
           <p class="hr-held t-note">La versión anterior regía desde {{ row.heldSince }}</p>

@@ -144,6 +144,15 @@ public class HardRuleService {
             return;
         }
 
+        // A save that changes nothing is not a change, and the panel sends all four rules on every
+        // save — so without this, adjusting one deadline left an audit row for the other three too,
+        // and the history of what the referente actually did got buried in its own noise.
+        if (InsurerRuleSnapshot.unchanged(
+                rule.isActive(), rule.isBlocksFastTrack(), rule.getConfiguration(),
+                requested.enabled(), rule.isBlocksFastTrack(), json)) {
+            return;
+        }
+
         // Snapshot of the version about to be overwritten, before touching it (append-only audit).
         historyRepository.save(InsurerRuleHistory.builder()
                 .configVersion(InsurerRuleSnapshot.serialize(

@@ -117,6 +117,7 @@ public class RuleChangeHistoryService {
         all.addAll(scoringChanges());
 
         List<RuleChangeEntry> matching = all.stream()
+                .filter(RuleChangeHistoryService::isAChange)
                 .filter(entry -> ruleType == null || ruleType.equals(entry.ruleType()))
                 .filter(entry -> branchId == null || branchId.equals(entry.branchId()))
                 .filter(entry -> from == null || !entry.changedAt().isBefore(from))
@@ -128,6 +129,22 @@ public class RuleChangeHistoryService {
         int start = (int) Math.min(pageable.getOffset(), matching.size());
         int end = Math.min(start + pageable.getPageSize(), matching.size());
         return new PageImpl<>(matching.subList(start, end), pageable, matching.size());
+    }
+
+    /**
+     * Whether the entry is something that happened. A history of changes shows changes: a save that
+     * left the rule exactly as it was is a row in the table, but it isn't one.
+     *
+     * <p>The write side no longer records those, so this only covers what's already stored — rows
+     * written back when the panel's catalog-wide save left one audit entry per untouched rule. They
+     * can't be deleted (append-only, and shared), so they're filtered out on the way out.
+     *
+     * <p><b>A partial row is not one of these.</b> Its {@code changes} are empty because the state
+     * wasn't recorded, not because nothing moved: it may well be hiding a real change. Hiding it
+     * would drop something that happened, which is the opposite of the mistake being fixed here.
+     */
+    private static boolean isAChange(RuleChangeEntry entry) {
+        return !entry.changes().isEmpty() || entry.partial();
     }
 
     /**
