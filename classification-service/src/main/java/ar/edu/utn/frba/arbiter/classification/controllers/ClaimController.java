@@ -2,6 +2,7 @@ package ar.edu.utn.frba.arbiter.classification.controllers;
 
 import ar.edu.utn.frba.arbiter.common.dto.ClaimReport;
 import ar.edu.utn.frba.arbiter.common.dto.ClaimResponse;
+import ar.edu.utn.frba.arbiter.common.dto.RuleResultResponse;
 import ar.edu.utn.frba.arbiter.classification.services.ClassificationResultsService;
 import ar.edu.utn.frba.arbiter.classification.dto.AnalystDecisionRequest;
 import ar.edu.utn.frba.arbiter.classification.services.ClaimClassificationService;
@@ -19,6 +20,7 @@ import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.net.URI;
+import java.util.List;
 import java.util.Map;
 
 /**
@@ -85,6 +87,19 @@ public class ClaimController {
     @ApiResponse(responseCode = "200", description = "Classification found (may still be null/pending)")
     public ResponseEntity<ClaimResponse> getStatus(@PathVariable Long caseId) {
         return ResponseEntity.ok(resultsService.getStatus(caseId));
+    }
+
+    // Case-level access is cases-service's call: it's the one that knows the assigned analyst.
+    @GetMapping("/{caseId}/rule-results")
+    @PreAuthorize("isAuthenticated()")
+    @Operation(
+            summary = "Rules evaluated for a case",
+            description = "Every hard rule that ran, passes included — a Fast Track carries them too, "
+                    + "all passing. Empty only when no rule ran at all."
+    )
+    @ApiResponse(responseCode = "200", description = "Rules evaluated, in evaluation order")
+    public ResponseEntity<List<RuleResultResponse>> getRuleResults(@PathVariable Long caseId) {
+        return ResponseEntity.ok(resultsService.getRuleResults(caseId));
     }
 
     // Solo token de servicio (sin claim `rol`): el analystId viaja en el body y cases-service es el

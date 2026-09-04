@@ -39,6 +39,7 @@ import static org.springframework.http.HttpMethod.POST;
 import static org.springframework.test.web.client.match.MockRestRequestMatchers.header;
 import static org.springframework.test.web.client.match.MockRestRequestMatchers.method;
 import static org.springframework.test.web.client.match.MockRestRequestMatchers.requestTo;
+import static org.springframework.test.web.client.response.MockRestResponseCreators.withServerError;
 import static org.springframework.test.web.client.response.MockRestResponseCreators.withSuccess;
 
 @ExtendWith(MockitoExtension.class)
@@ -260,6 +261,32 @@ class ClassificationServiceClientTest {
         client.forwardAnalystDecision(9L, new AnalystDecisionRequest(1L, "APPROVE", null, null));
 
         server.verify();
+    }
+
+    /**
+     * Una lista vacía afirma "no corrió ninguna regla", que es un dato sobre la clasificación. Si
+     * no se pudieron leer no sabemos nada de ella, y eso es null: la pantalla dice cosas distintas
+     * para cada uno.
+     */
+    @Test
+    void ruleResults_whenTheReadFails_comeBackNullAndNotEmpty() {
+        when(currentRequest.getHeader(HttpHeaders.AUTHORIZATION)).thenReturn("Bearer user-token");
+        server.expect(requestTo(BASE_URL + "/api/v1/claims/7/rule-results"))
+                .andExpect(method(GET))
+                .andRespond(withServerError());
+
+        assertThat(client.ruleResultsOf(7L)).isNull();
+    }
+
+    /** Y el caso legítimo sigue siendo la lista vacía, no null. */
+    @Test
+    void ruleResults_whenNoRuleRan_comeBackEmpty() {
+        when(currentRequest.getHeader(HttpHeaders.AUTHORIZATION)).thenReturn("Bearer user-token");
+        server.expect(requestTo(BASE_URL + "/api/v1/claims/7/rule-results"))
+                .andExpect(method(GET))
+                .andRespond(withSuccess("[]", MediaType.APPLICATION_JSON));
+
+        assertThat(client.ruleResultsOf(7L)).isEmpty();
     }
 
     private void expectPoll(long caseId, String classification, String confidence,

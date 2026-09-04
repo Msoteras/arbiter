@@ -3,6 +3,7 @@ package ar.edu.utn.frba.arbiter.cases.support;
 import ar.edu.utn.frba.arbiter.common.models.entities.tenant.Coverage;
 import ar.edu.utn.frba.arbiter.common.models.entities.tenant.Insured;
 import ar.edu.utn.frba.arbiter.cases.models.entities.Policy;
+import ar.edu.utn.frba.arbiter.cases.models.entities.PolicyCoverage;
 import ar.edu.utn.frba.arbiter.common.models.entities.Branch;
 import ar.edu.utn.frba.arbiter.common.models.entities.ClaimCause;
 import ar.edu.utn.frba.arbiter.common.models.entities.User;
@@ -61,9 +62,21 @@ public final class CaseFixtures {
         return Policy.builder()
                 .externalPolicyNumber(policyNumber)
                 .product(product)
-                .sumInsured(new BigDecimal("500000"))
                 .inForce(true)
-                .coverage(coverage("Celulares"))
+                .build();
+    }
+
+    /**
+     * Una cobertura contratada sobre {@code policyId}. La suma asegurada y la franquicia son de la
+     * cobertura, no de la póliza: una póliza tiene varias y cada una lleva las suyas.
+     */
+    public static PolicyCoverage policyCoverage(Long policyId, Coverage coverage, int order) {
+        return PolicyCoverage.builder()
+                .policyId(policyId)
+                .coverage(coverage)
+                .displayOrder(order)
+                .sumInsured(new BigDecimal("500000"))
+                .deductiblePct(new BigDecimal("10.00"))
                 .build();
     }
 }

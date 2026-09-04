@@ -9,6 +9,7 @@ import ar.edu.utn.frba.arbiter.cases.dto.EligibilityCheckResponse;
 import ar.edu.utn.frba.arbiter.cases.dto.LensSummaryResponse;
 import ar.edu.utn.frba.arbiter.cases.dto.CaseRequest;
 import ar.edu.utn.frba.arbiter.cases.dto.CaseResponse;
+import ar.edu.utn.frba.arbiter.cases.dto.PolicyResponse;
 import ar.edu.utn.frba.arbiter.cases.models.entities.CaseDocument;
 import ar.edu.utn.frba.arbiter.common.enums.CaseStatus;
 import ar.edu.utn.frba.arbiter.common.enums.RiskBand;
@@ -121,6 +122,12 @@ public interface CaseService {
      */
     CaseResponse retryClassification(Long caseId);
 
+    /**
+     * Every policy the case's insured holds, not just the one being claimed. Scoped to the case on
+     * purpose: the analyst gets the context of whoever they're reviewing, not a lookup by DNI.
+     */
+    List<PolicyResponse> getInsuredPolicies(Long caseId);
+
     void recordAnalystDecision(Long caseId, AnalystDecisionRequest request);
 
     /**
@@ -136,6 +143,23 @@ public interface CaseService {
 
     /** Libera el expediente: vuelve a quedar sin dueño, visible en "Todos" y en ninguna lente "Míos". */
     CaseResponse unassignAnalyst(Long caseId);
+
+    /**
+     * Reabre un expediente cerrado y lo devuelve al escritorio del analista
+     * ({@code PENDING_ANALYST_REVIEW}). Es la "rehabilitación" del doc de dominio BBVA: sin esto
+     * los tres estados terminales son callejones sin salida y el error de un analista —o la
+     * documentación que el asegurado trae después de que el expediente caducó— no tiene arreglo
+     * dentro del sistema.
+     *
+     * <p>Reabrir NO es un veredicto nuevo: no toca la decisión anterior (que quedó en el registro
+     * inmutable de clasificación, y sí ocurrió) ni el riesgo ni el antecedente de fraude. Solo
+     * vuelve a poner a una persona a decidir, coherente con la decisión de arquitectura #5. El
+     * {@code reason} es obligatorio porque es la única explicación que va a quedar en el historial.
+     *
+     * <p>Desde un estado no terminal la máquina de estados lo rechaza con 409 — no hay nada que
+     * reabrir en un expediente que sigue abierto.
+     */
+    CaseResponse reopenCase(Long caseId, String reason);
 
     /**
      * Carga de trabajo del equipo: cada analista del tenant con su cantidad de expedientes activos

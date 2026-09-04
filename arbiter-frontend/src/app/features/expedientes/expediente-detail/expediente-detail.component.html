@@ -40,11 +40,9 @@
               @if (!isDeterministicOutcome()) {
                 <p class="note">Confianza del modelo: {{ confidencePercent() }}%</p>
               } @else if (needsDocs()) {
-                <p class="note">
-                  Lo determinó el motor de reglas, no el modelo: falta documentación obligatoria de
-                  la agenda del ramo. La carga la hace el asegurado desde su portal y el expediente
-                  se vuelve a clasificar solo cuando la complete — no requiere una decisión tuya.
-                </p>
+                <!-- Sin el "lo determinó el motor de reglas, no el modelo": el encabezado de la
+                     card ya lo dice cuando el resultado es determinístico. -->
+                <p class="note">Falta documentación obligatoria de la agenda del ramo.</p>
               } @else {
                 <p class="note">
                   Lo determinó el motor de reglas, no el modelo. Agiliza el trámite pero no lo
@@ -69,6 +67,14 @@
           }
           @case ('rejected') {
             <p class="registered">✓ Registrado: Rechazado</p>
+          }
+          @case ('lapsed') {
+            <!-- Nadie decidió: el expediente se cerró solo por inacción del asegurado. Sin esta
+                 rama caía en el @default y mostraba "Sin clasificación disponible todavía". -->
+            <p class="nodata">
+              Cerrado por caducidad: pasaron 18 meses desde la denuncia sin que el asegurado
+              trajera la documentación pedida.
+            </p>
           }
           @case ('pending') {
             @if (canAct()) {
@@ -135,6 +141,23 @@
             }
           }
         }
+        @if (puedeReabrir()) {
+          <!-- Fuera del @switch: vale para los tres terminales por igual. Reabrir no revierte la
+               decisión anterior (su registro es inmutable), solo devuelve el expediente a una
+               persona. -->
+          <app-button
+            variant="secondary"
+            [block]="true"
+            [disabled]="reopening()"
+            (click)="askReopen()"
+          >
+            {{ reopening() ? 'Reabriendo…' : 'Reabrir expediente' }}
+          </app-button>
+          <p class="rcard-note">Vuelve a revisión con el plazo de respuesta corriendo de nuevo.</p>
+          @if (reopenError()) {
+            <p class="rcard-note error">{{ reopenError() }}</p>
+          }
+        }
         @if (decisionSaving()) {
           <p class="rcard-note">Guardando decisión…</p>
         }
@@ -149,7 +172,9 @@
     <nav class="tabs" role="tablist">
       @for (t of tabs(); track t.id) {
         <button role="tab" class="tab" [class.active]="activeTab() === t.id"
-          [attr.aria-selected]="activeTab() === t.id" (click)="setTab(t.id)">{{ t.label }}</button>
+          [attr.aria-selected]="activeTab() === t.id" (click)="setTab(t.id)">{{ t.label }}@if (t.dot) {
+            <span class="tab-dot" aria-label="con mensajes sin leer"></span>
+          }</button>
       }
     </nav>
 
@@ -416,18 +441,188 @@
           }
         </app-card>
       }
-      @case ('razones') {
-        <app-card heading="Razones de la clasificación">
-          @if (analysisReasons().length > 0) {
-            <ul class="reasons-list">
-              @for (reason of analysisReasons(); track $index) {
-                <li>{{ reason }}</li>
+      <!-- Todo sale de lo que se persistió al clasificar: acá no se pide nada en vivo. La foto va
+           primero porque es el insumo — con estos datos se evaluaron las reglas de abajo. -->
+      @case ('analisis') {
+        <div class="traza">
+          <app-card heading="Datos de clasificación">
+            @if (policySnapshot(); as s) {
+              @for (g of snapshotGroups(); track $index) {
+                @if (g.heading) {
+                  <h4 class="t-section-label traza-subhead">{{ g.heading }}</h4>
+                }
+                <dl class="fields">
+                  @for (f of g.fields; track f.label) {
+                    <div class="field">
+                      <dt class="t-field-label">{{ f.label }}</dt>
+                      @if (f.value) {
+                        <dd [class.mono]="f.mono">{{ f.value }}</dd>
+                      } @else {
+                        <dd class="nodata">Sin datos</dd>
+                      }
+                    </div>
+                  }
+                </dl>
               }
-            </ul>
-          } @else {
-            <app-empty-state message="Sin motivos para este expediente" />
+              <span class="t-note">
+                Valores al {{ formatDateTime(s.queriedAt) }}. La suma asegurada es la de esa cobertura.
+              </span>
+            } @else {
+              <p class="nodata">Todavía no hay foto: se toma al clasificar.</p>
+            }
+          </app-card>
+
+          <app-card heading="Reglas evaluadas">
+            @if (ruleResults().length > 0) {
+              <div class="traza-scroll">
+                <table class="traza-table">
+                  <thead>
+                    <tr><th>Regla</th><th>Resultado</th><th>Qué se evaluó</th></tr>
+                  </thead>
+                  <tbody>
+                    @for (r of ruleResults(); track r.id) {
+                      <tr>
+                        <td>{{ ruleTypeLabel(r.ruleType) }}</td>
+                        <td>
+                          <app-badge variant="solid" [tone]="ruleResultTone(r.result)">
+                            {{ ruleResultLabel(r.result) }}
+                          </app-badge>
+                        </td>
+                        <td class="traza-valor">{{ ruleEvaluationText(r.ruleType, r.evaluatedValue) }}</td>
+                      </tr>
+                    }
+                  </tbody>
+                </table>
+              </div>
+              <span class="t-note">Evaluadas el {{ formatDateTime(ruleResults()[0].evaluatedAt) }}.</span>
+            } @else {
+              <p class="nodata traza-sin-reglas" [class.error]="ruleResultsUnavailable()">
+                {{ sinReglasMotivo() }}
+              </p>
+            }
+          </app-card>
+
+          <!-- Below the rules: the engine runs first, and the model reads on top of it. -->
+          @if (analysisReasons().length > 0) {
+            <app-card heading="Razones del modelo">
+              <ul class="reasons-list">
+                @for (reason of analysisReasons(); track $index) {
+                  <li>{{ reason }}</li>
+                }
+              </ul>
+            </app-card>
           }
-        </app-card>
+        </div>
+      }
+      @case ('asegurado') {
+        <div class="traza">
+          <app-card heading="Sus pólizas vigentes con la compañía">
+            @if (polizasDelAsegurado().length > 0) {
+              @for (g of gruposDePolizas(); track g.heading) {
+                <h4 class="t-section-label traza-subhead">{{ g.heading }}</h4>
+                <div class="traza-scroll">
+                  <table class="traza-table traza-polizas">
+                    <thead>
+                      <!-- "Ramo / Producto" y no "Cobertura": eso es lo que muestra la columna. Las
+                           coberturas de verdad son varias por póliza y viven en el desplegable. -->
+                      <tr><th>Póliza</th><th>Ramo / Producto</th><th>Vigencia</th><th>Suma asegurada</th><th>Pago</th></tr>
+                    </thead>
+                    <tbody>
+                      @for (p of g.polizas; track p.policyNumber) {
+                        <tr>
+                          <td>
+                            <button
+                              type="button"
+                              class="cov-toggle"
+                              [attr.aria-expanded]="estaAbierta(p)"
+                              (click)="togglePoliza(p)"
+                            >
+                              <span class="cov-caret" [class.open]="estaAbierta(p)" aria-hidden="true">▸</span>
+                              <span class="cov-toggle-texto">
+                                <span class="mono">{{ p.policyNumber }}</span>
+                                <!-- El conteo es lo que delata que hay algo para abrir: la flecha
+                                     sola pasaba desapercibida. -->
+                                <span class="cov-hint">
+                                  {{ p.coverages.length }}
+                                  {{ p.coverages.length === 1 ? 'cobertura' : 'coberturas' }}
+                                </span>
+                              </span>
+                            </button>
+                          </td>
+                          <td>
+                            <span class="traza-ramo">{{ p.branch }}</span>
+                            <span class="traza-sub">{{ p.product }}</span>
+                          </td>
+                          <td>{{ vigencia(p) }}</td>
+                          <td class="traza-num">{{ monto(p.insuredAmount) }}</td>
+                          <td>
+                            <app-badge variant="solid" [tone]="p.upToDate ? 'ok' : 'danger'">
+                              {{ p.upToDate ? 'Al día' : 'En mora' }}
+                            </app-badge>
+                          </td>
+                        </tr>
+                        @if (estaAbierta(p)) {
+                          @for (c of p.coverages; track c.code) {
+                            <tr class="traza-fila-cobertura">
+                              <td colspan="3" class="cobertura-nombre">{{ c.description }}</td>
+                              <td class="traza-num">
+                                {{ monto(c.insuredAmount) }}
+                                <span class="traza-sub">franquicia {{ monto(c.deductible) }}</span>
+                              </td>
+                              <td></td>
+                            </tr>
+                          } @empty {
+                            <tr class="traza-fila-cobertura">
+                              <td colspan="5" class="cobertura-nombre nodata">
+                                Esta póliza no tiene coberturas cargadas.
+                              </td>
+                            </tr>
+                          }
+                        }
+                      }
+                    </tbody>
+                  </table>
+                </div>
+              }
+            } @else {
+              <p class="nodata">Sin pólizas vigentes con la compañía.</p>
+            }
+          </app-card>
+
+          <!-- Read-only: registering one is an act on the person and stays in the summary card.
+               Only when there are any — the summary already says when there are none. -->
+          @if (antecedentesPrevios().length > 0 || antecedentePropio()) {
+          <app-card heading="Antecedentes de fraude del asegurado">
+            @for (a of antecedentesPrevios(); track a.id) {
+              <div class="fraude-item" [attr.data-tone]="estadoAntecedenteTone(a)">
+                <div class="fraude-item-head">
+                  <app-badge variant="solid" [tone]="estadoAntecedenteTone(a)">
+                    {{ estadoAntecedenteLabel(a) }}
+                  </app-badge>
+                  <span class="t-note">
+                    Expediente #{{ a.caseId }} · {{ formatDateTime(a.declaredAt) }}
+                  </span>
+                </div>
+                <p class="t-body">{{ a.reason }}</p>
+                <p class="t-note">{{ efectoAntecedente(a) }} Lo registró {{ a.declaredByAnalystName }}.</p>
+              </div>
+            }
+
+            @if (antecedentePropio(); as propio) {
+              <div class="fraude-item propio" [attr.data-tone]="estadoAntecedenteTone(propio)">
+                <div class="fraude-item-head">
+                  <app-badge variant="strong" [tone]="estadoAntecedenteTone(propio)">
+                    Este expediente · {{ origenAntecedenteLabel(propio.source) }}
+                  </app-badge>
+                  <span class="t-note">{{ formatDateTime(propio.declaredAt) }}</span>
+                </div>
+                <p class="t-body">{{ propio.reason }}</p>
+                <p class="t-note">Lo registró {{ propio.declaredByAnalystName }}.</p>
+              </div>
+            }
+          </app-card>
+          }
+        </div>
       }
       @case ('documentacion') {
         <app-case-documents [caseId]="d.id" [reloadToken]="docsReloadToken()" [branch]="d.branch" />
@@ -475,7 +670,14 @@
           </app-card>
         }
       }
-      @case ('conversacion') { <app-empty-state message="Conversación con el asegurado" /> }
+      @case ('conversacion') {
+        <app-case-chat
+          [caseId]="d.id"
+          heading="Conversación con el asegurado"
+          [counterparty]="d.insuredName ?? 'Asegurado'"
+          (unreadChange)="unreadMessages.set($event)"
+        />
+      }
       @case ('historial') {
         @if (history().length > 0) {
           <app-card heading="Historial de estados">
@@ -517,6 +719,22 @@
   <ng-container modalActions>
     <app-button variant="secondary" (click)="cancelDecision()">Cancelar</app-button>
     <app-button [disabled]="!justification().trim()" (click)="confirmDecision()">Confirmar</app-button>
+  </ng-container>
+</app-modal>
+
+<!-- Reapertura. El motivo es obligatorio por la misma razón que la justificación de una decisión:
+     es lo único que le explica al que audite por qué un expediente cerrado volvió a abrirse. -->
+<app-modal [open]="showReopen()" heading="Reabrir expediente" (close)="cancelReopen()">
+  <p class="t-note">
+    El expediente vuelve a revisión del analista con el plazo de respuesta corriendo de nuevo. No se
+    borra la resolución anterior: queda en el historial, y el motivo que escribas también.
+  </p>
+  <app-textarea [rows]="3" placeholder="Motivo de la reapertura (obligatorio)…" [(value)]="reopenReason" />
+  <ng-container modalActions>
+    <app-button variant="secondary" (click)="cancelReopen()">Cancelar</app-button>
+    <app-button [disabled]="!reopenReason().trim() || reopening()" (click)="confirmReopen()">
+      Reabrir
+    </app-button>
   </ng-container>
 </app-modal>
 

@@ -1,6 +1,7 @@
 package ar.edu.utn.frba.arbiter.cases.models.repositories;
 
 import ar.edu.utn.frba.arbiter.cases.models.entities.Case;
+import ar.edu.utn.frba.arbiter.cases.models.entities.PolicySnapshot;
 import ar.edu.utn.frba.arbiter.common.enums.CaseStatus;
 import ar.edu.utn.frba.arbiter.common.enums.ClassificationFailureReason;
 import ar.edu.utn.frba.arbiter.common.enums.RiskBand;
@@ -12,21 +13,26 @@ import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.Instant;
 import java.time.LocalDate;
 import java.util.Collection;
 import java.util.List;
+import java.util.Optional;
 
 @Repository
 public interface CaseRepository extends JpaRepository<Case, Long>, JpaSpecificationExecutor<Case> {
 
     /**
-     * Non-terminal cases whose response deadline is on or before {@code threshold} — the pool the
-     * deadline sweep looks at each day. Terminal cases are excluded in SQL ({@code finalStatuses} =
-     * APPROVED, REJECTED): an answered case is never overdue, no matter how close its deadline was.
+     * Cases whose response deadline is on or before {@code threshold} and whose term is actually
+     * running — the pool the deadline sweep looks at each day. The statuses whose deadline is not
+     * running are excluded in SQL: a case already answered (or closed by inaction) is never
+     * overdue, and one waiting on a third party has its term interrupted, so its stored
+     * {@code responseDeadline} is a frozen date and not a real urgency.
      *
-     * @param threshold     the sweep asks for {@code today + 2} (critical or worse); the exact
-     *                      priority per case is then resolved with {@code DeadlinePriority.of}
-     * @param finalStatuses names of the terminal states to exclude
+     * @param threshold        the sweep asks for {@code today + 2} (critical or worse); the exact
+     *                         priority per case is then resolved with {@code DeadlinePriority.of}
+     * @param finalStatuses    names of the states to exclude — see
+     *                         {@code DeadlineSweepScheduler.DEADLINE_INACTIVE_STATUSES}
      */
     @Query("""
             select c from Case c
@@ -45,6 +51,20 @@ public interface CaseRepository extends JpaRepository<Case, Long>, JpaSpecificat
     }
 
     List<Case> findByCurrentStatusName(String statusName);
+
+    /**
+     * Cases stuck in {@code statusName} since before {@code threshold} — the pool
+     * {@code LapseSweepScheduler} closes as {@code LAPSED} (18 meses de inacción del asegurado,
+     * regla interna). Counted from {@code reportedAt} (fecha de denuncia), not from when the
+     * documentation was requested: it's the simplest reading that matches the doc de dominio
+     * BBVA's own framing of the rule ("18 meses desde la denuncia").
+     */
+    @Query("""
+            select c from Case c
+            where c.currentStatus.name = :statusName
+              and c.reportedAt <= :threshold
+            """)
+    List<Case> findStaleByStatus(@Param("statusName") String statusName, @Param("threshold") Instant threshold);
 
     List<Case> findByRiskBand(RiskBand riskBand);
 
@@ -165,7 +185,8 @@ public interface CaseRepository extends JpaRepository<Case, Long>, JpaSpecificat
      * que el panel muestre a todo el equipo. Los expedientes sin asignar quedan afuera
      * ({@code c.analyst is not null}).
      *
-     * @param finalStatuses nombres de los estados terminales a excluir (APPROVED, REJECTED)
+     * @param finalStatuses nombres de los estados terminales a excluir — ver
+     *                      {@code CaseServiceImpl.FINAL_STATUS_NAMES}
      */
     @Query("""
             select c.analyst.id as analystId, count(c) as total
@@ -205,4 +226,13 @@ public interface CaseRepository extends JpaRepository<Case, Long>, JpaSpecificat
             """)
     long countByAnalystAndRiskBandIn(@Param("analystId") Long analystId,
                                      @Param("bands") Collection<RiskBand> bands);
+
+    /**
+     * The case's snapshot, already loaded. {@code Case.policySnapshot} is LAZY and the detail is
+     * mapped outside any transaction, so reading it off the entity threw
+     * {@code LazyInitializationException}. Making it EAGER would join it on every listing too,
+     * where nobody reads it.
+     */
+    @Query("select c.policySnapshot from Case c where c.id = :caseId")
+    Optional<PolicySnapshot> findPolicySnapshot(@Param("caseId") Long caseId);
 }

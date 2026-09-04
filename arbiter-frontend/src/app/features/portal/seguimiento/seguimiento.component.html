@@ -60,7 +60,7 @@
        Cada línea sale del ESTADO de la transición, nunca de su motivo interno: el asegurado ve que
        su caso se derivó a verificación, no por qué (eso es la sospecha, y todavía no hay nada
        probado). Tampoco ve la clasificación del modelo ni el veredicto del perito. -->
-  <app-card heading="Seguimiento">
+  <app-card class="seguimiento-card" heading="Seguimiento">
     <ol class="milestones">
       @for (m of movimientos(); track $index) {
         <li class="milestone reached" [class.current]="m.current">
@@ -89,8 +89,15 @@
     </ol>
   </app-card>
 
+  <app-case-chat
+    class="chat-section"
+    [caseId]="d.id"
+    [insurer]="d.insurerSlug"
+    heading="Consultas sobre tu siniestro"
+    counterparty="Equipo de siniestros" />
+
   <!-- Detalle de la denuncia. -->
-  <app-card heading="Tu denuncia">
+  <app-card class="denuncia-card" heading="Tu denuncia">
     <dl class="fields">
       <div class="field">
         <dt class="t-field-label">Ramo · bien</dt>
@@ -112,9 +119,9 @@
         <dt class="t-field-label">Ubicación</dt>
         <dd>{{ d.eventLocation }}</dd>
       </div>
-      <div class="field">
+      <div class="field wide">
         <dt class="t-field-label">Descripción</dt>
-        <dd class="measure">{{ d.description }}</dd>
+        <dd>{{ d.description }}</dd>
       </div>
     </dl>
   </app-card>

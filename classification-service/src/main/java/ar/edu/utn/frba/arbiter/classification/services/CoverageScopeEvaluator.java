@@ -3,14 +3,19 @@ package ar.edu.utn.frba.arbiter.classification.services;
 import ar.edu.utn.frba.arbiter.classification.dto.BusinessRules;
 import ar.edu.utn.frba.arbiter.classification.dto.DocumentExtraction;
 import ar.edu.utn.frba.arbiter.classification.dto.InsuredHistory;
+import ar.edu.utn.frba.arbiter.classification.dto.InsuredPolicy;
+import ar.edu.utn.frba.arbiter.classification.dto.RuleFinding;
 import ar.edu.utn.frba.arbiter.common.dto.ClaimReport;
+import ar.edu.utn.frba.arbiter.common.enums.RuleType;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 
+import java.math.BigDecimal;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 
 /**
  * How far the coverage reaches: who it covers and whether it has anything left (D9). Two
@@ -21,6 +26,12 @@ import java.util.Map;
  *       injured party is a relative, the event isn't covered.</li>
  *   <li><b>{@code claim_exhausts_coverage}</b> — if a settled claim exhausts the coverage, the next
  *       one on the same policy has nothing left to answer with.</li>
+ *   <li><b>suma asegurada</b> — a coverage that does <i>not</i> exhaust on a single settled claim
+ *       can still run out through accumulation: prior settled amounts <b>on that same coverage</b>
+ *       plus this claim can't exceed its sum insured (doc de dominio BBVA §6.4). Nothing for the
+ *       referente to configure: the limit is a fact the insurer DB carries. Both sides are per
+ *       coverage — {@code policy.insuredAmount()} arrives narrowed by
+ *       {@code InsuredPolicy.forCoverage}, and the history is filtered by coverage too.</li>
  * </ul>
  *
  * <p><b>Why the LLM doesn't decide the first one.</b> Knowing whose device it was requires reading
@@ -45,25 +56,37 @@ public class CoverageScopeEvaluator {
     /** Resolution status meaning the prior claim actually consumed the coverage. */
     private static final String SETTLED = "LIQUIDADO";
 
-    /** @param reasons readable reasons for the rules that failed, for the analyst. */
-    public record Result(boolean blocksFastTrack, List<String> reasons) {}
+    /**
+     * @param reasons  readable reasons for the rules that failed, for the analyst
+     * @param findings the auditable trace of both rules, passes included. They carry no
+     *                 {@code ruleId}: these live on the coverage, not in {@code insurer_rule}.
+     */
+    public record Result(boolean blocksFastTrack, List<String> reasons, List<RuleFinding> findings) {
+
+        public static Result none() {
+            return new Result(false, List.of(), List.of());
+        }
+    }
 
     public Result evaluate(
             ClaimReport claim,
+            InsuredPolicy policy,
             InsuredHistory history,
             BusinessRules rules,
             Map<String, DocumentExtraction> documents) {
 
         List<String> reasons = new ArrayList<>();
+        List<RuleFinding> findings = new ArrayList<>();
 
-        evaluateFamilyGroup(rules, documents, reasons);
-        evaluateExhaustedCoverage(claim, history, rules, reasons);
+        evaluateFamilyGroup(rules, documents, reasons, findings);
+        evaluateExhaustedCoverage(claim, history, rules, reasons, findings);
+        evaluateSumInsuredLimit(claim, policy, history, reasons);
 
         boolean block = !reasons.isEmpty();
         if (block) {
             log.info("[CoverageScopeEvaluator] Alcance de cobertura incumplido (bloquea Fast Track): {}", reasons);
         }
-        return new Result(block, reasons);
+        return new Result(block, reasons, findings);
     }
 
     /**
@@ -72,7 +95,8 @@ public class CoverageScopeEvaluator {
      * their coverage.
      */
     private void evaluateFamilyGroup(
-            BusinessRules rules, Map<String, DocumentExtraction> documents, List<String> reasons) {
+            BusinessRules rules, Map<String, DocumentExtraction> documents, List<String> reasons,
+            List<RuleFinding> findings) {
         if (!Boolean.FALSE.equals(rules.coversFamilyGroup())) {
             return; // the coverage reaches the family group, or isn't configured
         }
@@ -80,8 +104,21 @@ public class CoverageScopeEvaluator {
                 .map(extraction -> extraction.fields().affectedParty())
                 .anyMatch(DocumentExtraction.AffectedParty.FAMILIAR::equals);
         if (affectedIsFamily) {
+            findings.add(finding(RuleType.COVERS_FAMILY_GROUP, false, "affectedParty=FAMILIAR"));
             reasons.add("El damnificado es un familiar del asegurado y la cobertura no alcanza al "
                     + "grupo familiar conviviente");
+            return;
+        }
+        // A pass needs a document that actually said who it was. Nobody saying leaves the rule
+        // UNEVALUATED — a third state that writes no row, same reason the rule doesn't fire on
+        // DESCONOCIDO: silence about whose the item was can't count either way.
+        DocumentExtraction.AffectedParty declared = documents.values().stream()
+                .map(extraction -> extraction.fields().affectedParty())
+                .filter(party -> party != null && party != DocumentExtraction.AffectedParty.DESCONOCIDO)
+                .findFirst()
+                .orElse(null);
+        if (declared != null) {
+            findings.add(finding(RuleType.COVERS_FAMILY_GROUP, true, "affectedParty=" + declared));
         }
     }
 
@@ -91,17 +128,75 @@ public class CoverageScopeEvaluator {
      * part, rather than counting claims foreign to this coverage.
      */
     private void evaluateExhaustedCoverage(
-            ClaimReport claim, InsuredHistory history, BusinessRules rules, List<String> reasons) {
+            ClaimReport claim, InsuredHistory history, BusinessRules rules, List<String> reasons,
+            List<RuleFinding> findings) {
         if (!Boolean.TRUE.equals(rules.claimExhaustsCoverage())
                 || history.claims() == null || claim.policyNumber() == null) {
             return;
         }
-        boolean alreadySettled = history.claims().stream()
+        long settled = history.claims().stream()
                 .filter(record -> claim.policyNumber().equals(record.policyNumber()))
-                .anyMatch(record -> SETTLED.equalsIgnoreCase(record.status()));
-        if (alreadySettled) {
+                .filter(record -> SETTLED.equalsIgnoreCase(record.status()))
+                .count();
+        // Unlike the family group, this one always has an answer once the rule is on: the history
+        // either has a settled claim on this policy or it doesn't. So the pass is written too —
+        // "nothing consumed the coverage" is a verified fact, not an absence of data.
+        findings.add(finding(RuleType.CLAIM_EXHAUSTS_COVERAGE, settled == 0,
+                "settledClaimsOnPolicy=" + settled + " max=0"));
+        if (settled > 0) {
             reasons.add("La cobertura ya fue consumida por un siniestro liquidado previo sobre esta "
                     + "póliza (un siniestro agota la cobertura)");
         }
+    }
+
+    /**
+     * Complements {@link #evaluateExhaustedCoverage}: a coverage that doesn't exhaust on any single
+     * settled claim can still run out by accumulation.
+     *
+     * <p><b>Per coverage, not per policy.</b> The sum insured belongs to the coverage and there is
+     * no aggregate policy ceiling on top of it (confirmed with the analyst, 01/09/2026), so what
+     * consumes a coverage is what was settled <i>against that same coverage</i>. Summing everything
+     * settled on the policy and comparing it to one coverage's ceiling mixed two different things:
+     * on the seed's póliza 1 a settled robo of 700.000 would report the hurto coverage (650.000) as
+     * exhausted without a single hurto ever having been filed.
+     *
+     * <p>A prior claim whose coverage the company didn't record is left out rather than imputed by
+     * guessing — same criterion the rest of the hard rules use for missing data. That makes the rule
+     * permissive on incomplete history, which is the right side to err on: it only blocks Fast Track
+     * and hands the analyst a reason, and a wrong reason is worse than a missing one.
+     *
+     * <p>No period boundary modeled (same limitation as {@code POLICY_STANDING}'s arrears tiers:
+     * installment/policy-year boundaries aren't in any schema today), so this is a lifetime total
+     * against what the history returned, not a per-renewal reset.
+     *
+     * <p>Missing {@code insuredAmount} or {@code claimedAmount} means the rule doesn't participate —
+     * same criterion {@link FastTrackValidator} uses for its amount ratio.
+     */
+    private void evaluateSumInsuredLimit(
+            ClaimReport claim, InsuredPolicy policy, InsuredHistory history, List<String> reasons) {
+        if (policy.insuredAmount() == null || policy.insuredAmount().signum() == 0
+                || claim.claimedAmount() == null || history.claims() == null
+                || claim.policyNumber() == null || claim.coverageName() == null) {
+            return;
+        }
+        BigDecimal settledSoFar = history.claims().stream()
+                .filter(record -> claim.policyNumber().equals(record.policyNumber()))
+                .filter(record -> claim.coverageName().equalsIgnoreCase(record.coverageName()))
+                .filter(record -> SETTLED.equalsIgnoreCase(record.status()))
+                .map(record -> record.amountSettled() != null ? record.amountSettled() : record.amountClaimed())
+                .filter(Objects::nonNull)
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+        BigDecimal projectedTotal = settledSoFar.add(claim.claimedAmount());
+        if (projectedTotal.compareTo(policy.insuredAmount()) > 0) {
+            reasons.add(String.format(
+                    "La suma de siniestros liquidados previos sobre la cobertura '%s' (%s) más este "
+                            + "reclamo (%s) supera su suma asegurada (%s)",
+                    claim.coverageName(), settledSoFar, claim.claimedAmount(), policy.insuredAmount()));
+        }
+    }
+
+    /** No rule id: both rules are coverage columns, not rows of {@code insurer_rule}. */
+    private static RuleFinding finding(RuleType type, boolean passed, String evaluatedValue) {
+        return new RuleFinding(null, type.name(), passed, evaluatedValue);
     }
 }

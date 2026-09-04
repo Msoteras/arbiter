@@ -5,7 +5,7 @@ import { catchError, map, of, startWith, switchMap } from 'rxjs';
 
 import { InsuredSessionService } from '../../../core/auth/insured-session.service';
 import { ExpedienteResponse } from '../../../core/models/expediente';
-import { estadoLabel, estadoTone, isEstadoFinal, proximoPaso } from '../../../core/models/estado';
+import { estadoBadgeLabelAsegurado, estadoTone, isEstadoFinal, proximoPaso } from '../../../core/models/estado';
 import { StatusTone } from '../../../core/models/status-tone';
 import { ExpedienteService } from '../../expedientes/expediente.service';
 import { NewClaimModalService } from '../../expedientes/new-claim-modal.service';
@@ -88,7 +88,7 @@ export class MisExpedientesComponent {
   }
 
   protected estadoLabel(status: string): string {
-    return estadoLabel(status);
+    return estadoBadgeLabelAsegurado(status);
   }
 
   protected estadoTone(status: string): StatusTone {

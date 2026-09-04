@@ -1,6 +1,7 @@
 package ar.edu.utn.frba.arbiter.cases.dto;
 
 import ar.edu.utn.frba.arbiter.common.dto.ImageForensicReport;
+import ar.edu.utn.frba.arbiter.common.dto.RuleResultResponse;
 import ar.edu.utn.frba.arbiter.common.dto.RiskBreakdownItem;
 import ar.edu.utn.frba.arbiter.common.enums.CaseStatus;
 import ar.edu.utn.frba.arbiter.common.enums.Classification;
@@ -40,6 +41,12 @@ public record CaseResponse(
         String branch,
         String product,
         String claimCause,
+        /**
+         * The coverage the case is filed under, and the one {@code policySnapshot.sumInsured}
+         * belongs to. Shown next to that amount because they can differ from the claim cause: the
+         * case inherits the policy's single coverage (see docs/temas-a-discutir.md).
+         */
+        String coverage,
         String insuredItem,
         String insuredId,
         /** Nullable hasta que la primera clasificación resuelve (ver Case.insuredName). */
@@ -95,6 +102,30 @@ public record CaseResponse(
          * clasificó, se resolvió por Fast Track sin leer nada, o se clasificó antes de que esta
          * tabla existiera — la solapa simplemente no aparece.
          */
-        List<DocumentAnalysisSummary> documentAnalyses
+        List<DocumentAnalysisSummary> documentAnalyses,
+        /**
+         * Every hard rule evaluated, passes included. Like {@code statusHistory}, only
+         * {@code GET /{id}} loads it.
+         *
+         * <p>A Fast Track does carry them, all passing — the gate runs <i>after</i> the hard rules
+         * and only its own criteria go unrecorded. It comes back empty when no rule ran at all:
+         * the insurer has none active, or the claim stopped at the missing-documents check, which
+         * returns before the temporal and fraud evaluators.
+         *
+         * <p>{@code null} means something else entirely: the rules couldn't be read (see
+         * {@code ClaimsAnalysisClient.ruleResultsOf}). Empty is a fact about the classification,
+         * null is a fact about this request, and the screen says different things for each.
+         */
+        List<RuleResultResponse> ruleResults,
+        /**
+         * What the insurer DB answered when the case was classified, not what it answers today —
+         * the analyst auditing a decision needs the numbers it was made with.
+         *
+         * <p>The insured's <i>current</i> policies deliberately don't travel here: they'd mean an
+         * insurer-DB round trip on every case open, for a panel most reads never look at, and
+         * they'd go stale the moment they arrived. They're their own call
+         * ({@code GET /cases/{id}/insured-policies}), made when the analyst asks for them.
+         */
+        PolicySnapshotResponse policySnapshot
 ) {
 }

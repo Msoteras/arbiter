@@ -32,7 +32,7 @@
               <div class="case-title-row">
                 <h2 class="case-title">{{ d.claimCause }}</h2>
                 <app-badge [tone]="estadoTone(d.status)" variant="strong">
-                  {{ estadoSimplificadoLabel(d.status) }}
+                  {{ estadoBadgeLabel(d.status) }}
                 </app-badge>
               </div>
               <div class="case-id mono">EXP-{{ d.id }} · denunciado el {{ fechaDenuncia(d) }}</div>

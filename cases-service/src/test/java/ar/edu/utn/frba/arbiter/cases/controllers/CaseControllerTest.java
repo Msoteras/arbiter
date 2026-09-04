@@ -5,6 +5,7 @@ import ar.edu.utn.frba.arbiter.cases.dto.DocumentAnalysisSummary;
 import ar.edu.utn.frba.arbiter.cases.dto.StatusTransitionResponse;
 import ar.edu.utn.frba.arbiter.cases.exceptions.CaseExceptionHandler;
 import ar.edu.utn.frba.arbiter.cases.exceptions.CaseNotFoundException;
+import ar.edu.utn.frba.arbiter.cases.exceptions.InvalidStatusTransitionException;
 import ar.edu.utn.frba.arbiter.cases.models.entities.StatusChangeActor;
 import ar.edu.utn.frba.arbiter.cases.services.CaseService;
 import ar.edu.utn.frba.arbiter.common.enums.CaseStatus;
@@ -36,6 +37,7 @@ import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.multipart;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
 @WebMvcTest(CaseController.class)
@@ -262,7 +264,7 @@ class CaseControllerTest {
     void getCase_withClassificationResult_returnsFullResponse() throws Exception {
         CaseResponse response = new CaseResponse(
                 1L, null, null, CaseStatus.PENDING_ANALYST_REVIEW,
-                "Celulares", "Celular Protegido Básico", "Robo en vía pública",
+                "Celulares", "Celular Protegido Básico", "Robo en vía pública", "Robo de celular",
                 "Motorola Edge 50 Pro", "40.123.456", "Laura Fernández", false, "POL-CEL-2024-001",
                 "Me robaron el celular",
                 LocalDateTime.of(2026, 6, 13, 19, 45), "CABA",
@@ -289,7 +291,8 @@ class CaseControllerTest {
                         "purchase_proof", "Factura de compra…",
                         LocalDate.of(2026, 5, 30), new BigDecimal("150000"),
                         "Motorola Edge 50 Pro", null, "TITULAR",
-                        List.of("La tipografía del encabezado no coincide con el resto")))
+                        List.of("La tipografía del encabezado no coincide con el resto"))),
+                List.of(), null
         );
         when(caseService.getCase(1L, (String) null)).thenReturn(response);
 
@@ -335,10 +338,55 @@ class CaseControllerTest {
                 .andExpect(jsonPath("$.status").value("AWAITING_DOCUMENTATION"));
     }
 
+    // ─── reopenCase ("rehabilitación", doc de dominio BBVA) ────────────────────────
+
+    @Test
+    void reopenCase_returns200WithTheReopenedCase() throws Exception {
+        CaseResponse response = caseResponse(1L, CaseStatus.PENDING_ANALYST_REVIEW);
+        when(caseService.reopenCase(1L, "el analista se equivocó")).thenReturn(response);
+
+        mockMvc.perform(post("/api/v1/cases/1/reopen")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"reason\":\"el analista se equivocó\"}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value("PENDING_ANALYST_REVIEW"));
+    }
+
+    /** {@code reason} es obligatorio: es la única explicación que queda en el historial. */
+    @Test
+    void reopenCase_blankReason_returns400() throws Exception {
+        mockMvc.perform(post("/api/v1/cases/1/reopen")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"reason\":\"\"}"))
+                .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    void reopenCase_unknownCase_returns404() throws Exception {
+        when(caseService.reopenCase(999L, "motivo")).thenThrow(new CaseNotFoundException(999L));
+
+        mockMvc.perform(post("/api/v1/cases/999/reopen")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"reason\":\"motivo\"}"))
+                .andExpect(status().isNotFound());
+    }
+
+    /** Un expediente que sigue abierto no tiene nada que reabrir — la máquina de estados lo corta con 409. */
+    @Test
+    void reopenCase_caseStillOpen_returns409() throws Exception {
+        when(caseService.reopenCase(1L, "motivo")).thenThrow(
+                new InvalidStatusTransitionException(CaseStatus.PENDING_ANALYST_REVIEW, CaseStatus.PENDING_ANALYST_REVIEW));
+
+        mockMvc.perform(post("/api/v1/cases/1/reopen")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"reason\":\"motivo\"}"))
+                .andExpect(status().isConflict());
+    }
+
     private CaseResponse caseResponse(Long id, CaseStatus status) {
         return new CaseResponse(
                 id, null, null, status,
-                "Celulares", "Celular Protegido Básico", "Robo en vía pública",
+                "Celulares", "Celular Protegido Básico", "Robo en vía pública", "Robo de celular",
                 "Motorola Edge 50 Pro", "40.123.456", "Laura Fernández", false, "POL-CEL-2024-001",
                 "Me robaron el celular",
                 LocalDateTime.of(2026, 6, 13, 19, 45), "CABA",
@@ -349,7 +397,7 @@ class CaseControllerTest {
                 Instant.parse("2026-06-13T22:50:00Z"),
                 LocalDate.of(2026, 7, 13), DeadlinePriority.NONE,
                 null,
-                List.of()
+                List.of(), List.of(), null
         );
     }
 }

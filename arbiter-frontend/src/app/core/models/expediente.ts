@@ -1,6 +1,7 @@
 import { Clasificacion } from './clasificacion';
 import { DeadlinePriority } from './deadline-priority';
 import { ImageForensicReport } from './forensic';
+import { PolicySnapshot, RuleResult } from './trazabilidad';
 
 // Espejo de StatusTransitionResponse del cases-service.
 // `fromStatus` es null en la fila de creación del expediente.
@@ -68,6 +69,8 @@ export interface ExpedienteResponse {
   branch: string;
   product: string;
   claimCause: string;
+  /** The coverage the case is filed under — the one `policySnapshot.sumInsured` belongs to. */
+  coverage: string | null;
   insuredItem: string;
   insuredId: string;
   /** Nombre real del asegurado, resuelto por classification-service al clasificar. Null hasta entonces. */
@@ -126,4 +129,18 @@ export interface ExpedienteResponse {
    * Fast Track sin leer nada, o se clasificó antes de que esto existiera.
    */
   documentAnalyses: DocumentAnalysis[];
+  /**
+   * Las reglas duras evaluadas, PASS incluidos — un Fast Track también las trae, todas en PASS
+   * (el gate corre después de las reglas). Solo en GET /{id}.
+   *
+   * Vacío = no corrió ninguna. `null` = no se pudieron leer. No es lo mismo y en pantalla se dice
+   * distinto: lo primero es un dato del expediente, lo segundo de este request.
+   */
+  ruleResults: RuleResult[] | null;
+  /**
+   * La póliza tal como la contestó la BD Aseguradora al clasificar. Las pólizas actuales del
+   * asegurado NO vienen acá: se piden aparte al abrir su solapa, para no pegarle a la BD
+   * Aseguradora en cada apertura del expediente.
+   */
+  policySnapshot: PolicySnapshot | null;
 }
