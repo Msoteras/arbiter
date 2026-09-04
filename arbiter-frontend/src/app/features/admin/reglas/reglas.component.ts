@@ -30,6 +30,7 @@ import { EmptyStateComponent } from '../../../shared/ui/empty-state/empty-state.
 import { InputComponent } from '../../../shared/ui/input/input.component';
 import { ScoringConfigComponent } from '../scoring-config/scoring-config.component';
 import { FraudeConfigComponent } from '../fraude-config/fraude-config.component';
+import { HistorialReglasComponent } from '../historial-reglas/historial-reglas.component';
 import { SaveBarComponent } from '../../../shared/ui/save-bar/save-bar.component';
 import { StringListEditorComponent } from './string-list-editor.component';
 import { InlineLoadingComponent } from '../../../shared/ui/inline-loading/inline-loading.component';
@@ -45,7 +46,7 @@ import { accordion, fadeInUp, listStagger, staggerReveal } from '../../../shared
 type TabId = 'coberturas' | 'exclusiones' | 'fastTrack' | 'documentacion' | 'reglas';
 
 /** Las vistas del panel derecho que no dependen del ramo elegido. */
-type GeneralView = 'hardStop' | 'scoring' | 'fraude';
+type GeneralView = 'hardStop' | 'scoring' | 'fraude' | 'historial';
 
 /**
  * Configuración de reglas del referente, Ramo-céntrica. Master (lista de ramos) + detalle con
@@ -70,6 +71,7 @@ type GeneralView = 'hardStop' | 'scoring' | 'fraude';
     InputComponent,
     ScoringConfigComponent,
     FraudeConfigComponent,
+    HistorialReglasComponent,
     SaveBarComponent,
     StringListEditorComponent,
     InlineLoadingComponent,
@@ -370,6 +372,9 @@ export class ReglasComponent {
     // Antecedente y peritos eran dos entradas: apuntan a lo mismo (qué hace la compañía frente a
     // un fraude) y se usan en el mismo momento, así que ahora son una sección sola.
     { id: 'fraude', label: 'Gestión de fraude' },
+    // Última de la lista: es la única entrada que no configura nada. Se consulta después de haber
+    // cambiado algo, no antes, y cruza a todas las demás en vez de ser una más al mismo nivel.
+    { id: 'historial', label: 'Historial de cambios' },
   ];
 
   protected selectGeneral(section: GeneralView): void {
