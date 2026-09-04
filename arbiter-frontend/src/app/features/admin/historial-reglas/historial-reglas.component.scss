@@ -52,7 +52,9 @@
 .hr-when { font-size: var(--font-size-xs); color: var(--text-muted); }
 .hr-rule { font-weight: var(--font-weight-medium); color: var(--text-primary); }
 
-.hr-reason { margin: var(--space-2) 0 0; color: var(--text-secondary); }
+/* Atribución, no titular: va en el encabezado junto a la fecha y en tono secundario, para que el
+   ojo baje directo al "de X a Y" que es el contenido de la fila. */
+.hr-author { color: var(--text-muted); }
 
 /* ── Detalle campo por campo ──────────────────────────────────────────────────
    Es el contenido real del historial: sin el "de X a Y" el registro solo dice que alguien tocó

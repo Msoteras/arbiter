@@ -2,6 +2,7 @@ package ar.edu.utn.frba.arbiter.rules.services;
 
 import ar.edu.utn.frba.arbiter.common.enums.RuleType;
 import ar.edu.utn.frba.arbiter.common.models.entities.Branch;
+import ar.edu.utn.frba.arbiter.common.models.entities.ClaimCause;
 import ar.edu.utn.frba.arbiter.common.models.entities.tenant.Coverage;
 import ar.edu.utn.frba.arbiter.rules.dto.RuleChangeEntry;
 import ar.edu.utn.frba.arbiter.rules.dto.RuleChangeSource;
@@ -11,6 +12,7 @@ import ar.edu.utn.frba.arbiter.rules.models.entities.InsurerRule;
 import ar.edu.utn.frba.arbiter.rules.models.entities.InsurerRuleHistory;
 import ar.edu.utn.frba.arbiter.rules.models.entities.ScoringConfiguration;
 import ar.edu.utn.frba.arbiter.rules.models.entities.ScoringConfigurationHistory;
+import ar.edu.utn.frba.arbiter.rules.models.repositories.ClaimCauseRepository;
 import ar.edu.utn.frba.arbiter.rules.models.repositories.CoverageRepository;
 import ar.edu.utn.frba.arbiter.rules.models.repositories.InsurerRuleHistoryRepository;
 import ar.edu.utn.frba.arbiter.rules.models.repositories.ScoringConfigurationHistoryRepository;
@@ -23,6 +25,8 @@ import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 /**
@@ -41,9 +45,11 @@ class RuleChangeHistoryServiceTest {
             mock(ScoringConfigurationHistoryRepository.class);
     private final ScoringConfigurationService scoringConfigurationService = mock(ScoringConfigurationService.class);
     private final CoverageRepository coverageRepository = mock(CoverageRepository.class);
+    private final ClaimCauseRepository claimCauseRepository = mock(ClaimCauseRepository.class);
 
     private final RuleChangeHistoryService service = new RuleChangeHistoryService(
-            ruleHistoryRepository, scoringHistoryRepository, scoringConfigurationService, coverageRepository);
+            ruleHistoryRepository, scoringHistoryRepository, scoringConfigurationService,
+            coverageRepository, claimCauseRepository);
 
     /**
      * Two snapshots and a live rule are three versions and therefore two changes. The oldest
@@ -163,6 +169,52 @@ class RuleChangeHistoryServiceTest {
                 "configuration", "Daño estético", "Daño estético · Uso comercial"));
     }
 
+    /**
+     * A history of changes shows changes. A save that left the rule exactly as it was is a row in
+     * the table but not a change, and the panel's catalog-wide save produced one per untouched
+     * rule: editing a single deadline buried it under five entries saying nothing happened.
+     */
+    @Test
+    void leavesOutASaveThatChangedNothing() {
+        InsurerRule untouched = policeDeadlineRule("{\"deadlineHours\":72}", true);
+        InsurerRule edited = InsurerRule.builder()
+                .id(8L).name("Tope de eventos por año").ruleType(RuleType.MAX_EVENTS_YEAR.name())
+                .active(true).blocksFastTrack(true).coverageId(9L)
+                .configuration("{\"deadlineHours\":96}").validFrom(T1).build();
+        when(ruleHistoryRepository.findAllForHistory()).thenReturn(List.of(
+                // Identical before and after: the referente saved without touching this one.
+                history(1L, untouched, T1, T2, "{\"active\":true,\"blocksFastTrack\":true,"
+                        + "\"configuration\":{\"deadlineHours\":72}}"),
+                history(2L, edited, T1, T2, "{\"active\":true,\"blocksFastTrack\":true,"
+                        + "\"configuration\":{\"deadlineHours\":72}}")));
+        noScoringHistory();
+
+        List<RuleChangeEntry> entries = page().getContent();
+
+        assertThat(entries).hasSize(1);
+        assertThat(entries.get(0).changes())
+                .containsExactly(new RuleFieldChange("deadlineHours", "72", "96"));
+    }
+
+    /**
+     * A partial row's empty {@code changes} means "not recorded", not "nothing happened" — it may
+     * be hiding a real change. Filtering it out would drop something that did occur, the opposite
+     * of the noise being removed.
+     */
+    @Test
+    void keepsAPartialRowEvenWithNothingToShow() {
+        InsurerRule rule = policeDeadlineRule("{\"deadlineHours\":72}", true);
+        when(ruleHistoryRepository.findAllForHistory()).thenReturn(List.of(
+                history(1L, rule, T1, T2, "{\"deadlineHours\":72}")));
+        noScoringHistory();
+
+        assertThat(page().getContent()).singleElement()
+                .satisfies(entry -> {
+                    assertThat(entry.changes()).isEmpty();
+                    assertThat(entry.partial()).isTrue();
+                });
+    }
+
     /** The scope the referente needs to tell two rules of the same type apart. */
     @Test
     void resolvesBranchAndCoverageNames() {
@@ -231,15 +283,109 @@ class RuleChangeHistoryServiceTest {
                 .containsExactly(RuleChangeSource.INSURER_RULE, RuleChangeSource.SCORING);
     }
 
-    /** The filter offers only what the trail holds — anything else would return an empty page. */
+    /**
+     * The filter offers only what the trail holds, and gets it with its own query. It used to walk
+     * {@code findAllForHistory()} again: the screen loads both at once, so opening the history paid
+     * for fetching and pairing every version twice.
+     */
     @Test
-    void listsOnlyTheRuleTypesPresentInTheTrail() {
-        InsurerRule rule = policeDeadlineRule("{}", true);
-        when(ruleHistoryRepository.findAllForHistory()).thenReturn(List.of(
-                history(1L, rule, T1, T2, "{}")));
-        noScoringHistory();
+    void listsRuleTypesWithoutRereadingTheWholeTrail() {
+        when(ruleHistoryRepository.findDistinctRuleTypes())
+                .thenReturn(List.of(RuleType.POLICE_DEADLINE.name()));
+        when(scoringHistoryRepository.existsBy()).thenReturn(false);
 
         assertThat(service.ruleTypes()).containsExactly(RuleType.POLICE_DEADLINE.name());
+        verify(ruleHistoryRepository, never()).findAllForHistory();
+    }
+
+    /**
+     * An excluded claim cause is stored as an id and the referente picked it from a list of names.
+     * "3 → 4 · 1" is unreadable in a record whose only job is explaining what changed.
+     */
+    @Test
+    void resolvesClaimCauseIdsToTheirNames() {
+        InsurerRule rule = InsurerRule.builder()
+                .id(7L).name("Exclusiones de la cobertura").ruleType(RuleType.COVERAGE_EXCLUSION.name())
+                .active(true).blocksFastTrack(true)
+                .branch(Branch.builder().id(2L).name("Celulares").build())
+                .coverageId(9L).configuration("{\"excludedClaimCauseIds\":[4,1]}").validFrom(T1).build();
+        when(ruleHistoryRepository.findAllForHistory()).thenReturn(List.of(
+                history(1L, rule, T1, T2, "{\"active\":true,\"blocksFastTrack\":true,"
+                        + "\"configuration\":{\"excludedClaimCauseIds\":[3]}}")));
+        when(claimCauseRepository.findAll()).thenReturn(List.of(
+                claimCause(1L, "Hurto"), claimCause(3L, "Robo en vía pública"), claimCause(4L, "Caída")));
+        noScoringHistory();
+
+        assertThat(page().getContent().get(0).changes()).containsExactly(new RuleFieldChange(
+                "excludedClaimCauseIds", "Robo en vía pública", "Caída · Hurto"));
+    }
+
+    /** An id with no catalog entry stays as it was: the change happened over it either way. */
+    @Test
+    void leavesAClaimCauseIdThatNoLongerResolves() {
+        InsurerRule rule = InsurerRule.builder()
+                .id(7L).name("Exclusiones de la cobertura").ruleType(RuleType.COVERAGE_EXCLUSION.name())
+                .active(true).blocksFastTrack(true).coverageId(9L)
+                .configuration("{\"excludedClaimCauseIds\":[99]}").validFrom(T1).build();
+        when(ruleHistoryRepository.findAllForHistory()).thenReturn(List.of(
+                history(1L, rule, T1, T2, "{\"active\":true,\"blocksFastTrack\":true,"
+                        + "\"configuration\":{\"excludedClaimCauseIds\":[]}}")));
+        when(claimCauseRepository.findAll()).thenReturn(List.of());
+        noScoringHistory();
+
+        assertThat(page().getContent().get(0).changes().get(0).newValue()).isEqualTo("99");
+    }
+
+    /**
+     * The scoring row's own id is an internal number. It surfaced as "Identificador de la
+     * configuración: — → 1" on the oldest snapshot, which tells the referente nothing about what
+     * they changed.
+     */
+    @Test
+    void keepsTheScoringRowIdOutOfTheDiff() {
+        when(ruleHistoryRepository.findAllForHistory()).thenReturn(List.of());
+        ScoringConfiguration config = ScoringConfiguration.builder()
+                .id(1L).name("Scoring de la aseguradora").build();
+        when(scoringHistoryRepository.findAllByOrderByValidFromAscIdAsc()).thenReturn(List.of(
+                scoringHistory(config, T1, T2,
+                        "{\"enabled\":true,\"fullAnalysisOnFastTrack\":false,\"factors\":[],\"bands\":[]}")));
+        when(scoringConfigurationService.get())
+                .thenReturn(new ScoringConfigDto(1L, false, false, List.of(), List.of()));
+
+        assertThat(page().getContent().get(0).changes())
+                .extracting(RuleFieldChange::field)
+                .containsExactly("enabled");
+    }
+
+    /**
+     * A factor is identified by its code no matter which property the stored JSON happened to put
+     * first. A snapshot serialized weight-first got keyed {@code factors[0.45]} against a live one
+     * keyed by code, and every factor read as removed and re-added.
+     */
+    @Test
+    void keysFactorsByCodeEvenWhenTheStoredJsonOrdersPropertiesDifferently() {
+        when(ruleHistoryRepository.findAllForHistory()).thenReturn(List.of());
+        ScoringConfiguration config = ScoringConfiguration.builder()
+                .id(1L).name("Scoring de la aseguradora").build();
+        when(scoringHistoryRepository.findAllByOrderByValidFromAscIdAsc()).thenReturn(List.of(
+                scoringHistory(config, T1, T2,
+                        "{\"enabled\":true,\"fullAnalysisOnFastTrack\":false,"
+                                + "\"factors\":[{\"weight\":0.20,\"factorId\":\"IMAGE_REUSED\"}],\"bands\":[]}")));
+        when(scoringConfigurationService.get()).thenReturn(new ScoringConfigDto(
+                1L, true, false,
+                List.of(new ar.edu.utn.frba.arbiter.rules.dto.FactorWeightDto(
+                        "IMAGE_REUSED", new java.math.BigDecimal("0.40"))),
+                List.of()));
+
+        assertThat(page().getContent().get(0).changes())
+                .containsExactly(new RuleFieldChange("factors[IMAGE_REUSED].weight", "0.2", "0.4"));
+    }
+
+    private static ClaimCause claimCause(Long id, String name) {
+        ClaimCause cause = new ClaimCause();
+        cause.setId(id);
+        cause.setName(name);
+        return cause;
     }
 
     private Page<RuleChangeEntry> page() {

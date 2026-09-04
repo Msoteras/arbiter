@@ -132,6 +132,13 @@ public class InsurerHardRuleService {
             return;
         }
 
+        // Un guardado que no cambia nada no es un cambio: el panel manda las dos reglas siempre.
+        if (InsurerRuleSnapshot.unchanged(
+                rule.isActive(), rule.isBlocksFastTrack(), rule.getConfiguration(),
+                requested.enabled(), rule.isBlocksFastTrack(), json)) {
+            return;
+        }
+
         historyRepository.save(InsurerRuleHistory.builder()
                 .configVersion(InsurerRuleSnapshot.serialize(
                         rule.isActive(), rule.isBlocksFastTrack(), rule.getConfiguration()))

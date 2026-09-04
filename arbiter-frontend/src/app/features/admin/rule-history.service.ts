@@ -89,6 +89,13 @@ export const RULE_FIELD_LABELS: Record<string, string> = {
   onArrears: 'Ante mora',
   windowMonths: 'Ventana del antecedente (meses)',
   excludedClaimCauseIds: 'Hechos generadores excluidos',
+  includedClaimCauseIds: 'Hechos generadores cubiertos',
+  // Últimos tramos de las rutas de listas del scoring (`factors[image_reuse].weight`). El código del
+  // factor o el nombre de la banda viaja aparte, como calificador de la fila.
+  weight: 'Peso',
+  factorId: 'Factor',
+  band: 'Banda',
+  minScoreInclusive: 'Puntaje mínimo de la banda',
   maxClaimedAmountRatio: 'Tope del monto reclamado (sobre la suma asegurada)',
   maxPriorClaims: 'Máximo de siniestros previos',
   priorClaimsWindowMonths: 'Ventana de siniestros previos (meses)',

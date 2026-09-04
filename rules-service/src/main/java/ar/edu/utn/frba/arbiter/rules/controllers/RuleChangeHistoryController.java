@@ -17,7 +17,7 @@ import org.springframework.web.bind.annotation.RestController;
 
 import java.time.Instant;
 import java.time.LocalDate;
-import java.time.ZoneOffset;
+import java.time.ZoneId;
 import java.util.List;
 
 /**
@@ -69,16 +69,21 @@ public class RuleChangeHistoryController {
     }
 
     /**
-     * The filter is a date and the column is an instant. UTC and not the browser's zone: the whole
-     * platform stores {@code TIMESTAMPTZ} and every other date filter in the API reads the same way
-     * — a per-request zone would make two users disagree about which day a change belongs to.
+     * The filter is a date and the column is an instant, so a day has to become a range — and which
+     * range depends on whose day it is. It's the referente's: they work in Argentina, and under UTC
+     * every change made after 21:00 local falls into the following day, so filtering "hoy" hides
+     * the afternoon's work. Fixed to the operation's zone rather than taken from the request: two
+     * people filtering the same day have to get the same rows back, which is the whole point of a
+     * shared audit trail.
      */
+    private static final ZoneId OPERATING_ZONE = ZoneId.of("America/Argentina/Buenos_Aires");
+
     private static Instant startOfDay(LocalDate date) {
-        return date == null ? null : date.atStartOfDay(ZoneOffset.UTC).toInstant();
+        return date == null ? null : date.atStartOfDay(OPERATING_ZONE).toInstant();
     }
 
     /** {@code to} is inclusive for the referente, so the bound is the start of the following day. */
     private static Instant startOfNextDay(LocalDate date) {
-        return date == null ? null : date.plusDays(1).atStartOfDay(ZoneOffset.UTC).toInstant();
+        return date == null ? null : date.plusDays(1).atStartOfDay(OPERATING_ZONE).toInstant();
     }
 }

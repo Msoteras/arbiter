@@ -91,6 +91,14 @@ public class CoverageExclusionRuleService {
             return new CoverageExclusionResponse(rule.getId(), branchId, coverageId, config.excludedClaimCauseIds());
         }
 
+        // Un guardado que no cambia nada no es un cambio y no deja rastro en la auditoría.
+        if (InsurerRuleSnapshot.unchanged(
+                rule.isActive(), rule.isBlocksFastTrack(), rule.getConfiguration(),
+                true, rule.isBlocksFastTrack(), json)) {
+            return new CoverageExclusionResponse(
+                    rule.getId(), branchId, coverageId, config.excludedClaimCauseIds());
+        }
+
         // Snapshot of the version about to be overwritten, before touching it (append-only audit).
         historyRepository.save(InsurerRuleHistory.builder()
                 .configVersion(InsurerRuleSnapshot.serialize(

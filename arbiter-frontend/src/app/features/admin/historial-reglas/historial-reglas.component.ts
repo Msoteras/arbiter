@@ -12,6 +12,7 @@ import { InputComponent } from '../../../shared/ui/input/input.component';
 import { PaginationComponent } from '../../../shared/ui/pagination/pagination.component';
 import { SelectComponent, SelectOption } from '../../../shared/ui/select/select.component';
 import { BranchOption, BranchesService } from '../branches.service';
+import { ruleChangeAuthor } from '../rule-change-author';
 import {
   RULE_FIELD_LABELS,
   RULE_TYPE_LABELS,
@@ -24,6 +25,8 @@ import {
 interface HistoryRow {
   entry: RuleChangeEntry;
   title: string;
+  /** Quién hizo el cambio, sacado del motivo — hoy no viaja como campo propio (card H0034). */
+  author: string | null;
   scope: string | null;
   changedAt: string;
   heldSince: string;
@@ -168,15 +171,24 @@ export class HistorialReglasComponent {
     return {
       entry,
       title: RULE_TYPE_LABELS[entry.ruleType] ?? entry.ruleType,
+      // Del motivo solo se muestra el autor. Todos tienen la forma "<qué cambió> por <quién>" y el
+      // qué ya está en el título y el alcance; el quién no viaja de otra forma. De paso esto evita
+      // el problema de los motivos viejos en inglés: lo que se muestra no es prosa.
+      author: ruleChangeAuthor(entry.reason),
       scope: this.scopeOf(entry),
       changedAt: formatDateTime(entry.changedAt),
       heldSince: formatDateTime(entry.previousValidFrom),
-      fields: entry.changes.map((change) => ({
-        label: RULE_FIELD_LABELS[this.baseField(change.field)] ?? change.field,
-        qualifier: this.qualifierOf(change),
-        previous: this.renderValue(change.previousValue),
-        next: this.renderValue(change.newValue),
-      })),
+      fields: entry.changes.map((change) => {
+        const base = this.baseField(change.field);
+        return {
+          // Sin etiqueta cae al último tramo de la ruta, no a la ruta entera: `weight` se lee,
+          // `factors[image_reuse].weight` es ruido — y el código del factor ya va como calificador.
+          label: RULE_FIELD_LABELS[base] ?? base,
+          qualifier: this.qualifierOf(change),
+          previous: this.renderValue(change.previousValue),
+          next: this.renderValue(change.newValue),
+        };
+      }),
     };
   }
 

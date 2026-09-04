@@ -59,6 +59,35 @@ public record InsurerRuleSnapshot(
     }
 
     /**
+     * Same, from the raw JSONB. Two snapshots built this way compare correctly with
+     * {@code equals}: the configuration is parsed, so two objects with the same entries in a
+     * different key order come out equal — comparing the JSON text would call them different.
+     *
+     * <p>That comparison is what tells a real edit from a save that changed nothing. The
+     * referente's panel sends the <b>whole catalog</b> on every save, so without it, editing one
+     * deadline wrote an audit row for every other rule too.
+     */
+    public static InsurerRuleSnapshot of(boolean active, boolean blocksFastTrack, String configurationJson) {
+        return of(active, blocksFastTrack, readTree(configurationJson));
+    }
+
+    /**
+     * Whether saving the new values would leave the rule exactly as it already is — in which case
+     * there is nothing to audit and nothing to update.
+     *
+     * <p>It exists because the referente's panel sends the <b>whole catalog</b> on every save, not
+     * just what was edited. Without this, changing one deadline wrote a history row for every other
+     * rule in the catalog, and the one real change was buried under a screenful of saves that
+     * changed nothing.
+     */
+    public static boolean unchanged(
+            boolean currentActive, boolean currentBlocksFastTrack, String currentConfigurationJson,
+            boolean newActive, boolean newBlocksFastTrack, String newConfigurationJson) {
+        return of(currentActive, currentBlocksFastTrack, currentConfigurationJson)
+                .equals(of(newActive, newBlocksFastTrack, newConfigurationJson));
+    }
+
+    /**
      * Reads a stored snapshot back, in either shape.
      *
      * <p>A row is in the current shape when it's an object carrying a {@code configuration} key;

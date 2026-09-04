@@ -1,5 +1,6 @@
 package ar.edu.utn.frba.arbiter.rules.services;
 
+import ar.edu.utn.frba.arbiter.common.models.entities.ClaimCause;
 import ar.edu.utn.frba.arbiter.common.models.entities.tenant.Coverage;
 import ar.edu.utn.frba.arbiter.rules.dto.InsurerRuleSnapshot;
 import ar.edu.utn.frba.arbiter.rules.dto.RuleChangeEntry;
@@ -9,6 +10,7 @@ import ar.edu.utn.frba.arbiter.rules.dto.ScoringConfigDto;
 import ar.edu.utn.frba.arbiter.rules.models.entities.InsurerRule;
 import ar.edu.utn.frba.arbiter.rules.models.entities.InsurerRuleHistory;
 import ar.edu.utn.frba.arbiter.rules.models.entities.ScoringConfigurationHistory;
+import ar.edu.utn.frba.arbiter.rules.models.repositories.ClaimCauseRepository;
 import ar.edu.utn.frba.arbiter.rules.models.repositories.CoverageRepository;
 import ar.edu.utn.frba.arbiter.rules.models.repositories.InsurerRuleHistoryRepository;
 import ar.edu.utn.frba.arbiter.rules.models.repositories.ScoringConfigurationHistoryRepository;
@@ -25,6 +27,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Instant;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Comparator;
 import java.util.Iterator;
 import java.util.LinkedHashMap;
@@ -69,10 +72,31 @@ public class RuleChangeHistoryService {
     /** {@code ruleType} carried by the scoring entries — {@code RuleType} has no literal for it. */
     public static final String SCORING_RULE_TYPE = "SCORING";
 
+    /** How a list of values is rendered inside one field of the diff. */
+    private static final String LIST_SEPARATOR = " · ";
+
+    /**
+     * Keys dropped from the scoring diff. {@code id} is the {@code scoring_configuration} row's own
+     * id: it never changes, and when the oldest snapshot predates the field it surfaces as
+     * "Identificador de la configuración: — → 1" — an internal number that says nothing to the
+     * referente about what they changed.
+     */
+    private static final Set<String> SCORING_INTERNAL_FIELDS = Set.of("id");
+
+    /**
+     * Fields whose value is a list of {@code claim_cause} ids. They're resolved to names before the
+     * entry leaves: a history that exists so somebody can understand what changed can't answer
+     * "hechos generadores excluidos: 3 → 4 · 1" — the referente picked those from a list of names
+     * and has no way to know which cause is id 3.
+     */
+    private static final Set<String> CLAIM_CAUSE_ID_FIELDS = Set.of(
+            "excludedClaimCauseIds", "includedClaimCauseIds");
+
     private final InsurerRuleHistoryRepository insurerRuleHistoryRepository;
     private final ScoringConfigurationHistoryRepository scoringHistoryRepository;
     private final ScoringConfigurationService scoringConfigurationService;
     private final CoverageRepository coverageRepository;
+    private final ClaimCauseRepository claimCauseRepository;
 
     /**
      * The change feed, newest first, filtered and paged.
@@ -93,6 +117,7 @@ public class RuleChangeHistoryService {
         all.addAll(scoringChanges());
 
         List<RuleChangeEntry> matching = all.stream()
+                .filter(RuleChangeHistoryService::isAChange)
                 .filter(entry -> ruleType == null || ruleType.equals(entry.ruleType()))
                 .filter(entry -> branchId == null || branchId.equals(entry.branchId()))
                 .filter(entry -> from == null || !entry.changedAt().isBefore(from))
@@ -107,15 +132,29 @@ public class RuleChangeHistoryService {
     }
 
     /**
+     * Whether the entry is something that happened. A history of changes shows changes: a save that
+     * left the rule exactly as it was is a row in the table, but it isn't one.
+     *
+     * <p>The write side no longer records those, so this only covers what's already stored — rows
+     * written back when the panel's catalog-wide save left one audit entry per untouched rule. They
+     * can't be deleted (append-only, and shared), so they're filtered out on the way out.
+     *
+     * <p><b>A partial row is not one of these.</b> Its {@code changes} are empty because the state
+     * wasn't recorded, not because nothing moved: it may well be hiding a real change. Hiding it
+     * would drop something that happened, which is the opposite of the mistake being fixed here.
+     */
+    private static boolean isAChange(RuleChangeEntry entry) {
+        return !entry.changes().isEmpty() || entry.partial();
+    }
+
+    /**
      * The rule types the trail actually contains, so the view's filter offers what can be found
      * instead of the whole catalog — a type the insurer never edited would return an empty page.
      */
     @Transactional(readOnly = true)
     public List<String> ruleTypes() {
-        Set<String> types = insurerRuleHistoryRepository.findAllForHistory().stream()
-                .map(history -> history.getInsurerRule().getRuleType())
-                .collect(Collectors.toCollection(LinkedHashSet::new));
-        if (!scoringHistoryRepository.findAllByOrderByValidFromAscIdAsc().isEmpty()) {
+        Set<String> types = new LinkedHashSet<>(insurerRuleHistoryRepository.findDistinctRuleTypes());
+        if (scoringHistoryRepository.existsBy()) {
             types.add(SCORING_RULE_TYPE);
         }
         return types.stream().sorted().toList();
@@ -131,6 +170,9 @@ public class RuleChangeHistoryService {
 
         Map<Long, String> coverageNames = coverageRepository.findAll().stream()
                 .collect(Collectors.toMap(Coverage::getId, Coverage::getName, (first, second) -> first));
+        Map<String, String> claimCauseNames = claimCauseRepository.findAll().stream()
+                .collect(Collectors.toMap(cause -> String.valueOf(cause.getId()), ClaimCause::getName,
+                        (first, second) -> first));
 
         // The query already returns them grouped by rule and oldest first, which is the order the
         // pairing below walks; grouping here only makes each rule's chain explicit.
@@ -164,7 +206,7 @@ public class RuleChangeHistoryService {
                         row.getChangedAt(),
                         row.getValidFrom(),
                         row.getReason(),
-                        diffRuleVersions(before, after),
+                        resolveIds(diffRuleVersions(before, after), claimCauseNames),
                         last,
                         before.legacy()));
             }
@@ -200,7 +242,9 @@ public class RuleChangeHistoryService {
                     row.getChangedAt(),
                     row.getValidFrom(),
                     row.getReason(),
-                    diff(flatten(before), flatten(after)),
+                    diff(flatten(before), flatten(after)).stream()
+                            .filter(change -> !SCORING_INTERNAL_FIELDS.contains(change.field()))
+                            .toList(),
                     last,
                     // Scoring snapshots always carried the whole DTO, `enabled` included — this
                     // side never had the gap the insurer_rule ones did.
@@ -231,6 +275,30 @@ public class RuleChangeHistoryService {
             });
         }
         return diff(beforeFlat, afterFlat);
+    }
+
+    /**
+     * Swaps the catalog ids of the id-list fields for their names. An id that no longer resolves is
+     * left as it is: the change did happen over that cause, and dropping it would be worse than
+     * showing a number the referente can still look up.
+     */
+    private static List<RuleFieldChange> resolveIds(List<RuleFieldChange> changes, Map<String, String> names) {
+        return changes.stream()
+                .map(change -> CLAIM_CAUSE_ID_FIELDS.contains(change.field())
+                        ? new RuleFieldChange(change.field(),
+                                resolveList(change.previousValue(), names),
+                                resolveList(change.newValue(), names))
+                        : change)
+                .toList();
+    }
+
+    private static String resolveList(String value, Map<String, String> names) {
+        if (value == null || value.isEmpty()) {
+            return value;
+        }
+        return Arrays.stream(value.split(LIST_SEPARATOR, -1))
+                .map(id -> names.getOrDefault(id.trim(), id))
+                .collect(Collectors.joining(LIST_SEPARATOR));
     }
 
     private static List<RuleFieldChange> diff(Map<String, String> before, Map<String, String> after) {
@@ -308,7 +376,7 @@ public class RuleChangeHistoryService {
     private static String renderScalarArray(JsonNode array) {
         List<String> items = new ArrayList<>();
         array.forEach(element -> items.add(element.asText()));
-        return String.join(" · ", items);
+        return String.join(LIST_SEPARATOR, items);
     }
 
     /**
