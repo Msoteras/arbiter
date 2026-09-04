@@ -13,4 +13,7 @@ public interface ScoringConfigurationHistoryRepository extends JpaRepository<Sco
      * that came after it. No grouping needed here — a tenant has a single scoring configuration.
      */
     List<ScoringConfigurationHistory> findAllByOrderByValidFromAscIdAsc();
+
+    /** Whether the trail holds any scoring change at all — for the view's filter, without loading it. */
+    boolean existsBy();
 }

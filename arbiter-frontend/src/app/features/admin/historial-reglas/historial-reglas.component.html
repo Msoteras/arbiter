@@ -71,6 +71,11 @@
           <div class="hr-item-head">
             <span class="hr-when mono tabular">{{ row.changedAt }}</span>
             <span class="hr-rule">{{ row.title }}</span>
+            @if (row.author) {
+              <!-- Solo el autor, no el motivo entero: todos los motivos son "<qué cambió> por
+                   <quién>" y el qué ya lo dicen el título y el alcance de acá al lado. -->
+              <span class="hr-author t-note">por {{ row.author }}</span>
+            }
             @if (row.scope) {
               <app-badge variant="solid">{{ row.scope }}</app-badge>
             } @else {
@@ -85,10 +90,6 @@
               <app-badge variant="dashed">Registro parcial</app-badge>
             }
           </div>
-
-          @if (row.entry.reason) {
-            <p class="hr-reason t-body">{{ row.entry.reason }}</p>
-          }
 
           @if (row.fields.length > 0) {
             <ul class="hr-fields">
