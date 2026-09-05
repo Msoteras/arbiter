@@ -4,6 +4,7 @@ import ar.edu.utn.frba.arbiter.common.enums.RuleType;
 import ar.edu.utn.frba.arbiter.common.models.entities.Branch;
 import ar.edu.utn.frba.arbiter.rules.dto.FastTrackConfigDto;
 import ar.edu.utn.frba.arbiter.rules.dto.FastTrackRuleResponse;
+import ar.edu.utn.frba.arbiter.rules.dto.InsurerRuleSnapshot;
 import ar.edu.utn.frba.arbiter.rules.exceptions.BranchNotFoundException;
 import ar.edu.utn.frba.arbiter.rules.exceptions.InvalidRuleConfigurationException;
 import ar.edu.utn.frba.arbiter.rules.models.entities.InsurerRule;
@@ -85,12 +86,19 @@ public class FastTrackRuleService {
             return new FastTrackRuleResponse(rule.getId(), branchId, coverageId, config);
         }
 
+        if (InsurerRuleSnapshot.unchanged(
+                rule.isActive(), rule.isBlocksFastTrack(), rule.getConfiguration(),
+                rule.isActive(), rule.isBlocksFastTrack(), json)) {
+            return new FastTrackRuleResponse(rule.getId(), branchId, coverageId, config);
+        }
+
         // Snapshot the version we're about to overwrite before touching it (append-only audit).
         // changedBy (the referente's numeric id) is left null for now: the JWT carries the actor's
         // email, not the insurer_referent id — the actor is recorded in `reason` until a userId
         // claim (or an email->referent lookup) is wired.
         historyRepository.save(InsurerRuleHistory.builder()
-                .configVersion(rule.getConfiguration() == null ? "{}" : rule.getConfiguration())
+                .configVersion(InsurerRuleSnapshot.serialize(
+                        rule.isActive(), rule.isBlocksFastTrack(), rule.getConfiguration()))
                 .changedAt(now)
                 .validFrom(rule.getValidFrom())
                 .validTo(now)

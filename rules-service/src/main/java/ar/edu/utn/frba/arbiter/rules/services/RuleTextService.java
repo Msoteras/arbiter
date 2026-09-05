@@ -1,6 +1,7 @@
 package ar.edu.utn.frba.arbiter.rules.services;
 
 import ar.edu.utn.frba.arbiter.common.models.entities.Branch;
+import ar.edu.utn.frba.arbiter.rules.dto.InsurerRuleSnapshot;
 import ar.edu.utn.frba.arbiter.rules.dto.RuleTextResponse;
 import ar.edu.utn.frba.arbiter.rules.exceptions.BranchNotFoundException;
 import ar.edu.utn.frba.arbiter.rules.exceptions.InvalidRuleConfigurationException;
@@ -71,8 +72,16 @@ public class RuleTextService {
             return new RuleTextResponse(rule.getId(), branchId, ruleType, items);
         }
 
+        // Un guardado que no cambia nada no es un cambio y no deja rastro en la auditoría.
+        if (InsurerRuleSnapshot.unchanged(
+                rule.isActive(), rule.isBlocksFastTrack(), rule.getConfiguration(),
+                rule.isActive(), rule.isBlocksFastTrack(), json)) {
+            return new RuleTextResponse(rule.getId(), branchId, ruleType, items);
+        }
+
         historyRepository.save(InsurerRuleHistory.builder()
-                .configVersion(rule.getConfiguration() == null ? "[]" : rule.getConfiguration())
+                .configVersion(InsurerRuleSnapshot.serialize(
+                        rule.isActive(), rule.isBlocksFastTrack(), rule.getConfiguration()))
                 .changedAt(now)
                 .validFrom(rule.getValidFrom())
                 .validTo(now)
