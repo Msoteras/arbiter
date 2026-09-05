@@ -32,6 +32,7 @@ import { ChipGroupComponent, ChipOption } from '../../../shared/ui/chip-group/ch
 import { addDays, isPoliceReportBeforeEvent, isTypedDate, todayIso } from '../../../core/util/datetime';
 import { CASE_DOCUMENT_TYPES, CaseDocumentType, documentTypeLabel } from '../../../core/models/case-document';
 import { InsuredSessionService } from '../../../core/auth/insured-session.service';
+import { ArgentinaLocationsService } from '../../../core/services/argentina-locations.service';
 import { ButtonComponent } from '../../../shared/ui/button/button.component';
 import { CardComponent } from '../../../shared/ui/card/card.component';
 import { InputComponent } from '../../../shared/ui/input/input.component';
@@ -175,6 +176,7 @@ export class NuevaDenunciaComponent {
   private readonly policyService = inject(PolicyService);
   private readonly agenda = inject(DocumentAgendaService);
   private readonly session = inject(InsuredSessionService);
+  private readonly locations = inject(ArgentinaLocationsService);
 
   /**
    * `true` cuando el wizard se muestra dentro de un modal (pop-up sobre el portal) en vez de como
@@ -344,8 +346,41 @@ export class NuevaDenunciaComponent {
   // Step 2
   protected readonly description = signal('');
   protected readonly insuredItem = signal('');
+  // Provincia/localidad NO son texto libre: se eligen del catálogo geográfico de Argentina
+  // (`ArgentinaLocationsService`). Se persisten en `cases.province`/`cases.locality`, que existen
+  // para agrupar y filtrar — con entrada libre convivían "CABA", "Capital Federal" y "capital" como
+  // tres valores distintos, y cualquier reporte por provincia salía mal.
   protected readonly provincia = signal('');
   protected readonly localidad = signal('');
+
+  private readonly provinceNames = toSignal(this.locations.provinces(), {
+    initialValue: [] as string[],
+  });
+
+  protected readonly provinciaOptions = computed<SelectOption[]>(() =>
+    this.provinceNames().map((name) => ({ value: name, label: name })),
+  );
+
+  private readonly localityNames = toSignal(
+    toObservable(this.provincia).pipe(switchMap((province) => this.locations.localities(province))),
+    { initialValue: [] as string[] },
+  );
+
+  protected readonly localidadOptions = computed<SelectOption[]>(() =>
+    this.localityNames().map((name) => ({ value: name, label: name })),
+  );
+
+  /** Sin provincia no hay lista de localidades que ofrecer, así que el segundo select no abre. */
+  protected readonly localidadDisabled = computed(() => this.provincia() === '');
+
+  /**
+   * Cambiar de provincia invalida la localidad elegida: sin esto quedaba "Rosario" con provincia
+   * "Córdoba", que es justo el par imposible que el desplegable en cascada viene a evitar.
+   */
+  private readonly resetLocalityEffect = effect(() => {
+    this.provincia();
+    untracked(() => this.localidad.set(''));
+  });
   protected readonly calleNumero = signal('');
   protected readonly entreCalles = signal('');
   protected readonly eventDate = signal('');

@@ -228,7 +228,8 @@ app-textarea {
   grid-template-columns: 1fr 1fr;
   gap: var(--space-3);
 }
-.location-grid app-input {
+.location-grid app-input,
+.location-grid app-select {
   margin: 0;
 }
 

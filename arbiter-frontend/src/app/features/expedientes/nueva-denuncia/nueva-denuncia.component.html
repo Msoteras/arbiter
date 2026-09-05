@@ -289,9 +289,26 @@
           @if (!policyBlocked()) {
             <label class="field-label">¿Dónde pasó? *</label>
             <div class="location-fields">
+              <!-- Catálogo cerrado y en cascada, no texto libre: provincia y localidad se guardan
+                   en columnas propias para poder agrupar, y con entrada libre entraban tres formas
+                   distintas de escribir la misma provincia. La localidad espera a la provincia
+                   porque la lista depende de ella. -->
               <div class="location-grid">
-                <app-input placeholder="Provincia" [(value)]="provincia" />
-                <app-input placeholder="Localidad" [(value)]="localidad" />
+                <app-select
+                  [(value)]="provincia"
+                  [options]="provinciaOptions()"
+                  placeholder="Provincia"
+                  [searchable]="true"
+                  searchPlaceholder="Buscar provincia"
+                />
+                <app-select
+                  [(value)]="localidad"
+                  [options]="localidadOptions()"
+                  [placeholder]="localidadDisabled() ? 'Elegí primero la provincia' : 'Localidad'"
+                  [disabled]="localidadDisabled()"
+                  [searchable]="true"
+                  searchPlaceholder="Buscar localidad"
+                />
               </div>
               <app-input placeholder="Calle y número" [(value)]="calleNumero" />
               <app-input placeholder="Entre calles (opcional)" [(value)]="entreCalles" />
