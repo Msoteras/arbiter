@@ -55,6 +55,14 @@ Las cinco son idempotentes. La segunda es la única que dropea columnas
   puede colgar de una que lo excluya —salvo los casos 8 y 17 de BBVA, que son el escenario de demo
   "hurto no cubierto"— ni apuntar a una cobertura que su póliza no tenga contratada.
 
+**Las sumas aseguradas no necesitan migración.** En la base desplegada las copias locales de tres
+coberturas de hurto de BBVA están desalineadas con la BD Aseguradora (y faltan otras dos): eso lo
+corrige solo `PolicyResyncScheduler` en su primera corrida, a las 3 AM. Lo que **no** va a corregir
+son las tres coberturas de hurto que Provincia tiene del lado de Arbiter y la compañía no: el resync
+nunca borra —hay expedientes que podrían colgar de ellas— así que van a aparecer en el warning
+*"local coverage(s) the company no longer returns"* todas las noches hasta que alguien decida si las
+suma la compañía o se van de Arbiter. En el seed nuevo ya están de los dos lados.
+
 La quinta migración deja **sin tocar** el monto reclamado del caso 11 de BBVA (470.000 sobre una
 suma asegurada de 500.000, marcado como Fast Track). Después de migrar, esa contradicción se ve en
 pantalla: "Cumple" con un 94% contra un tope de 50%. En el seed nuevo el caso quedó en 240.000; si

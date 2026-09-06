@@ -117,3 +117,11 @@ aseguradas y franquicias de las coberturas nuevas son un dato de negocio que no 
 
 **Bloquea:** nada hoy. Bloquearía a cualquiera que quiera demostrar un robo o un hurto de notebook
 en Provincia, que es un caso perfectamente razonable de mostrar en la defensa.
+
+**Se va a ver todas las noches hasta que se decida.** La BD Aseguradora de Provincia sí tiene una
+cobertura de robo en dos pólizas de Tecnología (bajo el nombre "Robo de celular", que es el único
+literal de robo que admite el CHECK de `cobertura.nombre`). Como el ramo no la tiene configurada del
+lado de Arbiter, `PolicyResyncScheduler` la va a saltear y dejar el warning *"coverage(s) not
+configured on this tenant for its branch, skipped: [Robo de celular]"* en cada corrida. Es
+deliberado: sin el chequeo de ramo, el sync le colgaría a una notebook la cobertura de Celulares,
+con sus plazos y su carencia.

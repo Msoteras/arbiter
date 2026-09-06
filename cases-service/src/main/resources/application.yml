@@ -71,6 +71,13 @@ arbiter:
     # analista los críticos/vencidos. Diario porque el plazo es a nivel día. En dev, bajarlo a
     # cada minuto (0 * * * * *) para probar el flujo sin esperar al horario.
     cron: ${DEADLINE_SWEEP_CRON:0 0 8 * * *}
+  policy-resync:
+    # Relee a diario todas las pólizas copiadas y las realinea con la BD Aseguradora (decisión #10,
+    # la mitad "cron"). A las 3 AM por horario de baja carga: recorre póliza por póliza. La copia
+    # local se escribía una sola vez, al importarla, así que un cambio de suma asegurada del lado de
+    # la compañía no llegaba nunca — y esa suma es el denominador del ratio de Fast Track y del
+    # factor amount_ratio del score.
+    cron: ${POLICY_RESYNC_CRON:0 0 3 * * *}
   messaging:
     # Días que la conversación del expediente sigue abierta después de resuelto. No es una regla
     # de la aseguradora (no se evalúa contra nada, no la configura el referente): es hasta cuándo

@@ -148,6 +148,10 @@ INSERT INTO aseguradora_provincia.cobertura (poliza_id, orden, nombre, suma_aseg
     (1, 1, 'Robo de celular', 170000.00, 10.00),
     (1, 2, 'Daño accidental',  90000.00, 10.00),
     (2, 1, 'Robo de celular', 900000.00, 10.00),
+    -- El hurto de la póliza 2 existía del lado de Arbiter y no del de la compañía. Acá el
+    -- incompleto era la compañía: el criterio del propio seed es que una póliza de celulares
+    -- cubre robo Y hurto (ver el comentario de arbiter_bbva.policy_coverage).
+    (2, 2, 'Hurto',           300000.00, 10.00),
     (3, 1, 'Robo de celular', 700000.00, 10.00);
 
 INSERT INTO aseguradora_provincia.siniestro_historico (poliza_id, cobertura_id, asegurado_id,
@@ -621,10 +625,12 @@ SELECT setval(pg_get_serial_sequence('aseguradora_provincia.poliza','id'),
 
 INSERT INTO aseguradora_provincia.cobertura (poliza_id, orden, nombre, suma_asegurada, franquicia_pct) VALUES
     (4, 1, 'Robo de celular', 800000.00, 10.00),
+    (4, 2, 'Hurto',           400000.00, 10.00),
     (5, 1, 'Robo de celular', 450000.00, 10.00),
     (5, 2, 'Hurto',           225000.00, 15.00),
     (6, 1, 'Daño accidental', 120000.00, 10.00),
-    (7, 1, 'Robo de celular', 1600000.00, 10.00);
+    (7, 1, 'Robo de celular', 1600000.00, 10.00),
+    (7, 2, 'Hurto',            800000.00, 10.00);
 
 -- ─── Snapshots locales de las pólizas nuevas (arbiter tenant) ────────────────
 INSERT INTO arbiter_bbva.policy (id, external_policy_number, product, in_force, insured_id) VALUES
@@ -634,12 +640,19 @@ INSERT INTO arbiter_bbva.policy (id, external_policy_number, product, in_force, 
     (9, 'POL-CEL-2025-201', 'Celular Protegido Premium', TRUE, 2),
     (10, 'POL-CEL-2026-260', 'Celular Protegido Básico', TRUE, 1);
 
+-- Espejo EXACTO de aseguradora_bbva.cobertura. Las tres sumas de hurto de este bloque estaban
+-- tipeadas con otro criterio que el de la compañía —la mitad de la suma de robo y franquicia 10%,
+-- contra el 40% y 15% del lado de la compañía— y las de las pólizas 7 y 9 faltaban directamente.
+-- Nada del código escribió nunca esos números: policy_coverage solo se escribe al importar una
+-- póliza que Arbiter no tenía, así que la diferencia era del fixture y se quedaba ahí para siempre.
+-- Gana la compañía: la BD Aseguradora es la fuente de verdad del contrato, y desde ahora
+-- PolicyResyncScheduler relee esto todas las noches.
 INSERT INTO arbiter_bbva.policy_coverage (policy_id, coverage_id, display_order, sum_insured, deductible_pct) VALUES
-    (6, 1, 1,  900000.00, 10.00), (6, 2, 2, 450000.00, 10.00), (6, 3, 3,  900000.00, 20.00),
-    (7, 1, 1,  300000.00, 10.00),
-    (8, 1, 1, 1400000.00, 10.00), (8, 2, 2, 700000.00, 10.00), (8, 3, 3, 1400000.00, 20.00),
-    (9, 1, 1, 1100000.00, 10.00),                              (9, 3, 3, 1100000.00, 20.00),
-    (10, 1, 1, 500000.00, 10.00), (10, 2, 2, 250000.00, 10.00);
+    (6, 1, 1,  900000.00, 10.00), (6, 2, 2, 360000.00, 15.00), (6, 3, 3,  900000.00, 20.00),
+    (7, 1, 1,  300000.00, 10.00), (7, 2, 2, 120000.00, 15.00),
+    (8, 1, 1, 1400000.00, 10.00), (8, 2, 2, 560000.00, 15.00), (8, 3, 3, 1400000.00, 20.00),
+    (9, 1, 1, 1100000.00, 10.00), (9, 2, 2, 440000.00, 15.00), (9, 3, 3, 1100000.00, 20.00),
+    (10, 1, 1, 500000.00, 10.00), (10, 2, 2, 200000.00, 15.00);
 SELECT setval(pg_get_serial_sequence('arbiter_bbva.policy','id'),
               (SELECT MAX(id) FROM arbiter_bbva.policy));
 
