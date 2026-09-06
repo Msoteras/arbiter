@@ -29,13 +29,17 @@ psql "$DATABASE_URL" -f db/migrations/2026-09-01-coverage-exclusion-viva.sql
 ```bash
 psql "$DATABASE_URL" -f db/migrations/2026-09-01-historico-cobertura.sql
 ```
+```bash
+psql "$DATABASE_URL" -f db/migrations/2026-09-05-criterios-fast-track.sql
+```
 
-Las cuatro son idempotentes. La segunda es la única que dropea columnas
+Las cinco son idempotentes. La segunda es la única que dropea columnas
 (`policy.coverage_id`, `policy.sum_insured`), y lo hace después de backfillear.
 
 **Verificación posterior** (las consultas completas están comentadas al pie de cada archivo):
 
-- Cada póliza de celulares tiene que traer **2** filas en `policy_coverage`, no 1.
+- Cada póliza de celulares tiene que traer **2** filas en `policy_coverage`, no 1 — y **3** las
+  Premium de BBVA, que desde la quinta migración también cubren daño accidental.
 - Ninguna póliza puede quedar **sin** filas en `policy_coverage`: si queda alguna, el alta de
   denuncia contra ella falla con 422.
 - `arbiter_common.case_status` tiene que tener la fila 8, `LAPSED`.
@@ -43,6 +47,20 @@ Las cuatro son idempotentes. La segunda es la única que dropea columnas
   `COVERAGE_INCLUSION` activa.
 - Los siniestros del histórico tienen que quedar imputados a una cobertura. Los que queden en NULL
   son los que la regla de agotamiento va a saltear: revisar que sean los esperados y no todos.
+- Cada cobertura tiene que tener su fila `FAST_TRACK` **con `configuration`**, y no puede quedar
+  ninguna `FAST_TRACK` activa sin `coverage_id`: esas son las viejas, que el servicio no encontraba.
+- `rule_result` no puede tener más filas con `rule_type` `'FAST_TRACK'` ni `'COVERAGE_INCLUSION'`:
+  se reexpresaron como los cinco criterios `FT_*` y como `COVERAGE_EXCLUSION`.
+- Todo hecho generador del ramo tiene que ser cubierto por alguna cobertura, y ningún expediente
+  puede colgar de una que lo excluya —salvo los casos 8 y 17 de BBVA, que son el escenario de demo
+  "hurto no cubierto"— ni apuntar a una cobertura que su póliza no tenga contratada.
+
+La quinta migración deja **sin tocar** el monto reclamado del caso 11 de BBVA (470.000 sobre una
+suma asegurada de 500.000, marcado como Fast Track). Después de migrar, esa contradicción se ve en
+pantalla: "Cumple" con un 94% contra un tope de 50%. En el seed nuevo el caso quedó en 240.000; si
+se quiere dejar la base desplegada igual que el fixture, al pie del archivo está el UPDATE para
+correr a mano. No va en la migración a propósito: un script de datos no reescribe lo que alguien
+denunció.
 
 ### Smoke test manual que queda
 
