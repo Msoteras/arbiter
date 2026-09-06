@@ -29,6 +29,7 @@ import { Policy } from '../../../core/models/policy';
 import {
   PolicySnapshot,
   RuleResult,
+  isFastTrackCriterion,
   ruleEvaluationText,
   ruleResultLabel,
   ruleResultTone,
@@ -399,7 +400,29 @@ export class ExpedienteDetailComponent {
   });
 
   // ----- trazabilidad -----
-  protected readonly ruleResults = computed<RuleResult[]>(() => this.data()?.ruleResults ?? []);
+  private readonly ruleResults = computed<RuleResult[]>(() => this.data()?.ruleResults ?? []);
+
+  /**
+   * Las reglas duras: las que dicen si el siniestro está cubierto. Van separadas de los criterios
+   * del carril rápido porque un "No cumple" significa cosas distintas en cada tabla, y mezclados
+   * el analista lee una exclusión de cobertura donde solo hubo un umbral de agilidad.
+   */
+  protected readonly hardRuleResults = computed<RuleResult[]>(() =>
+    this.ruleResults().filter((r) => !isFastTrackCriterion(r.ruleType)),
+  );
+
+  /**
+   * Los criterios que evaluó el gate de Fast Track, con el valor que comparó (H0038). Están tanto
+   * en un expediente que agarró el carril rápido —y son la respuesta a "por qué"— como en uno que
+   * no, donde muestran qué criterio lo dejó afuera.
+   */
+  protected readonly fastTrackCriteria = computed<RuleResult[]>(() =>
+    this.ruleResults().filter((r) => isFastTrackCriterion(r.ruleType)),
+  );
+
+  protected readonly esFastTrack = computed(
+    () => this.data()?.analysisClassification === 'FAST_TRACK',
+  );
 
   /**
    * No se pudieron leer. Distinto de "no corrió ninguna": aquello es un dato del expediente, esto
@@ -408,10 +431,10 @@ export class ExpedienteDetailComponent {
   protected readonly ruleResultsUnavailable = computed(() => this.data()?.ruleResults === null);
 
   /**
-   * Por qué no hay reglas que mostrar. Ninguna de las causas es Fast Track: el gate corre DESPUÉS
-   * de las reglas duras, así que un Fast Track llena la tabla con todas en PASS. Queda vacío
-   * cuando la aseguradora no tiene ninguna activa, o cuando la denuncia frenó en el chequeo de
-   * documentación obligatoria, que vuelve antes de los evaluadores temporal y de fraude.
+   * Por qué no hay reglas duras que mostrar. Ninguna de las causas es Fast Track: el gate corre
+   * DESPUÉS de las reglas duras, así que un Fast Track llena la tabla con todas en PASS. Queda
+   * vacío cuando la aseguradora no tiene ninguna activa, o cuando la denuncia frenó en el chequeo
+   * de documentación obligatoria, que vuelve antes de los evaluadores temporal y de fraude.
    */
   protected readonly sinReglasMotivo = computed(() => {
     if (this.ruleResultsUnavailable()) {

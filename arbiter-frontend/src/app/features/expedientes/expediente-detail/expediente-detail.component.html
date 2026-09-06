@@ -44,10 +44,20 @@
                      card ya lo dice cuando el resultado es determinístico. -->
                 <p class="note">Falta documentación obligatoria de la agenda del ramo.</p>
               } @else {
+                <!-- Fast Track no es "aprobar rápido": es que nadie opinó antes que el analista.
+                     Decirlo con todas las letras es la mitad de H0038; la otra mitad son los
+                     criterios, abajo. -->
                 <p class="note">
-                  Lo determinó el motor de reglas, no el modelo. Agiliza el trámite pero no lo
-                  resuelve: la decisión se registra abajo (Aprobar / Rechazar).
+                  <strong>Sin recomendación:</strong> el modelo no intervino. El expediente cumplió
+                  los criterios del carril rápido, que agilizan el trámite pero no adelantan un
+                  resultado — se puede aprobar o rechazar como cualquier otro, y la decisión se
+                  registra abajo.
                 </p>
+                @if (fastTrackCriteria().length > 0) {
+                  <p class="note">
+                    Qué se verificó, en «Análisis» → Criterios del carril rápido.
+                  </p>
+                }
               }
             </div>
           </div>
@@ -473,14 +483,14 @@
           </app-card>
 
           <app-card heading="Reglas evaluadas">
-            @if (ruleResults().length > 0) {
+            @if (hardRuleResults().length > 0) {
               <div class="traza-scroll">
                 <table class="traza-table">
                   <thead>
                     <tr><th>Regla</th><th>Resultado</th><th>Qué se evaluó</th></tr>
                   </thead>
                   <tbody>
-                    @for (r of ruleResults(); track r.id) {
+                    @for (r of hardRuleResults(); track r.id) {
                       <tr>
                         <td>{{ ruleTypeLabel(r.ruleType) }}</td>
                         <td>
@@ -494,13 +504,55 @@
                   </tbody>
                 </table>
               </div>
-              <span class="t-note">Evaluadas el {{ formatDateTime(ruleResults()[0].evaluatedAt) }}.</span>
+              <span class="t-note">Evaluadas el {{ formatDateTime(hardRuleResults()[0].evaluatedAt) }}.</span>
             } @else {
               <p class="nodata traza-sin-reglas" [class.error]="ruleResultsUnavailable()">
                 {{ sinReglasMotivo() }}
               </p>
             }
           </app-card>
+
+          <!-- Card aparte y no filas más en la tabla de arriba: un "No cumple" acá no dice que el
+               siniestro no esté cubierto, dice que no fue por el carril rápido. Mezclarlos hacía
+               leer una exclusión donde solo hubo un umbral de agilidad. -->
+          @if (fastTrackCriteria().length > 0) {
+            <app-card heading="Criterios del carril rápido (Fast Track)">
+              <p class="t-note traza-intro">
+                @if (esFastTrack()) {
+                  Los cumplió todos, así que se resolvió sin pasar por el modelo. No es una
+                  recomendación de aprobar: la decisión sigue siendo del analista.
+                } @else {
+                  No los cumplió todos, así que el expediente fue al modelo en vez del carril
+                  rápido. Un criterio no cumplido no dice que el siniestro no esté cubierto — eso
+                  lo dicen las reglas de arriba.
+                }
+              </p>
+              <div class="traza-scroll">
+                <table class="traza-table">
+                  <thead>
+                    <tr><th>Criterio</th><th>Resultado</th><th>Qué se comparó</th></tr>
+                  </thead>
+                  <tbody>
+                    @for (c of fastTrackCriteria(); track c.id) {
+                      <tr>
+                        <td>{{ ruleTypeLabel(c.ruleType) }}</td>
+                        <td>
+                          <app-badge variant="solid" [tone]="ruleResultTone(c.result)">
+                            {{ ruleResultLabel(c.result) }}
+                          </app-badge>
+                        </td>
+                        <td class="traza-valor">{{ ruleEvaluationText(c.ruleType, c.evaluatedValue) }}</td>
+                      </tr>
+                    }
+                  </tbody>
+                </table>
+              </div>
+              <span class="t-note">
+                Umbrales de la aseguradora al momento de clasificar, el
+                {{ formatDateTime(fastTrackCriteria()[0].evaluatedAt) }}.
+              </span>
+            </app-card>
+          }
 
           <!-- Below the rules: the engine runs first, and the model reads on top of it. -->
           @if (analysisReasons().length > 0) {

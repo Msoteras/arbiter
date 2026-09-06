@@ -3,24 +3,30 @@ package ar.edu.utn.frba.arbiter.common.enums;
 import java.util.List;
 
 /**
- * The rule types an {@code insurer_rule} row can carry. Lives in common-lib because it's shared
- * vocabulary: rules-service persists the literal on {@code insurer_rule.rule_type} and
+ * The rule vocabulary shared by {@code insurer_rule.rule_type} and {@code rule_result.rule_type}.
+ * Lives in common-lib because it's shared: rules-service persists the literal on the rule row and
  * classification-service reads it to decide which evaluator applies. It used to be duplicated as
  * a private constant in four services, which is exactly how two modules drift out of sync.
  *
- * <p><b>Literals can't exceed 20 characters</b>: {@code insurer_rule.rule_type} and
- * {@code rule_result.rule_type} are {@code VARCHAR(20)} in {@code db/init-multitenant.sql}. That's
- * why {@link #POLICE_DEADLINE} and not {@code POLICE_REPORT_DEADLINE}.
+ * <p><b>Literals can't exceed 20 characters</b>: {@code insurer_rule.rule_type} is
+ * {@code VARCHAR(20)} in {@code db/init-multitenant.sql} ({@code rule_result.rule_type} is 40).
+ * That's why {@link #POLICE_DEADLINE} and not {@code POLICE_REPORT_DEADLINE}.
  *
- * <p>Two families live here:
+ * <p><b>Being a row of {@code insurer_rule} and being auditable are two different things</b>, and
+ * this enum spans both axes. Three families:
  * <ul>
  *   <li><b>Configuration</b> ({@link #FAST_TRACK}, {@link #EXCLUSIONS}, {@link #BUSINESS_RULES}) —
- *       the row holds parameters or free text, doesn't get "evaluated" against a claim, and
- *       leaves no {@code rule_result}.</li>
- *   <li><b>Hard evaluable rules</b> (the rest) — the engine evaluates them by code against the
- *       claim, and each evaluation leaves a {@code rule_result} row pointing at the
- *       {@code insurer_rule} (Disposición SSN 2/2023). With no active row, the rule <b>isn't
- *       evaluated</b>.</li>
+ *       the row holds parameters or free text and isn't "evaluated" against a claim, so it leaves
+ *       no {@code rule_result} under its own type. What the Fast Track thresholds <i>do</i> leave
+ *       is one row per criterion, under the {@code FT_*} types below.</li>
+ *   <li><b>Hard evaluable rules</b> ({@link #COVERAGE_EXCLUSION} through
+ *       {@link #CLAIM_EXHAUSTS_COVERAGE}) — the engine evaluates them by code against the claim and
+ *       each evaluation leaves a {@code rule_result} row (Disposición SSN 2/2023). Most point at an
+ *       {@code insurer_rule}; the two coverage-scope ones are {@code coverage} columns and carry no
+ *       rule id. Failing one means the event isn't covered.</li>
+ *   <li><b>Fast Track criteria</b> (the {@code FT_*} types) — evaluated and audited the same way,
+ *       but they aren't hard rules: failing one only means the claim doesn't take the fast lane and
+ *       goes to the LLM. Never {@code insurer_rule} rows.</li>
  * </ul>
  */
 public enum RuleType {
@@ -105,7 +111,38 @@ public enum RuleType {
      * por siniestros previos"). Counted per policy, not per insured. See
      * {@link #COVERS_FAMILY_GROUP} on why it carries no rule id.
      */
-    CLAIM_EXHAUSTS_COVERAGE(true);
+    CLAIM_EXHAUSTS_COVERAGE(true),
+
+    /**
+     * Fast Track gate · the claimed amount as a fraction of the coverage's sum insured, against the
+     * referente's ceiling.
+     *
+     * <p>This one and the four below are the criteria {@code FastTrackValidator} compares, one
+     * {@code rule_result} row each. They exist so the analyst can see <b>why</b> a claim took the
+     * fast lane — or why it didn't — instead of a bare "Fast Track" label with nothing behind it:
+     * the gate was already computing all of this and throwing it away.
+     *
+     * <p><b>They are not hard rules and must not be shown as such.</b> A failed criterion doesn't
+     * say the event isn't covered; it says this claim goes to the LLM instead of the fast lane.
+     *
+     * <p>They carry no {@code rule_id}. The thresholds do live in a {@link #FAST_TRACK}
+     * {@code insurer_rule} row, but its id doesn't travel: {@code /internal/fast-track} returns the
+     * same config DTO the referente writes, which has no id. The threshold itself goes in
+     * {@code evaluated_value}, so each row is auditable on its own.
+     */
+    FT_AMOUNT_RATIO(true),
+
+    /** Fast Track gate · the insured's prior claims in the configured window, against the cap. */
+    FT_PRIOR_CLAIMS(true),
+
+    /** Fast Track gate · the policy's age at the time of the event, against the minimum. */
+    FT_POLICY_AGE(true),
+
+    /** Fast Track gate · whether the policy is up to date with its payments, when required. */
+    FT_POLICY_UP_TO_DATE(true),
+
+    /** Fast Track gate · whether the documents the gate requires are attached and readable. */
+    FT_REQUIRED_DOCS(true);
 
     private final boolean evaluable;
 

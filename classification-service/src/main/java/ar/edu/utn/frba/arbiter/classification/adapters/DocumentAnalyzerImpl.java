@@ -80,7 +80,7 @@ public class DocumentAnalyzerImpl implements DocumentAnalyzer {
     public DocumentAnalyzerImpl(
             LlmClient client,
             ObjectMapper objectMapper,
-            @Value("classpath:prompts/extraccion-documento-v3.md") Resource documentExtractionPromptResource
+            @Value("classpath:prompts/extraccion-documento-v4.md") Resource documentExtractionPromptResource
     ) throws IOException {
         this.client = client;
         this.objectMapper = objectMapper;

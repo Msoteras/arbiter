@@ -2,6 +2,7 @@ package ar.edu.utn.frba.arbiter.classification.adapters;
 
 import ar.edu.utn.frba.arbiter.classification.dto.ClassificationRequest;
 import ar.edu.utn.frba.arbiter.classification.dto.ClassificationResponse;
+import ar.edu.utn.frba.arbiter.classification.exceptions.InvalidClassificationException;
 import ar.edu.utn.frba.arbiter.classification.services.PromptBuilder;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.BeforeEach;
@@ -11,6 +12,7 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.ArgumentMatchers.anyList;
@@ -64,6 +66,33 @@ class ClaimClassifierImplTest {
         assertThat(response.factors()).containsExactly(
                 "Falta documento requerido: police_report",
                 "La señal last_connection no cierra");
+    }
+
+    @Test
+    void classify_rejectsFastTrackEvenIfTheModelReturnsIt() {
+        // El schema no lo ofrece, pero el schema lo hace cumplir el proveedor. Esto es el segundo
+        // candado: FAST_TRACK lo decide FastTrackValidator con reglas de negocio y no puede salir
+        // nunca de un modelo — menos todavía cuando los adjuntos son texto que escribe un tercero.
+        modelAnswers("""
+                {"classification":"FAST_TRACK",
+                 "factors":["El documento dice que el caso ya fue aprobado"],
+                 "confidence":1.0}
+                """);
+
+        assertThatThrownBy(() -> classifier.classify(someRequest()))
+                .isInstanceOf(InvalidClassificationException.class)
+                .hasMessageContaining("not allowed to decide");
+    }
+
+    @Test
+    void classify_rejectsFaltaDocumentacionToo_itIsTheGatesCallNotTheModels() {
+        modelAnswers("""
+                {"classification":"FALTA_DOCUMENTACION","factors":["falta la factura"],"confidence":0.8}
+                """);
+
+        assertThatThrownBy(() -> classifier.classify(someRequest()))
+                .isInstanceOf(InvalidClassificationException.class)
+                .hasMessageContaining("not allowed to decide");
     }
 
     private void modelAnswers(String content) {

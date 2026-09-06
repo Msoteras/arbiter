@@ -956,17 +956,39 @@ BEGIN
             (2, 'Hurto', 'Cobertura por hurto sin violencia', 72, 1, FALSE, 20.00, TRUE, TRUE, 30, 1)
         $ddl$, p_schema);
 
-    -- No rule engine evaluates these yet — example rows, same as the previous script.
+    -- Umbrales del gate de Fast Track, una fila por cobertura: es lo que lee FastTrackRuleService
+    -- (GET /internal/fast-track, por cobertura) y lo que edita el referente en su pantalla.
+    --
+    -- Antes acá había dos filas de ejemplo —"Monto reclamado dentro del 50%", "Póliza al día"—
+    -- sin coverage_id y sin configuration. El servicio busca por (branch, coverage), así que no las
+    -- encontraba nunca: el referente veía la pantalla en blanco y los umbrales que realmente
+    -- decidían salían del baseline de MockRulesAdapter, o sea de código. Con la configuración acá,
+    -- levantar la BD limpia da lo mismo que el fallback y además se puede editar sin redeploy
+    -- (decisión #12).
+    --
+    -- Los valores son los del baseline. Sin requiredDocumentTypes a propósito: qué documentos
+    -- exige el ramo ya está en document_requirement (la agenda documental), que se valida en el
+    -- alta; repetirlo acá hace que el gate lo vuelva a evaluar contra los adjuntos que alcanzó a
+    -- leer y frene Fast Tracks por documentación que el expediente sí tiene.
     EXECUTE format($ddl$
-        INSERT INTO %I.insurer_rule (id, active, valid_from, name,
-                                     rule_type, effect, priority, blocks_fast_track, branch_id) VALUES
+        INSERT INTO %I.insurer_rule (id, active, valid_from, name, rule_type, effect, priority,
+                                     blocks_fast_track, branch_id, coverage_id, configuration) VALUES
             (1, TRUE, '2026-01-01 00:00:00+00',
-             'Monto reclamado dentro del 50%% de la suma asegurada', 'FAST_TRACK', 'APROBAR', 1, FALSE, 1),
+             'Fast Track — Robo de celular', 'FAST_TRACK', 'APROBAR', 1, FALSE, 1, 1,
+             '{"maxClaimedAmountRatio":0.5,"maxPriorClaims":0,"requiresUpToDatePolicy":true,
+               "criteria":["Primer siniestro del asegurado",
+                           "Monto reclamado inferior al 50%% de la suma asegurada",
+                           "Póliza al día con sus pagos"]}'),
             (2, TRUE, '2026-01-01 00:00:00+00',
-             'Póliza al día con sus pagos', 'FAST_TRACK', 'APROBAR', 2, FALSE, 1)
+             'Fast Track — Hurto', 'FAST_TRACK', 'APROBAR', 2, FALSE, 1, 2,
+             '{"maxClaimedAmountRatio":0.3,"maxPriorClaims":0,"requiresUpToDatePolicy":true,
+               "criteria":["Primer siniestro del asegurado",
+                           "Monto reclamado inferior al 30%% de la suma asegurada",
+                           "Póliza al día con sus pagos"]}')
         $ddl$, p_schema);
 
-    -- Regla dura EVALUABLE por código (a diferencia de las de arriba, que son ejemplos sin motor).
+    -- Regla dura EVALUABLE por código. A diferencia de las de arriba, que son configuración (el
+    -- gate lee sus umbrales), estas se evalúan contra el siniestro y dejan fila en rule_result.
     -- COVERAGE_EXCLUSION: lista NEGRA de hechos generadores que la cobertura no cubre. Es lo que
     -- evalúa CoverageRuleEvaluator (matchea por claim_cause id y deja fila en rule_result, D3/D4c),
     -- lo que expone /internal/evaluable, lo que filtra el selector del wizard y lo que el referente

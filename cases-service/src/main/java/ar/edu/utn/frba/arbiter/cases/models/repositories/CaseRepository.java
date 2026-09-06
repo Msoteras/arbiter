@@ -5,6 +5,7 @@ import ar.edu.utn.frba.arbiter.cases.models.entities.PolicySnapshot;
 import ar.edu.utn.frba.arbiter.common.enums.CaseStatus;
 import ar.edu.utn.frba.arbiter.common.enums.ClassificationFailureReason;
 import ar.edu.utn.frba.arbiter.common.enums.RiskBand;
+import org.springframework.data.jpa.repository.EntityGraph;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
 import org.springframework.data.jpa.repository.Modifying;
@@ -41,6 +42,30 @@ public interface CaseRepository extends JpaRepository<Case, Long>, JpaSpecificat
             """)
     List<Case> findUnansweredDueBy(@Param("threshold") LocalDate threshold,
                                    @Param("finalStatuses") Collection<String> finalStatuses);
+
+    /**
+     * The insured's OTHER claims, to travel with the {@code ClaimReport} as antecedents. The only
+     * one left out is the case being classified: it isn't its own antecedent.
+     *
+     * <p><b>No status filter, on purpose.</b> The company's own history doesn't have one either —
+     * {@code InsurerDatabaseAdapter.getHistory} reads every {@code siniestro_historico} row
+     * regardless of {@code estado_resolucion}, so a RECHAZADO already counts towards the annual cap
+     * and the Fast Track's previous-claims criterion. Filtering here would leave the two sources
+     * answering the same rule by different criteria. Whatever distinction a rule needs, it makes
+     * itself off the status that travels with each claim — the coverage-exhaustion check already
+     * does exactly that, counting only {@code LIQUIDADO}.
+     *
+     * <p>Scoped to the request's schema like every other query here, so it can only ever return
+     * claims of the same insurer: an antecedent at one company says nothing at another.
+     */
+    @EntityGraph(attributePaths = {"policy", "coverage", "claimCause", "claimCause.branch", "currentStatus"})
+    @Query("""
+            select c from Case c
+            where c.insured.dni = :dni
+              and c.id <> :excludedCaseId
+            order by c.occurredAt
+            """)
+    List<Case> findAntecedentsOf(@Param("dni") String dni, @Param("excludedCaseId") Long excludedCaseId);
 
     /**
      * Cases sitting in a given state. Takes the enum and navigates to {@code case_status.name}

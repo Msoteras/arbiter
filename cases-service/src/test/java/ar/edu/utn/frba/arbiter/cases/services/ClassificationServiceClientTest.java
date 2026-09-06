@@ -4,6 +4,7 @@ import ar.edu.utn.frba.arbiter.cases.dto.AnalystDecisionRequest;
 import ar.edu.utn.frba.arbiter.cases.models.entities.Case;
 import ar.edu.utn.frba.arbiter.cases.models.entities.CaseDocument;
 import ar.edu.utn.frba.arbiter.cases.models.entities.StatusChangeActor;
+import ar.edu.utn.frba.arbiter.cases.models.repositories.CaseRepository;
 import ar.edu.utn.frba.arbiter.cases.support.CaseFixtures;
 import ar.edu.utn.frba.arbiter.cases.support.CaseStates;
 import ar.edu.utn.frba.arbiter.common.enums.CaseStatus;
@@ -54,6 +55,9 @@ class ClassificationServiceClientTest {
     @Mock
     private HttpServletRequest currentRequest;
 
+    @Mock
+    private CaseRepository caseRepository;
+
     private MockRestServiceServer server;
     private ClassificationServiceClient client;
 
@@ -61,7 +65,8 @@ class ClassificationServiceClientTest {
     void setUp() {
         RestClient.Builder builder = RestClient.builder();
         server = MockRestServiceServer.bindTo(builder).build();
-        client = new ClassificationServiceClient(builder, caseStatusService, BASE_URL, currentRequest, JWT_SECRET);
+        client = new ClassificationServiceClient(
+                builder, caseStatusService, caseRepository, BASE_URL, currentRequest, JWT_SECRET);
     }
 
     @Test

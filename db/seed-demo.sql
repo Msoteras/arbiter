@@ -91,12 +91,15 @@ SELECT setval(pg_get_serial_sequence('aseguradora_bbva.poliza','id'),
 INSERT INTO aseguradora_bbva.cobertura (poliza_id, orden, nombre, suma_asegurada, franquicia_pct) VALUES
     (1, 1, 'Robo de celular', 1300000.00, 10.00),
     (1, 2, 'Hurto',            650000.00, 10.00),
+    (1, 3, 'Daño accidental', 1300000.00, 20.00),
     (2, 1, 'Robo de celular', 1200000.00, 10.00),
+    (2, 3, 'Daño accidental', 1200000.00, 20.00),
     (3, 1, 'Robo de celular',  200000.00, 10.00),
     (3, 2, 'Hurto',             50000.00,  0.00),
     (4, 1, 'Robo de celular',  800000.00, 10.00),
     (5, 1, 'Robo de celular', 1500000.00, 10.00),
-    (5, 2, 'Hurto',            400000.00, 15.00);
+    (5, 2, 'Hurto',            400000.00, 15.00),
+    (5, 3, 'Daño accidental', 1500000.00, 20.00);
 
 -- Julián, policy 2: 3 previous → claim_frequency saturates at 1.0.
 -- cobertura_id: cada previo se imputa a la cobertura que lo respondió, que es contra cuyo techo
@@ -169,7 +172,51 @@ INSERT INTO arbiter_bbva.insured (id, name, surname, dni, email, phone, case_cou
 SELECT setval(pg_get_serial_sequence('arbiter_bbva.insured','id'),
               (SELECT MAX(id) FROM arbiter_bbva.insured));
 
--- Local snapshots of the policies above. coverage 1 = 'Robo de celular', 2 = 'Hurto'.
+-- ─── Daño accidental: la cobertura que le faltaba al ramo Celulares ─────────────────────────
+-- El ramo tiene cuatro hechos generadores (1 Rotura accidental, 2 Robo en vía pública, 3 Hurto,
+-- 4 Caída) y hasta acá dos coberturas, cuyas listas negras son [1,3,4] y [1,2,4]: ninguna respondía
+-- por una rotura ni por una caída. No era una decisión, era un agujero — la agenda documental sí
+-- tiene cargados sus requisitos (document_requirement de los hechos 1 y 4), el selector del wizard
+-- filtra por esas mismas listas y por lo tanto no podía ofrecerlos, y los casos 1 y 12 del fixture
+-- (dos roturas de pantalla) colgaban de la cobertura de robo, que las excluye: reclasificarlos daba
+-- exclusión de cobertura, no el Fast Track que el fixture declara.
+--
+-- Solo para BBVA: las coberturas son configuración de cada aseguradora. El id 3 no se pisa con el 3
+-- de Provincia (Daño accidental de Tecnología Portátil) — son tablas de esquemas distintos.
+INSERT INTO arbiter_bbva.coverage (id, name, description, report_deadline_hours, max_events_per_year,
+                                   covers_family_group, deductible, claim_exhausts_coverage,
+                                   is_individual, waiting_period_days, branch_id) VALUES
+    (3, 'Daño accidental', 'Cobertura por rotura o caída accidental del equipo', 72, 2, FALSE,
+     20.00, FALSE, TRUE, 30, 1);
+SELECT setval(pg_get_serial_sequence('arbiter_bbva.coverage','id'),
+              (SELECT MAX(id) FROM arbiter_bbva.coverage));
+
+-- Sus reglas, con la misma forma que las de las otras dos coberturas (init-multitenant.sql):
+-- la lista negra que la delimita, los umbrales del carril rápido y las temporales.
+--
+-- Sin POLICE_DEADLINE: una rotura accidental no tiene denuncia policial que presentar, así que la
+-- fila sería una regla que nunca se puede cumplir. Franquicia 20% contra el 10% de robo, que es
+-- el diferencial habitual del daño accidental.
+INSERT INTO arbiter_bbva.insurer_rule (active, valid_from, name, rule_type, effect, priority,
+                                       blocks_fast_track, branch_id, coverage_id, configuration) VALUES
+    (TRUE, '2026-01-01 00:00:00+00',
+     'La cobertura de daño accidental solo cubre rotura y caída', 'COVERAGE_EXCLUSION', 'RECHAZAR', 1,
+     TRUE, 1, 3, '{"excludedClaimCauseIds":[2,3]}'),
+    (TRUE, '2026-01-01 00:00:00+00',
+     'Fast Track — Daño accidental', 'FAST_TRACK', 'APROBAR', 1,
+     FALSE, 1, 3, '{"maxClaimedAmountRatio":0.5,"maxPriorClaims":0,"requiresUpToDatePolicy":true,
+                    "criteria":["Primer siniestro del asegurado",
+                                "Monto reclamado inferior al 50% de la suma asegurada",
+                                "Póliza al día con sus pagos"]}'),
+    (TRUE, '2026-01-01 00:00:00+00', 'Carencia de la cobertura (cobertura 3)',
+     'WAITING_PERIOD',  'DERIVAR', 2, TRUE, 1, 3, '{}'),
+    (TRUE, '2026-01-01 00:00:00+00', 'Plazo de denuncia a la aseguradora (cobertura 3)',
+     'REPORT_DEADLINE', 'DERIVAR', 3, TRUE, 1, 3, '{}'),
+    (TRUE, '2026-01-01 00:00:00+00', 'Tope de eventos por año (cobertura 3)',
+     'MAX_EVENTS_YEAR', 'DERIVAR', 5, TRUE, 1, 3, '{}');
+
+-- Local snapshots of the policies above. coverage 1 = 'Robo de celular', 2 = 'Hurto',
+-- 3 = 'Daño accidental' (solo en las pólizas Premium).
 INSERT INTO arbiter_bbva.policy (id, external_policy_number, product, in_force, insured_id) VALUES
     (1, 'POL-CEL-2026-042', 'Celular Protegido Premium', TRUE, 1),
     (2, 'POL-CEL-2025-099', 'Celular Protegido Premium', TRUE, 2),
@@ -180,12 +227,15 @@ INSERT INTO arbiter_bbva.policy (id, external_policy_number, product, in_force, 
 -- Coberturas contratadas de cada póliza. Espejo de aseguradora.cobertura: una póliza de celulares
 -- cubre robo Y hurto, cada una con su propia suma asegurada (el hurto siempre por menos — es el
 -- criterio de la compañía en datos-aseguradoras.sql).
+-- El daño accidental solo lo traen las pólizas Premium, y por la misma suma que el robo: es el
+-- mismo equipo, lo que cambia es la franquicia (20%). Las Básico no lo cubren, así que a esos
+-- asegurados el wizard no les va a ofrecer rotura ni caída.
 INSERT INTO arbiter_bbva.policy_coverage (policy_id, coverage_id, display_order, sum_insured, deductible_pct) VALUES
-    (1, 1, 1, 1300000.00, 10.00), (1, 2, 2,  650000.00, 10.00),
-    (2, 1, 1, 1200000.00, 10.00),
+    (1, 1, 1, 1300000.00, 10.00), (1, 2, 2,  650000.00, 10.00), (1, 3, 3, 1300000.00, 20.00),
+    (2, 1, 1, 1200000.00, 10.00),                               (2, 3, 3, 1200000.00, 20.00),
     (3, 1, 1,  200000.00, 10.00), (3, 2, 2,   50000.00,  0.00),
     (4, 1, 1,  800000.00, 10.00),
-    (5, 1, 1, 1500000.00, 10.00), (5, 2, 2,  400000.00, 15.00);
+    (5, 1, 1, 1500000.00, 10.00), (5, 2, 2,  400000.00, 15.00), (5, 3, 3, 1500000.00, 20.00);
 
 SELECT setval(pg_get_serial_sequence('arbiter_bbva.policy','id'),
               (SELECT MAX(id) FROM arbiter_bbva.policy));
@@ -214,7 +264,7 @@ INSERT INTO arbiter_bbva.cases
     (1, '2026-06-14 08:30:00+00', '2026-06-14 08:34:00+00', NULL, '2026-07-14',
      'Se me cayó el celular de las manos en mi casa. Se rompió la pantalla pero el equipo funciona normalmente',
      TRUE, 285000.00, 'Samsung Galaxy S25 Ultra', 'Casa', 'CABA', 'Buenos Aires',
-     2, 1, 1, 1, 1, 1, 1, 1),
+     2, 1, 1, 1, 3, 1, 1, 1),
 
     -- 2 · repeat claimant, high amount, vague narrative → HIGH.
     (2, '2026-06-10 23:00:00+00', '2026-06-11 09:05:00+00', '2026-06-11 08:00:00+00', '2026-07-11',
@@ -278,12 +328,25 @@ INSERT INTO arbiter_bbva.risk_analysis (id, risk_score, risk_band, risk_breakdow
 SELECT setval(pg_get_serial_sequence('arbiter_bbva.risk_analysis','id'),
               (SELECT MAX(id) FROM arbiter_bbva.risk_analysis));
 
--- Rule evaluations behind case 1's Fast Track and case 2's block.
+-- Los criterios del gate detrás del Fast Track del caso 1 y del freno del caso 2 (H0038): un tipo
+-- por criterio y el valor comparado, igual que los escribe FastTrackValidator. rule_id en NULL
+-- —los umbrales son configuración, no una regla evaluable con id propio— y score_contribution
+-- también, porque un criterio del carril rápido no aporta al score de fraude.
+--
+-- Los números salen de los datos de cada expediente contra la fila FAST_TRACK de la cobertura 1
+-- (tope 50%, sin siniestros previos, póliza al día): caso 1, 285.000 sobre 1.300.000; caso 2,
+-- 950.000 sobre 1.200.000 y 3 siniestros previos.
+--
+-- Sin fila de documentación: ningún expediente del fixture tiene adjuntos, así que un PASS ahí
+-- afirmaría que el gate verificó papeles que no existen.
 INSERT INTO arbiter_bbva.rule_result (rule_type, result, evaluated_value, score_contribution,
                                       evaluated_at, rule_id, case_id) VALUES
-    ('FAST_TRACK', 'PASS',      '0.219', 0.0986, '2026-06-14 08:35:30+00', 1, 1),
-    ('FAST_TRACK', 'PASS',      'AL_DIA', 0.0000, '2026-06-14 08:35:31+00', 2, 1),
-    ('FAST_TRACK', 'FAIL',      '0.792', 0.3563, '2026-06-11 09:10:30+00', 1, 2);
+    ('FT_AMOUNT_RATIO',      'PASS', 'ratio=21.9% max=50.0%', NULL, '2026-06-14 08:35:30+00', NULL, 1),
+    ('FT_PRIOR_CLAIMS',      'PASS', 'priorClaims=0 max=0',   NULL, '2026-06-14 08:35:30+00', NULL, 1),
+    ('FT_POLICY_UP_TO_DATE', 'PASS', 'upToDate=true',         NULL, '2026-06-14 08:35:30+00', NULL, 1),
+    ('FT_AMOUNT_RATIO',      'FAIL', 'ratio=79.2% max=50.0%', NULL, '2026-06-11 09:10:30+00', NULL, 2),
+    ('FT_PRIOR_CLAIMS',      'FAIL', 'priorClaims=3 max=0',   NULL, '2026-06-11 09:10:30+00', NULL, 2),
+    ('FT_POLICY_UP_TO_DATE', 'PASS', 'upToDate=true',         NULL, '2026-06-11 09:10:30+00', NULL, 2);
 
 -- actor: who drove each transition. SYSTEM rows have no changed_by — an automated
 -- transition has no user behind it, which is exactly why actor can't be derived from it.
@@ -334,6 +397,23 @@ INSERT INTO arbiter_provincia.insurer_rule (active, valid_from, name, rule_type,
     (TRUE, '2026-01-01 00:00:00+00',
      'La cobertura de daño accidental solo cubre daño accidental', 'COVERAGE_EXCLUSION', 'RECHAZAR', 1,
      TRUE, 2, 3, '{"excludedClaimCauseIds":[7,8]}');
+
+-- Umbrales de Fast Track de esa cobertura. Las dos filas que crea init-multitenant.sql son de
+-- Celulares (coberturas 1 y 2); sin esta, un daño accidental no tiene criterios configurados y el
+-- gate no puede resolver por sí solo ni el caso más simple del ramo.
+--
+-- El tope de monto es más alto que en robo (60% contra 50%) y no es un descuido: reparar un equipo
+-- portátil cuesta una fracción grande de una suma asegurada chica, así que con el 50% de robo
+-- quedarían fuera del carril rápido casi todos los daños accidentales, que son justo los casos que
+-- menos discusión tienen.
+INSERT INTO arbiter_provincia.insurer_rule (active, valid_from, name, rule_type, effect, priority,
+                                            blocks_fast_track, branch_id, coverage_id, configuration) VALUES
+    (TRUE, '2026-01-01 00:00:00+00',
+     'Fast Track — Daño accidental', 'FAST_TRACK', 'APROBAR', 1,
+     FALSE, 2, 3, '{"maxClaimedAmountRatio":0.6,"maxPriorClaims":0,"requiresUpToDatePolicy":true,
+                    "criteria":["Primer siniestro del asegurado",
+                                "Monto reclamado inferior al 60% de la suma asegurada",
+                                "Póliza al día con sus pagos"]}');
 
 -- Same person as arbiter_bbva.insured(1) — one identity, two tenants, no shared row.
 INSERT INTO arbiter_provincia.insured (id, name, surname, dni, email, phone, case_count, pep, user_id) VALUES
@@ -428,10 +508,13 @@ SELECT setval(pg_get_serial_sequence('arbiter_provincia.case_classification','id
 
 UPDATE arbiter_provincia.cases SET classification_id = 1 WHERE id = 1;
 
+-- Los tres criterios fallan a la vez: 760.000 sobre 900.000, dos siniestros previos y la póliza con
+-- cuotas impagas.
 INSERT INTO arbiter_provincia.rule_result (rule_type, result, evaluated_value, score_contribution,
                                            evaluated_at, rule_id, case_id) VALUES
-    ('FAST_TRACK', 'FAIL',      '0.844',  0.3800, '2026-07-05 11:20:30+00', 1, 2),
-    ('FAST_TRACK', 'FAIL',      'SUSPENDIDA', 0.2000, '2026-07-05 11:20:31+00', 2, 2);
+    ('FT_AMOUNT_RATIO',      'FAIL', 'ratio=84.4% max=50.0%', NULL, '2026-07-05 11:20:30+00', NULL, 2),
+    ('FT_PRIOR_CLAIMS',      'FAIL', 'priorClaims=2 max=0',   NULL, '2026-07-05 11:20:30+00', NULL, 2),
+    ('FT_POLICY_UP_TO_DATE', 'FAIL', 'upToDate=false',        NULL, '2026-07-05 11:20:30+00', NULL, 2);
 
 INSERT INTO arbiter_provincia.case_status_history (reason, observation, actor, changed_at, changed_by,
                                                    initial_status_id, final_status_id, case_id) VALUES
@@ -495,12 +578,15 @@ SELECT setval(pg_get_serial_sequence('aseguradora_bbva.poliza','id'),
 INSERT INTO aseguradora_bbva.cobertura (poliza_id, orden, nombre, suma_asegurada, franquicia_pct) VALUES
     (6, 1, 'Robo de celular', 900000.00, 10.00),
     (6, 2, 'Hurto', 360000.00, 15.00),
+    (6, 3, 'Daño accidental', 900000.00, 20.00),
     (7, 1, 'Robo de celular', 300000.00, 10.00),
     (7, 2, 'Hurto', 120000.00, 15.00),
     (8, 1, 'Robo de celular', 1400000.00, 10.00),
     (8, 2, 'Hurto', 560000.00, 15.00),
+    (8, 3, 'Daño accidental', 1400000.00, 20.00),
     (9, 1, 'Robo de celular', 1100000.00, 10.00),
     (9, 2, 'Hurto', 440000.00, 15.00),
+    (9, 3, 'Daño accidental', 1100000.00, 20.00),
     (10, 1, 'Robo de celular', 500000.00, 10.00),
     (10, 2, 'Hurto', 200000.00, 15.00);
 
@@ -536,6 +622,7 @@ SELECT setval(pg_get_serial_sequence('aseguradora_provincia.poliza','id'),
 INSERT INTO aseguradora_provincia.cobertura (poliza_id, orden, nombre, suma_asegurada, franquicia_pct) VALUES
     (4, 1, 'Robo de celular', 800000.00, 10.00),
     (5, 1, 'Robo de celular', 450000.00, 10.00),
+    (5, 2, 'Hurto',           225000.00, 15.00),
     (6, 1, 'Daño accidental', 120000.00, 10.00),
     (7, 1, 'Robo de celular', 1600000.00, 10.00);
 
@@ -548,10 +635,10 @@ INSERT INTO arbiter_bbva.policy (id, external_policy_number, product, in_force, 
     (10, 'POL-CEL-2026-260', 'Celular Protegido Básico', TRUE, 1);
 
 INSERT INTO arbiter_bbva.policy_coverage (policy_id, coverage_id, display_order, sum_insured, deductible_pct) VALUES
-    (6, 1, 1,  900000.00, 10.00), (6, 2, 2, 450000.00, 10.00),
+    (6, 1, 1,  900000.00, 10.00), (6, 2, 2, 450000.00, 10.00), (6, 3, 3,  900000.00, 20.00),
     (7, 1, 1,  300000.00, 10.00),
-    (8, 1, 1, 1400000.00, 10.00), (8, 2, 2, 700000.00, 10.00),
-    (9, 1, 1, 1100000.00, 10.00),
+    (8, 1, 1, 1400000.00, 10.00), (8, 2, 2, 700000.00, 10.00), (8, 3, 3, 1400000.00, 20.00),
+    (9, 1, 1, 1100000.00, 10.00),                              (9, 3, 3, 1100000.00, 20.00),
     (10, 1, 1, 500000.00, 10.00), (10, 2, 2, 250000.00, 10.00);
 SELECT setval(pg_get_serial_sequence('arbiter_bbva.policy','id'),
               (SELECT MAX(id) FROM arbiter_bbva.policy));
@@ -564,7 +651,7 @@ INSERT INTO arbiter_provincia.policy (id, external_policy_number, product, in_fo
 
 INSERT INTO arbiter_provincia.policy_coverage (policy_id, coverage_id, display_order, sum_insured, deductible_pct) VALUES
     (4, 1, 1,  800000.00, 10.00), (4, 2, 2, 400000.00, 10.00),
-    (5, 1, 1,  450000.00, 10.00),
+    (5, 1, 1,  450000.00, 10.00), (5, 2, 2, 225000.00, 15.00),
     (6, 3, 1,  120000.00, 10.00),
     (7, 1, 1, 1600000.00, 10.00), (7, 2, 2, 800000.00, 10.00);
 SELECT setval(pg_get_serial_sequence('arbiter_provincia.policy','id'),
@@ -611,14 +698,17 @@ INSERT INTO arbiter_bbva.cases
      'Salía del trabajo y me robaron el celular con un arma, en la esquina de la oficina.',
      FALSE, 1300000.00, 'Samsung Galaxy S23 Ultra', 'Microcentro', 'CABA', 'Buenos Aires',
      2, 2, 1, 2, 1, 8, 9, 1),
+    -- Fast Track: 240.000 sobre una suma asegurada de 500.000 (48%), debajo del tope de 50% de la
+    -- cobertura. Reclamaba 470.000 (94%) y aun así figuraba como Fast Track, que es justo el caso
+    -- que el carril rápido NO debería tomar: con el gate real nunca habría calificado.
     (11, '2026-08-01 18:00:00+00', '2026-08-01 18:20:00+00', NULL, '2026-08-31',
      'Me sacaron el celular de la mochila en el tren, me di cuenta al bajar.',
-     TRUE, 470000.00, 'Motorola Edge 40', 'Estación Once', 'CABA', 'Buenos Aires',
+     TRUE, 240000.00, 'Motorola Edge 40', 'Estación Once', 'CABA', 'Buenos Aires',
      2, NULL, 1, 2, 1, 10, 10, 1),
     (12, '2026-08-03 12:00:00+00', '2026-08-03 12:15:00+00', NULL, '2026-09-02',
      'Se me cayó el celular y se rompió la pantalla, funciona pero no se ve bien.',
      TRUE, 180000.00, 'iPhone 13', 'Casa', 'CABA', 'Buenos Aires',
-     2, NULL, 1, 1, 1, 6, 11, 1),
+     2, NULL, 1, 1, 3, 6, 11, 1),
     (13, '2026-08-05 09:00:00+00', '2026-08-05 10:00:00+00', NULL, '2026-09-04',
      'Me robaron el celular en el barrio, todavía tengo que hacer la denuncia policial.',
      FALSE, 290000.00, 'Xiaomi Redmi Note 12', 'Flores', 'CABA', 'Buenos Aires',
@@ -714,8 +804,9 @@ INSERT INTO arbiter_bbva.risk_analysis (id, risk_score, risk_band, risk_breakdow
     (8, 0.535, 'MEDIUM',
      '[{"factorId":"amount_ratio","rawScore":0.9286,"weight":0.45,"weightedContribution":0.4179,"rationale":"Monto reclamado es 93% de la suma asegurada"},{"factorId":"claim_frequency","rawScore":0.3333,"weight":0.35,"weightedContribution":0.1167,"rationale":"Siniestros previos del asegurado: 1"},{"factorId":"policy_standing","rawScore":0.0,"weight":0.2,"weightedContribution":0.0,"rationale":"Póliza al día con sus pagos"}]'::jsonb,
      '2026-07-29 09:06:00+00', 10),
-    (9, 0.423, 'MEDIUM',
-     '[{"factorId":"amount_ratio","rawScore":0.94,"weight":0.45,"weightedContribution":0.423,"rationale":"Monto reclamado es 94% de la suma asegurada"},{"factorId":"claim_frequency","rawScore":0.0,"weight":0.35,"weightedContribution":0.0,"rationale":"Siniestros previos del asegurado: 0"},{"factorId":"policy_standing","rawScore":0.0,"weight":0.2,"weightedContribution":0.0,"rationale":"Póliza al día con sus pagos"}]'::jsonb,
+    -- Sigue al monto del caso 11: 240.000 / 500.000 = 48%, que con el peso 0,45 da 0,216 → LOW.
+    (9, 0.216, 'LOW',
+     '[{"factorId":"amount_ratio","rawScore":0.48,"weight":0.45,"weightedContribution":0.216,"rationale":"Monto reclamado es 48% de la suma asegurada"},{"factorId":"claim_frequency","rawScore":0.0,"weight":0.35,"weightedContribution":0.0,"rationale":"Siniestros previos del asegurado: 0"},{"factorId":"policy_standing","rawScore":0.0,"weight":0.2,"weightedContribution":0.0,"rationale":"Póliza al día con sus pagos"}]'::jsonb,
      '2026-08-01 18:26:00+00', 11),
     (10, 0.09, 'LOW',
      '[{"factorId":"amount_ratio","rawScore":0.2,"weight":0.45,"weightedContribution":0.09,"rationale":"Monto reclamado es 20% de la suma asegurada"},{"factorId":"claim_frequency","rawScore":0.0,"weight":0.35,"weightedContribution":0.0,"rationale":"Siniestros previos del asegurado: 0"},{"factorId":"policy_standing","rawScore":0.0,"weight":0.2,"weightedContribution":0.0,"rationale":"Póliza al día con sus pagos"}]'::jsonb,
@@ -734,14 +825,20 @@ INSERT INTO arbiter_bbva.risk_analysis (id, risk_score, risk_band, risk_breakdow
      '2026-08-09 09:06:00+00', 18);
 SELECT setval(pg_get_serial_sequence('arbiter_bbva.risk_analysis','id'), (SELECT MAX(id) FROM arbiter_bbva.risk_analysis));
 
+-- COVERAGE_EXCLUSION y no COVERAGE_INCLUSION: la lista blanca nunca se implementó del lado Java
+-- (RuleType no tiene esa constante) y las reglas quedaron expresadas como lista negra, que es lo que
+-- el motor escribe. El valor lleva el formato de CoverageRuleEvaluator, con el id del hecho
+-- generador — los nombres se repiten entre ramos, el id no.
 INSERT INTO arbiter_bbva.rule_result (rule_type, result, evaluated_value, score_contribution,
                                   evaluated_at, rule_id, case_id) VALUES
-    ('COVERAGE_INCLUSION', 'FAIL',      'Hurto', 0.0000, '2025-06-16 10:05:00+00', 3, 8),
-    ('FAST_TRACK', 'PASS', '0.940', 0.423, '2026-08-01 18:25:00+00', 1, 11),
-    ('FAST_TRACK', 'PASS', 'AL_DIA', 0.0000, '2026-08-01 18:25:00+00', 2, 11),
-    ('FAST_TRACK', 'PASS', '0.200', 0.09, '2026-08-03 12:20:00+00', 1, 12),
-    ('FAST_TRACK', 'PASS', 'AL_DIA', 0.0000, '2026-08-03 12:20:00+00', 2, 12),
-    ('COVERAGE_INCLUSION', 'FAIL',      'Hurto', 0.0000, '2026-08-02 16:05:00+00', 3, 17);
+    ('COVERAGE_EXCLUSION',   'FAIL', 'claimCause=Hurto (id=3)', NULL, '2025-06-16 10:05:00+00', 3, 8),
+    ('FT_AMOUNT_RATIO',      'PASS', 'ratio=48.0% max=50.0%',   NULL, '2026-08-01 18:25:00+00', NULL, 11),
+    ('FT_PRIOR_CLAIMS',      'PASS', 'priorClaims=0 max=0',     NULL, '2026-08-01 18:25:00+00', NULL, 11),
+    ('FT_POLICY_UP_TO_DATE', 'PASS', 'upToDate=true',           NULL, '2026-08-01 18:25:00+00', NULL, 11),
+    ('FT_AMOUNT_RATIO',      'PASS', 'ratio=20.0% max=50.0%',   NULL, '2026-08-03 12:20:00+00', NULL, 12),
+    ('FT_PRIOR_CLAIMS',      'PASS', 'priorClaims=0 max=0',     NULL, '2026-08-03 12:20:00+00', NULL, 12),
+    ('FT_POLICY_UP_TO_DATE', 'PASS', 'upToDate=true',           NULL, '2026-08-03 12:20:00+00', NULL, 12),
+    ('COVERAGE_EXCLUSION',   'FAIL', 'claimCause=Hurto (id=3)', NULL, '2026-08-02 16:05:00+00', 3, 17);
 
 INSERT INTO arbiter_bbva.case_classification (id, decision, analyst_justification, decided_at,
                                           classification_attempts, llm_analysis_id, analyst_id) VALUES
@@ -835,7 +932,7 @@ INSERT INTO arbiter_provincia.cases
     (6, '2026-08-07 10:00:00+00', '2026-08-07 11:00:00+00', NULL, '2026-09-06',
      'Hurto del celular en el trabajo, me falta subir la denuncia policial.',
      FALSE, 200000.00, 'Samsung Galaxy A34', 'Chacarita', 'CABA', 'Buenos Aires',
-     3, NULL, 2, 3, 1, 5, NULL, NULL),
+     3, NULL, 2, 3, 2, 5, NULL, NULL),
     (7, '2026-08-11 20:00:00+00', '2026-08-12 08:00:00+00', NULL, '2026-09-11',
      'Me robaron el celular volviendo del trabajo, recién cargo la denuncia.',
      FALSE, 780000.00, 'iPhone 13 Mini', 'Saavedra', 'CABA', 'Buenos Aires',
@@ -936,10 +1033,13 @@ INSERT INTO arbiter_provincia.risk_analysis (id, risk_score, risk_band, risk_bre
      '2026-08-04 11:26:00+00', 13);
 SELECT setval(pg_get_serial_sequence('arbiter_provincia.risk_analysis','id'), (SELECT MAX(id) FROM arbiter_provincia.risk_analysis));
 
+-- 70.000 sobre 120.000: 58,3%, por debajo del 60% que la cobertura de daño accidental admite para el
+-- carril rápido. Con el tope de robo (50%) este mismo caso no calificaría.
 INSERT INTO arbiter_provincia.rule_result (rule_type, result, evaluated_value, score_contribution,
                                   evaluated_at, rule_id, case_id) VALUES
-    ('FAST_TRACK', 'PASS', '0.583', 0.2625, '2026-08-04 11:25:00+00', 1, 13),
-    ('FAST_TRACK', 'PASS', 'AL_DIA', 0.0000, '2026-08-04 11:25:00+00', 2, 13);
+    ('FT_AMOUNT_RATIO',      'PASS', 'ratio=58.3% max=60.0%', NULL, '2026-08-04 11:25:00+00', NULL, 13),
+    ('FT_PRIOR_CLAIMS',      'PASS', 'priorClaims=0 max=0',   NULL, '2026-08-04 11:25:00+00', NULL, 13),
+    ('FT_POLICY_UP_TO_DATE', 'PASS', 'upToDate=true',         NULL, '2026-08-04 11:25:00+00', NULL, 13);
 
 INSERT INTO arbiter_provincia.case_classification (id, decision, analyst_justification, decided_at,
                                           classification_attempts, llm_analysis_id, analyst_id) VALUES

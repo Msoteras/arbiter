@@ -495,6 +495,15 @@ export class NuevaDenunciaComponent {
     }
     const eventTime = this.eventTime();
     const policeTime = this.policeReportTime();
+    // Los cuatro campos completos antes de comparar nada. Con las dos fechas cargadas y las horas
+    // todavía vacías, la comparación por día ya bloqueaba "Continuar" en mitad de la carga —
+    // obligaba a completar el formulario en un orden puntual (primero las horas, después las
+    // fechas) para no chocarse con un error sobre datos que el asegurado aún estaba tipeando.
+    // Comparar de menos acá no deja pasar nada: al completar las horas el chequeo corre igual, y
+    // el alta lo vuelve a validar del lado del backend.
+    if (!eventTime || !policeTime) {
+      return null;
+    }
     if (!isPoliceReportBeforeEvent(eventDate, eventTime, policeDate, policeTime)) {
       return null;
     }

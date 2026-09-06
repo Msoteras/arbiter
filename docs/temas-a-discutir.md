@@ -82,3 +82,38 @@ de denuncia, tope de eventos, franquicia y la regla de inclusión de cobertura.
 verificación y no conviene meterlo junto con otra cosa. Mientras tanto, la solapa de trazabilidad
 muestra **de qué cobertura es la suma** para que el número no se lea como si fuera la del hecho
 denunciado.
+
+
+---
+
+## El ramo Tecnología Portátil de Provincia cubre un solo hecho generador
+
+**Encontrado:** 05/09/2026, corriendo `init-multitenant.sql` + `seed-demo.sql` sobre un Postgres
+limpio para verificar el seed de los criterios de Fast Track (H0038).
+
+**Qué se sabe:** Provincia tiene una sola cobertura para Tecnología Portátil —*Daño accidental*— y
+su lista negra excluye los hechos generadores 7 (Robo en vía pública) y 8 (Hurto). Como cada hecho
+lo tiene que responder alguna cobertura, **un robo o un hurto de una notebook no lo cubre nadie**:
+el selector del wizard filtra por esas mismas listas y no puede ofrecerlos, y si igual entrara un
+expediente, el motor lo resolvería como exclusión de cobertura.
+
+La intención parece haber sido otra: el encabezado de `db/datos-aseguradoras.sql` dice que el ramo
+tiene las tres coberturas (Robo de celular, Hurto, Daño accidental), y la agenda documental
+(`document_requirement`) ya tiene cargados los requisitos de los tres hechos.
+
+Es el mismo agujero que tenía Celulares en BBVA con *Rotura accidental* y *Caída*, cerrado el
+05/09 agregando la cobertura *Daño accidental* al ramo (ver H0038 en
+`historias-proximo-sprint.md`). Acá no se hizo lo mismo por dos razones: **ningún expediente del
+fixture está afectado** —no hay denuncias de robo ni hurto de equipo portátil— y las sumas
+aseguradas y franquicias de las coberturas nuevas son un dato de negocio que no podemos inventar.
+
+**Qué falta decidir:**
+- Si el producto de Provincia efectivamente cubre robo y hurto de equipo portátil, o si esa
+  restricción es real y lo que hay que corregir es el encabezado del script y la agenda documental.
+- Con qué suma asegurada y franquicia entra cada cobertura nueva en cada póliza del ramo.
+- Si Provincia además debería cubrir *Rotura accidental* y *Caída* en Celulares: hoy tampoco las
+  cubre ninguna cobertura suya, y tampoco hay expedientes afectados. Es la misma decisión, un ramo
+  más abajo — y ojo, es de Provincia: BBVA ya quedó cerrado.
+
+**Bloquea:** nada hoy. Bloquearía a cualquiera que quiera demostrar un robo o un hurto de notebook
+en Provincia, que es un caso perfectamente razonable de mostrar en la defensa.
