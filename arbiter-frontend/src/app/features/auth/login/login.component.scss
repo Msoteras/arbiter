@@ -99,6 +99,19 @@
    4,72 (AA) pero el fondo es una textura ditherizada, y contra eso el ratio no modela nada. Se le
    da papel propio: del mismo color que la página, así que sobre el papel es invisible y solo
    aparece como halo donde hay montaña detrás. */
+/* The pill is not decoration: `.mtn` is bottom-anchored at 100% width, so its height follows the
+   PNG's ratio (0.435) and is driven by the viewport WIDTH — at 1900px wide it stands 827 tall and
+   climbs over this note. Same surface as the page, so the pill is invisible on paper and only
+   shows as a halo over the mountain, giving the text a solid ground to sit on (15.4:1, up from
+   2.93:1).
+
+   Do NOT try to fix this by raising the text contrast alone: --text-primary measured 4.72:1 and
+   passed AA across all 35 screen sizes tried (900-2560 wide x 700-1200 tall) and was STILL
+   illegible. A contrast ratio assumes a solid background; this one is a dithered texture, and the
+   variance between snow and rock breaks legibility no matter what the number says.
+
+   Still open: lowering the mountain so it never reaches the text and the pill stops being needed.
+   If you try it, measure where the image's top edge lands on wide viewports before and after. */
 .support-note {
   margin: 0;
   text-align: center;

@@ -1085,8 +1085,9 @@ export class ExpedienteDetailComponent {
 
   // ----- reintento manual de la clasificación (expediente en CLASSIFICATION_FAILED) -----
   // El scheduler solo barre PENDING_CLASSIFICATION, así que un caso que agotó los reintentos queda
-  // varado hasta que el analista lo reencola a mano (bugs-ux #22). No resuelve el caso: lo devuelve
-  // al pipeline, que después vuelve a necesitar la decisión del analista.
+  // varado hasta que el analista lo reencola a mano (relevamiento de UI de Aylén #22, fuera del
+  // repo). No resuelve el caso: lo devuelve al pipeline, que después vuelve a necesitar la
+  // decisión del analista.
   protected readonly isFailed = computed(() => this.data()?.status === 'CLASSIFICATION_FAILED');
   protected readonly retrying = signal(false);
   protected readonly retryError = signal<string | null>(null);
