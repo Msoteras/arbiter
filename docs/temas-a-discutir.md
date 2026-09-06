@@ -4,7 +4,8 @@ No son historias de desarrollo ni baches del DER: son decisiones que necesitan u
 poder convertirse en una card de Trello (o en nada). A diferencia de `der-gaps.md`, esto no son
 correcciones al modelo de datos — son alcance de producto sin cerrar.
 
-Cada entrada: qué se sabe, qué falta decidir, y qué bloquea mientras siga sin decidirse.
+Cada entrada: qué se sabe, qué falta decidir, y qué bloquea mientras siga sin decidirse. Al pie hay
+una sección aparte con lo que quedó huérfano al borrar el backlog de historias — ver ahí.
 
 ---
 
@@ -45,47 +46,6 @@ de dar la HU por completa en la documentación.
 
 ---
 
-## El expediente se cuelga de la cobertura equivocada
-
-**Encontrado:** 28/08/2026, verificando la solapa de trazabilidad (H #144) contra Railway.
-
-**Qué se sabe:** un expediente hereda la cobertura de la póliza sin mirar qué se denunció, y la
-póliza guarda una sola cobertura — siempre la primera que devuelve la compañía.
-
-`PolicySynchronizer.resolveCoverage` toma *"the policy's primary coverage (the first one the
-company returns)"*, y `CaseServiceImpl` hace `.coverage(policy.getCoverage())` al crear el caso. La
-BD Aseguradora, en cambio, modela varias coberturas por póliza (`aseguradora_*.cobertura`, con
-`orden`). Las 11 pólizas de BBVA en Arbiter tienen `coverage_id = 1` — todas apuntan a Robo.
-
-Consecuencia medida: los tres expedientes de **Hurto** están colgados de la cobertura *Robo de
-celular*, y la suma asegurada que se les congela es la de Robo.
-
-| Caso | Póliza | Suma que se muestra | Suma real de Hurto |
-|---|---|---|---|
-| #10 | POL-CEL-2025-140 | $1.400.000 | $560.000 |
-| #19 | POL-CEL-2026-260 | $500.000 | $200.000 |
-| #39 | POL-CEL-2026-350 | $1.300.000 | $650.000 |
-
-El número mal es lo visible, pero no es el fondo: `ClassificationServiceClient` le manda ese
-`coverageId` al motor, así que un Hurto se evalúa contra los parámetros de Robo — carencia, plazo
-de denuncia, tope de eventos, franquicia y la regla de inclusión de cobertura.
-
-**Qué falta decidir:**
-- Cómo se elige la cobertura del expediente: por el hecho generador denunciado (los catálogos ya
-  coinciden por nombre entre `arbiter_*.coverage` y `aseguradora_*.cobertura`), o dejando que el
-  asegurado la elija en el wizard.
-- Si `arbiter_*.policy` pasa a tener varias coberturas —como la BD Aseguradora— o si se resuelve
-  en el alta sin cambiar el modelo.
-- Qué se hace con los expedientes ya creados: se recalculan, o quedan como están.
-
-**Bloquea:** cambia resultados de reglas sobre expedientes existentes, así que necesita su propia
-verificación y no conviene meterlo junto con otra cosa. Mientras tanto, la solapa de trazabilidad
-muestra **de qué cobertura es la suma** para que el número no se lea como si fuera la del hecho
-denunciado.
-
-
----
-
 ## El ramo Tecnología Portátil de Provincia cubre un solo hecho generador
 
 **Encontrado:** 05/09/2026, corriendo `init-multitenant.sql` + `seed-demo.sql` sobre un Postgres
@@ -102,9 +62,10 @@ tiene las tres coberturas (Robo de celular, Hurto, Daño accidental), y la agend
 (`document_requirement`) ya tiene cargados los requisitos de los tres hechos.
 
 Es el mismo agujero que tenía Celulares en BBVA con *Rotura accidental* y *Caída*, cerrado el
-05/09 agregando la cobertura *Daño accidental* al ramo (ver H0038 en
-`historias-proximo-sprint.md`). Acá no se hizo lo mismo por dos razones: **ningún expediente del
-fixture está afectado** —no hay denuncias de robo ni hurto de equipo portátil— y las sumas
+05/09 agregando la cobertura *Daño accidental* al ramo (H0038, ya implementada — commit
+`2ebed337` y migración `2026-09-05-criterios-fast-track.sql`). Acá no se hizo lo mismo por dos
+razones: **ningún expediente del fixture está afectado** —no hay denuncias de robo ni hurto de
+equipo portátil— y las sumas
 aseguradas y franquicias de las coberturas nuevas son un dato de negocio que no podemos inventar.
 
 **Qué falta decidir:**
@@ -125,3 +86,79 @@ lado de Arbiter, `PolicyResyncScheduler` la va a saltear y dejar el warning *"co
 configured on this tenant for its branch, skipped: [Robo de celular]"* en cada corrida. Es
 deliberado: sin el chequeo de ramo, el sync le colgaría a una notebook la cobertura de Celulares,
 con sus plazos y su carencia.
+
+---
+
+## Una póliza con dos coberturas que responden al mismo hecho — cómo desempatar en el alta
+
+**Encontrado:** 01/09/2026, cerrando el agotamiento por monto acumulado por cobertura. Venía de
+`gap-dominio-bbva.md` §12, que se borró al quedar todo lo demás resuelto.
+
+**Qué se sabe:** la analista marcó que la relación hecho generador ↔ cobertura **puede no ser
+lineal**: una póliza podría tener dos coberturas que respondan por el mismo hecho. No afecta al
+agotamiento por monto —el histórico trae la cobertura imputada, no se infiere— pero sí al **alta**:
+ahí `PolicyCoverageResolver` desempata por el orden en que las devuelve la compañía, que es un
+criterio accidental, no una decisión de negocio.
+
+Importa porque la cobertura elegida es la que aporta los parámetros con los que se evalúan las
+reglas duras del expediente: carencia, plazo de denuncia, tope de eventos, franquicia y suma
+asegurada.
+
+**Qué falta decidir:** entre tres opciones —que el referente declare una prioridad entre coberturas
+del mismo hecho, que elija el analista al revisar, o dejar el orden de la compañía como está y
+documentarlo como criterio explícito.
+
+**Bloquea:** nada hoy. En el seed actual ninguna póliza tiene dos coberturas que respondan al mismo
+hecho, así que el desempate no se ejerce nunca. Bloquearía en cuanto una compañía real cargue ese
+caso.
+
+---
+
+## Reservas (SPL) — ¿control transversal o fuera de alcance?
+
+**Encontrado:** 31/08/2026, comparando contra el procedimiento interno de BBVA
+(`Siniestros_NSIN001`). Venía de `gap-dominio-bbva.md` §3.
+
+**Qué se sabe:** no existe ninguna entidad, columna ni servicio de reservas en el repo. El doc
+fuente lo trata como **control transversal**, no como monto de pago: la reserva se abre con la
+denuncia, se ajusta con cada valuación y se cierra en cada estado terminal (§8, §10) — es una de
+sus aserciones de test más citables.
+
+Linda con liquidación, que el propio doc de dominio confirma **fuera del alcance** de Arbiter (§2).
+Pero como control (abierta/cerrada, sin el monto) es barato de modelar.
+
+**Qué falta decidir:** si entra como flag booleano por expediente —cerrando una invariante de la
+máquina de estados que hoy no tiene dónde apoyarse— o si queda fuera de alcance junto con
+liquidación y se defiende explícitamente como tal.
+
+**Bloquea:** el estado `DENUNCIA DE HECHO (RC)` del proceso real, que el doc define como "activo sin
+reserva" y por lo tanto no se puede modelar sin resolver esto antes.
+
+---
+
+# Heredado del backlog de historias
+
+Las dos entradas que seguían de `historias-enhancements.md` (borrado el 06/09 al quedar sus cards
+cargadas en Trello) y que **no eran historias**, así que no viajaron con el resto.
+
+## Pólizas colectivas — ✅ decidido: no se modelan
+
+Decidido al planificar el sprint 9 (26/08/2026). Cada póliza sigue siendo individual, 1:1 con su
+certificado, y `Tomador` + `N° de certificado` quedan afuera de la ficha del expediente tal como
+están hoy.
+
+Queda anotado acá porque es una decisión de alcance que nadie más registra —el código no la
+documenta, la documenta su ausencia— y conviene poder citarla en la defensa en vez de tener que
+reconstruir por qué faltan esos dos campos. **No reabrir sin un caso nuevo.**
+
+## `RulesRestAdapterTest` no valida query params
+
+**Qué se sabe:** `classification-service/.../adapters/RulesRestAdapterTest.java` verifica que el
+adapter llame al endpoint correcto, pero no qué query params le manda. Esa es exactamente la razón
+por la que un bug de parámetros pasó desapercibido en su momento.
+
+No es bloqueante y no rompe nada hoy: es deuda de test, y de la clase de hueco que se repite —el
+test pasa, el contrato no se verifica.
+
+**Qué falta decidir:** si vale una card propia o se arregla de paso la próxima vez que alguien toque
+el adapter. Es chico para una card sola, pero llevarlo de arrastre significa que se olvida.

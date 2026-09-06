@@ -43,8 +43,10 @@ public record CaseResponse(
         String claimCause,
         /**
          * The coverage the case is filed under, and the one {@code policySnapshot.sumInsured}
-         * belongs to. Shown next to that amount because they can differ from the claim cause: the
-         * case inherits the policy's single coverage (see docs/temas-a-discutir.md).
+         * belongs to. Shown next to that amount because a policy holds several coverages
+         * ({@code policy_coverage}) with a different sum insured each, so the figure only reads
+         * correctly alongside the coverage it came from. {@code PolicyCoverageResolver} picks it
+         * from the reported claim cause at intake.
          */
         String coverage,
         String insuredItem,

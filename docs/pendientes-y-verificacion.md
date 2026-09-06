@@ -1,7 +1,8 @@
 # Pendientes y verificación — cambios de fin de agosto / 1 de septiembre
 
-Rama `pruebas-y-fixes-septiembre`. Cubre cuatro tandas de trabajo hechas sobre el doc de gaps
-(`docs/gap-dominio-bbva.md`, que tiene el detalle de cada una):
+Rama `pruebas-y-fixes-septiembre`. Cubre cuatro tandas de trabajo hechas sobre el doc de gaps contra
+el procedimiento real de BBVA (`docs/gap-dominio-bbva.md`, borrado el 06/09 al quedar 17 de sus 21
+puntos resueltos — el detalle de cada tanda está en los commits y en las migraciones):
 
 1. Consistencia interna del estado `LAPSED` (caducidad por inacción).
 2. Reapertura de expedientes cerrados ("rehabilitación") + aviso al asegurado.
@@ -88,67 +89,31 @@ cubrir un IT y hay que mirar a mano una vez desplegado:
 
 ---
 
-## 2 · Expedientes ya creados con la cobertura vieja — decidido: se dejan
+## 2 · Deuda que sobrevive
 
-**Qué pasó.** Los expedientes creados antes del arreglo tienen `cases.coverage_id` apuntando a la
-cobertura que elegía el modelo viejo (siempre la primera de la póliza), y su `policy_snapshot` tiene
-congelada la suma asegurada de esa cobertura. En Railway son los tres expedientes de Hurto colgados
-de Robo de celular. El arreglo corrige el momento del alta; a estos no los vuelve a leer nadie.
+Casi todo lo que este archivo listaba ya se cerró. Lo verificado el 06/09/2026:
 
-**Decidido (01/09/2026): se dejan como están.** La base es de prueba y, en el peor caso, se levanta
-de cero con `reset → init → seed`, que ya nace con el modelo nuevo. Corregirlos no valía el costo:
-no es un `UPDATE`, porque la cobertura lleva los parámetros con los que se evaluaron las reglas
-duras del expediente (carencia, plazo de denuncia, tope de eventos, franquicia, exclusiones), así
-que dejar el dato consistente exige reclasificar y eso reescribe recomendaciones ya emitidas.
+- ~~`LapseSweepScheduler` sin test propio.~~ `LapseSweepSchedulerTest` existe.
+- ~~Gate de prescripción sin test.~~ `ClassificationOrchestratorPrescriptionTest` existe, con el
+  caso límite de un año y un día.
+- ~~`reopenCase` y `POST /cases/{id}/reopen` sin test de service ni de controller.~~ Cubiertos en
+  `CaseServiceImplTest` y `CaseControllerTest`.
+- ~~`PolicySynchronizer` sin test contra base real.~~ Cubierto por `PolicyCoverageTests`.
+- ~~`aseguradora.siniestro_historico` sin `cobertura_id`.~~ Resuelto 01/09/2026.
+- ~~Comentario en castellano en `DeadlineSweepScheduler`.~~ Ya está en inglés.
 
-**Si en algún momento hay que hacerlo sobre datos que importen**, el camino limpio existe desde que
-se sumó la reapertura: reabrir con motivo → reclasificar → volver a decidir. Queda la traza completa
-en `case_status_history` de por qué se tocó el expediente. La consulta para listar los afectados
-está al pie de `db/migrations/2026-09-01-policy-coverage.sql` (verificación 3).
+- ~~`db/init.sql` quedó desactualizado y no lo referencia nada.~~ **Borrado el 06/09/2026.** Era el
+  script single-tenant anterior a la migración multi-esquema: sin un solo `CREATE SCHEMA`, creaba
+  sus 35 tablas en el `public` de la base mezclando lo que hoy es `arbiter_common` con lo que hoy es
+  por-tenant, y arrancaba con dos docenas de `DROP TABLE IF EXISTS ... CASCADE` sin calificar el
+  esquema — con el `search_path` multi-tenant, correrlo por error contra la base desplegada se
+  llevaba puestas las tablas del tenant que estuviera primero. El par canónico es
+  `db/init-multitenant.sql` + `db/seed-demo.sql`.
 
----
+Con eso el archivo queda solo como checklist de despliegue: si las cinco migraciones ya corrieron
+y el smoke test de arriba está hecho, se borra entero.
 
-## 3 · Decisiones tomadas sobre la marcha — ratificadas por el equipo (01/09/2026)
-
-Se tomaron sin consultar antes de codear y el equipo las revisó después: ninguna resultó crítica.
-Quedan acá como registro, no como pendiente. No reabrir sin un caso nuevo.
-
-- **La cobertura del expediente se elige por el hecho generador denunciado**, no la elige el
-  asegurado en el wizard. El vínculo sale de la regla `COVERAGE_EXCLUSION` que ya administra el
-  referente.
-- **`arbiter_*.policy` pasó a tener varias coberturas** (tabla `policy_coverage`), en vez de
-  resolverlo en el alta sin tocar el modelo.
-- **La reapertura no crea un estado `REHABILITADO`**: devuelve el expediente a
-  `PENDING_ANALYST_REVIEW` y la traza queda en `case_status_history`.
-- **Reabrir reinicia el plazo del art. 56** a 30 días desde cero.
-- **Una cobertura sin exclusiones sigue cubriendo todo su ramo** (fail-open), con aviso al
-  referente. Descartado invertirlo — ya registrado como decisión cerrada en el doc de gaps.
-
----
-
-## 4 · Cobertura de tests que falta
-
-Ninguno de estos rompe nada hoy; es deuda:
-
-- `LapseSweepScheduler` no tiene test propio (sí lo tiene la transición a `LAPSED`).
-- El gate de prescripción de `ClassificationOrchestrator` no tiene test.
-- `CaseServiceImpl.reopenCase` y el endpoint `POST /cases/{id}/reopen` no tienen test de service ni
-  de controller (sí lo tiene la máquina de estados y el notificador).
-- ~~`PolicySynchronizer` no tiene test contra base real.~~ Cubierto por `PolicyCoverageTests`
-  (IT): importa una póliza con dos coberturas, resuelve un hurto contra la de hurto con su propia
-  suma asegurada, verifica que el wizard ofrezca los dos hechos y que la búsqueda de póliza por
-  número siga funcionando contra Hibernate real. Ese último caso existe por el `@EntityGraph` que
-  quedó apuntando a un atributo borrado: invisible con el repositorio mockeado, y una excepción en
-  cada alta de denuncia contra la base.
-
----
-
-## 5 · Deuda menor detectada de paso
-
-- ~~`aseguradora.siniestro_historico` no tiene `cobertura_id`.~~ Resuelto 01/09/2026: la columna
-  existe y el agotamiento por monto acumula por cobertura. Ver la migración
-  `2026-09-01-historico-cobertura.sql`.
-- `db/init.sql` es el script single-tenant anterior a la migración multi-esquema. No lo referencia
-  nada y quedó desactualizado (tiene `policy.insured_amount`). Candidato a borrar.
-- `DeadlineSweepScheduler` tiene un comentario en castellano; la convención del proyecto es
-  comentarios en inglés. Es previo a estos cambios.
+Las decisiones que este archivo registraba —los expedientes viejos se dejan como están, la cobertura
+se elige por el hecho generador, la reapertura no crea un estado propio, reabrir reinicia el plazo
+del art. 56, una cobertura sin exclusiones cubre todo su ramo— quedaron ratificadas por el equipo el
+01/09/2026 y viven en el código y en las migraciones. **No reabrir sin un caso nuevo.**
