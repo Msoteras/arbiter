@@ -26,6 +26,13 @@ import java.util.List;
  *                         on a stored settlement it's the one frozen when it was confirmed. Null
  *                         means the branch has no ceiling
  * @param returnReason     why the referente sent it back, when they did
+ * @param suggestedAmount  what the model read off the file's own paperwork — the repair quote or
+ *                         the purchase proof, depending on the formula. <b>A suggestion and
+ *                         nothing else</b>: it is not applied, it does not move the calculation,
+ *                         and the analyst has to take it deliberately. Null when there is no such
+ *                         document, or the model couldn't read an amount off it
+ * @param suggestedFrom    which document type it was read from, so the analyst can go and check it
+ *                         before taking it. A number with no provenance is worth less than none
  * @param warnings         what the analyst should know before signing: data the calculation
  *                         couldn't find, or a deduction that came out at zero for a reason worth
  *                         stating. Never blocks — the analyst can settle anyway and say why
@@ -51,6 +58,8 @@ public record SettlementResponse(
         SettlementStatus status,
         BigDecimal authorityLimit,
         String returnReason,
+        BigDecimal suggestedAmount,
+        String suggestedFrom,
         List<Line> breakdown,
         List<String> warnings
 ) {

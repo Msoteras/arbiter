@@ -117,6 +117,13 @@ export interface Settlement {
   authorityLimit: number | null;
   /** Por qué el referente la devolvió, cuando la devolvió. */
   returnReason: string | null;
+  /**
+   * El importe que el modelo leyó de la documentación del expediente. **Sugerencia y nada más**:
+   * no está aplicado ni entra en el cálculo hasta que el analista lo toma.
+   */
+  suggestedAmount: number | null;
+  /** De qué tipo de documento salió, para poder verificarlo antes de tomarlo. */
+  suggestedFrom: string | null;
   breakdown: SettlementLine[];
   warnings: string[];
 }

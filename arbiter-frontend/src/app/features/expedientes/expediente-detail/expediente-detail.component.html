@@ -818,6 +818,18 @@
                   asegurada, se indemniza por este valor.
                 }
               </span>
+
+              <!-- Lo que el modelo ya leyó del documento, para no hacer buscar el número en un PDF
+                   y tipearlo. No está aplicado: se toma con un clic, después de verificarlo. -->
+              @if (sugerenciaDisponible()) {
+                <p class="settlement-suggestion">
+                  <span>
+                    En «{{ documentLabel(s.suggestedFrom ?? '') }}» figura
+                    <strong>{{ montoExacto(s.suggestedAmount) }}</strong>. Verificalo antes de usarlo.
+                  </span>
+                  <app-button variant="secondary" (click)="tomarSugerencia()">Usar</app-button>
+                </p>
+              }
             </label>
           }
 

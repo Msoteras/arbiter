@@ -767,6 +767,30 @@ export class ExpedienteDetailComponent {
     return s?.formula === 'REPAIR' || s?.settlementBasis === 'LESSER_OF_SUM_AND_REPLACEMENT';
   });
 
+  /**
+   * La sugerencia se ofrece solo mientras el analista no cargó nada: una vez que puso un número
+   * —el suyo o el sugerido— seguir mostrándola es ruido, y peor, invita a dudar de lo que ya
+   * decidió. No se aplica sola: la toma con un clic, después de verificarla contra el documento.
+   */
+  protected readonly sugerenciaDisponible = computed(() => {
+    const s = this.settlement();
+    return (
+      this.pideMontoAcreditado() &&
+      s?.suggestedAmount != null &&
+      this.replacementInput().trim() === '' &&
+      this.replacementApplied() == null
+    );
+  });
+
+  protected tomarSugerencia(): void {
+    const amount = this.settlement()?.suggestedAmount;
+    if (amount == null) {
+      return;
+    }
+    this.replacementInput.set(String(amount));
+    this.applyReplacementValue();
+  }
+
   protected applyReplacementValue(): void {
     const raw = this.replacementInput().trim();
     this.replacementApplied.set(raw === '' ? null : Number(raw));

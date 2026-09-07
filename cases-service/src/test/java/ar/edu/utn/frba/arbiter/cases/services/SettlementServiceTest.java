@@ -1,5 +1,6 @@
 package ar.edu.utn.frba.arbiter.cases.services;
 
+import ar.edu.utn.frba.arbiter.cases.dto.DocumentAnalysisSummary;
 import ar.edu.utn.frba.arbiter.cases.dto.SettlementDecisionRequest;
 import ar.edu.utn.frba.arbiter.cases.dto.SettlementResponse;
 import ar.edu.utn.frba.arbiter.cases.exceptions.InvalidSettlementException;
@@ -8,6 +9,7 @@ import ar.edu.utn.frba.arbiter.cases.models.entities.Case;
 import ar.edu.utn.frba.arbiter.cases.models.entities.CaseSettlement;
 import ar.edu.utn.frba.arbiter.cases.models.entities.Policy;
 import ar.edu.utn.frba.arbiter.cases.models.entities.PolicySnapshot;
+import ar.edu.utn.frba.arbiter.cases.models.repositories.CaseDocumentAnalysisRepository;
 import ar.edu.utn.frba.arbiter.cases.models.repositories.CaseRepository;
 import ar.edu.utn.frba.arbiter.cases.models.repositories.CaseSettlementRepository;
 import ar.edu.utn.frba.arbiter.cases.models.repositories.PolicyCoverageRepository;
@@ -32,6 +34,7 @@ import java.time.Instant;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
+import java.util.List;
 import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -54,6 +57,9 @@ class SettlementServiceTest {
 
     @Mock
     private PolicyCoverageRepository policyCoverageRepository;
+
+    @Mock
+    private CaseDocumentAnalysisRepository documentAnalysisRepository;
 
     /** Real, not mocked: the arithmetic under test is exactly the point of these cases. */
     @Spy
@@ -243,6 +249,98 @@ class SettlementServiceTest {
         assertThat(response.settledAmount()).isEqualByComparingTo("700000.00");
         assertThat(response.calculatedAmount()).isEqualByComparingTo("720000.00");
         assertThat(response.warnings()).isEmpty();
+    }
+
+    // ─── Sugerencia leída de la documentación (bloque 4) ────────────────────────
+
+    /**
+     * En una reparación el monto sale del presupuesto, y el modelo ya lo leyó al clasificar. Se
+     * ofrece con su procedencia: un número sin decir de dónde salió vale menos que ninguno.
+     */
+    @Test
+    void suggestsTheAmountTheModelReadOffTheRepairQuote() {
+        claim.setCoverage(repairCoverage());
+        when(documentAnalysisRepository.findByCaseId(1L)).thenReturn(List.of(
+                document("police_report", null),
+                document("repair_quote", new BigDecimal("95000.00"))));
+
+        SettlementResponse response = settlementService.forCase(1L, null);
+
+        assertThat(response.suggestedAmount()).isEqualByComparingTo("95000.00");
+        assertThat(response.suggestedFrom()).isEqualTo("repair_quote");
+        // Sugerida, no aplicada: el cálculo sigue en cero hasta que el analista la tome.
+        assertThat(response.calculatedAmount()).isEqualByComparingTo("0.00");
+    }
+
+    /** En pérdida total por el menor de los dos, el que responde es el comprobante de compra. */
+    @Test
+    void suggestsThePurchaseProofWhenTheCeilingIsTheLesserOfTheTwo() {
+        claim.setCoverage(coverage(SettlementBasis.LESSER_OF_SUM_AND_REPLACEMENT, "10.00", false));
+        when(documentAnalysisRepository.findByCaseId(1L)).thenReturn(List.of(
+                document("purchase_proof", new BigDecimal("620000.00")),
+                document("repair_quote", new BigDecimal("95000.00"))));
+
+        SettlementResponse response = settlementService.forCase(1L, null);
+
+        assertThat(response.suggestedAmount()).isEqualByComparingTo("620000.00");
+        assertThat(response.suggestedFrom()).isEqualTo("purchase_proof");
+    }
+
+    /**
+     * Donde el campo no mueve nada —pérdida total por suma asegurada— no se sugiere: invitaría a
+     * cargar un dato que no cambia el monto, que es justo lo que confundía antes.
+     */
+    @Test
+    void suggestsNothingWhereTheAccreditedAmountChangesNothing() {
+        when(documentAnalysisRepository.findByCaseId(1L)).thenReturn(List.of(
+                document("purchase_proof", new BigDecimal("620000.00"))));
+
+        SettlementResponse response = settlementService.forCase(1L, null);
+
+        assertThat(response.suggestedAmount()).isNull();
+        assertThat(response.suggestedFrom()).isNull();
+    }
+
+    /** El documento correcto sin importe legible no sugiere nada: no se cae al otro tipo. */
+    @Test
+    void suggestsNothingWhenTheRightDocumentHasNoReadableAmount() {
+        claim.setCoverage(repairCoverage());
+        when(documentAnalysisRepository.findByCaseId(1L)).thenReturn(List.of(
+                document("repair_quote", null),
+                document("purchase_proof", new BigDecimal("620000.00"))));
+
+        SettlementResponse response = settlementService.forCase(1L, null);
+
+        assertThat(response.suggestedAmount()).isNull();
+    }
+
+    /** Una liquidación ya firmada no sugiere nada: no hay campo que cargar. */
+    @Test
+    void suggestsNothingOnAConfirmedSettlement() {
+        when(settlementRepository.findByCaseId(1L)).thenReturn(Optional.of(CaseSettlement.builder()
+                .caseId(1L).sumInsured(new BigDecimal("800000.00"))
+                .settlementBasis(SettlementBasis.SUM_INSURED)
+                .calculatedAmount(new BigDecimal("720000.00"))
+                .settledAmount(new BigDecimal("720000.00"))
+                .status(SettlementStatus.AUTHORIZED)
+                .calculatedAt(Instant.now()).confirmedAt(Instant.now())
+                .build()));
+
+        assertThat(settlementService.forCase(1L, null).suggestedAmount()).isNull();
+    }
+
+    private DocumentAnalysisSummary document(String type, BigDecimal amount) {
+        return new DocumentAnalysisSummary(type, "…", null, amount, null, null, "TITULAR", List.of());
+    }
+
+    private Coverage repairCoverage() {
+        return Coverage.builder()
+                .id(43L)
+                .name("Daño accidental")
+                .settlementFormula(SettlementFormula.REPAIR)
+                .settlementBasis(SettlementBasis.SUM_INSURED)
+                .deductible(new BigDecimal("10.00"))
+                .build();
     }
 
     // ─── Atribuciones (Anexo II) ────────────────────────────────────────────────

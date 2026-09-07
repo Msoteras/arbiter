@@ -399,6 +399,23 @@ app-textarea { display: block; margin: var(--space-3) 0; }
   color: var(--text-primary);
 }
 
+/* Lo que el modelo leyó del expediente. Con el acento de marca —lo que el sistema usa para lo que
+   pide atención— y no con un color de estado: no es un hallazgo sobre el siniestro, es una ayuda
+   para cargar un campo, y todavía no se aplicó nada. */
+.settlement-suggestion {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  margin: var(--space-2) 0 0;
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid var(--selected-border);
+  border-radius: var(--radius-ctl);
+  background: var(--selected-bg);
+  font-size: var(--font-size-xs);
+  color: var(--text-primary);
+}
+
 /* El campo de justificación: etiqueta, campo y "Obligatorio", pegados. El margen por defecto del
    <p> abría un hueco que dejaba la aclaración flotando lejos del campo, así que acá no hay <p>:
    son spans y el espaciado lo pone el flex. */

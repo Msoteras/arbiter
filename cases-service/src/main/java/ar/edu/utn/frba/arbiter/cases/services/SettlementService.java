@@ -10,6 +10,7 @@ import ar.edu.utn.frba.arbiter.cases.models.entities.Case;
 import ar.edu.utn.frba.arbiter.cases.models.entities.CaseSettlement;
 import ar.edu.utn.frba.arbiter.cases.models.entities.PolicyCoverage;
 import ar.edu.utn.frba.arbiter.cases.models.entities.PolicySnapshot;
+import ar.edu.utn.frba.arbiter.cases.models.repositories.CaseDocumentAnalysisRepository;
 import ar.edu.utn.frba.arbiter.cases.models.repositories.CaseRepository;
 import ar.edu.utn.frba.arbiter.cases.models.repositories.CaseSettlementRepository;
 import ar.edu.utn.frba.arbiter.cases.models.repositories.PolicyCoverageRepository;
@@ -53,11 +54,16 @@ public class SettlementService {
 
     private static final BigDecimal FULL_PERCENTAGE = new BigDecimal("100.00");
 
+    /** Los dos tipos de documento que traen un importe que sirve para liquidar. */
+    private static final String REPAIR_QUOTE = "repair_quote";
+    private static final String PURCHASE_PROOF = "purchase_proof";
+
     private final CaseRepository caseRepository;
     private final CaseSettlementRepository settlementRepository;
     private final SettlementCalculator calculator;
     private final SettlementAuthorityService authorityService;
     private final PolicyCoverageRepository policyCoverageRepository;
+    private final CaseDocumentAnalysisRepository documentAnalysisRepository;
 
     /**
      * What this case pays. The settlement already authorized if there is one, otherwise the
@@ -74,7 +80,7 @@ public class SettlementService {
 
         Optional<CaseSettlement> confirmed = settlementRepository.findByCaseId(caseId);
         if (confirmed.isPresent()) {
-            return toResponse(confirmed.get(), true, List.of(), caseRecord.getCoverage());
+            return toResponse(confirmed.get(), true, List.of(), caseRecord.getCoverage(), null);
         }
 
         PolicySnapshot snapshot = caseRepository.findPolicySnapshot(caseId).orElse(null);
@@ -84,7 +90,8 @@ public class SettlementService {
         // El tope vigente, para que el analista vea ANTES de firmar que este monto va a necesitar
         // al referente. Enterarse recién al confirmar es enterarse tarde.
         proposal.setAuthorityLimit(authorityService.limitFor(branchIdOf(caseRecord)));
-        return toResponse(proposal, false, warnings(coverage, snapshot, replacementValue), coverage);
+        return toResponse(proposal, false, warnings(coverage, snapshot, replacementValue), coverage,
+                suggestionFor(caseId, coverage));
     }
 
     /**
@@ -184,6 +191,43 @@ public class SettlementService {
                 .findByPolicyIdAndCoverageId(caseRecord.getPolicy().getId(), caseRecord.getCoverage().getId())
                 .orElse(null);
     }
+
+    /**
+     * El importe que el modelo ya leyó de la documentación del expediente, para ofrecérselo al
+     * analista en vez de hacerle buscar el número en un PDF y tipearlo.
+     *
+     * <p>Qué documento manda depende de la fórmula, y no es intercambiable: en una reparación el
+     * monto sale del <b>presupuesto</b>, y en una pérdida total que liquida por el menor de los
+     * dos, del <b>comprobante de compra</b>. Ofrecer el otro sería sugerir un número que no
+     * responde a la pregunta que el campo hace.
+     *
+     * <p>Null donde el campo no aplica: en una pérdida total por suma asegurada el monto
+     * acreditado no mueve nada, y sugerir algo ahí invita a cargar un dato que no hace nada.
+     *
+     * <p><b>Es una sugerencia y nada más.</b> No se aplica sola ni entra en el cálculo: el analista
+     * la toma si la verifica contra el documento. La extracción del modelo no es vinculante, misma
+     * regla que la clasificación (decisión #5).
+     */
+    private Suggestion suggestionFor(Long caseId, Coverage coverage) {
+        String wanted;
+        if (coverage.getSettlementFormula() == SettlementFormula.REPAIR) {
+            wanted = REPAIR_QUOTE;
+        } else if (coverage.getSettlementBasis() == SettlementBasis.LESSER_OF_SUM_AND_REPLACEMENT) {
+            wanted = PURCHASE_PROOF;
+        } else {
+            return null;
+        }
+
+        return documentAnalysisRepository.findByCaseId(caseId).stream()
+                .filter(doc -> wanted.equals(doc.documentType()))
+                .filter(doc -> doc.amount() != null && doc.amount().signum() > 0)
+                .findFirst()
+                .map(doc -> new Suggestion(doc.amount(), doc.documentType()))
+                .orElse(null);
+    }
+
+    /** Un importe leído de un documento del expediente, con el documento del que salió. */
+    private record Suggestion(BigDecimal amount, String documentType) {}
 
     /** The branch hangs off the claim cause — {@code cases} has no column of its own for it. */
     private Long branchIdOf(Case caseRecord) {
@@ -333,7 +377,7 @@ public class SettlementService {
     }
 
     private SettlementResponse toResponse(CaseSettlement s, boolean confirmed, List<String> warnings,
-                                          Coverage coverage) {
+                                          Coverage coverage, Suggestion suggestion) {
         return new SettlementResponse(
                 s.getFormula(),
                 s.getSumInsured(),
@@ -355,6 +399,8 @@ public class SettlementService {
                 confirmed ? s.getStatus() : null,
                 s.getAuthorityLimit(),
                 s.getReturnReason(),
+                suggestion == null ? null : suggestion.amount(),
+                suggestion == null ? null : suggestion.documentType(),
                 breakdown(s, confirmed, coverage),
                 warnings);
     }
