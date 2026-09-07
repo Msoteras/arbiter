@@ -65,9 +65,22 @@ valores que elijamos, en los dos ramos:
 - **Celulares**: sumar *Rotura accidental* y *Caída*, el mismo agujero un ramo más abajo. Ojo que
   es solo de Provincia — BBVA quedó cerrado el 05/09.
 
-Queda pendiente de ejecución: es seed (`db/datos-aseguradoras.sql` + `db/seed-demo.sql`) más una
-migración para la base ya desplegada, del mismo molde que
-`2026-09-05-criterios-fast-track.sql`. Al hacerlo se apaga también el warning nocturno de abajo.
+**Se hace desde el panel del referente, sin tocar seed ni migración** (corregido el 07/09: hay ABM
+completo de coberturas — `POST/PUT/DELETE /api/v1/coverages` en cases-service, cableado en la solapa
+Coberturas). Son dos operaciones distintas:
+
+- **Tecnología Portátil → crear** las coberturas *Robo de celular* y *Hurto*. La BD Aseguradora de
+  Provincia ya las tiene contratadas en sus pólizas del ramo, así que apenas existan del lado de
+  Arbiter `PolicyResyncScheduler` deja de saltearlas y arma solo las filas de `policy_coverage`. Eso
+  apaga además el warning nocturno de abajo.
+- **Celulares → editar** las exclusiones de la cobertura *Daño accidental*, que ya existe, para que
+  deje de excluir *Rotura accidental* y *Caída*. Acá no hay cobertura que crear: la BD Aseguradora
+  no modela esos dos como coberturas separadas, son hechos generadores que responde *Daño
+  accidental*.
+
+**El fixture sigue con el agujero.** Lo hecho por UI vive en la base desplegada; `seed-demo.sql`
+nace igual que antes. Si alguien levanta de cero con `reset → init → seed` para una demo, vuelve.
+Cerrarlo del todo pide igual la pasada por el seed — decisión aparte, y no urgente.
 
 **Bloquea:** nada hoy. Bloquearía a cualquiera que quiera demostrar un robo o un hurto de notebook
 en Provincia, que es un caso perfectamente razonable de mostrar en la defensa.
