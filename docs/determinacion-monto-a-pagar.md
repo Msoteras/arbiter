@@ -1,22 +1,34 @@
 # Determinación del monto a pagar — estado, pruebas y qué sigue
 
-Al 02/09/2026. Los bloques 1 y 2 están implementados y **sin commitear**; ninguno se probó en la
-app corriendo.
+Al 06/09/2026. **Los cinco bloques están implementados, commiteados y desplegados**, con sus
+migraciones aplicadas. Falta probar en la app el bloque 5 y un camino del bloque 2 (ver §3).
 
 El analista no solo aprueba o rechaza: también determina **cuánto se paga**. Es un paso del
 procedimiento real de la compañía (manual NSIN001 §5.2.1.2, "Liquidación del Siniestro") que el
 expediente no tenía — llegaba a APROBADO sin decir un monto.
 
-La fórmula no la inventamos, está en los manuales de producto:
+La fórmula no la inventamos, está en los manuales de producto. Son dos, según qué le pasó al bien:
 
 ```
+PÉRDIDA TOTAL — el bien no está
 techo                  = suma asegurada, o el menor entre ésa y el valor de reposición
 tope del evento        = techo × % del evento          (2.º evento del año → 50%)
 − franquicia           = suma asegurada × franquicia%
 − cuotas a vencer      = cuotas que restan × importe de cuota
 − deuda vencida        = saldo impago del contrato
 = monto a pagar        (nunca negativo)
+
+REPARACIÓN — el bien quedó dañado
+techo                  = presupuesto acreditado, tope la suma asegurada
+tope del evento        = techo × % del evento
+− franquicia           = suma asegurada × franquicia%
+− deuda vencida        = saldo impago del contrato
+= monto a pagar        (nunca negativo)
 ```
+
+**Lo que separa a las dos son las cuotas a vencer.** Se descuentan porque la pérdida total extingue
+el contrato y el premio que resta del año se cobra de la indemnización; después de una reparación el
+contrato sigue vivo y el asegurado lo sigue pagando mes a mes.
 
 Fuentes, en orden: manual de Celulares ("La suma asegurada menos la franquicia menos las cuotas
 pendientes de pago"); art. 7 de la cláusula 340 (Bases de Indemnización) para el techo como *el
@@ -33,28 +45,30 @@ art. 5 de la cláusula 102 para la deducción de la deuda vencida.
 
 | Migración | Estado |
 |---|---|
-| `db/migrations/2026-09-01-determinacion-monto-a-pagar.sql` | ✅ **Aplicada a Railway** el 02/09 |
-| `db/migrations/2026-09-02-atribuciones-de-liquidacion.sql` | ❌ **Falta correr** |
+| `db/migrations/2026-09-01-determinacion-monto-a-pagar.sql` | ✅ Aplicada el 02/09 |
+| `db/migrations/2026-09-02-atribuciones-de-liquidacion.sql` | ✅ Aplicada el 03/09 |
+| `db/migrations/2026-09-06-formula-de-reparacion.sql` | ✅ Aplicada el 06/09 |
+| `db/migrations/2026-09-06-monto-del-peritaje.sql` | ✅ Aplicada el 06/09 |
+
+**No queda ninguna pendiente.** Para una base nueva, el trío `reset → init → seed` ya las incluye;
+para una que tenga datos:
 
 ```bash
-python scripts/db-railway-migrate.py db/migrations/2026-09-02-atribuciones-de-liquidacion.sql
+python scripts/db-railway-migrate.py db/migrations/<archivo>.sql
 ```
 
-**El orden importa.** Los servicios corren con `ddl-auto: validate`: si se despliega el código del
-bloque 2 antes de correr su migración, `cases-service` no levanta. Al revés no rompe nada — las
-dos migraciones son aditivas, y una base migrada con código viejo funciona igual.
+> Al mergear develop el 03/09 aparecieron **cuatro migraciones de otras historias que nunca se
+> habían corrido** (`caducidad`, `coverage-exclusion-viva`, `historico-cobertura`,
+> `policy-coverage`). `cases-service` no levantaba por eso. Si al levantar el stack falla con
+> `missing table`, buscá en `db/migrations/` lo que no se aplicó.
 
-Verificación después de correrla:
+**El orden importa.** Los servicios corren con `ddl-auto: validate`: si se despliega el código
+antes de correr su migración, `cases-service` no levanta. Al revés no rompe nada — las cuatro son
+aditivas, y una base migrada con código viejo funciona igual.
 
-```sql
-SELECT table_schema FROM information_schema.tables WHERE table_name = 'settlement_authority';
-SELECT branch_id, max_amount FROM arbiter_bbva.settlement_authority;
-SELECT case_id, status, authority_limit FROM arbiter_provincia.case_settlement;
-```
-
-Las dos ya se probaron reproduciendo la secuencia exacta de Railway (esquema viejo → migración 1 →
-migración 2) sobre un Postgres descartable, y se verificó que una base migrada queda **idéntica** a
-una recién creada.
+Las cuatro se probaron reproduciendo la secuencia exacta de Railway (esquema viejo → migración 1 →
+2 → 3 → 4) sobre un Postgres descartable, verificando que una base migrada queda **idéntica** a una
+recién creada.
 
 ### Ojo con el consumo de datos
 
@@ -113,6 +127,39 @@ Los topes sembrados son **Celulares $500.000** y **Tecnología Portátil $50.000
       determinar el monto; al reconfirmar, el motivo desaparece.
 - [ ] Autorizar algo que ya no está esperando firma da error, no una doble aprobación.
 
+### Reparación (bloque 3)
+
+Ninguna cobertura de BBVA repara; la de daño está en **Provincia**. Para probarlo con un
+expediente de BBVA hay que cambiarle la fórmula a su cobertura desde Reglas → Coberturas, y
+devolverla después.
+
+- [ ] Con la cobertura en **reparación**, el techo indemnizable y el descuento de cuotas
+      desaparecen de la pantalla del referente: dejan de tener sentido.
+- [ ] En el modal del analista el campo pasa a ser **"Presupuesto de reparación"** con asterisco.
+- [ ] **Sin presupuesto, el monto es $0** y lo dice — no cae a la suma asegurada.
+- [ ] La línea de **"Cuotas a vencer" no aparece**: la reparación no extingue la póliza. Es la
+      diferencia real entre las dos fórmulas.
+- [ ] Con presupuesto: se paga el presupuesto menos la franquicia, con tope en la suma asegurada.
+
+### Sugerencia desde la documentación (bloque 4)
+
+Necesita un expediente con un documento ya analizado que traiga importe. En Railway los tienen los
+expedientes **37 y 38** (comprobante de compra, $589.999).
+
+- [ ] Aparece la sugerencia con la **procedencia**: "En «Comprobante de compra» figura $X".
+- [ ] **Usar** la carga y recalcula. Ojo: la base está en Railway, tarda un segundo.
+- [ ] La sugerencia **desaparece** una vez que hay un valor cargado.
+- [ ] En reparación pide el **presupuesto** y no ofrece el comprobante de compra, ni al revés.
+- [ ] Donde el campo no aplica (pérdida total por suma asegurada) **no sugiere nada**.
+
+### Monto del peritaje (bloque 5) — sin probar
+
+- [ ] Al cargar el informe, el formulario pide **"Monto indemnizable que determinó el perito"**,
+      opcional.
+- [ ] Ese monto **le gana** al del presupuesto en la sugerencia, y la procedencia dice
+      "Informe de peritaje".
+- [ ] Dejarlo vacío no rompe nada ni se guarda como cero.
+
 ### Asegurado — que no vea nada de esto
 
 - [ ] Mientras la liquidación espera autorización, el portal del asegurado **no** muestra ningún
@@ -128,35 +175,37 @@ confundirlas con fallas.
 
 - **La bandeja del analista no marca los expedientes esperando firma.** Se entera al abrirlos.
   Ponerlo en el listado obliga a atravesar `CaseResponse` por cinco sobrecargas del mapper.
-- **La bandeja de autorizaciones arranca vacía.** No sembramos ninguna liquidación pendiente: se
-  crea aprobando un expediente por encima del tope, que es justo lo que hay que mostrar.
-- **La liquidación sembrada del case 1 de Provincia dice `TOTAL_LOSS` y es un daño** (rotura de
-  pantalla). Da el número correcto igual, porque con esa cobertura las dos fórmulas coinciden. Se
-  reetiqueta cuando entre el bloque 3.
+- **La bandeja de autorizaciones arranca vacía** en una base recién sembrada: se llena aprobando un
+  expediente por encima del tope. En Railway quedaron dos liquidaciones de prueba (expedientes 11 y
+  29) cargadas a mano para poder ver la pantalla — **borralas cuando no las necesites**.
 - **El monto autorizado no vuelve a la aseguradora.** Queda en Arbiter: la integración es de una
   sola mano (leemos snapshots, no escribimos). Abrir escritura es una decisión de arquitectura
   pendiente.
+- **Falta probar en la app**: el bloque 5 entero, y el camino de **devolver** del bloque 2 (se
+  verificó que sin motivo no deja, pero no se completó una devolución).
+
+### Una pregunta para el equipo
+
+Con franquicia del 10% sobre una suma asegurada de $1.300.000, **toda reparación de menos de
+$130.000 paga cero** — una pantalla rota entra ahí de lleno. Está implementado al pie de la letra
+de la póliza (la franquicia es un porcentaje de la suma asegurada, no del daño), pero conviene
+confirmar si en la práctica las coberturas de daño la calculan sobre el presupuesto. Si es así, el
+cambio es chico.
 
 ---
 
 ## 4 · Qué sigue
 
-### Bloque 3 · Segunda fórmula: daño por tentativa de robo
+Los cinco bloques están. Lo que quedó abierto es lo de §3: probar el bloque 5 y la devolución,
+la marca en la bandeja del analista, y la pregunta de la franquicia en reparaciones.
 
-Presupuesto de reparación menos franquicia, **sin** descontar cuotas a vencer: la reparación no
-extingue la póliza. La fórmula se elige según el hecho generador, configurado por el referente.
-Hoy `case_settlement.formula` solo acepta `TOTAL_LOSS`.
+Más adelante, si se quiere:
 
-### Bloque 4 · El LLM extrae los importes
-
-El análisis de documentos ya está construido. Se le suma leer importes de facturas, tickets y
-presupuestos, y proponerlos como **valor de reposición sugerido** — con el documento de origen a la
-vista para que el analista lo verifique de un vistazo. Sugerencia, nunca vinculante.
-
-### Bloque 5 · El peritaje devuelve un monto
-
-El informe pericial hoy trae veredicto; le sumamos monto indemnizable sugerido, que entra como
-input a la liquidación cuando el expediente vuelve del perito.
+- **Que el modelo lea el informe pericial.** Hoy el monto del perito lo tipea el analista. Se
+  descartó extraerlo porque un informe pericial no tiene formato —cada estudio escribe el suyo— y
+  la extracción sería menos confiable justo donde el número tiene más autoridad. Se puede sumar
+  después como sugerencia sobre ese campo, igual que el bloque 4.
+- **Devolverle el monto a la aseguradora**, cuando se decida abrir la escritura.
 
 ---
 
@@ -164,11 +213,13 @@ input a la liquidación cuando el expediente vuelve del perito.
 
 | Qué | Dónde |
 |---|---|
-| La fórmula | `cases-service/.../services/SettlementCalculator.java` |
+| Las dos fórmulas | `cases-service/.../services/SettlementCalculator.java` |
 | Propuesta, confirmación, autorización y devolución | `cases-service/.../services/SettlementService.java` |
 | El tope por ramo | `cases-service/.../services/SettlementAuthorityService.java` |
 | Retener la decisión hasta que se autorice | `CaseServiceImpl.recordAnalystDecision` / `authorizeSettlement` |
 | El monto en el mail | `CaseNotificationService.approvedAmountLine` |
+| La sugerencia desde documentos y peritaje | `SettlementService.suggestionFor` |
+| El monto que carga el perito | `ExpertAssessmentService.receiveReport` |
 | Parámetros por cobertura (referente) | `arbiter-frontend/.../admin/reglas/` |
 | Topes por ramo (referente) | `arbiter-frontend/.../admin/atribuciones-config/` |
 | Bandeja de autorizaciones (referente) | `arbiter-frontend/.../admin/autorizaciones/` |
@@ -185,4 +236,5 @@ PUT  /api/v1/settlement-authorities/{branchId}            fijar o sacar el tope 
 GET  /api/v1/cases/settlements/pending-authorization      cola de firma (referente)
 POST /api/v1/cases/{id}/settlement/authorize              autorizar (referente)
 POST /api/v1/cases/{id}/settlement/return                 devolver con motivo (referente)
+POST /api/v1/cases/{id}/expert-assessment/report          ahora acepta `indemnifiableAmount`
 ```

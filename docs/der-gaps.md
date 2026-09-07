@@ -134,6 +134,33 @@ Dos decisiones que conviene que el DER refleje, porque no son obvias:
 
 ---
 
+## `coverage.settlement_formula` y `expert_assessment.indemnifiable_amount` — dos columnas más
+
+**Encontrado:** 06/09/2026, cerrando los bloques 3 y 5 de la determinación del monto.
+
+Continúan las dos entradas anteriores; van juntas porque son de la misma historia.
+
+- **`coverage.settlement_formula`** (`TOTAL_LOSS` / `REPAIR`): cómo se liquida un siniestro de esa
+  cobertura. Existen dos fórmulas porque el bien no siempre desaparece — en el daño por tentativa
+  queda dañado, se repara, y **la póliza no se extingue**, así que no se descuentan las cuotas a
+  vencer. Está en la cobertura y no en el hecho generador porque el catálogo de la aseguradora ya
+  las separa así ("Robo de celular" y "Hurto" son pérdidas, "Daño accidental" es daño) y
+  `PolicyCoverageResolver` ya resuelve cuál responde por cada causa. `case_settlement.formula` pasó
+  a aceptar los dos literales.
+- **`expert_assessment.indemnifiable_amount`**: lo que el perito determinó que vale el siniestro.
+  El procedimiento le pide verificar "la causa del siniestro como el monto indemnizable" (NSIN001
+  §2.6) y Arbiter le venía registrando solo la causa. Lo carga el analista junto con el veredicto:
+  el perito está fuera del sistema y contesta por mail. Nullable a propósito — un fraude confirmado
+  no tiene nada que indemnizar, y un cero ahí diría otra cosa.
+
+No hizo falta ninguna columna para el bloque 4: `document_analysis.amount` ya existía, el modelo ya
+venía leyendo el importe de cada adjunto, y nadie lo estaba usando para liquidar.
+
+**Acción:** agregarlas al DER. Migraciones en `db/migrations/2026-09-06-formula-de-reparacion.sql`
+y `db/migrations/2026-09-06-monto-del-peritaje.sql`.
+
+---
+
 ## Plantilla para la próxima entrada
 
 ```
