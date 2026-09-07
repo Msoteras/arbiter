@@ -1,6 +1,7 @@
 package ar.edu.utn.frba.arbiter.cases.models.entities;
 
 import ar.edu.utn.frba.arbiter.common.enums.SettlementBasis;
+import ar.edu.utn.frba.arbiter.common.enums.SettlementFormula;
 import ar.edu.utn.frba.arbiter.common.enums.SettlementStatus;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
@@ -58,14 +59,11 @@ public class CaseSettlement {
     @Column(name = "case_id", nullable = false)
     private Long caseId;
 
-    /**
-     * Which formula produced the amount. Only total loss today; repair after an attempted robbery
-     * is a different one — it pays a repair quote, doesn't extinguish the policy and therefore
-     * doesn't deduct the installments still to fall due — and enters here as a second literal.
-     */
+    /** Which formula produced the amount, frozen with the rest of the inputs. */
+    @Enumerated(EnumType.STRING)
     @Column(nullable = false, length = 20)
     @Builder.Default
-    private String formula = "TOTAL_LOSS";
+    private SettlementFormula formula = SettlementFormula.TOTAL_LOSS;
 
     // ─── Frozen inputs ──────────────────────────────────────────────────────────
 

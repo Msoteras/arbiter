@@ -1,6 +1,7 @@
 package ar.edu.utn.frba.arbiter.common.models.entities.tenant;
 
 import ar.edu.utn.frba.arbiter.common.enums.SettlementBasis;
+import ar.edu.utn.frba.arbiter.common.enums.SettlementFormula;
 import jakarta.persistence.Column;
 import jakarta.persistence.Convert;
 import jakarta.persistence.Entity;
@@ -86,9 +87,22 @@ public class Coverage {
     private List<String> exclusions;
 
     /**
+     * How a claim on this coverage is settled, which follows from what happens to the item: a
+     * total loss extinguishes the policy, a repair doesn't. Never null in the DB (defaults to
+     * {@code TOTAL_LOSS}).
+     */
+    @Enumerated(EnumType.STRING)
+    @Column(name = "settlement_formula", nullable = false, length = 20)
+    @Builder.Default
+    private SettlementFormula settlementFormula = SettlementFormula.TOTAL_LOSS;
+
+    /**
      * How the indemnity ceiling is worked out. Never null in the DB (defaults to
      * {@code SUM_INSURED}); {@code SettlementCalculator} still treats a null as that default, so a
      * row written before this column existed doesn't sink a settlement.
+     *
+     * <p>Only meaningful under {@link SettlementFormula#TOTAL_LOSS}: on a repair the ceiling is
+     * the quote, and there is no other basis to choose.
      */
     @Enumerated(EnumType.STRING)
     @Column(name = "settlement_basis", nullable = false, length = 30)

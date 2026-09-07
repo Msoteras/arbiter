@@ -336,13 +336,25 @@
                         </p>
                         <div class="cov-fields">
                           <label class="fieldset grow">
-                            <span class="t-field-label">Techo indemnizable</span>
+                            <span class="t-field-label">Cómo se liquida</span>
                             <app-select
-                              [options]="settlementBasisOptions"
-                              [value]="c.settlementBasis"
-                              (valueChange)="setCoverageSettlementBasis(c.id, $event)"
+                              [options]="settlementFormulaOptions"
+                              [value]="c.settlementFormula"
+                              (valueChange)="setCoverageSettlementFormula(c.id, $event)"
                             />
                           </label>
+                          <!-- En una reparación el techo es el presupuesto: no hay otra base que
+                               elegir, así que el selector no se ofrece. -->
+                          @if (showsSettlementBasis(c)) {
+                            <label class="fieldset grow">
+                              <span class="t-field-label">Techo indemnizable</span>
+                              <app-select
+                                [options]="settlementBasisOptions"
+                                [value]="c.settlementBasis"
+                                (valueChange)="setCoverageSettlementBasis(c.id, $event)"
+                              />
+                            </label>
+                          }
                           <label class="fieldset">
                             <span class="t-field-label">2.º evento del año (%)</span>
                             <app-input
@@ -355,20 +367,22 @@
                           </label>
                         </div>
                         <ul class="rule-rows">
-                          <li class="rule-row" [class.off]="!c.deductPendingInstallments">
-                            <app-switch
-                              [checked]="c.deductPendingInstallments"
-                              ariaLabel="Descontar las cuotas a vencer"
-                              (checkedChange)="toggleDeductPendingInstallments(c)"
-                            />
-                            <div class="rule-text">
-                              <span class="t-field-label">Descontar las cuotas a vencer</span>
-                              <p class="rule-hint">
-                                La pérdida total extingue la póliza, así que el premio que resta del
-                                año se cobra de la indemnización.
-                              </p>
-                            </div>
-                          </li>
+                          @if (showsSettlementBasis(c)) {
+                            <li class="rule-row" [class.off]="!c.deductPendingInstallments">
+                              <app-switch
+                                [checked]="c.deductPendingInstallments"
+                                ariaLabel="Descontar las cuotas a vencer"
+                                (checkedChange)="toggleDeductPendingInstallments(c)"
+                              />
+                              <div class="rule-text">
+                                <span class="t-field-label">Descontar las cuotas a vencer</span>
+                                <p class="rule-hint">
+                                  La pérdida total extingue la póliza, así que el premio que resta del
+                                  año se cobra de la indemnización.
+                                </p>
+                              </div>
+                            </li>
+                          }
                           <li class="rule-row" [class.off]="!c.deductOverdueBalance">
                             <app-switch
                               [checked]="c.deductOverdueBalance"

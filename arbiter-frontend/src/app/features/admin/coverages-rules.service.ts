@@ -7,6 +7,9 @@ import { environment } from '../../../environments/environment';
 /** Cómo se calcula el techo indemnizable de la cobertura. Calca el enum SettlementBasis. */
 export type SettlementBasis = 'SUM_INSURED' | 'LESSER_OF_SUM_AND_REPLACEMENT';
 
+/** Cómo se liquida un siniestro de esta cobertura. Calca el enum SettlementFormula. */
+export type SettlementFormula = 'TOTAL_LOSS' | 'REPAIR';
+
 /** Cobertura tal como la persiste cases-service — calca CoverageDetailResponse campo por campo. */
 export interface CoverageDetail {
   id: number;
@@ -18,6 +21,7 @@ export interface CoverageDetail {
   waitingPeriodDays: number | null;
   coversFamilyGroup: boolean;
   claimExhaustsCoverage: boolean;
+  settlementFormula: SettlementFormula;
   settlementBasis: SettlementBasis;
   /** Fracción 0..1 como `deductibleRatio` (0.5 = 50%). `null` = el 2.º evento no reduce nada. */
   secondEventRatio: number | null;
@@ -41,6 +45,7 @@ export interface CoverageUpsertRequest {
   waitingPeriodDays: number | null;
   coversFamilyGroup: boolean;
   claimExhaustsCoverage: boolean;
+  settlementFormula: SettlementFormula;
   settlementBasis: SettlementBasis;
   secondEventRatio: number | null;
   deductPendingInstallments: boolean;

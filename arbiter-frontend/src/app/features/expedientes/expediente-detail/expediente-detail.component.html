@@ -787,13 +787,18 @@
              expediente. Solo baja el techo en las coberturas que liquidan por el menor de los
              dos; en las demás queda registrado igual, como respaldo del monto. -->
         <div class="settlement-money">
-          <!-- Solo donde efectivamente cambia algo. En una cobertura que liquida por suma asegurada
-               este valor no toca el monto (art. 7 de la cláusula 340 aplica al revés), y ofrecer un
-               campo que no hace nada es peor que no ofrecerlo: se carga, se aprieta Recalcular y el
-               total queda igual, sin explicación. -->
-          @if (s.settlementBasis === 'LESSER_OF_SUM_AND_REPLACEMENT') {
+          <!-- Solo donde efectivamente cambia algo. En una cobertura que liquida la pérdida total
+               por suma asegurada este valor no toca el monto, y ofrecer un campo que no hace nada
+               es peor que no ofrecerlo: se carga, se aprieta Recalcular y el total queda igual.
+               En reparación es al revés: es la BASE, sin él no hay nada que pagar. -->
+          @if (pideMontoAcreditado()) {
             <label class="fieldset">
-              <span class="t-field-label">Cuánto cuesta reponer el bien</span>
+              <span class="t-field-label">
+                {{ s.formula === 'REPAIR' ? 'Presupuesto de reparación' : 'Cuánto cuesta reponer el bien' }}
+                @if (s.formula === 'REPAIR') {
+                  <span class="required" aria-hidden="true">*</span>
+                }
+              </span>
               <div class="settlement-replacement">
                 <app-input
                   type="number"
@@ -805,8 +810,13 @@
                 <app-button variant="secondary" (click)="applyReplacementValue()">Recalcular</app-button>
               </div>
               <span class="justification-hint">
-                Según la factura o el presupuesto del expediente. Si es menor que la suma asegurada,
-                se indemniza por este valor.
+                @if (s.formula === 'REPAIR') {
+                  Del presupuesto del expediente. Es la base del cálculo, con tope en la suma
+                  asegurada.
+                } @else {
+                  Según la factura o el presupuesto del expediente. Si es menor que la suma
+                  asegurada, se indemniza por este valor.
+                }
               </span>
             </label>
           }

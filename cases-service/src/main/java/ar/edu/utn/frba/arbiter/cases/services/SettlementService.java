@@ -14,6 +14,7 @@ import ar.edu.utn.frba.arbiter.cases.models.repositories.CaseRepository;
 import ar.edu.utn.frba.arbiter.cases.models.repositories.CaseSettlementRepository;
 import ar.edu.utn.frba.arbiter.cases.models.repositories.PolicyCoverageRepository;
 import ar.edu.utn.frba.arbiter.common.enums.SettlementBasis;
+import ar.edu.utn.frba.arbiter.common.enums.SettlementFormula;
 import ar.edu.utn.frba.arbiter.common.enums.SettlementStatus;
 import ar.edu.utn.frba.arbiter.common.models.entities.tenant.Coverage;
 import lombok.RequiredArgsConstructor;
@@ -314,8 +315,17 @@ public class SettlementService {
             warnings.add("El expediente no tiene póliza consultada: la suma asegurada sale de la copia "
                     + "local de la póliza, que pudo actualizarse después de la denuncia.");
         }
-        if (coverage.getSettlementBasis() == SettlementBasis.LESSER_OF_SUM_AND_REPLACEMENT
-                && (replacementValue == null || replacementValue.signum() <= 0)) {
+        boolean accredited = replacementValue != null && replacementValue.signum() > 0;
+
+        if (coverage.getSettlementFormula() == SettlementFormula.REPAIR && !accredited) {
+            // Es la única advertencia que describe una propuesta en cero, no una deducción que no
+            // se pudo hacer: sin presupuesto la reparación no tiene qué pagar.
+            warnings.add("La cobertura liquida por reparación y no hay presupuesto acreditado: sin él "
+                    + "no hay monto que pagar. Cargá el presupuesto del expediente y recalculá.");
+        }
+        if (coverage.getSettlementFormula() != SettlementFormula.REPAIR
+                && coverage.getSettlementBasis() == SettlementBasis.LESSER_OF_SUM_AND_REPLACEMENT
+                && !accredited) {
             warnings.add("La cobertura liquida por el menor entre la suma asegurada y el valor de "
                     + "reposición, pero no hay valor de reposición acreditado: se toma la suma asegurada.");
         }
@@ -358,19 +368,34 @@ public class SettlementService {
                                                     Coverage coverage) {
         List<SettlementResponse.Line> lines = new ArrayList<>();
 
-        lines.add(SettlementResponse.Line.base("Suma asegurada", null, s.getSumInsured()));
-
-        boolean cappedByReplacement = s.getSettlementBasis() == SettlementBasis.LESSER_OF_SUM_AND_REPLACEMENT
+        boolean repair = s.getFormula() == SettlementFormula.REPAIR;
+        boolean cappedByReplacement = !repair
+                && s.getSettlementBasis() == SettlementBasis.LESSER_OF_SUM_AND_REPLACEMENT
                 && s.getReplacementValue() != null
                 && s.getReplacementValue().compareTo(s.getSumInsured()) < 0;
-        if (cappedByReplacement) {
-            lines.add(SettlementResponse.Line.base("Valor de reposición acreditado",
-                    "menor que la suma asegurada — se indemniza por éste (art. 7, Bases de Indemnización)",
-                    s.getReplacementValue()));
+
+        if (repair) {
+            // En una reparación el techo ES el presupuesto: encabezar con la suma asegurada haría
+            // leer una cuenta que arranca en un número que no se va a pagar. La suma asegurada
+            // aparece igual, como tope y como base de la franquicia.
+            lines.add(SettlementResponse.Line.base("Presupuesto de reparación",
+                    s.getReplacementValue() == null || s.getReplacementValue().signum() <= 0
+                            ? "sin presupuesto acreditado — no hay monto que pagar"
+                            : "acreditado en el expediente · tope: la suma asegurada, %s"
+                                    .formatted(money(s.getSumInsured())),
+                    repairCeiling(s)));
+        } else {
+            lines.add(SettlementResponse.Line.base("Suma asegurada", null, s.getSumInsured()));
+            if (cappedByReplacement) {
+                lines.add(SettlementResponse.Line.base("Valor de reposición acreditado",
+                        "menor que la suma asegurada — se indemniza por éste (art. 7, Bases de Indemnización)",
+                        s.getReplacementValue()));
+            }
         }
 
         if (s.getEventPercentage() != null && s.getEventPercentage().compareTo(FULL_PERCENTAGE) != 0) {
-            BigDecimal ceiling = cappedByReplacement ? s.getReplacementValue() : s.getSumInsured();
+            BigDecimal ceiling = repair ? repairCeiling(s)
+                    : cappedByReplacement ? s.getReplacementValue() : s.getSumInsured();
             lines.add(SettlementResponse.Line.base(
                     "Tope por ser el %d.º evento del año".formatted(s.getEventOrdinal()),
                     "%s%% del techo".formatted(trimPercentage(s.getEventPercentage())),
@@ -379,7 +404,8 @@ public class SettlementService {
 
         if (s.getDeductibleRate() != null && s.getDeductibleRate().signum() > 0) {
             lines.add(SettlementResponse.Line.deduction("Franquicia",
-                    "%s%% de la suma asegurada".formatted(trimPercentage(s.getDeductibleRate())),
+                    "%s%% de la suma asegurada (%s)".formatted(
+                            trimPercentage(s.getDeductibleRate()), money(s.getSumInsured())),
                     s.getDeductibleAmount()));
         }
 
@@ -387,7 +413,9 @@ public class SettlementService {
         // con el motivo al lado. Omitirlas obligaba a explicar por separado —en un cartel de color,
         // lejos de la cuenta— por qué el total no las incluía; la hoja es donde el analista está
         // mirando la aritmética, y es donde eso se lee.
-        if (coverage != null && coverage.isDeductPendingInstallments()) {
+        // En reparación no se muestran: la póliza no se extingue, así que no hay premio anticipado
+        // que cobrar y una línea en cero acá invitaría a preguntarse por qué no se descontó.
+        if (!repair && coverage != null && coverage.isDeductPendingInstallments()) {
             lines.add(SettlementResponse.Line.deduction("Cuotas a vencer",
                     pendingInstallmentsDetail(s), s.getPendingInstallmentsAmount()));
         }
@@ -428,6 +456,14 @@ public class SettlementService {
         }
         return "%d cuota(s) × %s — la pérdida total extingue la póliza"
                 .formatted(s.getPendingInstallments(), money(s.getInstallmentAmount()));
+    }
+
+    /** El presupuesto acotado por la suma asegurada, que es el techo real de una reparación. */
+    private BigDecimal repairCeiling(CaseSettlement s) {
+        if (s.getReplacementValue() == null || s.getReplacementValue().signum() <= 0) {
+            return BigDecimal.ZERO;
+        }
+        return s.getSumInsured().min(s.getReplacementValue());
     }
 
     private BigDecimal percentageOf(BigDecimal amount, BigDecimal percentagePoints) {

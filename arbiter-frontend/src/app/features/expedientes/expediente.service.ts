@@ -90,7 +90,7 @@ export interface SettlementLine {
 
 /** El monto a pagar del expediente: la liquidación ya autorizada, o la propuesta a confirmar. */
 export interface Settlement {
-  formula: string;
+  formula: SettlementFormula;
   sumInsured: number;
   settlementBasis: SettlementBasis;
   replacementValue: number | null;
@@ -123,6 +123,9 @@ export interface Settlement {
 
 /** En qué instancia de la cadena de autorización está la liquidación. Calca SettlementStatus. */
 export type SettlementStatus = 'AUTHORIZED' | 'PENDING_AUTHORIZATION' | 'RETURNED';
+
+/** Cómo se liquidó: el bien no está (pérdida total) o quedó dañado (reparación). */
+export type SettlementFormula = 'TOTAL_LOSS' | 'REPAIR';
 
 // Forma de Page<T> de Spring Data — así responde GET /api/v1/cases desde que el backend
 // pagina (historia "Búsqueda y filtrado de expedientes"). Solo los campos que usamos hoy;

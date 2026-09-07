@@ -6,6 +6,7 @@ import ar.edu.utn.frba.arbiter.cases.models.entities.Policy;
 import ar.edu.utn.frba.arbiter.cases.models.entities.PolicyCoverage;
 import ar.edu.utn.frba.arbiter.cases.models.entities.PolicySnapshot;
 import ar.edu.utn.frba.arbiter.common.enums.SettlementBasis;
+import ar.edu.utn.frba.arbiter.common.enums.SettlementFormula;
 import ar.edu.utn.frba.arbiter.common.models.entities.tenant.Coverage;
 import org.junit.jupiter.api.Test;
 
@@ -230,7 +231,7 @@ class SettlementCalculatorTest {
         CaseSettlement settlement = calculator.calculate(
                 claim(LocalDateTime.of(2026, 6, 1, 10, 0)), coverage, null, snapshot, new BigDecimal("700000.00"));
 
-        assertThat(settlement.getFormula()).isEqualTo(SettlementCalculator.TOTAL_LOSS);
+        assertThat(settlement.getFormula()).isEqualTo(SettlementFormula.TOTAL_LOSS);
         assertThat(settlement.getSettlementBasis()).isEqualTo(SettlementBasis.LESSER_OF_SUM_AND_REPLACEMENT);
         assertThat(settlement.getSumInsured()).isEqualByComparingTo("800000.00");
         assertThat(settlement.getReplacementValue()).isEqualByComparingTo("700000.00");
@@ -241,7 +242,87 @@ class SettlementCalculatorTest {
         assertThat(settlement.getCalculatedAt()).isNotNull();
     }
 
+    // ─── Reparación (bloque 3) ──────────────────────────────────────────────────
+
+    /**
+     * Daño por tentativa de robo: se paga el presupuesto, no la suma asegurada. Con $800.000
+     * asegurados y un presupuesto de $95.000, la cuenta arranca en el presupuesto — pero la
+     * franquicia sigue siendo el 10% de la SUMA ASEGURADA, que es lo que dice la póliza.
+     */
+    @Test
+    void aRepairPaysTheQuoteAndNotTheSumInsured() {
+        Coverage coverage = repairCoverage("10.00", true);
+        PolicySnapshot snapshot = snapshot("800000.00", LocalDate.of(2027, 1, 1), "16000.00", null, 1);
+
+        CaseSettlement settlement = calculator.calculate(
+                claim(LocalDateTime.of(2026, 6, 1, 10, 0)), coverage, null, snapshot,
+                new BigDecimal("95000.00"));
+
+        assertThat(settlement.getFormula()).isEqualTo(SettlementFormula.REPAIR);
+        assertThat(settlement.getDeductibleAmount()).isEqualByComparingTo("80000.00");
+        assertThat(settlement.getCalculatedAmount()).isEqualByComparingTo("15000.00");
+    }
+
+    /**
+     * Lo que separa a las dos fórmulas: la reparación NO descuenta las cuotas a vencer, aunque la
+     * cobertura tenga la deducción prendida. La póliza no se extingue con la reparación, así que
+     * cobrarle el resto del año sería cobrárselo a alguien que sigue teniendo la cobertura.
+     */
+    @Test
+    void aRepairNeverDeductsThePendingInstallments() {
+        PolicySnapshot snapshot = snapshot("800000.00", LocalDate.of(2027, 1, 1), "16000.00", null, 1);
+        Case claim = claim(LocalDateTime.of(2026, 6, 1, 10, 0));
+
+        CaseSettlement repair = calculator.calculate(
+                claim, repairCoverage("10.00", true), null, snapshot, new BigDecimal("300000.00"));
+        CaseSettlement totalLoss = calculator.calculate(
+                claim, coverage(SettlementBasis.SUM_INSURED, "10.00", null, true, false),
+                null, snapshot, null);
+
+        assertThat(repair.getPendingInstallments()).isZero();
+        assertThat(repair.getPendingInstallmentsAmount()).isEqualByComparingTo("0.00");
+        // La misma póliza, en pérdida total, sí las descuenta: 7 cuotas de 16.000.
+        assertThat(totalLoss.getPendingInstallmentsAmount()).isEqualByComparingTo("112000.00");
+    }
+
+    /** El presupuesto es la base: sin él no hay monto, y no se cae a la suma asegurada. */
+    @Test
+    void aRepairWithNoQuoteProposesZeroInsteadOfTheSumInsured() {
+        Coverage coverage = repairCoverage("10.00", false);
+        PolicySnapshot snapshot = snapshot("800000.00", LocalDate.of(2027, 1, 1), null, null, 1);
+
+        CaseSettlement settlement = calculator.calculate(
+                claim(LocalDateTime.of(2026, 6, 1, 10, 0)), coverage, null, snapshot, null);
+
+        assertThat(settlement.getCalculatedAmount()).isEqualByComparingTo("0.00");
+    }
+
+    /** La suma asegurada sigue siendo el techo: un presupuesto mayor no la supera. */
+    @Test
+    void aRepairQuoteAboveTheSumInsuredIsCappedByIt() {
+        Coverage coverage = repairCoverage("0.00", false);
+        PolicySnapshot snapshot = snapshot("90000.00", LocalDate.of(2027, 1, 1), null, null, 1);
+
+        CaseSettlement settlement = calculator.calculate(
+                claim(LocalDateTime.of(2026, 6, 1, 10, 0)), coverage, null, snapshot,
+                new BigDecimal("250000.00"));
+
+        assertThat(settlement.getCalculatedAmount()).isEqualByComparingTo("90000.00");
+    }
+
     // ─── helpers ────────────────────────────────────────────────────────────────
+
+    /** Cobertura de daño: liquida por reparación. El techo lo pone el presupuesto. */
+    private Coverage repairCoverage(String deductible, boolean deductInstallments) {
+        return Coverage.builder()
+                .id(43L)
+                .name("Daño accidental")
+                .settlementFormula(SettlementFormula.REPAIR)
+                .settlementBasis(SettlementBasis.SUM_INSURED)
+                .deductible(new BigDecimal(deductible))
+                .deductPendingInstallments(deductInstallments)
+                .build();
+    }
 
     private Coverage coverage(SettlementBasis basis, String deductible, String secondEventPercentage,
                               boolean deductInstallments, boolean deductOverdue) {

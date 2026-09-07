@@ -12,6 +12,7 @@ import ar.edu.utn.frba.arbiter.cases.models.repositories.CaseRepository;
 import ar.edu.utn.frba.arbiter.cases.models.repositories.CaseSettlementRepository;
 import ar.edu.utn.frba.arbiter.cases.models.repositories.PolicyCoverageRepository;
 import ar.edu.utn.frba.arbiter.common.enums.SettlementBasis;
+import ar.edu.utn.frba.arbiter.common.enums.SettlementFormula;
 import ar.edu.utn.frba.arbiter.common.enums.SettlementStatus;
 import ar.edu.utn.frba.arbiter.common.models.entities.Branch;
 import ar.edu.utn.frba.arbiter.common.models.entities.ClaimCause;
@@ -145,7 +146,9 @@ class SettlementServiceTest {
                         org.assertj.core.api.Assertions.tuple("DEDUCTION", "Franquicia"),
                         org.assertj.core.api.Assertions.tuple("DEDUCTION", "Cuotas a vencer"),
                         org.assertj.core.api.Assertions.tuple("TOTAL", "Monto a pagar"));
-        assertThat(response.breakdown().get(1).detail()).isEqualTo("10% de la suma asegurada");
+        // El importe va entre paréntesis para no obligar a buscarlo arriba. startsWith y no
+        // isEqualTo: el formateador de moneda mete un espacio duro que no aporta nada al test.
+        assertThat(response.breakdown().get(1).detail()).startsWith("10% de la suma asegurada (");
     }
 
     /**
@@ -220,7 +223,7 @@ class SettlementServiceTest {
     void anAlreadyConfirmedSettlementIsReturnedAsIsAndIgnoresThePreviewValue() {
         when(settlementRepository.findByCaseId(1L)).thenReturn(Optional.of(CaseSettlement.builder()
                 .caseId(1L)
-                .formula(SettlementCalculator.TOTAL_LOSS)
+                .formula(SettlementFormula.TOTAL_LOSS)
                 .sumInsured(new BigDecimal("800000.00"))
                 .settlementBasis(SettlementBasis.SUM_INSURED)
                 .deductibleRate(new BigDecimal("10.00"))

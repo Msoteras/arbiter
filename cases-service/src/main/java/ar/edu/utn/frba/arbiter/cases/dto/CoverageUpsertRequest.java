@@ -1,6 +1,7 @@
 package ar.edu.utn.frba.arbiter.cases.dto;
 
 import ar.edu.utn.frba.arbiter.common.enums.SettlementBasis;
+import ar.edu.utn.frba.arbiter.common.enums.SettlementFormula;
 import jakarta.validation.constraints.DecimalMax;
 import jakarta.validation.constraints.DecimalMin;
 import jakarta.validation.constraints.Min;
@@ -26,9 +27,14 @@ public record CoverageUpsertRequest(
         /** Si un siniestro liquidado agota la cobertura para el período. */
         boolean claimExhaustsCoverage,
         /**
+         * Cómo se liquida un siniestro de esta cobertura: pérdida total o reparación. {@code null}
+         * se toma como {@code TOTAL_LOSS}.
+         */
+        SettlementFormula settlementFormula,
+        /**
          * Cómo se calcula el techo indemnizable: la suma asegurada, o el menor entre ésa y el
          * valor de reposición acreditado (art. 7, Bases de Indemnización). {@code null} se toma
-         * como {@code SUM_INSURED}.
+         * como {@code SUM_INSURED}. Solo aplica a pérdida total.
          */
         SettlementBasis settlementBasis,
         /**

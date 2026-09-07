@@ -8,6 +8,7 @@ import {
   FastTrackConfig,
   RamoRules,
   SettlementBasis,
+  SettlementFormula,
 } from '../../../core/models/business-rules';
 import { BranchOption, BranchesService } from '../branches.service';
 import { FastTrackConfigDto, FastTrackRulesService } from '../fast-track-rules.service';
@@ -513,6 +514,7 @@ export class ReglasComponent {
       waitingPeriodDays: c.waitingPeriodDays,
       coversFamilyGroup: c.coversFamilyGroup,
       claimExhaustsCoverage: c.claimExhaustsCoverage,
+      settlementFormula: c.settlementFormula ?? 'TOTAL_LOSS',
       settlementBasis: c.settlementBasis ?? 'SUM_INSURED',
       secondEventRatio: c.secondEventRatio,
       deductPendingInstallments: c.deductPendingInstallments,
@@ -719,6 +721,7 @@ export class ReglasComponent {
       // Por defecto, lo que dice el manual de Celulares: techo = suma asegurada y sin deducciones
       // más allá de la franquicia. Prenderlas cambia cuánto cobra el asegurado, así que es una
       // decisión explícita del referente y no un default.
+      settlementFormula: 'TOTAL_LOSS',
       settlementBasis: 'SUM_INSURED',
       secondEventRatio: null,
       deductPendingInstallments: false,
@@ -1109,6 +1112,24 @@ export class ReglasComponent {
    * Las dos formas de fijar el techo indemnizable que traen los productos relevados. No hay una
    * tercera: son las dos que están escritas en las condiciones generales.
    */
+  /**
+   * Qué le pasó al bien, que es lo que decide cómo se liquida. Son las dos que traen los productos
+   * relevados; no hay una tercera que inventar.
+   */
+  protected readonly settlementFormulaOptions: SelectOption[] = [
+    { value: 'TOTAL_LOSS', label: 'Pérdida total — el bien no está' },
+    { value: 'REPAIR', label: 'Reparación — el bien quedó dañado' },
+  ];
+
+  protected setCoverageSettlementFormula(id: string, value: string): void {
+    this.setCoverageField(id, { settlementFormula: value as SettlementFormula });
+  }
+
+  /** El techo solo se elige en pérdida total: en una reparación es el presupuesto y no hay opción. */
+  protected showsSettlementBasis(c: Coverage): boolean {
+    return c.settlementFormula !== 'REPAIR';
+  }
+
   protected readonly settlementBasisOptions: SelectOption[] = [
     { value: 'SUM_INSURED', label: 'La suma asegurada' },
     {
@@ -1398,6 +1419,7 @@ export class ReglasComponent {
       waitingPeriodDays: c.waitingPeriodDays,
       coversFamilyGroup: c.coversFamilyGroup,
       claimExhaustsCoverage: c.claimExhaustsCoverage,
+      settlementFormula: c.settlementFormula,
       settlementBasis: c.settlementBasis,
       secondEventRatio: c.secondEventRatio,
       deductPendingInstallments: c.deductPendingInstallments,

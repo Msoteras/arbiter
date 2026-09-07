@@ -1,6 +1,7 @@
 package ar.edu.utn.frba.arbiter.cases.dto;
 
 import ar.edu.utn.frba.arbiter.common.enums.SettlementBasis;
+import ar.edu.utn.frba.arbiter.common.enums.SettlementFormula;
 import ar.edu.utn.frba.arbiter.common.enums.SettlementStatus;
 
 import java.math.BigDecimal;
@@ -30,7 +31,7 @@ import java.util.List;
  *                         stating. Never blocks — the analyst can settle anyway and say why
  */
 public record SettlementResponse(
-        String formula,
+        SettlementFormula formula,
         BigDecimal sumInsured,
         SettlementBasis settlementBasis,
         BigDecimal replacementValue,

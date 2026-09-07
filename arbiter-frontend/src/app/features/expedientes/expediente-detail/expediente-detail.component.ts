@@ -756,6 +756,17 @@ export class ExpedienteDetailComponent {
     return limit != null && amount != null && amount > limit;
   });
 
+  /**
+   * Si el campo del monto acreditado tiene algo que hacer en esta cobertura. En reparación es la
+   * base del cálculo; en pérdida total solo sirve cuando la cobertura liquida por el menor entre
+   * suma asegurada y reposición. En el resto no mueve el total, y un campo que no hace nada
+   * confunde más de lo que ayuda.
+   */
+  protected readonly pideMontoAcreditado = computed(() => {
+    const s = this.settlement();
+    return s?.formula === 'REPAIR' || s?.settlementBasis === 'LESSER_OF_SUM_AND_REPLACEMENT';
+  });
+
   protected applyReplacementValue(): void {
     const raw = this.replacementInput().trim();
     this.replacementApplied.set(raw === '' ? null : Number(raw));

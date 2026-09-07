@@ -324,10 +324,10 @@ SELECT setval(pg_get_serial_sequence('arbiter_bbva.expert_firm','id'),
 INSERT INTO arbiter_provincia.coverage (id, name, description, report_deadline_hours, max_events_per_year,
                                         covers_family_group, deductible, claim_exhausts_coverage,
                                         is_individual, waiting_period_days, branch_id,
-                                        settlement_basis, second_event_percentage,
+                                        settlement_formula, settlement_basis, second_event_percentage,
                                         deduct_pending_installments, deduct_overdue_balance) VALUES
     (3, 'Daño accidental', 'Cobertura por daño accidental de equipo portátil', 96, 2, FALSE, 10.00, FALSE, TRUE, 30, 2,
-     'LESSER_OF_SUM_AND_REPLACEMENT', 50.00, FALSE, TRUE);
+     'REPAIR', 'LESSER_OF_SUM_AND_REPLACEMENT', 50.00, FALSE, TRUE);
 
 SELECT setval(pg_get_serial_sequence('arbiter_provincia.coverage','id'),
               (SELECT MAX(id) FROM arbiter_provincia.coverage));
@@ -448,18 +448,15 @@ UPDATE arbiter_provincia.cases SET classification_id = 1 WHERE id = 1;
 -- condiciones particulares. 38.000 − 9.000 = 29.000, y el analista confirmó ese número sin
 -- ajustarlo (por eso adjustment_reason va en NULL).
 --
--- OJO con `formula`: este caso es un DAÑO (rotura de pantalla), no una pérdida total, y la
--- fórmula de reparación es el bloque 3 — todavía no existe. Va como TOTAL_LOSS porque es el
--- único literal que acepta el CHECK. Da el número correcto igual, porque con esta configuración
--- de cobertura las dos fórmulas coinciden (el techo es el presupuesto y no se descuentan cuotas:
--- la póliza no se extingue). Cuando entre REPAIR, esta fila se reetiqueta.
+-- `formula` = REPAIR: es un daño (rotura de pantalla), no una pérdida total. El presupuesto es el
+-- techo y no se descuentan cuotas a vencer, porque la póliza no se extingue con la reparación.
 INSERT INTO arbiter_provincia.case_settlement
     (id, case_id, formula, sum_insured, settlement_basis, replacement_value, deductible_rate,
      event_ordinal, event_percentage, pending_installments, installment_amount,
      deductible_amount, pending_installments_amount, overdue_balance_amount,
      calculated_amount, settled_amount, adjustment_reason,
      coverage_id, policy_snapshot_id, analyst_id, calculated_at, confirmed_at) VALUES
-    (1, 1, 'TOTAL_LOSS', 90000.00, 'LESSER_OF_SUM_AND_REPLACEMENT', 38000.00, 10.00,
+    (1, 1, 'REPAIR', 90000.00, 'LESSER_OF_SUM_AND_REPLACEMENT', 38000.00, 10.00,
      1, 100.00, 0, 1800.00,
      9000.00, 0.00, 0.00,
      29000.00, 29000.00, NULL,

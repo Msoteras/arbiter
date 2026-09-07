@@ -1,6 +1,7 @@
 package ar.edu.utn.frba.arbiter.cases.dto;
 
 import ar.edu.utn.frba.arbiter.common.enums.SettlementBasis;
+import ar.edu.utn.frba.arbiter.common.enums.SettlementFormula;
 
 import java.math.BigDecimal;
 import java.util.List;
@@ -16,6 +17,7 @@ public record CoverageDetailResponse(
         Integer waitingPeriodDays,
         boolean coversFamilyGroup,
         boolean claimExhaustsCoverage,
+        SettlementFormula settlementFormula,
         SettlementBasis settlementBasis,
         BigDecimal secondEventRatio,
         boolean deductPendingInstallments,

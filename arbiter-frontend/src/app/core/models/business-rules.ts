@@ -12,6 +12,9 @@ import { RiskBand } from './risk-band';
 /** Cómo se calcula el techo indemnizable de una cobertura. Calca el enum SettlementBasis. */
 export type SettlementBasis = 'SUM_INSURED' | 'LESSER_OF_SUM_AND_REPLACEMENT';
 
+/** Cómo se liquida un siniestro de esta cobertura. Calca el enum SettlementFormula. */
+export type SettlementFormula = 'TOTAL_LOSS' | 'REPAIR';
+
 export interface Coverage {
   id: string;
   name: string;
@@ -35,9 +38,15 @@ export interface Coverage {
   /** Si un siniestro liquidado agota la cobertura para el período. */
   claimExhaustsCoverage: boolean;
   /**
+   * Cómo se liquida: pérdida total (el bien no está) o reparación (quedó dañado). Lo que las
+   * separa es que la pérdida total extingue la póliza y la reparación no.
+   * → DER cobertura.settlement_formula
+   */
+  settlementFormula: SettlementFormula;
+  /**
    * Cómo se calcula el techo indemnizable al determinar el monto a pagar: la suma asegurada, o el
-   * menor entre ésa y el valor de reposición acreditado (art. 7, Bases de Indemnización).
-   * → DER cobertura.settlement_basis
+   * menor entre ésa y el valor de reposición acreditado (art. 7, Bases de Indemnización). Solo
+   * aplica a pérdida total. → DER cobertura.settlement_basis
    */
   settlementBasis: SettlementBasis;
   /**

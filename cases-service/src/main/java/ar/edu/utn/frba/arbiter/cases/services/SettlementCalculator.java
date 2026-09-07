@@ -5,6 +5,7 @@ import ar.edu.utn.frba.arbiter.cases.models.entities.CaseSettlement;
 import ar.edu.utn.frba.arbiter.cases.models.entities.PolicyCoverage;
 import ar.edu.utn.frba.arbiter.cases.models.entities.PolicySnapshot;
 import ar.edu.utn.frba.arbiter.common.enums.SettlementBasis;
+import ar.edu.utn.frba.arbiter.common.enums.SettlementFormula;
 import ar.edu.utn.frba.arbiter.common.models.entities.tenant.Coverage;
 import org.springframework.stereotype.Service;
 
@@ -24,13 +25,26 @@ import java.time.temporal.ChronoUnit;
  * is a transcription of them:
  *
  * <pre>
+ *   PÉRDIDA TOTAL — el bien no está
  *   techo            = suma asegurada  (o el menor entre ésa y el valor de reposición)
  *   tope del evento  = techo × % del evento        (2º evento del año → 50%)
  *   − franquicia     = suma asegurada × franquicia%
  *   − cuotas a vencer= cuotas que restan × importe de cuota
  *   − deuda vencida  = saldo impago del contrato
  *   = monto a pagar  (nunca negativo)
+ *
+ *   REPARACIÓN — el bien quedó dañado
+ *   techo            = presupuesto acreditado, tope la suma asegurada
+ *   tope del evento  = techo × % del evento
+ *   − franquicia     = suma asegurada × franquicia%
+ *   − deuda vencida  = saldo impago del contrato
+ *   = monto a pagar  (nunca negativo)
  * </pre>
+ *
+ * <p><b>Lo que separa a las dos son las cuotas a vencer.</b> Se descuentan porque la pérdida total
+ * extingue el contrato y el premio que resta del año se cobra de la indemnización; después de una
+ * reparación el contrato sigue vivo y el asegurado lo sigue pagando mes a mes. Descontárselas ahí
+ * sería cobrarle el resto del año a alguien que todavía tiene la cobertura que está pagando.
  *
  * <p>Sources, in order: the Celulares manual ("La suma asegurada menos la franquicia menos las
  * cuotas pendientes de pago"); article 7 of clause 340, Bases de Indemnización, for the ceiling
@@ -55,9 +69,6 @@ public class SettlementCalculator {
     private static final BigDecimal HUNDRED = new BigDecimal("100");
     private static final BigDecimal FULL_PERCENTAGE = new BigDecimal("100.00");
 
-    /** Total loss — the only formula so far. Repair after attempted robbery is a separate one. */
-    public static final String TOTAL_LOSS = "TOTAL_LOSS";
-
     /**
      * Builds the proposal. Not persisted and with no id: the caller decides whether this is a
      * fresh row or overwrites the standing proposal.
@@ -68,11 +79,14 @@ public class SettlementCalculator {
     public CaseSettlement calculate(Case caseRecord, Coverage coverage, PolicyCoverage policyCoverage,
                                     PolicySnapshot snapshot, BigDecimal replacementValue) {
         BigDecimal sumInsured = sumInsured(policyCoverage, snapshot);
+        SettlementFormula formula = coverage.getSettlementFormula() == null
+                ? SettlementFormula.TOTAL_LOSS
+                : coverage.getSettlementFormula();
         SettlementBasis basis = coverage.getSettlementBasis() == null
                 ? SettlementBasis.SUM_INSURED
                 : coverage.getSettlementBasis();
 
-        BigDecimal ceiling = ceiling(basis, sumInsured, replacementValue);
+        BigDecimal ceiling = ceiling(formula, basis, sumInsured, replacementValue);
 
         int eventOrdinal = eventOrdinal(snapshot);
         BigDecimal eventPercentage = eventPercentage(coverage, eventOrdinal);
@@ -80,7 +94,11 @@ public class SettlementCalculator {
 
         BigDecimal deductibleAmount = percentageOf(sumInsured, deductibleRate(coverage, policyCoverage));
 
-        int pendingInstallments = coverage.isDeductPendingInstallments()
+        // Solo en pérdida total, y por eso el interruptor de la cobertura no alcanza: una
+        // reparación no extingue la póliza, así que no hay premio anticipado que cobrar aunque el
+        // referente haya dejado la deducción prendida.
+        int pendingInstallments = formula == SettlementFormula.TOTAL_LOSS
+                && coverage.isDeductPendingInstallments()
                 ? pendingInstallments(caseRecord, snapshot)
                 : 0;
         BigDecimal installmentAmount = snapshot == null ? null : snapshot.getInstallmentAmount();
@@ -104,7 +122,7 @@ public class SettlementCalculator {
 
         return CaseSettlement.builder()
                 .caseId(caseRecord.getId())
-                .formula(TOTAL_LOSS)
+                .formula(formula)
                 .sumInsured(sumInsured)
                 .settlementBasis(basis)
                 .replacementValue(replacementValue)
@@ -161,15 +179,27 @@ public class SettlementCalculator {
     }
 
     /**
-     * With no accredited replacement value, {@code LESSER_OF_SUM_AND_REPLACEMENT} falls back to
-     * the sum insured: the ceiling can't be lowered by a number nobody produced.
+     * The ceiling the deductions come off.
+     *
+     * <p>On a <b>repair</b> it's the accredited quote, capped by the sum insured. With no quote it
+     * is zero, deliberately: the quote is the basis, and falling back to the sum insured would
+     * offer to pay a whole phone for a broken screen nobody costed.
+     *
+     * <p>On a <b>total loss</b>, {@code LESSER_OF_SUM_AND_REPLACEMENT} takes the lower of the two
+     * and falls back to the sum insured when nothing was accredited — there the ceiling can't be
+     * lowered by a number nobody produced, because the contract already fixed one.
      */
-    private BigDecimal ceiling(SettlementBasis basis, BigDecimal sumInsured, BigDecimal replacementValue) {
-        if (basis != SettlementBasis.LESSER_OF_SUM_AND_REPLACEMENT
-                || replacementValue == null || replacementValue.signum() <= 0) {
+    private BigDecimal ceiling(SettlementFormula formula, SettlementBasis basis,
+                               BigDecimal sumInsured, BigDecimal accreditedAmount) {
+        boolean accredited = accreditedAmount != null && accreditedAmount.signum() > 0;
+
+        if (formula == SettlementFormula.REPAIR) {
+            return accredited ? sumInsured.min(money(accreditedAmount)) : BigDecimal.ZERO;
+        }
+        if (basis != SettlementBasis.LESSER_OF_SUM_AND_REPLACEMENT || !accredited) {
             return sumInsured;
         }
-        return sumInsured.min(money(replacementValue));
+        return sumInsured.min(money(accreditedAmount));
     }
 
     /** Frozen by classification-service; 1 when the snapshot predates the column. */

@@ -6,6 +6,7 @@ import ar.edu.utn.frba.arbiter.cases.dto.CoverageSummary;
 import ar.edu.utn.frba.arbiter.cases.dto.CoverageUpsertRequest;
 import ar.edu.utn.frba.arbiter.cases.exceptions.CoverageNotFoundException;
 import ar.edu.utn.frba.arbiter.common.enums.SettlementBasis;
+import ar.edu.utn.frba.arbiter.common.enums.SettlementFormula;
 import ar.edu.utn.frba.arbiter.common.models.entities.tenant.Coverage;
 import ar.edu.utn.frba.arbiter.cases.models.repositories.CoverageRepository;
 import lombok.RequiredArgsConstructor;
@@ -96,6 +97,8 @@ public class CoverageService {
         coverage.setClaimExhaustsCoverage(request.claimExhaustsCoverage());
         // Determinación del monto a pagar. El basis nunca queda null: la columna es NOT NULL y
         // "sin elegir" no es una opción de negocio — toda cobertura liquida de alguna forma.
+        coverage.setSettlementFormula(request.settlementFormula() == null
+                ? SettlementFormula.TOTAL_LOSS : request.settlementFormula());
         coverage.setSettlementBasis(request.settlementBasis() == null
                 ? SettlementBasis.SUM_INSURED : request.settlementBasis());
         coverage.setSecondEventPercentage(request.secondEventRatio() == null
@@ -117,6 +120,7 @@ public class CoverageService {
                 coverage.getWaitingPeriodDays(),
                 coverage.isCoversFamilyGroup(),
                 coverage.isClaimExhaustsCoverage(),
+                coverage.getSettlementFormula(),
                 coverage.getSettlementBasis(),
                 coverage.getSecondEventPercentage() == null
                         ? null : coverage.getSecondEventPercentage().divide(HUNDRED),
