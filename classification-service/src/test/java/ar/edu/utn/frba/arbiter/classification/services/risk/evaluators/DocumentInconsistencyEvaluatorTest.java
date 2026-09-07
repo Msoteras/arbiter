@@ -43,6 +43,22 @@ class DocumentInconsistencyEvaluatorTest {
                 .build();
     }
 
+    /** A Tecnología Portátil policy: an insured item to cross against, and no IMEI. */
+    private InsuredPolicy laptopPolicy() {
+        return InsuredPolicy.builder()
+                .policyNumber("POL-TEC-2026-010")
+                .insuredId("40.123.456")
+                .branch("Tecnología Portátil")
+                .insuredItem("Notebook Lenovo IdeaPad 3")
+                .effectiveFrom(RiskFixtures.POLICY_START.atStartOfDay())
+                .effectiveTo(RiskFixtures.POLICY_START.plusYears(1).atStartOfDay())
+                .upToDate(true)
+                .insuredAmount(new BigDecimal("400000"))
+                .coverages(List.of())
+                .applicableClauses(List.of())
+                .build();
+    }
+
     private RiskContext context(InsuredPolicy policy, Map<String, DocumentExtraction> documents) {
         return new RiskContext(
                 RiskFixtures.claim(new BigDecimal("100000")),
@@ -59,7 +75,13 @@ class DocumentInconsistencyEvaluatorTest {
 
     /** Only the fields this test varies; the rest go empty. */
     private DocumentExtraction.Fields fields(LocalDate documentDate, BigDecimal amount, String imei) {
-        return new DocumentExtraction.Fields(documentDate, amount, null, imei, null);
+        return new DocumentExtraction.Fields(
+                documentDate, amount, null, null, null, imei, null, List.of());
+    }
+
+    /** Same, for the checks that vary make and model instead. */
+    private DocumentExtraction.Fields itemFields(String brand, String model) {
+        return new DocumentExtraction.Fields(null, null, null, brand, model, null, null, List.of());
     }
 
     /** With no documents analyzed nothing is known: not evaluable, not a 0.0 that would cheapen the score. */
@@ -192,5 +214,61 @@ class DocumentInconsistencyEvaluatorTest {
                 "invoice", withFields(fields(EVENT_DAY.minusMonths(3), new BigDecimal("450000"), "359999999999999")))));
 
         assertThat(c.score()).isEqualTo(1.0);
+    }
+
+    // ─── Marca y modelo contra el bien asegurado ──────────────────────────────────
+    // Es el cruce que el IMEI no puede hacer fuera de Celulares: una póliza de Tecnología
+    // Portátil no tiene IMEI, así que sin esto la factura de otra notebook no se compara
+    // contra nada.
+
+    @Test
+    void aRepairInvoiceForAnotherMake_isFlagged() {
+        Contribution c = evaluator.evaluate(context(laptopPolicy(),
+                Map.of("repair_quote", withFields(itemFields("Asus", "VivoBook 15")))));
+
+        assertThat(c.rationale()).contains("La marca del documento").contains("Asus");
+    }
+
+    /** The make is present in the insured item, spelled differently in case: no finding. */
+    @Test
+    void theInsuredMake_writtenInAnotherCase_isNotAnInconsistency() {
+        Contribution c = evaluator.evaluate(context(laptopPolicy(),
+                Map.of("repair_quote", withFields(itemFields("LENOVO", "IdeaPad 3")))));
+
+        assertThat(c.score()).isZero();
+    }
+
+    /**
+     * The model is only checked once the make matched. Reporting it under a wrong make would be
+     * the make finding said twice, and the make is the one that actually identifies the device.
+     */
+    @Test
+    void aWrongMake_isReportedOnce_notAlsoAsAWrongModel() {
+        Contribution c = evaluator.evaluate(context(laptopPolicy(),
+                Map.of("repair_quote", withFields(itemFields("Asus", "VivoBook 15")))));
+
+        assertThat(c.rationale()).doesNotContain("El modelo del documento");
+    }
+
+    /** A document that doesn't name a make: nothing to compare, and never an inconsistency. */
+    @Test
+    void aDocumentWithoutAMake_staysSilent() {
+        Contribution c = evaluator.evaluate(context(laptopPolicy(),
+                Map.of("police_report", withFields(itemFields(null, null)))));
+
+        assertThat(c.score()).isZero();
+    }
+
+    /**
+     * The check needs something to cross against. A Celulares policy carries no {@code
+     * insuredItem}, and inventing a mismatch out of a missing operand would accuse the insured
+     * over a field nobody filled.
+     */
+    @Test
+    void withoutAnInsuredItemOnThePolicy_theMakeIsNotChecked() {
+        Contribution c = evaluator.evaluate(context(policyWithImei(),
+                Map.of("repair_quote", withFields(itemFields("Asus", "VivoBook 15")))));
+
+        assertThat(c.score()).isZero();
     }
 }

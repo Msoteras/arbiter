@@ -21,6 +21,7 @@ import lombok.RequiredArgsConstructor;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
+import org.springframework.util.StringUtils;
 
 import java.math.BigDecimal;
 import java.time.Instant;
@@ -231,6 +232,8 @@ public class ClassificationOrchestrator {
         row.setDocumentDate(fields.documentDate());
         row.setAmount(fields.amount());
         row.setItemDescription(fields.itemDescription());
+        row.setBrand(fields.brand());
+        row.setModel(fields.model());
         row.setImei(fields.imei());
         // The column is NOT NULL and DESCONOCIDO is a real answer, not a missing one: the
         // extraction leaves it null when the model didn't state it, which means the same thing.
@@ -239,6 +242,11 @@ public class ClassificationOrchestrator {
                 : fields.affectedParty());
         row.setExtractedAt(Instant.now());
         extraction.visualFindings().forEach(row::addVisualFinding);
+        // Skipping the nameless or valueless ones: both columns are NOT NULL, and a detail missing
+        // either half says nothing to the analyst — it would only fail the whole insert.
+        fields.details().stream()
+                .filter(detail -> StringUtils.hasText(detail.name()) && StringUtils.hasText(detail.value()))
+                .forEach(detail -> row.addDetail(detail.name(), detail.value()));
         return row;
     }
 

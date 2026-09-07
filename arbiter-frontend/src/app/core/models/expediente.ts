@@ -44,6 +44,10 @@ export interface DocumentAnalysis {
   documentDate: string | null;
   amount: number | null;
   itemDescription: string | null;
+  /** Marca sola, separada de `itemDescription`: es contra lo que se cruza el bien asegurado. */
+  brand: string | null;
+  /** Modelo solo, sin la marca. */
+  model: string | null;
   imei: string | null;
   /** TITULAR | FAMILIAR | TERCERO | DESCONOCIDO — quién sufrió el hecho según el documento. */
   affectedParty: string;
@@ -52,6 +56,21 @@ export interface DocumentAnalysis {
    * que esté vacío no prueba que el documento sea auténtico.
    */
   visualFindings: string[];
+  /**
+   * Todo otro dato que el documento diga y que ninguna regla lea — nro. de factura, nro. de
+   * serie, comercio. **Vacío es lo normal**: una foto del equipo roto no trae ninguno.
+   *
+   * Es una lista nombre/valor y no campos fijos para que sumar un dato no pida migración. El
+   * `name` es como lo llamó el modelo, así que **se muestra tal cual y nunca se compara**: nada
+   * acá puede decidir nada.
+   */
+  details: ExtractedDetail[];
+}
+
+/** Un dato suelto que el documento indica, tal como el modelo lo leyó. */
+export interface ExtractedDetail {
+  name: string;
+  value: string;
 }
 
 // Espejo de CaseResponse del cases-service (GET /api/v1/cases/{id})

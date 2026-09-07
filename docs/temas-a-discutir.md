@@ -9,27 +9,29 @@ una sección aparte con lo que quedó huérfano al borrar el backlog de historia
 
 ---
 
-## H0007 — Extracción de datos de documentos, alcance final
+## ~~H0007 — Extracción de datos de documentos, alcance final~~ — ✅ cerrado (07/09/2026)
 
-**Qué se sabe:** H0031 (18/08) ya cubre el corazón de la historia. El modelo devuelve **cinco campos
-tipados** además de la transcripción —`documentDate`, `amount`, `itemDescription`, `imei`,
-`affectedParty`— que se persisten en `document_analysis`, alimentan `DocumentInconsistencyEvaluator`
-y se muestran en la solapa "Datos extraídos". "Tipados" quiere decir que el modelo **extrae el
-dato** y el código **compara**: para decir "el IMEI de la factura no es el del bien asegurado" hace
-falta el IMEI como dato, no una oración que lo mencione.
+**Qué se hizo.** El modelo devuelve ahora `brand` y `model` separados de `itemDescription`, más una
+lista genérica `details` (nombre/valor) para todo lo demás que el documento diga: nro. de factura,
+nro. de serie, comercio. `DocumentInconsistencyEvaluator` cruza la marca contra el bien asegurado —
+el chequeo que el IMEI no podía hacer fuera de Celulares, donde no hay IMEI contra qué comparar.
+Prompt `extraccion-documento-v5.md`, migración `2026-09-07-datos-documento.sql`.
 
-**Qué falta, exactamente:**
-1. **Nro. de factura** — no existe como campo.
-2. **Marca / modelo / serie por separado** — hoy es un solo `itemDescription` de texto libre
-   (`"Samsung Galaxy A56"`). Sin separar no se puede cruzar marca ni modelo contra el bien asegurado.
-3. **Edición** — la solapa es de solo lectura: un valor mal leído no se puede corregir.
+**Por qué híbrido y no todo genérico.** Un campo se gana una columna tipada cuando una **regla lo
+compara**: la comparación necesita el tipo, no el texto —una fecha se resta, un importe se compara
+con tolerancia, `affectedParty` es enum para que ninguna regla dependa de cómo el modelo redactó la
+frase—. Y necesita que el nombre sea un contrato: en `details` el nombre es como lo llamó el modelo,
+así que una regla que buscara ahí dejaría de encontrarlo el día que lo redacte distinto, **y
+fallaría en silencio** — en este motor, una regla que no evalúa se lee como "no hay nada mal".
+Cuando un detalle empiece a alimentar una regla, se promueve a columna.
 
-**Corrección (07/09/2026):** este punto decía además que *"la validación es solo contra la denuncia,
-no contra los datos de la póliza"*. Es falso: `DocumentInconsistencyEvaluator.checkImei` ya cruza el
-IMEI del documento contra el del bien asegurado (`context.policy().imei()`). Lo que no se cruza es
-marca/modelo, y no se puede hasta tener el punto 2.
-
-**Decidido (07/09/2026): se hacen los tres.** Deja de ser un tema a discutir y pasa a ser trabajo.
+**La edición del analista quedó fuera de alcance, a propósito.** La HU original la pedía, pero
+choca de frente con la decisión #7: si el analista edita el dato extraído, el `document_analysis`
+que fundamentó la recomendación cambia bajo los pies del log de auditoría. Y se perdería sola —
+`document_analysis` se reemplaza en cada corrida, así que la próxima reclasificación se la lleva
+puesta. Sostenerla pediría versionar la tabla y decidir si un valor corregido dispara
+reclasificación, más caro que los otros dos puntos juntos. **Corresponde reescribir la HU** para
+que diga esto en vez de prometer la edición.
 
 ---
 

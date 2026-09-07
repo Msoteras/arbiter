@@ -341,8 +341,17 @@ export class ExpedienteDetailComponent {
       { label: 'Fecha del documento', value: doc.documentDate ? formatDate(doc.documentDate) : null },
       { label: 'Importe', value: doc.amount == null ? null : `$${doc.amount.toLocaleString()}` },
       { label: 'Bien que nombra', value: doc.itemDescription },
+      { label: 'Marca', value: doc.brand },
+      { label: 'Modelo', value: doc.model },
       { label: 'IMEI', value: doc.imei, mono: true },
       { label: 'Damnificado', value: this.affectedPartyLabel(doc.affectedParty) },
+      // Los datos sin campo propio van al final de la misma grilla, no en una sección aparte:
+      // para el analista son un dato del documento como cualquier otro, y separarlos por cómo
+      // los guardamos sería exponer una decisión de modelo que no le dice nada.
+      //
+      // No llevan el "no aplica" de los de arriba porque no tienen ausencia posible: existen
+      // solo si el documento los trae. La lista vacía es el caso normal.
+      ...(doc.details ?? []).map((detail) => ({ label: detail.name, value: detail.value })),
     ];
   }
 

@@ -64,6 +64,14 @@ public class DocumentAnalysis {
     @Column(name = "item_description", length = 255)
     private String itemDescription;
 
+    /** Just the make, split out of {@link #itemDescription} so it can be crossed against the policy. */
+    @Column(length = 100)
+    private String brand;
+
+    /** Just the model, same reason as {@link #brand}. */
+    @Column(length = 100)
+    private String model;
+
     @Column(length = 20)
     private String imei;
 
@@ -91,11 +99,28 @@ public class DocumentAnalysis {
     @OneToMany(mappedBy = "analysis", cascade = CascadeType.ALL, orphanRemoval = true)
     private List<DocumentVisualFinding> visualFindings = new ArrayList<>();
 
+    /**
+     * Everything else the document states, as name/value — the invoice number, the serial, the
+     * store. <b>Displayed, never compared</b>: see {@link DocumentDetail} for why a rule must not
+     * look a name up in here.
+     */
+    @OneToMany(mappedBy = "analysis", cascade = CascadeType.ALL, orphanRemoval = true)
+    private List<DocumentDetail> details = new ArrayList<>();
+
     /** Keeps both sides of the association consistent when building the aggregate. */
     public void addVisualFinding(String finding) {
         DocumentVisualFinding row = new DocumentVisualFinding();
         row.setFinding(finding);
         row.setAnalysis(this);
         visualFindings.add(row);
+    }
+
+    /** Same as {@link #addVisualFinding}, for the name/value side. */
+    public void addDetail(String name, String value) {
+        DocumentDetail row = new DocumentDetail();
+        row.setName(name);
+        row.setValue(value);
+        row.setAnalysis(this);
+        details.add(row);
     }
 }
