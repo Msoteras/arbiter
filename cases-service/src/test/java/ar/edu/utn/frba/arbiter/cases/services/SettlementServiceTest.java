@@ -7,11 +7,13 @@ import ar.edu.utn.frba.arbiter.cases.exceptions.InvalidSettlementException;
 import ar.edu.utn.frba.arbiter.cases.exceptions.SettlementNotFoundException;
 import ar.edu.utn.frba.arbiter.cases.models.entities.Case;
 import ar.edu.utn.frba.arbiter.cases.models.entities.CaseSettlement;
+import ar.edu.utn.frba.arbiter.cases.models.entities.ExpertAssessment;
 import ar.edu.utn.frba.arbiter.cases.models.entities.Policy;
 import ar.edu.utn.frba.arbiter.cases.models.entities.PolicySnapshot;
 import ar.edu.utn.frba.arbiter.cases.models.repositories.CaseDocumentAnalysisRepository;
 import ar.edu.utn.frba.arbiter.cases.models.repositories.CaseRepository;
 import ar.edu.utn.frba.arbiter.cases.models.repositories.CaseSettlementRepository;
+import ar.edu.utn.frba.arbiter.cases.models.repositories.ExpertAssessmentRepository;
 import ar.edu.utn.frba.arbiter.cases.models.repositories.PolicyCoverageRepository;
 import ar.edu.utn.frba.arbiter.common.enums.SettlementBasis;
 import ar.edu.utn.frba.arbiter.common.enums.SettlementFormula;
@@ -60,6 +62,9 @@ class SettlementServiceTest {
 
     @Mock
     private CaseDocumentAnalysisRepository documentAnalysisRepository;
+
+    @Mock
+    private ExpertAssessmentRepository expertAssessmentRepository;
 
     /** Real, not mocked: the arithmetic under test is exactly the point of these cases. */
     @Spy
@@ -327,6 +332,44 @@ class SettlementServiceTest {
                 .build()));
 
         assertThat(settlementService.forCase(1L, null).suggestedAmount()).isNull();
+    }
+
+    /**
+     * Cuando el expediente pasó por peritaje, el monto que sugiere es el del perito y no el del
+     * presupuesto: lo determinó una persona que fue a mirar el bien, contra un papel que trajo el
+     * asegurado. Ofrecer el segundo teniendo el primero sería sugerir la fuente más débil.
+     */
+    @Test
+    void theExpertAmountWinsOverTheQuote() {
+        claim.setCoverage(repairCoverage());
+        when(documentAnalysisRepository.findByCaseId(1L)).thenReturn(List.of(
+                document("repair_quote", new BigDecimal("95000.00"))));
+        when(expertAssessmentRepository.findByCaseId(1L)).thenReturn(Optional.of(
+                ExpertAssessment.builder().caseId(1L)
+                        .indemnifiableAmount(new BigDecimal("120000.00")).build()));
+
+        SettlementResponse response = settlementService.forCase(1L, null);
+
+        assertThat(response.suggestedAmount()).isEqualByComparingTo("120000.00");
+        assertThat(response.suggestedFrom()).isEqualTo("expert_report");
+    }
+
+    /**
+     * Un peritaje sin monto no tapa el presupuesto. No todo informe pone un número —un fraude
+     * confirmado no tiene nada que indemnizar— y ahí el presupuesto sigue siendo lo mejor que hay.
+     */
+    @Test
+    void anExpertReportWithNoAmountFallsBackToTheQuote() {
+        claim.setCoverage(repairCoverage());
+        when(documentAnalysisRepository.findByCaseId(1L)).thenReturn(List.of(
+                document("repair_quote", new BigDecimal("95000.00"))));
+        when(expertAssessmentRepository.findByCaseId(1L)).thenReturn(Optional.of(
+                ExpertAssessment.builder().caseId(1L).indemnifiableAmount(null).build()));
+
+        SettlementResponse response = settlementService.forCase(1L, null);
+
+        assertThat(response.suggestedAmount()).isEqualByComparingTo("95000.00");
+        assertThat(response.suggestedFrom()).isEqualTo("repair_quote");
     }
 
     private DocumentAnalysisSummary document(String type, BigDecimal amount) {

@@ -416,6 +416,14 @@ app-textarea { display: block; margin: var(--space-3) 0; }
   color: var(--text-primary);
 }
 
+/* El monto del peritaje, en el formulario del informe: mismo criterio de campo que el resto. */
+.peritaje-monto {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  margin-top: var(--space-3);
+}
+
 /* El campo de justificación: etiqueta, campo y "Obligatorio", pegados. El margen por defecto del
    <p> abría un hueco que dejaba la aclaración flotando lejos del campo, así que acá no hay <p>:
    son spans y el espaciado lo pone el flex. */

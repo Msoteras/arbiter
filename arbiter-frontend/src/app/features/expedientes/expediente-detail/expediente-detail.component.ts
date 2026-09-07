@@ -1068,6 +1068,21 @@ export class ExpedienteDetailComponent {
     this.showInforme.set(false);
   }
 
+  /**
+   * El monto que el perito determinó, como lo tipeó el analista. Vacío no es cero: un informe que
+   * no puso número —un fraude confirmado, un hecho no amparado— no concluyó que no se paga nada.
+   */
+  protected readonly montoPericial = signal('');
+
+  private montoPericialNumero(): number | null {
+    const raw = this.montoPericial().trim();
+    if (raw === '') {
+      return null;
+    }
+    const parsed = Number(raw);
+    return Number.isFinite(parsed) && parsed >= 0 ? parsed : null;
+  }
+
   onInformeFile(event: Event): void {
     const input = event.target as HTMLInputElement;
     this.informeFile.set(input.files?.[0] ?? null);
@@ -1083,7 +1098,13 @@ export class ExpedienteDetailComponent {
     this.informeSaving.set(true);
     this.informeError.set(null);
     this.service
-      .cargarInformePericial(d.id, verdict, this.notaVeredicto().trim(), file)
+      .cargarInformePericial(
+        d.id,
+        verdict,
+        this.notaVeredicto().trim(),
+        this.montoPericialNumero(),
+        file,
+      )
       .subscribe({
         next: () => {
           this.informeSaving.set(false);

@@ -180,8 +180,7 @@ class ExpertAssessmentServiceTest {
                 .thenAnswer(invocation -> invocation.getArgument(0));
 
         ExpertAssessmentResponse response = expertAssessmentService.receiveReport(CASE_ID,
-                ExpertVerdict.FRAUD_CONFIRMED, "El equipo ya estaba dañado antes de la vigencia",
-                new MockMultipartFile("report", "informe.pdf", "application/pdf", "PDF".getBytes()));
+                ExpertVerdict.FRAUD_CONFIRMED, "El equipo ya estaba dañado antes de la vigencia", null, new MockMultipartFile("report", "informe.pdf", "application/pdf", "PDF".getBytes()));
 
         assertThat(response.verdict()).isEqualTo(ExpertVerdict.FRAUD_CONFIRMED);
         assertThat(response.reportReceivedAt()).isNotNull();
@@ -206,8 +205,7 @@ class ExpertAssessmentServiceTest {
         givenAReportCanBeFiled();
 
         expertAssessmentService.receiveReport(CASE_ID, ExpertVerdict.FRAUD_CONFIRMED,
-                "El equipo ya estaba dañado antes de la vigencia",
-                new MockMultipartFile("report", "informe.pdf", "application/pdf", "PDF".getBytes()));
+                "El equipo ya estaba dañado antes de la vigencia", null, new MockMultipartFile("report", "informe.pdf", "application/pdf", "PDF".getBytes()));
 
         ArgumentCaptor<String> reason = ArgumentCaptor.forClass(String.class);
         verify(fraudRecordService).registerFromExpertReport(eq(CASE_ID), reason.capture());
@@ -223,8 +221,7 @@ class ExpertAssessmentServiceTest {
     void receiveReport_withoutConfirmedFraud_recordsNothingOnTheInsured() {
         givenAReportCanBeFiled();
 
-        expertAssessmentService.receiveReport(CASE_ID, ExpertVerdict.FRAUD_DISCARDED, "Todo en regla",
-                new MockMultipartFile("report", "informe.pdf", "application/pdf", "PDF".getBytes()));
+        expertAssessmentService.receiveReport(CASE_ID, ExpertVerdict.FRAUD_DISCARDED, "Todo en regla", null, new MockMultipartFile("report", "informe.pdf", "application/pdf", "PDF".getBytes()));
 
         verify(fraudRecordService, never()).registerFromExpertReport(any(), any());
     }
@@ -259,8 +256,7 @@ class ExpertAssessmentServiceTest {
         when(expertAssessmentRepository.findByCaseId(CASE_ID)).thenReturn(Optional.of(alreadyReturned));
 
         assertThatThrownBy(() -> expertAssessmentService.receiveReport(CASE_ID,
-                ExpertVerdict.FRAUD_CONFIRMED, "otra cosa",
-                new MockMultipartFile("report", "otro.pdf", "application/pdf", "PDF".getBytes())))
+                ExpertVerdict.FRAUD_CONFIRMED, "otra cosa", null, new MockMultipartFile("report", "otro.pdf", "application/pdf", "PDF".getBytes())))
                 .isInstanceOf(ExpertReportAlreadyReceivedException.class);
 
         verify(caseDocumentRepository, never()).save(any());
@@ -273,8 +269,7 @@ class ExpertAssessmentServiceTest {
         when(expertAssessmentRepository.findByCaseId(CASE_ID)).thenReturn(Optional.empty());
 
         assertThatThrownBy(() -> expertAssessmentService.receiveReport(CASE_ID,
-                ExpertVerdict.INCONCLUSIVE, null,
-                new MockMultipartFile("report", "informe.pdf", "application/pdf", "PDF".getBytes())))
+                ExpertVerdict.INCONCLUSIVE, null, null, new MockMultipartFile("report", "informe.pdf", "application/pdf", "PDF".getBytes())))
                 .isInstanceOf(ExpertAssessmentNotFoundException.class);
     }
 

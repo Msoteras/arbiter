@@ -810,6 +810,14 @@ BEGIN
             report_received_at  TIMESTAMPTZ,
             verdict             VARCHAR(20),
             verdict_note        TEXT,
+            -- El monto indemnizable que determinó el perito. Lo carga el analista junto con el
+            -- veredicto, del informe que recibió: el perito está fuera del sistema y contesta por
+            -- mail, así que el número llega en un PDF y alguien tiene que transcribirlo.
+            --
+            -- Nullable porque no todo peritaje termina en un monto: un fraude confirmado o un
+            -- hecho no amparado no tienen nada que indemnizar, y un cero ahí se leería como "el
+            -- perito dijo que no se paga nada", que es una conclusión distinta a no haber opinado.
+            indemnifiable_amount NUMERIC(15,2),
             derived_by          BIGINT       NOT NULL REFERENCES %I.claims_analyst(id),
             -- Nullable and ON DELETE SET NULL is deliberate: the assessment outlives the
             -- catalog row, and the copied name/email are what the record actually reads.

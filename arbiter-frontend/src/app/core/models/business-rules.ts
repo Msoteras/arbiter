@@ -179,6 +179,9 @@ export const DOCUMENT_TYPES: DocumentTypeDef[] = [
   { code: 'last_connection', label: 'Captura de última conexión' },
   { code: 'repair_quote', label: 'Presupuesto de reparación' },
   { code: 'item_photo', label: 'Foto del bien' },
+  // No lo sube el asegurado: lo carga el analista cuando recibe el informe del perito. Está acá
+  // para que tenga label como cualquier otro donde se lo nombre.
+  { code: 'expert_report', label: 'Informe de peritaje' },
 ];
 
 export function documentTypeLabel(code: string): string {

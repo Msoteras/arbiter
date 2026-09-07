@@ -63,5 +63,11 @@ export interface Peritaje {
   reportReceivedAt: string | null;
   verdict: ExpertVerdict | null;
   verdictNote: string | null;
+  /**
+   * Lo que el perito determinó que vale el siniestro, transcripto del informe por el analista.
+   * Null cuando el informe no puso un número — un fraude confirmado o un hecho no amparado no
+   * tienen nada que indemnizar, y ahí un cero diría otra cosa.
+   */
+  indemnifiableAmount: number | null;
   reportDocumentId: number | null;
 }

@@ -3,6 +3,7 @@ package ar.edu.utn.frba.arbiter.cases.dto;
 import ar.edu.utn.frba.arbiter.cases.models.entities.ExpertAssessment;
 import ar.edu.utn.frba.arbiter.common.enums.ExpertVerdict;
 
+import java.math.BigDecimal;
 import java.time.Instant;
 
 /**
@@ -23,6 +24,8 @@ public record ExpertAssessmentResponse(
         Instant reportReceivedAt,
         ExpertVerdict verdict,
         String verdictNote,
+        /** Lo que el perito determinó que vale el siniestro. Null cuando el informe no puso número. */
+        BigDecimal indemnifiableAmount,
         Long reportDocumentId
 ) {
 
@@ -39,6 +42,7 @@ public record ExpertAssessmentResponse(
                 assessment.getReportReceivedAt(),
                 assessment.getVerdict(),
                 assessment.getVerdictNote(),
+                assessment.getIndemnifiableAmount(),
                 assessment.getReportDocumentId()
         );
     }

@@ -1035,6 +1035,24 @@
     <app-button variant="secondary" (click)="informeInput.click()">Elegir informe</app-button>
   </div>
   <app-textarea [rows]="3" placeholder="Nota (opcional)…" [(value)]="notaVeredicto" />
+
+  <!-- El perito verifica la causa Y el monto indemnizable (NSIN001 §2.6). El número llega en el
+       PDF, así que lo transcribe el analista acá mismo: ya está completando este formulario. -->
+  <label class="peritaje-monto">
+    <span class="t-field-label">Monto indemnizable que determinó el perito</span>
+    <app-input
+      type="number"
+      [min]="0"
+      [value]="montoPericial()"
+      (valueChange)="montoPericial.set($event)"
+      placeholder="Sin monto"
+    />
+    <span class="justification-hint">
+      Opcional: dejalo vacío si el informe no puso un número. Va a ofrecerse al determinar el monto
+      a pagar, no se aplica solo.
+    </span>
+  </label>
+
   <!-- Lo que se firma al guardar: el veredicto del perito no queda solo en el expediente, deja la
        marca sobre la persona. Y esa marca no se da de baja desde la aplicación. -->
   @if (veredictoConfirmaFraude()) {

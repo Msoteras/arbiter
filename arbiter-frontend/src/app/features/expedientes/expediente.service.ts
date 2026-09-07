@@ -441,6 +441,7 @@ export class ExpedienteService {
     caseId: number,
     verdict: ExpertVerdict,
     note: string,
+    indemnifiableAmount: number | null,
     report: File,
   ): Observable<Peritaje> {
     // Veredicto y nota van en el cuerpo, no en la query string: la nota es texto libre sobre un
@@ -450,6 +451,11 @@ export class ExpedienteService {
     formData.append('report', report);
     formData.append('verdict', verdict);
     formData.append('note', note);
+    // Solo si el informe puso un número: vacío no es cero. Un cero diría que el perito concluyó
+    // que no se paga nada, que es otra conclusión.
+    if (indemnifiableAmount != null) {
+      formData.append('indemnifiableAmount', String(indemnifiableAmount));
+    }
     return this.http.post<Peritaje>(
       `${this.baseUrl}/${caseId}/expert-assessment/report`,
       formData,

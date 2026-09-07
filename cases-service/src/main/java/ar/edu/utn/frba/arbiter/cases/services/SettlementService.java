@@ -8,11 +8,13 @@ import ar.edu.utn.frba.arbiter.cases.exceptions.InvalidSettlementException;
 import ar.edu.utn.frba.arbiter.cases.exceptions.SettlementNotFoundException;
 import ar.edu.utn.frba.arbiter.cases.models.entities.Case;
 import ar.edu.utn.frba.arbiter.cases.models.entities.CaseSettlement;
+import ar.edu.utn.frba.arbiter.cases.models.entities.ExpertAssessment;
 import ar.edu.utn.frba.arbiter.cases.models.entities.PolicyCoverage;
 import ar.edu.utn.frba.arbiter.cases.models.entities.PolicySnapshot;
 import ar.edu.utn.frba.arbiter.cases.models.repositories.CaseDocumentAnalysisRepository;
 import ar.edu.utn.frba.arbiter.cases.models.repositories.CaseRepository;
 import ar.edu.utn.frba.arbiter.cases.models.repositories.CaseSettlementRepository;
+import ar.edu.utn.frba.arbiter.cases.models.repositories.ExpertAssessmentRepository;
 import ar.edu.utn.frba.arbiter.cases.models.repositories.PolicyCoverageRepository;
 import ar.edu.utn.frba.arbiter.common.enums.SettlementBasis;
 import ar.edu.utn.frba.arbiter.common.enums.SettlementFormula;
@@ -57,6 +59,8 @@ public class SettlementService {
     /** Los dos tipos de documento que traen un importe que sirve para liquidar. */
     private static final String REPAIR_QUOTE = "repair_quote";
     private static final String PURCHASE_PROOF = "purchase_proof";
+    /** No es un tipo de adjunto del asegurado: es el informe que subió el analista. */
+    private static final String EXPERT_REPORT = "expert_report";
 
     private final CaseRepository caseRepository;
     private final CaseSettlementRepository settlementRepository;
@@ -64,6 +68,7 @@ public class SettlementService {
     private final SettlementAuthorityService authorityService;
     private final PolicyCoverageRepository policyCoverageRepository;
     private final CaseDocumentAnalysisRepository documentAnalysisRepository;
+    private final ExpertAssessmentRepository expertAssessmentRepository;
 
     /**
      * What this case pays. The settlement already authorized if there is one, otherwise the
@@ -204,6 +209,9 @@ public class SettlementService {
      * <p>Null donde el campo no aplica: en una pérdida total por suma asegurada el monto
      * acreditado no mueve nada, y sugerir algo ahí invita a cargar un dato que no hace nada.
      *
+     * <p>Si el expediente pasó por peritaje, manda el monto que determinó el perito: lo fijó una
+     * persona que fue a mirar el bien, contra un presupuesto que trajo el asegurado.
+     *
      * <p><b>Es una sugerencia y nada más.</b> No se aplica sola ni entra en el cálculo: el analista
      * la toma si la verifica contra el documento. La extracción del modelo no es vinculante, misma
      * regla que la clasificación (decisión #5).
@@ -216,6 +224,18 @@ public class SettlementService {
             wanted = PURCHASE_PROOF;
         } else {
             return null;
+        }
+
+        // El peritaje gana. Cuando el expediente se derivó, el monto lo determinó una persona que
+        // fue a mirar el bien; el presupuesto lo trajo el asegurado. Sugerir el segundo teniendo el
+        // primero sería ofrecer la fuente más débil de las dos.
+        Suggestion expert = expertAssessmentRepository.findByCaseId(caseId)
+                .map(ExpertAssessment::getIndemnifiableAmount)
+                .filter(amount -> amount != null && amount.signum() > 0)
+                .map(amount -> new Suggestion(amount, EXPERT_REPORT))
+                .orElse(null);
+        if (expert != null) {
+            return expert;
         }
 
         return documentAnalysisRepository.findByCaseId(caseId).stream()
