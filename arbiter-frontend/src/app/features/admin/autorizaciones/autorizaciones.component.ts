@@ -12,7 +12,9 @@ import { CardComponent } from '../../../shared/ui/card/card.component';
 import { EmptyStateComponent } from '../../../shared/ui/empty-state/empty-state.component';
 import { InlineLoadingComponent } from '../../../shared/ui/inline-loading/inline-loading.component';
 import { ModalComponent } from '../../../shared/ui/modal/modal.component';
+import { TableComponent } from '../../../shared/ui/table/table.component';
 import { TextareaComponent } from '../../../shared/ui/textarea/textarea.component';
+import { fadeStagger, staggerReveal } from '../../../shared/animations';
 
 /**
  * Las liquidaciones que superaron la atribución del analista y esperan la firma del referente
@@ -35,9 +37,11 @@ import { TextareaComponent } from '../../../shared/ui/textarea/textarea.componen
     EmptyStateComponent,
     InlineLoadingComponent,
     ModalComponent,
+    TableComponent,
     TextareaComponent,
   ],
   changeDetection: ChangeDetectionStrategy.OnPush,
+  animations: [fadeStagger, staggerReveal],
   templateUrl: './autorizaciones.component.html',
   styleUrl: './autorizaciones.component.scss',
 })

@@ -1,53 +1,43 @@
-.page { display: flex; flex-direction: column; gap: var(--space-4); }
+/* El padding de página lo pone cada pantalla en su :host, igual que Reglas y Usuarios. Sin esto
+   el contenido arrancaba pegado al borde. */
+:host { display: block; padding: var(--space-5); }
 
-.page-head { display: flex; flex-direction: column; gap: var(--space-1); }
-.page-sub { margin: 0; max-width: 68ch; }
+.autorizaciones-page { display: flex; flex-direction: column; gap: var(--space-5); }
 
-.queue { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: var(--space-3); }
+.page-head .t-page-title { margin: 0; }
 
-.row {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--space-4);
-  list-style: none;
-}
-
-.row-main { display: flex; flex-direction: column; gap: var(--space-1); min-width: 0; }
-
-.row-title { display: flex; align-items: center; gap: var(--space-2); flex-wrap: wrap; }
-
+/* El número de expediente es el ancla de la fila: se lee primero y lleva al detalle. */
 .case-link {
-  font-size: var(--font-size-body);
+  display: block;
   font-weight: var(--font-weight-medium);
   color: var(--text-primary);
   text-decoration: none;
 }
 .case-link:hover { text-decoration: underline; }
 
-.row-meta { margin: 0; }
+/* El dato de apoyo debajo del principal, no en una columna aparte: son siete columnas y sumar
+   asegurado y hecho generador como propias dejaba la tabla ilegible. */
+.cell-sub {
+  display: block;
+  font-size: var(--font-size-2xs);
+  color: var(--text-muted);
+}
 
-/* El monto y su relación con el tope, juntos: es lo que el referente está juzgando. */
-.row-amounts {
+.num { text-align: right; }
+
+.row-actions { display: flex; gap: var(--space-2); justify-content: flex-end; }
+
+/* Mismo criterio que la justificación del analista: etiqueta, campo y "Obligatorio", pegados. */
+.return-field {
   display: flex;
   flex-direction: column;
-  align-items: flex-end;
   gap: var(--space-1);
-  white-space: nowrap;
+  margin-top: var(--space-3);
 }
 
-.amount {
-  font-size: var(--font-size-lg);
-  font-weight: var(--font-weight-bold);
-  color: var(--text-primary);
-}
+.required { color: var(--status-danger); }
 
-.row-actions { display: flex; gap: var(--space-2); }
-
-.page-error { margin: 0; font-size: var(--font-size-xs); color: var(--status-danger); }
-
-@media (max-width: 820px) {
-  .row { flex-direction: column; align-items: stretch; }
-  .row-amounts { align-items: flex-start; }
-  .row-actions { justify-content: flex-end; }
+.return-hint {
+  font-size: var(--font-size-2xs);
+  color: var(--text-muted);
 }

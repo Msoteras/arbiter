@@ -740,7 +740,15 @@
 <!-- Modal de decisión (gobierno: toda decisión queda justificada/auditada). Al aprobar suma la
      determinación del monto: el procedimiento de la compañía las trata como un solo acto del
      analista, y aprobar sin monto deja al siniestro debiendo una suma que nadie fijó. -->
-<app-modal [open]="showJustify()" [heading]="decisionModalHeading()" (close)="cancelDecision()">
+<!-- Ancho solo al aprobar: ahí entra la hoja de liquidación entera y con 440px todo se partía en
+     tres renglones. Rechazar sigue siendo una justificación y nada más, y un diálogo ancho para un
+     solo campo se lee peor. -->
+<app-modal
+  [open]="showJustify()"
+  [heading]="decisionModalHeading()"
+  [size]="pendingDecision() === 'aprobar' ? 'lg' : 'md'"
+  (close)="cancelDecision()"
+>
   @if (pendingDecision() === 'aprobar') {
     @if (settlement(); as s) {
       <div class="settlement">
@@ -767,44 +775,61 @@
           }
         </ul>
 
-        @for (aviso of s.warnings; track $index) {
-          <p class="rcard-note warning">{{ aviso }}</p>
+        @if (s.warnings.length) {
+          <ul class="settlement-notes">
+            @for (aviso of s.warnings; track $index) {
+              <li>{{ aviso }}</li>
+            }
+          </ul>
         }
 
         <!-- El valor de reposición sale de la factura o el presupuesto que ya están en el
              expediente. Solo baja el techo en las coberturas que liquidan por el menor de los
              dos; en las demás queda registrado igual, como respaldo del monto. -->
-        <label class="fieldset">
-          <span class="t-field-label">Valor de reposición acreditado</span>
-          <div class="settlement-replacement">
+        <div class="settlement-money">
+          <!-- Solo donde efectivamente cambia algo. En una cobertura que liquida por suma asegurada
+               este valor no toca el monto (art. 7 de la cláusula 340 aplica al revés), y ofrecer un
+               campo que no hace nada es peor que no ofrecerlo: se carga, se aprieta Recalcular y el
+               total queda igual, sin explicación. -->
+          @if (s.settlementBasis === 'LESSER_OF_SUM_AND_REPLACEMENT') {
+            <label class="fieldset">
+              <span class="t-field-label">Cuánto cuesta reponer el bien</span>
+              <div class="settlement-replacement">
+                <app-input
+                  type="number"
+                  [min]="0"
+                  [value]="replacementInput()"
+                  (valueChange)="replacementInput.set($event)"
+                  placeholder="Sin acreditar"
+                />
+                <app-button variant="secondary" (click)="applyReplacementValue()">Recalcular</app-button>
+              </div>
+              <span class="justification-hint">
+                Según la factura o el presupuesto del expediente. Si es menor que la suma asegurada,
+                se indemniza por este valor.
+              </span>
+            </label>
+          }
+
+          <label class="fieldset">
+            <span class="t-field-label">Monto a pagar</span>
             <app-input
               type="number"
               [min]="0"
-              [value]="replacementInput()"
-              (valueChange)="replacementInput.set($event)"
-              placeholder="Sin acreditar"
+              [value]="settledAmountInput()"
+              (valueChange)="settledAmountInput.set($event)"
+              [placeholder]="montoExacto(s.calculatedAmount)"
             />
-            <app-button variant="secondary" (click)="applyReplacementValue()">Recalcular</app-button>
-          </div>
-        </label>
+          </label>
+        </div>
 
-        <label class="fieldset">
-          <span class="t-field-label">Monto a pagar</span>
-          <app-input
-            type="number"
-            [min]="0"
-            [value]="settledAmountInput()"
-            (valueChange)="settledAmountInput.set($event)"
-            [placeholder]="montoExacto(s.calculatedAmount)"
-          />
-          <p class="t-note">
-            Vacío se autoriza lo calculado ({{ montoExacto(s.calculatedAmount) }}). Tope: la suma
-            asegurada, {{ montoExacto(s.sumInsured) }}.
-          </p>
-        </label>
+        <p class="t-note">
+          Vacío se autoriza lo calculado ({{ montoExacto(s.calculatedAmount) }}). Tope: la suma
+          asegurada, {{ montoExacto(s.sumInsured) }}.
+        </p>
 
         @if (requiereReferente() && settlement(); as s) {
-          <p class="rcard-note warning">
+          <p class="settlement-callout">
             Este monto supera tu atribución para el ramo ({{ montoExacto(s.authorityLimit) }}).
             Al confirmar, el expediente queda esperando la autorización del referente.
           </p>
@@ -826,8 +851,11 @@
     }
   }
 
-  <p class="t-note">Toda decisión del analista queda justificada y auditada (human-in-the-loop).</p>
-  <app-textarea [rows]="4" placeholder="Justificación (obligatoria)…" [(value)]="justification" />
+  <label class="justification">
+    <span class="t-field-label">Justificación <span class="required" aria-hidden="true">*</span></span>
+    <app-textarea [rows]="3" placeholder="Por qué se toma esta decisión…" [(value)]="justification" />
+    <span class="justification-hint">Obligatorio</span>
+  </label>
   @if (pendingDecision() === 'aprobar' && approvalBlockedReason(); as motivo) {
     <p class="rcard-note error">{{ motivo }}</p>
   }

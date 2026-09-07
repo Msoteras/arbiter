@@ -162,8 +162,14 @@ class SettlementServiceTest {
         assertThat(response.warnings()).anyMatch(w -> w.contains("valor de reposición acreditado"));
     }
 
+    /**
+     * Una deducción que la cobertura tiene prendida se muestra igual cuando da cero, y con el
+     * motivo al lado. Antes esto era un cartel aparte: el analista leía la cuenta en un lado y por
+     * qué no cerraba en otro, y los dos ceros posibles ("no quedan cuotas" y "no está el dato") se
+     * veían iguales, cuando al segundo él lo puede completar ajustando el monto.
+     */
     @Test
-    void warnsWhenInstallmentsShouldBeDeductedButTheirAmountIsUnknown() {
+    void showsADeductionAtZeroOnTheSheetWithTheReasonInstead() {
         when(caseRepository.findPolicySnapshot(1L)).thenReturn(Optional.of(PolicySnapshot.builder()
                 .id(99L)
                 .externalPolicyNumber("POL-CEL-2026-042")
@@ -175,8 +181,38 @@ class SettlementServiceTest {
 
         SettlementResponse response = settlementService.forCase(1L, null);
 
-        assertThat(response.warnings()).anyMatch(w -> w.contains("importe de cuota"));
         assertThat(response.calculatedAmount()).isEqualByComparingTo("720000.00");
+        // La línea está, en cero, y explica por qué — no en un aviso suelto lejos de la cuenta.
+        assertThat(response.breakdown())
+                .filteredOn(line -> "Cuotas a vencer".equals(line.concept()))
+                .singleElement()
+                .satisfies(line -> {
+                    assertThat(line.amount()).isEqualByComparingTo("0.00");
+                    assertThat(line.detail()).contains("no trae el importe de cuota");
+                });
+        assertThat(response.warnings()).isEmpty();
+    }
+
+    /** El otro cero no es una falla: no quedaban cuotas por vencer, y así tiene que leerse. */
+    @Test
+    void tellsApartAnEmptyDeductionFromAMissingOne() {
+        when(caseRepository.findPolicySnapshot(1L)).thenReturn(Optional.of(PolicySnapshot.builder()
+                .id(99L)
+                .externalPolicyNumber("POL-CEL-2026-042")
+                .sumInsured(new BigDecimal("800000.00"))
+                // Vigencia ya terminada a la fecha del hecho: no resta ninguna cuota.
+                .effectiveTo(LocalDate.of(2026, 1, 1).atStartOfDay(ZoneId.systemDefault()).toInstant())
+                .installmentAmount(new BigDecimal("16000.00"))
+                .eventsInYear(1)
+                .queriedAt(Instant.now())
+                .build()));
+
+        SettlementResponse response = settlementService.forCase(1L, null);
+
+        assertThat(response.breakdown())
+                .filteredOn(line -> "Cuotas a vencer".equals(line.concept()))
+                .singleElement()
+                .satisfies(line -> assertThat(line.detail()).isEqualTo("no quedan cuotas por vencer"));
     }
 
     /** A signed amount doesn't move because someone reopened the screen with a different value. */

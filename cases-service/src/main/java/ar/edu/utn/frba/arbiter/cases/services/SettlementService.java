@@ -73,7 +73,7 @@ public class SettlementService {
 
         Optional<CaseSettlement> confirmed = settlementRepository.findByCaseId(caseId);
         if (confirmed.isPresent()) {
-            return toResponse(confirmed.get(), true, List.of());
+            return toResponse(confirmed.get(), true, List.of(), caseRecord.getCoverage());
         }
 
         PolicySnapshot snapshot = caseRepository.findPolicySnapshot(caseId).orElse(null);
@@ -83,7 +83,7 @@ public class SettlementService {
         // El tope vigente, para que el analista vea ANTES de firmar que este monto va a necesitar
         // al referente. Enterarse recién al confirmar es enterarse tarde.
         proposal.setAuthorityLimit(authorityService.limitFor(branchIdOf(caseRecord)));
-        return toResponse(proposal, false, warnings(coverage, snapshot, replacementValue));
+        return toResponse(proposal, false, warnings(coverage, snapshot, replacementValue), coverage);
     }
 
     /**
@@ -299,9 +299,13 @@ public class SettlementService {
     }
 
     /**
-     * What the analyst should know before signing. None of it blocks: a missing input makes the
-     * proposal weaker, not wrong, and the analyst can settle anyway — that's what the adjustment
-     * and its justification are for. Silently deducting nothing is what would be wrong.
+     * What the analyst should know before signing, and that the settlement sheet can't say on its
+     * own. A deduction that came out at zero is <b>not</b> here: that belongs on its own line of
+     * the sheet, next to the arithmetic it explains. What's left is about the calculation as a
+     * whole — that it ran on data this claim never saw, or that the ceiling silently fell back.
+     *
+     * <p>None of it blocks: a missing input makes the proposal weaker, not wrong, and the analyst
+     * can settle anyway — that's what the adjustment and its justification are for.
      */
     private List<String> warnings(Coverage coverage, PolicySnapshot snapshot, BigDecimal replacementValue) {
         List<String> warnings = new ArrayList<>();
@@ -315,23 +319,11 @@ public class SettlementService {
             warnings.add("La cobertura liquida por el menor entre la suma asegurada y el valor de "
                     + "reposición, pero no hay valor de reposición acreditado: se toma la suma asegurada.");
         }
-        if (coverage.isDeductPendingInstallments()) {
-            if (snapshot == null || snapshot.getInstallmentAmount() == null) {
-                warnings.add("La cobertura descuenta las cuotas a vencer, pero no se conoce el importe "
-                        + "de cuota de la póliza: no se descontó nada por ese concepto.");
-            } else if (snapshot.getEffectiveTo() == null) {
-                warnings.add("La cobertura descuenta las cuotas a vencer, pero no se conoce el fin de "
-                        + "vigencia de la póliza: no se descontó nada por ese concepto.");
-            }
-        }
-        if (coverage.isDeductOverdueBalance() && (snapshot == null || snapshot.getOverdueBalance() == null)) {
-            warnings.add("La cobertura descuenta la deuda vencida, pero la póliza consultada no trae "
-                    + "el saldo impago: no se descontó nada por ese concepto.");
-        }
         return warnings;
     }
 
-    private SettlementResponse toResponse(CaseSettlement s, boolean confirmed, List<String> warnings) {
+    private SettlementResponse toResponse(CaseSettlement s, boolean confirmed, List<String> warnings,
+                                          Coverage coverage) {
         return new SettlementResponse(
                 s.getFormula(),
                 s.getSumInsured(),
@@ -353,7 +345,7 @@ public class SettlementService {
                 confirmed ? s.getStatus() : null,
                 s.getAuthorityLimit(),
                 s.getReturnReason(),
-                breakdown(s, confirmed),
+                breakdown(s, confirmed, coverage),
                 warnings);
     }
 
@@ -362,7 +354,8 @@ public class SettlementService {
      * what comes off it, then the result. Built here and not in the SPA so that the wording and
      * the arithmetic can't drift the day a deduction changes.
      */
-    private List<SettlementResponse.Line> breakdown(CaseSettlement s, boolean confirmed) {
+    private List<SettlementResponse.Line> breakdown(CaseSettlement s, boolean confirmed,
+                                                    Coverage coverage) {
         List<SettlementResponse.Line> lines = new ArrayList<>();
 
         lines.add(SettlementResponse.Line.base("Suma asegurada", null, s.getSumInsured()));
@@ -390,16 +383,20 @@ public class SettlementService {
                     s.getDeductibleAmount()));
         }
 
-        if (s.getPendingInstallmentsAmount().signum() > 0) {
+        // Las deducciones que la cobertura tiene prendidas se muestran SIEMPRE, aunque den cero, y
+        // con el motivo al lado. Omitirlas obligaba a explicar por separado —en un cartel de color,
+        // lejos de la cuenta— por qué el total no las incluía; la hoja es donde el analista está
+        // mirando la aritmética, y es donde eso se lee.
+        if (coverage != null && coverage.isDeductPendingInstallments()) {
             lines.add(SettlementResponse.Line.deduction("Cuotas a vencer",
-                    "%d cuota(s) × %s — la pérdida total extingue la póliza"
-                            .formatted(s.getPendingInstallments(), money(s.getInstallmentAmount())),
-                    s.getPendingInstallmentsAmount()));
+                    pendingInstallmentsDetail(s), s.getPendingInstallmentsAmount()));
         }
 
-        if (s.getOverdueBalanceAmount().signum() > 0) {
+        if (coverage != null && coverage.isDeductOverdueBalance()) {
             lines.add(SettlementResponse.Line.deduction("Deuda vencida de la póliza",
-                    "saldo impago del contrato (cláusula 102, art. 5)",
+                    s.getOverdueBalanceAmount().signum() > 0
+                            ? "saldo impago del contrato (cláusula 102, art. 5)"
+                            : "la póliza consultada no registra saldo impago",
                     s.getOverdueBalanceAmount()));
         }
 
@@ -415,6 +412,22 @@ public class SettlementService {
             lines.add(SettlementResponse.Line.total("Monto a pagar", s.getCalculatedAmount()));
         }
         return lines;
+    }
+
+    /**
+     * Por qué las cuotas a vencer suman lo que suman. Los dos ceros posibles no significan lo
+     * mismo y al analista le cambian la decisión: "no quedan cuotas" es un resultado, "no está el
+     * dato" es una cuenta que no se pudo hacer y que él puede completar ajustando el monto.
+     */
+    private String pendingInstallmentsDetail(CaseSettlement s) {
+        if (s.getInstallmentAmount() == null) {
+            return "la póliza consultada no trae el importe de cuota — no se descontó nada";
+        }
+        if (s.getPendingInstallments() == 0) {
+            return "no quedan cuotas por vencer";
+        }
+        return "%d cuota(s) × %s — la pérdida total extingue la póliza"
+                .formatted(s.getPendingInstallments(), money(s.getInstallmentAmount()));
     }
 
     private BigDecimal percentageOf(BigDecimal amount, BigDecimal percentagePoints) {

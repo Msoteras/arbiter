@@ -634,9 +634,8 @@ export class ExpedienteDetailComponent {
   );
 
   protected readonly confirmDisabled = computed(() =>
-    this.pendingDecision() === 'aprobar'
-      ? this.approvalBlockedReason() !== null
-      : !this.justification().trim(),
+    !this.justification().trim() ||
+    (this.pendingDecision() === 'aprobar' && this.approvalBlockedReason() !== null),
   );
 
   askDecision(v: Verb): void {
@@ -660,8 +659,9 @@ export class ExpedienteDetailComponent {
     if (!verb) {
       return;
     }
-    // Aprobar exige además el monto; rechazar, solo la justificación.
-    if (verb === 'aprobar' ? this.approvalBlockedReason() !== null : !this.justification().trim()) {
+    // Mismo criterio que el botón: si está apagado, esto tampoco pasa. Duplicar la condición es
+    // como se llega a que el Enter mande algo que el click no dejaba mandar.
+    if (this.confirmDisabled()) {
       return;
     }
 
@@ -806,9 +806,8 @@ export class ExpedienteDetailComponent {
     if (this.settlementAdjusted() && !this.adjustmentReason().trim()) {
       return 'Ajustaste el monto: hace falta justificar el ajuste.';
     }
-    if (!this.justification().trim()) {
-      return 'La decisión tiene que quedar justificada.';
-    }
+    // La justificación no se repite acá: el campo ya está marcado como obligatorio y el botón
+    // queda apagado. Un cartel rojo diciendo lo mismo que la etiqueta es ruido, no ayuda.
     return null;
   });
 
