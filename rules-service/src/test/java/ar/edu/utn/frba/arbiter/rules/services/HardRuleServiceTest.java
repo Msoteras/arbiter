@@ -60,6 +60,23 @@ class HardRuleServiceTest {
         assertThat(rules).allMatch(r -> r.deadlineHours() == null);
     }
 
+    /**
+     * The panel sends all four rules on every save, so most of what arrives is untouched. Writing
+     * an audit row for each of those turned one real edit into six entries in the referente's
+     * history, five of them saying nothing happened.
+     */
+    @Test
+    void doesNotAuditASaveThatLeavesTheRuleAsItWas() {
+        when(ruleRepository.findFirstByBranch_IdAndCoverageIdAndRuleType(1L, 1L, "POLICE_DEADLINE"))
+                .thenReturn(Optional.of(rule(7L, RuleType.POLICE_DEADLINE, true, "{\"deadlineHours\":72}")));
+
+        service.upsert(1L, 1L, List.of(
+                new HardRuleDto(RuleType.POLICE_DEADLINE, true, 72L)), "referente@bbva.com");
+
+        verify(historyRepository, never()).save(any(InsurerRuleHistory.class));
+        verify(ruleRepository, never()).save(any(InsurerRule.class));
+    }
+
     @Test
     void getReturnsTheConfiguredStateAndThreshold() {
         when(ruleRepository.findByBranch_IdAndCoverageIdAndRuleTypeIn(eq(1L), eq(1L), any()))

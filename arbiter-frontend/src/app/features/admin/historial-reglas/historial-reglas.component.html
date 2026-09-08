@@ -1,0 +1,140 @@
+<app-card>
+  <div class="hr-head">
+    <h2 class="card-title">Historial de cambios</h2>
+    <app-badge variant="solid">Toda la aseguradora</app-badge>
+    <app-badge variant="solid" tone="info">Registro inmutable · solo lectura</app-badge>
+  </div>
+
+  <p class="section-hint">
+    Registro inmutable de cambios (fecha, motivo y valores) que respalda la auditoría de cada clasificación.
+  </p>
+
+  <!-- ───────── Filtros ─────────
+       Van arriba y no en un panel aparte: el historial se consulta buscando algo puntual
+       ("qué le pasó al Fast Track de Celulares"), no leyéndolo entero de arriba abajo. -->
+  <div class="hr-filters">
+    <label class="filter">
+      <span class="t-field-label">Tipo de regla</span>
+      <app-select
+        [(value)]="ruleType"
+        [options]="ruleTypeOptions()"
+        placeholder="Todos los tipos"
+        (valueChange)="applyFilters()"
+      />
+    </label>
+
+    <label class="filter">
+      <span class="t-field-label">Ramo</span>
+      <app-select
+        [(value)]="branchId"
+        [options]="branchOptions()"
+        placeholder="Todos los ramos"
+        (valueChange)="applyFilters()"
+      />
+    </label>
+
+    <label class="filter">
+      <span class="t-field-label">Desde</span>
+      <app-input type="date" [(value)]="from" (valueChange)="applyFilters()" />
+    </label>
+
+    <label class="filter">
+      <span class="t-field-label">Hasta</span>
+      <app-input type="date" [(value)]="to" (valueChange)="applyFilters()" />
+    </label>
+
+    @if (hasFilters()) {
+      <app-button variant="secondary" (click)="clearFilters()">Limpiar filtros</app-button>
+    }
+  </div>
+
+  @if (loading()) {
+    <app-inline-loading [size]="26" message="Cargando historial…" />
+  } @else if (error()) {
+    <p class="hr-error t-note" role="alert">{{ error() }}</p>
+    <app-button variant="secondary" (click)="load()">Reintentar</app-button>
+  } @else if (rows().length === 0) {
+    <app-empty-state
+      [message]="
+        hasFilters()
+          ? 'Ningún cambio coincide con los filtros.'
+          : 'Todavía no se registraron cambios en las reglas.'
+      "
+      [sub]="hasFilters() ? 'Sin resultados' : 'Sin cambios'"
+    />
+  } @else {
+    <!-- Lista y no tabla: cada cambio trae adentro su propio detalle de campos, que en una celda
+         no entra. La línea del margen izquierdo es la que ordena la lectura cronológica. -->
+    <ol class="hr-timeline">
+      @for (row of rows(); track row.entry.id) {
+        <li class="hr-item" [class.is-current]="row.entry.current">
+          <div class="hr-item-head">
+            <span class="hr-when mono tabular">{{ row.changedAt }}</span>
+            <span class="hr-rule">{{ row.title }}</span>
+            @if (row.author) {
+              <!-- Solo el autor, no el motivo entero: todos los motivos son "<qué cambió> por
+                   <quién>" y el qué ya lo dicen el título y el alcance de acá al lado. -->
+              <span class="hr-author t-note">por {{ row.author }}</span>
+            }
+            @if (row.scope) {
+              <app-badge variant="solid">{{ row.scope }}</app-badge>
+            } @else {
+              <app-badge variant="solid">Toda la aseguradora</app-badge>
+            }
+            @if (row.entry.current) {
+              <app-badge variant="strong" tone="ok">Versión vigente</app-badge>
+            }
+            @if (row.entry.partial) {
+              <!-- `dashed` es la variante del kit para "sin dato": es exactamente eso, falta el
+                   estado de la regla porque esa versión se guardó antes de que se registrara. -->
+              <app-badge variant="dashed">Registro parcial</app-badge>
+            }
+          </div>
+
+          @if (row.fields.length > 0) {
+            <ul class="hr-fields">
+              @for (field of row.fields; track field.label + field.qualifier) {
+                <li class="hr-field">
+                  <span class="hr-field-name t-field-label">
+                    {{ field.label }}
+                    @if (field.qualifier) {
+                      <span class="hr-qualifier">· {{ field.qualifier }}</span>
+                    }
+                  </span>
+                  <span class="hr-values">
+                    <span class="hr-before">{{ field.previous }}</span>
+                    <span class="hr-arrow" aria-hidden="true">→</span>
+                    <span class="hr-after">{{ field.next }}</span>
+                    <span class="sr-only">
+                      pasó de {{ field.previous }} a {{ field.next }}
+                    </span>
+                  </span>
+                </li>
+              }
+            </ul>
+          } @else {
+            <!-- Sin campos, la entrada solo puede ser un registro parcial: el backend ya no
+                 devuelve los guardados que no cambiaron nada. Esta versión se guardó antes de que
+                 el historial registrara el estado de la regla, así que el dato no existe — decir
+                 "sin cambios" acá sería afirmar algo que la auditoría nunca registró. -->
+            <p class="hr-nochange t-note">
+              Registro anterior al detalle campo por campo: de esta versión quedó la fecha y el
+              autor, no el valor de cada parámetro.
+            </p>
+          }
+
+          <p class="hr-held t-note">La versión anterior regía desde {{ row.heldSince }}</p>
+        </li>
+      }
+    </ol>
+
+    <app-pagination
+      [page]="page()"
+      [size]="size()"
+      [totalPages]="totalPages()"
+      [totalElements]="totalElements()"
+      (pageChange)="onPageChange($event)"
+      (sizeChange)="onSizeChange($event)"
+    />
+  }
+</app-card>

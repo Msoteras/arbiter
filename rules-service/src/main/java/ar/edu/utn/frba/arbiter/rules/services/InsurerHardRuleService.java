@@ -3,6 +3,7 @@ package ar.edu.utn.frba.arbiter.rules.services;
 import ar.edu.utn.frba.arbiter.common.enums.RuleType;
 import ar.edu.utn.frba.arbiter.rules.dto.InsurerHardRuleConfig;
 import ar.edu.utn.frba.arbiter.rules.dto.InsurerHardRuleDto;
+import ar.edu.utn.frba.arbiter.rules.dto.InsurerRuleSnapshot;
 import ar.edu.utn.frba.arbiter.rules.exceptions.InvalidRuleConfigurationException;
 import ar.edu.utn.frba.arbiter.rules.models.entities.InsurerRule;
 import ar.edu.utn.frba.arbiter.rules.models.entities.InsurerRuleHistory;
@@ -131,12 +132,20 @@ public class InsurerHardRuleService {
             return;
         }
 
+        // Un guardado que no cambia nada no es un cambio: el panel manda las dos reglas siempre.
+        if (InsurerRuleSnapshot.unchanged(
+                rule.isActive(), rule.isBlocksFastTrack(), rule.getConfiguration(),
+                requested.enabled(), rule.isBlocksFastTrack(), json)) {
+            return;
+        }
+
         historyRepository.save(InsurerRuleHistory.builder()
-                .configVersion(rule.getConfiguration() == null ? "{}" : rule.getConfiguration())
+                .configVersion(InsurerRuleSnapshot.serialize(
+                        rule.isActive(), rule.isBlocksFastTrack(), rule.getConfiguration()))
                 .changedAt(now)
                 .validFrom(rule.getValidFrom())
                 .validTo(now)
-                .reason("Insurer hard rule " + requested.ruleType() + " updated by " + actorEmail)
+                .reason("Regla dura de la aseguradora actualizada por " + actorEmail)
                 .insurerRule(rule)
                 .changedBy(null)
                 .build());
