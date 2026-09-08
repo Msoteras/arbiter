@@ -349,9 +349,11 @@ interface Swatch {
         </div>
 
         <p class="sg-p">
-          Con <span class="mono">searchable</span> el panel suma un buscador arriba del listado, para
-          catálogos que no se recorren a ojo (ej. las provincias y localidades del alta de denuncia).
-          Filtra ignorando acentos y mayúsculas, y dibuja como mucho 100 resultados por vez.
+          Con <span class="mono">searchable</span> el campo mismo hace de buscador: se escribe
+          directo sobre él y el listado va mostrando las coincidencias. Para catálogos que no se
+          recorren a ojo (ej. las provincias y localidades del alta de denuncia). Filtra ignorando
+          acentos y mayúsculas, y dibuja como mucho 100 resultados por vez. Lo tipeado solo filtra:
+          al cerrar sin elegir, el campo vuelve a mostrar la opción elegida.
         </p>
         <div class="col narrow">
           <app-select
@@ -359,7 +361,6 @@ interface Swatch {
             [options]="sampleProvinceOptions"
             placeholder="Provincia"
             [searchable]="true"
-            searchPlaceholder="Buscar provincia"
           />
         </div>
       </section>

@@ -299,7 +299,6 @@
                   [options]="provinciaOptions()"
                   placeholder="Provincia"
                   [searchable]="true"
-                  searchPlaceholder="Buscar provincia"
                 />
                 <app-select
                   [(value)]="localidad"
@@ -307,7 +306,6 @@
                   [placeholder]="localidadDisabled() ? 'Elegí primero la provincia' : 'Localidad'"
                   [disabled]="localidadDisabled()"
                   [searchable]="true"
-                  searchPlaceholder="Buscar localidad"
                 />
               </div>
               <app-input placeholder="Calle y número" [(value)]="calleNumero" />
