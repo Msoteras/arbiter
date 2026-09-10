@@ -59,6 +59,8 @@
         <app-fraude-config />
       } @else if (view() === 'atribuciones') {
         <app-atribuciones-config />
+      } @else if (view() === 'historial') {
+        <app-historial-reglas />
       } @else if (view() === 'hardStop') {
         @if (hardStopLoading()) {
           <app-inline-loading [size]="26" message="Cargando Hard Stop…" />

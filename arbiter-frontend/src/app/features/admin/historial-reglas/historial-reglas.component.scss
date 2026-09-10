@@ -1,0 +1,95 @@
+:host { display: block; }
+
+.section-hint { margin: 0 0 var(--space-4); color: var(--text-secondary); font-size: var(--font-size-sm); }
+
+.hr-head { display: flex; align-items: center; gap: var(--space-3); flex-wrap: wrap; margin-bottom: var(--space-3); }
+.hr-head .card-title { margin: 0; }
+
+/* ── Filtros ──────────────────────────────────────────────────────────────────
+   Grilla y no flex: los cuatro campos tienen que quedar del mismo ancho aunque sus etiquetas
+   midan distinto, y en mobile bajan a una columna sin que ninguno quede a medio renglón. */
+.hr-filters {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  align-items: end;
+  gap: var(--space-3);
+  margin-bottom: var(--space-5);
+}
+.filter { display: flex; flex-direction: column; gap: var(--space-1); min-width: 0; }
+
+.hr-error { color: var(--status-danger); margin: 0 0 var(--space-3); }
+
+/* ── Línea de tiempo ──────────────────────────────────────────────────────────
+   El borde izquierdo hace de eje: encadena los cambios visualmente sin dibujar una línea aparte,
+   y deja el hueco donde el ítem vigente marca su acento. */
+.hr-timeline {
+  list-style: none;
+  margin: 0;
+  padding: 0 0 0 var(--space-4);
+  border-left: 1px solid var(--border-subtle);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-5);
+}
+
+.hr-item { position: relative; }
+
+/* El punto sobre el eje. Queda alineado con la primera línea del encabezado del ítem. */
+.hr-item::before {
+  content: '';
+  position: absolute;
+  left: calc(var(--space-4) * -1 - 4px);
+  top: 7px;
+  width: 7px;
+  height: 7px;
+  border-radius: var(--radius-pill);
+  background: var(--border-strong);
+}
+/* La versión que rige hoy es el único punto con acento: es el estado actual, no un cambio más. */
+.hr-item.is-current::before { background: var(--accent-fg); }
+
+.hr-item-head { display: flex; align-items: center; gap: var(--space-2); flex-wrap: wrap; }
+.hr-when { font-size: var(--font-size-xs); color: var(--text-muted); }
+.hr-rule { font-weight: var(--font-weight-medium); color: var(--text-primary); }
+
+/* Atribución, no titular: va en el encabezado junto a la fecha y en tono secundario, para que el
+   ojo baje directo al "de X a Y" que es el contenido de la fila. */
+.hr-author { color: var(--text-muted); }
+
+/* ── Detalle campo por campo ──────────────────────────────────────────────────
+   Es el contenido real del historial: sin el "de X a Y" el registro solo dice que alguien tocó
+   algo. Superficie hundida para separarlo del encabezado sin meter otro borde. */
+.hr-fields {
+  list-style: none;
+  margin: var(--space-3) 0 0;
+  padding: var(--space-3);
+  background: var(--surface-sunken);
+  border-radius: var(--radius-ctl);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+.hr-field { display: flex; align-items: baseline; gap: var(--space-3); flex-wrap: wrap; }
+.hr-field-name { flex: 1 1 220px; min-width: 0; color: var(--text-secondary); }
+.hr-qualifier { color: var(--text-muted); font-weight: var(--font-weight-regular); }
+
+.hr-values {
+  flex: 1 1 auto;
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-2);
+  font-size: var(--font-size-sm);
+  min-width: 0;
+}
+/* El valor viejo en tono apagado y el nuevo en primario: la jerarquía sola dice cuál es cuál, sin
+   pintar de rojo y verde algo que no es un acierto ni un error (el semáforo es para estado). */
+.hr-before { color: var(--text-muted); text-decoration: line-through; word-break: break-word; }
+.hr-arrow { color: var(--text-tertiary); flex: 0 0 auto; }
+.hr-after { color: var(--text-primary); font-weight: var(--font-weight-medium); word-break: break-word; }
+
+.hr-nochange { margin: var(--space-2) 0 0; font-style: italic; }
+.hr-held { margin: var(--space-2) 0 0; color: var(--text-muted); }
+
+@media (max-width: 640px) {
+  .hr-field-name { flex-basis: 100%; }
+}
