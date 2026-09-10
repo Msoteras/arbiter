@@ -8,6 +8,7 @@ import ar.edu.utn.frba.arbiter.cases.exceptions.CaseNotFoundException;
 import ar.edu.utn.frba.arbiter.cases.exceptions.InvalidStatusTransitionException;
 import ar.edu.utn.frba.arbiter.cases.models.entities.StatusChangeActor;
 import ar.edu.utn.frba.arbiter.cases.services.CaseService;
+import ar.edu.utn.frba.arbiter.cases.services.SettlementService;
 import ar.edu.utn.frba.arbiter.common.enums.CaseStatus;
 import ar.edu.utn.frba.arbiter.common.enums.Classification;
 import ar.edu.utn.frba.arbiter.common.enums.DeadlinePriority;
@@ -49,6 +50,9 @@ class CaseControllerTest {
 
     @MockitoBean
     private CaseService caseService;
+
+    @MockitoBean
+    private SettlementService settlementService;
 
     @Test
     void createCase_returns202WithBody() throws Exception {

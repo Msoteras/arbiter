@@ -74,6 +74,18 @@
         @switch (decisionState()) {
           @case ('approved') {
             <p class="registered">✓ Registrado: Aprobado</p>
+            @if (settlement(); as s) {
+              @if (s.confirmed) {
+                <p class="rcard-note">
+                  Monto a pagar: <strong>{{ montoExacto(s.settledAmount) }}</strong>
+                </p>
+                @if (s.adjustmentReason) {
+                  <p class="rcard-note">
+                    Ajustado sobre {{ montoExacto(s.calculatedAmount) }}: {{ s.adjustmentReason }}
+                  </p>
+                }
+              }
+            }
           }
           @case ('rejected') {
             <p class="registered">✓ Registrado: Rechazado</p>
@@ -87,7 +99,24 @@
             </p>
           }
           @case ('pending') {
-            @if (canAct()) {
+            @if (esperandoAutorizacion()) {
+              <!-- El analista ya decidió: lo que falta es la firma del referente sobre el monto.
+                   Mostrar los botones acá lo invitaría a decidir de nuevo algo que ya resolvió. -->
+              <p class="registered">⏳ Esperando autorización del referente</p>
+              @if (settlement(); as s) {
+                <p class="rcard-note">
+                  Monto determinado: <strong>{{ montoExacto(s.settledAmount) }}</strong>, por encima
+                  del tope de {{ montoExacto(s.authorityLimit) }} del ramo.
+                </p>
+              }
+            } @else if (canAct()) {
+              @if (liquidacionDevuelta() && settlement(); as s) {
+                <!-- Devuelta no es rechazada: el expediente sigue siendo suyo y puede volver a
+                     determinar el monto. El motivo es lo único que tiene para saber qué corregir. -->
+                <p class="rcard-note warning">
+                  El referente devolvió la liquidación: {{ s.returnReason }}
+                </p>
+              }
               @if (canDecide()) {
                 <div class="decision-btns">
                   <app-button variant="secondary" [block]="true" [disabled]="decisionSaving()" (click)="askDecision('rechazar')">Rechazar</app-button>
@@ -760,17 +789,153 @@
   </div>
 }
 
-<!-- Modal de justificación (gobierno: toda decisión queda justificada/auditada) -->
+<!-- Modal de decisión (gobierno: toda decisión queda justificada/auditada). Al aprobar suma la
+     determinación del monto: el procedimiento de la compañía las trata como un solo acto del
+     analista, y aprobar sin monto deja al siniestro debiendo una suma que nadie fijó. -->
+<!-- Ancho solo al aprobar: ahí entra la hoja de liquidación entera y con 440px todo se partía en
+     tres renglones. Rechazar sigue siendo una justificación y nada más, y un diálogo ancho para un
+     solo campo se lee peor. -->
 <app-modal
   [open]="showJustify()"
-  heading="Justificar decisión: {{ verbLabel(pendingDecision()) }}"
+  [heading]="decisionModalHeading()"
+  [size]="pendingDecision() === 'aprobar' ? 'lg' : 'md'"
   (close)="cancelDecision()"
 >
-  <p class="t-note">Toda decisión del analista queda justificada y auditada (human-in-the-loop).</p>
-  <app-textarea [rows]="4" placeholder="Justificación (obligatoria)…" [(value)]="justification" />
+  @if (pendingDecision() === 'aprobar') {
+    @if (settlement(); as s) {
+      <div class="settlement">
+        <span class="t-section-label">Cómo se llega al monto</span>
+        <ul class="settlement-sheet">
+          @for (line of s.breakdown; track $index) {
+            <li
+              class="settlement-line"
+              [class.deduction]="line.kind === 'DEDUCTION'"
+              [class.total]="line.kind === 'TOTAL'"
+            >
+              <span class="settlement-concept">
+                {{ line.concept }}
+                @if (line.detail) {
+                  <span class="t-note">{{ line.detail }}</span>
+                }
+              </span>
+              <span class="settlement-amount tabular">
+                @if (line.kind === 'DEDUCTION') {
+                  −
+                }{{ montoExacto(line.amount) }}
+              </span>
+            </li>
+          }
+        </ul>
+
+        @if (s.warnings.length) {
+          <ul class="settlement-notes">
+            @for (aviso of s.warnings; track $index) {
+              <li>{{ aviso }}</li>
+            }
+          </ul>
+        }
+
+        <!-- El valor de reposición sale de la factura o el presupuesto que ya están en el
+             expediente. Solo baja el techo en las coberturas que liquidan por el menor de los
+             dos; en las demás queda registrado igual, como respaldo del monto. -->
+        <div class="settlement-money">
+          <!-- Solo donde efectivamente cambia algo. En una cobertura que liquida la pérdida total
+               por suma asegurada este valor no toca el monto, y ofrecer un campo que no hace nada
+               es peor que no ofrecerlo: se carga, se aprieta Recalcular y el total queda igual.
+               En reparación es al revés: es la BASE, sin él no hay nada que pagar. -->
+          @if (pideMontoAcreditado()) {
+            <label class="fieldset">
+              <span class="t-field-label">
+                {{ s.formula === 'REPAIR' ? 'Presupuesto de reparación' : 'Cuánto cuesta reponer el bien' }}
+                @if (s.formula === 'REPAIR') {
+                  <span class="required" aria-hidden="true">*</span>
+                }
+              </span>
+              <div class="settlement-replacement">
+                <app-input
+                  type="number"
+                  [min]="0"
+                  [value]="replacementInput()"
+                  (valueChange)="replacementInput.set($event)"
+                  placeholder="Sin acreditar"
+                />
+                <app-button variant="secondary" (click)="applyReplacementValue()">Recalcular</app-button>
+              </div>
+              <span class="justification-hint">
+                @if (s.formula === 'REPAIR') {
+                  Del presupuesto del expediente. Es la base del cálculo, con tope en la suma
+                  asegurada.
+                } @else {
+                  Según la factura o el presupuesto del expediente. Si es menor que la suma
+                  asegurada, se indemniza por este valor.
+                }
+              </span>
+
+              <!-- Lo que el modelo ya leyó del documento, para no hacer buscar el número en un PDF
+                   y tipearlo. No está aplicado: se toma con un clic, después de verificarlo. -->
+              @if (sugerenciaDisponible()) {
+                <p class="settlement-suggestion">
+                  <span>
+                    En «{{ documentLabel(s.suggestedFrom ?? '') }}» figura
+                    <strong>{{ montoExacto(s.suggestedAmount) }}</strong>. Verificalo antes de usarlo.
+                  </span>
+                  <app-button variant="secondary" (click)="tomarSugerencia()">Usar</app-button>
+                </p>
+              }
+            </label>
+          }
+
+          <label class="fieldset">
+            <span class="t-field-label">Monto a pagar</span>
+            <app-input
+              type="number"
+              [min]="0"
+              [value]="settledAmountInput()"
+              (valueChange)="settledAmountInput.set($event)"
+              [placeholder]="montoExacto(s.calculatedAmount)"
+            />
+          </label>
+        </div>
+
+        <p class="t-note">
+          Vacío se autoriza lo calculado ({{ montoExacto(s.calculatedAmount) }}). Tope: la suma
+          asegurada, {{ montoExacto(s.sumInsured) }}.
+        </p>
+
+        @if (requiereReferente() && settlement(); as s) {
+          <p class="settlement-callout">
+            Este monto supera tu atribución para el ramo ({{ montoExacto(s.authorityLimit) }}).
+            Al confirmar, el expediente queda esperando la autorización del referente.
+          </p>
+        }
+
+        @if (settlementAdjusted()) {
+          <label class="fieldset">
+            <span class="t-field-label">Justificación del ajuste</span>
+            <app-textarea
+              [rows]="2"
+              placeholder="Por qué el monto difiere del calculado…"
+              [(value)]="adjustmentReason"
+            />
+          </label>
+        }
+      </div>
+    } @else {
+      <p class="nodata">No se pudo calcular el monto a pagar para este expediente.</p>
+    }
+  }
+
+  <label class="justification">
+    <span class="t-field-label">Justificación <span class="required" aria-hidden="true">*</span></span>
+    <app-textarea [rows]="3" placeholder="Por qué se toma esta decisión…" [(value)]="justification" />
+    <span class="justification-hint">Obligatorio</span>
+  </label>
+  @if (pendingDecision() === 'aprobar' && approvalBlockedReason(); as motivo) {
+    <p class="rcard-note error">{{ motivo }}</p>
+  }
   <ng-container modalActions>
     <app-button variant="secondary" (click)="cancelDecision()">Cancelar</app-button>
-    <app-button [disabled]="!justification().trim()" (click)="confirmDecision()">Confirmar</app-button>
+    <app-button [disabled]="confirmDisabled()" (click)="confirmDecision()">Confirmar</app-button>
   </ng-container>
 </app-modal>
 
@@ -922,6 +1087,24 @@
     <app-button variant="secondary" (click)="informeInput.click()">Elegir informe</app-button>
   </div>
   <app-textarea [rows]="3" placeholder="Nota (opcional)…" [(value)]="notaVeredicto" />
+
+  <!-- El perito verifica la causa Y el monto indemnizable (NSIN001 §2.6). El número llega en el
+       PDF, así que lo transcribe el analista acá mismo: ya está completando este formulario. -->
+  <label class="peritaje-monto">
+    <span class="t-field-label">Monto indemnizable que determinó el perito</span>
+    <app-input
+      type="number"
+      [min]="0"
+      [value]="montoPericial()"
+      (valueChange)="montoPericial.set($event)"
+      placeholder="Sin monto"
+    />
+    <span class="justification-hint">
+      Opcional: dejalo vacío si el informe no puso un número. Va a ofrecerse al determinar el monto
+      a pagar, no se aplica solo.
+    </span>
+  </label>
+
   <!-- Lo que se firma al guardar: el veredicto del perito no queda solo en el expediente, deja la
        marca sobre la persona. Y esa marca no se da de baja desde la aplicación. -->
   @if (veredictoConfirmaFraude()) {

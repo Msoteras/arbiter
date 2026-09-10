@@ -70,6 +70,9 @@ CREATE TABLE aseguradora.poliza (
     cuotas_impagas        INTEGER       NOT NULL DEFAULT 0,
     saldo_deuda           NUMERIC(38,2) NOT NULL DEFAULT 0,
     forma_pago            VARCHAR(60),
+    -- Importe de cada cuota del premio. Es lo que falta para poder descontar las
+    -- cuotas a vencer de la indemnizacion: saldo_deuda solo cubre lo ya vencido.
+    importe_cuota         NUMERIC(38,2),
     -- Reglas de producto (candidatas a moverse al Motor de Reglas)
     max_eventos_anuales   INTEGER,
     segundo_evento_pct    NUMERIC(5,2),
@@ -161,80 +164,80 @@ INSERT INTO aseguradora.asegurado (id, aseguradora_id, documento, cuil, nombre, 
 INSERT INTO aseguradora.poliza (id, aseguradora_id, numero, nro_certificado, titular_id, rama, producto,
                                 bien_asegurado,
                                 vigencia_desde, vigencia_hasta, estado_contrato, estado_pago,
-                                cuotas_pagas, cuotas_impagas, saldo_deuda, forma_pago,
+                                cuotas_pagas, cuotas_impagas, saldo_deuda, forma_pago, importe_cuota,
                                 max_eventos_anuales, segundo_evento_pct, cubre_grupo_familiar, datos_proveedor)
 VALUES
     -- cases 1, 4 y 5 (Martina) — suma Robo = 1.300.000 reproduce los ratios de init.sql
     ( 1, 1, 'POL-CEL-2026-042', '621242',  1, 'Celulares', 'Celular Protegido Premium',
      'Samsung Galaxy A56',
-     '2026-01-01', '2027-01-01', 'ACTIVA', 'AL_DIA', 6, 0, 0.00, 'TARJETA DE CREDITO',
+     '2026-01-01', '2027-01-01', 'ACTIVA', 'AL_DIA', 6, 0, 0.00, 'TARJETA DE CREDITO', 26000.00,
      NULL, NULL, TRUE, NULL),
 
     -- case 2 (Julián, reincidente) — suma Robo = 1.200.000
     ( 2, 1, 'POL-CEL-2025-099', '621243',  2, 'Celulares', 'Celular Protegido Premium',
      'iPhone 15 Pro',
-     '2025-11-01', '2026-11-01', 'ACTIVA', 'AL_DIA', 8, 0, 0.00, 'TARJETA DE CREDITO',
+     '2025-11-01', '2026-11-01', 'ACTIVA', 'AL_DIA', 8, 0, 0.00, 'TARJETA DE CREDITO', 24000.00,
      NULL, NULL, TRUE, NULL),
 
     -- case 3 (Lucas) — sumas bajas
     ( 3, 1, '2030405', '621244',  3, 'Celulares', 'Celular Protegido Básico',
      'Motorola Moto G54',
-     '2026-01-15', '2027-01-15', 'ACTIVA', 'AL_DIA', 5, 0, 0.00, 'DEBITO',
+     '2026-01-15', '2027-01-15', 'ACTIVA', 'AL_DIA', 5, 0, 0.00, 'DEBITO', 4000.00,
      NULL, NULL, TRUE, NULL),
 
     -- Provincia (Carla) — Tecnología Portátil, con deuda (cuota impaga) y payload de proveedor
     ( 4, 2, 'POL-TEC-2026-311', '700841',  4, 'Tecnología Portátil', 'Seguro de Tecnología Portátil',
      'MacBook Air M3 15"',
-     '2026-03-01', '2027-03-01', 'ACTIVA', 'AL_DIA', 4, 1, 3406.17, 'TARJETA DE CREDITO',
+     '2026-03-01', '2027-03-01', 'ACTIVA', 'AL_DIA', 4, 1, 3406.17, 'TARJETA DE CREDITO', 3406.17,
      2, 50.00, FALSE,
      '{"codRamaSegR":7,"nroPolizaR":2365301,"nroCertificadoR":621242,"descProductoR":"07 150 CELU CONS 4000","importePrimaTarifa":2762.5,"importePremio":3406.17,"clausulaAjuste":"AJUSTE TASA FIJA","codClausulaAjuste":105}'::jsonb),
 
     -- Nicolás: 1 previo, al día → riesgo bajo/medio según monto
     ( 5, 1, 'POL-CEL-2026-118', '621245',  5, 'Celulares', 'Celular Protegido Básico',
      'Samsung Galaxy S24',
-     '2026-02-01', '2027-02-01', 'ACTIVA', 'AL_DIA', 5, 0, 0.00, 'DEBITO',
+     '2026-02-01', '2027-02-01', 'ACTIVA', 'AL_DIA', 5, 0, 0.00, 'DEBITO', 16000.00,
      NULL, NULL, FALSE, NULL),
 
     -- Valeria: 2 previos, al día → empuja claim_frequency
     ( 6, 1, 'POL-CEL-2025-204', '621246',  6, 'Celulares', 'Celular Protegido Premium',
      'iPhone 14',
-     '2025-09-01', '2026-09-01', 'ACTIVA', 'AL_DIA', 10, 0, 0.00, 'TARJETA DE CREDITO',
+     '2025-09-01', '2026-09-01', 'ACTIVA', 'AL_DIA', 10, 0, 0.00, 'TARJETA DE CREDITO', 30000.00,
      NULL, NULL, TRUE, NULL),
 
     -- Diego: SIN previos pero póliza con mora → policy_standing = 1.0 (suma riesgo)
     ( 7, 1, 'POL-CEL-2026-077', '621247',  7, 'Celulares', 'Celular Protegido Premium',
      'Xiaomi 14 Ultra',
-     '2026-03-01', '2027-03-01', 'ACTIVA', 'SUSPENDIDA', 2, 3, 45000.00, 'TARJETA DE CREDITO',
+     '2026-03-01', '2027-03-01', 'ACTIVA', 'SUSPENDIDA', 2, 3, 45000.00, 'TARJETA DE CREDITO', 15000.00,
      NULL, NULL, FALSE, NULL),
 
     -- Segunda póliza de Martina, ramo Tecnología Portátil → variedad de ramo, mismo asegurado
     ( 8, 1, 'POL-TEC-2026-050', '621248',  1, 'Tecnología Portátil', 'Seguro de Tecnología Portátil',
      'Lenovo ThinkPad T14s Gen 5',
-     '2026-01-01', '2027-01-01', 'ACTIVA', 'AL_DIA', 6, 0, 0.00, 'DEBITO',
+     '2026-01-01', '2027-01-01', 'ACTIVA', 'AL_DIA', 6, 0, 0.00, 'DEBITO', 18000.00,
      NULL, NULL, TRUE, NULL),
 
     -- Provincia (Camila) — Tecnología Portátil, al día
     ( 9, 2, 'POL-TEC-2026-412', '700842',  8, 'Tecnología Portátil', 'Seguro de Tecnología Portátil',
      'Dell XPS 13',
-     '2026-04-01', '2027-04-01', 'ACTIVA', 'AL_DIA', 4, 0, 0.00, 'DEBITO',
+     '2026-04-01', '2027-04-01', 'ACTIVA', 'AL_DIA', 4, 0, 0.00, 'DEBITO', 19000.00,
      2, 50.00, FALSE, NULL),
 
     -- Provincia (Federico) — 2 previos + póliza con mora → perfil de riesgo ALTO
     (10, 2, 'POL-TEC-2025-380', '700843',  9, 'Tecnología Portátil', 'Seguro de Tecnología Portátil',
      'iPad Pro 12.9" M2',
-     '2025-08-01', '2026-08-01', 'ACTIVA', 'SUSPENDIDA', 3, 4, 8200.00, 'TARJETA DE CREDITO',
+     '2025-08-01', '2026-08-01', 'ACTIVA', 'SUSPENDIDA', 3, 4, 8200.00, 'TARJETA DE CREDITO', 2050.00,
      2, 50.00, FALSE, NULL),
 
     -- La Segunda (Brenda) — tercer tenant, Celulares
     (11, 3, 'POL-CEL-2026-909', '900110', 10, 'Celulares', 'Celular Protegido Básico',
      'Samsung Galaxy A15',
-     '2026-05-01', '2027-05-01', 'ACTIVA', 'AL_DIA', 3, 0, 0.00, 'TARJETA DE CREDITO',
+     '2026-05-01', '2027-05-01', 'ACTIVA', 'AL_DIA', 3, 0, 0.00, 'TARJETA DE CREDITO', 12000.00,
      NULL, NULL, FALSE, NULL),
 
     -- Provincia (Martina, segunda compañía) → caso multi-aseguradora del mismo documento
     (12, 2, 'POL-TEC-2026-515', '700844', 11, 'Tecnología Portátil', 'Seguro de Tecnología Portátil',
      'HP Pavilion x360 14"',
-     '2026-06-01', '2027-06-01', 'ACTIVA', 'AL_DIA', 1, 0, 0.00, 'DEBITO',
+     '2026-06-01', '2027-06-01', 'ACTIVA', 'AL_DIA', 1, 0, 0.00, 'DEBITO', 17000.00,
      2, 50.00, FALSE, NULL);
 
 -- ─── Coberturas (la suma asegurada vive acá) ─────────────────────────────────

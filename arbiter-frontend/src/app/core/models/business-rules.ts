@@ -9,6 +9,12 @@ import { RiskBand } from './risk-band';
 // Refleja la estructura real del producto (manuales + condiciones generales BBVA).
 
 /** Una cobertura del ramo (ej. Robo, Daño por tentativa de robo), con su cláusula y franquicia. */
+/** Cómo se calcula el techo indemnizable de una cobertura. Calca el enum SettlementBasis. */
+export type SettlementBasis = 'SUM_INSURED' | 'LESSER_OF_SUM_AND_REPLACEMENT';
+
+/** Cómo se liquida un siniestro de esta cobertura. Calca el enum SettlementFormula. */
+export type SettlementFormula = 'TOTAL_LOSS' | 'REPAIR';
+
 export interface Coverage {
   id: string;
   name: string;
@@ -31,6 +37,27 @@ export interface Coverage {
   coversFamilyGroup: boolean;
   /** Si un siniestro liquidado agota la cobertura para el período. */
   claimExhaustsCoverage: boolean;
+  /**
+   * Cómo se liquida: pérdida total (el bien no está) o reparación (quedó dañado). Lo que las
+   * separa es que la pérdida total extingue la póliza y la reparación no.
+   * → DER cobertura.settlement_formula
+   */
+  settlementFormula: SettlementFormula;
+  /**
+   * Cómo se calcula el techo indemnizable al determinar el monto a pagar: la suma asegurada, o el
+   * menor entre ésa y el valor de reposición acreditado (art. 7, Bases de Indemnización). Solo
+   * aplica a pérdida total. → DER cobertura.settlement_basis
+   */
+  settlementBasis: SettlementBasis;
+  /**
+   * Porcentaje del techo que se paga del segundo evento del año en adelante, como fracción 0..1
+   * igual que `deductibleRatio` (0.5 = 50%). null = el número de evento no reduce nada.
+   */
+  secondEventRatio: number | null;
+  /** Si se descuentan del monto las cuotas del premio que quedan por vencer (pérdida total). */
+  deductPendingInstallments: boolean;
+  /** Si se descuenta el saldo impago del contrato (cláusula 102, art. 5). */
+  deductOverdueBalance: boolean;
   /** Exclusiones específicas de esta cobertura, en texto libre (van al prompt del LLM). */
   exclusions: string[];
   /**
@@ -152,6 +179,9 @@ export const DOCUMENT_TYPES: DocumentTypeDef[] = [
   { code: 'last_connection', label: 'Captura de última conexión' },
   { code: 'repair_quote', label: 'Presupuesto de reparación' },
   { code: 'item_photo', label: 'Foto del bien' },
+  // No lo sube el asegurado: lo carga el analista cuando recibe el informe del perito. Está acá
+  // para que tenga label como cualquier otro donde se lo nombre.
+  { code: 'expert_report', label: 'Informe de peritaje' },
 ];
 
 export function documentTypeLabel(code: string): string {

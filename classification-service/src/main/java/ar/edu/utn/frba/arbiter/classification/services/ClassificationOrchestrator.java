@@ -279,6 +279,15 @@ public class ClassificationOrchestrator {
                     policy.upToDate(),
                     ctx.history().previousClaimsCount(),
                     ctx.history().totalAmountClaimed(),
+                    // Lo que la liquidación necesita congelado: sin esto el monto que autorice el
+                    // analista dentro de tres meses no se puede volver a explicar, porque la BD
+                    // Aseguradora ya se movió. Mismo fundamento que las columnas de arriba (D27).
+                    policy.effectiveTo(),
+                    policy.installmentAmount(),
+                    policy.overdueBalance(),
+                    ctx.history().eventOrdinalFor(
+                            claim.eventDate() != null ? claim.eventDate().toLocalDate() : null,
+                            claim.branch()),
                     insurerPayload(policy, ctx.history())));
             log.info("[Orchestrator] Policy snapshot recorded for case {}", caseId);
         } catch (Exception e) {

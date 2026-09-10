@@ -128,7 +128,24 @@ public interface CaseService {
      */
     List<PolicyResponse> getInsuredPolicies(Long caseId);
 
+    /**
+     * Registra la decisión del analista. Aprobar incluye determinar el monto: si ese monto supera
+     * la atribución del analista para el ramo, la decisión queda en suspenso —el expediente no se
+     * mueve— hasta que el referente la autorice con {@link #authorizeSettlement}.
+     */
     void recordAnalystDecision(Long caseId, AnalystDecisionRequest request);
+
+    /**
+     * El referente firma una liquidación que superaba la atribución del analista. Recién ahí la
+     * aprobación surte efecto y el expediente pasa a APROBADO.
+     */
+    void authorizeSettlement(Long caseId);
+
+    /**
+     * El referente devuelve la liquidación al analista con un motivo. El expediente no se mueve:
+     * nunca salió de su revisión.
+     */
+    void returnSettlement(Long caseId, String reason);
 
     /**
      * Pone al analista como dueño del expediente, por su id de {@code claims_analyst}. Un solo

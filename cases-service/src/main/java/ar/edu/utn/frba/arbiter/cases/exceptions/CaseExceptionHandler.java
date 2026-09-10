@@ -78,6 +78,12 @@ public class CaseExceptionHandler extends ResponseEntityExceptionHandler {
         return ProblemDetail.forStatusAndDetail(HttpStatusCode.valueOf(400), ex.getMessage());
     }
 
+    /** El monto que el analista quiso autorizar no cierra: falta, sobra, o no está justificado. */
+    @ExceptionHandler(InvalidSettlementException.class)
+    public ProblemDetail handleInvalidSettlement(InvalidSettlementException ex) {
+        return ProblemDetail.forStatusAndDetail(HttpStatusCode.valueOf(400), ex.getMessage());
+    }
+
     /** El expediente todavía no tiene analista asignado — no hay quién lo decida. */
     @ExceptionHandler(CaseNotAssignedException.class)
     public ProblemDetail handleCaseNotAssigned(CaseNotAssignedException ex) {

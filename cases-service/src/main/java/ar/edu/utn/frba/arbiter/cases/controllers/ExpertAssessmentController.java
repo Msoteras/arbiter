@@ -23,6 +23,8 @@ import org.springframework.web.bind.annotation.RequestPart;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.multipart.MultipartFile;
 
+import java.math.BigDecimal;
+
 /**
  * Derivación a peritaje. Separado de {@code POST /cases/{id}/decision} a propósito: derivar no
  * es un veredicto, es suspender el expediente para conseguir evidencia. El endpoint de decisión
@@ -113,8 +115,10 @@ public class ExpertAssessmentController {
             @PathVariable Long caseId,
             @RequestParam ExpertVerdict verdict,
             @RequestParam(required = false) String note,
+            @RequestParam(required = false) BigDecimal indemnifiableAmount,
             @RequestPart("report") MultipartFile report
     ) {
-        return ResponseEntity.ok(expertAssessmentService.receiveReport(caseId, verdict, note, report));
+        return ResponseEntity.ok(expertAssessmentService.receiveReport(
+                caseId, verdict, note, indemnifiableAmount, report));
     }
 }

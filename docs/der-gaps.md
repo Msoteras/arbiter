@@ -63,6 +63,104 @@ faltante, y el esquema ya está en `db/init-multitenant.sql` y aplicado.
 
 ---
 
+## `case_settlement` — la tabla existe y el DER no la tiene
+
+**Encontrado:** 01/09/2026, al implementar la determinación del monto a pagar (bloque 1).
+
+El DER llega hasta `clasificacion_expediente` —la decisión del analista— y ahí se corta: no hay
+ninguna entidad que diga **cuánto** se paga. Pero determinar el monto es un paso del procedimiento
+de la compañía (NSIN001 §5.2.1.2, "Liquidación del Siniestro"), no un trámite posterior: el
+analista lo fija junto con la aprobación.
+
+La implementación agregó `case_settlement` en cada esquema de aseguradora, una fila por expediente
+y solo cuando el analista confirmó. Guarda las **entradas** además del resultado (`sum_insured`,
+`settlement_basis`, `replacement_value`, `deductible_rate`, `event_ordinal`, `event_percentage`,
+`pending_installments`, `installment_amount`), cada deducción por separado, y los dos montos:
+`calculated_amount` (lo que dio la fórmula) y `settled_amount` (lo que el analista autorizó), con
+`adjustment_reason` obligatorio cuando difieren. Es la misma exigencia de la Disposición SSN 2/2023
+que ya cumple `clasificacion_expediente`, aplicada a la plata.
+
+Van con ella dos ampliaciones de tablas que el DER sí tiene:
+
+- **`cobertura`** suma los parámetros que el referente configura para liquidar:
+  `settlement_basis`, `second_event_percentage`, `deduct_pending_installments`,
+  `deduct_overdue_balance`.
+- **`poliza_consultada`** suma lo que la cuenta necesita congelado para ser reproducible:
+  `effective_to`, `installment_amount`, `overdue_balance`, `events_in_year`.
+
+Y un dato de origen: `aseguradora_*.poliza.importe_cuota`. `saldo_deuda` cubre lo ya vencido, no lo
+que queda por vencer, y el manual de Celulares descuenta explícitamente "las cuotas pendientes de
+pago".
+
+**Acción:** agregarlas al DER. No hay ambigüedad que resolver — es un faltante, y el esquema ya
+está en `db/init-multitenant.sql` con su migración en
+`db/migrations/2026-09-01-determinacion-monto-a-pagar.sql`.
+
+---
+
+## `settlement_authority` — la tabla existe y el DER no la tiene
+
+**Encontrado:** 02/09/2026, al implementar las atribuciones de liquidación (bloque 2).
+
+Continúa la entrada anterior. Determinar el monto no es un acto libre del analista: el Anexo II
+del procedimiento de la compañía le pone un techo —"Aprobar liquidaciones hasta el límite del
+atributo asignado por rama"— y por encima de ese monto firma alguien de más arriba.
+
+La implementación agregó `settlement_authority` en cada esquema de aseguradora: `branch_id`
+(único), `max_amount`, `updated_at`. **Sin fila para un ramo no hay tope**, que es como funcionaba
+antes: poner el límite es la acción explícita del referente.
+
+Es **por rama y no por analista**, aunque el Anexo II cruce rama × nivel jerárquico: Arbiter tiene
+un solo rol de analista, así que la dimensión del nivel no tiene sobre qué variar. Si aparecen
+analistas senior y junior, la tabla suma una columna.
+
+Va con ella la ampliación de `case_settlement`: `status` (`AUTHORIZED` / `PENDING_AUTHORIZATION` /
+`RETURNED`), `authority_limit` (el tope congelado al confirmar), `authorized_by_user_id` →
+`arbiter_common.users`, `authorized_at`, `return_reason` y `pending_justification`.
+
+Dos decisiones que conviene que el DER refleje, porque no son obvias:
+
+- **No hay estado nuevo de expediente.** El que espera autorización es la *liquidación*; el
+  expediente sigue en `PENDING_ANALYST_REVIEW`. Es un control interno y el asegurado no tiene por
+  qué verlo pasar por su línea de tiempo.
+- **La aprobación no se registra hasta que se autoriza.** Por eso existe `pending_justification`:
+  la justificación del analista queda en custodia y recién se convierte en
+  `clasificacion_expediente` cuando el referente firma. Si se registrara antes, el expediente
+  quedaría con un veredicto que no surtió efecto, y una devolución dejaría dos decisiones para un
+  mismo siniestro.
+
+**Acción:** agregarlas al DER. Esquema en `db/init-multitenant.sql`, migración en
+`db/migrations/2026-09-02-atribuciones-de-liquidacion.sql`.
+
+---
+
+## `coverage.settlement_formula` y `expert_assessment.indemnifiable_amount` — dos columnas más
+
+**Encontrado:** 06/09/2026, cerrando los bloques 3 y 5 de la determinación del monto.
+
+Continúan las dos entradas anteriores; van juntas porque son de la misma historia.
+
+- **`coverage.settlement_formula`** (`TOTAL_LOSS` / `REPAIR`): cómo se liquida un siniestro de esa
+  cobertura. Existen dos fórmulas porque el bien no siempre desaparece — en el daño por tentativa
+  queda dañado, se repara, y **la póliza no se extingue**, así que no se descuentan las cuotas a
+  vencer. Está en la cobertura y no en el hecho generador porque el catálogo de la aseguradora ya
+  las separa así ("Robo de celular" y "Hurto" son pérdidas, "Daño accidental" es daño) y
+  `PolicyCoverageResolver` ya resuelve cuál responde por cada causa. `case_settlement.formula` pasó
+  a aceptar los dos literales.
+- **`expert_assessment.indemnifiable_amount`**: lo que el perito determinó que vale el siniestro.
+  El procedimiento le pide verificar "la causa del siniestro como el monto indemnizable" (NSIN001
+  §2.6) y Arbiter le venía registrando solo la causa. Lo carga el analista junto con el veredicto:
+  el perito está fuera del sistema y contesta por mail. Nullable a propósito — un fraude confirmado
+  no tiene nada que indemnizar, y un cero ahí diría otra cosa.
+
+No hizo falta ninguna columna para el bloque 4: `document_analysis.amount` ya existía, el modelo ya
+venía leyendo el importe de cada adjunto, y nadie lo estaba usando para liquidar.
+
+**Acción:** agregarlas al DER. Migraciones en `db/migrations/2026-09-06-formula-de-reparacion.sql`
+y `db/migrations/2026-09-06-monto-del-peritaje.sql`.
+
+---
+
 ## Plantilla para la próxima entrada
 
 ```

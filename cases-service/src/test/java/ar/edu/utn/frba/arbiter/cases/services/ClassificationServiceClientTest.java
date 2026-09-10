@@ -263,7 +263,7 @@ class ClassificationServiceClientTest {
                 .andExpect(header(HttpHeaders.AUTHORIZATION, startsWith("Bearer ")))
                 .andRespond(withSuccess());
 
-        client.forwardAnalystDecision(9L, new AnalystDecisionRequest(1L, "APPROVE", null, null));
+        client.forwardAnalystDecision(9L, new AnalystDecisionRequest(1L, "APPROVE", null, null, null));
 
         server.verify();
     }

@@ -60,7 +60,79 @@ export interface EligibilityCheckResponse {
 export interface AnalystDecisionRequest {
   decision: 'APPROVE' | 'REJECT';
   justification: string;
+  /** Obligatorio al aprobar, prohibido al rechazar: aprobar es también determinar cuánto se paga. */
+  settlement?: SettlementDecisionRequest | null;
 }
+
+/** Lo que el analista autoriza pagar. Calca SettlementDecisionRequest del backend. */
+export interface SettlementDecisionRequest {
+  /** Valor de reposición acreditado por la documentación del expediente. Opcional. */
+  replacementValue?: number | null;
+  /** El monto que efectivamente se paga: la propuesta, o el ajuste del analista. */
+  settledAmount: number;
+  /** Obligatorio solo si `settledAmount` difiere de lo que calculó el backend. */
+  adjustmentReason?: string | null;
+}
+
+/** Cómo se calcula el techo indemnizable de una cobertura. Calca el enum SettlementBasis. */
+export type SettlementBasis = 'SUM_INSURED' | 'LESSER_OF_SUM_AND_REPLACEMENT';
+
+/**
+ * Una línea de la hoja de liquidación. El backend la arma entera —importe y explicación— para que
+ * el texto y la cuenta no puedan separarse: acá solo se renderiza.
+ */
+export interface SettlementLine {
+  kind: 'BASE' | 'DEDUCTION' | 'TOTAL';
+  concept: string;
+  detail: string | null;
+  amount: number;
+}
+
+/** El monto a pagar del expediente: la liquidación ya autorizada, o la propuesta a confirmar. */
+export interface Settlement {
+  formula: SettlementFormula;
+  sumInsured: number;
+  settlementBasis: SettlementBasis;
+  replacementValue: number | null;
+  deductibleRate: number | null;
+  eventOrdinal: number;
+  eventPercentage: number;
+  pendingInstallments: number;
+  installmentAmount: number | null;
+  deductibleAmount: number;
+  pendingInstallmentsAmount: number;
+  overdueBalanceAmount: number;
+  calculatedAmount: number;
+  settledAmount: number | null;
+  adjustmentReason: string | null;
+  confirmed: boolean;
+  confirmedAt: string | null;
+  /** Null mientras es solo una propuesta: no se firmó nada, así que no hay instancia en la que estar. */
+  status: SettlementStatus | null;
+  /**
+   * El tope del ramo. En una propuesta es el vigente, para que el analista vea ANTES de firmar que
+   * este monto va a necesitar al referente; en una liquidación guardada es el que quedó congelado.
+   * Null = el ramo no tiene tope.
+   */
+  authorityLimit: number | null;
+  /** Por qué el referente la devolvió, cuando la devolvió. */
+  returnReason: string | null;
+  /**
+   * El importe que el modelo leyó de la documentación del expediente. **Sugerencia y nada más**:
+   * no está aplicado ni entra en el cálculo hasta que el analista lo toma.
+   */
+  suggestedAmount: number | null;
+  /** De qué tipo de documento salió, para poder verificarlo antes de tomarlo. */
+  suggestedFrom: string | null;
+  breakdown: SettlementLine[];
+  warnings: string[];
+}
+
+/** En qué instancia de la cadena de autorización está la liquidación. Calca SettlementStatus. */
+export type SettlementStatus = 'AUTHORIZED' | 'PENDING_AUTHORIZATION' | 'RETURNED';
+
+/** Cómo se liquidó: el bien no está (pérdida total) o quedó dañado (reparación). */
+export type SettlementFormula = 'TOTAL_LOSS' | 'REPAIR';
 
 // Forma de Page<T> de Spring Data — así responde GET /api/v1/cases desde que el backend
 // pagina (historia "Búsqueda y filtrado de expedientes"). Solo los campos que usamos hoy;
@@ -260,6 +332,17 @@ export class ExpedienteService {
   }
 
   /**
+   * El monto a pagar: la liquidación ya autorizada, o la propuesta para que el analista confirme.
+   * No persiste nada — `replacementValue` deja previsualizar qué pasaría si se acreditara ese
+   * valor, y lo que escribe es la aprobación (`recordAnalystDecision`).
+   */
+  settlement(caseId: number, replacementValue?: number | null): Observable<Settlement> {
+    const params =
+      replacementValue == null ? undefined : { replacementValue: String(replacementValue) };
+    return this.http.get<Settlement>(`${this.baseUrl}/${caseId}/settlement`, { params });
+  }
+
+  /**
    * Reintenta la clasificación de un expediente que quedó en CLASSIFICATION_FAILED. Lo devuelve a
    * PENDING_CLASSIFICATION y re-dispara el análisis en el backend. Solo válido desde el estado
    * fallido (otro estado → 409).
@@ -358,6 +441,7 @@ export class ExpedienteService {
     caseId: number,
     verdict: ExpertVerdict,
     note: string,
+    indemnifiableAmount: number | null,
     report: File,
   ): Observable<Peritaje> {
     // Veredicto y nota van en el cuerpo, no en la query string: la nota es texto libre sobre un
@@ -367,6 +451,11 @@ export class ExpedienteService {
     formData.append('report', report);
     formData.append('verdict', verdict);
     formData.append('note', note);
+    // Solo si el informe puso un número: vacío no es cero. Un cero diría que el perito concluyó
+    // que no se paga nada, que es otra conclusión.
+    if (indemnifiableAmount != null) {
+      formData.append('indemnifiableAmount', String(indemnifiableAmount));
+    }
     return this.http.post<Peritaje>(
       `${this.baseUrl}/${caseId}/expert-assessment/report`,
       formData,
