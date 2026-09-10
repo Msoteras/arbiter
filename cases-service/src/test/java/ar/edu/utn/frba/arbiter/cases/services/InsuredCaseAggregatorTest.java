@@ -71,7 +71,7 @@ class InsuredCaseAggregatorTest {
     }
 
     private Page<InsuredCaseAggregator.InsuredCase> findOwnCases() {
-        return aggregator.findOwnCases(null, null, null, null, null, null, null,
+        return aggregator.findOwnCases(null, null, null, null, null, null, null, null,
                 PageRequest.of(0, 10));
     }
 

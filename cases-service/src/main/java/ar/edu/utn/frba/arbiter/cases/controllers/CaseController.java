@@ -5,6 +5,7 @@ import ar.edu.utn.frba.arbiter.cases.dto.AnalystWorkloadResponse;
 import ar.edu.utn.frba.arbiter.cases.dto.AssignAnalystRequest;
 import ar.edu.utn.frba.arbiter.cases.dto.AssignedCaseSummaryResponse;
 import ar.edu.utn.frba.arbiter.cases.dto.CaseDocumentResponse;
+import ar.edu.utn.frba.arbiter.cases.dto.CaseScope;
 import ar.edu.utn.frba.arbiter.cases.dto.CaseRequest;
 import ar.edu.utn.frba.arbiter.cases.dto.CaseResponse;
 import ar.edu.utn.frba.arbiter.cases.dto.PolicyResponse;
@@ -133,6 +134,12 @@ public class CaseController {
                     `dueSoon=true` acota a los expedientes con semáforo de vencimiento activo
                     (`deadlinePriority != NONE`: 10 días o menos hasta el plazo de respuesta del
                     art. 56, o ya vencidos) — la lente "Por vencer".
+
+                    `scope` recorta por ciclo de vida: `OPEN` (los cinco estados no terminales),
+                    `CLOSED` (APPROVED/REJECTED/LAPSED) o `ALL`. Default `ALL`: el recorte es de
+                    la pantalla que lo pide, no del endpoint — el portal del asegurado consume
+                    este mismo listado y tiene que seguir viendo sus siniestros resueltos. Un
+                    expediente vencido sigue siendo `OPEN`.
                     """)
     public ResponseEntity<Page<CaseResponse>> listCases(
             @RequestParam(required = false) CaseStatus status,
@@ -149,11 +156,12 @@ public class CaseController {
             @RequestParam(defaultValue = "false") boolean fraudAlert,
             @RequestParam(defaultValue = "false") boolean assigned,
             @RequestParam(defaultValue = "false") boolean dueSoon,
+            @RequestParam(defaultValue = "ALL") CaseScope scope,
             @PageableDefault(size = 20, sort = "id", direction = Sort.Direction.DESC) Pageable pageable
     ) {
         Page<CaseResponse> response = caseService.listCases(
                 status, claimCause, policyNumber, insuredId, eventDateFrom, eventDateTo, q, riskBand,
-                analystId, assignedToMe, unassigned, fraudAlert, assigned, dueSoon, pageable);
+                analystId, assignedToMe, unassigned, fraudAlert, assigned, dueSoon, scope, pageable);
         return ResponseEntity.ok(response);
     }
 
@@ -247,10 +255,12 @@ public class CaseController {
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate eventDateTo,
             @RequestParam(required = false) String q,
             @RequestParam(required = false) RiskBand riskBand,
-            @RequestParam(required = false) Long analystId
+            @RequestParam(required = false) Long analystId,
+            @RequestParam(defaultValue = "ALL") CaseScope scope
     ) {
         return ResponseEntity.ok(caseService.lensSummary(
-                status, claimCause, policyNumber, insuredId, eventDateFrom, eventDateTo, q, riskBand, analystId));
+                status, claimCause, policyNumber, insuredId, eventDateFrom, eventDateTo, q, riskBand,
+                analystId, scope));
     }
 
     @GetMapping("/analysts/workload")

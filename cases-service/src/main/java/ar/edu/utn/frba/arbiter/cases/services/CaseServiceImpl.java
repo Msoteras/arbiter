@@ -4,6 +4,7 @@ import ar.edu.utn.frba.arbiter.cases.dto.AnalystDecisionRequest;
 import ar.edu.utn.frba.arbiter.cases.dto.AnalystWorkloadResponse;
 import ar.edu.utn.frba.arbiter.cases.dto.AssignedCaseSummaryResponse;
 import ar.edu.utn.frba.arbiter.cases.dto.CaseDocumentResponse;
+import ar.edu.utn.frba.arbiter.cases.dto.CaseScope;
 import ar.edu.utn.frba.arbiter.cases.dto.CaseRequest;
 import ar.edu.utn.frba.arbiter.cases.dto.CaseResponse;
 import ar.edu.utn.frba.arbiter.cases.dto.DocumentAnalysisSummary;
@@ -417,12 +418,12 @@ public class CaseServiceImpl implements CaseService {
                                          String insuredId, LocalDate eventDateFrom, LocalDate eventDateTo,
                                          String q, RiskBand riskBand, Long analystId, boolean assignedToMe,
                                          boolean unassigned, boolean fraudAlert, boolean assigned,
-                                         boolean dueSoon, Pageable pageable) {
+                                         boolean dueSoon, CaseScope scope, Pageable pageable) {
         if (accessPolicy.currentUserIsInsured()) {
             // El asegurado ve los suyos de TODAS sus aseguradoras, no solo la del tenant activo.
             // Las lentes no le aplican: no tiene expedientes "asignados" ni bandeja de fraude.
             return toInsuredResponses(insuredCaseAggregator.findOwnCases(
-                    status, claimCause, policyNumber, eventDateFrom, eventDateTo, q, riskBand, pageable));
+                    status, claimCause, policyNumber, eventDateFrom, eventDateTo, q, riskBand, scope, pageable));
         }
 
         // "Los míos" gana sobre el filtro explícito: si vienen los dos, el analista está mirando su
@@ -438,10 +439,17 @@ public class CaseServiceImpl implements CaseService {
             }
         }
 
-        Specification<Case> spec = withDueSoon(CaseSpecifications.withFilters(
+        Specification<Case> spec = and(withDueSoon(CaseSpecifications.withFilters(
                 status, claimCause, policyNumber, insuredId, eventDateFrom, eventDateTo, q, riskBand,
-                ownerId, unassigned, fraudAlert, assigned), dueSoon);
+                ownerId, unassigned, fraudAlert, assigned), dueSoon), CaseSpecifications.scope(scope));
         return toResponses(caseRepository.findAll(spec, pageable));
+    }
+
+    private static Specification<Case> and(Specification<Case> base, Specification<Case> extra) {
+        if (extra == null) {
+            return base;
+        }
+        return base == null ? extra : base.and(extra);
     }
 
     /** Umbral del filtro "por vencer" = mismo borde que el semáforo (deadlinePriority ≠ NONE). */
@@ -457,28 +465,29 @@ public class CaseServiceImpl implements CaseService {
     @Override
     public LensSummaryResponse lensSummary(CaseStatus status, String claimCause, String policyNumber,
                                             String insuredId, LocalDate eventDateFrom, LocalDate eventDateTo,
-                                            String q, RiskBand riskBand, Long analystId) {
+                                            String q, RiskBand riskBand, Long analystId, CaseScope scope) {
         // "Míos" necesita saber quién es "yo"; para el referente no hay perfil de analista y queda 0.
         Long me = currentAnalystId().orElse(null);
         return new LensSummaryResponse(
                 count(status, claimCause, policyNumber, insuredId, eventDateFrom, eventDateTo, q, riskBand,
-                        analystId, false, false, false),
+                        analystId, false, false, false, scope),
                 me == null ? 0 : count(status, claimCause, policyNumber, insuredId, eventDateFrom, eventDateTo,
-                        q, riskBand, me, false, false, false),
+                        q, riskBand, me, false, false, false, scope),
                 count(status, claimCause, policyNumber, insuredId, eventDateFrom, eventDateTo, q, riskBand,
-                        analystId, false, false, true),
+                        analystId, false, false, true, scope),
                 count(status, claimCause, policyNumber, insuredId, eventDateFrom, eventDateTo, q, riskBand,
-                        analystId, true, false, false),
+                        analystId, true, false, false, scope),
                 count(status, claimCause, policyNumber, insuredId, eventDateFrom, eventDateTo, q, riskBand,
-                        analystId, false, true, false));
+                        analystId, false, true, false, scope));
     }
 
     private long count(CaseStatus status, String claimCause, String policyNumber, String insuredId,
                        LocalDate eventDateFrom, LocalDate eventDateTo, String q, RiskBand riskBand,
-                       Long analystId, boolean unassigned, boolean fraudAlert, boolean assigned) {
-        Specification<Case> spec = CaseSpecifications.withFilters(
+                       Long analystId, boolean unassigned, boolean fraudAlert, boolean assigned,
+                       CaseScope scope) {
+        Specification<Case> spec = and(CaseSpecifications.withFilters(
                 status, claimCause, policyNumber, insuredId, eventDateFrom, eventDateTo, q, riskBand,
-                analystId, unassigned, fraudAlert, assigned);
+                analystId, unassigned, fraudAlert, assigned), CaseSpecifications.scope(scope));
         // Sin ningún filtro la spec queda null, y count(null) explota — findAll(null, pageable) no.
         return spec == null ? caseRepository.count() : caseRepository.count(spec);
     }

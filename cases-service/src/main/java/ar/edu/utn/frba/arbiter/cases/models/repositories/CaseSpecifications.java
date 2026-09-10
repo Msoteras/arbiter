@@ -1,6 +1,8 @@
 package ar.edu.utn.frba.arbiter.cases.models.repositories;
 
+import ar.edu.utn.frba.arbiter.cases.dto.CaseScope;
 import ar.edu.utn.frba.arbiter.cases.models.entities.Case;
+import ar.edu.utn.frba.arbiter.cases.services.CaseStatusService;
 import ar.edu.utn.frba.arbiter.common.enums.CaseStatus;
 import ar.edu.utn.frba.arbiter.common.enums.RiskBand;
 import jakarta.persistence.criteria.Predicate;
@@ -60,11 +62,31 @@ public final class CaseSpecifications {
      * de sumar un parámetro más a esa firma ya larga.
      */
     public static Specification<Case> dueSoonBefore(LocalDate threshold) {
+        List<String> notTicking = names(Stream.concat(
+                CaseStatusService.TERMINAL_STATUSES.stream(), CaseStatusService.PAUSING_STATUSES.stream()));
         return (root, query, cb) -> cb.and(
                 cb.lessThanOrEqualTo(root.get("responseDeadline"), threshold),
-                cb.not(root.get("currentStatus").get("name").in(List.of(
-                        CaseStatus.APPROVED.name(), CaseStatus.REJECTED.name(), CaseStatus.LAPSED.name(),
-                        CaseStatus.AWAITING_DOCUMENTATION.name(), CaseStatus.PENDING_EXPERT_REPORT.name()))));
+                cb.not(root.get("currentStatus").get("name").in(notTicking)));
+    }
+
+    /**
+     * Recorte "en curso" / "cerrados" de la bandeja, resuelto contra
+     * {@link CaseStatusService#TERMINAL_STATUSES}: si un sexto estado se suma a la máquina de
+     * estados, el listado no puede quedar discrepando en silencio.
+     */
+    public static Specification<Case> scope(CaseScope scope) {
+        if (scope == null || scope == CaseScope.ALL) {
+            return null;
+        }
+        List<String> terminal = names(CaseStatusService.TERMINAL_STATUSES.stream());
+        return (root, query, cb) -> {
+            Predicate closed = root.get("currentStatus").get("name").in(terminal);
+            return scope == CaseScope.CLOSED ? closed : cb.not(closed);
+        };
+    }
+
+    private static List<String> names(Stream<CaseStatus> statuses) {
+        return statuses.map(CaseStatus::name).toList();
     }
 
     /** Overload para las lentes "Míos"/"Todos" (sin las lentes de asignación ni alerta de fraude). */

@@ -1,5 +1,6 @@
 package ar.edu.utn.frba.arbiter.cases.models.repositories;
 
+import ar.edu.utn.frba.arbiter.cases.dto.CaseScope;
 import ar.edu.utn.frba.arbiter.cases.models.entities.Case;
 import ar.edu.utn.frba.arbiter.common.models.entities.tenant.ClaimsAnalyst;
 import ar.edu.utn.frba.arbiter.common.models.entities.tenant.Coverage;
@@ -364,6 +365,63 @@ class CaseRepositorySpecificationTests extends AbstractPersistenceIT {
                 null, null, null, null, null, null, null, null, owner.getId());
 
         assertThat(caseRepository.findAll(spec, FIRST_PAGE).getTotalElements()).isEqualTo(1);
+    }
+
+    @Test
+    void openScope_leavesOutEveryClosedCase() {
+        caseRepository.save(caseOf(CaseStatus.LAPSED, "Hurto", "POL-CEL-2024-005",
+                "40.123.459", "Ana", "Sosa", LocalDate.of(2026, 5, 1), null));
+
+        Page<Case> page = caseRepository.findAll(CaseSpecifications.scope(CaseScope.OPEN), FIRST_PAGE);
+
+        assertThat(page.getContent())
+                .extracting(entity -> entity.getCurrentStatus().getName())
+                .containsExactlyInAnyOrder(
+                        CaseStatus.PENDING_ANALYST_REVIEW.name(), CaseStatus.PENDING_CLASSIFICATION.name());
+    }
+
+    /**
+     * Un expediente con el plazo del art. 56 vencido sigue en curso: es el más urgente que hay, no
+     * uno cerrado. El único que sale por vencimiento es {@code LAPSED}, que ya está cerrado.
+     */
+    @Test
+    void openScope_keepsAnOverdueCase() {
+        Case overdue = caseOf(CaseStatus.PENDING_ANALYST_REVIEW, "Hurto", "POL-CEL-2024-006",
+                "40.123.460", "Bruno", "Vega", LocalDate.of(2026, 1, 10), null);
+        overdue.setResponseDeadline(LocalDate.of(2026, 2, 9));
+        caseRepository.save(overdue);
+
+        Page<Case> page = caseRepository.findAll(CaseSpecifications.scope(CaseScope.OPEN), FIRST_PAGE);
+
+        assertThat(page.getContent()).extracting(Case::getId).contains(overdue.getId());
+    }
+
+    @Test
+    void closedScope_returnsOnlyTerminalStatuses() {
+        Page<Case> page = caseRepository.findAll(CaseSpecifications.scope(CaseScope.CLOSED), FIRST_PAGE);
+
+        assertThat(page.getContent())
+                .extracting(entity -> entity.getCurrentStatus().getName())
+                .containsExactlyInAnyOrder(CaseStatus.APPROVED.name(), CaseStatus.REJECTED.name());
+    }
+
+    @Test
+    void allScope_doesNotRestrict() {
+        assertThat(CaseSpecifications.scope(CaseScope.ALL)).isNull();
+        assertThat(CaseSpecifications.scope(null)).isNull();
+    }
+
+    @Test
+    void scopeCombinesWithTheRestOfTheFilters() {
+        Specification<Case> spec = CaseSpecifications.withFilters(
+                        null, "Robo en vía pública", null, null, null, null, null, null, null)
+                .and(CaseSpecifications.scope(CaseScope.OPEN));
+
+        Page<Case> page = caseRepository.findAll(spec, FIRST_PAGE);
+
+        assertThat(page.getContent())
+                .extracting(entity -> entity.getCurrentStatus().getName())
+                .containsExactly(CaseStatus.PENDING_ANALYST_REVIEW.name());
     }
 
     /** El analista vive en el esquema del tenant y su {@code user_id} es NOT NULL, igual que insured. */
