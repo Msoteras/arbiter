@@ -179,7 +179,8 @@ BEGIN
               JOIN arbiter_common.claim_cause cc ON cc.id = c.claim_cause_id
              WHERE rr.case_id = c.id
                AND rr.rule_type = 'COVERAGE_INCLUSION'
-               AND rr.evaluated_value = cc.name
+               -- Some rows already carry CoverageRuleEvaluator's format and only the type is stale.
+               AND rr.evaluated_value IN (cc.name, 'claimCause=' || cc.name || ' (id=' || cc.id || ')')
         $dml$, tenant, tenant);
 
         -- Cualquier COVERAGE_INCLUSION que no se haya podido reexpresar queda como
@@ -219,6 +220,17 @@ BEGIN
 
     EXECUTE format($q$SELECT id FROM %I.coverage WHERE name = 'Daño accidental' AND branch_id = $1$q$,
                    tenant) INTO nueva USING celulares;
+
+    -- Damage settles as a repair (2026-09-06-formula-de-reparacion.sql). That migration applies it
+    -- by name, so it only reaches this coverage if it runs after this one; on a database where it
+    -- already ran, the coverage would be born TOTAL_LOSS. The column may not exist yet either,
+    -- hence the guard.
+    IF EXISTS (SELECT 1 FROM information_schema.columns
+                WHERE table_schema = tenant AND table_name = 'coverage'
+                  AND column_name = 'settlement_formula') THEN
+        EXECUTE format($dml$UPDATE %I.coverage SET settlement_formula = 'REPAIR' WHERE id = $1$dml$,
+                       tenant) USING nueva;
+    END IF;
 
     -- b) Sus reglas, con la misma forma que las de las otras dos coberturas.
     --    Sin POLICE_DEADLINE: una rotura accidental no tiene denuncia policial que
