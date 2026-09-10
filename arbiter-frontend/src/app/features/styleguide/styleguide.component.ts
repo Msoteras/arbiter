@@ -347,6 +347,22 @@ interface Swatch {
             placeholder="Todos los estados"
           />
         </div>
+
+        <p class="sg-p">
+          Con <span class="mono">searchable</span> el campo mismo hace de buscador: se escribe
+          directo sobre él y el listado va mostrando las coincidencias. Para catálogos que no se
+          recorren a ojo (ej. las provincias y localidades del alta de denuncia). Filtra ignorando
+          acentos y mayúsculas, y dibuja como mucho 100 resultados por vez. Lo tipeado solo filtra:
+          al cerrar sin elegir, el campo vuelve a mostrar la opción elegida.
+        </p>
+        <div class="col narrow">
+          <app-select
+            [(value)]="sampleSearchSelect"
+            [options]="sampleProvinceOptions"
+            placeholder="Provincia"
+            [searchable]="true"
+          />
+        </div>
       </section>
 
       <section class="sg-block">
@@ -815,6 +831,18 @@ export class StyleguideComponent {
     { value: 'AWAITING_DOCUMENTATION', label: 'Falta documentación' },
     { value: 'APPROVED', label: 'Aprobado' },
   ];
+  protected readonly sampleSearchSelect = signal('');
+  protected readonly sampleProvinceOptions = [
+    'Buenos Aires',
+    'Ciudad Autónoma de Buenos Aires',
+    'Córdoba',
+    'Entre Ríos',
+    'Mendoza',
+    'Neuquén',
+    'Río Negro',
+    'Santa Fe',
+    'Tucumán',
+  ].map((name) => ({ value: name, label: name }));
   protected readonly samplePage = signal(2);
   protected readonly sampleCheckbox = signal(false);
   protected readonly sampleMenuItems: MenuItem[] = [
