@@ -161,6 +161,32 @@ y `db/migrations/2026-09-06-monto-del-peritaje.sql`.
 
 ---
 
+## `llm_analysis` — tres columnas de la coherencia del hecho generador que el DER no tiene
+
+**Encontrado:** 10/09/2026, corriendo `scripts/check-schema-consistency.py` contra la base desplegada.
+
+`analisis_llm` en el DER tiene la recomendación, el modelo, la versión del prompt, la confianza, la
+latencia y la fecha. La base desplegada tiene además tres columnas, agregadas a mano el 02/09/2026
+antes de que ningún script las tuviera:
+
+- `cause_consistency` — `MATCHES` / `AMBIGUOUS` / `CONTRADICTS` (con `CHECK`): si el relato del
+  asegurado coincide con el hecho generador que declaró.
+- `suggested_claim_cause` — el hecho generador al que apunta el relato cuando no es el declarado.
+- `cause_evidence` — el pasaje del relato en el que se apoya esa lectura.
+
+Es exactamente la lectura interpretativa que `CLAUDE.md` le asigna al modelo ("¿la denuncia
+describe un robo o un hurto?"), y deja registrado el porqué como dato auditable, no solo en el
+texto de las razones. El único análisis que las tiene cargadas es el de una denuncia de robo cuyo
+relato dice "se me cayó el celu": `CONTRADICTS`, sugiere Caída.
+
+Ya están en `db/init-multitenant.sql` y en `db/migrations/2026-09-10-coherencia-hecho-generador.sql`.
+**Ningún código las escribe todavía**: el prompt vigente no las pide y la entidad no las mapea —
+usarlas es una historia aparte (prompt, entidad y pantalla del analista).
+
+**Acción:** agregar las tres columnas a `analisis_llm` en el DER, todas opcionales.
+
+---
+
 ## Plantilla para la próxima entrada
 
 ```

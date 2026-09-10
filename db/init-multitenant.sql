@@ -948,6 +948,18 @@ BEGIN
             latency_ms          INTEGER,
             analyzed_at         TIMESTAMPTZ  NOT NULL DEFAULT NOW(),
             case_id             BIGINT       NOT NULL REFERENCES %I.cases(id) ON DELETE CASCADE,
+            -- Whether the narrative matches the declared claim cause: the interpretive reading the
+            -- model is there for ("does this describe a theft or a loss?"). Nullable because an
+            -- analysis may not assess it; suggested_claim_cause is the cause the narrative points
+            -- to, and cause_evidence the passage it rests on.
+            cause_consistency       VARCHAR(20),
+            suggested_claim_cause   VARCHAR(120),
+            cause_evidence          TEXT,
+
+            CONSTRAINT llm_analysis_cause_consistency_check CHECK (
+                cause_consistency IS NULL
+                OR cause_consistency IN ('MATCHES', 'AMBIGUOUS', 'CONTRADICTS')
+            ),
 
             -- FAST_TRACK is decided by FastTrackValidator, never by the model
             -- (decision #6) — the DB refuses to record it as an LLM recommendation.
