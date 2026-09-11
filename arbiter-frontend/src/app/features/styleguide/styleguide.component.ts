@@ -11,6 +11,7 @@ import { ModalComponent } from '../../shared/ui/modal/modal.component';
 import { FraudGaugeComponent } from '../../shared/ui/fraud-gauge/fraud-gauge.component';
 import { SeverityLabelComponent } from '../../shared/ui/severity-label/severity-label.component';
 import { EmptyStateComponent } from '../../shared/ui/empty-state/empty-state.component';
+import { PolicyCardComponent } from '../../shared/ui/policy-card/policy-card.component';
 import { SelectComponent } from '../../shared/ui/select/select.component';
 import { PaginationComponent } from '../../shared/ui/pagination/pagination.component';
 import { TableComponent } from '../../shared/ui/table/table.component';
@@ -27,6 +28,7 @@ import { SwitchComponent } from '../../shared/ui/switch/switch.component';
 import { StatTileComponent } from '../../shared/ui/stat-tile/stat-tile.component';
 import { ToastService } from '../../shared/ui/toast/toast.service';
 import { StatusTransition } from '../../core/models/expediente';
+import { Policy } from '../../core/models/policy';
 
 interface Token {
   name: string;
@@ -67,6 +69,7 @@ interface Swatch {
     FraudGaugeComponent,
     SeverityLabelComponent,
     EmptyStateComponent,
+    PolicyCardComponent,
     SelectComponent,
     PaginationComponent,
     TableComponent,
@@ -523,6 +526,27 @@ interface Swatch {
       </section>
 
       <section class="sg-block">
+        <h3 class="sg-h3">Policy card</h3>
+        <p class="sg-p">
+          Una póliza del asegurado, en solo lectura. La comparten la bienvenida y "Mis pólizas"
+          del perfil. Los dos ejes son independientes: <span class="mono">vigencia</span> (si te
+          está cubriendo) y <span class="mono">upToDate</span> (si estás al día con los pagos) —
+          una póliza puede estar vigente y con deuda. La vencida se distingue sin leer las fechas:
+          pierde el filo teal y la tarjeta se apaga.
+        </p>
+        <ul class="sg-policies">
+          @for (p of samplePolicies; track p.policyNumber) {
+            <li><app-policy-card [policy]="p" /></li>
+          }
+        </ul>
+        <p class="sg-p">
+          <span class="mono">compact</span>: sin el detalle de coberturas, para pantallas donde la
+          póliza es contexto y no el tema (la bienvenida del primer ingreso).
+        </p>
+        <app-policy-card [policy]="samplePolicies[0]" [compact]="true" />
+      </section>
+
+      <section class="sg-block">
         <h3 class="sg-h3">Status timeline</h3>
         <p class="sg-p">
           Historial de estados del expediente. El último recibe el tono del estado actual.
@@ -715,6 +739,14 @@ interface Swatch {
       font-size: var(--font-size-lg);
       font-weight: var(--font-weight-medium);
     }
+    .sg-policies {
+      list-style: none;
+      margin: 0;
+      padding: 0;
+      display: flex;
+      flex-direction: column;
+      gap: var(--space-3);
+    }
     .sg-h3 {
       margin: 0 0 var(--space-3);
       font-size: var(--font-size-2xs);
@@ -860,6 +892,95 @@ export class StyleguideComponent {
 
   /** El archivo lo elige quien mira la página: no hay forma honesta de fabricar un File de ejemplo. */
   protected readonly sampleFile = signal<File | null>(null);
+
+  /** Los cuatro cruces de vigencia × estado de pago, que es lo que la tarjeta tiene que separar. */
+  protected readonly samplePolicies: Policy[] = [
+    {
+      policyNumber: 'POL-CEL-2026-042',
+      insurerId: '1',
+      insurerName: 'BBVA Seguros Argentina S.A.',
+      insuredName: 'Martina Soteras',
+      insuredId: '42.987.654',
+      contactEmail: null,
+      contactPhone: null,
+      branch: 'Celulares',
+      insuredItem: 'Samsung Galaxy A56',
+      product: 'Celular Protegido Premium',
+      effectiveFrom: '2026-01-01T00:00:00',
+      effectiveTo: '2027-01-01T23:59:59',
+      upToDate: true,
+      insuredAmount: 1300000,
+      deductible: 130000,
+      coverages: [
+        {
+          code: 'COB-1',
+          description: 'Robo de celular',
+          insuredAmount: 1300000,
+          deductible: 130000,
+          deductiblePct: 10,
+        },
+        {
+          code: 'COB-2',
+          description: 'Hurto',
+          insuredAmount: 650000,
+          deductible: 65000,
+          deductiblePct: 10,
+        },
+      ],
+    },
+    {
+      policyNumber: 'POL-HOG-2026-118',
+      insurerId: '2',
+      insurerName: 'Provincia Seguros S.A.',
+      insuredName: 'Martina Soteras',
+      insuredId: '42.987.654',
+      contactEmail: null,
+      contactPhone: null,
+      branch: 'Hogar',
+      insuredItem: null,
+      product: 'Hogar Integral',
+      effectiveFrom: '2026-03-01T12:00:00',
+      effectiveTo: '2027-03-01T12:00:00',
+      upToDate: false,
+      insuredAmount: 8000000,
+      deductible: 400000,
+      coverages: [
+        {
+          code: 'COB-1',
+          description: 'Incendio',
+          insuredAmount: 8000000,
+          deductible: 400000,
+          deductiblePct: 5,
+        },
+      ],
+    },
+    {
+      policyNumber: 'POL-CEL-2025-011',
+      insurerId: '1',
+      insurerName: 'BBVA Seguros Argentina S.A.',
+      insuredName: 'Martina Soteras',
+      insuredId: '42.987.654',
+      contactEmail: null,
+      contactPhone: null,
+      branch: 'Celulares',
+      insuredItem: 'Motorola Moto G54',
+      product: 'Celular Protegido Básico',
+      effectiveFrom: '2025-01-01T00:00:00',
+      effectiveTo: '2026-01-01T23:59:59',
+      upToDate: true,
+      insuredAmount: 400000,
+      deductible: 60000,
+      coverages: [
+        {
+          code: 'COB-1',
+          description: 'Robo de celular',
+          insuredAmount: 400000,
+          deductible: 60000,
+          deductiblePct: 15,
+        },
+      ],
+    },
+  ];
 
   protected readonly sampleHistory: StatusTransition[] = [
     {
