@@ -1,0 +1,109 @@
+:host {
+  display: block;
+}
+
+// Mismo ancho y ritmo que "Mi perfil": son las dos pantallas de "mi cuenta" y se llega a las dos
+// desde el mismo menú, así que tienen que sentirse la misma pantalla con distinto contenido.
+.polizas {
+  padding: var(--space-5) var(--space-4) var(--space-7);
+  max-width: 660px;
+  margin: 0 auto;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-5);
+}
+
+@media (min-width: 640px) {
+  .polizas {
+    padding: var(--space-6) var(--space-6) var(--space-7);
+  }
+}
+
+.head {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+}
+.head-icon {
+  flex: none;
+  width: 38px;
+  height: 38px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--radius-ctl);
+  background: var(--selected-bg);
+  color: var(--accent-fg);
+}
+.head .t-page-title {
+  margin: var(--space-1) 0 0;
+}
+.eyebrow {
+  font-size: var(--font-size-2xs);
+  font-weight: var(--font-weight-medium);
+  text-transform: uppercase;
+  letter-spacing: 0.14em;
+  color: var(--accent-fg);
+}
+
+.load-error {
+  padding: var(--space-3) var(--space-4);
+  border: 1px solid var(--border-danger-soft);
+  border-radius: var(--radius-card);
+  background: var(--surface-danger-soft);
+}
+.load-error p {
+  margin: 0;
+}
+.load-error .t-note {
+  margin-top: var(--space-1);
+}
+
+.policies {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+// ───────────────── Vencidas ─────────────────
+.expired {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  padding-top: var(--space-4);
+  border-top: 1px solid var(--border-subtle);
+}
+.expired-toggle {
+  align-self: flex-start;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: 0;
+  border: 0;
+  background: none;
+  font: inherit;
+  font-size: var(--font-size-md);
+  color: var(--text-secondary);
+  cursor: pointer;
+}
+.expired-toggle:hover {
+  color: var(--text-primary);
+}
+.expired-toggle:focus-visible {
+  outline: 2px solid var(--border-focus);
+  outline-offset: 2px;
+  border-radius: var(--radius-ctl);
+}
+.count {
+  color: var(--text-muted);
+}
+.chev {
+  display: inline-block;
+  transition: transform var(--dur-1) ease;
+}
+.chev.is-open {
+  transform: rotate(90deg);
+}

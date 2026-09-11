@@ -95,52 +95,6 @@
   flex-direction: column;
   gap: var(--space-3);
 }
-.policy {
-  padding: var(--space-3) var(--space-4);
-  // Filo teal a la izquierda: marca la póliza como "tuyo" sin teñir toda la tarjeta.
-  border: 1px solid var(--border-default);
-  border-left: 3px solid var(--accent);
-  border-radius: var(--radius-card);
-  background: var(--surface-soft);
-}
-.policy-head {
-  display: flex;
-  align-items: baseline;
-  justify-content: space-between;
-  gap: var(--space-3);
-}
-.policy-insurer {
-  font-size: var(--font-size-2xs);
-  font-weight: var(--font-weight-medium);
-  text-transform: uppercase;
-  letter-spacing: 0.1em;
-  color: var(--accent-fg);
-}
-.policy-number {
-  font-size: var(--font-size-2xs);
-  color: var(--text-tertiary);
-}
-.policy-item {
-  margin-top: var(--space-1);
-  font-size: var(--font-size-md);
-  font-weight: var(--font-weight-medium);
-  color: var(--text-primary);
-}
-.policy-meta {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--space-2) var(--space-5);
-  margin: var(--space-2) 0 0;
-}
-.policy-meta dt {
-  font-size: var(--font-size-2xs);
-  color: var(--text-muted);
-}
-.policy-meta dd {
-  margin: 0;
-  font-size: var(--font-size-body);
-  color: var(--text-secondary);
-}
 
 // ───────────────── Campos ─────────────────
 .fields {

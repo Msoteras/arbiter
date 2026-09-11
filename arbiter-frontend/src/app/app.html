@@ -27,13 +27,10 @@
             [routerLinkActiveOptions]="{ exact: true }"
             >Mis siniestros</a
           >
-          <a routerLink="/portal/profile" routerLinkActive="active">Mi perfil</a>
         </nav>
 
         @if (session.session(); as s) {
           <div class="topbar-user">
-            <span class="topbar-user-name">{{ s.nombre }} {{ s.apellido }}</span>
-            <span class="topbar-avatar">{{ initials(s.nombre, s.apellido) }}</span>
             <div class="topbar-notifs">
               <button
                 type="button"
@@ -76,35 +73,46 @@
                 <app-notifications-panel (close)="closeNotifications()" />
               }
             </div>
-            <button
-              type="button"
-              class="topbar-icon-btn"
-              title="Cerrar sesión"
-              aria-label="Cerrar sesión"
-              (click)="requestLogout()"
-            >
-              <svg
-                width="16"
-                height="16"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                stroke-width="1.6"
-                aria-hidden="true"
+
+            <!-- Mismo menú de avatar que los roles internos: "Mi perfil" salía como tercer link
+                 del nav, que en pantalla angosta ya no entraba y dejaba la barra con scroll
+                 horizontal. El nombre pasa a la cabecera del menú, donde no compite por espacio. -->
+            <div class="topbar-profile">
+              <button
+                type="button"
+                class="topbar-avatar-btn"
+                [attr.aria-expanded]="profileOpen()"
+                aria-haspopup="menu"
+                [attr.aria-label]="'Perfil de ' + s.nombre + ' ' + s.apellido"
+                (click)="toggleProfile($event)"
               >
-                <path
-                  d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"
-                  stroke-linecap="round"
-                  stroke-linejoin="round"
-                />
-                <polyline
-                  points="16 17 21 12 16 7"
-                  stroke-linecap="round"
-                  stroke-linejoin="round"
-                />
-                <line x1="21" y1="12" x2="9" y2="12" stroke-linecap="round" />
-              </svg>
-            </button>
+                <span class="topbar-avatar">{{ initials(s.nombre, s.apellido) }}</span>
+                <span class="topbar-caret" aria-hidden="true">▾</span>
+              </button>
+
+              @if (profileOpen()) {
+                <!-- Cierra solo al clickear un item: el click burbujea a document y lo levanta
+                     el @HostListener que ya cierra los dos desplegables de la barra. -->
+                <div class="profile-menu" role="menu">
+                  <div class="profile-head">
+                    <span class="profile-name">{{ s.nombre }} {{ s.apellido }}</span>
+                    <span class="profile-role">{{ roleLabel(s.rol) }}</span>
+                  </div>
+                  <a role="menuitem" class="profile-item" routerLink="/portal/profile">Mi perfil</a>
+                  <a role="menuitem" class="profile-item" routerLink="/portal/policies"
+                    >Mis pólizas</a
+                  >
+                  <button
+                    type="button"
+                    role="menuitem"
+                    class="profile-item"
+                    (click)="requestLogout()"
+                  >
+                    Cerrar sesión
+                  </button>
+                </div>
+              }
+            </div>
           </div>
         }
       </header>

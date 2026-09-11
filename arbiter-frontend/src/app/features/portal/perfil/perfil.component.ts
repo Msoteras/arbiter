@@ -12,8 +12,8 @@ import {
 } from '../../../core/models/profile';
 import { ButtonComponent } from '../../../shared/ui/button/button.component';
 import { CheckboxComponent } from '../../../shared/ui/checkbox/checkbox.component';
+import { InlineLoadingComponent } from '../../../shared/ui/inline-loading/inline-loading.component';
 import { InputComponent } from '../../../shared/ui/input/input.component';
-import { LoadingComponent } from '../../../shared/ui/loading/loading.component';
 import { ToastService } from '../../../shared/ui/toast/toast.service';
 
 type ProfileState =
@@ -33,7 +33,7 @@ type ProfileState =
  */
 @Component({
   selector: 'app-perfil',
-  imports: [ButtonComponent, CheckboxComponent, InputComponent, LoadingComponent],
+  imports: [ButtonComponent, CheckboxComponent, InlineLoadingComponent, InputComponent],
   changeDetection: ChangeDetectionStrategy.OnPush,
   templateUrl: './perfil.component.html',
   styleUrl: './perfil.component.scss',
