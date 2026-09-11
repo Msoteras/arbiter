@@ -4,7 +4,6 @@ import {
   Policy,
   policyPaymentLabel,
   policyPaymentTone,
-  policyValidity,
   policyValidityLabel,
   policyValidityTone,
 } from '../../../core/models/policy';
@@ -121,12 +120,12 @@ import { BadgeComponent } from '../badge/badge.component';
 
     /* Vencida: el filo pierde el teal y la tarjeta se apaga. Es lo que la distingue de un vistazo
        sin leer las fechas — el badge solo confirma lo que el bloque entero ya dice. */
-    .policy[data-validity='vencida'] {
+    .policy[data-validity='EXPIRED'] {
       border-left-color: var(--border-strong);
       background: var(--surface-sunken);
     }
-    .policy[data-validity='vencida'] .policy-insurer,
-    .policy[data-validity='vencida'] .policy-item {
+    .policy[data-validity='EXPIRED'] .policy-insurer,
+    .policy[data-validity='EXPIRED'] .policy-item {
       color: var(--text-tertiary);
     }
 
@@ -265,7 +264,7 @@ export class PolicyCardComponent {
 
   protected readonly open = signal(false);
 
-  protected readonly validity = computed(() => policyValidity(this.policy()));
+  protected readonly validity = computed(() => this.policy().validity);
   protected readonly validityLabel = computed(() => policyValidityLabel(this.policy()));
   protected readonly validityTone = computed(() => policyValidityTone(this.policy()));
   protected readonly paymentLabel = computed(() => policyPaymentLabel(this.policy()));

@@ -1,13 +1,12 @@
 import {
   Policy,
+  PolicyValidity,
+  isExpired,
   policyPaymentLabel,
   policyPaymentTone,
-  policyValidity,
   policyValidityLabel,
   policyValidityTone,
 } from './policy';
-
-const NOW = new Date('2026-09-10T12:00:00');
 
 function policy(overrides: Partial<Policy> = {}): Policy {
   return {
@@ -23,6 +22,7 @@ function policy(overrides: Partial<Policy> = {}): Policy {
     product: 'Celular Protegido Premium',
     effectiveFrom: '2026-01-01T00:00:00',
     effectiveTo: '2027-01-01T23:59:59',
+    validity: 'CURRENT',
     upToDate: true,
     insuredAmount: 1300000,
     deductible: 130000,
@@ -32,64 +32,50 @@ function policy(overrides: Partial<Policy> = {}): Policy {
 }
 
 describe('policy', () => {
-  describe('policyValidity', () => {
-    it('es vigente dentro del período de cobertura', () => {
-      expect(policyValidity(policy(), NOW)).toBe('vigente');
-    });
-
-    it('es vencida cuando la vigencia ya terminó', () => {
+  /**
+   * La vigencia llega calculada del backend y no se deriva de las fechas: vienen sin zona horaria,
+   * y comparándolas acá el navegador (hora argentina) contradecía al backend (UTC) durante las
+   * tres horas previas a la medianoche del día del vencimiento.
+   */
+  describe('vigencia', () => {
+    it('sale del campo que manda el backend, no de las fechas', () => {
+      // Fechas que "parecen" vigentes, pero el backend ya la dio por vencida: manda el campo.
       const vencida = policy({
-        effectiveFrom: '2025-01-01T00:00:00',
-        effectiveTo: '2026-01-01T23:59:59',
+        effectiveFrom: '2026-01-01T00:00:00',
+        effectiveTo: '2027-01-01T23:59:59',
+        validity: 'EXPIRED',
       });
-      expect(policyValidity(vencida, NOW)).toBe('vencida');
+
+      expect(isExpired(vencida)).toBeTrue();
+      expect(policyValidityLabel(vencida)).toBe('Vencida');
+      expect(policyValidityTone(vencida)).toBe('danger');
     });
 
-    it('es pendiente cuando la vigencia todavía no arrancó', () => {
-      const futura = policy({
-        effectiveFrom: '2026-12-01T00:00:00',
-        effectiveTo: '2027-12-01T23:59:59',
-      });
-      expect(policyValidity(futura, NOW)).toBe('pendiente');
-    });
-
-    /**
-     * La vigencia lleva hora: una póliza que vence hoy a las 08:00 ya no cubre a las 12:00, aunque
-     * siga siendo "hoy". Comparar solo por fecha la dejaba vigente media jornada de más.
-     */
-    it('respeta la hora del fin de vigencia, no solo el día', () => {
-      const venceHoyTemprano = policy({ effectiveTo: '2026-09-10T08:00:00' });
-      expect(policyValidity(venceHoyTemprano, NOW)).toBe('vencida');
-
-      const venceHoyMasTarde = policy({ effectiveTo: '2026-09-10T23:59:59' });
-      expect(policyValidity(venceHoyMasTarde, NOW)).toBe('vigente');
-    });
-  });
-
-  describe('labels y tonos de vigencia', () => {
     it('mapea cada estado a su label y su tono', () => {
-      const vigente = policy();
-      expect(policyValidityLabel(vigente, NOW)).toBe('Vigente');
-      expect(policyValidityTone(vigente, NOW)).toBe('ok');
+      const cases: [PolicyValidity, string, string][] = [
+        ['CURRENT', 'Vigente', 'ok'],
+        ['EXPIRED', 'Vencida', 'danger'],
+        ['NOT_YET_ACTIVE', 'Aún no vigente', 'info'],
+      ];
 
-      const vencida = policy({ effectiveTo: '2026-01-01T23:59:59' });
-      expect(policyValidityLabel(vencida, NOW)).toBe('Vencida');
-      expect(policyValidityTone(vencida, NOW)).toBe('danger');
+      for (const [validity, label, tone] of cases) {
+        const p = policy({ validity });
+        expect(policyValidityLabel(p)).toBe(label);
+        expect(policyValidityTone(p)).toBe(tone);
+      }
+    });
 
-      const pendiente = policy({
-        effectiveFrom: '2026-12-01T00:00:00',
-        effectiveTo: '2027-12-01T00:00:00',
-      });
-      expect(policyValidityLabel(pendiente, NOW)).toBe('Aún no vigente');
-      expect(policyValidityTone(pendiente, NOW)).toBe('info');
+    /** Solo la vencida se pliega en "Mis pólizas": la que todavía no arrancó sigue arriba. */
+    it('una póliza que aún no arrancó no cuenta como vencida', () => {
+      expect(isExpired(policy({ validity: 'NOT_YET_ACTIVE' }))).toBeFalse();
     });
   });
 
   describe('estado de pago', () => {
     it('es un eje independiente de la vigencia', () => {
       // Vigente y con deuda: el cruce que se pierde si se colapsan en un solo semáforo.
-      const vigenteConDeuda = policy({ upToDate: false });
-      expect(policyValidity(vigenteConDeuda, NOW)).toBe('vigente');
+      const vigenteConDeuda = policy({ validity: 'CURRENT', upToDate: false });
+      expect(isExpired(vigenteConDeuda)).toBeFalse();
       expect(policyPaymentLabel(vigenteConDeuda)).toBe('Con deuda');
       expect(policyPaymentTone(vigenteConDeuda)).toBe('warning');
 

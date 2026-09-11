@@ -3,7 +3,7 @@ import { toSignal } from '@angular/core/rxjs-interop';
 import { catchError, map, of, startWith } from 'rxjs';
 
 import { AuthSessionService } from '../../../core/auth/auth-session.service';
-import { Policy, policyValidity } from '../../../core/models/policy';
+import { Policy, isExpired } from '../../../core/models/policy';
 import { EmptyStateComponent } from '../../../shared/ui/empty-state/empty-state.component';
 import { InlineLoadingComponent } from '../../../shared/ui/inline-loading/inline-loading.component';
 import { PolicyCardComponent } from '../../../shared/ui/policy-card/policy-card.component';
@@ -64,12 +64,8 @@ export class MisPolizasComponent {
    * por qué desapareció la del año pasado— pero no pueden empujar hacia abajo lo que sí lo cubre
    * hoy: con una póliza por celular, la lista de un asegurado viejo es mayormente historia.
    */
-  protected readonly current = computed(() =>
-    this.policies().filter((p) => policyValidity(p) !== 'vencida'),
-  );
-  protected readonly expired = computed(() =>
-    this.policies().filter((p) => policyValidity(p) === 'vencida'),
-  );
+  protected readonly current = computed(() => this.policies().filter((p) => !isExpired(p)));
+  protected readonly expired = computed(() => this.policies().filter(isExpired));
 
   protected readonly showExpired = signal(false);
 

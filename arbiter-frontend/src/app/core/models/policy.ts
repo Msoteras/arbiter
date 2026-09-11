@@ -32,9 +32,13 @@ export interface Policy {
   /**
    * ISO con hora (`2026-01-01T00:00:00`): la vigencia de la póliza modelo arranca y termina a una
    * hora exacta ("desde las 12:00 hs del..."), no al filo del día, y el backend la manda completa.
+   *
+   * Son para MOSTRAR. Si cubre o no lo dice `validity`, no una comparación contra estas fechas:
+   * vienen sin zona horaria y compararlas acá las lee en el huso del navegador.
    */
   effectiveFrom: string;
   effectiveTo: string;
+  validity: PolicyValidity;
   upToDate: boolean;
   /**
    * Suma asegurada y franquicia de la PRIMERA cobertura, solo para el resumen de la tarjeta de
@@ -51,40 +55,42 @@ export interface Policy {
 // deuda, o al día y ya vencida. Colapsarlos en un solo semáforo pierde justamente el caso que al
 // asegurado le importa — "me está cubriendo o no".
 
-export type PolicyValidity = 'vigente' | 'vencida' | 'pendiente';
-
 /**
- * `pendiente` es la póliza ya emitida cuya vigencia todavía no arrancó. Existe: la compañía vende
- * con fecha de inicio futura. Sin este caso, una póliza que empieza el mes que viene se mostraría
- * como "Vigente" y el asegurado creería que ya está cubierto.
+ * Espejo de PolicyResponse.Validity (cases-service). Llega calculado y NO se deriva acá de las
+ * fechas: `effectiveFrom/To` viajan sin zona horaria, así que el navegador las leía en hora
+ * argentina y el backend en UTC. El día que una póliza vencía, esas tres horas de diferencia
+ * alcanzaban para que el portal la mostrara "Vigente" mientras el alta de denuncia ya la había
+ * sacado de la lista. Ahora un solo reloj decide y las dos pantallas leen lo mismo.
+ *
+ * `NOT_YET_ACTIVE` es la póliza ya emitida cuya vigencia todavía no arrancó: la compañía vende con
+ * fecha de inicio futura, y sin este caso el asegurado creería que ya está cubierto.
  */
-export function policyValidity(policy: Policy, now: Date = new Date()): PolicyValidity {
-  if (new Date(policy.effectiveTo) < now) {
-    return 'vencida';
-  }
-  return new Date(policy.effectiveFrom) > now ? 'pendiente' : 'vigente';
+export type PolicyValidity = 'CURRENT' | 'NOT_YET_ACTIVE' | 'EXPIRED';
+
+export function isExpired(policy: Policy): boolean {
+  return policy.validity === 'EXPIRED';
 }
 
 const VALIDITY_LABELS: Record<PolicyValidity, string> = {
-  vigente: 'Vigente',
-  vencida: 'Vencida',
-  pendiente: 'Aún no vigente',
+  CURRENT: 'Vigente',
+  EXPIRED: 'Vencida',
+  NOT_YET_ACTIVE: 'Aún no vigente',
 };
 
 // `danger` para vencida, igual que el expediente caducado (LAPSED en estado.ts): para el asegurado
 // significan lo mismo, que eso ya no lo cubre.
 const VALIDITY_TONES: Record<PolicyValidity, StatusTone> = {
-  vigente: 'ok',
-  vencida: 'danger',
-  pendiente: 'info',
+  CURRENT: 'ok',
+  EXPIRED: 'danger',
+  NOT_YET_ACTIVE: 'info',
 };
 
-export function policyValidityLabel(policy: Policy, now?: Date): string {
-  return VALIDITY_LABELS[policyValidity(policy, now)];
+export function policyValidityLabel(policy: Policy): string {
+  return VALIDITY_LABELS[policy.validity];
 }
 
-export function policyValidityTone(policy: Policy, now?: Date): StatusTone {
-  return VALIDITY_TONES[policyValidity(policy, now)];
+export function policyValidityTone(policy: Policy): StatusTone {
+  return VALIDITY_TONES[policy.validity];
 }
 
 /** `upToDate` es estado de PAGO (sin cuotas impagas ni saldo), no vigencia. */

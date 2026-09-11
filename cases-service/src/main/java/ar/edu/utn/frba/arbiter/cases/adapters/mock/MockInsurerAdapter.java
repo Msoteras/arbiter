@@ -3,6 +3,7 @@ package ar.edu.utn.frba.arbiter.cases.adapters.mock;
 import ar.edu.utn.frba.arbiter.cases.adapters.InsurerAdapter;
 import ar.edu.utn.frba.arbiter.cases.dto.PolicyResponse;
 import ar.edu.utn.frba.arbiter.cases.dto.PolicyResponse.Coverage;
+import ar.edu.utn.frba.arbiter.cases.dto.PolicyResponse.Validity;
 import org.springframework.stereotype.Component;
 
 import java.math.BigDecimal;
@@ -80,6 +81,7 @@ public class MockInsurerAdapter implements InsurerAdapter {
     public Optional<PolicyResponse> findPolicy(String policyNumber) {
         return POLICIES.stream()
                 .filter(p -> p.policyNumber().equalsIgnoreCase(policyNumber))
+                .map(p -> withValidity(p, LocalDateTime.now()))
                 .findFirst();
     }
 
@@ -88,10 +90,31 @@ public class MockInsurerAdapter implements InsurerAdapter {
         LocalDateTime now = LocalDateTime.now();
         return POLICIES.stream()
                 .filter(p -> p.insuredId().equals(insuredId))
-                .filter(p -> includeExpired || !p.effectiveTo().isBefore(now))
+                .map(p -> withValidity(p, now))
+                .filter(p -> includeExpired || p.validity() != Validity.EXPIRED)
                 .sorted(Comparator
-                        .comparing((PolicyResponse p) -> p.effectiveTo().isBefore(now))
+                        .comparing((PolicyResponse p) -> p.validity() == Validity.EXPIRED)
                         .thenComparing(PolicyResponse::policyNumber))
                 .toList();
+    }
+
+    /**
+     * La vigencia se resuelve al responder y no en la constante: una lista fija se vuelve mentira
+     * sola con el paso del tiempo, y además el recorte y la etiqueta tienen que salir del mismo
+     * instante (ver {@link Validity}).
+     */
+    private static PolicyResponse withValidity(PolicyResponse policy, LocalDateTime now) {
+        return PolicyResponse.builder()
+                .policyNumber(policy.policyNumber())
+                .insurerId(policy.insurerId()).insurerName(policy.insurerName())
+                .insuredName(policy.insuredName()).insuredId(policy.insuredId())
+                .contactEmail(policy.contactEmail()).contactPhone(policy.contactPhone())
+                .branch(policy.branch()).insuredItem(policy.insuredItem()).product(policy.product())
+                .effectiveFrom(policy.effectiveFrom()).effectiveTo(policy.effectiveTo())
+                .validity(Validity.at(policy.effectiveFrom(), policy.effectiveTo(), now))
+                .upToDate(policy.upToDate())
+                .insuredAmount(policy.insuredAmount()).deductible(policy.deductible())
+                .coverages(policy.coverages())
+                .build();
     }
 }
