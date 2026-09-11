@@ -103,7 +103,7 @@
               @if (liquidacionDevuelta() && settlement(); as s) {
                 <!-- Devuelta no es rechazada: el expediente sigue siendo suyo y puede volver a
                      determinar el monto. El motivo es lo único que tiene para saber qué corregir. -->
-                <p class="rcard-note warning">
+                <p class="settlement-callout returned">
                   El referente devolvió la liquidación: {{ s.returnReason }}
                 </p>
               }

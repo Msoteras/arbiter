@@ -368,8 +368,6 @@ app-textarea { display: block; margin: var(--space-3) 0; }
 
 .settlement-line.total .settlement-amount { font-weight: var(--font-weight-bold); }
 
-.rcard-note.warning { color: var(--status-warning); }
-
 /* Notas del cálculo: lo que la hoja no puede decir sola (que corrió sobre datos que este
    siniestro no vio, que el techo cayó al respaldo). Son notas, no estados del expediente, así que
    van en gris con una barra al costado — el semáforo se reserva para el estado del siniestro, y en
@@ -398,6 +396,11 @@ app-textarea { display: block; margin: var(--space-3) 0; }
   font-size: var(--font-size-xs);
   color: var(--text-primary);
 }
+
+/* La devolución usa el mismo recuadro: también cambia lo que el analista tiene que hacer, y el
+   motivo es lo único que tiene para saber qué corregir. Separada abajo del resto porque llega
+   antes de abrir la hoja, no adentro de ella. */
+.settlement-callout.returned { margin-bottom: var(--space-3); }
 
 /* Lo que el modelo leyó del expediente. Con el acento de marca —lo que el sistema usa para lo que
    pide atención— y no con un color de estado: no es un hallazgo sobre el siniestro, es una ayuda
