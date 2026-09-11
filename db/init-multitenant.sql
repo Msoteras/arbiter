@@ -630,6 +630,10 @@ BEGIN
             -- filters on — no point auto-requeuing a case that will just fail the same way.
             classification_failure_reason  VARCHAR(20),
             classification_failure_message TEXT,
+            -- Set when the denuncia came in with its document schedule unreadable (rules-service
+            -- down at filing): taken anyway, checked later by DocumentRecheckScheduler. NULL once
+            -- verified, which is the normal case.
+            documents_unverified_since  TIMESTAMPTZ,
             -- The analyst's note adjusting the score WITHOUT overwriting it. Distinct from
             -- case_classification.analyst_justification: this is written while the case is
             -- still open, that one is part of the verdict.

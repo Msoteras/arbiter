@@ -196,6 +196,28 @@ public interface CaseRepository extends JpaRepository<Case, Long>, JpaSpecificat
     int claimFailedCaseForRequeue(@Param("caseId") Long caseId,
                                   @Param("expected") ClassificationFailureReason expected);
 
+    /** Cases filed while their document schedule couldn't be read — {@code DocumentRecheckScheduler}. */
+    List<Case> findByDocumentsUnverifiedSinceIsNotNull();
+
+    /**
+     * The document recheck sweep's turn, same role as {@link #claimFailedCaseForRequeue}: clearing
+     * the mark is what claims the case. The mark means exactly "nobody has checked this case's
+     * documents yet", so whoever clears it is the one who acts; a second sweep — the next tick, or
+     * another local stack against the shared database — updates 0 rows and walks away. That is
+     * what keeps the transition and the insured's notice from happening twice.
+     *
+     * @return 1 if this sweep claimed the case, 0 if another one got there first
+     */
+    @Transactional
+    @Modifying(flushAutomatically = true, clearAutomatically = true)
+    @Query("""
+            update Case c
+               set c.documentsUnverifiedSince = null
+             where c.id = :caseId
+               and c.documentsUnverifiedSince is not null
+            """)
+    int claimUnverifiedDocuments(@Param("caseId") Long caseId);
+
     /** Fila de {@link #countActiveByAnalyst(Collection)}: un analista y cuántos activos tiene. */
     interface AnalystCaseCount {
         Long getAnalystId();

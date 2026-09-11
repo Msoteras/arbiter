@@ -384,6 +384,24 @@ enum (documentar los valores posibles, o referenciar `RiskFactorIds`).
 
 ---
 
+## `cases.documents_unverified_since` — columna nueva que el DER no tiene
+
+**Encontrado:** 10/09/2026, al implementar la reverificación de la agenda documental.
+
+Una denuncia que entra con la agenda documental ilegible (rules-service caído al registrarla) se
+sigue tomando, pero ahora queda marcada, y `DocumentRecheckScheduler` vuelve sobre ella cuando
+rules-service contesta: si falta algo obligatorio pasa a `AWAITING_DOCUMENTATION`, y si no, se
+limpia la marca sin dejar rastro.
+
+| Entidad del DER | Columna | Tipo | Nulo | Default | Nombre sugerido | Qué es |
+|---|---|---|---|---|---|---|
+| `expediente` | `documents_unverified_since` | TIMESTAMPTZ | sí | | `fecha_documentacion_sin_verificar` | Cuándo entró sin poder verificar la documentación. NULL es lo normal: verificado. |
+
+**Acción:** agregar la columna a `expediente`. Migración en
+`db/migrations/2026-09-10-documentacion-sin-verificar.sql`.
+
+---
+
 ## Plantilla para la próxima entrada
 
 ```

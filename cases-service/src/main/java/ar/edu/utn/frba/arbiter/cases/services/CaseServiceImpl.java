@@ -67,6 +67,7 @@ import org.springframework.web.multipart.MultipartFile;
 
 import java.io.IOException;
 import java.time.Clock;
+import java.time.Instant;
 import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.Comparator;
@@ -132,15 +133,20 @@ public class CaseServiceImpl implements CaseService {
      *
      * <p>An unreadable schedule ({@code null}, as opposed to an empty one) lets the denuncia
      * through. Leaving the insured out because a service of ours is down would be worse than
-     * taking in a case whose completeness we check later — which is what the engine's own
-     * missing-documents gate already does over the same schedule. Persisting that it came in
-     * unverified and retrying the check afterwards is its own story (gap doc §13).
+     * taking in a case whose completeness we check later — so the case goes in marked
+     * ({@code documentsUnverifiedSince}) and {@code DocumentRecheckScheduler} comes back to it
+     * once rules-service answers.
+     *
+     * @return {@code false} when the schedule couldn't be read, so the case goes in marked
      */
-    private void assertRequiredDocumentsPresent(
+    private boolean verifyRequiredDocuments(
             String branch, String claimCause, Map<String, MultipartFile> documents) {
         List<String> required = rulesServiceClient.requiredDocumentTypes(branch, claimCause);
-        if (required == null || required.isEmpty()) {
-            return;
+        if (required == null) {
+            return false;
+        }
+        if (required.isEmpty()) {
+            return true;
         }
         Set<String> attached = documents == null ? Set.of() : documents.entrySet().stream()
                 .filter(entry -> entry.getValue() != null && !entry.getValue().isEmpty())
@@ -150,6 +156,7 @@ public class CaseServiceImpl implements CaseService {
         if (!missing.isEmpty()) {
             throw new MissingRequiredDocumentsException(missing);
         }
+        return true;
     }
 
     private CaseResponse createCaseInIssuingTenant(CaseRequest request, Map<String, MultipartFile> documents) {
@@ -194,7 +201,7 @@ public class CaseServiceImpl implements CaseService {
                 request.policyNumber(), request.eventDate(), request.policeReportAt(),
                 contracted.getCoverage(), claimCause);
 
-        assertRequiredDocumentsPresent(request.branch(), request.claimCause(), documents);
+        boolean documentsVerified = verifyRequiredDocuments(request.branch(), request.claimCause(), documents);
 
         Case entity = Case.builder()
                 .claimCause(claimCause)
@@ -211,6 +218,7 @@ public class CaseServiceImpl implements CaseService {
                 .claimedAmount(request.claimedAmount())
                 .responseDeadline(LocalDate.now(clock).plusDays(CaseStatusService.RESPONSE_TERM_DAYS))
                 .currentStatus(caseStatusService.initialStatus())
+                .documentsUnverifiedSince(documentsVerified ? null : Instant.now(clock))
                 .build();
 
         Case saved = caseRepository.save(entity);

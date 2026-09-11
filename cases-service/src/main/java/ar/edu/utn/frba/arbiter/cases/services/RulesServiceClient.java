@@ -103,9 +103,8 @@ public class RulesServiceClient {
      * an empty list: empty is an answer ("this claim cause needs no documents"), null is the
      * absence of one. Same distinction rules-service makes internally
      * ({@code InternalDocumentRequirementService.getByCoverage}) and the wizard makes on screen.
-     * Today the caller lets a denuncia through on null rather than leaving the insured out because
-     * a service of ours is down; persisting that it came in unverified and retrying afterwards is
-     * its own story (gap doc §13).
+     * The caller lets a denuncia through on null rather than leaving the insured out because a
+     * service of ours is down, and marks it so {@code DocumentRecheckScheduler} checks it later.
      */
     public List<String> requiredDocumentTypes(String branch, String claimCause) {
         try {

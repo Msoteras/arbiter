@@ -1198,16 +1198,19 @@ class CaseServiceImplTest {
 
         caseService.createCase(request, Map.of("police_report", police));
 
-        verify(caseRepository).save(any(Case.class));
+        ArgumentCaptor<Case> captor = ArgumentCaptor.forClass(Case.class);
+        verify(caseRepository).save(captor.capture());
+        assertThat(captor.getValue().getDocumentsUnverifiedSince()).isNull();
     }
 
     /**
      * Lista vacía es una respuesta ("este hecho generador no pide documentos"); null es que no se
-     * pudo leer la agenda. Ninguna de las dos frena la denuncia, pero por motivos distintos — ver
-     * {@code CaseServiceImpl.assertRequiredDocumentsPresent}.
+     * pudo leer la agenda. Ninguna de las dos frena la denuncia, pero la segunda entra marcada
+     * para que {@code DocumentRecheckScheduler} la verifique después — ver
+     * {@code CaseServiceImpl.verifyRequiredDocuments}.
      */
     @Test
-    void createCase_withoutAReadableSchedule_doesNotDemandAnything() {
+    void createCase_withoutAReadableSchedule_goesThroughMarkedUnverified() {
         CaseRequest request = caseRequest();
         Case saved = caseRecord(1L, CaseStatus.PENDING_CLASSIFICATION);
         stubReferenceResolution();
@@ -1219,7 +1222,11 @@ class CaseServiceImplTest {
 
         caseService.createCase(request, Map.of());
 
-        verify(caseRepository).save(any(Case.class));
+        ArgumentCaptor<Case> captor = ArgumentCaptor.forClass(Case.class);
+        verify(caseRepository).save(captor.capture());
+        // Marked with the filing time, so the recheck sweep comes back to it.
+        assertThat(captor.getValue().getDocumentsUnverifiedSince())
+                .isEqualTo(Instant.parse("2026-06-15T12:00:00Z"));
     }
 
     @Test
@@ -1235,7 +1242,9 @@ class CaseServiceImplTest {
 
         caseService.createCase(request, Map.of());
 
-        verify(caseRepository).save(any(Case.class));
+        ArgumentCaptor<Case> captor = ArgumentCaptor.forClass(Case.class);
+        verify(caseRepository).save(captor.capture());
+        assertThat(captor.getValue().getDocumentsUnverifiedSince()).isNull();
     }
 
     @Test
