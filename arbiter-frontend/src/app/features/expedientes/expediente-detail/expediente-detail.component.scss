@@ -75,6 +75,7 @@
    la línea cortaba antes del borde y quedaba un hueco a la derecha que se lee como un bug.
    Acotando la caja, el texto llena la card y las dos cosas terminan en el mismo lugar. */
 .peritaje-card { max-width: 72ch; }
+.peritaje-card + .peritaje-card { display: block; margin-top: var(--space-4); }
 .peritaje { display: grid; gap: var(--space-1); margin: 0 0 var(--space-3); }
 .peritaje dt { margin-top: var(--space-2); }
 .peritaje dt:first-child { margin-top: 0; }

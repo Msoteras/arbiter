@@ -1,5 +1,6 @@
 package ar.edu.utn.frba.arbiter.cases.services;
 
+import ar.edu.utn.frba.arbiter.cases.dto.ProviderType;
 import ar.edu.utn.frba.arbiter.cases.models.entities.Case;
 import ar.edu.utn.frba.arbiter.cases.models.entities.CaseDocument;
 import ar.edu.utn.frba.arbiter.cases.models.entities.ExpertAssessment;
@@ -63,10 +64,12 @@ public class ExpertNotificationService {
     public Instant notifyDerivation(Case caseRecord, ExpertAssessment assessment) {
         try {
             List<SendGridAdapter.Attachment> attachments = attachmentsOf(caseRecord.getId());
+            boolean repair = assessment.getProviderType() == ProviderType.SERVICIO_TECNICO;
             boolean sent = sendGridAdapter.send(
                     assessment.getExpertEmail(),
-                    "Solicitud de peritaje · Siniestro #" + caseRecord.getId(),
-                    body(caseRecord, assessment, attachments),
+                    (repair ? "Solicitud de reparación" : "Solicitud de peritaje")
+                            + " · Siniestro #" + caseRecord.getId(),
+                    body(caseRecord, assessment, attachments, repair),
                     attachments);
             // Not `Instant.now()` unconditionally: with no API key the adapter logs and returns
             // without sending, and stamping that as notified told the analyst the expert had been
@@ -105,10 +108,10 @@ public class ExpertNotificationService {
     }
 
     private String body(Case caseRecord, ExpertAssessment assessment,
-                        List<SendGridAdapter.Attachment> attachments) {
+                        List<SendGridAdapter.Attachment> attachments, boolean repair) {
         return """
                 <p>Hola,</p>
-                <p>Les derivamos el siniestro <strong>#%d</strong> para su verificación.</p>
+                <p>Les derivamos el siniestro <strong>#%d</strong> para su %s.</p>
                 <h3>Resumen del siniestro</h3>
                 <ul>
                   <li><strong>N° de póliza:</strong> %s</li>
@@ -126,10 +129,11 @@ public class ExpertNotificationService {
                 <p><strong>Motivo de la derivación:</strong> %s</p>
                 <p><strong>Descripción de la denuncia:</strong><br>%s</p>
                 <p><strong>Documentación adjunta:</strong> %s</p>
-                <p>Al finalizar, envíennos el informe con su conclusión respondiendo a este correo.</p>
+                <p>Al finalizar, envíennos %s respondiendo a este correo.</p>
                 <p>Arbiter</p>
                 """.formatted(
                 caseRecord.getId(),
+                repair ? "reparación o cotización" : "verificación",
                 nullSafe(caseRecord.getPolicy() != null
                         ? caseRecord.getPolicy().getExternalPolicyNumber() : null),
                 branchName(caseRecord),
@@ -147,7 +151,9 @@ public class ExpertNotificationService {
                 nullSafe(caseRecord.getEventAddress()),
                 assessment.getReason(),
                 nullSafe(caseRecord.getDescription()),
-                attachmentList(attachments));
+                attachmentList(attachments),
+                repair ? "el resultado (reparado, irreparable o presupuesto)"
+                        : "el informe con su conclusión");
     }
 
     /** Named, not counted: the expert can tell a file that got dropped from one never uploaded. */

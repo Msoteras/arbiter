@@ -9,6 +9,7 @@ export type CaseStatus =
   | 'CLASSIFICATION_FAILED'
   | 'AWAITING_DOCUMENTATION'
   | 'PENDING_EXPERT_REPORT'
+  | 'PENDING_REPAIR'
   | 'APPROVED'
   | 'REJECTED'
   | 'LAPSED';
@@ -19,6 +20,7 @@ const LABELS: Record<CaseStatus, string> = {
   CLASSIFICATION_FAILED: 'Clasificación fallida',
   AWAITING_DOCUMENTATION: 'Falta documentación',
   PENDING_EXPERT_REPORT: 'Derivado a peritaje',
+  PENDING_REPAIR: 'Derivado a reparación',
   APPROVED: 'Aprobado',
   REJECTED: 'Rechazado',
   LAPSED: 'Caducado',
@@ -44,6 +46,9 @@ const BADGE_ASEGURADO: Record<CaseStatus, string> = {
   CLASSIFICATION_FAILED: 'En análisis',
   AWAITING_DOCUMENTATION: 'Falta documentación',
   PENDING_EXPERT_REPORT: 'En análisis',
+  // Unlike peritaje, sending the device to a repair shop reveals nothing, and it tells the
+  // insured why the case isn't moving.
+  PENDING_REPAIR: 'En reparación',
   APPROVED: 'Aprobado',
   REJECTED: 'Rechazado',
   LAPSED: 'Caducado',
@@ -78,6 +83,8 @@ const DESCRIPCIONES: Record<CaseStatus, string> = {
     'Falta documentación obligatoria para poder evaluar el caso.',
   PENDING_EXPERT_REPORT:
     'El analista derivó el caso a un perito externo para verificar el hecho. El expediente espera el informe.',
+  PENDING_REPAIR:
+    'El analista derivó el caso a un servicio técnico para reparar o cotizar el bien. El expediente espera su respuesta.',
   APPROVED: 'El siniestro fue aprobado por un analista.',
   REJECTED: 'El siniestro fue rechazado por un analista.',
   LAPSED:
@@ -97,6 +104,8 @@ const PROXIMOS_PASOS: Record<CaseStatus, string> = {
     'Subí los documentos faltantes; al recibirlos, el caso se vuelve a evaluar automáticamente.',
   PENDING_EXPERT_REPORT:
     'Cuando llegue el informe, el analista lo carga y el caso vuelve a revisión para la decisión final.',
+  PENDING_REPAIR:
+    'Cuando responda el servicio técnico, el analista carga el resultado y el caso vuelve a revisión para la decisión final.',
   APPROVED:
     'Vas a recibir un correo con el detalle de la resolución. No quedan pasos pendientes.',
   REJECTED:
@@ -122,6 +131,7 @@ const TONES: Record<CaseStatus, StatusTone> = {
   // info y no warning: el expediente está en curso esperando a un tercero externo, y no hay
   // nada que el analista pueda hacer — marcarlo en la bandeja pediría una atención que no aplica.
   PENDING_EXPERT_REPORT: 'info',
+  PENDING_REPAIR: 'info',
   APPROVED: 'ok',
   REJECTED: 'danger',
   LAPSED: 'danger',
@@ -156,6 +166,7 @@ const SIMPLIFICADO: Record<CaseStatus, EstadoSimplificado> = {
   CLASSIFICATION_FAILED: 'EN_TRAMITE',
   AWAITING_DOCUMENTATION: 'EN_TRAMITE',
   PENDING_EXPERT_REPORT: 'EN_TRAMITE',
+  PENDING_REPAIR: 'EN_TRAMITE',
   APPROVED: 'TERMINADO',
   REJECTED: 'TERMINADO',
   LAPSED: 'TERMINADO',
@@ -243,6 +254,7 @@ const TITULOS_ASEGURADO: Record<CaseStatus, string> = {
   // Idéntico a PENDING_ANALYST_REVIEW a propósito: para el asegurado la derivación no existe
   // (insured_status = 'En análisis'). Nombrarla filtraría la sospecha que la motivó.
   PENDING_EXPERT_REPORT: 'Tu siniestro está en análisis',
+  PENDING_REPAIR: 'Tu siniestro está en reparación',
   APPROVED: 'Tu siniestro fue aprobado',
   REJECTED: 'Tu siniestro fue rechazado',
   LAPSED: 'Tu siniestro caducó',
@@ -279,6 +291,8 @@ const DESCRIPCIONES_ASEGURADO: Record<CaseStatus, string> = {
     'Necesitamos que subas la documentación faltante para poder continuar.',
   PENDING_EXPERT_REPORT:
     'Un analista está revisando tu caso. Te avisamos ni bien haya novedades.',
+  PENDING_REPAIR:
+    'Derivamos tu caso a un servicio técnico. Te avisamos ni bien tengamos su respuesta.',
   APPROVED: 'Tu siniestro fue aprobado. Vas a recibir el detalle por correo electrónico.',
   REJECTED: 'Tu siniestro fue rechazado. Vas a recibir los motivos por correo electrónico.',
   LAPSED:
@@ -342,6 +356,9 @@ export function movimientoAseguradoLabel(toStatus: string, fromStatus: string | 
       if (fromStatus === 'PENDING_EXPERT_REPORT') {
         return 'Verificación finalizada';
       }
+      if (fromStatus === 'PENDING_REPAIR') {
+        return 'Respuesta del servicio técnico recibida';
+      }
       // Reapertura: el expediente estaba cerrado y volvió a revisión. Se nombra como lo que es —
       // el asegurado ya recibió el mail de la resolución anterior, y "un analista está revisando
       // tu caso" no le explicaría por qué su siniestro resuelto volvió a moverse. El motivo, en
@@ -352,6 +369,8 @@ export function movimientoAseguradoLabel(toStatus: string, fromStatus: string | 
       return 'Un analista está revisando tu caso';
     case 'PENDING_EXPERT_REPORT':
       return 'Enviado a verificación con un perito';
+    case 'PENDING_REPAIR':
+      return 'Enviado al servicio técnico';
     case 'APPROVED':
       return 'Siniestro aprobado';
     case 'REJECTED':

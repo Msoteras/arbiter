@@ -22,6 +22,8 @@ public record ExpertAssessmentResponse(
         boolean notified,
         Instant reportReceivedAt,
         ExpertVerdict verdict,
+        RepairOutcome repairOutcome,
+        ProviderType providerType,
         String verdictNote,
         Long reportDocumentId
 ) {
@@ -38,6 +40,8 @@ public record ExpertAssessmentResponse(
                 assessment.getNotifiedAt() != null,
                 assessment.getReportReceivedAt(),
                 assessment.getVerdict(),
+                assessment.getRepairOutcome(),
+                assessment.getProviderType(),
                 assessment.getVerdictNote(),
                 assessment.getReportDocumentId()
         );

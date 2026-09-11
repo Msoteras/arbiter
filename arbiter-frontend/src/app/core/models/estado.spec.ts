@@ -64,6 +64,13 @@ describe('movimientoAseguradoLabel', () => {
       .toBe('Un analista está revisando tu caso');
   });
 
+  it('cuenta la ida y la vuelta del servicio técnico', () => {
+    expect(movimientoAseguradoLabel('PENDING_REPAIR', 'PENDING_ANALYST_REVIEW'))
+      .toBe('Enviado al servicio técnico');
+    expect(movimientoAseguradoLabel('PENDING_ANALYST_REVIEW', 'PENDING_REPAIR'))
+      .toBe('Respuesta del servicio técnico recibida');
+  });
+
   /** Una falla técnica del clasificador no le pide nada ni cambia nada de su lado. */
   it('no muestra la falla de clasificación', () => {
     expect(movimientoAseguradoLabel('CLASSIFICATION_FAILED', 'PENDING_CLASSIFICATION')).toBeNull();
@@ -86,6 +93,7 @@ describe('movimientoAseguradoLabel', () => {
       'AWAITING_DOCUMENTATION',
       'PENDING_ANALYST_REVIEW',
       'PENDING_EXPERT_REPORT',
+      'PENDING_REPAIR',
       'APPROVED',
       'REJECTED',
       'CLASSIFICATION_FAILED',

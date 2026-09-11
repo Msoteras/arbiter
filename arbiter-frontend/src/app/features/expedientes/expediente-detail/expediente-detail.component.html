@@ -102,6 +102,16 @@
                   <p class="rcard-note">{{ motivo }}</p>
                 }
               }
+              @if (puedeDerivarAReparacion()) {
+                <app-button
+                  variant="secondary"
+                  [block]="true"
+                  [disabled]="decisionSaving()"
+                  (click)="askDerivar('SERVICIO_TECNICO')"
+                >
+                  Derivar a servicio técnico
+                </app-button>
+              }
             } @else {
               <p class="nodata">{{ esperaDecisionTexto() }}</p>
             }
@@ -111,7 +121,11 @@
               <!-- Con el panel movido a su solapa, sin esta línea el analista no tendría desde
                    dónde cargar el informe ni por qué el expediente está frenado. -->
               <p class="nodata">
-                El expediente está en peritaje. Cargá el informe desde la solapa <strong>Peritaje</strong>.
+                El expediente está en peritaje. Cargá el informe desde la solapa <strong>{{ derivacionesTabLabel() }}</strong>.
+              </p>
+            } @else if (enReparacion()) {
+              <p class="nodata">
+                El expediente está en el servicio técnico. Cargá su respuesta desde la solapa <strong>{{ derivacionesTabLabel() }}</strong>.
               </p>
             } @else if (isFailed()) {
               <p class="nodata">No se pudo clasificar automáticamente tras varios intentos.</p>
@@ -630,10 +644,11 @@
       <!-- Peritaje: la evidencia del perito NO reemplaza a la recomendación del modelo — el informe
            no re-clasifica, el analista lee las dos y decide. La solapa solo existe si hubo derivación. -->
       @case ('peritaje') {
-        @if (peritaje(); as p) {
-          <app-card class="peritaje-card" heading="Peritaje">
+        @for (p of derivaciones(); track p.id) {
+          @let reparacion = p.providerType === 'SERVICIO_TECNICO';
+          <app-card class="peritaje-card" [heading]="reparacion ? 'Servicio técnico' : 'Peritaje'">
             <dl class="peritaje">
-              <dt class="t-field-label">Perito</dt>
+              <dt class="t-field-label">{{ reparacion ? 'Servicio técnico' : 'Perito' }}</dt>
               <dd>{{ p.expertName }} @if (p.zone) { · {{ p.zone }} }</dd>
               <dt class="t-field-label">Derivado por</dt>
               <dd>{{ p.derivedByName }} · {{ formatDateTime(p.derivedAt) }}</dd>
@@ -643,31 +658,41 @@
 
             @if (!p.notified) {
               <p class="rcard-note error">
-                No se pudo avisarle al perito por mail. Contactalo por fuera antes de esperar el informe.
+                No se pudo avisarle por mail. Contactalo por fuera antes de esperar la respuesta.
               </p>
             }
 
-            @if (p.verdict) {
+            @if (p.verdict || p.repairOutcome) {
               <div class="peritaje-veredicto">
-                <app-badge variant="solid" [tone]="veredictoTone(p.verdict)">
-                  {{ veredictoLabel(p.verdict) }}
-                </app-badge>
+                @if (p.verdict) {
+                  <app-badge variant="solid" [tone]="veredictoTone(p.verdict)">
+                    {{ veredictoLabel(p.verdict) }}
+                  </app-badge>
+                } @else if (p.repairOutcome) {
+                  <app-badge variant="solid">{{ repairOutcomeLabel(p.repairOutcome) }}</app-badge>
+                }
                 <span class="t-note">{{ formatDateTime(p.reportReceivedAt) }}</span>
               </div>
               @if (p.verdictNote) {
                 <p class="t-body">{{ p.verdictNote }}</p>
               }
-              <p class="t-note">El informe queda como adjunto del expediente, en la solapa Documentación.</p>
+              <p class="t-note">
+                {{ reparacion ? 'La respuesta' : 'El informe' }} queda como adjunto del expediente, en la solapa Documentación.
+              </p>
             } @else {
-              <p class="nodata">Esperando el informe del perito.</p>
+              <p class="nodata">
+                {{ reparacion ? 'Esperando la respuesta del servicio técnico.' : 'Esperando el informe del perito.' }}
+              </p>
               @if (canGestionar()) {
-                <app-button variant="secondary" (click)="askInforme()">Cargar informe</app-button>
+                <app-button variant="secondary" (click)="askInforme(p.providerType)">
+                  {{ reparacion ? 'Cargar respuesta' : 'Cargar informe' }}
+                </app-button>
               }
             }
-            @if (informeError()) {
-              <p class="rcard-note error">{{ informeError() }}</p>
-            }
           </app-card>
+        }
+        @if (informeError()) {
+          <p class="rcard-note error">{{ informeError() }}</p>
         }
       }
       @case ('conversacion') {
@@ -740,14 +765,23 @@
 
 <!-- Derivación a peritaje. El perito sale del catálogo de la aseguradora y no de un mail escrito
      a mano: así queda registro de con quién trabaja la compañía. -->
-<app-modal [open]="showDerivar()" heading="Derivar a peritaje" (close)="cancelDerivar()">
+<app-modal
+  [open]="showDerivar()"
+  [heading]="esReparacion() ? 'Derivar a servicio técnico' : 'Derivar a peritaje'"
+  (close)="cancelDerivar()"
+>
   <p class="t-note">
-    Le vamos a mandar al perito los datos del siniestro a verificar. No se le manda la
-    clasificación ni el nivel de riesgo: se le pide verificar hechos.
+    @if (esReparacion()) {
+      Le vamos a mandar al servicio técnico los datos del siniestro para que repare o cotice el
+      bien. El expediente vuelve a tu revisión cuando cargues su respuesta.
+    } @else {
+      Le vamos a mandar al perito los datos del siniestro a verificar. No se le manda la
+      clasificación ni el nivel de riesgo: se le pide verificar hechos.
+    }
   </p>
   <app-select
     [options]="peritoOptions()"
-    placeholder="Elegí un perito…"
+    [placeholder]="esReparacion() ? 'Elegí un servicio técnico…' : 'Elegí un perito…'"
     [(value)]="peritoElegido"
   />
   <app-textarea
@@ -778,12 +812,15 @@
       <strong>{{ p.expertName }}</strong>.
     </p>
     <p class="t-note">
-      @if (p.notified) {
+      @if (!p.notified) {
+        El expediente quedó derivado, pero el mail no salió: avisale por otra vía antes de esperar
+        la respuesta.
+      } @else if (p.providerType === 'SERVICIO_TECNICO') {
+        Le mandamos por mail los datos del siniestro. El expediente queda esperando su respuesta y
+        vuelve a tu revisión cuando la cargues.
+      } @else {
         Le mandamos por mail los datos del siniestro a verificar. El expediente queda esperando el
         informe y vuelve a tu revisión cuando lo cargues.
-      } @else {
-        El expediente quedó derivado, pero el mail al perito no salió: avisale por otra vía antes
-        de esperar el informe.
       }
     </p>
     <ng-container modalActions>
@@ -843,14 +880,19 @@
 
 <!-- Carga del informe pericial. El expediente vuelve a revisión con el veredicto al lado de la
      clasificación; NO se re-clasifica. -->
-<app-modal [open]="showInforme()" heading="Cargar informe del perito" (close)="cancelInforme()">
+<app-modal
+  [open]="showInforme()"
+  [heading]="informeEsReparacion() ? 'Cargar respuesta del servicio técnico' : 'Cargar informe del perito'"
+  (close)="cancelInforme()"
+>
   <p class="t-note">
-    El expediente vuelve a tu revisión con el informe al lado de la recomendación del modelo. La
-    decisión sigue siendo tuya.
+    El expediente vuelve a tu revisión con
+    {{ informeEsReparacion() ? 'la respuesta' : 'el informe' }} al lado de la recomendación del
+    modelo. La decisión sigue siendo tuya.
   </p>
   <app-select
-    [options]="veredictoOptions"
-    placeholder="Conclusión del perito…"
+    [options]="informeEsReparacion() ? repairOutcomeOptions : veredictoOptions"
+    [placeholder]="informeEsReparacion() ? 'Resultado del servicio técnico…' : 'Conclusión del perito…'"
     [(value)]="veredicto"
   />
   <!-- El input se abre desde el botón por referencia, y NO envolviendo todo en un <label>: un
@@ -867,7 +909,7 @@
       hidden
     />
     <span class="t-field-label">{{ informeFile()?.name || 'Ningún archivo elegido' }}</span>
-    <app-button variant="secondary" (click)="informeInput.click()">Elegir informe</app-button>
+    <app-button variant="secondary" (click)="informeInput.click()">Elegir archivo</app-button>
   </div>
   <app-textarea [rows]="3" placeholder="Nota (opcional)…" [(value)]="notaVeredicto" />
   <!-- Lo que se firma al guardar: el veredicto del perito no queda solo en el expediente, deja la
@@ -887,7 +929,7 @@
       [disabled]="!veredicto() || !informeFile() || informeSaving()"
       (click)="confirmInforme()"
     >
-      {{ informeSaving() ? 'Guardando…' : 'Guardar informe' }}
+      {{ informeSaving() ? 'Guardando…' : 'Guardar' }}
     </app-button>
   </ng-container>
 </app-modal>
