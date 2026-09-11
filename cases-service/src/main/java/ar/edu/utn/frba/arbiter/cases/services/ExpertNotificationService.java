@@ -21,6 +21,7 @@ import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Locale;
+import java.util.Set;
 
 /**
  * Emails the external expert the case they have to verify.
@@ -51,6 +52,9 @@ public class ExpertNotificationService {
             DateTimeFormatter.ofPattern("dd/MM/yyyy HH:mm").withZone(ZoneId.systemDefault());
 
     private static final Locale AR = Locale.forLanguageTag("es-AR");
+
+    private static final Set<String> INTERNAL_REPORT_TYPES = Set.of(
+            ExpertAssessmentService.REPORT_DOCUMENT_TYPE, ExpertAssessmentService.REPAIR_DOCUMENT_TYPE);
 
     private final SendGridAdapter sendGridAdapter;
     private final CaseDocumentRepository caseDocumentRepository;
@@ -92,6 +96,8 @@ public class ExpertNotificationService {
         List<SendGridAdapter.Attachment> attachments = new ArrayList<>();
         long budget = MAX_ATTACHMENT_BYTES;
         for (CaseDocument document : caseDocumentRepository.findByCaseId(caseId).stream()
+                // Another provider's report is our evidence, not part of the claim they get sent.
+                .filter(document -> !INTERNAL_REPORT_TYPES.contains(document.getType()))
                 .sorted(Comparator.comparing(CaseDocument::getId))
                 .toList()) {
             byte[] content = document.getContent();

@@ -90,6 +90,24 @@ class ExpertNotificationServiceTest {
                 .contains("foto-del-bien.jpg");
     }
 
+    @Test
+    void notifyDerivation_leavesOutTheReportsOfOtherProviders() {
+        CaseDocument expertReport = document(3L, "informe-perito.pdf", "application/pdf");
+        expertReport.setType("expert_report");
+        CaseDocument repairReport = document(4L, "respuesta-service.pdf", "application/pdf");
+        repairReport.setType("repair_report");
+        when(caseDocumentRepository.findByCaseId(42L)).thenReturn(List.of(
+                document(1L, "denuncia-policial.pdf", "application/pdf"), expertReport, repairReport));
+        when(sendGridAdapter.send(anyString(), anyString(), anyString(), anyList())).thenReturn(true);
+
+        service.notifyDerivation(caseRecord(), assessment());
+
+        ArgumentCaptor<List<SendGridAdapter.Attachment>> attachments = ArgumentCaptor.forClass(List.class);
+        verify(sendGridAdapter).send(eq(EXPERT_EMAIL), anyString(), anyString(), attachments.capture());
+        assertThat(attachments.getValue()).extracting(SendGridAdapter.Attachment::filename)
+                .containsExactly("denuncia-policial.pdf");
+    }
+
     /** Best-effort by contract: a delivery failure must not undo a derivation that happened. */
     @Test
     void notifyDerivation_swallowsTheFailureAndReportsItAsNotNotified() {
