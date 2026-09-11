@@ -13,18 +13,22 @@ import ar.edu.utn.frba.arbiter.common.enums.RiskBand;
 import ar.edu.utn.frba.arbiter.common.models.entities.Branch;
 import ar.edu.utn.frba.arbiter.common.models.entities.CaseState;
 import ar.edu.utn.frba.arbiter.common.models.entities.ClaimCause;
+import jakarta.persistence.EntityManager;
+import jakarta.persistence.PersistenceContext;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Sort;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.domain.Specification;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDate;
 import java.util.List;
+import java.util.stream.Stream;
 import java.time.LocalDateTime;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -70,6 +74,9 @@ class CaseRepositorySpecificationTests extends AbstractPersistenceIT {
 
     @Autowired
     private ClaimsAnalystRepository claimsAnalystRepository;
+
+    @PersistenceContext
+    private EntityManager entityManager;
 
     private static final Pageable FIRST_PAGE = PageRequest.of(0, 20);
 
@@ -146,6 +153,35 @@ class CaseRepositorySpecificationTests extends AbstractPersistenceIT {
                 null, null, null, null, null, null, null, null, null), FIRST_PAGE);
 
         assertThat(page.getTotalElements()).isEqualTo(4);
+    }
+
+    /**
+     * El mapeo a {@code CaseResponse} corre con la sesión ya cerrada, así que todo lo que navega
+     * tiene que venir en la query. Reproduce un 500 real: con el {@code FETCH} por default del
+     * {@code @EntityGraph}, {@code claimCause.branch} quedaba lazy y explotaba en el mapeo.
+     */
+    @Test
+    void elListadoTraeTodoLoQueElMapeoNavegaConLaSesionCerrada() {
+        // Antes de la query, si no el seed deja el grafo en la caché y el test pasa siempre.
+        entityManager.flush();
+        entityManager.clear();
+
+        List<Case> porPagina = caseRepository.findAll(
+                CaseSpecifications.withFilters(null, null, null, null, null, null, null, null, null),
+                FIRST_PAGE).getContent();
+        List<Case> porSort = caseRepository.findAll(
+                CaseSpecifications.withFilters(null, null, null, "40.123.456", null, null, null, null, null),
+                Sort.unsorted());
+        entityManager.clear();
+
+        assertThatCode(() -> Stream.concat(porPagina.stream(), porSort.stream()).forEach(entity -> {
+            entity.getClaimCause().getName();
+            entity.getClaimCause().getBranch().getName();
+            entity.getInsured().getDni();
+            entity.getPolicy().getExternalPolicyNumber();
+            entity.getCoverage().getName();
+            entity.getCurrentStatus().getName();
+        })).doesNotThrowAnyException();
     }
 
     @Test
