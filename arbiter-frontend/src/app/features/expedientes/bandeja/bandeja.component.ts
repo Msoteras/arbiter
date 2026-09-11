@@ -7,6 +7,7 @@ import {
   HostListener,
   inject,
   signal,
+  untracked,
 } from '@angular/core';
 import { takeUntilDestroyed, toObservable, toSignal } from '@angular/core/rxjs-interop';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
@@ -95,6 +96,12 @@ type LoadState =
  */
 type Lens = 'mine' | 'all' | 'assigned' | 'unassigned' | 'fraud';
 
+/**
+ * Lifecycle slice, orthogonal to {@link Lens}: "mine and open" has to be reachable, so it is a
+ * separate control and not a sixth lens.
+ */
+type Scope = NonNullable<ExpedienteListParams['scope']>;
+
 @Component({
   selector: 'app-bandeja',
   imports: [
@@ -176,6 +183,18 @@ export class BandejaComponent {
     this.page.set(0);
   }
 
+  // ───────────────── Recorte: en curso vs cerrados ─────────────────
+  // Cruza con la lente en vez de competir con ella ("míos y en curso" tiene que existir), así que
+  // es un control aparte y no una lente más. Va en activeFilters() y no en viewFilters() para que
+  // los conteos del toggle también lo respeten: parado en "En curso", "Míos 4" son 4 en curso.
+
+  protected readonly scope = signal<Scope>('OPEN');
+
+  protected setScope(scope: Scope): void {
+    this.scope.set(scope);
+    this.page.set(0);
+  }
+
   // ───────────────── Filtros, búsqueda, orden y paginación ─────────────────
   // Todos combinables por AND, reflejan 1:1 los params que acepta GET /api/v1/cases
   // (historia "Búsqueda y filtrado de expedientes").
@@ -210,7 +229,22 @@ export class BandejaComponent {
     eventDateTo: this.eventDateTo() || undefined,
     q: this.qDebounced() || undefined,
     sort: `${this.sortField()},${this.sortDir()}`,
+    scope: this.scope(),
   }));
+
+  /**
+   * Elegir un estado en la barra afloja el recorte. Sin esto, "Aprobado" con el recorte en "En
+   * curso" devuelve una lista vacía que el analista no puede explicarse — y el recorte se mueve a
+   * la vista, así que se ve por qué.
+   */
+  private readonly statusFilterWidensScope = effect(() => {
+    const status = this.statusFilter();
+    untracked(() => {
+      if (status) {
+        this.scope.set('ALL');
+      }
+    });
+  });
 
   /** Se incrementa después de asignar/liberar para releer el listado desde el backend. */
   private readonly reloadTrigger = signal(0);
@@ -332,6 +366,11 @@ export class BandejaComponent {
         this.eventDateTo() ||
         this.qDebounced()
       ),
+  );
+
+  /** "No tenés expedientes en curso" no es lo mismo que "no hay expedientes". */
+  protected readonly emptyByScope = computed(
+    () => this.isEmpty() && !this.hasActiveFilters() && this.scope() !== 'ALL',
   );
 
   // ───────────────── Catálogos de los selects ─────────────────

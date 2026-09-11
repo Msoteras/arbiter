@@ -5,6 +5,10 @@ import ar.edu.utn.frba.arbiter.cases.models.entities.PolicySnapshot;
 import ar.edu.utn.frba.arbiter.common.enums.CaseStatus;
 import ar.edu.utn.frba.arbiter.common.enums.ClassificationFailureReason;
 import ar.edu.utn.frba.arbiter.common.enums.RiskBand;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
+import org.springframework.data.jpa.domain.Specification;
 import org.springframework.data.jpa.repository.EntityGraph;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
@@ -22,6 +26,21 @@ import java.util.Optional;
 
 @Repository
 public interface CaseRepository extends JpaRepository<Case, Long>, JpaSpecificationExecutor<Case> {
+
+    // Los dos listados (barrido del asegurado y bandeja del analista) traen en la misma query todo
+    // lo que CaseServiceImpl.toResponse navega. LOAD y no el FETCH por default: FETCH deja en LAZY
+    // todo lo que no se liste, y el mapeo llega hasta claimCause.branch con la sesión ya cerrada.
+    @Override
+    @EntityGraph(type = EntityGraph.EntityGraphType.LOAD,
+            attributePaths = {"claimCause", "claimCause.branch", "insured", "policy", "coverage",
+                    "currentStatus", "analyst"})
+    List<Case> findAll(Specification<Case> spec, Sort sort);
+
+    @Override
+    @EntityGraph(type = EntityGraph.EntityGraphType.LOAD,
+            attributePaths = {"claimCause", "claimCause.branch", "insured", "policy", "coverage",
+                    "currentStatus", "analyst"})
+    Page<Case> findAll(Specification<Case> spec, Pageable pageable);
 
     /**
      * Cases whose response deadline is on or before {@code threshold} and whose term is actually

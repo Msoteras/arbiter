@@ -175,6 +175,18 @@ export function estadoSimplificadoLabel(value: string): string {
   return SIMPLIFICADO_LABELS[estadoSimplificado(value)];
 }
 
+export const ESTADOS_SIMPLIFICADOS = Object.entries(SIMPLIFICADO_LABELS).map(([value, label]) => ({
+  value: value as EstadoSimplificado,
+  label,
+}));
+
+/** Los `CaseStatus` de un cajón, derivados del mapa: filtrar por cajón son varios estados. */
+export function estadosDelCajon(cajon: EstadoSimplificado): CaseStatus[] {
+  return (Object.keys(SIMPLIFICADO) as CaseStatus[]).filter(
+    (status) => SIMPLIFICADO[status] === cajon,
+  );
+}
+
 // Orden de avance del progreso simplificado. El progreso visible del asegurado es MONÓTONO:
 // una vez que el expediente entró "En trámite" no vuelve a "Denunciado", aunque el estado
 // técnico interno retroceda a PENDING_CLASSIFICATION. Eso pasa cuando el asegurado sube la

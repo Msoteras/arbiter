@@ -1,6 +1,8 @@
 package ar.edu.utn.frba.arbiter.cases.models.repositories;
 
+import ar.edu.utn.frba.arbiter.cases.dto.CaseScope;
 import ar.edu.utn.frba.arbiter.cases.models.entities.Case;
+import ar.edu.utn.frba.arbiter.cases.services.CaseStatusService;
 import ar.edu.utn.frba.arbiter.common.enums.CaseStatus;
 import ar.edu.utn.frba.arbiter.common.enums.RiskBand;
 import jakarta.persistence.criteria.Predicate;
@@ -26,7 +28,7 @@ public final class CaseSpecifications {
     private CaseSpecifications() {
     }
 
-    public static Specification<Case> withFilters(CaseStatus status, String claimCause, String policyNumber,
+    public static Specification<Case> withFilters(List<CaseStatus> status, String claimCause, String policyNumber,
                                                     String insuredId, LocalDate eventDateFrom, LocalDate eventDateTo,
                                                     String q, RiskBand riskBand, Long analystId,
                                                     boolean unassigned, boolean fraudAlert, boolean assigned) {
@@ -60,26 +62,46 @@ public final class CaseSpecifications {
      * de sumar un parámetro más a esa firma ya larga.
      */
     public static Specification<Case> dueSoonBefore(LocalDate threshold) {
+        List<String> notTicking = names(Stream.concat(
+                CaseStatusService.TERMINAL_STATUSES.stream(), CaseStatusService.PAUSING_STATUSES.stream()));
         return (root, query, cb) -> cb.and(
                 cb.lessThanOrEqualTo(root.get("responseDeadline"), threshold),
-                cb.not(root.get("currentStatus").get("name").in(List.of(
-                        CaseStatus.APPROVED.name(), CaseStatus.REJECTED.name(), CaseStatus.LAPSED.name(),
-                        CaseStatus.AWAITING_DOCUMENTATION.name(), CaseStatus.PENDING_EXPERT_REPORT.name()))));
+                cb.not(root.get("currentStatus").get("name").in(notTicking)));
+    }
+
+    /**
+     * Recorte "en curso" / "cerrados" de la bandeja, resuelto contra
+     * {@link CaseStatusService#TERMINAL_STATUSES}: si un sexto estado se suma a la máquina de
+     * estados, el listado no puede quedar discrepando en silencio.
+     */
+    public static Specification<Case> scope(CaseScope scope) {
+        if (scope == null || scope == CaseScope.ALL) {
+            return null;
+        }
+        List<String> terminal = names(CaseStatusService.TERMINAL_STATUSES.stream());
+        return (root, query, cb) -> {
+            Predicate closed = root.get("currentStatus").get("name").in(terminal);
+            return scope == CaseScope.CLOSED ? closed : cb.not(closed);
+        };
+    }
+
+    private static List<String> names(Stream<CaseStatus> statuses) {
+        return statuses.map(CaseStatus::name).toList();
     }
 
     /** Overload para las lentes "Míos"/"Todos" (sin las lentes de asignación ni alerta de fraude). */
-    public static Specification<Case> withFilters(CaseStatus status, String claimCause, String policyNumber,
+    public static Specification<Case> withFilters(List<CaseStatus> status, String claimCause, String policyNumber,
                                                     String insuredId, LocalDate eventDateFrom, LocalDate eventDateTo,
                                                     String q, RiskBand riskBand, Long analystId) {
         return withFilters(status, claimCause, policyNumber, insuredId, eventDateFrom, eventDateTo, q,
                 riskBand, analystId, false, false, false);
     }
 
-    private static Specification<Case> status(CaseStatus status) {
+    private static Specification<Case> status(List<CaseStatus> statuses) {
         // Filtra por el nombre del estado, no por el id de catálogo: el id es un detalle de la
         // tabla y el enum sigue siendo el vocabulario del filtro que llega por query param.
-        return status == null ? null
-                : (root, query, cb) -> cb.equal(root.get("currentStatus").get("name"), status.name());
+        return statuses == null || statuses.isEmpty() ? null
+                : (root, query, cb) -> root.get("currentStatus").get("name").in(names(statuses.stream()));
     }
 
     private static Specification<Case> claimCause(String claimCause) {

@@ -5,7 +5,10 @@
       <h1 class="t-hero-title">Mis siniestros</h1>
       @if (!needsIdentity() && !loading() && !hasError() && !isEmpty()) {
         <p class="portal-sub">
-          {{ cases().length }} {{ cases().length === 1 ? 'siniestro' : 'siniestros' }} en curso
+          {{ totalElements() }} {{ totalElements() === 1 ? 'siniestro' : 'siniestros' }}
+          @if (hasFilters()) {
+            <span>· filtrados</span>
+          }
         </p>
       }
     </div>
@@ -31,13 +34,58 @@
           <app-button type="submit" [disabled]="!identityInput().trim()">Ingresar</app-button>
         </form>
       </app-card>
-    } @else if (loading()) {
+    } @else {
+      <div class="filtros">
+        <app-input
+          class="filtro-busqueda"
+          [(value)]="qDraft"
+          placeholder="Buscar por N° de siniestro o de póliza…"
+        />
+        <label class="filtro">
+          <span class="t-field-label">Estado</span>
+          <app-select
+            [(value)]="estadoFilter"
+            [options]="estadoOptions"
+            placeholder="Todos"
+            (valueChange)="onFilterChange()"
+          />
+        </label>
+        @if (showInsurerFilter()) {
+          <label class="filtro">
+            <span class="t-field-label">Aseguradora</span>
+            <app-select
+              [(value)]="insurerFilter"
+              [options]="insurerOptions()"
+              placeholder="Todas"
+              (valueChange)="onFilterChange()"
+            />
+          </label>
+        }
+        <label class="filtro">
+          <span class="t-field-label">Hecho desde</span>
+          <app-input type="date" [(value)]="desde" (valueChange)="onFilterChange()" />
+        </label>
+        <label class="filtro">
+          <span class="t-field-label">Hecho hasta</span>
+          <app-input type="date" [(value)]="hasta" (valueChange)="onFilterChange()" />
+        </label>
+        @if (hasFilters()) {
+          <app-button variant="secondary" (click)="clearFilters()">Limpiar</app-button>
+        }
+      </div>
+
+      @if (loading()) {
       <!-- Carga en el lugar del listado: la barra superior del portal queda visible; no se tapa
            la pantalla entera (esa se reserva al arranque login → home). -->
       <app-inline-loading message="Cargando tus siniestros…" />
     } @else if (hasError()) {
       <app-card>
         <p class="t-note">No se pudieron cargar tus siniestros. Probá de nuevo en unos minutos.</p>
+      </app-card>
+    } @else if (isEmpty() && hasFilters()) {
+      <app-card class="empty-card">
+        <p class="t-body">Ningún siniestro coincide con lo que buscaste.</p>
+        <app-button variant="secondary" (click)="clearFilters()">Limpiar filtros</app-button>
       </app-card>
     } @else if (isEmpty()) {
       <app-card class="empty-card">
@@ -75,6 +123,7 @@
               </div>
               <div class="case-fields">
                 <span class="case-item">{{ c.branch }} · {{ c.insuredItem }}</span>
+                <span class="muted">Ocurrió el {{ fechaHecho(c) }}</span>
                 <span class="muted">Denunciado el {{ fechaDenuncia(c) }}</span>
               </div>
               <div class="case-next">
@@ -86,5 +135,15 @@
           </li>
         }
       </ul>
+
+      <app-pagination
+        [page]="page()"
+        [size]="size()"
+        [totalPages]="totalPages()"
+        [totalElements]="totalElements()"
+        (pageChange)="onPageChange($event)"
+        (sizeChange)="onSizeChange($event)"
+      />
+      }
     }
   </div>

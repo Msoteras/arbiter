@@ -586,7 +586,7 @@ class CaseServiceImplTest {
                 .thenReturn(new PageImpl<>(List.of(entity), pageable, 1));
 
         Page<CaseResponse> response = caseService.listCases(
-                CaseStatus.PENDING_ANALYST_REVIEW, null, null, null, null, null, null, null, false, pageable);
+                List.of(CaseStatus.PENDING_ANALYST_REVIEW), null, null, null, null, null, null, null, false, pageable);
 
         assertThat(response.getContent()).hasSize(1);
         assertThat(response.getContent().get(0).status()).isEqualTo(CaseStatus.PENDING_ANALYST_REVIEW);
@@ -642,7 +642,7 @@ class CaseServiceImplTest {
                 .thenReturn(new PageImpl<>(List.of(entity), pageable, 1));
 
         Page<CaseResponse> response = caseService.listCases(
-                CaseStatus.APPROVED, "Robo en vía pública", "POL-CEL-2024-001", "40.123.456",
+                List.of(CaseStatus.APPROVED), "Robo en vía pública", "POL-CEL-2024-001", "40.123.456",
                 LocalDate.of(2026, 6, 1), LocalDate.of(2026, 6, 30), null, null, false, pageable);
 
         assertThat(response.getContent()).hasSize(1);

@@ -1,18 +1,20 @@
-@if (loading()) {
-  <app-loading message="Cargando tu perfil" sub="Aguardá un momento" />
-} @else if (loadError()) {
-  <div class="perfil">
+<div class="perfil">
+  <!-- El encabezado se dibuja siempre, también mientras carga: lo que cambia es el contenido, no
+       la pantalla. El overlay a viewport completo (app-loading) se reserva al arranque
+       login → home, igual que en "Mis siniestros". -->
+  <header class="head">
+    <span class="eyebrow">Mi cuenta</span>
+    <h1 class="t-page-title">Mi perfil</h1>
+  </header>
+
+  @if (loading()) {
+    <app-inline-loading message="Cargando tu perfil…" />
+  } @else if (loadError()) {
     <div class="load-error" role="alert">
       <p class="t-body">No pudimos cargar tu perfil en este momento.</p>
       <p class="t-note">Probá recargar la página.</p>
     </div>
-  </div>
-} @else if (profile(); as p) {
-  <div class="perfil">
-    <header class="head">
-      <span class="eyebrow">Mi cuenta</span>
-      <h1 class="t-page-title">Mi perfil</h1>
-    </header>
+  } @else if (profile(); as p) {
 
     <!-- Identidad: sale de la aseguradora, no se edita desde el portal. -->
     <section class="section">
@@ -118,5 +120,5 @@
         Guardar cambios
       </app-button>
     </div>
-  </div>
-}
+  }
+</div>
