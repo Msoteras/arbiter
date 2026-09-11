@@ -1,0 +1,65 @@
+@if (loading()) {
+  <app-loading message="Cargando tus pólizas" sub="Aguardá un momento" />
+} @else {
+  <div class="polizas">
+    <header class="head">
+      <span class="eyebrow">Mi cuenta</span>
+      <h1 class="t-page-title">Mis pólizas</h1>
+      <p class="head-sub measure t-note">
+        Las informa tu aseguradora y se actualizan solas. Abrí las coberturas para ver cuánto te
+        cubre cada una y qué franquicia tiene.
+      </p>
+    </header>
+
+    @if (loadError()) {
+      <div class="load-error" role="alert">
+        <p class="t-body">No pudimos cargar tus pólizas en este momento.</p>
+        <p class="t-note">Probá recargar la página.</p>
+      </div>
+    } @else if (empty()) {
+      <app-empty-state
+        message="Todavía no tenés pólizas registradas en Arbiter."
+        sub="Las carga tu aseguradora"
+      />
+    } @else {
+      @if (current().length > 0) {
+        <ul class="policies">
+          @for (p of current(); track p.policyNumber) {
+            <li><app-policy-card [policy]="p" /></li>
+          }
+        </ul>
+      } @else {
+        <!-- Tiene pólizas, pero ninguna vigente. Decirlo es el dato: si no, la pantalla parece
+             vacía justo cuando la persona necesita saber que hoy no está cubierta. -->
+        <app-empty-state
+          message="Hoy no tenés ninguna póliza vigente."
+          sub="Tus pólizas anteriores están más abajo"
+        />
+      }
+
+      @if (expired().length > 0) {
+        <section class="expired">
+          <button
+            type="button"
+            class="expired-toggle"
+            [attr.aria-expanded]="showExpired()"
+            aria-controls="expired-policies"
+            (click)="toggleExpired()"
+          >
+            <span class="chev" [class.is-open]="showExpired()" aria-hidden="true">›</span>
+            Pólizas vencidas
+            <span class="count">({{ expired().length }})</span>
+          </button>
+
+          @if (showExpired()) {
+            <ul class="policies" id="expired-policies">
+              @for (p of expired(); track p.policyNumber) {
+                <li><app-policy-card [policy]="p" /></li>
+              }
+            </ul>
+          }
+        </section>
+      }
+    }
+  </div>
+}

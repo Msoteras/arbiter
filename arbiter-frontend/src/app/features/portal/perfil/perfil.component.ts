@@ -3,9 +3,7 @@ import { ChangeDetectionStrategy, Component, computed, effect, inject, signal } 
 import { toObservable, toSignal } from '@angular/core/rxjs-interop';
 import { catchError, map, of, startWith, switchMap } from 'rxjs';
 
-import { AuthSessionService } from '../../../core/auth/auth-session.service';
 import { ProfileService } from '../../../core/auth/profile.service';
-import { Policy } from '../../../core/models/policy';
 import {
   IMAGE_CONSENT_DETAIL,
   IMAGE_CONSENT_SUMMARY,
@@ -14,21 +12,13 @@ import {
 } from '../../../core/models/profile';
 import { ButtonComponent } from '../../../shared/ui/button/button.component';
 import { CheckboxComponent } from '../../../shared/ui/checkbox/checkbox.component';
-import { EmptyStateComponent } from '../../../shared/ui/empty-state/empty-state.component';
 import { InputComponent } from '../../../shared/ui/input/input.component';
 import { LoadingComponent } from '../../../shared/ui/loading/loading.component';
-import { PolicyCardComponent } from '../../../shared/ui/policy-card/policy-card.component';
 import { ToastService } from '../../../shared/ui/toast/toast.service';
-import { PolicyService } from '../../expedientes/policy.service';
 
 type ProfileState =
   | { status: 'loading' }
   | { status: 'ok'; profile: InsuredProfile }
-  | { status: 'error' };
-
-type PoliciesState =
-  | { status: 'loading' }
-  | { status: 'ok'; policies: Policy[] }
   | { status: 'error' };
 
 /**
@@ -40,30 +30,16 @@ type PoliciesState =
  * (Disposición SSN 2/2023) y quedan. El cambio aplica a las denuncias siguientes.
  *
  * Nombre, DNI y PEP son solo lectura: salen de la póliza/KYC de la aseguradora, no de acá.
- *
- * "Mis pólizas" es el otro bloque de solo lectura, y responde a algo que hasta ahora no tenía
- * dónde mirarse: las pólizas se le mostraban al asegurado una sola vez en el onboarding, y
- * después el único lugar donde volvían a aparecer era el selector del alta de denuncia — para
- * saber qué tenía cubierto había que arrancar una denuncia.
  */
 @Component({
   selector: 'app-perfil',
-  imports: [
-    ButtonComponent,
-    CheckboxComponent,
-    EmptyStateComponent,
-    InputComponent,
-    LoadingComponent,
-    PolicyCardComponent,
-  ],
+  imports: [ButtonComponent, CheckboxComponent, InputComponent, LoadingComponent],
   changeDetection: ChangeDetectionStrategy.OnPush,
   templateUrl: './perfil.component.html',
   styleUrl: './perfil.component.scss',
 })
 export class PerfilComponent {
   private readonly profileService = inject(ProfileService);
-  private readonly policyService = inject(PolicyService);
-  private readonly session = inject(AuthSessionService);
   private readonly toast = inject(ToastService);
 
   protected readonly consentSummary = IMAGE_CONSENT_SUMMARY;
@@ -112,27 +88,6 @@ export class PerfilComponent {
     });
   }
 
-  // ───────────────── Mis pólizas (solo lectura) ─────────────────
-  // Con las vencidas incluidas: el asegurado viene a consultar, no a elegir, y una póliza que
-  // desaparece sin explicación es peor que una marcada como vencida. El alta de denuncia sigue
-  // pidiendo solo las vigentes.
-  private readonly policiesState = toSignal(
-    this.policyService.listByInsured(this.session.session()?.insuredId ?? '', true).pipe(
-      map((policies): PoliciesState => ({ status: 'ok', policies })),
-      startWith<PoliciesState>({ status: 'loading' }),
-      catchError(() => of<PoliciesState>({ status: 'error' })),
-    ),
-    { initialValue: { status: 'loading' } as PoliciesState },
-  );
-
-  protected readonly policies = computed<Policy[]>(() => {
-    const state = this.policiesState();
-    return state.status === 'ok' ? state.policies : [];
-  });
-  protected readonly policiesLoading = computed(() => this.policiesState().status === 'loading');
-  protected readonly policiesError = computed(() => this.policiesState().status === 'error');
-
-  // ───────────────── Guardado del contacto ─────────────────
   protected readonly saving = signal(false);
   protected readonly saveError = signal<string | null>(null);
 
