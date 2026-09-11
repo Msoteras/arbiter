@@ -874,6 +874,7 @@ export class ExpedienteDetailComponent {
       next: (peritaje) => {
         this.derivarSaving.set(false);
         this.showDerivar.set(false);
+        this.derivacionHechaCaseId.set(d.id);
         this.derivacionHecha.set(peritaje);
         this.reloadTrigger.update((v) => v + 1);
       },
@@ -890,6 +891,8 @@ export class ExpedienteDetailComponent {
    * el analista no tiene cómo saber si el mail salió o si el botón no hizo nada.
    */
   protected readonly derivacionHecha = signal<Peritaje | null>(null);
+  // Kept apart from data(), which is empty while the case reloads behind the modal.
+  protected readonly derivacionHechaCaseId = signal<number | null>(null);
 
   cerrarDerivacionHecha(): void {
     this.derivacionHecha.set(null);

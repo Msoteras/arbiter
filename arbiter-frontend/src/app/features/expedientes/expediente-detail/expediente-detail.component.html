@@ -808,7 +808,7 @@
 @if (derivacionHecha(); as p) {
   <app-modal [open]="true" heading="Derivación enviada" (close)="cerrarDerivacionHecha()">
     <p class="t-body">
-      El expediente <strong>#{{ data()?.id }}</strong> fue derivado con éxito a
+      El expediente <strong>#{{ derivacionHechaCaseId() }}</strong> fue derivado con éxito a
       <strong>{{ p.expertName }}</strong>.
     </p>
     <p class="t-note">
