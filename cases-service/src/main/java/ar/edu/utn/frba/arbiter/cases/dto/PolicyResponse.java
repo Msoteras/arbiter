@@ -31,11 +31,35 @@ public record PolicyResponse(
         String product,
         LocalDateTime effectiveFrom,
         LocalDateTime effectiveTo,
+        Validity validity,
         boolean upToDate,
         BigDecimal insuredAmount,
         BigDecimal deductible,
         List<Coverage> coverages
 ) {
+
+    /**
+     * Si la póliza cubre hoy, todavía no arrancó, o ya venció.
+     *
+     * <p>Viaja calculado y no se deriva de las fechas del otro lado, por la misma razón que
+     * {@code upToDate}: {@code vigencia_desde/hasta} son {@code TIMESTAMP} sin zona, así que cada
+     * consumidor los interpretaba en SU huso. El backend corre en UTC y el navegador del asegurado
+     * en hora argentina — tres horas de diferencia —, y el día que una póliza vencía había una
+     * ventana en la que el portal la mostraba "Vigente" mientras el alta de denuncia ya la había
+     * sacado de la lista. Un solo reloj decide; los dos lados leen la misma respuesta.
+     */
+    public enum Validity {
+        CURRENT,
+        NOT_YET_ACTIVE,
+        EXPIRED;
+
+        public static Validity at(LocalDateTime from, LocalDateTime to, LocalDateTime now) {
+            if (to != null && to.isBefore(now)) {
+                return EXPIRED;
+            }
+            return from != null && from.isAfter(now) ? NOT_YET_ACTIVE : CURRENT;
+        }
+    }
 
     /**
      * Una cobertura contratada en la póliza. Son VARIAS: una póliza de celulares cubre robo y

@@ -26,10 +26,18 @@ public class PolicyService {
 
     private final InsurerAdapter insurerAdapter;
 
-    /** Pólizas del asegurado en todas sus aseguradoras (vista centralizada). */
-    public List<PolicyResponse> listByInsured(String insuredId) {
+    /**
+     * Pólizas del asegurado en todas sus aseguradoras (vista centralizada).
+     *
+     * @param includeExpired si vuelven también las vencidas. Falso para el alta de denuncia, que
+     *                       solo puede ofrecer pólizas que vayan a pasar la elegibilidad; cierto
+     *                       para "Mis pólizas" del perfil, que es una consulta y no una elección —
+     *                       ahí esconder la vencida no previene nada y deja al asegurado sin
+     *                       entender por qué le falta una.
+     */
+    public List<PolicyResponse> listByInsured(String insuredId, boolean includeExpired) {
         assertOwnPolicies(insuredId);
-        return insurerAdapter.findPoliciesByInsured(insuredId);
+        return insurerAdapter.findPoliciesByInsured(insuredId, includeExpired);
     }
 
     public PolicyResponse getByNumber(String policyNumber) {

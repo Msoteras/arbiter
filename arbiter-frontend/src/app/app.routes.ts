@@ -116,6 +116,18 @@ export const routes: Routes = [
       import('./features/portal/perfil/perfil.component').then((m) => m.PerfilComponent),
   },
   {
+    // Pantalla aparte y no una sección del perfil: el perfil son datos de la persona (los suyos,
+    // su contacto, sus consentimientos) y esto es la relación con la compañía. Además crece con
+    // cada póliza, y ahí adentro tapaba lo editable.
+    path: 'portal/policies',
+    canActivate: [roleGuard, onboardingGuard],
+    data: { roles: ['ASEGURADO'] },
+    loadComponent: () =>
+      import('./features/portal/mis-polizas/mis-polizas.component').then(
+        (m) => m.MisPolizasComponent,
+      ),
+  },
+  {
     path: 'portal',
     canActivate: [roleGuard, onboardingGuard],
     data: { roles: ['ASEGURADO'] },
