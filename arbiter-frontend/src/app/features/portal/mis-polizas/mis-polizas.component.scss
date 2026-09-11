@@ -19,8 +19,24 @@
   }
 }
 
+.head {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+}
+.head-icon {
+  flex: none;
+  width: 38px;
+  height: 38px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--radius-ctl);
+  background: var(--selected-bg);
+  color: var(--accent-fg);
+}
 .head .t-page-title {
-  margin-top: var(--space-2);
+  margin: var(--space-1) 0 0;
 }
 .eyebrow {
   font-size: var(--font-size-2xs);
