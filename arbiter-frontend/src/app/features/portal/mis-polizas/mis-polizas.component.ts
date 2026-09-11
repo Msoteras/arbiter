@@ -5,7 +5,7 @@ import { catchError, map, of, startWith } from 'rxjs';
 import { AuthSessionService } from '../../../core/auth/auth-session.service';
 import { Policy, policyValidity } from '../../../core/models/policy';
 import { EmptyStateComponent } from '../../../shared/ui/empty-state/empty-state.component';
-import { LoadingComponent } from '../../../shared/ui/loading/loading.component';
+import { InlineLoadingComponent } from '../../../shared/ui/inline-loading/inline-loading.component';
 import { PolicyCardComponent } from '../../../shared/ui/policy-card/policy-card.component';
 import { PolicyService } from '../../expedientes/policy.service';
 
@@ -27,7 +27,7 @@ type PoliciesState =
  */
 @Component({
   selector: 'app-mis-polizas',
-  imports: [EmptyStateComponent, LoadingComponent, PolicyCardComponent],
+  imports: [EmptyStateComponent, InlineLoadingComponent, PolicyCardComponent],
   changeDetection: ChangeDetectionStrategy.OnPush,
   templateUrl: './mis-polizas.component.html',
   styleUrl: './mis-polizas.component.scss',
