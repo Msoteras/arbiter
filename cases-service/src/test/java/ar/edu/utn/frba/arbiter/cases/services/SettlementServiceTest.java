@@ -3,6 +3,7 @@ package ar.edu.utn.frba.arbiter.cases.services;
 import ar.edu.utn.frba.arbiter.cases.dto.DocumentAnalysisSummary;
 import ar.edu.utn.frba.arbiter.cases.dto.SettlementDecisionRequest;
 import ar.edu.utn.frba.arbiter.cases.dto.SettlementResponse;
+import ar.edu.utn.frba.arbiter.cases.dto.SettlementSuggestionTarget;
 import ar.edu.utn.frba.arbiter.cases.exceptions.InvalidSettlementException;
 import ar.edu.utn.frba.arbiter.cases.exceptions.SettlementNotFoundException;
 import ar.edu.utn.frba.arbiter.cases.models.entities.Case;
@@ -289,6 +290,7 @@ class SettlementServiceTest {
 
         assertThat(response.suggestedAmount()).isEqualByComparingTo("620000.00");
         assertThat(response.suggestedFrom()).isEqualTo("purchase_proof");
+        assertThat(response.suggestedFor()).isEqualTo(SettlementSuggestionTarget.ACCREDITED_AMOUNT);
     }
 
     /**
@@ -352,6 +354,43 @@ class SettlementServiceTest {
 
         assertThat(response.suggestedAmount()).isEqualByComparingTo("120000.00");
         assertThat(response.suggestedFrom()).isEqualTo("expert_report");
+        assertThat(response.suggestedFor()).isEqualTo(SettlementSuggestionTarget.ACCREDITED_AMOUNT);
+    }
+
+    /**
+     * Lo que el perito determina no es un valor de reposición: es cuánto dice que hay que pagar. Por
+     * eso sigue teniendo dónde ir en una cobertura que liquida por suma asegurada, donde no hay
+     * monto acreditado que cargar — apunta al monto final. Colgarlo del campo de monto acreditado
+     * lo hacía desaparecer justo en las coberturas caras, que son las únicas que llegan a peritaje.
+     */
+    @Test
+    void theExpertAmountIsSuggestedForTheAmountItselfWhenSettlingBySumInsured() {
+        when(expertAssessmentRepository.findByCaseId(1L)).thenReturn(Optional.of(
+                ExpertAssessment.builder().caseId(1L)
+                        .indemnifiableAmount(new BigDecimal("612500.00")).build()));
+
+        SettlementResponse response = settlementService.forCase(1L, null);
+
+        assertThat(response.suggestedAmount()).isEqualByComparingTo("612500.00");
+        assertThat(response.suggestedFrom()).isEqualTo("expert_report");
+        assertThat(response.suggestedFor()).isEqualTo(SettlementSuggestionTarget.SETTLED_AMOUNT);
+    }
+
+    /**
+     * Y el comprobante de compra no se cuela por esa puerta: bajo suma asegurada no mueve el monto,
+     * que es la razón por la que el campo no existe. Sólo el peritaje tiene algo que decir ahí.
+     */
+    @Test
+    void aDocumentAmountIsStillNotSuggestedWhenSettlingBySumInsured() {
+        when(documentAnalysisRepository.findByCaseId(1L)).thenReturn(List.of(
+                document("purchase_proof", new BigDecimal("620000.00"))));
+        when(expertAssessmentRepository.findByCaseId(1L)).thenReturn(Optional.of(
+                ExpertAssessment.builder().caseId(1L).indemnifiableAmount(null).build()));
+
+        SettlementResponse response = settlementService.forCase(1L, null);
+
+        assertThat(response.suggestedAmount()).isNull();
+        assertThat(response.suggestedFor()).isNull();
     }
 
     /**

@@ -124,6 +124,12 @@ export interface Settlement {
   suggestedAmount: number | null;
   /** De qué tipo de documento salió, para poder verificarlo antes de tomarlo. */
   suggestedFrom: string | null;
+  /**
+   * A qué campo responde. `ACCREDITED_AMOUNT` es la base del cálculo (presupuesto o valor de
+   * reposición); `SETTLED_AMOUNT` es el monto a pagar en sí, que es donde cae lo que determinó el
+   * perito cuando la cobertura liquida por suma asegurada y no hay monto acreditado que cargar.
+   */
+  suggestedFor: 'ACCREDITED_AMOUNT' | 'SETTLED_AMOUNT' | null;
   breakdown: SettlementLine[];
   warnings: string[];
 }

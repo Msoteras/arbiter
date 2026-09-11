@@ -776,6 +776,7 @@ export class ExpedienteDetailComponent {
     const s = this.settlement();
     return (
       this.pideMontoAcreditado() &&
+      s?.suggestedFor === 'ACCREDITED_AMOUNT' &&
       s?.suggestedAmount != null &&
       this.replacementInput().trim() === '' &&
       this.replacementApplied() == null
@@ -789,6 +790,34 @@ export class ExpedienteDetailComponent {
     }
     this.replacementInput.set(String(amount));
     this.applyReplacementValue();
+  }
+
+  /**
+   * La otra sugerencia: la que apunta al monto a pagar en sí. Sólo la produce un peritaje sobre una
+   * cobertura que liquida por suma asegurada, donde no hay monto acreditado que cargar — y donde,
+   * antes, lo que determinó el perito no se mostraba en ningún lado. Misma regla que la otra: se
+   * esconde apenas el analista escribe un monto propio.
+   */
+  protected readonly sugerenciaDeMontoDisponible = computed(() => {
+    const s = this.settlement();
+    return (
+      s?.suggestedFor === 'SETTLED_AMOUNT' &&
+      s?.suggestedAmount != null &&
+      this.settledAmountInput().trim() === ''
+    );
+  });
+
+  /**
+   * Tomarla carga el monto en el campo del analista, no en el cálculo: queda como un ajuste sobre
+   * lo que dio la fórmula, y por lo tanto le pide la justificación del ajuste como cualquier otro.
+   * El perito propone; firmar sigue siendo del analista.
+   */
+  protected tomarSugerenciaDeMonto(): void {
+    const amount = this.settlement()?.suggestedAmount;
+    if (amount == null) {
+      return;
+    }
+    this.settledAmountInput.set(String(amount));
   }
 
   protected applyReplacementValue(): void {

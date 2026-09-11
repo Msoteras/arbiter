@@ -842,6 +842,19 @@
               (valueChange)="settledAmountInput.set($event)"
               [placeholder]="montoExacto(s.calculatedAmount)"
             />
+
+            <!-- Lo que determinó el perito, cuando la cobertura no tiene monto acreditado donde
+                 ofrecerlo. No es un valor de reposición: es cuánto dice que hay que pagar, así que
+                 apunta acá. Tomarlo lo deja como ajuste, con su justificación. -->
+            @if (sugerenciaDeMontoDisponible()) {
+              <p class="settlement-suggestion">
+                <span>
+                  El perito determinó <strong>{{ montoExacto(s.suggestedAmount) }}</strong>.
+                  Usarlo queda como un ajuste sobre lo calculado.
+                </span>
+                <app-button variant="secondary" (click)="tomarSugerenciaDeMonto()">Usar</app-button>
+              </p>
+            }
           </label>
         </div>
 

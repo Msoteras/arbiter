@@ -3,6 +3,7 @@ package ar.edu.utn.frba.arbiter.cases.services;
 import ar.edu.utn.frba.arbiter.cases.dto.PendingSettlementResponse;
 import ar.edu.utn.frba.arbiter.cases.dto.SettlementDecisionRequest;
 import ar.edu.utn.frba.arbiter.cases.dto.SettlementResponse;
+import ar.edu.utn.frba.arbiter.cases.dto.SettlementSuggestionTarget;
 import ar.edu.utn.frba.arbiter.cases.exceptions.CaseNotFoundException;
 import ar.edu.utn.frba.arbiter.cases.exceptions.InvalidSettlementException;
 import ar.edu.utn.frba.arbiter.cases.exceptions.SettlementNotFoundException;
@@ -206,48 +207,66 @@ public class SettlementService {
      * dos, del <b>comprobante de compra</b>. Ofrecer el otro sería sugerir un número que no
      * responde a la pregunta que el campo hace.
      *
-     * <p>Null donde el campo no aplica: en una pérdida total por suma asegurada el monto
-     * acreditado no mueve nada, y sugerir algo ahí invita a cargar un dato que no hace nada.
+     * <p>En una pérdida total por suma asegurada no hay monto acreditado que ofrecer: cargarlo no
+     * movería el cálculo, y un campo que no hace nada es peor que ninguno.
      *
      * <p>Si el expediente pasó por peritaje, manda el monto que determinó el perito: lo fijó una
-     * persona que fue a mirar el bien, contra un presupuesto que trajo el asegurado.
+     * persona que fue a mirar el bien, contra un presupuesto que trajo el asegurado. Y ese número
+     * <b>no es un valor de reposición</b> —es cuánto dice el perito que hay que pagar—, así que
+     * sigue teniendo dónde ir incluso cuando la cobertura liquida por suma asegurada: ahí apunta
+     * al monto final, no a la base del cálculo. Colgarlo del campo de monto acreditado lo hacía
+     * desaparecer justo en las coberturas que más se derivan a peritaje.
      *
      * <p><b>Es una sugerencia y nada más.</b> No se aplica sola ni entra en el cálculo: el analista
      * la toma si la verifica contra el documento. La extracción del modelo no es vinculante, misma
      * regla que la clasificación (decisión #5).
      */
     private Suggestion suggestionFor(Long caseId, Coverage coverage) {
-        String wanted;
-        if (coverage.getSettlementFormula() == SettlementFormula.REPAIR) {
-            wanted = REPAIR_QUOTE;
-        } else if (coverage.getSettlementBasis() == SettlementBasis.LESSER_OF_SUM_AND_REPLACEMENT) {
-            wanted = PURCHASE_PROOF;
-        } else {
-            return null;
+        BigDecimal expert = expertAssessmentRepository.findByCaseId(caseId)
+                .map(ExpertAssessment::getIndemnifiableAmount)
+                .filter(amount -> amount != null && amount.signum() > 0)
+                .orElse(null);
+
+        String wanted = accreditedDocumentFor(coverage);
+        if (wanted == null) {
+            return expert == null ? null
+                    : new Suggestion(expert, EXPERT_REPORT, SettlementSuggestionTarget.SETTLED_AMOUNT);
         }
 
         // El peritaje gana. Cuando el expediente se derivó, el monto lo determinó una persona que
         // fue a mirar el bien; el presupuesto lo trajo el asegurado. Sugerir el segundo teniendo el
         // primero sería ofrecer la fuente más débil de las dos.
-        Suggestion expert = expertAssessmentRepository.findByCaseId(caseId)
-                .map(ExpertAssessment::getIndemnifiableAmount)
-                .filter(amount -> amount != null && amount.signum() > 0)
-                .map(amount -> new Suggestion(amount, EXPERT_REPORT))
-                .orElse(null);
         if (expert != null) {
-            return expert;
+            return new Suggestion(expert, EXPERT_REPORT, SettlementSuggestionTarget.ACCREDITED_AMOUNT);
         }
 
         return documentAnalysisRepository.findByCaseId(caseId).stream()
                 .filter(doc -> wanted.equals(doc.documentType()))
                 .filter(doc -> doc.amount() != null && doc.amount().signum() > 0)
                 .findFirst()
-                .map(doc -> new Suggestion(doc.amount(), doc.documentType()))
+                .map(doc -> new Suggestion(doc.amount(), doc.documentType(),
+                        SettlementSuggestionTarget.ACCREDITED_AMOUNT))
                 .orElse(null);
     }
 
-    /** Un importe leído de un documento del expediente, con el documento del que salió. */
-    private record Suggestion(BigDecimal amount, String documentType) {}
+    /**
+     * Qué documento responde la pregunta del monto acreditado, o null cuando la cobertura no hace
+     * esa pregunta. No son intercambiables: en una reparación el monto sale del presupuesto, y en
+     * una pérdida total que liquida por el menor de los dos, del comprobante de compra.
+     */
+    private String accreditedDocumentFor(Coverage coverage) {
+        if (coverage.getSettlementFormula() == SettlementFormula.REPAIR) {
+            return REPAIR_QUOTE;
+        }
+        if (coverage.getSettlementBasis() == SettlementBasis.LESSER_OF_SUM_AND_REPLACEMENT) {
+            return PURCHASE_PROOF;
+        }
+        return null;
+    }
+
+    /** Un importe sugerido, con de dónde salió y a qué campo de la hoja responde. */
+    private record Suggestion(BigDecimal amount, String documentType,
+                              SettlementSuggestionTarget target) {}
 
     /** The branch hangs off the claim cause — {@code cases} has no column of its own for it. */
     private Long branchIdOf(Case caseRecord) {
@@ -421,6 +440,7 @@ public class SettlementService {
                 s.getReturnReason(),
                 suggestion == null ? null : suggestion.amount(),
                 suggestion == null ? null : suggestion.documentType(),
+                suggestion == null ? null : suggestion.target(),
                 breakdown(s, confirmed, coverage),
                 warnings);
     }
