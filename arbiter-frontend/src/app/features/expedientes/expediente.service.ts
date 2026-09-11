@@ -75,7 +75,8 @@ export interface PagedResponse<T> {
 
 // Todos los filtros que GET /api/v1/cases acepta hoy (opcionales y combinables) + paginación/orden.
 export interface ExpedienteListParams {
-  status?: string;
+  /** Uno o varios: el portal del asegurado filtra por cajón, y "En trámite" son cuatro estados. */
+  status?: string | string[];
   claimCause?: string;
   policyNumber?: string;
   insuredId?: string;
@@ -117,6 +118,8 @@ export interface ExpedienteListParams {
   fraudAlert?: boolean;
   /** Recorte por ciclo de vida. Default del backend: `ALL`. */
   scope?: 'OPEN' | 'CLOSED' | 'ALL';
+  /** Solo para el asegurado con pólizas en más de una compañía. Id de `arbiter_common.insurer`. */
+  insurerId?: number;
 }
 
 /**
@@ -177,8 +180,8 @@ export class ExpedienteService {
    * explícito hasta que se integre Auth0; después saldrá del JWT.
    */
   list(params: ExpedienteListParams = {}): Observable<PagedResponse<ExpedienteResponse>> {
-    const query: Record<string, string> = {};
-    if (params.status) query['status'] = params.status;
+    const query: Record<string, string | string[]> = {};
+    if (params.status?.length) query['status'] = params.status;
     if (params.claimCause) query['claimCause'] = params.claimCause;
     if (params.policyNumber) query['policyNumber'] = params.policyNumber;
     if (params.insuredId) query['insuredId'] = params.insuredId;
@@ -195,6 +198,7 @@ export class ExpedienteService {
     if (params.assigned) query['assigned'] = 'true';
     if (params.fraudAlert) query['fraudAlert'] = 'true';
     if (params.scope) query['scope'] = params.scope;
+    if (params.insurerId != null) query['insurerId'] = String(params.insurerId);
     return this.http.get<PagedResponse<ExpedienteResponse>>(this.baseUrl, { params: query });
   }
 
@@ -308,8 +312,8 @@ export class ExpedienteService {
    */
   /** Los 5 conteos de las lentes en un request, sobre los filtros vigentes (sin paginado ni orden). */
   lensSummary(params: ExpedienteListParams = {}): Observable<LensSummary> {
-    const query: Record<string, string> = {};
-    if (params.status) query['status'] = params.status;
+    const query: Record<string, string | string[]> = {};
+    if (params.status?.length) query['status'] = params.status;
     if (params.claimCause) query['claimCause'] = params.claimCause;
     if (params.policyNumber) query['policyNumber'] = params.policyNumber;
     if (params.insuredId) query['insuredId'] = params.insuredId;

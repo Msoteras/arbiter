@@ -24,6 +24,7 @@ import org.springframework.data.jpa.domain.Specification;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDate;
+import java.util.List;
 import java.time.LocalDateTime;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -150,13 +151,28 @@ class CaseRepositorySpecificationTests extends AbstractPersistenceIT {
     @Test
     void statusFilter_returnsOnlyMatchingStatus() {
         Specification<Case> spec = CaseSpecifications.withFilters(
-                CaseStatus.PENDING_ANALYST_REVIEW, null, null, null, null, null, null, null, null);
+                List.of(CaseStatus.PENDING_ANALYST_REVIEW), null, null, null, null, null, null, null, null);
 
         Page<Case> page = caseRepository.findAll(spec, FIRST_PAGE);
 
         assertThat(page.getContent())
                 .hasSize(1)
                 .allMatch(c -> c.getStatus() == CaseStatus.PENDING_ANALYST_REVIEW);
+    }
+
+    /** El portal del asegurado filtra por cajón, y "en trámite" son cuatro estados. */
+    @Test
+    void statusFilter_acceptsSeveralStatuses() {
+        Specification<Case> spec = CaseSpecifications.withFilters(
+                List.of(CaseStatus.PENDING_ANALYST_REVIEW, CaseStatus.APPROVED),
+                null, null, null, null, null, null, null, null);
+
+        Page<Case> page = caseRepository.findAll(spec, FIRST_PAGE);
+
+        assertThat(page.getContent())
+                .extracting(entity -> entity.getCurrentStatus().getName())
+                .containsExactlyInAnyOrder(
+                        CaseStatus.PENDING_ANALYST_REVIEW.name(), CaseStatus.APPROVED.name());
     }
 
     @Test
@@ -276,7 +292,7 @@ class CaseRepositorySpecificationTests extends AbstractPersistenceIT {
         // "2024-003" matchea policyNumber de un solo case (APPROVED); si combina mal con status
         // (OR en vez de AND), traería más de lo esperado.
         Specification<Case> spec = CaseSpecifications.withFilters(
-                CaseStatus.APPROVED, null, null, null, null, null, "2024-003", null, null);
+                List.of(CaseStatus.APPROVED), null, null, null, null, null, "2024-003", null, null);
 
         Page<Case> page = caseRepository.findAll(spec, FIRST_PAGE);
 
@@ -311,7 +327,7 @@ class CaseRepositorySpecificationTests extends AbstractPersistenceIT {
     void riskBandFilter_combinesWithStatusAsAnd() {
         // Dos cases son HIGH; solo uno de ellos está además REJECTED. El AND no debe traer el otro.
         Specification<Case> spec = CaseSpecifications.withFilters(
-                CaseStatus.REJECTED, null, null, null, null, null, null, RiskBand.HIGH, null);
+                List.of(CaseStatus.REJECTED), null, null, null, null, null, null, RiskBand.HIGH, null);
 
         Page<Case> page = caseRepository.findAll(spec, FIRST_PAGE);
 
@@ -344,7 +360,7 @@ class CaseRepositorySpecificationTests extends AbstractPersistenceIT {
         assign(owner, seeded.get(0), seeded.get(1));
 
         Specification<Case> spec = CaseSpecifications.withFilters(
-                CaseStatus.PENDING_ANALYST_REVIEW, null, null, null, null, null, null, null,
+                List.of(CaseStatus.PENDING_ANALYST_REVIEW), null, null, null, null, null, null, null,
                 owner.getId());
 
         Page<Case> page = caseRepository.findAll(spec, FIRST_PAGE);

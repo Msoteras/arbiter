@@ -414,16 +414,17 @@ public class CaseServiceImpl implements CaseService {
     }
 
     @Override
-    public Page<CaseResponse> listCases(CaseStatus status, String claimCause, String policyNumber,
+    public Page<CaseResponse> listCases(List<CaseStatus> status, String claimCause, String policyNumber,
                                          String insuredId, LocalDate eventDateFrom, LocalDate eventDateTo,
                                          String q, RiskBand riskBand, Long analystId, boolean assignedToMe,
                                          boolean unassigned, boolean fraudAlert, boolean assigned,
-                                         boolean dueSoon, CaseScope scope, Pageable pageable) {
+                                         boolean dueSoon, CaseScope scope, Long insurerId, Pageable pageable) {
         if (accessPolicy.currentUserIsInsured()) {
             // El asegurado ve los suyos de TODAS sus aseguradoras, no solo la del tenant activo.
             // Las lentes no le aplican: no tiene expedientes "asignados" ni bandeja de fraude.
             return toInsuredResponses(insuredCaseAggregator.findOwnCases(
-                    status, claimCause, policyNumber, eventDateFrom, eventDateTo, q, riskBand, scope, pageable));
+                    status, claimCause, policyNumber, eventDateFrom, eventDateTo, q, riskBand, scope,
+                    insurerId, pageable));
         }
 
         // "Los míos" gana sobre el filtro explícito: si vienen los dos, el analista está mirando su
@@ -463,7 +464,7 @@ public class CaseServiceImpl implements CaseService {
     }
 
     @Override
-    public LensSummaryResponse lensSummary(CaseStatus status, String claimCause, String policyNumber,
+    public LensSummaryResponse lensSummary(List<CaseStatus> status, String claimCause, String policyNumber,
                                             String insuredId, LocalDate eventDateFrom, LocalDate eventDateTo,
                                             String q, RiskBand riskBand, Long analystId, CaseScope scope) {
         // "Míos" necesita saber quién es "yo"; para el referente no hay perfil de analista y queda 0.
@@ -481,7 +482,7 @@ public class CaseServiceImpl implements CaseService {
                         analystId, false, true, false, scope));
     }
 
-    private long count(CaseStatus status, String claimCause, String policyNumber, String insuredId,
+    private long count(List<CaseStatus> status, String claimCause, String policyNumber, String insuredId,
                        LocalDate eventDateFrom, LocalDate eventDateTo, String q, RiskBand riskBand,
                        Long analystId, boolean unassigned, boolean fraudAlert, boolean assigned,
                        CaseScope scope) {

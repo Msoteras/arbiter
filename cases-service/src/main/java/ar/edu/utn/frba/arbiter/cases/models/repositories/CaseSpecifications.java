@@ -28,7 +28,7 @@ public final class CaseSpecifications {
     private CaseSpecifications() {
     }
 
-    public static Specification<Case> withFilters(CaseStatus status, String claimCause, String policyNumber,
+    public static Specification<Case> withFilters(List<CaseStatus> status, String claimCause, String policyNumber,
                                                     String insuredId, LocalDate eventDateFrom, LocalDate eventDateTo,
                                                     String q, RiskBand riskBand, Long analystId,
                                                     boolean unassigned, boolean fraudAlert, boolean assigned) {
@@ -90,18 +90,18 @@ public final class CaseSpecifications {
     }
 
     /** Overload para las lentes "Míos"/"Todos" (sin las lentes de asignación ni alerta de fraude). */
-    public static Specification<Case> withFilters(CaseStatus status, String claimCause, String policyNumber,
+    public static Specification<Case> withFilters(List<CaseStatus> status, String claimCause, String policyNumber,
                                                     String insuredId, LocalDate eventDateFrom, LocalDate eventDateTo,
                                                     String q, RiskBand riskBand, Long analystId) {
         return withFilters(status, claimCause, policyNumber, insuredId, eventDateFrom, eventDateTo, q,
                 riskBand, analystId, false, false, false);
     }
 
-    private static Specification<Case> status(CaseStatus status) {
+    private static Specification<Case> status(List<CaseStatus> statuses) {
         // Filtra por el nombre del estado, no por el id de catálogo: el id es un detalle de la
         // tabla y el enum sigue siendo el vocabulario del filtro que llega por query param.
-        return status == null ? null
-                : (root, query, cb) -> cb.equal(root.get("currentStatus").get("name"), status.name());
+        return statuses == null || statuses.isEmpty() ? null
+                : (root, query, cb) -> root.get("currentStatus").get("name").in(names(statuses.stream()));
     }
 
     private static Specification<Case> claimCause(String claimCause) {
