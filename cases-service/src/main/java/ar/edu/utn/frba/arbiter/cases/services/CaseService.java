@@ -4,6 +4,7 @@ import ar.edu.utn.frba.arbiter.cases.dto.AnalystDecisionRequest;
 import ar.edu.utn.frba.arbiter.cases.dto.AnalystWorkloadResponse;
 import ar.edu.utn.frba.arbiter.cases.dto.AssignedCaseSummaryResponse;
 import ar.edu.utn.frba.arbiter.cases.dto.CaseDocumentResponse;
+import ar.edu.utn.frba.arbiter.cases.dto.CaseScope;
 import ar.edu.utn.frba.arbiter.cases.dto.EligibilityCheckRequest;
 import ar.edu.utn.frba.arbiter.cases.dto.EligibilityCheckResponse;
 import ar.edu.utn.frba.arbiter.cases.dto.LensSummaryResponse;
@@ -85,17 +86,17 @@ public interface CaseService {
      * {@link ar.edu.utn.frba.arbiter.common.enums.DeadlinePriority}) es otro filtro booleano puro,
      * combinable con el resto igual que {@code unassigned}/{@code assigned}/{@code fraudAlert}.
      */
-    Page<CaseResponse> listCases(CaseStatus status, String claimCause, String policyNumber, String insuredId,
+    Page<CaseResponse> listCases(List<CaseStatus> status, String claimCause, String policyNumber, String insuredId,
                                   LocalDate eventDateFrom, LocalDate eventDateTo, String q, RiskBand riskBand,
                                   Long analystId, boolean assignedToMe, boolean unassigned, boolean fraudAlert,
-                                  boolean assigned, boolean dueSoon, Pageable pageable);
+                                  boolean assigned, boolean dueSoon, CaseScope scope, Long insurerId, Pageable pageable);
 
     /** Overload para las lentes "Míos"/"Todos" (sin las lentes de asignación, fraude ni vencimiento). */
-    default Page<CaseResponse> listCases(CaseStatus status, String claimCause, String policyNumber, String insuredId,
+    default Page<CaseResponse> listCases(List<CaseStatus> status, String claimCause, String policyNumber, String insuredId,
                                           LocalDate eventDateFrom, LocalDate eventDateTo, String q, RiskBand riskBand,
                                           boolean assignedToMe, Pageable pageable) {
         return listCases(status, claimCause, policyNumber, insuredId, eventDateFrom, eventDateTo, q, riskBand,
-                null, assignedToMe, false, false, false, false, pageable);
+                null, assignedToMe, false, false, false, false, CaseScope.ALL, null, pageable);
     }
 
     /**
@@ -103,9 +104,9 @@ public interface CaseService {
      * Cuenta con {@code count(spec)}: no trae filas ni joinea el análisis, a diferencia de pedir
      * cada lente con {@code size=1} solo para leer el total.
      */
-    LensSummaryResponse lensSummary(CaseStatus status, String claimCause, String policyNumber,
+    LensSummaryResponse lensSummary(List<CaseStatus> status, String claimCause, String policyNumber,
                                      String insuredId, LocalDate eventDateFrom, LocalDate eventDateTo,
-                                     String q, RiskBand riskBand, Long analystId);
+                                     String q, RiskBand riskBand, Long analystId, CaseScope scope);
 
     CaseResponse addDocumentsAndReclassify(Long caseId, Map<String, MultipartFile> documents);
 

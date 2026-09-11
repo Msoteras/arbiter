@@ -5,6 +5,7 @@ import ar.edu.utn.frba.arbiter.cases.dto.AnalystWorkloadResponse;
 import ar.edu.utn.frba.arbiter.cases.dto.AssignAnalystRequest;
 import ar.edu.utn.frba.arbiter.cases.dto.AssignedCaseSummaryResponse;
 import ar.edu.utn.frba.arbiter.cases.dto.CaseDocumentResponse;
+import ar.edu.utn.frba.arbiter.cases.dto.CaseScope;
 import ar.edu.utn.frba.arbiter.cases.dto.CaseRequest;
 import ar.edu.utn.frba.arbiter.cases.dto.CaseResponse;
 import ar.edu.utn.frba.arbiter.cases.dto.PolicyResponse;
@@ -133,9 +134,23 @@ public class CaseController {
                     `dueSoon=true` acota a los expedientes con semáforo de vencimiento activo
                     (`deadlinePriority != NONE`: 10 días o menos hasta el plazo de respuesta del
                     art. 56, o ya vencidos) — la lente "Por vencer".
+
+                    `scope` recorta por ciclo de vida: `OPEN` (los cinco estados no terminales),
+                    `CLOSED` (APPROVED/REJECTED/LAPSED) o `ALL`. Default `ALL`: el recorte es de
+                    la pantalla que lo pide, no del endpoint — el portal del asegurado consume
+                    este mismo listado y tiene que seguir viendo sus siniestros resueltos. Un
+                    expediente vencido sigue siendo `OPEN`.
+
+                    `status` admite varios (`?status=A&status=B`): el portal del asegurado filtra
+                    por los tres cajones que ve él ("En trámite" son cuatro estados), y el mapeo
+                    cajón→estados es del frontend, como el resto de las etiquetas.
+
+                    `insurerId` solo aplica al ASEGURADO con pólizas en más de una compañía, que
+                    es el único que lee expedientes de varios esquemas. Para analista y referente
+                    no hace nada: el tenant ya los acota a una sola aseguradora.
                     """)
     public ResponseEntity<Page<CaseResponse>> listCases(
-            @RequestParam(required = false) CaseStatus status,
+            @RequestParam(required = false) List<CaseStatus> status,
             @RequestParam(required = false) String claimCause,
             @RequestParam(required = false) String policyNumber,
             @RequestParam(required = false) String insuredId,
@@ -149,11 +164,14 @@ public class CaseController {
             @RequestParam(defaultValue = "false") boolean fraudAlert,
             @RequestParam(defaultValue = "false") boolean assigned,
             @RequestParam(defaultValue = "false") boolean dueSoon,
+            @RequestParam(defaultValue = "ALL") CaseScope scope,
+            @RequestParam(required = false) Long insurerId,
             @PageableDefault(size = 20, sort = "id", direction = Sort.Direction.DESC) Pageable pageable
     ) {
         Page<CaseResponse> response = caseService.listCases(
                 status, claimCause, policyNumber, insuredId, eventDateFrom, eventDateTo, q, riskBand,
-                analystId, assignedToMe, unassigned, fraudAlert, assigned, dueSoon, pageable);
+                analystId, assignedToMe, unassigned, fraudAlert, assigned, dueSoon, scope, insurerId,
+                pageable);
         return ResponseEntity.ok(response);
     }
 
@@ -239,7 +257,7 @@ public class CaseController {
                     "Míos" da 0 para el referente, que no tiene perfil de analista en el tenant.
                     """)
     public ResponseEntity<LensSummaryResponse> lensSummary(
-            @RequestParam(required = false) CaseStatus status,
+            @RequestParam(required = false) List<CaseStatus> status,
             @RequestParam(required = false) String claimCause,
             @RequestParam(required = false) String policyNumber,
             @RequestParam(required = false) String insuredId,
@@ -247,10 +265,12 @@ public class CaseController {
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate eventDateTo,
             @RequestParam(required = false) String q,
             @RequestParam(required = false) RiskBand riskBand,
-            @RequestParam(required = false) Long analystId
+            @RequestParam(required = false) Long analystId,
+            @RequestParam(defaultValue = "ALL") CaseScope scope
     ) {
         return ResponseEntity.ok(caseService.lensSummary(
-                status, claimCause, policyNumber, insuredId, eventDateFrom, eventDateTo, q, riskBand, analystId));
+                status, claimCause, policyNumber, insuredId, eventDateFrom, eventDateTo, q, riskBand,
+                analystId, scope));
     }
 
     @GetMapping("/analysts/workload")
