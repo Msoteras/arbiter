@@ -16,9 +16,18 @@ export class PolicyService {
   private readonly baseUrl = `${environment.apiBaseUrl}/policies`;
   private readonly claimCausesUrl = `${environment.apiBaseUrl}/claim-causes`;
 
-  /** Todas las pólizas del asegurado, de todas las aseguradoras (vista centralizada). */
-  listByInsured(insuredId: string): Observable<Policy[]> {
-    return this.http.get<Policy[]>(this.baseUrl, { params: { insuredId } });
+  /**
+   * Todas las pólizas del asegurado, de todas las aseguradoras (vista centralizada).
+   *
+   * `includeExpired` trae también las vencidas. El backend las filtra por defecto porque este
+   * mismo endpoint alimenta el selector del alta de denuncia, donde elegir una vencida solo
+   * termina en un rechazo al final del wizard. "Mis pólizas" del perfil sí las pide: ahí el
+   * asegurado está consultando, no eligiendo, y esconderle la del año pasado no le evita nada.
+   */
+  listByInsured(insuredId: string, includeExpired = false): Observable<Policy[]> {
+    return this.http.get<Policy[]>(this.baseUrl, {
+      params: { insuredId, ...(includeExpired ? { includeExpired: true } : {}) },
+    });
   }
 
   getByNumber(policyNumber: string): Observable<Policy> {

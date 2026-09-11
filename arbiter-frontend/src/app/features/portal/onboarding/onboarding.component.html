@@ -49,22 +49,10 @@
         </p>
         <ul class="policies">
           @for (p of policies(); track p.policyNumber) {
-            <li class="policy">
-              <div class="policy-head">
-                <span class="policy-insurer">{{ p.insurerName }}</span>
-                <span class="policy-number mono">{{ p.policyNumber }}</span>
-              </div>
-              <div class="policy-item">{{ p.insuredItem ?? p.product }}</div>
-              <dl class="policy-meta">
-                <div>
-                  <dt>Ramo</dt>
-                  <dd>{{ p.branch }}</dd>
-                </div>
-                <div>
-                  <dt>Vigencia</dt>
-                  <dd class="tabular">{{ vigencia(p) }}</dd>
-                </div>
-              </dl>
+            <li>
+              <!-- compact: acá la póliza es contexto de un formulario. El detalle de coberturas
+                   está en "Mis pólizas", dentro del perfil. -->
+              <app-policy-card [policy]="p" [compact]="true" />
             </li>
           }
         </ul>

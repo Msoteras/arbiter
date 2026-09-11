@@ -137,6 +137,38 @@
     </div>
   }
 
+  <!-- Recorte por ciclo de vida. Fila aparte de las lentes: cruza con ellas ("míos y en curso"),
+       no compite. Siempre visible, para que nunca se esconda trabajo sin decirlo. -->
+  <div class="scope" role="group" aria-label="Recorte por estado del expediente">
+    <button
+      type="button"
+      class="scope-opt"
+      [class.active]="scope() === 'OPEN'"
+      [attr.aria-pressed]="scope() === 'OPEN'"
+      (click)="setScope('OPEN')"
+    >
+      En curso
+    </button>
+    <button
+      type="button"
+      class="scope-opt"
+      [class.active]="scope() === 'CLOSED'"
+      [attr.aria-pressed]="scope() === 'CLOSED'"
+      (click)="setScope('CLOSED')"
+    >
+      Cerrados
+    </button>
+    <button
+      type="button"
+      class="scope-opt"
+      [class.active]="scope() === 'ALL'"
+      [attr.aria-pressed]="scope() === 'ALL'"
+      (click)="setScope('ALL')"
+    >
+      Todos
+    </button>
+  </div>
+
   @if (assignError()) {
     <app-card
       ><p class="t-note">{{ assignError() }}</p></app-card
@@ -285,6 +317,15 @@
       <app-empty-state
         message="Ningún expediente coincide con los filtros aplicados."
         sub="Sin coincidencias"
+      />
+    } @else if (emptyByScope()) {
+      <app-empty-state
+        [message]="
+          scope() === 'OPEN'
+            ? 'No hay expedientes en curso. Probá con «Todos» para ver los ya cerrados.'
+            : 'Todavía no hay expedientes cerrados.'
+        "
+        [sub]="scope() === 'OPEN' ? 'Nada pendiente' : 'Sin cerrados'"
       />
     } @else {
       <app-empty-state message="Todavía no hay expedientes cargados." sub="Sin expedientes" />

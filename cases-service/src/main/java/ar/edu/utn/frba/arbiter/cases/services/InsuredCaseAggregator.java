@@ -1,6 +1,7 @@
 package ar.edu.utn.frba.arbiter.cases.services;
 
 import ar.edu.utn.frba.arbiter.cases.config.tenant.CallerContext;
+import ar.edu.utn.frba.arbiter.cases.dto.CaseScope;
 import ar.edu.utn.frba.arbiter.cases.models.entities.Case;
 import ar.edu.utn.frba.arbiter.cases.models.repositories.CaseRepository;
 import ar.edu.utn.frba.arbiter.cases.models.repositories.CaseSpecifications;
@@ -60,9 +61,10 @@ public class InsuredCaseAggregator {
      * {@code CaseServiceImpl}, que es el único lugar donde vive esa forma. Si este servicio
      * mapeara, los dos beans se necesitarían mutuamente.
      */
-    public Page<InsuredCase> findOwnCases(CaseStatus status, String claimCause, String policyNumber,
+    public Page<InsuredCase> findOwnCases(List<CaseStatus> status, String claimCause, String policyNumber,
                                     LocalDate eventDateFrom, LocalDate eventDateTo,
-                                    String q, RiskBand riskBand, Pageable pageable) {
+                                    String q, RiskBand riskBand, CaseScope scope, Long insurerId,
+                                    Pageable pageable) {
         CallerContext.Caller caller = CallerContext.get();
         if (caller.insuredId() == null || caller.insurerIds().isEmpty()) {
             // Un asegurado sin DNI o sin aseguradoras en el token no tiene expedientes que ver.
@@ -81,11 +83,23 @@ public class InsuredCaseAggregator {
         Specification<Case> spec = CaseSpecifications.withFilters(
                 status, claimCause, policyNumber, caller.insuredId(),
                 eventDateFrom, eventDateTo, q, riskBand, null);
+        Specification<Case> scoped = CaseSpecifications.scope(scope);
+        if (scoped != null) {
+            spec = spec == null ? scoped : spec.and(scoped);
+        }
+
+        // Se intersecta con las del token: el filtro no puede ampliar lo que el asegurado ve.
+        List<Long> insurerIds = insurerId == null
+                ? caller.insurerIds()
+                : caller.insurerIds().stream().filter(insurerId::equals).toList();
+        if (insurerIds.isEmpty()) {
+            return Page.empty(pageable);
+        }
 
         String callerTenant = TenantContext.get();
         List<InsuredCase> merged = new ArrayList<>();
         try {
-            for (Insurer insurer : insurerRepository.findAllById(caller.insurerIds())) {
+            for (Insurer insurer : insurerRepository.findAllById(insurerIds)) {
                 if (!insurer.isActive()) {
                     continue;
                 }
