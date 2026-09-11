@@ -67,8 +67,12 @@ public class ExpertNotificationService {
      */
     public Instant notifyDerivation(Case caseRecord, ExpertAssessment assessment) {
         try {
-            List<SendGridAdapter.Attachment> attachments = attachmentsOf(caseRecord.getId());
             boolean repair = assessment.getProviderType() == ProviderType.SERVICIO_TECNICO;
+            // A repair shop fixes the item; it does not verify the claim. The police report, the
+            // purchase invoice and the rest are the insured's paperwork, and there is no reason for
+            // them to leave the insurer to get a screen quoted.
+            List<SendGridAdapter.Attachment> attachments =
+                    repair ? List.of() : attachmentsOf(caseRecord.getId());
             boolean sent = sendGridAdapter.send(
                     assessment.getExpertEmail(),
                     (repair ? "Solicitud de reparación" : "Solicitud de peritaje")
@@ -134,8 +138,7 @@ public class ExpertNotificationService {
                 </ul>
                 <p><strong>Motivo de la derivación:</strong> %s</p>
                 <p><strong>Descripción de la denuncia:</strong><br>%s</p>
-                <p><strong>Documentación adjunta:</strong> %s</p>
-                <p>Al finalizar, envíennos %s respondiendo a este correo.</p>
+                %s<p>Al finalizar, envíennos %s respondiendo a este correo.</p>
                 <p>Arbiter</p>
                 """.formatted(
                 caseRecord.getId(),
@@ -157,7 +160,8 @@ public class ExpertNotificationService {
                 nullSafe(caseRecord.getEventAddress()),
                 assessment.getReason(),
                 nullSafe(caseRecord.getDescription()),
-                attachmentList(attachments),
+                repair ? "" : "<p><strong>Documentación adjunta:</strong> "
+                        + attachmentList(attachments) + "</p>\n",
                 repair ? "el resultado (reparado, irreparable o presupuesto)"
                         : "el informe con su conclusión");
     }

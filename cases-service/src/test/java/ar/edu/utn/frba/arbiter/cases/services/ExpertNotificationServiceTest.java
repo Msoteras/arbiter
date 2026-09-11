@@ -1,5 +1,6 @@
 package ar.edu.utn.frba.arbiter.cases.services;
 
+import ar.edu.utn.frba.arbiter.cases.dto.ProviderType;
 import ar.edu.utn.frba.arbiter.cases.models.entities.Case;
 import ar.edu.utn.frba.arbiter.cases.models.entities.CaseDocument;
 import ar.edu.utn.frba.arbiter.cases.models.entities.ExpertAssessment;
@@ -25,6 +26,7 @@ import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.contains;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
@@ -108,6 +110,26 @@ class ExpertNotificationServiceTest {
                 .containsExactly("denuncia-policial.pdf");
     }
 
+    /**
+     * Al servicio técnico no le va NADA del expediente: repara el equipo, no verifica el siniestro,
+     * y la denuncia policial o la factura del asegurado no tienen por qué salir de la aseguradora.
+     */
+    @Test
+    void notifyDerivation_toARepairShop_sendsNoDocuments() {
+        when(sendGridAdapter.send(anyString(), anyString(), anyString(), anyList())).thenReturn(true);
+
+        service.notifyDerivation(caseRecord(), repairAssessment());
+
+        ArgumentCaptor<String> body = ArgumentCaptor.forClass(String.class);
+        ArgumentCaptor<List<SendGridAdapter.Attachment>> attachments = ArgumentCaptor.forClass(List.class);
+        verify(sendGridAdapter).send(eq(EXPERT_EMAIL), anyString(), body.capture(), attachments.capture());
+
+        assertThat(attachments.getValue()).isEmpty();
+        assertThat(body.getValue()).doesNotContain("Documentación adjunta");
+        // Ni siquiera se leen: el expediente no se toca para un mail que no los lleva.
+        verifyNoInteractions(caseDocumentRepository);
+    }
+
     /** Best-effort by contract: a delivery failure must not undo a derivation that happened. */
     @Test
     void notifyDerivation_swallowsTheFailureAndReportsItAsNotNotified() {
@@ -148,5 +170,12 @@ class ExpertNotificationServiceTest {
                 .expertEmail(EXPERT_EMAIL)
                 .reason("Monto alto")
                 .build();
+    }
+
+    private ExpertAssessment repairAssessment() {
+        ExpertAssessment assessment = assessment();
+        assessment.setExpertName("Service Celular Once");
+        assessment.setProviderType(ProviderType.SERVICIO_TECNICO);
+        return assessment;
     }
 }
