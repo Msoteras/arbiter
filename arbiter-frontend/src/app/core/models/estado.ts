@@ -91,21 +91,22 @@ const DESCRIPCIONES: Record<CaseStatus, string> = {
     'El expediente caducó: pasaron más de 18 meses desde la denuncia sin que el asegurado trajera la documentación pedida.',
 };
 
-// Próximo paso esperado desde cada estado. Refleja el flujo real del backend:
-// clasificación asincrónica → revisión del analista → resolución + mail (SendGrid).
+// Próximo paso esperado desde cada estado. Lo lee el ASEGURADO en su listado, así que rige la
+// misma regla que BADGE_ASEGURADO: no nombra la clasificación del modelo ni la derivación a
+// peritaje — contarle que hay un informe externo en camino delata la sospecha que lo motivó.
 const PROXIMOS_PASOS: Record<CaseStatus, string> = {
   PENDING_CLASSIFICATION:
     'En pocos minutos el caso pasa a revisión de un analista (o se pide documentación si falta algo).',
   PENDING_ANALYST_REVIEW:
     'El analista aprueba o rechaza el caso. El resultado se notifica por correo electrónico.',
   CLASSIFICATION_FAILED:
-    'Un analista reintenta la clasificación desde el detalle del expediente y sigue el flujo normal.',
+    'Un analista está revisando tu caso. No hace falta que hagas nada por ahora.',
   AWAITING_DOCUMENTATION:
     'Subí los documentos faltantes; al recibirlos, el caso se vuelve a evaluar automáticamente.',
   PENDING_EXPERT_REPORT:
-    'Cuando llegue el informe, el analista lo carga y el caso vuelve a revisión para la decisión final.',
+    'Un analista está revisando tu caso. Te avisamos ni bien haya novedades.',
   PENDING_REPAIR:
-    'Cuando responda el servicio técnico, el analista carga el resultado y el caso vuelve a revisión para la decisión final.',
+    'Cuando el servicio técnico responda, un analista revisa el resultado y te avisamos la resolución.',
   APPROVED:
     'Vas a recibir un correo con el detalle de la resolución. No quedan pasos pendientes.',
   REJECTED:
