@@ -18,6 +18,7 @@ import java.util.Optional;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -65,20 +66,20 @@ class PolicyServiceTest {
     @Test
     void listingOwnPolicies_goesThrough() {
         callerIsInsured(OWN_DNI);
-        when(insurerAdapter.findPoliciesByInsured(OWN_DNI)).thenReturn(List.of(policyOf(OWN_DNI)));
+        when(insurerAdapter.findPoliciesByInsured(OWN_DNI, false)).thenReturn(List.of(policyOf(OWN_DNI)));
 
-        assertThat(policyService.listByInsured(OWN_DNI)).hasSize(1);
+        assertThat(policyService.listByInsured(OWN_DNI, false)).hasSize(1);
     }
 
     @Test
     void listingSomeoneElsesPolicies_isRejected() {
         callerIsInsured(OWN_DNI);
 
-        assertThatThrownBy(() -> policyService.listByInsured(SOMEONE_ELSE))
+        assertThatThrownBy(() -> policyService.listByInsured(SOMEONE_ELSE, false))
                 .isInstanceOf(InsuredIdentityMismatchException.class);
 
         // No alcanza con que tire: no puede haber ido a buscarlas igual.
-        verify(insurerAdapter, never()).findPoliciesByInsured(any());
+        verify(insurerAdapter, never()).findPoliciesByInsured(any(), anyBoolean());
     }
 
     /**
@@ -88,10 +89,25 @@ class PolicyServiceTest {
     @Test
     void aCallerWithoutDni_isNotBoundByDni() {
         callerIsNotAnInsured();
-        when(insurerAdapter.findPoliciesByInsured(SOMEONE_ELSE))
+        when(insurerAdapter.findPoliciesByInsured(SOMEONE_ELSE, false))
                 .thenReturn(List.of(policyOf(SOMEONE_ELSE)));
 
-        assertThat(policyService.listByInsured(SOMEONE_ELSE)).hasSize(1);
+        assertThat(policyService.listByInsured(SOMEONE_ELSE, false)).hasSize(1);
+    }
+
+    /**
+     * El perfil pide las vencidas y el alta de denuncia no: el flag tiene que llegar al adapter
+     * tal cual. Si el service lo comiera, "Mis pólizas" quedaría mostrando solo las vigentes y
+     * nadie se enteraría — la pantalla igual muestra pólizas.
+     */
+    @Test
+    void askingForExpiredPolicies_reachesTheAdapter() {
+        callerIsInsured(OWN_DNI);
+        when(insurerAdapter.findPoliciesByInsured(OWN_DNI, true))
+                .thenReturn(List.of(policyOf(OWN_DNI), policyOf(OWN_DNI)));
+
+        assertThat(policyService.listByInsured(OWN_DNI, true)).hasSize(2);
+        verify(insurerAdapter).findPoliciesByInsured(OWN_DNI, true);
     }
 
     @Test

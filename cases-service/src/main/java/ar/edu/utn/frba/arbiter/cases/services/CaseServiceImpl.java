@@ -667,7 +667,7 @@ public class CaseServiceImpl implements CaseService {
         // readableCase is the whole authorization: the analyst reaches these policies through a
         // case they can already read, never by asking for a DNI.
         Case entity = readableCase(caseId);
-        return policyService.listByInsured(entity.getInsured().getDni());
+        return policyService.listByInsured(entity.getInsured().getDni(), false);
     }
 
     private Case readableCase(Long caseId) {

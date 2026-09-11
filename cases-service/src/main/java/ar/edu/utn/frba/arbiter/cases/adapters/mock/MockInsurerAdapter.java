@@ -7,6 +7,7 @@ import org.springframework.stereotype.Component;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Optional;
 
@@ -55,6 +56,23 @@ public class MockInsurerAdapter implements InsurerAdapter {
                             Coverage.builder().code("COB-2").description("Daño accidental")
                                     .insuredAmount(new BigDecimal("120000")).deductible(new BigDecimal("12000.00")).deductiblePct(new BigDecimal("10.00")).build()
                     ))
+                    .build(),
+            // Vencida y con deuda a propósito: es el estado que "Mis pólizas" tiene que poder
+            // mostrar y el wizard tiene que seguir escondiendo. Sin una así, la diferencia entre
+            // los dos llamados no se ve en dev.
+            PolicyResponse.builder()
+                    .policyNumber("POL-CEL-2025-011")
+                    .insurerId("1").insurerName("BBVA Seguros Argentina S.A.")
+                    .insuredName("Martina Soteras").insuredId("42.987.654")
+                    .contactEmail("martina.soteras@example.com").contactPhone("11-5555-0001")
+                    .branch("Celulares").insuredItem("Motorola Moto G54").product("Celular Protegido Básico")
+                    .effectiveFrom(LocalDateTime.of(2025, 1, 1, 0, 0)).effectiveTo(LocalDateTime.of(2026, 1, 1, 23, 59, 59))
+                    .upToDate(false)
+                    .insuredAmount(new BigDecimal("400000")).deductible(new BigDecimal("60000.00"))
+                    .coverages(List.of(
+                            Coverage.builder().code("COB-1").description("Robo de celular")
+                                    .insuredAmount(new BigDecimal("400000")).deductible(new BigDecimal("60000.00")).deductiblePct(new BigDecimal("15.00")).build()
+                    ))
                     .build()
     );
 
@@ -66,9 +84,14 @@ public class MockInsurerAdapter implements InsurerAdapter {
     }
 
     @Override
-    public List<PolicyResponse> findPoliciesByInsured(String insuredId) {
+    public List<PolicyResponse> findPoliciesByInsured(String insuredId, boolean includeExpired) {
+        LocalDateTime now = LocalDateTime.now();
         return POLICIES.stream()
                 .filter(p -> p.insuredId().equals(insuredId))
+                .filter(p -> includeExpired || !p.effectiveTo().isBefore(now))
+                .sorted(Comparator
+                        .comparing((PolicyResponse p) -> p.effectiveTo().isBefore(now))
+                        .thenComparing(PolicyResponse::policyNumber))
                 .toList();
     }
 }
