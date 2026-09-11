@@ -134,8 +134,12 @@ export class MisExpedientesComponent {
     { initialValue: { status: 'idle' } as LoadState },
   );
 
+  // Con las vencidas: el filtro recorta siniestros históricos, y una póliza que venció el año
+  // pasado dejó siniestros que siguen en la lista.
   private policies$(insuredId: string) {
-    return this.policyService.listByInsured(insuredId).pipe(catchError(() => of<Policy[]>([])));
+    return this.policyService
+      .listByInsured(insuredId, true)
+      .pipe(catchError(() => of<Policy[]>([])));
   }
 
   protected readonly needsIdentity = computed(() => this.session.insuredId() === null);
