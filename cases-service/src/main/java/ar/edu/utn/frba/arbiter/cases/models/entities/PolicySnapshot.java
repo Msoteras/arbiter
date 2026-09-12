@@ -64,6 +64,32 @@ public class PolicySnapshot {
     @Column(name = "total_amount_claimed")
     private BigDecimal totalAmountClaimed;
 
+    /**
+     * When the policy's cover ends. The settlement counts the premium installments still to fall
+     * due between the event and this date; frozen for the same reason as everything else here.
+     */
+    @Column(name = "effective_to")
+    private Instant effectiveTo;
+
+    /** What one premium installment costs. Null where the insurer's DB doesn't carry it. */
+    @Column(name = "installment_amount")
+    private BigDecimal installmentAmount;
+
+    /**
+     * Arrears already due, in money. {@link #paymentsUpToDate} is the boolean reading of the same
+     * fact — the rules ask whether there's debt, the settlement asks how much (clause 102, art. 5).
+     */
+    @Column(name = "overdue_balance")
+    private BigDecimal overdueBalance;
+
+    /**
+     * Which event of the rolling year this claim is; 1 is the first. Resolved by
+     * classification-service, where the insured's history lives, with the same 12-month window the
+     * MAX_EVENTS_YEAR rule uses — so the cap on events and the percentage payable can't disagree.
+     */
+    @Column(name = "events_in_year")
+    private Integer eventsInYear;
+
     @Column(name = "queried_at", nullable = false)
     private Instant queriedAt;
 

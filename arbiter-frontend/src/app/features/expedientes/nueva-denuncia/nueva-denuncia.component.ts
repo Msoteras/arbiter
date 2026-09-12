@@ -25,7 +25,6 @@ import {
 
 import { ExpedienteService, CaseCreateRequest } from '../expediente.service';
 import { PolicyService } from '../policy.service';
-import { DocumentAgendaService } from '../document-agenda.service';
 import { ExpedienteResponse } from '../../../core/models/expediente';
 import { Policy } from '../../../core/models/policy';
 import { ChipGroupComponent, ChipOption } from '../../../shared/ui/chip-group/chip-group.component';
@@ -81,6 +80,8 @@ type RequiredDocsStatus = 'configured' | 'none' | 'unavailable';
 interface RequiredDocsState {
   status: RequiredDocsStatus;
   slots: readonly CaseDocumentType[];
+  /** The slots are only the first round: more may be asked for later, from the case follow-up. */
+  firstRound?: boolean;
 }
 
 /** What is shown when there is no schedule to go by: offered, never demanded. */
@@ -174,7 +175,6 @@ export class NuevaDenunciaComponent {
   private readonly router = inject(Router);
   private readonly service = inject(ExpedienteService);
   private readonly policyService = inject(PolicyService);
-  private readonly agenda = inject(DocumentAgendaService);
   private readonly session = inject(InsuredSessionService);
   private readonly locations = inject(ArgentinaLocationsService);
 
@@ -530,6 +530,15 @@ export class NuevaDenunciaComponent {
     }
     const eventTime = this.eventTime();
     const policeTime = this.policeReportTime();
+    // Los cuatro campos completos antes de comparar nada. Con las dos fechas cargadas y las horas
+    // todavía vacías, la comparación por día ya bloqueaba "Continuar" en mitad de la carga —
+    // obligaba a completar el formulario en un orden puntual (primero las horas, después las
+    // fechas) para no chocarse con un error sobre datos que el asegurado aún estaba tipeando.
+    // Comparar de menos acá no deja pasar nada: al completar las horas el chequeo corre igual, y
+    // el alta lo vuelve a validar del lado del backend.
+    if (!eventTime || !policeTime) {
+      return null;
+    }
     if (!isPoliceReportBeforeEvent(eventDate, eventTime, policeDate, policeTime)) {
       return null;
     }
@@ -681,12 +690,14 @@ export class NuevaDenunciaComponent {
     CASE_DOCUMENT_TYPES.map(({ type, label }) => ({ type, label, file: null, error: null })),
   );
 
-  // El asegurado sube exactamente lo que el referente configuró como requerido para el ramo + hecho
-  // generador elegidos (o el catálogo completo si esa combinación no tiene agenda). Al cambiar de
-  // póliza o de hecho generador, se rearman los slots según esa agenda.
+  // El asegurado sube la PRIMERA TANDA: lo mínimo que exige el carril rápido para la cobertura que
+  // responde por este hecho generador. Si el siniestro no fast-trackea, la agenda completa se le pide
+  // después desde el seguimiento (AWAITING_DOCUMENTATION). Sin lista configurada, el backend ya
+  // devuelve la agenda completa. Al cambiar de póliza o de hecho generador, se rearman los slots.
   private readonly requiredDocsState = toSignal(
     toObservable(
       computed(() => ({
+        policyNumber: this.selectedPolicy()?.policyNumber ?? null,
         branch: this.selectedPolicy()?.branch ?? null,
         claimCause: this.selectedType()?.claimCause ?? null,
       })),
@@ -694,18 +705,22 @@ export class NuevaDenunciaComponent {
       // Mismo motivo que en claimTypesState, y acá el costo era peor que un parpadeo: cada emisión
       // vuelve a correr rebuildDocSlots, que rearma los slots desde cero y se lleva puestos los
       // archivos ya adjuntados.
-      distinctUntilChanged((a, b) => a.branch === b.branch && a.claimCause === b.claimCause),
-      switchMap(({ branch, claimCause }) =>
-        branch && claimCause
-          ? this.agenda.getForBranch(branch, claimCause).pipe(
+      distinctUntilChanged(
+        (a, b) =>
+          a.policyNumber === b.policyNumber && a.branch === b.branch && a.claimCause === b.claimCause,
+      ),
+      switchMap(({ policyNumber, branch, claimCause }) =>
+        policyNumber && branch && claimCause
+          ? this.service.intakeDocuments(policyNumber, branch, claimCause).pipe(
               // A blip must not be read as "this claim cause needs no documents". Two retries with
-              // a pause first; only a schedule that stays unreachable becomes 'unavailable'.
+              // a pause first; only a list that stays unreachable becomes 'unavailable'.
               retry({ count: 2, delay: 1000 }),
-              map((codes): RequiredDocsState =>
-                codes.length
+              map(({ documentTypes, fastTrackOnly }): RequiredDocsState =>
+                documentTypes.length
                   ? {
                       status: 'configured',
-                      slots: codes.map((type) => ({ type, label: documentTypeLabel(type) })),
+                      slots: documentTypes.map((type) => ({ type, label: documentTypeLabel(type) })),
+                      firstRound: fastTrackOnly,
                     }
                   : OFFERED_DOCS,
               ),
@@ -726,6 +741,9 @@ export class NuevaDenunciaComponent {
   /** Si hay agenda real configurada para este ramo + hecho generador: la documentación no es
    *  una sugerencia, es requisito para poder evaluar el caso (ver RequiredDocsState). */
   protected readonly docsRequired = computed(() => this.requiredDocsState().status === 'configured');
+
+  /** Lo que se pide es solo la primera tanda: avisarle que quizás se le pida más después. */
+  protected readonly docsFirstRound = computed(() => !!this.requiredDocsState().firstRound);
 
   /** rules-service no contestó: no sabemos qué exigir, y no es lo mismo que no exigir nada. */
   protected readonly docsUnavailable = computed(

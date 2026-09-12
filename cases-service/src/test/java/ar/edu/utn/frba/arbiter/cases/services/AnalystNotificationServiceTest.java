@@ -113,6 +113,25 @@ class AnalystNotificationServiceTest {
     }
 
     @Test
+    void panelGetsPlainText_whileTheMailGetsTheHtml() {
+        ClaimsAnalyst assigned = analyst(10L, 100L, "ana@aseg.com");
+
+        service.notifyDeadline(caseWith(assigned, TODAY.minusDays(1)), DeadlinePriority.OVERDUE, TODAY);
+
+        // El panel de novedades renderiza `content` como texto: una etiqueta acá se le aparece al
+        // analista escrita, que es lo que pasaba con "<b>#1</b>" en el aviso de vencimiento.
+        ArgumentCaptor<Notification> saved = ArgumentCaptor.forClass(Notification.class);
+        verify(notificationRepository, atLeastOnce()).save(saved.capture());
+        assertThat(saved.getValue().getContent()).doesNotContain("<b>", "</b>");
+        assertThat(saved.getValue().getContent()).contains("El expediente #1 ");
+
+        // El mail sí es text/html y conserva el resaltado.
+        ArgumentCaptor<String> mailBody = ArgumentCaptor.forClass(String.class);
+        verify(sendGridAdapter).send(eq("ana@aseg.com"), anyString(), mailBody.capture());
+        assertThat(mailBody.getValue()).contains("<b>#1</b>");
+    }
+
+    @Test
     void analystWithoutEmail_recordsTheRowButSendsNoMail() {
         ClaimsAnalyst assigned = analyst(10L, 100L, "  ");
 

@@ -45,13 +45,13 @@ ENV_PATH = REPO_ROOT / ".env"
 SCHEMAS = ("arbiter_common", "arbiter_bbva", "arbiter_provincia",
            "aseguradora_bbva", "aseguradora_provincia")
 
-# Rangos de línea (1-indexed) de cada región de db/init-multitenant.sql. Se ubican a mano porque
-# son estables (el script casi no cambia de forma) y evita depender de un parser de SQL real.
-# Si el diff de abajo empieza a fallar con montones de tablas de golpe, lo primero a revisar es
-# si estos rangos corrieron de línea.
-COMMON_RANGE = (1, 275)
-TENANT_FN_RANGE = (276, 1120)      # create_tenant_schema -> arbiter_bbva, arbiter_provincia
-INSURER_FN_RANGE = (1133, 1241)    # create_insurer_db_schema -> aseguradora_bbva/provincia
+# Each region of db/init-multitenant.sql is located by the header of the function that creates it,
+# not by line number. Hardcoded ranges went stale as soon as the file grew, and the failure was
+# quiet: the insurer range ended up in the middle of the tenant function, parsed zero insurer
+# tables, and the diff reported every aseguradora_* table as "extra".
+TENANT_FN_HEADER = "CREATE OR REPLACE FUNCTION arbiter_common.create_tenant_schema("    # arbiter_bbva/provincia
+INSURER_FN_HEADER = "CREATE OR REPLACE FUNCTION arbiter_common.create_insurer_db_schema("  # aseguradora_bbva/provincia
+FN_TERMINATOR = "$fn$ LANGUAGE plpgsql;"
 
 NON_COLUMN_PREFIXES = ("CONSTRAINT", "PRIMARY KEY", "FOREIGN KEY", "UNIQUE", "CHECK", "EXCLUDE")
 
@@ -99,6 +99,23 @@ def extract_columns(block_text_lines: list[str]) -> list[str]:
             continue
         columns.append(stripped.split()[0].strip('"'))
     return columns
+
+
+def region_bounds(lines: list[str]) -> tuple[tuple[int, int], tuple[int, int], tuple[int, int]]:
+    """1-indexed, inclusive (start, end) of the common, tenant and insurer regions."""
+    def find(needle: str, after: int = 0) -> int:
+        for idx in range(after, len(lines)):
+            if lines[idx].strip().startswith(needle):
+                return idx + 1
+        sys.exit(f"No encuentro '{needle}' en {SQL_PATH.relative_to(REPO_ROOT)} "
+                 "(¿cambió el encabezado de la función?).")
+
+    tenant_start = find(TENANT_FN_HEADER)
+    insurer_start = find(INSURER_FN_HEADER)
+    tenant_range = (tenant_start, find(FN_TERMINATOR, tenant_start))
+    insurer_range = (insurer_start, find(FN_TERMINATOR, insurer_start))
+    # Everything before the first function is the common schema.
+    return (1, min(tenant_start, insurer_start) - 1), tenant_range, insurer_range
 
 
 def parse_region(lines: list[str], start: int, end: int,
@@ -149,9 +166,17 @@ def parse_region(lines: list[str], start: int, end: int,
 
 def expected_schema() -> dict[tuple[str, str], set[str]]:
     lines = SQL_PATH.read_text(encoding="utf-8").splitlines()
-    common = parse_region(lines, *COMMON_RANGE, re.compile(r"CREATE TABLE arbiter_common\.(\w+)"))
-    tenant = parse_region(lines, *TENANT_FN_RANGE, re.compile(r"CREATE TABLE %I\.(\w+)"))
-    insurer = parse_region(lines, *INSURER_FN_RANGE, re.compile(r"CREATE TABLE %I\.(\w+)"))
+    common_range, tenant_range, insurer_range = region_bounds(lines)
+    common = parse_region(lines, *common_range, re.compile(r"CREATE TABLE arbiter_common\.(\w+)"))
+    tenant = parse_region(lines, *tenant_range, re.compile(r"CREATE TABLE %I\.(\w+)"))
+    insurer = parse_region(lines, *insurer_range, re.compile(r"CREATE TABLE %I\.(\w+)"))
+
+    # An empty region means the parser read the wrong lines, not that the schema has no tables:
+    # diffing it anyway turns a parser bug into a list of made-up differences.
+    for label, tables in (("comunes", common), ("por tenant", tenant), ("de aseguradora", insurer)):
+        if not tables:
+            sys.exit(f"No se parseó ninguna tabla {label} en {SQL_PATH.relative_to(REPO_ROOT)}: "
+                     "el parser está leyendo mal el archivo, el diff no sería confiable.")
 
     expected: dict[tuple[str, str], set[str]] = {}
     for table, cols in common.items():

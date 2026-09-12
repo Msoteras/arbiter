@@ -35,6 +35,7 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.io.IOException;
+import java.math.BigDecimal;
 import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
@@ -164,13 +165,18 @@ public class ExpertAssessmentService {
      *
      * <p>A {@code FRAUD_CONFIRMED} verdict also leaves the fraud record on the insured, without a
      * second click: see {@link FraudRecordService#registerFromExpertReport}.
+     *
+     * <p>{@code indemnifiableAmount} is what the expert put the claim at, and it's optional: not
+     * every report ends in a number. It doesn't settle anything on its own — it reaches the
+     * settlement as the accredited amount's suggestion, and the analyst still takes it.
      */
     @Transactional
     public ExpertAssessmentResponse receiveReport(Long caseId, ExpertVerdict verdict, String note,
-                                                  MultipartFile report) {
+                                                  BigDecimal indemnifiableAmount, MultipartFile report) {
         Case caseRecord = findCase(caseId);
         ExpertAssessment assessment = awaitingAssessment(caseId, ProviderType.ESTUDIO_LIQUIDADOR);
         assessment.setVerdict(verdict);
+        assessment.setIndemnifiableAmount(indemnifiableAmount);
         finishRound(caseRecord, assessment, note, report, "informe de peritaje recibido: " + verdict);
 
         if (verdict == ExpertVerdict.FRAUD_CONFIRMED) {

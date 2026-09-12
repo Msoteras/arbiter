@@ -103,9 +103,8 @@ public class RulesServiceClient {
      * an empty list: empty is an answer ("this claim cause needs no documents"), null is the
      * absence of one. Same distinction rules-service makes internally
      * ({@code InternalDocumentRequirementService.getByCoverage}) and the wizard makes on screen.
-     * Today the caller lets a denuncia through on null rather than leaving the insured out because
-     * a service of ours is down; persisting that it came in unverified and retrying afterwards is
-     * its own story (gap doc §13).
+     * The caller lets a denuncia through on null rather than leaving the insured out because a
+     * service of ours is down, and marks it so {@code DocumentRecheckScheduler} checks it later.
      */
     public List<String> requiredDocumentTypes(String branch, String claimCause) {
         try {
@@ -123,6 +122,38 @@ public class RulesServiceClient {
                     branch, claimCause, e);
             return null;
         }
+    }
+
+    /**
+     * The short list of documents the expedited path requires for a coverage — the FIRST ROUND the
+     * insured is asked for when filing. Read off the same {@code /internal/fast-track} row the
+     * engine uses to resolve Fast Track, so the wizard asks for exactly what the gate will look at.
+     *
+     * <p>Empty (not null) when the insurer configured no list: that is an answer, and the caller
+     * falls back to the full schedule — with no list there would be nothing to ask for. {@code null}
+     * is the absence of an answer (rules-service didn't respond), and the caller files the denuncia
+     * marked as unverified, same contract as {@link #requiredDocumentTypes(String, String)}.
+     */
+    public List<String> fastTrackDocumentTypes(Long coverageId) {
+        try {
+            String serviceToken = JwtSupport.issueServiceToken(jwtKey, "cases-service-fast-track", TenantContext.get());
+            FastTrackConfigResponse config = restClient.get()
+                    .uri(uri -> uri.path("/api/v1/rules/internal/fast-track")
+                            .queryParam("coverageId", coverageId).build())
+                    .header(HttpHeaders.AUTHORIZATION, "Bearer " + serviceToken)
+                    .retrieve()
+                    .body(FastTrackConfigResponse.class);
+            return config == null || config.requiredDocumentTypes() == null
+                    ? List.of()
+                    : config.requiredDocumentTypes();
+        } catch (Exception e) {
+            log.error("Could not read the Fast Track document list for coverage {}", coverageId, e);
+            return null;
+        }
+    }
+
+    /** Mirrors the only field this client reads off rules-service's FastTrackConfigDto. */
+    private record FastTrackConfigResponse(List<String> requiredDocumentTypes) {
     }
 
     /**

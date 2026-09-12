@@ -66,7 +66,7 @@ public class InsurerDatabaseAdapter implements InsurerAdapter {
                         """
                         SELECT p.id, p.numero, p.rama, p.producto, p.bien_asegurado, p.imei,
                                p.vigencia_desde, p.vigencia_hasta,
-                               p.estado_pago, p.saldo_deuda,
+                               p.estado_pago, p.saldo_deuda, p.importe_cuota,
                                a.documento, a.nombre, a.apellido
                         FROM %1$s.poliza p
                         JOIN %1$s.asegurado a ON a.id = p.titular_id
@@ -84,6 +84,7 @@ public class InsurerDatabaseAdapter implements InsurerAdapter {
                                 rs.getObject("vigencia_hasta", LocalDateTime.class),
                                 rs.getString("estado_pago"),
                                 rs.getBigDecimal("saldo_deuda"),
+                                rs.getBigDecimal("importe_cuota"),
                                 rs.getString("documento"),
                                 rs.getString("nombre"),
                                 rs.getString("apellido")),
@@ -124,6 +125,8 @@ public class InsurerDatabaseAdapter implements InsurerAdapter {
                 .effectiveFrom(row.vigenciaDesde())
                 .effectiveTo(row.vigenciaHasta())
                 .upToDate(isUpToDate(row.estadoPago(), row.saldoDeuda()))
+                .installmentAmount(row.importeCuota())
+                .overdueBalance(row.saldoDeuda())
                 .insuredAmount(primary != null ? primary.insuredAmount() : null)
                 .deductible(primary != null ? primary.deductible() : null)
                 .coverages(coverages)
@@ -214,6 +217,7 @@ public class InsurerDatabaseAdapter implements InsurerAdapter {
             LocalDateTime vigenciaHasta,
             String estadoPago,
             BigDecimal saldoDeuda,
+            BigDecimal importeCuota,
             String documento,
             String nombre,
             String apellido

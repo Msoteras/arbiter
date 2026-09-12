@@ -52,7 +52,8 @@ type Band = 1 | 2 | 3 | 4 | null;
 export class FraudGaugeComponent {
   readonly band = input<Band>(null);
   /** Texto cuando band=null. El default "Sin datos" es ambiguo; el llamador puede pasar el
-   *  motivo real ("En proceso", "No aplica · Fast Track", "Sin evaluar"). Ver bugs-ux #20. */
+   *  motivo real ("En proceso", "No aplica · Fast Track", "Sin evaluar"). Sale del relevamiento
+   *  de UI de Aylén (#20), que vive fuera del repo. */
   readonly emptyLabel = input('Sin datos');
   protected readonly segments = [1, 2, 3, 4] as const;
   protected readonly widths = [30, 30, 20, 20];

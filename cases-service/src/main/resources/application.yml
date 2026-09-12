@@ -66,11 +66,23 @@ arbiter:
     # caso llegue a CLASSIFICATION_FAILED, así que reencolarlo segundos después solo martillaría un
     # dependiente que sigue caído. 5 min le da margen a esa ventana antes de volver a intentar.
     recovery-interval-ms: 300000
+  document-recheck:
+    # Comes back to the denuncias filed while the document schedule couldn't be read
+    # (rules-service down) and checks them once it answers. Same spacing as the classification
+    # recovery: if rules-service is still down, asking every few seconds won't bring it back.
+    interval-ms: ${DOCUMENT_RECHECK_INTERVAL_MS:300000}
   deadline-sweep:
     # Barre a diario los expedientes por vencer el plazo de respuesta (art. 56) y notifica al
     # analista los críticos/vencidos. Diario porque el plazo es a nivel día. En dev, bajarlo a
     # cada minuto (0 * * * * *) para probar el flujo sin esperar al horario.
     cron: ${DEADLINE_SWEEP_CRON:0 0 8 * * *}
+  policy-resync:
+    # Relee a diario todas las pólizas copiadas y las realinea con la BD Aseguradora (decisión #10,
+    # la mitad "cron"). A las 3 AM por horario de baja carga: recorre póliza por póliza. La copia
+    # local se escribía una sola vez, al importarla, así que un cambio de suma asegurada del lado de
+    # la compañía no llegaba nunca — y esa suma es el denominador del ratio de Fast Track y del
+    # factor amount_ratio del score.
+    cron: ${POLICY_RESYNC_CRON:0 0 3 * * *}
   messaging:
     # Días que la conversación del expediente sigue abierta después de resuelto. No es una regla
     # de la aseguradora (no se evalúa contra nada, no la configura el referente): es hasta cuándo

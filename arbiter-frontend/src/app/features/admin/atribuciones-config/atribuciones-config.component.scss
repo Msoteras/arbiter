@@ -1,0 +1,50 @@
+.section-hint {
+  margin: 0 0 var(--space-3);
+  font-size: var(--font-size-xs);
+  color: var(--text-secondary);
+  max-width: 68ch;
+}
+
+.rows {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-card);
+}
+
+.row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-4);
+  padding: var(--space-3);
+}
+
+.row + .row { border-top: 1px solid var(--border-subtle); }
+
+.row-text { display: flex; flex-direction: column; gap: var(--space-1); }
+
+.row-hint {
+  margin: 0;
+  font-size: var(--font-size-xs);
+  color: var(--text-muted);
+}
+
+.row-action {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+/* El input no compite con el nombre del ramo por el ancho: el dato que se lee es el ramo. */
+.row-action app-input { width: 12rem; }
+
+.rcard-note { margin: var(--space-2) 0 0; font-size: var(--font-size-xs); color: var(--text-muted); }
+.rcard-note.error { color: var(--status-danger); }
+
+/* En móvil la fila se apila: con el input al lado, el nombre del ramo quedaba en dos renglones. */
+@media (max-width: 640px) {
+  .row { flex-direction: column; align-items: stretch; }
+  .row-action app-input { width: auto; flex: 1 1 auto; }
+}

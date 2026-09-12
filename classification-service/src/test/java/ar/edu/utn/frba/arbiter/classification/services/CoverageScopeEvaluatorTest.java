@@ -103,7 +103,8 @@ class CoverageScopeEvaluatorTest {
     private Map<String, DocumentExtraction> documentSaying(AffectedParty affectedParty) {
         return Map.of("police_report", new DocumentExtraction(
                 "constancia", List.of(),
-                new DocumentExtraction.Fields(null, null, null, null, affectedParty)));
+                new DocumentExtraction.Fields(
+                        null, null, null, null, null, null, affectedParty, List.of())));
     }
 
     // ─── covers_family_group ──────────────────────────────────────────────────────

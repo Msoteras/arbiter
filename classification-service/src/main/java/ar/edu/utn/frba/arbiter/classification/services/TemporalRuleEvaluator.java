@@ -11,7 +11,6 @@ import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 
 import java.time.Duration;
-import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
@@ -249,16 +248,12 @@ public class TemporalRuleEvaluator {
                 || claim.eventDate() == null || history.claims() == null) {
             return;
         }
-        LocalDate eventDate = claim.eventDate().toLocalDate();
-        LocalDate windowStart = eventDate.minusYears(1);
-        long priorInWindow = history.claims().stream()
-                .filter(record -> record.date() != null)
-                .filter(record -> claim.branch() == null || claim.branch().equalsIgnoreCase(record.branch()))
-                .filter(record -> !record.date().isBefore(windowStart) && !record.date().isAfter(eventDate))
-                .count();
-        // The current claim isn't in the history yet: it would be the (priorInWindow + 1)-th.
-        outcome.record(rule, priorInWindow + 1 <= rules.maxEventsPerYear(),
-                "events12m=" + (priorInWindow + 1) + " max=" + rules.maxEventsPerYear(),
+        // Shared with the settlement, which prices the second event of the year at a reduced
+        // percentage: the quota and the percentage have to count the same events.
+        int ordinal = history.eventOrdinalFor(claim.eventDate().toLocalDate(), claim.branch());
+        int priorInWindow = ordinal - 1;
+        outcome.record(rule, ordinal <= rules.maxEventsPerYear(),
+                "events12m=" + ordinal + " max=" + rules.maxEventsPerYear(),
                 String.format("Supera el tope de %d siniestro(s) por año: %d siniestro(s) previo(s) "
                                 + "en los últimos 12 meses", rules.maxEventsPerYear(), priorInWindow));
     }

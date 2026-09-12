@@ -62,6 +62,21 @@ public class LapseSweepScheduler {
         }
     }
 
+    /**
+     * Cierra cada expediente dormido, tomando primero el turno sobre él.
+     *
+     * <p>{@code transitionIfStillIn} y no {@code transition} por lo mismo que documenta
+     * {@code CaseRepository.claimStatusTransition}: la lista se cargó al principio del barrido y el
+     * barrido no corre solo — la base de Railway es compartida por el equipo, así que cada stack
+     * local levantado suma otro {@code LapseSweepScheduler}. Validando contra la copia, dos barridos
+     * caducaban el mismo expediente y escribían dos filas en {@code case_status_history}. Acá duele
+     * más que en el barrido de clasificación: {@code LAPSED} está en el mapa de
+     * {@code CaseNotificationService}, así que el duplicado además le manda al asegurado dos veces
+     * "Tu siniestro caducó por falta de documentación".
+     *
+     * <p>El que pierde el turno no reintenta ni se loguea como error: el expediente ya quedó donde
+     * este barrido quería dejarlo, sólo que lo movió otro.
+     */
     private void sweepCurrentTenant(Instant threshold) {
         List<Case> stale = caseRepository.findStaleByStatus(CaseStatus.AWAITING_DOCUMENTATION.name(), threshold);
         if (stale.isEmpty()) {
@@ -70,7 +85,8 @@ public class LapseSweepScheduler {
         log.info("Lapse sweep: closing {} case(s) idle since before {} in {}",
                 stale.size(), threshold, TenantContext.get());
         for (Case caseRecord : stale) {
-            caseStatusService.transition(caseRecord, CaseStatus.LAPSED, StatusChangeActor.SYSTEM,
+            caseStatusService.transitionIfStillIn(caseRecord, CaseStatus.AWAITING_DOCUMENTATION,
+                    CaseStatus.LAPSED, StatusChangeActor.SYSTEM,
                     "Caducidad por " + INACTION_MONTHS
                             + " meses de inacción del asegurado desde la denuncia (regla interna)");
         }

@@ -4,6 +4,8 @@ import ar.edu.utn.frba.arbiter.common.dto.ClaimReport;
 import ar.edu.utn.frba.arbiter.classification.dto.InsuredHistory;
 import ar.edu.utn.frba.arbiter.classification.dto.InsuredPolicy;
 import ar.edu.utn.frba.arbiter.classification.dto.BusinessRules;
+import ar.edu.utn.frba.arbiter.classification.dto.RuleFinding;
+import ar.edu.utn.frba.arbiter.common.enums.RuleType;
 import org.junit.jupiter.api.Test;
 
 import java.math.BigDecimal;
@@ -222,6 +224,96 @@ class FastTrackValidatorTest {
 
         assertThat(result.fastTrack()).isFalse();
         assertThat(result.reasons()).anyMatch(r -> r.contains("No se pudo determinar la antigüedad"));
+    }
+
+    /**
+     * H0038: what the gate compared has to survive the run. One row per criterion, passes included
+     * — the analyst's question is "why did this Fast Track", and a table with only the failures
+     * can't answer it.
+     */
+    @Test
+    void everyCriterionComparedLeavesAnAuditableFinding() {
+        BusinessRules rules = baseRules()
+                .fastTrackThresholds(BusinessRules.FastTrackThresholds.builder()
+                        .maxClaimedAmountRatio(0.5)
+                        .maxPriorClaims(2)
+                        .priorClaimsWindowMonths(12)
+                        .minPolicyAgeMonths(6)
+                        .requiresUpToDatePolicy(true)
+                        .requiredDocumentTypes(List.of("police_report"))
+                        .build())
+                .build();
+
+        FastTrackValidator.Result result = validator.evaluate(
+                claim(new BigDecimal("100000")), policy(), history(0), rules,
+                Map.of("police_report", "texto de la denuncia"));
+
+        assertThat(result.fastTrack()).isTrue();
+        assertThat(result.findings()).extracting(RuleFinding::ruleType).containsExactlyInAnyOrder(
+                RuleType.FT_AMOUNT_RATIO.name(),
+                RuleType.FT_PRIOR_CLAIMS.name(),
+                RuleType.FT_POLICY_AGE.name(),
+                RuleType.FT_POLICY_UP_TO_DATE.name(),
+                RuleType.FT_REQUIRED_DOCS.name());
+        assertThat(result.findings()).allMatch(RuleFinding::passed);
+        // No rule id: the thresholds live in a FAST_TRACK insurer_rule row whose id doesn't travel.
+        assertThat(result.findings()).allMatch(f -> f.ruleId() == null);
+        assertThat(result.findings())
+                .filteredOn(f -> RuleType.FT_PRIOR_CLAIMS.name().equals(f.ruleType()))
+                .singleElement()
+                .extracting(RuleFinding::evaluatedValue)
+                .isEqualTo("priorClaims=0 max=2 windowMonths=12");
+    }
+
+    /** A criterion that fails is written too, with the number that made it fail. */
+    @Test
+    void aFailedCriterionSaysWhatItCompared() {
+        BusinessRules rules = baseRules()
+                .fastTrackThresholds(BusinessRules.FastTrackThresholds.builder()
+                        .maxClaimedAmountRatio(0.5)
+                        .build())
+                .build();
+
+        FastTrackValidator.Result result = validator.evaluate(
+                claim(new BigDecimal("360000")), policy(), history(0), rules, Map.of());
+
+        assertThat(result.fastTrack()).isFalse();
+        assertThat(result.findings()).singleElement().satisfies(finding -> {
+            assertThat(finding.ruleType()).isEqualTo(RuleType.FT_AMOUNT_RATIO.name());
+            assertThat(finding.passed()).isFalse();
+            // Sin el separador decimal: lo pone el locale de la JVM y no es lo que se testea.
+            assertThat(finding.evaluatedValue()).startsWith("ratio=90").contains("max=50");
+        });
+    }
+
+    /**
+     * Nothing to compare, nothing to write: with the documents already verified upstream the gate
+     * doesn't re-check them, and a PASS row would claim it verified paperwork it never saw.
+     */
+    @Test
+    void documentsAlreadyVerified_leavesNoDocumentFinding() {
+        BusinessRules rules = baseRules()
+                .fastTrackThresholds(BusinessRules.FastTrackThresholds.builder()
+                        .requiredDocumentTypes(List.of("police_report"))
+                        .build())
+                .build();
+
+        FastTrackValidator.Result result = validator.evaluate(
+                claim(new BigDecimal("1000")), policy(), history(0), rules, null);
+
+        assertThat(result.findings()).isEmpty();
+        assertThat(result.reasons()).anyMatch(r -> r.contains("ya verificada previamente"));
+    }
+
+    /** Neither does a gate that never got to compare anything. */
+    @Test
+    void withoutConfiguredThresholds_thereIsNothingToAudit() {
+        BusinessRules rules = baseRules().fastTrackThresholds(null).build();
+
+        FastTrackValidator.Result result = validator.evaluate(
+                claim(new BigDecimal("1000")), policy(), history(0), rules, Map.of());
+
+        assertThat(result.findings()).isEmpty();
     }
 
     private ClaimReport claim(BigDecimal claimedAmount) {

@@ -5,6 +5,7 @@ import ar.edu.utn.frba.arbiter.cases.models.entities.PolicySnapshot;
 import ar.edu.utn.frba.arbiter.common.enums.CaseStatus;
 import ar.edu.utn.frba.arbiter.common.enums.ClassificationFailureReason;
 import ar.edu.utn.frba.arbiter.common.enums.RiskBand;
+import ar.edu.utn.frba.arbiter.common.models.entities.CaseState;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
@@ -62,6 +63,30 @@ public interface CaseRepository extends JpaRepository<Case, Long>, JpaSpecificat
             """)
     List<Case> findUnansweredDueBy(@Param("threshold") LocalDate threshold,
                                    @Param("finalStatuses") Collection<String> finalStatuses);
+
+    /**
+     * The insured's OTHER claims, to travel with the {@code ClaimReport} as antecedents. The only
+     * one left out is the case being classified: it isn't its own antecedent.
+     *
+     * <p><b>No status filter, on purpose.</b> The company's own history doesn't have one either —
+     * {@code InsurerDatabaseAdapter.getHistory} reads every {@code siniestro_historico} row
+     * regardless of {@code estado_resolucion}, so a RECHAZADO already counts towards the annual cap
+     * and the Fast Track's previous-claims criterion. Filtering here would leave the two sources
+     * answering the same rule by different criteria. Whatever distinction a rule needs, it makes
+     * itself off the status that travels with each claim — the coverage-exhaustion check already
+     * does exactly that, counting only {@code LIQUIDADO}.
+     *
+     * <p>Scoped to the request's schema like every other query here, so it can only ever return
+     * claims of the same insurer: an antecedent at one company says nothing at another.
+     */
+    @EntityGraph(attributePaths = {"policy", "coverage", "claimCause", "claimCause.branch", "currentStatus"})
+    @Query("""
+            select c from Case c
+            where c.insured.dni = :dni
+              and c.id <> :excludedCaseId
+            order by c.occurredAt
+            """)
+    List<Case> findAntecedentsOf(@Param("dni") String dni, @Param("excludedCaseId") Long excludedCaseId);
 
     /**
      * Cases sitting in a given state. Takes the enum and navigates to {@code case_status.name}
@@ -191,6 +216,62 @@ public interface CaseRepository extends JpaRepository<Case, Long>, JpaSpecificat
             """)
     int claimFailedCaseForRequeue(@Param("caseId") Long caseId,
                                   @Param("expected") ClassificationFailureReason expected);
+
+    /**
+     * El tercer compare-and-set del barrido, y el que faltaba: el del camino <b>feliz</b>.
+     *
+     * <p>{@link #advanceClassificationAttempts} y {@link #claimFailedCaseForRequeue} cubren qué
+     * pasa cuando la clasificación falla o hay que reencolarla, pero cuando el resultado llega
+     * bien no había turno que tomar. {@code ClassificationServiceClient.refreshClassification}
+     * chequeaba el estado sobre la copia que el barrido cargó al principio de la vuelta, no sobre
+     * la base: con varios schedulers contra la misma base de Railway, los dos leían
+     * {@code PENDING_CLASSIFICATION} en su copia, los dos consultaban el resultado y los dos
+     * transicionaban — dos filas idénticas en {@code case_status_history} separadas por segundos,
+     * y dos mails al asegurado cuando el destino es uno de los que notifica.
+     *
+     * <p>Mover el estado <b>es</b> el turno acá: sólo uno puede pasar la fila de {@code expected}
+     * a {@code target}, el que llega tarde actualiza 0 filas y se retira sin escribir historial.
+     *
+     * <p>Escribe únicamente {@code current_status_id} — el resto de la fila lo persiste el que se
+     * quedó con el turno, releyendo la entidad después del CAS y no desde su copia vieja (mismo
+     * motivo que documenta {@link #updateClassificationAttempts}).
+     *
+     * @param expected el estado que el llamador da por cierto; si en la base ya es otro, no se pisa
+     * @return 1 si este barrido se quedó con el turno, 0 si otro llegó primero
+     */
+    @Transactional
+    @Modifying(flushAutomatically = true, clearAutomatically = true)
+    @Query("""
+            update Case c
+               set c.currentStatus = :target
+             where c.id = :caseId
+               and c.currentStatus = :expected
+            """)
+    int claimStatusTransition(@Param("caseId") Long caseId,
+                              @Param("expected") CaseState expected,
+                              @Param("target") CaseState target);
+
+    /** Cases filed while their document schedule couldn't be read — {@code DocumentRecheckScheduler}. */
+    List<Case> findByDocumentsUnverifiedSinceIsNotNull();
+
+    /**
+     * The document recheck sweep's turn, same role as {@link #claimFailedCaseForRequeue}: clearing
+     * the mark is what claims the case. The mark means exactly "nobody has checked this case's
+     * documents yet", so whoever clears it is the one who acts; a second sweep — the next tick, or
+     * another local stack against the shared database — updates 0 rows and walks away. That is
+     * what keeps the transition and the insured's notice from happening twice.
+     *
+     * @return 1 if this sweep claimed the case, 0 if another one got there first
+     */
+    @Transactional
+    @Modifying(flushAutomatically = true, clearAutomatically = true)
+    @Query("""
+            update Case c
+               set c.documentsUnverifiedSince = null
+             where c.id = :caseId
+               and c.documentsUnverifiedSince is not null
+            """)
+    int claimUnverifiedDocuments(@Param("caseId") Long caseId);
 
     /** Fila de {@link #countActiveByAnalyst(Collection)}: un analista y cuántos activos tiene. */
     interface AnalystCaseCount {

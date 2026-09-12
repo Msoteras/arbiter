@@ -1,5 +1,6 @@
 package ar.edu.utn.frba.arbiter.cases.services;
 
+import ar.edu.utn.frba.arbiter.cases.exceptions.CaseNotFoundException;
 import ar.edu.utn.frba.arbiter.cases.exceptions.InvalidStatusTransitionException;
 import ar.edu.utn.frba.arbiter.cases.models.entities.Case;
 import ar.edu.utn.frba.arbiter.cases.models.entities.CaseStatusHistory;
@@ -16,6 +17,7 @@ import java.time.Clock;
 import java.time.LocalDate;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 
 import static ar.edu.utn.frba.arbiter.common.enums.CaseStatus.*;
@@ -154,6 +156,60 @@ public class CaseStatusService {
             notificationService.notifyStatusChange(saved, to);
         }
         return saved;
+    }
+
+    /**
+     * {@link #transition} para los llamadores que <b>no</b> corren dentro de la transacción que
+     * cargó el expediente — hoy, el barrido de clasificación.
+     *
+     * <p>La diferencia es de dónde sale la garantía de que la transición corresponde. En
+     * {@link #transition} sale de la entidad: el llamador la acaba de leer en la misma request, así
+     * que {@code caseRecord.getStatus()} es la verdad. El barrido no tiene eso — su copia es de
+     * varios segundos atrás, y con varios schedulers contra la misma base (la de Railway es
+     * compartida por todo el equipo, cada stack local suma uno más) dos barridos llegaban con la
+     * misma copia en {@code PENDING_CLASSIFICATION} y los dos escribían la transición, duplicando
+     * la fila de {@code case_status_history} y el mail al asegurado.
+     *
+     * <p>Acá la garantía sale de la base: {@code claimStatusTransition} mueve el estado sólo si
+     * sigue siendo {@code expected}, y quien no se queda con el turno se retira sin escribir nada.
+     * Por eso el estado esperado se pasa explícito en vez de leerse de la entidad — la copia vieja
+     * no es autoridad sobre nada, ni siquiera sobre de dónde sale.
+     *
+     * <p>Devuelve la entidad <b>releída</b> después del CAS, no la que recibió: el llamador que se
+     * queda con el turno suele tener más que persistir (la caché del score, el informe forense), y
+     * guardarlo sobre la copia vieja reescribiría toda la fila desde un estado anterior — incluido
+     * el {@code current_status_id} que este método acaba de mover.
+     *
+     * @return el expediente ya movido, o vacío si otro llegó primero
+     */
+    @Transactional
+    public Optional<Case> transitionIfStillIn(Case caseRecord, CaseStatus expected, CaseStatus to,
+                                              StatusChangeActor actor, String reason) {
+        Set<CaseStatus> allowed = VALID_TRANSITIONS.getOrDefault(expected, Set.of());
+        if (!allowed.contains(to)) {
+            throw new InvalidStatusTransitionException(expected, to);
+        }
+
+        CaseState from = caseStateCatalog.resolve(expected);
+        CaseState target = caseStateCatalog.resolve(to);
+        if (caseRepository.claimStatusTransition(caseRecord.getId(), from, target) == 0) {
+            return Optional.empty();
+        }
+
+        Case moved = caseRepository.findById(caseRecord.getId())
+                .orElseThrow(() -> new CaseNotFoundException(caseRecord.getId()));
+        appendHistory(moved.getId(), from, target, actor, reason);
+        resumeDeadlineIfInterrupted(moved, expected, to);
+        Case saved = caseRepository.save(moved);
+
+        // Mismo criterio que transition(): después de persistir, y nunca para
+        // PENDING_CLASSIFICATION (ver recordCreation).
+        if (isReopening(expected, to)) {
+            notificationService.notifyReopened(saved);
+        } else if (to != PENDING_CLASSIFICATION) {
+            notificationService.notifyStatusChange(saved, to);
+        }
+        return Optional.of(saved);
     }
 
     /**

@@ -6,10 +6,12 @@ import ar.edu.utn.frba.arbiter.cases.dto.AnalystDecisionRequest;
 import ar.edu.utn.frba.arbiter.cases.models.entities.CaseDocument;
 import ar.edu.utn.frba.arbiter.cases.models.entities.Case;
 import ar.edu.utn.frba.arbiter.cases.models.entities.StatusChangeActor;
+import ar.edu.utn.frba.arbiter.cases.models.repositories.CaseRepository;
 import ar.edu.utn.frba.arbiter.common.dto.ClaimReport;
 import ar.edu.utn.frba.arbiter.common.dto.ClaimResponse;
 import ar.edu.utn.frba.arbiter.common.dto.FraudRecordRequest;
 import ar.edu.utn.frba.arbiter.common.dto.FraudRecordResponse;
+import ar.edu.utn.frba.arbiter.common.dto.PriorClaim;
 import ar.edu.utn.frba.arbiter.common.dto.RuleResultResponse;
 import ar.edu.utn.frba.arbiter.common.enums.CaseStatus;
 import ar.edu.utn.frba.arbiter.common.enums.Classification;
@@ -34,6 +36,7 @@ import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.stream.Collectors;
 
 @Component
@@ -43,18 +46,21 @@ public class ClassificationServiceClient implements ClaimsAnalysisClient {
 
     private final RestClient restClient;
     private final CaseStatusService caseStatusService;
+    private final CaseRepository caseRepository;
     private final HttpServletRequest currentRequest;
     private final SecretKey jwtKey;
 
     public ClassificationServiceClient(
             RestClient.Builder restClientBuilder,
             CaseStatusService caseStatusService,
+            CaseRepository caseRepository,
             @Value("${arbiter.classification-service.url:http://classification-service:8082}") String classificationServiceUrl,
             HttpServletRequest currentRequest,
             @Value("${arbiter.auth.jwt.secret}") String jwtSecret
     ) {
         this.restClient = restClientBuilder.baseUrl(classificationServiceUrl).build();
         this.caseStatusService = caseStatusService;
+        this.caseRepository = caseRepository;
         this.currentRequest = currentRequest;
         this.jwtKey = JwtSupport.key(jwtSecret);
     }
@@ -108,6 +114,46 @@ public class ClassificationServiceClient implements ClaimsAnalysisClient {
         return new AnalysisResult(null, 0.0, "Classification in progress");
     }
 
+    /**
+     * Los otros siniestros del asegurado en esta aseguradora, con la forma que el motor ya consume
+     * para el histórico de la compañía — así las dos fuentes se fusionan en una sola lista y cada
+     * regla (tope anual, agotamiento de cobertura, el prompt) las cuenta sin distinguir de dónde
+     * salió cada una.
+     *
+     * <p>Se lee en cada disparo y no se cachea: entre la denuncia y un reintento de clasificación
+     * pueden pasar horas, y el conteo tiene que ser el de la corrida, no el del alta.
+     *
+     * <p><b>Van todos, sin filtrar por estado</b>, igual que el histórico de la compañía: ese
+     * {@code SELECT} sobre {@code siniestro_historico} tampoco mira {@code estado_resolucion}, así
+     * que un siniestro RECHAZADO ya cuenta hoy para el tope anual y para el criterio de siniestros
+     * previos del Fast Track. Filtrar de este lado dejaba las dos fuentes con criterios distintos
+     * para la misma regla, que es exactamente lo que hace que después nadie pueda explicar un
+     * resultado. La distinción por estado la hace cada regla que la necesita: la de agotamiento de
+     * cobertura ya filtra por {@code LIQUIDADO}, porque solo lo pagado consume la suma asegurada.
+     *
+     * <p>Sin monto liquidado a propósito: pagar es un paso de la compañía que ocurre fuera de la
+     * plataforma, así que un expediente de Arbiter no tiene con qué llenarlo. Dejarlo en null es lo
+     * que hace que estos no ensucien el total indemnizado del asegurado — y que un expediente
+     * aprobado por el analista no consuma la cobertura hasta que la compañía efectivamente pague.
+     */
+    private List<PriorClaim> antecedentsOf(Case caseRecord) {
+        List<PriorClaim> antecedents = caseRepository
+                .findAntecedentsOf(caseRecord.getInsured().getDni(), caseRecord.getId())
+                .stream()
+                .map(prior -> PriorClaim.builder()
+                        .caseId(prior.getId())
+                        .eventDate(prior.getOccurredAt() == null ? null : prior.getOccurredAt().toLocalDate())
+                        .policyNumber(prior.getPolicy().getExternalPolicyNumber())
+                        .branch(prior.getClaimCause().getBranch().getName())
+                        .coverageName(prior.getCoverage() == null ? null : prior.getCoverage().getName())
+                        .claimCause(prior.getClaimCause().getName())
+                        .status(prior.getStatus().name())
+                        .build())
+                .toList();
+        log.info("[ClaimsAnalysis] {} antecedent(s) in Arbiter for case {}", antecedents.size(), caseRecord.getId());
+        return antecedents;
+    }
+
     private void postClassify(Case caseRecord, List<CaseDocument> documents, String authorizationHeader) {
         // The contract with classification-service is unchanged: still plain strings, only now
         // read off the joins instead of off denormalized columns.
@@ -135,6 +181,11 @@ public class ClassificationServiceClient implements ClaimsAnalysisClient {
                 .policeReportAt(caseRecord.getPoliceReportAt())
                 .imageConsent(caseRecord.getInsured().isImageConsent())
                 .attachmentsOcr(List.of())
+                // Los siniestros que el asegurado ya denunció por Arbiter. El histórico de la BD
+                // Aseguradora solo tiene lo que la compañía liquidó en sus sistemas: todo lo que se
+                // denuncia desde acá nace en Arbiter y no vuelve, así que sin esto el tope anual y
+                // el criterio de siniestros previos del Fast Track leen cero para siempre.
+                .priorClaims(antecedentsOf(caseRecord))
                 .build();
 
         MultiValueMap<String, Object> body = new LinkedMultiValueMap<>();
@@ -195,22 +246,38 @@ public class ClassificationServiceClient implements ClaimsAnalysisClient {
                     .body(ClaimResponse.class);
 
             if (response != null && response.classification() != null) {
+                // El estado se mueve ANTES de cachear nada, y con un compare-and-set contra la
+                // base: la guarda de arriba mira la copia del barrido, que es de varios segundos
+                // atrás, así que con dos schedulers sobre la misma base los dos la pasaban y los
+                // dos transicionaban. El que no se queda con el turno se va sin escribir.
+                Optional<Case> claimed = caseStatusService.transitionIfStillIn(
+                        caseRecord, CaseStatus.PENDING_CLASSIFICATION,
+                        statusFor(response.classification()), StatusChangeActor.SYSTEM,
+                        "clasificación: " + response.classification());
+                if (claimed.isEmpty()) {
+                    log.debug("Case {} already resolved by another sweep, skipping", caseRecord.getId());
+                    return true;
+                }
+
+                // Sobre la entidad releída después del CAS, no sobre `caseRecord`: guardar la copia
+                // vieja reescribe la fila entera desde un estado anterior, incluido el estado que
+                // se acaba de mover.
+                Case resolved = claimed.get();
                 // La recomendación, su confianza y sus motivos NO se copian: viven en llm_analysis,
                 // en este mismo esquema, y CaseAnalysisRepository los joinea al armar la respuesta.
                 // Acá solo queda lo que la bandeja filtra, más lo que no tiene otra tabla de dónde
                 // salir (was_fast_track, forensic_report).
-                caseRecord.setDeterministicFastTrack(response.deterministicFastTrack());
+                resolved.setDeterministicFastTrack(response.deterministicFastTrack());
                 // Cache the parallel risk score. Null when "sin scorear" (no config) — kept null,
                 // never coerced to a band, so the read model can show "Sin datos".
-                caseRecord.setRiskScore(response.riskScore());
-                caseRecord.setRiskBand(response.riskBand());
+                resolved.setRiskScore(response.riskScore());
+                resolved.setRiskBand(response.riskBand());
                 // insuredName is no longer cached off the poll: the case joins `insured` directly,
                 // so the name is always there instead of appearing with the first classification.
                 // Cache the structured image-fraud analysis for the analyst's forensic tab
                 // (H0009). Null when no analysis ran (Fast Track, or a case with no images).
-                caseRecord.setForensicReport(response.forensicReport());
-                caseStatusService.transition(caseRecord, statusFor(response.classification()),
-                        StatusChangeActor.SYSTEM, "clasificación: " + response.classification());
+                resolved.setForensicReport(response.forensicReport());
+                caseRepository.save(resolved);
                 return true;
             }
         } catch (RestClientResponseException exception) {

@@ -31,6 +31,7 @@ import java.math.BigDecimal;
 import java.time.Instant;
 import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Optional;
 import java.util.stream.Collectors;
@@ -113,12 +114,13 @@ public class ClassificationResultsService {
     }
 
     /**
-     * Audits the hard rules evaluated (today, coverage exclusions) in {@code rule_result} — closes
-     * D4c: the table existed with an entity and repository but zero writers. Both PASS and FAIL are
-     * written: SSN Disposition 2/2023's audit is "which rule was evaluated and with what result",
-     * not just the rejections. {@code rule_id} is a NOT NULL FK to {@code insurer_rule} and travels
-     * from the evaluated rule. Only in the flow with a {@code caseId}: the row references
-     * {@code cases(id)}, so the isolated flow (no case) doesn't write.
+     * Audits everything the engine evaluated in {@code rule_result} — closes D4c: the table existed
+     * with an entity and repository but zero writers. Both PASS and FAIL are written: SSN
+     * Disposition 2/2023's audit is "which rule was evaluated and with what result", not just the
+     * rejections. {@code rule_id} travels from the evaluated rule and is null for what isn't an
+     * {@code insurer_rule} row — the coverage-scope rules and the Fast Track gate's criteria. Only
+     * in the flow with a {@code caseId}: the row references {@code cases(id)}, so the isolated flow
+     * (no case) doesn't write.
      */
     private void saveRuleResults(Long caseId, ClassificationResponse response) {
         if (caseId == null || response.ruleFindings() == null || response.ruleFindings().isEmpty()) {
@@ -174,11 +176,28 @@ public class ClassificationResultsService {
     /**
      * Empty when no rule ran — the insurer has none active, or the claim stopped at the
      * missing-documents check. A Fast Track is <b>not</b> one of those cases: the hard rules run
-     * before the gate and their passes are written here.
+     * before the gate and their passes are written here, and so are the gate's own criteria.
+     *
+     * <p><b>Only the last evaluation of each rule.</b> The table is append-only and every
+     * reclassification writes its own set, so a case retried three times had the same rule three
+     * times on screen — and if the referente changed a threshold in between, twice with opposite
+     * results. The analyst reads it as "how did this rule end up", so the newest row per rule wins.
+     * Nothing is deleted: the earlier rows stay in the table, which is what the audit needs.
+     *
+     * <p>The identity of a rule is {@code (rule_type, rule_id)} and not the type alone: one run can
+     * legitimately write several {@code COVERAGE_EXCLUSION} rows, one per configured rule, and
+     * collapsing them by type would hide all but one.
      */
     @Transactional
     public List<RuleResultResponse> getRuleResults(Long caseId) {
         return ruleResultRepository.findByCaseIdOrderByEvaluatedAtAsc(caseId).stream()
+                .collect(Collectors.toMap(
+                        r -> r.getRuleType() + "#" + r.getRuleId(),
+                        r -> r,
+                        // Ascending order, so the later row is the one that stays.
+                        (older, newer) -> newer,
+                        LinkedHashMap::new))
+                .values().stream()
                 .map(r -> new RuleResultResponse(
                         r.getId(),
                         r.getRuleType(),

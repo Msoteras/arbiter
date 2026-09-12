@@ -9,6 +9,7 @@ import ar.edu.utn.frba.arbiter.cases.dto.CaseRequest;
 import ar.edu.utn.frba.arbiter.cases.dto.CaseResponse;
 import ar.edu.utn.frba.arbiter.cases.dto.DocumentAnalysisSummary;
 import ar.edu.utn.frba.arbiter.cases.dto.EligibilityCheckRequest;
+import ar.edu.utn.frba.arbiter.cases.dto.IntakeDocumentsResponse;
 import ar.edu.utn.frba.arbiter.cases.dto.EligibilityCheckResponse;
 import ar.edu.utn.frba.arbiter.cases.dto.LensSummaryResponse;
 import ar.edu.utn.frba.arbiter.cases.dto.PolicyResponse;
@@ -29,13 +30,16 @@ import ar.edu.utn.frba.arbiter.cases.exceptions.CaseNotFoundException;
 import ar.edu.utn.frba.arbiter.cases.exceptions.DocumentNotFoundException;
 import ar.edu.utn.frba.arbiter.cases.exceptions.DocumentReadException;
 import ar.edu.utn.frba.arbiter.cases.exceptions.InsuredIdentityMismatchException;
+import ar.edu.utn.frba.arbiter.cases.exceptions.RulesUnavailableException;
 import ar.edu.utn.frba.arbiter.cases.exceptions.InvalidAnalystDecisionException;
+import ar.edu.utn.frba.arbiter.cases.exceptions.InvalidSettlementException;
 import ar.edu.utn.frba.arbiter.cases.exceptions.InvalidStatusTransitionException;
 import ar.edu.utn.frba.arbiter.cases.exceptions.MissingRequiredDocumentsException;
 import ar.edu.utn.frba.arbiter.cases.exceptions.PolicyInsuredMismatchException;
 import ar.edu.utn.frba.arbiter.cases.exceptions.PolicyNotEligibleException;
 import ar.edu.utn.frba.arbiter.cases.models.entities.CaseDocument;
 import ar.edu.utn.frba.arbiter.cases.models.entities.Case;
+import ar.edu.utn.frba.arbiter.cases.models.entities.CaseSettlement;
 import ar.edu.utn.frba.arbiter.common.models.entities.tenant.Insured;
 import ar.edu.utn.frba.arbiter.cases.models.entities.Policy;
 import ar.edu.utn.frba.arbiter.cases.models.entities.PolicyCoverage;
@@ -50,10 +54,12 @@ import ar.edu.utn.frba.arbiter.cases.models.repositories.CaseRepository;
 import ar.edu.utn.frba.arbiter.cases.models.repositories.CaseSpecifications;
 import ar.edu.utn.frba.arbiter.cases.models.repositories.ClaimsAnalystRepository;
 import ar.edu.utn.frba.arbiter.cases.models.repositories.ExpertAssessmentRepository;
+import ar.edu.utn.frba.arbiter.cases.models.repositories.UserRepository;
 import ar.edu.utn.frba.arbiter.common.models.entities.tenant.ClaimsAnalyst;
 import ar.edu.utn.frba.arbiter.common.dto.RuleResultResponse;
 import ar.edu.utn.frba.arbiter.common.enums.CaseStatus;
 import ar.edu.utn.frba.arbiter.common.enums.CauseConsistency;
+import ar.edu.utn.frba.arbiter.common.enums.SettlementStatus;
 import ar.edu.utn.frba.arbiter.common.enums.Classification;
 import ar.edu.utn.frba.arbiter.common.enums.DeadlinePriority;
 import ar.edu.utn.frba.arbiter.common.enums.RiskBand;
@@ -69,6 +75,7 @@ import org.springframework.web.multipart.MultipartFile;
 
 import java.io.IOException;
 import java.time.Clock;
+import java.time.Instant;
 import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.Comparator;
@@ -99,6 +106,8 @@ public class CaseServiceImpl implements CaseService {
     private final PolicyCoverageResolver policyCoverageResolver;
     private final InsuredCaseAggregator insuredCaseAggregator;
     private final PolicyTenantLocator policyTenantLocator;
+    private final SettlementService settlementService;
+    private final UserRepository userRepository;
     private final InsurerRepository insurerRepository;
     private final PolicyService policyService;
     private final InsurerTenantScope tenantScope;
@@ -131,17 +140,26 @@ public class CaseServiceImpl implements CaseService {
      * mandatory, so the whole list is required, and a claim cause with no schedule requires
      * nothing.
      *
-     * <p>An unreadable schedule ({@code null}, as opposed to an empty one) lets the denuncia
-     * through. Leaving the insured out because a service of ours is down would be worse than
-     * taking in a case whose completeness we check later — which is what the engine's own
-     * missing-documents gate already does over the same schedule. Persisting that it came in
-     * unverified and retrying the check afterwards is its own story (gap doc §13).
+     * <p>What's demanded here is the FIRST ROUND — what the expedited path requires — and not the
+     * whole schedule: a claim that Fast Tracks never needed the rest, and one that doesn't is asked
+     * for it at classification time ({@code FALTA_DOCUMENTACION} → {@code AWAITING_DOCUMENTATION}).
+     *
+     * <p>An unreadable list ({@code null}, as opposed to an empty one) lets the denuncia through.
+     * Leaving the insured out because a service of ours is down would be worse than taking in a
+     * case whose completeness we check later — so the case goes in marked
+     * ({@code documentsUnverifiedSince}) and {@code DocumentRecheckScheduler} comes back to it
+     * once rules-service answers.
+     *
+     * @return {@code false} when the list couldn't be read, so the case goes in marked
      */
-    private void assertRequiredDocumentsPresent(
-            String branch, String claimCause, Map<String, MultipartFile> documents) {
-        List<String> required = rulesServiceClient.requiredDocumentTypes(branch, claimCause);
-        if (required == null || required.isEmpty()) {
-            return;
+    private boolean verifyRequiredDocuments(
+            Long coverageId, String branch, String claimCause, Map<String, MultipartFile> documents) {
+        List<String> required = intakeDocumentTypes(coverageId, branch, claimCause);
+        if (required == null) {
+            return false;
+        }
+        if (required.isEmpty()) {
+            return true;
         }
         Set<String> attached = documents == null ? Set.of() : documents.entrySet().stream()
                 .filter(entry -> entry.getValue() != null && !entry.getValue().isEmpty())
@@ -151,6 +169,7 @@ public class CaseServiceImpl implements CaseService {
         if (!missing.isEmpty()) {
             throw new MissingRequiredDocumentsException(missing);
         }
+        return true;
     }
 
     private CaseResponse createCaseInIssuingTenant(CaseRequest request, Map<String, MultipartFile> documents) {
@@ -195,7 +214,8 @@ public class CaseServiceImpl implements CaseService {
                 request.policyNumber(), request.eventDate(), request.policeReportAt(),
                 contracted.getCoverage(), claimCause);
 
-        assertRequiredDocumentsPresent(request.branch(), request.claimCause(), documents);
+        boolean documentsVerified = verifyRequiredDocuments(
+                contracted.getCoverage().getId(), request.branch(), request.claimCause(), documents);
 
         Case entity = Case.builder()
                 .claimCause(claimCause)
@@ -212,6 +232,7 @@ public class CaseServiceImpl implements CaseService {
                 .claimedAmount(request.claimedAmount())
                 .responseDeadline(LocalDate.now(clock).plusDays(CaseStatusService.RESPONSE_TERM_DAYS))
                 .currentStatus(caseStatusService.initialStatus())
+                .documentsUnverifiedSince(documentsVerified ? null : Instant.now(clock))
                 .build();
 
         Case saved = caseRepository.save(entity);
@@ -229,6 +250,58 @@ public class CaseServiceImpl implements CaseService {
                 issuer == null ? null : InsurerSlug.of(issuer),
                 issuer == null ? null : issuer.getName(),
                 List.of());
+    }
+
+    /**
+     * The first round: what the expedited path requires for this coverage, falling back to the full
+     * schedule when the insurer configured no list — with nothing to ask for, the case would reach
+     * the analyst without a single document.
+     *
+     * @return {@code null} when rules-service couldn't be read at all
+     */
+    private List<String> intakeDocumentTypes(Long coverageId, String branch, String claimCause) {
+        List<String> fastTrackDocs = rulesServiceClient.fastTrackDocumentTypes(coverageId);
+        if (fastTrackDocs == null) {
+            return null;
+        }
+        return fastTrackDocs.isEmpty()
+                ? rulesServiceClient.requiredDocumentTypes(branch, claimCause)
+                : fastTrackDocs;
+    }
+
+    @Override
+    public IntakeDocumentsResponse intakeDocuments(String policyNumber, String branch, String claimCause) {
+        // Misma maniobra de tenant que checkEligibility: la póliza puede ser de otra aseguradora
+        // que la del login, y la cobertura y las reglas se leen en el esquema que la emitió.
+        String issuingTenant = policyTenantLocator.locate(policyNumber);
+        String callerTenant = TenantContext.get();
+        TenantContext.set(issuingTenant);
+        try {
+            // Se resuelve contra el DNI del token, no contra un parámetro: así nadie pregunta por
+            // la póliza de otra persona.
+            Insured insured = referenceResolver.resolveInsured(CallerContext.get().insuredId());
+            Policy policy = referenceResolver.resolvePolicy(policyNumber, insured.getId());
+            ClaimCause cause = referenceResolver.resolveClaimCause(branch, claimCause);
+            PolicyCoverage contracted = policyCoverageResolver.resolveFor(policy.getId(), cause.getId());
+
+            List<String> fastTrackDocs = rulesServiceClient.fastTrackDocumentTypes(
+                    contracted.getCoverage().getId());
+            if (fastTrackDocs == null) {
+                throw new RulesUnavailableException(new IllegalStateException(
+                        "No se pudo leer la documentación requerida para el alta"));
+            }
+            if (!fastTrackDocs.isEmpty()) {
+                return new IntakeDocumentsResponse(fastTrackDocs, true);
+            }
+            List<String> schedule = rulesServiceClient.requiredDocumentTypes(branch, claimCause);
+            if (schedule == null) {
+                throw new RulesUnavailableException(new IllegalStateException(
+                        "No se pudo leer la agenda documental"));
+            }
+            return new IntakeDocumentsResponse(schedule, false);
+        } finally {
+            TenantContext.set(callerTenant);
+        }
     }
 
     @Override
@@ -484,7 +557,8 @@ public class CaseServiceImpl implements CaseService {
 
         CaseLensCountRepository.LensCounts counts = caseRepository.countLenses(spec, me);
         return new LensSummaryResponse(
-                counts.all(), counts.mine(), counts.assigned(), counts.unassigned(), counts.fraud());
+                counts.all(), counts.mine(), counts.assigned(), counts.unassigned(), counts.fraud(),
+                counts.open(), counts.closed());
     }
 
     /**
@@ -681,7 +755,13 @@ public class CaseServiceImpl implements CaseService {
         return entity;
     }
 
+    /**
+     * {@code @Transactional} porque desde que la decisión también determina el monto acá se
+     * escriben dos cosas —la liquidación y la transición del expediente— y un expediente aprobado
+     * sin liquidación (o al revés) es peor que una decisión que falló entera.
+     */
     @Override
+    @Transactional
     public void recordAnalystDecision(Long caseId, AnalystDecisionRequest request) {
         Case entity = caseRepository.findById(caseId)
                 .orElseThrow(() -> new CaseNotFoundException(caseId));
@@ -716,17 +796,99 @@ public class CaseServiceImpl implements CaseService {
             throw new CaseAssignedToAnotherAnalystException(caseId);
         }
 
+        // Aprobar es también determinar cuánto se paga: el procedimiento de la compañía lo trata
+        // como un solo acto del analista (NSIN001 §5.2.1.2), y aprobar sin monto deja a la
+        // aseguradora con un siniestro que debe por una suma que nadie fijó. Se valida antes de
+        // mandar nada: una decisión que va a fallar no tiene que llegar al log de auditoría.
+        if (targetStatus == CaseStatus.APPROVED && request.settlement() == null) {
+            throw InvalidSettlementException.missing();
+        }
+        if (targetStatus == CaseStatus.REJECTED && request.settlement() != null) {
+            throw InvalidSettlementException.notApplicable();
+        }
+
+        // Primero la liquidación, porque puede frenar todo lo demás: si el monto supera la
+        // atribución del analista para el ramo (Anexo II), la aprobación NO se registra todavía
+        // —queda esperando al referente— y el expediente se queda donde está. Registrarla igual
+        // dejaría un veredicto que no surtió efecto, y si el referente después la devuelve,
+        // dos decisiones para un mismo siniestro.
+        if (targetStatus == CaseStatus.APPROVED) {
+            CaseSettlement settlement = settlementService.confirm(
+                    entity, analyst.getId(), request.justification(), request.settlement());
+            if (settlement.getStatus() == SettlementStatus.PENDING_AUTHORIZATION) {
+                return;
+            }
+        }
+
+        resolve(entity, targetStatus, analyst.getId(), request.decision(), request.justification());
+    }
+
+    /**
+     * Registra la decisión del analista y mueve el expediente. Sale de
+     * {@link #recordAnalystDecision} porque hay dos momentos en que esto ocurre: cuando el monto
+     * entra en la atribución del analista (ahí mismo) y cuando el referente autoriza uno que la
+     * superaba (más tarde, desde {@link #authorizeSettlement}). Es el mismo acto y tiene que
+     * dejar el mismo rastro.
+     */
+    private void resolve(Case entity, CaseStatus targetStatus, Long analystId,
+                         String decision, String justification) {
         // El contador vivo es de `cases`; el registro auditable se queda con su valor final, así
         // que se lo mandamos nosotros — el frontend no lo conoce, igual que con analystId.
+        // La liquidación NO viaja: classification-service audita el veredicto, la plata es
+        // registro propio de este módulo.
         AnalystDecisionRequest audited = new AnalystDecisionRequest(
-                analyst.getId(), request.decision(), request.justification(), entity.getClassificationAttempts());
+                analystId, decision, justification, entity.getClassificationAttempts(), null);
 
         // The decision row is created there, so its id only exists after the call. Storing it
         // links the case to the model run the verdict was based on.
-        entity.setClassificationId(claimsAnalysisClient.forwardAnalystDecision(caseId, audited));
+        entity.setClassificationId(claimsAnalysisClient.forwardAnalystDecision(entity.getId(), audited));
 
         caseStatusService.transition(entity, targetStatus,
-                StatusChangeActor.ANALYST, "decisión del analista: " + request.decision());
+                StatusChangeActor.ANALYST, "decisión del analista: " + decision);
+    }
+
+    /**
+     * El referente firma un monto que superaba la atribución del analista, y recién ahí la
+     * aprobación surte efecto: se registra la decisión con la justificación que el analista había
+     * dejado en custodia, y el expediente pasa a APROBADO (que es lo que dispara el mail con el
+     * monto). Para el asegurado, todo esto fue un solo paso.
+     */
+    @Override
+    @Transactional
+    public void authorizeSettlement(Long caseId) {
+        Case entity = caseRepository.findById(caseId)
+                .orElseThrow(() -> new CaseNotFoundException(caseId));
+
+        CaseSettlement pending = settlementService.require(caseId);
+        // Se lee ANTES de marcarla: markAuthorized la vacía, porque a partir de ahí la
+        // justificación vive en case_classification.
+        String justification = pending.getPendingJustification();
+        Long analystId = pending.getAnalystId();
+
+        settlementService.markAuthorized(caseId, currentUserId());
+        resolve(entity, CaseStatus.APPROVED, analystId, "APPROVE", justification);
+    }
+
+    /**
+     * El referente devuelve la liquidación con un motivo. El expediente no se mueve —nunca salió
+     * de la revisión del analista— y no hay decisión que deshacer, justamente porque no se había
+     * registrado ninguna.
+     */
+    @Override
+    @Transactional
+    public void returnSettlement(Long caseId, String reason) {
+        settlementService.returnToAnalyst(caseId, currentUserId(), reason);
+    }
+
+    /** El id del que llama, resuelto contra arbiter_common.users por el mail del JWT. */
+    private Long currentUserId() {
+        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+        if (authentication == null) {
+            return null;
+        }
+        return userRepository.findByEmail(authentication.getName())
+                .map(ar.edu.utn.frba.arbiter.common.models.entities.User::getId)
+                .orElse(null);
     }
 
     /** Recién creado o recién reencolado: todavía no hay clasificación que mostrar. */
