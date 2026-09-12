@@ -34,6 +34,21 @@ public enum RuleType {
     /** Branch-level free-text business rules — go into the prompt, nobody evaluates them. */
     BUSINESS_RULES(false),
 
+    /**
+     * How many days the insurer gives itself to resolve a claim — its own service target, in the
+     * {@code configuration} JSONB as {@code targetDays}. Insurer-wide ({@code branch_id} and
+     * {@code coverage_id} both null).
+     *
+     * <p>Configuration, not a rule: nothing evaluates it against a claim, it blocks nothing and it
+     * leaves no {@code rule_result}. The only reader is reports-service, which uses it to say how
+     * many of the claims decided in a period took longer than the insurer set out to take.
+     *
+     * <p><b>It is not the legal deadline.</b> That one is {@code cases.response_deadline}, per
+     * claim, and missing it is a regulatory problem. This is a management goal the referente sets
+     * and can be tighter than the law — the two are measured separately on purpose.
+     */
+    RESOLUTION_TARGET(false),
+
     /** Blacklist of hechos generadores the coverage doesn't cover (D3). */
     COVERAGE_EXCLUSION(true),
 
