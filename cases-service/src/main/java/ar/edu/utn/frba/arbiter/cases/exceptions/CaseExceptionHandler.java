@@ -84,13 +84,13 @@ public class CaseExceptionHandler extends ResponseEntityExceptionHandler {
         return ProblemDetail.forStatusAndDetail(HttpStatusCode.valueOf(400), ex.getMessage());
     }
 
-    /** El expediente todavía no tiene analista asignado — no hay quién lo decida. */
+    /** El expediente todavía no tiene analista asignado — no hay quién decida ni derive. */
     @ExceptionHandler(CaseNotAssignedException.class)
     public ProblemDetail handleCaseNotAssigned(CaseNotAssignedException ex) {
         return ProblemDetail.forStatusAndDetail(HttpStatusCode.valueOf(409), ex.getMessage());
     }
 
-    /** Solo el analista asignado puede aprobar/rechazar — cualquier otro, aunque sea analista, no. */
+    /** Solo el analista asignado puede aprobar/rechazar/derivar — cualquier otro, aunque sea analista, no. */
     @ExceptionHandler(CaseAssignedToAnotherAnalystException.class)
     public ProblemDetail handleCaseAssignedToAnotherAnalyst(CaseAssignedToAnotherAnalystException ex) {
         return ProblemDetail.forStatusAndDetail(HttpStatusCode.valueOf(403), ex.getMessage());

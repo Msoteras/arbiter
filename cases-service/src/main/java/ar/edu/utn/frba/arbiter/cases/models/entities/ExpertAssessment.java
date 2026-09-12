@@ -1,5 +1,7 @@
 package ar.edu.utn.frba.arbiter.cases.models.entities;
 
+import ar.edu.utn.frba.arbiter.cases.dto.ProviderType;
+import ar.edu.utn.frba.arbiter.cases.dto.RepairOutcome;
 import ar.edu.utn.frba.arbiter.common.enums.ExpertVerdict;
 import ar.edu.utn.frba.arbiter.common.models.entities.tenant.ClaimsAnalyst;
 import jakarta.persistence.Column;
@@ -32,11 +34,12 @@ import java.time.Instant;
  * suspicion into a verified fact — or discards it. It still resolves nothing: the case returns
  * to the analyst, who decides (decisión de arquitectura #5).
  *
- * <p>One row per case: the analyst derives once.
+ * <p>Una fila por caso y por tipo de proveedor: un expediente puede ir al estudio liquidador,
+ * volver sin fraude, y recién entonces al servicio técnico.
  */
 @Entity
 @Table(name = "expert_assessment",
-        uniqueConstraints = @UniqueConstraint(columnNames = "case_id"))
+        uniqueConstraints = @UniqueConstraint(columnNames = {"case_id", "provider_type"}))
 @Getter
 @Setter
 @NoArgsConstructor
@@ -85,9 +88,18 @@ public class ExpertAssessment {
     @Column(name = "report_received_at")
     private Instant reportReceivedAt;
 
+    @Builder.Default
+    @Enumerated(EnumType.STRING)
+    @Column(name = "provider_type", nullable = false, length = 20)
+    private ProviderType providerType = ProviderType.ESTUDIO_LIQUIDADOR;
+
     @Enumerated(EnumType.STRING)
     @Column(length = 20)
     private ExpertVerdict verdict;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "repair_outcome", length = 20)
+    private RepairOutcome repairOutcome;
 
     @Column(name = "verdict_note", columnDefinition = "TEXT")
     private String verdictNote;

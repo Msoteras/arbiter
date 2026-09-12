@@ -96,6 +96,9 @@ public class ClassificationResultsService {
             analysis.setConfidence(BigDecimal.valueOf(response.confidence()));
             analysis.setLatencyMs((int) latencyMs);
             analysis.setAnalyzedAt(Instant.now());
+            analysis.setCauseConsistency(response.causeConsistency());
+            analysis.setSuggestedClaimCause(response.suggestedClaimCause());
+            analysis.setCauseEvidence(response.causeEvidence());
             response.factors().forEach(analysis::addReason);
 
             llmAnalysisRepository.save(analysis);
@@ -240,6 +243,14 @@ public class ClassificationResultsService {
                 .riskBand(risk.map(RiskAnalysis::getRiskBand).orElse(null))
                 .riskBreakdown(risk.map(RiskAnalysis::getRiskBreakdown).orElse(null))
                 .insuredName(outcome.insuredName())
+                // Same reasoning as factors: a Fast Track never ran the model, so the previous
+                // run's verdict would be attributed to a classification that isn't its own.
+                .causeConsistency(outcome.wasFastTrack()
+                        ? null : analysis.map(LlmAnalysis::getCauseConsistency).orElse(null))
+                .suggestedClaimCause(outcome.wasFastTrack()
+                        ? null : analysis.map(LlmAnalysis::getSuggestedClaimCause).orElse(null))
+                .causeEvidence(outcome.wasFastTrack()
+                        ? null : analysis.map(LlmAnalysis::getCauseEvidence).orElse(null))
                 .build();
     }
 

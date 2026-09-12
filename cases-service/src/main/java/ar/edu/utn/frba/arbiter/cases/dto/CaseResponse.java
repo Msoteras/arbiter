@@ -4,6 +4,7 @@ import ar.edu.utn.frba.arbiter.common.dto.ImageForensicReport;
 import ar.edu.utn.frba.arbiter.common.dto.RuleResultResponse;
 import ar.edu.utn.frba.arbiter.common.dto.RiskBreakdownItem;
 import ar.edu.utn.frba.arbiter.common.enums.CaseStatus;
+import ar.edu.utn.frba.arbiter.common.enums.CauseConsistency;
 import ar.edu.utn.frba.arbiter.common.enums.Classification;
 import ar.edu.utn.frba.arbiter.common.enums.DeadlinePriority;
 import ar.edu.utn.frba.arbiter.common.enums.RiskBand;
@@ -75,6 +76,16 @@ public record CaseResponse(
          * clasificación todavía).
          */
         List<String> analysisReasons,
+        /**
+         * Si el relato libre del asegurado coincide con el hecho generador que eligió del selector.
+         * {@code null} cuando el modelo no corrió (Fast Track, exclusión dura, o clasificación
+         * anterior a este chequeo): ausente significa "no evaluado", nunca {@code MATCHES}.
+         */
+        CauseConsistency causeConsistency,
+        /** Hecho generador que el relato sí describe, del catálogo del ramo. Solo con CONTRADICTS. */
+        String suggestedClaimCause,
+        /** Frase textual del relato que sostiene el veredicto. Solo con CONTRADICTS. */
+        String causeEvidence,
         Double riskScore,
         RiskBand riskBand,
         List<RiskBreakdownItem> riskBreakdown,
@@ -128,6 +139,16 @@ public record CaseResponse(
          * they'd go stale the moment they arrived. They're their own call
          * ({@code GET /cases/{id}/insured-policies}), made when the analyst asks for them.
          */
-        PolicySnapshotResponse policySnapshot
+        PolicySnapshotResponse policySnapshot,
+        /**
+         * El servicio técnico que tiene el bien, mientras el expediente está en PENDING_REPAIR.
+         * Null en cualquier otro estado y en los listados, como {@code statusHistory}: sale de una
+         * consulta aparte y en una lista sería una por fila.
+         *
+         * <p>Es el único dato de una derivación que ve el asegurado, y a propósito: el
+         * procedimiento de la compañía pide informarle a qué servicio técnico fue su equipo. La
+         * derivación a peritaje no viaja acá ni en ningún campo que él lea.
+         */
+        RepairProviderResponse repairProvider
 ) {
 }

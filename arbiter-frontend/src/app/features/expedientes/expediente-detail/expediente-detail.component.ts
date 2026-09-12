@@ -44,9 +44,18 @@ import {
 import { clasificacionLabel, clasificacionTone } from '../../../core/models/clasificacion';
 import { forensicAlertLevel } from '../../../core/models/forensic';
 import {
+  causeConsistencyLabel,
+  causeConsistencyTone,
+  shouldSurfaceCauseConsistency,
+} from '../../../core/models/cause-consistency';
+import {
   ExpertVerdict,
   OpcionesDerivacion,
   Peritaje,
+  ProviderType,
+  REPAIR_OUTCOME_OPTIONS,
+  RepairOutcome,
+  repairOutcomeLabel,
   veredictoLabel,
   veredictoTone,
 } from '../../../core/models/peritaje';
@@ -300,6 +309,26 @@ export class ExpedienteDetailComponent {
   protected readonly classificationTone = computed<StatusTone>(() => {
     const d = this.data();
     return d ? clasificacionTone(d.analysisClassification) : 'neutral';
+  });
+
+  /**
+   * El cruce entre el hecho generador que el asegurado eligió del selector y lo que después contó
+   * en el relato. Solo se muestra cuando hay algo que mirar: un MATCHES no aporta nada que el
+   * expediente no diga ya, y null significa que el chequeo no corrió (Fast Track, exclusión dura,
+   * o una clasificación anterior a que esto existiera).
+   */
+  protected readonly showCauseConsistency = computed(() =>
+    shouldSurfaceCauseConsistency(this.data()?.causeConsistency),
+  );
+
+  protected readonly causeConsistencyLabel = computed(() => {
+    const value = this.data()?.causeConsistency;
+    return value ? causeConsistencyLabel(value) : '';
+  });
+
+  protected readonly causeConsistencyTone = computed<StatusTone>(() => {
+    const value = this.data()?.causeConsistency;
+    return value ? causeConsistencyTone(value) : 'neutral';
   });
 
   protected readonly confidencePercent = computed(() => {
@@ -599,7 +628,9 @@ export class ExpedienteDetailComponent {
         ]
       : []),
     ...(this.hayDatosAsegurado() ? [{ id: 'asegurado' as TabId, label: 'Asegurado' }] : []),
-    ...(this.peritaje() ? [{ id: 'peritaje' as TabId, label: 'Peritaje' }] : []),
+    ...(this.derivaciones().length > 0
+      ? [{ id: 'peritaje' as TabId, label: this.derivacionesTabLabel() }]
+      : []),
     {
       id: 'conversacion' as TabId,
       label: 'Conversación',
@@ -938,39 +969,73 @@ export class ExpedienteDetailComponent {
   // Frente a indicios de fraude, rechazar apoyándose en una sospecha del modelo no alcanza: el
   // rechazo exige una causa de exclusión, y el peritaje es lo que convierte la sospecha en hecho.
   protected readonly derivado = computed(() => this.data()?.status === 'PENDING_EXPERT_REPORT');
+  protected readonly enReparacion = computed(() => this.data()?.status === 'PENDING_REPAIR');
 
   /** Se pide junto con el expediente: sin esto no se sabe si ofrecer el botón ni a quién derivar. */
-  private readonly derivationOptions = toSignal(
-    combineLatest([
-      this.route.paramMap.pipe(map((params) => params.get('id') ?? '')),
-      toObservable(this.reloadTrigger),
-    ]).pipe(
-      switchMap(([id]) =>
-        this.service.derivationOptions(id as unknown as number).pipe(
-          catchError(() => of<OpcionesDerivacion | null>(null)),
+  private readonly derivationOptions = this.optionsFor('ESTUDIO_LIQUIDADOR');
+  private readonly repairOptions = this.optionsFor('SERVICIO_TECNICO');
+
+  private optionsFor(providerType: ProviderType) {
+    return toSignal(
+      combineLatest([
+        this.route.paramMap.pipe(map((params) => params.get('id') ?? '')),
+        toObservable(this.reloadTrigger),
+      ]).pipe(
+        switchMap(([id]) =>
+          this.service
+            .derivationOptions(id as unknown as number, providerType)
+            .pipe(catchError(() => of<OpcionesDerivacion | null>(null))),
         ),
       ),
-    ),
-    { initialValue: null as OpcionesDerivacion | null },
-  );
+      { initialValue: null as OpcionesDerivacion | null },
+    );
+  }
 
-  /** 404 mientras el expediente no se derivó — es el caso normal, no un error. */
-  protected readonly peritaje = toSignal(
+  protected readonly derivaciones = toSignal(
     combineLatest([
       this.route.paramMap.pipe(map((params) => params.get('id') ?? '')),
       toObservable(this.reloadTrigger),
     ]).pipe(
       switchMap(([id]) =>
         this.service
-          .peritaje(id as unknown as number)
-          .pipe(catchError(() => of<Peritaje | null>(null))),
+          .derivaciones(id as unknown as number)
+          .pipe(catchError(() => of<Peritaje[]>([]))),
       ),
     ),
-    { initialValue: null as Peritaje | null },
+    { initialValue: [] as Peritaje[] },
   );
 
+  protected readonly peritaje = computed(
+    () => this.derivaciones().find((d) => d.providerType === 'ESTUDIO_LIQUIDADOR') ?? null,
+  );
+  private readonly reparacion = computed(
+    () => this.derivaciones().find((d) => d.providerType === 'SERVICIO_TECNICO') ?? null,
+  );
+
+  protected readonly derivacionesTabLabel = computed(() => {
+    if (this.peritaje() && this.reparacion()) {
+      return 'Derivaciones';
+    }
+    return this.peritaje() ? 'Peritaje' : 'Servicio técnico';
+  });
+
+  /**
+   * Derivar es del que tiene el expediente asignado, igual que decidir (ver `canDecide`): manda un
+   * mail a un proveedor externo y deja el caso esperándolo, donde el analista que sí es su dueño ya
+   * no puede decidir. El backend lo exige (409 sin dueño, 403 si es de otro); acá el botón
+   * directamente no se ofrece, en vez de habilitarlo para que el click falle.
+   */
   protected readonly puedeDerivar = computed(
-    () => this.canAct() && this.decisionState() === 'pending' && !this.peritaje(),
+    () => this.canDecide() && this.decisionState() === 'pending' && !this.peritaje(),
+  );
+
+  /** Sin servicios técnicos para el ramo el botón no aparece: en la mayoría de los ramos no aplica. */
+  protected readonly puedeDerivarAReparacion = computed(
+    () =>
+      this.canAct() &&
+      this.decisionState() === 'pending' &&
+      !this.reparacion() &&
+      this.repairOptions()?.eligible === true,
   );
 
   /** Habilitado por la regla de la aseguradora Y con peritos a quien mandarlo. */
@@ -1014,8 +1079,11 @@ export class ExpedienteDetailComponent {
     return `El monto reclamado no alcanza el mínimo para derivar (${this.formatMonto(options.minClaimedAmount)}).`;
   });
 
+  protected readonly tipoDerivacion = signal<ProviderType>('ESTUDIO_LIQUIDADOR');
+  protected readonly esReparacion = computed(() => this.tipoDerivacion() === 'SERVICIO_TECNICO');
+
   protected readonly peritoOptions = computed<SelectOption[]>(() =>
-    (this.derivationOptions()?.firms ?? []).map((firm) => ({
+    ((this.esReparacion() ? this.repairOptions() : this.derivationOptions())?.firms ?? []).map((firm) => ({
       value: String(firm.id),
       // El ramo distingue al especialista del generalista, y la zona importa porque para peritar
       // un equipo hay que tenerlo delante.
@@ -1031,7 +1099,8 @@ export class ExpedienteDetailComponent {
   protected readonly derivarSaving = signal(false);
   protected readonly derivarError = signal<string | null>(null);
 
-  askDerivar(): void {
+  askDerivar(tipo: ProviderType = 'ESTUDIO_LIQUIDADOR'): void {
+    this.tipoDerivacion.set(tipo);
     this.peritoElegido.set('');
     this.motivoDerivacion.set('');
     this.derivarError.set(null);
@@ -1051,10 +1120,11 @@ export class ExpedienteDetailComponent {
     }
     this.derivarSaving.set(true);
     this.derivarError.set(null);
-    this.service.derivarAPeritaje(d.id, Number(perito), motivo).subscribe({
+    this.service.derivarAPeritaje(d.id, Number(perito), motivo, this.tipoDerivacion()).subscribe({
       next: (peritaje) => {
         this.derivarSaving.set(false);
         this.showDerivar.set(false);
+        this.derivacionHechaCaseId.set(d.id);
         this.derivacionHecha.set(peritaje);
         this.reloadTrigger.update((v) => v + 1);
       },
@@ -1071,13 +1141,18 @@ export class ExpedienteDetailComponent {
    * el analista no tiene cómo saber si el mail salió o si el botón no hizo nada.
    */
   protected readonly derivacionHecha = signal<Peritaje | null>(null);
+  // Kept apart from data(), which is empty while the case reloads behind the modal.
+  protected readonly derivacionHechaCaseId = signal<number | null>(null);
 
   cerrarDerivacionHecha(): void {
     this.derivacionHecha.set(null);
   }
 
-  // ----- carga del informe del perito -----
+  // ----- carga del informe del perito o de la respuesta del servicio técnico -----
   protected readonly showInforme = signal(false);
+  protected readonly informeTipo = signal<ProviderType>('ESTUDIO_LIQUIDADOR');
+  protected readonly informeEsReparacion = computed(() => this.informeTipo() === 'SERVICIO_TECNICO');
+  protected readonly repairOutcomeOptions: SelectOption[] = REPAIR_OUTCOME_OPTIONS;
   protected readonly veredicto = signal('');
   protected readonly notaVeredicto = signal('');
   protected readonly informeFile = signal<File | null>(null);
@@ -1088,7 +1163,9 @@ export class ExpedienteDetailComponent {
    * Guardar "fraude confirmado" no deja solo el informe: registra el antecedente sobre la persona.
    * El modal lo avisa antes, porque el antecedente no tiene baja desde la aplicación.
    */
-  protected readonly veredictoConfirmaFraude = computed(() => this.veredicto() === 'FRAUD_CONFIRMED');
+  protected readonly veredictoConfirmaFraude = computed(
+    () => !this.informeEsReparacion() && this.veredicto() === 'FRAUD_CONFIRMED',
+  );
 
   protected readonly veredictoOptions: SelectOption[] = [
     { value: 'FRAUD_CONFIRMED', label: 'Fraude confirmado' },
@@ -1096,7 +1173,8 @@ export class ExpedienteDetailComponent {
     { value: 'INCONCLUSIVE', label: 'No concluyente' },
   ];
 
-  askInforme(): void {
+  askInforme(tipo: ProviderType = 'ESTUDIO_LIQUIDADOR'): void {
+    this.informeTipo.set(tipo);
     this.veredicto.set('');
     this.notaVeredicto.set('');
     this.informeFile.set(null);
@@ -1131,31 +1209,33 @@ export class ExpedienteDetailComponent {
   confirmInforme(): void {
     const d = this.data();
     const file = this.informeFile();
-    const verdict = this.veredicto() as ExpertVerdict;
-    if (!d || !file || !verdict) {
+    const result = this.veredicto();
+    if (!d || !file || !result) {
       return;
     }
     this.informeSaving.set(true);
     this.informeError.set(null);
-    this.service
-      .cargarInformePericial(
-        d.id,
-        verdict,
-        this.notaVeredicto().trim(),
-        this.montoPericialNumero(),
-        file,
-      )
-      .subscribe({
-        next: () => {
-          this.informeSaving.set(false);
-          this.showInforme.set(false);
-          this.reloadTrigger.update((v) => v + 1);
-        },
-        error: (err: HttpErrorResponse) => {
-          this.informeSaving.set(false);
-          this.informeError.set(err.error?.detail || 'No se pudo cargar el informe');
-        },
-      });
+    const note = this.notaVeredicto().trim();
+    const request = this.informeEsReparacion()
+      ? this.service.cargarRespuestaServicioTecnico(d.id, result as RepairOutcome, note, file)
+      : this.service.cargarInformePericial(
+          d.id,
+          result as ExpertVerdict,
+          note,
+          this.montoPericialNumero(),
+          file,
+        );
+    request.subscribe({
+      next: () => {
+        this.informeSaving.set(false);
+        this.showInforme.set(false);
+        this.reloadTrigger.update((v) => v + 1);
+      },
+      error: (err: HttpErrorResponse) => {
+        this.informeSaving.set(false);
+        this.informeError.set(err.error?.detail || 'No se pudo cargar el informe');
+      },
+    });
   }
 
   // ----- antecedente de fraude del asegurado -----
@@ -1285,6 +1365,7 @@ export class ExpedienteDetailComponent {
 
   veredictoLabel = veredictoLabel;
   veredictoTone = veredictoTone;
+  repairOutcomeLabel = repairOutcomeLabel;
   formatDateTime = formatDateTime;
 
   ruleTypeLabel = ruleTypeLabel;
@@ -1431,14 +1512,17 @@ export class ExpedienteDetailComponent {
    */
   protected readonly canDecide = computed(() => this.canAct() && this.isMine());
 
-  /** Por qué no puede decidir alguien con rol de analista pero sin este expediente asignado. */
+  /**
+   * Por qué no puede actuar alguien con rol de analista pero sin este expediente asignado. Cubre
+   * decidir y derivar a peritaje: las dos son del dueño del expediente.
+   */
   protected readonly decisionBlockedReason = computed(() => {
     if (!this.isAssigned()) {
-      return 'Asignate el expediente para poder decidir.';
+      return 'Asignate el expediente para decidir o derivarlo a peritaje.';
     }
     const analista = this.assignedName();
     return analista
-      ? `Asignado a ${analista}. Solo esa persona puede aprobar o rechazar.`
+      ? `Asignado a ${analista}. Solo esa persona puede aprobar, rechazar o derivar.`
       : 'Expediente asignado a otro analista.';
   });
 

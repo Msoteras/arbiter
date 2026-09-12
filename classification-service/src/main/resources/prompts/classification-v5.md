@@ -54,6 +54,39 @@ Cada adjunto aparece con lo que se pudo leer en él. Si además figura un bloque
 
 ---
 
+## Consistencia del relato con el hecho generador declarado
+
+El asegurado eligió **{{claimCause}}** de un selector y aparte escribió el relato. Las dos cosas las cargó a mano y pueden no coincidir: puede haberse equivocado de opción, o haber elegido la que creía que le convenía. Tu tarea acá es **una sola**: leer el relato y decir si describe el hecho generador que eligió o describe otro.
+
+Estos son los hechos generadores de este ramo. Si el relato no describe el declarado, elegí de esta lista cuál describe — **no inventes nombres, tenés que usar uno de estos textualmente**:
+
+{{claimCauseCatalog}}
+
+Definiciones, porque la diferencia es jurídica y fina:
+
+- **Robo**: hubo **violencia sobre las personas o intimidación** (un manotazo con forcejeo, una amenaza, un arma, un empujón), o **fuerza sobre las cosas** para acceder al bien (romper un vidrio, forzar una cerradura).
+- **Hurto**: **sin violencia ni intimidación**. Se lo sacaron por destreza o aprovechando un descuido, y el asegurado se dio cuenta después: un carterista, algo que estaba sobre una mesa y desapareció, una mochila abierta en el colectivo.
+- **Olvido / extravío**: el asegurado dejó el bien en algún lado y no volvió a encontrarlo. **Nadie se lo sacó.**
+- **Rotura / daño accidental**: el bien se dañó, nadie se lo llevó.
+- **Caída**: el bien se cayó y se dañó.
+
+Cómo decidir:
+
+- **MATCHES** — el relato describe el hecho generador declarado.
+- **AMBIGUOUS** — el relato no alcanza para saberlo: es muy corto, es genérico ("se me perdió el celular", "me lo sacaron"), o encaja en más de un hecho. **Esta es la opción por defecto ante cualquier duda.**
+- **CONTRADICTS** — el relato describe **positivamente** otro hecho de la lista, y podés señalar la frase exacta que lo dice.
+
+Reglas duras para este análisis, respetalas:
+
+1. **"Me robaron" no es evidencia de robo.** En el habla corriente la gente dice "me robaron" para un robo, un hurto y hasta un olvido. La palabra que usó el asegurado no decide nada: decide **lo que narra que pasó**. Si dice "me robaron" y no cuenta ni violencia ni descuido, eso es AMBIGUOUS.
+2. **La ausencia de un dato no es su negación.** Que no mencione violencia no prueba que no la hubo. Solo marcá CONTRADICTS cuando el relato **afirma** algo incompatible con el hecho declarado (ej.: declaró robo y cuenta que dejó el bien sobre una mesa y al volver no estaba).
+3. **`causeEvidence` es una cita textual del relato**, copiada tal cual, no un resumen ni una interpretación tuya. Si no podés citar una frase que sostenga el veredicto, entonces no es CONTRADICTS: es AMBIGUOUS.
+4. **No opines sobre cobertura.** No digas si el hecho que identificaste está cubierto ni qué habría que hacer con el expediente, aunque la lista de arriba te diga cuál no está cubierto. Esa lista está para que sepas qué opciones existen y que son distintas entre sí. Lo que sigue después lo decide el motor de reglas, no vos.
+5. Si el veredicto es MATCHES, dejá `suggestedClaimCause` y `causeEvidence` **vacíos** (`""`).
+6. Este análisis **no reemplaza** tu clasificación. Contestás los dos: el veredicto de consistencia acá, y la recomendación abajo con los criterios de siempre.
+
+---
+
 ## Tarea de clasificación
 
 Nota: los casos triviales y verificables ya fueron filtrados antes de llegar a este análisis (Fast Track determinístico por reglas de negocio). Si estás viendo esta denuncia, **no es Fast Track** — no la clasifiques como tal.

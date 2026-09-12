@@ -27,6 +27,39 @@ export function veredictoTone(value: string): StatusTone {
   return (VERDICT_TONES as Record<string, StatusTone>)[value] ?? 'neutral';
 }
 
+export type ProviderType = 'ESTUDIO_LIQUIDADOR' | 'SERVICIO_TECNICO';
+
+const PROVIDER_LABELS: Record<ProviderType, string> = {
+  ESTUDIO_LIQUIDADOR: 'Estudio liquidador',
+  SERVICIO_TECNICO: 'Servicio técnico',
+};
+
+export function providerTypeLabel(value: string): string {
+  return (PROVIDER_LABELS as Record<string, string>)[value] ?? value;
+}
+
+export const PROVIDER_TYPE_OPTIONS = Object.entries(PROVIDER_LABELS).map(([value, label]) => ({
+  value,
+  label,
+}));
+
+export type RepairOutcome = 'REPAIRED' | 'IRREPARABLE' | 'QUOTE_SENT';
+
+const REPAIR_LABELS: Record<RepairOutcome, string> = {
+  REPAIRED: 'Reparado',
+  IRREPARABLE: 'Irreparable',
+  QUOTE_SENT: 'Presupuesto enviado',
+};
+
+export function repairOutcomeLabel(value: string): string {
+  return (REPAIR_LABELS as Record<string, string>)[value] ?? value;
+}
+
+export const REPAIR_OUTCOME_OPTIONS = Object.entries(REPAIR_LABELS).map(([value, label]) => ({
+  value,
+  label,
+}));
+
 /** Un perito del catálogo de la aseguradora — espejo de ExpertFirmResponse. */
 export interface Perito {
   id: number;
@@ -62,6 +95,8 @@ export interface Peritaje {
   notified: boolean;
   reportReceivedAt: string | null;
   verdict: ExpertVerdict | null;
+  repairOutcome: RepairOutcome | null;
+  providerType: ProviderType;
   verdictNote: string | null;
   /**
    * Lo que el perito determinó que vale el siniestro, transcripto del informe por el analista.

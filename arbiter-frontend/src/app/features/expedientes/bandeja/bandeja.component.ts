@@ -87,19 +87,19 @@ type LoadState =
   | { status: 'error' };
 
 /**
- * Lente de pertenencia de la bandeja del analista:
+ * Las pestañas de la bandeja. Las dos primeras recortan por ciclo de vida y el resto por
+ * pertenencia — ejes distintos en una sola barra, por pedido de la devolución de UX:
+ *  - `open`       → sin resolver todavía (la que trae el listado al entrar)
+ *  - `closed`     → ya resueltos
  *  - `mine`       → asignados al usuario logueado (solo analista)
- *  - `all`        → sin recorte por analista
+ *  - `all`        → todo el caseload de la aseguradora
  *  - `assigned`   → con analista, sin importar quién (bandeja del referente)
  *  - `unassigned` → sin analista todavía
  *  - `fraud`      → con alerta de fraude (riesgo alto/crítico)
  */
-type Lens = 'mine' | 'all' | 'assigned' | 'unassigned' | 'fraud';
+type Lens = 'open' | 'closed' | 'mine' | 'all' | 'assigned' | 'unassigned' | 'fraud';
 
-/**
- * Lifecycle slice, orthogonal to {@link Lens}: "mine and open" has to be reachable, so it is a
- * separate control and not a sixth lens.
- */
+/** Recorte por ciclo de vida que viaja al backend; lo decide la pestaña activa. */
 type Scope = NonNullable<ExpedienteListParams['scope']>;
 
 @Component({
@@ -165,34 +165,33 @@ export class BandejaComponent {
     }
   }
 
-  // ───────────────── Lente: "Míos" vs "Todos" ─────────────────
-  // No es un filtro más de la fila de selects: es de quién es el expediente, no cómo se recorta
-  // el listado. Por eso vive arriba de la tabla y "Limpiar filtros" no lo toca.
+  // ───────────────── Pestañas de la bandeja ─────────────────
+  // Una sola barra: dos pestañas recortan por ciclo de vida ("En curso", "Cerrados") y el resto por
+  // pertenencia. Son ejes distintos y antes vivían en dos controles, pero dos filas de pestañas
+  // pegadas se leían como una sola cosa (devolución de Aylén). El precio de fusionarlas es que se
+  // pierden las combinaciones: "sin asignar Y cerrados" ahora se arma desde el filtro por estado.
   //
   // Quién es "yo" NO se manda: el id de analista es local al esquema de cada aseguradora, así que
-  // lo resuelve el backend contra el token (`assignedToMe`). Acá solo se dice qué lente está
+  // lo resuelve el backend contra el token (`assignedToMe`). Acá solo se dice qué pestaña está
   // activa.
 
-  /** El analista entra a lo suyo; el referente reparte trabajo, así que arranca viendo todo. */
-  protected readonly lens = signal<Lens>(
-    this.session.session()?.rol === 'ANALISTA_SINIESTROS' ? 'mine' : 'all',
-  );
+  /** Todos entran por lo que hay para trabajar; lo propio está a un clic. */
+  protected readonly lens = signal<Lens>('open');
 
   protected setLens(lens: Lens): void {
     this.lens.set(lens);
     this.page.set(0);
   }
 
-  // ───────────────── Recorte: en curso vs cerrados ─────────────────
-  // Cruza con la lente en vez de competir con ella ("míos y en curso" tiene que existir), así que
-  // es un control aparte y no una lente más. Va en activeFilters() y no en viewFilters() para que
-  // los conteos del toggle también lo respeten: parado en "En curso", "Míos 4" son 4 en curso.
-
-  protected readonly scope = signal<Scope>('OPEN');
-
-  protected setScope(scope: Scope): void {
-    this.scope.set(scope);
-    this.page.set(0);
+  /**
+   * El recorte por ciclo sale de la pestaña. Las de pertenencia no recortan: al pasar de "En curso"
+   * a "Sin asignar" se ven todos los sin asignar, que es el número que muestra su contador.
+   */
+  private scopeOf(lens: Lens): Scope {
+    if (lens === 'open') {
+      return 'OPEN';
+    }
+    return lens === 'closed' ? 'CLOSED' : 'ALL';
   }
 
   // ───────────────── Filtros, búsqueda, orden y paginación ─────────────────
@@ -217,9 +216,9 @@ export class BandejaComponent {
     { initialValue: '' },
   );
 
-  // Solo la barra de filtros, SIN la lente. Los conteos del toggle se apoyan en esto porque
-  // necesitan pedir las dos lentes sobre la misma base; para "lo que estoy viendo" está
-  // viewFilters, que es lo que tienen que usar la tabla y la exportación.
+  // Solo la barra de filtros, SIN la pestaña. Los conteos se apoyan en esto porque los pide todos
+  // sobre la misma base —y sin recorte por ciclo, así el número de cada pestaña es el que se ve al
+  // entrar en ella—; para "lo que estoy viendo" está viewFilters, que usan la tabla y el export.
   private readonly activeFilters = computed<ExpedienteListParams>(() => ({
     status: this.statusFilter() || undefined,
     claimCause: this.claimCauseFilter() || undefined,
@@ -229,19 +228,18 @@ export class BandejaComponent {
     eventDateTo: this.eventDateTo() || undefined,
     q: this.qDebounced() || undefined,
     sort: `${this.sortField()},${this.sortDir()}`,
-    scope: this.scope(),
   }));
 
   /**
-   * Elegir un estado en la barra afloja el recorte. Sin esto, "Aprobado" con el recorte en "En
-   * curso" devuelve una lista vacía que el analista no puede explicarse — y el recorte se mueve a
-   * la vista, así que se ve por qué.
+   * Elegir un estado en la barra saca de las pestañas de ciclo. Sin esto, "Aprobado" parado en "En
+   * curso" devuelve una lista vacía que el analista no puede explicarse — y la pestaña activa se
+   * mueve a "Todos", así que se ve por qué.
    */
   private readonly statusFilterWidensScope = effect(() => {
     const status = this.statusFilter();
     untracked(() => {
-      if (status) {
-        this.scope.set('ALL');
+      if (status && (this.lens() === 'open' || this.lens() === 'closed')) {
+        this.lens.set('all');
       }
     });
   });
@@ -256,6 +254,7 @@ export class BandejaComponent {
    */
   private readonly viewFilters = computed<ExpedienteListParams>(() => ({
     ...this.activeFilters(),
+    scope: this.scopeOf(this.lens()),
     assignedToMe: this.lens() === 'mine',
     assigned: this.lens() === 'assigned',
     unassigned: this.lens() === 'unassigned',
@@ -370,11 +369,11 @@ export class BandejaComponent {
 
   /** "No tenés expedientes en curso" no es lo mismo que "no hay expedientes". */
   protected readonly emptyByScope = computed(
-    () => this.isEmpty() && !this.hasActiveFilters() && this.scope() !== 'ALL',
+    () => this.isEmpty() && !this.hasActiveFilters() && this.scopeOf(this.lens()) !== 'ALL',
   );
 
   // ───────────────── Catálogos de los selects ─────────────────
-  // Los 8 valores de CaseStatus, en el orden del ciclo de vida. Van todos: la lista se quedó dos
+  // Todos los valores de CaseStatus, en el orden del ciclo de vida. Van todos: la lista se quedó dos
   // veces atrás del enum (PENDING_EXPERT_REPORT y LAPSED), y un estado que existe en la bandeja
   // pero no en su filtro es un expediente que el analista no puede aislar.
   private static readonly STATUS_VALUES: CaseStatus[] = [
@@ -383,6 +382,7 @@ export class BandejaComponent {
     'CLASSIFICATION_FAILED',
     'AWAITING_DOCUMENTATION',
     'PENDING_EXPERT_REPORT',
+    'PENDING_REPAIR',
     'APPROVED',
     'REJECTED',
     'LAPSED',

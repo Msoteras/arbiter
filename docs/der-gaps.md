@@ -163,25 +163,38 @@ y `db/migrations/2026-09-06-monto-del-peritaje.sql`.
 
 ## `llm_analysis` — tres columnas de la coherencia del hecho generador que el DER no tiene
 
-**Encontrado:** 10/09/2026, corriendo `scripts/check-schema-consistency.py` contra la base desplegada.
+**Encontrado:** 01/09/2026, al implementar el cruce entre el relato del asegurado y el hecho
+generador que declaró. Redescubierto el 10/09/2026 corriendo
+`scripts/check-schema-consistency.py` contra la base desplegada, porque el script todavía no las
+conocía.
 
 `analisis_llm` en el DER tiene la recomendación, el modelo, la versión del prompt, la confianza, la
-latencia y la fecha. La base desplegada tiene además tres columnas, agregadas a mano el 02/09/2026
-antes de que ningún script las tuviera:
+latencia y la fecha. No tiene dónde guardar un veredicto sobre el **relato**: si la descripción
+libre que escribió el asegurado se corresponde con el hecho generador que eligió del selector. Las
+reglas duras evalúan el hecho **declarado**, así que quien elegía "Robo en vía pública" (cubierto)
+y describía un hurto (excluido) pasaba el gate de exclusiones sin que nadie lo notara.
+
+La implementación agregó tres columnas a `llm_analysis` en cada esquema de aseguradora:
 
 - `cause_consistency` — `MATCHES` / `AMBIGUOUS` / `CONTRADICTS` (con `CHECK`): si el relato del
   asegurado coincide con el hecho generador que declaró.
-- `suggested_claim_cause` — el hecho generador al que apunta el relato cuando no es el declarado.
+- `suggested_claim_cause` — el hecho generador al que apunta el relato cuando no es el declarado,
+  **por nombre y sin FK** a `arbiter_common.claim_cause`: la fila es evidencia inmutable y tiene que
+  seguir diciendo lo que el modelo contestó aunque el referente después renombre ese hecho.
 - `cause_evidence` — el pasaje del relato en el que se apoya esa lectura.
 
 Es exactamente la lectura interpretativa que `CLAUDE.md` le asigna al modelo ("¿la denuncia
 describe un robo o un hurto?"), y deja registrado el porqué como dato auditable, no solo en el
-texto de las razones. El único análisis que las tiene cargadas es el de una denuncia de robo cuyo
-relato dice "se me cayó el celu": `CONTRADICTS`, sugiere Caída.
+texto de las razones (Disposición SSN 2/2023). Las tres son NULL en las corridas anteriores al
+chequeo, y NULL significa "no evaluado", nunca `MATCHES`.
 
-Ya están en `db/init-multitenant.sql` y en `db/migrations/2026-09-10-coherencia-hecho-generador.sql`.
-**Ningún código las escribe todavía**: el prompt vigente no las pide y la entidad no las mapea —
-usarlas es una historia aparte (prompt, entidad y pantalla del analista).
+Van en `analisis_llm` y no en una tabla nueva porque salen de la **misma llamada al modelo** que la
+recomendación: son parte del mismo registro auditable, no un análisis aparte.
+
+Ya están en `db/init-multitenant.sql`, en la migración original
+`db/migrations/2026-09-01-consistencia-relato-hecho-generador.sql` y, agregadas a mano en la base
+desplegada el 02/09/2026 antes de que esa migración corriera ahí, también en
+`db/migrations/2026-09-10-coherencia-hecho-generador.sql` (idempotente, no rompe si ya estaban).
 
 **Acción:** agregar las tres columnas a `analisis_llm` en el DER, todas opcionales.
 
