@@ -125,7 +125,16 @@ class ExpertNotificationServiceTest {
         verify(sendGridAdapter).send(eq(EXPERT_EMAIL), anyString(), body.capture(), attachments.capture());
 
         assertThat(attachments.getValue()).isEmpty();
-        assertThat(body.getValue()).doesNotContain("Documentación adjunta");
+        // Lo que sí necesita para cotizar: qué hay que hacerle.
+        assertThat(body.getValue()).contains("Monto alto").contains("Bien declarado");
+        // Y lo que no: el relato del siniestro, el domicilio y los datos de la persona.
+        assertThat(body.getValue())
+                .doesNotContain("Documentación adjunta")
+                .doesNotContain("Me robaron el celular")
+                .doesNotContain("Av. Corrientes 1234")
+                .doesNotContain("DNI")
+                .doesNotContain("Asegurado:")
+                .doesNotContain("Importe reclamado");
         // Ni siquiera se leen: el expediente no se toca para un mail que no los lleva.
         verifyNoInteractions(caseDocumentRepository);
     }

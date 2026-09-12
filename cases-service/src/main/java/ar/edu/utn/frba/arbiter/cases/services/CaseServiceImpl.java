@@ -13,6 +13,8 @@ import ar.edu.utn.frba.arbiter.cases.dto.EligibilityCheckResponse;
 import ar.edu.utn.frba.arbiter.cases.dto.LensSummaryResponse;
 import ar.edu.utn.frba.arbiter.cases.dto.PolicyResponse;
 import ar.edu.utn.frba.arbiter.cases.dto.PolicySnapshotResponse;
+import ar.edu.utn.frba.arbiter.cases.dto.ProviderType;
+import ar.edu.utn.frba.arbiter.cases.dto.RepairProviderResponse;
 import ar.edu.utn.frba.arbiter.cases.config.tenant.CallerContext;
 import ar.edu.utn.frba.arbiter.cases.config.tenant.TenantContext;
 import ar.edu.utn.frba.arbiter.cases.dto.StatusTransitionResponse;
@@ -46,6 +48,7 @@ import ar.edu.utn.frba.arbiter.cases.models.repositories.CaseDocumentRepository;
 import ar.edu.utn.frba.arbiter.cases.models.repositories.CaseRepository;
 import ar.edu.utn.frba.arbiter.cases.models.repositories.CaseSpecifications;
 import ar.edu.utn.frba.arbiter.cases.models.repositories.ClaimsAnalystRepository;
+import ar.edu.utn.frba.arbiter.cases.models.repositories.ExpertAssessmentRepository;
 import ar.edu.utn.frba.arbiter.common.models.entities.tenant.ClaimsAnalyst;
 import ar.edu.utn.frba.arbiter.common.dto.RuleResultResponse;
 import ar.edu.utn.frba.arbiter.common.enums.CaseStatus;
@@ -81,6 +84,7 @@ public class CaseServiceImpl implements CaseService {
 
     private final CaseRepository caseRepository;
     private final CaseDocumentRepository caseDocumentRepository;
+    private final ExpertAssessmentRepository expertAssessmentRepository;
     private final CaseStatusService caseStatusService;
     private final ClaimsAnalysisClient claimsAnalysisClient;
     private final ClaimsAnalystRepository claimsAnalystRepository;
@@ -410,7 +414,8 @@ public class CaseServiceImpl implements CaseService {
                 .map(StatusTransitionResponse::from)
                 .toList();
         return toResponse(entity, history, caseAnalysisRepository.findByCaseId(caseId), null, null,
-                caseDocumentAnalysisRepository.findByCaseId(caseId), traceabilityOf(entity));
+                caseDocumentAnalysisRepository.findByCaseId(caseId), traceabilityOf(entity),
+                repairProviderOf(entity));
     }
 
     @Override
@@ -747,27 +752,29 @@ public class CaseServiceImpl implements CaseService {
      */
     private CaseResponse toResponse(Case entity, List<StatusTransitionResponse> history,
                                      CaseAnalysis analysis) {
-        return toResponse(entity, history, analysis, null, null, List.of(), Traceability.none());
+        return toResponse(entity, history, analysis, null, null, List.of(), Traceability.none(), null);
     }
 
     /** Sólo el detalle trae los datos extraídos; ver el javadoc del campo en {@link CaseResponse}. */
     private CaseResponse toResponse(Case entity, List<StatusTransitionResponse> history,
                                      CaseAnalysis analysis,
                                      List<DocumentAnalysisSummary> documentAnalyses) {
-        return toResponse(entity, history, analysis, null, null, documentAnalyses, Traceability.none());
+        return toResponse(entity, history, analysis, null, null, documentAnalyses, Traceability.none(),
+                null);
     }
 
     private CaseResponse toResponse(Case entity, List<StatusTransitionResponse> history,
                                      CaseAnalysis analysis, String insurerSlug, String insurerName,
                                      List<DocumentAnalysisSummary> documentAnalyses) {
         return toResponse(entity, history, analysis, insurerSlug, insurerName, documentAnalyses,
-                Traceability.none());
+                Traceability.none(), null);
     }
 
     private CaseResponse toResponse(Case entity, List<StatusTransitionResponse> history,
                                      CaseAnalysis analysis, String insurerSlug, String insurerName,
                                      List<DocumentAnalysisSummary> documentAnalyses,
-                                     Traceability traceability) {
+                                     Traceability traceability,
+                                     RepairProviderResponse repairProvider) {
         // Mientras el expediente está de vuelta en clasificación, la corrida anterior sigue siendo
         // la última fila de llm_analysis. Mostrarla diría que hay una recomendación vigente cuando
         // justamente se está recalculando, así que en ese estado no se surface ninguna.
@@ -809,8 +816,24 @@ public class CaseServiceImpl implements CaseService {
                 history,
                 documentAnalyses,
                 traceability.ruleResults(),
-                traceability.policySnapshot()
+                traceability.policySnapshot(),
+                repairProvider
         );
+    }
+
+    /**
+     * Solo mientras el bien está en el taller. Es una consulta más, así que va únicamente en el
+     * detalle y nunca en un listado, y solo en el estado donde el dato significa algo: el
+     * asegurado necesita saber dónde está su equipo ahora, no a qué taller fue hace dos meses.
+     */
+    private RepairProviderResponse repairProviderOf(Case entity) {
+        if (entity.getStatus() != CaseStatus.PENDING_REPAIR) {
+            return null;
+        }
+        return expertAssessmentRepository
+                .findByCaseIdAndProviderType(entity.getId(), ProviderType.SERVICIO_TECNICO)
+                .map(RepairProviderResponse::from)
+                .orElse(null);
     }
 
     /**

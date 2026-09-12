@@ -126,6 +126,16 @@ public record CaseResponse(
          * they'd go stale the moment they arrived. They're their own call
          * ({@code GET /cases/{id}/insured-policies}), made when the analyst asks for them.
          */
-        PolicySnapshotResponse policySnapshot
+        PolicySnapshotResponse policySnapshot,
+        /**
+         * El servicio técnico que tiene el bien, mientras el expediente está en PENDING_REPAIR.
+         * Null en cualquier otro estado y en los listados, como {@code statusHistory}: sale de una
+         * consulta aparte y en una lista sería una por fila.
+         *
+         * <p>Es el único dato de una derivación que ve el asegurado, y a propósito: el
+         * procedimiento de la compañía pide informarle a qué servicio técnico fue su equipo. La
+         * derivación a peritaje no viaja acá ni en ningún campo que él lea.
+         */
+        RepairProviderResponse repairProvider
 ) {
 }

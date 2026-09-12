@@ -143,6 +143,17 @@ export class SeguimientoComponent {
   protected readonly needsDocs = computed(() => this.data()?.status === 'AWAITING_DOCUMENTATION');
 
   /**
+   * Quién tiene el equipo mientras se repara. Se le dice al asegurado —sin esto no sabe a dónde
+   * acercarlo ni a quién preguntarle—, al revés que el peritaje, que no se le nombra nunca. El
+   * backend solo lo manda en ese estado; el chequeo acá es para no mostrar un dato viejo si el
+   * expediente ya volvió.
+   */
+  protected readonly servicioTecnico = computed(() => {
+    const d = this.data();
+    return d?.status === 'PENDING_REPAIR' ? d.repairProvider : null;
+  });
+
+  /**
    * Los movimientos del expediente, en el idioma del asegurado. Los tres hitos de arriba dicen en
    * qué ETAPA está; esto dice QUÉ PASÓ — que era lo que faltaba: "en trámite" durante tres semanas
    * no distingue un expediente que avanza de uno olvidado.

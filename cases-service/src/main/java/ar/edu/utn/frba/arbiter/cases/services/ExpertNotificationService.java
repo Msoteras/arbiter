@@ -77,7 +77,7 @@ public class ExpertNotificationService {
                     assessment.getExpertEmail(),
                     (repair ? "Solicitud de reparación" : "Solicitud de peritaje")
                             + " · Siniestro #" + caseRecord.getId(),
-                    body(caseRecord, assessment, attachments, repair),
+                    repair ? repairBody(caseRecord, assessment) : body(caseRecord, assessment, attachments),
                     attachments);
             // Not `Instant.now()` unconditionally: with no API key the adapter logs and returns
             // without sending, and stamping that as notified told the analyst the expert had been
@@ -118,10 +118,10 @@ public class ExpertNotificationService {
     }
 
     private String body(Case caseRecord, ExpertAssessment assessment,
-                        List<SendGridAdapter.Attachment> attachments, boolean repair) {
+                        List<SendGridAdapter.Attachment> attachments) {
         return """
                 <p>Hola,</p>
-                <p>Les derivamos el siniestro <strong>#%d</strong> para su %s.</p>
+                <p>Les derivamos el siniestro <strong>#%d</strong> para su verificación.</p>
                 <h3>Resumen del siniestro</h3>
                 <ul>
                   <li><strong>N° de póliza:</strong> %s</li>
@@ -138,11 +138,11 @@ public class ExpertNotificationService {
                 </ul>
                 <p><strong>Motivo de la derivación:</strong> %s</p>
                 <p><strong>Descripción de la denuncia:</strong><br>%s</p>
-                %s<p>Al finalizar, envíennos %s respondiendo a este correo.</p>
+                <p><strong>Documentación adjunta:</strong> %s</p>
+                <p>Al finalizar, envíennos el informe con su conclusión respondiendo a este correo.</p>
                 <p>Arbiter</p>
                 """.formatted(
                 caseRecord.getId(),
-                repair ? "reparación o cotización" : "verificación",
                 nullSafe(caseRecord.getPolicy() != null
                         ? caseRecord.getPolicy().getExternalPolicyNumber() : null),
                 branchName(caseRecord),
@@ -153,17 +153,44 @@ public class ExpertNotificationService {
                 caseRecord.getClaimCause().getName(),
                 nullSafe(caseRecord.getDeclaredItem()),
                 amount(caseRecord.getClaimedAmount()),
-                caseRecord.getOccurredAt() != null
-                        ? DATE_TIME.format(caseRecord.getOccurredAt().atZone(ZoneId.systemDefault()))
-                        : "—",
+                occurredAt(caseRecord),
                 caseRecord.getReportedAt() != null ? DATE_TIME.format(caseRecord.getReportedAt()) : "—",
                 nullSafe(caseRecord.getEventAddress()),
                 assessment.getReason(),
                 nullSafe(caseRecord.getDescription()),
-                repair ? "" : "<p><strong>Documentación adjunta:</strong> "
-                        + attachmentList(attachments) + "</p>\n",
-                repair ? "el resultado (reparado, irreparable o presupuesto)"
-                        : "el informe con su conclusión");
+                attachmentList(attachments));
+    }
+
+    /**
+     * Lo mínimo para reparar o cotizar: qué equipo es, cuándo pasó y qué hay que hacerle. Sin
+     * nombre, DNI, domicilio ni el relato de la denuncia — al taller no le hace falta saber de
+     * quién es el equipo para arreglarlo, y son datos personales del asegurado (Ley 25.326).
+     * Tampoco el importe reclamado: es lo que la compañía va a pagar, y lo leería quien cotiza.
+     */
+    private String repairBody(Case caseRecord, ExpertAssessment assessment) {
+        return """
+                <p>Hola,</p>
+                <p>Les derivamos el siniestro <strong>#%d</strong> para su reparación o cotización.</p>
+                <ul>
+                  <li><strong>Ramo:</strong> %s</li>
+                  <li><strong>Bien declarado:</strong> %s</li>
+                  <li><strong>Fecha y hora de ocurrencia:</strong> %s</li>
+                </ul>
+                <p><strong>Motivo de la derivación:</strong> %s</p>
+                <p>Al finalizar, envíennos el resultado (reparado, irreparable o presupuesto)
+                respondiendo a este correo.</p>
+                <p>Arbiter</p>
+                """.formatted(
+                caseRecord.getId(),
+                branchName(caseRecord),
+                nullSafe(caseRecord.getDeclaredItem()),
+                occurredAt(caseRecord),
+                assessment.getReason());
+    }
+
+    private String occurredAt(Case caseRecord) {
+        return caseRecord.getOccurredAt() == null ? "—"
+                : DATE_TIME.format(caseRecord.getOccurredAt().atZone(ZoneId.systemDefault()));
     }
 
     /** Named, not counted: the expert can tell a file that got dropped from one never uploaded. */
