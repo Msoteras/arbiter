@@ -413,7 +413,7 @@ class ExpertAssessmentServiceTest {
 
         assertThat(response.repairOutcome()).isEqualTo(RepairOutcome.IRREPARABLE);
         assertThat(response.verdict()).isNull();
-        assertThat(response.quotedAmount()).isNull();
+        assertThat(response.repairCost()).isNull();
         ArgumentCaptor<CaseDocument> document = ArgumentCaptor.forClass(CaseDocument.class);
         verify(caseDocumentRepository).save(document.capture());
         assertThat(document.getValue().getType()).isEqualTo("repair_report");
@@ -448,7 +448,7 @@ class ExpertAssessmentServiceTest {
                 RepairOutcome.QUOTE_SENT, "Cambio de módulo", new BigDecimal("180000.00"),
                 new MockMultipartFile("report", "presupuesto.pdf", "application/pdf", "PDF".getBytes()));
 
-        assertThat(response.quotedAmount()).isEqualByComparingTo("180000.00");
+        assertThat(response.repairCost()).isEqualByComparingTo("180000.00");
         assertThat(response.indemnifiableAmount()).isNull();
     }
 
@@ -466,18 +466,72 @@ class ExpertAssessmentServiceTest {
         verify(expertAssessmentRepository, never()).save(any());
     }
 
-    /** Un equipo reparado o irreparable no tiene presupuesto detrás: el importe ahí es un error. */
+    /** Nada se arregló, así que nadie lo cobró: un importe ahí es un error, no un presupuesto bajo. */
     @Test
-    void receiveRepairReport_rejectsAnAmountWithoutAQuote() {
+    void receiveRepairReport_rejectsACostOnAnIrreparableItem() {
         when(caseRepository.findById(CASE_ID))
                 .thenReturn(Optional.of(caseInStatus(CaseStatus.PENDING_REPAIR)));
 
         assertThatThrownBy(() -> expertAssessmentService.receiveRepairReport(CASE_ID,
-                RepairOutcome.REPAIRED, "Quedó como nuevo", new BigDecimal("180000.00"),
+                RepairOutcome.IRREPARABLE, "No tiene arreglo", new BigDecimal("180000.00"),
                 new MockMultipartFile("report", "x.pdf", "application/pdf", "PDF".getBytes())))
                 .isInstanceOf(InvalidRepairReportException.class);
 
         verify(expertAssessmentRepository, never()).save(any());
+    }
+
+    /**
+     * El taller que ya arregló cobra por el trabajo, y ese importe es lo que se liquida. Quedaba
+     * afuera porque el campo se había atado al presupuesto: un equipo reparado volvía sin número y
+     * la liquidación proponía pagar cero, el mismo callejón que tenía el irreparable.
+     */
+    @Test
+    void receiveRepairReport_takesTheInvoiceOfAnAlreadyRepairedItem() {
+        Case caseRecord = caseInStatus(CaseStatus.PENDING_REPAIR);
+        ExpertAssessment repair = awaitingAssessment();
+        repair.setProviderType(ProviderType.SERVICIO_TECNICO);
+        when(caseRepository.findById(CASE_ID)).thenReturn(Optional.of(caseRecord));
+        when(expertAssessmentRepository.findByCaseIdAndProviderType(CASE_ID, ProviderType.SERVICIO_TECNICO))
+                .thenReturn(Optional.of(repair));
+        when(caseDocumentRepository.findByCaseIdAndType(CASE_ID, "repair_report")).thenReturn(Optional.empty());
+        when(caseDocumentRepository.save(any(CaseDocument.class))).thenAnswer(invocation -> {
+            CaseDocument saved = invocation.getArgument(0);
+            saved.setId(45L);
+            return saved;
+        });
+        when(expertAssessmentRepository.save(any(ExpertAssessment.class)))
+                .thenAnswer(invocation -> invocation.getArgument(0));
+
+        ExpertAssessmentResponse response = expertAssessmentService.receiveRepairReport(CASE_ID,
+                RepairOutcome.REPAIRED, "Cambio de módulo", new BigDecimal("210000.00"),
+                new MockMultipartFile("report", "factura.pdf", "application/pdf", "PDF".getBytes()));
+
+        assertThat(response.repairCost()).isEqualByComparingTo("210000.00");
+    }
+
+    /** Y puede llegar sin él: la factura del taller no siempre viene con el informe. */
+    @Test
+    void receiveRepairReport_acceptsARepairWithNoInvoiceYet() {
+        Case caseRecord = caseInStatus(CaseStatus.PENDING_REPAIR);
+        ExpertAssessment repair = awaitingAssessment();
+        repair.setProviderType(ProviderType.SERVICIO_TECNICO);
+        when(caseRepository.findById(CASE_ID)).thenReturn(Optional.of(caseRecord));
+        when(expertAssessmentRepository.findByCaseIdAndProviderType(CASE_ID, ProviderType.SERVICIO_TECNICO))
+                .thenReturn(Optional.of(repair));
+        when(caseDocumentRepository.findByCaseIdAndType(CASE_ID, "repair_report")).thenReturn(Optional.empty());
+        when(caseDocumentRepository.save(any(CaseDocument.class))).thenAnswer(invocation -> {
+            CaseDocument saved = invocation.getArgument(0);
+            saved.setId(46L);
+            return saved;
+        });
+        when(expertAssessmentRepository.save(any(ExpertAssessment.class)))
+                .thenAnswer(invocation -> invocation.getArgument(0));
+
+        ExpertAssessmentResponse response = expertAssessmentService.receiveRepairReport(CASE_ID,
+                RepairOutcome.REPAIRED, "Sin factura todavía", null,
+                new MockMultipartFile("report", "informe.pdf", "application/pdf", "PDF".getBytes()));
+
+        assertThat(response.repairCost()).isNull();
     }
 
     /**

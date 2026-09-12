@@ -1225,15 +1225,26 @@ export class ExpedienteDetailComponent {
   protected readonly montoInforme = signal('');
 
   /**
-   * El taller sólo informa un importe cuando mandó presupuesto: "reparado" e "irreparable" no
-   * tienen precio que reportar, y ofrecer el campo ahí invita a cargar un número que el backend
-   * rechaza. Del lado del perito el campo va siempre, porque cualquier veredicto puede traer monto.
+   * El taller informa un importe cuando hubo trabajo: el presupuesto de lo que va a hacer, o la
+   * factura de lo que hizo. Con "irreparable" no lo pide, porque no hubo arreglo que cobrar y
+   * ofrecer el campo ahí invita a cargar un número que el backend rechaza. Del lado del perito el
+   * campo va siempre, porque cualquier veredicto puede traer monto.
    */
   protected readonly pideMontoDelInforme = computed(
-    () => !this.informeEsReparacion() || this.veredicto() === 'QUOTE_SENT',
+    () => !this.informeEsReparacion()
+        || this.veredicto() === 'QUOTE_SENT'
+        || this.veredicto() === 'REPAIRED',
   );
 
-  /** Un presupuesto sin importe no es un presupuesto; el monto del perito sí es opcional. */
+  /** Ya lo arregló y lo cobró: el importe es la factura, no un presupuesto de algo por hacer. */
+  protected readonly informeEsFactura = computed(
+    () => this.informeEsReparacion() && this.veredicto() === 'REPAIRED',
+  );
+
+  /**
+   * Un presupuesto sin importe no es un presupuesto. La factura sí puede faltar —llega después del
+   * informe— y el monto del perito también es opcional.
+   */
   protected readonly montoDelInformeObligatorio = computed(
     () => this.informeEsReparacion() && this.veredicto() === 'QUOTE_SENT',
   );

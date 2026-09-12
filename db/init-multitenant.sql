@@ -862,7 +862,7 @@ BEGIN
             -- hecho no amparado no tienen nada que indemnizar, y un cero ahí se leería como "el
             -- perito dijo que no se paga nada", que es una conclusión distinta a no haber opinado.
             indemnifiable_amount NUMERIC(15,2),
-            quoted_amount       NUMERIC(15,2),
+            repair_cost         NUMERIC(15,2),
             derived_by          BIGINT       NOT NULL REFERENCES %I.claims_analyst(id),
             -- Nullable and ON DELETE SET NULL is deliberate: the assessment outlives the
             -- catalog row, and the copied name/email are what the record actually reads.
@@ -884,18 +884,22 @@ BEGIN
             -- Un resultado sin fecha, o una fecha sin resultado, es media devolución. Y cada tipo
             -- de proveedor vuelve con SU resultado: el CHECK impide que un peritaje traiga un
             -- resultado de reparación, o al revés.
-            -- quoted_amount acompaña al resultado del taller y sólo a QUOTE_SENT: un
-            -- presupuesto sin importe no es una respuesta, y un equipo reparado o
-            -- irreparable no tiene presupuesto que informar.
+            -- repair_cost acompaña al resultado del taller, y cuál admite qué no es
+            -- caprichoso: QUOTE_SENT lo exige —decir que mandaron presupuesto sin decir
+            -- cuánto no contesta nada—, REPAIRED lo acepta opcional porque la factura
+            -- puede llegar después del informe, e IRREPARABLE lo prohíbe porque no
+            -- hubo trabajo que cobrar.
             CONSTRAINT expert_assessment_report_complete CHECK (
                 (report_received_at IS NULL AND verdict IS NULL AND repair_outcome IS NULL
-                 AND quoted_amount IS NULL)
+                 AND repair_cost IS NULL)
                 OR (report_received_at IS NOT NULL AND provider_type = 'ESTUDIO_LIQUIDADOR'
                     AND verdict IS NOT NULL AND repair_outcome IS NULL
-                    AND quoted_amount IS NULL)
+                    AND repair_cost IS NULL)
                 OR (report_received_at IS NOT NULL AND provider_type = 'SERVICIO_TECNICO'
-                    AND repair_outcome IS NOT NULL AND verdict IS NULL
-                    AND (quoted_amount IS NOT NULL) = (repair_outcome = 'QUOTE_SENT')))
+                    AND verdict IS NULL
+                    AND ((repair_outcome = 'QUOTE_SENT' AND repair_cost IS NOT NULL)
+                         OR repair_outcome = 'REPAIRED'
+                         OR (repair_outcome = 'IRREPARABLE' AND repair_cost IS NULL))))
         )$ddl$, p_schema, p_schema, p_schema, p_schema, p_schema);
 
     -- ─── insured_fraud_record / "antecedente_fraude" ─────────────────────────

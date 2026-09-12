@@ -191,25 +191,27 @@ public class ExpertAssessmentService {
      * La devolución del servicio técnico. Sin antecedente de fraude: una reparación no investiga
      * nada, y el resultado va en su propia columna y no en {@code verdict} por lo mismo.
      *
-     * <p>{@code quotedAmount} es el precio que el taller le puso al arreglo, y va atado al
-     * resultado: {@code QUOTE_SENT} existe para informarlo —sin importe no dice nada— y los otros
-     * dos no tienen presupuesto que informar. Llega a la liquidación como el monto acreditado de la
+     * <p>{@code repairCost} es lo que el taller cobra por el trabajo —presupuestado si todavía no
+     * lo hizo, facturado si ya lo hizo— y va atado al resultado. {@code QUOTE_SENT} lo exige: sin
+     * importe, decir que mandaron presupuesto no contesta nada. {@code REPAIRED} lo acepta
+     * opcional, porque la factura puede llegar después del informe. {@code IRREPARABLE} no lo
+     * lleva: no hubo arreglo que cobrar. Llega a la liquidación como el monto acreditado de la
      * fórmula de reparación, que es literalmente lo que esa fórmula necesita saber.
      */
     @Transactional
     public ExpertAssessmentResponse receiveRepairReport(Long caseId, RepairOutcome outcome, String note,
-                                                        BigDecimal quotedAmount, MultipartFile report) {
+                                                        BigDecimal repairCost, MultipartFile report) {
         Case caseRecord = findCase(caseId);
-        boolean quoted = quotedAmount != null && quotedAmount.signum() > 0;
-        if (outcome == RepairOutcome.QUOTE_SENT && !quoted) {
+        boolean charged = repairCost != null && repairCost.signum() > 0;
+        if (outcome == RepairOutcome.QUOTE_SENT && !charged) {
             throw InvalidRepairReportException.quoteWithoutAmount(caseId);
         }
-        if (outcome != RepairOutcome.QUOTE_SENT && quoted) {
-            throw InvalidRepairReportException.amountWithoutQuote(caseId, outcome);
+        if (outcome == RepairOutcome.IRREPARABLE && charged) {
+            throw InvalidRepairReportException.costOnAnIrreparableItem(caseId);
         }
         ExpertAssessment assessment = awaitingAssessment(caseId, ProviderType.SERVICIO_TECNICO);
         assessment.setRepairOutcome(outcome);
-        assessment.setQuotedAmount(quoted ? quotedAmount : null);
+        assessment.setRepairCost(charged ? repairCost : null);
         finishRound(caseRecord, assessment, note, report,
                 "respuesta del servicio técnico: " + outcome);
         return ExpertAssessmentResponse.from(assessment);

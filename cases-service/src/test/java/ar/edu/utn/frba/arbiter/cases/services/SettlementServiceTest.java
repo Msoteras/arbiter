@@ -373,7 +373,7 @@ class SettlementServiceTest {
         when(expertAssessmentRepository.findByCaseIdOrderByDerivedAtDesc(1L)).thenReturn(List.of(
                 ExpertAssessment.builder().caseId(1L).providerType(ProviderType.SERVICIO_TECNICO)
                         .reportReceivedAt(Instant.now())
-                        .quotedAmount(new BigDecimal("180000.00")).build()));
+                        .repairCost(new BigDecimal("180000.00")).build()));
 
         SettlementResponse response = settlementService.forCase(1L, null);
 
@@ -396,7 +396,7 @@ class SettlementServiceTest {
                         .indemnifiableAmount(new BigDecimal("120000.00")).build(),
                 ExpertAssessment.builder().caseId(1L).providerType(ProviderType.SERVICIO_TECNICO)
                         .reportReceivedAt(Instant.now())
-                        .quotedAmount(new BigDecimal("180000.00")).build()));
+                        .repairCost(new BigDecimal("180000.00")).build()));
 
         SettlementResponse response = settlementService.forCase(1L, null);
 
@@ -414,7 +414,7 @@ class SettlementServiceTest {
         when(expertAssessmentRepository.findByCaseIdOrderByDerivedAtDesc(1L)).thenReturn(List.of(
                 ExpertAssessment.builder().caseId(1L).providerType(ProviderType.SERVICIO_TECNICO)
                         .reportReceivedAt(Instant.now())
-                        .quotedAmount(new BigDecimal("180000.00")).build()));
+                        .repairCost(new BigDecimal("180000.00")).build()));
 
         SettlementResponse response = settlementService.forCase(1L, null);
 
@@ -542,7 +542,7 @@ class SettlementServiceTest {
                 ExpertAssessment.builder().caseId(1L).providerType(ProviderType.SERVICIO_TECNICO)
                         .reportReceivedAt(Instant.now())
                         .repairOutcome(RepairOutcome.QUOTE_SENT)
-                        .quotedAmount(new BigDecimal("180000.00")).build()));
+                        .repairCost(new BigDecimal("180000.00")).build()));
 
         SettlementResponse response = settlementService.forCase(1L, null);
 

@@ -1,7 +1,5 @@
 package ar.edu.utn.frba.arbiter.cases.exceptions;
 
-import ar.edu.utn.frba.arbiter.cases.dto.RepairOutcome;
-
 /**
  * The repair shop's answer doesn't hold together. Both cases compare two fields against each other
  * — the outcome and the quote — so neither could live as a constraint on a single parameter.
@@ -19,10 +17,10 @@ public class InvalidRepairReportException extends RuntimeException {
                         + " pero no se cargó el importe.");
     }
 
-    /** Repaired or irreparable: there is no quote behind either, so a number there is a mistake. */
-    public static InvalidRepairReportException amountWithoutQuote(Long caseId, RepairOutcome outcome) {
+    /** Nothing was fixed, so nobody billed for it: a cost there is a mistake, not a low estimate. */
+    public static InvalidRepairReportException costOnAnIrreparableItem(Long caseId) {
         return new InvalidRepairReportException(
-                "El expediente " + caseId + " no lleva presupuesto: el servicio técnico respondió "
-                        + outcome + ".");
+                "El expediente " + caseId + " no lleva importe: el servicio técnico declaró el"
+                        + " equipo irreparable, así que no hubo arreglo que cobrar.");
     }
 }

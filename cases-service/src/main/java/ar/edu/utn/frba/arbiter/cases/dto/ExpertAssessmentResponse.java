@@ -28,8 +28,11 @@ public record ExpertAssessmentResponse(
         String verdictNote,
         /** Lo que el perito determinó que vale el siniestro. Null cuando el informe no puso número. */
         BigDecimal indemnifiableAmount,
-        /** Lo que el taller cobra por arreglarlo. Sólo viene con un resultado {@code QUOTE_SENT}. */
-        BigDecimal quotedAmount,
+        /**
+         * Lo que el taller cobra por el trabajo: presupuestado si todavía no lo hizo, facturado si
+         * ya lo hizo. Null cuando el equipo era irreparable, o cuando la factura no llegó aún.
+         */
+        BigDecimal repairCost,
         Long reportDocumentId
 ) {
 
@@ -49,7 +52,7 @@ public record ExpertAssessmentResponse(
                 assessment.getProviderType(),
                 assessment.getVerdictNote(),
                 assessment.getIndemnifiableAmount(),
-                assessment.getQuotedAmount(),
+                assessment.getRepairCost(),
                 assessment.getReportDocumentId()
         );
     }

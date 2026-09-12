@@ -488,17 +488,16 @@ export class ExpedienteService {
     caseId: number,
     outcome: RepairOutcome,
     note: string,
-    quotedAmount: number | null,
+    repairCost: number | null,
     report: File,
   ): Observable<Peritaje> {
     const formData = new FormData();
     formData.append('report', report);
     formData.append('outcome', outcome);
     formData.append('note', note);
-    // Sólo va con QUOTE_SENT: el backend rechaza un importe con cualquier otro resultado, porque
-    // un equipo reparado o irreparable no tiene presupuesto detrás.
-    if (quotedAmount != null) {
-      formData.append('quotedAmount', String(quotedAmount));
+    // El backend lo exige con QUOTE_SENT y lo rechaza con IRREPARABLE: nada que cobrar ahí.
+    if (repairCost != null) {
+      formData.append('repairCost', String(repairCost));
     }
     return this.http.post<Peritaje>(
       `${this.baseUrl}/${caseId}/expert-assessment/repair-report`,

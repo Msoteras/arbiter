@@ -309,7 +309,7 @@ public class SettlementService {
      */
     private static BigDecimal valuationOf(ExpertAssessment assessment) {
         return assessment.getProviderType() == ProviderType.SERVICIO_TECNICO
-                ? assessment.getQuotedAmount() : assessment.getIndemnifiableAmount();
+                ? assessment.getRepairCost() : assessment.getIndemnifiableAmount();
     }
 
     /** De cuál de los dos informes salió, para que la pantalla lo diga y el analista lo verifique. */

@@ -1145,7 +1145,9 @@
   @if (pideMontoDelInforme()) {
     <label class="peritaje-monto">
       <span class="t-field-label">
-        @if (informeEsReparacion()) {
+        @if (informeEsFactura()) {
+          Importe que facturó el taller
+        } @else if (informeEsReparacion()) {
           Presupuesto de reparación que informó el taller
           <span class="required" aria-hidden="true">*</span>
         } @else {
@@ -1160,7 +1162,10 @@
         [placeholder]="informeEsReparacion() ? 'Cuánto sale el arreglo' : 'Sin monto'"
       />
       <span class="justification-hint">
-        @if (informeEsReparacion()) {
+        @if (informeEsFactura()) {
+          Opcional: dejalo vacío si la factura todavía no llegó. Va a ofrecerse al determinar el
+          monto a pagar, no se aplica solo.
+        } @else if (informeEsReparacion()) {
           Obligatorio: es lo que el presupuesto dice. Va a ofrecerse al determinar el monto a pagar,
           no se aplica solo.
         } @else {
