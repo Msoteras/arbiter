@@ -260,6 +260,32 @@ class CaseRepositorySpecificationTests extends AbstractPersistenceIT {
     }
 
     @Test
+    void freeTextSearch_matchesByInsuredName_accentInsensitive() {
+        // "fernandez" (sin tilde) tiene que encontrar a "Laura Fernández".
+        Specification<Case> spec = CaseSpecifications.withFilters(
+                null, null, null, null, null, null, "fernandez", null, null);
+
+        Page<Case> page = caseRepository.findAll(spec, FIRST_PAGE);
+
+        assertThat(page.getContent())
+                .hasSize(2)
+                .allMatch(c -> "Laura Fernández".equals(c.getInsured().fullName()));
+    }
+
+    @Test
+    void freeTextSearch_matchesByFullName_accentInsensitive() {
+        // El nombre completo sin acentos ni mayúsculas matchea igual: "julio perez" → "Julio Pérez".
+        Specification<Case> spec = CaseSpecifications.withFilters(
+                null, null, null, null, null, null, "julio perez", null, null);
+
+        Page<Case> page = caseRepository.findAll(spec, FIRST_PAGE);
+
+        assertThat(page.getContent())
+                .hasSize(1)
+                .allMatch(c -> "Julio Pérez".equals(c.getInsured().fullName()));
+    }
+
+    @Test
     void freeTextSearch_matchesById() {
         Long targetId = seeded.get(1).getId(); // el de policyNumber POL-CEL-2024-002
         Specification<Case> spec = CaseSpecifications.withFilters(

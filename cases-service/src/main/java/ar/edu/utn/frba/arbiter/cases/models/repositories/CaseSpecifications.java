@@ -163,27 +163,45 @@ public final class CaseSpecifications {
      *
      * <p>El nombre se arma concatenando {@code name} y {@code surname} para que "laura fernández"
      * matchee igual que cualquiera de los dos por separado.
+     *
+     * <p>El match también ignora acentos: buscar "julian perez" encuentra "Julián Pérez". Se
+     * normaliza a los dos lados — el término con {@link #stripAccents} en Java y la columna con
+     * {@code unaccent()} en Postgres (extensión creada en {@code public} por
+     * {@code db/init-multitenant.sql}, así que resuelve por el fallback del search_path del tenant).
      */
     private static Specification<Case> freeText(String q) {
         if (q == null || q.isBlank()) {
             return null;
         }
         String trimmed = q.trim();
-        String pattern = "%" + trimmed.toLowerCase() + "%";
+        String pattern = "%" + stripAccents(trimmed).toLowerCase() + "%";
         Long idMatch = parseAsId(trimmed);
         return (root, query, cb) -> {
             var insured = root.get("insured");
             Predicate byPolicyNumber = cb.like(
-                    cb.lower(root.get("policy").get("externalPolicyNumber")), pattern);
-            Predicate byDni = cb.like(cb.lower(insured.get("dni")), pattern);
+                    normalized(cb, root.get("policy").get("externalPolicyNumber")), pattern);
+            Predicate byDni = cb.like(normalized(cb, insured.get("dni")), pattern);
             Predicate byInsuredName = cb.like(
-                    cb.lower(cb.concat(cb.concat(insured.get("name"), " "), insured.get("surname"))),
+                    normalized(cb, cb.concat(cb.concat(insured.get("name"), " "), insured.get("surname"))),
                     pattern);
             if (idMatch == null) {
                 return cb.or(byPolicyNumber, byDni, byInsuredName);
             }
             return cb.or(cb.equal(root.get("id"), idMatch), byPolicyNumber, byDni, byInsuredName);
         };
+    }
+
+    /** Columna en minúsculas y sin acentos, para comparar contra un patrón normalizado igual. */
+    private static jakarta.persistence.criteria.Expression<String> normalized(
+            jakarta.persistence.criteria.CriteriaBuilder cb,
+            jakarta.persistence.criteria.Expression<String> expr) {
+        return cb.lower(cb.function("unaccent", String.class, expr));
+    }
+
+    /** Descompone (NFD) y descarta las marcas diacríticas: "Pérez" → "Perez". */
+    private static String stripAccents(String s) {
+        return java.text.Normalizer.normalize(s, java.text.Normalizer.Form.NFD)
+                .replaceAll("\\p{M}+", "");
     }
 
     private static Long parseAsId(String q) {
