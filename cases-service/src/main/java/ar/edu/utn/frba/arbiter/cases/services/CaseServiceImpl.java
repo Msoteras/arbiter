@@ -13,6 +13,8 @@ import ar.edu.utn.frba.arbiter.cases.dto.EligibilityCheckResponse;
 import ar.edu.utn.frba.arbiter.cases.dto.LensSummaryResponse;
 import ar.edu.utn.frba.arbiter.cases.dto.PolicyResponse;
 import ar.edu.utn.frba.arbiter.cases.dto.PolicySnapshotResponse;
+import ar.edu.utn.frba.arbiter.cases.dto.ProviderType;
+import ar.edu.utn.frba.arbiter.cases.dto.RepairProviderResponse;
 import ar.edu.utn.frba.arbiter.cases.config.tenant.CallerContext;
 import ar.edu.utn.frba.arbiter.cases.config.tenant.TenantContext;
 import ar.edu.utn.frba.arbiter.cases.dto.StatusTransitionResponse;
@@ -43,9 +45,11 @@ import ar.edu.utn.frba.arbiter.cases.models.repositories.CaseAnalysisRepository;
 import ar.edu.utn.frba.arbiter.cases.models.repositories.CaseAnalysisRepository.CaseAnalysis;
 import ar.edu.utn.frba.arbiter.cases.models.repositories.CaseDocumentAnalysisRepository;
 import ar.edu.utn.frba.arbiter.cases.models.repositories.CaseDocumentRepository;
+import ar.edu.utn.frba.arbiter.cases.models.repositories.CaseLensCountRepository;
 import ar.edu.utn.frba.arbiter.cases.models.repositories.CaseRepository;
 import ar.edu.utn.frba.arbiter.cases.models.repositories.CaseSpecifications;
 import ar.edu.utn.frba.arbiter.cases.models.repositories.ClaimsAnalystRepository;
+import ar.edu.utn.frba.arbiter.cases.models.repositories.ExpertAssessmentRepository;
 import ar.edu.utn.frba.arbiter.common.models.entities.tenant.ClaimsAnalyst;
 import ar.edu.utn.frba.arbiter.common.dto.RuleResultResponse;
 import ar.edu.utn.frba.arbiter.common.enums.CaseStatus;
@@ -82,6 +86,7 @@ public class CaseServiceImpl implements CaseService {
 
     private final CaseRepository caseRepository;
     private final CaseDocumentRepository caseDocumentRepository;
+    private final ExpertAssessmentRepository expertAssessmentRepository;
     private final CaseStatusService caseStatusService;
     private final ClaimsAnalysisClient claimsAnalysisClient;
     private final ClaimsAnalystRepository claimsAnalystRepository;
@@ -411,7 +416,8 @@ public class CaseServiceImpl implements CaseService {
                 .map(StatusTransitionResponse::from)
                 .toList();
         return toResponse(entity, history, caseAnalysisRepository.findByCaseId(caseId), null, null,
-                caseDocumentAnalysisRepository.findByCaseId(caseId), traceabilityOf(entity));
+                caseDocumentAnalysisRepository.findByCaseId(caseId), traceabilityOf(entity),
+                repairProviderOf(entity));
     }
 
     @Override
@@ -469,29 +475,16 @@ public class CaseServiceImpl implements CaseService {
                                             String insuredId, LocalDate eventDateFrom, LocalDate eventDateTo,
                                             String q, RiskBand riskBand, Long analystId, CaseScope scope) {
         // "Míos" necesita saber quién es "yo"; para el referente no hay perfil de analista y queda 0.
+        // El filtro `analystId` es del referente (el frontend solo se lo ofrece a ese rol), así que
+        // nunca convive con un "yo" real y las dos cosas pueden compartir el mismo WHERE.
         Long me = currentAnalystId().orElse(null);
-        return new LensSummaryResponse(
-                count(status, claimCause, policyNumber, insuredId, eventDateFrom, eventDateTo, q, riskBand,
-                        analystId, false, false, false, scope),
-                me == null ? 0 : count(status, claimCause, policyNumber, insuredId, eventDateFrom, eventDateTo,
-                        q, riskBand, me, false, false, false, scope),
-                count(status, claimCause, policyNumber, insuredId, eventDateFrom, eventDateTo, q, riskBand,
-                        analystId, false, false, true, scope),
-                count(status, claimCause, policyNumber, insuredId, eventDateFrom, eventDateTo, q, riskBand,
-                        analystId, true, false, false, scope),
-                count(status, claimCause, policyNumber, insuredId, eventDateFrom, eventDateTo, q, riskBand,
-                        analystId, false, true, false, scope));
-    }
-
-    private long count(List<CaseStatus> status, String claimCause, String policyNumber, String insuredId,
-                       LocalDate eventDateFrom, LocalDate eventDateTo, String q, RiskBand riskBand,
-                       Long analystId, boolean unassigned, boolean fraudAlert, boolean assigned,
-                       CaseScope scope) {
         Specification<Case> spec = and(CaseSpecifications.withFilters(
                 status, claimCause, policyNumber, insuredId, eventDateFrom, eventDateTo, q, riskBand,
-                analystId, unassigned, fraudAlert, assigned), CaseSpecifications.scope(scope));
-        // Sin ningún filtro la spec queda null, y count(null) explota — findAll(null, pageable) no.
-        return spec == null ? caseRepository.count() : caseRepository.count(spec);
+                analystId), CaseSpecifications.scope(scope));
+
+        CaseLensCountRepository.LensCounts counts = caseRepository.countLenses(spec, me);
+        return new LensSummaryResponse(
+                counts.all(), counts.mine(), counts.assigned(), counts.unassigned(), counts.fraud());
     }
 
     /**
@@ -748,27 +741,29 @@ public class CaseServiceImpl implements CaseService {
      */
     private CaseResponse toResponse(Case entity, List<StatusTransitionResponse> history,
                                      CaseAnalysis analysis) {
-        return toResponse(entity, history, analysis, null, null, List.of(), Traceability.none());
+        return toResponse(entity, history, analysis, null, null, List.of(), Traceability.none(), null);
     }
 
     /** Sólo el detalle trae los datos extraídos; ver el javadoc del campo en {@link CaseResponse}. */
     private CaseResponse toResponse(Case entity, List<StatusTransitionResponse> history,
                                      CaseAnalysis analysis,
                                      List<DocumentAnalysisSummary> documentAnalyses) {
-        return toResponse(entity, history, analysis, null, null, documentAnalyses, Traceability.none());
+        return toResponse(entity, history, analysis, null, null, documentAnalyses, Traceability.none(),
+                null);
     }
 
     private CaseResponse toResponse(Case entity, List<StatusTransitionResponse> history,
                                      CaseAnalysis analysis, String insurerSlug, String insurerName,
                                      List<DocumentAnalysisSummary> documentAnalyses) {
         return toResponse(entity, history, analysis, insurerSlug, insurerName, documentAnalyses,
-                Traceability.none());
+                Traceability.none(), null);
     }
 
     private CaseResponse toResponse(Case entity, List<StatusTransitionResponse> history,
                                      CaseAnalysis analysis, String insurerSlug, String insurerName,
                                      List<DocumentAnalysisSummary> documentAnalyses,
-                                     Traceability traceability) {
+                                     Traceability traceability,
+                                     RepairProviderResponse repairProvider) {
         // Mientras el expediente está de vuelta en clasificación, la corrida anterior sigue siendo
         // la última fila de llm_analysis. Mostrarla diría que hay una recomendación vigente cuando
         // justamente se está recalculando, así que en ese estado no se surface ninguna.
@@ -813,8 +808,24 @@ public class CaseServiceImpl implements CaseService {
                 history,
                 documentAnalyses,
                 traceability.ruleResults(),
-                traceability.policySnapshot()
+                traceability.policySnapshot(),
+                repairProvider
         );
+    }
+
+    /**
+     * Solo mientras el bien está en el taller. Es una consulta más, así que va únicamente en el
+     * detalle y nunca en un listado, y solo en el estado donde el dato significa algo: el
+     * asegurado necesita saber dónde está su equipo ahora, no a qué taller fue hace dos meses.
+     */
+    private RepairProviderResponse repairProviderOf(Case entity) {
+        if (entity.getStatus() != CaseStatus.PENDING_REPAIR) {
+            return null;
+        }
+        return expertAssessmentRepository
+                .findByCaseIdAndProviderType(entity.getId(), ProviderType.SERVICIO_TECNICO)
+                .map(RepairProviderResponse::from)
+                .orElse(null);
     }
 
     /**

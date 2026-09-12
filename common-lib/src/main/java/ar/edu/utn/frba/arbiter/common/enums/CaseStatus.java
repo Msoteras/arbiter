@@ -24,6 +24,7 @@ public enum CaseStatus {
      * expert is outside the system and answers by email.
      */
     PENDING_EXPERT_REPORT,
+    PENDING_REPAIR,
     /** Final: the analyst approved the claim (set by the decision endpoint). */
     APPROVED,
     /** Final: the analyst rejected the claim (set by the decision endpoint). */

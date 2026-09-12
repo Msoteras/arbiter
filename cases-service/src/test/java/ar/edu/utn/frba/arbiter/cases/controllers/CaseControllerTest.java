@@ -294,7 +294,7 @@ class CaseControllerTest {
                         LocalDate.of(2026, 5, 30), new BigDecimal("150000"),
                         "Motorola Edge 50 Pro", null, "TITULAR",
                         List.of("La tipografía del encabezado no coincide con el resto"))),
-                List.of(), null
+                List.of(), null, null
         );
         when(caseService.getCase(1L, (String) null)).thenReturn(response);
 
@@ -400,7 +400,7 @@ class CaseControllerTest {
                 Instant.parse("2026-06-13T22:50:00Z"),
                 LocalDate.of(2026, 7, 13), DeadlinePriority.NONE,
                 null,
-                List.of(), List.of(), null
+                List.of(), List.of(), null, null
         );
     }
 }

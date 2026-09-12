@@ -25,7 +25,8 @@ import java.util.List;
 import java.util.Optional;
 
 @Repository
-public interface CaseRepository extends JpaRepository<Case, Long>, JpaSpecificationExecutor<Case> {
+public interface CaseRepository extends JpaRepository<Case, Long>, JpaSpecificationExecutor<Case>,
+        CaseLensCountRepository {
 
     // Los dos listados (barrido del asegurado y bandeja del analista) traen en la misma query todo
     // lo que CaseServiceImpl.toResponse navega. LOAD y no el FETCH por default: FETCH deja en LAZY

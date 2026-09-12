@@ -154,4 +154,16 @@ export interface ExpedienteResponse {
    * Aseguradora en cada apertura del expediente.
    */
   policySnapshot: PolicySnapshot | null;
+  /**
+   * El servicio técnico que tiene el bien, solo mientras el expediente está en reparación (y solo
+   * en GET /{id}). Es lo único de una derivación que ve el asegurado: necesita saber a qué taller
+   * fue su equipo. El peritaje no se le nombra nunca.
+   */
+  repairProvider: RepairProvider | null;
+}
+
+export interface RepairProvider {
+  name: string;
+  email: string;
+  zone: string | null;
 }

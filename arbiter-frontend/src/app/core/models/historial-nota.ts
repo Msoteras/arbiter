@@ -1,5 +1,5 @@
 import { clasificacionLabel } from './clasificacion';
-import { veredictoLabel } from './peritaje';
+import { repairOutcomeLabel, veredictoLabel } from './peritaje';
 
 /**
  * Traduce al español los literales de enum que quedan incrustados en el motivo de una transición
@@ -42,7 +42,11 @@ function tokenLabel(token: string): string {
   if (clasificacion !== token) {
     return clasificacion;
   }
-  return veredictoLabel(token);
+  const veredicto = veredictoLabel(token);
+  if (veredicto !== token) {
+    return veredicto;
+  }
+  return repairOutcomeLabel(token);
 }
 
 export function historialNota(reason: string | null | undefined): string {
