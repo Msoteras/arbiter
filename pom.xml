@@ -33,9 +33,11 @@
          parent que gestiona plugins. Sin este pin, NINGÚN test JUnit5 corre ("Tests run: 0"). -->
     <maven.surefire.version>3.2.5</maven.surefire.version>
     <jacoco.version>0.8.12</jacoco.version>
-    <!-- Split unit/IT por tag JUnit5 "it": por default se excluyen los ITs (Testcontainers, Docker)
-         para que `mvn test` sea rápido; el perfil `it` los corre. -->
-    <test.excluded.groups>it</test.excluded.groups>
+    <!-- Split unit/IT por tag JUnit5: por default se excluyen los ITs ("it": Testcontainers,
+         Docker) y los de calibración del prompt ("llm": pegan contra el proveedor real, se facturan
+         por token y necesitan credenciales), para que `mvn test` sea rápido y determinístico.
+         Los corren los perfiles `it` y `llm`. -->
+    <test.excluded.groups>it,llm</test.excluded.groups>
     <test.groups></test.groups>
   </properties>
 
@@ -175,6 +177,17 @@
     <properties>
       <test.excluded.groups></test.excluded.groups>
       <test.groups>it</test.groups>
+    </properties>
+  </profile>
+
+  <!-- `mvn test -Pllm`: calibración del prompt contra el modelo real. Fuera de la corrida normal
+       porque pega contra el proveedor (se factura por token), necesita credenciales y su resultado
+       no es determinístico — mide si el prompt está bien calibrado, no si el código funciona. -->
+  <profile>
+    <id>llm</id>
+    <properties>
+      <test.excluded.groups></test.excluded.groups>
+      <test.groups>llm</test.groups>
     </properties>
   </profile>
 </profiles>

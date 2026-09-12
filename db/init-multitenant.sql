@@ -882,6 +882,16 @@ BEGIN
             analyzed_at         TIMESTAMPTZ  NOT NULL DEFAULT NOW(),
             case_id             BIGINT       NOT NULL REFERENCES %I.cases(id) ON DELETE CASCADE,
 
+            -- Whether the insured's free-text account matches the claim cause they picked from the
+            -- wizard's selector. NULL on every path that skips the model, so absent is not MATCHES.
+            -- suggested_claim_cause is always a name from arbiter_common.claim_cause (the output
+            -- schema restricts the model to the branch's list) but deliberately not an FK: this is
+            -- an immutable audit row, and it must keep saying what the model answered even if the
+            -- referente later renames or removes the cause.
+            cause_consistency     VARCHAR(20),
+            suggested_claim_cause VARCHAR(120),
+            cause_evidence        TEXT,
+
             -- FAST_TRACK is decided by FastTrackValidator, never by the model
             -- (decision #6) — the DB refuses to record it as an LLM recommendation.
             CONSTRAINT llm_analysis_recommendation_check CHECK (
@@ -890,6 +900,12 @@ BEGIN
                     'LLM_RECOMIENDA_APROBAR',
                     'LLM_NO_RECOMIENDA_APROBAR',
                     'LLM_SOLICITA_REVISION_MANUAL'
+                )
+            ),
+
+            CONSTRAINT llm_analysis_cause_consistency_check CHECK (
+                cause_consistency IS NULL OR cause_consistency IN (
+                    'MATCHES', 'AMBIGUOUS', 'CONTRADICTS'
                 )
             )
         )$ddl$, p_schema, p_schema);

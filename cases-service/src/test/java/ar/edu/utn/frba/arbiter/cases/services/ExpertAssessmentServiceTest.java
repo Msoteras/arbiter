@@ -5,6 +5,8 @@ import ar.edu.utn.frba.arbiter.cases.dto.ProviderType;
 import ar.edu.utn.frba.arbiter.cases.dto.RepairOutcome;
 import ar.edu.utn.frba.arbiter.cases.dto.DeriveToExpertRequest;
 import ar.edu.utn.frba.arbiter.cases.dto.ExpertAssessmentResponse;
+import ar.edu.utn.frba.arbiter.cases.exceptions.CaseAssignedToAnotherAnalystException;
+import ar.edu.utn.frba.arbiter.cases.exceptions.CaseNotAssignedException;
 import ar.edu.utn.frba.arbiter.cases.exceptions.DerivationNotAllowedException;
 import ar.edu.utn.frba.arbiter.cases.exceptions.ExpertAssessmentNotFoundException;
 import ar.edu.utn.frba.arbiter.cases.exceptions.ExpertFirmNotFoundException;
@@ -154,6 +156,7 @@ class ExpertAssessmentServiceTest {
     void derive_rejectsAFirmThatIsNotAvailableForTheCase() {
         Case caseRecord = caseAwaitingReview();
         when(caseRepository.findById(CASE_ID)).thenReturn(Optional.of(caseRecord));
+        when(claimsAnalystRepository.findByEmail(ANALYST_EMAIL)).thenReturn(Optional.of(analyst()));
         givenPolicy(new BigDecimal("500000"));
         when(expertFirmRepository.findAvailableForBranch(BRANCH_ID, ProviderType.ESTUDIO_LIQUIDADOR))
                 .thenReturn(List.of(firm(3L, "Estudio Verifica S.R.L.", "verifica@example.com")));
@@ -348,6 +351,7 @@ class ExpertAssessmentServiceTest {
     @Test
     void derive_refusesWhenTheAmountIsBelowTheInsurersThreshold() {
         when(caseRepository.findById(CASE_ID)).thenReturn(Optional.of(caseAwaitingReview()));
+        when(claimsAnalystRepository.findByEmail(ANALYST_EMAIL)).thenReturn(Optional.of(analyst()));
         givenPolicy(new BigDecimal("2000000"));
 
         assertThatThrownBy(() -> expertAssessmentService.derive(CASE_ID,
@@ -421,6 +425,46 @@ class ExpertAssessmentServiceTest {
         verify(fraudRecordService, never()).registerFromExpertReport(any(), any());
     }
 
+    /**
+     * Derivar es del dueño del expediente, no de cualquier analista del tenant. No es un detalle de
+     * permisos: la derivación le manda un mail a un perito externo y deja el caso en
+     * PENDING_EXPERT_REPORT, donde el analista asignado ya no puede decidir. {@code @PreAuthorize}
+     * solo valida el rol; esto valida el expediente. Mismo chequeo que aprobar/rechazar, que lo
+     * tenía desde antes — la derivación se sumó después y quedó sin él.
+     */
+    @Test
+    void derive_refusesWhenNobodyOwnsTheCase() {
+        Case caseRecord = caseAwaitingReview();
+        caseRecord.setAnalyst(null);
+        when(caseRepository.findById(CASE_ID)).thenReturn(Optional.of(caseRecord));
+        when(claimsAnalystRepository.findByEmail(ANALYST_EMAIL)).thenReturn(Optional.of(analyst()));
+
+        assertThatThrownBy(() -> expertAssessmentService.derive(CASE_ID,
+                new DeriveToExpertRequest(3L, "motivo"), ProviderType.ESTUDIO_LIQUIDADOR))
+                .isInstanceOf(CaseNotAssignedException.class);
+
+        verify(expertAssessmentRepository, never()).save(any());
+        verify(caseStatusService, never()).transition(any(), any(), any(), any());
+        verify(expertNotificationService, never()).notifyDerivation(any(), any());
+    }
+
+    @Test
+    void derive_refusesWhenTheCaseBelongsToAnotherAnalyst() {
+        Case caseRecord = caseAwaitingReview();
+        caseRecord.setAnalyst(ClaimsAnalyst.builder().id(99L).name("Otro").surname("Analista").build());
+        when(caseRepository.findById(CASE_ID)).thenReturn(Optional.of(caseRecord));
+        when(claimsAnalystRepository.findByEmail(ANALYST_EMAIL)).thenReturn(Optional.of(analyst()));
+
+        assertThatThrownBy(() -> expertAssessmentService.derive(CASE_ID,
+                new DeriveToExpertRequest(3L, "motivo"), ProviderType.ESTUDIO_LIQUIDADOR))
+                .isInstanceOf(CaseAssignedToAnotherAnalystException.class);
+
+        verify(expertAssessmentRepository, never()).save(any());
+        verify(caseStatusService, never()).transition(any(), any(), any(), any());
+        // Lo que más importa: al perito no le llegó nada. El mail sale del sistema.
+        verify(expertNotificationService, never()).notifyDerivation(any(), any());
+    }
+
     private void givenCaseAndAnalyst(Case caseRecord) {
         when(caseRepository.findById(CASE_ID)).thenReturn(Optional.of(caseRecord));
         when(claimsAnalystRepository.findByEmail(ANALYST_EMAIL)).thenReturn(Optional.of(analyst()));
@@ -446,6 +490,8 @@ class ExpertAssessmentServiceTest {
                 .claimCause(cause)
                 .claimedAmount(CLAIMED_AMOUNT)
                 .currentStatus(CaseStates.of(status))
+                // Con dueño: derivar es del analista asignado, igual que decidir.
+                .analyst(analyst())
                 .build();
     }
 

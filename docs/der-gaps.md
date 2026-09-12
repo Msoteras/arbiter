@@ -63,6 +63,35 @@ faltante, y el esquema ya está en `db/init-multitenant.sql` y aplicado.
 
 ---
 
+## `llm_analysis.cause_consistency` / `.suggested_claim_cause` / `.cause_evidence` — tres columnas que el DER no tiene
+
+**Encontrado:** 01/09/2026, al implementar el cruce entre el relato del asegurado y el hecho
+generador que declaró.
+
+El DER modela `analisis_llm` con la recomendación, el modelo, la versión del prompt, la confianza y
+la latencia; los motivos van a `razon_llm`. No tiene dónde guardar un veredicto sobre el **relato**:
+si la descripción libre que escribió el asegurado se corresponde con el hecho generador que eligió
+del selector. Las reglas duras evalúan el hecho **declarado**, así que quien elegía "Robo en vía
+pública" (cubierto) y describía un hurto (excluido) pasaba el gate de exclusiones sin que nadie lo
+notara.
+
+La implementación agregó tres columnas a `llm_analysis` en cada esquema de aseguradora:
+`cause_consistency` (`MATCHES`/`AMBIGUOUS`/`CONTRADICTS`, con CHECK), `suggested_claim_cause` (el
+hecho que el relato describe, **por nombre y sin FK** a `arbiter_common.claim_cause`: la fila es
+evidencia inmutable y tiene que seguir diciendo lo que el modelo contestó aunque el referente
+después renombre ese hecho) y `cause_evidence` (la frase textual del asegurado que sostiene el
+veredicto). Las tres son NULL en las corridas anteriores al chequeo, y NULL significa "no evaluado",
+nunca `MATCHES`.
+
+Van en `analisis_llm` y no en una tabla nueva porque salen de la **misma llamada al modelo** que la
+recomendación: son parte del mismo registro auditable (Disposición SSN 2/2023), no un análisis
+aparte.
+
+**Acción:** agregarlas al DER. No hay ambigüedad que resolver — es un faltante, y el esquema ya
+está en `db/init-multitenant.sql` y en `db/migrations/2026-09-01-consistencia-relato-hecho-generador.sql`.
+
+---
+
 ## Plantilla para la próxima entrada
 
 ```

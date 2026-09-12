@@ -7,6 +7,8 @@ import ar.edu.utn.frba.arbiter.cases.dto.DeriveToExpertRequest;
 import ar.edu.utn.frba.arbiter.cases.dto.ExpertAssessmentResponse;
 import ar.edu.utn.frba.arbiter.cases.dto.ExpertFirmResponse;
 import ar.edu.utn.frba.arbiter.cases.exceptions.AnalystProfileNotFoundException;
+import ar.edu.utn.frba.arbiter.cases.exceptions.CaseAssignedToAnotherAnalystException;
+import ar.edu.utn.frba.arbiter.cases.exceptions.CaseNotAssignedException;
 import ar.edu.utn.frba.arbiter.cases.exceptions.CaseNotFoundException;
 import ar.edu.utn.frba.arbiter.cases.exceptions.DerivationNotAllowedException;
 import ar.edu.utn.frba.arbiter.cases.exceptions.DocumentReadException;
@@ -114,11 +116,21 @@ public class ExpertAssessmentService {
      * derived": only PENDING_ANALYST_REVIEW leads to PENDING_EXPERT_REPORT, so a second derivation
      * (or one on a closed case) 409s instead of quietly creating a row the unique index would
      * reject later with a 500.
+     *
+     * <p><b>Only the assigned analyst derives.</b> {@code @PreAuthorize} validates the role, which
+     * every analyst in the tenant has; this validates the case. Deriving is not a verdict, but it
+     * is not harmless either: it emails an outside firm and parks the case in
+     * {@code PENDING_EXPERT_REPORT}, where the analyst who does own it can no longer decide. Same
+     * rule and same two exceptions as {@code CaseServiceImpl.recordAnalystDecision} — the check was
+     * added there when it turned out any analyst could decide on any case, and derivation, added
+     * later, never got it.
      */
     @Transactional
     public ExpertAssessmentResponse derive(Long caseId, DeriveToExpertRequest request,
                                            ProviderType providerType) {
         Case caseRecord = findCase(caseId);
+        ClaimsAnalyst caller = assertCallerOwns(caseRecord);
+        // El umbral de monto es la regla del peritaje: una reparación no pasa por ella.
         if (providerType == ProviderType.ESTUDIO_LIQUIDADOR) {
             assertInsurerDerivesThisCase(caseRecord);
         }
@@ -132,7 +144,7 @@ public class ExpertAssessmentService {
                 .expertFirm(firm)
                 .providerType(providerType)
                 .reason(request.reason())
-                .derivedBy(callerAnalyst())
+                .derivedBy(caller)
                 .build());
 
         String what = providerType == ProviderType.SERVICIO_TECNICO ? "servicio técnico" : "peritaje";
@@ -278,6 +290,24 @@ public class ExpertAssessmentService {
      * Never off the request body: an analyst id sent by the client would let anyone pin a
      * derivation on someone else. Same mechanism as the decision endpoint.
      */
+    /**
+     * The caller, once confirmed to be the analyst this case is assigned to. Resolved from the JWT
+     * and never from the request body: an id sent by the client would let anyone attribute the
+     * derivation to someone else.
+     *
+     * @return the calling analyst, so the caller doesn't resolve them twice
+     */
+    private ClaimsAnalyst assertCallerOwns(Case caseRecord) {
+        ClaimsAnalyst caller = callerAnalyst();
+        if (caseRecord.getAnalyst() == null) {
+            throw new CaseNotAssignedException(caseRecord.getId());
+        }
+        if (!caseRecord.getAnalyst().getId().equals(caller.getId())) {
+            throw new CaseAssignedToAnotherAnalystException(caseRecord.getId());
+        }
+        return caller;
+    }
+
     private ClaimsAnalyst callerAnalyst() {
         String callerEmail = SecurityContextHolder.getContext().getAuthentication().getName();
         return claimsAnalystRepository.findByEmail(callerEmail)

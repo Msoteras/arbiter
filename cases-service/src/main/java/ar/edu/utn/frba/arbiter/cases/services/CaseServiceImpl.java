@@ -52,6 +52,7 @@ import ar.edu.utn.frba.arbiter.cases.models.repositories.ExpertAssessmentReposit
 import ar.edu.utn.frba.arbiter.common.models.entities.tenant.ClaimsAnalyst;
 import ar.edu.utn.frba.arbiter.common.dto.RuleResultResponse;
 import ar.edu.utn.frba.arbiter.common.enums.CaseStatus;
+import ar.edu.utn.frba.arbiter.common.enums.CauseConsistency;
 import ar.edu.utn.frba.arbiter.common.enums.Classification;
 import ar.edu.utn.frba.arbiter.common.enums.DeadlinePriority;
 import ar.edu.utn.frba.arbiter.common.enums.RiskBand;
@@ -803,6 +804,9 @@ public class CaseServiceImpl implements CaseService {
                 classificationOf(entity, current),
                 confidenceOf(entity, current),
                 reasonsOf(entity, current),
+                consistencyOf(entity, current),
+                wasFastTracked(entity) ? null : current.suggestedClaimCause(),
+                wasFastTracked(entity) ? null : current.causeEvidence(),
                 entity.getRiskScore(),
                 entity.getRiskBand(),
                 current.riskBreakdown(),
@@ -924,6 +928,17 @@ public class CaseServiceImpl implements CaseService {
             return List.of();
         }
         return analysis.factors();
+    }
+
+    /**
+     * Mismo criterio que {@link #reasonsOf}: el veredicto de consistencia es de la corrida del
+     * modelo, y un Fast Track no tuvo ninguna — el de la corrida anterior no es suyo.
+     */
+    private CauseConsistency consistencyOf(Case entity, CaseAnalysis analysis) {
+        if (wasFastTracked(entity)) {
+            return null;
+        }
+        return analysis.causeConsistency();
     }
 
     private boolean wasFastTracked(Case entity) {
