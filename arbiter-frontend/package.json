@@ -30,6 +30,8 @@
     "@angular/platform-browser": "^20.3.0",
     "@angular/router": "^20.3.0",
     "@stomp/stompjs": "^7.3.0",
+    "echarts": "^6.1.0",
+    "ngx-echarts": "^20.0.2",
     "rxjs": "~7.8.0",
     "tslib": "^2.3.0",
     "xlsx": "^0.18.5",

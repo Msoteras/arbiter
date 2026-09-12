@@ -2,67 +2,156 @@
   <header class="dash-head">
     <div class="dash-head-text">
       <h1 class="t-page-title">Dashboard de métricas</h1>
-      <p class="dash-sub">Rendimiento operativo de la aseguradora</p>
+      @if (data(); as m) {
+        <p class="dash-sub">
+          Cartera de la aseguradora · {{ m.from | date: 'dd/MM/yy' }} –
+          {{ m.to | date: 'dd/MM/yy' }} · {{ comparisonLabel() }}
+        </p>
+      } @else {
+        <p class="dash-sub">Rendimiento operativo de la aseguradora</p>
+      }
     </div>
-    <app-menu-button [items]="periodOptions" align="end" (itemSelected)="setPeriod($event)">
-      {{ period() }} <span aria-hidden="true">▾</span>
-    </app-menu-button>
+
+    <div class="dash-filters">
+      <app-menu-button [items]="branchOptions()" align="end" (itemSelected)="setBranch($event)">
+        {{ branchLabel() }} <span aria-hidden="true">▾</span>
+      </app-menu-button>
+      @if (canFilterByAnalyst()) {
+        <app-menu-button [items]="analystOptions()" align="end" (itemSelected)="setAnalyst($event)">
+          {{ analystLabel() }} <span aria-hidden="true">▾</span>
+        </app-menu-button>
+      }
+      <app-menu-button [items]="periodOptions" align="end" (itemSelected)="setPeriod($event)">
+        {{ periodLabel() }} <span aria-hidden="true">▾</span>
+      </app-menu-button>
+    </div>
   </header>
 
-  <section class="stats" aria-label="Indicadores del período">
-    @for (s of stats; track s.label) {
-      <app-card [heading]="s.label">
-        <p class="stat-value" [class.danger]="s.danger">{{ s.value }}</p>
-        <p class="stat-sub" [class.danger]="s.danger">{{ s.sub }}</p>
-      </app-card>
-    }
-  </section>
-
-  <section class="panels">
-    <app-card heading="Expedientes por estado">
-      <div class="bars">
-        @for (e of estados; track e.label) {
-          <div class="bar-col">
-            <span class="bar-value">{{ e.value }}</span>
-            <div class="bar-track">
-              <div
-                class="bar tone-{{ e.tone }}"
-                [style.height.%]="(e.value / maxEstado) * 100"
-              ></div>
-            </div>
-            <span class="bar-label">{{ e.label }}</span>
-          </div>
-        }
+  @if (isCustom()) {
+    <div class="range" role="group" aria-label="Período personalizado">
+      <div class="range-field">
+        <label class="t-field-label" for="dash-desde">Desde</label>
+        <app-input id="dash-desde" type="date" [(value)]="customFrom" [max]="customTo()" />
       </div>
-    </app-card>
+      <div class="range-field">
+        <label class="t-field-label" for="dash-hasta">Hasta</label>
+        <app-input id="dash-hasta" type="date" [(value)]="customTo" [min]="customFrom()" />
+      </div>
+    </div>
+  }
 
-    <app-card heading="Riesgo de fraude">
-      <div class="riesgo">
-        <div class="donut-wrap">
-          <svg viewBox="0 0 36 36" class="donut" role="img" aria-label="Distribución de riesgo de fraude">
-            <circle class="donut-track" cx="18" cy="18" r="15.915" />
-            @for (r of riesgo; track r.label) {
-              <circle
-                class="donut-seg tone-{{ r.tone }}"
-                cx="18"
-                cy="18"
-                r="15.915"
-                [attr.stroke-dasharray]="r.pct + ' ' + (100 - r.pct)"
-                [attr.stroke-dashoffset]="r.dashOffset"
-              />
-            }
-          </svg>
-          <div class="donut-center">
-            <span class="donut-total">{{ totalCasos }}</span>
-            <span class="donut-cap">casos</span>
-          </div>
-        </div>
-        <ul class="legend">
-          @for (r of riesgo; track r.label) {
-            <li><span class="dot tone-{{ r.tone }}"></span>{{ r.label }} · {{ r.pct }}%</li>
+  @if (loading() && !data()) {
+    <app-inline-loading [size]="32" message="Calculando los indicadores…" />
+  } @else if (failed()) {
+    <app-empty-state
+      message="No pudimos traer los indicadores del período"
+      sub="Error de conexión"
+    />
+  } @else if (data(); as m) {
+    <div class="body" [class.stale]="loading()">
+      <!-- ─── Embudo del período ───────────────────────────────────────────────── -->
+      <app-card heading="Embudo del período">
+        <p class="funnel-note">{{ stillOpenNote() }}</p>
+        <ol class="funnel">
+          @for (step of funnel(); track step.label) {
+            <li class="step">
+              <span class="step-label">{{ step.label }}</span>
+              <span class="step-value tabular">{{ step.value }}</span>
+              <span class="step-note">{{ step.note }}</span>
+              <span
+                class="step-bar tone-{{ step.tone }}"
+                [style.--fill]="
+                  m.funnel.reported === 0 ? '0%' : (step.value / m.funnel.reported) * 100 + '%'
+                "
+              ></span>
+            </li>
           }
-        </ul>
-      </div>
-    </app-card>
-  </section>
+        </ol>
+      </app-card>
+
+      <!-- ─── Indicadores ──────────────────────────────────────────────────────── -->
+      <section class="stats" aria-label="Indicadores del período">
+        @for (kpi of kpis(); track kpi.label) {
+          <app-stat-tile
+            [label]="kpi.label"
+            [value]="kpi.value"
+            [sub]="kpi.trend || kpi.sub"
+            [progress]="kpi.progress"
+            [progressTone]="kpi.tone"
+            [loading]="loading()"
+          />
+        }
+      </section>
+
+      @if (waitingBreakdown(); as breakdown) {
+        <p class="breakdown">
+          Del tiempo de resolución: <strong>{{ breakdown }}</strong>. Pedir documentación o derivar a
+          un perito o a un service interrumpe el plazo legal, así que esa espera no le corre a la
+          compañía.
+        </p>
+      }
+
+      @if (isEmpty()) {
+        <app-empty-state
+          message="No hubo movimiento de siniestros en este período"
+          sub="Probá con un rango más amplio"
+        />
+      } @else {
+        <!-- ─── Movimiento y atención ──────────────────────────────────────────── -->
+        <section class="middle">
+          <app-card heading="Altas y resoluciones">
+            <p class="card-note">{{ granularityNote() }}</p>
+            <app-chart
+              [options]="timelineChart()"
+              [description]="timelineDescription()"
+              [tall]="true"
+            />
+          </app-card>
+
+          <app-card heading="Requiere atención">
+            <p class="card-note">
+              De toda la cartera, no sólo del período: lo que está frenado hoy lo está igual
+            </p>
+            @if (attentionItems().length === 0) {
+              <app-empty-state message="Nada pendiente de atención" sub="Todo al día" />
+            } @else {
+              <ul class="attention">
+                @for (item of attentionItems(); track item.key) {
+                  <li>
+                    <a class="att-row" [routerLink]="['/inbox']" [queryParams]="item.queryParams">
+                      <span class="att-dot tone-{{ item.severity }}" aria-hidden="true"></span>
+                      <span class="att-text">
+                        <span class="att-title">{{ item.title }}</span>
+                        <span class="att-detail">{{ item.detail }}</span>
+                      </span>
+                      <span class="att-chevron" aria-hidden="true">›</span>
+                    </a>
+                  </li>
+                }
+              </ul>
+            }
+          </app-card>
+        </section>
+
+        <!-- ─── Distribuciones ─────────────────────────────────────────────────── -->
+        <section class="panels">
+          <app-card [heading]="'Estado de los ' + m.funnel.reported + ' expedientes'">
+            <app-distribution [items]="statusItems()" />
+          </app-card>
+
+          <app-card heading="Recomendación de Arbiter">
+            <app-distribution [items]="classificationItems()" />
+          </app-card>
+
+          <app-card heading="Riesgo de fraude">
+            <app-distribution [items]="riskItems()" />
+          </app-card>
+
+          <app-card heading="Expedientes por ramo">
+            <app-distribution [items]="branchItems()" />
+          </app-card>
+        </section>
+      }
+    </div>
+  }
 </div>

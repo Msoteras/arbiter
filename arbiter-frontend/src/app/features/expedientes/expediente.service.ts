@@ -102,6 +102,11 @@ export interface ExpedienteListParams {
   /** Nivel de alerta de fraude, match exacto. */
   riskBand?: 'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL';
   /**
+   * Lente "Frenados": expedientes abiertos sin un solo cambio en los últimos N días. Lo usa el
+   * panel "Requiere atención" del tablero para encontrar lo que quedó quieto.
+   */
+  staleDays?: number;
+  /**
    * Lente "Míos" de la bandeja: solo los expedientes asignados al analista logueado. Omitirlo
    * (o `false`) es la lente "Todos".
    *
@@ -204,6 +209,7 @@ export class ExpedienteService {
     if (params.assigned) query['assigned'] = 'true';
     if (params.fraudAlert) query['fraudAlert'] = 'true';
     if (params.scope) query['scope'] = params.scope;
+    if (params.staleDays != null) query['staleDays'] = String(params.staleDays);
     if (params.insurerId != null) query['insurerId'] = String(params.insurerId);
     return this.http.get<PagedResponse<ExpedienteResponse>>(this.baseUrl, { params: query });
   }

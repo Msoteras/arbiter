@@ -9,6 +9,8 @@ import { InputComponent } from '../../shared/ui/input/input.component';
 import { TextareaComponent } from '../../shared/ui/textarea/textarea.component';
 import { ModalComponent } from '../../shared/ui/modal/modal.component';
 import { FraudGaugeComponent } from '../../shared/ui/fraud-gauge/fraud-gauge.component';
+import { ChartComponent } from '../../shared/ui/chart/chart.component';
+import { baseChartOptions, readChartTheme } from '../../shared/ui/chart/chart-theme';
 import { SeverityLabelComponent } from '../../shared/ui/severity-label/severity-label.component';
 import { EmptyStateComponent } from '../../shared/ui/empty-state/empty-state.component';
 import { PolicyCardComponent } from '../../shared/ui/policy-card/policy-card.component';
@@ -67,6 +69,7 @@ interface Swatch {
     TextareaComponent,
     ModalComponent,
     FraudGaugeComponent,
+    ChartComponent,
     SeverityLabelComponent,
     EmptyStateComponent,
     PolicyCardComponent,
@@ -454,6 +457,19 @@ interface Swatch {
       </section>
 
       <section class="sg-block">
+        <h3 class="sg-h3">Chart</h3>
+        <p class="sg-p">
+          Envoltorio de ECharts. Los colores NO se escriben en el gráfico: salen de los tokens
+          semánticos leídos en tiempo de ejecución (ver chart-theme.ts), así que el semáforo de
+          acá es el mismo que el de los badges. <code>description</code> es obligatorio: un canvas
+          no le dice nada a un lector de pantalla.
+        </p>
+        <div class="narrow">
+          <app-chart [options]="demoChart" [description]="demoChartDescription" />
+        </div>
+      </section>
+
+      <section class="sg-block">
         <h3 class="sg-h3">Severity label</h3>
         <div class="row">
           <app-severity-label level="bajo" />
@@ -715,13 +731,30 @@ interface Swatch {
           solo cuando el número comunica algo: <span class="mono">accent</span> para el dato propio
           a resaltar, <span class="mono">danger</span> para una alerta. Con
           <span class="mono">loading</span> muestra un guion en vez de un 0 que después salta a su
-          valor real y se lee como "no hay nada".
+          valor real y se lee como "no hay nada". <span class="mono">progress</span> agrega una barra
+          bajo el número, y solo tiene sentido donde el valor ES una proporción: en un conteo o en
+          una duración no hay contra qué medirla. Su color sale del semáforo
+          (<span class="mono">progressTone</span>), no de una paleta aparte.
         </p>
         <div class="row cards">
           <app-stat-tile [value]="14" label="Total expedientes" sub="en la aseguradora" />
           <app-stat-tile [value]="5" tone="accent" label="Pendientes" sub="asignados a vos" />
           <app-stat-tile [value]="3" tone="danger" label="Riesgo alto" sub="requieren atención" />
           <app-stat-tile [loading]="true" label="Resueltos" sub="en total" />
+          <app-stat-tile
+            [value]="'86%'"
+            label="Coincidencia"
+            sub="6 de 7 con recomendación"
+            [progress]="0.86"
+            progressTone="info"
+          />
+          <app-stat-tile
+            [value]="'25%'"
+            label="Fast Track"
+            sub="3 de 12 denunciados"
+            [progress]="0.25"
+            progressTone="ok"
+          />
         </div>
       </section>
     </div>
@@ -830,6 +863,33 @@ interface Swatch {
   `,
 })
 export class StyleguideComponent {
+  /**
+   * Demo del app-chart. Arma las opciones igual que una pantalla real: tokens leídos del design
+   * system, nunca colores escritos acá.
+   */
+  private readonly chartTheme = readChartTheme();
+  protected readonly demoChartDescription =
+    'Ejemplo de gráfico de barras. Aprobados: 24. Pendientes: 12. Rechazados: 6.';
+  protected readonly demoChart = {
+    ...baseChartOptions(this.chartTheme),
+    grid: { left: 8, right: 24, top: 8, bottom: 8, containLabel: true },
+    xAxis: { type: 'value', splitLine: { lineStyle: { color: this.chartTheme.grid } },
+             axisLabel: { color: this.chartTheme.muted } },
+    yAxis: { type: 'category', data: ['Rechazados', 'Pendientes', 'Aprobados'],
+             axisLine: { show: false }, axisTick: { show: false },
+             axisLabel: { color: this.chartTheme.text } },
+    series: [{
+      type: 'bar',
+      barMaxWidth: 18,
+      label: { show: true, position: 'right', color: this.chartTheme.muted },
+      data: [
+        { value: 6, itemStyle: { color: this.chartTheme.status.danger, borderRadius: [0, 4, 4, 0] } },
+        { value: 12, itemStyle: { color: this.chartTheme.status.warning, borderRadius: [0, 4, 4, 0] } },
+        { value: 24, itemStyle: { color: this.chartTheme.status.ok, borderRadius: [0, 4, 4, 0] } },
+      ],
+    }],
+  };
+
   /** Demo del chip group: las mismas franjas que usa el alta de denuncia. */
   protected readonly timeSlotDemo: readonly ChipOption[] = [
     { value: 'madrugada', label: 'Madrugada' },

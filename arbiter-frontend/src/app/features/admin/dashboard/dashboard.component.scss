@@ -1,4 +1,18 @@
-:host { display: block; padding: var(--space-6); }
+/* El shell no acolcha el contenido: cada pantalla pone su propio margen, igual que reglas,
+   usuarios y reportes. Sin esto, el tablero queda pegado a la topbar y a la sidebar. */
+:host {
+  display: block;
+  padding: var(--space-6);
+}
+
+.dash,
+.body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-5);
+}
+
+/* ─── Encabezado ─────────────────────────────────────────────────────────── */
 
 .dash-head {
   display: flex;
@@ -6,83 +20,260 @@
   justify-content: space-between;
   gap: var(--space-4);
   flex-wrap: wrap;
-  margin-bottom: var(--space-5);
-}
-.dash-head-text h1 { margin: 0; }
-.dash-sub { margin: var(--space-1) 0 0; color: var(--text-secondary); font-size: var(--font-size-body); }
-
-/* ===== KPIs ===== */
-.stats {
-  display: grid;
-  grid-template-columns: repeat(4, 1fr);
-  gap: var(--space-3);
-  margin-bottom: var(--space-4);
-}
-.stat-value {
-  margin: 0;
-  font-size: var(--font-size-xl);
-  font-weight: var(--font-weight-bold);
-  color: var(--text-primary);
-  line-height: 1.1;
-  font-variant-numeric: tabular-nums;
-}
-.stat-value.danger { color: var(--status-danger); }
-.stat-sub { margin: var(--space-2) 0 0; font-size: var(--font-size-xs); color: var(--text-muted); }
-.stat-sub.danger { color: var(--status-danger); }
-
-/* ===== Paneles ===== */
-.panels {
-  display: grid;
-  grid-template-columns: 1.4fr 1fr;
-  gap: var(--space-3);
 }
 
-/* Barras "Expedientes por estado" */
-.bars { display: flex; gap: var(--space-3); align-items: stretch; }
-.bar-col { flex: 1; display: flex; flex-direction: column; align-items: center; gap: var(--space-2); min-width: 0; }
-.bar-value { font-size: var(--font-size-sm); color: var(--text-secondary); font-variant-numeric: tabular-nums; }
-.bar-track { width: 100%; height: 160px; display: flex; align-items: flex-end; }
-.bar {
-  width: 100%;
-  min-height: 4px;
-  border-radius: var(--radius-ctl) var(--radius-ctl) 0 0;
-  background: var(--border-strong);
-}
-.bar.tone-ink { background: var(--text-primary); }
-.bar.tone-ok { background: var(--status-ok); }
-.bar.tone-danger { background: var(--status-danger); }
-.bar-label { font-size: var(--font-size-xs); color: var(--text-muted); text-align: center; }
-
-/* Anillo "Riesgo de fraude" */
-.riesgo { display: flex; align-items: center; gap: var(--space-6); flex-wrap: wrap; }
-.donut-wrap { position: relative; width: 150px; height: 150px; flex-shrink: 0; }
-.donut { width: 150px; height: 150px; transform: rotate(-90deg); }
-.donut-track { fill: none; stroke: var(--surface-sunken); stroke-width: 3.6; }
-.donut-seg { fill: none; stroke-width: 3.6; }
-.donut-seg.tone-ok { stroke: var(--status-ok); }
-.donut-seg.tone-warning { stroke: var(--status-warning); }
-.donut-seg.tone-risk { stroke: var(--status-risk); }
-.donut-seg.tone-danger { stroke: var(--status-danger); }
-.donut-center {
-  position: absolute;
-  inset: 0;
+.dash-head-text {
   display: flex;
   flex-direction: column;
-  align-items: center;
-  justify-content: center;
+  gap: var(--space-1);
 }
-.donut-total { font-size: var(--font-size-lg); font-weight: var(--font-weight-bold); color: var(--text-primary); }
-.donut-cap { font-size: var(--font-size-2xs); color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.05em; }
 
-.legend { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: var(--space-2); }
-.legend li { display: flex; align-items: center; gap: var(--space-2); font-size: var(--font-size-sm); color: var(--text-secondary); }
-.dot { width: 10px; height: 10px; border-radius: var(--radius-pill); flex-shrink: 0; }
-.dot.tone-ok { background: var(--status-ok); }
-.dot.tone-warning { background: var(--status-warning); }
-.dot.tone-risk { background: var(--status-risk); }
-.dot.tone-danger { background: var(--status-danger); }
+.dash-sub {
+  margin: 0;
+  font-size: var(--font-size-sm);
+  color: var(--text-muted);
+}
+
+.dash-filters {
+  display: flex;
+  gap: var(--space-2);
+  flex-wrap: wrap;
+}
+
+/* ─── Período personalizado ──────────────────────────────────────────────── */
+
+.range {
+  display: flex;
+  gap: var(--space-4);
+  flex-wrap: wrap;
+  padding: var(--space-4);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-card);
+  background: var(--surface-soft);
+}
+
+.range-field {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  min-width: 160px;
+}
+
+/* ─── Embudo ─────────────────────────────────────────────────────────────── */
+
+.funnel-note {
+  margin: 0 0 var(--space-4);
+  font-size: var(--font-size-sm);
+  color: var(--text-muted);
+}
+
+.funnel {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+  gap: var(--space-4);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  counter-reset: step;
+}
+
+.step {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+.step-label {
+  font-size: var(--font-size-2xs);
+  font-weight: var(--font-weight-medium);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--text-muted);
+}
+
+.step-value {
+  font-size: var(--font-size-2xl);
+  font-weight: var(--font-weight-bold);
+  line-height: 1;
+  letter-spacing: -0.02em;
+  color: var(--text-primary);
+}
+
+.step-note {
+  min-height: var(--space-4);
+  font-size: var(--font-size-xs);
+  color: var(--text-muted);
+}
+
+/**
+ * La barra bajo cada paso: el ancho es la proporción del ingreso, así el embudo se ve angostarse
+ * sin necesidad de dibujar un embudo.
+ */
+.step-bar {
+  display: block;
+  margin-top: var(--space-1);
+  height: 3px;
+  border-radius: var(--radius-pill);
+  background: var(--surface-sunken);
+  position: relative;
+  overflow: hidden;
+}
+
+.step-bar::after {
+  content: '';
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: var(--fill, 0%);
+  background: var(--step-color, var(--text-primary));
+}
+
+/* Cada paso lleva el color con el que la app ya pinta esa etapa: azul lo que toca el modelo,
+   teal lo que llegó a una decisión. En tinta neutra el embudo entero se leía apagado. */
+.step-bar.tone-info {
+  --step-color: var(--status-info);
+}
+.step-bar.tone-ok {
+  --step-color: var(--status-ok);
+}
+.step-bar.tone-warning {
+  --step-color: var(--status-warning);
+}
+.step-bar.tone-neutral {
+  --step-color: var(--text-primary);
+}
+
+/* ─── Tarjetas de KPI ────────────────────────────────────────────────────── */
+
+.stats {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+  gap: var(--space-4);
+}
+
+/* Nota bajo la fila de indicadores: desarma el promedio en las dos mitades que lo componen. */
+.breakdown {
+  margin: calc(var(--space-4) * -1 + var(--space-1)) 0 0;
+  font-size: var(--font-size-xs);
+  color: var(--text-muted);
+}
+.breakdown strong {
+  color: var(--text-secondary);
+  font-weight: var(--font-weight-medium);
+}
+
+/* ─── Movimiento y atención ──────────────────────────────────────────────── */
+
+.middle {
+  display: grid;
+  /* El gráfico manda y el panel de atención lo acompaña: ~2/3 y ~1/3 en escritorio. */
+  grid-template-columns: 2fr 1fr;
+  gap: var(--space-4);
+  align-items: start;
+}
+
+.card-note {
+  margin: 0 0 var(--space-3);
+  font-size: var(--font-size-xs);
+  color: var(--text-muted);
+}
+
+.attention {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+}
+
+.att-row {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-3) var(--space-2);
+  border-radius: var(--radius-ctl);
+  text-decoration: none;
+  color: inherit;
+  transition: background var(--dur-1) var(--ease-standard);
+}
+
+.att-row:hover {
+  background: var(--surface-sunken);
+}
+
+.att-row:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
+}
+
+.attention li + li .att-row {
+  border-top: 1px solid var(--border-subtle);
+  border-radius: 0;
+}
+
+.att-dot {
+  width: var(--space-2);
+  height: var(--space-2);
+  border-radius: var(--radius-pill);
+}
+
+.att-text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.att-title {
+  font-size: var(--font-size-body);
+  color: var(--text-primary);
+}
+
+.att-detail {
+  font-size: var(--font-size-xs);
+  color: var(--text-muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.att-chevron {
+  color: var(--text-muted);
+  font-size: var(--font-size-lg);
+}
+
+/* Acotadas al punto del panel: sin el `.att-dot` adelante también le pintaban el riel a la barra
+   del embudo, que comparte los nombres de tono. */
+.att-dot.tone-risk {
+  background: var(--status-risk);
+}
+.att-dot.tone-warning {
+  background: var(--status-warning);
+}
+.att-dot.tone-info {
+  background: var(--status-info);
+}
+
+/* ─── Distribuciones ─────────────────────────────────────────────────────── */
+
+.panels {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: var(--space-4);
+  align-items: start;
+}
+
+/**
+ * Mientras llega el período nuevo, lo que está en pantalla sigue siendo válido pero ya no es lo
+ * que se pidió: atenuarlo lo dice sin vaciar la pantalla ni hacerla saltar.
+ */
+.body.stale {
+  opacity: 0.55;
+  transition: opacity var(--dur-2) var(--ease-standard);
+}
 
 @media (max-width: 900px) {
-  .stats { grid-template-columns: repeat(2, 1fr); }
-  .panels { grid-template-columns: 1fr; }
+  .middle {
+    grid-template-columns: 1fr;
+  }
 }
