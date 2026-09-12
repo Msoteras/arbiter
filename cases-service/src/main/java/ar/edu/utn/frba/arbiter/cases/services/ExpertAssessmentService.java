@@ -176,6 +176,7 @@ public class ExpertAssessmentService {
         Case caseRecord = findCase(caseId);
         ExpertAssessment assessment = awaitingAssessment(caseId, ProviderType.ESTUDIO_LIQUIDADOR);
         assessment.setVerdict(verdict);
+        assessment.setIndemnifiableAmount(indemnifiableAmount);
         finishRound(caseRecord, assessment, note, report, "informe de peritaje recibido: " + verdict);
 
         if (verdict == ExpertVerdict.FRAUD_CONFIRMED) {
@@ -218,7 +219,6 @@ public class ExpertAssessmentService {
         assessment.setReportDocumentId(storeReport(caseId, documentType, report).getId());
         assessment.setReportReceivedAt(Instant.now());
         assessment.setVerdictNote(note);
-        assessment.setIndemnifiableAmount(indemnifiableAmount);
         expertAssessmentRepository.save(assessment);
 
         caseStatusService.transition(caseRecord, CaseStatus.PENDING_ANALYST_REVIEW,

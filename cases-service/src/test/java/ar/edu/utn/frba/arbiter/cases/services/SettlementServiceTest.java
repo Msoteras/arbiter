@@ -1,6 +1,7 @@
 package ar.edu.utn.frba.arbiter.cases.services;
 
 import ar.edu.utn.frba.arbiter.cases.dto.DocumentAnalysisSummary;
+import ar.edu.utn.frba.arbiter.cases.dto.ProviderType;
 import ar.edu.utn.frba.arbiter.cases.dto.SettlementDecisionRequest;
 import ar.edu.utn.frba.arbiter.cases.dto.SettlementResponse;
 import ar.edu.utn.frba.arbiter.cases.exceptions.InvalidSettlementException;
@@ -344,8 +345,8 @@ class SettlementServiceTest {
         claim.setCoverage(repairCoverage());
         when(documentAnalysisRepository.findByCaseId(1L)).thenReturn(List.of(
                 document("repair_quote", new BigDecimal("95000.00"))));
-        when(expertAssessmentRepository.findByCaseId(1L)).thenReturn(Optional.of(
-                ExpertAssessment.builder().caseId(1L)
+        when(expertAssessmentRepository.findByCaseIdAndProviderType(1L, ProviderType.ESTUDIO_LIQUIDADOR))
+                .thenReturn(Optional.of(ExpertAssessment.builder().caseId(1L)
                         .indemnifiableAmount(new BigDecimal("120000.00")).build()));
 
         SettlementResponse response = settlementService.forCase(1L, null);
@@ -363,8 +364,9 @@ class SettlementServiceTest {
         claim.setCoverage(repairCoverage());
         when(documentAnalysisRepository.findByCaseId(1L)).thenReturn(List.of(
                 document("repair_quote", new BigDecimal("95000.00"))));
-        when(expertAssessmentRepository.findByCaseId(1L)).thenReturn(Optional.of(
-                ExpertAssessment.builder().caseId(1L).indemnifiableAmount(null).build()));
+        when(expertAssessmentRepository.findByCaseIdAndProviderType(1L, ProviderType.ESTUDIO_LIQUIDADOR))
+                .thenReturn(Optional.of(
+                        ExpertAssessment.builder().caseId(1L).indemnifiableAmount(null).build()));
 
         SettlementResponse response = settlementService.forCase(1L, null);
 

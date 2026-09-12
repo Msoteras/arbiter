@@ -1,6 +1,7 @@
 package ar.edu.utn.frba.arbiter.cases.services;
 
 import ar.edu.utn.frba.arbiter.cases.dto.PendingSettlementResponse;
+import ar.edu.utn.frba.arbiter.cases.dto.ProviderType;
 import ar.edu.utn.frba.arbiter.cases.dto.SettlementDecisionRequest;
 import ar.edu.utn.frba.arbiter.cases.dto.SettlementResponse;
 import ar.edu.utn.frba.arbiter.cases.exceptions.CaseNotFoundException;
@@ -226,10 +227,11 @@ public class SettlementService {
             return null;
         }
 
-        // El peritaje gana. Cuando el expediente se derivó, el monto lo determinó una persona que
-        // fue a mirar el bien; el presupuesto lo trajo el asegurado. Sugerir el segundo teniendo el
-        // primero sería ofrecer la fuente más débil de las dos.
-        Suggestion expert = expertAssessmentRepository.findByCaseId(caseId)
+        // El peritaje gana. Cuando el expediente se derivó a un estudio liquidador, el monto lo
+        // determinó una persona que fue a mirar el bien; el presupuesto lo trajo el asegurado.
+        // Sugerir el segundo teniendo el primero sería ofrecer la fuente más débil de las dos.
+        Suggestion expert = expertAssessmentRepository
+                .findByCaseIdAndProviderType(caseId, ProviderType.ESTUDIO_LIQUIDADOR)
                 .map(ExpertAssessment::getIndemnifiableAmount)
                 .filter(amount -> amount != null && amount.signum() > 0)
                 .map(amount -> new Suggestion(amount, EXPERT_REPORT))
