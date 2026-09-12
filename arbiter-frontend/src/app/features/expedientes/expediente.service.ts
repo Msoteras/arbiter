@@ -120,7 +120,7 @@ export interface ExpedienteListParams {
   unassigned?: boolean;
   /** Lente "Asignados" (referente): expedientes con analista, sin importar quién. Excluyente. */
   assigned?: boolean;
-  /** Lente "Alerta de fraude": expedientes con riesgo alto o crítico. Excluyente con las otras. */
+  /** Pestaña "Riesgo de fraude": expedientes con riesgo alto o crítico. Excluyente con las otras. */
   fraudAlert?: boolean;
   /** Recorte por ciclo de vida. Default del backend: `ALL`. */
   scope?: 'OPEN' | 'CLOSED' | 'ALL';

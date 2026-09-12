@@ -74,7 +74,7 @@
   padding: 1px var(--space-2);
 }
 .lens-tab.active .lens-count { color: var(--accent-fg); background: var(--selected-bg); }
-// Lente "Alerta de fraude": el triángulo va en color de peligro (semáforo), el resto sobrio.
+// Pestaña "Riesgo de fraude": el triángulo va en color de peligro (semáforo), el resto sobrio.
 .lens-tab--alert .lens-alert-mark { color: var(--status-danger); font-size: 0.85em; }
 .lens-tab--alert.active { border-bottom-color: var(--status-danger); }
 .lens-tab--alert.active .lens-count {
