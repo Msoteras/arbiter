@@ -72,10 +72,11 @@ describe('BandejaComponent · recorte en curso', () => {
     (fixture.componentInstance as unknown as Record<string, () => void>)[name]();
   }
 
+  /** El recorte ya no es un control aparte: es una pestaña más de la barra de arriba. */
   function clickScope(label: string): void {
     const button = (
-      Array.from(fixture.nativeElement.querySelectorAll('.scope-opt')) as HTMLButtonElement[]
-    ).find((b) => b.textContent?.trim() === label);
+      Array.from(fixture.nativeElement.querySelectorAll('.lens-tab')) as HTMLButtonElement[]
+    ).find((b) => b.textContent?.trim().startsWith(label));
     button!.click();
     fixture.detectChanges();
   }
@@ -98,13 +99,14 @@ describe('BandejaComponent · recorte en curso', () => {
   });
 
   /**
-   * Los conteos salen de `activeFilters()`, igual que la tabla. Si el recorte viajara solo en el
-   * listado, parado en "En curso" el toggle diría "Míos 16" sobre una tabla de 6.
+   * Los conteos se piden SIN recorte por ciclo: cada pestaña muestra cuántos expedientes va a
+   * encontrar quien entre en ella. Si heredaran el recorte de la pestaña activa, parado en
+   * "Cerrados" el contador de "Sin asignar" contaría solo cerrados y cambiaría al entrar.
    */
-  it('el recorte viaja también en los conteos de las lentes', async () => {
+  it('los conteos de las pestañas no arrastran el recorte', async () => {
     await mount();
 
-    expect(lensCalls[0].scope).toBe('OPEN');
+    expect(lensCalls[0].scope).toBeUndefined();
   });
 
   it('cambiar el recorte se lo pide al backend', async () => {
@@ -148,7 +150,7 @@ describe('BandejaComponent · recorte en curso', () => {
 
     expect(lastList().scope).toBe('ALL');
     expect(lastList().status).toBe('APPROVED');
-    const active = fixture.nativeElement.querySelector('.scope-opt.active') as HTMLElement;
-    expect(active.textContent?.trim()).toBe('Todos');
+    const active = fixture.nativeElement.querySelector('.lens-tab.active') as HTMLElement;
+    expect(active.textContent?.trim()).toContain('Todos');
   });
 });

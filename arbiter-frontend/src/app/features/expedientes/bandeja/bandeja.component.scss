@@ -82,30 +82,13 @@
   background: var(--surface-danger-soft);
 }
 
-// Segmentado y no tabs: es un recorte del conjunto, no otra pestaña al mismo nivel que las lentes.
-.scope {
-  display: inline-flex;
-  margin-top: var(--space-4);
-  border: 1px solid var(--border-control);
-  border-radius: var(--radius-pill);
-  overflow: hidden;
-}
-.scope-opt {
-  border: none;
-  background: none;
-  cursor: pointer;
-  font: inherit;
-  font-size: var(--font-size-sm);
-  color: var(--text-secondary);
-  padding: var(--space-2) var(--space-4);
-  white-space: nowrap;
-}
-.scope-opt + .scope-opt { border-left: 1px solid var(--border-subtle); }
-.scope-opt:hover { color: var(--text-primary); }
-.scope-opt.active {
-  background: var(--selected-bg);
-  color: var(--accent-fg);
-  font-weight: var(--font-weight-medium);
+// Separador entre las pestañas de ciclo de vida y las de pertenencia: son dos ejes en una sola
+// barra, y sin esta marca "Cerrados" y "Todos" se leen como la misma familia.
+.lens-divider {
+  align-self: center;
+  width: 1px;
+  height: var(--space-4);
+  background: var(--border-default);
 }
 
 // ───────────────── Barra: búsqueda + botón Filtros ─────────────────

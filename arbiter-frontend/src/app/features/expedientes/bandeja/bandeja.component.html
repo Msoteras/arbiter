@@ -42,11 +42,33 @@
     </div>
   } @else {
 
-  <!-- Lente de pertenencia: de quién es el expediente. Va aparte de los filtros a propósito
-       (no es un recorte más del listado) y reusa el patrón de tabs del detalle. Solo para el
-       analista: el referente ve todo (no tiene expedientes propios). -->
+  <!-- Una sola barra: primero el recorte por ciclo de vida, después la pertenencia. Son dos ejes
+       distintos y vivían en dos controles, pero dos filas de pestañas pegadas se leían como una
+       sola cosa. "Todos" cierra los dos: ni recorte por ciclo ni por analista. La variante de
+       abajo es la del referente, que no tiene "Míos" porque no le asignan expedientes. -->
   @if (canAssign()) {
     <div class="lens" role="tablist" aria-label="Expedientes a mostrar">
+      <button
+        type="button"
+        role="tab"
+        class="lens-tab"
+        [class.active]="lens() === 'open'"
+        [attr.aria-selected]="lens() === 'open'"
+        (click)="setLens('open')"
+      >
+        En curso
+      </button>
+      <button
+        type="button"
+        role="tab"
+        class="lens-tab"
+        [class.active]="lens() === 'closed'"
+        [attr.aria-selected]="lens() === 'closed'"
+        (click)="setLens('closed')"
+      >
+        Cerrados
+      </button>
+      <span class="lens-divider" aria-hidden="true"></span>
       <button
         type="button"
         role="tab"
@@ -90,9 +112,28 @@
       </button>
     </div>
   } @else if (isReferente()) {
-    <!-- El referente supervisa toda la operación: no tiene "Míos" (no le asignan expedientes),
-         pero sí lentes de asignación y de fraude sobre todo el caseload de la aseguradora. -->
     <div class="lens" role="tablist" aria-label="Expedientes a mostrar">
+      <button
+        type="button"
+        role="tab"
+        class="lens-tab"
+        [class.active]="lens() === 'open'"
+        [attr.aria-selected]="lens() === 'open'"
+        (click)="setLens('open')"
+      >
+        En curso
+      </button>
+      <button
+        type="button"
+        role="tab"
+        class="lens-tab"
+        [class.active]="lens() === 'closed'"
+        [attr.aria-selected]="lens() === 'closed'"
+        (click)="setLens('closed')"
+      >
+        Cerrados
+      </button>
+      <span class="lens-divider" aria-hidden="true"></span>
       <button
         type="button"
         role="tab"
@@ -136,38 +177,6 @@
       </button>
     </div>
   }
-
-  <!-- Recorte por ciclo de vida. Fila aparte de las lentes: cruza con ellas ("míos y en curso"),
-       no compite. Siempre visible, para que nunca se esconda trabajo sin decirlo. -->
-  <div class="scope" role="group" aria-label="Recorte por estado del expediente">
-    <button
-      type="button"
-      class="scope-opt"
-      [class.active]="scope() === 'OPEN'"
-      [attr.aria-pressed]="scope() === 'OPEN'"
-      (click)="setScope('OPEN')"
-    >
-      En curso
-    </button>
-    <button
-      type="button"
-      class="scope-opt"
-      [class.active]="scope() === 'CLOSED'"
-      [attr.aria-pressed]="scope() === 'CLOSED'"
-      (click)="setScope('CLOSED')"
-    >
-      Cerrados
-    </button>
-    <button
-      type="button"
-      class="scope-opt"
-      [class.active]="scope() === 'ALL'"
-      [attr.aria-pressed]="scope() === 'ALL'"
-      (click)="setScope('ALL')"
-    >
-      Todos
-    </button>
-  </div>
 
   @if (assignError()) {
     <app-card
@@ -321,11 +330,11 @@
     } @else if (emptyByScope()) {
       <app-empty-state
         [message]="
-          scope() === 'OPEN'
+          lens() === 'open'
             ? 'No hay expedientes en curso. Probá con «Todos» para ver los ya cerrados.'
             : 'Todavía no hay expedientes cerrados.'
         "
-        [sub]="scope() === 'OPEN' ? 'Nada pendiente' : 'Sin cerrados'"
+        [sub]="lens() === 'open' ? 'Nada pendiente' : 'Sin cerrados'"
       />
     } @else {
       <app-empty-state message="Todavía no hay expedientes cargados." sub="Sin expedientes" />
