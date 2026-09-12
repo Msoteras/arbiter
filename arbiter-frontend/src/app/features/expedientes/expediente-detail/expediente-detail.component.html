@@ -54,6 +54,36 @@
         } @else {
           <p class="nodata">El modelo todavía no generó una recomendación para este expediente.</p>
         }
+
+        <!-- El cruce relato ↔ hecho generador declarado. Va acá y no en una card aparte porque es
+             lo que explica la recomendación de arriba: el asegurado eligió un hecho del selector y
+             después contó otra cosa. Quién tiene razón lo decide el analista. -->
+        @if (showCauseConsistency()) {
+          <div class="consistencia">
+            <app-badge variant="solid" [tone]="causeConsistencyTone()">
+              {{ causeConsistencyLabel() }}
+            </app-badge>
+            <dl class="consistencia-cruce">
+              <div>
+                <dt class="t-field-label">Hecho declarado</dt>
+                <dd>{{ data()?.claimCause }}</dd>
+              </div>
+              @if (data()?.suggestedClaimCause; as sugerido) {
+                <div>
+                  <dt class="t-field-label">El relato sugiere</dt>
+                  <dd>{{ sugerido }}</dd>
+                </div>
+              }
+            </dl>
+            @if (data()?.causeEvidence; as cita) {
+              <blockquote class="consistencia-cita">{{ cita }}</blockquote>
+            }
+            <p class="note">
+              Lectura del modelo sobre el relato, no un veredicto de cobertura. Verificá la
+              descripción antes de decidir.
+            </p>
+          </div>
+        }
       </app-card>
 
       <app-card class="rcard" heading="Nivel de riesgo de fraude">

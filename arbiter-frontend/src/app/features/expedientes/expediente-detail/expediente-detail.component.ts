@@ -42,6 +42,11 @@ import {
 } from '../../../core/models/case-document';
 import { clasificacionLabel, clasificacionTone } from '../../../core/models/clasificacion';
 import {
+  causeConsistencyLabel,
+  causeConsistencyTone,
+  shouldSurfaceCauseConsistency,
+} from '../../../core/models/cause-consistency';
+import {
   ExpertVerdict,
   OpcionesDerivacion,
   Peritaje,
@@ -298,6 +303,26 @@ export class ExpedienteDetailComponent {
   protected readonly classificationTone = computed<StatusTone>(() => {
     const d = this.data();
     return d ? clasificacionTone(d.analysisClassification) : 'neutral';
+  });
+
+  /**
+   * El cruce entre el hecho generador que el asegurado eligió del selector y lo que después contó
+   * en el relato. Solo se muestra cuando hay algo que mirar: un MATCHES no aporta nada que el
+   * expediente no diga ya, y null significa que el chequeo no corrió (Fast Track, exclusión dura,
+   * o una clasificación anterior a que esto existiera).
+   */
+  protected readonly showCauseConsistency = computed(() =>
+    shouldSurfaceCauseConsistency(this.data()?.causeConsistency),
+  );
+
+  protected readonly causeConsistencyLabel = computed(() => {
+    const value = this.data()?.causeConsistency;
+    return value ? causeConsistencyLabel(value) : '';
+  });
+
+  protected readonly causeConsistencyTone = computed<StatusTone>(() => {
+    const value = this.data()?.causeConsistency;
+    return value ? causeConsistencyTone(value) : 'neutral';
   });
 
   protected readonly confidencePercent = computed(() => {
@@ -750,8 +775,14 @@ export class ExpedienteDetailComponent {
     { initialValue: null as Peritaje | null },
   );
 
+  /**
+   * Derivar es del que tiene el expediente asignado, igual que decidir (ver `canDecide`): manda un
+   * mail a un perito externo y deja el caso en PENDING_EXPERT_REPORT, donde el analista que sí es
+   * su dueño ya no puede decidir. El backend lo exige (409 sin dueño, 403 si es de otro); acá el
+   * botón directamente no se ofrece, en vez de habilitarlo para que el click falle.
+   */
   protected readonly puedeDerivar = computed(
-    () => this.canAct() && this.decisionState() === 'pending' && !this.peritaje(),
+    () => this.canDecide() && this.decisionState() === 'pending' && !this.peritaje(),
   );
 
   /** Habilitado por la regla de la aseguradora Y con peritos a quien mandarlo. */
@@ -1173,14 +1204,17 @@ export class ExpedienteDetailComponent {
    */
   protected readonly canDecide = computed(() => this.canAct() && this.isMine());
 
-  /** Por qué no puede decidir alguien con rol de analista pero sin este expediente asignado. */
+  /**
+   * Por qué no puede actuar alguien con rol de analista pero sin este expediente asignado. Cubre
+   * decidir y derivar a peritaje: las dos son del dueño del expediente.
+   */
   protected readonly decisionBlockedReason = computed(() => {
     if (!this.isAssigned()) {
-      return 'Asignate el expediente para poder decidir.';
+      return 'Asignate el expediente para decidir o derivarlo a peritaje.';
     }
     const analista = this.assignedName();
     return analista
-      ? `Asignado a ${analista}. Solo esa persona puede aprobar o rechazar.`
+      ? `Asignado a ${analista}. Solo esa persona puede aprobar, rechazar o derivar.`
       : 'Expediente asignado a otro analista.';
   });
 

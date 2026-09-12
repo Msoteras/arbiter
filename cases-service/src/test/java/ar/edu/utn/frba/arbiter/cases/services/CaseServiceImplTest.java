@@ -423,7 +423,7 @@ class CaseServiceImplTest {
         when(caseRepository.findById(1L)).thenReturn(Optional.of(entity));
         when(caseAnalysisRepository.findByCaseId(1L)).thenReturn(new CaseAnalysis(
                 Classification.LLM_RECOMIENDA_APROBAR, 0.87,
-                List.of("Monto bajo", "Primer siniestro"), null));
+                List.of("Monto bajo", "Primer siniestro"), null, null, null, null));
 
         CaseResponse response = caseService.getCase(1L);
 
@@ -458,7 +458,8 @@ class CaseServiceImplTest {
         Case entity = caseRecord(1L, CaseStatus.PENDING_CLASSIFICATION);
         when(caseRepository.findById(1L)).thenReturn(Optional.of(entity));
         when(caseAnalysisRepository.findByCaseId(1L)).thenReturn(new CaseAnalysis(
-                Classification.LLM_RECOMIENDA_APROBAR, 0.9, List.of("Motivo viejo"), null));
+                Classification.LLM_RECOMIENDA_APROBAR, 0.9, List.of("Motivo viejo"), null,
+                null, null, null));
 
         CaseResponse response = caseService.getCase(1L);
 

@@ -1,3 +1,4 @@
+import { CauseConsistency } from './cause-consistency';
 import { Clasificacion } from './clasificacion';
 import { DeadlinePriority } from './deadline-priority';
 import { ImageForensicReport } from './forensic';
@@ -112,6 +113,16 @@ export interface ExpedienteResponse {
    * de la corrida anterior, no del gate) o cuando todavía no hay clasificación.
    */
   analysisReasons: string[];
+  /**
+   * Si el relato libre del asegurado coincide con el hecho generador que eligió del selector.
+   * Null cuando el modelo no corrió (Fast Track, exclusión dura) o cuando la clasificación es
+   * anterior a este chequeo: ausente es "no evaluado", nunca MATCHES.
+   */
+  causeConsistency: CauseConsistency | string | null;
+  /** Hecho generador que el relato sí describe, del catálogo del ramo. Solo con CONTRADICTS. */
+  suggestedClaimCause: string | null;
+  /** Frase textual del relato que sostiene el veredicto. Solo con CONTRADICTS. */
+  causeEvidence: string | null;
   createdAt: string;
   updatedAt: string;
   /** Fecha límite legal para responder (art. 56): denuncia + 30 días, ISO yyyy-MM-dd. */

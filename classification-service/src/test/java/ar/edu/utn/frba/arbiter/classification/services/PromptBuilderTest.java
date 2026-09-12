@@ -34,8 +34,40 @@ class PromptBuilderTest {
     @BeforeEach
     void setUp() throws IOException {
         promptBuilder = new PromptBuilder(
-                new LlmProperties("ollama", "classification-v4"),
+                new LlmProperties("ollama", "classification-v5"),
                 new DefaultResourceLoader());
+    }
+
+    @Test
+    void buildFullPrompt_rendersTheClaimCauseCatalogWithEachCausesCoverage() {
+        String prompt = promptBuilder.buildFullPrompt(requestWithCatalog(List.of(
+                new ClassificationRequest.ClaimCauseOption(2L, "Robo en vía pública", true),
+                new ClassificationRequest.ClaimCauseOption(3L, "Hurto", false))));
+
+        assertThat(prompt)
+                .contains("- Robo en vía pública — CUBIERTO")
+                .contains("- Hurto — NO CUBIERTO POR ESTA PÓLIZA")
+                .doesNotContain("{{claimCauseCatalog}}");
+    }
+
+    @Test
+    void buildFullPrompt_withNoCatalogTellsTheModelToStandDown() {
+        // A blank list would leave it improvising a verdict against nothing.
+        String prompt = promptBuilder.buildFullPrompt(requestWithCatalog(List.of()));
+
+        assertThat(prompt).contains("Catálogo no disponible").contains("AMBIGUOUS");
+    }
+
+    private ClassificationRequest requestWithCatalog(
+            List<ClassificationRequest.ClaimCauseOption> catalog) {
+        return ClassificationRequest.builder()
+                .branch("Celulares")
+                .product("Celular Protegido Básico")
+                .claimCause("Robo en vía pública")
+                .insuredItem("Samsung A56")
+                .description("Me sacaron el celular en la calle")
+                .claimCauseCatalog(catalog)
+                .build();
     }
 
     private InsuredPolicy policy() {
