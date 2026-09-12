@@ -346,8 +346,8 @@ class SettlementServiceTest {
         claim.setCoverage(repairCoverage());
         when(documentAnalysisRepository.findByCaseId(1L)).thenReturn(List.of(
                 document("repair_quote", new BigDecimal("95000.00"))));
-        when(expertAssessmentRepository.findByCaseId(1L)).thenReturn(Optional.of(
-                ExpertAssessment.builder().caseId(1L)
+        when(expertAssessmentRepository.findByCaseIdOrderByDerivedAtDesc(1L)).thenReturn(List.of(
+                ExpertAssessment.builder().caseId(1L).reportReceivedAt(Instant.now())
                         .indemnifiableAmount(new BigDecimal("120000.00")).build()));
 
         SettlementResponse response = settlementService.forCase(1L, null);
@@ -365,8 +365,8 @@ class SettlementServiceTest {
      */
     @Test
     void theExpertAmountIsSuggestedForTheAmountItselfWhenSettlingBySumInsured() {
-        when(expertAssessmentRepository.findByCaseId(1L)).thenReturn(Optional.of(
-                ExpertAssessment.builder().caseId(1L)
+        when(expertAssessmentRepository.findByCaseIdOrderByDerivedAtDesc(1L)).thenReturn(List.of(
+                ExpertAssessment.builder().caseId(1L).reportReceivedAt(Instant.now())
                         .indemnifiableAmount(new BigDecimal("612500.00")).build()));
 
         SettlementResponse response = settlementService.forCase(1L, null);
@@ -384,8 +384,8 @@ class SettlementServiceTest {
     void aDocumentAmountIsStillNotSuggestedWhenSettlingBySumInsured() {
         when(documentAnalysisRepository.findByCaseId(1L)).thenReturn(List.of(
                 document("purchase_proof", new BigDecimal("620000.00"))));
-        when(expertAssessmentRepository.findByCaseId(1L)).thenReturn(Optional.of(
-                ExpertAssessment.builder().caseId(1L).indemnifiableAmount(null).build()));
+        when(expertAssessmentRepository.findByCaseIdOrderByDerivedAtDesc(1L)).thenReturn(List.of(
+                ExpertAssessment.builder().caseId(1L).reportReceivedAt(Instant.now()).indemnifiableAmount(null).build()));
 
         SettlementResponse response = settlementService.forCase(1L, null);
 
@@ -402,8 +402,8 @@ class SettlementServiceTest {
         claim.setCoverage(repairCoverage());
         when(documentAnalysisRepository.findByCaseId(1L)).thenReturn(List.of(
                 document("repair_quote", new BigDecimal("95000.00"))));
-        when(expertAssessmentRepository.findByCaseId(1L)).thenReturn(Optional.of(
-                ExpertAssessment.builder().caseId(1L).indemnifiableAmount(null).build()));
+        when(expertAssessmentRepository.findByCaseIdOrderByDerivedAtDesc(1L)).thenReturn(List.of(
+                ExpertAssessment.builder().caseId(1L).reportReceivedAt(Instant.now()).indemnifiableAmount(null).build()));
 
         SettlementResponse response = settlementService.forCase(1L, null);
 

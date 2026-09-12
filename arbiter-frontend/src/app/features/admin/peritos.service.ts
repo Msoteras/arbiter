@@ -3,6 +3,7 @@ import { Injectable, inject } from '@angular/core';
 import { Observable } from 'rxjs';
 
 import { environment } from '../../../environments/environment';
+import { ProviderType } from '../../core/models/peritaje';
 
 /** Un perito del catálogo — espejo de ExpertFirmResponse de cases-service. */
 export interface PeritoAdmin {
@@ -14,6 +15,7 @@ export interface PeritoAdmin {
   branchId: number | null;
   branchName: string | null;
   active: boolean;
+  providerType: ProviderType;
 }
 
 export interface PeritoRequest {
@@ -22,6 +24,7 @@ export interface PeritoRequest {
   zone: string | null;
   branchId: number | null;
   active: boolean;
+  providerType: ProviderType;
 }
 
 /**

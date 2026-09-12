@@ -6,7 +6,13 @@ import { environment } from '../../../environments/environment';
 import { ExpedienteResponse } from '../../core/models/expediente';
 import { CaseDocument } from '../../core/models/case-document';
 import { Policy } from '../../core/models/policy';
-import { ExpertVerdict, OpcionesDerivacion, Peritaje } from '../../core/models/peritaje';
+import {
+  ExpertVerdict,
+  OpcionesDerivacion,
+  Peritaje,
+  ProviderType,
+  RepairOutcome,
+} from '../../core/models/peritaje';
 import {
   AntecedenteFraude,
   RegistrarAntecedenteRequest,
@@ -192,7 +198,7 @@ export interface ExpedienteListParams {
   unassigned?: boolean;
   /** Lente "Asignados" (referente): expedientes con analista, sin importar quién. Excluyente. */
   assigned?: boolean;
-  /** Lente "Alerta de fraude": expedientes con riesgo alto o crítico. Excluyente con las otras. */
+  /** Pestaña "Riesgo de fraude": expedientes con riesgo alto o crítico. Excluyente con las otras. */
   fraudAlert?: boolean;
   /** Recorte por ciclo de vida. Default del backend: `ALL`. */
   scope?: 'OPEN' | 'CLOSED' | 'ALL';
@@ -426,24 +432,51 @@ export class ExpedienteService {
    * así que la respuesta cambia por aseguradora y por ramo. También lo valida el backend al
    * derivar: esto es para la pantalla, no es el control.
    */
-  derivationOptions(caseId: number): Observable<OpcionesDerivacion> {
-    return this.http.get<OpcionesDerivacion>(`${this.baseUrl}/${caseId}/expert-assessment/options`);
+  derivationOptions(
+    caseId: number,
+    providerType: ProviderType = 'ESTUDIO_LIQUIDADOR',
+  ): Observable<OpcionesDerivacion> {
+    return this.http.get<OpcionesDerivacion>(`${this.baseUrl}/${caseId}/expert-assessment/options`, {
+      params: { providerType },
+    });
   }
 
-  /** El peritaje del expediente. 404 si nunca se derivó. */
-  peritaje(caseId: number): Observable<Peritaje> {
-    return this.http.get<Peritaje>(`${this.baseUrl}/${caseId}/expert-assessment`);
+  /** Peritaje y servicio técnico, de la derivación más reciente a la más vieja. */
+  derivaciones(caseId: number): Observable<Peritaje[]> {
+    return this.http.get<Peritaje[]>(`${this.baseUrl}/${caseId}/expert-assessment/all`);
   }
 
   /**
    * Deriva el expediente y le manda al perito los datos del siniestro por mail. No resuelve nada:
    * el caso queda esperando el informe y vuelve al analista, que sigue siendo quien decide.
    */
-  derivarAPeritaje(caseId: number, expertFirmId: number, reason: string): Observable<Peritaje> {
-    return this.http.post<Peritaje>(`${this.baseUrl}/${caseId}/expert-assessment`, {
-      expertFirmId,
-      reason,
-    });
+  derivarAPeritaje(
+    caseId: number,
+    expertFirmId: number,
+    reason: string,
+    providerType: ProviderType = 'ESTUDIO_LIQUIDADOR',
+  ): Observable<Peritaje> {
+    return this.http.post<Peritaje>(
+      `${this.baseUrl}/${caseId}/expert-assessment`,
+      { expertFirmId, reason },
+      { params: { providerType } },
+    );
+  }
+
+  cargarRespuestaServicioTecnico(
+    caseId: number,
+    outcome: RepairOutcome,
+    note: string,
+    report: File,
+  ): Observable<Peritaje> {
+    const formData = new FormData();
+    formData.append('report', report);
+    formData.append('outcome', outcome);
+    formData.append('note', note);
+    return this.http.post<Peritaje>(
+      `${this.baseUrl}/${caseId}/expert-assessment/repair-report`,
+      formData,
+    );
   }
 
   /**

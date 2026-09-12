@@ -12,6 +12,8 @@ import ar.edu.utn.frba.arbiter.cases.dto.CaseRequest;
 import ar.edu.utn.frba.arbiter.cases.dto.CaseResponse;
 import ar.edu.utn.frba.arbiter.cases.dto.EligibilityCheckRequest;
 import ar.edu.utn.frba.arbiter.cases.dto.EligibilityCheckResponse;
+import ar.edu.utn.frba.arbiter.cases.dto.ProviderType;
+import ar.edu.utn.frba.arbiter.cases.dto.RepairProviderResponse;
 import ar.edu.utn.frba.arbiter.cases.exceptions.AnalystNotFoundException;
 import ar.edu.utn.frba.arbiter.cases.exceptions.AnalystProfileNotFoundException;
 import ar.edu.utn.frba.arbiter.cases.exceptions.CaseAssignedToAnotherAnalystException;
@@ -28,6 +30,7 @@ import ar.edu.utn.frba.arbiter.cases.exceptions.UnresolvedCaseReferenceException
 import ar.edu.utn.frba.arbiter.cases.models.entities.CaseDocument;
 import ar.edu.utn.frba.arbiter.cases.models.entities.Case;
 import ar.edu.utn.frba.arbiter.cases.models.entities.CaseStatusHistory;
+import ar.edu.utn.frba.arbiter.cases.models.entities.ExpertAssessment;
 import ar.edu.utn.frba.arbiter.common.models.entities.tenant.ClaimsAnalyst;
 import ar.edu.utn.frba.arbiter.common.models.entities.tenant.Insured;
 import ar.edu.utn.frba.arbiter.cases.models.entities.Policy;
@@ -38,6 +41,7 @@ import ar.edu.utn.frba.arbiter.cases.models.repositories.CaseDocumentAnalysisRep
 import ar.edu.utn.frba.arbiter.cases.models.repositories.CaseDocumentRepository;
 import ar.edu.utn.frba.arbiter.cases.models.repositories.CaseRepository;
 import ar.edu.utn.frba.arbiter.cases.models.repositories.ClaimsAnalystRepository;
+import ar.edu.utn.frba.arbiter.cases.models.repositories.ExpertAssessmentRepository;
 import ar.edu.utn.frba.arbiter.cases.models.repositories.InsurerRepository;
 import ar.edu.utn.frba.arbiter.cases.support.CaseFixtures;
 import ar.edu.utn.frba.arbiter.cases.support.CaseStates;
@@ -92,6 +96,9 @@ class CaseServiceImplTest {
 
     @Mock
     private CaseDocumentRepository caseDocumentRepository;
+
+    @Mock
+    private ExpertAssessmentRepository expertAssessmentRepository;
 
     @Mock
     private CaseStatusService caseStatusService;
@@ -428,6 +435,38 @@ class CaseServiceImplTest {
         verify(caseRepository).save(any(Case.class));
     }
 
+    /**
+     * Al asegurado se le dice a qué servicio técnico fue su equipo: sin eso no sabe dónde está ni a
+     * quién preguntarle. Es el único dato de una derivación que llega a su pantalla — el peritaje
+     * no viaja en ningún campo que él lea.
+     */
+    @Test
+    void getCase_inRepair_tellsWhoHasTheItem() {
+        when(caseRepository.findById(1L))
+                .thenReturn(Optional.of(caseRecord(1L, CaseStatus.PENDING_REPAIR)));
+        when(expertAssessmentRepository.findByCaseIdAndProviderType(1L, ProviderType.SERVICIO_TECNICO))
+                .thenReturn(Optional.of(ExpertAssessment.builder()
+                        .caseId(1L)
+                        .expertName("Service Celular Once")
+                        .expertEmail("service@example.com")
+                        .build()));
+
+        RepairProviderResponse provider = caseService.getCase(1L).repairProvider();
+
+        assertThat(provider).isNotNull();
+        assertThat(provider.name()).isEqualTo("Service Celular Once");
+        assertThat(provider.email()).isEqualTo("service@example.com");
+    }
+
+    /** En cualquier otro estado el dato no significa nada, y ni siquiera se consulta. */
+    @Test
+    void getCase_outsideRepair_carriesNoProvider() {
+        when(caseRepository.findById(1L))
+                .thenReturn(Optional.of(caseRecord(1L, CaseStatus.PENDING_ANALYST_REVIEW)));
+
+        assertThat(caseService.getCase(1L).repairProvider()).isNull();
+    }
+
     @Test
     void getCase_joinsTheClassificationFromLlmAnalysis() {
         // La recomendación ya no es columna de `cases`: sale del join, y los motivos viajan uno
@@ -436,7 +475,7 @@ class CaseServiceImplTest {
         when(caseRepository.findById(1L)).thenReturn(Optional.of(entity));
         when(caseAnalysisRepository.findByCaseId(1L)).thenReturn(new CaseAnalysis(
                 Classification.LLM_RECOMIENDA_APROBAR, 0.87,
-                List.of("Monto bajo", "Primer siniestro"), null));
+                List.of("Monto bajo", "Primer siniestro"), null, null, null, null));
 
         CaseResponse response = caseService.getCase(1L);
 
@@ -471,7 +510,8 @@ class CaseServiceImplTest {
         Case entity = caseRecord(1L, CaseStatus.PENDING_CLASSIFICATION);
         when(caseRepository.findById(1L)).thenReturn(Optional.of(entity));
         when(caseAnalysisRepository.findByCaseId(1L)).thenReturn(new CaseAnalysis(
-                Classification.LLM_RECOMIENDA_APROBAR, 0.9, List.of("Motivo viejo"), null));
+                Classification.LLM_RECOMIENDA_APROBAR, 0.9, List.of("Motivo viejo"), null,
+                null, null, null));
 
         CaseResponse response = caseService.getCase(1L);
 

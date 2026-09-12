@@ -476,6 +476,52 @@ class CaseRepositorySpecificationTests extends AbstractPersistenceIT {
                 .containsExactly(CaseStatus.PENDING_ANALYST_REVIEW.name());
     }
 
+    /**
+     * Los cinco conteos salían de cinco {@code count(spec)}; ahora son agregados de una sola query.
+     * Lo que se fija es que den lo mismo que contar cada lente por separado.
+     */
+    @Test
+    void losConteosDeLasLentesDanIgualQueContarCadaUnaPorSeparado() {
+        ClaimsAnalyst lucas = analyst("lucas.gomez@arbiter.test", "Lucas", "Gómez");
+        assign(lucas, seeded.get(0), seeded.get(2));
+
+        Specification<Case> base = CaseSpecifications.withFilters(
+                null, null, null, null, null, null, null, null, null);
+        CaseLensCountRepository.LensCounts counts = caseRepository.countLenses(base, lucas.getId());
+
+        assertThat(counts.all()).isEqualTo(caseRepository.count());
+        assertThat(counts.mine()).isEqualTo(caseRepository.count(CaseSpecifications.withFilters(
+                null, null, null, null, null, null, null, null, lucas.getId())));
+        assertThat(counts.assigned()).isEqualTo(caseRepository.count(CaseSpecifications.withFilters(
+                null, null, null, null, null, null, null, null, null, false, false, true)));
+        assertThat(counts.unassigned()).isEqualTo(caseRepository.count(CaseSpecifications.withFilters(
+                null, null, null, null, null, null, null, null, null, true, false, false)));
+        assertThat(counts.fraud()).isEqualTo(caseRepository.count(CaseSpecifications.withFilters(
+                null, null, null, null, null, null, null, null, null, false, true, false)));
+        assertThat(counts.assigned() + counts.unassigned()).isEqualTo(counts.all());
+    }
+
+    /** Sin perfil de analista en el tenant —el referente— "Míos" es 0, no todos. */
+    @Test
+    void sinAnalistaEnElTokenLosMiosSonCero() {
+        CaseLensCountRepository.LensCounts counts = caseRepository.countLenses(
+                CaseSpecifications.withFilters(null, null, null, null, null, null, null, null, null), null);
+
+        assertThat(counts.mine()).isZero();
+        assertThat(counts.all()).isEqualTo(4);
+    }
+
+    /** Los filtros de la barra recortan los cinco conteos por igual. */
+    @Test
+    void losConteosRespetanElRecorteYLosFiltros() {
+        Specification<Case> soloEnCurso = CaseSpecifications.scope(CaseScope.OPEN);
+
+        CaseLensCountRepository.LensCounts counts = caseRepository.countLenses(soloEnCurso, null);
+
+        assertThat(counts.all()).isEqualTo(caseRepository.count(soloEnCurso));
+        assertThat(counts.all()).isEqualTo(2);
+    }
+
     /** El analista vive en el esquema del tenant y su {@code user_id} es NOT NULL, igual que insured. */
     private ClaimsAnalyst analyst(String email, String name, String surname) {
         return claimsAnalystRepository.save(ClaimsAnalyst.builder()

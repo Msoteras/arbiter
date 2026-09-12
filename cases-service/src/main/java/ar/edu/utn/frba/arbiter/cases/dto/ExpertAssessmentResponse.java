@@ -23,6 +23,8 @@ public record ExpertAssessmentResponse(
         boolean notified,
         Instant reportReceivedAt,
         ExpertVerdict verdict,
+        RepairOutcome repairOutcome,
+        ProviderType providerType,
         String verdictNote,
         /** Lo que el perito determinó que vale el siniestro. Null cuando el informe no puso número. */
         BigDecimal indemnifiableAmount,
@@ -41,6 +43,8 @@ public record ExpertAssessmentResponse(
                 assessment.getNotifiedAt() != null,
                 assessment.getReportReceivedAt(),
                 assessment.getVerdict(),
+                assessment.getRepairOutcome(),
+                assessment.getProviderType(),
                 assessment.getVerdictNote(),
                 assessment.getIndemnifiableAmount(),
                 assessment.getReportDocumentId()

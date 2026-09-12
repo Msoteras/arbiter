@@ -1,6 +1,8 @@
 package ar.edu.utn.frba.arbiter.cases.controllers;
 
 import ar.edu.utn.frba.arbiter.cases.dto.DerivationOptionsResponse;
+import ar.edu.utn.frba.arbiter.cases.dto.ProviderType;
+import ar.edu.utn.frba.arbiter.cases.dto.RepairOutcome;
 import ar.edu.utn.frba.arbiter.cases.dto.DeriveToExpertRequest;
 import ar.edu.utn.frba.arbiter.cases.dto.ExpertAssessmentResponse;
 import ar.edu.utn.frba.arbiter.cases.exceptions.ExpertAssessmentNotFoundException;
@@ -54,8 +56,10 @@ public class ExpertAssessmentController {
                     Devuelve los dos montos y no solo el veredicto, para que la pantalla pueda
                     explicar por qué no se puede en vez de mostrar un botón apagado sin motivo.
                     """)
-    public ResponseEntity<DerivationOptionsResponse> options(@PathVariable Long caseId) {
-        return ResponseEntity.ok(expertAssessmentService.options(caseId));
+    public ResponseEntity<DerivationOptionsResponse> options(
+            @PathVariable Long caseId,
+            @RequestParam(defaultValue = "ESTUDIO_LIQUIDADOR") ProviderType providerType) {
+        return ResponseEntity.ok(expertAssessmentService.options(caseId, providerType));
     }
 
     @GetMapping
@@ -68,9 +72,19 @@ public class ExpertAssessmentController {
                     No se expone al ASEGURADO: para él el expediente sigue 'En análisis', y contarle
                     que se derivó filtraría la sospecha que motivó la derivación.
                     """)
-    public ResponseEntity<ExpertAssessmentResponse> get(@PathVariable Long caseId) {
-        return ResponseEntity.ok(expertAssessmentService.find(caseId)
+    public ResponseEntity<ExpertAssessmentResponse> get(
+            @PathVariable Long caseId,
+            @RequestParam(defaultValue = "ESTUDIO_LIQUIDADOR") ProviderType providerType) {
+        return ResponseEntity.ok(expertAssessmentService.find(caseId, providerType)
                 .orElseThrow(() -> new ExpertAssessmentNotFoundException(caseId)));
+    }
+
+    @GetMapping("/all")
+    @PreAuthorize("hasAnyRole('ANALISTA_SINIESTROS', 'REFERENTE_ASEGURADORA')")
+    @Operation(summary = "Todas las derivaciones del expediente",
+            description = "Peritaje y servicio técnico juntos, de la más reciente a la más vieja.")
+    public ResponseEntity<java.util.List<ExpertAssessmentResponse>> getAll(@PathVariable Long caseId) {
+        return ResponseEntity.ok(expertAssessmentService.findAll(caseId));
     }
 
     // Solo el analista: la derivación queda atribuida (ExpertAssessment.derivedBy es un
@@ -89,9 +103,11 @@ public class ExpertAssessmentController {
                     """)
     public ResponseEntity<ExpertAssessmentResponse> derive(
             @PathVariable Long caseId,
-            @RequestBody @Valid DeriveToExpertRequest request
+            @RequestBody @Valid DeriveToExpertRequest request,
+            @RequestParam(defaultValue = "ESTUDIO_LIQUIDADOR") ProviderType providerType
     ) {
-        return ResponseEntity.accepted().body(expertAssessmentService.derive(caseId, request));
+        return ResponseEntity.accepted()
+                .body(expertAssessmentService.derive(caseId, request, providerType));
     }
 
     // También el referente: transcribe el veredicto del perito y devuelve el caso a la cola del
@@ -120,5 +136,23 @@ public class ExpertAssessmentController {
     ) {
         return ResponseEntity.ok(expertAssessmentService.receiveReport(
                 caseId, verdict, note, indemnifiableAmount, report));
+    }
+
+    @PostMapping(value = "/repair-report", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    @PreAuthorize("hasAnyRole('ANALISTA_SINIESTROS', 'REFERENTE_ASEGURADORA')")
+    @Operation(summary = "Registrar la respuesta del servicio técnico",
+            description = """
+                    Devuelve el expediente a la cola del analista, que sigue siendo quien decide.
+                    No deja antecedente de fraude: una reparación no investiga la causa, así que su
+                    resultado va en su propio campo y no en el veredicto pericial.
+                    """)
+    public ResponseEntity<ExpertAssessmentResponse> receiveRepairReport(
+            @PathVariable Long caseId,
+            @RequestParam RepairOutcome outcome,
+            @RequestParam(required = false) String note,
+            @RequestPart("report") MultipartFile report
+    ) {
+        return ResponseEntity.ok(
+                expertAssessmentService.receiveRepairReport(caseId, outcome, note, report));
     }
 }

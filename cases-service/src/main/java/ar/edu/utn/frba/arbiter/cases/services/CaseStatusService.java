@@ -45,7 +45,8 @@ public class CaseStatusService {
      * frozen and not counted as due (see {@code DeadlineSweepScheduler},
      * {@code CaseSpecifications.dueSoonBefore}).
      */
-    public static final Set<CaseStatus> PAUSING_STATUSES = Set.of(AWAITING_DOCUMENTATION, PENDING_EXPERT_REPORT);
+    public static final Set<CaseStatus> PAUSING_STATUSES =
+            Set.of(AWAITING_DOCUMENTATION, PENDING_EXPERT_REPORT, PENDING_REPAIR);
 
     /**
      * States where the case is closed ({@code case_status.is_final = TRUE}). The art. 56 term is
@@ -74,12 +75,16 @@ public class CaseStatusService {
             // LAPSED: LapseSweepScheduler closes a case that sat here 18 months from the denuncia
             // with no movement from the insured — "inacción del asegurado ante requerimientos".
             AWAITING_DOCUMENTATION,  Set.of(PENDING_CLASSIFICATION, LAPSED),
-            PENDING_ANALYST_REVIEW,  Set.of(APPROVED, REJECTED, PENDING_CLASSIFICATION, PENDING_EXPERT_REPORT),
+            PENDING_ANALYST_REVIEW,  Set.of(APPROVED, REJECTED, PENDING_CLASSIFICATION, PENDING_EXPERT_REPORT,
+                    PENDING_REPAIR),
             CLASSIFICATION_FAILED,   Set.of(PENDING_CLASSIFICATION),
             // Back to the analyst and nowhere else. A derived case can't be approved or rejected
             // without its report — that is the whole point of having derived it — and it can't be
             // derived twice, because there is no way out of here except through review.
             PENDING_EXPERT_REPORT,   Set.of(PENDING_ANALYST_REVIEW),
+            // Igual que el peritaje: el servicio técnico informa, no resuelve. La devolución
+            // vuelve al analista y la decisión sigue siendo suya (decisión de arquitectura #5).
+            PENDING_REPAIR,          Set.of(PENDING_ANALYST_REVIEW),
             // Reapertura ("rehabilitación" in the doc de dominio BBVA): the three terminal states
             // lead back to the analyst's desk and nowhere else. Reopening is not a new verdict —
             // it only puts the case in front of a human again, so it lands in the one state that

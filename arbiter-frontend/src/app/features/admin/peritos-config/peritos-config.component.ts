@@ -3,6 +3,11 @@ import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@a
 
 import { BranchOption, BranchesService } from '../branches.service';
 import { PeritoAdmin, PeritoRequest, PeritosService } from '../peritos.service';
+import {
+  PROVIDER_TYPE_OPTIONS,
+  ProviderType,
+  providerTypeLabel,
+} from '../../../core/models/peritaje';
 import { ButtonComponent } from '../../../shared/ui/button/button.component';
 import { CardComponent } from '../../../shared/ui/card/card.component';
 import { CheckboxComponent } from '../../../shared/ui/checkbox/checkbox.component';
@@ -77,9 +82,20 @@ export class PeritosConfigComponent {
     });
   }
 
+  protected readonly providerTypeOptions: SelectOption[] = PROVIDER_TYPE_OPTIONS;
+  protected readonly providerTypeLabel = providerTypeLabel;
+
   protected add(): void {
     this.error.set(null);
-    this.draft.set({ id: null, name: '', email: '', zone: '', branchId: null, active: true });
+    this.draft.set({
+      id: null,
+      name: '',
+      email: '',
+      zone: '',
+      branchId: null,
+      active: true,
+      providerType: 'ESTUDIO_LIQUIDADOR',
+    });
   }
 
   protected edit(perito: PeritoAdmin): void {
@@ -91,6 +107,7 @@ export class PeritosConfigComponent {
       zone: perito.zone ?? '',
       branchId: perito.branchId,
       active: perito.active,
+      providerType: perito.providerType,
     });
   }
 
@@ -103,6 +120,10 @@ export class PeritosConfigComponent {
     if (current) {
       this.draft.set({ ...current, [field]: value });
     }
+  }
+
+  protected setProviderType(value: string): void {
+    this.setField('providerType', value as ProviderType);
   }
 
   protected setBranch(value: string): void {
@@ -131,6 +152,7 @@ export class PeritosConfigComponent {
       zone: d.zone?.trim() || null,
       branchId: d.branchId,
       active: d.active,
+      providerType: d.providerType,
     };
     this.saving.set(true);
     this.error.set(null);

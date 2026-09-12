@@ -30,6 +30,7 @@ import java.text.NumberFormat;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Locale;
 import java.util.Optional;
@@ -222,9 +223,19 @@ public class SettlementService {
      * regla que la clasificación (decisión #5).
      */
     private Suggestion suggestionFor(Long caseId, Coverage coverage) {
-        BigDecimal expert = expertAssessmentRepository.findByCaseId(caseId)
+        // La ÚLTIMA valuación recibida, sin importar de qué proveedor venga. Un expediente puede
+        // tener más de un informe desde que existe la derivación a servicio técnico, y el
+        // procedimiento de la compañía las trata a todas por igual y de forma acumulativa: el
+        // analista "ajustará la reserva de acuerdo a las valuaciones recibidas a través de los
+        // preinformes de estudios liquidadores, informes técnicos, o presupuestos que se reciban en
+        // el tiempo de resolución de los siniestros hasta su liquidación" (NSIN001 §2.7). Cada
+        // valuación nueva reemplaza a la anterior hasta que se liquida.
+        BigDecimal expert = expertAssessmentRepository.findByCaseIdOrderByDerivedAtDesc(caseId).stream()
+                .filter(assessment -> assessment.getReportReceivedAt() != null)
+                .filter(assessment -> assessment.getIndemnifiableAmount() != null
+                        && assessment.getIndemnifiableAmount().signum() > 0)
+                .max(Comparator.comparing(ExpertAssessment::getReportReceivedAt))
                 .map(ExpertAssessment::getIndemnifiableAmount)
-                .filter(amount -> amount != null && amount.signum() > 0)
                 .orElse(null);
 
         String wanted = accreditedDocumentFor(coverage);

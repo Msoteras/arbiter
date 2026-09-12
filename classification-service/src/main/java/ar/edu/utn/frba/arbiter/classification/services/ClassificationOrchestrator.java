@@ -1,5 +1,6 @@
 package ar.edu.utn.frba.arbiter.classification.services;
 
+import ar.edu.utn.frba.arbiter.common.enums.CauseConsistency;
 import ar.edu.utn.frba.arbiter.common.enums.Classification;
 import ar.edu.utn.frba.arbiter.classification.adapters.InsurerAdapter;
 import ar.edu.utn.frba.arbiter.classification.adapters.DocumentAnalyzer;
@@ -10,6 +11,8 @@ import ar.edu.utn.frba.arbiter.common.dto.ImageForensicReport;
 import ar.edu.utn.frba.arbiter.classification.dto.*;
 import ar.edu.utn.frba.arbiter.classification.models.entities.DocumentAnalysis;
 import ar.edu.utn.frba.arbiter.classification.models.entities.InsuredFraudRecord;
+import ar.edu.utn.frba.arbiter.common.models.entities.ClaimCause;
+import ar.edu.utn.frba.arbiter.classification.models.repositories.ClaimCauseRepository;
 import ar.edu.utn.frba.arbiter.classification.models.repositories.DocumentAnalysisRepository;
 import ar.edu.utn.frba.arbiter.classification.models.repositories.InsuredFraudRecordRepository;
 import ar.edu.utn.frba.arbiter.classification.models.repositories.PolicySnapshotRepository;
@@ -68,6 +71,7 @@ public class ClassificationOrchestrator {
     private final PolicySnapshotRepository policySnapshotRepository;
     private final InsuredFraudRecordRepository fraudRecordRepository;
     private final DocumentAnalysisRepository documentAnalysisRepository;
+    private final ClaimCauseRepository claimCauseRepository;
     private final ObjectMapper objectMapper;
 
     /** Classifies a claim whose attachments' OCR has already been resolved. */
@@ -497,12 +501,88 @@ public class ClassificationOrchestrator {
     }
 
     private ClassificationResponse classifyWithLlm(ClaimReport claim, Context ctx, List<String> engineFindings) {
-        ClassificationRequest request = buildRequest(claim, ctx.policy(), ctx.history(), ctx.rules(), engineFindings);
-        ClassificationResponse response = classifier.classify(request);
+        List<ClassificationRequest.ClaimCauseOption> catalog = claimCauseCatalog(claim, ctx.rules());
+        ClassificationRequest request =
+                buildRequest(claim, ctx.policy(), ctx.history(), ctx.rules(), engineFindings, catalog);
+        ClassificationResponse response =
+                applyCauseConsistency(classifier.classify(request), claim, ctx, catalog);
 
         log.info("[Orchestrator] Classification done — result={} confidence={}",
                 response.classification(), response.confidence());
         return response;
+    }
+
+    /**
+     * Turns the model's reading of the account into where the claim goes. The insured picks a claim
+     * cause from a selector and writes the account separately, and nothing checked the two agreed:
+     * the hard rules evaluate the <b>declared</b> cause, so someone who picks "Robo en vía pública"
+     * (covered) and describes a hurto (excluded) sailed through the exclusion gate unnoticed.
+     *
+     * <p><b>The model doesn't decide coverage — this does.</b> It only names which cause of the
+     * branch's catalog the account describes; whether that one is excluded is asked of
+     * {@link CoverageRuleEvaluator}, on the insurer's configured rule (CLAUDE.md #4). And nothing
+     * here resolves the case: both outcomes land on the analyst's desk (#5).
+     *
+     * <ul>
+     *   <li>{@code MATCHES} — untouched.
+     *   <li>{@code AMBIGUOUS} — a factor for the analyst, no change of classification. "Me robaron"
+     *       is how people describe a robo, a hurto and an olvido alike, so a doubtful reading must
+     *       not reroute an honest claim.
+     *   <li>{@code CONTRADICTS} + the suggested cause is excluded — {@code LLM_NO_RECOMIENDA_APROBAR}.
+     *   <li>{@code CONTRADICTS} + covered, or a name that maps to nothing —
+     *       {@code LLM_SOLICITA_REVISION_MANUAL}: something is off, but not in a direction this code
+     *       can call.
+     * </ul>
+     */
+    private ClassificationResponse applyCauseConsistency(
+            ClassificationResponse response,
+            ClaimReport claim,
+            Context ctx,
+            List<ClassificationRequest.ClaimCauseOption> catalog) {
+        CauseConsistency verdict = response.causeConsistency();
+        if (verdict == null || verdict == CauseConsistency.MATCHES) {
+            return response;
+        }
+
+        String suggested = response.suggestedClaimCause();
+        String evidence = response.causeEvidence();
+
+        if (verdict == CauseConsistency.AMBIGUOUS) {
+            return appendReasons(response, List.of(
+                    "El relato del asegurado no permite confirmar el hecho generador declarado ("
+                            + claim.claimCause() + "). Revisar la descripción."));
+        }
+
+        Long suggestedId = catalog.stream()
+                .filter(option -> option.name().equalsIgnoreCase(suggested))
+                .map(ClassificationRequest.ClaimCauseOption::id)
+                .findFirst()
+                .orElse(null);
+        boolean suggestedExcluded = coverageRuleEvaluator.isExcluded(suggestedId, ctx.rules());
+
+        StringBuilder reason = new StringBuilder("El relato no describe el hecho generador declarado (")
+                .append(claim.claimCause()).append(")");
+        if (suggested != null) {
+            reason.append(", sino ").append(suggested);
+            if (suggestedExcluded) {
+                reason.append(", que esta cobertura no cubre");
+            }
+        }
+        reason.append(".");
+        if (evidence != null) {
+            reason.append(" Textual del asegurado: \"").append(evidence).append("\"");
+        }
+
+        Classification rerouted = suggestedExcluded
+                ? Classification.LLM_NO_RECOMIENDA_APROBAR
+                : Classification.LLM_SOLICITA_REVISION_MANUAL;
+        log.info("[Orchestrator] Relato inconsistente — declarado='{}' sugerido='{}' (id={}, excluido={}) "
+                        + "⇒ {} (el modelo había devuelto {})",
+                claim.claimCause(), suggested, suggestedId, suggestedExcluded,
+                rerouted, response.classification());
+
+        return appendReasons(
+                response.toBuilder().classification(rerouted).build(), List.of(reason.toString()));
     }
 
     private List<String> checkRequiredDocuments(BusinessRules rules, List<String> providedDocumentTypes) {
@@ -728,7 +808,8 @@ public class ClassificationOrchestrator {
             InsuredPolicy policy,
             InsuredHistory history,
             BusinessRules rules,
-            List<String> engineFindings
+            List<String> engineFindings,
+            List<ClassificationRequest.ClaimCauseOption> claimCauseCatalog
     ) {
         return ClassificationRequest.builder()
                 .branch(claim.branch())
@@ -743,7 +824,36 @@ public class ClassificationOrchestrator {
                 .insurerRules(promptBuilder.renderRulesAndPolicy(rules, policy))
                 .insuredHistory(promptBuilder.renderHistory(history))
                 .engineEvaluation(engineFindings)
+                .claimCauseCatalog(claimCauseCatalog)
                 .build();
+    }
+
+    /**
+     * The branch's claim causes, each flagged with whether this coverage covers it, so the model can
+     * tell the declared cause apart from the one the account actually describes. Coverage comes from
+     * the same {@code COVERAGE_EXCLUSION} rule the engine evaluates — the model is told what the
+     * engine already decided, it doesn't decide it (CLAUDE.md #4).
+     *
+     * <p>Best-effort like the policy snapshot: if the catalog can't be read the classification still
+     * runs, just without the consistency check (the prompt handles the empty list explicitly).
+     */
+    private List<ClassificationRequest.ClaimCauseOption> claimCauseCatalog(
+            ClaimReport claim, BusinessRules rules) {
+        try {
+            List<ClaimCause> causes = claimCauseRepository
+                    .findByBranch_NameIgnoreCaseOrderByNameAsc(claim.branch());
+            return causes.stream()
+                    .map(cause -> new ClassificationRequest.ClaimCauseOption(
+                            cause.getId(),
+                            cause.getName(),
+                            !coverageRuleEvaluator.isExcluded(cause.getId(), rules)))
+                    .toList();
+        } catch (Exception e) {
+            log.error("[Orchestrator] Could not read the claim cause catalog for branch '{}' — the "
+                    + "classification proceeds without the narrative consistency check: {}",
+                    claim.branch(), e.getMessage(), e);
+            return List.of();
+        }
     }
 
     /**
