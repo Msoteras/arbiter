@@ -46,7 +46,7 @@ lo tiene que responder alguna cobertura, **un robo o un hurto de una notebook no
 el selector del wizard filtra por esas mismas listas y no puede ofrecerlos, y si igual entrara un
 expediente, el motor lo resolvería como exclusión de cobertura.
 
-La intención parece haber sido otra: el encabezado de `db/datos-aseguradoras.sql` dice que el ramo
+La intención parece haber sido otra: el encabezado del viejo `db/datos-aseguradoras.sql` (borrado el 12/09 junto con el esquema `aseguradora`) decía que el ramo
 tiene las tres coberturas (Robo de celular, Hurto, Daño accidental), y la agenda documental
 (`document_requirement`) ya tiene cargados los requisitos de los tres hechos.
 

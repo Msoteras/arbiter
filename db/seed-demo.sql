@@ -234,7 +234,7 @@ INSERT INTO arbiter_bbva.policy (id, external_policy_number, product, in_force, 
 
 -- Coberturas contratadas de cada póliza. Espejo de aseguradora.cobertura: una póliza de celulares
 -- cubre robo Y hurto, cada una con su propia suma asegurada (el hurto siempre por menos — es el
--- criterio de la compañía en datos-aseguradoras.sql).
+-- criterio de la compañía en su BD Aseguradora).
 -- El daño accidental solo lo traen las pólizas Premium, y por la misma suma que el robo: es el
 -- mismo equipo, lo que cambia es la franquicia (20%). Las Básico no lo cubren, así que a esos
 -- asegurados el wizard no les va a ofrecer rotura ni caída.

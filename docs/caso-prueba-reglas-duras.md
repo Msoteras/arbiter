@@ -10,8 +10,7 @@ Verifica los cuatro criterios de aceptación de la historia de umbrales de regla
 Más el gate de alta: una denuncia sobre una póliza sin cobertura **no crea expediente**.
 
 Todo lo de acá abajo está armado contra el seed actual (`db/init-multitenant.sql` +
-`db/seed-demo.sql`, el par canónico — ver `scripts/db-railway.ps1`; no `db/datos-aseguradoras.sql`,
-que apunta al schema viejo pre-multitenant y no se usa), no contra el mock. Ids y fechas verificados
+`db/seed-demo.sql`, el par canónico — ver `scripts/db-railway.ps1`), no contra el mock. Ids y fechas verificados
 sobre el script, 13/08 y 15/08/2026 (alcance aseguradora de vigencia/mora + `onArrears`, id 14).
 
 La base de Railway se seedeó originalmente desde una versión vieja del script, previa a esta
