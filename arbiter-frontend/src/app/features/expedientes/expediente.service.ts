@@ -224,6 +224,8 @@ export interface LensSummary {
   assigned: number;
   unassigned: number;
   fraud: number;
+  open: number;
+  closed: number;
 }
 
 /**

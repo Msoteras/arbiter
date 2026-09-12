@@ -341,12 +341,14 @@ export class BandejaComponent {
       })),
     ).pipe(
       switchMap(({ filters }) =>
-        this.service
-          .lensSummary(filters)
-          .pipe(catchError(() => of({ mine: 0, all: 0, assigned: 0, unassigned: 0, fraud: 0 }))),
+        this.service.lensSummary(filters).pipe(
+          catchError(() =>
+            of({ mine: 0, all: 0, assigned: 0, unassigned: 0, fraud: 0, open: 0, closed: 0 }),
+          ),
+        ),
       ),
     ),
-    { initialValue: { mine: 0, all: 0, assigned: 0, unassigned: 0, fraud: 0 } },
+    { initialValue: { mine: 0, all: 0, assigned: 0, unassigned: 0, fraud: 0, open: 0, closed: 0 } },
   );
 
   protected readonly mineCount = computed(() => this.counts().mine);
@@ -354,6 +356,8 @@ export class BandejaComponent {
   protected readonly assignedCount = computed(() => this.counts().assigned);
   protected readonly unassignedCount = computed(() => this.counts().unassigned);
   protected readonly fraudCount = computed(() => this.counts().fraud);
+  protected readonly openCount = computed(() => this.counts().open);
+  protected readonly closedCount = computed(() => this.counts().closed);
 
   protected readonly hasActiveFilters = computed(
     () =>

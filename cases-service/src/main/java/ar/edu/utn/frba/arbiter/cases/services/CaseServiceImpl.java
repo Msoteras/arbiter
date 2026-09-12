@@ -557,7 +557,8 @@ public class CaseServiceImpl implements CaseService {
 
         CaseLensCountRepository.LensCounts counts = caseRepository.countLenses(spec, me);
         return new LensSummaryResponse(
-                counts.all(), counts.mine(), counts.assigned(), counts.unassigned(), counts.fraud());
+                counts.all(), counts.mine(), counts.assigned(), counts.unassigned(), counts.fraud(),
+                counts.open(), counts.closed());
     }
 
     /**
