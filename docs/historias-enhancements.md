@@ -561,6 +561,63 @@ están hoy — cada póliza sigue siendo individual, 1:1 con su certificado.
 
 ---
 
+## H0037 · Tablero propio del analista — sus expedientes, no los de toda la compañía
+
+> **Anotada el 12/09/2026**, al terminar H0028 (tablero del referente). Surgió de una observación
+> concreta: el analista **ya tiene acceso** a `/insurer/dashboard` — la ruta lo habilita
+> explícitamente ("son métricas de la operación, no configuración de la aseguradora") y
+> `GET /api/v1/reports/metrics` también. Lo que ve es la cartera entera de la compañía. El acceso
+> existe; lo que falta es el recorte a lo suyo.
+
+**Como** analista de siniestros
+**quiero** ver los indicadores de mi propio trabajo
+**para** saber cómo vengo y dónde estoy demorando, sin tener que leer el tablero de toda la compañía.
+
+**Criterios de aceptación**
+- Los indicadores son de los expedientes **asignados al analista autenticado**, y de ningún otro.
+- Cuántos tiene abiertos hoy, abiertos por estado.
+- Cuántos resolvió en el período y en cuánto tiempo promedio.
+- Cuántos de los suyos aprobó y cuántos rechazó.
+- Cuántos tiene con el plazo legal de respuesta por vencer (se apoya en H0027).
+- Mismo selector de período que el del referente: semana, mes, trimestre o rango a medida.
+
+**Qué NO debería tener**
+Esto es parte de la historia, no una nota al pie:
+- **Ni ranking ni comparación con otros analistas.** Un tablero que ordena personas por velocidad
+  empuja a decidir rápido, y acá decidir rápido y mal significa aprobar un fraude o rechazar un
+  siniestro legítimo. El tiempo promedio propio sirve para organizarse; publicado contra el de los
+  demás deja de ser una herramienta y pasa a ser una vara.
+- **Ni meta ni cuota.** Mismo motivo.
+
+**Por qué importa**
+El analista entra hoy a un tablero que no le habla: el volumen de la compañía no le dice nada sobre
+su propio día de trabajo, que es lo único sobre lo que puede actuar. Y el dato ya está: no hace
+falta ninguna tabla nueva.
+
+**Notas técnicas**
+- El recorte es **un `WHERE` más** en las consultas de `ClaimMetricsRepository`, no un módulo nuevo:
+  las agregaciones ya corren sobre `cases` dentro del esquema de la aseguradora, y la columna
+  `cases.analyst_id` ya existe (más `case_classification.analyst_id` para quién decidió).
+- Quién es "el analista autenticado" sale del token, igual que la aseguradora. **Ojo con el salto de
+  identidad**: el JWT identifica al usuario de `arbiter_common.users`, y `cases.analyst_id` apunta a
+  `claims_analyst`, que vive en el esquema del tenant. Hay que resolver ese puente — cases-service ya
+  lo hace al registrar una decisión, conviene mirar cómo.
+- Dos formas posibles: `GET /api/v1/reports/metrics?scope=MINE` sobre el mismo endpoint, o una ruta
+  aparte `/api/v1/reports/metrics/mine`. La primera reusa entero el armado de período, la validación
+  y el DTO; la segunda deja el contrato más explícito. Decidir con el equipo.
+- La pantalla puede ser la misma con un conmutador "Mi trabajo / La compañía" para quien tenga los
+  dos permisos, o una ruta propia del analista. También a decidir.
+- El **% de Fast Track sí aplica** a los expedientes propios: el Fast Track agiliza pero no
+  automatiza — el analista decide igual (decisión #5 del `CLAUDE.md`), así que son expedientes suyos.
+- Lo que **no** aplica tal cual es la distribución por ramo mientras las aseguradoras de prueba
+  tengan un solo ramo activo: el gráfico existiría con una sola barra. Revisar antes de incluirlo.
+
+**Depende de**
+H0028 (tablero del referente), que es de donde sale toda la maquinaria: endpoint, DTO, selector de
+período y los gráficos. Esta historia es acotar esa maquinaria a una persona.
+
+---
+
 ## Del handoff de Ollama por CPU (borrado el 25/08)
 
 Lo único que seguía abierto de ese documento; el resto era registro de bugs ya arreglados, y la
