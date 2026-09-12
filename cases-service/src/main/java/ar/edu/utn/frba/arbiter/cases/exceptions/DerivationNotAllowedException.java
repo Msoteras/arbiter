@@ -16,4 +16,9 @@ public class DerivationNotAllowedException extends RuntimeException {
         super("El monto reclamado del expediente " + caseId + " (" + claimedAmount + ") no alcanza el "
                 + "mínimo configurado para derivar a peritaje (" + minClaimedAmount + ")");
     }
+
+    public DerivationNotAllowedException(Long caseId, String claimCause) {
+        super("La aseguradora no deriva a servicio técnico los siniestros por «" + claimCause
+                + "» (expediente " + caseId + ")");
+    }
 }

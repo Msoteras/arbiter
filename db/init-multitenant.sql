@@ -1383,6 +1383,20 @@ BEGIN
              'FRAUD_RECORD', 'DERIVAR', 1, TRUE, NULL, NULL, '{"windowMonths":36}')
         $ddl$, p_schema);
 
+    -- Which claim causes of each branch can go to a repair shop. Opt-in like peritaje: without
+    -- this row the analyst never sees "Derivar a servicio técnico". A stolen item has nothing to
+    -- repair, so only the damage causes are listed (ids from the claim_cause seed above).
+    EXECUTE format($ddl$
+        INSERT INTO %I.insurer_rule (id, active, valid_from, name, rule_type, effect, priority,
+                                     blocks_fast_track, branch_id, coverage_id, configuration) VALUES
+            (18, TRUE, '2026-01-01 00:00:00+00',
+             'Derivar a reparación: rotura accidental y caída', 'REPAIR_DERIVATION', 'DERIVAR', 1,
+             FALSE, 1, NULL, '{"claimCauseIds":[1,4]}'),
+            (19, TRUE, '2026-01-01 00:00:00+00',
+             'Derivar a reparación: daño accidental', 'REPAIR_DERIVATION', 'DERIVAR', 1,
+             FALSE, 2, NULL, '{"claimCauseIds":[6]}')
+        $ddl$, p_schema);
+
     -- AgendaDocumental sembrada con los códigos CANÓNICOS de tipo de documento — los mismos que usa
     -- el alta de denuncia y classification (police_report / purchase_proof / imei_deregistration /
     -- last_connection). Antes se sembraba con códigos ad-hoc (DNI/DENUNCIA_POLICIAL/…) que el front
