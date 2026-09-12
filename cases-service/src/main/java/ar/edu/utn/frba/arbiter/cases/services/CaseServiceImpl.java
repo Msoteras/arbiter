@@ -45,6 +45,7 @@ import ar.edu.utn.frba.arbiter.cases.models.repositories.CaseAnalysisRepository;
 import ar.edu.utn.frba.arbiter.cases.models.repositories.CaseAnalysisRepository.CaseAnalysis;
 import ar.edu.utn.frba.arbiter.cases.models.repositories.CaseDocumentAnalysisRepository;
 import ar.edu.utn.frba.arbiter.cases.models.repositories.CaseDocumentRepository;
+import ar.edu.utn.frba.arbiter.cases.models.repositories.CaseLensCountRepository;
 import ar.edu.utn.frba.arbiter.cases.models.repositories.CaseRepository;
 import ar.edu.utn.frba.arbiter.cases.models.repositories.CaseSpecifications;
 import ar.edu.utn.frba.arbiter.cases.models.repositories.ClaimsAnalystRepository;
@@ -474,29 +475,16 @@ public class CaseServiceImpl implements CaseService {
                                             String insuredId, LocalDate eventDateFrom, LocalDate eventDateTo,
                                             String q, RiskBand riskBand, Long analystId, CaseScope scope) {
         // "Míos" necesita saber quién es "yo"; para el referente no hay perfil de analista y queda 0.
+        // El filtro `analystId` es del referente (el frontend solo se lo ofrece a ese rol), así que
+        // nunca convive con un "yo" real y las dos cosas pueden compartir el mismo WHERE.
         Long me = currentAnalystId().orElse(null);
-        return new LensSummaryResponse(
-                count(status, claimCause, policyNumber, insuredId, eventDateFrom, eventDateTo, q, riskBand,
-                        analystId, false, false, false, scope),
-                me == null ? 0 : count(status, claimCause, policyNumber, insuredId, eventDateFrom, eventDateTo,
-                        q, riskBand, me, false, false, false, scope),
-                count(status, claimCause, policyNumber, insuredId, eventDateFrom, eventDateTo, q, riskBand,
-                        analystId, false, false, true, scope),
-                count(status, claimCause, policyNumber, insuredId, eventDateFrom, eventDateTo, q, riskBand,
-                        analystId, true, false, false, scope),
-                count(status, claimCause, policyNumber, insuredId, eventDateFrom, eventDateTo, q, riskBand,
-                        analystId, false, true, false, scope));
-    }
-
-    private long count(List<CaseStatus> status, String claimCause, String policyNumber, String insuredId,
-                       LocalDate eventDateFrom, LocalDate eventDateTo, String q, RiskBand riskBand,
-                       Long analystId, boolean unassigned, boolean fraudAlert, boolean assigned,
-                       CaseScope scope) {
         Specification<Case> spec = and(CaseSpecifications.withFilters(
                 status, claimCause, policyNumber, insuredId, eventDateFrom, eventDateTo, q, riskBand,
-                analystId, unassigned, fraudAlert, assigned), CaseSpecifications.scope(scope));
-        // Sin ningún filtro la spec queda null, y count(null) explota — findAll(null, pageable) no.
-        return spec == null ? caseRepository.count() : caseRepository.count(spec);
+                analystId), CaseSpecifications.scope(scope));
+
+        CaseLensCountRepository.LensCounts counts = caseRepository.countLenses(spec, me);
+        return new LensSummaryResponse(
+                counts.all(), counts.mine(), counts.assigned(), counts.unassigned(), counts.fraud());
     }
 
     /**
