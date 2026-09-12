@@ -69,7 +69,9 @@ import org.springframework.web.multipart.MultipartFile;
 
 import java.io.IOException;
 import java.time.Clock;
+import java.time.Instant;
 import java.time.LocalDate;
+import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.HashMap;
@@ -425,7 +427,8 @@ public class CaseServiceImpl implements CaseService {
                                          String insuredId, LocalDate eventDateFrom, LocalDate eventDateTo,
                                          String q, RiskBand riskBand, Long analystId, boolean assignedToMe,
                                          boolean unassigned, boolean fraudAlert, boolean assigned,
-                                         boolean dueSoon, CaseScope scope, Long insurerId, Pageable pageable) {
+                                         boolean dueSoon, Integer staleDays, CaseScope scope, Long insurerId,
+                                         Pageable pageable) {
         if (accessPolicy.currentUserIsInsured()) {
             // El asegurado ve los suyos de TODAS sus aseguradoras, no solo la del tenant activo.
             // Las lentes no le aplican: no tiene expedientes "asignados" ni bandeja de fraude.
@@ -450,6 +453,7 @@ public class CaseServiceImpl implements CaseService {
         Specification<Case> spec = and(withDueSoon(CaseSpecifications.withFilters(
                 status, claimCause, policyNumber, insuredId, eventDateFrom, eventDateTo, q, riskBand,
                 ownerId, unassigned, fraudAlert, assigned), dueSoon), CaseSpecifications.scope(scope));
+        spec = and(spec, withStale(staleDays));
         return toResponses(caseRepository.findAll(spec, pageable));
     }
 
@@ -458,6 +462,14 @@ public class CaseServiceImpl implements CaseService {
             return base;
         }
         return base == null ? extra : base.and(extra);
+    }
+
+    /** Expedientes abiertos sin ningún cambio en los últimos {@code staleDays} días. */
+    private Specification<Case> withStale(Integer staleDays) {
+        if (staleDays == null || staleDays <= 0) {
+            return null;
+        }
+        return CaseSpecifications.staleSince(Instant.now(clock).minus(staleDays, ChronoUnit.DAYS));
     }
 
     /** Umbral del filtro "por vencer" = mismo borde que el semáforo (deadlinePriority ≠ NONE). */

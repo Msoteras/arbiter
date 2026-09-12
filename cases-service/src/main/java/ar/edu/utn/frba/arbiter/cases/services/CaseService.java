@@ -82,6 +82,9 @@ public interface CaseService {
      * "Alerta de fraude": riesgo HIGH/CRITICAL) son las otras lentes de la bandeja. A diferencia de
      * {@code assignedToMe}, no dependen del "yo": son filtros booleanos puros.
      *
+     * <p>{@code staleDays} (lente "Frenados"): expedientes abiertos sin un solo cambio en los
+     * últimos N días. Alimenta el panel "Requiere atención" del tablero.
+     *
      * <p>{@code dueSoon} (lente "Por vencer": {@code deadlinePriority != NONE}, ver
      * {@link ar.edu.utn.frba.arbiter.common.enums.DeadlinePriority}) es otro filtro booleano puro,
      * combinable con el resto igual que {@code unassigned}/{@code assigned}/{@code fraudAlert}.
@@ -89,14 +92,15 @@ public interface CaseService {
     Page<CaseResponse> listCases(List<CaseStatus> status, String claimCause, String policyNumber, String insuredId,
                                   LocalDate eventDateFrom, LocalDate eventDateTo, String q, RiskBand riskBand,
                                   Long analystId, boolean assignedToMe, boolean unassigned, boolean fraudAlert,
-                                  boolean assigned, boolean dueSoon, CaseScope scope, Long insurerId, Pageable pageable);
+                                  boolean assigned, boolean dueSoon, Integer staleDays, CaseScope scope,
+                                  Long insurerId, Pageable pageable);
 
     /** Overload para las lentes "Míos"/"Todos" (sin las lentes de asignación, fraude ni vencimiento). */
     default Page<CaseResponse> listCases(List<CaseStatus> status, String claimCause, String policyNumber, String insuredId,
                                           LocalDate eventDateFrom, LocalDate eventDateTo, String q, RiskBand riskBand,
                                           boolean assignedToMe, Pageable pageable) {
         return listCases(status, claimCause, policyNumber, insuredId, eventDateFrom, eventDateTo, q, riskBand,
-                null, assignedToMe, false, false, false, false, CaseScope.ALL, null, pageable);
+                null, assignedToMe, false, false, false, false, null, CaseScope.ALL, null, pageable);
     }
 
     /**
