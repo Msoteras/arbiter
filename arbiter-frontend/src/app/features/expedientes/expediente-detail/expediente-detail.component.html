@@ -876,13 +876,28 @@
                 }
               </span>
 
-              <!-- Lo que el modelo ya leyó del documento, para no hacer buscar el número en un PDF
-                   y tipearlo. No está aplicado: se toma con un clic, después de verificarlo. -->
+              <!-- El número que ya está en el expediente, para no hacerlo buscar de nuevo. No está
+                   aplicado: se toma con un clic. Las tres procedencias no se anuncian igual porque
+                   no llegaron igual: el del documento lo leyó el modelo y hay que verificarlo
+                   contra el papel; los otros dos los transcribió un analista al recibir el informe,
+                   y decir que "figuran" en un documento haría creer que el sistema los leyó solo. -->
               @if (sugerenciaDisponible()) {
                 <p class="settlement-suggestion">
                   <span>
-                    En «{{ documentLabel(s.suggestedFrom ?? '') }}» figura
-                    <strong>{{ montoExacto(s.suggestedAmount) }}</strong>. Verificalo antes de usarlo.
+                    @switch (s.suggestedFrom) {
+                      @case ('expert_report') {
+                        El perito determinó
+                        <strong>{{ montoExacto(s.suggestedAmount) }}</strong> al verificar el siniestro.
+                      }
+                      @case ('repair_report') {
+                        El servicio técnico presupuestó
+                        <strong>{{ montoExacto(s.suggestedAmount) }}</strong> para arreglarlo.
+                      }
+                      @default {
+                        En «{{ documentLabel(s.suggestedFrom ?? '') }}» figura
+                        <strong>{{ montoExacto(s.suggestedAmount) }}</strong>. Verificalo antes de usarlo.
+                      }
+                    }
                   </span>
                   <app-button variant="secondary" (click)="tomarSugerencia()">Usar</app-button>
                 </p>

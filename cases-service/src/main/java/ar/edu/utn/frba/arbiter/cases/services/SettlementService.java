@@ -205,26 +205,27 @@ public class SettlementService {
     }
 
     /**
-     * El importe que el modelo ya leyó de la documentación del expediente, para ofrecérselo al
-     * analista en vez de hacerle buscar el número en un PDF y tipearlo.
+     * El importe que el expediente ya tiene, para ofrecérselo al analista en vez de hacerlo
+     * buscarlo de nuevo. Puede venir de tres lados, y cuál manda no es arbitrario.
      *
-     * <p>Qué documento manda depende de la fórmula, y no es intercambiable: en una reparación el
+     * <p><b>Las valuaciones le ganan al documento.</b> Lo que determinó el perito y lo que
+     * presupuestó el taller los firmó alguien que tuvo el bien en la mano; el papel que trajo el
+     * asegurado, no. Entre ellas manda la <b>última recibida</b>, que es como la compañía trata
+     * las que van llegando (NSIN001 §2.7).
+     *
+     * <p><b>El documento depende de la fórmula y no es intercambiable</b>: en una reparación el
      * monto sale del <b>presupuesto</b>, y en una pérdida total que liquida por el menor de los
      * dos, del <b>comprobante de compra</b>. Ofrecer el otro sería sugerir un número que no
      * responde a la pregunta que el campo hace.
      *
-     * <p>En una pérdida total por suma asegurada no hay monto acreditado que ofrecer: cargarlo no
-     * movería el cálculo, y un campo que no hace nada es peor que ninguno.
+     * <p><b>A qué campo apunta también cambia.</b> Donde no hay monto acreditado que cargar
+     * —pérdida total por suma asegurada— lo único proponible es el monto final, y eso sólo lo dice
+     * el perito: lo que cuesta un arreglo no es una opinión sobre cuánto corresponde pagar. Hasta
+     * que la sugerencia distinguió las dos cosas, el monto del perito desaparecía justo en las
+     * coberturas que más se derivan a peritaje.
      *
-     * <p>Si el expediente pasó por peritaje, manda el monto que determinó el perito: lo fijó una
-     * persona que fue a mirar el bien, contra un presupuesto que trajo el asegurado. Y ese número
-     * <b>no es un valor de reposición</b> —es cuánto dice el perito que hay que pagar—, así que
-     * sigue teniendo dónde ir incluso cuando la cobertura liquida por suma asegurada: ahí apunta
-     * al monto final, no a la base del cálculo. Colgarlo del campo de monto acreditado lo hacía
-     * desaparecer justo en las coberturas que más se derivan a peritaje.
-     *
-     * <p><b>Es una sugerencia y nada más.</b> No se aplica sola ni entra en el cálculo: el analista
-     * la toma si la verifica contra el documento. La extracción del modelo no es vinculante, misma
+     * <p><b>Es una sugerencia y nada más.</b> No se aplica sola ni entra en el cálculo: la toma el
+     * analista. Ni la extracción del modelo ni el informe de un tercero son vinculantes — misma
      * regla que la clasificación (decisión #5).
      */
     private Suggestion suggestionFor(Long caseId, Coverage coverage) {
