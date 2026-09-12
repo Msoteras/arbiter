@@ -9,6 +9,7 @@ import ar.edu.utn.frba.arbiter.cases.dto.CaseRequest;
 import ar.edu.utn.frba.arbiter.cases.dto.CaseResponse;
 import ar.edu.utn.frba.arbiter.cases.dto.DocumentAnalysisSummary;
 import ar.edu.utn.frba.arbiter.cases.dto.EligibilityCheckRequest;
+import ar.edu.utn.frba.arbiter.cases.dto.IntakeDocumentsResponse;
 import ar.edu.utn.frba.arbiter.cases.dto.EligibilityCheckResponse;
 import ar.edu.utn.frba.arbiter.cases.dto.LensSummaryResponse;
 import ar.edu.utn.frba.arbiter.cases.dto.PolicyResponse;
@@ -29,6 +30,7 @@ import ar.edu.utn.frba.arbiter.cases.exceptions.CaseNotFoundException;
 import ar.edu.utn.frba.arbiter.cases.exceptions.DocumentNotFoundException;
 import ar.edu.utn.frba.arbiter.cases.exceptions.DocumentReadException;
 import ar.edu.utn.frba.arbiter.cases.exceptions.InsuredIdentityMismatchException;
+import ar.edu.utn.frba.arbiter.cases.exceptions.RulesUnavailableException;
 import ar.edu.utn.frba.arbiter.cases.exceptions.InvalidAnalystDecisionException;
 import ar.edu.utn.frba.arbiter.cases.exceptions.InvalidSettlementException;
 import ar.edu.utn.frba.arbiter.cases.exceptions.InvalidStatusTransitionException;
@@ -73,6 +75,7 @@ import org.springframework.web.multipart.MultipartFile;
 
 import java.io.IOException;
 import java.time.Clock;
+import java.time.Instant;
 import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.Comparator;
@@ -137,17 +140,26 @@ public class CaseServiceImpl implements CaseService {
      * mandatory, so the whole list is required, and a claim cause with no schedule requires
      * nothing.
      *
-     * <p>An unreadable schedule ({@code null}, as opposed to an empty one) lets the denuncia
-     * through. Leaving the insured out because a service of ours is down would be worse than
-     * taking in a case whose completeness we check later — which is what the engine's own
-     * missing-documents gate already does over the same schedule. Persisting that it came in
-     * unverified and retrying the check afterwards is its own story (gap doc §13).
+     * <p>What's demanded here is the FIRST ROUND — what the expedited path requires — and not the
+     * whole schedule: a claim that Fast Tracks never needed the rest, and one that doesn't is asked
+     * for it at classification time ({@code FALTA_DOCUMENTACION} → {@code AWAITING_DOCUMENTATION}).
+     *
+     * <p>An unreadable list ({@code null}, as opposed to an empty one) lets the denuncia through.
+     * Leaving the insured out because a service of ours is down would be worse than taking in a
+     * case whose completeness we check later — so the case goes in marked
+     * ({@code documentsUnverifiedSince}) and {@code DocumentRecheckScheduler} comes back to it
+     * once rules-service answers.
+     *
+     * @return {@code false} when the list couldn't be read, so the case goes in marked
      */
-    private void assertRequiredDocumentsPresent(
-            String branch, String claimCause, Map<String, MultipartFile> documents) {
-        List<String> required = rulesServiceClient.requiredDocumentTypes(branch, claimCause);
-        if (required == null || required.isEmpty()) {
-            return;
+    private boolean verifyRequiredDocuments(
+            Long coverageId, String branch, String claimCause, Map<String, MultipartFile> documents) {
+        List<String> required = intakeDocumentTypes(coverageId, branch, claimCause);
+        if (required == null) {
+            return false;
+        }
+        if (required.isEmpty()) {
+            return true;
         }
         Set<String> attached = documents == null ? Set.of() : documents.entrySet().stream()
                 .filter(entry -> entry.getValue() != null && !entry.getValue().isEmpty())
@@ -157,6 +169,7 @@ public class CaseServiceImpl implements CaseService {
         if (!missing.isEmpty()) {
             throw new MissingRequiredDocumentsException(missing);
         }
+        return true;
     }
 
     private CaseResponse createCaseInIssuingTenant(CaseRequest request, Map<String, MultipartFile> documents) {
@@ -201,7 +214,8 @@ public class CaseServiceImpl implements CaseService {
                 request.policyNumber(), request.eventDate(), request.policeReportAt(),
                 contracted.getCoverage(), claimCause);
 
-        assertRequiredDocumentsPresent(request.branch(), request.claimCause(), documents);
+        boolean documentsVerified = verifyRequiredDocuments(
+                contracted.getCoverage().getId(), request.branch(), request.claimCause(), documents);
 
         Case entity = Case.builder()
                 .claimCause(claimCause)
@@ -218,6 +232,7 @@ public class CaseServiceImpl implements CaseService {
                 .claimedAmount(request.claimedAmount())
                 .responseDeadline(LocalDate.now(clock).plusDays(CaseStatusService.RESPONSE_TERM_DAYS))
                 .currentStatus(caseStatusService.initialStatus())
+                .documentsUnverifiedSince(documentsVerified ? null : Instant.now(clock))
                 .build();
 
         Case saved = caseRepository.save(entity);
@@ -235,6 +250,58 @@ public class CaseServiceImpl implements CaseService {
                 issuer == null ? null : InsurerSlug.of(issuer),
                 issuer == null ? null : issuer.getName(),
                 List.of());
+    }
+
+    /**
+     * The first round: what the expedited path requires for this coverage, falling back to the full
+     * schedule when the insurer configured no list — with nothing to ask for, the case would reach
+     * the analyst without a single document.
+     *
+     * @return {@code null} when rules-service couldn't be read at all
+     */
+    private List<String> intakeDocumentTypes(Long coverageId, String branch, String claimCause) {
+        List<String> fastTrackDocs = rulesServiceClient.fastTrackDocumentTypes(coverageId);
+        if (fastTrackDocs == null) {
+            return null;
+        }
+        return fastTrackDocs.isEmpty()
+                ? rulesServiceClient.requiredDocumentTypes(branch, claimCause)
+                : fastTrackDocs;
+    }
+
+    @Override
+    public IntakeDocumentsResponse intakeDocuments(String policyNumber, String branch, String claimCause) {
+        // Misma maniobra de tenant que checkEligibility: la póliza puede ser de otra aseguradora
+        // que la del login, y la cobertura y las reglas se leen en el esquema que la emitió.
+        String issuingTenant = policyTenantLocator.locate(policyNumber);
+        String callerTenant = TenantContext.get();
+        TenantContext.set(issuingTenant);
+        try {
+            // Se resuelve contra el DNI del token, no contra un parámetro: así nadie pregunta por
+            // la póliza de otra persona.
+            Insured insured = referenceResolver.resolveInsured(CallerContext.get().insuredId());
+            Policy policy = referenceResolver.resolvePolicy(policyNumber, insured.getId());
+            ClaimCause cause = referenceResolver.resolveClaimCause(branch, claimCause);
+            PolicyCoverage contracted = policyCoverageResolver.resolveFor(policy.getId(), cause.getId());
+
+            List<String> fastTrackDocs = rulesServiceClient.fastTrackDocumentTypes(
+                    contracted.getCoverage().getId());
+            if (fastTrackDocs == null) {
+                throw new RulesUnavailableException(new IllegalStateException(
+                        "No se pudo leer la documentación requerida para el alta"));
+            }
+            if (!fastTrackDocs.isEmpty()) {
+                return new IntakeDocumentsResponse(fastTrackDocs, true);
+            }
+            List<String> schedule = rulesServiceClient.requiredDocumentTypes(branch, claimCause);
+            if (schedule == null) {
+                throw new RulesUnavailableException(new IllegalStateException(
+                        "No se pudo leer la agenda documental"));
+            }
+            return new IntakeDocumentsResponse(schedule, false);
+        } finally {
+            TenantContext.set(callerTenant);
+        }
     }
 
     @Override
@@ -490,7 +557,8 @@ public class CaseServiceImpl implements CaseService {
 
         CaseLensCountRepository.LensCounts counts = caseRepository.countLenses(spec, me);
         return new LensSummaryResponse(
-                counts.all(), counts.mine(), counts.assigned(), counts.unassigned(), counts.fraud());
+                counts.all(), counts.mine(), counts.assigned(), counts.unassigned(), counts.fraud(),
+                counts.open(), counts.closed());
     }
 
     /**

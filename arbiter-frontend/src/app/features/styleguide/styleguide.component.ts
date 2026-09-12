@@ -324,6 +324,17 @@ interface Swatch {
           <app-card [flush]="true" heading="Sin padding">
             <p class="sg-p">Variante <span class="mono">flush</span>, para contenido que llega al borde (ej. una tabla).</p>
           </app-card>
+          <app-card heading="Plegable" [collapsible]="true">
+            <p class="sg-p">
+              Con <span class="mono">collapsible</span> la cabecera pliega el cuerpo. Para pantallas
+              largas de solo lectura (ej. la traza de "Análisis realizado").
+            </p>
+          </app-card>
+          <app-card heading="Plegable, cerrada" [collapsible]="true" [collapsed]="true">
+            <p class="sg-p">
+              Con <span class="mono">collapsed</span> arranca cerrada.
+            </p>
+          </app-card>
         </div>
       </section>
 

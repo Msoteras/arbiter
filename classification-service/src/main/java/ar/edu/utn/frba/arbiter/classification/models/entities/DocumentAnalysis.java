@@ -61,8 +61,21 @@ public class DocumentAnalysis {
     @Column(precision = 14, scale = 2)
     private BigDecimal amount;
 
-    @Column(name = "item_description", length = 255)
+    // Los tres son texto libre que devuelve el modelo de visión, así que van a TEXT y NO se
+    // truncan: DocumentInconsistencyEvaluator compara marca y modelo contra el bien asegurado, y un
+    // valor cortado no es un dato incompleto sino uno equivocado, que puede levantar un hallazgo
+    // falso. Con VARCHAR(100) el INSERT de la extracción entera falló y el expediente quedó
+    // clasificado sin los datos de sus documentos (caso 42 de BBVA, 11/09).
+    @Column(name = "item_description", columnDefinition = "text")
     private String itemDescription;
+
+    /** Just the make, split out of {@link #itemDescription} so it can be crossed against the policy. */
+    @Column(columnDefinition = "text")
+    private String brand;
+
+    /** Just the model, same reason as {@link #brand}. */
+    @Column(columnDefinition = "text")
+    private String model;
 
     @Column(length = 20)
     private String imei;
@@ -91,11 +104,28 @@ public class DocumentAnalysis {
     @OneToMany(mappedBy = "analysis", cascade = CascadeType.ALL, orphanRemoval = true)
     private List<DocumentVisualFinding> visualFindings = new ArrayList<>();
 
+    /**
+     * Everything else the document states, as name/value — the invoice number, the serial, the
+     * store. <b>Displayed, never compared</b>: see {@link DocumentDetail} for why a rule must not
+     * look a name up in here.
+     */
+    @OneToMany(mappedBy = "analysis", cascade = CascadeType.ALL, orphanRemoval = true)
+    private List<DocumentDetail> details = new ArrayList<>();
+
     /** Keeps both sides of the association consistent when building the aggregate. */
     public void addVisualFinding(String finding) {
         DocumentVisualFinding row = new DocumentVisualFinding();
         row.setFinding(finding);
         row.setAnalysis(this);
         visualFindings.add(row);
+    }
+
+    /** Same as {@link #addVisualFinding}, for the name/value side. */
+    public void addDetail(String name, String value) {
+        DocumentDetail row = new DocumentDetail();
+        row.setName(name);
+        row.setValue(value);
+        row.setAnalysis(this);
+        details.add(row);
     }
 }

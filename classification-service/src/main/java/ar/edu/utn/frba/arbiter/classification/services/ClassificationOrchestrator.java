@@ -24,6 +24,7 @@ import lombok.RequiredArgsConstructor;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
+import org.springframework.util.StringUtils;
 
 import java.math.BigDecimal;
 import java.time.Instant;
@@ -109,10 +110,11 @@ public class ClassificationOrchestrator {
         CoverageScopeEvaluator.Result scope =
                 coverageScopeEvaluator.evaluate(claim, ctx.policy(), ctx.history(), ctx.rules(), Map.of());
 
-        // After the scope, not before: its two rules are audited like the rest.
-        List<RuleFinding> ruleFindings = mergeFindings(exclusion, temporal, fraud, scope);
-
         FastTrackValidator.Result fastTrack = fastTrackValidator.evaluate(claim, ctx.policy(), ctx.history(), ctx.rules(), null);
+
+        // After the scope and the gate, not before: their criteria are audited like the rest.
+        List<RuleFinding> ruleFindings = mergeFindings(exclusion, temporal, fraud, scope, fastTrack);
+
         if (fastTrack.fastTrack() && !temporal.blocksFastTrack() && !scope.blocksFastTrack()
                 && !fraud.blocksFastTrack()) {
             log.info("[Orchestrator] Deterministic Fast Track — claim qualifies, skipping LLM. Reasons={}",
@@ -234,6 +236,8 @@ public class ClassificationOrchestrator {
         row.setDocumentDate(fields.documentDate());
         row.setAmount(fields.amount());
         row.setItemDescription(fields.itemDescription());
+        row.setBrand(fields.brand());
+        row.setModel(fields.model());
         row.setImei(fields.imei());
         // The column is NOT NULL and DESCONOCIDO is a real answer, not a missing one: the
         // extraction leaves it null when the model didn't state it, which means the same thing.
@@ -242,6 +246,11 @@ public class ClassificationOrchestrator {
                 : fields.affectedParty());
         row.setExtractedAt(Instant.now());
         extraction.visualFindings().forEach(row::addVisualFinding);
+        // Skipping the nameless or valueless ones: both columns are NOT NULL, and a detail missing
+        // either half says nothing to the analyst — it would only fail the whole insert.
+        fields.details().stream()
+                .filter(detail -> StringUtils.hasText(detail.name()) && StringUtils.hasText(detail.value()))
+                .forEach(detail -> row.addDetail(detail.name(), detail.value()));
         return row;
     }
 
@@ -319,7 +328,8 @@ public class ClassificationOrchestrator {
      * documents. Image-fraud analysis rides on that flag: images are just another attachment, so
      * they're analyzed exactly when the documentation is — not on a separate toggle. It's
      * {@code false} only when the case resolves without touching any document (Fast Track on
-     * structured data with no required doc, or an early missing-documentation exit).
+     * structured data with no required doc, or a hard rule that settles the path before any
+     * extraction). A missing-schedule exit now carries whatever the gate had already read.
      */
     private record Resolution(
             ClassificationResponse response,
@@ -343,15 +353,6 @@ public class ClassificationOrchestrator {
                     false, Map.of());
         }
 
-        List<String> documentTypes = documents.stream().map(AttachmentDocument::type).toList();
-        List<String> missingDocs = checkRequiredDocuments(ctx.rules(), documentTypes);
-        if (!missingDocs.isEmpty()) {
-            log.info("[Orchestrator] Missing required documents: {}", missingDocs);
-            return new Resolution(
-                    attachRuleFindings(missingDocumentationResponse(missingDocs), exclusion.findings()),
-                    false, Map.of());
-        }
-
         List<String> requiredForGate = requiredDocumentTypes(ctx.rules());
         Map<String, DocumentExtraction> gateExtractions = extractRequiredDocuments(documents, requiredForGate);
         Map<String, String> gateDocumentTexts = transcriptions(gateExtractions);
@@ -370,11 +371,13 @@ public class ClassificationOrchestrator {
         CoverageScopeEvaluator.Result scope =
                 coverageScopeEvaluator.evaluate(claim, ctx.policy(), ctx.history(), ctx.rules(), gateExtractions);
 
-        // The gate's own trace: if the claim Fast Tracks below, these are the rules that decided.
-        List<RuleFinding> ruleFindings = mergeFindings(exclusion, temporal, fraud, scope);
-
         FastTrackValidator.Result fastTrack =
                 fastTrackValidator.evaluate(claim, ctx.policy(), ctx.history(), ctx.rules(), gateDocumentTexts);
+
+        // The gate's own trace: if the claim Fast Tracks below, these are the rules that decided —
+        // the hard ones, plus the gate's criteria and what each one compared.
+        List<RuleFinding> ruleFindings = mergeFindings(exclusion, temporal, fraud, scope, fastTrack);
+
         if (fastTrack.fastTrack() && !temporal.blocksFastTrack() && !scope.blocksFastTrack()
                 && !fraud.blocksFastTrack()) {
             // The insurer may want the full fraud analysis even on Fast Track (per-insurer flag). When
@@ -389,6 +392,24 @@ public class ClassificationOrchestrator {
                     fastTrack.reasons(), fullAnalysis);
             return new Resolution(attachRuleFindings(fastTrackResponse(fastTrack), ruleFindings),
                     fullAnalysis || !gateExtractions.isEmpty(), fastTrackExtractions);
+        }
+
+        // The full document schedule is the contract for a COMPLETE case, and a claim that Fast
+        // Tracks never needed it: what it had to bring is the gate's own list, already checked
+        // above. So the schedule is demanded here, once the expedited path is off the table.
+        //
+        // It used to run before the gate, which is what made the short intake list impossible: a
+        // denuncia filed with only what Fast Track requires stopped at FALTA_DOCUMENTACION every
+        // time and never reached the gate that would have expedited it.
+        List<String> missingDocs = checkRequiredDocuments(
+                ctx.rules(), documents.stream().map(AttachmentDocument::type).toList());
+        if (!missingDocs.isEmpty()) {
+            log.info("[Orchestrator] Not Fast Track and missing required documents: {}", missingDocs);
+            // Con los hallazgos del gate y no solo los de la exclusión: al analista no le alcanza
+            // con qué documento falta, necesita por qué el caso no entró al carril rápido.
+            return new Resolution(
+                    attachRuleFindings(missingDocumentationResponse(missingDocs), ruleFindings),
+                    !gateExtractions.isEmpty(), gateExtractions);
         }
 
         log.info("[Orchestrator] Not Fast Track (fastTrack={}, temporalBlock={}, scopeBlock={}, fraudBlock={}). "
@@ -413,7 +434,7 @@ public class ClassificationOrchestrator {
                                 appendReasons(
                                         attachRuleFindings(
                                                 classifyWithLlm(claimWithOcr, ctx, engineFindings),
-                                                mergeFindings(exclusion, temporal, fraud, fullScope)),
+                                                mergeFindings(exclusion, temporal, fraud, fullScope, fastTrack)),
                                         temporal.reasons()),
                                 fullScope.reasons()),
                         fraud.reasons()),
@@ -467,6 +488,53 @@ public class ClassificationOrchestrator {
     private record Context(InsuredPolicy policy, InsuredHistory history, BusinessRules rules,
                            List<InsuredFraudRecord> fraudRecords) {}
 
+    /**
+     * The insured's history as the rules have to see it: what the company settled in its own
+     * systems <b>plus</b> what they already filed through Arbiter.
+     *
+     * <p>The company's {@code siniestro_historico} only holds the claims it processed; every claim
+     * filed from the portal is born here and never travels back. Reading only the first source
+     * meant the annual event cap (D10) and the Fast Track's previous-claims criterion answered
+     * zero to someone who had filed that same week — and the prompt told the model the same thing,
+     * which is worse than saying nothing.
+     *
+     * <p>Merged into the one list every rule already reads, instead of a second counter each rule
+     * would have to remember to add: the cap filters by branch and date window, the exhaustion
+     * check by coverage, and none of that works on a scalar. The claim id is prefixed so a merged
+     * record can be told apart from the company's — the hook for de-duplicating the day the
+     * company starts syncing settled Arbiter claims back into its history.
+     *
+     * <p>{@code totalAmountClaimed} stays untouched: it sums what the company <b>paid</b>, and an
+     * Arbiter case has no settled amount to add.
+     */
+    private InsuredHistory withArbiterAntecedents(InsuredHistory history, ClaimReport claim) {
+        if (claim.priorClaims().isEmpty()) {
+            return history;
+        }
+        List<InsuredHistory.ClaimRecord> merged = new ArrayList<>(
+                history.claims() == null ? List.of() : history.claims());
+        claim.priorClaims().stream()
+                .map(prior -> InsuredHistory.ClaimRecord.builder()
+                        .claimId("arbiter-" + prior.caseId())
+                        .date(prior.eventDate())
+                        .policyNumber(prior.policyNumber())
+                        .branch(prior.branch())
+                        .coverageName(prior.coverageName())
+                        .claimCause(prior.claimCause())
+                        .status(prior.status())
+                        .build())
+                .forEach(merged::add);
+        log.info("[Orchestrator] History merged — {} claim(s) from the company + {} filed through Arbiter",
+                history.previousClaimsCount(), claim.priorClaims().size());
+        return InsuredHistory.builder()
+                .insuredId(history.insuredId())
+                .previousClaimsCount(merged.size())
+                .totalAmountClaimed(history.totalAmountClaimed())
+                .customerSince(history.customerSince())
+                .claims(List.copyOf(merged))
+                .build();
+    }
+
     private Context fetchContext(ClaimReport claim) {
         log.debug("[Orchestrator] Fetching policy '{}'...", claim.policyNumber());
         // Narrowed to the coverage that answers for this claim: a policy has several, each with
@@ -478,7 +546,7 @@ public class ClassificationOrchestrator {
                 policy.insuredName(), policy.upToDate(), claim.coverageName(), policy.insuredAmount());
 
         log.debug("[Orchestrator] Fetching history for insuredId '{}'...", claim.insuredId());
-        InsuredHistory history = insurerAdapter.getHistory(claim.insuredId());
+        InsuredHistory history = withArbiterAntecedents(insurerAdapter.getHistory(claim.insuredId()), claim);
         log.info("[Orchestrator] History OK — previous_claims={} total_amount_claimed={}",
                 history.previousClaimsCount(), history.totalAmountClaimed());
 
@@ -585,6 +653,16 @@ public class ClassificationOrchestrator {
                 response.toBuilder().classification(rerouted).build(), List.of(reason.toString()));
     }
 
+    /**
+     * What the FULL document schedule asks for and the claim didn't bring — {@code
+     * document_requirement}, per branch + claim cause, the contract for a complete case.
+     *
+     * <p>Not to be confused with {@link BusinessRules.FastTrackThresholds#requiredDocumentTypes()},
+     * the short list the expedited path requires and the insured is asked for at intake. This one
+     * is only evaluated once Fast Track is off the table, and by presence: whether the schedule's
+     * slot was filled. The gate's own list is checked by extracted TEXT instead, because an
+     * unreadable document can't expedite anything.
+     */
     private List<String> checkRequiredDocuments(BusinessRules rules, List<String> providedDocumentTypes) {
         if (rules.requiredDocumentTypes() == null || rules.requiredDocumentTypes().isEmpty()) {
             return List.of();
@@ -674,19 +752,25 @@ public class ClassificationOrchestrator {
     }
 
     /**
-     * The auditable trace of every hard rule that ran: the coverage exclusions, the temporal ones,
-     * the fraud record and the coverage scope. They travel together because {@code rule_result} is
-     * one row per rule evaluated, regardless of which evaluator ran it — what tells them apart in
-     * the table is their {@code rule_type}.
+     * The auditable trace of everything the engine evaluated: the coverage exclusions, the temporal
+     * rules, the fraud record, the coverage scope, and the Fast Track gate's criteria. They travel
+     * together because {@code rule_result} is one row per thing evaluated, regardless of which
+     * evaluator ran it — what tells them apart in the table is their {@code rule_type}.
+     *
+     * <p>The gate's criteria go last and are <b>not</b> hard rules: failing one only means the claim
+     * doesn't take the fast lane. The analyst's screen has to keep the two groups apart, which is
+     * what the {@code FT_*} prefix is for.
      */
     private List<RuleFinding> mergeFindings(CoverageRuleEvaluator.Result exclusion,
                                             TemporalRuleEvaluator.Result temporal,
                                             FraudRecordRuleEvaluator.Result fraud,
-                                            CoverageScopeEvaluator.Result scope) {
+                                            CoverageScopeEvaluator.Result scope,
+                                            FastTrackValidator.Result fastTrack) {
         List<RuleFinding> findings = new ArrayList<>(exclusion.findings());
         findings.addAll(temporal.findings());
         findings.addAll(fraud.findings());
         findings.addAll(scope.findings());
+        findings.addAll(fastTrack.findings());
         return findings;
     }
 

@@ -11,6 +11,7 @@ import ar.edu.utn.frba.arbiter.common.models.entities.User;
 import ar.edu.utn.frba.arbiter.cases.dto.CaseRequest;
 import ar.edu.utn.frba.arbiter.cases.dto.CaseResponse;
 import ar.edu.utn.frba.arbiter.cases.dto.EligibilityCheckRequest;
+import ar.edu.utn.frba.arbiter.cases.dto.IntakeDocumentsResponse;
 import ar.edu.utn.frba.arbiter.cases.dto.EligibilityCheckResponse;
 import ar.edu.utn.frba.arbiter.cases.dto.ProviderType;
 import ar.edu.utn.frba.arbiter.cases.dto.RepairProviderResponse;
@@ -24,6 +25,7 @@ import ar.edu.utn.frba.arbiter.cases.exceptions.InvalidAnalystDecisionException;
 import ar.edu.utn.frba.arbiter.cases.exceptions.InvalidSettlementException;
 import ar.edu.utn.frba.arbiter.cases.exceptions.InvalidStatusTransitionException;
 import ar.edu.utn.frba.arbiter.cases.exceptions.MissingRequiredDocumentsException;
+import ar.edu.utn.frba.arbiter.cases.exceptions.RulesUnavailableException;
 import ar.edu.utn.frba.arbiter.cases.exceptions.PolicyInsuredMismatchException;
 import ar.edu.utn.frba.arbiter.cases.exceptions.PolicyNotEligibleException;
 import ar.edu.utn.frba.arbiter.cases.exceptions.UnresolvedCaseReferenceException;
@@ -190,6 +192,16 @@ class CaseServiceImplTest {
      * si terminó en una aseguradora distinta de la del login). Sin aseguradora encontrada, la
      * respuesta simplemente queda con esos dos campos en null — el mismo comportamiento de antes.
      */
+    /**
+     * Por default la cobertura no tiene configurada su primera tanda, que es lo que hace caer el
+     * gate a la agenda documental completa — el comportamiento que prueban los tests de abajo. Los
+     * que ejercitan la tanda mínima la pisan.
+     */
+    @BeforeEach
+    void noFastTrackDocumentListByDefault() {
+        lenient().when(rulesServiceClient.fastTrackDocumentTypes(any())).thenReturn(List.of());
+    }
+
     @BeforeEach
     void noInsurerMatchByDefault() {
         lenient().when(insurerRepository.findBySchemaName(any())).thenReturn(Optional.empty());
@@ -1238,16 +1250,19 @@ class CaseServiceImplTest {
 
         caseService.createCase(request, Map.of("police_report", police));
 
-        verify(caseRepository).save(any(Case.class));
+        ArgumentCaptor<Case> captor = ArgumentCaptor.forClass(Case.class);
+        verify(caseRepository).save(captor.capture());
+        assertThat(captor.getValue().getDocumentsUnverifiedSince()).isNull();
     }
 
     /**
      * Lista vacía es una respuesta ("este hecho generador no pide documentos"); null es que no se
-     * pudo leer la agenda. Ninguna de las dos frena la denuncia, pero por motivos distintos — ver
-     * {@code CaseServiceImpl.assertRequiredDocumentsPresent}.
+     * pudo leer la agenda. Ninguna de las dos frena la denuncia, pero la segunda entra marcada
+     * para que {@code DocumentRecheckScheduler} la verifique después — ver
+     * {@code CaseServiceImpl.verifyRequiredDocuments}.
      */
     @Test
-    void createCase_withoutAReadableSchedule_doesNotDemandAnything() {
+    void createCase_withoutAReadableSchedule_goesThroughMarkedUnverified() {
         CaseRequest request = caseRequest();
         Case saved = caseRecord(1L, CaseStatus.PENDING_CLASSIFICATION);
         stubReferenceResolution();
@@ -1259,7 +1274,11 @@ class CaseServiceImplTest {
 
         caseService.createCase(request, Map.of());
 
-        verify(caseRepository).save(any(Case.class));
+        ArgumentCaptor<Case> captor = ArgumentCaptor.forClass(Case.class);
+        verify(caseRepository).save(captor.capture());
+        // Marked with the filing time, so the recheck sweep comes back to it.
+        assertThat(captor.getValue().getDocumentsUnverifiedSince())
+                .isEqualTo(Instant.parse("2026-06-15T12:00:00Z"));
     }
 
     @Test
@@ -1275,7 +1294,122 @@ class CaseServiceImplTest {
 
         caseService.createCase(request, Map.of());
 
+        ArgumentCaptor<Case> captor = ArgumentCaptor.forClass(Case.class);
+        verify(caseRepository).save(captor.capture());
+        assertThat(captor.getValue().getDocumentsUnverifiedSince()).isNull();
+    }
+
+    /**
+     * La primera tanda: con la lista del carril rápido configurada, el alta pide esa y ni mira la
+     * agenda completa — el resto se le pide después, y solo si el siniestro no fast-trackea.
+     */
+    @Test
+    void createCase_withTheFastTrackList_doesNotDemandTheWholeSchedule() {
+        CaseRequest request = caseRequest();
+        Case saved = caseRecord(1L, CaseStatus.PENDING_CLASSIFICATION);
+        stubReferenceResolution();
+        when(rulesServiceClient.fastTrackDocumentTypes(any())).thenReturn(List.of("police_report"));
+        when(caseRepository.save(any(Case.class))).thenReturn(saved);
+        when(caseDocumentRepository.findByCaseIdAndType(eq(1L), any())).thenReturn(Optional.empty());
+        when(caseDocumentRepository.findByCaseId(1L)).thenReturn(List.of());
+        when(claimsAnalysisClient.analyzeAndPersist(any(), any()))
+                .thenReturn(new AnalysisResult(null, 0.0, "in progress"));
+
+        MockMultipartFile police = new MockMultipartFile(
+                "police_report", "denuncia.pdf", "application/pdf", "pdf-bytes".getBytes());
+
+        caseService.createCase(request, Map.of("police_report", police));
+
         verify(caseRepository).save(any(Case.class));
+        verify(rulesServiceClient, never()).requiredDocumentTypes(any(), any());
+    }
+
+    @Test
+    void createCase_missingADocumentOfTheFastTrackList_isRejected() {
+        CaseRequest request = caseRequest();
+        stubReferenceResolution();
+        when(rulesServiceClient.fastTrackDocumentTypes(any()))
+                .thenReturn(List.of("police_report", "purchase_proof"));
+
+        MockMultipartFile police = new MockMultipartFile(
+                "police_report", "denuncia.pdf", "application/pdf", "pdf-bytes".getBytes());
+
+        assertThatThrownBy(() -> caseService.createCase(request, Map.of("police_report", police)))
+                .isInstanceOf(MissingRequiredDocumentsException.class)
+                .hasMessageContaining("purchase_proof");
+
+        verify(caseRepository, never()).save(any(Case.class));
+    }
+
+    /** Sin poder leer la lista, la denuncia entra marcada, igual que con la agenda ilegible. */
+    @Test
+    void createCase_withoutAReadableFastTrackList_goesThroughMarkedUnverified() {
+        CaseRequest request = caseRequest();
+        Case saved = caseRecord(1L, CaseStatus.PENDING_CLASSIFICATION);
+        stubReferenceResolution();
+        when(rulesServiceClient.fastTrackDocumentTypes(any())).thenReturn(null);
+        when(caseRepository.save(any(Case.class))).thenReturn(saved);
+        when(caseDocumentRepository.findByCaseId(1L)).thenReturn(List.of());
+        when(claimsAnalysisClient.analyzeAndPersist(any(), any()))
+                .thenReturn(new AnalysisResult(null, 0.0, "in progress"));
+
+        caseService.createCase(request, Map.of());
+
+        ArgumentCaptor<Case> captor = ArgumentCaptor.forClass(Case.class);
+        verify(caseRepository).save(captor.capture());
+        assertThat(captor.getValue().getDocumentsUnverifiedSince())
+                .isEqualTo(Instant.parse("2026-06-15T12:00:00Z"));
+        verify(rulesServiceClient, never()).requiredDocumentTypes(any(), any());
+    }
+
+    // ─────────── la tanda que el wizard le muestra al asegurado ───────────
+
+    @Test
+    void intakeDocuments_returnsTheFastTrackListWhenTheCoverageHasOne() {
+        stubPolicyAndInsuredResolution();
+        when(policyTenantLocator.locate(any())).thenReturn("arbiter_bbva");
+        when(referenceResolver.resolveClaimCause(any(), any()))
+                .thenReturn(CaseFixtures.claimCause("Celulares", "Robo en vía pública"));
+        when(rulesServiceClient.fastTrackDocumentTypes(any()))
+                .thenReturn(List.of("police_report", "purchase_proof"));
+
+        IntakeDocumentsResponse response = caseService.intakeDocuments(
+                "POL-CEL-2024-001", "Celulares", "Robo en vía pública");
+
+        assertThat(response.documentTypes()).containsExactly("police_report", "purchase_proof");
+        assertThat(response.fastTrackOnly()).isTrue();
+        verify(rulesServiceClient, never()).requiredDocumentTypes(any(), any());
+    }
+
+    /** Sin lista configurada no habría nada que pedir, así que se cae a la agenda completa. */
+    @Test
+    void intakeDocuments_fallsBackToTheWholeSchedule() {
+        stubPolicyAndInsuredResolution();
+        when(policyTenantLocator.locate(any())).thenReturn("arbiter_bbva");
+        when(referenceResolver.resolveClaimCause(any(), any()))
+                .thenReturn(CaseFixtures.claimCause("Celulares", "Robo en vía pública"));
+        when(rulesServiceClient.requiredDocumentTypes("Celulares", "Robo en vía pública"))
+                .thenReturn(List.of("police_report", "purchase_proof", "imei_deregistration"));
+
+        IntakeDocumentsResponse response = caseService.intakeDocuments(
+                "POL-CEL-2024-001", "Celulares", "Robo en vía pública");
+
+        assertThat(response.documentTypes()).hasSize(3);
+        assertThat(response.fastTrackOnly()).isFalse();
+    }
+
+    /** 503 y no lista vacía: "no hace falta ningún documento" es la respuesta equivocada. */
+    @Test
+    void intakeDocuments_failsWhenRulesIsUnreachable() {
+        stubPolicyAndInsuredResolution();
+        when(policyTenantLocator.locate(any())).thenReturn("arbiter_bbva");
+        when(referenceResolver.resolveClaimCause(any(), any()))
+                .thenReturn(CaseFixtures.claimCause("Celulares", "Robo en vía pública"));
+        when(rulesServiceClient.fastTrackDocumentTypes(any())).thenReturn(null);
+
+        assertThatThrownBy(() -> caseService.intakeDocuments(
+                "POL-CEL-2024-001", "Celulares", "Robo en vía pública"))
+                .isInstanceOf(RulesUnavailableException.class);
     }
 
     @Test

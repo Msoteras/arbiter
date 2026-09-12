@@ -169,16 +169,15 @@ migraciones que no son un simple `ADD COLUMN` (un `DELETE`, un índice `UNIQUE` 
 silencio si hay duplicados). Esas se siguen confirmando a mano, una por una — el script lo recuerda
 al final si encuentra algo.
 
-Corrido contra Railway (28/08): estructura consistente salvo una, real y ya resuelta —
-`policy_snapshot.total_amount_claimed` existía en las dos bases de tenant sin estar en
-`init-multitenant.sql`. Era drift puro, sin dueño: ninguna entidad JPA la mapea, ningún SQL del
-repo la toca. El monto total reclamado histórico existe como concepto, pero es del **siniestro**,
-no de la póliza — `InsurerDatabaseAdapter.getHistory()` lo calcula al vuelo sumando
-`aseguradora_*.siniestro_historico.monto_indemnizado`, tabla que ya estaba completa en
-`init-multitenant.sql` y con datos realistas en `seed-demo.sql` (los 3 siniestros de Julián Pérez,
-los 2 de Federico Aguirre). Esta columna era una versión mal ubicada de lo mismo. Se dropeó de
-Railway con `db/migrate-drop-policy-snapshot-total-amount-claimed.sql`; una Supabase nueva armada
-desde `init-multitenant.sql` directamente nunca la va a tener.
+Corrido contra Railway (28/08): la única diferencia fue `policy_snapshot.total_amount_claimed`,
+que existía en las dos bases de tenant sin estar en `init-multitenant.sql`. Ese mismo día se le dio
+dueño en vez de dropearla: `db/migrations/2026-08-28-monto-historico-snapshot.sql` la sumó al
+script, classification-service la escribe en cada corrida (el monto de los siniestros previos,
+congelado junto al resto de la foto de la póliza) y cases-service la mapea para la solapa de
+trazabilidad. Hubo también un script que la dropeaba: quedó obsoleto —correrlo borraba datos— y se
+sacó del repo el 10/09.
+
+Corrido de nuevo el 10/09, con el `init` al día: consistente, sin ninguna diferencia.
 
 ---
 

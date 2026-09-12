@@ -13,6 +13,7 @@ import ar.edu.utn.frba.arbiter.cases.dto.PolicyResponse;
 import ar.edu.utn.frba.arbiter.cases.dto.SettlementReturnRequest;
 import ar.edu.utn.frba.arbiter.cases.dto.SettlementResponse;
 import ar.edu.utn.frba.arbiter.cases.dto.EligibilityCheckRequest;
+import ar.edu.utn.frba.arbiter.cases.dto.IntakeDocumentsResponse;
 import ar.edu.utn.frba.arbiter.cases.dto.EligibilityCheckResponse;
 import ar.edu.utn.frba.arbiter.cases.dto.LensSummaryResponse;
 import ar.edu.utn.frba.arbiter.cases.dto.ReopenCaseRequest;
@@ -88,6 +89,21 @@ public class CaseController {
             @RequestBody @Valid EligibilityCheckRequest request
     ) {
         return ResponseEntity.ok(caseService.checkEligibility(request));
+    }
+
+    @GetMapping("/intake-documents")
+    @PreAuthorize("hasRole('ASEGURADO')")
+    @Operation(summary = "Documentación que se pide al registrar la denuncia",
+            description = "La primera tanda: lo que el carril rápido exige para la cobertura que responde "
+                    + "por ese hecho generador. Si la aseguradora no configuró ninguna, devuelve la agenda "
+                    + "documental completa (`fastTrackOnly=false`). La agenda entera se le pide después, y "
+                    + "solo si el siniestro no entra al carril rápido. 503 si no se pudo leer el motor de "
+                    + "reglas: una lista vacía se leería como \"no hace falta ningún documento\".")
+    public ResponseEntity<IntakeDocumentsResponse> intakeDocuments(
+            @RequestParam String policyNumber,
+            @RequestParam String branch,
+            @RequestParam String claimCause) {
+        return ResponseEntity.ok(caseService.intakeDocuments(policyNumber, branch, claimCause));
     }
 
     @GetMapping("/{caseId}")

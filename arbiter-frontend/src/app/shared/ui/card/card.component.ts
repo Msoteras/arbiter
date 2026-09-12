@@ -1,4 +1,4 @@
-import { ChangeDetectionStrategy, Component, input } from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, input, linkedSignal } from '@angular/core';
 
 type Variant = 'default' | 'soft' | 'ai';
 
@@ -7,6 +7,10 @@ type Variant = 'default' | 'soft' | 'ai';
  * tarjetas del modelo (sugerencias/recomendaciones, marcadas con ✦).
  * Cabecera opcional vía `heading` (+ `icon` opcional, ej. '✦').
  * El cuerpo va como contenido proyectado.
+ *
+ * Con `collapsible`, la cabecera pasa a ser el botón que pliega el cuerpo (necesita `heading`:
+ * sin título no hay dónde clickear). El contenido se esconde con `hidden`, no se destruye —
+ * lo que el usuario haya abierto adentro sigue abierto al volver a desplegar.
  */
 @Component({
   selector: 'app-card',
@@ -20,14 +24,34 @@ type Variant = 'default' | 'soft' | 'ai';
       [class.bare]="bare()"
     >
       @if (heading()) {
-        <div class="card-head">
-          @if (icon()) {
-            <span class="icon" aria-hidden="true">{{ icon() }}</span>
-          }
-          <h2 class="card-title">{{ heading() }}</h2>
-        </div>
+        @if (isCollapsible()) {
+          <h2 class="card-head as-toggle" [class.is-open]="expanded()">
+            <button
+              type="button"
+              class="card-toggle"
+              [attr.aria-expanded]="expanded()"
+              [attr.aria-controls]="bodyId()"
+              (click)="toggle()"
+            >
+              <span class="chev" [class.is-open]="expanded()" aria-hidden="true">›</span>
+              @if (icon()) {
+                <span class="icon" aria-hidden="true">{{ icon() }}</span>
+              }
+              <span class="card-title">{{ heading() }}</span>
+            </button>
+          </h2>
+        } @else {
+          <div class="card-head">
+            @if (icon()) {
+              <span class="icon" aria-hidden="true">{{ icon() }}</span>
+            }
+            <h2 class="card-title">{{ heading() }}</h2>
+          </div>
+        }
       }
-      <ng-content />
+      <div class="card-body" [id]="bodyId()" [hidden]="isCollapsible() && !expanded()">
+        <ng-content />
+      </div>
     </section>
   `,
   styles: `
@@ -99,6 +123,49 @@ type Variant = 'default' | 'soft' | 'ai';
       gap: var(--space-2);
       margin-bottom: var(--space-3);
     }
+    /* Plegada no hay cuerpo abajo: el margen de la cabecera sobraría como aire al pie. */
+    .card-head.as-toggle {
+      margin: 0;
+      font-size: inherit;
+      font-weight: inherit;
+    }
+    .card-head.as-toggle.is-open {
+      margin-bottom: var(--space-3);
+    }
+    .card-toggle {
+      display: flex;
+      align-items: center;
+      gap: var(--space-2);
+      width: 100%;
+      padding: 0;
+      border: none;
+      background: none;
+      cursor: pointer;
+      text-align: left;
+      color: inherit;
+      font: inherit;
+    }
+    .card-toggle:hover .card-title {
+      color: var(--text-secondary);
+    }
+    .card-toggle:focus-visible {
+      outline: 2px solid var(--border-focus);
+      outline-offset: 2px;
+      border-radius: var(--radius-ctl);
+    }
+    .chev {
+      display: inline-block;
+      color: var(--text-tertiary);
+      transition: transform var(--dur-1) ease;
+    }
+    .chev.is-open {
+      transform: rotate(90deg);
+    }
+    @media (prefers-reduced-motion: reduce) {
+      .chev {
+        transition: none;
+      }
+    }
     .icon {
       color: var(--text-primary);
     }
@@ -119,10 +186,31 @@ type Variant = 'default' | 'soft' | 'ai';
   `,
 })
 export class CardComponent {
+  private static instances = 0;
+
   readonly variant = input<Variant>('default');
   readonly heading = input('');
   readonly icon = input('');
   readonly flush = input(false);
   /** Sin caja (borde/fondo/padding): el contenedor externo ya provee la caja. */
   readonly bare = input(false);
+  /** La cabecera pliega el cuerpo. Requiere `heading`. */
+  readonly collapsible = input(false);
+  /** Arranca plegada. Solo aplica con `collapsible`. */
+  readonly collapsed = input(false);
+
+  /** Sin título no hay cabecera, y sin cabecera no hay de dónde agarrar el plegado. */
+  protected readonly isCollapsible = computed(() => this.collapsible() && !!this.heading());
+
+  /** Vuelve al valor de `collapsed` si el binding cambia; entre medio manda el usuario. */
+  protected readonly expanded = linkedSignal(() => !this.collapsed());
+
+  private readonly instanceId = `card-${++CardComponent.instances}`;
+
+  /** `aria-controls` tiene que apuntar a un id único, y puede haber muchas cards en la página. */
+  protected readonly bodyId = computed(() => `${this.instanceId}-body`);
+
+  protected toggle(): void {
+    this.expanded.update((v) => !v);
+  }
 }

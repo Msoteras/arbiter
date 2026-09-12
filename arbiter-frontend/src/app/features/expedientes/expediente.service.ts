@@ -60,6 +60,13 @@ export interface EligibilityCheckResponse {
   reason: string | null;
 }
 
+/** Espejo de `IntakeDocumentsResponse` de cases-service. */
+export interface IntakeDocumentsResponse {
+  documentTypes: string[];
+  /** `true` si es la lista del carril rápido; `false` si es la agenda completa (no hay lista). */
+  fastTrackOnly: boolean;
+}
+
 // El backend solo acepta APPROVE/APROBAR o REJECT/RECHAZAR (human-in-the-loop:
 // el analista aprueba o rechaza; no hay otras salidas). Sin analystId: cases-service
 // lo resuelve del JWT del que llama, no confía en lo que mande el cliente.
@@ -223,6 +230,8 @@ export interface LensSummary {
   assigned: number;
   unassigned: number;
   fraud: number;
+  open: number;
+  closed: number;
 }
 
 /**
@@ -293,6 +302,18 @@ export class ExpedienteService {
    */
   checkEligibility(request: EligibilityCheckRequest): Observable<EligibilityCheckResponse> {
     return this.http.post<EligibilityCheckResponse>(`${this.baseUrl}/eligibility`, request);
+  }
+
+  /**
+   * La primera tanda de documentos del alta: lo que exige el carril rápido para la cobertura que
+   * responde por ese hecho generador, o la agenda completa si la aseguradora no configuró ninguna
+   * (`fastTrackOnly=false`). El resto se pide después, solo si el siniestro no entra al carril
+   * rápido. 503 si no se pudo leer el motor de reglas.
+   */
+  intakeDocuments(policyNumber: string, branch: string, claimCause: string): Observable<IntakeDocumentsResponse> {
+    return this.http.get<IntakeDocumentsResponse>(`${this.baseUrl}/intake-documents`, {
+      params: { policyNumber, branch, claimCause },
+    });
   }
 
   create(

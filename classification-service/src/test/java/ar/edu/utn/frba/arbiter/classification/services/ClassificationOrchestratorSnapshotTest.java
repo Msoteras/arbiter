@@ -82,7 +82,7 @@ class ClassificationOrchestratorSnapshotTest {
         when(coverageScopeEvaluator.evaluate(any(), any(), any(), any(), any()))
                 .thenReturn(CoverageScopeEvaluator.Result.none());
         when(fastTrackValidator.evaluate(any(), any(), any(), any(), any()))
-                .thenReturn(new FastTrackValidator.Result(true, List.of("ok")));
+                .thenReturn(new FastTrackValidator.Result(true, List.of("ok"), List.of()));
     }
 
     private Snapshot capturedSnapshot() {

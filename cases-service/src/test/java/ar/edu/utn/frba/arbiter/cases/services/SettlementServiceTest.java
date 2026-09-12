@@ -1,6 +1,7 @@
 package ar.edu.utn.frba.arbiter.cases.services;
 
 import ar.edu.utn.frba.arbiter.cases.dto.DocumentAnalysisSummary;
+import ar.edu.utn.frba.arbiter.cases.dto.ProviderType;
 import ar.edu.utn.frba.arbiter.cases.dto.SettlementDecisionRequest;
 import ar.edu.utn.frba.arbiter.cases.dto.SettlementResponse;
 import ar.edu.utn.frba.arbiter.cases.dto.SettlementSuggestionTarget;
@@ -412,7 +413,8 @@ class SettlementServiceTest {
     }
 
     private DocumentAnalysisSummary document(String type, BigDecimal amount) {
-        return new DocumentAnalysisSummary(type, "…", null, amount, null, null, "TITULAR", List.of());
+        return new DocumentAnalysisSummary(type, "…", null, amount, null, null, null, null, "TITULAR",
+                List.of(), List.of());
     }
 
     private Coverage repairCoverage() {

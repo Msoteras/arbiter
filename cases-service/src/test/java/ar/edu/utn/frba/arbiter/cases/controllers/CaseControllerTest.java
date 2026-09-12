@@ -296,8 +296,9 @@ class CaseControllerTest {
                 List.of(new DocumentAnalysisSummary(
                         "purchase_proof", "Factura de compra…",
                         LocalDate.of(2026, 5, 30), new BigDecimal("150000"),
-                        "Motorola Edge 50 Pro", null, "TITULAR",
-                        List.of("La tipografía del encabezado no coincide con el resto"))),
+                        "Motorola Edge 50 Pro", "Motorola", "Edge 50 Pro", null, "TITULAR",
+                        List.of("La tipografía del encabezado no coincide con el resto"),
+                        List.of(new DocumentAnalysisSummary.Detail("N° de factura", "0001-00034521")))),
                 List.of(), null, null
         );
         when(caseService.getCase(1L, (String) null)).thenReturn(response);
