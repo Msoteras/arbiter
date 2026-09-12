@@ -75,13 +75,16 @@ public class SettlementCalculator {
      *
      * @param replacementValue what the analyst accredited from the file, or null if they haven't
      *                         recorded one yet
+     * @param formula          how this particular claim settles. Comes in instead of being read
+     *                         off the coverage because it is not only the coverage's business: a
+     *                         damage cover settles by repair, but an item the repair shop declared
+     *                         irreparable is gone, and gone is a total loss. Who knows that is the
+     *                         caller, which has the repositories; this class stays a pure function
      */
     public CaseSettlement calculate(Case caseRecord, Coverage coverage, PolicyCoverage policyCoverage,
-                                    PolicySnapshot snapshot, BigDecimal replacementValue) {
+                                    PolicySnapshot snapshot, BigDecimal replacementValue,
+                                    SettlementFormula formula) {
         BigDecimal sumInsured = sumInsured(policyCoverage, snapshot);
-        SettlementFormula formula = coverage.getSettlementFormula() == null
-                ? SettlementFormula.TOTAL_LOSS
-                : coverage.getSettlementFormula();
         SettlementBasis basis = coverage.getSettlementBasis() == null
                 ? SettlementBasis.SUM_INSURED
                 : coverage.getSettlementBasis();

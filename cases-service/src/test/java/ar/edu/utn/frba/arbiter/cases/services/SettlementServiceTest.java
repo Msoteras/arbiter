@@ -1,5 +1,6 @@
 package ar.edu.utn.frba.arbiter.cases.services;
 
+import ar.edu.utn.frba.arbiter.cases.dto.RepairOutcome;
 import ar.edu.utn.frba.arbiter.cases.dto.DocumentAnalysisSummary;
 import ar.edu.utn.frba.arbiter.cases.dto.ProviderType;
 import ar.edu.utn.frba.arbiter.cases.dto.SettlementDecisionRequest;
@@ -488,6 +489,64 @@ class SettlementServiceTest {
                 .settlementBasis(SettlementBasis.SUM_INSURED)
                 .deductible(new BigDecimal("10.00"))
                 .build();
+    }
+
+    // ─── El equipo que volvió sin arreglo ───────────────────────────────────────
+
+    /**
+     * Una cobertura de daño liquida por reparación porque da por sentado que el bien sobrevivió.
+     * Si el taller lo declara irreparable ese supuesto se cae: el equipo dejó de existir a los
+     * fines del seguro, igual que si se lo hubieran robado, y se paga la suma asegurada. Antes la
+     * hoja le pedía al analista un presupuesto que por definición no existe y proponía pagar cero.
+     */
+    @Test
+    void anIrreparableItemIsSettledAsATotalLoss() {
+        claim.setCoverage(repairCoverage());
+        when(expertAssessmentRepository.findByCaseIdOrderByDerivedAtDesc(1L)).thenReturn(List.of(
+                ExpertAssessment.builder().caseId(1L).providerType(ProviderType.SERVICIO_TECNICO)
+                        .reportReceivedAt(Instant.now())
+                        .repairOutcome(RepairOutcome.IRREPARABLE).build()));
+
+        SettlementResponse response = settlementService.forCase(1L, null);
+
+        assertThat(response.formula()).isEqualTo(SettlementFormula.TOTAL_LOSS);
+        assertThat(response.calculatedAmount()).isEqualByComparingTo("720000.00");
+    }
+
+    /** Cambiar de fórmula en silencio le cambiaría la cuenta al analista sin decirle por qué. */
+    @Test
+    void theSheetSaysWhyItStoppedBeingARepair() {
+        claim.setCoverage(repairCoverage());
+        when(expertAssessmentRepository.findByCaseIdOrderByDerivedAtDesc(1L)).thenReturn(List.of(
+                ExpertAssessment.builder().caseId(1L).providerType(ProviderType.SERVICIO_TECNICO)
+                        .reportReceivedAt(Instant.now())
+                        .repairOutcome(RepairOutcome.IRREPARABLE).build()));
+
+        SettlementResponse response = settlementService.forCase(1L, null);
+
+        assertThat(response.breakdown())
+                .anyMatch(line -> "Suma asegurada".equals(line.concept())
+                        && line.detail() != null && line.detail().contains("irreparable"));
+        // Y que esta cobertura no descuenta cuotas, que en un robo sí se descontarían: el
+        // interruptor se configuró para reparaciones, donde la deducción no existe.
+        assertThat(response.breakdown())
+                .anyMatch(line -> "Cuotas a vencer".equals(line.concept())
+                        && line.detail() != null && line.detail().contains("no tiene configurado"));
+    }
+
+    /** Reparado o con presupuesto, la cobertura manda: sigue siendo una reparación. */
+    @Test
+    void aRepairedItemStillSettlesAsARepair() {
+        claim.setCoverage(repairCoverage());
+        when(expertAssessmentRepository.findByCaseIdOrderByDerivedAtDesc(1L)).thenReturn(List.of(
+                ExpertAssessment.builder().caseId(1L).providerType(ProviderType.SERVICIO_TECNICO)
+                        .reportReceivedAt(Instant.now())
+                        .repairOutcome(RepairOutcome.QUOTE_SENT)
+                        .quotedAmount(new BigDecimal("180000.00")).build()));
+
+        SettlementResponse response = settlementService.forCase(1L, null);
+
+        assertThat(response.formula()).isEqualTo(SettlementFormula.REPAIR);
     }
 
     // ─── Atribuciones (Anexo II) ────────────────────────────────────────────────

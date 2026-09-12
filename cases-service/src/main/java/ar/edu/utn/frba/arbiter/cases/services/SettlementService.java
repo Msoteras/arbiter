@@ -1,5 +1,6 @@
 package ar.edu.utn.frba.arbiter.cases.services;
 
+import ar.edu.utn.frba.arbiter.cases.dto.RepairOutcome;
 import ar.edu.utn.frba.arbiter.cases.dto.PendingSettlementResponse;
 import ar.edu.utn.frba.arbiter.cases.dto.ProviderType;
 import ar.edu.utn.frba.arbiter.cases.dto.SettlementDecisionRequest;
@@ -95,7 +96,8 @@ public class SettlementService {
         PolicySnapshot snapshot = caseRepository.findPolicySnapshot(caseId).orElse(null);
         Coverage coverage = caseRecord.getCoverage();
         CaseSettlement proposal = calculator.calculate(
-                caseRecord, coverage, policyCoverageOf(caseRecord), snapshot, replacementValue);
+                caseRecord, coverage, policyCoverageOf(caseRecord), snapshot, replacementValue,
+                formulaFor(caseId, coverage));
         // El tope vigente, para que el analista vea ANTES de firmar que este monto va a necesitar
         // al referente. Enterarse recién al confirmar es enterarse tarde.
         proposal.setAuthorityLimit(authorityService.limitFor(branchIdOf(caseRecord)));
@@ -127,7 +129,8 @@ public class SettlementService {
 
         PolicySnapshot snapshot = caseRepository.findPolicySnapshot(caseRecord.getId()).orElse(null);
         CaseSettlement settlement = calculator.calculate(caseRecord, caseRecord.getCoverage(),
-                policyCoverageOf(caseRecord), snapshot, request.replacementValue());
+                policyCoverageOf(caseRecord), snapshot, request.replacementValue(),
+                formulaFor(caseRecord.getId(), caseRecord.getCoverage()));
 
         BigDecimal authorized = request.settledAmount();
         if (authorized.compareTo(settlement.getSumInsured()) > 0) {
@@ -267,6 +270,36 @@ public class SettlementService {
                 .map(doc -> new Suggestion(doc.amount(), doc.documentType(),
                         SettlementSuggestionTarget.ACCREDITED_AMOUNT))
                 .orElse(null);
+    }
+
+    /**
+     * Cómo liquida ESTE siniestro, que no siempre es como liquida su cobertura.
+     *
+     * <p>Una cobertura de daño liquida por reparación porque da por sentado que el bien
+     * sobrevivió: se paga el arreglo, el asegurado se queda con el equipo y la póliza sigue viva
+     * —por eso esa fórmula no descuenta las cuotas a vencer—. Cuando el servicio técnico lo
+     * declara <b>irreparable</b>, ese supuesto no se cumple: el bien dejó de existir a los fines
+     * del seguro, igual que si se lo hubieran robado, y lo que corresponde es la otra fórmula.
+     *
+     * <p>Sin esto la hoja le pedía al analista un presupuesto de reparación que por definición no
+     * existe, y proponía pagar cero.
+     */
+    private SettlementFormula formulaFor(Long caseId, Coverage coverage) {
+        SettlementFormula configured = coverage.getSettlementFormula() == null
+                ? SettlementFormula.TOTAL_LOSS
+                : coverage.getSettlementFormula();
+        if (configured != SettlementFormula.REPAIR || !declaredIrreparable(caseId)) {
+            return configured;
+        }
+        return SettlementFormula.TOTAL_LOSS;
+    }
+
+    /** Que el taller lo haya dicho, no que el analista lo suponga: sale del informe que volvió. */
+    private boolean declaredIrreparable(Long caseId) {
+        return expertAssessmentRepository.findByCaseIdOrderByDerivedAtDesc(caseId).stream()
+                .filter(assessment -> assessment.getProviderType() == ProviderType.SERVICIO_TECNICO)
+                .filter(assessment -> assessment.getReportReceivedAt() != null)
+                .anyMatch(assessment -> assessment.getRepairOutcome() == RepairOutcome.IRREPARABLE);
     }
 
     /**
@@ -490,6 +523,12 @@ public class SettlementService {
         List<SettlementResponse.Line> lines = new ArrayList<>();
 
         boolean repair = s.getFormula() == SettlementFormula.REPAIR;
+        // La liquidación guarda la fórmula que se aplicó y la cobertura dice cuál es la suya: que
+        // no coincidan sólo puede significar una cosa, y es que el equipo no tuvo arreglo. No hace
+        // falta un campo nuevo para saberlo, pero sí decirlo — un cambio de fórmula en silencio
+        // le cambia la cuenta al analista sin que sepa por qué.
+        boolean irreparable = !repair && coverage != null
+                && coverage.getSettlementFormula() == SettlementFormula.REPAIR;
         boolean cappedByReplacement = !repair
                 && s.getSettlementBasis() == SettlementBasis.LESSER_OF_SUM_AND_REPLACEMENT
                 && s.getReplacementValue() != null
@@ -506,7 +545,12 @@ public class SettlementService {
                                     .formatted(money(s.getSumInsured())),
                     repairCeiling(s)));
         } else {
-            lines.add(SettlementResponse.Line.base("Suma asegurada", null, s.getSumInsured()));
+            lines.add(SettlementResponse.Line.base("Suma asegurada",
+                    irreparable
+                            ? "el servicio técnico declaró el equipo irreparable: se liquida como "
+                                    + "pérdida total, no como reparación"
+                            : null,
+                    s.getSumInsured()));
             if (cappedByReplacement) {
                 lines.add(SettlementResponse.Line.base("Valor de reposición acreditado",
                         "menor que la suma asegurada — se indemniza por éste (art. 7, Bases de Indemnización)",
@@ -539,6 +583,14 @@ public class SettlementService {
         if (!repair && coverage != null && coverage.isDeductPendingInstallments()) {
             lines.add(SettlementResponse.Line.deduction("Cuotas a vencer",
                     pendingInstallmentsDetail(s), s.getPendingInstallmentsAmount()));
+        } else if (irreparable) {
+            // El interruptor de una cobertura de daño se configuró para reparaciones, donde esta
+            // deducción no existe: nadie decidió que no corresponda en una pérdida total, no se lo
+            // preguntaron. Mostrar el cero con el motivo deja a la vista que el referente puede
+            // prenderlo, en vez de que la cuenta salga distinta a la de un robo sin decir por qué.
+            lines.add(SettlementResponse.Line.deduction("Cuotas a vencer",
+                    "esta cobertura no tiene configurado el descuento de cuotas — se paga sin él",
+                    BigDecimal.ZERO));
         }
 
         if (coverage != null && coverage.isDeductOverdueBalance()) {
