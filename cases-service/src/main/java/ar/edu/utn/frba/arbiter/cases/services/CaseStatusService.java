@@ -45,8 +45,9 @@ public class CaseStatusService {
      * frozen and not counted as due (see {@code DeadlineSweepScheduler},
      * {@code CaseSpecifications.dueSoonBefore}).
      */
-    public static final Set<CaseStatus> PAUSING_STATUSES =
-            Set.of(AWAITING_DOCUMENTATION, PENDING_EXPERT_REPORT, PENDING_REPAIR);
+    // La lista vive en el enum, no acá: reports-service la necesita para separar el tiempo propio
+    // del tiempo esperando a terceros, y dos copias se desincronizan.
+    public static final Set<CaseStatus> PAUSING_STATUSES = Set.copyOf(CaseStatus.pausingTheTerm());
 
     /**
      * States where the case is closed ({@code case_status.is_final = TRUE}). The art. 56 term is
