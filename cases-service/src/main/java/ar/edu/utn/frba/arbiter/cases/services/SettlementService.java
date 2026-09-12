@@ -62,8 +62,9 @@ public class SettlementService {
     /** Los dos tipos de documento que traen un importe que sirve para liquidar. */
     private static final String REPAIR_QUOTE = "repair_quote";
     private static final String PURCHASE_PROOF = "purchase_proof";
-    /** No es un tipo de adjunto del asegurado: es el informe que subió el analista. */
+    /** No son adjuntos del asegurado: son los informes que subió el analista al volver el equipo. */
     private static final String EXPERT_REPORT = "expert_report";
+    private static final String REPAIR_REPORT = "repair_report";
 
     private final CaseRepository caseRepository;
     private final CaseSettlementRepository settlementRepository;
@@ -224,32 +225,39 @@ public class SettlementService {
      * regla que la clasificación (decisión #5).
      */
     private Suggestion suggestionFor(Long caseId, Coverage coverage) {
-        // La ÚLTIMA valuación recibida, sin importar de qué proveedor venga. Un expediente puede
-        // tener más de un informe desde que existe la derivación a servicio técnico, y el
-        // procedimiento de la compañía las trata a todas por igual y de forma acumulativa: el
-        // analista "ajustará la reserva de acuerdo a las valuaciones recibidas a través de los
-        // preinformes de estudios liquidadores, informes técnicos, o presupuestos que se reciban en
-        // el tiempo de resolución de los siniestros hasta su liquidación" (NSIN001 §2.7). Cada
-        // valuación nueva reemplaza a la anterior hasta que se liquida.
-        BigDecimal expert = expertAssessmentRepository.findByCaseIdOrderByDerivedAtDesc(caseId).stream()
+        // Las valuaciones que ya volvieron, la más reciente primero. Un expediente puede tener más
+        // de una desde que existe la derivación a servicio técnico, y el procedimiento de la
+        // compañía las trata de forma acumulativa: el analista "ajustará la reserva de acuerdo a
+        // las valuaciones recibidas a través de los preinformes de estudios liquidadores, informes
+        // técnicos, o presupuestos que se reciban en el tiempo de resolución de los siniestros
+        // hasta su liquidación" (NSIN001 §2.7). Cada valuación nueva reemplaza a la anterior.
+        List<ExpertAssessment> valuations = expertAssessmentRepository
+                .findByCaseIdOrderByDerivedAtDesc(caseId).stream()
                 .filter(assessment -> assessment.getReportReceivedAt() != null)
-                .filter(assessment -> assessment.getIndemnifiableAmount() != null
-                        && assessment.getIndemnifiableAmount().signum() > 0)
-                .max(Comparator.comparing(ExpertAssessment::getReportReceivedAt))
-                .map(ExpertAssessment::getIndemnifiableAmount)
-                .orElse(null);
+                .filter(assessment -> valuationOf(assessment) != null
+                        && valuationOf(assessment).signum() > 0)
+                .sorted(Comparator.comparing(ExpertAssessment::getReportReceivedAt).reversed())
+                .toList();
 
         String wanted = accreditedDocumentFor(coverage);
         if (wanted == null) {
-            return expert == null ? null
-                    : new Suggestion(expert, EXPERT_REPORT, SettlementSuggestionTarget.SETTLED_AMOUNT);
+            // Sin monto acreditado que cargar, lo único que puede proponerse es el monto final — y
+            // eso sólo lo dice el perito. El presupuesto del taller es un COSTO de arreglo, no una
+            // opinión sobre cuánto corresponde pagar, así que acá no tiene nada que decir.
+            return valuations.stream()
+                    .filter(assessment -> assessment.getProviderType() == ProviderType.ESTUDIO_LIQUIDADOR)
+                    .findFirst()
+                    .map(assessment -> new Suggestion(assessment.getIndemnifiableAmount(),
+                            EXPERT_REPORT, SettlementSuggestionTarget.SETTLED_AMOUNT))
+                    .orElse(null);
         }
 
-        // El peritaje gana. Cuando el expediente se derivó, el monto lo determinó una persona que
-        // fue a mirar el bien; el presupuesto lo trajo el asegurado. Sugerir el segundo teniendo el
-        // primero sería ofrecer la fuente más débil de las dos.
-        if (expert != null) {
-            return new Suggestion(expert, EXPERT_REPORT, SettlementSuggestionTarget.ACCREDITED_AMOUNT);
+        // Cualquiera de las dos valuaciones le gana al documento que trajo el asegurado: las dos
+        // las firmó alguien que tuvo el equipo en la mano.
+        if (!valuations.isEmpty()) {
+            ExpertAssessment latest = valuations.getFirst();
+            return new Suggestion(valuationOf(latest), sourceOf(latest),
+                    SettlementSuggestionTarget.ACCREDITED_AMOUNT);
         }
 
         return documentAnalysisRepository.findByCaseId(caseId).stream()
@@ -259,6 +267,21 @@ public class SettlementService {
                 .map(doc -> new Suggestion(doc.amount(), doc.documentType(),
                         SettlementSuggestionTarget.ACCREDITED_AMOUNT))
                 .orElse(null);
+    }
+
+    /**
+     * El número que trajo cada informe, que no es la misma columna ni la misma pregunta: el perito
+     * dice cuánto vale el siniestro, el taller cuánto sale arreglarlo.
+     */
+    private static BigDecimal valuationOf(ExpertAssessment assessment) {
+        return assessment.getProviderType() == ProviderType.SERVICIO_TECNICO
+                ? assessment.getQuotedAmount() : assessment.getIndemnifiableAmount();
+    }
+
+    /** De cuál de los dos informes salió, para que la pantalla lo diga y el analista lo verifique. */
+    private static String sourceOf(ExpertAssessment assessment) {
+        return assessment.getProviderType() == ProviderType.SERVICIO_TECNICO
+                ? REPAIR_REPORT : EXPERT_REPORT;
     }
 
     /**

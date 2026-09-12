@@ -1206,6 +1206,7 @@ export class ExpedienteDetailComponent {
     this.informeTipo.set(tipo);
     this.veredicto.set('');
     this.notaVeredicto.set('');
+    this.montoInforme.set('');
     this.informeFile.set(null);
     this.informeError.set(null);
     this.showInforme.set(true);
@@ -1216,13 +1217,36 @@ export class ExpedienteDetailComponent {
   }
 
   /**
-   * El monto que el perito determinó, como lo tipeó el analista. Vacío no es cero: un informe que
-   * no puso número —un fraude confirmado, un hecho no amparado— no concluyó que no se paga nada.
+   * El número que trae el informe, tipeado por el analista. Es el mismo campo en pantalla pero no
+   * la misma pregunta: al perito se le pide cuánto determinó que vale el siniestro, al taller
+   * cuánto sale el arreglo. Por eso el label, la obligatoriedad y la columna donde termina son
+   * distintos según de quién sea la vuelta.
    */
-  protected readonly montoPericial = signal('');
+  protected readonly montoInforme = signal('');
 
-  private montoPericialNumero(): number | null {
-    const raw = this.montoPericial().trim();
+  /**
+   * El taller sólo informa un importe cuando mandó presupuesto: "reparado" e "irreparable" no
+   * tienen precio que reportar, y ofrecer el campo ahí invita a cargar un número que el backend
+   * rechaza. Del lado del perito el campo va siempre, porque cualquier veredicto puede traer monto.
+   */
+  protected readonly pideMontoDelInforme = computed(
+    () => !this.informeEsReparacion() || this.veredicto() === 'QUOTE_SENT',
+  );
+
+  /** Un presupuesto sin importe no es un presupuesto; el monto del perito sí es opcional. */
+  protected readonly montoDelInformeObligatorio = computed(
+    () => this.informeEsReparacion() && this.veredicto() === 'QUOTE_SENT',
+  );
+
+  protected readonly montoInformeFaltante = computed(
+    () => this.montoDelInformeObligatorio() && this.montoInformeNumero() == null,
+  );
+
+  private montoInformeNumero(): number | null {
+    if (!this.pideMontoDelInforme()) {
+      return null;
+    }
+    const raw = this.montoInforme().trim();
     if (raw === '') {
       return null;
     }
@@ -1239,24 +1263,16 @@ export class ExpedienteDetailComponent {
     const d = this.data();
     const file = this.informeFile();
     const result = this.veredicto();
-    if (!d || !file || !result) {
+    if (!d || !file || !result || this.montoInformeFaltante()) {
       return;
     }
     this.informeSaving.set(true);
     this.informeError.set(null);
     const note = this.notaVeredicto().trim();
+    const monto = this.montoInformeNumero();
     const request = this.informeEsReparacion()
-      ? this.service.cargarRespuestaServicioTecnico(d.id, result as RepairOutcome, note, file)
-      : this.service.cargarInformePericial(
-          d.id,
-          result as ExpertVerdict,
-          note,
-          // El monto sólo viaja por la vía del perito: el endpoint del servicio técnico todavía no
-          // pide el presupuesto. Que pueda cargarlo es trabajo aparte — el procedimiento de la
-          // compañía sí trata a las dos valuaciones por igual (NSIN001 §2.7).
-          this.montoPericialNumero(),
-          file,
-        );
+      ? this.service.cargarRespuestaServicioTecnico(d.id, result as RepairOutcome, note, monto, file)
+      : this.service.cargarInformePericial(d.id, result as ExpertVerdict, note, monto, file);
     request.subscribe({
       next: () => {
         this.informeSaving.set(false);

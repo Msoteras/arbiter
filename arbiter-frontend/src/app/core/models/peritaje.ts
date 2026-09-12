@@ -104,5 +104,11 @@ export interface Peritaje {
    * tienen nada que indemnizar, y ahí un cero diría otra cosa.
    */
   indemnifiableAmount: number | null;
+  /**
+   * Lo que el taller cobra por arreglar el equipo. Sólo viene con un resultado `QUOTE_SENT`: los
+   * otros dos no tienen presupuesto detrás. Columna aparte del monto del perito porque contestan
+   * preguntas distintas — cuánto vale el siniestro contra cuánto sale el arreglo.
+   */
+  quotedAmount: number | null;
   reportDocumentId: number | null;
 }

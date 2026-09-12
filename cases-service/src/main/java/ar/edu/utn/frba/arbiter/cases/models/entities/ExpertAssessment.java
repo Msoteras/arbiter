@@ -118,6 +118,19 @@ public class ExpertAssessment {
     @Column(name = "indemnifiable_amount")
     private BigDecimal indemnifiableAmount;
 
+    /**
+     * What the repair shop quoted to fix the item. Its own column, and not
+     * {@code indemnifiableAmount}, for the same reason {@code repairOutcome} is not
+     * {@code verdict}: the two numbers answer different questions. The expert says what the claim
+     * is <b>worth</b> — an opinion on the settlement. The shop says what the repair <b>costs</b> —
+     * a price, which is the base the repair formula settles on.
+     *
+     * <p>Required when the shop's answer is {@code QUOTE_SENT} and null otherwise: a quote with no
+     * amount is not an answer, and a repaired or irreparable item has no quote to report.
+     */
+    @Column(name = "quoted_amount")
+    private BigDecimal quotedAmount;
+
     @ManyToOne(fetch = FetchType.EAGER, optional = false)
     @JoinColumn(name = "derived_by", nullable = false)
     private ClaimsAnalyst derivedBy;

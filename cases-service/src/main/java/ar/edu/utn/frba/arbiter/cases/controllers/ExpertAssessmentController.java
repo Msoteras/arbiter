@@ -145,14 +145,19 @@ public class ExpertAssessmentController {
                     Devuelve el expediente a la cola del analista, que sigue siendo quien decide.
                     No deja antecedente de fraude: una reparación no investiga la causa, así que su
                     resultado va en su propio campo y no en el veredicto pericial.
+
+                    `quotedAmount` es el precio que el taller le puso al arreglo: obligatorio
+                    cuando el resultado es `QUOTE_SENT`, y rechazado en los otros dos, que no
+                    tienen presupuesto detrás.
                     """)
     public ResponseEntity<ExpertAssessmentResponse> receiveRepairReport(
             @PathVariable Long caseId,
             @RequestParam RepairOutcome outcome,
             @RequestParam(required = false) String note,
+            @RequestParam(required = false) BigDecimal quotedAmount,
             @RequestPart("report") MultipartFile report
     ) {
-        return ResponseEntity.ok(
-                expertAssessmentService.receiveRepairReport(caseId, outcome, note, report));
+        return ResponseEntity.ok(expertAssessmentService.receiveRepairReport(
+                caseId, outcome, note, quotedAmount, report));
     }
 }

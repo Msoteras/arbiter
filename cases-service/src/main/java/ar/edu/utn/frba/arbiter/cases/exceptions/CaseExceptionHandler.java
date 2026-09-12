@@ -84,6 +84,12 @@ public class CaseExceptionHandler extends ResponseEntityExceptionHandler {
         return ProblemDetail.forStatusAndDetail(HttpStatusCode.valueOf(400), ex.getMessage());
     }
 
+    /** La respuesta del servicio técnico no cierra: presupuesto sin importe, o importe sin presupuesto. */
+    @ExceptionHandler(InvalidRepairReportException.class)
+    public ProblemDetail handleInvalidRepairReport(InvalidRepairReportException ex) {
+        return ProblemDetail.forStatusAndDetail(HttpStatusCode.valueOf(400), ex.getMessage());
+    }
+
     /** El expediente todavía no tiene analista asignado — no hay quién decida ni derive. */
     @ExceptionHandler(CaseNotAssignedException.class)
     public ProblemDetail handleCaseNotAssigned(CaseNotAssignedException ex) {

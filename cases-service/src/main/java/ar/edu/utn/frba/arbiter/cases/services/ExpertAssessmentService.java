@@ -6,6 +6,7 @@ import ar.edu.utn.frba.arbiter.cases.dto.RepairOutcome;
 import ar.edu.utn.frba.arbiter.cases.dto.DeriveToExpertRequest;
 import ar.edu.utn.frba.arbiter.cases.dto.ExpertAssessmentResponse;
 import ar.edu.utn.frba.arbiter.cases.dto.ExpertFirmResponse;
+import ar.edu.utn.frba.arbiter.cases.exceptions.InvalidRepairReportException;
 import ar.edu.utn.frba.arbiter.cases.exceptions.AnalystProfileNotFoundException;
 import ar.edu.utn.frba.arbiter.cases.exceptions.CaseAssignedToAnotherAnalystException;
 import ar.edu.utn.frba.arbiter.cases.exceptions.CaseNotAssignedException;
@@ -176,7 +177,8 @@ public class ExpertAssessmentService {
         Case caseRecord = findCase(caseId);
         ExpertAssessment assessment = awaitingAssessment(caseId, ProviderType.ESTUDIO_LIQUIDADOR);
         assessment.setVerdict(verdict);
-        finishRound(caseRecord, assessment, note, indemnifiableAmount, report,
+        assessment.setIndemnifiableAmount(indemnifiableAmount);
+        finishRound(caseRecord, assessment, note, report,
                 "informe de peritaje recibido: " + verdict);
 
         if (verdict == ExpertVerdict.FRAUD_CONFIRMED) {
@@ -188,14 +190,27 @@ public class ExpertAssessmentService {
     /**
      * La devolución del servicio técnico. Sin antecedente de fraude: una reparación no investiga
      * nada, y el resultado va en su propia columna y no en {@code verdict} por lo mismo.
+     *
+     * <p>{@code quotedAmount} es el precio que el taller le puso al arreglo, y va atado al
+     * resultado: {@code QUOTE_SENT} existe para informarlo —sin importe no dice nada— y los otros
+     * dos no tienen presupuesto que informar. Llega a la liquidación como el monto acreditado de la
+     * fórmula de reparación, que es literalmente lo que esa fórmula necesita saber.
      */
     @Transactional
     public ExpertAssessmentResponse receiveRepairReport(Long caseId, RepairOutcome outcome, String note,
-                                                        MultipartFile report) {
+                                                        BigDecimal quotedAmount, MultipartFile report) {
         Case caseRecord = findCase(caseId);
+        boolean quoted = quotedAmount != null && quotedAmount.signum() > 0;
+        if (outcome == RepairOutcome.QUOTE_SENT && !quoted) {
+            throw InvalidRepairReportException.quoteWithoutAmount(caseId);
+        }
+        if (outcome != RepairOutcome.QUOTE_SENT && quoted) {
+            throw InvalidRepairReportException.amountWithoutQuote(caseId, outcome);
+        }
         ExpertAssessment assessment = awaitingAssessment(caseId, ProviderType.SERVICIO_TECNICO);
         assessment.setRepairOutcome(outcome);
-        finishRound(caseRecord, assessment, note, null, report,
+        assessment.setQuotedAmount(quoted ? quotedAmount : null);
+        finishRound(caseRecord, assessment, note, report,
                 "respuesta del servicio técnico: " + outcome);
         return ExpertAssessmentResponse.from(assessment);
     }
@@ -213,25 +228,20 @@ public class ExpertAssessmentService {
     }
 
     /**
-     * @param indemnifiableAmount lo que el proveedor puso como valor del siniestro, opcional. Lo
-     *                            recibe {@code finishRound} y no sólo la vía del perito porque el
-     *                            procedimiento de la compañía trata a las tres fuentes por igual:
-     *                            "las valuaciones recibidas a través de los preinformes de estudios
-     *                            liquidadores, informes técnicos, o presupuestos" (NSIN001 §2.7).
-     *                            Hoy la vía del servicio técnico pasa null: su endpoint todavía no
-     *                            pide el presupuesto. Capturarlo es trabajo aparte, no algo para
-     *                            colar acá.
+     * Lo que las dos vueltas tienen en común y nada más: archivar el informe, marcar que llegó y
+     * devolverle el expediente al analista. Lo que cada proveedor contesta —el veredicto y el monto
+     * indemnizable del perito, el resultado y el presupuesto del taller— lo setea su propio flujo
+     * antes de llamar acá. Mientras esto recibía un monto, el taller tenía que pasar null y el
+     * presupuesto no tenía dónde entrar.
      */
     private void finishRound(Case caseRecord, ExpertAssessment assessment, String note,
-                             BigDecimal indemnifiableAmount, MultipartFile report,
-                             String transitionNote) {
+                             MultipartFile report, String transitionNote) {
         Long caseId = caseRecord.getId();
         String documentType = assessment.getProviderType() == ProviderType.SERVICIO_TECNICO
                 ? REPAIR_DOCUMENT_TYPE : REPORT_DOCUMENT_TYPE;
         assessment.setReportDocumentId(storeReport(caseId, documentType, report).getId());
         assessment.setReportReceivedAt(Instant.now());
         assessment.setVerdictNote(note);
-        assessment.setIndemnifiableAmount(indemnifiableAmount);
         expertAssessmentRepository.save(assessment);
 
         caseStatusService.transition(caseRecord, CaseStatus.PENDING_ANALYST_REVIEW,

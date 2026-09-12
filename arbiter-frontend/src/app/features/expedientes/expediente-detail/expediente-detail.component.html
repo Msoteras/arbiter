@@ -1123,22 +1123,38 @@
   </div>
   <app-textarea [rows]="3" placeholder="Nota (opcional)…" [(value)]="notaVeredicto" />
 
-  <!-- El perito verifica la causa Y el monto indemnizable (NSIN001 §2.6). El número llega en el
-       PDF, así que lo transcribe el analista acá mismo: ya está completando este formulario. -->
-  <label class="peritaje-monto">
-    <span class="t-field-label">Monto indemnizable que determinó el perito</span>
-    <app-input
-      type="number"
-      [min]="0"
-      [value]="montoPericial()"
-      (valueChange)="montoPericial.set($event)"
-      placeholder="Sin monto"
-    />
-    <span class="justification-hint">
-      Opcional: dejalo vacío si el informe no puso un número. Va a ofrecerse al determinar el monto
-      a pagar, no se aplica solo.
-    </span>
-  </label>
+  <!-- El número que trae cada vuelta. El perito verifica la causa Y el monto indemnizable
+       (NSIN001 §2.6); el taller informa cuánto sale el arreglo. Llegan adentro de un PDF, así que
+       los transcribe el analista acá mismo, que ya está completando este formulario. Son preguntas
+       distintas y por eso cambian el label, la obligatoriedad y la columna donde terminan. -->
+  @if (pideMontoDelInforme()) {
+    <label class="peritaje-monto">
+      <span class="t-field-label">
+        @if (informeEsReparacion()) {
+          Presupuesto de reparación que informó el taller
+          <span class="required" aria-hidden="true">*</span>
+        } @else {
+          Monto indemnizable que determinó el perito
+        }
+      </span>
+      <app-input
+        type="number"
+        [min]="0"
+        [value]="montoInforme()"
+        (valueChange)="montoInforme.set($event)"
+        [placeholder]="informeEsReparacion() ? 'Cuánto sale el arreglo' : 'Sin monto'"
+      />
+      <span class="justification-hint">
+        @if (informeEsReparacion()) {
+          Obligatorio: es lo que el presupuesto dice. Va a ofrecerse al determinar el monto a pagar,
+          no se aplica solo.
+        } @else {
+          Opcional: dejalo vacío si el informe no puso un número. Va a ofrecerse al determinar el
+          monto a pagar, no se aplica solo.
+        }
+      </span>
+    </label>
+  }
 
   <!-- Lo que se firma al guardar: el veredicto del perito no queda solo en el expediente, deja la
        marca sobre la persona. Y esa marca no se da de baja desde la aplicación. -->
@@ -1148,13 +1164,18 @@
       nota del perito. Va a pesar en sus denuncias siguientes mientras esté vigente.
     </p>
   }
+  @if (montoInformeFaltante()) {
+    <p class="rcard-note error">
+      El servicio técnico mandó un presupuesto: cargá el importe que dice.
+    </p>
+  }
   @if (informeError()) {
     <p class="rcard-note error">{{ informeError() }}</p>
   }
   <ng-container modalActions>
     <app-button variant="secondary" (click)="cancelInforme()">Cancelar</app-button>
     <app-button
-      [disabled]="!veredicto() || !informeFile() || informeSaving()"
+      [disabled]="!veredicto() || !informeFile() || montoInformeFaltante() || informeSaving()"
       (click)="confirmInforme()"
     >
       {{ informeSaving() ? 'Guardando…' : 'Guardar' }}

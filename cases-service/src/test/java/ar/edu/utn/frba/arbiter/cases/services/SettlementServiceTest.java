@@ -359,6 +359,69 @@ class SettlementServiceTest {
     }
 
     /**
+     * El presupuesto del taller también le gana al papel que trajo el asegurado, y por la misma
+     * razón: lo firmó alguien que tuvo el equipo en la mano. Vive en su propia columna —el taller
+     * dice cuánto SALE el arreglo, no cuánto vale el siniestro— y en una reparación eso es
+     * exactamente la base del cálculo.
+     */
+    @Test
+    void theRepairShopQuoteIsSuggestedAsTheAccreditedAmount() {
+        claim.setCoverage(repairCoverage());
+        when(documentAnalysisRepository.findByCaseId(1L)).thenReturn(List.of(
+                document("repair_quote", new BigDecimal("95000.00"))));
+        when(expertAssessmentRepository.findByCaseIdOrderByDerivedAtDesc(1L)).thenReturn(List.of(
+                ExpertAssessment.builder().caseId(1L).providerType(ProviderType.SERVICIO_TECNICO)
+                        .reportReceivedAt(Instant.now())
+                        .quotedAmount(new BigDecimal("180000.00")).build()));
+
+        SettlementResponse response = settlementService.forCase(1L, null);
+
+        assertThat(response.suggestedAmount()).isEqualByComparingTo("180000.00");
+        assertThat(response.suggestedFrom()).isEqualTo("repair_report");
+        assertThat(response.suggestedFor()).isEqualTo(SettlementSuggestionTarget.ACCREDITED_AMOUNT);
+    }
+
+    /**
+     * Dos valuaciones sobre el mismo expediente: manda la última recibida, que es como la compañía
+     * trata las que van llegando (NSIN001 §2.7). Acá el taller contestó después del perito.
+     */
+    @Test
+    void theLatestValuationReplacesTheEarlierOne() {
+        claim.setCoverage(repairCoverage());
+        Instant ayer = Instant.now().minusSeconds(86_400);
+        when(expertAssessmentRepository.findByCaseIdOrderByDerivedAtDesc(1L)).thenReturn(List.of(
+                ExpertAssessment.builder().caseId(1L).providerType(ProviderType.ESTUDIO_LIQUIDADOR)
+                        .reportReceivedAt(ayer)
+                        .indemnifiableAmount(new BigDecimal("120000.00")).build(),
+                ExpertAssessment.builder().caseId(1L).providerType(ProviderType.SERVICIO_TECNICO)
+                        .reportReceivedAt(Instant.now())
+                        .quotedAmount(new BigDecimal("180000.00")).build()));
+
+        SettlementResponse response = settlementService.forCase(1L, null);
+
+        assertThat(response.suggestedAmount()).isEqualByComparingTo("180000.00");
+        assertThat(response.suggestedFrom()).isEqualTo("repair_report");
+    }
+
+    /**
+     * Bajo suma asegurada lo único que puede proponerse es el monto final, y eso sólo lo dice el
+     * perito: lo que el taller cobra por arreglar no es una opinión sobre cuánto corresponde pagar.
+     * Ofrecerlo ahí sería proponerle al analista liquidar por el precio de un arreglo.
+     */
+    @Test
+    void theRepairShopQuoteIsNotOfferedAsTheAmountToPay() {
+        when(expertAssessmentRepository.findByCaseIdOrderByDerivedAtDesc(1L)).thenReturn(List.of(
+                ExpertAssessment.builder().caseId(1L).providerType(ProviderType.SERVICIO_TECNICO)
+                        .reportReceivedAt(Instant.now())
+                        .quotedAmount(new BigDecimal("180000.00")).build()));
+
+        SettlementResponse response = settlementService.forCase(1L, null);
+
+        assertThat(response.suggestedAmount()).isNull();
+        assertThat(response.suggestedFor()).isNull();
+    }
+
+    /**
      * Lo que el perito determina no es un valor de reposición: es cuánto dice que hay que pagar. Por
      * eso sigue teniendo dónde ir en una cobertura que liquida por suma asegurada, donde no hay
      * monto acreditado que cargar — apunta al monto final. Colgarlo del campo de monto acreditado
