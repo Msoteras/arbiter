@@ -1,59 +1,166 @@
 <div class="reportes" @staggerReveal>
   <header class="rep-head">
     <h1 class="t-page-title">Reportes</h1>
-    <p class="rep-sub">Generá un reporte a medida o descargá uno reciente</p>
+    <p class="rep-sub">
+      Resolución de siniestros: los expedientes cerrados en un período, con tiempos, clasificación y
+      decisión
+    </p>
   </header>
 
-  <div class="rep-grid">
-    <app-card heading="Nuevo reporte">
+  <app-card heading="Reporte de resolución de siniestros">
+    <div class="params">
       <div class="field">
-        <label class="t-field-label" for="rep-tipo">Tipo</label>
-        <app-select id="rep-tipo" [options]="typeOptions" [(value)]="reportType" />
+        <label class="t-field-label" for="rep-desde">Desde</label>
+        <app-input
+          id="rep-desde"
+          type="date"
+          [max]="today"
+          [value]="from()"
+          (valueChange)="setFrom($event)"
+        />
       </div>
 
       <div class="field">
-        <label class="t-field-label" for="rep-periodo">Período</label>
-        <app-select id="rep-periodo" [options]="periodOptions" [(value)]="period" />
+        <label class="t-field-label" for="rep-hasta">Hasta</label>
+        <app-input
+          id="rep-hasta"
+          type="date"
+          [min]="from()"
+          [max]="today"
+          [value]="to()"
+          (valueChange)="setTo($event)"
+        />
       </div>
 
-      <div class="field">
-        <span class="t-field-label">Formato</span>
-        <div class="format-toggle" role="group" aria-label="Formato del reporte">
-          @for (f of formats; track f) {
-            <button
-              type="button"
-              class="format-opt"
-              [class.active]="format() === f"
-              [attr.aria-pressed]="format() === f"
-              (click)="setFormat(f)"
-            >
-              {{ f }}
-            </button>
-          }
-        </div>
+      <div class="field field-wide">
+        <label class="t-field-label" for="rep-tipo">Tipo de siniestro</label>
+        <app-select
+          id="rep-tipo"
+          placeholder="Todos"
+          [searchable]="true"
+          [options]="claimCauseOptions()"
+          [value]="claimCause()"
+          (valueChange)="setClaimCause($event)"
+        />
       </div>
+    </div>
 
-      <app-button [block]="true">Generar reporte</app-button>
-    </app-card>
+    @if (periodError() ?? error(); as message) {
+      <p class="form-error" role="alert">{{ message }}</p>
+    }
 
-    <app-card heading="Recientes">
-      <ul class="recent-list" @listStagger>
-        @for (r of recent; track r.name) {
-          <li class="recent-item">
-            <span class="recent-icon" aria-hidden="true">
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6">
-                <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" stroke-linecap="round" stroke-linejoin="round" />
-                <polyline points="14 2 14 8 20 8" stroke-linecap="round" stroke-linejoin="round" />
-              </svg>
-            </span>
-            <div class="recent-text">
-              <p class="recent-name">{{ r.name }}</p>
-              <p class="recent-meta">{{ r.format }} · {{ r.size }} · {{ r.when }}</p>
-            </div>
-            <button type="button" class="recent-download">Descargar</button>
-          </li>
+    <div class="actions">
+      <app-button [disabled]="!!periodError()" [loading]="loading()" (click)="loadPreview()">
+        Ver vista previa
+      </app-button>
+
+      <div class="export" role="group" aria-label="Exportar reporte">
+        <span class="t-field-label">Exportar</span>
+        <app-button
+          variant="secondary"
+          [disabled]="!!periodError() || exporting() === 'PDF'"
+          [loading]="exporting() === 'CSV'"
+          (click)="exportAs('CSV')"
+        >
+          CSV
+        </app-button>
+        <app-button
+          variant="secondary"
+          [disabled]="!!periodError() || exporting() === 'CSV'"
+          [loading]="exporting() === 'PDF'"
+          (click)="exportAs('PDF')"
+        >
+          PDF
+        </app-button>
+      </div>
+    </div>
+  </app-card>
+
+  <app-card heading="Vista previa">
+    @if (loading()) {
+      <app-inline-loading message="Armando la vista previa…" />
+    } @else if (report(); as current) {
+      @if (current.rows.length === 0) {
+        <app-empty-state
+          message="No hay siniestros resueltos en el período"
+          sub="Probá con otro rango de fechas o con otro tipo de siniestro."
+        />
+      } @else {
+        <p class="summary t-note">
+          {{ current.rows.length }}
+          {{ current.rows.length === 1 ? 'siniestro resuelto' : 'siniestros resueltos' }} · tiempo
+          promedio {{ formatDuration(averageMinutes()) }}
+        </p>
+
+        <app-table>
+          <thead>
+            <tr>
+              <th scope="col">Nº</th>
+              <th scope="col">Asegurado</th>
+              <th scope="col">Tipo</th>
+              <th scope="col">Denuncia</th>
+              <th scope="col">Resolución</th>
+              <th scope="col">Tiempo total</th>
+              <th scope="col">Clasificación</th>
+              <th scope="col">Decisión</th>
+              <th scope="col">Estado final</th>
+              <th scope="col">Analista</th>
+            </tr>
+          </thead>
+          <tbody>
+            @for (row of pageRows(); track row.caseId) {
+              <tr>
+                <td class="mono">
+                  <a class="case-link" [routerLink]="['/cases', row.caseId]">#{{ row.caseId }}</a>
+                </td>
+                <td>
+                  {{ row.insuredName }}
+                  <span class="sub">DNI {{ row.insuredDni }}</span>
+                </td>
+                <td>
+                  {{ row.claimCause }}
+                  <span class="sub">{{ row.branch }}</span>
+                </td>
+                <td class="tabular">{{ formatDateTime(row.reportedAt) }}</td>
+                <td class="tabular">{{ formatDateTime(row.resolvedAt) }}</td>
+                <td class="tabular">{{ formatDuration(row.totalMinutes) }}</td>
+                <td>
+                  @if (row.classification) {
+                    <app-badge [tone]="clasificacionTone(row.classification)">
+                      {{ clasificacionLabel(row.classification) }}
+                    </app-badge>
+                  } @else {
+                    <span class="muted">Sin clasificación</span>
+                  }
+                </td>
+                <td [class.muted]="!row.analystDecision">{{ decisionLabel(row.analystDecision) }}</td>
+                <td>
+                  <app-badge [tone]="estadoTone(row.finalStatus)">
+                    {{ estadoLabel(row.finalStatus) }}
+                  </app-badge>
+                </td>
+                <td [class.muted]="!row.analystName">{{ row.analystName ?? '—' }}</td>
+              </tr>
+            }
+          </tbody>
+        </app-table>
+
+        @if (totalPages() > 1) {
+          <app-pagination
+            [page]="page()"
+            [totalPages]="totalPages()"
+            [totalElements]="rows().length"
+            [size]="pageSize()"
+            (pageChange)="page.set($event)"
+            (sizeChange)="setPageSize($event)"
+          />
         }
-      </ul>
-    </app-card>
-  </div>
+      }
+    } @else {
+      <app-empty-state
+        message="Todavía no hay vista previa"
+        sub="Elegí el período y tocá «Ver vista previa». También podés exportar directo, sin verla."
+      />
+    }
+  </app-card>
 </div>

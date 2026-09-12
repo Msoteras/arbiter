@@ -116,6 +116,12 @@ server {
         include /etc/nginx/arbiter-proxy-headers.conf;
     }
 
+    location /api/v1/reports {
+        set $upstream ${REPORTS_SERVICE_URL};
+        proxy_pass $upstream$request_uri;
+        include /etc/nginx/arbiter-proxy-headers.conf;
+    }
+
     # ─── SPA ────────────────────────────────────────────────────────────────────────────
     # Hashed filenames, so they can be cached hard. index.html must NOT be, or a deploy stays
     # invisible until the browser decides to revalidate.

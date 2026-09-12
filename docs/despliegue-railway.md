@@ -9,7 +9,7 @@ La BD **no** va en Railway: va en **Supabase** (ver "Base de datos" abajo).
 
 ## Topología
 
-Seis servicios de Railway, todos desde el mismo repo. **Solo uno tiene dominio público.**
+Siete servicios de Railway, todos desde el mismo repo. **Solo uno tiene dominio público.**
 
 | Servicio Railway | Root Directory | `RAILWAY_DOCKERFILE_PATH` | Público | Notas |
 |---|---|---|---|---|
@@ -18,13 +18,11 @@ Seis servicios de Railway, todos desde el mismo repo. **Solo uno tiene dominio p
 | `rules-service` | `/` | `rules-service/Dockerfile` | No | |
 | `classification-service` | `/` | `classification-service/Dockerfile` | No | |
 | `cases-service` | `/` | `cases-service/Dockerfile` | No | |
+| `reports-service` | `/` | `reports-service/Dockerfile` | No | Reporte de resolución de siniestros (`/api/v1/reports`) |
 | `clip-embedding` | `/` | `embedding-service/Dockerfile` | No | Contexto en la raíz como los demás (ver abajo) |
 
 **El nombre del servicio en Railway tiene que ser exactamente el de esta tabla**: los hostnames
 `*.railway.internal` se derivan de él y el Nginx del frontend los tiene cableados.
-
-`reports-service` **no se despliega**: hoy no tiene ni un controller. Tiene Dockerfile y
-`application.yml` al día, así que sumarlo después es crear el servicio y nada más.
 
 ### Por qué no hay `railway.json`: Config as Code quedó deprecado
 
@@ -63,7 +61,7 @@ Cómo se reconoce que pasó eso:
 | `The requested profile "production" could not be activated because it does not exist` | Es un perfil de **Maven**, no de Spring. Lo inyecta Railpack (`mvn ... -Pproduction`). No hay ningún perfil de Spring que crear: la config del proyecto es toda por variables de entorno |
 | `Error: Unable to access jarfile target/*jar` en loop | Es el start command por defecto de Railpack, corriendo contra la raíz del repo — donde el POM padre es `packaging: pom` y nunca va a haber un jar. El ENTRYPOINT propio es `java -Duser.timezone=... -jar app.jar` desde `/app` |
 
-Valores por servicio (restart policy `ON_FAILURE` / 10 en los seis):
+Valores por servicio (restart policy `ON_FAILURE` / 10 en los siete):
 
 | Servicio | `RAILWAY_DOCKERFILE_PATH` | Healthcheck | Timeout |
 |---|---|---|---|
@@ -72,12 +70,13 @@ Valores por servicio (restart policy `ON_FAILURE` / 10 en los seis):
 | `rules-service` | `rules-service/Dockerfile` | `/actuator/health` | 300 |
 | `classification-service` | `classification-service/Dockerfile` | `/actuator/health` | 600 |
 | `cases-service` | `cases-service/Dockerfile` | `/actuator/health` | 300 |
+| `reports-service` | `reports-service/Dockerfile` | `/actuator/health` | 300 |
 | `clip-embedding` | `embedding-service/Dockerfile` | `/health` | 600 |
 
 ### Watch Paths: que un push no rebuildee los seis
 
-Los seis servicios apuntan al mismo repo, así que **por defecto cualquier push a `main` dispara
-seis builds** — cuatro de ellos compilaciones de Maven completas. Settings → Build → *Watch Paths*
+Los siete servicios apuntan al mismo repo, así que **por defecto cualquier push a `main` dispara
+siete builds** — cinco de ellos compilaciones de Maven completas. Settings → Build → *Watch Paths*
 (reglas estilo `.gitignore`) acota cada servicio a lo que realmente lo afecta:
 
 | Servicio | Watch Paths |
@@ -86,17 +85,18 @@ seis builds** — cuatro de ellos compilaciones de Maven completas. Settings →
 | `rules-service` | `/rules-service/**`, `/common-lib/**`, `/pom.xml` |
 | `classification-service` | `/classification-service/**`, `/common-lib/**`, `/pom.xml` |
 | `cases-service` | `/cases-service/**`, `/common-lib/**`, `/pom.xml` |
+| `reports-service` | `/reports-service/**`, `/common-lib/**`, `/pom.xml` |
 | `arbiter-frontend` | `/arbiter-frontend/**` |
 | `clip-embedding` | `/embedding-service/**` |
 
-`common-lib` y el POM padre van en los cuatro backends porque un cambio ahí **sí** los afecta a
+`common-lib` y el POM padre van en los cinco backends porque un cambio ahí **sí** los afecta a
 todos: es la dependencia real que declaran sus Dockerfiles, no una precaución. Sacarlos es el error
 que produce el peor síntoma posible — un módulo desplegado contra una versión vieja de `common-lib`,
 sin ningún build fallado que lo delate.
 
 El frontend y `clip-embedding` no los necesitan: no dependen de Maven.
 
-### Los seis builds tienen el contexto en la raíz, `clip-embedding` incluido
+### Los siete builds tienen el contexto en la raíz, `clip-embedding` incluido
 
 **`RAILWAY_DOCKERFILE_PATH` se resuelve desde la raíz del repositorio, no desde el Root
 Directory.** Eso deja sin salida a cualquier servicio que quiera un contexto acotado a su carpeta:
@@ -106,7 +106,7 @@ dos no pueden apuntar a lugares distintos. Con Root Directory `embedding-service
 `embedding-service/Dockerfile` tampoco resuelve de forma confiable.
 
 Por eso `embedding-service/Dockerfile` **copia con rutas desde la raíz** (`COPY
-embedding-service/app.py .`), igual que los cinco restantes, y los dos `docker-compose` lo
+embedding-service/app.py .`), igual que los seis restantes, y los dos `docker-compose` lo
 construyen con `context: .` + `dockerfile: embedding-service/Dockerfile`. No necesita nada de
 afuera de su carpeta —a diferencia de los backends Java, que sí precisan el POM padre y
 `common-lib`—, pero comparte la regla para que no haya excepciones que recordar:
@@ -197,12 +197,12 @@ declara módulo por módulo. En Railway se cargan las mismas, con estas diferenc
 | `OLLAMA_BASE_URL` | No se setea: no hay Ollama en Railway |
 | `GOOGLE_APPLICATION_CREDENTIALS_B64` | Solo `classification-service`. La service-account key de Vertex en base64 — ver "La credencial de Vertex en Railway" abajo. **No** `GOOGLE_APPLICATION_CREDENTIALS`, que espera una ruta a un archivo que en Railway no existe |
 | `SPRING_PROFILES_ACTIVE` | **`insurer-db`** en `auth-service`, `classification-service` y `cases-service`. No es un perfil de entorno: activa los adapters que leen la BD Aseguradora (`InsurerDatabaseAdapter`, `InsuredDirectoryDatabaseAdapter`), que son `@Primary` sobre los mocks. **Sin él no falla nada**: los tres arrancan, pasan el healthcheck y sirven pólizas y asegurados **inventados** por `MockInsurerAdapter` / `MockInsuredDirectoryAdapter`. El único rastro es un `log.warn` al arrancar |
-| `JWT_SECRET` | **El mismo valor en los 5 servicios.** Si difieren, los tokens de servicio entre módulos se rechazan y el síntoma es un 401 sin explicación |
+| `JWT_SECRET` | **El mismo valor en los 5 backends.** Si difieren, los tokens de servicio entre módulos se rechazan y el síntoma es un 401 sin explicación |
 | `PASSWORD_ENCRYPTION_PRIVATE_KEY` | Ver abajo |
-| `PORT` | **Setearla a mano** en cada backend: `auth-service` 8080, `rules-service` 8081, `classification-service` 8082, `cases-service` 8083. Ver abajo |
-| `JAVA_TOOL_OPTIONS` | **`-XX:MaxRAMPercentage=75.0` en los 4 backends.** No está en los Dockerfiles (solo en `docker-compose.railway.yml`), así que en Railway hay que cargarla a mano. Sin ella la JVM toma como heap máximo el **25%** de la memoria del contenedor y Spring Boot con JPA se queda corto: GC constante y OOM bajo carga |
+| `PORT` | **Setearla a mano** en cada backend: `auth-service` 8080, `rules-service` 8081, `classification-service` 8082, `cases-service` 8083, `reports-service` 8084. Ver abajo |
+| `JAVA_TOOL_OPTIONS` | **`-XX:MaxRAMPercentage=75.0` en los 5 backends.** No está en los Dockerfiles (solo en `docker-compose.railway.yml`), así que en Railway hay que cargarla a mano. Sin ella la JVM toma como heap máximo el **25%** de la memoria del contenedor y Spring Boot con JPA se queda corto: GC constante y OOM bajo carga |
 
-El frontend además necesita las cuatro `*_SERVICE_URL` que consume su Nginx (ya vienen con default
+El frontend además necesita las cinco `*_SERVICE_URL` que consume su Nginx (ya vienen con default
 en su Dockerfile, apuntando a los nombres `.railway.internal` de la tabla de arriba).
 
 ### Por qué `PORT` va fijada a mano
@@ -285,11 +285,11 @@ con `AUTH_PROVIDER=database`; con Auth0 (el default) no interviene.
 ## Cuándo despliega (solo `main`)
 
 Railway despliega por sí solo al detectar un push en la rama que tenga configurada. **En cada uno
-de los 6 servicios**: Settings → Source → *Branch* = `main`. Sin eso, el default es la rama por
+de los 7 servicios**: Settings → Source → *Branch* = `main`. Sin eso, el default es la rama por
 defecto del repo y cualquier push a `develop` saldría a producción.
 
 Con eso, el flujo queda: se trabaja en `develop`, y **el merge del PR `develop` → `main` es lo que
-dispara el despliegue** de los 6 servicios.
+dispara el despliegue** de los 7 servicios.
 
 Además, en Settings → *Wait for CI*: activado. Railway espera a que el workflow de GitHub Actions
 (`.github/workflows/ci.yml`) termine en verde antes de construir. El workflow corre en el push a
