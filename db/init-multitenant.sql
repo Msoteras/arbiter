@@ -727,11 +727,16 @@ BEGIN
             transcription       TEXT         NOT NULL,
             document_date       DATE,
             amount              NUMERIC(14,2),
-            item_description    VARCHAR(255),
+            -- Texto libre del modelo de visión, sin tope: con VARCHAR el INSERT de la extracción
+            -- entera falla y el expediente queda clasificado sin los datos de sus documentos, en
+            -- silencio (el orquestador atrapa el error para no voltear la clasificación). Marca y
+            -- modelo además se COMPARAN contra el bien asegurado, así que truncarlos daría un
+            -- hallazgo falso.
+            item_description    TEXT,
             -- Make and model split out of item_description: they are what the documents are
             -- crossed against outside Celulares, where there is no IMEI to compare.
-            brand               VARCHAR(100),
-            model               VARCHAR(100),
+            brand               TEXT,
+            model               TEXT,
             imei                VARCHAR(20),
             affected_party      VARCHAR(20)  NOT NULL,
             extracted_at        TIMESTAMPTZ  NOT NULL DEFAULT NOW(),
@@ -1181,22 +1186,28 @@ BEGIN
     -- levantar la BD limpia da lo mismo que el fallback y además se puede editar sin redeploy
     -- (decisión #12).
     --
-    -- Los valores son los del baseline. Sin requiredDocumentTypes a propósito: qué documentos
-    -- exige el ramo ya está en document_requirement (la agenda documental), que se valida en el
-    -- alta; repetirlo acá hace que el gate lo vuelva a evaluar contra los adjuntos que alcanzó a
-    -- leer y frene Fast Tracks por documentación que el expediente sí tiene.
+    -- Los valores son los del baseline. `requiredDocumentTypes` es la PRIMERA TANDA: lo mínimo
+    -- que se le pide al asegurado en el alta, y lo único que el gate mira para resolver el carril
+    -- rápido. La agenda documental completa (document_requirement) se exige recién si el caso NO
+    -- fast-trackea, y se le pide por la pantalla de Documentación.
+    --
+    -- Ojo con el criterio: el gate compara el TEXTO EXTRAÍDO de cada uno de estos documentos, no
+    -- su presencia. Un adjunto ilegible no alcanza — el caso pierde el carril rápido y pasa a
+    -- pedir la agenda completa. Por eso acá nunca va item_photo: una foto no tiene texto.
     EXECUTE format($ddl$
         INSERT INTO %I.insurer_rule (id, active, valid_from, name, rule_type, effect, priority,
                                      blocks_fast_track, branch_id, coverage_id, configuration) VALUES
             (1, TRUE, '2026-01-01 00:00:00+00',
              'Fast Track — Robo de celular', 'FAST_TRACK', 'APROBAR', 1, FALSE, 1, 1,
              '{"maxClaimedAmountRatio":0.5,"maxPriorClaims":0,"requiresUpToDatePolicy":true,
+               "requiredDocumentTypes":["police_report","purchase_proof"],
                "criteria":["Primer siniestro del asegurado",
                            "Monto reclamado inferior al 50%% de la suma asegurada",
                            "Póliza al día con sus pagos"]}'),
             (2, TRUE, '2026-01-01 00:00:00+00',
              'Fast Track — Hurto', 'FAST_TRACK', 'APROBAR', 2, FALSE, 1, 2,
              '{"maxClaimedAmountRatio":0.3,"maxPriorClaims":0,"requiresUpToDatePolicy":true,
+               "requiredDocumentTypes":["police_report","purchase_proof"],
                "criteria":["Primer siniestro del asegurado",
                            "Monto reclamado inferior al 30%% de la suma asegurada",
                            "Póliza al día con sus pagos"]}')

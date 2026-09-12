@@ -324,7 +324,8 @@ public class ClassificationOrchestrator {
      * documents. Image-fraud analysis rides on that flag: images are just another attachment, so
      * they're analyzed exactly when the documentation is — not on a separate toggle. It's
      * {@code false} only when the case resolves without touching any document (Fast Track on
-     * structured data with no required doc, or an early missing-documentation exit).
+     * structured data with no required doc, or a hard rule that settles the path before any
+     * extraction). A missing-schedule exit now carries whatever the gate had already read.
      */
     private record Resolution(
             ClassificationResponse response,
@@ -345,15 +346,6 @@ public class ClassificationOrchestrator {
         if (exclusion.excluded()) {
             return new Resolution(
                     attachRuleFindings(coverageExclusionResponse(exclusion, claim), exclusion.findings()),
-                    false, Map.of());
-        }
-
-        List<String> documentTypes = documents.stream().map(AttachmentDocument::type).toList();
-        List<String> missingDocs = checkRequiredDocuments(ctx.rules(), documentTypes);
-        if (!missingDocs.isEmpty()) {
-            log.info("[Orchestrator] Missing required documents: {}", missingDocs);
-            return new Resolution(
-                    attachRuleFindings(missingDocumentationResponse(missingDocs), exclusion.findings()),
                     false, Map.of());
         }
 
@@ -396,6 +388,24 @@ public class ClassificationOrchestrator {
                     fastTrack.reasons(), fullAnalysis);
             return new Resolution(attachRuleFindings(fastTrackResponse(fastTrack), ruleFindings),
                     fullAnalysis || !gateExtractions.isEmpty(), fastTrackExtractions);
+        }
+
+        // The full document schedule is the contract for a COMPLETE case, and a claim that Fast
+        // Tracks never needed it: what it had to bring is the gate's own list, already checked
+        // above. So the schedule is demanded here, once the expedited path is off the table.
+        //
+        // It used to run before the gate, which is what made the short intake list impossible: a
+        // denuncia filed with only what Fast Track requires stopped at FALTA_DOCUMENTACION every
+        // time and never reached the gate that would have expedited it.
+        List<String> missingDocs = checkRequiredDocuments(
+                ctx.rules(), documents.stream().map(AttachmentDocument::type).toList());
+        if (!missingDocs.isEmpty()) {
+            log.info("[Orchestrator] Not Fast Track and missing required documents: {}", missingDocs);
+            // Con los hallazgos del gate y no solo los de la exclusión: al analista no le alcanza
+            // con qué documento falta, necesita por qué el caso no entró al carril rápido.
+            return new Resolution(
+                    attachRuleFindings(missingDocumentationResponse(missingDocs), ruleFindings),
+                    !gateExtractions.isEmpty(), gateExtractions);
         }
 
         log.info("[Orchestrator] Not Fast Track (fastTrack={}, temporalBlock={}, scopeBlock={}, fraudBlock={}). "
@@ -563,6 +573,16 @@ public class ClassificationOrchestrator {
         return response;
     }
 
+    /**
+     * What the FULL document schedule asks for and the claim didn't bring — {@code
+     * document_requirement}, per branch + claim cause, the contract for a complete case.
+     *
+     * <p>Not to be confused with {@link BusinessRules.FastTrackThresholds#requiredDocumentTypes()},
+     * the short list the expedited path requires and the insured is asked for at intake. This one
+     * is only evaluated once Fast Track is off the table, and by presence: whether the schedule's
+     * slot was filled. The gate's own list is checked by extracted TEXT instead, because an
+     * unreadable document can't expedite anything.
+     */
     private List<String> checkRequiredDocuments(BusinessRules rules, List<String> providedDocumentTypes) {
         if (rules.requiredDocumentTypes() == null || rules.requiredDocumentTypes().isEmpty()) {
             return List.of();

@@ -6,6 +6,7 @@ import ar.edu.utn.frba.arbiter.cases.dto.AssignedCaseSummaryResponse;
 import ar.edu.utn.frba.arbiter.cases.dto.CaseDocumentResponse;
 import ar.edu.utn.frba.arbiter.cases.dto.CaseScope;
 import ar.edu.utn.frba.arbiter.cases.dto.EligibilityCheckRequest;
+import ar.edu.utn.frba.arbiter.cases.dto.IntakeDocumentsResponse;
 import ar.edu.utn.frba.arbiter.cases.dto.EligibilityCheckResponse;
 import ar.edu.utn.frba.arbiter.cases.dto.LensSummaryResponse;
 import ar.edu.utn.frba.arbiter.cases.dto.CaseRequest;
@@ -34,6 +35,16 @@ public interface CaseService {
      * those become {@code eligible=false} instead, since a "you can't file this" isn't an error here.
      */
     EligibilityCheckResponse checkEligibility(EligibilityCheckRequest request);
+
+    /**
+     * La primera tanda de documentos para una denuncia que todavía no existe: lo que el carril
+     * rápido exige para la cobertura que responde por ese hecho generador, o la agenda completa si
+     * la aseguradora no configuró ninguna. Lo consume el wizard para armar los slots de subida.
+     *
+     * <p>Falla con 503 si no se pudo leer el motor de reglas: una lista vacía significaría "no hace
+     * falta ningún documento", que es justo la respuesta equivocada.
+     */
+    IntakeDocumentsResponse intakeDocuments(String policyNumber, String branch, String claimCause);
 
     CaseResponse getCase(Long caseId);
 

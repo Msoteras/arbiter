@@ -5,6 +5,7 @@ import ar.edu.utn.frba.arbiter.cases.models.entities.PolicySnapshot;
 import ar.edu.utn.frba.arbiter.common.enums.CaseStatus;
 import ar.edu.utn.frba.arbiter.common.enums.ClassificationFailureReason;
 import ar.edu.utn.frba.arbiter.common.enums.RiskBand;
+import ar.edu.utn.frba.arbiter.common.models.entities.CaseState;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
@@ -214,6 +215,40 @@ public interface CaseRepository extends JpaRepository<Case, Long>, JpaSpecificat
             """)
     int claimFailedCaseForRequeue(@Param("caseId") Long caseId,
                                   @Param("expected") ClassificationFailureReason expected);
+
+    /**
+     * El tercer compare-and-set del barrido, y el que faltaba: el del camino <b>feliz</b>.
+     *
+     * <p>{@link #advanceClassificationAttempts} y {@link #claimFailedCaseForRequeue} cubren qué
+     * pasa cuando la clasificación falla o hay que reencolarla, pero cuando el resultado llega
+     * bien no había turno que tomar. {@code ClassificationServiceClient.refreshClassification}
+     * chequeaba el estado sobre la copia que el barrido cargó al principio de la vuelta, no sobre
+     * la base: con varios schedulers contra la misma base de Railway, los dos leían
+     * {@code PENDING_CLASSIFICATION} en su copia, los dos consultaban el resultado y los dos
+     * transicionaban — dos filas idénticas en {@code case_status_history} separadas por segundos,
+     * y dos mails al asegurado cuando el destino es uno de los que notifica.
+     *
+     * <p>Mover el estado <b>es</b> el turno acá: sólo uno puede pasar la fila de {@code expected}
+     * a {@code target}, el que llega tarde actualiza 0 filas y se retira sin escribir historial.
+     *
+     * <p>Escribe únicamente {@code current_status_id} — el resto de la fila lo persiste el que se
+     * quedó con el turno, releyendo la entidad después del CAS y no desde su copia vieja (mismo
+     * motivo que documenta {@link #updateClassificationAttempts}).
+     *
+     * @param expected el estado que el llamador da por cierto; si en la base ya es otro, no se pisa
+     * @return 1 si este barrido se quedó con el turno, 0 si otro llegó primero
+     */
+    @Transactional
+    @Modifying(flushAutomatically = true, clearAutomatically = true)
+    @Query("""
+            update Case c
+               set c.currentStatus = :target
+             where c.id = :caseId
+               and c.currentStatus = :expected
+            """)
+    int claimStatusTransition(@Param("caseId") Long caseId,
+                              @Param("expected") CaseState expected,
+                              @Param("target") CaseState target);
 
     /** Cases filed while their document schedule couldn't be read — {@code DocumentRecheckScheduler}. */
     List<Case> findByDocumentsUnverifiedSinceIsNotNull();

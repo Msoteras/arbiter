@@ -42,6 +42,7 @@ import {
   documentTypeLabel,
 } from '../../../core/models/case-document';
 import { clasificacionLabel, clasificacionTone } from '../../../core/models/clasificacion';
+import { forensicAlertLevel } from '../../../core/models/forensic';
 import {
   ExpertVerdict,
   OpcionesDerivacion,
@@ -94,12 +95,10 @@ type DocsState = { status: 'loading' } | { status: 'ok'; list: CaseDocument[] };
 
 type TabId =
   | 'resumen'
-  | 'datos'
-  | 'imagenes'
-  | 'riesgo'
   | 'analisis'
-  | 'asegurado'
   | 'documentacion'
+  | 'imagenes'
+  | 'asegurado'
   | 'peritaje'
   | 'conversacion'
   | 'historial';
@@ -321,7 +320,8 @@ export class ExpedienteDetailComponent {
   /**
    * Lo que el modelo leyó de cada adjunto (H0031). Vacío mientras no se clasificó, en un Fast
    * Track que no abrió ningún documento, o en expedientes clasificados antes de que esto se
-   * persistiera — en los tres casos la tab no aparece (ver `tabs`).
+   * persistiera. Se le pasa a `app-case-documents`, que muestra la lectura junto al documento
+   * que la originó.
    */
   protected readonly documentAnalyses = computed<DocumentAnalysis[]>(
     () => this.data()?.documentAnalyses ?? [],
@@ -329,47 +329,6 @@ export class ExpedienteDetailComponent {
 
   protected documentLabel(type: string): string {
     return documentTypeLabel(type);
-  }
-
-  /**
-   * Los campos tipados de un documento, ya listos para la grilla. Se arman acá y no en el
-   * template para que el orden sea uno solo y "no aplica" salga de un `null` explícito: un campo
-   * que el documento no trae NO es una discrepancia, y mezclarlos haría que la pantalla acuse al
-   * asegurado por un dato que nadie declaró.
-   */
-  protected extractedFields(doc: DocumentAnalysis): FieldItem[] {
-    return [
-      // formatDate y no formatDateTime: el backend lo guarda en una columna DATE, sin hora.
-      { label: 'Fecha del documento', value: doc.documentDate ? formatDate(doc.documentDate) : null },
-      { label: 'Importe', value: doc.amount == null ? null : `$${doc.amount.toLocaleString()}` },
-      { label: 'Bien que nombra', value: doc.itemDescription },
-      { label: 'Marca', value: doc.brand },
-      { label: 'Modelo', value: doc.model },
-      { label: 'IMEI', value: doc.imei, mono: true },
-      { label: 'Damnificado', value: this.affectedPartyLabel(doc.affectedParty) },
-      // Los datos sin campo propio van al final de la misma grilla, no en una sección aparte:
-      // para el analista son un dato del documento como cualquier otro, y separarlos por cómo
-      // los guardamos sería exponer una decisión de modelo que no le dice nada.
-      //
-      // No llevan el "no aplica" de los de arriba porque no tienen ausencia posible: existen
-      // solo si el documento los trae. La lista vacía es el caso normal.
-      ...(doc.details ?? []).map((detail) => ({ label: detail.name, value: detail.value })),
-    ];
-  }
-
-  /**
-   * `DESCONOCIDO` no es un dato faltante: es que el documento no dice de quién era el equipo, y
-   * en ese caso la regla de grupo familiar directamente no participa. Por eso se muestra como un
-   * valor propio y no como "Sin datos".
-   */
-  private affectedPartyLabel(affectedParty: string): string {
-    const labels: Record<string, string> = {
-      TITULAR: 'El titular de la póliza',
-      FAMILIAR: 'Un familiar',
-      TERCERO: 'Un tercero',
-      DESCONOCIDO: 'No lo aclara el documento',
-    };
-    return labels[affectedParty] ?? affectedParty;
   }
 
   /**
@@ -459,15 +418,16 @@ export class ExpedienteDetailComponent {
   });
 
   /**
-   * La solapa existe si hay algo que contar del análisis: reglas, razones del modelo, o una
-   * clasificación que explique por qué no hay reglas. Sin clasificar no aparece — ahí "no hay
-   * reglas activas" sería falso, todavía no corrieron.
+   * La solapa existe si hay algo que contar del análisis: el score, las reglas, las razones del
+   * modelo, o una clasificación que explique por qué no hay reglas. Sin clasificar no aparece —
+   * ahí "no hay reglas activas" sería falso, todavía no corrieron.
    */
   protected readonly hayAnalisis = computed(
     () =>
       this.ruleResults().length > 0 ||
       this.ruleResultsUnavailable() ||
       this.policySnapshot() != null ||
+      this.data()?.riskScore != null ||
       !!this.data()?.analysisClassification,
   );
 
@@ -590,25 +550,62 @@ export class ExpedienteDetailComponent {
   // ----- historial de estados (GET /{id} lo trae con timestamps de cada transición) -----
   protected readonly history = computed<StatusTransition[]>(() => this.data()?.statusHistory ?? []);
 
+  /**
+   * La solapa existe si el análisis forense efectivamente corrió sobre alguna imagen. Un
+   * `findings` vacío (o un reporte nulo) es exactamente eso: Fast Track sin análisis completo, o
+   * expediente sin imágenes adjuntas. Mostrar la solapa para que diga "no corrió" es una promesa
+   * que no se cumple — el analista la abre esperando imágenes.
+   */
+  protected readonly hayAnalisisImagenes = computed(
+    () => (this.data()?.forensicReport?.findings?.length ?? 0) > 0,
+  );
+
+  /**
+   * Coincidencias de imagen que merecen que el analista abra la solapa: cualquier hallazgo de
+   * nivel medio o alto. Las 'bajo' (la imagen aparece en la web sin coincidencia clara) no llevan
+   * punto — marcarlas todas volvería el punto ruido de fondo y dejaría de significar algo.
+   */
+  private readonly hayCoincidenciasImagen = computed(() =>
+    (this.data()?.forensicReport?.findings ?? []).some((f) => {
+      const level = forensicAlertLevel(f);
+      return level === 'medio' || level === 'alto';
+    }),
+  );
+
   // ----- tabs -----
-  // "Peritaje" solo existe si el expediente se derivó, y "Análisis realizado" solo si ya se
-  // clasificó: una solapa vacía en la mayoría de los casos sería ruido.
-  // 'conversacion' is always shown, unlike those two: an empty thread isn't noise, it's where
-  // talking to the insured starts. It carries a dot when something is unread.
-  protected readonly tabs = computed<{ id: TabId; label: string; dot?: boolean }[]>(() => [
+  // Orden por lo que hace el analista: qué pasó (Resumen) → por qué el sistema dice eso (Análisis)
+  // → con qué evidencia (Documentación, Imágenes) → quién es (Asegurado) → gestión (Peritaje,
+  // Conversación) → auditoría (Historial).
+  //
+  // Las condicionales son las que dependen de que algo haya corrido: "Peritaje" solo si se derivó,
+  // "Análisis" solo si ya se clasificó, "Imágenes" solo si el forense analizó alguna. Una solapa
+  // que se abre para decir "acá no hay nada" es una promesa incumplida.
+  // 'conversacion' is always shown, unlike those: an empty thread isn't noise, it's where talking
+  // to the insured starts. It carries a dot when something is unread.
+  protected readonly tabs = computed<
+    { id: TabId; label: string; dot?: boolean; dotLabel?: string }[]
+  >(() => [
     { id: 'resumen' as TabId, label: 'Resumen' },
-    ...(this.documentAnalyses().length > 0
-      ? [{ id: 'datos' as TabId, label: 'Datos extraídos' }]
-      : []),
-    { id: 'imagenes' as TabId, label: 'Análisis de imágenes' },
-    { id: 'riesgo' as TabId, label: 'Desglose de riesgo' },
-    ...(this.hayAnalisis() ? [{ id: 'analisis' as TabId, label: 'Análisis realizado' }] : []),
-    ...(this.hayDatosAsegurado()
-      ? [{ id: 'asegurado' as TabId, label: 'Datos del asegurado' }]
-      : []),
+    ...(this.hayAnalisis() ? [{ id: 'analisis' as TabId, label: 'Análisis' }] : []),
     { id: 'documentacion' as TabId, label: 'Documentación' },
+    ...(this.hayAnalisisImagenes()
+      ? [
+          {
+            id: 'imagenes' as TabId,
+            label: 'Imágenes',
+            dot: this.hayCoincidenciasImagen(),
+            dotLabel: 'con coincidencias de imagen',
+          },
+        ]
+      : []),
+    ...(this.hayDatosAsegurado() ? [{ id: 'asegurado' as TabId, label: 'Asegurado' }] : []),
     ...(this.peritaje() ? [{ id: 'peritaje' as TabId, label: 'Peritaje' }] : []),
-    { id: 'conversacion' as TabId, label: 'Conversación', dot: this.unreadMessages() > 0 },
+    {
+      id: 'conversacion' as TabId,
+      label: 'Conversación',
+      dot: this.unreadMessages() > 0,
+      dotLabel: 'con mensajes sin leer',
+    },
     { id: 'historial' as TabId, label: 'Historial' },
   ]);
 
@@ -618,9 +615,20 @@ export class ExpedienteDetailComponent {
    * per listed case.
    */
   protected readonly unreadMessages = signal(0);
-  protected readonly activeTab = signal<TabId>('resumen');
+  private readonly selectedTab = signal<TabId>('resumen');
+
+  /**
+   * La solapa elegida, salvo que haya dejado de existir: las condicionales aparecen y desaparecen
+   * con los datos (una reclasificación puede dejar al expediente sin análisis de imágenes), y sin
+   * este piso el panel quedaría mostrando una solapa que ya no está en la barra.
+   */
+  protected readonly activeTab = computed<TabId>(() => {
+    const selected = this.selectedTab();
+    return this.tabs().some((t) => t.id === selected) ? selected : 'resumen';
+  });
+
   setTab(t: TabId): void {
-    this.activeTab.set(t);
+    this.selectedTab.set(t);
   }
 
   // La "aceptación/modificación" local de la recomendación se quitó: no persistía ni auditaba nada

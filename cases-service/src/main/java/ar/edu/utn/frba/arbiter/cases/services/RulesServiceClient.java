@@ -125,6 +125,38 @@ public class RulesServiceClient {
     }
 
     /**
+     * The short list of documents the expedited path requires for a coverage — the FIRST ROUND the
+     * insured is asked for when filing. Read off the same {@code /internal/fast-track} row the
+     * engine uses to resolve Fast Track, so the wizard asks for exactly what the gate will look at.
+     *
+     * <p>Empty (not null) when the insurer configured no list: that is an answer, and the caller
+     * falls back to the full schedule — with no list there would be nothing to ask for. {@code null}
+     * is the absence of an answer (rules-service didn't respond), and the caller files the denuncia
+     * marked as unverified, same contract as {@link #requiredDocumentTypes(String, String)}.
+     */
+    public List<String> fastTrackDocumentTypes(Long coverageId) {
+        try {
+            String serviceToken = JwtSupport.issueServiceToken(jwtKey, "cases-service-fast-track", TenantContext.get());
+            FastTrackConfigResponse config = restClient.get()
+                    .uri(uri -> uri.path("/api/v1/rules/internal/fast-track")
+                            .queryParam("coverageId", coverageId).build())
+                    .header(HttpHeaders.AUTHORIZATION, "Bearer " + serviceToken)
+                    .retrieve()
+                    .body(FastTrackConfigResponse.class);
+            return config == null || config.requiredDocumentTypes() == null
+                    ? List.of()
+                    : config.requiredDocumentTypes();
+        } catch (Exception e) {
+            log.error("Could not read the Fast Track document list for coverage {}", coverageId, e);
+            return null;
+        }
+    }
+
+    /** Mirrors the only field this client reads off rules-service's FastTrackConfigDto. */
+    private record FastTrackConfigResponse(List<String> requiredDocumentTypes) {
+    }
+
+    /**
      * Si esta aseguradora deriva a peritaje los siniestros del ramo, y desde qué monto. El umbral
      * es una regla de negocio y por eso vive en el motor (decisión #12), no como constante acá ni
      * como una columna que cases-service pudiera leer por atrás.

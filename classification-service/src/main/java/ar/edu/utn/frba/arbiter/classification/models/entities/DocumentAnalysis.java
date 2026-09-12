@@ -61,15 +61,20 @@ public class DocumentAnalysis {
     @Column(precision = 14, scale = 2)
     private BigDecimal amount;
 
-    @Column(name = "item_description", length = 255)
+    // Los tres son texto libre que devuelve el modelo de visión, así que van a TEXT y NO se
+    // truncan: DocumentInconsistencyEvaluator compara marca y modelo contra el bien asegurado, y un
+    // valor cortado no es un dato incompleto sino uno equivocado, que puede levantar un hallazgo
+    // falso. Con VARCHAR(100) el INSERT de la extracción entera falló y el expediente quedó
+    // clasificado sin los datos de sus documentos (caso 42 de BBVA, 11/09).
+    @Column(name = "item_description", columnDefinition = "text")
     private String itemDescription;
 
     /** Just the make, split out of {@link #itemDescription} so it can be crossed against the policy. */
-    @Column(length = 100)
+    @Column(columnDefinition = "text")
     private String brand;
 
     /** Just the model, same reason as {@link #brand}. */
-    @Column(length = 100)
+    @Column(columnDefinition = "text")
     private String model;
 
     @Column(length = 20)

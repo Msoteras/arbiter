@@ -36,6 +36,7 @@ import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.stream.Collectors;
 
 @Component
@@ -245,22 +246,38 @@ public class ClassificationServiceClient implements ClaimsAnalysisClient {
                     .body(ClaimResponse.class);
 
             if (response != null && response.classification() != null) {
+                // El estado se mueve ANTES de cachear nada, y con un compare-and-set contra la
+                // base: la guarda de arriba mira la copia del barrido, que es de varios segundos
+                // atrás, así que con dos schedulers sobre la misma base los dos la pasaban y los
+                // dos transicionaban. El que no se queda con el turno se va sin escribir.
+                Optional<Case> claimed = caseStatusService.transitionIfStillIn(
+                        caseRecord, CaseStatus.PENDING_CLASSIFICATION,
+                        statusFor(response.classification()), StatusChangeActor.SYSTEM,
+                        "clasificación: " + response.classification());
+                if (claimed.isEmpty()) {
+                    log.debug("Case {} already resolved by another sweep, skipping", caseRecord.getId());
+                    return true;
+                }
+
+                // Sobre la entidad releída después del CAS, no sobre `caseRecord`: guardar la copia
+                // vieja reescribe la fila entera desde un estado anterior, incluido el estado que
+                // se acaba de mover.
+                Case resolved = claimed.get();
                 // La recomendación, su confianza y sus motivos NO se copian: viven en llm_analysis,
                 // en este mismo esquema, y CaseAnalysisRepository los joinea al armar la respuesta.
                 // Acá solo queda lo que la bandeja filtra, más lo que no tiene otra tabla de dónde
                 // salir (was_fast_track, forensic_report).
-                caseRecord.setDeterministicFastTrack(response.deterministicFastTrack());
+                resolved.setDeterministicFastTrack(response.deterministicFastTrack());
                 // Cache the parallel risk score. Null when "sin scorear" (no config) — kept null,
                 // never coerced to a band, so the read model can show "Sin datos".
-                caseRecord.setRiskScore(response.riskScore());
-                caseRecord.setRiskBand(response.riskBand());
+                resolved.setRiskScore(response.riskScore());
+                resolved.setRiskBand(response.riskBand());
                 // insuredName is no longer cached off the poll: the case joins `insured` directly,
                 // so the name is always there instead of appearing with the first classification.
                 // Cache the structured image-fraud analysis for the analyst's forensic tab
                 // (H0009). Null when no analysis ran (Fast Track, or a case with no images).
-                caseRecord.setForensicReport(response.forensicReport());
-                caseStatusService.transition(caseRecord, statusFor(response.classification()),
-                        StatusChangeActor.SYSTEM, "clasificación: " + response.classification());
+                resolved.setForensicReport(response.forensicReport());
+                caseRepository.save(resolved);
                 return true;
             }
         } catch (RestClientResponseException exception) {

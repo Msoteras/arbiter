@@ -240,9 +240,9 @@ nullable: NULL significa "el documento no lo dice", nunca "no coincide". Una fil
 | `transcription` | TEXT | no | | `transcripcion` |
 | `document_date` | DATE | sí | | `fecha_documento` |
 | `amount` | NUMERIC(14,2) | sí | | `monto` |
-| `item_description` | VARCHAR(255) | sí | | `descripcion_bien` |
-| `brand` | VARCHAR(100) | sí | | `marca` |
-| `model` | VARCHAR(100) | sí | | `modelo` |
+| `item_description` | TEXT | sí | | `descripcion_bien` |
+| `brand` | TEXT | sí | | `marca` |
+| `model` | TEXT | sí | | `modelo` |
 | `imei` | VARCHAR(20) | sí | | `imei` |
 | `affected_party` | VARCHAR(20) | no | CHECK: `TITULAR` / `FAMILIAR` / `TERCERO` / `DESCONOCIDO` | `damnificado` |
 | `extracted_at` | TIMESTAMPTZ | no | default `now()` | `fecha_extraccion` |
