@@ -1,5 +1,6 @@
 package ar.edu.utn.frba.arbiter.common.dto;
 
+import ar.edu.utn.frba.arbiter.common.enums.CauseConsistency;
 import ar.edu.utn.frba.arbiter.common.enums.Classification;
 import ar.edu.utn.frba.arbiter.common.enums.RiskBand;
 import lombok.Builder;
@@ -32,5 +33,19 @@ public record ClaimResponse(
         RiskBand riskBand,
         List<RiskBreakdownItem> riskBreakdown,
         /** Insured's real name, resolved from the policy (InsurerAdapter) at classification time. */
-        String insuredName
+        String insuredName,
+        /**
+         * Whether the insured's account matches the claim cause they declared. {@code null} on every
+         * path that skips the model (Fast Track, a hard coverage exclusion, missing documentation),
+         * same as the risk fields — absent is not {@code MATCHES}.
+         */
+        CauseConsistency causeConsistency,
+        /**
+         * The claim cause the account actually describes, when {@code causeConsistency} is
+         * {@code CONTRADICTS}. Always a name from the branch's catalog: the output schema restricts
+         * the model to that closed list, so it can't invent one. Null otherwise.
+         */
+        String suggestedClaimCause,
+        /** Verbatim sentence from the account backing the verdict. Null when it matched. */
+        String causeEvidence
 ) {}

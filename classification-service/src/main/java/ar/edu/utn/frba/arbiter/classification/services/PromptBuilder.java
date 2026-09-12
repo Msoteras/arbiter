@@ -84,7 +84,32 @@ public class PromptBuilder {
                 .replace("{{attachmentsOcr}}", attachmentsText)
                 .replace("{{insurerRules}}", rules)
                 .replace("{{engineEvaluation}}", engineEvaluation)
-                .replace("{{insuredHistory}}", history);
+                .replace("{{insuredHistory}}", history)
+                // Last: everything above is a placeholder the catalog must not be able to forge.
+                .replace("{{claimCauseCatalog}}", renderClaimCauseCatalog(request));
+    }
+
+    /**
+     * The branch's claim causes, each marked with whether the coverage covers it. This is the only
+     * place the model learns that causes other than the declared one exist — and the same list the
+     * output schema restricts {@code suggestedClaimCause} to, so whatever it answers maps back to
+     * an id without guessing.
+     *
+     * <p>An empty catalog (the branch has none loaded) renders a line that shuts the check down
+     * rather than leaving the model to improvise against a blank list.
+     */
+    private static String renderClaimCauseCatalog(ClassificationRequest request) {
+        List<ClassificationRequest.ClaimCauseOption> catalog = request.claimCauseCatalog();
+        if (catalog == null || catalog.isEmpty()) {
+            return "Catálogo no disponible — no evalúes la consistencia del relato con el hecho "
+                    + "generador y devolvé AMBIGUOUS.";
+        }
+        return catalog.stream()
+                .map(option -> "- %s — %s".formatted(
+                        option.name(),
+                        option.covered() ? "CUBIERTO" : "NO CUBIERTO POR ESTA PÓLIZA"))
+                .reduce((a, b) -> a + "\n" + b)
+                .orElse("");
     }
 
     /** Claimed amount with thousands separator (es-AR): 1234567 → "$1.234.567". */
