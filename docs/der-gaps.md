@@ -161,6 +161,34 @@ y `db/migrations/2026-09-06-monto-del-peritaje.sql`.
 
 ---
 
+## `expert_assessment.repair_cost` — el importe que informa el servicio técnico
+
+**Encontrado:** 12/09/2026, cruzando la determinación del monto con la derivación a servicio
+técnico que sumó la historia de reparación.
+
+Continúa la entrada anterior. `expert_assessment` ya tenía `indemnifiable_amount` para el perito;
+`repair_cost` es el número del taller, y va en **columna propia** por la misma razón por la que
+`repair_outcome` no comparte columna con `verdict`: contestan preguntas distintas. El perito dice
+cuánto **vale** el siniestro —una opinión sobre la indemnización—; el taller dice cuánto **cuesta**
+arreglarlo —un precio, que es la base sobre la que liquida la fórmula de reparación—. Con una sola
+columna habría que mirar `provider_type` para saber qué significa el número.
+
+Es una sola columna para el presupuesto y para la factura porque la liquidación les hace una sola
+pregunta. Qué resultado admite qué importe lo sostiene el `CHECK` de la tabla, no sólo el servicio:
+obligatorio con `QUOTE_SENT` —decir que mandaron presupuesto sin decir cuánto no contesta nada—,
+opcional con `REPAIRED` porque la factura puede llegar después del informe, y prohibido con
+`IRREPARABLE`, donde no hubo trabajo que cobrar.
+
+El DER tampoco tiene `expert_assessment.provider_type` ni `repair_outcome`, ni
+`expert_firm.provider_type`, que entraron con la derivación a reparación
+(`db/migrations/2026-09-11-derivacion-a-reparacion.sql`).
+
+**Acción:** agregarlas al DER. Migraciones en `db/migrations/2026-09-12-presupuesto-del-taller.sql`
+y `db/migrations/2026-09-12-el-taller-tambien-factura.sql` (la segunda renombra `quoted_amount` a
+`repair_cost` y relaja el CHECK).
+
+---
+
 ## `llm_analysis` — tres columnas de la coherencia del hecho generador que el DER no tiene
 
 **Encontrado:** 01/09/2026, al implementar el cruce entre el relato del asegurado y el hecho

@@ -161,3 +161,36 @@ Reforzado a comparar el valor decodificado completo, más un caso nuevo
 que es donde se ve lo que rules-service realmente recibe. Verificado rompiendo el adapter a
 propósito: con el `claimCause` truncado el test falla, y la URI que produce es exactamente la que la
 aserción vieja dejaba pasar.
+---
+
+## La franquicia en una reparación deja casi todo en cero
+
+**Encontrado:** 06/09/2026, implementando la fórmula de reparación (bloque 3 de la determinación
+del monto a pagar).
+
+**Qué se sabe:** la franquicia es un **porcentaje de la suma asegurada**, no del monto que se paga.
+Es la lectura literal de las dos pólizas que relevamos y del ejemplo trabajado del manual de
+Celulares ($300.000 asegurados → $30.000 de franquicia). Así está implementado en
+`SettlementCalculator`, y así da el número del ejemplo del manual.
+
+En pérdida total la regla es razonable: se descuenta una fracción de lo mismo que se indemniza. En
+**reparación** no, porque el techo ya no es la suma asegurada sino el presupuesto:
+
+| Suma asegurada | Franquicia 10% | Presupuesto de reparación | Se paga |
+|---|---|---|---|
+| $1.300.000 | $130.000 | $80.000 (cambio de pantalla) | **$0** |
+| $1.300.000 | $130.000 | $200.000 | $70.000 |
+
+Una pantalla rota —el siniestro más común del ramo— entra de lleno en el primer caso: la cobertura
+de daño accidental no paga nunca nada por debajo de $130.000.
+
+**Qué falta decidir:** si en la práctica las coberturas de daño calculan la franquicia sobre el
+**presupuesto** en vez de sobre la suma asegurada. Nuestras dos pólizas no lo distinguen: las dos
+hablan de una sola franquicia, y ninguna de las dos contempla explícitamente la reparación.
+
+**Qué bloquea:** nada del desarrollo — la fórmula está implementada y anda. Bloquea poder decir que
+el monto de una reparación es el que la compañía pagaría. Si la respuesta es "sobre el
+presupuesto", el cambio es una línea en `SettlementCalculator` —la que hoy hace
+`percentageOf(sumInsured, deductibleRate(...))`— más un interruptor por cobertura, como los que ya
+tiene.
+

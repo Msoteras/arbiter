@@ -141,7 +141,7 @@
               @if (liquidacionDevuelta() && settlement(); as s) {
                 <!-- Devuelta no es rechazada: el expediente sigue siendo suyo y puede volver a
                      determinar el monto. El motivo es lo único que tiene para saber qué corregir. -->
-                <p class="rcard-note warning">
+                <p class="settlement-callout returned">
                   El referente devolvió la liquidación: {{ s.returnReason }}
                 </p>
               }
@@ -876,13 +876,28 @@
                 }
               </span>
 
-              <!-- Lo que el modelo ya leyó del documento, para no hacer buscar el número en un PDF
-                   y tipearlo. No está aplicado: se toma con un clic, después de verificarlo. -->
+              <!-- El número que ya está en el expediente, para no hacerlo buscar de nuevo. No está
+                   aplicado: se toma con un clic. Las tres procedencias no se anuncian igual porque
+                   no llegaron igual: el del documento lo leyó el modelo y hay que verificarlo
+                   contra el papel; los otros dos los transcribió un analista al recibir el informe,
+                   y decir que "figuran" en un documento haría creer que el sistema los leyó solo. -->
               @if (sugerenciaDisponible()) {
                 <p class="settlement-suggestion">
                   <span>
-                    En «{{ documentLabel(s.suggestedFrom ?? '') }}» figura
-                    <strong>{{ montoExacto(s.suggestedAmount) }}</strong>. Verificalo antes de usarlo.
+                    @switch (s.suggestedFrom) {
+                      @case ('expert_report') {
+                        El perito determinó
+                        <strong>{{ montoExacto(s.suggestedAmount) }}</strong> al verificar el siniestro.
+                      }
+                      @case ('repair_report') {
+                        El servicio técnico presupuestó
+                        <strong>{{ montoExacto(s.suggestedAmount) }}</strong> para arreglarlo.
+                      }
+                      @default {
+                        En «{{ documentLabel(s.suggestedFrom ?? '') }}» figura
+                        <strong>{{ montoExacto(s.suggestedAmount) }}</strong>. Verificalo antes de usarlo.
+                      }
+                    }
                   </span>
                   <app-button variant="secondary" (click)="tomarSugerencia()">Usar</app-button>
                 </p>
@@ -899,6 +914,19 @@
               (valueChange)="settledAmountInput.set($event)"
               [placeholder]="montoExacto(s.calculatedAmount)"
             />
+
+            <!-- Lo que determinó el perito, cuando la cobertura no tiene monto acreditado donde
+                 ofrecerlo. No es un valor de reposición: es cuánto dice que hay que pagar, así que
+                 apunta acá. Tomarlo lo deja como ajuste, con su justificación. -->
+            @if (sugerenciaDeMontoDisponible()) {
+              <p class="settlement-suggestion">
+                <span>
+                  El perito determinó <strong>{{ montoExacto(s.suggestedAmount) }}</strong>.
+                  Usarlo queda como un ajuste sobre lo calculado.
+                </span>
+                <app-button variant="secondary" (click)="tomarSugerenciaDeMonto()">Usar</app-button>
+              </p>
+            }
           </label>
         </div>
 
@@ -1085,7 +1113,7 @@
   <p class="t-note">
     El expediente vuelve a tu revisión con
     {{ informeEsReparacion() ? 'la respuesta' : 'el informe' }} al lado de la recomendación del
-    modelo. La decisión sigue siendo tuya.
+    modelo.
   </p>
   <app-select
     [options]="informeEsReparacion() ? repairOutcomeOptions : veredictoOptions"
@@ -1110,22 +1138,43 @@
   </div>
   <app-textarea [rows]="3" placeholder="Nota (opcional)…" [(value)]="notaVeredicto" />
 
-  <!-- El perito verifica la causa Y el monto indemnizable (NSIN001 §2.6). El número llega en el
-       PDF, así que lo transcribe el analista acá mismo: ya está completando este formulario. -->
-  <label class="peritaje-monto">
-    <span class="t-field-label">Monto indemnizable que determinó el perito</span>
-    <app-input
-      type="number"
-      [min]="0"
-      [value]="montoPericial()"
-      (valueChange)="montoPericial.set($event)"
-      placeholder="Sin monto"
-    />
-    <span class="justification-hint">
-      Opcional: dejalo vacío si el informe no puso un número. Va a ofrecerse al determinar el monto
-      a pagar, no se aplica solo.
-    </span>
-  </label>
+  <!-- El número que trae cada vuelta. El perito verifica la causa Y el monto indemnizable
+       (NSIN001 §2.6); el taller informa cuánto sale el arreglo. Llegan adentro de un PDF, así que
+       los transcribe el analista acá mismo, que ya está completando este formulario. Son preguntas
+       distintas y por eso cambian el label, la obligatoriedad y la columna donde terminan. -->
+  @if (pideMontoDelInforme()) {
+    <label class="peritaje-monto">
+      <span class="t-field-label">
+        @if (informeEsFactura()) {
+          Importe que facturó el taller
+        } @else if (informeEsReparacion()) {
+          Presupuesto de reparación que informó el taller
+          <span class="required" aria-hidden="true">*</span>
+        } @else {
+          Monto indemnizable que determinó el perito
+        }
+      </span>
+      <app-input
+        type="number"
+        [min]="0"
+        [value]="montoInforme()"
+        (valueChange)="montoInforme.set($event)"
+        [placeholder]="informeEsReparacion() ? 'Cuánto sale el arreglo' : 'Sin monto'"
+      />
+      <span class="justification-hint">
+        @if (informeEsFactura()) {
+          Opcional: dejalo vacío si la factura todavía no llegó. Va a ofrecerse al determinar el
+          monto a pagar, no se aplica solo.
+        } @else if (informeEsReparacion()) {
+          Obligatorio: es lo que el presupuesto dice. Va a ofrecerse al determinar el monto a pagar,
+          no se aplica solo.
+        } @else {
+          Opcional: dejalo vacío si el informe no puso un número. Va a ofrecerse al determinar el
+          monto a pagar, no se aplica solo.
+        }
+      </span>
+    </label>
+  }
 
   <!-- Lo que se firma al guardar: el veredicto del perito no queda solo en el expediente, deja la
        marca sobre la persona. Y esa marca no se da de baja desde la aplicación. -->
@@ -1135,13 +1184,18 @@
       nota del perito. Va a pesar en sus denuncias siguientes mientras esté vigente.
     </p>
   }
+  @if (montoInformeFaltante()) {
+    <p class="rcard-note error">
+      El servicio técnico mandó un presupuesto: cargá el importe que dice.
+    </p>
+  }
   @if (informeError()) {
     <p class="rcard-note error">{{ informeError() }}</p>
   }
   <ng-container modalActions>
     <app-button variant="secondary" (click)="cancelInforme()">Cancelar</app-button>
     <app-button
-      [disabled]="!veredicto() || !informeFile() || informeSaving()"
+      [disabled]="!veredicto() || !informeFile() || montoInformeFaltante() || informeSaving()"
       (click)="confirmInforme()"
     >
       {{ informeSaving() ? 'Guardando…' : 'Guardar' }}

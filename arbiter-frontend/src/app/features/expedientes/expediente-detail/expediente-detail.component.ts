@@ -847,6 +847,7 @@ export class ExpedienteDetailComponent {
     const s = this.settlement();
     return (
       this.pideMontoAcreditado() &&
+      s?.suggestedFor === 'ACCREDITED_AMOUNT' &&
       s?.suggestedAmount != null &&
       this.replacementInput().trim() === '' &&
       this.replacementApplied() == null
@@ -860,6 +861,34 @@ export class ExpedienteDetailComponent {
     }
     this.replacementInput.set(String(amount));
     this.applyReplacementValue();
+  }
+
+  /**
+   * La otra sugerencia: la que apunta al monto a pagar en sí. Sólo la produce un peritaje sobre una
+   * cobertura que liquida por suma asegurada, donde no hay monto acreditado que cargar — y donde,
+   * antes, lo que determinó el perito no se mostraba en ningún lado. Misma regla que la otra: se
+   * esconde apenas el analista escribe un monto propio.
+   */
+  protected readonly sugerenciaDeMontoDisponible = computed(() => {
+    const s = this.settlement();
+    return (
+      s?.suggestedFor === 'SETTLED_AMOUNT' &&
+      s?.suggestedAmount != null &&
+      this.settledAmountInput().trim() === ''
+    );
+  });
+
+  /**
+   * Tomarla carga el monto en el campo del analista, no en el cálculo: queda como un ajuste sobre
+   * lo que dio la fórmula, y por lo tanto le pide la justificación del ajuste como cualquier otro.
+   * El perito propone; firmar sigue siendo del analista.
+   */
+  protected tomarSugerenciaDeMonto(): void {
+    const amount = this.settlement()?.suggestedAmount;
+    if (amount == null) {
+      return;
+    }
+    this.settledAmountInput.set(String(amount));
   }
 
   protected applyReplacementValue(): void {
@@ -1080,7 +1109,11 @@ export class ExpedienteDetailComponent {
     if (options.firms.length === 0) {
       return 'No hay peritos cargados para este ramo.';
     }
-    return `El monto reclamado no alcanza el mínimo para derivar (${this.formatMonto(options.minClaimedAmount)}).`;
+    // Nombra el peritaje como las otras dos variantes. Desde que existe el botón de servicio
+    // técnico justo debajo, un mensaje que dice "no se puede derivar" a secas se lee como si
+    // tampoco se pudiera mandar al taller — y al taller no lo frena el monto reclamado.
+    return `El monto reclamado no alcanza el mínimo para derivar a peritaje `
+        + `(${this.formatMonto(options.minClaimedAmount)}).`;
   });
 
   protected readonly tipoDerivacion = signal<ProviderType>('ESTUDIO_LIQUIDADOR');
@@ -1181,6 +1214,7 @@ export class ExpedienteDetailComponent {
     this.informeTipo.set(tipo);
     this.veredicto.set('');
     this.notaVeredicto.set('');
+    this.montoInforme.set('');
     this.informeFile.set(null);
     this.informeError.set(null);
     this.showInforme.set(true);
@@ -1191,13 +1225,47 @@ export class ExpedienteDetailComponent {
   }
 
   /**
-   * El monto que el perito determinó, como lo tipeó el analista. Vacío no es cero: un informe que
-   * no puso número —un fraude confirmado, un hecho no amparado— no concluyó que no se paga nada.
+   * El número que trae el informe, tipeado por el analista. Es el mismo campo en pantalla pero no
+   * la misma pregunta: al perito se le pide cuánto determinó que vale el siniestro, al taller
+   * cuánto sale el arreglo. Por eso el label, la obligatoriedad y la columna donde termina son
+   * distintos según de quién sea la vuelta.
    */
-  protected readonly montoPericial = signal('');
+  protected readonly montoInforme = signal('');
 
-  private montoPericialNumero(): number | null {
-    const raw = this.montoPericial().trim();
+  /**
+   * El taller informa un importe cuando hubo trabajo: el presupuesto de lo que va a hacer, o la
+   * factura de lo que hizo. Con "irreparable" no lo pide, porque no hubo arreglo que cobrar y
+   * ofrecer el campo ahí invita a cargar un número que el backend rechaza. Del lado del perito el
+   * campo va siempre, porque cualquier veredicto puede traer monto.
+   */
+  protected readonly pideMontoDelInforme = computed(
+    () => !this.informeEsReparacion()
+        || this.veredicto() === 'QUOTE_SENT'
+        || this.veredicto() === 'REPAIRED',
+  );
+
+  /** Ya lo arregló y lo cobró: el importe es la factura, no un presupuesto de algo por hacer. */
+  protected readonly informeEsFactura = computed(
+    () => this.informeEsReparacion() && this.veredicto() === 'REPAIRED',
+  );
+
+  /**
+   * Un presupuesto sin importe no es un presupuesto. La factura sí puede faltar —llega después del
+   * informe— y el monto del perito también es opcional.
+   */
+  protected readonly montoDelInformeObligatorio = computed(
+    () => this.informeEsReparacion() && this.veredicto() === 'QUOTE_SENT',
+  );
+
+  protected readonly montoInformeFaltante = computed(
+    () => this.montoDelInformeObligatorio() && this.montoInformeNumero() == null,
+  );
+
+  private montoInformeNumero(): number | null {
+    if (!this.pideMontoDelInforme()) {
+      return null;
+    }
+    const raw = this.montoInforme().trim();
     if (raw === '') {
       return null;
     }
@@ -1214,21 +1282,16 @@ export class ExpedienteDetailComponent {
     const d = this.data();
     const file = this.informeFile();
     const result = this.veredicto();
-    if (!d || !file || !result) {
+    if (!d || !file || !result || this.montoInformeFaltante()) {
       return;
     }
     this.informeSaving.set(true);
     this.informeError.set(null);
     const note = this.notaVeredicto().trim();
+    const monto = this.montoInformeNumero();
     const request = this.informeEsReparacion()
-      ? this.service.cargarRespuestaServicioTecnico(d.id, result as RepairOutcome, note, file)
-      : this.service.cargarInformePericial(
-          d.id,
-          result as ExpertVerdict,
-          note,
-          this.montoPericialNumero(),
-          file,
-        );
+      ? this.service.cargarRespuestaServicioTecnico(d.id, result as RepairOutcome, note, monto, file)
+      : this.service.cargarInformePericial(d.id, result as ExpertVerdict, note, monto, file);
     request.subscribe({
       next: () => {
         this.informeSaving.set(false);

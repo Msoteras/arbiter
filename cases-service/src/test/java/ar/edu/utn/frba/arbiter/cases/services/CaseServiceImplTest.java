@@ -630,6 +630,30 @@ class CaseServiceImplTest {
         assertThat(response.getContent().get(1).id()).isEqualTo(1L);
     }
 
+    /**
+     * Un expediente que el analista ya despachó y otro que todavía espera su decisión están los dos
+     * en PENDING_ANALYST_REVIEW: el estado del expediente no se mueve mientras el referente firma,
+     * para que el asegurado no vea un trámite interno. Sin el estado de la liquidación la bandeja
+     * los muestra iguales, y el analista vuelve a abrir uno que ya firmó.
+     */
+    @Test
+    void listCases_tellsApartTheOnesWaitingForTheReferente() {
+        Case despachado = caseRecord(2L, CaseStatus.PENDING_ANALYST_REVIEW);
+        Case pendiente = caseRecord(1L, CaseStatus.PENDING_ANALYST_REVIEW);
+        Pageable pageable = PageRequest.of(0, 20);
+        when(caseRepository.findAll(isNull(Specification.class), eq(pageable)))
+                .thenReturn(new PageImpl<>(List.of(despachado, pendiente), pageable, 2));
+        when(settlementService.statusesFor(List.of(2L, 1L)))
+                .thenReturn(Map.of(2L, SettlementStatus.PENDING_AUTHORIZATION));
+
+        Page<CaseResponse> response = caseService.listCases(
+                null, null, null, null, null, null, null, null, false, pageable);
+
+        assertThat(response.getContent().get(0).settlementStatus())
+                .isEqualTo(SettlementStatus.PENDING_AUTHORIZATION);
+        assertThat(response.getContent().get(1).settlementStatus()).isNull();
+    }
+
     @Test
     void listCases_withStatusFilter_appliesStatusSpec() {
         Case entity = caseRecord(3L, CaseStatus.PENDING_ANALYST_REVIEW);

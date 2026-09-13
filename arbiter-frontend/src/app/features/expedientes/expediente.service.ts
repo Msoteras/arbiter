@@ -137,6 +137,12 @@ export interface Settlement {
   suggestedAmount: number | null;
   /** De qué tipo de documento salió, para poder verificarlo antes de tomarlo. */
   suggestedFrom: string | null;
+  /**
+   * A qué campo responde. `ACCREDITED_AMOUNT` es la base del cálculo (presupuesto o valor de
+   * reposición); `SETTLED_AMOUNT` es el monto a pagar en sí, que es donde cae lo que determinó el
+   * perito cuando la cobertura liquida por suma asegurada y no hay monto acreditado que cargar.
+   */
+  suggestedFor: 'ACCREDITED_AMOUNT' | 'SETTLED_AMOUNT' | null;
   breakdown: SettlementLine[];
   warnings: string[];
 }
@@ -482,12 +488,17 @@ export class ExpedienteService {
     caseId: number,
     outcome: RepairOutcome,
     note: string,
+    repairCost: number | null,
     report: File,
   ): Observable<Peritaje> {
     const formData = new FormData();
     formData.append('report', report);
     formData.append('outcome', outcome);
     formData.append('note', note);
+    // El backend lo exige con QUOTE_SENT y lo rechaza con IRREPARABLE: nada que cobrar ahí.
+    if (repairCost != null) {
+      formData.append('repairCost', String(repairCost));
+    }
     return this.http.post<Peritaje>(
       `${this.baseUrl}/${caseId}/expert-assessment/repair-report`,
       formData,

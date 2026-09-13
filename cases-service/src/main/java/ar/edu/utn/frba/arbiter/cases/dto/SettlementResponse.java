@@ -33,6 +33,10 @@ import java.util.List;
  *                         document, or the model couldn't read an amount off it
  * @param suggestedFrom    which document type it was read from, so the analyst can go and check it
  *                         before taking it. A number with no provenance is worth less than none
+ * @param suggestedFor     which field it answers. An expert's determination is the reason this
+ *                         exists: on a coverage settled by sum insured there is no accredited
+ *                         amount to suggest, but what the expert decided should be paid still has
+ *                         somewhere to go — the amount itself
  * @param warnings         what the analyst should know before signing: data the calculation
  *                         couldn't find, or a deduction that came out at zero for a reason worth
  *                         stating. Never blocks — the analyst can settle anyway and say why
@@ -60,6 +64,7 @@ public record SettlementResponse(
         String returnReason,
         BigDecimal suggestedAmount,
         String suggestedFrom,
+        SettlementSuggestionTarget suggestedFor,
         List<Line> breakdown,
         List<String> warnings
 ) {

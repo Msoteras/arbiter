@@ -104,5 +104,12 @@ export interface Peritaje {
    * tienen nada que indemnizar, y ahí un cero diría otra cosa.
    */
   indemnifiableAmount: number | null;
+  /**
+   * Lo que el taller cobra por el trabajo: presupuestado si todavía no lo hizo, facturado si ya lo
+   * hizo. Null con un equipo irreparable, donde no hubo arreglo que cobrar. Campo aparte del monto
+   * del perito porque contestan preguntas distintas — cuánto vale el siniestro contra cuánto sale
+   * el arreglo.
+   */
+  repairCost: number | null;
   reportDocumentId: number | null;
 }
