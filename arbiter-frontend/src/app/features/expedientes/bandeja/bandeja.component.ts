@@ -714,6 +714,21 @@ export class BandejaComponent {
     return estadoLabel(status);
   }
 
+  /**
+   * El analista ya decidió y el monto superó su atribución: el expediente no espera nada de él
+   * hasta que el referente firme. Sin esta marca se ve igual que uno pendiente de decisión, porque
+   * el estado del expediente no se mueve — a propósito, para que el asegurado no vea un trámite
+   * interno.
+   */
+  protected esperaFirma(c: ExpedienteResponse): boolean {
+    return c.settlementStatus === 'PENDING_AUTHORIZATION';
+  }
+
+  /** Lo contrario: el referente lo devolvió y la pelota volvió al analista, con un motivo. */
+  protected devueltaPorReferente(c: ExpedienteResponse): boolean {
+    return c.settlementStatus === 'RETURNED';
+  }
+
   protected estadoTone(status: string): StatusTone {
     return estadoTone(status);
   }

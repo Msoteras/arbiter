@@ -75,6 +75,9 @@ export interface ExtractedDetail {
 }
 
 // Espejo de CaseResponse del cases-service (GET /api/v1/cases/{id})
+/** Calca el enum SettlementStatus del back: es el estado de la liquidación, no del expediente. */
+export type SettlementStatus = 'AUTHORIZED' | 'PENDING_AUTHORIZATION' | 'RETURNED';
+
 export interface ExpedienteResponse {
   id: number;
   /**
@@ -151,6 +154,16 @@ export interface ExpedienteResponse {
    * y el estado; `NONE` para casos con más de 10 días o ya resueltos.
    */
   deadlinePriority: DeadlinePriority;
+  /**
+   * En qué anda la liquidación, cuando ya hay una. Es lo que separa en la bandeja un expediente
+   * que espera al analista de uno que él ya despachó y espera la firma del referente: los dos
+   * están en `PENDING_ANALYST_REVIEW`, porque el estado del expediente no se mueve para que el
+   * asegurado no vea un trámite interno.
+   *
+   * Al revés que `statusHistory`: **sólo viene en los listados**. El detalle se trae la
+   * liquidación entera por su propio endpoint.
+   */
+  settlementStatus: SettlementStatus | null;
   /** Solo viene en GET /{id}; en listados es null. */
   statusHistory: StatusTransition[] | null;
   /**

@@ -31,6 +31,9 @@ import java.math.BigDecimal;
 import java.text.NumberFormat;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
+import java.util.Collection;
+import java.util.Map;
+import java.util.stream.Collectors;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
@@ -101,7 +104,8 @@ public class SettlementService {
         // El tope vigente, para que el analista vea ANTES de firmar que este monto va a necesitar
         // al referente. Enterarse recién al confirmar es enterarse tarde.
         proposal.setAuthorityLimit(authorityService.limitFor(branchIdOf(caseRecord)));
-        return toResponse(proposal, false, warnings(coverage, snapshot, replacementValue), coverage,
+        return toResponse(proposal, false,
+                warnings(coverage, snapshot, replacementValue, proposal.getFormula()), coverage,
                 suggestionFor(caseId, coverage));
     }
 
@@ -271,6 +275,23 @@ public class SettlementService {
                 .map(doc -> new Suggestion(doc.amount(), doc.documentType(),
                         SettlementSuggestionTarget.ACCREDITED_AMOUNT))
                 .orElse(null);
+    }
+
+    /**
+     * En qué anda la liquidación de cada uno de estos expedientes, para la bandeja. Un query para
+     * toda la página: preguntarlo caso por caso es el N+1 que la bandeja no banca.
+     *
+     * <p>Los que no tienen liquidación no aparecen en el mapa. Que falten no es un dato menor —
+     * significa que el analista todavía no determinó el monto—, pero eso ya lo dice el estado del
+     * expediente y no hace falta repetirlo con una entrada nula.
+     */
+    public Map<Long, SettlementStatus> statusesFor(Collection<Long> caseIds) {
+        if (caseIds == null || caseIds.isEmpty()) {
+            return Map.of();
+        }
+        return settlementRepository.findByCaseIdIn(caseIds).stream()
+                .filter(settlement -> settlement.getStatus() != null)
+                .collect(Collectors.toMap(CaseSettlement::getCaseId, CaseSettlement::getStatus));
     }
 
     /**
@@ -460,7 +481,8 @@ public class SettlementService {
      * <p>None of it blocks: a missing input makes the proposal weaker, not wrong, and the analyst
      * can settle anyway — that's what the adjustment and its justification are for.
      */
-    private List<String> warnings(Coverage coverage, PolicySnapshot snapshot, BigDecimal replacementValue) {
+    private List<String> warnings(Coverage coverage, PolicySnapshot snapshot,
+                                  BigDecimal replacementValue, SettlementFormula formula) {
         List<String> warnings = new ArrayList<>();
 
         if (snapshot == null) {
@@ -469,13 +491,16 @@ public class SettlementService {
         }
         boolean accredited = replacementValue != null && replacementValue.signum() > 0;
 
-        if (coverage.getSettlementFormula() == SettlementFormula.REPAIR && !accredited) {
+        // Contra la fórmula que se aplicó, no contra la de la cobertura: si el taller declaró el
+        // equipo irreparable esto ya no liquida por reparación, y pedir un presupuesto que no puede
+        // existir contradecía a la hoja de arriba, que en esa misma pantalla decía lo contrario.
+        if (formula == SettlementFormula.REPAIR && !accredited) {
             // Es la única advertencia que describe una propuesta en cero, no una deducción que no
             // se pudo hacer: sin presupuesto la reparación no tiene qué pagar.
             warnings.add("La cobertura liquida por reparación y no hay presupuesto acreditado: sin él "
                     + "no hay monto que pagar. Cargá el presupuesto del expediente y recalculá.");
         }
-        if (coverage.getSettlementFormula() != SettlementFormula.REPAIR
+        if (formula != SettlementFormula.REPAIR
                 && coverage.getSettlementBasis() == SettlementBasis.LESSER_OF_SUM_AND_REPLACEMENT
                 && !accredited) {
             warnings.add("La cobertura liquida por el menor entre la suma asegurada y el valor de "

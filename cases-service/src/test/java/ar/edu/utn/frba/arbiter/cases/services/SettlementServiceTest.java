@@ -534,6 +534,25 @@ class SettlementServiceTest {
                         && line.detail() != null && line.detail().contains("no tiene configurado"));
     }
 
+    /**
+     * Y la advertencia también mira la fórmula aplicada. Miraba la de la cobertura, así que sobre un
+     * equipo irreparable le pedía al analista "cargá el presupuesto y recalculá" en la misma
+     * pantalla donde la hoja acababa de decir que se liquidaba como pérdida total. Un cartel que
+     * contradice a la cuenta es peor que ninguno.
+     */
+    @Test
+    void anIrreparableItemIsNotAskedForARepairQuote() {
+        claim.setCoverage(repairCoverage());
+        when(expertAssessmentRepository.findByCaseIdOrderByDerivedAtDesc(1L)).thenReturn(List.of(
+                ExpertAssessment.builder().caseId(1L).providerType(ProviderType.SERVICIO_TECNICO)
+                        .reportReceivedAt(Instant.now())
+                        .repairOutcome(RepairOutcome.IRREPARABLE).build()));
+
+        SettlementResponse response = settlementService.forCase(1L, null);
+
+        assertThat(response.warnings()).noneMatch(w -> w.contains("presupuesto"));
+    }
+
     /** Reparado o con presupuesto, la cobertura manda: sigue siendo una reparación. */
     @Test
     void aRepairedItemStillSettlesAsARepair() {
