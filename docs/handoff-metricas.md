@@ -81,10 +81,9 @@ acreditado de la fórmula de reparación. Queda anotado acá sólo para que no s
    punto 4.
 6. **Plazo de pago**: 15 días desde que se acepta el siniestro. Segundo plazo legal que hoy no se
    mide en absoluto. Necesita lo mismo.
-7. **H0037 — tablero propio del analista.** **Falta cargarla como card en Trello**: se escribió en
-   `docs/historias-enhancements.md` justo antes de que develop borrara ese archivo, así que el texto
-   completo quedó sólo en el commit `f1bd3483` (`git show f1bd3483`). El acceso ya existe (la ruta y
-   el endpoint lo habilitan); lo que falta es el recorte a sus expedientes.
+7. **H0037 — tablero propio del analista** (card en Trello). El acceso ya existe: la ruta y el
+   endpoint habilitan al analista, y lo que ve es la cartera entera de la compañía. Lo que falta es
+   el recorte a sus expedientes.
 
 **Descartado, no pospuesto:** la línea de backlog ("abiertos al cierre" por semana). Es la consulta
 más cara de todas y con una docena de casos al mes sería una línea plana; el embudo ya responde lo
