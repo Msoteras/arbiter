@@ -2,12 +2,16 @@ package ar.edu.utn.frba.arbiter.cases.services;
 
 import ar.edu.utn.frba.arbiter.cases.exceptions.UnresolvedCaseReferenceException;
 import ar.edu.utn.frba.arbiter.cases.models.entities.PolicyCoverage;
+import ar.edu.utn.frba.arbiter.cases.models.repositories.ClaimCauseRepository;
 import ar.edu.utn.frba.arbiter.cases.models.repositories.PolicyCoverageRepository;
+import ar.edu.utn.frba.arbiter.common.models.entities.Branch;
+import ar.edu.utn.frba.arbiter.common.models.entities.ClaimCause;
 import ar.edu.utn.frba.arbiter.common.models.entities.tenant.Coverage;
 import org.junit.jupiter.api.Test;
 
 import java.math.BigDecimal;
 import java.util.List;
+import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -26,12 +30,15 @@ class PolicyCoverageResolverTest {
     private static final Long POLICY_ID = 7L;
     private static final Long ROBO_VIA_PUBLICA = 2L;
     private static final Long HURTO = 3L;
+    private static final Long CELULARES_BRANCH = 1L;
+    private static final Long TECNOLOGIA_BRANCH = 2L;
 
     private final PolicyCoverageRepository policyCoverageRepository = mock(PolicyCoverageRepository.class);
     private final RulesServiceClient rulesServiceClient = mock(RulesServiceClient.class);
+    private final ClaimCauseRepository claimCauseRepository = mock(ClaimCauseRepository.class);
 
     private final PolicyCoverageResolver resolver =
-            new PolicyCoverageResolver(policyCoverageRepository, rulesServiceClient);
+            new PolicyCoverageResolver(policyCoverageRepository, rulesServiceClient, claimCauseRepository);
 
     @Test
     void picksTheCoverageThatCoversTheDenouncedCause() {
@@ -81,6 +88,29 @@ class PolicyCoverageResolverTest {
         assertThat(resolver.resolveFor(POLICY_ID, HURTO)).isNotNull();
     }
 
+    /**
+     * The exact shape of the Provincia bug: a Tecnología Portátil policy ended up with "Robo de
+     * celular" — a Celulares coverage — contracted alongside its real "Daño accidental" coverage,
+     * first in display_order. With no exclusion list configured for it, the old logic read that as
+     * "covers everything" and it won by order, so a Daño accidental claim was evaluated (and asked
+     * for documents) against the theft coverage of a different branch entirely.
+     */
+    @Test
+    void aCoverageFromAnotherBranchNeverAnswers_evenWithNoExclusionsConfigured() {
+        Long danioAccidental = 6L;
+        givenContracted(
+                coverage(1L, "Robo de celular", CELULARES_BRANCH),
+                coverage(3L, "Daño accidental", TECNOLOGIA_BRANCH));
+        // Ninguna de las dos tiene exclusiones cargadas: por displayOrder solo, ganaría la de robo.
+        when(rulesServiceClient.excludedClaimCauseIds(1L)).thenReturn(List.of());
+        when(rulesServiceClient.excludedClaimCauseIds(3L)).thenReturn(List.of());
+        when(claimCauseRepository.findById(danioAccidental))
+                .thenReturn(Optional.of(claimCause(danioAccidental, TECNOLOGIA_BRANCH)));
+
+        assertThat(resolver.resolveFor(POLICY_ID, danioAccidental).getCoverage().getName())
+                .isEqualTo("Daño accidental");
+    }
+
     @Test
     void aPolicyWithNoCoverageOnFile_throws() {
         givenContracted();
@@ -121,9 +151,14 @@ class PolicyCoverageResolverTest {
     }
 
     private PolicyCoverage coverage(Long coverageId, String name) {
+        return coverage(coverageId, name, null);
+    }
+
+    private PolicyCoverage coverage(Long coverageId, String name, Long branchId) {
         Coverage catalogued = new Coverage();
         catalogued.setId(coverageId);
         catalogued.setName(name);
+        catalogued.setBranchId(branchId);
         return PolicyCoverage.builder()
                 .policyId(POLICY_ID)
                 .coverage(catalogued)
@@ -131,5 +166,11 @@ class PolicyCoverageResolverTest {
                 .sumInsured(new BigDecimal("500000"))
                 .deductiblePct(new BigDecimal("10.00"))
                 .build();
+    }
+
+    private ClaimCause claimCause(Long id, Long branchId) {
+        Branch branch = new Branch();
+        branch.setId(branchId);
+        return ClaimCause.builder().id(id).branch(branch).build();
     }
 }

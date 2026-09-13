@@ -9,6 +9,17 @@ spring:
   threads:
     virtual:
       enabled: true
+  servlet:
+    multipart:
+      # cases-service forwards the case's documents here on every (re)classification — not just
+      # the batch the insured just uploaded, ALL of them, since the model needs the full picture
+      # each time. Spring's default (1MB/file, 10MB/request) rejected that the moment a photo was
+      # in the mix: 413 Content Too Large, surfaced to the insured as the upload "breaking". The
+      # per-file cap matches what cases-service already enforces on the original upload (no single
+      # file gets here bigger than that); the request cap is higher because several of a case's
+      # documents travel together in one call.
+      max-file-size: 10MB
+      max-request-size: 50MB
   datasource:
     url: ${DB_URL:jdbc:postgresql://localhost:5432/arbiter}
     username: ${DB_USER:arbiter}

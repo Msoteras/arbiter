@@ -29,9 +29,12 @@ import { ChangeDetectionStrategy, Component, input, output } from '@angular/core
           aria-modal="true"
           (click)="$event.stopPropagation()"
         >
-          @if (heading()) {
-            <h2 class="modal-title">{{ heading() }}</h2>
-          }
+          <div class="modal-head">
+            @if (heading()) {
+              <h2 class="modal-title">{{ heading() }}</h2>
+            }
+            <button type="button" class="modal-close" aria-label="Cerrar" (click)="close.emit()">✕</button>
+          </div>
           <ng-content />
           @if (!hideActions()) {
             <div class="modal-actions"><ng-content select="[modalActions]" /></div>
@@ -118,10 +121,36 @@ import { ChangeDetectionStrategy, Component, input, output } from '@angular/core
         animation: none;
       }
     }
+    .modal-head {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: var(--space-3);
+      margin-bottom: var(--space-2);
+    }
     .modal-title {
-      margin: 0 0 var(--space-2);
+      margin: 0;
       font-size: var(--font-size-lg);
       font-weight: var(--font-weight-medium);
+    }
+    .modal-close {
+      flex-shrink: 0;
+      border: none;
+      background: none;
+      cursor: pointer;
+      color: var(--text-muted);
+      font-size: var(--font-size-sm);
+      line-height: 1;
+      padding: var(--space-1);
+      margin: calc(var(--space-1) * -1);
+      border-radius: var(--radius-ctl);
+    }
+    .modal-close:hover {
+      color: var(--text-primary);
+    }
+    .modal-close:focus-visible {
+      outline: 2px solid var(--border-focus);
+      outline-offset: 2px;
     }
     .modal-actions {
       display: flex;
@@ -142,7 +171,8 @@ export class ModalComponent {
   /**
    * Si el click en el fondo cierra el diálogo. `true` por defecto (diálogos livianos, ej.
    * notificaciones). Poner en `false` para formularios donde un click accidental afuera haría
-   * perder lo cargado (ej. el wizard de nueva denuncia): ahí solo se cierra desde sus botones.
+   * perder lo cargado (ej. el wizard de nueva denuncia). Solo tapa el backdrop: la cruz del
+   * header siempre cierra, porque ese click es deliberado y no uno accidental.
    */
   readonly dismissable = input(true);
   readonly close = output<void>();

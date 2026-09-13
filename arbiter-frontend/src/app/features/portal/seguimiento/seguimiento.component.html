@@ -120,6 +120,12 @@
   <!-- Detalle de la denuncia. -->
   <app-card class="denuncia-card" heading="Tu denuncia">
     <dl class="fields">
+      @if (d.insurerName) {
+        <div class="field">
+          <dt class="t-field-label">Aseguradora</dt>
+          <dd>{{ d.insurerName }}</dd>
+        </div>
+      }
       <div class="field">
         <dt class="t-field-label">Ramo · bien</dt>
         <dd>{{ d.branch }} · {{ d.insuredItem }}</dd>

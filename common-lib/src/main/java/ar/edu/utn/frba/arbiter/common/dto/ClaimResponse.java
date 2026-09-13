@@ -5,6 +5,7 @@ import ar.edu.utn.frba.arbiter.common.enums.Classification;
 import ar.edu.utn.frba.arbiter.common.enums.RiskBand;
 import lombok.Builder;
 
+import java.time.Instant;
 import java.util.List;
 
 /**
@@ -47,5 +48,15 @@ public record ClaimResponse(
          */
         String suggestedClaimCause,
         /** Verbatim sentence from the account backing the verdict. Null when it matched. */
-        String causeEvidence
+        String causeEvidence,
+        /**
+         * When the backing {@code llm_analysis} row was written — null for Fast Track (no row: the
+         * gate resolved it, see {@code CaseOutcomeRepository}) or while nothing has been analyzed
+         * yet. {@code llm_analysis} is append-only, so a case reclassified after a prior run (sent
+         * back for documentation, retried) still has that OLDER row on file while a new run is in
+         * flight; this is what lets the poller (cases-service's {@code ClassificationServiceClient})
+         * tell "the answer to what I just triggered" from "what was there before" instead of acting
+         * on a result that predates the reclassification it's polling for.
+         */
+        Instant analyzedAt
 ) {}

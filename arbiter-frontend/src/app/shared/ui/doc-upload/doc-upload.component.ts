@@ -1,18 +1,28 @@
 import { ChangeDetectionStrategy, Component, computed, effect, inject, input, output, signal } from '@angular/core';
 import { toObservable, toSignal } from '@angular/core/rxjs-interop';
-import { of, switchMap } from 'rxjs';
+import { catchError, map, of, startWith, switchMap } from 'rxjs';
 
 import { ExpedienteService } from '../../../features/expedientes/expediente.service';
 import { DocumentAgendaService } from '../../../features/expedientes/document-agenda.service';
 import { CASE_DOCUMENT_TYPES, CaseDocumentType } from '../../../core/models/case-document';
 import { ButtonComponent } from '../button/button.component';
 import { FilePreviewComponent } from '../file-preview/file-preview.component';
+import { InlineLoadingComponent } from '../inline-loading/inline-loading.component';
 
 interface DocUploadSlot {
   type: string;
   label: string;
   file: File | null;
 }
+
+/**
+ * Ninguna de las dos fuentes que arman los slots (agenda del ramo, documentos ya subidos) tiene un
+ * resultado válido para mostrar mientras está en vuelo — a diferencia de otros combos de este
+ * wizard, acá no hay un catálogo "razonable" para adivinar: mostrar el catálogo completo de entrada
+ * es exactamente el bug que se arregla acá (pedía de nuevo lo ya cargado hasta que la respuesta
+ * real llegaba y lo corregía solo). Mientras carga, el uploader no arma ninguna fila.
+ */
+type FetchState<T> = { status: 'loading' } | { status: 'ok'; value: T };
 
 /**
  * Carga de documentación faltante para un expediente en AWAITING_DOCUMENTATION.
@@ -22,46 +32,50 @@ interface DocUploadSlot {
 @Component({
   selector: 'app-doc-upload',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [ButtonComponent, FilePreviewComponent],
+  imports: [ButtonComponent, FilePreviewComponent, InlineLoadingComponent],
   template: `
-    <p class="muted">
-      La evaluación indica que faltan documentos requeridos. Subí la documentación
-      faltante para que el caso se vuelva a evaluar.
-    </p>
-    <p class="hint">JPG, PNG o PDF · hasta 10 MB por archivo</p>
+    @if (loadingSlots()) {
+      <app-inline-loading message="Revisando qué documentación falta…" />
+    } @else {
+      <p class="muted">
+        La evaluación indica que faltan documentos requeridos. Subí la documentación
+        faltante para que el caso se vuelva a evaluar.
+      </p>
+      <p class="hint">JPG, PNG o PDF · hasta 10 MB por archivo</p>
 
-    @for (slot of slots(); track slot.type; let i = $index) {
-      <div
-        class="doc-row"
-        [class.dragover]="dragOverIndex() === i"
-        (dragover)="onDragOver($event, i)"
-        (dragleave)="onDragLeave()"
-        (drop)="onDrop($event, i)">
-        <span class="doc-row-label">{{ slot.label }}</span>
-        @if (slot.file) {
-          <div class="doc-row-file">
-            <app-file-preview [file]="slot.file" />
-            <button type="button" class="doc-row-remove" (click)="removeFile(i)">✕</button>
-          </div>
-        } @else {
-          <label class="doc-row-upload">
-            Elegir o arrastrá el archivo
-            <input type="file" accept="image/*,.pdf" (change)="onFileChange(i, $event)" hidden />
-          </label>
-        }
-      </div>
+      @for (slot of slots(); track slot.type; let i = $index) {
+        <div
+          class="doc-row"
+          [class.dragover]="dragOverIndex() === i"
+          (dragover)="onDragOver($event, i)"
+          (dragleave)="onDragLeave()"
+          (drop)="onDrop($event, i)">
+          <span class="doc-row-label">{{ slot.label }}</span>
+          @if (slot.file) {
+            <div class="doc-row-file">
+              <app-file-preview [file]="slot.file" />
+              <button type="button" class="doc-row-remove" (click)="removeFile(i)">✕</button>
+            </div>
+          } @else {
+            <label class="doc-row-upload">
+              Elegir o arrastrá el archivo
+              <input type="file" accept="image/*,.pdf" (change)="onFileChange(i, $event)" hidden />
+            </label>
+          }
+        </div>
+      }
+
+      @if (error()) {
+        <p class="upload-error">{{ error() }}</p>
+      }
+
+      <app-button
+        class="submit-btn"
+        [disabled]="selectedCount() === 0 || uploading()"
+        (click)="submit()">
+        {{ uploading() ? 'Enviando…' : 'Enviar documentación' }}
+      </app-button>
     }
-
-    @if (error()) {
-      <p class="upload-error">{{ error() }}</p>
-    }
-
-    <app-button
-      class="submit-btn"
-      [disabled]="selectedCount() === 0 || uploading()"
-      (click)="submit()">
-      {{ uploading() ? 'Enviando…' : 'Enviar documentación' }}
-    </app-button>
   `,
   styles: `
     :host { display: block; }
@@ -127,24 +141,60 @@ export class DocUploadComponent {
   /** Se emite cuando el backend aceptó los documentos (el caso vuelve a clasificación). */
   readonly uploaded = output<void>();
 
-  protected readonly slots = signal<DocUploadSlot[]>(
-    CASE_DOCUMENT_TYPES.map(({ type, label }) => ({ type, label, file: null })),
-  );
+  protected readonly slots = signal<DocUploadSlot[]>([]);
 
   /** Tipos requeridos del ramo + hecho generador (o el catálogo completo como fallback). */
   private readonly requiredTypes = toSignal(
     toObservable(computed(() => ({ branch: this.branch(), claimCause: this.claimCause() }))).pipe(
       switchMap(({ branch, claimCause }) =>
-        branch && claimCause ? this.agenda.slotsForBranch(branch, claimCause) : of(CASE_DOCUMENT_TYPES),
+        (branch && claimCause
+          ? this.agenda.slotsForBranch(branch, claimCause)
+          : of(CASE_DOCUMENT_TYPES)
+        ).pipe(
+          map((value): FetchState<readonly CaseDocumentType[]> => ({ status: 'ok', value })),
+          startWith<FetchState<readonly CaseDocumentType[]>>({ status: 'loading' }),
+        ),
       ),
     ),
-    { initialValue: CASE_DOCUMENT_TYPES as readonly CaseDocumentType[] },
+    { initialValue: { status: 'loading' } },
   );
 
+  /**
+   * Tipos que el expediente ya tiene adjuntos. Sin esto, un tipo ya cargado (por ejemplo, en la
+   * primera tanda del alta) seguía apareciendo en el uploader como si faltara — la agenda dice qué
+   * hace falta EN TOTAL, no qué falta todavía.
+   */
+  private readonly uploadedTypes = toSignal(
+    toObservable(computed(() => ({ caseId: this.caseId(), insurerSlug: this.insurerSlug() }))).pipe(
+      switchMap(({ caseId, insurerSlug }) =>
+        this.service.listDocuments(caseId, insurerSlug).pipe(
+          map((docs): FetchState<Set<string>> => ({ status: 'ok', value: new Set(docs.map((d) => d.type)) })),
+          catchError(() => of<FetchState<Set<string>>>({ status: 'ok', value: new Set() })),
+          startWith<FetchState<Set<string>>>({ status: 'loading' }),
+        ),
+      ),
+    ),
+    { initialValue: { status: 'loading' } },
+  );
+
+  /** Mientras cualquiera de las dos fuentes sigue en vuelo, no hay nada confiable que mostrar. */
+  protected readonly loadingSlots = computed(
+    () => this.requiredTypes().status === 'loading' || this.uploadedTypes().status === 'loading',
+  );
+
+  /** Lo que realmente falta: la agenda completa, menos lo que ya se subió. */
+  private readonly pendingTypes = computed<readonly CaseDocumentType[]>(() => {
+    const required = this.requiredTypes();
+    const uploaded = this.uploadedTypes();
+    if (required.status === 'loading' || uploaded.status === 'loading') return [];
+    return required.value.filter(({ type }) => !uploaded.value.has(type));
+  });
+
   constructor() {
-    // Al resolverse la agenda del ramo, rearma los slots con el vocabulario real (limpia archivos).
+    // Al resolverse la agenda (o la lista de ya subidos), rearma los slots con lo que falta de
+    // verdad (limpia archivos elegidos y no enviados).
     effect(() => {
-      const types = this.requiredTypes();
+      const types = this.pendingTypes();
       this.slots.set(types.map(({ type, label }) => ({ type, label, file: null })));
     });
   }

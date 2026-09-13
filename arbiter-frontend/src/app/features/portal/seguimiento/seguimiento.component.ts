@@ -189,6 +189,13 @@ export class SeguimientoComponent {
   protected readonly fechaHecho = computed(() => formatDateTime(this.data()?.eventDate));
 
   protected goToDocuments(): void {
-    this.router.navigate(['documents'], { relativeTo: this.route });
+    // Same cross-tenant case as the load above (line 65): without forwarding `insurer`, the
+    // documentacion screen re-resolves the case against the login's default tenant instead of the
+    // one that issued it, and 404s (or worse, hits a same-id case from another company).
+    const insurer = this.route.snapshot.queryParamMap.get('insurer');
+    this.router.navigate(['documents'], {
+      relativeTo: this.route,
+      queryParams: insurer ? { insurer } : {},
+    });
   }
 }

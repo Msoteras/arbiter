@@ -251,6 +251,12 @@ public class ClassificationResultsService {
                         ? null : analysis.map(LlmAnalysis::getSuggestedClaimCause).orElse(null))
                 .causeEvidence(outcome.wasFastTrack()
                         ? null : analysis.map(LlmAnalysis::getCauseEvidence).orElse(null))
+                // Null on Fast Track for the same reason as the fields above: there is no
+                // llm_analysis row to date. It's what lets cases-service's poller tell this
+                // (append-only) row apart from one a PREVIOUS run left behind — see
+                // ClassificationServiceClient.isStale on that side.
+                .analyzedAt(outcome.wasFastTrack()
+                        ? null : analysis.map(LlmAnalysis::getAnalyzedAt).orElse(null))
                 .build();
     }
 
