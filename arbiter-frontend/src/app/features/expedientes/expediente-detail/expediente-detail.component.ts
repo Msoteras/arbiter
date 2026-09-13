@@ -1058,10 +1058,14 @@ export class ExpedienteDetailComponent {
     () => this.canDecide() && this.decisionState() === 'pending' && !this.peritaje(),
   );
 
-  /** Sin servicios técnicos para el ramo el botón no aparece: en la mayoría de los ramos no aplica. */
+  /**
+   * Same owner rule as `puedeDerivar`: the backend refuses anyone but the assigned analyst. And
+   * `eligible` is only true when the claim cause admits repair and there is a repair shop to send
+   * it to; while loading or on error it is null, so the button stays hidden.
+   */
   protected readonly puedeDerivarAReparacion = computed(
     () =>
-      this.canAct() &&
+      this.canDecide() &&
       this.decisionState() === 'pending' &&
       !this.reparacion() &&
       this.repairOptions()?.eligible === true,
@@ -1577,11 +1581,11 @@ export class ExpedienteDetailComponent {
 
   /**
    * Por qué no puede actuar alguien con rol de analista pero sin este expediente asignado. Cubre
-   * decidir y derivar a peritaje: las dos son del dueño del expediente.
+   * decidir y derivar (a peritaje o a servicio técnico): todo eso es del dueño del expediente.
    */
   protected readonly decisionBlockedReason = computed(() => {
     if (!this.isAssigned()) {
-      return 'Asignate el expediente para decidir o derivarlo a peritaje.';
+      return 'Asignate el expediente para decidir o derivarlo.';
     }
     const analista = this.assignedName();
     return analista

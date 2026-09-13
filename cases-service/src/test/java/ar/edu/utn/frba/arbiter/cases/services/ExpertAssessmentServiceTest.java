@@ -61,6 +61,7 @@ class ExpertAssessmentServiceTest {
     private static final Long BRANCH_ID = 1L;
     private static final BigDecimal CLAIMED_AMOUNT = new BigDecimal("950000");
     private static final String ANALYST_EMAIL = "analista.arbiter@gmail.com";
+    private static final Long CLAIM_CAUSE_ID = 4L;
 
     @Mock
     private CaseRepository caseRepository;
@@ -363,6 +364,7 @@ class ExpertAssessmentServiceTest {
         Case caseRecord = caseAwaitingReview();
         when(caseRepository.findById(CASE_ID)).thenReturn(Optional.of(caseRecord));
         when(claimsAnalystRepository.findByEmail(ANALYST_EMAIL)).thenReturn(Optional.of(analyst()));
+        givenRepairPolicy(CLAIM_CAUSE_ID);
         when(expertFirmRepository.findAvailableForBranch(BRANCH_ID, ProviderType.SERVICIO_TECNICO))
                 .thenReturn(List.of(firm(5L, "Service Celular Once", "service@example.com")));
         when(expertAssessmentRepository.save(any(ExpertAssessment.class)))
@@ -378,8 +380,9 @@ class ExpertAssessmentServiceTest {
     }
 
     @Test
-    void optionsForRepair_dependOnlyOnTheCatalog() {
+    void optionsForRepair_offerTheCatalogWhenTheClaimCauseAdmitsRepair() {
         when(caseRepository.findById(CASE_ID)).thenReturn(Optional.of(caseAwaitingReview()));
+        givenRepairPolicy(CLAIM_CAUSE_ID);
         when(expertFirmRepository.findAvailableForBranch(BRANCH_ID, ProviderType.SERVICIO_TECNICO))
                 .thenReturn(List.of(firm(5L, "Service Celular Once", "service@example.com")));
 
@@ -388,6 +391,35 @@ class ExpertAssessmentServiceTest {
         assertThat(options.eligible()).isTrue();
         assertThat(options.minClaimedAmount()).isNull();
         verify(rulesServiceClient, never()).expertDerivationPolicy(any());
+    }
+
+    /** A stolen phone has nothing to repair: the option stays closed whoever is in the catalog. */
+    @Test
+    void optionsForRepair_areClosedWhenTheClaimCauseDoesNotAdmitRepair() {
+        when(caseRepository.findById(CASE_ID)).thenReturn(Optional.of(caseAwaitingReview()));
+        givenRepairPolicy(1L);
+
+        DerivationOptionsResponse options = expertAssessmentService.options(CASE_ID, ProviderType.SERVICIO_TECNICO);
+
+        assertThat(options.eligible()).isFalse();
+        assertThat(options.firms()).isEmpty();
+        verify(expertFirmRepository, never()).findAvailableForBranch(any(), any());
+    }
+
+    /** Enforced on derive too: hiding the button is a suggestion, not a rule. */
+    @Test
+    void deriveToRepair_refusesAClaimCauseThatDoesNotAdmitRepair() {
+        when(caseRepository.findById(CASE_ID)).thenReturn(Optional.of(caseAwaitingReview()));
+        when(claimsAnalystRepository.findByEmail(ANALYST_EMAIL)).thenReturn(Optional.of(analyst()));
+        givenRepairPolicy(1L);
+
+        assertThatThrownBy(() -> expertAssessmentService.derive(CASE_ID,
+                new DeriveToExpertRequest(5L, "motivo"), ProviderType.SERVICIO_TECNICO))
+                .isInstanceOf(DerivationNotAllowedException.class);
+
+        verify(expertAssessmentRepository, never()).save(any());
+        verify(caseStatusService, never()).transition(any(), any(), any(), any());
+        verify(expertNotificationService, never()).notifyDerivation(any(), any());
     }
 
     @Test
@@ -585,6 +617,11 @@ class ExpertAssessmentServiceTest {
                 .thenReturn(new RulesServiceClient.ExpertDerivationPolicy(true, minClaimedAmount, 4L));
     }
 
+    private void givenRepairPolicy(Long... admittedClaimCauseIds) {
+        when(rulesServiceClient.repairDerivationPolicy(BRANCH_ID))
+                .thenReturn(new RulesServiceClient.RepairDerivationPolicy(true, List.of(admittedClaimCauseIds), 9L));
+    }
+
     private Case caseAwaitingReview() {
         return caseInStatus(CaseStatus.PENDING_ANALYST_REVIEW);
     }
@@ -594,6 +631,7 @@ class ExpertAssessmentServiceTest {
         // fixture lo arma sin id (los tests que lo usan no lo miran).
         ClaimCause cause = CaseFixtures.claimCause("Celulares", "Robo en vía pública");
         cause.setBranch(Branch.builder().id(BRANCH_ID).name("Celulares").build());
+        cause.setId(CLAIM_CAUSE_ID);
         return Case.builder()
                 .id(CASE_ID)
                 .claimCause(cause)

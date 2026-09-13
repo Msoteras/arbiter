@@ -81,6 +81,10 @@ public class ExpertAssessmentService {
     @Transactional(readOnly = true)
     public DerivationOptionsResponse options(Long caseId, ProviderType providerType) {
         Case caseRecord = findCase(caseId);
+        // Before the catalog: a stolen phone has nothing to repair, whoever is on file.
+        if (providerType == ProviderType.SERVICIO_TECNICO && !repairAllowed(caseRecord)) {
+            return new DerivationOptionsResponse(false, null, caseRecord.getClaimedAmount(), List.of());
+        }
         List<ExpertFirmResponse> firms = availableFirms(caseRecord, providerType).stream()
                 .map(ExpertFirmResponse::from)
                 .toList();
@@ -132,9 +136,11 @@ public class ExpertAssessmentService {
                                            ProviderType providerType) {
         Case caseRecord = findCase(caseId);
         ClaimsAnalyst caller = assertCallerOwns(caseRecord);
-        // El umbral de monto es la regla del peritaje: una reparación no pasa por ella.
+        // Each kind has its own gate: peritaje the amount threshold, repair the claim cause.
         if (providerType == ProviderType.ESTUDIO_LIQUIDADOR) {
             assertInsurerDerivesThisCase(caseRecord);
+        } else if (!repairAllowed(caseRecord)) {
+            throw new DerivationNotAllowedException(caseRecord.getId(), caseRecord.getClaimCause().getName());
         }
         ExpertFirm firm = availableFirm(caseRecord, request.expertFirmId(), providerType);
 
@@ -290,6 +296,11 @@ public class ExpertAssessmentService {
             throw new DerivationNotAllowedException(
                     caseRecord.getId(), caseRecord.getClaimedAmount(), policy.minClaimedAmount());
         }
+    }
+
+    private boolean repairAllowed(Case caseRecord) {
+        return rulesServiceClient.repairDerivationPolicy(branchIdOf(caseRecord))
+                .allows(caseRecord.getClaimCause().getId());
     }
 
     /**
