@@ -10,12 +10,8 @@
       @if (needsDocs()) {
         Necesitamos algunos documentos para avanzar con tu siniestro
         <span class="mono">#{{ d.id }}</span>.
-      } @else if (isResolved()) {
-        Esto es lo que enviaste para tu siniestro <span class="mono">#{{ d.id }}</span>. Ya está
-        cerrado, así que no hace falta que subas nada más.
       } @else {
-        Esto es lo que enviaste para tu siniestro <span class="mono">#{{ d.id }}</span>. Si tenés
-        algo más para sumar, podés hacerlo desde acá.
+        Esto es lo que enviaste para tu siniestro <span class="mono">#{{ d.id }}</span>.
       }
     </p>
     @if (needsDocs()) {
@@ -35,8 +31,8 @@
     [showMissing]="false" />
 }
 
-@if (!isResolved()) {
-  <app-card [heading]="needsDocs() ? 'Documentos requeridos' : 'Sumar documentación'">
+@if (needsDocs()) {
+  <app-card heading="Documentos requeridos">
     <app-doc-upload
       [caseId]="caseId"
       [insurerSlug]="insurerSlug"

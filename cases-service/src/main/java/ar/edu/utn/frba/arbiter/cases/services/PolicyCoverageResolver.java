@@ -2,6 +2,7 @@ package ar.edu.utn.frba.arbiter.cases.services;
 
 import ar.edu.utn.frba.arbiter.cases.exceptions.UnresolvedCaseReferenceException;
 import ar.edu.utn.frba.arbiter.cases.models.entities.PolicyCoverage;
+import ar.edu.utn.frba.arbiter.cases.models.repositories.ClaimCauseRepository;
 import ar.edu.utn.frba.arbiter.cases.models.repositories.PolicyCoverageRepository;
 import lombok.RequiredArgsConstructor;
 import org.slf4j.Logger;
@@ -41,6 +42,7 @@ public class PolicyCoverageResolver {
 
     private final PolicyCoverageRepository policyCoverageRepository;
     private final RulesServiceClient rulesServiceClient;
+    private final ClaimCauseRepository claimCauseRepository;
 
     /** Everything the policy contracted, in the company's order. Never empty for a synced policy. */
     public List<PolicyCoverage> contractedCoverages(Long policyId) {
@@ -63,7 +65,27 @@ public class PolicyCoverageResolver {
             return contracted.getFirst();
         }
 
-        List<PolicyCoverage> candidates = contracted.stream()
+        // A coverage of another branch can never answer for this cause, no matter what its
+        // exclusion list says — this is the guardrail a synced policy_coverage row from the wrong
+        // branch needs: without it, an unconfigured (or missing) exclusion list on that coverage
+        // reads as "covers everything" and it wins by display_order alone (the bug that had a
+        // Tecnología Portátil "Daño accidental" claim asked for the police report that "Robo de
+        // celular" — a Celulares coverage stuck on the same policy — required).
+        Long causeBranchId = claimCauseRepository.findById(claimCauseId)
+                .map(cc -> cc.getBranch().getId())
+                .orElse(null);
+        List<PolicyCoverage> sameBranch = causeBranchId == null
+                ? contracted
+                : contracted.stream().filter(pc -> causeBranchId.equals(pc.getCoverage().getBranchId())).toList();
+        if (sameBranch.isEmpty()) {
+            log.warn("[PolicyCoverageResolver] Policy {}: none of its {} contracted coverage(s) belong to "
+                            + "claim cause {}'s branch — a synced policy_coverage row is likely pointing at the "
+                            + "wrong branch's coverage. Falling back to the first for the eligibility check to report it.",
+                    policyId, contracted.size(), claimCauseId);
+            return contracted.getFirst();
+        }
+
+        List<PolicyCoverage> candidates = sameBranch.stream()
                 .filter(pc -> !excludes(pc, claimCauseId))
                 .toList();
         if (candidates.isEmpty()) {
@@ -72,7 +94,7 @@ public class PolicyCoverageResolver {
             // so the insured gets "no está cubierto" and not an opaque 422 about coverages.
             log.info("[PolicyCoverageResolver] Policy {}: no contracted coverage covers claim cause {} — "
                     + "falling back to the first for the eligibility check to report it", policyId, claimCauseId);
-            return contracted.getFirst();
+            return sameBranch.getFirst();
         }
         if (candidates.size() > 1) {
             log.debug("[PolicyCoverageResolver] Policy {}: {} coverages could answer for claim cause {}; "

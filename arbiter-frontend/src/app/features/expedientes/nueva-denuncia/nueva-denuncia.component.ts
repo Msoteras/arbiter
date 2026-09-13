@@ -75,7 +75,7 @@ interface DocSlot {
  *       completeness check falls to the backend, which evaluates it again over the real schedule.
  * </ul>
  */
-type RequiredDocsStatus = 'configured' | 'none' | 'unavailable';
+type RequiredDocsStatus = 'loading' | 'configured' | 'none' | 'unavailable';
 
 interface RequiredDocsState {
   status: RequiredDocsStatus;
@@ -86,6 +86,15 @@ interface RequiredDocsState {
 
 /** What is shown when there is no schedule to go by: offered, never demanded. */
 const OFFERED_DOCS: RequiredDocsState = { status: 'none', slots: CASE_DOCUMENT_TYPES };
+
+/**
+ * Emitted the instant the policy/branch/claimCause combination changes, before its
+ * intake-documents call resolves. Without it, switchMap keeps the PREVIOUS combination's result on
+ * screen while the new one is in flight — so picking "Daño accidental" right after a cause that did
+ * need a police report kept asking for one until the real (empty) answer came back. Empty slots, not
+ * a guess: we genuinely don't know yet.
+ */
+const LOADING_DOCS: RequiredDocsState = { status: 'loading', slots: [] };
 
 // Mismo tope que cases-service (spring.servlet.multipart.max-file-size) — validar acá
 // evita esperar la subida completa para recién ahí enterarse de que no entra. El
@@ -727,6 +736,7 @@ export class NuevaDenunciaComponent {
               catchError(() =>
                 of<RequiredDocsState>({ status: 'unavailable', slots: CASE_DOCUMENT_TYPES }),
               ),
+              startWith(LOADING_DOCS),
             )
           : of<RequiredDocsState>(OFFERED_DOCS),
       ),
@@ -943,7 +953,12 @@ export class NuevaDenunciaComponent {
       if (this.embedded()) {
         this.close.emit();
       }
-      this.router.navigate(['/portal/cases', created.id]);
+      // El alta ya resuelve insurerSlug (CaseServiceImpl.create), justo para este salto: sin él,
+      // un asegurado con pólizas en más de una compañía caía en el tenant default de su sesión y
+      // el seguimiento le tiraba 404 si la póliza recién denunciada era de la otra.
+      this.router.navigate(['/portal/cases', created.id], {
+        queryParams: created.insurerSlug ? { insurer: created.insurerSlug } : {},
+      });
     }
   }
 
