@@ -273,6 +273,16 @@ public class Case {
     private String classificationFailureMessage;
 
     /**
+     * When the denuncia was filed without its document schedule verified: rules-service didn't
+     * answer, and leaving the insured out over an outage of ours would be worse than taking the
+     * case and checking afterwards. Null once verified, which is the normal case.
+     * {@code DocumentRecheckScheduler} is what comes back to it; a timestamp rather than a flag so
+     * the logs can tell how long a case waited unverified.
+     */
+    @Column(name = "documents_unverified_since")
+    private Instant documentsUnverifiedSince;
+
+    /**
      * The {@code case_classification} row holding the analyst's verdict — and through its
      * {@code llm_analysis_id}, which model run backed it. Without this the case knows *what* was
      * decided but not *which* classification it was deciding on, which is the link the audit trail

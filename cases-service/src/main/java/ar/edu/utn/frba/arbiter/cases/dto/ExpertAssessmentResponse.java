@@ -3,6 +3,7 @@ package ar.edu.utn.frba.arbiter.cases.dto;
 import ar.edu.utn.frba.arbiter.cases.models.entities.ExpertAssessment;
 import ar.edu.utn.frba.arbiter.common.enums.ExpertVerdict;
 
+import java.math.BigDecimal;
 import java.time.Instant;
 
 /**
@@ -25,6 +26,13 @@ public record ExpertAssessmentResponse(
         RepairOutcome repairOutcome,
         ProviderType providerType,
         String verdictNote,
+        /** Lo que el perito determinó que vale el siniestro. Null cuando el informe no puso número. */
+        BigDecimal indemnifiableAmount,
+        /**
+         * Lo que el taller cobra por el trabajo: presupuestado si todavía no lo hizo, facturado si
+         * ya lo hizo. Null cuando el equipo era irreparable, o cuando la factura no llegó aún.
+         */
+        BigDecimal repairCost,
         Long reportDocumentId
 ) {
 
@@ -43,6 +51,8 @@ public record ExpertAssessmentResponse(
                 assessment.getRepairOutcome(),
                 assessment.getProviderType(),
                 assessment.getVerdictNote(),
+                assessment.getIndemnifiableAmount(),
+                assessment.getRepairCost(),
                 assessment.getReportDocumentId()
         );
     }

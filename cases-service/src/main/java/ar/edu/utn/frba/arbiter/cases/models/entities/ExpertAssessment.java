@@ -23,6 +23,7 @@ import lombok.NoArgsConstructor;
 import lombok.Setter;
 import org.hibernate.annotations.CreationTimestamp;
 
+import java.math.BigDecimal;
 import java.time.Instant;
 
 /**
@@ -102,6 +103,36 @@ public class ExpertAssessment {
 
     @Column(name = "verdict_note", columnDefinition = "TEXT")
     private String verdictNote;
+
+    /**
+     * What the expert determined the claim is worth. Their procedure has them verify "la causa del
+     * siniestro como el monto indemnizable" (NSIN001 §2.6) — Arbiter was recording only the cause.
+     *
+     * <p>Typed by the analyst alongside the verdict: the expert is outside the system and answers
+     * by email, so the number arrives inside a PDF and somebody has to transcribe it.
+     *
+     * <p>Null when the report doesn't put a number on it, which is ordinary: a confirmed fraud or
+     * an uncovered event have nothing to indemnify. A zero there would read as "the expert said
+     * nothing is owed", a different conclusion from having no opinion on the amount.
+     */
+    @Column(name = "indemnifiable_amount")
+    private BigDecimal indemnifiableAmount;
+
+    /**
+     * What the repair shop charges for the job — quoted if they haven't done it yet, invoiced if
+     * they have. One column for both because the settlement asks one question of them: what the
+     * repair costs.
+     *
+     * <p>Its own column, and not {@code indemnifiableAmount}, for the same reason
+     * {@code repairOutcome} is not {@code verdict}: the two numbers answer different questions.
+     * The expert says what the claim is <b>worth</b> — an opinion on the settlement. The shop says
+     * what the repair <b>costs</b> — a price, which is the base the repair formula settles on.
+     *
+     * <p>Required with {@code QUOTE_SENT}, optional with {@code REPAIRED} — the invoice can arrive
+     * after the report — and null with {@code IRREPARABLE}, where there was no work to charge for.
+     */
+    @Column(name = "repair_cost")
+    private BigDecimal repairCost;
 
     @ManyToOne(fetch = FetchType.EAGER, optional = false)
     @JoinColumn(name = "derived_by", nullable = false)

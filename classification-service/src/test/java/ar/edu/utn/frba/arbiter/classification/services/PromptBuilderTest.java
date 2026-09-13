@@ -4,6 +4,7 @@ import ar.edu.utn.frba.arbiter.classification.config.LlmProperties;
 import ar.edu.utn.frba.arbiter.classification.dto.BusinessRules;
 import ar.edu.utn.frba.arbiter.classification.dto.ClassificationRequest;
 import ar.edu.utn.frba.arbiter.classification.dto.DocumentExtraction;
+import ar.edu.utn.frba.arbiter.classification.dto.InsuredHistory;
 import ar.edu.utn.frba.arbiter.classification.dto.InsuredPolicy;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -207,6 +208,57 @@ class PromptBuilderTest {
      * de la transcripción. Si se mezclaran, el modelo leería "la firma está pixelada" como si lo
      * dijera el documento.
      */
+    @Test
+    void renderHistory_translatesArbiterStatusesAndLeavesTheCompanysOwnUntouched() {
+        InsuredHistory history = InsuredHistory.builder()
+                .insuredId("33.845.219")
+                .previousClaimsCount(2)
+                .totalAmountClaimed(new BigDecimal("180000"))
+                .customerSince(LocalDate.of(2024, 3, 1))
+                .claims(List.of(
+                        InsuredHistory.ClaimRecord.builder()
+                                .claimId("7").date(LocalDate.of(2025, 11, 4))
+                                .branch("Celulares").claimCause("Hurto")
+                                .status("LIQUIDADO").amountSettled(new BigDecimal("180000"))
+                                .build(),
+                        InsuredHistory.ClaimRecord.builder()
+                                .claimId("arbiter-41").date(LocalDate.of(2026, 9, 3))
+                                .branch("Celulares").claimCause("Hurto")
+                                .status("PENDING_ANALYST_REVIEW")
+                                .build()))
+                .build();
+
+        String rendered = promptBuilder.renderHistory(history);
+
+        // El expediente de Arbiter llega con el literal del enum, que el modelo no tiene por qué
+        // saber leer; el de la compañía ya viene en su propio vocabulario y pasa intacto.
+        assertThat(rendered).contains("Estado: en revisión del analista");
+        assertThat(rendered).contains("Estado: LIQUIDADO");
+        assertThat(rendered).doesNotContain("PENDING_ANALYST_REVIEW");
+    }
+
+    @Test
+    void renderHistory_neverWordsAnApprovedCaseAsSettled() {
+        InsuredHistory history = InsuredHistory.builder()
+                .insuredId("33.845.219")
+                .previousClaimsCount(1)
+                .totalAmountClaimed(BigDecimal.ZERO)
+                .customerSince(LocalDate.of(2026, 1, 1))
+                .claims(List.of(InsuredHistory.ClaimRecord.builder()
+                        .claimId("arbiter-12").date(LocalDate.of(2026, 8, 1))
+                        .branch("Celulares").claimCause("Robo en vía pública")
+                        .status("APPROVED")
+                        .build()))
+                .build();
+
+        String rendered = promptBuilder.renderHistory(history);
+
+        // Aprobar es la decisión del analista; liquidar lo hace la compañía después y fuera de la
+        // plataforma. Decirle "liquidado" al modelo le inventa un pago que puede no haber ocurrido.
+        assertThat(rendered).contains("aprobado por el analista (pendiente de liquidación)");
+        assertThat(rendered).doesNotContain("LIQUIDADO");
+    }
+
     @Test
     void renderAttachment_keepsVisualFindingsApartFromTheTranscription() {
         String rendered = promptBuilder.renderAttachment(

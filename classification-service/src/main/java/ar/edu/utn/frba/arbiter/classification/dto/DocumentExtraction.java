@@ -37,22 +37,57 @@ public record DocumentExtraction(String transcription, List<String> visualFindin
      * certificate has no IMEI. Null means "the document doesn't say", never "doesn't match" — a
      * missing field must never be read as an inconsistency.
      *
+     * <p><b>Why some data is a column here and the rest is {@link #details}.</b> A field earns a
+     * typed slot when a rule <b>compares</b> it: the comparison needs the type, not the text.
+     * {@code documentDate} is subtracted from the event date, {@code amount} is matched against the
+     * claimed one within a tolerance, {@code affectedParty} is an enum so a rule never depends on
+     * how the model phrased a sentence. Anything the analyst only <b>reads</b> travels in
+     * {@code details} instead, where adding one costs no migration. When a detail starts feeding a
+     * rule, it gets promoted to a field — that is the moment the type starts paying for itself.
+     *
      * @param documentDate    the date on the document (the event's or the issue date)
      * @param amount          el importe total, si el documento tiene uno
-     * @param itemDescription the item the document names ("Samsung Galaxy A56")
+     * @param itemDescription the item the document names, verbatim ("Samsung Galaxy A56")
+     * @param brand           just the make ("Samsung"), crossed against the insured item
+     * @param model           just the model ("Galaxy A56"), crossed against the insured item
      * @param imei            the IMEI on it, normalized to digits
      * @param affectedParty   quién sufrió el hecho según el documento (D9, {@code covers_family_group})
+     * @param details         everything else the document states, as name/value. See {@link Detail}.
      */
     public record Fields(
             LocalDate documentDate,
             BigDecimal amount,
             String itemDescription,
+            String brand,
+            String model,
             String imei,
-            AffectedParty affectedParty
+            AffectedParty affectedParty,
+            List<Detail> details
     ) {
-        public static Fields none() {
-            return new Fields(null, null, null, null, null);
+        public Fields {
+            details = details == null ? List.of() : List.copyOf(details);
         }
+
+        public static Fields none() {
+            return new Fields(null, null, null, null, null, null, null, List.of());
+        }
+    }
+
+    /**
+     * One piece of data the document states, kept as name and value because no rule reads it — the
+     * invoice number, the serial, the store, whatever the next branch turns out to need. It exists
+     * so extending the extraction doesn't mean a migration every time.
+     *
+     * <p><b>It is displayed, never compared.</b> The name is whatever the model called it, so
+     * nothing here is a contract: code that branches on a name found in this list would break the
+     * moment the model words it differently, and would break <b>silently</b> — the rule would just
+     * stop evaluating, which in this engine reads as "nothing wrong". A datum that needs to be
+     * compared belongs in {@link Fields} as a typed column.
+     *
+     * @param name  what the document calls it, as read ("N° de factura")
+     * @param value the value, verbatim, with no normalization or interpretation
+     */
+    public record Detail(String name, String value) {
     }
 
     /**

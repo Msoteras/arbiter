@@ -38,7 +38,7 @@ describe('BandejaComponent · recorte en curso', () => {
             },
             lensSummary: (params: ExpedienteListParams) => {
               lensCalls.push(params);
-              return of({ mine: 0, all: 0, assigned: 0, unassigned: 0, fraud: 0 });
+              return of({ mine: 0, all: 0, assigned: 0, unassigned: 0, fraud: 0, open: 0, closed: 0 });
             },
             claimCauseNames: () => of([]),
             analystWorkload: () => of([]),

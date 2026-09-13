@@ -88,7 +88,7 @@ class ClassificationOrchestratorCauseConsistencyTest {
         when(coverageScopeEvaluator.evaluate(any(), any(), any(), any(), any()))
                 .thenReturn(CoverageScopeEvaluator.Result.none());
         when(fastTrackValidator.evaluate(any(), any(), any(), any(), any()))
-                .thenReturn(new FastTrackValidator.Result(false, List.of("no")));
+                .thenReturn(new FastTrackValidator.Result(false, List.of("no"), List.of()));
         // Broad default, overridden per test: the catalog is built by asking this for EVERY cause of
         // the branch, so stubbing only the interesting id would blow up on the others.
         lenient().when(coverageRuleEvaluator.isExcluded(any(), any())).thenReturn(false);

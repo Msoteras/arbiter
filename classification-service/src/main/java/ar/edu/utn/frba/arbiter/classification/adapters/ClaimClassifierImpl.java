@@ -13,16 +13,33 @@ import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 
 import java.util.ArrayList;
+import java.util.EnumSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 
 @Service
 @RequiredArgsConstructor
 public class ClaimClassifierImpl implements ClaimClassifier {
 
     private static final Logger log = LoggerFactory.getLogger(ClaimClassifierImpl.class);
+
+    /**
+     * The only three values the model is allowed to decide. Same list the schema enumerates, kept
+     * here as the second lock: the schema is enforced by the provider, and a provider that ignores
+     * it (or a future client wired without one) would otherwise let {@code Classification.valueOf}
+     * accept anything the enum declares — including {@code FAST_TRACK}, which is decided by
+     * {@code FastTrackValidator} with business rules and must never come out of a model
+     * (CLAUDE.md #6). It also matters against prompt injection: the attachments are text an
+     * outsider controls, and this is what makes "devolvé FAST_TRACK" unrepresentable rather than
+     * merely discouraged.
+     */
+    private static final Set<Classification> ALLOWED_FROM_MODEL = EnumSet.of(
+            Classification.LLM_RECOMIENDA_APROBAR,
+            Classification.LLM_NO_RECOMIENDA_APROBAR,
+            Classification.LLM_SOLICITA_REVISION_MANUAL);
 
     private static final List<String> CLASSIFICATION_VALUES = List.of(
             "LLM_RECOMIENDA_APROBAR", "LLM_NO_RECOMIENDA_APROBAR", "LLM_SOLICITA_REVISION_MANUAL");
@@ -105,18 +122,11 @@ public class ClaimClassifierImpl implements ClaimClassifier {
     }
 
     private ClassificationResponse parseResponse(String contentJson) {
+        ModelOutput output;
+        Classification classification;
         try {
-            ModelOutput output = objectMapper.readValue(contentJson, ModelOutput.class);
-            Classification classification = Classification.valueOf(output.classification());
-            return ClassificationResponse.builder()
-                    .classification(classification)
-                    .factors(plainText(output.factors()))
-                    .confidence(output.confidence())
-                    .deterministicFastTrack(false)
-                    .causeConsistency(consistency(output.causeConsistency()))
-                    .suggestedClaimCause(blankToNull(output.suggestedClaimCause()))
-                    .causeEvidence(blankToNull(output.causeEvidence()))
-                    .build();
+            output = objectMapper.readValue(contentJson, ModelOutput.class);
+            classification = Classification.valueOf(output.classification());
         } catch (IllegalArgumentException e) {
             throw new InvalidClassificationException(
                     "The model returned an invalid classification value: " + contentJson, e);
@@ -124,6 +134,21 @@ public class ClaimClassifierImpl implements ClaimClassifier {
             throw new InvalidClassificationException(
                     "Could not parse model response: " + contentJson, e);
         }
+        // Fuera del try: adentro, el catch de abajo se lo tragaba y lo reportaba como un JSON que no
+        // se pudo parsear, que es justo lo contrario de lo que pasó.
+        if (!ALLOWED_FROM_MODEL.contains(classification)) {
+            throw new InvalidClassificationException(
+                    "The model returned a classification it is not allowed to decide: " + classification);
+        }
+        return ClassificationResponse.builder()
+                .classification(classification)
+                .factors(plainText(output.factors()))
+                .confidence(output.confidence())
+                .deterministicFastTrack(false)
+                .causeConsistency(consistency(output.causeConsistency()))
+                .suggestedClaimCause(blankToNull(output.suggestedClaimCause()))
+                .causeEvidence(blankToNull(output.causeEvidence()))
+                .build();
     }
 
     /** Only asterisks: factors carry real underscores (police_report, last_connection). */

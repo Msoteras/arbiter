@@ -11,7 +11,7 @@
 --   · se dropean policy.coverage_id y policy.sum_insured
 --
 -- Por qué: la BD Aseguradora —que es el origen— modela `poliza 1──* cobertura` y
--- deja la suma asegurada EN LA COBERTURA (db/datos-aseguradoras.sql). Arbiter tenía
+-- deja la suma asegurada EN LA COBERTURA (aseguradora_*.cobertura). Arbiter tenía
 -- policy.coverage_id NOT NULL, o sea una cobertura por póliza, así que
 -- PolicySynchronizer importaba `coverages.get(0)` y tiraba el resto. En Railway eso
 -- se ve como las 11 pólizas de BBVA con coverage_id = 1: todas apuntando a Robo,

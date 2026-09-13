@@ -16,6 +16,8 @@ import { catchError, combineLatest, map, of, startWith, switchMap } from 'rxjs';
 
 import { ExpedienteService } from '../expediente.service';
 import { DocumentAgendaService } from '../document-agenda.service';
+import { DocumentAnalysis } from '../../../core/models/expediente';
+import { formatDate } from '../../../core/util/datetime';
 import {
   CASE_DOCUMENT_TYPES,
   CaseDocument,
@@ -29,6 +31,13 @@ import {
 import { CardComponent } from '../../../shared/ui/card/card.component';
 import { BadgeComponent } from '../../../shared/ui/badge/badge.component';
 import { InlineLoadingComponent } from '../../../shared/ui/inline-loading/inline-loading.component';
+
+/** Un campo leído del documento; `value` null → "No aplica" (el documento no lo dice). */
+interface ExtractedField {
+  label: string;
+  value: string | null;
+  mono?: boolean;
+}
 
 type ListState =
   | { status: 'loading' }
@@ -86,6 +95,14 @@ export class CaseDocumentsComponent {
   readonly insurerSlug = input<string | null | undefined>(null);
   /** Se bumpea desde el detalle al subir documentación, para refrescar la lista. */
   readonly reloadToken = input(0);
+  /**
+   * Lo que el modelo leyó de cada adjunto (H0031), para mostrarlo junto al documento que lo
+   * origina: el archivo y su lectura son la misma unidad de trabajo, y separarlos obligaba al
+   * analista a saltar de solapa para verificar un dato contra el papel que lo dice.
+   *
+   * <p>Vacío por defecto, que es como lo deja el portal: el asegurado no ve lecturas del modelo.
+   */
+  readonly extractions = input<DocumentAnalysis[]>([]);
   /**
    * Mostrar también los tipos que faltan (checklist completo). El analista necesita el
    * hueco tanto como lo cargado; en el portal se apaga, porque al asegurado ya le avisa
@@ -196,6 +213,23 @@ export class CaseDocumentsComponent {
     return p.status === 'empty' ? null : p.doc.id;
   });
 
+  /** La lectura del documento abierto en el visor, si ese adjunto se analizó. */
+  protected readonly selectedExtraction = computed<DocumentAnalysis | null>(() => {
+    const p = this.preview();
+    if (p.status === 'empty') return null;
+    return this.extractions().find((e) => e.documentType === p.doc.type) ?? null;
+  });
+
+  /**
+   * El expediente tiene lecturas, pero no de este documento. Se dice en vez de dejar el hueco:
+   * pasa cuando el adjunto se subió después de clasificar, y el analista tiene que saber que lo
+   * que está mirando no entró en el análisis.
+   */
+  protected readonly selectedNotAnalyzed = computed(
+    () => this.extractions().length > 0 && this.selectedExtraction() === null
+        && this.preview().status !== 'empty',
+  );
+
   constructor() {
     // Al cargar (o refrescarse) la lista, abre el primer documento disponible: la pestaña
     // arranca mostrando algo en vez de un panel vacío. Si el seleccionado desapareció
@@ -269,6 +303,47 @@ export class CaseDocumentsComponent {
 
   protected fileSize(bytes: number): string {
     return formatFileSize(bytes);
+  }
+
+  /**
+   * Los campos tipados de un documento, ya listos para la grilla. Se arman acá y no en el
+   * template para que el orden sea uno solo y "No aplica" salga de un `null` explícito: un campo
+   * que el documento no trae NO es una discrepancia, y mezclarlos haría que la pantalla acuse al
+   * asegurado por un dato que nadie declaró.
+   */
+  protected extractedFields(doc: DocumentAnalysis): ExtractedField[] {
+    return [
+      // formatDate y no formatDateTime: el backend lo guarda en una columna DATE, sin hora.
+      { label: 'Fecha del documento', value: doc.documentDate ? formatDate(doc.documentDate) : null },
+      { label: 'Importe', value: doc.amount == null ? null : `$${doc.amount.toLocaleString()}` },
+      { label: 'Bien que nombra', value: doc.itemDescription },
+      { label: 'Marca', value: doc.brand },
+      { label: 'Modelo', value: doc.model },
+      { label: 'IMEI', value: doc.imei, mono: true },
+      { label: 'Damnificado', value: this.affectedPartyLabel(doc.affectedParty) },
+      // Los datos sin campo propio van al final de la misma grilla, no en una sección aparte:
+      // para el analista son un dato del documento como cualquier otro, y separarlos por cómo
+      // los guardamos sería exponer una decisión de modelo que no le dice nada.
+      //
+      // No llevan el "No aplica" de los de arriba porque no tienen ausencia posible: existen
+      // solo si el documento los trae. La lista vacía es el caso normal.
+      ...(doc.details ?? []).map((detail) => ({ label: detail.name, value: detail.value })),
+    ];
+  }
+
+  /**
+   * `DESCONOCIDO` no es un dato faltante: es que el documento no dice de quién era el equipo, y
+   * en ese caso la regla de grupo familiar directamente no participa. Por eso se muestra como un
+   * valor propio y no como "Sin datos".
+   */
+  private affectedPartyLabel(affectedParty: string): string {
+    const labels: Record<string, string> = {
+      TITULAR: 'El titular de la póliza',
+      FAMILIAR: 'Un familiar',
+      TERCERO: 'Un tercero',
+      DESCONOCIDO: 'No lo aclara el documento',
+    };
+    return labels[affectedParty] ?? affectedParty;
   }
 
   protected uploadedAt(iso: string): string {

@@ -1,6 +1,8 @@
 package ar.edu.utn.frba.arbiter.cases.models.repositories;
 
 import ar.edu.utn.frba.arbiter.cases.models.entities.Case;
+import ar.edu.utn.frba.arbiter.cases.services.CaseStatusService;
+import ar.edu.utn.frba.arbiter.common.enums.CaseStatus;
 import ar.edu.utn.frba.arbiter.common.enums.RiskBand;
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.PersistenceContext;
@@ -33,12 +35,20 @@ public class CaseLensCountRepositoryImpl implements CaseLensCountRepository {
                 ? cb.literal(0L)
                 : countWhen(cb, cb.equal(analyst.get("id"), me));
 
+        // Mismo criterio que CaseSpecifications.scope: cerrado es un estado terminal, abierto es
+        // cualquier otro. Se cuenta acá en vez de aplicarlo al WHERE porque el WHERE ya trae el
+        // scope de la pestaña activa, y este par tiene que valer lo mismo se esté donde se esté.
+        Predicate closed = root.get("currentStatus").get("name").in(
+                CaseStatusService.TERMINAL_STATUSES.stream().map(CaseStatus::name).toList());
+
         query.multiselect(
                 cb.count(root),
                 mine,
                 countWhen(cb, cb.isNotNull(root.get("analyst"))),
                 countWhen(cb, cb.isNull(root.get("analyst"))),
-                countWhen(cb, root.get("riskBand").in(RiskBand.HIGH, RiskBand.CRITICAL)));
+                countWhen(cb, root.get("riskBand").in(RiskBand.HIGH, RiskBand.CRITICAL)),
+                countWhen(cb, cb.not(closed)),
+                countWhen(cb, closed));
 
         Predicate where = spec == null ? null : spec.toPredicate(root, query, cb);
         if (where != null) {
@@ -47,7 +57,8 @@ public class CaseLensCountRepositoryImpl implements CaseLensCountRepository {
 
         Tuple row = entityManager.createQuery(query).getSingleResult();
         return new LensCounts(
-                value(row, 0), value(row, 1), value(row, 2), value(row, 3), value(row, 4));
+                value(row, 0), value(row, 1), value(row, 2), value(row, 3), value(row, 4),
+                value(row, 5), value(row, 6));
     }
 
     /** {@code sum(case when … then 1 else 0)} y no {@code count(*) filter}, que no es estándar JPA. */

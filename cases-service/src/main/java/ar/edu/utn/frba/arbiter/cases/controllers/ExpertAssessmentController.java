@@ -25,6 +25,8 @@ import org.springframework.web.bind.annotation.RequestPart;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.multipart.MultipartFile;
 
+import java.math.BigDecimal;
+
 /**
  * Derivación a peritaje. Separado de {@code POST /cases/{id}/decision} a propósito: derivar no
  * es un veredicto, es suspender el expediente para conseguir evidencia. El endpoint de decisión
@@ -129,9 +131,11 @@ public class ExpertAssessmentController {
             @PathVariable Long caseId,
             @RequestParam ExpertVerdict verdict,
             @RequestParam(required = false) String note,
+            @RequestParam(required = false) BigDecimal indemnifiableAmount,
             @RequestPart("report") MultipartFile report
     ) {
-        return ResponseEntity.ok(expertAssessmentService.receiveReport(caseId, verdict, note, report));
+        return ResponseEntity.ok(expertAssessmentService.receiveReport(
+                caseId, verdict, note, indemnifiableAmount, report));
     }
 
     @PostMapping(value = "/repair-report", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
@@ -141,14 +145,19 @@ public class ExpertAssessmentController {
                     Devuelve el expediente a la cola del analista, que sigue siendo quien decide.
                     No deja antecedente de fraude: una reparación no investiga la causa, así que su
                     resultado va en su propio campo y no en el veredicto pericial.
+
+                    `repairCost` es lo que el taller cobra por el trabajo: obligatorio cuando el
+                    resultado es `QUOTE_SENT`, opcional con `REPAIRED` —la factura puede llegar
+                    después— y rechazado con `IRREPARABLE`, que no tuvo arreglo que cobrar.
                     """)
     public ResponseEntity<ExpertAssessmentResponse> receiveRepairReport(
             @PathVariable Long caseId,
             @RequestParam RepairOutcome outcome,
             @RequestParam(required = false) String note,
+            @RequestParam(required = false) BigDecimal repairCost,
             @RequestPart("report") MultipartFile report
     ) {
-        return ResponseEntity.ok(
-                expertAssessmentService.receiveRepairReport(caseId, outcome, note, report));
+        return ResponseEntity.ok(expertAssessmentService.receiveRepairReport(
+                caseId, outcome, note, repairCost, report));
     }
 }

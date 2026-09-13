@@ -19,8 +19,12 @@ import java.util.List;
  *
  * @param documentType   the schedule slot the attachment fills ({@code police_report}, …)
  * @param transcription  what the document says, in plain text
+ * @param brand          the make, split out of {@code itemDescription} and crossed against the policy
+ * @param model          the model, same
  * @param visualFindings signs of tampering noticed in the image. <b>Empty is normal</b>, and empty
  *                       is not evidence that the document is authentic
+ * @param details        everything else the document states that no rule reads — invoice number,
+ *                       serial, store. Name/value, for display only. <b>Empty is normal</b>
  */
 public record DocumentAnalysisSummary(
         String documentType,
@@ -28,8 +32,18 @@ public record DocumentAnalysisSummary(
         LocalDate documentDate,
         BigDecimal amount,
         String itemDescription,
+        String brand,
+        String model,
         String imei,
         String affectedParty,
-        List<String> visualFindings
+        List<String> visualFindings,
+        List<Detail> details
 ) {
+
+    /**
+     * One name/value the document stated. The name is the model's wording, not an identifier —
+     * the tab renders it as a label and nothing branches on it.
+     */
+    public record Detail(String name, String value) {
+    }
 }

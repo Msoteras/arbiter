@@ -39,7 +39,7 @@ class DocumentAnalyzerImplTest {
         analyzer = new DocumentAnalyzerImpl(
                 client,
                 new ObjectMapper(),
-                new ClassPathResource("prompts/extraccion-documento-v3.md"));
+                new ClassPathResource("prompts/extraccion-documento-v5.md"));
     }
 
     private void modelAnswers(String content) {
@@ -105,5 +105,59 @@ class DocumentAnalyzerImplTest {
 
         assertThat(analyzer.extract(SOME_IMAGE, "image/jpeg").transcription())
                 .contains("No se pudo extraer contenido");
+    }
+
+    // ─── details: lo que el documento dice y ninguna regla lee ────────────────────
+
+    @Test
+    void readsTheNameValueDetails() {
+        modelAnswers("""
+                {"transcription": "Factura B 0001-00034521",
+                 "visualFindings": [],
+                 "fields": {"brand": "Samsung", "model": "Galaxy A56",
+                            "details": [{"name": "N° de factura", "value": "0001-00034521"},
+                                        {"name": "Comercio", "value": "Frávega S.A."}]}}
+                """);
+
+        DocumentExtraction extraction = analyzer.extract(SOME_IMAGE, "image/png");
+
+        assertThat(extraction.fields().brand()).isEqualTo("Samsung");
+        assertThat(extraction.fields().model()).isEqualTo("Galaxy A56");
+        assertThat(extraction.fields().details())
+                .extracting(DocumentExtraction.Detail::name)
+                .containsExactly("N° de factura", "Comercio");
+    }
+
+    /**
+     * Both columns are NOT NULL, so a half-written detail would cost the whole document's
+     * extraction rather than that one row — and an empty label tells the analyst nothing anyway.
+     */
+    @Test
+    void dropsDetailsMissingANameOrAValue() {
+        modelAnswers("""
+                {"transcription": "...",
+                 "visualFindings": [],
+                 "fields": {"details": [{"name": "N° de serie", "value": "  "},
+                                        {"name": "", "value": "algo"},
+                                        {"name": "Comercio", "value": "Frávega S.A."}]}}
+                """);
+
+        DocumentExtraction extraction = analyzer.extract(SOME_IMAGE, "image/png");
+
+        assertThat(extraction.fields().details())
+                .extracting(DocumentExtraction.Detail::name)
+                .containsExactly("Comercio");
+    }
+
+    /** No details at all is the ordinary case — a photo of the broken device states none. */
+    @Test
+    void aDocumentWithoutDetails_yieldsAnEmptyListNotNull() {
+        modelAnswers("""
+                {"transcription": "Foto del equipo", "visualFindings": [], "fields": {}}
+                """);
+
+        DocumentExtraction extraction = analyzer.extract(SOME_IMAGE, "image/png");
+
+        assertThat(extraction.fields().details()).isEmpty();
     }
 }

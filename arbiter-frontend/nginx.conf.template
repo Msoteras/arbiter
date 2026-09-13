@@ -83,6 +83,12 @@ server {
         include /etc/nginx/arbiter-proxy-headers.conf;
     }
 
+    location /api/v1/settlement-authorities {
+        set $upstream ${CASES_SERVICE_URL};
+        proxy_pass $upstream$request_uri;
+        include /etc/nginx/arbiter-proxy-headers.conf;
+    }
+
     location /api/v1/policies {
         set $upstream ${CASES_SERVICE_URL};
         proxy_pass $upstream$request_uri;

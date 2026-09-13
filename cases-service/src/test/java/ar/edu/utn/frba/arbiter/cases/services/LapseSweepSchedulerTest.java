@@ -19,6 +19,7 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.ZoneOffset;
 import java.util.List;
+import java.util.Optional;
 
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
@@ -62,7 +63,7 @@ class LapseSweepSchedulerTest {
 
         verify(caseRepository).findStaleByStatus(
                 eq(CaseStatus.AWAITING_DOCUMENTATION.name()), eq(EXPECTED_THRESHOLD));
-        verify(caseStatusService, never()).transition(any(), any(), any(), any());
+        verify(caseStatusService, never()).transitionIfStillIn(any(), any(), any(), any(), any());
     }
 
     @Test
@@ -70,11 +71,34 @@ class LapseSweepSchedulerTest {
         Case stale1 = staleCase(1L);
         Case stale2 = staleCase(2L);
         when(caseRepository.findStaleByStatus(any(), any())).thenReturn(List.of(stale1, stale2));
+        winsTheTurn();
 
         scheduler.sweepLapsedCases();
 
-        verify(caseStatusService).transition(eq(stale1), eq(CaseStatus.LAPSED), eq(StatusChangeActor.SYSTEM), any());
-        verify(caseStatusService).transition(eq(stale2), eq(CaseStatus.LAPSED), eq(StatusChangeActor.SYSTEM), any());
+        verify(caseStatusService).transitionIfStillIn(eq(stale1), eq(CaseStatus.AWAITING_DOCUMENTATION),
+                eq(CaseStatus.LAPSED), eq(StatusChangeActor.SYSTEM), any());
+        verify(caseStatusService).transitionIfStillIn(eq(stale2), eq(CaseStatus.AWAITING_DOCUMENTATION),
+                eq(CaseStatus.LAPSED), eq(StatusChangeActor.SYSTEM), any());
+    }
+
+    /**
+     * El barrido que llega segundo. No reintenta ni rompe la vuelta: el expediente ya está donde
+     * quería dejarlo, y el turno lo decide el compare-and-set adentro de transitionIfStillIn.
+     */
+    @Test
+    void aCaseAlreadyLapsedByAnotherSweep_doesNotStopTheRest() {
+        Case lostTheTurn = staleCase(1L);
+        Case wonTheTurn = staleCase(2L);
+        when(caseRepository.findStaleByStatus(any(), any()))
+                .thenReturn(List.of(lostTheTurn, wonTheTurn));
+        when(caseStatusService.transitionIfStillIn(any(), any(), any(), any(), any()))
+                .thenReturn(Optional.empty())
+                .thenReturn(Optional.of(wonTheTurn));
+
+        scheduler.sweepLapsedCases();
+
+        verify(caseStatusService).transitionIfStillIn(eq(wonTheTurn), eq(CaseStatus.AWAITING_DOCUMENTATION),
+                eq(CaseStatus.LAPSED), eq(StatusChangeActor.SYSTEM), any());
     }
 
     /** El motivo queda en el historial: no puede ser un texto vacío ni genérico. */
@@ -82,10 +106,12 @@ class LapseSweepSchedulerTest {
     void theReasonNamesTheRuleAndTheWindow() {
         Case stale = staleCase(1L);
         when(caseRepository.findStaleByStatus(any(), any())).thenReturn(List.of(stale));
+        winsTheTurn();
 
         scheduler.sweepLapsedCases();
 
-        verify(caseStatusService).transition(eq(stale), eq(CaseStatus.LAPSED), eq(StatusChangeActor.SYSTEM),
+        verify(caseStatusService).transitionIfStillIn(eq(stale), eq(CaseStatus.AWAITING_DOCUMENTATION),
+                eq(CaseStatus.LAPSED), eq(StatusChangeActor.SYSTEM),
                 eq("Caducidad por 18 meses de inacción del asegurado desde la denuncia (regla interna)"));
     }
 
@@ -97,10 +123,12 @@ class LapseSweepSchedulerTest {
         when(caseRepository.findStaleByStatus(any(), any()))
                 .thenThrow(new RuntimeException("schema down"))
                 .thenReturn(List.of(stale));
+        winsTheTurn();
 
         scheduler.sweepLapsedCases();
 
-        verify(caseStatusService).transition(eq(stale), eq(CaseStatus.LAPSED), eq(StatusChangeActor.SYSTEM), any());
+        verify(caseStatusService).transitionIfStillIn(eq(stale), eq(CaseStatus.AWAITING_DOCUMENTATION),
+                eq(CaseStatus.LAPSED), eq(StatusChangeActor.SYSTEM), any());
     }
 
     @Test
@@ -111,6 +139,12 @@ class LapseSweepSchedulerTest {
 
         verify(caseRepository, never()).findStaleByStatus(any(), any());
         verifyNoInteractions(caseStatusService);
+    }
+
+    /** El caso normal: nadie más está barriendo, este se queda con todos los turnos. */
+    private void winsTheTurn() {
+        when(caseStatusService.transitionIfStillIn(any(), any(), any(), any(), any()))
+                .thenAnswer(invocation -> Optional.of(invocation.getArgument(0)));
     }
 
     private Case staleCase(Long id) {

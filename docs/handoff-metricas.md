@@ -15,8 +15,9 @@ el backend de métricas, el tablero y la historia H0037. **884 tests del backend
 **`feature/determinacion-pagos`** — pusheada con develop mergeado adentro. **892 y 113.**
 El merge tuvo cinco conflictos; los cinco resueltos (ver "Lo que decidió el procedimiento").
 
-**H0028** (`docs/historias-enhancements.md`) es la historia que se implementó. **Tacharla como hecha
-cuando el PR entre a develop**, igual que las otras.
+**H0028** es la historia que se implementó: **cerrar su card en Trello cuando el PR entre a develop**.
+El backlog de historias ya no vive en el repo — develop borró `docs/historias-enhancements.md` porque
+las cards estaban duplicadas en Trello.
 
 ---
 
@@ -78,8 +79,10 @@ los dos lados (`ExpertAssessmentService.finishRound` y el componente de detalle)
    anterior.
 7. **Plazo de pago**: 15 días desde que se acepta el siniestro. Segundo plazo legal que hoy no se
    mide en absoluto. Necesita lo mismo.
-8. **H0037 — tablero propio del analista.** Escrita en `docs/historias-enhancements.md`. El acceso
-   ya existe (la ruta y el endpoint lo habilitan); lo que falta es el recorte a sus expedientes.
+8. **H0037 — tablero propio del analista.** **Falta cargarla como card en Trello**: se escribió en
+   `docs/historias-enhancements.md` justo antes de que develop borrara ese archivo, así que el texto
+   completo quedó sólo en el commit `f1bd3483` (`git show f1bd3483`). El acceso ya existe (la ruta y
+   el endpoint lo habilitan); lo que falta es el recorte a sus expedientes.
 
 **Descartado, no pospuesto:** la línea de backlog ("abiertos al cierre" por semana). Es la consulta
 más cara de todas y con una docena de casos al mes sería una línea plana; el embudo ya responde lo
