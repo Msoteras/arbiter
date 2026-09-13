@@ -1,6 +1,6 @@
 # Handoff — tablero de métricas del referente
 
-**Fecha:** 12/09/2026 · **Ramas:** `feature/metricas-referente` (nueva) y `feature/determinacion-pagos` (actualizada)
+**Fecha:** 12/09/2026 · **Actualizado:** 13/09/2026, al mergear develop · **Rama:** `feature/metricas-referente`
 
 Este archivo es lo que **falta**, no lo que se hizo. Se borra cuando se vacíe.
 
@@ -8,12 +8,15 @@ Este archivo es lo que **falta**, no lo que se hizo. Se borra cuando se vacíe.
 
 ## Dónde quedó
 
-**`feature/metricas-referente`** — pusheada, al día con develop, **PR sin abrir**.
-Siete commits: el enum compartido, el filtro de la bandeja, el objetivo configurable, el esquema,
-el backend de métricas, el tablero y la historia H0037. **884 tests del backend, 116 del frontend.**
+**`feature/metricas-referente`** — **PR sin abrir**, y ése es el próximo paso.
+Ocho commits propios: el enum compartido, el filtro de la bandeja, el objetivo configurable, el
+esquema, el backend de métricas, el tablero, la historia H0037 y este handoff.
 
-**`feature/determinacion-pagos`** — pusheada con develop mergeado adentro. **892 y 113.**
-El merge tuvo cinco conflictos; los cinco resueltos (ver "Lo que decidió el procedimiento").
+**Develop mergeado el 13/09** con la liquidación (PR #84) y las pruebas y fixes de septiembre (#85)
+adentro. Seis conflictos, resueltos en el commit del merge. **892 tests del backend y 120 del
+frontend en verde después del merge.**
+
+`feature/determinacion-pagos` ya entró a develop, así que deja de ser una rama a seguir.
 
 **H0028** es la historia que se implementó: **cerrar su card en Trello cuando el PR entre a develop**.
 El backlog de historias ya no vive en el repo — develop borró `docs/historias-enhancements.md` porque
@@ -47,39 +50,38 @@ alteraría el significado de "3 de 7 lo superaron" después de que ya se vio fun
 
 El tablero ya calcula las dos mitades, así que es cambiar cuál de las dos entra en la comparación.
 
-### 2 · El servicio técnico no puede cargar su presupuesto
+### 2 · ~~El servicio técnico no puede cargar su presupuesto~~ — resuelta en develop
 
-El procedimiento trata las tres valuaciones por igual —preinforme del perito, informe técnico,
-presupuesto— pero **el endpoint del servicio técnico no pide monto**, así que hoy sólo el perito
-puede cargarlo. Es un endpoint, un campo en el formulario y su test; está anotado en el código en
-los dos lados (`ExpertAssessmentService.finishRound` y el componente de detalle).
+Era la única decisión que hacía que el sistema no siguiera el procedimiento al pie de la letra, y la
+cerró develop antes que nosotros: `ExpertAssessmentService.receiveRepairReport` ya recibe el
+`repairCost` del taller —presupuestado o facturado— y llega a la liquidación como el monto
+acreditado de la fórmula de reparación. Queda anotado acá sólo para que no se vuelva a abrir.
 
 ---
 
 ## Lo que falta, por lo que rinde
 
-1. **El presupuesto del servicio técnico** (la decisión 2 de arriba). Es lo único que hoy hace que
-   el sistema no siga el procedimiento al pie de la letra.
-2. **Fast Track: cuánto agiliza de verdad.** La maqueta pedía "54 h ahorradas", que es un número
+1. **Fast Track: cuánto agiliza de verdad.** La maqueta pedía "54 h ahorradas", que es un número
    modelado (diferencia de dos promedios × 3 casos) y con esa cantidad de casos es ruido. La versión
    honesta es la comparación cruda: **"Fast Track: 2 d · Resto: 35 d"**, dos números medidos, uno al
    lado del otro. Backend: separar el promedio de resueltos por la marca de Fast Track.
-3. **Cumplimiento del plazo legal (art. 56).** Más importante que el objetivo interno: uno es una
+2. **Cumplimiento del plazo legal (art. 56).** Más importante que el objetivo interno: uno es una
    meta que la compañía se pone, el otro es la ley. Cada expediente ya trae su fecha límite.
    **Verificar primero** que nuestro reinicio sea el del procedimiento: cuando la documentación se
    completa, *"comenzará a regir nuevamente el tiempo legal de 30 días"* — vuelven a correr 30 desde
    cero, no se reanuda lo que quedaba.
-4. **Tasa de reapertura.** El procedimiento tiene el estado REHABILITADO y nosotros ya contemplamos
+3. **Tasa de reapertura.** El procedimiento tiene el estado REHABILITADO y nosotros ya contemplamos
    la reapertura al fechar la resolución. Es una métrica de *calidad de la decisión*: si se reabren
    muchos, se está decidiendo rápido y mal. Se lee junto con la coincidencia con el modelo.
-5. **Monto aprobado** — bloqueado hasta que `feature/determinacion-pagos` entre a develop.
-   `case_settlement.settled_amount` existe sólo en esa rama.
-6. **Siniestros Pendientes de Liquidación (reserva expuesta).** El procedimiento la nombra como
-   control del Jefe de Siniestros, trimestral. Es la plata que sigue sobre la mesa. Necesita lo
-   anterior.
-7. **Plazo de pago**: 15 días desde que se acepta el siniestro. Segundo plazo legal que hoy no se
+4. **Monto aprobado** — **destrabado**: `case_settlement.settled_amount` entró a develop con el PR
+   #84 y ya está en esta rama. Es el pendiente más maduro de la lista, y del que cuelgan los dos
+   siguientes.
+5. **Siniestros Pendientes de Liquidación (reserva expuesta).** El procedimiento la nombra como
+   control del Jefe de Siniestros, trimestral. Es la plata que sigue sobre la mesa. Necesita el
+   punto 4.
+6. **Plazo de pago**: 15 días desde que se acepta el siniestro. Segundo plazo legal que hoy no se
    mide en absoluto. Necesita lo mismo.
-8. **H0037 — tablero propio del analista.** **Falta cargarla como card en Trello**: se escribió en
+7. **H0037 — tablero propio del analista.** **Falta cargarla como card en Trello**: se escribió en
    `docs/historias-enhancements.md` justo antes de que develop borrara ese archivo, así que el texto
    completo quedó sólo en el commit `f1bd3483` (`git show f1bd3483`). El acceso ya existe (la ruta y
    el endpoint lo habilitan); lo que falta es el recorte a sus expedientes.
