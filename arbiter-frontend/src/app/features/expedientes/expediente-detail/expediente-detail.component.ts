@@ -1105,7 +1105,11 @@ export class ExpedienteDetailComponent {
     if (options.firms.length === 0) {
       return 'No hay peritos cargados para este ramo.';
     }
-    return `El monto reclamado no alcanza el mínimo para derivar (${this.formatMonto(options.minClaimedAmount)}).`;
+    // Nombra el peritaje como las otras dos variantes. Desde que existe el botón de servicio
+    // técnico justo debajo, un mensaje que dice "no se puede derivar" a secas se lee como si
+    // tampoco se pudiera mandar al taller — y al taller no lo frena el monto reclamado.
+    return `El monto reclamado no alcanza el mínimo para derivar a peritaje `
+        + `(${this.formatMonto(options.minClaimedAmount)}).`;
   });
 
   protected readonly tipoDerivacion = signal<ProviderType>('ESTUDIO_LIQUIDADOR');
