@@ -53,7 +53,7 @@
                 </p>
                 @if (fastTrackCriteria().length > 0) {
                   <p class="note">
-                    Qué se verificó, en «Análisis» → Criterios del carril rápido.
+                    Qué se verificó, en «Análisis» → Criterios de Fast Track.
                   </p>
                 }
               }
@@ -534,7 +534,7 @@
                siniestro no esté cubierto, dice que no fue por el carril rápido. Mezclarlos hacía
                leer una exclusión donde solo hubo un umbral de agilidad. -->
           @if (fastTrackCriteria().length > 0) {
-            <app-card heading="Criterios del carril rápido (Fast Track)" [collapsible]="true">
+            <app-card heading="Criterios de Fast Track" [collapsible]="true">
               <p class="t-note traza-intro">
                 @if (esFastTrack()) {
                   Los cumplió todos, así que se resolvió sin pasar por el modelo. No es una
@@ -699,6 +699,7 @@
           [caseId]="d.id"
           [reloadToken]="docsReloadToken()"
           [branch]="d.branch"
+          [claimCause]="d.claimCause"
           [extractions]="documentAnalyses()" />
       }
       @case ('imagenes') { <app-forensic-analysis [caseId]="d.id" [report]="d.forensicReport" /> }

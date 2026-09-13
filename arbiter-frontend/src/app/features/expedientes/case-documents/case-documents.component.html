@@ -116,18 +116,20 @@
            como discrepancia: que un documento no diga algo no es que no coincida. -->
       @if (selectedExtraction(); as extraction) {
         <app-card class="docs-extraction" heading="Lo que el modelo leyó" [collapsible]="true">
-          <dl class="fields">
-            @for (f of extractedFields(extraction); track f.label) {
-              <div class="field">
-                <dt class="t-field-label">{{ f.label }}</dt>
-                @if (f.value) {
-                  <dd [class.mono]="f.mono">{{ f.value }}</dd>
-                } @else {
-                  <dd class="nodata">No aplica</dd>
-                }
-              </div>
-            }
-          </dl>
+          @if (!selectedIsImage()) {
+            <dl class="fields">
+              @for (f of extractedFields(extraction); track f.label) {
+                <div class="field">
+                  <dt class="t-field-label">{{ f.label }}</dt>
+                  @if (f.value) {
+                    <dd [class.mono]="f.mono">{{ f.value }}</dd>
+                  } @else {
+                    <dd class="nodata">No aplica</dd>
+                  }
+                </div>
+              }
+            </dl>
+          }
 
           <!-- Observación sobre la IMAGEN, no contenido del documento: se separa a propósito
                para que no se lea como si el papel lo dijera. Nunca es concluyente. -->
