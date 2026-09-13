@@ -6,7 +6,9 @@ import ar.edu.utn.frba.arbiter.cases.dto.AnalystDecisionRequest;
 import ar.edu.utn.frba.arbiter.cases.models.entities.CaseDocument;
 import ar.edu.utn.frba.arbiter.cases.models.entities.Case;
 import ar.edu.utn.frba.arbiter.cases.models.entities.StatusChangeActor;
+import ar.edu.utn.frba.arbiter.cases.models.entities.CaseStatusHistory;
 import ar.edu.utn.frba.arbiter.cases.models.repositories.CaseRepository;
+import ar.edu.utn.frba.arbiter.cases.models.repositories.CaseStatusHistoryRepository;
 import ar.edu.utn.frba.arbiter.common.dto.ClaimReport;
 import ar.edu.utn.frba.arbiter.common.dto.ClaimResponse;
 import ar.edu.utn.frba.arbiter.common.dto.FraudRecordRequest;
@@ -32,6 +34,7 @@ import org.springframework.web.client.RestClientException;
 import org.springframework.web.client.RestClientResponseException;
 
 import javax.crypto.SecretKey;
+import java.time.Instant;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.util.List;
@@ -47,6 +50,7 @@ public class ClassificationServiceClient implements ClaimsAnalysisClient {
     private final RestClient restClient;
     private final CaseStatusService caseStatusService;
     private final CaseRepository caseRepository;
+    private final CaseStatusHistoryRepository caseStatusHistoryRepository;
     private final HttpServletRequest currentRequest;
     private final SecretKey jwtKey;
 
@@ -54,6 +58,7 @@ public class ClassificationServiceClient implements ClaimsAnalysisClient {
             RestClient.Builder restClientBuilder,
             CaseStatusService caseStatusService,
             CaseRepository caseRepository,
+            CaseStatusHistoryRepository caseStatusHistoryRepository,
             @Value("${arbiter.classification-service.url:http://classification-service:8082}") String classificationServiceUrl,
             HttpServletRequest currentRequest,
             @Value("${arbiter.auth.jwt.secret}") String jwtSecret
@@ -61,6 +66,7 @@ public class ClassificationServiceClient implements ClaimsAnalysisClient {
         this.restClient = restClientBuilder.baseUrl(classificationServiceUrl).build();
         this.caseStatusService = caseStatusService;
         this.caseRepository = caseRepository;
+        this.caseStatusHistoryRepository = caseStatusHistoryRepository;
         this.currentRequest = currentRequest;
         this.jwtKey = JwtSupport.key(jwtSecret);
     }
@@ -245,6 +251,21 @@ public class ClassificationServiceClient implements ClaimsAnalysisClient {
                     .retrieve()
                     .body(ClaimResponse.class);
 
+            if (response != null && response.classification() != null && isStale(caseRecord, response)) {
+                // Reclassifying a case that already has an OLDER llm_analysis row (uploaded the
+                // missing documentation, retried after CLASSIFICATION_FAILED, ...) means the poll
+                // can land while the new run is still going: classification-service has nothing
+                // fresher to answer with yet, so it hands back last round's result instead of
+                // "pending". Acting on it would apply a verdict for a claim state that no longer
+                // holds — the exact bug that sent case 23 back to AWAITING_DOCUMENTATION with the
+                // photo already attached. Treat it the same as "not ready" and let the next tick
+                // ask again, once classification-service's own run has actually finished.
+                log.debug("Case {} classification poll returned a result from before this round "
+                                + "(analyzed {}); still waiting for a fresh one", caseRecord.getId(),
+                        response.analyzedAt());
+                return false;
+            }
+
             if (response != null && response.classification() != null) {
                 // El estado se mueve ANTES de cachear nada, y con un compare-and-set contra la
                 // base: la guarda de arriba mira la copia del barrido, que es de varios segundos
@@ -285,6 +306,31 @@ public class ClassificationServiceClient implements ClaimsAnalysisClient {
         }
 
         return false;
+    }
+
+    /**
+     * Whether {@code response} predates this case's current run of {@code PENDING_CLASSIFICATION}.
+     * {@code llm_analysis} is append-only (audit trail, Disposición SSN 2/2023), so a case that was
+     * classified before — got sent back for documentation, or retried after failing — still has its
+     * PREVIOUS row sitting there while a new run is in flight. {@code getStatus} on
+     * classification-service's side answers with "the latest row it has", which is correct once the
+     * new run finishes but wrong while it's still going: it hands back an answer from before this
+     * round even started.
+     *
+     * <p>{@code analyzedAt} null means Fast Track (or nothing at all): Fast Track's flag is
+     * rewritten on every run (see {@code ClassificationResultsService.getStatus}), so it can never
+     * be stale here — only the append-only path needs this check.
+     */
+    private boolean isStale(Case caseRecord, ClaimResponse response) {
+        if (response.analyzedAt() == null) {
+            return false;
+        }
+        Instant enteredPendingAt = caseStatusHistoryRepository
+                .findFirstByCaseIdAndFinalStatus_IdOrderByChangedAtDesc(
+                        caseRecord.getId(), caseRecord.getCurrentStatus().getId())
+                .map(CaseStatusHistory::getChangedAt)
+                .orElse(caseRecord.getUpdatedAt());
+        return response.analyzedAt().isBefore(enteredPendingAt);
     }
 
     /**

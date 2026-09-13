@@ -488,9 +488,16 @@ public class CaseServiceImpl implements CaseService {
         List<StatusTransitionResponse> history = caseStatusService.history(caseId).stream()
                 .map(StatusTransitionResponse::from)
                 .toList();
+        // Same lookup as case creation: tenantScope already switched to the case's schema, so
+        // TenantContext.get() here resolves the right insurer regardless of who's asking. Without
+        // it, the insured's tracking screen for a single case had no way to say whose it is —
+        // "mis siniestros" showed it in the list, but it went blank the moment you opened one.
+        Insurer issuer = insurerRepository.findBySchemaName(TenantContext.get()).orElse(null);
         // Sin el estado de la liquidación: el detalle se la trae entera por su propio endpoint, y
         // tenerlo por dos vías invita a que se contradigan. Ver el javadoc del campo.
-        return toResponse(entity, history, caseAnalysisRepository.findByCaseId(caseId), null, null,
+        return toResponse(entity, history, caseAnalysisRepository.findByCaseId(caseId),
+                issuer == null ? null : InsurerSlug.of(issuer),
+                issuer == null ? null : issuer.getName(),
                 caseDocumentAnalysisRepository.findByCaseId(caseId), traceabilityOf(entity),
                 repairProviderOf(entity), null);
     }

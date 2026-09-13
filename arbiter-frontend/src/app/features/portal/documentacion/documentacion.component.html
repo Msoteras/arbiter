@@ -10,12 +10,8 @@
       @if (needsDocs()) {
         Necesitamos algunos documentos para avanzar con tu siniestro
         <span class="mono">#{{ d.id }}</span>.
-      } @else if (isResolved()) {
-        Esto es lo que enviaste para tu siniestro <span class="mono">#{{ d.id }}</span>. Ya está
-        cerrado, así que no hace falta que subas nada más.
       } @else {
-        Esto es lo que enviaste para tu siniestro <span class="mono">#{{ d.id }}</span>. Si tenés
-        algo más para sumar, podés hacerlo desde acá.
+        Esto es lo que enviaste para tu siniestro <span class="mono">#{{ d.id }}</span>.
       }
     </p>
     @if (needsDocs()) {
@@ -26,17 +22,11 @@
   }
 </header>
 
-@if (data(); as d) {
-  <app-case-documents
-    class="docs-section"
-    [caseId]="d.id"
-    [insurerSlug]="d.insurerSlug"
-    heading="Documentación que enviaste"
-    [showMissing]="false" />
-}
-
-@if (!isResolved()) {
-  <app-card [heading]="needsDocs() ? 'Documentos requeridos' : 'Sumar documentación'">
+@if (needsDocs()) {
+  <!-- Lo accionable va primero: es la única razón por la que el asegurado llegó a esta pantalla,
+       y antes quedaba después de la lista de lo ya enviado — había que scrollear pasando algo
+       que no pedía ninguna acción para llegar a lo que sí. -->
+  <app-card heading="Documentos requeridos">
     <app-doc-upload
       [caseId]="caseId"
       [insurerSlug]="insurerSlug"
@@ -50,4 +40,13 @@
     <span aria-hidden="true">ℹ</span>
     Los documentos se envían automáticamente al analista ni bien terminan de cargarse.
   </p>
+}
+
+@if (data(); as d) {
+  <app-case-documents
+    class="docs-section"
+    [caseId]="d.id"
+    [insurerSlug]="d.insurerSlug"
+    heading="Documentación que enviaste"
+    [showMissing]="false" />
 }
