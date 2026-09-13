@@ -1,9 +1,11 @@
 package ar.edu.utn.frba.arbiter.cases.services;
 
+import ar.edu.utn.frba.arbiter.cases.dto.RepairOutcome;
 import ar.edu.utn.frba.arbiter.cases.dto.DocumentAnalysisSummary;
 import ar.edu.utn.frba.arbiter.cases.dto.ProviderType;
 import ar.edu.utn.frba.arbiter.cases.dto.SettlementDecisionRequest;
 import ar.edu.utn.frba.arbiter.cases.dto.SettlementResponse;
+import ar.edu.utn.frba.arbiter.cases.dto.SettlementSuggestionTarget;
 import ar.edu.utn.frba.arbiter.cases.exceptions.InvalidSettlementException;
 import ar.edu.utn.frba.arbiter.cases.exceptions.SettlementNotFoundException;
 import ar.edu.utn.frba.arbiter.cases.models.entities.Case;
@@ -290,6 +292,7 @@ class SettlementServiceTest {
 
         assertThat(response.suggestedAmount()).isEqualByComparingTo("620000.00");
         assertThat(response.suggestedFrom()).isEqualTo("purchase_proof");
+        assertThat(response.suggestedFor()).isEqualTo(SettlementSuggestionTarget.ACCREDITED_AMOUNT);
     }
 
     /**
@@ -345,14 +348,114 @@ class SettlementServiceTest {
         claim.setCoverage(repairCoverage());
         when(documentAnalysisRepository.findByCaseId(1L)).thenReturn(List.of(
                 document("repair_quote", new BigDecimal("95000.00"))));
-        when(expertAssessmentRepository.findByCaseIdAndProviderType(1L, ProviderType.ESTUDIO_LIQUIDADOR))
-                .thenReturn(Optional.of(ExpertAssessment.builder().caseId(1L)
+        when(expertAssessmentRepository.findByCaseIdOrderByDerivedAtDesc(1L)).thenReturn(List.of(
+                ExpertAssessment.builder().caseId(1L).reportReceivedAt(Instant.now())
                         .indemnifiableAmount(new BigDecimal("120000.00")).build()));
 
         SettlementResponse response = settlementService.forCase(1L, null);
 
         assertThat(response.suggestedAmount()).isEqualByComparingTo("120000.00");
         assertThat(response.suggestedFrom()).isEqualTo("expert_report");
+        assertThat(response.suggestedFor()).isEqualTo(SettlementSuggestionTarget.ACCREDITED_AMOUNT);
+    }
+
+    /**
+     * El presupuesto del taller también le gana al papel que trajo el asegurado, y por la misma
+     * razón: lo firmó alguien que tuvo el equipo en la mano. Vive en su propia columna —el taller
+     * dice cuánto SALE el arreglo, no cuánto vale el siniestro— y en una reparación eso es
+     * exactamente la base del cálculo.
+     */
+    @Test
+    void theRepairShopQuoteIsSuggestedAsTheAccreditedAmount() {
+        claim.setCoverage(repairCoverage());
+        when(documentAnalysisRepository.findByCaseId(1L)).thenReturn(List.of(
+                document("repair_quote", new BigDecimal("95000.00"))));
+        when(expertAssessmentRepository.findByCaseIdOrderByDerivedAtDesc(1L)).thenReturn(List.of(
+                ExpertAssessment.builder().caseId(1L).providerType(ProviderType.SERVICIO_TECNICO)
+                        .reportReceivedAt(Instant.now())
+                        .repairCost(new BigDecimal("180000.00")).build()));
+
+        SettlementResponse response = settlementService.forCase(1L, null);
+
+        assertThat(response.suggestedAmount()).isEqualByComparingTo("180000.00");
+        assertThat(response.suggestedFrom()).isEqualTo("repair_report");
+        assertThat(response.suggestedFor()).isEqualTo(SettlementSuggestionTarget.ACCREDITED_AMOUNT);
+    }
+
+    /**
+     * Dos valuaciones sobre el mismo expediente: manda la última recibida, que es como la compañía
+     * trata las que van llegando (NSIN001 §2.7). Acá el taller contestó después del perito.
+     */
+    @Test
+    void theLatestValuationReplacesTheEarlierOne() {
+        claim.setCoverage(repairCoverage());
+        Instant ayer = Instant.now().minusSeconds(86_400);
+        when(expertAssessmentRepository.findByCaseIdOrderByDerivedAtDesc(1L)).thenReturn(List.of(
+                ExpertAssessment.builder().caseId(1L).providerType(ProviderType.ESTUDIO_LIQUIDADOR)
+                        .reportReceivedAt(ayer)
+                        .indemnifiableAmount(new BigDecimal("120000.00")).build(),
+                ExpertAssessment.builder().caseId(1L).providerType(ProviderType.SERVICIO_TECNICO)
+                        .reportReceivedAt(Instant.now())
+                        .repairCost(new BigDecimal("180000.00")).build()));
+
+        SettlementResponse response = settlementService.forCase(1L, null);
+
+        assertThat(response.suggestedAmount()).isEqualByComparingTo("180000.00");
+        assertThat(response.suggestedFrom()).isEqualTo("repair_report");
+    }
+
+    /**
+     * Bajo suma asegurada lo único que puede proponerse es el monto final, y eso sólo lo dice el
+     * perito: lo que el taller cobra por arreglar no es una opinión sobre cuánto corresponde pagar.
+     * Ofrecerlo ahí sería proponerle al analista liquidar por el precio de un arreglo.
+     */
+    @Test
+    void theRepairShopQuoteIsNotOfferedAsTheAmountToPay() {
+        when(expertAssessmentRepository.findByCaseIdOrderByDerivedAtDesc(1L)).thenReturn(List.of(
+                ExpertAssessment.builder().caseId(1L).providerType(ProviderType.SERVICIO_TECNICO)
+                        .reportReceivedAt(Instant.now())
+                        .repairCost(new BigDecimal("180000.00")).build()));
+
+        SettlementResponse response = settlementService.forCase(1L, null);
+
+        assertThat(response.suggestedAmount()).isNull();
+        assertThat(response.suggestedFor()).isNull();
+    }
+
+    /**
+     * Lo que el perito determina no es un valor de reposición: es cuánto dice que hay que pagar. Por
+     * eso sigue teniendo dónde ir en una cobertura que liquida por suma asegurada, donde no hay
+     * monto acreditado que cargar — apunta al monto final. Colgarlo del campo de monto acreditado
+     * lo hacía desaparecer justo en las coberturas caras, que son las únicas que llegan a peritaje.
+     */
+    @Test
+    void theExpertAmountIsSuggestedForTheAmountItselfWhenSettlingBySumInsured() {
+        when(expertAssessmentRepository.findByCaseIdOrderByDerivedAtDesc(1L)).thenReturn(List.of(
+                ExpertAssessment.builder().caseId(1L).reportReceivedAt(Instant.now())
+                        .indemnifiableAmount(new BigDecimal("612500.00")).build()));
+
+        SettlementResponse response = settlementService.forCase(1L, null);
+
+        assertThat(response.suggestedAmount()).isEqualByComparingTo("612500.00");
+        assertThat(response.suggestedFrom()).isEqualTo("expert_report");
+        assertThat(response.suggestedFor()).isEqualTo(SettlementSuggestionTarget.SETTLED_AMOUNT);
+    }
+
+    /**
+     * Y el comprobante de compra no se cuela por esa puerta: bajo suma asegurada no mueve el monto,
+     * que es la razón por la que el campo no existe. Sólo el peritaje tiene algo que decir ahí.
+     */
+    @Test
+    void aDocumentAmountIsStillNotSuggestedWhenSettlingBySumInsured() {
+        when(documentAnalysisRepository.findByCaseId(1L)).thenReturn(List.of(
+                document("purchase_proof", new BigDecimal("620000.00"))));
+        when(expertAssessmentRepository.findByCaseIdOrderByDerivedAtDesc(1L)).thenReturn(List.of(
+                ExpertAssessment.builder().caseId(1L).reportReceivedAt(Instant.now()).indemnifiableAmount(null).build()));
+
+        SettlementResponse response = settlementService.forCase(1L, null);
+
+        assertThat(response.suggestedAmount()).isNull();
+        assertThat(response.suggestedFor()).isNull();
     }
 
     /**
@@ -364,9 +467,8 @@ class SettlementServiceTest {
         claim.setCoverage(repairCoverage());
         when(documentAnalysisRepository.findByCaseId(1L)).thenReturn(List.of(
                 document("repair_quote", new BigDecimal("95000.00"))));
-        when(expertAssessmentRepository.findByCaseIdAndProviderType(1L, ProviderType.ESTUDIO_LIQUIDADOR))
-                .thenReturn(Optional.of(
-                        ExpertAssessment.builder().caseId(1L).indemnifiableAmount(null).build()));
+        when(expertAssessmentRepository.findByCaseIdOrderByDerivedAtDesc(1L)).thenReturn(List.of(
+                ExpertAssessment.builder().caseId(1L).reportReceivedAt(Instant.now()).indemnifiableAmount(null).build()));
 
         SettlementResponse response = settlementService.forCase(1L, null);
 
@@ -387,6 +489,83 @@ class SettlementServiceTest {
                 .settlementBasis(SettlementBasis.SUM_INSURED)
                 .deductible(new BigDecimal("10.00"))
                 .build();
+    }
+
+    // ─── El equipo que volvió sin arreglo ───────────────────────────────────────
+
+    /**
+     * Una cobertura de daño liquida por reparación porque da por sentado que el bien sobrevivió.
+     * Si el taller lo declara irreparable ese supuesto se cae: el equipo dejó de existir a los
+     * fines del seguro, igual que si se lo hubieran robado, y se paga la suma asegurada. Antes la
+     * hoja le pedía al analista un presupuesto que por definición no existe y proponía pagar cero.
+     */
+    @Test
+    void anIrreparableItemIsSettledAsATotalLoss() {
+        claim.setCoverage(repairCoverage());
+        when(expertAssessmentRepository.findByCaseIdOrderByDerivedAtDesc(1L)).thenReturn(List.of(
+                ExpertAssessment.builder().caseId(1L).providerType(ProviderType.SERVICIO_TECNICO)
+                        .reportReceivedAt(Instant.now())
+                        .repairOutcome(RepairOutcome.IRREPARABLE).build()));
+
+        SettlementResponse response = settlementService.forCase(1L, null);
+
+        assertThat(response.formula()).isEqualTo(SettlementFormula.TOTAL_LOSS);
+        assertThat(response.calculatedAmount()).isEqualByComparingTo("720000.00");
+    }
+
+    /** Cambiar de fórmula en silencio le cambiaría la cuenta al analista sin decirle por qué. */
+    @Test
+    void theSheetSaysWhyItStoppedBeingARepair() {
+        claim.setCoverage(repairCoverage());
+        when(expertAssessmentRepository.findByCaseIdOrderByDerivedAtDesc(1L)).thenReturn(List.of(
+                ExpertAssessment.builder().caseId(1L).providerType(ProviderType.SERVICIO_TECNICO)
+                        .reportReceivedAt(Instant.now())
+                        .repairOutcome(RepairOutcome.IRREPARABLE).build()));
+
+        SettlementResponse response = settlementService.forCase(1L, null);
+
+        assertThat(response.breakdown())
+                .anyMatch(line -> "Suma asegurada".equals(line.concept())
+                        && line.detail() != null && line.detail().contains("irreparable"));
+        // Y que esta cobertura no descuenta cuotas, que en un robo sí se descontarían: el
+        // interruptor se configuró para reparaciones, donde la deducción no existe.
+        assertThat(response.breakdown())
+                .anyMatch(line -> "Cuotas a vencer".equals(line.concept())
+                        && line.detail() != null && line.detail().contains("no tiene configurado"));
+    }
+
+    /**
+     * Y la advertencia también mira la fórmula aplicada. Miraba la de la cobertura, así que sobre un
+     * equipo irreparable le pedía al analista "cargá el presupuesto y recalculá" en la misma
+     * pantalla donde la hoja acababa de decir que se liquidaba como pérdida total. Un cartel que
+     * contradice a la cuenta es peor que ninguno.
+     */
+    @Test
+    void anIrreparableItemIsNotAskedForARepairQuote() {
+        claim.setCoverage(repairCoverage());
+        when(expertAssessmentRepository.findByCaseIdOrderByDerivedAtDesc(1L)).thenReturn(List.of(
+                ExpertAssessment.builder().caseId(1L).providerType(ProviderType.SERVICIO_TECNICO)
+                        .reportReceivedAt(Instant.now())
+                        .repairOutcome(RepairOutcome.IRREPARABLE).build()));
+
+        SettlementResponse response = settlementService.forCase(1L, null);
+
+        assertThat(response.warnings()).noneMatch(w -> w.contains("presupuesto"));
+    }
+
+    /** Reparado o con presupuesto, la cobertura manda: sigue siendo una reparación. */
+    @Test
+    void aRepairedItemStillSettlesAsARepair() {
+        claim.setCoverage(repairCoverage());
+        when(expertAssessmentRepository.findByCaseIdOrderByDerivedAtDesc(1L)).thenReturn(List.of(
+                ExpertAssessment.builder().caseId(1L).providerType(ProviderType.SERVICIO_TECNICO)
+                        .reportReceivedAt(Instant.now())
+                        .repairOutcome(RepairOutcome.QUOTE_SENT)
+                        .repairCost(new BigDecimal("180000.00")).build()));
+
+        SettlementResponse response = settlementService.forCase(1L, null);
+
+        assertThat(response.formula()).isEqualTo(SettlementFormula.REPAIR);
     }
 
     // ─── Atribuciones (Anexo II) ────────────────────────────────────────────────

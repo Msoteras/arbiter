@@ -118,6 +118,22 @@ public class ExpertAssessment {
     @Column(name = "indemnifiable_amount")
     private BigDecimal indemnifiableAmount;
 
+    /**
+     * What the repair shop charges for the job — quoted if they haven't done it yet, invoiced if
+     * they have. One column for both because the settlement asks one question of them: what the
+     * repair costs.
+     *
+     * <p>Its own column, and not {@code indemnifiableAmount}, for the same reason
+     * {@code repairOutcome} is not {@code verdict}: the two numbers answer different questions.
+     * The expert says what the claim is <b>worth</b> — an opinion on the settlement. The shop says
+     * what the repair <b>costs</b> — a price, which is the base the repair formula settles on.
+     *
+     * <p>Required with {@code QUOTE_SENT}, optional with {@code REPAIRED} — the invoice can arrive
+     * after the report — and null with {@code IRREPARABLE}, where there was no work to charge for.
+     */
+    @Column(name = "repair_cost")
+    private BigDecimal repairCost;
+
     @ManyToOne(fetch = FetchType.EAGER, optional = false)
     @JoinColumn(name = "derived_by", nullable = false)
     private ClaimsAnalyst derivedBy;

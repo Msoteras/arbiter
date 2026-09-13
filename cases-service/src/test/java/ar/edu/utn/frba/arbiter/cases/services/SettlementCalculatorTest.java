@@ -38,7 +38,7 @@ class SettlementCalculatorTest {
         PolicySnapshot snapshot = snapshot("300000.00", LocalDate.of(2024, 1, 1), "5000.00", null, 1);
         Case claim = claim(LocalDateTime.of(2023, 6, 1, 10, 0));
 
-        CaseSettlement settlement = calculator.calculate(
+        CaseSettlement settlement = calculate(
                 claim, coverage, null, snapshot, null);
 
         assertThat(settlement.getDeductibleAmount()).isEqualByComparingTo("30000.00");
@@ -56,7 +56,7 @@ class SettlementCalculatorTest {
         Coverage coverage = coverage(SettlementBasis.LESSER_OF_SUM_AND_REPLACEMENT, "10.00", null, false, false);
         PolicySnapshot snapshot = snapshot("1000000.00", LocalDate.of(2027, 1, 1), null, null, 1);
 
-        CaseSettlement settlement = calculator.calculate(
+        CaseSettlement settlement = calculate(
                 claim(LocalDateTime.of(2026, 6, 1, 10, 0)), coverage, null, snapshot, new BigDecimal("600000.00"));
 
         // 600.000 de techo, menos 100.000 de franquicia (10% de la SUMA ASEGURADA, no del techo).
@@ -70,7 +70,7 @@ class SettlementCalculatorTest {
         Coverage coverage = coverage(SettlementBasis.LESSER_OF_SUM_AND_REPLACEMENT, "10.00", null, false, false);
         PolicySnapshot snapshot = snapshot("1000000.00", LocalDate.of(2027, 1, 1), null, null, 1);
 
-        CaseSettlement settlement = calculator.calculate(
+        CaseSettlement settlement = calculate(
                 claim(LocalDateTime.of(2026, 6, 1, 10, 0)), coverage, null, snapshot, null);
 
         assertThat(settlement.getCalculatedAmount()).isEqualByComparingTo("900000.00");
@@ -82,7 +82,7 @@ class SettlementCalculatorTest {
         Coverage coverage = coverage(SettlementBasis.LESSER_OF_SUM_AND_REPLACEMENT, "10.00", null, false, false);
         PolicySnapshot snapshot = snapshot("1000000.00", LocalDate.of(2027, 1, 1), null, null, 1);
 
-        CaseSettlement settlement = calculator.calculate(
+        CaseSettlement settlement = calculate(
                 claim(LocalDateTime.of(2026, 6, 1, 10, 0)), coverage, null, snapshot, new BigDecimal("1500000.00"));
 
         assertThat(settlement.getCalculatedAmount()).isEqualByComparingTo("900000.00");
@@ -98,7 +98,7 @@ class SettlementCalculatorTest {
         Coverage coverage = coverage(SettlementBasis.SUM_INSURED, "10.00", "50.00", false, false);
         PolicySnapshot snapshot = snapshot("800000.00", LocalDate.of(2027, 1, 1), null, null, 2);
 
-        CaseSettlement settlement = calculator.calculate(
+        CaseSettlement settlement = calculate(
                 claim(LocalDateTime.of(2026, 6, 1, 10, 0)), coverage, null, snapshot, null);
 
         assertThat(settlement.getEventOrdinal()).isEqualTo(2);
@@ -113,7 +113,7 @@ class SettlementCalculatorTest {
         Coverage coverage = coverage(SettlementBasis.SUM_INSURED, "10.00", null, false, false);
         PolicySnapshot snapshot = snapshot("800000.00", LocalDate.of(2027, 1, 1), null, null, 2);
 
-        CaseSettlement settlement = calculator.calculate(
+        CaseSettlement settlement = calculate(
                 claim(LocalDateTime.of(2026, 6, 1, 10, 0)), coverage, null, snapshot, null);
 
         assertThat(settlement.getEventPercentage()).isEqualByComparingTo("100.00");
@@ -126,9 +126,9 @@ class SettlementCalculatorTest {
         PolicySnapshot snapshot = snapshot("500000.00", LocalDate.of(2027, 1, 1), null, "45000.00", 1);
         Case claim = claim(LocalDateTime.of(2026, 6, 1, 10, 0));
 
-        CaseSettlement off = calculator.calculate(
+        CaseSettlement off = calculate(
                 claim, coverage(SettlementBasis.SUM_INSURED, "10.00", null, false, false), null, snapshot, null);
-        CaseSettlement on = calculator.calculate(
+        CaseSettlement on = calculate(
                 claim, coverage(SettlementBasis.SUM_INSURED, "10.00", null, false, true), null, snapshot, null);
 
         assertThat(off.getOverdueBalanceAmount()).isEqualByComparingTo("0.00");
@@ -146,7 +146,7 @@ class SettlementCalculatorTest {
         Coverage coverage = coverage(SettlementBasis.SUM_INSURED, "10.00", null, false, true);
         PolicySnapshot snapshot = snapshot("100000.00", LocalDate.of(2027, 1, 1), null, "500000.00", 1);
 
-        CaseSettlement settlement = calculator.calculate(
+        CaseSettlement settlement = calculate(
                 claim(LocalDateTime.of(2026, 6, 1, 10, 0)), coverage, null, snapshot, null);
 
         assertThat(settlement.getCalculatedAmount()).isEqualByComparingTo("0.00");
@@ -162,7 +162,7 @@ class SettlementCalculatorTest {
         Coverage coverage = coverage(SettlementBasis.SUM_INSURED, "10.00", null, true, false);
         PolicySnapshot snapshot = snapshot("500000.00", LocalDate.of(2027, 1, 1), null, null, 1);
 
-        CaseSettlement settlement = calculator.calculate(
+        CaseSettlement settlement = calculate(
                 claim(LocalDateTime.of(2026, 6, 1, 10, 0)), coverage, null, snapshot, null);
 
         assertThat(settlement.getPendingInstallmentsAmount()).isEqualByComparingTo("0.00");
@@ -175,7 +175,7 @@ class SettlementCalculatorTest {
         Coverage coverage = coverage(SettlementBasis.SUM_INSURED, "10.00", null, true, false);
         PolicySnapshot snapshot = snapshot("500000.00", LocalDate.of(2026, 1, 1), "5000.00", null, 1);
 
-        CaseSettlement settlement = calculator.calculate(
+        CaseSettlement settlement = calculate(
                 claim(LocalDateTime.of(2026, 6, 1, 10, 0)), coverage, null, snapshot, null);
 
         assertThat(settlement.getPendingInstallments()).isZero();
@@ -192,7 +192,7 @@ class SettlementCalculatorTest {
     void fallsBackToThePolicyCoverageWhenThereIsNoSnapshot() {
         Coverage coverage = coverage(SettlementBasis.SUM_INSURED, "10.00", null, true, true);
 
-        CaseSettlement settlement = calculator.calculate(
+        CaseSettlement settlement = calculate(
                 claim(LocalDateTime.of(2026, 6, 1, 10, 0)), coverage,
                 policyCoverage("1300000.00", null), null, null);
 
@@ -213,7 +213,7 @@ class SettlementCalculatorTest {
         Coverage coverage = coverage(SettlementBasis.SUM_INSURED, "10.00", null, false, false);
         PolicySnapshot snapshot = snapshot("800000.00", LocalDate.of(2027, 1, 1), null, null, 1);
 
-        CaseSettlement settlement = calculator.calculate(
+        CaseSettlement settlement = calculate(
                 claim(LocalDateTime.of(2026, 6, 1, 10, 0)), coverage,
                 policyCoverage("800000.00", "20.00"), snapshot, null);
 
@@ -228,7 +228,7 @@ class SettlementCalculatorTest {
         Coverage coverage = coverage(SettlementBasis.LESSER_OF_SUM_AND_REPLACEMENT, "10.00", "50.00", true, true);
         PolicySnapshot snapshot = snapshot("800000.00", LocalDate.of(2027, 1, 1), "16000.00", "32000.00", 2);
 
-        CaseSettlement settlement = calculator.calculate(
+        CaseSettlement settlement = calculate(
                 claim(LocalDateTime.of(2026, 6, 1, 10, 0)), coverage, null, snapshot, new BigDecimal("700000.00"));
 
         assertThat(settlement.getFormula()).isEqualTo(SettlementFormula.TOTAL_LOSS);
@@ -254,7 +254,7 @@ class SettlementCalculatorTest {
         Coverage coverage = repairCoverage("10.00", true);
         PolicySnapshot snapshot = snapshot("800000.00", LocalDate.of(2027, 1, 1), "16000.00", null, 1);
 
-        CaseSettlement settlement = calculator.calculate(
+        CaseSettlement settlement = calculate(
                 claim(LocalDateTime.of(2026, 6, 1, 10, 0)), coverage, null, snapshot,
                 new BigDecimal("95000.00"));
 
@@ -273,9 +273,9 @@ class SettlementCalculatorTest {
         PolicySnapshot snapshot = snapshot("800000.00", LocalDate.of(2027, 1, 1), "16000.00", null, 1);
         Case claim = claim(LocalDateTime.of(2026, 6, 1, 10, 0));
 
-        CaseSettlement repair = calculator.calculate(
+        CaseSettlement repair = calculate(
                 claim, repairCoverage("10.00", true), null, snapshot, new BigDecimal("300000.00"));
-        CaseSettlement totalLoss = calculator.calculate(
+        CaseSettlement totalLoss = calculate(
                 claim, coverage(SettlementBasis.SUM_INSURED, "10.00", null, true, false),
                 null, snapshot, null);
 
@@ -291,7 +291,7 @@ class SettlementCalculatorTest {
         Coverage coverage = repairCoverage("10.00", false);
         PolicySnapshot snapshot = snapshot("800000.00", LocalDate.of(2027, 1, 1), null, null, 1);
 
-        CaseSettlement settlement = calculator.calculate(
+        CaseSettlement settlement = calculate(
                 claim(LocalDateTime.of(2026, 6, 1, 10, 0)), coverage, null, snapshot, null);
 
         assertThat(settlement.getCalculatedAmount()).isEqualByComparingTo("0.00");
@@ -303,7 +303,7 @@ class SettlementCalculatorTest {
         Coverage coverage = repairCoverage("0.00", false);
         PolicySnapshot snapshot = snapshot("90000.00", LocalDate.of(2027, 1, 1), null, null, 1);
 
-        CaseSettlement settlement = calculator.calculate(
+        CaseSettlement settlement = calculate(
                 claim(LocalDateTime.of(2026, 6, 1, 10, 0)), coverage, null, snapshot,
                 new BigDecimal("250000.00"));
 
@@ -349,6 +349,20 @@ class SettlementCalculatorTest {
                 .eventsInYear(eventsInYear)
                 .queriedAt(Instant.now())
                 .build();
+    }
+
+    /**
+     * La fórmula que el calculador deducía solo de la cobertura y que hoy le llega decidida: es el
+     * servicio el que sabe si el equipo volvió irreparable del taller. Estos tests siguen probando
+     * el caso normal —liquida como dice su cobertura—, y el otro tiene los suyos.
+     */
+    private CaseSettlement calculate(Case claim, Coverage coverage, PolicyCoverage policyCoverage,
+                                     PolicySnapshot snapshot, BigDecimal replacementValue) {
+        SettlementFormula formula = coverage.getSettlementFormula() == null
+                ? SettlementFormula.TOTAL_LOSS
+                : coverage.getSettlementFormula();
+        return calculator.calculate(claim, coverage, policyCoverage, snapshot, replacementValue,
+                formula);
     }
 
     private Case claim(LocalDateTime occurredAt) {

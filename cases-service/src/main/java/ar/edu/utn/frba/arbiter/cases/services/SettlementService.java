@@ -1,9 +1,11 @@
 package ar.edu.utn.frba.arbiter.cases.services;
 
+import ar.edu.utn.frba.arbiter.cases.dto.RepairOutcome;
 import ar.edu.utn.frba.arbiter.cases.dto.PendingSettlementResponse;
 import ar.edu.utn.frba.arbiter.cases.dto.ProviderType;
 import ar.edu.utn.frba.arbiter.cases.dto.SettlementDecisionRequest;
 import ar.edu.utn.frba.arbiter.cases.dto.SettlementResponse;
+import ar.edu.utn.frba.arbiter.cases.dto.SettlementSuggestionTarget;
 import ar.edu.utn.frba.arbiter.cases.exceptions.CaseNotFoundException;
 import ar.edu.utn.frba.arbiter.cases.exceptions.InvalidSettlementException;
 import ar.edu.utn.frba.arbiter.cases.exceptions.SettlementNotFoundException;
@@ -29,7 +31,11 @@ import java.math.BigDecimal;
 import java.text.NumberFormat;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
+import java.util.Collection;
+import java.util.Map;
+import java.util.stream.Collectors;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Locale;
 import java.util.Optional;
@@ -60,8 +66,9 @@ public class SettlementService {
     /** Los dos tipos de documento que traen un importe que sirve para liquidar. */
     private static final String REPAIR_QUOTE = "repair_quote";
     private static final String PURCHASE_PROOF = "purchase_proof";
-    /** No es un tipo de adjunto del asegurado: es el informe que subió el analista. */
+    /** No son adjuntos del asegurado: son los informes que subió el analista al volver el equipo. */
     private static final String EXPERT_REPORT = "expert_report";
+    private static final String REPAIR_REPORT = "repair_report";
 
     private final CaseRepository caseRepository;
     private final CaseSettlementRepository settlementRepository;
@@ -92,11 +99,13 @@ public class SettlementService {
         PolicySnapshot snapshot = caseRepository.findPolicySnapshot(caseId).orElse(null);
         Coverage coverage = caseRecord.getCoverage();
         CaseSettlement proposal = calculator.calculate(
-                caseRecord, coverage, policyCoverageOf(caseRecord), snapshot, replacementValue);
+                caseRecord, coverage, policyCoverageOf(caseRecord), snapshot, replacementValue,
+                formulaFor(caseId, coverage));
         // El tope vigente, para que el analista vea ANTES de firmar que este monto va a necesitar
         // al referente. Enterarse recién al confirmar es enterarse tarde.
         proposal.setAuthorityLimit(authorityService.limitFor(branchIdOf(caseRecord)));
-        return toResponse(proposal, false, warnings(coverage, snapshot, replacementValue), coverage,
+        return toResponse(proposal, false,
+                warnings(coverage, snapshot, replacementValue, proposal.getFormula()), coverage,
                 suggestionFor(caseId, coverage));
     }
 
@@ -124,7 +133,8 @@ public class SettlementService {
 
         PolicySnapshot snapshot = caseRepository.findPolicySnapshot(caseRecord.getId()).orElse(null);
         CaseSettlement settlement = calculator.calculate(caseRecord, caseRecord.getCoverage(),
-                policyCoverageOf(caseRecord), snapshot, request.replacementValue());
+                policyCoverageOf(caseRecord), snapshot, request.replacementValue(),
+                formulaFor(caseRecord.getId(), caseRecord.getCoverage()));
 
         BigDecimal authorized = request.settledAmount();
         if (authorized.compareTo(settlement.getSumInsured()) > 0) {
@@ -199,57 +209,154 @@ public class SettlementService {
     }
 
     /**
-     * El importe que el modelo ya leyó de la documentación del expediente, para ofrecérselo al
-     * analista en vez de hacerle buscar el número en un PDF y tipearlo.
+     * El importe que el expediente ya tiene, para ofrecérselo al analista en vez de hacerlo
+     * buscarlo de nuevo. Puede venir de tres lados, y cuál manda no es arbitrario.
      *
-     * <p>Qué documento manda depende de la fórmula, y no es intercambiable: en una reparación el
+     * <p><b>Las valuaciones le ganan al documento.</b> Lo que determinó el perito y lo que
+     * presupuestó el taller los firmó alguien que tuvo el bien en la mano; el papel que trajo el
+     * asegurado, no. Entre ellas manda la <b>última recibida</b>, que es como la compañía trata
+     * las que van llegando (NSIN001 §2.7).
+     *
+     * <p><b>El documento depende de la fórmula y no es intercambiable</b>: en una reparación el
      * monto sale del <b>presupuesto</b>, y en una pérdida total que liquida por el menor de los
      * dos, del <b>comprobante de compra</b>. Ofrecer el otro sería sugerir un número que no
      * responde a la pregunta que el campo hace.
      *
-     * <p>Null donde el campo no aplica: en una pérdida total por suma asegurada el monto
-     * acreditado no mueve nada, y sugerir algo ahí invita a cargar un dato que no hace nada.
+     * <p><b>A qué campo apunta también cambia.</b> Donde no hay monto acreditado que cargar
+     * —pérdida total por suma asegurada— lo único proponible es el monto final, y eso sólo lo dice
+     * el perito: lo que cuesta un arreglo no es una opinión sobre cuánto corresponde pagar. Hasta
+     * que la sugerencia distinguió las dos cosas, el monto del perito desaparecía justo en las
+     * coberturas que más se derivan a peritaje.
      *
-     * <p>Si el expediente pasó por peritaje, manda el monto que determinó el perito: lo fijó una
-     * persona que fue a mirar el bien, contra un presupuesto que trajo el asegurado.
-     *
-     * <p><b>Es una sugerencia y nada más.</b> No se aplica sola ni entra en el cálculo: el analista
-     * la toma si la verifica contra el documento. La extracción del modelo no es vinculante, misma
+     * <p><b>Es una sugerencia y nada más.</b> No se aplica sola ni entra en el cálculo: la toma el
+     * analista. Ni la extracción del modelo ni el informe de un tercero son vinculantes — misma
      * regla que la clasificación (decisión #5).
      */
     private Suggestion suggestionFor(Long caseId, Coverage coverage) {
-        String wanted;
-        if (coverage.getSettlementFormula() == SettlementFormula.REPAIR) {
-            wanted = REPAIR_QUOTE;
-        } else if (coverage.getSettlementBasis() == SettlementBasis.LESSER_OF_SUM_AND_REPLACEMENT) {
-            wanted = PURCHASE_PROOF;
-        } else {
-            return null;
+        // Las valuaciones que ya volvieron, la más reciente primero. Un expediente puede tener más
+        // de una desde que existe la derivación a servicio técnico, y el procedimiento de la
+        // compañía las trata de forma acumulativa: el analista "ajustará la reserva de acuerdo a
+        // las valuaciones recibidas a través de los preinformes de estudios liquidadores, informes
+        // técnicos, o presupuestos que se reciban en el tiempo de resolución de los siniestros
+        // hasta su liquidación" (NSIN001 §2.7). Cada valuación nueva reemplaza a la anterior.
+        List<ExpertAssessment> valuations = expertAssessmentRepository
+                .findByCaseIdOrderByDerivedAtDesc(caseId).stream()
+                .filter(assessment -> assessment.getReportReceivedAt() != null)
+                .filter(assessment -> valuationOf(assessment) != null
+                        && valuationOf(assessment).signum() > 0)
+                .sorted(Comparator.comparing(ExpertAssessment::getReportReceivedAt).reversed())
+                .toList();
+
+        String wanted = accreditedDocumentFor(coverage);
+        if (wanted == null) {
+            // Sin monto acreditado que cargar, lo único que puede proponerse es el monto final — y
+            // eso sólo lo dice el perito. El presupuesto del taller es un COSTO de arreglo, no una
+            // opinión sobre cuánto corresponde pagar, así que acá no tiene nada que decir.
+            return valuations.stream()
+                    .filter(assessment -> assessment.getProviderType() == ProviderType.ESTUDIO_LIQUIDADOR)
+                    .findFirst()
+                    .map(assessment -> new Suggestion(assessment.getIndemnifiableAmount(),
+                            EXPERT_REPORT, SettlementSuggestionTarget.SETTLED_AMOUNT))
+                    .orElse(null);
         }
 
-        // El peritaje gana. Cuando el expediente se derivó a un estudio liquidador, el monto lo
-        // determinó una persona que fue a mirar el bien; el presupuesto lo trajo el asegurado.
-        // Sugerir el segundo teniendo el primero sería ofrecer la fuente más débil de las dos.
-        Suggestion expert = expertAssessmentRepository
-                .findByCaseIdAndProviderType(caseId, ProviderType.ESTUDIO_LIQUIDADOR)
-                .map(ExpertAssessment::getIndemnifiableAmount)
-                .filter(amount -> amount != null && amount.signum() > 0)
-                .map(amount -> new Suggestion(amount, EXPERT_REPORT))
-                .orElse(null);
-        if (expert != null) {
-            return expert;
+        // Cualquiera de las dos valuaciones le gana al documento que trajo el asegurado: las dos
+        // las firmó alguien que tuvo el equipo en la mano.
+        if (!valuations.isEmpty()) {
+            ExpertAssessment latest = valuations.getFirst();
+            return new Suggestion(valuationOf(latest), sourceOf(latest),
+                    SettlementSuggestionTarget.ACCREDITED_AMOUNT);
         }
 
         return documentAnalysisRepository.findByCaseId(caseId).stream()
                 .filter(doc -> wanted.equals(doc.documentType()))
                 .filter(doc -> doc.amount() != null && doc.amount().signum() > 0)
                 .findFirst()
-                .map(doc -> new Suggestion(doc.amount(), doc.documentType()))
+                .map(doc -> new Suggestion(doc.amount(), doc.documentType(),
+                        SettlementSuggestionTarget.ACCREDITED_AMOUNT))
                 .orElse(null);
     }
 
-    /** Un importe leído de un documento del expediente, con el documento del que salió. */
-    private record Suggestion(BigDecimal amount, String documentType) {}
+    /**
+     * En qué anda la liquidación de cada uno de estos expedientes, para la bandeja. Un query para
+     * toda la página: preguntarlo caso por caso es el N+1 que la bandeja no banca.
+     *
+     * <p>Los que no tienen liquidación no aparecen en el mapa. Que falten no es un dato menor —
+     * significa que el analista todavía no determinó el monto—, pero eso ya lo dice el estado del
+     * expediente y no hace falta repetirlo con una entrada nula.
+     */
+    public Map<Long, SettlementStatus> statusesFor(Collection<Long> caseIds) {
+        if (caseIds == null || caseIds.isEmpty()) {
+            return Map.of();
+        }
+        return settlementRepository.findByCaseIdIn(caseIds).stream()
+                .filter(settlement -> settlement.getStatus() != null)
+                .collect(Collectors.toMap(CaseSettlement::getCaseId, CaseSettlement::getStatus));
+    }
+
+    /**
+     * Cómo liquida ESTE siniestro, que no siempre es como liquida su cobertura.
+     *
+     * <p>Una cobertura de daño liquida por reparación porque da por sentado que el bien
+     * sobrevivió: se paga el arreglo, el asegurado se queda con el equipo y la póliza sigue viva
+     * —por eso esa fórmula no descuenta las cuotas a vencer—. Cuando el servicio técnico lo
+     * declara <b>irreparable</b>, ese supuesto no se cumple: el bien dejó de existir a los fines
+     * del seguro, igual que si se lo hubieran robado, y lo que corresponde es la otra fórmula.
+     *
+     * <p>Sin esto la hoja le pedía al analista un presupuesto de reparación que por definición no
+     * existe, y proponía pagar cero.
+     */
+    private SettlementFormula formulaFor(Long caseId, Coverage coverage) {
+        SettlementFormula configured = coverage.getSettlementFormula() == null
+                ? SettlementFormula.TOTAL_LOSS
+                : coverage.getSettlementFormula();
+        if (configured != SettlementFormula.REPAIR || !declaredIrreparable(caseId)) {
+            return configured;
+        }
+        return SettlementFormula.TOTAL_LOSS;
+    }
+
+    /** Que el taller lo haya dicho, no que el analista lo suponga: sale del informe que volvió. */
+    private boolean declaredIrreparable(Long caseId) {
+        return expertAssessmentRepository.findByCaseIdOrderByDerivedAtDesc(caseId).stream()
+                .filter(assessment -> assessment.getProviderType() == ProviderType.SERVICIO_TECNICO)
+                .filter(assessment -> assessment.getReportReceivedAt() != null)
+                .anyMatch(assessment -> assessment.getRepairOutcome() == RepairOutcome.IRREPARABLE);
+    }
+
+    /**
+     * El número que trajo cada informe, que no es la misma columna ni la misma pregunta: el perito
+     * dice cuánto vale el siniestro, el taller cuánto sale arreglarlo.
+     */
+    private static BigDecimal valuationOf(ExpertAssessment assessment) {
+        return assessment.getProviderType() == ProviderType.SERVICIO_TECNICO
+                ? assessment.getRepairCost() : assessment.getIndemnifiableAmount();
+    }
+
+    /** De cuál de los dos informes salió, para que la pantalla lo diga y el analista lo verifique. */
+    private static String sourceOf(ExpertAssessment assessment) {
+        return assessment.getProviderType() == ProviderType.SERVICIO_TECNICO
+                ? REPAIR_REPORT : EXPERT_REPORT;
+    }
+
+    /**
+     * Qué documento responde la pregunta del monto acreditado, o null cuando la cobertura no hace
+     * esa pregunta. No son intercambiables: en una reparación el monto sale del presupuesto, y en
+     * una pérdida total que liquida por el menor de los dos, del comprobante de compra.
+     */
+    private String accreditedDocumentFor(Coverage coverage) {
+        if (coverage.getSettlementFormula() == SettlementFormula.REPAIR) {
+            return REPAIR_QUOTE;
+        }
+        if (coverage.getSettlementBasis() == SettlementBasis.LESSER_OF_SUM_AND_REPLACEMENT) {
+            return PURCHASE_PROOF;
+        }
+        return null;
+    }
+
+    /** Un importe sugerido, con de dónde salió y a qué campo de la hoja responde. */
+    private record Suggestion(BigDecimal amount, String documentType,
+                              SettlementSuggestionTarget target) {}
 
     /** The branch hangs off the claim cause — {@code cases} has no column of its own for it. */
     private Long branchIdOf(Case caseRecord) {
@@ -374,7 +481,8 @@ public class SettlementService {
      * <p>None of it blocks: a missing input makes the proposal weaker, not wrong, and the analyst
      * can settle anyway — that's what the adjustment and its justification are for.
      */
-    private List<String> warnings(Coverage coverage, PolicySnapshot snapshot, BigDecimal replacementValue) {
+    private List<String> warnings(Coverage coverage, PolicySnapshot snapshot,
+                                  BigDecimal replacementValue, SettlementFormula formula) {
         List<String> warnings = new ArrayList<>();
 
         if (snapshot == null) {
@@ -383,13 +491,16 @@ public class SettlementService {
         }
         boolean accredited = replacementValue != null && replacementValue.signum() > 0;
 
-        if (coverage.getSettlementFormula() == SettlementFormula.REPAIR && !accredited) {
+        // Contra la fórmula que se aplicó, no contra la de la cobertura: si el taller declaró el
+        // equipo irreparable esto ya no liquida por reparación, y pedir un presupuesto que no puede
+        // existir contradecía a la hoja de arriba, que en esa misma pantalla decía lo contrario.
+        if (formula == SettlementFormula.REPAIR && !accredited) {
             // Es la única advertencia que describe una propuesta en cero, no una deducción que no
             // se pudo hacer: sin presupuesto la reparación no tiene qué pagar.
             warnings.add("La cobertura liquida por reparación y no hay presupuesto acreditado: sin él "
                     + "no hay monto que pagar. Cargá el presupuesto del expediente y recalculá.");
         }
-        if (coverage.getSettlementFormula() != SettlementFormula.REPAIR
+        if (formula != SettlementFormula.REPAIR
                 && coverage.getSettlementBasis() == SettlementBasis.LESSER_OF_SUM_AND_REPLACEMENT
                 && !accredited) {
             warnings.add("La cobertura liquida por el menor entre la suma asegurada y el valor de "
@@ -423,6 +534,7 @@ public class SettlementService {
                 s.getReturnReason(),
                 suggestion == null ? null : suggestion.amount(),
                 suggestion == null ? null : suggestion.documentType(),
+                suggestion == null ? null : suggestion.target(),
                 breakdown(s, confirmed, coverage),
                 warnings);
     }
@@ -437,6 +549,12 @@ public class SettlementService {
         List<SettlementResponse.Line> lines = new ArrayList<>();
 
         boolean repair = s.getFormula() == SettlementFormula.REPAIR;
+        // La liquidación guarda la fórmula que se aplicó y la cobertura dice cuál es la suya: que
+        // no coincidan sólo puede significar una cosa, y es que el equipo no tuvo arreglo. No hace
+        // falta un campo nuevo para saberlo, pero sí decirlo — un cambio de fórmula en silencio
+        // le cambia la cuenta al analista sin que sepa por qué.
+        boolean irreparable = !repair && coverage != null
+                && coverage.getSettlementFormula() == SettlementFormula.REPAIR;
         boolean cappedByReplacement = !repair
                 && s.getSettlementBasis() == SettlementBasis.LESSER_OF_SUM_AND_REPLACEMENT
                 && s.getReplacementValue() != null
@@ -453,7 +571,12 @@ public class SettlementService {
                                     .formatted(money(s.getSumInsured())),
                     repairCeiling(s)));
         } else {
-            lines.add(SettlementResponse.Line.base("Suma asegurada", null, s.getSumInsured()));
+            lines.add(SettlementResponse.Line.base("Suma asegurada",
+                    irreparable
+                            ? "el servicio técnico declaró el equipo irreparable: se liquida como "
+                                    + "pérdida total, no como reparación"
+                            : null,
+                    s.getSumInsured()));
             if (cappedByReplacement) {
                 lines.add(SettlementResponse.Line.base("Valor de reposición acreditado",
                         "menor que la suma asegurada — se indemniza por éste (art. 7, Bases de Indemnización)",
@@ -486,6 +609,14 @@ public class SettlementService {
         if (!repair && coverage != null && coverage.isDeductPendingInstallments()) {
             lines.add(SettlementResponse.Line.deduction("Cuotas a vencer",
                     pendingInstallmentsDetail(s), s.getPendingInstallmentsAmount()));
+        } else if (irreparable) {
+            // El interruptor de una cobertura de daño se configuró para reparaciones, donde esta
+            // deducción no existe: nadie decidió que no corresponda en una pérdida total, no se lo
+            // preguntaron. Mostrar el cero con el motivo deja a la vista que el referente puede
+            // prenderlo, en vez de que la cuenta salga distinta a la de un robo sin decir por qué.
+            lines.add(SettlementResponse.Line.deduction("Cuotas a vencer",
+                    "esta cobertura no tiene configurado el descuento de cuotas — se paga sin él",
+                    BigDecimal.ZERO));
         }
 
         if (coverage != null && coverage.isDeductOverdueBalance()) {

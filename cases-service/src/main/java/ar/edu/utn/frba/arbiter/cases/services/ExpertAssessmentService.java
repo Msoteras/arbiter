@@ -6,6 +6,7 @@ import ar.edu.utn.frba.arbiter.cases.dto.RepairOutcome;
 import ar.edu.utn.frba.arbiter.cases.dto.DeriveToExpertRequest;
 import ar.edu.utn.frba.arbiter.cases.dto.ExpertAssessmentResponse;
 import ar.edu.utn.frba.arbiter.cases.dto.ExpertFirmResponse;
+import ar.edu.utn.frba.arbiter.cases.exceptions.InvalidRepairReportException;
 import ar.edu.utn.frba.arbiter.cases.exceptions.AnalystProfileNotFoundException;
 import ar.edu.utn.frba.arbiter.cases.exceptions.CaseAssignedToAnotherAnalystException;
 import ar.edu.utn.frba.arbiter.cases.exceptions.CaseNotAssignedException;
@@ -80,6 +81,10 @@ public class ExpertAssessmentService {
     @Transactional(readOnly = true)
     public DerivationOptionsResponse options(Long caseId, ProviderType providerType) {
         Case caseRecord = findCase(caseId);
+        // Before the catalog: a stolen phone has nothing to repair, whoever is on file.
+        if (providerType == ProviderType.SERVICIO_TECNICO && !repairAllowed(caseRecord)) {
+            return new DerivationOptionsResponse(false, null, caseRecord.getClaimedAmount(), List.of());
+        }
         List<ExpertFirmResponse> firms = availableFirms(caseRecord, providerType).stream()
                 .map(ExpertFirmResponse::from)
                 .toList();
@@ -131,9 +136,11 @@ public class ExpertAssessmentService {
                                            ProviderType providerType) {
         Case caseRecord = findCase(caseId);
         ClaimsAnalyst caller = assertCallerOwns(caseRecord);
-        // El umbral de monto es la regla del peritaje: una reparación no pasa por ella.
+        // Each kind has its own gate: peritaje the amount threshold, repair the claim cause.
         if (providerType == ProviderType.ESTUDIO_LIQUIDADOR) {
             assertInsurerDerivesThisCase(caseRecord);
+        } else if (!repairAllowed(caseRecord)) {
+            throw new DerivationNotAllowedException(caseRecord.getId(), caseRecord.getClaimCause().getName());
         }
         ExpertFirm firm = availableFirm(caseRecord, request.expertFirmId(), providerType);
 
@@ -177,7 +184,8 @@ public class ExpertAssessmentService {
         ExpertAssessment assessment = awaitingAssessment(caseId, ProviderType.ESTUDIO_LIQUIDADOR);
         assessment.setVerdict(verdict);
         assessment.setIndemnifiableAmount(indemnifiableAmount);
-        finishRound(caseRecord, assessment, note, report, "informe de peritaje recibido: " + verdict);
+        finishRound(caseRecord, assessment, note, report,
+                "informe de peritaje recibido: " + verdict);
 
         if (verdict == ExpertVerdict.FRAUD_CONFIRMED) {
             fraudRecordService.registerFromExpertReport(caseId, fraudRecordReason(assessment, note));
@@ -188,14 +196,30 @@ public class ExpertAssessmentService {
     /**
      * La devolución del servicio técnico. Sin antecedente de fraude: una reparación no investiga
      * nada, y el resultado va en su propia columna y no en {@code verdict} por lo mismo.
+     *
+     * <p>{@code repairCost} es lo que el taller cobra por el trabajo —presupuestado si todavía no
+     * lo hizo, facturado si ya lo hizo— y va atado al resultado. {@code QUOTE_SENT} lo exige: sin
+     * importe, decir que mandaron presupuesto no contesta nada. {@code REPAIRED} lo acepta
+     * opcional, porque la factura puede llegar después del informe. {@code IRREPARABLE} no lo
+     * lleva: no hubo arreglo que cobrar. Llega a la liquidación como el monto acreditado de la
+     * fórmula de reparación, que es literalmente lo que esa fórmula necesita saber.
      */
     @Transactional
     public ExpertAssessmentResponse receiveRepairReport(Long caseId, RepairOutcome outcome, String note,
-                                                        MultipartFile report) {
+                                                        BigDecimal repairCost, MultipartFile report) {
         Case caseRecord = findCase(caseId);
+        boolean charged = repairCost != null && repairCost.signum() > 0;
+        if (outcome == RepairOutcome.QUOTE_SENT && !charged) {
+            throw InvalidRepairReportException.quoteWithoutAmount(caseId);
+        }
+        if (outcome == RepairOutcome.IRREPARABLE && charged) {
+            throw InvalidRepairReportException.costOnAnIrreparableItem(caseId);
+        }
         ExpertAssessment assessment = awaitingAssessment(caseId, ProviderType.SERVICIO_TECNICO);
         assessment.setRepairOutcome(outcome);
-        finishRound(caseRecord, assessment, note, report, "respuesta del servicio técnico: " + outcome);
+        assessment.setRepairCost(charged ? repairCost : null);
+        finishRound(caseRecord, assessment, note, report,
+                "respuesta del servicio técnico: " + outcome);
         return ExpertAssessmentResponse.from(assessment);
     }
 
@@ -211,6 +235,13 @@ public class ExpertAssessmentService {
         return assessment;
     }
 
+    /**
+     * Lo que las dos vueltas tienen en común y nada más: archivar el informe, marcar que llegó y
+     * devolverle el expediente al analista. Lo que cada proveedor contesta —el veredicto y el monto
+     * indemnizable del perito, el resultado y el presupuesto del taller— lo setea su propio flujo
+     * antes de llamar acá. Mientras esto recibía un monto, el taller tenía que pasar null y el
+     * presupuesto no tenía dónde entrar.
+     */
     private void finishRound(Case caseRecord, ExpertAssessment assessment, String note,
                              MultipartFile report, String transitionNote) {
         Long caseId = caseRecord.getId();
@@ -265,6 +296,11 @@ public class ExpertAssessmentService {
             throw new DerivationNotAllowedException(
                     caseRecord.getId(), caseRecord.getClaimedAmount(), policy.minClaimedAmount());
         }
+    }
+
+    private boolean repairAllowed(Case caseRecord) {
+        return rulesServiceClient.repairDerivationPolicy(branchIdOf(caseRecord))
+                .allows(caseRecord.getClaimCause().getId());
     }
 
     /**

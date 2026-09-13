@@ -5,6 +5,7 @@ import ar.edu.utn.frba.arbiter.cases.dto.ProviderType;
 import ar.edu.utn.frba.arbiter.cases.dto.RepairOutcome;
 import ar.edu.utn.frba.arbiter.cases.dto.DeriveToExpertRequest;
 import ar.edu.utn.frba.arbiter.cases.dto.ExpertAssessmentResponse;
+import ar.edu.utn.frba.arbiter.cases.exceptions.InvalidRepairReportException;
 import ar.edu.utn.frba.arbiter.cases.exceptions.CaseAssignedToAnotherAnalystException;
 import ar.edu.utn.frba.arbiter.cases.exceptions.CaseNotAssignedException;
 import ar.edu.utn.frba.arbiter.cases.exceptions.DerivationNotAllowedException;
@@ -60,6 +61,7 @@ class ExpertAssessmentServiceTest {
     private static final Long BRANCH_ID = 1L;
     private static final BigDecimal CLAIMED_AMOUNT = new BigDecimal("950000");
     private static final String ANALYST_EMAIL = "analista.arbiter@gmail.com";
+    private static final Long CLAIM_CAUSE_ID = 4L;
 
     @Mock
     private CaseRepository caseRepository;
@@ -362,6 +364,7 @@ class ExpertAssessmentServiceTest {
         Case caseRecord = caseAwaitingReview();
         when(caseRepository.findById(CASE_ID)).thenReturn(Optional.of(caseRecord));
         when(claimsAnalystRepository.findByEmail(ANALYST_EMAIL)).thenReturn(Optional.of(analyst()));
+        givenRepairPolicy(CLAIM_CAUSE_ID);
         when(expertFirmRepository.findAvailableForBranch(BRANCH_ID, ProviderType.SERVICIO_TECNICO))
                 .thenReturn(List.of(firm(5L, "Service Celular Once", "service@example.com")));
         when(expertAssessmentRepository.save(any(ExpertAssessment.class)))
@@ -377,8 +380,9 @@ class ExpertAssessmentServiceTest {
     }
 
     @Test
-    void optionsForRepair_dependOnlyOnTheCatalog() {
+    void optionsForRepair_offerTheCatalogWhenTheClaimCauseAdmitsRepair() {
         when(caseRepository.findById(CASE_ID)).thenReturn(Optional.of(caseAwaitingReview()));
+        givenRepairPolicy(CLAIM_CAUSE_ID);
         when(expertFirmRepository.findAvailableForBranch(BRANCH_ID, ProviderType.SERVICIO_TECNICO))
                 .thenReturn(List.of(firm(5L, "Service Celular Once", "service@example.com")));
 
@@ -387,6 +391,35 @@ class ExpertAssessmentServiceTest {
         assertThat(options.eligible()).isTrue();
         assertThat(options.minClaimedAmount()).isNull();
         verify(rulesServiceClient, never()).expertDerivationPolicy(any());
+    }
+
+    /** A stolen phone has nothing to repair: the option stays closed whoever is in the catalog. */
+    @Test
+    void optionsForRepair_areClosedWhenTheClaimCauseDoesNotAdmitRepair() {
+        when(caseRepository.findById(CASE_ID)).thenReturn(Optional.of(caseAwaitingReview()));
+        givenRepairPolicy(1L);
+
+        DerivationOptionsResponse options = expertAssessmentService.options(CASE_ID, ProviderType.SERVICIO_TECNICO);
+
+        assertThat(options.eligible()).isFalse();
+        assertThat(options.firms()).isEmpty();
+        verify(expertFirmRepository, never()).findAvailableForBranch(any(), any());
+    }
+
+    /** Enforced on derive too: hiding the button is a suggestion, not a rule. */
+    @Test
+    void deriveToRepair_refusesAClaimCauseThatDoesNotAdmitRepair() {
+        when(caseRepository.findById(CASE_ID)).thenReturn(Optional.of(caseAwaitingReview()));
+        when(claimsAnalystRepository.findByEmail(ANALYST_EMAIL)).thenReturn(Optional.of(analyst()));
+        givenRepairPolicy(1L);
+
+        assertThatThrownBy(() -> expertAssessmentService.derive(CASE_ID,
+                new DeriveToExpertRequest(5L, "motivo"), ProviderType.SERVICIO_TECNICO))
+                .isInstanceOf(DerivationNotAllowedException.class);
+
+        verify(expertAssessmentRepository, never()).save(any());
+        verify(caseStatusService, never()).transition(any(), any(), any(), any());
+        verify(expertNotificationService, never()).notifyDerivation(any(), any());
     }
 
     @Test
@@ -407,17 +440,130 @@ class ExpertAssessmentServiceTest {
                 .thenAnswer(invocation -> invocation.getArgument(0));
 
         ExpertAssessmentResponse response = expertAssessmentService.receiveRepairReport(CASE_ID,
-                RepairOutcome.IRREPARABLE, "Placa dañada",
+                RepairOutcome.IRREPARABLE, "Placa dañada", null,
                 new MockMultipartFile("report", "service.pdf", "application/pdf", "PDF".getBytes()));
 
         assertThat(response.repairOutcome()).isEqualTo(RepairOutcome.IRREPARABLE);
         assertThat(response.verdict()).isNull();
+        assertThat(response.repairCost()).isNull();
         ArgumentCaptor<CaseDocument> document = ArgumentCaptor.forClass(CaseDocument.class);
         verify(caseDocumentRepository).save(document.capture());
         assertThat(document.getValue().getType()).isEqualTo("repair_report");
         verify(caseStatusService).transition(eq(caseRecord), eq(CaseStatus.PENDING_ANALYST_REVIEW),
                 eq(StatusChangeActor.ANALYST), any());
         verify(fraudRecordService, never()).registerFromExpertReport(any(), any());
+    }
+
+    /**
+     * El presupuesto del taller va a su propia columna y NO a la del perito: los dos números
+     * contestan preguntas distintas —cuánto vale el siniestro contra cuánto sale el arreglo— y
+     * mezclarlos haría que la liquidación no supiera cuál está leyendo.
+     */
+    @Test
+    void receiveRepairReport_storesTheQuoteInItsOwnColumn() {
+        Case caseRecord = caseInStatus(CaseStatus.PENDING_REPAIR);
+        ExpertAssessment repair = awaitingAssessment();
+        repair.setProviderType(ProviderType.SERVICIO_TECNICO);
+        when(caseRepository.findById(CASE_ID)).thenReturn(Optional.of(caseRecord));
+        when(expertAssessmentRepository.findByCaseIdAndProviderType(CASE_ID, ProviderType.SERVICIO_TECNICO))
+                .thenReturn(Optional.of(repair));
+        when(caseDocumentRepository.findByCaseIdAndType(CASE_ID, "repair_report")).thenReturn(Optional.empty());
+        when(caseDocumentRepository.save(any(CaseDocument.class))).thenAnswer(invocation -> {
+            CaseDocument saved = invocation.getArgument(0);
+            saved.setId(44L);
+            return saved;
+        });
+        when(expertAssessmentRepository.save(any(ExpertAssessment.class)))
+                .thenAnswer(invocation -> invocation.getArgument(0));
+
+        ExpertAssessmentResponse response = expertAssessmentService.receiveRepairReport(CASE_ID,
+                RepairOutcome.QUOTE_SENT, "Cambio de módulo", new BigDecimal("180000.00"),
+                new MockMultipartFile("report", "presupuesto.pdf", "application/pdf", "PDF".getBytes()));
+
+        assertThat(response.repairCost()).isEqualByComparingTo("180000.00");
+        assertThat(response.indemnifiableAmount()).isNull();
+    }
+
+    /** Decir que mandaron presupuesto sin decir cuánto no contesta la pregunta que se les hizo. */
+    @Test
+    void receiveRepairReport_rejectsAQuoteWithNoAmount() {
+        when(caseRepository.findById(CASE_ID))
+                .thenReturn(Optional.of(caseInStatus(CaseStatus.PENDING_REPAIR)));
+
+        assertThatThrownBy(() -> expertAssessmentService.receiveRepairReport(CASE_ID,
+                RepairOutcome.QUOTE_SENT, "Cambio de módulo", null,
+                new MockMultipartFile("report", "x.pdf", "application/pdf", "PDF".getBytes())))
+                .isInstanceOf(InvalidRepairReportException.class);
+
+        verify(expertAssessmentRepository, never()).save(any());
+    }
+
+    /** Nada se arregló, así que nadie lo cobró: un importe ahí es un error, no un presupuesto bajo. */
+    @Test
+    void receiveRepairReport_rejectsACostOnAnIrreparableItem() {
+        when(caseRepository.findById(CASE_ID))
+                .thenReturn(Optional.of(caseInStatus(CaseStatus.PENDING_REPAIR)));
+
+        assertThatThrownBy(() -> expertAssessmentService.receiveRepairReport(CASE_ID,
+                RepairOutcome.IRREPARABLE, "No tiene arreglo", new BigDecimal("180000.00"),
+                new MockMultipartFile("report", "x.pdf", "application/pdf", "PDF".getBytes())))
+                .isInstanceOf(InvalidRepairReportException.class);
+
+        verify(expertAssessmentRepository, never()).save(any());
+    }
+
+    /**
+     * El taller que ya arregló cobra por el trabajo, y ese importe es lo que se liquida. Quedaba
+     * afuera porque el campo se había atado al presupuesto: un equipo reparado volvía sin número y
+     * la liquidación proponía pagar cero, el mismo callejón que tenía el irreparable.
+     */
+    @Test
+    void receiveRepairReport_takesTheInvoiceOfAnAlreadyRepairedItem() {
+        Case caseRecord = caseInStatus(CaseStatus.PENDING_REPAIR);
+        ExpertAssessment repair = awaitingAssessment();
+        repair.setProviderType(ProviderType.SERVICIO_TECNICO);
+        when(caseRepository.findById(CASE_ID)).thenReturn(Optional.of(caseRecord));
+        when(expertAssessmentRepository.findByCaseIdAndProviderType(CASE_ID, ProviderType.SERVICIO_TECNICO))
+                .thenReturn(Optional.of(repair));
+        when(caseDocumentRepository.findByCaseIdAndType(CASE_ID, "repair_report")).thenReturn(Optional.empty());
+        when(caseDocumentRepository.save(any(CaseDocument.class))).thenAnswer(invocation -> {
+            CaseDocument saved = invocation.getArgument(0);
+            saved.setId(45L);
+            return saved;
+        });
+        when(expertAssessmentRepository.save(any(ExpertAssessment.class)))
+                .thenAnswer(invocation -> invocation.getArgument(0));
+
+        ExpertAssessmentResponse response = expertAssessmentService.receiveRepairReport(CASE_ID,
+                RepairOutcome.REPAIRED, "Cambio de módulo", new BigDecimal("210000.00"),
+                new MockMultipartFile("report", "factura.pdf", "application/pdf", "PDF".getBytes()));
+
+        assertThat(response.repairCost()).isEqualByComparingTo("210000.00");
+    }
+
+    /** Y puede llegar sin él: la factura del taller no siempre viene con el informe. */
+    @Test
+    void receiveRepairReport_acceptsARepairWithNoInvoiceYet() {
+        Case caseRecord = caseInStatus(CaseStatus.PENDING_REPAIR);
+        ExpertAssessment repair = awaitingAssessment();
+        repair.setProviderType(ProviderType.SERVICIO_TECNICO);
+        when(caseRepository.findById(CASE_ID)).thenReturn(Optional.of(caseRecord));
+        when(expertAssessmentRepository.findByCaseIdAndProviderType(CASE_ID, ProviderType.SERVICIO_TECNICO))
+                .thenReturn(Optional.of(repair));
+        when(caseDocumentRepository.findByCaseIdAndType(CASE_ID, "repair_report")).thenReturn(Optional.empty());
+        when(caseDocumentRepository.save(any(CaseDocument.class))).thenAnswer(invocation -> {
+            CaseDocument saved = invocation.getArgument(0);
+            saved.setId(46L);
+            return saved;
+        });
+        when(expertAssessmentRepository.save(any(ExpertAssessment.class)))
+                .thenAnswer(invocation -> invocation.getArgument(0));
+
+        ExpertAssessmentResponse response = expertAssessmentService.receiveRepairReport(CASE_ID,
+                RepairOutcome.REPAIRED, "Sin factura todavía", null,
+                new MockMultipartFile("report", "informe.pdf", "application/pdf", "PDF".getBytes()));
+
+        assertThat(response.repairCost()).isNull();
     }
 
     /**
@@ -471,6 +617,11 @@ class ExpertAssessmentServiceTest {
                 .thenReturn(new RulesServiceClient.ExpertDerivationPolicy(true, minClaimedAmount, 4L));
     }
 
+    private void givenRepairPolicy(Long... admittedClaimCauseIds) {
+        when(rulesServiceClient.repairDerivationPolicy(BRANCH_ID))
+                .thenReturn(new RulesServiceClient.RepairDerivationPolicy(true, List.of(admittedClaimCauseIds), 9L));
+    }
+
     private Case caseAwaitingReview() {
         return caseInStatus(CaseStatus.PENDING_ANALYST_REVIEW);
     }
@@ -480,6 +631,7 @@ class ExpertAssessmentServiceTest {
         // fixture lo arma sin id (los tests que lo usan no lo miran).
         ClaimCause cause = CaseFixtures.claimCause("Celulares", "Robo en vía pública");
         cause.setBranch(Branch.builder().id(BRANCH_ID).name("Celulares").build());
+        cause.setId(CLAIM_CAUSE_ID);
         return Case.builder()
                 .id(CASE_ID)
                 .claimCause(cause)

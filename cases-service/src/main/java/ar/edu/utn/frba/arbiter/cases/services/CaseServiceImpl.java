@@ -37,9 +37,9 @@ import ar.edu.utn.frba.arbiter.cases.exceptions.InvalidStatusTransitionException
 import ar.edu.utn.frba.arbiter.cases.exceptions.MissingRequiredDocumentsException;
 import ar.edu.utn.frba.arbiter.cases.exceptions.PolicyInsuredMismatchException;
 import ar.edu.utn.frba.arbiter.cases.exceptions.PolicyNotEligibleException;
+import ar.edu.utn.frba.arbiter.cases.models.entities.CaseSettlement;
 import ar.edu.utn.frba.arbiter.cases.models.entities.CaseDocument;
 import ar.edu.utn.frba.arbiter.cases.models.entities.Case;
-import ar.edu.utn.frba.arbiter.cases.models.entities.CaseSettlement;
 import ar.edu.utn.frba.arbiter.common.models.entities.tenant.Insured;
 import ar.edu.utn.frba.arbiter.cases.models.entities.Policy;
 import ar.edu.utn.frba.arbiter.cases.models.entities.PolicyCoverage;
@@ -77,6 +77,7 @@ import java.io.IOException;
 import java.time.Clock;
 import java.time.Instant;
 import java.time.LocalDate;
+import java.util.stream.Collectors;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.HashMap;
@@ -85,7 +86,6 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
-import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
@@ -493,11 +493,13 @@ public class CaseServiceImpl implements CaseService {
         // it, the insured's tracking screen for a single case had no way to say whose it is —
         // "mis siniestros" showed it in the list, but it went blank the moment you opened one.
         Insurer issuer = insurerRepository.findBySchemaName(TenantContext.get()).orElse(null);
+        // Sin el estado de la liquidación: el detalle se la trae entera por su propio endpoint, y
+        // tenerlo por dos vías invita a que se contradigan. Ver el javadoc del campo.
         return toResponse(entity, history, caseAnalysisRepository.findByCaseId(caseId),
                 issuer == null ? null : InsurerSlug.of(issuer),
                 issuer == null ? null : issuer.getName(),
                 caseDocumentAnalysisRepository.findByCaseId(caseId), traceabilityOf(entity),
-                repairProviderOf(entity));
+                repairProviderOf(entity), null);
     }
 
     @Override
@@ -596,10 +598,16 @@ public class CaseServiceImpl implements CaseService {
     Page<CaseResponse> toResponses(Page<Case> page) {
         // Un solo query para toda la página: pedir el análisis caso por caso acá es el N+1 que
         // hace colapsar la bandeja.
-        Map<Long, CaseAnalysis> analyses = caseAnalysisRepository.findByCaseIds(
-                page.getContent().stream().map(Case::getId).toList());
+        List<Long> ids = page.getContent().stream().map(Case::getId).toList();
+        Map<Long, CaseAnalysis> analyses = caseAnalysisRepository.findByCaseIds(ids);
+        // Y lo mismo con la liquidación, por la misma razón. La bandeja la necesita para no
+        // mostrar igual a un expediente que espera al analista y a uno que ya despachó y espera
+        // la firma del referente.
+        Map<Long, SettlementStatus> settlements = settlementService.statusesFor(ids);
         return page.map(entity -> toResponse(entity, null,
-                analyses.getOrDefault(entity.getId(), CaseAnalysis.none())));
+                analyses.getOrDefault(entity.getId(), CaseAnalysis.none()),
+                null, null, List.of(), Traceability.none(), null,
+                settlements.get(entity.getId())));
     }
 
     @Override
@@ -910,7 +918,8 @@ public class CaseServiceImpl implements CaseService {
      */
     private CaseResponse toResponse(Case entity, List<StatusTransitionResponse> history,
                                      CaseAnalysis analysis) {
-        return toResponse(entity, history, analysis, null, null, List.of(), Traceability.none(), null);
+        return toResponse(entity, history, analysis, null, null, List.of(), Traceability.none(),
+                null, null);
     }
 
     /** Sólo el detalle trae los datos extraídos; ver el javadoc del campo en {@link CaseResponse}. */
@@ -918,21 +927,22 @@ public class CaseServiceImpl implements CaseService {
                                      CaseAnalysis analysis,
                                      List<DocumentAnalysisSummary> documentAnalyses) {
         return toResponse(entity, history, analysis, null, null, documentAnalyses, Traceability.none(),
-                null);
+                null, null);
     }
 
     private CaseResponse toResponse(Case entity, List<StatusTransitionResponse> history,
                                      CaseAnalysis analysis, String insurerSlug, String insurerName,
                                      List<DocumentAnalysisSummary> documentAnalyses) {
         return toResponse(entity, history, analysis, insurerSlug, insurerName, documentAnalyses,
-                Traceability.none(), null);
+                Traceability.none(), null, null);
     }
 
     private CaseResponse toResponse(Case entity, List<StatusTransitionResponse> history,
                                      CaseAnalysis analysis, String insurerSlug, String insurerName,
                                      List<DocumentAnalysisSummary> documentAnalyses,
                                      Traceability traceability,
-                                     RepairProviderResponse repairProvider) {
+                                     RepairProviderResponse repairProvider,
+                                     SettlementStatus settlementStatus) {
         // Mientras el expediente está de vuelta en clasificación, la corrida anterior sigue siendo
         // la última fila de llm_analysis. Mostrarla diría que hay una recomendación vigente cuando
         // justamente se está recalculando, así que en ese estado no se surface ninguna.
@@ -974,6 +984,7 @@ public class CaseServiceImpl implements CaseService {
                 entity.getUpdatedAt(),
                 entity.getResponseDeadline(),
                 DeadlinePriority.of(entity.getResponseDeadline(), LocalDate.now(clock), isDeadlineInactive(entity)),
+                settlementStatus,
                 history,
                 documentAnalyses,
                 traceability.ruleResults(),

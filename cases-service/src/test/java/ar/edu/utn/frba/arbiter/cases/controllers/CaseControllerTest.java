@@ -281,6 +281,7 @@ class CaseControllerTest {
                 Instant.parse("2026-06-13T22:50:00Z"),
                 Instant.parse("2026-06-13T22:55:00Z"),
                 LocalDate.of(2026, 7, 13), DeadlinePriority.NONE,
+                null,
                 List.of(
                         new StatusTransitionResponse(null, CaseStatus.PENDING_CLASSIFICATION,
                                 StatusChangeActor.INSURED, "denuncia registrada",
@@ -404,6 +405,7 @@ class CaseControllerTest {
                 Instant.parse("2026-06-13T22:50:00Z"),
                 Instant.parse("2026-06-13T22:50:00Z"),
                 LocalDate.of(2026, 7, 13), DeadlinePriority.NONE,
+                null,
                 null,
                 List.of(), List.of(), null, null
         );

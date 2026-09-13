@@ -862,6 +862,7 @@ BEGIN
             -- hecho no amparado no tienen nada que indemnizar, y un cero ahí se leería como "el
             -- perito dijo que no se paga nada", que es una conclusión distinta a no haber opinado.
             indemnifiable_amount NUMERIC(15,2),
+            repair_cost         NUMERIC(15,2),
             derived_by          BIGINT       NOT NULL REFERENCES %I.claims_analyst(id),
             -- Nullable and ON DELETE SET NULL is deliberate: the assessment outlives the
             -- catalog row, and the copied name/email are what the record actually reads.
@@ -883,12 +884,22 @@ BEGIN
             -- Un resultado sin fecha, o una fecha sin resultado, es media devolución. Y cada tipo
             -- de proveedor vuelve con SU resultado: el CHECK impide que un peritaje traiga un
             -- resultado de reparación, o al revés.
+            -- repair_cost acompaña al resultado del taller, y cuál admite qué no es
+            -- caprichoso: QUOTE_SENT lo exige —decir que mandaron presupuesto sin decir
+            -- cuánto no contesta nada—, REPAIRED lo acepta opcional porque la factura
+            -- puede llegar después del informe, e IRREPARABLE lo prohíbe porque no
+            -- hubo trabajo que cobrar.
             CONSTRAINT expert_assessment_report_complete CHECK (
-                (report_received_at IS NULL AND verdict IS NULL AND repair_outcome IS NULL)
+                (report_received_at IS NULL AND verdict IS NULL AND repair_outcome IS NULL
+                 AND repair_cost IS NULL)
                 OR (report_received_at IS NOT NULL AND provider_type = 'ESTUDIO_LIQUIDADOR'
-                    AND verdict IS NOT NULL AND repair_outcome IS NULL)
+                    AND verdict IS NOT NULL AND repair_outcome IS NULL
+                    AND repair_cost IS NULL)
                 OR (report_received_at IS NOT NULL AND provider_type = 'SERVICIO_TECNICO'
-                    AND repair_outcome IS NOT NULL AND verdict IS NULL))
+                    AND verdict IS NULL
+                    AND ((repair_outcome = 'QUOTE_SENT' AND repair_cost IS NOT NULL)
+                         OR repair_outcome = 'REPAIRED'
+                         OR (repair_outcome = 'IRREPARABLE' AND repair_cost IS NULL))))
         )$ddl$, p_schema, p_schema, p_schema, p_schema, p_schema);
 
     -- ─── insured_fraud_record / "antecedente_fraude" ─────────────────────────
@@ -1381,6 +1392,20 @@ BEGIN
                                      blocks_fast_track, branch_id, coverage_id, configuration) VALUES
             (17, TRUE, '2026-01-01 00:00:00+00', 'Antecedente de fraude del asegurado',
              'FRAUD_RECORD', 'DERIVAR', 1, TRUE, NULL, NULL, '{"windowMonths":36}')
+        $ddl$, p_schema);
+
+    -- Which claim causes of each branch can go to a repair shop. Opt-in like peritaje: without
+    -- this row the analyst never sees "Derivar a servicio técnico". A stolen item has nothing to
+    -- repair, so only the damage causes are listed (ids from the claim_cause seed above).
+    EXECUTE format($ddl$
+        INSERT INTO %I.insurer_rule (id, active, valid_from, name, rule_type, effect, priority,
+                                     blocks_fast_track, branch_id, coverage_id, configuration) VALUES
+            (18, TRUE, '2026-01-01 00:00:00+00',
+             'Derivar a reparación: rotura accidental y caída', 'REPAIR_DERIVATION', 'DERIVAR', 1,
+             FALSE, 1, NULL, '{"claimCauseIds":[1,4]}'),
+            (19, TRUE, '2026-01-01 00:00:00+00',
+             'Derivar a reparación: daño accidental', 'REPAIR_DERIVATION', 'DERIVAR', 1,
+             FALSE, 2, NULL, '{"claimCauseIds":[6]}')
         $ddl$, p_schema);
 
     -- AgendaDocumental sembrada con los códigos CANÓNICOS de tipo de documento — los mismos que usa

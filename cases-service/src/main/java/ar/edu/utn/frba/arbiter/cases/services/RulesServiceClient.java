@@ -181,6 +181,26 @@ public class RulesServiceClient {
         }
     }
 
+    /**
+     * Which claim causes of a branch the insurer sends to a repair shop. Fails explicitly when
+     * rules-service doesn't answer, for the same reason as {@link #expertDerivationPolicy(Long)}.
+     */
+    public RepairDerivationPolicy repairDerivationPolicy(Long branchId) {
+        try {
+            String serviceToken = JwtSupport.issueServiceToken(jwtKey, "cases-service-reparacion", TenantContext.get());
+            RepairDerivationPolicy policy = restClient.get()
+                    .uri(uri -> uri.path("/api/v1/rules/internal/repair-derivation")
+                            .queryParam("branchId", branchId).build())
+                    .header(HttpHeaders.AUTHORIZATION, "Bearer " + serviceToken)
+                    .retrieve()
+                    .body(RepairDerivationPolicy.class);
+            return policy != null ? policy : RepairDerivationPolicy.disabled();
+        } catch (Exception e) {
+            log.error("Could not read the repair derivation policy for branch {}", branchId, e);
+            throw new RulesUnavailableException(e);
+        }
+    }
+
     /** Mirrors rules-service's ExpertDerivationDto. */
     public record ExpertDerivationPolicy(boolean enabled, BigDecimal minClaimedAmount, Long ruleId) {
 
@@ -194,6 +214,17 @@ public class RulesServiceClient {
                     && claimedAmount != null
                     && minClaimedAmount != null
                     && claimedAmount.compareTo(minClaimedAmount) >= 0;
+        }
+    }
+
+    public record RepairDerivationPolicy(boolean enabled, List<Long> claimCauseIds, Long ruleId) {
+
+        static RepairDerivationPolicy disabled() {
+            return new RepairDerivationPolicy(false, List.of(), null);
+        }
+
+        public boolean allows(Long claimCauseId) {
+            return enabled && claimCauseIds != null && claimCauseIds.contains(claimCauseId);
         }
     }
 }
