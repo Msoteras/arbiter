@@ -42,11 +42,33 @@
     </div>
   } @else {
 
-  <!-- Lente de pertenencia: de quién es el expediente. Va aparte de los filtros a propósito
-       (no es un recorte más del listado) y reusa el patrón de tabs del detalle. Solo para el
-       analista: el referente ve todo (no tiene expedientes propios). -->
+  <!-- Una sola barra: primero el recorte por ciclo de vida, después la pertenencia. Son dos ejes
+       distintos y vivían en dos controles, pero dos filas de pestañas pegadas se leían como una
+       sola cosa. "Todos" cierra los dos: ni recorte por ciclo ni por analista. La variante de
+       abajo es la del referente, que no tiene "Míos" porque no le asignan expedientes. -->
   @if (canAssign()) {
     <div class="lens" role="tablist" aria-label="Expedientes a mostrar">
+      <button
+        type="button"
+        role="tab"
+        class="lens-tab"
+        [class.active]="lens() === 'open'"
+        [attr.aria-selected]="lens() === 'open'"
+        (click)="setLens('open')"
+      >
+        En curso <span class="lens-count">{{ openCount() }}</span>
+      </button>
+      <button
+        type="button"
+        role="tab"
+        class="lens-tab"
+        [class.active]="lens() === 'closed'"
+        [attr.aria-selected]="lens() === 'closed'"
+        (click)="setLens('closed')"
+      >
+        Cerrados <span class="lens-count">{{ closedCount() }}</span>
+      </button>
+      <span class="lens-divider" aria-hidden="true"></span>
       <button
         type="button"
         role="tab"
@@ -85,14 +107,33 @@
         [attr.aria-selected]="lens() === 'fraud'"
         (click)="setLens('fraud')"
       >
-        <span class="lens-alert-mark" aria-hidden="true">▲</span> Alerta de fraude
+        <span class="lens-alert-mark" aria-hidden="true">▲</span> Riesgo de fraude
         <span class="lens-count">{{ fraudCount() }}</span>
       </button>
     </div>
   } @else if (isReferente()) {
-    <!-- El referente supervisa toda la operación: no tiene "Míos" (no le asignan expedientes),
-         pero sí lentes de asignación y de fraude sobre todo el caseload de la aseguradora. -->
     <div class="lens" role="tablist" aria-label="Expedientes a mostrar">
+      <button
+        type="button"
+        role="tab"
+        class="lens-tab"
+        [class.active]="lens() === 'open'"
+        [attr.aria-selected]="lens() === 'open'"
+        (click)="setLens('open')"
+      >
+        En curso <span class="lens-count">{{ openCount() }}</span>
+      </button>
+      <button
+        type="button"
+        role="tab"
+        class="lens-tab"
+        [class.active]="lens() === 'closed'"
+        [attr.aria-selected]="lens() === 'closed'"
+        (click)="setLens('closed')"
+      >
+        Cerrados <span class="lens-count">{{ closedCount() }}</span>
+      </button>
+      <span class="lens-divider" aria-hidden="true"></span>
       <button
         type="button"
         role="tab"
@@ -286,6 +327,15 @@
         message="Ningún expediente coincide con los filtros aplicados."
         sub="Sin coincidencias"
       />
+    } @else if (emptyByScope()) {
+      <app-empty-state
+        [message]="
+          lens() === 'open'
+            ? 'No hay expedientes en curso. Probá con «Todos» para ver los ya cerrados.'
+            : 'Todavía no hay expedientes cerrados.'
+        "
+        [sub]="lens() === 'open' ? 'Nada pendiente' : 'Sin cerrados'"
+      />
     } @else {
       <app-empty-state message="Todavía no hay expedientes cargados." sub="Sin expedientes" />
     }
@@ -327,6 +377,17 @@
                 </td>
                 <td>
                   <app-badge [tone]="estadoTone(c.status)">{{ estadoLabel(c.status) }}</app-badge>
+                  <!-- El expediente sigue en "pendiente de revisión" a propósito: el asegurado no
+                       tiene por qué ver un trámite interno. Pero para el analista no es lo mismo
+                       uno que espera su decisión que uno que él ya despachó, y sin esto los dos se
+                       veían igual — volvía a abrir expedientes que ya había firmado. -->
+                  @if (esperaFirma(c)) {
+                    <br />
+                    <span class="t-note">Esperando al referente</span>
+                  } @else if (devueltaPorReferente(c)) {
+                    <br />
+                    <app-badge variant="solid" tone="warning">Devuelto por el referente</app-badge>
+                  }
                 </td>
                 <td>
                   @if (deadlinePrioritized(c)) {

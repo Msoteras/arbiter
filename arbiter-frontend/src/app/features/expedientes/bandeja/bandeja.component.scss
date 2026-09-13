@@ -74,12 +74,21 @@
   padding: 1px var(--space-2);
 }
 .lens-tab.active .lens-count { color: var(--accent-fg); background: var(--selected-bg); }
-// Lente "Alerta de fraude": el triángulo va en color de peligro (semáforo), el resto sobrio.
+// Pestaña "Riesgo de fraude": el triángulo va en color de peligro (semáforo), el resto sobrio.
 .lens-tab--alert .lens-alert-mark { color: var(--status-danger); font-size: 0.85em; }
 .lens-tab--alert.active { border-bottom-color: var(--status-danger); }
 .lens-tab--alert.active .lens-count {
   color: var(--status-danger);
   background: var(--surface-danger-soft);
+}
+
+// Separador entre las pestañas de ciclo de vida y las de pertenencia: son dos ejes en una sola
+// barra, y sin esta marca "Cerrados" y "Todos" se leen como la misma familia.
+.lens-divider {
+  align-self: center;
+  width: 1px;
+  height: var(--space-4);
+  background: var(--border-default);
 }
 
 // ───────────────── Barra: búsqueda + botón Filtros ─────────────────

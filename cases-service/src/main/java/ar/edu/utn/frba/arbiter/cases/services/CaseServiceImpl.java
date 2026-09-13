@@ -4,14 +4,18 @@ import ar.edu.utn.frba.arbiter.cases.dto.AnalystDecisionRequest;
 import ar.edu.utn.frba.arbiter.cases.dto.AnalystWorkloadResponse;
 import ar.edu.utn.frba.arbiter.cases.dto.AssignedCaseSummaryResponse;
 import ar.edu.utn.frba.arbiter.cases.dto.CaseDocumentResponse;
+import ar.edu.utn.frba.arbiter.cases.dto.CaseScope;
 import ar.edu.utn.frba.arbiter.cases.dto.CaseRequest;
 import ar.edu.utn.frba.arbiter.cases.dto.CaseResponse;
 import ar.edu.utn.frba.arbiter.cases.dto.DocumentAnalysisSummary;
 import ar.edu.utn.frba.arbiter.cases.dto.EligibilityCheckRequest;
+import ar.edu.utn.frba.arbiter.cases.dto.IntakeDocumentsResponse;
 import ar.edu.utn.frba.arbiter.cases.dto.EligibilityCheckResponse;
 import ar.edu.utn.frba.arbiter.cases.dto.LensSummaryResponse;
 import ar.edu.utn.frba.arbiter.cases.dto.PolicyResponse;
 import ar.edu.utn.frba.arbiter.cases.dto.PolicySnapshotResponse;
+import ar.edu.utn.frba.arbiter.cases.dto.ProviderType;
+import ar.edu.utn.frba.arbiter.cases.dto.RepairProviderResponse;
 import ar.edu.utn.frba.arbiter.cases.config.tenant.CallerContext;
 import ar.edu.utn.frba.arbiter.cases.config.tenant.TenantContext;
 import ar.edu.utn.frba.arbiter.cases.dto.StatusTransitionResponse;
@@ -26,11 +30,14 @@ import ar.edu.utn.frba.arbiter.cases.exceptions.CaseNotFoundException;
 import ar.edu.utn.frba.arbiter.cases.exceptions.DocumentNotFoundException;
 import ar.edu.utn.frba.arbiter.cases.exceptions.DocumentReadException;
 import ar.edu.utn.frba.arbiter.cases.exceptions.InsuredIdentityMismatchException;
+import ar.edu.utn.frba.arbiter.cases.exceptions.RulesUnavailableException;
 import ar.edu.utn.frba.arbiter.cases.exceptions.InvalidAnalystDecisionException;
+import ar.edu.utn.frba.arbiter.cases.exceptions.InvalidSettlementException;
 import ar.edu.utn.frba.arbiter.cases.exceptions.InvalidStatusTransitionException;
 import ar.edu.utn.frba.arbiter.cases.exceptions.MissingRequiredDocumentsException;
 import ar.edu.utn.frba.arbiter.cases.exceptions.PolicyInsuredMismatchException;
 import ar.edu.utn.frba.arbiter.cases.exceptions.PolicyNotEligibleException;
+import ar.edu.utn.frba.arbiter.cases.models.entities.CaseSettlement;
 import ar.edu.utn.frba.arbiter.cases.models.entities.CaseDocument;
 import ar.edu.utn.frba.arbiter.cases.models.entities.Case;
 import ar.edu.utn.frba.arbiter.common.models.entities.tenant.Insured;
@@ -42,12 +49,17 @@ import ar.edu.utn.frba.arbiter.cases.models.repositories.CaseAnalysisRepository;
 import ar.edu.utn.frba.arbiter.cases.models.repositories.CaseAnalysisRepository.CaseAnalysis;
 import ar.edu.utn.frba.arbiter.cases.models.repositories.CaseDocumentAnalysisRepository;
 import ar.edu.utn.frba.arbiter.cases.models.repositories.CaseDocumentRepository;
+import ar.edu.utn.frba.arbiter.cases.models.repositories.CaseLensCountRepository;
 import ar.edu.utn.frba.arbiter.cases.models.repositories.CaseRepository;
 import ar.edu.utn.frba.arbiter.cases.models.repositories.CaseSpecifications;
 import ar.edu.utn.frba.arbiter.cases.models.repositories.ClaimsAnalystRepository;
+import ar.edu.utn.frba.arbiter.cases.models.repositories.ExpertAssessmentRepository;
+import ar.edu.utn.frba.arbiter.cases.models.repositories.UserRepository;
 import ar.edu.utn.frba.arbiter.common.models.entities.tenant.ClaimsAnalyst;
 import ar.edu.utn.frba.arbiter.common.dto.RuleResultResponse;
 import ar.edu.utn.frba.arbiter.common.enums.CaseStatus;
+import ar.edu.utn.frba.arbiter.common.enums.CauseConsistency;
+import ar.edu.utn.frba.arbiter.common.enums.SettlementStatus;
 import ar.edu.utn.frba.arbiter.common.enums.Classification;
 import ar.edu.utn.frba.arbiter.common.enums.DeadlinePriority;
 import ar.edu.utn.frba.arbiter.common.enums.RiskBand;
@@ -63,7 +75,9 @@ import org.springframework.web.multipart.MultipartFile;
 
 import java.io.IOException;
 import java.time.Clock;
+import java.time.Instant;
 import java.time.LocalDate;
+import java.util.stream.Collectors;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.HashMap;
@@ -72,7 +86,6 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
-import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
@@ -80,6 +93,7 @@ public class CaseServiceImpl implements CaseService {
 
     private final CaseRepository caseRepository;
     private final CaseDocumentRepository caseDocumentRepository;
+    private final ExpertAssessmentRepository expertAssessmentRepository;
     private final CaseStatusService caseStatusService;
     private final ClaimsAnalysisClient claimsAnalysisClient;
     private final ClaimsAnalystRepository claimsAnalystRepository;
@@ -92,6 +106,8 @@ public class CaseServiceImpl implements CaseService {
     private final PolicyCoverageResolver policyCoverageResolver;
     private final InsuredCaseAggregator insuredCaseAggregator;
     private final PolicyTenantLocator policyTenantLocator;
+    private final SettlementService settlementService;
+    private final UserRepository userRepository;
     private final InsurerRepository insurerRepository;
     private final PolicyService policyService;
     private final InsurerTenantScope tenantScope;
@@ -124,17 +140,26 @@ public class CaseServiceImpl implements CaseService {
      * mandatory, so the whole list is required, and a claim cause with no schedule requires
      * nothing.
      *
-     * <p>An unreadable schedule ({@code null}, as opposed to an empty one) lets the denuncia
-     * through. Leaving the insured out because a service of ours is down would be worse than
-     * taking in a case whose completeness we check later — which is what the engine's own
-     * missing-documents gate already does over the same schedule. Persisting that it came in
-     * unverified and retrying the check afterwards is its own story (gap doc §13).
+     * <p>What's demanded here is the FIRST ROUND — what the expedited path requires — and not the
+     * whole schedule: a claim that Fast Tracks never needed the rest, and one that doesn't is asked
+     * for it at classification time ({@code FALTA_DOCUMENTACION} → {@code AWAITING_DOCUMENTATION}).
+     *
+     * <p>An unreadable list ({@code null}, as opposed to an empty one) lets the denuncia through.
+     * Leaving the insured out because a service of ours is down would be worse than taking in a
+     * case whose completeness we check later — so the case goes in marked
+     * ({@code documentsUnverifiedSince}) and {@code DocumentRecheckScheduler} comes back to it
+     * once rules-service answers.
+     *
+     * @return {@code false} when the list couldn't be read, so the case goes in marked
      */
-    private void assertRequiredDocumentsPresent(
-            String branch, String claimCause, Map<String, MultipartFile> documents) {
-        List<String> required = rulesServiceClient.requiredDocumentTypes(branch, claimCause);
-        if (required == null || required.isEmpty()) {
-            return;
+    private boolean verifyRequiredDocuments(
+            Long coverageId, String branch, String claimCause, Map<String, MultipartFile> documents) {
+        List<String> required = intakeDocumentTypes(coverageId, branch, claimCause);
+        if (required == null) {
+            return false;
+        }
+        if (required.isEmpty()) {
+            return true;
         }
         Set<String> attached = documents == null ? Set.of() : documents.entrySet().stream()
                 .filter(entry -> entry.getValue() != null && !entry.getValue().isEmpty())
@@ -144,6 +169,7 @@ public class CaseServiceImpl implements CaseService {
         if (!missing.isEmpty()) {
             throw new MissingRequiredDocumentsException(missing);
         }
+        return true;
     }
 
     private CaseResponse createCaseInIssuingTenant(CaseRequest request, Map<String, MultipartFile> documents) {
@@ -188,7 +214,8 @@ public class CaseServiceImpl implements CaseService {
                 request.policyNumber(), request.eventDate(), request.policeReportAt(),
                 contracted.getCoverage(), claimCause);
 
-        assertRequiredDocumentsPresent(request.branch(), request.claimCause(), documents);
+        boolean documentsVerified = verifyRequiredDocuments(
+                contracted.getCoverage().getId(), request.branch(), request.claimCause(), documents);
 
         Case entity = Case.builder()
                 .claimCause(claimCause)
@@ -205,6 +232,7 @@ public class CaseServiceImpl implements CaseService {
                 .claimedAmount(request.claimedAmount())
                 .responseDeadline(LocalDate.now(clock).plusDays(CaseStatusService.RESPONSE_TERM_DAYS))
                 .currentStatus(caseStatusService.initialStatus())
+                .documentsUnverifiedSince(documentsVerified ? null : Instant.now(clock))
                 .build();
 
         Case saved = caseRepository.save(entity);
@@ -222,6 +250,58 @@ public class CaseServiceImpl implements CaseService {
                 issuer == null ? null : InsurerSlug.of(issuer),
                 issuer == null ? null : issuer.getName(),
                 List.of());
+    }
+
+    /**
+     * The first round: what the expedited path requires for this coverage, falling back to the full
+     * schedule when the insurer configured no list — with nothing to ask for, the case would reach
+     * the analyst without a single document.
+     *
+     * @return {@code null} when rules-service couldn't be read at all
+     */
+    private List<String> intakeDocumentTypes(Long coverageId, String branch, String claimCause) {
+        List<String> fastTrackDocs = rulesServiceClient.fastTrackDocumentTypes(coverageId);
+        if (fastTrackDocs == null) {
+            return null;
+        }
+        return fastTrackDocs.isEmpty()
+                ? rulesServiceClient.requiredDocumentTypes(branch, claimCause)
+                : fastTrackDocs;
+    }
+
+    @Override
+    public IntakeDocumentsResponse intakeDocuments(String policyNumber, String branch, String claimCause) {
+        // Misma maniobra de tenant que checkEligibility: la póliza puede ser de otra aseguradora
+        // que la del login, y la cobertura y las reglas se leen en el esquema que la emitió.
+        String issuingTenant = policyTenantLocator.locate(policyNumber);
+        String callerTenant = TenantContext.get();
+        TenantContext.set(issuingTenant);
+        try {
+            // Se resuelve contra el DNI del token, no contra un parámetro: así nadie pregunta por
+            // la póliza de otra persona.
+            Insured insured = referenceResolver.resolveInsured(CallerContext.get().insuredId());
+            Policy policy = referenceResolver.resolvePolicy(policyNumber, insured.getId());
+            ClaimCause cause = referenceResolver.resolveClaimCause(branch, claimCause);
+            PolicyCoverage contracted = policyCoverageResolver.resolveFor(policy.getId(), cause.getId());
+
+            List<String> fastTrackDocs = rulesServiceClient.fastTrackDocumentTypes(
+                    contracted.getCoverage().getId());
+            if (fastTrackDocs == null) {
+                throw new RulesUnavailableException(new IllegalStateException(
+                        "No se pudo leer la documentación requerida para el alta"));
+            }
+            if (!fastTrackDocs.isEmpty()) {
+                return new IntakeDocumentsResponse(fastTrackDocs, true);
+            }
+            List<String> schedule = rulesServiceClient.requiredDocumentTypes(branch, claimCause);
+            if (schedule == null) {
+                throw new RulesUnavailableException(new IllegalStateException(
+                        "No se pudo leer la agenda documental"));
+            }
+            return new IntakeDocumentsResponse(schedule, false);
+        } finally {
+            TenantContext.set(callerTenant);
+        }
     }
 
     @Override
@@ -408,21 +488,25 @@ public class CaseServiceImpl implements CaseService {
         List<StatusTransitionResponse> history = caseStatusService.history(caseId).stream()
                 .map(StatusTransitionResponse::from)
                 .toList();
+        // Sin el estado de la liquidación: el detalle se la trae entera por su propio endpoint, y
+        // tenerlo por dos vías invita a que se contradigan. Ver el javadoc del campo.
         return toResponse(entity, history, caseAnalysisRepository.findByCaseId(caseId), null, null,
-                caseDocumentAnalysisRepository.findByCaseId(caseId), traceabilityOf(entity));
+                caseDocumentAnalysisRepository.findByCaseId(caseId), traceabilityOf(entity),
+                repairProviderOf(entity), null);
     }
 
     @Override
-    public Page<CaseResponse> listCases(CaseStatus status, String claimCause, String policyNumber,
+    public Page<CaseResponse> listCases(List<CaseStatus> status, String claimCause, String policyNumber,
                                          String insuredId, LocalDate eventDateFrom, LocalDate eventDateTo,
                                          String q, RiskBand riskBand, Long analystId, boolean assignedToMe,
                                          boolean unassigned, boolean fraudAlert, boolean assigned,
-                                         boolean dueSoon, Pageable pageable) {
+                                         boolean dueSoon, CaseScope scope, Long insurerId, Pageable pageable) {
         if (accessPolicy.currentUserIsInsured()) {
             // El asegurado ve los suyos de TODAS sus aseguradoras, no solo la del tenant activo.
             // Las lentes no le aplican: no tiene expedientes "asignados" ni bandeja de fraude.
             return toInsuredResponses(insuredCaseAggregator.findOwnCases(
-                    status, claimCause, policyNumber, eventDateFrom, eventDateTo, q, riskBand, pageable));
+                    status, claimCause, policyNumber, eventDateFrom, eventDateTo, q, riskBand, scope,
+                    insurerId, pageable));
         }
 
         // "Los míos" gana sobre el filtro explícito: si vienen los dos, el analista está mirando su
@@ -438,10 +522,17 @@ public class CaseServiceImpl implements CaseService {
             }
         }
 
-        Specification<Case> spec = withDueSoon(CaseSpecifications.withFilters(
+        Specification<Case> spec = and(withDueSoon(CaseSpecifications.withFilters(
                 status, claimCause, policyNumber, insuredId, eventDateFrom, eventDateTo, q, riskBand,
-                ownerId, unassigned, fraudAlert, assigned), dueSoon);
+                ownerId, unassigned, fraudAlert, assigned), dueSoon), CaseSpecifications.scope(scope));
         return toResponses(caseRepository.findAll(spec, pageable));
+    }
+
+    private static Specification<Case> and(Specification<Case> base, Specification<Case> extra) {
+        if (extra == null) {
+            return base;
+        }
+        return base == null ? extra : base.and(extra);
     }
 
     /** Umbral del filtro "por vencer" = mismo borde que el semáforo (deadlinePriority ≠ NONE). */
@@ -455,32 +546,21 @@ public class CaseServiceImpl implements CaseService {
     }
 
     @Override
-    public LensSummaryResponse lensSummary(CaseStatus status, String claimCause, String policyNumber,
+    public LensSummaryResponse lensSummary(List<CaseStatus> status, String claimCause, String policyNumber,
                                             String insuredId, LocalDate eventDateFrom, LocalDate eventDateTo,
-                                            String q, RiskBand riskBand, Long analystId) {
+                                            String q, RiskBand riskBand, Long analystId, CaseScope scope) {
         // "Míos" necesita saber quién es "yo"; para el referente no hay perfil de analista y queda 0.
+        // El filtro `analystId` es del referente (el frontend solo se lo ofrece a ese rol), así que
+        // nunca convive con un "yo" real y las dos cosas pueden compartir el mismo WHERE.
         Long me = currentAnalystId().orElse(null);
-        return new LensSummaryResponse(
-                count(status, claimCause, policyNumber, insuredId, eventDateFrom, eventDateTo, q, riskBand,
-                        analystId, false, false, false),
-                me == null ? 0 : count(status, claimCause, policyNumber, insuredId, eventDateFrom, eventDateTo,
-                        q, riskBand, me, false, false, false),
-                count(status, claimCause, policyNumber, insuredId, eventDateFrom, eventDateTo, q, riskBand,
-                        analystId, false, false, true),
-                count(status, claimCause, policyNumber, insuredId, eventDateFrom, eventDateTo, q, riskBand,
-                        analystId, true, false, false),
-                count(status, claimCause, policyNumber, insuredId, eventDateFrom, eventDateTo, q, riskBand,
-                        analystId, false, true, false));
-    }
-
-    private long count(CaseStatus status, String claimCause, String policyNumber, String insuredId,
-                       LocalDate eventDateFrom, LocalDate eventDateTo, String q, RiskBand riskBand,
-                       Long analystId, boolean unassigned, boolean fraudAlert, boolean assigned) {
-        Specification<Case> spec = CaseSpecifications.withFilters(
+        Specification<Case> spec = and(CaseSpecifications.withFilters(
                 status, claimCause, policyNumber, insuredId, eventDateFrom, eventDateTo, q, riskBand,
-                analystId, unassigned, fraudAlert, assigned);
-        // Sin ningún filtro la spec queda null, y count(null) explota — findAll(null, pageable) no.
-        return spec == null ? caseRepository.count() : caseRepository.count(spec);
+                analystId), CaseSpecifications.scope(scope));
+
+        CaseLensCountRepository.LensCounts counts = caseRepository.countLenses(spec, me);
+        return new LensSummaryResponse(
+                counts.all(), counts.mine(), counts.assigned(), counts.unassigned(), counts.fraud(),
+                counts.open(), counts.closed());
     }
 
     /**
@@ -511,10 +591,16 @@ public class CaseServiceImpl implements CaseService {
     Page<CaseResponse> toResponses(Page<Case> page) {
         // Un solo query para toda la página: pedir el análisis caso por caso acá es el N+1 que
         // hace colapsar la bandeja.
-        Map<Long, CaseAnalysis> analyses = caseAnalysisRepository.findByCaseIds(
-                page.getContent().stream().map(Case::getId).toList());
+        List<Long> ids = page.getContent().stream().map(Case::getId).toList();
+        Map<Long, CaseAnalysis> analyses = caseAnalysisRepository.findByCaseIds(ids);
+        // Y lo mismo con la liquidación, por la misma razón. La bandeja la necesita para no
+        // mostrar igual a un expediente que espera al analista y a uno que ya despachó y espera
+        // la firma del referente.
+        Map<Long, SettlementStatus> settlements = settlementService.statusesFor(ids);
         return page.map(entity -> toResponse(entity, null,
-                analyses.getOrDefault(entity.getId(), CaseAnalysis.none())));
+                analyses.getOrDefault(entity.getId(), CaseAnalysis.none()),
+                null, null, List.of(), Traceability.none(), null,
+                settlements.get(entity.getId())));
     }
 
     @Override
@@ -667,7 +753,7 @@ public class CaseServiceImpl implements CaseService {
         // readableCase is the whole authorization: the analyst reaches these policies through a
         // case they can already read, never by asking for a DNI.
         Case entity = readableCase(caseId);
-        return policyService.listByInsured(entity.getInsured().getDni());
+        return policyService.listByInsured(entity.getInsured().getDni(), false);
     }
 
     private Case readableCase(Long caseId) {
@@ -677,7 +763,13 @@ public class CaseServiceImpl implements CaseService {
         return entity;
     }
 
+    /**
+     * {@code @Transactional} porque desde que la decisión también determina el monto acá se
+     * escriben dos cosas —la liquidación y la transición del expediente— y un expediente aprobado
+     * sin liquidación (o al revés) es peor que una decisión que falló entera.
+     */
     @Override
+    @Transactional
     public void recordAnalystDecision(Long caseId, AnalystDecisionRequest request) {
         Case entity = caseRepository.findById(caseId)
                 .orElseThrow(() -> new CaseNotFoundException(caseId));
@@ -712,17 +804,99 @@ public class CaseServiceImpl implements CaseService {
             throw new CaseAssignedToAnotherAnalystException(caseId);
         }
 
+        // Aprobar es también determinar cuánto se paga: el procedimiento de la compañía lo trata
+        // como un solo acto del analista (NSIN001 §5.2.1.2), y aprobar sin monto deja a la
+        // aseguradora con un siniestro que debe por una suma que nadie fijó. Se valida antes de
+        // mandar nada: una decisión que va a fallar no tiene que llegar al log de auditoría.
+        if (targetStatus == CaseStatus.APPROVED && request.settlement() == null) {
+            throw InvalidSettlementException.missing();
+        }
+        if (targetStatus == CaseStatus.REJECTED && request.settlement() != null) {
+            throw InvalidSettlementException.notApplicable();
+        }
+
+        // Primero la liquidación, porque puede frenar todo lo demás: si el monto supera la
+        // atribución del analista para el ramo (Anexo II), la aprobación NO se registra todavía
+        // —queda esperando al referente— y el expediente se queda donde está. Registrarla igual
+        // dejaría un veredicto que no surtió efecto, y si el referente después la devuelve,
+        // dos decisiones para un mismo siniestro.
+        if (targetStatus == CaseStatus.APPROVED) {
+            CaseSettlement settlement = settlementService.confirm(
+                    entity, analyst.getId(), request.justification(), request.settlement());
+            if (settlement.getStatus() == SettlementStatus.PENDING_AUTHORIZATION) {
+                return;
+            }
+        }
+
+        resolve(entity, targetStatus, analyst.getId(), request.decision(), request.justification());
+    }
+
+    /**
+     * Registra la decisión del analista y mueve el expediente. Sale de
+     * {@link #recordAnalystDecision} porque hay dos momentos en que esto ocurre: cuando el monto
+     * entra en la atribución del analista (ahí mismo) y cuando el referente autoriza uno que la
+     * superaba (más tarde, desde {@link #authorizeSettlement}). Es el mismo acto y tiene que
+     * dejar el mismo rastro.
+     */
+    private void resolve(Case entity, CaseStatus targetStatus, Long analystId,
+                         String decision, String justification) {
         // El contador vivo es de `cases`; el registro auditable se queda con su valor final, así
         // que se lo mandamos nosotros — el frontend no lo conoce, igual que con analystId.
+        // La liquidación NO viaja: classification-service audita el veredicto, la plata es
+        // registro propio de este módulo.
         AnalystDecisionRequest audited = new AnalystDecisionRequest(
-                analyst.getId(), request.decision(), request.justification(), entity.getClassificationAttempts());
+                analystId, decision, justification, entity.getClassificationAttempts(), null);
 
         // The decision row is created there, so its id only exists after the call. Storing it
         // links the case to the model run the verdict was based on.
-        entity.setClassificationId(claimsAnalysisClient.forwardAnalystDecision(caseId, audited));
+        entity.setClassificationId(claimsAnalysisClient.forwardAnalystDecision(entity.getId(), audited));
 
         caseStatusService.transition(entity, targetStatus,
-                StatusChangeActor.ANALYST, "decisión del analista: " + request.decision());
+                StatusChangeActor.ANALYST, "decisión del analista: " + decision);
+    }
+
+    /**
+     * El referente firma un monto que superaba la atribución del analista, y recién ahí la
+     * aprobación surte efecto: se registra la decisión con la justificación que el analista había
+     * dejado en custodia, y el expediente pasa a APROBADO (que es lo que dispara el mail con el
+     * monto). Para el asegurado, todo esto fue un solo paso.
+     */
+    @Override
+    @Transactional
+    public void authorizeSettlement(Long caseId) {
+        Case entity = caseRepository.findById(caseId)
+                .orElseThrow(() -> new CaseNotFoundException(caseId));
+
+        CaseSettlement pending = settlementService.require(caseId);
+        // Se lee ANTES de marcarla: markAuthorized la vacía, porque a partir de ahí la
+        // justificación vive en case_classification.
+        String justification = pending.getPendingJustification();
+        Long analystId = pending.getAnalystId();
+
+        settlementService.markAuthorized(caseId, currentUserId());
+        resolve(entity, CaseStatus.APPROVED, analystId, "APPROVE", justification);
+    }
+
+    /**
+     * El referente devuelve la liquidación con un motivo. El expediente no se mueve —nunca salió
+     * de la revisión del analista— y no hay decisión que deshacer, justamente porque no se había
+     * registrado ninguna.
+     */
+    @Override
+    @Transactional
+    public void returnSettlement(Long caseId, String reason) {
+        settlementService.returnToAnalyst(caseId, currentUserId(), reason);
+    }
+
+    /** El id del que llama, resuelto contra arbiter_common.users por el mail del JWT. */
+    private Long currentUserId() {
+        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+        if (authentication == null) {
+            return null;
+        }
+        return userRepository.findByEmail(authentication.getName())
+                .map(ar.edu.utn.frba.arbiter.common.models.entities.User::getId)
+                .orElse(null);
     }
 
     /** Recién creado o recién reencolado: todavía no hay clasificación que mostrar. */
@@ -737,27 +911,31 @@ public class CaseServiceImpl implements CaseService {
      */
     private CaseResponse toResponse(Case entity, List<StatusTransitionResponse> history,
                                      CaseAnalysis analysis) {
-        return toResponse(entity, history, analysis, null, null, List.of(), Traceability.none());
+        return toResponse(entity, history, analysis, null, null, List.of(), Traceability.none(),
+                null, null);
     }
 
     /** Sólo el detalle trae los datos extraídos; ver el javadoc del campo en {@link CaseResponse}. */
     private CaseResponse toResponse(Case entity, List<StatusTransitionResponse> history,
                                      CaseAnalysis analysis,
                                      List<DocumentAnalysisSummary> documentAnalyses) {
-        return toResponse(entity, history, analysis, null, null, documentAnalyses, Traceability.none());
+        return toResponse(entity, history, analysis, null, null, documentAnalyses, Traceability.none(),
+                null, null);
     }
 
     private CaseResponse toResponse(Case entity, List<StatusTransitionResponse> history,
                                      CaseAnalysis analysis, String insurerSlug, String insurerName,
                                      List<DocumentAnalysisSummary> documentAnalyses) {
         return toResponse(entity, history, analysis, insurerSlug, insurerName, documentAnalyses,
-                Traceability.none());
+                Traceability.none(), null, null);
     }
 
     private CaseResponse toResponse(Case entity, List<StatusTransitionResponse> history,
                                      CaseAnalysis analysis, String insurerSlug, String insurerName,
                                      List<DocumentAnalysisSummary> documentAnalyses,
-                                     Traceability traceability) {
+                                     Traceability traceability,
+                                     RepairProviderResponse repairProvider,
+                                     SettlementStatus settlementStatus) {
         // Mientras el expediente está de vuelta en clasificación, la corrida anterior sigue siendo
         // la última fila de llm_analysis. Mostrarla diría que hay una recomendación vigente cuando
         // justamente se está recalculando, así que en ese estado no se surface ninguna.
@@ -786,6 +964,9 @@ public class CaseServiceImpl implements CaseService {
                 classificationOf(entity, current),
                 confidenceOf(entity, current),
                 reasonsOf(entity, current),
+                consistencyOf(entity, current),
+                wasFastTracked(entity) ? null : current.suggestedClaimCause(),
+                wasFastTracked(entity) ? null : current.causeEvidence(),
                 entity.getRiskScore(),
                 entity.getRiskBand(),
                 current.riskBreakdown(),
@@ -796,11 +977,28 @@ public class CaseServiceImpl implements CaseService {
                 entity.getUpdatedAt(),
                 entity.getResponseDeadline(),
                 DeadlinePriority.of(entity.getResponseDeadline(), LocalDate.now(clock), isDeadlineInactive(entity)),
+                settlementStatus,
                 history,
                 documentAnalyses,
                 traceability.ruleResults(),
-                traceability.policySnapshot()
+                traceability.policySnapshot(),
+                repairProvider
         );
+    }
+
+    /**
+     * Solo mientras el bien está en el taller. Es una consulta más, así que va únicamente en el
+     * detalle y nunca en un listado, y solo en el estado donde el dato significa algo: el
+     * asegurado necesita saber dónde está su equipo ahora, no a qué taller fue hace dos meses.
+     */
+    private RepairProviderResponse repairProviderOf(Case entity) {
+        if (entity.getStatus() != CaseStatus.PENDING_REPAIR) {
+            return null;
+        }
+        return expertAssessmentRepository
+                .findByCaseIdAndProviderType(entity.getId(), ProviderType.SERVICIO_TECNICO)
+                .map(RepairProviderResponse::from)
+                .orElse(null);
     }
 
     /**
@@ -891,6 +1089,17 @@ public class CaseServiceImpl implements CaseService {
             return List.of();
         }
         return analysis.factors();
+    }
+
+    /**
+     * Mismo criterio que {@link #reasonsOf}: el veredicto de consistencia es de la corrida del
+     * modelo, y un Fast Track no tuvo ninguna — el de la corrida anterior no es suyo.
+     */
+    private CauseConsistency consistencyOf(Case entity, CaseAnalysis analysis) {
+        if (wasFastTracked(entity)) {
+            return null;
+        }
+        return analysis.causeConsistency();
     }
 
     private boolean wasFastTracked(Case entity) {

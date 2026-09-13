@@ -1,4 +1,5 @@
 import {
+  isFastTrackCriterion,
   ruleEvaluationText,
   ruleResultLabel,
   ruleResultTone,
@@ -115,11 +116,57 @@ describe('trazabilidad', () => {
     });
   });
 
+  describe('criterios de Fast Track (H0038)', () => {
+    it('arma la frase de cada criterio con el valor que se comparó', () => {
+      expect(ruleEvaluationText('FT_AMOUNT_RATIO', 'ratio=21.9% max=50.0%')).toBe(
+        'Reclama el 21.9% de la suma asegurada · tope 50.0%',
+      );
+      expect(ruleEvaluationText('FT_PRIOR_CLAIMS', 'priorClaims=1 max=2 windowMonths=12')).toBe(
+        '1 siniestro previo en los últimos 12 meses · máximo 2',
+      );
+      expect(ruleEvaluationText('FT_PRIOR_CLAIMS', 'priorClaims=3 max=2')).toBe(
+        '3 siniestros previos · máximo 2',
+      );
+      expect(ruleEvaluationText('FT_POLICY_AGE', 'policyAgeMonths=27 min=6')).toBe(
+        'Póliza de 27 meses · mínimo 6',
+      );
+      expect(ruleEvaluationText('FT_POLICY_UP_TO_DATE', 'upToDate=true')).toBe(
+        'La póliza está al día',
+      );
+    });
+
+    it('distingue el criterio que no se pudo evaluar del que se evaluó y falló', () => {
+      expect(ruleEvaluationText('FT_AMOUNT_RATIO', 'ratio=sin datos max=50.0%')).toBe(
+        'Sin monto reclamado o sin suma asegurada · tope 50.0%',
+      );
+      expect(ruleEvaluationText('FT_POLICY_AGE', 'policyAgeMonths=sin datos min=6')).toBe(
+        'No se pudo determinar la antigüedad de la póliza · mínimo 6 meses',
+      );
+    });
+
+    it('traduce los códigos de documento a lo que el analista conoce', () => {
+      expect(ruleEvaluationText('FT_REQUIRED_DOCS', 'required=police_report missing=ninguno')).toBe(
+        'Presente: Denuncia policial',
+      );
+      expect(
+        ruleEvaluationText('FT_REQUIRED_DOCS', 'required=police_report,item_photo missing=item_photo'),
+      ).toBe('Falta: Foto del bien');
+    });
+
+    it('separa los criterios del gate de las reglas duras', () => {
+      expect(isFastTrackCriterion('FT_AMOUNT_RATIO')).toBe(true);
+      expect(isFastTrackCriterion('POLICY_IN_FORCE')).toBe(false);
+      // El tipo de la fila de configuración tampoco es un criterio evaluado.
+      expect(isFastTrackCriterion('FAST_TRACK')).toBe(false);
+    });
+  });
+
   describe('ruleTypeLabel', () => {
     it('traduce los tipos conocidos y muestra el literal de los que no', () => {
       expect(ruleTypeLabel('POLICE_DEADLINE')).toBe('Plazo de la denuncia policial');
       expect(ruleTypeLabel('POLICY_STANDING')).toBe('Mora de la póliza');
       expect(ruleTypeLabel('FRAUD_RECORD')).toBe('Antecedente de fraude');
+      expect(ruleTypeLabel('FT_AMOUNT_RATIO')).toBe('Monto reclamado sobre la suma asegurada');
       expect(ruleTypeLabel('REGLA_NUEVA')).toBe('REGLA_NUEVA');
     });
   });

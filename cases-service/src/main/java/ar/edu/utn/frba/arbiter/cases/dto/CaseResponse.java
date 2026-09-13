@@ -4,9 +4,11 @@ import ar.edu.utn.frba.arbiter.common.dto.ImageForensicReport;
 import ar.edu.utn.frba.arbiter.common.dto.RuleResultResponse;
 import ar.edu.utn.frba.arbiter.common.dto.RiskBreakdownItem;
 import ar.edu.utn.frba.arbiter.common.enums.CaseStatus;
+import ar.edu.utn.frba.arbiter.common.enums.CauseConsistency;
 import ar.edu.utn.frba.arbiter.common.enums.Classification;
 import ar.edu.utn.frba.arbiter.common.enums.DeadlinePriority;
 import ar.edu.utn.frba.arbiter.common.enums.RiskBand;
+import ar.edu.utn.frba.arbiter.common.enums.SettlementStatus;
 
 import java.math.BigDecimal;
 import java.time.Instant;
@@ -43,8 +45,10 @@ public record CaseResponse(
         String claimCause,
         /**
          * The coverage the case is filed under, and the one {@code policySnapshot.sumInsured}
-         * belongs to. Shown next to that amount because they can differ from the claim cause: the
-         * case inherits the policy's single coverage (see docs/temas-a-discutir.md).
+         * belongs to. Shown next to that amount because a policy holds several coverages
+         * ({@code policy_coverage}) with a different sum insured each, so the figure only reads
+         * correctly alongside the coverage it came from. {@code PolicyCoverageResolver} picks it
+         * from the reported claim cause at intake.
          */
         String coverage,
         String insuredItem,
@@ -73,6 +77,16 @@ public record CaseResponse(
          * clasificación todavía).
          */
         List<String> analysisReasons,
+        /**
+         * Si el relato libre del asegurado coincide con el hecho generador que eligió del selector.
+         * {@code null} cuando el modelo no corrió (Fast Track, exclusión dura, o clasificación
+         * anterior a este chequeo): ausente significa "no evaluado", nunca {@code MATCHES}.
+         */
+        CauseConsistency causeConsistency,
+        /** Hecho generador que el relato sí describe, del catálogo del ramo. Solo con CONTRADICTS. */
+        String suggestedClaimCause,
+        /** Frase textual del relato que sostiene el veredicto. Solo con CONTRADICTS. */
+        String causeEvidence,
         Double riskScore,
         RiskBand riskBand,
         List<RiskBreakdownItem> riskBreakdown,
@@ -94,6 +108,18 @@ public record CaseResponse(
          * casos con más de 10 días o ya respondidos.
          */
         DeadlinePriority deadlinePriority,
+        /**
+         * En qué anda la liquidación del expediente, cuando hay una. Es lo que separa un caso que
+         * espera al analista de uno que ya decidió y espera la firma del referente: los dos están
+         * en {@code PENDING_ANALYST_REVIEW} —el estado del expediente no se mueve, para que el
+         * asegurado no vea un trámite interno— así que sin esto la bandeja los muestra iguales y
+         * el analista vuelve a abrir uno que ya despachó.
+         *
+         * <p>Sólo lo cargan los listados. El detalle no lo necesita: esa pantalla se trae la
+         * liquidación entera aparte, y tener el estado por dos vías invita a que se contradigan.
+         * Null también para el asegurado, que no ve nada de esto.
+         */
+        SettlementStatus settlementStatus,
         /** Full transition trail with timestamps; null on list endpoints (only GET /{id} loads it). */
         List<StatusTransitionResponse> statusHistory,
         /**
@@ -126,6 +152,16 @@ public record CaseResponse(
          * they'd go stale the moment they arrived. They're their own call
          * ({@code GET /cases/{id}/insured-policies}), made when the analyst asks for them.
          */
-        PolicySnapshotResponse policySnapshot
+        PolicySnapshotResponse policySnapshot,
+        /**
+         * El servicio técnico que tiene el bien, mientras el expediente está en PENDING_REPAIR.
+         * Null en cualquier otro estado y en los listados, como {@code statusHistory}: sale de una
+         * consulta aparte y en una lista sería una por fila.
+         *
+         * <p>Es el único dato de una derivación que ve el asegurado, y a propósito: el
+         * procedimiento de la compañía pide informarle a qué servicio técnico fue su equipo. La
+         * derivación a peritaje no viaja acá ni en ningún campo que él lea.
+         */
+        RepairProviderResponse repairProvider
 ) {
 }

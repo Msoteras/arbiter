@@ -71,7 +71,7 @@ class InsuredCaseAggregatorTest {
     }
 
     private Page<InsuredCaseAggregator.InsuredCase> findOwnCases() {
-        return aggregator.findOwnCases(null, null, null, null, null, null, null,
+        return aggregator.findOwnCases(null, null, null, null, null, null, null, null, null,
                 PageRequest.of(0, 10));
     }
 
@@ -191,5 +191,37 @@ class InsuredCaseAggregatorTest {
 
         assertThat(schemasVisited).containsExactly("arbiter_bbva");
         verify(insurerRepository).findAllById(List.of(1L));
+    }
+
+    /** Filtrar por aseguradora es no visitar el otro esquema, no descartar sus filas después. */
+    @Test
+    void insurerFilterNarrowsTheSchemasVisited() {
+        TenantContext.set(CALLER_TENANT);
+        CallerContext.set(new CallerContext.Caller("42.987.654", List.of(1L, 2L), CALLER_TENANT));
+        when(insurerRepository.findAllById(List.of(2L)))
+                .thenReturn(List.of(insurer(2L, "arbiter_provincia", true)));
+        List<String> schemasVisited = new ArrayList<>();
+        when(caseRepository.findAll(any(Specification.class), any(Sort.class)))
+                .thenAnswer(invocation -> {
+                    schemasVisited.add(TenantContext.get());
+                    return List.of();
+                });
+
+        aggregator.findOwnCases(null, null, null, null, null, null, null, null, 2L,
+                PageRequest.of(0, 10));
+
+        assertThat(schemasVisited).containsExactly("arbiter_provincia");
+    }
+
+    @Test
+    void insurerFilterOutsideTheCallersInsurersReturnsEmpty() {
+        TenantContext.set(CALLER_TENANT);
+        CallerContext.set(new CallerContext.Caller("42.987.654", List.of(1L), CALLER_TENANT));
+
+        Page<InsuredCaseAggregator.InsuredCase> result = aggregator.findOwnCases(
+                null, null, null, null, null, null, null, null, 99L, PageRequest.of(0, 10));
+
+        assertThat(result.getTotalElements()).isZero();
+        verify(insurerRepository, never()).findAllById(any());
     }
 }

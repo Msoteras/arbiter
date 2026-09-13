@@ -2,10 +2,19 @@ package ar.edu.utn.frba.arbiter.cases.services;
 
 import ar.edu.utn.frba.arbiter.cases.config.tenant.CallerContext;
 import ar.edu.utn.frba.arbiter.cases.dto.AnalystDecisionRequest;
+import ar.edu.utn.frba.arbiter.cases.dto.SettlementDecisionRequest;
+import ar.edu.utn.frba.arbiter.cases.models.entities.CaseSettlement;
+import ar.edu.utn.frba.arbiter.cases.models.repositories.UserRepository;
+import ar.edu.utn.frba.arbiter.common.enums.SettlementBasis;
+import ar.edu.utn.frba.arbiter.common.enums.SettlementStatus;
+import ar.edu.utn.frba.arbiter.common.models.entities.User;
 import ar.edu.utn.frba.arbiter.cases.dto.CaseRequest;
 import ar.edu.utn.frba.arbiter.cases.dto.CaseResponse;
 import ar.edu.utn.frba.arbiter.cases.dto.EligibilityCheckRequest;
+import ar.edu.utn.frba.arbiter.cases.dto.IntakeDocumentsResponse;
 import ar.edu.utn.frba.arbiter.cases.dto.EligibilityCheckResponse;
+import ar.edu.utn.frba.arbiter.cases.dto.ProviderType;
+import ar.edu.utn.frba.arbiter.cases.dto.RepairProviderResponse;
 import ar.edu.utn.frba.arbiter.cases.exceptions.AnalystNotFoundException;
 import ar.edu.utn.frba.arbiter.cases.exceptions.AnalystProfileNotFoundException;
 import ar.edu.utn.frba.arbiter.cases.exceptions.CaseAssignedToAnotherAnalystException;
@@ -13,14 +22,17 @@ import ar.edu.utn.frba.arbiter.cases.exceptions.CaseNotAssignedException;
 import ar.edu.utn.frba.arbiter.cases.exceptions.CaseNotFoundException;
 import ar.edu.utn.frba.arbiter.cases.exceptions.InsuredIdentityMismatchException;
 import ar.edu.utn.frba.arbiter.cases.exceptions.InvalidAnalystDecisionException;
+import ar.edu.utn.frba.arbiter.cases.exceptions.InvalidSettlementException;
 import ar.edu.utn.frba.arbiter.cases.exceptions.InvalidStatusTransitionException;
 import ar.edu.utn.frba.arbiter.cases.exceptions.MissingRequiredDocumentsException;
+import ar.edu.utn.frba.arbiter.cases.exceptions.RulesUnavailableException;
 import ar.edu.utn.frba.arbiter.cases.exceptions.PolicyInsuredMismatchException;
 import ar.edu.utn.frba.arbiter.cases.exceptions.PolicyNotEligibleException;
 import ar.edu.utn.frba.arbiter.cases.exceptions.UnresolvedCaseReferenceException;
 import ar.edu.utn.frba.arbiter.cases.models.entities.CaseDocument;
 import ar.edu.utn.frba.arbiter.cases.models.entities.Case;
 import ar.edu.utn.frba.arbiter.cases.models.entities.CaseStatusHistory;
+import ar.edu.utn.frba.arbiter.cases.models.entities.ExpertAssessment;
 import ar.edu.utn.frba.arbiter.common.models.entities.tenant.ClaimsAnalyst;
 import ar.edu.utn.frba.arbiter.common.models.entities.tenant.Insured;
 import ar.edu.utn.frba.arbiter.cases.models.entities.Policy;
@@ -31,6 +43,7 @@ import ar.edu.utn.frba.arbiter.cases.models.repositories.CaseDocumentAnalysisRep
 import ar.edu.utn.frba.arbiter.cases.models.repositories.CaseDocumentRepository;
 import ar.edu.utn.frba.arbiter.cases.models.repositories.CaseRepository;
 import ar.edu.utn.frba.arbiter.cases.models.repositories.ClaimsAnalystRepository;
+import ar.edu.utn.frba.arbiter.cases.models.repositories.ExpertAssessmentRepository;
 import ar.edu.utn.frba.arbiter.cases.models.repositories.InsurerRepository;
 import ar.edu.utn.frba.arbiter.cases.support.CaseFixtures;
 import ar.edu.utn.frba.arbiter.cases.support.CaseStates;
@@ -87,6 +100,9 @@ class CaseServiceImplTest {
     private CaseDocumentRepository caseDocumentRepository;
 
     @Mock
+    private ExpertAssessmentRepository expertAssessmentRepository;
+
+    @Mock
     private CaseStatusService caseStatusService;
 
     @Mock
@@ -132,6 +148,12 @@ class CaseServiceImplTest {
     private Clock clock;
 
     @Mock
+    private SettlementService settlementService;
+
+    @Mock
+    private UserRepository userRepository;
+
+    @Mock
     private PolicyCoverageResolver policyCoverageResolver;
 
     @InjectMocks
@@ -170,6 +192,16 @@ class CaseServiceImplTest {
      * si terminó en una aseguradora distinta de la del login). Sin aseguradora encontrada, la
      * respuesta simplemente queda con esos dos campos en null — el mismo comportamiento de antes.
      */
+    /**
+     * Por default la cobertura no tiene configurada su primera tanda, que es lo que hace caer el
+     * gate a la agenda documental completa — el comportamiento que prueban los tests de abajo. Los
+     * que ejercitan la tanda mínima la pisan.
+     */
+    @BeforeEach
+    void noFastTrackDocumentListByDefault() {
+        lenient().when(rulesServiceClient.fastTrackDocumentTypes(any())).thenReturn(List.of());
+    }
+
     @BeforeEach
     void noInsurerMatchByDefault() {
         lenient().when(insurerRepository.findBySchemaName(any())).thenReturn(Optional.empty());
@@ -415,6 +447,38 @@ class CaseServiceImplTest {
         verify(caseRepository).save(any(Case.class));
     }
 
+    /**
+     * Al asegurado se le dice a qué servicio técnico fue su equipo: sin eso no sabe dónde está ni a
+     * quién preguntarle. Es el único dato de una derivación que llega a su pantalla — el peritaje
+     * no viaja en ningún campo que él lea.
+     */
+    @Test
+    void getCase_inRepair_tellsWhoHasTheItem() {
+        when(caseRepository.findById(1L))
+                .thenReturn(Optional.of(caseRecord(1L, CaseStatus.PENDING_REPAIR)));
+        when(expertAssessmentRepository.findByCaseIdAndProviderType(1L, ProviderType.SERVICIO_TECNICO))
+                .thenReturn(Optional.of(ExpertAssessment.builder()
+                        .caseId(1L)
+                        .expertName("Service Celular Once")
+                        .expertEmail("service@example.com")
+                        .build()));
+
+        RepairProviderResponse provider = caseService.getCase(1L).repairProvider();
+
+        assertThat(provider).isNotNull();
+        assertThat(provider.name()).isEqualTo("Service Celular Once");
+        assertThat(provider.email()).isEqualTo("service@example.com");
+    }
+
+    /** En cualquier otro estado el dato no significa nada, y ni siquiera se consulta. */
+    @Test
+    void getCase_outsideRepair_carriesNoProvider() {
+        when(caseRepository.findById(1L))
+                .thenReturn(Optional.of(caseRecord(1L, CaseStatus.PENDING_ANALYST_REVIEW)));
+
+        assertThat(caseService.getCase(1L).repairProvider()).isNull();
+    }
+
     @Test
     void getCase_joinsTheClassificationFromLlmAnalysis() {
         // La recomendación ya no es columna de `cases`: sale del join, y los motivos viajan uno
@@ -423,7 +487,7 @@ class CaseServiceImplTest {
         when(caseRepository.findById(1L)).thenReturn(Optional.of(entity));
         when(caseAnalysisRepository.findByCaseId(1L)).thenReturn(new CaseAnalysis(
                 Classification.LLM_RECOMIENDA_APROBAR, 0.87,
-                List.of("Monto bajo", "Primer siniestro"), null));
+                List.of("Monto bajo", "Primer siniestro"), null, null, null, null));
 
         CaseResponse response = caseService.getCase(1L);
 
@@ -458,7 +522,8 @@ class CaseServiceImplTest {
         Case entity = caseRecord(1L, CaseStatus.PENDING_CLASSIFICATION);
         when(caseRepository.findById(1L)).thenReturn(Optional.of(entity));
         when(caseAnalysisRepository.findByCaseId(1L)).thenReturn(new CaseAnalysis(
-                Classification.LLM_RECOMIENDA_APROBAR, 0.9, List.of("Motivo viejo"), null));
+                Classification.LLM_RECOMIENDA_APROBAR, 0.9, List.of("Motivo viejo"), null,
+                null, null, null));
 
         CaseResponse response = caseService.getCase(1L);
 
@@ -565,6 +630,30 @@ class CaseServiceImplTest {
         assertThat(response.getContent().get(1).id()).isEqualTo(1L);
     }
 
+    /**
+     * Un expediente que el analista ya despachó y otro que todavía espera su decisión están los dos
+     * en PENDING_ANALYST_REVIEW: el estado del expediente no se mueve mientras el referente firma,
+     * para que el asegurado no vea un trámite interno. Sin el estado de la liquidación la bandeja
+     * los muestra iguales, y el analista vuelve a abrir uno que ya firmó.
+     */
+    @Test
+    void listCases_tellsApartTheOnesWaitingForTheReferente() {
+        Case despachado = caseRecord(2L, CaseStatus.PENDING_ANALYST_REVIEW);
+        Case pendiente = caseRecord(1L, CaseStatus.PENDING_ANALYST_REVIEW);
+        Pageable pageable = PageRequest.of(0, 20);
+        when(caseRepository.findAll(isNull(Specification.class), eq(pageable)))
+                .thenReturn(new PageImpl<>(List.of(despachado, pendiente), pageable, 2));
+        when(settlementService.statusesFor(List.of(2L, 1L)))
+                .thenReturn(Map.of(2L, SettlementStatus.PENDING_AUTHORIZATION));
+
+        Page<CaseResponse> response = caseService.listCases(
+                null, null, null, null, null, null, null, null, false, pageable);
+
+        assertThat(response.getContent().get(0).settlementStatus())
+                .isEqualTo(SettlementStatus.PENDING_AUTHORIZATION);
+        assertThat(response.getContent().get(1).settlementStatus()).isNull();
+    }
+
     @Test
     void listCases_withStatusFilter_appliesStatusSpec() {
         Case entity = caseRecord(3L, CaseStatus.PENDING_ANALYST_REVIEW);
@@ -573,7 +662,7 @@ class CaseServiceImplTest {
                 .thenReturn(new PageImpl<>(List.of(entity), pageable, 1));
 
         Page<CaseResponse> response = caseService.listCases(
-                CaseStatus.PENDING_ANALYST_REVIEW, null, null, null, null, null, null, null, false, pageable);
+                List.of(CaseStatus.PENDING_ANALYST_REVIEW), null, null, null, null, null, null, null, false, pageable);
 
         assertThat(response.getContent()).hasSize(1);
         assertThat(response.getContent().get(0).status()).isEqualTo(CaseStatus.PENDING_ANALYST_REVIEW);
@@ -629,7 +718,7 @@ class CaseServiceImplTest {
                 .thenReturn(new PageImpl<>(List.of(entity), pageable, 1));
 
         Page<CaseResponse> response = caseService.listCases(
-                CaseStatus.APPROVED, "Robo en vía pública", "POL-CEL-2024-001", "40.123.456",
+                List.of(CaseStatus.APPROVED), "Robo en vía pública", "POL-CEL-2024-001", "40.123.456",
                 LocalDate.of(2026, 6, 1), LocalDate.of(2026, 6, 30), null, null, false, pageable);
 
         assertThat(response.getContent()).hasSize(1);
@@ -864,23 +953,163 @@ class CaseServiceImplTest {
     }
 
     @Test
-    void recordAnalystDecision_approve_transitionsToApproved() {
+    void recordAnalystDecision_approve_transitionsToApprovedAndRecordsTheSettlement() {
         Case entity = caseRecord(1L, CaseStatus.PENDING_ANALYST_REVIEW);
         entity.setAnalyst(ClaimsAnalyst.builder().id(7L).build());
         when(caseRepository.findById(1L)).thenReturn(Optional.of(entity));
         authenticateAs("analista@example.com");
         when(claimsAnalystRepository.findByEmail("analista@example.com"))
                 .thenReturn(Optional.of(ClaimsAnalyst.builder().id(7L).build()));
-        AnalystDecisionRequest request = new AnalystDecisionRequest(null, "APPROVE", "Documentación completa", null);
+        SettlementDecisionRequest settlement =
+                new SettlementDecisionRequest(null, new BigDecimal("1140000.00"), null);
+        when(settlementService.confirm(any(), any(), any(), any()))
+                .thenReturn(settlementWith(SettlementStatus.AUTHORIZED));
+        AnalystDecisionRequest request =
+                new AnalystDecisionRequest(null, "APPROVE", "Documentación completa", null, settlement);
 
         caseService.recordAnalystDecision(1L, request);
 
         // Se reenvía con el analista resuelto del JWT (no del request) y el contador de
         // reintentos del expediente, que el frontend no conoce: case_classification.
-        // classification_attempts se congela con ese valor.
+        // classification_attempts se congela con ese valor. La liquidación NO viaja: la plata es
+        // registro de este módulo, classification-service audita el veredicto.
         verify(claimsAnalysisClient).forwardAnalystDecision(1L,
-                new AnalystDecisionRequest(7L, "APPROVE", "Documentación completa", entity.getClassificationAttempts()));
+                new AnalystDecisionRequest(7L, "APPROVE", "Documentación completa", entity.getClassificationAttempts(), null));
+        verify(settlementService).confirm(entity, 7L, "Documentación completa", settlement);
         verify(caseStatusService).transition(eq(entity), eq(CaseStatus.APPROVED),
+                eq(StatusChangeActor.ANALYST), any());
+    }
+
+    /**
+     * Anexo II: por encima de la atribución del analista, la aprobación NO se registra todavía. Si
+     * se registrara, el expediente quedaría con un veredicto que no surtió efecto — y si el
+     * referente después devuelve la liquidación, con dos decisiones para un mismo siniestro.
+     */
+    @Test
+    void recordAnalystDecision_settlementOverTheAttribution_holdsTheDecisionAndTheCase() {
+        Case entity = caseRecord(1L, CaseStatus.PENDING_ANALYST_REVIEW);
+        entity.setAnalyst(ClaimsAnalyst.builder().id(7L).build());
+        when(caseRepository.findById(1L)).thenReturn(Optional.of(entity));
+        authenticateAs("analista@example.com");
+        when(claimsAnalystRepository.findByEmail("analista@example.com"))
+                .thenReturn(Optional.of(ClaimsAnalyst.builder().id(7L).build()));
+        when(settlementService.confirm(any(), any(), any(), any()))
+                .thenReturn(settlementWith(SettlementStatus.PENDING_AUTHORIZATION));
+
+        caseService.recordAnalystDecision(1L, new AnalystDecisionRequest(
+                null, "APPROVE", "Monto alto pero documentado", null,
+                new SettlementDecisionRequest(null, new BigDecimal("1140000.00"), null)));
+
+        verify(claimsAnalysisClient, never()).forwardAnalystDecision(any(), any());
+        verify(caseStatusService, never()).transition(any(), any(), any(), any());
+    }
+
+    /** Autorizar es lo que convierte la aprobación en efectiva, con la justificación en custodia. */
+    @Test
+    void authorizeSettlement_recordsTheHeldDecisionAndApprovesTheCase() {
+        Case entity = caseRecord(1L, CaseStatus.PENDING_ANALYST_REVIEW);
+        when(caseRepository.findById(1L)).thenReturn(Optional.of(entity));
+        CaseSettlement pending = settlementWith(SettlementStatus.PENDING_AUTHORIZATION);
+        pending.setAnalystId(7L);
+        pending.setPendingJustification("Monto alto pero documentado");
+        when(settlementService.require(1L)).thenReturn(pending);
+        authenticateAs("referente@example.com");
+        when(userRepository.findByEmail("referente@example.com"))
+                .thenReturn(Optional.of(User.builder().id(3L).build()));
+
+        caseService.authorizeSettlement(1L);
+
+        verify(settlementService).markAuthorized(1L, 3L);
+        // La decisión se atribuye al ANALISTA que la tomó, no al referente que la firmó: el
+        // veredicto sigue siendo suyo, lo que el referente autorizó es el monto.
+        verify(claimsAnalysisClient).forwardAnalystDecision(1L, new AnalystDecisionRequest(
+                7L, "APPROVE", "Monto alto pero documentado", entity.getClassificationAttempts(), null));
+        verify(caseStatusService).transition(eq(entity), eq(CaseStatus.APPROVED),
+                eq(StatusChangeActor.ANALYST), any());
+    }
+
+    /** Devolverla no mueve el expediente: nunca salió de la revisión del analista. */
+    @Test
+    void returnSettlement_leavesTheCaseWhereItIs() {
+        authenticateAs("referente@example.com");
+        when(userRepository.findByEmail("referente@example.com"))
+                .thenReturn(Optional.of(User.builder().id(3L).build()));
+
+        caseService.returnSettlement(1L, "El presupuesto no respalda ese monto");
+
+        verify(settlementService).returnToAnalyst(1L, 3L, "El presupuesto no respalda ese monto");
+        verify(claimsAnalysisClient, never()).forwardAnalystDecision(any(), any());
+        verify(caseStatusService, never()).transition(any(), any(), any(), any());
+    }
+
+    private CaseSettlement settlementWith(SettlementStatus status) {
+        return CaseSettlement.builder()
+                .caseId(1L)
+                .sumInsured(new BigDecimal("1300000.00"))
+                .settlementBasis(SettlementBasis.SUM_INSURED)
+                .calculatedAmount(new BigDecimal("1140000.00"))
+                .settledAmount(new BigDecimal("1140000.00"))
+                .status(status)
+                .analystId(7L)
+                .calculatedAt(java.time.Instant.now())
+                .confirmedAt(java.time.Instant.now())
+                .build();
+    }
+
+    /**
+     * Aprobar es también determinar cuánto se paga (NSIN001 §5.2.1.2). Sin monto no hay
+     * aprobación: la compañía quedaría debiendo una suma que nadie fijó.
+     */
+    @Test
+    void recordAnalystDecision_approveWithoutSettlement_throwsBeforeForwarding() {
+        Case entity = caseRecord(1L, CaseStatus.PENDING_ANALYST_REVIEW);
+        entity.setAnalyst(ClaimsAnalyst.builder().id(7L).build());
+        when(caseRepository.findById(1L)).thenReturn(Optional.of(entity));
+        authenticateAs("analista@example.com");
+        when(claimsAnalystRepository.findByEmail("analista@example.com"))
+                .thenReturn(Optional.of(ClaimsAnalyst.builder().id(7L).build()));
+
+        assertThatThrownBy(() -> caseService.recordAnalystDecision(1L,
+                new AnalystDecisionRequest(null, "APPROVE", "Documentación completa", null, null)))
+                .isInstanceOf(InvalidSettlementException.class);
+
+        // Antes de reenviar: una decisión que va a fallar no tiene que llegar al log de auditoría.
+        verify(claimsAnalysisClient, never()).forwardAnalystDecision(any(), any());
+        verify(caseStatusService, never()).transition(any(), any(), any(), any());
+    }
+
+    /** Rechazar no paga nada, así que un monto en el body es un bug del cliente, no un dato. */
+    @Test
+    void recordAnalystDecision_rejectWithSettlement_throwsBeforeForwarding() {
+        Case entity = caseRecord(1L, CaseStatus.PENDING_ANALYST_REVIEW);
+        entity.setAnalyst(ClaimsAnalyst.builder().id(7L).build());
+        when(caseRepository.findById(1L)).thenReturn(Optional.of(entity));
+        authenticateAs("analista@example.com");
+        when(claimsAnalystRepository.findByEmail("analista@example.com"))
+                .thenReturn(Optional.of(ClaimsAnalyst.builder().id(7L).build()));
+
+        assertThatThrownBy(() -> caseService.recordAnalystDecision(1L,
+                new AnalystDecisionRequest(null, "REJECT", "Hurto, no robo",
+                        null, new SettlementDecisionRequest(null, new BigDecimal("100"), null))))
+                .isInstanceOf(InvalidSettlementException.class);
+
+        verify(claimsAnalysisClient, never()).forwardAnalystDecision(any(), any());
+    }
+
+    @Test
+    void recordAnalystDecision_reject_needsNoSettlement() {
+        Case entity = caseRecord(1L, CaseStatus.PENDING_ANALYST_REVIEW);
+        entity.setAnalyst(ClaimsAnalyst.builder().id(7L).build());
+        when(caseRepository.findById(1L)).thenReturn(Optional.of(entity));
+        authenticateAs("analista@example.com");
+        when(claimsAnalystRepository.findByEmail("analista@example.com"))
+                .thenReturn(Optional.of(ClaimsAnalyst.builder().id(7L).build()));
+
+        caseService.recordAnalystDecision(1L,
+                new AnalystDecisionRequest(null, "REJECT", "El hecho es hurto, no robo", null, null));
+
+        verify(settlementService, never()).confirm(any(), any(), any(), any());
+        verify(caseStatusService).transition(eq(entity), eq(CaseStatus.REJECTED),
                 eq(StatusChangeActor.ANALYST), any());
     }
 
@@ -890,7 +1119,7 @@ class CaseServiceImplTest {
         when(caseRepository.findById(1L)).thenReturn(Optional.of(entity));
 
         assertThatThrownBy(() -> caseService.recordAnalystDecision(1L,
-                new AnalystDecisionRequest(null, "DERIVAR", null, null)))
+                new AnalystDecisionRequest(null, "DERIVAR", null, null, null)))
                 .isInstanceOf(InvalidAnalystDecisionException.class);
 
         verify(claimsAnalysisClient, never()).forwardAnalystDecision(any(), any());
@@ -903,7 +1132,7 @@ class CaseServiceImplTest {
         when(caseRepository.findById(1L)).thenReturn(Optional.of(entity));
 
         assertThatThrownBy(() -> caseService.recordAnalystDecision(1L,
-                new AnalystDecisionRequest(null, "APPROVE", null, null)))
+                new AnalystDecisionRequest(null, "APPROVE", null, null, null)))
                 .isInstanceOf(InvalidStatusTransitionException.class);
 
         verify(claimsAnalysisClient, never()).forwardAnalystDecision(any(), any());
@@ -917,7 +1146,7 @@ class CaseServiceImplTest {
         when(claimsAnalystRepository.findByEmail("referente@example.com")).thenReturn(Optional.empty());
 
         assertThatThrownBy(() -> caseService.recordAnalystDecision(1L,
-                new AnalystDecisionRequest(null, "APPROVE", null, null)))
+                new AnalystDecisionRequest(null, "APPROVE", null, null, null)))
                 .isInstanceOf(AnalystProfileNotFoundException.class);
 
         verify(claimsAnalysisClient, never()).forwardAnalystDecision(any(), any());
@@ -937,7 +1166,7 @@ class CaseServiceImplTest {
                 .thenReturn(Optional.of(ClaimsAnalyst.builder().id(7L).build()));
 
         assertThatThrownBy(() -> caseService.recordAnalystDecision(1L,
-                new AnalystDecisionRequest(null, "APPROVE", null, null)))
+                new AnalystDecisionRequest(null, "APPROVE", null, null, null)))
                 .isInstanceOf(CaseNotAssignedException.class);
 
         verify(claimsAnalysisClient, never()).forwardAnalystDecision(any(), any());
@@ -955,7 +1184,7 @@ class CaseServiceImplTest {
                 .thenReturn(Optional.of(ClaimsAnalyst.builder().id(9L).build()));
 
         assertThatThrownBy(() -> caseService.recordAnalystDecision(1L,
-                new AnalystDecisionRequest(null, "APPROVE", null, null)))
+                new AnalystDecisionRequest(null, "APPROVE", null, null, null)))
                 .isInstanceOf(CaseAssignedToAnotherAnalystException.class);
 
         verify(claimsAnalysisClient, never()).forwardAnalystDecision(any(), any());
@@ -1045,16 +1274,19 @@ class CaseServiceImplTest {
 
         caseService.createCase(request, Map.of("police_report", police));
 
-        verify(caseRepository).save(any(Case.class));
+        ArgumentCaptor<Case> captor = ArgumentCaptor.forClass(Case.class);
+        verify(caseRepository).save(captor.capture());
+        assertThat(captor.getValue().getDocumentsUnverifiedSince()).isNull();
     }
 
     /**
      * Lista vacía es una respuesta ("este hecho generador no pide documentos"); null es que no se
-     * pudo leer la agenda. Ninguna de las dos frena la denuncia, pero por motivos distintos — ver
-     * {@code CaseServiceImpl.assertRequiredDocumentsPresent}.
+     * pudo leer la agenda. Ninguna de las dos frena la denuncia, pero la segunda entra marcada
+     * para que {@code DocumentRecheckScheduler} la verifique después — ver
+     * {@code CaseServiceImpl.verifyRequiredDocuments}.
      */
     @Test
-    void createCase_withoutAReadableSchedule_doesNotDemandAnything() {
+    void createCase_withoutAReadableSchedule_goesThroughMarkedUnverified() {
         CaseRequest request = caseRequest();
         Case saved = caseRecord(1L, CaseStatus.PENDING_CLASSIFICATION);
         stubReferenceResolution();
@@ -1066,7 +1298,11 @@ class CaseServiceImplTest {
 
         caseService.createCase(request, Map.of());
 
-        verify(caseRepository).save(any(Case.class));
+        ArgumentCaptor<Case> captor = ArgumentCaptor.forClass(Case.class);
+        verify(caseRepository).save(captor.capture());
+        // Marked with the filing time, so the recheck sweep comes back to it.
+        assertThat(captor.getValue().getDocumentsUnverifiedSince())
+                .isEqualTo(Instant.parse("2026-06-15T12:00:00Z"));
     }
 
     @Test
@@ -1082,7 +1318,122 @@ class CaseServiceImplTest {
 
         caseService.createCase(request, Map.of());
 
+        ArgumentCaptor<Case> captor = ArgumentCaptor.forClass(Case.class);
+        verify(caseRepository).save(captor.capture());
+        assertThat(captor.getValue().getDocumentsUnverifiedSince()).isNull();
+    }
+
+    /**
+     * La primera tanda: con la lista del carril rápido configurada, el alta pide esa y ni mira la
+     * agenda completa — el resto se le pide después, y solo si el siniestro no fast-trackea.
+     */
+    @Test
+    void createCase_withTheFastTrackList_doesNotDemandTheWholeSchedule() {
+        CaseRequest request = caseRequest();
+        Case saved = caseRecord(1L, CaseStatus.PENDING_CLASSIFICATION);
+        stubReferenceResolution();
+        when(rulesServiceClient.fastTrackDocumentTypes(any())).thenReturn(List.of("police_report"));
+        when(caseRepository.save(any(Case.class))).thenReturn(saved);
+        when(caseDocumentRepository.findByCaseIdAndType(eq(1L), any())).thenReturn(Optional.empty());
+        when(caseDocumentRepository.findByCaseId(1L)).thenReturn(List.of());
+        when(claimsAnalysisClient.analyzeAndPersist(any(), any()))
+                .thenReturn(new AnalysisResult(null, 0.0, "in progress"));
+
+        MockMultipartFile police = new MockMultipartFile(
+                "police_report", "denuncia.pdf", "application/pdf", "pdf-bytes".getBytes());
+
+        caseService.createCase(request, Map.of("police_report", police));
+
         verify(caseRepository).save(any(Case.class));
+        verify(rulesServiceClient, never()).requiredDocumentTypes(any(), any());
+    }
+
+    @Test
+    void createCase_missingADocumentOfTheFastTrackList_isRejected() {
+        CaseRequest request = caseRequest();
+        stubReferenceResolution();
+        when(rulesServiceClient.fastTrackDocumentTypes(any()))
+                .thenReturn(List.of("police_report", "purchase_proof"));
+
+        MockMultipartFile police = new MockMultipartFile(
+                "police_report", "denuncia.pdf", "application/pdf", "pdf-bytes".getBytes());
+
+        assertThatThrownBy(() -> caseService.createCase(request, Map.of("police_report", police)))
+                .isInstanceOf(MissingRequiredDocumentsException.class)
+                .hasMessageContaining("purchase_proof");
+
+        verify(caseRepository, never()).save(any(Case.class));
+    }
+
+    /** Sin poder leer la lista, la denuncia entra marcada, igual que con la agenda ilegible. */
+    @Test
+    void createCase_withoutAReadableFastTrackList_goesThroughMarkedUnverified() {
+        CaseRequest request = caseRequest();
+        Case saved = caseRecord(1L, CaseStatus.PENDING_CLASSIFICATION);
+        stubReferenceResolution();
+        when(rulesServiceClient.fastTrackDocumentTypes(any())).thenReturn(null);
+        when(caseRepository.save(any(Case.class))).thenReturn(saved);
+        when(caseDocumentRepository.findByCaseId(1L)).thenReturn(List.of());
+        when(claimsAnalysisClient.analyzeAndPersist(any(), any()))
+                .thenReturn(new AnalysisResult(null, 0.0, "in progress"));
+
+        caseService.createCase(request, Map.of());
+
+        ArgumentCaptor<Case> captor = ArgumentCaptor.forClass(Case.class);
+        verify(caseRepository).save(captor.capture());
+        assertThat(captor.getValue().getDocumentsUnverifiedSince())
+                .isEqualTo(Instant.parse("2026-06-15T12:00:00Z"));
+        verify(rulesServiceClient, never()).requiredDocumentTypes(any(), any());
+    }
+
+    // ─────────── la tanda que el wizard le muestra al asegurado ───────────
+
+    @Test
+    void intakeDocuments_returnsTheFastTrackListWhenTheCoverageHasOne() {
+        stubPolicyAndInsuredResolution();
+        when(policyTenantLocator.locate(any())).thenReturn("arbiter_bbva");
+        when(referenceResolver.resolveClaimCause(any(), any()))
+                .thenReturn(CaseFixtures.claimCause("Celulares", "Robo en vía pública"));
+        when(rulesServiceClient.fastTrackDocumentTypes(any()))
+                .thenReturn(List.of("police_report", "purchase_proof"));
+
+        IntakeDocumentsResponse response = caseService.intakeDocuments(
+                "POL-CEL-2024-001", "Celulares", "Robo en vía pública");
+
+        assertThat(response.documentTypes()).containsExactly("police_report", "purchase_proof");
+        assertThat(response.fastTrackOnly()).isTrue();
+        verify(rulesServiceClient, never()).requiredDocumentTypes(any(), any());
+    }
+
+    /** Sin lista configurada no habría nada que pedir, así que se cae a la agenda completa. */
+    @Test
+    void intakeDocuments_fallsBackToTheWholeSchedule() {
+        stubPolicyAndInsuredResolution();
+        when(policyTenantLocator.locate(any())).thenReturn("arbiter_bbva");
+        when(referenceResolver.resolveClaimCause(any(), any()))
+                .thenReturn(CaseFixtures.claimCause("Celulares", "Robo en vía pública"));
+        when(rulesServiceClient.requiredDocumentTypes("Celulares", "Robo en vía pública"))
+                .thenReturn(List.of("police_report", "purchase_proof", "imei_deregistration"));
+
+        IntakeDocumentsResponse response = caseService.intakeDocuments(
+                "POL-CEL-2024-001", "Celulares", "Robo en vía pública");
+
+        assertThat(response.documentTypes()).hasSize(3);
+        assertThat(response.fastTrackOnly()).isFalse();
+    }
+
+    /** 503 y no lista vacía: "no hace falta ningún documento" es la respuesta equivocada. */
+    @Test
+    void intakeDocuments_failsWhenRulesIsUnreachable() {
+        stubPolicyAndInsuredResolution();
+        when(policyTenantLocator.locate(any())).thenReturn("arbiter_bbva");
+        when(referenceResolver.resolveClaimCause(any(), any()))
+                .thenReturn(CaseFixtures.claimCause("Celulares", "Robo en vía pública"));
+        when(rulesServiceClient.fastTrackDocumentTypes(any())).thenReturn(null);
+
+        assertThatThrownBy(() -> caseService.intakeDocuments(
+                "POL-CEL-2024-001", "Celulares", "Robo en vía pública"))
+                .isInstanceOf(RulesUnavailableException.class);
     }
 
     @Test

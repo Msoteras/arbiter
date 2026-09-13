@@ -4,6 +4,8 @@ import ar.edu.utn.frba.arbiter.common.dto.ClaimReport;
 import ar.edu.utn.frba.arbiter.classification.dto.InsuredHistory;
 import ar.edu.utn.frba.arbiter.classification.dto.InsuredPolicy;
 import ar.edu.utn.frba.arbiter.classification.dto.BusinessRules;
+import ar.edu.utn.frba.arbiter.classification.dto.RuleFinding;
+import ar.edu.utn.frba.arbiter.common.enums.RuleType;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
@@ -12,19 +14,35 @@ import java.time.LocalDate;
 import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 
 /**
  * Deterministic Fast Track validation: runs before invoking the LLM and evaluates
  * the {@link BusinessRules.FastTrackThresholds} thresholds against the claim, policy,
  * and insured history data. No AI involved — these are plain evaluable rules.
+ *
+ * <p>Every criterion it compares leaves a {@link RuleFinding}, passes included, so the analyst
+ * sees what the gate checked instead of a bare "Fast Track" label. Until H0038 this was computed,
+ * logged and dropped: the reasons reached {@code ClassificationResponse.factors} and died in
+ * {@code ClassificationResultsService}, which writes no {@code llm_analysis} row for a
+ * deterministic outcome.
  */
 @Service
 public class FastTrackValidator {
 
     private static final Logger log = LoggerFactory.getLogger(FastTrackValidator.class);
 
-    public record Result(boolean fastTrack, List<String> reasons) {}
+    /** {@code rule_result.evaluated_value} is {@code VARCHAR(150)}. */
+    private static final int EVALUATED_VALUE_MAX = 150;
+
+    /**
+     * @param findings one row per criterion actually compared, for {@code rule_result}. Empty when
+     *                 the gate didn't get to compare anything (no Fast Track configured, or
+     *                 configured with no active criterion): there's nothing to audit, and an empty
+     *                 table is honest about that
+     */
+    public record Result(boolean fastTrack, List<String> reasons, List<RuleFinding> findings) {}
 
     /**
      * @param documentTexts OCR text of the already-attached documents, indexed by type
@@ -42,7 +60,8 @@ public class FastTrackValidator {
         BusinessRules.FastTrackThresholds thresholds = rules.fastTrackThresholds();
         if (thresholds == null) {
             return new Result(false,
-                    List.of("No hay criterios de Fast Track configurados para " + rules.branchId() + "/" + rules.claimCauseId()));
+                    List.of("No hay criterios de Fast Track configurados para " + rules.branchId() + "/" + rules.claimCauseId()),
+                    List.of());
         }
 
         // priorClaimsWindowMonths no cuenta como criterio activo: no decide por sí solo, solo acota
@@ -53,28 +72,36 @@ public class FastTrackValidator {
                 && thresholds.requiresUpToDatePolicy() == null
                 && (thresholds.requiredDocumentTypes() == null || thresholds.requiredDocumentTypes().isEmpty())) {
             return new Result(false,
-                    List.of("Fast Track configurado pero sin criterios activos para " + rules.branchId() + "/" + rules.claimCauseId()));
+                    List.of("Fast Track configurado pero sin criterios activos para " + rules.branchId() + "/" + rules.claimCauseId()),
+                    List.of());
         }
 
         List<String> reasons = new ArrayList<>();
+        List<RuleFinding> findings = new ArrayList<>();
         boolean eligible = true;
 
         if (thresholds.maxClaimedAmountRatio() != null) {
+            // Locale.ROOT: the audited value has to read the same wherever the JVM runs. The
+            // reasons below are prose for a person and stay in the platform's locale.
+            String max = String.format(Locale.ROOT, "%.1f%%", thresholds.maxClaimedAmountRatio() * 100);
             if (claim.claimedAmount() == null || policy.insuredAmount() == null || policy.insuredAmount().signum() == 0) {
                 eligible = false;
                 reasons.add("No se pudo evaluar el monto reclamado contra la suma asegurada");
+                // A criterion that couldn't be checked FAILS rather than going unwritten: unlike the
+                // coverage-scope rules, here missing data has a consequence (no fast lane), and the
+                // row is what explains it.
+                findings.add(finding(RuleType.FT_AMOUNT_RATIO, false, "ratio=sin datos max=" + max));
             } else {
                 double ratio = claim.claimedAmount().doubleValue() / policy.insuredAmount().doubleValue();
-                if (ratio <= thresholds.maxClaimedAmountRatio()) {
-                    reasons.add(String.format(
-                            "Monto reclamado (%.1f%% de la suma asegurada) dentro del límite de Fast Track (%.1f%%)",
-                            ratio * 100, thresholds.maxClaimedAmountRatio() * 100));
-                } else {
-                    eligible = false;
-                    reasons.add(String.format(
-                            "Monto reclamado (%.1f%% de la suma asegurada) supera el límite de Fast Track (%.1f%%)",
-                            ratio * 100, thresholds.maxClaimedAmountRatio() * 100));
-                }
+                boolean within = ratio <= thresholds.maxClaimedAmountRatio();
+                eligible &= within;
+                reasons.add(String.format(
+                        within
+                                ? "Monto reclamado (%.1f%% de la suma asegurada) dentro del límite de Fast Track (%.1f%%)"
+                                : "Monto reclamado (%.1f%% de la suma asegurada) supera el límite de Fast Track (%.1f%%)",
+                        ratio * 100, thresholds.maxClaimedAmountRatio() * 100));
+                findings.add(finding(RuleType.FT_AMOUNT_RATIO, within,
+                        String.format(Locale.ROOT, "ratio=%.1f%% max=%s", ratio * 100, max)));
             }
         }
 
@@ -83,14 +110,15 @@ public class FastTrackValidator {
             String window = thresholds.priorClaimsWindowMonths() == null
                     ? ""
                     : " en los últimos " + thresholds.priorClaimsWindowMonths() + " meses";
-            if (priorClaims <= thresholds.maxPriorClaims()) {
-                reasons.add("Claims previos (" + priorClaims + ")" + window
-                        + " dentro del límite de Fast Track (" + thresholds.maxPriorClaims() + ")");
-            } else {
-                eligible = false;
-                reasons.add("Claims previos (" + priorClaims + ")" + window
-                        + " supera el límite de Fast Track (" + thresholds.maxPriorClaims() + ")");
-            }
+            boolean within = priorClaims <= thresholds.maxPriorClaims();
+            eligible &= within;
+            reasons.add("Claims previos (" + priorClaims + ")" + window
+                    + (within ? " dentro del límite de Fast Track (" : " supera el límite de Fast Track (")
+                    + thresholds.maxPriorClaims() + ")");
+            findings.add(finding(RuleType.FT_PRIOR_CLAIMS, within,
+                    "priorClaims=" + priorClaims + " max=" + thresholds.maxPriorClaims()
+                            + (thresholds.priorClaimsWindowMonths() == null
+                                    ? "" : " windowMonths=" + thresholds.priorClaimsWindowMonths())));
         }
 
         if (thresholds.minPolicyAgeMonths() != null) {
@@ -100,43 +128,63 @@ public class FastTrackValidator {
                 // and Fast Track only proceeds on what's verifiable.
                 eligible = false;
                 reasons.add("No se pudo determinar la antigüedad de la póliza — no aplica Fast Track");
-            } else if (ageMonths >= thresholds.minPolicyAgeMonths()) {
-                reasons.add("Antigüedad de la póliza (" + ageMonths + " meses) cumple el mínimo de Fast Track ("
-                        + thresholds.minPolicyAgeMonths() + ")");
+                findings.add(finding(RuleType.FT_POLICY_AGE, false,
+                        "policyAgeMonths=sin datos min=" + thresholds.minPolicyAgeMonths()));
             } else {
-                eligible = false;
-                reasons.add("Antigüedad de la póliza (" + ageMonths + " meses) por debajo del mínimo de Fast Track ("
+                boolean within = ageMonths >= thresholds.minPolicyAgeMonths();
+                eligible &= within;
+                reasons.add("Antigüedad de la póliza (" + ageMonths + " meses) "
+                        + (within ? "cumple el mínimo de Fast Track (" : "por debajo del mínimo de Fast Track (")
                         + thresholds.minPolicyAgeMonths() + ")");
+                findings.add(finding(RuleType.FT_POLICY_AGE, within,
+                        "policyAgeMonths=" + ageMonths + " min=" + thresholds.minPolicyAgeMonths()));
             }
         }
 
         if (Boolean.TRUE.equals(thresholds.requiresUpToDatePolicy())) {
-            if (policy.upToDate()) {
-                reasons.add("Póliza al día con sus pagos");
-            } else {
-                eligible = false;
-                reasons.add("Póliza con pagos atrasados — no aplica Fast Track");
-            }
+            eligible &= policy.upToDate();
+            reasons.add(policy.upToDate()
+                    ? "Póliza al día con sus pagos"
+                    : "Póliza con pagos atrasados — no aplica Fast Track");
+            findings.add(finding(RuleType.FT_POLICY_UP_TO_DATE, policy.upToDate(),
+                    "upToDate=" + policy.upToDate()));
         }
 
         if (thresholds.requiredDocumentTypes() != null && !thresholds.requiredDocumentTypes().isEmpty()) {
+            String required = String.join(",", thresholds.requiredDocumentTypes());
             if (documentTexts == null) {
+                // Nobody handed us the documents to look at, so nothing was compared: no row, same
+                // criterion CoverageScopeEvaluator uses for a rule that didn't get to evaluate.
+                // Writing a PASS here would claim the gate verified paperwork it never saw.
                 reasons.add("Documentación ya verificada previamente — no se re-evalúa en Fast Track");
             } else {
                 List<String> missing = thresholds.requiredDocumentTypes().stream()
                         .filter(type -> documentTexts.get(type) == null || documentTexts.get(type).isBlank())
                         .toList();
-                if (missing.isEmpty()) {
-                    reasons.add("Documentación requerida para Fast Track presente: " + thresholds.requiredDocumentTypes());
-                } else {
-                    eligible = false;
-                    reasons.add("Falta documentación requerida para Fast Track: " + missing);
-                }
+                eligible &= missing.isEmpty();
+                reasons.add(missing.isEmpty()
+                        ? "Documentación requerida para Fast Track presente: " + thresholds.requiredDocumentTypes()
+                        : "Falta documentación requerida para Fast Track: " + missing);
+                findings.add(finding(RuleType.FT_REQUIRED_DOCS, missing.isEmpty(),
+                        "required=" + required
+                                + " missing=" + (missing.isEmpty() ? "ninguno" : String.join(",", missing))));
             }
         }
 
         log.info("[FastTrackValidator] policy='{}' eligible={} reasons={}", policy.policyNumber(), eligible, reasons);
-        return new Result(eligible, reasons);
+        return new Result(eligible, reasons, findings);
+    }
+
+    /**
+     * No rule id: the gate's thresholds aren't an {@code insurer_rule} row anyone can point at from
+     * here (see {@link RuleType#FT_AMOUNT_RATIO}). Truncated to the column's width — an audit row
+     * that fails to insert audits nothing.
+     */
+    private static RuleFinding finding(RuleType type, boolean passed, String evaluatedValue) {
+        String value = evaluatedValue.length() <= EVALUATED_VALUE_MAX
+                ? evaluatedValue
+                : evaluatedValue.substring(0, EVALUATED_VALUE_MAX - 1) + "…";
+        return new RuleFinding(null, type.name(), passed, value);
     }
 
     /**

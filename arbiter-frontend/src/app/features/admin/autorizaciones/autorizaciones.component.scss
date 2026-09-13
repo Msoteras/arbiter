@@ -1,0 +1,43 @@
+/* El padding de página lo pone cada pantalla en su :host, igual que Reglas y Usuarios. Sin esto
+   el contenido arrancaba pegado al borde. */
+:host { display: block; padding: var(--space-5); }
+
+.autorizaciones-page { display: flex; flex-direction: column; gap: var(--space-5); }
+
+.page-head .t-page-title { margin: 0; }
+
+/* El número de expediente es el ancla de la fila: se lee primero y lleva al detalle. */
+.case-link {
+  display: block;
+  font-weight: var(--font-weight-medium);
+  color: var(--text-primary);
+  text-decoration: none;
+}
+.case-link:hover { text-decoration: underline; }
+
+/* El dato de apoyo debajo del principal, no en una columna aparte: son siete columnas y sumar
+   asegurado y hecho generador como propias dejaba la tabla ilegible. */
+.cell-sub {
+  display: block;
+  font-size: var(--font-size-2xs);
+  color: var(--text-muted);
+}
+
+.num { text-align: right; }
+
+.row-actions { display: flex; gap: var(--space-2); justify-content: flex-end; }
+
+/* Mismo criterio que la justificación del analista: etiqueta, campo y "Obligatorio", pegados. */
+.return-field {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  margin-top: var(--space-3);
+}
+
+.required { color: var(--status-danger); }
+
+.return-hint {
+  font-size: var(--font-size-2xs);
+  color: var(--text-muted);
+}

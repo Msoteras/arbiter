@@ -26,6 +26,8 @@ public class MockInsurerAdapter implements InsurerAdapter {
                     .effectiveFrom(LocalDateTime.of(2024, 1, 1, 0, 0))
                     .effectiveTo(LocalDateTime.of(2027, 12, 31, 23, 59, 59))
                     .upToDate(true)
+                    .installmentAmount(new BigDecimal("10000"))
+                    .overdueBalance(BigDecimal.ZERO)
                     .insuredAmount(new BigDecimal("500000"))
                     .deductible(new BigDecimal("50000"))
                     .coverages(List.of(
@@ -49,6 +51,8 @@ public class MockInsurerAdapter implements InsurerAdapter {
                     .effectiveFrom(LocalDateTime.of(2024, 3, 1, 0, 0))
                     .effectiveTo(LocalDateTime.of(2027, 3, 1, 23, 59, 59))
                     .upToDate(true)
+                    .installmentAmount(new BigDecimal("8000"))
+                    .overdueBalance(BigDecimal.ZERO)
                     .insuredAmount(new BigDecimal("400000"))
                     .deductible(new BigDecimal("50000"))
                     .coverages(List.of(
@@ -76,6 +80,8 @@ public class MockInsurerAdapter implements InsurerAdapter {
                     .effectiveFrom(LocalDateTime.of(2025, 6, 1, 0, 0))
                     .effectiveTo(LocalDateTime.of(2026, 6, 1, 23, 59, 59))
                     .upToDate(true)
+                    .installmentAmount(new BigDecimal("24000"))
+                    .overdueBalance(BigDecimal.ZERO)
                     .insuredAmount(new BigDecimal("1200000"))
                     .deductible(new BigDecimal("80000"))
                     .coverages(List.of(
@@ -103,6 +109,8 @@ public class MockInsurerAdapter implements InsurerAdapter {
                     .effectiveFrom(LocalDateTime.of(2026, 1, 10, 0, 0))
                     .effectiveTo(LocalDateTime.of(2027, 1, 10, 23, 59, 59))
                     .upToDate(true)
+                    .installmentAmount(new BigDecimal("26000"))
+                    .overdueBalance(BigDecimal.ZERO)
                     .insuredAmount(new BigDecimal("1300000"))
                     .deductible(new BigDecimal("57000"))
                     .coverages(List.of(

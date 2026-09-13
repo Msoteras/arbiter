@@ -30,3 +30,6 @@
   font-size: var(--font-size-sm);
   color: var(--text-tertiary);
 }
+
+/* La lista de lo que ya envió: el componente es un bloque, y acá va antes del cargador. */
+.docs-section { display: block; }

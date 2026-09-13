@@ -1,8 +1,13 @@
 package ar.edu.utn.frba.arbiter.cases.services;
 
 import ar.edu.utn.frba.arbiter.cases.dto.DerivationOptionsResponse;
+import ar.edu.utn.frba.arbiter.cases.dto.ProviderType;
+import ar.edu.utn.frba.arbiter.cases.dto.RepairOutcome;
 import ar.edu.utn.frba.arbiter.cases.dto.DeriveToExpertRequest;
 import ar.edu.utn.frba.arbiter.cases.dto.ExpertAssessmentResponse;
+import ar.edu.utn.frba.arbiter.cases.exceptions.InvalidRepairReportException;
+import ar.edu.utn.frba.arbiter.cases.exceptions.CaseAssignedToAnotherAnalystException;
+import ar.edu.utn.frba.arbiter.cases.exceptions.CaseNotAssignedException;
 import ar.edu.utn.frba.arbiter.cases.exceptions.DerivationNotAllowedException;
 import ar.edu.utn.frba.arbiter.cases.exceptions.ExpertAssessmentNotFoundException;
 import ar.edu.utn.frba.arbiter.cases.exceptions.ExpertFirmNotFoundException;
@@ -56,6 +61,7 @@ class ExpertAssessmentServiceTest {
     private static final Long BRANCH_ID = 1L;
     private static final BigDecimal CLAIMED_AMOUNT = new BigDecimal("950000");
     private static final String ANALYST_EMAIL = "analista.arbiter@gmail.com";
+    private static final Long CLAIM_CAUSE_ID = 4L;
 
     @Mock
     private CaseRepository caseRepository;
@@ -104,14 +110,14 @@ class ExpertAssessmentServiceTest {
         Case caseRecord = caseAwaitingReview();
         ExpertFirm firm = firm(3L, "Estudio Verifica S.R.L.", "verifica@example.com");
         givenCaseAndAnalyst(caseRecord);
-        when(expertFirmRepository.findAvailableForBranch(BRANCH_ID)).thenReturn(List.of(firm));
+        when(expertFirmRepository.findAvailableForBranch(BRANCH_ID, ProviderType.ESTUDIO_LIQUIDADOR)).thenReturn(List.of(firm));
         when(expertAssessmentRepository.save(any(ExpertAssessment.class)))
                 .thenAnswer(invocation -> invocation.getArgument(0));
         when(expertNotificationService.notifyDerivation(eq(caseRecord), any(ExpertAssessment.class)))
                 .thenReturn(Instant.parse("2026-08-17T12:00:00Z"));
 
         ExpertAssessmentResponse response = expertAssessmentService.derive(CASE_ID,
-                new DeriveToExpertRequest(3L, "Banda CRÍTICA e imagen reutilizada"));
+                new DeriveToExpertRequest(3L, "Banda CRÍTICA e imagen reutilizada"), ProviderType.ESTUDIO_LIQUIDADOR);
 
         // Copiados, no leídos por la asociación: si mañana editan el catálogo, el registro de
         // quién peritó ESTE siniestro no cambia atrás.
@@ -134,14 +140,14 @@ class ExpertAssessmentServiceTest {
     void derive_recordsThatNobodyWasNotified_whenTheEmailNeverWentOut() {
         Case caseRecord = caseAwaitingReview();
         givenCaseAndAnalyst(caseRecord);
-        when(expertFirmRepository.findAvailableForBranch(BRANCH_ID))
+        when(expertFirmRepository.findAvailableForBranch(BRANCH_ID, ProviderType.ESTUDIO_LIQUIDADOR))
                 .thenReturn(List.of(firm(3L, "Estudio Verifica S.R.L.", "verifica@example.com")));
         when(expertAssessmentRepository.save(any(ExpertAssessment.class)))
                 .thenAnswer(invocation -> invocation.getArgument(0));
         when(expertNotificationService.notifyDerivation(any(), any())).thenReturn(null);
 
         ExpertAssessmentResponse response = expertAssessmentService.derive(CASE_ID,
-                new DeriveToExpertRequest(3L, "Sospecha de preexistencia del daño"));
+                new DeriveToExpertRequest(3L, "Sospecha de preexistencia del daño"), ProviderType.ESTUDIO_LIQUIDADOR);
 
         assertThat(response.notified()).isFalse();
         verify(caseStatusService).transition(any(), eq(CaseStatus.PENDING_EXPERT_REPORT), any(), any());
@@ -152,12 +158,13 @@ class ExpertAssessmentServiceTest {
     void derive_rejectsAFirmThatIsNotAvailableForTheCase() {
         Case caseRecord = caseAwaitingReview();
         when(caseRepository.findById(CASE_ID)).thenReturn(Optional.of(caseRecord));
+        when(claimsAnalystRepository.findByEmail(ANALYST_EMAIL)).thenReturn(Optional.of(analyst()));
         givenPolicy(new BigDecimal("500000"));
-        when(expertFirmRepository.findAvailableForBranch(BRANCH_ID))
+        when(expertFirmRepository.findAvailableForBranch(BRANCH_ID, ProviderType.ESTUDIO_LIQUIDADOR))
                 .thenReturn(List.of(firm(3L, "Estudio Verifica S.R.L.", "verifica@example.com")));
 
         assertThatThrownBy(() -> expertAssessmentService.derive(CASE_ID,
-                new DeriveToExpertRequest(99L, "motivo")))
+                new DeriveToExpertRequest(99L, "motivo"), ProviderType.ESTUDIO_LIQUIDADOR))
                 .isInstanceOf(ExpertFirmNotFoundException.class);
 
         verify(expertAssessmentRepository, never()).save(any());
@@ -168,7 +175,7 @@ class ExpertAssessmentServiceTest {
     void receiveReport_storesTheReport_recordsTheVerdict_andHandsTheCaseBack() {
         Case caseRecord = caseInStatus(CaseStatus.PENDING_EXPERT_REPORT);
         when(caseRepository.findById(CASE_ID)).thenReturn(Optional.of(caseRecord));
-        when(expertAssessmentRepository.findByCaseId(CASE_ID)).thenReturn(Optional.of(awaitingAssessment()));
+        when(expertAssessmentRepository.findByCaseIdAndProviderType(CASE_ID, ProviderType.ESTUDIO_LIQUIDADOR)).thenReturn(Optional.of(awaitingAssessment()));
         when(caseDocumentRepository.findByCaseIdAndType(CASE_ID, "expert_report"))
                 .thenReturn(Optional.empty());
         when(caseDocumentRepository.save(any(CaseDocument.class))).thenAnswer(invocation -> {
@@ -180,8 +187,7 @@ class ExpertAssessmentServiceTest {
                 .thenAnswer(invocation -> invocation.getArgument(0));
 
         ExpertAssessmentResponse response = expertAssessmentService.receiveReport(CASE_ID,
-                ExpertVerdict.FRAUD_CONFIRMED, "El equipo ya estaba dañado antes de la vigencia",
-                new MockMultipartFile("report", "informe.pdf", "application/pdf", "PDF".getBytes()));
+                ExpertVerdict.FRAUD_CONFIRMED, "El equipo ya estaba dañado antes de la vigencia", null, new MockMultipartFile("report", "informe.pdf", "application/pdf", "PDF".getBytes()));
 
         assertThat(response.verdict()).isEqualTo(ExpertVerdict.FRAUD_CONFIRMED);
         assertThat(response.reportReceivedAt()).isNotNull();
@@ -206,8 +212,7 @@ class ExpertAssessmentServiceTest {
         givenAReportCanBeFiled();
 
         expertAssessmentService.receiveReport(CASE_ID, ExpertVerdict.FRAUD_CONFIRMED,
-                "El equipo ya estaba dañado antes de la vigencia",
-                new MockMultipartFile("report", "informe.pdf", "application/pdf", "PDF".getBytes()));
+                "El equipo ya estaba dañado antes de la vigencia", null, new MockMultipartFile("report", "informe.pdf", "application/pdf", "PDF".getBytes()));
 
         ArgumentCaptor<String> reason = ArgumentCaptor.forClass(String.class);
         verify(fraudRecordService).registerFromExpertReport(eq(CASE_ID), reason.capture());
@@ -223,8 +228,7 @@ class ExpertAssessmentServiceTest {
     void receiveReport_withoutConfirmedFraud_recordsNothingOnTheInsured() {
         givenAReportCanBeFiled();
 
-        expertAssessmentService.receiveReport(CASE_ID, ExpertVerdict.FRAUD_DISCARDED, "Todo en regla",
-                new MockMultipartFile("report", "informe.pdf", "application/pdf", "PDF".getBytes()));
+        expertAssessmentService.receiveReport(CASE_ID, ExpertVerdict.FRAUD_DISCARDED, "Todo en regla", null, new MockMultipartFile("report", "informe.pdf", "application/pdf", "PDF".getBytes()));
 
         verify(fraudRecordService, never()).registerFromExpertReport(any(), any());
     }
@@ -232,7 +236,7 @@ class ExpertAssessmentServiceTest {
     private void givenAReportCanBeFiled() {
         when(caseRepository.findById(CASE_ID))
                 .thenReturn(Optional.of(caseInStatus(CaseStatus.PENDING_EXPERT_REPORT)));
-        when(expertAssessmentRepository.findByCaseId(CASE_ID)).thenReturn(Optional.of(awaitingAssessment()));
+        when(expertAssessmentRepository.findByCaseIdAndProviderType(CASE_ID, ProviderType.ESTUDIO_LIQUIDADOR)).thenReturn(Optional.of(awaitingAssessment()));
         when(caseDocumentRepository.findByCaseIdAndType(CASE_ID, "expert_report"))
                 .thenReturn(Optional.empty());
         when(caseDocumentRepository.save(any(CaseDocument.class))).thenAnswer(invocation -> {
@@ -256,11 +260,10 @@ class ExpertAssessmentServiceTest {
         alreadyReturned.setReportReceivedAt(Instant.parse("2026-08-16T10:00:00Z"));
         alreadyReturned.setVerdict(ExpertVerdict.FRAUD_DISCARDED);
         when(caseRepository.findById(CASE_ID)).thenReturn(Optional.of(caseRecord));
-        when(expertAssessmentRepository.findByCaseId(CASE_ID)).thenReturn(Optional.of(alreadyReturned));
+        when(expertAssessmentRepository.findByCaseIdAndProviderType(CASE_ID, ProviderType.ESTUDIO_LIQUIDADOR)).thenReturn(Optional.of(alreadyReturned));
 
         assertThatThrownBy(() -> expertAssessmentService.receiveReport(CASE_ID,
-                ExpertVerdict.FRAUD_CONFIRMED, "otra cosa",
-                new MockMultipartFile("report", "otro.pdf", "application/pdf", "PDF".getBytes())))
+                ExpertVerdict.FRAUD_CONFIRMED, "otra cosa", null, new MockMultipartFile("report", "otro.pdf", "application/pdf", "PDF".getBytes())))
                 .isInstanceOf(ExpertReportAlreadyReceivedException.class);
 
         verify(caseDocumentRepository, never()).save(any());
@@ -270,11 +273,10 @@ class ExpertAssessmentServiceTest {
     @Test
     void receiveReport_failsWhenTheCaseWasNeverDerived() {
         when(caseRepository.findById(CASE_ID)).thenReturn(Optional.of(caseAwaitingReview()));
-        when(expertAssessmentRepository.findByCaseId(CASE_ID)).thenReturn(Optional.empty());
+        when(expertAssessmentRepository.findByCaseIdAndProviderType(CASE_ID, ProviderType.ESTUDIO_LIQUIDADOR)).thenReturn(Optional.empty());
 
         assertThatThrownBy(() -> expertAssessmentService.receiveReport(CASE_ID,
-                ExpertVerdict.INCONCLUSIVE, null,
-                new MockMultipartFile("report", "informe.pdf", "application/pdf", "PDF".getBytes())))
+                ExpertVerdict.INCONCLUSIVE, null, null, new MockMultipartFile("report", "informe.pdf", "application/pdf", "PDF".getBytes())))
                 .isInstanceOf(ExpertAssessmentNotFoundException.class);
     }
 
@@ -282,10 +284,10 @@ class ExpertAssessmentServiceTest {
     void options_offersTheFirmsOfTheBranch_whenTheAmountClearsTheThreshold() {
         when(caseRepository.findById(CASE_ID)).thenReturn(Optional.of(caseAwaitingReview()));
         givenPolicy(new BigDecimal("500000"));
-        when(expertFirmRepository.findAvailableForBranch(BRANCH_ID))
+        when(expertFirmRepository.findAvailableForBranch(BRANCH_ID, ProviderType.ESTUDIO_LIQUIDADOR))
                 .thenReturn(List.of(firm(3L, "Estudio Verifica S.R.L.", "verifica@example.com")));
 
-        DerivationOptionsResponse options = expertAssessmentService.options(CASE_ID);
+        DerivationOptionsResponse options = expertAssessmentService.options(CASE_ID, ProviderType.ESTUDIO_LIQUIDADOR);
 
         assertThat(options.eligible()).isTrue();
         assertThat(options.minClaimedAmount()).isEqualByComparingTo("500000");
@@ -299,10 +301,10 @@ class ExpertAssessmentServiceTest {
     void options_isNotEligible_whenTheClaimedAmountIsBelowTheThreshold() {
         when(caseRepository.findById(CASE_ID)).thenReturn(Optional.of(caseAwaitingReview()));
         givenPolicy(new BigDecimal("2000000"));
-        when(expertFirmRepository.findAvailableForBranch(BRANCH_ID))
+        when(expertFirmRepository.findAvailableForBranch(BRANCH_ID, ProviderType.ESTUDIO_LIQUIDADOR))
                 .thenReturn(List.of(firm(3L, "Estudio Verifica S.R.L.", "verifica@example.com")));
 
-        DerivationOptionsResponse options = expertAssessmentService.options(CASE_ID);
+        DerivationOptionsResponse options = expertAssessmentService.options(CASE_ID, ProviderType.ESTUDIO_LIQUIDADOR);
 
         assertThat(options.eligible()).isFalse();
         // Los peritos viajan igual: la pantalla explica por qué no se puede, y para eso necesita
@@ -320,10 +322,10 @@ class ExpertAssessmentServiceTest {
         when(caseRepository.findById(CASE_ID)).thenReturn(Optional.of(caseAwaitingReview()));
         when(rulesServiceClient.expertDerivationPolicy(BRANCH_ID))
                 .thenReturn(new RulesServiceClient.ExpertDerivationPolicy(false, null, null));
-        when(expertFirmRepository.findAvailableForBranch(BRANCH_ID))
+        when(expertFirmRepository.findAvailableForBranch(BRANCH_ID, ProviderType.ESTUDIO_LIQUIDADOR))
                 .thenReturn(List.of(firm(3L, "Estudio Verifica S.R.L.", "verifica@example.com")));
 
-        DerivationOptionsResponse options = expertAssessmentService.options(CASE_ID);
+        DerivationOptionsResponse options = expertAssessmentService.options(CASE_ID, ProviderType.ESTUDIO_LIQUIDADOR);
 
         assertThat(options.eligible()).isFalse();
         assertThat(options.minClaimedAmount()).isNull();
@@ -334,9 +336,9 @@ class ExpertAssessmentServiceTest {
     void options_isNotEligible_whenTheCatalogIsEmpty() {
         when(caseRepository.findById(CASE_ID)).thenReturn(Optional.of(caseAwaitingReview()));
         givenPolicy(new BigDecimal("500000"));
-        when(expertFirmRepository.findAvailableForBranch(BRANCH_ID)).thenReturn(List.of());
+        when(expertFirmRepository.findAvailableForBranch(BRANCH_ID, ProviderType.ESTUDIO_LIQUIDADOR)).thenReturn(List.of());
 
-        assertThat(expertAssessmentService.options(CASE_ID).eligible()).isFalse();
+        assertThat(expertAssessmentService.options(CASE_ID, ProviderType.ESTUDIO_LIQUIDADOR).eligible()).isFalse();
     }
 
     /**
@@ -346,14 +348,262 @@ class ExpertAssessmentServiceTest {
     @Test
     void derive_refusesWhenTheAmountIsBelowTheInsurersThreshold() {
         when(caseRepository.findById(CASE_ID)).thenReturn(Optional.of(caseAwaitingReview()));
+        when(claimsAnalystRepository.findByEmail(ANALYST_EMAIL)).thenReturn(Optional.of(analyst()));
         givenPolicy(new BigDecimal("2000000"));
 
         assertThatThrownBy(() -> expertAssessmentService.derive(CASE_ID,
-                new DeriveToExpertRequest(3L, "motivo")))
+                new DeriveToExpertRequest(3L, "motivo"), ProviderType.ESTUDIO_LIQUIDADOR))
                 .isInstanceOf(DerivationNotAllowedException.class);
 
         verify(expertAssessmentRepository, never()).save(any());
         verify(caseStatusService, never()).transition(any(), any(), any(), any());
+    }
+
+    @Test
+    void deriveToRepair_movesTheCaseToPendingRepair_withoutAskingForThePeritajeThreshold() {
+        Case caseRecord = caseAwaitingReview();
+        when(caseRepository.findById(CASE_ID)).thenReturn(Optional.of(caseRecord));
+        when(claimsAnalystRepository.findByEmail(ANALYST_EMAIL)).thenReturn(Optional.of(analyst()));
+        givenRepairPolicy(CLAIM_CAUSE_ID);
+        when(expertFirmRepository.findAvailableForBranch(BRANCH_ID, ProviderType.SERVICIO_TECNICO))
+                .thenReturn(List.of(firm(5L, "Service Celular Once", "service@example.com")));
+        when(expertAssessmentRepository.save(any(ExpertAssessment.class)))
+                .thenAnswer(invocation -> invocation.getArgument(0));
+
+        ExpertAssessmentResponse response = expertAssessmentService.derive(CASE_ID,
+                new DeriveToExpertRequest(5L, "Pantalla rota, cotizar reparación"), ProviderType.SERVICIO_TECNICO);
+
+        assertThat(response.providerType()).isEqualTo(ProviderType.SERVICIO_TECNICO);
+        verify(caseStatusService).transition(eq(caseRecord), eq(CaseStatus.PENDING_REPAIR),
+                eq(StatusChangeActor.ANALYST), any());
+        verify(rulesServiceClient, never()).expertDerivationPolicy(any());
+    }
+
+    @Test
+    void optionsForRepair_offerTheCatalogWhenTheClaimCauseAdmitsRepair() {
+        when(caseRepository.findById(CASE_ID)).thenReturn(Optional.of(caseAwaitingReview()));
+        givenRepairPolicy(CLAIM_CAUSE_ID);
+        when(expertFirmRepository.findAvailableForBranch(BRANCH_ID, ProviderType.SERVICIO_TECNICO))
+                .thenReturn(List.of(firm(5L, "Service Celular Once", "service@example.com")));
+
+        DerivationOptionsResponse options = expertAssessmentService.options(CASE_ID, ProviderType.SERVICIO_TECNICO);
+
+        assertThat(options.eligible()).isTrue();
+        assertThat(options.minClaimedAmount()).isNull();
+        verify(rulesServiceClient, never()).expertDerivationPolicy(any());
+    }
+
+    /** A stolen phone has nothing to repair: the option stays closed whoever is in the catalog. */
+    @Test
+    void optionsForRepair_areClosedWhenTheClaimCauseDoesNotAdmitRepair() {
+        when(caseRepository.findById(CASE_ID)).thenReturn(Optional.of(caseAwaitingReview()));
+        givenRepairPolicy(1L);
+
+        DerivationOptionsResponse options = expertAssessmentService.options(CASE_ID, ProviderType.SERVICIO_TECNICO);
+
+        assertThat(options.eligible()).isFalse();
+        assertThat(options.firms()).isEmpty();
+        verify(expertFirmRepository, never()).findAvailableForBranch(any(), any());
+    }
+
+    /** Enforced on derive too: hiding the button is a suggestion, not a rule. */
+    @Test
+    void deriveToRepair_refusesAClaimCauseThatDoesNotAdmitRepair() {
+        when(caseRepository.findById(CASE_ID)).thenReturn(Optional.of(caseAwaitingReview()));
+        when(claimsAnalystRepository.findByEmail(ANALYST_EMAIL)).thenReturn(Optional.of(analyst()));
+        givenRepairPolicy(1L);
+
+        assertThatThrownBy(() -> expertAssessmentService.derive(CASE_ID,
+                new DeriveToExpertRequest(5L, "motivo"), ProviderType.SERVICIO_TECNICO))
+                .isInstanceOf(DerivationNotAllowedException.class);
+
+        verify(expertAssessmentRepository, never()).save(any());
+        verify(caseStatusService, never()).transition(any(), any(), any(), any());
+        verify(expertNotificationService, never()).notifyDerivation(any(), any());
+    }
+
+    @Test
+    void receiveRepairReport_keepsItApartFromTheExpertReport_andLeavesNoFraudRecord() {
+        Case caseRecord = caseInStatus(CaseStatus.PENDING_REPAIR);
+        ExpertAssessment repair = awaitingAssessment();
+        repair.setProviderType(ProviderType.SERVICIO_TECNICO);
+        when(caseRepository.findById(CASE_ID)).thenReturn(Optional.of(caseRecord));
+        when(expertAssessmentRepository.findByCaseIdAndProviderType(CASE_ID, ProviderType.SERVICIO_TECNICO))
+                .thenReturn(Optional.of(repair));
+        when(caseDocumentRepository.findByCaseIdAndType(CASE_ID, "repair_report")).thenReturn(Optional.empty());
+        when(caseDocumentRepository.save(any(CaseDocument.class))).thenAnswer(invocation -> {
+            CaseDocument saved = invocation.getArgument(0);
+            saved.setId(43L);
+            return saved;
+        });
+        when(expertAssessmentRepository.save(any(ExpertAssessment.class)))
+                .thenAnswer(invocation -> invocation.getArgument(0));
+
+        ExpertAssessmentResponse response = expertAssessmentService.receiveRepairReport(CASE_ID,
+                RepairOutcome.IRREPARABLE, "Placa dañada", null,
+                new MockMultipartFile("report", "service.pdf", "application/pdf", "PDF".getBytes()));
+
+        assertThat(response.repairOutcome()).isEqualTo(RepairOutcome.IRREPARABLE);
+        assertThat(response.verdict()).isNull();
+        assertThat(response.repairCost()).isNull();
+        ArgumentCaptor<CaseDocument> document = ArgumentCaptor.forClass(CaseDocument.class);
+        verify(caseDocumentRepository).save(document.capture());
+        assertThat(document.getValue().getType()).isEqualTo("repair_report");
+        verify(caseStatusService).transition(eq(caseRecord), eq(CaseStatus.PENDING_ANALYST_REVIEW),
+                eq(StatusChangeActor.ANALYST), any());
+        verify(fraudRecordService, never()).registerFromExpertReport(any(), any());
+    }
+
+    /**
+     * El presupuesto del taller va a su propia columna y NO a la del perito: los dos números
+     * contestan preguntas distintas —cuánto vale el siniestro contra cuánto sale el arreglo— y
+     * mezclarlos haría que la liquidación no supiera cuál está leyendo.
+     */
+    @Test
+    void receiveRepairReport_storesTheQuoteInItsOwnColumn() {
+        Case caseRecord = caseInStatus(CaseStatus.PENDING_REPAIR);
+        ExpertAssessment repair = awaitingAssessment();
+        repair.setProviderType(ProviderType.SERVICIO_TECNICO);
+        when(caseRepository.findById(CASE_ID)).thenReturn(Optional.of(caseRecord));
+        when(expertAssessmentRepository.findByCaseIdAndProviderType(CASE_ID, ProviderType.SERVICIO_TECNICO))
+                .thenReturn(Optional.of(repair));
+        when(caseDocumentRepository.findByCaseIdAndType(CASE_ID, "repair_report")).thenReturn(Optional.empty());
+        when(caseDocumentRepository.save(any(CaseDocument.class))).thenAnswer(invocation -> {
+            CaseDocument saved = invocation.getArgument(0);
+            saved.setId(44L);
+            return saved;
+        });
+        when(expertAssessmentRepository.save(any(ExpertAssessment.class)))
+                .thenAnswer(invocation -> invocation.getArgument(0));
+
+        ExpertAssessmentResponse response = expertAssessmentService.receiveRepairReport(CASE_ID,
+                RepairOutcome.QUOTE_SENT, "Cambio de módulo", new BigDecimal("180000.00"),
+                new MockMultipartFile("report", "presupuesto.pdf", "application/pdf", "PDF".getBytes()));
+
+        assertThat(response.repairCost()).isEqualByComparingTo("180000.00");
+        assertThat(response.indemnifiableAmount()).isNull();
+    }
+
+    /** Decir que mandaron presupuesto sin decir cuánto no contesta la pregunta que se les hizo. */
+    @Test
+    void receiveRepairReport_rejectsAQuoteWithNoAmount() {
+        when(caseRepository.findById(CASE_ID))
+                .thenReturn(Optional.of(caseInStatus(CaseStatus.PENDING_REPAIR)));
+
+        assertThatThrownBy(() -> expertAssessmentService.receiveRepairReport(CASE_ID,
+                RepairOutcome.QUOTE_SENT, "Cambio de módulo", null,
+                new MockMultipartFile("report", "x.pdf", "application/pdf", "PDF".getBytes())))
+                .isInstanceOf(InvalidRepairReportException.class);
+
+        verify(expertAssessmentRepository, never()).save(any());
+    }
+
+    /** Nada se arregló, así que nadie lo cobró: un importe ahí es un error, no un presupuesto bajo. */
+    @Test
+    void receiveRepairReport_rejectsACostOnAnIrreparableItem() {
+        when(caseRepository.findById(CASE_ID))
+                .thenReturn(Optional.of(caseInStatus(CaseStatus.PENDING_REPAIR)));
+
+        assertThatThrownBy(() -> expertAssessmentService.receiveRepairReport(CASE_ID,
+                RepairOutcome.IRREPARABLE, "No tiene arreglo", new BigDecimal("180000.00"),
+                new MockMultipartFile("report", "x.pdf", "application/pdf", "PDF".getBytes())))
+                .isInstanceOf(InvalidRepairReportException.class);
+
+        verify(expertAssessmentRepository, never()).save(any());
+    }
+
+    /**
+     * El taller que ya arregló cobra por el trabajo, y ese importe es lo que se liquida. Quedaba
+     * afuera porque el campo se había atado al presupuesto: un equipo reparado volvía sin número y
+     * la liquidación proponía pagar cero, el mismo callejón que tenía el irreparable.
+     */
+    @Test
+    void receiveRepairReport_takesTheInvoiceOfAnAlreadyRepairedItem() {
+        Case caseRecord = caseInStatus(CaseStatus.PENDING_REPAIR);
+        ExpertAssessment repair = awaitingAssessment();
+        repair.setProviderType(ProviderType.SERVICIO_TECNICO);
+        when(caseRepository.findById(CASE_ID)).thenReturn(Optional.of(caseRecord));
+        when(expertAssessmentRepository.findByCaseIdAndProviderType(CASE_ID, ProviderType.SERVICIO_TECNICO))
+                .thenReturn(Optional.of(repair));
+        when(caseDocumentRepository.findByCaseIdAndType(CASE_ID, "repair_report")).thenReturn(Optional.empty());
+        when(caseDocumentRepository.save(any(CaseDocument.class))).thenAnswer(invocation -> {
+            CaseDocument saved = invocation.getArgument(0);
+            saved.setId(45L);
+            return saved;
+        });
+        when(expertAssessmentRepository.save(any(ExpertAssessment.class)))
+                .thenAnswer(invocation -> invocation.getArgument(0));
+
+        ExpertAssessmentResponse response = expertAssessmentService.receiveRepairReport(CASE_ID,
+                RepairOutcome.REPAIRED, "Cambio de módulo", new BigDecimal("210000.00"),
+                new MockMultipartFile("report", "factura.pdf", "application/pdf", "PDF".getBytes()));
+
+        assertThat(response.repairCost()).isEqualByComparingTo("210000.00");
+    }
+
+    /** Y puede llegar sin él: la factura del taller no siempre viene con el informe. */
+    @Test
+    void receiveRepairReport_acceptsARepairWithNoInvoiceYet() {
+        Case caseRecord = caseInStatus(CaseStatus.PENDING_REPAIR);
+        ExpertAssessment repair = awaitingAssessment();
+        repair.setProviderType(ProviderType.SERVICIO_TECNICO);
+        when(caseRepository.findById(CASE_ID)).thenReturn(Optional.of(caseRecord));
+        when(expertAssessmentRepository.findByCaseIdAndProviderType(CASE_ID, ProviderType.SERVICIO_TECNICO))
+                .thenReturn(Optional.of(repair));
+        when(caseDocumentRepository.findByCaseIdAndType(CASE_ID, "repair_report")).thenReturn(Optional.empty());
+        when(caseDocumentRepository.save(any(CaseDocument.class))).thenAnswer(invocation -> {
+            CaseDocument saved = invocation.getArgument(0);
+            saved.setId(46L);
+            return saved;
+        });
+        when(expertAssessmentRepository.save(any(ExpertAssessment.class)))
+                .thenAnswer(invocation -> invocation.getArgument(0));
+
+        ExpertAssessmentResponse response = expertAssessmentService.receiveRepairReport(CASE_ID,
+                RepairOutcome.REPAIRED, "Sin factura todavía", null,
+                new MockMultipartFile("report", "informe.pdf", "application/pdf", "PDF".getBytes()));
+
+        assertThat(response.repairCost()).isNull();
+    }
+
+    /**
+     * Derivar es del dueño del expediente, no de cualquier analista del tenant. No es un detalle de
+     * permisos: la derivación le manda un mail a un perito externo y deja el caso en
+     * PENDING_EXPERT_REPORT, donde el analista asignado ya no puede decidir. {@code @PreAuthorize}
+     * solo valida el rol; esto valida el expediente. Mismo chequeo que aprobar/rechazar, que lo
+     * tenía desde antes — la derivación se sumó después y quedó sin él.
+     */
+    @Test
+    void derive_refusesWhenNobodyOwnsTheCase() {
+        Case caseRecord = caseAwaitingReview();
+        caseRecord.setAnalyst(null);
+        when(caseRepository.findById(CASE_ID)).thenReturn(Optional.of(caseRecord));
+        when(claimsAnalystRepository.findByEmail(ANALYST_EMAIL)).thenReturn(Optional.of(analyst()));
+
+        assertThatThrownBy(() -> expertAssessmentService.derive(CASE_ID,
+                new DeriveToExpertRequest(3L, "motivo"), ProviderType.ESTUDIO_LIQUIDADOR))
+                .isInstanceOf(CaseNotAssignedException.class);
+
+        verify(expertAssessmentRepository, never()).save(any());
+        verify(caseStatusService, never()).transition(any(), any(), any(), any());
+        verify(expertNotificationService, never()).notifyDerivation(any(), any());
+    }
+
+    @Test
+    void derive_refusesWhenTheCaseBelongsToAnotherAnalyst() {
+        Case caseRecord = caseAwaitingReview();
+        caseRecord.setAnalyst(ClaimsAnalyst.builder().id(99L).name("Otro").surname("Analista").build());
+        when(caseRepository.findById(CASE_ID)).thenReturn(Optional.of(caseRecord));
+        when(claimsAnalystRepository.findByEmail(ANALYST_EMAIL)).thenReturn(Optional.of(analyst()));
+
+        assertThatThrownBy(() -> expertAssessmentService.derive(CASE_ID,
+                new DeriveToExpertRequest(3L, "motivo"), ProviderType.ESTUDIO_LIQUIDADOR))
+                .isInstanceOf(CaseAssignedToAnotherAnalystException.class);
+
+        verify(expertAssessmentRepository, never()).save(any());
+        verify(caseStatusService, never()).transition(any(), any(), any(), any());
+        // Lo que más importa: al perito no le llegó nada. El mail sale del sistema.
+        verify(expertNotificationService, never()).notifyDerivation(any(), any());
     }
 
     private void givenCaseAndAnalyst(Case caseRecord) {
@@ -367,6 +617,11 @@ class ExpertAssessmentServiceTest {
                 .thenReturn(new RulesServiceClient.ExpertDerivationPolicy(true, minClaimedAmount, 4L));
     }
 
+    private void givenRepairPolicy(Long... admittedClaimCauseIds) {
+        when(rulesServiceClient.repairDerivationPolicy(BRANCH_ID))
+                .thenReturn(new RulesServiceClient.RepairDerivationPolicy(true, List.of(admittedClaimCauseIds), 9L));
+    }
+
     private Case caseAwaitingReview() {
         return caseInStatus(CaseStatus.PENDING_ANALYST_REVIEW);
     }
@@ -376,11 +631,14 @@ class ExpertAssessmentServiceTest {
         // fixture lo arma sin id (los tests que lo usan no lo miran).
         ClaimCause cause = CaseFixtures.claimCause("Celulares", "Robo en vía pública");
         cause.setBranch(Branch.builder().id(BRANCH_ID).name("Celulares").build());
+        cause.setId(CLAIM_CAUSE_ID);
         return Case.builder()
                 .id(CASE_ID)
                 .claimCause(cause)
                 .claimedAmount(CLAIMED_AMOUNT)
                 .currentStatus(CaseStates.of(status))
+                // Con dueño: derivar es del analista asignado, igual que decidir.
+                .analyst(analyst())
                 .build();
     }
 

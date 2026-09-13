@@ -48,6 +48,10 @@ public class DocumentAnalyzerImpl implements DocumentAnalyzer {
 
     private static final String UNREADABLE = "No se pudo extraer contenido del documento adjunto.";
 
+    /** Mirror {@code DocumentDetail}'s columns: a longer value is trimmed, never dropped. */
+    private static final int DETAIL_NAME_MAX = 100;
+    private static final int DETAIL_VALUE_MAX = 500;
+
     /**
      * Forcing the shape is what keeps the two halves apart. Without it the model returns prose and
      * an "observación:" line inside the transcription reads as if the document said it.
@@ -57,17 +61,30 @@ public class DocumentAnalyzerImpl implements DocumentAnalyzer {
             "properties", Map.of(
                     "transcription", Map.of("type", "string"),
                     "visualFindings", Map.of("type", "array", "items", Map.of("type", "string")),
-                    // All nullable: a document has no reason to carry all four. The schema doesn't
-                    // require them so the model doesn't invent what's missing.
+                    // All nullable: a document has no reason to carry every one of them. The
+                    // schema doesn't require them so the model doesn't invent what's missing.
+                    // Map.ofEntries and not Map.of: past ten pairs the varargs overload is gone.
                     "fields", Map.of(
                             "type", "object",
-                            "properties", Map.of(
-                                    "documentDate", Map.of("type", List.of("string", "null")),
-                                    "amount", Map.of("type", List.of("number", "null")),
-                                    "itemDescription", Map.of("type", List.of("string", "null")),
-                                    "imei", Map.of("type", List.of("string", "null")),
-                                    "affectedParty", Map.of("enum",
-                                            List.of("TITULAR", "FAMILIAR", "TERCERO", "DESCONOCIDO"))
+                            "properties", Map.ofEntries(
+                                    Map.entry("documentDate", Map.of("type", List.of("string", "null"))),
+                                    Map.entry("amount", Map.of("type", List.of("number", "null"))),
+                                    Map.entry("itemDescription", Map.of("type", List.of("string", "null"))),
+                                    Map.entry("brand", Map.of("type", List.of("string", "null"))),
+                                    Map.entry("model", Map.of("type", List.of("string", "null"))),
+                                    Map.entry("imei", Map.of("type", List.of("string", "null"))),
+                                    Map.entry("affectedParty", Map.of("enum",
+                                            List.of("TITULAR", "FAMILIAR", "TERCERO", "DESCONOCIDO"))),
+                                    // Name and value both required: half a detail says nothing to
+                                    // the analyst and only risks a row that can't be stored.
+                                    Map.entry("details", Map.of(
+                                            "type", "array",
+                                            "items", Map.of(
+                                                    "type", "object",
+                                                    "properties", Map.of(
+                                                            "name", Map.of("type", "string"),
+                                                            "value", Map.of("type", "string")),
+                                                    "required", List.of("name", "value"))))
                             ))
             ),
             "required", List.of("transcription", "visualFindings")
@@ -80,7 +97,7 @@ public class DocumentAnalyzerImpl implements DocumentAnalyzer {
     public DocumentAnalyzerImpl(
             LlmClient client,
             ObjectMapper objectMapper,
-            @Value("classpath:prompts/extraccion-documento-v3.md") Resource documentExtractionPromptResource
+            @Value("classpath:prompts/extraccion-documento-v5.md") Resource documentExtractionPromptResource
     ) throws IOException {
         this.client = client;
         this.objectMapper = objectMapper;
@@ -177,8 +194,24 @@ public class DocumentAnalyzerImpl implements DocumentAnalyzer {
                 accumulated.documentDate() != null ? accumulated.documentDate() : page.documentDate(),
                 accumulated.amount() != null ? accumulated.amount() : page.amount(),
                 accumulated.itemDescription() != null ? accumulated.itemDescription() : page.itemDescription(),
+                accumulated.brand() != null ? accumulated.brand() : page.brand(),
+                accumulated.model() != null ? accumulated.model() : page.model(),
                 accumulated.imei() != null ? accumulated.imei() : page.imei(),
-                accumulated.affectedParty() != null ? accumulated.affectedParty() : page.affectedParty());
+                accumulated.affectedParty() != null ? accumulated.affectedParty() : page.affectedParty(),
+                mergeDetails(accumulated.details(), page.details()));
+    }
+
+    /**
+     * Details accumulate instead of first-one-wins: they have no fixed set, so a later page adding
+     * its own is the normal case, not a duplicate. Deduplicated by name+value because a multi-page
+     * invoice repeats its number on every page — and by <b>both</b>, so the same name with two
+     * different values survives as two entries: that contradiction is worth showing the analyst.
+     */
+    private List<DocumentExtraction.Detail> mergeDetails(
+            List<DocumentExtraction.Detail> accumulated, List<DocumentExtraction.Detail> page) {
+        List<DocumentExtraction.Detail> merged = new ArrayList<>(accumulated);
+        page.stream().filter(detail -> !merged.contains(detail)).forEach(merged::add);
+        return merged;
     }
 
     private byte[] toPng(BufferedImage image) {
@@ -241,8 +274,38 @@ public class DocumentAnalyzerImpl implements DocumentAnalyzer {
                 parseDate(fields.documentDate()),
                 fields.amount(),
                 blankToNull(fields.itemDescription()),
+                blankToNull(fields.brand()),
+                blankToNull(fields.model()),
                 normalizeImei(fields.imei()),
-                parseAffectedParty(fields.affectedParty()));
+                parseAffectedParty(fields.affectedParty()),
+                toDetails(fields.details()));
+    }
+
+    /**
+     * Drops the ones missing a half, and trims both. A detail with no name or no value can't be
+     * shown as anything — the analyst would read an empty row — and the columns are NOT NULL, so
+     * letting one through would cost the whole document's extraction rather than that one row.
+     *
+     * <p>Truncated to the column widths instead of discarded: a model that runs long on a value is
+     * still telling the analyst something, and losing the datum entirely to save its tail is the
+     * worse trade. Widths mirror {@code DocumentDetail}.
+     */
+    private List<DocumentExtraction.Detail> toDetails(List<ModelDetail> details) {
+        if (details == null) {
+            return List.of();
+        }
+        return details.stream()
+                .filter(detail -> detail != null
+                        && blankToNull(detail.name()) != null
+                        && blankToNull(detail.value()) != null)
+                .map(detail -> new DocumentExtraction.Detail(
+                        truncate(detail.name().trim(), DETAIL_NAME_MAX),
+                        truncate(detail.value().trim(), DETAIL_VALUE_MAX)))
+                .toList();
+    }
+
+    private String truncate(String value, int max) {
+        return value.length() <= max ? value : value.substring(0, max);
     }
 
     /** A value outside the enum is treated as "the document doesn't say", not as an error. */
@@ -285,7 +348,9 @@ public class DocumentAnalyzerImpl implements DocumentAnalyzer {
 
     private record ModelOutput(String transcription, List<String> visualFindings, ModelFields fields) {}
 
+    private record ModelDetail(String name, String value) {}
+
     /** The date arrives as text and the IMEI may carry separators: both normalized on mapping. */
-    private record ModelFields(String documentDate, BigDecimal amount, String itemDescription, String imei,
-                               String affectedParty) {}
+    private record ModelFields(String documentDate, BigDecimal amount, String itemDescription, String brand,
+                               String model, String imei, String affectedParty, List<ModelDetail> details) {}
 }

@@ -5,15 +5,21 @@ import ar.edu.utn.frba.arbiter.cases.dto.AnalystWorkloadResponse;
 import ar.edu.utn.frba.arbiter.cases.dto.AssignAnalystRequest;
 import ar.edu.utn.frba.arbiter.cases.dto.AssignedCaseSummaryResponse;
 import ar.edu.utn.frba.arbiter.cases.dto.CaseDocumentResponse;
+import ar.edu.utn.frba.arbiter.cases.dto.CaseScope;
 import ar.edu.utn.frba.arbiter.cases.dto.CaseRequest;
 import ar.edu.utn.frba.arbiter.cases.dto.CaseResponse;
+import ar.edu.utn.frba.arbiter.cases.dto.PendingSettlementResponse;
 import ar.edu.utn.frba.arbiter.cases.dto.PolicyResponse;
+import ar.edu.utn.frba.arbiter.cases.dto.SettlementReturnRequest;
+import ar.edu.utn.frba.arbiter.cases.dto.SettlementResponse;
 import ar.edu.utn.frba.arbiter.cases.dto.EligibilityCheckRequest;
+import ar.edu.utn.frba.arbiter.cases.dto.IntakeDocumentsResponse;
 import ar.edu.utn.frba.arbiter.cases.dto.EligibilityCheckResponse;
 import ar.edu.utn.frba.arbiter.cases.dto.LensSummaryResponse;
 import ar.edu.utn.frba.arbiter.cases.dto.ReopenCaseRequest;
 import ar.edu.utn.frba.arbiter.cases.models.entities.CaseDocument;
 import ar.edu.utn.frba.arbiter.cases.services.CaseService;
+import ar.edu.utn.frba.arbiter.cases.services.SettlementService;
 import ar.edu.utn.frba.arbiter.common.enums.CaseStatus;
 import ar.edu.utn.frba.arbiter.common.enums.RiskBand;
 import io.swagger.v3.oas.annotations.Operation;
@@ -31,6 +37,7 @@ import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
+import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.List;
 import java.util.Map;
@@ -42,6 +49,7 @@ import java.util.Map;
 public class CaseController {
 
     private final CaseService caseService;
+    private final SettlementService settlementService;
 
     @PostMapping(consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     @PreAuthorize("hasRole('ASEGURADO')")
@@ -81,6 +89,21 @@ public class CaseController {
             @RequestBody @Valid EligibilityCheckRequest request
     ) {
         return ResponseEntity.ok(caseService.checkEligibility(request));
+    }
+
+    @GetMapping("/intake-documents")
+    @PreAuthorize("hasRole('ASEGURADO')")
+    @Operation(summary = "Documentación que se pide al registrar la denuncia",
+            description = "La primera tanda: lo que el carril rápido exige para la cobertura que responde "
+                    + "por ese hecho generador. Si la aseguradora no configuró ninguna, devuelve la agenda "
+                    + "documental completa (`fastTrackOnly=false`). La agenda entera se le pide después, y "
+                    + "solo si el siniestro no entra al carril rápido. 503 si no se pudo leer el motor de "
+                    + "reglas: una lista vacía se leería como \"no hace falta ningún documento\".")
+    public ResponseEntity<IntakeDocumentsResponse> intakeDocuments(
+            @RequestParam String policyNumber,
+            @RequestParam String branch,
+            @RequestParam String claimCause) {
+        return ResponseEntity.ok(caseService.intakeDocuments(policyNumber, branch, claimCause));
     }
 
     @GetMapping("/{caseId}")
@@ -133,9 +156,23 @@ public class CaseController {
                     `dueSoon=true` acota a los expedientes con semáforo de vencimiento activo
                     (`deadlinePriority != NONE`: 10 días o menos hasta el plazo de respuesta del
                     art. 56, o ya vencidos) — la lente "Por vencer".
+
+                    `scope` recorta por ciclo de vida: `OPEN` (los cinco estados no terminales),
+                    `CLOSED` (APPROVED/REJECTED/LAPSED) o `ALL`. Default `ALL`: el recorte es de
+                    la pantalla que lo pide, no del endpoint — el portal del asegurado consume
+                    este mismo listado y tiene que seguir viendo sus siniestros resueltos. Un
+                    expediente vencido sigue siendo `OPEN`.
+
+                    `status` admite varios (`?status=A&status=B`): el portal del asegurado filtra
+                    por los tres cajones que ve él ("En trámite" son cuatro estados), y el mapeo
+                    cajón→estados es del frontend, como el resto de las etiquetas.
+
+                    `insurerId` solo aplica al ASEGURADO con pólizas en más de una compañía, que
+                    es el único que lee expedientes de varios esquemas. Para analista y referente
+                    no hace nada: el tenant ya los acota a una sola aseguradora.
                     """)
     public ResponseEntity<Page<CaseResponse>> listCases(
-            @RequestParam(required = false) CaseStatus status,
+            @RequestParam(required = false) List<CaseStatus> status,
             @RequestParam(required = false) String claimCause,
             @RequestParam(required = false) String policyNumber,
             @RequestParam(required = false) String insuredId,
@@ -149,11 +186,14 @@ public class CaseController {
             @RequestParam(defaultValue = "false") boolean fraudAlert,
             @RequestParam(defaultValue = "false") boolean assigned,
             @RequestParam(defaultValue = "false") boolean dueSoon,
+            @RequestParam(defaultValue = "ALL") CaseScope scope,
+            @RequestParam(required = false) Long insurerId,
             @PageableDefault(size = 20, sort = "id", direction = Sort.Direction.DESC) Pageable pageable
     ) {
         Page<CaseResponse> response = caseService.listCases(
                 status, claimCause, policyNumber, insuredId, eventDateFrom, eventDateTo, q, riskBand,
-                analystId, assignedToMe, unassigned, fraudAlert, assigned, dueSoon, pageable);
+                analystId, assignedToMe, unassigned, fraudAlert, assigned, dueSoon, scope, insurerId,
+                pageable);
         return ResponseEntity.ok(response);
     }
 
@@ -239,7 +279,7 @@ public class CaseController {
                     "Míos" da 0 para el referente, que no tiene perfil de analista en el tenant.
                     """)
     public ResponseEntity<LensSummaryResponse> lensSummary(
-            @RequestParam(required = false) CaseStatus status,
+            @RequestParam(required = false) List<CaseStatus> status,
             @RequestParam(required = false) String claimCause,
             @RequestParam(required = false) String policyNumber,
             @RequestParam(required = false) String insuredId,
@@ -247,10 +287,12 @@ public class CaseController {
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate eventDateTo,
             @RequestParam(required = false) String q,
             @RequestParam(required = false) RiskBand riskBand,
-            @RequestParam(required = false) Long analystId
+            @RequestParam(required = false) Long analystId,
+            @RequestParam(defaultValue = "ALL") CaseScope scope
     ) {
         return ResponseEntity.ok(caseService.lensSummary(
-                status, claimCause, policyNumber, insuredId, eventDateFrom, eventDateTo, q, riskBand, analystId));
+                status, claimCause, policyNumber, insuredId, eventDateFrom, eventDateTo, q, riskBand,
+                analystId, scope));
     }
 
     @GetMapping("/analysts/workload")
@@ -367,6 +409,61 @@ public class CaseController {
             description = "All of them, across insurers — the one being claimed is only part of the context.")
     public ResponseEntity<List<PolicyResponse>> getInsuredPolicies(@PathVariable Long caseId) {
         return ResponseEntity.ok(caseService.getInsuredPolicies(caseId));
+    }
+
+    // La propuesta de liquidación. GET y no POST aunque reciba un parámetro: no persiste nada,
+    // recalcula sobre entradas ya congeladas, y el analista la va a pedir varias veces mientras
+    // prueba un valor de reposición. Lo que sí escribe es la aprobación (POST /decision).
+    @GetMapping("/{caseId}/settlement")
+    @PreAuthorize("hasAnyRole('ANALISTA_SINIESTROS', 'REFERENTE_ASEGURADORA')")
+    @Operation(summary = "Amount to be paid on the claim",
+            description = "The settlement already authorized, or the proposal for the analyst to confirm: "
+                    + "the ceiling, every deduction with the reason behind it, and the resulting amount. "
+                    + "replacementValue previews what accrediting one would do — it settles nothing.")
+    public ResponseEntity<SettlementResponse> settlement(
+            @PathVariable Long caseId,
+            @RequestParam(required = false) BigDecimal replacementValue
+    ) {
+        return ResponseEntity.ok(settlementService.forCase(caseId, replacementValue));
+    }
+
+    // ─── Atribuciones: lo que excede el tope del analista lo firma el referente ──────────
+    // Va antes de {caseId} en el orden de lectura, pero no compite con él: caseId es Long y
+    // "settlements" no bindea. Mismo patrón que /lens-summary y /analysts/workload.
+    @GetMapping("/settlements/pending-authorization")
+    @PreAuthorize("hasRole('REFERENTE_ASEGURADORA')")
+    @Operation(summary = "Settlements waiting for the referente",
+            description = "Amounts an analyst determined that went over their branch's attribution "
+                    + "(Anexo II). Oldest first: that claim has been burning its 30-day legal window "
+                    + "the longest. The cases stay in the analyst's review meanwhile — the insured "
+                    + "never sees this step.")
+    public ResponseEntity<List<PendingSettlementResponse>> pendingAuthorization() {
+        return ResponseEntity.ok(settlementService.pendingAuthorization());
+    }
+
+    @PostMapping("/{caseId}/settlement/authorize")
+    @PreAuthorize("hasRole('REFERENTE_ASEGURADORA')")
+    @Operation(summary = "Authorize a settlement over the analyst's attribution",
+            description = "Only here does the approval take effect: the analyst's decision is recorded "
+                    + "with the justification they left, and the case moves to APPROVED — which is what "
+                    + "emails the insured with the amount.")
+    public ResponseEntity<Map<String, Object>> authorizeSettlement(@PathVariable Long caseId) {
+        caseService.authorizeSettlement(caseId);
+        return ResponseEntity.ok(Map.of("caseId", caseId, "status", "settlement-authorized"));
+    }
+
+    @PostMapping("/{caseId}/settlement/return")
+    @PreAuthorize("hasRole('REFERENTE_ASEGURADORA')")
+    @Operation(summary = "Send a settlement back to the analyst",
+            description = "Not a rejection of the claim: the case never left the analyst's review, and "
+                    + "no decision was recorded to undo. They settle it again, at another amount or the "
+                    + "same one better argued.")
+    public ResponseEntity<Map<String, Object>> returnSettlement(
+            @PathVariable Long caseId,
+            @RequestBody @Valid SettlementReturnRequest request
+    ) {
+        caseService.returnSettlement(caseId, request.reason());
+        return ResponseEntity.ok(Map.of("caseId", caseId, "status", "settlement-returned"));
     }
 
     // Solo el analista: la decisión se atribuye resolviendo al que llama contra claims_analyst, así

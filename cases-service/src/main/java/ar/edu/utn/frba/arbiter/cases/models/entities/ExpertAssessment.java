@@ -1,5 +1,7 @@
 package ar.edu.utn.frba.arbiter.cases.models.entities;
 
+import ar.edu.utn.frba.arbiter.cases.dto.ProviderType;
+import ar.edu.utn.frba.arbiter.cases.dto.RepairOutcome;
 import ar.edu.utn.frba.arbiter.common.enums.ExpertVerdict;
 import ar.edu.utn.frba.arbiter.common.models.entities.tenant.ClaimsAnalyst;
 import jakarta.persistence.Column;
@@ -21,6 +23,7 @@ import lombok.NoArgsConstructor;
 import lombok.Setter;
 import org.hibernate.annotations.CreationTimestamp;
 
+import java.math.BigDecimal;
 import java.time.Instant;
 
 /**
@@ -31,11 +34,12 @@ import java.time.Instant;
  * suspicion into a verified fact — or discards it. It still resolves nothing: the case returns
  * to the analyst, who decides (decisión de arquitectura #5).
  *
- * <p>One row per case: the analyst derives once.
+ * <p>Una fila por caso y por tipo de proveedor: un expediente puede ir al estudio liquidador,
+ * volver sin fraude, y recién entonces al servicio técnico.
  */
 @Entity
 @Table(name = "expert_assessment",
-        uniqueConstraints = @UniqueConstraint(columnNames = "case_id"))
+        uniqueConstraints = @UniqueConstraint(columnNames = {"case_id", "provider_type"}))
 @Getter
 @Setter
 @NoArgsConstructor
@@ -84,12 +88,51 @@ public class ExpertAssessment {
     @Column(name = "report_received_at")
     private Instant reportReceivedAt;
 
+    @Builder.Default
+    @Enumerated(EnumType.STRING)
+    @Column(name = "provider_type", nullable = false, length = 20)
+    private ProviderType providerType = ProviderType.ESTUDIO_LIQUIDADOR;
+
     @Enumerated(EnumType.STRING)
     @Column(length = 20)
     private ExpertVerdict verdict;
 
+    @Enumerated(EnumType.STRING)
+    @Column(name = "repair_outcome", length = 20)
+    private RepairOutcome repairOutcome;
+
     @Column(name = "verdict_note", columnDefinition = "TEXT")
     private String verdictNote;
+
+    /**
+     * What the expert determined the claim is worth. Their procedure has them verify "la causa del
+     * siniestro como el monto indemnizable" (NSIN001 §2.6) — Arbiter was recording only the cause.
+     *
+     * <p>Typed by the analyst alongside the verdict: the expert is outside the system and answers
+     * by email, so the number arrives inside a PDF and somebody has to transcribe it.
+     *
+     * <p>Null when the report doesn't put a number on it, which is ordinary: a confirmed fraud or
+     * an uncovered event have nothing to indemnify. A zero there would read as "the expert said
+     * nothing is owed", a different conclusion from having no opinion on the amount.
+     */
+    @Column(name = "indemnifiable_amount")
+    private BigDecimal indemnifiableAmount;
+
+    /**
+     * What the repair shop charges for the job — quoted if they haven't done it yet, invoiced if
+     * they have. One column for both because the settlement asks one question of them: what the
+     * repair costs.
+     *
+     * <p>Its own column, and not {@code indemnifiableAmount}, for the same reason
+     * {@code repairOutcome} is not {@code verdict}: the two numbers answer different questions.
+     * The expert says what the claim is <b>worth</b> — an opinion on the settlement. The shop says
+     * what the repair <b>costs</b> — a price, which is the base the repair formula settles on.
+     *
+     * <p>Required with {@code QUOTE_SENT}, optional with {@code REPAIRED} — the invoice can arrive
+     * after the report — and null with {@code IRREPARABLE}, where there was no work to charge for.
+     */
+    @Column(name = "repair_cost")
+    private BigDecimal repairCost;
 
     @ManyToOne(fetch = FetchType.EAGER, optional = false)
     @JoinColumn(name = "derived_by", nullable = false)

@@ -26,6 +26,7 @@ const PROXIMO_PASO_ANALISTA: Partial<Record<CaseStatus, string>> = {
   AWAITING_DOCUMENTATION: 'Esperando que el asegurado suba la documentación que falta.',
   CLASSIFICATION_FAILED: 'Podés reintentar la clasificación desde la card de arriba.',
   PENDING_EXPERT_REPORT: 'Esperando el informe del perito para volver a revisión.',
+  PENDING_REPAIR: 'Esperando la respuesta del servicio técnico para volver a revisión.',
   // PENDING_ANALYST_REVIEW no tiene entrada: la card de decisión ya le muestra los botones,
   // repetir "está esperando tu decisión" acá abajo sería ruido.
 };

@@ -5,6 +5,7 @@ import ar.edu.utn.frba.arbiter.classification.adapters.DocumentAnalyzer;
 import ar.edu.utn.frba.arbiter.classification.adapters.InsurerAdapter;
 import ar.edu.utn.frba.arbiter.classification.adapters.RulesAdapter;
 import ar.edu.utn.frba.arbiter.classification.dto.ClassificationResponse;
+import ar.edu.utn.frba.arbiter.classification.models.repositories.ClaimCauseRepository;
 import ar.edu.utn.frba.arbiter.classification.models.repositories.DocumentAnalysisRepository;
 import ar.edu.utn.frba.arbiter.classification.models.repositories.InsuredFraudRecordRepository;
 import ar.edu.utn.frba.arbiter.classification.models.repositories.PolicySnapshotRepository;
@@ -56,6 +57,7 @@ class ClassificationOrchestratorScoringTest {
     @Mock private PolicySnapshotRepository policySnapshotRepository;
     @Mock private InsuredFraudRecordRepository fraudRecordRepository;
     @Mock private DocumentAnalysisRepository documentAnalysisRepository;
+    @Mock private ClaimCauseRepository claimCauseRepository;
     @Spy private ObjectMapper objectMapper = new ObjectMapper().registerModule(new JavaTimeModule());
 
     @InjectMocks private ClassificationOrchestrator orchestrator;
@@ -81,7 +83,7 @@ class ClassificationOrchestratorScoringTest {
     @Test
     void fastTrackRoute_scoresExactlyOnceAndAttaches() {
         when(fastTrackValidator.evaluate(any(), any(), any(), any(), any()))
-                .thenReturn(new FastTrackValidator.Result(true, List.of("ok")));
+                .thenReturn(new FastTrackValidator.Result(true, List.of("ok"), List.of()));
         when(riskScoringService.score(any())).thenReturn(knownScore);
 
         ClassificationResponse response = orchestrator.classify(RiskFixtures.claim(new BigDecimal("100000")), List.of());
@@ -95,7 +97,7 @@ class ClassificationOrchestratorScoringTest {
     @Test
     void llmRoute_scoresExactlyOnceAndAttaches() {
         when(fastTrackValidator.evaluate(any(), any(), any(), any(), any()))
-                .thenReturn(new FastTrackValidator.Result(false, List.of("no")));
+                .thenReturn(new FastTrackValidator.Result(false, List.of("no"), List.of()));
         when(classifier.classify(any())).thenReturn(ClassificationResponse.builder()
                 .classification(Classification.LLM_RECOMIENDA_APROBAR)
                 .factors(List.of("ok"))
@@ -116,7 +118,7 @@ class ClassificationOrchestratorScoringTest {
     @Test
     void scoringFailure_doesNotBreakClassification() {
         when(fastTrackValidator.evaluate(any(), any(), any(), any(), any()))
-                .thenReturn(new FastTrackValidator.Result(true, List.of("ok")));
+                .thenReturn(new FastTrackValidator.Result(true, List.of("ok"), List.of()));
         when(riskScoringService.score(any())).thenThrow(new RuntimeException("scoring boom"));
 
         ClassificationResponse response = orchestrator.classify(RiskFixtures.claim(new BigDecimal("100000")), List.of());

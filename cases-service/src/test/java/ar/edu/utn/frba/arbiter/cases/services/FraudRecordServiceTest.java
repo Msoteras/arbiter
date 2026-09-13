@@ -1,5 +1,6 @@
 package ar.edu.utn.frba.arbiter.cases.services;
 
+import ar.edu.utn.frba.arbiter.cases.dto.ProviderType;
 import ar.edu.utn.frba.arbiter.cases.dto.RegisterFraudRecordRequest;
 import ar.edu.utn.frba.arbiter.cases.exceptions.FraudRecordNotAllowedException;
 import ar.edu.utn.frba.arbiter.cases.models.entities.Case;
@@ -75,7 +76,7 @@ class FraudRecordServiceTest {
     void expertBackedRecord_flagsTheCase_andSendsTheExpertAssessmentAlong() {
         Case caseRecord = caseInStatus(CaseStatus.PENDING_ANALYST_REVIEW);
         givenCaseAndAnalyst(caseRecord);
-        when(expertAssessmentRepository.findByCaseId(CASE_ID))
+        when(expertAssessmentRepository.findByCaseIdAndProviderType(CASE_ID, ProviderType.ESTUDIO_LIQUIDADOR))
                 .thenReturn(Optional.of(assessmentWith(ExpertVerdict.FRAUD_CONFIRMED)));
         when(classificationClient.registerFraudRecord(any())).thenReturn(response());
 
@@ -104,7 +105,7 @@ class FraudRecordServiceTest {
     void expertBackedRecord_isRefusedWhenTheReportDidNotConfirmTheFraud() {
         Case caseRecord = caseInStatus(CaseStatus.PENDING_ANALYST_REVIEW);
         when(caseRepository.findById(CASE_ID)).thenReturn(Optional.of(caseRecord));
-        when(expertAssessmentRepository.findByCaseId(CASE_ID))
+        when(expertAssessmentRepository.findByCaseIdAndProviderType(CASE_ID, ProviderType.ESTUDIO_LIQUIDADOR))
                 .thenReturn(Optional.of(assessmentWith(ExpertVerdict.INCONCLUSIVE)));
 
         assertThatThrownBy(() -> fraudRecordService.register(CASE_ID,
@@ -119,7 +120,7 @@ class FraudRecordServiceTest {
     void expertBackedRecord_isRefusedWhenTheCaseWasNeverDerived() {
         Case caseRecord = caseInStatus(CaseStatus.PENDING_ANALYST_REVIEW);
         when(caseRepository.findById(CASE_ID)).thenReturn(Optional.of(caseRecord));
-        when(expertAssessmentRepository.findByCaseId(CASE_ID)).thenReturn(Optional.empty());
+        when(expertAssessmentRepository.findByCaseIdAndProviderType(CASE_ID, ProviderType.ESTUDIO_LIQUIDADOR)).thenReturn(Optional.empty());
 
         assertThatThrownBy(() -> fraudRecordService.register(CASE_ID,
                 new RegisterFraudRecordRequest(FraudRecordSource.EXPERT_BACKED, REASON)))
@@ -141,7 +142,7 @@ class FraudRecordServiceTest {
         ArgumentCaptor<FraudRecordRequest> sent = ArgumentCaptor.forClass(FraudRecordRequest.class);
         verify(classificationClient).registerFraudRecord(sent.capture());
         assertThat(sent.getValue().expertAssessmentId()).isNull();
-        verify(expertAssessmentRepository, never()).findByCaseId(any());
+        verify(expertAssessmentRepository, never()).findByCaseIdAndProviderType(any(), any());
     }
 
     /** Pagar el siniestro y registrarlo como fraude se contradicen. */

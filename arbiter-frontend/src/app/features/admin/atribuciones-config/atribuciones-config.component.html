@@ -1,0 +1,44 @@
+<app-card heading="Atribuciones de liquidación">
+  <p class="section-hint">
+    Hasta cuánto puede autorizar un analista por su cuenta en cada ramo. Por encima de ese monto,
+    la liquidación queda esperando tu firma; el expediente no se mueve y el asegurado no ve el paso.
+  </p>
+
+  @if (loading()) {
+    <app-inline-loading [size]="26" message="Cargando atribuciones…" />
+  } @else {
+    <ul class="rows">
+      @for (a of authorities(); track a.branchId) {
+        <li class="row">
+          <div class="row-text">
+            <span class="t-field-label">{{ a.branchName }}</span>
+            <p class="row-hint">Actual: {{ montoLabel(a.maxAmount) }}</p>
+          </div>
+          <div class="row-action">
+            <app-input
+              type="number"
+              [min]="0"
+              [value]="draftFor(a.branchId)"
+              (valueChange)="setDraft(a.branchId, $event)"
+              placeholder="Sin tope"
+            />
+            <app-button
+              variant="secondary"
+              [disabled]="!isDirty(a) || savingBranchId() === a.branchId"
+              (click)="save(a)"
+            >
+              {{ savingBranchId() === a.branchId ? 'Guardando…' : 'Guardar' }}
+            </app-button>
+          </div>
+        </li>
+      } @empty {
+        <li class="row"><p class="t-note">No hay ramos configurados.</p></li>
+      }
+    </ul>
+    <p class="t-note">Dejalo vacío para sacar el tope: el analista vuelve a autorizar cualquier monto.</p>
+  }
+
+  @if (error()) {
+    <p class="rcard-note error">{{ error() }}</p>
+  }
+</app-card>

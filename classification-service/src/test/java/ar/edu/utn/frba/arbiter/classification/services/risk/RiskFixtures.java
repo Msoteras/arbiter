@@ -76,6 +76,10 @@ public final class RiskFixtures {
                 .effectiveFrom(from)
                 .effectiveTo(from == null ? null : from.plusYears(1))
                 .upToDate(upToDate)
+                // Lo que necesita la liquidación: cuánto vale una cuota del premio y cuánta deuda
+                // vencida hay. Van al policy_snapshot junto con el resto (D27).
+                .installmentAmount(new BigDecimal("8000"))
+                .overdueBalance(upToDate ? BigDecimal.ZERO : new BigDecimal("24000"))
                 .insuredAmount(insuredAmount)
                 .deductible(new BigDecimal("50000"))
                 .coverages(List.of())

@@ -2,6 +2,7 @@ import {
   HARD_RULE_LABELS,
   INSURER_HARD_RULE_LABELS,
 } from '../../features/admin/hard-rules.service';
+import { conLabelesDeDocumento } from './business-rules';
 import { StatusTone } from './status-tone';
 
 /** Mirror of RuleResultResponse (common-lib). Passes travel too, not just the rejections. */
@@ -26,12 +27,29 @@ const RULE_TYPE_LABELS: Record<string, string> = {
   COVERS_FAMILY_GROUP: 'Alcance al grupo familiar',
   CLAIM_EXHAUSTS_COVERAGE: 'Cobertura consumida por un siniestro previo',
   FRAUD_RECORD: 'Antecedente de fraude',
-  // The engine never writes it (the gate leaves no rule_result), but the demo seed does.
+  // El tipo de la fila de configuración (los umbrales). El motor no lo escribe: lo que escribe
+  // son los cinco criterios FT_* de abajo, uno por umbral comparado. El seed de demo sí lo usa.
   FAST_TRACK: 'Criterio de Fast Track',
+  // Criterios del carril rápido (H0038). No son reglas duras: que uno no se cumpla no dice que el
+  // siniestro no esté cubierto, dice que el expediente no va por el carril rápido y lo mira el
+  // modelo. Por eso van en su propio bloque, separados de las reglas de arriba.
+  FT_AMOUNT_RATIO: 'Monto reclamado sobre la suma asegurada',
+  FT_PRIOR_CLAIMS: 'Siniestros previos del asegurado',
+  FT_POLICY_AGE: 'Antigüedad de la póliza',
+  FT_POLICY_UP_TO_DATE: 'Póliza al día con sus pagos',
+  FT_REQUIRED_DOCS: 'Documentación que exige el carril rápido',
 };
 
 export function ruleTypeLabel(ruleType: string): string {
   return RULE_TYPE_LABELS[ruleType] ?? ruleType;
+}
+
+/**
+ * Si la fila es un criterio del gate de Fast Track y no una regla dura. El prefijo es el contrato:
+ * lo fija `RuleType` (common-lib), donde los cinco `FT_*` son su propia familia.
+ */
+export function isFastTrackCriterion(ruleType: string): boolean {
+  return ruleType.startsWith('FT_');
 }
 
 // El motor escribe PASS/FAIL y es el único vocabulario: los CUMPLE/NO_CUMPLE de un seed viejo se
@@ -92,7 +110,30 @@ export function ruleEvaluationText(ruleType: string, evaluatedValue: string | nu
         : evaluatedValue;
     }
     case 'POLICY_STANDING':
+    case 'FT_POLICY_UP_TO_DATE':
       return t['upToDate'] === 'true' ? 'La póliza está al día' : 'La póliza tiene saldo impago';
+    // Los cinco criterios del carril rápido. El porcentaje llega ya formateado por el motor y se
+    // muestra tal cual: reformatearlo acá sería recalcular la cuenta que se auditó.
+    case 'FT_AMOUNT_RATIO':
+      return t['ratio'] === 'sin datos'
+        ? `Sin monto reclamado o sin suma asegurada · tope ${t['max']}`
+        : `Reclama el ${t['ratio']} de la suma asegurada · tope ${t['max']}`;
+    case 'FT_PRIOR_CLAIMS': {
+      const previos = Number(t['priorClaims']);
+      if (Number.isNaN(previos)) {
+        return evaluatedValue;
+      }
+      const ventana = t['windowMonths'] ? ` en los últimos ${t['windowMonths']} meses` : '';
+      return `${previos} ${previos === 1 ? 'siniestro previo' : 'siniestros previos'}${ventana} · máximo ${t['max']}`;
+    }
+    case 'FT_POLICY_AGE':
+      return t['policyAgeMonths'] === 'sin datos'
+        ? `No se pudo determinar la antigüedad de la póliza · mínimo ${t['min']} meses`
+        : `Póliza de ${t['policyAgeMonths']} meses · mínimo ${t['min']}`;
+    case 'FT_REQUIRED_DOCS':
+      return t['missing'] === 'ninguno'
+        ? `Presente: ${conLabelesDeDocumento(listado(t['required']))}`
+        : `Falta: ${conLabelesDeDocumento(listado(t['missing']))}`;
     case 'COVERAGE_EXCLUSION':
     case 'COVERAGE_INCLUSION':
       return t['claimCause']
@@ -117,6 +158,14 @@ export function ruleEvaluationText(ruleType: string, evaluatedValue: string | nu
       // FRAUD_RECORD already comes as prose; an unknown type shows raw rather than hiding.
       return evaluatedValue.charAt(0).toUpperCase() + evaluatedValue.slice(1);
   }
+}
+
+/**
+ * `police_report,invoice` → `police_report, invoice`. Solo separa: los códigos los traduce
+ * `conLabelesDeDocumento`, que ya es el único lugar donde vive ese diccionario.
+ */
+function listado(raw: string | undefined): string {
+  return (raw ?? '').split(',').join(', ');
 }
 
 /** `a=1 b=2 c` → {a: '1', b: '2 c'}: a value ends only at the next key. */

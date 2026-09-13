@@ -1,5 +1,6 @@
 package ar.edu.utn.frba.arbiter.cases.models.repositories;
 
+import ar.edu.utn.frba.arbiter.cases.dto.CaseScope;
 import ar.edu.utn.frba.arbiter.cases.models.entities.Case;
 import ar.edu.utn.frba.arbiter.common.models.entities.tenant.ClaimsAnalyst;
 import ar.edu.utn.frba.arbiter.common.models.entities.tenant.Coverage;
@@ -12,17 +13,22 @@ import ar.edu.utn.frba.arbiter.common.enums.RiskBand;
 import ar.edu.utn.frba.arbiter.common.models.entities.Branch;
 import ar.edu.utn.frba.arbiter.common.models.entities.CaseState;
 import ar.edu.utn.frba.arbiter.common.models.entities.ClaimCause;
+import jakarta.persistence.EntityManager;
+import jakarta.persistence.PersistenceContext;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Sort;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.domain.Specification;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDate;
+import java.util.List;
+import java.util.stream.Stream;
 import java.time.LocalDateTime;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -68,6 +74,9 @@ class CaseRepositorySpecificationTests extends AbstractPersistenceIT {
 
     @Autowired
     private ClaimsAnalystRepository claimsAnalystRepository;
+
+    @PersistenceContext
+    private EntityManager entityManager;
 
     private static final Pageable FIRST_PAGE = PageRequest.of(0, 20);
 
@@ -146,16 +155,60 @@ class CaseRepositorySpecificationTests extends AbstractPersistenceIT {
         assertThat(page.getTotalElements()).isEqualTo(4);
     }
 
+    /**
+     * El mapeo a {@code CaseResponse} corre con la sesión ya cerrada, así que todo lo que navega
+     * tiene que venir en la query. Reproduce un 500 real: con el {@code FETCH} por default del
+     * {@code @EntityGraph}, {@code claimCause.branch} quedaba lazy y explotaba en el mapeo.
+     */
+    @Test
+    void elListadoTraeTodoLoQueElMapeoNavegaConLaSesionCerrada() {
+        // Antes de la query, si no el seed deja el grafo en la caché y el test pasa siempre.
+        entityManager.flush();
+        entityManager.clear();
+
+        List<Case> porPagina = caseRepository.findAll(
+                CaseSpecifications.withFilters(null, null, null, null, null, null, null, null, null),
+                FIRST_PAGE).getContent();
+        List<Case> porSort = caseRepository.findAll(
+                CaseSpecifications.withFilters(null, null, null, "40.123.456", null, null, null, null, null),
+                Sort.unsorted());
+        entityManager.clear();
+
+        assertThatCode(() -> Stream.concat(porPagina.stream(), porSort.stream()).forEach(entity -> {
+            entity.getClaimCause().getName();
+            entity.getClaimCause().getBranch().getName();
+            entity.getInsured().getDni();
+            entity.getPolicy().getExternalPolicyNumber();
+            entity.getCoverage().getName();
+            entity.getCurrentStatus().getName();
+        })).doesNotThrowAnyException();
+    }
+
     @Test
     void statusFilter_returnsOnlyMatchingStatus() {
         Specification<Case> spec = CaseSpecifications.withFilters(
-                CaseStatus.PENDING_ANALYST_REVIEW, null, null, null, null, null, null, null, null);
+                List.of(CaseStatus.PENDING_ANALYST_REVIEW), null, null, null, null, null, null, null, null);
 
         Page<Case> page = caseRepository.findAll(spec, FIRST_PAGE);
 
         assertThat(page.getContent())
                 .hasSize(1)
                 .allMatch(c -> c.getStatus() == CaseStatus.PENDING_ANALYST_REVIEW);
+    }
+
+    /** El portal del asegurado filtra por cajón, y "en trámite" son cuatro estados. */
+    @Test
+    void statusFilter_acceptsSeveralStatuses() {
+        Specification<Case> spec = CaseSpecifications.withFilters(
+                List.of(CaseStatus.PENDING_ANALYST_REVIEW, CaseStatus.APPROVED),
+                null, null, null, null, null, null, null, null);
+
+        Page<Case> page = caseRepository.findAll(spec, FIRST_PAGE);
+
+        assertThat(page.getContent())
+                .extracting(entity -> entity.getCurrentStatus().getName())
+                .containsExactlyInAnyOrder(
+                        CaseStatus.PENDING_ANALYST_REVIEW.name(), CaseStatus.APPROVED.name());
     }
 
     @Test
@@ -275,7 +328,7 @@ class CaseRepositorySpecificationTests extends AbstractPersistenceIT {
         // "2024-003" matchea policyNumber de un solo case (APPROVED); si combina mal con status
         // (OR en vez de AND), traería más de lo esperado.
         Specification<Case> spec = CaseSpecifications.withFilters(
-                CaseStatus.APPROVED, null, null, null, null, null, "2024-003", null, null);
+                List.of(CaseStatus.APPROVED), null, null, null, null, null, "2024-003", null, null);
 
         Page<Case> page = caseRepository.findAll(spec, FIRST_PAGE);
 
@@ -310,7 +363,7 @@ class CaseRepositorySpecificationTests extends AbstractPersistenceIT {
     void riskBandFilter_combinesWithStatusAsAnd() {
         // Dos cases son HIGH; solo uno de ellos está además REJECTED. El AND no debe traer el otro.
         Specification<Case> spec = CaseSpecifications.withFilters(
-                CaseStatus.REJECTED, null, null, null, null, null, null, RiskBand.HIGH, null);
+                List.of(CaseStatus.REJECTED), null, null, null, null, null, null, RiskBand.HIGH, null);
 
         Page<Case> page = caseRepository.findAll(spec, FIRST_PAGE);
 
@@ -343,7 +396,7 @@ class CaseRepositorySpecificationTests extends AbstractPersistenceIT {
         assign(owner, seeded.get(0), seeded.get(1));
 
         Specification<Case> spec = CaseSpecifications.withFilters(
-                CaseStatus.PENDING_ANALYST_REVIEW, null, null, null, null, null, null, null,
+                List.of(CaseStatus.PENDING_ANALYST_REVIEW), null, null, null, null, null, null, null,
                 owner.getId());
 
         Page<Case> page = caseRepository.findAll(spec, FIRST_PAGE);
@@ -364,6 +417,109 @@ class CaseRepositorySpecificationTests extends AbstractPersistenceIT {
                 null, null, null, null, null, null, null, null, owner.getId());
 
         assertThat(caseRepository.findAll(spec, FIRST_PAGE).getTotalElements()).isEqualTo(1);
+    }
+
+    @Test
+    void openScope_leavesOutEveryClosedCase() {
+        caseRepository.save(caseOf(CaseStatus.LAPSED, "Hurto", "POL-CEL-2024-005",
+                "40.123.459", "Ana", "Sosa", LocalDate.of(2026, 5, 1), null));
+
+        Page<Case> page = caseRepository.findAll(CaseSpecifications.scope(CaseScope.OPEN), FIRST_PAGE);
+
+        assertThat(page.getContent())
+                .extracting(entity -> entity.getCurrentStatus().getName())
+                .containsExactlyInAnyOrder(
+                        CaseStatus.PENDING_ANALYST_REVIEW.name(), CaseStatus.PENDING_CLASSIFICATION.name());
+    }
+
+    /**
+     * Un expediente con el plazo del art. 56 vencido sigue en curso: es el más urgente que hay, no
+     * uno cerrado. El único que sale por vencimiento es {@code LAPSED}, que ya está cerrado.
+     */
+    @Test
+    void openScope_keepsAnOverdueCase() {
+        Case overdue = caseOf(CaseStatus.PENDING_ANALYST_REVIEW, "Hurto", "POL-CEL-2024-006",
+                "40.123.460", "Bruno", "Vega", LocalDate.of(2026, 1, 10), null);
+        overdue.setResponseDeadline(LocalDate.of(2026, 2, 9));
+        caseRepository.save(overdue);
+
+        Page<Case> page = caseRepository.findAll(CaseSpecifications.scope(CaseScope.OPEN), FIRST_PAGE);
+
+        assertThat(page.getContent()).extracting(Case::getId).contains(overdue.getId());
+    }
+
+    @Test
+    void closedScope_returnsOnlyTerminalStatuses() {
+        Page<Case> page = caseRepository.findAll(CaseSpecifications.scope(CaseScope.CLOSED), FIRST_PAGE);
+
+        assertThat(page.getContent())
+                .extracting(entity -> entity.getCurrentStatus().getName())
+                .containsExactlyInAnyOrder(CaseStatus.APPROVED.name(), CaseStatus.REJECTED.name());
+    }
+
+    @Test
+    void allScope_doesNotRestrict() {
+        assertThat(CaseSpecifications.scope(CaseScope.ALL)).isNull();
+        assertThat(CaseSpecifications.scope(null)).isNull();
+    }
+
+    @Test
+    void scopeCombinesWithTheRestOfTheFilters() {
+        Specification<Case> spec = CaseSpecifications.withFilters(
+                        null, "Robo en vía pública", null, null, null, null, null, null, null)
+                .and(CaseSpecifications.scope(CaseScope.OPEN));
+
+        Page<Case> page = caseRepository.findAll(spec, FIRST_PAGE);
+
+        assertThat(page.getContent())
+                .extracting(entity -> entity.getCurrentStatus().getName())
+                .containsExactly(CaseStatus.PENDING_ANALYST_REVIEW.name());
+    }
+
+    /**
+     * Los cinco conteos salían de cinco {@code count(spec)}; ahora son agregados de una sola query.
+     * Lo que se fija es que den lo mismo que contar cada lente por separado.
+     */
+    @Test
+    void losConteosDeLasLentesDanIgualQueContarCadaUnaPorSeparado() {
+        ClaimsAnalyst lucas = analyst("lucas.gomez@arbiter.test", "Lucas", "Gómez");
+        assign(lucas, seeded.get(0), seeded.get(2));
+
+        Specification<Case> base = CaseSpecifications.withFilters(
+                null, null, null, null, null, null, null, null, null);
+        CaseLensCountRepository.LensCounts counts = caseRepository.countLenses(base, lucas.getId());
+
+        assertThat(counts.all()).isEqualTo(caseRepository.count());
+        assertThat(counts.mine()).isEqualTo(caseRepository.count(CaseSpecifications.withFilters(
+                null, null, null, null, null, null, null, null, lucas.getId())));
+        assertThat(counts.assigned()).isEqualTo(caseRepository.count(CaseSpecifications.withFilters(
+                null, null, null, null, null, null, null, null, null, false, false, true)));
+        assertThat(counts.unassigned()).isEqualTo(caseRepository.count(CaseSpecifications.withFilters(
+                null, null, null, null, null, null, null, null, null, true, false, false)));
+        assertThat(counts.fraud()).isEqualTo(caseRepository.count(CaseSpecifications.withFilters(
+                null, null, null, null, null, null, null, null, null, false, true, false)));
+        assertThat(counts.assigned() + counts.unassigned()).isEqualTo(counts.all());
+    }
+
+    /** Sin perfil de analista en el tenant —el referente— "Míos" es 0, no todos. */
+    @Test
+    void sinAnalistaEnElTokenLosMiosSonCero() {
+        CaseLensCountRepository.LensCounts counts = caseRepository.countLenses(
+                CaseSpecifications.withFilters(null, null, null, null, null, null, null, null, null), null);
+
+        assertThat(counts.mine()).isZero();
+        assertThat(counts.all()).isEqualTo(4);
+    }
+
+    /** Los filtros de la barra recortan los cinco conteos por igual. */
+    @Test
+    void losConteosRespetanElRecorteYLosFiltros() {
+        Specification<Case> soloEnCurso = CaseSpecifications.scope(CaseScope.OPEN);
+
+        CaseLensCountRepository.LensCounts counts = caseRepository.countLenses(soloEnCurso, null);
+
+        assertThat(counts.all()).isEqualTo(caseRepository.count(soloEnCurso));
+        assertThat(counts.all()).isEqualTo(2);
     }
 
     /** El analista vive en el esquema del tenant y su {@code user_id} es NOT NULL, igual que insured. */

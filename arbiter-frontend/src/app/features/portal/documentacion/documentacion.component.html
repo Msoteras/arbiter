@@ -4,29 +4,50 @@
   [queryParams]="insurerSlug ? { insurer: insurerSlug } : {}">‹ Volver al seguimiento</a>
 
 <header class="page-head">
-  <h1 class="t-page-title">Documentación adicional</h1>
+  <h1 class="t-page-title">{{ needsDocs() ? 'Documentación adicional' : 'Tus documentos' }}</h1>
   @if (data(); as d) {
     <p class="subtitle measure">
-      Necesitamos algunos documentos para avanzar con tu siniestro
-      <span class="mono">#{{ d.id }}</span>.
+      @if (needsDocs()) {
+        Necesitamos algunos documentos para avanzar con tu siniestro
+        <span class="mono">#{{ d.id }}</span>.
+      } @else if (isResolved()) {
+        Esto es lo que enviaste para tu siniestro <span class="mono">#{{ d.id }}</span>. Ya está
+        cerrado, así que no hace falta que subas nada más.
+      } @else {
+        Esto es lo que enviaste para tu siniestro <span class="mono">#{{ d.id }}</span>. Si tenés
+        algo más para sumar, podés hacerlo desde acá.
+      }
     </p>
-    <p class="subtitle-2 measure">La lista depende de lo que te pasó ({{ d.claimCause }}).</p>
+    @if (needsDocs()) {
+      <p class="subtitle-2 measure">La lista depende de lo que te pasó ({{ d.claimCause }}).</p>
+    }
   } @else if (loading()) {
     <p class="subtitle">Cargando tu siniestro…</p>
   }
 </header>
 
-<app-card heading="Documentos requeridos">
-  <app-doc-upload
-    [caseId]="caseId"
-    [insurerSlug]="insurerSlug"
-    [branch]="data()?.branch ?? null"
-    [claimCause]="data()?.claimCause ?? null"
-    (uploaded)="onUploaded()"
-  />
-</app-card>
+@if (data(); as d) {
+  <app-case-documents
+    class="docs-section"
+    [caseId]="d.id"
+    [insurerSlug]="d.insurerSlug"
+    heading="Documentación que enviaste"
+    [showMissing]="false" />
+}
 
-<p class="autosend-note">
-  <span aria-hidden="true">ℹ</span>
-  Los documentos se envían automáticamente al analista ni bien terminan de cargarse.
-</p>
+@if (!isResolved()) {
+  <app-card [heading]="needsDocs() ? 'Documentos requeridos' : 'Sumar documentación'">
+    <app-doc-upload
+      [caseId]="caseId"
+      [insurerSlug]="insurerSlug"
+      [branch]="data()?.branch ?? null"
+      [claimCause]="data()?.claimCause ?? null"
+      (uploaded)="onUploaded()"
+    />
+  </app-card>
+
+  <p class="autosend-note">
+    <span aria-hidden="true">ℹ</span>
+    Los documentos se envían automáticamente al analista ni bien terminan de cargarse.
+  </p>
+}

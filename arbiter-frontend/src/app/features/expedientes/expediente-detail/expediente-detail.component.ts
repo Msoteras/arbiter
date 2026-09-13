@@ -12,7 +12,7 @@ import { ActivatedRoute, RouterLink } from '@angular/router';
 import { HttpErrorResponse } from '@angular/common/http';
 import { catchError, combineLatest, finalize, map, Observable, of, startWith, switchMap } from 'rxjs';
 
-import { ExpedienteService, AnalystDecisionRequest } from '../expediente.service';
+import { ExpedienteService, AnalystDecisionRequest, Settlement } from '../expediente.service';
 import { DocumentAgendaService } from '../document-agenda.service';
 import { CaseNavigationService } from '../case-navigation.service';
 import { CaseMessagesService } from '../case-messages.service';
@@ -29,6 +29,7 @@ import { Policy } from '../../../core/models/policy';
 import {
   PolicySnapshot,
   RuleResult,
+  isFastTrackCriterion,
   ruleEvaluationText,
   ruleResultLabel,
   ruleResultTone,
@@ -41,10 +42,20 @@ import {
   documentTypeLabel,
 } from '../../../core/models/case-document';
 import { clasificacionLabel, clasificacionTone } from '../../../core/models/clasificacion';
+import { forensicAlertLevel } from '../../../core/models/forensic';
+import {
+  causeConsistencyLabel,
+  causeConsistencyTone,
+  shouldSurfaceCauseConsistency,
+} from '../../../core/models/cause-consistency';
 import {
   ExpertVerdict,
   OpcionesDerivacion,
   Peritaje,
+  ProviderType,
+  REPAIR_OUTCOME_OPTIONS,
+  RepairOutcome,
+  repairOutcomeLabel,
   veredictoLabel,
   veredictoTone,
 } from '../../../core/models/peritaje';
@@ -78,6 +89,7 @@ import { ButtonComponent } from '../../../shared/ui/button/button.component';
 import { BadgeComponent } from '../../../shared/ui/badge/badge.component';
 import { ModalComponent } from '../../../shared/ui/modal/modal.component';
 import { SelectComponent, SelectOption } from '../../../shared/ui/select/select.component';
+import { InputComponent } from '../../../shared/ui/input/input.component';
 import { TextareaComponent } from '../../../shared/ui/textarea/textarea.component';
 import { MenuButtonComponent, MenuItem } from '../../../shared/ui/menu-button/menu-button.component';
 import { InlineLoadingComponent } from '../../../shared/ui/inline-loading/inline-loading.component';
@@ -92,12 +104,10 @@ type DocsState = { status: 'loading' } | { status: 'ok'; list: CaseDocument[] };
 
 type TabId =
   | 'resumen'
-  | 'datos'
-  | 'imagenes'
-  | 'riesgo'
   | 'analisis'
-  | 'asegurado'
   | 'documentacion'
+  | 'imagenes'
+  | 'asegurado'
   | 'peritaje'
   | 'conversacion'
   | 'historial';
@@ -121,6 +131,7 @@ interface FieldItem { label: string; value: string | null; mono?: boolean; full?
     BadgeComponent,
     ModalComponent,
     SelectComponent,
+    InputComponent,
     TextareaComponent,
     MenuButtonComponent,
     InlineLoadingComponent,
@@ -300,6 +311,26 @@ export class ExpedienteDetailComponent {
     return d ? clasificacionTone(d.analysisClassification) : 'neutral';
   });
 
+  /**
+   * El cruce entre el hecho generador que el asegurado eligió del selector y lo que después contó
+   * en el relato. Solo se muestra cuando hay algo que mirar: un MATCHES no aporta nada que el
+   * expediente no diga ya, y null significa que el chequeo no corrió (Fast Track, exclusión dura,
+   * o una clasificación anterior a que esto existiera).
+   */
+  protected readonly showCauseConsistency = computed(() =>
+    shouldSurfaceCauseConsistency(this.data()?.causeConsistency),
+  );
+
+  protected readonly causeConsistencyLabel = computed(() => {
+    const value = this.data()?.causeConsistency;
+    return value ? causeConsistencyLabel(value) : '';
+  });
+
+  protected readonly causeConsistencyTone = computed<StatusTone>(() => {
+    const value = this.data()?.causeConsistency;
+    return value ? causeConsistencyTone(value) : 'neutral';
+  });
+
   protected readonly confidencePercent = computed(() => {
     const d = this.data();
     return d ? Math.round(d.analysisConfidence * 100) : 0;
@@ -318,7 +349,8 @@ export class ExpedienteDetailComponent {
   /**
    * Lo que el modelo leyó de cada adjunto (H0031). Vacío mientras no se clasificó, en un Fast
    * Track que no abrió ningún documento, o en expedientes clasificados antes de que esto se
-   * persistiera — en los tres casos la tab no aparece (ver `tabs`).
+   * persistiera. Se le pasa a `app-case-documents`, que muestra la lectura junto al documento
+   * que la originó.
    */
   protected readonly documentAnalyses = computed<DocumentAnalysis[]>(
     () => this.data()?.documentAnalyses ?? [],
@@ -326,38 +358,6 @@ export class ExpedienteDetailComponent {
 
   protected documentLabel(type: string): string {
     return documentTypeLabel(type);
-  }
-
-  /**
-   * Los campos tipados de un documento, ya listos para la grilla. Se arman acá y no en el
-   * template para que el orden sea uno solo y "no aplica" salga de un `null` explícito: un campo
-   * que el documento no trae NO es una discrepancia, y mezclarlos haría que la pantalla acuse al
-   * asegurado por un dato que nadie declaró.
-   */
-  protected extractedFields(doc: DocumentAnalysis): FieldItem[] {
-    return [
-      // formatDate y no formatDateTime: el backend lo guarda en una columna DATE, sin hora.
-      { label: 'Fecha del documento', value: doc.documentDate ? formatDate(doc.documentDate) : null },
-      { label: 'Importe', value: doc.amount == null ? null : `$${doc.amount.toLocaleString()}` },
-      { label: 'Bien que nombra', value: doc.itemDescription },
-      { label: 'IMEI', value: doc.imei, mono: true },
-      { label: 'Damnificado', value: this.affectedPartyLabel(doc.affectedParty) },
-    ];
-  }
-
-  /**
-   * `DESCONOCIDO` no es un dato faltante: es que el documento no dice de quién era el equipo, y
-   * en ese caso la regla de grupo familiar directamente no participa. Por eso se muestra como un
-   * valor propio y no como "Sin datos".
-   */
-  private affectedPartyLabel(affectedParty: string): string {
-    const labels: Record<string, string> = {
-      TITULAR: 'El titular de la póliza',
-      FAMILIAR: 'Un familiar',
-      TERCERO: 'Un tercero',
-      DESCONOCIDO: 'No lo aclara el documento',
-    };
-    return labels[affectedParty] ?? affectedParty;
   }
 
   /**
@@ -399,7 +399,29 @@ export class ExpedienteDetailComponent {
   });
 
   // ----- trazabilidad -----
-  protected readonly ruleResults = computed<RuleResult[]>(() => this.data()?.ruleResults ?? []);
+  private readonly ruleResults = computed<RuleResult[]>(() => this.data()?.ruleResults ?? []);
+
+  /**
+   * Las reglas duras: las que dicen si el siniestro está cubierto. Van separadas de los criterios
+   * del carril rápido porque un "No cumple" significa cosas distintas en cada tabla, y mezclados
+   * el analista lee una exclusión de cobertura donde solo hubo un umbral de agilidad.
+   */
+  protected readonly hardRuleResults = computed<RuleResult[]>(() =>
+    this.ruleResults().filter((r) => !isFastTrackCriterion(r.ruleType)),
+  );
+
+  /**
+   * Los criterios que evaluó el gate de Fast Track, con el valor que comparó (H0038). Están tanto
+   * en un expediente que agarró el carril rápido —y son la respuesta a "por qué"— como en uno que
+   * no, donde muestran qué criterio lo dejó afuera.
+   */
+  protected readonly fastTrackCriteria = computed<RuleResult[]>(() =>
+    this.ruleResults().filter((r) => isFastTrackCriterion(r.ruleType)),
+  );
+
+  protected readonly esFastTrack = computed(
+    () => this.data()?.analysisClassification === 'FAST_TRACK',
+  );
 
   /**
    * No se pudieron leer. Distinto de "no corrió ninguna": aquello es un dato del expediente, esto
@@ -408,10 +430,10 @@ export class ExpedienteDetailComponent {
   protected readonly ruleResultsUnavailable = computed(() => this.data()?.ruleResults === null);
 
   /**
-   * Por qué no hay reglas que mostrar. Ninguna de las causas es Fast Track: el gate corre DESPUÉS
-   * de las reglas duras, así que un Fast Track llena la tabla con todas en PASS. Queda vacío
-   * cuando la aseguradora no tiene ninguna activa, o cuando la denuncia frenó en el chequeo de
-   * documentación obligatoria, que vuelve antes de los evaluadores temporal y de fraude.
+   * Por qué no hay reglas duras que mostrar. Ninguna de las causas es Fast Track: el gate corre
+   * DESPUÉS de las reglas duras, así que un Fast Track llena la tabla con todas en PASS. Queda
+   * vacío cuando la aseguradora no tiene ninguna activa, o cuando la denuncia frenó en el chequeo
+   * de documentación obligatoria, que vuelve antes de los evaluadores temporal y de fraude.
    */
   protected readonly sinReglasMotivo = computed(() => {
     if (this.ruleResultsUnavailable()) {
@@ -425,15 +447,16 @@ export class ExpedienteDetailComponent {
   });
 
   /**
-   * La solapa existe si hay algo que contar del análisis: reglas, razones del modelo, o una
-   * clasificación que explique por qué no hay reglas. Sin clasificar no aparece — ahí "no hay
-   * reglas activas" sería falso, todavía no corrieron.
+   * La solapa existe si hay algo que contar del análisis: el score, las reglas, las razones del
+   * modelo, o una clasificación que explique por qué no hay reglas. Sin clasificar no aparece —
+   * ahí "no hay reglas activas" sería falso, todavía no corrieron.
    */
   protected readonly hayAnalisis = computed(
     () =>
       this.ruleResults().length > 0 ||
       this.ruleResultsUnavailable() ||
       this.policySnapshot() != null ||
+      this.data()?.riskScore != null ||
       !!this.data()?.analysisClassification,
   );
 
@@ -556,25 +579,64 @@ export class ExpedienteDetailComponent {
   // ----- historial de estados (GET /{id} lo trae con timestamps de cada transición) -----
   protected readonly history = computed<StatusTransition[]>(() => this.data()?.statusHistory ?? []);
 
+  /**
+   * La solapa existe si el análisis forense efectivamente corrió sobre alguna imagen. Un
+   * `findings` vacío (o un reporte nulo) es exactamente eso: Fast Track sin análisis completo, o
+   * expediente sin imágenes adjuntas. Mostrar la solapa para que diga "no corrió" es una promesa
+   * que no se cumple — el analista la abre esperando imágenes.
+   */
+  protected readonly hayAnalisisImagenes = computed(
+    () => (this.data()?.forensicReport?.findings?.length ?? 0) > 0,
+  );
+
+  /**
+   * Coincidencias de imagen que merecen que el analista abra la solapa: cualquier hallazgo de
+   * nivel medio o alto. Las 'bajo' (la imagen aparece en la web sin coincidencia clara) no llevan
+   * punto — marcarlas todas volvería el punto ruido de fondo y dejaría de significar algo.
+   */
+  private readonly hayCoincidenciasImagen = computed(() =>
+    (this.data()?.forensicReport?.findings ?? []).some((f) => {
+      const level = forensicAlertLevel(f);
+      return level === 'medio' || level === 'alto';
+    }),
+  );
+
   // ----- tabs -----
-  // "Peritaje" solo existe si el expediente se derivó, y "Análisis realizado" solo si ya se
-  // clasificó: una solapa vacía en la mayoría de los casos sería ruido.
-  // 'conversacion' is always shown, unlike those two: an empty thread isn't noise, it's where
-  // talking to the insured starts. It carries a dot when something is unread.
-  protected readonly tabs = computed<{ id: TabId; label: string; dot?: boolean }[]>(() => [
+  // Orden por lo que hace el analista: qué pasó (Resumen) → por qué el sistema dice eso (Análisis)
+  // → con qué evidencia (Documentación, Imágenes) → quién es (Asegurado) → gestión (Peritaje,
+  // Conversación) → auditoría (Historial).
+  //
+  // Las condicionales son las que dependen de que algo haya corrido: "Peritaje" solo si se derivó,
+  // "Análisis" solo si ya se clasificó, "Imágenes" solo si el forense analizó alguna. Una solapa
+  // que se abre para decir "acá no hay nada" es una promesa incumplida.
+  // 'conversacion' is always shown, unlike those: an empty thread isn't noise, it's where talking
+  // to the insured starts. It carries a dot when something is unread.
+  protected readonly tabs = computed<
+    { id: TabId; label: string; dot?: boolean; dotLabel?: string }[]
+  >(() => [
     { id: 'resumen' as TabId, label: 'Resumen' },
-    ...(this.documentAnalyses().length > 0
-      ? [{ id: 'datos' as TabId, label: 'Datos extraídos' }]
-      : []),
-    { id: 'imagenes' as TabId, label: 'Análisis de imágenes' },
-    { id: 'riesgo' as TabId, label: 'Desglose de riesgo' },
-    ...(this.hayAnalisis() ? [{ id: 'analisis' as TabId, label: 'Análisis realizado' }] : []),
-    ...(this.hayDatosAsegurado()
-      ? [{ id: 'asegurado' as TabId, label: 'Datos del asegurado' }]
-      : []),
+    ...(this.hayAnalisis() ? [{ id: 'analisis' as TabId, label: 'Análisis' }] : []),
     { id: 'documentacion' as TabId, label: 'Documentación' },
-    ...(this.peritaje() ? [{ id: 'peritaje' as TabId, label: 'Peritaje' }] : []),
-    { id: 'conversacion' as TabId, label: 'Conversación', dot: this.unreadMessages() > 0 },
+    ...(this.hayAnalisisImagenes()
+      ? [
+          {
+            id: 'imagenes' as TabId,
+            label: 'Imágenes',
+            dot: this.hayCoincidenciasImagen(),
+            dotLabel: 'con coincidencias de imagen',
+          },
+        ]
+      : []),
+    ...(this.hayDatosAsegurado() ? [{ id: 'asegurado' as TabId, label: 'Asegurado' }] : []),
+    ...(this.derivaciones().length > 0
+      ? [{ id: 'peritaje' as TabId, label: this.derivacionesTabLabel() }]
+      : []),
+    {
+      id: 'conversacion' as TabId,
+      label: 'Conversación',
+      dot: this.unreadMessages() > 0,
+      dotLabel: 'con mensajes sin leer',
+    },
     { id: 'historial' as TabId, label: 'Historial' },
   ]);
 
@@ -584,9 +646,20 @@ export class ExpedienteDetailComponent {
    * per listed case.
    */
   protected readonly unreadMessages = signal(0);
-  protected readonly activeTab = signal<TabId>('resumen');
+  private readonly selectedTab = signal<TabId>('resumen');
+
+  /**
+   * La solapa elegida, salvo que haya dejado de existir: las condicionales aparecen y desaparecen
+   * con los datos (una reclasificación puede dejar al expediente sin análisis de imágenes), y sin
+   * este piso el panel quedaría mostrando una solapa que ya no está en la barra.
+   */
+  protected readonly activeTab = computed<TabId>(() => {
+    const selected = this.selectedTab();
+    return this.tabs().some((t) => t.id === selected) ? selected : 'resumen';
+  });
+
   setTab(t: TabId): void {
-    this.activeTab.set(t);
+    this.selectedTab.set(t);
   }
 
   // La "aceptación/modificación" local de la recomendación se quitó: no persistía ni auditaba nada
@@ -624,10 +697,28 @@ export class ExpedienteDetailComponent {
     return v ? this.verbLabels[v] : '';
   }
 
+  /** Aprobar es también determinar el monto, y el título del modal tiene que decirlo. */
+  protected readonly decisionModalHeading = computed(() =>
+    this.pendingDecision() === 'aprobar'
+      ? 'Aprobar y determinar el monto a pagar'
+      : 'Justificar decisión: Rechazar',
+  );
+
+  protected readonly confirmDisabled = computed(() =>
+    !this.justification().trim() ||
+    (this.pendingDecision() === 'aprobar' && this.approvalBlockedReason() !== null),
+  );
+
   askDecision(v: Verb): void {
     this.pendingDecision.set(v);
     this.justification.set('');
     this.decisionError.set(null);
+    // Se limpia el borrador de liquidación en cada apertura: si el analista canceló una
+    // aprobación, lo que había tipeado no tiene que reaparecer la próxima vez.
+    this.replacementInput.set('');
+    this.replacementApplied.set(null);
+    this.settledAmountInput.set('');
+    this.adjustmentReason.set('');
     this.showJustify.set(true);
   }
   cancelDecision(): void {
@@ -636,7 +727,12 @@ export class ExpedienteDetailComponent {
   }
   confirmDecision(): void {
     const verb = this.pendingDecision();
-    if (!this.justification().trim() || !verb) {
+    if (!verb) {
+      return;
+    }
+    // Mismo criterio que el botón: si está apagado, esto tampoco pasa. Duplicar la condición es
+    // como se llega a que el Enter mande algo que el click no dejaba mandar.
+    if (this.confirmDisabled()) {
       return;
     }
 
@@ -648,6 +744,15 @@ export class ExpedienteDetailComponent {
     const decisionPayload: AnalystDecisionRequest = {
       decision: verb === 'aprobar' ? 'APPROVE' : 'REJECT',
       justification: this.justification().trim(),
+      // Rechazar no paga nada: mandar una liquidación ahí lo rechaza el backend.
+      settlement:
+        verb === 'aprobar'
+          ? {
+              replacementValue: this.replacementApplied(),
+              settledAmount: this.amountToAuthorize() as number,
+              adjustmentReason: this.settlementAdjusted() ? this.adjustmentReason().trim() : null,
+            }
+          : null,
     };
 
     this.decisionSaving.set(true);
@@ -666,6 +771,180 @@ export class ExpedienteDetailComponent {
       },
     });
   }
+
+  // ----- determinación del monto a pagar -----
+  // El analista no fija el monto a mano: el backend lo calcula con los parámetros de la cobertura
+  // y devuelve la cuenta explicada línea por línea. Acá solo se muestra y se confirma o se ajusta
+  // con justificación — la misma forma que tiene la clasificación (decisión #5).
+
+  /** Valor de reposición que el analista está probando, como lo tipeó. */
+  protected readonly replacementInput = signal('');
+  /** El que efectivamente se le pidió al backend. Cambiarlo re-pide la propuesta. */
+  private readonly replacementApplied = signal<number | null>(null);
+
+  /**
+   * La liquidación del expediente: la ya autorizada si la hay, si no la propuesta. Se pide siempre
+   * (no solo al aprobar) porque también es lo que se muestra en un expediente ya resuelto. Un 403
+   * —el asegurado no puede verla— cae en null y la card simplemente no la muestra.
+   */
+  protected readonly settlement = toSignal(
+    combineLatest([
+      this.route.paramMap.pipe(map((params) => params.get('id') ?? '')),
+      toObservable(this.reloadTrigger),
+      toObservable(this.replacementApplied),
+    ]).pipe(
+      switchMap(([id, , replacementValue]) =>
+        this.service
+          .settlement(id as unknown as number, replacementValue)
+          .pipe(catchError(() => of<Settlement | null>(null))),
+      ),
+    ),
+    { initialValue: null as Settlement | null },
+  );
+
+  /**
+   * La liquidación ya la firmó el analista y espera al referente. El expediente sigue en revisión
+   * —para el asegurado esto es interno— pero el analista no tiene nada más que hacer acá, así que
+   * los botones de decidir dejan lugar a un cartel que dice por qué.
+   */
+  protected readonly esperandoAutorizacion = computed(
+    () => this.settlement()?.status === 'PENDING_AUTHORIZATION',
+  );
+
+  /** El referente la devolvió: vuelve a estar en manos del analista, con un motivo para corregir. */
+  protected readonly liquidacionDevuelta = computed(
+    () => this.settlement()?.status === 'RETURNED',
+  );
+
+  /**
+   * Este monto va a necesitar la firma del referente. Se calcula sobre la propuesta, antes de
+   * confirmar: enterarse recién después de aprobar es enterarse tarde, y el analista puede querer
+   * revisar el valor de reposición antes de mandar el expediente a una cola de espera.
+   */
+  protected readonly requiereReferente = computed(() => {
+    const limit = this.settlement()?.authorityLimit;
+    const amount = this.amountToAuthorize();
+    return limit != null && amount != null && amount > limit;
+  });
+
+  /**
+   * Si el campo del monto acreditado tiene algo que hacer en esta cobertura. En reparación es la
+   * base del cálculo; en pérdida total solo sirve cuando la cobertura liquida por el menor entre
+   * suma asegurada y reposición. En el resto no mueve el total, y un campo que no hace nada
+   * confunde más de lo que ayuda.
+   */
+  protected readonly pideMontoAcreditado = computed(() => {
+    const s = this.settlement();
+    return s?.formula === 'REPAIR' || s?.settlementBasis === 'LESSER_OF_SUM_AND_REPLACEMENT';
+  });
+
+  /**
+   * La sugerencia se ofrece solo mientras el analista no cargó nada: una vez que puso un número
+   * —el suyo o el sugerido— seguir mostrándola es ruido, y peor, invita a dudar de lo que ya
+   * decidió. No se aplica sola: la toma con un clic, después de verificarla contra el documento.
+   */
+  protected readonly sugerenciaDisponible = computed(() => {
+    const s = this.settlement();
+    return (
+      this.pideMontoAcreditado() &&
+      s?.suggestedFor === 'ACCREDITED_AMOUNT' &&
+      s?.suggestedAmount != null &&
+      this.replacementInput().trim() === '' &&
+      this.replacementApplied() == null
+    );
+  });
+
+  protected tomarSugerencia(): void {
+    const amount = this.settlement()?.suggestedAmount;
+    if (amount == null) {
+      return;
+    }
+    this.replacementInput.set(String(amount));
+    this.applyReplacementValue();
+  }
+
+  /**
+   * La otra sugerencia: la que apunta al monto a pagar en sí. Sólo la produce un peritaje sobre una
+   * cobertura que liquida por suma asegurada, donde no hay monto acreditado que cargar — y donde,
+   * antes, lo que determinó el perito no se mostraba en ningún lado. Misma regla que la otra: se
+   * esconde apenas el analista escribe un monto propio.
+   */
+  protected readonly sugerenciaDeMontoDisponible = computed(() => {
+    const s = this.settlement();
+    return (
+      s?.suggestedFor === 'SETTLED_AMOUNT' &&
+      s?.suggestedAmount != null &&
+      this.settledAmountInput().trim() === ''
+    );
+  });
+
+  /**
+   * Tomarla carga el monto en el campo del analista, no en el cálculo: queda como un ajuste sobre
+   * lo que dio la fórmula, y por lo tanto le pide la justificación del ajuste como cualquier otro.
+   * El perito propone; firmar sigue siendo del analista.
+   */
+  protected tomarSugerenciaDeMonto(): void {
+    const amount = this.settlement()?.suggestedAmount;
+    if (amount == null) {
+      return;
+    }
+    this.settledAmountInput.set(String(amount));
+  }
+
+  protected applyReplacementValue(): void {
+    const raw = this.replacementInput().trim();
+    this.replacementApplied.set(raw === '' ? null : Number(raw));
+  }
+
+  /** Lo que el analista tipeó si quiere otro monto; vacío = se paga lo calculado. */
+  protected readonly settledAmountInput = signal('');
+  protected readonly adjustmentReason = signal('');
+
+  /**
+   * El monto que se va a autorizar: el ajuste del analista, o lo calculado si no tocó nada. Null
+   * mientras no hay propuesta o lo tipeado no es un número — ahí no hay nada que confirmar.
+   */
+  protected readonly amountToAuthorize = computed<number | null>(() => {
+    const raw = this.settledAmountInput().trim();
+    if (raw === '') {
+      return this.settlement()?.calculatedAmount ?? null;
+    }
+    const parsed = Number(raw);
+    return Number.isFinite(parsed) && parsed >= 0 ? parsed : null;
+  });
+
+  /** Si difiere de lo calculado hay que decir por qué: es lo único que hace auditable el ajuste. */
+  protected readonly settlementAdjusted = computed(() => {
+    const proposed = this.settlement()?.calculatedAmount;
+    const authorized = this.amountToAuthorize();
+    return proposed != null && authorized != null && authorized !== proposed;
+  });
+
+  /** La suma asegurada es el límite máximo a indemnizar (art. 3), no algo que se justifique. */
+  protected readonly settlementAboveSumInsured = computed(() => {
+    const settlement = this.settlement();
+    const authorized = this.amountToAuthorize();
+    return settlement != null && authorized != null && authorized > settlement.sumInsured;
+  });
+
+  /** Por qué no se puede confirmar todavía. Null = se puede. */
+  protected readonly approvalBlockedReason = computed<string | null>(() => {
+    if (!this.settlement()) {
+      return 'No se pudo calcular el monto a pagar.';
+    }
+    if (this.amountToAuthorize() == null) {
+      return 'El monto a pagar tiene que ser un número.';
+    }
+    if (this.settlementAboveSumInsured()) {
+      return 'El monto no puede superar la suma asegurada.';
+    }
+    if (this.settlementAdjusted() && !this.adjustmentReason().trim()) {
+      return 'Ajustaste el monto: hace falta justificar el ajuste.';
+    }
+    // La justificación no se repite acá: el campo ya está marcado como obligatorio y el botón
+    // queda apagado. Un cartel rojo diciendo lo mismo que la etiqueta es ruido, no ayuda.
+    return null;
+  });
 
   // ----- reapertura de un expediente cerrado ("rehabilitación") -----
   // Los tres terminales son callejones sin salida: sin esto, un error del analista o la
@@ -719,39 +998,77 @@ export class ExpedienteDetailComponent {
   // Frente a indicios de fraude, rechazar apoyándose en una sospecha del modelo no alcanza: el
   // rechazo exige una causa de exclusión, y el peritaje es lo que convierte la sospecha en hecho.
   protected readonly derivado = computed(() => this.data()?.status === 'PENDING_EXPERT_REPORT');
+  protected readonly enReparacion = computed(() => this.data()?.status === 'PENDING_REPAIR');
 
   /** Se pide junto con el expediente: sin esto no se sabe si ofrecer el botón ni a quién derivar. */
-  private readonly derivationOptions = toSignal(
-    combineLatest([
-      this.route.paramMap.pipe(map((params) => params.get('id') ?? '')),
-      toObservable(this.reloadTrigger),
-    ]).pipe(
-      switchMap(([id]) =>
-        this.service.derivationOptions(id as unknown as number).pipe(
-          catchError(() => of<OpcionesDerivacion | null>(null)),
+  private readonly derivationOptions = this.optionsFor('ESTUDIO_LIQUIDADOR');
+  private readonly repairOptions = this.optionsFor('SERVICIO_TECNICO');
+
+  private optionsFor(providerType: ProviderType) {
+    return toSignal(
+      combineLatest([
+        this.route.paramMap.pipe(map((params) => params.get('id') ?? '')),
+        toObservable(this.reloadTrigger),
+      ]).pipe(
+        switchMap(([id]) =>
+          this.service
+            .derivationOptions(id as unknown as number, providerType)
+            .pipe(catchError(() => of<OpcionesDerivacion | null>(null))),
         ),
       ),
-    ),
-    { initialValue: null as OpcionesDerivacion | null },
-  );
+      { initialValue: null as OpcionesDerivacion | null },
+    );
+  }
 
-  /** 404 mientras el expediente no se derivó — es el caso normal, no un error. */
-  protected readonly peritaje = toSignal(
+  protected readonly derivaciones = toSignal(
     combineLatest([
       this.route.paramMap.pipe(map((params) => params.get('id') ?? '')),
       toObservable(this.reloadTrigger),
     ]).pipe(
       switchMap(([id]) =>
         this.service
-          .peritaje(id as unknown as number)
-          .pipe(catchError(() => of<Peritaje | null>(null))),
+          .derivaciones(id as unknown as number)
+          .pipe(catchError(() => of<Peritaje[]>([]))),
       ),
     ),
-    { initialValue: null as Peritaje | null },
+    { initialValue: [] as Peritaje[] },
   );
 
+  protected readonly peritaje = computed(
+    () => this.derivaciones().find((d) => d.providerType === 'ESTUDIO_LIQUIDADOR') ?? null,
+  );
+  private readonly reparacion = computed(
+    () => this.derivaciones().find((d) => d.providerType === 'SERVICIO_TECNICO') ?? null,
+  );
+
+  protected readonly derivacionesTabLabel = computed(() => {
+    if (this.peritaje() && this.reparacion()) {
+      return 'Derivaciones';
+    }
+    return this.peritaje() ? 'Peritaje' : 'Servicio técnico';
+  });
+
+  /**
+   * Derivar es del que tiene el expediente asignado, igual que decidir (ver `canDecide`): manda un
+   * mail a un proveedor externo y deja el caso esperándolo, donde el analista que sí es su dueño ya
+   * no puede decidir. El backend lo exige (409 sin dueño, 403 si es de otro); acá el botón
+   * directamente no se ofrece, en vez de habilitarlo para que el click falle.
+   */
   protected readonly puedeDerivar = computed(
-    () => this.canAct() && this.decisionState() === 'pending' && !this.peritaje(),
+    () => this.canDecide() && this.decisionState() === 'pending' && !this.peritaje(),
+  );
+
+  /**
+   * Same owner rule as `puedeDerivar`: the backend refuses anyone but the assigned analyst. And
+   * `eligible` is only true when the claim cause admits repair and there is a repair shop to send
+   * it to; while loading or on error it is null, so the button stays hidden.
+   */
+  protected readonly puedeDerivarAReparacion = computed(
+    () =>
+      this.canDecide() &&
+      this.decisionState() === 'pending' &&
+      !this.reparacion() &&
+      this.repairOptions()?.eligible === true,
   );
 
   /** Habilitado por la regla de la aseguradora Y con peritos a quien mandarlo. */
@@ -792,11 +1109,18 @@ export class ExpedienteDetailComponent {
     if (options.firms.length === 0) {
       return 'No hay peritos cargados para este ramo.';
     }
-    return `El monto reclamado no alcanza el mínimo para derivar (${this.formatMonto(options.minClaimedAmount)}).`;
+    // Nombra el peritaje como las otras dos variantes. Desde que existe el botón de servicio
+    // técnico justo debajo, un mensaje que dice "no se puede derivar" a secas se lee como si
+    // tampoco se pudiera mandar al taller — y al taller no lo frena el monto reclamado.
+    return `El monto reclamado no alcanza el mínimo para derivar a peritaje `
+        + `(${this.formatMonto(options.minClaimedAmount)}).`;
   });
 
+  protected readonly tipoDerivacion = signal<ProviderType>('ESTUDIO_LIQUIDADOR');
+  protected readonly esReparacion = computed(() => this.tipoDerivacion() === 'SERVICIO_TECNICO');
+
   protected readonly peritoOptions = computed<SelectOption[]>(() =>
-    (this.derivationOptions()?.firms ?? []).map((firm) => ({
+    ((this.esReparacion() ? this.repairOptions() : this.derivationOptions())?.firms ?? []).map((firm) => ({
       value: String(firm.id),
       // El ramo distingue al especialista del generalista, y la zona importa porque para peritar
       // un equipo hay que tenerlo delante.
@@ -812,7 +1136,8 @@ export class ExpedienteDetailComponent {
   protected readonly derivarSaving = signal(false);
   protected readonly derivarError = signal<string | null>(null);
 
-  askDerivar(): void {
+  askDerivar(tipo: ProviderType = 'ESTUDIO_LIQUIDADOR'): void {
+    this.tipoDerivacion.set(tipo);
     this.peritoElegido.set('');
     this.motivoDerivacion.set('');
     this.derivarError.set(null);
@@ -832,10 +1157,11 @@ export class ExpedienteDetailComponent {
     }
     this.derivarSaving.set(true);
     this.derivarError.set(null);
-    this.service.derivarAPeritaje(d.id, Number(perito), motivo).subscribe({
+    this.service.derivarAPeritaje(d.id, Number(perito), motivo, this.tipoDerivacion()).subscribe({
       next: (peritaje) => {
         this.derivarSaving.set(false);
         this.showDerivar.set(false);
+        this.derivacionHechaCaseId.set(d.id);
         this.derivacionHecha.set(peritaje);
         this.reloadTrigger.update((v) => v + 1);
       },
@@ -852,13 +1178,18 @@ export class ExpedienteDetailComponent {
    * el analista no tiene cómo saber si el mail salió o si el botón no hizo nada.
    */
   protected readonly derivacionHecha = signal<Peritaje | null>(null);
+  // Kept apart from data(), which is empty while the case reloads behind the modal.
+  protected readonly derivacionHechaCaseId = signal<number | null>(null);
 
   cerrarDerivacionHecha(): void {
     this.derivacionHecha.set(null);
   }
 
-  // ----- carga del informe del perito -----
+  // ----- carga del informe del perito o de la respuesta del servicio técnico -----
   protected readonly showInforme = signal(false);
+  protected readonly informeTipo = signal<ProviderType>('ESTUDIO_LIQUIDADOR');
+  protected readonly informeEsReparacion = computed(() => this.informeTipo() === 'SERVICIO_TECNICO');
+  protected readonly repairOutcomeOptions: SelectOption[] = REPAIR_OUTCOME_OPTIONS;
   protected readonly veredicto = signal('');
   protected readonly notaVeredicto = signal('');
   protected readonly informeFile = signal<File | null>(null);
@@ -869,7 +1200,9 @@ export class ExpedienteDetailComponent {
    * Guardar "fraude confirmado" no deja solo el informe: registra el antecedente sobre la persona.
    * El modal lo avisa antes, porque el antecedente no tiene baja desde la aplicación.
    */
-  protected readonly veredictoConfirmaFraude = computed(() => this.veredicto() === 'FRAUD_CONFIRMED');
+  protected readonly veredictoConfirmaFraude = computed(
+    () => !this.informeEsReparacion() && this.veredicto() === 'FRAUD_CONFIRMED',
+  );
 
   protected readonly veredictoOptions: SelectOption[] = [
     { value: 'FRAUD_CONFIRMED', label: 'Fraude confirmado' },
@@ -877,9 +1210,11 @@ export class ExpedienteDetailComponent {
     { value: 'INCONCLUSIVE', label: 'No concluyente' },
   ];
 
-  askInforme(): void {
+  askInforme(tipo: ProviderType = 'ESTUDIO_LIQUIDADOR'): void {
+    this.informeTipo.set(tipo);
     this.veredicto.set('');
     this.notaVeredicto.set('');
+    this.montoInforme.set('');
     this.informeFile.set(null);
     this.informeError.set(null);
     this.showInforme.set(true);
@@ -887,6 +1222,55 @@ export class ExpedienteDetailComponent {
 
   cancelInforme(): void {
     this.showInforme.set(false);
+  }
+
+  /**
+   * El número que trae el informe, tipeado por el analista. Es el mismo campo en pantalla pero no
+   * la misma pregunta: al perito se le pide cuánto determinó que vale el siniestro, al taller
+   * cuánto sale el arreglo. Por eso el label, la obligatoriedad y la columna donde termina son
+   * distintos según de quién sea la vuelta.
+   */
+  protected readonly montoInforme = signal('');
+
+  /**
+   * El taller informa un importe cuando hubo trabajo: el presupuesto de lo que va a hacer, o la
+   * factura de lo que hizo. Con "irreparable" no lo pide, porque no hubo arreglo que cobrar y
+   * ofrecer el campo ahí invita a cargar un número que el backend rechaza. Del lado del perito el
+   * campo va siempre, porque cualquier veredicto puede traer monto.
+   */
+  protected readonly pideMontoDelInforme = computed(
+    () => !this.informeEsReparacion()
+        || this.veredicto() === 'QUOTE_SENT'
+        || this.veredicto() === 'REPAIRED',
+  );
+
+  /** Ya lo arregló y lo cobró: el importe es la factura, no un presupuesto de algo por hacer. */
+  protected readonly informeEsFactura = computed(
+    () => this.informeEsReparacion() && this.veredicto() === 'REPAIRED',
+  );
+
+  /**
+   * Un presupuesto sin importe no es un presupuesto. La factura sí puede faltar —llega después del
+   * informe— y el monto del perito también es opcional.
+   */
+  protected readonly montoDelInformeObligatorio = computed(
+    () => this.informeEsReparacion() && this.veredicto() === 'QUOTE_SENT',
+  );
+
+  protected readonly montoInformeFaltante = computed(
+    () => this.montoDelInformeObligatorio() && this.montoInformeNumero() == null,
+  );
+
+  private montoInformeNumero(): number | null {
+    if (!this.pideMontoDelInforme()) {
+      return null;
+    }
+    const raw = this.montoInforme().trim();
+    if (raw === '') {
+      return null;
+    }
+    const parsed = Number(raw);
+    return Number.isFinite(parsed) && parsed >= 0 ? parsed : null;
   }
 
   onInformeFile(event: Event): void {
@@ -897,25 +1281,28 @@ export class ExpedienteDetailComponent {
   confirmInforme(): void {
     const d = this.data();
     const file = this.informeFile();
-    const verdict = this.veredicto() as ExpertVerdict;
-    if (!d || !file || !verdict) {
+    const result = this.veredicto();
+    if (!d || !file || !result || this.montoInformeFaltante()) {
       return;
     }
     this.informeSaving.set(true);
     this.informeError.set(null);
-    this.service
-      .cargarInformePericial(d.id, verdict, this.notaVeredicto().trim(), file)
-      .subscribe({
-        next: () => {
-          this.informeSaving.set(false);
-          this.showInforme.set(false);
-          this.reloadTrigger.update((v) => v + 1);
-        },
-        error: (err: HttpErrorResponse) => {
-          this.informeSaving.set(false);
-          this.informeError.set(err.error?.detail || 'No se pudo cargar el informe');
-        },
-      });
+    const note = this.notaVeredicto().trim();
+    const monto = this.montoInformeNumero();
+    const request = this.informeEsReparacion()
+      ? this.service.cargarRespuestaServicioTecnico(d.id, result as RepairOutcome, note, monto, file)
+      : this.service.cargarInformePericial(d.id, result as ExpertVerdict, note, monto, file);
+    request.subscribe({
+      next: () => {
+        this.informeSaving.set(false);
+        this.showInforme.set(false);
+        this.reloadTrigger.update((v) => v + 1);
+      },
+      error: (err: HttpErrorResponse) => {
+        this.informeSaving.set(false);
+        this.informeError.set(err.error?.detail || 'No se pudo cargar el informe');
+      },
+    });
   }
 
   // ----- antecedente de fraude del asegurado -----
@@ -1045,6 +1432,7 @@ export class ExpedienteDetailComponent {
 
   veredictoLabel = veredictoLabel;
   veredictoTone = veredictoTone;
+  repairOutcomeLabel = repairOutcomeLabel;
   formatDateTime = formatDateTime;
 
   ruleTypeLabel = ruleTypeLabel;
@@ -1060,10 +1448,28 @@ export class ExpedienteDetailComponent {
     }).format(amount);
   }
 
+  /**
+   * Como {@link formatMonto} pero con centavos. En la hoja de liquidación sí importan: es plata
+   * que el analista autoriza, y redondear en pantalla lo dejaría firmando un número que no es el
+   * que se guarda.
+   */
+  protected montoExacto(amount: number | null): string {
+    if (amount == null) {
+      return '—';
+    }
+    return new Intl.NumberFormat('es-AR', {
+      style: 'currency',
+      currency: 'ARS',
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+    }).format(amount);
+  }
+
   // ----- reintento manual de la clasificación (expediente en CLASSIFICATION_FAILED) -----
   // El scheduler solo barre PENDING_CLASSIFICATION, así que un caso que agotó los reintentos queda
-  // varado hasta que el analista lo reencola a mano (bugs-ux #22). No resuelve el caso: lo devuelve
-  // al pipeline, que después vuelve a necesitar la decisión del analista.
+  // varado hasta que el analista lo reencola a mano (relevamiento de UI de Aylén #22, fuera del
+  // repo). No resuelve el caso: lo devuelve al pipeline, que después vuelve a necesitar la
+  // decisión del analista.
   protected readonly isFailed = computed(() => this.data()?.status === 'CLASSIFICATION_FAILED');
   protected readonly retrying = signal(false);
   protected readonly retryError = signal<string | null>(null);
@@ -1173,14 +1579,17 @@ export class ExpedienteDetailComponent {
    */
   protected readonly canDecide = computed(() => this.canAct() && this.isMine());
 
-  /** Por qué no puede decidir alguien con rol de analista pero sin este expediente asignado. */
+  /**
+   * Por qué no puede actuar alguien con rol de analista pero sin este expediente asignado. Cubre
+   * decidir y derivar (a peritaje o a servicio técnico): todo eso es del dueño del expediente.
+   */
   protected readonly decisionBlockedReason = computed(() => {
     if (!this.isAssigned()) {
-      return 'Asignate el expediente para poder decidir.';
+      return 'Asignate el expediente para decidir o derivarlo.';
     }
     const analista = this.assignedName();
     return analista
-      ? `Asignado a ${analista}. Solo esa persona puede aprobar o rechazar.`
+      ? `Asignado a ${analista}. Solo esa persona puede aprobar, rechazar o derivar.`
       : 'Expediente asignado a otro analista.';
   });
 

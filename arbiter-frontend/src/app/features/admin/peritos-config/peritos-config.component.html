@@ -3,15 +3,16 @@
      abajo de las dos cosas. -->
 <app-card>
   <div class="sc-section-head">
-    <span class="t-section-label">Peritos de verificación</span>
+    <span class="t-section-label">Peritos y servicios técnicos</span>
     @if (!draft()) {
-      <app-button variant="secondary" (click)="add()">+ Agregar perito</app-button>
+      <app-button variant="secondary" (click)="add()">+ Agregar proveedor</app-button>
     }
   </div>
   <p class="section-hint">
-    Estudios externos a los que el analista puede derivar un siniestro. Aparecen en el selector al
-    derivar; si un ramo no tiene ninguno, no hay a quién derivar por más que la regla de monto lo
-    habilite.
+    Estudios liquidadores y servicios técnicos a los que el analista puede derivar un siniestro.
+    Aparecen en el selector al derivar; si un ramo no tiene ninguno, no hay a quién derivar. Además,
+    el peritaje exige un monto mínimo, y el servicio técnico solo se ofrece en los hechos generadores
+    que admiten reparación (una rotura sí, un robo no).
   </p>
   <!-- La barra de abajo gobierna la regla del antecedente, no esta lista: sin este aviso, "Todo
        guardado" después de tocar un perito se lee como que el cambio no se registró. -->
@@ -24,8 +25,8 @@
     <p class="t-note">Cargando…</p>
   } @else if (peritos().length === 0 && !draft()) {
     <app-empty-state
-      message="Todavía no hay peritos cargados"
-      sub="Sin peritos, el analista no puede derivar ningún expediente." />
+      message="Todavía no hay proveedores cargados"
+      sub="Sin proveedores, el analista no puede derivar ningún expediente." />
   } @else {
     <ul class="peritos">
       @for (p of peritos(); track p.id) {
@@ -40,7 +41,7 @@
               </app-badge>
             </span>
             <span class="t-note">
-              {{ p.email }} · {{ ramoLabel(p) }}@if (p.zone) { · {{ p.zone }} }
+              {{ providerTypeLabel(p.providerType) }} · {{ p.email }} · {{ ramoLabel(p) }}@if (p.zone) { · {{ p.zone }} }
             </span>
           </div>
           <div class="perito-actions">
@@ -54,9 +55,13 @@
 
   @if (draft(); as d) {
     <div class="perito-form">
-      <span class="t-field-label">{{ d.id == null ? 'Nuevo perito' : 'Editando perito' }}</span>
+      <span class="t-field-label">{{ d.id == null ? 'Nuevo proveedor' : 'Editando proveedor' }}</span>
+      <app-select
+        [options]="providerTypeOptions"
+        [value]="d.providerType"
+        (valueChange)="setProviderType($event)" />
       <app-input
-        placeholder="Nombre del estudio"
+        placeholder="Nombre"
         [value]="d.name"
         (valueChange)="setField('name', $event)" />
       <app-input
@@ -78,7 +83,7 @@
       <div class="perito-form-actions">
         <app-button variant="secondary" (click)="cancel()">Cancelar</app-button>
         <app-button [disabled]="!canSave() || saving()" (click)="save()">
-          {{ saving() ? 'Guardando…' : 'Guardar perito' }}
+          {{ saving() ? 'Guardando…' : 'Guardar' }}
         </app-button>
       </div>
     </div>

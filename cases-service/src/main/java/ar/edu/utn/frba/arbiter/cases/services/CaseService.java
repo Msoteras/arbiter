@@ -4,7 +4,9 @@ import ar.edu.utn.frba.arbiter.cases.dto.AnalystDecisionRequest;
 import ar.edu.utn.frba.arbiter.cases.dto.AnalystWorkloadResponse;
 import ar.edu.utn.frba.arbiter.cases.dto.AssignedCaseSummaryResponse;
 import ar.edu.utn.frba.arbiter.cases.dto.CaseDocumentResponse;
+import ar.edu.utn.frba.arbiter.cases.dto.CaseScope;
 import ar.edu.utn.frba.arbiter.cases.dto.EligibilityCheckRequest;
+import ar.edu.utn.frba.arbiter.cases.dto.IntakeDocumentsResponse;
 import ar.edu.utn.frba.arbiter.cases.dto.EligibilityCheckResponse;
 import ar.edu.utn.frba.arbiter.cases.dto.LensSummaryResponse;
 import ar.edu.utn.frba.arbiter.cases.dto.CaseRequest;
@@ -33,6 +35,16 @@ public interface CaseService {
      * those become {@code eligible=false} instead, since a "you can't file this" isn't an error here.
      */
     EligibilityCheckResponse checkEligibility(EligibilityCheckRequest request);
+
+    /**
+     * La primera tanda de documentos para una denuncia que todavía no existe: lo que el carril
+     * rápido exige para la cobertura que responde por ese hecho generador, o la agenda completa si
+     * la aseguradora no configuró ninguna. Lo consume el wizard para armar los slots de subida.
+     *
+     * <p>Falla con 503 si no se pudo leer el motor de reglas: una lista vacía significaría "no hace
+     * falta ningún documento", que es justo la respuesta equivocada.
+     */
+    IntakeDocumentsResponse intakeDocuments(String policyNumber, String branch, String claimCause);
 
     CaseResponse getCase(Long caseId);
 
@@ -85,17 +97,17 @@ public interface CaseService {
      * {@link ar.edu.utn.frba.arbiter.common.enums.DeadlinePriority}) es otro filtro booleano puro,
      * combinable con el resto igual que {@code unassigned}/{@code assigned}/{@code fraudAlert}.
      */
-    Page<CaseResponse> listCases(CaseStatus status, String claimCause, String policyNumber, String insuredId,
+    Page<CaseResponse> listCases(List<CaseStatus> status, String claimCause, String policyNumber, String insuredId,
                                   LocalDate eventDateFrom, LocalDate eventDateTo, String q, RiskBand riskBand,
                                   Long analystId, boolean assignedToMe, boolean unassigned, boolean fraudAlert,
-                                  boolean assigned, boolean dueSoon, Pageable pageable);
+                                  boolean assigned, boolean dueSoon, CaseScope scope, Long insurerId, Pageable pageable);
 
     /** Overload para las lentes "Míos"/"Todos" (sin las lentes de asignación, fraude ni vencimiento). */
-    default Page<CaseResponse> listCases(CaseStatus status, String claimCause, String policyNumber, String insuredId,
+    default Page<CaseResponse> listCases(List<CaseStatus> status, String claimCause, String policyNumber, String insuredId,
                                           LocalDate eventDateFrom, LocalDate eventDateTo, String q, RiskBand riskBand,
                                           boolean assignedToMe, Pageable pageable) {
         return listCases(status, claimCause, policyNumber, insuredId, eventDateFrom, eventDateTo, q, riskBand,
-                null, assignedToMe, false, false, false, false, pageable);
+                null, assignedToMe, false, false, false, false, CaseScope.ALL, null, pageable);
     }
 
     /**
@@ -103,9 +115,9 @@ public interface CaseService {
      * Cuenta con {@code count(spec)}: no trae filas ni joinea el análisis, a diferencia de pedir
      * cada lente con {@code size=1} solo para leer el total.
      */
-    LensSummaryResponse lensSummary(CaseStatus status, String claimCause, String policyNumber,
+    LensSummaryResponse lensSummary(List<CaseStatus> status, String claimCause, String policyNumber,
                                      String insuredId, LocalDate eventDateFrom, LocalDate eventDateTo,
-                                     String q, RiskBand riskBand, Long analystId);
+                                     String q, RiskBand riskBand, Long analystId, CaseScope scope);
 
     CaseResponse addDocumentsAndReclassify(Long caseId, Map<String, MultipartFile> documents);
 
@@ -128,7 +140,24 @@ public interface CaseService {
      */
     List<PolicyResponse> getInsuredPolicies(Long caseId);
 
+    /**
+     * Registra la decisión del analista. Aprobar incluye determinar el monto: si ese monto supera
+     * la atribución del analista para el ramo, la decisión queda en suspenso —el expediente no se
+     * mueve— hasta que el referente la autorice con {@link #authorizeSettlement}.
+     */
     void recordAnalystDecision(Long caseId, AnalystDecisionRequest request);
+
+    /**
+     * El referente firma una liquidación que superaba la atribución del analista. Recién ahí la
+     * aprobación surte efecto y el expediente pasa a APROBADO.
+     */
+    void authorizeSettlement(Long caseId);
+
+    /**
+     * El referente devuelve la liquidación al analista con un motivo. El expediente no se mueve:
+     * nunca salió de su revisión.
+     */
+    void returnSettlement(Long caseId, String reason);
 
     /**
      * Pone al analista como dueño del expediente, por su id de {@code claims_analyst}. Un solo

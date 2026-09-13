@@ -44,15 +44,53 @@
                      card ya lo dice cuando el resultado es determinístico. -->
                 <p class="note">Falta documentación obligatoria de la agenda del ramo.</p>
               } @else {
+                <!-- Fast Track no es "aprobar rápido": es que nadie opinó antes que el analista.
+                     Decirlo con todas las letras es la mitad de H0038; la otra mitad son los
+                     criterios, abajo. -->
                 <p class="note">
-                  Lo determinó el motor de reglas, no el modelo. Agiliza el trámite pero no lo
-                  resuelve: la decisión se registra abajo (Aprobar / Rechazar).
+                  <strong>Fast Track:</strong> la vía express para un siniestro que cumple ciertos
+                  criterios objetivos.
                 </p>
+                @if (fastTrackCriteria().length > 0) {
+                  <p class="note">
+                    Qué se verificó, en «Análisis» → Criterios del carril rápido.
+                  </p>
+                }
               }
             </div>
           </div>
         } @else {
           <p class="nodata">El modelo todavía no generó una recomendación para este expediente.</p>
+        }
+
+        <!-- El cruce relato ↔ hecho generador declarado. Va acá y no en una card aparte porque es
+             lo que explica la recomendación de arriba: el asegurado eligió un hecho del selector y
+             después contó otra cosa. Quién tiene razón lo decide el analista. -->
+        @if (showCauseConsistency()) {
+          <div class="consistencia">
+            <app-badge variant="solid" [tone]="causeConsistencyTone()">
+              {{ causeConsistencyLabel() }}
+            </app-badge>
+            <dl class="consistencia-cruce">
+              <div>
+                <dt class="t-field-label">Hecho declarado</dt>
+                <dd>{{ data()?.claimCause }}</dd>
+              </div>
+              @if (data()?.suggestedClaimCause; as sugerido) {
+                <div>
+                  <dt class="t-field-label">El relato sugiere</dt>
+                  <dd>{{ sugerido }}</dd>
+                </div>
+              }
+            </dl>
+            @if (data()?.causeEvidence; as cita) {
+              <blockquote class="consistencia-cita">{{ cita }}</blockquote>
+            }
+            <p class="note">
+              Lectura del modelo sobre el relato, no un veredicto de cobertura. Verificá la
+              descripción antes de decidir.
+            </p>
+          </div>
         }
       </app-card>
 
@@ -64,6 +102,18 @@
         @switch (decisionState()) {
           @case ('approved') {
             <p class="registered">✓ Registrado: Aprobado</p>
+            @if (settlement(); as s) {
+              @if (s.confirmed) {
+                <p class="rcard-note">
+                  Monto a pagar: <strong>{{ montoExacto(s.settledAmount) }}</strong>
+                </p>
+                @if (s.adjustmentReason) {
+                  <p class="rcard-note">
+                    Ajustado sobre {{ montoExacto(s.calculatedAmount) }}: {{ s.adjustmentReason }}
+                  </p>
+                }
+              }
+            }
           }
           @case ('rejected') {
             <p class="registered">✓ Registrado: Rechazado</p>
@@ -77,7 +127,24 @@
             </p>
           }
           @case ('pending') {
-            @if (canAct()) {
+            @if (esperandoAutorizacion()) {
+              <!-- El analista ya decidió: lo que falta es la firma del referente sobre el monto.
+                   Mostrar los botones acá lo invitaría a decidir de nuevo algo que ya resolvió. -->
+              <p class="registered">⏳ Esperando autorización del referente</p>
+              @if (settlement(); as s) {
+                <p class="rcard-note">
+                  Monto determinado: <strong>{{ montoExacto(s.settledAmount) }}</strong>, por encima
+                  del tope de {{ montoExacto(s.authorityLimit) }} del ramo.
+                </p>
+              }
+            } @else if (canAct()) {
+              @if (liquidacionDevuelta() && settlement(); as s) {
+                <!-- Devuelta no es rechazada: el expediente sigue siendo suyo y puede volver a
+                     determinar el monto. El motivo es lo único que tiene para saber qué corregir. -->
+                <p class="settlement-callout returned">
+                  El referente devolvió la liquidación: {{ s.returnReason }}
+                </p>
+              }
               @if (canDecide()) {
                 <div class="decision-btns">
                   <app-button variant="secondary" [block]="true" [disabled]="decisionSaving()" (click)="askDecision('rechazar')">Rechazar</app-button>
@@ -102,6 +169,16 @@
                   <p class="rcard-note">{{ motivo }}</p>
                 }
               }
+              @if (puedeDerivarAReparacion()) {
+                <app-button
+                  variant="secondary"
+                  [block]="true"
+                  [disabled]="decisionSaving()"
+                  (click)="askDerivar('SERVICIO_TECNICO')"
+                >
+                  Derivar a servicio técnico
+                </app-button>
+              }
             } @else {
               <p class="nodata">{{ esperaDecisionTexto() }}</p>
             }
@@ -111,7 +188,11 @@
               <!-- Con el panel movido a su solapa, sin esta línea el analista no tendría desde
                    dónde cargar el informe ni por qué el expediente está frenado. -->
               <p class="nodata">
-                El expediente está en peritaje. Cargá el informe desde la solapa <strong>Peritaje</strong>.
+                El expediente está en peritaje. Cargá el informe desde la solapa <strong>{{ derivacionesTabLabel() }}</strong>.
+              </p>
+            } @else if (enReparacion()) {
+              <p class="nodata">
+                El expediente está en el servicio técnico. Cargá su respuesta desde la solapa <strong>{{ derivacionesTabLabel() }}</strong>.
               </p>
             } @else if (isFailed()) {
               <p class="nodata">No se pudo clasificar automáticamente tras varios intentos.</p>
@@ -173,7 +254,7 @@
       @for (t of tabs(); track t.id) {
         <button role="tab" class="tab" [class.active]="activeTab() === t.id"
           [attr.aria-selected]="activeTab() === t.id" (click)="setTab(t.id)">{{ t.label }}@if (t.dot) {
-            <span class="tab-dot" aria-label="con mensajes sin leer"></span>
+            <span class="tab-dot" [attr.aria-label]="t.dotLabel"></span>
           }</button>
       }
     </nav>
@@ -348,104 +429,51 @@
         }
       }
 
-      <!-- Lo que el modelo leyó de cada adjunto. Un campo vacío se muestra "No aplica" y NUNCA
-           como discrepancia: que un documento no diga algo no es que no coincida. -->
-      @case ('datos') {
-        @if (documentAnalyses().length > 0) {
-          <div class="extracted-grid">
-            @for (doc of documentAnalyses(); track doc.documentType) {
-              <app-card [heading]="documentLabel(doc.documentType)">
-                <dl class="fields">
-                  @for (f of extractedFields(doc); track f.label) {
-                    <div class="field">
-                      <dt class="t-field-label">{{ f.label }}</dt>
-                      @if (f.value) {
-                        <dd [class.mono]="f.mono">{{ f.value }}</dd>
-                      } @else {
-                        <dd class="nodata">No aplica</dd>
-                      }
-                    </div>
-                  }
-                </dl>
-
-                <!-- Observación sobre la IMAGEN, no contenido del documento: se separa a propósito
-                     para que no se lea como si el papel lo dijera. Nunca es concluyente. -->
-                @if (doc.visualFindings.length > 0) {
-                  <div class="visual-findings">
-                    <span class="t-field-label">Señales en la imagen</span>
-                    <ul>
-                      @for (finding of doc.visualFindings; track $index) {
-                        <li>{{ finding }}</li>
-                      }
-                    </ul>
-                    <p class="t-note">
-                      Son observaciones del modelo sobre la imagen, no contenido del documento. Por
-                      sí solas no confirman fraude.
-                    </p>
-                  </div>
-                }
-
-                @if (doc.transcription) {
-                  <details class="transcription">
-                    <summary class="t-field-label">Ver lo que se leyó del documento</summary>
-                    <p class="t-body">{{ doc.transcription }}</p>
-                  </details>
-                }
-              </app-card>
-            }
-          </div>
-        } @else {
-          <app-empty-state
-            message="Todavía no se leyó ningún documento de este expediente"
-            sub="Se completa al clasificar (no aplica en Fast Track sin documentación)." />
-        }
-      }
-      @case ('imagenes') { <app-forensic-analysis [caseId]="d.id" [report]="d.forensicReport" /> }
-      @case ('riesgo') {
-        <app-card heading="Desglose del score de fraude">
-          @if (riskScorePct(); as scorePct) {
-            <p class="risk-score">Score de fraude: <strong>{{ scorePct }}%</strong></p>
-            @if (fastTrackScoreScope() === 'partial') {
-              <p class="factor-detail">Siniestro Fast Track: score parcial, calculado solo con factores de datos estructurados. El análisis de documentación e imágenes no corrió (la aseguradora no lo activó para Fast Track).</p>
-            } @else if (fastTrackScoreScope() === 'full') {
-              <p class="factor-detail">Siniestro Fast Track con análisis completo: el score incluye documentación e imágenes.</p>
-            }
-            @if (riskBreakdown().length > 0) {
-              <div class="risk-breakdown">
-                <span class="t-field-label">Cómo se compone el score</span>
-                <table class="breakdown-table">
-                  <thead>
-                    <tr><th>Factor</th><th>Aporte al score</th></tr>
-                  </thead>
-                  <tbody>
-                    @for (item of riskBreakdown(); track item.factorId) {
-                      <tr>
-                        <td>
-                          <span class="factor-name">{{ factorLabel(item.factorId) }}</span>
-                          @if (item.rationale) {
-                            <span class="factor-rationale">{{ item.rationale }}</span>
-                          }
-                        </td>
-                        <td class="factor-contrib">+{{ aporteAlScore(item) }}</td>
-                      </tr>
-                    }
-                  </tbody>
-                </table>
-                <span class="factor-detail">Cada factor aporta una parte; los aportes suman el score ({{ scorePct }}).</span>
-              </div>
-            }
-          } @else {
-            <app-empty-state
-              message="Este expediente todavía no tiene score de fraude"
-              sub="Se calcula al clasificar (no aplica en Fast Track ni sin datos suficientes)." />
-          }
-        </app-card>
-      }
-      <!-- Todo sale de lo que se persistió al clasificar: acá no se pide nada en vivo. La foto va
-           primero porque es el insumo — con estos datos se evaluaron las reglas de abajo. -->
+      <!-- Toda la cadena de una misma decisión, en una sola solapa: primero el score (es lo que
+           continúa el medidor del Resumen), después la foto con la que se evaluó y las reglas que
+           corrieron sobre ella. Nada se pide en vivo: todo se persistió al clasificar. -->
       @case ('analisis') {
         <div class="traza">
-          <app-card heading="Datos de clasificación">
+          <app-card heading="Desglose del score de fraude" [collapsible]="true">
+            @if (riskScorePct(); as scorePct) {
+              <p class="risk-score">Score de fraude: <strong>{{ scorePct }}%</strong></p>
+              @if (fastTrackScoreScope() === 'partial') {
+                <p class="factor-detail">Siniestro Fast Track: score parcial, calculado solo con factores de datos estructurados. El análisis de documentación e imágenes no corrió (la aseguradora no lo activó para Fast Track).</p>
+              } @else if (fastTrackScoreScope() === 'full') {
+                <p class="factor-detail">Siniestro Fast Track con análisis completo: el score incluye documentación e imágenes.</p>
+              }
+              @if (riskBreakdown().length > 0) {
+                <div class="risk-breakdown">
+                  <span class="t-field-label">Cómo se compone el score</span>
+                  <table class="breakdown-table">
+                    <thead>
+                      <tr><th>Factor</th><th>Aporte al score</th></tr>
+                    </thead>
+                    <tbody>
+                      @for (item of riskBreakdown(); track item.factorId) {
+                        <tr>
+                          <td>
+                            <span class="factor-name">{{ factorLabel(item.factorId) }}</span>
+                            @if (item.rationale) {
+                              <span class="factor-rationale">{{ item.rationale }}</span>
+                            }
+                          </td>
+                          <td class="factor-contrib">+{{ aporteAlScore(item) }}</td>
+                        </tr>
+                      }
+                    </tbody>
+                  </table>
+                  <span class="factor-detail">Cada factor aporta una parte; los aportes suman el score ({{ scorePct }}).</span>
+                </div>
+              }
+            } @else {
+              <app-empty-state
+                message="Este expediente todavía no tiene score de fraude"
+                sub="Se calcula al clasificar (no aplica en Fast Track ni sin datos suficientes)." />
+            }
+          </app-card>
+
+          <app-card heading="Datos de clasificación" [collapsible]="true">
             @if (policySnapshot(); as s) {
               @for (g of snapshotGroups(); track $index) {
                 @if (g.heading) {
@@ -472,15 +500,15 @@
             }
           </app-card>
 
-          <app-card heading="Reglas evaluadas">
-            @if (ruleResults().length > 0) {
+          <app-card heading="Reglas evaluadas" [collapsible]="true">
+            @if (hardRuleResults().length > 0) {
               <div class="traza-scroll">
                 <table class="traza-table">
                   <thead>
                     <tr><th>Regla</th><th>Resultado</th><th>Qué se evaluó</th></tr>
                   </thead>
                   <tbody>
-                    @for (r of ruleResults(); track r.id) {
+                    @for (r of hardRuleResults(); track r.id) {
                       <tr>
                         <td>{{ ruleTypeLabel(r.ruleType) }}</td>
                         <td>
@@ -494,7 +522,7 @@
                   </tbody>
                 </table>
               </div>
-              <span class="t-note">Evaluadas el {{ formatDateTime(ruleResults()[0].evaluatedAt) }}.</span>
+              <span class="t-note">Evaluadas el {{ formatDateTime(hardRuleResults()[0].evaluatedAt) }}.</span>
             } @else {
               <p class="nodata traza-sin-reglas" [class.error]="ruleResultsUnavailable()">
                 {{ sinReglasMotivo() }}
@@ -502,9 +530,51 @@
             }
           </app-card>
 
+          <!-- Card aparte y no filas más en la tabla de arriba: un "No cumple" acá no dice que el
+               siniestro no esté cubierto, dice que no fue por el carril rápido. Mezclarlos hacía
+               leer una exclusión donde solo hubo un umbral de agilidad. -->
+          @if (fastTrackCriteria().length > 0) {
+            <app-card heading="Criterios del carril rápido (Fast Track)" [collapsible]="true">
+              <p class="t-note traza-intro">
+                @if (esFastTrack()) {
+                  Los cumplió todos, así que se resolvió sin pasar por el modelo. No es una
+                  recomendación de aprobar: la decisión sigue siendo del analista.
+                } @else {
+                  No los cumplió todos, así que el expediente fue al modelo en vez del carril
+                  rápido. Un criterio no cumplido no dice que el siniestro no esté cubierto — eso
+                  lo dicen las reglas de arriba.
+                }
+              </p>
+              <div class="traza-scroll">
+                <table class="traza-table">
+                  <thead>
+                    <tr><th>Criterio</th><th>Resultado</th><th>Qué se comparó</th></tr>
+                  </thead>
+                  <tbody>
+                    @for (c of fastTrackCriteria(); track c.id) {
+                      <tr>
+                        <td>{{ ruleTypeLabel(c.ruleType) }}</td>
+                        <td>
+                          <app-badge variant="solid" [tone]="ruleResultTone(c.result)">
+                            {{ ruleResultLabel(c.result) }}
+                          </app-badge>
+                        </td>
+                        <td class="traza-valor">{{ ruleEvaluationText(c.ruleType, c.evaluatedValue) }}</td>
+                      </tr>
+                    }
+                  </tbody>
+                </table>
+              </div>
+              <span class="t-note">
+                Umbrales de la aseguradora al momento de clasificar, el
+                {{ formatDateTime(fastTrackCriteria()[0].evaluatedAt) }}.
+              </span>
+            </app-card>
+          }
+
           <!-- Below the rules: the engine runs first, and the model reads on top of it. -->
           @if (analysisReasons().length > 0) {
-            <app-card heading="Razones del modelo">
+            <app-card heading="Razones del modelo" [collapsible]="true">
               <ul class="reasons-list">
                 @for (reason of analysisReasons(); track $index) {
                   <li>{{ reason }}</li>
@@ -625,15 +695,21 @@
         </div>
       }
       @case ('documentacion') {
-        <app-case-documents [caseId]="d.id" [reloadToken]="docsReloadToken()" [branch]="d.branch" />
+        <app-case-documents
+          [caseId]="d.id"
+          [reloadToken]="docsReloadToken()"
+          [branch]="d.branch"
+          [extractions]="documentAnalyses()" />
       }
+      @case ('imagenes') { <app-forensic-analysis [caseId]="d.id" [report]="d.forensicReport" /> }
       <!-- Peritaje: la evidencia del perito NO reemplaza a la recomendación del modelo — el informe
            no re-clasifica, el analista lee las dos y decide. La solapa solo existe si hubo derivación. -->
       @case ('peritaje') {
-        @if (peritaje(); as p) {
-          <app-card class="peritaje-card" heading="Peritaje">
+        @for (p of derivaciones(); track p.id) {
+          @let reparacion = p.providerType === 'SERVICIO_TECNICO';
+          <app-card class="peritaje-card" [heading]="reparacion ? 'Servicio técnico' : 'Peritaje'">
             <dl class="peritaje">
-              <dt class="t-field-label">Perito</dt>
+              <dt class="t-field-label">{{ reparacion ? 'Servicio técnico' : 'Perito' }}</dt>
               <dd>{{ p.expertName }} @if (p.zone) { · {{ p.zone }} }</dd>
               <dt class="t-field-label">Derivado por</dt>
               <dd>{{ p.derivedByName }} · {{ formatDateTime(p.derivedAt) }}</dd>
@@ -643,31 +719,41 @@
 
             @if (!p.notified) {
               <p class="rcard-note error">
-                No se pudo avisarle al perito por mail. Contactalo por fuera antes de esperar el informe.
+                No se pudo avisarle por mail. Contactalo por fuera antes de esperar la respuesta.
               </p>
             }
 
-            @if (p.verdict) {
+            @if (p.verdict || p.repairOutcome) {
               <div class="peritaje-veredicto">
-                <app-badge variant="solid" [tone]="veredictoTone(p.verdict)">
-                  {{ veredictoLabel(p.verdict) }}
-                </app-badge>
+                @if (p.verdict) {
+                  <app-badge variant="solid" [tone]="veredictoTone(p.verdict)">
+                    {{ veredictoLabel(p.verdict) }}
+                  </app-badge>
+                } @else if (p.repairOutcome) {
+                  <app-badge variant="solid">{{ repairOutcomeLabel(p.repairOutcome) }}</app-badge>
+                }
                 <span class="t-note">{{ formatDateTime(p.reportReceivedAt) }}</span>
               </div>
               @if (p.verdictNote) {
                 <p class="t-body">{{ p.verdictNote }}</p>
               }
-              <p class="t-note">El informe queda como adjunto del expediente, en la solapa Documentación.</p>
+              <p class="t-note">
+                {{ reparacion ? 'La respuesta' : 'El informe' }} queda como adjunto del expediente, en la solapa Documentación.
+              </p>
             } @else {
-              <p class="nodata">Esperando el informe del perito.</p>
+              <p class="nodata">
+                {{ reparacion ? 'Esperando la respuesta del servicio técnico.' : 'Esperando el informe del perito.' }}
+              </p>
               @if (canGestionar()) {
-                <app-button variant="secondary" (click)="askInforme()">Cargar informe</app-button>
+                <app-button variant="secondary" (click)="askInforme(p.providerType)">
+                  {{ reparacion ? 'Cargar respuesta' : 'Cargar informe' }}
+                </app-button>
               }
             }
-            @if (informeError()) {
-              <p class="rcard-note error">{{ informeError() }}</p>
-            }
           </app-card>
+        }
+        @if (informeError()) {
+          <p class="rcard-note error">{{ informeError() }}</p>
         }
       }
       @case ('conversacion') {
@@ -708,17 +794,181 @@
   </div>
 }
 
-<!-- Modal de justificación (gobierno: toda decisión queda justificada/auditada) -->
+<!-- Modal de decisión (gobierno: toda decisión queda justificada/auditada). Al aprobar suma la
+     determinación del monto: el procedimiento de la compañía las trata como un solo acto del
+     analista, y aprobar sin monto deja al siniestro debiendo una suma que nadie fijó. -->
+<!-- Ancho solo al aprobar: ahí entra la hoja de liquidación entera y con 440px todo se partía en
+     tres renglones. Rechazar sigue siendo una justificación y nada más, y un diálogo ancho para un
+     solo campo se lee peor. -->
 <app-modal
   [open]="showJustify()"
-  heading="Justificar decisión: {{ verbLabel(pendingDecision()) }}"
+  [heading]="decisionModalHeading()"
+  [size]="pendingDecision() === 'aprobar' ? 'lg' : 'md'"
   (close)="cancelDecision()"
 >
-  <p class="t-note">Toda decisión del analista queda justificada y auditada (human-in-the-loop).</p>
-  <app-textarea [rows]="4" placeholder="Justificación (obligatoria)…" [(value)]="justification" />
+  @if (pendingDecision() === 'aprobar') {
+    @if (settlement(); as s) {
+      <div class="settlement">
+        <span class="t-section-label">Cómo se llega al monto</span>
+        <ul class="settlement-sheet">
+          @for (line of s.breakdown; track $index) {
+            <li
+              class="settlement-line"
+              [class.deduction]="line.kind === 'DEDUCTION'"
+              [class.total]="line.kind === 'TOTAL'"
+            >
+              <span class="settlement-concept">
+                {{ line.concept }}
+                @if (line.detail) {
+                  <span class="t-note">{{ line.detail }}</span>
+                }
+              </span>
+              <span class="settlement-amount tabular">
+                @if (line.kind === 'DEDUCTION') {
+                  −
+                }{{ montoExacto(line.amount) }}
+              </span>
+            </li>
+          }
+        </ul>
+
+        @if (s.warnings.length) {
+          <ul class="settlement-notes">
+            @for (aviso of s.warnings; track $index) {
+              <li>{{ aviso }}</li>
+            }
+          </ul>
+        }
+
+        <!-- El valor de reposición sale de la factura o el presupuesto que ya están en el
+             expediente. Solo baja el techo en las coberturas que liquidan por el menor de los
+             dos; en las demás queda registrado igual, como respaldo del monto. -->
+        <div class="settlement-money">
+          <!-- Solo donde efectivamente cambia algo. En una cobertura que liquida la pérdida total
+               por suma asegurada este valor no toca el monto, y ofrecer un campo que no hace nada
+               es peor que no ofrecerlo: se carga, se aprieta Recalcular y el total queda igual.
+               En reparación es al revés: es la BASE, sin él no hay nada que pagar. -->
+          @if (pideMontoAcreditado()) {
+            <label class="fieldset">
+              <span class="t-field-label">
+                {{ s.formula === 'REPAIR' ? 'Presupuesto de reparación' : 'Cuánto cuesta reponer el bien' }}
+                @if (s.formula === 'REPAIR') {
+                  <span class="required" aria-hidden="true">*</span>
+                }
+              </span>
+              <div class="settlement-replacement">
+                <app-input
+                  type="number"
+                  [min]="0"
+                  [value]="replacementInput()"
+                  (valueChange)="replacementInput.set($event)"
+                  placeholder="Sin acreditar"
+                />
+                <app-button variant="secondary" (click)="applyReplacementValue()">Recalcular</app-button>
+              </div>
+              <span class="justification-hint">
+                @if (s.formula === 'REPAIR') {
+                  Del presupuesto del expediente. Es la base del cálculo, con tope en la suma
+                  asegurada.
+                } @else {
+                  Según la factura o el presupuesto del expediente. Si es menor que la suma
+                  asegurada, se indemniza por este valor.
+                }
+              </span>
+
+              <!-- El número que ya está en el expediente, para no hacerlo buscar de nuevo. No está
+                   aplicado: se toma con un clic. Las tres procedencias no se anuncian igual porque
+                   no llegaron igual: el del documento lo leyó el modelo y hay que verificarlo
+                   contra el papel; los otros dos los transcribió un analista al recibir el informe,
+                   y decir que "figuran" en un documento haría creer que el sistema los leyó solo. -->
+              @if (sugerenciaDisponible()) {
+                <p class="settlement-suggestion">
+                  <span>
+                    @switch (s.suggestedFrom) {
+                      @case ('expert_report') {
+                        El perito determinó
+                        <strong>{{ montoExacto(s.suggestedAmount) }}</strong> al verificar el siniestro.
+                      }
+                      @case ('repair_report') {
+                        El servicio técnico presupuestó
+                        <strong>{{ montoExacto(s.suggestedAmount) }}</strong> para arreglarlo.
+                      }
+                      @default {
+                        En «{{ documentLabel(s.suggestedFrom ?? '') }}» figura
+                        <strong>{{ montoExacto(s.suggestedAmount) }}</strong>. Verificalo antes de usarlo.
+                      }
+                    }
+                  </span>
+                  <app-button variant="secondary" (click)="tomarSugerencia()">Usar</app-button>
+                </p>
+              }
+            </label>
+          }
+
+          <label class="fieldset">
+            <span class="t-field-label">Monto a pagar</span>
+            <app-input
+              type="number"
+              [min]="0"
+              [value]="settledAmountInput()"
+              (valueChange)="settledAmountInput.set($event)"
+              [placeholder]="montoExacto(s.calculatedAmount)"
+            />
+
+            <!-- Lo que determinó el perito, cuando la cobertura no tiene monto acreditado donde
+                 ofrecerlo. No es un valor de reposición: es cuánto dice que hay que pagar, así que
+                 apunta acá. Tomarlo lo deja como ajuste, con su justificación. -->
+            @if (sugerenciaDeMontoDisponible()) {
+              <p class="settlement-suggestion">
+                <span>
+                  El perito determinó <strong>{{ montoExacto(s.suggestedAmount) }}</strong>.
+                  Usarlo queda como un ajuste sobre lo calculado.
+                </span>
+                <app-button variant="secondary" (click)="tomarSugerenciaDeMonto()">Usar</app-button>
+              </p>
+            }
+          </label>
+        </div>
+
+        <p class="t-note">
+          Vacío se autoriza lo calculado ({{ montoExacto(s.calculatedAmount) }}). Tope: la suma
+          asegurada, {{ montoExacto(s.sumInsured) }}.
+        </p>
+
+        @if (requiereReferente() && settlement(); as s) {
+          <p class="settlement-callout">
+            Este monto supera tu atribución para el ramo ({{ montoExacto(s.authorityLimit) }}).
+            Al confirmar, el expediente queda esperando la autorización del referente.
+          </p>
+        }
+
+        @if (settlementAdjusted()) {
+          <label class="fieldset">
+            <span class="t-field-label">Justificación del ajuste</span>
+            <app-textarea
+              [rows]="2"
+              placeholder="Por qué el monto difiere del calculado…"
+              [(value)]="adjustmentReason"
+            />
+          </label>
+        }
+      </div>
+    } @else {
+      <p class="nodata">No se pudo calcular el monto a pagar para este expediente.</p>
+    }
+  }
+
+  <label class="justification">
+    <span class="t-field-label">Justificación <span class="required" aria-hidden="true">*</span></span>
+    <app-textarea [rows]="3" placeholder="Por qué se toma esta decisión…" [(value)]="justification" />
+    <span class="justification-hint">Obligatorio</span>
+  </label>
+  @if (pendingDecision() === 'aprobar' && approvalBlockedReason(); as motivo) {
+    <p class="rcard-note error">{{ motivo }}</p>
+  }
   <ng-container modalActions>
     <app-button variant="secondary" (click)="cancelDecision()">Cancelar</app-button>
-    <app-button [disabled]="!justification().trim()" (click)="confirmDecision()">Confirmar</app-button>
+    <app-button [disabled]="confirmDisabled()" (click)="confirmDecision()">Confirmar</app-button>
   </ng-container>
 </app-modal>
 
@@ -740,14 +990,23 @@
 
 <!-- Derivación a peritaje. El perito sale del catálogo de la aseguradora y no de un mail escrito
      a mano: así queda registro de con quién trabaja la compañía. -->
-<app-modal [open]="showDerivar()" heading="Derivar a peritaje" (close)="cancelDerivar()">
+<app-modal
+  [open]="showDerivar()"
+  [heading]="esReparacion() ? 'Derivar a servicio técnico' : 'Derivar a peritaje'"
+  (close)="cancelDerivar()"
+>
   <p class="t-note">
-    Le vamos a mandar al perito los datos del siniestro a verificar. No se le manda la
-    clasificación ni el nivel de riesgo: se le pide verificar hechos.
+    @if (esReparacion()) {
+      Le vamos a mandar al servicio técnico los datos del siniestro para que repare o cotice el
+      bien. El expediente vuelve a tu revisión cuando cargues su respuesta.
+    } @else {
+      Le vamos a mandar al perito los datos del siniestro a verificar. No se le manda la
+      clasificación ni el nivel de riesgo: se le pide verificar hechos.
+    }
   </p>
   <app-select
     [options]="peritoOptions()"
-    placeholder="Elegí un perito…"
+    [placeholder]="esReparacion() ? 'Elegí un servicio técnico…' : 'Elegí un perito…'"
     [(value)]="peritoElegido"
   />
   <app-textarea
@@ -774,16 +1033,19 @@
 @if (derivacionHecha(); as p) {
   <app-modal [open]="true" heading="Derivación enviada" (close)="cerrarDerivacionHecha()">
     <p class="t-body">
-      El expediente <strong>#{{ data()?.id }}</strong> fue derivado con éxito a
+      El expediente <strong>#{{ derivacionHechaCaseId() }}</strong> fue derivado con éxito a
       <strong>{{ p.expertName }}</strong>.
     </p>
     <p class="t-note">
-      @if (p.notified) {
+      @if (!p.notified) {
+        El expediente quedó derivado, pero el mail no salió: avisale por otra vía antes de esperar
+        la respuesta.
+      } @else if (p.providerType === 'SERVICIO_TECNICO') {
+        Le mandamos por mail los datos del siniestro. El expediente queda esperando su respuesta y
+        vuelve a tu revisión cuando la cargues.
+      } @else {
         Le mandamos por mail los datos del siniestro a verificar. El expediente queda esperando el
         informe y vuelve a tu revisión cuando lo cargues.
-      } @else {
-        El expediente quedó derivado, pero el mail al perito no salió: avisale por otra vía antes
-        de esperar el informe.
       }
     </p>
     <ng-container modalActions>
@@ -843,14 +1105,19 @@
 
 <!-- Carga del informe pericial. El expediente vuelve a revisión con el veredicto al lado de la
      clasificación; NO se re-clasifica. -->
-<app-modal [open]="showInforme()" heading="Cargar informe del perito" (close)="cancelInforme()">
+<app-modal
+  [open]="showInforme()"
+  [heading]="informeEsReparacion() ? 'Cargar respuesta del servicio técnico' : 'Cargar informe del perito'"
+  (close)="cancelInforme()"
+>
   <p class="t-note">
-    El expediente vuelve a tu revisión con el informe al lado de la recomendación del modelo. La
-    decisión sigue siendo tuya.
+    El expediente vuelve a tu revisión con
+    {{ informeEsReparacion() ? 'la respuesta' : 'el informe' }} al lado de la recomendación del
+    modelo.
   </p>
   <app-select
-    [options]="veredictoOptions"
-    placeholder="Conclusión del perito…"
+    [options]="informeEsReparacion() ? repairOutcomeOptions : veredictoOptions"
+    [placeholder]="informeEsReparacion() ? 'Resultado del servicio técnico…' : 'Conclusión del perito…'"
     [(value)]="veredicto"
   />
   <!-- El input se abre desde el botón por referencia, y NO envolviendo todo en un <label>: un
@@ -867,9 +1134,48 @@
       hidden
     />
     <span class="t-field-label">{{ informeFile()?.name || 'Ningún archivo elegido' }}</span>
-    <app-button variant="secondary" (click)="informeInput.click()">Elegir informe</app-button>
+    <app-button variant="secondary" (click)="informeInput.click()">Elegir archivo</app-button>
   </div>
   <app-textarea [rows]="3" placeholder="Nota (opcional)…" [(value)]="notaVeredicto" />
+
+  <!-- El número que trae cada vuelta. El perito verifica la causa Y el monto indemnizable
+       (NSIN001 §2.6); el taller informa cuánto sale el arreglo. Llegan adentro de un PDF, así que
+       los transcribe el analista acá mismo, que ya está completando este formulario. Son preguntas
+       distintas y por eso cambian el label, la obligatoriedad y la columna donde terminan. -->
+  @if (pideMontoDelInforme()) {
+    <label class="peritaje-monto">
+      <span class="t-field-label">
+        @if (informeEsFactura()) {
+          Importe que facturó el taller
+        } @else if (informeEsReparacion()) {
+          Presupuesto de reparación que informó el taller
+          <span class="required" aria-hidden="true">*</span>
+        } @else {
+          Monto indemnizable que determinó el perito
+        }
+      </span>
+      <app-input
+        type="number"
+        [min]="0"
+        [value]="montoInforme()"
+        (valueChange)="montoInforme.set($event)"
+        [placeholder]="informeEsReparacion() ? 'Cuánto sale el arreglo' : 'Sin monto'"
+      />
+      <span class="justification-hint">
+        @if (informeEsFactura()) {
+          Opcional: dejalo vacío si la factura todavía no llegó. Va a ofrecerse al determinar el
+          monto a pagar, no se aplica solo.
+        } @else if (informeEsReparacion()) {
+          Obligatorio: es lo que el presupuesto dice. Va a ofrecerse al determinar el monto a pagar,
+          no se aplica solo.
+        } @else {
+          Opcional: dejalo vacío si el informe no puso un número. Va a ofrecerse al determinar el
+          monto a pagar, no se aplica solo.
+        }
+      </span>
+    </label>
+  }
+
   <!-- Lo que se firma al guardar: el veredicto del perito no queda solo en el expediente, deja la
        marca sobre la persona. Y esa marca no se da de baja desde la aplicación. -->
   @if (veredictoConfirmaFraude()) {
@@ -878,16 +1184,21 @@
       nota del perito. Va a pesar en sus denuncias siguientes mientras esté vigente.
     </p>
   }
+  @if (montoInformeFaltante()) {
+    <p class="rcard-note error">
+      El servicio técnico mandó un presupuesto: cargá el importe que dice.
+    </p>
+  }
   @if (informeError()) {
     <p class="rcard-note error">{{ informeError() }}</p>
   }
   <ng-container modalActions>
     <app-button variant="secondary" (click)="cancelInforme()">Cancelar</app-button>
     <app-button
-      [disabled]="!veredicto() || !informeFile() || informeSaving()"
+      [disabled]="!veredicto() || !informeFile() || montoInformeFaltante() || informeSaving()"
       (click)="confirmInforme()"
     >
-      {{ informeSaving() ? 'Guardando…' : 'Guardar informe' }}
+      {{ informeSaving() ? 'Guardando…' : 'Guardar' }}
     </app-button>
   </ng-container>
 </app-modal>

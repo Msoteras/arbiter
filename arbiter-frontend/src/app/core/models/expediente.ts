@@ -1,3 +1,4 @@
+import { CauseConsistency } from './cause-consistency';
 import { Clasificacion } from './clasificacion';
 import { DeadlinePriority } from './deadline-priority';
 import { ImageForensicReport } from './forensic';
@@ -44,6 +45,10 @@ export interface DocumentAnalysis {
   documentDate: string | null;
   amount: number | null;
   itemDescription: string | null;
+  /** Marca sola, separada de `itemDescription`: es contra lo que se cruza el bien asegurado. */
+  brand: string | null;
+  /** Modelo solo, sin la marca. */
+  model: string | null;
   imei: string | null;
   /** TITULAR | FAMILIAR | TERCERO | DESCONOCIDO — quién sufrió el hecho según el documento. */
   affectedParty: string;
@@ -52,9 +57,27 @@ export interface DocumentAnalysis {
    * que esté vacío no prueba que el documento sea auténtico.
    */
   visualFindings: string[];
+  /**
+   * Todo otro dato que el documento diga y que ninguna regla lea — nro. de factura, nro. de
+   * serie, comercio. **Vacío es lo normal**: una foto del equipo roto no trae ninguno.
+   *
+   * Es una lista nombre/valor y no campos fijos para que sumar un dato no pida migración. El
+   * `name` es como lo llamó el modelo, así que **se muestra tal cual y nunca se compara**: nada
+   * acá puede decidir nada.
+   */
+  details: ExtractedDetail[];
+}
+
+/** Un dato suelto que el documento indica, tal como el modelo lo leyó. */
+export interface ExtractedDetail {
+  name: string;
+  value: string;
 }
 
 // Espejo de CaseResponse del cases-service (GET /api/v1/cases/{id})
+/** Calca el enum SettlementStatus del back: es el estado de la liquidación, no del expediente. */
+export type SettlementStatus = 'AUTHORIZED' | 'PENDING_AUTHORIZATION' | 'RETURNED';
+
 export interface ExpedienteResponse {
   id: number;
   /**
@@ -112,6 +135,16 @@ export interface ExpedienteResponse {
    * de la corrida anterior, no del gate) o cuando todavía no hay clasificación.
    */
   analysisReasons: string[];
+  /**
+   * Si el relato libre del asegurado coincide con el hecho generador que eligió del selector.
+   * Null cuando el modelo no corrió (Fast Track, exclusión dura) o cuando la clasificación es
+   * anterior a este chequeo: ausente es "no evaluado", nunca MATCHES.
+   */
+  causeConsistency: CauseConsistency | string | null;
+  /** Hecho generador que el relato sí describe, del catálogo del ramo. Solo con CONTRADICTS. */
+  suggestedClaimCause: string | null;
+  /** Frase textual del relato que sostiene el veredicto. Solo con CONTRADICTS. */
+  causeEvidence: string | null;
   createdAt: string;
   updatedAt: string;
   /** Fecha límite legal para responder (art. 56): denuncia + 30 días, ISO yyyy-MM-dd. */
@@ -121,6 +154,16 @@ export interface ExpedienteResponse {
    * y el estado; `NONE` para casos con más de 10 días o ya resueltos.
    */
   deadlinePriority: DeadlinePriority;
+  /**
+   * En qué anda la liquidación, cuando ya hay una. Es lo que separa en la bandeja un expediente
+   * que espera al analista de uno que él ya despachó y espera la firma del referente: los dos
+   * están en `PENDING_ANALYST_REVIEW`, porque el estado del expediente no se mueve para que el
+   * asegurado no vea un trámite interno.
+   *
+   * Al revés que `statusHistory`: **sólo viene en los listados**. El detalle se trae la
+   * liquidación entera por su propio endpoint.
+   */
+  settlementStatus: SettlementStatus | null;
   /** Solo viene en GET /{id}; en listados es null. */
   statusHistory: StatusTransition[] | null;
   /**
@@ -143,4 +186,16 @@ export interface ExpedienteResponse {
    * Aseguradora en cada apertura del expediente.
    */
   policySnapshot: PolicySnapshot | null;
+  /**
+   * El servicio técnico que tiene el bien, solo mientras el expediente está en reparación (y solo
+   * en GET /{id}). Es lo único de una derivación que ve el asegurado: necesita saber a qué taller
+   * fue su equipo. El peritaje no se le nombra nunca.
+   */
+  repairProvider: RepairProvider | null;
+}
+
+export interface RepairProvider {
+  name: string;
+  email: string;
+  zone: string | null;
 }
