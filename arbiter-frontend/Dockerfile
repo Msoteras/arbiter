@@ -35,7 +35,7 @@ COPY arbiter-frontend/arbiter-proxy-headers.conf /etc/nginx/arbiter-proxy-header
 # Without this filter envsubst would also eat nginx's OWN variables ($uri, $host, $remote_addr…)
 # and leave them blank, which breaks routing in ways that are painful to read in a config that
 # looks correct. Only the names listed here get substituted.
-ENV NGINX_ENVSUBST_FILTER="^(PORT|NGINX_LOCAL_RESOLVERS|AUTH_SERVICE_URL|CASES_SERVICE_URL|CLASSIFICATION_SERVICE_URL|RULES_SERVICE_URL)$"
+ENV NGINX_ENVSUBST_FILTER="^(PORT|NGINX_LOCAL_RESOLVERS|AUTH_SERVICE_URL|CASES_SERVICE_URL|CLASSIFICATION_SERVICE_URL|RULES_SERVICE_URL|REPORTS_SERVICE_URL)$"
 
 # Opt-in flag that makes the image's 15-local-resolvers.envsh export NGINX_LOCAL_RESOLVERS from
 # /etc/resolv.conf. The `resolver` directive in the template needs it, and taking it from the
@@ -47,6 +47,7 @@ ENV PORT=8080 \
     AUTH_SERVICE_URL=http://auth-service.railway.internal:8080 \
     CASES_SERVICE_URL=http://cases-service.railway.internal:8083 \
     CLASSIFICATION_SERVICE_URL=http://classification-service.railway.internal:8082 \
-    RULES_SERVICE_URL=http://rules-service.railway.internal:8081
+    RULES_SERVICE_URL=http://rules-service.railway.internal:8081 \
+    REPORTS_SERVICE_URL=http://reports-service.railway.internal:8084
 
 EXPOSE 8080

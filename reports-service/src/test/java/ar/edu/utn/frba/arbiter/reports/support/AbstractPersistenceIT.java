@@ -15,8 +15,9 @@ import org.testcontainers.postgresql.PostgreSQLContainer;
  * Postgres in {@code application.yml} and failed on any machine without that local database (D18,
  * third instance of the same problem).
  *
- * <p>Once the module has real controllers and services (today it's only the {@code Metric} entity
- * and its repository), this class is the base their persistence tests will hang off.
+ * <p>The schema here is flat — everything in {@code public}, no {@code arbiter_common} — and only
+ * holds this module's own entities. Tests that read other modules' tables create them by hand
+ * (see {@code ResolvedCaseRepositoryTests}).
  */
 // SecurityConfig needs a real JWT_SECRET to start the context: the yml default is empty and the
 // HS256 key can't be built from that.
