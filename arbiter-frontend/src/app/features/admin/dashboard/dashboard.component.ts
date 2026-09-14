@@ -1,4 +1,4 @@
-import { DatePipe, formatNumber, formatPercent } from '@angular/common';
+import { DatePipe, formatCurrency, formatNumber, formatPercent } from '@angular/common';
 import {
   ChangeDetectionStrategy,
   Component,
@@ -36,6 +36,7 @@ import {
   MetricsRange,
   TimelinePoint,
   delta,
+  providerLabel,
   resolutionTimeLabel,
 } from './claim-metrics';
 import { ClaimMetricsService, MetricsPeriod } from './claim-metrics.service';
@@ -73,6 +74,21 @@ const RISK_TONES: Record<RiskBand, StatusTone> = {
 };
 
 const ALL = '__todos__';
+
+/**
+ * El semáforo del plazo legal, más exigente que el del objetivo interno: incumplirlo es un problema
+ * regulatorio, no una demora. Cualquier incumplimiento sale de verde, y por debajo del 90% se pinta
+ * en rojo — no hay una franja cómoda donde perder plazos de ley esté bien.
+ */
+function legalTone(rate: number | null): StatusTone {
+  if (rate === null) {
+    return 'neutral';
+  }
+  if (rate >= 1) {
+    return 'ok';
+  }
+  return rate >= 0.9 ? 'warning' : 'danger';
+}
 
 /**
  * Cuántos expedientes decididos tiene que haber tenido el período anterior para que comparar contra
@@ -343,6 +359,19 @@ export class DashboardComponent {
         ),
       },
       {
+        // La regulatoria. Va segunda, pegada al tiempo: las dos miden plazos, pero una es la meta
+        // que se puso la compañía y ésta es la ley.
+        label: 'Plazo legal (art. 56)',
+        value: this.percent(metrics.legalDeadline.rate),
+        sub:
+          metrics.legalDeadline.decided === 0
+            ? 'nada decidido en el período'
+            : `${metrics.legalDeadline.onTime} de ${metrics.legalDeadline.decided} en término`,
+        trend: '',
+        progress: metrics.legalDeadline.rate,
+        tone: legalTone(metrics.legalDeadline.rate),
+      },
+      {
         label: 'Coincidencia con el modelo',
         value: this.percent(agreement.rate),
         sub:
@@ -352,6 +381,20 @@ export class DashboardComponent {
         trend: '',
         progress: agreement.rate,
         tone: 'info' as StatusTone,
+      },
+      {
+        // Calidad de la decisión, al lado de la coincidencia: las dos hablan de si se está
+        // decidiendo bien, no de cuánto se decidió.
+        label: 'Reapertura',
+        value: this.percent(metrics.reopening.rate),
+        sub:
+          metrics.reopening.resolved === 0
+            ? 'nada cerrado en el período'
+            : `${metrics.reopening.reopened} de ${metrics.reopening.resolved} cerrados`,
+        trend: '',
+        progress: metrics.reopening.rate,
+        // Al revés que el resto: acá lo bueno es que la barra esté vacía.
+        tone: (metrics.reopening.rate ?? 0) > 0 ? ('warning' as StatusTone) : ('ok' as StatusTone),
       },
       {
         label: 'Aprobación',
@@ -412,6 +455,96 @@ export class DashboardComponent {
     const own = Math.max(total - waiting, 0);
     return `${resolutionTimeLabel(own)} de gestión · ${resolutionTimeLabel(waiting)} esperando a terceros`;
   });
+
+  /**
+   * La comparación cruda del Fast Track: dos promedios medidos, uno al lado del otro.
+   *
+   * Vacío mientras falte alguno de los dos lados. Un "Fast Track: 2 d" solo no compara con nada, y
+   * el renglón entero existe para comparar.
+   */
+  protected readonly fastTrackComparison = computed(() => {
+    const impact = this.data()?.fastTrack;
+    if (!impact || impact.fastTrackHours == null || impact.standardHours == null) {
+      return '';
+    }
+    return `Fast Track: ${resolutionTimeLabel(impact.fastTrackHours)} · `
+      + `Resto: ${resolutionTimeLabel(impact.standardHours)}`;
+  });
+
+  /** Cuántos expedientes hay detrás de cada mitad de la comparación, para saber cuánto pesa. */
+  protected readonly fastTrackBase = computed(() => {
+    const impact = this.data()?.fastTrack;
+    if (!impact) {
+      return '';
+    }
+    return `${impact.fastTrackDecided} y ${impact.standardDecided} expedientes decididos`;
+  });
+
+  /**
+   * La plata del período, ya formateada. Null cuando no se liquidó nada: la sección no se dibuja,
+   * en vez de mostrar una fila de ceros que se lee como si la compañía no hubiera pagado nada
+   * cuando en realidad todavía no liquidó.
+   */
+  protected readonly money = computed(() => {
+    const metrics = this.data();
+    if (!metrics || metrics.settled.settlements === 0) {
+      return null;
+    }
+    const settled = metrics.settled;
+    const deductions =
+      Number(settled.deductible) + Number(settled.installments) + Number(settled.overdue);
+    return {
+      settlements: settled.settlements,
+      total: this.formatAmount(settled.settled),
+      average: settled.average === null ? '—' : this.formatAmount(settled.average),
+      claimed: this.formatAmount(settled.claimed),
+      deductions: this.formatAmount(String(deductions)),
+      deductible: this.formatAmount(settled.deductible),
+      installments: this.formatAmount(settled.installments),
+      overdue: this.formatAmount(settled.overdue),
+      // Lo reclamado no es obligatorio en la denuncia, así que puede venir en cero aunque haya
+      // liquidaciones. Sin este corte la comparación diría "se liquidó el 0% de lo reclamado".
+      comparable: Number(settled.claimed) > 0,
+      share: Number(settled.claimed) > 0
+        ? this.percent(Number(settled.settled) / Number(settled.claimed))
+        : '',
+    };
+  });
+
+  /** El fraude del período, con lo que evitó pagar. Null sin ninguno: no hay nada que contar. */
+  protected readonly fraud = computed(() => {
+    const fraud = this.data()?.fraud;
+    if (!fraud || fraud.fraudDetermined === 0) {
+      return null;
+    }
+    return {
+      cases: fraud.fraudDetermined,
+      decided: fraud.decided,
+      backedByExpert: fraud.backedByExpert,
+      notPaid: this.formatAmount(fraud.amountNotPaid),
+      // Sin monto reclamado cargado no hay ahorro que mostrar, sólo la cantidad de casos.
+      hasAmount: Number(fraud.amountNotPaid) > 0,
+    };
+  });
+
+  /** Una fila por tipo de tercero: cuántas derivaciones salieron, cuántas volvieron y en cuánto. */
+  protected readonly derivations = computed(() =>
+    (this.data()?.derivations ?? []).map((row) => ({
+      label: providerLabel(row.providerType),
+      derived: row.derived,
+      pending: row.derived - row.answered,
+      average: row.averageHours === null ? '—' : resolutionTimeLabel(row.averageHours),
+    })),
+  );
+
+  protected readonly blockingRuleItems = computed<DistributionItem[]>(() =>
+    (this.data()?.byBlockingRule ?? []).map((count) => ({
+      label: count.label ?? 'Sin identificar',
+      count: count.count,
+      // Que una regla frene no es una alerta: es la regla haciendo su trabajo. Sin semáforo.
+      tone: 'neutral' as StatusTone,
+    })),
+  );
 
   protected readonly statusItems = computed<DistributionItem[]>(() =>
     (this.data()?.byStatus ?? []).map((count) => ({
@@ -517,6 +650,15 @@ export class DashboardComponent {
   });
 
   // ─── Formato ───────────────────────────────────────────────────────────────────────
+
+  /**
+   * Un monto del backend (BigDecimal serializado como string) en pesos, sin centavos: en un tablero
+   * de cartera los centavos son ruido y alargan cada número lo suficiente como para que la fila no
+   * entre en mobile.
+   */
+  private formatAmount(amount: string): string {
+    return formatCurrency(Number(amount), this.locale, '$', 'ARS', '1.0-0');
+  }
 
   private percent(rate: number | null | undefined): string {
     return rate === null || rate === undefined ? '—' : formatPercent(rate, this.locale, '1.0-0');

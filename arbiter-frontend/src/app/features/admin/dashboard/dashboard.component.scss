@@ -161,6 +161,87 @@
   font-weight: var(--font-weight-medium);
 }
 
+/* ─── La plata del período ───────────────────────────────────────────────── */
+
+/* Cuatro cifras en fila; en mobile caen de a dos y después de a una. */
+.money {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: var(--space-4);
+}
+
+.money-figure {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+.money-label {
+  color: var(--text-tertiary);
+}
+
+/* El número es lo que se busca; el resto de la tarjeta lo explica. */
+.money-value {
+  font-size: var(--font-size-lg);
+  font-weight: var(--font-weight-bold);
+  color: var(--text-primary);
+}
+
+.money-note {
+  font-size: var(--font-size-xs);
+  color: var(--text-muted);
+}
+
+/* El renglón de fraude cierra la tarjeta: es la lectura, no una cifra más de la grilla. */
+.money-fraud {
+  margin: var(--space-4) 0 0;
+  padding-top: var(--space-3);
+  border-top: 1px solid var(--border-subtle);
+  font-size: var(--font-size-xs);
+  color: var(--text-muted);
+}
+.money-fraud strong {
+  color: var(--text-secondary);
+  font-weight: var(--font-weight-medium);
+}
+
+/* ─── Respuesta de los terceros ──────────────────────────────────────────── */
+
+.deriv {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+/* Nombre · cuántas · en cuánto, y abajo el pendiente, que es la parte accionable. */
+.deriv-row {
+  display: grid;
+  grid-template-columns: 1fr auto auto;
+  align-items: baseline;
+  gap: var(--space-2) var(--space-3);
+}
+
+.deriv-label {
+  font-size: var(--font-size-sm);
+  color: var(--text-primary);
+}
+
+.deriv-count,
+.deriv-avg {
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-medium);
+  color: var(--text-secondary);
+}
+
+.deriv-note {
+  grid-column: 1 / -1;
+  font-size: var(--font-size-2xs);
+  color: var(--text-muted);
+}
+
 /* ─── Movimiento y atención ──────────────────────────────────────────────── */
 
 .middle {

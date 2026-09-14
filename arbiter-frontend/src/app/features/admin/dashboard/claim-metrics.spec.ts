@@ -1,4 +1,4 @@
-import { resolutionTimeLabel } from './claim-metrics';
+import { providerLabel, resolutionTimeLabel } from './claim-metrics';
 
 describe('resolutionTimeLabel', () => {
   it('sin expedientes decididos, el promedio es desconocido y no cero', () => {
@@ -15,5 +15,18 @@ describe('resolutionTimeLabel', () => {
   it('desde un día se lee en días, con un decimal', () => {
     expect(resolutionTimeLabel(24)).toBe('1.0 d');
     expect(resolutionTimeLabel(739.2)).toBe('30.8 d');
+  });
+});
+
+describe('providerLabel', () => {
+  it('traduce los dos tipos de tercero que la app deriva', () => {
+    expect(providerLabel('ESTUDIO_LIQUIDADOR')).toBe('Peritaje');
+    expect(providerLabel('SERVICIO_TECNICO')).toBe('Servicio técnico');
+  });
+
+  it('un tipo que no conoce se muestra crudo, no vacío', () => {
+    // El día que cases-service sume un tercero nuevo, la fila tiene que seguir siendo legible
+    // aunque acá falte el mapeo: una etiqueta fea se ve y se arregla, una vacía pasa desapercibida.
+    expect(providerLabel('CRISTALERIA')).toBe('CRISTALERIA');
   });
 });

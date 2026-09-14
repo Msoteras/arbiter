@@ -112,8 +112,106 @@ export interface RecommendationAgreement {
 export interface ResolutionTarget {
   enabled: boolean;
   targetDays: number | null;
-  /** Cuántos de los DECIDIDOS en el período tardaron más que eso. */
+  /**
+   * Cuántos de los DECIDIDOS en el período tardaron más que eso, medidos por su **tiempo de
+   * gestión**: al total se le descuenta lo que el expediente esperó documentación, un perito o el
+   * servicio técnico, porque el procedimiento dice que esas derivaciones interrumpen el plazo.
+   *
+   * Por eso la tarjeta aclara "de gestión": el número grande de arriba es el tiempo total, y sin
+   * esa palabra un promedio de 35 días contra un objetivo de 21 que casi todos cumplieron se lee
+   * como un error.
+   */
   exceeded: number;
+}
+
+/**
+ * Cumplimiento del plazo legal del art. 56 sobre los expedientes decididos en el período.
+ *
+ * Es la única métrica regulatoria del tablero y se lee aparte del objetivo de resolución: el
+ * objetivo es una meta que la compañía se pone y puede cambiar cuando quiera; éste es el plazo que
+ * le da la ley para pronunciarse. Pasarse de uno es gestión, pasarse del otro es otra cosa.
+ */
+export interface LegalDeadline {
+  decided: number;
+  onTime: number;
+  /** Null sin decisiones: el cumplimiento es desconocido, no del 0%. */
+  rate: number | null;
+}
+
+/**
+ * Cuántos de los expedientes cerrados en el período habían sido reabiertos alguna vez.
+ *
+ * Calidad de la decisión, no volumen: se lee al lado de la coincidencia con el modelo. Si se
+ * reabren muchos, se está decidiendo rápido y mal. Se cuenta por expediente — uno que fue y vino
+ * tres veces es un expediente con problemas, no tres.
+ */
+export interface ReopeningRate {
+  resolved: number;
+  reopened: number;
+  rate: number | null;
+}
+
+/**
+ * La plata del período. Montos en pesos, como strings: son BigDecimal del backend y el JSON los
+ * manda así para no perder centavos en el float de JavaScript. Se formatean con `formatCurrency`.
+ *
+ * Sólo las liquidaciones ya firmadas. Una que espera la firma del referente puede volver con un
+ * motivo y rehacerse por otro monto, así que sumarla diría que la compañía se obligó por una plata
+ * que nadie firmó.
+ */
+export interface SettledAmounts {
+  settlements: number;
+  settled: string;
+  /** Null sin liquidaciones: un período sin liquidar nada no tiene un promedio de cero. */
+  average: string | null;
+  /** Lo que reclamaban esos expedientes. El monto reclamado no es obligatorio en la denuncia, así
+   *  que puede cubrir menos expedientes que los liquidados. */
+  claimed: string;
+  deductible: string;
+  installments: string;
+  overdue: string;
+}
+
+/**
+ * El fraude determinado en el período y, sobre todo, lo que no se pagó por haberlo detectado. Es
+ * el número que justifica investigar: sin él, derivar a un perito figura sólo como demora.
+ */
+export interface FraudDetection {
+  decided: number;
+  /** Determinación humana, no la banda de riesgo: el puntaje sugiere, el analista determina. */
+  fraudDetermined: number;
+  /** De ésos, los que además tienen un peritaje que lo confirmó. */
+  backedByExpert: number;
+  /** Lo que reclamaban los que se rechazaron. Los aprobados no entran: ahí no se ahorró nada. */
+  amountNotPaid: string;
+}
+
+/**
+ * Cuánto agiliza el Fast Track, como dos mediciones y no como un ahorro estimado.
+ *
+ * La maqueta pedía "54 h ahorradas", que sale de multiplicar la diferencia de dos promedios por la
+ * cantidad de casos: con una docena de expedientes al mes eso es ruido presentado como resultado.
+ */
+export interface FastTrackImpact {
+  fastTrackDecided: number;
+  fastTrackHours: number | null;
+  standardDecided: number;
+  standardHours: number | null;
+}
+
+/**
+ * Cuánto tarda en contestar cada clase de tercero al que se deriva un expediente.
+ *
+ * Se cuenta por cuándo SALIÓ la derivación, no por cuándo volvió: anclarla en la respuesta dejaría
+ * afuera a las que todavía no contestaron, que son las que hay que mirar.
+ */
+export interface DerivationTurnaround {
+  /** Crudo del backend (`ESTUDIO_LIQUIDADOR` / `SERVICIO_TECNICO`); la etiqueta la pone el front. */
+  providerType: string;
+  derived: number;
+  answered: number;
+  /** Promedio sólo sobre las que volvieron: una pendiente todavía no tardó nada definitivo. */
+  averageHours: number | null;
 }
 
 export interface ClaimMetrics {
@@ -131,11 +229,19 @@ export interface ClaimMetrics {
   previousSummary: MetricsSummary;
   agreement: RecommendationAgreement;
   resolutionTarget: ResolutionTarget;
+  legalDeadline: LegalDeadline;
+  reopening: ReopeningRate;
+  settled: SettledAmounts;
+  fraud: FraudDetection;
+  fastTrack: FastTrackImpact;
+  derivations: DerivationTurnaround[];
   /** Denunciados en el período, por el estado en el que están HOY. */
   byStatus: MetricCount[];
   byBranch: MetricCount[];
   byClassification: MetricCount[];
   byRiskBand: MetricCount[];
+  /** Qué reglas frenaron más expedientes de los denunciados en el período. */
+  byBlockingRule: MetricCount[];
   timeline: TimelinePoint[];
 }
 
@@ -154,6 +260,21 @@ export function resolutionTimeLabel(hours: number | null | undefined): string {
     return '—';
   }
   return hours < 24 ? `${Math.round(hours)} h` : `${(hours / 24).toFixed(1)} d`;
+}
+
+/**
+ * El tipo de tercero, en castellano. Los literales son de cases-service, que es el dueño de la
+ * derivación; el mapeo vive acá por la misma razón que el de los estados.
+ */
+export function providerLabel(providerType: string): string {
+  switch (providerType) {
+    case 'ESTUDIO_LIQUIDADOR':
+      return 'Peritaje';
+    case 'SERVICIO_TECNICO':
+      return 'Servicio técnico';
+    default:
+      return providerType;
+  }
 }
 
 /**
