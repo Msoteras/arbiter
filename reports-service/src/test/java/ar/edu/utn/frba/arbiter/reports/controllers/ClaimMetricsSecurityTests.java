@@ -3,6 +3,7 @@ package ar.edu.utn.frba.arbiter.reports.controllers;
 import ar.edu.utn.frba.arbiter.common.security.JwtSupport;
 import ar.edu.utn.frba.arbiter.reports.config.tenant.TenantContext;
 import ar.edu.utn.frba.arbiter.reports.dto.ClaimMetrics;
+import ar.edu.utn.frba.arbiter.reports.dto.FraudDetection;
 import ar.edu.utn.frba.arbiter.reports.dto.IntakeFunnel;
 import ar.edu.utn.frba.arbiter.reports.dto.LegalDeadline;
 import ar.edu.utn.frba.arbiter.reports.dto.MetricCount;
@@ -10,6 +11,7 @@ import ar.edu.utn.frba.arbiter.reports.dto.MetricsFilter;
 import ar.edu.utn.frba.arbiter.reports.dto.MetricsSummary;
 import ar.edu.utn.frba.arbiter.reports.dto.RecommendationAgreement;
 import ar.edu.utn.frba.arbiter.reports.dto.ReopeningRate;
+import ar.edu.utn.frba.arbiter.reports.dto.SettledAmounts;
 import ar.edu.utn.frba.arbiter.reports.dto.ResolutionTarget;
 import ar.edu.utn.frba.arbiter.reports.dto.TimelineGranularity;
 import ar.edu.utn.frba.arbiter.reports.dto.TimelinePoint;
@@ -26,6 +28,7 @@ import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 
 import java.time.Duration;
+import java.math.BigDecimal;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.util.Date;
@@ -164,6 +167,9 @@ class ClaimMetricsSecurityTests extends AbstractPersistenceIT {
                 new ResolutionTarget(true, 21, 3),
                 LegalDeadline.of(8, 7),
                 ReopeningRate.of(8, 1),
+                SettledAmounts.of(6, new BigDecimal("1830000.00"), new BigDecimal("2100000.00"),
+                        new BigDecimal("210000.00"), BigDecimal.ZERO, new BigDecimal("60000.00")),
+                new FraudDetection(8, 1, 1, new BigDecimal("340000.00")),
                 List.of(new MetricCount("APPROVED", 6), new MetricCount("REJECTED", 2)),
                 List.of(new MetricCount("Celulares", 40)),
                 List.of(new MetricCount("LLM_RECOMIENDA_APROBAR", 30)),

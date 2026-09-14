@@ -161,9 +161,10 @@ public class Case {
 
     /**
      * Final human determination that the claim was fraudulent ("fue_determinado_fraude") —
-     * distinct from {@code riskBand}, which is the model's suggestion, not a verdict. Nothing
-     * writes this yet: there is no analyst-facing "mark as fraud" flow today, only the
-     * approve/reject decision. Defaults to {@code false} to match the column's default.
+     * distinct from {@code riskBand}, which is the model's suggestion, not a verdict. Written by
+     * {@code FraudRecordService}, and only after the fraud record on the insured is in: a case
+     * flagged here with no record behind it would be a claim nobody can trace back to a
+     * determination. Defaults to {@code false} to match the column's default.
      */
     @Builder.Default
     @Column(name = "fraud_determined", nullable = false)

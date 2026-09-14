@@ -2,12 +2,16 @@ package ar.edu.utn.frba.arbiter.reports.models.repositories;
 
 import ar.edu.utn.frba.arbiter.common.enums.CaseStatus;
 import ar.edu.utn.frba.arbiter.common.enums.Classification;
+import ar.edu.utn.frba.arbiter.common.enums.ExpertVerdict;
+import ar.edu.utn.frba.arbiter.common.enums.SettlementStatus;
+import ar.edu.utn.frba.arbiter.reports.dto.FraudDetection;
 import ar.edu.utn.frba.arbiter.reports.dto.IntakeFunnel;
 import ar.edu.utn.frba.arbiter.reports.dto.LegalDeadline;
 import ar.edu.utn.frba.arbiter.reports.dto.MetricCount;
 import ar.edu.utn.frba.arbiter.reports.dto.MetricsFilter;
 import ar.edu.utn.frba.arbiter.reports.dto.RecommendationAgreement;
 import ar.edu.utn.frba.arbiter.reports.dto.ReopeningRate;
+import ar.edu.utn.frba.arbiter.reports.dto.SettledAmounts;
 import ar.edu.utn.frba.arbiter.reports.dto.TimelineGranularity;
 import ar.edu.utn.frba.arbiter.reports.dto.TimelinePoint;
 import jakarta.persistence.EntityManager;
@@ -433,6 +437,86 @@ public class ClaimMetricsRepository {
                 + filters(filter);
         return query(template -> template.queryForObject(sql, period(from, to, filter),
                 (rs, rowNum) -> ReopeningRate.of(rs.getLong("resolved"), rs.getLong("reopened"))));
+    }
+
+    /**
+     * Lo liquidado en el período y de dónde salió ese número.
+     *
+     * <p>Se ancla en {@code confirmed_at} de la liquidación: el día en que la obligación nace. Y
+     * sólo las {@code AUTHORIZED}: una que espera la firma del referente puede volver con un motivo
+     * y rehacerse por otro monto, así que sumarla diría que la compañía se obligó por una plata que
+     * nadie firmó.
+     *
+     * <p>Las deducciones vienen congeladas en la propia liquidación, no se recalculan: el referente
+     * puede cambiar mañana la franquicia del ramo y esta liquidación tiene que seguir explicándose
+     * con la que se le aplicó.
+     */
+    @Transactional(readOnly = true)
+    public SettledAmounts settledAmounts(Instant from, Instant to, MetricsFilter filter) {
+        String sql = """
+                SELECT count(*) AS settlements,
+                       COALESCE(sum(st.settled_amount), 0) AS settled,
+                       COALESCE(sum(c.claimed_amount), 0) AS claimed,
+                       COALESCE(sum(st.deductible_amount), 0) AS deductible,
+                       COALESCE(sum(st.pending_installments_amount), 0) AS installments,
+                       COALESCE(sum(st.overdue_balance_amount), 0) AS overdue"""
+                + FROM_CASES + """
+
+                  JOIN case_settlement st ON st.case_id = c.id
+                 WHERE st.confirmed_at >= :from AND st.confirmed_at < :to
+                   AND st.status = :authorized"""
+                + filters(filter);
+        MapSqlParameterSource params = period(from, to, filter).addValue("authorized", SettlementStatus.AUTHORIZED.name());
+        return query(template -> template.queryForObject(sql, params, (rs, rowNum) ->
+                SettledAmounts.of(
+                        rs.getLong("settlements"),
+                        rs.getBigDecimal("settled"),
+                        rs.getBigDecimal("claimed"),
+                        rs.getBigDecimal("deductible"),
+                        rs.getBigDecimal("installments"),
+                        rs.getBigDecimal("overdue"))));
+    }
+
+    /**
+     * El fraude determinado sobre los expedientes decididos en el período, y lo que se dejó de
+     * pagar por haberlo detectado.
+     *
+     * <p>Lo ahorrado se cuenta sólo sobre los rechazados: en un expediente donde se determinó el
+     * fraude y aun así se aprobó no hay nada ahorrado, y sumarlo infla el número que justifica
+     * investigar.
+     *
+     * <p>El respaldo pericial se mira por {@code EXISTS} y no por join: un expediente puede tener
+     * más de una derivación —un peritaje y un servicio técnico— y con join contaría dos veces.
+     */
+    @Transactional(readOnly = true)
+    public FraudDetection fraudDetection(Instant from, Instant to, MetricsFilter filter) {
+        String sql = RESOLUTION_CTE + """
+
+                SELECT count(*) AS decided,
+                       count(*) FILTER (WHERE c.fraud_determined) AS fraud_determined,
+                       count(*) FILTER (WHERE c.fraud_determined AND EXISTS (
+                           SELECT 1 FROM expert_assessment ea
+                            WHERE ea.case_id = c.id AND ea.verdict = :fraudConfirmed
+                       )) AS backed_by_expert,
+                       COALESCE(sum(c.claimed_amount) FILTER (
+                           WHERE c.fraud_determined AND s.name = :rejected
+                       ), 0) AS amount_not_paid"""
+                + FROM_CASES + """
+
+                  JOIN case_status s ON s.id = c.current_status_id AND s.is_final
+                  JOIN resolution r  ON r.case_id = c.id
+                 WHERE r.resolved_at >= :from AND r.resolved_at < :to
+                   AND s.name IN (:approved, :rejected)"""
+                + filters(filter);
+        MapSqlParameterSource params = period(from, to, filter)
+                .addValue("approved", CaseStatus.APPROVED.name())
+                .addValue("rejected", CaseStatus.REJECTED.name())
+                .addValue("fraudConfirmed", ExpertVerdict.FRAUD_CONFIRMED.name());
+        return query(template -> template.queryForObject(sql, params, (rs, rowNum) -> new FraudDetection(
+                rs.getLong("decided"),
+                rs.getLong("fraud_determined"),
+                rs.getLong("backed_by_expert"),
+                rs.getBigDecimal("amount_not_paid"))));
     }
 
     /** One row per final status reached in the period, with its own average time to get there. */

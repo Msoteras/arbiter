@@ -33,6 +33,10 @@ import java.util.List;
  *                         sets itself, this one is the law
  * @param reopening        how many of the claims closed in the period had been reopened at least
  *                         once — a quality-of-decision figure, read next to {@link #agreement()}
+ * @param settled          what the insurer committed to pay in the period, and how that figure was
+ *                         reached from what the insured claimed
+ * @param fraud            fraud determined in the period and what it saved — the figure that pays
+ *                         for investigating
  * @param byStatus         claims filed in the period, by the status they sit in <b>now</b> — a
  *                         snapshot of where the intake ended up, not of transitions
  * @param byBranch         claims filed in the period, by branch ("ramo")
@@ -52,6 +56,8 @@ public record ClaimMetrics(
         ResolutionTarget resolutionTarget,
         LegalDeadline legalDeadline,
         ReopeningRate reopening,
+        SettledAmounts settled,
+        FraudDetection fraud,
         List<MetricCount> byStatus,
         List<MetricCount> byBranch,
         List<MetricCount> byClassification,

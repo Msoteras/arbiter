@@ -1,11 +1,13 @@
 package ar.edu.utn.frba.arbiter.reports.models.repositories;
 
+import ar.edu.utn.frba.arbiter.reports.dto.FraudDetection;
 import ar.edu.utn.frba.arbiter.reports.dto.IntakeFunnel;
 import ar.edu.utn.frba.arbiter.reports.dto.LegalDeadline;
 import ar.edu.utn.frba.arbiter.reports.dto.MetricCount;
 import ar.edu.utn.frba.arbiter.reports.dto.MetricsFilter;
 import ar.edu.utn.frba.arbiter.reports.dto.RecommendationAgreement;
 import ar.edu.utn.frba.arbiter.reports.dto.ReopeningRate;
+import ar.edu.utn.frba.arbiter.reports.dto.SettledAmounts;
 import ar.edu.utn.frba.arbiter.reports.dto.TimelineGranularity;
 import ar.edu.utn.frba.arbiter.reports.dto.TimelinePoint;
 import ar.edu.utn.frba.arbiter.reports.models.repositories.ClaimMetricsRepository.IntakeTotals;
@@ -448,6 +450,95 @@ class ClaimMetricsRepositoryTests extends AbstractPersistenceIT {
 
         assertThat(repository.reopeningRate(AUGUST_FROM, AUGUST_TO, NONE))
                 .isEqualTo(ReopeningRate.of(1, 0));
+    }
+
+    /**
+     * Lo liquidado se ancla en la fecha de la liquidación, no en la del expediente, y sólo entra la
+     * que ya está firmada.
+     */
+    @Test
+    void settled_addsUpOnlyTheAuthorisedSettlementsConfirmedInThePeriod() {
+        tables.insertCase(1, "2026-07-20T10:00:00Z", APPROVED, ROBO_CELULARES, false, LAURA, null);
+        tables.claimed(1, "500000.00");
+        tables.settlement(1, "420000.00", "AUTHORIZED", "2026-08-05T10:00:00Z",
+                "50000.00", "20000.00", "10000.00");
+        tables.insertCase(2, "2026-08-01T10:00:00Z", APPROVED, ROBO_CELULARES, false, LAURA, null);
+        tables.claimed(2, "300000.00");
+        tables.settlement(2, "280000.00", "AUTHORIZED", "2026-08-20T10:00:00Z", "20000.00", "0", "0");
+        // Espera la firma del referente: todavía no es un compromiso.
+        tables.insertCase(3, "2026-08-02T10:00:00Z", APPROVED, ROBO_CELULARES, false, LAURA, null);
+        tables.claimed(3, "900000.00");
+        tables.settlement(3, "850000.00", "PENDING_AUTHORIZATION", "2026-08-21T10:00:00Z", "0", "0", "0");
+        // Firmada, pero en septiembre: es del período siguiente.
+        tables.insertCase(4, "2026-08-03T10:00:00Z", APPROVED, ROBO_CELULARES, false, LAURA, null);
+        tables.settlement(4, "100000.00", "AUTHORIZED", "2026-09-02T10:00:00Z", "0", "0", "0");
+
+        SettledAmounts settled = repository.settledAmounts(AUGUST_FROM, AUGUST_TO, NONE);
+
+        assertThat(settled.settlements()).isEqualTo(2);
+        assertThat(settled.settled()).isEqualByComparingTo("700000.00");
+        assertThat(settled.average()).isEqualByComparingTo("350000.00");
+        assertThat(settled.claimed()).isEqualByComparingTo("800000.00");
+        assertThat(settled.deductible()).isEqualByComparingTo("70000.00");
+        assertThat(settled.installments()).isEqualByComparingTo("20000.00");
+        assertThat(settled.overdue()).isEqualByComparingTo("10000.00");
+    }
+
+    /** Un período sin liquidar nada no tiene un promedio de cero: no tiene promedio. */
+    @Test
+    void settled_hasNoAverageWhenNothingWasSettled() {
+        tables.insertCase(1, "2026-08-01T10:00:00Z", PENDING_REVIEW, ROBO_CELULARES, false, LAURA, null);
+
+        assertThat(repository.settledAmounts(AUGUST_FROM, AUGUST_TO, NONE).average()).isNull();
+    }
+
+    /**
+     * Lo ahorrado se cuenta sólo sobre los rechazados: donde se determinó el fraude y aun así se
+     * aprobó no hay nada ahorrado.
+     */
+    @Test
+    void fraud_countsWhatWasNotPaidOnlyOnTheRejectedOnes() {
+        // Fraude determinado y rechazado, con respaldo de un peritaje: ahorro y respaldo.
+        tables.insertCase(1, "2026-08-01T10:00:00Z", REJECTED, ROBO_CELULARES, false, LAURA, null);
+        tables.transition(1, PENDING_REVIEW, REJECTED, "2026-08-10T10:00:00Z");
+        tables.claimed(1, "400000.00");
+        tables.fraudDetermined(1);
+        tables.assessment(1, "ESTUDIO_LIQUIDADOR", "FRAUD_CONFIRMED", null,
+                "2026-08-03T10:00:00Z", "2026-08-08T10:00:00Z");
+        // Fraude determinado por el analista, sin peritaje detrás, y rechazado.
+        tables.insertCase(2, "2026-08-01T10:00:00Z", REJECTED, ROBO_CELULARES, false, LAURA, null);
+        tables.transition(2, PENDING_REVIEW, REJECTED, "2026-08-12T10:00:00Z");
+        tables.claimed(2, "150000.00");
+        tables.fraudDetermined(2);
+        // Fraude determinado pero aprobado igual: no hay nada ahorrado que contar.
+        tables.insertCase(3, "2026-08-01T10:00:00Z", APPROVED, ROBO_CELULARES, false, LAURA, null);
+        tables.transition(3, PENDING_REVIEW, APPROVED, "2026-08-14T10:00:00Z");
+        tables.claimed(3, "999999.00");
+        tables.fraudDetermined(3);
+        // Sin fraude: sólo suma al universo de decididos.
+        tables.insertCase(4, "2026-08-01T10:00:00Z", APPROVED, ROBO_CELULARES, false, LAURA, null);
+        tables.transition(4, PENDING_REVIEW, APPROVED, "2026-08-15T10:00:00Z");
+
+        FraudDetection fraud = repository.fraudDetection(AUGUST_FROM, AUGUST_TO, NONE);
+
+        assertThat(fraud.decided()).isEqualTo(4);
+        assertThat(fraud.fraudDetermined()).isEqualTo(3);
+        assertThat(fraud.backedByExpert()).isEqualTo(1);
+        assertThat(fraud.amountNotPaid()).isEqualByComparingTo("550000.00");
+    }
+
+    /** Dos derivaciones sobre el mismo expediente no lo cuentan dos veces como respaldado. */
+    @Test
+    void fraud_countsTheExpertBackingOncePerCase_evenWithTwoDerivations() {
+        tables.insertCase(1, "2026-08-01T10:00:00Z", REJECTED, ROBO_CELULARES, false, LAURA, null);
+        tables.transition(1, PENDING_REVIEW, REJECTED, "2026-08-10T10:00:00Z");
+        tables.fraudDetermined(1);
+        tables.assessment(1, "ESTUDIO_LIQUIDADOR", "FRAUD_CONFIRMED", null,
+                "2026-08-02T10:00:00Z", "2026-08-05T10:00:00Z");
+        tables.assessment(1, "ESTUDIO_LIQUIDADOR", "FRAUD_CONFIRMED", null,
+                "2026-08-06T10:00:00Z", "2026-08-08T10:00:00Z");
+
+        assertThat(repository.fraudDetection(AUGUST_FROM, AUGUST_TO, NONE).backedByExpert()).isEqualTo(1);
     }
 
     /** Filed 01/08, closed 05/08 in the given final status, with one model run behind it. */

@@ -87,6 +87,8 @@ public class ClaimMetricsService {
                 resolutionTarget(start, end, filter),
                 claimMetricsRepository.legalDeadlineCompliance(start, end, zone, filter),
                 claimMetricsRepository.reopeningRate(start, end, filter),
+                claimMetricsRepository.settledAmounts(start, end, filter),
+                claimMetricsRepository.fraudDetection(start, end, filter),
                 claimMetricsRepository.countByStatus(start, end, filter),
                 claimMetricsRepository.countByBranch(start, end, filter),
                 claimMetricsRepository.countByClassification(start, end, filter),
