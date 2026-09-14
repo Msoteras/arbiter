@@ -152,11 +152,11 @@ export interface ReopeningRate {
 }
 
 /**
- * La plata del período. Montos en pesos, como strings: son BigDecimal del backend y el JSON los
- * manda así para no perder centavos en el float de JavaScript. Se formatean con `formatCurrency`.
+ * Los montos liquidados en el período. Vienen como strings: son BigDecimal del backend y el JSON
+ * los manda así para no perder precisión en el float de JavaScript. Se formatean con `formatMoney`.
  *
  * Sólo las liquidaciones ya firmadas. Una que espera la firma del referente puede volver con un
- * motivo y rehacerse por otro monto, así que sumarla diría que la compañía se obligó por una plata
+ * motivo y rehacerse por otro monto, así que sumarla diría que la compañía se obligó por un importe
  * que nadie firmó.
  */
 export interface SettledAmounts {
@@ -164,9 +164,10 @@ export interface SettledAmounts {
   settled: string;
   /** Null sin liquidaciones: un período sin liquidar nada no tiene un promedio de cero. */
   average: string | null;
-  /** Lo que reclamaban esos expedientes. El monto reclamado no es obligatorio en la denuncia, así
-   *  que puede cubrir menos expedientes que los liquidados. */
   claimed: string;
+  /** Sobre cuántas liquidaciones se pudo sumar lo reclamado: el asegurado no está obligado a
+   *  cargarlo. Si no cubre todas, el porcentaje compara dos poblaciones distintas y no se muestra. */
+  claimedCases: number;
   deductible: string;
   installments: string;
   overdue: string;

@@ -98,9 +98,9 @@
         </p>
       }
 
-      <!-- ─── La plata del período ─────────────────────────────────────────────── -->
+      <!-- ─── Montos del período ───────────────────────────────────────────────── -->
       @if (money(); as cash) {
-        <app-card heading="La plata del período">
+        <app-card heading="Montos del período">
           <p class="card-note">
             Sólo liquidaciones ya firmadas: una que espera la firma del referente todavía puede
             volver y rehacerse por otro monto
@@ -121,7 +121,9 @@
               <strong class="money-value tabular">{{ cash.claimed }}</strong>
               <span class="money-note">
                 @if (cash.comparable) {
-                  se liquidó el {{ cash.share }}
+                  se liquidó el {{ cash.share }} de lo reclamado
+                } @else if (cash.missing > 0) {
+                  {{ cash.missing }} sin monto reclamado, no es comparable
                 } @else {
                   sin monto reclamado cargado
                 }

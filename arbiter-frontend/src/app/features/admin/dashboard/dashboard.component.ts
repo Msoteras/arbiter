@@ -1,4 +1,4 @@
-import { DatePipe, formatCurrency, formatNumber, formatPercent } from '@angular/common';
+import { DatePipe, formatNumber, formatPercent } from '@angular/common';
 import {
   ChangeDetectionStrategy,
   Component,
@@ -17,6 +17,7 @@ import { clasificacionLabel, clasificacionTone } from '../../../core/models/clas
 import { estadoLabel, estadoTone } from '../../../core/models/estado';
 import { RiskBand, riskBandLabel } from '../../../core/models/risk-band';
 import { StatusTone } from '../../../core/models/status-tone';
+import { formatMoney } from '../../../core/util/money';
 import { staggerReveal } from '../../../shared/animations';
 import { CardComponent } from '../../../shared/ui/card/card.component';
 import { ChartTheme, baseChartOptions, readChartTheme } from '../../../shared/ui/chart/chart-theme';
@@ -481,7 +482,7 @@ export class DashboardComponent {
   });
 
   /**
-   * La plata del período, ya formateada. Null cuando no se liquidó nada: la sección no se dibuja,
+   * Los montos del período, ya formateados. Null cuando no se liquidó nada: la sección no se dibuja,
    * en vez de mostrar una fila de ceros que se lee como si la compañía no hubiera pagado nada
    * cuando en realidad todavía no liquidó.
    */
@@ -495,16 +496,21 @@ export class DashboardComponent {
       Number(settled.deductible) + Number(settled.installments) + Number(settled.overdue);
     return {
       settlements: settled.settlements,
-      total: this.formatAmount(settled.settled),
-      average: settled.average === null ? '—' : this.formatAmount(settled.average),
-      claimed: this.formatAmount(settled.claimed),
-      deductions: this.formatAmount(String(deductions)),
-      deductible: this.formatAmount(settled.deductible),
-      installments: this.formatAmount(settled.installments),
-      overdue: this.formatAmount(settled.overdue),
-      // Lo reclamado no es obligatorio en la denuncia, así que puede venir en cero aunque haya
-      // liquidaciones. Sin este corte la comparación diría "se liquidó el 0% de lo reclamado".
-      comparable: Number(settled.claimed) > 0,
+      total: formatMoney(+settled.settled),
+      average: settled.average === null ? '—' : formatMoney(+settled.average),
+      claimed: formatMoney(+settled.claimed),
+      deductions: formatMoney(deductions),
+      deductible: formatMoney(+settled.deductible),
+      installments: formatMoney(+settled.installments),
+      overdue: formatMoney(+settled.overdue),
+      // La comparación sólo vale si TODAS las liquidaciones traen monto reclamado. Con algunas sin
+      // él, el porcentaje divide lo liquidado de N expedientes por lo reclamado de menos de N: da
+      // un número alto que parece un error de cálculo y no lo es, pero tampoco significa nada.
+      comparable: settled.claimedCases === settled.settlements && Number(settled.claimed) > 0,
+      missing: settled.settlements - settled.claimedCases,
+      // "117% de lo reclamado" es un dato real —se liquida por suma asegurada, no por lo que pidió
+      // el asegurado— y hay que poder leerlo sin que parezca una cuenta mal hecha. Por eso se
+      // enuncia como proporción y no como "se liquidó el …", que sugiere un tope del 100%.
       share: Number(settled.claimed) > 0
         ? this.percent(Number(settled.settled) / Number(settled.claimed))
         : '',
@@ -521,7 +527,7 @@ export class DashboardComponent {
       cases: fraud.fraudDetermined,
       decided: fraud.decided,
       backedByExpert: fraud.backedByExpert,
-      notPaid: this.formatAmount(fraud.amountNotPaid),
+      notPaid: formatMoney(+fraud.amountNotPaid),
       // Sin monto reclamado cargado no hay ahorro que mostrar, sólo la cantidad de casos.
       hasAmount: Number(fraud.amountNotPaid) > 0,
     };
@@ -650,15 +656,6 @@ export class DashboardComponent {
   });
 
   // ─── Formato ───────────────────────────────────────────────────────────────────────
-
-  /**
-   * Un monto del backend (BigDecimal serializado como string) en pesos, sin centavos: en un tablero
-   * de cartera los centavos son ruido y alargan cada número lo suficiente como para que la fila no
-   * entre en mobile.
-   */
-  private formatAmount(amount: string): string {
-    return formatCurrency(Number(amount), this.locale, '$', 'ARS', '1.0-0');
-  }
 
   private percent(rate: number | null | undefined): string {
     return rate === null || rate === undefined ? '—' : formatPercent(rate, this.locale, '1.0-0');

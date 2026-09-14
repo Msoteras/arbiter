@@ -468,6 +468,7 @@ public class ClaimMetricsRepository {
                 SELECT count(*) AS settlements,
                        COALESCE(sum(st.settled_amount), 0) AS settled,
                        COALESCE(sum(c.claimed_amount), 0) AS claimed,
+                       count(*) FILTER (WHERE c.claimed_amount IS NOT NULL) AS claimed_cases,
                        COALESCE(sum(st.deductible_amount), 0) AS deductible,
                        COALESCE(sum(st.pending_installments_amount), 0) AS installments,
                        COALESCE(sum(st.overdue_balance_amount), 0) AS overdue"""
@@ -483,6 +484,7 @@ public class ClaimMetricsRepository {
                         rs.getLong("settlements"),
                         rs.getBigDecimal("settled"),
                         rs.getBigDecimal("claimed"),
+                        rs.getLong("claimed_cases"),
                         rs.getBigDecimal("deductible"),
                         rs.getBigDecimal("installments"),
                         rs.getBigDecimal("overdue"))));

@@ -18,9 +18,12 @@ import java.math.RoundingMode;
  * @param settled     la suma de lo liquidado — el número que el referente busca primero
  * @param average     lo liquidado por siniestro; null sin liquidaciones, porque un período sin
  *                    liquidar nada no tiene un promedio de cero
- * @param claimed     lo que reclamaban esos mismos expedientes. Puede quedar corto respecto de la
- *                    cantidad de liquidaciones: el monto reclamado lo carga el asegurado en la
- *                    denuncia y no es obligatorio, así que hay expedientes que no lo traen
+ * @param claimed     lo que reclamaban esos mismos expedientes
+ * @param claimedCases sobre cuántas de las liquidaciones se pudo sumar eso. El monto reclamado lo
+ *                    carga el asegurado en la denuncia y no es obligatorio, así que hay expedientes
+ *                    que no lo traen. Va aparte para que la pantalla sepa si la comparación
+ *                    "liquidado contra reclamado" cubre todo el período o sólo una parte: con dos
+ *                    poblaciones distintas el porcentaje no significa lo que parece
  * @param deductible  cuánto se descontó por franquicia
  * @param installments cuánto se descontó por cuotas de la póliza todavía no pagadas
  * @param overdue     cuánto se descontó por saldo en mora
@@ -30,20 +33,23 @@ public record SettledAmounts(
         BigDecimal settled,
         BigDecimal average,
         BigDecimal claimed,
+        long claimedCases,
         BigDecimal deductible,
         BigDecimal installments,
         BigDecimal overdue
 ) {
 
     public static final SettledAmounts NONE = new SettledAmounts(
-            0, BigDecimal.ZERO, null, BigDecimal.ZERO,
+            0, BigDecimal.ZERO, null, BigDecimal.ZERO, 0,
             BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ZERO);
 
     public static SettledAmounts of(long settlements, BigDecimal settled, BigDecimal claimed,
-                                    BigDecimal deductible, BigDecimal installments, BigDecimal overdue) {
+                                    long claimedCases, BigDecimal deductible,
+                                    BigDecimal installments, BigDecimal overdue) {
         BigDecimal average = settlements == 0
                 ? null
                 : settled.divide(BigDecimal.valueOf(settlements), 2, RoundingMode.HALF_UP);
-        return new SettledAmounts(settlements, settled, average, claimed, deductible, installments, overdue);
+        return new SettledAmounts(settlements, settled, average, claimed, claimedCases,
+                deductible, installments, overdue);
     }
 }

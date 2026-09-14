@@ -169,7 +169,7 @@ class ClaimMetricsSecurityTests extends AbstractPersistenceIT {
                 new ResolutionTarget(true, 21, 3),
                 LegalDeadline.of(8, 7),
                 ReopeningRate.of(8, 1),
-                SettledAmounts.of(6, new BigDecimal("1830000.00"), new BigDecimal("2100000.00"),
+                SettledAmounts.of(6, new BigDecimal("1830000.00"), new BigDecimal("2100000.00"), 6,
                         new BigDecimal("210000.00"), BigDecimal.ZERO, new BigDecimal("60000.00")),
                 new FraudDetection(8, 1, 1, new BigDecimal("340000.00")),
                 new FastTrackImpact(2, 48.0, 6, 840.0),

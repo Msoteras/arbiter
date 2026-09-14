@@ -161,7 +161,7 @@
   font-weight: var(--font-weight-medium);
 }
 
-/* ─── La plata del período ───────────────────────────────────────────────── */
+/* ─── Montos del período ─────────────────────────────────────────────────── */
 
 /* Cuatro cifras en fila; en mobile caen de a dos y después de a una. */
 .money {
@@ -337,11 +337,18 @@
 
 /* ─── Distribuciones ─────────────────────────────────────────────────────── */
 
+/*
+ * Las tarjetas de cada fila se estiran a la más alta. Con `align-items: start` cada una medía lo
+ * que su contenido, y como las distribuciones tienen entre una y cinco filas la hilera quedaba
+ * dentada: cuatro tarjetas arrancando juntas y terminando cada una en un lado distinto. El borde
+ * de abajo desparejo se lee como un error de maquetado, no como "acá hay menos datos".
+ * La app-card ya trae min-height:100%, así que estirar el host alcanza.
+ */
 .panels {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
   gap: var(--space-4);
-  align-items: start;
+  align-items: stretch;
 }
 
 /**

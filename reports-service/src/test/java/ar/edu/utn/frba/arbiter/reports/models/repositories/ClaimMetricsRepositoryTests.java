@@ -481,9 +481,30 @@ class ClaimMetricsRepositoryTests extends AbstractPersistenceIT {
         assertThat(settled.settled()).isEqualByComparingTo("700000.00");
         assertThat(settled.average()).isEqualByComparingTo("350000.00");
         assertThat(settled.claimed()).isEqualByComparingTo("800000.00");
+        assertThat(settled.claimedCases()).isEqualTo(2);
         assertThat(settled.deductible()).isEqualByComparingTo("70000.00");
         assertThat(settled.installments()).isEqualByComparingTo("20000.00");
         assertThat(settled.overdue()).isEqualByComparingTo("10000.00");
+    }
+
+    /**
+     * El monto reclamado no es obligatorio en la denuncia. Cuando falta en alguno, la pantalla
+     * necesita saberlo: comparar lo liquidado de dos expedientes contra lo reclamado de uno da un
+     * porcentaje que no significa nada.
+     */
+    @Test
+    void settled_saysOnHowManySettlementsTheClaimedAmountCouldBeAddedUp() {
+        tables.insertCase(1, "2026-08-01T10:00:00Z", APPROVED, ROBO_CELULARES, false, LAURA, null);
+        tables.claimed(1, "300000.00");
+        tables.settlement(1, "280000.00", "AUTHORIZED", "2026-08-05T10:00:00Z", "0", "0", "0");
+        // Sin monto reclamado: suma a las liquidaciones pero no a lo reclamado.
+        tables.insertCase(2, "2026-08-02T10:00:00Z", APPROVED, ROBO_CELULARES, false, LAURA, null);
+        tables.settlement(2, "400000.00", "AUTHORIZED", "2026-08-06T10:00:00Z", "0", "0", "0");
+
+        SettledAmounts settled = repository.settledAmounts(AUGUST_FROM, AUGUST_TO, NONE);
+
+        assertThat(settled.settlements()).isEqualTo(2);
+        assertThat(settled.claimedCases()).isEqualTo(1);
     }
 
     /** Un período sin liquidar nada no tiene un promedio de cero: no tiene promedio. */
