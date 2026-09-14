@@ -8,6 +8,7 @@ import ar.edu.utn.frba.arbiter.common.enums.RiskBand;
 import jakarta.persistence.criteria.Predicate;
 import org.springframework.data.jpa.domain.Specification;
 
+import java.time.Instant;
 import java.time.LocalDate;
 import java.util.List;
 import java.util.Objects;
@@ -67,6 +68,26 @@ public final class CaseSpecifications {
         return (root, query, cb) -> cb.and(
                 cb.lessThanOrEqualTo(root.get("responseDeadline"), threshold),
                 cb.not(root.get("currentStatus").get("name").in(notTicking)));
+    }
+
+    /**
+     * Lente "Frenados": expedientes todavía abiertos que no se tocan desde antes de
+     * {@code threshold}. Alimenta el panel "Requiere atención" del tablero, que necesita saber qué
+     * quedó quieto, no cuántos hay.
+     *
+     * <p>Se mide contra {@code updatedAt} (el {@code @UpdateTimestamp} de la fila) y no contra la
+     * última transición de {@code case_status_history}: cualquier cambio sobre el expediente cuenta
+     * como movimiento —asignarlo a un analista lo es, aunque el estado no cambie—, y leerlo de la
+     * propia fila evita una subconsulta al historial en un listado paginado.
+     *
+     * <p>Los cerrados quedan afuera: un expediente resuelto hace un mes no está frenado, está
+     * terminado.
+     */
+    public static Specification<Case> staleSince(Instant threshold) {
+        List<String> closed = names(CaseStatusService.TERMINAL_STATUSES.stream());
+        return (root, query, cb) -> cb.and(
+                cb.lessThan(root.get("updatedAt"), threshold),
+                cb.not(root.get("currentStatus").get("name").in(closed)));
     }
 
     /**

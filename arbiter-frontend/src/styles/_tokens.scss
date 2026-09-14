@@ -97,6 +97,13 @@
      una pantalla interna tiene que anclarse DEBAJO de ella, no atrás. */
   --appbar-h: 56px;
 
+  /* Alto de los gráficos del tablero. Acá y no en el componente porque es una medida cruda,
+     y este archivo es el único lugar donde pueden vivir. Dos tamaños: el normal para las
+     distribuciones, el alto para la línea de tiempo, que necesita aire vertical para que la
+     distancia entre las dos series se lea. */
+  --chart-h: 240px;
+  --chart-h-tall: 300px;
+
   /* ===== Radios ===== */
   --radius-ctl: 8px; /* controles: botones, inputs */
   --radius-card: 12px;
