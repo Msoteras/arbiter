@@ -10,10 +10,13 @@ package ar.edu.utn.frba.arbiter.reports.dto;
  * @param enabled    si la aseguradora tiene objetivo fijado. En false el tablero muestra el tiempo
  *                   promedio solo, sin comparación — igual que si rules-service no respondiera.
  * @param targetDays los días que se propuso la compañía; null con el objetivo apagado
- * @param exceeded   cuántos de los expedientes DECIDIDOS en el período tardaron más que eso. Sobre
- *                   los decididos y no sobre todos los resueltos, por el mismo motivo que el
- *                   promedio: un caducado no lo resolvió nadie, midió el silencio del asegurado.
- *                   Cero mientras el objetivo esté apagado.
+ * @param exceeded   cuántos de los expedientes DECIDIDOS en el período tardaron más que eso,
+ *                   medidos por su <b>tiempo de gestión</b>: al total se le descuenta lo que el
+ *                   expediente esperó documentación, un perito o el servicio técnico, porque el
+ *                   procedimiento dice que esas derivaciones interrumpen el plazo. Sobre los
+ *                   decididos y no sobre todos los resueltos, por el mismo motivo que el promedio:
+ *                   un caducado no lo resolvió nadie, midió el silencio del asegurado. Cero
+ *                   mientras el objetivo esté apagado.
  */
 public record ResolutionTarget(boolean enabled, Integer targetDays, long exceeded) {
 

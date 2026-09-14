@@ -73,6 +73,43 @@ public class ClaimMetricsRepository {
             )""";
 
     /**
+     * Por cada expediente resuelto, cuántos segundos estuvo esperando a alguien de afuera de la
+     * compañía: documentación del asegurado, el informe de un perito, el equipo del servicio
+     * técnico. Depende de {@link #RESOLUTION_CTE} y se concatena después de él.
+     *
+     * <p>Cada tramo del historial se recorta contra la ventana del expediente ({@code GREATEST} /
+     * {@code LEAST}): una espera que arrancó antes de la denuncia o que seguía abierta al cerrarse
+     * el caso cuenta sólo por la parte que cae adentro. El {@code GREATEST(..., 0)} descarta los
+     * tramos que quedan enteros afuera, que restarían.
+     *
+     * <p>Lo usan los dos lugares que miden tiempo de gestión —el promedio partido en dos y el
+     * objetivo de resolución—, y por eso vive acá y no adentro de una de las dos consultas: si
+     * cada una se armara su propia definición de "esperando", el tablero podría decir que un
+     * expediente tardó 12 días de gestión y a la vez que se pasó de un objetivo de 21.
+     */
+    private static final String WAITING_CTE = """
+            ordered AS (
+                SELECT h.case_id,
+                       h.changed_at AS from_at,
+                       LEAD(h.changed_at) OVER (
+                           PARTITION BY h.case_id ORDER BY h.changed_at, h.id) AS to_at,
+                       st.name AS status
+                  FROM case_status_history h
+                  JOIN case_status st ON st.id = h.final_status_id
+            ),
+            waiting AS (
+                SELECT o.case_id,
+                       SUM(GREATEST(EXTRACT(EPOCH FROM (
+                           LEAST(COALESCE(o.to_at, r.resolved_at), r.resolved_at)
+                           - GREATEST(o.from_at, w.reported_at))), 0)) AS waiting_seconds
+                  FROM ordered o
+                  JOIN resolution r ON r.case_id = o.case_id
+                  JOIN cases w      ON w.id = o.case_id
+                 WHERE o.status IN (:pausing)
+                 GROUP BY o.case_id
+            )""";
+
+    /**
      * Claim cause is joined everywhere, not only where its name is read: the branch filter hangs
      * off it, and one uniform join beats a query shape that changes depending on the filter.
      */
@@ -250,38 +287,16 @@ public class ClaimMetricsRepository {
      * el reloj de pared le carga a la gestión semanas que ni la ley ni el procedimiento le imputan,
      * y deja un número que el referente no puede accionar: no sabe cuánto de eso es suyo.
      *
-     * <p>Cada tramo del historial se recorta contra la ventana del expediente ({@code GREATEST} /
-     * {@code LEAST}): una espera que arrancó antes de la denuncia o que seguía abierta al cerrarse
-     * el caso cuenta sólo por la parte que cae adentro. El {@code GREATEST(..., 0)} descarta los
-     * tramos que quedan enteros afuera, que restarían.
+     * <p>La espera sale de {@link #WAITING_CTE}, la misma definición que usa el objetivo de
+     * resolución.
      *
      * <p>Sobre los DECIDIDOS, igual que el promedio del resumen: un caducado son 18 meses de
      * silencio del asegurado y arruinaría las dos mitades a la vez.
      */
     @Transactional(readOnly = true)
     public ResolutionSplit resolutionSplit(Instant from, Instant to, MetricsFilter filter) {
-        String sql = RESOLUTION_CTE + """
-                ,
-                ordered AS (
-                    SELECT h.case_id,
-                           h.changed_at AS from_at,
-                           LEAD(h.changed_at) OVER (
-                               PARTITION BY h.case_id ORDER BY h.changed_at, h.id) AS to_at,
-                           st.name AS status
-                      FROM case_status_history h
-                      JOIN case_status st ON st.id = h.final_status_id
-                ),
-                waiting AS (
-                    SELECT o.case_id,
-                           SUM(GREATEST(EXTRACT(EPOCH FROM (
-                               LEAST(COALESCE(o.to_at, r.resolved_at), r.resolved_at)
-                               - GREATEST(o.from_at, w.reported_at))), 0)) AS waiting_seconds
-                      FROM ordered o
-                      JOIN resolution r ON r.case_id = o.case_id
-                      JOIN cases w      ON w.id = o.case_id
-                     WHERE o.status IN (:pausing)
-                     GROUP BY o.case_id
-                )
+        String sql = RESOLUTION_CTE + ",\n" + WAITING_CTE + """
+
                 SELECT avg(EXTRACT(EPOCH FROM (r.resolved_at - c.reported_at))) AS total_seconds,
                        avg(COALESCE(wt.waiting_seconds, 0)) AS waiting_seconds"""
                 + FROM_CASES + """
@@ -310,6 +325,14 @@ public class ClaimMetricsRepository {
      * Cuántos de los expedientes DECIDIDOS en el período tardaron más que el objetivo que fijó la
      * aseguradora.
      *
+     * <p><b>Contra el tiempo de gestión, no contra el reloj de pared.</b> Al total se le descuenta
+     * lo que el expediente pasó esperando documentación del asegurado, el informe de un perito o el
+     * equipo del servicio técnico, porque el procedimiento de la compañía dice que esas
+     * derivaciones <i>interrumpen</i> el plazo para expedirse. Medido sobre el reloj de pared, el
+     * objetivo le imputaba a la gestión semanas que ni la ley ni el procedimiento le imputan, y el
+     * referente no tenía cómo accionar el número: un expediente se pasaba del objetivo por haber
+     * pedido un peritaje, que es exactamente lo que debía hacer.
+     *
      * <p>Decididos y no resueltos, igual que el promedio: un caducado cerró sin que nadie lo
      * decidiera, y contarlo como "fuera de objetivo" mediría los 18 meses de silencio del asegurado
      * y no la operación de la compañía.
@@ -319,20 +342,24 @@ public class ClaimMetricsRepository {
      */
     @Transactional(readOnly = true)
     public long countDecidedOverTarget(Instant from, Instant to, int targetDays, MetricsFilter filter) {
-        String sql = RESOLUTION_CTE + """
+        String sql = RESOLUTION_CTE + ",\n" + WAITING_CTE + """
 
                 SELECT count(*) AS total"""
                 + FROM_CASES + """
 
                   JOIN case_status s ON s.id = c.current_status_id AND s.is_final
                   JOIN resolution r  ON r.case_id = c.id
+                  LEFT JOIN waiting wt ON wt.case_id = c.id
                  WHERE r.resolved_at >= :from AND r.resolved_at < :to
                    AND s.name IN (:approved, :rejected)
-                   AND r.resolved_at - c.reported_at > make_interval(days => :targetDays)"""
+                   AND (r.resolved_at - c.reported_at)
+                       - make_interval(secs => COALESCE(wt.waiting_seconds, 0))
+                       > make_interval(days => :targetDays)"""
                 + filters(filter);
         MapSqlParameterSource params = period(from, to, filter)
                 .addValue("approved", CaseStatus.APPROVED.name())
                 .addValue("rejected", CaseStatus.REJECTED.name())
+                .addValue("pausing", CaseStatus.pausingTheTerm().stream().map(Enum::name).toList())
                 .addValue("targetDays", targetDays);
         Long total = query(template -> template.queryForObject(sql, params, Long.class));
         return total == null ? 0 : total;

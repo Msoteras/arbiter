@@ -301,6 +301,31 @@ class ClaimMetricsRepositoryTests extends AbstractPersistenceIT {
     }
 
     /**
+     * El objetivo se mide contra el tiempo de gestión: un expediente que tardó por haber pedido
+     * documentación no se pasó del objetivo, aunque el reloj de pared diga que sí. Es la diferencia
+     * entre medir la operación y medir la paciencia del asegurado.
+     */
+    @Test
+    void overTarget_discountsWhatTheCaseSpentWaitingOnSomebodyOutside() {
+        jdbcTemplate.update(
+                "INSERT INTO case_status (id, name, is_final) VALUES (3, 'AWAITING_DOCUMENTATION', FALSE) "
+                        + "ON CONFLICT (id) DO NOTHING");
+        long awaitingDocs = 3;
+
+        // 10 días de reloj de pared, de los cuales 6 esperando documentación: 4 de gestión.
+        tables.insertCase(1, "2026-08-01T00:00:00Z", APPROVED, ROBO_CELULARES, false, LAURA, null);
+        tables.transition(1, null, PENDING_REVIEW, "2026-08-01T00:00:00Z");
+        tables.transition(1, PENDING_REVIEW, awaitingDocs, "2026-08-03T00:00:00Z");
+        tables.transition(1, awaitingDocs, PENDING_REVIEW, "2026-08-09T00:00:00Z");
+        tables.transition(1, PENDING_REVIEW, APPROVED, "2026-08-11T00:00:00Z");
+
+        // Contra el reloj de pared se habría pasado de 5; contra la gestión, no.
+        assertThat(repository.countDecidedOverTarget(AUGUST_FROM, AUGUST_TO, 5, NONE)).isZero();
+        // Y con el objetivo por debajo de los 4 días de gestión, sí.
+        assertThat(repository.countDecidedOverTarget(AUGUST_FROM, AUGUST_TO, 3, NONE)).isEqualTo(1);
+    }
+
+    /**
      * La partición del tiempo. El fixture compartido sólo siembra cuatro estados, así que el de
      * "falta documentación" —el que frena el reloj— se agrega acá, igual que la banda de riesgo.
      */

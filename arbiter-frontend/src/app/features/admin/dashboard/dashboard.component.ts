@@ -378,6 +378,11 @@ export class DashboardComponent {
   /**
    * La línea bajo el tiempo promedio: cuántos de los decididos se pasaron del objetivo. Sin
    * objetivo fijado dice qué mide el número, que es lo que decía antes de que el objetivo existiera.
+   *
+   * Dice "de gestión" porque el objetivo se mide descontando lo que el expediente esperó a un
+   * tercero, y el número grande de arriba es el tiempo total. Sin esa palabra los dos se leen como
+   * lo mismo y la cuenta no cierra: un promedio de 35 días con un objetivo de 21 que casi todos
+   * cumplieron parece un error, y es la diferencia entre las dos medidas.
    */
   private targetNote(metrics: ClaimMetrics, decided: number): string {
     const target = metrics.resolutionTarget;
@@ -385,9 +390,9 @@ export class DashboardComponent {
       return 'de la denuncia a la decisión';
     }
     if (target.exceeded === 0) {
-      return `Objetivo: ${target.targetDays} d · los ${decided} lo cumplieron`;
+      return `Objetivo: ${target.targetDays} d de gestión · los ${decided} lo cumplieron`;
     }
-    return `Objetivo: ${target.targetDays} d · ${target.exceeded} de ${decided} lo superaron`;
+    return `Objetivo: ${target.targetDays} d de gestión · ${target.exceeded} de ${decided} lo superaron`;
   }
 
   /**
