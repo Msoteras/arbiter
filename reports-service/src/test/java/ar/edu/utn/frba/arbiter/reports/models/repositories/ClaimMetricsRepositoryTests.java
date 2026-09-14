@@ -1,9 +1,11 @@
 package ar.edu.utn.frba.arbiter.reports.models.repositories;
 
 import ar.edu.utn.frba.arbiter.reports.dto.IntakeFunnel;
+import ar.edu.utn.frba.arbiter.reports.dto.LegalDeadline;
 import ar.edu.utn.frba.arbiter.reports.dto.MetricCount;
 import ar.edu.utn.frba.arbiter.reports.dto.MetricsFilter;
 import ar.edu.utn.frba.arbiter.reports.dto.RecommendationAgreement;
+import ar.edu.utn.frba.arbiter.reports.dto.ReopeningRate;
 import ar.edu.utn.frba.arbiter.reports.dto.TimelineGranularity;
 import ar.edu.utn.frba.arbiter.reports.dto.TimelinePoint;
 import ar.edu.utn.frba.arbiter.reports.models.repositories.ClaimMetricsRepository.IntakeTotals;
@@ -368,6 +370,84 @@ class ClaimMetricsRepositoryTests extends AbstractPersistenceIT {
 
         assertThat(split.totalSeconds()).isEqualTo(4 * 86_400d);
         assertThat(split.waitingSeconds()).isZero();
+    }
+
+    /**
+     * El plazo legal se mide contra la fecha límite que el expediente trae, no contra una cuenta
+     * rehecha acá: cases-service ya la reinicia cuando el requerimiento se cumple.
+     */
+    @Test
+    void theLegalTerm_comparesEachDecisionAgainstTheDeadlineTheCaseCarried() {
+        // Decidido el 05/08 con vencimiento el 10/08: en término.
+        resolvedWithRecommendation(1, "LLM_RECOMIENDA_APROBAR", APPROVED);
+        tables.deadline(1, "2026-08-10");
+        // Decidido el 20/08 con vencimiento el 15/08: fuera de término.
+        tables.insertCase(2, "2026-08-01T10:00:00Z", REJECTED, ROBO_CELULARES, false, LAURA, null);
+        tables.transition(2, PENDING_REVIEW, REJECTED, "2026-08-20T10:00:00Z");
+        tables.deadline(2, "2026-08-15");
+        // Caducado: no hubo pronunciamiento que fechar, así que no entra en el cumplimiento.
+        tables.insertCase(3, "2026-08-01T10:00:00Z", LAPSED, ROBO_CELULARES, false, null, null);
+        tables.transition(3, PENDING_REVIEW, LAPSED, "2026-08-26T10:00:00Z");
+        tables.deadline(3, "2026-08-02");
+
+        assertThat(repository.legalDeadlineCompliance(AUGUST_FROM, AUGUST_TO, BUENOS_AIRES, NONE))
+                .isEqualTo(LegalDeadline.of(2, 1));
+    }
+
+    /** El plazo vence al terminar su último día: decidir ese mismo día es haberse expedido en término. */
+    @Test
+    void theLegalTerm_countsTheDayOfTheDeadlineItselfAsInTime() {
+        tables.insertCase(1, "2026-08-01T10:00:00Z", APPROVED, ROBO_CELULARES, false, LAURA, null);
+        // 22:00 en Buenos Aires del propio día del vencimiento — que en UTC ya es el día siguiente.
+        tables.transition(1, PENDING_REVIEW, APPROVED, "2026-08-11T01:00:00Z");
+        tables.deadline(1, "2026-08-10");
+
+        assertThat(repository.legalDeadlineCompliance(AUGUST_FROM, AUGUST_TO, BUENOS_AIRES, NONE))
+                .isEqualTo(LegalDeadline.of(1, 1));
+    }
+
+    @Test
+    void theLegalTerm_hasNoRateWhenNothingWasDecided() {
+        tables.insertCase(1, "2026-08-01T10:00:00Z", PENDING_REVIEW, ROBO_CELULARES, false, LAURA, null);
+
+        assertThat(repository.legalDeadlineCompliance(AUGUST_FROM, AUGUST_TO, BUENOS_AIRES, NONE))
+                .isEqualTo(new LegalDeadline(0, 0, null));
+    }
+
+    /**
+     * Una reapertura no tiene estado propio: es salir de un estado final hacia uno que no lo es. Y
+     * se cuenta por expediente, así que el que fue y vino dos veces sigue siendo uno.
+     */
+    @Test
+    void reopening_countsCasesThatCameBackFromAFinalStatus_onceEach() {
+        // Aprobado, reabierto, y aprobado de nuevo: una reapertura, un expediente.
+        tables.insertCase(1, "2026-08-01T10:00:00Z", APPROVED, ROBO_CELULARES, false, LAURA, null);
+        tables.transition(1, PENDING_REVIEW, APPROVED, "2026-08-05T10:00:00Z");
+        tables.transition(1, APPROVED, PENDING_REVIEW, "2026-08-06T10:00:00Z");
+        tables.transition(1, PENDING_REVIEW, APPROVED, "2026-08-10T10:00:00Z");
+        // Rechazado, reabierto dos veces y rechazado: sigue siendo un expediente reabierto.
+        tables.insertCase(2, "2026-08-01T10:00:00Z", REJECTED, ROBO_CELULARES, false, LAURA, null);
+        tables.transition(2, PENDING_REVIEW, REJECTED, "2026-08-04T10:00:00Z");
+        tables.transition(2, REJECTED, PENDING_REVIEW, "2026-08-05T10:00:00Z");
+        tables.transition(2, PENDING_REVIEW, REJECTED, "2026-08-06T10:00:00Z");
+        tables.transition(2, REJECTED, PENDING_REVIEW, "2026-08-07T10:00:00Z");
+        tables.transition(2, PENDING_REVIEW, REJECTED, "2026-08-12T10:00:00Z");
+        // Cerrado de una: no se reabrió nunca.
+        tables.insertCase(3, "2026-08-01T10:00:00Z", APPROVED, ROBO_CELULARES, false, LAURA, null);
+        tables.transition(3, PENDING_REVIEW, APPROVED, "2026-08-08T10:00:00Z");
+
+        assertThat(repository.reopeningRate(AUGUST_FROM, AUGUST_TO, NONE))
+                .isEqualTo(ReopeningRate.of(3, 2));
+    }
+
+    /** Un caducado también cuenta: que se haya reabierto uno es igual de sintomático. */
+    @Test
+    void reopening_readsEveryClosedCase_lapsedOnesIncluded() {
+        tables.insertCase(1, "2026-08-01T10:00:00Z", LAPSED, ROBO_CELULARES, false, null, null);
+        tables.transition(1, PENDING_REVIEW, LAPSED, "2026-08-20T10:00:00Z");
+
+        assertThat(repository.reopeningRate(AUGUST_FROM, AUGUST_TO, NONE))
+                .isEqualTo(ReopeningRate.of(1, 0));
     }
 
     /** Filed 01/08, closed 05/08 in the given final status, with one model run behind it. */

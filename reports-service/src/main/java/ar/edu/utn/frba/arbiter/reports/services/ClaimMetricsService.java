@@ -85,6 +85,8 @@ public class ClaimMetricsService {
                 previousSummary(period, zone, filter),
                 claimMetricsRepository.recommendationAgreement(start, end, filter),
                 resolutionTarget(start, end, filter),
+                claimMetricsRepository.legalDeadlineCompliance(start, end, zone, filter),
+                claimMetricsRepository.reopeningRate(start, end, filter),
                 claimMetricsRepository.countByStatus(start, end, filter),
                 claimMetricsRepository.countByBranch(start, end, filter),
                 claimMetricsRepository.countByClassification(start, end, filter),

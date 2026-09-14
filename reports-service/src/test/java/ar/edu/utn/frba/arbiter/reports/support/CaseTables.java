@@ -70,6 +70,7 @@ public final class CaseTables {
                 CREATE TABLE IF NOT EXISTS cases (
                     id                 BIGINT PRIMARY KEY,
                     reported_at        TIMESTAMPTZ NOT NULL,
+                    response_deadline  DATE        NOT NULL,
                     was_fast_track     BOOLEAN     NOT NULL DEFAULT FALSE,
                     current_status_id  BIGINT      NOT NULL REFERENCES case_status(id),
                     analyst_id         BIGINT      REFERENCES claims_analyst(id),
@@ -110,14 +111,26 @@ public final class CaseTables {
                 """);
     }
 
+    /**
+     * El vencimiento del art. 56 se siembra como lo siembra cases-service al dar de alta la
+     * denuncia: 30 días desde ese día. Los tests que miden cumplimiento lo pisan con
+     * {@link #deadline}, que es lo que hace el sistema real cuando el plazo se reinicia.
+     */
     public void insertCase(long id, String reportedAt, long statusId, long claimCauseId, boolean fastTrack,
                            Long analystId, Long classificationId) {
         jdbcTemplate.update("""
-                INSERT INTO cases (id, reported_at, was_fast_track, current_status_id, analyst_id,
-                                   insured_id, claim_cause_id, classification_id)
-                VALUES (?, ?, ?, ?, ?, 1, ?, ?)
-                """, id, Timestamp.from(Instant.parse(reportedAt)), fastTrack, statusId, analystId,
+                INSERT INTO cases (id, reported_at, response_deadline, was_fast_track,
+                                   current_status_id, analyst_id, insured_id, claim_cause_id,
+                                   classification_id)
+                VALUES (?, ?, (? AT TIME ZONE 'UTC')::date + 30, ?, ?, ?, 1, ?, ?)
+                """, id, Timestamp.from(Instant.parse(reportedAt)),
+                Timestamp.from(Instant.parse(reportedAt)), fastTrack, statusId, analystId,
                 claimCauseId, classificationId);
+    }
+
+    /** La fecha límite del expediente, cuando el test necesita una distinta de la del alta. */
+    public void deadline(long caseId, String date) {
+        jdbcTemplate.update("UPDATE cases SET response_deadline = ?::date WHERE id = ?", date, caseId);
     }
 
     public void transition(long caseId, Long fromStatusId, long toStatusId, String changedAt) {

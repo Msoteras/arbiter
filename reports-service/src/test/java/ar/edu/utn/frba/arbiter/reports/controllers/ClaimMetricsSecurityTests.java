@@ -4,10 +4,12 @@ import ar.edu.utn.frba.arbiter.common.security.JwtSupport;
 import ar.edu.utn.frba.arbiter.reports.config.tenant.TenantContext;
 import ar.edu.utn.frba.arbiter.reports.dto.ClaimMetrics;
 import ar.edu.utn.frba.arbiter.reports.dto.IntakeFunnel;
+import ar.edu.utn.frba.arbiter.reports.dto.LegalDeadline;
 import ar.edu.utn.frba.arbiter.reports.dto.MetricCount;
 import ar.edu.utn.frba.arbiter.reports.dto.MetricsFilter;
 import ar.edu.utn.frba.arbiter.reports.dto.MetricsSummary;
 import ar.edu.utn.frba.arbiter.reports.dto.RecommendationAgreement;
+import ar.edu.utn.frba.arbiter.reports.dto.ReopeningRate;
 import ar.edu.utn.frba.arbiter.reports.dto.ResolutionTarget;
 import ar.edu.utn.frba.arbiter.reports.dto.TimelineGranularity;
 import ar.edu.utn.frba.arbiter.reports.dto.TimelinePoint;
@@ -160,6 +162,8 @@ class ClaimMetricsSecurityTests extends AbstractPersistenceIT {
                 new MetricsSummary(32, 8, 6, 5, 1, 0, 0.83, 0.17, 0.25, 40.0, null),
                 RecommendationAgreement.of(7, 6),
                 new ResolutionTarget(true, 21, 3),
+                LegalDeadline.of(8, 7),
+                ReopeningRate.of(8, 1),
                 List.of(new MetricCount("APPROVED", 6), new MetricCount("REJECTED", 2)),
                 List.of(new MetricCount("Celulares", 40)),
                 List.of(new MetricCount("LLM_RECOMIENDA_APROBAR", 30)),

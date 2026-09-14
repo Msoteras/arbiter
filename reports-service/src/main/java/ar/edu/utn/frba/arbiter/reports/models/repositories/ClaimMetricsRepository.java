@@ -3,9 +3,11 @@ package ar.edu.utn.frba.arbiter.reports.models.repositories;
 import ar.edu.utn.frba.arbiter.common.enums.CaseStatus;
 import ar.edu.utn.frba.arbiter.common.enums.Classification;
 import ar.edu.utn.frba.arbiter.reports.dto.IntakeFunnel;
+import ar.edu.utn.frba.arbiter.reports.dto.LegalDeadline;
 import ar.edu.utn.frba.arbiter.reports.dto.MetricCount;
 import ar.edu.utn.frba.arbiter.reports.dto.MetricsFilter;
 import ar.edu.utn.frba.arbiter.reports.dto.RecommendationAgreement;
+import ar.edu.utn.frba.arbiter.reports.dto.ReopeningRate;
 import ar.edu.utn.frba.arbiter.reports.dto.TimelineGranularity;
 import ar.edu.utn.frba.arbiter.reports.dto.TimelinePoint;
 import jakarta.persistence.EntityManager;
@@ -363,6 +365,74 @@ public class ClaimMetricsRepository {
                 .addValue("targetDays", targetDays);
         Long total = query(template -> template.queryForObject(sql, params, Long.class));
         return total == null ? 0 : total;
+    }
+
+    /**
+     * Cumplimiento del plazo del art. 56 sobre los expedientes DECIDIDOS en el período.
+     *
+     * <p>La fecha límite se lee del expediente, no se recalcula: cases-service la mantiene con la
+     * regla del procedimiento —las derivaciones la congelan y el requerimiento cumplido la reinicia
+     * en 30 días enteros—, así que la columna ya trae el vencimiento que regía el día que se
+     * decidió. Rehacer la cuenta acá sería una segunda implementación de la misma regla, y la que
+     * discrepara sería siempre ésta, que no ve las transiciones en vivo.
+     *
+     * <p>La comparación es por día y no por instante: el plazo vence al terminar su último día, así
+     * que decidir a las 23:00 del día del vencimiento es haberse pronunciado en término.
+     */
+    @Transactional(readOnly = true)
+    public LegalDeadline legalDeadlineCompliance(
+            Instant from, Instant to, ZoneId zone, MetricsFilter filter) {
+        String sql = RESOLUTION_CTE + """
+
+                SELECT count(*) AS decided,
+                       count(*) FILTER (
+                           WHERE (r.resolved_at AT TIME ZONE :zone)::date <= c.response_deadline
+                       ) AS on_time"""
+                + FROM_CASES + """
+
+                  JOIN case_status s ON s.id = c.current_status_id AND s.is_final
+                  JOIN resolution r  ON r.case_id = c.id
+                 WHERE r.resolved_at >= :from AND r.resolved_at < :to
+                   AND s.name IN (:approved, :rejected)"""
+                + filters(filter);
+        MapSqlParameterSource params = period(from, to, filter)
+                .addValue("approved", CaseStatus.APPROVED.name())
+                .addValue("rejected", CaseStatus.REJECTED.name())
+                .addValue("zone", zone.getId());
+        return query(template -> template.queryForObject(sql, params, (rs, rowNum) ->
+                LegalDeadline.of(rs.getLong("decided"), rs.getLong("on_time"))));
+    }
+
+    /**
+     * Cuántos de los expedientes que cerraron en el período habían sido reabiertos alguna vez.
+     *
+     * <p>Una reapertura no tiene estado propio: se reconoce por la forma de la transición, un
+     * expediente que estaba en un estado final y volvió a uno que no lo es. Definirla así en vez de
+     * contra una lista de estados la deja andando el día que se agregue un estado final nuevo.
+     *
+     * <p>{@code EXISTS} y no un conteo de transiciones: se cuentan expedientes reabiertos, no
+     * reaperturas. Uno que fue y vino tres veces es un expediente con problemas, no tres.
+     */
+    @Transactional(readOnly = true)
+    public ReopeningRate reopeningRate(Instant from, Instant to, MetricsFilter filter) {
+        String sql = RESOLUTION_CTE + """
+
+                SELECT count(*) AS resolved,
+                       count(*) FILTER (WHERE EXISTS (
+                           SELECT 1
+                             FROM case_status_history h
+                             JOIN case_status hs ON hs.id = h.initial_status_id AND hs.is_final
+                             JOIN case_status hf ON hf.id = h.final_status_id AND NOT hf.is_final
+                            WHERE h.case_id = c.id
+                       )) AS reopened"""
+                + FROM_CASES + """
+
+                  JOIN case_status s ON s.id = c.current_status_id AND s.is_final
+                  JOIN resolution r  ON r.case_id = c.id
+                 WHERE r.resolved_at >= :from AND r.resolved_at < :to"""
+                + filters(filter);
+        return query(template -> template.queryForObject(sql, period(from, to, filter),
+                (rs, rowNum) -> ReopeningRate.of(rs.getLong("resolved"), rs.getLong("reopened"))));
     }
 
     /** One row per final status reached in the period, with its own average time to get there. */

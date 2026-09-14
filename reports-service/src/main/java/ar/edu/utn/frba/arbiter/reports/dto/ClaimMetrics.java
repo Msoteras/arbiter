@@ -27,7 +27,12 @@ import java.util.List;
  * @param agreement        how often the analyst decided where the model pointed
  * @param resolutionTarget the insurer's own service goal and how many decisions ran past it. Not
  *                         the legal deadline: that one is per claim and missing it is a different,
- *                         worse problem.
+ *                         worse problem — see {@link #legalDeadline()}.
+ * @param legalDeadline    how many of the period's decisions were made within the art. 56 term.
+ *                         The regulatory half of the pair above: the target is a goal the company
+ *                         sets itself, this one is the law
+ * @param reopening        how many of the claims closed in the period had been reopened at least
+ *                         once — a quality-of-decision figure, read next to {@link #agreement()}
  * @param byStatus         claims filed in the period, by the status they sit in <b>now</b> — a
  *                         snapshot of where the intake ended up, not of transitions
  * @param byBranch         claims filed in the period, by branch ("ramo")
@@ -45,6 +50,8 @@ public record ClaimMetrics(
         MetricsSummary previousSummary,
         RecommendationAgreement agreement,
         ResolutionTarget resolutionTarget,
+        LegalDeadline legalDeadline,
+        ReopeningRate reopening,
         List<MetricCount> byStatus,
         List<MetricCount> byBranch,
         List<MetricCount> byClassification,
