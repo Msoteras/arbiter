@@ -1,5 +1,7 @@
 package ar.edu.utn.frba.arbiter.reports.models.repositories;
 
+import ar.edu.utn.frba.arbiter.reports.dto.DerivationTurnaround;
+import ar.edu.utn.frba.arbiter.reports.dto.FastTrackImpact;
 import ar.edu.utn.frba.arbiter.reports.dto.FraudDetection;
 import ar.edu.utn.frba.arbiter.reports.dto.IntakeFunnel;
 import ar.edu.utn.frba.arbiter.reports.dto.LegalDeadline;
@@ -539,6 +541,80 @@ class ClaimMetricsRepositoryTests extends AbstractPersistenceIT {
                 "2026-08-06T10:00:00Z", "2026-08-08T10:00:00Z");
 
         assertThat(repository.fraudDetection(AUGUST_FROM, AUGUST_TO, NONE).backedByExpert()).isEqualTo(1);
+    }
+
+    /** Los dos promedios son mediciones separadas, no un ahorro estimado. */
+    @Test
+    void fastTrack_averagesEachSideSeparately() {
+        // Fast Track: 2 días.
+        tables.insertCase(1, "2026-08-01T00:00:00Z", APPROVED, ROBO_CELULARES, true, LAURA, null);
+        tables.transition(1, PENDING_REVIEW, APPROVED, "2026-08-03T00:00:00Z");
+        // El resto: 10 y 20 días, o sea 15 de promedio.
+        tables.insertCase(2, "2026-08-01T00:00:00Z", APPROVED, ROBO_CELULARES, false, LAURA, null);
+        tables.transition(2, PENDING_REVIEW, APPROVED, "2026-08-11T00:00:00Z");
+        tables.insertCase(3, "2026-08-01T00:00:00Z", REJECTED, ROBO_CELULARES, false, LAURA, null);
+        tables.transition(3, PENDING_REVIEW, REJECTED, "2026-08-21T00:00:00Z");
+
+        assertThat(repository.fastTrackImpact(AUGUST_FROM, AUGUST_TO, NONE))
+                .isEqualTo(new FastTrackImpact(1, 48.0, 2, 360.0));
+    }
+
+    /** Sin Fast Track decidido, su promedio es desconocido y no cero. */
+    @Test
+    void fastTrack_leavesTheAverageNullOnTheSideWithNothingDecided() {
+        tables.insertCase(1, "2026-08-01T00:00:00Z", APPROVED, ROBO_CELULARES, false, LAURA, null);
+        tables.transition(1, PENDING_REVIEW, APPROVED, "2026-08-05T00:00:00Z");
+
+        assertThat(repository.fastTrackImpact(AUGUST_FROM, AUGUST_TO, NONE))
+                .isEqualTo(new FastTrackImpact(0, null, 1, 96.0));
+    }
+
+    /**
+     * Las derivaciones se cuentan por cuándo salieron; el promedio, sólo sobre las que volvieron.
+     */
+    @Test
+    void derivations_averageOnlyTheOnesThatCameBack_andKeepThePendingOnesVisible() {
+        tables.insertCase(1, "2026-08-01T00:00:00Z", PENDING_REVIEW, ROBO_CELULARES, false, LAURA, null);
+        // Peritaje que volvió a los 2 días, otro a los 4, y un tercero que sigue afuera.
+        tables.assessment(1, "ESTUDIO_LIQUIDADOR", "FRAUD_DISCARDED", null,
+                "2026-08-02T00:00:00Z", "2026-08-04T00:00:00Z");
+        tables.assessment(1, "ESTUDIO_LIQUIDADOR", "FRAUD_DISCARDED", null,
+                "2026-08-05T00:00:00Z", "2026-08-09T00:00:00Z");
+        tables.assessment(1, "ESTUDIO_LIQUIDADOR", null, null, "2026-08-10T00:00:00Z", null);
+        // Un servicio técnico que volvió al día.
+        tables.assessment(1, "SERVICIO_TECNICO", null, "REPAIRED",
+                "2026-08-12T00:00:00Z", "2026-08-13T00:00:00Z");
+
+        List<DerivationTurnaround> derivations =
+                repository.derivationTurnaround(AUGUST_FROM, AUGUST_TO, NONE);
+
+        assertThat(derivations).containsExactly(
+                new DerivationTurnaround("ESTUDIO_LIQUIDADOR", 3, 2, 72.0),
+                new DerivationTurnaround("SERVICIO_TECNICO", 1, 1, 24.0));
+        assertThat(derivations.getFirst().pending()).isEqualTo(1);
+    }
+
+    /**
+     * Sólo los FAIL, un expediente por regla aunque se haya reclasificado, y el tipo como nombre
+     * cuando la regla no es una fila configurable.
+     */
+    @Test
+    void blockingRules_countCasesStoppedOnce_evenIfTheCaseWasReclassified() {
+        tables.rule(14, "Vigencia de la póliza");
+        tables.insertCase(1, "2026-08-01T10:00:00Z", PENDING_REVIEW, ROBO_CELULARES, false, LAURA, null);
+        // Reclasificado: la misma regla dejó dos filas, pero es un solo expediente frenado.
+        tables.ruleResult(1, 14L, "POLICY_IN_FORCE", "FAIL");
+        tables.ruleResult(1, 14L, "POLICY_IN_FORCE", "FAIL");
+        // Una regla sin fila configurable: se nombra por su tipo.
+        tables.ruleResult(1, null, "CLAIM_EXHAUSTS_COVERAGE", "FAIL");
+        // Un PASS no frena nada.
+        tables.ruleResult(1, 14L, "REPORT_DEADLINE", "PASS");
+        tables.insertCase(2, "2026-08-02T10:00:00Z", PENDING_REVIEW, ROBO_CELULARES, false, LAURA, null);
+        tables.ruleResult(2, 14L, "POLICY_IN_FORCE", "FAIL");
+
+        assertThat(repository.countByBlockingRule(AUGUST_FROM, AUGUST_TO, NONE)).containsExactly(
+                new MetricCount("Vigencia de la póliza", 2),
+                new MetricCount("CLAIM_EXHAUSTS_COVERAGE", 1));
     }
 
     /** Filed 01/08, closed 05/08 in the given final status, with one model run behind it. */

@@ -3,6 +3,8 @@ package ar.edu.utn.frba.arbiter.reports.controllers;
 import ar.edu.utn.frba.arbiter.common.security.JwtSupport;
 import ar.edu.utn.frba.arbiter.reports.config.tenant.TenantContext;
 import ar.edu.utn.frba.arbiter.reports.dto.ClaimMetrics;
+import ar.edu.utn.frba.arbiter.reports.dto.DerivationTurnaround;
+import ar.edu.utn.frba.arbiter.reports.dto.FastTrackImpact;
 import ar.edu.utn.frba.arbiter.reports.dto.FraudDetection;
 import ar.edu.utn.frba.arbiter.reports.dto.IntakeFunnel;
 import ar.edu.utn.frba.arbiter.reports.dto.LegalDeadline;
@@ -170,10 +172,13 @@ class ClaimMetricsSecurityTests extends AbstractPersistenceIT {
                 SettledAmounts.of(6, new BigDecimal("1830000.00"), new BigDecimal("2100000.00"),
                         new BigDecimal("210000.00"), BigDecimal.ZERO, new BigDecimal("60000.00")),
                 new FraudDetection(8, 1, 1, new BigDecimal("340000.00")),
+                new FastTrackImpact(2, 48.0, 6, 840.0),
+                List.of(new DerivationTurnaround("ESTUDIO_LIQUIDADOR", 3, 2, 120.0)),
                 List.of(new MetricCount("APPROVED", 6), new MetricCount("REJECTED", 2)),
                 List.of(new MetricCount("Celulares", 40)),
                 List.of(new MetricCount("LLM_RECOMIENDA_APROBAR", 30)),
                 List.of(new MetricCount("HIGH", 4)),
+                List.of(new MetricCount("Vigencia de la póliza", 2)),
                 List.of(new TimelinePoint(LocalDate.of(2026, 8, 1), 3, 1)));
     }
 

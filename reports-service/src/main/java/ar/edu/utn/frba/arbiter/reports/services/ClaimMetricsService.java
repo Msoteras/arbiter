@@ -89,10 +89,13 @@ public class ClaimMetricsService {
                 claimMetricsRepository.reopeningRate(start, end, filter),
                 claimMetricsRepository.settledAmounts(start, end, filter),
                 claimMetricsRepository.fraudDetection(start, end, filter),
+                claimMetricsRepository.fastTrackImpact(start, end, filter),
+                claimMetricsRepository.derivationTurnaround(start, end, filter),
                 claimMetricsRepository.countByStatus(start, end, filter),
                 claimMetricsRepository.countByBranch(start, end, filter),
                 claimMetricsRepository.countByClassification(start, end, filter),
                 claimMetricsRepository.countByRiskBand(start, end, filter),
+                claimMetricsRepository.countByBlockingRule(start, end, filter),
                 fillGaps(claimMetricsRepository.timeline(start, end, granularity, zone, filter),
                         period, granularity));
     }

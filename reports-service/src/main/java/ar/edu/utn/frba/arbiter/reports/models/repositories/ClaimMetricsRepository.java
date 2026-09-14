@@ -4,6 +4,8 @@ import ar.edu.utn.frba.arbiter.common.enums.CaseStatus;
 import ar.edu.utn.frba.arbiter.common.enums.Classification;
 import ar.edu.utn.frba.arbiter.common.enums.ExpertVerdict;
 import ar.edu.utn.frba.arbiter.common.enums.SettlementStatus;
+import ar.edu.utn.frba.arbiter.reports.dto.DerivationTurnaround;
+import ar.edu.utn.frba.arbiter.reports.dto.FastTrackImpact;
 import ar.edu.utn.frba.arbiter.reports.dto.FraudDetection;
 import ar.edu.utn.frba.arbiter.reports.dto.IntakeFunnel;
 import ar.edu.utn.frba.arbiter.reports.dto.LegalDeadline;
@@ -24,6 +26,8 @@ import org.springframework.jdbc.datasource.SingleConnectionDataSource;
 import org.springframework.stereotype.Repository;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.sql.ResultSet;
+import java.sql.SQLException;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.OffsetDateTime;
@@ -127,6 +131,13 @@ public class ClaimMetricsRepository {
 
     /** Claims FILED in the period — the population every distribution below is drawn from. */
     private static final String REPORTED_WINDOW = " WHERE c.reported_at >= :from AND c.reported_at < :to";
+
+    /**
+     * Cómo escribe {@code classification-service} una regla que no se cumplió ({@code RuleFinding}).
+     * Literal y no enum: es el formato de una tabla de ese módulo, y subirlo a common-lib haría de
+     * un detalle suyo un tipo de la plataforma para que lo lea una sola consulta.
+     */
+    private static final String FAILED = "FAIL";
 
     private static final RowMapper<MetricCount> COUNT_ROW =
             (rs, rowNum) -> new MetricCount(rs.getString("label"), rs.getLong("total"));
@@ -519,6 +530,100 @@ public class ClaimMetricsRepository {
                 rs.getBigDecimal("amount_not_paid"))));
     }
 
+    /**
+     * El tiempo de los decididos partido por la marca de Fast Track. Una sola pasada con dos
+     * {@code FILTER}: son las mismas filas leídas con dos cortes, y separarlo en dos consultas las
+     * escanearía dos veces para pintar un renglón.
+     */
+    @Transactional(readOnly = true)
+    public FastTrackImpact fastTrackImpact(Instant from, Instant to, MetricsFilter filter) {
+        String sql = RESOLUTION_CTE + """
+
+                SELECT count(*) FILTER (WHERE c.was_fast_track) AS fast_track_decided,
+                       avg(EXTRACT(EPOCH FROM (r.resolved_at - c.reported_at)))
+                           FILTER (WHERE c.was_fast_track) AS fast_track_seconds,
+                       count(*) FILTER (WHERE NOT c.was_fast_track) AS standard_decided,
+                       avg(EXTRACT(EPOCH FROM (r.resolved_at - c.reported_at)))
+                           FILTER (WHERE NOT c.was_fast_track) AS standard_seconds"""
+                + FROM_CASES + """
+
+                  JOIN case_status s ON s.id = c.current_status_id AND s.is_final
+                  JOIN resolution r  ON r.case_id = c.id
+                 WHERE r.resolved_at >= :from AND r.resolved_at < :to
+                   AND s.name IN (:approved, :rejected)"""
+                + filters(filter);
+        MapSqlParameterSource params = period(from, to, filter)
+                .addValue("approved", CaseStatus.APPROVED.name())
+                .addValue("rejected", CaseStatus.REJECTED.name());
+        return query(template -> template.queryForObject(sql, params, (rs, rowNum) -> {
+            // Cada promedio se lee antes de su conteo: wasNull() habla de la última columna leída.
+            long fastTrackDecided = rs.getLong("fast_track_decided");
+            Double fastTrackHours = hours(rs, "fast_track_seconds");
+            long standardDecided = rs.getLong("standard_decided");
+            return new FastTrackImpact(fastTrackDecided, fastTrackHours, standardDecided,
+                    hours(rs, "standard_seconds"));
+        }));
+    }
+
+    /**
+     * Cuántas derivaciones salieron en el período por cada clase de tercero, cuántas volvieron y en
+     * cuánto tiempo.
+     *
+     * <p>El promedio corre sólo sobre las que contestaron —{@code avg} ignora los nulos por sí
+     * mismo—: mientras una sigue afuera no se sabe cuánto va a tardar, y medirla contra hoy haría
+     * que el promedio cambiara solo cada vez que se abre el tablero.
+     */
+    @Transactional(readOnly = true)
+    public List<DerivationTurnaround> derivationTurnaround(Instant from, Instant to, MetricsFilter filter) {
+        String sql = """
+                SELECT ea.provider_type AS provider_type,
+                       count(*) AS derived,
+                       count(ea.report_received_at) AS answered,
+                       avg(EXTRACT(EPOCH FROM (ea.report_received_at - ea.derived_at))) AS average_seconds"""
+                + FROM_CASES + """
+
+                  JOIN expert_assessment ea ON ea.case_id = c.id
+                 WHERE ea.derived_at >= :from AND ea.derived_at < :to"""
+                + filters(filter) + " GROUP BY ea.provider_type ORDER BY derived DESC, provider_type";
+        return query(template -> template.query(sql, period(from, to, filter), (rs, rowNum) ->
+                new DerivationTurnaround(
+                        rs.getString("provider_type"),
+                        rs.getLong("derived"),
+                        rs.getLong("answered"),
+                        hours(rs, "average_seconds"))));
+    }
+
+    /**
+     * Qué reglas frenaron más expedientes de los denunciados en el período: le dice al referente
+     * cuál de las que configuró está mordiendo de verdad.
+     *
+     * <p>Sólo los {@code FAIL}. La tabla guarda también los {@code PASS} —la auditoría de la
+     * Disposición 2/2023 es qué regla se evaluó y con qué resultado, no sólo los rechazos—, pero
+     * acá la pregunta es cuál frena.
+     *
+     * <p>{@code count(DISTINCT case_id)} y no {@code count(*)}: {@code rule_result} es append-only,
+     * una fila por corrida, así que un expediente reclasificado tres veces dejó tres filas de la
+     * misma regla y contarlas diría que frenó a tres expedientes.
+     *
+     * <p>El nombre sale de la regla configurada, y cae al tipo cuando no hay fila que nombrar: las
+     * reglas de alcance de cobertura y los criterios del Fast Track se auditan con
+     * {@code rule_id} nulo porque son columnas de {@code coverage}, no filas de {@code insurer_rule}.
+     */
+    @Transactional(readOnly = true)
+    public List<MetricCount> countByBlockingRule(Instant from, Instant to, MetricsFilter filter) {
+        String sql = """
+                SELECT COALESCE(ir.name, rr.rule_type) AS label,
+                       count(DISTINCT rr.case_id) AS total"""
+                + FROM_CASES + """
+
+                  JOIN rule_result rr ON rr.case_id = c.id AND rr.result = :failed
+                  LEFT JOIN insurer_rule ir ON ir.id = rr.rule_id"""
+                + REPORTED_WINDOW + filters(filter)
+                + " GROUP BY 1 ORDER BY total DESC, label";
+        return query(template -> template.query(sql, period(from, to, filter).addValue("failed", FAILED),
+                COUNT_ROW));
+    }
+
     /** One row per final status reached in the period, with its own average time to get there. */
     @Transactional(readOnly = true)
     public List<ResolvedTotals> resolvedTotals(Instant from, Instant to, MetricsFilter filter) {
@@ -617,6 +722,16 @@ public class ClaimMetricsRepository {
             params.addValue("analystId", filter.analystId());
         }
         return params;
+    }
+
+    /**
+     * Un promedio en segundos pasado a horas, respetando que {@code avg} devuelve NULL cuando no
+     * tuvo nada que promediar: sin esto un período sin derivaciones diría "0 h de respuesta", que
+     * es lo contrario de lo que pasó.
+     */
+    private static Double hours(ResultSet rs, String column) throws SQLException {
+        double seconds = rs.getDouble(column);
+        return rs.wasNull() ? null : seconds / 3600;
     }
 
     /** See the class Javadoc: the connection has to be Hibernate's, or the search_path is wrong. */

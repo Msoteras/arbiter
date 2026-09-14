@@ -37,6 +37,11 @@ import java.util.List;
  *                         reached from what the insured claimed
  * @param fraud            fraud determined in the period and what it saved — the figure that pays
  *                         for investigating
+ * @param fastTrack        how long Fast Track claims took against the rest, as two measured
+ *                         figures rather than an estimated saving
+ * @param derivations      one row per kind of third party the claims were derived to, with how
+ *                         long each takes to answer
+ * @param byBlockingRule   which rules stopped the most claims filed in the period
  * @param byStatus         claims filed in the period, by the status they sit in <b>now</b> — a
  *                         snapshot of where the intake ended up, not of transitions
  * @param byBranch         claims filed in the period, by branch ("ramo")
@@ -58,9 +63,12 @@ public record ClaimMetrics(
         ReopeningRate reopening,
         SettledAmounts settled,
         FraudDetection fraud,
+        FastTrackImpact fastTrack,
+        List<DerivationTurnaround> derivations,
         List<MetricCount> byStatus,
         List<MetricCount> byBranch,
         List<MetricCount> byClassification,
         List<MetricCount> byRiskBand,
+        List<MetricCount> byBlockingRule,
         List<TimelinePoint> timeline
 ) {}
