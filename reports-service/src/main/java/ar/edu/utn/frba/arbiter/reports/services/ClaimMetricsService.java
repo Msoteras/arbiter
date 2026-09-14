@@ -17,6 +17,7 @@ import ar.edu.utn.frba.arbiter.reports.models.repositories.ClaimMetricsRepositor
 import ar.edu.utn.frba.arbiter.reports.models.repositories.ClaimMetricsRepository.ResolvedTotals;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Clock;
 import java.time.Instant;
@@ -52,15 +53,30 @@ public class ClaimMetricsService {
     private final Clock clock;
 
     /**
+     * <b>Una sola transacción para las veinte consultas del tablero</b>, y no una por método del
+     * repositorio. No es por atomicidad —es todo lectura— sino por lo que cuesta pedir la conexión:
+     * con multi-tenancy, cada adquisición la apunta al esquema del tenant y cada devolución la
+     * vuelve a {@code arbiter_common}. Una transacción por consulta pagaba ese ida y vuelta veinte
+     * veces, y con la base en otra red eso era el grueso del tiempo de respuesta. Los métodos del
+     * repositorio siguen anotados: se suman a ésta cuando se los llama desde acá, y siguen teniendo
+     * la suya cuando se los llama sueltos (los tests lo hacen).
+     *
+     * <p><b>El objetivo se pide antes de tocar la base</b>, y el orden importa: es una llamada HTTP
+     * a rules-service, e ir a buscarla en el medio dejaría una conexión tomada esperando a otro
+     * módulo. Hibernate adquiere la conexión recién en la primera consulta, así que pidiéndolo
+     * primero la llamada queda enteramente fuera.
+     *
      * @param range shortcut period; mutually exclusive with {@code from}/{@code to}. With all three
      *              absent the dashboard gets {@link #DEFAULT_RANGE}.
      */
+    @Transactional(readOnly = true)
     public ClaimMetrics generate(MetricsRange range, LocalDate from, LocalDate to, MetricsFilter filter) {
         if (!TenantContext.isResolved()) {
             throw new TenantNotResolvedException();
         }
         Period period = resolvePeriod(range, from, to);
         ZoneId zone = clock.getZone();
+        ResolutionTarget target = rulesServiceClient.resolutionTarget();
 
         // Whole calendar days in the insurer's time zone, both ends included: "hasta el 31/08"
         // means up to the last second of that day, so the upper bound is the next midnight,
@@ -84,7 +100,7 @@ public class ClaimMetricsService {
                 summarize(intake, resolved, split),
                 previousSummary(period, zone, filter),
                 claimMetricsRepository.recommendationAgreement(start, end, filter),
-                resolutionTarget(start, end, filter),
+                resolutionTarget(target, start, end, filter),
                 claimMetricsRepository.legalDeadlineCompliance(start, end, zone, filter),
                 claimMetricsRepository.reopeningRate(start, end, filter),
                 claimMetricsRepository.settledAmounts(start, end, filter),
@@ -105,9 +121,12 @@ public class ClaimMetricsService {
      *
      * <p>La consulta sólo corre si hay objetivo: sin uno no hay contra qué contar, y preguntarle a
      * la base "cuántos superaron nada" es una consulta de más en cada carga del tablero.
+     *
+     * @param target lo que contestó rules-service, ya traído por {@link #generate} antes de abrir
+     *               la transacción
      */
-    private ResolutionTarget resolutionTarget(Instant start, Instant end, MetricsFilter filter) {
-        ResolutionTarget target = rulesServiceClient.resolutionTarget();
+    private ResolutionTarget resolutionTarget(
+            ResolutionTarget target, Instant start, Instant end, MetricsFilter filter) {
         if (!target.enabled() || target.targetDays() == null) {
             return ResolutionTarget.UNSET;
         }
