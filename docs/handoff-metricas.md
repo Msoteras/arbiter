@@ -1,6 +1,6 @@
 # Handoff — tablero de métricas del referente
 
-**Fecha:** 12/09/2026 · **Actualizado:** 13/09/2026, al mergear develop · **Rama:** `feature/metricas-referente`
+**Fecha:** 12/09/2026 · **Actualizado:** 13/09/2026, con las métricas que faltaban · **Rama:** `feature/metricas-referente`
 
 Este archivo es lo que **falta**, no lo que se hizo. Se borra cuando se vacíe.
 
@@ -9,12 +9,12 @@ Este archivo es lo que **falta**, no lo que se hizo. Se borra cuando se vacíe.
 ## Dónde quedó
 
 **`feature/metricas-referente`** — **PR sin abrir**, y ése es el próximo paso.
-Ocho commits propios: el enum compartido, el filtro de la bandeja, el objetivo configurable, el
-esquema, el backend de métricas, el tablero, la historia H0037 y este handoff.
 
 **Develop mergeado el 13/09** con la liquidación (PR #84) y las pruebas y fixes de septiembre (#85)
-adentro. Seis conflictos, resueltos en el commit del merge. **892 tests del backend y 120 del
-frontend en verde después del merge.**
+adentro; seis conflictos, resueltos en el commit del merge. Encima entraron las ocho métricas que
+faltaban (ver más abajo) y el objetivo medido contra el tiempo de gestión.
+
+**486 tests del backend y 122 del frontend en verde**, unitarios e integración.
 
 `feature/determinacion-pagos` ya entró a develop, así que deja de ser una rama a seguir.
 
@@ -39,16 +39,21 @@ Objetivo de resolución**, que es lo que alimenta la tarjeta de tiempo.
 
 ---
 
-## Dos decisiones abiertas
+## Las dos decisiones que estaban abiertas — cerradas
 
-### 1 · ¿Contra qué se mide el objetivo de 21 días?
+### 1 · ~~¿Contra qué se mide el objetivo de 21 días?~~ — **tiempo de gestión**
 
-Hoy se compara contra el **tiempo total** (reloj de pared, denuncia → decisión). El procedimiento de
-la compañía dice que pedir documentación o derivar a un perito **interrumpe** el plazo, así que lo
-fiel sería compararlo contra el **tiempo de gestión**. No se cambió por cuenta propia porque
-alteraría el significado de "3 de 7 lo superaron" después de que ya se vio funcionando.
+Decidido el 13/09. Se compara contra el tiempo de gestión: al total se le descuenta lo que el
+expediente esperó documentación, un perito o el servicio técnico, porque el procedimiento dice que
+esas derivaciones interrumpen el plazo. Medido contra el reloj de pared, el objetivo le imputaba a
+la gestión semanas que ni la ley ni el procedimiento le imputan, y daba un número que el referente
+no podía accionar: un expediente se pasaba del objetivo por haber pedido un peritaje, que es
+exactamente lo que debía hacer.
 
-El tablero ya calcula las dos mitades, así que es cambiar cuál de las dos entra en la comparación.
+**Los números del tablero cambiaron de significado con esto**: "3 de 7 lo superaron" ahora cuenta
+otra cosa que antes. La tarjeta lo dice — "Objetivo: 21 d **de gestión**" —, porque el número grande
+de arriba sigue siendo el tiempo total y sin esa palabra la cuenta no cierra: un promedio de 35 días
+contra un objetivo de 21 que casi todos cumplieron se lee como un error.
 
 ### 2 · ~~El servicio técnico no puede cargar su presupuesto~~ — resuelta en develop
 
@@ -59,31 +64,41 @@ acreditado de la fórmula de reparación. Queda anotado acá sólo para que no s
 
 ---
 
-## Lo que falta, por lo que rinde
+## Las ocho métricas que faltaban — hechas el 13/09
 
-1. **Fast Track: cuánto agiliza de verdad.** La maqueta pedía "54 h ahorradas", que es un número
-   modelado (diferencia de dos promedios × 3 casos) y con esa cantidad de casos es ruido. La versión
-   honesta es la comparación cruda: **"Fast Track: 2 d · Resto: 35 d"**, dos números medidos, uno al
-   lado del otro. Backend: separar el promedio de resueltos por la marca de Fast Track.
-2. **Cumplimiento del plazo legal (art. 56).** Más importante que el objetivo interno: uno es una
-   meta que la compañía se pone, el otro es la ley. Cada expediente ya trae su fecha límite.
-   **Verificar primero** que nuestro reinicio sea el del procedimiento: cuando la documentación se
-   completa, *"comenzará a regir nuevamente el tiempo legal de 30 días"* — vuelven a correr 30 desde
-   cero, no se reanuda lo que quedaba.
-3. **Tasa de reapertura.** El procedimiento tiene el estado REHABILITADO y nosotros ya contemplamos
-   la reapertura al fechar la resolución. Es una métrica de *calidad de la decisión*: si se reabren
-   muchos, se está decidiendo rápido y mal. Se lee junto con la coincidencia con el modelo.
-4. **Monto aprobado** — **destrabado**: `case_settlement.settled_amount` entró a develop con el PR
-   #84 y ya está en esta rama. Es el pendiente más maduro de la lista, y del que cuelgan los dos
-   siguientes.
-5. **Siniestros Pendientes de Liquidación (reserva expuesta).** El procedimiento la nombra como
-   control del Jefe de Siniestros, trimestral. Es la plata que sigue sobre la mesa. Necesita el
-   punto 4.
-6. **Plazo de pago**: 15 días desde que se acepta el siniestro. Segundo plazo legal que hoy no se
-   mide en absoluto. Necesita lo mismo.
-7. **H0037 — tablero propio del analista** (card en Trello). El acceso ya existe: la ruta y el
-   endpoint habilitan al analista, y lo que ve es la cartera entera de la compañía. Lo que falta es
-   el recorte a sus expedientes.
+Las seis de la lista original que tenían dato, más dos que salieron al revisar qué guardamos:
+
+1. **Cumplimiento del plazo legal (art. 56).** La única métrica regulatoria del panel. Se verificó
+   primero lo que este handoff pedía verificar: el reinicio ya es el del procedimiento —al cumplirse
+   el requerimiento vuelven a correr 30 días enteros, no los que quedaban— así que la métrica lee la
+   fecha límite del expediente en vez de rehacer la cuenta.
+2. **Monto liquidado y promedio por siniestro.** Sólo las liquidaciones firmadas.
+3. **Reclamado contra liquidado**, con las tres deducciones (franquicia, cuotas, mora).
+4. **Fraude determinado y lo que evitó pagar.** Es el número que justifica investigar: sin él,
+   derivar a un perito figura sólo como demora.
+5. **Respuesta de los terceros**: cuántas derivaciones salieron, cuántas siguen afuera y cuánto
+   tardan en volver, separadas por peritaje y servicio técnico. Estaba escondido adentro del "tiempo
+   esperando a terceros", que decía cuánto pero no a quién.
+6. **Cuánto agiliza el Fast Track**, como dos promedios medidos uno al lado del otro.
+7. **Tasa de reapertura**, al lado de la coincidencia con el modelo.
+8. **Qué reglas frenan más expedientes**, que le dice al referente cuál de las que configuró está
+   mordiendo.
+
+## Lo que queda
+
+- **H0037 — tablero propio del analista** (card en Trello). El acceso ya existe: la ruta y el
+  endpoint habilitan al analista, y lo que ve es la cartera entera de la compañía. Lo que falta es
+  el recorte a sus expedientes.
+
+**No se van a hacer**, y no por falta de tiempo: las dos necesitan que el sistema tome un dato que
+hoy no toma, así que son cambios al flujo y no al tablero.
+
+- **Plazo de pago** (15 días desde que se acepta el siniestro). **No registramos en ningún lado
+  cuándo se paga.** No es una métrica que falte: es un dato que no existe. Medirlo implica una
+  acción nueva, su pantalla y el aviso al asegurado.
+- **Siniestros Pendientes de Liquidación (reserva expuesta).** No tenemos "reserva" como concepto.
+  Lo más cercano es lo reclamado en los expedientes abiertos, que es otra cosa y habría que aclarar
+  en la pantalla que es una aproximación.
 
 **Descartado, no pospuesto:** la línea de backlog ("abiertos al cierre" por semana). Es la consulta
 más cara de todas y con una docena de casos al mes sería una línea plana; el embudo ya responde lo
