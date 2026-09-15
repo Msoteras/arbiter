@@ -1,5 +1,6 @@
 package ar.edu.utn.frba.arbiter.cases.services;
 
+import ar.edu.utn.frba.arbiter.cases.dto.ProviderType;
 import ar.edu.utn.frba.arbiter.cases.models.entities.Case;
 import ar.edu.utn.frba.arbiter.cases.models.entities.CaseDocument;
 import ar.edu.utn.frba.arbiter.cases.models.entities.ExpertAssessment;
@@ -20,6 +21,7 @@ import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Locale;
+import java.util.Set;
 
 /**
  * Emails the external expert the case they have to verify.
@@ -51,6 +53,9 @@ public class ExpertNotificationService {
 
     private static final Locale AR = Locale.forLanguageTag("es-AR");
 
+    private static final Set<String> INTERNAL_REPORT_TYPES = Set.of(
+            ExpertAssessmentService.REPORT_DOCUMENT_TYPE, ExpertAssessmentService.REPAIR_DOCUMENT_TYPE);
+
     private final SendGridAdapter sendGridAdapter;
     private final CaseDocumentRepository caseDocumentRepository;
     private final BranchRepository branchRepository;
@@ -62,11 +67,17 @@ public class ExpertNotificationService {
      */
     public Instant notifyDerivation(Case caseRecord, ExpertAssessment assessment) {
         try {
-            List<SendGridAdapter.Attachment> attachments = attachmentsOf(caseRecord.getId());
+            boolean repair = assessment.getProviderType() == ProviderType.SERVICIO_TECNICO;
+            // A repair shop fixes the item; it does not verify the claim. The police report, the
+            // purchase invoice and the rest are the insured's paperwork, and there is no reason for
+            // them to leave the insurer to get a screen quoted.
+            List<SendGridAdapter.Attachment> attachments =
+                    repair ? List.of() : attachmentsOf(caseRecord.getId());
             boolean sent = sendGridAdapter.send(
                     assessment.getExpertEmail(),
-                    "Solicitud de peritaje · Siniestro #" + caseRecord.getId(),
-                    body(caseRecord, assessment, attachments),
+                    (repair ? "Solicitud de reparación" : "Solicitud de peritaje")
+                            + " · Siniestro #" + caseRecord.getId(),
+                    repair ? repairBody(caseRecord, assessment) : body(caseRecord, assessment, attachments),
                     attachments);
             // Not `Instant.now()` unconditionally: with no API key the adapter logs and returns
             // without sending, and stamping that as notified told the analyst the expert had been
@@ -89,6 +100,8 @@ public class ExpertNotificationService {
         List<SendGridAdapter.Attachment> attachments = new ArrayList<>();
         long budget = MAX_ATTACHMENT_BYTES;
         for (CaseDocument document : caseDocumentRepository.findByCaseId(caseId).stream()
+                // Another provider's report is our evidence, not part of the claim they get sent.
+                .filter(document -> !INTERNAL_REPORT_TYPES.contains(document.getType()))
                 .sorted(Comparator.comparing(CaseDocument::getId))
                 .toList()) {
             byte[] content = document.getContent();
@@ -140,14 +153,44 @@ public class ExpertNotificationService {
                 caseRecord.getClaimCause().getName(),
                 nullSafe(caseRecord.getDeclaredItem()),
                 amount(caseRecord.getClaimedAmount()),
-                caseRecord.getOccurredAt() != null
-                        ? DATE_TIME.format(caseRecord.getOccurredAt().atZone(ZoneId.systemDefault()))
-                        : "—",
+                occurredAt(caseRecord),
                 caseRecord.getReportedAt() != null ? DATE_TIME.format(caseRecord.getReportedAt()) : "—",
                 nullSafe(caseRecord.getEventAddress()),
                 assessment.getReason(),
                 nullSafe(caseRecord.getDescription()),
                 attachmentList(attachments));
+    }
+
+    /**
+     * Lo mínimo para reparar o cotizar: qué equipo es, cuándo pasó y qué hay que hacerle. Sin
+     * nombre, DNI, domicilio ni el relato de la denuncia — al taller no le hace falta saber de
+     * quién es el equipo para arreglarlo, y son datos personales del asegurado (Ley 25.326).
+     * Tampoco el importe reclamado: es lo que la compañía va a pagar, y lo leería quien cotiza.
+     */
+    private String repairBody(Case caseRecord, ExpertAssessment assessment) {
+        return """
+                <p>Hola,</p>
+                <p>Les derivamos el siniestro <strong>#%d</strong> para su reparación o cotización.</p>
+                <ul>
+                  <li><strong>Ramo:</strong> %s</li>
+                  <li><strong>Bien declarado:</strong> %s</li>
+                  <li><strong>Fecha y hora de ocurrencia:</strong> %s</li>
+                </ul>
+                <p><strong>Motivo de la derivación:</strong> %s</p>
+                <p>Al finalizar, envíennos el resultado (reparado, irreparable o presupuesto)
+                respondiendo a este correo.</p>
+                <p>Arbiter</p>
+                """.formatted(
+                caseRecord.getId(),
+                branchName(caseRecord),
+                nullSafe(caseRecord.getDeclaredItem()),
+                occurredAt(caseRecord),
+                assessment.getReason());
+    }
+
+    private String occurredAt(Case caseRecord) {
+        return caseRecord.getOccurredAt() == null ? "—"
+                : DATE_TIME.format(caseRecord.getOccurredAt().atZone(ZoneId.systemDefault()));
     }
 
     /** Named, not counted: the expert can tell a file that got dropped from one never uploaded. */

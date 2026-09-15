@@ -87,6 +87,7 @@ describe('MisExpedientesComponent · filtros', () => {
       'CLASSIFICATION_FAILED',
       'AWAITING_DOCUMENTATION',
       'PENDING_EXPERT_REPORT',
+      'PENDING_REPAIR',
     ]);
   });
 

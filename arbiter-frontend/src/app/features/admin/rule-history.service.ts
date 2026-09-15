@@ -72,6 +72,8 @@ export const RULE_TYPE_LABELS: Record<string, string> = {
   MAX_EVENTS_YEAR: 'Tope de eventos por año',
   POLICY_STANDING: 'Mora de la póliza',
   FRAUD_RECORD: 'Antecedente de fraude',
+  EXPERT_DERIVATION: 'Derivación a peritaje',
+  REPAIR_DERIVATION: 'Derivación a reparación',
   SCORING: 'Puntaje de riesgo',
 };
 
@@ -106,6 +108,7 @@ export const RULE_FIELD_LABELS: Record<string, string> = {
   exclusions: 'Exclusiones',
   businessRules: 'Reglas de negocio',
   minClaimedAmount: 'Monto mínimo para derivar a perito',
+  claimCauseIds: 'Hechos generadores que admiten reparación',
   enabled: 'Puntaje habilitado',
   fullAnalysisOnFastTrack: 'Análisis completo en Fast Track',
   id: 'Identificador de la configuración',

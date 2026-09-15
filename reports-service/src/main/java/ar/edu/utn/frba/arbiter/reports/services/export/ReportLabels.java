@@ -31,6 +31,7 @@ final class ReportLabels {
             case CLASSIFICATION_FAILED -> "Clasificación fallida";
             case AWAITING_DOCUMENTATION -> "Falta documentación";
             case PENDING_EXPERT_REPORT -> "Derivado a peritaje";
+            case PENDING_REPAIR -> "Derivado a reparación";
             case APPROVED -> "Aprobado";
             case REJECTED -> "Rechazado";
             case LAPSED -> "Caducado";

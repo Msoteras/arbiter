@@ -2,6 +2,7 @@ package ar.edu.utn.frba.arbiter.cases.models.repositories;
 
 import ar.edu.utn.frba.arbiter.cases.models.entities.RiskBreakdownJsonConverter;
 import ar.edu.utn.frba.arbiter.common.dto.RiskBreakdownItem;
+import ar.edu.utn.frba.arbiter.common.enums.CauseConsistency;
 import ar.edu.utn.frba.arbiter.common.enums.Classification;
 import jakarta.persistence.EntityManager;
 import lombok.RequiredArgsConstructor;
@@ -61,10 +62,18 @@ public class CaseAnalysisRepository {
             Classification classification,
             Double confidence,
             List<String> factors,
-            List<RiskBreakdownItem> riskBreakdown
+            List<RiskBreakdownItem> riskBreakdown,
+            /**
+             * Whether the insured's account matched the claim cause they declared. Null when the
+             * model never ran, and also for analyses written before this check existed — in both
+             * cases absent means "not evaluated", never {@code MATCHES}.
+             */
+            CauseConsistency causeConsistency,
+            String suggestedClaimCause,
+            String causeEvidence
     ) {
         public static CaseAnalysis none() {
-            return new CaseAnalysis(null, null, List.of(), null);
+            return new CaseAnalysis(null, null, List.of(), null, null, null, null);
         }
     }
 
@@ -96,7 +105,8 @@ public class CaseAnalysisRepository {
         Map<String, Object> params = Map.of("caseIds", caseIds);
 
         List<LatestAnalysis> latest = jdbcTemplate.query("""
-                SELECT DISTINCT ON (case_id) case_id, id, recommendation, confidence
+                SELECT DISTINCT ON (case_id) case_id, id, recommendation, confidence,
+                       cause_consistency, suggested_claim_cause, cause_evidence
                   FROM llm_analysis
                  WHERE case_id IN (:caseIds)
                  ORDER BY case_id, id DESC
@@ -106,11 +116,15 @@ public class CaseAnalysisRepository {
             // porque es lo que expone ClaimResponse/CaseResponse.
             BigDecimal rawConfidence = rs.getBigDecimal("confidence");
             Double confidence = rawConfidence == null ? null : rawConfidence.doubleValue();
+            String consistency = rs.getString("cause_consistency");
             return new LatestAnalysis(
                     rs.getLong("case_id"),
                     rs.getLong("id"),
                     Classification.valueOf(rs.getString("recommendation")),
-                    confidence);
+                    confidence,
+                    consistency == null ? null : CauseConsistency.valueOf(consistency),
+                    rs.getString("suggested_claim_cause"),
+                    rs.getString("cause_evidence"));
         });
 
         Map<Long, LatestAnalysis> analysisByCase = new HashMap<>();
@@ -139,12 +153,17 @@ public class CaseAnalysisRepository {
                     row == null ? null : row.classification(),
                     row == null ? null : row.confidence(),
                     factorsByCase.getOrDefault(caseId, List.of()),
-                    breakdownByCase.get(caseId)));
+                    breakdownByCase.get(caseId),
+                    row == null ? null : row.causeConsistency(),
+                    row == null ? null : row.suggestedClaimCause(),
+                    row == null ? null : row.causeEvidence()));
         }
         return result;
     }
 
-    private record LatestAnalysis(Long caseId, Long analysisId, Classification classification, Double confidence) {
+    private record LatestAnalysis(Long caseId, Long analysisId, Classification classification,
+                                  Double confidence, CauseConsistency causeConsistency,
+                                  String suggestedClaimCause, String causeEvidence) {
     }
 
     private Map<Long, List<String>> factorsFor(NamedParameterJdbcTemplate jdbcTemplate,

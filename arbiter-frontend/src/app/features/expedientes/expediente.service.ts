@@ -6,7 +6,13 @@ import { environment } from '../../../environments/environment';
 import { ExpedienteResponse } from '../../core/models/expediente';
 import { CaseDocument } from '../../core/models/case-document';
 import { Policy } from '../../core/models/policy';
-import { ExpertVerdict, OpcionesDerivacion, Peritaje } from '../../core/models/peritaje';
+import {
+  ExpertVerdict,
+  OpcionesDerivacion,
+  Peritaje,
+  ProviderType,
+  RepairOutcome,
+} from '../../core/models/peritaje';
 import {
   AntecedenteFraude,
   RegistrarAntecedenteRequest,
@@ -54,13 +60,98 @@ export interface EligibilityCheckResponse {
   reason: string | null;
 }
 
+/** Espejo de `IntakeDocumentsResponse` de cases-service. */
+export interface IntakeDocumentsResponse {
+  documentTypes: string[];
+  /** `true` si es la lista del carril rápido; `false` si es la agenda completa (no hay lista). */
+  fastTrackOnly: boolean;
+}
+
 // El backend solo acepta APPROVE/APROBAR o REJECT/RECHAZAR (human-in-the-loop:
 // el analista aprueba o rechaza; no hay otras salidas). Sin analystId: cases-service
 // lo resuelve del JWT del que llama, no confía en lo que mande el cliente.
 export interface AnalystDecisionRequest {
   decision: 'APPROVE' | 'REJECT';
   justification: string;
+  /** Obligatorio al aprobar, prohibido al rechazar: aprobar es también determinar cuánto se paga. */
+  settlement?: SettlementDecisionRequest | null;
 }
+
+/** Lo que el analista autoriza pagar. Calca SettlementDecisionRequest del backend. */
+export interface SettlementDecisionRequest {
+  /** Valor de reposición acreditado por la documentación del expediente. Opcional. */
+  replacementValue?: number | null;
+  /** El monto que efectivamente se paga: la propuesta, o el ajuste del analista. */
+  settledAmount: number;
+  /** Obligatorio solo si `settledAmount` difiere de lo que calculó el backend. */
+  adjustmentReason?: string | null;
+}
+
+/** Cómo se calcula el techo indemnizable de una cobertura. Calca el enum SettlementBasis. */
+export type SettlementBasis = 'SUM_INSURED' | 'LESSER_OF_SUM_AND_REPLACEMENT';
+
+/**
+ * Una línea de la hoja de liquidación. El backend la arma entera —importe y explicación— para que
+ * el texto y la cuenta no puedan separarse: acá solo se renderiza.
+ */
+export interface SettlementLine {
+  kind: 'BASE' | 'DEDUCTION' | 'TOTAL';
+  concept: string;
+  detail: string | null;
+  amount: number;
+}
+
+/** El monto a pagar del expediente: la liquidación ya autorizada, o la propuesta a confirmar. */
+export interface Settlement {
+  formula: SettlementFormula;
+  sumInsured: number;
+  settlementBasis: SettlementBasis;
+  replacementValue: number | null;
+  deductibleRate: number | null;
+  eventOrdinal: number;
+  eventPercentage: number;
+  pendingInstallments: number;
+  installmentAmount: number | null;
+  deductibleAmount: number;
+  pendingInstallmentsAmount: number;
+  overdueBalanceAmount: number;
+  calculatedAmount: number;
+  settledAmount: number | null;
+  adjustmentReason: string | null;
+  confirmed: boolean;
+  confirmedAt: string | null;
+  /** Null mientras es solo una propuesta: no se firmó nada, así que no hay instancia en la que estar. */
+  status: SettlementStatus | null;
+  /**
+   * El tope del ramo. En una propuesta es el vigente, para que el analista vea ANTES de firmar que
+   * este monto va a necesitar al referente; en una liquidación guardada es el que quedó congelado.
+   * Null = el ramo no tiene tope.
+   */
+  authorityLimit: number | null;
+  /** Por qué el referente la devolvió, cuando la devolvió. */
+  returnReason: string | null;
+  /**
+   * El importe que el modelo leyó de la documentación del expediente. **Sugerencia y nada más**:
+   * no está aplicado ni entra en el cálculo hasta que el analista lo toma.
+   */
+  suggestedAmount: number | null;
+  /** De qué tipo de documento salió, para poder verificarlo antes de tomarlo. */
+  suggestedFrom: string | null;
+  /**
+   * A qué campo responde. `ACCREDITED_AMOUNT` es la base del cálculo (presupuesto o valor de
+   * reposición); `SETTLED_AMOUNT` es el monto a pagar en sí, que es donde cae lo que determinó el
+   * perito cuando la cobertura liquida por suma asegurada y no hay monto acreditado que cargar.
+   */
+  suggestedFor: 'ACCREDITED_AMOUNT' | 'SETTLED_AMOUNT' | null;
+  breakdown: SettlementLine[];
+  warnings: string[];
+}
+
+/** En qué instancia de la cadena de autorización está la liquidación. Calca SettlementStatus. */
+export type SettlementStatus = 'AUTHORIZED' | 'PENDING_AUTHORIZATION' | 'RETURNED';
+
+/** Cómo se liquidó: el bien no está (pérdida total) o quedó dañado (reparación). */
+export type SettlementFormula = 'TOTAL_LOSS' | 'REPAIR';
 
 // Forma de Page<T> de Spring Data — así responde GET /api/v1/cases desde que el backend
 // pagina (historia "Búsqueda y filtrado de expedientes"). Solo los campos que usamos hoy;
@@ -96,6 +187,11 @@ export interface ExpedienteListParams {
   /** Nivel de alerta de fraude, match exacto. */
   riskBand?: 'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL';
   /**
+   * Lente "Frenados": expedientes abiertos sin un solo cambio en los últimos N días. Lo usa el
+   * panel "Requiere atención" del tablero para encontrar lo que quedó quieto.
+   */
+  staleDays?: number;
+  /**
    * Lente "Míos" de la bandeja: solo los expedientes asignados al analista logueado. Omitirlo
    * (o `false`) es la lente "Todos".
    *
@@ -114,7 +210,7 @@ export interface ExpedienteListParams {
   unassigned?: boolean;
   /** Lente "Asignados" (referente): expedientes con analista, sin importar quién. Excluyente. */
   assigned?: boolean;
-  /** Lente "Alerta de fraude": expedientes con riesgo alto o crítico. Excluyente con las otras. */
+  /** Pestaña "Riesgo de fraude": expedientes con riesgo alto o crítico. Excluyente con las otras. */
   fraudAlert?: boolean;
   /** Recorte por ciclo de vida. Default del backend: `ALL`. */
   scope?: 'OPEN' | 'CLOSED' | 'ALL';
@@ -139,6 +235,8 @@ export interface LensSummary {
   assigned: number;
   unassigned: number;
   fraud: number;
+  open: number;
+  closed: number;
 }
 
 /**
@@ -198,6 +296,7 @@ export class ExpedienteService {
     if (params.assigned) query['assigned'] = 'true';
     if (params.fraudAlert) query['fraudAlert'] = 'true';
     if (params.scope) query['scope'] = params.scope;
+    if (params.staleDays != null) query['staleDays'] = String(params.staleDays);
     if (params.insurerId != null) query['insurerId'] = String(params.insurerId);
     return this.http.get<PagedResponse<ExpedienteResponse>>(this.baseUrl, { params: query });
   }
@@ -209,6 +308,18 @@ export class ExpedienteService {
    */
   checkEligibility(request: EligibilityCheckRequest): Observable<EligibilityCheckResponse> {
     return this.http.post<EligibilityCheckResponse>(`${this.baseUrl}/eligibility`, request);
+  }
+
+  /**
+   * La primera tanda de documentos del alta: lo que exige el carril rápido para la cobertura que
+   * responde por ese hecho generador, o la agenda completa si la aseguradora no configuró ninguna
+   * (`fastTrackOnly=false`). El resto se pide después, solo si el siniestro no entra al carril
+   * rápido. 503 si no se pudo leer el motor de reglas.
+   */
+  intakeDocuments(policyNumber: string, branch: string, claimCause: string): Observable<IntakeDocumentsResponse> {
+    return this.http.get<IntakeDocumentsResponse>(`${this.baseUrl}/intake-documents`, {
+      params: { policyNumber, branch, claimCause },
+    });
   }
 
   create(
@@ -264,6 +375,17 @@ export class ExpedienteService {
     request: AnalystDecisionRequest,
   ): Observable<{ status: string }> {
     return this.http.post<{ status: string }>(`${this.baseUrl}/${caseId}/decision`, request);
+  }
+
+  /**
+   * El monto a pagar: la liquidación ya autorizada, o la propuesta para que el analista confirme.
+   * No persiste nada — `replacementValue` deja previsualizar qué pasaría si se acreditara ese
+   * valor, y lo que escribe es la aprobación (`recordAnalystDecision`).
+   */
+  settlement(caseId: number, replacementValue?: number | null): Observable<Settlement> {
+    const params =
+      replacementValue == null ? undefined : { replacementValue: String(replacementValue) };
+    return this.http.get<Settlement>(`${this.baseUrl}/${caseId}/settlement`, { params });
   }
 
   /**
@@ -337,24 +459,56 @@ export class ExpedienteService {
    * así que la respuesta cambia por aseguradora y por ramo. También lo valida el backend al
    * derivar: esto es para la pantalla, no es el control.
    */
-  derivationOptions(caseId: number): Observable<OpcionesDerivacion> {
-    return this.http.get<OpcionesDerivacion>(`${this.baseUrl}/${caseId}/expert-assessment/options`);
+  derivationOptions(
+    caseId: number,
+    providerType: ProviderType = 'ESTUDIO_LIQUIDADOR',
+  ): Observable<OpcionesDerivacion> {
+    return this.http.get<OpcionesDerivacion>(`${this.baseUrl}/${caseId}/expert-assessment/options`, {
+      params: { providerType },
+    });
   }
 
-  /** El peritaje del expediente. 404 si nunca se derivó. */
-  peritaje(caseId: number): Observable<Peritaje> {
-    return this.http.get<Peritaje>(`${this.baseUrl}/${caseId}/expert-assessment`);
+  /** Peritaje y servicio técnico, de la derivación más reciente a la más vieja. */
+  derivaciones(caseId: number): Observable<Peritaje[]> {
+    return this.http.get<Peritaje[]>(`${this.baseUrl}/${caseId}/expert-assessment/all`);
   }
 
   /**
    * Deriva el expediente y le manda al perito los datos del siniestro por mail. No resuelve nada:
    * el caso queda esperando el informe y vuelve al analista, que sigue siendo quien decide.
    */
-  derivarAPeritaje(caseId: number, expertFirmId: number, reason: string): Observable<Peritaje> {
-    return this.http.post<Peritaje>(`${this.baseUrl}/${caseId}/expert-assessment`, {
-      expertFirmId,
-      reason,
-    });
+  derivarAPeritaje(
+    caseId: number,
+    expertFirmId: number,
+    reason: string,
+    providerType: ProviderType = 'ESTUDIO_LIQUIDADOR',
+  ): Observable<Peritaje> {
+    return this.http.post<Peritaje>(
+      `${this.baseUrl}/${caseId}/expert-assessment`,
+      { expertFirmId, reason },
+      { params: { providerType } },
+    );
+  }
+
+  cargarRespuestaServicioTecnico(
+    caseId: number,
+    outcome: RepairOutcome,
+    note: string,
+    repairCost: number | null,
+    report: File,
+  ): Observable<Peritaje> {
+    const formData = new FormData();
+    formData.append('report', report);
+    formData.append('outcome', outcome);
+    formData.append('note', note);
+    // El backend lo exige con QUOTE_SENT y lo rechaza con IRREPARABLE: nada que cobrar ahí.
+    if (repairCost != null) {
+      formData.append('repairCost', String(repairCost));
+    }
+    return this.http.post<Peritaje>(
+      `${this.baseUrl}/${caseId}/expert-assessment/repair-report`,
+      formData,
+    );
   }
 
   /**
@@ -366,6 +520,7 @@ export class ExpedienteService {
     caseId: number,
     verdict: ExpertVerdict,
     note: string,
+    indemnifiableAmount: number | null,
     report: File,
   ): Observable<Peritaje> {
     // Veredicto y nota van en el cuerpo, no en la query string: la nota es texto libre sobre un
@@ -375,6 +530,11 @@ export class ExpedienteService {
     formData.append('report', report);
     formData.append('verdict', verdict);
     formData.append('note', note);
+    // Solo si el informe puso un número: vacío no es cero. Un cero diría que el perito concluyó
+    // que no se paga nada, que es otra conclusión.
+    if (indemnifiableAmount != null) {
+      formData.append('indemnifiableAmount', String(indemnifiableAmount));
+    }
     return this.http.post<Peritaje>(
       `${this.baseUrl}/${caseId}/expert-assessment/report`,
       formData,

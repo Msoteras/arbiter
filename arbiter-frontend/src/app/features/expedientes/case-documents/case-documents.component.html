@@ -63,51 +63,104 @@
       </ul>
     </app-card>
 
-    <!-- Visor embebido -->
-    <app-card class="docs-viewer" heading="Vista previa">
-      @let p = preview();
+    <!-- Visor embebido + lo que el modelo leyó de ESE documento, uno debajo del otro: el papel y
+         su lectura son la misma unidad de trabajo. -->
+    <div class="docs-viewer-col">
+      <app-card class="docs-viewer" heading="Vista previa">
+        @let p = preview();
 
-      @switch (p.status) {
-        @case ('empty') {
-          <div class="viewer-state">
-            <p class="t-note">No hay documentación cargada en este expediente.</p>
-          </div>
-        }
-        @case ('loading') {
-          <div class="viewer-state">
-            <app-inline-loading [size]="20" [message]="'Abriendo ' + p.doc.filename + '…'" />
-          </div>
-        }
-        @case ('error') {
-          <div class="viewer-state">
-            <p class="t-note">No se pudo abrir {{ p.doc.filename }}.</p>
-          </div>
-        }
-        @case ('unsupported') {
-          <div class="viewer-state">
-            <p class="t-note">
-              {{ p.doc.contentType }} no se puede previsualizar acá.
-            </p>
-            <a class="doc-download" [href]="p.objectUrl" [download]="p.doc.filename">
-              Descargar {{ p.doc.filename }}
-            </a>
-          </div>
-        }
-        @case ('ok') {
-          <div class="viewer-bar">
-            <span class="viewer-name" [title]="p.doc.filename">{{ p.doc.filename }}</span>
-            <a class="doc-download" [href]="p.objectUrl" [download]="p.doc.filename">Descargar</a>
-          </div>
-
-          @if (isImage(p.doc.contentType)) {
-            <div class="viewer-frame image">
-              <img [src]="p.objectUrl" [alt]="p.doc.filename" />
+        @switch (p.status) {
+          @case ('empty') {
+            <div class="viewer-state">
+              <p class="t-note">No hay documentación cargada en este expediente.</p>
             </div>
-          } @else if (isPdf(p.doc.contentType)) {
-            <iframe class="viewer-frame pdf" [src]="p.safeUrl" [title]="p.doc.filename"></iframe>
+          }
+          @case ('loading') {
+            <div class="viewer-state">
+              <app-inline-loading [size]="20" [message]="'Abriendo ' + p.doc.filename + '…'" />
+            </div>
+          }
+          @case ('error') {
+            <div class="viewer-state">
+              <p class="t-note">No se pudo abrir {{ p.doc.filename }}.</p>
+            </div>
+          }
+          @case ('unsupported') {
+            <div class="viewer-state">
+              <p class="t-note">
+                {{ p.doc.contentType }} no se puede previsualizar acá.
+              </p>
+              <a class="doc-download" [href]="p.objectUrl" [download]="p.doc.filename">
+                Descargar {{ p.doc.filename }}
+              </a>
+            </div>
+          }
+          @case ('ok') {
+            <div class="viewer-bar">
+              <span class="viewer-name" [title]="p.doc.filename">{{ p.doc.filename }}</span>
+              <a class="doc-download" [href]="p.objectUrl" [download]="p.doc.filename">Descargar</a>
+            </div>
+
+            @if (isImage(p.doc.contentType)) {
+              <div class="viewer-frame image">
+                <img [src]="p.objectUrl" [alt]="p.doc.filename" />
+              </div>
+            } @else if (isPdf(p.doc.contentType)) {
+              <iframe class="viewer-frame pdf" [src]="p.safeUrl" [title]="p.doc.filename"></iframe>
+            }
           }
         }
+      </app-card>
+
+      <!-- Lo que el modelo leyó del adjunto abierto. Un campo vacío se muestra "No aplica" y NUNCA
+           como discrepancia: que un documento no diga algo no es que no coincida. -->
+      @if (selectedExtraction(); as extraction) {
+        <app-card class="docs-extraction" heading="Lo que el modelo leyó" [collapsible]="true">
+          <dl class="fields">
+            @for (f of extractedFields(extraction); track f.label) {
+              <div class="field">
+                <dt class="t-field-label">{{ f.label }}</dt>
+                @if (f.value) {
+                  <dd [class.mono]="f.mono">{{ f.value }}</dd>
+                } @else {
+                  <dd class="nodata">No aplica</dd>
+                }
+              </div>
+            }
+          </dl>
+
+          <!-- Observación sobre la IMAGEN, no contenido del documento: se separa a propósito
+               para que no se lea como si el papel lo dijera. Nunca es concluyente. -->
+          @if (extraction.visualFindings.length > 0) {
+            <div class="visual-findings">
+              <span class="t-field-label">Señales en la imagen</span>
+              <ul>
+                @for (finding of extraction.visualFindings; track $index) {
+                  <li>{{ finding }}</li>
+                }
+              </ul>
+              <p class="t-note">
+                Son observaciones del modelo sobre la imagen, no contenido del documento. Por sí
+                solas no confirman fraude.
+              </p>
+            </div>
+          }
+
+          @if (extraction.transcription) {
+            <details class="transcription">
+              <summary class="t-field-label">Ver lo que se leyó del documento</summary>
+              <p class="t-body">{{ extraction.transcription }}</p>
+            </details>
+          }
+        </app-card>
+      } @else if (selectedNotAnalyzed()) {
+        <app-card class="docs-extraction" heading="Lo que el modelo leyó">
+          <p class="t-note">
+            Este documento no entró en el análisis: se cargó después de que el expediente se
+            clasificara.
+          </p>
+        </app-card>
       }
-    </app-card>
+    </div>
   </div>
 }

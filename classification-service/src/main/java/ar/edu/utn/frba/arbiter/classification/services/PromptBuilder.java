@@ -17,11 +17,48 @@ import java.text.NumberFormat;
 import java.time.format.DateTimeFormatter;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 
 @Component
 public class PromptBuilder {
 
     private static final DateTimeFormatter EVENT_DATE_FORMAT = DateTimeFormatter.ofPattern("dd/MM/yyyy HH:mm");
+
+    /**
+     * How each prior claim's status is worded for the model. The insured's history now merges two
+     * sources —what the company settled in its own systems and what was filed through Arbiter— and
+     * they don't speak the same language: the company writes {@code LIQUIDADO}/{@code RECHAZADO},
+     * Arbiter carries its {@code CaseStatus} literals, which are English by convention. Sending
+     * both raw put two vocabularies in the same list and asked the model to guess.
+     *
+     * <p>The translation lives here and not in the DTO on purpose: the literal is what the rules
+     * compare ({@code CoverageScopeEvaluator} matches {@code LIQUIDADO} to decide what consumed the
+     * coverage), so it has to travel untouched. This is the boundary where the data becomes prose
+     * for a reader — the same job the frontend does for the analyst, except the reader is the model
+     * and the whole prompt is already written in Spanish.
+     *
+     * <p><b>{@code APPROVED} is not "liquidado".</b> The analyst's approval is a decision, and
+     * paying is a later step that happens at the company: wording it as settled would have the
+     * model reading a payment that may never have happened.
+     */
+    private static final Map<String, String> READABLE_STATUS = Map.of(
+            "PENDING_CLASSIFICATION", "en análisis",
+            "CLASSIFICATION_FAILED", "en análisis",
+            "PENDING_ANALYST_REVIEW", "en revisión del analista",
+            "AWAITING_DOCUMENTATION", "esperando documentación del asegurado",
+            "PENDING_EXPERT_REPORT", "en verificación con un perito",
+            "APPROVED", "aprobado por el analista (pendiente de liquidación)",
+            "REJECTED", "rechazado",
+            "LAPSED", "caducado por falta de documentación");
+
+    /**
+     * Unknown values pass through untouched — that's what leaves the company's own vocabulary
+     * ({@code LIQUIDADO}, {@code RECHAZADO}) exactly as its records write it, instead of forcing a
+     * catalog of someone else's states in here.
+     */
+    private static String readableStatus(String status) {
+        return status == null ? "—" : READABLE_STATUS.getOrDefault(status, status);
+    }
 
     private final String promptTemplate;
 
@@ -84,7 +121,32 @@ public class PromptBuilder {
                 .replace("{{attachmentsOcr}}", attachmentsText)
                 .replace("{{insurerRules}}", rules)
                 .replace("{{engineEvaluation}}", engineEvaluation)
-                .replace("{{insuredHistory}}", history);
+                .replace("{{insuredHistory}}", history)
+                // Last: everything above is a placeholder the catalog must not be able to forge.
+                .replace("{{claimCauseCatalog}}", renderClaimCauseCatalog(request));
+    }
+
+    /**
+     * The branch's claim causes, each marked with whether the coverage covers it. This is the only
+     * place the model learns that causes other than the declared one exist — and the same list the
+     * output schema restricts {@code suggestedClaimCause} to, so whatever it answers maps back to
+     * an id without guessing.
+     *
+     * <p>An empty catalog (the branch has none loaded) renders a line that shuts the check down
+     * rather than leaving the model to improvise against a blank list.
+     */
+    private static String renderClaimCauseCatalog(ClassificationRequest request) {
+        List<ClassificationRequest.ClaimCauseOption> catalog = request.claimCauseCatalog();
+        if (catalog == null || catalog.isEmpty()) {
+            return "Catálogo no disponible — no evalúes la consistencia del relato con el hecho "
+                    + "generador y devolvé AMBIGUOUS.";
+        }
+        return catalog.stream()
+                .map(option -> "- %s — %s".formatted(
+                        option.name(),
+                        option.covered() ? "CUBIERTO" : "NO CUBIERTO POR ESTA PÓLIZA"))
+                .reduce((a, b) -> a + "\n" + b)
+                .orElse("");
     }
 
     /** Claimed amount with thousands separator (es-AR): 1234567 → "$1.234.567". */
@@ -161,7 +223,7 @@ public class PromptBuilder {
                 sb.append("    Ramo: %s | Hecho: %s\n".formatted(c.branch(), c.claimCause()));
                 sb.append("    Bien: %s\n".formatted(c.affectedItem()));
                 sb.append("    Estado: %s | Reclamado: $%s | Liquidado: $%s\n"
-                        .formatted(c.status(), c.amountClaimed(),
+                        .formatted(readableStatus(c.status()), c.amountClaimed(),
                                 c.amountSettled() != null ? c.amountSettled() : "—"));
                 if (c.notes() != null && !c.notes().isBlank()) {
                     sb.append("    Obs: %s\n".formatted(c.notes()));

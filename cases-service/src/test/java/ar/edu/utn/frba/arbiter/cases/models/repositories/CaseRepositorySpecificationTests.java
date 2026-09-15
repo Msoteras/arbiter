@@ -26,6 +26,7 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.domain.Specification;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.Instant;
 import java.time.LocalDate;
 import java.util.List;
 import java.util.stream.Stream;
@@ -448,6 +449,42 @@ class CaseRepositorySpecificationTests extends AbstractPersistenceIT {
         assertThat(page.getContent()).extracting(Case::getId).contains(overdue.getId());
     }
 
+    /**
+     * Lente "Frenados". El sello de {@code updatedAt} lo pone Hibernate al guardar, así que para
+     * tener un expediente viejo hay que envejecerlo por SQL: fijarlo desde la entidad lo pisaría
+     * el {@code @UpdateTimestamp} en el mismo flush.
+     */
+    @Test
+    void staleSince_returnsOnlyOpenCasesNobodyTouched() {
+        Case frozen = caseRepository.save(caseOf(CaseStatus.PENDING_ANALYST_REVIEW, "Hurto",
+                "POL-CEL-2024-020", "40.123.470", "Rita", "Paz", LocalDate.of(2026, 1, 10), null));
+        Case closedLongAgo = caseRepository.save(caseOf(CaseStatus.APPROVED, "Hurto",
+                "POL-CEL-2024-021", "40.123.471", "Omar", "Gil", LocalDate.of(2026, 1, 10), null));
+        Case justTouched = caseRepository.save(caseOf(CaseStatus.PENDING_ANALYST_REVIEW, "Hurto",
+                "POL-CEL-2024-022", "40.123.472", "Sara", "Roca", LocalDate.of(2026, 1, 10), null));
+        Instant longAgo = Instant.parse("2026-01-02T10:00:00Z");
+        age(frozen.getId(), longAgo);
+        age(closedLongAgo.getId(), longAgo);
+
+        Page<Case> page = caseRepository.findAll(
+                CaseSpecifications.staleSince(Instant.parse("2026-02-01T00:00:00Z")), FIRST_PAGE);
+
+        assertThat(page.getContent()).extracting(Case::getId)
+                // El cerrado hace meses no está frenado, está terminado; el recién tocado, tampoco.
+                .containsExactly(frozen.getId())
+                .doesNotContain(closedLongAgo.getId(), justTouched.getId());
+    }
+
+    /** Envejece la fila por SQL, esquivando el {@code @UpdateTimestamp} de la entidad. */
+    private void age(Long caseId, Instant updatedAt) {
+        entityManager.flush();
+        entityManager.createNativeQuery("UPDATE cases SET updated_at = :updatedAt WHERE id = :id")
+                .setParameter("updatedAt", updatedAt)
+                .setParameter("id", caseId)
+                .executeUpdate();
+        entityManager.clear();
+    }
+
     @Test
     void closedScope_returnsOnlyTerminalStatuses() {
         Page<Case> page = caseRepository.findAll(CaseSpecifications.scope(CaseScope.CLOSED), FIRST_PAGE);
@@ -474,6 +511,52 @@ class CaseRepositorySpecificationTests extends AbstractPersistenceIT {
         assertThat(page.getContent())
                 .extracting(entity -> entity.getCurrentStatus().getName())
                 .containsExactly(CaseStatus.PENDING_ANALYST_REVIEW.name());
+    }
+
+    /**
+     * Los cinco conteos salían de cinco {@code count(spec)}; ahora son agregados de una sola query.
+     * Lo que se fija es que den lo mismo que contar cada lente por separado.
+     */
+    @Test
+    void losConteosDeLasLentesDanIgualQueContarCadaUnaPorSeparado() {
+        ClaimsAnalyst lucas = analyst("lucas.gomez@arbiter.test", "Lucas", "Gómez");
+        assign(lucas, seeded.get(0), seeded.get(2));
+
+        Specification<Case> base = CaseSpecifications.withFilters(
+                null, null, null, null, null, null, null, null, null);
+        CaseLensCountRepository.LensCounts counts = caseRepository.countLenses(base, lucas.getId());
+
+        assertThat(counts.all()).isEqualTo(caseRepository.count());
+        assertThat(counts.mine()).isEqualTo(caseRepository.count(CaseSpecifications.withFilters(
+                null, null, null, null, null, null, null, null, lucas.getId())));
+        assertThat(counts.assigned()).isEqualTo(caseRepository.count(CaseSpecifications.withFilters(
+                null, null, null, null, null, null, null, null, null, false, false, true)));
+        assertThat(counts.unassigned()).isEqualTo(caseRepository.count(CaseSpecifications.withFilters(
+                null, null, null, null, null, null, null, null, null, true, false, false)));
+        assertThat(counts.fraud()).isEqualTo(caseRepository.count(CaseSpecifications.withFilters(
+                null, null, null, null, null, null, null, null, null, false, true, false)));
+        assertThat(counts.assigned() + counts.unassigned()).isEqualTo(counts.all());
+    }
+
+    /** Sin perfil de analista en el tenant —el referente— "Míos" es 0, no todos. */
+    @Test
+    void sinAnalistaEnElTokenLosMiosSonCero() {
+        CaseLensCountRepository.LensCounts counts = caseRepository.countLenses(
+                CaseSpecifications.withFilters(null, null, null, null, null, null, null, null, null), null);
+
+        assertThat(counts.mine()).isZero();
+        assertThat(counts.all()).isEqualTo(4);
+    }
+
+    /** Los filtros de la barra recortan los cinco conteos por igual. */
+    @Test
+    void losConteosRespetanElRecorteYLosFiltros() {
+        Specification<Case> soloEnCurso = CaseSpecifications.scope(CaseScope.OPEN);
+
+        CaseLensCountRepository.LensCounts counts = caseRepository.countLenses(soloEnCurso, null);
+
+        assertThat(counts.all()).isEqualTo(caseRepository.count(soloEnCurso));
+        assertThat(counts.all()).isEqualTo(2);
     }
 
     /** El analista vive en el esquema del tenant y su {@code user_id} es NOT NULL, igual que insured. */

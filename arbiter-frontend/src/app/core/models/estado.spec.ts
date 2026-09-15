@@ -1,4 +1,4 @@
-import { estadoSimplificadoEfectivo, movimientoAseguradoLabel } from './estado';
+import { estadoSimplificadoEfectivo, movimientoAseguradoLabel, proximoPaso } from './estado';
 
 /**
  * El seguimiento del asegurado lista los movimientos del expediente, y ese listado sale de acá.
@@ -64,6 +64,13 @@ describe('movimientoAseguradoLabel', () => {
       .toBe('Un analista está revisando tu caso');
   });
 
+  it('cuenta la ida y la vuelta del servicio técnico', () => {
+    expect(movimientoAseguradoLabel('PENDING_REPAIR', 'PENDING_ANALYST_REVIEW'))
+      .toBe('Enviado al servicio técnico');
+    expect(movimientoAseguradoLabel('PENDING_ANALYST_REVIEW', 'PENDING_REPAIR'))
+      .toBe('Respuesta del servicio técnico recibida');
+  });
+
   /** Una falla técnica del clasificador no le pide nada ni cambia nada de su lado. */
   it('no muestra la falla de clasificación', () => {
     expect(movimientoAseguradoLabel('CLASSIFICATION_FAILED', 'PENDING_CLASSIFICATION')).toBeNull();
@@ -79,6 +86,34 @@ describe('movimientoAseguradoLabel', () => {
    * el veredicto del peritaje ni el nivel de riesgo. Se mapea el ESTADO y nunca el `reason` del
    * historial, que trae textos como "informe de peritaje recibido: FRAUD_CONFIRMED".
    */
+  /**
+   * El "próximo paso" del listado del asegurado tiene la misma regla que el badge: no puede
+   * contarle que hay un peritaje en curso. El de PENDING_EXPERT_REPORT decía "cuando llegue el
+   * informe", y con eso deducía la derivación que el resto de los textos esconde.
+   */
+  it('ningún próximo paso filtra el peritaje ni la clasificación', () => {
+    const prohibidas = ['perito', 'peritaje', 'informe', 'fraude', 'clasificac', 'riesgo', 'score'];
+    const estados: string[] = [
+      'PENDING_CLASSIFICATION',
+      'PENDING_ANALYST_REVIEW',
+      'CLASSIFICATION_FAILED',
+      'AWAITING_DOCUMENTATION',
+      'PENDING_EXPERT_REPORT',
+      'PENDING_REPAIR',
+      'APPROVED',
+      'REJECTED',
+      'LAPSED',
+    ];
+
+    for (const estado of estados) {
+      const texto = proximoPaso(estado).toLowerCase();
+      expect(texto.length).toBeGreaterThan(0);
+      for (const palabra of prohibidas) {
+        expect(texto).not.toContain(palabra);
+      }
+    }
+  });
+
   it('ninguna etiqueta menciona fraude, clasificación ni riesgo', () => {
     const prohibidas = ['fraude', 'fraud', 'llm', 'riesgo', 'score', 'sospech', 'clasificac'];
     const estados = [
@@ -86,6 +121,7 @@ describe('movimientoAseguradoLabel', () => {
       'AWAITING_DOCUMENTATION',
       'PENDING_ANALYST_REVIEW',
       'PENDING_EXPERT_REPORT',
+      'PENDING_REPAIR',
       'APPROVED',
       'REJECTED',
       'CLASSIFICATION_FAILED',

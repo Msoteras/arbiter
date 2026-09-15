@@ -346,7 +346,12 @@
         <section class="step-content">
           <h2 class="step-title">Adjuntá documentación</h2>
           @if (docsRequired()) {
-            <p class="step-hint">Esta documentación es obligatoria para poder evaluar tu caso.</p>
+            <p class="step-hint">
+              Esta documentación es obligatoria para poder evaluar tu caso.
+              @if (docsFirstRound()) {
+                Es lo mínimo para empezar: si hace falta algo más, te lo vamos a pedir desde el seguimiento.
+              }
+            </p>
           } @else if (docsUnavailable()) {
             <!-- No es lo mismo que "no hace falta nada": no pudimos leer la agenda. Se dice, se deja
                  enviar igual —dejarlo afuera porque un servicio NUESTRO no responde sería peor— y

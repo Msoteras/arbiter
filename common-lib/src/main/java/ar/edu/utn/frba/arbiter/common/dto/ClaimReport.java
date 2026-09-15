@@ -58,5 +58,17 @@ public record ClaimReport(
         // the only safe reading of a consent flag — "nobody said" cannot mean "go ahead and send
         // their photos to a third party".
         Boolean imageConsent,
-        List<String> attachmentsOcr
-) {}
+        List<String> attachmentsOcr,
+        // The insured's OTHER claims already filed through Arbiter. Sent by cases-service, which is
+        // the module that owns them; classification merges them with the company's history so the
+        // annual event cap and the Fast Track's previous-claims criterion count both sources. Empty
+        // (never null) when there are none, and empty as well in the isolated test flow that builds
+        // a claim with no case behind it.
+        List<PriorClaim> priorClaims
+) {
+
+    /** Never null for the callers that don't fill it in — no rule has to null-check the list. */
+    public ClaimReport {
+        priorClaims = priorClaims == null ? List.of() : List.copyOf(priorClaims);
+    }
+}

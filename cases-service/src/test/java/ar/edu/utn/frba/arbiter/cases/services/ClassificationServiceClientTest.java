@@ -4,6 +4,9 @@ import ar.edu.utn.frba.arbiter.cases.dto.AnalystDecisionRequest;
 import ar.edu.utn.frba.arbiter.cases.models.entities.Case;
 import ar.edu.utn.frba.arbiter.cases.models.entities.CaseDocument;
 import ar.edu.utn.frba.arbiter.cases.models.entities.StatusChangeActor;
+import ar.edu.utn.frba.arbiter.cases.models.entities.CaseStatusHistory;
+import ar.edu.utn.frba.arbiter.cases.models.repositories.CaseRepository;
+import ar.edu.utn.frba.arbiter.cases.models.repositories.CaseStatusHistoryRepository;
 import ar.edu.utn.frba.arbiter.cases.support.CaseFixtures;
 import ar.edu.utn.frba.arbiter.cases.support.CaseStates;
 import ar.edu.utn.frba.arbiter.common.enums.CaseStatus;
@@ -21,8 +24,11 @@ import org.springframework.test.web.client.MockRestServiceServer;
 import org.springframework.web.client.RestClient;
 
 import java.math.BigDecimal;
+import java.time.Instant;
 import java.time.LocalDateTime;
+import java.time.temporal.ChronoUnit;
 import java.util.List;
+import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.hamcrest.Matchers.equalTo;
@@ -54,6 +60,12 @@ class ClassificationServiceClientTest {
     @Mock
     private HttpServletRequest currentRequest;
 
+    @Mock
+    private CaseRepository caseRepository;
+
+    @Mock
+    private CaseStatusHistoryRepository caseStatusHistoryRepository;
+
     private MockRestServiceServer server;
     private ClassificationServiceClient client;
 
@@ -61,12 +73,25 @@ class ClassificationServiceClientTest {
     void setUp() {
         RestClient.Builder builder = RestClient.builder();
         server = MockRestServiceServer.bindTo(builder).build();
-        client = new ClassificationServiceClient(builder, caseStatusService, BASE_URL, currentRequest, JWT_SECRET);
+        client = new ClassificationServiceClient(builder, caseStatusService, caseRepository,
+                caseStatusHistoryRepository, BASE_URL, currentRequest, JWT_SECRET);
+    }
+
+    /**
+     * El barrido se queda con el turno: el CAS devuelve el expediente ya movido. Devolver la misma
+     * instancia que se le pasó es lo que hace en producción salvo por la relectura, y deja que los
+     * tests sigan mirando lo que se cachea sobre ella.
+     */
+    private void winsTheTurn(Case entity, CaseStatus target) {
+        when(caseStatusService.transitionIfStillIn(eq(entity), eq(CaseStatus.PENDING_CLASSIFICATION),
+                eq(target), eq(StatusChangeActor.SYSTEM), any()))
+                .thenReturn(Optional.of(entity));
     }
 
     @Test
     void faltaDocumentacion_transitionsToAwaitingDocumentation() {
         Case entity = pendingCase(3L);
+        winsTheTurn(entity, CaseStatus.AWAITING_DOCUMENTATION);
         expectPoll(3L, "FALTA_DOCUMENTACION", "1.0",
                 "[\"Falta documento requerido: police_report\"]", false);
 
@@ -75,38 +100,41 @@ class ClassificationServiceClientTest {
         // La recomendación ya no se copia al expediente (vive en llm_analysis); lo observable de
         // este lado es a qué estado lo mueve.
         assertThat(resolved).isTrue();
-        verify(caseStatusService).transition(eq(entity), eq(CaseStatus.AWAITING_DOCUMENTATION),
-                eq(StatusChangeActor.SYSTEM), any());
+        verify(caseStatusService).transitionIfStillIn(eq(entity), eq(CaseStatus.PENDING_CLASSIFICATION),
+                eq(CaseStatus.AWAITING_DOCUMENTATION), eq(StatusChangeActor.SYSTEM), any());
     }
 
     @Test
     void llmClassification_transitionsToAnalystReview() {
         Case entity = pendingCase(2L);
+        winsTheTurn(entity, CaseStatus.PENDING_ANALYST_REVIEW);
         expectPoll(2L, "LLM_NO_RECOMIENDA_APROBAR", "0.95", "[\"Reincidente\"]", false);
 
         boolean resolved = client.refreshClassification(entity);
 
         assertThat(resolved).isTrue();
-        verify(caseStatusService).transition(eq(entity), eq(CaseStatus.PENDING_ANALYST_REVIEW),
-                eq(StatusChangeActor.SYSTEM), any());
+        verify(caseStatusService).transitionIfStillIn(eq(entity), eq(CaseStatus.PENDING_CLASSIFICATION),
+                eq(CaseStatus.PENDING_ANALYST_REVIEW), eq(StatusChangeActor.SYSTEM), any());
     }
 
     @Test
     void fastTrack_transitionsToAnalystReview() {
         Case entity = pendingCase(1L);
+        winsTheTurn(entity, CaseStatus.PENDING_ANALYST_REVIEW);
         expectPoll(1L, "FAST_TRACK", "1.0", "[\"Monto dentro del límite\"]", true);
 
         boolean resolved = client.refreshClassification(entity);
 
         assertThat(resolved).isTrue();
         assertThat(entity.getDeterministicFastTrack()).isTrue();
-        verify(caseStatusService).transition(eq(entity), eq(CaseStatus.PENDING_ANALYST_REVIEW),
-                eq(StatusChangeActor.SYSTEM), any());
+        verify(caseStatusService).transitionIfStillIn(eq(entity), eq(CaseStatus.PENDING_CLASSIFICATION),
+                eq(CaseStatus.PENDING_ANALYST_REVIEW), eq(StatusChangeActor.SYSTEM), any());
     }
 
     @Test
     void llmClassification_cachesForensicReport() {
         Case entity = pendingCase(11L);
+        winsTheTurn(entity, CaseStatus.PENDING_ANALYST_REVIEW);
         server.expect(requestTo(BASE_URL + "/api/v1/claims/11"))
                 .andExpect(method(GET))
                 .andRespond(withSuccess("""
@@ -148,11 +176,34 @@ class ClassificationServiceClientTest {
     @Test
     void llmClassification_withNoForensicReport_leavesItNull() {
         Case entity = pendingCase(2L);
+        winsTheTurn(entity, CaseStatus.PENDING_ANALYST_REVIEW);
         expectPoll(2L, "LLM_NO_RECOMIENDA_APROBAR", "0.95", "[\"Reincidente\"]", false);
 
         client.refreshClassification(entity);
 
         assertThat(entity.getForensicReport()).isNull();
+    }
+
+    /**
+     * Varios schedulers barren la misma base (la de Railway es compartida por el equipo), así que
+     * dos llegan acá con la misma copia en PENDING_CLASSIFICATION y los dos leen el resultado. El
+     * que pierde el CAS tiene que retirarse sin escribir: sin esto quedaban dos filas idénticas en
+     * case_status_history y, según el destino, dos mails al asegurado.
+     */
+    @Test
+    void anotherSweepAlreadyResolvedIt_writesNothing() {
+        Case entity = pendingCase(12L);
+        when(caseStatusService.transitionIfStillIn(any(), any(), any(), any(), any()))
+                .thenReturn(Optional.empty());
+        expectPoll(12L, "LLM_RECOMIENDA_APROBAR", "0.9", "[\"Sin observaciones\"]", true);
+
+        boolean resolved = client.refreshClassification(entity);
+
+        assertThat(resolved).isTrue();
+        // Ni la caché del expediente se toca: la copia del perdedor es vieja y guardarla
+        // reescribiría la fila entera sobre lo que dejó el ganador.
+        assertThat(entity.getDeterministicFastTrack()).isFalse();
+        verifyNoInteractions(caseRepository);
     }
 
     @Test
@@ -163,7 +214,74 @@ class ClassificationServiceClientTest {
         boolean resolved = client.refreshClassification(entity);
 
         assertThat(resolved).isFalse();
-        verify(caseStatusService, never()).transition(any(), any(), any(), any());
+        verify(caseStatusService, never()).transitionIfStillIn(any(), any(), any(), any(), any());
+    }
+
+    /**
+     * The exact shape of the bug case #23 hit: the case was sent back to AWAITING_DOCUMENTATION,
+     * the insured uploaded what was missing and it re-entered PENDING_CLASSIFICATION, but the poll
+     * landed before the NEW run finished — classification-service answered with the OLD
+     * llm_analysis row (append-only, still there) instead of "pending". Acting on it would have
+     * reapplied a verdict for a claim state that no longer holds.
+     */
+    @Test
+    void resultOlderThanTheCurrentRound_isTreatedAsNotReadyYet() {
+        Case entity = pendingCase(23L);
+        Instant enteredPendingClassificationAt = Instant.parse("2026-09-13T00:32:47Z");
+        Instant staleAnalyzedAt = enteredPendingClassificationAt.minus(90, ChronoUnit.SECONDS);
+        when(caseStatusHistoryRepository.findFirstByCaseIdAndFinalStatus_IdOrderByChangedAtDesc(any(), any()))
+                .thenReturn(Optional.of(CaseStatusHistory.builder()
+                        .changedAt(enteredPendingClassificationAt)
+                        .build()));
+        server.expect(requestTo(BASE_URL + "/api/v1/claims/23"))
+                .andExpect(method(GET))
+                .andRespond(withSuccess("""
+                        {
+                          "caseId": 23,
+                          "classification": "FALTA_DOCUMENTACION",
+                          "confidence": 1.0,
+                          "factors": ["Falta documento requerido: item_photo"],
+                          "deterministicFastTrack": false,
+                          "analyzedAt": "%s"
+                        }
+                        """.formatted(staleAnalyzedAt), MediaType.APPLICATION_JSON));
+
+        boolean resolved = client.refreshClassification(entity);
+
+        assertThat(resolved).isFalse();
+        verify(caseStatusService, never()).transitionIfStillIn(any(), any(), any(), any(), any());
+        verifyNoInteractions(caseRepository);
+    }
+
+    /** The contracara: once a fresh analysis lands, the same result shape is acted on normally. */
+    @Test
+    void resultAtOrAfterTheCurrentRound_isActedOn() {
+        Case entity = pendingCase(23L);
+        Instant enteredPendingClassificationAt = Instant.parse("2026-09-13T00:32:47Z");
+        Instant freshAnalyzedAt = enteredPendingClassificationAt.plus(90, ChronoUnit.SECONDS);
+        winsTheTurn(entity, CaseStatus.PENDING_ANALYST_REVIEW);
+        when(caseStatusHistoryRepository.findFirstByCaseIdAndFinalStatus_IdOrderByChangedAtDesc(any(), any()))
+                .thenReturn(Optional.of(CaseStatusHistory.builder()
+                        .changedAt(enteredPendingClassificationAt)
+                        .build()));
+        server.expect(requestTo(BASE_URL + "/api/v1/claims/23"))
+                .andExpect(method(GET))
+                .andRespond(withSuccess("""
+                        {
+                          "caseId": 23,
+                          "classification": "LLM_NO_RECOMIENDA_APROBAR",
+                          "confidence": 0.95,
+                          "factors": ["Monto reclamado supera la suma asegurada"],
+                          "deterministicFastTrack": false,
+                          "analyzedAt": "%s"
+                        }
+                        """.formatted(freshAnalyzedAt), MediaType.APPLICATION_JSON));
+
+        boolean resolved = client.refreshClassification(entity);
+
+        assertThat(resolved).isTrue();
+        verify(caseStatusService).transitionIfStillIn(eq(entity), eq(CaseStatus.PENDING_CLASSIFICATION),
+                eq(CaseStatus.PENDING_ANALYST_REVIEW), eq(StatusChangeActor.SYSTEM), any());
     }
 
     @Test
@@ -177,7 +295,7 @@ class ClassificationServiceClientTest {
 
         assertThat(resolved).isTrue();
         server.verify(); // no HTTP request expected
-        verify(caseStatusService, never()).transition(any(), any(), any(), any());
+        verify(caseStatusService, never()).transitionIfStillIn(any(), any(), any(), any(), any());
     }
 
     @Test
@@ -258,7 +376,7 @@ class ClassificationServiceClientTest {
                 .andExpect(header(HttpHeaders.AUTHORIZATION, startsWith("Bearer ")))
                 .andRespond(withSuccess());
 
-        client.forwardAnalystDecision(9L, new AnalystDecisionRequest(1L, "APPROVE", null, null));
+        client.forwardAnalystDecision(9L, new AnalystDecisionRequest(1L, "APPROVE", null, null, null));
 
         server.verify();
     }

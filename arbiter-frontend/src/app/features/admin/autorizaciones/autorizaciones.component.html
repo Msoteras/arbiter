@@ -1,0 +1,99 @@
+<div class="autorizaciones-page" @staggerReveal>
+  <header class="page-head">
+    <h1 class="t-page-title">Autorizaciones de liquidación</h1>
+  </header>
+
+  @if (loading()) {
+    <app-inline-loading message="Cargando liquidaciones pendientes…" />
+  } @else if (error()) {
+    <app-card><p class="t-note">{{ error() }}</p></app-card>
+  } @else if (pending().length === 0) {
+    <app-empty-state
+      message="Cuando un analista determine un monto por encima del tope de su ramo, va a aparecer acá."
+      sub="No hay nada esperando tu firma"
+    />
+  } @else {
+    <app-card [flush]="true">
+      <app-table>
+        <thead>
+          <tr>
+            <th>Expediente</th>
+            <th>Ramo</th>
+            <th>Analista</th>
+            <th class="num">Monto</th>
+            <th class="num">Excede el tope</th>
+            <th>Espera</th>
+            <th>Acciones</th>
+          </tr>
+        </thead>
+        <tbody @fadeStagger>
+          @for (row of pending(); track row.caseId) {
+            <tr>
+              <td>
+                <a class="case-link" [routerLink]="['/cases', row.caseId]">#{{ row.caseId }}</a>
+                <span class="cell-sub">{{ row.insuredName }} · {{ row.claimCause }}</span>
+              </td>
+              <td>{{ row.branch }}</td>
+              <td>{{ row.analystName }}</td>
+              <td class="num tabular">
+                <strong>{{ monto(row.settledAmount) }}</strong>
+                @if (row.adjustmentReason) {
+                  <span class="cell-sub">Ajustado sobre {{ monto(row.calculatedAmount) }}</span>
+                }
+              </td>
+              <td class="num tabular">
+                {{ monto(row.excess) }}
+                <span class="cell-sub">Tope {{ monto(row.authorityLimit) }}</span>
+              </td>
+              <td>
+                <!-- El siniestro consume su plazo legal de 30 días mientras espera acá, así que a
+                     partir de una semana deja de ser cola normal y se marca. -->
+                @if (demorado(row.waitingFor)) {
+                  <app-badge variant="solid" tone="warning">{{ espera(row.waitingFor) }}</app-badge>
+                } @else {
+                  <span class="t-note">{{ espera(row.waitingFor) }}</span>
+                }
+              </td>
+              <td>
+                <div class="row-actions">
+                  <app-button
+                    variant="secondary"
+                    [disabled]="actingOn() === row.caseId"
+                    (click)="askReturn(row)"
+                  >
+                    Devolver
+                  </app-button>
+                  <app-button [disabled]="actingOn() === row.caseId" (click)="authorize(row)">
+                    {{ actingOn() === row.caseId ? 'Autorizando…' : 'Autorizar' }}
+                  </app-button>
+                </div>
+              </td>
+            </tr>
+          }
+        </tbody>
+      </app-table>
+    </app-card>
+  }
+</div>
+
+<!-- Devolver no rechaza el siniestro: el expediente sigue siendo del analista, y el motivo es lo
+     único que él va a tener para saber qué corregir. -->
+<app-modal
+  [open]="returning() !== null"
+  heading="Devolver la liquidación al analista"
+  (close)="cancelReturn()"
+>
+  <p class="t-note">
+    El expediente no se mueve —nunca salió de la revisión del analista— y no queda ninguna decisión
+    registrada. Va a poder determinar el monto otra vez.
+  </p>
+  <label class="return-field">
+    <span class="t-field-label">Motivo <span class="required" aria-hidden="true">*</span></span>
+    <app-textarea [rows]="3" placeholder="Qué tiene que corregir…" [(value)]="returnReason" />
+    <span class="return-hint">Obligatorio</span>
+  </label>
+  <ng-container modalActions>
+    <app-button variant="secondary" (click)="cancelReturn()">Cancelar</app-button>
+    <app-button [disabled]="!returnReason().trim()" (click)="confirmReturn()">Devolver</app-button>
+  </ng-container>
+</app-modal>

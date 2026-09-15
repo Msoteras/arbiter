@@ -63,7 +63,7 @@ public class CaseDocumentAnalysisRepository {
     private List<DocumentAnalysisSummary> query(NamedParameterJdbcTemplate jdbcTemplate, Long caseId) {
         List<Row> rows = jdbcTemplate.query("""
                 SELECT a.id, a.transcription, a.document_date, a.amount, a.item_description,
-                       a.imei, a.affected_party, d.type
+                       a.brand, a.model, a.imei, a.affected_party, d.type
                   FROM document_analysis a
                   JOIN case_documents d ON d.id = a.case_document_id
                  WHERE d.case_id = :caseId
@@ -79,6 +79,8 @@ public class CaseDocumentAnalysisRepository {
                     documentDate == null ? null : documentDate.toLocalDate(),
                     rs.getBigDecimal("amount"),
                     rs.getString("item_description"),
+                    rs.getString("brand"),
+                    rs.getString("model"),
                     rs.getString("imei"),
                     rs.getString("affected_party"));
         });
@@ -87,8 +89,10 @@ public class CaseDocumentAnalysisRepository {
             return List.of();
         }
 
-        Map<Long, List<String>> findingsByAnalysis = findingsFor(
-                jdbcTemplate, rows.stream().map(Row::analysisId).toList());
+        List<Long> analysisIds = rows.stream().map(Row::analysisId).toList();
+        Map<Long, List<String>> findingsByAnalysis = findingsFor(jdbcTemplate, analysisIds);
+        Map<Long, List<DocumentAnalysisSummary.Detail>> detailsByAnalysis =
+                detailsFor(jdbcTemplate, analysisIds);
 
         return rows.stream()
                 .map(row -> new DocumentAnalysisSummary(
@@ -97,10 +101,32 @@ public class CaseDocumentAnalysisRepository {
                         row.documentDate(),
                         row.amount(),
                         row.itemDescription(),
+                        row.brand(),
+                        row.model(),
                         row.imei(),
                         row.affectedParty(),
-                        findingsByAnalysis.getOrDefault(row.analysisId(), List.of())))
+                        findingsByAnalysis.getOrDefault(row.analysisId(), List.of()),
+                        detailsByAnalysis.getOrDefault(row.analysisId(), List.of())))
                 .toList();
+    }
+
+    /**
+     * The name/value data of each analysis, in insertion order — that is the order the model read
+     * them off the document, which is the one that reads naturally on the page.
+     */
+    private Map<Long, List<DocumentAnalysisSummary.Detail>> detailsFor(
+            NamedParameterJdbcTemplate jdbcTemplate, List<Long> analysisIds) {
+        Map<Long, List<DocumentAnalysisSummary.Detail>> byAnalysis = new HashMap<>();
+        jdbcTemplate.query("""
+                SELECT analysis_id, name, value
+                  FROM document_detail
+                 WHERE analysis_id IN (:analysisIds)
+                 ORDER BY id
+                """, Map.of("analysisIds", analysisIds), (rs, rowNum) ->
+                byAnalysis.computeIfAbsent(rs.getLong("analysis_id"), key -> new ArrayList<>())
+                        .add(new DocumentAnalysisSummary.Detail(
+                                rs.getString("name"), rs.getString("value"))));
+        return byAnalysis;
     }
 
     private Map<Long, List<String>> findingsFor(NamedParameterJdbcTemplate jdbcTemplate,
@@ -126,6 +152,8 @@ public class CaseDocumentAnalysisRepository {
             LocalDate documentDate,
             BigDecimal amount,
             String itemDescription,
+            String brand,
+            String model,
             String imei,
             String affectedParty
     ) {

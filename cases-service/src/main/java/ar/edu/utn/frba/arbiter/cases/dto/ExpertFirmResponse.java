@@ -16,7 +16,8 @@ public record ExpertFirmResponse(
         String zone,
         Long branchId,
         String branchName,
-        boolean active
+        boolean active,
+        ProviderType providerType
 ) {
 
     public static ExpertFirmResponse from(ExpertFirm firm) {
@@ -27,7 +28,8 @@ public record ExpertFirmResponse(
                 firm.getZone(),
                 firm.getBranch() != null ? firm.getBranch().getId() : null,
                 firm.getBranch() != null ? firm.getBranch().getName() : null,
-                firm.isActive()
+                firm.isActive(),
+                firm.getProviderType()
         );
     }
 }

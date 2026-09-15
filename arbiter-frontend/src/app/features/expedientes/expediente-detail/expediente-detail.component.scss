@@ -75,6 +75,7 @@
    la línea cortaba antes del borde y quedaba un hueco a la derecha que se lee como un bug.
    Acotando la caja, el texto llena la card y las dos cosas terminan en el mismo lugar. */
 .peritaje-card { max-width: 72ch; }
+.peritaje-card + .peritaje-card { display: block; margin-top: var(--space-4); }
 .peritaje { display: grid; gap: var(--space-1); margin: 0 0 var(--space-3); }
 .peritaje dt { margin-top: var(--space-2); }
 .peritaje dt:first-child { margin-top: 0; }
@@ -166,35 +167,6 @@
 .reasons-list li { font-size: var(--font-size-body); color: var(--text-secondary); line-height: 1.4; }
 
 /* ===== Datos extraídos (una card por adjunto leído) ===== */
-.extracted-grid { display: grid; grid-template-columns: 1fr 1fr; gap: var(--space-3); align-items: start; }
-
-/* Las señales de la imagen van visualmente separadas de los campos: son una observación sobre
-   la foto, no algo que el documento diga, y mezclarlas las haría leer como contenido. */
-.visual-findings {
-  margin-top: var(--space-4);
-  padding-top: var(--space-3);
-  border-top: 1px solid var(--border-subtle);
-}
-.visual-findings ul {
-  margin: var(--space-2) 0 var(--space-2);
-  padding-left: var(--space-4);
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-1);
-}
-.visual-findings li { font-size: var(--font-size-sm); color: var(--text-secondary); line-height: 1.4; }
-
-/* La transcripción entera es larga y rara vez es lo que el analista busca primero: va plegada,
-   disponible sin empujar los campos fuera de la vista. */
-.transcription { margin-top: var(--space-3); }
-.transcription summary { cursor: pointer; }
-.transcription p {
-  margin: var(--space-2) 0 0;
-  max-width: 68ch;
-  text-wrap: pretty;
-  color: var(--text-secondary);
-  white-space: pre-line;
-}
 
 /* ===== Resumen ===== */
 .resumen-grid { display: grid; grid-template-columns: 1.6fr 1fr; gap: var(--space-3); }
@@ -232,7 +204,6 @@ app-textarea { display: block; margin: var(--space-3) 0; }
 @media (max-width: 820px) {
   .resumen-grid { grid-template-columns: 1fr; }
   .fields { grid-template-columns: 1fr; }
-  .extracted-grid { grid-template-columns: 1fr; }
 }
 
 .risk-score { margin: 0.75rem 0 0.25rem; font-size: 0.95rem; }
@@ -267,6 +238,8 @@ app-textarea { display: block; margin: var(--space-3) 0; }
 .traza-num { white-space: nowrap; font-variant-numeric: tabular-nums; }
 /* Solo el fallo de lectura se tiñe: las otras dos causas de tabla vacía son información, no error. */
 .traza-sin-reglas.error { color: var(--status-danger); }
+/* Bajada de la tabla de criterios de Fast Track: qué significa lo que se está por leer. */
+.traza-intro { display: block; margin-bottom: var(--space-3); }
 .traza-subhead { margin: var(--space-4) 0 var(--space-2); color: var(--text-secondary); }
 /* Despliegue de coberturas: mismo patrón que la pantalla de reglas (.cov-toggle / .cov-caret). */
 .cov-toggle {
@@ -314,3 +287,188 @@ app-textarea { display: block; margin: var(--space-3) 0; }
 .traza-polizas th:nth-child(3) { width: 20%; }
 .traza-polizas th:nth-child(4) { width: 20%; }
 .traza-polizas th:nth-child(5) { width: 14%; }
+
+/* ── Hoja de liquidación (modal de aprobación) ─────────────────────────────── */
+/* La cuenta se lee de arriba abajo como en el manual del producto: el techo, lo que se le
+   descuenta, y el total separado por una línea. Sin color de fondo: es un cálculo, no un
+   estado — el semáforo se reserva para los avisos. */
+.settlement { display: flex; flex-direction: column; gap: var(--space-3); }
+
+/* Local: `.fieldset` vive en la solapa de reglas, y los estilos de componente no se comparten. */
+.settlement .fieldset { display: flex; flex-direction: column; gap: var(--space-1); }
+
+.settlement-sheet {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-card);
+  background: var(--surface-soft);
+}
+
+.settlement-line {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-3);
+  padding: var(--space-2) var(--space-3);
+}
+
+.settlement-line + .settlement-line { border-top: 1px solid var(--border-subtle); }
+
+.settlement-concept {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  font-size: var(--font-size-body);
+  color: var(--text-primary);
+}
+
+.settlement-amount {
+  font-size: var(--font-size-body);
+  color: var(--text-primary);
+  white-space: nowrap;
+}
+
+.settlement-line.deduction .settlement-concept,
+.settlement-line.deduction .settlement-amount { color: var(--text-secondary); }
+
+/* El total es lo que el analista firma: peso, borde más fuerte y nada de color. */
+.settlement-line.total {
+  border-top: 1px solid var(--border-strong);
+  font-weight: var(--font-weight-bold);
+}
+
+.settlement-line.total .settlement-amount { font-weight: var(--font-weight-bold); }
+
+/* Notas del cálculo: lo que la hoja no puede decir sola (que corrió sobre datos que este
+   siniestro no vio, que el techo cayó al respaldo). Son notas, no estados del expediente, así que
+   van en gris con una barra al costado — el semáforo se reserva para el estado del siniestro, y en
+   amarillo sobre papel esto además no se leía. */
+.settlement-notes {
+  list-style: none;
+  margin: 0;
+  padding: var(--space-2) 0 var(--space-2) var(--space-3);
+  border-left: 2px solid var(--border-default);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  font-size: var(--font-size-xs);
+  color: var(--text-secondary);
+}
+
+/* Esto SÍ cambia el circuito del expediente —pasa a esperar una firma—, así que se destaca; pero
+   con el acento de marca, que es lo que el sistema usa para lo que requiere atención, y no con un
+   amarillo de bajo contraste. */
+.settlement-callout {
+  margin: 0;
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid var(--selected-border);
+  border-radius: var(--radius-ctl);
+  background: var(--selected-bg);
+  font-size: var(--font-size-xs);
+  color: var(--text-primary);
+}
+
+/* La devolución usa el mismo recuadro: también cambia lo que el analista tiene que hacer, y el
+   motivo es lo único que tiene para saber qué corregir. Separada abajo del resto porque llega
+   antes de abrir la hoja, no adentro de ella. */
+.settlement-callout.returned { margin-bottom: var(--space-3); }
+
+/* Lo que el modelo leyó del expediente. Con el acento de marca —lo que el sistema usa para lo que
+   pide atención— y no con un color de estado: no es un hallazgo sobre el siniestro, es una ayuda
+   para cargar un campo, y todavía no se aplicó nada. */
+.settlement-suggestion {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  margin: var(--space-2) 0 0;
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid var(--selected-border);
+  border-radius: var(--radius-ctl);
+  background: var(--selected-bg);
+  font-size: var(--font-size-xs);
+  color: var(--text-primary);
+}
+
+/* El monto del peritaje, en el formulario del informe: mismo criterio de campo que el resto. */
+.peritaje-monto {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  margin-top: var(--space-3);
+}
+
+/* El campo de justificación: etiqueta, campo y "Obligatorio", pegados. El margen por defecto del
+   <p> abría un hueco que dejaba la aclaración flotando lejos del campo, así que acá no hay <p>:
+   son spans y el espaciado lo pone el flex. */
+.justification {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+.required { color: var(--status-danger); }
+
+/* Color explícito: es la única forma de que no herede nada del bloque de arriba. */
+.justification-hint {
+  font-size: var(--font-size-2xs);
+  color: var(--text-muted);
+}
+
+/* Los dos campos de plata, uno al lado del otro: son la misma pregunta —cuánto se paga— y
+   apilados empujaban la firma abajo del pliegue. Colapsan en angosto. */
+.settlement-money {
+  display: flex;
+  gap: var(--space-3);
+  align-items: flex-start;
+}
+
+.settlement-money .fieldset { flex: 1 1 0; min-width: 0; }
+
+@media (max-width: 560px) {
+  .settlement-money { flex-direction: column; }
+}
+
+/* El importe y el botón de recalcular en la misma fila: separar el valor de reposición de la
+   acción que lo aplica dejaba al analista tipeando sin que pasara nada. */
+.settlement-replacement {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.settlement-replacement app-input { flex: 1 1 auto; }
+
+/* ── Cruce relato ↔ hecho generador declarado ───────────────────────────────
+   Cuelga de la card de recomendación, separado por una línea: es un hallazgo
+   sobre la recomendación, no otra recomendación. Sin fondo saturado — el tono
+   lo lleva el badge, como el resto del semáforo del sistema. */
+.consistencia {
+  margin-top: var(--space-4);
+  padding-top: var(--space-4);
+  border-top: 1px solid var(--border-subtle);
+}
+
+.consistencia-cruce {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2) var(--space-6);
+  margin: var(--space-3) 0 0;
+
+  dd {
+    margin: var(--space-1) 0 0;
+    color: var(--text-primary);
+  }
+}
+
+/* La cita del asegurado, textual. La barra la marca como voz ajena; el itálico
+   la separa del resto de la card sin meter otro color. */
+.consistencia-cita {
+  margin: var(--space-3) 0 0;
+  padding-left: var(--space-3);
+  border-left: 2px solid var(--border-default);
+  color: var(--text-secondary);
+  font-style: italic;
+}

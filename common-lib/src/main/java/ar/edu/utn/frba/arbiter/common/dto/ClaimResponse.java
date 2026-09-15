@@ -1,9 +1,11 @@
 package ar.edu.utn.frba.arbiter.common.dto;
 
+import ar.edu.utn.frba.arbiter.common.enums.CauseConsistency;
 import ar.edu.utn.frba.arbiter.common.enums.Classification;
 import ar.edu.utn.frba.arbiter.common.enums.RiskBand;
 import lombok.Builder;
 
+import java.time.Instant;
 import java.util.List;
 
 /**
@@ -32,5 +34,29 @@ public record ClaimResponse(
         RiskBand riskBand,
         List<RiskBreakdownItem> riskBreakdown,
         /** Insured's real name, resolved from the policy (InsurerAdapter) at classification time. */
-        String insuredName
+        String insuredName,
+        /**
+         * Whether the insured's account matches the claim cause they declared. {@code null} on every
+         * path that skips the model (Fast Track, a hard coverage exclusion, missing documentation),
+         * same as the risk fields — absent is not {@code MATCHES}.
+         */
+        CauseConsistency causeConsistency,
+        /**
+         * The claim cause the account actually describes, when {@code causeConsistency} is
+         * {@code CONTRADICTS}. Always a name from the branch's catalog: the output schema restricts
+         * the model to that closed list, so it can't invent one. Null otherwise.
+         */
+        String suggestedClaimCause,
+        /** Verbatim sentence from the account backing the verdict. Null when it matched. */
+        String causeEvidence,
+        /**
+         * When the backing {@code llm_analysis} row was written — null for Fast Track (no row: the
+         * gate resolved it, see {@code CaseOutcomeRepository}) or while nothing has been analyzed
+         * yet. {@code llm_analysis} is append-only, so a case reclassified after a prior run (sent
+         * back for documentation, retried) still has that OLDER row on file while a new run is in
+         * flight; this is what lets the poller (cases-service's {@code ClassificationServiceClient})
+         * tell "the answer to what I just triggered" from "what was there before" instead of acting
+         * on a result that predates the reclassification it's polling for.
+         */
+        Instant analyzedAt
 ) {}

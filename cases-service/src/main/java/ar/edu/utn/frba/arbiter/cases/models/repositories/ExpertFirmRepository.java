@@ -1,5 +1,6 @@
 package ar.edu.utn.frba.arbiter.cases.models.repositories;
 
+import ar.edu.utn.frba.arbiter.cases.dto.ProviderType;
 import ar.edu.utn.frba.arbiter.cases.models.entities.ExpertFirm;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
@@ -18,8 +19,12 @@ public interface ExpertFirmRepository extends JpaRepository<ExpertFirm, Long> {
      */
     @Query("""
             SELECT f FROM ExpertFirm f
-            WHERE f.active = true AND (f.branch IS NULL OR f.branch.id = :branchId)
+            WHERE f.active = true AND f.providerType = :providerType
+              AND (f.branch IS NULL OR f.branch.id = :branchId)
             ORDER BY f.name
             """)
-    List<ExpertFirm> findAvailableForBranch(@Param("branchId") Long branchId);
+    List<ExpertFirm> findAvailableForBranch(@Param("branchId") Long branchId,
+                                            @Param("providerType") ProviderType providerType);
+
+    List<ExpertFirm> findByProviderTypeOrderByName(ProviderType providerType);
 }

@@ -6,6 +6,7 @@ import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Repository;
 
 import java.math.BigDecimal;
+import java.time.LocalDateTime;
 import java.util.List;
 
 /**
@@ -41,6 +42,17 @@ public class PolicySnapshotRepository {
      *                           <b>paid</b>, over every policy of the insured: it is not the
      *                           balance left on this coverage, and subtracting it from
      *                           {@code sumInsured} means nothing
+     * @param effectiveTo when the policy's cover ends — the settlement counts the premium
+     *                    installments still to fall due between the event and this date
+     * @param installmentAmount what one of those installments costs
+     * @param overdueBalance arrears already due, in money. {@code paymentsUpToDate} is the boolean
+     *                       reading of the same fact: the rules only ask whether there's debt, the
+     *                       settlement asks how much (clause 102, article 5)
+     * @param eventsInYear which event of the rolling year this claim is — 1 is the first. Resolved
+     *                     here and not at settlement time because this is where the history is, and
+     *                     with the same 12-month window {@code TemporalRuleEvaluator} uses for
+     *                     MAX_EVENTS_YEAR: the cap on events and the percentage payable must not
+     *                     count differently
      * @param payload the insurer DB's raw answer, whole — it's the faithful record, of which the
      *                columns above are the already-interpreted reading
      */
@@ -51,6 +63,10 @@ public class PolicySnapshotRepository {
             boolean paymentsUpToDate,
             int previousClaims,
             BigDecimal totalAmountClaimed,
+            LocalDateTime effectiveTo,
+            BigDecimal installmentAmount,
+            BigDecimal overdueBalance,
+            Integer eventsInYear,
             String payload
     ) {}
 
@@ -99,15 +115,19 @@ public class PolicySnapshotRepository {
         return jdbcTemplate.queryForObject("""
                         INSERT INTO %s.policy_snapshot (external_policy_number, sum_insured, in_force,
                                                      payments_up_to_date, previous_claims,
-                                                     total_amount_claimed, queried_at,
+                                                     total_amount_claimed, effective_to,
+                                                     installment_amount, overdue_balance,
+                                                     events_in_year, queried_at,
                                                      insurer_db_payload)
-                             VALUES (?, ?, ?, ?, ?, ?, NOW(), ?::jsonb)
+                             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), ?::jsonb)
                           RETURNING id
                         """.formatted(schema()),
                 Long.class,
                 snapshot.externalPolicyNumber(), snapshot.sumInsured(), snapshot.inForce(),
                 snapshot.paymentsUpToDate(), snapshot.previousClaims(),
-                snapshot.totalAmountClaimed(), snapshot.payload());
+                snapshot.totalAmountClaimed(), snapshot.effectiveTo(),
+                snapshot.installmentAmount(), snapshot.overdueBalance(),
+                snapshot.eventsInYear(), snapshot.payload());
     }
 
     /** {@code queried_at} se pisa también: la foto vigente es la de la última clasificación. */
@@ -116,13 +136,17 @@ public class PolicySnapshotRepository {
                         UPDATE %s.policy_snapshot
                            SET external_policy_number = ?, sum_insured = ?, in_force = ?,
                                payments_up_to_date = ?, previous_claims = ?,
-                               total_amount_claimed = ?, queried_at = NOW(),
+                               total_amount_claimed = ?, effective_to = ?,
+                               installment_amount = ?, overdue_balance = ?,
+                               events_in_year = ?, queried_at = NOW(),
                                insurer_db_payload = ?::jsonb
                          WHERE id = ?
                         """.formatted(schema()),
                 snapshot.externalPolicyNumber(), snapshot.sumInsured(), snapshot.inForce(),
                 snapshot.paymentsUpToDate(), snapshot.previousClaims(),
-                snapshot.totalAmountClaimed(), snapshot.payload(),
+                snapshot.totalAmountClaimed(), snapshot.effectiveTo(),
+                snapshot.installmentAmount(), snapshot.overdueBalance(),
+                snapshot.eventsInYear(), snapshot.payload(),
                 snapshotId);
     }
 }

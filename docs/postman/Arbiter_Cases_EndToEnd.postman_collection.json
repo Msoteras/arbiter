@@ -408,6 +408,47 @@
 			"response": []
 		},
 		{
+			"name": "6️⃣ ◀ Propuesta de liquidación del case 1 (cuánto se paga)",
+			"event": [
+				{
+					"listen": "test",
+					"script": {
+						"type": "text/javascript",
+						"exec": [
+							"// El monto no lo elige el analista de la nada: el backend lo calcula con los parámetros",
+							"// de la cobertura y devuelve la cuenta explicada línea por línea. Acá se guarda para",
+							"// mandarlo tal cual en la aprobación de abajo.",
+							"const body = pm.response.json();",
+							"pm.environment.set('settledAmount', body.calculatedAmount);",
+							"pm.test('Trae el desglose y un monto', function () {",
+							"    pm.expect(body.breakdown).to.be.an('array').that.is.not.empty;",
+							"    pm.expect(body.calculatedAmount).to.not.be.undefined;",
+							"});"
+						]
+					}
+				}
+			],
+			"request": {
+				"method": "GET",
+				"header": [],
+				"url": {
+					"raw": "{{casesBaseUrl}}/api/v1/cases/{{caseId_fastTrack}}/settlement",
+					"host": [
+						"{{casesBaseUrl}}"
+					],
+					"path": [
+						"api",
+						"v1",
+						"cases",
+						"{{caseId_fastTrack}}",
+						"settlement"
+					]
+				},
+				"description": "La liquidación ya autorizada, o la propuesta a confirmar. No persiste nada. Acepta ?replacementValue= para previsualizar qué pasaría si se acreditara ese valor de reposición (solo baja el techo en coberturas que liquidan por el menor de los dos)."
+			},
+			"response": []
+		},
+		{
 			"name": "6️⃣ Analyst APPROVES case 1 (Fast Track)",
 			"request": {
 				"method": "POST",
@@ -432,7 +473,7 @@
 				},
 				"body": {
 					"mode": "raw",
-					"raw": "{\n  \"analystId\": \"analyst-sandoval\",\n  \"decision\": \"APROBAR\"\n}"
+					"raw": "{\n  \"decision\": \"APROBAR\",\n  \"justification\": \"Documentación completa y hecho amparado por la cobertura.\",\n  \"settlement\": {\n    \"settledAmount\": {{settledAmount}}\n  }\n}"
 				}
 			},
 			"response": []
@@ -482,7 +523,7 @@
 				},
 				"body": {
 					"mode": "raw",
-					"raw": "{\n  \"analystId\": \"analyst-sandoval\",\n  \"decision\": \"RECHAZAR\"\n}"
+					"raw": "{\n  \"decision\": \"RECHAZAR\",\n  \"justification\": \"El hecho denunciado es hurto: la cobertura excluye el apoderamiento sin violencia.\"\n}"
 				}
 			},
 			"response": []
@@ -906,6 +947,152 @@
 					]
 				},
 				"description": "Con init.sql debería devolver los cases 1 y 4 (insuredName=\"Sofía Martínez\", case-insensitive substring). El case 5 comparte insuredId pero todavía no tiene insuredName resuelto (null hasta la primera clasificación) — no matchea. También matchea por policyNumber/insuredId (substring) o por id (exacto, si q es numérico)."
+			},
+			"response": []
+		},
+		{
+			"name": "9️⃣ (Referente) Topes por ramo — hasta cuánto firma solo el analista",
+			"request": {
+				"method": "GET",
+				"header": [],
+				"url": {
+					"raw": "{{casesBaseUrl}}/api/v1/settlement-authorities",
+					"host": [
+						"{{casesBaseUrl}}"
+					],
+					"path": [
+						"api",
+						"v1",
+						"settlement-authorities"
+					]
+				},
+				"description": "Anexo II del procedimiento: el analista aprueba liquidaciones hasta el límite de su rama. Vienen TODOS los ramos; maxAmount en null significa que ese ramo no tiene tope y el analista autoriza cualquier monto."
+			},
+			"response": []
+		},
+		{
+			"name": "9️⃣ (Referente) Fijar el tope de un ramo",
+			"request": {
+				"method": "PUT",
+				"header": [
+					{
+						"key": "Content-Type",
+						"value": "application/json"
+					}
+				],
+				"url": {
+					"raw": "{{casesBaseUrl}}/api/v1/settlement-authorities/1",
+					"host": [
+						"{{casesBaseUrl}}"
+					],
+					"path": [
+						"api",
+						"v1",
+						"settlement-authorities",
+						"1"
+					]
+				},
+				"body": {
+					"mode": "raw",
+					"raw": "{\n  \"maxAmount\": 500000.00\n}"
+				},
+				"description": "maxAmount en null saca el tope: el ramo vuelve a que el analista autorice todo."
+			},
+			"response": []
+		},
+		{
+			"name": "9️⃣ (Referente) Liquidaciones esperando firma",
+			"event": [
+				{
+					"listen": "test",
+					"script": {
+						"type": "text/javascript",
+						"exec": [
+							"// Los expedientes de acá NO están en un estado especial: siguen en revisión del",
+							"// analista. Lo que espera es la liquidación, y el asegurado no ve este paso.",
+							"const body = pm.response.json();",
+							"if (body.length > 0) { pm.environment.set('pendingCaseId', body[0].caseId); }"
+						]
+					}
+				}
+			],
+			"request": {
+				"method": "GET",
+				"header": [],
+				"url": {
+					"raw": "{{casesBaseUrl}}/api/v1/cases/settlements/pending-authorization",
+					"host": [
+						"{{casesBaseUrl}}"
+					],
+					"path": [
+						"api",
+						"v1",
+						"cases",
+						"settlements",
+						"pending-authorization"
+					]
+				},
+				"description": "Más viejas primero: ese siniestro es el que lleva más tiempo consumiendo su plazo legal."
+			},
+			"response": []
+		},
+		{
+			"name": "9️⃣ (Referente) Autorizar la liquidación",
+			"request": {
+				"method": "POST",
+				"header": [
+					{
+						"key": "Content-Type",
+						"value": "application/json"
+					}
+				],
+				"url": {
+					"raw": "{{casesBaseUrl}}/api/v1/cases/{{pendingCaseId}}/settlement/authorize",
+					"host": [
+						"{{casesBaseUrl}}"
+					],
+					"path": [
+						"api",
+						"v1",
+						"cases",
+						"{{pendingCaseId}}",
+						"settlement",
+						"authorize"
+					]
+				},
+				"description": "Recién acá la aprobación surte efecto: se registra la decisión del analista con la justificación que había dejado, y el expediente pasa a APROBADO — que es lo que dispara el mail al asegurado con el monto."
+			},
+			"response": []
+		},
+		{
+			"name": "9️⃣ (Referente) Devolver la liquidación al analista",
+			"request": {
+				"method": "POST",
+				"header": [
+					{
+						"key": "Content-Type",
+						"value": "application/json"
+					}
+				],
+				"url": {
+					"raw": "{{casesBaseUrl}}/api/v1/cases/{{pendingCaseId}}/settlement/return",
+					"host": [
+						"{{casesBaseUrl}}"
+					],
+					"path": [
+						"api",
+						"v1",
+						"cases",
+						"{{pendingCaseId}}",
+						"settlement",
+						"return"
+					]
+				},
+				"body": {
+					"mode": "raw",
+					"raw": "{\n  \"reason\": \"El presupuesto adjunto no respalda ese monto.\"\n}"
+				},
+				"description": "No rechaza el siniestro: el expediente nunca salió de la revisión del analista y no hay decisión registrada que deshacer. Vuelve a determinar el monto."
 			},
 			"response": []
 		}

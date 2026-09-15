@@ -42,6 +42,7 @@ export const CASE_DOCUMENT_TYPES: readonly CaseDocumentType[] = DOCUMENT_TYPES.m
  */
 export const NON_AGENDA_DOCUMENT_TYPES: readonly CaseDocumentType[] = [
   { type: 'expert_report', label: 'Informe pericial' },
+  { type: 'repair_report', label: 'Respuesta del servicio técnico' },
 ];
 
 /** Etiqueta legible del tipo; si el backend manda uno desconocido, se muestra crudo. */

@@ -1,6 +1,7 @@
 package ar.edu.utn.frba.arbiter.cases.services;
 
 import ar.edu.utn.frba.arbiter.cases.dto.ExpertFirmRequest;
+import ar.edu.utn.frba.arbiter.cases.dto.ProviderType;
 import ar.edu.utn.frba.arbiter.cases.dto.ExpertFirmResponse;
 import ar.edu.utn.frba.arbiter.cases.exceptions.ExpertFirmInUseException;
 import ar.edu.utn.frba.arbiter.cases.exceptions.ExpertFirmNotFoundException;
@@ -49,6 +50,7 @@ public class ExpertFirmService {
                 .zone(blankToNull(request.zone()))
                 .branch(resolveBranch(request.branchId()))
                 .active(request.active())
+                .providerType(typeOf(request))
                 .build();
         return ExpertFirmResponse.from(expertFirmRepository.save(firm));
     }
@@ -62,6 +64,7 @@ public class ExpertFirmService {
         firm.setZone(blankToNull(request.zone()));
         firm.setBranch(resolveBranch(request.branchId()));
         firm.setActive(request.active());
+        firm.setProviderType(typeOf(request));
         return ExpertFirmResponse.from(expertFirmRepository.save(firm));
     }
 
@@ -87,6 +90,11 @@ public class ExpertFirmService {
         }
         return branchRepository.findById(branchId)
                 .orElseThrow(() -> new UnresolvedCaseReferenceException("ramo", String.valueOf(branchId)));
+    }
+
+    /** Null = estudio liquidador: es lo que había antes de que el catálogo tuviera tipos. */
+    private static ProviderType typeOf(ExpertFirmRequest request) {
+        return request.providerType() == null ? ProviderType.ESTUDIO_LIQUIDADOR : request.providerType();
     }
 
     private String blankToNull(String value) {

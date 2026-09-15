@@ -2,6 +2,7 @@ package ar.edu.utn.frba.arbiter.classification.dto;
 
 import ar.edu.utn.frba.arbiter.classification.services.risk.RiskScore;
 import ar.edu.utn.frba.arbiter.common.dto.ImageForensicReport;
+import ar.edu.utn.frba.arbiter.common.enums.CauseConsistency;
 import ar.edu.utn.frba.arbiter.common.enums.Classification;
 import lombok.Builder;
 
@@ -30,7 +31,18 @@ public record ClassificationResponse(
          * Attached by the orchestrator and persisted to {@code rule_result} for the audit trail;
          * empty when no evaluable rule applied. Never set by the classifier.
          */
-        List<RuleFinding> ruleFindings
+        List<RuleFinding> ruleFindings,
+        /**
+         * Whether the insured's account matches the claim cause they declared. Unlike the fields
+         * above, the <b>classifier</b> sets these three — they come out of the same model call —
+         * and the orchestrator only reads them to decide where the claim goes. Null on every path
+         * that skips the LLM.
+         */
+        CauseConsistency causeConsistency,
+        /** Claim cause the account describes, from the branch's catalog. Null unless CONTRADICTS. */
+        String suggestedClaimCause,
+        /** Verbatim sentence of the account backing the verdict. Null unless CONTRADICTS. */
+        String causeEvidence
 ) {
 
     /**
@@ -39,6 +51,7 @@ public record ClassificationResponse(
      * classifier decoupled from scoring and policy lookup.
      */
     public ClassificationResponse(Classification classification, List<String> factors, double confidence, boolean deterministicFastTrack) {
-        this(classification, factors, confidence, deterministicFastTrack, null, null, null, null);
+        this(classification, factors, confidence, deterministicFastTrack,
+                null, null, null, null, null, null, null);
     }
 }
