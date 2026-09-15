@@ -4,6 +4,7 @@ import ar.edu.utn.frba.arbiter.common.enums.CaseStatus;
 import ar.edu.utn.frba.arbiter.common.enums.Classification;
 import ar.edu.utn.frba.arbiter.reports.dto.ResolutionReport;
 import ar.edu.utn.frba.arbiter.reports.dto.ResolutionReportRow;
+import ar.edu.utn.frba.arbiter.reports.services.ResolutionSummaries;
 
 import java.time.Clock;
 import java.time.Instant;
@@ -40,8 +41,21 @@ public final class ReportFixtures {
                 790 * 24 * 60, null, null, CaseStatus.LAPSED, null);
     }
 
+    /** Resolved by the deterministic gate: the only rows that count towards the Fast Track share. */
+    public static ResolutionReportRow fastTrackRow(long caseId) {
+        return new ResolutionReportRow(caseId, "Marcos Ruiz", "33.555.666", "Celulares", "Hurto",
+                Instant.parse("2026-08-04T10:00:00Z"), Instant.parse("2026-08-04T12:00:00Z"),
+                120, Classification.FAST_TRACK, "APPROVE", CaseStatus.APPROVED, "Laura Gómez");
+    }
+
+    /** The summary always comes from the rows, so a fixture can't state a total its rows contradict. */
     public static ResolutionReport augustReport(List<ResolutionReportRow> rows) {
-        return new ResolutionReport(LocalDate.of(2026, 8, 1), LocalDate.of(2026, 8, 31), null,
-                CLOCK.instant(), rows);
+        return augustReport(rows, null, null);
+    }
+
+    public static ResolutionReport augustReport(List<ResolutionReportRow> rows, String branch,
+                                                String claimCause) {
+        return new ResolutionReport(LocalDate.of(2026, 8, 1), LocalDate.of(2026, 8, 31), branch,
+                claimCause, CLOCK.instant(), ResolutionSummaries.of(rows), rows);
     }
 }

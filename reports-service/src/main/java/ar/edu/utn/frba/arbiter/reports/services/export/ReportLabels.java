@@ -68,8 +68,17 @@ final class ReportLabels {
         };
     }
 
-    static String claimCauseFilter(String claimCause) {
-        return claimCause == null ? "Todos" : claimCause;
+    /** How an optional filter reads in the exported document when it was left unset. */
+    static String filterValue(String filter) {
+        return filter == null ? "Todos" : filter;
+    }
+
+    /**
+     * A rate as a whole percentage — "38%". The report states the Fast Track share next to the count
+     * it came from, so a decimal place would add noise, not precision.
+     */
+    static String percent(Double rate) {
+        return rate == null ? "—" : Math.round(rate * 100) + "%";
     }
 
     /** "45 min", "3 h 20 min", "2 d 5 h" — the same format the preview table shows. */

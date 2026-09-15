@@ -1,4 +1,4 @@
-import { DOCUMENT } from '@angular/common';
+import { DOCUMENT, PercentPipe } from '@angular/common';
 import { HttpErrorResponse } from '@angular/common/http';
 import {
   ChangeDetectionStrategy,
@@ -13,18 +13,25 @@ import { RouterLink } from '@angular/router';
 
 import { clasificacionLabel, clasificacionTone } from '../../../core/models/clasificacion';
 import { estadoLabel, estadoTone } from '../../../core/models/estado';
+import { StatusTone } from '../../../core/models/status-tone';
 import { formatDateTime, todayIso } from '../../../core/util/datetime';
 import { staggerReveal } from '../../../shared/animations';
 import { BadgeComponent } from '../../../shared/ui/badge/badge.component';
 import { ButtonComponent } from '../../../shared/ui/button/button.component';
 import { CardComponent } from '../../../shared/ui/card/card.component';
+import {
+  DistributionComponent,
+  DistributionItem,
+} from '../../../shared/ui/distribution/distribution.component';
 import { EmptyStateComponent } from '../../../shared/ui/empty-state/empty-state.component';
 import { InlineLoadingComponent } from '../../../shared/ui/inline-loading/inline-loading.component';
 import { InputComponent } from '../../../shared/ui/input/input.component';
 import { PaginationComponent } from '../../../shared/ui/pagination/pagination.component';
 import { SelectComponent, SelectOption } from '../../../shared/ui/select/select.component';
+import { StatTileComponent } from '../../../shared/ui/stat-tile/stat-tile.component';
 import { TableComponent } from '../../../shared/ui/table/table.component';
 import { ExpedienteService } from '../../expedientes/expediente.service';
+import { BranchesService } from '../branches.service';
 import {
   ReportFormat,
   ResolutionReport,
@@ -43,15 +50,18 @@ import { ResolutionReportService } from './resolution-report.service';
 @Component({
   selector: 'app-reportes',
   imports: [
+    PercentPipe,
     RouterLink,
     BadgeComponent,
     ButtonComponent,
     CardComponent,
+    DistributionComponent,
     EmptyStateComponent,
     InlineLoadingComponent,
     InputComponent,
     PaginationComponent,
     SelectComponent,
+    StatTileComponent,
     TableComponent,
   ],
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -62,6 +72,7 @@ import { ResolutionReportService } from './resolution-report.service';
 export class ReportesComponent {
   private readonly reports = inject(ResolutionReportService);
   private readonly expedientes = inject(ExpedienteService);
+  private readonly branches = inject(BranchesService);
   private readonly document = inject(DOCUMENT);
   private readonly destroyRef = inject(DestroyRef);
 
@@ -69,6 +80,13 @@ export class ReportesComponent {
   // Default: the month so far — the question a referent asks most often.
   protected readonly from = signal(`${this.today.slice(0, 8)}01`);
   protected readonly to = signal(this.today);
+  protected readonly branchId = signal<number | null>(null);
+  protected readonly branchOptions = signal<SelectOption[]>([]);
+  /** The select speaks strings; empty is the placeholder, which here means "every branch". */
+  protected readonly branchValue = computed(() => {
+    const id = this.branchId();
+    return id === null ? '' : String(id);
+  });
   protected readonly claimCause = signal('');
   protected readonly claimCauseOptions = signal<SelectOption[]>([]);
   protected readonly periodError = computed(() => periodError(this.from(), this.to()));
@@ -86,12 +104,29 @@ export class ReportesComponent {
     const start = this.page() * this.pageSize();
     return this.rows().slice(start, start + this.pageSize());
   });
-  protected readonly averageMinutes = computed(() => {
-    const rows = this.rows();
-    return rows.length === 0
-      ? 0
-      : Math.round(rows.reduce((sum, row) => sum + row.totalMinutes, 0) / rows.length);
-  });
+  /**
+   * Straight from the backend rather than added up here: the exported file and the screen have to
+   * agree, and two implementations of "average" are one bug away from disagreeing.
+   */
+  protected readonly summary = computed(() => this.report()?.summary ?? null);
+
+  /** El estado sí comunica semáforo: sale de `estadoTone`, igual que en la tabla y en el tablero. */
+  protected readonly statusItems = computed<DistributionItem[]>(() =>
+    (this.summary()?.byStatus ?? []).map((bucket) => ({
+      label: estadoLabel(bucket.label),
+      count: bucket.count,
+      tone: estadoTone(bucket.label),
+    })),
+  );
+
+  /** El hecho generador no comunica estado: sin semáforo, igual que el ramo en el tablero. */
+  protected readonly claimCauseItems = computed<DistributionItem[]>(() =>
+    (this.summary()?.byClaimCause ?? []).map((bucket) => ({
+      label: bucket.label,
+      count: bucket.count,
+      tone: 'neutral' as StatusTone,
+    })),
+  );
 
   protected readonly formatDateTime = formatDateTime;
   protected readonly formatDuration = formatDuration;
@@ -110,6 +145,15 @@ export class ReportesComponent {
         // Without the catalog the filter still works as "Todos": not worth blocking the screen.
         error: () => this.claimCauseOptions.set([]),
       });
+
+    this.branches
+      .list()
+      .pipe(takeUntilDestroyed())
+      .subscribe({
+        next: (list) =>
+          this.branchOptions.set(list.map((branch) => ({ value: String(branch.id), label: branch.name }))),
+        error: () => this.branchOptions.set([]),
+      });
   }
 
   protected setFrom(value: string): void {
@@ -119,6 +163,11 @@ export class ReportesComponent {
 
   protected setTo(value: string): void {
     this.to.set(value);
+    this.discardPreview();
+  }
+
+  protected setBranch(value: string): void {
+    this.branchId.set(value === '' ? null : Number(value));
     this.discardPreview();
   }
 
@@ -176,7 +225,12 @@ export class ReportesComponent {
   }
 
   private params(): ResolutionReportParams {
-    return { from: this.from(), to: this.to(), claimCause: this.claimCause() };
+    return {
+      from: this.from(),
+      to: this.to(),
+      branchId: this.branchId(),
+      claimCause: this.claimCause(),
+    };
   }
 
   /** A preview only describes the parameters it ran with; once one changes, it would mislead. */

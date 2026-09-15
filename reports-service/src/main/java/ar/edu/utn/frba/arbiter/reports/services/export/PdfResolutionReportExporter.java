@@ -1,8 +1,11 @@
 package ar.edu.utn.frba.arbiter.reports.services.export;
 
+import ar.edu.utn.frba.arbiter.common.enums.CaseStatus;
+import ar.edu.utn.frba.arbiter.reports.dto.MetricCount;
 import ar.edu.utn.frba.arbiter.reports.dto.ReportFormat;
 import ar.edu.utn.frba.arbiter.reports.dto.ResolutionReport;
 import ar.edu.utn.frba.arbiter.reports.dto.ResolutionReportRow;
+import ar.edu.utn.frba.arbiter.reports.dto.ResolutionSummary;
 import ar.edu.utn.frba.arbiter.reports.exceptions.ReportGenerationException;
 import lombok.RequiredArgsConstructor;
 import org.apache.pdfbox.pdmodel.PDDocument;
@@ -18,6 +21,9 @@ import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.time.Clock;
 import java.time.ZoneId;
+import java.util.List;
+import java.util.function.Function;
+import java.util.stream.Collectors;
 
 /**
  * Landscape A4 table, one row per case, header repeated on every page and "Página n de m" at the
@@ -45,6 +51,8 @@ public class PdfResolutionReportExporter implements ResolutionReportExporter {
 
     private static final String TITLE = "Reporte de resolución de siniestros";
     private static final String ELLIPSIS = "…";
+    // Marks the one summary line that goes in bold; the rest of the block is regular.
+    private static final String TOTALS_LABEL = "Total: ";
 
     private static final String[] HEADER = {
             "Nº", "Asegurado", "DNI", "Ramo · Hecho generador", "Denuncia", "Resolución", "Tiempo",
@@ -104,20 +112,60 @@ public class PdfResolutionReportExporter implements ResolutionReportExporter {
         float y = top - TITLE_SIZE;
         text(content, bold, TITLE_SIZE, INK, MARGIN, y, TITLE);
 
-        int count = report.rows().size();
-        String period = "Período: %s al %s · Tipo de siniestro: %s · %d %s".formatted(
+        String filters = "Período: %s al %s · Ramo: %s · Tipo de siniestro: %s".formatted(
                 ReportLabels.DATE.format(report.from()),
                 ReportLabels.DATE.format(report.to()),
-                ReportLabels.claimCauseFilter(report.claimCause()),
-                count,
-                count == 1 ? "siniestro resuelto" : "siniestros resueltos");
+                ReportLabels.filterValue(report.branch()),
+                ReportLabels.filterValue(report.claimCause()));
         y -= META_SIZE + 8;
-        text(content, regular, META_SIZE, INK, MARGIN, y, fit(period, regular, META_SIZE, TABLE_WIDTH));
+        text(content, regular, META_SIZE, INK, MARGIN, y, fit(filters, regular, META_SIZE, TABLE_WIDTH));
+
+        y = drawSummary(content, regular, bold, report.summary(), y);
 
         y -= META_SIZE + 4;
         text(content, regular, META_SIZE, MUTED, MARGIN, y,
                 "Generado el " + ReportLabels.DATE_TIME.withZone(zone).format(report.generatedAt()));
         return y - 14;
+    }
+
+    /**
+     * The four figures H0019 asks for, before the detail: whoever opens the PDF to answer "how did
+     * the period go" gets the answer on the first screen instead of adding up a table.
+     *
+     * @return the y below the block
+     */
+    private static float drawSummary(PDPageContentStream content, PDFont regular, PDFont bold,
+                                     ResolutionSummary summary, float top) throws IOException {
+        float y = top;
+        for (String line : summaryLines(summary)) {
+            y -= META_SIZE + 4;
+            text(content, line.startsWith(TOTALS_LABEL) ? bold : regular, META_SIZE, INK, MARGIN, y,
+                    fit(line, regular, META_SIZE, TABLE_WIDTH));
+        }
+        return y;
+    }
+
+    private static List<String> summaryLines(ResolutionSummary summary) {
+        if (summary.totalCases() == 0) {
+            return List.of();
+        }
+        return List.of(
+                "%s%d %s · Tiempo promedio de resolución: %s · Fast Track: %d (%s)".formatted(
+                        TOTALS_LABEL,
+                        summary.totalCases(),
+                        summary.totalCases() == 1 ? "siniestro resuelto" : "siniestros resueltos",
+                        ReportLabels.duration(Math.round(summary.averageMinutes())),
+                        summary.fastTrackCases(),
+                        ReportLabels.percent(summary.fastTrackRate())),
+                "Por estado: " + distribution(summary.byStatus(),
+                        count -> ReportLabels.status(CaseStatus.valueOf(count.label()))),
+                "Por tipo de siniestro: " + distribution(summary.byClaimCause(), MetricCount::label));
+    }
+
+    private static String distribution(List<MetricCount> counts, Function<MetricCount, String> label) {
+        return counts.stream()
+                .map(count -> "%s %d".formatted(label.apply(count), count.count()))
+                .collect(Collectors.joining(" · "));
     }
 
     private static float drawHeaderRow(PDPageContentStream content, PDFont bold, float top) throws IOException {

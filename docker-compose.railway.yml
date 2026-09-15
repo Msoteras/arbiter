@@ -226,6 +226,53 @@ services:
       DB_USER: ${DB_USER:?falta DB_USER en .env}
       DB_PASSWORD: ${DB_PASSWORD:?falta DB_PASSWORD en .env}
       JWT_SECRET: ${JWT_SECRET:?falta JWT_SECRET en .env}
+      # El objetivo de resolución que el tablero compara contra el tiempo promedio. El default
+      # del RulesServiceClient ya es este host, pero declararlo acá lo deja a la vista: es la
+      # única lectura de este módulo que NO va por base.
+      RULES_SERVICE_URL: http://rules-service:8081
+    restart: on-failure
+
+  # ─── Frontend ───────────────────────────────────────────────────────────
+  # La SPA compilada servida por nginx, que además hace de reverse proxy a los 5 módulos — el
+  # mismo rol que proxy.conf.json cumple en `ng serve`. Por eso se entra por acá y no a cada
+  # puerto suelto: el frontend usa rutas relativas (environment.ts: apiBaseUrl '/api/v1').
+  #
+  # Las cinco URLs se pisan a propósito: los defaults de la imagen apuntan a
+  # *.railway.internal, que sólo resuelven una vez desplegado. Acá los hostnames son los
+  # nombres de servicio de esta red de Compose.
+  arbiter-frontend:
+    build:
+      context: .
+      dockerfile: arbiter-frontend/Dockerfile
+    mem_limit: 256m
+    # 4200: el puerto del frontend en todo el equipo, y el mismo que FRONTEND_BASE_URL del .env
+    # (la base de los links de invitación que manda auth-service — si no coinciden, el mail
+    # lleva a un puerto muerto).
+    #
+    # OJO: NO levantes `ng serve` y este contenedor a la vez. `ng serve` escucha en [::1]:4200 y
+    # Docker publica en [::]:4200; en Windows `localhost` resuelve a ::1 antes que a 127.0.0.1,
+    # así que http://localhost:4200 te sirve el DEV SERVER y no el contenedor. Y como el dev
+    # server proxea a los mismos puertos del back (proxy.conf.json), la pantalla anda igual: no
+    # hay ningún síntoma de que estás mirando otra cosa. Se perdió un rato largo en eso.
+    #
+    # Si alguna vez necesitás los dos a la vez, FRONTEND_PORT mueve ESTE (dejá 4200 para
+    # `ng serve`, que es lo que el resto del equipo espera).
+    ports:
+      - "${FRONTEND_PORT:-4200}:8080"
+    environment:
+      AUTH_SERVICE_URL: http://auth-service:8080
+      CASES_SERVICE_URL: http://cases-service:8083
+      CLASSIFICATION_SERVICE_URL: http://classification-service:8082
+      RULES_SERVICE_URL: http://rules-service:8081
+      REPORTS_SERVICE_URL: http://reports-service:8084
+    # Arranca sin esperarlos: nginx resuelve los upstreams por request (ver el `set` + variable
+    # del template), así que un backend caído da 502 en sus rutas y no voltea la SPA entera.
+    depends_on:
+      - auth-service
+      - cases-service
+      - classification-service
+      - rules-service
+      - reports-service
     restart: on-failure
 
 volumes:

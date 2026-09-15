@@ -17,6 +17,7 @@ import java.time.Instant;
 import java.util.List;
 
 import static ar.edu.utn.frba.arbiter.reports.support.CaseTables.APPROVED;
+import static ar.edu.utn.frba.arbiter.reports.support.CaseTables.CELULARES;
 import static ar.edu.utn.frba.arbiter.reports.support.CaseTables.HURTO_CELULARES;
 import static ar.edu.utn.frba.arbiter.reports.support.CaseTables.HURTO_TECNOLOGIA;
 import static ar.edu.utn.frba.arbiter.reports.support.CaseTables.LAPSED;
@@ -67,7 +68,7 @@ class ResolvedCaseRepositoryTests extends AbstractPersistenceIT {
         tables.recommendation(1, "LLM_NO_RECOMIENDA_APROBAR");
         tables.recommendation(1, "LLM_RECOMIENDA_APROBAR");
 
-        List<ResolutionReportRow> rows = repository.findResolvedBetween(AUGUST_FROM, AUGUST_TO, null);
+        List<ResolutionReportRow> rows = repository.findResolvedBetween(AUGUST_FROM, AUGUST_TO, null, null);
 
         assertThat(rows).singleElement().satisfies(row -> {
             assertThat(row.caseId()).isEqualTo(1L);
@@ -95,7 +96,7 @@ class ResolvedCaseRepositoryTests extends AbstractPersistenceIT {
         tables.insertCase(3, "2026-08-20T10:00:00Z", REJECTED, ROBO_CELULARES, false, null, null);
         tables.transition(3, PENDING_REVIEW, REJECTED, "2026-09-01T02:30:00Z");
 
-        List<ResolutionReportRow> rows = repository.findResolvedBetween(AUGUST_FROM, AUGUST_TO, null);
+        List<ResolutionReportRow> rows = repository.findResolvedBetween(AUGUST_FROM, AUGUST_TO, null, null);
 
         assertThat(rows).extracting(ResolutionReportRow::caseId).containsExactly(3L);
     }
@@ -108,8 +109,8 @@ class ResolvedCaseRepositoryTests extends AbstractPersistenceIT {
         tables.transition(1, PENDING_REVIEW, REJECTED, "2026-08-10T15:00:00Z");
 
         List<ResolutionReportRow> july = repository.findResolvedBetween(
-                Instant.parse("2026-07-01T03:00:00Z"), AUGUST_FROM, null);
-        List<ResolutionReportRow> august = repository.findResolvedBetween(AUGUST_FROM, AUGUST_TO, null);
+                Instant.parse("2026-07-01T03:00:00Z"), AUGUST_FROM, null, null);
+        List<ResolutionReportRow> august = repository.findResolvedBetween(AUGUST_FROM, AUGUST_TO, null, null);
 
         assertThat(july).isEmpty();
         assertThat(august).singleElement()
@@ -126,7 +127,7 @@ class ResolvedCaseRepositoryTests extends AbstractPersistenceIT {
         tables.insertCase(2, "2025-02-01T10:00:00Z", LAPSED, ROBO_CELULARES, false, JUAN, null);
         tables.transition(2, null, LAPSED, "2026-08-02T10:00:00Z");
 
-        List<ResolutionReportRow> rows = repository.findResolvedBetween(AUGUST_FROM, AUGUST_TO, null);
+        List<ResolutionReportRow> rows = repository.findResolvedBetween(AUGUST_FROM, AUGUST_TO, null, null);
 
         assertThat(rows).hasSize(2);
         assertThat(rows.get(0).classification()).isEqualTo(Classification.FAST_TRACK);
@@ -146,10 +147,45 @@ class ResolvedCaseRepositoryTests extends AbstractPersistenceIT {
         tables.insertCase(3, "2026-08-01T10:00:00Z", REJECTED, HURTO_CELULARES, false, null, null);
         tables.transition(3, PENDING_REVIEW, REJECTED, "2026-08-03T10:00:00Z");
 
-        List<ResolutionReportRow> rows = repository.findResolvedBetween(AUGUST_FROM, AUGUST_TO, "Hurto");
+        List<ResolutionReportRow> rows = repository.findResolvedBetween(AUGUST_FROM, AUGUST_TO, null, "Hurto");
 
         assertThat(rows).extracting(ResolutionReportRow::caseId).containsExactly(3L, 1L);
         assertThat(rows).extracting(ResolutionReportRow::branch)
                 .containsExactly("Celulares", "Tecnología Portátil");
+    }
+
+    @Test
+    void branchFilter_keepsOnlyThatBranchesCases() {
+        tables.insertCase(1, "2026-08-01T10:00:00Z", APPROVED, HURTO_TECNOLOGIA, false, null, null);
+        tables.transition(1, PENDING_REVIEW, APPROVED, "2026-08-05T10:00:00Z");
+        tables.insertCase(2, "2026-08-01T10:00:00Z", APPROVED, ROBO_CELULARES, false, null, null);
+        tables.transition(2, PENDING_REVIEW, APPROVED, "2026-08-04T10:00:00Z");
+
+        List<ResolutionReportRow> rows =
+                repository.findResolvedBetween(AUGUST_FROM, AUGUST_TO, CELULARES, null);
+
+        assertThat(rows).extracting(ResolutionReportRow::caseId).containsExactly(2L);
+    }
+
+    /** The two filters narrow together: "Hurto" exists in both branches, this asks for one of them. */
+    @Test
+    void branchAndClaimCause_narrowTogether() {
+        tables.insertCase(1, "2026-08-01T10:00:00Z", APPROVED, HURTO_TECNOLOGIA, false, null, null);
+        tables.transition(1, PENDING_REVIEW, APPROVED, "2026-08-05T10:00:00Z");
+        tables.insertCase(2, "2026-08-01T10:00:00Z", APPROVED, HURTO_CELULARES, false, null, null);
+        tables.transition(2, PENDING_REVIEW, APPROVED, "2026-08-04T10:00:00Z");
+        tables.insertCase(3, "2026-08-01T10:00:00Z", APPROVED, ROBO_CELULARES, false, null, null);
+        tables.transition(3, PENDING_REVIEW, APPROVED, "2026-08-03T10:00:00Z");
+
+        List<ResolutionReportRow> rows =
+                repository.findResolvedBetween(AUGUST_FROM, AUGUST_TO, CELULARES, "Hurto");
+
+        assertThat(rows).extracting(ResolutionReportRow::caseId).containsExactly(2L);
+    }
+
+    @Test
+    void branchName_comesFromTheCatalog_andIsNullWhenThereIsNoSuchBranch() {
+        assertThat(repository.findBranchName(CELULARES)).isEqualTo("Celulares");
+        assertThat(repository.findBranchName(999L)).isNull();
     }
 }

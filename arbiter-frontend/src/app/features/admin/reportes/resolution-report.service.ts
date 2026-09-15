@@ -40,8 +40,11 @@ export class ResolutionReportService {
   }
 }
 
-function toHttpParams({ from, to, claimCause }: ResolutionReportParams): HttpParams {
-  const params = new HttpParams().set('from', from).set('to', to);
+function toHttpParams({ from, to, branchId, claimCause }: ResolutionReportParams): HttpParams {
+  let params = new HttpParams().set('from', from).set('to', to);
+  if (branchId !== null) {
+    params = params.set('branchId', String(branchId));
+  }
   return claimCause ? params.set('claimCause', claimCause) : params;
 }
 

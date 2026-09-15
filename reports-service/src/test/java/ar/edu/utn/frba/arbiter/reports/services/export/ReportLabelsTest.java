@@ -33,7 +33,14 @@ class ReportLabelsTest {
     void missingValuesReadAsTheirAbsence() {
         assertThat(ReportLabels.classification(null)).isEqualTo("Sin clasificación");
         assertThat(ReportLabels.decision(null)).isEqualTo("Sin decisión");
-        assertThat(ReportLabels.claimCauseFilter(null)).isEqualTo("Todos");
+        assertThat(ReportLabels.filterValue(null)).isEqualTo("Todos");
+        assertThat(ReportLabels.percent(null)).isEqualTo("—");
+    }
+
+    @ParameterizedTest
+    @CsvSource(value = {"0.0|0%", "0.375|38%", "1.0|100%"}, delimiter = '|')
+    void percent_roundsToAWholeNumber(double rate, String expected) {
+        assertThat(ReportLabels.percent(rate)).isEqualTo(expected);
     }
 
     @Test

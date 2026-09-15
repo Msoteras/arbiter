@@ -37,7 +37,7 @@ public class ResolutionReportService {
     private final List<ResolutionReportExporter> exporters;
     private final Clock clock;
 
-    public ResolutionReport generate(LocalDate from, LocalDate to, String claimCause) {
+    public ResolutionReport generate(LocalDate from, LocalDate to, Long branchId, String claimCause) {
         if (!TenantContext.isResolved()) {
             throw new TenantNotResolvedException();
         }
@@ -51,15 +51,27 @@ public class ResolutionReportService {
         List<ResolutionReportRow> rows = resolvedCaseRepository.findResolvedBetween(
                 from.atStartOfDay(zone).toInstant(),
                 to.plusDays(1).atStartOfDay(zone).toInstant(),
+                branchId,
                 cause);
-        return new ResolutionReport(from, to, cause, clock.instant(), rows);
+        return new ResolutionReport(from, to, branchName(branchId), cause, clock.instant(),
+                ResolutionSummaries.of(rows), rows);
     }
 
-    public ExportedReport export(LocalDate from, LocalDate to, String claimCause, ReportFormat format) {
-        ResolutionReport report = generate(from, to, claimCause);
+    public ExportedReport export(LocalDate from, LocalDate to, Long branchId, String claimCause,
+                                 ReportFormat format) {
+        ResolutionReport report = generate(from, to, branchId, claimCause);
         byte[] content = exporterFor(format).export(report);
         String filename = "resoluciones_%s_%s.%s".formatted(from, to, format.extension());
         return new ExportedReport(filename, format, content);
+    }
+
+    /**
+     * Resolved from the catalog and not from the rows: with a filter that matched nothing there is
+     * no row to take it from, and that is precisely the report that most needs to say which branch
+     * it looked at.
+     */
+    private String branchName(Long branchId) {
+        return branchId == null ? null : resolvedCaseRepository.findBranchName(branchId);
     }
 
     private static void validatePeriod(LocalDate from, LocalDate to) {

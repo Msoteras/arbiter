@@ -4,6 +4,7 @@ import { provideRouter } from '@angular/router';
 import { of } from 'rxjs';
 
 import { ExpedienteService } from '../../expedientes/expediente.service';
+import { BranchesService } from '../branches.service';
 import { ReportesComponent } from './reportes.component';
 import { ResolutionReport, decisionLabel, formatDuration, periodError } from './resolution-report';
 import { ResolutionReportService } from './resolution-report.service';
@@ -40,8 +41,20 @@ describe('ReportesComponent', () => {
   const report: ResolutionReport = {
     from: '2026-08-01',
     to: '2026-08-31',
+    branch: null,
     claimCause: null,
     generatedAt: '2026-09-11T15:00:00Z',
+    summary: {
+      totalCases: 4,
+      averageMinutes: 3030,
+      fastTrackCases: 1,
+      fastTrackRate: 0.25,
+      byStatus: [
+        { label: 'APPROVED', count: 3 },
+        { label: 'LAPSED', count: 1 },
+      ],
+      byClaimCause: [{ label: 'Robo en vía pública', count: 4 }],
+    },
     rows: [
       {
         caseId: 42,
@@ -74,6 +87,7 @@ describe('ReportesComponent', () => {
         provideRouter([]),
         { provide: ResolutionReportService, useValue: reportService },
         { provide: ExpedienteService, useValue: { claimCauseNames: () => of(['Hurto']) } },
+        { provide: BranchesService, useValue: { list: () => of([{ id: 1, name: 'Celulares' }]) } },
       ],
     }).compileComponents();
 
@@ -99,5 +113,38 @@ describe('ReportesComponent', () => {
     expect(text).toContain('Recomienda aprobar');
     expect(text).toContain('Aprobado');
     expect(text).not.toContain('LLM_RECOMIENDA_APROBAR');
+  });
+
+  /** H0019: the four figures, taken from the backend rather than added up on screen. */
+  it('shows the totals of the period, with the statuses labelled in Spanish', () => {
+    click('Ver vista previa');
+
+    const text = (fixture.nativeElement as HTMLElement).textContent ?? '';
+    expect(text).toContain('Expedientes resueltos');
+    expect(text).toContain('Tiempo promedio de resolución');
+    // 0.25 through the percent pipe, next to the count it came from.
+    expect(text).toContain('25%');
+    expect(text).toContain('1 de 4');
+    expect(text).toContain('Caducado');
+    expect(text).not.toContain('LAPSED');
+  });
+
+  it('sends the branch filter to the backend', () => {
+    fixture.componentInstance['setBranch']('1');
+    click('Ver vista previa');
+
+    expect(reportService.preview).toHaveBeenCalledWith(
+      jasmine.objectContaining({ branchId: 1 }),
+    );
+  });
+
+  it('a cleared branch means every branch, not branch zero', () => {
+    fixture.componentInstance['setBranch']('1');
+    fixture.componentInstance['setBranch']('');
+    click('Ver vista previa');
+
+    expect(reportService.preview).toHaveBeenCalledWith(
+      jasmine.objectContaining({ branchId: null }),
+    );
   });
 });

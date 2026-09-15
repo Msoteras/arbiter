@@ -41,7 +41,10 @@ import {
   resolutionTimeLabel,
 } from './claim-metrics';
 import { ClaimMetricsService, MetricsPeriod } from './claim-metrics.service';
-import { DistributionComponent, DistributionItem } from './distribution.component';
+import {
+  DistributionComponent,
+  DistributionItem,
+} from '../../../shared/ui/distribution/distribution.component';
 
 /** Lo que el selector de período ofrece: los tres atajos del backend, más el rango a medida. */
 type PeriodChoice = MetricsRange | 'CUSTOM';

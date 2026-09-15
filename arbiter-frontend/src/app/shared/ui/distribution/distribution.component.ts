@@ -20,6 +20,11 @@ export interface DistributionItem {
  *
  * Sin librería de gráficos: son divs con un ancho porcentual. Un canvas acá sería más código,
  * más peso y menos accesible.
+ *
+ * Vive en el kit y no en una feature porque lo usan dos: el tablero del referente y el reporte de
+ * resolución. La leyenda es también lo que evita el problema que tenía el reporte cuando la
+ * maquetaba a mano — con el nombre y el número en extremos opuestos de una fila ancha, el ojo no
+ * los asocia.
  */
 @Component({
   selector: 'app-distribution',

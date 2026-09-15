@@ -21,18 +21,45 @@ export interface ResolutionReportRow {
   analystName: string | null;
 }
 
+/** One bar of a distribution — mirror of reports-service's MetricCount. */
+export interface MetricCount {
+  label: string;
+  count: number;
+}
+
+/**
+ * The aggregates the report leads with. Computed by the backend over the very rows below them, so
+ * the screen never has to add anything up — and never shows a total its own table contradicts.
+ *
+ * Rates are fractions between 0 and 1 (the percent pipe formats them) and null, not zero, when
+ * there was nothing to divide: a period that resolved nothing has an unknown Fast Track share.
+ */
+export interface ResolutionSummary {
+  totalCases: number;
+  averageMinutes: number | null;
+  fastTrackCases: number;
+  fastTrackRate: number | null;
+  /** `label` is a CaseStatus literal; estado.ts turns it into Spanish. */
+  byStatus: MetricCount[];
+  byClaimCause: MetricCount[];
+}
+
 export interface ResolutionReport {
   from: string;
   to: string;
+  /** The branch filter by name, resolved by the backend; null means every branch. */
+  branch: string | null;
   claimCause: string | null;
   generatedAt: string;
+  summary: ResolutionSummary;
   rows: ResolutionReportRow[];
 }
 
-/** `claimCause` empty means every claim cause. */
+/** `branchId` null and `claimCause` empty each mean "every one". */
 export interface ResolutionReportParams {
   from: string;
   to: string;
+  branchId: number | null;
   claimCause: string;
 }
 

@@ -33,6 +33,18 @@
       </div>
 
       <div class="field field-wide">
+        <label class="t-field-label" for="rep-ramo">Ramo</label>
+        <app-select
+          id="rep-ramo"
+          placeholder="Todos"
+          [searchable]="true"
+          [options]="branchOptions()"
+          [value]="branchValue()"
+          (valueChange)="setBranch($event)"
+        />
+      </div>
+
+      <div class="field field-wide">
         <label class="t-field-label" for="rep-tipo">Tipo de siniestro</label>
         <app-select
           id="rep-tipo"
@@ -86,11 +98,37 @@
           sub="Probá con otro rango de fechas o con otro tipo de siniestro."
         />
       } @else {
-        <p class="summary t-note">
-          {{ current.rows.length }}
-          {{ current.rows.length === 1 ? 'siniestro resuelto' : 'siniestros resueltos' }} · tiempo
-          promedio {{ formatDuration(averageMinutes()) }}
-        </p>
+        @if (summary(); as totals) {
+          <section class="summary" aria-label="Totales del período">
+            <div class="figures">
+              <app-stat-tile label="Expedientes resueltos" [value]="totals.totalCases" />
+              <app-stat-tile
+                label="Tiempo promedio de resolución"
+                [value]="totals.averageMinutes === null ? '—' : formatDuration(totals.averageMinutes)"
+              />
+              <!-- La barra sólo acá: es el único de los tres que es una proporción y por lo tanto
+                   el único que tiene contra qué medirse. -->
+              <app-stat-tile
+                label="Resueltos por Fast Track"
+                [value]="(totals.fastTrackRate | percent: '1.0-0') ?? '—'"
+                [sub]="totals.fastTrackCases + ' de ' + totals.totalCases"
+                [progress]="totals.fastTrackRate"
+              />
+            </div>
+
+            <div class="distributions">
+              <section class="distribution">
+                <h3 class="t-section-label">Por estado</h3>
+                <app-distribution [items]="statusItems()" />
+              </section>
+
+              <section class="distribution">
+                <h3 class="t-section-label">Por tipo de siniestro</h3>
+                <app-distribution [items]="claimCauseItems()" />
+              </section>
+            </div>
+          </section>
+        }
 
         <app-table>
           <thead>

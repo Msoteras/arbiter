@@ -27,6 +27,10 @@ import { InlineLoadingComponent } from '../../shared/ui/inline-loading/inline-lo
 import { SaveBarComponent } from '../../shared/ui/save-bar/save-bar.component';
 import { ChipGroupComponent, ChipOption } from '../../shared/ui/chip-group/chip-group.component';
 import { SwitchComponent } from '../../shared/ui/switch/switch.component';
+import {
+  DistributionComponent,
+  DistributionItem,
+} from '../../shared/ui/distribution/distribution.component';
 import { StatTileComponent } from '../../shared/ui/stat-tile/stat-tile.component';
 import { ToastService } from '../../shared/ui/toast/toast.service';
 import { StatusTransition } from '../../core/models/expediente';
@@ -85,6 +89,7 @@ interface Swatch {
     InlineLoadingComponent,
     SaveBarComponent,
     SwitchComponent,
+    DistributionComponent,
     StatTileComponent,
   ],
   template: `
@@ -768,6 +773,25 @@ interface Swatch {
           />
         </div>
       </section>
+
+      <section class="sg-block">
+        <h3 class="sg-h3">Distribution</h3>
+        <p class="sg-p">
+          Una distribución como barra apilada más su leyenda. Reemplazó al anillo: con cuatro o
+          cinco categorías obligaba a comparar arcos y a saltar a la leyenda para saber cuál era
+          cuál. Cada ítem trae su <span class="mono">tone</span> ya resuelto por el dominio
+          (<span class="mono">estadoTone</span>, <span class="mono">clasificacionTone</span>); lo
+          que no comunica estado —un ramo, un hecho generador— va en
+          <span class="mono">neutral</span>, no en un color elegido a dedo. Si dos categorías caen
+          en el mismo tono, la repetición se atenúa en vez de inventar un color que el sistema no
+          tiene. La leyenda alinea nombre, conteo y porcentaje en una grilla: es lo que evita que
+          el número termine a media cuadra del nombre en una fila ancha.
+        </p>
+        <div class="row cards">
+          <app-distribution [items]="statusDistribution" />
+          <app-distribution [items]="causeDistribution" />
+        </div>
+      </section>
     </div>
   `,
   styles: `
@@ -874,6 +898,20 @@ interface Swatch {
   `,
 })
 export class StyleguideComponent {
+  /** Con semáforo: el estado del expediente sí comunica cómo salió. */
+  protected readonly statusDistribution: DistributionItem[] = [
+    { label: 'Aprobado', count: 24, tone: 'ok' },
+    { label: 'Rechazado', count: 6, tone: 'danger' },
+    { label: 'Caducado', count: 2, tone: 'neutral' },
+  ];
+
+  /** Sin semáforo: un hecho generador no es bueno ni malo. Mismo tono, repetición atenuada. */
+  protected readonly causeDistribution: DistributionItem[] = [
+    { label: 'Robo en vía pública', count: 18, tone: 'neutral' },
+    { label: 'Hurto', count: 9, tone: 'neutral' },
+    { label: 'Rotura accidental', count: 5, tone: 'neutral' },
+  ];
+
   /**
    * Demo del app-chart. Arma las opciones igual que una pantalla real: tokens leídos del design
    * system, nunca colores escritos acá.

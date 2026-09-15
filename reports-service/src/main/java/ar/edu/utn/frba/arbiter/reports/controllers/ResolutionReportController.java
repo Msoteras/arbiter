@@ -41,14 +41,17 @@ public class ResolutionReportController {
     @PreAuthorize(REPORT_READERS)
     @Operation(summary = "Siniestros resueltos en un período",
             description = "Expedientes de la aseguradora del caller que llegaron a un estado final entre "
-                    + "from y to (ambos incluidos, días calendario), con tiempos, clasificación y decisión. "
-                    + "claimCause filtra por hecho generador; sin él, todos. Período máximo: 366 días.")
+                    + "from y to (ambos incluidos, días calendario), con tiempos, clasificación y decisión, "
+                    + "precedidos por los totales del período (cantidad por estado, tiempo promedio, "
+                    + "distribución por hecho generador y porcentaje de Fast Track). branchId filtra por "
+                    + "ramo y claimCause por hecho generador; sin ellos, todos. Período máximo: 366 días.")
     public ResolutionReport preview(
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate from,
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate to,
+            @RequestParam(required = false) Long branchId,
             @RequestParam(required = false) String claimCause
     ) {
-        return resolutionReportService.generate(from, to, claimCause);
+        return resolutionReportService.generate(from, to, branchId, claimCause);
     }
 
     @GetMapping("/export")
@@ -58,10 +61,11 @@ public class ResolutionReportController {
     public ResponseEntity<byte[]> export(
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate from,
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate to,
+            @RequestParam(required = false) Long branchId,
             @RequestParam(required = false) String claimCause,
             @RequestParam ReportFormat format
     ) {
-        ExportedReport file = resolutionReportService.export(from, to, claimCause, format);
+        ExportedReport file = resolutionReportService.export(from, to, branchId, claimCause, format);
         return ResponseEntity.ok()
                 .contentType(MediaType.parseMediaType(file.format().mediaType()))
                 .header(HttpHeaders.CONTENT_DISPOSITION,

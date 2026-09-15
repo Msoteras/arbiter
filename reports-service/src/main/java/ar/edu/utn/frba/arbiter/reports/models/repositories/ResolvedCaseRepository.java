@@ -84,17 +84,26 @@ public class ResolvedCaseRepository {
     /**
      * @param from       inclusive
      * @param to         exclusive
+     * @param branchId   branch ("ramo") of the claim's cause; null for every branch
      * @param claimCause claim cause name, matched across branches (the same "Hurto" exists in each
-     *                   one, same as the inbox's filter); null for every cause
+     *                   one, same as the inbox's filter); null for every cause. Combined with
+     *                   {@code branchId} it narrows to that one branch's cause, which is how the
+     *                   two filters read together on screen.
      */
     @Transactional(readOnly = true)
-    public List<ResolutionReportRow> findResolvedBetween(Instant from, Instant to, String claimCause) {
+    public List<ResolutionReportRow> findResolvedBetween(Instant from, Instant to, Long branchId,
+                                                         String claimCause) {
         MapSqlParameterSource params = new MapSqlParameterSource()
                 .addValue("from", OffsetDateTime.ofInstant(from, ZoneOffset.UTC))
                 .addValue("to", OffsetDateTime.ofInstant(to, ZoneOffset.UTC));
         StringBuilder sql = new StringBuilder(RESOLVED_CASES);
         // Appended rather than `:claimCause IS NULL OR ...`: Postgres can't infer the type of a
-        // parameter that is only ever compared to NULL and rejects the statement.
+        // parameter that is only ever compared to NULL and rejects the statement. Same reason
+        // ClaimMetricsRepository appends its own cuts.
+        if (branchId != null) {
+            sql.append("   AND cc.branch_id = :branchId\n");
+            params.addValue("branchId", branchId);
+        }
         if (claimCause != null) {
             sql.append("   AND cc.name = :claimCause\n");
             params.addValue("claimCause", claimCause);
@@ -105,6 +114,22 @@ public class ResolvedCaseRepository {
         return entityManager.unwrap(Session.class).doReturningWork(connection ->
                 new NamedParameterJdbcTemplate(new SingleConnectionDataSource(connection, true))
                         .query(sql.toString(), params, (rs, rowNum) -> toRow(rs)));
+    }
+
+    /**
+     * The branch's name, so the report can say what it was filtered by even when the filter matched
+     * nothing — an exported document that doesn't name its own filter is indistinguishable from an
+     * unfiltered one, which for something an auditor reads is a defect, not a detail.
+     *
+     * @return null if no branch has that id
+     */
+    @Transactional(readOnly = true)
+    public String findBranchName(Long branchId) {
+        return entityManager.unwrap(Session.class).doReturningWork(connection ->
+                new NamedParameterJdbcTemplate(new SingleConnectionDataSource(connection, true))
+                        .query("SELECT name FROM branch WHERE id = :branchId",
+                                new MapSqlParameterSource("branchId", branchId),
+                                rs -> rs.next() ? rs.getString("name") : null));
     }
 
     private static ResolutionReportRow toRow(ResultSet rs) throws SQLException {

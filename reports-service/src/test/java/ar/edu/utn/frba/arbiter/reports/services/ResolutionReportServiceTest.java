@@ -4,6 +4,7 @@ import ar.edu.utn.frba.arbiter.reports.config.tenant.TenantContext;
 import ar.edu.utn.frba.arbiter.reports.dto.ExportedReport;
 import ar.edu.utn.frba.arbiter.reports.dto.ReportFormat;
 import ar.edu.utn.frba.arbiter.reports.dto.ResolutionReport;
+import ar.edu.utn.frba.arbiter.reports.dto.ResolutionSummary;
 import ar.edu.utn.frba.arbiter.reports.exceptions.InvalidReportPeriodException;
 import ar.edu.utn.frba.arbiter.reports.exceptions.TenantNotResolvedException;
 import ar.edu.utn.frba.arbiter.reports.models.repositories.ResolvedCaseRepository;
@@ -20,6 +21,9 @@ import java.time.LocalDate;
 import java.util.List;
 
 import static ar.edu.utn.frba.arbiter.reports.support.ReportFixtures.CLOCK;
+import static ar.edu.utn.frba.arbiter.reports.support.ReportFixtures.approvedRow;
+import static ar.edu.utn.frba.arbiter.reports.support.ReportFixtures.fastTrackRow;
+import static ar.edu.utn.frba.arbiter.reports.support.ReportFixtures.lapsedRow;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
@@ -60,11 +64,11 @@ class ResolutionReportServiceTest {
 
     @Test
     void generate_readsWholeDaysInTheInsurersLocalTime() {
-        ResolutionReport report = service.generate(AUG_1, AUG_31, null);
+        ResolutionReport report = service.generate(AUG_1, AUG_31, null, null);
 
         // 00:00 in Buenos Aires is 03:00 UTC; the last day runs up to the next local midnight.
         verify(repository).findResolvedBetween(
-                Instant.parse("2026-08-01T03:00:00Z"), Instant.parse("2026-09-01T03:00:00Z"), null);
+                Instant.parse("2026-08-01T03:00:00Z"), Instant.parse("2026-09-01T03:00:00Z"), null, null);
         assertThat(report.from()).isEqualTo(AUG_1);
         assertThat(report.to()).isEqualTo(AUG_31);
         assertThat(report.generatedAt()).isEqualTo(CLOCK.instant());
@@ -74,41 +78,83 @@ class ResolutionReportServiceTest {
     void generate_aSingleDayIsAWholeDay() {
         LocalDate day = LocalDate.of(2026, 8, 15);
 
-        service.generate(day, day, null);
+        service.generate(day, day, null, null);
 
         verify(repository).findResolvedBetween(
-                Instant.parse("2026-08-15T03:00:00Z"), Instant.parse("2026-08-16T03:00:00Z"), null);
+                Instant.parse("2026-08-15T03:00:00Z"), Instant.parse("2026-08-16T03:00:00Z"), null, null);
     }
 
     @Test
     void generate_blankClaimCauseMeansEveryCause_andAGivenOneIsTrimmed() {
-        service.generate(AUG_1, AUG_31, "   ");
-        service.generate(AUG_1, AUG_31, "  Hurto ");
+        service.generate(AUG_1, AUG_31, null, "   ");
+        service.generate(AUG_1, AUG_31, null, "  Hurto ");
 
-        verify(repository).findResolvedBetween(any(), any(), isNull());
-        verify(repository).findResolvedBetween(any(), any(), eq("Hurto"));
+        verify(repository).findResolvedBetween(any(), any(), isNull(), isNull());
+        verify(repository).findResolvedBetween(any(), any(), isNull(), eq("Hurto"));
+    }
+
+    @Test
+    void generate_passesTheBranchDown_andEchoesItsNameBack() {
+        given(repository.findBranchName(7L)).willReturn("Celulares");
+
+        ResolutionReport report = service.generate(AUG_1, AUG_31, 7L, null);
+
+        verify(repository).findResolvedBetween(any(), any(), eq(7L), isNull());
+        assertThat(report.branch()).isEqualTo("Celulares");
+    }
+
+    /** The document has to name the branch it looked at even when that branch closed nothing. */
+    @Test
+    void generate_namesTheBranch_evenWithNoResolvedCases() {
+        given(repository.findResolvedBetween(any(), any(), eq(7L), isNull())).willReturn(List.of());
+        given(repository.findBranchName(7L)).willReturn("Celulares");
+
+        ResolutionReport report = service.generate(AUG_1, AUG_31, 7L, null);
+
+        assertThat(report.branch()).isEqualTo("Celulares");
+        assertThat(report.summary()).isEqualTo(ResolutionSummary.EMPTY);
+    }
+
+    @Test
+    void generate_withoutABranch_looksNoNameUp() {
+        service.generate(AUG_1, AUG_31, null, null);
+
+        verify(repository, never()).findBranchName(any());
+    }
+
+    /** The head describes the very rows underneath it — that is the point of computing it from them. */
+    @Test
+    void generate_summarisesTheRowsItReturns() {
+        given(repository.findResolvedBetween(any(), any(), isNull(), isNull()))
+                .willReturn(List.of(approvedRow(1), fastTrackRow(2), lapsedRow(3)));
+
+        ResolutionReport report = service.generate(AUG_1, AUG_31, null, null);
+
+        assertThat(report.summary().totalCases()).isEqualTo(report.rows().size());
+        assertThat(report.summary().fastTrackCases()).isEqualTo(1);
     }
 
     @Test
     void generate_fromAfterTo_isRejected() {
-        assertThatThrownBy(() -> service.generate(AUG_31, AUG_1, null))
+        assertThatThrownBy(() -> service.generate(AUG_31, AUG_1, null, null))
                 .isInstanceOf(InvalidReportPeriodException.class);
         verifyNoInteractions(repository);
     }
 
     @Test
     void generate_aPeriodLongerThanAYear_isRejected_butALeapYearFits() {
-        assertThatThrownBy(() -> service.generate(LocalDate.of(2025, 1, 1), LocalDate.of(2026, 1, 2), null))
+        assertThatThrownBy(() ->
+                service.generate(LocalDate.of(2025, 1, 1), LocalDate.of(2026, 1, 2), null, null))
                 .isInstanceOf(InvalidReportPeriodException.class);
 
-        service.generate(LocalDate.of(2024, 1, 1), LocalDate.of(2024, 12, 31), null);
+        service.generate(LocalDate.of(2024, 1, 1), LocalDate.of(2024, 12, 31), null, null);
     }
 
     @Test
     void generate_withoutAnInsurerInTheToken_isRejected() {
         TenantContext.clear();
 
-        assertThatThrownBy(() -> service.generate(AUG_1, AUG_31, null))
+        assertThatThrownBy(() -> service.generate(AUG_1, AUG_31, null, null))
                 .isInstanceOf(TenantNotResolvedException.class);
         verifyNoInteractions(repository);
     }
@@ -120,7 +166,7 @@ class ResolutionReportServiceTest {
         given(pdfExporter.format()).willReturn(ReportFormat.PDF);
         given(pdfExporter.export(any())).willReturn(pdf);
 
-        ExportedReport file = service.export(AUG_1, AUG_31, null, ReportFormat.PDF);
+        ExportedReport file = service.export(AUG_1, AUG_31, null, null, ReportFormat.PDF);
 
         assertThat(file.filename()).isEqualTo("resoluciones_2026-08-01_2026-08-31.pdf");
         assertThat(file.format()).isEqualTo(ReportFormat.PDF);
