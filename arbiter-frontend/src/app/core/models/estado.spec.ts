@@ -87,9 +87,8 @@ describe('movimientoAseguradoLabel', () => {
    * historial, que trae textos como "informe de peritaje recibido: FRAUD_CONFIRMED".
    */
   /**
-   * El "próximo paso" del listado del asegurado tiene la misma regla que el badge: no puede
-   * contarle que hay un peritaje en curso. El de PENDING_EXPERT_REPORT decía "cuando llegue el
-   * informe", y con eso deducía la derivación que el resto de los textos esconde.
+   * El "próximo paso" del listado del asegurado nombra la verificación, no el peritaje en sí:
+   * nada de perito ni informe, y menos la clasificación.
    */
   it('ningún próximo paso filtra el peritaje ni la clasificación', () => {
     const prohibidas = ['perito', 'peritaje', 'informe', 'fraude', 'clasificac', 'riesgo', 'score'];

@@ -31,13 +31,14 @@ export function estadoLabel(value: string): string {
 }
 
 // Etiqueta del badge para el asegurado (portal, definición del equipo). Sigue las mismas 3 fases
-// que el stepper de asegurado-inicio ("Denuncia recibida → En análisis → Resolución" — ver
+// que el stepper de asegurado-inicio ("Denuncia recibida → En trámite → Resolución" — ver
 // ORDEN/estadoSimplificado): Recibido solo mientras está en la primera fase (PENDING_CLASSIFICATION);
-// todo lo que el stepper ya cuenta como "En análisis" (revisión del analista, una falla técnica de
-// clasificación, la derivación a peritaje — sin nombrar cuál de las tres, para no filtrar jerga
-// interna ni la sospecha de una derivación) muestra "En análisis" acá también, para no contradecir
-// al stepper que ya avanzó. Falta documentación es la excepción: aunque el stepper la cuenta dentro
-// de "En análisis", es accionable y se mantiene distinguible. Resolución se abre en sus 3 desenlaces
+// la revisión del analista y una falla técnica de clasificación muestran "En análisis" (sin nombrar
+// cuál, para no filtrar jerga interna). Falta documentación es accionable y se mantiene
+// distinguible. La derivación a peritaje se nombra como "En verificación": el seguimiento ya le
+// cuenta "Enviado a verificación" y el perito lo va a contactar igual, así que esconderla solo
+// dejaba el título y el badge contradiciendo al timeline. Lo que nunca se cuenta es el motivo.
+// Resolución se abre en sus 3 desenlaces
 // reales: Aprobado, Rechazado y Caducado (este último separado a propósito — mentiría que fue un
 // rechazo activo del analista cuando en realidad venció por falta de documentación).
 const BADGE_ASEGURADO: Record<CaseStatus, string> = {
@@ -45,9 +46,7 @@ const BADGE_ASEGURADO: Record<CaseStatus, string> = {
   PENDING_ANALYST_REVIEW: 'En análisis',
   CLASSIFICATION_FAILED: 'En análisis',
   AWAITING_DOCUMENTATION: 'Falta documentación',
-  PENDING_EXPERT_REPORT: 'En análisis',
-  // Unlike peritaje, sending the device to a repair shop reveals nothing, and it tells the
-  // insured why the case isn't moving.
+  PENDING_EXPERT_REPORT: 'En verificación',
   PENDING_REPAIR: 'En reparación',
   APPROVED: 'Aprobado',
   REJECTED: 'Rechazado',
@@ -91,9 +90,9 @@ const DESCRIPCIONES: Record<CaseStatus, string> = {
     'El expediente caducó: pasaron más de 18 meses desde la denuncia sin que el asegurado trajera la documentación pedida.',
 };
 
-// Próximo paso esperado desde cada estado. Lo lee el ASEGURADO en su listado, así que rige la
-// misma regla que BADGE_ASEGURADO: no nombra la clasificación del modelo ni la derivación a
-// peritaje — contarle que hay un informe externo en camino delata la sospecha que lo motivó.
+// Próximo paso esperado desde cada estado. Lo lee el ASEGURADO en su listado: no nombra la
+// clasificación del modelo ni el peritaje en sí (perito, informe) — alcanza con "verificación",
+// igual que el badge y el timeline.
 const PROXIMOS_PASOS: Record<CaseStatus, string> = {
   PENDING_CLASSIFICATION:
     'En pocos minutos el caso pasa a revisión de un analista (o se pide documentación si falta algo).',
@@ -104,7 +103,7 @@ const PROXIMOS_PASOS: Record<CaseStatus, string> = {
   AWAITING_DOCUMENTATION:
     'Subí los documentos faltantes; al recibirlos, el caso se vuelve a evaluar automáticamente.',
   PENDING_EXPERT_REPORT:
-    'Un analista está revisando tu caso. Te avisamos ni bien haya novedades.',
+    'Cuando termine la verificación, un analista revisa el resultado y te avisamos la resolución.',
   PENDING_REPAIR:
     'Cuando el servicio técnico responda, un analista revisa el resultado y te avisamos la resolución.',
   APPROVED:
@@ -252,9 +251,7 @@ const TITULOS_ASEGURADO: Record<CaseStatus, string> = {
   PENDING_ANALYST_REVIEW: 'Tu siniestro está en análisis',
   CLASSIFICATION_FAILED: 'Tu siniestro está en análisis',
   AWAITING_DOCUMENTATION: 'Necesitamos algo de tu parte',
-  // Idéntico a PENDING_ANALYST_REVIEW a propósito: para el asegurado la derivación no existe
-  // (insured_status = 'En análisis'). Nombrarla filtraría la sospecha que la motivó.
-  PENDING_EXPERT_REPORT: 'Tu siniestro está en análisis',
+  PENDING_EXPERT_REPORT: 'Tu siniestro está en verificación',
   PENDING_REPAIR: 'Tu siniestro está en reparación',
   APPROVED: 'Tu siniestro fue aprobado',
   REJECTED: 'Tu siniestro fue rechazado',
@@ -291,7 +288,7 @@ const DESCRIPCIONES_ASEGURADO: Record<CaseStatus, string> = {
   AWAITING_DOCUMENTATION:
     'Necesitamos que subas la documentación faltante para poder continuar.',
   PENDING_EXPERT_REPORT:
-    'Un analista está revisando tu caso. Te avisamos ni bien haya novedades.',
+    'Estamos verificando lo que pasó. Es posible que te contacten para coordinar. Te avisamos ni bien haya novedades.',
   PENDING_REPAIR:
     'Derivamos tu caso a un servicio técnico. Te avisamos ni bien tengamos su respuesta.',
   APPROVED: 'Tu siniestro fue aprobado. Vas a recibir el detalle por correo electrónico.',
