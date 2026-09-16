@@ -85,7 +85,7 @@
               @if (policies().length === 0) {
                 <p class="step-hint">No encontramos pólizas asociadas a tu identificación.</p>
               } @else {
-                <label class="field-label">Elegí la póliza del siniestro</label>
+                <label class="field-label">Elegí la póliza del siniestro *</label>
                 <app-select
                   [(value)]="selectedPolicyNumber"
                   [options]="policyOptions()"
@@ -123,7 +123,7 @@
             }
           }
 
-          <label class="field-label">¿Qué te pasó?</label>
+          <label class="field-label">¿Qué te pasó? *</label>
           @if (claimTypesLoading()) {
             <app-inline-loading [size]="20" message="Cargando hechos generadores…" />
           } @else {
@@ -238,7 +238,7 @@
           }
 
           @if (requiresPoliceReport() && !policyBlocked() && policeReportFiled()) {
-            <label class="field-label">¿Cuándo la hiciste?</label>
+            <label class="field-label">¿Cuándo la hiciste? *</label>
             <!-- Relativos a la fecha del hecho: así ninguna de las opciones puede ser anterior al
                  siniestro que denuncia. -->
             @if (policeDateAnchored()) {
@@ -321,14 +321,14 @@
                  numérico tiene un mínimo no negativo. Un monto reclamado negativo no existe. -->
             <app-input type="number" [min]="0" placeholder="$" [(value)]="claimedAmount" />
 
-            <label class="field-label">Descripción del hecho</label>
+            <label class="field-label">Descripción del hecho *</label>
             <app-textarea
               [rows]="5"
               placeholder="Describí lo que pasó con el mayor detalle posible"
               [(value)]="description"
             />
 
-            <label class="field-label">Datos de contacto</label>
+            <label class="field-label">Datos de contacto *</label>
             <div class="location-grid">
               <app-input
                 type="email"
@@ -441,12 +441,21 @@
         </div>
 
         @if (step() < 3) {
-          <app-button
-            [disabled]="(step() === 1 && !step1Valid()) || (step() === 2 && !step2Valid())"
-            (click)="next()"
-          >
-            Continuar →
-          </app-button>
+          <!-- El aviso al lado del botón y no arriba del formulario: es la explicación de por qué
+               "Continuar" está gris, y se lee en el mismo golpe de vista que el botón. -->
+          <div class="wizard-actions-right">
+            @if (missingFields().length) {
+              <p class="missing-hint" role="status">
+                Falta completar: <strong>{{ missingFieldsLabel() }}</strong>
+              </p>
+            }
+            <app-button
+              [disabled]="(step() === 1 && !step1Valid()) || (step() === 2 && !step2Valid())"
+              (click)="next()"
+            >
+              Continuar →
+            </app-button>
+          </div>
         } @else {
           <app-button [disabled]="!canSubmit()" (click)="submit()">
             {{ submitting() ? 'Enviando…' : 'Enviar denuncia →' }}

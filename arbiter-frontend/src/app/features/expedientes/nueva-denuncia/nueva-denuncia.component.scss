@@ -371,6 +371,34 @@ app-textarea {
   font-size: var(--font-size-sm);
   color: var(--text-muted);
 }
+/* Grupo derecho: el aviso de lo que falta, pegado al botón que bloquea. En mobile el aviso se
+   pone arriba del botón en vez de apretarlo contra el borde. */
+.wizard-actions-right {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  min-width: 0;
+}
+.missing-hint {
+  margin: 0;
+  font-size: var(--font-size-sm);
+  color: var(--text-secondary);
+  text-align: right;
+}
+.missing-hint strong {
+  font-weight: var(--font-weight-medium);
+  color: var(--text-primary);
+}
+@media (max-width: 640px) {
+  .wizard-actions-right {
+    flex-direction: column;
+    align-items: stretch;
+    gap: var(--space-2);
+  }
+  .missing-hint {
+    text-align: left;
+  }
+}
 
 /* ===== Pantalla de éxito ===== */
 .success-card {

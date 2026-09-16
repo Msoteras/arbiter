@@ -186,15 +186,28 @@
           </app-card>
         }
       } @else if (draft(); as d) {
+        <!-- El campo y el botón viven en extremos opuestos de la fila, y nada decía que
+             "Renombrar" aplica al nombre de al lado: los apoya la misma línea punteada teal, que
+             corre por debajo de los dos y los cierra como un grupo. -->
         <div class="editor-head">
           <div class="editor-title">
-            <span class="t-section-label">Nombre del ramo</span>
-            <app-input class="ramo-name-field" [value]="d.name" (valueChange)="setName($event)" placeholder="Nombre del ramo" />
+            <label class="t-section-label" for="ramo-name">Nombre del ramo</label>
+            <app-input
+              class="ramo-name-field"
+              id="ramo-name"
+              [value]="d.name"
+              (valueChange)="setName($event)"
+              placeholder="Nombre del ramo"
+            />
           </div>
           <div class="editor-actions">
             @if (renameSaved()) { <span class="saved-note">✓ Nombre guardado</span> }
             @if (renameError(); as err) { <span class="warn-note">{{ err }}</span> }
-            <app-button variant="secondary" [disabled]="renaming()" (click)="requestRename()">
+            <app-button
+              variant="secondary"
+              [disabled]="renaming()"
+              (click)="requestRename()"
+            >
               {{ renaming() ? 'Guardando…' : 'Renombrar' }}
             </app-button>
           </div>
