@@ -162,11 +162,29 @@ class FraudReportServiceTest {
         given(repository.findFlaggedBetween(any(), any(), isNull(), isNull())).willReturn(List.of(
                 row(1, RiskBand.CRITICAL, FraudSignal.HIGH_RISK_SCORE, FraudSignal.REPEAT_CLAIMANT),
                 row(2, RiskBand.HIGH, FraudSignal.HIGH_RISK_SCORE)));
+        given(repository.countClaimsBetween(any(), any(), isNull())).willReturn(20L);
 
         FraudSummary summary = service.generate(SEP_1, SEP_30, null, null).summary();
 
         assertThat(summary.flagged()).isEqualTo(2);
         assertThat(summary.multiSignal()).isEqualTo(1);
+        assertThat(summary.totalClaims()).isEqualTo(20);
+        assertThat(summary.flaggedRate()).isEqualTo(0.1);
+    }
+
+    /**
+     * The denominator is the period and the branch, and nothing else. With a band filter on, the
+     * share still answers "qué parte del período es crítica" — a denominator that shrank with the
+     * filter would always read 100% and say nothing.
+     */
+    @Test
+    void theDenominator_followsTheBranchButNotTheAlertLevel() {
+        service.generate(SEP_1, SEP_30, 7L, RiskBand.CRITICAL);
+
+        verify(repository).countClaimsBetween(
+                eq(Instant.parse("2026-09-01T03:00:00Z")),
+                eq(Instant.parse("2026-10-01T03:00:00Z")),
+                eq(7L));
     }
 
     @Test

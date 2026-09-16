@@ -15,10 +15,20 @@ import java.util.List;
  * own population; repeating it against a different one is how two screens end up stating two
  * numbers for the same sentence.
  *
+ * @param totalClaims     every claim filed in the period and branch, flagged or not — the
+ *                        denominator of the two rates below. Stated as a figure of its own because
+ *                        "8 expedientes con indicios" means nothing until you know whether it is 8
+ *                        out of 20 or 8 out of 2000
  * @param flagged         listed cases, matching the number of rows
+ * @param flaggedRate     {@code flagged / totalClaims}, a fraction between 0 and 1; null when there
+ *                        was nothing to divide. Measured at intake, so it does not lag
  * @param multiSignal     how many of them carry two or more signals — the cross, and the reason the
  *                        report exists: one signal is a hint, two coinciding is a shortlist
  * @param fraudDetermined of the flagged, how many an analyst determined as fraud
+ * @param fraudRate       {@code fraudDetermined / totalClaims}. <b>It lags on purpose</b>: the
+ *                        population is the claims filed in the period, and the ones filed most
+ *                        recently are still open, so a rate over the current month reads low and
+ *                        rises as those cases close
  * @param backedByExpert  of those, how many have an expert assessment behind the determination
  * @param byAlertLevel    the flagged cases by whether the score alerted, riskiest first. The labels
  *                        are {@code CRITICAL}, {@code HIGH}, {@link #NOT_FLAGGED} and
@@ -27,9 +37,12 @@ import java.util.List;
  *                        signals is counted in both — so they add up to more than {@link #flagged}
  */
 public record FraudSummary(
+        long totalClaims,
         long flagged,
+        Double flaggedRate,
         long multiSignal,
         long fraudDetermined,
+        Double fraudRate,
         long backedByExpert,
         List<MetricCount> byAlertLevel,
         List<MetricCount> bySignal
@@ -51,5 +64,7 @@ public record FraudSummary(
      */
     public static final String NOT_SCORED = "NOT_SCORED";
 
-    public static final FraudSummary EMPTY = new FraudSummary(0, 0, 0, 0, List.of(), List.of());
+    /** No claims at all in the period: no rows, and no denominator to state a rate against. */
+    public static final FraudSummary EMPTY =
+            new FraudSummary(0, 0, null, 0, 0, null, 0, List.of(), List.of());
 }

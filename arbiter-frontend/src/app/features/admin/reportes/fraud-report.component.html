@@ -73,19 +73,36 @@
         @if (summary(); as totals) {
           <section class="summary" aria-label="Totales del período">
             <div class="figures">
-              <app-stat-tile label="Expedientes con indicios" [value]="totals.flagged" />
+              <!-- El denominador, explícito: sin él las dos tasas de al lado no se pueden leer. -->
+              <app-stat-tile label="Denuncias del período" [value]="totals.totalClaims" />
+              <app-stat-tile
+                label="Con indicios"
+                [value]="(totals.flaggedRate | percent: '1.0-1') ?? '—'"
+                [sub]="totals.flagged + ' de ' + totals.totalClaims"
+                [progress]="totals.flaggedRate"
+                progressTone="warning"
+              />
               <!-- El cruce, que es lo que el reporte agrega sobre el gauge del expediente: una
                    señal es un indicio, dos coincidiendo es una lista corta. -->
               <app-stat-tile
                 label="Con señales cruzadas"
                 [value]="totals.multiSignal"
                 sub="Dos o más señales en el mismo expediente"
-                tone="danger"
               />
               <app-stat-tile
                 label="Fraude determinado"
-                [value]="totals.fraudDetermined"
-                [sub]="totals.backedByExpert + ' con respaldo pericial'"
+                [value]="(totals.fraudRate | percent: '1.0-1') ?? '—'"
+                [sub]="
+                  totals.fraudDetermined +
+                  ' de ' +
+                  totals.totalClaims +
+                  ' · ' +
+                  totals.backedByExpert +
+                  ' con respaldo pericial'
+                "
+                [progress]="totals.fraudRate"
+                progressTone="danger"
+                tone="danger"
               />
             </div>
 

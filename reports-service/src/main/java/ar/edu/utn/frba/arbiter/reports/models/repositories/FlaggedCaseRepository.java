@@ -125,6 +125,37 @@ public class FlaggedCaseRepository {
     }
 
     /**
+     * Every claim filed in the period and branch, flagged or not: the denominator the report needs
+     * to say what share of the period carries an indication.
+     *
+     * <p>No alert-level cut here on purpose — the denominator is the whole period, so the share
+     * stays readable when the screen is filtered to one band.
+     *
+     * @param from inclusive
+     * @param to   exclusive
+     */
+    @Transactional(readOnly = true)
+    public long countClaimsBetween(Instant from, Instant to, Long branchId) {
+        MapSqlParameterSource params = new MapSqlParameterSource()
+                .addValue("from", OffsetDateTime.ofInstant(from, ZoneOffset.UTC))
+                .addValue("to", OffsetDateTime.ofInstant(to, ZoneOffset.UTC));
+        StringBuilder sql = new StringBuilder("""
+                SELECT count(*)
+                  FROM cases c
+                  JOIN claim_cause cc ON cc.id = c.claim_cause_id
+                 WHERE c.reported_at >= :from AND c.reported_at < :to
+                """);
+        if (branchId != null) {
+            sql.append("   AND cc.branch_id = :branchId\n");
+            params.addValue("branchId", branchId);
+        }
+        Long total = entityManager.unwrap(Session.class).doReturningWork(connection ->
+                new NamedParameterJdbcTemplate(new SingleConnectionDataSource(connection, true))
+                        .queryForObject(sql.toString(), params, Long.class));
+        return total == null ? 0 : total;
+    }
+
+    /**
      * The branch's name, so the report can say what it was filtered by even when the filter matched
      * nothing — a document that doesn't name its own filter is indistinguishable from an unfiltered
      * one. Its own copy of the read rather than a shared one, same as each read-side here carries

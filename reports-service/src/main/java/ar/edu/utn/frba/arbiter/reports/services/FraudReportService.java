@@ -14,6 +14,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
 import java.time.Clock;
+import java.time.Instant;
 import java.time.LocalDate;
 import java.time.ZoneId;
 import java.time.temporal.ChronoUnit;
@@ -69,17 +70,19 @@ public class FraudReportService {
         // means up to the last second of that day, so the upper bound is the next midnight,
         // exclusive. Same convention as the resolution report.
         ZoneId zone = clock.getZone();
-        List<FraudReportRow> rows = flaggedCaseRepository.findFlaggedBetween(
-                        from.atStartOfDay(zone).toInstant(),
-                        to.plusDays(1).atStartOfDay(zone).toInstant(),
-                        branchId,
-                        riskBand)
+        Instant start = from.atStartOfDay(zone).toInstant();
+        Instant end = to.plusDays(1).atStartOfDay(zone).toInstant();
+
+        List<FraudReportRow> rows = flaggedCaseRepository
+                .findFlaggedBetween(start, end, branchId, riskBand)
                 .stream()
                 .sorted(BY_URGENCY)
                 .toList();
+        // The denominator of the rates: every claim of the period and branch, flagged or not.
+        long totalClaims = flaggedCaseRepository.countClaimsBetween(start, end, branchId);
 
         return new FraudReport(from, to, branchName(branchId), riskBand, clock.instant(),
-                FraudSummaries.of(rows), rows);
+                FraudSummaries.of(rows, totalClaims), rows);
     }
 
     public ExportedReport export(LocalDate from, LocalDate to, Long branchId, RiskBand riskBand,

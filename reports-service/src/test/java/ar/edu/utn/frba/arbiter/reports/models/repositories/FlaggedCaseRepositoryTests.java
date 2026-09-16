@@ -205,6 +205,22 @@ class FlaggedCaseRepositoryTests extends AbstractPersistenceIT {
                 .extracting(FraudReportRow::caseId).containsExactly(2L);
     }
 
+    /**
+     * The denominator counts every claim of the period, flagged or not, and follows the branch cut
+     * but nothing else — it is what turns "2 marcados" into "2 de 3".
+     */
+    @Test
+    void countClaimsBetween_countsThePeriodWhole_andRespectsTheBranch() {
+        tables.insertCase(1, "2026-09-10T10:00:00Z", PENDING_REVIEW, ROBO_CELULARES, false, null, null);
+        tables.riskBand(1, "CRITICAL");
+        tables.insertCase(2, "2026-09-11T10:00:00Z", PENDING_REVIEW, HURTO_CELULARES, false, null, null);
+        tables.insertCase(3, "2026-09-12T10:00:00Z", PENDING_REVIEW, HURTO_TECNOLOGIA, false, null, null);
+        tables.insertCase(4, "2026-08-20T10:00:00Z", PENDING_REVIEW, ROBO_CELULARES, false, null, null);
+
+        assertThat(repository.countClaimsBetween(SEPTEMBER_FROM, SEPTEMBER_TO, null)).isEqualTo(3);
+        assertThat(repository.countClaimsBetween(SEPTEMBER_FROM, SEPTEMBER_TO, CELULARES)).isEqualTo(2);
+    }
+
     @Test
     void findBranchName_answersTheCatalog() {
         assertThat(repository.findBranchName(CELULARES)).isEqualTo("Celulares");

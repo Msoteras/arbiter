@@ -83,14 +83,19 @@ public class PdfFraudReportExporter implements FraudReportExporter {
             return List.of();
         }
         return List.of(
-                "%s%d %s · Con señales cruzadas: %d · Fraude determinado: %d (%d con respaldo pericial)"
+                // The denominator travels with every rate: a share with no population behind it is
+                // the figure people misread the fastest.
+                ("%s%d de %d %s con indicios (%s) · Con señales cruzadas: %d · "
+                        + "Fraude determinado: %d (%s del período, %d con respaldo pericial)")
                         .formatted(
                                 PdfReportWriter.TOTALS_LABEL,
                                 summary.flagged(),
-                                summary.flagged() == 1 ? "expediente con indicios"
-                                        : "expedientes con indicios",
+                                summary.totalClaims(),
+                                summary.totalClaims() == 1 ? "denuncia" : "denuncias",
+                                ReportLabels.percent(summary.flaggedRate()),
                                 summary.multiSignal(),
                                 summary.fraudDetermined(),
+                                ReportLabels.percent(summary.fraudRate()),
                                 summary.backedByExpert()),
                 "Por nivel de alerta: " + distribution(summary.byAlertLevel(),
                         count -> ReportLabels.alertLevel(count.label())),

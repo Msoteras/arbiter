@@ -45,10 +45,25 @@ export interface FraudReportRow {
 }
 
 export interface FraudSummary {
+  /**
+   * Todas las denuncias del período y ramo, marcadas o no: el denominador de las dos tasas. Va como
+   * cifra propia porque "8 expedientes con indicios" no dice nada hasta saber si es 8 sobre 20 o
+   * sobre 2000. No lo mueve el filtro de nivel de alerta — con "Crítico" puesto, la tasa sigue
+   * respondiendo qué parte del período es crítica.
+   */
+  totalClaims: number;
   flagged: number;
+  /** `flagged / totalClaims`, fracción 0..1; null cuando no hay contra qué dividir. */
+  flaggedRate: number | null;
   /** Con dos o más señales cruzadas — el motivo por el que existe el reporte. */
   multiSignal: number;
   fraudDetermined: number;
+  /**
+   * `fraudDetermined / totalClaims`. **Rezaga a propósito**: la población son las denuncias del
+   * período, y las más recientes siguen abiertas, así que el mes en curso lee bajo y sube a medida
+   * que esos expedientes cierran.
+   */
+  fraudRate: number | null;
   backedByExpert: number;
   /** Los buckets de {@link alertLevelLabel}: `CRITICAL`, `HIGH`, `NOT_FLAGGED` y `NOT_SCORED`. */
   byAlertLevel: FraudBucket[];

@@ -95,13 +95,21 @@ public final class ReportFixtures {
                 List.of(FraudSignal.FORENSIC_INCONSISTENCY), 1, 1, CaseStatus.REJECTED, true, true);
     }
 
+    /** Claims filed in September, the denominator of the rates. Round so the shares read cleanly. */
+    public static final long SEPTEMBER_CLAIMS = 20;
+
     public static FraudReport septemberFraudReport(List<FraudReportRow> rows) {
         return septemberFraudReport(rows, null, null);
     }
 
     public static FraudReport septemberFraudReport(List<FraudReportRow> rows, String branch,
                                                    RiskBand riskBand) {
+        return septemberFraudReport(rows, branch, riskBand, SEPTEMBER_CLAIMS);
+    }
+
+    public static FraudReport septemberFraudReport(List<FraudReportRow> rows, String branch,
+                                                   RiskBand riskBand, long totalClaims) {
         return new FraudReport(LocalDate.of(2026, 9, 1), LocalDate.of(2026, 9, 30), branch, riskBand,
-                CLOCK.instant(), FraudSummaries.of(rows), rows);
+                CLOCK.instant(), FraudSummaries.of(rows, totalClaims), rows);
     }
 }

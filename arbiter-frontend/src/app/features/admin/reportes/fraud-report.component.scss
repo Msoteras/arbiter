@@ -29,7 +29,7 @@
 
 .figures {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: var(--space-3);
   margin: 0 0 var(--space-4);
 }
@@ -64,6 +64,11 @@
 .case-link:hover { text-decoration: underline; }
 
 app-pagination { display: block; margin-top: var(--space-3); }
+
+/* Cuatro cifras no entran en una notebook angosta sin que el número quede pegado al borde. */
+@media (max-width: 1100px) {
+  .figures { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
 
 @media (max-width: 480px) {
   .figures { grid-template-columns: minmax(0, 1fr); }

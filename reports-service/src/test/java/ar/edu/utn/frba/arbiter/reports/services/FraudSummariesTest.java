@@ -17,7 +17,7 @@ class FraudSummariesTest {
 
     @Test
     void noRows_leaveTheHeadEmpty_ratherThanAtZero() {
-        assertThat(FraudSummaries.of(List.of())).isEqualTo(FraudSummary.EMPTY);
+        assertThat(FraudSummaries.of(List.of(), 0)).isEqualTo(FraudSummary.EMPTY);
     }
 
     @Test
@@ -26,12 +26,36 @@ class FraudSummariesTest {
                 row(1, RiskBand.CRITICAL, true, true, FraudSignal.HIGH_RISK_SCORE,
                         FraudSignal.FORENSIC_INCONSISTENCY),
                 row(2, RiskBand.HIGH, true, false, FraudSignal.HIGH_RISK_SCORE),
-                row(3, RiskBand.MEDIUM, false, false, FraudSignal.REPEAT_CLAIMANT)));
+                row(3, RiskBand.MEDIUM, false, false, FraudSignal.REPEAT_CLAIMANT)), 20);
 
         assertThat(summary.flagged()).isEqualTo(3);
         assertThat(summary.multiSignal()).isEqualTo(1);
         assertThat(summary.fraudDetermined()).isEqualTo(2);
         assertThat(summary.backedByExpert()).isEqualTo(1);
+    }
+
+    /** "3 expedientes con indicios" means nothing until you know it is 3 out of 20 and not out of 2000. */
+    @Test
+    void theRates_areOverEveryClaimOfThePeriod_notOverTheFlaggedOnes() {
+        FraudSummary summary = FraudSummaries.of(List.of(
+                row(1, RiskBand.CRITICAL, true, true, FraudSignal.HIGH_RISK_SCORE),
+                row(2, RiskBand.HIGH, false, false, FraudSignal.HIGH_RISK_SCORE),
+                row(3, RiskBand.HIGH, false, false, FraudSignal.HIGH_RISK_SCORE)), 20);
+
+        assertThat(summary.totalClaims()).isEqualTo(20);
+        assertThat(summary.flaggedRate()).isEqualTo(0.15);
+        assertThat(summary.fraudRate()).isEqualTo(0.05);
+    }
+
+    /** Flagging nothing out of 20 is a rate of zero; out of nothing it is unknown. */
+    @Test
+    void aPeriodWithClaimsButNoFlags_ratesAtZero_andOneWithoutClaimsAtAll_ratesAtNull() {
+        FraudSummary quiet = FraudSummaries.of(List.of(), 20);
+        assertThat(quiet.totalClaims()).isEqualTo(20);
+        assertThat(quiet.flaggedRate()).isZero();
+        assertThat(quiet.fraudRate()).isZero();
+
+        assertThat(FraudSummaries.of(List.of(), 0).flaggedRate()).isNull();
     }
 
     /** Riskiest first, and the buckets where the score is not the reason last rather than dropped. */
@@ -41,7 +65,7 @@ class FraudSummariesTest {
                 row(1, null, false, false, FraudSignal.FORENSIC_INCONSISTENCY),
                 row(2, RiskBand.HIGH, false, false, FraudSignal.HIGH_RISK_SCORE),
                 row(3, RiskBand.CRITICAL, false, false, FraudSignal.HIGH_RISK_SCORE),
-                row(4, RiskBand.HIGH, false, false, FraudSignal.HIGH_RISK_SCORE)));
+                row(4, RiskBand.HIGH, false, false, FraudSignal.HIGH_RISK_SCORE)), 20);
 
         assertThat(summary.byAlertLevel()).containsExactly(
                 new MetricCount("CRITICAL", 1),
@@ -59,7 +83,7 @@ class FraudSummariesTest {
         FraudSummary summary = FraudSummaries.of(List.of(
                 row(1, RiskBand.LOW, false, false, FraudSignal.FORENSIC_INCONSISTENCY),
                 row(2, RiskBand.MEDIUM, false, false, FraudSignal.REPEAT_CLAIMANT),
-                row(3, RiskBand.CRITICAL, false, false, FraudSignal.HIGH_RISK_SCORE)));
+                row(3, RiskBand.CRITICAL, false, false, FraudSignal.HIGH_RISK_SCORE)), 20);
 
         assertThat(summary.flagged()).isEqualTo(3);
         assertThat(summary.byAlertLevel()).containsExactly(
@@ -82,7 +106,7 @@ class FraudSummariesTest {
         FraudSummary summary = FraudSummaries.of(List.of(
                 row(1, RiskBand.HIGH, false, false, FraudSignal.HIGH_RISK_SCORE,
                         FraudSignal.REPEAT_CLAIMANT),
-                row(2, RiskBand.HIGH, false, false, FraudSignal.HIGH_RISK_SCORE)));
+                row(2, RiskBand.HIGH, false, false, FraudSignal.HIGH_RISK_SCORE)), 20);
 
         assertThat(summary.bySignal()).containsExactly(
                 new MetricCount("HIGH_RISK_SCORE", 2),

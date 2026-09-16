@@ -71,10 +71,12 @@ class PdfFraudReportExporterTest {
     void writesTheSummaryAboveTheTable() throws IOException {
         Rendered pdf = render(List.of(flaggedRow(1), flaggedRow(2), unscoredRow(3)));
 
+        // 3 flagged and 1 determined out of the 20 claims the period had: the rate never travels
+        // without the population it was taken from.
         assertThat(pdf.text()).contains(
-                "Total: 3 expedientes con indicios",
+                "Total: 3 de 20 denuncias con indicios (15%)",
                 "Con señales cruzadas: 2",
-                "Fraude determinado: 1 (1 con respaldo pericial)",
+                "Fraude determinado: 1 (5% del período, 1 con respaldo pericial)",
                 "Por nivel de alerta: Crítico 2 · Sin evaluar 1",
                 "Por señal (un expediente puede tener más de una):");
     }

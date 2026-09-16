@@ -1,4 +1,4 @@
-import { DOCUMENT } from '@angular/common';
+import { DOCUMENT, PercentPipe } from '@angular/common';
 import { HttpErrorResponse } from '@angular/common/http';
 import {
   ChangeDetectionStrategy,
@@ -71,6 +71,7 @@ const ALERT_BANDS: RiskBand[] = ['HIGH', 'CRITICAL'];
 @Component({
   selector: 'app-fraud-report',
   imports: [
+    PercentPipe,
     RouterLink,
     BadgeComponent,
     ButtonComponent,

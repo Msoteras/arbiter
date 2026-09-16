@@ -30,17 +30,35 @@ public final class FraudSummaries {
     private FraudSummaries() {
     }
 
-    public static FraudSummary of(List<FraudReportRow> rows) {
-        if (rows.isEmpty()) {
+    /**
+     * @param totalClaims every claim filed in the period and branch, which is the denominator of
+     *                    the rates. It deliberately ignores the alert-level filter: with "Crítico"
+     *                    selected the rate answers "qué parte del período es crítica", and a
+     *                    denominator that moved with the filter could never answer that
+     */
+    public static FraudSummary of(List<FraudReportRow> rows, long totalClaims) {
+        if (rows.isEmpty() && totalClaims == 0) {
             return FraudSummary.EMPTY;
         }
+        long fraudDetermined = rows.stream().filter(FraudReportRow::fraudDetermined).count();
         return new FraudSummary(
+                totalClaims,
                 rows.size(),
+                rateOf(rows.size(), totalClaims),
                 rows.stream().filter(row -> row.signals().size() > 1).count(),
-                rows.stream().filter(FraudReportRow::fraudDetermined).count(),
+                fraudDetermined,
+                rateOf(fraudDetermined, totalClaims),
                 rows.stream().filter(row -> row.fraudDetermined() && row.expertBacked()).count(),
                 byAlertLevel(rows),
                 bySignal(rows));
+    }
+
+    /**
+     * Null and not zero when there is nothing to divide: with no claims in the period the share is
+     * unknown, which is not the same as "none of them were flagged".
+     */
+    private static Double rateOf(long part, long total) {
+        return total == 0 ? null : (double) part / total;
     }
 
     /**

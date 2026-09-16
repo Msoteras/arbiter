@@ -80,9 +80,12 @@ describe('FraudReportComponent', () => {
     riskBand: null,
     generatedAt: '2026-09-15T15:00:00Z',
     summary: {
+      totalClaims: 20,
       flagged: 2,
+      flaggedRate: 0.1,
       multiSignal: 1,
       fraudDetermined: 1,
+      fraudRate: 0.05,
       backedByExpert: 1,
       byAlertLevel: [
         { label: 'CRITICAL', count: 1 },
@@ -159,10 +162,20 @@ describe('FraudReportComponent', () => {
     preview();
 
     const text = (fixture.nativeElement as HTMLElement).textContent ?? '';
-    expect(text).toContain('Expedientes con indicios');
+    expect(text).toContain('Denuncias del período');
     expect(text).toContain('Con señales cruzadas');
     expect(text).toContain('1 con respaldo pericial');
     expect(text).toContain('Fraude determinado · pericial');
+  });
+
+  /** Una tasa sin su población es la cifra que más rápido se lee mal, así que viajan juntas. */
+  it('states each rate next to the claims it was taken over', () => {
+    preview();
+
+    const text = (fixture.nativeElement as HTMLElement).textContent ?? '';
+    expect(text).toContain('Con indicios');
+    expect(text).toContain('2 de 20');
+    expect(text).toContain('1 de 20 · 1 con respaldo pericial');
   });
 
   /** A case with no band is still listed; calling it "Bajo" would be a different claim. */
@@ -185,7 +198,11 @@ describe('FraudReportComponent', () => {
     reportService.report.and.returnValue(
       of({
         ...report,
-        summary: { ...report.summary, byAlertLevel: [{ label: 'NOT_FLAGGED', count: 1 }] },
+        summary: {
+          ...report.summary,
+          flagged: 1,
+          byAlertLevel: [{ label: 'NOT_FLAGGED', count: 1 }],
+        },
         rows: [row({ riskBand: 'LOW', signals: ['FORENSIC_INCONSISTENCY'], suspiciousImages: 1 })],
       }),
     );
