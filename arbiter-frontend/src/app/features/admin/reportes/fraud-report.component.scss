@@ -1,18 +1,8 @@
-:host { display: block; padding: var(--space-6); }
+/* La rejilla .params y .field viven en report-params.scss, compartidas con app-report-filters. */
 
 .reportes { display: flex; flex-direction: column; gap: var(--space-3); }
 
-.rep-head { margin-bottom: var(--space-2); }
-.rep-head h1 { margin: 0; }
-.rep-sub { margin: var(--space-1) 0 0; color: var(--text-secondary); font-size: var(--font-size-body); }
-
-/* ===== Parameters ===== */
-.params {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr)) minmax(0, 2fr);
-  gap: var(--space-3);
-}
-.field .t-field-label { display: block; margin-bottom: var(--space-2); }
+.rep-hint { margin: 0 0 var(--space-4); color: var(--text-secondary); font-size: var(--font-size-sm); }
 
 .form-error {
   margin: var(--space-3) 0 0;
@@ -44,25 +34,28 @@
   margin: 0 0 var(--space-4);
 }
 
-/* Las dos distribuciones en cajas propias: sin una superficie que las contenga quedaban sueltas
-   sobre el fondo de la card, y el número se iba al borde opuesto de una fila enorme. */
-.distributions {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: var(--space-3);
-}
 .distribution {
   padding: var(--space-4);
   border: 1px solid var(--border-subtle);
   border-radius: var(--radius-card);
   background: var(--surface-soft);
 }
-.distribution h3 {
-  margin: 0 0 var(--space-3);
+.distribution h3 { margin: 0 0 var(--space-3); color: var(--text-secondary); }
+
+/* El gauge necesita un ancho mínimo para que los 4 segmentos se distingan. */
+.gauge-cell { min-width: 120px; }
+
+/* Los indicadores son una lista, no una frase: el analista los cuenta y los compara entre filas. */
+.indicators {
+  margin: 0;
+  padding-left: var(--space-4);
+  font-size: var(--font-size-sm);
   color: var(--text-secondary);
 }
+.indicators li + li { margin-top: var(--space-1); }
+.indicators + app-badge { display: inline-block; margin-top: var(--space-2); }
+
 .sub { display: block; margin-top: var(--space-1); font-size: var(--font-size-xs); color: var(--text-muted); }
-.muted { color: var(--text-muted); }
 .case-link {
   color: var(--text-primary);
   font-weight: var(--font-weight-medium);
@@ -72,16 +65,8 @@
 
 app-pagination { display: block; margin-top: var(--space-3); }
 
-@media (max-width: 820px) {
-  :host { padding: var(--space-4); }
-  .params { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-  .field-wide { grid-column: 1 / -1; }
-}
-
 @media (max-width: 480px) {
-  .params { grid-template-columns: minmax(0, 1fr); }
-  .figures,
-  .distributions { grid-template-columns: minmax(0, 1fr); }
+  .figures { grid-template-columns: minmax(0, 1fr); }
   .actions { flex-direction: column; align-items: stretch; }
   .export { justify-content: space-between; }
 }

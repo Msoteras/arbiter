@@ -5,7 +5,8 @@ import { of } from 'rxjs';
 
 import { ExpedienteService } from '../../expedientes/expediente.service';
 import { BranchesService } from '../branches.service';
-import { ReportesComponent } from './reportes.component';
+import { ReportFiltersStore } from './report-filters.store';
+import { ResolutionReportComponent } from './resolution-report.component';
 import { ResolutionReport, decisionLabel, formatDuration, periodError } from './resolution-report';
 import { ResolutionReportService } from './resolution-report.service';
 
@@ -35,8 +36,8 @@ describe('resolution report helpers', () => {
   });
 });
 
-describe('ReportesComponent', () => {
-  let fixture: ComponentFixture<ReportesComponent>;
+describe('ResolutionReportComponent', () => {
+  let fixture: ComponentFixture<ResolutionReportComponent>;
 
   const report: ResolutionReport = {
     from: '2026-08-01',
@@ -81,17 +82,18 @@ describe('ReportesComponent', () => {
   beforeEach(async () => {
     reportService.preview.calls.reset();
     await TestBed.configureTestingModule({
-      imports: [ReportesComponent],
+      imports: [ResolutionReportComponent],
       providers: [
         provideNoopAnimations(),
         provideRouter([]),
+        ReportFiltersStore,
         { provide: ResolutionReportService, useValue: reportService },
         { provide: ExpedienteService, useValue: { claimCauseNames: () => of(['Hurto']) } },
         { provide: BranchesService, useValue: { list: () => of([{ id: 1, name: 'Celulares' }]) } },
       ],
     }).compileComponents();
 
-    fixture = TestBed.createComponent(ReportesComponent);
+    fixture = TestBed.createComponent(ResolutionReportComponent);
     fixture.detectChanges();
   });
 
@@ -130,17 +132,15 @@ describe('ReportesComponent', () => {
   });
 
   it('sends the branch filter to the backend', () => {
-    fixture.componentInstance['setBranch']('1');
+    TestBed.inject(ReportFiltersStore).setBranch('1');
     click('Ver vista previa');
 
-    expect(reportService.preview).toHaveBeenCalledWith(
-      jasmine.objectContaining({ branchId: 1 }),
-    );
+    expect(reportService.preview).toHaveBeenCalledWith(jasmine.objectContaining({ branchId: 1 }));
   });
 
   it('a cleared branch means every branch, not branch zero', () => {
-    fixture.componentInstance['setBranch']('1');
-    fixture.componentInstance['setBranch']('');
+    TestBed.inject(ReportFiltersStore).setBranch('1');
+    TestBed.inject(ReportFiltersStore).setBranch('');
     click('Ver vista previa');
 
     expect(reportService.preview).toHaveBeenCalledWith(

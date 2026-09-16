@@ -206,8 +206,27 @@ export const routes: Routes = [
     // El analista también los ve: son métricas de la operación, no configuración de la
     // aseguradora (a diferencia de usuarios y reglas, que siguen siendo del referente).
     data: { roles: ['REFERENTE_ASEGURADORA', 'ANALISTA_SINIESTROS'] },
+    // El tab es una ruta y no un signal: así el referente puede marcar o pasar "el reporte de
+    // fraude de agosto", y volver del detalle de un expediente lo deja en el tab que estaba.
     loadComponent: () =>
-      import('./features/admin/reportes/reportes.component').then((m) => m.ReportesComponent),
+      import('./features/admin/reportes/reports.component').then((m) => m.ReportsComponent),
+    children: [
+      { path: '', pathMatch: 'full', redirectTo: 'resolutions' },
+      {
+        path: 'resolutions',
+        loadComponent: () =>
+          import('./features/admin/reportes/resolution-report.component').then(
+            (m) => m.ResolutionReportComponent,
+          ),
+      },
+      {
+        path: 'fraud',
+        loadComponent: () =>
+          import('./features/admin/reportes/fraud-report.component').then(
+            (m) => m.FraudReportComponent,
+          ),
+      },
+    ],
   },
 
   // redirectTo: '' no vuelve a disparar la regla '' → login (Angular no re-evalúa el

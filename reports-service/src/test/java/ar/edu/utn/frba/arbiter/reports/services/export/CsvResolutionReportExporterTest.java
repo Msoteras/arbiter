@@ -38,15 +38,15 @@ class CsvResolutionReportExporterTest {
 
     @Test
     void escape_quotesFieldsThatWouldBreakTheRow() {
-        assertThat(CsvResolutionReportExporter.escape("Pérez; \"Tito\"")).isEqualTo("\"Pérez; \"\"Tito\"\"\"");
-        assertThat(CsvResolutionReportExporter.escape("línea\nnueva")).isEqualTo("\"línea\nnueva\"");
-        assertThat(CsvResolutionReportExporter.escape(null)).isEmpty();
+        assertThat(CsvWriter.escape("Pérez; \"Tito\"")).isEqualTo("\"Pérez; \"\"Tito\"\"\"");
+        assertThat(CsvWriter.escape("línea\nnueva")).isEqualTo("\"línea\nnueva\"");
+        assertThat(CsvWriter.escape(null)).isEmpty();
     }
 
     @Test
     void escape_neutralizesFormulas() {
-        assertThat(CsvResolutionReportExporter.escape("=HYPERLINK(\"x\")")).isEqualTo("\"'=HYPERLINK(\"\"x\"\")\"");
-        assertThat(CsvResolutionReportExporter.escape("@SUM(A1)")).isEqualTo("'@SUM(A1)");
+        assertThat(CsvWriter.escape("=HYPERLINK(\"x\")")).isEqualTo("\"'=HYPERLINK(\"\"x\"\")\"");
+        assertThat(CsvWriter.escape("@SUM(A1)")).isEqualTo("'@SUM(A1)");
     }
 
     private String export(List<ar.edu.utn.frba.arbiter.reports.dto.ResolutionReportRow> rows) {

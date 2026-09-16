@@ -2,10 +2,16 @@ package ar.edu.utn.frba.arbiter.reports.services.export;
 
 import ar.edu.utn.frba.arbiter.common.enums.CaseStatus;
 import ar.edu.utn.frba.arbiter.common.enums.Classification;
+import ar.edu.utn.frba.arbiter.common.enums.RiskBand;
+import ar.edu.utn.frba.arbiter.reports.dto.FraudReportRow;
+import ar.edu.utn.frba.arbiter.reports.dto.FraudSignal;
+import ar.edu.utn.frba.arbiter.reports.dto.FraudSummary;
+import ar.edu.utn.frba.arbiter.reports.services.FraudSummaries;
 
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.time.format.DateTimeFormatter;
+import java.util.stream.Collectors;
 
 /**
  * Spanish labels for the exported files — the one place outside the frontend that translates enum
@@ -71,6 +77,60 @@ final class ReportLabels {
     /** How an optional filter reads in the exported document when it was left unset. */
     static String filterValue(String filter) {
         return filter == null ? "Todos" : filter;
+    }
+
+    /**
+     * The alert level of the fraud report — whether the score flagged the case, not what it scored.
+     *
+     * <p>A LOW or MEDIUM band reads "No alertó" and never as its band: a low score is not an
+     * indicator of fraud, and printing "Bajo" under "Nivel de alerta" reads as "nothing to see"
+     * about a case that is in the report precisely because something else was seen. "Sin evaluar"
+     * is kept apart because there the scoring never ran at all.
+     */
+    static String alertLevel(String bucket) {
+        return switch (bucket) {
+            case "CRITICAL" -> "Crítico";
+            case "HIGH" -> "Alto";
+            case FraudSummary.NOT_FLAGGED -> "No alertó";
+            case FraudSummary.NOT_SCORED -> "Sin evaluar";
+            default -> bucket;
+        };
+    }
+
+    static String alertLevel(RiskBand band) {
+        return alertLevel(FraudSummaries.alertLevel(band));
+    }
+
+    /**
+     * The signals of one case, each with the magnitude that makes it actionable — "3 denuncias en
+     * 12 meses" says what to look at, "denuncias repetidas" only says it was flagged. Mirror of
+     * {@code indicators()} in the frontend's fraud-report.ts; keep the two in step.
+     */
+    static String signals(FraudReportRow row) {
+        return row.signals().stream().map(signal -> switch (signal) {
+            case HIGH_RISK_SCORE -> "Score de riesgo alto";
+            case REPEAT_CLAIMANT -> row.claimsInWindow() + " denuncias en 12 meses";
+            case FORENSIC_INCONSISTENCY -> row.suspiciousImages() == 1
+                    ? "1 imagen con coincidencia"
+                    : row.suspiciousImages() + " imágenes con coincidencia";
+        }).collect(Collectors.joining(" · "));
+    }
+
+    /** The name of a signal on its own, for the distribution in the heading. */
+    static String signal(String literal) {
+        return switch (FraudSignal.valueOf(literal)) {
+            case HIGH_RISK_SCORE -> "Score de riesgo alto";
+            case REPEAT_CLAIMANT -> "Denuncias repetidas";
+            case FORENSIC_INCONSISTENCY -> "Incoherencias forenses";
+        };
+    }
+
+    /** The analyst's determination, which is the only column of the fraud report that asserts one. */
+    static String fraudDetermination(FraudReportRow row) {
+        if (!row.fraudDetermined()) {
+            return "No";
+        }
+        return row.expertBacked() ? "Sí · con respaldo pericial" : "Sí";
     }
 
     /**

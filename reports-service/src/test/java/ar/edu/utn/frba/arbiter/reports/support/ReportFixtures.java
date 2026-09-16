@@ -2,8 +2,13 @@ package ar.edu.utn.frba.arbiter.reports.support;
 
 import ar.edu.utn.frba.arbiter.common.enums.CaseStatus;
 import ar.edu.utn.frba.arbiter.common.enums.Classification;
+import ar.edu.utn.frba.arbiter.common.enums.RiskBand;
+import ar.edu.utn.frba.arbiter.reports.dto.FraudReport;
+import ar.edu.utn.frba.arbiter.reports.dto.FraudReportRow;
+import ar.edu.utn.frba.arbiter.reports.dto.FraudSignal;
 import ar.edu.utn.frba.arbiter.reports.dto.ResolutionReport;
 import ar.edu.utn.frba.arbiter.reports.dto.ResolutionReportRow;
+import ar.edu.utn.frba.arbiter.reports.services.FraudSummaries;
 import ar.edu.utn.frba.arbiter.reports.services.ResolutionSummaries;
 
 import java.time.Clock;
@@ -57,5 +62,46 @@ public final class ReportFixtures {
                                                 String claimCause) {
         return new ResolutionReport(LocalDate.of(2026, 8, 1), LocalDate.of(2026, 8, 31), branch,
                 claimCause, CLOCK.instant(), ResolutionSummaries.of(rows), rows);
+    }
+
+    /** Flagged on all three signals: a critical band, a repeat claimant and two matched images. */
+    public static FraudReportRow flaggedRow(long caseId) {
+        return flaggedRow(caseId, "Marcos Aguirre");
+    }
+
+    public static FraudReportRow flaggedRow(long caseId, String insuredName) {
+        return new FraudReportRow(caseId, insuredName, "28.904.115", "Celulares",
+                "Robo en vía pública", Instant.parse("2026-09-12T09:20:00Z"), RiskBand.CRITICAL,
+                List.of(FraudSignal.HIGH_RISK_SCORE, FraudSignal.REPEAT_CLAIMANT,
+                        FraudSignal.FORENSIC_INCONSISTENCY),
+                3, 2, CaseStatus.PENDING_EXPERT_REPORT, false, false);
+    }
+
+    /**
+     * Listed for a reused image, and the score put it in LOW. The band is not an alert — it is the
+     * case that made "Bajo" stop being printed as an alert level.
+     */
+    public static FraudReportRow lowScoreRow(long caseId) {
+        return new FraudReportRow(caseId, "Paula Soria", "33.508.901", "Celulares",
+                "Rotura accidental", Instant.parse("2026-09-08T08:30:00Z"), RiskBand.LOW,
+                List.of(FraudSignal.FORENSIC_INCONSISTENCY), 1, 1,
+                CaseStatus.PENDING_ANALYST_REVIEW, false, false);
+    }
+
+    /** Only the forensic signal, and the scoring never ran: the case with no band at all. */
+    public static FraudReportRow unscoredRow(long caseId) {
+        return new FraudReportRow(caseId, "Romina Vega", "34.771.009", "Tecnología Portátil", "Hurto",
+                Instant.parse("2026-09-05T14:00:00Z"), null,
+                List.of(FraudSignal.FORENSIC_INCONSISTENCY), 1, 1, CaseStatus.REJECTED, true, true);
+    }
+
+    public static FraudReport septemberFraudReport(List<FraudReportRow> rows) {
+        return septemberFraudReport(rows, null, null);
+    }
+
+    public static FraudReport septemberFraudReport(List<FraudReportRow> rows, String branch,
+                                                   RiskBand riskBand) {
+        return new FraudReport(LocalDate.of(2026, 9, 1), LocalDate.of(2026, 9, 30), branch, riskBand,
+                CLOCK.instant(), FraudSummaries.of(rows), rows);
     }
 }

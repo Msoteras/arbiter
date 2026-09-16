@@ -1,48 +1,11 @@
 <div class="reportes" @staggerReveal>
-  <header class="rep-head">
-    <h1 class="t-page-title">Reportes</h1>
-    <p class="rep-sub">
-      Resolución de siniestros: los expedientes cerrados en un período, con tiempos, clasificación y
-      decisión
-    </p>
-  </header>
-
   <app-card heading="Reporte de resolución de siniestros">
+    <p class="rep-hint">
+      Los expedientes cerrados en el período, con tiempos, clasificación y decisión del analista.
+    </p>
+
     <div class="params">
-      <div class="field">
-        <label class="t-field-label" for="rep-desde">Desde</label>
-        <app-input
-          id="rep-desde"
-          type="date"
-          [max]="today"
-          [value]="from()"
-          (valueChange)="setFrom($event)"
-        />
-      </div>
-
-      <div class="field">
-        <label class="t-field-label" for="rep-hasta">Hasta</label>
-        <app-input
-          id="rep-hasta"
-          type="date"
-          [min]="from()"
-          [max]="today"
-          [value]="to()"
-          (valueChange)="setTo($event)"
-        />
-      </div>
-
-      <div class="field field-wide">
-        <label class="t-field-label" for="rep-ramo">Ramo</label>
-        <app-select
-          id="rep-ramo"
-          placeholder="Todos"
-          [searchable]="true"
-          [options]="branchOptions()"
-          [value]="branchValue()"
-          (valueChange)="setBranch($event)"
-        />
-      </div>
+      <app-report-filters />
 
       <div class="field field-wide">
         <label class="t-field-label" for="rep-tipo">Tipo de siniestro</label>
@@ -57,12 +20,16 @@
       </div>
     </div>
 
-    @if (periodError() ?? error(); as message) {
+    @if (filters.periodError() ?? error(); as message) {
       <p class="form-error" role="alert">{{ message }}</p>
     }
 
     <div class="actions">
-      <app-button [disabled]="!!periodError()" [loading]="loading()" (click)="loadPreview()">
+      <app-button
+        [disabled]="!!filters.periodError()"
+        [loading]="loading()"
+        (click)="loadPreview()"
+      >
         Ver vista previa
       </app-button>
 
@@ -70,7 +37,7 @@
         <span class="t-field-label">Exportar</span>
         <app-button
           variant="secondary"
-          [disabled]="!!periodError() || exporting() === 'PDF'"
+          [disabled]="!!filters.periodError() || exporting() === 'PDF'"
           [loading]="exporting() === 'CSV'"
           (click)="exportAs('CSV')"
         >
@@ -78,7 +45,7 @@
         </app-button>
         <app-button
           variant="secondary"
-          [disabled]="!!periodError() || exporting() === 'CSV'"
+          [disabled]="!!filters.periodError() || exporting() === 'CSV'"
           [loading]="exporting() === 'PDF'"
           (click)="exportAs('PDF')"
         >
@@ -104,7 +71,9 @@
               <app-stat-tile label="Expedientes resueltos" [value]="totals.totalCases" />
               <app-stat-tile
                 label="Tiempo promedio de resolución"
-                [value]="totals.averageMinutes === null ? '—' : formatDuration(totals.averageMinutes)"
+                [value]="
+                  totals.averageMinutes === null ? '—' : formatDuration(totals.averageMinutes)
+                "
               />
               <!-- La barra sólo acá: es el único de los tres que es una proporción y por lo tanto
                    el único que tiene contra qué medirse. -->
@@ -171,7 +140,9 @@
                     <span class="muted">Sin clasificación</span>
                   }
                 </td>
-                <td [class.muted]="!row.analystDecision">{{ decisionLabel(row.analystDecision) }}</td>
+                <td [class.muted]="!row.analystDecision">
+                  {{ decisionLabel(row.analystDecision) }}
+                </td>
                 <td>
                   <app-badge [tone]="estadoTone(row.finalStatus)">
                     {{ estadoLabel(row.finalStatus) }}

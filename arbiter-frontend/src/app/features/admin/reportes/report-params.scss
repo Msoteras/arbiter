@@ -1,0 +1,21 @@
+/* Rejilla de parámetros compartida por los dos reportes y por app-report-filters.
+   Está en un archivo aparte y no en cada componente porque `app-report-filters` es
+   `display: contents`: sus tres campos son items de ESTA rejilla, que dibuja el tab.
+   Con la regla duplicada en dos lados, el día que una cambie las columnas se corren. */
+
+.params {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr)) minmax(0, 2fr);
+  gap: var(--space-3);
+}
+
+.field .t-field-label { display: block; margin-bottom: var(--space-2); }
+
+@media (max-width: 820px) {
+  .params { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .field-wide { grid-column: 1 / -1; }
+}
+
+@media (max-width: 480px) {
+  .params { grid-template-columns: minmax(0, 1fr); }
+}

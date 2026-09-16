@@ -1,0 +1,167 @@
+<div class="reportes" @staggerReveal>
+  <app-card heading="Reporte de detección de fraude">
+    <p class="rep-hint">
+      Criterios de detección
+      <app-info-tip>
+        Aparecen acá las denuncias del período sobre las que se disparó al menos una señal: score
+        de riesgo alto (banda Alto o Crítico del motor de scoring), más de una denuncia del mismo
+        asegurado en los últimos 12 meses, o incoherencias en el análisis forense de las imágenes.
+        El sistema no determina fraude: señala indicios para revisión humana.
+      </app-info-tip>
+    </p>
+
+    <div class="params">
+      <app-report-filters />
+
+      <div class="field field-wide">
+        <label class="t-field-label" for="rep-riesgo">Nivel de alerta</label>
+        <app-select
+          id="rep-riesgo"
+          placeholder="Todos"
+          [options]="riskBandOptions"
+          [value]="riskBand()"
+          (valueChange)="setRiskBand($event)"
+        />
+      </div>
+    </div>
+
+    @if (filters.periodError() ?? error(); as message) {
+      <p class="form-error" role="alert">{{ message }}</p>
+    }
+
+    <div class="actions">
+      <app-button
+        [disabled]="!!filters.periodError()"
+        [loading]="loading()"
+        (click)="loadPreview()"
+      >
+        Ver vista previa
+      </app-button>
+
+      <div class="export" role="group" aria-label="Exportar reporte">
+        <span class="t-field-label">Exportar</span>
+        <app-button
+          variant="secondary"
+          [disabled]="!!filters.periodError() || exporting() === 'PDF'"
+          [loading]="exporting() === 'CSV'"
+          (click)="exportAs('CSV')"
+        >
+          CSV
+        </app-button>
+        <app-button
+          variant="secondary"
+          [disabled]="!!filters.periodError() || exporting() === 'CSV'"
+          [loading]="exporting() === 'PDF'"
+          (click)="exportAs('PDF')"
+        >
+          PDF
+        </app-button>
+      </div>
+    </div>
+  </app-card>
+
+  <app-card heading="Vista previa">
+    @if (loading()) {
+      <app-inline-loading message="Buscando expedientes con indicios…" />
+    } @else if (report(); as current) {
+      @if (current.rows.length === 0) {
+        <app-empty-state
+          message="Ningún expediente con indicios en el período"
+          sub="Probá con otro rango de fechas, otro ramo o sin filtrar por nivel de alerta."
+        />
+      } @else {
+        @if (summary(); as totals) {
+          <section class="summary" aria-label="Totales del período">
+            <div class="figures">
+              <app-stat-tile label="Expedientes con indicios" [value]="totals.flagged" />
+              <!-- El cruce, que es lo que el reporte agrega sobre el gauge del expediente: una
+                   señal es un indicio, dos coincidiendo es una lista corta. -->
+              <app-stat-tile
+                label="Con señales cruzadas"
+                [value]="totals.multiSignal"
+                sub="Dos o más señales en el mismo expediente"
+                tone="danger"
+              />
+              <app-stat-tile
+                label="Fraude determinado"
+                [value]="totals.fraudDetermined"
+                [sub]="totals.backedByExpert + ' con respaldo pericial'"
+              />
+            </div>
+
+            <section class="distribution">
+              <h3 class="t-section-label">Por nivel de alerta</h3>
+              <app-distribution [items]="alertItems()" />
+            </section>
+          </section>
+        }
+
+        <app-table>
+          <thead>
+            <tr>
+              <th scope="col">Nº</th>
+              <th scope="col">Asegurado</th>
+              <th scope="col">Tipo</th>
+              <th scope="col">Denuncia</th>
+              <th scope="col">Nivel de alerta</th>
+              <th scope="col">Indicadores</th>
+              <th scope="col">Estado</th>
+            </tr>
+          </thead>
+          <tbody>
+            @for (row of pageRows(); track row.caseId) {
+              <tr>
+                <td class="mono">
+                  <a class="case-link" [routerLink]="['/cases', row.caseId]">#{{ row.caseId }}</a>
+                </td>
+                <td>
+                  {{ row.insuredName }}
+                  <span class="sub">DNI {{ row.insuredDni }}</span>
+                </td>
+                <td>
+                  {{ row.claimCause }}
+                  <span class="sub">{{ row.branch }}</span>
+                </td>
+                <td class="tabular">{{ formatDateTime(row.reportedAt) }}</td>
+                <td class="gauge-cell">
+                  <app-fraud-gauge [band]="riskGaugeBand(row)" [emptyLabel]="alertEmptyLabel(row)" />
+                </td>
+                <td>
+                  <ul class="indicators">
+                    @for (indicator of indicators(row); track indicator) {
+                      <li>{{ indicator }}</li>
+                    }
+                  </ul>
+                  @if (row.fraudDetermined) {
+                    <app-badge variant="strong" tone="danger">
+                      {{ row.expertBacked ? 'Fraude determinado · pericial' : 'Fraude determinado' }}
+                    </app-badge>
+                  }
+                </td>
+                <td>
+                  <app-badge [tone]="estadoTone(row.status)">{{ estadoLabel(row.status) }}</app-badge>
+                </td>
+              </tr>
+            }
+          </tbody>
+        </app-table>
+
+        @if (totalPages() > 1) {
+          <app-pagination
+            [page]="page()"
+            [totalPages]="totalPages()"
+            [totalElements]="rows().length"
+            [size]="pageSize()"
+            (pageChange)="page.set($event)"
+            (sizeChange)="setPageSize($event)"
+          />
+        }
+      }
+    } @else {
+      <app-empty-state
+        message="Todavía no hay vista previa"
+        sub="Elegí el período y tocá «Ver vista previa»."
+      />
+    }
+  </app-card>
+</div>

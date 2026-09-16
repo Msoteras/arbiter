@@ -1,8 +1,8 @@
 package ar.edu.utn.frba.arbiter.reports.services.export;
 
+import ar.edu.utn.frba.arbiter.reports.dto.FraudReport;
+import ar.edu.utn.frba.arbiter.reports.dto.FraudReportRow;
 import ar.edu.utn.frba.arbiter.reports.dto.ReportFormat;
-import ar.edu.utn.frba.arbiter.reports.dto.ResolutionReport;
-import ar.edu.utn.frba.arbiter.reports.dto.ResolutionReportRow;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
 
@@ -11,15 +11,19 @@ import java.time.format.DateTimeFormatter;
 import java.util.Arrays;
 import java.util.List;
 
-/** One row per resolved case. The dialect and the escaping are {@link CsvWriter}'s. */
+/** One row per flagged case. The dialect and the escaping are {@link CsvWriter}'s. */
 @Component
 @RequiredArgsConstructor
-public class CsvResolutionReportExporter implements ResolutionReportExporter {
+public class CsvFraudReportExporter implements FraudReportExporter {
 
+    /**
+     * The two counts get columns of their own besides the "Indicadores" sentence: a spreadsheet is
+     * opened to sort and filter, and "3 denuncias en 12 meses" is text you can't order by.
+     */
     private static final List<String> HEADER = List.of(
             "Nº expediente", "Asegurado", "DNI", "Ramo", "Hecho generador", "Fecha de denuncia",
-            "Fecha de resolución", "Tiempo total (horas)", "Clasificación", "Decisión del analista",
-            "Estado final", "Analista");
+            "Nivel de alerta", "Indicadores", "Denuncias en 12 meses", "Imágenes con coincidencia",
+            "Estado", "Fraude determinado");
 
     private final Clock clock;
 
@@ -29,11 +33,11 @@ public class CsvResolutionReportExporter implements ResolutionReportExporter {
     }
 
     @Override
-    public byte[] export(ResolutionReport report) {
+    public byte[] export(FraudReport report) {
         DateTimeFormatter dateTime = ReportLabels.DATE_TIME.withZone(clock.getZone());
         CsvWriter csv = new CsvWriter();
         csv.appendLine(HEADER);
-        for (ResolutionReportRow row : report.rows()) {
+        for (FraudReportRow row : report.rows()) {
             csv.appendLine(Arrays.asList(
                     String.valueOf(row.caseId()),
                     row.insuredName(),
@@ -41,12 +45,12 @@ public class CsvResolutionReportExporter implements ResolutionReportExporter {
                     row.branch(),
                     row.claimCause(),
                     dateTime.format(row.reportedAt()),
-                    dateTime.format(row.resolvedAt()),
-                    ReportLabels.hours(row.totalMinutes()),
-                    ReportLabels.classification(row.classification()),
-                    ReportLabels.decision(row.analystDecision()),
-                    ReportLabels.status(row.finalStatus()),
-                    row.analystName()));
+                    ReportLabels.alertLevel(row.riskBand()),
+                    ReportLabels.signals(row),
+                    String.valueOf(row.claimsInWindow()),
+                    String.valueOf(row.suspiciousImages()),
+                    ReportLabels.status(row.status()),
+                    ReportLabels.fraudDetermination(row)));
         }
         return csv.toBytes();
     }

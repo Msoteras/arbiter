@@ -1,0 +1,25 @@
+<header class="rep-head">
+  <h1 class="t-page-title">Reportes</h1>
+  <p class="rep-sub">
+    Dos lecturas del mismo período: cómo se resolvieron los siniestros y qué expedientes quedaron
+    marcados para revisión.
+  </p>
+</header>
+
+<nav class="tabs" role="tablist" aria-label="Reporte a mostrar">
+  @for (tab of tabs; track tab.path) {
+    <a
+      role="tab"
+      class="tab"
+      [routerLink]="tab.path"
+      routerLinkActive="active"
+      #rla="routerLinkActive"
+      [attr.aria-selected]="rla.isActive"
+      queryParamsHandling="preserve"
+    >
+      {{ tab.label }}
+    </a>
+  }
+</nav>
+
+<router-outlet />
