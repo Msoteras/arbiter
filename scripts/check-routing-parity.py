@@ -27,12 +27,14 @@ PORT_TO_SERVICE = {
     "8081": "rules",
     "8082": "classification",
     "8083": "cases",
+    "8084": "reports",
 }
 VAR_TO_SERVICE = {
     "AUTH": "auth",
     "RULES": "rules",
     "CLASSIFICATION": "classification",
     "CASES": "cases",
+    "REPORTS": "reports",
 }
 
 

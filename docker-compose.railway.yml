@@ -226,6 +226,8 @@ services:
       DB_USER: ${DB_USER:?falta DB_USER en .env}
       DB_PASSWORD: ${DB_PASSWORD:?falta DB_PASSWORD en .env}
       JWT_SECRET: ${JWT_SECRET:?falta JWT_SECRET en .env}
+      # The yml default is localhost, which inside a container is the container itself.
+      RULES_SERVICE_URL: http://rules-service:8081
     restart: on-failure
 
 volumes:
