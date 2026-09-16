@@ -54,6 +54,42 @@
 .ramo-empty { padding: var(--space-2) var(--space-3); }
 .add-ramo { margin-top: var(--space-3); }
 
+/* ───────── Auditoría ─────────
+   Otra impronta que las listas de arriba, a propósito: no es configuración sino registro. Va
+   suelta (sin card), tintada con el acento de marca y con borde punteado, para que se lea como
+   una sección aparte y no como un ramo más. Sobre el fondo papel de la columna, el recuadro gris
+   pasaba desapercibido. */
+.audit-block { display: flex; flex-direction: column; gap: var(--space-2); }
+.audit-label { margin: 0; color: var(--accent-fg); }
+.audit-entry {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  text-align: left;
+  font: inherit;
+  padding: var(--space-3);
+  border: 1px dashed var(--selected-border);
+  border-radius: var(--radius-card);
+  background: var(--selected-bg);
+  color: var(--text-secondary);
+  cursor: pointer;
+}
+.audit-entry:hover { border-color: var(--accent-fg); }
+/* Activo: la misma barra de acento que un ramo elegido, que acá es lo único que hace falta
+   para distinguirlo — el recuadro ya viene tintado. */
+.audit-entry.active {
+  border-style: solid;
+  border-left: 3px solid var(--accent-fg);
+  padding-left: calc(var(--space-3) - 2px);
+  color: var(--text-primary);
+}
+/* El nombre y la bajada reusan las clases de la lista de ramos: cambia el recuadro, no la
+   tipografía. */
+.audit-entry .ramo-name { color: var(--accent-fg); }
+.audit-icon { width: 1.25em; height: 1.25em; flex-shrink: 0; color: var(--accent-fg); }
+.audit-text { display: flex; flex-direction: column; gap: var(--space-1); min-width: 0; }
+
 /* ───────── Detalle ───────── */
 .editor { display: flex; flex-direction: column; gap: var(--space-4); min-width: 0; }
 

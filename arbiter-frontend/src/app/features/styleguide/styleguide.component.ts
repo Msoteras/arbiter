@@ -380,6 +380,24 @@ interface Swatch {
             [searchable]="true"
           />
         </div>
+
+        <p class="sg-p">
+          Con <span class="mono">required</span>, cerrar el panel sin haber elegido nada —clic
+          afuera, Esc o Tab— deja el campo marcado y muestra
+          <span class="mono">requiredMessage</span> debajo. El clic afuera cierra igual: no
+          atrapamos al usuario adentro del campo, solo queda dicho que falta completarlo. Se marca
+          recién al cerrar, no al abrir.
+        </p>
+        <div class="col narrow">
+          <app-select
+            [(value)]="sampleRequiredSelect"
+            [options]="sampleProvinceOptions"
+            placeholder="Provincia"
+            [searchable]="true"
+            [required]="true"
+            requiredMessage="Elegí la provincia donde pasó."
+          />
+        </div>
       </section>
 
       <section class="sg-block">
@@ -935,6 +953,7 @@ export class StyleguideComponent {
     { value: 'APPROVED', label: 'Aprobado' },
   ];
   protected readonly sampleSearchSelect = signal('');
+  protected readonly sampleRequiredSelect = signal('');
   protected readonly sampleProvinceOptions = [
     'Buenos Aires',
     'Ciudad Autónoma de Buenos Aires',

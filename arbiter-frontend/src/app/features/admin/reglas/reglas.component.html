@@ -49,6 +49,36 @@
       </ul>
     </app-card>
 
+    <!-- ───────── Auditoría ─────────
+         Afuera de "Reglas generales" a propósito: el historial no configura nada, es el registro
+         de lo que ya se cambió y se consulta después. Adentro de esa lista se leía como una
+         sección configurable más, al mismo nivel que Hard Stop o Scoring. -->
+    <section class="audit-block">
+      <p class="audit-label t-section-label">Auditoría</p>
+      <button
+        type="button"
+        class="audit-entry"
+        [class.active]="view() === 'historial'"
+        (click)="selectGeneral('historial')"
+      >
+        <svg
+          class="audit-icon"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="1.6"
+          aria-hidden="true"
+        >
+          <circle cx="12" cy="12" r="9" />
+          <polyline points="12 7 12 12 15 14" stroke-linecap="round" stroke-linejoin="round" />
+        </svg>
+        <span class="audit-text">
+          <span class="ramo-name">Historial de cambios</span>
+          <span class="ramo-meta">Registro inmutable · solo lectura</span>
+        </span>
+      </button>
+    </section>
+
     </div>
 
     <!-- ───────── Panel derecho: detalle del ramo, Hard Stop o scoring ───────── -->
@@ -164,7 +194,7 @@
           <div class="editor-actions">
             @if (renameSaved()) { <span class="saved-note">✓ Nombre guardado</span> }
             @if (renameError(); as err) { <span class="warn-note">{{ err }}</span> }
-            <app-button variant="secondary" [disabled]="renaming()" (click)="saveName()">
+            <app-button variant="secondary" [disabled]="renaming()" (click)="requestRename()">
               {{ renaming() ? 'Guardando…' : 'Renombrar' }}
             </app-button>
           </div>
@@ -841,3 +871,20 @@
     </div>
   </div>
 </div>
+
+<!-- Confirmación del renombre. El ramo es catálogo global: el nombre nuevo aparece en las pólizas,
+     los expedientes y los reportes de todas las aseguradoras apenas se guarda. -->
+<app-modal [open]="showRenameConfirm()" heading="¿Renombrar el ramo?" (close)="cancelRename()">
+  <p class="t-body">
+    Vas a renombrar <strong>{{ renameFrom() }}</strong> a <strong>{{ draft()?.name }}</strong>.
+  </p>
+  <p class="t-note">
+    El ramo es parte del catálogo que comparten todas las aseguradoras: el nombre nuevo se ve al
+    instante en las pólizas, los expedientes y los reportes que lo mencionan. No cambia ninguna
+    regla ni cobertura configurada.
+  </p>
+  <ng-container modalActions>
+    <app-button variant="secondary" [disabled]="renaming()" (click)="cancelRename()">Cancelar</app-button>
+    <app-button [disabled]="renaming()" (click)="confirmRename()">Sí, renombrar</app-button>
+  </ng-container>
+</app-modal>
