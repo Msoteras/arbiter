@@ -27,6 +27,26 @@
       <p class="sc-group">
         {{ group.title }} <span class="sc-group-hint">· {{ group.hint }}</span>
       </p>
+      @if (group.heavy) {
+        <!-- Adentro del grupo al que afecta y no en la solapa Fast Track del ramo: el flag es de
+             toda la aseguradora y se guarda con el puntaje, y lo único que decide es si corren
+             estos factores. Suelto al pie de la pantalla no se entendía qué prendía. -->
+        <div class="sc-ft" [class.off]="!fullAnalysisOnFastTrack()">
+          <app-switch
+            [checked]="fullAnalysisOnFastTrack()"
+            ariaLabel="Evaluar estos factores también en Fast Track"
+            (checkedChange)="toggleFullAnalysisOnFastTrack()"
+          />
+          <div class="rule-text">
+            <span class="t-field-label">Evaluar estos factores también en Fast Track</span>
+            <p class="rule-hint">
+              {{ fullAnalysisOnFastTrack()
+                ? 'Corren siempre: el puntaje sale completo, pero el Fast Track tarda más.'
+                : 'En Fast Track no corren, para no frenarlo: el puntaje sale parcial, solo con los factores de datos.' }}
+            </p>
+          </div>
+        </div>
+      }
       <ul class="rule-rows">
         @for (f of factorsOf(group); track f.id) {
           <li class="rule-row" [class.off]="!isFactorActive(f.id)">
@@ -96,28 +116,6 @@
           </label>
         </li>
       }
-    </ul>
-  </div>
-
-  <div class="sc-section">
-    <span class="t-section-label">En Fast Track</span>
-    <ul class="rule-rows">
-      <li class="rule-row" [class.off]="!fullAnalysisOnFastTrack()">
-        <app-switch
-          [checked]="fullAnalysisOnFastTrack()"
-          ariaLabel="Analizar documentos e imágenes aunque el siniestro vaya por Fast Track"
-          (checkedChange)="toggleFullAnalysisOnFastTrack()"
-        />
-        <div class="rule-text">
-          <span class="t-field-label">
-            Analizar documentos e imágenes aunque el siniestro vaya por Fast Track
-          </span>
-          <p class="rule-hint">
-            Por defecto no corre para no frenar el carril rápido: el puntaje sale parcial, solo con
-            los factores de datos.
-          </p>
-        </div>
-      </li>
     </ul>
   </div>
 

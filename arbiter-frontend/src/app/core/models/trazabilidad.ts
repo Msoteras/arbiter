@@ -37,7 +37,7 @@ const RULE_TYPE_LABELS: Record<string, string> = {
   FT_PRIOR_CLAIMS: 'Siniestros previos del asegurado',
   FT_POLICY_AGE: 'Antigüedad de la póliza',
   FT_POLICY_UP_TO_DATE: 'Póliza al día con sus pagos',
-  FT_REQUIRED_DOCS: 'Documentación que exige el carril rápido',
+  FT_REQUIRED_DOCS: 'Documentación que exige Fast Track',
 };
 
 export function ruleTypeLabel(ruleType: string): string {

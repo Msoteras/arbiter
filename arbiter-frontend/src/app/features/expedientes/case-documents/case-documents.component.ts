@@ -230,6 +230,16 @@ export class CaseDocumentsComponent {
         && this.preview().status !== 'empty',
   );
 
+  /**
+   * Fecha, importe, marca, modelo, IMEI... son campos de un PAPEL (factura, presupuesto, acta).
+   * Una foto no tiene nada de eso — mostrar la grilla igual la llenaba de "No aplica" en casi
+   * todos los campos, y lo único que una imagen sí aporta (las señales visuales) queda más abajo.
+   */
+  protected readonly selectedIsImage = computed(() => {
+    const p = this.preview();
+    return p.status !== 'empty' && this.isImage(p.doc.contentType);
+  });
+
   constructor() {
     // Al cargar (o refrescarse) la lista, abre el primer documento disponible: la pestaña
     // arranca mostrando algo en vez de un panel vacío. Si el seleccionado desapareció
