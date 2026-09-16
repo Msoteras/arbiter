@@ -33,6 +33,7 @@ import { InputComponent } from '../../../shared/ui/input/input.component';
 import { AtribucionesConfigComponent } from '../atribuciones-config/atribuciones-config.component';
 import { ScoringConfigComponent } from '../scoring-config/scoring-config.component';
 import { FraudeConfigComponent } from '../fraude-config/fraude-config.component';
+import { ObjetivoConfigComponent } from '../objetivo-config/objetivo-config.component';
 import { HistorialReglasComponent } from '../historial-reglas/historial-reglas.component';
 import { SaveBarComponent } from '../../../shared/ui/save-bar/save-bar.component';
 import { StringListEditorComponent } from './string-list-editor.component';
@@ -49,7 +50,7 @@ import { accordion, fadeInUp, listStagger, staggerReveal } from '../../../shared
 type TabId = 'coberturas' | 'exclusiones' | 'fastTrack' | 'documentacion' | 'reglas';
 
 /** Las vistas del panel derecho que no dependen del ramo elegido. */
-type GeneralView = 'hardStop' | 'scoring' | 'fraude' | 'atribuciones' | 'historial';
+type GeneralView = 'hardStop' | 'scoring' | 'fraude' | 'atribuciones' | 'objetivo' | 'historial';
 
 /**
  * Configuración de reglas del referente, Ramo-céntrica. Master (lista de ramos) + detalle con
@@ -75,6 +76,7 @@ type GeneralView = 'hardStop' | 'scoring' | 'fraude' | 'atribuciones' | 'histori
     ScoringConfigComponent,
     FraudeConfigComponent,
     AtribucionesConfigComponent,
+    ObjetivoConfigComponent,
     HistorialReglasComponent,
     SaveBarComponent,
     StringListEditorComponent,
@@ -379,6 +381,10 @@ export class ReglasComponent {
     // Los topes son por ramo, pero se leen de una: el referente los compara entre sí, y
     // repartirlos en el detalle de cada ramo lo obliga a entrar y salir para ver el panorama.
     { id: 'atribuciones', label: 'Atribuciones de liquidación' },
+    // Meta de gestión, no regla: no la evalúa el motor ni bloquea nada. Está acá porque es
+    // configuración de toda la compañía y el referente la administra en la misma pantalla que
+    // el resto; el único que la lee es el tablero de métricas.
+    { id: 'objetivo', label: 'Objetivo de resolución' },
     // Última de la lista: es la única entrada que no configura nada. Se consulta después de haber
     // cambiado algo, no antes, y cruza a todas las demás en vez de ser una más al mismo nivel.
     { id: 'historial', label: 'Historial de cambios' },
