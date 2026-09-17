@@ -48,7 +48,13 @@
       sub="Error de conexión"
     />
   } @else if (data(); as m) {
-    <div class="body" [class.stale]="loading()">
+    <!--
+      El @staggerReveal va acá y no en .dash: .dash se monta con el spinner adentro, así que la
+      animación se gastaba en el spinner y las tarjetas —que aparecen recién cuando vuelve la
+      consulta— entraban de golpe, todas juntas. .body es lo que se monta con los datos ya
+      cargados, que es cuando hay algo que revelar. Mismo criterio que el inicio del referente.
+    -->
+    <div class="body" [class.stale]="loading()" @staggerReveal>
       <!-- ─── Embudo del período ───────────────────────────────────────────────── -->
       <app-card heading="Embudo del período">
         <p class="funnel-note">{{ stillOpenNote() }}</p>

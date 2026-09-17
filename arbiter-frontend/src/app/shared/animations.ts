@@ -4,10 +4,15 @@ import { animate, query, stagger, style, transition, trigger } from '@angular/an
  * Animaciones reutilizables de la app, con la DSL de {@code @angular/animations}. Se aplican con
  * el binding {@code @nombre} en el template del componente que las declare en {@code animations: []}.
  *
- * Son entradas breves y sutiles (un fade + unos píxeles de desplazamiento). Nota: el runtime de
- * {@code @angular/animations} NO desactiva solo con {@code prefers-reduced-motion} — si más
- * adelante hace falta, se corta a nivel de app con un binding {@code [@.disabled]} atado a la
- * media query. La pantalla de carga (app-loading), que es la animación más notoria, sí la respeta.
+ * Son entradas breves y sutiles (un fade + unos píxeles de desplazamiento).
+ *
+ * <b>Se disparan al montarse el elemento que las declara</b> ({@code :enter}), así que el binding
+ * va en el nodo que aparece CON los datos ya cargados, no en uno que envuelva al spinner: ahí la
+ * animación se gasta revelando el spinner y el contenido real entra después, de golpe y sin
+ * animar. Es el error que tuvo el tablero de métricas hasta el 17/09.
+ *
+ * Nota: el runtime de {@code @angular/animations} no respeta {@code prefers-reduced-motion} por su
+ * cuenta; lo corta {@code App} para todo el árbol con {@code [@.disabled]} atado a esa media query.
  */
 
 /**
