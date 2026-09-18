@@ -226,9 +226,9 @@ services:
       DB_USER: ${DB_USER:?falta DB_USER en .env}
       DB_PASSWORD: ${DB_PASSWORD:?falta DB_PASSWORD en .env}
       JWT_SECRET: ${JWT_SECRET:?falta JWT_SECRET en .env}
-      # El objetivo de resolución que el tablero compara contra el tiempo promedio. El default
-      # del RulesServiceClient ya es este host, pero declararlo acá lo deja a la vista: es la
-      # única lectura de este módulo que NO va por base.
+      # El objetivo de resolución que el tablero compara contra el tiempo promedio. Es la única
+      # lectura de este módulo que NO va por base, y hay que declararla: el default del yml es
+      # localhost, que adentro de un contenedor es el contenedor mismo.
       RULES_SERVICE_URL: http://rules-service:8081
     restart: on-failure
 

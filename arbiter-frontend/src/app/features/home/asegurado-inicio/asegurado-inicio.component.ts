@@ -48,7 +48,7 @@ const ORDEN: EstadoSimplificado[] = ['DENUNCIADO', 'EN_TRAMITE', 'TERMINADO'];
 
 /**
  * Pantalla de inicio del asegurado. Portal liviano centrado en "cómo va lo mío": pone al frente
- * el expediente activo con un stepper simple (Denuncia recibida → En análisis → Resolución), el
+ * el expediente activo con un stepper simple (Denuncia recibida → En trámite → Resolución), el
  * próximo paso, y accesos a nueva denuncia / historial / ayuda. Todo el copy es asegurado-safe:
  * nunca menciona la clasificación del modelo ni el scoring interno.
  */
@@ -120,7 +120,9 @@ export class AseguradoInicioComponent {
   );
 
   // ───────────────── Stepper de 3 pasos ─────────────────
-  // Denuncia recibida → En análisis → Resolución, derivado del estado simplificado del destacado.
+  // Denuncia recibida → En trámite → Resolución, derivado del estado simplificado del destacado.
+  // "En trámite" y no "En análisis": la fase también cubre la verificación y la reparación, y el
+  // badge de al lado ya nombra cuál.
   protected readonly steps = computed<Step[]>(() => {
     const d = this.destacado();
     if (!d) {
@@ -133,7 +135,7 @@ export class AseguradoInicioComponent {
     const resuelto = idx >= 2;
     return [
       { label: 'Denuncia recibida', n: 1, state: stateFor(0) },
-      { label: 'En análisis', n: 2, state: stateFor(1) },
+      { label: 'En trámite', n: 2, state: stateFor(1) },
       {
         label: 'Resolución',
         n: 3,

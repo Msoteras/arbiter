@@ -96,7 +96,12 @@ export class ScoringConfigComponent {
    * comparar imágenes, y en Fast Track pueden no correr (ver `fullAnalysisOnFastTrack`). Verlos
    * mezclados escondía que prender uno del segundo grupo tiene un costo que el otro no.
    */
-  protected readonly factorGroups: { title: string; hint: string; ids: string[] }[] = [
+  protected readonly factorGroups: {
+    title: string;
+    hint: string;
+    ids: string[];
+    heavy?: boolean;
+  }[] = [
     {
       title: 'Datos del siniestro y del asegurado',
       hint: 'corren siempre',
@@ -110,8 +115,9 @@ export class ScoringConfigComponent {
     },
     {
       title: 'Documentos e imágenes',
-      hint: 'análisis pesado — puede no correr en Fast Track',
+      hint: 'análisis pesado',
       ids: ['document_inconsistency', 'image_reuse', 'image_web_match'],
+      heavy: true,
     },
   ];
 

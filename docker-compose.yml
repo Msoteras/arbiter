@@ -210,6 +210,8 @@ services:
       DB_USER: ${DB_USER:-arbiter}
       DB_PASSWORD: ${DB_PASSWORD:-arbiter}
       JWT_SECRET: ${JWT_SECRET:-+CV3wiE5lScQGEx1PvKLNuWmaqxixDsm8EIFifgfq8thgguF84p+GI10Rs/1wSTl}
+      # The yml default is localhost, which inside a container is the container itself.
+      RULES_SERVICE_URL: http://rules-service:8081
     depends_on:
       postgres:
         condition: service_healthy

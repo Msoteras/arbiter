@@ -84,6 +84,11 @@ import {
   isEstadoFinal,
   riskBandEmptyLabel,
 } from '../../../core/models/estado';
+import {
+  deadlinePriorityLabel,
+  deadlinePriorityTone,
+  isDeadlinePrioritized,
+} from '../../../core/models/deadline-priority';
 import { RiskBand, riskBandLabel } from '../../../core/models/risk-band';
 import { StatusTone } from '../../../core/models/status-tone';
 import { formatDate, formatDateTime } from '../../../core/util/datetime';
@@ -131,6 +136,12 @@ interface FieldItem {
   value: string | null;
   mono?: boolean;
   full?: boolean;
+}
+
+/** A signal worth reading before deciding, and the tab where its evidence lives. */
+interface BriefAlert {
+  label: string;
+  tab: TabId;
 }
 
 @Component({
@@ -1122,6 +1133,77 @@ export class ExpedienteDetailComponent {
     }
     const band = this.data()?.riskBand as RiskBand;
     return `Riesgo ${riskBandLabel(band).toLowerCase()}: se sugiere derivar a peritaje antes de decidir.`;
+  });
+
+  // ----- "Antes de decidir": lo que el analista necesita a la vista junto a los botones -----
+  // Todo esto ya estaba en la pantalla, pero repartido en solapas: el plazo solo en la bandeja, el
+  // veredicto del perito en su solapa, el monto recién adentro del modal de aprobar y las alertas
+  // como un punto en una pestaña. Decidir sin verlo obligaba a recorrer las solapas de memoria.
+  // Acá no se agrega ningún criterio nuevo ni se sugiere qué hacer: solo se acerca la evidencia.
+
+  protected readonly plazoTexto = computed(() => {
+    const d = this.data();
+    if (!d?.responseDeadline) {
+      return null;
+    }
+    const fecha = formatDate(d.responseDeadline);
+    return isDeadlinePrioritized(d.deadlinePriority)
+      ? `${deadlinePriorityLabel(d.deadlinePriority, d.responseDeadline)} · ${fecha}`
+      : `Vence el ${fecha}`;
+  });
+
+  protected readonly plazoTone = computed<StatusTone>(() => {
+    const d = this.data();
+    return d && isDeadlinePrioritized(d.deadlinePriority)
+      ? deadlinePriorityTone(d.deadlinePriority)
+      : 'neutral';
+  });
+
+  /** Derivaciones que ya volvieron con respuesta: la evidencia que la card de decisión no mostraba. */
+  protected readonly derivacionesRespondidas = computed(() =>
+    this.derivaciones().filter((p) => p.verdict || p.repairOutcome),
+  );
+
+  protected resultadoDerivacion(p: Peritaje): string {
+    const esReparacion = p.providerType === 'SERVICIO_TECNICO';
+    const resultado = p.verdict
+      ? veredictoLabel(p.verdict)
+      : repairOutcomeLabel(p.repairOutcome ?? '');
+    const monto = esReparacion ? p.repairCost : p.indemnifiableAmount;
+    const quien = esReparacion ? 'Servicio técnico' : 'Perito';
+    return monto != null
+      ? `${quien}: ${resultado} · ${this.formatMonto(monto)}`
+      : `${quien}: ${resultado}`;
+  }
+
+  protected resultadoDerivacionTone(p: Peritaje): StatusTone {
+    return p.verdict ? veredictoTone(p.verdict) : 'neutral';
+  }
+
+  /** Signals that pull toward a closer look, each one pointing at the tab with its evidence. */
+  protected readonly alertasDecision = computed<BriefAlert[]>(() => {
+    const alertas: BriefAlert[] = [];
+    const fallidas = this.hardRuleResults().filter((r) => r.result === 'FAIL').length;
+    if (fallidas > 0) {
+      alertas.push({
+        label: fallidas === 1 ? '1 regla no cumplida' : `${fallidas} reglas no cumplidas`,
+        tab: 'analisis',
+      });
+    }
+    if (this.hayCoincidenciasImagen()) {
+      alertas.push({ label: 'Imágenes con coincidencias', tab: 'imagenes' });
+    }
+    const previos = this.antecedentesPrevios().length;
+    if (previos > 0) {
+      alertas.push({
+        label: previos === 1 ? '1 antecedente de fraude' : `${previos} antecedentes de fraude`,
+        tab: 'asegurado',
+      });
+    }
+    if (this.unreadMessages() > 0) {
+      alertas.push({ label: 'Mensajes sin leer del asegurado', tab: 'conversacion' });
+    }
+    return alertas;
   });
 
   /**

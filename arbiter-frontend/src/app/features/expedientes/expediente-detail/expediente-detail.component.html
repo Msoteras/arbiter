@@ -71,7 +71,7 @@
                   criterios objetivos.
                 </p>
                 @if (fastTrackCriteria().length > 0) {
-                  <p class="note">Qué se verificó, en «Análisis» → Criterios del carril rápido.</p>
+                  <p class="note">Qué se verificó, en «Análisis» → Criterios de Fast Track.</p>
                 }
               }
             </div>
@@ -155,6 +155,57 @@
                 </p>
               }
             } @else if (canAct()) {
+              <!-- Lo que hay que tener a la vista para decidir, sin recorrer las solapas. Solo
+                   acerca evidencia que ya existe: no sugiere qué decidir. -->
+              <dl class="brief">
+                @if (plazoTexto(); as plazo) {
+                  <div class="brief-row">
+                    <dt class="t-field-label">Plazo legal</dt>
+                    <dd>
+                      @if (plazoTone() !== 'neutral') {
+                        <app-badge variant="solid" [tone]="plazoTone()">{{ plazo }}</app-badge>
+                      } @else {
+                        {{ plazo }}
+                      }
+                    </dd>
+                  </div>
+                }
+                @if (settlement(); as s) {
+                  <div class="brief-row">
+                    <dt class="t-field-label">Si aprobás</dt>
+                    <dd>
+                      <span class="tabular">{{ montoExacto(s.calculatedAmount) }}</span>
+                      @if (s.authorityLimit != null && s.calculatedAmount > s.authorityLimit) {
+                        <span class="brief-sub">Supera tu atribución: firma el referente</span>
+                      }
+                    </dd>
+                  </div>
+                }
+                @for (p of derivacionesRespondidas(); track p.id) {
+                  <div class="brief-row">
+                    <dt class="t-field-label">
+                      {{ p.providerType === 'SERVICIO_TECNICO' ? 'Respuesta' : 'Informe' }}
+                    </dt>
+                    <dd>
+                      <app-badge variant="solid" [tone]="resultadoDerivacionTone(p)">
+                        {{ resultadoDerivacion(p) }}
+                      </app-badge>
+                    </dd>
+                  </div>
+                }
+                @if (alertasDecision().length > 0) {
+                  <div class="brief-row">
+                    <dt class="t-field-label">Revisar</dt>
+                    <dd class="brief-alerts">
+                      @for (a of alertasDecision(); track a.tab) {
+                        <button type="button" class="brief-link" (click)="setTab(a.tab)">
+                          <span aria-hidden="true">▲</span> {{ a.label }}
+                        </button>
+                      }
+                    </dd>
+                  </div>
+                }
+              </dl>
               @if (liquidacionDevuelta() && settlement(); as s) {
                 <!-- Devuelta no es rechazada: el expediente sigue siendo suyo y puede volver a
                      determinar el monto. El motivo es lo único que tiene para saber qué corregir. -->
@@ -181,6 +232,21 @@
                 </div>
               } @else {
                 <p class="nodata">{{ decisionBlockedReason() }}</p>
+                <!-- El mensaje pide asignarse, así que la acción va acá mismo: antes el botón estaba
+                     solo en la card "Analista asignado", más abajo, y había que ir a buscarlo. -->
+                @if (!isAssigned() && canTake()) {
+                  <app-button
+                    variant="accent"
+                    [block]="true"
+                    [disabled]="assignSaving()"
+                    (click)="take()"
+                  >
+                    {{ assignSaving() ? 'Asignando…' : '+ Asignarme' }}
+                  </app-button>
+                  @if (assignError()) {
+                    <p class="rcard-note error">{{ assignError() }}</p>
+                  }
+                }
               }
               @if (puedeDerivar()) {
                 @if (sugerenciaDerivacion(); as sugerencia) {
@@ -499,7 +565,7 @@
                 @if (riskBreakdown().length > 0) {
                   <div class="risk-breakdown">
                     <span class="t-field-label">Cómo se compone el score</span>
-                    <table class="breakdown-table">
+                    <table class="traza-table breakdown-table">
                       <thead>
                         <tr>
                           <th>Factor</th>
@@ -605,7 +671,7 @@
                siniestro no esté cubierto, dice que no fue por el carril rápido. Mezclarlos hacía
                leer una exclusión donde solo hubo un umbral de agilidad. -->
             @if (fastTrackCriteria().length > 0) {
-              <app-card heading="Criterios del carril rápido (Fast Track)" [collapsible]="true">
+              <app-card heading="Criterios de Fast Track" [collapsible]="true">
                 <p class="t-note traza-intro">
                   @if (esFastTrack()) {
                     Los cumplió todos, así que se resolvió sin pasar por el modelo. No es una
@@ -791,6 +857,7 @@
             [caseId]="d.id"
             [reloadToken]="docsReloadToken()"
             [branch]="d.branch"
+            [claimCause]="d.claimCause"
             [extractions]="documentAnalyses()"
           />
         }
