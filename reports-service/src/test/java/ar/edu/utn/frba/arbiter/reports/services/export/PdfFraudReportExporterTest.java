@@ -92,6 +92,25 @@ class PdfFraudReportExporterTest {
                 "Ningún expediente con indicios en el período.");
     }
 
+    /** With claims in the period, "none flagged" is a finding, and it keeps its population. */
+    @Test
+    void anEmptyReportOverAPeriodWithClaims_statesHowManyItLookedAt() throws IOException {
+        Rendered pdf = render(septemberFraudReport(List.of(), null, null, 84));
+
+        assertThat(pdf.text()).contains("Total: Ninguna de las 84 denuncias del período con indicios");
+    }
+
+    /** Same figure the preview shows, which formats the rate with one decimal. */
+    @Test
+    void theRatesKeepOneDecimal() throws IOException {
+        Rendered pdf = render(septemberFraudReport(
+                List.of(flaggedRow(1), flaggedRow(2), unscoredRow(3)), null, null, 84));
+
+        assertThat(pdf.text()).contains(
+                "Total: 3 de 84 denuncias con indicios (3,6%)",
+                "Fraude determinado: 1 (1,2% del período");
+    }
+
     /**
      * A low score is not an alert, so the page says the score did not flag the case instead of
      * printing "Bajo" under a column headed "Alerta".

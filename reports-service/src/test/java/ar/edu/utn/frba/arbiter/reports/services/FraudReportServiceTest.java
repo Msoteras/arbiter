@@ -11,6 +11,7 @@ import ar.edu.utn.frba.arbiter.reports.dto.FraudSummary;
 import ar.edu.utn.frba.arbiter.reports.dto.ReportFormat;
 import ar.edu.utn.frba.arbiter.reports.exceptions.InvalidReportPeriodException;
 import ar.edu.utn.frba.arbiter.reports.exceptions.TenantNotResolvedException;
+import ar.edu.utn.frba.arbiter.reports.exceptions.UnknownBranchException;
 import ar.edu.utn.frba.arbiter.reports.models.repositories.FlaggedCaseRepository;
 import ar.edu.utn.frba.arbiter.reports.services.export.FraudReportExporter;
 import org.junit.jupiter.api.AfterEach;
@@ -115,6 +116,16 @@ class FraudReportServiceTest {
         assertThat(report.summary()).isEqualTo(FraudSummary.EMPTY);
     }
 
+    /** Filtering by a branch that doesn't exist would echo "Todos" over a report that matched nothing. */
+    @Test
+    void anUnknownBranch_isRejected_beforeRunningTheQuery() {
+        given(repository.findBranchName(99L)).willReturn(null);
+
+        assertThatThrownBy(() -> service.generate(SEP_1, SEP_30, 99L, null))
+                .isInstanceOf(UnknownBranchException.class);
+        verify(repository, never()).findFlaggedBetween(any(), any(), any(), any());
+    }
+
     @Test
     void withoutABranch_looksNoNameUp() {
         service.generate(SEP_1, SEP_30, null, null);
@@ -179,6 +190,8 @@ class FraudReportServiceTest {
      */
     @Test
     void theDenominator_followsTheBranchButNotTheAlertLevel() {
+        given(repository.findBranchName(7L)).willReturn("Celulares");
+
         service.generate(SEP_1, SEP_30, 7L, RiskBand.CRITICAL);
 
         verify(repository).countClaimsBetween(

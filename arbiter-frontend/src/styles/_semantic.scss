@@ -64,7 +64,12 @@
   --border-ai: var(--accent-soft-border);
 
   /* ===== Panel de marca (login / hero) ===== */
-  --brand-panel-bg: linear-gradient(160deg, var(--accent-strong) 0%, var(--accent-deep) 55%, var(--accent-deepest) 100%);
+  --brand-panel-bg: linear-gradient(
+    160deg,
+    var(--accent-strong) 0%,
+    var(--accent-deep) 55%,
+    var(--accent-deepest) 100%
+  );
   --brand-panel-fg: var(--c-on-ink);
 
   /* ===== Chrome de la app (topbar fija + panel de navegación, analista / referente) =====

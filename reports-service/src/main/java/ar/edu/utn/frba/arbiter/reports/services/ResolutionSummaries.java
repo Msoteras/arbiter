@@ -1,5 +1,6 @@
 package ar.edu.utn.frba.arbiter.reports.services;
 
+import ar.edu.utn.frba.arbiter.common.enums.CaseStatus;
 import ar.edu.utn.frba.arbiter.common.enums.Classification;
 import ar.edu.utn.frba.arbiter.reports.dto.MetricCount;
 import ar.edu.utn.frba.arbiter.reports.dto.ResolutionReportRow;
@@ -10,6 +11,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Function;
+import java.util.function.ToLongFunction;
 import java.util.stream.Collectors;
 
 /**
@@ -33,18 +35,33 @@ public final class ResolutionSummaries {
         long fastTrack = rows.stream()
                 .filter(row -> row.classification() == Classification.FAST_TRACK)
                 .count();
-        double averageMinutes = rows.stream()
-                .mapToLong(ResolutionReportRow::totalMinutes)
-                .average()
-                .orElseThrow();
+        // The times are averaged over the decided ones only, the same population the dashboard
+        // measures: a lapsed case wasn't resolved by anybody, it measured the insured's silence.
+        List<ResolutionReportRow> decided = rows.stream().filter(ResolutionSummaries::decided).toList();
 
         return new ResolutionSummary(
                 total,
-                averageMinutes,
+                decided.size(),
+                average(decided, ResolutionReportRow::totalMinutes),
+                average(decided, ResolutionReportRow::waitingMinutes),
                 fastTrack,
                 (double) fastTrack / total,
                 countBy(rows, row -> row.finalStatus().name()),
                 countBy(rows, ResolutionReportRow::claimCause));
+    }
+
+    /**
+     * Decided means an analyst pronounced on it. Same cut as the dashboard's
+     * {@code resolutionSplit}, which counts the cases that closed APPROVED or REJECTED.
+     */
+    private static boolean decided(ResolutionReportRow row) {
+        return row.finalStatus() == CaseStatus.APPROVED || row.finalStatus() == CaseStatus.REJECTED;
+    }
+
+    /** Null and not zero with nothing to average: an unknown average, not a zero one. */
+    private static Double average(List<ResolutionReportRow> rows,
+                                  ToLongFunction<ResolutionReportRow> minutes) {
+        return rows.isEmpty() ? null : rows.stream().mapToLong(minutes).average().orElseThrow();
     }
 
     /**

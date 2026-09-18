@@ -43,6 +43,18 @@ class ReportLabelsTest {
         assertThat(ReportLabels.percent(rate)).isEqualTo(expected);
     }
 
+    /** The fraud report's rates are small: a whole number would read 3,6% and 4,4% both as 4%. */
+    @ParameterizedTest
+    @CsvSource(value = {"0.0|0%", "0.15|15%", "0.142857|14,3%", "0.0357|3,6%", "1.0|100%"}, delimiter = '|')
+    void percentWithOneDecimal_usesADecimalCommaAndDropsATrailingZero(double rate, String expected) {
+        assertThat(ReportLabels.percentWithOneDecimal(rate)).isEqualTo(expected);
+    }
+
+    @Test
+    void percentWithOneDecimal_ofNothing_readsAsItsAbsence() {
+        assertThat(ReportLabels.percentWithOneDecimal(null)).isEqualTo("—");
+    }
+
     @Test
     void enumLiteralsReadInSpanish() {
         assertThat(ReportLabels.status(CaseStatus.LAPSED)).isEqualTo("Caducado");

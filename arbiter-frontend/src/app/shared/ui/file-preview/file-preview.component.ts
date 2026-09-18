@@ -10,7 +10,11 @@ import {
 } from '@angular/core';
 import { DomSanitizer, SafeResourceUrl } from '@angular/platform-browser';
 
-import { formatFileSize, isPreviewableImage, isPreviewablePdf } from '../../../core/models/case-document';
+import {
+  formatFileSize,
+  isPreviewableImage,
+  isPreviewablePdf,
+} from '../../../core/models/case-document';
 
 /**
  * Vista previa de un archivo que el usuario acaba de elegir, ANTES de subirlo.
@@ -32,7 +36,8 @@ import { formatFileSize, isPreviewableImage, isPreviewablePdf } from '../../../c
         [class.expandable]="canPreview()"
         [attr.aria-expanded]="canPreview() ? expanded() : null"
         [disabled]="!canPreview()"
-        (click)="toggle()">
+        (click)="toggle()"
+      >
         @if (isImage() && url()) {
           <img [src]="url()!" [alt]="file().name" />
         } @else {
@@ -60,9 +65,15 @@ import { formatFileSize, isPreviewableImage, isPreviewablePdf } from '../../../c
     }
   `,
   styles: `
-    :host { display: block; }
+    :host {
+      display: block;
+    }
 
-    .preview { display: flex; align-items: center; gap: var(--space-3); }
+    .preview {
+      display: flex;
+      align-items: center;
+      gap: var(--space-3);
+    }
 
     .thumb {
       flex-shrink: 0;
@@ -76,9 +87,18 @@ import { formatFileSize, isPreviewableImage, isPreviewablePdf } from '../../../c
       border-radius: var(--radius-ctl);
       background: var(--surface-sunken);
     }
-    .thumb.expandable { cursor: pointer; transition: border-color 0.1s, transform 0.1s; }
-    .thumb.expandable:hover { border-color: var(--border-strong); }
-    .thumb.expandable:active { transform: scale(0.96); }
+    .thumb.expandable {
+      cursor: pointer;
+      transition:
+        border-color 0.1s,
+        transform 0.1s;
+    }
+    .thumb.expandable:hover {
+      border-color: var(--border-strong);
+    }
+    .thumb.expandable:active {
+      transform: scale(0.96);
+    }
     .thumb img {
       width: 100%;
       height: 100%;
@@ -93,7 +113,12 @@ import { formatFileSize, isPreviewableImage, isPreviewablePdf } from '../../../c
       color: var(--text-muted);
     }
 
-    .meta { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+    .meta {
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+      min-width: 0;
+    }
     .name {
       font-size: var(--font-size-sm);
       font-family: var(--font-mono);
@@ -102,7 +127,11 @@ import { formatFileSize, isPreviewableImage, isPreviewablePdf } from '../../../c
       text-overflow: ellipsis;
       white-space: nowrap;
     }
-    .size { font-size: var(--font-size-xs); color: var(--text-muted); font-variant-numeric: tabular-nums; }
+    .size {
+      font-size: var(--font-size-xs);
+      color: var(--text-muted);
+      font-variant-numeric: tabular-nums;
+    }
 
     .toggle {
       align-self: flex-start;
@@ -114,7 +143,9 @@ import { formatFileSize, isPreviewableImage, isPreviewablePdf } from '../../../c
       font-size: var(--font-size-xs);
       color: var(--accent-blue);
     }
-    .toggle:hover { text-decoration: underline; }
+    .toggle:hover {
+      text-decoration: underline;
+    }
 
     .expanded {
       display: block;
@@ -124,7 +155,11 @@ import { formatFileSize, isPreviewableImage, isPreviewablePdf } from '../../../c
       border-radius: var(--radius-ctl);
       background: var(--surface-sunken);
     }
-    .expanded.image { display: grid; place-items: center; padding: var(--space-3); }
+    .expanded.image {
+      display: grid;
+      place-items: center;
+      padding: var(--space-3);
+    }
     /* Sin radio: el marco redondea 7px pero tiene 12px de padding, así que el borde de la
        imagen nunca toca la curva. Contorno negro puro al 10% — un neutro teñido se lee
        como suciedad en el borde. */
@@ -135,7 +170,9 @@ import { formatFileSize, isPreviewableImage, isPreviewablePdf } from '../../../c
       outline: 1px solid rgb(0 0 0 / 0.1);
       outline-offset: -1px;
     }
-    .expanded.pdf { height: 420px; }
+    .expanded.pdf {
+      height: 420px;
+    }
   `,
 })
 export class FilePreviewComponent {

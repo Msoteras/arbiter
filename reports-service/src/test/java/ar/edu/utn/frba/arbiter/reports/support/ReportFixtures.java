@@ -25,6 +25,9 @@ public final class ReportFixtures {
     /** Filed 01/08 07:00 and approved 03/08 09:30, Buenos Aires time: 2 d 2 h 30 min. */
     public static final long APPROVED_ROW_MINUTES = 2 * 24 * 60 + 150;
 
+    /** Of those, 8 h waiting on documents from the insured: not the insurer's own time. */
+    public static final long APPROVED_ROW_WAITING_MINUTES = 8 * 60;
+
     private ReportFixtures() {
     }
 
@@ -35,22 +38,22 @@ public final class ReportFixtures {
     public static ResolutionReportRow approvedRow(long caseId, String insuredName) {
         return new ResolutionReportRow(caseId, insuredName, "30.111.222", "Celulares", "Robo en vía pública",
                 Instant.parse("2026-08-01T10:00:00Z"), Instant.parse("2026-08-03T12:30:00Z"),
-                APPROVED_ROW_MINUTES, Classification.LLM_RECOMIENDA_APROBAR, "APPROVE", CaseStatus.APPROVED,
-                "Laura Gómez");
+                APPROVED_ROW_MINUTES, APPROVED_ROW_WAITING_MINUTES, Classification.LLM_RECOMIENDA_APROBAR,
+                "APPROVE", CaseStatus.APPROVED, "Laura Gómez");
     }
 
     /** Lapsed while waiting for documents: no model run, no decision, never assigned. */
     public static ResolutionReportRow lapsedRow(long caseId) {
         return new ResolutionReportRow(caseId, "Julián Díaz", "28.333.444", "Tecnología Portátil", "Hurto",
                 Instant.parse("2025-02-01T13:00:00Z"), Instant.parse("2026-08-02T13:00:00Z"),
-                790 * 24 * 60, null, null, CaseStatus.LAPSED, null);
+                790 * 24 * 60, 780 * 24 * 60, null, null, CaseStatus.LAPSED, null);
     }
 
     /** Resolved by the deterministic gate: the only rows that count towards the Fast Track share. */
     public static ResolutionReportRow fastTrackRow(long caseId) {
         return new ResolutionReportRow(caseId, "Marcos Ruiz", "33.555.666", "Celulares", "Hurto",
                 Instant.parse("2026-08-04T10:00:00Z"), Instant.parse("2026-08-04T12:00:00Z"),
-                120, Classification.FAST_TRACK, "APPROVE", CaseStatus.APPROVED, "Laura Gómez");
+                120, 0, Classification.FAST_TRACK, "APPROVE", CaseStatus.APPROVED, "Laura Gómez");
     }
 
     /** The summary always comes from the rows, so a fixture can't state a total its rows contradict. */

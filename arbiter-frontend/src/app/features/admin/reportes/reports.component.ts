@@ -20,15 +20,15 @@ import { ReportFiltersStore } from './report-filters.store';
 @Component({
   selector: 'app-reports',
   imports: [RouterLink, RouterLinkActive, RouterOutlet],
-  // Acá y no en la ruta: los tabs lo toman del inyector de este componente (el router-outlet
-  // encadena con él), así el store se crea y se descarta con la pantalla de reportes.
+  // Here and not on the route: the tabs get it from this component's injector (the router-outlet
+  // chains to it), so the store is created and discarded with the reports screen.
   providers: [ReportFiltersStore],
   changeDetection: ChangeDetectionStrategy.OnPush,
   templateUrl: './reports.component.html',
   styleUrl: './reports.component.scss',
 })
 export class ReportsComponent {
-  private readonly filters = inject(ReportFiltersStore);
+  protected readonly filters = inject(ReportFiltersStore);
   private readonly route = inject(ActivatedRoute);
   private readonly router = inject(Router);
 

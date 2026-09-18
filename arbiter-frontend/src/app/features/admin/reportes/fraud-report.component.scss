@@ -1,77 +1,43 @@
-/* La rejilla .params y .field viven en report-params.scss, compartidas con app-report-filters. */
-
-.reportes { display: flex; flex-direction: column; gap: var(--space-3); }
-
-.rep-hint { margin: 0 0 var(--space-4); color: var(--text-secondary); font-size: var(--font-size-sm); }
-
-.form-error {
-  margin: var(--space-3) 0 0;
-  color: var(--status-danger);
-  font-size: var(--font-size-sm);
-}
-
-.actions {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--space-3);
-  margin-top: var(--space-4);
-}
-.export { display: flex; align-items: center; gap: var(--space-2); }
-
-/* ===== Preview ===== */
-.summary {
-  margin: 0 0 var(--space-5);
-  padding-bottom: var(--space-5);
-  border-bottom: 1px solid var(--border-subtle);
-}
+/* Shared bits in report-tab.scss and report-params.scss; here only what this tab has of its own. */
 
 .figures {
-  display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: var(--space-3);
-  margin: 0 0 var(--space-4);
 }
 
-.distribution {
-  padding: var(--space-4);
-  border: 1px solid var(--border-subtle);
-  border-radius: var(--radius-card);
-  background: var(--surface-soft);
+.distribution-note {
+  margin: var(--space-3) 0 0;
+  color: var(--text-muted);
 }
-.distribution h3 { margin: 0 0 var(--space-3); color: var(--text-secondary); }
 
-/* El gauge necesita un ancho mínimo para que los 4 segmentos se distingan. */
-.gauge-cell { min-width: 120px; }
+/* The gauge needs a minimum width for its 4 segments to stay distinguishable. */
+.gauge-cell {
+  min-width: calc(var(--space-7) * 3);
+}
 
-/* Los indicadores son una lista, no una frase: el analista los cuenta y los compara entre filas. */
+/* The indicators are a list, not a sentence: the analyst counts them and compares them across rows. */
 .indicators {
   margin: 0;
   padding-left: var(--space-4);
   font-size: var(--font-size-sm);
   color: var(--text-secondary);
 }
-.indicators li + li { margin-top: var(--space-1); }
-.indicators + app-badge { display: inline-block; margin-top: var(--space-2); }
-
-.sub { display: block; margin-top: var(--space-1); font-size: var(--font-size-xs); color: var(--text-muted); }
-.case-link {
-  color: var(--text-primary);
-  font-weight: var(--font-weight-medium);
-  text-decoration: none;
+.indicators li + li {
+  margin-top: var(--space-1);
 }
-.case-link:hover { text-decoration: underline; }
+.indicators + app-badge {
+  display: inline-block;
+  margin-top: var(--space-2);
+}
 
-app-pagination { display: block; margin-top: var(--space-3); }
-
-/* Cuatro cifras no entran en una notebook angosta sin que el número quede pegado al borde. */
+/* Four figures don't fit a narrow laptop without the number touching the edge. */
 @media (max-width: 1100px) {
-  .figures { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .figures {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
 }
 
 @media (max-width: 480px) {
-  .figures { grid-template-columns: minmax(0, 1fr); }
-  .actions { flex-direction: column; align-items: stretch; }
-  .export { justify-content: space-between; }
+  .figures {
+    grid-template-columns: minmax(0, 1fr);
+  }
 }

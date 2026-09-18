@@ -6,7 +6,9 @@
   @if (loading()) {
     <app-inline-loading message="Cargando liquidaciones pendientes…" />
   } @else if (error()) {
-    <app-card><p class="t-note">{{ error() }}</p></app-card>
+    <app-card
+      ><p class="t-note">{{ error() }}</p></app-card
+    >
   } @else if (pending().length === 0) {
     <app-empty-state
       message="Cuando un analista determine un monto por encima del tope de su ramo, va a aparecer acá."

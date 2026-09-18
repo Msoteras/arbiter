@@ -48,12 +48,43 @@ class PdfResolutionReportExporterTest {
     void writesTheSummaryAboveTheTable() throws IOException {
         Rendered pdf = render(List.of(approvedRow(1), fastTrackRow(2), lapsedRow(3)));
 
+        // The average is over the 2 decided ones — the lapsed case is listed but not averaged — and
+        // it splits the insurer's own time from the wait on a third party, same as the dashboard.
         assertThat(pdf.text()).contains(
                 "Total: 3 siniestros resueltos",
-                "Tiempo promedio de resolución:",
+                "Tiempo promedio de resolución: 1 d 2 h sobre 2 decididos "
+                        + "(22 h 15 min de gestión · 4 h esperando a terceros)",
                 "Fast Track: 1 (33%)",
                 "Por estado: Aprobado 2 · Caducado 1",
                 "Por tipo de siniestro: Hurto 2 · Robo en vía pública 1");
+    }
+
+    /**
+     * A heading line longer than the page wraps instead of being cut: the distribution is something
+     * an auditor reads in full, with no screen to go and find the hidden half.
+     */
+    @Test
+    void aLongDistributionWrapsInsteadOfBeingCut() throws IOException {
+        List<ResolutionReportRow> rows = LongStream.rangeClosed(1, 12)
+                .mapToObj(id -> withClaimCause(approvedRow(id),
+                        "Daño por granizo sobre el bien asegurado número " + id))
+                .toList();
+
+        Rendered pdf = render(rows);
+
+        // The table cuts this column, so the full names can only come from the wrapped heading.
+        // Whitespace normalized: where a line breaks is the layout's business, not the test's.
+        String text = pdf.text().replaceAll("\\s+", " ");
+        LongStream.rangeClosed(1, 12).forEach(id ->
+                assertThat(text).contains("Daño por granizo sobre el bien asegurado número " + id + " 1"));
+    }
+
+    /** Nobody decided anything in the period: no average, rather than one over the lapsed ones. */
+    @Test
+    void withOnlyLapsedCases_saysThereIsNoAverage() throws IOException {
+        Rendered pdf = render(List.of(lapsedRow(1)));
+
+        assertThat(pdf.text()).contains("Ningún expediente decidido: sin tiempo promedio");
     }
 
     /** An empty report still has to say what it looked for, or it can't be told from any other. */
@@ -97,6 +128,12 @@ class PdfResolutionReportExporterTest {
         try (PDDocument document = Loader.loadPDF(bytes)) {
             return new Rendered(document.getNumberOfPages(), new PDFTextStripper().getText(document));
         }
+    }
+
+    private static ResolutionReportRow withClaimCause(ResolutionReportRow row, String claimCause) {
+        return new ResolutionReportRow(row.caseId(), row.insuredName(), row.insuredDni(), row.branch(),
+                claimCause, row.reportedAt(), row.resolvedAt(), row.totalMinutes(), row.waitingMinutes(),
+                row.classification(), row.analystDecision(), row.finalStatus(), row.analystName());
     }
 
     private record Rendered(int pages, String text) {}

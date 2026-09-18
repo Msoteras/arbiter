@@ -18,7 +18,8 @@ public class CsvResolutionReportExporter implements ResolutionReportExporter {
 
     private static final List<String> HEADER = List.of(
             "Nº expediente", "Asegurado", "DNI", "Ramo", "Hecho generador", "Fecha de denuncia",
-            "Fecha de resolución", "Tiempo total (horas)", "Clasificación", "Decisión del analista",
+            "Fecha de resolución", "Tiempo total (horas)", "Tiempo esperando a terceros (horas)",
+            "Clasificación", "Decisión del analista",
             "Estado final", "Analista");
 
     private final Clock clock;
@@ -43,6 +44,7 @@ public class CsvResolutionReportExporter implements ResolutionReportExporter {
                     dateTime.format(row.reportedAt()),
                     dateTime.format(row.resolvedAt()),
                     ReportLabels.hours(row.totalMinutes()),
+                    ReportLabels.hours(row.waitingMinutes()),
                     ReportLabels.classification(row.classification()),
                     ReportLabels.decision(row.analystDecision()),
                     ReportLabels.status(row.finalStatus()),

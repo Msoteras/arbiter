@@ -149,7 +149,10 @@ describe('trazabilidad', () => {
         'Presente: Denuncia policial',
       );
       expect(
-        ruleEvaluationText('FT_REQUIRED_DOCS', 'required=police_report,item_photo missing=item_photo'),
+        ruleEvaluationText(
+          'FT_REQUIRED_DOCS',
+          'required=police_report,item_photo missing=item_photo',
+        ),
       ).toBe('Falta: Foto del bien');
     });
 

@@ -79,8 +79,16 @@ public class PdfFraudReportExporter implements FraudReportExporter {
     }
 
     private static List<String> summaryLines(FraudSummary summary) {
-        if (summary.flagged() == 0) {
+        if (summary.totalClaims() == 0) {
             return List.of();
+        }
+        if (summary.flagged() == 0) {
+            // With claims in the period, "none of them" is the finding, and it needs its population
+            // as much as any other rate does.
+            return List.of("%sNinguna de las %d %s del período con indicios".formatted(
+                    PdfReportWriter.TOTALS_LABEL,
+                    summary.totalClaims(),
+                    summary.totalClaims() == 1 ? "denuncia" : "denuncias"));
         }
         return List.of(
                 // The denominator travels with every rate: a share with no population behind it is
@@ -92,10 +100,10 @@ public class PdfFraudReportExporter implements FraudReportExporter {
                                 summary.flagged(),
                                 summary.totalClaims(),
                                 summary.totalClaims() == 1 ? "denuncia" : "denuncias",
-                                ReportLabels.percent(summary.flaggedRate()),
+                                ReportLabels.percentWithOneDecimal(summary.flaggedRate()),
                                 summary.multiSignal(),
                                 summary.fraudDetermined(),
-                                ReportLabels.percent(summary.fraudRate()),
+                                ReportLabels.percentWithOneDecimal(summary.fraudRate()),
                                 summary.backedByExpert()),
                 "Por nivel de alerta: " + distribution(summary.byAlertLevel(),
                         count -> ReportLabels.alertLevel(count.label())),

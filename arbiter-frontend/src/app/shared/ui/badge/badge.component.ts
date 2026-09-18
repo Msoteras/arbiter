@@ -39,9 +39,21 @@ type Variant = 'solid' | 'strong' | 'dashed';
       line-height: 1.4;
       white-space: nowrap;
     }
-    .badge.solid { border: 1px solid var(--border-control); background: var(--surface-head); color: var(--text-secondary); }
-    .badge.strong { border: 1px solid var(--text-tertiary); background: var(--surface-head); color: var(--text-primary); font-weight: var(--font-weight-medium); }
-    .badge.dashed { border: 1px dashed var(--border-strong); color: var(--text-muted); }
+    .badge.solid {
+      border: 1px solid var(--border-control);
+      background: var(--surface-head);
+      color: var(--text-secondary);
+    }
+    .badge.strong {
+      border: 1px solid var(--text-tertiary);
+      background: var(--surface-head);
+      color: var(--text-primary);
+      font-weight: var(--font-weight-medium);
+    }
+    .badge.dashed {
+      border: 1px dashed var(--border-strong);
+      color: var(--text-muted);
+    }
 
     /* Punto de semáforo: única pieza con color, alineado con el texto. */
     .dot {
@@ -52,11 +64,21 @@ type Variant = 'solid' | 'strong' | 'dashed';
       border-radius: var(--radius-pill);
       vertical-align: middle;
     }
-    .badge[data-tone='ok'] .dot { background: var(--status-ok); }
-    .badge[data-tone='warning'] .dot { background: var(--status-warning); }
-    .badge[data-tone='risk'] .dot { background: var(--status-risk); }
-    .badge[data-tone='danger'] .dot { background: var(--status-danger); }
-    .badge[data-tone='info'] .dot { background: var(--status-info); }
+    .badge[data-tone='ok'] .dot {
+      background: var(--status-ok);
+    }
+    .badge[data-tone='warning'] .dot {
+      background: var(--status-warning);
+    }
+    .badge[data-tone='risk'] .dot {
+      background: var(--status-risk);
+    }
+    .badge[data-tone='danger'] .dot {
+      background: var(--status-danger);
+    }
+    .badge[data-tone='info'] .dot {
+      background: var(--status-info);
+    }
   `,
 })
 export class BadgeComponent {

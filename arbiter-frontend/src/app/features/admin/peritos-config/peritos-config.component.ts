@@ -156,9 +156,10 @@ export class PeritosConfigComponent {
     };
     this.saving.set(true);
     this.error.set(null);
-    const call = d.id == null
-      ? this.peritosService.create(request)
-      : this.peritosService.update(d.id, request);
+    const call =
+      d.id == null
+        ? this.peritosService.create(request)
+        : this.peritosService.update(d.id, request);
     call.subscribe({
       next: () => {
         this.saving.set(false);

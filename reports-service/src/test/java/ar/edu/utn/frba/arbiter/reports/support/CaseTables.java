@@ -17,6 +17,8 @@ import java.time.Instant;
 public final class CaseTables {
 
     public static final long PENDING_REVIEW = 2;
+    /** One of CaseStatus.pausingTheTerm(): the case is waiting on somebody outside the insurer. */
+    public static final long AWAITING_DOCUMENTATION = 3;
     public static final long APPROVED = 5;
     public static final long REJECTED = 6;
     public static final long LAPSED = 8;
@@ -152,7 +154,8 @@ public final class CaseTables {
                 """);
         jdbcTemplate.execute("""
                 INSERT INTO case_status (id, name, is_final) VALUES
-                    (2, 'PENDING_ANALYST_REVIEW', FALSE), (5, 'APPROVED', TRUE),
+                    (2, 'PENDING_ANALYST_REVIEW', FALSE), (3, 'AWAITING_DOCUMENTATION', FALSE),
+                    (5, 'APPROVED', TRUE),
                     (6, 'REJECTED', TRUE), (8, 'LAPSED', TRUE);
                 INSERT INTO branch (id, name) VALUES (1, 'Celulares'), (2, 'Tecnología Portátil');
                 INSERT INTO claim_cause (id, name, branch_id) VALUES

@@ -1,13 +1,22 @@
+import { registerLocaleData } from '@angular/common';
+import localeEsAr from '@angular/common/locales/es-AR';
+import { LOCALE_ID } from '@angular/core';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { provideNoopAnimations } from '@angular/platform-browser/animations';
-import { provideRouter } from '@angular/router';
-import { of } from 'rxjs';
+import { ActivatedRoute, convertToParamMap, provideRouter } from '@angular/router';
+import { Subject, of } from 'rxjs';
 
 import { ExpedienteService } from '../../expedientes/expediente.service';
 import { BranchesService } from '../branches.service';
 import { ReportFiltersStore } from './report-filters.store';
 import { ResolutionReportComponent } from './resolution-report.component';
-import { ResolutionReport, decisionLabel, formatDuration, periodError } from './resolution-report';
+import {
+  ResolutionReport,
+  decisionLabel,
+  formatDuration,
+  periodError,
+  waitingBreakdown,
+} from './resolution-report';
 import { ResolutionReportService } from './resolution-report.service';
 
 describe('resolution report helpers', () => {
@@ -17,6 +26,28 @@ describe('resolution report helpers', () => {
     expect(formatDuration(200)).toBe('3 h 20 min');
     expect(formatDuration(1440)).toBe('1 d');
     expect(formatDuration(3030)).toBe('2 d 2 h');
+  });
+
+  /** The summary's average is a fraction; the PDF rounds it, and the screen has to say the same. */
+  it('rounds a fractional average instead of printing its decimals', () => {
+    expect(formatDuration(45.4)).toBe('45 min');
+    expect(formatDuration(200.333)).toBe('3 h 20 min');
+    expect(formatDuration(59.6)).toBe('1 h');
+  });
+
+  /** Same split and the same wording the dashboard uses under its own average. */
+  it('splits the average into the insurer own time and the wait on a third party', () => {
+    const summary = { averageMinutes: 3030, averageWaitingMinutes: 600 } as never;
+
+    expect(waitingBreakdown(summary)).toBe('1 d 16 h de gestión · 10 h esperando a terceros');
+  });
+
+  /** Under an hour it isn't a wait, it's a case passing through a status while somebody moved it. */
+  it('says nothing about a wait of minutes, or about an unknown average', () => {
+    expect(waitingBreakdown({ averageMinutes: 3030, averageWaitingMinutes: 12 } as never)).toBe('');
+    expect(waitingBreakdown({ averageMinutes: null, averageWaitingMinutes: null } as never)).toBe(
+      '',
+    );
   });
 
   it('labels both spellings of a decision, and only a missing one as absent', () => {
@@ -37,6 +68,7 @@ describe('resolution report helpers', () => {
 });
 
 describe('ResolutionReportComponent', () => {
+  registerLocaleData(localeEsAr);
   let fixture: ComponentFixture<ResolutionReportComponent>;
 
   const report: ResolutionReport = {
@@ -47,7 +79,9 @@ describe('ResolutionReportComponent', () => {
     generatedAt: '2026-09-11T15:00:00Z',
     summary: {
       totalCases: 4,
+      decidedCases: 3,
       averageMinutes: 3030,
+      averageWaitingMinutes: 600,
       fastTrackCases: 1,
       fastTrackRate: 0.25,
       byStatus: [
@@ -66,6 +100,7 @@ describe('ResolutionReportComponent', () => {
         reportedAt: '2026-08-01T10:00:00Z',
         resolvedAt: '2026-08-03T12:30:00Z',
         totalMinutes: 3030,
+        waitingMinutes: 600,
         classification: 'LLM_RECOMIENDA_APROBAR',
         analystDecision: 'APPROVE',
         finalStatus: 'APPROVED',
@@ -81,11 +116,14 @@ describe('ResolutionReportComponent', () => {
 
   beforeEach(async () => {
     reportService.preview.calls.reset();
+    reportService.preview.and.returnValue(of(report));
     await TestBed.configureTestingModule({
       imports: [ResolutionReportComponent],
       providers: [
         provideNoopAnimations(),
         provideRouter([]),
+        // The app runs in es-AR (app.config); TestBed doesn't read that config.
+        { provide: LOCALE_ID, useValue: 'es-AR' },
         ReportFiltersStore,
         { provide: ResolutionReportService, useValue: reportService },
         { provide: ExpedienteService, useValue: { claimCauseNames: () => of(['Hurto']) } },
@@ -117,6 +155,15 @@ describe('ResolutionReportComponent', () => {
     expect(text).not.toContain('LLM_RECOMIENDA_APROBAR');
   });
 
+  /** The average covers the decided ones only, so the screen says which ones those are. */
+  it('shows the population of the average and how it splits', () => {
+    click('Ver vista previa');
+
+    const text = (fixture.nativeElement as HTMLElement).textContent!.replace(/\s+/g, ' ');
+    expect(text).toContain('3 decididos · 1 caducados');
+    expect(text).toContain('de gestión · 10 h esperando a terceros');
+  });
+
   /** H0019: the four figures, taken from the backend rather than added up on screen. */
   it('shows the totals of the period, with the statuses labelled in Spanish', () => {
     click('Ver vista previa');
@@ -124,11 +171,28 @@ describe('ResolutionReportComponent', () => {
     const text = (fixture.nativeElement as HTMLElement).textContent ?? '';
     expect(text).toContain('Expedientes resueltos');
     expect(text).toContain('Tiempo promedio de resolución');
-    // 0.25 through the percent pipe, next to the count it came from.
+    // 0.25 through the rate pipe: es-AR decimal comma, no space before the sign.
     expect(text).toContain('25%');
     expect(text).toContain('1 de 4');
     expect(text).toContain('Caducado');
     expect(text).not.toContain('LAPSED');
+  });
+
+  /** The response of a request whose filters already changed must not land under the new ones. */
+  it('drops a preview still in flight when a filter changes', () => {
+    const response = new Subject<ResolutionReport>();
+    reportService.preview.and.returnValue(response);
+
+    click('Ver vista previa');
+    TestBed.inject(ReportFiltersStore).from.set('2026-08-05');
+    fixture.detectChanges();
+    response.next(report);
+    fixture.detectChanges();
+
+    const text = (fixture.nativeElement as HTMLElement).textContent ?? '';
+    expect(text).not.toContain('Ana Pérez');
+    expect(text).toContain('Todavía no hay vista previa');
+    reportService.preview.and.returnValue(of(report));
   });
 
   it('sends the branch filter to the backend', () => {
@@ -146,5 +210,89 @@ describe('ResolutionReportComponent', () => {
     expect(reportService.preview).toHaveBeenCalledWith(
       jasmine.objectContaining({ branchId: null }),
     );
+  });
+});
+
+describe('ResolutionReportComponent opened from a link', () => {
+  const report = {
+    from: '2026-08-01',
+    to: '2026-08-31',
+    branch: 'Celulares',
+    claimCause: 'Hurto',
+    generatedAt: '2026-09-11T15:00:00Z',
+    summary: {
+      totalCases: 0,
+      decidedCases: 0,
+      averageMinutes: null,
+      averageWaitingMinutes: null,
+      fastTrackCases: 0,
+      fastTrackRate: null,
+      byStatus: [],
+      byClaimCause: [],
+    },
+    rows: [],
+  } satisfies ResolutionReport;
+
+  function open(query: Record<string, string>, causes: string[] = ['Hurto']) {
+    const preview = jasmine.createSpy('preview').and.returnValue(of(report));
+    TestBed.configureTestingModule({
+      imports: [ResolutionReportComponent],
+      providers: [
+        provideNoopAnimations(),
+        provideRouter([]),
+        {
+          provide: ActivatedRoute,
+          useValue: { snapshot: { queryParamMap: convertToParamMap(query) } },
+        },
+        ReportFiltersStore,
+        { provide: ResolutionReportService, useValue: { preview, export: jasmine.createSpy() } },
+        { provide: ExpedienteService, useValue: { claimCauseNames: () => of(causes) } },
+        { provide: BranchesService, useValue: { list: () => of([{ id: 1, name: 'Celulares' }]) } },
+      ],
+    });
+    // The shell hydrates the store before the tab is created.
+    TestBed.inject(ReportFiltersStore).hydrate(convertToParamMap(query));
+    const fixture = TestBed.createComponent(ResolutionReportComponent);
+    fixture.detectChanges();
+    return { fixture, preview };
+  }
+
+  it('previews right away, with the claim cause the link carried', () => {
+    const { fixture, preview } = open({
+      from: '2026-08-01',
+      to: '2026-08-31',
+      branchId: '1',
+      claimCause: 'Hurto',
+    });
+
+    expect(preview).toHaveBeenCalledOnceWith(
+      jasmine.objectContaining({ from: '2026-08-01', branchId: 1, claimCause: 'Hurto' }),
+    );
+    // The filters as the backend applied them, above the result.
+    const text = (fixture.nativeElement as HTMLElement).textContent!.replace(/\s+/g, ' ');
+    expect(text).toContain('Ramo: Celulares · Tipo de siniestro: Hurto');
+  });
+
+  it('writes its own filter into the link the shell builds', () => {
+    open({ from: '2026-08-01', to: '2026-08-31', claimCause: 'Hurto' });
+
+    expect(TestBed.inject(ReportFiltersStore).asQueryParams()).toEqual(
+      jasmine.objectContaining({ claimCause: 'Hurto' }),
+    );
+  });
+
+  it('waits for a click when the link names no period', () => {
+    const { preview } = open({});
+
+    expect(preview).not.toHaveBeenCalled();
+  });
+
+  /** A cause the catalog doesn't list still shows as selected, not as "Todos". */
+  it('keeps a linked claim cause the catalog does not list visible in the select', () => {
+    const { fixture } = open({ from: '2026-08-01', to: '2026-08-31', claimCause: 'Granizo' }, []);
+
+    expect(fixture.componentInstance['claimCauseOptions']()).toEqual([
+      { value: 'Granizo', label: 'Granizo' },
+    ]);
   });
 });

@@ -141,6 +141,22 @@ final class ReportLabels {
         return rate == null ? "—" : Math.round(rate * 100) + "%";
     }
 
+    /**
+     * A rate with at most one decimal and a decimal comma — "14,3%", "15%". The fraud report's rates
+     * are small, so a whole number would flatten them ("3,6%" and "4,4%" both read "4%"), and it is
+     * also what its preview shows: the screen and the file must state the same figure.
+     */
+    static String percentWithOneDecimal(Double rate) {
+        if (rate == null) {
+            return "—";
+        }
+        return BigDecimal.valueOf(rate * 100)
+                .setScale(1, RoundingMode.HALF_UP)
+                .stripTrailingZeros()
+                .toPlainString()
+                .replace('.', ',') + "%";
+    }
+
     /** "45 min", "3 h 20 min", "2 d 5 h" — the same format the preview table shows. */
     static String duration(long minutes) {
         if (minutes < MINUTES_PER_HOUR) {

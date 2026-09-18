@@ -13,6 +13,7 @@ import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.time.Instant;
 import java.time.ZoneId;
+import java.util.ArrayList;
 import java.util.List;
 
 /**
@@ -127,10 +128,14 @@ final class PdfReportWriter {
         float y = top - TITLE_SIZE;
         text(content, bold, TITLE_SIZE, INK, MARGIN, y, spec.title());
 
+        // Wrapped, not cut: a heading line is a filter or a total, and an auditor reading the file
+        // has no screen to go and find the half the ellipsis hid.
         for (String line : spec.headingLines()) {
-            y -= META_SIZE + 4;
-            text(content, line.startsWith(TOTALS_LABEL) ? bold : regular, META_SIZE, INK, MARGIN, y,
-                    fit(line, regular, META_SIZE, spec.tableWidth()));
+            PDFont font = line.startsWith(TOTALS_LABEL) ? bold : regular;
+            for (String part : wrap(line, font, META_SIZE, spec.tableWidth())) {
+                y -= META_SIZE + 4;
+                text(content, font, META_SIZE, INK, MARGIN, y, part);
+            }
         }
 
         y -= META_SIZE + 4;
@@ -213,6 +218,26 @@ final class PdfReportWriter {
             text = text.substring(0, text.length() - 1);
         }
         return text + ELLIPSIS;
+    }
+
+    /** Breaks the text at spaces so every line fits; a single word too long for it is cut. */
+    private static List<String> wrap(String value, PDFont font, float size, float maxWidth)
+            throws IOException {
+        List<String> lines = new ArrayList<>();
+        StringBuilder line = new StringBuilder();
+        for (String word : printable(value, font).split(" ")) {
+            String candidate = line.isEmpty() ? word : line + " " + word;
+            if (line.isEmpty() || width(candidate, font, size) <= maxWidth) {
+                line.setLength(0);
+                line.append(candidate);
+            } else {
+                lines.add(fit(line.toString(), font, size, maxWidth));
+                line.setLength(0);
+                line.append(word);
+            }
+        }
+        lines.add(fit(line.toString(), font, size, maxWidth));
+        return lines;
     }
 
     private static float width(String text, PDFont font, float size) throws IOException {

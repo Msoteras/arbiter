@@ -8,6 +8,7 @@ import ar.edu.utn.frba.arbiter.reports.dto.FraudReportRow;
 import ar.edu.utn.frba.arbiter.reports.dto.ReportFormat;
 import ar.edu.utn.frba.arbiter.reports.exceptions.InvalidReportPeriodException;
 import ar.edu.utn.frba.arbiter.reports.exceptions.TenantNotResolvedException;
+import ar.edu.utn.frba.arbiter.reports.exceptions.UnknownBranchException;
 import ar.edu.utn.frba.arbiter.reports.models.repositories.FlaggedCaseRepository;
 import ar.edu.utn.frba.arbiter.reports.services.export.FraudReportExporter;
 import lombok.RequiredArgsConstructor;
@@ -65,6 +66,7 @@ public class FraudReportService {
             throw new TenantNotResolvedException();
         }
         validatePeriod(from, to);
+        String branch = branchName(branchId);
 
         // Whole calendar days in the insurer's local time, both ends included: "hasta el 30/09"
         // means up to the last second of that day, so the upper bound is the next midnight,
@@ -81,7 +83,7 @@ public class FraudReportService {
         // The denominator of the rates: every claim of the period and branch, flagged or not.
         long totalClaims = flaggedCaseRepository.countClaimsBetween(start, end, branchId);
 
-        return new FraudReport(from, to, branchName(branchId), riskBand, clock.instant(),
+        return new FraudReport(from, to, branch, riskBand, clock.instant(),
                 FraudSummaries.of(rows, totalClaims), rows);
     }
 
@@ -96,10 +98,17 @@ public class FraudReportService {
     /**
      * Resolved from the catalog and not from the rows: with a filter that matched nothing there is
      * no row to take it from, and that is precisely the report that most needs to say which branch
-     * it looked at.
+     * it looked at. Looked up before the query, so an unknown branch fails without running it.
      */
     private String branchName(Long branchId) {
-        return branchId == null ? null : flaggedCaseRepository.findBranchName(branchId);
+        if (branchId == null) {
+            return null;
+        }
+        String name = flaggedCaseRepository.findBranchName(branchId);
+        if (name == null) {
+            throw new UnknownBranchException(branchId);
+        }
+        return name;
     }
 
     /** 2 for CRITICAL, 1 for HIGH, 0 for every band that doesn't alert and for no band at all. */

@@ -7,6 +7,7 @@ import ar.edu.utn.frba.arbiter.reports.dto.ResolutionReport;
 import ar.edu.utn.frba.arbiter.reports.dto.ResolutionReportRow;
 import ar.edu.utn.frba.arbiter.reports.exceptions.InvalidReportPeriodException;
 import ar.edu.utn.frba.arbiter.reports.exceptions.TenantNotResolvedException;
+import ar.edu.utn.frba.arbiter.reports.exceptions.UnknownBranchException;
 import ar.edu.utn.frba.arbiter.reports.models.repositories.ResolvedCaseRepository;
 import ar.edu.utn.frba.arbiter.reports.services.export.ResolutionReportExporter;
 import lombok.RequiredArgsConstructor;
@@ -43,6 +44,7 @@ public class ResolutionReportService {
         }
         validatePeriod(from, to);
         String cause = claimCause == null || claimCause.isBlank() ? null : claimCause.strip();
+        String branch = branchName(branchId);
 
         // Whole calendar days in the insurer's local time, both ends included: "hasta el 31/08"
         // means up to the last second of that day, so the upper bound is the next midnight,
@@ -53,7 +55,7 @@ public class ResolutionReportService {
                 to.plusDays(1).atStartOfDay(zone).toInstant(),
                 branchId,
                 cause);
-        return new ResolutionReport(from, to, branchName(branchId), cause, clock.instant(),
+        return new ResolutionReport(from, to, branch, cause, clock.instant(),
                 ResolutionSummaries.of(rows), rows);
     }
 
@@ -68,10 +70,17 @@ public class ResolutionReportService {
     /**
      * Resolved from the catalog and not from the rows: with a filter that matched nothing there is
      * no row to take it from, and that is precisely the report that most needs to say which branch
-     * it looked at.
+     * it looked at. Looked up before the query, so an unknown branch fails without running it.
      */
     private String branchName(Long branchId) {
-        return branchId == null ? null : resolvedCaseRepository.findBranchName(branchId);
+        if (branchId == null) {
+            return null;
+        }
+        String name = resolvedCaseRepository.findBranchName(branchId);
+        if (name == null) {
+            throw new UnknownBranchException(branchId);
+        }
+        return name;
     }
 
     private static void validatePeriod(LocalDate from, LocalDate to) {

@@ -1,7 +1,7 @@
-import { PercentPipe } from '@angular/common';
 import { ChangeDetectionStrategy, Component, computed, input } from '@angular/core';
 
 import { StatusTone } from '../../../core/models/status-tone';
+import { RatePipe } from '../../pipes/rate.pipe';
 
 /** Una categoría de la distribución, con su color del semáforo ya resuelto por el dominio. */
 export interface DistributionItem {
@@ -31,27 +31,29 @@ export interface DistributionItem {
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <div class="dist">
-      <div
-        class="stack"
-        role="img"
-        [attr.aria-label]="summary()"
-      >
-        @for (slice of slices(); track slice.label) {
-          <span
-            class="slice tone-{{ slice.tone }}"
-            [style.width.%]="slice.share * 100"
-            [class.faded]="slice.faded"
-          ></span>
-        }
-      </div>
+      @if (total() === null) {
+        <div class="stack" role="img" [attr.aria-label]="summary()">
+          @for (slice of slices(); track slice.label) {
+            <span
+              class="slice tone-{{ slice.tone }}"
+              [style.width.%]="slice.share * 100"
+              [class.faded]="slice.faded"
+            ></span>
+          }
+        </div>
+      }
 
       <ul class="legend">
         @for (slice of slices(); track slice.label) {
           <li>
-            <span class="dot tone-{{ slice.tone }}" [class.faded]="slice.faded" aria-hidden="true"></span>
+            <span
+              class="dot tone-{{ slice.tone }}"
+              [class.faded]="slice.faded"
+              aria-hidden="true"
+            ></span>
             <span class="name">{{ slice.label }}</span>
             <span class="count tabular">{{ slice.count }}</span>
-            <span class="share tabular">{{ slice.share | percent: '1.0-0' }}</span>
+            <span class="share tabular">{{ slice.share | rate }}</span>
           </li>
         }
       </ul>
@@ -75,12 +77,15 @@ export interface DistributionItem {
     }
     /* Dos categorías pueden caer en el mismo tono del semáforo. En vez de inventar un color que el
        design system no tiene, la repetición se atenúa: mismo color, misma familia, distinguible. */
+    .stack + .legend {
+      margin-top: var(--space-4);
+    }
     .slice.faded,
     .dot.faded {
       opacity: 0.5;
     }
     .legend {
-      margin: var(--space-4) 0 0;
+      margin: 0;
       padding: 0;
       list-style: none;
       display: flex;
@@ -135,17 +140,21 @@ export interface DistributionItem {
       background: var(--text-tertiary);
     }
   `,
-  imports: [PercentPipe],
+  imports: [RatePipe],
 })
 export class DistributionComponent {
   readonly items = input.required<DistributionItem[]>();
+  /**
+   * For categories that overlap (one case in two buckets): the population each share is read
+   * against. With it the stacked bar is not drawn — overlapping slices can't add up to one bar —
+   * and the legend's percentages don't add up to 100%, which is the honest reading.
+   */
+  readonly total = input<number | null>(null);
 
-  private readonly total = computed(() =>
-    this.items().reduce((sum, item) => sum + item.count, 0),
-  );
+  private readonly sum = computed(() => this.items().reduce((sum, item) => sum + item.count, 0));
 
   protected readonly slices = computed(() => {
-    const total = this.total();
+    const total = this.total() ?? this.sum();
     const seen = new Map<StatusTone, number>();
     return this.items().map((item) => {
       const repeat = seen.get(item.tone) ?? 0;

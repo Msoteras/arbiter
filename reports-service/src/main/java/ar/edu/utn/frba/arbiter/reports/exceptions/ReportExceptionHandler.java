@@ -23,6 +23,11 @@ public class ReportExceptionHandler extends ResponseEntityExceptionHandler {
         return ProblemDetail.forStatusAndDetail(HttpStatusCode.valueOf(400), ex.getMessage());
     }
 
+    @ExceptionHandler(UnknownBranchException.class)
+    public ProblemDetail handleUnknownBranch(UnknownBranchException ex) {
+        return ProblemDetail.forStatusAndDetail(HttpStatusCode.valueOf(400), ex.getMessage());
+    }
+
     @ExceptionHandler(TenantNotResolvedException.class)
     public ProblemDetail handleTenantNotResolved(TenantNotResolvedException ex) {
         return ProblemDetail.forStatusAndDetail(HttpStatusCode.valueOf(403), ex.getMessage());

@@ -1,11 +1,11 @@
 import { RiskBand } from '../../../core/models/risk-band';
 
 /**
- * Una barra de las distribuciones de este reporte. No reusa el `MetricCount` de
- * `resolution-report.ts` porque acá el label es realmente nulo: un expediente sobre el que el
- * scoring nunca corrió no tiene banda, y el backend lo manda así a propósito (ver el javadoc de
- * `MetricCount` en reports-service). El del reporte de resolución nunca ve un null — sus buckets
- * son estados y hechos generadores, que siempre están.
+ * One bar of this report's distributions. It doesn't reuse `MetricCount` from
+ * `resolution-report.ts` because here the label really can be null: a case the scoring never ran
+ * on has no band, and the backend sends it that way on purpose (see `MetricCount`'s javadoc in
+ * reports-service). The resolution report never sees a null — its buckets are statuses and claim
+ * causes, which are always there.
  */
 export interface FraudBucket {
   label: string | null;
@@ -13,11 +13,11 @@ export interface FraudBucket {
 }
 
 /**
- * Espejo de los DTOs de reports-service (FraudReport / FraudReportRow / FraudSummary).
- * Los enums llegan como literales; pasarlos a español es cosa del frontend.
+ * Mirror of reports-service's DTOs (FraudReport / FraudReportRow / FraudSummary).
+ * Enums arrive as literals; turning them into Spanish is the frontend's job.
  */
 
-/** Espejo de FraudSignal: por qué un expediente aparece en el reporte. */
+/** Mirror of FraudSignal: why a case shows up in the report. */
 export type FraudSignal = 'HIGH_RISK_SCORE' | 'REPEAT_CLAIMANT' | 'FORENSIC_INCONSISTENCY';
 
 export interface FraudReportRow {
@@ -28,46 +28,46 @@ export interface FraudReportRow {
   claimCause: string;
   reportedAt: string;
   /**
-   * El nivel de alerta. Null cuando el scoring nunca corrió sobre el expediente (Fast Track, o
-   * todavía clasificándose): sigue listado si otra señal se disparó, y el gauge lo muestra como
-   * "Sin evaluar" en vez de como riesgo bajo, que es lo contrario de lo que pasa.
+   * The alert level. Null when the scoring never ran on the case (Fast Track, or still being
+   * classified): it is still listed if another signal fired, and the gauge shows it as "Sin
+   * evaluar" rather than as low risk, which would be the opposite of what happened.
    */
   riskBand: RiskBand | null;
   signals: FraudSignal[];
-  /** Denuncias del asegurado en los 12 meses hasta ésta, ésta incluida: 1 = no hubo otras. */
+  /** The insured's claims in the 12 months up to this one, this one included: 1 = no others. */
   claimsInWindow: number;
   suspiciousImages: number;
-  /** Literal de CaseStatus. */
+  /** CaseStatus literal. */
   status: string;
-  /** Decisión humana, no banda del modelo: el score sugiere, el analista determina. */
+  /** A human decision, not the model's band: the score suggests, the analyst determines. */
   fraudDetermined: boolean;
   expertBacked: boolean;
 }
 
 export interface FraudSummary {
   /**
-   * Todas las denuncias del período y ramo, marcadas o no: el denominador de las dos tasas. Va como
-   * cifra propia porque "8 expedientes con indicios" no dice nada hasta saber si es 8 sobre 20 o
-   * sobre 2000. No lo mueve el filtro de nivel de alerta — con "Crítico" puesto, la tasa sigue
-   * respondiendo qué parte del período es crítica.
+   * Every claim of the period and branch, flagged or not: the denominator of both rates. It is a
+   * figure of its own because "8 flagged cases" says nothing until you know whether it is 8 out of
+   * 20 or out of 2000. The alert-level filter doesn't move it — with "Crítico" selected, the rate
+   * still answers what share of the period is critical.
    */
   totalClaims: number;
   flagged: number;
-  /** `flagged / totalClaims`, fracción 0..1; null cuando no hay contra qué dividir. */
+  /** `flagged / totalClaims`, a 0..1 fraction; null when there is nothing to divide by. */
   flaggedRate: number | null;
-  /** Con dos o más señales cruzadas — el motivo por el que existe el reporte. */
+  /** With two or more coinciding signals — the reason the report exists. */
   multiSignal: number;
   fraudDetermined: number;
   /**
-   * `fraudDetermined / totalClaims`. **Rezaga a propósito**: la población son las denuncias del
-   * período, y las más recientes siguen abiertas, así que el mes en curso lee bajo y sube a medida
-   * que esos expedientes cierran.
+   * `fraudDetermined / totalClaims`. **It lags on purpose**: the population is the period's claims,
+   * and the most recent ones are still open, so the current month reads low and rises as those
+   * cases close.
    */
   fraudRate: number | null;
   backedByExpert: number;
-  /** Los buckets de {@link alertLevelLabel}: `CRITICAL`, `HIGH`, `NOT_FLAGGED` y `NOT_SCORED`. */
+  /** The buckets of {@link alertLevelLabel}: `CRITICAL`, `HIGH`, `NOT_FLAGGED` and `NOT_SCORED`. */
   byAlertLevel: FraudBucket[];
-  /** Los buckets se superponen: un expediente con dos señales cuenta en las dos. */
+  /** The buckets overlap: a case with two signals counts in both. */
   bySignal: FraudBucket[];
 }
 
@@ -85,11 +85,11 @@ export interface FraudReportParams {
   from: string;
   to: string;
   branchId: number | null;
-  /** Vacío = todas las bandas. */
+  /** Empty = every band. */
   riskBand: string;
 }
 
-/** Banda → segmento del `app-fraud-gauge` (1..4, de Bajo a Crítico). */
+/** Band → `app-fraud-gauge` segment (1..4, Low to Critical). */
 const GAUGE_BANDS: Record<RiskBand, 1 | 2 | 3 | 4> = {
   LOW: 1,
   MEDIUM: 2,
@@ -98,24 +98,24 @@ const GAUGE_BANDS: Record<RiskBand, 1 | 2 | 3 | 4> = {
 };
 
 /**
- * El gauge solo se dibuja cuando el score efectivamente alertó, y por eso recibe la fila entera y
- * no la banda: un score bajo NO es un índice de fraude, así que pintarlo bajo el título "Nivel de
- * alerta" leería como "no hay nada acá" justo en un expediente que está listado porque otra señal
- * sí encontró algo. Para esos casos devuelve null y el gauge muestra {@link alertEmptyLabel}.
+ * The gauge is drawn only when the score actually alerted, which is why it takes the whole row and
+ * not the band: a low score is NOT an indicator of fraud, so painting it under "Nivel de alerta"
+ * would read as "nothing here" on precisely a case listed because another signal did find
+ * something. For those it returns null and the gauge shows {@link alertEmptyLabel}.
  */
 export function riskGaugeBand(row: FraudReportRow): 1 | 2 | 3 | 4 | null {
   return scoreAlerted(row) && row.riskBand !== null ? GAUGE_BANDS[row.riskBand] : null;
 }
 
-/** El score es una alerta solo en las dos bandas superiores, que es cuando dispara la señal. */
+/** The score is an alert only in the two top bands, which is when the signal fires. */
 export function scoreAlerted(row: FraudReportRow): boolean {
   return row.signals.includes('HIGH_RISK_SCORE');
 }
 
 /**
- * Qué dice la celda cuando el score no alertó. "Sin evaluar" y "No alertó" no son lo mismo: en el
- * primero el motor nunca corrió (Fast Track, o clasificación fallida), en el segundo corrió y no
- * marcó nada — y eso último es un dato operativo distinto.
+ * What the cell says when the score didn't alert. "Sin evaluar" and "No alertó" are not the same:
+ * in the first the engine never ran (Fast Track, or a failed classification), in the second it ran
+ * and flagged nothing — and that is a different operational fact.
  */
 export function alertEmptyLabel(row: FraudReportRow): string {
   return row.riskBand === null ? 'Sin evaluar' : 'No alertó';
@@ -133,8 +133,9 @@ export function alertLevelLabel(bucket: string | null): string {
 }
 
 /**
- * Lo que va en la columna "Indicadores": cada señal con su magnitud, que es lo accionable. "Score
- * de riesgo alto" solo dice que el motor la marcó; "3 denuncias en 12 meses" dice qué mirar.
+ * What goes in the "Indicadores" column: each signal with its magnitude, which is what is
+ * actionable. "Score de riesgo alto" only says the engine flagged it; "3 denuncias en 12 meses"
+ * says what to look at. Mirror of ReportLabels.signals() in reports-service; keep the two in step.
  */
 export function indicators(row: FraudReportRow): string[] {
   return row.signals.map((signal) => {

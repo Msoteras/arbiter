@@ -14,6 +14,8 @@ export interface ResolutionReportRow {
   reportedAt: string;
   resolvedAt: string;
   totalMinutes: number;
+  /** The part of that time the case waited on somebody outside the insurer. */
+  waitingMinutes: number;
   classification: string | null;
   /** APPROVE/REJECT, or the older APROBAR/RECHAZAR spelling still present in older rows. */
   analystDecision: string | null;
@@ -36,7 +38,15 @@ export interface MetricCount {
  */
 export interface ResolutionSummary {
   totalCases: number;
+  /** How many of them an analyst decided; the difference are the lapsed ones. */
+  decidedCases: number;
+  /**
+   * Over the DECIDED cases, the same population the dashboard averages: a lapsed case measured the
+   * insured's silence, and one of 18 months would swamp a month's average.
+   */
   averageMinutes: number | null;
+  /** The part of that average spent waiting on a third party; the insurer's own time is the rest. */
+  averageWaitingMinutes: number | null;
   fastTrackCases: number;
   fastTrackRate: number | null;
   /** `label` is a CaseStatus literal; estado.ts turns it into Spanish. */
@@ -72,8 +82,29 @@ const MINUTES_PER_HOUR = 60;
 const MINUTES_PER_DAY = 24 * MINUTES_PER_HOUR;
 const MS_PER_DAY = 86_400_000;
 
-/** "45 min", "3 h 20 min", "2 d 5 h" — the same format the exported PDF uses. */
-export function formatDuration(minutes: number): string {
+/**
+ * The breakdown under the average, worded as the dashboard words it: how much of the delay was the
+ * insurer's own and how much was waiting on a third party.
+ *
+ * Only from an hour of waiting up. Below that it isn't a wait, it's a case that passed through
+ * "falta documentación" for a few seconds while somebody moved it, and the line would read "0 min
+ * esperando a terceros" — space spent to say nothing. Same rule as the dashboard's.
+ */
+export function waitingBreakdown(summary: ResolutionSummary): string {
+  const total = summary.averageMinutes;
+  const waiting = summary.averageWaitingMinutes;
+  if (total === null || waiting === null || waiting < MINUTES_PER_HOUR) {
+    return '';
+  }
+  return `${formatDuration(Math.max(total - waiting, 0))} de gestión · ${formatDuration(waiting)} esperando a terceros`;
+}
+
+/**
+ * "45 min", "3 h 20 min", "2 d 5 h" — the same format the exported PDF uses. Rounded first, like
+ * the PDF: the summary's average is a fraction, and without it read "3 h 20.333333 min".
+ */
+export function formatDuration(value: number): string {
+  const minutes = Math.round(value);
   if (minutes < MINUTES_PER_HOUR) {
     return `${minutes} min`;
   }

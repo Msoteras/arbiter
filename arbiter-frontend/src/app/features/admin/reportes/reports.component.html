@@ -6,16 +6,16 @@
   </p>
 </header>
 
-<nav class="tabs" role="tablist" aria-label="Reporte a mostrar">
+<!-- Links and not an ARIA tablist: each tab is a route, so aria-current is what they really are.
+     They carry the shared filters only: the claim cause means nothing on the fraud tab. -->
+<nav class="tabs" aria-label="Reporte a mostrar">
   @for (tab of tabs; track tab.path) {
     <a
-      role="tab"
       class="tab"
       [routerLink]="tab.path"
       routerLinkActive="active"
-      #rla="routerLinkActive"
-      [attr.aria-selected]="rla.isActive"
-      queryParamsHandling="preserve"
+      ariaCurrentWhenActive="page"
+      [queryParams]="filters.sharedQueryParams()"
     >
       {{ tab.label }}
     </a>

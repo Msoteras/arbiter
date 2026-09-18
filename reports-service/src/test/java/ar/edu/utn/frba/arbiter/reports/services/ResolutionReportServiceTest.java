@@ -7,6 +7,7 @@ import ar.edu.utn.frba.arbiter.reports.dto.ResolutionReport;
 import ar.edu.utn.frba.arbiter.reports.dto.ResolutionSummary;
 import ar.edu.utn.frba.arbiter.reports.exceptions.InvalidReportPeriodException;
 import ar.edu.utn.frba.arbiter.reports.exceptions.TenantNotResolvedException;
+import ar.edu.utn.frba.arbiter.reports.exceptions.UnknownBranchException;
 import ar.edu.utn.frba.arbiter.reports.models.repositories.ResolvedCaseRepository;
 import ar.edu.utn.frba.arbiter.reports.services.export.ResolutionReportExporter;
 import org.junit.jupiter.api.AfterEach;
@@ -101,6 +102,16 @@ class ResolutionReportServiceTest {
 
         verify(repository).findResolvedBetween(any(), any(), eq(7L), isNull());
         assertThat(report.branch()).isEqualTo("Celulares");
+    }
+
+    /** Filtering by a branch that doesn't exist would echo "Todos" over a report that matched nothing. */
+    @Test
+    void generate_rejectsAnUnknownBranch_beforeRunningTheQuery() {
+        given(repository.findBranchName(99L)).willReturn(null);
+
+        assertThatThrownBy(() -> service.generate(AUG_1, AUG_31, 99L, null))
+                .isInstanceOf(UnknownBranchException.class);
+        verify(repository, never()).findResolvedBetween(any(), any(), any(), any());
     }
 
     /** The document has to name the branch it looked at even when that branch closed nothing. */

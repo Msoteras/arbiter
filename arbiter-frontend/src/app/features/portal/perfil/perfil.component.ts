@@ -1,5 +1,12 @@
 import { HttpErrorResponse } from '@angular/common/http';
-import { ChangeDetectionStrategy, Component, computed, effect, inject, signal } from '@angular/core';
+import {
+  ChangeDetectionStrategy,
+  Component,
+  computed,
+  effect,
+  inject,
+  signal,
+} from '@angular/core';
 import { toObservable, toSignal } from '@angular/core/rxjs-interop';
 import { catchError, map, of, startWith, switchMap } from 'rxjs';
 
@@ -17,9 +24,7 @@ import { InputComponent } from '../../../shared/ui/input/input.component';
 import { ToastService } from '../../../shared/ui/toast/toast.service';
 
 type ProfileState =
-  | { status: 'loading' }
-  | { status: 'ok'; profile: InsuredProfile }
-  | { status: 'error' };
+  { status: 'loading' } | { status: 'ok'; profile: InsuredProfile } | { status: 'error' };
 
 /**
  * "Mi perfil" del asegurado. La contracara del onboarding: lo que ahí se completa una vez, acá

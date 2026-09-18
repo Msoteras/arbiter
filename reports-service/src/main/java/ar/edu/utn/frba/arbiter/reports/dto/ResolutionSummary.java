@@ -18,8 +18,17 @@ import java.util.List;
  * qualified".
  *
  * @param totalCases     resolved cases in the period, matching the number of rows
- * @param averageMinutes from the denuncia to the final status, averaged over those cases; null when
- *                       there are none, because an average of nothing is unknown, not zero
+ * @param decidedCases   how many of them an analyst actually decided (approved or rejected). The
+ *                       difference are the lapsed ones, which nobody decided
+ * @param averageMinutes from the denuncia to the final status, averaged over the DECIDED cases;
+ *                       null when there are none, because an average of nothing is unknown, not
+ *                       zero. Lapsed cases are out on purpose, the same as
+ *                       {@link MetricsSummary#averageResolutionHours()}: 18 months of the insured
+ *                       not answering is not operational time, and a handful of them would swamp
+ *                       the average
+ * @param averageWaitingMinutes the part of that average the cases spent waiting on somebody outside
+ *                       the insurer, over the same population. The insurer's own time is the
+ *                       difference between the two — same pair the dashboard shows
  * @param fastTrackCases how many of them the deterministic gate resolved
  * @param fastTrackRate  {@code fastTrackCases / totalCases}, as a fraction between 0 and 1 (the
  *                       frontend's percent pipe formats it); null when there is nothing to divide
@@ -28,7 +37,9 @@ import java.util.List;
  */
 public record ResolutionSummary(
         long totalCases,
+        long decidedCases,
         Double averageMinutes,
+        Double averageWaitingMinutes,
         long fastTrackCases,
         Double fastTrackRate,
         List<MetricCount> byStatus,
@@ -36,5 +47,5 @@ public record ResolutionSummary(
 ) {
 
     public static final ResolutionSummary EMPTY =
-            new ResolutionSummary(0, null, 0, null, List.of(), List.of());
+            new ResolutionSummary(0, 0, null, null, 0, null, List.of(), List.of());
 }

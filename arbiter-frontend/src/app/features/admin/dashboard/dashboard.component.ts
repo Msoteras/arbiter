@@ -1,4 +1,4 @@
-import { DatePipe, formatNumber, formatPercent } from '@angular/common';
+import { DatePipe, formatNumber } from '@angular/common';
 import {
   ChangeDetectionStrategy,
   Component,
@@ -17,6 +17,7 @@ import { clasificacionLabel, clasificacionTone } from '../../../core/models/clas
 import { estadoLabel, estadoTone } from '../../../core/models/estado';
 import { RiskBand, riskBandLabel } from '../../../core/models/risk-band';
 import { StatusTone } from '../../../core/models/status-tone';
+import { formatRate } from '../../../core/util/percent';
 import { formatMoney } from '../../../core/util/money';
 import { staggerReveal } from '../../../shared/animations';
 import { CardComponent } from '../../../shared/ui/card/card.component';
@@ -25,7 +26,10 @@ import { ChartComponent } from '../../../shared/ui/chart/chart.component';
 import { EmptyStateComponent } from '../../../shared/ui/empty-state/empty-state.component';
 import { InputComponent } from '../../../shared/ui/input/input.component';
 import { InlineLoadingComponent } from '../../../shared/ui/inline-loading/inline-loading.component';
-import { MenuButtonComponent, MenuItem } from '../../../shared/ui/menu-button/menu-button.component';
+import {
+  MenuButtonComponent,
+  MenuItem,
+} from '../../../shared/ui/menu-button/menu-button.component';
 import { StatTileComponent } from '../../../shared/ui/stat-tile/stat-tile.component';
 import { BranchesService } from '../branches.service';
 import { ExpedienteService } from '../../expedientes/expediente.service';
@@ -164,7 +168,9 @@ export class DashboardComponent {
     { value: ALL, label: 'Todos los analistas' },
   ]);
   protected readonly branchLabel = computed(() => labelOf(this.branchOptions(), this.branchId()));
-  protected readonly analystLabel = computed(() => labelOf(this.analystOptions(), this.analystId()));
+  protected readonly analystLabel = computed(() =>
+    labelOf(this.analystOptions(), this.analystId()),
+  );
 
   /**
    * El recorte por analista es una vista de gestión del equipo, así que sólo la ve el referente —
@@ -303,7 +309,12 @@ export class DashboardComponent {
       {
         label: 'Denunciados',
         value: funnel.reported,
-        note: this.trendOf(funnel.reported, metrics.previousSummary.reportedCases, 'count', 'neither'),
+        note: this.trendOf(
+          funnel.reported,
+          metrics.previousSummary.reportedCases,
+          'count',
+          'neither',
+        ),
         // La entrada del embudo es volumen, no estado: tinta.
         tone: 'neutral',
       },
@@ -320,7 +331,12 @@ export class DashboardComponent {
       },
       { label: 'Decididos', value: funnel.decided, note: share(funnel.decided), tone: 'ok' },
       // Fast Track es una clasificación, y en toda la app se pinta con el azul de clasificacionTone.
-      { label: 'Vía Fast Track', value: funnel.fastTrack, note: share(funnel.fastTrack), tone: 'info' },
+      {
+        label: 'Vía Fast Track',
+        value: funnel.fastTrack,
+        note: share(funnel.fastTrack),
+        tone: 'info',
+      },
     ];
   });
 
@@ -403,11 +419,19 @@ export class DashboardComponent {
       {
         label: 'Aprobación',
         value: this.percent(summary.approvalRate),
-        sub: decided === 0 ? 'nada decidido en el período' : `${summary.approvedCases} de ${decided} decididos`,
+        sub:
+          decided === 0
+            ? 'nada decidido en el período'
+            : `${summary.approvedCases} de ${decided} decididos`,
         progress: summary.approvalRate,
         tone: 'ok' as StatusTone,
         trend: this.trendOf(
-          summary.approvalRate, previousSummary.approvalRate, 'rate', 'up', previousDecided),
+          summary.approvalRate,
+          previousSummary.approvalRate,
+          'rate',
+          'up',
+          previousDecided,
+        ),
       },
       {
         label: 'Fast Track',
@@ -416,8 +440,12 @@ export class DashboardComponent {
         progress: summary.fastTrackRate,
         tone: 'info' as StatusTone,
         trend: this.trendOf(
-          summary.fastTrackRate, previousSummary.fastTrackRate, 'rate', 'up',
-          previousSummary.reportedCases),
+          summary.fastTrackRate,
+          previousSummary.fastTrackRate,
+          'rate',
+          'up',
+          previousSummary.reportedCases,
+        ),
       },
     ];
   });
@@ -471,8 +499,10 @@ export class DashboardComponent {
     if (!impact || impact.fastTrackHours == null || impact.standardHours == null) {
       return '';
     }
-    return `Fast Track: ${resolutionTimeLabel(impact.fastTrackHours)} · `
-      + `Resto: ${resolutionTimeLabel(impact.standardHours)}`;
+    return (
+      `Fast Track: ${resolutionTimeLabel(impact.fastTrackHours)} · ` +
+      `Resto: ${resolutionTimeLabel(impact.standardHours)}`
+    );
   });
 
   /** Cuántos expedientes hay detrás de cada mitad de la comparación, para saber cuánto pesa. */
@@ -514,9 +544,10 @@ export class DashboardComponent {
       // "117% de lo reclamado" es un dato real —se liquida por suma asegurada, no por lo que pidió
       // el asegurado— y hay que poder leerlo sin que parezca una cuenta mal hecha. Por eso se
       // enuncia como proporción y no como "se liquidó el …", que sugiere un tope del 100%.
-      share: Number(settled.claimed) > 0
-        ? this.percent(Number(settled.settled) / Number(settled.claimed))
-        : '',
+      share:
+        Number(settled.claimed) > 0
+          ? this.percent(Number(settled.settled) / Number(settled.claimed))
+          : '',
     };
   });
 
@@ -641,7 +672,8 @@ export class DashboardComponent {
   protected readonly timelineDescription = computed(() => {
     const points = this.data()?.timeline ?? [];
     const parts = points.map(
-      (point) => `${this.bucketLabel(point)}: ${point.reported} denunciados, ${point.resolved} resueltos`,
+      (point) =>
+        `${this.bucketLabel(point)}: ${point.reported} denunciados, ${point.resolved} resueltos`,
     );
     return `Altas y resoluciones a lo largo del período. ${parts.join('. ')}.`;
   });
@@ -661,7 +693,7 @@ export class DashboardComponent {
   // ─── Formato ───────────────────────────────────────────────────────────────────────
 
   private percent(rate: number | null | undefined): string {
-    return rate === null || rate === undefined ? '—' : formatPercent(rate, this.locale, '1.0-0');
+    return formatRate(rate);
   }
 
   /**
@@ -689,7 +721,7 @@ export class DashboardComponent {
     const size = Math.abs(change.value);
     const amount =
       unit === 'rate'
-        ? formatPercent(size, this.locale, '1.0-0')
+        ? formatRate(size)
         : unit === 'hours'
           ? resolutionTimeLabel(size)
           : formatNumber(size, this.locale, '1.0-0');

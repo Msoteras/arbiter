@@ -11,6 +11,11 @@ import java.time.Instant;
  * @param reportedAt      when the denuncia was filed
  * @param resolvedAt      when the case last moved into its final status
  * @param totalMinutes    from {@code reportedAt} to {@code resolvedAt}
+ * @param waitingMinutes  the part of that time the case spent waiting on somebody outside the
+ *                        insurer — documents from the insured, an expert's report, a repair shop.
+ *                        The insurer's own time is the difference. Split because the company's
+ *                        procedure says those derivations INTERRUPT the term to pronounce, so
+ *                        charging them to the operation measures something nobody there can act on
  * @param classification  {@code FAST_TRACK} when the deterministic gate resolved it, otherwise the
  *                        model's latest recommendation; null when neither ran (e.g. a case that
  *                        lapsed while waiting for documents)
@@ -29,6 +34,7 @@ public record ResolutionReportRow(
         Instant reportedAt,
         Instant resolvedAt,
         long totalMinutes,
+        long waitingMinutes,
         Classification classification,
         String analystDecision,
         CaseStatus finalStatus,

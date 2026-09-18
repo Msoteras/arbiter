@@ -74,16 +74,37 @@ public class PdfResolutionReportExporter implements ResolutionReportExporter {
             return List.of();
         }
         return List.of(
-                "%s%d %s · Tiempo promedio de resolución: %s · Fast Track: %d (%s)".formatted(
+                "%s%d %s · %s · Fast Track: %d (%s)".formatted(
                         PdfReportWriter.TOTALS_LABEL,
                         summary.totalCases(),
                         summary.totalCases() == 1 ? "siniestro resuelto" : "siniestros resueltos",
-                        ReportLabels.duration(Math.round(summary.averageMinutes())),
+                        resolutionTime(summary),
                         summary.fastTrackCases(),
                         ReportLabels.percent(summary.fastTrackRate())),
                 "Por estado: " + distribution(summary.byStatus(),
                         count -> ReportLabels.status(CaseStatus.valueOf(count.label()))),
                 "Por tipo de siniestro: " + distribution(summary.byClaimCause(), MetricCount::label));
+    }
+
+    /**
+     * The average and what it is an average of. Over the decided cases only — the same population
+     * the dashboard measures — so the document has to say so, or the figure looks like it covers
+     * every row of the table underneath it. Split into the insurer's own time and the wait on a
+     * third party, same pair the dashboard shows.
+     */
+    private static String resolutionTime(ResolutionSummary summary) {
+        if (summary.averageMinutes() == null) {
+            return "Ningún expediente decidido: sin tiempo promedio";
+        }
+        long total = Math.round(summary.averageMinutes());
+        long waiting = Math.round(summary.averageWaitingMinutes());
+        return "Tiempo promedio de resolución: %s sobre %d %s (%s de gestión · %s esperando a terceros)"
+                .formatted(
+                        ReportLabels.duration(total),
+                        summary.decidedCases(),
+                        summary.decidedCases() == 1 ? "decidido" : "decididos",
+                        ReportLabels.duration(total - waiting),
+                        ReportLabels.duration(waiting));
     }
 
     private static String distribution(List<MetricCount> counts, Function<MetricCount, String> label) {

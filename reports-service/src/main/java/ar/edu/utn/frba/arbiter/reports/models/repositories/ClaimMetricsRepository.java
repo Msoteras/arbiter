@@ -59,64 +59,12 @@ import java.util.function.Function;
 @RequiredArgsConstructor
 public class ClaimMetricsRepository {
 
-    /**
-     * When a case closed, defined exactly as {@code ResolvedCaseRepository} defines it so that the
-     * dashboard and the resolution report never disagree about the same period: a case is resolved
-     * when it sits in a final status of the platform catalog ({@code is_final}, not a hardcoded
-     * list), and the resolution date is the LAST transition into that status — a case that was
-     * reopened and closed again counts once, on the day it closed for good.
-     */
-    private static final String RESOLUTION_CTE = """
-            WITH resolution AS (
-                SELECT DISTINCT ON (h.case_id) h.case_id, h.changed_at AS resolved_at
-                  FROM case_status_history h
-                  JOIN cases c ON c.id = h.case_id AND h.final_status_id = c.current_status_id
-                 ORDER BY h.case_id, h.changed_at DESC, h.id DESC
-            )""";
-
     /** The newest model run per case — the analyses are append-only, one row per run. */
     private static final String LATEST_LLM_CTE = """
             latest_llm AS (
                 SELECT DISTINCT ON (case_id) case_id, recommendation
                   FROM llm_analysis
                  ORDER BY case_id, id DESC
-            )""";
-
-    /**
-     * Por cada expediente resuelto, cuántos segundos estuvo esperando a alguien de afuera de la
-     * compañía: documentación del asegurado, el informe de un perito, el equipo del servicio
-     * técnico. Depende de {@link #RESOLUTION_CTE} y se concatena después de él.
-     *
-     * <p>Cada tramo del historial se recorta contra la ventana del expediente ({@code GREATEST} /
-     * {@code LEAST}): una espera que arrancó antes de la denuncia o que seguía abierta al cerrarse
-     * el caso cuenta sólo por la parte que cae adentro. El {@code GREATEST(..., 0)} descarta los
-     * tramos que quedan enteros afuera, que restarían.
-     *
-     * <p>Lo usan los dos lugares que miden tiempo de gestión —el promedio partido en dos y el
-     * objetivo de resolución—, y por eso vive acá y no adentro de una de las dos consultas: si
-     * cada una se armara su propia definición de "esperando", el tablero podría decir que un
-     * expediente tardó 12 días de gestión y a la vez que se pasó de un objetivo de 21.
-     */
-    private static final String WAITING_CTE = """
-            ordered AS (
-                SELECT h.case_id,
-                       h.changed_at AS from_at,
-                       LEAD(h.changed_at) OVER (
-                           PARTITION BY h.case_id ORDER BY h.changed_at, h.id) AS to_at,
-                       st.name AS status
-                  FROM case_status_history h
-                  JOIN case_status st ON st.id = h.final_status_id
-            ),
-            waiting AS (
-                SELECT o.case_id,
-                       SUM(GREATEST(EXTRACT(EPOCH FROM (
-                           LEAST(COALESCE(o.to_at, r.resolved_at), r.resolved_at)
-                           - GREATEST(o.from_at, w.reported_at))), 0)) AS waiting_seconds
-                  FROM ordered o
-                  JOIN resolution r ON r.case_id = o.case_id
-                  JOIN cases w      ON w.id = o.case_id
-                 WHERE o.status IN (:pausing)
-                 GROUP BY o.case_id
             )""";
 
     /**
@@ -207,7 +155,7 @@ public class ClaimMetricsRepository {
      */
     @Transactional(readOnly = true)
     public RecommendationAgreement recommendationAgreement(Instant from, Instant to, MetricsFilter filter) {
-        String sql = RESOLUTION_CTE + ",\n" + LATEST_LLM_CTE + """
+        String sql = CaseResolutionSql.RESOLUTION_CTE + ",\n" + LATEST_LLM_CTE + """
 
                 SELECT count(*) AS decided,
                        count(*) FILTER (
@@ -304,7 +252,7 @@ public class ClaimMetricsRepository {
      * el reloj de pared le carga a la gestión semanas que ni la ley ni el procedimiento le imputan,
      * y deja un número que el referente no puede accionar: no sabe cuánto de eso es suyo.
      *
-     * <p>La espera sale de {@link #WAITING_CTE}, la misma definición que usa el objetivo de
+     * <p>La espera sale de {@link CaseResolutionSql#WAITING_CTE}, la misma definición que usa el objetivo de
      * resolución.
      *
      * <p>Sobre los DECIDIDOS, igual que el promedio del resumen: un caducado son 18 meses de
@@ -312,7 +260,7 @@ public class ClaimMetricsRepository {
      */
     @Transactional(readOnly = true)
     public ResolutionSplit resolutionSplit(Instant from, Instant to, MetricsFilter filter) {
-        String sql = RESOLUTION_CTE + ",\n" + WAITING_CTE + """
+        String sql = CaseResolutionSql.RESOLUTION_CTE + ",\n" + CaseResolutionSql.WAITING_CTE + """
 
                 SELECT avg(EXTRACT(EPOCH FROM (r.resolved_at - c.reported_at))) AS total_seconds,
                        avg(COALESCE(wt.waiting_seconds, 0)) AS waiting_seconds"""
@@ -359,7 +307,7 @@ public class ClaimMetricsRepository {
      */
     @Transactional(readOnly = true)
     public long countDecidedOverTarget(Instant from, Instant to, int targetDays, MetricsFilter filter) {
-        String sql = RESOLUTION_CTE + ",\n" + WAITING_CTE + """
+        String sql = CaseResolutionSql.RESOLUTION_CTE + ",\n" + CaseResolutionSql.WAITING_CTE + """
 
                 SELECT count(*) AS total"""
                 + FROM_CASES + """
@@ -397,7 +345,7 @@ public class ClaimMetricsRepository {
     @Transactional(readOnly = true)
     public LegalDeadline legalDeadlineCompliance(
             Instant from, Instant to, ZoneId zone, MetricsFilter filter) {
-        String sql = RESOLUTION_CTE + """
+        String sql = CaseResolutionSql.RESOLUTION_CTE + """
 
                 SELECT count(*) AS decided,
                        count(*) FILTER (
@@ -430,7 +378,7 @@ public class ClaimMetricsRepository {
      */
     @Transactional(readOnly = true)
     public ReopeningRate reopeningRate(Instant from, Instant to, MetricsFilter filter) {
-        String sql = RESOLUTION_CTE + """
+        String sql = CaseResolutionSql.RESOLUTION_CTE + """
 
                 SELECT count(*) AS resolved,
                        count(*) FILTER (WHERE EXISTS (
@@ -503,7 +451,7 @@ public class ClaimMetricsRepository {
      */
     @Transactional(readOnly = true)
     public FraudDetection fraudDetection(Instant from, Instant to, MetricsFilter filter) {
-        String sql = RESOLUTION_CTE + """
+        String sql = CaseResolutionSql.RESOLUTION_CTE + """
 
                 SELECT count(*) AS decided,
                        count(*) FILTER (WHERE c.fraud_determined) AS fraud_determined,
@@ -539,7 +487,7 @@ public class ClaimMetricsRepository {
      */
     @Transactional(readOnly = true)
     public FastTrackImpact fastTrackImpact(Instant from, Instant to, MetricsFilter filter) {
-        String sql = RESOLUTION_CTE + """
+        String sql = CaseResolutionSql.RESOLUTION_CTE + """
 
                 SELECT count(*) FILTER (WHERE c.was_fast_track) AS fast_track_decided,
                        avg(EXTRACT(EPOCH FROM (r.resolved_at - c.reported_at)))
@@ -629,7 +577,7 @@ public class ClaimMetricsRepository {
     /** One row per final status reached in the period, with its own average time to get there. */
     @Transactional(readOnly = true)
     public List<ResolvedTotals> resolvedTotals(Instant from, Instant to, MetricsFilter filter) {
-        String sql = RESOLUTION_CTE + """
+        String sql = CaseResolutionSql.RESOLUTION_CTE + """
 
                 SELECT s.name AS status,
                        count(*) AS total,
@@ -658,7 +606,7 @@ public class ClaimMetricsRepository {
     @Transactional(readOnly = true)
     public List<TimelinePoint> timeline(
             Instant from, Instant to, TimelineGranularity granularity, ZoneId zone, MetricsFilter filter) {
-        String sql = RESOLUTION_CTE + """
+        String sql = CaseResolutionSql.RESOLUTION_CTE + """
                 ,
                 reported AS (
                     SELECT date_trunc(:granularity, c.reported_at AT TIME ZONE :zone) AS bucket,

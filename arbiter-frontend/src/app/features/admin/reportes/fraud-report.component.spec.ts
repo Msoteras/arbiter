@@ -1,7 +1,10 @@
+import { registerLocaleData } from '@angular/common';
+import localeEsAr from '@angular/common/locales/es-AR';
+import { LOCALE_ID } from '@angular/core';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { provideNoopAnimations } from '@angular/platform-browser/animations';
-import { provideRouter } from '@angular/router';
-import { of } from 'rxjs';
+import { ActivatedRoute, convertToParamMap, provideRouter } from '@angular/router';
+import { Subject, of } from 'rxjs';
 
 import { BranchesService } from '../branches.service';
 import { FraudReportComponent } from './fraud-report.component';
@@ -63,14 +66,17 @@ describe('fraud report helpers', () => {
 
   /** "No alertó" and "Sin evaluar" are different facts: the engine ran, or it never did. */
   it('tells a score that did not alert apart from a case that was never scored', () => {
-    expect(alertEmptyLabel(row({ riskBand: 'LOW', signals: ['FORENSIC_INCONSISTENCY'] })))
-      .toBe('No alertó');
-    expect(alertEmptyLabel(row({ riskBand: null, signals: ['FORENSIC_INCONSISTENCY'] })))
-      .toBe('Sin evaluar');
+    expect(alertEmptyLabel(row({ riskBand: 'LOW', signals: ['FORENSIC_INCONSISTENCY'] }))).toBe(
+      'No alertó',
+    );
+    expect(alertEmptyLabel(row({ riskBand: null, signals: ['FORENSIC_INCONSISTENCY'] }))).toBe(
+      'Sin evaluar',
+    );
   });
 });
 
 describe('FraudReportComponent', () => {
+  registerLocaleData(localeEsAr);
   let fixture: ComponentFixture<FraudReportComponent>;
 
   const report: FraudReport = {
@@ -124,6 +130,8 @@ describe('FraudReportComponent', () => {
       providers: [
         provideNoopAnimations(),
         provideRouter([]),
+        // The app runs in es-AR (app.config); TestBed doesn't read that config.
+        { provide: LOCALE_ID, useValue: 'es-AR' },
         ReportFiltersStore,
         { provide: FraudReportService, useValue: reportService },
         { provide: BranchesService, useValue: { list: () => of([{ id: 1, name: 'Celulares' }]) } },
@@ -168,7 +176,7 @@ describe('FraudReportComponent', () => {
     expect(text).toContain('Fraude determinado · pericial');
   });
 
-  /** Una tasa sin su población es la cifra que más rápido se lee mal, así que viajan juntas. */
+  /** A rate without its population is the figure people misread fastest, so they travel together. */
   it('states each rate next to the claims it was taken over', () => {
     preview();
 
@@ -186,7 +194,7 @@ describe('FraudReportComponent', () => {
     expect(text).toContain('Sin evaluar');
   });
 
-  /** Filtrar un reporte de fraude por "alerta = Bajo" no significa nada, así que no se ofrece. */
+  /** Filtering a fraud report by "alert = Low" means nothing, so it isn't offered. */
   it('offers only the two bands that are an alert', () => {
     expect(fixture.componentInstance['riskBandOptions'].map((o) => o.value)).toEqual([
       'HIGH',
@@ -252,11 +260,149 @@ describe('FraudReportComponent', () => {
     );
   });
 
+  it('formats the rates with the es-AR decimal comma', () => {
+    reportService.report.and.returnValue(
+      of({ ...report, summary: { ...report.summary, flaggedRate: 1 / 7, fraudRate: 0.0357 } }),
+    );
+
+    preview();
+
+    const text = (fixture.nativeElement as HTMLElement).textContent ?? '';
+    expect(text).toContain('14,3');
+    expect(text).toContain('3,6');
+    expect(text).not.toContain('14.3');
+  });
+
+  /** A case with two signals counts in both, so each share is over the flagged cases. */
+  it('shows which signals fired, as shares of the flagged cases', () => {
+    preview();
+
+    const host = fixture.nativeElement as HTMLElement;
+    const signals = Array.from(host.querySelectorAll('.distribution')).find((el) =>
+      el.textContent?.includes('Por señal'),
+    )!;
+    const legend = Array.from(signals.querySelectorAll('.legend li')).map((li) =>
+      Array.from(li.querySelectorAll('span'))
+        .map((span) => span.textContent!.trim())
+        .filter(Boolean)
+        .join(' | '),
+    );
+    expect(legend).toEqual(['Score de riesgo alto | 1 | 50%', 'Incoherencias forenses | 2 | 100%']);
+    // Overlapping buckets can't be stacked into one bar.
+    expect(signals.querySelector('.stack')).toBeNull();
+  });
+
+  it('with claims but none flagged, says how many claims it looked at', () => {
+    reportService.report.and.returnValue(
+      of({ ...report, summary: { ...report.summary, flagged: 0, flaggedRate: 0 }, rows: [] }),
+    );
+
+    preview();
+
+    const text = (fixture.nativeElement as HTMLElement).textContent ?? '';
+    expect(text).toContain('Ningún expediente con indicios en el período');
+    expect(text).toContain('Ninguna de las 20 denuncias del período disparó una señal');
+  });
+
+  it('with no claims at all, says the period is empty', () => {
+    reportService.report.and.returnValue(
+      of({
+        ...report,
+        summary: { ...report.summary, totalClaims: 0, flagged: 0, flaggedRate: null },
+        rows: [],
+      }),
+    );
+
+    preview();
+
+    expect((fixture.nativeElement as HTMLElement).textContent).toContain(
+      'No hay denuncias en el período',
+    );
+  });
+
+  /** The response of a request whose filters already changed must not land under the new ones. */
+  it('drops a preview still in flight when a shared filter changes', () => {
+    const response = new Subject<FraudReport>();
+    reportService.report.and.returnValue(response);
+
+    preview();
+    TestBed.inject(ReportFiltersStore).from.set('2026-09-05');
+    fixture.detectChanges();
+    response.next(report);
+    fixture.detectChanges();
+
+    const text = (fixture.nativeElement as HTMLElement).textContent ?? '';
+    expect(text).not.toContain('Marcos Aguirre');
+    expect(text).toContain('Todavía no hay vista previa');
+  });
+
   it('a cleared band means every band, not the empty string as a value', () => {
     fixture.componentInstance['setRiskBand']('CRITICAL');
     fixture.componentInstance['setRiskBand']('');
     preview();
 
     expect(reportService.report).toHaveBeenCalledWith(jasmine.objectContaining({ riskBand: '' }));
+  });
+});
+
+describe('FraudReportComponent opened from a link', () => {
+  function open(query: Record<string, string>) {
+    const report = jasmine.createSpy('report').and.returnValue(
+      of({
+        from: '2026-09-01',
+        to: '2026-09-30',
+        branch: null,
+        riskBand: 'CRITICAL',
+        generatedAt: '2026-09-15T15:00:00Z',
+        summary: {
+          totalClaims: 0,
+          flagged: 0,
+          flaggedRate: null,
+          multiSignal: 0,
+          fraudDetermined: 0,
+          fraudRate: null,
+          backedByExpert: 0,
+          byAlertLevel: [],
+          bySignal: [],
+        },
+        rows: [],
+      } satisfies FraudReport),
+    );
+    TestBed.configureTestingModule({
+      imports: [FraudReportComponent],
+      providers: [
+        provideNoopAnimations(),
+        provideRouter([]),
+        {
+          provide: ActivatedRoute,
+          useValue: { snapshot: { queryParamMap: convertToParamMap(query) } },
+        },
+        ReportFiltersStore,
+        { provide: FraudReportService, useValue: { report, export: jasmine.createSpy() } },
+        { provide: BranchesService, useValue: { list: () => of([]) } },
+      ],
+    });
+    TestBed.inject(ReportFiltersStore).hydrate(convertToParamMap(query));
+    const fixture = TestBed.createComponent(FraudReportComponent);
+    fixture.detectChanges();
+    return { fixture, report };
+  }
+
+  it('previews right away, with the alert level the link carried', () => {
+    const { fixture, report } = open({
+      from: '2026-09-01',
+      to: '2026-09-30',
+      riskBand: 'CRITICAL',
+    });
+
+    expect(report).toHaveBeenCalledOnceWith(jasmine.objectContaining({ riskBand: 'CRITICAL' }));
+    const text = (fixture.nativeElement as HTMLElement).textContent!.replace(/\s+/g, ' ');
+    expect(text).toContain('Ramo: Todos · Nivel de alerta: Crítico');
+  });
+
+  it('ignores an alert level the filter does not offer', () => {
+    const { report } = open({ from: '2026-09-01', to: '2026-09-30', riskBand: 'LOW' });
+
+    expect(report).toHaveBeenCalledOnceWith(jasmine.objectContaining({ riskBand: '' }));
   });
 });

@@ -1,7 +1,9 @@
 <a
   class="breadcrumb"
   [routerLink]="['/portal/cases', caseId]"
-  [queryParams]="insurerSlug ? { insurer: insurerSlug } : {}">‹ Volver al seguimiento</a>
+  [queryParams]="insurerSlug ? { insurer: insurerSlug } : {}"
+  >‹ Volver al seguimiento</a
+>
 
 <header class="page-head">
   <h1 class="t-page-title">{{ needsDocs() ? 'Documentación adicional' : 'Tus documentos' }}</h1>
@@ -9,9 +11,11 @@
     <p class="subtitle measure">
       @if (needsDocs()) {
         Necesitamos algunos documentos para avanzar con tu siniestro
-        <span class="mono">#{{ d.id }}</span>.
+        <span class="mono">#{{ d.id }}</span
+        >.
       } @else {
-        Esto es lo que enviaste para tu siniestro <span class="mono">#{{ d.id }}</span>.
+        Esto es lo que enviaste para tu siniestro <span class="mono">#{{ d.id }}</span
+        >.
       }
     </p>
     @if (needsDocs()) {
@@ -48,5 +52,6 @@
     [caseId]="d.id"
     [insurerSlug]="d.insurerSlug"
     heading="Documentación que enviaste"
-    [showMissing]="false" />
+    [showMissing]="false"
+  />
 }

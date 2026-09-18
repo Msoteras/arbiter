@@ -1,5 +1,12 @@
 import { HttpErrorResponse } from '@angular/common/http';
-import { ChangeDetectionStrategy, Component, computed, effect, inject, signal } from '@angular/core';
+import {
+  ChangeDetectionStrategy,
+  Component,
+  computed,
+  effect,
+  inject,
+  signal,
+} from '@angular/core';
 import { toSignal } from '@angular/core/rxjs-interop';
 import { Router } from '@angular/router';
 import { catchError, map, of, startWith } from 'rxjs';
@@ -22,14 +29,10 @@ import { PolicyCardComponent } from '../../../shared/ui/policy-card/policy-card.
 import { PolicyService } from '../../expedientes/policy.service';
 
 type ProfileState =
-  | { status: 'loading' }
-  | { status: 'ok'; profile: InsuredProfile }
-  | { status: 'error' };
+  { status: 'loading' } | { status: 'ok'; profile: InsuredProfile } | { status: 'error' };
 
 type PoliciesState =
-  | { status: 'loading' }
-  | { status: 'ok'; policies: Policy[] }
-  | { status: 'error' };
+  { status: 'loading' } | { status: 'ok'; policies: Policy[] } | { status: 'error' };
 
 /**
  * H0009 — pantalla de bienvenida del asegurado (primer ingreso).

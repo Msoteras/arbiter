@@ -1,10 +1,10 @@
 <div class="reportes" @staggerReveal>
-  <app-card heading="Reporte de detección de fraude">
+  <app-card heading="Parámetros del reporte">
     <p class="rep-hint">
       Criterios de detección
       <app-info-tip>
-        Aparecen acá las denuncias del período sobre las que se disparó al menos una señal: score
-        de riesgo alto (banda Alto o Crítico del motor de scoring), más de una denuncia del mismo
+        Aparecen acá las denuncias del período sobre las que se disparó al menos una señal: score de
+        riesgo alto (banda Alto o Crítico del motor de scoring), más de una denuncia del mismo
         asegurado en los últimos 12 meses, o incoherencias en el análisis forense de las imágenes.
         El sistema no determina fraude: señala indicios para revisión humana.
       </app-info-tip>
@@ -29,61 +29,58 @@
       <p class="form-error" role="alert">{{ message }}</p>
     }
 
-    <div class="actions">
-      <app-button
-        [disabled]="!!filters.periodError()"
-        [loading]="loading()"
-        (click)="loadPreview()"
-      >
-        Ver vista previa
-      </app-button>
-
-      <div class="export" role="group" aria-label="Exportar reporte">
-        <span class="t-field-label">Exportar</span>
-        <app-button
-          variant="secondary"
-          [disabled]="!!filters.periodError() || exporting() === 'PDF'"
-          [loading]="exporting() === 'CSV'"
-          (click)="exportAs('CSV')"
-        >
-          CSV
-        </app-button>
-        <app-button
-          variant="secondary"
-          [disabled]="!!filters.periodError() || exporting() === 'CSV'"
-          [loading]="exporting() === 'PDF'"
-          (click)="exportAs('PDF')"
-        >
-          PDF
-        </app-button>
-      </div>
-    </div>
+    <app-report-actions
+      [disabled]="!!filters.periodError()"
+      [loading]="loading()"
+      [exporting]="exporting()"
+      (preview)="loadPreview()"
+      (exportAs)="exportAs($event)"
+    />
   </app-card>
 
   <app-card heading="Vista previa">
     @if (loading()) {
       <app-inline-loading message="Buscando expedientes con indicios…" />
     } @else if (report(); as current) {
+      <!-- The filters as the backend applied them, not as the controls read: the two can only
+           disagree when something went wrong, and that is when it has to be visible. -->
+      <p class="applied t-note">
+        {{ formatDate(current.from) }} al {{ formatDate(current.to) }} · Ramo:
+        {{ current.branch ?? 'Todos' }} · Nivel de alerta:
+        {{ current.riskBand ? riskBandLabel(current.riskBand) : 'Todos' }}
+      </p>
       @if (current.rows.length === 0) {
-        <app-empty-state
-          message="Ningún expediente con indicios en el período"
-          sub="Probá con otro rango de fechas, otro ramo o sin filtrar por nivel de alerta."
-        />
+        <!-- With claims in the period, the denominator is the finding: "0 of 84" is not "nothing". -->
+        @if (current.summary.totalClaims > 0) {
+          <app-empty-state
+            message="Ningún expediente con indicios en el período"
+            [sub]="
+              'Ninguna de las ' +
+              current.summary.totalClaims +
+              ' denuncias del período disparó una señal. Probá con otro rango de fechas, otro ramo o sin filtrar por nivel de alerta.'
+            "
+          />
+        } @else {
+          <app-empty-state
+            message="No hay denuncias en el período"
+            sub="Probá con otro rango de fechas u otro ramo."
+          />
+        }
       } @else {
         @if (summary(); as totals) {
           <section class="summary" aria-label="Totales del período">
             <div class="figures">
-              <!-- El denominador, explícito: sin él las dos tasas de al lado no se pueden leer. -->
+              <!-- The denominator, stated: without it the two rates next to it can't be read. -->
               <app-stat-tile label="Denuncias del período" [value]="totals.totalClaims" />
               <app-stat-tile
                 label="Con indicios"
-                [value]="(totals.flaggedRate | percent: '1.0-1') ?? '—'"
+                [value]="totals.flaggedRate | rate: 1"
                 [sub]="totals.flagged + ' de ' + totals.totalClaims"
                 [progress]="totals.flaggedRate"
                 progressTone="warning"
               />
-              <!-- El cruce, que es lo que el reporte agrega sobre el gauge del expediente: una
-                   señal es un indicio, dos coincidiendo es una lista corta. -->
+              <!-- The cross, which is what the report adds over the case's gauge: one signal is a
+                   hint, two coinciding is a shortlist. -->
               <app-stat-tile
                 label="Con señales cruzadas"
                 [value]="totals.multiSignal"
@@ -91,7 +88,7 @@
               />
               <app-stat-tile
                 label="Fraude determinado"
-                [value]="(totals.fraudRate | percent: '1.0-1') ?? '—'"
+                [value]="totals.fraudRate | rate: 1"
                 [sub]="
                   totals.fraudDetermined +
                   ' de ' +
@@ -106,14 +103,29 @@
               />
             </div>
 
-            <section class="distribution">
-              <h3 class="t-section-label">Por nivel de alerta</h3>
-              <app-distribution [items]="alertItems()" />
-            </section>
+            <div class="distributions">
+              <section class="distribution">
+                <h3 class="t-section-label">Por nivel de alerta</h3>
+                <app-distribution [items]="alertItems()" />
+              </section>
+
+              <section class="distribution">
+                <h3 class="t-section-label">Por señal</h3>
+                <app-distribution [items]="signalItems()" [total]="totals.flagged" />
+                <p class="t-note distribution-note">
+                  Un expediente puede tener más de una señal: los porcentajes son sobre los
+                  {{ totals.flagged }} con indicios y no suman 100&nbsp;%.
+                </p>
+              </section>
+            </div>
           </section>
         }
 
-        <app-table>
+        <app-table
+          [pinFirstColumn]="true"
+          [stickyHeader]="true"
+          scrollLabel="Expedientes con indicios, tabla desplazable"
+        >
           <thead>
             <tr>
               <th scope="col">Nº</th>
@@ -141,7 +153,10 @@
                 </td>
                 <td class="tabular">{{ formatDateTime(row.reportedAt) }}</td>
                 <td class="gauge-cell">
-                  <app-fraud-gauge [band]="riskGaugeBand(row)" [emptyLabel]="alertEmptyLabel(row)" />
+                  <app-fraud-gauge
+                    [band]="riskGaugeBand(row)"
+                    [emptyLabel]="alertEmptyLabel(row)"
+                  />
                 </td>
                 <td>
                   <ul class="indicators">
@@ -151,12 +166,16 @@
                   </ul>
                   @if (row.fraudDetermined) {
                     <app-badge variant="strong" tone="danger">
-                      {{ row.expertBacked ? 'Fraude determinado · pericial' : 'Fraude determinado' }}
+                      {{
+                        row.expertBacked ? 'Fraude determinado · pericial' : 'Fraude determinado'
+                      }}
                     </app-badge>
                   }
                 </td>
                 <td>
-                  <app-badge [tone]="estadoTone(row.status)">{{ estadoLabel(row.status) }}</app-badge>
+                  <app-badge [tone]="estadoTone(row.status)">{{
+                    estadoLabel(row.status)
+                  }}</app-badge>
                 </td>
               </tr>
             }

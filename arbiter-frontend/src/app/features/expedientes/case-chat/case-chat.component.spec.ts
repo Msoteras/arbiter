@@ -113,11 +113,23 @@ describe('CaseChatComponent — mensajes que llegan por el socket', () => {
 
   it('marca leído lo que entra, y no lo que sale', () => {
     markRead.calls.reset();
-    pushed.next({ id: 4, caseId: 29, sender: 'ANALYST', body: 'Che', createdAt: '2026-08-30T12:08:00Z' });
+    pushed.next({
+      id: 4,
+      caseId: 29,
+      sender: 'ANALYST',
+      body: 'Che',
+      createdAt: '2026-08-30T12:08:00Z',
+    });
     expect(markRead).toHaveBeenCalled();
 
     markRead.calls.reset();
-    pushed.next({ id: 5, caseId: 29, sender: 'INSURED', body: 'Ahí va', createdAt: '2026-08-30T12:09:00Z' });
+    pushed.next({
+      id: 5,
+      caseId: 29,
+      sender: 'INSURED',
+      body: 'Ahí va',
+      createdAt: '2026-08-30T12:09:00Z',
+    });
     expect(markRead).not.toHaveBeenCalled();
   });
 });

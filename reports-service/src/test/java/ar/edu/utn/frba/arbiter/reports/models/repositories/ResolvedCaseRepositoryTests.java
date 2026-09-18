@@ -17,6 +17,7 @@ import java.time.Instant;
 import java.util.List;
 
 import static ar.edu.utn.frba.arbiter.reports.support.CaseTables.APPROVED;
+import static ar.edu.utn.frba.arbiter.reports.support.CaseTables.AWAITING_DOCUMENTATION;
 import static ar.edu.utn.frba.arbiter.reports.support.CaseTables.CELULARES;
 import static ar.edu.utn.frba.arbiter.reports.support.CaseTables.HURTO_CELULARES;
 import static ar.edu.utn.frba.arbiter.reports.support.CaseTables.HURTO_TECNOLOGIA;
@@ -84,6 +85,38 @@ class ResolvedCaseRepositoryTests extends AbstractPersistenceIT {
             assertThat(row.finalStatus()).isEqualTo(CaseStatus.APPROVED);
             assertThat(row.analystName()).isEqualTo("Laura Gómez");
         });
+    }
+
+    /**
+     * The time waiting on somebody outside the insurer, so the average can leave it out — the same
+     * definition the dashboard reads ({@code CaseResolutionSql.WAITING_CTE}).
+     */
+    @Test
+    void waitingOnAThirdParty_isMeasuredApartFromTheTotal() {
+        tables.insertCase(1, "2026-08-01T10:00:00Z", APPROVED, ROBO_CELULARES, false, LAURA, null);
+        tables.transition(1, null, PENDING_REVIEW, "2026-08-01T10:00:00Z");
+        tables.transition(1, PENDING_REVIEW, AWAITING_DOCUMENTATION, "2026-08-02T10:00:00Z");
+        tables.transition(1, AWAITING_DOCUMENTATION, PENDING_REVIEW, "2026-08-04T10:00:00Z");
+        tables.transition(1, PENDING_REVIEW, APPROVED, "2026-08-05T10:00:00Z");
+
+        List<ResolutionReportRow> rows = repository.findResolvedBetween(AUGUST_FROM, AUGUST_TO, null, null);
+
+        assertThat(rows).singleElement().satisfies(row -> {
+            assertThat(row.totalMinutes()).isEqualTo(4 * 24 * 60);
+            assertThat(row.waitingMinutes()).isEqualTo(2 * 24 * 60);
+        });
+    }
+
+    /** Never derived to anybody: the whole time is the insurer's own. */
+    @Test
+    void aCaseThatNeverWaited_hasNoWaitingTime() {
+        tables.insertCase(1, "2026-08-01T10:00:00Z", APPROVED, ROBO_CELULARES, false, LAURA, null);
+        tables.transition(1, null, PENDING_REVIEW, "2026-08-01T10:00:00Z");
+        tables.transition(1, PENDING_REVIEW, APPROVED, "2026-08-03T10:00:00Z");
+
+        List<ResolutionReportRow> rows = repository.findResolvedBetween(AUGUST_FROM, AUGUST_TO, null, null);
+
+        assertThat(rows).singleElement().extracting(ResolutionReportRow::waitingMinutes).isEqualTo(0L);
     }
 
     @Test

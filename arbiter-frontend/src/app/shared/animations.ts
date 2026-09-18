@@ -69,10 +69,7 @@ export const fadeStagger = trigger('fadeStagger', [
   transition(':enter', [
     query(
       ':scope > *',
-      [
-        style({ opacity: 0 }),
-        stagger(40, [animate('260ms ease-out', style({ opacity: 1 }))]),
-      ],
+      [style({ opacity: 0 }), stagger(40, [animate('260ms ease-out', style({ opacity: 1 }))])],
       { optional: true },
     ),
   ]),

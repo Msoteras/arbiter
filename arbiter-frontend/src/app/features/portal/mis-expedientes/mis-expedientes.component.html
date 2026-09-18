@@ -18,63 +18,59 @@
   </header>
 
   @if (needsIdentity()) {
-      <!-- Identificación provisoria: cuando se integre Auth0, esto desaparece
+    <!-- Identificación provisoria: cuando se integre Auth0, esto desaparece
          y la identidad sale del JWT. -->
-      <app-card class="identify-card" heading="Identificate para ver tus siniestros">
-        <p class="t-body muted">
-          Ingresá tu número de documento o identificación de asegurado (el mismo que usaste al
-          registrar la denuncia).
-        </p>
-        <form class="identify-form" (submit)="$event.preventDefault(); identify()">
-          <app-input
-            class="identify-input"
-            [(value)]="identityInput"
-            placeholder="Ej: 40.123.456"
-          />
-          <app-button type="submit" [disabled]="!identityInput().trim()">Ingresar</app-button>
-        </form>
-      </app-card>
-    } @else {
-      <div class="filtros">
-        <app-input
-          class="filtro-busqueda"
-          [(value)]="qDraft"
-          placeholder="Buscar por N° de siniestro o de póliza…"
+    <app-card class="identify-card" heading="Identificate para ver tus siniestros">
+      <p class="t-body muted">
+        Ingresá tu número de documento o identificación de asegurado (el mismo que usaste al
+        registrar la denuncia).
+      </p>
+      <form class="identify-form" (submit)="$event.preventDefault(); identify()">
+        <app-input class="identify-input" [(value)]="identityInput" placeholder="Ej: 40.123.456" />
+        <app-button type="submit" [disabled]="!identityInput().trim()">Ingresar</app-button>
+      </form>
+    </app-card>
+  } @else {
+    <div class="filtros">
+      <app-input
+        class="filtro-busqueda"
+        [(value)]="qDraft"
+        placeholder="Buscar por N° de siniestro o de póliza…"
+      />
+      <label class="filtro">
+        <span class="t-field-label">Estado</span>
+        <app-select
+          [(value)]="estadoFilter"
+          [options]="estadoOptions"
+          placeholder="Todos"
+          (valueChange)="onFilterChange()"
         />
+      </label>
+      @if (showInsurerFilter()) {
         <label class="filtro">
-          <span class="t-field-label">Estado</span>
+          <span class="t-field-label">Aseguradora</span>
           <app-select
-            [(value)]="estadoFilter"
-            [options]="estadoOptions"
-            placeholder="Todos"
+            [(value)]="insurerFilter"
+            [options]="insurerOptions()"
+            placeholder="Todas"
             (valueChange)="onFilterChange()"
           />
         </label>
-        @if (showInsurerFilter()) {
-          <label class="filtro">
-            <span class="t-field-label">Aseguradora</span>
-            <app-select
-              [(value)]="insurerFilter"
-              [options]="insurerOptions()"
-              placeholder="Todas"
-              (valueChange)="onFilterChange()"
-            />
-          </label>
-        }
-        <label class="filtro">
-          <span class="t-field-label">Hecho desde</span>
-          <app-input type="date" [(value)]="desde" (valueChange)="onFilterChange()" />
-        </label>
-        <label class="filtro">
-          <span class="t-field-label">Hecho hasta</span>
-          <app-input type="date" [(value)]="hasta" (valueChange)="onFilterChange()" />
-        </label>
-        @if (hasFilters()) {
-          <app-button variant="secondary" (click)="clearFilters()">Limpiar</app-button>
-        }
-      </div>
+      }
+      <label class="filtro">
+        <span class="t-field-label">Hecho desde</span>
+        <app-input type="date" [(value)]="desde" (valueChange)="onFilterChange()" />
+      </label>
+      <label class="filtro">
+        <span class="t-field-label">Hecho hasta</span>
+        <app-input type="date" [(value)]="hasta" (valueChange)="onFilterChange()" />
+      </label>
+      @if (hasFilters()) {
+        <app-button variant="secondary" (click)="clearFilters()">Limpiar</app-button>
+      }
+    </div>
 
-      @if (loading()) {
+    @if (loading()) {
       <!-- Carga en el lugar del listado: la barra superior del portal queda visible; no se tapa
            la pantalla entera (esa se reserva al arranque login → home). -->
       <app-inline-loading message="Cargando tus siniestros…" />
@@ -144,6 +140,6 @@
         (pageChange)="onPageChange($event)"
         (sizeChange)="onSizeChange($event)"
       />
-      }
     }
-  </div>
+  }
+</div>

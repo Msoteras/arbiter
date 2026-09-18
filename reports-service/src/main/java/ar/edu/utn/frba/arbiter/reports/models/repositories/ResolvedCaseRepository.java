@@ -42,27 +42,22 @@ import java.util.List;
 @RequiredArgsConstructor
 public class ResolvedCaseRepository {
 
-    // "Resolved" means the case sits in a final status of the platform catalog (is_final, not a
-    // hardcoded list), and the resolution date is the LAST transition into that status: a case that
-    // was reopened and closed again counts once, on the day it closed for good. The latest
-    // transition is picked before filtering by period on purpose — filtering first would pick up an
-    // earlier closing that a reopen already undid.
-    //
-    // The analyst is whoever decided; a LAPSED case has no decision, so it falls back to whoever
-    // owned the case when it lapsed.
-    private static final String RESOLVED_CASES = """
-            WITH resolution AS (
-                SELECT DISTINCT ON (h.case_id) h.case_id, h.changed_at AS resolved_at
-                  FROM case_status_history h
-                  JOIN cases c ON c.id = h.case_id AND h.final_status_id = c.current_status_id
-                 ORDER BY h.case_id, h.changed_at DESC, h.id DESC
-            ),
+    /**
+     * The analyst is whoever decided; a LAPSED case has no decision, so it falls back to whoever
+     * owned the case when it lapsed. The resolution and the waiting time are
+     * {@link CaseResolutionSql}'s, the same definitions the dashboard reads, so the two screens
+     * can't state two different averages for the same period.
+     */
+    private static final String RESOLVED_CASES = CaseResolutionSql.RESOLUTION_CTE + ",\n"
+            + CaseResolutionSql.WAITING_CTE + """
+            ,
             latest_llm AS (
                 SELECT DISTINCT ON (case_id) case_id, recommendation
                   FROM llm_analysis
                  ORDER BY case_id, id DESC
             )
             SELECT c.id, c.reported_at, c.was_fast_track, r.resolved_at,
+                   COALESCE(wt.waiting_seconds, 0) AS waiting_seconds,
                    i.name AS insured_name, i.surname AS insured_surname, i.dni,
                    b.name AS branch, cc.name AS claim_cause, s.name AS final_status,
                    l.recommendation, k.decision,
@@ -73,6 +68,7 @@ public class ResolvedCaseRepository {
               JOIN insured i      ON i.id = c.insured_id
               JOIN claim_cause cc ON cc.id = c.claim_cause_id
               JOIN branch b       ON b.id = cc.branch_id
+              LEFT JOIN waiting wt            ON wt.case_id = c.id
               LEFT JOIN latest_llm l          ON l.case_id = c.id
               LEFT JOIN case_classification k ON k.id = c.classification_id
               LEFT JOIN claims_analyst a      ON a.id = COALESCE(k.analyst_id, c.analyst_id)
@@ -95,7 +91,8 @@ public class ResolvedCaseRepository {
                                                          String claimCause) {
         MapSqlParameterSource params = new MapSqlParameterSource()
                 .addValue("from", OffsetDateTime.ofInstant(from, ZoneOffset.UTC))
-                .addValue("to", OffsetDateTime.ofInstant(to, ZoneOffset.UTC));
+                .addValue("to", OffsetDateTime.ofInstant(to, ZoneOffset.UTC))
+                .addValue("pausing", CaseStatus.pausingTheTerm().stream().map(Enum::name).toList());
         StringBuilder sql = new StringBuilder(RESOLVED_CASES);
         // Appended rather than `:claimCause IS NULL OR ...`: Postgres can't infer the type of a
         // parameter that is only ever compared to NULL and rejects the statement. Same reason
@@ -144,6 +141,7 @@ public class ResolvedCaseRepository {
                 reportedAt,
                 resolvedAt,
                 Duration.between(reportedAt, resolvedAt).toMinutes(),
+                Math.round(rs.getDouble("waiting_seconds")) / 60,
                 classification(rs.getBoolean("was_fast_track"), rs.getString("recommendation")),
                 rs.getString("decision"),
                 CaseStatus.valueOf(rs.getString("final_status")),

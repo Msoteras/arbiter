@@ -3,12 +3,8 @@ import { Injectable, inject } from '@angular/core';
 import { Observable, map } from 'rxjs';
 
 import { environment } from '../../../../environments/environment';
+import { ReportFile } from './report-download';
 import { ReportFormat, ResolutionReport, ResolutionReportParams } from './resolution-report';
-
-export interface ReportFile {
-  blob: Blob;
-  filename: string;
-}
 
 /** reports-service — resolution report (GET /api/v1/reports/resolutions). */
 @Injectable({ providedIn: 'root' })

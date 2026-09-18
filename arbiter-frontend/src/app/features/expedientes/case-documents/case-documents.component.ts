@@ -40,9 +40,7 @@ interface ExtractedField {
 }
 
 type ListState =
-  | { status: 'loading' }
-  | { status: 'ok'; data: CaseDocument[] }
-  | { status: 'error' };
+  { status: 'loading' } | { status: 'ok'; data: CaseDocument[] } | { status: 'error' };
 
 /** Una fila por tipo canónico: presente (con su documento) o faltante. */
 interface DocRow {
@@ -122,7 +120,9 @@ export class CaseDocumentsComponent {
   private readonly requiredTypes = toSignal(
     toObservable(computed(() => ({ branch: this.branch(), claimCause: this.claimCause() }))).pipe(
       switchMap(({ branch, claimCause }) =>
-        branch && claimCause ? this.agenda.slotsForBranch(branch, claimCause) : of(CASE_DOCUMENT_TYPES),
+        branch && claimCause
+          ? this.agenda.slotsForBranch(branch, claimCause)
+          : of(CASE_DOCUMENT_TYPES),
       ),
     ),
     { initialValue: CASE_DOCUMENT_TYPES as readonly CaseDocumentType[] },
@@ -226,8 +226,10 @@ export class CaseDocumentsComponent {
    * que está mirando no entró en el análisis.
    */
   protected readonly selectedNotAnalyzed = computed(
-    () => this.extractions().length > 0 && this.selectedExtraction() === null
-        && this.preview().status !== 'empty',
+    () =>
+      this.extractions().length > 0 &&
+      this.selectedExtraction() === null &&
+      this.preview().status !== 'empty',
   );
 
   constructor() {
@@ -314,7 +316,10 @@ export class CaseDocumentsComponent {
   protected extractedFields(doc: DocumentAnalysis): ExtractedField[] {
     return [
       // formatDate y no formatDateTime: el backend lo guarda en una columna DATE, sin hora.
-      { label: 'Fecha del documento', value: doc.documentDate ? formatDate(doc.documentDate) : null },
+      {
+        label: 'Fecha del documento',
+        value: doc.documentDate ? formatDate(doc.documentDate) : null,
+      },
       { label: 'Importe', value: doc.amount == null ? null : `$${doc.amount.toLocaleString()}` },
       { label: 'Bien que nombra', value: doc.itemDescription },
       { label: 'Marca', value: doc.brand },

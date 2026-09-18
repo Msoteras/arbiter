@@ -1,24 +1,15 @@
-import { DOCUMENT, PercentPipe } from '@angular/common';
-import { HttpErrorResponse } from '@angular/common/http';
-import {
-  ChangeDetectionStrategy,
-  Component,
-  DestroyRef,
-  computed,
-  effect,
-  inject,
-  signal,
-} from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
-import { RouterLink } from '@angular/router';
+import { ActivatedRoute, Params, RouterLink } from '@angular/router';
+import { Observable } from 'rxjs';
 
 import { clasificacionLabel, clasificacionTone } from '../../../core/models/clasificacion';
 import { estadoLabel, estadoTone } from '../../../core/models/estado';
 import { StatusTone } from '../../../core/models/status-tone';
-import { formatDateTime } from '../../../core/util/datetime';
+import { formatDate, formatDateTime } from '../../../core/util/datetime';
 import { staggerReveal } from '../../../shared/animations';
+import { RatePipe } from '../../../shared/pipes/rate.pipe';
 import { BadgeComponent } from '../../../shared/ui/badge/badge.component';
-import { ButtonComponent } from '../../../shared/ui/button/button.component';
 import { CardComponent } from '../../../shared/ui/card/card.component';
 import {
   DistributionComponent,
@@ -31,15 +22,19 @@ import { SelectComponent, SelectOption } from '../../../shared/ui/select/select.
 import { StatTileComponent } from '../../../shared/ui/stat-tile/stat-tile.component';
 import { TableComponent } from '../../../shared/ui/table/table.component';
 import { ExpedienteService } from '../../expedientes/expediente.service';
-import { downloadReport, reportErrorMessage } from './report-download';
+import { ReportActionsComponent } from './report-actions.component';
+import { ReportFile } from './report-download';
 import { ReportFiltersComponent } from './report-filters.component';
 import { ReportFiltersStore } from './report-filters.store';
+import { ReportTab } from './report-tab';
 import {
   ReportFormat,
   ResolutionReport,
   ResolutionReportParams,
+  ResolutionReportRow,
   decisionLabel,
   formatDuration,
+  waitingBreakdown,
 } from './resolution-report';
 import { ResolutionReportService } from './resolution-report.service';
 
@@ -54,15 +49,15 @@ import { ResolutionReportService } from './resolution-report.service';
 @Component({
   selector: 'app-resolution-report',
   imports: [
-    PercentPipe,
+    RatePipe,
     RouterLink,
     BadgeComponent,
-    ButtonComponent,
     CardComponent,
     DistributionComponent,
     EmptyStateComponent,
     InlineLoadingComponent,
     PaginationComponent,
+    ReportActionsComponent,
     ReportFiltersComponent,
     SelectComponent,
     StatTileComponent,
@@ -71,38 +66,37 @@ import { ResolutionReportService } from './resolution-report.service';
   changeDetection: ChangeDetectionStrategy.OnPush,
   animations: [staggerReveal],
   templateUrl: './resolution-report.component.html',
-  styleUrls: ['./report-params.scss', './resolution-report.component.scss'],
+  styleUrls: ['./report-params.scss', './report-tab.scss', './resolution-report.component.scss'],
 })
-export class ResolutionReportComponent {
+export class ResolutionReportComponent extends ReportTab<
+  ResolutionReportRow,
+  ResolutionReport,
+  ResolutionReportParams
+> {
   private readonly reports = inject(ResolutionReportService);
   private readonly expedientes = inject(ExpedienteService);
-  private readonly document = inject(DOCUMENT);
-  private readonly destroyRef = inject(DestroyRef);
-  protected readonly filters = inject(ReportFiltersStore);
 
   protected readonly claimCause = signal('');
-  protected readonly claimCauseOptions = signal<SelectOption[]>([]);
-
-  protected readonly report = signal<ResolutionReport | null>(null);
-  protected readonly loading = signal(false);
-  protected readonly exporting = signal<ReportFormat | null>(null);
-  protected readonly error = signal<string | null>(null);
-
-  protected readonly page = signal(0);
-  protected readonly pageSize = signal(20);
-  protected readonly rows = computed(() => this.report()?.rows ?? []);
-  protected readonly totalPages = computed(() => Math.ceil(this.rows().length / this.pageSize()));
-  protected readonly pageRows = computed(() => {
-    const start = this.page() * this.pageSize();
-    return this.rows().slice(start, start + this.pageSize());
+  private readonly claimCauseCatalog = signal<SelectOption[]>([]);
+  /**
+   * The catalog plus the selected cause if it isn't in it (a link typed by hand, or no catalog):
+   * without it the select would read "Todos" over a filtered request.
+   */
+  protected readonly claimCauseOptions = computed<SelectOption[]>(() => {
+    const catalog = this.claimCauseCatalog();
+    const selected = this.claimCause();
+    return !selected || catalog.some((option) => option.value === selected)
+      ? catalog
+      : [...catalog, { value: selected, label: selected }];
   });
+
   /**
    * Straight from the backend rather than added up here: the exported file and the screen have to
    * agree, and two implementations of "average" are one bug away from disagreeing.
    */
   protected readonly summary = computed(() => this.report()?.summary ?? null);
 
-  /** El estado sí comunica semáforo: sale de `estadoTone`, igual que en la tabla y en el tablero. */
+  /** The status does carry the traffic light: from `estadoTone`, same as the table and the dashboard. */
   protected readonly statusItems = computed<DistributionItem[]>(() =>
     (this.summary()?.byStatus ?? []).map((bucket) => ({
       label: estadoLabel(bucket.label),
@@ -111,7 +105,7 @@ export class ResolutionReportComponent {
     })),
   );
 
-  /** El hecho generador no comunica estado: sin semáforo, igual que el ramo en el tablero. */
+  /** The claim cause doesn't communicate state: no traffic light, same as the branch on the dashboard. */
   protected readonly claimCauseItems = computed<DistributionItem[]>(() =>
     (this.summary()?.byClaimCause ?? []).map((bucket) => ({
       label: bucket.label,
@@ -120,33 +114,30 @@ export class ResolutionReportComponent {
     })),
   );
 
+  protected readonly formatDate = formatDate;
   protected readonly formatDateTime = formatDateTime;
   protected readonly formatDuration = formatDuration;
   protected readonly decisionLabel = decisionLabel;
+  protected readonly waitingBreakdown = waitingBreakdown;
   protected readonly estadoLabel = estadoLabel;
   protected readonly estadoTone = estadoTone;
   protected readonly clasificacionLabel = clasificacionLabel;
   protected readonly clasificacionTone = clasificacionTone;
 
   constructor() {
+    super();
     this.expedientes
       .claimCauseNames()
       .pipe(takeUntilDestroyed())
       .subscribe({
         next: (names) =>
-          this.claimCauseOptions.set(names.map((name) => ({ value: name, label: name }))),
-        // Without the catalog the filter still works as "Todos": not worth blocking the screen.
-        error: () => this.claimCauseOptions.set([]),
+          this.claimCauseCatalog.set(names.map((name) => ({ value: name, label: name }))),
+        // Without the catalog the filter still works: claimCauseOptions names the selected one.
+        error: () => this.claimCauseCatalog.set([]),
       });
 
-    // The shared filters are edited outside this component, so discarding the stale preview has to
-    // react to them rather than hang off a setter.
-    effect(() => {
-      this.filters.from();
-      this.filters.to();
-      this.filters.branchId();
-      this.discardPreview();
-    });
+    this.claimCause.set(this.route.snapshot.queryParamMap.get('claimCause')?.trim() ?? '');
+    this.start();
   }
 
   protected setClaimCause(value: string): void {
@@ -154,66 +145,27 @@ export class ResolutionReportComponent {
     this.discardPreview();
   }
 
-  protected loadPreview(): void {
-    if (this.filters.periodError()) {
-      return;
-    }
-    this.loading.set(true);
-    this.error.set(null);
-    this.reports
-      .preview(this.params())
-      .pipe(takeUntilDestroyed(this.destroyRef))
-      .subscribe({
-        next: (report) => {
-          this.report.set(report);
-          this.page.set(0);
-          this.loading.set(false);
-        },
-        error: (err: HttpErrorResponse) => {
-          this.loading.set(false);
-          this.error.set(reportErrorMessage(err));
-        },
-      });
+  protected override fetchReport(params: ResolutionReportParams): Observable<ResolutionReport> {
+    return this.reports.preview(params);
   }
 
-  protected exportAs(format: ReportFormat): void {
-    if (this.filters.periodError() || this.exporting()) {
-      return;
-    }
-    this.exporting.set(format);
-    this.error.set(null);
-    this.reports
-      .export(this.params(), format)
-      .pipe(takeUntilDestroyed(this.destroyRef))
-      .subscribe({
-        next: ({ blob, filename }) => {
-          downloadReport(this.document, blob, filename);
-          this.exporting.set(null);
-        },
-        error: (err: HttpErrorResponse) => {
-          this.exporting.set(null);
-          this.error.set(reportErrorMessage(err));
-        },
-      });
+  protected override fetchFile(
+    params: ResolutionReportParams,
+    format: ReportFormat,
+  ): Observable<ReportFile> {
+    return this.reports.export(params, format);
   }
 
-  protected setPageSize(size: number): void {
-    this.pageSize.set(size);
-    this.page.set(0);
+  protected override tabParams(): Params {
+    return { claimCause: this.claimCause() || undefined };
   }
 
-  private params(): ResolutionReportParams {
+  protected override params(): ResolutionReportParams {
     return {
       from: this.filters.from(),
       to: this.filters.to(),
       branchId: this.filters.branchId(),
       claimCause: this.claimCause(),
     };
-  }
-
-  /** A preview only describes the parameters it ran with; once one changes, it would mislead. */
-  private discardPreview(): void {
-    this.report.set(null);
-    this.error.set(null);
   }
 }

@@ -316,7 +316,11 @@ export class ExpedienteService {
    * (`fastTrackOnly=false`). El resto se pide después, solo si el siniestro no entra al carril
    * rápido. 503 si no se pudo leer el motor de reglas.
    */
-  intakeDocuments(policyNumber: string, branch: string, claimCause: string): Observable<IntakeDocumentsResponse> {
+  intakeDocuments(
+    policyNumber: string,
+    branch: string,
+    claimCause: string,
+  ): Observable<IntakeDocumentsResponse> {
     return this.http.get<IntakeDocumentsResponse>(`${this.baseUrl}/intake-documents`, {
       params: { policyNumber, branch, claimCause },
     });
@@ -348,7 +352,11 @@ export class ExpedienteService {
     const formData = new FormData();
     documents.forEach((file, type) => formData.append(type, file));
     const options = insurer ? { params: new HttpParams().set('insurer', insurer) } : {};
-    return this.http.post<ExpedienteResponse>(`${this.baseUrl}/${caseId}/documents`, formData, options);
+    return this.http.post<ExpedienteResponse>(
+      `${this.baseUrl}/${caseId}/documents`,
+      formData,
+      options,
+    );
   }
 
   /** Metadata de los adjuntos del expediente (sin el contenido). */
@@ -463,9 +471,12 @@ export class ExpedienteService {
     caseId: number,
     providerType: ProviderType = 'ESTUDIO_LIQUIDADOR',
   ): Observable<OpcionesDerivacion> {
-    return this.http.get<OpcionesDerivacion>(`${this.baseUrl}/${caseId}/expert-assessment/options`, {
-      params: { providerType },
-    });
+    return this.http.get<OpcionesDerivacion>(
+      `${this.baseUrl}/${caseId}/expert-assessment/options`,
+      {
+        params: { providerType },
+      },
+    );
   }
 
   /** Peritaje y servicio técnico, de la derivación más reciente a la más vieja. */
@@ -535,10 +546,7 @@ export class ExpedienteService {
     if (indemnifiableAmount != null) {
       formData.append('indemnifiableAmount', String(indemnifiableAmount));
     }
-    return this.http.post<Peritaje>(
-      `${this.baseUrl}/${caseId}/expert-assessment/report`,
-      formData,
-    );
+    return this.http.post<Peritaje>(`${this.baseUrl}/${caseId}/expert-assessment/report`, formData);
   }
 
   /**

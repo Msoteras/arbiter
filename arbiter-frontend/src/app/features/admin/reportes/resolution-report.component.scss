@@ -1,68 +1,11 @@
-/* La rejilla .params y .field viven en report-params.scss, compartidas con app-report-filters. */
-
-.reportes { display: flex; flex-direction: column; gap: var(--space-3); }
-
-.rep-hint { margin: 0 0 var(--space-4); color: var(--text-secondary); font-size: var(--font-size-sm); }
-
-.form-error {
-  margin: var(--space-3) 0 0;
-  color: var(--status-danger);
-  font-size: var(--font-size-sm);
-}
-
-.actions {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--space-3);
-  margin-top: var(--space-4);
-}
-.export { display: flex; align-items: center; gap: var(--space-2); }
-
-/* ===== Preview ===== */
-.summary {
-  margin: 0 0 var(--space-5);
-  padding-bottom: var(--space-5);
-  border-bottom: 1px solid var(--border-subtle);
-}
+/* Shared bits in report-tab.scss and report-params.scss; here only what this tab has of its own. */
 
 .figures {
-  display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: var(--space-3);
-  margin: 0 0 var(--space-4);
 }
-
-/* Las dos distribuciones en cajas propias: sin una superficie que las contenga quedaban sueltas
-   sobre el fondo de la card, y el número se iba al borde opuesto de una fila enorme. */
-.distributions {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: var(--space-3);
-}
-.distribution {
-  padding: var(--space-4);
-  border: 1px solid var(--border-subtle);
-  border-radius: var(--radius-card);
-  background: var(--surface-soft);
-}
-.distribution h3 { margin: 0 0 var(--space-3); color: var(--text-secondary); }
-
-.sub { display: block; margin-top: var(--space-1); font-size: var(--font-size-xs); color: var(--text-muted); }
-.muted { color: var(--text-muted); }
-.case-link {
-  color: var(--text-primary);
-  font-weight: var(--font-weight-medium);
-  text-decoration: none;
-}
-.case-link:hover { text-decoration: underline; }
-
-app-pagination { display: block; margin-top: var(--space-3); }
 
 @media (max-width: 480px) {
-  .figures,
-  .distributions { grid-template-columns: minmax(0, 1fr); }
-  .actions { flex-direction: column; align-items: stretch; }
-  .export { justify-content: space-between; }
+  .figures {
+    grid-template-columns: minmax(0, 1fr);
+  }
 }

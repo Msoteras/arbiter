@@ -3,11 +3,7 @@ import { Injectable, inject } from '@angular/core';
 import { Observable, tap } from 'rxjs';
 
 import { environment } from '../../../environments/environment';
-import {
-  InsuredProfile,
-  OnboardingRequest,
-  UpdateProfileRequest,
-} from '../models/profile';
+import { InsuredProfile, OnboardingRequest, UpdateProfileRequest } from '../models/profile';
 import { LoginResponse } from './auth.service';
 import { AuthSessionService } from './auth-session.service';
 

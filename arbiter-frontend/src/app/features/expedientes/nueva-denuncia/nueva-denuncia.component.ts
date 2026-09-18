@@ -28,8 +28,17 @@ import { PolicyService } from '../policy.service';
 import { ExpedienteResponse } from '../../../core/models/expediente';
 import { Policy } from '../../../core/models/policy';
 import { ChipGroupComponent, ChipOption } from '../../../shared/ui/chip-group/chip-group.component';
-import { addDays, isPoliceReportBeforeEvent, isTypedDate, todayIso } from '../../../core/util/datetime';
-import { CASE_DOCUMENT_TYPES, CaseDocumentType, documentTypeLabel } from '../../../core/models/case-document';
+import {
+  addDays,
+  isPoliceReportBeforeEvent,
+  isTypedDate,
+  todayIso,
+} from '../../../core/util/datetime';
+import {
+  CASE_DOCUMENT_TYPES,
+  CaseDocumentType,
+  documentTypeLabel,
+} from '../../../core/models/case-document';
 import { InsuredSessionService } from '../../../core/auth/insured-session.service';
 import { ArgentinaLocationsService } from '../../../core/services/argentina-locations.service';
 import { ButtonComponent } from '../../../shared/ui/button/button.component';
@@ -294,12 +303,14 @@ export class NuevaDenunciaComponent {
       switchMap((selected) =>
         selected
           ? this.policyService.listClaimCauses(selected.branch, selected.policyNumber).pipe(
-              map(
-                (names): ClaimTypesState => ({
-                  status: 'ok',
-                  list: names.map((name): ClaimType => ({ key: name, label: name, claimCause: name })),
-                }),
-              ),
+              map((names): ClaimTypesState => ({
+                status: 'ok',
+                list: names.map((name): ClaimType => ({
+                  key: name,
+                  label: name,
+                  claimCause: name,
+                })),
+              })),
               startWith<ClaimTypesState>({ status: 'loading' }),
               catchError(() => of<ClaimTypesState>({ status: 'ok', list: [] })),
             )
@@ -309,7 +320,9 @@ export class NuevaDenunciaComponent {
       // quedan en pantalla en vez de desaparecer y volver.
       scan(
         (prev, next): ClaimTypesState =>
-          next.status === 'loading' && prev.status === 'ok' ? { status: 'loading', list: prev.list } : next,
+          next.status === 'loading' && prev.status === 'ok'
+            ? { status: 'loading', list: prev.list }
+            : next,
         { status: 'idle' } as ClaimTypesState,
       ),
     ),
@@ -324,7 +337,7 @@ export class NuevaDenunciaComponent {
 
   protected readonly claimTypes = computed<ClaimType[]>(() => {
     const s = this.claimTypesState();
-    return s.status === 'ok' ? s.list : (s.status === 'loading' ? (s.list ?? []) : []);
+    return s.status === 'ok' ? s.list : s.status === 'loading' ? (s.list ?? []) : [];
   });
   protected readonly selectedType = signal<ClaimType | null>(null);
   // Al cambiar de ramo la causa elegida puede dejar de existir: se limpia para no mandar un hecho
@@ -465,7 +478,9 @@ export class NuevaDenunciaComponent {
   /** Derived from the field, so typing a date by hand lights up the matching chip. */
   protected readonly eventDateShortcut = computed(() => {
     const date = this.eventDate();
-    return Object.keys(this.eventDateShortcuts).find((k) => this.eventDateShortcuts[k] === date) ?? '';
+    return (
+      Object.keys(this.eventDateShortcuts).find((k) => this.eventDateShortcuts[k] === date) ?? ''
+    );
   });
 
   selectEventDateShortcut(key: string): void {
@@ -627,7 +642,10 @@ export class NuevaDenunciaComponent {
               map((res): EligibilityState =>
                 res.eligible
                   ? { status: 'ok' }
-                  : { status: 'blocked', reason: res.reason ?? 'No se puede registrar la denuncia.' },
+                  : {
+                      status: 'blocked',
+                      reason: res.reason ?? 'No se puede registrar la denuncia.',
+                    },
               ),
               startWith<EligibilityState>({ status: 'checking' }),
               catchError(() => of<EligibilityState>({ status: 'unknown' })),
@@ -666,7 +684,9 @@ export class NuevaDenunciaComponent {
   // elegible. No bloquea "Siguiente" — mismo criterio de fail-open que antes — pero el asegurado
   // se entera de que no se pudo confirmar, en vez de ver la nada silenciosa de un chequeo que
   // "pasó" sin haber corrido en realidad.
-  protected readonly eligibilityUnknown = computed(() => this.eligibilityVerdict().status === 'unknown');
+  protected readonly eligibilityUnknown = computed(
+    () => this.eligibilityVerdict().status === 'unknown',
+  );
 
   protected readonly eligibilityError = computed<string | null>(() => {
     const dateError = this.dateCoherenceError();
@@ -716,7 +736,9 @@ export class NuevaDenunciaComponent {
       // archivos ya adjuntados.
       distinctUntilChanged(
         (a, b) =>
-          a.policyNumber === b.policyNumber && a.branch === b.branch && a.claimCause === b.claimCause,
+          a.policyNumber === b.policyNumber &&
+          a.branch === b.branch &&
+          a.claimCause === b.claimCause,
       ),
       switchMap(({ policyNumber, branch, claimCause }) =>
         policyNumber && branch && claimCause
@@ -728,7 +750,10 @@ export class NuevaDenunciaComponent {
                 documentTypes.length
                   ? {
                       status: 'configured',
-                      slots: documentTypes.map((type) => ({ type, label: documentTypeLabel(type) })),
+                      slots: documentTypes.map((type) => ({
+                        type,
+                        label: documentTypeLabel(type),
+                      })),
                       firstRound: fastTrackOnly,
                     }
                   : OFFERED_DOCS,
@@ -750,7 +775,9 @@ export class NuevaDenunciaComponent {
 
   /** Si hay agenda real configurada para este ramo + hecho generador: la documentación no es
    *  una sugerencia, es requisito para poder evaluar el caso (ver RequiredDocsState). */
-  protected readonly docsRequired = computed(() => this.requiredDocsState().status === 'configured');
+  protected readonly docsRequired = computed(
+    () => this.requiredDocsState().status === 'configured',
+  );
 
   /** Lo que se pide es solo la primera tanda: avisarle que quizás se le pida más después. */
   protected readonly docsFirstRound = computed(() => !!this.requiredDocsState().firstRound);
@@ -776,10 +803,14 @@ export class NuevaDenunciaComponent {
   );
 
   protected readonly missingDocLabels = computed(() =>
-    this.missingDocs().map((slot) => slot.label).join(', '),
+    this.missingDocs()
+      .map((slot) => slot.label)
+      .join(', '),
   );
 
-  protected readonly canSubmit = computed(() => !this.submitting() && this.missingDocs().length === 0);
+  protected readonly canSubmit = computed(
+    () => !this.submitting() && this.missingDocs().length === 0,
+  );
 
   /**
    * The insured declared they haven't filed the police report, but the schedule demands the

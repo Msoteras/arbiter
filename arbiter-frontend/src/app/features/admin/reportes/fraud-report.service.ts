@@ -4,10 +4,10 @@ import { Observable, map } from 'rxjs';
 
 import { environment } from '../../../../environments/environment';
 import { FraudReport, FraudReportParams } from './fraud-report';
-import { ReportFile } from './resolution-report.service';
+import { ReportFile } from './report-download';
 import { ReportFormat } from './resolution-report';
 
-/** reports-service — reporte de detección de fraude (GET /api/v1/reports/fraud). */
+/** reports-service — fraud detection report (GET /api/v1/reports/fraud). */
 @Injectable({ providedIn: 'root' })
 export class FraudReportService {
   private readonly http = inject(HttpClient);
@@ -18,8 +18,8 @@ export class FraudReportService {
   }
 
   /**
-   * Por HttpClient y no por un <a href>: el endpoint exige el JWT, y sólo los pedidos que hace
-   * HttpClient pasan por el authInterceptor — una navegación del navegador volvería 401.
+   * Through HttpClient and not an <a href>: the endpoint requires the JWT, and only requests made
+   * by HttpClient go through the authInterceptor — a plain browser navigation would come back 401.
    */
   export(params: FraudReportParams, format: ReportFormat): Observable<ReportFile> {
     return this.http
@@ -45,7 +45,7 @@ function toHttpParams({ from, to, branchId, riskBand }: FraudReportParams): Http
   return riskBand ? params.set('riskBand', riskBand) : params;
 }
 
-/** El backend nombra el archivo (lleva el período); el fallback sólo cubre un header ausente. */
+/** The backend names the file (it carries the period); the fallback only covers a missing header. */
 function filenameFrom(response: HttpResponse<Blob>, format: ReportFormat): string {
   const disposition = response.headers.get('Content-Disposition') ?? '';
   const match = /filename="?([^";]+)"?/.exec(disposition);

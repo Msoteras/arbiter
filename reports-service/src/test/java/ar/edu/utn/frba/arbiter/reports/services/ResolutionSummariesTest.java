@@ -9,6 +9,7 @@ import org.junit.jupiter.api.Test;
 import java.util.List;
 
 import static ar.edu.utn.frba.arbiter.reports.support.ReportFixtures.APPROVED_ROW_MINUTES;
+import static ar.edu.utn.frba.arbiter.reports.support.ReportFixtures.APPROVED_ROW_WAITING_MINUTES;
 import static ar.edu.utn.frba.arbiter.reports.support.ReportFixtures.approvedRow;
 import static ar.edu.utn.frba.arbiter.reports.support.ReportFixtures.fastTrackRow;
 import static ar.edu.utn.frba.arbiter.reports.support.ReportFixtures.lapsedRow;
@@ -24,7 +25,34 @@ class ResolutionSummariesTest {
         ResolutionSummary summary = ResolutionSummaries.of(rows);
 
         assertThat(summary.totalCases()).isEqualTo(2);
+        assertThat(summary.decidedCases()).isEqualTo(2);
         assertThat(summary.averageMinutes()).isEqualTo((APPROVED_ROW_MINUTES + 120) / 2.0);
+        assertThat(summary.averageWaitingMinutes()).isEqualTo(APPROVED_ROW_WAITING_MINUTES / 2.0);
+    }
+
+    /**
+     * Same population the dashboard averages over: a lapsed case wasn't resolved by anybody, it
+     * measured the insured's silence, and one of them (790 days here) swamps the average of a month.
+     */
+    @Test
+    void theAverages_leaveTheLapsedCasesOut_likeTheDashboardDoes() {
+        ResolutionSummary summary = ResolutionSummaries.of(List.of(approvedRow(1), lapsedRow(2)));
+
+        assertThat(summary.totalCases()).isEqualTo(2);
+        assertThat(summary.decidedCases()).isEqualTo(1);
+        assertThat(summary.averageMinutes()).isEqualTo(APPROVED_ROW_MINUTES);
+        assertThat(summary.averageWaitingMinutes()).isEqualTo(APPROVED_ROW_WAITING_MINUTES);
+    }
+
+    /** Nobody decided anything: the average is unknown, and the rows are still there to be listed. */
+    @Test
+    void withOnlyLapsedCases_thereIsNoAverage() {
+        ResolutionSummary summary = ResolutionSummaries.of(List.of(lapsedRow(1)));
+
+        assertThat(summary.totalCases()).isEqualTo(1);
+        assertThat(summary.decidedCases()).isZero();
+        assertThat(summary.averageMinutes()).isNull();
+        assertThat(summary.averageWaitingMinutes()).isNull();
     }
 
     @Test
@@ -69,6 +97,7 @@ class ResolutionSummariesTest {
 
         assertThat(summary).isEqualTo(ResolutionSummary.EMPTY);
         assertThat(summary.averageMinutes()).isNull();
+        assertThat(summary.averageWaitingMinutes()).isNull();
         assertThat(summary.fastTrackRate()).isNull();
     }
 }

@@ -1,24 +1,14 @@
-import { DOCUMENT, PercentPipe } from '@angular/common';
-import { HttpErrorResponse } from '@angular/common/http';
-import {
-  ChangeDetectionStrategy,
-  Component,
-  DestroyRef,
-  computed,
-  effect,
-  inject,
-  signal,
-} from '@angular/core';
-import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
-import { RouterLink } from '@angular/router';
+import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
+import { ActivatedRoute, Params, RouterLink } from '@angular/router';
+import { Observable } from 'rxjs';
 
 import { estadoLabel, estadoTone } from '../../../core/models/estado';
 import { RiskBand, riskBandLabel } from '../../../core/models/risk-band';
 import { StatusTone } from '../../../core/models/status-tone';
-import { formatDateTime } from '../../../core/util/datetime';
+import { formatDate, formatDateTime } from '../../../core/util/datetime';
 import { staggerReveal } from '../../../shared/animations';
+import { RatePipe } from '../../../shared/pipes/rate.pipe';
 import { BadgeComponent } from '../../../shared/ui/badge/badge.component';
-import { ButtonComponent } from '../../../shared/ui/button/button.component';
 import { CardComponent } from '../../../shared/ui/card/card.component';
 import {
   DistributionComponent,
@@ -35,20 +25,24 @@ import { TableComponent } from '../../../shared/ui/table/table.component';
 import {
   FraudReport,
   FraudReportParams,
+  FraudReportRow,
   alertEmptyLabel,
   alertLevelLabel,
+  fraudSignalLabel,
   indicators,
   riskGaugeBand,
 } from './fraud-report';
 import { FraudReportService } from './fraud-report.service';
-import { downloadReport, reportErrorMessage } from './report-download';
+import { ReportActionsComponent } from './report-actions.component';
+import { ReportFile } from './report-download';
 import { ReportFiltersComponent } from './report-filters.component';
 import { ReportFiltersStore } from './report-filters.store';
+import { ReportTab } from './report-tab';
 import { ReportFormat } from './resolution-report';
 
 /**
- * Nivel de alerta → semáforo. Solo las dos bandas que alertan llevan color; las otras dos no son
- * niveles de alerta (el score no marcó el expediente, o nunca corrió) y van en gris.
+ * Alert level → traffic light. Only the two bands that alert carry color; the other two buckets
+ * are not alert levels (the score didn't flag the case, or never ran) and stay grey.
  */
 const ALERT_TONES: Record<string, StatusTone> = {
   CRITICAL: 'danger',
@@ -57,7 +51,7 @@ const ALERT_TONES: Record<string, StatusTone> = {
   NOT_SCORED: 'neutral',
 };
 
-/** Las dos únicas bandas que son una alerta, y por eso las únicas que ofrece el filtro. */
+/** The only two bands that are an alert, and so the only ones the filter offers. */
 const ALERT_BANDS: RiskBand[] = ['HIGH', 'CRITICAL'];
 
 /**
@@ -71,10 +65,9 @@ const ALERT_BANDS: RiskBand[] = ['HIGH', 'CRITICAL'];
 @Component({
   selector: 'app-fraud-report',
   imports: [
-    PercentPipe,
+    RatePipe,
     RouterLink,
     BadgeComponent,
-    ButtonComponent,
     CardComponent,
     DistributionComponent,
     EmptyStateComponent,
@@ -82,6 +75,7 @@ const ALERT_BANDS: RiskBand[] = ['HIGH', 'CRITICAL'];
     InfoTipComponent,
     InlineLoadingComponent,
     PaginationComponent,
+    ReportActionsComponent,
     ReportFiltersComponent,
     SelectComponent,
     StatTileComponent,
@@ -90,38 +84,26 @@ const ALERT_BANDS: RiskBand[] = ['HIGH', 'CRITICAL'];
   changeDetection: ChangeDetectionStrategy.OnPush,
   animations: [staggerReveal],
   templateUrl: './fraud-report.component.html',
-  styleUrls: ['./report-params.scss', './fraud-report.component.scss'],
+  styleUrls: ['./report-params.scss', './report-tab.scss', './fraud-report.component.scss'],
 })
-export class FraudReportComponent {
+export class FraudReportComponent extends ReportTab<
+  FraudReportRow,
+  FraudReport,
+  FraudReportParams
+> {
   private readonly reports = inject(FraudReportService);
-  private readonly document = inject(DOCUMENT);
-  private readonly destroyRef = inject(DestroyRef);
-  protected readonly filters = inject(ReportFiltersStore);
 
   protected readonly riskBand = signal('');
-  /** Sin Bajo ni Medio: filtrar un reporte de fraude por "alerta = Bajo" no significa nada. */
+  /** No Low or Medium: filtering a fraud report by "alert = Low" means nothing. */
   protected readonly riskBandOptions: SelectOption[] = ALERT_BANDS.map((band) => ({
     value: band,
     label: riskBandLabel(band),
   }));
 
-  protected readonly report = signal<FraudReport | null>(null);
-  protected readonly loading = signal(false);
-  protected readonly exporting = signal<ReportFormat | null>(null);
-  protected readonly error = signal<string | null>(null);
-
-  protected readonly page = signal(0);
-  protected readonly pageSize = signal(20);
-  protected readonly rows = computed(() => this.report()?.rows ?? []);
-  protected readonly totalPages = computed(() => Math.ceil(this.rows().length / this.pageSize()));
-  protected readonly pageRows = computed(() => {
-    const start = this.page() * this.pageSize();
-    return this.rows().slice(start, start + this.pageSize());
-  });
-  /** Del backend y no sumado acá: la cabecera y la tabla tienen que describir el mismo conjunto. */
+  /** From the backend, not added up here: the head and the table must describe the same set. */
   protected readonly summary = computed(() => this.report()?.summary ?? null);
 
-  /** El nivel de alerta sí comunica estado: mismo semáforo que el gauge de cada fila. */
+  /** The alert level does communicate state: same traffic light as each row's gauge. */
   protected readonly alertItems = computed<DistributionItem[]>(() =>
     (this.summary()?.byAlertLevel ?? []).map((bucket) => ({
       label: alertLevelLabel(bucket.label),
@@ -130,7 +112,22 @@ export class FraudReportComponent {
     })),
   );
 
+  /**
+   * Which signal fired, neutral like the claim cause: a signal is a reason, not a level. The
+   * buckets overlap (a case with two signals counts in both), so the shares are over the flagged
+   * cases and not over the sum of the buckets — the distribution's own share would read 100% split.
+   */
+  protected readonly signalItems = computed<DistributionItem[]>(() =>
+    (this.summary()?.bySignal ?? []).map((bucket) => ({
+      label: fraudSignalLabel(bucket.label ?? ''),
+      count: bucket.count,
+      tone: 'neutral' as StatusTone,
+    })),
+  );
+
+  protected readonly formatDate = formatDate;
   protected readonly formatDateTime = formatDateTime;
+  protected readonly riskBandLabel = riskBandLabel;
   protected readonly estadoLabel = estadoLabel;
   protected readonly estadoTone = estadoTone;
   protected readonly riskGaugeBand = riskGaugeBand;
@@ -138,14 +135,11 @@ export class FraudReportComponent {
   protected readonly indicators = indicators;
 
   constructor() {
-    // Igual que el tab de resolución: los filtros compartidos se editan afuera, así que la vista
-    // previa vieja se descarta reaccionando a ellos y no desde un setter.
-    effect(() => {
-      this.filters.from();
-      this.filters.to();
-      this.filters.branchId();
-      this.discardPreview();
-    });
+    super();
+    // Only a band the filter offers: anything else in a hand-typed link reads as every band.
+    const band = this.route.snapshot.queryParamMap.get('riskBand') as RiskBand | null;
+    this.riskBand.set(band !== null && ALERT_BANDS.includes(band) ? band : '');
+    this.start();
   }
 
   protected setRiskBand(value: string): void {
@@ -153,66 +147,27 @@ export class FraudReportComponent {
     this.discardPreview();
   }
 
-  protected loadPreview(): void {
-    if (this.filters.periodError()) {
-      return;
-    }
-    this.loading.set(true);
-    this.error.set(null);
-    this.reports
-      .report(this.params())
-      .pipe(takeUntilDestroyed(this.destroyRef))
-      .subscribe({
-        next: (report) => {
-          this.report.set(report);
-          this.page.set(0);
-          this.loading.set(false);
-        },
-        error: (err: HttpErrorResponse) => {
-          this.loading.set(false);
-          this.error.set(reportErrorMessage(err));
-        },
-      });
+  protected override fetchReport(params: FraudReportParams): Observable<FraudReport> {
+    return this.reports.report(params);
   }
 
-  protected exportAs(format: ReportFormat): void {
-    if (this.filters.periodError() || this.exporting()) {
-      return;
-    }
-    this.exporting.set(format);
-    this.error.set(null);
-    this.reports
-      .export(this.params(), format)
-      .pipe(takeUntilDestroyed(this.destroyRef))
-      .subscribe({
-        next: ({ blob, filename }) => {
-          downloadReport(this.document, blob, filename);
-          this.exporting.set(null);
-        },
-        error: (err: HttpErrorResponse) => {
-          this.exporting.set(null);
-          this.error.set(reportErrorMessage(err));
-        },
-      });
+  protected override fetchFile(
+    params: FraudReportParams,
+    format: ReportFormat,
+  ): Observable<ReportFile> {
+    return this.reports.export(params, format);
   }
 
-  protected setPageSize(size: number): void {
-    this.pageSize.set(size);
-    this.page.set(0);
+  protected override tabParams(): Params {
+    return { riskBand: this.riskBand() || undefined };
   }
 
-  private params(): FraudReportParams {
+  protected override params(): FraudReportParams {
     return {
       from: this.filters.from(),
       to: this.filters.to(),
       branchId: this.filters.branchId(),
       riskBand: this.riskBand(),
     };
-  }
-
-  /** Una vista previa solo describe los parámetros con los que corrió; si cambia uno, engaña. */
-  private discardPreview(): void {
-    this.report.set(null);
-    this.error.set(null);
   }
 }

@@ -9,11 +9,13 @@ describe('movimientoAseguradoLabel', () => {
   it('distingue el alta de la vuelta con documentación', () => {
     // fromStatus null = fila de creación del expediente.
     expect(movimientoAseguradoLabel('PENDING_CLASSIFICATION', null)).toBe('Denuncia recibida');
-    expect(movimientoAseguradoLabel('PENDING_CLASSIFICATION', 'AWAITING_DOCUMENTATION'))
-      .toBe('Recibimos tu documentación');
+    expect(movimientoAseguradoLabel('PENDING_CLASSIFICATION', 'AWAITING_DOCUMENTATION')).toBe(
+      'Recibimos tu documentación',
+    );
     // También se puede cargar documentación con el expediente ya en revisión.
-    expect(movimientoAseguradoLabel('PENDING_CLASSIFICATION', 'PENDING_ANALYST_REVIEW'))
-      .toBe('Recibimos tu documentación');
+    expect(movimientoAseguradoLabel('PENDING_CLASSIFICATION', 'PENDING_ANALYST_REVIEW')).toBe(
+      'Recibimos tu documentación',
+    );
   });
 
   /**
@@ -36,8 +38,9 @@ describe('movimientoAseguradoLabel', () => {
   });
 
   it('le cuenta que el caso se derivó a un perito', () => {
-    expect(movimientoAseguradoLabel('PENDING_EXPERT_REPORT', 'PENDING_ANALYST_REVIEW'))
-      .toBe('Enviado a verificación con un perito');
+    expect(movimientoAseguradoLabel('PENDING_EXPERT_REPORT', 'PENDING_ANALYST_REVIEW')).toBe(
+      'Enviado a verificación con un perito',
+    );
   });
 
   /**
@@ -46,29 +49,37 @@ describe('movimientoAseguradoLabel', () => {
    * reapertura no se le cuenta nunca — es interno.
    */
   it('nombra la reapertura de un expediente cerrado', () => {
-    expect(movimientoAseguradoLabel('PENDING_ANALYST_REVIEW', 'APPROVED'))
-      .toBe('Reabrimos tu siniestro');
-    expect(movimientoAseguradoLabel('PENDING_ANALYST_REVIEW', 'REJECTED'))
-      .toBe('Reabrimos tu siniestro');
-    expect(movimientoAseguradoLabel('PENDING_ANALYST_REVIEW', 'LAPSED'))
-      .toBe('Reabrimos tu siniestro');
+    expect(movimientoAseguradoLabel('PENDING_ANALYST_REVIEW', 'APPROVED')).toBe(
+      'Reabrimos tu siniestro',
+    );
+    expect(movimientoAseguradoLabel('PENDING_ANALYST_REVIEW', 'REJECTED')).toBe(
+      'Reabrimos tu siniestro',
+    );
+    expect(movimientoAseguradoLabel('PENDING_ANALYST_REVIEW', 'LAPSED')).toBe(
+      'Reabrimos tu siniestro',
+    );
     // Y la clasificación normal sigue siendo la de siempre.
-    expect(movimientoAseguradoLabel('PENDING_ANALYST_REVIEW', 'PENDING_CLASSIFICATION'))
-      .toBe('Un analista está revisando tu caso');
+    expect(movimientoAseguradoLabel('PENDING_ANALYST_REVIEW', 'PENDING_CLASSIFICATION')).toBe(
+      'Un analista está revisando tu caso',
+    );
   });
 
   it('distingue volver del peritaje de entrar a revisión por primera vez', () => {
-    expect(movimientoAseguradoLabel('PENDING_ANALYST_REVIEW', 'PENDING_EXPERT_REPORT'))
-      .toBe('Verificación finalizada');
-    expect(movimientoAseguradoLabel('PENDING_ANALYST_REVIEW', 'PENDING_CLASSIFICATION'))
-      .toBe('Un analista está revisando tu caso');
+    expect(movimientoAseguradoLabel('PENDING_ANALYST_REVIEW', 'PENDING_EXPERT_REPORT')).toBe(
+      'Verificación finalizada',
+    );
+    expect(movimientoAseguradoLabel('PENDING_ANALYST_REVIEW', 'PENDING_CLASSIFICATION')).toBe(
+      'Un analista está revisando tu caso',
+    );
   });
 
   it('cuenta la ida y la vuelta del servicio técnico', () => {
-    expect(movimientoAseguradoLabel('PENDING_REPAIR', 'PENDING_ANALYST_REVIEW'))
-      .toBe('Enviado al servicio técnico');
-    expect(movimientoAseguradoLabel('PENDING_ANALYST_REVIEW', 'PENDING_REPAIR'))
-      .toBe('Respuesta del servicio técnico recibida');
+    expect(movimientoAseguradoLabel('PENDING_REPAIR', 'PENDING_ANALYST_REVIEW')).toBe(
+      'Enviado al servicio técnico',
+    );
+    expect(movimientoAseguradoLabel('PENDING_ANALYST_REVIEW', 'PENDING_REPAIR')).toBe(
+      'Respuesta del servicio técnico recibida',
+    );
   });
 
   /** Una falla técnica del clasificador no le pide nada ni cambia nada de su lado. */
@@ -77,8 +88,12 @@ describe('movimientoAseguradoLabel', () => {
   });
 
   it('muestra la resolución', () => {
-    expect(movimientoAseguradoLabel('APPROVED', 'PENDING_ANALYST_REVIEW')).toBe('Siniestro aprobado');
-    expect(movimientoAseguradoLabel('REJECTED', 'PENDING_ANALYST_REVIEW')).toBe('Siniestro rechazado');
+    expect(movimientoAseguradoLabel('APPROVED', 'PENDING_ANALYST_REVIEW')).toBe(
+      'Siniestro aprobado',
+    );
+    expect(movimientoAseguradoLabel('REJECTED', 'PENDING_ANALYST_REVIEW')).toBe(
+      'Siniestro rechazado',
+    );
   });
 
   /**
