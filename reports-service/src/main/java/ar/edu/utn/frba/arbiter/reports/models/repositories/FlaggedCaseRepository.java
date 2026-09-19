@@ -50,8 +50,12 @@ public class FlaggedCaseRepository {
      * end, so a case reads the same whenever the report is run — a number that changes depending on
      * when you asked is not something you can put in front of an auditor.
      *
-     * <p>{@code signal_count} repeats the three conditions of the WHERE because it is what the
-     * listing is ordered by; see the ORDER BY in {@link #findFlaggedBetween}.
+     * <p>{@code signal_count} repeats the conditions of the WHERE because it is what the listing is
+     * ordered by; see the ORDER BY in {@link #findFlaggedBetween}.
+     *
+     * <p>{@code claims_in_window} is NOT one of them: how often the insured claims does not put a
+     * case in this report (see {@link FraudSignal}), it travels as context of the rows another
+     * signal already flagged. It is still counted for every candidate because the row shows it.
      */
     private static final String FLAGGED_CASES = """
             WITH candidate AS (
@@ -78,7 +82,6 @@ public class FlaggedCaseRepository {
                    EXISTS (SELECT 1 FROM expert_assessment ea
                             WHERE ea.case_id = c.id AND ea.verdict = :fraudConfirmed) AS expert_backed,
                    (CASE WHEN c.risk_band IN (:highBands) THEN 1 ELSE 0 END
-                  + CASE WHEN c.claims_in_window > 1 THEN 1 ELSE 0 END
                   + CASE WHEN c.suspicious_images > 0 THEN 1 ELSE 0 END) AS signal_count
               FROM candidate c
               JOIN claim_cause cc ON cc.id = c.claim_cause_id
@@ -86,7 +89,6 @@ public class FlaggedCaseRepository {
               JOIN case_status s  ON s.id = c.current_status_id
               JOIN insured i      ON i.id = c.insured_id
              WHERE (c.risk_band IN (:highBands)
-                 OR c.claims_in_window > 1
                  OR c.suspicious_images > 0)
             """;
 
@@ -204,7 +206,7 @@ public class FlaggedCaseRepository {
                 rs.getString("claim_cause"),
                 rs.getObject("reported_at", OffsetDateTime.class).toInstant(),
                 riskBand,
-                signalsOf(riskBand, claimsInWindow, suspiciousImages),
+                signalsOf(riskBand, suspiciousImages),
                 claimsInWindow,
                 suspiciousImages,
                 CaseStatus.valueOf(rs.getString("status")),
@@ -213,14 +215,10 @@ public class FlaggedCaseRepository {
     }
 
     /** The one definition of what "suspicious" means here; the SQL predicate mirrors it. */
-    private static List<FraudSignal> signalsOf(RiskBand riskBand, int claimsInWindow,
-                                               int suspiciousImages) {
+    private static List<FraudSignal> signalsOf(RiskBand riskBand, int suspiciousImages) {
         List<FraudSignal> signals = new ArrayList<>(FraudSignal.values().length);
         if (riskBand == RiskBand.HIGH || riskBand == RiskBand.CRITICAL) {
             signals.add(FraudSignal.HIGH_RISK_SCORE);
-        }
-        if (claimsInWindow > 1) {
-            signals.add(FraudSignal.REPEAT_CLAIMANT);
         }
         if (suspiciousImages > 0) {
             signals.add(FraudSignal.FORENSIC_INCONSISTENCY);

@@ -62,6 +62,8 @@ export interface ResolutionReport {
   claimCause: string | null;
   generatedAt: string;
   summary: ResolutionSummary;
+  /** The same aggregates over the equal-length stretch right before this period. */
+  previousSummary: ResolutionSummary;
   rows: ResolutionReportRow[];
 }
 

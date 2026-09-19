@@ -8,6 +8,8 @@ import ar.edu.utn.frba.arbiter.reports.dto.FraudReportRow;
 import ar.edu.utn.frba.arbiter.reports.dto.FraudSignal;
 import ar.edu.utn.frba.arbiter.reports.dto.ResolutionReport;
 import ar.edu.utn.frba.arbiter.reports.dto.ResolutionReportRow;
+import ar.edu.utn.frba.arbiter.reports.dto.ResolutionSummary;
+import ar.edu.utn.frba.arbiter.reports.dto.FraudSummary;
 import ar.edu.utn.frba.arbiter.reports.services.FraudSummaries;
 import ar.edu.utn.frba.arbiter.reports.services.ResolutionSummaries;
 
@@ -63,8 +65,14 @@ public final class ReportFixtures {
 
     public static ResolutionReport augustReport(List<ResolutionReportRow> rows, String branch,
                                                 String claimCause) {
+        return augustReport(rows, branch, claimCause, ResolutionSummary.EMPTY);
+    }
+
+    /** With an explicit previous period, for the exporters' "vs. período anterior" line. */
+    public static ResolutionReport augustReport(List<ResolutionReportRow> rows, String branch,
+                                                String claimCause, ResolutionSummary previousSummary) {
         return new ResolutionReport(LocalDate.of(2026, 8, 1), LocalDate.of(2026, 8, 31), branch,
-                claimCause, CLOCK.instant(), ResolutionSummaries.of(rows), rows);
+                claimCause, CLOCK.instant(), ResolutionSummaries.of(rows), previousSummary, rows);
     }
 
     /** Flagged on all three signals: a critical band, a repeat claimant and two matched images. */
@@ -75,8 +83,7 @@ public final class ReportFixtures {
     public static FraudReportRow flaggedRow(long caseId, String insuredName) {
         return new FraudReportRow(caseId, insuredName, "28.904.115", "Celulares",
                 "Robo en vía pública", Instant.parse("2026-09-12T09:20:00Z"), RiskBand.CRITICAL,
-                List.of(FraudSignal.HIGH_RISK_SCORE, FraudSignal.REPEAT_CLAIMANT,
-                        FraudSignal.FORENSIC_INCONSISTENCY),
+                List.of(FraudSignal.HIGH_RISK_SCORE, FraudSignal.FORENSIC_INCONSISTENCY),
                 3, 2, CaseStatus.PENDING_EXPERT_REPORT, false, false);
     }
 
@@ -112,7 +119,14 @@ public final class ReportFixtures {
 
     public static FraudReport septemberFraudReport(List<FraudReportRow> rows, String branch,
                                                    RiskBand riskBand, long totalClaims) {
+        return septemberFraudReport(rows, branch, riskBand, totalClaims, FraudSummary.EMPTY);
+    }
+
+    /** With an explicit previous period, for the exporters' "vs. período anterior" line. */
+    public static FraudReport septemberFraudReport(List<FraudReportRow> rows, String branch,
+                                                   RiskBand riskBand, long totalClaims,
+                                                   FraudSummary previousSummary) {
         return new FraudReport(LocalDate.of(2026, 9, 1), LocalDate.of(2026, 9, 30), branch, riskBand,
-                CLOCK.instant(), FraudSummaries.of(rows, totalClaims), rows);
+                CLOCK.instant(), FraudSummaries.of(rows, totalClaims), previousSummary, rows);
     }
 }

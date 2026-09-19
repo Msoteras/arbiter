@@ -1,4 +1,12 @@
-import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
+import { formatNumber } from '@angular/common';
+import {
+  ChangeDetectionStrategy,
+  Component,
+  LOCALE_ID,
+  computed,
+  inject,
+  signal,
+} from '@angular/core';
 import { ActivatedRoute, Params, RouterLink } from '@angular/router';
 import { Observable } from 'rxjs';
 
@@ -6,6 +14,8 @@ import { estadoLabel, estadoTone } from '../../../core/models/estado';
 import { RiskBand, riskBandLabel } from '../../../core/models/risk-band';
 import { StatusTone } from '../../../core/models/status-tone';
 import { formatDate, formatDateTime } from '../../../core/util/datetime';
+import { formatRate } from '../../../core/util/percent';
+import { trendText } from '../../../core/util/trend';
 import { staggerReveal } from '../../../shared/animations';
 import { RatePipe } from '../../../shared/pipes/rate.pipe';
 import { BadgeComponent } from '../../../shared/ui/badge/badge.component';
@@ -92,6 +102,7 @@ export class FraudReportComponent extends ReportTab<
   FraudReportParams
 > {
   private readonly reports = inject(FraudReportService);
+  private readonly locale = inject(LOCALE_ID);
 
   protected readonly riskBand = signal('');
   /** No Low or Medium: filtering a fraud report by "alert = Low" means nothing. */
@@ -102,6 +113,62 @@ export class FraudReportComponent extends ReportTab<
 
   /** From the backend, not added up here: the head and the table must describe the same set. */
   protected readonly summary = computed(() => this.report()?.summary ?? null);
+
+  private readonly previousSummary = computed(() => this.report()?.previousSummary ?? null);
+
+  /** Pure volume, no verdict: more or fewer claims filed isn't better or worse on its own. */
+  protected readonly totalClaimsTrend = computed(() => {
+    const summary = this.summary();
+    const previous = this.previousSummary();
+    if (!summary || !previous) {
+      return '';
+    }
+    return trendText({
+      current: summary.totalClaims,
+      previous: previous.totalClaims,
+      format: (size) => formatNumber(size, this.locale, '1.0-0'),
+      good: 'neither',
+    });
+  });
+
+  /**
+   * No verdict either: a higher share with at least one signal can mean the scoring is catching
+   * more, or that more denuncias actually warrant a look — it isn't this screen's call to say which.
+   */
+  protected readonly flaggedRateTrend = computed(() => {
+    const summary = this.summary();
+    const previous = this.previousSummary();
+    if (!summary || !previous) {
+      return '';
+    }
+    return trendText({
+      current: summary.flaggedRate,
+      previous: previous.flaggedRate,
+      format: formatRate,
+      good: 'neither',
+      base: previous.totalClaims,
+    });
+  });
+
+  /** Same reasoning as {@link flaggedRateTrend}: more coinciding signals isn't good or bad news. */
+  protected readonly multiSignalTrend = computed(() => {
+    const summary = this.summary();
+    const previous = this.previousSummary();
+    if (!summary || !previous) {
+      return '';
+    }
+    return trendText({
+      current: summary.multiSignal,
+      previous: previous.multiSignal,
+      format: (size) => formatNumber(size, this.locale, '1.0-0'),
+      good: 'neither',
+      base: previous.totalClaims,
+    });
+  });
+
+  // "Fraude determinado" carries no trend on purpose: it lags (the most recent flagged cases are
+  // still open), so a previous period read the same way would also under-count, and the difference
+  // between two under-counts isn't a trend — see FraudSummary.fraudRate's own javadoc.
 
   /** The alert level does communicate state: same traffic light as each row's gauge. */
   protected readonly alertItems = computed<DistributionItem[]>(() =>

@@ -1,4 +1,12 @@
-import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
+import { formatNumber } from '@angular/common';
+import {
+  ChangeDetectionStrategy,
+  Component,
+  LOCALE_ID,
+  computed,
+  inject,
+  signal,
+} from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { ActivatedRoute, Params, RouterLink } from '@angular/router';
 import { Observable } from 'rxjs';
@@ -7,6 +15,8 @@ import { clasificacionLabel, clasificacionTone } from '../../../core/models/clas
 import { estadoLabel, estadoTone } from '../../../core/models/estado';
 import { StatusTone } from '../../../core/models/status-tone';
 import { formatDate, formatDateTime } from '../../../core/util/datetime';
+import { formatRate } from '../../../core/util/percent';
+import { trendText } from '../../../core/util/trend';
 import { staggerReveal } from '../../../shared/animations';
 import { RatePipe } from '../../../shared/pipes/rate.pipe';
 import { BadgeComponent } from '../../../shared/ui/badge/badge.component';
@@ -77,6 +87,7 @@ export class ResolutionReportComponent extends ReportTab<
 > {
   private readonly reports = inject(ResolutionReportService);
   private readonly expedientes = inject(ExpedienteService);
+  private readonly locale = inject(LOCALE_ID);
 
   protected readonly claimCause = signal('');
   private readonly claimCauseCatalog = signal<SelectOption[]>([]);
@@ -97,6 +108,55 @@ export class ResolutionReportComponent extends ReportTab<
    * agree, and two implementations of "average" are one bug away from disagreeing.
    */
   protected readonly summary = computed(() => this.report()?.summary ?? null);
+
+  private readonly previousSummary = computed(() => this.report()?.previousSummary ?? null);
+
+  /** Pure volume, no verdict: more or fewer cases closed isn't better or worse on its own. */
+  protected readonly totalCasesTrend = computed(() => {
+    const summary = this.summary();
+    const previous = this.previousSummary();
+    if (!summary || !previous) {
+      return '';
+    }
+    return trendText({
+      current: summary.totalCases,
+      previous: previous.totalCases,
+      format: (size) => formatNumber(size, this.locale, '1.0-0'),
+      good: 'neither',
+    });
+  });
+
+  /** Taking longer is worse — same criterion the dashboard uses for its own resolution time. */
+  protected readonly averageMinutesTrend = computed(() => {
+    const summary = this.summary();
+    const previous = this.previousSummary();
+    if (!summary || !previous) {
+      return '';
+    }
+    return trendText({
+      current: summary.averageMinutes,
+      previous: previous.averageMinutes,
+      format: formatDuration,
+      good: 'down',
+      base: previous.decidedCases,
+    });
+  });
+
+  /** More Fast Track is the win — same criterion the dashboard uses for its own share. */
+  protected readonly fastTrackRateTrend = computed(() => {
+    const summary = this.summary();
+    const previous = this.previousSummary();
+    if (!summary || !previous) {
+      return '';
+    }
+    return trendText({
+      current: summary.fastTrackRate,
+      previous: previous.fastTrackRate,
+      format: formatRate,
+      good: 'up',
+      base: previous.totalCases,
+    });
+  });
 
   /** The status does carry the traffic light: from `estadoTone`, same as the table and the dashboard. */
   protected readonly statusItems = computed<DistributionItem[]>(() =>

@@ -1258,7 +1258,6 @@ export class StyleguideComponent {
 
   /** Overlapping buckets: read against the 12 flagged cases, not against their own sum. */
   protected readonly signalDistribution: DistributionItem[] = [
-    { label: 'Denuncias repetidas', count: 9, tone: 'neutral' },
     { label: 'Score de riesgo alto', count: 6, tone: 'neutral' },
     { label: 'Incoherencias forenses', count: 4, tone: 'neutral' },
   ];

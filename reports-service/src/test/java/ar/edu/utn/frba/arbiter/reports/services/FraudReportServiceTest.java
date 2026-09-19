@@ -99,7 +99,11 @@ class FraudReportServiceTest {
 
         FraudReport report = service.generate(SEP_1, SEP_30, 7L, RiskBand.CRITICAL);
 
-        verify(repository).findFlaggedBetween(any(), any(), eq(7L), eq(RiskBand.CRITICAL));
+        // The exact period, not just(any(), any()): that wildcard also matches the previous-period
+        // query generate() now makes, and a loose verify here can't tell the two calls apart.
+        verify(repository).findFlaggedBetween(
+                eq(Instant.parse("2026-09-01T03:00:00Z")), eq(Instant.parse("2026-10-01T03:00:00Z")),
+                eq(7L), eq(RiskBand.CRITICAL));
         assertThat(report.branch()).isEqualTo("Celulares");
         assertThat(report.riskBand()).isEqualTo(RiskBand.CRITICAL);
     }
@@ -134,44 +138,66 @@ class FraudReportServiceTest {
     }
 
     /**
-     * The shortlist first: worst alert, and within an alert the case where more signals coincide.
-     * The case the engine never scored goes last but is still listed — it got here on another signal.
+     * The order is the repository's ORDER BY, not a second sort here — see
+     * {@code FlaggedCaseRepositoryTests} for what that order actually is (signal count first, band
+     * as the tie-break). Re-sorting in the service was the bug: it disagreed with the SQL and with
+     * what the screen tells the analyst ("ordenadas por cantidad de señales…").
+     */
+    /**
+     * Equal length, immediately before: 30 days of September compares against 30 days ending the
+     * day before it starts, not against "el mes anterior" by name.
      */
     @Test
-    void ordersByAlertLevel_thenByHowManySignalsCoincide() {
+    void generate_alsoQueriesTheEqualLengthStretchRightBefore() {
+        service.generate(SEP_1, SEP_30, null, null);
+
+        verify(repository).findFlaggedBetween(
+                Instant.parse("2026-08-02T03:00:00Z"), Instant.parse("2026-09-01T03:00:00Z"), null, null);
+        verify(repository).countClaimsBetween(
+                Instant.parse("2026-08-02T03:00:00Z"), Instant.parse("2026-09-01T03:00:00Z"), null);
+    }
+
+    @Test
+    void generate_previousSummary_foldsThePreviousPeriodsRowsSeparately() {
+        given(repository.findFlaggedBetween(
+                Instant.parse("2026-09-01T03:00:00Z"), Instant.parse("2026-10-01T03:00:00Z"), null, null))
+                .willReturn(List.of(row(1, RiskBand.CRITICAL, FraudSignal.HIGH_RISK_SCORE)));
+        given(repository.countClaimsBetween(
+                Instant.parse("2026-09-01T03:00:00Z"), Instant.parse("2026-10-01T03:00:00Z"), null))
+                .willReturn(10L);
+        given(repository.findFlaggedBetween(
+                Instant.parse("2026-08-02T03:00:00Z"), Instant.parse("2026-09-01T03:00:00Z"), null, null))
+                .willReturn(List.of());
+        given(repository.countClaimsBetween(
+                Instant.parse("2026-08-02T03:00:00Z"), Instant.parse("2026-09-01T03:00:00Z"), null))
+                .willReturn(4L);
+
+        FraudReport report = service.generate(SEP_1, SEP_30, null, null);
+
+        assertThat(report.summary().totalClaims()).isEqualTo(10);
+        assertThat(report.previousSummary().totalClaims()).isEqualTo(4);
+        assertThat(report.previousSummary().flagged()).isEqualTo(0);
+    }
+
+    @Test
+    void theRows_keepTheRepositorysOrder() {
         given(repository.findFlaggedBetween(any(), any(), isNull(), isNull())).willReturn(List.of(
-                row(1, RiskBand.HIGH, FraudSignal.HIGH_RISK_SCORE),
-                row(2, null, FraudSignal.FORENSIC_INCONSISTENCY),
+                row(4, RiskBand.HIGH, FraudSignal.HIGH_RISK_SCORE, FraudSignal.FORENSIC_INCONSISTENCY),
                 row(3, RiskBand.CRITICAL, FraudSignal.HIGH_RISK_SCORE),
-                row(4, RiskBand.HIGH, FraudSignal.HIGH_RISK_SCORE, FraudSignal.REPEAT_CLAIMANT)));
+                row(1, RiskBand.HIGH, FraudSignal.HIGH_RISK_SCORE),
+                row(2, null, FraudSignal.FORENSIC_INCONSISTENCY)));
 
         FraudReport report = service.generate(SEP_1, SEP_30, null, null);
 
         assertThat(report.rows()).extracting(FraudReportRow::caseId)
-                .containsExactly(3L, 4L, 1L, 2L);
-    }
-
-    /**
-     * A low score must not push a case with two coinciding signals below one with a single signal:
-     * LOW and MEDIUM rank the same as no score at all, so what decides is how many signals crossed.
-     */
-    @Test
-    void aBandThatDoesNotAlert_doesNotOutrankMoreCoincidingSignals() {
-        given(repository.findFlaggedBetween(any(), any(), isNull(), isNull())).willReturn(List.of(
-                row(1, RiskBand.MEDIUM, FraudSignal.FORENSIC_INCONSISTENCY),
-                row(2, RiskBand.LOW, FraudSignal.FORENSIC_INCONSISTENCY,
-                        FraudSignal.REPEAT_CLAIMANT)));
-
-        FraudReport report = service.generate(SEP_1, SEP_30, null, null);
-
-        assertThat(report.rows()).extracting(FraudReportRow::caseId).containsExactly(2L, 1L);
+                .containsExactly(4L, 3L, 1L, 2L);
     }
 
     /** The head describes the very rows underneath it — that is the point of computing it from them. */
     @Test
     void summarisesTheRowsItReturns() {
         given(repository.findFlaggedBetween(any(), any(), isNull(), isNull())).willReturn(List.of(
-                row(1, RiskBand.CRITICAL, FraudSignal.HIGH_RISK_SCORE, FraudSignal.REPEAT_CLAIMANT),
+                row(1, RiskBand.CRITICAL, FraudSignal.HIGH_RISK_SCORE, FraudSignal.FORENSIC_INCONSISTENCY),
                 row(2, RiskBand.HIGH, FraudSignal.HIGH_RISK_SCORE)));
         given(repository.countClaimsBetween(any(), any(), isNull())).willReturn(20L);
 

@@ -56,12 +56,13 @@
                 label="Expedientes resueltos"
                 [value]="totals.totalCases"
                 [sub]="
-                  totals.decidedCases === totals.totalCases
+                  totalCasesTrend() ||
+                  (totals.decidedCases === totals.totalCases
                     ? ''
                     : totals.decidedCases +
                       ' decididos · ' +
                       (totals.totalCases - totals.decidedCases) +
-                      ' caducados'
+                      ' caducados')
                 "
               />
               <!-- Over the decided cases and split into management time and waiting, same as the
@@ -71,7 +72,7 @@
                 [value]="
                   totals.averageMinutes === null ? '—' : formatDuration(totals.averageMinutes)
                 "
-                [sub]="waitingBreakdown(totals)"
+                [sub]="averageMinutesTrend() || waitingBreakdown(totals)"
               >
                 <app-info-tip>
                   Desde la denuncia hasta el estado final, promediado sobre los expedientes que un
@@ -86,7 +87,7 @@
               <app-stat-tile
                 label="Resueltos por Fast Track"
                 [value]="totals.fastTrackRate | rate"
-                [sub]="totals.fastTrackCases + ' de ' + totals.totalCases"
+                [sub]="fastTrackRateTrend() || totals.fastTrackCases + ' de ' + totals.totalCases"
                 [progress]="totals.fastTrackRate"
               />
             </div>

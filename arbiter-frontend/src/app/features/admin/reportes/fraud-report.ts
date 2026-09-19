@@ -18,7 +18,7 @@ export interface FraudBucket {
  */
 
 /** Mirror of FraudSignal: why a case shows up in the report. */
-export type FraudSignal = 'HIGH_RISK_SCORE' | 'REPEAT_CLAIMANT' | 'FORENSIC_INCONSISTENCY';
+export type FraudSignal = 'HIGH_RISK_SCORE' | 'FORENSIC_INCONSISTENCY';
 
 export interface FraudReportRow {
   caseId: number;
@@ -34,7 +34,13 @@ export interface FraudReportRow {
    */
   riskBand: RiskBand | null;
   signals: FraudSignal[];
-  /** The insured's claims in the 12 months up to this one, this one included: 1 = no others. */
+  /**
+   * The insured's claims in the 12 months up to this one, this one included: 1 = no others.
+   *
+   * Context of the row, NOT a signal: claiming twice in a year is not an indication of fraud, and
+   * the fact already weighs inside the score (`claim_frequency` is one of its factors). Counting it
+   * apart made one fact fire two signals and inflated the coinciding-signals figure.
+   */
   claimsInWindow: number;
   suspiciousImages: number;
   /** CaseStatus literal. */
@@ -78,6 +84,8 @@ export interface FraudReport {
   riskBand: RiskBand | null;
   generatedAt: string;
   summary: FraudSummary;
+  /** The same aggregates over the equal-length stretch right before this period. */
+  previousSummary: FraudSummary;
   rows: FraudReportRow[];
 }
 
@@ -99,7 +107,7 @@ const GAUGE_BANDS: Record<RiskBand, 1 | 2 | 3 | 4> = {
 
 /**
  * The gauge is drawn only when the score actually alerted, which is why it takes the whole row and
- * not the band: a low score is NOT an indicator of fraud, so painting it under "Nivel de alerta"
+ * not the band: a low score is NOT an indicator of fraud, so painting it under "Score de riesgo"
  * would read as "nothing here" on precisely a case listed because another signal did find
  * something. For those it returns null and the gauge shows {@link alertEmptyLabel}.
  */
@@ -133,17 +141,15 @@ export function alertLevelLabel(bucket: string | null): string {
 }
 
 /**
- * What goes in the "Indicadores" column: each signal with its magnitude, which is what is
- * actionable. "Score de riesgo alto" only says the engine flagged it; "3 denuncias en 12 meses"
- * says what to look at. Mirror of ReportLabels.signals() in reports-service; keep the two in step.
+ * What goes in the "Señales" column: each signal with its magnitude, which is what is actionable.
+ * "2 imágenes con coincidencia" says what to look at; "Incoherencias forenses" only says it was
+ * flagged. Mirror of ReportLabels.signals() in reports-service; keep the two in step.
  */
 export function indicators(row: FraudReportRow): string[] {
   return row.signals.map((signal) => {
     switch (signal) {
       case 'HIGH_RISK_SCORE':
         return 'Score de riesgo alto';
-      case 'REPEAT_CLAIMANT':
-        return `${row.claimsInWindow} denuncias en 12 meses`;
       case 'FORENSIC_INCONSISTENCY':
         return row.suspiciousImages === 1
           ? '1 imagen con coincidencia'
@@ -154,7 +160,6 @@ export function indicators(row: FraudReportRow): string[] {
 
 const SIGNAL_LABELS: Record<FraudSignal, string> = {
   HIGH_RISK_SCORE: 'Score de riesgo alto',
-  REPEAT_CLAIMANT: 'Denuncias repetidas',
   FORENSIC_INCONSISTENCY: 'Incoherencias forenses',
 };
 

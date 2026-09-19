@@ -90,6 +90,16 @@ describe('ResolutionReportComponent', () => {
       ],
       byClaimCause: [{ label: 'Robo en vía pública', count: 4 }],
     },
+    previousSummary: {
+      totalCases: 8,
+      decidedCases: 6,
+      averageMinutes: 2500,
+      averageWaitingMinutes: 400,
+      fastTrackCases: 2,
+      fastTrackRate: 0.2,
+      byStatus: [],
+      byClaimCause: [],
+    },
     rows: [
       {
         caseId: 42,
@@ -157,6 +167,15 @@ describe('ResolutionReportComponent', () => {
 
   /** The average covers the decided ones only, so the screen says which ones those are. */
   it('shows the population of the average and how it splits', () => {
+    // No usable trend (flat count, previous period too thin for the duration), so the sub note
+    // isn't displaced by it.
+    reportService.preview.and.returnValue(
+      of({
+        ...report,
+        previousSummary: { ...report.previousSummary, totalCases: 4, decidedCases: 2 },
+      }),
+    );
+
     click('Ver vista previa');
 
     const text = (fixture.nativeElement as HTMLElement).textContent!.replace(/\s+/g, ' ');
@@ -166,6 +185,11 @@ describe('ResolutionReportComponent', () => {
 
   /** H0019: the four figures, taken from the backend rather than added up on screen. */
   it('shows the totals of the period, with the statuses labelled in Spanish', () => {
+    // Previous period too thin to compare against, so the trend doesn't take the sub's place.
+    reportService.preview.and.returnValue(
+      of({ ...report, previousSummary: { ...report.previousSummary, totalCases: 2 } }),
+    );
+
     click('Ver vista previa');
 
     const text = (fixture.nativeElement as HTMLElement).textContent ?? '';
@@ -176,6 +200,36 @@ describe('ResolutionReportComponent', () => {
     expect(text).toContain('1 de 4');
     expect(text).toContain('Caducado');
     expect(text).not.toContain('LAPSED');
+  });
+
+  /**
+   * Taking longer is worse, more Fast Track is better; the case count carries no verdict — same
+   * criteria the dashboard uses for its own KPI cards.
+   */
+  it('compares the KPI cards against the previous period', () => {
+    click('Ver vista previa');
+
+    const text = (fixture.nativeElement as HTMLElement).textContent!.replace(/\s+/g, ' ');
+    expect(text).toContain('▼ 4 vs. el período anterior');
+    expect(text).toContain('▲ 8 h 50 min peor que el período anterior');
+    expect(text).toContain('▲ 5% mejor que el período anterior');
+  });
+
+  /** Below the minimum base the duration and rate deltas drop; the raw count isn't gated the same way. */
+  it('drops the duration and rate comparisons when the previous period is too thin', () => {
+    reportService.preview.and.returnValue(
+      of({
+        ...report,
+        previousSummary: { ...report.previousSummary, totalCases: 2, decidedCases: 2 },
+      }),
+    );
+
+    click('Ver vista previa');
+
+    const text = (fixture.nativeElement as HTMLElement).textContent!.replace(/\s+/g, ' ');
+    expect(text).not.toContain('peor que el período anterior');
+    expect(text).not.toContain('mejor que el período anterior');
+    expect(text).toContain('▲ 2 vs. el período anterior');
   });
 
   /** The response of a request whose filters already changed must not land under the new ones. */
@@ -221,6 +275,16 @@ describe('ResolutionReportComponent opened from a link', () => {
     claimCause: 'Hurto',
     generatedAt: '2026-09-11T15:00:00Z',
     summary: {
+      totalCases: 0,
+      decidedCases: 0,
+      averageMinutes: null,
+      averageWaitingMinutes: null,
+      fastTrackCases: 0,
+      fastTrackRate: null,
+      byStatus: [],
+      byClaimCause: [],
+    },
+    previousSummary: {
       totalCases: 0,
       decidedCases: 0,
       averageMinutes: null,

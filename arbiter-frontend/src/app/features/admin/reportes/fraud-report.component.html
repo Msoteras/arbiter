@@ -4,9 +4,10 @@
       Criterios de detección
       <app-info-tip>
         Aparecen acá las denuncias del período sobre las que se disparó al menos una señal: score de
-        riesgo alto (banda Alto o Crítico del motor de scoring), más de una denuncia del mismo
-        asegurado en los últimos 12 meses, o incoherencias en el análisis forense de las imágenes.
-        El sistema no determina fraude: señala indicios para revisión humana.
+        riesgo alto (banda Alto o Crítico del motor de scoring), o incoherencias en el análisis
+        forense de las imágenes. Cuántas veces denunció el asegurado no es una señal —ya pesa
+        adentro del score— pero se muestra en cada fila como contexto. El sistema no determina
+        fraude: señala indicios para revisión humana.
       </app-info-tip>
     </p>
 
@@ -14,7 +15,7 @@
       <app-report-filters />
 
       <div class="field field-wide">
-        <label class="t-field-label" for="rep-riesgo">Nivel de alerta</label>
+        <label class="t-field-label" for="rep-riesgo">Score de riesgo</label>
         <app-select
           id="rep-riesgo"
           placeholder="Todos"
@@ -46,7 +47,7 @@
            disagree when something went wrong, and that is when it has to be visible. -->
       <p class="applied t-note">
         {{ formatDate(current.from) }} al {{ formatDate(current.to) }} · Ramo:
-        {{ current.branch ?? 'Todos' }} · Nivel de alerta:
+        {{ current.branch ?? 'Todos' }} · Score de riesgo:
         {{ current.riskBand ? riskBandLabel(current.riskBand) : 'Todos' }}
       </p>
       @if (current.rows.length === 0) {
@@ -57,7 +58,7 @@
             [sub]="
               'Ninguna de las ' +
               current.summary.totalClaims +
-              ' denuncias del período disparó una señal. Probá con otro rango de fechas, otro ramo o sin filtrar por nivel de alerta.'
+              ' denuncias del período disparó una señal. Probá con otro rango de fechas, otro ramo o sin filtrar por score de riesgo.'
             "
           />
         } @else {
@@ -71,7 +72,11 @@
           <section class="summary" aria-label="Totales del período">
             <div class="figures">
               <!-- The denominator, stated: without it the two rates next to it can't be read. -->
-              <app-stat-tile label="Denuncias del período" [value]="totals.totalClaims">
+              <app-stat-tile
+                label="Denuncias del período"
+                [value]="totals.totalClaims"
+                [sub]="totalClaimsTrend()"
+              >
                 <app-info-tip>
                   Todas las denuncias registradas en el período y el ramo elegidos, tengan indicios
                   o no. Es la población contra la que se leen los porcentajes de al lado.
@@ -80,16 +85,15 @@
               <app-stat-tile
                 label="Con al menos una señal"
                 [value]="totals.flaggedRate | rate: 1"
-                [sub]="totals.flagged + ' de ' + totals.totalClaims + ' denuncias'"
+                [sub]="flaggedRateTrend() || totals.flagged + ' de ' + totals.totalClaims + ' denuncias'"
                 [progress]="totals.flaggedRate"
                 progressTone="warning"
               >
                 <app-info-tip>
-                  Una señal es un criterio que se disparó sobre la denuncia, y hay tres: score de
-                  riesgo alto, más de una denuncia del mismo asegurado en 12 meses, o incoherencias
-                  en el análisis forense de las imágenes. Acá se cuentan las denuncias con al menos
-                  una: son las que lista la tabla de abajo. Es un indicio para revisar, no una
-                  conclusión.
+                  Una señal es un criterio que se disparó sobre la denuncia, y hay dos: score de
+                  riesgo alto, o incoherencias en el análisis forense de las imágenes. Acá se
+                  cuentan las denuncias con al menos una: son las que lista la tabla de abajo. Es un
+                  indicio para revisar, no una conclusión.
                 </app-info-tip>
               </app-stat-tile>
               <!-- The cross, which is what the report adds over the case's gauge: one signal is a
@@ -97,7 +101,7 @@
               <app-stat-tile
                 label="Con dos o más señales"
                 [value]="totals.multiSignal"
-                sub="Las primeras para mirar"
+                [sub]="multiSignalTrend() || 'Las primeras para mirar'"
               >
                 <app-info-tip>
                   De las denuncias con al menos una señal, cuántas tienen dos o más a la vez. Es un
@@ -132,7 +136,7 @@
 
             <div class="distributions">
               <section class="distribution">
-                <h3 class="t-section-label">Por nivel de alerta</h3>
+                <h3 class="t-section-label">Por score de riesgo</h3>
                 <app-distribution [items]="alertItems()" />
               </section>
 
@@ -153,7 +157,7 @@
         <!-- The order is part of the reading: without saying it, a table that isn't by date looks
              shuffled. -->
         <p class="order-note t-note">
-          Ordenadas por cantidad de señales y, entre las que empatan, por nivel de alerta.
+          Ordenadas por cantidad de señales y, entre las que empatan, por score de riesgo.
         </p>
 
         <app-table
@@ -167,7 +171,7 @@
               <th scope="col">Asegurado</th>
               <th scope="col">Tipo</th>
               <th scope="col">Denuncia</th>
-              <th scope="col">Nivel de alerta</th>
+              <th scope="col">Score de riesgo</th>
               <th scope="col">Señales</th>
               <th scope="col">Estado</th>
             </tr>
@@ -181,6 +185,11 @@
                 <td>
                   {{ row.insuredName }}
                   <span class="sub">DNI {{ row.insuredDni }}</span>
+                  <!-- Contexto, no señal: no es lo que trajo la denuncia a este listado, pero es lo
+                       primero que se pregunta quien la abre. -->
+                  @if (row.claimsInWindow > 1) {
+                    <span class="sub">{{ row.claimsInWindow }} denuncias en 12 meses</span>
+                  }
                 </td>
                 <td>
                   {{ row.claimCause }}
@@ -194,12 +203,10 @@
                   />
                 </td>
                 <td class="signals-cell">
+                  <!-- No "N señales" badge: with only two possible signals it would always read
+                       "2", telling the analyst nothing the two badges below don't already show by
+                       being there. The row's left edge (tr.multi-signal) carries the cross instead. -->
                   <div class="signals">
-                    <!-- The count leads: it is what the listing is ordered by, and what says which
-                         rows to open first. -->
-                    @if (row.signals.length > 1) {
-                      <app-badge variant="strong">{{ row.signals.length }} señales</app-badge>
-                    }
                     @for (indicator of indicators(row); track indicator) {
                       <app-badge>{{ indicator }}</app-badge>
                     }

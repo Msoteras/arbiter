@@ -17,9 +17,13 @@ import java.util.List;
  * <p>The filters are echoed back resolved to what they mean — the branch as its name — so the
  * preview and an auditor reading it state the same thing about where the numbers came from.
  *
- * @param branch   the branch ("ramo") filter, by name; null means every branch
- * @param riskBand the alert-level filter; null means every band
- * @param summary  the aggregates over {@link #rows()}, never over a different population
+ * @param branch          the branch ("ramo") filter, by name; null means every branch
+ * @param riskBand        the alert-level filter; null means every band
+ * @param summary         the aggregates over {@link #rows()}, never over a different population
+ * @param previousSummary the same aggregates over the stretch of equal length immediately before
+ *                        this period, under the same filters — what turns a figure into a
+ *                        direction. Never null; {@link FraudSummary#EMPTY} when that stretch had
+ *                        no claims at all
  */
 public record FraudReport(
         LocalDate from,
@@ -28,5 +32,6 @@ public record FraudReport(
         RiskBand riskBand,
         Instant generatedAt,
         FraudSummary summary,
+        FraudSummary previousSummary,
         List<FraudReportRow> rows
 ) {}

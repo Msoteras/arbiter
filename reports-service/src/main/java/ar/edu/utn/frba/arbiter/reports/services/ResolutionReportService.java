@@ -5,6 +5,7 @@ import ar.edu.utn.frba.arbiter.reports.dto.ExportedReport;
 import ar.edu.utn.frba.arbiter.reports.dto.ReportFormat;
 import ar.edu.utn.frba.arbiter.reports.dto.ResolutionReport;
 import ar.edu.utn.frba.arbiter.reports.dto.ResolutionReportRow;
+import ar.edu.utn.frba.arbiter.reports.dto.ResolutionSummary;
 import ar.edu.utn.frba.arbiter.reports.exceptions.InvalidReportPeriodException;
 import ar.edu.utn.frba.arbiter.reports.exceptions.TenantNotResolvedException;
 import ar.edu.utn.frba.arbiter.reports.exceptions.UnknownBranchException;
@@ -56,7 +57,25 @@ public class ResolutionReportService {
                 branchId,
                 cause);
         return new ResolutionReport(from, to, branch, cause, clock.instant(),
-                ResolutionSummaries.of(rows), rows);
+                ResolutionSummaries.of(rows),
+                previousSummary(from, to, zone, branchId, cause), rows);
+    }
+
+    /**
+     * The same summary, over the equal-length stretch immediately before the period — see
+     * {@link PreviousPeriod}. Folded from a second query rather than carried over from
+     * {@link #generate}: the previous rows aren't part of the response, so there's nothing to reuse
+     * them for besides this fold.
+     */
+    private ResolutionSummary previousSummary(LocalDate from, LocalDate to, ZoneId zone, Long branchId,
+                                              String cause) {
+        PreviousPeriod previous = PreviousPeriod.immediatelyBefore(from, to);
+        List<ResolutionReportRow> rows = resolvedCaseRepository.findResolvedBetween(
+                previous.from().atStartOfDay(zone).toInstant(),
+                previous.to().plusDays(1).atStartOfDay(zone).toInstant(),
+                branchId,
+                cause);
+        return ResolutionSummaries.of(rows);
     }
 
     public ExportedReport export(LocalDate from, LocalDate to, Long branchId, String claimCause,

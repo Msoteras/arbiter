@@ -26,10 +26,10 @@ public class PdfFraudReportExporter implements FraudReportExporter {
     private static final String TITLE = "Reporte de detección de fraude";
 
     private static final String[] HEADER = {
-            "Nº", "Asegurado", "DNI", "Ramo · Hecho generador", "Denuncia", "Alerta", "Señales",
+            "Nº", "Asegurado", "DNI", "Ramo · Hecho generador", "Denuncia", "Score", "Señales",
             "Estado", "Fraude determinado"};
     /**
-     * Sums to 766pt, just inside the 770pt a landscape A4 leaves between margins. The alert level,
+     * Sums to 766pt, just inside the 770pt a landscape A4 leaves between margins. The risk score,
      * the status and the determination get room for their longest value; "Señales" gets the widest
      * column and the 6pt taken off the DNI, because it is the one that carries a list rather than a
      * value — with three signals it wraps to the second line the writer allows it.
@@ -59,26 +59,28 @@ public class PdfFraudReportExporter implements FraudReportExporter {
 
     private static List<String> headingLines(FraudReport report) {
         List<String> lines = new ArrayList<>();
-        lines.add("Período: %s al %s · Ramo: %s · Nivel de alerta: %s".formatted(
+        lines.add("Período: %s al %s · Ramo: %s · Score de riesgo: %s".formatted(
                 ReportLabels.DATE.format(report.from()),
                 ReportLabels.DATE.format(report.to()),
                 ReportLabels.filterValue(report.branch()),
                 report.riskBand() == null ? "Todos" : ReportLabels.alertLevel(report.riskBand())));
-        lines.addAll(summaryLines(report.summary()));
+        lines.addAll(summaryLines(report.summary(), report.previousSummary()));
         return lines;
     }
 
-    private static List<String> summaryLines(FraudSummary summary) {
+    private static List<String> summaryLines(FraudSummary summary, FraudSummary previous) {
         if (summary.totalClaims() == 0) {
             return List.of();
         }
         if (summary.flagged() == 0) {
             // With claims in the period, "none of them" is the finding, and it needs its population
             // as much as any other rate does.
-            return List.of("%sNinguna de las %d %s del período con señales".formatted(
-                    PdfReportWriter.TOTALS_LABEL,
-                    summary.totalClaims(),
-                    summary.totalClaims() == 1 ? "denuncia" : "denuncias"));
+            return List.of(
+                    "%sNinguna de las %d %s del período con señales".formatted(
+                            PdfReportWriter.TOTALS_LABEL,
+                            summary.totalClaims(),
+                            summary.totalClaims() == 1 ? "denuncia" : "denuncias"),
+                    comparisonLine(summary, previous));
         }
         return List.of(
                 // The denominator travels with every rate: a share with no population behind it is
@@ -95,12 +97,34 @@ public class PdfFraudReportExporter implements FraudReportExporter {
                                 summary.fraudDetermined(),
                                 ReportLabels.percentWithOneDecimal(summary.fraudRate()),
                                 summary.backedByExpert()),
-                "Por nivel de alerta: " + distribution(summary.byAlertLevel(),
+                comparisonLine(summary, previous),
+                "Por score de riesgo: " + distribution(summary.byAlertLevel(),
                         count -> ReportLabels.alertLevel(count.label())),
                 // The buckets overlap — a case with two signals is in both — so they can add up to
                 // more than the total. Said here so nobody reads it as an arithmetic error.
                 "Por señal (una denuncia puede tener más de una): "
                         + distribution(summary.bySignal(), count -> ReportLabels.signal(count.label())));
+    }
+
+    /**
+     * The KPI cards' change against the previous period of equal length, on its own line so the
+     * totals line above stays exactly what it always printed.
+     *
+     * <p>"Fraude determinado" is left out on purpose, the same reason the summary itself calls it
+     * out as lagging: the most recent cases are still open, so a previous period read the same way
+     * would also under-count, and the difference between two under-counts is not a trend.
+     */
+    private static String comparisonLine(FraudSummary summary, FraudSummary previous) {
+        long previousClaims = previous.totalClaims();
+        return "Vs. período anterior: %d %s%s · Con al menos una señal: %s%s · Con dos o más señales: %d%s"
+                .formatted(
+                        previousClaims,
+                        previousClaims == 1 ? "denuncia" : "denuncias",
+                        ReportLabels.countDelta(summary.totalClaims(), previousClaims, previousClaims),
+                        ReportLabels.percentWithOneDecimal(previous.flaggedRate()),
+                        ReportLabels.rateDelta(summary.flaggedRate(), previous.flaggedRate(), previousClaims),
+                        previous.multiSignal(),
+                        ReportLabels.countDelta(summary.multiSignal(), previous.multiSignal(), previousClaims));
     }
 
     private static String distribution(List<MetricCount> counts, Function<MetricCount, String> label) {

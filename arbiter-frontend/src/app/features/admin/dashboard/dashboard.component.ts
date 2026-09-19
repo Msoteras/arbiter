@@ -19,6 +19,7 @@ import { RiskBand, riskBandLabel } from '../../../core/models/risk-band';
 import { StatusTone } from '../../../core/models/status-tone';
 import { formatRate } from '../../../core/util/percent';
 import { formatMoney } from '../../../core/util/money';
+import { trendText } from '../../../core/util/trend';
 import { staggerReveal } from '../../../shared/animations';
 import { CardComponent } from '../../../shared/ui/card/card.component';
 import { ChartTheme, baseChartOptions, readChartTheme } from '../../../shared/ui/chart/chart-theme';
@@ -40,7 +41,6 @@ import {
   MetricsFilter,
   MetricsRange,
   TimelinePoint,
-  delta,
   providerLabel,
   resolutionTimeLabel,
 } from './claim-metrics';
@@ -97,13 +97,6 @@ function legalTone(rate: number | null): StatusTone {
   }
   return rate >= 0.9 ? 'warning' : 'danger';
 }
-
-/**
- * Cuántos expedientes decididos tiene que haber tenido el período anterior para que comparar contra
- * él signifique algo. Con menos, un solo caso mueve el promedio decenas de días y la flecha anuncia
- * un derrumbe que es apenas ruido — el tipo de número que termina citado como un hecho.
- */
-const MIN_COMPARISON_BASE = 5;
 
 /**
  * Tablero de gestión del referente: cómo viene operando su propia cartera de siniestros.
@@ -697,11 +690,10 @@ export class DashboardComponent {
   }
 
   /**
-   * La variación contra el período anterior, con su flecha.
-   *
-   * `good` dice qué dirección es la buena, porque del signo no se deduce: que suba el tiempo de
-   * resolución es malo y que suba la tasa de Fast Track es bueno. Sin eso, un ▲ rojo al lado de un
-   * número que mejoró sería exactamente el tipo de cartel que hace desconfiar del tablero entero.
+   * La variación contra el período anterior, con su flecha. Envoltorio fino sobre {@link trendText}
+   * (compartida con los dos reportes) que sólo resuelve cómo formatear la magnitud según la unidad
+   * del indicador — el resto (la regla de base mínima, el signo, el "mejor/peor") es una sola
+   * implementación para las tres pantallas.
    */
   private trendOf(
     current: number | null,
@@ -710,28 +702,13 @@ export class DashboardComponent {
     good: 'up' | 'down' | 'neither',
     base = Number.POSITIVE_INFINITY,
   ): string {
-    if (base < MIN_COMPARISON_BASE) {
-      return '';
-    }
-    const change = delta(current, previous);
-    if (change.value === null || change.direction === 'flat') {
-      return '';
-    }
-    const arrow = change.direction === 'up' ? '▲' : '▼';
-    const size = Math.abs(change.value);
-    const amount =
+    const format = (size: number) =>
       unit === 'rate'
         ? formatRate(size)
         : unit === 'hours'
           ? resolutionTimeLabel(size)
           : formatNumber(size, this.locale, '1.0-0');
-    // Que entren más o menos siniestros no es mejor ni peor: es el volumen del mes. Poner un
-    // veredicto ahí sería inventar una opinión que el dato no tiene.
-    const tail =
-      good === 'neither'
-        ? 'vs. el período anterior'
-        : `${change.direction === good ? 'mejor' : 'peor'} que el período anterior`;
-    return `${arrow} ${amount} ${tail}`;
+    return trendText({ current, previous, format, good, base });
   }
 
   /** El punto de la línea de tiempo, como lo escribiría alguien: "14/06" o "jun 2026". */

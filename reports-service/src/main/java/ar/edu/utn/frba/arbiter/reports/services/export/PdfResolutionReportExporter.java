@@ -65,11 +65,11 @@ public class PdfResolutionReportExporter implements ResolutionReportExporter {
                 ReportLabels.DATE.format(report.to()),
                 ReportLabels.filterValue(report.branch()),
                 ReportLabels.filterValue(report.claimCause())));
-        lines.addAll(summaryLines(report.summary()));
+        lines.addAll(summaryLines(report.summary(), report.previousSummary()));
         return lines;
     }
 
-    private static List<String> summaryLines(ResolutionSummary summary) {
+    private static List<String> summaryLines(ResolutionSummary summary, ResolutionSummary previous) {
         if (summary.totalCases() == 0) {
             return List.of();
         }
@@ -81,9 +81,30 @@ public class PdfResolutionReportExporter implements ResolutionReportExporter {
                         resolutionTime(summary),
                         summary.fastTrackCases(),
                         ReportLabels.percent(summary.fastTrackRate())),
+                comparisonLine(summary, previous),
                 "Por estado: " + distribution(summary.byStatus(),
                         count -> ReportLabels.status(CaseStatus.valueOf(count.label()))),
                 "Por tipo de siniestro: " + distribution(summary.byClaimCause(), MetricCount::label));
+    }
+
+    /**
+     * The KPI cards' change against the previous period of equal length, on its own line so the
+     * totals line above stays exactly what it always printed.
+     */
+    private static String comparisonLine(ResolutionSummary summary, ResolutionSummary previous) {
+        long previousCases = previous.totalCases();
+        String previousTime = previous.averageMinutes() == null
+                ? "sin tiempo promedio"
+                : ReportLabels.duration(Math.round(previous.averageMinutes()));
+        return "Vs. período anterior: %d %s%s · Tiempo promedio: %s%s · Fast Track: %s%s".formatted(
+                previousCases,
+                previousCases == 1 ? "siniestro resuelto" : "siniestros resueltos",
+                ReportLabels.countDelta(summary.totalCases(), previousCases, previousCases),
+                previousTime,
+                ReportLabels.durationDelta(
+                        summary.averageMinutes(), previous.averageMinutes(), previous.decidedCases()),
+                ReportLabels.percent(previous.fastTrackRate()),
+                ReportLabels.rateDelta(summary.fastTrackRate(), previous.fastTrackRate(), previousCases));
     }
 
     /**

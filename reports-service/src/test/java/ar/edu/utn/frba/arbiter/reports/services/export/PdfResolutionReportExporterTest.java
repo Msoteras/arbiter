@@ -2,6 +2,7 @@ package ar.edu.utn.frba.arbiter.reports.services.export;
 
 import ar.edu.utn.frba.arbiter.reports.dto.ResolutionReport;
 import ar.edu.utn.frba.arbiter.reports.dto.ResolutionReportRow;
+import ar.edu.utn.frba.arbiter.reports.dto.ResolutionSummary;
 import org.apache.pdfbox.Loader;
 import org.apache.pdfbox.pdmodel.PDDocument;
 import org.apache.pdfbox.text.PDFTextStripper;
@@ -77,6 +78,32 @@ class PdfResolutionReportExporterTest {
         String text = pdf.text().replaceAll("\\s+", " ");
         LongStream.rangeClosed(1, 12).forEach(id ->
                 assertThat(text).contains("Daño por granizo sobre el bien asegurado número " + id + " 1"));
+    }
+
+    @Test
+    void theSummaryLine_comparesAgainstThePreviousPeriod() throws IOException {
+        ResolutionSummary previous =
+                new ResolutionSummary(6, 6, 1200.0, 200.0, 3, 0.5, List.of(), List.of());
+
+        Rendered pdf = render(augustReport(
+                List.of(approvedRow(1), fastTrackRow(2), lapsedRow(3)), null, null, previous));
+
+        assertThat(pdf.text()).contains(
+                "Vs. período anterior: 6 siniestros resueltos (-3) · Tiempo promedio: 20 h "
+                        + "(+6 h 15 min) · Fast Track: 50% (-16,7 pp)");
+    }
+
+    /** Below the minimum base, the previous figures print but nothing claims a trend out of them. */
+    @Test
+    void theComparison_dropsTheDeltaWhenThePreviousPeriodIsTooThin() throws IOException {
+        ResolutionSummary previous =
+                new ResolutionSummary(3, 3, 1200.0, 200.0, 1, 0.5, List.of(), List.of());
+
+        Rendered pdf = render(augustReport(
+                List.of(approvedRow(1), fastTrackRow(2), lapsedRow(3)), null, null, previous));
+
+        assertThat(pdf.text()).contains(
+                "Vs. período anterior: 3 siniestros resueltos · Tiempo promedio: 20 h · Fast Track: 50%");
     }
 
     /** Nobody decided anything in the period: no average, rather than one over the lapsed ones. */

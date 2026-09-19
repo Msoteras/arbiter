@@ -15,9 +15,13 @@ import java.util.List;
  *
  * @param from       first day of the period, included
  * @param to         last day of the period, included
- * @param branch     the branch ("ramo") filter, by name; null means every branch
- * @param claimCause the claim cause ("hecho generador") filter; null means every cause
- * @param summary    the aggregates over {@link #rows()}, never over a different population
+ * @param branch          the branch ("ramo") filter, by name; null means every branch
+ * @param claimCause      the claim cause ("hecho generador") filter; null means every cause
+ * @param summary         the aggregates over {@link #rows()}, never over a different population
+ * @param previousSummary the same aggregates over the stretch of equal length immediately before
+ *                        this period, under the same filters — what turns a figure into a
+ *                        direction. Never null; {@link ResolutionSummary#EMPTY} when that stretch
+ *                        had no cases resolved at all
  */
 public record ResolutionReport(
         LocalDate from,
@@ -26,5 +30,6 @@ public record ResolutionReport(
         String claimCause,
         Instant generatedAt,
         ResolutionSummary summary,
+        ResolutionSummary previousSummary,
         List<ResolutionReportRow> rows
 ) {}

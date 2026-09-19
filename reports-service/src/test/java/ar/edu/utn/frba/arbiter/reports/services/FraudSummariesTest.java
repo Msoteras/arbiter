@@ -26,7 +26,7 @@ class FraudSummariesTest {
                 row(1, RiskBand.CRITICAL, true, true, FraudSignal.HIGH_RISK_SCORE,
                         FraudSignal.FORENSIC_INCONSISTENCY),
                 row(2, RiskBand.HIGH, true, false, FraudSignal.HIGH_RISK_SCORE),
-                row(3, RiskBand.MEDIUM, false, false, FraudSignal.REPEAT_CLAIMANT)), 20);
+                row(3, RiskBand.MEDIUM, false, false, FraudSignal.FORENSIC_INCONSISTENCY)), 20);
 
         assertThat(summary.flagged()).isEqualTo(3);
         assertThat(summary.multiSignal()).isEqualTo(1);
@@ -82,7 +82,7 @@ class FraudSummariesTest {
     void lowAndMediumBands_collapseIntoOneBucketThatIsNotAnAlertLevel() {
         FraudSummary summary = FraudSummaries.of(List.of(
                 row(1, RiskBand.LOW, false, false, FraudSignal.FORENSIC_INCONSISTENCY),
-                row(2, RiskBand.MEDIUM, false, false, FraudSignal.REPEAT_CLAIMANT),
+                row(2, RiskBand.MEDIUM, false, false, FraudSignal.FORENSIC_INCONSISTENCY),
                 row(3, RiskBand.CRITICAL, false, false, FraudSignal.HIGH_RISK_SCORE)), 20);
 
         assertThat(summary.flagged()).isEqualTo(3);
@@ -105,12 +105,12 @@ class FraudSummariesTest {
     void theSignalBuckets_overlap_andDropTheOnesThatNeverFired() {
         FraudSummary summary = FraudSummaries.of(List.of(
                 row(1, RiskBand.HIGH, false, false, FraudSignal.HIGH_RISK_SCORE,
-                        FraudSignal.REPEAT_CLAIMANT),
+                        FraudSignal.FORENSIC_INCONSISTENCY),
                 row(2, RiskBand.HIGH, false, false, FraudSignal.HIGH_RISK_SCORE)), 20);
 
         assertThat(summary.bySignal()).containsExactly(
                 new MetricCount("HIGH_RISK_SCORE", 2),
-                new MetricCount("REPEAT_CLAIMANT", 1));
+                new MetricCount("FORENSIC_INCONSISTENCY", 1));
     }
 
     private static FraudReportRow row(long caseId, RiskBand band, boolean fraudDetermined,

@@ -27,6 +27,14 @@ final class ReportLabels {
     private static final long MINUTES_PER_HOUR = 60;
     private static final long MINUTES_PER_DAY = 24 * MINUTES_PER_HOUR;
 
+    /**
+     * How many cases the previous period needs before comparing against it means anything — the
+     * same threshold the preview's KPI cards use in the frontend (see {@code trendText} and the
+     * dashboard's own). Below it, one case can swing a rate by ten points and printing a delta would
+     * hand the reader noise dressed up as a trend.
+     */
+    private static final int MIN_COMPARISON_BASE = 5;
+
     private ReportLabels() {
     }
 
@@ -83,7 +91,7 @@ final class ReportLabels {
      * The alert level of the fraud report — whether the score flagged the case, not what it scored.
      *
      * <p>A LOW or MEDIUM band reads "No alertó" and never as its band: a low score is not an
-     * indicator of fraud, and printing "Bajo" under "Nivel de alerta" reads as "nothing to see"
+     * indicator of fraud, and printing "Bajo" under "Score de riesgo" reads as "nothing to see"
      * about a case that is in the report precisely because something else was seen. "Sin evaluar"
      * is kept apart because there the scoring never ran at all.
      */
@@ -109,7 +117,6 @@ final class ReportLabels {
     static String signals(FraudReportRow row) {
         return row.signals().stream().map(signal -> switch (signal) {
             case HIGH_RISK_SCORE -> "Score de riesgo alto";
-            case REPEAT_CLAIMANT -> row.claimsInWindow() + " denuncias en 12 meses";
             case FORENSIC_INCONSISTENCY -> row.suspiciousImages() == 1
                     ? "1 imagen con coincidencia"
                     : row.suspiciousImages() + " imágenes con coincidencia";
@@ -120,7 +127,6 @@ final class ReportLabels {
     static String signal(String literal) {
         return switch (FraudSignal.valueOf(literal)) {
             case HIGH_RISK_SCORE -> "Score de riesgo alto";
-            case REPEAT_CLAIMANT -> "Denuncias repetidas";
             case FORENSIC_INCONSISTENCY -> "Incoherencias forenses";
         };
     }
@@ -178,5 +184,50 @@ final class ReportLabels {
                 .divide(BigDecimal.valueOf(MINUTES_PER_HOUR), 1, RoundingMode.HALF_UP)
                 .toPlainString()
                 .replace('.', ',');
+    }
+
+    /**
+     * "(+2)", "(-1)", "(=)" — a count next to what it changed by against the previous period, or ""
+     * when that period didn't have enough cases to compare against (see {@link #MIN_COMPARISON_BASE}).
+     */
+    static String countDelta(long current, long previous, long previousBase) {
+        if (previousBase < MIN_COMPARISON_BASE) {
+            return "";
+        }
+        long change = current - previous;
+        return change == 0 ? " (=)" : " (%s%d)".formatted(change > 0 ? "+" : "", change);
+    }
+
+    /**
+     * "(+3,9 pp)", "(-1,2 pp)", "(=)" — a rate's change in percentage points, which is what a small
+     * rate actually moves by; "" under the same base rule as {@link #countDelta}, or when either
+     * rate is null because there was nothing to divide.
+     */
+    static String rateDelta(Double current, Double previous, long previousBase) {
+        if (previousBase < MIN_COMPARISON_BASE || current == null || previous == null) {
+            return "";
+        }
+        BigDecimal points = BigDecimal.valueOf((current - previous) * 100).setScale(1, RoundingMode.HALF_UP);
+        if (points.signum() == 0) {
+            return " (=)";
+        }
+        String sign = points.signum() > 0 ? "+" : "";
+        return " (%s%s pp)".formatted(sign, points.stripTrailingZeros().toPlainString().replace('.', ','));
+    }
+
+    /**
+     * "(+2 h)", "(-1 d 3 h)", "(=)" — a duration's change against the previous period, in the same
+     * units {@link #duration} already prints; "" under the same base rule as {@link #countDelta}, or
+     * when either side is null because nothing was decided to average.
+     */
+    static String durationDelta(Double currentMinutes, Double previousMinutes, long previousBase) {
+        if (previousBase < MIN_COMPARISON_BASE || currentMinutes == null || previousMinutes == null) {
+            return "";
+        }
+        long change = Math.round(currentMinutes - previousMinutes);
+        if (change == 0) {
+            return " (=)";
+        }
+        return " (%s%s)".formatted(change > 0 ? "+" : "-", duration(Math.abs(change)));
     }
 }

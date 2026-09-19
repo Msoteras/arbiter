@@ -16,7 +16,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 class CsvFraudReportExporterTest {
 
     private static final String HEADER = "Nº expediente;Asegurado;DNI;Ramo;Hecho generador;"
-            + "Fecha de denuncia;Nivel de alerta;Señales;Denuncias en 12 meses;"
+            + "Fecha de denuncia;Score de riesgo;Señales;Denuncias en 12 meses;"
             + "Imágenes con coincidencia;Estado;Fraude determinado";
 
     private final CsvFraudReportExporter exporter = new CsvFraudReportExporter(CLOCK);
@@ -29,8 +29,8 @@ class CsvFraudReportExporterTest {
         assertThat(lines(csv)).containsExactly(
                 HEADER,
                 "1482;Marcos Aguirre;28.904.115;Celulares;Robo en vía pública;12/09/2026 06:20;"
-                        + "Crítico;Score de riesgo alto · 3 denuncias en 12 meses · "
-                        + "2 imágenes con coincidencia;3;2;Derivado a peritaje;No");
+                        + "Crítico;Score de riesgo alto · 2 imágenes con coincidencia;"
+                        + "3;2;Derivado a peritaje;No");
     }
 
     /**

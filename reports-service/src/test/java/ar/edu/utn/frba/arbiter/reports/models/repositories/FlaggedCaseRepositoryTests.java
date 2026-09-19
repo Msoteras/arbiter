@@ -92,31 +92,45 @@ class FlaggedCaseRepositoryTests extends AbstractPersistenceIT {
     }
 
     /**
-     * The second claim of the same insured inside the window is the one that carries the signal: the
-     * first one had no other claim behind it yet, and saying otherwise would flag everybody twice.
+     * Claiming twice in a year does NOT put a case in this report: it is not an indication of fraud
+     * and it already weighs inside the score ({@code claim_frequency}). Without another signal, the
+     * case is not listed.
      */
     @Test
-    void aSecondClaimOfTheSameInsured_flagsOnlyTheSecond() {
+    void aSecondClaimOfTheSameInsured_isNotEnoughToBeListed() {
         tables.insertCase(1, "2026-09-02T10:00:00Z", PENDING_REVIEW, ROBO_CELULARES, false, null, null);
         tables.insertCase(2, "2026-09-20T10:00:00Z", PENDING_REVIEW, HURTO_CELULARES, false, null, null);
+
+        assertThat(repository.findFlaggedBetween(SEPTEMBER_FROM, SEPTEMBER_TO, null, null)).isEmpty();
+    }
+
+    /** It is still counted, because the row shows it next to the signal that did flag the case. */
+    @Test
+    void theClaimsOfTheWindow_travelAsContextOfAFlaggedCase() {
+        tables.insertCase(1, "2026-09-02T10:00:00Z", PENDING_REVIEW, ROBO_CELULARES, false, null, null);
+        tables.insertCase(2, "2026-09-20T10:00:00Z", PENDING_REVIEW, HURTO_CELULARES, false, null, null);
+        tables.image(2, "item_photo", true);
 
         List<FraudReportRow> rows = repository.findFlaggedBetween(SEPTEMBER_FROM, SEPTEMBER_TO, null, null);
 
         assertThat(rows).singleElement().satisfies(row -> {
             assertThat(row.caseId()).isEqualTo(2L);
             assertThat(row.claimsInWindow()).isEqualTo(2);
-            assertThat(row.signals()).containsExactly(FraudSignal.REPEAT_CLAIMANT);
+            assertThat(row.signals()).containsExactly(FraudSignal.FORENSIC_INCONSISTENCY);
         });
     }
 
-    /** Claims of a different insured don't add up: the window is per person. */
+    /** The window is per person: another insured's claims don't add to this one's count. */
     @Test
     void claimsOfAnotherInsured_doNotCount() {
         tables.insertCase(1, "2026-09-02T10:00:00Z", PENDING_REVIEW, ROBO_CELULARES, false, null, null);
         tables.insertCase(2, "2026-09-20T10:00:00Z", PENDING_REVIEW, HURTO_CELULARES, false, null, null);
         tables.insuredOf(2, DIEGO);
+        tables.image(2, "item_photo", true);
 
-        assertThat(repository.findFlaggedBetween(SEPTEMBER_FROM, SEPTEMBER_TO, null, null)).isEmpty();
+        List<FraudReportRow> rows = repository.findFlaggedBetween(SEPTEMBER_FROM, SEPTEMBER_TO, null, null);
+
+        assertThat(rows).singleElement().extracting(FraudReportRow::claimsInWindow).isEqualTo(1);
     }
 
     /** Older than the trailing 12 months: the person claimed before, but not recently. */
@@ -124,8 +138,11 @@ class FlaggedCaseRepositoryTests extends AbstractPersistenceIT {
     void aClaimOutsideTheTwelveMonthWindow_doesNotCount() {
         tables.insertCase(1, "2025-06-01T10:00:00Z", APPROVED, ROBO_CELULARES, false, null, null);
         tables.insertCase(2, "2026-09-20T10:00:00Z", PENDING_REVIEW, HURTO_CELULARES, false, null, null);
+        tables.image(2, "item_photo", true);
 
-        assertThat(repository.findFlaggedBetween(SEPTEMBER_FROM, SEPTEMBER_TO, null, null)).isEmpty();
+        List<FraudReportRow> rows = repository.findFlaggedBetween(SEPTEMBER_FROM, SEPTEMBER_TO, null, null);
+
+        assertThat(rows).singleElement().extracting(FraudReportRow::claimsInWindow).isEqualTo(1);
     }
 
     @Test
@@ -144,9 +161,9 @@ class FlaggedCaseRepositoryTests extends AbstractPersistenceIT {
         });
     }
 
-    /** The cross: the three criteria on one case, which is what the report exists to surface. */
+    /** The cross: the two criteria on one case, which is what the report exists to surface. */
     @Test
-    void theThreeSignals_coincideOnTheSameCase() {
+    void theTwoSignals_coincideOnTheSameCase() {
         tables.insertCase(1, "2026-09-02T10:00:00Z", APPROVED, ROBO_CELULARES, false, null, null);
         tables.insertCase(2, "2026-09-20T10:00:00Z", PENDING_REVIEW, HURTO_CELULARES, false, null, null);
         tables.riskBand(2, "CRITICAL");
@@ -161,7 +178,7 @@ class FlaggedCaseRepositoryTests extends AbstractPersistenceIT {
             assertThat(row.caseId()).isEqualTo(2L);
             assertThat(row.riskBand()).isEqualTo(RiskBand.CRITICAL);
             assertThat(row.signals()).containsExactlyInAnyOrder(FraudSignal.HIGH_RISK_SCORE,
-                    FraudSignal.REPEAT_CLAIMANT, FraudSignal.FORENSIC_INCONSISTENCY);
+                    FraudSignal.FORENSIC_INCONSISTENCY);
             assertThat(row.fraudDetermined()).isTrue();
             assertThat(row.expertBacked()).isTrue();
         });

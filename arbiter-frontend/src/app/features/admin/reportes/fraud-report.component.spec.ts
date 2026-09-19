@@ -28,7 +28,7 @@ function row(overrides: Partial<FraudReportRow> = {}): FraudReportRow {
     claimCause: 'Robo en vía pública',
     reportedAt: '2026-09-12T09:20:00Z',
     riskBand: 'CRITICAL',
-    signals: ['HIGH_RISK_SCORE', 'REPEAT_CLAIMANT', 'FORENSIC_INCONSISTENCY'],
+    signals: ['HIGH_RISK_SCORE', 'FORENSIC_INCONSISTENCY'],
     claimsInWindow: 3,
     suspiciousImages: 2,
     status: 'PENDING_EXPERT_REPORT',
@@ -40,11 +40,7 @@ function row(overrides: Partial<FraudReportRow> = {}): FraudReportRow {
 
 describe('fraud report helpers', () => {
   it('spells each signal out with the magnitude that makes it actionable', () => {
-    expect(indicators(row())).toEqual([
-      'Score de riesgo alto',
-      '3 denuncias en 12 meses',
-      '2 imágenes con coincidencia',
-    ]);
+    expect(indicators(row())).toEqual(['Score de riesgo alto', '2 imágenes con coincidencia']);
   });
 
   it('keeps the singular for a single flagged image', () => {
@@ -55,7 +51,7 @@ describe('fraud report helpers', () => {
 
   /**
    * The gauge is drawn only when the score alerted. A LOW band gets no segment: a low score is not
-   * an indicator of fraud, and filling one under "Nivel de alerta" would read as "nothing here"
+   * an indicator of fraud, and filling one under "Score de riesgo" would read as "nothing here"
    * about a case listed precisely because something else was found.
    */
   it('draws the gauge only for a score that alerted', () => {
@@ -102,6 +98,17 @@ describe('FraudReportComponent', () => {
         { label: 'HIGH_RISK_SCORE', count: 1 },
         { label: 'FORENSIC_INCONSISTENCY', count: 2 },
       ],
+    },
+    previousSummary: {
+      totalClaims: 15,
+      flagged: 3,
+      flaggedRate: 0.2,
+      multiSignal: 0,
+      fraudDetermined: 0,
+      fraudRate: null,
+      backedByExpert: 0,
+      byAlertLevel: [],
+      bySignal: [],
     },
     rows: [
       row(),
@@ -161,24 +168,35 @@ describe('FraudReportComponent', () => {
     const text = (fixture.nativeElement as HTMLElement).textContent ?? '';
     expect(reportService.report).toHaveBeenCalled();
     expect(text).toContain('Marcos Aguirre');
+    // Contexto de la fila, no una señal: se muestra bajo el asegurado.
     expect(text).toContain('3 denuncias en 12 meses');
+    expect(text).toContain('2 imágenes con coincidencia');
     expect(text).toContain('Derivado a peritaje');
     expect(text).not.toContain('PENDING_EXPERT_REPORT');
     expect(text).not.toContain('HIGH_RISK_SCORE');
   });
 
   /** Lo que ordena la tabla tiene que verse en la tabla, o el orden parece un desorden. */
-  it('marks and counts the rows whose signals coincide, and says how it sorted them', () => {
+  it('marks the rows whose signals coincide, and says how it sorted them', () => {
     preview();
 
     const host = fixture.nativeElement as HTMLElement;
     const rows = Array.from(host.querySelectorAll('tbody tr'));
     expect(rows[0].classList).toContain('multi-signal');
-    expect(rows[0].textContent).toContain('3 señales');
-    // Una sola señal no es un cruce: ni marca ni contador.
+    // Una sola señal no es un cruce: sin marca.
     expect(rows[1].classList).not.toContain('multi-signal');
-    expect(rows[1].textContent).not.toContain('1 señales');
     expect(host.textContent).toContain('Ordenadas por cantidad de señales');
+  });
+
+  /** With only two possible signals a count badge would always read "2" — nothing worth a badge. */
+  it('does not badge the signal count, only the signals themselves', () => {
+    preview();
+
+    const host = fixture.nativeElement as HTMLElement;
+    const rows = Array.from(host.querySelectorAll('tbody tr'));
+    expect(rows[0].textContent).not.toContain('señales');
+    expect(rows[0].textContent).toContain('Score de riesgo alto');
+    expect(rows[0].textContent).toContain('2 imágenes con coincidencia');
   });
 
   it('leads with the cross and the determinations behind it', () => {
@@ -191,8 +209,44 @@ describe('FraudReportComponent', () => {
     expect(text).toContain('Fraude determinado · pericial');
   });
 
+  /**
+   * No verdict on these three: more or fewer claims, or a higher or lower flagged share, isn't
+   * better or worse news on its own — see the component's own comments on why.
+   */
+  it('compares the KPI cards against the previous period, without a verdict', () => {
+    preview();
+
+    const text = (fixture.nativeElement as HTMLElement).textContent!.replace(/\s+/g, ' ');
+    expect(text).toContain('▲ 5 vs. el período anterior');
+    expect(text).toContain('▼ 10% vs. el período anterior');
+    expect(text).toContain('▲ 1 vs. el período anterior');
+  });
+
+  /**
+   * Below the minimum base a rate can swing ten points on one case — not a trend, just noise. The
+   * raw count above isn't gated the same way: a "+18 denuncias" delta isn't noisy just because the
+   * previous period was thin, same criterion the dashboard's own funnel uses.
+   */
+  it('drops the rate and cross-count comparisons when the previous period is too thin', () => {
+    reportService.report.and.returnValue(
+      of({ ...report, previousSummary: { ...report.previousSummary, totalClaims: 2 } }),
+    );
+
+    preview();
+
+    const text = (fixture.nativeElement as HTMLElement).textContent ?? '';
+    expect(text).not.toContain('▼ 10% vs. el período anterior');
+    expect(text).not.toContain('▲ 1 vs. el período anterior');
+    expect(text).toContain('▲ 18 vs. el período anterior');
+  });
+
   /** A rate without its population is the figure people misread fastest, so they travel together. */
   it('states each rate next to the claims it was taken over', () => {
+    // Previous period too thin to compare against, so the trend doesn't take the sub's place.
+    reportService.report.and.returnValue(
+      of({ ...report, previousSummary: { ...report.previousSummary, totalClaims: 2 } }),
+    );
+
     preview();
 
     const text = (fixture.nativeElement as HTMLElement).textContent ?? '';
@@ -414,6 +468,17 @@ describe('FraudReportComponent opened from a link', () => {
           byAlertLevel: [],
           bySignal: [],
         },
+        previousSummary: {
+          totalClaims: 0,
+          flagged: 0,
+          flaggedRate: null,
+          multiSignal: 0,
+          fraudDetermined: 0,
+          fraudRate: null,
+          backedByExpert: 0,
+          byAlertLevel: [],
+          bySignal: [],
+        },
         rows: [],
       } satisfies FraudReport),
     );
@@ -448,7 +513,7 @@ describe('FraudReportComponent opened from a link', () => {
 
     expect(report).toHaveBeenCalledOnceWith(jasmine.objectContaining({ riskBand: 'CRITICAL' }));
     const text = (fixture.nativeElement as HTMLElement).textContent!.replace(/\s+/g, ' ');
-    expect(text).toContain('Ramo: Todos · Nivel de alerta: Crítico');
+    expect(text).toContain('Ramo: Todos · Score de riesgo: Crítico');
   });
 
   /** Volver a Reportes desde el menú abre la solapa que se estaba usando, no siempre la primera. */

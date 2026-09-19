@@ -90,8 +90,14 @@ class ResolutionReportServiceTest {
         service.generate(AUG_1, AUG_31, null, "   ");
         service.generate(AUG_1, AUG_31, null, "  Hurto ");
 
-        verify(repository).findResolvedBetween(any(), any(), isNull(), isNull());
-        verify(repository).findResolvedBetween(any(), any(), isNull(), eq("Hurto"));
+        // The exact period, not any(), any()): that wildcard also matches the previous-period query
+        // generate() now makes, and a loose verify here can't tell the two calls apart.
+        verify(repository).findResolvedBetween(
+                eq(Instant.parse("2026-08-01T03:00:00Z")), eq(Instant.parse("2026-09-01T03:00:00Z")),
+                isNull(), isNull());
+        verify(repository).findResolvedBetween(
+                eq(Instant.parse("2026-08-01T03:00:00Z")), eq(Instant.parse("2026-09-01T03:00:00Z")),
+                isNull(), eq("Hurto"));
     }
 
     @Test
@@ -100,7 +106,9 @@ class ResolutionReportServiceTest {
 
         ResolutionReport report = service.generate(AUG_1, AUG_31, 7L, null);
 
-        verify(repository).findResolvedBetween(any(), any(), eq(7L), isNull());
+        verify(repository).findResolvedBetween(
+                eq(Instant.parse("2026-08-01T03:00:00Z")), eq(Instant.parse("2026-09-01T03:00:00Z")),
+                eq(7L), isNull());
         assertThat(report.branch()).isEqualTo("Celulares");
     }
 
@@ -143,6 +151,33 @@ class ResolutionReportServiceTest {
 
         assertThat(report.summary().totalCases()).isEqualTo(report.rows().size());
         assertThat(report.summary().fastTrackCases()).isEqualTo(1);
+    }
+
+    /**
+     * Equal length, immediately before: 31 days of August compares against 31 days of July, not
+     * against "el mes anterior" by name.
+     */
+    @Test
+    void generate_alsoQueriesTheEqualLengthStretchRightBefore() {
+        service.generate(AUG_1, AUG_31, null, null);
+
+        verify(repository).findResolvedBetween(
+                Instant.parse("2026-07-01T03:00:00Z"), Instant.parse("2026-08-01T03:00:00Z"), null, null);
+    }
+
+    @Test
+    void generate_previousSummary_foldsThePreviousPeriodsRowsSeparately() {
+        given(repository.findResolvedBetween(
+                Instant.parse("2026-08-01T03:00:00Z"), Instant.parse("2026-09-01T03:00:00Z"), null, null))
+                .willReturn(List.of(approvedRow(1), fastTrackRow(2)));
+        given(repository.findResolvedBetween(
+                Instant.parse("2026-07-01T03:00:00Z"), Instant.parse("2026-08-01T03:00:00Z"), null, null))
+                .willReturn(List.of(lapsedRow(3)));
+
+        ResolutionReport report = service.generate(AUG_1, AUG_31, null, null);
+
+        assertThat(report.summary().totalCases()).isEqualTo(2);
+        assertThat(report.previousSummary().totalCases()).isEqualTo(1);
     }
 
     @Test

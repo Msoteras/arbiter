@@ -48,9 +48,9 @@ public class FraudReportController {
                     + "incluidos, días calendario) sobre las que se disparó al menos una señal: score "
                     + "de riesgo ALTO o CRÍTICO, más de una denuncia del mismo asegurado en los 12 "
                     + "meses previos, o incoherencias del análisis forense de imágenes. Cada fila trae "
-                    + "el nivel de alerta (la banda de riesgo del motor), qué señales se cruzaron y si "
-                    + "un analista determinó fraude. branchId filtra por ramo y riskBand por nivel de "
-                    + "alerta; sin ellos, todos. Período máximo: 366 días. "
+                    + "el score de riesgo (la banda del motor), qué señales se cruzaron y si un "
+                    + "analista determinó fraude. branchId filtra por ramo y riskBand por score de "
+                    + "riesgo; sin ellos, todos. Período máximo: 366 días. "
                     + "El sistema no determina fraude: señala indicios para revisión humana.")
     public FraudReport report(
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate from,
