@@ -278,22 +278,3 @@ export function providerLabel(providerType: string): string {
   }
 }
 
-/**
- * La variación de un indicador contra el período anterior, ya resuelta: cuánto cambió y si eso es
- * bueno o malo. Lo segundo no se deduce del signo — que suba el tiempo de resolución es peor, que
- * suba la tasa de aprobación no es ni bueno ni malo —, así que lo decide quien llama.
- */
-export interface MetricDelta {
-  /** Diferencia absoluta contra el período anterior. Null si no hay con qué comparar. */
-  value: number | null;
-  direction: 'up' | 'down' | 'flat';
-}
-
-export function delta(current: number | null, previous: number | null): MetricDelta {
-  if (current === null || previous === null) {
-    return { value: null, direction: 'flat' };
-  }
-  const difference = current - previous;
-  const rounded = Math.abs(difference) < 0.0001 ? 0 : difference;
-  return { value: rounded, direction: rounded === 0 ? 'flat' : rounded > 0 ? 'up' : 'down' };
-}

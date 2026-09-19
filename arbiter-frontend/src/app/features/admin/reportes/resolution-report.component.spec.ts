@@ -12,9 +12,12 @@ import { ReportFiltersStore } from './report-filters.store';
 import { ResolutionReportComponent } from './resolution-report.component';
 import {
   ResolutionReport,
+  ResolutionSummary,
   decisionLabel,
+  fastTrackTrend,
   formatDuration,
   periodError,
+  resolvedTrend,
   waitingBreakdown,
 } from './resolution-report';
 import { ResolutionReportService } from './resolution-report.service';
@@ -65,6 +68,30 @@ describe('resolution report helpers', () => {
     expect(periodError('2024-01-01', '2024-12-31')).toBeNull();
     expect(periodError('2026-08-15', '2026-08-15')).toBeNull();
   });
+
+  /** Sólo lo que la comparación necesita; el resto del resumen no entra en estas cifras. */
+  const summaryOf = (over: Partial<ResolutionSummary>): ResolutionSummary =>
+    ({ totalCases: 0, fastTrackRate: null, ...over }) as ResolutionSummary;
+
+  /** El volumen del período no es ni bueno ni malo: la flecha va sin veredicto. */
+  it('states the change in resolved cases, and says nothing when it did not change', () => {
+    expect(resolvedTrend(summaryOf({ totalCases: 6 }), summaryOf({ totalCases: 4 }))).toBe(
+      '▲ 2 vs. el período anterior',
+    );
+    expect(resolvedTrend(summaryOf({ totalCases: 4 }), summaryOf({ totalCases: 4 }))).toBe('');
+  });
+
+  /** Entre dos tasas la diferencia es en puntos: "17%" se leería como un aumento relativo. */
+  it('reads a fast track change in percentage points, and hushes over a tiny base', () => {
+    const current = summaryOf({ totalCases: 6, fastTrackRate: 0.5 });
+
+    expect(fastTrackTrend(current, summaryOf({ totalCases: 6, fastTrackRate: 0.33 }))).toBe(
+      '▲ 17 pp mejor que el período anterior',
+    );
+    expect(fastTrackTrend(current, summaryOf({ totalCases: 3, fastTrackRate: 0.33 }))).toBe(
+      '',
+    );
+  });
 });
 
 describe('ResolutionReportComponent', () => {
@@ -90,6 +117,22 @@ describe('ResolutionReportComponent', () => {
       ],
       byClaimCause: [{ label: 'Robo en vía pública', count: 4 }],
     },
+    // El período anterior cerró 6 con 1 Fast Track: la tarjeta baja 2 y la tasa sube 8 pp.
+    previousSummary: {
+      totalCases: 6,
+      decidedCases: 6,
+      averageMinutes: 4000,
+      averageWaitingMinutes: 0,
+      fastTrackCases: 1,
+      fastTrackRate: 1 / 6,
+      byStatus: [],
+      byClaimCause: [],
+    },
+    granularity: 'WEEK',
+    timeline: [
+      { bucket: '2026-08-03', resolved: 3, decided: 3, averageMinutes: 3030 },
+      { bucket: '2026-08-10', resolved: 1, decided: 0, averageMinutes: null },
+    ],
     rows: [
       {
         caseId: 42,
@@ -230,6 +273,18 @@ describe('ResolutionReportComponent opened from a link', () => {
       byStatus: [],
       byClaimCause: [],
     },
+    previousSummary: {
+      totalCases: 0,
+      decidedCases: 0,
+      averageMinutes: null,
+      averageWaitingMinutes: null,
+      fastTrackCases: 0,
+      fastTrackRate: null,
+      byStatus: [],
+      byClaimCause: [],
+    },
+    granularity: 'DAY',
+    timeline: [],
     rows: [],
   } satisfies ResolutionReport;
 

@@ -40,11 +40,16 @@ import {
   MetricsFilter,
   MetricsRange,
   TimelinePoint,
-  delta,
   providerLabel,
   resolutionTimeLabel,
 } from './claim-metrics';
 import { ClaimMetricsService, MetricsPeriod } from './claim-metrics.service';
+import {
+  MIN_COMPARISON_BASE,
+  delta,
+  percentagePoints,
+  trendLabel,
+} from '../../../core/util/metric-trend';
 import {
   DistributionComponent,
   DistributionItem,
@@ -98,12 +103,6 @@ function legalTone(rate: number | null): StatusTone {
   return rate >= 0.9 ? 'warning' : 'danger';
 }
 
-/**
- * Cuántos expedientes decididos tiene que haber tenido el período anterior para que comparar contra
- * él signifique algo. Con menos, un solo caso mueve el promedio decenas de días y la flecha anuncia
- * un derrumbe que es apenas ruido — el tipo de número que termina citado como un hecho.
- */
-const MIN_COMPARISON_BASE = 5;
 
 /**
  * Tablero de gestión del referente: cómo viene operando su propia cartera de siniestros.
@@ -697,11 +696,9 @@ export class DashboardComponent {
   }
 
   /**
-   * La variación contra el período anterior, con su flecha.
-   *
-   * `good` dice qué dirección es la buena, porque del signo no se deduce: que suba el tiempo de
-   * resolución es malo y que suba la tasa de Fast Track es bueno. Sin eso, un ▲ rojo al lado de un
-   * número que mejoró sería exactamente el tipo de cartel que hace desconfiar del tablero entero.
+   * La variación contra el período anterior, con su flecha. El texto y el criterio de cuándo
+   * callarse son compartidos con el reporte de resolución (`core/util/metric-trend`); acá queda
+   * sólo cómo se escribe el tamaño, que sí es propio de cada cifra del tablero.
    */
   private trendOf(
     current: number | null,
@@ -714,24 +711,14 @@ export class DashboardComponent {
       return '';
     }
     const change = delta(current, previous);
-    if (change.value === null || change.direction === 'flat') {
-      return '';
-    }
-    const arrow = change.direction === 'up' ? '▲' : '▼';
-    const size = Math.abs(change.value);
+    const size = Math.abs(change.value ?? 0);
     const amount =
       unit === 'rate'
-        ? formatRate(size)
+        ? percentagePoints(size)
         : unit === 'hours'
           ? resolutionTimeLabel(size)
           : formatNumber(size, this.locale, '1.0-0');
-    // Que entren más o menos siniestros no es mejor ni peor: es el volumen del mes. Poner un
-    // veredicto ahí sería inventar una opinión que el dato no tiene.
-    const tail =
-      good === 'neither'
-        ? 'vs. el período anterior'
-        : `${change.direction === good ? 'mejor' : 'peor'} que el período anterior`;
-    return `${arrow} ${amount} ${tail}`;
+    return trendLabel(change, amount, good);
   }
 
   /** El punto de la línea de tiempo, como lo escribiría alguien: "14/06" o "jun 2026". */

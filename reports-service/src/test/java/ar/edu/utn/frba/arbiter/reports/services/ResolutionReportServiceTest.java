@@ -32,6 +32,7 @@ import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 
@@ -90,8 +91,9 @@ class ResolutionReportServiceTest {
         service.generate(AUG_1, AUG_31, null, "   ");
         service.generate(AUG_1, AUG_31, null, "  Hurto ");
 
-        verify(repository).findResolvedBetween(any(), any(), isNull(), isNull());
-        verify(repository).findResolvedBetween(any(), any(), isNull(), eq("Hurto"));
+        // Twice per report: the period itself and the one before it, under the same filters.
+        verify(repository, times(2)).findResolvedBetween(any(), any(), isNull(), isNull());
+        verify(repository, times(2)).findResolvedBetween(any(), any(), isNull(), eq("Hurto"));
     }
 
     @Test
@@ -100,7 +102,7 @@ class ResolutionReportServiceTest {
 
         ResolutionReport report = service.generate(AUG_1, AUG_31, 7L, null);
 
-        verify(repository).findResolvedBetween(any(), any(), eq(7L), isNull());
+        verify(repository, times(2)).findResolvedBetween(any(), any(), eq(7L), isNull());
         assertThat(report.branch()).isEqualTo("Celulares");
     }
 
@@ -183,5 +185,23 @@ class ResolutionReportServiceTest {
         assertThat(file.format()).isEqualTo(ReportFormat.PDF);
         assertThat(file.content()).isEqualTo(pdf);
         verify(csvExporter, never()).export(any());
+    }
+
+    /**
+     * The comparison the screen turns into arrows: the period immediately before, of equal length
+     * and under the SAME filters. August compares against July — and a report cut by branch
+     * compares against that branch, not against the whole portfolio, or the direction would come
+     * from a different population than the figure it sits next to.
+     */
+    @Test
+    void generate_comparesAgainstTheEquallyLongPeriodBefore_underTheSameFilters() {
+        given(repository.findBranchName(7L)).willReturn("Celulares");
+
+        service.generate(AUG_1, AUG_31, 7L, "Hurto");
+
+        // August is 31 days, so the comparison window is the 31 days before it: all of July.
+        verify(repository).findResolvedBetween(
+                Instant.parse("2026-07-01T03:00:00Z"), Instant.parse("2026-08-01T03:00:00Z"),
+                7L, "Hurto");
     }
 }

@@ -5,7 +5,12 @@ import ar.edu.utn.frba.arbiter.common.enums.Classification;
 import ar.edu.utn.frba.arbiter.reports.dto.MetricCount;
 import ar.edu.utn.frba.arbiter.reports.dto.ResolutionReportRow;
 import ar.edu.utn.frba.arbiter.reports.dto.ResolutionSummary;
+import ar.edu.utn.frba.arbiter.reports.dto.ResolutionTimelinePoint;
+import ar.edu.utn.frba.arbiter.reports.dto.TimelineGranularity;
 
+import java.time.LocalDate;
+import java.time.ZoneId;
+import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -15,12 +20,12 @@ import java.util.function.ToLongFunction;
 import java.util.stream.Collectors;
 
 /**
- * Folds the report's rows into its {@link ResolutionSummary}.
+ * Folds the report's rows into its {@link ResolutionSummary} and its timeline.
  *
  * <p>In memory and not in SQL: the rows are already loaded to render the file, a period is capped at
- * 366 days of one insurer's closed claims, and counting them here is what guarantees the head and
- * the table describe the same set. Doing it with a second query would reopen the door to the two
- * disagreeing whenever only one of them changed.
+ * 366 days of one insurer's closed claims, and counting them here is what guarantees the head, the
+ * chart and the table describe the same set. Doing it with a second query would reopen the door to
+ * them disagreeing whenever only one of them changed.
  */
 public final class ResolutionSummaries {
 
@@ -48,6 +53,39 @@ public final class ResolutionSummaries {
                 (double) fastTrack / total,
                 countBy(rows, row -> row.finalStatus().name()),
                 countBy(rows, ResolutionReportRow::claimCause));
+    }
+
+    /**
+     * The same rows spread over the period, one point per bucket, so the average on the card can be
+     * read as a trajectory instead of a single number.
+     *
+     * <p>Every bucket of the period is emitted, including the ones where nothing closed: a gap in
+     * the line is information — that fortnight the company resolved nothing — and dropping the
+     * empty buckets would draw a continuous line over it, moving the neighbouring points closer
+     * together and inventing a smoothness the data doesn't have.
+     *
+     * <p>The average per bucket is over the DECIDED cases, exactly like
+     * {@link ResolutionSummary#averageMinutes()}; the count next to it is every case that closed.
+     * Two populations on purpose — see {@link ResolutionTimelinePoint}.
+     */
+    public static List<ResolutionTimelinePoint> timeline(List<ResolutionReportRow> rows, LocalDate from,
+                                                         LocalDate to, ZoneId zone,
+                                                         TimelineGranularity granularity) {
+        Map<LocalDate, List<ResolutionReportRow>> byBucket = rows.stream()
+                .collect(Collectors.groupingBy(
+                        row -> granularity.bucketOf(LocalDate.ofInstant(row.resolvedAt(), zone))));
+
+        List<ResolutionTimelinePoint> points = new ArrayList<>();
+        for (LocalDate bucket = granularity.bucketOf(from); !bucket.isAfter(to);
+                bucket = granularity.next(bucket)) {
+            List<ResolutionReportRow> inBucket = byBucket.getOrDefault(bucket, List.of());
+            List<ResolutionReportRow> decided = inBucket.stream()
+                    .filter(ResolutionSummaries::decided)
+                    .toList();
+            points.add(new ResolutionTimelinePoint(bucket, inBucket.size(), decided.size(),
+                    average(decided, ResolutionReportRow::totalMinutes)));
+        }
+        return points;
     }
 
     /**

@@ -907,16 +907,18 @@ interface Swatch {
       <section class="sg-block">
         <h3 class="sg-h3">Distribution</h3>
         <p class="sg-p">
-          Una distribución como barra apilada más su leyenda. Reemplazó al anillo: con cuatro o
-          cinco categorías obligaba a comparar arcos y a saltar a la leyenda para saber cuál era
-          cuál. Cada ítem trae su <span class="mono">tone</span> ya resuelto por el dominio (<span
+          El dibujo de una proporción más su leyenda. La leyenda es la parte que no se negocia:
+          nombre, conteo y porcentaje alineados en una grilla, que es lo que evita que el número
+          termine a media cuadra del nombre en una fila ancha. Lo que cambia es el dibujo.
+          <span class="mono">shape="bar"</span> es el default y es lo que conviene con cuatro o
+          cinco categorías en una tarjeta angosta: comparar largos es más fácil que comparar arcos.
+          Cada ítem trae su <span class="mono">tone</span> ya resuelto por el dominio (<span
             class="mono"
             >estadoTone</span
           >, <span class="mono">clasificacionTone</span>); lo que no comunica estado —un ramo, un
           hecho generador— va en <span class="mono">neutral</span>, no en un color elegido a dedo.
           Si dos categorías caen en el mismo tono, la repetición se atenúa en vez de inventar un
-          color que el sistema no tiene. La leyenda alinea nombre, conteo y porcentaje en una
-          grilla: es lo que evita que el número termine a media cuadra del nombre en una fila ancha.
+          color que el sistema no tiene.
         </p>
         <div class="row cards">
           <app-distribution [items]="statusDistribution" />
@@ -930,6 +932,17 @@ interface Swatch {
         </p>
         <div class="row cards">
           <app-distribution [items]="signalDistribution" [total]="12" />
+        </div>
+        <p class="sg-p">
+          <span class="mono">shape="ring"</span> dibuja la misma distribución como anillo, con el
+          total en el centro, para las pantallas que se leen como un tablero y preguntan "qué parte
+          del total es esto". La leyenda va al lado, así que sigue sin haber que estimar un arco.
+          Con categorías en <span class="mono">neutral</span> —lo habitual acá— las porciones se
+          separan por intensidad de una sola tinta: es lo que deja distinguirlas sin pintar de rojo
+          o verde algo que no es un semáforo.
+        </p>
+        <div class="row cards">
+          <app-distribution shape="ring" centerLabel="expedientes" [items]="causeDistribution" />
         </div>
       </section>
     </div>

@@ -103,6 +103,8 @@
      distancia entre las dos series se lea. */
   --chart-h: 240px;
   --chart-h-tall: 300px;
+  /* Anillo de distribución (app-distribution shape="ring"): cuadrado, así que es alto y ancho. */
+  --ring-size: 168px;
 
   /* ===== Radios ===== */
   --radius-ctl: 8px; /* controles: botones, inputs */

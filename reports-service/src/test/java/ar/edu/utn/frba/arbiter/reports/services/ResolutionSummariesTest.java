@@ -4,11 +4,15 @@ import ar.edu.utn.frba.arbiter.common.enums.CaseStatus;
 import ar.edu.utn.frba.arbiter.reports.dto.MetricCount;
 import ar.edu.utn.frba.arbiter.reports.dto.ResolutionReportRow;
 import ar.edu.utn.frba.arbiter.reports.dto.ResolutionSummary;
+import ar.edu.utn.frba.arbiter.reports.dto.ResolutionTimelinePoint;
+import ar.edu.utn.frba.arbiter.reports.dto.TimelineGranularity;
 import org.junit.jupiter.api.Test;
 
+import java.time.LocalDate;
 import java.util.List;
 
 import static ar.edu.utn.frba.arbiter.reports.support.ReportFixtures.APPROVED_ROW_MINUTES;
+import static ar.edu.utn.frba.arbiter.reports.support.ReportFixtures.BUENOS_AIRES;
 import static ar.edu.utn.frba.arbiter.reports.support.ReportFixtures.APPROVED_ROW_WAITING_MINUTES;
 import static ar.edu.utn.frba.arbiter.reports.support.ReportFixtures.approvedRow;
 import static ar.edu.utn.frba.arbiter.reports.support.ReportFixtures.fastTrackRow;
@@ -99,5 +103,50 @@ class ResolutionSummariesTest {
         assertThat(summary.averageMinutes()).isNull();
         assertThat(summary.averageWaitingMinutes()).isNull();
         assertThat(summary.fastTrackRate()).isNull();
+    }
+
+    private static final LocalDate AUGUST_FROM = LocalDate.of(2026, 8, 1);
+    private static final LocalDate AUGUST_TO = LocalDate.of(2026, 8, 31);
+
+    /**
+     * Which point a case falls in is decided by when it closed, read in the insurer's zone. Every
+     * bucket of the period is emitted, the empty ones included: that gap is the fortnight the
+     * company resolved nothing, and dropping it would draw a line straight over it, moving the
+     * neighbouring points together and inventing a smoothness the data doesn't have.
+     */
+    @Test
+    void timeline_spreadsTheRowsOverEveryBucketOfThePeriod() {
+        List<ResolutionReportRow> rows = List.of(approvedRow(1), fastTrackRow(2), lapsedRow(3));
+
+        List<ResolutionTimelinePoint> timeline = ResolutionSummaries.timeline(
+                rows, AUGUST_FROM, AUGUST_TO, BUENOS_AIRES, TimelineGranularity.WEEK);
+
+        // Weeks truncate to Monday, the same as Postgres' date_trunc: 01/08/2026 is a Saturday, so
+        // the first bucket of August starts in July.
+        assertThat(timeline).extracting(ResolutionTimelinePoint::bucket)
+                .containsExactly(LocalDate.of(2026, 7, 27), LocalDate.of(2026, 8, 3),
+                        LocalDate.of(2026, 8, 10), LocalDate.of(2026, 8, 17),
+                        LocalDate.of(2026, 8, 24), LocalDate.of(2026, 8, 31));
+        assertThat(timeline).extracting(ResolutionTimelinePoint::resolved)
+                .containsExactly(1L, 2L, 0L, 0L, 0L, 0L);
+    }
+
+    /**
+     * The bar and the line don't measure the same cases, on purpose: the week of the lapsed one
+     * closed a case and averaged nothing, because nobody decided it. Reading the line as if it
+     * covered every bar is exactly what keeping the two figures together prevents.
+     */
+    @Test
+    void timeline_averagesTheDecidedOnes_andLeavesTheRestUnknown() {
+        List<ResolutionReportRow> rows = List.of(approvedRow(1), fastTrackRow(2), lapsedRow(3));
+
+        List<ResolutionTimelinePoint> timeline = ResolutionSummaries.timeline(
+                rows, AUGUST_FROM, AUGUST_TO, BUENOS_AIRES, TimelineGranularity.WEEK);
+
+        assertThat(timeline.get(0).resolved()).isEqualTo(1);
+        assertThat(timeline.get(0).decided()).isZero();
+        assertThat(timeline.get(0).averageMinutes()).isNull();
+        assertThat(timeline.get(1).decided()).isEqualTo(2);
+        assertThat(timeline.get(1).averageMinutes()).isEqualTo((APPROVED_ROW_MINUTES + 120) / 2.0);
     }
 }

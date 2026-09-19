@@ -161,3 +161,19 @@ export function addDays(isoDate: string, days: number): string {
   shifted.setUTCDate(shifted.getUTCDate() + days);
   return shifted.toISOString().slice(0, 10);
 }
+
+/**
+ * La etiqueta de un punto de una línea de tiempo, como lo escribiría alguien: "14/06" para el día
+ * o la semana, "jun 2026" para el mes.
+ *
+ * Compartida entre el tablero y el reporte de resolución: los dos dibujan la misma clase de eje, y
+ * que uno diga "jun 2026" y el otro "01/06" para el mismo bucket es la clase de diferencia que
+ * hace dudar de si están mirando lo mismo.
+ */
+export function bucketLabel(bucket: string, granularity: 'DAY' | 'WEEK' | 'MONTH'): string {
+  // Sin la hora, `new Date('2026-06-14')` se interpreta como UTC y en UTC−3 retrocede un día.
+  const date = new Date(`${bucket}T00:00:00`);
+  return granularity === 'MONTH'
+    ? date.toLocaleDateString('es-AR', { month: 'short', year: 'numeric' })
+    : date.toLocaleDateString('es-AR', { day: '2-digit', month: '2-digit' });
+}

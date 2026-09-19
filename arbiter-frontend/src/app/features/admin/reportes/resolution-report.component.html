@@ -55,14 +55,7 @@
               <app-stat-tile
                 label="Expedientes resueltos"
                 [value]="totals.totalCases"
-                [sub]="
-                  totals.decidedCases === totals.totalCases
-                    ? ''
-                    : totals.decidedCases +
-                      ' decididos · ' +
-                      (totals.totalCases - totals.decidedCases) +
-                      ' caducados'
-                "
+                [sub]="resolvedSub()"
               />
               <!-- Over the decided cases and split into management time and waiting, same as the
                    dashboard: a lapsed case measured the insured's silence, not the operation. -->
@@ -86,10 +79,16 @@
               <app-stat-tile
                 label="Resueltos por Fast Track"
                 [value]="totals.fastTrackRate | rate"
-                [sub]="totals.fastTrackCases + ' de ' + totals.totalCases"
+                [sub]="fastTrackSub()"
                 [progress]="totals.fastTrackRate"
               />
             </div>
+
+            <section class="timeline">
+              <h3 class="t-section-label">Evolución del tiempo promedio</h3>
+              <p class="chart-note t-note">{{ granularityNote() }}</p>
+              <app-chart [options]="timelineChart()" [description]="timelineDescription()" />
+            </section>
 
             <div class="distributions">
               <section class="distribution">
@@ -99,7 +98,14 @@
 
               <section class="distribution">
                 <h3 class="t-section-label">Por tipo de siniestro</h3>
-                <app-distribution [items]="claimCauseItems()" />
+                <!-- Anillo y no barra: acá la pregunta es qué parte del total es cada hecho
+                     generador. Una sola tinta en distintas intensidades — el hecho generador no
+                     comunica estado, así que no lleva semáforo. -->
+                <app-distribution
+                  shape="ring"
+                  centerLabel="expedientes"
+                  [items]="claimCauseItems()"
+                />
               </section>
             </div>
           </section>

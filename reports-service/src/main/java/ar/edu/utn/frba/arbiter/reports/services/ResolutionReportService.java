@@ -5,6 +5,8 @@ import ar.edu.utn.frba.arbiter.reports.dto.ExportedReport;
 import ar.edu.utn.frba.arbiter.reports.dto.ReportFormat;
 import ar.edu.utn.frba.arbiter.reports.dto.ResolutionReport;
 import ar.edu.utn.frba.arbiter.reports.dto.ResolutionReportRow;
+import ar.edu.utn.frba.arbiter.reports.dto.ResolutionSummary;
+import ar.edu.utn.frba.arbiter.reports.dto.TimelineGranularity;
 import ar.edu.utn.frba.arbiter.reports.exceptions.InvalidReportPeriodException;
 import ar.edu.utn.frba.arbiter.reports.exceptions.TenantNotResolvedException;
 import ar.edu.utn.frba.arbiter.reports.exceptions.UnknownBranchException;
@@ -46,17 +48,15 @@ public class ResolutionReportService {
         String cause = claimCause == null || claimCause.isBlank() ? null : claimCause.strip();
         String branch = branchName(branchId);
 
-        // Whole calendar days in the insurer's local time, both ends included: "hasta el 31/08"
-        // means up to the last second of that day, so the upper bound is the next midnight,
-        // exclusive.
-        ZoneId zone = clock.getZone();
-        List<ResolutionReportRow> rows = resolvedCaseRepository.findResolvedBetween(
-                from.atStartOfDay(zone).toInstant(),
-                to.plusDays(1).atStartOfDay(zone).toInstant(),
-                branchId,
-                cause);
+        List<ResolutionReportRow> rows = rowsBetween(from, to, branchId, cause);
+        TimelineGranularity granularity = TimelineGranularity.forPeriod(from, to, rows.size());
+
         return new ResolutionReport(from, to, branch, cause, clock.instant(),
-                ResolutionSummaries.of(rows), rows);
+                ResolutionSummaries.of(rows),
+                previousSummary(from, to, branchId, cause),
+                granularity,
+                ResolutionSummaries.timeline(rows, from, to, clock.getZone(), granularity),
+                rows);
     }
 
     public ExportedReport export(LocalDate from, LocalDate to, Long branchId, String claimCause,
@@ -65,6 +65,37 @@ public class ResolutionReportService {
         byte[] content = exporterFor(format).export(report);
         String filename = "resoluciones_%s_%s.%s".formatted(from, to, format.extension());
         return new ExportedReport(filename, format, content);
+    }
+
+    /**
+     * The same figures over the period immediately before this one, of equal length and under the
+     * same filters — a report of August compares against July, one of a fortnight against the
+     * fortnight before it.
+     *
+     * <p>It is queried, not derived: the screen states "2 more than the previous period" and that
+     * sentence has to be something the database said, not an arithmetic the frontend invented over
+     * numbers it never saw. It costs a second indexed query on the same range, which is what it is
+     * worth for every figure on the card to become a direction.
+     */
+    private ResolutionSummary previousSummary(LocalDate from, LocalDate to, Long branchId, String cause) {
+        long days = ChronoUnit.DAYS.between(from, to) + 1;
+        LocalDate previousTo = from.minusDays(1);
+        LocalDate previousFrom = previousTo.minusDays(days - 1);
+        return ResolutionSummaries.of(rowsBetween(previousFrom, previousTo, branchId, cause));
+    }
+
+    /**
+     * Whole calendar days in the insurer's local time, both ends included: "hasta el 31/08" means up
+     * to the last second of that day, so the upper bound is the next midnight, exclusive.
+     */
+    private List<ResolutionReportRow> rowsBetween(LocalDate from, LocalDate to, Long branchId,
+                                                  String cause) {
+        ZoneId zone = clock.getZone();
+        return resolvedCaseRepository.findResolvedBetween(
+                from.atStartOfDay(zone).toInstant(),
+                to.plusDays(1).atStartOfDay(zone).toInstant(),
+                branchId,
+                cause);
     }
 
     /**

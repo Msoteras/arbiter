@@ -1,16 +1,19 @@
 import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
-import { ActivatedRoute, Params, RouterLink } from '@angular/router';
+import { Params, RouterLink } from '@angular/router';
+import { EChartsCoreOption } from 'echarts/core';
 import { Observable } from 'rxjs';
 
 import { clasificacionLabel, clasificacionTone } from '../../../core/models/clasificacion';
 import { estadoLabel, estadoTone } from '../../../core/models/estado';
 import { StatusTone } from '../../../core/models/status-tone';
-import { formatDate, formatDateTime } from '../../../core/util/datetime';
+import { bucketLabel, formatDate, formatDateTime } from '../../../core/util/datetime';
 import { staggerReveal } from '../../../shared/animations';
 import { RatePipe } from '../../../shared/pipes/rate.pipe';
 import { BadgeComponent } from '../../../shared/ui/badge/badge.component';
 import { CardComponent } from '../../../shared/ui/card/card.component';
+import { ChartComponent } from '../../../shared/ui/chart/chart.component';
+import { ChartTheme, baseChartOptions, readChartTheme } from '../../../shared/ui/chart/chart-theme';
 import {
   DistributionComponent,
   DistributionItem,
@@ -26,7 +29,6 @@ import { ExpedienteService } from '../../expedientes/expediente.service';
 import { ReportActionsComponent } from './report-actions.component';
 import { ReportFile } from './report-download';
 import { ReportFiltersComponent } from './report-filters.component';
-import { ReportFiltersStore } from './report-filters.store';
 import { ReportTab } from './report-tab';
 import {
   ReportFormat,
@@ -34,7 +36,9 @@ import {
   ResolutionReportParams,
   ResolutionReportRow,
   decisionLabel,
+  fastTrackTrend,
   formatDuration,
+  resolvedTrend,
   waitingBreakdown,
 } from './resolution-report';
 import { ResolutionReportService } from './resolution-report.service';
@@ -54,6 +58,7 @@ import { ResolutionReportService } from './resolution-report.service';
     RouterLink,
     BadgeComponent,
     CardComponent,
+    ChartComponent,
     DistributionComponent,
     EmptyStateComponent,
     InfoTipComponent,
@@ -77,6 +82,8 @@ export class ResolutionReportComponent extends ReportTab<
 > {
   private readonly reports = inject(ResolutionReportService);
   private readonly expedientes = inject(ExpedienteService);
+  /** Los colores del design system, leídos una vez: ECharts no entiende `var(--status-ok)`. */
+  private readonly theme: ChartTheme = readChartTheme();
 
   protected readonly claimCause = signal('');
   private readonly claimCauseCatalog = signal<SelectOption[]>([]);
@@ -115,6 +122,149 @@ export class ResolutionReportComponent extends ReportTab<
       tone: 'neutral' as StatusTone,
     })),
   );
+
+  /**
+   * Cuántos cerraron, y si eso subió o bajó contra el período anterior. La comparación la calcula
+   * el backend sobre el período inmediatamente anterior con los mismos filtros: acá sólo se lee.
+   */
+  protected readonly resolvedSub = computed(() => {
+    const current = this.report();
+    if (!current) {
+      return '';
+    }
+    const { summary, previousSummary } = current;
+    const lapsed = summary.totalCases - summary.decidedCases;
+    // Cuántos no decidió nadie sólo se dice cuando los hay: "0 caducados" es ruido.
+    const detail = lapsed === 0 ? '' : `${summary.decidedCases} decididos · ${lapsed} caducados`;
+    return [resolvedTrend(summary, previousSummary), detail].filter(Boolean).join(' · ');
+  });
+
+  /** Ídem para el Fast Track, en puntos porcentuales y sin perder de vista sobre cuántos se mide. */
+  protected readonly fastTrackSub = computed(() => {
+    const current = this.report();
+    if (!current) {
+      return '';
+    }
+    const { summary, previousSummary } = current;
+    const detail = `${summary.fastTrackCases} de ${summary.totalCases}`;
+    return [detail, fastTrackTrend(summary, previousSummary)].filter(Boolean).join(' · ');
+  });
+
+  /**
+   * El tiempo promedio a lo largo del período: la línea es el mismo promedio de la tarjeta (sobre
+   * los decididos) y las barras, cuántos expedientes cerraron en cada tramo.
+   *
+   * Las barras no son decoración: un promedio sobre dos expedientes y otro sobre cuarenta se
+   * dibujan a la misma altura, y sin el volumen al lado la línea invita a leer como tendencia lo
+   * que es el vaivén de tres casos. Los tramos donde nadie decidió cortan la línea en vez de bajar
+   * a cero — no se resolvió "en cero minutos", no se resolvió nada.
+   *
+   * Los colores son los que la app ya usa acá: tinta para el volumen y el teal de "resuelto" para
+   * el tiempo, igual que la línea de tiempo del tablero.
+   */
+  protected readonly timelineChart = computed<EChartsCoreOption>(() => {
+    const current = this.report();
+    const points = current?.timeline ?? [];
+    const granularity = current?.granularity ?? 'DAY';
+    const labels = points.map((point) => bucketLabel(point.bucket, granularity));
+    const base = baseChartOptions(this.theme);
+    return {
+      ...base,
+      tooltip: {
+        ...(base['tooltip'] as object),
+        trigger: 'axis',
+        formatter: (params: unknown) => {
+          const index = (params as { dataIndex: number }[])[0]?.dataIndex ?? 0;
+          const point = points[index];
+          if (!point) {
+            return '';
+          }
+          const unit = point.resolved === 1 ? 'expediente cerrado' : 'expedientes cerrados';
+          const average =
+            point.averageMinutes === null
+              ? 'sin decisiones en el tramo'
+              : `promedio ${formatDuration(point.averageMinutes)} sobre ${point.decided}`;
+          return `${labels[index]}<br>${point.resolved} ${unit}<br>${average}`;
+        },
+      },
+      legend: {
+        data: ['Tiempo promedio', 'Expedientes cerrados'],
+        bottom: 0,
+        textStyle: { color: this.theme.muted },
+        icon: 'roundRect',
+      },
+      grid: { left: 8, right: 8, top: 16, bottom: 44, containLabel: true },
+      xAxis: {
+        type: 'category',
+        data: labels,
+        axisLine: { lineStyle: { color: this.theme.grid } },
+        axisTick: { show: false },
+        axisLabel: { color: this.theme.muted },
+      },
+      yAxis: [
+        {
+          type: 'value',
+          // El eje va en minutos pero se rotula en la misma unidad que la tarjeta ("2 d", "5 h"):
+          // "4320" no se lee, y forzar días aplasta contra el cero a los Fast Track de horas.
+          axisLabel: {
+            color: this.theme.muted,
+            formatter: (value: number) => formatDuration(value),
+          },
+          splitLine: { lineStyle: { color: this.theme.grid } },
+        },
+        {
+          type: 'value',
+          minInterval: 1,
+          axisLabel: { color: this.theme.muted },
+          splitLine: { show: false },
+        },
+      ],
+      series: [
+        {
+          name: 'Expedientes cerrados',
+          type: 'bar',
+          yAxisIndex: 1,
+          data: points.map((point) => point.resolved),
+          itemStyle: { color: this.theme.ink, opacity: 0.25, borderRadius: [3, 3, 0, 0] },
+          barMaxWidth: 28,
+        },
+        {
+          name: 'Tiempo promedio',
+          type: 'line',
+          yAxisIndex: 0,
+          data: points.map((point) => point.averageMinutes),
+          symbolSize: 6,
+          lineStyle: { width: 2, color: this.theme.status.ok },
+          itemStyle: { color: this.theme.status.ok },
+        },
+      ],
+    };
+  });
+
+  /** Lo que el gráfico dice, en palabras: es lo que lee un lector de pantalla en vez del canvas. */
+  protected readonly timelineDescription = computed(() => {
+    const current = this.report();
+    const points = current?.timeline ?? [];
+    const granularity = current?.granularity ?? 'DAY';
+    const parts = points.map((point) => {
+      const average =
+        point.averageMinutes === null ? 'sin decisiones' : formatDuration(point.averageMinutes);
+      return `${bucketLabel(point.bucket, granularity)}: ${point.resolved} cerrados, promedio ${average}`;
+    });
+    return `Tiempo promedio de resolución a lo largo del período. ${parts.join('. ')}.`;
+  });
+
+  /** Por qué está agrupado así. Con poco volumen, el día a día es casi todo ceros. */
+  protected readonly granularityNote = computed(() => {
+    switch (this.report()?.granularity) {
+      case 'WEEK':
+        return 'Agrupado por semana: con este volumen, el detalle diario sería casi todo ceros';
+      case 'MONTH':
+        return 'Agrupado por mes';
+      default:
+        return 'Día a día';
+    }
+  });
 
   protected readonly formatDate = formatDate;
   protected readonly formatDateTime = formatDateTime;
