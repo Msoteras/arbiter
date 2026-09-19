@@ -14,19 +14,32 @@
   min-width: calc(var(--space-7) * 3);
 }
 
-/* The indicators are a list, not a sentence: the analyst counts them and compares them across rows. */
-.indicators {
-  margin: 0;
-  padding-left: var(--space-4);
-  font-size: var(--font-size-sm);
-  color: var(--text-secondary);
+.order-note {
+  margin: 0 0 var(--space-3);
+  color: var(--text-muted);
 }
-.indicators li + li {
-  margin-top: var(--space-1);
+
+/* Chips and not a sentence: the analyst counts the signals and compares them across rows, and a
+   paragraph per cell makes both slower. The only cell of the table allowed to wrap. */
+.signals-cell {
+  white-space: normal;
 }
-.indicators + app-badge {
+.signals {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  max-width: calc(var(--space-7) * 7);
+}
+.signals + app-badge {
   display: inline-block;
   margin-top: var(--space-2);
+}
+
+/* The rows the report exists for: two signals coinciding. A left edge and nothing more — the
+   semaphore is allowed a border, and a filled row would shout over the gauge, which is the cell
+   that carries the level. On the pinned first cell, which is the one that stays in view. */
+tr.multi-signal td:first-child {
+  box-shadow: inset 3px 0 0 var(--status-risk);
 }
 
 /* Four figures don't fit a narrow laptop without the number touching the edge. */

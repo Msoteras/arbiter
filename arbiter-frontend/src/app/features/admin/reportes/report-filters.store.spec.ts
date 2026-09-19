@@ -13,18 +13,15 @@ describe('ReportFiltersStore', () => {
     return TestBed.inject(ReportFiltersStore);
   }
 
-  it('describes a report only when the link names the period on screen', () => {
+  it('restores the period from the link, and ignores a broken one', () => {
     const store = setup(() => of([]));
-    store.hydrate(convertToParamMap({ from: '2026-08-01', to: '2026-08-31' }));
 
-    expect(
-      store.describedBy(convertToParamMap({ from: '2026-08-01', to: '2026-08-31' })),
-    ).toBeTrue();
-    expect(store.describedBy(convertToParamMap({}))).toBeFalse();
-    // A broken period is not hydrated, so the link doesn't describe what is on screen.
-    expect(
-      store.describedBy(convertToParamMap({ from: '2026-09-01', to: '2026-08-01' })),
-    ).toBeFalse();
+    store.hydrate(convertToParamMap({ from: '2026-08-01', to: '2026-08-31' }));
+    expect([store.from(), store.to()]).toEqual(['2026-08-01', '2026-08-31']);
+
+    // Inverted: the defaults stay rather than putting a broken period on screen.
+    store.hydrate(convertToParamMap({ from: '2026-09-01', to: '2026-08-01' }));
+    expect([store.from(), store.to()]).toEqual(['2026-08-01', '2026-08-31']);
   });
 
   /** With no catalog, the select must still say the request is filtered, not "Todos". */

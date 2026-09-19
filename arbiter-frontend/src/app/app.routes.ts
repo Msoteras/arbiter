@@ -3,6 +3,7 @@ import { Routes } from '@angular/router';
 import { guestGuard } from './core/auth/guest.guard';
 import { onboardingGuard, onboardingPendingGuard } from './core/auth/onboarding.guard';
 import { roleGuard } from './core/auth/role.guard';
+import { rememberedReportsTab } from './features/admin/reportes/reports-tab-memory';
 
 export const routes: Routes = [
   { path: '', redirectTo: 'login', pathMatch: 'full' },
@@ -211,7 +212,9 @@ export const routes: Routes = [
     loadComponent: () =>
       import('./features/admin/reportes/reports.component').then((m) => m.ReportsComponent),
     children: [
-      { path: '', pathMatch: 'full', redirectTo: 'resolutions' },
+      // La solapa que se estaba usando, no siempre la primera: el referente entra a Reportes
+      // varias veces por semana y casi siempre al mismo reporte.
+      { path: '', pathMatch: 'full', redirectTo: () => rememberedReportsTab() },
       {
         path: 'resolutions',
         loadComponent: () =>

@@ -863,6 +863,13 @@ interface Swatch {
           >), no de una paleta aparte.
         </p>
         <p class="sg-p">
+          Una cifra cuyo nombre no alcanza para saber qué mide lleva su aclaración al lado: se
+          proyecta un <span class="mono">app-info-tip</span> adentro del
+          <span class="mono">app-stat-tile</span> y queda pegado a la etiqueta. Es para definir la
+          población o la fuente del dato («lo determina un analista, no el sistema»), no para
+          repetir lo que ya dice el subtítulo.
+        </p>
+        <p class="sg-p">
           Los porcentajes salen del pipe <span class="mono">rate</span> (<span class="mono"
             >core/util/percent.ts</span
           >), no del <span class="mono">percent</span> de Angular: coma decimal y sin espacio antes
@@ -873,7 +880,12 @@ interface Swatch {
         <div class="row cards">
           <app-stat-tile [value]="14" label="Total expedientes" sub="en la aseguradora" />
           <app-stat-tile [value]="5" tone="accent" label="Pendientes" sub="asignados a vos" />
-          <app-stat-tile [value]="3" tone="danger" label="Riesgo alto" sub="requieren atención" />
+          <app-stat-tile [value]="3" tone="danger" label="Riesgo alto" sub="requieren atención">
+            <app-info-tip>
+              El tono <span class="mono">danger</span> sólo cuando el número comunica una alerta: un
+              cero pintado de rojo alarma sobre nada.
+            </app-info-tip>
+          </app-stat-tile>
           <app-stat-tile [loading]="true" label="Resueltos" sub="en total" />
           <app-stat-tile
             [value]="0.86 | rate"

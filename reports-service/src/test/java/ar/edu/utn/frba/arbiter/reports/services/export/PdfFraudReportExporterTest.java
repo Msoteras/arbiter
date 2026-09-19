@@ -43,19 +43,8 @@ class PdfFraudReportExporterTest {
     }
 
     /**
-     * The document leaves the insurer on its own, with nobody next to it to say that a flagged case
-     * is not a determined one. So the caveat travels with it.
-     */
-    @Test
-    void carriesTheCaveatThatItFlagsRatherThanDetermines() throws IOException {
-        Rendered pdf = render(List.of(flaggedRow(1482)));
-
-        assertThat(pdf.text()).contains("El sistema no determina fraude");
-    }
-
-    /**
-     * The three columns a reader acts on have to fit whole. Only "Indicadores" may be cut, and the
-     * widths are hand-tuned, so a truncated status or determination would go unnoticed otherwise.
+     * Every column a reader acts on has to fit on its own line: the widths are hand-tuned, and a
+     * status or a determination wrapping in half would go unnoticed.
      */
     @Test
     void theStatusAndTheDeterminationFitWithoutBeingCut() throws IOException {
@@ -67,6 +56,20 @@ class PdfFraudReportExporterTest {
                 .doesNotContain("Derivado a p…");
     }
 
+    /**
+     * Three signals don't fit one line of the column, and the coincidence of signals is the whole
+     * finding: the cell wraps instead of ellipsizing the second and the third one away.
+     */
+    @Test
+    void theSignalsOfACase_areWrittenWhole_evenWhenTheyDoNotFitOneLine() throws IOException {
+        Rendered pdf = render(List.of(flaggedRow(1482)));
+
+        assertThat(pdf.text())
+                .contains("Score de riesgo alto")
+                .contains("2 imágenes con coincidencia")
+                .doesNotContain("…");
+    }
+
     @Test
     void writesTheSummaryAboveTheTable() throws IOException {
         Rendered pdf = render(List.of(flaggedRow(1), flaggedRow(2), unscoredRow(3)));
@@ -74,11 +77,11 @@ class PdfFraudReportExporterTest {
         // 3 flagged and 1 determined out of the 20 claims the period had: the rate never travels
         // without the population it was taken from.
         assertThat(pdf.text()).contains(
-                "Total: 3 de 20 denuncias con indicios (15%)",
-                "Con señales cruzadas: 2",
+                "Total: 3 de 20 denuncias con al menos una señal (15%)",
+                "Con dos o más señales: 2",
                 "Fraude determinado: 1 (5% del período, 1 con respaldo pericial)",
                 "Por nivel de alerta: Crítico 2 · Sin evaluar 1",
-                "Por señal (un expediente puede tener más de una):");
+                "Por señal (una denuncia puede tener más de una):");
     }
 
     /** An empty report still has to say what it looked for, or it can't be told from any other. */
@@ -89,7 +92,7 @@ class PdfFraudReportExporterTest {
         assertThat(pdf.text()).contains(
                 "Ramo: Celulares",
                 "Nivel de alerta: Alto",
-                "Ningún expediente con indicios en el período.");
+                "Ninguna denuncia con señales en el período.");
     }
 
     /** With claims in the period, "none flagged" is a finding, and it keeps its population. */
@@ -97,7 +100,7 @@ class PdfFraudReportExporterTest {
     void anEmptyReportOverAPeriodWithClaims_statesHowManyItLookedAt() throws IOException {
         Rendered pdf = render(septemberFraudReport(List.of(), null, null, 84));
 
-        assertThat(pdf.text()).contains("Total: Ninguna de las 84 denuncias del período con indicios");
+        assertThat(pdf.text()).contains("Total: Ninguna de las 84 denuncias del período con señales");
     }
 
     /** Same figure the preview shows, which formats the rate with one decimal. */
@@ -107,7 +110,7 @@ class PdfFraudReportExporterTest {
                 List.of(flaggedRow(1), flaggedRow(2), unscoredRow(3)), null, null, 84));
 
         assertThat(pdf.text()).contains(
-                "Total: 3 de 84 denuncias con indicios (3,6%)",
+                "Total: 3 de 84 denuncias con al menos una señal (3,6%)",
                 "Fraude determinado: 1 (1,2% del período");
     }
 

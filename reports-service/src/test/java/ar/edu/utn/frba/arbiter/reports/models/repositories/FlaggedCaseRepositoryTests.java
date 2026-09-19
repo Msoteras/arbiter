@@ -167,6 +167,39 @@ class FlaggedCaseRepositoryTests extends AbstractPersistenceIT {
         });
     }
 
+    /**
+     * The listing leads with the cases to look at first, which is the whole point of crossing three
+     * signals: a case with all three, filed at the start of the period, must not sit under a case
+     * with one filed yesterday.
+     */
+    @Test
+    void theCasesWithMoreSignals_comeFirst_evenIfTheyWereFiledEarlier() {
+        // Ana's first claim: no signal of its own, and the reason her second one is a repeat.
+        tables.insertCase(1, "2026-09-02T10:00:00Z", APPROVED, ROBO_CELULARES, false, null, null);
+        tables.insertCase(2, "2026-09-05T10:00:00Z", PENDING_REVIEW, HURTO_CELULARES, false, null, null);
+        tables.riskBand(2, "CRITICAL");
+        tables.image(2, "item_photo", true);
+        tables.insertCase(3, "2026-09-20T10:00:00Z", PENDING_REVIEW, ROBO_CELULARES, false, null, null);
+        tables.insuredOf(3, DIEGO);
+        tables.riskBand(3, "HIGH");
+
+        assertThat(repository.findFlaggedBetween(SEPTEMBER_FROM, SEPTEMBER_TO, null, null))
+                .extracting(FraudReportRow::caseId).containsExactly(2L, 3L);
+    }
+
+    /** Same number of signals: the band the engine wrote decides, and only then the filing date. */
+    @Test
+    void withTheSameNumberOfSignals_theHigherBandComesFirst() {
+        tables.insertCase(1, "2026-09-20T10:00:00Z", PENDING_REVIEW, ROBO_CELULARES, false, null, null);
+        tables.riskBand(1, "HIGH");
+        tables.insertCase(2, "2026-09-10T10:00:00Z", PENDING_REVIEW, HURTO_CELULARES, false, null, null);
+        tables.insuredOf(2, DIEGO);
+        tables.riskBand(2, "CRITICAL");
+
+        assertThat(repository.findFlaggedBetween(SEPTEMBER_FROM, SEPTEMBER_TO, null, null))
+                .extracting(FraudReportRow::caseId).containsExactly(2L, 1L);
+    }
+
     /** Two derivations on one case would count the expert backing twice with a join. */
     @Test
     void twoDerivations_doNotDuplicateTheCase() {

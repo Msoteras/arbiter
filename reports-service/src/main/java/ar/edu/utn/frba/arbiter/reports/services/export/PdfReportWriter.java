@@ -37,6 +37,16 @@ final class PdfReportWriter {
     private static final float ROW_HEIGHT = 14;
     private static final float CELL_PADDING = 3;
     private static final float TEXT_BASELINE_OFFSET = 4.5f;
+    /** What a second line of the same cell adds to the row. */
+    private static final float LINE_HEIGHT = CELL_SIZE + 2;
+    /**
+     * A cell too long for its column wraps this far before it is cut. Two lines and not more,
+     * because a page of three-line rows stops reading as a table; and not one, because the column
+     * that overflows in practice is the fraud report's signals, which is a list of facts — an
+     * ellipsis there hides the second and third signal, and the coincidence of signals is what
+     * that report is for.
+     */
+    private static final int MAX_CELL_LINES = 2;
 
     private static final float INK = 0.1f;
     private static final float MUTED = 0.4f;
@@ -99,12 +109,16 @@ final class PdfReportWriter {
                         spec.emptyMessage());
             }
             for (String[] row : spec.rows()) {
-                if (y - ROW_HEIGHT < MARGIN) {
+                // Measured before the break is decided: a row that wraps is taller than ROW_HEIGHT,
+                // and asking with the wrong height puts its last line under the bottom margin.
+                List<List<String>> lines = cellLines(row, regular, spec);
+                float height = rowHeight(lines);
+                if (y - height < MARGIN) {
                     content.close();
                     content = newPage(document);
                     y = drawHeaderRow(content, bold, spec, PAGE.getHeight() - MARGIN);
                 }
-                y = drawRow(content, regular, spec, row, y);
+                y = drawRow(content, regular, spec, lines, y);
             }
             content.close();
 
@@ -144,33 +158,61 @@ final class PdfReportWriter {
         return y - 14;
     }
 
+    /** One line per column: a column title that had to wrap would be the wrong title. */
     private static float drawHeaderRow(PDPageContentStream content, PDFont bold, Spec spec, float top)
             throws IOException {
         float bottom = top - ROW_HEIGHT;
         content.setNonStrokingColor(HEAD_FILL);
         content.addRect(MARGIN, bottom, spec.tableWidth(), ROW_HEIGHT);
         content.fill();
-        drawCells(content, bold, spec, spec.header(), bottom);
+        List<List<String>> lines = new ArrayList<>(spec.header().length);
+        for (int i = 0; i < spec.header().length; i++) {
+            lines.add(List.of(fit(spec.header()[i], bold, CELL_SIZE, textWidth(spec, i))));
+        }
+        drawCells(content, bold, spec, lines, top);
         rule(content, spec, bottom);
         return bottom;
     }
 
-    private static float drawRow(PDPageContentStream content, PDFont regular, Spec spec, String[] cells,
-                                 float top) throws IOException {
-        float bottom = top - ROW_HEIGHT;
-        drawCells(content, regular, spec, cells, bottom);
+    private static float drawRow(PDPageContentStream content, PDFont regular, Spec spec,
+                                 List<List<String>> lines, float top) throws IOException {
+        float bottom = top - rowHeight(lines);
+        drawCells(content, regular, spec, lines, top);
         rule(content, spec, bottom);
         return bottom;
     }
 
-    private static void drawCells(PDPageContentStream content, PDFont font, Spec spec, String[] cells,
-                                  float bottom) throws IOException {
-        float x = MARGIN;
+    /** Wraps every cell to its column, so the row's height is known before anything is drawn. */
+    private static List<List<String>> cellLines(String[] cells, PDFont font, Spec spec)
+            throws IOException {
+        List<List<String>> lines = new ArrayList<>(cells.length);
         for (int i = 0; i < cells.length; i++) {
-            String value = fit(cells[i], font, CELL_SIZE, spec.widths()[i] - 2 * CELL_PADDING);
-            text(content, font, CELL_SIZE, INK, x + CELL_PADDING, bottom + TEXT_BASELINE_OFFSET, value);
+            lines.add(wrap(cells[i], font, CELL_SIZE, textWidth(spec, i), MAX_CELL_LINES));
+        }
+        return lines;
+    }
+
+    private static float rowHeight(List<List<String>> lines) {
+        int tallest = lines.stream().mapToInt(List::size).max().orElse(1);
+        return ROW_HEIGHT + (tallest - 1) * LINE_HEIGHT;
+    }
+
+    /** Lines grow downwards from the top of the row, so a one-line row sits where it always did. */
+    private static void drawCells(PDPageContentStream content, PDFont font, Spec spec,
+                                  List<List<String>> lines, float top) throws IOException {
+        float x = MARGIN;
+        for (int i = 0; i < lines.size(); i++) {
+            float baseline = top - ROW_HEIGHT + TEXT_BASELINE_OFFSET;
+            for (String line : lines.get(i)) {
+                text(content, font, CELL_SIZE, INK, x + CELL_PADDING, baseline, line);
+                baseline -= LINE_HEIGHT;
+            }
             x += spec.widths()[i];
         }
+    }
+
+    private static float textWidth(Spec spec, int column) {
+        return spec.widths()[column] - 2 * CELL_PADDING;
     }
 
     private static void rule(PDPageContentStream content, Spec spec, float y) throws IOException {
@@ -218,6 +260,21 @@ final class PdfReportWriter {
             text = text.substring(0, text.length() - 1);
         }
         return text + ELLIPSIS;
+    }
+
+    /**
+     * Wraps to at most {@code maxLines}; whatever is left over is ellipsized into the last of them,
+     * so a value that still didn't fit ends with the mark that says it was cut.
+     */
+    private static List<String> wrap(String value, PDFont font, float size, float maxWidth,
+                                     int maxLines) throws IOException {
+        List<String> lines = wrap(value, font, size, maxWidth);
+        if (lines.size() <= maxLines) {
+            return lines;
+        }
+        List<String> capped = new ArrayList<>(lines.subList(0, maxLines - 1));
+        capped.add(fit(String.join(" ", lines.subList(maxLines - 1, lines.size())), font, size, maxWidth));
+        return capped;
     }
 
     /** Breaks the text at spaces so every line fits; a single word too long for it is cut. */

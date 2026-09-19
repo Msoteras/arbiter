@@ -17,6 +17,7 @@ import {
   riskGaugeBand,
 } from './fraud-report';
 import { ReportFiltersStore } from './report-filters.store';
+import { rememberedReportsTab } from './reports-tab-memory';
 
 function row(overrides: Partial<FraudReportRow> = {}): FraudReportRow {
   return {
@@ -166,12 +167,26 @@ describe('FraudReportComponent', () => {
     expect(text).not.toContain('HIGH_RISK_SCORE');
   });
 
+  /** Lo que ordena la tabla tiene que verse en la tabla, o el orden parece un desorden. */
+  it('marks and counts the rows whose signals coincide, and says how it sorted them', () => {
+    preview();
+
+    const host = fixture.nativeElement as HTMLElement;
+    const rows = Array.from(host.querySelectorAll('tbody tr'));
+    expect(rows[0].classList).toContain('multi-signal');
+    expect(rows[0].textContent).toContain('3 señales');
+    // Una sola señal no es un cruce: ni marca ni contador.
+    expect(rows[1].classList).not.toContain('multi-signal');
+    expect(rows[1].textContent).not.toContain('1 señales');
+    expect(host.textContent).toContain('Ordenadas por cantidad de señales');
+  });
+
   it('leads with the cross and the determinations behind it', () => {
     preview();
 
     const text = (fixture.nativeElement as HTMLElement).textContent ?? '';
     expect(text).toContain('Denuncias del período');
-    expect(text).toContain('Con señales cruzadas');
+    expect(text).toContain('Con dos o más señales');
     expect(text).toContain('1 con respaldo pericial');
     expect(text).toContain('Fraude determinado · pericial');
   });
@@ -181,9 +196,43 @@ describe('FraudReportComponent', () => {
     preview();
 
     const text = (fixture.nativeElement as HTMLElement).textContent ?? '';
-    expect(text).toContain('Con indicios');
+    expect(text).toContain('Con al menos una señal');
     expect(text).toContain('2 de 20');
     expect(text).toContain('1 de 20 · 1 con respaldo pericial');
+  });
+
+  /**
+   * "0%" bajo "Fraude determinado" no dice que no haya indicios: dice que todavía nadie determinó
+   * ninguno. Sin la aclaración al lado, la cifra se lee como lo contrario de lo que significa.
+   */
+  it('explains what each figure counts, and does not paint a zero as an alert', () => {
+    reportService.report.and.returnValue(
+      of({ ...report, summary: { ...report.summary, fraudDetermined: 0, fraudRate: 0 } }),
+    );
+
+    preview();
+
+    const host = fixture.nativeElement as HTMLElement;
+    const determinado = Array.from(host.querySelectorAll('app-stat-tile')).find((tile) =>
+      tile.textContent?.includes('Fraude determinado'),
+    )!;
+    expect(determinado.querySelector('app-info-tip')).not.toBeNull();
+    // El tono de alerta se reserva para cuando hay algo determinado.
+    expect(determinado.querySelector('.stat.danger')).toBeNull();
+
+    determinado.querySelector<HTMLElement>('app-info-tip button')!.click();
+    fixture.detectChanges();
+    expect(determinado.textContent).toContain('El sistema no determina fraude');
+  });
+
+  it('paints the determination as an alert once there is one', () => {
+    preview();
+
+    const host = fixture.nativeElement as HTMLElement;
+    const determinado = Array.from(host.querySelectorAll('app-stat-tile')).find((tile) =>
+      tile.textContent?.includes('Fraude determinado'),
+    )!;
+    expect(determinado.querySelector('.stat.danger')).not.toBeNull();
   });
 
   /** A case with no band is still listed; calling it "Bajo" would be a different claim. */
@@ -300,7 +349,7 @@ describe('FraudReportComponent', () => {
     preview();
 
     const text = (fixture.nativeElement as HTMLElement).textContent ?? '';
-    expect(text).toContain('Ningún expediente con indicios en el período');
+    expect(text).toContain('Ninguna denuncia con señales en el período');
     expect(text).toContain('Ninguna de las 20 denuncias del período disparó una señal');
   });
 
@@ -375,7 +424,9 @@ describe('FraudReportComponent opened from a link', () => {
         provideRouter([]),
         {
           provide: ActivatedRoute,
-          useValue: { snapshot: { queryParamMap: convertToParamMap(query) } },
+          useValue: {
+            snapshot: { queryParamMap: convertToParamMap(query), routeConfig: { path: 'fraud' } },
+          },
         },
         ReportFiltersStore,
         { provide: FraudReportService, useValue: { report, export: jasmine.createSpy() } },
@@ -398,6 +449,16 @@ describe('FraudReportComponent opened from a link', () => {
     expect(report).toHaveBeenCalledOnceWith(jasmine.objectContaining({ riskBand: 'CRITICAL' }));
     const text = (fixture.nativeElement as HTMLElement).textContent!.replace(/\s+/g, ' ');
     expect(text).toContain('Ramo: Todos · Nivel de alerta: Crítico');
+  });
+
+  /** Volver a Reportes desde el menú abre la solapa que se estaba usando, no siempre la primera. */
+  it('is remembered as the tab to open next time', () => {
+    localStorage.removeItem('arbiter.reports.tab');
+
+    open({ from: '2026-09-01', to: '2026-09-30' });
+
+    expect(rememberedReportsTab()).toBe('fraud');
+    localStorage.removeItem('arbiter.reports.tab');
   });
 
   it('ignores an alert level the filter does not offer', () => {

@@ -40,7 +40,7 @@
 
   <app-card heading="Vista previa">
     @if (loading()) {
-      <app-inline-loading message="Buscando expedientes con indicios…" />
+      <app-inline-loading message="Buscando denuncias con señales…" />
     } @else if (report(); as current) {
       <!-- The filters as the backend applied them, not as the controls read: the two can only
            disagree when something went wrong, and that is when it has to be visible. -->
@@ -53,7 +53,7 @@
         <!-- With claims in the period, the denominator is the finding: "0 of 84" is not "nothing". -->
         @if (current.summary.totalClaims > 0) {
           <app-empty-state
-            message="Ningún expediente con indicios en el período"
+            message="Ninguna denuncia con señales en el período"
             [sub]="
               'Ninguna de las ' +
               current.summary.totalClaims +
@@ -71,21 +71,40 @@
           <section class="summary" aria-label="Totales del período">
             <div class="figures">
               <!-- The denominator, stated: without it the two rates next to it can't be read. -->
-              <app-stat-tile label="Denuncias del período" [value]="totals.totalClaims" />
+              <app-stat-tile label="Denuncias del período" [value]="totals.totalClaims">
+                <app-info-tip>
+                  Todas las denuncias registradas en el período y el ramo elegidos, tengan indicios
+                  o no. Es la población contra la que se leen los porcentajes de al lado.
+                </app-info-tip>
+              </app-stat-tile>
               <app-stat-tile
-                label="Con indicios"
+                label="Con al menos una señal"
                 [value]="totals.flaggedRate | rate: 1"
-                [sub]="totals.flagged + ' de ' + totals.totalClaims"
+                [sub]="totals.flagged + ' de ' + totals.totalClaims + ' denuncias'"
                 [progress]="totals.flaggedRate"
                 progressTone="warning"
-              />
+              >
+                <app-info-tip>
+                  Una señal es un criterio que se disparó sobre la denuncia, y hay tres: score de
+                  riesgo alto, más de una denuncia del mismo asegurado en 12 meses, o incoherencias
+                  en el análisis forense de las imágenes. Acá se cuentan las denuncias con al menos
+                  una: son las que lista la tabla de abajo. Es un indicio para revisar, no una
+                  conclusión.
+                </app-info-tip>
+              </app-stat-tile>
               <!-- The cross, which is what the report adds over the case's gauge: one signal is a
                    hint, two coinciding is a shortlist. -->
               <app-stat-tile
-                label="Con señales cruzadas"
+                label="Con dos o más señales"
                 [value]="totals.multiSignal"
-                sub="Dos o más señales en el mismo expediente"
-              />
+                sub="Las primeras para mirar"
+              >
+                <app-info-tip>
+                  De las denuncias con al menos una señal, cuántas tienen dos o más a la vez. Es un
+                  subconjunto de la cifra anterior, no otra población: una señal sola es un indicio,
+                  dos coincidiendo es lo que conviene mirar primero.
+                </app-info-tip>
+              </app-stat-tile>
               <app-stat-tile
                 label="Fraude determinado"
                 [value]="totals.fraudRate | rate: 1"
@@ -99,8 +118,16 @@
                 "
                 [progress]="totals.fraudRate"
                 progressTone="danger"
-                tone="danger"
-              />
+                [tone]="totals.fraudDetermined > 0 ? 'danger' : 'default'"
+              >
+                <app-info-tip>
+                  Cuántas de las denuncias del período fueron determinadas como fraude por un
+                  analista. El sistema no determina fraude: señala indicios y una persona decide,
+                  sobre el expediente. En 0 quiere decir que todavía nadie determinó ninguna, no que
+                  no haya indicios. La cifra sube con el tiempo: los expedientes más recientes del
+                  período siguen abiertos.
+                </app-info-tip>
+              </app-stat-tile>
             </div>
 
             <div class="distributions">
@@ -113,18 +140,26 @@
                 <h3 class="t-section-label">Por señal</h3>
                 <app-distribution [items]="signalItems()" [total]="totals.flagged" />
                 <p class="t-note distribution-note">
-                  Un expediente puede tener más de una señal: los porcentajes son sobre los
-                  {{ totals.flagged }} con indicios y no suman 100&nbsp;%.
+                  Los porcentajes se leen sobre las denuncias con al menos una señal ({{
+                    totals.flagged
+                  }}), no sobre el total del período. Una denuncia puede tener más de una señal, así
+                  que no suman 100%.
                 </p>
               </section>
             </div>
           </section>
         }
 
+        <!-- The order is part of the reading: without saying it, a table that isn't by date looks
+             shuffled. -->
+        <p class="order-note t-note">
+          Ordenadas por cantidad de señales y, entre las que empatan, por nivel de alerta.
+        </p>
+
         <app-table
           [pinFirstColumn]="true"
           [stickyHeader]="true"
-          scrollLabel="Expedientes con indicios, tabla desplazable"
+          scrollLabel="Denuncias con señales, tabla desplazable"
         >
           <thead>
             <tr>
@@ -133,13 +168,13 @@
               <th scope="col">Tipo</th>
               <th scope="col">Denuncia</th>
               <th scope="col">Nivel de alerta</th>
-              <th scope="col">Indicadores</th>
+              <th scope="col">Señales</th>
               <th scope="col">Estado</th>
             </tr>
           </thead>
           <tbody>
             @for (row of pageRows(); track row.caseId) {
-              <tr>
+              <tr [class.multi-signal]="row.signals.length > 1">
                 <td class="mono">
                   <a class="case-link" [routerLink]="['/cases', row.caseId]">#{{ row.caseId }}</a>
                 </td>
@@ -158,12 +193,17 @@
                     [emptyLabel]="alertEmptyLabel(row)"
                   />
                 </td>
-                <td>
-                  <ul class="indicators">
-                    @for (indicator of indicators(row); track indicator) {
-                      <li>{{ indicator }}</li>
+                <td class="signals-cell">
+                  <div class="signals">
+                    <!-- The count leads: it is what the listing is ordered by, and what says which
+                         rows to open first. -->
+                    @if (row.signals.length > 1) {
+                      <app-badge variant="strong">{{ row.signals.length }} señales</app-badge>
                     }
-                  </ul>
+                    @for (indicator of indicators(row); track indicator) {
+                      <app-badge>{{ indicator }}</app-badge>
+                    }
+                  </div>
                   @if (row.fraudDetermined) {
                     <app-badge variant="strong" tone="danger">
                       {{

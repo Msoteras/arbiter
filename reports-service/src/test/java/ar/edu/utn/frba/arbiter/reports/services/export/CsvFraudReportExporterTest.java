@@ -16,7 +16,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 class CsvFraudReportExporterTest {
 
     private static final String HEADER = "Nº expediente;Asegurado;DNI;Ramo;Hecho generador;"
-            + "Fecha de denuncia;Nivel de alerta;Indicadores;Denuncias en 12 meses;"
+            + "Fecha de denuncia;Nivel de alerta;Señales;Denuncias en 12 meses;"
             + "Imágenes con coincidencia;Estado;Fraude determinado";
 
     private final CsvFraudReportExporter exporter = new CsvFraudReportExporter(CLOCK);

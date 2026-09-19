@@ -118,16 +118,6 @@ export class ReportFiltersStore {
     }
   }
 
-  /**
-   * Whether the URL describes a report to show: a valid period that is the one on screen. A tab
-   * opened from such a link previews right away instead of waiting for a click.
-   */
-  describedBy(params: ParamMap): boolean {
-    return (
-      params.get('from') === this.from() && params.get('to') === this.to() && !this.periodError()
-    );
-  }
-
   /** The shared filters only — what a tab link carries to the other tab. */
   sharedQueryParams(): Params {
     return {

@@ -72,7 +72,15 @@
                   totals.averageMinutes === null ? '—' : formatDuration(totals.averageMinutes)
                 "
                 [sub]="waitingBreakdown(totals)"
-              />
+              >
+                <app-info-tip>
+                  Desde la denuncia hasta el estado final, promediado sobre los expedientes que un
+                  analista decidió: los caducados quedan afuera porque nadie los resolvió, midieron
+                  el silencio del asegurado. Del total se muestra aparte lo que el expediente pasó
+                  esperando documentación, un perito o el servicio técnico, que el procedimiento no
+                  le imputa a la gestión.
+                </app-info-tip>
+              </app-stat-tile>
               <!-- The bar only here: it is the only one of the three that is a proportion, and so the
                    only one with something to be measured against. -->
               <app-stat-tile

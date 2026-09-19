@@ -281,10 +281,11 @@ describe('ResolutionReportComponent opened from a link', () => {
     );
   });
 
-  it('waits for a click when the link names no period', () => {
+  /** Reached from the menu: the screen opens with its report, same as from a link. */
+  it('previews on entry even when the URL carries nothing', () => {
     const { preview } = open({});
 
-    expect(preview).not.toHaveBeenCalled();
+    expect(preview).toHaveBeenCalledTimes(1);
   });
 
   /** A cause the catalog doesn't list still shows as selected, not as "Todos". */

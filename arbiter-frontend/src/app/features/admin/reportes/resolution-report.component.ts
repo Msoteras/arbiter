@@ -16,6 +16,7 @@ import {
   DistributionItem,
 } from '../../../shared/ui/distribution/distribution.component';
 import { EmptyStateComponent } from '../../../shared/ui/empty-state/empty-state.component';
+import { InfoTipComponent } from '../../../shared/ui/info-tip/info-tip.component';
 import { InlineLoadingComponent } from '../../../shared/ui/inline-loading/inline-loading.component';
 import { PaginationComponent } from '../../../shared/ui/pagination/pagination.component';
 import { SelectComponent, SelectOption } from '../../../shared/ui/select/select.component';
@@ -55,6 +56,7 @@ import { ResolutionReportService } from './resolution-report.service';
     CardComponent,
     DistributionComponent,
     EmptyStateComponent,
+    InfoTipComponent,
     InlineLoadingComponent,
     PaginationComponent,
     ReportActionsComponent,

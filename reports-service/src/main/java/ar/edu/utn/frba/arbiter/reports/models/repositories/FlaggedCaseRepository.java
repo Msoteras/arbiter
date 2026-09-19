@@ -49,6 +49,9 @@ public class FlaggedCaseRepository {
      * <p>The window is counted from each case's own {@code reported_at} and not from the period's
      * end, so a case reads the same whenever the report is run — a number that changes depending on
      * when you asked is not something you can put in front of an auditor.
+     *
+     * <p>{@code signal_count} repeats the three conditions of the WHERE because it is what the
+     * listing is ordered by; see the ORDER BY in {@link #findFlaggedBetween}.
      */
     private static final String FLAGGED_CASES = """
             WITH candidate AS (
@@ -73,7 +76,10 @@ public class FlaggedCaseRepository {
                    i.name AS insured_name, i.surname AS insured_surname, i.dni,
                    b.name AS branch, cc.name AS claim_cause, s.name AS status,
                    EXISTS (SELECT 1 FROM expert_assessment ea
-                            WHERE ea.case_id = c.id AND ea.verdict = :fraudConfirmed) AS expert_backed
+                            WHERE ea.case_id = c.id AND ea.verdict = :fraudConfirmed) AS expert_backed,
+                   (CASE WHEN c.risk_band IN (:highBands) THEN 1 ELSE 0 END
+                  + CASE WHEN c.claims_in_window > 1 THEN 1 ELSE 0 END
+                  + CASE WHEN c.suspicious_images > 0 THEN 1 ELSE 0 END) AS signal_count
               FROM candidate c
               JOIN claim_cause cc ON cc.id = c.claim_cause_id
               JOIN branch b       ON b.id = cc.branch_id
@@ -112,7 +118,19 @@ public class FlaggedCaseRepository {
             sql.append("   AND c.risk_band = :riskBand\n");
             params.addValue("riskBand", riskBand.name());
         }
-        sql.append(" ORDER BY c.reported_at DESC, c.id DESC");
+        // Read order, not filing order: the cases whose signals coincide go first, and among them
+        // the higher band. One signal is a hint and two is a shortlist, so a critical case with
+        // three signals sitting on page three because it was filed on the 2nd is the report failing
+        // at the one thing it is for. Sorted in the query and not in each surface so the screen,
+        // the CSV and the PDF all lead with the same case.
+        params.addValue("criticalBand", RiskBand.CRITICAL.name())
+                .addValue("highBand", RiskBand.HIGH.name());
+        sql.append("""
+                 ORDER BY signal_count DESC,
+                          CASE WHEN c.risk_band = :criticalBand THEN 2
+                               WHEN c.risk_band = :highBand THEN 1
+                               ELSE 0 END DESC,
+                          c.reported_at DESC, c.id DESC""");
 
         // suppressClose: the connection is Hibernate's and Hibernate closes it.
         List<FraudReportRow> rows = entityManager.unwrap(Session.class).doReturningWork(connection ->

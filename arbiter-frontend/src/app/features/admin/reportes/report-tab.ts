@@ -7,6 +7,7 @@ import { Observable, Subscription } from 'rxjs';
 
 import { ReportFile, downloadReport, reportErrorMessage } from './report-download';
 import { ReportFiltersStore } from './report-filters.store';
+import { rememberReportsTab } from './reports-tab-memory';
 import { ReportFormat } from './resolution-report';
 
 /** What every report answers with: the filters it ran under, and the rows it found. */
@@ -61,13 +62,15 @@ export abstract class ReportTab<TRow, TReport extends ReportPayload<TRow>, TPara
 
   /**
    * Called from the subclass constructor, once it has restored its own filter from the URL:
-   * wires the URL and the shared filters, and previews when the link already names a period.
+   * wires the URL and the shared filters, and asks for the first preview.
    *
    * <p>Not done in this constructor because it would run before the subclass has read its filter,
    * and the preview would go out without it.
    */
   protected start(): void {
-    const params = this.route.snapshot.queryParamMap;
+    // Cuál es esta solapa sale de la ruta y no de una constante por tab: la ruta es la que el
+    // redirect de `insurer/reports` va a usar después, así que no pueden discrepar.
+    rememberReportsTab(this.route.snapshot.routeConfig?.path);
 
     effect(() => this.filters.tabParams.set(this.tabParams()));
     this.destroyRef.onDestroy(() => this.filters.tabParams.set({}));
@@ -87,10 +90,10 @@ export abstract class ReportTab<TRow, TReport extends ReportPayload<TRow>, TPara
       this.discardPreview();
     });
 
-    // Opened from a link that names a period: show it, don't make the reader click for it.
-    if (this.filters.describedBy(params)) {
-      this.loadPreview();
-    }
+    // The screen opens with its report already on it, whether it was reached from the menu, from
+    // the other tab or from a shared link: the three show the filters that are on screen, so making
+    // only one of them wait for a click is a difference nobody can see and everybody notices.
+    this.loadPreview();
   }
 
   protected loadPreview(): void {

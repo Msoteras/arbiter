@@ -18,10 +18,6 @@ import java.util.stream.Collectors;
 /**
  * The fraud report as a landscape A4 table. The layout is {@link PdfReportWriter}'s; what lives
  * here is which columns the report has and what goes in each cell.
- *
- * <p>The heading carries the caveat the screen no longer needs to spell out: this document leaves
- * the insurer on its own, with nobody next to it to say that a flagged case is not a determined
- * one.
  */
 @Component
 @RequiredArgsConstructor
@@ -29,21 +25,16 @@ public class PdfFraudReportExporter implements FraudReportExporter {
 
     private static final String TITLE = "Reporte de detección de fraude";
 
-    private static final String CAVEAT = "El sistema no determina fraude: señala indicios para "
-            + "revisión humana. El nivel de alerta es una sugerencia del motor de scoring, no una "
-            + "conclusión; \"No alertó\" significa que el score no marcó el expediente y que está "
-            + "listado por otra señal.";
-
     private static final String[] HEADER = {
-            "Nº", "Asegurado", "DNI", "Ramo · Hecho generador", "Denuncia", "Alerta", "Indicadores",
+            "Nº", "Asegurado", "DNI", "Ramo · Hecho generador", "Denuncia", "Alerta", "Señales",
             "Estado", "Fraude determinado"};
     /**
      * Sums to 766pt, just inside the 770pt a landscape A4 leaves between margins. The alert level,
-     * the status and the determination get room for their longest value; "Indicadores" is the one
-     * column allowed to ellipsize, because the full sentence is in the CSV and on screen, and here
-     * it is the only cell that can be read from its first words.
+     * the status and the determination get room for their longest value; "Señales" gets the widest
+     * column and the 6pt taken off the DNI, because it is the one that carries a list rather than a
+     * value — with three signals it wraps to the second line the writer allows it.
      */
-    private static final float[] WIDTHS = {36, 100, 58, 110, 52, 44, 164, 90, 112};
+    private static final float[] WIDTHS = {36, 100, 52, 110, 52, 44, 170, 90, 112};
 
     private final Clock clock;
 
@@ -61,14 +52,13 @@ public class PdfFraudReportExporter implements FraudReportExporter {
                 HEADER,
                 WIDTHS,
                 report.rows().stream().map(row -> cells(row, zone)).toList(),
-                "Ningún expediente con indicios en el período.",
+                "Ninguna denuncia con señales en el período.",
                 report.generatedAt(),
                 zone));
     }
 
     private static List<String> headingLines(FraudReport report) {
         List<String> lines = new ArrayList<>();
-        lines.add(CAVEAT);
         lines.add("Período: %s al %s · Ramo: %s · Nivel de alerta: %s".formatted(
                 ReportLabels.DATE.format(report.from()),
                 ReportLabels.DATE.format(report.to()),
@@ -85,7 +75,7 @@ public class PdfFraudReportExporter implements FraudReportExporter {
         if (summary.flagged() == 0) {
             // With claims in the period, "none of them" is the finding, and it needs its population
             // as much as any other rate does.
-            return List.of("%sNinguna de las %d %s del período con indicios".formatted(
+            return List.of("%sNinguna de las %d %s del período con señales".formatted(
                     PdfReportWriter.TOTALS_LABEL,
                     summary.totalClaims(),
                     summary.totalClaims() == 1 ? "denuncia" : "denuncias"));
@@ -93,7 +83,7 @@ public class PdfFraudReportExporter implements FraudReportExporter {
         return List.of(
                 // The denominator travels with every rate: a share with no population behind it is
                 // the figure people misread the fastest.
-                ("%s%d de %d %s con indicios (%s) · Con señales cruzadas: %d · "
+                ("%s%d de %d %s con al menos una señal (%s) · Con dos o más señales: %d · "
                         + "Fraude determinado: %d (%s del período, %d con respaldo pericial)")
                         .formatted(
                                 PdfReportWriter.TOTALS_LABEL,
@@ -109,7 +99,7 @@ public class PdfFraudReportExporter implements FraudReportExporter {
                         count -> ReportLabels.alertLevel(count.label())),
                 // The buckets overlap — a case with two signals is in both — so they can add up to
                 // more than the total. Said here so nobody reads it as an arithmetic error.
-                "Por señal (un expediente puede tener más de una): "
+                "Por señal (una denuncia puede tener más de una): "
                         + distribution(summary.bySignal(), count -> ReportLabels.signal(count.label())));
     }
 

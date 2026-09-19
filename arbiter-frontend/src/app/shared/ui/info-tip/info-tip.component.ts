@@ -86,6 +86,12 @@ import { OverlayPosition, anchorToTrigger } from '../overlay-position';
       position: fixed;
       z-index: 50;
       width: max-content;
+      /* La burbuja es prosa y se lee sola: no hereda el tratamiento del texto al que acompaña.
+         Sin esto, adentro de una etiqueta de app-stat-tile salía entera en mayúsculas y con el
+         tracking de la etiqueta. */
+      text-transform: none;
+      letter-spacing: normal;
+      text-align: left;
       /* min() y no un ancho fijo: en mobile 260px se sale de pantalla anclado a la izquierda. */
       max-width: min(280px, calc(100vw - var(--space-4) * 2));
       padding: var(--space-2) var(--space-3);
