@@ -92,20 +92,35 @@ class FlaggedCaseRepositoryTests extends AbstractPersistenceIT {
     }
 
     /**
-     * The second claim of the same insured inside the window is the one that carries the signal: the
-     * first one had no other claim behind it yet, and saying otherwise would flag everybody twice.
+     * Claiming twice is not, on its own, a reason to appear in the report: how often somebody claims
+     * is already a weighted factor of the score, and listing it again here fired two signals off the
+     * same fact. Two quiet claims carry no signal, so neither of them is listed.
      */
     @Test
-    void aSecondClaimOfTheSameInsured_flagsOnlyTheSecond() {
+    void aSecondClaimOfTheSameInsured_isNotASignalOnItsOwn() {
         tables.insertCase(1, "2026-09-02T10:00:00Z", PENDING_REVIEW, ROBO_CELULARES, false, null, null);
         tables.insertCase(2, "2026-09-20T10:00:00Z", PENDING_REVIEW, HURTO_CELULARES, false, null, null);
+
+        assertThat(repository.findFlaggedBetween(SEPTEMBER_FROM, SEPTEMBER_TO, null, null)).isEmpty();
+    }
+
+    /**
+     * ...but the count still travels with a case that some other signal did flag: it is the context
+     * that tells the referent whether the score fired on somebody claiming for the first time or on
+     * their third claim of the year.
+     */
+    @Test
+    void theClaimCount_travelsAsContextOfACaseFlaggedBySomethingElse() {
+        tables.insertCase(1, "2026-09-02T10:00:00Z", PENDING_REVIEW, ROBO_CELULARES, false, null, null);
+        tables.insertCase(2, "2026-09-20T10:00:00Z", PENDING_REVIEW, HURTO_CELULARES, false, null, null);
+        tables.riskBand(2, "CRITICAL");
 
         List<FraudReportRow> rows = repository.findFlaggedBetween(SEPTEMBER_FROM, SEPTEMBER_TO, null, null);
 
         assertThat(rows).singleElement().satisfies(row -> {
             assertThat(row.caseId()).isEqualTo(2L);
             assertThat(row.claimsInWindow()).isEqualTo(2);
-            assertThat(row.signals()).containsExactly(FraudSignal.REPEAT_CLAIMANT);
+            assertThat(row.signals()).containsExactly(FraudSignal.HIGH_RISK_SCORE);
         });
     }
 
@@ -144,9 +159,9 @@ class FlaggedCaseRepositoryTests extends AbstractPersistenceIT {
         });
     }
 
-    /** The cross: the three criteria on one case, which is what the report exists to surface. */
+    /** The cross: both criteria on one case, which is what the report exists to surface. */
     @Test
-    void theThreeSignals_coincideOnTheSameCase() {
+    void bothSignals_coincideOnTheSameCase() {
         tables.insertCase(1, "2026-09-02T10:00:00Z", APPROVED, ROBO_CELULARES, false, null, null);
         tables.insertCase(2, "2026-09-20T10:00:00Z", PENDING_REVIEW, HURTO_CELULARES, false, null, null);
         tables.riskBand(2, "CRITICAL");
@@ -161,7 +176,7 @@ class FlaggedCaseRepositoryTests extends AbstractPersistenceIT {
             assertThat(row.caseId()).isEqualTo(2L);
             assertThat(row.riskBand()).isEqualTo(RiskBand.CRITICAL);
             assertThat(row.signals()).containsExactlyInAnyOrder(FraudSignal.HIGH_RISK_SCORE,
-                    FraudSignal.REPEAT_CLAIMANT, FraudSignal.FORENSIC_INCONSISTENCY);
+                    FraudSignal.FORENSIC_INCONSISTENCY);
             assertThat(row.fraudDetermined()).isTrue();
             assertThat(row.expertBacked()).isTrue();
         });

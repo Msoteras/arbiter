@@ -18,7 +18,7 @@ export interface FraudBucket {
  */
 
 /** Mirror of FraudSignal: why a case shows up in the report. */
-export type FraudSignal = 'HIGH_RISK_SCORE' | 'REPEAT_CLAIMANT' | 'FORENSIC_INCONSISTENCY';
+export type FraudSignal = 'HIGH_RISK_SCORE' | 'FORENSIC_INCONSISTENCY';
 
 export interface FraudReportRow {
   caseId: number;
@@ -142,8 +142,6 @@ export function indicators(row: FraudReportRow): string[] {
     switch (signal) {
       case 'HIGH_RISK_SCORE':
         return 'Score de riesgo alto';
-      case 'REPEAT_CLAIMANT':
-        return `${row.claimsInWindow} denuncias en 12 meses`;
       case 'FORENSIC_INCONSISTENCY':
         return row.suspiciousImages === 1
           ? '1 imagen con coincidencia'
@@ -154,7 +152,6 @@ export function indicators(row: FraudReportRow): string[] {
 
 const SIGNAL_LABELS: Record<FraudSignal, string> = {
   HIGH_RISK_SCORE: 'Score de riesgo alto',
-  REPEAT_CLAIMANT: 'Denuncias repetidas',
   FORENSIC_INCONSISTENCY: 'Incoherencias forenses',
 };
 

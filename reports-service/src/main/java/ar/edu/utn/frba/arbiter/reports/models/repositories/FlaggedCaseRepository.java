@@ -50,7 +50,12 @@ public class FlaggedCaseRepository {
      * end, so a case reads the same whenever the report is run — a number that changes depending on
      * when you asked is not something you can put in front of an auditor.
      *
-     * <p>{@code signal_count} repeats the three conditions of the WHERE because it is what the
+     * <p>{@code claims_in_window} is computed but is NOT a signal and NOT a reason to list a case:
+     * how often somebody claims is already a weighted factor of the score, and counting it again
+     * here fired two signals off the same fact. It travels with the row as context only — see the
+     * javadoc of {@link ar.edu.utn.frba.arbiter.reports.dto.FraudSignal}.
+     *
+     * <p>{@code signal_count} repeats the two conditions of the WHERE because it is what the
      * listing is ordered by; see the ORDER BY in {@link #findFlaggedBetween}.
      */
     private static final String FLAGGED_CASES = """
@@ -78,7 +83,6 @@ public class FlaggedCaseRepository {
                    EXISTS (SELECT 1 FROM expert_assessment ea
                             WHERE ea.case_id = c.id AND ea.verdict = :fraudConfirmed) AS expert_backed,
                    (CASE WHEN c.risk_band IN (:highBands) THEN 1 ELSE 0 END
-                  + CASE WHEN c.claims_in_window > 1 THEN 1 ELSE 0 END
                   + CASE WHEN c.suspicious_images > 0 THEN 1 ELSE 0 END) AS signal_count
               FROM candidate c
               JOIN claim_cause cc ON cc.id = c.claim_cause_id
@@ -86,7 +90,6 @@ public class FlaggedCaseRepository {
               JOIN case_status s  ON s.id = c.current_status_id
               JOIN insured i      ON i.id = c.insured_id
              WHERE (c.risk_band IN (:highBands)
-                 OR c.claims_in_window > 1
                  OR c.suspicious_images > 0)
             """;
 
@@ -136,7 +139,7 @@ public class FlaggedCaseRepository {
         List<FraudReportRow> rows = entityManager.unwrap(Session.class).doReturningWork(connection ->
                 new NamedParameterJdbcTemplate(new SingleConnectionDataSource(connection, true))
                         .query(sql.toString(), params, (rs, rowNum) -> toRow(rs)));
-        // The WHERE above pushes the same three conditions into the database so a period doesn't
+        // The WHERE above pushes the same two conditions into the database so a period doesn't
         // drag every case into memory. signalsOf is the definition: anything that got through
         // without a signal would be a row the report can't explain, so it doesn't go out.
         return rows.stream().filter(row -> !row.signals().isEmpty()).toList();
@@ -204,7 +207,7 @@ public class FlaggedCaseRepository {
                 rs.getString("claim_cause"),
                 rs.getObject("reported_at", OffsetDateTime.class).toInstant(),
                 riskBand,
-                signalsOf(riskBand, claimsInWindow, suspiciousImages),
+                signalsOf(riskBand, suspiciousImages),
                 claimsInWindow,
                 suspiciousImages,
                 CaseStatus.valueOf(rs.getString("status")),
@@ -213,14 +216,10 @@ public class FlaggedCaseRepository {
     }
 
     /** The one definition of what "suspicious" means here; the SQL predicate mirrors it. */
-    private static List<FraudSignal> signalsOf(RiskBand riskBand, int claimsInWindow,
-                                               int suspiciousImages) {
+    private static List<FraudSignal> signalsOf(RiskBand riskBand, int suspiciousImages) {
         List<FraudSignal> signals = new ArrayList<>(FraudSignal.values().length);
         if (riskBand == RiskBand.HIGH || riskBand == RiskBand.CRITICAL) {
             signals.add(FraudSignal.HIGH_RISK_SCORE);
-        }
-        if (claimsInWindow > 1) {
-            signals.add(FraudSignal.REPEAT_CLAIMANT);
         }
         if (suspiciousImages > 0) {
             signals.add(FraudSignal.FORENSIC_INCONSISTENCY);

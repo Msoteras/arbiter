@@ -57,8 +57,12 @@ class PdfFraudReportExporterTest {
     }
 
     /**
-     * Three signals don't fit one line of the column, and the coincidence of signals is the whole
-     * finding: the cell wraps instead of ellipsizing the second and the third one away.
+     * Two signals don't fit one line of the column, and the coincidence of signals is the whole
+     * finding: the cell wraps instead of ellipsizing the second one away.
+     *
+     * <p>Asserted in halves because the wrap lands inside the second signal and the line break is
+     * not what this is about — matching the phrase whole would make the test fail the next time a
+     * column width moves, which is exactly the kind of change it should survive.
      */
     @Test
     void theSignalsOfACase_areWrittenWhole_evenWhenTheyDoNotFitOneLine() throws IOException {
@@ -66,7 +70,8 @@ class PdfFraudReportExporterTest {
 
         assertThat(pdf.text())
                 .contains("Score de riesgo alto")
-                .contains("2 imágenes con coincidencia")
+                .contains("2 imágenes con")
+                .contains("coincidencia")
                 .doesNotContain("…");
     }
 

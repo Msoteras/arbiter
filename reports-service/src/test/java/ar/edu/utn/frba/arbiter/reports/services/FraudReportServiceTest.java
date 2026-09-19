@@ -143,7 +143,8 @@ class FraudReportServiceTest {
                 row(1, RiskBand.HIGH, FraudSignal.HIGH_RISK_SCORE),
                 row(2, null, FraudSignal.FORENSIC_INCONSISTENCY),
                 row(3, RiskBand.CRITICAL, FraudSignal.HIGH_RISK_SCORE),
-                row(4, RiskBand.HIGH, FraudSignal.HIGH_RISK_SCORE, FraudSignal.REPEAT_CLAIMANT)));
+                row(4, RiskBand.HIGH, FraudSignal.HIGH_RISK_SCORE,
+                        FraudSignal.FORENSIC_INCONSISTENCY)));
 
         FraudReport report = service.generate(SEP_1, SEP_30, null, null);
 
@@ -151,27 +152,18 @@ class FraudReportServiceTest {
                 .containsExactly(3L, 4L, 1L, 2L);
     }
 
-    /**
-     * A low score must not push a case with two coinciding signals below one with a single signal:
-     * LOW and MEDIUM rank the same as no score at all, so what decides is how many signals crossed.
-     */
-    @Test
-    void aBandThatDoesNotAlert_doesNotOutrankMoreCoincidingSignals() {
-        given(repository.findFlaggedBetween(any(), any(), isNull(), isNull())).willReturn(List.of(
-                row(1, RiskBand.MEDIUM, FraudSignal.FORENSIC_INCONSISTENCY),
-                row(2, RiskBand.LOW, FraudSignal.FORENSIC_INCONSISTENCY,
-                        FraudSignal.REPEAT_CLAIMANT)));
-
-        FraudReport report = service.generate(SEP_1, SEP_30, null, null);
-
-        assertThat(report.rows()).extracting(FraudReportRow::caseId).containsExactly(2L, 1L);
-    }
+    // Gone with REPEAT_CLAIMANT: "a band that does not alert, on a case with two coinciding
+    // signals" no longer describes anything reachable. With two signals left, the only way to hold
+    // both is HIGH_RISK_SCORE + FORENSIC_INCONSISTENCY, and the first one is only ever raised on
+    // HIGH or CRITICAL — so a case that does not alert now always carries exactly one signal. The
+    // tie-break it covered is still exercised by ordersByAlertLevel_thenByHowManySignalsCoincide.
 
     /** The head describes the very rows underneath it — that is the point of computing it from them. */
     @Test
     void summarisesTheRowsItReturns() {
         given(repository.findFlaggedBetween(any(), any(), isNull(), isNull())).willReturn(List.of(
-                row(1, RiskBand.CRITICAL, FraudSignal.HIGH_RISK_SCORE, FraudSignal.REPEAT_CLAIMANT),
+                row(1, RiskBand.CRITICAL, FraudSignal.HIGH_RISK_SCORE,
+                        FraudSignal.FORENSIC_INCONSISTENCY),
                 row(2, RiskBand.HIGH, FraudSignal.HIGH_RISK_SCORE)));
         given(repository.countClaimsBetween(any(), any(), isNull())).willReturn(20L);
 

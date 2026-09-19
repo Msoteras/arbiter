@@ -102,14 +102,13 @@ final class ReportLabels {
     }
 
     /**
-     * The signals of one case, each with the magnitude that makes it actionable — "3 denuncias en
-     * 12 meses" says what to look at, "denuncias repetidas" only says it was flagged. Mirror of
-     * {@code indicators()} in the frontend's fraud-report.ts; keep the two in step.
+     * The signals of one case, each with the magnitude that makes it actionable — "3 imágenes con
+     * coincidencia" says what to look at, "incoherencias forenses" only says it was flagged. Mirror
+     * of {@code indicators()} in the frontend's fraud-report.ts; keep the two in step.
      */
     static String signals(FraudReportRow row) {
         return row.signals().stream().map(signal -> switch (signal) {
             case HIGH_RISK_SCORE -> "Score de riesgo alto";
-            case REPEAT_CLAIMANT -> row.claimsInWindow() + " denuncias en 12 meses";
             case FORENSIC_INCONSISTENCY -> row.suspiciousImages() == 1
                     ? "1 imagen con coincidencia"
                     : row.suspiciousImages() + " imágenes con coincidencia";
@@ -120,7 +119,6 @@ final class ReportLabels {
     static String signal(String literal) {
         return switch (FraudSignal.valueOf(literal)) {
             case HIGH_RISK_SCORE -> "Score de riesgo alto";
-            case REPEAT_CLAIMANT -> "Denuncias repetidas";
             case FORENSIC_INCONSISTENCY -> "Incoherencias forenses";
         };
     }

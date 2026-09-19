@@ -29,7 +29,7 @@ class CsvFraudReportExporterTest {
         assertThat(lines(csv)).containsExactly(
                 HEADER,
                 "1482;Marcos Aguirre;28.904.115;Celulares;Robo en vía pública;12/09/2026 06:20;"
-                        + "Crítico;Score de riesgo alto · 3 denuncias en 12 meses · "
+                        + "Crítico;Score de riesgo alto · "
                         + "2 imágenes con coincidencia;3;2;Derivado a peritaje;No");
     }
 

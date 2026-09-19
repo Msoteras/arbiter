@@ -75,8 +75,7 @@ public final class ReportFixtures {
     public static FraudReportRow flaggedRow(long caseId, String insuredName) {
         return new FraudReportRow(caseId, insuredName, "28.904.115", "Celulares",
                 "Robo en vía pública", Instant.parse("2026-09-12T09:20:00Z"), RiskBand.CRITICAL,
-                List.of(FraudSignal.HIGH_RISK_SCORE, FraudSignal.REPEAT_CLAIMANT,
-                        FraudSignal.FORENSIC_INCONSISTENCY),
+                List.of(FraudSignal.HIGH_RISK_SCORE, FraudSignal.FORENSIC_INCONSISTENCY),
                 3, 2, CaseStatus.PENDING_EXPERT_REPORT, false, false);
     }
 

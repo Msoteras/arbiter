@@ -28,7 +28,7 @@ function row(overrides: Partial<FraudReportRow> = {}): FraudReportRow {
     claimCause: 'Robo en vía pública',
     reportedAt: '2026-09-12T09:20:00Z',
     riskBand: 'CRITICAL',
-    signals: ['HIGH_RISK_SCORE', 'REPEAT_CLAIMANT', 'FORENSIC_INCONSISTENCY'],
+    signals: ['HIGH_RISK_SCORE', 'FORENSIC_INCONSISTENCY'],
     claimsInWindow: 3,
     suspiciousImages: 2,
     status: 'PENDING_EXPERT_REPORT',
