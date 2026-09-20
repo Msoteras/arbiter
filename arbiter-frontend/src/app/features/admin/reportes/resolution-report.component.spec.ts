@@ -4,6 +4,7 @@ import { LOCALE_ID } from '@angular/core';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { provideNoopAnimations } from '@angular/platform-browser/animations';
 import { ActivatedRoute, convertToParamMap, provideRouter } from '@angular/router';
+import { provideEchartsCore } from 'ngx-echarts';
 import { Subject, of } from 'rxjs';
 
 import { ExpedienteService } from '../../expedientes/expediente.service';
@@ -12,9 +13,13 @@ import { ReportFiltersStore } from './report-filters.store';
 import { ResolutionReportComponent } from './resolution-report.component';
 import {
   ResolutionReport,
+  ResolutionSummary,
   decisionLabel,
+  fastTrackTrend,
   formatDuration,
   periodError,
+  resolutionTimeTrend,
+  resolvedTrend,
   waitingBreakdown,
 } from './resolution-report';
 import { ResolutionReportService } from './resolution-report.service';
@@ -65,6 +70,48 @@ describe('resolution report helpers', () => {
     expect(periodError('2024-01-01', '2024-12-31')).toBeNull();
     expect(periodError('2026-08-15', '2026-08-15')).toBeNull();
   });
+
+  /** Sólo lo que la comparación necesita; el resto del resumen no entra en estas cifras. */
+  const summaryOf = (over: Partial<ResolutionSummary>): ResolutionSummary =>
+    ({ totalCases: 0, fastTrackRate: null, ...over }) as ResolutionSummary;
+
+  /** El volumen del período no es ni bueno ni malo: la flecha va sin veredicto. */
+  it('states the change in resolved cases, and says nothing when it did not change', () => {
+    expect(resolvedTrend(summaryOf({ totalCases: 6 }), summaryOf({ totalCases: 4 }))).toBe(
+      '▲ 2 vs. el período anterior',
+    );
+    expect(resolvedTrend(summaryOf({ totalCases: 4 }), summaryOf({ totalCases: 4 }))).toBe('');
+  });
+
+  /** Entre dos tasas la diferencia es en puntos: "17%" se leería como un aumento relativo. */
+  it('reads a fast track change in percentage points, and hushes over a tiny base', () => {
+    const current = summaryOf({ totalCases: 6, fastTrackRate: 0.5 });
+
+    expect(fastTrackTrend(current, summaryOf({ totalCases: 6, fastTrackRate: 0.33 }))).toBe(
+      '▲ 17 pp mejor que el período anterior',
+    );
+    expect(fastTrackTrend(current, summaryOf({ totalCases: 3, fastTrackRate: 0.33 }))).toBe(
+      '',
+    );
+  });
+
+  /** Tardar más es peor: la flecha para arriba acá es mala noticia. */
+  it('reads a resolution-time change against the decided population, and hushes over a tiny base', () => {
+    const current = summaryOf({ decidedCases: 6, averageMinutes: 3000 } as Partial<ResolutionSummary>);
+
+    expect(
+      resolutionTimeTrend(
+        current,
+        summaryOf({ decidedCases: 6, averageMinutes: 3600 } as Partial<ResolutionSummary>),
+      ),
+    ).toBe('▼ 10 h mejor que el período anterior');
+    expect(
+      resolutionTimeTrend(
+        current,
+        summaryOf({ decidedCases: 3, averageMinutes: 3600 } as Partial<ResolutionSummary>),
+      ),
+    ).toBe('');
+  });
 });
 
 describe('ResolutionReportComponent', () => {
@@ -90,16 +137,22 @@ describe('ResolutionReportComponent', () => {
       ],
       byClaimCause: [{ label: 'Robo en vía pública', count: 4 }],
     },
+    // El período anterior cerró 6 con 1 Fast Track: la tarjeta baja 2 y la tasa sube 8 pp.
     previousSummary: {
-      totalCases: 8,
+      totalCases: 6,
       decidedCases: 6,
-      averageMinutes: 2500,
-      averageWaitingMinutes: 400,
-      fastTrackCases: 2,
-      fastTrackRate: 0.2,
+      averageMinutes: 4000,
+      averageWaitingMinutes: 0,
+      fastTrackCases: 1,
+      fastTrackRate: 1 / 6,
       byStatus: [],
       byClaimCause: [],
     },
+    granularity: 'WEEK',
+    timeline: [
+      { bucket: '2026-08-03', resolved: 3, decided: 3, averageMinutes: 3030 },
+      { bucket: '2026-08-10', resolved: 1, decided: 0, averageMinutes: null },
+    ],
     rows: [
       {
         caseId: 42,
@@ -134,6 +187,8 @@ describe('ResolutionReportComponent', () => {
         provideRouter([]),
         // The app runs in es-AR (app.config); TestBed doesn't read that config.
         { provide: LOCALE_ID, useValue: 'es-AR' },
+        // The resolution timeline chart needs ngx-echarts wired, same as app.config does.
+        provideEchartsCore({ echarts: () => import('../../../shared/ui/chart/echarts-core') }),
         ReportFiltersStore,
         { provide: ResolutionReportService, useValue: reportService },
         { provide: ExpedienteService, useValue: { claimCauseNames: () => of(['Hurto']) } },
@@ -165,17 +220,11 @@ describe('ResolutionReportComponent', () => {
     expect(text).not.toContain('LLM_RECOMIENDA_APROBAR');
   });
 
-  /** The average covers the decided ones only, so the screen says which ones those are. */
+  /**
+   * The average covers the decided ones only, so the screen says which ones those are — next to
+   * the trend, not instead of it: {@link resolutionTimeSub} joins both, it never picks one.
+   */
   it('shows the population of the average and how it splits', () => {
-    // No usable trend (flat count, previous period too thin for the duration), so the sub note
-    // isn't displaced by it.
-    reportService.preview.and.returnValue(
-      of({
-        ...report,
-        previousSummary: { ...report.previousSummary, totalCases: 4, decidedCases: 2 },
-      }),
-    );
-
     click('Ver vista previa');
 
     const text = (fixture.nativeElement as HTMLElement).textContent!.replace(/\s+/g, ' ');
@@ -185,11 +234,6 @@ describe('ResolutionReportComponent', () => {
 
   /** H0019: the four figures, taken from the backend rather than added up on screen. */
   it('shows the totals of the period, with the statuses labelled in Spanish', () => {
-    // Previous period too thin to compare against, so the trend doesn't take the sub's place.
-    reportService.preview.and.returnValue(
-      of({ ...report, previousSummary: { ...report.previousSummary, totalCases: 2 } }),
-    );
-
     click('Ver vista previa');
 
     const text = (fixture.nativeElement as HTMLElement).textContent ?? '';
@@ -210,9 +254,9 @@ describe('ResolutionReportComponent', () => {
     click('Ver vista previa');
 
     const text = (fixture.nativeElement as HTMLElement).textContent!.replace(/\s+/g, ' ');
-    expect(text).toContain('▼ 4 vs. el período anterior');
-    expect(text).toContain('▲ 8 h 50 min peor que el período anterior');
-    expect(text).toContain('▲ 5% mejor que el período anterior');
+    expect(text).toContain('▼ 2 vs. el período anterior');
+    expect(text).toContain('▼ 16 h 10 min mejor que el período anterior');
+    expect(text).toContain('▲ 8 pp mejor que el período anterior');
   });
 
   /** Below the minimum base the duration and rate deltas drop; the raw count isn't gated the same way. */
@@ -294,6 +338,8 @@ describe('ResolutionReportComponent opened from a link', () => {
       byStatus: [],
       byClaimCause: [],
     },
+    granularity: 'DAY',
+    timeline: [],
     rows: [],
   } satisfies ResolutionReport;
 
@@ -304,6 +350,8 @@ describe('ResolutionReportComponent opened from a link', () => {
       providers: [
         provideNoopAnimations(),
         provideRouter([]),
+        // The resolution timeline chart needs ngx-echarts wired, same as app.config does.
+        provideEchartsCore({ echarts: () => import('../../../shared/ui/chart/echarts-core') }),
         {
           provide: ActivatedRoute,
           useValue: { snapshot: { queryParamMap: convertToParamMap(query) } },

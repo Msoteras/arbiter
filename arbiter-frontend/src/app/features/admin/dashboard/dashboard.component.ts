@@ -19,7 +19,7 @@ import { RiskBand, riskBandLabel } from '../../../core/models/risk-band';
 import { StatusTone } from '../../../core/models/status-tone';
 import { formatRate } from '../../../core/util/percent';
 import { formatMoney } from '../../../core/util/money';
-import { trendText } from '../../../core/util/trend';
+import { percentagePoints, trendText } from '../../../core/util/trend';
 import { staggerReveal } from '../../../shared/animations';
 import { CardComponent } from '../../../shared/ui/card/card.component';
 import { ChartTheme, baseChartOptions, readChartTheme } from '../../../shared/ui/chart/chart-theme';
@@ -694,6 +694,9 @@ export class DashboardComponent {
    * (compartida con los dos reportes) que sólo resuelve cómo formatear la magnitud según la unidad
    * del indicador — el resto (la regla de base mínima, el signo, el "mejor/peor") es una sola
    * implementación para las tres pantallas.
+   *
+   * Una tasa se formatea en puntos porcentuales, no en porcentaje: pasar de 33% a 50% es "+17 pp",
+   * no "+17%" — eso último se lee como un aumento relativo (que sería del 52%) y es otra afirmación.
    */
   private trendOf(
     current: number | null,
@@ -704,7 +707,7 @@ export class DashboardComponent {
   ): string {
     const format = (size: number) =>
       unit === 'rate'
-        ? formatRate(size)
+        ? percentagePoints(size)
         : unit === 'hours'
           ? resolutionTimeLabel(size)
           : formatNumber(size, this.locale, '1.0-0');

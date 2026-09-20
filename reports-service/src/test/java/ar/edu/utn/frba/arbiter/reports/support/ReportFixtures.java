@@ -10,6 +10,7 @@ import ar.edu.utn.frba.arbiter.reports.dto.ResolutionReport;
 import ar.edu.utn.frba.arbiter.reports.dto.ResolutionReportRow;
 import ar.edu.utn.frba.arbiter.reports.dto.ResolutionSummary;
 import ar.edu.utn.frba.arbiter.reports.dto.FraudSummary;
+import ar.edu.utn.frba.arbiter.reports.dto.TimelineGranularity;
 import ar.edu.utn.frba.arbiter.reports.services.FraudSummaries;
 import ar.edu.utn.frba.arbiter.reports.services.ResolutionSummaries;
 
@@ -71,8 +72,12 @@ public final class ReportFixtures {
     /** With an explicit previous period, for the exporters' "vs. período anterior" line. */
     public static ResolutionReport augustReport(List<ResolutionReportRow> rows, String branch,
                                                 String claimCause, ResolutionSummary previousSummary) {
-        return new ResolutionReport(LocalDate.of(2026, 8, 1), LocalDate.of(2026, 8, 31), branch,
-                claimCause, CLOCK.instant(), ResolutionSummaries.of(rows), previousSummary, rows);
+        LocalDate from = LocalDate.of(2026, 8, 1);
+        LocalDate to = LocalDate.of(2026, 8, 31);
+        TimelineGranularity granularity = TimelineGranularity.forPeriod(from, to, rows.size());
+        return new ResolutionReport(from, to, branch, claimCause, CLOCK.instant(),
+                ResolutionSummaries.of(rows), previousSummary, granularity,
+                ResolutionSummaries.timeline(rows, from, to, BUENOS_AIRES, granularity), rows);
     }
 
     /** Flagged on all three signals: a critical band, a repeat claimant and two matched images. */

@@ -219,4 +219,22 @@ class ResolutionReportServiceTest {
         assertThat(file.content()).isEqualTo(pdf);
         verify(csvExporter, never()).export(any());
     }
+
+    /**
+     * The comparison the screen turns into arrows: the period immediately before, of equal length
+     * and under the SAME filters. August compares against July — and a report cut by branch
+     * compares against that branch, not against the whole portfolio, or the direction would come
+     * from a different population than the figure it sits next to.
+     */
+    @Test
+    void generate_comparesAgainstTheEquallyLongPeriodBefore_underTheSameFilters() {
+        given(repository.findBranchName(7L)).willReturn("Celulares");
+
+        service.generate(AUG_1, AUG_31, 7L, "Hurto");
+
+        // August is 31 days, so the comparison window is the 31 days before it: all of July.
+        verify(repository).findResolvedBetween(
+                Instant.parse("2026-07-01T03:00:00Z"), Instant.parse("2026-08-01T03:00:00Z"),
+                7L, "Hurto");
+    }
 }

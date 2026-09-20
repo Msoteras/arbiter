@@ -13,15 +13,19 @@ import java.util.List;
  * one all state the same thing about where the numbers came from. A report that doesn't name its
  * own filters can't be told apart from an unfiltered one.
  *
- * @param from       first day of the period, included
- * @param to         last day of the period, included
+ * @param from            first day of the period, included
+ * @param to              last day of the period, included
  * @param branch          the branch ("ramo") filter, by name; null means every branch
  * @param claimCause      the claim cause ("hecho generador") filter; null means every cause
  * @param summary         the aggregates over {@link #rows()}, never over a different population
- * @param previousSummary the same aggregates over the stretch of equal length immediately before
- *                        this period, under the same filters — what turns a figure into a
- *                        direction. Never null; {@link ResolutionSummary#EMPTY} when that stretch
- *                        had no cases resolved at all
+ * @param previousSummary the same aggregates over the period immediately before this one, of equal
+ *                        length and under the same filters. It's what turns a figure into a
+ *                        direction, the same way the dashboard's {@code previousSummary} does — and
+ *                        it is measured, not estimated: the screen never subtracts anything it
+ *                        wasn't given
+ * @param granularity     how wide each {@link #timeline()} point is; derived from the period, not
+ *                        chosen by the caller
+ * @param timeline        the same resolved cases spread over the period, one point per bucket
  */
 public record ResolutionReport(
         LocalDate from,
@@ -31,5 +35,7 @@ public record ResolutionReport(
         Instant generatedAt,
         ResolutionSummary summary,
         ResolutionSummary previousSummary,
+        TimelineGranularity granularity,
+        List<ResolutionTimelinePoint> timeline,
         List<ResolutionReportRow> rows
 ) {}

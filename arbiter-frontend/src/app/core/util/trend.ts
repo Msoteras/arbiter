@@ -77,3 +77,12 @@ export function trendText(params: TrendParams): string {
       : `${change.direction === good ? 'mejor' : 'peor'} que el período anterior`;
   return `${arrow} ${amount} ${tail}`;
 }
+
+/**
+ * "17 pp" — la diferencia entre dos tasas, en PUNTOS porcentuales y no en porcentaje: pasar de 33%
+ * a 50% es "+17 pp", no "+17%" — eso último se lee como un aumento relativo (que sería del 52%) y
+ * es una afirmación distinta y falsa. El `format` que le pasa cada tasa a {@link trendText}.
+ */
+export function percentagePoints(size: number): string {
+  return `${Math.round(size * 100)} pp`;
+}

@@ -138,7 +138,7 @@ public class FlaggedCaseRepository {
         List<FraudReportRow> rows = entityManager.unwrap(Session.class).doReturningWork(connection ->
                 new NamedParameterJdbcTemplate(new SingleConnectionDataSource(connection, true))
                         .query(sql.toString(), params, (rs, rowNum) -> toRow(rs)));
-        // The WHERE above pushes the same three conditions into the database so a period doesn't
+        // The WHERE above pushes the same two conditions into the database so a period doesn't
         // drag every case into memory. signalsOf is the definition: anything that got through
         // without a signal would be a row the report can't explain, so it doesn't go out.
         return rows.stream().filter(row -> !row.signals().isEmpty()).toList();

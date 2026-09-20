@@ -110,9 +110,9 @@ final class ReportLabels {
     }
 
     /**
-     * The signals of one case, each with the magnitude that makes it actionable — "3 denuncias en
-     * 12 meses" says what to look at, "denuncias repetidas" only says it was flagged. Mirror of
-     * {@code indicators()} in the frontend's fraud-report.ts; keep the two in step.
+     * The signals of one case, each with the magnitude that makes it actionable — "3 imágenes con
+     * coincidencia" says what to look at, "incoherencias forenses" only says it was flagged. Mirror
+     * of {@code indicators()} in the frontend's fraud-report.ts; keep the two in step.
      */
     static String signals(FraudReportRow row) {
         return row.signals().stream().map(signal -> switch (signal) {

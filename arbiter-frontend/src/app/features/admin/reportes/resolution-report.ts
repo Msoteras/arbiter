@@ -1,4 +1,5 @@
 import { isTypedDate } from '../../../core/util/datetime';
+import { percentagePoints, trendText } from '../../../core/util/trend';
 
 /**
  * Mirror of reports-service's ResolutionReportRow. Enums arrive as literals (CaseStatus,
@@ -54,6 +55,27 @@ export interface ResolutionSummary {
   byClaimCause: MetricCount[];
 }
 
+/** Ancho de cada punto de la línea de tiempo. */
+export type TimelineGranularity = 'DAY' | 'WEEK' | 'MONTH';
+
+/**
+ * Un punto de la línea de tiempo: cuánto tardó lo que cerró en ese tramo.
+ *
+ * Dos poblaciones a propósito, y el gráfico dibuja las dos: `resolved` es todo lo que cerró y
+ * `averageMinutes` promedia sólo los decididos — el mismo corte que la tarjeta de arriba, así que
+ * un punto de la línea no puede contradecirla. La barra al lado de la línea es lo que evita que el
+ * promedio mienta por omisión: uno sobre dos expedientes y otro sobre cuarenta se dibujan igual de
+ * alto, y sólo el volumen dice cuál significa algo.
+ */
+export interface ResolutionTimelinePoint {
+  /** Primer día calendario que cubre el punto (ISO), en la zona de la aseguradora. */
+  bucket: string;
+  resolved: number;
+  decided: number;
+  /** Null cuando en el tramo no se decidió ninguno: desconocido, no cero. */
+  averageMinutes: number | null;
+}
+
 export interface ResolutionReport {
   from: string;
   to: string;
@@ -62,8 +84,15 @@ export interface ResolutionReport {
   claimCause: string | null;
   generatedAt: string;
   summary: ResolutionSummary;
-  /** The same aggregates over the equal-length stretch right before this period. */
+  /**
+   * El mismo resumen del período inmediatamente anterior, de igual largo y con los mismos filtros.
+   * Es lo que convierte cada cifra en una dirección, y viene MEDIDO por el backend: la pantalla no
+   * resta nada que no le hayan dado.
+   */
   previousSummary: ResolutionSummary;
+  /** Ancho de cada punto de la línea de tiempo. Lo decide el backend según el largo del período. */
+  granularity: TimelineGranularity;
+  timeline: ResolutionTimelinePoint[];
   rows: ResolutionReportRow[];
 }
 
@@ -158,4 +187,56 @@ export function periodError(from: string, to: string): string | null {
     return 'El período no puede superar un año.';
   }
   return null;
+}
+
+/**
+ * La variación de expedientes resueltos contra el período anterior, sin veredicto: que se cierren
+ * más o menos no es mejor ni peor, es el volumen del período.
+ *
+ * No se le aplica el piso de comparación que sí tienen las tasas: "2 más que el período anterior"
+ * es exacto aunque el período anterior haya tenido tres expedientes. Lo que con base chica se
+ * vuelve ruido es el porcentaje, no la resta.
+ */
+export function resolvedTrend(summary: ResolutionSummary, previous: ResolutionSummary): string {
+  return trendText({
+    current: summary.totalCases,
+    previous: previous.totalCases,
+    format: (size) => `${size}`,
+    good: 'neither',
+  });
+}
+
+/**
+ * La variación de la tasa de Fast Track, en puntos porcentuales y con veredicto: el Fast Track
+ * agiliza, así que más es mejor.
+ *
+ * Se calla cuando el período anterior cerró pocos expedientes (ver {@link DEFAULT_MIN_COMPARISON_BASE}
+ * en `core/util/trend`): con dos casos, pasar de uno a dos es "+50 pp" y eso no es una mejora, es
+ * la aritmética de una base diminuta.
+ */
+export function fastTrackTrend(summary: ResolutionSummary, previous: ResolutionSummary): string {
+  return trendText({
+    current: summary.fastTrackRate,
+    previous: previous.fastTrackRate,
+    format: percentagePoints,
+    good: 'up',
+    base: previous.totalCases,
+  });
+}
+
+/**
+ * La variación del tiempo promedio de resolución, con veredicto: tardar más es peor.
+ *
+ * La base de comparación son los DECIDIDOS del período anterior, la misma población que promedia
+ * la tarjeta — no el total: un período con muchos caducados y pocas decisiones reales tiene un
+ * promedio que un caso mueve fácil.
+ */
+export function resolutionTimeTrend(summary: ResolutionSummary, previous: ResolutionSummary): string {
+  return trendText({
+    current: summary.averageMinutes,
+    previous: previous.averageMinutes,
+    format: formatDuration,
+    good: 'down',
+    base: previous.decidedCases,
+  });
 }
