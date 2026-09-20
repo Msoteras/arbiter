@@ -90,14 +90,15 @@ describe('resolution report helpers', () => {
     expect(fastTrackTrend(current, summaryOf({ totalCases: 6, fastTrackRate: 0.33 }))).toBe(
       '▲ 17 pp mejor que el período anterior',
     );
-    expect(fastTrackTrend(current, summaryOf({ totalCases: 3, fastTrackRate: 0.33 }))).toBe(
-      '',
-    );
+    expect(fastTrackTrend(current, summaryOf({ totalCases: 3, fastTrackRate: 0.33 }))).toBe('');
   });
 
   /** Tardar más es peor: la flecha para arriba acá es mala noticia. */
   it('reads a resolution-time change against the decided population, and hushes over a tiny base', () => {
-    const current = summaryOf({ decidedCases: 6, averageMinutes: 3000 } as Partial<ResolutionSummary>);
+    const current = summaryOf({
+      decidedCases: 6,
+      averageMinutes: 3000,
+    } as Partial<ResolutionSummary>);
 
     expect(
       resolutionTimeTrend(

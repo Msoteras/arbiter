@@ -47,12 +47,10 @@ describe('trendText', () => {
 
   /** Below the minimum base a single case can swing a rate ten points — noise, not a trend. */
   it('says nothing when the previous period is below the minimum base', () => {
-    expect(
-      trendText({ current: 0.5, previous: 0.2, format: count, good: 'up', base: 3 }),
-    ).toBe('');
-    expect(
-      trendText({ current: 0.5, previous: 0.2, format: count, good: 'up', base: 5 }),
-    ).not.toBe('');
+    expect(trendText({ current: 0.5, previous: 0.2, format: count, good: 'up', base: 3 })).toBe('');
+    expect(trendText({ current: 0.5, previous: 0.2, format: count, good: 'up', base: 5 })).not.toBe(
+      '',
+    );
   });
 
   it('lets the caller lower the minimum base', () => {
