@@ -5,8 +5,12 @@ import ar.edu.utn.frba.arbiter.cases.dto.SettlementAuthorityUpsertRequest;
 import ar.edu.utn.frba.arbiter.cases.models.entities.SettlementAuthority;
 import ar.edu.utn.frba.arbiter.cases.models.repositories.BranchRepository;
 import ar.edu.utn.frba.arbiter.cases.models.repositories.SettlementAuthorityRepository;
+import ar.edu.utn.frba.arbiter.cases.models.repositories.UserRepository;
 import ar.edu.utn.frba.arbiter.common.models.entities.Branch;
+import ar.edu.utn.frba.arbiter.common.models.entities.User;
 import lombok.RequiredArgsConstructor;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -29,6 +33,7 @@ public class SettlementAuthorityService {
 
     private final SettlementAuthorityRepository authorityRepository;
     private final BranchRepository branchRepository;
+    private final UserRepository userRepository;
 
     /**
      * One row per branch, including the branches with no ceiling — those come back with a null
@@ -48,7 +53,8 @@ public class SettlementAuthorityService {
                             branch.getId(),
                             branch.getName(),
                             authority == null ? null : authority.getMaxAmount(),
-                            authority == null ? null : authority.getUpdatedAt());
+                            authority == null ? null : authority.getUpdatedAt(),
+                            authority == null ? null : authority.getUpdatedBy());
                 })
                 .toList();
     }
@@ -67,7 +73,19 @@ public class SettlementAuthorityService {
                 () -> SettlementAuthority.builder().branchId(branchId).build());
         authority.setMaxAmount(request.maxAmount());
         authority.setUpdatedAt(Instant.now());
+        authority.setUpdatedBy(currentUserId());
         authorityRepository.save(authority);
+    }
+
+    /** El id del que llama, resuelto contra arbiter_common.users por el mail del JWT. */
+    private Long currentUserId() {
+        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+        if (authentication == null) {
+            return null;
+        }
+        return userRepository.findByEmail(authentication.getName())
+                .map(User::getId)
+                .orElse(null);
     }
 
     /**
