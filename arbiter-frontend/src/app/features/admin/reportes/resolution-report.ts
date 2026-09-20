@@ -231,7 +231,10 @@ export function fastTrackTrend(summary: ResolutionSummary, previous: ResolutionS
  * la tarjeta — no el total: un período con muchos caducados y pocas decisiones reales tiene un
  * promedio que un caso mueve fácil.
  */
-export function resolutionTimeTrend(summary: ResolutionSummary, previous: ResolutionSummary): string {
+export function resolutionTimeTrend(
+  summary: ResolutionSummary,
+  previous: ResolutionSummary,
+): string {
   return trendText({
     current: summary.averageMinutes,
     previous: previous.averageMinutes,
