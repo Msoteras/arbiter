@@ -205,7 +205,7 @@ class ClassificationOrchestratorIntegrationTest extends AbstractPersistenceIT {
                 .product("Celular Protegido Básico")
                 .claimCause("Robo en vía pública")
                 // Without this there's no Fast Track to test: the rules are scoped by coverage
-                // (MockRulesAdapter.RULES_BY_COVERAGE), so a claim with no coverageId falls to the
+                // (BaselineRulesAdapter.RULES_BY_COVERAGE), so a claim with no coverageId falls to the
                 // generic ones, which carry no thresholds — the case ended up at the LLM and the
                 // unstubbed mock returned null (D18). Coverage 1 = "Robo de celular", this claim's
                 // claim cause.

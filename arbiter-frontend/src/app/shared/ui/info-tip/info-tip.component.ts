@@ -44,12 +44,18 @@ import { OverlayPosition, anchorToTrigger } from '../overlay-position';
           [style.bottom.px]="pos().bottom"
           [style.left.px]="pos().left"
           [style.right.px]="pos().right"
-        ><ng-content /></span>
+          ><ng-content
+        /></span>
       }
     </span>
   `,
   styles: `
-    .info-tip { position: relative; display: inline-flex; vertical-align: middle; margin-left: var(--space-1); }
+    .info-tip {
+      position: relative;
+      display: inline-flex;
+      vertical-align: middle;
+      margin-left: var(--space-1);
+    }
     .trigger {
       display: inline-flex;
       align-items: center;
@@ -63,14 +69,29 @@ import { OverlayPosition, anchorToTrigger } from '../overlay-position';
       color: var(--text-muted);
       cursor: pointer;
     }
-    .trigger:hover, .trigger[aria-expanded='true'] { color: var(--text-secondary); }
-    .trigger:focus-visible { outline: none; box-shadow: var(--focus-ring); }
-    .trigger svg { width: 15px; height: 15px; }
+    .trigger:hover,
+    .trigger[aria-expanded='true'] {
+      color: var(--text-secondary);
+    }
+    .trigger:focus-visible {
+      outline: none;
+      box-shadow: var(--focus-ring);
+    }
+    .trigger svg {
+      width: 15px;
+      height: 15px;
+    }
 
     .bubble {
       position: fixed;
       z-index: 50;
       width: max-content;
+      /* La burbuja es prosa y se lee sola: no hereda el tratamiento del texto al que acompaña.
+         Sin esto, adentro de una etiqueta de app-stat-tile salía entera en mayúsculas y con el
+         tracking de la etiqueta. */
+      text-transform: none;
+      letter-spacing: normal;
+      text-align: left;
       /* min() y no un ancho fijo: en mobile 260px se sale de pantalla anclado a la izquierda. */
       max-width: min(280px, calc(100vw - var(--space-4) * 2));
       padding: var(--space-2) var(--space-3);
@@ -109,9 +130,7 @@ export class InfoTipComponent {
       // siempre a la izquierda, un tip del lado derecho se iba de pantalla — el mismo problema
       // que arriba, espejado.
       const align = trigger.left > document.documentElement.clientWidth / 2 ? 'end' : 'start';
-      this.pos.set(
-        anchorToTrigger(trigger, InfoTipComponent.ESTIMATED_HEIGHT, align),
-      );
+      this.pos.set(anchorToTrigger(trigger, InfoTipComponent.ESTIMATED_HEIGHT, align));
     }
     this.open.update((v) => !v);
   }

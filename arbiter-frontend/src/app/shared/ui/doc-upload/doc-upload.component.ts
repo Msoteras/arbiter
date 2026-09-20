@@ -1,4 +1,13 @@
-import { ChangeDetectionStrategy, Component, computed, effect, inject, input, output, signal } from '@angular/core';
+import {
+  ChangeDetectionStrategy,
+  Component,
+  computed,
+  effect,
+  inject,
+  input,
+  output,
+  signal,
+} from '@angular/core';
 import { toObservable, toSignal } from '@angular/core/rxjs-interop';
 import { catchError, map, of, startWith, switchMap } from 'rxjs';
 
@@ -38,8 +47,8 @@ type FetchState<T> = { status: 'loading' } | { status: 'ok'; value: T };
       <app-inline-loading message="Revisando qué documentación falta…" />
     } @else {
       <p class="muted">
-        La evaluación indica que faltan documentos requeridos. Subí la documentación
-        faltante para que el caso se vuelva a evaluar.
+        La evaluación indica que faltan documentos requeridos. Subí la documentación faltante para
+        que el caso se vuelva a evaluar.
       </p>
       <p class="hint">JPG, PNG o PDF · hasta 10 MB por archivo</p>
 
@@ -49,7 +58,8 @@ type FetchState<T> = { status: 'loading' } | { status: 'ok'; value: T };
           [class.dragover]="dragOverIndex() === i"
           (dragover)="onDragOver($event, i)"
           (dragleave)="onDragLeave()"
-          (drop)="onDrop($event, i)">
+          (drop)="onDrop($event, i)"
+        >
           <span class="doc-row-label">{{ slot.label }}</span>
           @if (slot.file) {
             <div class="doc-row-file">
@@ -72,15 +82,26 @@ type FetchState<T> = { status: 'loading' } | { status: 'ok'; value: T };
       <app-button
         class="submit-btn"
         [disabled]="selectedCount() === 0 || uploading()"
-        (click)="submit()">
+        (click)="submit()"
+      >
         {{ uploading() ? 'Enviando…' : 'Enviar documentación' }}
       </app-button>
     }
   `,
   styles: `
-    :host { display: block; }
-    .muted { margin: 0 0 var(--space-2); color: var(--text-muted); font-size: var(--font-size-body); }
-    .hint { margin: 0 0 var(--space-3); color: var(--text-muted); font-size: var(--font-size-sm); }
+    :host {
+      display: block;
+    }
+    .muted {
+      margin: 0 0 var(--space-2);
+      color: var(--text-muted);
+      font-size: var(--font-size-body);
+    }
+    .hint {
+      margin: 0 0 var(--space-3);
+      color: var(--text-muted);
+      font-size: var(--font-size-sm);
+    }
     .doc-row {
       display: flex;
       align-items: flex-start;
@@ -91,12 +112,26 @@ type FetchState<T> = { status: 'loading' } | { status: 'ok'; value: T };
       border-radius: var(--radius-ctl);
       transition: background-color 0.1s;
     }
-    .doc-row.dragover { background: var(--surface-sunken); }
-    .doc-row-label { font-size: var(--font-size-body); color: var(--text-secondary); }
+    .doc-row.dragover {
+      background: var(--surface-sunken);
+    }
+    .doc-row-label {
+      font-size: var(--font-size-body);
+      color: var(--text-secondary);
+    }
     /* La miniatura crece hasta ocupar el ancho libre: al expandirla, la vista previa
        necesita todo el espacio de la fila. */
-    .doc-row-file { display: flex; align-items: flex-start; gap: var(--space-2); flex: 1; min-width: 0; }
-    .doc-row-file app-file-preview { flex: 1; min-width: 0; }
+    .doc-row-file {
+      display: flex;
+      align-items: flex-start;
+      gap: var(--space-2);
+      flex: 1;
+      min-width: 0;
+    }
+    .doc-row-file app-file-preview {
+      flex: 1;
+      min-width: 0;
+    }
     .doc-row-remove {
       border: none;
       background: none;
@@ -105,7 +140,9 @@ type FetchState<T> = { status: 'loading' } | { status: 'ok'; value: T };
       font-size: var(--font-size-sm);
       padding: 2px 6px;
     }
-    .doc-row-remove:hover { color: var(--text-primary); }
+    .doc-row-remove:hover {
+      color: var(--text-primary);
+    }
     .doc-row-upload {
       font-size: var(--font-size-sm);
       border: 1px solid var(--border-control);
@@ -115,9 +152,18 @@ type FetchState<T> = { status: 'loading' } | { status: 'ok'; value: T };
       color: var(--text-tertiary);
       background: var(--surface);
     }
-    .doc-row-upload:hover { background: var(--surface-sunken); }
-    .upload-error { color: var(--status-danger); font-size: var(--font-size-sm); margin: var(--space-2) 0 0; }
-    .submit-btn { display: inline-block; margin-top: var(--space-3); }
+    .doc-row-upload:hover {
+      background: var(--surface-sunken);
+    }
+    .upload-error {
+      color: var(--status-danger);
+      font-size: var(--font-size-sm);
+      margin: var(--space-2) 0 0;
+    }
+    .submit-btn {
+      display: inline-block;
+      margin-top: var(--space-3);
+    }
   `,
 })
 export class DocUploadComponent {
@@ -168,7 +214,10 @@ export class DocUploadComponent {
     toObservable(computed(() => ({ caseId: this.caseId(), insurerSlug: this.insurerSlug() }))).pipe(
       switchMap(({ caseId, insurerSlug }) =>
         this.service.listDocuments(caseId, insurerSlug).pipe(
-          map((docs): FetchState<Set<string>> => ({ status: 'ok', value: new Set(docs.map((d) => d.type)) })),
+          map((docs): FetchState<Set<string>> => ({
+            status: 'ok',
+            value: new Set(docs.map((d) => d.type)),
+          })),
           catchError(() => of<FetchState<Set<string>>>({ status: 'ok', value: new Set() })),
           startWith<FetchState<Set<string>>>({ status: 'loading' }),
         ),

@@ -10,9 +10,7 @@ import { PolicyCardComponent } from '../../../shared/ui/policy-card/policy-card.
 import { PolicyService } from '../../expedientes/policy.service';
 
 type PoliciesState =
-  | { status: 'loading' }
-  | { status: 'ok'; policies: Policy[] }
-  | { status: 'error' };
+  { status: 'loading' } | { status: 'ok'; policies: Policy[] } | { status: 'error' };
 
 /**
  * "Mis pólizas" del asegurado, en solo lectura.

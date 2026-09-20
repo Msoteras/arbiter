@@ -10,7 +10,16 @@ import {
 import { toObservable, toSignal } from '@angular/core/rxjs-interop';
 import { ActivatedRoute, RouterLink } from '@angular/router';
 import { HttpErrorResponse } from '@angular/common/http';
-import { catchError, combineLatest, finalize, map, Observable, of, startWith, switchMap } from 'rxjs';
+import {
+  catchError,
+  combineLatest,
+  finalize,
+  map,
+  Observable,
+  of,
+  startWith,
+  switchMap,
+} from 'rxjs';
 
 import { ExpedienteService, AnalystDecisionRequest, Settlement } from '../expediente.service';
 import { DocumentAgendaService } from '../document-agenda.service';
@@ -96,7 +105,10 @@ import { ModalComponent } from '../../../shared/ui/modal/modal.component';
 import { SelectComponent, SelectOption } from '../../../shared/ui/select/select.component';
 import { InputComponent } from '../../../shared/ui/input/input.component';
 import { TextareaComponent } from '../../../shared/ui/textarea/textarea.component';
-import { MenuButtonComponent, MenuItem } from '../../../shared/ui/menu-button/menu-button.component';
+import {
+  MenuButtonComponent,
+  MenuItem,
+} from '../../../shared/ui/menu-button/menu-button.component';
 import { InlineLoadingComponent } from '../../../shared/ui/inline-loading/inline-loading.component';
 import { fadeInUp, staggerReveal, tabSwitch } from '../../../shared/animations';
 
@@ -119,10 +131,18 @@ type TabId =
 type Verb = 'aprobar' | 'rechazar';
 
 /** value=null → la sección muestra "Sin datos" (el backend no provee este campo). */
-interface FieldItem { label: string; value: string | null; mono?: boolean; full?: boolean; }
+interface FieldItem {
+  label: string;
+  value: string | null;
+  mono?: boolean;
+  full?: boolean;
+}
 
 /** A signal worth reading before deciding, and the tab where its evidence lives. */
-interface BriefAlert { label: string; tab: TabId; }
+interface BriefAlert {
+  label: string;
+  tab: TabId;
+}
 
 @Component({
   selector: 'app-expediente-detail',
@@ -396,9 +416,15 @@ export class ExpedienteDetailComponent {
       // resto de las filas usa para mostrar "Sin datos" (D16).
       { label: 'PEP (declarativo)', value: d ? (d.pep ? 'Sí' : 'No') : null },
       { label: 'Bien asegurado', value: d?.insuredItem ?? null },
-      { label: 'Importe reclamado', value: d?.claimedAmount ? `$${d.claimedAmount.toLocaleString()}` : null },
+      {
+        label: 'Importe reclamado',
+        value: d?.claimedAmount ? `$${d.claimedAmount.toLocaleString()}` : null,
+      },
       { label: 'Fecha de denuncia', value: d?.createdAt ? formatDateTime(d.createdAt) : null },
-      { label: 'Fecha y hora de ocurrencia', value: d?.eventDate ? formatDateTime(d.eventDate) : null },
+      {
+        label: 'Fecha y hora de ocurrencia',
+        value: d?.eventDate ? formatDateTime(d.eventDate) : null,
+      },
       { label: 'Causa', value: d?.claimCause ?? null },
       { label: 'Ubicación', value: d?.eventLocation ?? null, full: true },
       { label: 'Descripción', value: d?.description ?? null, full: true },
@@ -448,8 +474,10 @@ export class ExpedienteDetailComponent {
       return 'No se pudieron leer las reglas evaluadas. Volvé a intentar en unos minutos.';
     }
     if (this.needsDocs()) {
-      return 'Todavía no se evaluaron: el expediente está esperando documentación obligatoria. '
-        + 'Se evalúan cuando se complete y vuelva a clasificarse.';
+      return (
+        'Todavía no se evaluaron: el expediente está esperando documentación obligatoria. ' +
+        'Se evalúan cuando se complete y vuelva a clasificarse.'
+      );
     }
     return 'No hay reglas duras activas para esta cobertura.';
   });
@@ -525,9 +553,7 @@ export class ExpedienteDetailComponent {
   }
 
   protected togglePoliza(p: Policy): void {
-    this.polizaAbierta.update((abierta) =>
-      abierta === p.policyNumber ? null : p.policyNumber,
-    );
+    this.polizaAbierta.update((abierta) => (abierta === p.policyNumber ? null : p.policyNumber));
   }
 
   /**
@@ -549,7 +575,10 @@ export class ExpedienteDetailComponent {
               label: 'Vigencia al momento del hecho',
               value: s ? (s.inForce ? 'Vigente' : 'No vigente') : null,
             },
-            { label: 'Estado de pago', value: s ? (s.paymentsUpToDate ? 'Al día' : 'En mora') : null },
+            {
+              label: 'Estado de pago',
+              value: s ? (s.paymentsUpToDate ? 'Al día' : 'En mora') : null,
+            },
           ],
         },
         {
@@ -685,13 +714,18 @@ export class ExpedienteDetailComponent {
     'pending' | 'approved' | 'rejected' | 'lapsed' | 'not-ready'
   >(() => {
     switch (this.data()?.status) {
-      case 'APPROVED': return 'approved';
-      case 'REJECTED': return 'rejected';
+      case 'APPROVED':
+        return 'approved';
+      case 'REJECTED':
+        return 'rejected';
       // Terminal pero sin decisión detrás: lo cerró el sistema por inacción del asegurado. En
       // 'not-ready' la card decía "Sin clasificación disponible todavía", que es falso.
-      case 'LAPSED': return 'lapsed';
-      case 'PENDING_ANALYST_REVIEW': return 'pending';
-      default: return 'not-ready';
+      case 'LAPSED':
+        return 'lapsed';
+      case 'PENDING_ANALYST_REVIEW':
+        return 'pending';
+      default:
+        return 'not-ready';
     }
   });
 
@@ -712,9 +746,10 @@ export class ExpedienteDetailComponent {
       : 'Justificar decisión: Rechazar',
   );
 
-  protected readonly confirmDisabled = computed(() =>
-    !this.justification().trim() ||
-    (this.pendingDecision() === 'aprobar' && this.approvalBlockedReason() !== null),
+  protected readonly confirmDisabled = computed(
+    () =>
+      !this.justification().trim() ||
+      (this.pendingDecision() === 'aprobar' && this.approvalBlockedReason() !== null),
   );
 
   askDecision(v: Verb): void {
@@ -820,9 +855,7 @@ export class ExpedienteDetailComponent {
   );
 
   /** El referente la devolvió: vuelve a estar en manos del analista, con un motivo para corregir. */
-  protected readonly liquidacionDevuelta = computed(
-    () => this.settlement()?.status === 'RETURNED',
-  );
+  protected readonly liquidacionDevuelta = computed(() => this.settlement()?.status === 'RETURNED');
 
   /**
    * Este monto va a necesitar la firma del referente. Se calcula sobre la propuesta, antes de
@@ -1191,22 +1224,26 @@ export class ExpedienteDetailComponent {
     // Nombra el peritaje como las otras dos variantes. Desde que existe el botón de servicio
     // técnico justo debajo, un mensaje que dice "no se puede derivar" a secas se lee como si
     // tampoco se pudiera mandar al taller — y al taller no lo frena el monto reclamado.
-    return `El monto reclamado no alcanza el mínimo para derivar a peritaje `
-        + `(${this.formatMonto(options.minClaimedAmount)}).`;
+    return (
+      `El monto reclamado no alcanza el mínimo para derivar a peritaje ` +
+      `(${this.formatMonto(options.minClaimedAmount)}).`
+    );
   });
 
   protected readonly tipoDerivacion = signal<ProviderType>('ESTUDIO_LIQUIDADOR');
   protected readonly esReparacion = computed(() => this.tipoDerivacion() === 'SERVICIO_TECNICO');
 
   protected readonly peritoOptions = computed<SelectOption[]>(() =>
-    ((this.esReparacion() ? this.repairOptions() : this.derivationOptions())?.firms ?? []).map((firm) => ({
-      value: String(firm.id),
-      // El ramo distingue al especialista del generalista, y la zona importa porque para peritar
-      // un equipo hay que tenerlo delante.
-      label: [firm.name, firm.branchName ?? 'todos los ramos', firm.zone]
-        .filter(Boolean)
-        .join(' · '),
-    })),
+    ((this.esReparacion() ? this.repairOptions() : this.derivationOptions())?.firms ?? []).map(
+      (firm) => ({
+        value: String(firm.id),
+        // El ramo distingue al especialista del generalista, y la zona importa porque para peritar
+        // un equipo hay que tenerlo delante.
+        label: [firm.name, firm.branchName ?? 'todos los ramos', firm.zone]
+          .filter(Boolean)
+          .join(' · '),
+      }),
+    ),
   );
 
   protected readonly showDerivar = signal(false);
@@ -1267,7 +1304,9 @@ export class ExpedienteDetailComponent {
   // ----- carga del informe del perito o de la respuesta del servicio técnico -----
   protected readonly showInforme = signal(false);
   protected readonly informeTipo = signal<ProviderType>('ESTUDIO_LIQUIDADOR');
-  protected readonly informeEsReparacion = computed(() => this.informeTipo() === 'SERVICIO_TECNICO');
+  protected readonly informeEsReparacion = computed(
+    () => this.informeTipo() === 'SERVICIO_TECNICO',
+  );
   protected readonly repairOutcomeOptions: SelectOption[] = REPAIR_OUTCOME_OPTIONS;
   protected readonly veredicto = signal('');
   protected readonly notaVeredicto = signal('');
@@ -1318,9 +1357,10 @@ export class ExpedienteDetailComponent {
    * campo va siempre, porque cualquier veredicto puede traer monto.
    */
   protected readonly pideMontoDelInforme = computed(
-    () => !this.informeEsReparacion()
-        || this.veredicto() === 'QUOTE_SENT'
-        || this.veredicto() === 'REPAIRED',
+    () =>
+      !this.informeEsReparacion() ||
+      this.veredicto() === 'QUOTE_SENT' ||
+      this.veredicto() === 'REPAIRED',
   );
 
   /** Ya lo arregló y lo cobró: el importe es la factura, no un presupuesto de algo por hacer. */
@@ -1369,7 +1409,13 @@ export class ExpedienteDetailComponent {
     const note = this.notaVeredicto().trim();
     const monto = this.montoInformeNumero();
     const request = this.informeEsReparacion()
-      ? this.service.cargarRespuestaServicioTecnico(d.id, result as RepairOutcome, note, monto, file)
+      ? this.service.cargarRespuestaServicioTecnico(
+          d.id,
+          result as RepairOutcome,
+          note,
+          monto,
+          file,
+        )
       : this.service.cargarInformePericial(d.id, result as ExpertVerdict, note, monto, file);
     request.subscribe({
       next: () => {
@@ -1617,9 +1663,7 @@ export class ExpedienteDetailComponent {
    * Decidir, reintentar y cargar el informe de peritaje son del analista. El referente no decide
    * (decisión #5 de CLAUDE.md, y el backend lo rechaza con 403 al resolverlo contra claims_analyst).
    */
-  protected readonly canAct = computed(
-    () => this.session.session()?.rol === 'ANALISTA_SINIESTROS',
-  );
+  protected readonly canAct = computed(() => this.session.session()?.rol === 'ANALISTA_SINIESTROS');
 
   /**
    * Mover el expediente sin resolverlo: asignar, reasignar, destrabar una clasificación fallida y
@@ -1757,8 +1801,8 @@ export class ExpedienteDetailComponent {
   // ----- documentación faltante (FALTA_DOCUMENTACION), SOLO LECTURA para el analista -----
   // El analista no sube documentos: la carga es exclusiva del asegurado desde su portal. Acá
   // solo se le listan los tipos requeridos que todavía no se cargaron.
-  protected readonly needsDocs = computed(() =>
-    this.data()?.analysisClassification === 'FALTA_DOCUMENTACION'
+  protected readonly needsDocs = computed(
+    () => this.data()?.analysisClassification === 'FALTA_DOCUMENTACION',
   );
 
   /**
@@ -1769,7 +1813,7 @@ export class ExpedienteDetailComponent {
   protected readonly decisionCardHeading = computed(() =>
     this.decisionState() === 'not-ready' && this.needsDocs() && !this.derivado() && !this.isFailed()
       ? 'Estado del expediente'
-      : 'Decisión del analista'
+      : 'Decisión del analista',
   );
 
   /** La agenda documental es otra llamada al backend: se refresca con el mismo trigger. */
@@ -1811,9 +1855,16 @@ export class ExpedienteDetailComponent {
    * catálogo completo.
    */
   private readonly requiredDocTypes = toSignal(
-    toObservable(computed(() => ({ branch: this.data()?.branch ?? null, claimCause: this.data()?.claimCause ?? null }))).pipe(
+    toObservable(
+      computed(() => ({
+        branch: this.data()?.branch ?? null,
+        claimCause: this.data()?.claimCause ?? null,
+      })),
+    ).pipe(
       switchMap(({ branch, claimCause }) =>
-        branch && claimCause ? this.agenda.slotsForBranch(branch, claimCause) : of(CASE_DOCUMENT_TYPES),
+        branch && claimCause
+          ? this.agenda.slotsForBranch(branch, claimCause)
+          : of(CASE_DOCUMENT_TYPES),
       ),
     ),
     { initialValue: CASE_DOCUMENT_TYPES as readonly CaseDocumentType[] },
@@ -1822,6 +1873,8 @@ export class ExpedienteDetailComponent {
   /** Tipos requeridos que todavía no se cargaron — lo que el analista ve como "falta". */
   protected readonly missingDocLabels = computed(() => {
     const present = new Set(this.documents().map((d) => d.type));
-    return this.requiredDocTypes().filter((t) => !present.has(t.type)).map((t) => t.label);
+    return this.requiredDocTypes()
+      .filter((t) => !present.has(t.type))
+      .map((t) => t.label);
   });
 }

@@ -15,9 +15,19 @@ import { ToastService } from './toast.service';
       @for (t of service.toasts(); track t.id) {
         <div class="toast" [class]="'tone-' + t.tone" role="alert">
           <span class="msg">{{ t.message }}</span>
-          <button type="button" class="dismiss" (click)="service.dismiss(t.id)" aria-label="Cerrar aviso">
+          <button
+            type="button"
+            class="dismiss"
+            (click)="service.dismiss(t.id)"
+            aria-label="Cerrar aviso"
+          >
             <svg viewBox="0 0 16 16" fill="none" aria-hidden="true">
-              <path d="M4 4l8 8M12 4l-8 8" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" />
+              <path
+                d="M4 4l8 8M12 4l-8 8"
+                stroke="currentColor"
+                stroke-width="1.4"
+                stroke-linecap="round"
+              />
             </svg>
           </button>
         </div>
@@ -46,9 +56,15 @@ import { ToastService } from './toast.service';
       background: var(--surface-head);
       box-shadow: var(--shadow-pop);
     }
-    .toast.tone-ok { border-left-color: var(--status-ok); }
-    .toast.tone-warning { border-left-color: var(--status-warning); }
-    .toast.tone-danger { border-left-color: var(--status-danger); }
+    .toast.tone-ok {
+      border-left-color: var(--status-ok);
+    }
+    .toast.tone-warning {
+      border-left-color: var(--status-warning);
+    }
+    .toast.tone-danger {
+      border-left-color: var(--status-danger);
+    }
     .msg {
       flex: 1 1 auto;
       color: var(--text-primary);
@@ -64,9 +80,18 @@ import { ToastService } from './toast.service';
       color: var(--text-muted);
       cursor: pointer;
     }
-    .dismiss:hover { color: var(--text-secondary); }
-    .dismiss:focus-visible { outline: none; box-shadow: var(--focus-ring); border-radius: var(--radius-ctl); }
-    .dismiss svg { width: 14px; height: 14px; }
+    .dismiss:hover {
+      color: var(--text-secondary);
+    }
+    .dismiss:focus-visible {
+      outline: none;
+      box-shadow: var(--focus-ring);
+      border-radius: var(--radius-ctl);
+    }
+    .dismiss svg {
+      width: 14px;
+      height: 14px;
+    }
   `,
 })
 export class ToastStackComponent {

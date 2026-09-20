@@ -155,9 +155,7 @@ export class BandejaComponent {
     if (this.isReferente()) {
       this.service.analystWorkload().subscribe({
         next: (team) =>
-          this.analystOptions.set(
-            team.map((a) => ({ value: String(a.analystId), label: a.name })),
-          ),
+          this.analystOptions.set(team.map((a) => ({ value: String(a.analystId), label: a.name }))),
         error: () => {
           /* mismo criterio que arriba: sin opciones, sin romper */
         },
@@ -341,11 +339,13 @@ export class BandejaComponent {
       })),
     ).pipe(
       switchMap(({ filters }) =>
-        this.service.lensSummary(filters).pipe(
-          catchError(() =>
-            of({ mine: 0, all: 0, assigned: 0, unassigned: 0, fraud: 0, open: 0, closed: 0 }),
+        this.service
+          .lensSummary(filters)
+          .pipe(
+            catchError(() =>
+              of({ mine: 0, all: 0, assigned: 0, unassigned: 0, fraud: 0, open: 0, closed: 0 }),
+            ),
           ),
-        ),
       ),
     ),
     { initialValue: { mine: 0, all: 0, assigned: 0, unassigned: 0, fraud: 0, open: 0, closed: 0 } },
@@ -529,7 +529,10 @@ export class BandejaComponent {
     if (this.claimCauseFilter())
       chips.push({ key: 'claimCause', label: `Tipo: ${this.claimCauseFilter()}` });
     if (this.riskBandFilter())
-      chips.push({ key: 'riskBand', label: `Fraude: ${this.riskBandLabel(this.riskBandFilter())}` });
+      chips.push({
+        key: 'riskBand',
+        label: `Fraude: ${this.riskBandLabel(this.riskBandFilter())}`,
+      });
     if (this.analystFilter())
       chips.push({ key: 'analyst', label: `Analista: ${this.analystName(this.analystFilter())}` });
     if (this.eventDateFrom())
@@ -541,12 +544,24 @@ export class BandejaComponent {
 
   protected removeChip(key: string): void {
     switch (key) {
-      case 'status': this.statusFilter.set(''); break;
-      case 'claimCause': this.claimCauseFilter.set(''); break;
-      case 'riskBand': this.riskBandFilter.set(''); break;
-      case 'analyst': this.analystFilter.set(''); break;
-      case 'dateFrom': this.eventDateFrom.set(''); break;
-      case 'dateTo': this.eventDateTo.set(''); break;
+      case 'status':
+        this.statusFilter.set('');
+        break;
+      case 'claimCause':
+        this.claimCauseFilter.set('');
+        break;
+      case 'riskBand':
+        this.riskBandFilter.set('');
+        break;
+      case 'analyst':
+        this.analystFilter.set('');
+        break;
+      case 'dateFrom':
+        this.eventDateFrom.set('');
+        break;
+      case 'dateTo':
+        this.eventDateTo.set('');
+        break;
     }
     this.page.set(0);
   }

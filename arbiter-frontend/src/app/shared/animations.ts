@@ -20,6 +20,13 @@ import { animate, query, stagger, style, transition, trigger } from '@angular/an
  * detrás del otro. Pensada para el contenido de una pantalla ni bien termina de cargar (ej. el
  * saludo, las tarjetas y las columnas del inicio). Se dispara al montarse el contenedor ({@code
  * :enter}).
+ *
+ * Termina en {@code transform: 'none'} y NO en {@code translateY(0)}, igual que {@code listStagger}
+ * y {@code tabSwitch}: el runtime deja aplicado el estilo final, y un {@code transform} —aunque sea
+ * cero— convierte al elemento en el bloque contenedor de todo {@code position: fixed} que tenga
+ * adentro. Con {@code translateY(0)}, las burbujas de {@code app-info-tip} y los paneles de los
+ * selects (que se posicionan en coordenadas de viewport, ver {@code anchorToTrigger}) aparecían
+ * corridos o de ancho cero, anclados a la tarjeta en vez de a la pantalla.
  */
 export const staggerReveal = trigger('staggerReveal', [
   transition(':enter', [
@@ -27,18 +34,21 @@ export const staggerReveal = trigger('staggerReveal', [
       ':scope > *',
       [
         style({ opacity: 0, transform: 'translateY(10px)' }),
-        stagger(70, [animate('420ms ease-out', style({ opacity: 1, transform: 'translateY(0)' }))]),
+        stagger(70, [animate('420ms ease-out', style({ opacity: 1, transform: 'none' }))]),
       ],
       { optional: true },
     ),
   ]),
 ]);
 
-/** Aparición simple (fade + leve subida) para un bloque suelto, sin escalonar hijos. */
+/**
+ * Aparición simple (fade + leve subida) para un bloque suelto, sin escalonar hijos. Termina en
+ * {@code transform: 'none'} por lo mismo que {@link staggerReveal}.
+ */
 export const fadeInUp = trigger('fadeInUp', [
   transition(':enter', [
     style({ opacity: 0, transform: 'translateY(8px)' }),
-    animate('320ms ease-out', style({ opacity: 1, transform: 'translateY(0)' })),
+    animate('320ms ease-out', style({ opacity: 1, transform: 'none' })),
   ]),
 ]);
 
@@ -74,10 +84,7 @@ export const fadeStagger = trigger('fadeStagger', [
   transition(':enter', [
     query(
       ':scope > *',
-      [
-        style({ opacity: 0 }),
-        stagger(40, [animate('260ms ease-out', style({ opacity: 1 }))]),
-      ],
+      [style({ opacity: 0 }), stagger(40, [animate('260ms ease-out', style({ opacity: 1 }))])],
       { optional: true },
     ),
   ]),

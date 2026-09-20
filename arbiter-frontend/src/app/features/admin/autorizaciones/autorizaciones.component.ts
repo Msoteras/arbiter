@@ -2,10 +2,7 @@ import { HttpErrorResponse } from '@angular/common/http';
 import { ChangeDetectionStrategy, Component, inject, signal } from '@angular/core';
 import { RouterLink } from '@angular/router';
 
-import {
-  PendingSettlement,
-  SettlementAuthoritiesService,
-} from '../settlement-authorities.service';
+import { PendingSettlement, SettlementAuthoritiesService } from '../settlement-authorities.service';
 import { BadgeComponent } from '../../../shared/ui/badge/badge.component';
 import { ButtonComponent } from '../../../shared/ui/button/button.component';
 import { CardComponent } from '../../../shared/ui/card/card.component';

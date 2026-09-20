@@ -352,7 +352,18 @@ verificó este siniestro no cambie si se edita el catálogo (mismo criterio que 
 | `report_document_id` | BIGINT | sí | FK → `case_documents.id` | `documento_informe_id` |
 | `case_id` | BIGINT | no | FK → `cases.id`; UNIQUE (una derivación por expediente) | `expediente_id` |
 
-**Acción:** agregar las dos.
+**Actualización 19/09/2026, al construir la métrica "respuesta de terceros" del tablero del
+referente** (`ClaimMetricsRepository`, agrupa por `ea.provider_type`): el UNIQUE de `case_id` de
+arriba ya no vale. `db/migrations/2026-09-11-derivacion-a-reparacion.sql` lo cambió a
+`UNIQUE (case_id, provider_type)` — un expediente puede tener **hasta dos** filas de
+`expert_assessment`, una por perito (`ESTUDIO_LIQUIDADOR`) y otra por servicio técnico
+(`SERVICIO_TECNICO`), porque un peritaje que descarta fraude puede derivar después a reparación. La
+métrica del referente separa "peritaje" de "servicio técnico" agrupando por esa columna, así que
+necesita la relación `expediente 0..1—0..2 peritaje` en vez de la 1—1 documentada arriba.
+
+**Acción:** agregar las dos, con `case_id` como FK simple (no UNIQUE) y el UNIQUE compuesto
+`(case_id, provider_type)` en su lugar. `provider_type` y `repair_outcome` van con la entrada de
+`expert_assessment.repair_cost` más abajo, que ya los tiene listados.
 
 ---
 

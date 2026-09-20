@@ -47,7 +47,9 @@ const PROXIMO_PASO_ANALISTA: Partial<Record<CaseStatus, string>> = {
         <li
           class="step"
           [class.current]="last && !hasNextStep()"
-          [attr.data-tone]="last && !hasNextStep() && currentTone() !== 'neutral' ? currentTone() : null"
+          [attr.data-tone]="
+            last && !hasNextStep() && currentTone() !== 'neutral' ? currentTone() : null
+          "
         >
           <span class="marker" aria-hidden="true"></span>
           <div class="body">
@@ -63,7 +65,9 @@ const PROXIMO_PASO_ANALISTA: Partial<Record<CaseStatus, string>> = {
                   <span class="arrow" aria-hidden="true">→</span>
                 }
                 @if (last && !hasNextStep()) {
-                  <app-badge variant="strong" [tone]="currentTone()">{{ estado(h.toStatus) }}</app-badge>
+                  <app-badge variant="strong" [tone]="currentTone()">{{
+                    estado(h.toStatus)
+                  }}</app-badge>
                 } @else {
                   <app-badge>{{ estado(h.toStatus) }}</app-badge>
                 }
@@ -91,9 +95,18 @@ const PROXIMO_PASO_ANALISTA: Partial<Record<CaseStatus, string>> = {
     }
   `,
   styles: `
-    :host { display: block; }
-    .timeline { list-style: none; margin: 0; padding: 0; }
-    .step { position: relative; padding: 0 0 var(--space-4) var(--space-5); }
+    :host {
+      display: block;
+    }
+    .timeline {
+      list-style: none;
+      margin: 0;
+      padding: 0;
+    }
+    .step {
+      position: relative;
+      padding: 0 0 var(--space-4) var(--space-5);
+    }
     /* Línea que conecta los hitos */
     .step:not(:last-child)::before {
       content: '';
@@ -114,20 +127,60 @@ const PROXIMO_PASO_ANALISTA: Partial<Record<CaseStatus, string>> = {
       background: var(--surface);
       border: 2px solid var(--border-strong);
     }
-    .step.current .marker { background: var(--accent); border-color: var(--accent); }
+    .step.current .marker {
+      background: var(--accent);
+      border-color: var(--accent);
+    }
     /* El hito actual toma el color de semáforo del estado (resolución/curso). */
-    .step.current[data-tone='ok'] .marker { background: var(--status-ok); border-color: var(--status-ok); }
-    .step.current[data-tone='warning'] .marker { background: var(--status-warning); border-color: var(--status-warning); }
-    .step.current[data-tone='danger'] .marker { background: var(--status-danger); border-color: var(--status-danger); }
-    .step.current[data-tone='info'] .marker { background: var(--status-info); border-color: var(--status-info); }
-    .step.next .marker { border-style: dashed; border-color: var(--text-muted); }
-    .step.next::before { display: none; }
+    .step.current[data-tone='ok'] .marker {
+      background: var(--status-ok);
+      border-color: var(--status-ok);
+    }
+    .step.current[data-tone='warning'] .marker {
+      background: var(--status-warning);
+      border-color: var(--status-warning);
+    }
+    .step.current[data-tone='danger'] .marker {
+      background: var(--status-danger);
+      border-color: var(--status-danger);
+    }
+    .step.current[data-tone='info'] .marker {
+      background: var(--status-info);
+      border-color: var(--status-info);
+    }
+    .step.next .marker {
+      border-style: dashed;
+      border-color: var(--text-muted);
+    }
+    .step.next::before {
+      display: none;
+    }
 
-    .when { font-size: var(--font-size-xs); color: var(--text-muted); margin-bottom: 3px; }
-    .transition { display: flex; align-items: center; gap: var(--space-2); flex-wrap: wrap; }
-    .from { font-size: var(--font-size-sm); color: var(--text-muted); }
-    .arrow { color: var(--text-muted); }
-    .meta { margin-top: var(--space-1); display: flex; gap: var(--space-2); align-items: baseline; flex-wrap: wrap; }
+    .when {
+      font-size: var(--font-size-xs);
+      color: var(--text-muted);
+      margin-bottom: 3px;
+    }
+    .transition {
+      display: flex;
+      align-items: center;
+      gap: var(--space-2);
+      flex-wrap: wrap;
+    }
+    .from {
+      font-size: var(--font-size-sm);
+      color: var(--text-muted);
+    }
+    .arrow {
+      color: var(--text-muted);
+    }
+    .meta {
+      margin-top: var(--space-1);
+      display: flex;
+      gap: var(--space-2);
+      align-items: baseline;
+      flex-wrap: wrap;
+    }
     .actor {
       font-size: var(--font-size-2xs);
       font-weight: var(--font-weight-medium);
@@ -135,10 +188,26 @@ const PROXIMO_PASO_ANALISTA: Partial<Record<CaseStatus, string>> = {
       letter-spacing: 0.04em;
       color: var(--text-tertiary);
     }
-    .reason { font-size: var(--font-size-sm); color: var(--text-secondary); }
-    .step.next .when { text-transform: uppercase; letter-spacing: 0.04em; font-size: var(--font-size-2xs); }
-    .next-text { margin: 0; font-size: var(--font-size-sm); color: var(--text-muted); font-style: italic; }
-    .empty { margin: 0; font-size: var(--font-size-body); color: var(--text-muted); }
+    .reason {
+      font-size: var(--font-size-sm);
+      color: var(--text-secondary);
+    }
+    .step.next .when {
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+      font-size: var(--font-size-2xs);
+    }
+    .next-text {
+      margin: 0;
+      font-size: var(--font-size-sm);
+      color: var(--text-muted);
+      font-style: italic;
+    }
+    .empty {
+      margin: 0;
+      font-size: var(--font-size-body);
+      color: var(--text-muted);
+    }
   `,
 })
 export class StatusTimelineComponent {

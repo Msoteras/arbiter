@@ -1,7 +1,8 @@
 @if (report(); as r) {
   @if (r.findings.length > 0) {
     <p class="t-note summary">
-      {{ r.imagesAnalyzed }} imagen(es) analizada(s) · {{ r.webSearchesPerformed }} búsqueda(s) en internet
+      {{ r.imagesAnalyzed }} imagen(es) analizada(s) · {{ r.webSearchesPerformed }} búsqueda(s) en
+      internet
     </p>
 
     <div class="findings-grid">
@@ -17,7 +18,13 @@
                   [download]="imageFilenames()[finding.label] || docLabel(finding.documentType)"
                 >
                   <svg width="14" height="14" viewBox="0 0 16 16" fill="none" aria-hidden="true">
-                    <path d="M8 2v8m0 0 3-3m-3 3L5 7M3 13h10" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" />
+                    <path
+                      d="M8 2v8m0 0 3-3m-3 3L5 7M3 13h10"
+                      stroke="currentColor"
+                      stroke-width="1.5"
+                      stroke-linecap="round"
+                      stroke-linejoin="round"
+                    />
                   </svg>
                   Descargar imagen
                 </a>
@@ -37,7 +44,9 @@
               }
 
               @if (isClean(finding)) {
-                <p class="clean-note">✓ Sin coincidencias — ni con siniestros previos ni en internet</p>
+                <p class="clean-note">
+                  ✓ Sin coincidencias — ni con siniestros previos ni en internet
+                </p>
               }
 
               @for (m of finding.internalMatches; track matchKey(m)) {
@@ -59,7 +68,10 @@
                     <div class="compare-item">
                       <span class="compare-label">Siniestro #{{ m.matchedCaseId }}</span>
                       @if (matchedImageUrls()[matchKey(m)]; as matchedUrl) {
-                        <img [src]="matchedUrl" [alt]="'Imagen del siniestro #' + m.matchedCaseId" />
+                        <img
+                          [src]="matchedUrl"
+                          [alt]="'Imagen del siniestro #' + m.matchedCaseId"
+                        />
                       } @else if (matchedImageLoadFailed()[matchKey(m)]) {
                         <div class="img-placeholder small">No disponible</div>
                       } @else {
@@ -104,5 +116,7 @@
     <app-empty-state message="El expediente no tiene imágenes adjuntas para analizar" />
   }
 } @else {
-  <app-empty-state message="Análisis forense de imágenes (no corrió: Fast Track o sin imágenes adjuntas)" />
+  <app-empty-state
+    message="Análisis forense de imágenes (no corrió: Fast Track o sin imágenes adjuntas)"
+  />
 }

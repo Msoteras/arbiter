@@ -91,16 +91,16 @@
 
       @if (waitingBreakdown(); as breakdown) {
         <p class="breakdown">
-          Del tiempo de resolución: <strong>{{ breakdown }}</strong>. Pedir documentación o derivar a
-          un perito o a un service interrumpe el plazo legal, así que esa espera no le corre a la
-          compañía.
+          Del tiempo de resolución: <strong>{{ breakdown }}</strong
+          >. Pedir documentación o derivar a un perito o a un service interrumpe el plazo legal, así
+          que esa espera no le corre a la compañía.
         </p>
       }
 
       @if (fastTrackComparison(); as comparison) {
         <p class="breakdown">
-          Carril rápido: <strong>{{ comparison }}</strong>. Son dos promedios medidos sobre
-          {{ fastTrackBase() }}, no un ahorro estimado.
+          Carril rápido: <strong>{{ comparison }}</strong
+          >. Son dos promedios medidos sobre {{ fastTrackBase() }}, no un ahorro estimado.
         </p>
       }
 

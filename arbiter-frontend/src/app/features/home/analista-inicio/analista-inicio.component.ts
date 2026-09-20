@@ -161,7 +161,11 @@ export class AnalistaInicioComponent {
     // "Riesgo alto" quedó afuera.
     return [
       { label: 'Pendientes', value: c.pendientes, tone: 'info' },
-      { label: 'Otros en trámite', value: Math.max(0, c.enTramite - c.pendientes), tone: 'warning' },
+      {
+        label: 'Otros en trámite',
+        value: Math.max(0, c.enTramite - c.pendientes),
+        tone: 'warning',
+      },
       { label: 'Resueltos', value: c.resueltos, tone: 'ok' },
     ];
   });

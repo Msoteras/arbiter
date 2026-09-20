@@ -1,6 +1,13 @@
 import { Location } from '@angular/common';
 import { HttpErrorResponse } from '@angular/common/http';
-import { ChangeDetectionStrategy, Component, OnInit, computed, inject, signal } from '@angular/core';
+import {
+  ChangeDetectionStrategy,
+  Component,
+  OnInit,
+  computed,
+  inject,
+  signal,
+} from '@angular/core';
 import { ActivatedRoute, Router } from '@angular/router';
 
 import { AuthSessionService } from '../../../core/auth/auth-session.service';
@@ -69,7 +76,8 @@ export class ActivateAccountComponent implements OnInit {
           brandTitle: 'Activá tu cuenta',
           brandTag: 'Elegí tu contraseña para terminar de configurar tu acceso a Arbiter.',
           formTitle: 'Elegí tu contraseña',
-          formNote: 'Con esto activás tu cuenta y entrás directo, sin tener que loguearte de nuevo.',
+          formNote:
+            'Con esto activás tu cuenta y entrás directo, sin tener que loguearte de nuevo.',
           submitLabel: 'Activar cuenta',
           submittingLabel: 'Activando…',
         };

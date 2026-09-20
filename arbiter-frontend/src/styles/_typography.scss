@@ -59,15 +59,21 @@
 }
 
 /* Números, ids, códigos: familia monoespaciada. */
-.mono { font-family: var(--font-mono); }
+.mono {
+  font-family: var(--font-mono);
+}
 
 /* ===== Utilidades ===== */
 
 /* Cap de largo de línea (~68 caracteres) para texto largo legible. */
-.measure { max-width: 68ch; }
+.measure {
+  max-width: 68ch;
+}
 
 /* Cifras que se alinean en columnas (montos, %, fechas). */
-.tabular { font-variant-numeric: tabular-nums; }
+.tabular {
+  font-variant-numeric: tabular-nums;
+}
 
 /* Visible solo para lectores de pantalla (mantiene el outline accesible). */
 .sr-only {

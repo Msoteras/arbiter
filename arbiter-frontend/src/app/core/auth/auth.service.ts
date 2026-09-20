@@ -52,7 +52,10 @@ export class AuthService {
   activate(token: string, password: string): Observable<LoginResponse> {
     return this.sealed(password).pipe(
       switchMap((sealedPassword) =>
-        this.http.post<LoginResponse>(`${this.baseUrl}/activate`, { token, password: sealedPassword }),
+        this.http.post<LoginResponse>(`${this.baseUrl}/activate`, {
+          token,
+          password: sealedPassword,
+        }),
       ),
     );
   }
@@ -75,7 +78,10 @@ export class AuthService {
   resetPassword(token: string, password: string): Observable<LoginResponse> {
     return this.sealed(password).pipe(
       switchMap((sealedPassword) =>
-        this.http.post<LoginResponse>(`${this.baseUrl}/reset-password`, { token, password: sealedPassword }),
+        this.http.post<LoginResponse>(`${this.baseUrl}/reset-password`, {
+          token,
+          password: sealedPassword,
+        }),
       ),
     );
   }

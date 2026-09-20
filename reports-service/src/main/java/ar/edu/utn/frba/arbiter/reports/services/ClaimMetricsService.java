@@ -143,11 +143,9 @@ public class ClaimMetricsService {
      * 17-day period has to compare against 17 days or the delta is measuring the calendar.
      */
     private MetricsSummary previousSummary(Period period, ZoneId zone, MetricsFilter filter) {
-        long days = ChronoUnit.DAYS.between(period.from(), period.to()) + 1;
-        LocalDate previousTo = period.from().minusDays(1);
-        LocalDate previousFrom = previousTo.minusDays(days - 1);
-        Instant start = previousFrom.atStartOfDay(zone).toInstant();
-        Instant end = previousTo.plusDays(1).atStartOfDay(zone).toInstant();
+        PreviousPeriod previous = PreviousPeriod.immediatelyBefore(period.from(), period.to());
+        Instant start = previous.from().atStartOfDay(zone).toInstant();
+        Instant end = previous.to().plusDays(1).atStartOfDay(zone).toInstant();
         // Sin la partición: los deltas del encabezado se leen sobre el total, y traerla costaría
         // una consulta con ventanas más por cada carga del tablero para un número que no se muestra.
         return summarize(

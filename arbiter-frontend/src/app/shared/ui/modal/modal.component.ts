@@ -33,7 +33,9 @@ import { ChangeDetectionStrategy, Component, input, output } from '@angular/core
             @if (heading()) {
               <h2 class="modal-title">{{ heading() }}</h2>
             }
-            <button type="button" class="modal-close" aria-label="Cerrar" (click)="close.emit()">✕</button>
+            <button type="button" class="modal-close" aria-label="Cerrar" (click)="close.emit()">
+              ✕
+            </button>
           </div>
           <ng-content />
           @if (!hideActions()) {
