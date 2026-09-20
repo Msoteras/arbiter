@@ -89,7 +89,7 @@ public final class ReportFixtures {
         return new FraudReportRow(caseId, insuredName, "28.904.115", "Celulares",
                 "Robo en vía pública", Instant.parse("2026-09-12T09:20:00Z"), RiskBand.CRITICAL,
                 List.of(FraudSignal.HIGH_RISK_SCORE, FraudSignal.FORENSIC_INCONSISTENCY),
-                3, 2, CaseStatus.PENDING_EXPERT_REPORT, false, false);
+                3, 2, null, CaseStatus.PENDING_EXPERT_REPORT, false, false);
     }
 
     /**
@@ -99,7 +99,7 @@ public final class ReportFixtures {
     public static FraudReportRow lowScoreRow(long caseId) {
         return new FraudReportRow(caseId, "Paula Soria", "33.508.901", "Celulares",
                 "Rotura accidental", Instant.parse("2026-09-08T08:30:00Z"), RiskBand.LOW,
-                List.of(FraudSignal.FORENSIC_INCONSISTENCY), 1, 1,
+                List.of(FraudSignal.FORENSIC_INCONSISTENCY), 1, 1, null,
                 CaseStatus.PENDING_ANALYST_REVIEW, false, false);
     }
 
@@ -107,7 +107,20 @@ public final class ReportFixtures {
     public static FraudReportRow unscoredRow(long caseId) {
         return new FraudReportRow(caseId, "Romina Vega", "34.771.009", "Tecnología Portátil", "Hurto",
                 Instant.parse("2026-09-05T14:00:00Z"), null,
-                List.of(FraudSignal.FORENSIC_INCONSISTENCY), 1, 1, CaseStatus.REJECTED, true, true);
+                List.of(FraudSignal.FORENSIC_INCONSISTENCY), 1, 1, null, CaseStatus.REJECTED, true, true);
+    }
+
+    /**
+     * Flagged only by the document factor: the declared police-report date doesn't match what the
+     * certificate says. The case the signal exists for.
+     */
+    public static FraudReportRow documentInconsistentRow(long caseId) {
+        return new FraudReportRow(caseId, "Nicolás Farías", "31.204.556", "Celulares", "Hurto",
+                Instant.parse("2026-09-16T11:10:00Z"), null,
+                List.of(FraudSignal.DOCUMENT_INCONSISTENCY), 1, 0,
+                "La constancia policial está fechada el 2026-09-14, pero el asegurado declaró haber "
+                        + "denunciado el 2026-09-15",
+                CaseStatus.PENDING_ANALYST_REVIEW, false, false);
     }
 
     /** Claims filed in September, the denominator of the rates. Round so the shares read cleanly. */

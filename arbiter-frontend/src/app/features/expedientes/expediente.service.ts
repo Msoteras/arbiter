@@ -184,7 +184,7 @@ export interface ExpedienteListParams {
    * Se combina por AND con el resto de los filtros.
    */
   q?: string;
-  /** Nivel de alerta de fraude, match exacto. */
+  /** Score de riesgo de fraude, match exacto. */
   riskBand?: 'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL';
   /**
    * Lente "Frenados": expedientes abiertos sin un solo cambio en los últimos N días. Lo usa el

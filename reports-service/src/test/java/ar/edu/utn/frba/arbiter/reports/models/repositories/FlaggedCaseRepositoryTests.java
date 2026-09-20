@@ -271,6 +271,34 @@ class FlaggedCaseRepositoryTests extends AbstractPersistenceIT {
         assertThat(repository.countClaimsBetween(SEPTEMBER_FROM, SEPTEMBER_TO, CELULARES)).isEqualTo(2);
     }
 
+    /** No band, no suspicious image — the document factor is the only reason this case is listed. */
+    @Test
+    void aDocumentContradiction_flagsTheCaseOnItsOwn() {
+        tables.insertCase(1, "2026-09-10T10:00:00Z", PENDING_REVIEW, ROBO_CELULARES, false, null, null);
+        tables.riskAnalysis(1, "La constancia policial está fechada el 2026-09-08, pero el "
+                + "asegurado declaró haber denunciado el 2026-09-09", "2026-09-10T10:05:00Z");
+
+        assertThat(repository.findFlaggedBetween(SEPTEMBER_FROM, SEPTEMBER_TO, null, null))
+                .singleElement()
+                .satisfies(row -> {
+                    assertThat(row.signals()).containsExactly(FraudSignal.DOCUMENT_INCONSISTENCY);
+                    assertThat(row.documentInconsistencyNote()).contains("constancia policial");
+                });
+    }
+
+    /**
+     * A case reclassified after the insured fixed their documentation reads clean: only the LATEST
+     * scoring run counts, same as {@code cases.risk_band} only ever holds the latest band.
+     */
+    @Test
+    void onlyTheLatestRiskAnalysisRun_decidesTheSignal() {
+        tables.insertCase(1, "2026-09-10T10:00:00Z", PENDING_REVIEW, ROBO_CELULARES, false, null, null);
+        tables.riskAnalysis(1, "El importe del documento no coincide", "2026-09-10T10:05:00Z");
+        tables.riskAnalysis(1, null, "2026-09-12T09:00:00Z");
+
+        assertThat(repository.findFlaggedBetween(SEPTEMBER_FROM, SEPTEMBER_TO, null, null)).isEmpty();
+    }
+
     @Test
     void findBranchName_answersTheCatalog() {
         assertThat(repository.findBranchName(CELULARES)).isEqualTo("Celulares");

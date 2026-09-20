@@ -46,10 +46,12 @@ public class FraudReportController {
     @Operation(summary = "Expedientes con indicios de fraude en un período",
             description = "Denuncias de la aseguradora del caller registradas entre from y to (ambos "
                     + "incluidos, días calendario) sobre las que se disparó al menos una señal: score "
-                    + "de riesgo ALTO o CRÍTICO, más de una denuncia del mismo asegurado en los 12 "
-                    + "meses previos, o incoherencias del análisis forense de imágenes. Cada fila trae "
-                    + "el score de riesgo (la banda del motor), qué señales se cruzaron y si un "
-                    + "analista determinó fraude. branchId filtra por ramo y riskBand por score de "
+                    + "de riesgo ALTO o CRÍTICO, incoherencias del análisis forense de imágenes, o "
+                    + "contradicciones entre la documentación adjunta y lo denunciado. Cuántas veces "
+                    + "denunció el mismo asegurado en los 12 meses previos no es una señal en sí "
+                    + "misma — ya pesa adentro del score — pero viaja como contexto en cada fila. Cada "
+                    + "fila trae el score de riesgo (la banda del motor), qué señales se cruzaron y si "
+                    + "un analista determinó fraude. branchId filtra por ramo y riskBand por score de "
                     + "riesgo; sin ellos, todos. Período máximo: 366 días. "
                     + "El sistema no determina fraude: señala indicios para revisión humana.")
     public FraudReport report(

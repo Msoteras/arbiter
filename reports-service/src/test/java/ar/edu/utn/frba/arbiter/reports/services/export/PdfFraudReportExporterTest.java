@@ -15,6 +15,7 @@ import java.util.List;
 import java.util.stream.LongStream;
 
 import static ar.edu.utn.frba.arbiter.reports.support.ReportFixtures.CLOCK;
+import static ar.edu.utn.frba.arbiter.reports.support.ReportFixtures.documentInconsistentRow;
 import static ar.edu.utn.frba.arbiter.reports.support.ReportFixtures.flaggedRow;
 import static ar.edu.utn.frba.arbiter.reports.support.ReportFixtures.lowScoreRow;
 import static ar.edu.utn.frba.arbiter.reports.support.ReportFixtures.septemberFraudReport;
@@ -77,6 +78,22 @@ class PdfFraudReportExporterTest {
                 .contains("2 imágenes con")
                 .contains("coincidencia")
                 .doesNotContain("…");
+    }
+
+    /**
+     * The document signal carries its own rationale instead of a generic label — the same reason
+     * the image signal carries a count: what to look at, not just that something was flagged. A
+     * rationale this long still hits the column's own two-line cap (see MAX_CELL_LINES) and gets
+     * ellipsized like any other cell — the CSV and the screen are where it travels whole.
+     */
+    @Test
+    void theDocumentSignal_printsItsOwnRationale() throws IOException {
+        Rendered pdf = render(List.of(documentInconsistentRow(24)));
+
+        assertThat(pdf.text().replaceAll("\\s+", " "))
+                .contains("La constancia policial está fechada el 2026-09-14")
+                .contains("…");
+        assertThat(pdf.text()).contains("Por señal (una denuncia puede tener más de una):");
     }
 
     @Test

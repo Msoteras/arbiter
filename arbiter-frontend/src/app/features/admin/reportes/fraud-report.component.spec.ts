@@ -31,6 +31,7 @@ function row(overrides: Partial<FraudReportRow> = {}): FraudReportRow {
     signals: ['HIGH_RISK_SCORE', 'FORENSIC_INCONSISTENCY'],
     claimsInWindow: 3,
     suspiciousImages: 2,
+    documentInconsistencyNote: null,
     status: 'PENDING_EXPERT_REPORT',
     fraudDetermined: false,
     expertBacked: false,
@@ -47,6 +48,18 @@ describe('fraud report helpers', () => {
     expect(indicators(row({ signals: ['FORENSIC_INCONSISTENCY'], suspiciousImages: 1 }))).toEqual([
       '1 imagen con coincidencia',
     ]);
+  });
+
+  /** The document signal carries its own rationale verbatim — it already says what didn't match. */
+  it('shows the document signal as its own rationale, not a generic label', () => {
+    expect(
+      indicators(
+        row({
+          signals: ['DOCUMENT_INCONSISTENCY'],
+          documentInconsistencyNote: 'El importe del documento no coincide con el reclamado',
+        }),
+      ),
+    ).toEqual(['El importe del documento no coincide con el reclamado']);
   });
 
   /**

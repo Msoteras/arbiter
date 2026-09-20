@@ -139,7 +139,7 @@ public class CaseController {
                     `q` es búsqueda de texto libre (case-insensitive, substring) sobre número de
                     expediente, número de póliza y asegurado (`insuredId`/`insuredName` — este
                     último nullable hasta que la primera clasificación resuelve el nombre real).
-                    `riskBand` filtra por nivel de alerta de fraude (match exacto: `LOW`, `MEDIUM`,
+                    `riskBand` filtra por score de riesgo de fraude (match exacto: `LOW`, `MEDIUM`,
                     `HIGH`, `CRITICAL`). `assignedToMe=true` acota a los expedientes asignados al
                     analista que hace el request — es la lente "Míos" de la bandeja; omitirlo es la
                     lente "Todos". Todos se combinan por AND entre sí.

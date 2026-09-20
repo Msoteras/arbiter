@@ -33,5 +33,15 @@ public enum FraudSignal {
      * another claim of the insurer, or found on the web. Read from {@code image_analysis}, which is
      * where classification-service records it.
      */
-    FORENSIC_INCONSISTENCY
+    FORENSIC_INCONSISTENCY,
+
+    /**
+     * The {@code document_inconsistency} risk factor found a contradiction between an attached
+     * document and the claim — a document dated before the event, an amount or an IMEI that
+     * doesn't match, or a police certificate dated differently from what the insured declared.
+     * Read from the latest {@code risk_analysis.risk_breakdown} for the case; only counts when the
+     * insurer has the factor active in its scoring config, same as {@code HIGH_RISK_SCORE} only
+     * counts when the engine actually scored the case.
+     */
+    DOCUMENT_INCONSISTENCY
 }

@@ -7,6 +7,7 @@ import java.nio.charset.StandardCharsets;
 import java.util.List;
 
 import static ar.edu.utn.frba.arbiter.reports.support.ReportFixtures.CLOCK;
+import static ar.edu.utn.frba.arbiter.reports.support.ReportFixtures.documentInconsistentRow;
 import static ar.edu.utn.frba.arbiter.reports.support.ReportFixtures.flaggedRow;
 import static ar.edu.utn.frba.arbiter.reports.support.ReportFixtures.lowScoreRow;
 import static ar.edu.utn.frba.arbiter.reports.support.ReportFixtures.septemberFraudReport;
@@ -53,6 +54,17 @@ class CsvFraudReportExporterTest {
 
         assertThat(lines(csv).get(1)).contains(";No alertó;1 imagen con coincidencia;");
         assertThat(csv).doesNotContain("Bajo");
+    }
+
+    /** No band, no image — the document signal is the whole story of this row. */
+    @Test
+    void theDocumentSignal_printsItsRationaleInTheSignalsColumn() {
+        String csv = export(List.of(documentInconsistentRow(24)));
+
+        assertThat(lines(csv).get(1)).isEqualTo(
+                "24;Nicolás Farías;31.204.556;Celulares;Hurto;16/09/2026 08:10;Sin evaluar;"
+                        + "La constancia policial está fechada el 2026-09-14, pero el asegurado "
+                        + "declaró haber denunciado el 2026-09-15;1;0;Pendiente de revisión;No");
     }
 
     @Test

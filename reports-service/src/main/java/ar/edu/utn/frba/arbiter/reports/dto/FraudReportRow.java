@@ -19,16 +19,22 @@ import java.util.List;
  * <p>No numeric score on purpose: the band is what the analyst acts on, and a decimal next to it
  * invites arguing about the number instead of about the signals.
  *
- * @param riskBand         null when the scoring never ran on this case — a Fast Track, or a case
- *                         still being classified. It is still listed if another signal fired, and
- *                         the frontend shows the gauge as "Sin evaluar" rather than as low risk
- * @param signals          which of the three criteria fired, never empty
- * @param claimsInWindow   claims this insured filed in the 12 months up to this one, this one
- *                         included — so 1 means "no others"
- * @param suspiciousImages how many of the case's images the forensic pass flagged
- * @param fraudDetermined  the analyst's determination, not the engine's: the score suggests, a
- *                         person determines
- * @param expertBacked     there is an expert assessment with {@code FRAUD_CONFIRMED} behind it
+ * @param riskBand                  null when the scoring never ran on this case — a Fast Track, or
+ *                                  a case still being classified. It is still listed if another
+ *                                  signal fired, and the frontend shows the gauge as "Sin evaluar"
+ *                                  rather than as low risk
+ * @param signals                   which of the criteria fired, never empty
+ * @param claimsInWindow            claims this insured filed in the 12 months up to this one, this
+ *                                  one included — so 1 means "no others"
+ * @param suspiciousImages          how many of the case's images the forensic pass flagged
+ * @param documentInconsistencyNote what the {@code document_inconsistency} factor found, verbatim
+ *                                  from its rationale — null when it found nothing, or never ran
+ *                                  (the insurer doesn't have the factor active, or no document was
+ *                                  analyzed yet)
+ * @param fraudDetermined           the analyst's determination, not the engine's: the score
+ *                                  suggests, a person determines
+ * @param expertBacked              there is an expert assessment with {@code FRAUD_CONFIRMED}
+ *                                  behind it
  */
 public record FraudReportRow(
         Long caseId,
@@ -41,6 +47,7 @@ public record FraudReportRow(
         List<FraudSignal> signals,
         int claimsInWindow,
         int suspiciousImages,
+        String documentInconsistencyNote,
         CaseStatus status,
         boolean fraudDetermined,
         boolean expertBacked

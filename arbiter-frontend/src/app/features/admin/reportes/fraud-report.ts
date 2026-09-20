@@ -18,7 +18,7 @@ export interface FraudBucket {
  */
 
 /** Mirror of FraudSignal: why a case shows up in the report. */
-export type FraudSignal = 'HIGH_RISK_SCORE' | 'FORENSIC_INCONSISTENCY';
+export type FraudSignal = 'HIGH_RISK_SCORE' | 'FORENSIC_INCONSISTENCY' | 'DOCUMENT_INCONSISTENCY';
 
 export interface FraudReportRow {
   caseId: number;
@@ -43,6 +43,12 @@ export interface FraudReportRow {
    */
   claimsInWindow: number;
   suspiciousImages: number;
+  /**
+   * What the `document_inconsistency` factor found — a document dated before the event, an amount
+   * or IMEI that doesn't match, a police certificate dated differently from what was declared.
+   * Null when it found nothing, or never ran (the insurer doesn't have the factor active).
+   */
+  documentInconsistencyNote: string | null;
   /** CaseStatus literal. */
   status: string;
   /** A human decision, not the model's band: the score suggests, the analyst determines. */
@@ -143,7 +149,9 @@ export function alertLevelLabel(bucket: string | null): string {
 /**
  * What goes in the "Señales" column: each signal with its magnitude, which is what is actionable.
  * "2 imágenes con coincidencia" says what to look at; "Incoherencias forenses" only says it was
- * flagged. Mirror of ReportLabels.signals() in reports-service; keep the two in step.
+ * flagged. The document signal is the exception — its own rationale already names what didn't
+ * match, so it travels verbatim instead of being flattened to a generic label. Mirror of
+ * ReportLabels.signals() in reports-service; keep the two in step.
  */
 export function indicators(row: FraudReportRow): string[] {
   return row.signals.map((signal) => {
@@ -154,6 +162,8 @@ export function indicators(row: FraudReportRow): string[] {
         return row.suspiciousImages === 1
           ? '1 imagen con coincidencia'
           : `${row.suspiciousImages} imágenes con coincidencia`;
+      case 'DOCUMENT_INCONSISTENCY':
+        return row.documentInconsistencyNote ?? 'Contradicción con la documentación';
     }
   });
 }
@@ -161,6 +171,7 @@ export function indicators(row: FraudReportRow): string[] {
 const SIGNAL_LABELS: Record<FraudSignal, string> = {
   HIGH_RISK_SCORE: 'Score de riesgo alto',
   FORENSIC_INCONSISTENCY: 'Incoherencias forenses',
+  DOCUMENT_INCONSISTENCY: 'Contradicción con la documentación',
 };
 
 export function fraudSignalLabel(signal: string): string {

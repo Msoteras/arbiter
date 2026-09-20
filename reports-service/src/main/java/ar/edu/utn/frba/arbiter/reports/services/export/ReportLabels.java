@@ -111,8 +111,10 @@ final class ReportLabels {
 
     /**
      * The signals of one case, each with the magnitude that makes it actionable — "3 imágenes con
-     * coincidencia" says what to look at, "incoherencias forenses" only says it was flagged. Mirror
-     * of {@code indicators()} in the frontend's fraud-report.ts; keep the two in step.
+     * coincidencia" says what to look at, "incoherencias forenses" only says it was flagged. The
+     * document signal is the exception: its own rationale already names what didn't match, so it
+     * travels verbatim instead of being flattened to a generic label. Mirror of {@code indicators()}
+     * in the frontend's fraud-report.ts; keep the two in step.
      */
     static String signals(FraudReportRow row) {
         return row.signals().stream().map(signal -> switch (signal) {
@@ -120,6 +122,7 @@ final class ReportLabels {
             case FORENSIC_INCONSISTENCY -> row.suspiciousImages() == 1
                     ? "1 imagen con coincidencia"
                     : row.suspiciousImages() + " imágenes con coincidencia";
+            case DOCUMENT_INCONSISTENCY -> row.documentInconsistencyNote();
         }).collect(Collectors.joining(" · "));
     }
 
@@ -128,6 +131,7 @@ final class ReportLabels {
         return switch (FraudSignal.valueOf(literal)) {
             case HIGH_RISK_SCORE -> "Score de riesgo alto";
             case FORENSIC_INCONSISTENCY -> "Incoherencias forenses";
+            case DOCUMENT_INCONSISTENCY -> "Contradicción con la documentación";
         };
     }
 

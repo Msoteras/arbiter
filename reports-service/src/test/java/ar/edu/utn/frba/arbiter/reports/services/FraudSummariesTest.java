@@ -113,10 +113,19 @@ class FraudSummariesTest {
                 new MetricCount("FORENSIC_INCONSISTENCY", 1));
     }
 
+    /** The document signal is just another bucket — nothing about it is special-cased here. */
+    @Test
+    void theDocumentSignal_bucketsLikeAnyOther() {
+        FraudSummary summary = FraudSummaries.of(List.of(
+                row(1, null, false, false, FraudSignal.DOCUMENT_INCONSISTENCY)), 20);
+
+        assertThat(summary.bySignal()).containsExactly(new MetricCount("DOCUMENT_INCONSISTENCY", 1));
+    }
+
     private static FraudReportRow row(long caseId, RiskBand band, boolean fraudDetermined,
                                       boolean expertBacked, FraudSignal... signals) {
         return new FraudReportRow(caseId, "Ana Pérez", "30.111.222", "Celulares", "Hurto",
-                Instant.parse("2026-09-10T10:00:00Z"), band, List.of(signals), 1, 0,
+                Instant.parse("2026-09-10T10:00:00Z"), band, List.of(signals), 1, 0, null,
                 CaseStatus.PENDING_ANALYST_REVIEW, fraudDetermined, expertBacked);
     }
 }

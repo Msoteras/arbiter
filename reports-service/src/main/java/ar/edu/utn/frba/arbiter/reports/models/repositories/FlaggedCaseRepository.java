@@ -26,8 +26,8 @@ import java.util.List;
  * Read side of the fraud report: the cases filed in a period that carry at least one fraud signal.
  *
  * <p>Like {@code ResolvedCaseRepository}, it reads tables other modules own — {@code cases},
- * {@code case_documents} (cases-service), {@code image_analysis} (classification-service). That is
- * what the architecture document draws for this module (§3: Reportes connects straight to
+ * {@code case_documents}, {@code image_analysis} and {@code risk_analysis} (classification-service).
+ * That is what the architecture document draws for this module (§3: Reportes connects straight to
  * PostgreSQL with no REST link to Expedientes; §10: the database is shared between all of them),
  * and every one of those tables lives in the same tenant schema. Read-only, plain JDBC over a named
  * set of columns and no entities, so this module never claims ownership of them.
@@ -56,6 +56,13 @@ public class FlaggedCaseRepository {
      * <p>{@code claims_in_window} is NOT one of them: how often the insured claims does not put a
      * case in this report (see {@link FraudSignal}), it travels as context of the rows another
      * signal already flagged. It is still counted for every candidate because the row shows it.
+     *
+     * <p>{@code document_inconsistency_note} looks only at the case's LATEST {@code risk_analysis}
+     * row (the subquery orders by {@code analyzed_at} and takes one) and, inside it, only at the
+     * {@code document_inconsistency} entry of the {@code risk_breakdown} JSONB array. A case
+     * reclassified after the insured fixed their documentation reads clean, the same way
+     * {@code cases.risk_band} already reflects only the latest scoring run and not every run that
+     * ever touched the case.
      */
     private static final String FLAGGED_CASES = """
             WITH candidate AS (
@@ -71,25 +78,39 @@ public class FlaggedCaseRepository {
                           FROM image_analysis ia
                           JOIN case_documents d ON d.id = ia.case_document_id
                          WHERE d.case_id = c.id AND ia.is_suspicious
-                       ) AS suspicious_images
+                       ) AS suspicious_images,
+                       (SELECT item ->> 'rationale'
+                          FROM (SELECT risk_breakdown
+                                  FROM risk_analysis ra
+                                 WHERE ra.case_id = c.id
+                                 ORDER BY ra.analyzed_at DESC
+                                 LIMIT 1) latest
+                          CROSS JOIN LATERAL jsonb_array_elements(latest.risk_breakdown) item
+                         WHERE item ->> 'factorId' = 'document_inconsistency'
+                           AND (item ->> 'rawScore')::numeric > 0
+                         LIMIT 1
+                       ) AS document_inconsistency_note
                   FROM cases c
                  WHERE c.reported_at >= :from AND c.reported_at < :to
             )
             SELECT c.id, c.reported_at, c.risk_band, c.fraud_determined,
-                   c.claims_in_window, c.suspicious_images,
+                   c.claims_in_window, c.suspicious_images, c.document_inconsistency_note,
                    i.name AS insured_name, i.surname AS insured_surname, i.dni,
                    b.name AS branch, cc.name AS claim_cause, s.name AS status,
                    EXISTS (SELECT 1 FROM expert_assessment ea
                             WHERE ea.case_id = c.id AND ea.verdict = :fraudConfirmed) AS expert_backed,
                    (CASE WHEN c.risk_band IN (:highBands) THEN 1 ELSE 0 END
-                  + CASE WHEN c.suspicious_images > 0 THEN 1 ELSE 0 END) AS signal_count
+                  + CASE WHEN c.suspicious_images > 0 THEN 1 ELSE 0 END
+                  + CASE WHEN c.document_inconsistency_note IS NOT NULL THEN 1 ELSE 0 END
+                   ) AS signal_count
               FROM candidate c
               JOIN claim_cause cc ON cc.id = c.claim_cause_id
               JOIN branch b       ON b.id = cc.branch_id
               JOIN case_status s  ON s.id = c.current_status_id
               JOIN insured i      ON i.id = c.insured_id
              WHERE (c.risk_band IN (:highBands)
-                 OR c.suspicious_images > 0)
+                 OR c.suspicious_images > 0
+                 OR c.document_inconsistency_note IS NOT NULL)
             """;
 
     private final EntityManager entityManager;
@@ -198,6 +219,7 @@ public class FlaggedCaseRepository {
         RiskBand riskBand = band == null ? null : RiskBand.valueOf(band);
         int claimsInWindow = rs.getInt("claims_in_window");
         int suspiciousImages = rs.getInt("suspicious_images");
+        String documentInconsistencyNote = rs.getString("document_inconsistency_note");
         return new FraudReportRow(
                 rs.getLong("id"),
                 fullName(rs.getString("insured_name"), rs.getString("insured_surname")),
@@ -206,22 +228,27 @@ public class FlaggedCaseRepository {
                 rs.getString("claim_cause"),
                 rs.getObject("reported_at", OffsetDateTime.class).toInstant(),
                 riskBand,
-                signalsOf(riskBand, suspiciousImages),
+                signalsOf(riskBand, suspiciousImages, documentInconsistencyNote),
                 claimsInWindow,
                 suspiciousImages,
+                documentInconsistencyNote,
                 CaseStatus.valueOf(rs.getString("status")),
                 rs.getBoolean("fraud_determined"),
                 rs.getBoolean("expert_backed"));
     }
 
     /** The one definition of what "suspicious" means here; the SQL predicate mirrors it. */
-    private static List<FraudSignal> signalsOf(RiskBand riskBand, int suspiciousImages) {
+    private static List<FraudSignal> signalsOf(RiskBand riskBand, int suspiciousImages,
+                                               String documentInconsistencyNote) {
         List<FraudSignal> signals = new ArrayList<>(FraudSignal.values().length);
         if (riskBand == RiskBand.HIGH || riskBand == RiskBand.CRITICAL) {
             signals.add(FraudSignal.HIGH_RISK_SCORE);
         }
         if (suspiciousImages > 0) {
             signals.add(FraudSignal.FORENSIC_INCONSISTENCY);
+        }
+        if (documentInconsistencyNote != null) {
+            signals.add(FraudSignal.DOCUMENT_INCONSISTENCY);
         }
         return List.copyOf(signals);
     }
