@@ -187,7 +187,7 @@
         }
       } @else if (draft(); as d) {
         <!-- El campo y el botón viven en extremos opuestos de la fila, y nada decía que
-             "Renombrar" aplica al nombre de al lado: los apoya la misma línea punteada teal, que
+             "Renombrar" aplica al nombre de al lado: los apoya la misma línea a rayas teal, que
              corre por debajo de los dos y los cierra como un grupo. -->
         <div class="editor-head">
           <div class="editor-title">
@@ -890,11 +890,6 @@
 <app-modal [open]="showRenameConfirm()" heading="¿Renombrar el ramo?" (close)="cancelRename()">
   <p class="t-body">
     Vas a renombrar <strong>{{ renameFrom() }}</strong> a <strong>{{ draft()?.name }}</strong>.
-  </p>
-  <p class="t-note">
-    El ramo es parte del catálogo que comparten todas las aseguradoras: el nombre nuevo se ve al
-    instante en las pólizas, los expedientes y los reportes que lo mencionan. No cambia ninguna
-    regla ni cobertura configurada.
   </p>
   <ng-container modalActions>
     <app-button variant="secondary" [disabled]="renaming()" (click)="cancelRename()">Cancelar</app-button>
