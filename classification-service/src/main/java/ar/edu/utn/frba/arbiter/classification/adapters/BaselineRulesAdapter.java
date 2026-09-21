@@ -1,21 +1,27 @@
-package ar.edu.utn.frba.arbiter.classification.adapters.mock;
+package ar.edu.utn.frba.arbiter.classification.adapters;
 
 import ar.edu.utn.frba.arbiter.common.enums.RuleType;
-import ar.edu.utn.frba.arbiter.classification.adapters.RulesAdapter;
 import ar.edu.utn.frba.arbiter.classification.dto.BusinessRules;
 import ar.edu.utn.frba.arbiter.classification.services.risk.RiskFactorIds;
 import ar.edu.utn.frba.arbiter.common.enums.RiskBand;
-import org.springframework.context.annotation.Profile;
 import org.springframework.stereotype.Component;
 
 import java.util.List;
 import java.util.Map;
 
+/**
+ * The platform's hardcoded rule set, in code and not in a table — the layer {@link RulesRestAdapter}
+ * overlays what the referente configured on top of. Not a test double: it's wired in every profile,
+ * runs on every classification, and is what a coverage falls back to section by section (Fast
+ * Track, scoring, hard rules, document agenda...) for whatever the insurer hasn't configured yet.
+ * It only becomes the WHOLE answer — nothing left to overlay — in the {@code test} profile, where
+ * {@link RulesRestAdapter} is excluded and this is the only {@link RulesAdapter} bean.
+ */
 @Component
-public class MockRulesAdapter implements RulesAdapter {
+public class BaselineRulesAdapter implements RulesAdapter {
 
     /**
-     * Default fraud-scoring config for the mock, meant as a faithful H0012 reference config.
+     * Default fraud-scoring config for the baseline, meant as a faithful H0012 reference config.
      * Active factors: amount ratio, claim frequency, policy standing (the three with real logic on
      * every claim) plus the two image-fraud factors ({@code IMAGE_REUSE}, {@code IMAGE_WEB_MATCH}).
      * The image factors are safe to keep active because the engine now drops non-evaluable factors
@@ -25,7 +31,9 @@ public class MockRulesAdapter implements RulesAdapter {
      * <p>{@code PURCHASE_TO_REPORT_TIME} stays out of the active set: it uses the policy's start date
      * as a proxy for the purchase date, so it would produce a real (biased) score from stubbed data
      * — a data-quality issue the non-evaluable exclusion doesn't fix. {@code DOCUMENT_INCONSISTENCY}
-     * is a stub that now reports itself non-evaluable, so it would never contribute; left inactive.
+     * stopped being a stub on 10/08 (it now really compares IMEI, marca/modelo, fechas e importe),
+     * but it's left out of THIS default on purpose: it's a per-insurer call, made from the Reglas
+     * screen (Configuración de scoring), not something to turn on for every dev/test run silently.
      *
      * <p>Weights don't need to sum to 1 (the engine normalizes by total active weight). Bands use the
      * documented H0012 cuts (Bajo / Medio / Alto / Crítico). The image weights are provisional — an
@@ -72,7 +80,7 @@ public class MockRulesAdapter implements RulesAdapter {
     /**
      * The police-report deadline is the only hard rule with its own threshold (the rest take it
      * from the coverage). 72h was the value of the property that used to govern every insurer
-     * before the rule became configurable; it stays as the mock's baseline.
+     * before the rule became configurable; it stays as the baseline's own default.
      */
     private static BusinessRules.EvaluableRule policeDeadlineRule(long id, long deadlineHours) {
         return BusinessRules.EvaluableRule.builder()
@@ -185,9 +193,10 @@ public class MockRulesAdapter implements RulesAdapter {
     }
 
     /**
-     * Sin fila en el baseline: el veto de Fast Track pesa sobre una <b>persona</b>, así que solo lo
-     * activa la aseguradora configurándolo (Ley 25.326). El mock, que es lo que queda cuando
-     * rules-service no responde, no puede ser quien empiece a vetarle siniestros a alguien.
+     * No row in the baseline: a Fast Track veto weighs on a <b>person</b>, so only the insurer
+     * turns it on by configuring it (Ley 25.326). This class is what's left once
+     * {@link RulesRestAdapter} isn't in the picture ({@code test} profile) — it can't be the one
+     * that starts vetoing claims against someone.
      */
     @Override
     public BusinessRules.FraudRecordPolicy getFraudRecordPolicy() {

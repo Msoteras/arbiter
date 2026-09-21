@@ -5,7 +5,8 @@ import { Observable } from 'rxjs';
 import { environment } from '../../../environments/environment';
 
 /** Coverage-scoped hard temporal rule types. Mirrors common-lib's `RuleType.coverageScoped()`. */
-export type HardRuleType = 'WAITING_PERIOD' | 'REPORT_DEADLINE' | 'POLICE_DEADLINE' | 'MAX_EVENTS_YEAR';
+export type HardRuleType =
+  'WAITING_PERIOD' | 'REPORT_DEADLINE' | 'POLICE_DEADLINE' | 'MAX_EVENTS_YEAR';
 
 /**
  * A hard rule as the referente edits it: whether it's active and — only for POLICE_DEADLINE — its

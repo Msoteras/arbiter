@@ -46,21 +46,49 @@ export class AttentionService {
     }).pipe(
       map(({ stale, awaitingDocs, unreviewedFraud, unassigned }) =>
         [
-          item('stale', stale, 'risk', 'sin movimiento hace más de 15 días', 'pendientes de avanzar', {
-            staleDays: String(STALE_DAYS),
-            scope: 'OPEN',
-          }),
-          item('fraud', unreviewedFraud, 'risk', 'con alerta de fraude sin revisar', 'esperando al analista', {
-            fraudAlert: 'true',
-            status: 'PENDING_ANALYST_REVIEW',
-          }),
-          item('docs', awaitingDocs, 'warning', 'con documentación faltante', 'esperando al asegurado', {
-            status: 'AWAITING_DOCUMENTATION',
-          }),
-          item('unassigned', unassigned, 'info', 'sin analista asignado', 'nadie los tomó todavía', {
-            unassigned: 'true',
-            scope: 'OPEN',
-          }),
+          item(
+            'stale',
+            stale,
+            'risk',
+            'sin movimiento hace más de 15 días',
+            'pendientes de avanzar',
+            {
+              staleDays: String(STALE_DAYS),
+              scope: 'OPEN',
+            },
+          ),
+          item(
+            'fraud',
+            unreviewedFraud,
+            'risk',
+            'con alerta de fraude sin revisar',
+            'esperando al analista',
+            {
+              fraudAlert: 'true',
+              status: 'PENDING_ANALYST_REVIEW',
+            },
+          ),
+          item(
+            'docs',
+            awaitingDocs,
+            'warning',
+            'con documentación faltante',
+            'esperando al asegurado',
+            {
+              status: 'AWAITING_DOCUMENTATION',
+            },
+          ),
+          item(
+            'unassigned',
+            unassigned,
+            'info',
+            'sin analista asignado',
+            'nadie los tomó todavía',
+            {
+              unassigned: 'true',
+              scope: 'OPEN',
+            },
+          ),
         ].filter((entry) => entry.count > 0),
       ),
     );

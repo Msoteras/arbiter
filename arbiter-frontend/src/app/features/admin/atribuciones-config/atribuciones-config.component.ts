@@ -51,7 +51,9 @@ export class AtribucionesConfigComponent {
       next: (list) => {
         this.authorities.set(list);
         this.drafts.set(
-          Object.fromEntries(list.map((a) => [a.branchId, a.maxAmount == null ? '' : String(a.maxAmount)])),
+          Object.fromEntries(
+            list.map((a) => [a.branchId, a.maxAmount == null ? '' : String(a.maxAmount)]),
+          ),
         );
         this.loading.set(false);
       },

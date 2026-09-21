@@ -131,7 +131,6 @@ export class FraudeConfigComponent {
     this.patch({ blocksFastTrack });
   }
 
-
   protected setWindow(value: string): void {
     // Vacío no es cero: dejar 0 haría que todo antecedente naciera vencido. Se queda en lo que
     // había y el guardado avisa si el número no sirve.

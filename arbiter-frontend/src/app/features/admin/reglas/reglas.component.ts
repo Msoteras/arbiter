@@ -12,7 +12,11 @@ import {
 } from '../../../core/models/business-rules';
 import { BranchOption, BranchesService } from '../branches.service';
 import { FastTrackConfigDto, FastTrackRulesService } from '../fast-track-rules.service';
-import { CoverageDetail, CoverageUpsertRequest, CoveragesRulesService } from '../coverages-rules.service';
+import {
+  CoverageDetail,
+  CoverageUpsertRequest,
+  CoveragesRulesService,
+} from '../coverages-rules.service';
 import { ClaimCauseOption, CoverageExclusionsService } from '../coverage-exclusions.service';
 import {
   HARD_RULE_LABELS,
@@ -93,7 +97,9 @@ type GeneralView = 'hardStop' | 'scoring' | 'fraude' | 'atribuciones' | 'objetiv
   changeDetection: ChangeDetectionStrategy.OnPush,
   animations: [staggerReveal, listStagger, fadeInUp, accordion],
   templateUrl: './reglas.component.html',
-  styleUrl: './reglas.component.scss',
+  // El orden importa: los dos archivos se concatenan tal como están acá, y el segundo continúa
+  // exactamente donde termina el primero. Invertirlos cambia la cascada.
+  styleUrls: ['./reglas.component.scss', './reglas-secciones.scss'],
 })
 export class ReglasComponent {
   private readonly branchesService = inject(BranchesService);
@@ -201,9 +207,7 @@ export class ReglasComponent {
     if (!current || !base) {
       return false;
     }
-    return fields.some(
-      (field) => JSON.stringify(current[field]) !== JSON.stringify(base[field]),
-    );
+    return fields.some((field) => JSON.stringify(current[field]) !== JSON.stringify(base[field]));
   }
 
   /** Vuelve la porción de la solapa a lo último guardado, sin tocar las otras. */
@@ -475,7 +479,8 @@ export class ReglasComponent {
               maxPriorClaims: dto?.maxPriorClaims ?? null,
               priorClaimsWindowMonths: dto?.priorClaimsWindowMonths ?? null,
               minPolicyAgeMonths: dto?.minPolicyAgeMonths ?? null,
-              requiresUpToDatePolicy: dto?.requiresUpToDatePolicy ?? d.fastTrack.requiresUpToDatePolicy,
+              requiresUpToDatePolicy:
+                dto?.requiresUpToDatePolicy ?? d.fastTrack.requiresUpToDatePolicy,
               requiredDocumentTypes: dto?.requiredDocumentTypes ?? [],
               // Con config guardada mandan los criterios guardados, incluso si son una lista vacía:
               // vacío es una decisión del referente, no "todavía no cargué nada". Sin config, queda
@@ -615,7 +620,9 @@ export class ReglasComponent {
       d
         ? {
             ...d,
-            coverages: d.coverages.map((c) => (c.id === coverageId ? { ...c, hardRules: rules } : c)),
+            coverages: d.coverages.map((c) =>
+              c.id === coverageId ? { ...c, hardRules: rules } : c,
+            ),
           }
         : d,
     );
@@ -637,7 +644,10 @@ export class ReglasComponent {
           d
             ? {
                 ...d,
-                requiredDocumentsByClaimCause: { ...d.requiredDocumentsByClaimCause, [claimCauseId]: types },
+                requiredDocumentsByClaimCause: {
+                  ...d.requiredDocumentsByClaimCause,
+                  [claimCauseId]: types,
+                },
               }
             : d,
         );
@@ -827,14 +837,21 @@ export class ReglasComponent {
     this.patchHardRule(coverageId, type, (r) => ({ ...r, enabled: !r.enabled }));
   }
 
-  private patchHardRule(coverageId: string, type: HardRuleType, patch: (rule: HardRule) => HardRule): void {
+  private patchHardRule(
+    coverageId: string,
+    type: HardRuleType,
+    patch: (rule: HardRule) => HardRule,
+  ): void {
     this.draft.update((d) =>
       d
         ? {
             ...d,
             coverages: d.coverages.map((c) =>
               c.id === coverageId
-                ? { ...c, hardRules: this.hardRulesOf(c).map((r) => (r.ruleType === type ? patch(r) : r)) }
+                ? {
+                    ...c,
+                    hardRules: this.hardRulesOf(c).map((r) => (r.ruleType === type ? patch(r) : r)),
+                  }
                 : c,
             ),
           }
@@ -902,7 +919,9 @@ export class ReglasComponent {
 
   protected setOnArrears(value: string): void {
     this.insurerHardRules.update((list) =>
-      list.map((r) => (r.ruleType === 'POLICY_STANDING' ? { ...r, onArrears: value as OnArrears } : r)),
+      list.map((r) =>
+        r.ruleType === 'POLICY_STANDING' ? { ...r, onArrears: value as OnArrears } : r,
+      ),
     );
   }
 
@@ -1223,8 +1242,6 @@ export class ReglasComponent {
 
   // ───────────────── Documentación (por hecho generador) ─────────────────
 
-
-
   // ───────────────── Fast Track (siempre activo; no hay toggle) ─────────────────
   // ───────────────── Fast Track: umbrales como interruptor + valor ─────────────────
   /**
@@ -1247,12 +1264,16 @@ export class ReglasComponent {
     maxClaimedAmountRatio: 50,
   };
 
-  protected ftActive(field: 'minPolicyAgeMonths' | 'maxPriorClaims' | 'priorClaimsWindowMonths' | 'maxClaimedAmountRatio'): boolean {
+  protected ftActive(
+    field:
+      'minPolicyAgeMonths' | 'maxPriorClaims' | 'priorClaimsWindowMonths' | 'maxClaimedAmountRatio',
+  ): boolean {
     return this.draft()?.fastTrack[field] != null;
   }
 
   protected toggleFtThreshold(
-    field: 'minPolicyAgeMonths' | 'maxPriorClaims' | 'priorClaimsWindowMonths' | 'maxClaimedAmountRatio',
+    field:
+      'minPolicyAgeMonths' | 'maxPriorClaims' | 'priorClaimsWindowMonths' | 'maxClaimedAmountRatio',
   ): void {
     const ft = this.draft()?.fastTrack;
     if (!ft) {
@@ -1546,9 +1567,7 @@ export class ReglasComponent {
         return d;
       }
       const current = d.requiredDocumentsByClaimCause[claimCauseId] ?? [];
-      const next = current.includes(code)
-        ? current.filter((c) => c !== code)
-        : [...current, code];
+      const next = current.includes(code) ? current.filter((c) => c !== code) : [...current, code];
       return {
         ...d,
         requiredDocumentsByClaimCause: { ...d.requiredDocumentsByClaimCause, [claimCauseId]: next },
@@ -1578,7 +1597,6 @@ export class ReglasComponent {
       .map((c) => c.id)
       .filter((id) => JSON.stringify(current[id] ?? []) !== JSON.stringify(base[id] ?? []));
   }
-
 
   // ───────────────── Reglas de negocio: persistencia real (rules-service) ─────────────────
   protected saveBusinessRules(): void {

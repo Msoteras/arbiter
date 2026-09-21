@@ -52,4 +52,8 @@ public class SettlementAuthority {
 
     @Column(name = "updated_at", nullable = false)
     private Instant updatedAt;
+
+    /** Logical reference to arbiter_common.users. NULL on rows from before this was tracked. */
+    @Column(name = "updated_by")
+    private Long updatedBy;
 }

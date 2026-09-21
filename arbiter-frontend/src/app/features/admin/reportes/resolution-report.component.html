@@ -1,0 +1,198 @@
+<div class="reportes" @staggerReveal>
+  <app-card heading="Parámetros del reporte">
+    <p class="rep-hint">
+      Los expedientes cerrados en el período, con tiempos, clasificación y decisión del analista.
+    </p>
+
+    <div class="params">
+      <app-report-filters />
+
+      <div class="field field-wide">
+        <label class="t-field-label" for="rep-tipo">Tipo de siniestro</label>
+        <app-select
+          id="rep-tipo"
+          placeholder="Todos"
+          [searchable]="true"
+          [options]="claimCauseOptions()"
+          [value]="claimCause()"
+          (valueChange)="setClaimCause($event)"
+        />
+      </div>
+    </div>
+
+    @if (filters.periodError() ?? error(); as message) {
+      <p class="form-error" role="alert">{{ message }}</p>
+    }
+
+    <app-report-actions
+      [disabled]="!!filters.periodError()"
+      [loading]="loading()"
+      [exporting]="exporting()"
+      (preview)="loadPreview()"
+      (exportAs)="exportAs($event)"
+    />
+  </app-card>
+
+  <app-card heading="Vista previa">
+    @if (loading()) {
+      <app-inline-loading message="Armando la vista previa…" />
+    } @else if (report(); as current) {
+      <!-- The filters as the backend applied them, not as the controls read: the two can only
+           disagree when something went wrong, and that is when it has to be visible. -->
+      <p class="applied t-note">
+        {{ formatDate(current.from) }} al {{ formatDate(current.to) }} · Ramo:
+        {{ current.branch ?? 'Todos' }} · Tipo de siniestro: {{ current.claimCause ?? 'Todos' }}
+      </p>
+      @if (current.rows.length === 0) {
+        <app-empty-state
+          message="No hay siniestros resueltos en el período"
+          sub="Probá con otro rango de fechas o con otro tipo de siniestro."
+        />
+      } @else {
+        @if (summary(); as totals) {
+          <section class="summary" aria-label="Totales del período">
+            <div class="figures">
+              <app-stat-tile
+                label="Expedientes resueltos"
+                [value]="totals.totalCases"
+                [sub]="resolvedSub()"
+              />
+              <!-- Over the decided cases and split into management time and waiting, same as the
+                   dashboard: a lapsed case measured the insured's silence, not the operation. -->
+              <app-stat-tile
+                label="Tiempo promedio de resolución"
+                [value]="
+                  totals.averageMinutes === null ? '—' : formatDuration(totals.averageMinutes)
+                "
+                [sub]="resolutionTimeSub()"
+              >
+                <app-info-tip>
+                  Desde la denuncia hasta el estado final, promediado sobre los expedientes que un
+                  analista decidió: los caducados quedan afuera porque nadie los resolvió, midieron
+                  el silencio del asegurado. Del total se muestra aparte lo que el expediente pasó
+                  esperando documentación, un perito o el servicio técnico, que el procedimiento no
+                  le imputa a la gestión.
+                </app-info-tip>
+              </app-stat-tile>
+              <!-- The bar only here: it is the only one of the three that is a proportion, and so the
+                   only one with something to be measured against. -->
+              <app-stat-tile
+                label="Resueltos por Fast Track"
+                [value]="totals.fastTrackRate | rate"
+                [sub]="fastTrackSub()"
+                [progress]="totals.fastTrackRate"
+              />
+            </div>
+
+            <section class="timeline">
+              <h3 class="t-section-label">Evolución del tiempo promedio</h3>
+              <p class="chart-note t-note">{{ granularityNote() }}</p>
+              <app-chart [options]="timelineChart()" [description]="timelineDescription()" />
+            </section>
+
+            <div class="distributions">
+              <section class="distribution">
+                <h3 class="t-section-label">Por estado</h3>
+                <app-distribution [items]="statusItems()" />
+              </section>
+
+              <section class="distribution">
+                <h3 class="t-section-label">Por tipo de siniestro</h3>
+                <!-- Anillo y no barra: acá la pregunta es qué parte del total es cada hecho
+                     generador. Una sola tinta en distintas intensidades — el hecho generador no
+                     comunica estado, así que no lleva semáforo. -->
+                <app-distribution
+                  shape="ring"
+                  centerLabel="expedientes"
+                  [items]="claimCauseItems()"
+                />
+              </section>
+            </div>
+          </section>
+        }
+
+        <!-- Eleven columns don't fit a laptop: it scrolls, with the case number and the header
+             pinned so a row read at the far right still says which case it is. -->
+        <app-table
+          [pinFirstColumn]="true"
+          [stickyHeader]="true"
+          scrollLabel="Siniestros resueltos, tabla desplazable"
+        >
+          <thead>
+            <tr>
+              <th scope="col">Nº</th>
+              <th scope="col">Asegurado</th>
+              <th scope="col">Tipo</th>
+              <th scope="col">Denuncia</th>
+              <th scope="col">Resolución</th>
+              <th scope="col">Tiempo total</th>
+              <th scope="col">Clasificación</th>
+              <th scope="col">Decisión</th>
+              <th scope="col">Estado final</th>
+              <th scope="col">Analista</th>
+            </tr>
+          </thead>
+          <tbody>
+            @for (row of pageRows(); track row.caseId) {
+              <tr>
+                <td class="mono">
+                  <a class="case-link" [routerLink]="['/cases', row.caseId]">#{{ row.caseId }}</a>
+                </td>
+                <td>
+                  {{ row.insuredName }}
+                  <span class="sub">DNI {{ row.insuredDni }}</span>
+                </td>
+                <td>
+                  {{ row.claimCause }}
+                  <span class="sub">{{ row.branch }}</span>
+                </td>
+                <td class="tabular">{{ formatDateTime(row.reportedAt) }}</td>
+                <td class="tabular">{{ formatDateTime(row.resolvedAt) }}</td>
+                <td class="tabular">
+                  {{ formatDuration(row.totalMinutes) }}
+                  @if (row.waitingMinutes >= 60) {
+                    <span class="sub">{{ formatDuration(row.waitingMinutes) }} esperando</span>
+                  }
+                </td>
+                <td>
+                  @if (row.classification) {
+                    <app-badge [tone]="clasificacionTone(row.classification)">
+                      {{ clasificacionLabel(row.classification) }}
+                    </app-badge>
+                  } @else {
+                    <span class="muted">Sin clasificación</span>
+                  }
+                </td>
+                <td [class.muted]="!row.analystDecision">
+                  {{ decisionLabel(row.analystDecision) }}
+                </td>
+                <td>
+                  <app-badge [tone]="estadoTone(row.finalStatus)">
+                    {{ estadoLabel(row.finalStatus) }}
+                  </app-badge>
+                </td>
+                <td [class.muted]="!row.analystName">{{ row.analystName ?? '—' }}</td>
+              </tr>
+            }
+          </tbody>
+        </app-table>
+
+        @if (totalPages() > 1) {
+          <app-pagination
+            [page]="page()"
+            [totalPages]="totalPages()"
+            [totalElements]="rows().length"
+            [size]="pageSize()"
+            (pageChange)="page.set($event)"
+            (sizeChange)="setPageSize($event)"
+          />
+        }
+      }
+    } @else {
+      <app-empty-state
+        message="Todavía no hay vista previa"
+        sub="Elegí el período y tocá «Ver vista previa». También podés exportar directo, sin verla."
+      />
+    }
+  </app-card>
+</div>

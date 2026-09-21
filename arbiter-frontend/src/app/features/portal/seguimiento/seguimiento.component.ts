@@ -45,7 +45,14 @@ interface Movimiento {
  */
 @Component({
   selector: 'app-seguimiento',
-  imports: [RouterLink, CardComponent, ButtonComponent, CaseDocumentsComponent, CaseChatComponent, InlineLoadingComponent],
+  imports: [
+    RouterLink,
+    CardComponent,
+    ButtonComponent,
+    CaseDocumentsComponent,
+    CaseChatComponent,
+    InlineLoadingComponent,
+  ],
   changeDetection: ChangeDetectionStrategy.OnPush,
   templateUrl: './seguimiento.component.html',
   styleUrl: './seguimiento.component.scss',
@@ -120,7 +127,9 @@ export class SeguimientoComponent {
 
   protected readonly simplifiedIndex = computed(() => {
     const d = this.data();
-    return d ? this.simplifiedSteps.indexOf(estadoSimplificadoEfectivo(d.status, this.pastStatuses())) : 0;
+    return d
+      ? this.simplifiedSteps.indexOf(estadoSimplificadoEfectivo(d.status, this.pastStatuses()))
+      : 0;
   });
 
   protected readonly statusTone = computed<StatusTone>(() => {
@@ -164,7 +173,10 @@ export class SeguimientoComponent {
    */
   protected readonly movimientos = computed<Movimiento[]>(() => {
     const visibles = (this.data()?.statusHistory ?? [])
-      .map((h) => ({ label: movimientoAseguradoLabel(h.toStatus, h.fromStatus), changedAt: h.changedAt }))
+      .map((h) => ({
+        label: movimientoAseguradoLabel(h.toStatus, h.fromStatus),
+        changedAt: h.changedAt,
+      }))
       .filter((m): m is { label: string; changedAt: string } => m.label !== null)
       // Una corrida de movimientos que dicen LO MISMO se colapsa en el último. El expediente puede
       // pasar varias veces por el mismo estado sin que el asegurado vea nada en el medio —

@@ -19,7 +19,14 @@ type Tone = 'default' | 'accent' | 'danger';
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <div class="stat" [class.accent]="tone() === 'accent'" [class.danger]="tone() === 'danger'">
-      <span class="stat-label">{{ label() }}</span>
+      <span class="stat-label">
+        {{ label() }}
+        <!-- La aclaración, opcional, al lado de la etiqueta: hay cifras cuyo nombre no alcanza
+             para saber qué población miden (ej. "Fraude determinado" lo determina un analista,
+             no el sistema). Se proyecta un app-info-tip en vez de recibir un texto para que la
+             burbuja siga siendo la del kit, con su teclado y su posicionamiento. -->
+        <ng-content select="app-info-tip" />
+      </span>
       <span class="stat-value tabular">{{ display() }}</span>
       @if (sub()) {
         <span class="stat-sub">{{ sub() }}</span>
@@ -47,6 +54,9 @@ type Tone = 'default' | 'accent' | 'danger';
     }
     /* Etiqueta arriba: chica, en mayúsculas con tracking, tenue. */
     .stat-label {
+      display: flex;
+      align-items: center;
+      gap: var(--space-1);
       font-size: var(--font-size-2xs);
       font-weight: var(--font-weight-medium);
       text-transform: uppercase;

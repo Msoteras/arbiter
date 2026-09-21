@@ -26,9 +26,17 @@ La sección "Modelo de dominio — vocabulario" más abajo es la excepción: ah�
 | `classification-service`  | 8082   |
 | `cases-service` | 8083   |
 | `reports-service`    | 8084   |
+| `embedding-service`   | 8000   |
 | `arbiter-frontend`    | 4200   |
 
-(Confirmar/ajustar al crear cada `application.yml`. Hoy solo `classification-service` tiene 8082 fijado.)
+Los cinco módulos Java los fijan como `${PORT:80xx}` en su `application.yml`: el literal es el puerto
+local y `PORT` es lo que inyecta Railway al desplegar.
+
+**El 4200 lo pelean dos cosas.** `ng serve` y el frontend containerizado publican ahí, y no conviven:
+`ng serve` toma `[::1]:4200` y Docker `[::]:4200`, y como Windows resuelve `localhost` a IPv6 primero,
+con los dos arriba el navegador te sirve el **dev server** creyendo que mirás el contenedor — y como el
+dev server proxea a los mismos puertos del back, no hay ningún síntoma. Levantá uno o el otro; si
+necesitás los dos, `FRONTEND_PORT` mueve el del contenedor.
 
 ### Capas (sección 6 del documento de arquitectura)
 
@@ -49,6 +57,7 @@ La sección "Modelo de dominio — vocabulario" más abajo es la excepción: ah�
 | `rules-service`       | **Motor de Reglas de Negocio** — reglas cargadas dinámicamente desde BD, no en código.         |
 | `reports-service`     | **Reportes y Estadísticas** — agregaciones, tableros para el referente.                       |
 | `auth-service`         | **Gestión de Usuarios** — integración con Auth0, JWT, RBAC.                                   |
+| `embedding-service`    | **Servicio de Embeddings** — sidecar Python/FastAPI con CLIP ViT-B-32 (512 dims). No es Maven ni Java: es el único módulo fuera del build de Maven. Lo consume `classification-service` por REST interno. |
 | `arbiter-frontend`     | SPA Angular 20.                                                                                |
 
 Estructura interna de cada módulo backend (ya scaffoldeada — respetala):
@@ -104,9 +113,13 @@ Estos términos vienen del relevamiento de una aseguradora real (BBVA Seguros, A
 
 2. **El LLM clasifica mejor con campos estructurados.** El prompt no recibe solo texto libre de la denuncia: recibe `{ ramo, producto, hechoGenerador, bien, descripcionLibre, adjuntosOCR, imagen }`. Los campos estructurados son contexto duro que ancla la inferencia.
 
-3. **La AgendaDocumental es el contrato de "expediente completo".** Antes de pasar el expediente al analista, `cases-service` valida contra la agenda que todos los documentos obligatorios estén subidos. Si faltan, el estado es `INCOMPLETE`, no `PENDING_ANALYST_REVIEW` (los valores del enum `CaseStatus` van en inglés; el label en español es cosa del frontend).
+3. **La AgendaDocumental es el contrato de "expediente completo".** Antes de pasar el expediente al analista, `cases-service` valida contra la agenda que todos los documentos obligatorios estén subidos. Si faltan, el estado es `AWAITING_DOCUMENTATION`, no `PENDING_ANALYST_REVIEW` (los valores del enum `CaseStatus` van en inglés; el label en español es cosa del frontend).
 
-4. **Reglas duras vs clasificación del LLM.** Las exclusiones de cobertura (ej. "el bien estaba fuera del campo visual" → no cubierto; "ocurrió en domicilio declarado" → no cubierto) son **reglas evaluables** en `rules-service`, no decisiones del LLM. El LLM aporta la lectura interpretativa (¿la denuncia describe un robo o un hurto? ¿la imagen es coherente con lo narrado?); las reglas evalúan condiciones objetivas.
+4. **El plazo del art. 56 se congela en ciertos estados, y eso lo decide `CaseStatus.pausingTheTerm()`.** Hoy son `AWAITING_DOCUMENTATION`, `PENDING_EXPERT_REPORT` y `PENDING_REPAIR`: el expediente está esperando a alguien de **afuera** de la aseguradora (el asegurado por documentación, el perito por su informe, el servicio técnico por el equipo), y el procedimiento de la compañía dice que eso "interrumpe el plazo para que la Aseguradora se expida". Ese tiempo corre para el asegurado pero no se le imputa a la gestión.
+   - Vive en `common-lib` y no en `cases-service` **porque lo responden dos módulos**: `cases-service` congela con eso la fecha límite, y `reports-service` lo usa para separar, en el tiempo promedio de resolución, lo que tardó la compañía de lo que tardó esperando a un tercero. Dos listas separadas se desincronizan, y el día que pase el tablero y el semáforo de plazos se van a contradecir sin que nadie lo note.
+   - `PENDING_REPAIR` (derivación a servicio técnico) es un estado **no final**: el expediente vuelve a `PENDING_ANALYST_REVIEW` y el analista sigue decidiendo.
+
+5. **Reglas duras vs clasificación del LLM.** Las exclusiones de cobertura (ej. "el bien estaba fuera del campo visual" → no cubierto; "ocurrió en domicilio declarado" → no cubierto) son **reglas evaluables** en `rules-service`, no decisiones del LLM. El LLM aporta la lectura interpretativa (¿la denuncia describe un robo o un hurto? ¿la imagen es coherente con lo narrado?); las reglas evalúan condiciones objetivas.
 
 ### Referencias para el modelo
 
@@ -120,21 +133,27 @@ Estos términos vienen del relevamiento de una aseguradora real (BBVA Seguros, A
 
 Estas decisiones están **cerradas y aprobadas** (doc v1.0, 27/05/2026). No las cuestiones ni propongas alternativas salvo que el equipo lo abra explícitamente.
 
-1. **LLM en infraestructura propia con Ollama + Qwen3-VL.** No usamos Anthropic, OpenAI ni ninguna API externa. Razón: privacidad de datos, sin costo por token, licencia Apache 2.0.
+1. **LLM en infraestructura propia con Ollama + Qwen3-VL.** No usamos Anthropic ni OpenAI. Razón: privacidad de datos, sin costo por token, licencia Apache 2.0.
+   - **Ollama sigue siendo el default y es lo que describe el documento de arquitectura.** `OllamaClient` está anotado `matchIfMissing = true`: si nadie dice nada, es el que se cablea.
+   - **`GeminiClient` (Gemini por Vertex) existe como implementación alternativa** detrás de la interfaz `LlmClient`, **opt-in** con `arbiter.llm.provider=gemini` (`LLM_PROVIDER` en el `.env`). Es el mismo patrón Adapter que ya usamos para Auth0 y SendGrid, y está para cuando la máquina no da con el modelo local. No lo pongas por default: el entorno de nadie tiene que empezar a pegarle a una API paga porque bajó una rama.
+   - **`GoogleVisionClient` (Web Detection)** es la única llamada a un tercero en el flujo de clasificación, y está **apagada por default** (`GOOGLE_VISION_ENABLED=false`). Solo se consulta si la comparación interna por pgvector no encontró coincidencia, y **solo se le manda la imagen**, nunca el expediente ni datos personales.
 2. **Ventana de contexto Ollama fijada en 32.768 tokens** (configurar explícitamente; Ollama descarta en silencio lo que pase). Prompt típico estimado 6–15k tokens.
 3. **Una sola instancia del modelo para todas las aseguradoras.** La especialización por compañía se hace **en el prompt** (inyectando las reglas), nunca con fine-tuning ni con un modelo por aseguradora.
-4. **Clasificación asincrónica.** El registro de la denuncia encola la inferencia hacia Ollama; el analista la consulta después. Objetivo: clasificación disponible **<10 min** desde la denuncia.
+4. **Clasificación asincrónica.** El registro de la denuncia encola la inferencia hacia Ollama; el analista la consulta después. Objetivo: clasificación disponible **<30 min** desde la denuncia (el número del documento de arquitectura v1.2, §7 — CLAUDE.md decía 10 y era la desincronización más vieja de las dos).
 5. **Human-in-the-loop obligatorio.** Toda clasificación del modelo requiere **aprobación o rechazo de un analista** antes de impactar en el expediente. **No hay** resolución automática — ni siquiera para Fast Track. El Fast Track agiliza, no automatiza.
 6. **5 categorías de clasificación** en `Clasificacion` (`common-lib`): `FAST_TRACK` (determinístico, decidido por `FastTrackValidator` con reglas de negocio — el LLM **nunca** puede devolver este valor), `FALTA_DOCUMENTACION`, `LLM_RECOMIENDA_APROBAR`, `LLM_NO_RECOMIENDA_APROBAR`, `LLM_SOLICITA_REVISION_MANUAL`. Los 4 valores con LLM son recomendaciones no vinculantes — el analista decide siempre (ver punto 5).
 7. **Auditoría completa de cada clasificación** (Disposición 2/2023). Persistir, en una tabla aparte e inmutable: resultado del modelo, factores que lo fundamentan, decisión del analista, marca temporal. 100% de las clasificaciones deben tener este registro.
 8. **Auth0 + JWT + RBAC.** Tres roles: `ASEGURADO`, `ANALISTA_SINIESTROS`, `REFERENTE_ASEGURADORA`.
-   - **Auth0 integrado y funcionando** (`Auth0Adapter` detrás de la interfaz `CredentialsAuthenticator`, `AUTH_PROVIDER=auth0`) — probado de punta a punta: invitación real por SendGrid, el usuario elige su propia contraseña, login valida contra Auth0. `DatabaseCredentialsAuthenticator` (BCrypt local) queda como implementación alternativa detrás de la misma interfaz, no se usa en este entorno.
+   - **Auth0 integrado y funcionando** (`Auth0Adapter` detrás de la interfaz `CredentialsAuthenticator`, `AUTH_PROVIDER=auth0`) — probado de punta a punta: invitación real por SendGrid, el usuario elige su propia contraseña, login valida contra Auth0.
+   - **`Auth0Adapter` es hoy la ÚNICA implementación de `CredentialsAuthenticator`.** El `DatabaseCredentialsAuthenticator` (BCrypt local) que figuraba acá como alternativa **ya no existe**: el esquema multi-tenant no tiene columna `password_hash`, así que Auth0 es el único lugar donde vive una contraseña. `AUTH_PROVIDER=database` no es un camino válido — sin Auth0 configurado no hay login.
    - **Alta de analistas:** funcionando (invitación por SendGrid, el usuario setea su contraseña). El formulario del panel de usuarios **solo** crea `ANALISTA_SINIESTROS`; el backend rechaza cualquier otro rol.
    - **Alta de asegurados:** en bloque, disparada por el referente (`POST /api/v1/auth/users/insured/bulk-provision`). Lee los asegurados con póliza vigente de la BD Aseguradora y les provisiona la cuenta + la invitación. **No es un ABM**: la identidad del asegurado es dato de la compañía (decisión #10), así que nadie la tipea en Arbiter. El de-dup es **por email** — la misma persona asegurada en dos compañías es un solo login con dos filas en `user_insurer`, y vincular la aseguradora es lo que le suma sus pólizas. No hay autoservicio.
 9. **SendGrid** para mail (notificaciones de cambio de estado al asegurado).
 10. **PostgreSQL** con **multi-tenant por esquema separado por aseguradora** dentro de la misma instancia. NO hacer discriminación por columna `tenant_id`, NO instancia por aseguradora. La BD de la aseguradora (pólizas, historial) es **otra base** integrada por base de datos compartida.
     - **Cómo se materializa la integración (confirmado con Aylén, 31/7):** Arbiter persiste **snapshots locales** de lo que le pasa la BD Aseguradora (`Poliza`, `Cobertura`, `BienAsegurado`, `Asegurado`) — no se consulta la BD externa en vivo en cada request. Un cron (o consulta a demanda) trae los datos y los mapea a las entidades propias de Arbiter. Sin esto, Arbiter no funciona de forma autónoma/consistente. Esto no contradice "integración por base de datos compartida": es el mecanismo concreto que la implementa.
-11. **pgvector** para detectar imágenes reutilizadas entre denuncias (similitud de embeddings). **No** delegues esta comparación al modelo de visión: el LLM analiza solo la imagen del siniestro en curso.
+11. **pgvector** para detectar imágenes reutilizadas entre denuncias (similitud coseno de embeddings). **No** delegues esta comparación al modelo de visión: el LLM analiza solo la imagen del siniestro en curso.
+    - **Ya está decidido e implementado: CLIP ViT-B-32 en el sidecar `embedding-service`** (Python/FastAPI), 512 dimensiones por imagen. `classification-service` lo consume por REST interno y persiste los vectores en PostgreSQL. Esto ya no es una opción abierta.
+    - Si la comparación interna **no** encuentra coincidencia, recién ahí se puede consultar Google Vision (ver decisión #1).
 12. **Reglas de negocio dinámicas en BD**, administradas por el referente. **No** implementar Strategy en código para variar por aseguradora — eso requiere redeploy por cada cambio.
 13. ~~**API REST stateless.**~~ **Quitada el 31/08/2026:** el chat entrega por WebSocket. Sigue vigente lo que citan los `SecurityConfig`: sesión en el JWT, sin sesión de servidor ni CSRF. Con el broker en memoria, `cases-service` corre en una sola instancia.
 14. **Nginx como reverse proxy + terminación SSL.** Centraliza certificados. El backend no se expone directo a internet.
@@ -208,7 +227,7 @@ Estos no son sugerencias, son métricas que tenemos que cumplir:
 | Atributo         | Métrica                                                                                       |
 |------------------|-----------------------------------------------------------------------------------------------|
 | Disponibilidad   | **99,5%** en horario laboral. ≤2,2 h/mes de inactividad.                                      |
-| Rendimiento      | Clasificación lista en **<10 min** desde la denuncia.                                          |
+| Rendimiento      | Clasificación lista en **<30 min** desde la denuncia (determinística o del LLM).               |
 | Seguridad        | JWT + TLS + RBAC. **100%** de clasificaciones auditadas con factores + decisión + timestamp.  |
 | Mantenibilidad   | Nuevo ramo de seguros incorporado en **≤1 sprint (2 semanas)** vía configuración del motor de reglas (sin tocar código). |
 | Usabilidad       | ≥85% éxito en tareas básicas (PC y móvil).                                                    |
@@ -272,7 +291,10 @@ ollama serve                                          # default: http://localhos
 ## Convenciones que NO quiero ver
 
 - Lógica de negocio en `controllers/`. El controller arma el DTO y delega.
-- Acoplar dos módulos por **base de datos compartida**. Cada módulo es dueño de sus tablas; el resto las consulta por REST. Dos excepciones: la **BD Aseguradora** se accede directo desde quien la necesita (es integración por BD compartida, así lo define la doc), y el **esquema común** (`arbiter_common`) es de la plataforma, no de un módulo — sus entidades viven en `common-lib` y cualquier módulo puede leerlas.
+- Acoplar dos módulos por **base de datos compartida**. Cada módulo es dueño de sus tablas; el resto las consulta por REST. **Tres excepciones, y solo tres:**
+  1. La **BD Aseguradora** se accede directo desde quien la necesita (es integración por BD compartida, así lo define la doc).
+  2. El **esquema común** (`arbiter_common`) es de la plataforma, no de un módulo — sus entidades viven en `common-lib` y cualquier módulo puede leerlas.
+  3. **`reports-service` lee por SQL directo las tablas de `cases-service` y `classification-service`** (`cases`, `case_status_history`, `case_settlement`, `expert_assessment`, `rule_result`, `llm_analysis`, `case_classification`). Es lo que dibuja el documento de arquitectura para este módulo (§3: Reportes conecta directo a PostgreSQL, sin enlace REST con Expedientes; §10: "La base de datos es compartida entre todos ellos"), y es lo que hace viable un reporte sobre un período entero: una query en vez de una llamada HTTP por expediente. Condiciones para que siga siendo aceptable: **solo lectura**, **JDBC plano sobre columnas nombradas y sin entidades** (así este módulo nunca reclama propiedad de esas tablas), y todo dentro del mismo esquema de tenant. Ver el javadoc de `ResolvedCaseRepository`, que además explica por qué la query corre sobre la conexión de Hibernate y no sobre una del pool.
 - Llamar al SDK de Auth0 / SendGrid / Ollama directo desde un service. Pasá por el Adapter.
 - `service.findById(...).orElse(null)` con `if (x == null)` después. Tirá la excepción de dominio.
 - Wrappers innecesarios (`SiniestroWrapper`, `SiniestroHelper`, `SiniestroUtilService`).
@@ -291,10 +313,10 @@ Flujo de extremo a extremo:
 
 ```
 Asegurado registra denuncia (frontend, wizard con catálogos en cascada)
-  └─> GET /api/v1/catalogos/productos-habilitados
-  └─> GET /api/v1/catalogos/hechos-generadores?polizaId=…
-  └─> GET /api/v1/catalogos/bienes?ramoId=…&hechoGeneradorId=…
-  └─> GET /api/v1/catalogos/agenda-documental?ramoId=…&hechoGeneradorId=…
+  └─> GET /api/v1/policies            (cases-service: pólizas del asegurado)
+  └─> GET /api/v1/claim-causes        (cases-service: hechos generadores)
+  └─> GET /api/v1/rules/branches      (rules-service: ramos)
+  └─> GET /api/v1/rules/document-requirements   (rules-service: agenda documental)
   └─> POST /api/v1/claims (classification-service)
         ├─> persiste Siniestro + Denuncia + Expediente (estado=PENDING_CLASSIFICATION)
         ├─> sube Adjuntos a S3 (referencia en BD, asociados a items de la AgendaDocumental)
@@ -323,8 +345,8 @@ Analista revisa y decide (frontend)
 
 ### Cómo arrancar (orden sugerido)
 
-1. **Modelo de datos** del módulo, usando el vocabulario de la sección "Modelo de dominio": `Poliza`, `Cobertura`, `Clausula`, `BienAsegurado`, `Siniestro`, `Denuncia`, `Adjunto`, `ClassificationLog`. Las entidades de catálogo (`Ramo`, `Producto`, `HechoGenerador`, `AgendaDocumental`) viven en `rules-service` — desde `classification-service` se referencian por id y se consultan por REST. Definir el script Flyway inicial.
-2. **Endpoints de catálogo** en `rules-service`: `GET /ramos`, `GET /productos`, `GET /hechos-generadores`, `GET /agenda-documental`. Sirven al wizard del frontend y al `ClaimClassificationService` (para inyectar nombres en el prompt). Datos semilla cargados con Flyway desde el PDF de BBVA.
+1. **Modelo de datos** del módulo, usando el vocabulario de la sección "Modelo de dominio": `Poliza`, `Cobertura`, `Clausula`, `BienAsegurado`, `Siniestro`, `Denuncia`, `Adjunto`, `ClassificationLog`. Las entidades de catálogo (`Ramo`, `Producto`, `HechoGenerador`, `AgendaDocumental`) viven en `rules-service` — desde `classification-service` se referencian por id y se consultan por REST. El esquema va a `db/init-multitenant.sql` (**no hay Flyway** — ver la sección Stack).
+2. **Endpoints de catálogo** en `rules-service`, con los nombres reales: `GET /api/v1/rules/branches`, `/api/v1/rules/document-requirements`, `/api/v1/rules/scoring`, y `GET /api/v1/claim-causes` (que lo sirve `cases-service`). Sirven al wizard del frontend y al `ClaimClassificationService` (para inyectar nombres en el prompt). Los datos semilla van en el mismo `db/init-multitenant.sql`, tomados del PDF de BBVA.
 3. **OllamaAdapter** con interfaz `ClaimClassifier` y un `MockClassifier` para perfil `dev`/`test` que devuelve clasificaciones canned. **El mock se escribe primero** — todo el flujo tiene que correr sin Ollama prendido.
 4. **Prompt versionado** en `classification-service/src/main/resources/prompts/classification-v1.md`, cargado con `@Value("classpath:prompts/classification-v1.md")`. La versión del prompt va en el log de cada clasificación. El prompt referencia los campos estructurados por nombre — no lo armes con string concatenation, usá una plantilla.
 5. **Salida estructurada**: forzar JSON con el schema `{ clasificacion: enum, factores: string[], confianza: number }`. Validar contra el schema antes de persistir; si falla → `InvalidClassificationException` + reintento configurable.

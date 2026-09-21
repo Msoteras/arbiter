@@ -28,7 +28,11 @@ export class DocumentRulesService {
     });
   }
 
-  save(branchId: number, claimCauseId: number, documentTypes: string[]): Observable<DocumentRequirementDto[]> {
+  save(
+    branchId: number,
+    claimCauseId: number,
+    documentTypes: string[],
+  ): Observable<DocumentRequirementDto[]> {
     return this.http.put<DocumentRequirementDto[]>(this.base, documentTypes, {
       params: { branchId: String(branchId), claimCauseId: String(claimCauseId) },
     });

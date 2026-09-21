@@ -1,6 +1,5 @@
 package ar.edu.utn.frba.arbiter.classification.adapters;
 
-import ar.edu.utn.frba.arbiter.classification.adapters.mock.MockRulesAdapter;
 import ar.edu.utn.frba.arbiter.classification.config.tenant.TenantContext;
 import ar.edu.utn.frba.arbiter.classification.dto.BusinessRules;
 import ar.edu.utn.frba.arbiter.common.enums.RiskBand;
@@ -23,7 +22,7 @@ import java.util.List;
 
 /**
  * Primary {@link RulesAdapter}: reads what the referente configured in rules-service (the DB) and
- * overlays it on the {@link MockRulesAdapter} baseline — the Fast Track thresholds that gate the
+ * overlays it on {@link BaselineRulesAdapter}'s baseline — the Fast Track thresholds that gate the
  * expedited path, the free-text rules/exclusions that go into the LLM prompt, the document agenda
  * that the missing-docs gate checks, and the hard evaluable rules (exclusions + hard temporal
  * rules). Whatever the insurer hasn't configured (a 200 with an empty/null body — a real
@@ -38,7 +37,7 @@ import java.util.List;
  *
  * <p><b>rules-service unreachable is NOT best-effort.</b> These endpoints carry configuration a
  * human (the referente) entered — Fast Track thresholds, exclusions, document agenda, hard rules —
- * and silently substituting the generic mock for that is worse than not classifying: a
+ * and silently substituting the generic baseline for that is worse than not classifying: a
  * claim could Fast Track or skip an exclusion using rules nobody at the insurer configured. So every
  * overlay but {@link #overlayScoring} lets the connectivity exception propagate instead of catching
  * it. That exception ({@code HttpServerErrorException}/{@code ResourceAccessException}) is exactly
@@ -54,7 +53,7 @@ import java.util.List;
  */
 // Excluded when the "test" profile is active: ClassificationOrchestratorIntegrationTest
 // (@ActiveProfiles("test")) runs the orchestrator synchronously and asserts against
-// MockRulesAdapter's baseline (coverage-scoped Fast Track thresholds, the Hurto exclusion on
+// BaselineRulesAdapter's baseline (coverage-scoped Fast Track thresholds, the Hurto exclusion on
 // coverage 1) — with this bean still @Primary there, it made a real HTTP call to whatever
 // happened to be listening on rules-service's port (a leftover local/Railway container, if any),
 // 401ing against a JWT_SECRET that doesn't match. Not a fake profile invented for this: it's the
@@ -68,12 +67,12 @@ public class RulesRestAdapter implements RulesAdapter {
 
     private final RestClient restClient;
     private final SecretKey jwtKey;
-    private final MockRulesAdapter defaults;
+    private final BaselineRulesAdapter defaults;
 
     public RulesRestAdapter(
             @Value("${arbiter.rules-service.url:http://localhost:8081}") String rulesServiceUrl,
             @Value("${arbiter.auth.jwt.secret}") String jwtSecret,
-            MockRulesAdapter defaults) {
+            BaselineRulesAdapter defaults) {
         SimpleClientHttpRequestFactory factory = new SimpleClientHttpRequestFactory();
         factory.setConnectTimeout(Duration.ofSeconds(2));
         factory.setReadTimeout(Duration.ofSeconds(3));
@@ -137,10 +136,10 @@ public class RulesRestAdapter implements RulesAdapter {
 
     /**
      * The fraud score (factors + bands) the referente configures. A single config per insurer (not
-     * per coverage), so it's read without a coverageId. Replaces the mock baseline when the insurer
+     * per coverage), so it's read without a coverageId. Replaces the baseline when the insurer
      * has a config enabled; if it doesn't have one (or it can't be read), keeps the baseline's
      * reference scoring. This is what makes the referente's scoring panel actually affect the
-     * classification (scoring used to always come from the mock).
+     * classification (scoring used to always come from the baseline).
      */
     private BusinessRules overlayScoring(BusinessRules rules) {
         try {
@@ -248,7 +247,7 @@ public class RulesRestAdapter implements RulesAdapter {
                         ft.priorClaimsWindowMonths(), ft.minPolicyAgeMonths(),
                         ft.requiresUpToDatePolicy(), ft.requiredDocumentTypes()));
 
-        // The Spanish criteria get replaced along with the thresholds, not merged: the mock's list
+        // The Spanish criteria get replaced along with the thresholds, not merged: the baseline's list
         // described different numbers and reached the prompt contradicting what the referente had
         // configured. If they saved a config with no criteria, the prompt goes without that
         // section — better that than resurrecting text nobody on the business side wrote (D14).
@@ -260,7 +259,7 @@ public class RulesRestAdapter implements RulesAdapter {
 
     /**
      * What the referente writes in Coverages (exclusions) and Business Rules. Replaces the
-     * baseline instead of adding to it: if the insurer configured their own rules, the mock's
+     * baseline instead of adding to it: if the insurer configured their own rules, the baseline's
      * generic ones don't matter. An empty list (200 with no text) is "not configured" and keeps
      * the baseline; if rules-service doesn't respond, it propagates — see the class javadoc.
      */
@@ -291,7 +290,7 @@ public class RulesRestAdapter implements RulesAdapter {
 
     /**
      * The document agenda the referente configured for the coverage's branch <b>and claim cause</b>.
-     * Replaces the mock baseline: it's what the missing-docs gate ({@code checkRequiredDocuments})
+     * Replaces the baseline: it's what the missing-docs gate ({@code checkRequiredDocuments})
      * compares against what the insured uploaded. An empty list (200 with no rows) is "not
      * configured" and keeps the baseline; if rules-service doesn't respond, it propagates — see the
      * class javadoc.

@@ -1,6 +1,12 @@
-:host { display: block; min-height: 100%; }
+:host {
+  display: block;
+  min-height: 100%;
+}
 
-.login-page { display: flex; min-height: 100vh; }
+.login-page {
+  display: flex;
+  min-height: 100vh;
+}
 
 /* Mismo token que login/forgot-password (--brand-panel-bg): esta pantalla tenía su propio
    gradiente armado con --action-primary-bg (el ink oscuro del botón primario) en vez del teal
@@ -15,7 +21,10 @@
   color: var(--brand-panel-fg);
 }
 
-.brand-pane-inner { max-width: 420px; width: 100%; }
+.brand-pane-inner {
+  max-width: 420px;
+  width: 100%;
+}
 
 /* Era un <span> de texto ("Arbiter" en una píldora con borde) en vez del ícono real —
    ahora es <app-logo>, que escala con --logo-size (ver logo.component.ts). */
@@ -30,7 +39,12 @@
   font-weight: var(--font-weight-medium);
   line-height: 1.2;
 }
-.brand-tag { margin: 0; color: rgba(255, 255, 255, 0.75); font-size: var(--font-size-md); line-height: 1.55; }
+.brand-tag {
+  margin: 0;
+  color: rgba(255, 255, 255, 0.75);
+  font-size: var(--font-size-md);
+  line-height: 1.55;
+}
 
 .form-pane {
   flex: 0 0 460px;
@@ -41,9 +55,16 @@
   background: var(--surface);
 }
 
-.login-card { width: 100%; max-width: 360px; }
+.login-card {
+  width: 100%;
+  max-width: 360px;
+}
 
-.login-card form { display: flex; flex-direction: column; gap: var(--space-3); }
+.login-card form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
 
 .field-label {
   display: block;
@@ -53,7 +74,11 @@
   margin-top: var(--space-2);
 }
 
-.error { margin: 0; color: var(--status-danger); font-size: var(--font-size-xs); }
+.error {
+  margin: 0;
+  color: var(--status-danger);
+  font-size: var(--font-size-xs);
+}
 
 .password-issues {
   list-style: none;
@@ -64,7 +89,14 @@
 }
 
 @media (max-width: 860px) {
-  .login-page { flex-direction: column; }
-  .brand-pane { flex: 0 0 auto; padding: var(--space-6) var(--space-5); }
-  .form-pane { flex: 1 1 auto; }
+  .login-page {
+    flex-direction: column;
+  }
+  .brand-pane {
+    flex: 0 0 auto;
+    padding: var(--space-6) var(--space-5);
+  }
+  .form-pane {
+    flex: 1 1 auto;
+  }
 }

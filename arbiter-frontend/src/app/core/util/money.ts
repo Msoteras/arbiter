@@ -20,7 +20,10 @@ export function formatMoney(amount: number | null | undefined, fallback = '—')
  * que le dieron al contratar, el absoluto es lo que le van a descontar. Mostrar uno solo deja
  * siempre la otra mitad de la pregunta sin responder.
  */
-export function formatDeductible(amount: number | null | undefined, pct: number | null | undefined): string {
+export function formatDeductible(
+  amount: number | null | undefined,
+  pct: number | null | undefined,
+): string {
   if (amount === null || amount === undefined) {
     return pct === null || pct === undefined ? '—' : `${formatPct(pct)}`;
   }
@@ -29,7 +32,7 @@ export function formatDeductible(amount: number | null | undefined, pct: number 
     : `${formatMoney(amount)} · ${formatPct(pct)}`;
 }
 
-/** `10.00` → `10%`, `12.50` → `12,5%`. */
+/** `10.00` → `10%`, `12.50` → `12,5%`. Sin espacio antes del signo, igual que {@link formatRate}. */
 function formatPct(pct: number): string {
   return `${new Intl.NumberFormat('es-AR', { maximumFractionDigits: 2 }).format(pct)}%`;
 }

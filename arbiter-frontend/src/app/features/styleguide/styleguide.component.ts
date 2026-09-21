@@ -3,6 +3,7 @@ import { DOCUMENT } from '@angular/common';
 
 import { ButtonComponent } from '../../shared/ui/button/button.component';
 import { BadgeComponent } from '../../shared/ui/badge/badge.component';
+import { RatePipe } from '../../shared/pipes/rate.pipe';
 import { InfoTipComponent } from '../../shared/ui/info-tip/info-tip.component';
 import { CardComponent } from '../../shared/ui/card/card.component';
 import { InputComponent } from '../../shared/ui/input/input.component';
@@ -27,6 +28,10 @@ import { InlineLoadingComponent } from '../../shared/ui/inline-loading/inline-lo
 import { SaveBarComponent } from '../../shared/ui/save-bar/save-bar.component';
 import { ChipGroupComponent, ChipOption } from '../../shared/ui/chip-group/chip-group.component';
 import { SwitchComponent } from '../../shared/ui/switch/switch.component';
+import {
+  DistributionComponent,
+  DistributionItem,
+} from '../../shared/ui/distribution/distribution.component';
 import { StatTileComponent } from '../../shared/ui/stat-tile/stat-tile.component';
 import { ToastService } from '../../shared/ui/toast/toast.service';
 import { StatusTransition } from '../../core/models/expediente';
@@ -60,6 +65,7 @@ interface Swatch {
   selector: 'app-styleguide',
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [
+    RatePipe,
     ChipGroupComponent,
     ButtonComponent,
     BadgeComponent,
@@ -85,6 +91,7 @@ interface Swatch {
     InlineLoadingComponent,
     SaveBarComponent,
     SwitchComponent,
+    DistributionComponent,
     StatTileComponent,
   ],
   template: `
@@ -92,8 +99,8 @@ interface Swatch {
       <header class="sg-header">
         <h1 class="sg-h1">Arbiter · Design System</h1>
         <p class="sg-lead">
-          Tokens y componentes reales de la app. Esta página se alimenta sola: consume el mismo
-          kit que las pantallas, así que es la fuente de verdad visual del sistema.
+          Tokens y componentes reales de la app. Esta página se alimenta sola: consume el mismo kit
+          que las pantallas, así que es la fuente de verdad visual del sistema.
         </p>
       </header>
 
@@ -127,7 +134,10 @@ interface Swatch {
 
       <section class="sg-block">
         <h3 class="sg-h3">Accent · technicolor</h3>
-        <p class="sg-p">Primitivos. No se consumen directo: se usan vía los roles de <span class="mono">Estado / semáforo</span> (abajo).</p>
+        <p class="sg-p">
+          Primitivos. No se consumen directo: se usan vía los roles de
+          <span class="mono">Estado / semáforo</span> (abajo).
+        </p>
         <div class="swatches">
           @for (s of technicolor; track s.v) {
             <div class="swatch">
@@ -167,12 +177,29 @@ interface Swatch {
       <section class="sg-block">
         <h3 class="sg-h3">Tipografía · estilos de texto</h3>
         <div class="type-styles">
-          <div class="ts-row"><span class="t-page-title">Título de página</span><span class="tok-var mono">.t-page-title</span></div>
-          <div class="ts-row"><span class="t-section-label">Etiqueta de sección</span><span class="tok-var mono">.t-section-label</span></div>
-          <div class="ts-row"><span class="t-field-label">Etiqueta de campo</span><span class="tok-var mono">.t-field-label</span></div>
-          <div class="ts-row"><span class="t-body">Texto de cuerpo por defecto.</span><span class="tok-var mono">.t-body</span></div>
-          <div class="ts-row"><span class="t-note">Nota al pie / caption tenue.</span><span class="tok-var mono">.t-note</span></div>
-          <div class="ts-row"><span class="t-body mono">EXP-2024-000123</span><span class="tok-var mono">.mono</span></div>
+          <div class="ts-row">
+            <span class="t-page-title">Título de página</span
+            ><span class="tok-var mono">.t-page-title</span>
+          </div>
+          <div class="ts-row">
+            <span class="t-section-label">Etiqueta de sección</span
+            ><span class="tok-var mono">.t-section-label</span>
+          </div>
+          <div class="ts-row">
+            <span class="t-field-label">Etiqueta de campo</span
+            ><span class="tok-var mono">.t-field-label</span>
+          </div>
+          <div class="ts-row">
+            <span class="t-body">Texto de cuerpo por defecto.</span
+            ><span class="tok-var mono">.t-body</span>
+          </div>
+          <div class="ts-row">
+            <span class="t-note">Nota al pie / caption tenue.</span
+            ><span class="tok-var mono">.t-note</span>
+          </div>
+          <div class="ts-row">
+            <span class="t-body mono">EXP-2024-000123</span><span class="tok-var mono">.mono</span>
+          </div>
         </div>
       </section>
 
@@ -224,14 +251,17 @@ interface Swatch {
         <h3 class="sg-h3">Íconos · convenciones</h3>
         <div class="row">
           <span class="icon-conv"><span class="glyph">✦</span> Sugerencia del modelo (IA)</span>
-          <span class="icon-conv"><span class="glyph">▲</span> Severidad / riesgo (nunca por color)</span>
+          <span class="icon-conv"
+            ><span class="glyph">▲</span> Severidad / riesgo (nunca por color)</span
+          >
         </div>
       </section>
 
       <section class="sg-block">
         <h3 class="sg-h3">Logo</h3>
         <p class="sg-p">
-          Isotipo (<span class="mono">app-logo</span>): hereda <span class="mono">currentColor</span>
+          Isotipo (<span class="mono">app-logo</span>): hereda
+          <span class="mono">currentColor</span>
           y escala al ancho del host. Usado en el login y la shell.
         </p>
         <div class="row">
@@ -263,7 +293,10 @@ interface Swatch {
           <app-badge variant="strong">Estado final</app-badge>
           <app-badge variant="dashed">Sin datos</app-badge>
         </div>
-        <p class="sg-p">Con punto de semáforo (<span class="mono">tone</span>): solo el punto lleva color, el texto sigue neutro.</p>
+        <p class="sg-p">
+          Con punto de semáforo (<span class="mono">tone</span>): solo el punto lleva color, el
+          texto sigue neutro.
+        </p>
         <div class="row">
           <app-badge tone="ok">Aprobado</app-badge>
           <app-badge tone="warning">Falta documentación</app-badge>
@@ -275,16 +308,16 @@ interface Swatch {
       <section class="sg-block">
         <h3 class="sg-h3">Info tip</h3>
         <p class="sg-p">
-          Aclaración puntual al lado de un label — un solo dato, no un bloque entero (para eso
-          está <span class="mono">.section-hint</span>). Toggle por click, no hover: funciona
-          igual en mobile y con teclado.
+          Aclaración puntual al lado de un label — un solo dato, no un bloque entero (para eso está
+          <span class="mono">.section-hint</span>). Toggle por click, no hover: funciona igual en
+          mobile y con teclado.
         </p>
         <div class="row">
           <span class="t-field-label">
             Carencia (días)
             <app-info-tip>
-              Durante la carencia la cobertura todavía no aplica, aunque la póliza esté vigente:
-              un siniestro dentro de ese plazo no se cubre.
+              Durante la carencia la cobertura todavía no aplica, aunque la póliza esté vigente: un
+              siniestro dentro de ese plazo no se cubre.
             </app-info-tip>
           </span>
         </div>
@@ -295,18 +328,29 @@ interface Swatch {
         <p class="sg-p">
           Aviso efímero, montado una sola vez en <span class="mono">app.html</span> y disparado
           desde cualquier pantalla vía <span class="mono">ToastService.show()</span>. Reemplaza el
-          texto de error fijo al lado de un botón de guardar (ej. "El backend rechazó el
-          guardado") — el mensaje no debe quedar clavado en la pantalla, así que se muestra abajo
-          a la derecha y se cierra solo.
+          texto de error fijo al lado de un botón de guardar (ej. "El backend rechazó el guardado")
+          — el mensaje no debe quedar clavado en la pantalla, así que se muestra abajo a la derecha
+          y se cierra solo.
         </p>
         <div class="row">
-          <app-button variant="secondary" (click)="toastService.show('No se pudo guardar: el backend no respondió.', 'danger')">
+          <app-button
+            variant="secondary"
+            (click)="toastService.show('No se pudo guardar: el backend no respondió.', 'danger')"
+          >
             Disparar error
           </app-button>
-          <app-button variant="secondary" (click)="toastService.show('Cambios guardados en el motor.', 'ok')">
+          <app-button
+            variant="secondary"
+            (click)="toastService.show('Cambios guardados en el motor.', 'ok')"
+          >
             Disparar éxito
           </app-button>
-          <app-button variant="secondary" (click)="toastService.show('rules-service tardó en responder — reintentando.', 'warning')">
+          <app-button
+            variant="secondary"
+            (click)="
+              toastService.show('rules-service tardó en responder — reintentando.', 'warning')
+            "
+          >
             Disparar warning
           </app-button>
         </div>
@@ -322,10 +366,15 @@ interface Swatch {
             <p class="sg-p">Variante <span class="mono">soft</span>.</p>
           </app-card>
           <app-card variant="ai" icon="✦" heading="Recomendación del modelo">
-            <p class="sg-p">Variante <span class="mono">ai</span>: lavado teal para sugerencias del modelo.</p>
+            <p class="sg-p">
+              Variante <span class="mono">ai</span>: lavado teal para sugerencias del modelo.
+            </p>
           </app-card>
           <app-card [flush]="true" heading="Sin padding">
-            <p class="sg-p">Variante <span class="mono">flush</span>, para contenido que llega al borde (ej. una tabla).</p>
+            <p class="sg-p">
+              Variante <span class="mono">flush</span>, para contenido que llega al borde (ej. una
+              tabla).
+            </p>
           </app-card>
           <app-card heading="Plegable" [collapsible]="true">
             <p class="sg-p">
@@ -334,9 +383,7 @@ interface Swatch {
             </p>
           </app-card>
           <app-card heading="Plegable, cerrada" [collapsible]="true" [collapsed]="true">
-            <p class="sg-p">
-              Con <span class="mono">collapsed</span> arranca cerrada.
-            </p>
+            <p class="sg-p">Con <span class="mono">collapsed</span> arranca cerrada.</p>
           </app-card>
         </div>
       </section>
@@ -404,8 +451,8 @@ interface Swatch {
         <h3 class="sg-h3">Menu button</h3>
         <p class="sg-p">
           Botón con menú desplegable (ej. "Exportar" en la bandeja de expedientes: CSV / XLSX).
-          Mismo trigger que <span class="mono">app-button</span>; el panel usa el tratamiento
-          visual de <span class="mono">app-select</span>. Acepta el mismo
+          Mismo trigger que <span class="mono">app-button</span>; el panel usa el tratamiento visual
+          de <span class="mono">app-select</span>. Acepta el mismo
           <span class="mono">size</span> que el botón: <span class="mono">sm</span> para triggers
           que viven dentro de una fila de tabla (ej. "Reasignar" en la columna Analista).
         </p>
@@ -421,7 +468,9 @@ interface Swatch {
             Exportar (sm)
           </app-menu-button>
           @if (sampleMenuChoice(); as choice) {
-            <span class="t-note">Elegiste: <span class="mono">{{ choice }}</span></span>
+            <span class="t-note"
+              >Elegiste: <span class="mono">{{ choice }}</span></span
+            >
           }
         </div>
       </section>
@@ -445,9 +494,14 @@ interface Swatch {
         <h3 class="sg-h3">Modal</h3>
         <div class="row">
           <app-button (click)="modalOpen.set(true)">Abrir modal</app-button>
-          <app-button variant="secondary" (click)="sidePanelOpen.set(true)">Abrir panel lateral</app-button>
+          <app-button variant="secondary" (click)="sidePanelOpen.set(true)"
+            >Abrir panel lateral</app-button
+          >
         </div>
-        <p class="sg-p">Variante <span class="mono">side</span>: panel deslizante desde el borde, para formularios tipo "alta de X" sobre un listado.</p>
+        <p class="sg-p">
+          Variante <span class="mono">side</span>: panel deslizante desde el borde, para formularios
+          tipo "alta de X" sobre un listado.
+        </p>
         <app-modal
           [open]="modalOpen()"
           heading="Justificar decisión"
@@ -489,9 +543,9 @@ interface Swatch {
         <h3 class="sg-h3">Chart</h3>
         <p class="sg-p">
           Envoltorio de ECharts. Los colores NO se escriben en el gráfico: salen de los tokens
-          semánticos leídos en tiempo de ejecución (ver chart-theme.ts), así que el semáforo de
-          acá es el mismo que el de los badges. <code>description</code> es obligatorio: un canvas
-          no le dice nada a un lector de pantalla.
+          semánticos leídos en tiempo de ejecución (ver chart-theme.ts), así que el semáforo de acá
+          es el mismo que el de los badges. <code>description</code> es obligatorio: un canvas no le
+          dice nada a un lector de pantalla.
         </p>
         <div class="narrow">
           <app-chart [options]="demoChart" [description]="demoChartDescription" />
@@ -517,8 +571,8 @@ interface Swatch {
       <section class="sg-block">
         <h3 class="sg-h3">Logo</h3>
         <p class="sg-p">
-          El símbolo va en <span class="mono">currentColor</span>: una sola versión sirve para
-          fondo claro y oscuro. El tamaño se controla con <span class="mono">--logo-size</span>
+          El símbolo va en <span class="mono">currentColor</span>: una sola versión sirve para fondo
+          claro y oscuro. El tamaño se controla con <span class="mono">--logo-size</span>
           y el texto escala con él. Los archivos originales del export están en
           <span class="mono">public/brand/</span>.
         </p>
@@ -532,24 +586,77 @@ interface Swatch {
       <section class="sg-block">
         <h3 class="sg-h3">Table</h3>
         <p class="sg-p">
-          Solo aporta el look (header tenue en mayúsculas, filas separadas por borde). El
-          contenido se proyecta como <span class="mono">thead</span>/<span class="mono">tbody</span>
-          nativos. Va dentro de <span class="mono">app-card [flush]</span> para que llegue al borde.
+          Solo aporta el look (header tenue en mayúsculas, filas separadas por borde). El contenido
+          se proyecta como <span class="mono">thead</span>/<span class="mono">tbody</span> nativos.
+          Va dentro de <span class="mono">app-card [flush]</span> para que llegue al borde.
         </p>
+        <p class="sg-p">
+          Una tabla que no entra a lo ancho scrollea. Para que ese scroll se pueda usar están
+          <span class="mono">[pinFirstColumn]</span> y <span class="mono">[stickyHeader]</span>: la
+          primera columna y el encabezado quedan a la vista, aparece una sombra en el borde derecho
+          mientras haya tabla escondida, y la zona se vuelve alcanzable por teclado con el nombre
+          que le da <span class="mono">scrollLabel</span>. El reporte de resolución, con once
+          columnas, es el caso que las pide.
+        </p>
+        <app-card [flush]="true">
+          <app-table
+            [pinFirstColumn]="true"
+            [stickyHeader]="true"
+            scrollLabel="Demo de tabla desplazable"
+          >
+            <thead>
+              <tr>
+                <th>Nº</th>
+                <th>Asegurado</th>
+                <th>Ramo</th>
+                <th>Hecho generador</th>
+                <th>Denuncia</th>
+                <th>Resolución</th>
+                <th>Tiempo total</th>
+                <th>Clasificación</th>
+                <th>Decisión</th>
+                <th>Estado final</th>
+                <th>Analista</th>
+              </tr>
+            </thead>
+            <tbody>
+              @for (row of wideTableRows; track row[0]) {
+                <tr>
+                  @for (cell of row; track $index) {
+                    <td [class.mono]="$index === 0">{{ cell }}</td>
+                  }
+                </tr>
+              }
+            </tbody>
+          </app-table>
+        </app-card>
+
         <p class="sg-p">
           <span class="mono">[fixed]="true"</span> reparte el ancho por columna en vez de por
           contenido: las que no declaran ancho quedan todas iguales. Para una matriz (ej. la agenda
-          documental) es lo que corresponde — por contenido, cada columna mide lo que mide su
-          título y la grilla se ve torcida.
+          documental) es lo que corresponde — por contenido, cada columna mide lo que mide su título
+          y la grilla se ve torcida.
         </p>
         <app-card [flush]="true">
           <app-table>
             <thead>
-              <tr><th>N°</th><th>Estado</th><th>Asegurado</th></tr>
+              <tr>
+                <th>N°</th>
+                <th>Estado</th>
+                <th>Asegurado</th>
+              </tr>
             </thead>
             <tbody>
-              <tr><td class="mono">#1</td><td>Pendiente de revisión</td><td>Martina Soteras</td></tr>
-              <tr><td class="mono">#2</td><td>Falta documentación</td><td>Julián Pérez</td></tr>
+              <tr>
+                <td class="mono">#1</td>
+                <td>Pendiente de revisión</td>
+                <td>Martina Soteras</td>
+              </tr>
+              <tr>
+                <td class="mono">#2</td>
+                <td>Falta documentación</td>
+                <td>Julián Pérez</td>
+              </tr>
             </tbody>
           </app-table>
         </app-card>
@@ -558,9 +665,9 @@ interface Swatch {
       <section class="sg-block">
         <h3 class="sg-h3">Checkbox</h3>
         <p class="sg-p">
-          Conserva el <span class="mono">&lt;input&gt;</span> nativo (foco por teclado y lectores
-          de pantalla salen gratis); el componente aporta tamaño, área de toque de 40px y la
-          etiqueta clickeable.
+          Conserva el <span class="mono">&lt;input&gt;</span> nativo (foco por teclado y lectores de
+          pantalla salen gratis); el componente aporta tamaño, área de toque de 40px y la etiqueta
+          clickeable.
         </p>
         <div class="col narrow">
           <app-checkbox [(checked)]="sampleCheckbox">
@@ -573,10 +680,10 @@ interface Swatch {
       <section class="sg-block">
         <h3 class="sg-h3">Policy card</h3>
         <p class="sg-p">
-          Una póliza del asegurado, en solo lectura. La comparten la bienvenida y "Mis pólizas"
-          del perfil. Los dos ejes son independientes: <span class="mono">vigencia</span> (si te
-          está cubriendo) y <span class="mono">upToDate</span> (si estás al día con los pagos) —
-          una póliza puede estar vigente y con deuda. La vencida se distingue sin leer las fechas:
+          Una póliza del asegurado, en solo lectura. La comparten la bienvenida y "Mis pólizas" del
+          perfil. Los dos ejes son independientes: <span class="mono">vigencia</span> (si te está
+          cubriendo) y <span class="mono">upToDate</span> (si estás al día con los pagos) — una
+          póliza puede estar vigente y con deuda. La vencida se distingue sin leer las fechas:
           pierde el filo teal y la tarjeta se apaga.
         </p>
         <ul class="sg-policies">
@@ -605,8 +712,8 @@ interface Swatch {
         <h3 class="sg-h3">File preview</h3>
         <p class="sg-p">
           Vista previa de un archivo elegido <em>antes</em> de subirlo — el
-          <span class="mono">File</span> ya está en memoria, no hay llamada al backend. Miniatura
-          + click para agrandar en línea. Elegí un JPG, PNG o PDF para probarlo:
+          <span class="mono">File</span> ya está en memoria, no hay llamada al backend. Miniatura +
+          click para agrandar en línea. Elegí un JPG, PNG o PDF para probarlo:
         </p>
         <div class="col narrow">
           <label class="sg-file-btn">
@@ -684,8 +791,8 @@ interface Swatch {
           borde, fondo y peso además del color.
         </p>
         <p class="sg-p">
-          <span class="mono">md</span> (default) es una elección principal de la pantalla: el
-          "¿Qué te pasó?" del alta de denuncia, que en mobile tiene que ser un target cómodo.
+          <span class="mono">md</span> (default) es una elección principal de la pantalla: el "¿Qué
+          te pasó?" del alta de denuncia, que en mobile tiene que ser un target cómodo.
         </p>
         <div class="row">
           <app-chip-group
@@ -696,10 +803,11 @@ interface Swatch {
         </div>
         <p class="sg-p">
           <span class="mono">sm</span> es un control secundario que acompaña a otro campo. En el
-          alta acelera la hora sin reemplazarla: el chip escribe una hora representativa en el input,
-          que sigue siendo el dato — si el asegurado la corrige a mano, la franja se acomoda sola.
-          Ahí va con <span class="mono">allowDeselect</span>, porque vaciar es una respuesta válida;
-          apagado (el default) el grupo se comporta como un radio: una vez elegido, hay uno elegido.
+          alta acelera la hora sin reemplazarla: el chip escribe una hora representativa en el
+          input, que sigue siendo el dato — si el asegurado la corrige a mano, la franja se acomoda
+          sola. Ahí va con <span class="mono">allowDeselect</span>, porque vaciar es una respuesta
+          válida; apagado (el default) el grupo se comporta como un radio: una vez elegido, hay uno
+          elegido.
         </p>
         <div class="row">
           <app-chip-group
@@ -728,7 +836,12 @@ interface Swatch {
         <app-save-bar [dirty]="false" (save)="noop()" (discard)="noop()" />
         <app-save-bar [dirty]="true" (save)="noop()" (discard)="noop()" />
         <app-save-bar [dirty]="true" [saving]="true" (save)="noop()" (discard)="noop()" />
-        <app-save-bar [dirty]="true" error="No se pudo guardar: el motor no respondió" (save)="noop()" (discard)="noop()" />
+        <app-save-bar
+          [dirty]="true"
+          error="No se pudo guardar: el motor no respondió"
+          (save)="noop()"
+          (discard)="noop()"
+        />
       </section>
 
       <section class="sg-block">
@@ -760,25 +873,47 @@ interface Swatch {
           solo cuando el número comunica algo: <span class="mono">accent</span> para el dato propio
           a resaltar, <span class="mono">danger</span> para una alerta. Con
           <span class="mono">loading</span> muestra un guion en vez de un 0 que después salta a su
-          valor real y se lee como "no hay nada". <span class="mono">progress</span> agrega una barra
-          bajo el número, y solo tiene sentido donde el valor ES una proporción: en un conteo o en
-          una duración no hay contra qué medirla. Su color sale del semáforo
-          (<span class="mono">progressTone</span>), no de una paleta aparte.
+          valor real y se lee como "no hay nada". <span class="mono">progress</span> agrega una
+          barra bajo el número, y solo tiene sentido donde el valor ES una proporción: en un conteo
+          o en una duración no hay contra qué medirla. Su color sale del semáforo (<span
+            class="mono"
+            >progressTone</span
+          >), no de una paleta aparte.
+        </p>
+        <p class="sg-p">
+          Una cifra cuyo nombre no alcanza para saber qué mide lleva su aclaración al lado: se
+          proyecta un <span class="mono">app-info-tip</span> adentro del
+          <span class="mono">app-stat-tile</span> y queda pegado a la etiqueta. Es para definir la
+          población o la fuente del dato («lo determina un analista, no el sistema»), no para
+          repetir lo que ya dice el subtítulo.
+        </p>
+        <p class="sg-p">
+          Los porcentajes salen del pipe <span class="mono">rate</span> (<span class="mono"
+            >core/util/percent.ts</span
+          >), no del <span class="mono">percent</span> de Angular: coma decimal y sin espacio antes
+          del signo (<span class="mono">25%</span>, <span class="mono">14,3%</span>). El locale
+          es-AR escribe «25 %» y el equipo lo quiere pegado, así que esa decisión vive en un solo
+          lugar. Un valor desconocido se muestra como <span class="mono">—</span>, nunca como 0%.
         </p>
         <div class="row cards">
           <app-stat-tile [value]="14" label="Total expedientes" sub="en la aseguradora" />
           <app-stat-tile [value]="5" tone="accent" label="Pendientes" sub="asignados a vos" />
-          <app-stat-tile [value]="3" tone="danger" label="Riesgo alto" sub="requieren atención" />
+          <app-stat-tile [value]="3" tone="danger" label="Riesgo alto" sub="requieren atención">
+            <app-info-tip>
+              El tono <span class="mono">danger</span> sólo cuando el número comunica una alerta: un
+              cero pintado de rojo alarma sobre nada.
+            </app-info-tip>
+          </app-stat-tile>
           <app-stat-tile [loading]="true" label="Resueltos" sub="en total" />
           <app-stat-tile
-            [value]="'86%'"
+            [value]="0.86 | rate"
             label="Coincidencia"
             sub="6 de 7 con recomendación"
             [progress]="0.86"
             progressTone="info"
           />
           <app-stat-tile
-            [value]="'25%'"
+            [value]="0.25 | rate"
             label="Fast Track"
             sub="3 de 12 denunciados"
             [progress]="0.25"
@@ -786,14 +921,72 @@ interface Swatch {
           />
         </div>
       </section>
+
+      <section class="sg-block">
+        <h3 class="sg-h3">Distribution</h3>
+        <p class="sg-p">
+          El dibujo de una proporción más su leyenda. La leyenda es la parte que no se negocia:
+          nombre, conteo y porcentaje alineados en una grilla, que es lo que evita que el número
+          termine a media cuadra del nombre en una fila ancha. Lo que cambia es el dibujo.
+          <span class="mono">shape="bar"</span> es el default y es lo que conviene con cuatro o
+          cinco categorías en una tarjeta angosta: comparar largos es más fácil que comparar arcos.
+          Cada ítem trae su <span class="mono">tone</span> ya resuelto por el dominio (<span
+            class="mono"
+            >estadoTone</span
+          >, <span class="mono">clasificacionTone</span>); lo que no comunica estado —un ramo, un
+          hecho generador— va en <span class="mono">neutral</span>, no en un color elegido a dedo.
+          Si dos categorías caen en el mismo tono, la repetición se atenúa en vez de inventar un
+          color que el sistema no tiene.
+        </p>
+        <div class="row cards">
+          <app-distribution [items]="statusDistribution" />
+          <app-distribution [items]="causeDistribution" />
+        </div>
+        <p class="sg-p">
+          Con categorías que se superponen —un expediente con dos señales cuenta en las dos— se pasa
+          <span class="mono">[total]</span>: cada porcentaje se lee contra esa población, la barra
+          apilada no se dibuja (no hay forma honesta de apilar lo que se repite) y los porcentajes
+          no suman 100%.
+        </p>
+        <div class="row cards">
+          <app-distribution [items]="signalDistribution" [total]="12" />
+        </div>
+        <p class="sg-p">
+          <span class="mono">shape="ring"</span> dibuja la misma distribución como anillo, con el
+          total en el centro, para las pantallas que se leen como un tablero y preguntan "qué parte
+          del total es esto". La leyenda va al lado, así que sigue sin haber que estimar un arco.
+          Con categorías en <span class="mono">neutral</span> —lo habitual acá— las porciones se
+          separan por intensidad de una sola tinta: es lo que deja distinguirlas sin pintar de rojo
+          o verde algo que no es un semáforo.
+        </p>
+        <div class="row cards">
+          <app-distribution shape="ring" centerLabel="expedientes" [items]="causeDistribution" />
+        </div>
+      </section>
     </div>
   `,
   styles: `
-    :host { display: block; }
-    .sg { padding: var(--space-5) var(--space-5) var(--space-7); max-width: 900px; }
-    .sg-header { margin-bottom: var(--space-6); }
-    .sg-h1 { margin: 0 0 var(--space-2); font-size: var(--font-size-xl); font-weight: var(--font-weight-medium); }
-    .sg-lead { margin: 0; font-size: var(--font-size-body); color: var(--text-tertiary); max-width: 620px; }
+    :host {
+      display: block;
+    }
+    .sg {
+      padding: var(--space-5) var(--space-5) var(--space-7);
+      max-width: 900px;
+    }
+    .sg-header {
+      margin-bottom: var(--space-6);
+    }
+    .sg-h1 {
+      margin: 0 0 var(--space-2);
+      font-size: var(--font-size-xl);
+      font-weight: var(--font-weight-medium);
+    }
+    .sg-lead {
+      margin: 0;
+      font-size: var(--font-size-body);
+      color: var(--text-tertiary);
+      max-width: 620px;
+    }
     .sg-h2 {
       margin: var(--space-6) 0 var(--space-4);
       padding-bottom: var(--space-2);
@@ -817,12 +1010,27 @@ interface Swatch {
       color: var(--text-tertiary);
       font-weight: var(--font-weight-medium);
     }
-    .sg-block { margin-bottom: var(--space-5); }
-    .sg-p { margin: 0; font-size: var(--font-size-body); color: var(--text-secondary); }
+    .sg-block {
+      margin-bottom: var(--space-5);
+    }
+    .sg-p {
+      margin: 0;
+      font-size: var(--font-size-body);
+      color: var(--text-secondary);
+    }
 
-    .row { display: flex; gap: var(--space-3); flex-wrap: wrap; align-items: center; }
-    .row.cards { align-items: stretch; }
-    .row.logos { gap: var(--space-6); }
+    .row {
+      display: flex;
+      gap: var(--space-3);
+      flex-wrap: wrap;
+      align-items: center;
+    }
+    .row.cards {
+      align-items: stretch;
+    }
+    .row.logos {
+      gap: var(--space-6);
+    }
 
     /* Para verificar que el logo se banca fondo oscuro sin cargar la variante -white. */
     .logo-on-dark {
@@ -842,56 +1050,249 @@ interface Swatch {
       padding: var(--space-2) var(--space-3);
       cursor: pointer;
     }
-    .sg-file-btn:hover { background: var(--surface-sunken); }
-    .cards app-card { flex: 1 1 240px; }
-    .col { display: flex; flex-direction: column; gap: var(--space-3); }
-    .narrow { max-width: 340px; }
+    .sg-file-btn:hover {
+      background: var(--surface-sunken);
+    }
+    .cards app-card {
+      flex: 1 1 240px;
+    }
+    .col {
+      display: flex;
+      flex-direction: column;
+      gap: var(--space-3);
+    }
+    .narrow {
+      max-width: 340px;
+    }
 
     /* Tokens de color */
-    .swatches { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: var(--space-3); }
-    .swatch { display: flex; flex-direction: column; gap: 2px; }
-    .chip { height: 40px; border-radius: var(--radius-ctl); border: 1px solid var(--border-default); }
-    .tok-name { font-size: var(--font-size-sm); color: var(--text-primary); }
-    .tok-var { font-size: var(--font-size-xs); color: var(--text-muted); }
+    .swatches {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+      gap: var(--space-3);
+    }
+    .swatch {
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+    }
+    .chip {
+      height: 40px;
+      border-radius: var(--radius-ctl);
+      border: 1px solid var(--border-default);
+    }
+    .tok-name {
+      font-size: var(--font-size-sm);
+      color: var(--text-primary);
+    }
+    .tok-var {
+      font-size: var(--font-size-xs);
+      color: var(--text-muted);
+    }
 
     /* Paleta editable */
-    .edit-note { max-width: 620px; margin: 0 0 var(--space-3); }
-    .linkbtn { border: none; background: none; padding: 0 0 0 var(--space-1); font: inherit; font-size: var(--font-size-xs); color: var(--text-primary); text-decoration: underline; cursor: pointer; }
-    .knobs { display: flex; flex-wrap: wrap; gap: var(--space-4); }
-    .knob { display: flex; align-items: center; gap: var(--space-2); cursor: pointer; }
-    .knob input[type='color'] { width: 40px; height: 40px; padding: 0; border: 1px solid var(--border-default); border-radius: var(--radius-ctl); background: none; cursor: pointer; }
-    .knob-info { display: flex; flex-direction: column; gap: 1px; }
+    .edit-note {
+      max-width: 620px;
+      margin: 0 0 var(--space-3);
+    }
+    .linkbtn {
+      border: none;
+      background: none;
+      padding: 0 0 0 var(--space-1);
+      font: inherit;
+      font-size: var(--font-size-xs);
+      color: var(--text-primary);
+      text-decoration: underline;
+      cursor: pointer;
+    }
+    .knobs {
+      display: flex;
+      flex-wrap: wrap;
+      gap: var(--space-4);
+    }
+    .knob {
+      display: flex;
+      align-items: center;
+      gap: var(--space-2);
+      cursor: pointer;
+    }
+    .knob input[type='color'] {
+      width: 40px;
+      height: 40px;
+      padding: 0;
+      border: 1px solid var(--border-default);
+      border-radius: var(--radius-ctl);
+      background: none;
+      cursor: pointer;
+    }
+    .knob-info {
+      display: flex;
+      flex-direction: column;
+      gap: 1px;
+    }
 
     /* Tipografía */
-    .type-row { display: flex; align-items: baseline; justify-content: space-between; gap: var(--space-4); padding: var(--space-2) 0; border-bottom: 1px solid var(--border-subtle); }
-    .type-styles { display: flex; flex-direction: column; }
-    .ts-row { display: flex; align-items: baseline; justify-content: space-between; gap: var(--space-4); padding: var(--space-2) 0; border-bottom: 1px solid var(--border-subtle); }
+    .type-row {
+      display: flex;
+      align-items: baseline;
+      justify-content: space-between;
+      gap: var(--space-4);
+      padding: var(--space-2) 0;
+      border-bottom: 1px solid var(--border-subtle);
+    }
+    .type-styles {
+      display: flex;
+      flex-direction: column;
+    }
+    .ts-row {
+      display: flex;
+      align-items: baseline;
+      justify-content: space-between;
+      gap: var(--space-4);
+      padding: var(--space-2) 0;
+      border-bottom: 1px solid var(--border-subtle);
+    }
 
     /* Sombra / overlay */
-    .shadow-demo { width: 160px; height: 72px; display: flex; align-items: center; justify-content: center; background: var(--surface); border-radius: var(--radius-modal); box-shadow: var(--shadow-modal); }
-    .overlay-demo { width: 160px; height: 72px; display: flex; align-items: center; justify-content: center; background: var(--overlay-backdrop); border-radius: var(--radius-ctl); color: var(--text-on-emphasis); }
+    .shadow-demo {
+      width: 160px;
+      height: 72px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: var(--surface);
+      border-radius: var(--radius-modal);
+      box-shadow: var(--shadow-modal);
+    }
+    .overlay-demo {
+      width: 160px;
+      height: 72px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: var(--overlay-backdrop);
+      border-radius: var(--radius-ctl);
+      color: var(--text-on-emphasis);
+    }
 
     /* Íconos */
-    .icon-conv { display: inline-flex; align-items: center; gap: var(--space-2); font-size: var(--font-size-body); color: var(--text-secondary); }
-    .icon-conv .glyph { color: var(--text-primary); }
+    .icon-conv {
+      display: inline-flex;
+      align-items: center;
+      gap: var(--space-2);
+      font-size: var(--font-size-body);
+      color: var(--text-secondary);
+    }
+    .icon-conv .glyph {
+      color: var(--text-primary);
+    }
 
-    .sg-logo-sm { width: 28px; color: var(--text-primary); }
-    .sg-logo-md { width: 56px; color: var(--text-primary); }
-    .sg-logo-dark { display: inline-flex; padding: var(--space-3); border-radius: var(--radius-card); background: var(--brand-panel-bg); color: var(--text-on-emphasis); }
+    .sg-logo-sm {
+      width: 28px;
+      color: var(--text-primary);
+    }
+    .sg-logo-md {
+      width: 56px;
+      color: var(--text-primary);
+    }
+    .sg-logo-dark {
+      display: inline-flex;
+      padding: var(--space-3);
+      border-radius: var(--radius-card);
+      background: var(--brand-panel-bg);
+      color: var(--text-on-emphasis);
+    }
 
     /* Espaciado */
-    .space-row { display: flex; align-items: center; gap: var(--space-3); padding: 3px 0; }
-    .space-bar { display: block; height: 14px; background: var(--action-primary-bg); border-radius: 2px; }
+    .space-row {
+      display: flex;
+      align-items: center;
+      gap: var(--space-3);
+      padding: 3px 0;
+    }
+    .space-bar {
+      display: block;
+      height: 14px;
+      background: var(--action-primary-bg);
+      border-radius: 2px;
+    }
 
     /* Radios */
-    .radii { display: flex; gap: var(--space-4); flex-wrap: wrap; }
-    .radius-item { display: flex; flex-direction: column; gap: var(--space-2); align-items: flex-start; }
-    .radius-box { display: block; width: 56px; height: 56px; background: var(--surface-head); border: 1px solid var(--border-strong); }
+    .radii {
+      display: flex;
+      gap: var(--space-4);
+      flex-wrap: wrap;
+    }
+    .radius-item {
+      display: flex;
+      flex-direction: column;
+      gap: var(--space-2);
+      align-items: flex-start;
+    }
+    .radius-box {
+      display: block;
+      width: 56px;
+      height: 56px;
+      background: var(--surface-head);
+      border: 1px solid var(--border-strong);
+    }
 
-    .mono { font-family: var(--font-mono); }
+    .mono {
+      font-family: var(--font-mono);
+    }
   `,
 })
 export class StyleguideComponent {
+  /** Con semáforo: el estado del expediente sí comunica cómo salió. */
+  protected readonly statusDistribution: DistributionItem[] = [
+    { label: 'Aprobado', count: 24, tone: 'ok' },
+    { label: 'Rechazado', count: 6, tone: 'danger' },
+    { label: 'Caducado', count: 2, tone: 'neutral' },
+  ];
+
+  /** Sin semáforo: un hecho generador no es bueno ni malo. Mismo tono, repetición atenuada. */
+  protected readonly causeDistribution: DistributionItem[] = [
+    { label: 'Robo en vía pública', count: 18, tone: 'neutral' },
+    { label: 'Hurto', count: 9, tone: 'neutral' },
+    { label: 'Rotura accidental', count: 5, tone: 'neutral' },
+  ];
+
+  /** Eleven columns: what the scrollable table is for. */
+  protected readonly wideTableRows: string[][] = [
+    [
+      '#1482',
+      'María José Fernández',
+      'Celulares',
+      'Robo en vía pública',
+      '01/09/2026',
+      '03/09/2026',
+      '2 d 2 h',
+      'Recomienda aprobar',
+      'Aprobó',
+      'Aprobado',
+      'Ana Analista',
+    ],
+    [
+      '#1483',
+      'Julián Pérez',
+      'Tecnología Portátil',
+      'Hurto',
+      '02/09/2026',
+      '05/09/2026',
+      '3 d',
+      'Fast Track',
+      'Aprobó',
+      'Aprobado',
+      'Ana Analista',
+    ],
+  ];
+
+  /** Overlapping buckets: read against the 12 flagged cases, not against their own sum. */
+  protected readonly signalDistribution: DistributionItem[] = [
+    { label: 'Score de riesgo alto', count: 6, tone: 'neutral' },
+    { label: 'Incoherencias forenses', count: 4, tone: 'neutral' },
+  ];
+
   /**
    * Demo del app-chart. Arma las opciones igual que una pantalla real: tokens leídos del design
    * system, nunca colores escritos acá.
@@ -902,21 +1303,39 @@ export class StyleguideComponent {
   protected readonly demoChart = {
     ...baseChartOptions(this.chartTheme),
     grid: { left: 8, right: 24, top: 8, bottom: 8, containLabel: true },
-    xAxis: { type: 'value', splitLine: { lineStyle: { color: this.chartTheme.grid } },
-             axisLabel: { color: this.chartTheme.muted } },
-    yAxis: { type: 'category', data: ['Rechazados', 'Pendientes', 'Aprobados'],
-             axisLine: { show: false }, axisTick: { show: false },
-             axisLabel: { color: this.chartTheme.text } },
-    series: [{
-      type: 'bar',
-      barMaxWidth: 18,
-      label: { show: true, position: 'right', color: this.chartTheme.muted },
-      data: [
-        { value: 6, itemStyle: { color: this.chartTheme.status.danger, borderRadius: [0, 4, 4, 0] } },
-        { value: 12, itemStyle: { color: this.chartTheme.status.warning, borderRadius: [0, 4, 4, 0] } },
-        { value: 24, itemStyle: { color: this.chartTheme.status.ok, borderRadius: [0, 4, 4, 0] } },
-      ],
-    }],
+    xAxis: {
+      type: 'value',
+      splitLine: { lineStyle: { color: this.chartTheme.grid } },
+      axisLabel: { color: this.chartTheme.muted },
+    },
+    yAxis: {
+      type: 'category',
+      data: ['Rechazados', 'Pendientes', 'Aprobados'],
+      axisLine: { show: false },
+      axisTick: { show: false },
+      axisLabel: { color: this.chartTheme.text },
+    },
+    series: [
+      {
+        type: 'bar',
+        barMaxWidth: 18,
+        label: { show: true, position: 'right', color: this.chartTheme.muted },
+        data: [
+          {
+            value: 6,
+            itemStyle: { color: this.chartTheme.status.danger, borderRadius: [0, 4, 4, 0] },
+          },
+          {
+            value: 12,
+            itemStyle: { color: this.chartTheme.status.warning, borderRadius: [0, 4, 4, 0] },
+          },
+          {
+            value: 24,
+            itemStyle: { color: this.chartTheme.status.ok, borderRadius: [0, 4, 4, 0] },
+          },
+        ],
+      },
+    ],
   };
 
   /** Demo del chip group: las mismas franjas que usa el alta de denuncia. */

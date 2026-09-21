@@ -63,9 +63,21 @@ public class TenantConnectionProvider implements MultiTenantConnectionProvider<S
         connection.close();
     }
 
+    /**
+     * Toma una conexión del pool y la apunta al esquema del tenant. <b>No</b> pasa por
+     * {@link #getAnyConnection()}: ése resuelve un esquema cualquiera consultando el registro de
+     * aseguradoras, y acá el esquema ya lo sabemos. Hacerlo costaba tres viajes a la base antes de
+     * cada consulta —la consulta al registro, el {@code SET} hacia ese esquema y el {@code SET}
+     * hacia el verdadero, que lo pisaba—, y con la base en otra red eso era el grueso del tiempo de
+     * respuesta de cualquier pantalla.
+     *
+     * <p>De paso desaparece un tramo en el que la conexión apuntaba al esquema de OTRA aseguradora.
+     * No se consultaba nada en el medio, así que no filtraba datos, pero no había razón para que
+     * existiera.
+     */
     @Override
     public Connection getConnection(String tenantIdentifier) throws SQLException {
-        Connection connection = getAnyConnection();
+        Connection connection = dataSource.getConnection();
         applySearchPath(connection, tenantIdentifier);
         return connection;
     }

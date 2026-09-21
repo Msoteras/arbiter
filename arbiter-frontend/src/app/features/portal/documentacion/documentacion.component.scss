@@ -12,12 +12,28 @@
   color: var(--text-muted);
   text-decoration: none;
 }
-.breadcrumb:hover { color: var(--text-primary); }
+.breadcrumb:hover {
+  color: var(--text-primary);
+}
 
-.page-head { display: flex; flex-direction: column; gap: var(--space-1); }
-.page-head h1 { margin: 0; }
-.subtitle { margin: 0; font-size: var(--font-size-md); color: var(--text-secondary); }
-.subtitle-2 { margin: 0; font-size: var(--font-size-body); color: var(--text-muted); }
+.page-head {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+.page-head h1 {
+  margin: 0;
+}
+.subtitle {
+  margin: 0;
+  font-size: var(--font-size-md);
+  color: var(--text-secondary);
+}
+.subtitle-2 {
+  margin: 0;
+  font-size: var(--font-size-body);
+  color: var(--text-muted);
+}
 
 .autosend-note {
   display: flex;
@@ -32,4 +48,6 @@
 }
 
 /* La lista de lo que ya envió: el componente es un bloque, y acá va antes del cargador. */
-.docs-section { display: block; }
+.docs-section {
+  display: block;
+}

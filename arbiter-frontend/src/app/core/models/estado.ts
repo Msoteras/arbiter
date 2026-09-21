@@ -78,8 +78,7 @@ const DESCRIPCIONES: Record<CaseStatus, string> = {
     'La clasificación preliminar ya está disponible y un analista de siniestros está revisando el caso.',
   CLASSIFICATION_FAILED:
     'El análisis automático no pudo completarse tras varios intentos. El caso no se pierde: un analista puede reintentar la clasificación a mano.',
-  AWAITING_DOCUMENTATION:
-    'Falta documentación obligatoria para poder evaluar el caso.',
+  AWAITING_DOCUMENTATION: 'Falta documentación obligatoria para poder evaluar el caso.',
   PENDING_EXPERT_REPORT:
     'El analista derivó el caso a un perito externo para verificar el hecho. El expediente espera el informe.',
   PENDING_REPAIR:
@@ -106,10 +105,8 @@ const PROXIMOS_PASOS: Record<CaseStatus, string> = {
     'Cuando termine la verificación, un analista revisa el resultado y te avisamos la resolución.',
   PENDING_REPAIR:
     'Cuando el servicio técnico responda, un analista revisa el resultado y te avisamos la resolución.',
-  APPROVED:
-    'Vas a recibir un correo con el detalle de la resolución. No quedan pasos pendientes.',
-  REJECTED:
-    'Vas a recibir un correo con los motivos del rechazo. No quedan pasos pendientes.',
+  APPROVED: 'Vas a recibir un correo con el detalle de la resolución. No quedan pasos pendientes.',
+  REJECTED: 'Vas a recibir un correo con los motivos del rechazo. No quedan pasos pendientes.',
   LAPSED: 'No quedan pasos pendientes: el expediente se cerró por caducidad.',
 };
 
@@ -268,7 +265,10 @@ const TITULO_REPROCESO_DOCUMENTACION = 'Recibimos tu documentación';
 const DESCRIPCION_REPROCESO_DOCUMENTACION =
   'Recibimos los documentos que subiste y estamos reevaluando tu caso. Te avisamos ni bien haya novedades.';
 
-export function estadoTituloAseguradoEfectivo(currentStatus: string, pastStatuses: string[]): string {
+export function estadoTituloAseguradoEfectivo(
+  currentStatus: string,
+  pastStatuses: string[],
+): string {
   return esReprocesoPorDocumentacion(currentStatus, pastStatuses)
     ? TITULO_REPROCESO_DOCUMENTACION
     : estadoTituloAsegurado(currentStatus);
@@ -281,12 +281,10 @@ export function estadoTituloAseguradoEfectivo(currentStatus: string, pastStatuse
 const DESCRIPCIONES_ASEGURADO: Record<CaseStatus, string> = {
   PENDING_CLASSIFICATION:
     'Recibimos tu denuncia y la estamos procesando. En breve un analista la revisa.',
-  PENDING_ANALYST_REVIEW:
-    'Un analista está revisando tu caso. Te avisamos ni bien haya novedades.',
+  PENDING_ANALYST_REVIEW: 'Un analista está revisando tu caso. Te avisamos ni bien haya novedades.',
   CLASSIFICATION_FAILED:
     'Un analista está revisando tu caso. No hace falta que hagas nada por ahora.',
-  AWAITING_DOCUMENTATION:
-    'Necesitamos que subas la documentación faltante para poder continuar.',
+  AWAITING_DOCUMENTATION: 'Necesitamos que subas la documentación faltante para poder continuar.',
   PENDING_EXPERT_REPORT:
     'Estamos verificando lo que pasó. Es posible que te contacten para coordinar. Te avisamos ni bien haya novedades.',
   PENDING_REPAIR:
@@ -325,7 +323,10 @@ export function estadoDescripcionAseguradoEfectivo(
  * @param fromStatus el estado del que viene, para distinguir movimientos que llegan al mismo lugar
  *                   (volver de un peritaje no es lo mismo que entrar a revisión por primera vez).
  */
-export function movimientoAseguradoLabel(toStatus: string, fromStatus: string | null): string | null {
+export function movimientoAseguradoLabel(
+  toStatus: string,
+  fromStatus: string | null,
+): string | null {
   // Las filas de asignación de analista se guardan con from == to (es el marcador que usa el
   // timeline del analista para dibujarlas sin flecha). Para el asegurado no son un movimiento del
   // expediente: sin esto, cada reasignación le repetía "un analista está revisando tu caso".

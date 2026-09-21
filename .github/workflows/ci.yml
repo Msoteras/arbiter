@@ -56,6 +56,11 @@ jobs:
       - name: Instalar dependencias
         run: npm ci
 
+      # Antes del build: es el chequeo más rápido del job y el que más rápido se desactualiza.
+      # Se arregla con `npm run format`, que es lo que corre este check al revés.
+      - name: Formato (Prettier)
+        run: npm run format:check
+
       - name: Build de producción
         run: npm run build -- --configuration production
 

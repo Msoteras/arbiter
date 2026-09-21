@@ -76,10 +76,10 @@
               </p>
             }
             @case ('error') {
-              <p class="step-hint">
-                No pudimos cargar tus pólizas.
-              </p>
-              <app-button variant="secondary" size="sm" (click)="retryPolicies()">Reintentar</app-button>
+              <p class="step-hint">No pudimos cargar tus pólizas.</p>
+              <app-button variant="secondary" size="sm" (click)="retryPolicies()"
+                >Reintentar</app-button
+              >
             }
             @case ('ok') {
               @if (policies().length === 0) {
@@ -114,8 +114,8 @@
                     <app-inline-loading [size]="16" message="Verificando la póliza…" />
                   } @else if (eligibilityUnknown()) {
                     <div class="eligibility-unknown" role="status">
-                      En este momento no se puede determinar si tu póliza permite nuevos
-                      siniestros. Por favor, intentá de nuevo más tarde.
+                      En este momento no se puede determinar si tu póliza permite nuevos siniestros.
+                      Por favor, intentá de nuevo más tarde.
                     </div>
                   }
                 }
@@ -219,15 +219,17 @@
                 (checkedChange)="setPoliceReportFiled($event)"
                 ariaLabel="¿Ya hiciste la denuncia policial?"
               />
-              <span class="t-note">{{ policeReportFiled() ? 'Sí, ya la hice' : 'Todavía no' }}</span>
+              <span class="t-note">{{
+                policeReportFiled() ? 'Sí, ya la hice' : 'Todavía no'
+              }}</span>
             </div>
             @if (policeReportMissingBlocks()) {
               <!-- La agenda de este hecho generador pide la constancia y todo lo que el referente
                    guarda es obligatorio, así que sin ella la denuncia no se puede enviar. Se dice
                    acá y no recién en el paso 3, para no hacerle completar el formulario entero. -->
               <p class="t-note">
-                Para este tipo de siniestro la constancia de la denuncia policial es obligatoria: vas
-                a poder seguir cargando los datos, pero no enviar la denuncia hasta adjuntarla.
+                Para este tipo de siniestro la constancia de la denuncia policial es obligatoria:
+                vas a poder seguir cargando los datos, pero no enviar la denuncia hasta adjuntarla.
               </p>
             } @else if (!policeReportFiled()) {
               <p class="t-note">
@@ -355,7 +357,8 @@
             <p class="step-hint">
               Esta documentación es obligatoria para poder evaluar tu caso.
               @if (docsFirstRound()) {
-                Es lo mínimo para empezar: si hace falta algo más, te lo vamos a pedir desde el seguimiento.
+                Es lo mínimo para empezar: si hace falta algo más, te lo vamos a pedir desde el
+                seguimiento.
               }
             </p>
           } @else if (docsUnavailable()) {
@@ -369,8 +372,8 @@
             </p>
           } @else {
             <p class="step-hint">
-              No tenemos documentación obligatoria para este tipo de caso. Podés adjuntar algo si
-              te ayuda a respaldarlo.
+              No tenemos documentación obligatoria para este tipo de caso. Podés adjuntar algo si te
+              ayuda a respaldarlo.
             </p>
           }
 

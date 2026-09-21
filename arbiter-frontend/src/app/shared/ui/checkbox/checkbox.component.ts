@@ -20,12 +20,15 @@ import { ChangeDetectionStrategy, Component, input, model } from '@angular/core'
         type="checkbox"
         [checked]="checked()"
         [disabled]="disabled()"
-        (change)="onToggle($event)" />
+        (change)="onToggle($event)"
+      />
       <span class="cb-label"><ng-content /></span>
     </label>
   `,
   styles: `
-    :host { display: block; }
+    :host {
+      display: block;
+    }
 
     .cb {
       display: flex;
@@ -38,7 +41,10 @@ import { ChangeDetectionStrategy, Component, input, model } from '@angular/core'
       cursor: pointer;
     }
 
-    .cb:has(input:disabled) { cursor: default; opacity: 0.55; }
+    .cb:has(input:disabled) {
+      cursor: default;
+      opacity: 0.55;
+    }
 
     input[type='checkbox'] {
       width: 18px;
@@ -51,7 +57,9 @@ import { ChangeDetectionStrategy, Component, input, model } from '@angular/core'
       cursor: inherit;
     }
 
-    .cb-label { text-wrap: pretty; }
+    .cb-label {
+      text-wrap: pretty;
+    }
   `,
 })
 export class CheckboxComponent {

@@ -1,4 +1,4 @@
-import { DatePipe, formatNumber, formatPercent } from '@angular/common';
+import { DatePipe, formatNumber } from '@angular/common';
 import {
   ChangeDetectionStrategy,
   Component,
@@ -17,7 +17,9 @@ import { clasificacionLabel, clasificacionTone } from '../../../core/models/clas
 import { estadoLabel, estadoTone } from '../../../core/models/estado';
 import { RiskBand, riskBandLabel } from '../../../core/models/risk-band';
 import { StatusTone } from '../../../core/models/status-tone';
+import { formatRate } from '../../../core/util/percent';
 import { formatMoney } from '../../../core/util/money';
+import { percentagePoints, trendText } from '../../../core/util/trend';
 import { staggerReveal } from '../../../shared/animations';
 import { CardComponent } from '../../../shared/ui/card/card.component';
 import { ChartTheme, baseChartOptions, readChartTheme } from '../../../shared/ui/chart/chart-theme';
@@ -25,7 +27,10 @@ import { ChartComponent } from '../../../shared/ui/chart/chart.component';
 import { EmptyStateComponent } from '../../../shared/ui/empty-state/empty-state.component';
 import { InputComponent } from '../../../shared/ui/input/input.component';
 import { InlineLoadingComponent } from '../../../shared/ui/inline-loading/inline-loading.component';
-import { MenuButtonComponent, MenuItem } from '../../../shared/ui/menu-button/menu-button.component';
+import {
+  MenuButtonComponent,
+  MenuItem,
+} from '../../../shared/ui/menu-button/menu-button.component';
 import { StatTileComponent } from '../../../shared/ui/stat-tile/stat-tile.component';
 import { BranchesService } from '../branches.service';
 import { ExpedienteService } from '../../expedientes/expediente.service';
@@ -36,12 +41,14 @@ import {
   MetricsFilter,
   MetricsRange,
   TimelinePoint,
-  delta,
   providerLabel,
   resolutionTimeLabel,
 } from './claim-metrics';
 import { ClaimMetricsService, MetricsPeriod } from './claim-metrics.service';
-import { DistributionComponent, DistributionItem } from './distribution.component';
+import {
+  DistributionComponent,
+  DistributionItem,
+} from '../../../shared/ui/distribution/distribution.component';
 
 /** Lo que el selector de período ofrece: los tres atajos del backend, más el rango a medida. */
 type PeriodChoice = MetricsRange | 'CUSTOM';
@@ -90,13 +97,6 @@ function legalTone(rate: number | null): StatusTone {
   }
   return rate >= 0.9 ? 'warning' : 'danger';
 }
-
-/**
- * Cuántos expedientes decididos tiene que haber tenido el período anterior para que comparar contra
- * él signifique algo. Con menos, un solo caso mueve el promedio decenas de días y la flecha anuncia
- * un derrumbe que es apenas ruido — el tipo de número que termina citado como un hecho.
- */
-const MIN_COMPARISON_BASE = 5;
 
 /**
  * Tablero de gestión del referente: cómo viene operando su propia cartera de siniestros.
@@ -161,7 +161,9 @@ export class DashboardComponent {
     { value: ALL, label: 'Todos los analistas' },
   ]);
   protected readonly branchLabel = computed(() => labelOf(this.branchOptions(), this.branchId()));
-  protected readonly analystLabel = computed(() => labelOf(this.analystOptions(), this.analystId()));
+  protected readonly analystLabel = computed(() =>
+    labelOf(this.analystOptions(), this.analystId()),
+  );
 
   /**
    * El recorte por analista es una vista de gestión del equipo, así que sólo la ve el referente —
@@ -300,7 +302,12 @@ export class DashboardComponent {
       {
         label: 'Denunciados',
         value: funnel.reported,
-        note: this.trendOf(funnel.reported, metrics.previousSummary.reportedCases, 'count', 'neither'),
+        note: this.trendOf(
+          funnel.reported,
+          metrics.previousSummary.reportedCases,
+          'count',
+          'neither',
+        ),
         // La entrada del embudo es volumen, no estado: tinta.
         tone: 'neutral',
       },
@@ -317,7 +324,12 @@ export class DashboardComponent {
       },
       { label: 'Decididos', value: funnel.decided, note: share(funnel.decided), tone: 'ok' },
       // Fast Track es una clasificación, y en toda la app se pinta con el azul de clasificacionTone.
-      { label: 'Vía Fast Track', value: funnel.fastTrack, note: share(funnel.fastTrack), tone: 'info' },
+      {
+        label: 'Vía Fast Track',
+        value: funnel.fastTrack,
+        note: share(funnel.fastTrack),
+        tone: 'info',
+      },
     ];
   });
 
@@ -400,11 +412,19 @@ export class DashboardComponent {
       {
         label: 'Aprobación',
         value: this.percent(summary.approvalRate),
-        sub: decided === 0 ? 'nada decidido en el período' : `${summary.approvedCases} de ${decided} decididos`,
+        sub:
+          decided === 0
+            ? 'nada decidido en el período'
+            : `${summary.approvedCases} de ${decided} decididos`,
         progress: summary.approvalRate,
         tone: 'ok' as StatusTone,
         trend: this.trendOf(
-          summary.approvalRate, previousSummary.approvalRate, 'rate', 'up', previousDecided),
+          summary.approvalRate,
+          previousSummary.approvalRate,
+          'rate',
+          'up',
+          previousDecided,
+        ),
       },
       {
         label: 'Fast Track',
@@ -413,8 +433,12 @@ export class DashboardComponent {
         progress: summary.fastTrackRate,
         tone: 'info' as StatusTone,
         trend: this.trendOf(
-          summary.fastTrackRate, previousSummary.fastTrackRate, 'rate', 'up',
-          previousSummary.reportedCases),
+          summary.fastTrackRate,
+          previousSummary.fastTrackRate,
+          'rate',
+          'up',
+          previousSummary.reportedCases,
+        ),
       },
     ];
   });
@@ -468,8 +492,10 @@ export class DashboardComponent {
     if (!impact || impact.fastTrackHours == null || impact.standardHours == null) {
       return '';
     }
-    return `Fast Track: ${resolutionTimeLabel(impact.fastTrackHours)} · `
-      + `Resto: ${resolutionTimeLabel(impact.standardHours)}`;
+    return (
+      `Fast Track: ${resolutionTimeLabel(impact.fastTrackHours)} · ` +
+      `Resto: ${resolutionTimeLabel(impact.standardHours)}`
+    );
   });
 
   /** Cuántos expedientes hay detrás de cada mitad de la comparación, para saber cuánto pesa. */
@@ -511,9 +537,10 @@ export class DashboardComponent {
       // "117% de lo reclamado" es un dato real —se liquida por suma asegurada, no por lo que pidió
       // el asegurado— y hay que poder leerlo sin que parezca una cuenta mal hecha. Por eso se
       // enuncia como proporción y no como "se liquidó el …", que sugiere un tope del 100%.
-      share: Number(settled.claimed) > 0
-        ? this.percent(Number(settled.settled) / Number(settled.claimed))
-        : '',
+      share:
+        Number(settled.claimed) > 0
+          ? this.percent(Number(settled.settled) / Number(settled.claimed))
+          : '',
     };
   });
 
@@ -638,7 +665,8 @@ export class DashboardComponent {
   protected readonly timelineDescription = computed(() => {
     const points = this.data()?.timeline ?? [];
     const parts = points.map(
-      (point) => `${this.bucketLabel(point)}: ${point.reported} denunciados, ${point.resolved} resueltos`,
+      (point) =>
+        `${this.bucketLabel(point)}: ${point.reported} denunciados, ${point.resolved} resueltos`,
     );
     return `Altas y resoluciones a lo largo del período. ${parts.join('. ')}.`;
   });
@@ -658,15 +686,17 @@ export class DashboardComponent {
   // ─── Formato ───────────────────────────────────────────────────────────────────────
 
   private percent(rate: number | null | undefined): string {
-    return rate === null || rate === undefined ? '—' : formatPercent(rate, this.locale, '1.0-0');
+    return formatRate(rate);
   }
 
   /**
-   * La variación contra el período anterior, con su flecha.
+   * La variación contra el período anterior, con su flecha. Envoltorio fino sobre {@link trendText}
+   * (compartida con los dos reportes) que sólo resuelve cómo formatear la magnitud según la unidad
+   * del indicador — el resto (la regla de base mínima, el signo, el "mejor/peor") es una sola
+   * implementación para las tres pantallas.
    *
-   * `good` dice qué dirección es la buena, porque del signo no se deduce: que suba el tiempo de
-   * resolución es malo y que suba la tasa de Fast Track es bueno. Sin eso, un ▲ rojo al lado de un
-   * número que mejoró sería exactamente el tipo de cartel que hace desconfiar del tablero entero.
+   * Una tasa se formatea en puntos porcentuales, no en porcentaje: pasar de 33% a 50% es "+17 pp",
+   * no "+17%" — eso último se lee como un aumento relativo (que sería del 52%) y es otra afirmación.
    */
   private trendOf(
     current: number | null,
@@ -675,28 +705,13 @@ export class DashboardComponent {
     good: 'up' | 'down' | 'neither',
     base = Number.POSITIVE_INFINITY,
   ): string {
-    if (base < MIN_COMPARISON_BASE) {
-      return '';
-    }
-    const change = delta(current, previous);
-    if (change.value === null || change.direction === 'flat') {
-      return '';
-    }
-    const arrow = change.direction === 'up' ? '▲' : '▼';
-    const size = Math.abs(change.value);
-    const amount =
+    const format = (size: number) =>
       unit === 'rate'
-        ? formatPercent(size, this.locale, '1.0-0')
+        ? percentagePoints(size)
         : unit === 'hours'
           ? resolutionTimeLabel(size)
           : formatNumber(size, this.locale, '1.0-0');
-    // Que entren más o menos siniestros no es mejor ni peor: es el volumen del mes. Poner un
-    // veredicto ahí sería inventar una opinión que el dato no tiene.
-    const tail =
-      good === 'neither'
-        ? 'vs. el período anterior'
-        : `${change.direction === good ? 'mejor' : 'peor'} que el período anterior`;
-    return `${arrow} ${amount} ${tail}`;
+    return trendText({ current, previous, format, good, base });
   }
 
   /** El punto de la línea de tiempo, como lo escribiría alguien: "14/06" o "jun 2026". */

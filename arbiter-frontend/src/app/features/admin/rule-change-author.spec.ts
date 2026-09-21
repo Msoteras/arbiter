@@ -12,19 +12,22 @@ describe('ruleChangeAuthor', () => {
 
   /** Los motivos escritos antes de que el backend los normalizara están en inglés. */
   it('saca el autor de un motivo viejo en inglés', () => {
-    expect(ruleChangeAuthor('Hard rule POLICE_DEADLINE updated by ana@bbva.com'))
-      .toBe('ana@bbva.com');
+    expect(ruleChangeAuthor('Hard rule POLICE_DEADLINE updated by ana@bbva.com')).toBe(
+      'ana@bbva.com',
+    );
   });
 
   it('funciona con un actor que no es un mail', () => {
-    expect(ruleChangeAuthor('Hechos generadores cubiertos actualizados por smoke-test-2'))
-      .toBe('smoke-test-2');
+    expect(ruleChangeAuthor('Hechos generadores cubiertos actualizados por smoke-test-2')).toBe(
+      'smoke-test-2',
+    );
   });
 
   /** El "por" del final es el que separa al autor, no uno que aparezca antes en la frase. */
   it('corta por el último separador y no por el primero', () => {
-    expect(ruleChangeAuthor('Regla cambiada por pedido del área por ana@bbva.com'))
-      .toBe('ana@bbva.com');
+    expect(ruleChangeAuthor('Regla cambiada por pedido del área por ana@bbva.com')).toBe(
+      'ana@bbva.com',
+    );
   });
 
   it('devuelve null cuando el motivo no nombra a nadie', () => {

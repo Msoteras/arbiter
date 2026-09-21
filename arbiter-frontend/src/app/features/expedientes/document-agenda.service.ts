@@ -3,7 +3,11 @@ import { Injectable, inject } from '@angular/core';
 import { Observable, catchError, map, of } from 'rxjs';
 
 import { environment } from '../../../environments/environment';
-import { CASE_DOCUMENT_TYPES, CaseDocumentType, documentTypeLabel } from '../../core/models/case-document';
+import {
+  CASE_DOCUMENT_TYPES,
+  CaseDocumentType,
+  documentTypeLabel,
+} from '../../core/models/case-document';
 
 /**
  * Agenda documental REQUERIDA por ramo + hecho generador, para el asegurado (arma el uploader) y el

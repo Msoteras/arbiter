@@ -576,6 +576,9 @@ BEGIN
             branch_id   BIGINT        NOT NULL REFERENCES arbiter_common.branch(id),
             max_amount  NUMERIC(15,2) NOT NULL,
             updated_at  TIMESTAMPTZ   NOT NULL DEFAULT NOW(),
+            -- Quién tocó el tope por última vez. NULL en filas viejas, de antes de que se
+            -- empezara a registrar: no hay con qué completarlo retroactivamente.
+            updated_by  BIGINT        REFERENCES arbiter_common.users(id),
 
             CONSTRAINT settlement_authority_branch_unique UNIQUE (branch_id),
             CONSTRAINT settlement_authority_amount_check CHECK (max_amount >= 0)
