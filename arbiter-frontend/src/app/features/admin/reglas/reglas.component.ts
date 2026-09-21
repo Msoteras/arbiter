@@ -34,6 +34,7 @@ import { ButtonComponent } from '../../../shared/ui/button/button.component';
 import { CardComponent } from '../../../shared/ui/card/card.component';
 import { EmptyStateComponent } from '../../../shared/ui/empty-state/empty-state.component';
 import { InputComponent } from '../../../shared/ui/input/input.component';
+import { ModalComponent } from '../../../shared/ui/modal/modal.component';
 import { AtribucionesConfigComponent } from '../atribuciones-config/atribuciones-config.component';
 import { ScoringConfigComponent } from '../scoring-config/scoring-config.component';
 import { FraudeConfigComponent } from '../fraude-config/fraude-config.component';
@@ -77,6 +78,7 @@ type GeneralView = 'hardStop' | 'scoring' | 'fraude' | 'atribuciones' | 'objetiv
     CardComponent,
     EmptyStateComponent,
     InputComponent,
+    ModalComponent,
     ScoringConfigComponent,
     FraudeConfigComponent,
     AtribucionesConfigComponent,
@@ -95,7 +97,9 @@ type GeneralView = 'hardStop' | 'scoring' | 'fraude' | 'atribuciones' | 'objetiv
   changeDetection: ChangeDetectionStrategy.OnPush,
   animations: [staggerReveal, listStagger, fadeInUp, accordion],
   templateUrl: './reglas.component.html',
-  styleUrl: './reglas.component.scss',
+  // El orden importa: los dos archivos se concatenan tal como están acá, y el segundo continúa
+  // exactamente donde termina el primero. Invertirlos cambia la cascada.
+  styleUrls: ['./reglas.component.scss', './reglas-secciones.scss'],
 })
 export class ReglasComponent {
   private readonly branchesService = inject(BranchesService);
@@ -137,6 +141,12 @@ export class ReglasComponent {
   protected readonly renaming = signal(false);
   protected readonly renameSaved = signal(false);
   protected readonly renameError = signal<string | null>(null);
+  /**
+   * Confirmación del renombre. El ramo es catálogo GLOBAL (lo comparten todas las aseguradoras) y
+   * su nombre aparece en pólizas, expedientes y reportes: el cambio se pide dos veces antes de
+   * impactar, como la baja de usuario.
+   */
+  protected readonly showRenameConfirm = signal(false);
 
   protected readonly tabs: { id: TabId; label: string }[] = [
     { id: 'coberturas', label: 'Coberturas' },
@@ -387,9 +397,8 @@ export class ReglasComponent {
     // configuración de toda la compañía y el referente la administra en la misma pantalla que
     // el resto; el único que la lee es el tablero de métricas.
     { id: 'objetivo', label: 'Objetivo de resolución' },
-    // Última de la lista: es la única entrada que no configura nada. Se consulta después de haber
-    // cambiado algo, no antes, y cruza a todas las demás en vez de ser una más al mismo nivel.
-    { id: 'historial', label: 'Historial de cambios' },
+    // 'historial' NO va acá: es la única entrada que no configura nada y cruza a todas las demás,
+    // así que tiene su propio bloque de Auditoría abajo de la lista (ver el template).
   ];
 
   protected selectGeneral(section: GeneralView): void {
@@ -694,7 +703,48 @@ export class ReglasComponent {
     this.renameSaved.set(false);
   }
 
-  protected saveName(): void {
+  /** Nombre con el que el ramo está guardado hoy: el draft ya tiene el tipeado, no el vigente. */
+  protected readonly renameFrom = computed(
+    () => this.ramos().find((r) => r.id === this.selectedId())?.name ?? '',
+  );
+
+  /**
+   * Primer paso del renombre: valida lo que se pueda contestar sin ir al backend y abre la
+   * confirmación. Lo que no pasa la validación ni siquiera llega al diálogo — un modal que se
+   * abre para decir "el nombre está vacío" es un click de más.
+   */
+  protected requestRename(): void {
+    const d = this.draft();
+    if (!d || this.renaming()) {
+      return;
+    }
+    if (this.branchIdOf(d) == null || d.name.trim() === '') {
+      this.renameError.set('El nombre del ramo no puede estar vacío.');
+      return;
+    }
+    if (d.name.trim() === this.renameFrom()) {
+      this.renameError.set('El nombre es el mismo que ya tiene el ramo.');
+      return;
+    }
+    this.renameError.set(null);
+    this.showRenameConfirm.set(true);
+  }
+
+  protected cancelRename(): void {
+    this.showRenameConfirm.set(false);
+  }
+
+  /**
+   * Cierra el diálogo y deja que el guardado se vea donde ya se veía (el "Guardando…" del botón y
+   * el ✓ / el error al lado). Duplicar ese estado adentro del modal sería una segunda superficie
+   * que decir lo mismo.
+   */
+  protected confirmRename(): void {
+    this.showRenameConfirm.set(false);
+    this.saveName();
+  }
+
+  private saveName(): void {
     const d = this.draft();
     if (!d || this.renaming()) {
       return;

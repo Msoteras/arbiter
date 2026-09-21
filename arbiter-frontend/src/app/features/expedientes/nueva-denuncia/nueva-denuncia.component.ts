@@ -354,11 +354,33 @@ export class NuevaDenunciaComponent {
   // eligibilityCheck), pero como son signals el orden de declaración no importa para el computed.
   protected readonly step1Valid = computed(
     () =>
-      !!this.selectedPolicy() &&
-      !!this.selectedType() &&
+      this.missingStep1().length === 0 &&
       this.eligibilityError() === null &&
       !this.eligibilityChecking(),
   );
+
+  /** Ver {@link missingStep2}: mismo criterio, para el paso 1. */
+  protected readonly missingStep1 = computed<string[]>(() => {
+    const missing: string[] = [];
+    if (!this.selectedPolicy()) missing.push('Póliza');
+    if (!this.selectedType()) missing.push('Qué te pasó');
+    return missing;
+  });
+
+  /** Lo que falta del paso en el que está parado el asegurado, para el aviso de la barra. */
+  protected readonly missingFields = computed<string[]>(() =>
+    this.step() === 1 ? this.missingStep1() : this.step() === 2 ? this.missingStep2() : [],
+  );
+
+  /**
+   * Los primeros nombres nada más. Con el paso recién abierto falta todo, y enumerar nueve campos
+   * al lado del botón es una lista que nadie lee: alcanza con por dónde empezar.
+   */
+  protected readonly missingFieldsLabel = computed(() => {
+    const missing = this.missingFields();
+    const shown = missing.slice(0, 3).join(', ');
+    return missing.length > 3 ? `${shown} y ${missing.length - 3} más` : shown;
+  });
 
   // Tope del input de fecha: un siniestro no puede haber
   // "ocurrido" en el futuro. La regla real vive en el backend (CaseRequest la valida de
@@ -697,21 +719,55 @@ export class NuevaDenunciaComponent {
     return check.status === 'blocked' ? check.reason : null;
   });
 
+  /**
+   * Lo que falta completar del paso 2, con el nombre que se ve en pantalla y en el orden del
+   * formulario. Todo campo visible es obligatorio salvo los que dicen "(opcional)" — entre calles
+   * y monto reclamado.
+   *
+   * <p>Devuelve la lista y no un booleano porque la barra de acciones la muestra: un "Continuar"
+   * gris sin decir qué falta, en un formulario largo y con campos que aparecen según el hecho
+   * generador, deja al asegurado buscando a ojo.
+   */
+  protected readonly missingStep2 = computed<string[]>(() => {
+    // Con la póliza bloqueada el formulario ni se dibuja: enumerar campos que no están en pantalla
+    // taparía el motivo real, que ya se explica arriba.
+    if (this.policyBlocked()) {
+      return [];
+    }
+    const missing: string[] = [];
+    const add = (label: string, value: string) => {
+      if (value.trim() === '') missing.push(label);
+    };
+    add('Bien asegurado', this.insuredItem());
+    add('Fecha del hecho', this.eventDate());
+    add('Hora del hecho', this.eventTime());
+    // Mismas condiciones con las que el bloque se dibuja: sin constancia declarada no hay fecha
+    // ni hora que pedir.
+    if (this.requiresPoliceReport() && this.policeReportFiled()) {
+      add('Fecha de la denuncia policial', this.policeReportDate());
+      add('Hora de la denuncia policial', this.policeReportTime());
+    }
+    add('Provincia', this.provincia());
+    add('Localidad', this.localidad());
+    // eventLocation es @NotBlank en el backend, y ahora es solo la calle: exigirla puntualmente
+    // en vez de "alguna de las cuatro partes cargadas", que dejaba pasar un submit con provincia
+    // y localidad pero sin dirección.
+    add('Calle y número', this.calleNumero());
+    add('Descripción del hecho', this.description());
+    add('Email de contacto', this.contactEmail());
+    add('Teléfono de contacto', this.contactPhone());
+    return missing;
+  });
+
   // El backend exige además insuredItem, eventDate y eventLocation (@NotBlank/@NotNull en
   // CaseRequest) — sin esto el asegurado llegaba al paso 3, adjuntaba documentación, y recién
   // ahí el submit fallaba con un error genérico.
   protected readonly step2Valid = computed(
     () =>
-      this.description().trim().length > 0 &&
-      this.insuredItem().trim().length > 0 &&
-      this.eventDate().trim().length > 0 &&
+      this.missingStep2().length === 0 &&
       this.eventDate() <= this.today &&
       this.eligibilityError() === null &&
-      !this.eligibilityChecking() &&
-      // eventLocation es @NotBlank en el backend, y ahora es solo la calle: exigirla puntualmente
-      // en vez de "alguna de las cuatro partes cargadas", que dejaba pasar un submit con provincia
-      // y localidad pero sin dirección.
-      this.buildEventAddress().trim().length > 0,
+      !this.eligibilityChecking(),
   );
 
   // Step 3

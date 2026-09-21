@@ -167,7 +167,9 @@ interface BriefAlert {
   changeDetection: ChangeDetectionStrategy.OnPush,
   animations: [fadeInUp, staggerReveal, tabSwitch],
   templateUrl: './expediente-detail.component.html',
-  styleUrl: './expediente-detail.component.scss',
+  // El orden importa: los dos archivos se concatenan tal como están acá, y el segundo continúa
+  // exactamente donde termina el primero. Invertirlos cambia la cascada.
+  styleUrls: ['./expediente-detail.component.scss', './expediente-detail-paneles.scss'],
 })
 export class ExpedienteDetailComponent {
   private readonly route = inject(ActivatedRoute);

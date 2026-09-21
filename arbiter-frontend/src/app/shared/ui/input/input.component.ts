@@ -21,7 +21,8 @@ import { ChangeDetectionStrategy, Component, computed, input, model, signal } fr
         [attr.max]="max()"
         [attr.autocomplete]="autocomplete()"
         [readOnly]="readonly()"
-        (input)="value.set($any($event.target).value)"
+        (keydown)="onKeydown($event)"
+        (input)="onInput($event)"
       />
       @if (showReveal()) {
         <button
@@ -151,12 +152,37 @@ export class InputComponent {
   readonly readonly = input(false);
   readonly revealable = input(false);
 
+  /**
+   * Campo numérico que no admite negativos. El `min` nativo lo respetan las flechas y el submit
+   * nativo, pero no el teclado: en un `type="number"` se puede tipear "-500" igual. Con esto el
+   * signo no entra —ni tipeado ni pegado— en los campos que no lo tienen (montos, umbrales, días).
+   */
+  private readonly rejectsNegative = computed(
+    () => this.type() === 'number' && this.min() !== null && Number(this.min()) >= 0,
+  );
+
   protected readonly resolvedId = computed(() => this.id() ?? this.autoId);
   protected readonly revealed = signal(false);
   protected readonly showReveal = computed(() => this.revealable() && this.type() === 'password');
   protected readonly effectiveType = computed(() =>
     this.showReveal() && this.revealed() ? 'text' : this.type(),
   );
+
+  protected onKeydown(event: KeyboardEvent): void {
+    if (this.rejectsNegative() && (event.key === '-' || event.key === 'Subtract')) {
+      event.preventDefault();
+    }
+  }
+
+  protected onInput(event: Event): void {
+    const field = event.target as HTMLInputElement;
+    // Pegar "-500" no pasa por keydown, así que el signo se saca acá. Se descarta el signo y no el
+    // valor entero: lo que el usuario quiso escribir es el número.
+    if (this.rejectsNegative() && field.value.startsWith('-')) {
+      field.value = field.value.slice(1);
+    }
+    this.value.set(field.value);
+  }
 
   protected toggleReveal(): void {
     this.revealed.update((v) => !v);

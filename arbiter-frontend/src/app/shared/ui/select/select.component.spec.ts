@@ -211,4 +211,82 @@ describe('SelectComponent · searchable', () => {
       expect(renderedLabels().length).toBe(provinces.length + 1);
     });
   });
+
+  /** El campo obligatorio no atrapa al usuario adentro: cierra igual, pero queda marcado. */
+  describe('required', () => {
+    function errorMessage(): string | null {
+      const el = fixture.nativeElement.querySelector('.error-msg') as HTMLElement | null;
+      return el ? el.textContent!.trim() : null;
+    }
+
+    function clickOutside(): void {
+      document.body.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+      fixture.detectChanges();
+    }
+
+    /**
+     * Click afuera que NO llega a document por burbujeo, como los de adentro de un app-modal:
+     * el diálogo corta la propagación para que el backdrop no lo lea como "cerrar el modal".
+     */
+    function clickOutsideInsideModal(): void {
+      const dialog = document.createElement('div');
+      dialog.addEventListener('click', (e) => e.stopPropagation());
+      const otherField = document.createElement('button');
+      dialog.appendChild(otherField);
+      document.body.appendChild(dialog);
+      otherField.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+      dialog.remove();
+      fixture.detectChanges();
+    }
+
+    beforeEach(() => {
+      fixture.componentRef.setInput('required', true);
+      fixture.componentRef.setInput('requiredMessage', 'Elegí la provincia donde pasó.');
+      fixture.detectChanges();
+    });
+
+    it('no marca nada antes de que el usuario pase por el campo', () => {
+      expect(errorMessage()).toBeNull();
+      expect(field().classList).not.toContain('is-invalid');
+    });
+
+    it('el clic afuera cierra el panel y deja el campo marcado como obligatorio', () => {
+      open();
+      clickOutside();
+
+      expect(isOpen()).toBeFalse();
+      expect(errorMessage()).toBe('Elegí la provincia donde pasó.');
+      expect(field().classList).toContain('is-invalid');
+      expect(field().getAttribute('aria-invalid')).toBe('true');
+    });
+
+    it('cierra aunque el click no burbujee hasta document (adentro de un modal)', () => {
+      open();
+      clickOutsideInsideModal();
+
+      expect(isOpen()).toBeFalse();
+      expect(errorMessage()).toBe('Elegí la provincia donde pasó.');
+    });
+
+    it('elegir una opción levanta la marca', () => {
+      open();
+      clickOutside();
+      open();
+      type('cordoba');
+      press('Enter');
+
+      expect(fixture.componentInstance.value()).toBe('Córdoba');
+      expect(errorMessage()).toBeNull();
+    });
+
+    it('sin required, cerrar sin elegir no marca nada', () => {
+      fixture.componentRef.setInput('required', false);
+      fixture.detectChanges();
+      open();
+      clickOutside();
+
+      expect(isOpen()).toBeFalse();
+      expect(errorMessage()).toBeNull();
+    });
+  });
 });
