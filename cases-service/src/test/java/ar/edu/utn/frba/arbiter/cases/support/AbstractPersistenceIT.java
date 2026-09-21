@@ -47,6 +47,9 @@ public abstract class AbstractPersistenceIT {
                 POSTGRES.getJdbcUrl(), POSTGRES.getUsername(), POSTGRES.getPassword());
              Statement stmt = conn.createStatement()) {
             stmt.execute("CREATE SCHEMA IF NOT EXISTS arbiter_common");
+            // La búsqueda de expedientes usa unaccent() (CaseSpecifications.freeText); en prod la
+            // crea db/init-multitenant.sql, pero acá el contenedor arranca vacío.
+            stmt.execute("CREATE EXTENSION IF NOT EXISTS unaccent");
         } catch (SQLException e) {
             throw new RuntimeException(e);
         }

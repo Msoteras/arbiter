@@ -48,6 +48,11 @@
 -- it once here replaces the runtime CREATE EXTENSION in PgVectorConfig.
 CREATE EXTENSION IF NOT EXISTS vector SCHEMA public;
 
+-- unaccent lives in `public` too: la búsqueda de expedientes (CaseSpecifications.freeText)
+-- lo llama sin calificar para que "julian perez" matchee "Julián Pérez", y resuelve por el
+-- mismo fallback del search_path del tenant que usa el tipo `vector`.
+CREATE EXTENSION IF NOT EXISTS unaccent SCHEMA public;
+
 BEGIN;
 
 CREATE SCHEMA arbiter_common;
