@@ -21,9 +21,15 @@
   padding: var(--space-3);
 }
 
-.row + .row { border-top: 1px solid var(--border-subtle); }
+.row + .row {
+  border-top: 1px solid var(--border-subtle);
+}
 
-.row-text { display: flex; flex-direction: column; gap: var(--space-1); }
+.row-text {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
 
 .row-hint {
   margin: 0;
@@ -38,13 +44,27 @@
 }
 
 /* El input no compite con el nombre del ramo por el ancho: el dato que se lee es el ramo. */
-.row-action app-input { width: 12rem; }
+.row-action app-input {
+  width: 12rem;
+}
 
-.rcard-note { margin: var(--space-2) 0 0; font-size: var(--font-size-xs); color: var(--text-muted); }
-.rcard-note.error { color: var(--status-danger); }
+.rcard-note {
+  margin: var(--space-2) 0 0;
+  font-size: var(--font-size-xs);
+  color: var(--text-muted);
+}
+.rcard-note.error {
+  color: var(--status-danger);
+}
 
 /* En móvil la fila se apila: con el input al lado, el nombre del ramo quedaba en dos renglones. */
 @media (max-width: 640px) {
-  .row { flex-direction: column; align-items: stretch; }
-  .row-action app-input { width: auto; flex: 1 1 auto; }
+  .row {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  .row-action app-input {
+    width: auto;
+    flex: 1 1 auto;
+  }
 }

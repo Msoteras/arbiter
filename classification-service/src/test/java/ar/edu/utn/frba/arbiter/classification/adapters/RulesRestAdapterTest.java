@@ -1,6 +1,5 @@
 package ar.edu.utn.frba.arbiter.classification.adapters;
 
-import ar.edu.utn.frba.arbiter.classification.adapters.mock.MockRulesAdapter;
 import ar.edu.utn.frba.arbiter.classification.dto.BusinessRules;
 import com.sun.net.httpserver.HttpServer;
 import org.junit.jupiter.api.AfterEach;
@@ -64,7 +63,7 @@ class RulesRestAdapterTest {
 
         BusinessRules rules = adapter.getRules("Celulares", 1L, "Robo en vía pública");
 
-        BusinessRules baseline = new MockRulesAdapter().getRules("Celulares", 1L, "Robo en vía pública");
+        BusinessRules baseline = new BaselineRulesAdapter().getRules("Celulares", 1L, "Robo en vía pública");
         assertThat(rules.fastTrackThresholds()).isEqualTo(baseline.fastTrackThresholds());
         assertThat(rules.reportDeadlineHours()).isEqualTo(baseline.reportDeadlineHours());
     }
@@ -107,7 +106,7 @@ class RulesRestAdapterTest {
 
         BusinessRules rules = adapter.getRules("Celulares", 1L, "Robo en vía pública");
 
-        BusinessRules baseline = new MockRulesAdapter().getRules("Celulares", 1L, "Robo en vía pública");
+        BusinessRules baseline = new BaselineRulesAdapter().getRules("Celulares", 1L, "Robo en vía pública");
         assertThat(rules.scoringConfig()).isEqualTo(baseline.scoringConfig());
     }
 
@@ -203,14 +202,14 @@ class RulesRestAdapterTest {
 
         BusinessRules rules = adapter.getRules("Celulares", 1L, "Caída");
 
-        BusinessRules baseline = new MockRulesAdapter().getRules("Celulares", 1L, "Caída");
+        BusinessRules baseline = new BaselineRulesAdapter().getRules("Celulares", 1L, "Caída");
         assertThat(rules.requiredDocumentTypes()).isEqualTo(baseline.requiredDocumentTypes());
     }
 
     // ── Infra ────────────────────────────────────────────────────────────────
 
     private RulesRestAdapter adapterPointingAt(String url) {
-        return new RulesRestAdapter(url, JWT_SECRET, new MockRulesAdapter());
+        return new RulesRestAdapter(url, JWT_SECRET, new BaselineRulesAdapter());
     }
 
     /** One query param's decoded value, or null if the URI doesn't carry it. */

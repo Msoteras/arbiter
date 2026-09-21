@@ -25,8 +25,12 @@ export function deadlinePriorityTone(priority: DeadlinePriority): StatusTone {
  * prioritario — así no se pinta un chip roto contra una respuesta vieja.
  */
 export function isDeadlinePrioritized(priority: DeadlinePriority): boolean {
-  return priority === 'WATCH' || priority === 'URGENT'
-    || priority === 'CRITICAL' || priority === 'OVERDUE';
+  return (
+    priority === 'WATCH' ||
+    priority === 'URGENT' ||
+    priority === 'CRITICAL' ||
+    priority === 'OVERDUE'
+  );
 }
 
 /**

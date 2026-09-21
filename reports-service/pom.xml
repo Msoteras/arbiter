@@ -48,6 +48,12 @@
             <artifactId>springdoc-openapi-starter-webmvc-ui</artifactId>
         </dependency>
 
+        <!-- The PDF export of the resolution report. -->
+        <dependency>
+            <groupId>org.apache.pdfbox</groupId>
+            <artifactId>pdfbox</artifactId>
+        </dependency>
+
         <dependency>
             <groupId>ar.edu.utn.frba.arbiter</groupId>
             <artifactId>common-lib</artifactId>

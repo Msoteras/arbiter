@@ -102,10 +102,18 @@ export class MenuButtonRegistry {
     </div>
   `,
   styles: `
-    :host { display: inline-block; }
-    :host(.block) { display: block; }
-    :host(.block) .menu { width: 100%; }
-    .menu { position: relative; }
+    :host {
+      display: inline-block;
+    }
+    :host(.block) {
+      display: block;
+    }
+    :host(.block) .menu {
+      width: 100%;
+    }
+    .menu {
+      position: relative;
+    }
 
     /* fixed, no absolute: anclado al trigger por coordenadas de viewport. Como absolute lo
        recortaba cualquier ancestro con overflow (ej. el wrapper con scroll horizontal de la
@@ -137,7 +145,10 @@ export class MenuButtonRegistry {
       cursor: pointer;
       white-space: nowrap;
     }
-    .option:hover { background: var(--surface-sunken); color: var(--text-primary); }
+    .option:hover {
+      background: var(--surface-sunken);
+      color: var(--text-primary);
+    }
 
     .heading {
       padding: var(--space-1) var(--space-3) var(--space-2);
@@ -146,9 +157,18 @@ export class MenuButtonRegistry {
       letter-spacing: 0.04em;
       color: var(--text-muted);
     }
-    .danger-sep { border-top: 1px solid var(--border-subtle); margin-top: var(--space-1); padding-top: var(--space-1); }
-    .option.danger { color: var(--status-danger); }
-    .option.danger:hover { background: var(--surface-sunken); color: var(--status-danger); }
+    .danger-sep {
+      border-top: 1px solid var(--border-subtle);
+      margin-top: var(--space-1);
+      padding-top: var(--space-1);
+    }
+    .option.danger {
+      color: var(--status-danger);
+    }
+    .option.danger:hover {
+      background: var(--surface-sunken);
+      color: var(--status-danger);
+    }
   `,
 })
 export class MenuButtonComponent implements ClosableMenu {
@@ -219,7 +239,11 @@ export class MenuButtonComponent implements ClosableMenu {
   private positionPanel(): void {
     const estPanelHeight = (this.heading() ? 28 : 0) + this.items().length * 40 + 12;
     this.panelPos.set(
-      anchorToTrigger(this.host.nativeElement.getBoundingClientRect(), estPanelHeight, this.align()),
+      anchorToTrigger(
+        this.host.nativeElement.getBoundingClientRect(),
+        estPanelHeight,
+        this.align(),
+      ),
     );
   }
 

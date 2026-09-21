@@ -112,12 +112,14 @@
             <a
               [routerLink]="['/portal/cases', d.id]"
               [queryParams]="d.insurerSlug ? { insurer: d.insurerSlug } : {}"
-              class="grow">
+              class="grow"
+            >
               <app-button [block]="true">Ver seguimiento del caso</app-button>
             </a>
             <a
               [routerLink]="['/portal/cases', d.id, 'documents']"
-              [queryParams]="d.insurerSlug ? { insurer: d.insurerSlug } : {}">
+              [queryParams]="d.insurerSlug ? { insurer: d.insurerSlug } : {}"
+            >
               <app-button variant="secondary">Ver mis documentos</app-button>
             </a>
           </div>

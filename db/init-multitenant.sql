@@ -48,6 +48,11 @@
 -- it once here replaces the runtime CREATE EXTENSION in PgVectorConfig.
 CREATE EXTENSION IF NOT EXISTS vector SCHEMA public;
 
+-- unaccent lives in `public` too: la búsqueda de expedientes (CaseSpecifications.freeText)
+-- lo llama sin calificar para que "julian perez" matchee "Julián Pérez", y resuelve por el
+-- mismo fallback del search_path del tenant que usa el tipo `vector`.
+CREATE EXTENSION IF NOT EXISTS unaccent SCHEMA public;
+
 BEGIN;
 
 CREATE SCHEMA arbiter_common;
@@ -576,6 +581,9 @@ BEGIN
             branch_id   BIGINT        NOT NULL REFERENCES arbiter_common.branch(id),
             max_amount  NUMERIC(15,2) NOT NULL,
             updated_at  TIMESTAMPTZ   NOT NULL DEFAULT NOW(),
+            -- Quién tocó el tope por última vez. NULL en filas viejas, de antes de que se
+            -- empezara a registrar: no hay con qué completarlo retroactivamente.
+            updated_by  BIGINT        REFERENCES arbiter_common.users(id),
 
             CONSTRAINT settlement_authority_branch_unique UNIQUE (branch_id),
             CONSTRAINT settlement_authority_amount_check CHECK (max_amount >= 0)

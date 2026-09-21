@@ -54,7 +54,9 @@ export class SettlementAuthoritiesService {
   }
 
   pending(): Observable<PendingSettlement[]> {
-    return this.http.get<PendingSettlement[]>(`${this.base}/cases/settlements/pending-authorization`);
+    return this.http.get<PendingSettlement[]>(
+      `${this.base}/cases/settlements/pending-authorization`,
+    );
   }
 
   authorize(caseId: number): Observable<unknown> {

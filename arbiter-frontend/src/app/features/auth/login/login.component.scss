@@ -1,4 +1,7 @@
-:host { display: block; min-height: 100%; }
+:host {
+  display: block;
+  min-height: 100%;
+}
 
 /* Concepto 7g: papel cálido, columna centrada (lockup → card → nota de soporte)
    y la cordillera ditherizada a sangre en el borde inferior. */
@@ -130,8 +133,12 @@
     padding: var(--space-5);
     padding-bottom: 200px;
   }
-  .stack { gap: var(--space-5); }
-  .card { padding: var(--space-5); }
+  .stack {
+    gap: var(--space-5);
+  }
+  .card {
+    padding: var(--space-5);
+  }
   .brand-lockup {
     --logo-size: 1.6rem;
     font-size: var(--font-size-xl);
@@ -140,6 +147,10 @@
 
 /* Alturas muy chicas: la cordillera estorba → ocultar y recuperar el espacio. */
 @media (max-height: 640px) {
-  .mtn { display: none; }
-  .login-page { padding-bottom: var(--space-5); }
+  .mtn {
+    display: none;
+  }
+  .login-page {
+    padding-bottom: var(--space-5);
+  }
 }

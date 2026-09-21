@@ -73,7 +73,7 @@ public interface CaseService {
      * {@code eventDateTo} (inclusive en ambos extremos) sobre la fecha del hecho, {@code q}
      * (búsqueda de texto libre por número de expediente, póliza o asegurado — ver
      * {@link ar.edu.utn.frba.arbiter.cases.models.repositories.CaseSpecifications#withFilters}) y
-     * {@code riskBand} (nivel de alerta de fraude, match exacto) y {@code assignedToMe}
+     * {@code riskBand} (score de riesgo de fraude, match exacto) y {@code assignedToMe}
      * (la lente "Míos" de la bandeja: solo los expedientes del analista que hace el request).
      *
      * <p>El recorte por aseguradora no es un filtro más: lo resuelve el esquema del tenant, así

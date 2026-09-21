@@ -69,7 +69,9 @@ export class LoginComponent {
     // canSubmit already catches empty fields, so a 400 from the server means the sealed password
     // couldn't be opened: the backend rotated its key on restart, or the browser clock is off.
     if (err.status === 400) {
-      return err.error?.detail ?? 'No pudimos procesar el pedido. Recargá la página y probá de nuevo.';
+      return (
+        err.error?.detail ?? 'No pudimos procesar el pedido. Recargá la página y probá de nuevo.'
+      );
     }
     // status 0 = no response from the server: backend down, no connection, timeout or CORS.
     if (err.status === 0) {

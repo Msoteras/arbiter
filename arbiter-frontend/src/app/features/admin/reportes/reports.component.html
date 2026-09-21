@@ -1,0 +1,21 @@
+<header class="rep-head">
+  <h1 class="t-page-title">Reportes</h1>
+</header>
+
+<!-- Links and not an ARIA tablist: each tab is a route, so aria-current is what they really are.
+     They carry the shared filters only: the claim cause means nothing on the fraud tab. -->
+<nav class="tabs" aria-label="Reporte a mostrar">
+  @for (tab of tabs; track tab.path) {
+    <a
+      class="tab"
+      [routerLink]="tab.path"
+      routerLinkActive="active"
+      ariaCurrentWhenActive="page"
+      [queryParams]="filters.sharedQueryParams()"
+    >
+      {{ tab.label }}
+    </a>
+  }
+</nav>
+
+<router-outlet />

@@ -20,8 +20,13 @@
   src: url('/fonts/arimo-latin.woff2') format('woff2');
 }
 
-* { box-sizing: border-box; }
-html, body { height: 100%; }
+* {
+  box-sizing: border-box;
+}
+html,
+body {
+  height: 100%;
+}
 
 body {
   margin: 0;

@@ -30,11 +30,7 @@ import { ButtonComponent } from '../button/button.component';
         }
       </span>
       <div class="actions">
-        <app-button
-          variant="secondary"
-          [disabled]="!dirty() || saving()"
-          (click)="discard.emit()"
-        >
+        <app-button variant="secondary" [disabled]="!dirty() || saving()" (click)="discard.emit()">
           Descartar
         </app-button>
         <app-button [disabled]="!dirty() || saving() || !canSave()" (click)="save.emit()">
@@ -46,7 +42,10 @@ import { ButtonComponent } from '../button/button.component';
   styles: `
     /* width:100% y no solo display:block: metida en un contenedor flex (pasó en dos solapas), el
        host se encogía al ancho del contenido y los botones terminaban pegados a la izquierda. */
-    :host { display: block; width: 100%; }
+    :host {
+      display: block;
+      width: 100%;
+    }
     .save-bar {
       display: flex;
       align-items: center;
@@ -57,12 +56,23 @@ import { ButtonComponent } from '../button/button.component';
       padding-top: var(--space-4);
       border-top: 1px solid var(--border-default);
     }
-    .actions { display: flex; align-items: center; gap: var(--space-2); }
+    .actions {
+      display: flex;
+      align-items: center;
+      gap: var(--space-2);
+    }
     /* Guardado en verde de estado; pendiente en gris y no en rojo: tener cambios sin guardar no es
        un error, y pintarlo de alarma le pone urgencia a algo que el referente hace a propósito. */
-    .state { font-size: var(--font-size-sm); color: var(--status-ok); }
-    .state.dirty { color: var(--text-secondary); }
-    .error { color: var(--status-danger); }
+    .state {
+      font-size: var(--font-size-sm);
+      color: var(--status-ok);
+    }
+    .state.dirty {
+      color: var(--text-secondary);
+    }
+    .error {
+      color: var(--status-danger);
+    }
   `,
 })
 export class SaveBarComponent {

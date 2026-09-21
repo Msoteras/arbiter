@@ -2,12 +2,7 @@
   <div class="hr-head">
     <h2 class="card-title">Historial de cambios</h2>
     <app-badge variant="solid">Toda la aseguradora</app-badge>
-    <app-badge variant="solid" tone="info">Registro inmutable · solo lectura</app-badge>
   </div>
-
-  <p class="section-hint">
-    Registro inmutable de cambios (fecha, motivo y valores) que respalda la auditoría de cada clasificación.
-  </p>
 
   <!-- ───────── Filtros ─────────
        Van arriba y no en un panel aparte: el historial se consulta buscando algo puntual
@@ -105,9 +100,7 @@
                     <span class="hr-before">{{ field.previous }}</span>
                     <span class="hr-arrow" aria-hidden="true">→</span>
                     <span class="hr-after">{{ field.next }}</span>
-                    <span class="sr-only">
-                      pasó de {{ field.previous }} a {{ field.next }}
-                    </span>
+                    <span class="sr-only"> pasó de {{ field.previous }} a {{ field.next }} </span>
                   </span>
                 </li>
               }

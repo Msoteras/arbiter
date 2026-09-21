@@ -1,7 +1,15 @@
 import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
 import { toObservable, toSignal } from '@angular/core/rxjs-interop';
 import { RouterLink } from '@angular/router';
-import { catchError, debounceTime, distinctUntilChanged, map, of, startWith, switchMap } from 'rxjs';
+import {
+  catchError,
+  debounceTime,
+  distinctUntilChanged,
+  map,
+  of,
+  startWith,
+  switchMap,
+} from 'rxjs';
 
 import { InsuredSessionService } from '../../../core/auth/insured-session.service';
 import { ExpedienteResponse } from '../../../core/models/expediente';
@@ -85,9 +93,7 @@ export class MisExpedientesComponent {
    */
   private readonly policies = toSignal(
     toObservable(this.session.insuredId).pipe(
-      switchMap((insuredId) =>
-        insuredId ? this.policies$(insuredId) : of<Policy[]>([]),
-      ),
+      switchMap((insuredId) => (insuredId ? this.policies$(insuredId) : of<Policy[]>([]))),
     ),
     { initialValue: [] as Policy[] },
   );
@@ -103,7 +109,9 @@ export class MisExpedientesComponent {
   private readonly params = computed(() => ({
     insuredId: this.session.insuredId(),
     q: this.qDebounced() || undefined,
-    status: this.estadoFilter() ? estadosDelCajon(this.estadoFilter() as EstadoSimplificado) : undefined,
+    status: this.estadoFilter()
+      ? estadosDelCajon(this.estadoFilter() as EstadoSimplificado)
+      : undefined,
     eventDateFrom: this.desde() || undefined,
     eventDateTo: this.hasta() || undefined,
     insurerId: this.insurerFilter() ? Number(this.insurerFilter()) : undefined,
@@ -118,14 +126,12 @@ export class MisExpedientesComponent {
           return of<LoadState>({ status: 'idle' });
         }
         return this.service.list({ insuredId, ...filters }).pipe(
-          map(
-            (page): LoadState => ({
-              status: 'ok',
-              data: page.content,
-              totalElements: page.totalElements,
-              totalPages: page.totalPages,
-            }),
-          ),
+          map((page): LoadState => ({
+            status: 'ok',
+            data: page.content,
+            totalElements: page.totalElements,
+            totalPages: page.totalPages,
+          })),
           startWith<LoadState>({ status: 'loading' }),
           catchError(() => of<LoadState>({ status: 'error' })),
         );

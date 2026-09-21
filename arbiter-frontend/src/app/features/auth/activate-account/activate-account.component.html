@@ -13,9 +13,7 @@
         <app-inline-loading [size]="28" message="Validando el link…" />
       } @else if (tokenStatus() === 'invalid') {
         <h2 class="t-page-title">Link inválido</h2>
-        <p class="t-note">
-          Este link no es válido o venció. Pedí uno nuevo y volvé a intentar.
-        </p>
+        <p class="t-note">Este link no es válido o venció. Pedí uno nuevo y volvé a intentar.</p>
       } @else {
         <form (submit)="$event.preventDefault(); submit()">
           <h2 class="t-page-title">{{ copy.formTitle }}</h2>
@@ -63,7 +61,12 @@
             <p class="error">{{ errorMessage() }}</p>
           }
 
-          <app-button type="submit" [block]="true" [disabled]="!canSubmit()" [loading]="submitting()">
+          <app-button
+            type="submit"
+            [block]="true"
+            [disabled]="!canSubmit()"
+            [loading]="submitting()"
+          >
             {{ submitting() ? copy.submittingLabel : copy.submitLabel }}
           </app-button>
         </form>

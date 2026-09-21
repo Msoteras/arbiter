@@ -15,7 +15,9 @@ import { ChangeDetectionStrategy, Component, computed, input, model } from '@ang
     ></textarea>
   `,
   styles: `
-    :host { display: block; }
+    :host {
+      display: block;
+    }
     .field {
       width: 100%;
       font: inherit;
@@ -29,10 +31,18 @@ import { ChangeDetectionStrategy, Component, computed, input, model } from '@ang
       resize: vertical;
     }
     @media (min-width: 640px) {
-      .field { font-size: var(--font-size-body); }
+      .field {
+        font-size: var(--font-size-body);
+      }
     }
-    .field:focus { outline: none; border-color: var(--border-focus); box-shadow: var(--focus-ring); }
-    .field::placeholder { color: var(--text-muted); }
+    .field:focus {
+      outline: none;
+      border-color: var(--border-focus);
+      box-shadow: var(--focus-ring);
+    }
+    .field::placeholder {
+      color: var(--text-muted);
+    }
   `,
 })
 export class TextareaComponent {

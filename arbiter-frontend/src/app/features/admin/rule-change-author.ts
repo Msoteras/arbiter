@@ -20,8 +20,10 @@ export function ruleChangeAuthor(reason: string | null | undefined): string | nu
   if (!reason) {
     return null;
   }
-  const cut = AUTHOR_SEPARATORS
-    .map((separator) => ({ separator, at: reason.lastIndexOf(separator) }))
+  const cut = AUTHOR_SEPARATORS.map((separator) => ({
+    separator,
+    at: reason.lastIndexOf(separator),
+  }))
     .filter((candidate) => candidate.at >= 0)
     .sort((a, b) => b.at - a.at)[0];
 
