@@ -5,7 +5,9 @@ import ar.edu.utn.frba.arbiter.cases.config.tenant.TenantContext;
 import ar.edu.utn.frba.arbiter.cases.dto.NotificationResponse;
 import ar.edu.utn.frba.arbiter.cases.exceptions.NotificationNotFoundException;
 import ar.edu.utn.frba.arbiter.cases.models.entities.Case;
+import ar.edu.utn.frba.arbiter.cases.models.entities.CaseSettlement;
 import ar.edu.utn.frba.arbiter.cases.models.entities.Notification;
+import ar.edu.utn.frba.arbiter.cases.models.repositories.CaseSettlementRepository;
 import ar.edu.utn.frba.arbiter.cases.models.repositories.InsurerRepository;
 import ar.edu.utn.frba.arbiter.cases.models.repositories.NotificationRepository;
 import ar.edu.utn.frba.arbiter.cases.models.repositories.UserRepository;
@@ -21,6 +23,7 @@ import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 
+import java.text.NumberFormat;
 import java.time.Instant;
 import java.time.Period;
 import java.time.ZoneOffset;
@@ -28,6 +31,7 @@ import java.time.ZonedDateTime;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
 import java.util.function.Function;
@@ -75,6 +79,9 @@ public class CaseNotificationService {
                     "Tu siniestro fue aprobado",
                     "Revisamos tu siniestro y fue aprobado. Vas a recibir la información sobre "
                             + "los pasos siguientes."),
+            // El monto se agrega aparte, en approvedAmountLine(): no es parte de la plantilla
+            // porque no siempre está (un expediente aprobado antes de que existiera la
+            // liquidación no tiene fila) y un "$null" en el mail es peor que no decir el monto.
             CaseStatus.REJECTED, new Message(
                     "Novedades sobre tu siniestro",
                     "Revisamos tu siniestro y no fue aprobado. Si querés conocer los motivos o no "
@@ -102,10 +109,14 @@ public class CaseNotificationService {
                     + "Te vamos a avisar por este medio cuando haya una resolución. Si querés saber "
                     + "más, podés comunicarte con nosotros.");
 
+    /** Los importes se le muestran al asegurado con formato argentino, no con el del servidor. */
+    private static final Locale AR = Locale.forLanguageTag("es-AR");
+
     private final NotificationRepository notificationRepository;
     private final UserRepository userRepository;
     private final InsurerRepository insurerRepository;
     private final SendGridAdapter sendGridAdapter;
+    private final CaseSettlementRepository settlementRepository;
 
     /** Best-effort by contract: a delivery failure must never break the case transition. */
     public void notifyStatusChange(Case caseRecord, CaseStatus newStatus) {
@@ -158,16 +169,17 @@ public class CaseNotificationService {
                 .build());
 
         recipientEmail(insured).ifPresentOrElse(
-                address -> send(notification, address, message, caseRecord),
+                address -> send(notification, address, message, caseRecord, type),
                 () -> log.warn("No email for the insured of case {}, notification {} not sent",
                         caseRecord.getId(), notification.getId()));
     }
 
-    private void send(Notification notification, String address, Message message, Case caseRecord) {
+    private void send(Notification notification, String address, Message message, Case caseRecord,
+                      String type) {
         try {
             // sent=true only if the mail really went out: with no API key the adapter no-ops, and
             // marking those as sent hides from the panel exactly what never reached the insured.
-            if (!sendGridAdapter.send(address, message.subject(), body(message, caseRecord))) {
+            if (!sendGridAdapter.send(address, message.subject(), body(message, caseRecord, type))) {
                 return;
             }
             notification.setSent(true);
@@ -337,13 +349,40 @@ public class CaseNotificationService {
         return userRepository.findByEmail(authentication.getName()).map(User::getId);
     }
 
-    private String body(Message message, Case caseRecord) {
+    private String body(Message message, Case caseRecord, String type) {
         return """
                 <p>Hola,</p>
-                <p>%s</p>
+                <p>%s</p>%s
                 <p>Siniestro <strong>#%d</strong>.</p>
                 <p>Arbiter</p>
-                """.formatted(message.body(), caseRecord.getId());
+                """.formatted(message.body(), approvedAmountLine(caseRecord, type), caseRecord.getId());
+    }
+
+    /**
+     * El monto a pagar, en el único mail donde corresponde. Es lo primero que el asegurado quiere
+     * saber cuando le aprueban el siniestro, y tenerlo por escrito le da con qué comparar cuando
+     * la aseguradora le acredite.
+     *
+     * <p>Cadena vacía si no hay liquidación: los expedientes aprobados antes de que existiera este
+     * paso no tienen fila, y un mail que promete un importe que no está es peor que uno que no lo
+     * menciona. Best-effort como el resto del servicio — que no se pueda leer el monto no puede
+     * hacer que no salga el aviso de que le aprobaron el siniestro.
+     */
+    private String approvedAmountLine(Case caseRecord, String type) {
+        if (!CaseStatus.APPROVED.name().equals(type)) {
+            return "";
+        }
+        try {
+            return settlementRepository.findByCaseId(caseRecord.getId())
+                    .map(CaseSettlement::getSettledAmount)
+                    .map(amount -> "<p>Monto a pagar: <strong>%s</strong>.</p>"
+                            .formatted(NumberFormat.getCurrencyInstance(AR).format(amount)))
+                    .orElse("");
+        } catch (Exception e) {
+            log.error("Could not read the settlement of case {} for its approval email",
+                    caseRecord.getId(), e);
+            return "";
+        }
     }
 
     private record Message(String subject, String body) {

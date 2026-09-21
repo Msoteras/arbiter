@@ -51,7 +51,13 @@ import { BadgeComponent } from '../../../shared/ui/badge/badge.component';
                 [attr.aria-label]="'Listo'"
                 (click)="stopEditing()"
               >
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" aria-hidden="true">
+                <svg
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="2.2"
+                  aria-hidden="true"
+                >
                   <path d="M5 13l4 4L19 7" stroke-linecap="round" stroke-linejoin="round" />
                 </svg>
               </button>
@@ -77,7 +83,13 @@ import { BadgeComponent } from '../../../shared/ui/badge/badge.component';
                   [attr.aria-label]="'Editar'"
                   (click)="startEditing($index)"
                 >
-                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true">
+                  <svg
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="1.8"
+                    aria-hidden="true"
+                  >
                     <path d="M4 20h4L19 9l-4-4L4 16v4z" stroke-linejoin="round" />
                   </svg>
                 </button>
@@ -87,8 +99,18 @@ import { BadgeComponent } from '../../../shared/ui/badge/badge.component';
                   [attr.aria-label]="'Quitar'"
                   (click)="remove($index)"
                 >
-                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true">
-                    <path d="M5 7h14M10 7V5h4v2M6 7l1 13h10l1-13" stroke-linecap="round" stroke-linejoin="round" />
+                  <svg
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="1.8"
+                    aria-hidden="true"
+                  >
+                    <path
+                      d="M5 7h14M10 7V5h4v2M6 7l1 13h10l1-13"
+                      stroke-linecap="round"
+                      stroke-linejoin="round"
+                    />
                   </svg>
                 </button>
               </div>
@@ -102,25 +124,56 @@ import { BadgeComponent } from '../../../shared/ui/badge/badge.component';
     }
   `,
   styles: `
-    :host { display: block; }
-    .items { list-style: none; margin: 0 0 var(--space-2); padding: 0; display: flex; flex-direction: column; }
+    :host {
+      display: block;
+    }
+    .items {
+      list-style: none;
+      margin: 0 0 var(--space-2);
+      padding: 0;
+      display: flex;
+      flex-direction: column;
+    }
     .item {
       display: flex;
       align-items: center;
       gap: var(--space-3);
       padding: var(--space-3) 0;
     }
-    .item + .item { border-top: 1px solid var(--border-subtle); }
-    .item.editing { gap: var(--space-2); }
-    .grow { flex: 1 1 auto; }
-    .text { flex: 1 1 auto; min-width: 0; display: flex; align-items: center; gap: var(--space-2); flex-wrap: wrap; }
-    .item-text { margin: 0; color: var(--text-primary); }
-    .empty { margin: 0 0 var(--space-1); padding: var(--space-2) 0; }
+    .item + .item {
+      border-top: 1px solid var(--border-subtle);
+    }
+    .item.editing {
+      gap: var(--space-2);
+    }
+    .grow {
+      flex: 1 1 auto;
+    }
+    .text {
+      flex: 1 1 auto;
+      min-width: 0;
+      display: flex;
+      align-items: center;
+      gap: var(--space-2);
+      flex-wrap: wrap;
+    }
+    .item-text {
+      margin: 0;
+      color: var(--text-primary);
+    }
+    .empty {
+      margin: 0 0 var(--space-1);
+      padding: var(--space-2) 0;
+    }
 
     /* Cada acción con su color, siempre a la vista: editar en el acento de marca y quitar en el
        rojo de peligro. Escondidas hasta el hover se descubrían de casualidad, y en touch no hay
        hover que valga. El color va solo en el ícono — sin relleno — para no gritar desde una lista. */
-    .row-actions { flex: 0 0 auto; display: flex; gap: var(--space-1); }
+    .row-actions {
+      flex: 0 0 auto;
+      display: flex;
+      gap: var(--space-1);
+    }
 
     /* Marca de "no cubierto" al principio de la fila. Decorativa: lo que la fila significa ya lo
        dicen el título de la sección y el badge, así que va aria-hidden. */
@@ -136,7 +189,10 @@ import { BadgeComponent } from '../../../shared/ui/badge/badge.component';
       background: color-mix(in srgb, var(--status-danger) 10%, transparent);
       color: var(--status-danger);
     }
-    .row-marker svg { width: 14px; height: 14px; }
+    .row-marker svg {
+      width: 14px;
+      height: 14px;
+    }
     .icon-btn {
       display: flex;
       align-items: center;
@@ -150,11 +206,26 @@ import { BadgeComponent } from '../../../shared/ui/badge/badge.component';
       color: var(--accent-fg);
       cursor: pointer;
     }
-    .icon-btn:hover { border-color: var(--selected-border); background: var(--selected-bg); }
-    .icon-btn.danger { color: var(--status-danger); }
-    .icon-btn.danger:hover { border-color: var(--status-danger); background: none; }
-    .icon-btn:focus-visible { outline: none; border-color: var(--border-focus); box-shadow: var(--focus-ring); }
-    .icon-btn svg { width: 16px; height: 16px; }
+    .icon-btn:hover {
+      border-color: var(--selected-border);
+      background: var(--selected-bg);
+    }
+    .icon-btn.danger {
+      color: var(--status-danger);
+    }
+    .icon-btn.danger:hover {
+      border-color: var(--status-danger);
+      background: none;
+    }
+    .icon-btn:focus-visible {
+      outline: none;
+      border-color: var(--border-focus);
+      box-shadow: var(--focus-ring);
+    }
+    .icon-btn svg {
+      width: 16px;
+      height: 16px;
+    }
 
     /* Estado vacío: borde punteado para que se lea como un lugar por llenar y no como una card
        con contenido. */
@@ -169,13 +240,26 @@ import { BadgeComponent } from '../../../shared/ui/badge/badge.component';
       background: var(--surface-soft);
       text-align: center;
     }
-    .empty-icon { color: var(--text-tertiary); }
-    .empty-title { margin: 0; font-weight: var(--font-weight-medium); color: var(--text-primary); }
+    .empty-icon {
+      color: var(--text-tertiary);
+    }
+    .empty-title {
+      margin: 0;
+      font-weight: var(--font-weight-medium);
+      color: var(--text-primary);
+    }
     /* Con medida: el ejemplo es la parte que se lee de verdad y a todo el ancho de la card cuesta. */
-    .empty-hint { margin: 0; max-width: 46ch; color: var(--text-secondary); font-size: var(--font-size-sm); }
+    .empty-hint {
+      margin: 0;
+      max-width: 46ch;
+      color: var(--text-secondary);
+      font-size: var(--font-size-sm);
+    }
 
     @media (prefers-reduced-motion: reduce) {
-      .row-actions { transition: none; }
+      .row-actions {
+        transition: none;
+      }
     }
   `,
 })

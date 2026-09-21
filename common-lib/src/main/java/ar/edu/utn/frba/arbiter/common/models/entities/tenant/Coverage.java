@@ -1,8 +1,12 @@
 package ar.edu.utn.frba.arbiter.common.models.entities.tenant;
 
+import ar.edu.utn.frba.arbiter.common.enums.SettlementBasis;
+import ar.edu.utn.frba.arbiter.common.enums.SettlementFormula;
 import jakarta.persistence.Column;
 import jakarta.persistence.Convert;
 import jakarta.persistence.Entity;
+import jakarta.persistence.EnumType;
+import jakarta.persistence.Enumerated;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
@@ -81,4 +85,53 @@ public class Coverage {
     @JdbcTypeCode(SqlTypes.JSON)
     @Column(columnDefinition = "jsonb")
     private List<String> exclusions;
+
+    /**
+     * How a claim on this coverage is settled, which follows from what happens to the item: a
+     * total loss extinguishes the policy, a repair doesn't. Never null in the DB (defaults to
+     * {@code TOTAL_LOSS}).
+     */
+    @Enumerated(EnumType.STRING)
+    @Column(name = "settlement_formula", nullable = false, length = 20)
+    @Builder.Default
+    private SettlementFormula settlementFormula = SettlementFormula.TOTAL_LOSS;
+
+    /**
+     * How the indemnity ceiling is worked out. Never null in the DB (defaults to
+     * {@code SUM_INSURED}); {@code SettlementCalculator} still treats a null as that default, so a
+     * row written before this column existed doesn't sink a settlement.
+     *
+     * <p>Only meaningful under {@link SettlementFormula#TOTAL_LOSS}: on a repair the ceiling is
+     * the quote, and there is no other basis to choose.
+     */
+    @Enumerated(EnumType.STRING)
+    @Column(name = "settlement_basis", nullable = false, length = 30)
+    @Builder.Default
+    private SettlementBasis settlementBasis = SettlementBasis.SUM_INSURED;
+
+    /**
+     * Percentage of the ceiling payable from the second event of the year onwards, in percentage
+     * points like {@link #deductible} (50.00 = 50%). Null means the event number doesn't reduce
+     * anything, which is the Celulares case — that product allows a single event per year, so
+     * there is no second one to price.
+     */
+    @Column(name = "second_event_percentage")
+    private BigDecimal secondEventPercentage;
+
+    /**
+     * Whether the premium installments still to fall due get deducted. True for total loss on
+     * these products: the policy is extinguished by the loss, so the rest of the year's premium
+     * comes out of the indemnity ("menos las cuotas pendientes de pago", Celulares manual).
+     */
+    @Column(name = "deduct_pending_installments", nullable = false)
+    private boolean deductPendingInstallments;
+
+    /**
+     * Whether arrears already due get deducted. Clause 102, article 5: "aprobada la liquidación de
+     * un siniestro el Asegurador podrá descontar de la indemnización cualquier saldo o deuda
+     * vencida de este contrato". Separate from {@link #deductPendingInstallments} because it's a
+     * different debt with a different basis — one is future premium, this one is unpaid premium.
+     */
+    @Column(name = "deduct_overdue_balance", nullable = false)
+    private boolean deductOverdueBalance;
 }

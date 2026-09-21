@@ -1,6 +1,5 @@
 package ar.edu.utn.frba.arbiter.classification.adapters;
 
-import ar.edu.utn.frba.arbiter.classification.adapters.mock.MockRulesAdapter;
 import ar.edu.utn.frba.arbiter.classification.dto.BusinessRules;
 import com.sun.net.httpserver.HttpServer;
 import org.junit.jupiter.api.AfterEach;
@@ -11,6 +10,7 @@ import org.springframework.web.client.RestClientResponseException;
 import java.io.IOException;
 import java.net.InetSocketAddress;
 import java.net.ServerSocket;
+import java.net.URLDecoder;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -63,7 +63,7 @@ class RulesRestAdapterTest {
 
         BusinessRules rules = adapter.getRules("Celulares", 1L, "Robo en vía pública");
 
-        BusinessRules baseline = new MockRulesAdapter().getRules("Celulares", 1L, "Robo en vía pública");
+        BusinessRules baseline = new BaselineRulesAdapter().getRules("Celulares", 1L, "Robo en vía pública");
         assertThat(rules.fastTrackThresholds()).isEqualTo(baseline.fastTrackThresholds());
         assertThat(rules.reportDeadlineHours()).isEqualTo(baseline.reportDeadlineHours());
     }
@@ -106,7 +106,7 @@ class RulesRestAdapterTest {
 
         BusinessRules rules = adapter.getRules("Celulares", 1L, "Robo en vía pública");
 
-        BusinessRules baseline = new MockRulesAdapter().getRules("Celulares", 1L, "Robo en vía pública");
+        BusinessRules baseline = new BaselineRulesAdapter().getRules("Celulares", 1L, "Robo en vía pública");
         assertThat(rules.scoringConfig()).isEqualTo(baseline.scoringConfig());
     }
 
@@ -126,9 +126,14 @@ class RulesRestAdapterTest {
         adapter.getRules("Celulares", 1L, "Robo en vía pública");
 
         assertThat(requested).filteredOn(uri -> uri.contains("document-requirements"))
-                .allSatisfy(uri -> assertThat(uri)
-                        .contains("coverageId=1")
-                        .contains("claimCause=Robo"));
+                .isNotEmpty()
+                .allSatisfy(uri -> {
+                    assertThat(uri).contains("coverageId=1");
+                    // By decoded value, not by prefix: asserting contains("claimCause=Robo") would
+                    // pass on a truncated or half-encoded value, which is the failure mode a claim
+                    // cause with spaces and an accent actually has.
+                    assertThat(queryParam(uri, "claimCause")).isEqualTo("Robo en vía pública");
+                });
         // Los endpoints de toda la aseguradora quedan afuera: no llevan cobertura porque no
         // dependen de ninguna (el scoring es uno solo por compañía, y el antecedente de fraude es
         // de la persona, no de la cobertura que afectó).
@@ -137,6 +142,35 @@ class RulesRestAdapterTest {
                         && insurerWide.stream().noneMatch(uri::contains))
                 .isNotEmpty()
                 .allSatisfy(uri -> assertThat(uri).contains("coverageId=1"));
+    }
+
+    /**
+     * The claim cause travels as a <b>name</b> and not an id (see
+     * {@code overlayDocumentRequirements}), so every accent and space in the catalog has to survive
+     * the round trip. It reaches rules-service as a query param, gets matched against
+     * {@code claim_cause.name} there, and a mangled "Rotura accidental" or "Caída" simply finds no
+     * agenda — which the adapter then reads as "nothing configured" and papers over with the
+     * baseline. Silent, and wrong in the direction that hurts: the case gets asked for the
+     * documents of a different claim cause.
+     *
+     * <p>Asserted on the server side, decoded, because that is the only place the actual value
+     * received is visible — the encoding on the wire is the transport's business, not the contract.
+     */
+    @Test
+    void claimCauseWithAccentsAndSpaces_arrivesIntactAtRulesService() throws IOException {
+        List<String> received = Collections.synchronizedList(new ArrayList<>());
+        server = startServer(exchange -> {
+            String uri = exchange.getRequestURI().toString();
+            if (uri.contains("document-requirements")) {
+                received.add(queryParam(uri, "claimCause"));
+            }
+            respondEmpty(exchange);
+        });
+        RulesRestAdapter adapter = adapterPointingAt(baseUrl());
+
+        adapter.getRules("Celulares", 1L, "Caída");
+
+        assertThat(received).containsExactly("Caída");
     }
 
     /**
@@ -168,14 +202,29 @@ class RulesRestAdapterTest {
 
         BusinessRules rules = adapter.getRules("Celulares", 1L, "Caída");
 
-        BusinessRules baseline = new MockRulesAdapter().getRules("Celulares", 1L, "Caída");
+        BusinessRules baseline = new BaselineRulesAdapter().getRules("Celulares", 1L, "Caída");
         assertThat(rules.requiredDocumentTypes()).isEqualTo(baseline.requiredDocumentTypes());
     }
 
     // ── Infra ────────────────────────────────────────────────────────────────
 
     private RulesRestAdapter adapterPointingAt(String url) {
-        return new RulesRestAdapter(url, JWT_SECRET, new MockRulesAdapter());
+        return new RulesRestAdapter(url, JWT_SECRET, new BaselineRulesAdapter());
+    }
+
+    /** One query param's decoded value, or null if the URI doesn't carry it. */
+    private String queryParam(String uri, String name) {
+        int start = uri.indexOf('?');
+        if (start < 0) {
+            return null;
+        }
+        for (String pair : uri.substring(start + 1).split("&")) {
+            int eq = pair.indexOf('=');
+            if (eq > 0 && pair.substring(0, eq).equals(name)) {
+                return URLDecoder.decode(pair.substring(eq + 1), StandardCharsets.UTF_8);
+            }
+        }
+        return null;
     }
 
     private String baseUrl() {

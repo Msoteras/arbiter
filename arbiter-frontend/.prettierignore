@@ -1,0 +1,10 @@
+# Generado o ajeno: no lo escribimos nosotros y reformatearlo sólo ensucia diffs.
+node_modules/
+dist/
+.angular/
+coverage/
+package-lock.json
+
+# Plantilla de nginx: no es JSON ni JS, y las directivas `${VAR}` del entrypoint no sobreviven
+# a un reformateo.
+nginx.conf.template

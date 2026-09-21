@@ -36,9 +36,15 @@ public class PolicyController {
                     (centralized view). Backs the claim wizard: the logged-in insured picks one of
                     their policies instead of typing the number blindly. An ASEGURADO can only ask
                     for their own DNI — 403 otherwise.
+
+                    Expired policies are left out by default, since offering one to the wizard only
+                    ends in a rejection. `includeExpired=true` brings them back for the profile's
+                    "Mis pólizas", where the insured is looking rather than choosing.
                     """)
-    public ResponseEntity<List<PolicyResponse>> listByInsured(@RequestParam String insuredId) {
-        return ResponseEntity.ok(policyService.listByInsured(insuredId));
+    public ResponseEntity<List<PolicyResponse>> listByInsured(
+            @RequestParam String insuredId,
+            @RequestParam(defaultValue = "false") boolean includeExpired) {
+        return ResponseEntity.ok(policyService.listByInsured(insuredId, includeExpired));
     }
 
     @GetMapping("/{policyNumber}")

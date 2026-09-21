@@ -4,8 +4,10 @@ import ar.edu.utn.frba.arbiter.classification.adapters.ClaimClassifier;
 import ar.edu.utn.frba.arbiter.classification.adapters.DocumentAnalyzer;
 import ar.edu.utn.frba.arbiter.classification.adapters.InsurerAdapter;
 import ar.edu.utn.frba.arbiter.classification.adapters.RulesAdapter;
+import ar.edu.utn.frba.arbiter.classification.models.repositories.ClaimCauseRepository;
 import ar.edu.utn.frba.arbiter.classification.models.repositories.DocumentAnalysisRepository;
 import ar.edu.utn.frba.arbiter.classification.models.repositories.InsuredFraudRecordRepository;
+import ar.edu.utn.frba.arbiter.classification.dto.InsuredHistory;
 import ar.edu.utn.frba.arbiter.classification.models.repositories.PolicySnapshotRepository;
 import ar.edu.utn.frba.arbiter.classification.models.repositories.PolicySnapshotRepository.Snapshot;
 import ar.edu.utn.frba.arbiter.classification.services.risk.RiskFixtures;
@@ -22,6 +24,7 @@ import org.mockito.Spy;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.math.BigDecimal;
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.List;
 
@@ -58,6 +61,7 @@ class ClassificationOrchestratorSnapshotTest {
     @Mock private PolicySnapshotRepository policySnapshotRepository;
     @Mock private InsuredFraudRecordRepository fraudRecordRepository;
     @Mock private DocumentAnalysisRepository documentAnalysisRepository;
+    @Mock private ClaimCauseRepository claimCauseRepository;
     @Spy private ObjectMapper objectMapper = new ObjectMapper().registerModule(new JavaTimeModule());
 
     @InjectMocks private ClassificationOrchestrator orchestrator;
@@ -78,7 +82,7 @@ class ClassificationOrchestratorSnapshotTest {
         when(coverageScopeEvaluator.evaluate(any(), any(), any(), any(), any()))
                 .thenReturn(CoverageScopeEvaluator.Result.none());
         when(fastTrackValidator.evaluate(any(), any(), any(), any(), any()))
-                .thenReturn(new FastTrackValidator.Result(true, List.of("ok")));
+                .thenReturn(new FastTrackValidator.Result(true, List.of("ok"), List.of()));
     }
 
     private Snapshot capturedSnapshot() {
@@ -99,6 +103,49 @@ class ClassificationOrchestratorSnapshotTest {
         // The amount is frozen next to the count: alone, neither says how big that history was.
         assertThat(snapshot.totalAmountClaimed()).isEqualByComparingTo("2440000");
         assertThat(snapshot.inForce()).isTrue();            // el hecho cae dentro de la vigencia
+    }
+
+    /**
+     * Lo que la determinación del monto a pagar necesita congelado. Sin esto, el monto que el
+     * analista autorice hoy no se puede volver a explicar dentro de tres meses: la BD Aseguradora
+     * ya se movió, y la cuenta se rehace con datos que la decisión nunca vio.
+     */
+    @Test
+    void freezesWhatTheSettlementWillNeedToRecomputeTheAmount() {
+        orchestrator.classify(CASE_ID, RiskFixtures.claim(new BigDecimal("100000")), List.of());
+
+        Snapshot snapshot = capturedSnapshot();
+        // Fin de vigencia: es contra esta fecha que se cuentan las cuotas a vencer.
+        assertThat(snapshot.effectiveTo()).isEqualTo(RiskFixtures.POLICY_START.atStartOfDay().plusYears(1));
+        assertThat(snapshot.installmentAmount()).isEqualByComparingTo("8000");
+        assertThat(snapshot.overdueBalance()).isEqualByComparingTo("0");
+        // Sin siniestros previos en el año, éste es el primer evento → se paga al 100%.
+        assertThat(snapshot.eventsInYear()).isEqualTo(1);
+    }
+
+    /**
+     * El número de evento sale del historial, con la misma ventana de 12 meses que usa la regla
+     * dura MAX_EVENTS_YEAR: el tope de eventos y el porcentaje que se paga no pueden contar
+     * distinto sobre el mismo siniestro.
+     */
+    @Test
+    void countsThisClaimAsTheSecondEventWhenOneFallsInsideTheYear() {
+        when(insurerAdapter.getHistory(any())).thenReturn(InsuredHistory.builder()
+                .insuredId("40.123.456")
+                .previousClaimsCount(1)
+                .totalAmountClaimed(new BigDecimal("300000"))
+                .customerSince(LocalDate.of(2024, 3, 1))
+                .claims(List.of(InsuredHistory.ClaimRecord.builder()
+                        .claimId("1")
+                        .date(RiskFixtures.EVENT_DATE.toLocalDate().minusMonths(3))
+                        .branch("Celulares")
+                        .status("LIQUIDADO")
+                        .build()))
+                .build());
+
+        orchestrator.classify(CASE_ID, RiskFixtures.claim(new BigDecimal("100000")), List.of());
+
+        assertThat(capturedSnapshot().eventsInYear()).isEqualTo(2);
     }
 
     /** The raw payload is the faithful record: the columns are its already-interpreted reading. */

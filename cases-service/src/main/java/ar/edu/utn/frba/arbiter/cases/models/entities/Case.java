@@ -161,9 +161,10 @@ public class Case {
 
     /**
      * Final human determination that the claim was fraudulent ("fue_determinado_fraude") —
-     * distinct from {@code riskBand}, which is the model's suggestion, not a verdict. Nothing
-     * writes this yet: there is no analyst-facing "mark as fraud" flow today, only the
-     * approve/reject decision. Defaults to {@code false} to match the column's default.
+     * distinct from {@code riskBand}, which is the model's suggestion, not a verdict. Written by
+     * {@code FraudRecordService}, and only after the fraud record on the insured is in: a case
+     * flagged here with no record behind it would be a claim nobody can trace back to a
+     * determination. Defaults to {@code false} to match the column's default.
      */
     @Builder.Default
     @Column(name = "fraud_determined", nullable = false)
@@ -271,6 +272,16 @@ public class Case {
 
     @Column(name = "classification_failure_message", columnDefinition = "TEXT")
     private String classificationFailureMessage;
+
+    /**
+     * When the denuncia was filed without its document schedule verified: rules-service didn't
+     * answer, and leaving the insured out over an outage of ours would be worse than taking the
+     * case and checking afterwards. Null once verified, which is the normal case.
+     * {@code DocumentRecheckScheduler} is what comes back to it; a timestamp rather than a flag so
+     * the logs can tell how long a case waited unverified.
+     */
+    @Column(name = "documents_unverified_since")
+    private Instant documentsUnverifiedSince;
 
     /**
      * The {@code case_classification} row holding the analyst's verdict — and through its

@@ -25,12 +25,20 @@ import {
 
 import { ExpedienteService, CaseCreateRequest } from '../expediente.service';
 import { PolicyService } from '../policy.service';
-import { DocumentAgendaService } from '../document-agenda.service';
 import { ExpedienteResponse } from '../../../core/models/expediente';
 import { Policy } from '../../../core/models/policy';
 import { ChipGroupComponent, ChipOption } from '../../../shared/ui/chip-group/chip-group.component';
-import { addDays, isPoliceReportBeforeEvent, isTypedDate, todayIso } from '../../../core/util/datetime';
-import { CASE_DOCUMENT_TYPES, CaseDocumentType, documentTypeLabel } from '../../../core/models/case-document';
+import {
+  addDays,
+  isPoliceReportBeforeEvent,
+  isTypedDate,
+  todayIso,
+} from '../../../core/util/datetime';
+import {
+  CASE_DOCUMENT_TYPES,
+  CaseDocumentType,
+  documentTypeLabel,
+} from '../../../core/models/case-document';
 import { InsuredSessionService } from '../../../core/auth/insured-session.service';
 import { ArgentinaLocationsService } from '../../../core/services/argentina-locations.service';
 import { ButtonComponent } from '../../../shared/ui/button/button.component';
@@ -76,15 +84,26 @@ interface DocSlot {
  *       completeness check falls to the backend, which evaluates it again over the real schedule.
  * </ul>
  */
-type RequiredDocsStatus = 'configured' | 'none' | 'unavailable';
+type RequiredDocsStatus = 'loading' | 'configured' | 'none' | 'unavailable';
 
 interface RequiredDocsState {
   status: RequiredDocsStatus;
   slots: readonly CaseDocumentType[];
+  /** The slots are only the first round: more may be asked for later, from the case follow-up. */
+  firstRound?: boolean;
 }
 
 /** What is shown when there is no schedule to go by: offered, never demanded. */
 const OFFERED_DOCS: RequiredDocsState = { status: 'none', slots: CASE_DOCUMENT_TYPES };
+
+/**
+ * Emitted the instant the policy/branch/claimCause combination changes, before its
+ * intake-documents call resolves. Without it, switchMap keeps the PREVIOUS combination's result on
+ * screen while the new one is in flight — so picking "Daño accidental" right after a cause that did
+ * need a police report kept asking for one until the real (empty) answer came back. Empty slots, not
+ * a guess: we genuinely don't know yet.
+ */
+const LOADING_DOCS: RequiredDocsState = { status: 'loading', slots: [] };
 
 // Mismo tope que cases-service (spring.servlet.multipart.max-file-size) — validar acá
 // evita esperar la subida completa para recién ahí enterarse de que no entra. El
@@ -174,7 +193,6 @@ export class NuevaDenunciaComponent {
   private readonly router = inject(Router);
   private readonly service = inject(ExpedienteService);
   private readonly policyService = inject(PolicyService);
-  private readonly agenda = inject(DocumentAgendaService);
   private readonly session = inject(InsuredSessionService);
   private readonly locations = inject(ArgentinaLocationsService);
 
@@ -285,12 +303,14 @@ export class NuevaDenunciaComponent {
       switchMap((selected) =>
         selected
           ? this.policyService.listClaimCauses(selected.branch, selected.policyNumber).pipe(
-              map(
-                (names): ClaimTypesState => ({
-                  status: 'ok',
-                  list: names.map((name): ClaimType => ({ key: name, label: name, claimCause: name })),
-                }),
-              ),
+              map((names): ClaimTypesState => ({
+                status: 'ok',
+                list: names.map((name): ClaimType => ({
+                  key: name,
+                  label: name,
+                  claimCause: name,
+                })),
+              })),
               startWith<ClaimTypesState>({ status: 'loading' }),
               catchError(() => of<ClaimTypesState>({ status: 'ok', list: [] })),
             )
@@ -300,7 +320,9 @@ export class NuevaDenunciaComponent {
       // quedan en pantalla en vez de desaparecer y volver.
       scan(
         (prev, next): ClaimTypesState =>
-          next.status === 'loading' && prev.status === 'ok' ? { status: 'loading', list: prev.list } : next,
+          next.status === 'loading' && prev.status === 'ok'
+            ? { status: 'loading', list: prev.list }
+            : next,
         { status: 'idle' } as ClaimTypesState,
       ),
     ),
@@ -315,7 +337,7 @@ export class NuevaDenunciaComponent {
 
   protected readonly claimTypes = computed<ClaimType[]>(() => {
     const s = this.claimTypesState();
-    return s.status === 'ok' ? s.list : (s.status === 'loading' ? (s.list ?? []) : []);
+    return s.status === 'ok' ? s.list : s.status === 'loading' ? (s.list ?? []) : [];
   });
   protected readonly selectedType = signal<ClaimType | null>(null);
   // Al cambiar de ramo la causa elegida puede dejar de existir: se limpia para no mandar un hecho
@@ -332,11 +354,33 @@ export class NuevaDenunciaComponent {
   // eligibilityCheck), pero como son signals el orden de declaración no importa para el computed.
   protected readonly step1Valid = computed(
     () =>
-      !!this.selectedPolicy() &&
-      !!this.selectedType() &&
+      this.missingStep1().length === 0 &&
       this.eligibilityError() === null &&
       !this.eligibilityChecking(),
   );
+
+  /** Ver {@link missingStep2}: mismo criterio, para el paso 1. */
+  protected readonly missingStep1 = computed<string[]>(() => {
+    const missing: string[] = [];
+    if (!this.selectedPolicy()) missing.push('Póliza');
+    if (!this.selectedType()) missing.push('Qué te pasó');
+    return missing;
+  });
+
+  /** Lo que falta del paso en el que está parado el asegurado, para el aviso de la barra. */
+  protected readonly missingFields = computed<string[]>(() =>
+    this.step() === 1 ? this.missingStep1() : this.step() === 2 ? this.missingStep2() : [],
+  );
+
+  /**
+   * Los primeros nombres nada más. Con el paso recién abierto falta todo, y enumerar nueve campos
+   * al lado del botón es una lista que nadie lee: alcanza con por dónde empezar.
+   */
+  protected readonly missingFieldsLabel = computed(() => {
+    const missing = this.missingFields();
+    const shown = missing.slice(0, 3).join(', ');
+    return missing.length > 3 ? `${shown} y ${missing.length - 3} más` : shown;
+  });
 
   // Tope del input de fecha: un siniestro no puede haber
   // "ocurrido" en el futuro. La regla real vive en el backend (CaseRequest la valida de
@@ -456,7 +500,9 @@ export class NuevaDenunciaComponent {
   /** Derived from the field, so typing a date by hand lights up the matching chip. */
   protected readonly eventDateShortcut = computed(() => {
     const date = this.eventDate();
-    return Object.keys(this.eventDateShortcuts).find((k) => this.eventDateShortcuts[k] === date) ?? '';
+    return (
+      Object.keys(this.eventDateShortcuts).find((k) => this.eventDateShortcuts[k] === date) ?? ''
+    );
   });
 
   selectEventDateShortcut(key: string): void {
@@ -530,6 +576,15 @@ export class NuevaDenunciaComponent {
     }
     const eventTime = this.eventTime();
     const policeTime = this.policeReportTime();
+    // Los cuatro campos completos antes de comparar nada. Con las dos fechas cargadas y las horas
+    // todavía vacías, la comparación por día ya bloqueaba "Continuar" en mitad de la carga —
+    // obligaba a completar el formulario en un orden puntual (primero las horas, después las
+    // fechas) para no chocarse con un error sobre datos que el asegurado aún estaba tipeando.
+    // Comparar de menos acá no deja pasar nada: al completar las horas el chequeo corre igual, y
+    // el alta lo vuelve a validar del lado del backend.
+    if (!eventTime || !policeTime) {
+      return null;
+    }
     if (!isPoliceReportBeforeEvent(eventDate, eventTime, policeDate, policeTime)) {
       return null;
     }
@@ -609,7 +664,10 @@ export class NuevaDenunciaComponent {
               map((res): EligibilityState =>
                 res.eligible
                   ? { status: 'ok' }
-                  : { status: 'blocked', reason: res.reason ?? 'No se puede registrar la denuncia.' },
+                  : {
+                      status: 'blocked',
+                      reason: res.reason ?? 'No se puede registrar la denuncia.',
+                    },
               ),
               startWith<EligibilityState>({ status: 'checking' }),
               catchError(() => of<EligibilityState>({ status: 'unknown' })),
@@ -648,7 +706,9 @@ export class NuevaDenunciaComponent {
   // elegible. No bloquea "Siguiente" — mismo criterio de fail-open que antes — pero el asegurado
   // se entera de que no se pudo confirmar, en vez de ver la nada silenciosa de un chequeo que
   // "pasó" sin haber corrido en realidad.
-  protected readonly eligibilityUnknown = computed(() => this.eligibilityVerdict().status === 'unknown');
+  protected readonly eligibilityUnknown = computed(
+    () => this.eligibilityVerdict().status === 'unknown',
+  );
 
   protected readonly eligibilityError = computed<string | null>(() => {
     const dateError = this.dateCoherenceError();
@@ -659,21 +719,55 @@ export class NuevaDenunciaComponent {
     return check.status === 'blocked' ? check.reason : null;
   });
 
+  /**
+   * Lo que falta completar del paso 2, con el nombre que se ve en pantalla y en el orden del
+   * formulario. Todo campo visible es obligatorio salvo los que dicen "(opcional)" — entre calles
+   * y monto reclamado.
+   *
+   * <p>Devuelve la lista y no un booleano porque la barra de acciones la muestra: un "Continuar"
+   * gris sin decir qué falta, en un formulario largo y con campos que aparecen según el hecho
+   * generador, deja al asegurado buscando a ojo.
+   */
+  protected readonly missingStep2 = computed<string[]>(() => {
+    // Con la póliza bloqueada el formulario ni se dibuja: enumerar campos que no están en pantalla
+    // taparía el motivo real, que ya se explica arriba.
+    if (this.policyBlocked()) {
+      return [];
+    }
+    const missing: string[] = [];
+    const add = (label: string, value: string) => {
+      if (value.trim() === '') missing.push(label);
+    };
+    add('Bien asegurado', this.insuredItem());
+    add('Fecha del hecho', this.eventDate());
+    add('Hora del hecho', this.eventTime());
+    // Mismas condiciones con las que el bloque se dibuja: sin constancia declarada no hay fecha
+    // ni hora que pedir.
+    if (this.requiresPoliceReport() && this.policeReportFiled()) {
+      add('Fecha de la denuncia policial', this.policeReportDate());
+      add('Hora de la denuncia policial', this.policeReportTime());
+    }
+    add('Provincia', this.provincia());
+    add('Localidad', this.localidad());
+    // eventLocation es @NotBlank en el backend, y ahora es solo la calle: exigirla puntualmente
+    // en vez de "alguna de las cuatro partes cargadas", que dejaba pasar un submit con provincia
+    // y localidad pero sin dirección.
+    add('Calle y número', this.calleNumero());
+    add('Descripción del hecho', this.description());
+    add('Email de contacto', this.contactEmail());
+    add('Teléfono de contacto', this.contactPhone());
+    return missing;
+  });
+
   // El backend exige además insuredItem, eventDate y eventLocation (@NotBlank/@NotNull en
   // CaseRequest) — sin esto el asegurado llegaba al paso 3, adjuntaba documentación, y recién
   // ahí el submit fallaba con un error genérico.
   protected readonly step2Valid = computed(
     () =>
-      this.description().trim().length > 0 &&
-      this.insuredItem().trim().length > 0 &&
-      this.eventDate().trim().length > 0 &&
+      this.missingStep2().length === 0 &&
       this.eventDate() <= this.today &&
       this.eligibilityError() === null &&
-      !this.eligibilityChecking() &&
-      // eventLocation es @NotBlank en el backend, y ahora es solo la calle: exigirla puntualmente
-      // en vez de "alguna de las cuatro partes cargadas", que dejaba pasar un submit con provincia
-      // y localidad pero sin dirección.
-      this.buildEventAddress().trim().length > 0,
+      !this.eligibilityChecking(),
   );
 
   // Step 3
@@ -681,12 +775,14 @@ export class NuevaDenunciaComponent {
     CASE_DOCUMENT_TYPES.map(({ type, label }) => ({ type, label, file: null, error: null })),
   );
 
-  // El asegurado sube exactamente lo que el referente configuró como requerido para el ramo + hecho
-  // generador elegidos (o el catálogo completo si esa combinación no tiene agenda). Al cambiar de
-  // póliza o de hecho generador, se rearman los slots según esa agenda.
+  // El asegurado sube la PRIMERA TANDA: lo mínimo que exige el carril rápido para la cobertura que
+  // responde por este hecho generador. Si el siniestro no fast-trackea, la agenda completa se le pide
+  // después desde el seguimiento (AWAITING_DOCUMENTATION). Sin lista configurada, el backend ya
+  // devuelve la agenda completa. Al cambiar de póliza o de hecho generador, se rearman los slots.
   private readonly requiredDocsState = toSignal(
     toObservable(
       computed(() => ({
+        policyNumber: this.selectedPolicy()?.policyNumber ?? null,
         branch: this.selectedPolicy()?.branch ?? null,
         claimCause: this.selectedType()?.claimCause ?? null,
       })),
@@ -694,24 +790,34 @@ export class NuevaDenunciaComponent {
       // Mismo motivo que en claimTypesState, y acá el costo era peor que un parpadeo: cada emisión
       // vuelve a correr rebuildDocSlots, que rearma los slots desde cero y se lleva puestos los
       // archivos ya adjuntados.
-      distinctUntilChanged((a, b) => a.branch === b.branch && a.claimCause === b.claimCause),
-      switchMap(({ branch, claimCause }) =>
-        branch && claimCause
-          ? this.agenda.getForBranch(branch, claimCause).pipe(
+      distinctUntilChanged(
+        (a, b) =>
+          a.policyNumber === b.policyNumber &&
+          a.branch === b.branch &&
+          a.claimCause === b.claimCause,
+      ),
+      switchMap(({ policyNumber, branch, claimCause }) =>
+        policyNumber && branch && claimCause
+          ? this.service.intakeDocuments(policyNumber, branch, claimCause).pipe(
               // A blip must not be read as "this claim cause needs no documents". Two retries with
-              // a pause first; only a schedule that stays unreachable becomes 'unavailable'.
+              // a pause first; only a list that stays unreachable becomes 'unavailable'.
               retry({ count: 2, delay: 1000 }),
-              map((codes): RequiredDocsState =>
-                codes.length
+              map(({ documentTypes, fastTrackOnly }): RequiredDocsState =>
+                documentTypes.length
                   ? {
                       status: 'configured',
-                      slots: codes.map((type) => ({ type, label: documentTypeLabel(type) })),
+                      slots: documentTypes.map((type) => ({
+                        type,
+                        label: documentTypeLabel(type),
+                      })),
+                      firstRound: fastTrackOnly,
                     }
                   : OFFERED_DOCS,
               ),
               catchError(() =>
                 of<RequiredDocsState>({ status: 'unavailable', slots: CASE_DOCUMENT_TYPES }),
               ),
+              startWith(LOADING_DOCS),
             )
           : of<RequiredDocsState>(OFFERED_DOCS),
       ),
@@ -725,7 +831,12 @@ export class NuevaDenunciaComponent {
 
   /** Si hay agenda real configurada para este ramo + hecho generador: la documentación no es
    *  una sugerencia, es requisito para poder evaluar el caso (ver RequiredDocsState). */
-  protected readonly docsRequired = computed(() => this.requiredDocsState().status === 'configured');
+  protected readonly docsRequired = computed(
+    () => this.requiredDocsState().status === 'configured',
+  );
+
+  /** Lo que se pide es solo la primera tanda: avisarle que quizás se le pida más después. */
+  protected readonly docsFirstRound = computed(() => !!this.requiredDocsState().firstRound);
 
   /** rules-service no contestó: no sabemos qué exigir, y no es lo mismo que no exigir nada. */
   protected readonly docsUnavailable = computed(
@@ -748,10 +859,14 @@ export class NuevaDenunciaComponent {
   );
 
   protected readonly missingDocLabels = computed(() =>
-    this.missingDocs().map((slot) => slot.label).join(', '),
+    this.missingDocs()
+      .map((slot) => slot.label)
+      .join(', '),
   );
 
-  protected readonly canSubmit = computed(() => !this.submitting() && this.missingDocs().length === 0);
+  protected readonly canSubmit = computed(
+    () => !this.submitting() && this.missingDocs().length === 0,
+  );
 
   /**
    * The insured declared they haven't filed the police report, but the schedule demands the
@@ -925,7 +1040,12 @@ export class NuevaDenunciaComponent {
       if (this.embedded()) {
         this.close.emit();
       }
-      this.router.navigate(['/portal/cases', created.id]);
+      // El alta ya resuelve insurerSlug (CaseServiceImpl.create), justo para este salto: sin él,
+      // un asegurado con pólizas en más de una compañía caía en el tenant default de su sesión y
+      // el seguimiento le tiraba 404 si la póliza recién denunciada era de la otra.
+      this.router.navigate(['/portal/cases', created.id], {
+        queryParams: created.insurerSlug ? { insurer: created.insurerSlug } : {},
+      });
     }
   }
 

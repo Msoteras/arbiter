@@ -21,10 +21,12 @@ import java.time.Clock;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.ZoneOffset;
+import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
@@ -85,6 +87,70 @@ class CaseStatusServiceTest {
 
         assertThat(entity.getStatus()).isEqualTo(CaseStatus.AWAITING_DOCUMENTATION);
         verify(caseRepository).save(entity);
+    }
+
+    @Test
+    void transitionIfStillIn_movesTheCaseAndRecordsIt_whenItWinsTheCompareAndSet() {
+        Case stale = caseRecord(1L, CaseStatus.PENDING_CLASSIFICATION);
+        Case fresh = caseRecord(1L, CaseStatus.PENDING_CLASSIFICATION);
+        when(caseStateCatalog.resolve(CaseStatus.PENDING_CLASSIFICATION))
+                .thenReturn(CaseStates.of(CaseStatus.PENDING_CLASSIFICATION));
+        when(caseStateCatalog.resolve(CaseStatus.PENDING_ANALYST_REVIEW))
+                .thenReturn(CaseStates.of(CaseStatus.PENDING_ANALYST_REVIEW));
+        when(caseRepository.claimStatusTransition(eq(1L), any(), any())).thenReturn(1);
+        when(caseRepository.findById(1L)).thenReturn(Optional.of(fresh));
+        when(caseRepository.save(any(Case.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        Optional<Case> moved = caseStatusService.transitionIfStillIn(stale,
+                CaseStatus.PENDING_CLASSIFICATION, CaseStatus.PENDING_ANALYST_REVIEW,
+                StatusChangeActor.SYSTEM, "clasificación: LLM_RECOMIENDA_APROBAR");
+
+        // La entidad releída, no la copia que se le pasó: es sobre esa que el llamador cachea
+        // lo suyo antes de guardar.
+        assertThat(moved).containsSame(fresh);
+        CaseStatusHistory row = captureHistory();
+        assertThat(row.getFromStatus()).isEqualTo(CaseStatus.PENDING_CLASSIFICATION);
+        assertThat(row.getToStatus()).isEqualTo(CaseStatus.PENDING_ANALYST_REVIEW);
+        assertThat(row.getActor()).isEqualTo(StatusChangeActor.SYSTEM);
+    }
+
+    /**
+     * El barrido que llega segundo. Lo que importa no es el Optional vacío sino lo que NO pasa:
+     * ni fila de historial ni notificación — las dos cosas que se duplicaban.
+     */
+    @Test
+    void transitionIfStillIn_writesNothing_whenAnotherSweepGotThereFirst() {
+        Case stale = caseRecord(1L, CaseStatus.PENDING_CLASSIFICATION);
+        when(caseStateCatalog.resolve(CaseStatus.PENDING_CLASSIFICATION))
+                .thenReturn(CaseStates.of(CaseStatus.PENDING_CLASSIFICATION));
+        when(caseStateCatalog.resolve(CaseStatus.PENDING_ANALYST_REVIEW))
+                .thenReturn(CaseStates.of(CaseStatus.PENDING_ANALYST_REVIEW));
+        when(caseRepository.claimStatusTransition(eq(1L), any(), any())).thenReturn(0);
+
+        Optional<Case> moved = caseStatusService.transitionIfStillIn(stale,
+                CaseStatus.PENDING_CLASSIFICATION, CaseStatus.PENDING_ANALYST_REVIEW,
+                StatusChangeActor.SYSTEM, "clasificación: LLM_RECOMIENDA_APROBAR");
+
+        assertThat(moved).isEmpty();
+        verifyNoInteractions(historyRepository, notificationService);
+        verify(caseRepository, never()).save(any());
+    }
+
+    /**
+     * El estado esperado se pasa explícito, así que la validación tiene que correr contra ese y no
+     * contra lo que traiga la copia vieja — si no, el CAS blindaría la escritura pero la máquina de
+     * estados quedaría mirando un dato sin autoridad.
+     */
+    @Test
+    void transitionIfStillIn_rejectsAnInvalidTransition_withoutTouchingTheDatabase() {
+        Case stale = caseRecord(1L, CaseStatus.PENDING_CLASSIFICATION);
+
+        assertThatThrownBy(() -> caseStatusService.transitionIfStillIn(stale,
+                CaseStatus.APPROVED, CaseStatus.AWAITING_DOCUMENTATION,
+                StatusChangeActor.SYSTEM, "no corresponde"))
+                .isInstanceOf(InvalidStatusTransitionException.class);
+
+        verifyNoInteractions(caseRepository, historyRepository, notificationService);
     }
 
     private CaseStatusHistory captureHistory() {

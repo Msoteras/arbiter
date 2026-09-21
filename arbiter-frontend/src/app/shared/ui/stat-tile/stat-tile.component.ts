@@ -1,5 +1,7 @@
 import { ChangeDetectionStrategy, Component, effect, input, signal } from '@angular/core';
 
+import { StatusTone } from '../../../core/models/status-tone';
+
 type Tone = 'default' | 'accent' | 'danger';
 
 /**
@@ -17,10 +19,22 @@ type Tone = 'default' | 'accent' | 'danger';
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <div class="stat" [class.accent]="tone() === 'accent'" [class.danger]="tone() === 'danger'">
-      <span class="stat-label">{{ label() }}</span>
+      <span class="stat-label">
+        {{ label() }}
+        <!-- La aclaración, opcional, al lado de la etiqueta: hay cifras cuyo nombre no alcanza
+             para saber qué población miden (ej. "Fraude determinado" lo determina un analista,
+             no el sistema). Se proyecta un app-info-tip en vez de recibir un texto para que la
+             burbuja siga siendo la del kit, con su teclado y su posicionamiento. -->
+        <ng-content select="app-info-tip" />
+      </span>
       <span class="stat-value tabular">{{ display() }}</span>
       @if (sub()) {
         <span class="stat-sub">{{ sub() }}</span>
+      }
+      @if (progress() !== null) {
+        <span class="stat-bar tone-{{ progressTone() }}" aria-hidden="true">
+          <span class="stat-fill" [style.width.%]="(progress() ?? 0) * 100"></span>
+        </span>
       }
     </div>
   `,
@@ -40,6 +54,9 @@ type Tone = 'default' | 'accent' | 'danger';
     }
     /* Etiqueta arriba: chica, en mayúsculas con tracking, tenue. */
     .stat-label {
+      display: flex;
+      align-items: center;
+      gap: var(--space-1);
       font-size: var(--font-size-2xs);
       font-weight: var(--font-weight-medium);
       text-transform: uppercase;
@@ -74,6 +91,48 @@ type Tone = 'default' | 'accent' | 'danger';
     .stat.danger .stat-value {
       color: var(--status-danger);
     }
+    /* Barra opcional bajo el número: da la proporción de un vistazo, sin repetirla en texto.
+       Empujada al fondo de la tarjeta para que todas las barras de una fila queden alineadas
+       aunque los subtítulos ocupen distinta cantidad de renglones. */
+    .stat-bar {
+      display: block;
+      margin-top: auto;
+      padding-top: var(--space-3);
+      position: relative;
+    }
+    .stat-fill,
+    .stat-bar::before {
+      display: block;
+      height: 3px;
+      border-radius: var(--radius-pill);
+    }
+    .stat-bar::before {
+      content: '';
+      background: var(--surface-sunken);
+    }
+    .stat-fill {
+      position: absolute;
+      left: 0;
+      bottom: 0;
+    }
+    .stat-bar.tone-ok .stat-fill {
+      background: var(--status-ok);
+    }
+    .stat-bar.tone-info .stat-fill {
+      background: var(--status-info);
+    }
+    .stat-bar.tone-warning .stat-fill {
+      background: var(--status-warning);
+    }
+    .stat-bar.tone-risk .stat-fill {
+      background: var(--status-risk);
+    }
+    .stat-bar.tone-danger .stat-fill {
+      background: var(--status-danger);
+    }
+    .stat-bar.tone-neutral .stat-fill {
+      background: var(--text-primary);
+    }
   `,
 })
 export class StatTileComponent {
@@ -82,6 +141,14 @@ export class StatTileComponent {
   readonly sub = input('');
   readonly tone = input<Tone>('default');
   readonly loading = input(false);
+  /**
+   * Proporción de 0 a 1 para la barra bajo el número. Null (el default) la oculta: sólo tiene
+   * sentido donde el valor ES una proporción — una tasa, una cobertura —, no en un conteo ni en
+   * una duración, donde una barra no tendría contra qué medirse.
+   */
+  readonly progress = input<number | null>(null);
+  /** Color de la barra. Sale del semáforo del sistema, igual que el resto de los estados. */
+  readonly progressTone = input<StatusTone>('neutral');
 
   /**
    * Valor que se pinta. Mientras carga es un guion; con un número, cuenta desde 0 hasta el valor

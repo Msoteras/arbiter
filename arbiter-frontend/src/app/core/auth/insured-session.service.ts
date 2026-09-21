@@ -20,9 +20,7 @@ export class InsuredSessionService {
   );
 
   /** DNI del asegurado: el del JWT si está, si no el identificado a mano. */
-  readonly insuredId = computed(
-    () => this.authSession.session()?.insuredId ?? this.manualId(),
-  );
+  readonly insuredId = computed(() => this.authSession.session()?.insuredId ?? this.manualId());
 
   identify(insuredId: string): void {
     const trimmed = insuredId.trim();

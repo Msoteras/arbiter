@@ -31,11 +31,7 @@
 
     @if (canPost()) {
       <div class="composer">
-        <app-textarea
-          [(value)]="draft"
-          [rows]="3"
-          placeholder="Escribí tu mensaje…"
-        />
+        <app-textarea [(value)]="draft" [rows]="3" placeholder="Escribí tu mensaje…" />
         <div class="composer-foot">
           <span class="t-note count tabular" [class.over]="draft().length > maxLength">
             {{ draft().length }}/{{ maxLength }}

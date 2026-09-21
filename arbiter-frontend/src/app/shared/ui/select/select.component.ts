@@ -55,6 +55,10 @@ function normalize(text: string): string {
  * al cerrar sin elegir, el campo vuelve a mostrar la opción elegida, así que nunca queda texto
  * libre en el valor.
  *
+ * `required` deja el campo marcado en rojo si se cierra el panel sin haber elegido nada: el clic
+ * afuera cierra igual (no atrapa al usuario adentro del campo), pero el formulario queda diciendo
+ * que falta completarlo.
+ *
  * Teclado: Enter/Espacio/↓ abre · ↑/↓ navega · Enter elige · Esc/Tab/click afuera cierra.
  * Con `searchable`, además, cualquier letra abre el panel ya filtrado por ella.
  */
@@ -80,6 +84,10 @@ function normalize(text: string): string {
           [disabled]="disabled()"
           [placeholder]="placeholder()"
           [value]="displayValue()"
+          [class.is-invalid]="invalid()"
+          [attr.aria-required]="required() ? 'true' : null"
+          [attr.aria-invalid]="invalid() ? 'true' : null"
+          [attr.aria-describedby]="invalid() ? resolvedId() + '-error' : null"
           (click)="openPanel()"
           (input)="onQuery($event)"
           (keydown)="onKeydown($event)"
@@ -95,6 +103,10 @@ function normalize(text: string): string {
           [attr.aria-controls]="open() ? resolvedId() + '-listbox' : null"
           [attr.aria-activedescendant]="open() ? resolvedId() + '-opt-' + activeIndex() : null"
           [disabled]="disabled()"
+          [class.is-invalid]="invalid()"
+          [attr.aria-required]="required() ? 'true' : null"
+          [attr.aria-invalid]="invalid() ? 'true' : null"
+          [attr.aria-describedby]="invalid() ? resolvedId() + '-error' : null"
           (click)="toggle()"
           (keydown)="onKeydown($event)"
         >
@@ -152,6 +164,12 @@ function normalize(text: string): string {
         </ul>
       }
     </div>
+
+    <!-- Fuera de .select: el chevron se centra contra ese contenedor, así que un hijo más alto
+         lo corría de lugar. -->
+    @if (invalid()) {
+      <p class="error-msg" [id]="resolvedId() + '-error'" role="alert">{{ requiredMessage() }}</p>
+    }
   `,
   styles: `
     :host {
@@ -187,6 +205,16 @@ function normalize(text: string): string {
     .trigger:disabled {
       cursor: default;
       opacity: 0.55;
+    }
+    /* Obligatorio y todavía sin elegir: el campo queda marcado. El foco sigue pisando el borde
+       rojo con su anillo, para no perder de vista dónde está parado el teclado. */
+    .trigger.is-invalid {
+      border-color: var(--status-danger);
+    }
+    .error-msg {
+      margin: var(--space-1) 0 0;
+      color: var(--status-danger);
+      font-size: var(--font-size-sm);
     }
     .trigger-label {
       overflow: hidden;
@@ -299,10 +327,21 @@ export class SelectComponent {
   /** Convierte el campo en buscador: se tipea sobre él y el listado filtra. Para catálogos que no
    * se recorren a ojo (ej. las ~900 localidades de Buenos Aires). */
   readonly searchable = input(false);
+  /**
+   * Marca el campo como obligatorio: si el usuario abre el panel y lo cierra sin elegir nada
+   * (clic afuera, Esc, Tab), el campo queda señalado en rojo con `requiredMessage` debajo.
+   *
+   * <p>Se marca al cerrar y no al abrir: mientras el panel está desplegado el usuario todavía
+   * está eligiendo, y pintarlo de rojo ahí sería retarlo antes de tiempo.
+   */
+  readonly required = input(false);
+  readonly requiredMessage = input('Elegí una opción para continuar.');
 
   protected readonly resolvedId = computed(() => this.id() ?? this.autoId);
 
   protected readonly open = signal(false);
+  /** Si el usuario ya pasó por el campo (abrió y cerró el panel). Habilita el aviso de obligatorio. */
+  protected readonly touched = signal(false);
   protected readonly activeIndex = signal(0);
   protected readonly query = signal('');
   /** Coordenadas de viewport del panel (es `fixed`). Null en el eje que no se fija. */
@@ -325,10 +364,26 @@ export class SelectComponent {
       const panel = this.host.nativeElement.querySelector('.panel');
       const target = event.target as Node | null;
       if (panel && target && panel.contains(target)) return; // scroll dentro del listado: no cerrar
-      this.open.set(false);
+      this.closePanel();
     };
     document.addEventListener('scroll', onScroll, true);
-    inject(DestroyRef).onDestroy(() => document.removeEventListener('scroll', onScroll, true));
+
+    // Click afuera → cerrar. En CAPTURA y con addEventListener a mano (no @HostListener, que
+    // escucha el burbujeo): adentro de un app-modal el click nunca llega a document, porque el
+    // diálogo corta la propagación para que el backdrop no lo lea como "cerrar el modal". Con el
+    // listener en burbujeo, el panel del select quedaba abierto para siempre dentro del wizard de
+    // denuncia por más que se clickeara en otro campo.
+    const onClick = (event: Event) => {
+      if (this.open() && !this.host.nativeElement.contains(event.target as Node)) {
+        this.closePanel();
+      }
+    };
+    document.addEventListener('click', onClick, true);
+
+    inject(DestroyRef).onDestroy(() => {
+      document.removeEventListener('scroll', onScroll, true);
+      document.removeEventListener('click', onClick, true);
+    });
   }
 
   /** Opciones renderizadas: el placeholder es la opción vacía (permite "limpiar"). */
@@ -356,6 +411,10 @@ export class SelectComponent {
     () => this.matchingOptions().length - this.visibleOptions().length,
   );
 
+  protected readonly invalid = computed(
+    () => this.required() && this.touched() && this.value() === '',
+  );
+
   protected readonly selectedLabel = computed(
     () => this.options().find((o) => o.value === this.value())?.label ?? '',
   );
@@ -381,7 +440,7 @@ export class SelectComponent {
   protected toggle(): void {
     if (this.disabled()) return;
     if (this.open()) {
-      this.open.set(false);
+      this.closePanel();
     } else {
       this.openPanel();
     }
@@ -392,10 +451,19 @@ export class SelectComponent {
     this.closeAndRefocus();
   }
 
+  /**
+   * Cierra el panel. Único camino de cierre: además de bajar la bandera, deja el campo marcado
+   * como visitado, que es lo que destapa el aviso de obligatorio cuando se cerró sin elegir.
+   */
+  private closePanel(): void {
+    this.open.set(false);
+    this.touched.set(true);
+  }
+
   /** Cierra dejando el foco en el campo, para que el Tab siguiente continúe por el formulario. */
   private closeAndRefocus(): void {
     const hadFocusInside = this.host.nativeElement.contains(document.activeElement);
-    this.open.set(false);
+    this.closePanel();
     if (hadFocusInside) {
       this.host.nativeElement.querySelector<HTMLElement>('.trigger')?.focus();
     }
@@ -465,16 +533,9 @@ export class SelectComponent {
     }
   }
 
-  @HostListener('document:click', ['$event'])
-  protected onDocumentClick(event: MouseEvent): void {
-    if (this.open() && !this.host.nativeElement.contains(event.target as Node)) {
-      this.open.set(false);
-    }
-  }
-
   @HostListener('window:resize')
   protected onViewportChange(): void {
-    if (this.open()) this.open.set(false);
+    if (this.open()) this.closePanel();
   }
 
   /**

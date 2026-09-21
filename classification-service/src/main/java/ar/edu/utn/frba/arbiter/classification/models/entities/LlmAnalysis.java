@@ -1,5 +1,6 @@
 package ar.edu.utn.frba.arbiter.classification.models.entities;
 
+import ar.edu.utn.frba.arbiter.common.enums.CauseConsistency;
 import ar.edu.utn.frba.arbiter.common.enums.Classification;
 import jakarta.persistence.CascadeType;
 import jakarta.persistence.Column;
@@ -67,6 +68,25 @@ public class LlmAnalysis {
     /** Id of the case (owned by cases-service) this analysis belongs to. */
     @Column(name = "case_id", nullable = false)
     private Long caseId;
+
+    /**
+     * Whether the insured's account matched the claim cause they declared. Null for analyses
+     * written before this check existed — absent is not {@code MATCHES}.
+     */
+    @Enumerated(EnumType.STRING)
+    @Column(name = "cause_consistency", length = 20)
+    private CauseConsistency causeConsistency;
+
+    /**
+     * The claim cause the account described, by name and not by FK: this row is immutable audit
+     * evidence and has to keep saying what the model answered even if the cause is later renamed.
+     */
+    @Column(name = "suggested_claim_cause", length = 120)
+    private String suggestedClaimCause;
+
+    /** Verbatim sentence of the account backing the verdict. */
+    @Column(name = "cause_evidence", columnDefinition = "TEXT")
+    private String causeEvidence;
 
     /**
      * The factors backing the recommendation, one row each instead of a serialized list —

@@ -120,5 +120,4 @@ export class ButtonComponent {
   readonly block = input(false);
   /** Muestra un spinner inline y deshabilita el botón mientras dura una acción async. */
   readonly loading = input(false);
-
 }

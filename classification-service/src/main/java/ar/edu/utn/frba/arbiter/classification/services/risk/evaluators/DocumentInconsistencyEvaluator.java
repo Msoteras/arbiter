@@ -59,6 +59,7 @@ public class DocumentInconsistencyEvaluator implements RiskFactorEvaluator {
         List<String> findings = new ArrayList<>();
         documents.forEach((type, extraction) -> {
             checkImei(context, type, extraction.fields(), findings);
+            checkBrandAndModel(context, type, extraction.fields(), findings);
             checkDocumentDate(context, type, extraction.fields(), findings);
             checkAmount(context, type, extraction.fields(), findings);
         });
@@ -87,6 +88,41 @@ public class DocumentInconsistencyEvaluator implements RiskFactorEvaluator {
             findings.add(String.format(
                     "El IMEI del documento '%s' (%s) no coincide con el del bien asegurado (%s)",
                     type, fields.imei(), insuredImei));
+        }
+    }
+
+    /**
+     * The make and model on the document against the insured item. It is the check the IMEI can't
+     * do outside Celulares: a Tecnología Portátil policy has no IMEI, so without this a repair
+     * invoice for a different laptop than the insured one crosses against nothing.
+     *
+     * <p><b>Only reports what it can assert.</b> The insured item is one free-text string as the
+     * company has it ("Notebook Lenovo IdeaPad 3"), so this asks whether the document's make
+     * appears in it — not whether the two strings match. A make that is present proves nothing on
+     * its own and stays silent; only its <b>absence</b> becomes a finding.
+     *
+     * <p>The model is checked only once the make already matched. Model names differ legitimately
+     * between an invoice and a policy ("A56" / "Galaxy A56" / "SM-A566"), so flagging a model
+     * mismatch under a different make would just be the make finding twice, and flagging it on its
+     * own would fire on every valid abbreviation.
+     */
+    private void checkBrandAndModel(
+            RiskContext context, String type, DocumentExtraction.Fields fields, List<String> findings) {
+        String insuredItem = context.policy() == null ? null : context.policy().insuredItem();
+        if (insuredItem == null || insuredItem.isBlank() || fields.brand() == null) {
+            return;
+        }
+        String haystack = insuredItem.toLowerCase();
+        if (!haystack.contains(fields.brand().toLowerCase().trim())) {
+            findings.add(String.format(
+                    "La marca del documento '%s' (%s) no aparece en el bien asegurado (%s)",
+                    type, fields.brand(), insuredItem));
+            return;
+        }
+        if (fields.model() != null && !haystack.contains(fields.model().toLowerCase().trim())) {
+            findings.add(String.format(
+                    "El modelo del documento '%s' (%s) no aparece en el bien asegurado (%s)",
+                    type, fields.model(), insuredItem));
         }
     }
 

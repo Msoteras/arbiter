@@ -39,6 +39,12 @@ arbiter:
   auth:
     jwt:
       secret: ${JWT_SECRET:}
+  # Same shape as cases-service: the hostname differs per environment (compose uses the service
+  # name, Railway a *.railway.internal one), so it has to be settable from the environment. The
+  # @Value default in RulesServiceClient is not reachable from there — its relaxed-binding name
+  # (ARBITER_RULESSERVICE_URL) is not one anybody guesses when the dashboard comes back empty.
+  rules-service:
+    url: ${RULES_SERVICE_URL:http://localhost:8081}
 
 management:
   endpoints:

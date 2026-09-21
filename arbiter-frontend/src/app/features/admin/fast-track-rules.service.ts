@@ -66,7 +66,11 @@ export class FastTrackRulesService {
     });
   }
 
-  saveFastTrack(branchId: number, coverageId: number, config: FastTrackConfigDto): Observable<FastTrackRuleResponse> {
+  saveFastTrack(
+    branchId: number,
+    coverageId: number,
+    config: FastTrackConfigDto,
+  ): Observable<FastTrackRuleResponse> {
     return this.http.put<FastTrackRuleResponse>(`${this.rulesBase}/fast-track`, config, {
       params: { branchId: String(branchId), coverageId: String(coverageId) },
     });
@@ -84,7 +88,9 @@ export class FastTrackRulesService {
     return this.listCoverages(branchId).pipe(
       switchMap((covs) => {
         if (!covs.length) {
-          return throwError(() => new Error('El ramo no tiene coberturas cargadas en el catálogo.'));
+          return throwError(
+            () => new Error('El ramo no tiene coberturas cargadas en el catálogo.'),
+          );
         }
         return forkJoin(covs.map((c) => this.saveFastTrack(branchId, c.id, config)));
       }),

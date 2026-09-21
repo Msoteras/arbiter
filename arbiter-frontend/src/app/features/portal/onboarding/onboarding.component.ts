@@ -1,5 +1,12 @@
 import { HttpErrorResponse } from '@angular/common/http';
-import { ChangeDetectionStrategy, Component, computed, effect, inject, signal } from '@angular/core';
+import {
+  ChangeDetectionStrategy,
+  Component,
+  computed,
+  effect,
+  inject,
+  signal,
+} from '@angular/core';
 import { toSignal } from '@angular/core/rxjs-interop';
 import { Router } from '@angular/router';
 import { catchError, map, of, startWith } from 'rxjs';
@@ -18,17 +25,14 @@ import { CheckboxComponent } from '../../../shared/ui/checkbox/checkbox.componen
 import { InputComponent } from '../../../shared/ui/input/input.component';
 import { LoadingComponent } from '../../../shared/ui/loading/loading.component';
 import { LogoComponent } from '../../../shared/ui/logo/logo.component';
+import { PolicyCardComponent } from '../../../shared/ui/policy-card/policy-card.component';
 import { PolicyService } from '../../expedientes/policy.service';
 
 type ProfileState =
-  | { status: 'loading' }
-  | { status: 'ok'; profile: InsuredProfile }
-  | { status: 'error' };
+  { status: 'loading' } | { status: 'ok'; profile: InsuredProfile } | { status: 'error' };
 
 type PoliciesState =
-  | { status: 'loading' }
-  | { status: 'ok'; policies: Policy[] }
-  | { status: 'error' };
+  { status: 'loading' } | { status: 'ok'; policies: Policy[] } | { status: 'error' };
 
 /**
  * H0009 — pantalla de bienvenida del asegurado (primer ingreso).
@@ -50,7 +54,14 @@ type PoliciesState =
  */
 @Component({
   selector: 'app-onboarding',
-  imports: [ButtonComponent, CheckboxComponent, InputComponent, LoadingComponent, LogoComponent],
+  imports: [
+    ButtonComponent,
+    CheckboxComponent,
+    InputComponent,
+    LoadingComponent,
+    LogoComponent,
+    PolicyCardComponent,
+  ],
   changeDetection: ChangeDetectionStrategy.OnPush,
   templateUrl: './onboarding.component.html',
   styleUrl: './onboarding.component.scss',
@@ -178,11 +189,5 @@ export class OnboardingComponent {
       return 'No pudimos conectar con el servidor. Revisá tu conexión e intentá de nuevo.';
     }
     return 'No pudimos guardar tus datos. Probá de nuevo en unos minutos.';
-  }
-
-  protected vigencia(policy: Policy): string {
-    const desde = new Date(policy.effectiveFrom).toLocaleDateString('es-AR');
-    const hasta = new Date(policy.effectiveTo).toLocaleDateString('es-AR');
-    return `${desde} – ${hasta}`;
   }
 }

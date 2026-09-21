@@ -2,64 +2,81 @@
 
 Registro de lugares donde el DER (`docs/arbiter der.mdj`) tiene una columna, una relación o un dato
 que no se sostiene contra lo implementado — redundante, sin semántica definida, o de un modelo
-viejo que quedó atrás. **No son historias de desarrollo**: son correcciones al propio DER (dropear
-una columna, documentar una derivación, resolver una ambigüedad de una vez), y quedan afuera del
-backlog de Trello por eso.
+viejo que quedó atrás. **No son historias de desarrollo**: son correcciones al propio DER, y quedan
+afuera del backlog de Trello por eso.
 
 El DER sigue siendo la fuente de verdad (`CLAUDE.md`) — este documento no propone desvíos, es la
 lista de qué hay que corregirle a él mismo cuando se lo vuelva a tocar.
 
-Cada entrada: qué se encontró, por qué es un bache, y qué acción corresponde (dropear / derivar /
-documentar / decisión pendiente).
+**Revisado el 20/09/2026, cuarta pasada** contra el `.mdj` actual y contra
+`db/init-multitenant.sql`. No queda ninguna columna sin tipo de dato en todo el archivo.
 
 ---
 
-## `arbiter_provincia`/`arbiter_bbva`.coverage — `is_individual` es la negación de `covers_family_group`
+## 1 · Resuelto en esta pasada — sin acción
 
-**Encontrado:** 26/08/2026, planificando el sprint 9.
-
-El seed es consistente con esa lectura: `covers_family_group=FALSE` ⇔ `is_individual=TRUE` en las
-dos coberturas configuradas. Son el mismo hecho guardado dos veces con signo cambiado.
-
-**Confirmado por el equipo:** sí, es la negación.
-
-**Acción:** dropear `is_individual` del DER (y de la tabla, si el drop no rompe nada que la lea) o
-dejarla como columna derivada documentada explícitamente como tal — no mantener las dos vivas como
-si fueran datos independientes.
+- **`analisis_documento.modelo`**: agregada, TEXT.
+- **`dato_documento.analisis_documento_id`**: ya tiene tipo (BIGINT, FK).
+- **`atribucion_liquidacion.monto_maximo`/`fecha_actualizacion`**: ya tienen tipo.
+- Las seis tablas nuevas, `poliza.suma_asegurada`/`cobertura_id`, y todo lo de las pasadas
+  anteriores — sigue resuelto.
 
 ---
 
-## `cases.destination` — sin semántica definida, candidata a estar muerta
+## 2 · `atribucion_liquidacion.actualizado_por` — decisión tomada: se suma al código
 
-**Encontrado:** 09/08/2026 (barrido original) · revisado 26/08/2026.
+**Cerrado el 20/09/2026:** se decidió sumar `updated_by` a `settlement_authority` en vez de sacar
+la columna del DER. Implementado:
 
-`VARCHAR(40)` suelto en el DER, sin valores definidos en ninguna fuente (ni HU, ni paper, ni
-código). `grep` sobre todo el código no devuelve ninguna referencia — nadie la lee ni la escribe.
+- `db/init-multitenant.sql` y `db/migrations/2026-09-20-atribucion-quien-actualizo.sql` —
+  `updated_by BIGINT REFERENCES arbiter_common.users(id)`, nullable (las filas de antes de este
+  cambio quedan en NULL, no hay con qué completarlas retroactivamente).
+- `SettlementAuthority.java` — campo `updatedBy`.
+- `SettlementAuthorityService.set()` — lo completa con `currentUserId()`, mismo patrón que
+  `CaseServiceImpl` usa para `case_settlement.authorized_by_user_id` (resuelve el mail del JWT
+  contra `arbiter_common.users`).
+- `SettlementAuthorityResponse.updatedByUserId` — expuesto en el `GET`.
 
-**Actualización 26/08:** la funcionalidad que `destination` probablemente pretendía cubrir (derivar
-un siniestro a investigación, marcarlo como pagado, etc.) ya se construyó por otro lado —
-`FraudRecordService`/`cases.fraud_determined` para la determinación de fraude, `ExpertAssessment`
-para la derivación a perito, los estados del ciclo de vida para el resto. `destination` no participa
-de ninguno de esos flujos.
-
-**Acción:** pendiente de confirmar con el equipo, pero la hipótesis de trabajo es dropearla —
-quedó de un modelo anterior que la funcionalidad real terminó reemplazando por columnas y tablas
-más específicas.
+**Falta del lado del DER:** marcar `actualizado_por` como FK → `usuario.id` (hoy tiene el tipo
+BIGINT pero no el flag de FK).
 
 ---
 
-## `case_message` — la tabla existe y el DER no la tiene
+## 3 · `liquidacion.fecha_autorizacion` — sigue marcada como FK
 
-**Encontrado:** 31/08/2026, al implementar la conversación entre el asegurado y el analista (H0034).
+Es `TIMESTAMPTZ` nullable, la fecha en que el referente autorizó, no una referencia a otra tabla.
+Sacarle la marca de FK.
 
-El DER modela `notificacion` (saliente y automática) pero ninguna entidad de conversación. La
-implementación agregó `case_message` en cada esquema de aseguradora: `case_id`, `sender_id` →
-`arbiter_common.users`, `sender_role` (INSURED/ANALYST, congelado al escribir), `body`,
-`created_at`, `read_at`. Es una tabla por tenant, dueña de `cases-service`, y no reemplaza a
-`notificacion`: esa sigue existiendo y ahora también registra los avisos de mensaje nuevo.
+---
 
-**Acción:** agregarla al DER. No hay ambigüedad que resolver ni decisión pendiente — es un
-faltante, y el esquema ya está en `db/init-multitenant.sql` y aplicado.
+## 4 · `peritaje.expediente_id` — la UNIQUE compuesta, desestimada
+
+**Encontrado:** 19/09/2026, al construir la métrica "respuesta de terceros" del tablero del
+referente (`ClaimMetricsRepository`, agrupa por `provider_type`/`tipo_proveedor`).
+
+Un expediente puede tener **hasta dos** filas de `peritaje` — una por perito
+(`ESTUDIO_LIQUIDADOR`) y otra por servicio técnico (`SERVICIO_TECNICO`), porque un peritaje que
+descarta fraude puede derivar después a reparación.
+`db/migrations/2026-09-11-derivacion-a-reparacion.sql` cambió el UNIQUE real de `(case_id)` a
+`(case_id, provider_type)`.
+
+**Desestimado el 20/09/2026:** StarUML no dejó modelar la UNIQUE compuesta sobre `peritaje`. Ya se
+sacó la UNIQUE de una sola columna sobre `expediente_id`, que era la parte que efectivamente
+contradecía la implementación — la restricción compuesta en sí queda sin representar en el `.mdj`.
+
+**Que quede anotado en algún lado no formal del diagrama** (nota de texto junto a `peritaje`, o
+similar) que la cardinalidad real es `expediente 0..1—0..2 peritaje`, no `1—1` — para que quien lo
+lea no asuma la UNIQUE simple que ya no existe.
+
+*Nota: `analista_declarante_id` y `expediente_id` de `antecedente_fraude` tampoco tienen la marca
+de FK puesta. No lo marco como bache nuevo porque no toca nada de lo trabajado esta semana — es de
+la pasada del 10/09 y quedó afuera de esa revisión; queda para la próxima vez que se toque esa
+entidad.*
+
+**Nota general sobre UNIQUE en columnas FK:** no se pide como acción en este documento — la
+cardinalidad 1:1 va en la relación del diagrama (el extremo con `1` en vez de `0..*`), no como
+propiedad `unique` de la columna. La FK ya dice de qué tabla depende; la relación dice cuántas
+puede haber.
 
 ---
 
@@ -70,7 +87,9 @@ faltante, y el esquema ya está en `db/init-multitenant.sql` y aplicado.
 
 **Encontrado:** fecha.
 
-Qué dice el DER vs. qué hace el código/no hace nadie.
+| Columna | Tipo de dato | Nulo | Restricciones |
+|---|---|---|---|
+| ... | ... | ... | ... |
 
-**Acción:** dropear / derivar / documentar / decisión pendiente (con quién hay que confirmarla).
+**Acción:** agregar / dropear / corregir tipo / decisión pendiente (con quién hay que confirmarla).
 ```

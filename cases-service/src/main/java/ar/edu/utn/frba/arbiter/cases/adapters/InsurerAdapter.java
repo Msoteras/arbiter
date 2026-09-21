@@ -9,5 +9,11 @@ public interface InsurerAdapter {
 
     Optional<PolicyResponse> findPolicy(String policyNumber);
 
-    List<PolicyResponse> findPoliciesByInsured(String insuredId);
+    /**
+     * @param includeExpired whether policies whose coverage period already ended come back. The
+     *                       claim wizard wants them out (picking one only leads to a rejection at
+     *                       the end); the insured's profile wants them in, since "this one expired"
+     *                       is exactly what they came to check.
+     */
+    List<PolicyResponse> findPoliciesByInsured(String insuredId, boolean includeExpired);
 }

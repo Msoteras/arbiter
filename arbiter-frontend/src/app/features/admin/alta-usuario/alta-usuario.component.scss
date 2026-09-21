@@ -1,6 +1,12 @@
-:host { display: block; }
+:host {
+  display: block;
+}
 
-.form-card { display: flex; flex-direction: column; gap: var(--space-3); }
+.form-card {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
 
 .field-label {
   display: block;
@@ -10,9 +16,16 @@
   margin-top: var(--space-2);
 }
 
-.role-display { margin: 0; color: var(--text-muted); }
+.role-display {
+  margin: 0;
+  color: var(--text-muted);
+}
 
-.error { margin: 0; color: var(--status-danger); font-size: var(--font-size-xs); }
+.error {
+  margin: 0;
+  color: var(--status-danger);
+  font-size: var(--font-size-xs);
+}
 
 .form-actions {
   display: flex;

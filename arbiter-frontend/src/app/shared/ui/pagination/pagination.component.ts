@@ -40,21 +40,30 @@ import { ChangeDetectionStrategy, Component, computed, input, output } from '@an
           class="nav-btn"
           [disabled]="page() === 0"
           (click)="pageChange.emit(page() - 1)"
-        >‹ Anterior</button>
+        >
+          ‹ Anterior
+        </button>
 
-        <span class="t-note page-indicator">Página {{ page() + 1 }} de {{ totalPages() || 1 }}</span>
+        <span class="t-note page-indicator"
+          >Página {{ page() + 1 }} de {{ totalPages() || 1 }}</span
+        >
 
         <button
           type="button"
           class="nav-btn"
           [disabled]="page() + 1 >= totalPages()"
           (click)="pageChange.emit(page() + 1)"
-        >Siguiente ›</button>
+        >
+          Siguiente ›
+        </button>
       </div>
     </div>
   `,
   styles: `
-    :host { display: block; margin-top: var(--space-4); }
+    :host {
+      display: block;
+      margin-top: var(--space-4);
+    }
     .pager {
       display: flex;
       flex-wrap: wrap;
@@ -62,8 +71,17 @@ import { ChangeDetectionStrategy, Component, computed, input, output } from '@an
       justify-content: space-between;
       gap: var(--space-3);
     }
-    .controls { display: flex; align-items: center; gap: var(--space-3); flex-wrap: wrap; }
-    .size-picker { display: flex; align-items: center; gap: var(--space-2); }
+    .controls {
+      display: flex;
+      align-items: center;
+      gap: var(--space-3);
+      flex-wrap: wrap;
+    }
+    .size-picker {
+      display: flex;
+      align-items: center;
+      gap: var(--space-2);
+    }
     .size-select {
       font: inherit;
       font-size: var(--font-size-sm);
@@ -83,9 +101,16 @@ import { ChangeDetectionStrategy, Component, computed, input, output } from '@an
       color: var(--text-secondary);
       cursor: pointer;
     }
-    .nav-btn:hover:not(:disabled) { border-color: var(--action-secondary-border-hover); }
-    .nav-btn:disabled { opacity: 0.4; cursor: not-allowed; }
-    .page-indicator { white-space: nowrap; }
+    .nav-btn:hover:not(:disabled) {
+      border-color: var(--action-secondary-border-hover);
+    }
+    .nav-btn:disabled {
+      opacity: 0.4;
+      cursor: not-allowed;
+    }
+    .page-indicator {
+      white-space: nowrap;
+    }
   `,
 })
 export class PaginationComponent {

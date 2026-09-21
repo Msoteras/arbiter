@@ -145,7 +145,9 @@ describe('HistorialReglasComponent', () => {
   });
 
   it('muestra el alcance de una regla de toda la aseguradora en vez de dejarlo vacío', async () => {
-    await mount([entry({ branchId: null, branchName: null, coverageId: null, coverageName: null })]);
+    await mount([
+      entry({ branchId: null, branchName: null, coverageId: null, coverageName: null }),
+    ]);
 
     expect(text()).toContain('Toda la aseguradora');
   });

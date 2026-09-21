@@ -1,7 +1,18 @@
 import { HttpErrorResponse } from '@angular/common/http';
-import { ChangeDetectionStrategy, Component, computed, inject, output, signal } from '@angular/core';
+import {
+  ChangeDetectionStrategy,
+  Component,
+  computed,
+  inject,
+  output,
+  signal,
+} from '@angular/core';
 
-import { CreateUserRequest, UserAdminService, UserResponse } from '../../../core/auth/user-admin.service';
+import {
+  CreateUserRequest,
+  UserAdminService,
+  UserResponse,
+} from '../../../core/auth/user-admin.service';
 import { ButtonComponent } from '../../../shared/ui/button/button.component';
 import { InputComponent } from '../../../shared/ui/input/input.component';
 

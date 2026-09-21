@@ -28,14 +28,17 @@
     <lombok.version>1.18.34</lombok.version>
     <springdoc.version>2.8.6</springdoc.version>
     <jjwt.version>0.12.6</jjwt.version>
+    <pdfbox.version>3.0.3</pdfbox.version>
 
     <!-- Maven 3.8.x fija surefire en 2.12.4 (solo JUnit4) porque usamos el BOM de Spring, no el
          parent que gestiona plugins. Sin este pin, NINGÚN test JUnit5 corre ("Tests run: 0"). -->
     <maven.surefire.version>3.2.5</maven.surefire.version>
     <jacoco.version>0.8.12</jacoco.version>
-    <!-- Split unit/IT por tag JUnit5 "it": por default se excluyen los ITs (Testcontainers, Docker)
-         para que `mvn test` sea rápido; el perfil `it` los corre. -->
-    <test.excluded.groups>it</test.excluded.groups>
+    <!-- Split unit/IT por tag JUnit5: por default se excluyen los ITs ("it": Testcontainers,
+         Docker) y los de calibración del prompt ("llm": pegan contra el proveedor real, se facturan
+         por token y necesitan credenciales), para que `mvn test` sea rápido y determinístico.
+         Los corren los perfiles `it` y `llm`. -->
+    <test.excluded.groups>it,llm</test.excluded.groups>
     <test.groups></test.groups>
   </properties>
 
@@ -61,6 +64,13 @@
         <groupId>org.springdoc</groupId>
         <artifactId>springdoc-openapi-starter-webmvc-ui</artifactId>
         <version>${springdoc.version}</version>
+      </dependency>
+
+      <!-- Lo usan classification-service (lectura de adjuntos) y reports-service (export PDF). -->
+      <dependency>
+        <groupId>org.apache.pdfbox</groupId>
+        <artifactId>pdfbox</artifactId>
+        <version>${pdfbox.version}</version>
       </dependency>
 
       <dependency>
@@ -175,6 +185,17 @@
     <properties>
       <test.excluded.groups></test.excluded.groups>
       <test.groups>it</test.groups>
+    </properties>
+  </profile>
+
+  <!-- `mvn test -Pllm`: calibración del prompt contra el modelo real. Fuera de la corrida normal
+       porque pega contra el proveedor (se factura por token), necesita credenciales y su resultado
+       no es determinístico — mide si el prompt está bien calibrado, no si el código funciona. -->
+  <profile>
+    <id>llm</id>
+    <properties>
+      <test.excluded.groups></test.excluded.groups>
+      <test.groups>llm</test.groups>
     </properties>
   </profile>
 </profiles>

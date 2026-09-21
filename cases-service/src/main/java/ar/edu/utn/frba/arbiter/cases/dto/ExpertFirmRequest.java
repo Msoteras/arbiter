@@ -19,5 +19,6 @@ public record ExpertFirmRequest(
         @Email(message = "email must be a valid address") String email,
         String zone,
         Long branchId,
-        boolean active
+        boolean active,
+        ProviderType providerType
 ) {}

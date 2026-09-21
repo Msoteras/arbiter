@@ -100,7 +100,7 @@ public class AnalystNotificationService {
             return;
         }
         try {
-            sendGridAdapter.send(email, message.subject(), message.body());
+            sendGridAdapter.send(email, message.subject(), message.htmlBody());
             notification.setSent(true);
             notification.setSentAt(Instant.now());
             notificationRepository.save(notification);
@@ -124,19 +124,34 @@ public class AnalystNotificationService {
         if (priority == DeadlinePriority.OVERDUE) {
             long overdueDays = ChronoUnit.DAYS.between(deadline, today);
             String subject = "Expediente #" + id + " VENCIDO — plazo de respuesta incumplido";
-            String body = "El expediente <b>#" + id + "</b> (" + cause + " · " + insured
+            String body = "El expediente #" + id + " (" + cause + " · " + insured
                     + ") venció el " + deadline + " y todavía no fue respondido ("
                     + overdueDays + " día(s) de atraso). Requiere resolución inmediata.";
-            return new Message(subject, body);
+            return new Message(subject, body, id);
         }
         long daysLeft = ChronoUnit.DAYS.between(today, deadline);
         String subject = "Expediente #" + id + " crítico — vence en " + daysLeft + " día(s)";
-        String body = "El expediente <b>#" + id + "</b> (" + cause + " · " + insured
+        String body = "El expediente #" + id + " (" + cause + " · " + insured
                 + ") vence el " + deadline + " y todavía no fue respondido. Quedan "
                 + daysLeft + " día(s) para expedirse.";
-        return new Message(subject, body);
+        return new Message(subject, body, id);
     }
 
-    private record Message(String subject, String body) {
+    /**
+     * El mismo aviso, escrito una sola vez, para los dos destinos que no leen igual.
+     *
+     * <p>{@code body} es texto plano y es lo que se persiste en {@code notification.content}: el
+     * panel de novedades lo muestra tal cual, así que cualquier etiqueta se le aparece al analista
+     * como texto — era el {@code <b>#17</b>} que se veía en el aviso de vencimiento.
+     *
+     * <p>{@code htmlBody} es lo que va al mail, que SendGrid manda como {@code text/html}. Se deriva
+     * del texto plano en vez de escribir la oración dos veces: duplicarla es garantizar que dentro
+     * de tres meses una diga una cosa y la otra otra.
+     */
+    private record Message(String subject, String body, long caseId) {
+
+        String htmlBody() {
+            return body.replace("#" + caseId, "<b>#" + caseId + "</b>");
+        }
     }
 }

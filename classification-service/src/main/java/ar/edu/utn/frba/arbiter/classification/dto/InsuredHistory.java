@@ -21,6 +21,36 @@ public record InsuredHistory(
         List<ClaimRecord> claims
 ) {
 
+    /**
+     * Which event of the rolling year the claim being analyzed is: 1 when it's the first, 2 when
+     * one prior claim in the same branch falls in the twelve months before it, and so on.
+     *
+     * <p>It lives here, like {@code InsuredPolicy.inForceOn}, because two places ask the same
+     * question of the same window and must not answer it differently: the hard rule D10
+     * ({@code TemporalRuleEvaluator}, which caps how many events a year the coverage allows) and
+     * the settlement (which pays the second event of the year at a reduced percentage). One
+     * counting {@code isBefore} where the other counts {@code isAfter} would have the analyst
+     * approving an event the rules called out of quota, or paying 100% of a second event.
+     *
+     * <p>A null branch doesn't filter — matching what the rule already did, on the grounds that a
+     * claim with no branch is bad data and narrowing on it would silently undercount.
+     *
+     * @return at least 1; the claim under analysis is not in {@code claims} yet, so it's the
+     *         (priors + 1)-th
+     */
+    public int eventOrdinalFor(LocalDate eventDate, String branch) {
+        if (eventDate == null || claims == null) {
+            return 1;
+        }
+        LocalDate windowStart = eventDate.minusYears(1);
+        long priorInWindow = claims.stream()
+                .filter(record -> record.date() != null)
+                .filter(record -> branch == null || branch.equalsIgnoreCase(record.branch()))
+                .filter(record -> !record.date().isBefore(windowStart) && !record.date().isAfter(eventDate))
+                .count();
+        return (int) priorInWindow + 1;
+    }
+
     @Builder
     public record ClaimRecord(
             String claimId,

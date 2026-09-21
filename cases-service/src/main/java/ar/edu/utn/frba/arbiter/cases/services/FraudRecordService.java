@@ -5,6 +5,7 @@ import ar.edu.utn.frba.arbiter.cases.exceptions.AnalystProfileNotFoundException;
 import ar.edu.utn.frba.arbiter.cases.exceptions.CaseNotFoundException;
 import ar.edu.utn.frba.arbiter.cases.exceptions.FraudRecordNotAllowedException;
 import ar.edu.utn.frba.arbiter.cases.models.entities.Case;
+import ar.edu.utn.frba.arbiter.cases.dto.ProviderType;
 import ar.edu.utn.frba.arbiter.cases.models.entities.ExpertAssessment;
 import ar.edu.utn.frba.arbiter.cases.models.repositories.CaseRepository;
 import ar.edu.utn.frba.arbiter.cases.models.repositories.ClaimsAnalystRepository;
@@ -133,7 +134,9 @@ public class FraudRecordService {
         if (source != FraudRecordSource.EXPERT_BACKED) {
             return null;
         }
-        Optional<ExpertAssessment> assessment = expertAssessmentRepository.findByCaseId(caseRecord.getId());
+        // Sólo el peritaje respalda un antecedente: una reparación no investiga nada.
+        Optional<ExpertAssessment> assessment = expertAssessmentRepository
+                .findByCaseIdAndProviderType(caseRecord.getId(), ProviderType.ESTUDIO_LIQUIDADOR);
         return assessment
                 .filter(found -> found.getVerdict() == ExpertVerdict.FRAUD_CONFIRMED)
                 .map(ExpertAssessment::getId)

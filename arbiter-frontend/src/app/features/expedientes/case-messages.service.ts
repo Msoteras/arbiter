@@ -17,7 +17,10 @@ export class CaseMessagesService {
 
   /** Reading does NOT mark as read: that is `markRead`, called when someone actually looks. */
   thread(caseId: number, insurer?: string | null): Observable<CaseMessageThread> {
-    return this.http.get<CaseMessageThread>(`${this.base}/${caseId}/messages`, this.options(insurer));
+    return this.http.get<CaseMessageThread>(
+      `${this.base}/${caseId}/messages`,
+      this.options(insurer),
+    );
   }
 
   post(caseId: number, body: string, insurer?: string | null): Observable<CaseMessage> {

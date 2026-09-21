@@ -4,10 +4,6 @@
     <app-badge variant="solid">Toda la aseguradora</app-badge>
   </div>
 
-  <p class="section-hint">
-    Registro inmutable de cambios (fecha, motivo y valores) que respalda la auditoría de cada clasificación.
-  </p>
-
   <!-- ───────── Filtros ─────────
        Van arriba y no en un panel aparte: el historial se consulta buscando algo puntual
        ("qué le pasó al Fast Track de Celulares"), no leyéndolo entero de arriba abajo. -->
@@ -104,9 +100,7 @@
                     <span class="hr-before">{{ field.previous }}</span>
                     <span class="hr-arrow" aria-hidden="true">→</span>
                     <span class="hr-after">{{ field.next }}</span>
-                    <span class="sr-only">
-                      pasó de {{ field.previous }} a {{ field.next }}
-                    </span>
+                    <span class="sr-only"> pasó de {{ field.previous }} a {{ field.next }} </span>
                   </span>
                 </li>
               }

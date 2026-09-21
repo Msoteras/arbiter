@@ -45,7 +45,14 @@ interface Movimiento {
  */
 @Component({
   selector: 'app-seguimiento',
-  imports: [RouterLink, CardComponent, ButtonComponent, CaseDocumentsComponent, CaseChatComponent, InlineLoadingComponent],
+  imports: [
+    RouterLink,
+    CardComponent,
+    ButtonComponent,
+    CaseDocumentsComponent,
+    CaseChatComponent,
+    InlineLoadingComponent,
+  ],
   changeDetection: ChangeDetectionStrategy.OnPush,
   templateUrl: './seguimiento.component.html',
   styleUrl: './seguimiento.component.scss',
@@ -120,7 +127,9 @@ export class SeguimientoComponent {
 
   protected readonly simplifiedIndex = computed(() => {
     const d = this.data();
-    return d ? this.simplifiedSteps.indexOf(estadoSimplificadoEfectivo(d.status, this.pastStatuses())) : 0;
+    return d
+      ? this.simplifiedSteps.indexOf(estadoSimplificadoEfectivo(d.status, this.pastStatuses()))
+      : 0;
   });
 
   protected readonly statusTone = computed<StatusTone>(() => {
@@ -143,6 +152,17 @@ export class SeguimientoComponent {
   protected readonly needsDocs = computed(() => this.data()?.status === 'AWAITING_DOCUMENTATION');
 
   /**
+   * Quién tiene el equipo mientras se repara. Se le dice al asegurado —sin esto no sabe a dónde
+   * acercarlo ni a quién preguntarle—, al revés que el peritaje, que no se le nombra nunca. El
+   * backend solo lo manda en ese estado; el chequeo acá es para no mostrar un dato viejo si el
+   * expediente ya volvió.
+   */
+  protected readonly servicioTecnico = computed(() => {
+    const d = this.data();
+    return d?.status === 'PENDING_REPAIR' ? d.repairProvider : null;
+  });
+
+  /**
    * Los movimientos del expediente, en el idioma del asegurado. Los tres hitos de arriba dicen en
    * qué ETAPA está; esto dice QUÉ PASÓ — que era lo que faltaba: "en trámite" durante tres semanas
    * no distingue un expediente que avanza de uno olvidado.
@@ -153,8 +173,20 @@ export class SeguimientoComponent {
    */
   protected readonly movimientos = computed<Movimiento[]>(() => {
     const visibles = (this.data()?.statusHistory ?? [])
-      .map((h) => ({ label: movimientoAseguradoLabel(h.toStatus, h.fromStatus), changedAt: h.changedAt }))
-      .filter((m): m is { label: string; changedAt: string } => m.label !== null);
+      .map((h) => ({
+        label: movimientoAseguradoLabel(h.toStatus, h.fromStatus),
+        changedAt: h.changedAt,
+      }))
+      .filter((m): m is { label: string; changedAt: string } => m.label !== null)
+      // Una corrida de movimientos que dicen LO MISMO se colapsa en el último. El expediente puede
+      // pasar varias veces por el mismo estado sin que el asegurado vea nada en el medio —
+      // clasificación que falla y se reintenta (CLASSIFICATION_FAILED y su vuelta son invisibles a
+      // propósito), o una reclasificación—, y cada llegada pintaba otra vez "un analista está
+      // revisando tu caso", tres veces en el mismo minuto. El filtro de asignaciones (from == to,
+      // en movimientoAseguradoLabel) no alcanza: acá el from y el to son distintos, lo que se
+      // repite es la traducción. Se conserva el último y no el primero porque es cuándo entró a la
+      // etapa en la que está ahora, que es lo que la línea afirma.
+      .filter((m, i, todos) => i === todos.length - 1 || todos[i + 1].label !== m.label);
 
     return visibles.map((m, i) => ({
       label: m.label,
@@ -169,6 +201,13 @@ export class SeguimientoComponent {
   protected readonly fechaHecho = computed(() => formatDateTime(this.data()?.eventDate));
 
   protected goToDocuments(): void {
-    this.router.navigate(['documents'], { relativeTo: this.route });
+    // Same cross-tenant case as the load above (line 65): without forwarding `insurer`, the
+    // documentacion screen re-resolves the case against the login's default tenant instead of the
+    // one that issued it, and 404s (or worse, hits a same-id case from another company).
+    const insurer = this.route.snapshot.queryParamMap.get('insurer');
+    this.router.navigate(['documents'], {
+      relativeTo: this.route,
+      queryParams: insurer ? { insurer } : {},
+    });
   }
 }

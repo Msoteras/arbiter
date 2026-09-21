@@ -3,6 +3,7 @@ package ar.edu.utn.frba.arbiter.cases.dto;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.PastOrPresent;
+import jakarta.validation.constraints.PositiveOrZero;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 
@@ -34,7 +35,12 @@ public record CaseRequest(
         String locality,
         /** Fecha/hora de la denuncia policial, si el hecho tuvo una. No todo siniestro la requiere. */
         LocalDateTime policeReportAt,
-        BigDecimal claimedAmount,
+        /**
+         * Optional. A claim for a negative amount does not exist: the wizard already blocks the
+         * minus sign in the field, and this is the actual rule for anyone posting straight to the
+         * API. Zero is allowed — the field is optional and some intakes send it instead of null.
+         */
+        @PositiveOrZero BigDecimal claimedAmount,
         // PEP comes from the insurer's data, not the claim form. Ignored if sent.
         Boolean pep,
         // Image consent is captured during onboarding, not per claim. Ignored if sent.

@@ -276,12 +276,55 @@ class ClassificationResultsServiceTest {
                 .isEqualTo("reportedAt=+99h max=72h");
     }
 
-    /** Empty is a normal answer: a Fast Track writes no rows here. */
+    /** Empty is a normal answer: the insurer may have no active rule for the coverage. */
     @Test
     void aCaseWithNoRulesEvaluatedYieldsAnEmptyList() {
         when(ruleResultRepository.findByCaseIdOrderByEvaluatedAtAsc(7L)).thenReturn(List.of());
 
         assertThat(service.getRuleResults(7L)).isEmpty();
+    }
+
+    /**
+     * The table is append-only and each reclassification writes its own set, so the same rule shows
+     * up once per run. The analyst reads the table as "how did this end up", so only the last
+     * evaluation of each rule travels — the earlier rows stay in the DB for the audit.
+     */
+    @Test
+    void aReclassifiedCaseShowsTheLastEvaluationOfEachRule() {
+        RuleResult firstRun = ruleResult(1L, "REPORT_DEADLINE", "FAIL", "reportedAt=+99h max=72h");
+        RuleResult secondRun = ruleResult(2L, "REPORT_DEADLINE", "PASS", "reportedAt=+12h max=72h");
+        secondRun.setRuleId(firstRun.getRuleId());
+        when(ruleResultRepository.findByCaseIdOrderByEvaluatedAtAsc(7L))
+                .thenReturn(List.of(firstRun, secondRun));
+
+        assertThat(service.getRuleResults(7L))
+                .singleElement()
+                .extracting(RuleResultResponse::result)
+                .isEqualTo("PASS");
+    }
+
+    /** One run writes several exclusions, one per configured rule: those are not duplicates. */
+    @Test
+    void sameRuleTypeOnDifferentRulesTravelsWhole() {
+        when(ruleResultRepository.findByCaseIdOrderByEvaluatedAtAsc(7L)).thenReturn(List.of(
+                ruleResult(1L, "COVERAGE_EXCLUSION", "PASS", "claimCause=Hurto (id=3)"),
+                ruleResult(2L, "COVERAGE_EXCLUSION", "FAIL", "claimCause=Caída (id=4)")));
+
+        assertThat(service.getRuleResults(7L)).hasSize(2);
+    }
+
+    /** The gate's criteria carry no rule id (H0038) and must not collapse into one another. */
+    @Test
+    void fastTrackCriteriaWithoutRuleIdAreNotCollapsed() {
+        RuleResult ratio = ruleResult(1L, "FT_AMOUNT_RATIO", "PASS", "ratio=21,9% max=50,0%");
+        RuleResult upToDate = ruleResult(2L, "FT_POLICY_UP_TO_DATE", "PASS", "upToDate=true");
+        ratio.setRuleId(null);
+        upToDate.setRuleId(null);
+        when(ruleResultRepository.findByCaseIdOrderByEvaluatedAtAsc(7L))
+                .thenReturn(List.of(ratio, upToDate));
+
+        assertThat(service.getRuleResults(7L)).extracting(RuleResultResponse::ruleType)
+                .containsExactly("FT_AMOUNT_RATIO", "FT_POLICY_UP_TO_DATE");
     }
 
     private static RuleResult ruleResult(Long id, String type, String result, String evaluatedValue) {

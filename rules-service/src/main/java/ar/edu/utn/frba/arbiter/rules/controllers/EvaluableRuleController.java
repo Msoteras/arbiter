@@ -3,10 +3,12 @@ package ar.edu.utn.frba.arbiter.rules.controllers;
 import ar.edu.utn.frba.arbiter.rules.dto.CoverageLimitsDto;
 import ar.edu.utn.frba.arbiter.rules.dto.EvaluableRulesDto;
 import ar.edu.utn.frba.arbiter.rules.dto.ExpertDerivationDto;
+import ar.edu.utn.frba.arbiter.rules.dto.RepairDerivationDto;
 import ar.edu.utn.frba.arbiter.rules.dto.ScoringConfigDto;
 import ar.edu.utn.frba.arbiter.rules.services.InternalCoverageLimitsService;
 import ar.edu.utn.frba.arbiter.rules.services.InternalEvaluableRuleService;
 import ar.edu.utn.frba.arbiter.rules.services.InternalExpertDerivationService;
+import ar.edu.utn.frba.arbiter.rules.services.InternalRepairDerivationService;
 import ar.edu.utn.frba.arbiter.rules.services.ScoringConfigurationService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -32,6 +34,7 @@ public class EvaluableRuleController {
     private final InternalCoverageLimitsService internalCoverageLimits;
     private final ScoringConfigurationService scoringConfigurationService;
     private final InternalExpertDerivationService internalExpertDerivation;
+    private final InternalRepairDerivationService internalRepairDerivation;
 
     @GetMapping("/internal/evaluable")
     @PreAuthorize("isAuthenticated()")
@@ -74,5 +77,16 @@ public class EvaluableRuleController {
                     + "—habilita—: quién y cuándo deriva sigue siendo el analista.")
     public ExpertDerivationDto internalExpertDerivation(@RequestParam Long branchId) {
         return internalExpertDerivation.getByBranch(branchId);
+    }
+
+    @GetMapping("/internal/repair-derivation")
+    @PreAuthorize("isAuthenticated()")
+    @Operation(summary = "[interno] Hechos generadores del ramo que admiten reparación",
+            description = "Lectura system-to-system para cases-service: qué hechos generadores de este "
+                    + "ramo deriva la aseguradora a un servicio técnico. Sin regla configurada ⇒ "
+                    + "enabled=false, y el analista no ve la opción. Un equipo robado no tiene nada que "
+                    + "reparar: por eso la derivación depende del hecho y no solo del catálogo de proveedores.")
+    public RepairDerivationDto internalRepairDerivation(@RequestParam Long branchId) {
+        return internalRepairDerivation.getByBranch(branchId);
     }
 }

@@ -34,7 +34,9 @@ export class BusinessRulesTextService {
   }
 
   getBusinessRules(branchId: number): Observable<string[]> {
-    return this.http.get<string[]>(this.businessRulesBase, { params: { branchId: String(branchId) } });
+    return this.http.get<string[]>(this.businessRulesBase, {
+      params: { branchId: String(branchId) },
+    });
   }
 
   saveBusinessRules(branchId: number, items: string[]): Observable<RuleTextResponse> {

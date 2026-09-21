@@ -51,8 +51,7 @@ public class CoverageRuleEvaluator {
             if (rule.excludedClaimCauseIds() == null || rule.excludedClaimCauseIds().isEmpty()) {
                 continue;
             }
-            boolean causeExcluded = claim.claimCauseId() != null
-                    && rule.excludedClaimCauseIds().contains(claim.claimCauseId());
+            boolean causeExcluded = isExcludedBy(rule, claim.claimCauseId());
             // PASS = the coverage covers the claim cause (rule satisfied);
             // FAIL = it excludes it (the rule fires).
             findings.add(new RuleFinding(
@@ -70,6 +69,30 @@ public class CoverageRuleEvaluator {
                     claim.claimCause(), claim.claimCauseId(), claim.coverageId());
         }
         return new Result(excluded, findings);
+    }
+
+    /**
+     * Whether the coverage excludes a claim cause, by id. Same check {@link #evaluate} runs against
+     * the <b>declared</b> cause, exposed so the narrative-consistency pass can ask it about the
+     * cause the account actually describes — which is the whole point: the model says which cause
+     * the story is, the engine says whether that one is covered (CLAUDE.md #4).
+     *
+     * @param claimCauseId the cause to check; {@code null} (unmappable) is never excluded
+     */
+    public boolean isExcluded(Long claimCauseId, BusinessRules rules) {
+        List<BusinessRules.EvaluableRule> evaluableRules = rules.evaluableRules();
+        if (claimCauseId == null || evaluableRules == null) {
+            return false;
+        }
+        return evaluableRules.stream()
+                .filter(rule -> RuleType.COVERAGE_EXCLUSION.name().equals(rule.ruleType()))
+                .anyMatch(rule -> isExcludedBy(rule, claimCauseId));
+    }
+
+    private boolean isExcludedBy(BusinessRules.EvaluableRule rule, Long claimCauseId) {
+        return claimCauseId != null
+                && rule.excludedClaimCauseIds() != null
+                && rule.excludedClaimCauseIds().contains(claimCauseId);
     }
 
     /** Readable reasons for the analyst, from the findings that failed. */

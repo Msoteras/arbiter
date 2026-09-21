@@ -21,8 +21,14 @@
   justify-content: space-between;
   gap: var(--space-4);
 }
-.bandeja-head-text { min-width: 0; }
-.bandeja-sub { margin: var(--space-1) 0 0; font-size: var(--font-size-body); color: var(--text-muted); }
+.bandeja-head-text {
+  min-width: 0;
+}
+.bandeja-sub {
+  margin: var(--space-1) 0 0;
+  font-size: var(--font-size-body);
+  color: var(--text-muted);
+}
 
 // Primera carga: el spinner ocupa el alto disponible y queda centrado (sin la caja de filtros).
 .first-load {
@@ -32,7 +38,11 @@
   justify-content: center;
 }
 
-.btn-with-icon { display: inline-flex; align-items: center; gap: var(--space-2); }
+.btn-with-icon {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+}
 
 // ───────────────── Lente "Míos" / "Todos" ─────────────────
 // Mismo tratamiento que las tabs del detalle del expediente (.tabs/.tab): subrayado en el
@@ -58,7 +68,9 @@
   margin-bottom: -1px;
   white-space: nowrap;
 }
-.lens-tab:hover { color: var(--text-secondary); }
+.lens-tab:hover {
+  color: var(--text-secondary);
+}
 .lens-tab.active {
   color: var(--text-primary);
   border-bottom-color: var(--accent-fg);
@@ -73,13 +85,30 @@
   border-radius: var(--radius-pill);
   padding: 1px var(--space-2);
 }
-.lens-tab.active .lens-count { color: var(--accent-fg); background: var(--selected-bg); }
-// Lente "Alerta de fraude": el triángulo va en color de peligro (semáforo), el resto sobrio.
-.lens-tab--alert .lens-alert-mark { color: var(--status-danger); font-size: 0.85em; }
-.lens-tab--alert.active { border-bottom-color: var(--status-danger); }
+.lens-tab.active .lens-count {
+  color: var(--accent-fg);
+  background: var(--selected-bg);
+}
+// Pestaña "Riesgo de fraude": el triángulo va en color de peligro (semáforo), el resto sobrio.
+.lens-tab--alert .lens-alert-mark {
+  color: var(--status-danger);
+  font-size: 0.85em;
+}
+.lens-tab--alert.active {
+  border-bottom-color: var(--status-danger);
+}
 .lens-tab--alert.active .lens-count {
   color: var(--status-danger);
   background: var(--surface-danger-soft);
+}
+
+// Separador entre las pestañas de ciclo de vida y las de pertenencia: son dos ejes en una sola
+// barra, y sin esta marca "Cerrados" y "Todos" se leen como la misma familia.
+.lens-divider {
+  align-self: center;
+  width: 1px;
+  height: var(--space-4);
+  background: var(--border-default);
 }
 
 // ───────────────── Barra: búsqueda + botón Filtros ─────────────────
@@ -94,7 +123,11 @@
   min-width: 0;
 }
 
-.filters-btn { display: inline-flex; align-items: center; gap: var(--space-2); }
+.filters-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+}
 // Badge con la cantidad de filtros aplicados.
 .filters-badge {
   display: inline-flex;
@@ -111,7 +144,10 @@
 }
 
 // ───────────────── Popover de filtros (anclado al botón) ─────────────────
-.filters-anchor { position: relative; flex: none; }
+.filters-anchor {
+  position: relative;
+  flex: none;
+}
 .filters-pop {
   position: absolute;
   top: calc(100% + var(--space-2));
@@ -127,11 +163,19 @@
   animation: filters-pop-in var(--dur-2) var(--ease-out);
 }
 @keyframes filters-pop-in {
-  from { opacity: 0; transform: translateY(-6px) scale(0.98); }
-  to { opacity: 1; transform: none; }
+  from {
+    opacity: 0;
+    transform: translateY(-6px) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
 }
 @media (prefers-reduced-motion: reduce) {
-  .filters-pop { animation: none; }
+  .filters-pop {
+    animation: none;
+  }
 }
 .filters-pop-head {
   display: flex;
@@ -154,7 +198,10 @@
   padding: var(--space-1);
   border-radius: var(--radius-ctl);
 }
-.filters-pop-close:hover { color: var(--text-primary); background: var(--surface-sunken); }
+.filters-pop-close:hover {
+  color: var(--text-primary);
+  background: var(--surface-sunken);
+}
 .filters-pop-grid {
   display: grid;
   grid-template-columns: 1fr 1fr;
@@ -200,8 +247,13 @@
     border-color var(--dur-1) ease,
     color var(--dur-1) ease;
 }
-.chip:hover { border-color: var(--border-strong); color: var(--text-primary); }
-.chip-x { color: var(--text-muted); }
+.chip:hover {
+  border-color: var(--border-strong);
+  color: var(--text-primary);
+}
+.chip-x {
+  color: var(--text-muted);
+}
 .chip-clear {
   border: none;
   background: none;
@@ -211,33 +263,65 @@
   font-size: var(--font-size-xs);
   padding: var(--space-1) var(--space-2);
 }
-.chip-clear:hover { text-decoration: underline; }
+.chip-clear:hover {
+  text-decoration: underline;
+}
 
 @media (max-width: 560px) {
-  .filters-pop-grid { grid-template-columns: 1fr; }
+  .filters-pop-grid {
+    grid-template-columns: 1fr;
+  }
 }
 
 // ───────────────── Tabla ─────────────────
-.table-card { padding: 0; }
+.table-card {
+  padding: 0;
+}
 
 // Sin esto, en móvil la tabla (8 columnas, todas nowrap) empujaba el ancho de la
 // página entera en vez de scrollear en su propio contenedor.
-.table-scroll { overflow-x: auto; }
+.table-scroll {
+  overflow-x: auto;
+}
 
 // Fuente y padding compactos: la tabla tiene 9 columnas y en una laptop al zoom por defecto
 // (100%) no entraba. Con 12px + padding chico + las columnas de texto acotadas, entra sin scroll
 // horizontal en anchos de ~1130px de contenido; el scroll queda solo como red de seguridad para
 // pantallas realmente angostas o zoom fuerte.
-table { width: 100%; border-collapse: collapse; font-size: var(--font-size-sm); }
-th, td { text-align: left; padding: var(--space-2); white-space: nowrap; vertical-align: middle; }
-th:first-child, td:first-child { padding-left: var(--space-3); }
-th:last-child, td:last-child { padding-right: var(--space-3); }
+table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: var(--font-size-sm);
+}
+th,
+td {
+  text-align: left;
+  padding: var(--space-2);
+  white-space: nowrap;
+  vertical-align: middle;
+}
+th:first-child,
+td:first-child {
+  padding-left: var(--space-3);
+}
+th:last-child,
+td:last-child {
+  padding-right: var(--space-3);
+}
 // Las dos columnas de texto libre (Asegurado, Tipo de siniestro) envuelven a dos líneas y se
 // acotan: así la tabla achica su ancho mínimo en vez de forzar el scroll. El resto queda en una
 // línea.
-td:nth-child(3), td:nth-child(4) { white-space: normal; }
-td:nth-child(3) { max-width: 150px; }
-td:nth-child(4) { min-width: 100px; max-width: 150px; }
+td:nth-child(3),
+td:nth-child(4) {
+  white-space: normal;
+}
+td:nth-child(3) {
+  max-width: 150px;
+}
+td:nth-child(4) {
+  min-width: 100px;
+  max-width: 150px;
+}
 
 thead th {
   font-size: var(--font-size-2xs);
@@ -248,7 +332,9 @@ thead th {
   background: var(--surface-head);
   border-bottom: 1px solid var(--border-default);
 }
-tbody tr:not(:last-child) td { border-bottom: 1px solid var(--border-subtle); }
+tbody tr:not(:last-child) td {
+  border-bottom: 1px solid var(--border-subtle);
+}
 
 .sort-btn {
   display: inline-flex;
@@ -265,22 +351,36 @@ tbody tr:not(:last-child) td { border-bottom: 1px solid var(--border-subtle); }
   padding: 0;
   cursor: pointer;
 }
-.sort-btn:hover { color: var(--text-secondary); }
-.sort-btn.is-sorted { color: var(--text-primary); }
-.sort-arrow { color: var(--accent-fg); }
+.sort-btn:hover {
+  color: var(--text-secondary);
+}
+.sort-btn.is-sorted {
+  color: var(--text-primary);
+}
+.sort-arrow {
+  color: var(--accent-fg);
+}
 
 // Importe: alineado a la izquierda como el resto, con cifras tabulares.
-.num { font-variant-numeric: tabular-nums; }
+.num {
+  font-variant-numeric: tabular-nums;
+}
 
-.row-link { cursor: pointer; }
-.row-link:hover td { background: var(--surface-soft); }
+.row-link {
+  cursor: pointer;
+}
+.row-link:hover td {
+  background: var(--surface-soft);
+}
 
 .id-link {
   color: var(--accent-fg);
   text-decoration: none;
   font-weight: var(--font-weight-medium);
 }
-.id-link:hover { text-decoration: underline; }
+.id-link:hover {
+  text-decoration: underline;
+}
 
 // ───────────────── Celda de asignación ─────────────────
 // La columna muestra la identidad del analista asignado (avatar + nombre) y las acciones a la
@@ -290,7 +390,9 @@ tbody tr:not(:last-child) td { border-bottom: 1px solid var(--border-subtle); }
   cursor: default;
   width: 172px; // fija para que el reparto de columnas no baile entre filas asignadas y no
 }
-th:last-child { width: 172px; }
+th:last-child {
+  width: 172px;
+}
 
 .assign-row {
   display: flex;
@@ -319,7 +421,12 @@ th:last-child { width: 172px; }
   font-size: var(--font-size-2xs);
   font-weight: var(--font-weight-medium);
 }
-.assignee-text { display: flex; flex-direction: column; min-width: 0; line-height: 1.2; }
+.assignee-text {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  line-height: 1.2;
+}
 .assignee-name {
   font-size: var(--font-size-sm);
   color: var(--text-primary);
@@ -327,7 +434,10 @@ th:last-child { width: 172px; }
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-.assignee-sub { font-size: var(--font-size-2xs); color: var(--text-muted); }
+.assignee-sub {
+  font-size: var(--font-size-2xs);
+  color: var(--text-muted);
+}
 
 .assign-actions {
   display: flex;

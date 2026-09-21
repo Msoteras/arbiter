@@ -1,5 +1,13 @@
 import { DecimalPipe } from '@angular/common';
-import { ChangeDetectionStrategy, Component, OnDestroy, inject, input, signal, effect } from '@angular/core';
+import {
+  ChangeDetectionStrategy,
+  Component,
+  OnDestroy,
+  inject,
+  input,
+  signal,
+  effect,
+} from '@angular/core';
 
 import { ExpedienteService } from '../../expediente.service';
 import {
@@ -38,7 +46,13 @@ const DOC_TYPE_LABELS: Record<string, string> = {
  */
 @Component({
   selector: 'app-forensic-analysis',
-  imports: [DecimalPipe, CardComponent, EmptyStateComponent, SeverityLabelComponent, SpinnerComponent],
+  imports: [
+    DecimalPipe,
+    CardComponent,
+    EmptyStateComponent,
+    SeverityLabelComponent,
+    SpinnerComponent,
+  ],
   changeDetection: ChangeDetectionStrategy.OnPush,
   templateUrl: './forensic-analysis.component.html',
   styleUrl: './forensic-analysis.component.scss',

@@ -3,6 +3,7 @@ import { Routes } from '@angular/router';
 import { guestGuard } from './core/auth/guest.guard';
 import { onboardingGuard, onboardingPendingGuard } from './core/auth/onboarding.guard';
 import { roleGuard } from './core/auth/role.guard';
+import { rememberedReportsTab } from './features/admin/reportes/reports-tab-memory';
 
 export const routes: Routes = [
   { path: '', redirectTo: 'login', pathMatch: 'full' },
@@ -116,6 +117,18 @@ export const routes: Routes = [
       import('./features/portal/perfil/perfil.component').then((m) => m.PerfilComponent),
   },
   {
+    // Pantalla aparte y no una sección del perfil: el perfil son datos de la persona (los suyos,
+    // su contacto, sus consentimientos) y esto es la relación con la compañía. Además crece con
+    // cada póliza, y ahí adentro tapaba lo editable.
+    path: 'portal/policies',
+    canActivate: [roleGuard, onboardingGuard],
+    data: { roles: ['ASEGURADO'] },
+    loadComponent: () =>
+      import('./features/portal/mis-polizas/mis-polizas.component').then(
+        (m) => m.MisPolizasComponent,
+      ),
+  },
+  {
     path: 'portal',
     canActivate: [roleGuard, onboardingGuard],
     data: { roles: ['ASEGURADO'] },
@@ -168,6 +181,18 @@ export const routes: Routes = [
       import('./features/admin/reglas/reglas.component').then((m) => m.ReglasComponent),
   },
   {
+    // Bandeja de firma del referente: liquidaciones que superaron la atribución del analista.
+    // Fuera de 'insurer/rules' a propósito — esto no se configura, se resuelve, y es trabajo
+    // sobre expedientes concretos como la bandeja, no una pantalla de parámetros.
+    path: 'insurer/settlements',
+    canActivate: [roleGuard],
+    data: { roles: ['REFERENTE_ASEGURADORA'] },
+    loadComponent: () =>
+      import('./features/admin/autorizaciones/autorizaciones.component').then(
+        (m) => m.AutorizacionesComponent,
+      ),
+  },
+  {
     path: 'insurer/dashboard',
     canActivate: [roleGuard],
     // El analista también los ve: son métricas de la operación, no configuración de la
@@ -182,8 +207,29 @@ export const routes: Routes = [
     // El analista también los ve: son métricas de la operación, no configuración de la
     // aseguradora (a diferencia de usuarios y reglas, que siguen siendo del referente).
     data: { roles: ['REFERENTE_ASEGURADORA', 'ANALISTA_SINIESTROS'] },
+    // El tab es una ruta y no un signal: así el referente puede marcar o pasar "el reporte de
+    // fraude de agosto", y volver del detalle de un expediente lo deja en el tab que estaba.
     loadComponent: () =>
-      import('./features/admin/reportes/reportes.component').then((m) => m.ReportesComponent),
+      import('./features/admin/reportes/reports.component').then((m) => m.ReportsComponent),
+    children: [
+      // La solapa que se estaba usando, no siempre la primera: el referente entra a Reportes
+      // varias veces por semana y casi siempre al mismo reporte.
+      { path: '', pathMatch: 'full', redirectTo: () => rememberedReportsTab() },
+      {
+        path: 'resolutions',
+        loadComponent: () =>
+          import('./features/admin/reportes/resolution-report.component').then(
+            (m) => m.ResolutionReportComponent,
+          ),
+      },
+      {
+        path: 'fraud',
+        loadComponent: () =>
+          import('./features/admin/reportes/fraud-report.component').then(
+            (m) => m.FraudReportComponent,
+          ),
+      },
+    ],
   },
 
   // redirectTo: '' no vuelve a disparar la regla '' → login (Angular no re-evalúa el

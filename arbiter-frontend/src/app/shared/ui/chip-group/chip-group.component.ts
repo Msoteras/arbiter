@@ -50,8 +50,14 @@ export interface ChipOption {
     </div>
   `,
   styles: `
-    :host { display: block; }
-    .chips { display: flex; flex-wrap: wrap; gap: var(--space-2); }
+    :host {
+      display: block;
+    }
+    .chips {
+      display: flex;
+      flex-wrap: wrap;
+      gap: var(--space-2);
+    }
     .chip {
       font: inherit;
       font-size: var(--font-size-md);
@@ -67,15 +73,23 @@ export interface ChipOption {
       font-size: var(--font-size-sm);
       padding: var(--space-2) var(--space-3);
     }
-    .chip:hover:not(:disabled) { border-color: var(--action-secondary-border-hover); }
-    .chip:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 2px; }
+    .chip:hover:not(:disabled) {
+      border-color: var(--action-secondary-border-hover);
+    }
+    .chip:focus-visible {
+      outline: 2px solid var(--focus-ring);
+      outline-offset: 2px;
+    }
     .chip.active {
       background: var(--selected-bg);
       border-color: var(--selected-border);
       color: var(--accent-fg);
       font-weight: var(--font-weight-medium);
     }
-    .chip:disabled { opacity: 0.5; cursor: not-allowed; }
+    .chip:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+    }
   `,
 })
 export class ChipGroupComponent {

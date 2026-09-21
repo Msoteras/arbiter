@@ -29,7 +29,9 @@ import { ChangeDetectionStrategy, Component, input, model } from '@angular/core'
     </button>
   `,
   styles: `
-    :host { display: inline-block; }
+    :host {
+      display: inline-block;
+    }
     .track {
       display: block;
       width: 40px;
@@ -59,12 +61,23 @@ import { ChangeDetectionStrategy, Component, input, model } from '@angular/core'
       background: var(--accent-fill);
       border-color: var(--accent-fill-border);
     }
-    .track[aria-checked='true'] .knob { transform: translateX(18px); }
-    .track:disabled { cursor: default; opacity: 0.55; }
-    .track:focus-visible { outline: none; box-shadow: var(--focus-ring); }
+    .track[aria-checked='true'] .knob {
+      transform: translateX(18px);
+    }
+    .track:disabled {
+      cursor: default;
+      opacity: 0.55;
+    }
+    .track:focus-visible {
+      outline: none;
+      box-shadow: var(--focus-ring);
+    }
 
     @media (prefers-reduced-motion: reduce) {
-      .track, .knob { transition: none; }
+      .track,
+      .knob {
+        transition: none;
+      }
     }
   `,
 })

@@ -4,6 +4,7 @@ import ar.edu.utn.frba.arbiter.cases.adapters.InsurerAdapter;
 import ar.edu.utn.frba.arbiter.cases.adapters.db.CallerInsurerDatabases.InsurerDatabase;
 import ar.edu.utn.frba.arbiter.cases.dto.PolicyResponse;
 import ar.edu.utn.frba.arbiter.cases.dto.PolicyResponse.Coverage;
+import ar.edu.utn.frba.arbiter.cases.dto.PolicyResponse.Validity;
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.annotation.Primary;
 import org.springframework.context.annotation.Profile;
@@ -14,6 +15,7 @@ import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Optional;
 
@@ -60,7 +62,7 @@ public class InsurerDatabaseAdapter implements InsurerAdapter {
                             policyNumber)
                     .stream()
                     .findFirst()
-                    .map(row -> toResponse(row, database));
+                    .map(row -> toResponse(row, database, LocalDateTime.now()));
             if (found.isPresent()) {
                 return found;
             }
@@ -71,32 +73,48 @@ public class InsurerDatabaseAdapter implements InsurerAdapter {
     /**
      * El mismo documento puede tener pólizas en varias compañías → vista centralizada.
      *
-     * <p>Solo pólizas vigentes ahora mismo ({@code vigencia_hasta >= NOW()}, no {@code
-     * CURRENT_DATE}: la vigencia lleva hora, así que una póliza que vence hoy a las 08:00 ya no
-     * es vigente a las 14:00 aunque siga siendo "hoy"): esto alimenta el desplegable del alta de
-     * denuncia, y una póliza vencida ahí solo lleva al asegurado a completar todo el wizard para
-     * enterarse recién al final que {@link
-     * ar.edu.utn.frba.arbiter.cases.services.PolicyEligibilityValidator} la va a rechazar. El
-     * lookup puntual por número ({@link #findPolicy}) no filtra — a ese se llega por otros
+     * <p>Por defecto, solo las vigentes ahora mismo — con la hora, no por día: una póliza que vence
+     * hoy a las 08:00 ya no cubre a las 14:00 aunque siga siendo "hoy". Ese es el caso del
+     * desplegable del alta de denuncia, donde una póliza vencida solo lleva al asegurado a
+     * completar todo el wizard para enterarse recién al final que {@link
+     * ar.edu.utn.frba.arbiter.cases.services.PolicyEligibilityValidator} la va a rechazar.
+     *
+     * <p>Con {@code includeExpired} vuelven también las vencidas, ordenadas primero las vigentes:
+     * es lo que mira "Mis pólizas" en el perfil, donde esconder una póliza vencida no evita ningún
+     * error — deja al asegurado sin saber por qué desapareció la que tenía el año pasado.
+     *
+     * <p>El lookup puntual por número ({@link #findPolicy}) nunca filtra: a ese se llega por otros
      * caminos (expediente ya creado, chequeo de elegibilidad) donde una póliza vencida es un
      * resultado legítimo, no ruido.
      */
     @Override
-    public List<PolicyResponse> findPoliciesByInsured(String insuredId) {
+    public List<PolicyResponse> findPoliciesByInsured(String insuredId, boolean includeExpired) {
+        // Un solo instante para toda la llamada: el recorte y la etiqueta que sale en la respuesta
+        // tienen que salir del MISMO reloj. Con el filtro en el SQL lo decidía NOW() de Postgres y
+        // la etiqueta se derivaba en otro lado, y las dos pantallas podían contradecirse. El
+        // asegurado tiene un puñado de pólizas: traerlas todas y descartar acá no cuesta nada.
+        LocalDateTime now = LocalDateTime.now();
         List<PolicyResponse> policies = new ArrayList<>();
         for (InsurerDatabase database : insurerDatabases.forCaller()) {
-            jdbc.query(POLICY_SELECT.formatted(database.schema())
-                                    + " WHERE a.documento = ? AND p.vigencia_hasta >= NOW()"
-                                    + " ORDER BY p.numero",
+            jdbc.query(POLICY_SELECT.formatted(database.schema()) + " WHERE a.documento = ?",
                             this::mapRow,
                             insuredId)
-                    .forEach(row -> policies.add(toResponse(row, database)));
+                    .forEach(row -> policies.add(toResponse(row, database, now)));
         }
-        return List.copyOf(policies);
+        return policies.stream()
+                .filter(p -> includeExpired || p.validity() != Validity.EXPIRED)
+                // Vigentes arriba, y recién ahí por número: el orden se decide sobre la lista ya
+                // unida, porque ordenar en el SQL deja el criterio adentro de cada compañía y una
+                // vencida de la primera aseguradora terminaría por encima de una vigente de la
+                // segunda.
+                .sorted(Comparator
+                        .comparing((PolicyResponse p) -> p.validity() == Validity.EXPIRED)
+                        .thenComparing(PolicyResponse::policyNumber))
+                .toList();
     }
 
     /** Segunda pasada: la suma asegurada vive en cada cobertura; la de la póliza es la primaria. */
-    private PolicyResponse toResponse(PolicyRow row, InsurerDatabase database) {
+    private PolicyResponse toResponse(PolicyRow row, InsurerDatabase database, LocalDateTime now) {
         List<Coverage> coverages = jdbc.query(
                 """
                 SELECT orden, nombre, suma_asegurada, franquicia_pct
@@ -135,6 +153,7 @@ public class InsurerDatabaseAdapter implements InsurerAdapter {
                 .product(row.producto())
                 .effectiveFrom(row.vigenciaDesde())
                 .effectiveTo(row.vigenciaHasta())
+                .validity(Validity.at(row.vigenciaDesde(), row.vigenciaHasta(), now))
                 .upToDate(isUpToDate(row.estadoPago(), row.saldoDeuda()))
                 .insuredAmount(primary != null ? primary.insuredAmount() : null)
                 .deductible(primary != null ? primary.deductible() : null)

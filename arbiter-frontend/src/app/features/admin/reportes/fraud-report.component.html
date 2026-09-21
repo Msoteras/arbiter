@@ -1,0 +1,253 @@
+<div class="reportes" @staggerReveal>
+  <app-card heading="Parámetros del reporte">
+    <p class="rep-hint">
+      Criterios de detección
+      <app-info-tip>
+        Aparecen acá las denuncias del período sobre las que se disparó al menos una señal: score de
+        riesgo alto (banda Alto o Crítico del motor de scoring), incoherencias en el análisis
+        forense de las imágenes, o contradicciones entre la documentación adjunta y lo declarado en
+        la denuncia. Cuántas veces denunció el asegurado no es una señal —ya pesa adentro del score—
+        pero se muestra en cada fila como contexto. El sistema no determina fraude: señala indicios
+        para revisión humana.
+      </app-info-tip>
+    </p>
+
+    <div class="params">
+      <app-report-filters />
+
+      <div class="field field-wide">
+        <label class="t-field-label" for="rep-riesgo">Score de riesgo</label>
+        <app-select
+          id="rep-riesgo"
+          placeholder="Todos"
+          [options]="riskBandOptions"
+          [value]="riskBand()"
+          (valueChange)="setRiskBand($event)"
+        />
+      </div>
+    </div>
+
+    @if (filters.periodError() ?? error(); as message) {
+      <p class="form-error" role="alert">{{ message }}</p>
+    }
+
+    <app-report-actions
+      [disabled]="!!filters.periodError()"
+      [loading]="loading()"
+      [exporting]="exporting()"
+      (preview)="loadPreview()"
+      (exportAs)="exportAs($event)"
+    />
+  </app-card>
+
+  <app-card heading="Vista previa">
+    @if (loading()) {
+      <app-inline-loading message="Buscando denuncias con señales…" />
+    } @else if (report(); as current) {
+      <!-- The filters as the backend applied them, not as the controls read: the two can only
+           disagree when something went wrong, and that is when it has to be visible. -->
+      <p class="applied t-note">
+        {{ formatDate(current.from) }} al {{ formatDate(current.to) }} · Ramo:
+        {{ current.branch ?? 'Todos' }} · Score de riesgo:
+        {{ current.riskBand ? riskBandLabel(current.riskBand) : 'Todos' }}
+      </p>
+      @if (current.rows.length === 0) {
+        <!-- With claims in the period, the denominator is the finding: "0 of 84" is not "nothing". -->
+        @if (current.summary.totalClaims > 0) {
+          <app-empty-state
+            message="Ninguna denuncia con señales en el período"
+            [sub]="
+              'Ninguna de las ' +
+              current.summary.totalClaims +
+              ' denuncias del período disparó una señal. Probá con otro rango de fechas, otro ramo o sin filtrar por score de riesgo.'
+            "
+          />
+        } @else {
+          <app-empty-state
+            message="No hay denuncias en el período"
+            sub="Probá con otro rango de fechas u otro ramo."
+          />
+        }
+      } @else {
+        @if (summary(); as totals) {
+          <section class="summary" aria-label="Totales del período">
+            <div class="figures">
+              <!-- The denominator, stated: without it the two rates next to it can't be read. -->
+              <app-stat-tile
+                label="Denuncias del período"
+                [value]="totals.totalClaims"
+                [sub]="totalClaimsTrend()"
+              >
+                <app-info-tip>
+                  Todas las denuncias registradas en el período y el ramo elegidos, tengan indicios
+                  o no. Es la población contra la que se leen los porcentajes de al lado.
+                </app-info-tip>
+              </app-stat-tile>
+              <app-stat-tile
+                label="Con al menos una señal"
+                [value]="totals.flaggedRate | rate: 1"
+                [sub]="
+                  flaggedRateTrend() || totals.flagged + ' de ' + totals.totalClaims + ' denuncias'
+                "
+                [progress]="totals.flaggedRate"
+                progressTone="warning"
+              >
+                <app-info-tip>
+                  Una señal es un criterio que se disparó sobre la denuncia, y hay dos: score de
+                  riesgo alto, o incoherencias en el análisis forense de las imágenes. Acá se
+                  cuentan las denuncias con al menos una: son las que lista la tabla de abajo. Es un
+                  indicio para revisar, no una conclusión.
+                </app-info-tip>
+              </app-stat-tile>
+              <!-- The cross, which is what the report adds over the case's gauge: one signal is a
+                   hint, two coinciding is a shortlist. -->
+              <app-stat-tile
+                label="Con dos o más señales"
+                [value]="totals.multiSignal"
+                [sub]="multiSignalTrend() || 'Las primeras para mirar'"
+              >
+                <app-info-tip>
+                  De las denuncias con al menos una señal, cuántas tienen dos o más a la vez. Es un
+                  subconjunto de la cifra anterior, no otra población: una señal sola es un indicio,
+                  dos coincidiendo es lo que conviene mirar primero.
+                </app-info-tip>
+              </app-stat-tile>
+              <app-stat-tile
+                label="Fraude determinado"
+                [value]="totals.fraudRate | rate: 1"
+                [sub]="
+                  totals.fraudDetermined +
+                  ' de ' +
+                  totals.totalClaims +
+                  ' · ' +
+                  totals.backedByExpert +
+                  ' con respaldo pericial'
+                "
+                [progress]="totals.fraudRate"
+                progressTone="danger"
+                [tone]="totals.fraudDetermined > 0 ? 'danger' : 'default'"
+              >
+                <app-info-tip>
+                  Cuántas de las denuncias del período fueron determinadas como fraude por un
+                  analista. El sistema no determina fraude: señala indicios y una persona decide,
+                  sobre el expediente. En 0 quiere decir que todavía nadie determinó ninguna, no que
+                  no haya indicios. La cifra sube con el tiempo: los expedientes más recientes del
+                  período siguen abiertos.
+                </app-info-tip>
+              </app-stat-tile>
+            </div>
+
+            <div class="distributions">
+              <section class="distribution">
+                <h3 class="t-section-label">Por score de riesgo</h3>
+                <app-distribution [items]="alertItems()" />
+              </section>
+
+              <section class="distribution">
+                <h3 class="t-section-label">Por señal</h3>
+                <app-distribution [items]="signalItems()" [total]="totals.flagged" />
+                <p class="t-note distribution-note">
+                  Los porcentajes se leen sobre las denuncias con al menos una señal ({{
+                    totals.flagged
+                  }}), no sobre el total del período. Una denuncia puede tener más de una señal, así
+                  que no suman 100%.
+                </p>
+              </section>
+            </div>
+          </section>
+        }
+
+        <!-- The order is part of the reading: without saying it, a table that isn't by date looks
+             shuffled. -->
+        <p class="order-note t-note">
+          Ordenadas por cantidad de señales y, entre las que empatan, por score de riesgo.
+        </p>
+
+        <app-table
+          [pinFirstColumn]="true"
+          [stickyHeader]="true"
+          scrollLabel="Denuncias con señales, tabla desplazable"
+        >
+          <thead>
+            <tr>
+              <th scope="col">Nº</th>
+              <th scope="col">Asegurado</th>
+              <th scope="col">Tipo</th>
+              <th scope="col">Denuncia</th>
+              <th scope="col">Score de riesgo</th>
+              <th scope="col">Señales</th>
+              <th scope="col">Estado</th>
+            </tr>
+          </thead>
+          <tbody>
+            @for (row of pageRows(); track row.caseId) {
+              <tr [class.multi-signal]="row.signals.length > 1">
+                <td class="mono">
+                  <a class="case-link" [routerLink]="['/cases', row.caseId]">#{{ row.caseId }}</a>
+                </td>
+                <td>
+                  {{ row.insuredName }}
+                  <span class="sub">DNI {{ row.insuredDni }}</span>
+                  <!-- Contexto, no señal: no es lo que trajo la denuncia a este listado, pero es lo
+                       primero que se pregunta quien la abre. -->
+                  @if (row.claimsInWindow > 1) {
+                    <span class="sub">{{ row.claimsInWindow }} denuncias en 12 meses</span>
+                  }
+                </td>
+                <td>
+                  {{ row.claimCause }}
+                  <span class="sub">{{ row.branch }}</span>
+                </td>
+                <td class="tabular">{{ formatDateTime(row.reportedAt) }}</td>
+                <td class="gauge-cell">
+                  <app-fraud-gauge
+                    [band]="riskGaugeBand(row)"
+                    [emptyLabel]="alertEmptyLabel(row)"
+                  />
+                </td>
+                <td class="signals-cell">
+                  <!-- No "N señales" badge: with only two possible signals it would always read
+                       "2", telling the analyst nothing the two badges below don't already show by
+                       being there. The row's left edge (tr.multi-signal) carries the cross instead. -->
+                  <div class="signals">
+                    @for (indicator of indicators(row); track indicator) {
+                      <app-badge>{{ indicator }}</app-badge>
+                    }
+                  </div>
+                  @if (row.fraudDetermined) {
+                    <app-badge variant="strong" tone="danger">
+                      {{
+                        row.expertBacked ? 'Fraude determinado · pericial' : 'Fraude determinado'
+                      }}
+                    </app-badge>
+                  }
+                </td>
+                <td>
+                  <app-badge [tone]="estadoTone(row.status)">{{
+                    estadoLabel(row.status)
+                  }}</app-badge>
+                </td>
+              </tr>
+            }
+          </tbody>
+        </app-table>
+
+        @if (totalPages() > 1) {
+          <app-pagination
+            [page]="page()"
+            [totalPages]="totalPages()"
+            [totalElements]="rows().length"
+            [size]="pageSize()"
+            (pageChange)="page.set($event)"
+            (sizeChange)="setPageSize($event)"
+          />
+        }
+      }
+    } @else {
+      <app-empty-state
+        message="Todavía no hay vista previa"
+        sub="Elegí el período y tocá «Ver vista previa»."
+      />
+    }
+  </app-card>
+</div>

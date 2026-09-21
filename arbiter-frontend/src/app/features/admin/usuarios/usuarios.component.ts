@@ -26,7 +26,18 @@ import { fadeStagger, staggerReveal } from '../../../shared/animations';
  */
 @Component({
   selector: 'app-usuarios',
-  imports: [AltaUsuarioComponent, BadgeComponent, ButtonComponent, CardComponent, EmptyStateComponent, InputComponent, ModalComponent, TableComponent, SelectComponent, InlineLoadingComponent],
+  imports: [
+    AltaUsuarioComponent,
+    BadgeComponent,
+    ButtonComponent,
+    CardComponent,
+    EmptyStateComponent,
+    InputComponent,
+    ModalComponent,
+    TableComponent,
+    SelectComponent,
+    InlineLoadingComponent,
+  ],
   changeDetection: ChangeDetectionStrategy.OnPush,
   animations: [staggerReveal, fadeStagger],
   templateUrl: './usuarios.component.html',
@@ -37,7 +48,11 @@ export class UsuariosComponent {
   private readonly session = inject(AuthSessionService);
   private readonly toastService = inject(ToastService);
 
-  protected readonly roles: UserRole[] = ['ASEGURADO', 'ANALISTA_SINIESTROS', 'REFERENTE_ASEGURADORA'];
+  protected readonly roles: UserRole[] = [
+    'ASEGURADO',
+    'ANALISTA_SINIESTROS',
+    'REFERENTE_ASEGURADORA',
+  ];
 
   /** Misma lista, en el formato que espera app-select. */
   protected readonly roleOptions: SelectOption[] = this.roles.map((r) => ({
@@ -80,7 +95,9 @@ export class UsuariosComponent {
   protected readonly provisioning = signal(false);
   protected readonly provisionStarted = signal(false);
 
-  protected readonly isEmpty = computed(() => !this.loading() && !this.hasError() && this.users().length === 0);
+  protected readonly isEmpty = computed(
+    () => !this.loading() && !this.hasError() && this.users().length === 0,
+  );
 
   constructor() {
     this.load();
@@ -164,7 +181,9 @@ export class UsuariosComponent {
       },
       error: (err: HttpErrorResponse) => {
         this.resendingId.set(null);
-        this.resendError.set(err.error?.detail ?? 'No se pudo reenviar la invitación. Probá de nuevo.');
+        this.resendError.set(
+          err.error?.detail ?? 'No se pudo reenviar la invitación. Probá de nuevo.',
+        );
       },
     });
   }
@@ -215,7 +234,9 @@ export class UsuariosComponent {
       },
       error: (err: HttpErrorResponse) => {
         this.deleting.set(false);
-        this.deleteError.set(err.error?.detail ?? 'No se pudo eliminar el usuario. Probá de nuevo.');
+        this.deleteError.set(
+          err.error?.detail ?? 'No se pudo eliminar el usuario. Probá de nuevo.',
+        );
       },
     });
   }

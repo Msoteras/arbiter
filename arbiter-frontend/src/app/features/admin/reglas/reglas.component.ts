@@ -7,10 +7,16 @@ import {
   DOCUMENT_TYPES,
   FastTrackConfig,
   RamoRules,
+  SettlementBasis,
+  SettlementFormula,
 } from '../../../core/models/business-rules';
 import { BranchOption, BranchesService } from '../branches.service';
 import { FastTrackConfigDto, FastTrackRulesService } from '../fast-track-rules.service';
-import { CoverageDetail, CoverageUpsertRequest, CoveragesRulesService } from '../coverages-rules.service';
+import {
+  CoverageDetail,
+  CoverageUpsertRequest,
+  CoveragesRulesService,
+} from '../coverages-rules.service';
 import { ClaimCauseOption, CoverageExclusionsService } from '../coverage-exclusions.service';
 import {
   HARD_RULE_LABELS,
@@ -28,8 +34,11 @@ import { ButtonComponent } from '../../../shared/ui/button/button.component';
 import { CardComponent } from '../../../shared/ui/card/card.component';
 import { EmptyStateComponent } from '../../../shared/ui/empty-state/empty-state.component';
 import { InputComponent } from '../../../shared/ui/input/input.component';
+import { ModalComponent } from '../../../shared/ui/modal/modal.component';
+import { AtribucionesConfigComponent } from '../atribuciones-config/atribuciones-config.component';
 import { ScoringConfigComponent } from '../scoring-config/scoring-config.component';
 import { FraudeConfigComponent } from '../fraude-config/fraude-config.component';
+import { ObjetivoConfigComponent } from '../objetivo-config/objetivo-config.component';
 import { HistorialReglasComponent } from '../historial-reglas/historial-reglas.component';
 import { SaveBarComponent } from '../../../shared/ui/save-bar/save-bar.component';
 import { StringListEditorComponent } from './string-list-editor.component';
@@ -46,7 +55,7 @@ import { accordion, fadeInUp, listStagger, staggerReveal } from '../../../shared
 type TabId = 'coberturas' | 'exclusiones' | 'fastTrack' | 'documentacion' | 'reglas';
 
 /** Las vistas del panel derecho que no dependen del ramo elegido. */
-type GeneralView = 'hardStop' | 'scoring' | 'fraude' | 'historial';
+type GeneralView = 'hardStop' | 'scoring' | 'fraude' | 'atribuciones' | 'objetivo' | 'historial';
 
 /**
  * Configuración de reglas del referente, Ramo-céntrica. Master (lista de ramos) + detalle con
@@ -69,8 +78,11 @@ type GeneralView = 'hardStop' | 'scoring' | 'fraude' | 'historial';
     CardComponent,
     EmptyStateComponent,
     InputComponent,
+    ModalComponent,
     ScoringConfigComponent,
     FraudeConfigComponent,
+    AtribucionesConfigComponent,
+    ObjetivoConfigComponent,
     HistorialReglasComponent,
     SaveBarComponent,
     StringListEditorComponent,
@@ -85,7 +97,9 @@ type GeneralView = 'hardStop' | 'scoring' | 'fraude' | 'historial';
   changeDetection: ChangeDetectionStrategy.OnPush,
   animations: [staggerReveal, listStagger, fadeInUp, accordion],
   templateUrl: './reglas.component.html',
-  styleUrl: './reglas.component.scss',
+  // El orden importa: los dos archivos se concatenan tal como están acá, y el segundo continúa
+  // exactamente donde termina el primero. Invertirlos cambia la cascada.
+  styleUrls: ['./reglas.component.scss', './reglas-secciones.scss'],
 })
 export class ReglasComponent {
   private readonly branchesService = inject(BranchesService);
@@ -127,6 +141,12 @@ export class ReglasComponent {
   protected readonly renaming = signal(false);
   protected readonly renameSaved = signal(false);
   protected readonly renameError = signal<string | null>(null);
+  /**
+   * Confirmación del renombre. El ramo es catálogo GLOBAL (lo comparten todas las aseguradoras) y
+   * su nombre aparece en pólizas, expedientes y reportes: el cambio se pide dos veces antes de
+   * impactar, como la baja de usuario.
+   */
+  protected readonly showRenameConfirm = signal(false);
 
   protected readonly tabs: { id: TabId; label: string }[] = [
     { id: 'coberturas', label: 'Coberturas' },
@@ -187,9 +207,7 @@ export class ReglasComponent {
     if (!current || !base) {
       return false;
     }
-    return fields.some(
-      (field) => JSON.stringify(current[field]) !== JSON.stringify(base[field]),
-    );
+    return fields.some((field) => JSON.stringify(current[field]) !== JSON.stringify(base[field]));
   }
 
   /** Vuelve la porción de la solapa a lo último guardado, sin tocar las otras. */
@@ -372,9 +390,15 @@ export class ReglasComponent {
     // Antecedente y peritos eran dos entradas: apuntan a lo mismo (qué hace la compañía frente a
     // un fraude) y se usan en el mismo momento, así que ahora son una sección sola.
     { id: 'fraude', label: 'Gestión de fraude' },
-    // Última de la lista: es la única entrada que no configura nada. Se consulta después de haber
-    // cambiado algo, no antes, y cruza a todas las demás en vez de ser una más al mismo nivel.
-    { id: 'historial', label: 'Historial de cambios' },
+    // Los topes son por ramo, pero se leen de una: el referente los compara entre sí, y
+    // repartirlos en el detalle de cada ramo lo obliga a entrar y salir para ver el panorama.
+    { id: 'atribuciones', label: 'Atribuciones de liquidación' },
+    // Meta de gestión, no regla: no la evalúa el motor ni bloquea nada. Está acá porque es
+    // configuración de toda la compañía y el referente la administra en la misma pantalla que
+    // el resto; el único que la lee es el tablero de métricas.
+    { id: 'objetivo', label: 'Objetivo de resolución' },
+    // 'historial' NO va acá: es la única entrada que no configura nada y cruza a todas las demás,
+    // así que tiene su propio bloque de Auditoría abajo de la lista (ver el template).
   ];
 
   protected selectGeneral(section: GeneralView): void {
@@ -455,7 +479,8 @@ export class ReglasComponent {
               maxPriorClaims: dto?.maxPriorClaims ?? null,
               priorClaimsWindowMonths: dto?.priorClaimsWindowMonths ?? null,
               minPolicyAgeMonths: dto?.minPolicyAgeMonths ?? null,
-              requiresUpToDatePolicy: dto?.requiresUpToDatePolicy ?? d.fastTrack.requiresUpToDatePolicy,
+              requiresUpToDatePolicy:
+                dto?.requiresUpToDatePolicy ?? d.fastTrack.requiresUpToDatePolicy,
               requiredDocumentTypes: dto?.requiredDocumentTypes ?? [],
               // Con config guardada mandan los criterios guardados, incluso si son una lista vacía:
               // vacío es una decisión del referente, no "todavía no cargué nada". Sin config, queda
@@ -512,6 +537,11 @@ export class ReglasComponent {
       waitingPeriodDays: c.waitingPeriodDays,
       coversFamilyGroup: c.coversFamilyGroup,
       claimExhaustsCoverage: c.claimExhaustsCoverage,
+      settlementFormula: c.settlementFormula ?? 'TOTAL_LOSS',
+      settlementBasis: c.settlementBasis ?? 'SUM_INSURED',
+      secondEventRatio: c.secondEventRatio,
+      deductPendingInstallments: c.deductPendingInstallments,
+      deductOverdueBalance: c.deductOverdueBalance,
       exclusions: c.exclusions ?? [],
       // Las exclusiones duras (por hecho generador) viven en rules-service, no en este detalle:
       // arrancan vacías y las completa loadCoverageExclusions.
@@ -590,7 +620,9 @@ export class ReglasComponent {
       d
         ? {
             ...d,
-            coverages: d.coverages.map((c) => (c.id === coverageId ? { ...c, hardRules: rules } : c)),
+            coverages: d.coverages.map((c) =>
+              c.id === coverageId ? { ...c, hardRules: rules } : c,
+            ),
           }
         : d,
     );
@@ -612,7 +644,10 @@ export class ReglasComponent {
           d
             ? {
                 ...d,
-                requiredDocumentsByClaimCause: { ...d.requiredDocumentsByClaimCause, [claimCauseId]: types },
+                requiredDocumentsByClaimCause: {
+                  ...d.requiredDocumentsByClaimCause,
+                  [claimCauseId]: types,
+                },
               }
             : d,
         );
@@ -668,7 +703,48 @@ export class ReglasComponent {
     this.renameSaved.set(false);
   }
 
-  protected saveName(): void {
+  /** Nombre con el que el ramo está guardado hoy: el draft ya tiene el tipeado, no el vigente. */
+  protected readonly renameFrom = computed(
+    () => this.ramos().find((r) => r.id === this.selectedId())?.name ?? '',
+  );
+
+  /**
+   * Primer paso del renombre: valida lo que se pueda contestar sin ir al backend y abre la
+   * confirmación. Lo que no pasa la validación ni siquiera llega al diálogo — un modal que se
+   * abre para decir "el nombre está vacío" es un click de más.
+   */
+  protected requestRename(): void {
+    const d = this.draft();
+    if (!d || this.renaming()) {
+      return;
+    }
+    if (this.branchIdOf(d) == null || d.name.trim() === '') {
+      this.renameError.set('El nombre del ramo no puede estar vacío.');
+      return;
+    }
+    if (d.name.trim() === this.renameFrom()) {
+      this.renameError.set('El nombre es el mismo que ya tiene el ramo.');
+      return;
+    }
+    this.renameError.set(null);
+    this.showRenameConfirm.set(true);
+  }
+
+  protected cancelRename(): void {
+    this.showRenameConfirm.set(false);
+  }
+
+  /**
+   * Cierra el diálogo y deja que el guardado se vea donde ya se veía (el "Guardando…" del botón y
+   * el ✓ / el error al lado). Duplicar ese estado adentro del modal sería una segunda superficie
+   * que decir lo mismo.
+   */
+  protected confirmRename(): void {
+    this.showRenameConfirm.set(false);
+    this.saveName();
+  }
+
+  private saveName(): void {
     const d = this.draft();
     if (!d || this.renaming()) {
       return;
@@ -711,6 +787,14 @@ export class ReglasComponent {
       waitingPeriodDays: null,
       coversFamilyGroup: false,
       claimExhaustsCoverage: false,
+      // Por defecto, lo que dice el manual de Celulares: techo = suma asegurada y sin deducciones
+      // más allá de la franquicia. Prenderlas cambia cuánto cobra el asegurado, así que es una
+      // decisión explícita del referente y no un default.
+      settlementFormula: 'TOTAL_LOSS',
+      settlementBasis: 'SUM_INSURED',
+      secondEventRatio: null,
+      deductPendingInstallments: false,
+      deductOverdueBalance: false,
       exclusions: [],
       excludedClaimCauseIds: [],
       hardRules: [],
@@ -753,14 +837,21 @@ export class ReglasComponent {
     this.patchHardRule(coverageId, type, (r) => ({ ...r, enabled: !r.enabled }));
   }
 
-  private patchHardRule(coverageId: string, type: HardRuleType, patch: (rule: HardRule) => HardRule): void {
+  private patchHardRule(
+    coverageId: string,
+    type: HardRuleType,
+    patch: (rule: HardRule) => HardRule,
+  ): void {
     this.draft.update((d) =>
       d
         ? {
             ...d,
             coverages: d.coverages.map((c) =>
               c.id === coverageId
-                ? { ...c, hardRules: this.hardRulesOf(c).map((r) => (r.ruleType === type ? patch(r) : r)) }
+                ? {
+                    ...c,
+                    hardRules: this.hardRulesOf(c).map((r) => (r.ruleType === type ? patch(r) : r)),
+                  }
                 : c,
             ),
           }
@@ -828,7 +919,9 @@ export class ReglasComponent {
 
   protected setOnArrears(value: string): void {
     this.insurerHardRules.update((list) =>
-      list.map((r) => (r.ruleType === 'POLICY_STANDING' ? { ...r, onArrears: value as OnArrears } : r)),
+      list.map((r) =>
+        r.ruleType === 'POLICY_STANDING' ? { ...r, onArrears: value as OnArrears } : r,
+      ),
     );
   }
 
@@ -1092,13 +1185,62 @@ export class ReglasComponent {
     this.setCoverageField(c.id, { claimExhaustsCoverage: !c.claimExhaustsCoverage });
   }
 
+  // ───────────────── Coberturas: determinación del monto a pagar ─────────────────
+  /**
+   * Las dos formas de fijar el techo indemnizable que traen los productos relevados. No hay una
+   * tercera: son las dos que están escritas en las condiciones generales.
+   */
+  /**
+   * Qué le pasó al bien, que es lo que decide cómo se liquida. Son las dos que traen los productos
+   * relevados; no hay una tercera que inventar.
+   */
+  protected readonly settlementFormulaOptions: SelectOption[] = [
+    { value: 'TOTAL_LOSS', label: 'Pérdida total — el bien no está' },
+    { value: 'REPAIR', label: 'Reparación — el bien quedó dañado' },
+  ];
+
+  protected setCoverageSettlementFormula(id: string, value: string): void {
+    this.setCoverageField(id, { settlementFormula: value as SettlementFormula });
+  }
+
+  /** El techo solo se elige en pérdida total: en una reparación es el presupuesto y no hay opción. */
+  protected showsSettlementBasis(c: Coverage): boolean {
+    return c.settlementFormula !== 'REPAIR';
+  }
+
+  protected readonly settlementBasisOptions: SelectOption[] = [
+    { value: 'SUM_INSURED', label: 'La suma asegurada' },
+    {
+      value: 'LESSER_OF_SUM_AND_REPLACEMENT',
+      label: 'El menor entre la suma asegurada y el valor de reposición',
+    },
+  ];
+
+  protected setCoverageSettlementBasis(id: string, value: string): void {
+    this.setCoverageField(id, { settlementBasis: value as SettlementBasis });
+  }
+
+  protected coverageSecondEventPct(c: Coverage): string {
+    return this.pctFromRatio(c.secondEventRatio);
+  }
+
+  protected setCoverageSecondEvent(id: string, value: string): void {
+    this.setCoverageField(id, { secondEventRatio: this.ratioFromPct(value) });
+  }
+
+  protected toggleDeductPendingInstallments(c: Coverage): void {
+    this.setCoverageField(c.id, { deductPendingInstallments: !c.deductPendingInstallments });
+  }
+
+  protected toggleDeductOverdueBalance(c: Coverage): void {
+    this.setCoverageField(c.id, { deductOverdueBalance: !c.deductOverdueBalance });
+  }
+
   protected setCommonExclusions(items: string[]): void {
     this.patch({ commonExclusions: items });
   }
 
   // ───────────────── Documentación (por hecho generador) ─────────────────
-
-
 
   // ───────────────── Fast Track (siempre activo; no hay toggle) ─────────────────
   // ───────────────── Fast Track: umbrales como interruptor + valor ─────────────────
@@ -1122,12 +1264,16 @@ export class ReglasComponent {
     maxClaimedAmountRatio: 50,
   };
 
-  protected ftActive(field: 'minPolicyAgeMonths' | 'maxPriorClaims' | 'priorClaimsWindowMonths' | 'maxClaimedAmountRatio'): boolean {
+  protected ftActive(
+    field:
+      'minPolicyAgeMonths' | 'maxPriorClaims' | 'priorClaimsWindowMonths' | 'maxClaimedAmountRatio',
+  ): boolean {
     return this.draft()?.fastTrack[field] != null;
   }
 
   protected toggleFtThreshold(
-    field: 'minPolicyAgeMonths' | 'maxPriorClaims' | 'priorClaimsWindowMonths' | 'maxClaimedAmountRatio',
+    field:
+      'minPolicyAgeMonths' | 'maxPriorClaims' | 'priorClaimsWindowMonths' | 'maxClaimedAmountRatio',
   ): void {
     const ft = this.draft()?.fastTrack;
     if (!ft) {
@@ -1353,6 +1499,11 @@ export class ReglasComponent {
       waitingPeriodDays: c.waitingPeriodDays,
       coversFamilyGroup: c.coversFamilyGroup,
       claimExhaustsCoverage: c.claimExhaustsCoverage,
+      settlementFormula: c.settlementFormula,
+      settlementBasis: c.settlementBasis,
+      secondEventRatio: c.secondEventRatio,
+      deductPendingInstallments: c.deductPendingInstallments,
+      deductOverdueBalance: c.deductOverdueBalance,
       exclusions: c.exclusions,
     };
   }
@@ -1416,9 +1567,7 @@ export class ReglasComponent {
         return d;
       }
       const current = d.requiredDocumentsByClaimCause[claimCauseId] ?? [];
-      const next = current.includes(code)
-        ? current.filter((c) => c !== code)
-        : [...current, code];
+      const next = current.includes(code) ? current.filter((c) => c !== code) : [...current, code];
       return {
         ...d,
         requiredDocumentsByClaimCause: { ...d.requiredDocumentsByClaimCause, [claimCauseId]: next },
@@ -1448,7 +1597,6 @@ export class ReglasComponent {
       .map((c) => c.id)
       .filter((id) => JSON.stringify(current[id] ?? []) !== JSON.stringify(base[id] ?? []));
   }
-
 
   // ───────────────── Reglas de negocio: persistencia real (rules-service) ─────────────────
   protected saveBusinessRules(): void {

@@ -1,0 +1,72 @@
+<div class="polizas">
+  <!-- El encabezado se dibuja siempre, también mientras carga: lo que cambia es el contenido, no
+       la pantalla. El overlay a viewport completo (app-loading) se reserva al arranque
+       login → home, igual que en "Mis siniestros". -->
+  <header class="head">
+    <!-- El mismo chip teal que llevaba cuando era una sección del perfil, y que usan las otras
+         secciones de "mi cuenta": son la misma familia de pantallas. -->
+    <span class="head-icon" aria-hidden="true">
+      <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
+        <rect x="3" y="4" width="14" height="12" rx="2" stroke="currentColor" stroke-width="1.5" />
+        <path d="M3 8h14" stroke="currentColor" stroke-width="1.5" />
+      </svg>
+    </span>
+    <div class="head-text">
+      <span class="eyebrow">Mi cuenta</span>
+      <h1 class="t-page-title">Mis pólizas</h1>
+    </div>
+  </header>
+
+  @if (loading()) {
+    <app-inline-loading message="Cargando tus pólizas…" />
+  } @else if (loadError()) {
+    <div class="load-error" role="alert">
+      <p class="t-body">No pudimos cargar tus pólizas en este momento.</p>
+      <p class="t-note">Probá recargar la página.</p>
+    </div>
+  } @else if (empty()) {
+    <app-empty-state
+      message="Todavía no tenés pólizas registradas en Arbiter."
+      sub="Las carga tu aseguradora"
+    />
+  } @else {
+    @if (current().length > 0) {
+      <ul class="policies">
+        @for (p of current(); track p.policyNumber) {
+          <li><app-policy-card [policy]="p" /></li>
+        }
+      </ul>
+    } @else {
+      <!-- Tiene pólizas, pero ninguna vigente. Decirlo es el dato: si no, la pantalla parece
+           vacía justo cuando la persona necesita saber que hoy no está cubierta. -->
+      <app-empty-state
+        message="Hoy no tenés ninguna póliza vigente."
+        sub="Tus pólizas anteriores están más abajo"
+      />
+    }
+
+    @if (expired().length > 0) {
+      <section class="expired">
+        <button
+          type="button"
+          class="expired-toggle"
+          [attr.aria-expanded]="showExpired()"
+          aria-controls="expired-policies"
+          (click)="toggleExpired()"
+        >
+          <span class="chev" [class.is-open]="showExpired()" aria-hidden="true">›</span>
+          Pólizas vencidas
+          <span class="count">({{ expired().length }})</span>
+        </button>
+
+        @if (showExpired()) {
+          <ul class="policies" id="expired-policies">
+            @for (p of expired(); track p.policyNumber) {
+              <li><app-policy-card [policy]="p" /></li>
+            }
+          </ul>
+        }
+      </section>
+    }
+  }
+</div>

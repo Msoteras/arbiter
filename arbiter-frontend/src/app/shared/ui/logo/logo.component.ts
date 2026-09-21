@@ -26,7 +26,8 @@ let uid = 0;
         viewBox="0 0 88 88"
         fill="none"
         xmlns="http://www.w3.org/2000/svg"
-        aria-hidden="true">
+        aria-hidden="true"
+      >
         <defs>
           <mask [attr.id]="maskId()">
             <rect x="-10" y="-10" width="108" height="108" fill="white" />
@@ -38,13 +39,15 @@ let uid = 0;
           stroke="currentColor"
           stroke-width="4.5"
           stroke-linecap="butt"
-          [attr.mask]="maskRef()" />
+          [attr.mask]="maskRef()"
+        />
         <path
           d="M 60.0 14.0 A 34 34 0 0 1 73.4 27.0 M 70.0 9.8 L 65.2 29.2 M 77.2 16.8 L 58.0 22.3"
           stroke="currentColor"
           stroke-width="4"
           fill="none"
-          stroke-linecap="butt" />
+          stroke-linecap="butt"
+        />
         <circle cx="21" cy="67" r="9" stroke="currentColor" stroke-width="4.5" fill="none" />
         <circle cx="21" cy="67" r="3" fill="currentColor" />
       </svg>
@@ -55,7 +58,9 @@ let uid = 0;
     </span>
   `,
   styles: `
-    :host { display: inline-flex; }
+    :host {
+      display: inline-flex;
+    }
 
     .logo {
       display: inline-flex;
@@ -84,7 +89,10 @@ let uid = 0;
       white-space: nowrap;
     }
 
-    .symbol-only .mark { width: 1.3em; height: 1.3em; }
+    .symbol-only .mark {
+      width: 1.3em;
+      height: 1.3em;
+    }
   `,
 })
 export class LogoComponent {
