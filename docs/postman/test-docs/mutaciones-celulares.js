@@ -17,12 +17,13 @@ const { plus } = require('./lib-pdf');
 
 const DAY = 24 * 60;
 
-// DocumentInconsistencyEvaluator runs, but `document_inconsistency` has no row in factor_weight in
-// either tenant: its rationale never reaches risk_breakdown. Until the referente gives it a weight,
-// the data mismatches below are only visible in document_analysis and in what the LLM reads.
+// `document_inconsistency` has no row in factor_weight in either tenant, and RiskScoringService only
+// runs the factors that do: DocumentInconsistencyEvaluator never executes. Until the referente gives
+// it a weight, the data mismatches below are only visible in document_analysis and in what the LLM
+// reads. See docs/temas-a-discutir.md.
 const UNWEIGHTED_NOTE =
-  'document_inconsistency no tiene peso en factor_weight (BBVA ni Provincia): el evaluador lo '
-  + 'detecta pero no llega a risk_breakdown.';
+  'document_inconsistency no tiene peso en factor_weight (BBVA ni Provincia), y el scoring solo '
+  + 'ejecuta los factores con peso: hoy DocumentInconsistencyEvaluator no corre. Ver temas-a-discutir.md.';
 
 // The base case fast-tracks (robo gate: police_report + purchase_proof, ratio 0.48, no prior
 // claims once the insured is reset). On that path only the gate's documents are extracted and the

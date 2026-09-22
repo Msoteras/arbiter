@@ -365,7 +365,8 @@ Los esperados asumen la configuración de la base viva a esa fecha. Tres cosas q
   BBVA pidiendo presupuesto de reparación: ningún robo podía entrar al carril rápido. Si `control` no
   da `FAST_TRACK`, revisar primero la regla FAST_TRACK de la cobertura 1.
 - **`document_inconsistency` no tiene peso** en `factor_weight` de ninguna aseguradora: el
-  evaluador corre pero no llega a `risk_breakdown`. Aunque lo tuviera, el score es una señal paralela:
+  scoring solo ejecuta los factores con peso, así que el evaluador ni corre (ver
+  `docs/temas-a-discutir.md`). Aunque lo tuviera, el score es una señal paralela:
   no bloquea el Fast Track.
 
 ## 10 · Camila: set limpio y secuencia de historial

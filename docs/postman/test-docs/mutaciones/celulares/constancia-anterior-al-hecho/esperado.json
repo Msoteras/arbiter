@@ -10,7 +10,7 @@
   "resultadoEsperado": "FAST_TRACK — la mutación no bloquea el gate. Si sale FAST_TRACK, el pipeline se comportó como está diseñado; que ese diseño deje pasar esto es el hallazgo. Ni siquiera queda rastro: imei_deregistration no lo exige el gate, así que en Fast Track no se extrae.",
   "notas": [
     "El caso base entra en Fast Track. En ese camino solo se extraen police_report y purchase_proof (los que exige el gate) y el LLM no corre: salvo el damnificado, nada de lo que diga un documento saca al caso del carril rápido.",
-    "document_inconsistency no tiene peso en factor_weight (BBVA ni Provincia): el evaluador lo detecta pero no llega a risk_breakdown.",
+    "document_inconsistency no tiene peso en factor_weight (BBVA ni Provincia), y el scoring solo ejecuta los factores con peso: hoy DocumentInconsistencyEvaluator no corre. Ver temas-a-discutir.md.",
     "El acta sigue diciendo que el bloqueo se pidió después del hecho: la contradicción está entre los dos documentos."
   ]
 }

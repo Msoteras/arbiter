@@ -224,3 +224,45 @@ El analista igual decide (decisión #5), pero llega con la etiqueta de "todo en 
 
 **Qué bloquea:** nada del desarrollo. Mientras no se decida, un hecho mal declarado a propósito
 entra por el carril rápido.
+
+---
+
+## `document_inconsistency` no tiene peso, así que no corre
+
+**Encontrado:** 22/09/2026, armando las mutaciones de `docs/postman/test-docs/mutaciones/`.
+
+**Qué se sabe:** `DocumentInconsistencyEvaluator` compara lo que dicen los documentos contra el
+siniestro y la póliza: el IMEI, la marca y el modelo, el importe (con 10% de tolerancia), una fecha
+de documento más de 7 días anterior al hecho, y la fecha del acta contra la que declaró el
+asegurado. Pero `RiskScoringService` recorre solo los factores que tienen fila en `factor_weight`, y
+**ninguna de las dos aseguradoras le asignó peso**: el evaluador directamente no se ejecuta. Lo mismo
+pasa con `purchase_to_report_time`.
+
+No es un bug del motor: el seed de `init-multitenant.sql` carga seis factores (`amount_ratio`,
+`claim_frequency`, `policy_standing`, `image_reuse`, `image_web_match`, `fraud_history`) y deja
+afuera esos dos. El panel de scoring del referente sí los ofrece (grupo "Documentos e imágenes"),
+así que cargarles peso no requiere tocar código.
+
+Hoy, un IMEI que no es el de la póliza, una factura de otra marca o una constancia fechada antes
+del hecho **no mueven el score**. Solo quedan en `document_analysis`, y fuera de Fast Track, en lo
+que lea el LLM.
+
+**Qué falta decidir:**
+
+- **Qué peso le damos, y a cuáles de los dos.** Como referencia, los que ya tienen peso van de 0,20
+  (`policy_standing`) a 0,60 (`fraud_history`). El evaluador suma 0,5 por hallazgo y se satura con
+  dos.
+- **Si antes hay que arreglar un falso positivo conocido.** En un reclamo por daño, `checkAmount`
+  compara la factura de compra (lo que vale el equipo) contra el monto reclamado (lo que cuesta la
+  reparación), así que siempre salta. Con peso, todos los casos de daño suben de score sin motivo.
+  Opción: comparar el importe solo contra el documento que fija el monto (el presupuesto en daño, la
+  factura en robo/hurto).
+- **Dónde se carga.** Si va en el seed (para toda base nueva) y además en una migración para
+  Railway, o si lo carga cada referente desde el panel.
+
+**Qué no cambia aunque se le dé peso:** el score es una señal paralela y no bloquea el Fast Track.
+En el carril rápido además se extraen solo los documentos que exige el gate, así que la baja de IMEI
+o la última conexión ni se leen (ver la entrada anterior y `mutaciones/constancia-anterior-al-hecho`).
+
+**Qué bloquea:** nada del desarrollo. Mientras no se decida, las mutaciones de datos del set se leen
+en `document_analysis` y no en el score.
