@@ -194,3 +194,33 @@ presupuesto", el cambio es una línea en `SettlementCalculator` —la que hoy ha
 `percentageOf(sumInsured, deductibleRate(...))`— más un interruptor por cobertura, como los que ya
 tiene.
 
+---
+
+## En Fast Track nadie compara el relato con el hecho generador declarado
+
+**Encontrado:** 22/09/2026, con la mutación `relato-hurto` (`docs/postman/test-docs/mutaciones/`).
+
+**Qué se sabe:** el asegurado elige el hecho generador de un selector y escribe el relato aparte. Si
+eligió "Robo en vía pública" pero cuenta que dejó el celular sobre la mesa de un café y al volver no
+estaba, eso es un hurto, y la cobertura de robo de BBVA excluye el hurto (regla 21). Quien detecta la
+contradicción es el LLM de clasificación (sección "Consistencia del relato" del prompt), y el
+orquestador la convierte en `LLM_NO_RECOMIENDA_APROBAR` si el hecho que describe el relato está
+excluido.
+
+Pero ese LLM **solo corre si el caso no entra en Fast Track**. En el carril rápido el gate extrae el
+acta y la factura con el modelo de visión, y lo único que verifica es que tengan texto: no lee qué
+dicen. Así que el caso entra en Fast Track aunque el acta diga en la carátula `HURTO (art. 162)`.
+El analista igual decide (decisión #5), pero llega con la etiqueta de "todo en regla".
+
+**Qué falta decidir:** si alcanza con eso — el Fast Track agiliza, y el analista puede leer el acta
+—, o si el carril rápido tiene que mirar al menos el hecho. Opciones, de más barata a más cara:
+
+- Dejarlo así y que el analista lo vea en el acta.
+- Pedirle a la extracción del acta (que ya corre en el gate) el hecho generador que describe, como
+  campo tipado, y compararlo por código contra el declarado: mismo patrón que `affectedParty`, que
+  ya bloquea el Fast Track desde el acta. No suma una llamada al modelo.
+- Correr el chequeo de consistencia del LLM también en Fast Track: una inferencia más por caso,
+  justo en el camino que existe para ser rápido.
+
+**Qué bloquea:** nada del desarrollo. Mientras no se decida, un hecho mal declarado a propósito
+entra por el carril rápido.

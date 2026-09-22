@@ -1,0 +1,11 @@
+{
+  "paso": "1-primer-robo",
+  "perfil": "camila",
+  "cambia": "robo en vía pública, ayer a la mañana — el primer siniestro de la asegurada",
+  "antes": "correr scripts/reset-asegurados-de-prueba.sql: la secuencia arranca con el historial en cero",
+  "seDetectaEn": [
+    "rule_result: criterios de FAST_TRACK en PASS, maxPriorClaims con 0 previos"
+  ],
+  "resultadoEsperado": "FAST_TRACK",
+  "notas": []
+}

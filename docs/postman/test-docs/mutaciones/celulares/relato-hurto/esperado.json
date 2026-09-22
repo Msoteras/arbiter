@@ -1,0 +1,15 @@
+{
+  "mutacion": "relato-hurto",
+  "base": "celulares/robo",
+  "cambia": "declara \"Robo en vía pública\" pero el relato y el acta cuentan un descuido en un café (hurto)",
+  "documento": "police_report + description del payload",
+  "seDetectaEn": [
+    "llm_analysis.cause_consistency = CONTRADICTS, suggested_claim_cause = Hurto (solo fuera de Fast Track)",
+    "factores: \"El relato no describe el hecho generador declarado (Robo en vía pública), sino Hurto, que esta cobertura no cubre\""
+  ],
+  "resultadoEsperado": "FAST_TRACK — la mutación no bloquea el gate. Si sale FAST_TRACK, el pipeline se comportó como está diseñado; que ese diseño deje pasar esto es el hallazgo. Fuera de Fast Track daría LLM_NO_RECOMIENDA_APROBAR: el orquestador lo fuerza porque la regla 21 excluye Hurto de la cobertura 1.",
+  "notas": [
+    "La consistencia del relato la evalúa el LLM, y en Fast Track el LLM no corre: un hurto declarado como robo entra al carril rápido de una cobertura que excluye el hurto. Es el hallazgo más grave del set.",
+    "Es la única mutación que toca dos cosas (relato y acta), pero son el mismo hecho: un acta que dijera robo sobre un descuido sería un documento incoherente, no un hurto mal declarado."
+  ]
+}

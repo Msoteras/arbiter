@@ -1,0 +1,16 @@
+{
+  "paso": "2-segundo-robo",
+  "perfil": "camila",
+  "cambia": "otro robo en vía pública, ayer — ahora hay un siniestro previo",
+  "antes": "NO limpiar: el paso 1 tiene que estar cargado",
+  "seDetectaEn": [
+    "rule_result: maxPriorClaims en FAIL (1 previo, máximo 0)",
+    "rule_result: MAX_EVENTS_YEAR en PASS (2.º evento en 12 meses, tope de la cobertura de robo: 2)",
+    "risk_breakdown: claim_frequency mayor que 0",
+    "factores del LLM: debería mencionar el robo de esa misma mañana"
+  ],
+  "resultadoEsperado": "Sale de Fast Track por el siniestro previo → LLM_SOLICITA_REVISION_MANUAL o LLM_NO_RECOMIENDA_APROBAR",
+  "notas": [
+    "Es el mismo robo que camila/celulares/robo: lo único distinto respecto de correrlo limpio es el historial."
+  ]
+}

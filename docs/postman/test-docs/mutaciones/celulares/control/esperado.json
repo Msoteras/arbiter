@@ -1,0 +1,11 @@
+{
+  "mutacion": "control",
+  "base": "celulares/robo",
+  "cambia": "nada — es el robo tal cual",
+  "documento": null,
+  "seDetectaEn": [],
+  "resultadoEsperado": "FAST_TRACK, con los criterios del gate en PASS en rule_result. Si no sale FAST_TRACK, antes de mirar cualquier mutación revisar el historial (¿se corrió el reset?) y la regla FAST_TRACK de la cobertura 1.",
+  "notas": [
+    "Correrlo en la misma sesión que las mutaciones y con el historial limpio (scripts/reset-asegurados-de-prueba.sql): si cambió algo en la configuración de la base, se nota acá primero."
+  ]
+}

@@ -13,13 +13,17 @@
 // Todos los documentos de un caso salen de un único objeto de escenario, así que no pueden
 // contradecirse entre sí. El motor PDF vive en lib-pdf.js; quién firma, en perfiles.js.
 //
-// Uso: node generar-fixtures.js [directorio-destino] [--sin-marca]
+// Uso: node generar-fixtures.js [directorio-destino] [--sin-marca | --camila | --mutaciones]
 //      Sin argumentos escribe en docs/postman/test-docs/conMarcaDePrueba/celulares/<hecho>/
+//      Con --mutaciones escribe solo las mutaciones, en docs/postman/test-docs/mutaciones/celulares/
+//      Con --camila escribe robo y hurto más la secuencia de historial, en .../camila/celulares/
 
 const fs = require('fs');
 const path = require('path');
 const { plus, d, hm, hms, iso, pdfDate, cuit, Page, letterhead, footer, build, MARGIN } = require('./lib-pdf');
 const { PROFILES, variantFromArgv, outDirFromArgv } = require('./perfiles');
+const { buildMutations } = require('./mutaciones-celulares');
+const { buildHistory } = require('./historial-celulares');
 
 const VARIANT = variantFromArgv();
 const PROFILE = PROFILES[VARIANT];
@@ -53,6 +57,20 @@ function emitidaLaMananaSiguiente(evento, minutos) {
   return new Date(Math.min(plus(evento, minutos).getTime(), NOW.getTime()));
 }
 
+// What a mutation (mutaciones-celulares.js) changes in ONE document. Without an override every
+// document states the same as the rest of the case — which is what makes a scenario coherent.
+const override = (sc, type) => (sc.overrides && sc.overrides[type]) || {};
+const deviceOf = (sc, type) => ({ ...DEVICE, ...override(sc, type).device });
+const purchaseOf = (sc) => ({ ...PURCHASE, ...override(sc, 'purchase_proof').purchase });
+
+/** Extra lines a mutation appends at the end of a document's body. */
+function appendLines(p, sc, type) {
+  const lines = override(sc, type).appendLines;
+  if (!lines) return;
+  p.gap(6);
+  lines.forEach((l) => p.text(l, { size: 9 }));
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 // Constantes del ramo — el equipo, la póliza y las empresas son las mismas en los cuatro casos
 // ─────────────────────────────────────────────────────────────────────────────
@@ -62,11 +80,9 @@ const PRODUCT = 'Celular Protegido Premium';
 // ver el comentario de policies.sinMarca ahí para el porqué.
 const POLICY_NUMBER = PROFILE.policies.celulares.number;
 
+// The phone comes from the profile: it has to be the one the signer's policy insures.
 const DEVICE = {
-  brand: 'SAMSUNG',
-  model: 'Galaxy A56 5G',
-  color: 'Gris (Awesome Graphite)',
-  storage: '256 GB',
+  ...PROFILE.policies.celulares.device,
   imei: PROFILE.policies.celulares.imei,
   serial: PROFILE.policies.celulares.serial,
 };
@@ -363,10 +379,12 @@ function policeReport(sc) {
   p.gap(5);
 
   p.section('OBJETO SUSTRAÍDO');
-  p.text(`Un (1) teléfono celular marca ${DEVICE.brand}, modelo ${DEVICE.model}, color gris,`, { size: 9 });
-  p.text(`capacidad ${DEVICE.storage}, IMEI ${DEVICE.imei}, línea ${LINE}.`, { size: 9 });
+  const dev = deviceOf(sc, 'police_report');
+  p.text(`Un (1) teléfono celular marca ${dev.brand}, modelo ${dev.model}, color ${dev.color.split(' ')[0].toLowerCase()},`, { size: 9 });
+  p.text(`capacidad ${dev.storage}, IMEI ${dev.imei}, línea ${LINE}.`, { size: 9 });
   p.text(`${G.El} denunciante manifiesta haber solicitado el bloqueo de la línea y del IMEI ante`, { size: 9 });
   p.text(`la empresa prestataria del servicio a las ${hm(sc.block.requested)} hs. del ${d(sc.block.requested)}.`, { size: 9 });
+  appendLines(p, sc, 'police_report');
   p.gap(5);
 
   p.section('CONSTANCIAS');
@@ -379,8 +397,7 @@ function policeReport(sc) {
     p.text('•  Se libró oficio a la concesionaria del servicio de subterráneos a fin de requerir el', { size: 9 });
     p.text('   resguardo de las imágenes de la estación y de la formación involucrada.', { size: 9 });
   }
-  p.text(`•  Se extiende la presente constancia ${G.al} denunciante a los fines que estime`, { size: 9 });
-  p.text('   corresponder ante su compañía aseguradora.', { size: 9 });
+  p.text(`•  Se extiende la presente constancia ${G.al} denunciante a los fines que estime corresponder.`, { size: 9 });
   p.gap(12);
   p.text(`Previa lectura y ratificación, firma ${G.el} denunciante por ante el funcionario actuante.`, { size: 9 });
   p.gap(24);
@@ -400,8 +417,10 @@ function policeReport(sc) {
 // ─────────────────────────────────────────────────────────────────────────────
 // 2 · purchase_proof — factura de compra del equipo
 // ─────────────────────────────────────────────────────────────────────────────
-function purchaseProof() {
+function purchaseProof(sc) {
   const p = new Page();
+  const DEVICE = deviceOf(sc, 'purchase_proof');
+  const PURCHASE = purchaseOf(sc);
 
   letterhead(p, RETAILER.name, `${RETAILER.address} — Tel. (011) 4372-9900`, RETAILER.cuit);
 
@@ -441,8 +460,8 @@ function purchaseProof() {
   p.field('Vencimiento del CAE:', PURCHASE.caeDue);
   p.gap(10);
 
-  p.text('El presente comprobante acredita la titularidad del equipo detallado. Conservar para', { size: 8.5 });
-  p.text('gestiones de garantía o ante la compañía aseguradora.', { size: 8.5 });
+  p.text('Conserve este comprobante: es requisito para hacer valer la garantía del fabricante.', { size: 8.5 });
+  appendLines(p, sc, 'purchase_proof');
 
   if (PROFILE.disclaimer) footer(p);
   return build(p, {
@@ -458,8 +477,9 @@ function purchaseProof() {
 // ─────────────────────────────────────────────────────────────────────────────
 function imeiDeregistration(sc) {
   const p = new Page();
-  const { block } = sc;
-  const issued = emitidaLaMananaSiguiente(sc.event, 875);
+  const block = { ...sc.block, ...override(sc, 'imei_deregistration').block };
+  const DEVICE = deviceOf(sc, 'imei_deregistration');
+  const issued = block.issued || emitidaLaMananaSiguiente(sc.event, 875);
 
   letterhead(p, CARRIER.name, `${CARRIER.address} — Atención al cliente 0800-333-6396`, CARRIER.cuit);
 
@@ -514,8 +534,7 @@ function imeiDeregistration(sc) {
     ]).forEach((l) => p.text(l, { size: 9 }));
   p.gap(10);
 
-  p.text(`La presente se extiende a pedido ${G.del} titular para ser presentada ante su compañía`, { size: 8.5 });
-  p.text('aseguradora.', { size: 8.5 });
+  p.text(`La presente se extiende a pedido ${G.del} titular para ser presentada ante quien corresponda.`, { size: 8.5 });
   p.gap(26);
   p.text('...........................................', { size: 9 });
   p.text('        Mesa de Gestiones', { size: 8.5 });
@@ -536,6 +555,7 @@ function imeiDeregistration(sc) {
 function lastConnection(sc) {
   const p = new Page();
   const lc = sc.lastConnection;
+  const DEVICE = deviceOf(sc, 'last_connection');
   const issued = emitidaLaMananaSiguiente(sc.event, 875);
 
   letterhead(p, CARRIER.name, `${CARRIER.address} — Área Técnica / Registros de Red`, CARRIER.cuit);
@@ -676,10 +696,8 @@ const BUILDERS = {
 const root = outDirFromArgv() || path.join(__dirname, PROFILE.folder, 'celulares');
 console.log(`Destino: ${root}\n`);
 
-for (const sc of SCENARIOS) {
-  const dir = path.join(root, sc.folder);
+function writeCase(dir, sc) {
   fs.mkdirSync(dir, { recursive: true });
-  console.log(`${sc.folder}/  (${sc.claimCause})`);
 
   for (const type of sc.documents) {
     const [builder, filename] = BUILDERS[type];
@@ -702,21 +720,56 @@ for (const sc of SCENARIOS) {
     eventLocation: sc.eventLocation,
     locality: sc.locality,
     province: sc.province,
-    ...(sc.police ? { policeReportAt: iso(sc.police.at) } : {}),
+    // What the insured declares. Matches the police report unless a mutation splits them on
+    // purpose (D12, checkDeclaredPoliceReportDate).
+    ...(sc.police ? { policeReportAt: iso(sc.declaredPoliceAt || sc.police.at) } : {}),
     claimedAmount: sc.claimedAmount,
     pep: false,
     imageConsent: true,
     contactEmail: INSURED.email,
     contactPhone: INSURED.phone,
   };
-  const payloadName = `caso_${sc.folder.split(' ')[0]}.json`;
+  const payloadName = `caso_${sc.folder.split(' ')[0].split('/').pop()}.json`;
   fs.writeFileSync(path.join(dir, payloadName), JSON.stringify(payload, null, 2) + '\n');
   console.log(`  ${'case (payload)'.padEnd(20)} ${payloadName.padEnd(38)} ${d(sc.event)} ${hm(sc.event)}`);
 
   if (sc.documents.includes('repair_quote')) {
     console.log(`  ${'item_photo'.padEnd(20)} ${'../foto_equipo_para_fraude.jpg  (adjuntar desde la raíz)'}`);
   }
+}
+
+// Mutations: the robo above with ONE thing changed, each with what the pipeline is expected to
+// catch. They have their own signer (perfiles.js, `mutaciones`), so they're a mode of their own
+// rather than a subfolder of each variant.
+const mutations = VARIANT === 'mutaciones'
+  ? buildMutations({ base: ROBO, G, INSURED, spouse: PROFILE.spouse, policyImei: DEVICE.imei, NOW })
+  : [];
+// A profile whose policy doesn't cover every claim cause lists the ones it can file.
+const scenarios = VARIANT === 'mutaciones'
+  ? []
+  : SCENARIOS.filter((sc) => !PROFILE.scenarios || PROFILE.scenarios.includes(sc.folder));
+// History: claims filed in order WITHOUT resetting in between, to watch prior claims kick in.
+const history = VARIANT === 'camila' ? buildHistory({ robo: ROBO, hurto: HURTO }) : [];
+
+for (const sc of scenarios) {
+  console.log(`${sc.folder}/  (${sc.claimCause})`);
+  writeCase(path.join(root, sc.folder), sc);
   console.log();
+}
+
+for (const m of [...mutations, ...history]) {
+  const dir = path.join(root, m.folder);
+  console.log(`${m.folder}/  (${m.expected.cambia})`);
+  writeCase(dir, m);
+  fs.writeFileSync(path.join(dir, 'esperado.json'), JSON.stringify(m.expected, null, 2) + '\n');
+  console.log();
+}
+
+if (history.length) {
+  // The first step is the oldest event, so it's the first to fall out of D11's window.
+  const first = plus(history[0].event, 72 * 60);
+  console.log(`El historial vence el ${d(first)} ${hm(first)} (plazo de denuncia de su primer paso).
+`);
 }
 
 const expira = plus(ROBO.event, 72 * 60);

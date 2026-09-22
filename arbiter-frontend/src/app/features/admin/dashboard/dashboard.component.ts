@@ -16,6 +16,7 @@ import { AuthSessionService } from '../../../core/auth/auth-session.service';
 import { clasificacionLabel, clasificacionTone } from '../../../core/models/clasificacion';
 import { estadoLabel, estadoTone } from '../../../core/models/estado';
 import { RiskBand, riskBandLabel } from '../../../core/models/risk-band';
+import { ruleTypeDescription, ruleTypeLabel } from '../../../core/models/rule-type';
 import { StatusTone } from '../../../core/models/status-tone';
 import { formatRate } from '../../../core/util/percent';
 import { formatMoney } from '../../../core/util/money';
@@ -571,12 +572,16 @@ export class DashboardComponent {
   );
 
   protected readonly blockingRuleItems = computed<DistributionItem[]>(() =>
-    (this.data()?.byBlockingRule ?? []).map((count) => ({
-      label: count.label ?? 'Sin identificar',
-      count: count.count,
-      // Que una regla frene no es una alerta: es la regla haciendo su trabajo. Sin semáforo.
-      tone: 'neutral' as StatusTone,
-    })),
+    (this.data()?.byBlockingRule ?? []).map((count) => {
+      const raw = count.label ?? 'Sin identificar';
+      return {
+        label: ruleTypeLabel(raw),
+        count: count.count,
+        // Que una regla frene no es una alerta: es la regla haciendo su trabajo. Sin semáforo.
+        tone: 'neutral' as StatusTone,
+        description: ruleTypeDescription(raw),
+      };
+    }),
   );
 
   protected readonly statusItems = computed<DistributionItem[]>(() =>

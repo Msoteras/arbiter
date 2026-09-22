@@ -11,11 +11,16 @@ export interface AttentionItem {
   key: string;
   /** El texto ya armado, con el número adentro: "2 expedientes sin movimiento hace +15 días". */
   title: string;
+  /** Texto de contexto, sin números de expediente: esos van aparte en `namedIds`. */
   detail: string;
   count: number;
   severity: AttentionSeverity;
   /** Parámetros de la bandeja que muestran exactamente estos expedientes. */
   queryParams: Record<string, string>;
+  /** Hasta `NAMED` expedientes puntuales, para ir directo a cada uno sin pasar por la bandeja. */
+  namedIds: number[];
+  /** Cuántos expedientes más hay además de los nombrados en `namedIds`. */
+  remaining: number;
 }
 
 /** Sin movimiento hace más de esto, un expediente abierto está frenado. */
@@ -117,14 +122,14 @@ function item(
   queryParams: Record<string, string>,
 ): AttentionItem {
   const noun = probe.total === 1 ? 'expediente' : 'expedientes';
-  const named = probe.ids.map((id) => `EXP-${id}`).join(' · ');
-  const rest = probe.total - probe.ids.length;
   return {
     key,
     title: `${probe.total} ${noun} ${what}`,
-    detail: rest > 0 ? `${named} y ${rest} más — ${detail}` : `${named} — ${detail}`,
+    detail,
     count: probe.total,
     severity,
     queryParams,
+    namedIds: probe.ids,
+    remaining: probe.total - probe.ids.length,
   };
 }

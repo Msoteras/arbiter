@@ -105,8 +105,8 @@ const PROXIMOS_PASOS: Record<CaseStatus, string> = {
     'Cuando termine la verificación, un analista revisa el resultado y te avisamos la resolución.',
   PENDING_REPAIR:
     'Cuando el servicio técnico responda, un analista revisa el resultado y te avisamos la resolución.',
-  APPROVED: 'Vas a recibir un correo con el detalle de la resolución. No quedan pasos pendientes.',
-  REJECTED: 'Vas a recibir un correo con los motivos del rechazo. No quedan pasos pendientes.',
+  APPROVED: 'Te enviamos un correo con el detalle de la resolución. No quedan pasos pendientes.',
+  REJECTED: 'Te enviamos un correo con los motivos del rechazo. No quedan pasos pendientes.',
   LAPSED: 'No quedan pasos pendientes: el expediente se cerró por caducidad.',
 };
 
@@ -289,10 +289,10 @@ const DESCRIPCIONES_ASEGURADO: Record<CaseStatus, string> = {
     'Estamos verificando lo que pasó. Es posible que te contacten para coordinar. Te avisamos ni bien haya novedades.',
   PENDING_REPAIR:
     'Derivamos tu caso a un servicio técnico. Te avisamos ni bien tengamos su respuesta.',
-  APPROVED: 'Tu siniestro fue aprobado. Vas a recibir el detalle por correo electrónico.',
-  REJECTED: 'Tu siniestro fue rechazado. Vas a recibir los motivos por correo electrónico.',
+  APPROVED: 'Tu siniestro fue aprobado. Te enviamos el detalle por correo electrónico.',
+  REJECTED: 'Tu siniestro fue rechazado. Te enviamos los motivos por correo electrónico.',
   LAPSED:
-    'Cerramos tu siniestro por falta de la documentación que te pedimos. Vas a recibir el detalle por correo electrónico.',
+    'Cerramos tu siniestro por falta de la documentación que te pedimos. Te enviamos el detalle por correo electrónico.',
 };
 
 export function estadoDescripcionAsegurado(value: string): string {

@@ -10,7 +10,7 @@ endobj
 << /Type /Page /Parent 2 0 R /MediaBox [0 0 595.276 841.89] /Resources << /Font << /F1 5 0 R /F2 6 0 R >> /ProcSet [/PDF /Text] >> /Contents 4 0 R >>
 endobj
 4 0 obj
-<< /Length 3985 >>
+<< /Length 3935 >>
 stream
 BT /F2 12 Tf 215.14 785.89 Td (Nexo M\363vil Argentina S.A.) Tj ET
 BT /F1 8.5 Tf 151.01 772.39 Td (Av. Leandro N. Alem 855, C.A.B.A. \227 Atenci\363n al cliente 0800-333-6396) Tj ET
@@ -22,7 +22,7 @@ BT /F1 8.5 Tf 168.01 717.39 Td (Registro Nacional de Equipos M\363viles Sustra\3
 BT /F2 9 Tf 56 692.89 Td (Constancia N\260:) Tj ET
 BT /F1 9 Tf 206.00 692.89 Td (BLQ-2026-0884962) Tj ET
 BT /F2 9 Tf 56 681.89 Td (Fecha de emisi\363n:) Tj ET
-BT /F1 9 Tf 206.00 681.89 Td (11/09/2026) Tj ET
+BT /F1 9 Tf 206.00 681.89 Td (22/09/2026) Tj ET
 BT /F2 9.5 Tf 56.00 664.89 Td (DATOS DEL TITULAR DE LA L\315NEA) Tj ET
 BT /F2 9 Tf 56 652.39 Td (Apellido y nombre:) Tj ET
 BT /F1 9 Tf 206.00 652.39 Td (SOTERAS, Martina) Tj ET
@@ -43,11 +43,11 @@ BT /F2 9.5 Tf 56.00 550.89 Td (DATOS DE LA GESTI\323N) Tj ET
 BT /F2 9 Tf 56 538.39 Td (Motivo:) Tj ET
 BT /F1 9 Tf 206.00 538.39 Td (Hurto del equipo en transporte p\372blico) Tj ET
 BT /F2 9 Tf 56 527.39 Td (Solicitud recibida:) Tj ET
-BT /F1 9 Tf 206.00 527.39 Td (10/09/2026, 18:50 hs.) Tj ET
+BT /F1 9 Tf 206.00 527.39 Td (21/09/2026, 18:50 hs.) Tj ET
 BT /F2 9 Tf 56 516.39 Td (Canal:) Tj ET
 BT /F1 9 Tf 206.00 516.39 Td (Autogesti\363n web \227 sesi\363n validada con clave \227 gesti\363n N\260 6117430) Tj ET
 BT /F2 9 Tf 56 505.39 Td (Bloqueo efectivizado:) Tj ET
-BT /F1 9 Tf 206.00 505.39 Td (10/09/2026, 19:11 hs.) Tj ET
+BT /F1 9 Tf 206.00 505.39 Td (21/09/2026, 19:11 hs.) Tj ET
 BT /F2 9 Tf 56 494.39 Td (Estado actual del IMEI:) Tj ET
 BT /F1 9 Tf 206.00 494.39 Td (BLOQUEADO \227 informado al registro nacional) Tj ET
 BT /F2 9 Tf 56 483.39 Td (Actuaci\363n policial:) Tj ET
@@ -60,11 +60,10 @@ BT /F1 9 Tf 56.00 418.39 Td (el mismo acto y su titularidad se mantiene a nombre
 BT /F1 9 Tf 56.00 399.89 Td (Se deja constancia de que la solicitud de bloqueo fue recibida con posterioridad a la) Tj ET
 BT /F1 9 Tf 56.00 389.39 Td (radicaci\363n de la denuncia policial, cuya actuaci\363n la titular consign\363 al iniciar) Tj ET
 BT /F1 9 Tf 56.00 378.89 Td (la gesti\363n por autogesti\363n web.) Tj ET
-BT /F1 8.5 Tf 56.00 358.39 Td (La presente se extiende a pedido de la titular para ser presentada ante su compa\361\355a) Tj ET
-BT /F1 8.5 Tf 56.00 347.89 Td (aseguradora.) Tj ET
-BT /F1 9 Tf 56.00 311.39 Td (...........................................) Tj ET
-BT /F1 8.5 Tf 56.00 300.89 Td (        Mesa de Gestiones) Tj ET
-BT /F1 8.5 Tf 56.00 290.39 Td (        Nexo M\363vil Argentina S.A.) Tj ET
+BT /F1 8.5 Tf 56.00 358.39 Td (La presente se extiende a pedido de la titular para ser presentada ante quien corresponda.) Tj ET
+BT /F1 9 Tf 56.00 321.89 Td (...........................................) Tj ET
+BT /F1 8.5 Tf 56.00 311.39 Td (        Mesa de Gestiones) Tj ET
+BT /F1 8.5 Tf 56.00 300.89 Td (        Nexo M\363vil Argentina S.A.) Tj ET
 0.4 w 56 70.00 m 539.28 70.00 l S
 BT /F1 7 Tf 136.64 62.00 Td (Documento simulado con fines de prueba \227 sistema Arbiter \(UTN FRBA, DDSI K5054, grupo 5303\).) Tj ET
 BT /F1 7 Tf 134.89 54.00 Td (No constituye un comprobante ni una constancia real. Personas, empresas y n\372meros, ficticios.) Tj ET
@@ -77,7 +76,7 @@ endobj
 << /Type /Font /Subtype /Type1 /BaseFont /Helvetica-Bold /Encoding /WinAnsiEncoding >>
 endobj
 7 0 obj
-<< /Title (Constancia de bloqueo y baja de IMEI BLQ-2026-0884962) /Author (Nexo M\363vil Argentina S.A.) /Subject (Baja de IMEI por hurto - documento simulado de prueba) /Keywords (fixture de prueba, sistema Arbiter, documento generado, no es un documento real) /Producer (Arbiter test fixture) /CreationDate (D:20260911041500-03'00') >>
+<< /Title (Constancia de bloqueo y baja de IMEI BLQ-2026-0884962) /Author (Nexo M\363vil Argentina S.A.) /Subject (Baja de IMEI por hurto - documento simulado de prueba) /Keywords (fixture de prueba, sistema Arbiter, documento generado, no es un documento real) /Producer (Arbiter test fixture) /CreationDate (D:20260922041500-03'00') >>
 endobj
 xref
 0 8
@@ -86,11 +85,11 @@ xref
 0000000064 00000 n 
 0000000121 00000 n 
 0000000286 00000 n 
-0000004323 00000 n 
-0000004420 00000 n 
-0000004522 00000 n 
+0000004273 00000 n 
+0000004370 00000 n 
+0000004472 00000 n 
 trailer
 << /Size 8 /Root 1 0 R /Info 7 0 R >>
 startxref
-4875
+4825
 %%EOF

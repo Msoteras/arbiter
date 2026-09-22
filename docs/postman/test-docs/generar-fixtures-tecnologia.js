@@ -30,6 +30,10 @@ const { PROFILES, variantFromArgv, outDirFromArgv } = require('./perfiles');
 
 const VARIANT = variantFromArgv();
 const PROFILE = PROFILES[VARIANT];
+if (!PROFILE.policies.tecnologia) {
+  console.error(`El perfil "${VARIANT}" no tiene póliza de Tecnología Portátil: su set es solo de Celulares.`);
+  process.exit(1);
+}
 const G = PROFILE.g;
 const INSURED = PROFILE.insured;
 
@@ -331,8 +335,7 @@ function policeReport(sc) {
     p.text('•  Se libró oficio a la institución a fin de requerir el resguardo de las imágenes del', { size: 9 });
     p.text('   hall de ingreso correspondientes a la fecha y franja horaria del hecho.', { size: 9 });
   }
-  p.text(`•  Se extiende la presente constancia ${G.al} denunciante a los fines que estime`, { size: 9 });
-  p.text('   corresponder ante su compañía aseguradora.', { size: 9 });
+  p.text(`•  Se extiende la presente constancia ${G.al} denunciante a los fines que estime corresponder.`, { size: 9 });
   p.gap(12);
   p.text(`Previa lectura y ratificación, firma ${G.el} denunciante por ante el funcionario actuante.`, { size: 9 });
   p.gap(24);
@@ -393,8 +396,7 @@ function purchaseProof() {
   p.field('Vencimiento del CAE:', PURCHASE.caeDue);
   p.gap(10);
 
-  p.text('El presente comprobante acredita la titularidad del equipo detallado. Conservar para', { size: 8.5 });
-  p.text('gestiones de garantía o ante la compañía aseguradora.', { size: 8.5 });
+  p.text('Conserve este comprobante: es requisito para hacer valer la garantía del fabricante.', { size: 8.5 });
 
   if (PROFILE.disclaimer) footer(p);
   return build(p, {
@@ -482,8 +484,7 @@ function deviceLock(sc) {
   ].forEach((l) => p.text(l, { size: 9 }));
   p.gap(10);
 
-  p.text(`La presente se extiende a pedido ${G.del} titular para ser presentada ante su compañía`, { size: 8.5 });
-  p.text('aseguradora.', { size: 8.5 });
+  p.text(`La presente se extiende a pedido ${G.del} titular para ser presentada ante quien corresponda.`, { size: 8.5 });
   p.gap(22);
   p.text('...........................................', { size: 9 });
   p.text('        Mesa de Gestiones', { size: 8.5 });

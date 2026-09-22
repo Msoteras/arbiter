@@ -59,10 +59,21 @@ const AVG = { F1: 0.50, F2: 0.55 };
 const PAGE_W = 595.276, PAGE_H = 841.890;
 const MARGIN = 56;
 
+// Below this line the page belongs to the footer. A document whose body gets there overlaps the
+// disclaimer or runs off the sheet, and in the unmarked variant nothing on the page would show it.
+const BODY_FLOOR = MARGIN + 30;
+
 class Page {
-  constructor() { this.ops = []; this.y = PAGE_H - MARGIN; }
+  constructor() { this.ops = []; this.y = PAGE_H - MARGIN; this.pinned = false; }
+
+  guard(str) {
+    if (!this.pinned && this.y < BODY_FLOOR) {
+      throw new Error(`El cuerpo del documento no entra en la página (y=${this.y.toFixed(0)}): "${str}"`);
+    }
+  }
 
   text(str, { font = 'F1', size = 9, x = MARGIN, center = false, leading = 10.5, right = null } = {}) {
+    this.guard(str);
     let px = x;
     if (center) px = (PAGE_W - str.length * size * AVG[font]) / 2;
     if (right !== null) px = right - str.length * size * AVG[font];
@@ -73,6 +84,7 @@ class Page {
 
   /** Etiqueta en negrita + valor, alineados en columna. */
   field(label, value, { labelWidth = 150, size = 9 } = {}) {
+    this.guard(label);
     this.ops.push(`BT /F2 ${size} Tf ${MARGIN} ${this.y.toFixed(2)} Td (${esc(label)}) Tj ET`);
     this.ops.push(`BT /F1 ${size} Tf ${(MARGIN + labelWidth).toFixed(2)} ${this.y.toFixed(2)} Td (${esc(value)}) Tj ET`);
     this.y -= 11;
@@ -81,6 +93,7 @@ class Page {
 
   /** Etiqueta a la izquierda + importe alineado a la derecha, en la MISMA línea. */
   moneyRow(label, amount, { size = 9, bold = false, leading = 12 } = {}) {
+    this.guard(label);
     const font = bold ? 'F2' : 'F1';
     const amountX = PAGE_W - MARGIN - amount.length * size * AVG[font];
     this.ops.push(`BT /${font} ${size} Tf ${MARGIN} ${this.y.toFixed(2)} Td (${esc(label)}) Tj ET`);
@@ -103,7 +116,8 @@ class Page {
     return this;
   }
 
-  at(y) { this.y = y; return this; }
+  /** Jumps to a fixed height. Only the footer does this, so from here on the floor doesn't apply. */
+  at(y) { this.y = y; this.pinned = true; return this; }
   stream() { return this.ops.join('\n'); }
 }
 
