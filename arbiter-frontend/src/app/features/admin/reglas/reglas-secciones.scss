@@ -223,6 +223,13 @@
   flex-direction: column;
   gap: var(--space-5);
 }
+/* Picker of the coverage being edited: separated from the sections below like the banner is. */
+.ft-coverage {
+  margin-bottom: var(--space-4);
+}
+.ft-coverage .section-hint {
+  margin: var(--space-1) 0 0;
+}
 
 .ft-banner {
   display: flex;

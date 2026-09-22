@@ -11,7 +11,11 @@ import {
   SettlementFormula,
 } from '../../../core/models/business-rules';
 import { BranchOption, BranchesService } from '../branches.service';
-import { FastTrackConfigDto, FastTrackRulesService } from '../fast-track-rules.service';
+import {
+  CoverageOption,
+  FastTrackConfigDto,
+  FastTrackRulesService,
+} from '../fast-track-rules.service';
 import {
   CoverageDetail,
   CoverageUpsertRequest,
@@ -116,6 +120,21 @@ export class ReglasComponent {
   // existiendo solo para el nombre del ramo, que todavía es mock (alta/baja de ramo también).
   protected readonly ftSaving = signal(false);
   protected readonly ftError = signal<string | null>(null);
+  // Fast Track is configured per coverage (insurer_rule.coverage_id): the tab edits one coverage of
+  // the branch at a time, and `draft.fastTrack` holds the config of the one picked here.
+  protected readonly ftCoverages = signal<CoverageOption[]>([]);
+  protected readonly ftCoverageId = signal<number | null>(null);
+  /** Loading a coverage picked from the selector (the branch's first load goes through detailLoading). */
+  protected readonly ftLoading = signal(false);
+  /** The coverage list itself failed: not the same as a branch that has no coverages. */
+  protected readonly ftCoveragesFailed = signal(false);
+  protected readonly ftCoverageOptions = computed<SelectOption[]>(() =>
+    this.ftCoverages().map((c) => ({ value: String(c.id), label: c.name })),
+  );
+  protected readonly ftCoverageValue = computed(() => {
+    const id = this.ftCoverageId();
+    return id == null ? '' : String(id);
+  });
 
   protected readonly covSaving = signal(false);
   protected readonly covError = signal<string | null>(null);
@@ -413,6 +432,10 @@ export class ReglasComponent {
     this.expandedCoverageId.set(null);
     this.activeTab.set('coberturas');
     this.ftError.set(null);
+    this.ftCoverages.set([]);
+    this.ftCoverageId.set(null);
+    this.ftLoading.set(false);
+    this.ftCoveragesFailed.set(false);
     this.covError.set(null);
     this.exclError.set(null);
     this.docError.set(null);
@@ -448,19 +471,82 @@ export class ReglasComponent {
   }
 
   /**
-   * Trae del backend el Fast Track persistido y lo superpone sobre el draft, para que el referente
-   * vea lo que está guardado (no el semilla del mock). Best-effort: si falla o no hay config, deja
-   * los valores del mock. Solo aplica a ramos con branchId real (id numérico).
+   * Loads the branch's coverages for the Fast Track selector and the persisted config of the first
+   * one, overlaid on the draft so the referente sees what's stored. Best-effort: if it fails the
+   * draft keeps its defaults. Only for branches with a real branchId.
    */
   private loadFastTrackFromBackend(r: RamoRules): void {
     const branchId = this.branchIdOf(r);
     if (branchId == null) {
       return;
     }
-    this.trackDetail(r.id, this.ftService.loadForBranch(branchId)).subscribe({
-      next: (dto) => this.overlayFastTrack(dto),
+    this.trackDetail(r.id, this.ftService.listCoverages(branchId)).subscribe({
+      next: (coverages) => {
+        if (this.draft()?.id !== r.id) {
+          return;
+        }
+        this.ftCoverages.set(coverages);
+        const first = coverages[0]?.id ?? null;
+        this.ftCoverageId.set(first);
+        if (first != null) {
+          this.loadFastTrackForCoverage(r.id, branchId, first, true);
+        }
+      },
       error: () => {
-        /* backend caído: nos quedamos con el mock, sin romper la pantalla */
+        if (this.draft()?.id === r.id) {
+          this.ftCoveragesFailed.set(true);
+        }
+      },
+    });
+  }
+
+  /**
+   * Switching coverage replaces the whole tab's content. With unsaved changes the selector is
+   * disabled (see the template), so this never drops an edit silently.
+   */
+  protected selectFtCoverage(value: string): void {
+    const d = this.draft();
+    const branchId = d ? this.branchIdOf(d) : null;
+    const coverageId = Number(value);
+    if (!d || branchId == null || !Number.isInteger(coverageId) || this.ftDirty()) {
+      return;
+    }
+    if (coverageId === this.ftCoverageId()) {
+      return;
+    }
+    this.ftError.set(null);
+    this.ftCoverageId.set(coverageId);
+    this.loadFastTrackForCoverage(d.id, branchId, coverageId, false);
+  }
+
+  private loadFastTrackForCoverage(
+    ramoId: string,
+    branchId: number,
+    coverageId: number,
+    initial: boolean,
+  ): void {
+    const source = this.ftService.getFastTrack(branchId, coverageId);
+    if (!initial) {
+      this.ftLoading.set(true);
+    }
+    (initial ? this.trackDetail(ramoId, source) : source).subscribe({
+      next: (dto) => {
+        // A late answer for a coverage (or branch) the referente already left must not land on
+        // the one on screen: that's exactly how one coverage's config ends up saved on another.
+        if (this.draft()?.id !== ramoId || this.ftCoverageId() !== coverageId) {
+          return;
+        }
+        this.overlayFastTrack(dto);
+        this.ftLoading.set(false);
+      },
+      error: (e: unknown) => {
+        if (this.ftCoverageId() !== coverageId) {
+          return;
+        }
+        this.ftLoading.set(false);
+        if (!initial) {
+          this.ftError.set(this.backendErrorMessage(e));
+        }
       },
     });
   }
@@ -1360,10 +1446,8 @@ export class ReglasComponent {
 
   // ───────────────── Fast Track: persistencia real (rules-service) ─────────────────
   /**
-   * Guarda el Fast Track del ramo en el backend (fan-out a las coberturas del ramo). Solo persiste
-   * los 4 umbrales que el motor evalúa hoy: monto máx., siniestros previos máx., póliza al día y
-   * documentos exigidos. Antigüedad mínima, ventana de siniestros y criterios descriptivos aún no
-   * llegan al gate (quedan en el draft/mock). Deshabilitado ⇒ config vacía = sin Fast Track.
+   * Saves the Fast Track of the coverage picked in the selector, and only that one: every coverage
+   * has its own FAST_TRACK rule, because each demands different documents.
    */
   protected saveFastTrack(): void {
     const d = this.draft();
@@ -1374,6 +1458,11 @@ export class ReglasComponent {
     const branchId = this.branchIdOf(d);
     if (branchId == null) {
       this.ftError.set('Este ramo todavía no existe en el backend.');
+      return;
+    }
+    const coverageId = this.ftCoverageId();
+    if (coverageId == null) {
+      this.ftError.set('Elegí una cobertura para guardar su Fast Track.');
       return;
     }
     const ft = d.fastTrack;
@@ -1389,12 +1478,12 @@ export class ReglasComponent {
     };
 
     this.ftSaving.set(true);
-    this.ftService.saveForBranch(branchId, dto).subscribe({
+    this.ftService.saveFastTrack(branchId, coverageId, dto).subscribe({
       next: () => {
         this.ftSaving.set(false);
         this.markPersisted('fastTrack');
-        // Recarga desde el backend para reflejar exactamente lo que quedó persistido.
-        this.loadFastTrackFromBackend(d);
+        // Reload from the backend to show exactly what was persisted.
+        this.loadFastTrackForCoverage(d.id, branchId, coverageId, false);
       },
       error: (e: unknown) => {
         this.ftSaving.set(false);

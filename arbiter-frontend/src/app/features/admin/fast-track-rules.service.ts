@@ -1,6 +1,6 @@
 import { HttpClient } from '@angular/common/http';
 import { Injectable, inject } from '@angular/core';
-import { Observable, forkJoin, of, switchMap, throwError } from 'rxjs';
+import { Observable } from 'rxjs';
 
 import { environment } from '../../../environments/environment';
 
@@ -41,12 +41,12 @@ export interface FastTrackRuleResponse {
 }
 
 /**
- * Persistencia real del Fast Track del referente contra el backend (rules-service :8081 +
- * cases-service :8083, ruteados por el proxy). El eje de reglas del DER es la COBERTURA, pero la
- * pantalla configura Fast Track por RAMO; por eso al guardar hacemos fan-out: escribimos la misma
- * config a todas las coberturas del ramo, que es como el motor de clasificación la lee
- * ({@code getByCoverage(coverageId)}). Separado del RulesConfigService (mock) a propósito: esta es
- * la primera solapa cableada de verdad; las demás siguen en el mock hasta tener su endpoint.
+ * The referente's Fast Track, persisted for real (rules-service :8081 + cases-service :8083, routed
+ * by the proxy). The FAST_TRACK rule lives PER COVERAGE in insurer_rule — each coverage demands
+ * different documents (a theft doesn't come with a repair quote) — and the classification engine
+ * reads it that way ({@code getByCoverage(coverageId)}). So it's always read and saved one coverage
+ * at a time, and there's deliberately no per-branch operation: fanning one config out to every
+ * coverage of the branch is what overwrote Robo and Hurto with Daño accidental's documents.
  */
 @Injectable({ providedIn: 'root' })
 export class FastTrackRulesService {
@@ -74,26 +74,5 @@ export class FastTrackRulesService {
     return this.http.put<FastTrackRuleResponse>(`${this.rulesBase}/fast-track`, config, {
       params: { branchId: String(branchId), coverageId: String(coverageId) },
     });
-  }
-
-  /** Carga la config del ramo desde la primera cobertura (todas quedan en sync por el fan-out). */
-  loadForBranch(branchId: number): Observable<FastTrackConfigDto | null> {
-    return this.listCoverages(branchId).pipe(
-      switchMap((covs) => (covs.length ? this.getFastTrack(branchId, covs[0].id) : of(null))),
-    );
-  }
-
-  /** Guarda la config a TODAS las coberturas del ramo (el motor lee por cobertura); una confirmación por cobertura. */
-  saveForBranch(branchId: number, config: FastTrackConfigDto): Observable<FastTrackRuleResponse[]> {
-    return this.listCoverages(branchId).pipe(
-      switchMap((covs) => {
-        if (!covs.length) {
-          return throwError(
-            () => new Error('El ramo no tiene coberturas cargadas en el catálogo.'),
-          );
-        }
-        return forkJoin(covs.map((c) => this.saveFastTrack(branchId, c.id, config)));
-      }),
-    );
   }
 }
