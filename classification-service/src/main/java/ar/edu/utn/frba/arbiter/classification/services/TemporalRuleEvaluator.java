@@ -254,8 +254,14 @@ public class TemporalRuleEvaluator {
         int priorInWindow = ordinal - 1;
         outcome.record(rule, ordinal <= rules.maxEventsPerYear(),
                 "events12m=" + ordinal + " max=" + rules.maxEventsPerYear(),
-                String.format("Supera el tope de %d siniestro(s) por año: %d siniestro(s) previo(s) "
-                                + "en los últimos 12 meses", rules.maxEventsPerYear(), priorInWindow));
+                String.format("Supera el tope de %s por año: %s en los últimos 12 meses",
+                        count(rules.maxEventsPerYear(), "siniestro", "siniestros"),
+                        count(priorInWindow, "siniestro previo", "siniestros previos")));
+    }
+
+    /** "1 siniestro" / "3 siniestros": the reason is read by the analyst, not parsed. */
+    private static String count(int n, String singular, String plural) {
+        return n + " " + (n == 1 ? singular : plural);
     }
 
     /**
