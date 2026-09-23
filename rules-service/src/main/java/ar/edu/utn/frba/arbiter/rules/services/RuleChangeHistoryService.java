@@ -1,5 +1,9 @@
 package ar.edu.utn.frba.arbiter.rules.services;
 
+import ar.edu.utn.frba.arbiter.common.models.entities.User;
+import ar.edu.utn.frba.arbiter.rules.models.repositories.InsurerReferentRepository;
+import ar.edu.utn.frba.arbiter.rules.models.repositories.UserRepository;
+import java.util.HashMap;
 import ar.edu.utn.frba.arbiter.common.models.entities.ClaimCause;
 import ar.edu.utn.frba.arbiter.common.models.entities.tenant.Coverage;
 import ar.edu.utn.frba.arbiter.rules.dto.InsurerRuleSnapshot;
@@ -72,6 +76,9 @@ public class RuleChangeHistoryService {
     /** {@code ruleType} carried by the scoring entries — {@code RuleType} has no literal for it. */
     public static final String SCORING_RULE_TYPE = "SCORING";
 
+    /** Separators the writers used before the actor, in Spanish and in the English some wrote. */
+    private static final List<String> AUTHOR_SEPARATORS = List.of(" por ", " by ");
+
     /** How a list of values is rendered inside one field of the diff. */
     private static final String LIST_SEPARATOR = " · ";
 
@@ -97,6 +104,8 @@ public class RuleChangeHistoryService {
     private final ScoringConfigurationService scoringConfigurationService;
     private final CoverageRepository coverageRepository;
     private final ClaimCauseRepository claimCauseRepository;
+    private final UserRepository userRepository;
+    private final InsurerReferentRepository insurerReferentRepository;
 
     /**
      * The change feed, newest first, filtered and paged.
@@ -128,7 +137,64 @@ public class RuleChangeHistoryService {
 
         int start = (int) Math.min(pageable.getOffset(), matching.size());
         int end = Math.min(start + pageable.getPageSize(), matching.size());
-        return new PageImpl<>(matching.subList(start, end), pageable, matching.size());
+        return new PageImpl<>(withAuthors(matching.subList(start, end)), pageable, matching.size());
+    }
+
+    /**
+     * Names who made each change. The writers leave {@code changed_by} null and record the actor's
+     * email at the end of {@code reason} ("... por ana@bbva.com"), so the email is taken from there
+     * and resolved to the referente's name in two queries for the whole page. Without a profile the
+     * email itself is shown: an unnamed author is still better than none in an audit trail.
+     */
+    private List<RuleChangeEntry> withAuthors(List<RuleChangeEntry> entries) {
+        Map<String, String> actorByEntry = new HashMap<>();
+        entries.forEach(entry -> {
+            String actor = actorOf(entry.reason());
+            if (actor != null) {
+                actorByEntry.put(entry.id(), actor);
+            }
+        });
+        Map<String, Long> userIdByEmail = actorByEntry.isEmpty() ? Map.of()
+                : userRepository.findByEmailIn(Set.copyOf(actorByEntry.values())).stream()
+                        .collect(Collectors.toMap(User::getEmail, User::getId, (a, b) -> a));
+        Map<Long, String> nameByUserId = userIdByEmail.isEmpty() ? Map.of()
+                : insurerReferentRepository.findByUser_IdIn(userIdByEmail.values()).stream()
+                        .collect(Collectors.toMap(r -> r.getUser().getId(),
+                                r -> (r.getName() + " " + r.getSurname()).trim(), (a, b) -> a));
+
+        return entries.stream().map(entry -> {
+            String actor = actorByEntry.get(entry.id());
+            if (actor == null) {
+                return entry;
+            }
+            Long userId = userIdByEmail.get(actor);
+            String author = userId == null ? actor : nameByUserId.getOrDefault(userId, actor);
+            return new RuleChangeEntry(entry.id(), entry.source(), entry.ruleType(), entry.ruleName(),
+                    entry.branchId(), entry.branchName(), entry.coverageId(), entry.coverageName(),
+                    entry.changedAt(), entry.previousValidFrom(), entry.reason(), entry.changes(),
+                    entry.current(), entry.partial(), author);
+        }).toList();
+    }
+
+    /** The text after the last " por " / " by " in a reason, or null if it names nobody. */
+    static String actorOf(String reason) {
+        if (reason == null) {
+            return null;
+        }
+        int at = -1;
+        int length = 0;
+        for (String separator : AUTHOR_SEPARATORS) {
+            int found = reason.lastIndexOf(separator);
+            if (found > at) {
+                at = found;
+                length = separator.length();
+            }
+        }
+        if (at < 0) {
+            return null;
+        }
+        String actor = reason.substring(at + length).trim();
+        return actor.isEmpty() ? null : actor;
     }
 
     /**
@@ -208,7 +274,8 @@ public class RuleChangeHistoryService {
                         row.getReason(),
                         resolveIds(diffRuleVersions(before, after), claimCauseNames),
                         last,
-                        before.legacy()));
+                        before.legacy(),
+                        null));
             }
         });
         return entries;
@@ -248,7 +315,8 @@ public class RuleChangeHistoryService {
                     last,
                     // Scoring snapshots always carried the whole DTO, `enabled` included — this
                     // side never had the gap the insurer_rule ones did.
-                    false));
+                    false,
+                    null));
         }
         return entries;
     }

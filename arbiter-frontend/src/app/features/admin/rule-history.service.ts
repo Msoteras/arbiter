@@ -37,6 +37,8 @@ export interface RuleChangeEntry {
   changes: RuleFieldChange[];
   /** La versión que introdujo este cambio es la que rige hoy. */
   current: boolean;
+  /** Quién lo cambió: el nombre del referente, o su email si no tiene perfil. */
+  author: string | null;
   /**
    * La versión guardada es anterior a que el historial registrara si la regla estaba activa, así
    * que `changes` solo puede hablar de los parámetros. Con estas filas, `changes` vacío significa

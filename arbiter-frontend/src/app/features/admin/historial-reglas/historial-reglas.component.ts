@@ -12,7 +12,6 @@ import { InputComponent } from '../../../shared/ui/input/input.component';
 import { PaginationComponent } from '../../../shared/ui/pagination/pagination.component';
 import { SelectComponent, SelectOption } from '../../../shared/ui/select/select.component';
 import { BranchOption, BranchesService } from '../branches.service';
-import { ruleChangeAuthor } from '../rule-change-author';
 import {
   RULE_FIELD_LABELS,
   RULE_TYPE_LABELS,
@@ -25,7 +24,6 @@ import {
 interface HistoryRow {
   entry: RuleChangeEntry;
   title: string;
-  /** Quién hizo el cambio, sacado del motivo — hoy no viaja como campo propio (card H0034). */
   author: string | null;
   scope: string | null;
   changedAt: string;
@@ -171,10 +169,7 @@ export class HistorialReglasComponent {
     return {
       entry,
       title: RULE_TYPE_LABELS[entry.ruleType] ?? entry.ruleType,
-      // Del motivo solo se muestra el autor. Todos tienen la forma "<qué cambió> por <quién>" y el
-      // qué ya está en el título y el alcance; el quién no viaja de otra forma. De paso esto evita
-      // el problema de los motivos viejos en inglés: lo que se muestra no es prosa.
-      author: ruleChangeAuthor(entry.reason),
+      author: entry.author,
       scope: this.scopeOf(entry),
       changedAt: formatDateTime(entry.changedAt),
       heldSince: formatDateTime(entry.previousValidFrom),
@@ -185,8 +180,8 @@ export class HistorialReglasComponent {
           // `factors[image_reuse].weight` es ruido — y el código del factor ya va como calificador.
           label: RULE_FIELD_LABELS[base] ?? base,
           qualifier: this.qualifierOf(change),
-          previous: this.renderValue(change.previousValue),
-          next: this.renderValue(change.newValue),
+          previous: this.renderValue(change.previousValue, base),
+          next: this.renderValue(change.newValue, base),
         };
       }),
     };
@@ -224,9 +219,17 @@ export class HistorialReglasComponent {
     return match ? match[1] : null;
   }
 
-  private renderValue(value: string | null): string {
+  private renderValue(value: string | null, field: string): string {
     if (value === null || value === '') {
       return '—';
+    }
+    // Stored as fractions (0..1); the configuration screens show them on a 0..100 scale.
+    const n = Number(value);
+    if (field === 'maxClaimedAmountRatio' && Number.isFinite(n)) {
+      return `${Math.round(n * 1000) / 10}%`;
+    }
+    if (field === 'minScoreInclusive' && Number.isFinite(n)) {
+      return String(Math.round(n * 100));
     }
     if (value === 'true') {
       return 'Sí';

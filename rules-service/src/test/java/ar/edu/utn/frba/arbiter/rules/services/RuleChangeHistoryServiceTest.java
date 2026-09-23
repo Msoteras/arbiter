@@ -1,5 +1,7 @@
 package ar.edu.utn.frba.arbiter.rules.services;
 
+import ar.edu.utn.frba.arbiter.rules.models.repositories.UserRepository;
+import ar.edu.utn.frba.arbiter.rules.models.repositories.InsurerReferentRepository;
 import ar.edu.utn.frba.arbiter.common.enums.RuleType;
 import ar.edu.utn.frba.arbiter.common.models.entities.Branch;
 import ar.edu.utn.frba.arbiter.common.models.entities.ClaimCause;
@@ -46,10 +48,25 @@ class RuleChangeHistoryServiceTest {
     private final ScoringConfigurationService scoringConfigurationService = mock(ScoringConfigurationService.class);
     private final CoverageRepository coverageRepository = mock(CoverageRepository.class);
     private final ClaimCauseRepository claimCauseRepository = mock(ClaimCauseRepository.class);
+    private final UserRepository userRepository = mock(UserRepository.class);
+    private final InsurerReferentRepository insurerReferentRepository = mock(InsurerReferentRepository.class);
 
     private final RuleChangeHistoryService service = new RuleChangeHistoryService(
             ruleHistoryRepository, scoringHistoryRepository, scoringConfigurationService,
-            coverageRepository, claimCauseRepository);
+            coverageRepository, claimCauseRepository, userRepository, insurerReferentRepository);
+
+    @Test
+    void actorIsTheTextAfterTheLastSeparator() {
+        assertThat(RuleChangeHistoryService.actorOf("Fast Track actualizado por ana@bbva.com"))
+                .isEqualTo("ana@bbva.com");
+        assertThat(RuleChangeHistoryService.actorOf("Hard rule X updated by ana@bbva.com"))
+                .isEqualTo("ana@bbva.com");
+        assertThat(RuleChangeHistoryService.actorOf("Cambiada por pedido del área por ana@bbva.com"))
+                .isEqualTo("ana@bbva.com");
+        assertThat(RuleChangeHistoryService.actorOf("Actualización automática")).isNull();
+        assertThat(RuleChangeHistoryService.actorOf("Fast Track actualizado por ")).isNull();
+        assertThat(RuleChangeHistoryService.actorOf(null)).isNull();
+    }
 
     /**
      * Two snapshots and a live rule are three versions and therefore two changes. The oldest

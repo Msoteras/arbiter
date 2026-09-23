@@ -21,6 +21,9 @@ import java.util.List;
  * @param changes         empty when the two versions are identical, which shouldn't happen but is
  *                        recorded honestly rather than hidden
  * @param current         whether the version this change introduced is still the one in force
+ * @param author          who made the change: the referente's name, or the email recorded in
+ *                        {@code reason} when there is no profile to name them by; null if the
+ *                        reason names nobody
  * @param partial         whether the stored version predates the audit recording the rule's on/off
  *                        state, so its {@code changes} can only cover the parameters. The view has
  *                        to say so: with these rows an empty {@code changes} means "not recorded",
@@ -41,5 +44,6 @@ public record RuleChangeEntry(
         String reason,
         List<RuleFieldChange> changes,
         boolean current,
-        boolean partial) {
+        boolean partial,
+        String author) {
 }

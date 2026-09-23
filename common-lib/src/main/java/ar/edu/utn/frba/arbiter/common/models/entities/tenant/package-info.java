@@ -26,7 +26,8 @@
  *       {@code branchId} to serve the classification engine the referente's texts: the engine only
  *       has a {@code coverageId} at hand, and the texts are stored by branch.</li>
  *   <li>{@code InsurerReferent} — auth-service creates it and puts the name in the JWT;
- *       cases-service shows it as who authorized a settlement.</li>
+ *       cases-service shows it as who authorized a settlement, rules-service as who changed a
+ *       rule.</li>
  * </ul>
  *
  * <p>Operational consequence: reading any of these entities <b>without a resolved tenant</b> falls
