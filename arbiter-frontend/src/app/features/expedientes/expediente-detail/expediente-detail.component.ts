@@ -1253,7 +1253,7 @@ export class ExpedienteDetailComponent {
       this.showCauseConsistency() ||
       (this.canAct() && this.liquidacionDevuelta() && this.settlement() != null) ||
       this.superaAtribucion() ||
-      (this.puedeDerivar() && (!!this.sugerenciaDerivacion() || !!this.motivoNoDerivable())),
+      (this.puedeDerivar() && !!this.sugerenciaDerivacion()),
   );
 
   // ----- "Antes de decidir": lo que el analista necesita a la vista junto a los botones -----

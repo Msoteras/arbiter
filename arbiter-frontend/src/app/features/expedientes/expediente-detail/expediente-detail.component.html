@@ -308,12 +308,6 @@
             <span>{{ sugerencia }}</span>
           </p>
         }
-        @if (puedeDerivar() && motivoNoDerivable(); as motivo) {
-          <p class="aviso">
-            <strong class="aviso-titulo">Sin peritaje</strong>
-            <span>{{ motivo }}</span>
-          </p>
-        }
       </div>
     }
 
@@ -436,6 +430,10 @@
                         >
                       }
                     </div>
+                  }
+                  <!-- Why there is no "Derivar a peritaje": a fact about this claim, not an alert. -->
+                  @if (puedeDerivar() && motivoNoDerivable(); as motivo) {
+                    <p class="rcard-note">{{ motivo }}</p>
                   }
                 } @else {
                   <p class="nodata">Sin asignar</p>
