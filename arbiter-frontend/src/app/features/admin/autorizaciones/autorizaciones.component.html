@@ -147,7 +147,10 @@
           </tbody>
         </app-table>
       </app-card>
-      <p class="t-note">Se muestran las últimas 50.</p>
+      <!-- The backend returns at most 50: the note only matters when the list hit that cap. -->
+      @if (authorized().length >= 50) {
+        <p class="t-note">Se muestran las últimas 50.</p>
+      }
     }
   }
 </div>
