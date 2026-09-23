@@ -14,6 +14,7 @@ import { InlineLoadingComponent } from '../../../shared/ui/inline-loading/inline
 import { SaveBarComponent } from '../../../shared/ui/save-bar/save-bar.component';
 import { SwitchComponent } from '../../../shared/ui/switch/switch.component';
 import { PeritosConfigComponent } from '../peritos-config/peritos-config.component';
+import { fadeInUp } from '../../../shared/animations';
 
 /**
  * Fraud record policy plus the expert firms catalog. The save bar only covers the policy: the catalog
@@ -30,6 +31,7 @@ import { PeritosConfigComponent } from '../peritos-config/peritos-config.compone
     SwitchComponent,
     PeritosConfigComponent,
   ],
+  animations: [fadeInUp],
   changeDetection: ChangeDetectionStrategy.OnPush,
   templateUrl: './fraude-config.component.html',
   styleUrl: './fraude-config.component.scss',

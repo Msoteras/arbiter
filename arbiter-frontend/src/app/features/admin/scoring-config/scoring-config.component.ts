@@ -11,6 +11,7 @@ import { CardComponent } from '../../../shared/ui/card/card.component';
 import { SaveBarComponent } from '../../../shared/ui/save-bar/save-bar.component';
 import { InputComponent } from '../../../shared/ui/input/input.component';
 import { InlineLoadingComponent } from '../../../shared/ui/inline-loading/inline-loading.component';
+import { fadeInUp } from '../../../shared/animations';
 
 /**
  * One scoring config per insurer, not per branch, hence outside the branch master-detail.
@@ -26,6 +27,7 @@ import { InlineLoadingComponent } from '../../../shared/ui/inline-loading/inline
     InlineLoadingComponent,
     SaveBarComponent,
   ],
+  animations: [fadeInUp],
   changeDetection: ChangeDetectionStrategy.OnPush,
   templateUrl: './scoring-config.component.html',
   styleUrl: './scoring-config.component.scss',
