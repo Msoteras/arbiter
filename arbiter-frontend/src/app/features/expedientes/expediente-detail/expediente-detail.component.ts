@@ -736,7 +736,8 @@ export class ExpedienteDetailComponent {
           {
             id: 'analisis' as TabId,
             label: 'Análisis',
-            count: this.analysisReasons().length > 0 ? `${this.analysisReasons().length}` : undefined,
+            count:
+              this.analysisReasons().length > 0 ? `${this.analysisReasons().length}` : undefined,
           },
         ]
       : []),
