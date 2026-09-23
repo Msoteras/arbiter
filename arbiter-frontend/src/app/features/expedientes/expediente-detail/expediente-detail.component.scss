@@ -225,6 +225,25 @@
      botones no estiran la card por debajo de las otras dos. */
   margin-top: calc(-1 * (var(--font-size-xs) * 1.5 + var(--space-3)));
 }
+/* Measured against the card, not the viewport: between the 3-column breakpoint and a wide screen
+   the card is too narrow for the buttons beside the brief, which then wrapped word by word. */
+.rcard {
+  container-type: inline-size;
+}
+@container (max-width: 22rem) {
+  .decision-row {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  .decision-side {
+    width: auto;
+    flex-direction: row;
+    margin-top: var(--space-3);
+  }
+  .decision-side > * {
+    flex: 1;
+  }
+}
 
 /* Una sola fila de acciones en cualquier estado: derivar vive en la card "Analista asignado". */
 .decision-btns {
