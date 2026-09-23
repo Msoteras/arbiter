@@ -38,6 +38,7 @@ public class ScoringConfigurationService {
     private final FactorWeightRepository factorWeightRepository;
     private final ScoreBandRepository scoreBandRepository;
     private final ScoringConfigurationHistoryRepository historyRepository;
+    private final RuleAuthorResolver authorResolver;
 
     @Transactional(readOnly = true)
     public ScoringConfigDto get() {
@@ -70,7 +71,7 @@ public class ScoringConfigurationService {
                 .changedAt(now)
                 .reason("Scoring actualizado por " + actorEmail)
                 .scoringConfiguration(config)
-                .changedBy(null)
+                .changedBy(authorResolver.referentIdOf(actorEmail))
                 .build());
 
         factorWeightRepository.deleteByScoringConfiguration_Id(config.getId());

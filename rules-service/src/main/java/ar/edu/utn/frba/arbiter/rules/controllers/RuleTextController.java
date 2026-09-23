@@ -2,7 +2,7 @@ package ar.edu.utn.frba.arbiter.rules.controllers;
 
 import ar.edu.utn.frba.arbiter.rules.dto.RuleTextResponse;
 import ar.edu.utn.frba.arbiter.rules.dto.RuleTextsDto;
-import ar.edu.utn.frba.arbiter.rules.services.InternalRuleTextService;
+import ar.edu.utn.frba.arbiter.rules.services.CoverageRuleTextService;
 import ar.edu.utn.frba.arbiter.rules.services.RuleTextService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -26,15 +26,15 @@ public class RuleTextController {
 
     private final RuleTextService commonExclusions;
     private final RuleTextService businessRules;
-    private final InternalRuleTextService internalRuleTexts;
+    private final CoverageRuleTextService coverageRuleTexts;
 
     public RuleTextController(
             @Qualifier("commonExclusionsRuleTextService") RuleTextService commonExclusions,
             @Qualifier("businessRulesRuleTextService") RuleTextService businessRules,
-            InternalRuleTextService internalRuleTexts) {
+            CoverageRuleTextService coverageRuleTexts) {
         this.commonExclusions = commonExclusions;
         this.businessRules = businessRules;
-        this.internalRuleTexts = internalRuleTexts;
+        this.coverageRuleTexts = coverageRuleTexts;
     }
 
     @GetMapping("/internal/rule-texts")
@@ -45,7 +45,7 @@ public class RuleTextController {
                     + "claim tiene a mano— y resuelve el ramo puertas adentro. Sin configuración devuelve "
                     + "listas vacías, nunca 404: el motor compone esto sobre su baseline.")
     public RuleTextsDto internalRuleTexts(@RequestParam Long coverageId) {
-        return internalRuleTexts.getByCoverage(coverageId);
+        return coverageRuleTexts.getByCoverage(coverageId);
     }
 
     @GetMapping("/exclusions")

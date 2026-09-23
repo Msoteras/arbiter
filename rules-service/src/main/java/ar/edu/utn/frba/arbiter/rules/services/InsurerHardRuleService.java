@@ -42,6 +42,7 @@ public class InsurerHardRuleService {
 
     private final InsurerRuleRepository ruleRepository;
     private final InsurerRuleHistoryRepository historyRepository;
+    private final RuleAuthorResolver authorResolver;
 
     /** Both insurer-scoped rules, always both: the one with no row comes back disabled. */
     @Transactional(readOnly = true)
@@ -135,7 +136,7 @@ public class InsurerHardRuleService {
                 .validTo(now)
                 .reason("Regla dura de la aseguradora actualizada por " + actorEmail)
                 .insurerRule(rule)
-                .changedBy(null)
+                .changedBy(authorResolver.referentIdOf(actorEmail))
                 .build());
 
         rule.setActive(requested.enabled());

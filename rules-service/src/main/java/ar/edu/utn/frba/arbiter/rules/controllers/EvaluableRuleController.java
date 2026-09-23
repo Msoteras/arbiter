@@ -5,10 +5,10 @@ import ar.edu.utn.frba.arbiter.rules.dto.EvaluableRulesDto;
 import ar.edu.utn.frba.arbiter.rules.dto.ExpertDerivationDto;
 import ar.edu.utn.frba.arbiter.rules.dto.RepairDerivationDto;
 import ar.edu.utn.frba.arbiter.rules.dto.ScoringConfigDto;
-import ar.edu.utn.frba.arbiter.rules.services.InternalCoverageLimitsService;
-import ar.edu.utn.frba.arbiter.rules.services.InternalEvaluableRuleService;
-import ar.edu.utn.frba.arbiter.rules.services.InternalExpertDerivationService;
-import ar.edu.utn.frba.arbiter.rules.services.InternalRepairDerivationService;
+import ar.edu.utn.frba.arbiter.rules.services.CoverageLimitsService;
+import ar.edu.utn.frba.arbiter.rules.services.EvaluableRuleService;
+import ar.edu.utn.frba.arbiter.rules.services.ExpertDerivationService;
+import ar.edu.utn.frba.arbiter.rules.services.RepairDerivationService;
 import ar.edu.utn.frba.arbiter.rules.services.ScoringConfigurationService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -26,11 +26,11 @@ import org.springframework.web.bind.annotation.RestController;
 @Tag(name = "Reglas evaluables", description = "Reglas duras evaluables por código (exclusiones de cobertura)")
 public class EvaluableRuleController {
 
-    private final InternalEvaluableRuleService internalEvaluableRules;
-    private final InternalCoverageLimitsService internalCoverageLimits;
+    private final EvaluableRuleService evaluableRules;
+    private final CoverageLimitsService coverageLimits;
     private final ScoringConfigurationService scoringConfigurationService;
-    private final InternalExpertDerivationService internalExpertDerivation;
-    private final InternalRepairDerivationService internalRepairDerivation;
+    private final ExpertDerivationService expertDerivation;
+    private final RepairDerivationService repairDerivation;
 
     @GetMapping("/internal/evaluable")
     @PreAuthorize("isAuthenticated()")
@@ -40,7 +40,7 @@ public class EvaluableRuleController {
                     + "que el claim tiene a mano—. Sin configuración devuelve una lista vacía, nunca 404: "
                     + "el motor compone esto sobre su baseline.")
     public EvaluableRulesDto internalEvaluable(@RequestParam Long coverageId) {
-        return internalEvaluableRules.getByCoverage(coverageId);
+        return evaluableRules.getByCoverage(coverageId);
     }
 
     @GetMapping("/internal/coverage-limits")
@@ -50,7 +50,7 @@ public class EvaluableRuleController {
                     + "max_events_per_year de la cobertura, que el motor evalúa por código (D10/D11). "
                     + "Sin cobertura ⇒ vacío.")
     public CoverageLimitsDto internalCoverageLimits(@RequestParam Long coverageId) {
-        return internalCoverageLimits.getByCoverage(coverageId);
+        return coverageLimits.getByCoverage(coverageId);
     }
 
     @GetMapping("/internal/scoring")
@@ -72,7 +72,7 @@ public class EvaluableRuleController {
                     + "es opt-in, porque abajo de cierto monto cuesta más que el siniestro. No decide nada "
                     + "—habilita—: quién y cuándo deriva sigue siendo el analista.")
     public ExpertDerivationDto internalExpertDerivation(@RequestParam Long branchId) {
-        return internalExpertDerivation.getByBranch(branchId);
+        return expertDerivation.getByBranch(branchId);
     }
 
     @GetMapping("/internal/repair-derivation")
@@ -83,6 +83,6 @@ public class EvaluableRuleController {
                     + "enabled=false, y el analista no ve la opción. Un equipo robado no tiene nada que "
                     + "reparar: por eso la derivación depende del hecho y no solo del catálogo de proveedores.")
     public RepairDerivationDto internalRepairDerivation(@RequestParam Long branchId) {
-        return internalRepairDerivation.getByBranch(branchId);
+        return repairDerivation.getByBranch(branchId);
     }
 }

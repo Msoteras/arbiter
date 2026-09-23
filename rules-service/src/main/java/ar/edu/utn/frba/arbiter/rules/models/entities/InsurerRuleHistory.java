@@ -20,8 +20,8 @@ import org.hibernate.type.SqlTypes;
 import java.time.Instant;
 
 /**
- * Append-only audit trail of changes to an {@link InsurerRule}. {@code changedBy} is a logical
- * reference to an auth-service user, not a real FK.
+ * Append-only audit trail of changes to an {@link InsurerRule}. {@code changedBy} is a FK to the
+ * tenant's {@code insurer_referent}; null when the actor had no referente profile.
  */
 @Entity
 @Table(name = "insurer_rule_history")

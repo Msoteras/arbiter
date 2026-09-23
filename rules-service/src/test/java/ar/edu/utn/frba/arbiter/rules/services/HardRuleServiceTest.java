@@ -35,9 +35,10 @@ class HardRuleServiceTest {
     private final InsurerRuleRepository ruleRepository = mock(InsurerRuleRepository.class);
     private final InsurerRuleHistoryRepository historyRepository = mock(InsurerRuleHistoryRepository.class);
     private final BranchRepository branchRepository = mock(BranchRepository.class);
+    private final RuleAuthorResolver authorResolver = mock(RuleAuthorResolver.class);
 
     private final HardRuleService service =
-            new HardRuleService(ruleRepository, historyRepository, branchRepository);
+            new HardRuleService(ruleRepository, historyRepository, branchRepository, authorResolver);
 
     /**
      * The panel always shows every coverage-scoped rule, so an unconfigured one comes back disabled
@@ -132,6 +133,25 @@ class HardRuleServiceTest {
         // The snapshot keeps the version that got overwritten, not the new one.
         assertThat(history.getValue().getConfigVersion()).contains("72");
         assertThat(existing.getConfiguration()).contains("120");
+    }
+
+    /** The snapshot points at the referente who made the change; the reason keeps naming them too. */
+    @Test
+    void historyRecordsTheReferenteWhoMadeTheChange() {
+        InsurerRule existing = rule(7L, RuleType.POLICE_DEADLINE, true, "{\"deadlineHours\":72}");
+        when(ruleRepository.findFirstByBranch_IdAndCoverageIdAndRuleType(1L, 1L, "POLICE_DEADLINE"))
+                .thenReturn(Optional.of(existing));
+        when(ruleRepository.save(any(InsurerRule.class))).thenAnswer(inv -> inv.getArgument(0));
+        when(ruleRepository.findByBranch_IdAndCoverageIdAndRuleTypeIn(eq(1L), eq(1L), any()))
+                .thenReturn(List.of(existing));
+        when(authorResolver.referentIdOf("referente@bbva.com")).thenReturn(11L);
+
+        service.upsert(1L, 1L, List.of(new HardRuleDto(RuleType.POLICE_DEADLINE, true, 120L)), "referente@bbva.com");
+
+        ArgumentCaptor<InsurerRuleHistory> history = ArgumentCaptor.forClass(InsurerRuleHistory.class);
+        verify(historyRepository).save(history.capture());
+        assertThat(history.getValue().getChangedBy()).isEqualTo(11L);
+        assertThat(history.getValue().getReason()).endsWith(" por referente@bbva.com");
     }
 
     /** Turning a rule off doesn't delete the row: it stays inactive, and history keeps the change. */

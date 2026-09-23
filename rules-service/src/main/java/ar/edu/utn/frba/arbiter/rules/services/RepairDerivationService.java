@@ -12,11 +12,11 @@ import org.springframework.transaction.annotation.Transactional;
 
 /**
  * System-to-system read of which claim causes of a branch the insurer sends to a repair shop.
- * Same shape as {@link InternalExpertDerivationService}: one {@code insurer_rule} row per branch
+ * Same shape as {@link ExpertDerivationService}: one {@code insurer_rule} row per branch
  * with {@code coverage_id} null, and no rule means the insurer does not derive to repair.
  */
 @Service
-public class InternalRepairDerivationService {
+public class RepairDerivationService {
 
     static final String REPAIR_DERIVATION = "REPAIR_DERIVATION";
 
@@ -24,7 +24,7 @@ public class InternalRepairDerivationService {
 
     private final InsurerRuleRepository ruleRepository;
 
-    public InternalRepairDerivationService(InsurerRuleRepository ruleRepository) {
+    public RepairDerivationService(InsurerRuleRepository ruleRepository) {
         this.ruleRepository = ruleRepository;
     }
 

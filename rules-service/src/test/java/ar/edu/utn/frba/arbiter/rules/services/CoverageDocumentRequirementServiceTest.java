@@ -20,12 +20,12 @@ import static org.mockito.Mockito.when;
  * means "needs no documents" and {@code null} means "couldn't resolve it". The engine only falls
  * back to its baseline on the second.
  */
-class InternalDocumentRequirementServiceTest {
+class CoverageDocumentRequirementServiceTest {
 
     private final CoverageRepository coverageRepository = mock(CoverageRepository.class);
     private final DocumentRequirementService documentRequirements = mock(DocumentRequirementService.class);
-    private final InternalDocumentRequirementService service =
-            new InternalDocumentRequirementService(coverageRepository, documentRequirements);
+    private final CoverageDocumentRequirementService service =
+            new CoverageDocumentRequirementService(coverageRepository, documentRequirements);
 
     @Test
     void resolvesCoverageToBranchAndReturnsItsAgenda() {

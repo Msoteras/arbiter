@@ -1,11 +1,9 @@
 package ar.edu.utn.frba.arbiter.rules.services;
 
-import ar.edu.utn.frba.arbiter.common.models.entities.User;
-import ar.edu.utn.frba.arbiter.rules.models.repositories.InsurerReferentRepository;
-import ar.edu.utn.frba.arbiter.rules.models.repositories.UserRepository;
-import java.util.HashMap;
 import ar.edu.utn.frba.arbiter.common.models.entities.ClaimCause;
+import ar.edu.utn.frba.arbiter.common.models.entities.User;
 import ar.edu.utn.frba.arbiter.common.models.entities.tenant.Coverage;
+import ar.edu.utn.frba.arbiter.common.models.entities.tenant.InsurerReferent;
 import ar.edu.utn.frba.arbiter.rules.dto.InsurerRuleSnapshot;
 import ar.edu.utn.frba.arbiter.rules.dto.RuleChangeEntry;
 import ar.edu.utn.frba.arbiter.rules.dto.RuleChangeSource;
@@ -16,8 +14,10 @@ import ar.edu.utn.frba.arbiter.rules.models.entities.InsurerRuleHistory;
 import ar.edu.utn.frba.arbiter.rules.models.entities.ScoringConfigurationHistory;
 import ar.edu.utn.frba.arbiter.rules.models.repositories.ClaimCauseRepository;
 import ar.edu.utn.frba.arbiter.rules.models.repositories.CoverageRepository;
+import ar.edu.utn.frba.arbiter.rules.models.repositories.InsurerReferentRepository;
 import ar.edu.utn.frba.arbiter.rules.models.repositories.InsurerRuleHistoryRepository;
 import ar.edu.utn.frba.arbiter.rules.models.repositories.ScoringConfigurationHistoryRepository;
+import ar.edu.utn.frba.arbiter.rules.models.repositories.UserRepository;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -33,6 +33,7 @@ import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Comparator;
+import java.util.HashMap;
 import java.util.Iterator;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
@@ -97,8 +98,9 @@ public class RuleChangeHistoryService {
      */
     @Transactional(readOnly = true)
     public Page<RuleChangeEntry> find(String ruleType, Long branchId, Instant from, Instant to, Pageable pageable) {
-        List<RuleChangeEntry> all = new ArrayList<>(insurerRuleChanges());
-        all.addAll(scoringChanges());
+        Map<String, Long> referentIdByEntry = new HashMap<>();
+        List<RuleChangeEntry> all = new ArrayList<>(insurerRuleChanges(referentIdByEntry));
+        all.addAll(scoringChanges(referentIdByEntry));
 
         List<RuleChangeEntry> matching = all.stream()
                 .filter(RuleChangeHistoryService::isAChange)
@@ -112,19 +114,30 @@ public class RuleChangeHistoryService {
 
         int start = (int) Math.min(pageable.getOffset(), matching.size());
         int end = Math.min(start + pageable.getPageSize(), matching.size());
-        return new PageImpl<>(withAuthors(matching.subList(start, end)), pageable, matching.size());
+        return new PageImpl<>(withAuthors(matching.subList(start, end), referentIdByEntry), pageable, matching.size());
     }
 
     /**
-     * The writers leave {@code changed_by} null and append the actor's email to {@code reason}, so
-     * it's taken from there and resolved to the referente's name. Without a profile, the email is shown.
+     * The author is the referente in {@code changed_by}, by name. Without a profile, the email the
+     * reason ends with is shown.
      */
-    private List<RuleChangeEntry> withAuthors(List<RuleChangeEntry> entries) {
+    private List<RuleChangeEntry> withAuthors(List<RuleChangeEntry> entries, Map<String, Long> referentIdByEntry) {
+        Set<Long> referentIds = entries.stream()
+                .map(entry -> referentIdByEntry.get(entry.id()))
+                .filter(Objects::nonNull)
+                .collect(Collectors.toSet());
+        Map<Long, String> nameByReferentId = referentIds.isEmpty() ? Map.of()
+                : insurerReferentRepository.findAllById(referentIds).stream()
+                        .collect(Collectors.toMap(InsurerReferent::getId, RuleChangeHistoryService::fullName));
+
+        // Rows saved before changed_by was filled only name the actor in the reason.
         Map<String, String> actorByEntry = new HashMap<>();
         entries.forEach(entry -> {
-            String actor = actorOf(entry.reason());
-            if (actor != null) {
-                actorByEntry.put(entry.id(), actor);
+            if (referentName(entry, referentIdByEntry, nameByReferentId) == null) {
+                String actor = actorOf(entry.reason());
+                if (actor != null) {
+                    actorByEntry.put(entry.id(), actor);
+                }
             }
         });
         Map<String, Long> userIdByEmail = actorByEntry.isEmpty() ? Map.of()
@@ -133,20 +146,33 @@ public class RuleChangeHistoryService {
         Map<Long, String> nameByUserId = userIdByEmail.isEmpty() ? Map.of()
                 : insurerReferentRepository.findByUser_IdIn(userIdByEmail.values()).stream()
                         .collect(Collectors.toMap(r -> r.getUser().getId(),
-                                r -> (r.getName() + " " + r.getSurname()).trim(), (a, b) -> a));
+                                RuleChangeHistoryService::fullName, (a, b) -> a));
 
         return entries.stream().map(entry -> {
-            String actor = actorByEntry.get(entry.id());
-            if (actor == null) {
-                return entry;
+            String author = referentName(entry, referentIdByEntry, nameByReferentId);
+            if (author == null) {
+                String actor = actorByEntry.get(entry.id());
+                if (actor == null) {
+                    return entry;
+                }
+                Long userId = userIdByEmail.get(actor);
+                author = userId == null ? actor : nameByUserId.getOrDefault(userId, actor);
             }
-            Long userId = userIdByEmail.get(actor);
-            String author = userId == null ? actor : nameByUserId.getOrDefault(userId, actor);
             return new RuleChangeEntry(entry.id(), entry.source(), entry.ruleType(), entry.ruleName(),
                     entry.branchId(), entry.branchName(), entry.coverageId(), entry.coverageName(),
                     entry.changedAt(), entry.previousValidFrom(), entry.reason(), entry.changes(),
                     entry.current(), entry.partial(), author);
         }).toList();
+    }
+
+    private static String referentName(
+            RuleChangeEntry entry, Map<String, Long> referentIdByEntry, Map<Long, String> nameByReferentId) {
+        Long referentId = referentIdByEntry.get(entry.id());
+        return referentId == null ? null : nameByReferentId.get(referentId);
+    }
+
+    private static String fullName(InsurerReferent referent) {
+        return (referent.getName() + " " + referent.getSurname()).trim();
     }
 
     /** The text after the last " por " / " by " in a reason, or null if it names nobody. */
@@ -191,7 +217,7 @@ public class RuleChangeHistoryService {
 
     // ─────────────────────────────── insurer_rule ───────────────────────────────
 
-    private List<RuleChangeEntry> insurerRuleChanges() {
+    private List<RuleChangeEntry> insurerRuleChanges(Map<String, Long> referentIdByEntry) {
         List<InsurerRuleHistory> rows = insurerRuleHistoryRepository.findAllForHistory();
         if (rows.isEmpty()) {
             return List.of();
@@ -221,6 +247,9 @@ public class RuleChangeHistoryService {
                         ? live
                         : InsurerRuleSnapshot.parse(versions.get(i + 1).getConfigVersion());
 
+                if (row.getChangedBy() != null) {
+                    referentIdByEntry.put("rule-" + row.getId(), row.getChangedBy());
+                }
                 entries.add(new RuleChangeEntry(
                         "rule-" + row.getId(),
                         RuleChangeSource.INSURER_RULE,
@@ -244,7 +273,7 @@ public class RuleChangeHistoryService {
 
     // ──────────────────────────────── scoring ───────────────────────────────────
 
-    private List<RuleChangeEntry> scoringChanges() {
+    private List<RuleChangeEntry> scoringChanges(Map<String, Long> referentIdByEntry) {
         List<ScoringConfigurationHistory> rows = scoringHistoryRepository.findAllByOrderByValidFromAscIdAsc();
         if (rows.isEmpty()) {
             return List.of();
@@ -258,6 +287,9 @@ public class RuleChangeHistoryService {
             JsonNode before = readTree(row.getSnapshotConfig());
             JsonNode after = last ? asStoredJson(live) : readTree(rows.get(i + 1).getSnapshotConfig());
 
+            if (row.getChangedBy() != null) {
+                referentIdByEntry.put("scoring-" + row.getId(), row.getChangedBy());
+            }
             entries.add(new RuleChangeEntry(
                     "scoring-" + row.getId(),
                     RuleChangeSource.SCORING,

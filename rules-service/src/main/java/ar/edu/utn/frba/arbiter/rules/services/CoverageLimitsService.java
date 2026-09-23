@@ -10,11 +10,11 @@ import org.springframework.transaction.annotation.Transactional;
  * coverage ⇒ empty, so the engine skips the rule instead of failing on missing config.
  */
 @Service
-public class InternalCoverageLimitsService {
+public class CoverageLimitsService {
 
     private final CoverageRepository coverageRepository;
 
-    public InternalCoverageLimitsService(CoverageRepository coverageRepository) {
+    public CoverageLimitsService(CoverageRepository coverageRepository) {
         this.coverageRepository = coverageRepository;
     }
 

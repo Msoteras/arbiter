@@ -28,7 +28,7 @@ import java.util.List;
  * </ul>
  */
 @Service
-public class InternalEvaluableRuleService {
+public class EvaluableRuleService {
 
     // Self-instantiated (Jackson 2), same as FastTrackRuleService: Spring Boot 4 auto-configures a
     // Jackson 3 (tools.jackson) ObjectMapper, so there's no com.fasterxml bean to inject.
@@ -44,7 +44,7 @@ public class InternalEvaluableRuleService {
 
     private final InsurerRuleRepository ruleRepository;
 
-    public InternalEvaluableRuleService(InsurerRuleRepository ruleRepository) {
+    public EvaluableRuleService(InsurerRuleRepository ruleRepository) {
         this.ruleRepository = ruleRepository;
     }
 

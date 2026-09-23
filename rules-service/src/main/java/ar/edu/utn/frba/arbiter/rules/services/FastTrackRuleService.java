@@ -40,6 +40,7 @@ public class FastTrackRuleService {
     private final InsurerRuleRepository ruleRepository;
     private final InsurerRuleHistoryRepository historyRepository;
     private final BranchRepository branchRepository;
+    private final RuleAuthorResolver authorResolver;
 
     @Transactional(readOnly = true)
     public FastTrackConfigDto get(Long branchId, Long coverageId) {
@@ -89,8 +90,7 @@ public class FastTrackRuleService {
             return new FastTrackRuleResponse(rule.getId(), branchId, coverageId, config);
         }
 
-        // Snapshot the version about to be overwritten. changedBy stays null: the JWT carries the
-        // actor's email, not the insurer_referent id, so the actor is recorded in `reason`.
+        // Snapshot the version about to be overwritten.
         historyRepository.save(InsurerRuleHistory.builder()
                 .configVersion(InsurerRuleSnapshot.serialize(
                         rule.isActive(), rule.isBlocksFastTrack(), rule.getConfiguration()))
@@ -99,7 +99,7 @@ public class FastTrackRuleService {
                 .validTo(now)
                 .reason("Fast Track actualizado por " + actorEmail)
                 .insurerRule(rule)
-                .changedBy(null)
+                .changedBy(authorResolver.referentIdOf(actorEmail))
                 .build());
 
         rule.setConfiguration(json);

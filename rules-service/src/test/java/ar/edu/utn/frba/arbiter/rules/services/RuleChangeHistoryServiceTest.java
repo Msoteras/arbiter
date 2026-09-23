@@ -1,11 +1,11 @@
 package ar.edu.utn.frba.arbiter.rules.services;
 
-import ar.edu.utn.frba.arbiter.rules.models.repositories.UserRepository;
-import ar.edu.utn.frba.arbiter.rules.models.repositories.InsurerReferentRepository;
 import ar.edu.utn.frba.arbiter.common.enums.RuleType;
 import ar.edu.utn.frba.arbiter.common.models.entities.Branch;
 import ar.edu.utn.frba.arbiter.common.models.entities.ClaimCause;
+import ar.edu.utn.frba.arbiter.common.models.entities.User;
 import ar.edu.utn.frba.arbiter.common.models.entities.tenant.Coverage;
+import ar.edu.utn.frba.arbiter.common.models.entities.tenant.InsurerReferent;
 import ar.edu.utn.frba.arbiter.rules.dto.RuleChangeEntry;
 import ar.edu.utn.frba.arbiter.rules.dto.RuleChangeSource;
 import ar.edu.utn.frba.arbiter.rules.dto.RuleFieldChange;
@@ -16,8 +16,10 @@ import ar.edu.utn.frba.arbiter.rules.models.entities.ScoringConfiguration;
 import ar.edu.utn.frba.arbiter.rules.models.entities.ScoringConfigurationHistory;
 import ar.edu.utn.frba.arbiter.rules.models.repositories.ClaimCauseRepository;
 import ar.edu.utn.frba.arbiter.rules.models.repositories.CoverageRepository;
+import ar.edu.utn.frba.arbiter.rules.models.repositories.InsurerReferentRepository;
 import ar.edu.utn.frba.arbiter.rules.models.repositories.InsurerRuleHistoryRepository;
 import ar.edu.utn.frba.arbiter.rules.models.repositories.ScoringConfigurationHistoryRepository;
+import ar.edu.utn.frba.arbiter.rules.models.repositories.UserRepository;
 import org.junit.jupiter.api.Test;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
@@ -26,6 +28,7 @@ import java.time.Instant;
 import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -362,6 +365,60 @@ class RuleChangeHistoryServiceTest {
 
         assertThat(page().getContent().get(0).changes())
                 .containsExactly(new RuleFieldChange("factors[IMAGE_REUSED].weight", "0.2", "0.4"));
+    }
+
+    /** The author is the referente recorded in changed_by, not whoever the reason happens to name. */
+    @Test
+    void namesTheAuthorFromChangedBy() {
+        InsurerRule rule = policeDeadlineRule("{\"deadlineHours\":120}", true);
+        InsurerRuleHistory row = history(1L, rule, T1, T2, "{\"active\":true,\"blocksFastTrack\":true,"
+                + "\"configuration\":{\"deadlineHours\":72}}");
+        row.setChangedBy(11L);
+        when(ruleHistoryRepository.findAllForHistory()).thenReturn(List.of(row));
+        when(insurerReferentRepository.findAllById(any()))
+                .thenReturn(List.of(referent(11L, "Ana", "Pérez", 3L)));
+        noScoringHistory();
+
+        assertThat(page().getContent().get(0).author()).isEqualTo("Ana Pérez");
+        verify(userRepository, never()).findByEmailIn(any());
+    }
+
+    /** Rows saved without changed_by still get an author, from the email the reason ends with. */
+    @Test
+    void fallsBackToTheReasonWhenChangedByIsNull() {
+        InsurerRule rule = policeDeadlineRule("{\"deadlineHours\":120}", true);
+        when(ruleHistoryRepository.findAllForHistory()).thenReturn(List.of(
+                history(1L, rule, T1, T2, "{\"active\":true,\"blocksFastTrack\":true,"
+                        + "\"configuration\":{\"deadlineHours\":72}}")));
+        when(userRepository.findByEmailIn(any()))
+                .thenReturn(List.of(User.builder().id(3L).email("referente@bbva.com").build()));
+        when(insurerReferentRepository.findByUser_IdIn(any()))
+                .thenReturn(List.of(referent(11L, "Luis", "Gómez", 3L)));
+        noScoringHistory();
+
+        assertThat(page().getContent().get(0).author()).isEqualTo("Luis Gómez");
+        verify(insurerReferentRepository, never()).findAllById(any());
+    }
+
+    /** Without a referente profile behind the email, the email itself is the author. */
+    @Test
+    void showsTheEmailWhenTheReasonNamesNoReferente() {
+        InsurerRule rule = policeDeadlineRule("{\"deadlineHours\":120}", true);
+        when(ruleHistoryRepository.findAllForHistory()).thenReturn(List.of(
+                history(1L, rule, T1, T2, "{\"active\":true,\"blocksFastTrack\":true,"
+                        + "\"configuration\":{\"deadlineHours\":72}}")));
+        noScoringHistory();
+
+        assertThat(page().getContent().get(0).author()).isEqualTo("referente@bbva.com");
+    }
+
+    private static InsurerReferent referent(Long id, String name, String surname, Long userId) {
+        return InsurerReferent.builder()
+                .id(id)
+                .name(name)
+                .surname(surname)
+                .user(User.builder().id(userId).build())
+                .build();
     }
 
     private static ClaimCause claimCause(Long id, String name) {

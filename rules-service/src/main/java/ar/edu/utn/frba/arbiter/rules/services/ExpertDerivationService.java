@@ -18,17 +18,17 @@ import org.springframework.transaction.annotation.Transactional;
  * <p>It decides nothing: it says whether the analyst may derive and from what amount.
  */
 @Service
-public class InternalExpertDerivationService {
+public class ExpertDerivationService {
 
     static final String EXPERT_DERIVATION = "EXPERT_DERIVATION";
 
-    // Self-instantiated (Jackson 2), same as the sibling internal services: Spring Boot 4
+    // Self-instantiated (Jackson 2), same as EvaluableRuleService: Spring Boot 4
     // autoconfigures a Jackson 3 ObjectMapper, so there's no com.fasterxml bean to inject.
     private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
 
     private final InsurerRuleRepository ruleRepository;
 
-    public InternalExpertDerivationService(InsurerRuleRepository ruleRepository) {
+    public ExpertDerivationService(InsurerRuleRepository ruleRepository) {
         this.ruleRepository = ruleRepository;
     }
 

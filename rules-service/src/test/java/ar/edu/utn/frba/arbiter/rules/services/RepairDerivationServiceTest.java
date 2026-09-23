@@ -1,6 +1,6 @@
 package ar.edu.utn.frba.arbiter.rules.services;
 
-import ar.edu.utn.frba.arbiter.rules.dto.ExpertDerivationDto;
+import ar.edu.utn.frba.arbiter.rules.dto.RepairDerivationDto;
 import ar.edu.utn.frba.arbiter.rules.exceptions.InvalidRuleConfigurationException;
 import ar.edu.utn.frba.arbiter.rules.models.entities.InsurerRule;
 import ar.edu.utn.frba.arbiter.rules.models.repositories.InsurerRuleRepository;
@@ -13,49 +13,46 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
-/**
- * The branch's derivation-to-expert policy. "Not configured" is a business answer, not a gap: it's
- * opt-in because below some amount an expert assessment costs more than the claim.
- */
-class InternalExpertDerivationServiceTest {
+class RepairDerivationServiceTest {
 
     private static final Long BRANCH_ID = 1L;
 
     private final InsurerRuleRepository ruleRepository = mock(InsurerRuleRepository.class);
-    private final InternalExpertDerivationService service =
-            new InternalExpertDerivationService(ruleRepository);
+    private final RepairDerivationService service =
+            new RepairDerivationService(ruleRepository);
 
     @Test
-    void readsTheThresholdOffTheRuleConfiguration() {
-        givenRule(rule(true, "{\"minClaimedAmount\":500000}"));
+    void readsTheClaimCausesOffTheRuleConfiguration() {
+        givenRule(rule(true, "{\"claimCauseIds\":[1,4]}"));
 
-        ExpertDerivationDto policy = service.getByBranch(BRANCH_ID);
+        RepairDerivationDto policy = service.getByBranch(BRANCH_ID);
 
         assertThat(policy.enabled()).isTrue();
-        assertThat(policy.minClaimedAmount()).isEqualByComparingTo("500000");
-        assertThat(policy.ruleId()).isEqualTo(4L);
+        assertThat(policy.claimCauseIds()).containsExactly(1L, 4L);
+        assertThat(policy.ruleId()).isEqualTo(9L);
     }
 
-    /** An insurer that never loaded the rule doesn't derive: opt-in, not a default. */
+    /** Opt-in, like peritaje: an insurer that never loaded the rule does not derive to repair. */
     @Test
     void isDisabledWhenTheInsurerHasNoRuleForTheBranch() {
         givenNoRule();
 
-        assertThat(service.getByBranch(BRANCH_ID).enabled()).isFalse();
+        RepairDerivationDto policy = service.getByBranch(BRANCH_ID);
+
+        assertThat(policy.enabled()).isFalse();
+        assertThat(policy.claimCauseIds()).isEmpty();
     }
 
-    /** Deactivating the rule stops derivations without deleting the history. */
     @Test
     void isDisabledWhenTheRuleIsInactive() {
-        givenRule(rule(false, "{\"minClaimedAmount\":500000}"));
+        givenRule(rule(false, "{\"claimCauseIds\":[1,4]}"));
 
         assertThat(service.getByBranch(BRANCH_ID).enabled()).isFalse();
     }
 
-    /** An active rule with no amount is a misconfiguration, not "derive everything". */
     @Test
-    void failsOnAnActiveRuleWithNoThreshold() {
-        givenRule(rule(true, "{}"));
+    void failsOnAnActiveRuleWithNoClaimCauses() {
+        givenRule(rule(true, "{\"claimCauseIds\":[]}"));
 
         assertThatThrownBy(() -> service.getByBranch(BRANCH_ID))
                 .isInstanceOf(InvalidRuleConfigurationException.class);
@@ -71,22 +68,22 @@ class InternalExpertDerivationServiceTest {
 
     private void givenRule(InsurerRule rule) {
         when(ruleRepository.findFirstByBranch_IdAndCoverageIdIsNullAndRuleType(
-                BRANCH_ID, InternalExpertDerivationService.EXPERT_DERIVATION))
+                BRANCH_ID, RepairDerivationService.REPAIR_DERIVATION))
                 .thenReturn(Optional.of(rule));
     }
 
     private void givenNoRule() {
         when(ruleRepository.findFirstByBranch_IdAndCoverageIdIsNullAndRuleType(
-                BRANCH_ID, InternalExpertDerivationService.EXPERT_DERIVATION))
+                BRANCH_ID, RepairDerivationService.REPAIR_DERIVATION))
                 .thenReturn(Optional.empty());
     }
 
     private InsurerRule rule(boolean active, String configuration) {
         return InsurerRule.builder()
-                .id(4L)
+                .id(9L)
                 .active(active)
-                .name("Derivar a peritaje")
-                .ruleType(InternalExpertDerivationService.EXPERT_DERIVATION)
+                .name("Derivar a reparación")
+                .ruleType(RepairDerivationService.REPAIR_DERIVATION)
                 .effect("DERIVAR")
                 .configuration(configuration)
                 .build();

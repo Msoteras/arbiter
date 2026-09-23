@@ -36,6 +36,7 @@ public class RuleTextService {
     private final InsurerRuleRepository ruleRepository;
     private final InsurerRuleHistoryRepository historyRepository;
     private final BranchRepository branchRepository;
+    private final RuleAuthorResolver authorResolver;
 
     @Transactional(readOnly = true)
     public List<String> get(Long branchId) {
@@ -85,7 +86,7 @@ public class RuleTextService {
                 .validTo(now)
                 .reason(ruleNamePrefix + " actualizado por " + actorEmail)
                 .insurerRule(rule)
-                .changedBy(null)
+                .changedBy(authorResolver.referentIdOf(actorEmail))
                 .build());
 
         rule.setConfiguration(json);

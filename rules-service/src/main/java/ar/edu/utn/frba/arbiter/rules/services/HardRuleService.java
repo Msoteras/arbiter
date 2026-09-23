@@ -54,6 +54,7 @@ public class HardRuleService {
     private final InsurerRuleRepository ruleRepository;
     private final InsurerRuleHistoryRepository historyRepository;
     private final BranchRepository branchRepository;
+    private final RuleAuthorResolver authorResolver;
 
     /** Always the whole catalog: a rule with no row comes back disabled, which to the engine is the same. */
     @Transactional(readOnly = true)
@@ -140,7 +141,7 @@ public class HardRuleService {
                 .validTo(now)
                 .reason("Regla dura actualizada por " + actorEmail)
                 .insurerRule(rule)
-                .changedBy(null)
+                .changedBy(authorResolver.referentIdOf(actorEmail))
                 .build());
 
         rule.setActive(requested.enabled());

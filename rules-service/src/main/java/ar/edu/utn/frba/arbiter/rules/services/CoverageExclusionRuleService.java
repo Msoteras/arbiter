@@ -44,6 +44,7 @@ public class CoverageExclusionRuleService {
     private final InsurerRuleHistoryRepository historyRepository;
     private final BranchRepository branchRepository;
     private final ClaimCauseRepository claimCauseRepository;
+    private final RuleAuthorResolver authorResolver;
 
     @Transactional(readOnly = true)
     public List<CatalogOption> listClaimCauses(Long branchId) {
@@ -105,7 +106,7 @@ public class CoverageExclusionRuleService {
                 .validTo(now)
                 .reason("Exclusiones de cobertura actualizadas por " + actorEmail)
                 .insurerRule(rule)
-                .changedBy(null)
+                .changedBy(authorResolver.referentIdOf(actorEmail))
                 .build());
 
         rule.setConfiguration(json);

@@ -15,13 +15,13 @@ import org.springframework.transaction.annotation.Transactional;
  * are the texts read. Same reason {@code /internal/fast-track} is keyed by coverage.
  */
 @Service
-public class InternalRuleTextService {
+public class CoverageRuleTextService {
 
     private final CoverageRepository coverageRepository;
     private final RuleTextService commonExclusions;
     private final RuleTextService businessRules;
 
-    public InternalRuleTextService(
+    public CoverageRuleTextService(
             CoverageRepository coverageRepository,
             @Qualifier("commonExclusionsRuleTextService") RuleTextService commonExclusions,
             @Qualifier("businessRulesRuleTextService") RuleTextService businessRules) {

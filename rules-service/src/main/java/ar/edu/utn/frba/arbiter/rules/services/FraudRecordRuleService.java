@@ -40,6 +40,7 @@ public class FraudRecordRuleService {
 
     private final InsurerRuleRepository ruleRepository;
     private final InsurerRuleHistoryRepository historyRepository;
+    private final RuleAuthorResolver authorResolver;
 
     @Transactional(readOnly = true)
     public FraudRecordRuleDto get() {
@@ -101,7 +102,7 @@ public class FraudRecordRuleService {
                 .validTo(now)
                 .reason("Antecedente de fraude actualizado por " + actorEmail)
                 .insurerRule(rule)
-                .changedBy(null)
+                .changedBy(authorResolver.referentIdOf(actorEmail))
                 .build());
 
         rule.setActive(true);

@@ -36,6 +36,7 @@ public class ResolutionTargetService {
 
     private final InsurerRuleRepository ruleRepository;
     private final InsurerRuleHistoryRepository historyRepository;
+    private final RuleAuthorResolver authorResolver;
 
     @Transactional(readOnly = true)
     public ResolutionTargetDto get() {
@@ -99,7 +100,7 @@ public class ResolutionTargetService {
                 .validTo(now)
                 .reason("Objetivo de resolución actualizado por " + actorEmail)
                 .insurerRule(rule)
-                .changedBy(null)
+                .changedBy(authorResolver.referentIdOf(actorEmail))
                 .build());
 
         rule.setActive(requested.enabled());

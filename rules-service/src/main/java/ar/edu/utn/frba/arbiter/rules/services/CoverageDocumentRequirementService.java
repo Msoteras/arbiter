@@ -15,7 +15,7 @@ import java.util.List;
  */
 @Service
 @RequiredArgsConstructor
-public class InternalDocumentRequirementService {
+public class CoverageDocumentRequirementService {
 
     private final CoverageRepository coverageRepository;
     private final DocumentRequirementService documentRequirements;

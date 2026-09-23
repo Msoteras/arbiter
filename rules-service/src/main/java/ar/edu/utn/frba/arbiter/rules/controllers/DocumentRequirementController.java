@@ -1,8 +1,8 @@
 package ar.edu.utn.frba.arbiter.rules.controllers;
 
 import ar.edu.utn.frba.arbiter.rules.dto.DocumentRequirementDto;
+import ar.edu.utn.frba.arbiter.rules.services.CoverageDocumentRequirementService;
 import ar.edu.utn.frba.arbiter.rules.services.DocumentRequirementService;
-import ar.edu.utn.frba.arbiter.rules.services.InternalDocumentRequirementService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
@@ -26,7 +26,7 @@ import java.util.List;
 public class DocumentRequirementController {
 
     private final DocumentRequirementService documentRequirementService;
-    private final InternalDocumentRequirementService internalDocumentRequirementService;
+    private final CoverageDocumentRequirementService coverageDocumentRequirements;
 
     @GetMapping("/internal")
     @PreAuthorize("isAuthenticated()")
@@ -37,7 +37,7 @@ public class DocumentRequirementController {
                     + "nombre (claimCause), igual que en ClaimReport. Sin agenda devuelve lista vacía, nunca "
                     + "404: el motor compone esto sobre su baseline.")
     public List<String> internalByCoverage(@RequestParam Long coverageId, @RequestParam String claimCause) {
-        return internalDocumentRequirementService.getByCoverage(coverageId, claimCause);
+        return coverageDocumentRequirements.getByCoverage(coverageId, claimCause);
     }
 
     @GetMapping("/for-branch")
