@@ -43,59 +43,37 @@ import java.util.Set;
 import java.util.stream.Collectors;
 
 /**
- * The referente's <b>history of changes to the insurer's rules</b>: one chronological feed of every
- * edit made to the configuration, saying what each one changed.
+ * The referente's <b>history of changes to the insurer's rules</b>, read-only over the two
+ * append-only audit tables ({@code insurer_rule_history}, {@code scoring_configuration_history}).
  *
- * <p>Read-only over the two append-only audit tables the rule services already write on every save
- * ({@code insurer_rule_history}, {@code scoring_configuration_history}). Nothing here writes, and
- * nothing here can rewrite the past — which is why the trail exists at all (Disposición SSN 2/2023;
- * section 8 "Seguridad" of the architecture document asks for a record that is immutable and
- * consultable by the insurer's referente).
+ * <p><b>A stored row is a version, not a change:</b> it holds what a rule stopped being at
+ * {@code validTo}. The change is the pair of that snapshot and the one that superseded it (the next
+ * history row, or the live rule for the most recent one).
  *
- * <p><b>A stored row is a version, not a change.</b> Each snapshot holds what a rule stopped being
- * at {@code validTo}, so on its own it can't say what the rule became. The change is the pair: a
- * snapshot and the one that superseded it — the rule's next history row, or, for the most recent
- * one, the live rule itself. That pairing is this service's real job; the field-level diff falls
- * out of it.
- *
- * <p><b>Merging and paging happen in memory</b>, deliberately. The feed spans two tables with
- * independent id sequences and no join between them, and the pairing above needs each rule's whole
- * version chain in order — a SQL-level page over either table would cut chains in half and pair
- * rows with the wrong neighbour. The volume makes that safe: one referente editing a few dozen
- * rules of one insurer, not transactional data. If a trail ever outgrows it, the fix is a
- * materialized change table written at save time, not a cleverer query here.
+ * <p><b>Merging and paging happen in memory</b> on purpose: the pairing needs each rule's whole
+ * version chain, which a SQL page would cut in half. The volume (a few dozen rules per insurer)
+ * makes that safe.
  */
 @Service
 @RequiredArgsConstructor
 public class RuleChangeHistoryService {
 
-    // Self-instantiated (Jackson 2), same as the services that write these snapshots: Spring Boot 4
-    // auto-configures a Jackson 3 (tools.jackson) mapper, so there is no com.fasterxml bean.
+    // Self-instantiated (Jackson 2): Spring Boot 4 auto-configures a Jackson 3 (tools.jackson)
+    // mapper, so there is no com.fasterxml bean to inject.
     private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
 
     /** {@code ruleType} carried by the scoring entries — {@code RuleType} has no literal for it. */
     public static final String SCORING_RULE_TYPE = "SCORING";
 
-    /** Separators the writers used before the actor, in Spanish and in the English some wrote. */
+    /** Separators that precede the actor in a {@code reason}. */
     private static final List<String> AUTHOR_SEPARATORS = List.of(" por ", " by ");
 
-    /** How a list of values is rendered inside one field of the diff. */
     private static final String LIST_SEPARATOR = " · ";
 
-    /**
-     * Keys dropped from the scoring diff. {@code id} is the {@code scoring_configuration} row's own
-     * id: it never changes, and when the oldest snapshot predates the field it surfaces as
-     * "Identificador de la configuración: — → 1" — an internal number that says nothing to the
-     * referente about what they changed.
-     */
+    /** Internal keys dropped from the scoring diff: they never change and mean nothing to the referente. */
     private static final Set<String> SCORING_INTERNAL_FIELDS = Set.of("id");
 
-    /**
-     * Fields whose value is a list of {@code claim_cause} ids. They're resolved to names before the
-     * entry leaves: a history that exists so somebody can understand what changed can't answer
-     * "hechos generadores excluidos: 3 → 4 · 1" — the referente picked those from a list of names
-     * and has no way to know which cause is id 3.
-     */
+    /** Fields holding {@code claim_cause} ids, resolved to names since the referente only knows the names. */
     private static final Set<String> CLAIM_CAUSE_ID_FIELDS = Set.of(
             "excludedClaimCauseIds", "includedClaimCauseIds");
 
@@ -108,10 +86,7 @@ public class RuleChangeHistoryService {
     private final InsurerReferentRepository insurerReferentRepository;
 
     /**
-     * The change feed, newest first, filtered and paged.
-     *
-     * <p>The order is fixed and not taken from the {@code Pageable}: this is a chronological trail,
-     * and the only reading of it that makes sense starts at the last thing that happened.
+     * The change feed, always newest first: the {@code Pageable}'s sort is ignored.
      *
      * @param ruleType null for every type; otherwise a {@code RuleType} literal or
      *                 {@value #SCORING_RULE_TYPE}
@@ -141,10 +116,8 @@ public class RuleChangeHistoryService {
     }
 
     /**
-     * Names who made each change. The writers leave {@code changed_by} null and record the actor's
-     * email at the end of {@code reason} ("... por ana@bbva.com"), so the email is taken from there
-     * and resolved to the referente's name in two queries for the whole page. Without a profile the
-     * email itself is shown: an unnamed author is still better than none in an audit trail.
+     * The writers leave {@code changed_by} null and append the actor's email to {@code reason}, so
+     * it's taken from there and resolved to the referente's name. Without a profile, the email is shown.
      */
     private List<RuleChangeEntry> withAuthors(List<RuleChangeEntry> entries) {
         Map<String, String> actorByEntry = new HashMap<>();
@@ -198,25 +171,15 @@ public class RuleChangeHistoryService {
     }
 
     /**
-     * Whether the entry is something that happened. A history of changes shows changes: a save that
-     * left the rule exactly as it was is a row in the table, but it isn't one.
-     *
-     * <p>The write side no longer records those, so this only covers what's already stored — rows
-     * written back when the panel's catalog-wide save left one audit entry per untouched rule. They
-     * can't be deleted (append-only, and shared), so they're filtered out on the way out.
-     *
-     * <p><b>A partial row is not one of these.</b> Its {@code changes} are empty because the state
-     * wasn't recorded, not because nothing moved: it may well be hiding a real change. Hiding it
-     * would drop something that happened, which is the opposite of the mistake being fixed here.
+     * Filters out stored rows for saves that changed nothing (they can't be deleted from an
+     * append-only table). A partial row is kept: its empty {@code changes} means "not recorded",
+     * so it may hide a real change.
      */
     private static boolean isAChange(RuleChangeEntry entry) {
         return !entry.changes().isEmpty() || entry.partial();
     }
 
-    /**
-     * The rule types the trail actually contains, so the view's filter offers what can be found
-     * instead of the whole catalog — a type the insurer never edited would return an empty page.
-     */
+    /** Only the rule types the trail contains, so the filter never offers an empty page. */
     @Transactional(readOnly = true)
     public List<String> ruleTypes() {
         Set<String> types = new LinkedHashSet<>(insurerRuleHistoryRepository.findDistinctRuleTypes());
@@ -240,8 +203,6 @@ public class RuleChangeHistoryService {
                 .collect(Collectors.toMap(cause -> String.valueOf(cause.getId()), ClaimCause::getName,
                         (first, second) -> first));
 
-        // The query already returns them grouped by rule and oldest first, which is the order the
-        // pairing below walks; grouping here only makes each rule's chain explicit.
         Map<Long, List<InsurerRuleHistory>> byRule = rows.stream()
                 .collect(Collectors.groupingBy(history -> history.getInsurerRule().getId(),
                         LinkedHashMap::new, Collectors.toList()));
@@ -313,8 +274,7 @@ public class RuleChangeHistoryService {
                             .filter(change -> !SCORING_INTERNAL_FIELDS.contains(change.field()))
                             .toList(),
                     last,
-                    // Scoring snapshots always carried the whole DTO, `enabled` included — this
-                    // side never had the gap the insurer_rule ones did.
+                    // Scoring snapshots always carry the whole DTO, so they're never partial.
                     false,
                     null));
         }
@@ -324,14 +284,8 @@ public class RuleChangeHistoryService {
     // ───────────────────────────────── diffing ──────────────────────────────────
 
     /**
-     * The two versions of a rule, compared.
-     *
-     * <p>When either side is a legacy row, {@code active} and {@code blocksFastTrack} are dropped
-     * from <b>both</b>: that row never recorded them, so any difference the comparison found would
-     * be an artifact of the storage format and not something the referente did. Showing "la regla
-     * pasó de apagada a encendida" for a change nobody made is worse in an audit trail than saying
-     * less, and the alternative — rewriting the stored rows — isn't available: the table is
-     * append-only and shared with the rest of the team.
+     * When either side is legacy, {@code active} and {@code blocksFastTrack} are dropped from
+     * <b>both</b>: the legacy row never recorded them, so any difference would be an invented change.
      */
     private static List<RuleFieldChange> diffRuleVersions(InsurerRuleSnapshot before, InsurerRuleSnapshot after) {
         Map<String, String> beforeFlat = flatten(before);
@@ -345,11 +299,7 @@ public class RuleChangeHistoryService {
         return diff(beforeFlat, afterFlat);
     }
 
-    /**
-     * Swaps the catalog ids of the id-list fields for their names. An id that no longer resolves is
-     * left as it is: the change did happen over that cause, and dropping it would be worse than
-     * showing a number the referente can still look up.
-     */
+    /** Swaps claim cause ids for names; an id that no longer resolves is kept rather than dropped. */
     private static List<RuleFieldChange> resolveIds(List<RuleFieldChange> changes, Map<String, String> names) {
         return changes.stream()
                 .map(change -> CLAIM_CAUSE_ID_FIELDS.contains(change.field())
@@ -379,17 +329,14 @@ public class RuleChangeHistoryService {
     }
 
     /**
-     * {@code active} and {@code blocksFastTrack} sit alongside the configuration's own keys instead
-     * of under a prefix: to the referente they are fields of the rule like any other ("pasó de
-     * apagada a encendida"), and no rule's configuration uses those two names.
+     * {@code active} and {@code blocksFastTrack} sit unprefixed next to the configuration's keys: to
+     * the referente they're fields like any other, and no configuration uses those names.
      */
     private static Map<String, String> flatten(InsurerRuleSnapshot snapshot) {
         Map<String, String> flat = new LinkedHashMap<>();
         flat.put("active", String.valueOf(snapshot.active()));
         flat.put("blocksFastTrack", String.valueOf(snapshot.blocksFastTrack()));
-        // Most rules store an object, whose keys become the field names on their own. The free-text
-        // ones (EXCLUSIONS, BUSINESS_RULES) store a bare array instead, which has no key to take a
-        // name from — without one it would land under an empty field name.
+        // The free-text rules store a bare array, which needs a field name of its own.
         flattenInto(snapshot.configuration().isObject() ? "" : "configuration", snapshot.configuration(), flat);
         return flat;
     }
@@ -401,16 +348,10 @@ public class RuleChangeHistoryService {
     }
 
     /**
-     * Turns a configuration of any shape into {@code path -> text}, so two versions can be compared
-     * without either side knowing which rule type wrote them.
-     *
-     * <p>An <b>array of objects is keyed by the value of its first property</b>
-     * ({@code factors[IMAGE_REUSED].weight}), not by position: position would make every diff after
-     * an insertion look like every element moved, and an index says nothing about which factor
-     * changed. The first property is the identity in every array stored here ({@code factorId},
-     * {@code band}) because records serialize in declaration order. An <b>array of scalars stays a
-     * single value</b> — a list of free-text exclusions reads as one thing that changed, not as ten
-     * shifted lines.
+     * Turns a configuration of any shape into {@code path -> text}, so versions compare without
+     * knowing the rule type. An <b>array of objects is keyed by identity</b>
+     * ({@code factors[IMAGE_REUSED].weight}), not position, so an insertion doesn't shift every
+     * element; an <b>array of scalars stays a single value</b>.
      */
     private static void flattenInto(String path, JsonNode node, Map<String, String> flat) {
         if (node == null || node.isMissingNode() || node.isNull()) {
@@ -448,12 +389,9 @@ public class RuleChangeHistoryService {
     }
 
     /**
-     * Property names that identify an element of an array, most specific first. Named explicitly
-     * rather than taking whichever scalar comes first: JSON key order isn't part of the data, and
-     * two versions of the same list serialized in different orders would get keyed by different
-     * properties — every element would then read as removed and re-added. A stored scoring
-     * snapshot did exactly that, keying its factors by weight ({@code factors[0.45]}) against the
-     * live one keyed by code.
+     * Identity properties of an array element, most specific first. Explicit because JSON key order
+     * isn't part of the data: keying by the first scalar would make reordered versions look like
+     * every element was removed and re-added.
      */
     private static final List<String> IDENTITY_FIELDS = List.of("factorId", "band", "code", "type", "name", "id");
 
@@ -468,11 +406,8 @@ public class RuleChangeHistoryService {
     }
 
     /**
-     * The live scoring config put through the same text round-trip its snapshots went through when
-     * they were stored, instead of straight to a tree. Both sides have to be built the same way or
-     * they disagree on how a number is written: a weight saved as {@code 0.20} comes back as
-     * {@code 0.20} from the stored JSON and as {@code 0.4}-style trimmed text from the object, and
-     * the referente would read a change in a factor nobody touched.
+     * Same text round-trip the stored snapshots went through, so both sides render numbers alike
+     * ({@code 0.20} vs {@code 0.2}) and no phantom change shows up.
      */
     private static JsonNode asStoredJson(ScoringConfigDto config) {
         try {

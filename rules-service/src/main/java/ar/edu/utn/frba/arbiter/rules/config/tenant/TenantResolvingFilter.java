@@ -14,11 +14,8 @@ import javax.crypto.SecretKey;
 import java.io.IOException;
 
 /**
- * Sets {@link TenantContext} for the duration of a request, from the JWT's
- * {@code tenantSchema} claim (set at login by auth-service once it resolves which insurer
- * to use). Parses the token independently of {@code common-lib}'s JwtAuthenticationFilter
- * — that one only keeps the role, not the full claim set — same trade-off documented in
- * auth-service's and cases-service's copies of this filter.
+ * Sets {@link TenantContext} for the request from the JWT's {@code tenantSchema} claim. Parses the
+ * token itself because common-lib's JwtAuthenticationFilter only keeps the role, not the claims.
  */
 public class TenantResolvingFilter extends OncePerRequestFilter {
 
@@ -46,9 +43,8 @@ public class TenantResolvingFilter extends OncePerRequestFilter {
                         TenantContext.set(tenantSchema);
                     }
                 } catch (JwtException | IllegalArgumentException ex) {
-                    // Invalid/expired token: JwtAuthenticationFilter already left the request
-                    // unauthenticated, so downstream authorization rejects it — nothing to do
-                    // here beyond not resolving a tenant.
+                    // JwtAuthenticationFilter already left the request unauthenticated, so
+                    // authorization rejects it downstream; just don't resolve a tenant.
                 }
             }
             filterChain.doFilter(request, response);

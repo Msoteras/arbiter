@@ -14,8 +14,8 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 /**
- * La política de derivación a peritaje del ramo. "Sin configurar" es una respuesta del negocio y
- * no un hueco: el peritaje es opt-in porque abajo de cierto monto cuesta más que el siniestro.
+ * The branch's derivation-to-expert policy. "Not configured" is a business answer, not a gap: it's
+ * opt-in because below some amount an expert assessment costs more than the claim.
  */
 class InternalExpertDerivationServiceTest {
 
@@ -36,7 +36,7 @@ class InternalExpertDerivationServiceTest {
         assertThat(policy.ruleId()).isEqualTo(4L);
     }
 
-    /** Una aseguradora que nunca cargó la regla no deriva: es opt-in, no un default. */
+    /** An insurer that never loaded the rule doesn't derive: opt-in, not a default. */
     @Test
     void isDisabledWhenTheInsurerHasNoRuleForTheBranch() {
         givenNoRule();
@@ -44,7 +44,7 @@ class InternalExpertDerivationServiceTest {
         assertThat(service.getByBranch(BRANCH_ID).enabled()).isFalse();
     }
 
-    /** Desactivar la regla es cómo el referente corta las derivaciones sin borrar el historial. */
+    /** Deactivating the rule stops derivations without deleting the history. */
     @Test
     void isDisabledWhenTheRuleIsInactive() {
         givenRule(rule(false, "{\"minClaimedAmount\":500000}"));
@@ -52,10 +52,7 @@ class InternalExpertDerivationServiceTest {
         assertThat(service.getByBranch(BRANCH_ID).enabled()).isFalse();
     }
 
-    /**
-     * Una regla activa sin monto es una configuración rota, no "derivá todo": leerla como cero
-     * habilitaría el peritaje para cada siniestro del ramo sin que nadie lo haya pedido.
-     */
+    /** An active rule with no amount is a misconfiguration, not "derive everything". */
     @Test
     void failsOnAnActiveRuleWithNoThreshold() {
         givenRule(rule(true, "{}"));

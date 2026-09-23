@@ -11,17 +11,11 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 /**
- * System-to-system read of the insurer's derivation-to-expert policy for a branch — same
- * criterion as the other {@code /internal} reads (service token carrying the tenant, no
- * REFERENTE role).
+ * System-to-system read of the insurer's derivation-to-expert policy for a branch. Scoped to the
+ * branch and not to a coverage: whether an expert assessment pays for itself depends on the kind of
+ * goods insured. Persisted as one {@code insurer_rule} per branch with {@code coverage_id} null.
  *
- * <p>Scoped to the rama and not to a cobertura: whether a peritaje pays for itself is about the
- * kind of goods insured, not about which coverage was affected. Persisted as one
- * {@code insurer_rule} row per branch with {@code coverage_id} null, the same shape the free-text
- * ramo-wide rules already use.
- *
- * <p>This does <b>not</b> decide anything: it says whether the analyst may derive, and from what
- * amount. Who derives, and when, is still the analyst (decisión de arquitectura #5).
+ * <p>It decides nothing: it says whether the analyst may derive and from what amount.
  */
 @Service
 public class InternalExpertDerivationService {

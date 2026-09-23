@@ -18,18 +18,10 @@ import lombok.NoArgsConstructor;
 import lombok.Setter;
 
 /**
- * Required document type per branch + claim cause (+ risk band) — "requisito_documental"
- * in the DER, CLAUDE.md's "AgendaDocumental".
- *
- * <p>This table is what the missing-documentation gate actually reads: the referente edits it
- * through {@code PUT /api/v1/rules/document-requirements}, classification-service pulls it over
- * {@code GET /api/v1/rules/document-requirements/internal}
- * ({@code DocumentRequirementController.internalByCoverage}) via
- * {@code RulesRestAdapter.overlayDocumentRequirements}, and
- * {@code ClassificationOrchestrator.checkRequiredDocuments} gates on the result.
- * {@code MockRulesAdapter.requiredDocumentTypes} is only the baseline used when the referente
- * configured nothing for that coverage + claim cause — the same fallback pattern as Fast Track
- * and the coverage exclusions.
+ * Required document type per branch + claim cause (+ risk band): the document schedule that
+ * classification-service's missing-documentation gate reads through
+ * {@code GET /api/v1/rules/document-requirements/internal}. When nothing is configured for a
+ * coverage + claim cause, classification-service falls back to its own baseline.
  */
 @Entity
 @Table(name = "document_requirement")

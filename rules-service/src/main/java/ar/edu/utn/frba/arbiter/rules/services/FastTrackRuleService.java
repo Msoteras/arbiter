@@ -23,13 +23,10 @@ import org.springframework.transaction.annotation.Transactional;
 import java.time.Instant;
 
 /**
- * Reads and writes a referente's Fast Track thresholds for one (rama, cobertura). The rule is
- * persisted as a single {@code FAST_TRACK} {@link InsurerRule} row whose {@code configuration}
- * (JSONB) carries the {@link FastTrackConfigDto} — DER-consistent (a rule scopes by branch +
- * coverage) and 1:1 with classification's {@code BusinessRules.FastTrackThresholds}. Every write
- * snapshots the previous version into {@code insurer_rule_history} (append-only, DER's
- * "historial_regla_aseguradora"). The tenant schema is resolved from the JWT upstream, so all
- * queries here already target the caller's insurer.
+ * A referente's Fast Track thresholds for one (branch, coverage), persisted as a single
+ * {@code FAST_TRACK} {@link InsurerRule} whose configuration is a {@link FastTrackConfigDto}
+ * (1:1 with classification-service's {@code BusinessRules.FastTrackThresholds}). Every write
+ * snapshots the previous version into {@code insurer_rule_history}.
  */
 @Service
 @RequiredArgsConstructor
@@ -92,10 +89,8 @@ public class FastTrackRuleService {
             return new FastTrackRuleResponse(rule.getId(), branchId, coverageId, config);
         }
 
-        // Snapshot the version we're about to overwrite before touching it (append-only audit).
-        // changedBy (the referente's numeric id) is left null for now: the JWT carries the actor's
-        // email, not the insurer_referent id — the actor is recorded in `reason` until a userId
-        // claim (or an email->referent lookup) is wired.
+        // Snapshot the version about to be overwritten. changedBy stays null: the JWT carries the
+        // actor's email, not the insurer_referent id, so the actor is recorded in `reason`.
         historyRepository.save(InsurerRuleHistory.builder()
                 .configVersion(InsurerRuleSnapshot.serialize(
                         rule.isActive(), rule.isBlocksFastTrack(), rule.getConfiguration()))

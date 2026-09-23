@@ -17,29 +17,15 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
- * System-to-system read of a coverage's <b>hard evaluable rules</b> for the classification engine
- * (no REFERENTE role, service token carrying the tenant) — same criterion as
- * {@code /internal/fast-track} and {@code /internal/rule-texts}. Keyed by coverage, which is what
- * the claim has at hand — except the insurer-wide rules below, which need no key at all.
- *
- * <p>Returns three families in the same flat list — {@code TemporalRuleEvaluator} treats them all
- * the same regardless of scope, only the storage differs:
+ * System-to-system read of a coverage's <b>active</b> hard evaluable rules for the classification
+ * engine, in one flat list:
  * <ul>
- *   <li>{@code COVERAGE_EXCLUSION}: the blacklist of hechos generadores the coverage doesn't
- *       cover. Closes the DER's asymmetry, where no coverage ↔ hecho generador relation
- *       exists.</li>
- *   <li>The active coverage-scoped hard temporal rules ({@link RuleType#coverageScoped()}):
- *       waiting period, deadlines, events cap. They travel with almost no parameters because the
- *       threshold belongs to the coverage; what the row contributes is that the rule is active —
- *       without it the engine doesn't evaluate it — and the {@code id} {@code rule_result} is
- *       going to point at.</li>
- *   <li>The active insurer-wide hard temporal rules ({@link RuleType#insurerScoped()}): coverage
- *       window, arrears. Same shape, but the row has no branch/coverage — one per insurer, not
- *       one per coverage.</li>
+ *   <li>{@code COVERAGE_EXCLUSION}: the claim causes the coverage doesn't cover.</li>
+ *   <li>Coverage-scoped temporal rules ({@link RuleType#coverageScoped()}): they carry almost no
+ *       parameters, since the threshold lives on the coverage; the row says the rule is active and
+ *       gives {@code rule_result} an id to point at.</li>
+ *   <li>Insurer-wide temporal rules ({@link RuleType#insurerScoped()}): coverage window, arrears.</li>
  * </ul>
- *
- * <p>Only <b>active</b> rules are returned: a rule the referente turned off is, to the engine, a
- * rule that doesn't exist.
  */
 @Service
 public class InternalEvaluableRuleService {
@@ -116,9 +102,8 @@ public class InternalEvaluableRuleService {
     }
 
     /**
-     * An unreadable configuration here does <b>not</b> sink the read: the rule travels without a
-     * threshold and the engine discards it on its own. Different from the exclusion, where the
-     * JSON <i>is</i> the rule; for the temporal ones the JSON is empty on purpose most of the time.
+     * Unlike the exclusion, where the JSON <i>is</i> the rule, an unreadable config here doesn't fail
+     * the read: the rule travels without a threshold and the engine discards it.
      */
     private HardRuleConfig deserializeHardRule(String json) {
         if (json == null || json.isBlank()) {

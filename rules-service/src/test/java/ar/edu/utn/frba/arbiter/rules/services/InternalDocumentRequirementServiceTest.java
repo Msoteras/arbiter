@@ -18,8 +18,7 @@ import static org.mockito.Mockito.when;
  *
  * <p>What it answers with when there's nothing to return is the whole point: an <b>empty list</b>
  * means "needs no documents" and {@code null} means "couldn't resolve it". The engine only falls
- * back to its baseline on the second — folding both into an empty list made a referente who cleared
- * every document from the panel still get the baseline's.
+ * back to its baseline on the second.
  */
 class InternalDocumentRequirementServiceTest {
 
@@ -37,7 +36,7 @@ class InternalDocumentRequirementServiceTest {
         assertThat(service.getByCoverage(10L, "Hurto")).containsExactly("police_report", "imei_deregistration");
     }
 
-    /** The case that was broken: the referente cleared them all, and that has to reach the engine. */
+    /** A referente who cleared every document must reach the engine as an empty list, not a fallback. */
     @Test
     void returnsEmptyListWhenTheClaimCauseNeedsNoDocuments() {
         coverageBelongsToBranch(10L, 2L);

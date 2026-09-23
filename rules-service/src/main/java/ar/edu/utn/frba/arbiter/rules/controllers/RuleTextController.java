@@ -18,10 +18,7 @@ import org.springframework.web.bind.annotation.RestController;
 
 import java.util.List;
 
-/**
- * Common exclusions and business rules as free text, by branch (no table of their own in the DER —
- * see {@link RuleTextService}).
- */
+/** Common exclusions and business rules as free text, by branch (see {@link RuleTextService}). */
 @RestController
 @RequestMapping("/api/v1/rules")
 @Tag(name = "Reglas de negocio (texto)", description = "Exclusiones comunes y reglas de negocio en texto libre, por ramo")

@@ -20,9 +20,8 @@ import org.hibernate.type.SqlTypes;
 import java.time.Instant;
 
 /**
- * Append-only audit trail of changes to an {@link InsurerRule} ("historial_regla_aseguradora"
- * in the DER). {@code changedBy} is a logical reference to a user (auth-service, another
- * module) — not a real FK, same criterion used across the rest of the schema.
+ * Append-only audit trail of changes to an {@link InsurerRule}. {@code changedBy} is a logical
+ * reference to an auth-service user, not a real FK.
  */
 @Entity
 @Table(name = "insurer_rule_history")
@@ -52,8 +51,7 @@ public class InsurerRuleHistory {
     @Column(name = "valid_to")
     private Instant validTo;
 
-    // Column is rule_id in the real DDL — the DER's original name for it, kept even though
-    // the FK target is insurer_rule (there's no common "rule" table to point at instead).
+    // The column is named rule_id even though it references insurer_rule.
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "rule_id", nullable = false)
     private InsurerRule insurerRule;

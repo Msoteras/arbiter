@@ -16,13 +16,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.util.List;
 import java.util.Optional;
 
-/**
- * A branch's AgendaDocumental, for the referente's Documentación tab. The DER
- * (document_requirement / "requisito_documental") keys by branch + claim cause, and the screen
- * edits it per claim cause too — no longer fanning a flat list out to every claim cause of the
- * branch. No history: the DER has no
- * "historial_requisito_documental".
- */
+/** A branch's document schedule, keyed and edited by branch + claim cause. Keeps no history. */
 @Service
 @RequiredArgsConstructor
 public class DocumentRequirementService {
@@ -62,9 +56,8 @@ public class DocumentRequirementService {
     }
 
     /**
-     * Igual que {@link #getByBranchIdAndClaimCauseName(Long, String)} pero resolviendo también el
-     * ramo por nombre — es lo que el asegurado (al subir) y el analista (checklist de faltantes)
-     * tienen a mano; los ids numéricos solo los maneja el referente. Ramo desconocido ⇒ lista vacía.
+     * Same as {@link #getByBranchIdAndClaimCauseName(Long, String)} but resolving the branch by name
+     * too, which is what the insured and the analyst have at hand. Unknown branch ⇒ empty list.
      */
     @Transactional(readOnly = true)
     public List<String> getByBranchAndClaimCauseNames(String branchName, String claimCauseName) {

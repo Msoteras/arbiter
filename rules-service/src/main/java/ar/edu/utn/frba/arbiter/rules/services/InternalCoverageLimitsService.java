@@ -6,11 +6,8 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 /**
- * System-to-system read of a coverage's intrinsic limits (reporting deadline, event cap per year)
- * for the classification engine — no REFERENTE role, with a service token carrying the tenant, like
- * the rest of the {@code /internal/*}. They're {@code coverage} columns; the coverage belongs to
- * the tenant, so they're read from its schema. No coverage ⇒ empty (the engine doesn't evaluate the
- * rule and doesn't fall over missing config).
+ * System-to-system read of a coverage's intrinsic limits for the classification engine. No
+ * coverage ⇒ empty, so the engine skips the rule instead of failing on missing config.
  */
 @Service
 public class InternalCoverageLimitsService {

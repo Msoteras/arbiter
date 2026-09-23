@@ -20,18 +20,11 @@ import org.springframework.transaction.annotation.Transactional;
 import java.time.Instant;
 
 /**
- * Referente-facing backoffice for the insurer's fraud-record policy, plus the system-to-system read
- * the classification engine uses.
+ * The insurer's fraud-record policy, for the referente and for the classification engine. Kept out
+ * of {@link InsurerHardRuleService} because it's configured by a window, not an on-arrears mode.
  *
- * <p>Kept out of {@link InsurerHardRuleService} even though the row lives the same way (insurer-wide,
- * {@code branch_id} and {@code coverage_id} null): that service returns its two rules as a pair with
- * a shared shape, and this one is configured by a window rather than an on-arrears mode. Folding it
- * in would mean a DTO whose fields only apply to one of three rules.
- *
- * <p>Opt-in like every other hard rule: with no row, nothing vetoes Fast Track. Whether the record
- * scores is not decided here but in the scoring config, alongside every other factor. And the
- * analyst sees the record either way — what a person can see about the case in front of them was
- * never the engine's to switch off.
+ * <p>Opt-in: with no row, nothing vetoes Fast Track. Whether the record scores is decided in the
+ * scoring config, and the analyst sees the record either way.
  */
 @Service
 @RequiredArgsConstructor
@@ -74,16 +67,14 @@ public class FraudRecordRuleService {
 
         if (rule == null) {
             InsurerRule created = ruleRepository.save(InsurerRule.builder()
-                    // Siempre activa: la fila existe para llevar la ventana y el veto, y el "no
-                    // cuenta" se expresa donde corresponde — el veto en su propio flag, el puntaje
-                    // sacando el factor del scoring. Un tercer estado acá solo agregaba ambigüedad.
+                    // Always active: "doesn't count" is expressed by the veto flag and by removing
+                    // the factor from the scoring config.
                     .active(true)
                     .validFrom(now)
                     .name(RULE_NAME)
                     .ruleType(RuleType.FRAUD_RECORD.name())
-                    // DERIVAR and never RECHAZAR: a record about the person is not "una causa legal
-                    // o convencional de exclusión" for this claim (human-in-the-loop, decisión #5).
-                    // It hands the analyst the claim with the finding attached.
+                    // DERIVAR, never RECHAZAR: a record about the person is not a legal exclusion
+                    // cause for this claim, so the analyst gets it with the finding attached.
                     .effect("DERIVAR")
                     .blocksFastTrack(requested.blocksFastTrack())
                     .branch(null)
@@ -95,7 +86,7 @@ public class FraudRecordRuleService {
             return new FraudRecordRuleDto(created.getId(), windowMonths, created.isBlocksFastTrack());
         }
 
-        // Un guardado que no cambia nada no es un cambio y no deja rastro en la auditoría.
+        // A save that changes nothing leaves no audit entry.
         if (InsurerRuleSnapshot.unchanged(
                 rule.isActive(), rule.isBlocksFastTrack(), rule.getConfiguration(),
                 true, requested.blocksFastTrack(), json)) {
@@ -124,11 +115,7 @@ public class FraudRecordRuleService {
         return new FraudRecordRuleDto(rule.getId(), windowMonths, rule.isBlocksFastTrack());
     }
 
-    /**
-     * An unreadable configuration falls back to the default window instead of sinking the read: the
-     * rule being active is the decision that matters, and a claim shouldn't fail to classify
-     * because one JSON field got mangled.
-     */
+    /** An unreadable configuration falls back to the default window so classification never fails on it. */
     private int windowMonthsOf(InsurerRule rule) {
         String json = rule.getConfiguration();
         if (json == null || json.isBlank()) {

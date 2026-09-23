@@ -20,7 +20,6 @@ public class InternalRepairDerivationService {
 
     static final String REPAIR_DERIVATION = "REPAIR_DERIVATION";
 
-    // Jackson 2, self-instantiated like the sibling internal services.
     private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
 
     private final InsurerRuleRepository ruleRepository;

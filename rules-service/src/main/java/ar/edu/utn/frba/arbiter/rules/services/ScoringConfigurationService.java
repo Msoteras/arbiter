@@ -31,7 +31,7 @@ import java.time.Instant;
 @RequiredArgsConstructor
 public class ScoringConfigurationService {
 
-    // Self-instantiated (Jackson 2): ver el comentario equivalente en FastTrackRuleService.
+    // Self-instantiated Jackson 2 mapper, see FastTrackRuleService.
     private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
 
     private final ScoringConfigurationRepository scoringConfigurationRepository;

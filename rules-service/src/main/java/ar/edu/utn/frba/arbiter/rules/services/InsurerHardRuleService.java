@@ -24,23 +24,14 @@ import java.util.function.Function;
 import java.util.stream.Collectors;
 
 /**
- * Referente-facing backoffice for the <b>insurer-scoped hard temporal rules</b> — coverage window
- * ({@code POLICY_IN_FORCE}) and arrears ({@code POLICY_STANDING}): which of the two the insurer
- * has active, and, for arrears, what happens when a policy is found in arrears at intake.
+ * The <b>insurer-scoped hard temporal rules</b>: coverage window ({@code POLICY_IN_FORCE}) and
+ * arrears ({@code POLICY_STANDING}). Unlike {@link HardRuleService}'s rules they aren't
+ * per-coverage: whether the policy is in force or paid up doesn't depend on the coverage. One row
+ * per rule type with {@code branch_id} and {@code coverage_id} null.
  *
- * <p>Unlike {@link HardRuleService}'s four rules, these two aren't per-coverage: whether the
- * policy is in force or up to date with its payments doesn't depend on which coverage the claim
- * lands under. One row per rule type, per insurer ({@code branch_id} and {@code coverage_id} both
- * null) — see {@code RuleType#insurerScoped()}'s javadoc for the evidence (BBVA rejects a claim
- * against the policy as a whole, not a coverage).
- *
- * <p>{@code POLICY_STANDING}'s {@code onArrears} choice is what cases-service's intake gate reads
- * ({@code /internal/policy-standing}): {@code REJECT} stops the denuncia before an expediente
- * exists, {@code STANDBY} lets it through and leaves the arrears finding to
- * {@code TemporalRuleEvaluator} during classification, same as before this choice existed.
- *
- * <p>Every change leaves a snapshot in {@code insurer_rule_history}, same as the coverage-scoped
- * hard rules.
+ * <p>cases-service's intake gate reads {@code onArrears} through {@code /internal/policy-standing}:
+ * {@code REJECT} stops the claim before a case exists, {@code STANDBY} leaves the arrears finding
+ * to the classification engine.
  */
 @Service
 @RequiredArgsConstructor
@@ -115,12 +106,9 @@ public class InsurerHardRuleService {
                     .validFrom(now)
                     .name(defaultName(requested.ruleType()))
                     .ruleType(requested.ruleType().name())
-                    // A failed hard rule doesn't reject on its own (human-in-the-loop): it derives
-                    // to the analyst with the reason. It blocks Fast Track, which is what the
-                    // engine does decide on its own. Arrears' own REJECT mode is a separate,
-                    // earlier gate (cases-service, before an expediente exists) — this row still
-                    // governs what happens if it reaches the engine (STANDBY, or REJECT cases the
-                    // intake gate somehow let through with stale data).
+                    // A failed hard rule never rejects on its own (human-in-the-loop): it derives to
+                    // the analyst and blocks Fast Track. Arrears' REJECT mode is an earlier gate in
+                    // cases-service; this still governs whatever reaches the engine.
                     .effect("DERIVAR")
                     .blocksFastTrack(true)
                     .branch(null)
@@ -132,7 +120,7 @@ public class InsurerHardRuleService {
             return;
         }
 
-        // Un guardado que no cambia nada no es un cambio: el panel manda las dos reglas siempre.
+        // The panel always sends both rules; an unchanged one leaves no audit entry.
         if (InsurerRuleSnapshot.unchanged(
                 rule.isActive(), rule.isBlocksFastTrack(), rule.getConfiguration(),
                 requested.enabled(), rule.isBlocksFastTrack(), json)) {
