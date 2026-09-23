@@ -51,7 +51,7 @@ necesitás los dos, `FRONTEND_PORT` mueve el del contenedor.
 
 | Módulo Maven           | Responsabilidad (según doc)                                                                   |
 |------------------------|-----------------------------------------------------------------------------------------------|
-| `common-lib`           | Tipos compartidos: DTOs, enums de dominio (`Clasificacion`, `EstadoExpediente`), excepciones, y las **entidades JPA del esquema común** (`arbiter_common`). |
+| `common-lib`           | Tipos compartidos: DTOs, enums de dominio (`Classification`, `CaseStatus`, `RuleType`…), excepciones, y las **entidades JPA del esquema común** (`arbiter_common`). |
 | `classification-service`   | **Módulo de Análisis y Clasificación** — orquesta: denuncia → Ollama → decisión del analista. |
 | `cases-service`  | **Módulo de Expedientes** — ciclo de vida, transiciones, documentación adjunta.               |
 | `rules-service`       | **Motor de Reglas de Negocio** — reglas cargadas dinámicamente desde BD, no en código.         |
@@ -96,7 +96,7 @@ Estos términos vienen del relevamiento de una aseguradora real (BBVA Seguros, A
 | **`AgendaDocumental`** | Lista de **documentos requeridos** según `Ramo` + `HechoGenerador`. Determina si el expediente está completo. Configurable por aseguradora. | `rules` (definición) + `cases` (instancia por expediente) |
 | **`Adjunto`**        | Archivo subido por el asegurado (PDF, imagen). Cumple un item de la `AgendaDocumental`. | `cases`       |
 | **`Clasificacion`**  | Resultado del análisis (`FAST_TRACK` / `FALTA_DOCUMENTACION` / `LLM_RECOMIENDA_APROBAR` / `LLM_NO_RECOMIENDA_APROBAR` / `LLM_SOLICITA_REVISION_MANUAL`) + factores. Solo `FAST_TRACK` es determinístico (gate de reglas, no LLM); los otros 4 son recomendaciones no vinculantes del LLM. | `classification` |
-| **`ClasificacionLog`** | Registro inmutable y auditable de cada clasificación (input, output, decisión).      | `classification` |
+| **`ClasificacionLog`** | Registro inmutable y auditable de cada clasificación (input, output, decisión). En el esquema: `llm_analysis`, `rule_result` y `case_classification`. | `classification` |
 
 ### Implicancias de diseño
 
@@ -141,7 +141,7 @@ Estas decisiones están **cerradas y aprobadas** (doc v1.0, 27/05/2026). No las 
 3. **Una sola instancia del modelo para todas las aseguradoras.** La especialización por compañía se hace **en el prompt** (inyectando las reglas), nunca con fine-tuning ni con un modelo por aseguradora.
 4. **Clasificación asincrónica.** El registro de la denuncia encola la inferencia hacia Ollama; el analista la consulta después. Objetivo: clasificación disponible **<30 min** desde la denuncia (el número del documento de arquitectura v1.2, §7 — CLAUDE.md decía 10 y era la desincronización más vieja de las dos).
 5. **Human-in-the-loop obligatorio.** Toda clasificación del modelo requiere **aprobación o rechazo de un analista** antes de impactar en el expediente. **No hay** resolución automática — ni siquiera para Fast Track. El Fast Track agiliza, no automatiza.
-6. **5 categorías de clasificación** en `Clasificacion` (`common-lib`): `FAST_TRACK` (determinístico, decidido por `FastTrackValidator` con reglas de negocio — el LLM **nunca** puede devolver este valor), `FALTA_DOCUMENTACION`, `LLM_RECOMIENDA_APROBAR`, `LLM_NO_RECOMIENDA_APROBAR`, `LLM_SOLICITA_REVISION_MANUAL`. Los 4 valores con LLM son recomendaciones no vinculantes — el analista decide siempre (ver punto 5).
+6. **5 categorías de clasificación** en `Classification` (`common-lib`): `FAST_TRACK` (determinístico, decidido por `FastTrackValidator` con reglas de negocio — el LLM **nunca** puede devolver este valor), `FALTA_DOCUMENTACION`, `LLM_RECOMIENDA_APROBAR`, `LLM_NO_RECOMIENDA_APROBAR`, `LLM_SOLICITA_REVISION_MANUAL`. Los 4 valores con LLM son recomendaciones no vinculantes — el analista decide siempre (ver punto 5).
 7. **Auditoría completa de cada clasificación** (Disposición 2/2023). Persistir, en una tabla aparte e inmutable: resultado del modelo, factores que lo fundamentan, decisión del analista, marca temporal. 100% de las clasificaciones deben tener este registro.
 8. **Auth0 + JWT + RBAC.** Tres roles: `ASEGURADO`, `ANALISTA_SINIESTROS`, `REFERENTE_ASEGURADORA`.
    - **Auth0 integrado y funcionando** (`Auth0Adapter` detrás de la interfaz `CredentialsAuthenticator`, `AUTH_PROVIDER=auth0`) — probado de punta a punta: invitación real por SendGrid, el usuario elige su propia contraseña, login valida contra Auth0.
@@ -281,9 +281,9 @@ ollama serve                                          # default: http://localhos
 - **Las entidades JPA del esquema común van a `common-lib`**, en `common/models/entities/`. Son las 10 tablas de `arbiter_common` (`insurer`, `users`, `user_insurer`, `role`, `permission`, `role_permission`, `user_role`, `branch`, `claim_cause`, `case_status`): no son de ningún módulo, son de la plataforma, y varios módulos necesitan leerlas. Definirlas una sola vez evita que se desincronicen — `Insurer` llegó a estar duplicada en `auth-service` y `rules-service`. **Los repositories NO se comparten**: cada módulo declara el suyo con las queries que necesita, apuntando a la entidad de `common-lib`.
 - **Las entidades de un esquema de aseguradora son del módulo dueño**, con una excepción acotada: cuando **más de un módulo** necesita la misma tabla de tenant, va a `common/models/entities/tenant/` (ver el `package-info` de ese paquete). Hoy la única es `Insured`, que auth-service y cases-service declaraban por separado y ya habían divergido. La distinción entre los dos paquetes importa: el padre son tablas con **una sola fila para toda la plataforma**; `tenant/` son tablas que existen **una vez por aseguradora**, y qué fila se lee depende del tenant resuelto. No sumes entidades ahí por las dudas: si la usa un solo módulo, va en ese módulo.
 - **Tests**: JUnit 5 + Spring Boot Test. Testcontainers para PostgreSQL y, cuando aplique, para Ollama. Mockito para mocks.
-- **Trazabilidad de cada clasificación**: registro inmutable en tabla `clasificacion_log` (o equivalente), separada de `siniestro`. Campos mínimos: `siniestro_id`, `modelo`, `prompt_version`, `input_hash`, `output_raw`, `output_parsed`, `factores`, `latencia_ms`, `analista_id`, `decision`, `decision_timestamp`.
+- **Trazabilidad de cada clasificación**: registro inmutable, separado del expediente, en las tablas de `classification-service` (`llm_analysis` con modelo, `prompt_version`, salida y factores; `rule_result` con cada regla evaluada; `case_classification` con el resultado y la decisión del analista). No se actualizan: cada análisis es una fila nueva.
 - **Multi-tenant**: cada request lleva el `tenant_id` (id de aseguradora) en el JWT. Resolver el esquema PostgreSQL en una `ConnectionProvider` o `Interceptor` de Hibernate al inicio del request. No hardcodear el schema en queries.
-- **Comunicación entre módulos**: REST interno por HTTP (sin TLS, dentro del host). Cliente: `RestClient` de Spring 6+ (no `RestTemplate`). DTOs del request/response en `common-lib`. Configurar URLs base por `application.yml` (`arbiter.services.reglas.url`, etc.) con default a localhost. Timeouts cortos y manejo de error explícito — no asumir que el otro módulo siempre responde.
+- **Comunicación entre módulos**: REST interno por HTTP (sin TLS, dentro del host). Cliente: `RestClient` de Spring 6+ (no `RestTemplate`). DTOs del request/response en `common-lib`. Configurar URLs base por `application.yml` (`arbiter.rules-service.url`, `arbiter.classification-service.url`) con default a localhost. Timeouts cortos y manejo de error explícito — no asumir que el otro módulo siempre responde.
 - **Propagar el JWT** entre módulos cuando una request es por cuenta de un usuario. El módulo destino valida con Auth0 igual que si viniera del frontend. Para llamadas sistema-a-sistema (jobs internos), evaluar service account o token de servicio aparte.
 - **Naming de clases de servicio**: sin adjetivos ni prefijos que describan el mecanismo (`Real`, `Database`, `Default`, `Internal`). Si hay interfaz + implementación única, la implementación lleva sufijo `Impl` (ej. `CaseService` → `CaseServiceImpl`). Si hay varias implementaciones, nombrarlas por **lo que las diferencia funcionalmente**, no por tecnología (ej. `MockClaimClassifier` / `OllamaClaimClassifier`, no `RealClaimClassifier`).
 - **Enum literals en inglés**. El mapeo a labels en español es responsabilidad exclusiva del frontend (ver `estado.ts` como referencia). No mezclar idiomas dentro de un mismo enum.
@@ -313,55 +313,39 @@ Flujo de extremo a extremo:
 
 ```
 Asegurado registra denuncia (frontend, wizard con catálogos en cascada)
-  └─> GET /api/v1/policies            (cases-service: pólizas del asegurado)
-  └─> GET /api/v1/claim-causes        (cases-service: hechos generadores)
-  └─> GET /api/v1/rules/branches      (rules-service: ramos)
-  └─> GET /api/v1/rules/document-requirements   (rules-service: agenda documental)
-  └─> POST /api/v1/claims (classification-service)
-        ├─> persiste Siniestro + Denuncia + Expediente (estado=PENDING_CLASSIFICATION)
-        ├─> sube Adjuntos a S3 (referencia en BD, asociados a items de la AgendaDocumental)
-        ├─> encola tarea de clasificación (async)
-        └─> responde 202 Accepted con id
+  └─> GET /api/v1/policies, /api/v1/claim-causes        (cases-service)
+  └─> GET /api/v1/rules/branches, /rules/document-requirements   (rules-service)
+  └─> POST /api/v1/cases (cases-service, multipart con adjuntos)
+        ├─> persiste Expediente (PENDING_CLASSIFICATION) + adjuntos
+        ├─> POST /api/v1/claims (classification-service, REST interno) → encola el análisis
+        └─> 202 Accepted con el id
 
-[async] ClaimClassificationService
-  ├─> lee reglas de la aseguradora (rules-service)
-  ├─> lee Poliza/Cobertura/Clausulas + historial del asegurado (BD Aseguradora)
-  ├─> calcula embedding de la imagen, busca similares con pgvector (flag de imagen reutilizada)
-  ├─> arma prompt con campos ESTRUCTURADOS:
-  │     { ramo, producto, hechoGenerador, bien, descripcionLibre,
-  │       adjuntosOCR, imagen, reglasAseguradora, historialAsegurado }
-  ├─> invoca OllamaAdapter.classify(prompt)
-  ├─> valida salida (JSON schema, enum válido, factores no vacíos)
-  ├─> persiste ClassificationLog (inmutable)
-  └─> actualiza Expediente.estado = PENDING_ANALYST_REVIEW
+[async] classification-service (ClassificationOrchestrator)
+  ├─> lee reglas de la aseguradora (rules-service) + póliza e historial (BD Aseguradora)
+  ├─> gate determinístico: FastTrackValidator + evaluadores de reglas
+  ├─> si no califica: OCR de adjuntos + embedding de la imagen (pgvector) + prompt con campos
+  │   ESTRUCTURADOS (ramo, producto, hecho generador, bien, relato, OCR, imagen, reglas, historial)
+  ├─> LlmClient (Ollama por default, Gemini opt-in) → valida la salida contra el JSON schema
+  └─> persiste llm_analysis / rule_result / case_classification (inmutables)
+
+cases-service (ClassificationRefreshScheduler) consulta GET /api/v1/claims/{caseId}
+  └─> PENDING_ANALYST_REVIEW, o AWAITING_DOCUMENTATION si falta algo de la agenda documental
 
 Analista revisa y decide (frontend)
-  └─> POST /api/v1/claims/{id}/decision  (APROBAR | RECHAZAR)
-        ├─> persiste decisión en ClassificationLog
-        ├─> motor de reglas valida transición
-        ├─> actualiza estado del Expediente
-        └─> dispara mail al asegurado vía SendGridAdapter
+  └─> POST /api/v1/cases/{caseId}/decision
+        ├─> POST /api/v1/claims/{caseId}/decision (classification-service: auditoría de la decisión)
+        ├─> transición de estado del Expediente
+        └─> mail al asegurado vía SendGrid
 ```
 
-### Cómo arrancar (orden sugerido)
+### Dónde está cada cosa
 
-1. **Modelo de datos** del módulo, usando el vocabulario de la sección "Modelo de dominio": `Poliza`, `Cobertura`, `Clausula`, `BienAsegurado`, `Siniestro`, `Denuncia`, `Adjunto`, `ClassificationLog`. Las entidades de catálogo (`Ramo`, `Producto`, `HechoGenerador`, `AgendaDocumental`) viven en `rules-service` — desde `classification-service` se referencian por id y se consultan por REST. El esquema va a `db/init-multitenant.sql` (**no hay Flyway** — ver la sección Stack).
-2. **Endpoints de catálogo** en `rules-service`, con los nombres reales: `GET /api/v1/rules/branches`, `/api/v1/rules/document-requirements`, `/api/v1/rules/scoring`, y `GET /api/v1/claim-causes` (que lo sirve `cases-service`). Sirven al wizard del frontend y al `ClaimClassificationService` (para inyectar nombres en el prompt). Los datos semilla van en el mismo `db/init-multitenant.sql`, tomados del PDF de BBVA.
-3. **OllamaAdapter** con interfaz `ClaimClassifier` y un `MockClassifier` para perfil `dev`/`test` que devuelve clasificaciones canned. **El mock se escribe primero** — todo el flujo tiene que correr sin Ollama prendido.
-4. **Prompt versionado** en `classification-service/src/main/resources/prompts/classification-v1.md`, cargado con `@Value("classpath:prompts/classification-v1.md")`. La versión del prompt va en el log de cada clasificación. El prompt referencia los campos estructurados por nombre — no lo armes con string concatenation, usá una plantilla.
-5. **Salida estructurada**: forzar JSON con el schema `{ clasificacion: enum, factores: string[], confianza: number }`. Validar contra el schema antes de persistir; si falla → `InvalidClassificationException` + reintento configurable.
-6. **Endpoints REST + Swagger**: `POST /claims`, `GET /claims/{id}`, `POST /claims/{id}/decision`, `GET /claims/{id}/clasificacion`, `POST /claims/{id}/adjuntos`.
-7. **Encolado async**: empezar con `@Async` + un `Executor` con virtual threads. Si más adelante necesitamos persistir la cola (sobrevivir restart), evaluar Spring Batch o una tabla `clasificacion_pendiente`.
-8. **Frontend**: wizard de alta de denuncia (asegurado) siguiendo el flujo de catálogos en cascada + bandeja del analista con detalle del siniestro + recomendación del modelo + botones aprobar/rechazar.
-
-### Cosas a tener arriba del escritorio
-
-- **Variables de entorno** (nunca en yml versionado): `OLLAMA_BASE_URL`, `AUTH0_DOMAIN`, `AUTH0_AUDIENCE`, `SENDGRID_API_KEY`, `DB_URL`, `DB_USER`, `DB_PASSWORD`, `AWS_S3_BUCKET`. Default a vacío y perfil `dev` con mocks.
-- **Construcción del prompt**: separar plantilla (markdown) de la inyección de datos. Probar con prompts de 6k y 15k tokens — son los extremos esperados.
-- **Embeddings de imágenes**: pendiente de decisión, **no bloqueante para arrancar** — la detección de duplicados se puede agregar después con el módulo ya funcionando. Opciones cuando se aborde:
-  - **CLIP** (open_clip / `clip-vit-base-patch32`) vía sidecar Python o Java DJL. Standard de facto para similitud de imágenes, vectores de 512 dims, mucho material de referencia académico.
-  - **Modelo de embedding multimodal servido por Ollama** (ej. `nomic-embed-vision`). Mantiene el stack unificado: una sola dependencia de inferencia.
-  - **Qwen3-VL para embeddings**: en teoría posible extrayendo hidden states, pero Ollama no expone una API limpia para esto. No recomendado salvo que se cierre con el equipo.
+- **Prompts versionados** en `classification-service/src/main/resources/prompts/`. La versión vigente la fija
+  `arbiter.llm.prompt-version` (hoy `classification-v5`; el de OCR es `extraccion-documento-v5`) y se
+  persiste en `llm_analysis.prompt_version`. Las versiones anteriores se conservan para poder auditar
+  análisis viejos. Plantilla (markdown) separada de la inyección de datos: nada de concatenar strings.
+- **Variables de entorno**: la lista completa y comentada está en `.env.example`. Nunca en un yml versionado.
+- **Embeddings de imágenes**: CLIP ViT-B-32 en `embedding-service` (ver decisión #11).
 
 ---
 

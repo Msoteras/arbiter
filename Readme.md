@@ -22,26 +22,26 @@ Foco actual: el **Módulo de Análisis y Clasificación** — clasificación pre
 ```
 arbiter/
 ├── pom.xml                    # POM padre: versiones y dependencyManagement
-├── docker-compose.yml         # Postgres + Ollama + módulos backend
+├── docker-compose.yml         # Postgres + módulos backend (+ Ollama con el perfil `ollama`)
+├── db/                        # Esquema multi-tenant, seed y migraciones (sin Flyway)
 ├── common-lib/                # Tipos compartidos entre módulos (enums, DTOs, excepciones)
 ├── classification-service/    # Módulo de Análisis y Clasificación — puerto 8082
 ├── cases-service/             # Módulo de Expedientes — puerto 8083
 ├── arbiter-frontend/          # SPA Angular 20 — puerto 4200
 ├── auth-service/              # Gestión de usuarios (Auth0 + JWT + RBAC) — puerto 8080
 ├── rules-service/             # Motor de reglas de negocio — puerto 8081
-├── reports-service/           # Reportes y estadísticas (scaffold) — puerto 8084
-├── embedding-service/         # Sidecar Python (CLIP) para detección de imágenes duplicadas
-└── docs/                      # Documentación, colecciones Postman y scripts
+├── reports-service/           # Reportes y estadísticas — puerto 8084
+├── embedding-service/         # Sidecar Python (CLIP) para detección de imágenes duplicadas — puerto 8000
+├── scripts/                   # Wrappers de arranque y de base de datos (PowerShell)
+└── docs/                      # Documentación, colecciones Postman y fixtures de prueba
 ```
 
 Cada servicio backend Spring Boot es una aplicación independiente que declara `common-lib` como
-dependencia local del reactor. Los 6 módulos backend están activos en el POM padre; `reports-service`
-es el único que sigue siendo scaffold (config multi-tenant + la entidad `Metric`, sin controllers ni
-servicios todavía).
+dependencia local del reactor.
 
-`embedding-service` no es Java/Maven: es un servicio Python chico (`app.py`, sin puerto fijo en la
-tabla de arriba porque no es un módulo del dominio) que sirve embeddings CLIP ViT-B-32. Lo consume
-`classification-service` (`EMBEDDING_SERVICE_URL`) para pgvector — ver decisión #11 en `CLAUDE.md`.
+`embedding-service` no es Java/Maven: es un servicio Python chico (`app.py`, puerto 8000) que sirve
+embeddings CLIP ViT-B-32 (512 dimensiones). Lo consume `classification-service`
+(`EMBEDDING_SERVICE_URL`) para detectar imágenes reutilizadas con pgvector.
 
 ---
 
@@ -53,7 +53,7 @@ tabla de arriba porque no es un módulo del dominio) que sirve embeddings CLIP V
 | Spring Boot      | 4.0.5                                |
 | Spring Cloud BOM | 2025.1.1                             |
 | PostgreSQL       | 16                                   |
-| LLM              | Ollama + Qwen3-VL (contexto 32.768)  |
+| LLM              | Ollama + `qwen3-vl:8b-instruct` (contexto 32.768); Gemini por Vertex opcional |
 | Frontend         | Angular 20                           |
 | Lombok           | 1.18.34                              |
 
@@ -72,8 +72,9 @@ mvn spring-boot:run -pl cases-service          # corre el módulo de expedientes
 mvn -pl classification-service test            # tests del módulo
 ```
 
-Con el perfil `dev` (por defecto) los adapters externos (Ollama, aseguradora, reglas) usan mocks,
-así que el flujo completo corre sin Ollama prendido.
+No hay perfil con mocks: cada módulo necesita la base (con el esquema de `db/` cargado) y
+`auth-service` necesita Auth0 configurado en el `.env` (ver `.env.example`). Para clasificar,
+`classification-service` necesita un modelo: Ollama local o Gemini (ver más abajo).
 
 ### Frontend (Angular)
 
@@ -85,7 +86,9 @@ npm start          # http://localhost:4200
 
 ### Todo junto (Docker Compose)
 
-Levanta Postgres, Ollama (con el modelo pre-descargado) y los módulos backend:
+Levanta Postgres, el sidecar de embeddings y los módulos backend. Ollama está detrás del perfil
+`ollama` (con `COMPOSE_PROFILES=ollama` en el `.env`, o usando `scripts/dev-ollama.ps1`); sin él el
+stack arranca igual pero la clasificación falla al primer siniestro.
 
 ```bash
 docker compose up --build
@@ -120,7 +123,7 @@ Cualquier flag extra se pasa a `docker compose up`, ej. `.\scripts\dev-gemini.ps
 ### Todo junto, contra la base de Railway
 
 `docker-compose.railway.yml` es la variante que **no** trae su propio Postgres: los módulos
-backend + Ollama + el sidecar de embeddings corren en Docker igual, pero apuntan a la base
+backend, el sidecar de embeddings y el frontend containerizado corren en Docker igual, pero apuntan a la base
 compartida de Railway (`DB_URL`/`DB_USER`/`DB_PASSWORD` del `.env` de la raíz). Sin riesgo de
 mezclar datos con el Postgres local de `docker-compose.yml`, porque no lo levanta.
 
@@ -139,11 +142,14 @@ docker compose -f docker-compose.railway.yml up --build -d cases-service
 > mirá sus logs, Hibernate dice tabla/columna/tipo. `scripts/db-railway.ps1 check` confirma que el
 > esquema está al día sin tocar nada.
 
+> El frontend containerizado publica en el 4200, igual que `ng serve`: levantá uno o el otro
+> (`FRONTEND_PORT` mueve el del contenedor).
+
 ---
 
 ## Estado del proyecto
 
-Implementados: `classification-service`, `cases-service`, `common-lib`, `arbiter-frontend`,
-`auth-service` (Auth0 + JWT + RBAC), `rules-service` (motor de reglas de negocio),
-`embedding-service` (sidecar CLIP para detección de imágenes duplicadas).
-Scaffold pendiente de implementación: `reports-service`.
+Los siete módulos están implementados: `common-lib`, `auth-service` (Auth0 + JWT + RBAC),
+`rules-service` (motor de reglas), `classification-service`, `cases-service`, `reports-service`
+(tablero de métricas, reporte de fraude y de resolución) y `embedding-service`, más el frontend
+`arbiter-frontend`.

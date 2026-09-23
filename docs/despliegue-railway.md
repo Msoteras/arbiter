@@ -46,7 +46,7 @@ equivalente vigente:
 | `deploy.restartPolicyType` / `MaxRetries` | Settings → Deploy → Restart Policy (`ON_FAILURE`, 10) |
 
 `RAILWAY_DOCKERFILE_PATH` **se resuelve desde la raíz del repositorio, no desde el Root
-Directory** (igual que el viejo Config File Path). Los seis servicios llevan Root Directory `/` y
+Directory** (igual que el viejo Config File Path). Los siete servicios llevan Root Directory `/` y
 la ruta completa desde la raíz — sin excepciones, ver la sección de `clip-embedding` más abajo.
 
 Si no se carga `RAILWAY_DOCKERFILE_PATH`, Railway no encuentra ningún Dockerfile en la raíz,
@@ -129,7 +129,7 @@ desarrollo lo hace `proxy.conf.json`; en el despliegue lo hace `arbiter-frontend
 
 > **Las dos tablas de ruteo tienen que seguir sincronizadas.** Una ruta agregada a
 > `proxy.conf.json` y olvidada en el template anda perfecto en desarrollo y da 404 apenas se
-> despliega. Hoy están iguales (9 rutas).
+> despliega. Hoy están iguales (12 rutas), y `scripts/check-routing-parity.py` lo verifica en el CI.
 
 ---
 
@@ -149,13 +149,13 @@ Tres cosas propias de Supabase a tener en cuenta al armar el `DB_URL`:
    Para arrancar, lo más simple es el **5432**.
 3. **SSL obligatorio**: `?sslmode=require` en la URL, igual que ya se usa con Railway.
 
-Las migraciones manuales de `db/migrate-*.sql` **no** hacen falta sobre una base nueva: ya están
+Las migraciones manuales de `db/migrations/*.sql` **no** hacen falta sobre una base nueva: ya están
 incorporadas a `init-multitenant.sql`. Solo aplican a bases que ya existían.
 
 ### Verificar que quedó consistente
 
 No hay Flyway/Liquibase, así que no hay una fuente automática de verdad de "esto ya se aplicó" —
-son 12 archivos sueltos (`db/migrate-*.sql` + `db/migrations/*.sql`) sin tabla de control. Antes de
+son archivos sueltos (`db/migrations/*.sql`, 38 hoy) sin tabla de control. Antes de
 dar por buena la base nueva (o para chequear la de Railway mientras siga en pie), corré:
 
 ```bash
@@ -239,7 +239,7 @@ con una variable.
 
 `GeminiConfig` construye el cliente con `.vertexAI(true)` y autentica por **ADC**, que solo lee la
 credencial de un **archivo** apuntado por `GOOGLE_APPLICATION_CREDENTIALS`. En Compose eso se
-resuelve montando el archivo (`docker-compose.railway.vertex.yml`); en Railway no hay dónde montar
+resuelve montando el archivo (`docker-compose.gemini.yml`, vía `scripts/dev-gemini.ps1`); en Railway no hay dónde montar
 nada.
 
 **No se cambió a API key**, aunque sería más simple: llegaría a la Gemini Developer API en vez de
@@ -276,8 +276,8 @@ está atada al usuario y a su máquina.
 
 Si no está seteada, `auth-service` genera un par RSA efímero en cada arranque (ver
 `PasswordCipher`). Con una sola instancia no molesta; con más de una, el browser cifra contra la
-clave de una instancia y el login puede caer en otra, fallando de forma intermitente. Solo aplica
-con `AUTH_PROVIDER=database`; con Auth0 (el default) no interviene.
+clave de una instancia y el login puede caer en otra, fallando de forma intermitente. Aplica con Auth0:
+el front cifra la contraseña antes de mandarla al login.
 
 ---
 
@@ -409,9 +409,7 @@ simplemente falla los primeros health checks y Railway lo reintenta.
 - **Adjuntos en S3.** Hoy van como `bytea` en Postgres (`CaseServiceImpl.storeDocuments`), contra
   lo que dice la decisión #15. Se decidió dejarlo así para el primer despliegue; con el volumen de
   una demo aguanta, pero la base crece sin política de retención.
-- **CI.** No hay pipeline. Railway despliega solo con `git push`, así que lo que falta es el gate
-  de calidad (`mvn verify` + `ng build` por PR), no el deploy.
-- **Versionado de migraciones.** Los `db/migrate-*.sql` no tienen tabla de control; hoy la única
+- **Versionado de migraciones.** Los `db/migrations/*.sql` no tienen tabla de control; hoy la única
   fuente de qué se aplicó es la memoria del equipo.
 - **Logging estructurado / monitoreo.** Nada configurado.
 - **Volver a Ollama** cuando haya dónde correrlo (ver arriba).

@@ -24,14 +24,18 @@ npm start          # ng serve → http://localhost:4200
 `environment.apiBaseUrl` es siempre `/api/v1` relativo — nunca un host:puerto hardcodeado. El proxy
 resuelve cada path al módulo backend que lo sirve:
 
-| Path                                                                                                                              | Backend                  | Puerto |
-| --------------------------------------------------------------------------------------------------------------------------------- | ------------------------ | ------ |
-| `/api/v1/auth`                                                                                                                    | `auth-service`           | 8080   |
-| `/api/v1/rules`                                                                                                                   | `rules-service`          | 8081   |
-| `/api/v1/claims`                                                                                                                  | `classification-service` | 8082   |
-| `/api/v1/cases`, `/api/v1/notifications`, `/api/v1/policies`, `/api/v1/claim-causes`, `/api/v1/coverages`, `/api/v1/expert-firms` | `cases-service`          | 8083   |
+| Path | Backend | Puerto |
+| --- | --- | --- |
+| `/api/v1/auth` | `auth-service` | 8080 |
+| `/api/v1/rules` | `rules-service` | 8081 |
+| `/api/v1/claims` | `classification-service` | 8082 |
+| `/api/v1/cases`, `/api/v1/notifications`, `/api/v1/policies`, `/api/v1/claim-causes`, `/api/v1/coverages`, `/api/v1/expert-firms`, `/api/v1/settlement-authorities` | `cases-service` | 8083 |
+| `/api/v1/ws` (WebSocket del chat) | `cases-service` | 8083 |
+| `/api/v1/reports` | `reports-service` | 8084 |
 
-En producción el mismo ruteo por path lo hace Nginx (ver `docs/despliegue-railway.md`).
+En producción el mismo ruteo por path lo hace Nginx (`nginx.conf.template`, ver
+`docs/despliegue-railway.md`). Las dos tablas tienen que coincidir: `scripts/check-routing-parity.py`
+lo verifica en el CI.
 
 ```bash
 npm run build       # build de producción a dist/
@@ -43,13 +47,13 @@ npm test             # unit tests (Karma + Jasmine)
 
 Cada rol aterriza en su propio home tras el login (`app.routes.ts`); `roleGuard` valida el rol
 contra el JWT y `onboardingGuard`/`onboardingPendingGuard` fuerzan el flujo de alta del asegurado
-(H0009) antes de dejarlo entrar al resto del portal.
+antes de dejarlo entrar al resto del portal.
 
-| Rol                     | Home            | Resto de sus pantallas                                                                                                                                                    |
-| ----------------------- | --------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `ANALISTA_SINIESTROS`   | `/home`         | `/inbox` (bandeja), `/cases/:id` (detalle + decisión), `/insurer/dashboard`, `/insurer/reports` (solo lectura)                                                            |
-| `REFERENTE_ASEGURADORA` | `/insurer/home` | `/insurer/users`, `/insurer/rules`, `/insurer/dashboard`, `/insurer/reports`, y `/inbox`/`/cases/:id` en modo solo lectura (sin asignar ni decidir)                       |
-| `ASEGURADO`             | `/portal/home`  | `/portal/onboarding`, `/new-claim` (wizard de denuncia), `/portal` (mis expedientes), `/portal/cases/:id` (seguimiento), `/portal/cases/:id/documents`, `/portal/profile` |
+| Rol | Home | Resto de sus pantallas |
+| --- | --- | --- |
+| `ANALISTA_SINIESTROS` | `/home` | `/inbox` (bandeja), `/cases/:id` (detalle + decisión), `/insurer/dashboard`, `/insurer/reports/resolutions` y `/insurer/reports/fraud` |
+| `REFERENTE_ASEGURADORA` | `/insurer/home` | `/insurer/users`, `/insurer/rules`, `/insurer/settlements` (liquidaciones que superan la atribución del analista), `/insurer/dashboard`, `/insurer/reports/*`, y `/inbox`/`/cases/:id` en modo solo lectura (sin asignar ni decidir) |
+| `ASEGURADO` | `/portal/home` | `/portal/onboarding`, `/new-claim` (wizard de denuncia), `/portal` (mis expedientes), `/portal/policies` (mis pólizas), `/portal/cases/:id` (seguimiento), `/portal/cases/:id/documents`, `/portal/profile` |
 
 `/styleguide` es la vitrina viva del design system (cualquier sesión autenticada puede entrar, no es
 de un rol en particular) — ver la sección siguiente.
