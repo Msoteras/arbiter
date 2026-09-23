@@ -12,6 +12,7 @@ import {
   TARGET_DAYS_MAX,
   TARGET_DAYS_MIN,
 } from '../resolution-target.service';
+import { fadeInUp } from '../../../shared/animations';
 
 /**
  * Insurer-wide resolution goal: a management target, not the legal deadline. The rules engine
@@ -26,12 +27,13 @@ import {
     SaveBarComponent,
     SwitchComponent,
   ],
+  animations: [fadeInUp],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     @if (loading()) {
       <app-inline-loading [size]="26" message="Cargando el objetivo…" />
     } @else {
-      <app-card>
+      <app-card @fadeInUp>
         <div class="head">
           <h2 class="card-title">Objetivo de resolución</h2>
         </div>

@@ -1,7 +1,7 @@
 @if (loading()) {
   <app-inline-loading [size]="26" message="Cargando puntaje de riesgo…" />
 } @else {
-  <app-card>
+  <app-card @fadeInUp>
     <div class="sc-head">
       <h2 class="card-title">Puntaje de riesgo</h2>
       <app-badge variant="solid">Toda la aseguradora</app-badge>

@@ -1,4 +1,5 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
+import { provideNoopAnimations } from '@angular/platform-browser/animations';
 import { of } from 'rxjs';
 
 import { HistorialReglasComponent } from './historial-reglas.component';
@@ -35,6 +36,7 @@ describe('HistorialReglasComponent', () => {
     await TestBed.configureTestingModule({
       imports: [HistorialReglasComponent],
       providers: [
+        provideNoopAnimations(),
         {
           provide: RuleHistoryService,
           useValue: {

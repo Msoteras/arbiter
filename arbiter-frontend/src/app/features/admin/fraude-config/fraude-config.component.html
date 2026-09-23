@@ -3,7 +3,7 @@
 } @else if (rule(); as r) {
   <!-- Header outside the cards: expert firms save instantly and the fraud record rule uses the save
        bar, so they can't share one card. -->
-  <header class="gf-head">
+  <header class="gf-head" @fadeInUp>
     <h2 class="t-section-label">Gestión de fraude</h2>
     <p class="section-hint">
       Cómo tratás a quien ya defraudó y a qué peritos o servicios técnicos externos podés derivar un
@@ -11,9 +11,9 @@
     </p>
   </header>
 
-  <app-peritos-config />
+  <app-peritos-config @fadeInUp />
 
-  <app-card class="gf-card">
+  <app-card class="gf-card" @fadeInUp>
     <div class="sc-section-head">
       <span class="t-section-label">Antecedente de reincidencia</span>
     </div>
