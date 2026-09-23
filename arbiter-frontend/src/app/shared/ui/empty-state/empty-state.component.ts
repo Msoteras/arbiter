@@ -30,14 +30,13 @@ import { ChangeDetectionStrategy, Component, input } from '@angular/core';
       margin: 0;
       font-size: var(--font-size-xs);
       color: var(--text-muted);
-      text-transform: uppercase;
-      letter-spacing: 0.04em;
+      text-wrap: pretty;
     }
   `,
 })
 export class EmptyStateComponent {
   readonly message = input('Sin datos');
-  /** Etiqueta corta de estado bajo el mensaje. Por defecto "Sin datos"; pasá algo más
-   *  descriptivo (ej. "Pendiente de datos") cuando el motivo del vacío no sea obvio. */
+  /** Line under the message, usually a sentence ("Probá con otro rango de fechas"), so it is not
+   *  set in capitals. */
   readonly sub = input('Sin datos');
 }
