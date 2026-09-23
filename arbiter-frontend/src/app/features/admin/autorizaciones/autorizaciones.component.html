@@ -97,7 +97,7 @@
                     <app-button
                       variant="accent"
                       [disabled]="actingOn() === row.caseId"
-                      (click)="authorize(row)"
+                      (click)="askAuthorize(row)"
                     >
                       {{ actingOn() === row.caseId ? 'Autorizando…' : '✓ Autorizar' }}
                     </app-button>
@@ -152,6 +152,26 @@
   }
 </div>
 
+<app-modal
+  [open]="authorizing() !== null"
+  heading="Autorizar la liquidación"
+  (close)="cancelAuthorize()"
+>
+  @if (authorizing(); as row) {
+    <p class="t-body">
+      Vas a autorizar el pago de <strong class="tabular">{{ monto(row.settledAmount) }}</strong> del
+      expediente #{{ row.caseId }}, {{ monto(row.excess) }} por encima del tope del ramo.
+    </p>
+    <p class="t-note">El expediente queda aprobado y se le avisa al asegurado.</p>
+  }
+  <ng-container modalActions>
+    <app-button variant="secondary" (click)="cancelAuthorize()">Cancelar</app-button>
+    <app-button variant="accent" [disabled]="actingOn() !== null" (click)="confirmAuthorize()">
+      {{ actingOn() !== null ? 'Autorizando…' : 'Autorizar' }}
+    </app-button>
+  </ng-container>
+</app-modal>
+
 <!-- Devolver no rechaza el siniestro: el expediente sigue siendo del analista, y el motivo es lo
      único que él va a tener para saber qué corregir. -->
 <app-modal
@@ -170,6 +190,11 @@
   </label>
   <ng-container modalActions>
     <app-button variant="secondary" (click)="cancelReturn()">Cancelar</app-button>
-    <app-button [disabled]="!returnReason().trim()" (click)="confirmReturn()">Devolver</app-button>
+    <app-button
+      [disabled]="!returnReason().trim() || actingOn() !== null"
+      (click)="confirmReturn()"
+    >
+      {{ actingOn() !== null ? 'Devolviendo…' : 'Devolver' }}
+    </app-button>
   </ng-container>
 </app-modal>

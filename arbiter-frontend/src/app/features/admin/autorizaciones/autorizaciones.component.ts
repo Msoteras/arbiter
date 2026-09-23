@@ -66,6 +66,9 @@ export class AutorizacionesComponent {
   protected readonly error = signal<string | null>(null);
   protected readonly actingOn = signal<number | null>(null);
 
+  /** Row about to be authorized; null = the confirmation modal is closed. */
+  protected readonly authorizing = signal<PendingSettlement | null>(null);
+
   /** Expediente cuya liquidación se está devolviendo. Null = el modal está cerrado. */
   protected readonly returning = signal<PendingSettlement | null>(null);
   protected readonly returnReason = signal('');
@@ -128,12 +131,27 @@ export class AutorizacionesComponent {
     });
   }
 
-  protected authorize(row: PendingSettlement): void {
+  // Authorizing approves the claim and notifies the insured, so it asks first, like returning.
+  protected askAuthorize(row: PendingSettlement): void {
+    this.authorizing.set(row);
+    this.error.set(null);
+  }
+
+  protected cancelAuthorize(): void {
+    this.authorizing.set(null);
+  }
+
+  protected confirmAuthorize(): void {
+    const row = this.authorizing();
+    if (!row) {
+      return;
+    }
     this.actingOn.set(row.caseId);
     this.error.set(null);
     this.service.authorize(row.caseId).subscribe({
       next: () => {
         this.actingOn.set(null);
+        this.authorizing.set(null);
         this.load();
       },
       error: (e: HttpErrorResponse) => {
