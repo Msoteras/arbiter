@@ -27,15 +27,6 @@
   gap: var(--space-5);
   align-items: start;
 }
-@media (max-width: 900px) {
-  .rules-layout {
-    grid-template-columns: 1fr;
-  }
-  .master-col {
-    position: static;
-  }
-}
-
 /* ───────── Columna izquierda: ramos + scoring ───────── */
 .master-col {
   display: flex;
@@ -43,6 +34,17 @@
   gap: var(--space-4);
   position: sticky;
   top: calc(var(--appbar-h) + var(--space-5));
+}
+
+/* After .master-col on purpose: same specificity, so the later rule wins. Stacked, a sticky
+   column slides over the editor below it. */
+@media (max-width: 900px) {
+  .rules-layout {
+    grid-template-columns: 1fr;
+  }
+  .master-col {
+    position: static;
+  }
 }
 
 /* ───────── Master: ramos y reglas generales ───────── */
