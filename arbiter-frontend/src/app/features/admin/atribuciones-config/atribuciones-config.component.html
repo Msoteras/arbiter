@@ -1,12 +1,12 @@
 @if (loading()) {
   <app-inline-loading [size]="26" message="Cargando atribuciones…" />
 } @else {
-  <header class="at-head">
+  <header class="at-head" @fadeInUp>
     <h2 class="t-section-label">Atribuciones de liquidación</h2>
     <p class="section-hint">Hasta cuánto puede autorizar un analista en cada ramo.</p>
   </header>
 
-  <app-card>
+  <app-card @fadeInUp>
     <span class="t-section-label">Tope por ramo</span>
 
     <ul class="rows">
