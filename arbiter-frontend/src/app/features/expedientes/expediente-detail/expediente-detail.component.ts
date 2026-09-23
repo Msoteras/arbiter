@@ -837,6 +837,7 @@ export class ExpedienteDetailComponent {
 
   protected readonly confirmDisabled = computed(
     () =>
+      this.decisionSaving() ||
       !this.justification().trim() ||
       (this.pendingDecision() === 'aprobar' && this.approvalBlockedReason() !== null),
   );

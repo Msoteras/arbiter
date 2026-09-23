@@ -1182,7 +1182,9 @@
   }
   <ng-container modalActions>
     <app-button variant="secondary" (click)="cancelDecision()">Cancelar</app-button>
-    <app-button [disabled]="confirmDisabled()" (click)="confirmDecision()">Confirmar</app-button>
+    <app-button [disabled]="confirmDisabled()" (click)="confirmDecision()">
+      {{ decisionSaving() ? 'Guardando…' : 'Confirmar' }}
+    </app-button>
   </ng-container>
 </app-modal>
 
