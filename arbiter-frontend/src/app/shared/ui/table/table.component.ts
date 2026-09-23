@@ -38,6 +38,8 @@ import {
       class="table"
       [class.fixed]="fixed()"
       [class.pinned]="pinFirstColumn()"
+      [class.pinned-end]="pinLastColumn()"
+      [class.more-right]="moreRight()"
       [class.sticky-head]="stickyHeader()"
       [class.scrolled]="scrolled()"
     >
@@ -123,6 +125,24 @@ import {
     :host ::ng-deep .table.pinned.scrolled td:first-child {
       border-right: 1px solid var(--border-default);
     }
+
+    /* Pinned last column, for row actions: on a narrow screen they would otherwise sit past the
+       right edge, and the row can't be acted on without scrolling first. */
+    :host ::ng-deep .table.pinned-end th:last-child,
+    :host ::ng-deep .table.pinned-end td:last-child {
+      position: sticky;
+      right: 0;
+      z-index: 1;
+      background: var(--surface);
+    }
+    :host ::ng-deep .table.pinned-end thead th:last-child {
+      z-index: 3;
+      background: var(--surface-head);
+    }
+    :host ::ng-deep .table.pinned-end.more-right th:last-child,
+    :host ::ng-deep .table.pinned-end.more-right td:last-child {
+      border-left: 1px solid var(--border-default);
+    }
   `,
 })
 export class TableComponent {
@@ -132,6 +152,8 @@ export class TableComponent {
   readonly fixed = input(false);
   /** Keeps the first column in view while the table scrolls sideways. */
   readonly pinFirstColumn = input(false);
+  /** Keeps the last column (row actions) in view while the table scrolls sideways. */
+  readonly pinLastColumn = input(false);
   /** Gives the table its own height and keeps the header in view while it is read. */
   readonly stickyHeader = input(false);
   /** Height of that own viewport, only with `stickyHeader`. Too much of it = a page with two scrolls. */
@@ -144,6 +166,10 @@ export class TableComponent {
   private readonly clientWidth = signal(0);
 
   protected readonly scrolled = computed(() => this.scrollLeft() > 0);
+  /** Columns still hidden to the right, i.e. behind a pinned last column. */
+  protected readonly moreRight = computed(
+    () => this.scrollLeft() + this.clientWidth() < this.scrollWidth() - 1,
+  );
   protected readonly overflowing = computed(() => this.scrollWidth() > this.clientWidth());
 
   constructor() {

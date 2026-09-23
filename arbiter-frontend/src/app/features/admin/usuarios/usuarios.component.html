@@ -30,7 +30,7 @@
       <p class="error">{{ resendError() }}</p>
     }
     <app-card [flush]="true">
-      <app-table>
+      <app-table [pinLastColumn]="true" scrollLabel="Usuarios">
         <thead>
           <tr>
             <th>Nombre</th>

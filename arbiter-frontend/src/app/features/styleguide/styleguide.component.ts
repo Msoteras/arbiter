@@ -596,8 +596,9 @@ interface Swatch {
         </p>
         <p class="sg-p">
           Una tabla que no entra a lo ancho scrollea. Para que ese scroll se pueda usar están
-          <span class="mono">[pinFirstColumn]</span> y <span class="mono">[stickyHeader]</span>: la
-          primera columna y el encabezado quedan a la vista, aparece una sombra en el borde derecho
+          <span class="mono">[pinFirstColumn]</span>, <span class="mono">[pinLastColumn]</span> y
+          <span class="mono">[stickyHeader]</span>: la primera columna, la última (las acciones de
+          la fila) y el encabezado quedan a la vista, aparece una sombra en el borde derecho
           mientras haya tabla escondida, y la zona se vuelve alcanzable por teclado con el nombre
           que le da <span class="mono">scrollLabel</span>. El reporte de resolución, con once
           columnas, es el caso que las pide.
@@ -605,6 +606,7 @@ interface Swatch {
         <app-card [flush]="true">
           <app-table
             [pinFirstColumn]="true"
+            [pinLastColumn]="true"
             [stickyHeader]="true"
             scrollLabel="Demo de tabla desplazable"
           >

@@ -386,6 +386,19 @@ tbody tr:not(:last-child) td {
 // La columna muestra la identidad del analista asignado (avatar + nombre) y las acciones a la
 // derecha: "+ Asignarme" (acento, solo para expedientes sin dueño) y el menú "…" para reasignar
 // a otro analista o liberar. Todo visible siempre — sin hover-reveal — como pide el diseño.
+// The analyst column is where the row is acted on (Asignarme, reassign): pinned to the right so a
+// narrow screen doesn't hide it behind the horizontal scroll. Own background so the cells scrolling
+// underneath don't show through.
+th:last-child,
+td:last-child {
+  position: sticky;
+  right: 0;
+  background: var(--surface);
+  box-shadow: inset 1px 0 0 var(--border-subtle);
+}
+thead th:last-child {
+  background: var(--surface-head);
+}
 .assign-cell {
   cursor: default;
   width: 172px; // fija para que el reparto de columnas no baile entre filas asignadas y no
