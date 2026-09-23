@@ -1,14 +1,12 @@
 #!/usr/bin/env python3
-"""Comprueba que el frontend rutee igual en desarrollo y en el despliegue.
+"""Checks that the frontend routes the same way in development and in deployment.
 
-El frontend usa rutas relativas (`apiBaseUrl: '/api/v1'`), así que alguien tiene que traducir
-cada prefijo al módulo que lo atiende. Eso está escrito DOS veces:
+Each API prefix is mapped to its module twice:
 
-  * arbiter-frontend/proxy.conf.json      -> lo usa `ng serve`
-  * arbiter-frontend/nginx.conf.template  -> lo usa la imagen desplegada
+  * arbiter-frontend/proxy.conf.json      -> used by `ng serve`
+  * arbiter-frontend/nginx.conf.template  -> used by the deployed image
 
-Una ruta agregada solo en la primera funciona durante todo el desarrollo y da 404 apenas se
-despliega. Este script existe para que esa divergencia falle en el CI y no en la demo.
+A route added only to the first works in development and 404s once deployed.
 """
 
 import json
@@ -20,8 +18,7 @@ ROOT = Path(__file__).resolve().parent.parent
 PROXY = ROOT / "arbiter-frontend" / "proxy.conf.json"
 TEMPLATE = ROOT / "arbiter-frontend" / "nginx.conf.template"
 
-# El puerto de cada módulo en desarrollo y el nombre de su variable en el template son dos formas
-# de nombrar lo mismo; esto las lleva a un vocabulario común para poder compararlas.
+# Dev ports and template variable names both identify a module; map them to a common name.
 PORT_TO_SERVICE = {
     "8080": "auth",
     "8081": "rules",
