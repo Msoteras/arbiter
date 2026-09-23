@@ -171,7 +171,7 @@ SELECT count(*) FROM information_schema.tables WHERE table_schema='arbiter_commo
     foreach ($tenant in @('arbiter_bbva', 'arbiter_provincia')) {
         Assert-Count "tablas en $tenant" @"
 SELECT count(*) FROM information_schema.tables WHERE table_schema='$tenant';
-"@ 24
+"@ 33
     }
 
     # 2. Columns that only a current init script creates.
@@ -198,9 +198,14 @@ SELECT count(*) FROM information_schema.columns
  WHERE table_schema='arbiter_bbva' AND table_name='image_analysis' AND column_name='model';
 "@ 1
 
+    Assert-Count 'email único en arbiter_common.users' @"
+SELECT count(*) FROM pg_indexes
+ WHERE schemaname='arbiter_common' AND indexname='users_email_lower_uq';
+"@ 1
+
     # 3. Catalogs and seed data.
     Assert-Count 'estados en arbiter_common.case_status' `
-        'SELECT count(*) FROM arbiter_common.case_status;' 6
+        'SELECT count(*) FROM arbiter_common.case_status;' 9
     Assert-Count 'aseguradoras registradas' `
         'SELECT count(*) FROM arbiter_common.insurer;' 2
     Assert-Count 'usuarios sembrados' `
