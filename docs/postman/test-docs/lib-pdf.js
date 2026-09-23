@@ -7,6 +7,8 @@
 //
 // Lo usan generar-fixtures.js (Celulares) y generar-fixtures-tecnologia.js (Tecnología Portátil).
 
+const { encode: encodeQr } = require('./qr');
+
 const pad = (n) => String(n).padStart(2, '0');
 
 /** Suma minutos (y segundos) a una fecha, sin mutarla. */
@@ -55,7 +57,9 @@ function esc(str) {
   return out;
 }
 
-const AVG = { F1: 0.50, F2: 0.55 };
+// F1/F2 are the document's own typefaces. F3/F4 (Times) exist only for tampering: a field retyped
+// in another font is the most common sign of an edited PDF, and the fixtures need to produce it.
+const AVG = { F1: 0.50, F2: 0.55, F3: 0.45, F4: 0.50 };
 const PAGE_W = 595.276, PAGE_H = 841.890;
 const MARGIN = 56;
 
@@ -91,13 +95,21 @@ class Page {
     return this;
   }
 
-  /** Etiqueta a la izquierda + importe alineado a la derecha, en la MISMA línea. */
-  moneyRow(label, amount, { size = 9, bold = false, leading = 12 } = {}) {
+  /**
+   * Etiqueta a la izquierda + importe alineado a la derecha, en la MISMA línea.
+   *
+   * `tamper` retypes only the amount the way an edited PDF shows it: another font and size, and
+   * slightly off the line ({ font, size, dx, dy }). Everything else on the row stays as it was.
+   */
+  moneyRow(label, amount, { size = 9, bold = false, leading = 12, tamper = null } = {}) {
     this.guard(label);
     const font = bold ? 'F2' : 'F1';
-    const amountX = PAGE_W - MARGIN - amount.length * size * AVG[font];
+    const aFont = tamper ? tamper.font : font;
+    const aSize = tamper ? tamper.size : size;
+    const amountX = PAGE_W - MARGIN - amount.length * aSize * AVG[aFont] + (tamper ? tamper.dx : 0);
+    const amountY = this.y + (tamper ? tamper.dy : 0);
     this.ops.push(`BT /${font} ${size} Tf ${MARGIN} ${this.y.toFixed(2)} Td (${esc(label)}) Tj ET`);
-    this.ops.push(`BT /${font} ${size} Tf ${amountX.toFixed(2)} ${this.y.toFixed(2)} Td (${esc(amount)}) Tj ET`);
+    this.ops.push(`BT /${aFont} ${aSize} Tf ${amountX.toFixed(2)} ${amountY.toFixed(2)} Td (${esc(amount)}) Tj ET`);
     this.y -= leading;
     return this;
   }
@@ -116,6 +128,32 @@ class Page {
     return this;
   }
 
+  /**
+   * A QR code, top-left corner at the cursor, `sizePt` wide. Dark modules are drawn as filled
+   * rectangles, one per horizontal run, so the page stays vector and prints sharp at any DPI.
+   */
+  qr(modules, sizePt, { x = MARGIN } = {}) {
+    const n = modules.length;
+    const m = sizePt / n;
+    const top = this.y;
+    if (!this.pinned && top - sizePt < BODY_FLOOR) {
+      throw new Error(`El QR no entra en la página (y=${top.toFixed(0)})`);
+    }
+    const rects = [];
+    modules.forEach((row, y) => {
+      for (let col = 0; col < n; col++) {
+        if (!row[col]) continue;
+        let end = col;
+        while (end + 1 < n && row[end + 1]) end++;
+        rects.push(`${(x + col * m).toFixed(3)} ${(top - (y + 1) * m).toFixed(3)} ${((end - col + 1) * m).toFixed(3)} ${m.toFixed(3)} re`);
+        col = end;
+      }
+    });
+    this.ops.push(`${rects.join('\n')}\nf`);
+    this.y = top - sizePt;
+    return this;
+  }
+
   /** Jumps to a fixed height. Only the footer does this, so from here on the floor doesn't apply. */
   at(y) { this.y = y; this.pinned = true; return this; }
   stream() { return this.ops.join('\n'); }
@@ -126,6 +164,46 @@ function letterhead(p, org, address, cuitNumber) {
   p.text(address, { size: 8.5, center: true });
   if (cuitNumber) p.text(`CUIT ${cuitNumber}`, { size: 8.5, center: true });
   p.gap(4).rule().gap(8);
+  return p;
+}
+
+/**
+ * The URL an electronic invoice's QR encodes (AFIP, RG 4892/2020): the invoice's key data as JSON,
+ * base64'd into a query parameter. Scanning it opens AFIP's validation page, which will say the
+ * invoice doesn't exist — the issuer and the CAE are fictitious.
+ */
+function afipQrUrl({ date, cuitIssuer, invoice, invoiceType, total, dniRecipient, cae }) {
+  const [dd, mm, yyyy] = date.split('/');
+  const [ptoVta, nroCmp] = invoice.split('-').map(Number);
+  const data = {
+    ver: 1,
+    fecha: `${yyyy}-${mm}-${dd}`,
+    cuit: Number(cuitIssuer.replace(/\D/g, '')),
+    ptoVta,
+    tipoCmp: invoiceType,
+    nroCmp,
+    importe: Number(total.replace(/\./g, '').replace(',', '.')),
+    moneda: 'PES',
+    ctz: 1,
+    tipoDocRec: 96, // DNI
+    nroDocRec: Number(dniRecipient.replace(/\D/g, '')),
+    tipoCodAut: 'E', // CAE
+    codAut: Number(cae),
+  };
+  return `https://www.afip.gob.ar/fe/qr/?p=${Buffer.from(JSON.stringify(data)).toString('base64')}`;
+}
+
+/** QR + the "Comprobante Autorizado" caption that electronic invoices carry next to it. */
+function afipBlock(p, url, sizePt = 76) {
+  const top = p.y;
+  p.qr(encodeQr(url), sizePt);
+  const bottom = p.y;
+  const x = MARGIN + sizePt + 12;
+  p.y = top - 18;
+  p.text('Comprobante Autorizado', { font: 'F2', size: 9.5, x, leading: 12 });
+  p.text('Esta Administración Federal no se responsabiliza por los datos ingresados', { size: 7.5, x, leading: 9 });
+  p.text('en el detalle de la operación.', { size: 7.5, x, leading: 9 });
+  p.y = bottom;
   return p;
 }
 
@@ -143,11 +221,13 @@ function build(page, meta) {
   const objects = [
     '<< /Type /Catalog /Pages 2 0 R >>',
     '<< /Type /Pages /Kids [3 0 R] /Count 1 >>',
-    `<< /Type /Page /Parent 2 0 R /MediaBox [0 0 ${PAGE_W} ${PAGE_H}] /Resources << /Font << /F1 5 0 R /F2 6 0 R >> /ProcSet [/PDF /Text] >> /Contents 4 0 R >>`,
+    `<< /Type /Page /Parent 2 0 R /MediaBox [0 0 ${PAGE_W} ${PAGE_H}] /Resources << /Font << /F1 5 0 R /F2 6 0 R /F3 8 0 R /F4 9 0 R >> /ProcSet [/PDF /Text] >> /Contents 4 0 R >>`,
     `<< /Length ${Buffer.byteLength(content, 'latin1')} >>\nstream\n${content}\nendstream`,
     '<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding >>',
     '<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica-Bold /Encoding /WinAnsiEncoding >>',
     `<< /Title (${esc(meta.title)}) /Author (${esc(meta.author)}) /Subject (${esc(meta.subject)}) /Keywords (fixture de prueba, sistema Arbiter, documento generado, no es un documento real) /Producer (Arbiter test fixture) /CreationDate (D:${meta.created}) >>`,
+    '<< /Type /Font /Subtype /Type1 /BaseFont /Times-Roman /Encoding /WinAnsiEncoding >>',
+    '<< /Type /Font /Subtype /Type1 /BaseFont /Times-Bold /Encoding /WinAnsiEncoding >>',
   ];
 
   let pdf = '%PDF-1.4\n%\xe2\xe3\xcf\xd3\n';
@@ -163,4 +243,7 @@ function build(page, meta) {
   return Buffer.from(pdf, 'latin1');
 }
 
-module.exports = { pad, plus, d, hm, hms, iso, pdfDate, cuit, esc, Page, letterhead, footer, build, MARGIN, PAGE_W, PAGE_H };
+module.exports = {
+  pad, plus, d, hm, hms, iso, pdfDate, cuit, esc, Page, letterhead, footer, build, afipQrUrl, afipBlock,
+  MARGIN, PAGE_W, PAGE_H,
+};

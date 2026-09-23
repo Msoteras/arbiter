@@ -7,7 +7,7 @@ endobj
 << /Type /Pages /Kids [3 0 R] /Count 1 >>
 endobj
 3 0 obj
-<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595.276 841.89] /Resources << /Font << /F1 5 0 R /F2 6 0 R >> /ProcSet [/PDF /Text] >> /Contents 4 0 R >>
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595.276 841.89] /Resources << /Font << /F1 5 0 R /F2 6 0 R /F3 8 0 R /F4 9 0 R >> /ProcSet [/PDF /Text] >> /Contents 4 0 R >>
 endobj
 4 0 obj
 << /Length 3874 >>
@@ -74,18 +74,26 @@ endobj
 7 0 obj
 << /Title (Informe de ultima conexion registrada REG-2026-0031205) /Author (TecnoService Argentina S.R.L.) /Subject (Ultima conexion del equipo portatil - documento simulado de prueba) /Keywords (fixture de prueba, sistema Arbiter, documento generado, no es un documento real) /Producer (Arbiter test fixture) /CreationDate (D:20260922110000-03'00') >>
 endobj
+8 0 obj
+<< /Type /Font /Subtype /Type1 /BaseFont /Times-Roman /Encoding /WinAnsiEncoding >>
+endobj
+9 0 obj
+<< /Type /Font /Subtype /Type1 /BaseFont /Times-Bold /Encoding /WinAnsiEncoding >>
+endobj
 xref
-0 8
+0 10
 0000000000 65535 f 
 0000000015 00000 n 
 0000000064 00000 n 
 0000000121 00000 n 
-0000000286 00000 n 
-0000004212 00000 n 
-0000004309 00000 n 
-0000004411 00000 n 
+0000000306 00000 n 
+0000004232 00000 n 
+0000004329 00000 n 
+0000004431 00000 n 
+0000004799 00000 n 
+0000004898 00000 n 
 trailer
-<< /Size 8 /Root 1 0 R /Info 7 0 R >>
+<< /Size 10 /Root 1 0 R /Info 7 0 R >>
 startxref
-4779
+4996
 %%EOF

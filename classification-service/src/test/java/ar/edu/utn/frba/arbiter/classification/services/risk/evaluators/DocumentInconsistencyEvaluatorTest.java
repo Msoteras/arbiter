@@ -76,12 +76,12 @@ class DocumentInconsistencyEvaluatorTest {
     /** Only the fields this test varies; the rest go empty. */
     private DocumentExtraction.Fields fields(LocalDate documentDate, BigDecimal amount, String imei) {
         return new DocumentExtraction.Fields(
-                documentDate, amount, null, null, null, imei, null, List.of());
+                documentDate, amount, null, null, null, imei, null, null, List.of());
     }
 
     /** Same, for the checks that vary make and model instead. */
     private DocumentExtraction.Fields itemFields(String brand, String model) {
-        return new DocumentExtraction.Fields(null, null, null, brand, model, null, null, List.of());
+        return new DocumentExtraction.Fields(null, null, null, brand, model, null, null, null, List.of());
     }
 
     /** With no documents analyzed nothing is known: not evaluable, not a 0.0 that would cheapen the score. */

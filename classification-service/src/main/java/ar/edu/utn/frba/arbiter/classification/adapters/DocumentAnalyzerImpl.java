@@ -52,43 +52,8 @@ public class DocumentAnalyzerImpl implements DocumentAnalyzer {
     private static final int DETAIL_NAME_MAX = 100;
     private static final int DETAIL_VALUE_MAX = 500;
 
-    /**
-     * Forcing the shape is what keeps the two halves apart. Without it the model returns prose and
-     * an "observación:" line inside the transcription reads as if the document said it.
-     */
-    private static final Map<String, Object> OUTPUT_SCHEMA = Map.of(
-            "type", "object",
-            "properties", Map.of(
-                    "transcription", Map.of("type", "string"),
-                    "visualFindings", Map.of("type", "array", "items", Map.of("type", "string")),
-                    // All nullable: a document has no reason to carry every one of them. The
-                    // schema doesn't require them so the model doesn't invent what's missing.
-                    // Map.ofEntries and not Map.of: past ten pairs the varargs overload is gone.
-                    "fields", Map.of(
-                            "type", "object",
-                            "properties", Map.ofEntries(
-                                    Map.entry("documentDate", Map.of("type", List.of("string", "null"))),
-                                    Map.entry("amount", Map.of("type", List.of("number", "null"))),
-                                    Map.entry("itemDescription", Map.of("type", List.of("string", "null"))),
-                                    Map.entry("brand", Map.of("type", List.of("string", "null"))),
-                                    Map.entry("model", Map.of("type", List.of("string", "null"))),
-                                    Map.entry("imei", Map.of("type", List.of("string", "null"))),
-                                    Map.entry("affectedParty", Map.of("enum",
-                                            List.of("TITULAR", "FAMILIAR", "TERCERO", "DESCONOCIDO"))),
-                                    // Name and value both required: half a detail says nothing to
-                                    // the analyst and only risks a row that can't be stored.
-                                    Map.entry("details", Map.of(
-                                            "type", "array",
-                                            "items", Map.of(
-                                                    "type", "object",
-                                                    "properties", Map.of(
-                                                            "name", Map.of("type", "string"),
-                                                            "value", Map.of("type", "string")),
-                                                    "required", List.of("name", "value"))))
-                            ))
-            ),
-            "required", List.of("transcription", "visualFindings")
-    );
+    /** Where the branch's claim causes go in the prompt. */
+    private static final String CATALOG_PLACEHOLDER = "{{claimCauseCatalog}}";
 
     private final LlmClient client;
     private final ObjectMapper objectMapper;
@@ -97,22 +62,79 @@ public class DocumentAnalyzerImpl implements DocumentAnalyzer {
     public DocumentAnalyzerImpl(
             LlmClient client,
             ObjectMapper objectMapper,
-            @Value("classpath:prompts/extraccion-documento-v5.md") Resource documentExtractionPromptResource
+            @Value("classpath:prompts/extraccion-documento-v6.md") Resource documentExtractionPromptResource
     ) throws IOException {
         this.client = client;
         this.objectMapper = objectMapper;
         this.documentExtractionPrompt = documentExtractionPromptResource.getContentAsString(StandardCharsets.UTF_8);
     }
 
+    /**
+     * Forcing the shape is what keeps the two halves apart. Without it the model returns prose and
+     * an "observación:" line inside the transcription reads as if the document said it.
+     *
+     * <p>Built per call and not a constant because {@code describedClaimCause} is an enum of the
+     * branch's own catalog: the model can only name a cause the insurer has, so the code never has
+     * to guess which one "robo con violencia" meant. Null is one of the values — most documents
+     * narrate no event at all.
+     */
+    private static Map<String, Object> outputSchema(List<String> claimCauses) {
+        List<String> causeValues = new ArrayList<>(claimCauses);
+        causeValues.add(null);
+        return Map.of(
+                "type", "object",
+                "properties", Map.of(
+                        "transcription", Map.of("type", "string"),
+                        "visualFindings", Map.of("type", "array", "items", Map.of("type", "string")),
+                        // All nullable: a document has no reason to carry every one of them. The
+                        // schema doesn't require them so the model doesn't invent what's missing.
+                        // Map.ofEntries and not Map.of: past ten pairs the varargs overload is gone.
+                        "fields", Map.of(
+                                "type", "object",
+                                "properties", Map.ofEntries(
+                                        Map.entry("documentDate", Map.of("type", List.of("string", "null"))),
+                                        Map.entry("amount", Map.of("type", List.of("number", "null"))),
+                                        Map.entry("itemDescription", Map.of("type", List.of("string", "null"))),
+                                        Map.entry("brand", Map.of("type", List.of("string", "null"))),
+                                        Map.entry("model", Map.of("type", List.of("string", "null"))),
+                                        Map.entry("imei", Map.of("type", List.of("string", "null"))),
+                                        Map.entry("affectedParty", Map.of("enum",
+                                                List.of("TITULAR", "FAMILIAR", "TERCERO", "DESCONOCIDO"))),
+                                        Map.entry("describedClaimCause", Map.of("enum", causeValues)),
+                                        // Name and value both required: half a detail says nothing to
+                                        // the analyst and only risks a row that can't be stored.
+                                        Map.entry("details", Map.of(
+                                                "type", "array",
+                                                "items", Map.of(
+                                                        "type", "object",
+                                                        "properties", Map.of(
+                                                                "name", Map.of("type", "string"),
+                                                                "value", Map.of("type", "string")),
+                                                        "required", List.of("name", "value"))))
+                                ))
+                ),
+                "required", List.of("transcription", "visualFindings")
+        );
+    }
+
+    /** The catalog as the prompt lists it; an empty one says so, and the schema then only allows null. */
+    private String promptFor(List<String> claimCauses) {
+        String catalog = claimCauses.isEmpty()
+                ? "(no hay catálogo disponible: devolvé `describedClaimCause` en null)"
+                : String.join("\n", claimCauses.stream().map(cause -> "- " + cause).toList());
+        return documentExtractionPrompt.replace(CATALOG_PLACEHOLDER, catalog);
+    }
+
     @Override
-    public DocumentExtraction extract(byte[] content, String contentType) {
+    public DocumentExtraction extract(byte[] content, String contentType, List<String> claimCauses) {
         log.info("[LLM] Starting document analysis — model={} contentType={} sizeBytes={} magicBytes={} decodableByJava={}",
                 client.model(), contentType, content.length, magicBytesHex(content), isDecodableImage(content));
 
+        List<String> causes = claimCauses == null ? List.of() : claimCauses;
         if (isPdf(contentType, content)) {
-            return extractFromPdf(content);
+            return extractFromPdf(content, causes);
         }
-        return extractFromImage(content);
+        return extractFromImage(content, causes);
     }
 
     private boolean isPdf(String contentType, byte[] content) {
@@ -147,7 +169,7 @@ public class DocumentAnalyzerImpl implements DocumentAnalyzer {
      * prefixed with the page when there's more than one — a doctored stamp on page 3 is useless
      * information if the analyst can't tell which page to open.
      */
-    private DocumentExtraction extractFromPdf(byte[] content) {
+    private DocumentExtraction extractFromPdf(byte[] content, List<String> claimCauses) {
         try (PDDocument document = Loader.loadPDF(content)) {
             PDFRenderer renderer = new PDFRenderer(document);
             int pageCount = Math.min(document.getNumberOfPages(), MAX_PDF_PAGES);
@@ -163,7 +185,7 @@ public class DocumentAnalyzerImpl implements DocumentAnalyzer {
             for (int page = 0; page < pageCount; page++) {
                 log.info("[LLM] Rendering and reading page {}/{}...", page + 1, pageCount);
                 BufferedImage image = renderer.renderImageWithDPI(page, 150);
-                DocumentExtraction pageExtraction = extractFromImage(toPng(image));
+                DocumentExtraction pageExtraction = extractFromImage(toPng(image), claimCauses);
 
                 if (pageCount > 1) {
                     transcription.append("--- Página ").append(page + 1).append(" ---\n");
@@ -198,6 +220,8 @@ public class DocumentAnalyzerImpl implements DocumentAnalyzer {
                 accumulated.model() != null ? accumulated.model() : page.model(),
                 accumulated.imei() != null ? accumulated.imei() : page.imei(),
                 accumulated.affectedParty() != null ? accumulated.affectedParty() : page.affectedParty(),
+                accumulated.describedClaimCause() != null
+                        ? accumulated.describedClaimCause() : page.describedClaimCause(),
                 mergeDetails(accumulated.details(), page.details()));
     }
 
@@ -223,20 +247,20 @@ public class DocumentAnalyzerImpl implements DocumentAnalyzer {
         }
     }
 
-    private DocumentExtraction extractFromImage(byte[] imageContent) {
+    private DocumentExtraction extractFromImage(byte[] imageContent, List<String> claimCauses) {
         String base64 = Base64.getEncoder().encodeToString(imageContent);
 
         // Sin thinking: transcribir un documento es una tarea mecánica —leer lo que dice el papel—,
         // no una que se resuelva razonando. El schema ya fuerza la forma de la salida, así que el
         // razonamiento solo agrega minutos y consume el presupuesto de num_predict sin aportar.
-        String content = client.chat(documentExtractionPrompt, List.of(base64), OUTPUT_SCHEMA, false);
+        String content = client.chat(promptFor(claimCauses), List.of(base64), outputSchema(claimCauses), false);
 
         if (content.isEmpty()) {
             log.warn("[LLM] Document analysis returned empty content");
             return DocumentExtraction.of(UNREADABLE);
         }
 
-        DocumentExtraction extraction = parse(content);
+        DocumentExtraction extraction = parse(content, claimCauses);
         log.info("[LLM] Document analysis done — {} chars transcribed, {} visual finding(s)",
                 extraction.transcription().length(), extraction.visualFindings().size());
         log.debug("[LLM] Extraction:\n{}", extraction);
@@ -248,13 +272,13 @@ public class DocumentAnalyzerImpl implements DocumentAnalyzer {
      * failing the classification: the transcription is the part the flow actually depends on, and
      * a malformed answer is not evidence of anything visual. Silence beats a made-up finding.
      */
-    private DocumentExtraction parse(String contentJson) {
+    private DocumentExtraction parse(String contentJson, List<String> claimCauses) {
         try {
             ModelOutput output = objectMapper.readValue(contentJson, ModelOutput.class);
             String transcription = output.transcription() == null || output.transcription().isBlank()
                     ? UNREADABLE
                     : output.transcription();
-            return new DocumentExtraction(transcription, output.visualFindings(), toFields(output.fields()));
+            return new DocumentExtraction(transcription, output.visualFindings(), toFields(output.fields(), claimCauses));
         } catch (Exception e) {
             log.warn("[LLM] Could not parse document extraction, keeping the raw text: {}", e.getMessage());
             return DocumentExtraction.of(contentJson);
@@ -266,7 +290,7 @@ public class DocumentAnalyzerImpl implements DocumentAnalyzer {
      * the document is still useful. And null is never read as an inconsistency downstream — "the
      * document doesn't say" and "doesn't match" are different things.
      */
-    private DocumentExtraction.Fields toFields(ModelFields fields) {
+    private DocumentExtraction.Fields toFields(ModelFields fields, List<String> claimCauses) {
         if (fields == null) {
             return DocumentExtraction.Fields.none();
         }
@@ -278,6 +302,7 @@ public class DocumentAnalyzerImpl implements DocumentAnalyzer {
                 blankToNull(fields.model()),
                 normalizeImei(fields.imei()),
                 parseAffectedParty(fields.affectedParty()),
+                matchClaimCause(fields.describedClaimCause(), claimCauses),
                 toDetails(fields.details()));
     }
 
@@ -321,6 +346,25 @@ public class DocumentAnalyzerImpl implements DocumentAnalyzer {
         }
     }
 
+    /**
+     * Back to the catalog's own spelling, or null. The schema already restricts the value, but a
+     * provider that doesn't honor the enum could still return "hurto" or something off the list —
+     * and the rule compares names, so an unmatched value must read as "the document doesn't say",
+     * never as a cause that differs from the declared one.
+     */
+    private String matchClaimCause(String raw, List<String> claimCauses) {
+        if (raw == null || raw.isBlank()) {
+            return null;
+        }
+        return claimCauses.stream()
+                .filter(cause -> cause.equalsIgnoreCase(raw.trim()))
+                .findFirst()
+                .orElseGet(() -> {
+                    log.debug("[LLM] describedClaimCause '{}' is not in the catalog — left empty", raw);
+                    return null;
+                });
+    }
+
     private LocalDate parseDate(String raw) {
         if (raw == null || raw.isBlank()) {
             return null;
@@ -352,5 +396,6 @@ public class DocumentAnalyzerImpl implements DocumentAnalyzer {
 
     /** The date arrives as text and the IMEI may carry separators: both normalized on mapping. */
     private record ModelFields(String documentDate, BigDecimal amount, String itemDescription, String brand,
-                               String model, String imei, String affectedParty, List<ModelDetail> details) {}
+                               String model, String imei, String affectedParty, String describedClaimCause,
+                               List<ModelDetail> details) {}
 }

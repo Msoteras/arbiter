@@ -19,8 +19,11 @@
 //      Con --camila escribe robo y hurto más la secuencia de historial, en .../camila/celulares/
 
 const fs = require('fs');
+const os = require('os');
 const path = require('path');
-const { plus, d, hm, hms, iso, pdfDate, cuit, Page, letterhead, footer, build, MARGIN } = require('./lib-pdf');
+const {
+  plus, d, hm, hms, iso, pdfDate, cuit, Page, letterhead, footer, build, afipQrUrl, afipBlock, MARGIN,
+} = require('./lib-pdf');
 const { PROFILES, variantFromArgv, outDirFromArgv } = require('./perfiles');
 const { buildMutations } = require('./mutaciones-celulares');
 const { buildHistory } = require('./historial-celulares');
@@ -369,13 +372,15 @@ function policeReport(sc) {
   p.gap(5);
 
   p.section('DATOS DEL HECHO');
-  p.field('Fecha y hora del hecho:', `${d(sc.event)}, aproximadamente ${hm(sc.event)} hs.`);
+  // The date the paper states; a mutation can make it differ from the declared one (fecha-pegada).
+  const ev = override(sc, 'police_report').event || sc.event;
+  p.field('Fecha y hora del hecho:', `${d(ev)}, aproximadamente ${hm(ev)} hs.`);
   p.field('Lugar:', police.place[0]);
   police.place.slice(1).forEach((l) => p.text(l, { size: 9 }));
   p.gap(5);
 
   p.section(`RELATO ${G.DEL} DENUNCIANTE`);
-  police.relato(hm(sc.event)).forEach((l) => p.text(l, { size: 9 }));
+  police.relato(hm(ev)).forEach((l) => p.text(l, { size: 9 }));
   p.gap(5);
 
   p.section('OBJETO SUSTRAÍDO');
@@ -452,12 +457,19 @@ function purchaseProof(sc) {
   p.moneyRow('Subtotal (neto gravado)', `$ ${PURCHASE.net}`);
   p.moneyRow('IVA 21%', `$ ${PURCHASE.vat}`);
   p.gap(2);
-  p.moneyRow('TOTAL', `$ ${PURCHASE.unitPrice}`, { size: 11, bold: true, leading: 16 });
+  // A tampered invoice shows another total than the one it was issued for (and the QR still encodes).
+  const { shownTotal, totalTamper } = override(sc, 'purchase_proof');
+  p.moneyRow('TOTAL', `$ ${shownTotal || PURCHASE.unitPrice}`, { size: 11, bold: true, leading: 16, tamper: totalTamper });
 
   p.rule();
   p.field('Forma de pago:', 'Tarjeta de crédito — 12 cuotas sin interés');
   p.field('CAE N°:', PURCHASE.cae);
   p.field('Vencimiento del CAE:', PURCHASE.caeDue);
+  p.gap(8);
+  afipBlock(p, afipQrUrl({
+    date: PURCHASE.date, cuitIssuer: RETAILER.cuit, invoice: PURCHASE.invoice, invoiceType: 6,
+    total: PURCHASE.unitPrice, dniRecipient: INSURED.dni, cae: PURCHASE.cae,
+  }));
   p.gap(10);
 
   p.text('Conserve este comprobante: es requisito para hacer valer la garantía del fabricante.', { size: 8.5 });
@@ -702,8 +714,23 @@ function writeCase(dir, sc) {
   for (const type of sc.documents) {
     const [builder, filename] = BUILDERS[type];
     const bytes = builder(sc);
-    fs.writeFileSync(path.join(dir, filename), bytes);
-    console.log(`  ${type.padEnd(20)} ${filename.padEnd(38)} ${bytes.length} bytes`);
+    const render = override(sc, type).render;
+    if (!render) {
+      fs.writeFileSync(path.join(dir, filename), bytes);
+      console.log(`  ${type.padEnd(20)} ${filename.padEnd(38)} ${bytes.length} bytes`);
+      continue;
+    }
+    // Scanned or photographed: the vector PDF is only the input. escaner is required here and
+    // not at the top, so the regular sets keep generating on a machine without Java.
+    const escaner = require('./escaner/escaner');
+    const vector = path.join(os.tmpdir(), `arbiter-fixture-${process.pid}-${filename}`);
+    fs.writeFileSync(vector, bytes);
+    const outName = render.mode === 'photo' ? filename.replace(/\.pdf$/, '.jpg') : filename;
+    const out = path.join(dir, outName);
+    if (render.mode === 'photo') escaner.photo(vector, out);
+    else escaner.scan(vector, out, render.patches || []);
+    fs.unlinkSync(vector);
+    console.log(`  ${type.padEnd(20)} ${outName.padEnd(38)} ${render.mode}${render.patches ? ' + campo pegado' : ''}`);
   }
 
   // El payload sale del mismo escenario que los PDFs: si las fechas del expediente y las de los

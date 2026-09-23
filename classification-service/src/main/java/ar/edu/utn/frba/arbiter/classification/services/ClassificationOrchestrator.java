@@ -62,6 +62,7 @@ public class ClassificationOrchestrator {
     private final InsurerAdapter insurerAdapter;
     private final CoverageRuleEvaluator coverageRuleEvaluator;
     private final CoverageScopeEvaluator coverageScopeEvaluator;
+    private final ClaimCauseConsistencyEvaluator claimCauseConsistencyEvaluator;
     private final TemporalRuleEvaluator temporalRuleEvaluator;
     private final FraudRecordRuleEvaluator fraudRecordRuleEvaluator;
     private final FastTrackValidator fastTrackValidator;
@@ -112,8 +113,10 @@ public class ClassificationOrchestrator {
 
         FastTrackValidator.Result fastTrack = fastTrackValidator.evaluate(claim, ctx.policy(), ctx.history(), ctx.rules(), null);
 
-        // After the scope and the gate, not before: their criteria are audited like the rest.
-        List<RuleFinding> ruleFindings = mergeFindings(exclusion, temporal, fraud, scope, fastTrack);
+        // After the scope and the gate, not before: their criteria are audited like the rest. No
+        // documents read, so nothing narrates a claim cause to compare.
+        List<RuleFinding> ruleFindings = mergeFindings(
+                exclusion, temporal, fraud, scope, ClaimCauseConsistencyEvaluator.Result.none(), fastTrack);
 
         if (fastTrack.fastTrack() && !temporal.blocksFastTrack() && !scope.blocksFastTrack()
                 && !fraud.blocksFastTrack()) {
@@ -130,7 +133,8 @@ public class ClassificationOrchestrator {
         return appendReasons(
                 appendReasons(
                         appendReasons(
-                                attachRuleFindings(classifyWithLlm(claim, ctx, engineFindings), ruleFindings),
+                                attachRuleFindings(classifyWithLlm(claim, ctx, engineFindings,
+                                        claimCauseCatalog(claim, ctx.rules())), ruleFindings),
                                 temporal.reasons()),
                         scope.reasons()),
                 fraud.reasons());
@@ -244,6 +248,7 @@ public class ClassificationOrchestrator {
         row.setAffectedParty(fields.affectedParty() == null
                 ? DocumentExtraction.AffectedParty.DESCONOCIDO
                 : fields.affectedParty());
+        row.setDescribedClaimCause(fields.describedClaimCause());
         row.setExtractedAt(Instant.now());
         extraction.visualFindings().forEach(row::addVisualFinding);
         // Skipping the nameless or valueless ones: both columns are NOT NULL, and a detail missing
@@ -353,8 +358,14 @@ public class ClassificationOrchestrator {
                     false, Map.of());
         }
 
+        // Read once and shared: the extraction needs the names (the only values it may give as the
+        // cause a document narrates), the consistency check and the LLM prompt need the coverage flag.
+        List<ClassificationRequest.ClaimCauseOption> catalog = claimCauseCatalog(claim, ctx.rules());
+        List<String> causeNames = catalog.stream().map(ClassificationRequest.ClaimCauseOption::name).toList();
+
         List<String> requiredForGate = requiredDocumentTypes(ctx.rules());
-        Map<String, DocumentExtraction> gateExtractions = extractRequiredDocuments(documents, requiredForGate);
+        Map<String, DocumentExtraction> gateExtractions =
+                extractRequiredDocuments(documents, requiredForGate, causeNames);
         Map<String, String> gateDocumentTexts = transcriptions(gateExtractions);
 
         // Temporal rules (D9/D10/D11/D12/D13): block Fast Track, add reasons for the analyst,
@@ -374,9 +385,14 @@ public class ClassificationOrchestrator {
         FastTrackValidator.Result fastTrack =
                 fastTrackValidator.evaluate(claim, ctx.policy(), ctx.history(), ctx.rules(), gateDocumentTexts);
 
+        // Whether the documents narrate the cause the insured declared. It warns and never blocks
+        // (see ClaimCauseConsistencyEvaluator), so it stays out of the Fast Track condition below.
+        ClaimCauseConsistencyEvaluator.Result causeMatch =
+                claimCauseConsistencyEvaluator.evaluate(claim, gateExtractions, catalog);
+
         // The gate's own trace: if the claim Fast Tracks below, these are the rules that decided —
         // the hard ones, plus the gate's criteria and what each one compared.
-        List<RuleFinding> ruleFindings = mergeFindings(exclusion, temporal, fraud, scope, fastTrack);
+        List<RuleFinding> ruleFindings = mergeFindings(exclusion, temporal, fraud, scope, causeMatch, fastTrack);
 
         if (fastTrack.fastTrack() && !temporal.blocksFastTrack() && !scope.blocksFastTrack()
                 && !fraud.blocksFastTrack()) {
@@ -386,11 +402,19 @@ public class ClassificationOrchestrator {
             // When off (default), Fast Track stays fast: only the gate's docs were read, if any.
             boolean fullAnalysis = fullAnalysisOnFastTrack(ctx.rules());
             Map<String, DocumentExtraction> fastTrackExtractions = fullAnalysis
-                    ? extractAllAttachments(documents, gateExtractions)
+                    ? extractAllAttachments(documents, gateExtractions, causeNames)
                     : gateExtractions;
-            log.info("[Orchestrator] Deterministic Fast Track — Reasons={} fullAnalysis={}",
-                    fastTrack.reasons(), fullAnalysis);
-            return new Resolution(attachRuleFindings(fastTrackResponse(fastTrack), ruleFindings),
+            // With the full analysis on, every attachment was read: compare against all of them.
+            ClaimCauseConsistencyEvaluator.Result fastTrackCauseMatch = fullAnalysis
+                    ? claimCauseConsistencyEvaluator.evaluate(claim, fastTrackExtractions, catalog)
+                    : causeMatch;
+            log.info("[Orchestrator] Deterministic Fast Track — Reasons={} fullAnalysis={} causeWarnings={}",
+                    fastTrack.reasons(), fullAnalysis, fastTrackCauseMatch.reasons());
+            return new Resolution(
+                    appendReasons(
+                            attachRuleFindings(fastTrackResponse(fastTrack),
+                                    mergeFindings(exclusion, temporal, fraud, scope, fastTrackCauseMatch, fastTrack)),
+                            fastTrackCauseMatch.reasons()),
                     fullAnalysis || !gateExtractions.isEmpty(), fastTrackExtractions);
         }
 
@@ -408,14 +432,15 @@ public class ClassificationOrchestrator {
             // Con los hallazgos del gate y no solo los de la exclusión: al analista no le alcanza
             // con qué documento falta, necesita por qué el caso no entró al carril rápido.
             return new Resolution(
-                    attachRuleFindings(missingDocumentationResponse(missingDocs), ruleFindings),
+                    appendReasons(attachRuleFindings(missingDocumentationResponse(missingDocs), ruleFindings),
+                            causeMatch.reasons()),
                     !gateExtractions.isEmpty(), gateExtractions);
         }
 
         log.info("[Orchestrator] Not Fast Track (fastTrack={}, temporalBlock={}, scopeBlock={}, fraudBlock={}). "
                         + "Extracting remaining document(s)...",
                 fastTrack.reasons(), temporal.reasons(), scope.reasons(), fraud.blocksFastTrack());
-        Map<String, DocumentExtraction> extractions = extractAllAttachments(documents, gateExtractions);
+        Map<String, DocumentExtraction> extractions = extractAllAttachments(documents, gateExtractions, causeNames);
         ClaimReport claimWithOcr = withAttachmentsOcr(claim, renderAttachments(documents, extractions));
 
         // Scope is re-evaluated with ALL documents read: the gate had only extracted the ones Fast
@@ -426,20 +451,20 @@ public class ClassificationOrchestrator {
         List<String> engineFindings = engineFindings(exclusion, temporal);
         engineFindings.addAll(fullScope.reasons());
 
+        // Same for the cause the documents narrate: every attachment read now, not just the gate's.
+        ClaimCauseConsistencyEvaluator.Result fullCauseMatch =
+                claimCauseConsistencyEvaluator.evaluate(claim, extractions, catalog);
+
         // fullScope y no `scope`: la foto que vale es la de todos los documentos leídos, y es la
         // que hay que auditar — el gate solo había extraído los que el Fast Track exige.
-        return new Resolution(
-                appendReasons(
-                        appendReasons(
-                                appendReasons(
-                                        attachRuleFindings(
-                                                classifyWithLlm(claimWithOcr, ctx, engineFindings),
-                                                mergeFindings(exclusion, temporal, fraud, fullScope, fastTrack)),
-                                        temporal.reasons()),
-                                fullScope.reasons()),
-                        fraud.reasons()),
-                true,
-                extractions);
+        ClassificationResponse response = attachRuleFindings(
+                classifyWithLlm(claimWithOcr, ctx, engineFindings, catalog),
+                mergeFindings(exclusion, temporal, fraud, fullScope, fullCauseMatch, fastTrack));
+        response = appendReasons(response, temporal.reasons());
+        response = appendReasons(response, fullScope.reasons());
+        response = appendReasons(response, fraud.reasons());
+        response = appendReasons(response, fullCauseMatch.reasons());
+        return new Resolution(response, true, extractions);
     }
 
     /**
@@ -568,8 +593,8 @@ public class ClassificationOrchestrator {
         return new Context(policy, history, rules, fraudRecords);
     }
 
-    private ClassificationResponse classifyWithLlm(ClaimReport claim, Context ctx, List<String> engineFindings) {
-        List<ClassificationRequest.ClaimCauseOption> catalog = claimCauseCatalog(claim, ctx.rules());
+    private ClassificationResponse classifyWithLlm(ClaimReport claim, Context ctx, List<String> engineFindings,
+                                                   List<ClassificationRequest.ClaimCauseOption> catalog) {
         ClassificationRequest request =
                 buildRequest(claim, ctx.policy(), ctx.history(), ctx.rules(), engineFindings, catalog);
         ClassificationResponse response =
@@ -765,11 +790,13 @@ public class ClassificationOrchestrator {
                                             TemporalRuleEvaluator.Result temporal,
                                             FraudRecordRuleEvaluator.Result fraud,
                                             CoverageScopeEvaluator.Result scope,
+                                            ClaimCauseConsistencyEvaluator.Result causeMatch,
                                             FastTrackValidator.Result fastTrack) {
         List<RuleFinding> findings = new ArrayList<>(exclusion.findings());
         findings.addAll(temporal.findings());
         findings.addAll(fraud.findings());
         findings.addAll(scope.findings());
+        findings.addAll(causeMatch.findings());
         findings.addAll(fastTrack.findings());
         return findings;
     }
@@ -803,7 +830,7 @@ public class ClassificationOrchestrator {
     }
 
     private Map<String, DocumentExtraction> extractRequiredDocuments(
-            List<AttachmentDocument> documents, List<String> requiredTypes) {
+            List<AttachmentDocument> documents, List<String> requiredTypes, List<String> causeNames) {
         if (requiredTypes.isEmpty()) {
             return Map.of();
         }
@@ -816,7 +843,7 @@ public class ClassificationOrchestrator {
         for (int i = 0; i < toExtract.size(); i++) {
             AttachmentDocument doc = toExtract.get(i);
             log.info("[Orchestrator] Reading document {}/{} with Ollama: '{}'...", i + 1, toExtract.size(), doc.type());
-            extractions.put(doc.type(), documentAnalyzer.extract(doc.content(), doc.contentType()));
+            extractions.put(doc.type(), documentAnalyzer.extract(doc.content(), doc.contentType(), causeNames));
         }
         log.info("[Orchestrator] Done reading the required document(s)");
         return extractions;
@@ -838,7 +865,8 @@ public class ClassificationOrchestrator {
      * for "a police report", not several).
      */
     private Map<String, DocumentExtraction> extractAllAttachments(
-            List<AttachmentDocument> documents, Map<String, DocumentExtraction> alreadyExtracted) {
+            List<AttachmentDocument> documents, Map<String, DocumentExtraction> alreadyExtracted,
+            List<String> causeNames) {
         log.info("[Orchestrator] Reading {} attachment(s) with Ollama: {}",
                 documents.size(), documents.stream().map(AttachmentDocument::type).toList());
         Map<String, DocumentExtraction> extractions = new LinkedHashMap<>();
@@ -851,7 +879,7 @@ public class ClassificationOrchestrator {
             } else {
                 log.info("[Orchestrator] Reading attachment {}/{} with Ollama: '{}'...",
                         i + 1, documents.size(), doc.type());
-                extractions.put(doc.type(), documentAnalyzer.extract(doc.content(), doc.contentType()));
+                extractions.put(doc.type(), documentAnalyzer.extract(doc.content(), doc.contentType(), causeNames));
             }
         }
         log.info("[Orchestrator] Done reading the attachment(s)");

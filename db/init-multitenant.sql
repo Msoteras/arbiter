@@ -750,6 +750,11 @@ BEGIN
             model               TEXT,
             imei                VARCHAR(20),
             affected_party      VARCHAR(20)  NOT NULL,
+            -- The claim cause the document narrates, by name from the branch's catalog (the
+            -- extraction's schema allows nothing else); NULL when it narrates none, which is the
+            -- norm. A name and not an FK, like llm_analysis.suggested_claim_cause: an audit row
+            -- must keep saying what was read even if the cause is later renamed or removed.
+            described_claim_cause VARCHAR(120),
             extracted_at        TIMESTAMPTZ  NOT NULL DEFAULT NOW(),
             case_document_id    BIGINT       NOT NULL REFERENCES %I.case_documents(id) ON DELETE CASCADE,
 

@@ -7,7 +7,7 @@ endobj
 << /Type /Pages /Kids [3 0 R] /Count 1 >>
 endobj
 3 0 obj
-<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595.276 841.89] /Resources << /Font << /F1 5 0 R /F2 6 0 R >> /ProcSet [/PDF /Text] >> /Contents 4 0 R >>
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595.276 841.89] /Resources << /Font << /F1 5 0 R /F2 6 0 R /F3 8 0 R /F4 9 0 R >> /ProcSet [/PDF /Text] >> /Contents 4 0 R >>
 endobj
 4 0 obj
 << /Length 3591 >>
@@ -75,18 +75,26 @@ endobj
 7 0 obj
 << /Title (Constancia de bloqueo y baja de IMEI BLQ-2026-0884517) /Author (Nexo M\363vil Argentina S.A.) /Subject (Baja de IMEI por robo en v\355a p\372blica - documento simulado de prueba) /Keywords (fixture de prueba, sistema Arbiter, documento generado, no es un documento real) /Producer (Arbiter test fixture) /CreationDate (D:20260922100000-03'00') >>
 endobj
+8 0 obj
+<< /Type /Font /Subtype /Type1 /BaseFont /Times-Roman /Encoding /WinAnsiEncoding >>
+endobj
+9 0 obj
+<< /Type /Font /Subtype /Type1 /BaseFont /Times-Bold /Encoding /WinAnsiEncoding >>
+endobj
 xref
-0 8
+0 10
 0000000000 65535 f 
 0000000015 00000 n 
 0000000064 00000 n 
 0000000121 00000 n 
-0000000286 00000 n 
-0000003929 00000 n 
-0000004026 00000 n 
-0000004128 00000 n 
+0000000306 00000 n 
+0000003949 00000 n 
+0000004046 00000 n 
+0000004148 00000 n 
+0000004521 00000 n 
+0000004620 00000 n 
 trailer
-<< /Size 8 /Root 1 0 R /Info 7 0 R >>
+<< /Size 10 /Root 1 0 R /Info 7 0 R >>
 startxref
-4501
+4718
 %%EOF

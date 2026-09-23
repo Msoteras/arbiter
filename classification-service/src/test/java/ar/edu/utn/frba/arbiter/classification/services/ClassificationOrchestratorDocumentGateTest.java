@@ -66,6 +66,7 @@ class ClassificationOrchestratorDocumentGateTest {
     @Mock private TemporalRuleEvaluator temporalRuleEvaluator;
     @Mock private FraudRecordRuleEvaluator fraudRecordRuleEvaluator;
     @Mock private FastTrackValidator fastTrackValidator;
+    @Spy private ClaimCauseConsistencyEvaluator claimCauseConsistencyEvaluator = new ClaimCauseConsistencyEvaluator();
     @Mock private DocumentAnalyzer documentAnalyzer;
     @Mock private PromptBuilder promptBuilder;
     @Mock private RiskScoringService riskScoringService;
@@ -92,7 +93,7 @@ class ClassificationOrchestratorDocumentGateTest {
                 .thenReturn(CoverageScopeEvaluator.Result.none());
         // Cada documento de la tanda mínima se lee y trae texto: el gate compara transcripciones,
         // no presencia, así que un adjunto ilegible no alcanzaría.
-        lenient().when(documentAnalyzer.extract(any(), any()))
+        lenient().when(documentAnalyzer.extract(any(), any(), any()))
                 .thenReturn(DocumentExtraction.of("texto legible del documento"));
         lenient().when(riskScoringService.score(any()))
                 .thenReturn(new RiskScore(true, 0.1, RiskBand.LOW, List.of(), 1L));
@@ -108,6 +109,30 @@ class ClassificationOrchestratorDocumentGateTest {
                 RiskFixtures.claim(new BigDecimal("100000")), attachments(MINIMOS));
 
         assertThat(response.classification()).isEqualTo(Classification.FAST_TRACK);
+        verify(classifier, never()).classify(any());
+    }
+
+    /**
+     * The acta narrates a hurto and the insured declared a robo. Team's call: it warns, it doesn't
+     * block — the case stays FAST_TRACK, and the analyst gets the reason and the audit row.
+     */
+    @Test
+    void anActaNarratingAnotherCause_staysFastTrackButWarns() {
+        when(fastTrackValidator.evaluate(any(), any(), any(), any(), any()))
+                .thenReturn(new FastTrackValidator.Result(true, List.of("Primer siniestro"), List.of()));
+        when(documentAnalyzer.extract(any(), any(), any())).thenReturn(new DocumentExtraction(
+                "ACTA DE DENUNCIA — HURTO (art. 162)", List.of(),
+                new DocumentExtraction.Fields(null, null, null, null, null, null, null, "Hurto", List.of())));
+
+        ClassificationResponse response = orchestrator.classify(
+                RiskFixtures.claim(new BigDecimal("100000")), attachments(MINIMOS));
+
+        assertThat(response.classification()).isEqualTo(Classification.FAST_TRACK);
+        assertThat(response.factors()).anyMatch(f -> f.contains("describe «Hurto»"));
+        assertThat(response.ruleFindings())
+                .filteredOn(finding -> finding.ruleType().equals("CLAIM_CAUSE_MATCH"))
+                .singleElement()
+                .satisfies(finding -> assertThat(finding.passed()).isFalse());
         verify(classifier, never()).classify(any());
     }
 

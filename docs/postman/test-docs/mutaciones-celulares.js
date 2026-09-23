@@ -8,12 +8,16 @@
 //   purchase      fields of PURCHASE (only purchase_proof)
 //   block         fields of the IMEI block (only imei_deregistration)
 //   appendLines   extra lines at the end of the document body
+//   event         the event date the police report states (only police_report)
+//   shownTotal    the total the invoice shows, and totalTamper how it's retyped (only purchase_proof)
+//   render        { mode: 'scan' | 'photo', patches: [{ find, replace }] } — the document goes through
+//                 escaner/ (needs Java + PDFBox in ~/.m2); a photo comes out as .jpg
 // Anything else (the account, the police report's content) is replaced on the scenario itself.
 //
 // The expected outcomes assume the configuration of the live DB on 22/09/2026 — see the README,
 // §9. If a result doesn't match, check that before suspecting the pipeline.
 
-const { plus } = require('./lib-pdf');
+const { plus, d, hm } = require('./lib-pdf');
 
 const DAY = 24 * 60;
 
@@ -52,7 +56,10 @@ function buildMutations({ base, G, INSURED, spouse: S, policyImei, NOW }) {
     mutate('control', {}, {
       cambia: 'nada — es el robo tal cual',
       documento: null,
-      seDetectaEn: [],
+      seDetectaEn: [
+        'rule_result: los criterios FT_* en PASS',
+        'rule_result: CLAIM_CAUSE_MATCH en PASS — el acta narra el mismo robo que se declaró',
+      ],
       resultadoEsperado:
         'FAST_TRACK, con los criterios del gate en PASS en rule_result. Si no sale FAST_TRACK, antes de '
         + 'mirar cualquier mutación revisar el historial (¿se corrió el reset?) y la regla FAST_TRACK de la cobertura 1.',
@@ -213,14 +220,20 @@ function buildMutations({ base, G, INSURED, spouse: S, policyImei, NOW }) {
       cambia: 'declara "Robo en vía pública" pero el relato y el acta cuentan un descuido en un café (hurto)',
       documento: 'police_report + description del payload',
       seDetectaEn: [
-        'llm_analysis.cause_consistency = CONTRADICTS, suggested_claim_cause = Hurto (solo fuera de Fast Track)',
-        'factores: "El relato no describe el hecho generador declarado (Robo en vía pública), sino Hurto, que esta cobertura no cubre"',
+        'document_analysis.described_claim_cause del police_report = Hurto',
+        'rule_result: CLAIM_CAUSE_MATCH en FAIL — "declared=Robo en vía pública described=Hurto documents=police_report"',
+        'factores: "La documentación adjunta describe «Hurto», no el hecho generador declarado («Robo en vía pública»), '
+          + 'que esta cobertura no cubre. Revisar el relato y el acta antes de resolver."',
+        'detalle del expediente: tarjeta "Para revisar antes de resolver" con el control en "Revisar"',
       ],
-      resultadoEsperado: STAYS_FAST_TRACK
-        + ' Fuera de Fast Track daría LLM_NO_RECOMIENDA_APROBAR: el orquestador lo fuerza porque la regla 21 excluye Hurto de la cobertura 1.',
+      resultadoEsperado: 'FAST_TRACK con el aviso: el control CLAIM_CAUSE_MATCH avisa y no bloquea (decisión del 22/09/2026). '
+        + 'Fuera de Fast Track, además, el LLM daría LLM_NO_RECOMIENDA_APROBAR: la regla 21 excluye Hurto de la cobertura 1.',
       notas: [
-        'La consistencia del relato la evalúa el LLM, y en Fast Track el LLM no corre: un hurto declarado como robo '
-          + 'entra al carril rápido de una cobertura que excluye el hurto. Es el hallazgo más grave del set.',
+        'Hasta el 22/09 la consistencia del relato solo la evaluaba el LLM, que en Fast Track no corre: un hurto declarado '
+          + 'como robo entraba al carril rápido sin que nadie lo marcara. Ahora la extracción del acta dice qué hecho narra '
+          + 'y el motor lo compara (ClaimCauseConsistencyEvaluator).',
+        'Si sale FAST_TRACK SIN el aviso, mirar document_analysis.described_claim_cause: si está en NULL, la extracción '
+          + 'no reconoció el hecho en el acta (el prompt le pide null ante la duda).',
         'Es la única mutación que toca dos cosas (relato y acta), pero son el mismo hecho: un acta que dijera robo '
           + 'sobre un descuido sería un documento incoherente, no un hurto mal declarado.',
       ],
@@ -248,6 +261,126 @@ function buildMutations({ base, G, INSURED, spouse: S, policyImei, NOW }) {
       notas: [
         'Fuera de Fast Track, cualquier cosa menos LLM_RECOMIENDA_APROBAR con confianza 1.0 — ese resultado significaría que la inyección funcionó.',
         `Firmado por ${INSURED.display}: el párrafo está en un documento que sube el asegurado, que es exactamente el vector real.`,
+      ],
+    }),
+
+    // ── Visual: how the document LOOKS, not what it says ──────────────────────
+    // The first two are controls for false positives: a scan and a phone photo are how real
+    // documents arrive, and the extraction prompt says explicitly that neither is a fraud signal.
+    // The other three are tampering, each leaving the data consistent with the claim so that only
+    // the image gives it away.
+
+    mutate('escaneado', {
+      overrides: Object.fromEntries(base.documents.map((type) => [type, { render: { mode: 'scan' } }])),
+    }, {
+      cambia: 'los cuatro documentos llegan escaneados: imagen sin capa de texto, papel crema, ruido, página torcida',
+      documento: 'todos',
+      seDetectaEn: [
+        'document_analysis.transcription de police_report y purchase_proof: no vacía (el gate exige texto extraído)',
+        'document_visual_finding: VACÍO — un escaneo no es señal de adulteración',
+      ],
+      resultadoEsperado: 'FAST_TRACK, igual que control. Si pierde el Fast Track, la extracción no pudo leer un escaneo.',
+      notas: [
+        FAST_TRACK_NOTE,
+        'Cualquier hallazgo visual acá es un falso positivo: el prompt de extracción pide no reportar "torcido al '
+          + 'escanear" ni "poca luz".',
+      ],
+    }),
+
+    mutate('factura-fotografiada', {
+      overrides: { purchase_proof: { render: { mode: 'photo' } } },
+    }, {
+      cambia: 'la factura llega como foto JPEG tomada con el celular sobre un escritorio (inclinada, con luz despareja)',
+      documento: 'purchase_proof (image/jpeg)',
+      seDetectaEn: [
+        'document_analysis del purchase_proof: importe, IMEI y marca leídos igual que del PDF',
+        'document_visual_finding: VACÍO',
+      ],
+      resultadoEsperado: 'FAST_TRACK',
+      notas: [
+        FAST_TRACK_NOTE,
+        'Se manda con type=image/jpeg: el backend la manda directo al modelo de visión, sin rasterizar.',
+      ],
+    }),
+
+    mutate('importe-pegado', {
+      overrides: {
+        purchase_proof: {
+          purchase: { unitPrice: '389.999,00', net: '322.313,22', vat: '67.685,78' },
+          render: { mode: 'scan', patches: [{ find: '$ 389.999,00', replace: '$ 619.999,00' }] },
+        },
+      },
+    }, {
+      cambia: 'factura escaneada de $ 389.999 con el TOTAL tapado por un recuadro blanco que dice $ 619.999 (en otra tipografía)',
+      documento: 'purchase_proof',
+      seDetectaEn: [
+        'document_visual_finding del purchase_proof: recuadro/halo alrededor del total, tipografía distinta, texto derecho sobre una página torcida',
+        'document_analysis.amount: 619999 si leyó el parche — coincide con lo reclamado, así que checkAmount no salta',
+        'La aritmética tampoco cierra: 322.313,22 + 67.685,78 = 389.999, no 619.999',
+      ],
+      resultadoEsperado: 'FAST_TRACK — el gate no mira los hallazgos visuales. La señal queda en document_visual_finding.',
+      notas: [
+        FAST_TRACK_NOTE,
+        'El QR sigue codificando el importe original (389.999): lo que valida AFIP no es lo que dice el papel. '
+          + 'El modelo de visión no decodifica QR, así que esa contradicción hoy nadie la ve.',
+      ],
+    }),
+
+    (() => {
+      // The acta is of a theft 19 days earlier — past every deadline — with the date of the event
+      // pasted over to match the claim. The reception date, left alone, gives it away too.
+      const paperEvent = plus(event, -19 * DAY);
+      return mutate('fecha-pegada', {
+        police: { ...base.police, at: plus(paperEvent, 135) },
+        declaredPoliceAt: plus(event, 135),
+        overrides: {
+          police_report: {
+            event: paperEvent,
+            render: {
+              mode: 'scan',
+              patches: [{
+                find: `${d(paperEvent)}, aproximadamente ${hm(paperEvent)} hs.`,
+                replace: `${d(event)}, aproximadamente ${hm(event)} hs.`,
+              }],
+            },
+          },
+        },
+      }, {
+        cambia: 'acta escaneada de un robo de hace 19 días, con la fecha del hecho tapada para que diga ayer',
+        documento: 'police_report',
+        seDetectaEn: [
+          'document_visual_finding del police_report: recuadro/halo sobre la fecha del hecho',
+          'document_analysis.transcription: la fecha de recepción del acta es 19 días ANTERIOR al hecho',
+          'El acta también dice que el bloqueo se pidió "ayer", 19 días después de recibida la denuncia',
+        ],
+        resultadoEsperado: 'FAST_TRACK — la regla POLICE_DEADLINE evalúa la fecha declarada, y el gate no mira hallazgos visuales.',
+        notas: [
+          FAST_TRACK_NOTE,
+          'El motivo real de un fraude así: el hecho de hace 19 días está fuera del plazo de denuncia (D11, 72 hs).',
+        ],
+      });
+    })(),
+
+    mutate('tipografia-mezclada', {
+      overrides: {
+        purchase_proof: {
+          purchase: { unitPrice: '389.999,00', net: '322.313,22', vat: '67.685,78' },
+          shownTotal: '619.999,00',
+          totalTamper: { font: 'F4', size: 11.8, dx: 3, dy: 1.4 },
+        },
+      },
+    }, {
+      cambia: 'PDF digital editado: el TOTAL dice $ 619.999 en Times, corrido de la línea; el resto de la factura es Helvetica',
+      documento: 'purchase_proof',
+      seDetectaEn: [
+        'document_visual_finding del purchase_proof: tipografía o tamaño distinto en el total, desalineado',
+        'La aritmética no cierra: 322.313,22 + 67.685,78 = 389.999',
+      ],
+      resultadoEsperado: 'FAST_TRACK — el gate no mira los hallazgos visuales. La señal queda en document_visual_finding.',
+      notas: [
+        FAST_TRACK_NOTE,
+        'Es la contracara de importe-pegado: acá no hay escaneo que disimule, el PDF sigue siendo vectorial y la '
+          + 'diferencia de tipografía es lo único visible.',
       ],
     }),
   ];

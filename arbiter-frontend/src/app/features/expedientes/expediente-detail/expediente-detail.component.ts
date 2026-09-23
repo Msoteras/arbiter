@@ -38,6 +38,9 @@ import { Policy } from '../../../core/models/policy';
 import {
   PolicySnapshot,
   RuleResult,
+  advisoryResultLabel,
+  advisoryResultTone,
+  isAdvisoryCheck,
   isFastTrackCriterion,
   ruleEvaluationText,
   ruleResultLabel,
@@ -443,7 +446,20 @@ export class ExpedienteDetailComponent {
    * el analista lee una exclusión de cobertura donde solo hubo un umbral de agilidad.
    */
   protected readonly hardRuleResults = computed<RuleResult[]>(() =>
-    this.ruleResults().filter((r) => !isFastTrackCriterion(r.ruleType)),
+    this.ruleResults().filter((r) => !isFastTrackCriterion(r.ruleType) && !isAdvisoryCheck(r.ruleType)),
+  );
+
+  /**
+   * Los avisos: no deciden cobertura ni carril rápido, marcan algo para mirar antes de resolver
+   * (hoy, que la documentación narre otro hecho que el declarado). Van aparte y arriba de las
+   * reglas porque un "No cumple" entre ellas se leería como una exclusión que el motor no dictó.
+   */
+  protected readonly advisoryChecks = computed<RuleResult[]>(() =>
+    this.ruleResults().filter((r) => isAdvisoryCheck(r.ruleType)),
+  );
+
+  protected readonly hasAdvisoryWarning = computed(() =>
+    this.advisoryChecks().some((r) => r.result === 'FAIL'),
   );
 
   /**
@@ -1565,6 +1581,8 @@ export class ExpedienteDetailComponent {
   ruleTypeLabel = ruleTypeLabel;
   ruleResultLabel = ruleResultLabel;
   ruleResultTone = ruleResultTone;
+  advisoryResultLabel = advisoryResultLabel;
+  advisoryResultTone = advisoryResultTone;
   ruleEvaluationText = ruleEvaluationText;
 
   private formatMonto(amount: number): string {

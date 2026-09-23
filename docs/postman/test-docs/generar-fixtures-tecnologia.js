@@ -25,7 +25,9 @@
 
 const fs = require('fs');
 const path = require('path');
-const { plus, d, hm, hms, iso, pdfDate, cuit, Page, letterhead, footer, build, MARGIN } = require('./lib-pdf');
+const {
+  plus, d, hm, hms, iso, pdfDate, cuit, Page, letterhead, footer, build, afipQrUrl, afipBlock, MARGIN,
+} = require('./lib-pdf');
 const { PROFILES, variantFromArgv, outDirFromArgv } = require('./perfiles');
 
 const VARIANT = variantFromArgv();
@@ -394,6 +396,11 @@ function purchaseProof() {
   p.field('Forma de pago:', 'Tarjeta de crédito — 12 cuotas sin interés');
   p.field('CAE N°:', PURCHASE.cae);
   p.field('Vencimiento del CAE:', PURCHASE.caeDue);
+  p.gap(8);
+  afipBlock(p, afipQrUrl({
+    date: PURCHASE.date, cuitIssuer: RETAILER.cuit, invoice: PURCHASE.invoice, invoiceType: 6,
+    total: PURCHASE.total, dniRecipient: INSURED.dni, cae: PURCHASE.cae,
+  }));
   p.gap(10);
 
   p.text('Conserve este comprobante: es requisito para hacer valer la garantía del fabricante.', { size: 8.5 });

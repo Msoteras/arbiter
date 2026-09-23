@@ -27,6 +27,10 @@ import java.util.List;
  *   <li><b>Fast Track criteria</b> (the {@code FT_*} types) — evaluated and audited the same way,
  *       but they aren't hard rules: failing one only means the claim doesn't take the fast lane and
  *       goes to the LLM. Never {@code insurer_rule} rows.</li>
+ *   <li><b>Advisory checks</b> ({@link #advisoryRules()}) — evaluated and audited, but failing one
+ *       changes nothing on its own: not the coverage, not the fast lane. It flags something the
+ *       analyst has to look at before deciding. Never {@code insurer_rule} rows, and never counted
+ *       as a rule that stopped a case.</li>
  * </ul>
  */
 public enum RuleType {
@@ -157,7 +161,20 @@ public enum RuleType {
     FT_POLICY_UP_TO_DATE(true),
 
     /** Fast Track gate · whether the documents the gate requires are attached and readable. */
-    FT_REQUIRED_DOCS(true);
+    FT_REQUIRED_DOCS(true),
+
+    /**
+     * Advisory · whether the claim cause a document narrates is the one the insured declared.
+     * The extraction reads which cause the document describes (a police report caratulado HURTO
+     * describes a hurto, whatever the insured picked) and {@code ClaimCauseConsistencyEvaluator}
+     * compares it by code against the declared one.
+     *
+     * <p>It exists because on the Fast Track path the LLM never runs, and the LLM was the only
+     * thing reading the account against the declared cause: a hurto declared as robo took the fast
+     * lane of a coverage that excludes hurto. <b>It doesn't block the fast lane</b> — the team's
+     * call (22/09/2026): the case keeps its classification and the analyst gets the warning.
+     */
+    CLAIM_CAUSE_MATCH(true);
 
     private final boolean evaluable;
 
@@ -216,5 +233,14 @@ public enum RuleType {
      */
     public static List<RuleType> insurerWide() {
         return List.of(POLICY_IN_FORCE, POLICY_STANDING, FRAUD_RECORD);
+    }
+
+    /**
+     * The checks whose FAIL is a warning for the analyst, not a rule that stopped the case. Reports
+     * leave them out of "which rules blocked the most cases", and the case detail shows them apart
+     * from the hard rules and the Fast Track criteria.
+     */
+    public static List<RuleType> advisoryRules() {
+        return List.of(CLAIM_CAUSE_MATCH);
     }
 }

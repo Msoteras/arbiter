@@ -630,6 +630,8 @@ class ClaimMetricsRepositoryTests extends AbstractPersistenceIT {
         tables.ruleResult(1, null, "CLAIM_EXHAUSTS_COVERAGE", "FAIL");
         // Un PASS no frena nada.
         tables.ruleResult(1, 14L, "REPORT_DEADLINE", "PASS");
+        // Un aviso tampoco: su FAIL marca algo para el analista, no frenó el expediente.
+        tables.ruleResult(1, null, "CLAIM_CAUSE_MATCH", "FAIL");
         tables.insertCase(2, "2026-08-02T10:00:00Z", PENDING_REVIEW, ROBO_CELULARES, false, LAURA, null);
         tables.ruleResult(2, 14L, "POLICY_IN_FORCE", "FAIL");
 

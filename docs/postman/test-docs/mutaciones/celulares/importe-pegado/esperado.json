@@ -1,0 +1,16 @@
+{
+  "mutacion": "importe-pegado",
+  "base": "celulares/robo",
+  "cambia": "factura escaneada de $ 389.999 con el TOTAL tapado por un recuadro blanco que dice $ 619.999 (en otra tipografía)",
+  "documento": "purchase_proof",
+  "seDetectaEn": [
+    "document_visual_finding del purchase_proof: recuadro/halo alrededor del total, tipografía distinta, texto derecho sobre una página torcida",
+    "document_analysis.amount: 619999 si leyó el parche — coincide con lo reclamado, así que checkAmount no salta",
+    "La aritmética tampoco cierra: 322.313,22 + 67.685,78 = 389.999, no 619.999"
+  ],
+  "resultadoEsperado": "FAST_TRACK — el gate no mira los hallazgos visuales. La señal queda en document_visual_finding.",
+  "notas": [
+    "El caso base entra en Fast Track. En ese camino solo se extraen police_report y purchase_proof (los que exige el gate) y el LLM no corre: salvo el damnificado, nada de lo que diga un documento saca al caso del carril rápido.",
+    "El QR sigue codificando el importe original (389.999): lo que valida AFIP no es lo que dice el papel. El modelo de visión no decodifica QR, así que esa contradicción hoy nadie la ve."
+  ]
+}

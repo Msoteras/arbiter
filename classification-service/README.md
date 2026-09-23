@@ -63,7 +63,7 @@ classification-service/
 │       ├── classification-v4.md          # current prompt (see `arbiter.llm.prompt-version`)
 │       ├── classification-v3.md          # superseded — kept only so old ClassificationLog
 │       │                                  # entries logged with this version stay auditable
-│       └── extraccion-documento-v3.md    # document-OCR prompt (DocumentAnalyzerImpl)
+│       └── extraccion-documento-v6.md    # document-OCR prompt (DocumentAnalyzerImpl)
 └── src/test/
     ├── java/.../adapters/
     │   ├── OllamaAdapterIntegrationTest.java

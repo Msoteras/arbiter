@@ -52,6 +52,10 @@ public record DocumentExtraction(String transcription, List<String> visualFindin
      * @param model           just the model ("Galaxy A56"), crossed against the insured item
      * @param imei            the IMEI on it, normalized to digits
      * @param affectedParty   quién sufrió el hecho según el documento (D9, {@code covers_family_group})
+     * @param describedClaimCause the claim cause the document narrates, as a name from the branch's
+     *                        catalog — never free text, the extraction's schema only allows those
+     *                        names. Null when the document narrates no event (an invoice) or doesn't
+     *                        say enough. Read by {@code ClaimCauseConsistencyEvaluator}.
      * @param details         everything else the document states, as name/value. See {@link Detail}.
      */
     public record Fields(
@@ -62,6 +66,7 @@ public record DocumentExtraction(String transcription, List<String> visualFindin
             String model,
             String imei,
             AffectedParty affectedParty,
+            String describedClaimCause,
             List<Detail> details
     ) {
         public Fields {
@@ -69,7 +74,7 @@ public record DocumentExtraction(String transcription, List<String> visualFindin
         }
 
         public static Fields none() {
-            return new Fields(null, null, null, null, null, null, null, List.of());
+            return new Fields(null, null, null, null, null, null, null, null, List.of());
         }
     }
 

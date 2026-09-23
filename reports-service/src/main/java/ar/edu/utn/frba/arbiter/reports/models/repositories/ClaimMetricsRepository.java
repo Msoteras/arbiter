@@ -3,6 +3,7 @@ package ar.edu.utn.frba.arbiter.reports.models.repositories;
 import ar.edu.utn.frba.arbiter.common.enums.CaseStatus;
 import ar.edu.utn.frba.arbiter.common.enums.Classification;
 import ar.edu.utn.frba.arbiter.common.enums.ExpertVerdict;
+import ar.edu.utn.frba.arbiter.common.enums.RuleType;
 import ar.edu.utn.frba.arbiter.common.enums.SettlementStatus;
 import ar.edu.utn.frba.arbiter.reports.dto.DerivationTurnaround;
 import ar.edu.utn.frba.arbiter.reports.dto.FastTrackImpact;
@@ -555,6 +556,10 @@ public class ClaimMetricsRepository {
      * una fila por corrida, así que un expediente reclasificado tres veces dejó tres filas de la
      * misma regla y contarlas diría que frenó a tres expedientes.
      *
+     * <p>Sin los avisos ({@link RuleType#advisoryRules()}): un FAIL de esos no frenó nada, marca algo
+     * para que el analista revise, y contarlo acá le diría al referente que una regla muerde cuando
+     * no hizo más que avisar.
+     *
      * <p>El nombre sale de la regla configurada, y cae al tipo cuando no hay fila que nombrar: las
      * reglas de alcance de cobertura y los criterios del Fast Track se auditan con
      * {@code rule_id} nulo porque son columnas de {@code coverage}, no filas de {@code insurer_rule}.
@@ -567,10 +572,13 @@ public class ClaimMetricsRepository {
                 + FROM_CASES + """
 
                   JOIN rule_result rr ON rr.case_id = c.id AND rr.result = :failed
+                                     AND rr.rule_type NOT IN (:advisory)
                   LEFT JOIN insurer_rule ir ON ir.id = rr.rule_id"""
                 + REPORTED_WINDOW + filters(filter)
                 + " GROUP BY 1 ORDER BY total DESC, label";
-        return query(template -> template.query(sql, period(from, to, filter).addValue("failed", FAILED),
+        List<String> advisory = RuleType.advisoryRules().stream().map(RuleType::name).toList();
+        return query(template -> template.query(sql,
+                period(from, to, filter).addValue("failed", FAILED).addValue("advisory", advisory),
                 COUNT_ROW));
     }
 

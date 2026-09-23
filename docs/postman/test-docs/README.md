@@ -246,6 +246,8 @@ Las dos variantes te salen gratis: si tomás el firmante de `INSURED`, envolvés
 | `letterhead(p, org, dir, cuit)` | membrete centrado |
 | `footer(p)` | el pie de "documento simulado" — siempre detrás de `if (PROFILE.disclaimer)` |
 | `build(page, meta)` | arma el PDF final (`title`, `author`, `subject`, `created`) |
+| `afipBlock(p, afipQrUrl({...}))` | el QR de AFIP + "Comprobante Autorizado" que lleva toda factura electrónica (RG 4892); el QR lo arma `qr.js`, sin dependencias |
+| `.moneyRow(..., { tamper })` | reescribe solo el importe en otra fuente (`F3`/`F4`, Times) y corrido: un PDF editado |
 | `d` · `hm` · `hms` · `iso` · `pdfDate` · `plus` | formateo de fechas |
 | `cuit(prefijo, cuerpo)` | CUIT con dígito verificador válido |
 
@@ -253,7 +255,8 @@ Las dos variantes te salen gratis: si tomás el firmante de `INSURED`, envolvés
 
 - **Una sola página por PDF.** `OllamaDocumentAnalyzer` rasteriza a 150 DPI y manda **cada página**
   al modelo de visión: un PDF de 5 páginas son 5 inferencias.
-- **Texto seleccionable, no imagen.** El gate de Fast Track exige que el documento requerido tenga
+- **Texto seleccionable, no imagen** — salvo que el escenario sea justamente un escaneo o una foto
+  (`render` en las mutaciones, §9). El gate de Fast Track exige que el documento requerido tenga
   texto extraído **no vacío**; si el OCR devuelve nada, el Fast Track se cae aunque el archivo esté.
 - **Empresas y personas ficticias**, siempre. No queremos comprobantes que aparenten ser de una
   empresa real. El pie de página lo deja escrito en la variante con marca.
@@ -305,15 +308,33 @@ node docs/postman/test-docs/generar-fixtures.js --mutaciones   # → mutaciones/
 | `fecha-acta-distinta` | acta del día siguiente; el asegurado declara esa misma noche | acta | `checkDeclaredPoliceReportDate` (D12) | `FAST_TRACK` |
 | `constancia-anterior-al-hecho` | bloqueo de IMEI 12 días antes del robo | baja de IMEI | `checkDocumentDate` + LLM | `FAST_TRACK` |
 | `bien-de-familiar` | el equipo lo tenía y lo usaba el cónyuge | acta | `affected_party = FAMILIAR` → `CoverageScopeEvaluator` | sale de Fast Track → LLM |
-| `relato-hurto` | declara robo; relato y acta cuentan un descuido en un café | acta + relato | consistencia del relato (LLM) → exclusión de Hurto | `FAST_TRACK` |
+| `relato-hurto` | declara robo; relato y acta cuentan un descuido en un café | acta + relato | `CLAIM_CAUSE_MATCH` (el acta narra Hurto) | `FAST_TRACK` **con aviso** |
 | `instrucciones-en-factura` | la factura le ordena al modelo que apruebe | factura | extracción (`visualFindings`) + LLM | `FAST_TRACK` |
+| `escaneado` | los cuatro documentos escaneados: imagen sin texto, papel crema, torcidos | todos | nadie: `visualFindings` tiene que quedar **vacío** | `FAST_TRACK` |
+| `factura-fotografiada` | la factura es una foto JPEG sobre un escritorio | factura | nadie: `visualFindings` **vacío** | `FAST_TRACK` |
+| `importe-pegado` | factura escaneada de $ 389.999 con el total tapado por un recuadro que dice $ 619.999 | factura | extracción (`visualFindings`) | `FAST_TRACK` |
+| `fecha-pegada` | acta escaneada de hace 19 días con la fecha del hecho tapada para que diga ayer | acta | extracción (`visualFindings`) | `FAST_TRACK` |
+| `tipografia-mezclada` | PDF digital con el total reescrito en Times y corrido de la línea | factura | extracción (`visualFindings`) | `FAST_TRACK` |
 
 **Que siete de nueve den `FAST_TRACK` es el resultado, no un error del set.** El robo base cumple el
 gate, y en ese camino el pipeline solo extrae los documentos que el gate exige (acta y factura), el LLM
 no corre, y lo único de un documento que puede bloquear el carril rápido es quién fue el damnificado.
-Las inconsistencias de datos, las fechas imposibles, el relato que describe otro hecho generador: nada
-de eso se mira antes de decidir el Fast Track. `relato-hurto` es el caso más grave — un hurto
-declarado como robo entra al carril rápido de una cobertura que excluye el hurto.
+Las inconsistencias de datos, las fechas imposibles: nada de eso se mira antes de decidir el Fast
+Track. La excepción parcial es `relato-hurto`: desde el 22/09 la extracción del acta dice qué hecho
+narra y el control `CLAIM_CAUSE_MATCH` lo compara con el declarado. **Avisa, no bloquea** (decisión
+del equipo): el caso sigue en `FAST_TRACK`, pero con el motivo en los factores y una tarjeta
+"Para revisar antes de resolver" en el detalle del expediente.
+
+Las cinco últimas son **visuales**: lo que cambia no es lo que dice el documento sino cómo se ve.
+`escaneado` y `factura-fotografiada` son controles de falsos positivos — así llegan los documentos
+reales, y el prompt de extracción dice que un papel torcido o con poca luz no es señal de nada. Las
+otras tres son adulteraciones que dejan los datos **coherentes con el reclamo**, así que solo la
+imagen las delata: la señal está en `document_visual_finding`, que hoy no bloquea el Fast Track.
+
+Las cinco las produce `escaner/` (Java + PDFBox 3.0.3 del repositorio local de Maven, la misma
+librería con la que rasteriza el pipeline). `--mutaciones` tarda unos 20 segundos por eso, y sin
+Java falla con un mensaje que dice qué falta. `factura-fotografiada` es un **.jpg**: va con
+`purchase_proof=@…/factura_compra_celulares.jpg;type=image/jpeg`.
 
 Aun así las mutaciones dejan rastro: la factura y el acta se extraen igual, así que
 `document_analysis` muestra el IMEI, la marca, el importe, la fecha y la transcripción que la mutación

@@ -629,6 +629,47 @@
               }
             </app-card>
 
+            <!-- Avisos arriba de las reglas: un "No cumple" entre ellas se leería como una exclusión,
+               y esto no decide nada — marca algo que el analista tiene que mirar antes de resolver. -->
+            @if (advisoryChecks().length > 0) {
+              <app-card heading="Para revisar antes de resolver" [collapsible]="true">
+                <p class="t-note traza-intro">
+                  @if (hasAdvisoryWarning()) {
+                    La documentación narra un hecho distinto del que declaró el asegurado. No cambia
+                    la clasificación ni la cobertura: leé el relato y el acta antes de decidir.
+                  } @else {
+                    La documentación narra el mismo hecho que declaró el asegurado.
+                  }
+                </p>
+                <div class="traza-scroll">
+                  <table class="traza-table">
+                    <thead>
+                      <tr>
+                        <th>Control</th>
+                        <th>Resultado</th>
+                        <th>Qué se comparó</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      @for (a of advisoryChecks(); track a.id) {
+                        <tr>
+                          <td>{{ ruleTypeLabel(a.ruleType) }}</td>
+                          <td>
+                            <app-badge variant="solid" [tone]="advisoryResultTone(a.result)">
+                              {{ advisoryResultLabel(a.result) }}
+                            </app-badge>
+                          </td>
+                          <td class="traza-valor">
+                            {{ ruleEvaluationText(a.ruleType, a.evaluatedValue) }}
+                          </td>
+                        </tr>
+                      }
+                    </tbody>
+                  </table>
+                </div>
+              </app-card>
+            }
+
             <app-card heading="Reglas evaluadas" [collapsible]="true">
               @if (hardRuleResults().length > 0) {
                 <div class="traza-scroll">

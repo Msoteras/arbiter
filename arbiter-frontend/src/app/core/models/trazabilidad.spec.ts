@@ -1,4 +1,7 @@
 import {
+  advisoryResultLabel,
+  advisoryResultTone,
+  isAdvisoryCheck,
   isFastTrackCriterion,
   ruleEvaluationText,
   ruleResultLabel,
@@ -28,6 +31,38 @@ describe('trazabilidad', () => {
     it('no da por fallada una regla con un literal que no reconoce', () => {
       expect(ruleResultTone('LO_QUE_SEA')).toBe('neutral');
       expect(ruleResultLabel('LO_QUE_SEA')).toBe('LO_QUE_SEA');
+    });
+  });
+
+  // El aviso de hecho generador: no decide nada, así que no puede leerse como una regla que falló.
+  describe('avisos', () => {
+    it('se reconocen aparte de las reglas y de los criterios de Fast Track', () => {
+      expect(isAdvisoryCheck('CLAIM_CAUSE_MATCH')).toBe(true);
+      expect(isAdvisoryCheck('COVERS_FAMILY_GROUP')).toBe(false);
+      expect(isFastTrackCriterion('CLAIM_CAUSE_MATCH')).toBe(false);
+    });
+
+    it('un FAIL es "Revisar" en amarillo, no "No cumple" en rojo', () => {
+      expect(advisoryResultLabel('FAIL')).toBe('Revisar');
+      expect(advisoryResultTone('FAIL')).toBe('warning');
+      expect(advisoryResultLabel('PASS')).toBe('Coincide');
+      expect(advisoryResultTone('PASS')).toBe('ok');
+    });
+
+    it('dice qué documento narra qué hecho, con el nombre del documento en castellano', () => {
+      expect(ruleTypeLabel('CLAIM_CAUSE_MATCH')).toBe('Hecho que narra la documentación');
+      expect(
+        ruleEvaluationText(
+          'CLAIM_CAUSE_MATCH',
+          'declared=Robo en vía pública described=Hurto documents=police_report',
+        ),
+      ).toBe('Denuncia policial: narra Hurto · se declaró Robo en vía pública');
+      expect(
+        ruleEvaluationText(
+          'CLAIM_CAUSE_MATCH',
+          'declared=Hurto described=Hurto documents=police_report',
+        ),
+      ).toBe('Denuncia policial: narra el hecho declarado (Hurto)');
     });
   });
 

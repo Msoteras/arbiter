@@ -38,6 +38,8 @@ const RULE_TYPE_LABELS: Record<string, string> = {
   FT_POLICY_AGE: 'Antigüedad de la póliza',
   FT_POLICY_UP_TO_DATE: 'Póliza al día con sus pagos',
   FT_REQUIRED_DOCS: 'Documentación que exige Fast Track',
+  // Aviso: no decide cobertura ni carril rápido, marca algo para revisar (ver isAdvisoryCheck).
+  CLAIM_CAUSE_MATCH: 'Hecho que narra la documentación',
 };
 
 export function ruleTypeLabel(ruleType: string): string {
@@ -50,6 +52,28 @@ export function ruleTypeLabel(ruleType: string): string {
  */
 export function isFastTrackCriterion(ruleType: string): boolean {
   return ruleType.startsWith('FT_');
+}
+
+/**
+ * Los avisos: su FAIL no dice que el siniestro no esté cubierto ni lo saca del carril rápido, dice
+ * que hay algo que el analista tiene que mirar antes de resolver. Es la lista de
+ * `RuleType.advisoryRules()` (common-lib) — si se suma uno allá, se suma acá.
+ */
+const ADVISORY_CHECKS = new Set(['CLAIM_CAUSE_MATCH']);
+
+export function isAdvisoryCheck(ruleType: string): boolean {
+  return ADVISORY_CHECKS.has(ruleType);
+}
+
+/** "No cumple" en rojo acusaría al expediente de algo que el motor no decidió: acá es "Revisar". */
+export function advisoryResultLabel(result: string): string {
+  if (result === 'PASS') return 'Coincide';
+  return result === 'FAIL' ? 'Revisar' : result;
+}
+
+export function advisoryResultTone(result: string): StatusTone {
+  if (result === 'PASS') return 'ok';
+  return result === 'FAIL' ? 'warning' : 'neutral';
 }
 
 // El motor escribe PASS/FAIL y es el único vocabulario: los CUMPLE/NO_CUMPLE de un seed viejo se
@@ -145,6 +169,13 @@ export function ruleEvaluationText(ruleType: string, evaluatedValue: string | nu
       return t['affectedParty']
         ? `Damnificado: ${DAMNIFICADO[t['affectedParty']] ?? t['affectedParty']} · la cobertura no alcanza al grupo familiar`
         : evaluatedValue;
+    case 'CLAIM_CAUSE_MATCH': {
+      // Solo hay fila si algún documento narró un hecho: los que no narran ninguno no participan.
+      const documentos = conLabelesDeDocumento(listado(t['documents']));
+      return t['declared'] === t['described']
+        ? `${documentos}: narra el hecho declarado (${t['declared']})`
+        : `${documentos}: narra ${t['described']} · se declaró ${t['declared']}`;
+    }
     case 'CLAIM_EXHAUSTS_COVERAGE': {
       const previos = Number(t['settledClaimsOnPolicy']);
       if (!t['settledClaimsOnPolicy'] || Number.isNaN(previos)) {

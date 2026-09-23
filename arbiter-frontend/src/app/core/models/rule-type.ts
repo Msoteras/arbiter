@@ -67,6 +67,12 @@ const RULE_TYPE_INFO: Record<string, { label: string; description: string }> = {
     label: 'Fast Track: documentación',
     description: 'Faltan documentos requeridos, o no son legibles, para el trámite rápido.',
   },
+  // Aviso, no regla: el tablero de "reglas que frenaron" lo excluye (no frenó nada). Está para que
+  // el mapa siga reflejando todo RuleType.
+  CLAIM_CAUSE_MATCH: {
+    label: 'Hecho que narra la documentación',
+    description: 'La documentación narra un hecho generador distinto del declarado. Es un aviso para el analista: no bloquea el trámite.',
+  },
 };
 
 /**
