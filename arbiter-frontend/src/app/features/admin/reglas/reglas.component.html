@@ -275,9 +275,15 @@
                           </span>
                         }
                       </button>
-                      <button type="button" class="remove-cov" (click)="removeCoverage(c.id)">
+                      <app-button
+                        class="remove-cov"
+                        variant="secondary"
+                        size="sm"
+                        tone="danger"
+                        (click)="removeCoverage(c.id)"
+                      >
                         Quitar cobertura
-                      </button>
+                      </app-button>
                     </div>
 
                     @if (isCoverageOpen(c)) {

@@ -58,6 +58,11 @@ arbiter:
     from-name: ${SENDGRID_FROM_NAME:Arbiter}
   frontend:
     base-url: ${FRONTEND_BASE_URL:http://localhost:4200}
+  # Bulk insured provisioning paces invitation mails to protect sender reputation and stay under
+  # SendGrid's rate limits; the cap bounds how many invitations a single run sends.
+  provisioning:
+    invite-delay-ms: ${PROVISIONING_INVITE_DELAY_MS:250}
+    max-invites-per-run: ${PROVISIONING_MAX_INVITES_PER_RUN:500}
 
 springdoc:
   api-docs:

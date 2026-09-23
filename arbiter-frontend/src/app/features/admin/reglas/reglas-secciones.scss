@@ -286,18 +286,6 @@
 
 .remove-cov {
   flex-shrink: 0;
-  font: inherit;
-  font-size: var(--font-size-sm);
-  padding: var(--space-2) var(--space-3);
-  border: 1px solid var(--border-control);
-  border-radius: var(--radius-ctl);
-  background: none;
-  color: var(--text-tertiary);
-  cursor: pointer;
-}
-.remove-cov:hover {
-  border-color: var(--status-danger);
-  color: var(--status-danger);
 }
 
 .cov-fields {

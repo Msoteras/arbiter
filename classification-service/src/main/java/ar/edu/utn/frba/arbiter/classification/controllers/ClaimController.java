@@ -5,6 +5,8 @@ import ar.edu.utn.frba.arbiter.common.dto.ClaimResponse;
 import ar.edu.utn.frba.arbiter.common.dto.RuleResultResponse;
 import ar.edu.utn.frba.arbiter.classification.services.ClassificationResultsService;
 import ar.edu.utn.frba.arbiter.classification.dto.AnalystDecisionRequest;
+import ar.edu.utn.frba.arbiter.classification.dto.ClassificationAcceptedResponse;
+import ar.edu.utn.frba.arbiter.classification.dto.DecisionRecordedResponse;
 import ar.edu.utn.frba.arbiter.classification.services.ClaimClassificationService;
 import ar.edu.utn.frba.arbiter.classification.services.MultipartDocumentMapper;
 import io.swagger.v3.oas.annotations.Operation;
@@ -57,7 +59,7 @@ public class ClaimController {
                     @ApiResponse(responseCode = "400", description = "Invalid claim data")
             }
     )
-    public ResponseEntity<Map<String, Object>> classify(
+    public ResponseEntity<ClassificationAcceptedResponse> classify(
             @RequestParam("caseId") Long caseId,
             @RequestPart("claim") @Valid ClaimReport claim,
             @RequestParam(required = false) Map<String, MultipartFile> documents,
@@ -69,11 +71,8 @@ public class ClaimController {
         return ResponseEntity
                 .status(HttpStatusCode.valueOf(202))
                 .location(URI.create("/api/v1/claims/" + caseId))
-                .body(Map.of(
-                        "caseId", caseId,
-                        "message", "Analysis in progress.",
-                        "checkResultAt", "/api/v1/claims/" + caseId
-                ));
+                .body(new ClassificationAcceptedResponse(
+                        caseId, "Analysis in progress.", "/api/v1/claims/" + caseId));
     }
 
     @GetMapping("/{caseId}")
@@ -108,16 +107,11 @@ public class ClaimController {
             description = "Stores the analyst's verdict for the classification already produced for the case."
     )
     @ApiResponse(responseCode = "200", description = "Decision persisted")
-    public ResponseEntity<Map<String, Object>> recordDecision(
+    public ResponseEntity<DecisionRecordedResponse> recordDecision(
             @PathVariable Long caseId,
             @RequestBody @Valid AnalystDecisionRequest request
     ) {
         Long classificationId = resultsService.recordAnalystDecision(caseId, request);
-        return ResponseEntity.ok(Map.of(
-                "caseId", caseId,
-                "status", "decision-recorded",
-                // cases-service stores this on cases.classification_id.
-                "classificationId", classificationId
-        ));
+        return ResponseEntity.ok(new DecisionRecordedResponse(caseId, "decision-recorded", classificationId));
     }
 }

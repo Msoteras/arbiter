@@ -4,6 +4,7 @@ import ar.edu.utn.frba.arbiter.cases.dto.AnalystDecisionRequest;
 import ar.edu.utn.frba.arbiter.cases.dto.AnalystWorkloadResponse;
 import ar.edu.utn.frba.arbiter.cases.dto.AssignAnalystRequest;
 import ar.edu.utn.frba.arbiter.cases.dto.AssignedCaseSummaryResponse;
+import ar.edu.utn.frba.arbiter.cases.dto.CaseActionResponse;
 import ar.edu.utn.frba.arbiter.cases.dto.CaseDocumentResponse;
 import ar.edu.utn.frba.arbiter.cases.dto.CaseScope;
 import ar.edu.utn.frba.arbiter.cases.dto.CaseRequest;
@@ -455,9 +456,9 @@ public class CaseController {
             description = "Only here does the approval take effect: the analyst's decision is recorded "
                     + "with the justification they left, and the case moves to APPROVED — which is what "
                     + "emails the insured with the amount.")
-    public ResponseEntity<Map<String, Object>> authorizeSettlement(@PathVariable Long caseId) {
+    public ResponseEntity<CaseActionResponse> authorizeSettlement(@PathVariable Long caseId) {
         caseService.authorizeSettlement(caseId);
-        return ResponseEntity.ok(Map.of("caseId", caseId, "status", "settlement-authorized"));
+        return ResponseEntity.ok(new CaseActionResponse(caseId, "settlement-authorized"));
     }
 
     @PostMapping("/{caseId}/settlement/return")
@@ -466,12 +467,12 @@ public class CaseController {
             description = "Not a rejection of the claim: the case never left the analyst's review, and "
                     + "no decision was recorded to undo. They settle it again, at another amount or the "
                     + "same one better argued.")
-    public ResponseEntity<Map<String, Object>> returnSettlement(
+    public ResponseEntity<CaseActionResponse> returnSettlement(
             @PathVariable Long caseId,
             @RequestBody @Valid SettlementReturnRequest request
     ) {
         caseService.returnSettlement(caseId, request.reason());
-        return ResponseEntity.ok(Map.of("caseId", caseId, "status", "settlement-returned"));
+        return ResponseEntity.ok(new CaseActionResponse(caseId, "settlement-returned"));
     }
 
     // @PreAuthorize only filters by role; the service also checks the caller is the assigned analyst.
@@ -481,14 +482,11 @@ public class CaseController {
             description = "Forwards the analyst decision to classification-service so it is persisted in the audit "
                     + "trail. Only the analyst the case is assigned to may decide — 409 if it isn't assigned to "
                     + "anyone yet, 403 if it's assigned to someone else.")
-    public ResponseEntity<Map<String, Object>> recordDecision(
+    public ResponseEntity<CaseActionResponse> recordDecision(
             @PathVariable Long caseId,
             @RequestBody @Valid AnalystDecisionRequest request
     ) {
         caseService.recordAnalystDecision(caseId, request);
-        return ResponseEntity.ok(Map.of(
-                "caseId", caseId,
-                "status", "decision-recorded"
-        ));
+        return ResponseEntity.ok(new CaseActionResponse(caseId, "decision-recorded"));
     }
 }

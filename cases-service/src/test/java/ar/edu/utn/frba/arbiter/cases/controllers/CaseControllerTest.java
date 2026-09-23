@@ -383,6 +383,41 @@ class CaseControllerTest {
                 .andExpect(status().isConflict());
     }
 
+    // The frontend and the settlement panel read these bodies by field name.
+
+    @Test
+    void authorizeSettlement_returnsCaseIdAndOutcome() throws Exception {
+        mockMvc.perform(post("/api/v1/cases/7/settlement/authorize"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.length()").value(2))
+                .andExpect(jsonPath("$.caseId").value(7))
+                .andExpect(jsonPath("$.status").value("settlement-authorized"));
+    }
+
+    @Test
+    void returnSettlement_returnsCaseIdAndOutcome() throws Exception {
+        mockMvc.perform(post("/api/v1/cases/7/settlement/return")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"reason\":\"Revisar el monto\"}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.length()").value(2))
+                .andExpect(jsonPath("$.caseId").value(7))
+                .andExpect(jsonPath("$.status").value("settlement-returned"));
+    }
+
+    @Test
+    void recordDecision_returnsCaseIdAndOutcome() throws Exception {
+        mockMvc.perform(post("/api/v1/cases/7/decision")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"decision": "REJECT", "justification": "Hurto fuera de cobertura"}
+                                """))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.length()").value(2))
+                .andExpect(jsonPath("$.caseId").value(7))
+                .andExpect(jsonPath("$.status").value("decision-recorded"));
+    }
+
     private CaseResponse caseResponse(Long id, CaseStatus status) {
         return new CaseResponse(
                 id, null, null, status,
