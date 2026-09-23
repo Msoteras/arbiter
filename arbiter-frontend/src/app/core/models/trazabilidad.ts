@@ -154,8 +154,13 @@ export function ruleEvaluationText(ruleType: string, evaluatedValue: string | nu
         ? 'Sin siniestros liquidados previos sobre esta póliza'
         : `${previos} ${previos === 1 ? 'siniestro liquidado previo' : 'siniestros liquidados previos'} sobre esta póliza · un siniestro agota la cobertura`;
     }
+    case 'FRAUD_RECORD': {
+      // Prose from the engine, but with the window abbreviated as "(ventana 36m)".
+      const text = evaluatedValue.replace(/\(ventana (\d+)m\)/, 'en los últimos $1 meses');
+      return text.charAt(0).toUpperCase() + text.slice(1);
+    }
     default:
-      // FRAUD_RECORD already comes as prose; an unknown type shows raw rather than hiding.
+      // An unknown type shows raw rather than hiding.
       return evaluatedValue.charAt(0).toUpperCase() + evaluatedValue.slice(1);
   }
 }

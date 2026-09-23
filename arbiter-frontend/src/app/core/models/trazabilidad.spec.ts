@@ -107,7 +107,7 @@ describe('trazabilidad', () => {
 
     it('deja pasar lo que ya viene en prosa, y el literal crudo si no lo reconoce', () => {
       expect(ruleEvaluationText('FRAUD_RECORD', 'sin antecedentes vigentes (ventana 36m)')).toBe(
-        'Sin antecedentes vigentes (ventana 36m)',
+        'Sin antecedentes vigentes en los últimos 36 meses',
       );
       expect(ruleEvaluationText('REPORT_DEADLINE', 'formato=inesperado')).toBe(
         'formato=inesperado',
