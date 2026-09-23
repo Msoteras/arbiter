@@ -358,8 +358,13 @@
   gap: var(--space-5);
   overflow-x: auto;
   overflow-y: hidden; /* evita el scrollbar vertical fantasma que fuerza overflow-x:auto */
+  /* Still scrollable by touch, trackpad or wheel; the bar itself was a thick strip under the tabs. */
+  scrollbar-width: none;
   border-bottom: 1px solid var(--border-default);
   margin-bottom: var(--space-5);
+}
+.tabs::-webkit-scrollbar {
+  display: none;
 }
 .tab {
   border: none;
