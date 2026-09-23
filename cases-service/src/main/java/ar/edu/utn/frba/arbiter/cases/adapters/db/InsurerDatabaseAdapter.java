@@ -20,19 +20,9 @@ import java.util.List;
 import java.util.Optional;
 
 /**
- * Lee las pólizas del asegurado desde la BD Aseguradora (ver arch doc, decisión #10): un esquema
- * {@code aseguradora_<tenant>} por compañía dentro de la misma instancia Postgres, creados por
- * {@code db/init-multitenant.sql}. Mismo enfoque que el {@code InsurerDatabaseAdapter} de
- * classification-service, pero orientado al portal: recorre <b>todas</b> las aseguradoras del que
- * llama ({@link CallerInsurerDatabases}), porque un mismo DNI puede tener pólizas en varias.
- *
- * <p>La compañía sale del registro de la plataforma y no de la tabla {@code compania}: con un
- * esquema por aseguradora esa tabla tiene una fila sola y su id es siempre 1 — el discriminador
- * {@code poliza.aseguradora_id} del modelo single-schema ya no existe.
- *
- * <p>Activo solo bajo el perfil {@code insurer-db} y {@code @Primary}: gana sobre
- * {@link ar.edu.utn.frba.arbiter.cases.adapters.mock.MockInsurerAdapter} cuando está prendido,
- * y lo deja intacto (default para tests / dev sin BD aseguradora).
+ * Reads policies from the insurer DB, walking every insurer the caller belongs to
+ * ({@link CallerInsurerDatabases}), since one DNI may hold policies at several. The insurer comes from
+ * the platform registry, not the {@code compania} table, whose id is always 1 with one schema per insurer.
  */
 @Component
 @Primary
@@ -52,7 +42,7 @@ public class InsurerDatabaseAdapter implements InsurerAdapter {
     private final JdbcTemplate jdbc;
     private final CallerInsurerDatabases insurerDatabases;
 
-    /** Primera que la tenga: un número de póliza es único dentro de una compañía. */
+    /** First match wins: a policy number is unique within an insurer. */
     @Override
     public Optional<PolicyResponse> findPolicy(String policyNumber) {
         for (InsurerDatabase database : insurerDatabases.forCaller()) {
@@ -71,28 +61,13 @@ public class InsurerDatabaseAdapter implements InsurerAdapter {
     }
 
     /**
-     * El mismo documento puede tener pólizas en varias compañías → vista centralizada.
-     *
-     * <p>Por defecto, solo las vigentes ahora mismo — con la hora, no por día: una póliza que vence
-     * hoy a las 08:00 ya no cubre a las 14:00 aunque siga siendo "hoy". Ese es el caso del
-     * desplegable del alta de denuncia, donde una póliza vencida solo lleva al asegurado a
-     * completar todo el wizard para enterarse recién al final que {@link
-     * ar.edu.utn.frba.arbiter.cases.services.PolicyEligibilityValidator} la va a rechazar.
-     *
-     * <p>Con {@code includeExpired} vuelven también las vencidas, ordenadas primero las vigentes:
-     * es lo que mira "Mis pólizas" en el perfil, donde esconder una póliza vencida no evita ningún
-     * error — deja al asegurado sin saber por qué desapareció la que tenía el año pasado.
-     *
-     * <p>El lookup puntual por número ({@link #findPolicy}) nunca filtra: a ese se llega por otros
-     * caminos (expediente ya creado, chequeo de elegibilidad) donde una póliza vencida es un
-     * resultado legítimo, no ruido.
+     * In-force is checked to the hour, not the day: a policy expiring at 08:00 no longer covers at
+     * 14:00. {@link #findPolicy} never filters, since an expired policy is a legitimate result there.
      */
     @Override
     public List<PolicyResponse> findPoliciesByInsured(String insuredId, boolean includeExpired) {
-        // Un solo instante para toda la llamada: el recorte y la etiqueta que sale en la respuesta
-        // tienen que salir del MISMO reloj. Con el filtro en el SQL lo decidía NOW() de Postgres y
-        // la etiqueta se derivaba en otro lado, y las dos pantallas podían contradecirse. El
-        // asegurado tiene un puñado de pólizas: traerlas todas y descartar acá no cuesta nada.
+        // One instant for the whole call: the filter and the validity label must come from the same
+        // clock, so filtering happens here instead of with Postgres' NOW().
         LocalDateTime now = LocalDateTime.now();
         List<PolicyResponse> policies = new ArrayList<>();
         for (InsurerDatabase database : insurerDatabases.forCaller()) {
@@ -103,17 +78,13 @@ public class InsurerDatabaseAdapter implements InsurerAdapter {
         }
         return policies.stream()
                 .filter(p -> includeExpired || p.validity() != Validity.EXPIRED)
-                // Vigentes arriba, y recién ahí por número: el orden se decide sobre la lista ya
-                // unida, porque ordenar en el SQL deja el criterio adentro de cada compañía y una
-                // vencida de la primera aseguradora terminaría por encima de una vigente de la
-                // segunda.
+                // Sorted over the merged list: sorting in SQL would only order within each insurer.
                 .sorted(Comparator
                         .comparing((PolicyResponse p) -> p.validity() == Validity.EXPIRED)
                         .thenComparing(PolicyResponse::policyNumber))
                 .toList();
     }
 
-    /** Segunda pasada: la suma asegurada vive en cada cobertura; la de la póliza es la primaria. */
     private PolicyResponse toResponse(PolicyRow row, InsurerDatabase database, LocalDateTime now) {
         List<Coverage> coverages = jdbc.query(
                 """
@@ -135,10 +106,8 @@ public class InsurerDatabaseAdapter implements InsurerAdapter {
                 },
                 row.id());
 
-        // insuredAmount/deductible de la póliza son los de la PRIMERA cobertura y se mantienen solo
-        // para el resumen del portal (la tarjeta de la póliza, que muestra un número). Todo lo que
-        // decide algo —reglas, Fast Track, agotamiento— tiene que leer `coverages` y quedarse con
-        // la que corresponde al hecho denunciado: acá no hay una suma asegurada de la póliza.
+        // The policy-level amounts come from the first coverage and are display-only. Anything that
+        // decides (rules, Fast Track) must read `coverages` and pick the one for the claim cause.
         Coverage primary = coverages.isEmpty() ? null : coverages.get(0);
         return PolicyResponse.builder()
                 .policyNumber(row.numero())
@@ -184,7 +153,6 @@ public class InsurerDatabaseAdapter implements InsurerAdapter {
         return "AL_DIA".equalsIgnoreCase(estadoPago) && noDebt;
     }
 
-    /** Franquicia porcentual → monto absoluto sobre la suma asegurada de la cobertura. */
     private static BigDecimal absoluteDeductible(BigDecimal insuredSum, BigDecimal franchisePct) {
         if (insuredSum == null || franchisePct == null) {
             return null;

@@ -5,8 +5,8 @@ import { StatusTone } from '../../../core/models/status-tone';
 type Band = 1 | 2 | 3 | 4 | null;
 
 /**
- * Gauge de fraude reutilizable (design system). 4 segmentos (30/30/20/20).
- * Categórico, sin número. band=null → estado "sin datos" (todos los segmentos apagados).
+ * Four segments (30/30/20/20). With `score` it also shows the number ("Medio · 43/100");
+ * `band = null` means no data (all segments off).
  */
 @Component({
   selector: 'app-fraud-gauge',
@@ -28,6 +28,9 @@ type Band = 1 | 2 | 3 | 4 | null;
         <span class="tri" aria-hidden="true">▲</span>
       }
       <span [class.muted]="band() === null">{{ label() }}</span>
+      @if (band() !== null && score() !== null) {
+        <span class="score">· {{ score() }}/100</span>
+      }
     </div>
   `,
   styles: `
@@ -66,8 +69,12 @@ type Band = 1 | 2 | 3 | 4 | null;
     .tri {
       font-size: var(--font-size-xs);
     }
+    .score {
+      font-weight: var(--font-weight-regular);
+      color: var(--text-tertiary);
+      font-variant-numeric: tabular-nums;
+    }
 
-    /* Semáforo de riesgo: bajo→ok, medio→warning, alto→risk, crítico→danger. */
     :host([data-tone='ok']) .seg.filled {
       background: var(--status-ok);
     }
@@ -96,10 +103,10 @@ type Band = 1 | 2 | 3 | 4 | null;
 })
 export class FraudGaugeComponent {
   readonly band = input<Band>(null);
-  /** Texto cuando band=null. El default "Sin datos" es ambiguo; el llamador puede pasar el
-   *  motivo real ("En proceso", "No aplica · Fast Track", "Sin evaluar"). Sale del relevamiento
-   *  de UI de Aylén (#20), que vive fuera del repo. */
+  /** Shown when band is null; callers should pass the actual reason ("En proceso", "Sin evaluar"). */
   readonly emptyLabel = input('Sin datos');
+  /** 0–100. Optional: without it the gauge is categorical only. */
+  readonly score = input<number | null>(null);
   protected readonly segments = [1, 2, 3, 4] as const;
   protected readonly widths = [30, 30, 20, 20];
   protected readonly label = computed(() => {
@@ -108,7 +115,6 @@ export class FraudGaugeComponent {
     return b === null ? this.emptyLabel() : labels[b];
   });
 
-  /** Nivel de riesgo → tono de semáforo: bajo→ok, medio→warning, alto→risk, crítico→danger. */
   protected readonly tone = computed<StatusTone>(() => {
     const b = this.band();
     if (b === null) return 'neutral';

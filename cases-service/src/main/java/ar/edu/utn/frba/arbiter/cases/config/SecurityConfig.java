@@ -13,11 +13,7 @@ import org.springframework.security.web.SecurityFilterChain;
 
 import javax.crypto.SecretKey;
 
-/**
- * Valida el mismo JWT que emite auth-service (H0001) — requiere el mismo JWT_SECRET.
- * RBAC por endpoint vía {@code @PreAuthorize} en {@link ar.edu.utn.frba.arbiter.cases.controllers.CaseController}
- * (H0003). Sin sesión de servidor: el estado vive en el JWT (decisión de arquitectura #13).
- */
+/** Validates the JWT issued by auth-service, so it needs the same JWT_SECRET. RBAC is per endpoint via {@code @PreAuthorize}. */
 @Configuration
 @EnableMethodSecurity
 public class SecurityConfig {

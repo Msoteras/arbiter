@@ -23,12 +23,6 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
-/**
- * Unit test for the orchestration flow: claim → adapters → classifier.
- * Uses a mock ClaimClassifier so Ollama is not required.
- *
- * Run: mvn -pl classification-service test -Dtest=ClassificationOrchestratorIntegrationTest
- */
 @SpringBootTest
 @ActiveProfiles("test")
 class ClassificationOrchestratorIntegrationTest extends AbstractPersistenceIT {
@@ -204,11 +198,7 @@ class ClassificationOrchestratorIntegrationTest extends AbstractPersistenceIT {
                 .branch("Celulares")
                 .product("Celular Protegido Básico")
                 .claimCause("Robo en vía pública")
-                // Without this there's no Fast Track to test: the rules are scoped by coverage
-                // (BaselineRulesAdapter.RULES_BY_COVERAGE), so a claim with no coverageId falls to the
-                // generic ones, which carry no thresholds — the case ended up at the LLM and the
-                // unstubbed mock returned null (D18). Coverage 1 = "Robo de celular", this claim's
-                // claim cause.
+                // Rules are scoped by coverage: without it the generic rules have no Fast Track thresholds.
                 .coverageId(1L)
                 .insuredItem("Motorola Edge 50 Pro - IMEI 351000000000042")
                 .insuredId("40.123.456")
@@ -216,7 +206,7 @@ class ClassificationOrchestratorIntegrationTest extends AbstractPersistenceIT {
                 .description("Robo en vía pública, report policial presentada el mismo día.")
                 .eventDate(LocalDateTime.of(2026, 6, 13, 19, 45))
                 .eventLocation("Av. Rivadavia y Colombres, Almagro, CABA")
-                .claimedAmount(new BigDecimal("150000")) // 37.5% de la suma asegurada (400.000)
+                .claimedAmount(new BigDecimal("150000")) // 37.5% of the sum insured (400,000)
                 .attachmentsOcr(List.of())
                 .build();
 
@@ -247,7 +237,7 @@ class ClassificationOrchestratorIntegrationTest extends AbstractPersistenceIT {
                 .description("Robo en vía pública, monto reclamado cercano al total de la suma asegurada.")
                 .eventDate(LocalDateTime.of(2026, 6, 13, 19, 45))
                 .eventLocation("Av. Rivadavia y Colombres, Almagro, CABA")
-                .claimedAmount(new BigDecimal("390000")) // 97.5% de la suma asegurada (400.000)
+                .claimedAmount(new BigDecimal("390000")) // 97.5% of the sum insured (400,000)
                 .attachmentsOcr(List.of())
                 .build();
 
@@ -260,9 +250,8 @@ class ClassificationOrchestratorIntegrationTest extends AbstractPersistenceIT {
 
     @Test
     void hurtoOnRobberyCoverage_isExcludedByRule_withoutCallingLLM() {
-        // Handoff case 6 ("Hurto no cubierto"): coverage 1 = "Robo de celular", which excludes the
-        // Hurto claim cause (claim_cause 3) via the baseline's COVERAGE_EXCLUSION rule. The hard
-        // exclusion cuts in before Fast Track and the LLM, leaving the finding for rule_result.
+        // Coverage 1 (cellphone robbery) excludes the theft claim cause (id 3): the exclusion cuts in
+        // before Fast Track and the LLM.
         ClaimReport claim = ClaimReport.builder()
                 .branch("Celulares")
                 .product("Celular Protegido Básico")
@@ -275,7 +264,7 @@ class ClassificationOrchestratorIntegrationTest extends AbstractPersistenceIT {
                 .description("Denuncia de hurto sobre una cobertura de robo, que lo excluye.")
                 .eventDate(LocalDateTime.of(2026, 6, 13, 19, 45))
                 .eventLocation("Av. Rivadavia y Colombres, Almagro, CABA")
-                .claimedAmount(new BigDecimal("100000")) // bajo: fast-trackearía si no estuviera excluido
+                .claimedAmount(new BigDecimal("100000")) // low: would Fast Track if not excluded
                 .attachmentsOcr(List.of())
                 .build();
 

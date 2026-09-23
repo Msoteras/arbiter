@@ -17,48 +17,33 @@ import java.time.ZoneId;
 import java.time.temporal.ChronoUnit;
 
 /**
- * Works out what a claim should pay. Pure arithmetic over the case, the coverage the referente
- * configured and the policy snapshot frozen at classification time — no repositories, no state,
- * so the same inputs always give the same number and the whole thing is testable without a DB.
- *
- * <p>The formula is not ours. It is spelled out in the insurer's product manuals, and this class
- * is a transcription of them:
+ * Works out what a claim should pay: pure arithmetic over the case, the configured coverage and the
+ * policy snapshot frozen at classification time. The formula transcribes the insurer's product
+ * manuals:
  *
  * <pre>
- *   PÉRDIDA TOTAL — el bien no está
- *   techo            = suma asegurada  (o el menor entre ésa y el valor de reposición)
- *   tope del evento  = techo × % del evento        (2º evento del año → 50%)
- *   − franquicia     = suma asegurada × franquicia%
- *   − cuotas a vencer= cuotas que restan × importe de cuota
- *   − deuda vencida  = saldo impago del contrato
- *   = monto a pagar  (nunca negativo)
+ *   TOTAL LOSS — the item is gone
+ *   ceiling               = sum insured (or the lesser of it and the replacement value)
+ *   event cap             = ceiling × event %          (2nd event of the year → 50%)
+ *   − deductible          = sum insured × deductible %
+ *   − pending instalments = instalments left × instalment amount
+ *   − overdue balance     = unpaid balance of the contract
+ *   = amount payable      (never negative)
  *
- *   REPARACIÓN — el bien quedó dañado
- *   techo            = presupuesto acreditado, tope la suma asegurada
- *   tope del evento  = techo × % del evento
- *   − franquicia     = suma asegurada × franquicia%
- *   − deuda vencida  = saldo impago del contrato
- *   = monto a pagar  (nunca negativo)
+ *   REPAIR — the item was damaged
+ *   ceiling               = accredited quote, capped at the sum insured
+ *   event cap             = ceiling × event %
+ *   − deductible          = sum insured × deductible %
+ *   − overdue balance     = unpaid balance of the contract
+ *   = amount payable      (never negative)
  * </pre>
  *
- * <p><b>Lo que separa a las dos son las cuotas a vencer.</b> Se descuentan porque la pérdida total
- * extingue el contrato y el premio que resta del año se cobra de la indemnización; después de una
- * reparación el contrato sigue vivo y el asegurado lo sigue pagando mes a mes. Descontárselas ahí
- * sería cobrarle el resto del año a alguien que todavía tiene la cobertura que está pagando.
+ * <p>Pending instalments are only deducted on a total loss, which extinguishes the contract; after
+ * a repair the insured keeps paying for cover they still have. The deductible is a percentage of
+ * the sum insured, not of the amount paid, so it doesn't shrink on a second event.
  *
- * <p>Sources, in order: the Celulares manual ("La suma asegurada menos la franquicia menos las
- * cuotas pendientes de pago"); article 7 of clause 340, Bases de Indemnización, for the ceiling
- * being the <i>lesser</i> of sum insured and replacement cost; the Tecnología Portátil particular
- * conditions for the second event at 50%; and article 5 of clause 102 for the arrears deduction.
- *
- * <p><b>The franchise is a percentage of the sum insured, not of the amount being paid.</b> That's
- * the literal reading of both policies ("Franquicia 10% de la suma asegurada") and of the worked
- * example in the Celulares manual: $300.000 insured, $30.000 franchise. It matters on a second
- * event, where the ceiling drops to 50% but the franchise doesn't.
- *
- * <p>Nothing here decides anything: it produces a proposal the analyst confirms or adjusts. The
- * risk score deliberately plays no part — a suspicious claim gets rejected or sent to an expert,
- * it does not get quietly paid less.
+ * <p>This only proposes; the analyst confirms or adjusts. The risk score deliberately plays no
+ * part: a suspicious claim is rejected or sent to an expert, not quietly paid less.
  */
 @Service
 public class SettlementCalculator {
@@ -70,16 +55,11 @@ public class SettlementCalculator {
     private static final BigDecimal FULL_PERCENTAGE = new BigDecimal("100.00");
 
     /**
-     * Builds the proposal. Not persisted and with no id: the caller decides whether this is a
-     * fresh row or overwrites the standing proposal.
+     * Not persisted: the caller decides whether this is a fresh row or overwrites the standing one.
      *
-     * @param replacementValue what the analyst accredited from the file, or null if they haven't
-     *                         recorded one yet
-     * @param formula          how this particular claim settles. Comes in instead of being read
-     *                         off the coverage because it is not only the coverage's business: a
-     *                         damage cover settles by repair, but an item the repair shop declared
-     *                         irreparable is gone, and gone is a total loss. Who knows that is the
-     *                         caller, which has the repositories; this class stays a pure function
+     * @param replacementValue what the analyst accredited, or null if nothing was recorded yet
+     * @param formula          passed in rather than read off the coverage: a damage cover settles
+     *                         by repair, but an item declared irreparable is a total loss
      */
     public CaseSettlement calculate(Case caseRecord, Coverage coverage, PolicyCoverage policyCoverage,
                                     PolicySnapshot snapshot, BigDecimal replacementValue,
@@ -97,9 +77,7 @@ public class SettlementCalculator {
 
         BigDecimal deductibleAmount = percentageOf(sumInsured, deductibleRate(coverage, policyCoverage));
 
-        // Solo en pérdida total, y por eso el interruptor de la cobertura no alcanza: una
-        // reparación no extingue la póliza, así que no hay premio anticipado que cobrar aunque el
-        // referente haya dejado la deducción prendida.
+        // Total loss only, whatever the coverage switch says: a repair doesn't extinguish the policy.
         int pendingInstallments = formula == SettlementFormula.TOTAL_LOSS
                 && coverage.isDeductPendingInstallments()
                 ? pendingInstallments(caseRecord, snapshot)
@@ -116,9 +94,7 @@ public class SettlementCalculator {
                 .subtract(deductibleAmount)
                 .subtract(pendingInstallmentsAmount)
                 .subtract(overdueBalanceAmount);
-        // Deductions bigger than the ceiling mean the insured is owed nothing, not that they owe
-        // the company: whatever is left over is a debt of the policy, and collecting it is not
-        // this claim's business.
+        // Deductions above the ceiling mean nothing is owed, not that the insured owes the insurer.
         if (calculated.signum() < 0) {
             calculated = BigDecimal.ZERO;
         }
@@ -145,14 +121,9 @@ public class SettlementCalculator {
     }
 
     /**
-     * The snapshot first, the synced {@code policy_coverage} only as a fallback. The snapshot is
-     * what the insurer answered when this claim was filed; the local copy keeps being re-synced, so
-     * using it would let a settlement drift after the fact. Cases filed before the snapshot existed
-     * fall back rather than refusing to be settled.
-     *
-     * <p>The fallback reads the coverage's sum insured and not the policy's, because a policy
-     * doesn't have one: it covers robo and hurto with a different amount each, and there is no
-     * aggregate ceiling over them.
+     * The snapshot first: it is what the insurer answered when the claim was filed, while the local
+     * {@code policy_coverage} keeps being re-synced. The fallback is per coverage because a policy
+     * has no aggregate sum insured.
      */
     private BigDecimal sumInsured(PolicyCoverage policyCoverage, PolicySnapshot snapshot) {
         if (snapshot != null && snapshot.getSumInsured() != null) {
@@ -165,14 +136,8 @@ public class SettlementCalculator {
     }
 
     /**
-     * The franchise this policy actually contracted for this coverage, falling back to the rate the
-     * referente configured on the coverage.
-     *
-     * <p>The order matters and it isn't the obvious one: {@code coverage.deductible} is the
-     * insurer's default for that risk, while {@code policy_coverage.deductible_pct} is the term
-     * written into <b>this</b> contract, synced from their DB. When they differ it's because this
-     * policy was sold with a different franchise, and the contract wins — the analyst is deducting
-     * from what a specific insured is owed, not from an average.
+     * The rate written into this contract wins over the coverage's default: the policy may have been
+     * sold with a different deductible.
      */
     private BigDecimal deductibleRate(Coverage coverage, PolicyCoverage policyCoverage) {
         if (policyCoverage != null && policyCoverage.getDeductiblePct() != null) {
@@ -182,15 +147,9 @@ public class SettlementCalculator {
     }
 
     /**
-     * The ceiling the deductions come off.
-     *
-     * <p>On a <b>repair</b> it's the accredited quote, capped by the sum insured. With no quote it
-     * is zero, deliberately: the quote is the basis, and falling back to the sum insured would
-     * offer to pay a whole phone for a broken screen nobody costed.
-     *
-     * <p>On a <b>total loss</b>, {@code LESSER_OF_SUM_AND_REPLACEMENT} takes the lower of the two
-     * and falls back to the sum insured when nothing was accredited — there the ceiling can't be
-     * lowered by a number nobody produced, because the contract already fixed one.
+     * On a repair it is the accredited quote capped by the sum insured, and zero with no quote —
+     * falling back to the sum insured would pay a whole phone for an uncosted broken screen. On a
+     * total loss with nothing accredited it stays the sum insured the contract fixed.
      */
     private BigDecimal ceiling(SettlementFormula formula, SettlementBasis basis,
                                BigDecimal sumInsured, BigDecimal accreditedAmount) {
@@ -214,9 +173,8 @@ public class SettlementCalculator {
     }
 
     /**
-     * The first event of the year is always worth 100%. From the second on, the coverage's reduced
-     * rate applies — where the referente left it unset, nothing is reduced, which is the Celulares
-     * case: that product allows one event a year, so there is no second one to price.
+     * The first event of the year is worth 100%; from the second on, the coverage's reduced rate
+     * applies, if configured.
      */
     private BigDecimal eventPercentage(Coverage coverage, int eventOrdinal) {
         if (eventOrdinal < 2 || coverage.getSecondEventPercentage() == null) {
@@ -226,12 +184,8 @@ public class SettlementCalculator {
     }
 
     /**
-     * Whole months left of cover after the event. On a total loss the policy is extinguished by
-     * the loss, so the premium still to fall due for the rest of the term comes out of the
-     * indemnity instead of being collected month by month.
-     *
-     * <p>Zero when either date is missing: charging the insured for instalments nobody could count
-     * is the wrong way to be wrong.
+     * Whole months of cover left after the event. Zero when either date is missing, rather than
+     * charging for instalments nobody could count.
      */
     private int pendingInstallments(Case caseRecord, PolicySnapshot snapshot) {
         if (snapshot == null || snapshot.getEffectiveTo() == null || caseRecord.getOccurredAt() == null) {

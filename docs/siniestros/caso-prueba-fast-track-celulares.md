@@ -286,18 +286,3 @@ el compose** y no vuelven solos.
 Para cerrarlo: apagar los módulos que no participan, cerrar navegadores, y no dejar suspender la
 máquina — al despertar, el reloj de la VM salta, los JWT nacen vencidos y los pools de Hikari quedan
 con conexiones muertas contra Railway (se arregla reiniciando los módulos).
-
-### Un desvío del entorno que sigue abierto
-
-**`InsurerDatabaseAdapter` no habla con la BD real.** El código —en `classification-service`, en
-`cases-service` y en todas las ramas, incluida `develop`— consulta `aseguradora.poliza` y joinea por
-`p.aseguradora_id`. La base de Railway tiene `aseguradora_bbva` y `aseguradora_provincia`, y en un
-esquema por tenant la columna `aseguradora_id` ya no existe: adentro de un esquema de tenant el
-esquema **es** la aseguradora, así que la columna sobra. Con el perfil `insurer-db` la clasificación
-revienta con `relation "aseguradora.poliza" does not exist`, y `GET /policies` devuelve 500.
-
-Mientras no se resuelva, el caso corre con `CLASSIFICATION_PROFILES=default` (`MockInsurerAdapter`),
-que para `POL-CEL-2026-042` trae los mismos números que la fila real: suma 1.300.000, al día, 0
-previos. Único desvío: el mock llama a la asegurada **"Sofía Martínez"** en vez de Martina Soteras, y
-`insuredName` del expediente se pisa con el nombre de la póliza — así que el expediente va a mostrar
-un nombre distinto al de los PDFs. Es artefacto del mock, no del caso.

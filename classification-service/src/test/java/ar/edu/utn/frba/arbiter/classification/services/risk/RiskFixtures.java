@@ -24,7 +24,6 @@ public final class RiskFixtures {
         return claim(claimedAmount, EVENT_DATE);
     }
 
-    /** With the police report date the insured declared (D12). */
     public static ClaimReport claimWithPoliceReport(LocalDateTime policeReportAt) {
         return ClaimReport.builder()
                 .branch("Celulares")
@@ -62,9 +61,7 @@ public final class RiskFixtures {
         return policy(upToDate, insuredAmount, POLICY_START);
     }
 
-    // Firma pública sin cambios (LocalDate): son 8 tests los que llaman esto, y ninguno necesita
-    // precisión de hora — solo InsuredPolicyTest (probado aparte) ejercita el borde de la hora.
-    // La conversión a LocalDateTime queda adentro, a medianoche.
+    // Takes LocalDate for convenience: none of the callers need the time of day (midnight is used).
     public static InsuredPolicy policy(boolean upToDate, BigDecimal insuredAmount, LocalDate effectiveFrom) {
         LocalDateTime from = effectiveFrom == null ? null : effectiveFrom.atStartOfDay();
         return InsuredPolicy.builder()
@@ -76,8 +73,6 @@ public final class RiskFixtures {
                 .effectiveFrom(from)
                 .effectiveTo(from == null ? null : from.plusYears(1))
                 .upToDate(upToDate)
-                // Lo que necesita la liquidación: cuánto vale una cuota del premio y cuánta deuda
-                // vencida hay. Van al policy_snapshot junto con el resto (D27).
                 .installmentAmount(new BigDecimal("8000"))
                 .overdueBalance(upToDate ? BigDecimal.ZERO : new BigDecimal("24000"))
                 .insuredAmount(insuredAmount)
@@ -124,7 +119,7 @@ public final class RiskFixtures {
         return ScoringConfig.Band.builder().band(band).minScoreInclusive(minScoreInclusive).build();
     }
 
-    /** The four gauge bands with the mock's default thresholds (documented H0012 cuts). */
+    /** The four bands with the baseline's default thresholds. */
     public static List<ScoringConfig.Band> gaugeBands() {
         return List.of(
                 band(RiskBand.LOW, 0.00),

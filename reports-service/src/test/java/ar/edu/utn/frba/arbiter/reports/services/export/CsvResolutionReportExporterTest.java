@@ -32,7 +32,7 @@ class CsvResolutionReportExporterTest {
                         + "18960,0;18720,0;Sin clasificación;Sin decisión;Caducado;");
     }
 
-    /** The wait on a third party gets a column of its own: a sheet is opened to sort and subtract. */
+    /** The wait on third parties gets its own column. */
     @Test
     void writesTheWaitingTimeNextToTheTotal() {
         String csv = export(List.of(approvedRow(42)));

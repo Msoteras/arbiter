@@ -27,14 +27,8 @@ type ProfileState =
   { status: 'loading' } | { status: 'ok'; profile: InsuredProfile } | { status: 'error' };
 
 /**
- * "Mi perfil" del asegurado. La contracara del onboarding: lo que ahí se completa una vez, acá
- * se puede ver y cambiar en cualquier momento — sobre todo el consentimiento de imágenes, que
- * por ser libre (Ley 25.326) tiene que poder revocarse tan fácil como se dio.
- *
- * Revocar no borra nada de lo ya analizado: las clasificaciones hechas son registro auditable
- * (Disposición SSN 2/2023) y quedan. El cambio aplica a las denuncias siguientes.
- *
- * Nombre, DNI y PEP son solo lectura: salen de la póliza/KYC de la aseguradora, no de acá.
+ * Image consent must be revocable as easily as it was given (Ley 25.326). Revoking only affects
+ * future claims: past classifications are an audit record and stay.
  */
 @Component({
   selector: 'app-perfil',
@@ -50,8 +44,7 @@ export class PerfilComponent {
   protected readonly consentSummary = IMAGE_CONSENT_SUMMARY;
   protected readonly consentDetail = IMAGE_CONSENT_DETAIL;
 
-  // Se relee después de guardar: el PATCH devuelve un LoginResponse (token nuevo), no el perfil,
-  // así que sin esto la fecha y la versión del consentimiento seguirían mostrando lo viejo.
+  // Bumped after saving: the PATCH returns a new token, not the profile, so it must be re-fetched.
   private readonly reload = signal(0);
 
   private readonly state = toSignal(
@@ -80,8 +73,7 @@ export class PerfilComponent {
   protected readonly imageConsent = signal(false);
 
   constructor() {
-    // Reaplica en cada llegada del perfil (carga inicial y recarga post-guardado). No pisa lo
-    // que se está tipeando porque solo corre cuando cambia la identidad del objeto perfil.
+    // Runs only when a new profile object arrives, so it doesn't overwrite what's being typed.
     effect(() => {
       const profile = this.profile();
       if (!profile) {
@@ -101,7 +93,6 @@ export class PerfilComponent {
   );
   protected readonly phoneValid = computed(() => this.phone().trim().length >= 6);
 
-  /** Solo se habilita si algo cambió: un "Guardar" que no guarda nada confunde. */
   protected readonly dirty = computed(() => {
     const profile = this.profile();
     if (!profile) {
@@ -118,7 +109,6 @@ export class PerfilComponent {
     () => this.dirty() && this.emailValid() && this.phoneValid() && !this.saving(),
   );
 
-  /** Desde cuándo rige el consentimiento guardado. */
   protected readonly consentAt = computed(() => {
     const at = this.profile()?.imageConsentAt;
     return at ? new Date(at).toLocaleDateString('es-AR') : null;
@@ -139,9 +129,7 @@ export class PerfilComponent {
         email: this.email().trim(),
         phone: this.phone().trim(),
         imageConsent: this.imageConsent(),
-        // La versión viaja solo si el consentimiento cambió: es lo que se está aceptando (o
-        // revocando) ahora. Mandarla en un cambio de teléfono reescribiría la fecha de un
-        // consentimiento que nadie tocó.
+        // Only when consent changed: sending it otherwise would reset the consent date.
         ...(consentChanged ? { imageConsentVersion: IMAGE_CONSENT_VERSION } : {}),
       })
       .subscribe({

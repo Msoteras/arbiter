@@ -10,7 +10,6 @@ import ar.edu.utn.frba.arbiter.cases.models.repositories.CaseStatusHistoryReposi
 import ar.edu.utn.frba.arbiter.cases.support.CaseFixtures;
 import ar.edu.utn.frba.arbiter.cases.support.CaseStates;
 import ar.edu.utn.frba.arbiter.common.enums.CaseStatus;
-import ar.edu.utn.frba.arbiter.common.enums.Classification;
 import ar.edu.utn.frba.arbiter.common.security.JwtSupport;
 import jakarta.servlet.http.HttpServletRequest;
 import org.junit.jupiter.api.BeforeEach;
@@ -78,9 +77,8 @@ class ClassificationServiceClientTest {
     }
 
     /**
-     * El barrido se queda con el turno: el CAS devuelve el expediente ya movido. Devolver la misma
-     * instancia que se le pasó es lo que hace en producción salvo por la relectura, y deja que los
-     * tests sigan mirando lo que se cachea sobre ella.
+     * The sweep wins the turn: the CAS returns the moved case. Returning the same instance (instead
+     * of a re-read) lets tests keep inspecting what gets cached on it.
      */
     private void winsTheTurn(Case entity, CaseStatus target) {
         when(caseStatusService.transitionIfStillIn(eq(entity), eq(CaseStatus.PENDING_CLASSIFICATION),
@@ -97,8 +95,8 @@ class ClassificationServiceClientTest {
 
         boolean resolved = client.refreshClassification(entity);
 
-        // La recomendación ya no se copia al expediente (vive en llm_analysis); lo observable de
-        // este lado es a qué estado lo mueve.
+        // The recommendation lives in llm_analysis, not on the case: what's observable here is the
+        // target status.
         assertThat(resolved).isTrue();
         verify(caseStatusService).transitionIfStillIn(eq(entity), eq(CaseStatus.PENDING_CLASSIFICATION),
                 eq(CaseStatus.AWAITING_DOCUMENTATION), eq(StatusChangeActor.SYSTEM), any());
@@ -185,10 +183,9 @@ class ClassificationServiceClientTest {
     }
 
     /**
-     * Varios schedulers barren la misma base (la de Railway es compartida por el equipo), así que
-     * dos llegan acá con la misma copia en PENDING_CLASSIFICATION y los dos leen el resultado. El
-     * que pierde el CAS tiene que retirarse sin escribir: sin esto quedaban dos filas idénticas en
-     * case_status_history y, según el destino, dos mails al asegurado.
+     * Several schedulers may sweep the same database, so two can reach this point with the same
+     * PENDING_CLASSIFICATION copy. The one that loses the CAS must back off without writing, or
+     * case_status_history gets duplicate rows and the insured duplicate mails.
      */
     @Test
     void anotherSweepAlreadyResolvedIt_writesNothing() {
@@ -200,8 +197,8 @@ class ClassificationServiceClientTest {
         boolean resolved = client.refreshClassification(entity);
 
         assertThat(resolved).isTrue();
-        // Ni la caché del expediente se toca: la copia del perdedor es vieja y guardarla
-        // reescribiría la fila entera sobre lo que dejó el ganador.
+        // Not even the case cache is touched: the loser's copy is stale and saving it would
+        // overwrite the whole row the winner left.
         assertThat(entity.getDeterministicFastTrack()).isFalse();
         verifyNoInteractions(caseRepository);
     }
@@ -218,11 +215,9 @@ class ClassificationServiceClientTest {
     }
 
     /**
-     * The exact shape of the bug case #23 hit: the case was sent back to AWAITING_DOCUMENTATION,
-     * the insured uploaded what was missing and it re-entered PENDING_CLASSIFICATION, but the poll
-     * landed before the NEW run finished — classification-service answered with the OLD
-     * llm_analysis row (append-only, still there) instead of "pending". Acting on it would have
-     * reapplied a verdict for a claim state that no longer holds.
+     * A case re-entering PENDING_CLASSIFICATION (e.g. after missing documents were uploaded) can be
+     * polled before the new run finishes, and classification-service then answers with the old
+     * llm_analysis row (append-only). Acting on it would reapply a stale verdict.
      */
     @Test
     void resultOlderThanTheCurrentRound_isTreatedAsNotReadyYet() {
@@ -253,7 +248,7 @@ class ClassificationServiceClientTest {
         verifyNoInteractions(caseRepository);
     }
 
-    /** The contracara: once a fresh analysis lands, the same result shape is acted on normally. */
+    /** The counterpart: once a fresh analysis lands, the same result shape is acted on normally. */
     @Test
     void resultAtOrAfterTheCurrentRound_isActedOn() {
         Case entity = pendingCase(23L);
@@ -286,8 +281,8 @@ class ClassificationServiceClientTest {
 
     @Test
     void alreadyClassified_returnsTrueWithoutCallingOrTransitioning() {
-        // La guarda pasó a mirar el estado: salir de PENDING_CLASSIFICATION es justamente lo que
-        // hace este método cuando llega el resultado, así que cualquier otro estado ya se resolvió.
+        // Leaving PENDING_CLASSIFICATION is exactly what this method does when the result arrives,
+        // so any other status means it was already resolved.
         Case entity = pendingCase(1L);
         entity.setCurrentStatus(CaseStates.of(CaseStatus.PENDING_ANALYST_REVIEW));
 
@@ -363,13 +358,13 @@ class ClassificationServiceClientTest {
     }
 
     /**
-     * La excepción al reenvío: acá se firma un token de servicio. El analystId lo resuelve este
-     * módulo contra claims_analyst, así que con el del usuario el endpoint quedaba alcanzable
-     * directo y un analista podía firmar la decisión a nombre de otro.
+     * The exception to forwarding: a service token is signed here. This module resolves the
+     * analystId, so with the user's token the endpoint would be reachable directly and an analyst
+     * could sign a decision on someone else's behalf.
      */
     @Test
     void forwardAnalystDecision_signsAServiceTokenInsteadOfForwardingTheUsers() {
-        // Sin stub del header entrante a propósito: no se lee.
+        // No stub for the incoming header on purpose: it isn't read.
         server.expect(requestTo(BASE_URL + "/api/v1/claims/9/decision"))
                 .andExpect(method(POST))
                 .andExpect(header(HttpHeaders.AUTHORIZATION, not(equalTo("Bearer original-user-token"))))
@@ -382,9 +377,8 @@ class ClassificationServiceClientTest {
     }
 
     /**
-     * Una lista vacía afirma "no corrió ninguna regla", que es un dato sobre la clasificación. Si
-     * no se pudieron leer no sabemos nada de ella, y eso es null: la pantalla dice cosas distintas
-     * para cada uno.
+     * An empty list states "no rule ran", which is a fact about the classification. If they couldn't
+     * be read we know nothing, and that's null: the screen says different things for each.
      */
     @Test
     void ruleResults_whenTheReadFails_comeBackNullAndNotEmpty() {
@@ -396,7 +390,6 @@ class ClassificationServiceClientTest {
         assertThat(client.ruleResultsOf(7L)).isNull();
     }
 
-    /** Y el caso legítimo sigue siendo la lista vacía, no null. */
     @Test
     void ruleResults_whenNoRuleRan_comeBackEmpty() {
         when(currentRequest.getHeader(HttpHeaders.AUTHORIZATION)).thenReturn("Bearer user-token");

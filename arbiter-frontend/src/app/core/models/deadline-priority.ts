@@ -1,12 +1,10 @@
 import { StatusTone } from './status-tone';
 
-// Espejo del enum DeadlinePriority de common-lib
-// (ar.edu.utn.frba.arbiter.common.enums.DeadlinePriority). Urgencia del expediente frente al
-// plazo legal de respuesta (art. 56). Derivado en el back; acá solo se muestra.
+// Mirrors common-lib's DeadlinePriority: urgency against the art. 56 response deadline, computed
+// by the backend.
 export type DeadlinePriority = 'NONE' | 'WATCH' | 'URGENT' | 'CRITICAL' | 'OVERDUE';
 
-// Semáforo: amarillo → rojo → rojo fuerte. NONE no pinta. OVERDUE comparte el danger de CRITICAL
-// (no se agrega color nuevo al design system) y se distingue por el texto "Vencido".
+// OVERDUE shares CRITICAL's tone and is told apart by its "Vencido" text.
 const TONES: Record<DeadlinePriority, StatusTone> = {
   NONE: 'neutral',
   WATCH: 'warning',
@@ -19,11 +17,7 @@ export function deadlinePriorityTone(priority: DeadlinePriority): StatusTone {
   return TONES[priority];
 }
 
-/**
- * true cuando el expediente merece un chip de plazo. Whitelist a propósito: un backend que
- * todavía no manda `deadlinePriority` (o un valor inesperado) cuenta como "sin marca", no como
- * prioritario — así no se pinta un chip roto contra una respuesta vieja.
- */
+/** Whitelist on purpose: a missing or unexpected value counts as not prioritized. */
 export function isDeadlinePrioritized(priority: DeadlinePriority): boolean {
   return (
     priority === 'WATCH' ||
@@ -33,10 +27,6 @@ export function isDeadlinePrioritized(priority: DeadlinePriority): boolean {
   );
 }
 
-/**
- * Texto del chip: "Vencido" para OVERDUE, "Vence hoy/mañana" o "Vence en N días" para el resto.
- * `responseDeadline` es la fecha ISO (yyyy-MM-dd) que trae el back.
- */
 export function deadlinePriorityLabel(
   priority: DeadlinePriority,
   responseDeadline: string,

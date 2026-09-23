@@ -18,15 +18,9 @@ import java.util.Locale;
 import java.util.Map;
 
 /**
- * Deterministic Fast Track validation: runs before invoking the LLM and evaluates
- * the {@link BusinessRules.FastTrackThresholds} thresholds against the claim, policy,
- * and insured history data. No AI involved — these are plain evaluable rules.
- *
- * <p>Every criterion it compares leaves a {@link RuleFinding}, passes included, so the analyst
- * sees what the gate checked instead of a bare "Fast Track" label. Until H0038 this was computed,
- * logged and dropped: the reasons reached {@code ClassificationResponse.factors} and died in
- * {@code ClassificationResultsService}, which writes no {@code llm_analysis} row for a
- * deterministic outcome.
+ * Deterministic Fast Track gate, evaluated before the LLM. Every compared criterion leaves a
+ * {@link RuleFinding}, passes included: a Fast Track writes no {@code llm_analysis} row, so this is
+ * how the analyst sees what the gate checked.
  */
 @Service
 public class FastTrackValidator {
@@ -36,19 +30,12 @@ public class FastTrackValidator {
     /** {@code rule_result.evaluated_value} is {@code VARCHAR(150)}. */
     private static final int EVALUATED_VALUE_MAX = 150;
 
-    /**
-     * @param findings one row per criterion actually compared, for {@code rule_result}. Empty when
-     *                 the gate didn't get to compare anything (no Fast Track configured, or
-     *                 configured with no active criterion): there's nothing to audit, and an empty
-     *                 table is honest about that
-     */
+    /** @param findings empty when nothing was compared (no Fast Track or no active criterion) */
     public record Result(boolean fastTrack, List<String> reasons, List<RuleFinding> findings) {}
 
     /**
-     * @param documentTexts OCR text of the already-attached documents, indexed by type
-     *                       (e.g. "police_report" -> text). Only the PRESENCE of the
-     *                       required document is evaluated, not its content — reading and
-     *                       interpreting what the document says is the LLM's job, not this gate's.
+     * @param documentTexts OCR text by document type; only the presence of required documents is
+     *                      checked, their content is the LLM's job
      */
     public Result evaluate(
             ClaimReport claim,
@@ -64,8 +51,7 @@ public class FastTrackValidator {
                     List.of());
         }
 
-        // priorClaimsWindowMonths no cuenta como criterio activo: no decide por sí solo, solo acota
-        // maxPriorClaims' window. With that limit unconfigured, it evaluates nothing.
+        // priorClaimsWindowMonths isn't a criterion on its own: it only scopes maxPriorClaims.
         if (thresholds.maxClaimedAmountRatio() == null
                 && thresholds.maxPriorClaims() == null
                 && thresholds.minPolicyAgeMonths() == null
@@ -81,15 +67,13 @@ public class FastTrackValidator {
         boolean eligible = true;
 
         if (thresholds.maxClaimedAmountRatio() != null) {
-            // Locale.ROOT: the audited value has to read the same wherever the JVM runs. The
-            // reasons below are prose for a person and stay in the platform's locale.
+            // Locale.ROOT: the audited value must read the same wherever the JVM runs.
             String max = String.format(Locale.ROOT, "%.1f%%", thresholds.maxClaimedAmountRatio() * 100);
             if (claim.claimedAmount() == null || policy.insuredAmount() == null || policy.insuredAmount().signum() == 0) {
                 eligible = false;
                 reasons.add("No se pudo evaluar el monto reclamado contra la suma asegurada");
-                // A criterion that couldn't be checked FAILS rather than going unwritten: unlike the
-                // coverage-scope rules, here missing data has a consequence (no fast lane), and the
-                // row is what explains it.
+                // Unlike coverage-scope rules, missing data here FAILS: it costs the fast lane, and
+                // the row explains why.
                 findings.add(finding(RuleType.FT_AMOUNT_RATIO, false, "ratio=sin datos max=" + max));
             } else {
                 double ratio = claim.claimedAmount().doubleValue() / policy.insuredAmount().doubleValue();
@@ -124,8 +108,7 @@ public class FastTrackValidator {
         if (thresholds.minPolicyAgeMonths() != null) {
             Long ageMonths = policyAgeMonths(claim, policy);
             if (ageMonths == null) {
-                // Without the policy's start date or the event's date the age can't be asserted,
-                // and Fast Track only proceeds on what's verifiable.
+                // Fast Track only proceeds on what's verifiable.
                 eligible = false;
                 reasons.add("No se pudo determinar la antigüedad de la póliza — no aplica Fast Track");
                 findings.add(finding(RuleType.FT_POLICY_AGE, false,
@@ -153,9 +136,7 @@ public class FastTrackValidator {
         if (thresholds.requiredDocumentTypes() != null && !thresholds.requiredDocumentTypes().isEmpty()) {
             String required = String.join(",", thresholds.requiredDocumentTypes());
             if (documentTexts == null) {
-                // Nobody handed us the documents to look at, so nothing was compared: no row, same
-                // criterion CoverageScopeEvaluator uses for a rule that didn't get to evaluate.
-                // Writing a PASS here would claim the gate verified paperwork it never saw.
+                // No documents to look at: no row, since a PASS would claim unseen paperwork was verified.
                 reasons.add("Documentación ya verificada previamente — no se re-evalúa en Fast Track");
             } else {
                 List<String> missing = thresholds.requiredDocumentTypes().stream()
@@ -175,11 +156,7 @@ public class FastTrackValidator {
         return new Result(eligible, reasons, findings);
     }
 
-    /**
-     * No rule id: the gate's thresholds aren't an {@code insurer_rule} row anyone can point at from
-     * here (see {@link RuleType#FT_AMOUNT_RATIO}). Truncated to the column's width — an audit row
-     * that fails to insert audits nothing.
-     */
+    /** Truncated to the column width: an audit row that fails to insert audits nothing. */
     private static RuleFinding finding(RuleType type, boolean passed, String evaluatedValue) {
         String value = evaluatedValue.length() <= EVALUATED_VALUE_MAX
                 ? evaluatedValue
@@ -187,16 +164,7 @@ public class FastTrackValidator {
         return new RuleFinding(null, type.name(), passed, value);
     }
 
-    /**
-     * Prior claims counting against the limit. With no window configured it uses the full
-     * historical count, which is exactly what it did before the field existed: the limit was
-     * compared against the insured's lifetime claims, so "at most 1 prior" locked a fifteen-year
-     * customer with two old claims out of Fast Track forever (D14).
-     *
-     * <p>The window counts backwards from the <b>event</b> and not from today, like
-     * {@code TemporalRuleEvaluator}'s annual cap: the criterion is the insured's situation when the
-     * claim occurred, not when someone looks at the case.
-     */
+    /** Without a window, the whole history counts. The window runs back from the event, not from today. */
     private int priorClaimsInWindow(ClaimReport claim, InsuredHistory history, Integer windowMonths) {
         if (windowMonths == null || claim.eventDate() == null || history.claims() == null) {
             return history.previousClaimsCount();
@@ -208,11 +176,7 @@ public class FastTrackValidator {
                 .count();
     }
 
-    /**
-     * @return months between the policy's start and the event, or null if either date is missing.
-     *         Truncated to the day on both sides: policy age in months doesn't care about the hour
-     *         the way vigencia itself does (D13).
-     */
+    /** Null if either date is missing. */
     private Long policyAgeMonths(ClaimReport claim, InsuredPolicy policy) {
         if (claim.eventDate() == null || policy.effectiveFrom() == null) {
             return null;

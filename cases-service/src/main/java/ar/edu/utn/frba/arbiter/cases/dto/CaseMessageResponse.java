@@ -5,13 +5,9 @@ import ar.edu.utn.frba.arbiter.cases.models.entities.CaseMessage;
 import java.time.Instant;
 
 /**
- * One message as either side's thread shows it.
+ * No sender name on purpose: the insured talks to the claims desk, not a person, and cases get reassigned.
  *
- * <p>No sender name on purpose: the insured is talking to the insurer's claims desk, not to a
- * person, and cases get reassigned. The analyst already has the insured's name on the case header.
- *
- * @param mine whether the caller wrote it, resolved server-side so neither client has to know the
- *             caller's role to lay out the thread
+ * @param mine resolved server-side so clients don't need the caller's role to lay out the thread
  */
 public record CaseMessageResponse(
         Long id,

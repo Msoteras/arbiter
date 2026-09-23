@@ -6,9 +6,8 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
 /**
- * Same wiring as auth-service's: the adapter lives in common-lib but is built per module, since
- * each one reads its own configuration. With no API key it logs and skips instead of failing, so
- * a deployment without SendGrid still runs.
+ * The adapter lives in common-lib but is built per module, since each one reads its own configuration.
+ * With no API key it logs and skips instead of failing.
  */
 @Configuration
 public class EmailConfig {

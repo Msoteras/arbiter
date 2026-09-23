@@ -47,7 +47,6 @@
   text-decoration: underline;
 }
 
-/* ===== Hero ===== */
 .hero {
   display: flex;
   flex-direction: column;
@@ -104,7 +103,6 @@
   background: var(--accent);
 }
 
-/* ===== Acción requerida ===== */
 .action-required {
   display: flex;
   align-items: center;
@@ -169,7 +167,6 @@
   color: var(--text-secondary);
 }
 
-/* ===== Hilo de hitos simplificado (asegurado) ===== */
 .milestones {
   list-style: none;
   margin: 0;
@@ -262,9 +259,6 @@
   font-style: italic;
 }
 
-/* ===== Detalle ===== */
-/* Dos columnas cuando hay ancho: en una sola, con la card más grande, los datos quedaban como
-   una tira finita contra el borde izquierdo y la mitad derecha vacía. */
 .fields {
   margin: 0;
   display: grid;
@@ -298,7 +292,6 @@
   }
 }
 
-/* Documentación enviada: separa la sección de la card de la denuncia. */
 .docs-section,
 .chat-section {
   display: block;

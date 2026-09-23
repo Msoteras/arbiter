@@ -3,14 +3,8 @@ import { ChangeDetectionStrategy, Component, computed, input, linkedSignal } fro
 type Variant = 'default' | 'soft' | 'ai';
 
 /**
- * Contenedor con borde + radio. `soft` = fondo tenue; `ai` = lavado teal para las
- * tarjetas del modelo (sugerencias/recomendaciones, marcadas con ✦).
- * Cabecera opcional vía `heading` (+ `icon` opcional, ej. '✦').
- * El cuerpo va como contenido proyectado.
- *
- * Con `collapsible`, la cabecera pasa a ser el botón que pliega el cuerpo (necesita `heading`:
- * sin título no hay dónde clickear). El contenido se esconde con `hidden`, no se destruye —
- * lo que el usuario haya abierto adentro sigue abierto al volver a desplegar.
+ * `ai` is the teal wash for model output cards. With `collapsible` the body is hidden, not
+ * destroyed, so whatever the user opened inside stays open when expanded again.
  */
 @Component({
   selector: 'app-card',
@@ -64,9 +58,8 @@ type Variant = 'default' | 'soft' | 'ai';
       background: var(--surface);
       padding: var(--space-4);
       box-shadow: var(--shadow-card);
-      /* min-height, no height: llena la celda si el host se estira (grid/flex), pero nunca
-         achica la card por debajo de su contenido (con height:100% pasaba dentro de un flex
-         column de altura auto, ej. .bandeja, y .card.flush lo escondía con su overflow). */
+      /* min-height, not height: fills a stretched grid/flex cell but never shrinks below its
+         content (height:100% does inside an auto-height flex column). */
       min-height: 100%;
     }
     .card.soft {
@@ -76,32 +69,6 @@ type Variant = 'default' | 'soft' | 'ai';
       background: var(--surface-ai);
       border-color: var(--border-ai);
     }
-    /* Para cards que son un enlace (ej. la lista del portal). El host es el <a>: acá solo
-       se agrega la respuesta al hover, el resto del tratamiento ya lo da .card. */
-    :host(.interactive) .card {
-      transition:
-        background-color var(--dur-1) ease,
-        border-color var(--dur-1) ease,
-        box-shadow var(--dur-2) var(--ease-out),
-        transform var(--dur-2) var(--ease-out);
-    }
-    :host(.interactive:hover) .card {
-      background: var(--surface-soft);
-      border-color: var(--border-strong);
-      box-shadow: var(--shadow-card-hover);
-      transform: translateY(-2px);
-    }
-    :host(.interactive:active) .card {
-      transform: translateY(0);
-      box-shadow: var(--shadow-card);
-    }
-    @media (prefers-reduced-motion: reduce) {
-      :host(.interactive:hover) .card {
-        transform: none;
-      }
-    }
-    /* Sin caja: ni borde ni fondo ni padding. Para reusar el contenido de una card cuando el
-       contenedor ya ES la caja (ej. el wizard dentro de un modal) y una segunda no suma. */
     .card.bare {
       border: none;
       box-shadow: none;
@@ -109,7 +76,6 @@ type Variant = 'default' | 'soft' | 'ai';
       padding: 0;
       min-height: 0;
     }
-    /* Sin padding interno: para contenido que necesita llegar al borde (ej. una tabla). */
     .card.flush {
       padding: 0;
       overflow-x: auto;
@@ -123,7 +89,6 @@ type Variant = 'default' | 'soft' | 'ai';
       gap: var(--space-2);
       margin-bottom: var(--space-3);
     }
-    /* Plegada no hay cuerpo abajo: el margen de la cabecera sobraría como aire al pie. */
     .card-head.as-toggle {
       margin: 0;
       font-size: inherit;
@@ -192,22 +157,20 @@ export class CardComponent {
   readonly heading = input('');
   readonly icon = input('');
   readonly flush = input(false);
-  /** Sin caja (borde/fondo/padding): el contenedor externo ya provee la caja. */
+  /** No border/background/padding, for when the outer container already is the box. */
   readonly bare = input(false);
-  /** La cabecera pliega el cuerpo. Requiere `heading`. */
+  /** Requires `heading`. */
   readonly collapsible = input(false);
-  /** Arranca plegada. Solo aplica con `collapsible`. */
+  /** Initial state; only applies with `collapsible`. */
   readonly collapsed = input(false);
 
-  /** Sin título no hay cabecera, y sin cabecera no hay de dónde agarrar el plegado. */
   protected readonly isCollapsible = computed(() => this.collapsible() && !!this.heading());
 
-  /** Vuelve al valor de `collapsed` si el binding cambia; entre medio manda el usuario. */
+  /** Resets to `collapsed` when the binding changes; the user controls it in between. */
   protected readonly expanded = linkedSignal(() => !this.collapsed());
 
   private readonly instanceId = `card-${++CardComponent.instances}`;
 
-  /** `aria-controls` tiene que apuntar a un id único, y puede haber muchas cards en la página. */
   protected readonly bodyId = computed(() => `${this.instanceId}-body`);
 
   protected toggle(): void {

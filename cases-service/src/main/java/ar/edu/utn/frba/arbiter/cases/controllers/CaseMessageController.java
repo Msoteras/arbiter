@@ -20,10 +20,8 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 /**
- * The conversation on a case. Reading is open to anyone who can read the case — the referente
- * included, in the same read-only way they see the inbox; writing is only for the two parties.
- *
- * <p>{@code insurer} is the slug that disambiguates {@code caseId}, which repeats across schemas.
+ * Anyone who can read the case can read its thread (the referente included); only the two parties
+ * can write. {@code insurer} is the slug that disambiguates {@code caseId} across schemas.
  */
 @RestController
 @RequestMapping("/api/v1/cases/{caseId}/messages")

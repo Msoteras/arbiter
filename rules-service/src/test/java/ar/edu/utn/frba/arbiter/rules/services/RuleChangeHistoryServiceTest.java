@@ -3,7 +3,9 @@ package ar.edu.utn.frba.arbiter.rules.services;
 import ar.edu.utn.frba.arbiter.common.enums.RuleType;
 import ar.edu.utn.frba.arbiter.common.models.entities.Branch;
 import ar.edu.utn.frba.arbiter.common.models.entities.ClaimCause;
+import ar.edu.utn.frba.arbiter.common.models.entities.User;
 import ar.edu.utn.frba.arbiter.common.models.entities.tenant.Coverage;
+import ar.edu.utn.frba.arbiter.common.models.entities.tenant.InsurerReferent;
 import ar.edu.utn.frba.arbiter.rules.dto.RuleChangeEntry;
 import ar.edu.utn.frba.arbiter.rules.dto.RuleChangeSource;
 import ar.edu.utn.frba.arbiter.rules.dto.RuleFieldChange;
@@ -14,8 +16,10 @@ import ar.edu.utn.frba.arbiter.rules.models.entities.ScoringConfiguration;
 import ar.edu.utn.frba.arbiter.rules.models.entities.ScoringConfigurationHistory;
 import ar.edu.utn.frba.arbiter.rules.models.repositories.ClaimCauseRepository;
 import ar.edu.utn.frba.arbiter.rules.models.repositories.CoverageRepository;
+import ar.edu.utn.frba.arbiter.rules.models.repositories.InsurerReferentRepository;
 import ar.edu.utn.frba.arbiter.rules.models.repositories.InsurerRuleHistoryRepository;
 import ar.edu.utn.frba.arbiter.rules.models.repositories.ScoringConfigurationHistoryRepository;
+import ar.edu.utn.frba.arbiter.rules.models.repositories.UserRepository;
 import org.junit.jupiter.api.Test;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
@@ -24,6 +28,7 @@ import java.time.Instant;
 import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -46,15 +51,29 @@ class RuleChangeHistoryServiceTest {
     private final ScoringConfigurationService scoringConfigurationService = mock(ScoringConfigurationService.class);
     private final CoverageRepository coverageRepository = mock(CoverageRepository.class);
     private final ClaimCauseRepository claimCauseRepository = mock(ClaimCauseRepository.class);
+    private final UserRepository userRepository = mock(UserRepository.class);
+    private final InsurerReferentRepository insurerReferentRepository = mock(InsurerReferentRepository.class);
 
     private final RuleChangeHistoryService service = new RuleChangeHistoryService(
             ruleHistoryRepository, scoringHistoryRepository, scoringConfigurationService,
-            coverageRepository, claimCauseRepository);
+            coverageRepository, claimCauseRepository, userRepository, insurerReferentRepository);
+
+    @Test
+    void actorIsTheTextAfterTheLastSeparator() {
+        assertThat(RuleChangeHistoryService.actorOf("Fast Track actualizado por ana@bbva.com"))
+                .isEqualTo("ana@bbva.com");
+        assertThat(RuleChangeHistoryService.actorOf("Hard rule X updated by ana@bbva.com"))
+                .isEqualTo("ana@bbva.com");
+        assertThat(RuleChangeHistoryService.actorOf("Cambiada por pedido del área por ana@bbva.com"))
+                .isEqualTo("ana@bbva.com");
+        assertThat(RuleChangeHistoryService.actorOf("Actualización automática")).isNull();
+        assertThat(RuleChangeHistoryService.actorOf("Fast Track actualizado por ")).isNull();
+        assertThat(RuleChangeHistoryService.actorOf(null)).isNull();
+    }
 
     /**
-     * Two snapshots and a live rule are three versions and therefore two changes. The oldest
-     * snapshot has to pair with the middle one — not with the live rule — or the referente reads
-     * that the deadline went from 48h straight to 120h and the intermediate edit disappears.
+     * Two snapshots and a live rule are three versions, so two changes: the oldest snapshot pairs
+     * with the middle one, not with the live rule, or the intermediate edit disappears.
      */
     @Test
     void pairsEachSnapshotWithTheVersionThatReplacedIt() {
@@ -69,7 +88,6 @@ class RuleChangeHistoryServiceTest {
         List<RuleChangeEntry> entries = page().getContent();
 
         assertThat(entries).hasSize(2);
-        // Newest first: the trail is only ever read from the last thing that happened.
         assertThat(entries).extracting(RuleChangeEntry::changedAt).containsExactly(T3, T2);
         assertThat(entries.get(0).changes())
                 .containsExactly(new RuleFieldChange("deadlineHours", "72", "120"));
@@ -91,12 +109,7 @@ class RuleChangeHistoryServiceTest {
         assertThat(page().getContent()).extracting(RuleChangeEntry::current).containsExactly(true, false);
     }
 
-    /**
-     * Turning a rule off changes {@code active} and nothing else. This is the most common edit the
-     * referente makes, and it's exactly the one the trail used to lose: while only the
-     * {@code configuration} was snapshotted, before and after came out byte-identical and the
-     * change rendered as empty.
-     */
+    /** Turning a rule off changes {@code active} and nothing in the configuration; it still has to show. */
     @Test
     void reportsTheOnOffToggleAsAChange() {
         InsurerRule rule = policeDeadlineRule("{\"deadlineHours\":72}", false);
@@ -109,11 +122,7 @@ class RuleChangeHistoryServiceTest {
                 .containsExactly(new RuleFieldChange("active", "true", "false"));
     }
 
-    /**
-     * The free-text rules store a bare JSON array, not an object, so their configuration has no key
-     * of its own to be named after. It has to land under a field the referente can read — an empty
-     * label in the diff would leave the change with nowhere to hang.
-     */
+    /** The free-text rules store a bare JSON array, which has no key, so it needs a named field. */
     @Test
     void namesTheConfigurationOfARuleThatStoresABareList() {
         InsurerRule rule = InsurerRule.builder()
@@ -137,10 +146,8 @@ class RuleChangeHistoryServiceTest {
     }
 
     /**
-     * Rows written before the snapshot carried {@code active} hold the bare configuration. They
-     * exist in the shared database, they can't be rewritten (append-only), and read naively their
-     * missing {@code active} would surface as "la regla pasó de apagada a encendida" — a state
-     * change nobody made, sitting in an audit trail. Only the real difference may show.
+     * Legacy rows hold the bare configuration without {@code active}; read naively, that would show
+     * a state change nobody made. Only the real difference may show.
      */
     @Test
     void doesNotInventAStateChangeWhenTheStoredRowPredatesTheFlags() {
@@ -169,11 +176,7 @@ class RuleChangeHistoryServiceTest {
                 "configuration", "Daño estético", "Daño estético · Uso comercial"));
     }
 
-    /**
-     * A history of changes shows changes. A save that left the rule exactly as it was is a row in
-     * the table but not a change, and the panel's catalog-wide save produced one per untouched
-     * rule: editing a single deadline buried it under five entries saying nothing happened.
-     */
+    /** A stored row for a save that left the rule as it was is not a change and is hidden. */
     @Test
     void leavesOutASaveThatChangedNothing() {
         InsurerRule untouched = policeDeadlineRule("{\"deadlineHours\":72}", true);
@@ -196,11 +199,7 @@ class RuleChangeHistoryServiceTest {
                 .containsExactly(new RuleFieldChange("deadlineHours", "72", "96"));
     }
 
-    /**
-     * A partial row's empty {@code changes} means "not recorded", not "nothing happened" — it may
-     * be hiding a real change. Filtering it out would drop something that did occur, the opposite
-     * of the noise being removed.
-     */
+    /** A partial row's empty {@code changes} means "not recorded", so it's kept: it may hide a real change. */
     @Test
     void keepsAPartialRowEvenWithNothingToShow() {
         InsurerRule rule = policeDeadlineRule("{\"deadlineHours\":72}", true);
@@ -258,8 +257,7 @@ class RuleChangeHistoryServiceTest {
 
         assertThat(changes).extracting(RuleFieldChange::field)
                 .containsExactly("factors[IMAGE_REUSED].weight");
-        // "0.4" and not "0.40": both sides are read back from JSON text, so a weight is compared
-        // by its value and not by how many trailing zeros whoever saved it happened to type.
+        // Both sides are read back from JSON text, so weights compare by value, not trailing zeros.
         assertThat(changes.get(0).previousValue()).isEqualTo("0.2");
         assertThat(changes.get(0).newValue()).isEqualTo("0.4");
     }
@@ -283,11 +281,7 @@ class RuleChangeHistoryServiceTest {
                 .containsExactly(RuleChangeSource.INSURER_RULE, RuleChangeSource.SCORING);
     }
 
-    /**
-     * The filter offers only what the trail holds, and gets it with its own query. It used to walk
-     * {@code findAllForHistory()} again: the screen loads both at once, so opening the history paid
-     * for fetching and pairing every version twice.
-     */
+    /** The filter offers only what the trail holds, via its own query instead of loading the whole history. */
     @Test
     void listsRuleTypesWithoutRereadingTheWholeTrail() {
         when(ruleHistoryRepository.findDistinctRuleTypes())
@@ -298,10 +292,7 @@ class RuleChangeHistoryServiceTest {
         verify(ruleHistoryRepository, never()).findAllForHistory();
     }
 
-    /**
-     * An excluded claim cause is stored as an id and the referente picked it from a list of names.
-     * "3 → 4 · 1" is unreadable in a record whose only job is explaining what changed.
-     */
+    /** Excluded claim causes are stored as ids but shown by name, which is what the referente picked. */
     @Test
     void resolvesClaimCauseIdsToTheirNames() {
         InsurerRule rule = InsurerRule.builder()
@@ -336,11 +327,7 @@ class RuleChangeHistoryServiceTest {
         assertThat(page().getContent().get(0).changes().get(0).newValue()).isEqualTo("99");
     }
 
-    /**
-     * The scoring row's own id is an internal number. It surfaced as "Identificador de la
-     * configuración: — → 1" on the oldest snapshot, which tells the referente nothing about what
-     * they changed.
-     */
+    /** The scoring row's own id is internal and must not show up as a change. */
     @Test
     void keepsTheScoringRowIdOutOfTheDiff() {
         when(ruleHistoryRepository.findAllForHistory()).thenReturn(List.of());
@@ -358,9 +345,8 @@ class RuleChangeHistoryServiceTest {
     }
 
     /**
-     * A factor is identified by its code no matter which property the stored JSON happened to put
-     * first. A snapshot serialized weight-first got keyed {@code factors[0.45]} against a live one
-     * keyed by code, and every factor read as removed and re-added.
+     * A factor is keyed by its code whatever property the stored JSON puts first; otherwise every
+     * factor would read as removed and re-added.
      */
     @Test
     void keysFactorsByCodeEvenWhenTheStoredJsonOrdersPropertiesDifferently() {
@@ -379,6 +365,60 @@ class RuleChangeHistoryServiceTest {
 
         assertThat(page().getContent().get(0).changes())
                 .containsExactly(new RuleFieldChange("factors[IMAGE_REUSED].weight", "0.2", "0.4"));
+    }
+
+    /** The author is the referente recorded in changed_by, not whoever the reason happens to name. */
+    @Test
+    void namesTheAuthorFromChangedBy() {
+        InsurerRule rule = policeDeadlineRule("{\"deadlineHours\":120}", true);
+        InsurerRuleHistory row = history(1L, rule, T1, T2, "{\"active\":true,\"blocksFastTrack\":true,"
+                + "\"configuration\":{\"deadlineHours\":72}}");
+        row.setChangedBy(11L);
+        when(ruleHistoryRepository.findAllForHistory()).thenReturn(List.of(row));
+        when(insurerReferentRepository.findAllById(any()))
+                .thenReturn(List.of(referent(11L, "Ana", "Pérez", 3L)));
+        noScoringHistory();
+
+        assertThat(page().getContent().get(0).author()).isEqualTo("Ana Pérez");
+        verify(userRepository, never()).findByEmailIn(any());
+    }
+
+    /** Rows saved without changed_by still get an author, from the email the reason ends with. */
+    @Test
+    void fallsBackToTheReasonWhenChangedByIsNull() {
+        InsurerRule rule = policeDeadlineRule("{\"deadlineHours\":120}", true);
+        when(ruleHistoryRepository.findAllForHistory()).thenReturn(List.of(
+                history(1L, rule, T1, T2, "{\"active\":true,\"blocksFastTrack\":true,"
+                        + "\"configuration\":{\"deadlineHours\":72}}")));
+        when(userRepository.findByEmailIn(any()))
+                .thenReturn(List.of(User.builder().id(3L).email("referente@bbva.com").build()));
+        when(insurerReferentRepository.findByUser_IdIn(any()))
+                .thenReturn(List.of(referent(11L, "Luis", "Gómez", 3L)));
+        noScoringHistory();
+
+        assertThat(page().getContent().get(0).author()).isEqualTo("Luis Gómez");
+        verify(insurerReferentRepository, never()).findAllById(any());
+    }
+
+    /** Without a referente profile behind the email, the email itself is the author. */
+    @Test
+    void showsTheEmailWhenTheReasonNamesNoReferente() {
+        InsurerRule rule = policeDeadlineRule("{\"deadlineHours\":120}", true);
+        when(ruleHistoryRepository.findAllForHistory()).thenReturn(List.of(
+                history(1L, rule, T1, T2, "{\"active\":true,\"blocksFastTrack\":true,"
+                        + "\"configuration\":{\"deadlineHours\":72}}")));
+        noScoringHistory();
+
+        assertThat(page().getContent().get(0).author()).isEqualTo("referente@bbva.com");
+    }
+
+    private static InsurerReferent referent(Long id, String name, String surname, Long userId) {
+        return InsurerReferent.builder()
+                .id(id)
+                .name(name)
+                .surname(surname)
+                .user(User.builder().id(userId).build())
+                .build();
     }
 
     private static ClaimCause claimCause(Long id, String name) {

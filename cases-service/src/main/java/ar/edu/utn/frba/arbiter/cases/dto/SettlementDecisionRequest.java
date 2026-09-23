@@ -6,23 +6,12 @@ import jakarta.validation.constraints.NotNull;
 import java.math.BigDecimal;
 
 /**
- * The amount the analyst authorizes, sent together with an approval.
+ * Travels inside {@link AnalystDecisionRequest} so determining the amount and approving are a single
+ * act, never a settlement on a case that wasn't approved.
  *
- * <p>It travels inside {@link AnalystDecisionRequest} rather than through an endpoint of its own
- * so that determining the amount and resolving the claim are a single act. Two calls would leave
- * room for a settlement recorded against a case that never got approved, which is a row nobody
- * could explain.
- *
- * @param replacementValue what the analyst accredited from the file — an invoice, a ticket, a
- *                         repair quote. Optional: it only caps anything on coverages whose basis
- *                         is the lesser of sum insured and replacement cost, and even there a
- *                         missing value means the sum insured stands
- * @param settledAmount    what actually gets paid. Sent even when it matches the proposal: the
- *                         analyst confirming a number is the act being recorded, and inferring it
- *                         from silence would make an approval and an unread screen look the same
- * @param adjustmentReason why it differs from what the formula produced. Required exactly when it
- *                         does differ — {@code SettlementService} enforces that, because the rule
- *                         compares two values and no field-level annotation can see both
+ * @param replacementValue optional; only caps coverages settled by the lesser of sum insured and replacement value
+ * @param settledAmount    sent even when it matches the proposal: confirming the number is the recorded act
+ * @param adjustmentReason required exactly when the amount differs from the formula
  */
 public record SettlementDecisionRequest(
         @DecimalMin(value = "0.00", message = "replacementValue cannot be negative")

@@ -21,16 +21,7 @@ import org.springframework.web.bind.annotation.RestController;
 
 import java.time.LocalDate;
 
-/**
- * The fraud detection report: the claims filed in a period that carry at least one fraud signal.
- *
- * <p>Same readers as the resolution report — the referent reads it, and so does the analyst who has
- * to work the shortlist.
- *
- * <p>The path is {@code /reports/fraud} and not {@code /reportes/fraude}: every endpoint of this
- * module is in English (see {@code /api/v1/reports/resolutions}), and mixing the two spellings in
- * the same API is what the naming convention exists to prevent.
- */
+/** The claims filed in a period that carry at least one fraud signal. */
 @RestController
 @RequestMapping("/api/v1/reports/fraud")
 @RequiredArgsConstructor

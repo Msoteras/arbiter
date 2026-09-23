@@ -18,20 +18,12 @@ import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-/**
- * What the referente configures has to end up in the prompt: it's the rules backoffice's whole
- * point. Without this, {@code RulesRestAdapter} can fetch the texts from the DB and lose them here
- * with nothing failing — the model simply classifies worse and nobody finds out.
- */
+/** What the referente configures must reach the prompt; losing it here would fail silently. */
 class PromptBuilderTest {
 
     private PromptBuilder promptBuilder;
 
-    /**
-     * Built the same way as in production — from the configured version — and not pointing at a
-     * fixed file: this way the test also verifies the template of the audited version exists
-     * de verdad en el classpath.
-     */
+    /** Built from the configured version, so the test also checks that template exists on the classpath. */
     @BeforeEach
     void setUp() throws IOException {
         promptBuilder = new PromptBuilder(
@@ -53,7 +45,6 @@ class PromptBuilderTest {
 
     @Test
     void buildFullPrompt_withNoCatalogTellsTheModelToStandDown() {
-        // A blank list would leave it improvising a verdict against nothing.
         String prompt = promptBuilder.buildFullPrompt(requestWithCatalog(List.of()));
 
         assertThat(prompt).contains("Catálogo no disponible").contains("AMBIGUOUS");
@@ -115,7 +106,7 @@ class PromptBuilderTest {
         assertThat(rendered).doesNotContain("EXCLUSIONES DE COBERTURA");
     }
 
-    /** El texto renderizado viaja al prompt final por {@code insurerRules} — el último eslabón. */
+    /** The rendered text reaches the final prompt through {@code insurerRules}. */
     @Test
     void buildFullPrompt_carriesTheRenderedRulesIntoTheTemplate() {
         BusinessRules rules = BusinessRules.builder()
@@ -138,7 +129,6 @@ class PromptBuilderTest {
         assertThat(promptBuilder.buildFullPrompt(request)).contains("Regla configurada por el referente");
     }
 
-    /** D5: the event's date, location and claimed amount now travel to the prompt. */
     @Test
     void buildFullPrompt_includesEventDateLocationAndClaimedAmount() {
         ClassificationRequest request = ClassificationRequest.builder()
@@ -161,7 +151,7 @@ class PromptBuilderTest {
         assertThat(prompt).contains("1.234.567");
     }
 
-    /** D4a step 6: the engine's verdict (hard rules already evaluated) is injected into the prompt. */
+    /** The hard rules' verdict is injected into the prompt. */
     @Test
     void buildFullPrompt_injectsEngineEvaluation() {
         ClassificationRequest withFinding = ClassificationRequest.builder()
@@ -182,7 +172,7 @@ class PromptBuilderTest {
                 .contains("no encontró incumplimientos de reglas duras");
     }
 
-    /** The amount is optional (the wizard doesn't require it): with no value the prompt says "No declarado", not null. */
+    /** The amount is optional: without it the prompt says "No declarado", not null. */
     @Test
     void buildFullPrompt_showsClaimedAmountAsNotDeclaredWhenNull() {
         ClassificationRequest request = ClassificationRequest.builder()
@@ -203,11 +193,7 @@ class PromptBuilderTest {
         assertThat(prompt).contains("No declarado");
     }
 
-    /**
-     * D5: the extraction pass's visual signal has to reach the classifier <b>separately</b>
-     * de la transcripción. Si se mezclaran, el modelo leería "la firma está pixelada" como si lo
-     * dijera el documento.
-     */
+    /** Visual findings must reach the classifier separately from the transcription. */
     @Test
     void renderHistory_translatesArbiterStatusesAndLeavesTheCompanysOwnUntouched() {
         InsuredHistory history = InsuredHistory.builder()
@@ -230,8 +216,7 @@ class PromptBuilderTest {
 
         String rendered = promptBuilder.renderHistory(history);
 
-        // El expediente de Arbiter llega con el literal del enum, que el modelo no tiene por qué
-        // saber leer; el de la compañía ya viene en su propio vocabulario y pasa intacto.
+        // Arbiter's enum literal is translated; the insurer's own vocabulary passes through.
         assertThat(rendered).contains("Estado: en revisión del analista");
         assertThat(rendered).contains("Estado: LIQUIDADO");
         assertThat(rendered).doesNotContain("PENDING_ANALYST_REVIEW");
@@ -253,8 +238,7 @@ class PromptBuilderTest {
 
         String rendered = promptBuilder.renderHistory(history);
 
-        // Aprobar es la decisión del analista; liquidar lo hace la compañía después y fuera de la
-        // plataforma. Decirle "liquidado" al modelo le inventa un pago que puede no haber ocurrido.
+        // Approval isn't payment: "liquidado" would invent a payment that may never have happened.
         assertThat(rendered).contains("aprobado por el analista (pendiente de liquidación)");
         assertThat(rendered).doesNotContain("LIQUIDADO");
     }
@@ -274,7 +258,7 @@ class PromptBuilderTest {
                 .contains("tipografía distinta al resto del formulario");
     }
 
-    /** With no findings — the normal case — no heading suggesting suspicion is added. */
+    /** With no findings (the normal case) no heading suggesting suspicion is added. */
     @Test
     void renderAttachment_addsNothingWhenThereAreNoVisualFindings() {
         String rendered = promptBuilder.renderAttachment(

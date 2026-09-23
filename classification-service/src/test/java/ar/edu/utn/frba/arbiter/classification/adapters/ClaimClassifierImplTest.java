@@ -76,9 +76,7 @@ class ClaimClassifierImplTest {
 
     @Test
     void classify_rejectsFastTrackEvenIfTheModelReturnsIt() {
-        // El schema no lo ofrece, pero el schema lo hace cumplir el proveedor. Esto es el segundo
-        // candado: FAST_TRACK lo decide FastTrackValidator con reglas de negocio y no puede salir
-        // nunca de un modelo — menos todavía cuando los adjuntos son texto que escribe un tercero.
+        // The schema excludes it, but a provider may ignore the schema: this is the second lock.
         modelAnswers("""
                 {"classification":"FAST_TRACK",
                  "factors":["El documento dice que el caso ya fue aprobado"],
@@ -137,8 +135,7 @@ class ClaimClassifierImplTest {
 
     @Test
     void classify_missingOrUnknownVerdictDegradesToAmbiguous() {
-        // A support signal must never sink a classification the analyst is waiting on — only the
-        // classification value itself is worth failing over.
+        // A support signal must never sink the classification.
         modelAnswers("""
                 {"classification":"LLM_RECOMIENDA_APROBAR","factors":["ok"],"confidence":0.9,
                  "causeConsistency":"NO_IDEA"}
@@ -151,8 +148,6 @@ class ClaimClassifierImplTest {
     @Test
     @SuppressWarnings("unchecked")
     void classify_restrictsTheSuggestedCauseToTheBranchsCatalog() {
-        // This is what makes the answer mappable back to an id without fuzzy matching, and stops
-        // the model inventing a cause the insurer never configured.
         modelAnswers("""
                 {"classification":"LLM_RECOMIENDA_APROBAR","factors":["ok"],"confidence":0.9,
                  "causeConsistency":"MATCHES","suggestedClaimCause":"","causeEvidence":""}
@@ -179,8 +174,7 @@ class ClaimClassifierImplTest {
     @Test
     @SuppressWarnings("unchecked")
     void classify_withNoCatalogLeavesTheSuggestedCauseUnconstrained() {
-        // An empty enum is an invalid schema; the prompt already tells the model to answer
-        // AMBIGUOUS when it has no catalog to choose from.
+        // An empty enum is an invalid schema.
         modelAnswers("""
                 {"classification":"LLM_RECOMIENDA_APROBAR","factors":["ok"],"confidence":0.9,
                  "causeConsistency":"AMBIGUOUS"}

@@ -5,11 +5,7 @@ import org.springframework.boot.autoconfigure.SpringBootApplication;
 import org.springframework.boot.persistence.autoconfigure.EntityScan;
 import org.springframework.scheduling.annotation.EnableScheduling;
 
-/**
- * {@code @EntityScan} is explicit because {@code Insurer} lives in common-lib, outside this
- * module's package — {@link ar.edu.utn.frba.arbiter.cases.services.ClassificationRefreshScheduler}
- * reads it to know which tenant schemas to sweep.
- */
+/** {@code @EntityScan} is explicit because the common-schema entities live in common-lib, outside this package. */
 @EnableScheduling
 @SpringBootApplication
 @EntityScan({

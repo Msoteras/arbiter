@@ -71,22 +71,15 @@ public class ClassificationServiceClient implements ClaimsAnalysisClient {
         this.jwtKey = JwtSupport.key(jwtSecret);
     }
 
-    /**
-     * classification-service now requires auth (H0003) — these calls happen inside the same
-     * request thread as the user's original call to cases-service, so we just forward their JWT
-     * as-is instead of minting a new one (they already passed @PreAuthorize here with it).
-     */
+    /** Forwards the caller's JWT as-is: these calls run on the user's request thread. */
     private String authorizationHeader() {
         return currentRequest.getHeader(HttpHeaders.AUTHORIZATION);
     }
 
     /**
-     * El token del usuario lleva el {@code tenantSchema} que se resolvió en el login, y el alta de
-     * una denuncia puede correr en otro: el de la aseguradora que emitió la póliza. Reenviarlo tal
-     * cual haría que classification-service escriba el análisis en el esquema equivocado, así que
-     * cuando la operación se movió de tenant se firma un token de servicio con el tenant real —
-     * mismo mecanismo que usa el scheduler, que tampoco tiene un JWT de usuario con el tenant que
-     * necesita. Si no se movió, se reenvía el del usuario y la cadena de identidad queda intacta.
+     * The user's token carries the tenant resolved at login, but filing may run under the policy's
+     * issuing insurer. Forwarding it would make classification-service write to the wrong schema,
+     * so when the tenant moved a service token for the actual tenant is signed instead.
      */
     private String authorizationHeaderForCurrentTenant() {
         if (!CallerContext.get().movedAwayFromHome()) {
@@ -99,18 +92,12 @@ public class ClassificationServiceClient implements ClaimsAnalysisClient {
     @Override
     public AnalysisResult analyzeAndPersist(Case caseRecord, List<CaseDocument> documents) {
         postClassify(caseRecord, documents, authorizationHeaderForCurrentTenant());
-        // The case is already PENDING_CLASSIFICATION (set by the caller); this only fires the request.
         return new AnalysisResult(null, 0.0, "Classification in progress");
     }
 
     /**
-     * {@link #analyzeAndPersist} always resolves its auth header off {@code currentRequest}
-     * (directly, or through {@link #authorizationHeaderForCurrentTenant()}'s fallback) — fine for
-     * every existing caller, which all run inside a real HTTP request. The startup recovery sweep
-     * doesn't: it fires from an {@code ApplicationReadyEvent} listener with no request in scope, so
-     * touching {@code currentRequest} there throws "No thread-bound request found". This mints a
-     * service token unconditionally instead, the same mechanism {@link #refreshClassification}
-     * already uses for its own request-less polling call.
+     * For callers with no request in scope, where touching {@code currentRequest} would throw
+     * "No thread-bound request found": always signs a service token.
      */
     @Override
     public AnalysisResult analyzeAndPersistAsSystem(Case caseRecord, List<CaseDocument> documents) {
@@ -121,26 +108,13 @@ public class ClassificationServiceClient implements ClaimsAnalysisClient {
     }
 
     /**
-     * Los otros siniestros del asegurado en esta aseguradora, con la forma que el motor ya consume
-     * para el histórico de la compañía — así las dos fuentes se fusionan en una sola lista y cada
-     * regla (tope anual, agotamiento de cobertura, el prompt) las cuenta sin distinguir de dónde
-     * salió cada una.
+     * The insured's other cases filed through Arbiter, in the shape the engine already uses for the
+     * insurer's claim history, so rules count both sources alike. Read on every run, not cached:
+     * hours may pass between filing and a retry.
      *
-     * <p>Se lee en cada disparo y no se cachea: entre la denuncia y un reintento de clasificación
-     * pueden pasar horas, y el conteo tiene que ser el de la corrida, no el del alta.
-     *
-     * <p><b>Van todos, sin filtrar por estado</b>, igual que el histórico de la compañía: ese
-     * {@code SELECT} sobre {@code siniestro_historico} tampoco mira {@code estado_resolucion}, así
-     * que un siniestro RECHAZADO ya cuenta hoy para el tope anual y para el criterio de siniestros
-     * previos del Fast Track. Filtrar de este lado dejaba las dos fuentes con criterios distintos
-     * para la misma regla, que es exactamente lo que hace que después nadie pueda explicar un
-     * resultado. La distinción por estado la hace cada regla que la necesita: la de agotamiento de
-     * cobertura ya filtra por {@code LIQUIDADO}, porque solo lo pagado consume la suma asegurada.
-     *
-     * <p>Sin monto liquidado a propósito: pagar es un paso de la compañía que ocurre fuera de la
-     * plataforma, así que un expediente de Arbiter no tiene con qué llenarlo. Dejarlo en null es lo
-     * que hace que estos no ensucien el total indemnizado del asegurado — y que un expediente
-     * aprobado por el analista no consuma la cobertura hasta que la compañía efectivamente pague.
+     * <p>Not filtered by status, matching the insurer's history; rules that care filter themselves.
+     * No settled amount: payment happens outside the platform, and leaving it null keeps an
+     * approved case from consuming the coverage until the insurer actually pays.
      */
     private List<PriorClaim> antecedentsOf(Case caseRecord) {
         List<PriorClaim> antecedents = caseRepository
@@ -161,8 +135,6 @@ public class ClassificationServiceClient implements ClaimsAnalysisClient {
     }
 
     private void postClassify(Case caseRecord, List<CaseDocument> documents, String authorizationHeader) {
-        // The contract with classification-service is unchanged: still plain strings, only now
-        // read off the joins instead of off denormalized columns.
         ClaimReport claim = ClaimReport.builder()
                 .branch(caseRecord.getClaimCause().getBranch().getName())
                 .product(caseRecord.getPolicy().getProduct())
@@ -177,20 +149,13 @@ public class ClassificationServiceClient implements ClaimsAnalysisClient {
                 .eventDate(caseRecord.getOccurredAt())
                 .eventLocation(caseRecord.getEventAddress())
                 .claimedAmount(caseRecord.getClaimedAmount())
-                // reportedAt (Instant) → LocalDateTime para el motor: la regla del plazo de denuncia
-                // (D11) compara reportedAt - occurredAt contra el plazo de la cobertura.
                 .reportedAt(caseRecord.getReportedAt() == null ? null
                         : LocalDateTime.ofInstant(caseRecord.getReportedAt(), ZoneId.systemDefault()))
-                // Lo que el asegurado declaró en el wizard sobre su denuncia policial (D12). Se
-                // capturaba desde el 09/08 y se quedaba en cases-service: sin esto el motor no
-                // podía evaluar el plazo ni cruzarlo contra la fecha que dice la constancia.
                 .policeReportAt(caseRecord.getPoliceReportAt())
                 .imageConsent(caseRecord.getInsured().isImageConsent())
                 .attachmentsOcr(List.of())
-                // Los siniestros que el asegurado ya denunció por Arbiter. El histórico de la BD
-                // Aseguradora solo tiene lo que la compañía liquidó en sus sistemas: todo lo que se
-                // denuncia desde acá nace en Arbiter y no vuelve, así que sin esto el tope anual y
-                // el criterio de siniestros previos del Fast Track leen cero para siempre.
+                // The insurer's history only holds what it settled itself; claims filed here never
+                // flow back, so without these the annual cap and Fast Track's prior-claims check read zero.
                 .priorClaims(antecedentsOf(caseRecord))
                 .build();
 
@@ -198,11 +163,8 @@ public class ClassificationServiceClient implements ClaimsAnalysisClient {
         body.add("caseId", String.valueOf(caseRecord.getId()));
         body.add("claim", claim);
         documents.forEach(document -> body.add(document.getType(), toResource(document)));
-        // Keyed by type, matching the file parts above: case_documents is unique on
-        // (case_id, type), so the type pairs each id with its file. Sent as one JSON part
-        // rather than loose params — a @RequestParam Map would swallow every other param on
-        // the request. classification-service persists these on the image analysis so a
-        // duplicate match can name the exact document it matched.
+        // Keyed by type, which is unique per case, so each id pairs with its file part. One JSON
+        // part rather than loose params: a @RequestParam Map would swallow every other param.
         body.add("documentIds", documents.stream()
                 .collect(Collectors.toMap(CaseDocument::getType, CaseDocument::getId)));
 
@@ -224,25 +186,17 @@ public class ClassificationServiceClient implements ClaimsAnalysisClient {
         };
     }
 
-    /**
-     * Single, non-blocking attempt to pull the classification result. Returns true if the
-     * case now has a classification (already had one, or one just arrived); false if it's
-     * still pending. Repetition is the scheduler's job, not this method's — no sleep here.
-     */
+    /** No sleeping here: repetition is the scheduler's job. */
     @Override
     public boolean refreshClassification(Case caseRecord) {
-        // La clasificación ya no se cachea en `cases`, así que el estado es la señal: el poller
-        // solo trae PENDING_CLASSIFICATION, y salir de ese estado es exactamente lo que hace este
-        // método cuando el resultado llega. Cualquier otro estado significa que ya se resolvió.
+        // The status is the signal: leaving PENDING_CLASSIFICATION is what a resolved result does.
         if (caseRecord.getStatus() != CaseStatus.PENDING_CLASSIFICATION) {
             return true;
         }
 
         try {
-            // Called from ClassificationRefreshScheduler (@Scheduled, no HTTP request behind it) —
-            // there's no user JWT to forward here, so we sign a short-lived service token instead.
-            // It carries the tenant the scheduler is currently sweeping: classification-service
-            // resolves its own schema from that claim, and without it would read the common one.
+            // No user JWT behind the scheduler. The token carries the tenant being swept, which
+            // classification-service resolves its schema from.
             String serviceToken = JwtSupport.issueServiceToken(
                     jwtKey, "cases-service-scheduler", TenantContext.get());
             ClaimResponse response = restClient.get()
@@ -252,14 +206,7 @@ public class ClassificationServiceClient implements ClaimsAnalysisClient {
                     .body(ClaimResponse.class);
 
             if (response != null && response.classification() != null && isStale(caseRecord, response)) {
-                // Reclassifying a case that already has an OLDER llm_analysis row (uploaded the
-                // missing documentation, retried after CLASSIFICATION_FAILED, ...) means the poll
-                // can land while the new run is still going: classification-service has nothing
-                // fresher to answer with yet, so it hands back last round's result instead of
-                // "pending". Acting on it would apply a verdict for a claim state that no longer
-                // holds — the exact bug that sent case 23 back to AWAITING_DOCUMENTATION with the
-                // photo already attached. Treat it the same as "not ready" and let the next tick
-                // ask again, once classification-service's own run has actually finished.
+                // A previous round's result while the new run is still going: treat it as not ready.
                 log.debug("Case {} classification poll returned a result from before this round "
                                 + "(analyzed {}); still waiting for a fresh one", caseRecord.getId(),
                         response.analyzedAt());
@@ -267,10 +214,8 @@ public class ClassificationServiceClient implements ClaimsAnalysisClient {
             }
 
             if (response != null && response.classification() != null) {
-                // El estado se mueve ANTES de cachear nada, y con un compare-and-set contra la
-                // base: la guarda de arriba mira la copia del barrido, que es de varios segundos
-                // atrás, así que con dos schedulers sobre la misma base los dos la pasaban y los
-                // dos transicionaban. El que no se queda con el turno se va sin escribir.
+                // Move the status first, with a compare-and-set: the guard above read the sweep's
+                // stale copy, and another instance may be polling the same case.
                 Optional<Case> claimed = caseStatusService.transitionIfStillIn(
                         caseRecord, CaseStatus.PENDING_CLASSIFICATION,
                         statusFor(response.classification()), StatusChangeActor.SYSTEM,
@@ -280,23 +225,14 @@ public class ClassificationServiceClient implements ClaimsAnalysisClient {
                     return true;
                 }
 
-                // Sobre la entidad releída después del CAS, no sobre `caseRecord`: guardar la copia
-                // vieja reescribe la fila entera desde un estado anterior, incluido el estado que
-                // se acaba de mover.
+                // Saved on the entity re-read after the CAS; saving the stale copy would rewrite the row.
                 Case resolved = claimed.get();
-                // La recomendación, su confianza y sus motivos NO se copian: viven en llm_analysis,
-                // en este mismo esquema, y CaseAnalysisRepository los joinea al armar la respuesta.
-                // Acá solo queda lo que la bandeja filtra, más lo que no tiene otra tabla de dónde
-                // salir (was_fast_track, forensic_report).
+                // The recommendation itself isn't copied: it is joined from llm_analysis on read.
+                // Only what the inbox filters on, or has no other table, is cached here.
                 resolved.setDeterministicFastTrack(response.deterministicFastTrack());
-                // Cache the parallel risk score. Null when "sin scorear" (no config) — kept null,
-                // never coerced to a band, so the read model can show "Sin datos".
+                // Null when unscored; never coerced to a band.
                 resolved.setRiskScore(response.riskScore());
                 resolved.setRiskBand(response.riskBand());
-                // insuredName is no longer cached off the poll: the case joins `insured` directly,
-                // so the name is always there instead of appearing with the first classification.
-                // Cache the structured image-fraud analysis for the analyst's forensic tab
-                // (H0009). Null when no analysis ran (Fast Track, or a case with no images).
                 resolved.setForensicReport(response.forensicReport());
                 caseRepository.save(resolved);
                 return true;
@@ -309,17 +245,9 @@ public class ClassificationServiceClient implements ClaimsAnalysisClient {
     }
 
     /**
-     * Whether {@code response} predates this case's current run of {@code PENDING_CLASSIFICATION}.
-     * {@code llm_analysis} is append-only (audit trail, Disposición SSN 2/2023), so a case that was
-     * classified before — got sent back for documentation, or retried after failing — still has its
-     * PREVIOUS row sitting there while a new run is in flight. {@code getStatus} on
-     * classification-service's side answers with "the latest row it has", which is correct once the
-     * new run finishes but wrong while it's still going: it hands back an answer from before this
-     * round even started.
-     *
-     * <p>{@code analyzedAt} null means Fast Track (or nothing at all): Fast Track's flag is
-     * rewritten on every run (see {@code ClassificationResultsService.getStatus}), so it can never
-     * be stale here — only the append-only path needs this check.
+     * {@code llm_analysis} is append-only, so while a new run is in flight classification-service
+     * still answers with the previous round's row. A null {@code analyzedAt} means Fast Track, whose
+     * result is rewritten on every run and so can't be stale.
      */
     private boolean isStale(Case caseRecord, ClaimResponse response) {
         if (response.analyzedAt() == null) {
@@ -333,17 +261,14 @@ public class ClassificationServiceClient implements ClaimsAnalysisClient {
         return response.analyzedAt().isBefore(enteredPendingAt);
     }
 
-    /**
-     * Missing documentation is the insured's turn (they upload what's missing and the case
-     * re-enters classification); every other result goes to the analyst's queue.
-     */
+    /** Missing documentation is the insured's turn; every other result goes to the analyst. */
     private CaseStatus statusFor(Classification classification) {
         return classification == Classification.FALTA_DOCUMENTACION
                 ? CaseStatus.AWAITING_DOCUMENTATION
                 : CaseStatus.PENDING_ANALYST_REVIEW;
     }
 
-    /** Token de servicio y no el del usuario: así el endpoint no queda alcanzable directo. */
+    /** A service token, not the user's, so the endpoint isn't reachable directly by users. */
     @Override
     public Long forwardAnalystDecision(Long caseId, AnalystDecisionRequest request) {
         String serviceToken = JwtSupport.issueServiceToken(
@@ -372,10 +297,7 @@ public class ClassificationServiceClient implements ClaimsAnalysisClient {
                 .body(FraudRecordResponse.class);
     }
 
-    /**
-     * Errors are not swallowed: an empty list would read as "este asegurado no tiene antecedentes",
-     * which is the one wrong answer to give an analyst deciding a claim. Let it surface.
-     */
+    /** Errors propagate: an empty list would wrongly tell the analyst the insured has no record. */
     @Override
     public List<FraudRecordResponse> fraudRecordsOf(String insuredDni) {
         List<FraudRecordResponse> records = restClient.get()
@@ -388,11 +310,8 @@ public class ClassificationServiceClient implements ClaimsAnalysisClient {
     }
 
     /**
-     * Unlike {@link #fraudRecordsOf}, a failure here doesn't propagate: the traceability tab is
-     * context, and losing it must not take the whole case detail down with it. It degrades to
-     * {@code null} and not to an empty list, because the two say different things on screen — an
-     * empty list is "no rule ran", which would be a claim about the classification we can't make
-     * when we couldn't even read it.
+     * Degrades to {@code null} instead of failing the case detail: the traceability tab is context.
+     * Not an empty list, which would mean "no rule ran".
      */
     @Override
     public List<RuleResultResponse> ruleResultsOf(Long caseId) {

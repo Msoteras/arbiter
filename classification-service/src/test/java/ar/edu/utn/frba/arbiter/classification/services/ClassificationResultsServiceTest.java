@@ -37,12 +37,8 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 /**
- * Persistence + read mapping of the risk snapshot (its own risk_analysis row), focused on the
- * "sin scorear" contract: a claim with no scoring config must persist no risk_analysis row and
- * expose null risk — never a real LOW band.
- *
- * <p>Also covers how a Fast Track case is read back now that it produces no llm_analysis row at
- * all: the outcome comes off the case, not off a log entry's source column.
+ * An unscored claim persists no risk_analysis row and exposes null risk, never a real LOW band.
+ * A Fast Track writes no llm_analysis row, so its outcome is read from the case.
  */
 @ExtendWith(MockitoExtension.class)
 class ClassificationResultsServiceTest {
@@ -62,7 +58,7 @@ class ClassificationResultsServiceTest {
                 .classification(Classification.FAST_TRACK)
                 .factors(List.of("ok"))
                 .confidence(1.0)
-                .deterministicFastTrack(true)   // avoids needing the Ollama model/prompt fields
+                .deterministicFastTrack(true)   // avoids needing the LLM model/prompt fields
                 .riskScore(riskScore)
                 .build();
     }
@@ -87,7 +83,7 @@ class ClassificationResultsServiceTest {
         assertThat(saved.getRiskBreakdown()).isEqualTo(score.breakdown());
     }
 
-    /** D29 · which configuration computed the score, so it can be explained later. */
+    /** Records which configuration computed the score. */
     @Test
     void scoredClaim_recordsWhichScoringConfigurationWasUsed() {
         RiskScore score = new RiskScore(true, 0.72, RiskBand.HIGH, List.of(), 3L);
@@ -97,7 +93,6 @@ class ClassificationResultsServiceTest {
         verify(caseOutcomeRepository).saveScoringConfiguration(7L, 3L);
     }
 
-    /** The baseline isn't a {@code scoring_configuration} row: there's no id to point at. */
     @Test
     void baselineScore_recordsNoScoringConfiguration() {
         RiskScore score = new RiskScore(true, 0.72, RiskBand.HIGH, List.of(), null);
@@ -119,8 +114,7 @@ class ClassificationResultsServiceTest {
     void fastTrack_isRecordedOnTheCaseAndNotAsAnLlmAnalysis() {
         service.saveResult(7L, response(RiskScore.notScored()), null, 120);
 
-        // The model never ran, and the table's CHECK rejects FAST_TRACK as a recommendation —
-        // so the outcome lives on the case (decision #6).
+        // The model never ran and llm_analysis rejects FAST_TRACK, so the outcome lives on the case.
         verify(caseOutcomeRepository).markFastTracked(7L);
         verify(llmAnalysisRepository, never()).save(org.mockito.ArgumentMatchers.any());
     }
@@ -206,7 +200,6 @@ class ClassificationResultsServiceTest {
 
         ClaimResponse exposed = service.getStatus(7L);
 
-        // They are llm_reason rows now, not a serialized list — the API shape is unchanged.
         assertThat(exposed.factors()).containsExactly("factor-1", "factor-2");
         assertThat(exposed.insuredName()).isEqualTo("Martina Soteras");
         assertThat(exposed.deterministicFastTrack()).isFalse();
@@ -233,8 +226,6 @@ class ClassificationResultsServiceTest {
 
         ClaimResponse exposed = service.getStatus(7L);
 
-        // The case that used to be indistinguishable from a Fast Track before the outcome moved
-        // onto the case row.
         assertThat(exposed.classification()).isNull();
         assertThat(exposed.deterministicFastTrack()).isFalse();
     }
@@ -251,7 +242,7 @@ class ClassificationResultsServiceTest {
         return analysis;
     }
 
-    /** Only the failures reach the screen today; "all passed" and "nothing ran" must differ. */
+    /** "All passed" and "nothing ran" must differ. */
     @Test
     void ruleResultsIncludeThePasses() {
         when(ruleResultRepository.findByCaseIdOrderByEvaluatedAtAsc(7L)).thenReturn(List.of(
@@ -276,7 +267,6 @@ class ClassificationResultsServiceTest {
                 .isEqualTo("reportedAt=+99h max=72h");
     }
 
-    /** Empty is a normal answer: the insurer may have no active rule for the coverage. */
     @Test
     void aCaseWithNoRulesEvaluatedYieldsAnEmptyList() {
         when(ruleResultRepository.findByCaseIdOrderByEvaluatedAtAsc(7L)).thenReturn(List.of());
@@ -284,11 +274,7 @@ class ClassificationResultsServiceTest {
         assertThat(service.getRuleResults(7L)).isEmpty();
     }
 
-    /**
-     * The table is append-only and each reclassification writes its own set, so the same rule shows
-     * up once per run. The analyst reads the table as "how did this end up", so only the last
-     * evaluation of each rule travels — the earlier rows stay in the DB for the audit.
-     */
+    /** Append-only table: only the latest evaluation of each rule is returned. */
     @Test
     void aReclassifiedCaseShowsTheLastEvaluationOfEachRule() {
         RuleResult firstRun = ruleResult(1L, "REPORT_DEADLINE", "FAIL", "reportedAt=+99h max=72h");
@@ -313,7 +299,7 @@ class ClassificationResultsServiceTest {
         assertThat(service.getRuleResults(7L)).hasSize(2);
     }
 
-    /** The gate's criteria carry no rule id (H0038) and must not collapse into one another. */
+    /** The gate's criteria carry no rule id and must not collapse into one another. */
     @Test
     void fastTrackCriteriaWithoutRuleIdAreNotCollapsed() {
         RuleResult ratio = ruleResult(1L, "FT_AMOUNT_RATIO", "PASS", "ratio=21,9% max=50,0%");

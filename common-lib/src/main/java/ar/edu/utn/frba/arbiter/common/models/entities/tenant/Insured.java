@@ -19,18 +19,9 @@ import lombok.Setter;
 import java.time.Instant;
 
 /**
- * The insured person ("Asegurado" in CLAUDE.md's domain vocabulary). {@code dni} is what
- * {@code JwtService} puts in the {@code insuredId} claim.
- *
- * <p>Unlike its siblings in the parent package, this table lives in the <b>tenant</b> schema, not
- * in {@code arbiter_common} — see this package's rationale for why it is shared anyway. auth-service
- * owns the alta; cases-service reads it and refreshes the declarative fields the denuncia captures
- * ({@code pep}, {@code imageConsent}, contact). Both had their own copy and the two had already
- * drifted: auth's {@code caseCount} was nullable and it was missing {@code imageConsent} entirely.
- *
- * <p>Rows come from the insurer's own directory, not from anyone typing them in: the bulk "dar de
- * alta asegurados" run mirrors {@code aseguradora_*.asegurado} and provisions the account behind
- * each one. The seeded ASEGURADO users predate that flow and never went through a real sign-up.
+ * The insured person. {@code dni} is what {@code JwtService} puts in the {@code insuredId} claim.
+ * Rows mirror the insurer's own directory via bulk provisioning; nobody types them in. cases-service
+ * refreshes the declarative fields captured with each claim ({@code pep}, {@code imageConsent}, contact).
  */
 @Entity
 @Table(name = "insured")
@@ -58,21 +49,15 @@ public class Insured {
 
     private String phone;
 
-    /** How many cases this person has filed; the scoring engine's claim-frequency input. */
     @Column(name = "case_count", nullable = false)
     @Builder.Default
     private int caseCount = 0;
 
-    /** Politically exposed person, declared at denuncia time. */
     @Column(nullable = false)
     @Builder.Default
     private boolean pep = false;
 
-    /**
-     * Consent to have their claim images analyzed for fraud indicators — reuse detection and web
-     * search (H0009). Belongs to the person and not to each claim, which is why it stopped being
-     * a column of {@code cases}.
-     */
+    /** Consent for fraud analysis of their images. Belongs to the person, not to each claim. */
     @Column(name = "image_consent", nullable = false)
     @Builder.Default
     private boolean imageConsent = false;
@@ -90,13 +75,11 @@ public class Insured {
     @Column(name = "onboarding_completed_at")
     private Instant onboardingCompletedAt;
 
-    // No unique constraint on the join column: the DER draws one profile per user, but the schema
-    // does not enforce it, and claiming it here would put the entity ahead of the table.
+    // No unique constraint: the schema doesn't enforce one profile per user, so the mapping doesn't either.
     @OneToOne(fetch = FetchType.LAZY, optional = false)
     @JoinColumn(name = "user_id", nullable = false)
     private User user;
 
-    /** Display name for the analyst's inbox — the shape {@code CaseResponse.insuredName} expects. */
     public String fullName() {
         return name + " " + surname;
     }

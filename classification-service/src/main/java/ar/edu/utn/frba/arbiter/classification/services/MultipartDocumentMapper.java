@@ -13,20 +13,8 @@ import java.util.Map;
 public class MultipartDocumentMapper {
 
     /**
-     * For callers with no stored documents behind the request — the isolated-classification
-     * endpoint analyses uploaded files that were never persisted as {@code case_documents}.
-     */
-    public List<AttachmentDocument> toAttachmentDocuments(Map<String, MultipartFile> documents) {
-        return toAttachmentDocuments(documents, null);
-    }
-
-    /**
-     * @param documents   attachment parts, keyed by document type
-     * @param documentIds {@code case_documents} ids under those same keys, as sent by
-     *                    cases-service. Keyed by type rather than by position because
-     *                    {@code case_documents} is unique on (case_id, type), so the type
-     *                    identifies the row unambiguously. Null when the caller doesn't
-     *                    send them.
+     * {@code documentIds} is keyed by document type, like {@code documents}: {@code case_documents}
+     * is unique on (case_id, type), so the type identifies the row. May be null.
      */
     public List<AttachmentDocument> toAttachmentDocuments(
             Map<String, MultipartFile> documents, Map<String, Long> documentIds) {

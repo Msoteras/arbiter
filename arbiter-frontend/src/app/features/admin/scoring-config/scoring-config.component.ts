@@ -13,13 +13,8 @@ import { InputComponent } from '../../../shared/ui/input/input.component';
 import { InlineLoadingComponent } from '../../../shared/ui/inline-loading/inline-loading.component';
 
 /**
- * Scoring de fraude de la aseguradora. Es UNA sola configuración por aseguradora, no por ramo: el
- * backend la sirve/persiste en `GET|PUT /api/v1/rules/scoring` sin branchId. Por eso vive como
- * sección propia de la pantalla de reglas, fuera del master-detail de ramos — antes estaba metida
- * como una solapa dentro de cada ramo, lo que hacía creer que se configuraba por ramo cuando en
- * realidad todos compartían la misma config.
- *
- * Porcentajes en la UI (0..100) ↔ fracción (0..1) en el modelo, que es el contrato del back.
+ * One scoring config per insurer, not per branch, hence outside the branch master-detail.
+ * The UI shows percentages (0..100); the backend contract uses fractions (0..1).
  */
 @Component({
   selector: 'app-scoring-config',
@@ -44,15 +39,13 @@ export class ScoringConfigComponent {
 
   protected readonly draft = signal<ScoringConfig>(this.skeleton());
 
-  // El componente se destruye y se recrea cada vez que el referente vuelve a este recuadro (ver
-  // `@if (view() === 'scoring')` en reglas.component.html), así que `load()` corre de nuevo en
-  // cada entrada — sin este flag, esa carga es invisible y el panel se ve armado con el skeleton
-  // vacío hasta que llega la respuesta real.
+  // The component is recreated on every visit (`@if` in reglas.component.html), so `load()` reruns;
+  // without this flag the empty skeleton would show until the response arrives.
   protected readonly loading = signal(true);
 
   protected readonly saving = signal(false);
   protected readonly error = signal<string | null>(null);
-  /** Lo último que confirmó el backend: contra esto se decide si quedan cambios sin guardar. */
+  /** Last state confirmed by the backend; unsaved changes are measured against it. */
   private readonly persisted = signal<ScoringConfig | null>(null);
 
   protected readonly dirty = computed(() => {
@@ -60,7 +53,6 @@ export class ScoringConfigComponent {
     return base != null && JSON.stringify(this.draft()) !== JSON.stringify(base);
   });
 
-  /** Vuelve a lo último guardado, sin recargar la pantalla. */
   protected discard(): void {
     const base = this.persisted();
     if (base) {
@@ -70,17 +62,13 @@ export class ScoringConfigComponent {
   }
 
   /**
-   * Los pesos son **relativos**: el motor divide por el total (`score = Σ(puntaje × peso) / Σ(peso)`),
-   * así que el score sale en [0,1] sumen 100%, 190% o 7. Antes la UI advertía que "deberían sumar
-   * 100%" — una regla que el motor no tiene y que el seed viola de fábrica (suma 190%). Peor: el
-   * número que el referente leía (45%) no era el que se aplicaba (23,7%). Se sacó la advertencia y
-   * en su lugar se muestra el **peso efectivo**, que es lo que el motor realmente usa (D17).
+   * Weights are relative: the engine computes `Σ(score × weight) / Σ(weight)`, so they needn't add up
+   * to 100%. The UI shows the effective weight, which is what the engine actually applies.
    */
   private readonly totalWeight = computed(() =>
     this.draft().factors.reduce((sum, f) => sum + f.weight, 0),
   );
 
-  /** Cuánto pesa de verdad un factor: su peso sobre el total de los activos. */
   protected effectiveWeightPct(factorId: string): string {
     const total = this.totalWeight();
     const factor = this.draft().factors.find((f) => f.factorId === factorId);
@@ -91,10 +79,8 @@ export class ScoringConfigComponent {
   }
 
   /**
-   * Los factores en dos grupos, porque no cuestan lo mismo. Los de datos salen de lo que el
-   * expediente ya tiene y corren siempre; los de documentos e imágenes exigen leer los adjuntos y
-   * comparar imágenes, y en Fast Track pueden no correr (ver `fullAnalysisOnFastTrack`). Verlos
-   * mezclados escondía que prender uno del segundo grupo tiene un costo que el otro no.
+   * Grouped by cost: data factors always run; document and image factors need heavy analysis and may
+   * be skipped on Fast Track (see `fullAnalysisOnFastTrack`).
    */
   protected readonly factorGroups: {
     title: string;
@@ -127,11 +113,6 @@ export class ScoringConfigComponent {
       .filter((f): f is { id: string; label: string } => f != null);
   }
 
-  /**
-   * Cuánto pesa el factor sobre el total de los activos, como ancho de barra. Es la misma cuenta
-   * que hace el motor (peso / suma de pesos activos), así que la barra muestra el reparto real y
-   * no el número crudo, que por sí solo no dice nada — los pesos son relativos entre sí.
-   */
   protected effectiveWeightRatio(factorId: string): number {
     const total = this.totalWeight();
     const factor = this.draft().factors.find((f) => f.factorId === factorId);
@@ -141,13 +122,12 @@ export class ScoringConfigComponent {
     return (factor.weight / total) * 100;
   }
 
-  /** El tramo de puntaje de cada banda, leído de los cortes configurados. */
   protected bandRangeLabel(band: RiskBand): string {
     const cuts = RISK_BANDS.map((b) => this.bandCutValue(b));
     const index = RISK_BANDS.indexOf(band);
     const from = cuts[index];
     const next = cuts[index + 1];
-    // El último tramo llega a 100; los otros terminan justo antes de donde empieza el siguiente.
+    // The last band reaches 100; the others end right before the next one starts.
     return next == null ? `Puntaje ${from}–100` : `Puntaje ${from}–${Math.max(from, next - 1)}`;
   }
 
@@ -159,7 +139,6 @@ export class ScoringConfigComponent {
     return cut ? Math.round(cut.minScoreInclusive * 100) : 0;
   }
 
-  /** Ancho de cada tramo en la barra de bandas, para que refleje los cortes configurados. */
   protected bandWidth(band: RiskBand): number {
     const index = RISK_BANDS.indexOf(band);
     const from = this.bandCutValue(band);
@@ -168,7 +147,7 @@ export class ScoringConfigComponent {
     return Math.max(0, to - from);
   }
 
-  /** Mismo semáforo que el fraud-gauge del expediente: el referente ve los colores que verá el analista. */
+  /** Same tones as app-fraud-gauge, so the referente sees what the analyst will. */
   protected bandTone(band: RiskBand): string {
     switch (band) {
       case 'LOW':
@@ -187,9 +166,8 @@ export class ScoringConfigComponent {
   }
 
   /**
-   * Config inicial: sin factores y las 4 bandas del gauge en sus cortes por defecto. El scoring no
-   * tiene estado "deshabilitado" en la UI — el motor scorea si hay factores, y el flag `enabled`
-   * del backend no gatea nada (por eso `enabled` va siempre en true), así que no lo exponemos.
+   * No factors and the 4 default bands. `enabled` is always true and not exposed: the backend flag
+   * gates nothing, the engine scores whenever there are factors.
    */
   private skeleton(): ScoringConfig {
     return {
@@ -201,13 +179,9 @@ export class ScoringConfigComponent {
   }
 
   /**
-   * Trae el scoring real de la aseguradora. Sin config aún ⇒ el backend devuelve una vacía (sin
-   * bandas): completamos con las 4 bandas por defecto para que el referente las vea. Best-effort:
-   * si el backend está caído, se queda con el skeleton sin romper la pantalla.
-   *
-   * `showLoading` solo se prende en la carga inicial: el reload que dispara `saveScoring()` ya
-   * tiene su propio indicador (el botón en "Guardando…"), tapar todo el panel de nuevo ahí sería
-   * redundante y haría parpadear la pantalla apenas guardaste.
+   * An unconfigured insurer gets an empty config (no bands), filled with the defaults. Best-effort:
+   * if the backend is down, the skeleton stays. `showLoading` only on first load: the post-save
+   * reload already has the button's indicator and would otherwise flicker.
    */
   private load(showLoading = false): void {
     if (showLoading) {
@@ -229,7 +203,7 @@ export class ScoringConfigComponent {
           this.persisted.set(structuredClone(loaded));
         },
         error: () => {
-          /* backend caído: nos quedamos con el skeleton */
+          /* backend down: keep the skeleton */
         },
       });
   }
@@ -284,7 +258,6 @@ export class ScoringConfigComponent {
     }));
   }
 
-  /** Guarda el scoring de la aseguradora. `enabled` va siempre en true: el motor scorea si hay factores. */
   protected saveScoring(): void {
     if (this.saving()) {
       return;
@@ -302,7 +275,6 @@ export class ScoringConfigComponent {
     this.scoringService.save(dto).subscribe({
       next: () => {
         this.saving.set(false);
-        // Recarga desde el backend para reflejar exactamente lo que quedó persistido.
         this.load();
       },
       error: (e: unknown) => {

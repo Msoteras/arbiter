@@ -25,8 +25,7 @@ export class LoginComponent {
   protected readonly email = signal('');
   protected readonly password = signal('');
   protected readonly submitting = signal(false);
-  // sessionExpired: authInterceptor adds it after a 401 on any /api call — without it the user had
-  // no way of knowing what happened was that the token expired.
+  // authInterceptor appends ?sessionExpired after a 401 on any /api call.
   protected readonly errorMessage = signal<string | null>(
     this.route.snapshot.queryParamMap.has('sessionExpired')
       ? 'Tu sesión expiró. Ingresá de nuevo.'
@@ -51,8 +50,7 @@ export class LoginComponent {
       },
       error: (err: HttpErrorResponse) => {
         this.submitting.set(false);
-        // The real detail goes to the console; the user sees a narrow message. Without this, a 500
-        // and a downed backend were indistinguishable when diagnosing.
+        // The user gets a narrow message; the raw detail goes to the console for diagnosis.
         console.error('Login failed', { status: err.status, detail: err.error });
         this.errorMessage.set(this.messageFor(err));
       },
@@ -77,7 +75,6 @@ export class LoginComponent {
     if (err.status === 0) {
       return 'No pudimos conectar con el servidor. Revisá tu conexión a internet; si el problema persiste, avisá a soporte.';
     }
-    // 5xx: the backend answered with an error of its own — not a transient network problem.
     if (err.status >= 500) {
       return 'El servicio no está disponible por el momento. Ya estamos al tanto; probá de nuevo en unos minutos o avisá a soporte si sigue.';
     }

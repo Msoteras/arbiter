@@ -5,15 +5,11 @@ import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Size;
 
 /**
- * What the analyst says when they determine that a case ended in fraud.
+ * The reason has a minimum length, not just "not blank": it's what a colleague will read years later
+ * to justify treating a claim differently.
  *
- * <p>The reason has a floor and not just a "not blank": this is the text a colleague will read
- * years from now, next to a mark on a person, when they have to justify why the claim in front of
- * them was treated differently. "fraude" is not that text.
- *
- * @param source who backs the determination — {@code EXPERT_BACKED} requires the case to have an
- *               expert report with {@code FRAUD_CONFIRMED}; {@code ANALYST_DECLARED} is the
- *               analyst's own call and never reaches the engine
+ * @param source {@code EXPERT_BACKED} requires an expert report with {@code FRAUD_CONFIRMED};
+ *               {@code ANALYST_DECLARED} never reaches the rules engine
  */
 public record RegisterFraudRecordRequest(
         @NotNull FraudRecordSource source,

@@ -1,5 +1,4 @@
-/* El padding de página lo pone cada pantalla en su :host, igual que Reglas y Usuarios. Sin esto
-   el contenido arrancaba pegado al borde. */
+/* The shell adds no padding: each screen sets its own on :host. */
 :host {
   display: block;
   padding: var(--space-5);
@@ -15,7 +14,17 @@
   margin: 0;
 }
 
-/* El número de expediente es el ancla de la fila: se lee primero y lleva al detalle. */
+.page-head {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: var(--space-4);
+  flex-wrap: wrap;
+}
+.page-head p {
+  margin: var(--space-1) 0 0;
+}
+
 .case-link {
   display: block;
   font-weight: var(--font-weight-medium);
@@ -25,26 +34,64 @@
 .case-link:hover {
   text-decoration: underline;
 }
-
-/* El dato de apoyo debajo del principal, no en una columna aparte: son siete columnas y sumar
-   asegurado y hecho generador como propias dejaba la tabla ilegible. */
 .cell-sub {
   display: block;
+  margin-top: var(--space-1);
   font-size: var(--font-size-2xs);
   color: var(--text-muted);
 }
 
-.num {
-  text-align: right;
+.monto-col {
+  min-width: 14rem;
+}
+.monto-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: var(--space-3);
+}
+.excedente {
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-weight-medium);
+  color: var(--status-danger);
+}
+.monto-barra {
+  display: flex;
+  gap: var(--space-1);
+  height: var(--space-1);
+  margin-top: var(--space-1);
+}
+.monto-tope,
+.monto-exceso {
+  border-radius: var(--radius-pill);
+}
+.monto-tope {
+  flex-shrink: 0;
+  background: var(--border-strong);
+}
+.monto-exceso {
+  flex: 1;
+  background: var(--status-danger);
+  opacity: 0.6;
 }
 
+.resuelta-col span {
+  display: block;
+}
+
+/* Qualified with app-table: its ::ng-deep `text-align: left` on th/td beats a lone class. */
+app-table th.actions-col,
+app-table td.actions-col {
+  width: 1%;
+  white-space: nowrap;
+  text-align: right;
+}
 .row-actions {
   display: flex;
   gap: var(--space-2);
   justify-content: flex-end;
 }
 
-/* Mismo criterio que la justificación del analista: etiqueta, campo y "Obligatorio", pegados. */
 .return-field {
   display: flex;
   flex-direction: column;

@@ -1,18 +1,20 @@
 import { ChangeDetectionStrategy, Component, computed, input, model, signal } from '@angular/core';
 
-/**
- * Input de una línea del design system. Valor two-way vía model() → `[(value)]`.
- * Liviano a propósito: no implementa ControlValueAccessor (la app no usa Angular Forms).
- * `revealable` agrega el toggle de "mostrar/ocultar" (ojo) para campos de contraseña.
- */
+/** Deliberately not a ControlValueAccessor: the app does not use Angular Forms. */
 @Component({
   selector: 'app-input',
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <div class="input-wrap">
+      @if (prefix()) {
+        <span class="prefix" aria-hidden="true">{{ prefix() }}</span>
+      }
       <input
         class="field"
         [class.has-reveal]="showReveal()"
+        [class.has-prefix]="!!prefix()"
+        [class.align-end]="align() === 'end'"
+        [attr.inputmode]="inputmode()"
         [id]="resolvedId()"
         [type]="effectiveType()"
         [placeholder]="placeholder()"
@@ -83,7 +85,7 @@ import { ChangeDetectionStrategy, Component, computed, input, model, signal } fr
     .field {
       width: 100%;
       font: inherit;
-      /* 16px en mobile evita el zoom de iOS Safari al enfocar; 13px desde sm hacia arriba. */
+      /* 16px on mobile prevents iOS Safari from zooming on focus. */
       font-size: var(--font-size-lg);
       padding: var(--space-2) var(--space-3);
       border: 1px solid var(--border-control);
@@ -91,9 +93,13 @@ import { ChangeDetectionStrategy, Component, computed, input, model, signal } fr
       background: var(--surface);
       color: var(--text-primary);
     }
-    /* Deja lugar para el botón del ojo. */
     .field.has-reveal {
       padding-right: calc(var(--space-2) + 30px);
+    }
+    /* Hide Edge's native password reveal so it does not duplicate ours. */
+    .field.has-reveal::-ms-reveal,
+    .field.has-reveal::-ms-clear {
+      display: none;
     }
     @media (min-width: 640px) {
       .field {
@@ -107,6 +113,21 @@ import { ChangeDetectionStrategy, Component, computed, input, model, signal } fr
     }
     .field::placeholder {
       color: var(--text-muted);
+    }
+    .prefix {
+      position: absolute;
+      top: 50%;
+      left: var(--space-3);
+      transform: translateY(-50%);
+      color: var(--text-muted);
+      pointer-events: none;
+    }
+    .field.has-prefix {
+      padding-left: calc(var(--space-3) + var(--space-4));
+    }
+    .field.align-end {
+      text-align: right;
+      font-variant-numeric: tabular-nums;
     }
 
     .reveal {
@@ -137,8 +158,6 @@ import { ChangeDetectionStrategy, Component, computed, input, model, signal } fr
 })
 export class InputComponent {
   private static autoIdCounter = 0;
-  /** Genera el id si el caller no pasó uno, para que ningún <input> quede sin id posible de
-   * asociar a un `<label for>`. */
   private readonly autoId = `app-input-${InputComponent.autoIdCounter++}`;
 
   readonly value = model('');
@@ -151,12 +170,12 @@ export class InputComponent {
   readonly autocomplete = input<string | null>(null);
   readonly readonly = input(false);
   readonly revealable = input(false);
+  readonly prefix = input<string | null>(null);
+  readonly align = input<'start' | 'end'>('start');
+  /** Mobile keyboard hint, e.g. `numeric` for an amount typed as text so it can show separators. */
+  readonly inputmode = input<string | null>(null);
 
-  /**
-   * Campo numérico que no admite negativos. El `min` nativo lo respetan las flechas y el submit
-   * nativo, pero no el teclado: en un `type="number"` se puede tipear "-500" igual. Con esto el
-   * signo no entra —ni tipeado ni pegado— en los campos que no lo tienen (montos, umbrales, días).
-   */
+  /** The native `min` is enforced by the arrows and submit, but not by typing or pasting "-500". */
   private readonly rejectsNegative = computed(
     () => this.type() === 'number' && this.min() !== null && Number(this.min()) >= 0,
   );
@@ -176,8 +195,7 @@ export class InputComponent {
 
   protected onInput(event: Event): void {
     const field = event.target as HTMLInputElement;
-    // Pegar "-500" no pasa por keydown, así que el signo se saca acá. Se descarta el signo y no el
-    // valor entero: lo que el usuario quiso escribir es el número.
+    // Pasting does not go through keydown; drop the sign but keep the number.
     if (this.rejectsNegative() && field.value.startsWith('-')) {
       field.value = field.value.slice(1);
     }

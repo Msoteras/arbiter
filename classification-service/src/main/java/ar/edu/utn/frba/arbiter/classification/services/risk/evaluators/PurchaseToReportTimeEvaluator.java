@@ -8,13 +8,8 @@ import org.springframework.stereotype.Component;
 import java.time.temporal.ChronoUnit;
 
 /**
- * Time between buying the policy and reporting the claim. A claim filed right after the policy
- * became effective is a classic fraud signal; the longer the gap, the lower the risk.
- *
- * <p>Milestone-1 heuristic over the data at hand ({@code policy.effectiveFrom} as a proxy for the
- * purchase date, {@code claim.eventDate} for the event): full risk at/under {@link #SUSPICIOUS_DAYS}
- * days, decaying linearly to zero at {@link #SAFE_DAYS}. The proxy (effectiveFrom ≈ purchase) is the
- * stubbed part — it firms up once the real purchase date is available in the policy contract.
+ * Full risk up to {@link #SUSPICIOUS_DAYS} after the policy starts, decaying linearly to zero at
+ * {@link #SAFE_DAYS}. {@code effectiveFrom} is only a proxy for the purchase date.
  */
 @Component
 public class PurchaseToReportTimeEvaluator implements RiskFactorEvaluator {
@@ -36,8 +31,6 @@ public class PurchaseToReportTimeEvaluator implements RiskFactorEvaluator {
                     "Fechas de vigencia o del hecho no disponibles — factor no evaluable");
         }
 
-        // Días, no horas: es un heurístico de riesgo, no necesita la precisión que sí le hace
-        // falta a D13 (vigencia).
         long days = ChronoUnit.DAYS.between(effectiveFrom.toLocalDate(), eventDate.toLocalDate());
         if (days < 0) {
             return Contribution.notEvaluable(factorId(),

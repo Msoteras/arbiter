@@ -5,11 +5,8 @@ import { SelectComponent } from '../../../shared/ui/select/select.component';
 import { ReportFiltersStore } from './report-filters.store';
 
 /**
- * The period and branch controls, shared by both report tabs.
- *
- * <p>The host is `display: contents` on purpose: the three fields have to be items of the tab's
- * own `.params` grid, next to the filter that tab adds (claim cause, risk band). Wrapping them in
- * a box of their own would break the row into two grids that never line up.
+ * The host is `display: contents` on purpose: the fields must be items of the tab's own `.params`
+ * grid, next to the tab-specific filter.
  */
 @Component({
   selector: 'app-report-filters',

@@ -17,7 +17,7 @@ import { OverlayPosition, anchorToTrigger } from '../overlay-position';
 export interface MenuItem {
   value: string;
   label: string;
-  /** Acción destructiva (ej. "Liberar"): se separa del resto y se pinta con el color de peligro. */
+  /** Destructive action: rendered separated from the rest, in the danger color. */
   danger?: boolean;
 }
 
@@ -26,9 +26,8 @@ interface ClosableMenu {
 }
 
 /**
- * Garantiza que haya un solo menú abierto a la vez. Coordinar por acá (y no por el `document:click`
- * de cada menú) es necesario porque ese click puede venir con `stopPropagation` — la celda de la
- * bandeja lo hace para no navegar a la fila — y ahí un menú nunca se entera de que se abrió otro.
+ * Keeps a single menu open. Relying on each menu's `document:click` is not enough: callers may
+ * `stopPropagation` (e.g. a table cell avoiding row navigation), so a menu never hears about another.
  */
 @Injectable({ providedIn: 'root' })
 export class MenuButtonRegistry {
@@ -48,13 +47,7 @@ export class MenuButtonRegistry {
   }
 }
 
-/**
- * Botón con menú desplegable (ej. "Exportar" → CSV / XLSX). Mismo trigger que app-button
- * + panel de opciones con el tratamiento visual de app-select (superficie/bordes/radios
- * del sistema). El label del trigger se proyecta (permite el ícono + texto que ya usan
- * los botones con `.btn-with-icon`); las opciones se declaran por datos, no por proyección,
- * para que el panel salga siempre con el mismo look sin que cada consumidor lo reimplemente.
- */
+/** The trigger label is projected; options are passed as data so the panel always looks the same. */
 @Component({
   selector: 'app-menu-button',
   imports: [ButtonComponent],
@@ -115,9 +108,7 @@ export class MenuButtonRegistry {
       position: relative;
     }
 
-    /* fixed, no absolute: anclado al trigger por coordenadas de viewport. Como absolute lo
-       recortaba cualquier ancestro con overflow (ej. el wrapper con scroll horizontal de la
-       bandeja, que la spec obliga a recortar también en vertical). */
+    /* fixed, not absolute, so overflow ancestors do not clip it (see anchorToTrigger). */
     .panel {
       position: fixed;
       z-index: 50;
@@ -177,12 +168,10 @@ export class MenuButtonComponent implements ClosableMenu {
 
   constructor() {
     const destroyRef = inject(DestroyRef);
-    // Si la fila (y su menú) se destruye estando abierto, no dejar la referencia colgada.
     destroyRef.onDestroy(() => this.registry.close(this));
 
-    // El panel es `fixed`: no acompaña a lo que scrollea, así que se cierra en vez de quedar
-    // flotando lejos del trigger. En captura para enterarse del scroll de cualquier contenedor
-    // interno (ej. la tabla de la bandeja), que no burbujea a window.
+    // The `fixed` panel does not follow scrolling, so close it instead. Capture phase, because
+    // scroll events from inner containers do not bubble to window.
     const onScroll = () => {
       if (this.open()) this.close();
     };
@@ -191,20 +180,17 @@ export class MenuButtonComponent implements ClosableMenu {
   }
 
   readonly items = input.required<MenuItem[]>();
-  /** Título opcional arriba de la lista (ej. "Asignar a otro analista"). No es clickeable. */
+  /** Non-clickable title above the options. */
   readonly heading = input<string | null>(null);
   readonly disabled = input(false);
-  /** Trigger a ancho completo (para menús que actúan como botón principal, ej. "Reasignar"). */
   readonly block = input(false);
-  /** Mismo tamaño que app-button: `sm` para triggers que viven dentro de una fila de tabla. */
   readonly size = input<'md' | 'sm'>('md');
-  /** Lado del trigger al que se ancla el panel — "end" para triggers pegados al borde derecho. */
+  /** Trigger edge the panel is anchored to; `end` for triggers near the right edge. */
   readonly align = input<'start' | 'end'>('start');
 
   readonly itemSelected = output<string>();
 
   protected readonly open = signal(false);
-  /** Coordenadas de viewport del panel (es `fixed`). Null en el eje que no se fija. */
   protected readonly panelPos = signal<OverlayPosition>({
     top: null,
     bottom: null,
@@ -218,10 +204,9 @@ export class MenuButtonComponent implements ClosableMenu {
     if (this.open()) {
       this.close();
     } else {
-      // Se posiciona ANTES de renderizar para que aparezca directo en su lugar, sin parpadeo.
+      // Position before rendering so the panel does not flicker into place.
       this.positionPanel();
       this.open.set(true);
-      // Cierra cualquier otro menú abierto (uno solo a la vez).
       this.registry.open(this);
     }
   }
@@ -231,7 +216,7 @@ export class MenuButtonComponent implements ClosableMenu {
     this.registry.close(this);
   }
 
-  /** Lo llama el registry al abrirse otro menú: baja este sin volver a notificar (evita recursión). */
+  /** Closes without notifying the registry back, which would recurse. */
   closeFromRegistry(): void {
     this.open.set(false);
   }

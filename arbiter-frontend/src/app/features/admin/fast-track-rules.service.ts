@@ -4,35 +4,31 @@ import { Observable, forkJoin, of, switchMap, throwError } from 'rxjs';
 
 import { environment } from '../../../environments/environment';
 
-/** Cobertura real del catálogo (cases-service GET /coverages?branchId). */
 export interface CoverageOption {
   id: number;
   name: string;
 }
 
 /**
- * Umbrales Fast Track tal como los persiste rules-service (JSONB en insurer_rule.configuration).
- * Calca el FastTrackConfigDto del back campo por campo — es lo que el motor lee para el gate
- * determinístico. Un campo null significa "ese criterio no aplica".
+ * Mirrors rules-service FastTrackConfigDto: the thresholds of the deterministic Fast Track gate.
+ * A null field means that criterion doesn't apply.
  */
 export interface FastTrackConfigDto {
   maxClaimedAmountRatio: number | null;
   maxPriorClaims: number | null;
-  /** Ventana para contar `maxPriorClaims`. null = histórico completo del asegurado. */
+  /** Window for counting `maxPriorClaims`. null = the insured's whole history. */
   priorClaimsWindowMonths: number | null;
-  /** Antigüedad mínima de la póliza al momento del hecho. null = no se exige. */
+  /** Minimum policy age at the date of loss. null = not required. */
   minPolicyAgeMonths: number | null;
   requiresUpToDatePolicy: boolean | null;
   requiredDocumentTypes: string[];
   /**
-   * Los mismos criterios en castellano. No deciden nada —el gate son los umbrales— pero viajan al
-   * prompt del modelo como descripción de la política de Fast Track. Antes salían hardcodeados del
-   * backend y podían contradecir a los números configurados acá (D14).
+   * The same criteria as prose. They decide nothing (the thresholds are the gate), but they reach the
+   * LLM prompt as the description of the Fast Track policy.
    */
   criteria: string[];
 }
 
-/** Confirmación de guardado: la fila de insurer_rule (FAST_TRACK) tal como quedó en la DB. */
 export interface FastTrackRuleResponse {
   id: number;
   branchId: number;
@@ -41,12 +37,8 @@ export interface FastTrackRuleResponse {
 }
 
 /**
- * Persistencia real del Fast Track del referente contra el backend (rules-service :8081 +
- * cases-service :8083, ruteados por el proxy). El eje de reglas del DER es la COBERTURA, pero la
- * pantalla configura Fast Track por RAMO; por eso al guardar hacemos fan-out: escribimos la misma
- * config a todas las coberturas del ramo, que es como el motor de clasificación la lee
- * ({@code getByCoverage(coverageId)}). Separado del RulesConfigService (mock) a propósito: esta es
- * la primera solapa cableada de verdad; las demás siguen en el mock hasta tener su endpoint.
+ * Rules are keyed by coverage, but this screen configures Fast Track per branch, so saving fans out
+ * the same config to every coverage of the branch (the classification engine reads it per coverage).
  */
 @Injectable({ providedIn: 'root' })
 export class FastTrackRulesService {
@@ -76,14 +68,13 @@ export class FastTrackRulesService {
     });
   }
 
-  /** Carga la config del ramo desde la primera cobertura (todas quedan en sync por el fan-out). */
+  /** Reads the first coverage: the fan-out on save keeps them all in sync. */
   loadForBranch(branchId: number): Observable<FastTrackConfigDto | null> {
     return this.listCoverages(branchId).pipe(
       switchMap((covs) => (covs.length ? this.getFastTrack(branchId, covs[0].id) : of(null))),
     );
   }
 
-  /** Guarda la config a TODAS las coberturas del ramo (el motor lee por cobertura); una confirmación por cobertura. */
   saveForBranch(branchId: number, config: FastTrackConfigDto): Observable<FastTrackRuleResponse[]> {
     return this.listCoverages(branchId).pipe(
       switchMap((covs) => {

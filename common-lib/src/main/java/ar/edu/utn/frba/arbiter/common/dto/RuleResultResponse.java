@@ -4,11 +4,9 @@ import java.math.BigDecimal;
 import java.time.Instant;
 
 /**
- * A rule as it was evaluated for a claim. Passes travel too — SSN 2/2023 audits which rule ran and
- * with what result, not only the rejections.
+ * A rule as evaluated for a claim. Passes travel too: SSN 2/2023 audits every rule that ran.
  *
- * @param evaluatedValue what the rule compared, verbatim ({@code "reportedAt=+29h max=72h"}) — it's
- *                       what lets the analyst check the verdict instead of trusting it
+ * @param evaluatedValue what the rule compared, verbatim (e.g. {@code "reportedAt=+29h max=72h"})
  */
 public record RuleResultResponse(
         Long id,

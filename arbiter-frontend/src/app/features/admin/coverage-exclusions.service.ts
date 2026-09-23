@@ -4,36 +4,32 @@ import { Observable, map } from 'rxjs';
 
 import { environment } from '../../../environments/environment';
 
-/** Hecho generador (id + nombre) para el selector de exclusiones. */
 export interface ClaimCauseOption {
   id: number;
   name: string;
 }
 
-/** Forma del configuration JSONB de la regla COVERAGE_EXCLUSION. */
+/** Shape of the COVERAGE_EXCLUSION rule's configuration JSONB. */
 interface CoverageExclusionConfig {
   excludedClaimCauseIds: number[] | null;
 }
 
 /**
- * Exclusiones DURAS de cobertura contra rules-service: qué hechos generadores NO cubre cada
- * cobertura. A diferencia de las exclusiones en texto (BusinessRulesTextService), estas las evalúa
- * el motor por código (CoverageRuleEvaluator) y las audita en rule_result. Se guardan por cobertura,
- * no por ramo — una exclusión es por cobertura por definición.
+ * Hard coverage exclusions: which claim causes each coverage does NOT cover. Unlike the free-text
+ * ones (BusinessRulesTextService), the rules engine evaluates these and audits them in rule_result.
+ * Stored per coverage, not per branch.
  */
 @Injectable({ providedIn: 'root' })
 export class CoverageExclusionsService {
   private readonly http = inject(HttpClient);
   private readonly base = `${environment.apiBaseUrl}/rules`;
 
-  /** Catálogo de hechos generadores del ramo (id + nombre). */
   listClaimCauses(branchId: number): Observable<ClaimCauseOption[]> {
     return this.http.get<ClaimCauseOption[]>(`${this.base}/claim-causes`, {
       params: { branchId: String(branchId) },
     });
   }
 
-  /** Ids de los hechos generadores que la cobertura excluye hoy. */
   get(coverageId: number): Observable<number[]> {
     return this.http
       .get<CoverageExclusionConfig>(`${this.base}/coverage-exclusions`, {

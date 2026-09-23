@@ -44,13 +44,13 @@ class PdfResolutionReportExporterTest {
                 "Página 1 de 1");
     }
 
-    /** The aggregates H0019 asks for, on the first page, before the detail. */
+    /** The aggregates go on the first page, before the detail. */
     @Test
     void writesTheSummaryAboveTheTable() throws IOException {
         Rendered pdf = render(List.of(approvedRow(1), fastTrackRow(2), lapsedRow(3)));
 
-        // The average is over the 2 decided ones — the lapsed case is listed but not averaged — and
-        // it splits the insurer's own time from the wait on a third party, same as the dashboard.
+        // Averaged over the 2 decided cases (the lapsed one is listed, not averaged), split into
+        // handling time and waiting on third parties.
         assertThat(pdf.text()).contains(
                 "Total: 3 siniestros resueltos",
                 "Tiempo promedio de resolución: 1 d 2 h sobre 2 decididos "
@@ -60,10 +60,7 @@ class PdfResolutionReportExporterTest {
                 "Por tipo de siniestro: Hurto 2 · Robo en vía pública 1");
     }
 
-    /**
-     * A heading line longer than the page wraps instead of being cut: the distribution is something
-     * an auditor reads in full, with no screen to go and find the hidden half.
-     */
+    /** A heading line longer than the page wraps instead of being cut. */
     @Test
     void aLongDistributionWrapsInsteadOfBeingCut() throws IOException {
         List<ResolutionReportRow> rows = LongStream.rangeClosed(1, 12)
@@ -74,7 +71,6 @@ class PdfResolutionReportExporterTest {
         Rendered pdf = render(rows);
 
         // The table cuts this column, so the full names can only come from the wrapped heading.
-        // Whitespace normalized: where a line breaks is the layout's business, not the test's.
         String text = pdf.text().replaceAll("\\s+", " ");
         LongStream.rangeClosed(1, 12).forEach(id ->
                 assertThat(text).contains("Daño por granizo sobre el bien asegurado número " + id + " 1"));

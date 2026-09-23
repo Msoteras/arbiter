@@ -30,15 +30,10 @@ import java.util.Set;
 /**
  * The analyst's determination that a case ended in fraud, and the record it leaves on the insured.
  *
- * <p>Deliberately not part of filing the expert's report, and not part of the decision endpoint
- * either. The expert verifies a fact about one claim; deciding that fact should follow the person
- * into their next claim is a second, separate act — and it's the analyst's, not the expert's and
- * not the system's. Someone has to be accountable for a mark that will change how a person is
- * treated (Ley 25.326), and "el informe lo dijo" is not a name.
- *
- * <p>The record itself lives in classification-service, which owns cross-claim memory about an
- * insured and is where it gets read while scoring. This service writes {@code fraudDetermined} on
- * the case — the column the DER always had and nothing ever set — and hands the record over.
+ * <p>A separate act from the expert report and the decision: a mark that follows a person into
+ * their next claim needs an accountable analyst (Ley 25.326). The record itself lives in
+ * classification-service, which reads it while scoring; this service only sets
+ * {@code fraudDetermined} on the case.
  */
 @Service
 @RequiredArgsConstructor
@@ -47,14 +42,8 @@ public class FraudRecordService {
     private static final Logger log = LoggerFactory.getLogger(FraudRecordService.class);
 
     /**
-     * When the determination can be made. {@code PENDING_ANALYST_REVIEW} is the analyst holding the
-     * case with everything in front of them (classification, score, and the expert's report if it
-     * was derived); {@code REJECTED} is the same call made at the moment of rejecting.
-     *
-     * <p>{@code APPROVED} is left out: paying a claim and recording it as fraud contradict each
-     * other, and the honest path for a fraud found after payment is reopening the case, not
-     * annotating a closed one that says the opposite. {@code PENDING_EXPERT_REPORT} is left out
-     * because the evidence being waited on hasn't arrived.
+     * {@code APPROVED} is left out because paying a claim and recording it as fraud contradict each
+     * other; {@code PENDING_EXPERT_REPORT} because the evidence hasn't arrived yet.
      */
     private static final Set<CaseStatus> ALLOWED_STATUSES =
             Set.of(CaseStatus.PENDING_ANALYST_REVIEW, CaseStatus.REJECTED);
@@ -65,14 +54,9 @@ public class FraudRecordService {
     private final ClaimsAnalysisClient classificationClient;
 
     /**
-     * The record an expert-confirmed report leaves on its own, with no second click. The expert
-     * already proved the fact and the analyst filing the report is transcribing it, so asking them
-     * to state it again added a step that gets forgotten — and a forgotten step here means the
-     * person walks away unmarked with a report that says otherwise. {@code ANALYST_DECLARED} stays
-     * manual: that one IS a judgment call and needs somebody to write down why.
-     *
-     * <p>No-op if the case already has a record — the analyst may have declared it before the
-     * report arrived, and a duplicate would blow up the filing over something already recorded.
+     * Recorded automatically when an expert report confirms fraud, since the analyst filing it is
+     * only transcribing the expert's finding; {@code ANALYST_DECLARED} stays manual. No-op if the
+     * case already has a record, which would otherwise fail the report filing.
      */
     @Transactional
     public Optional<FraudRecordResponse> registerFromExpertReport(Long caseId, String reason) {
@@ -105,8 +89,7 @@ public class FraudRecordService {
                 analyst.getId(),
                 analyst.getName() + " " + analyst.getSurname()));
 
-        // After the record is in: a case flagged as fraud with no record behind it would be a claim
-        // nobody can trace back to a determination. Same ordering criterion as the derivation.
+        // Only after the record exists, so a flagged case always has a traceable determination.
         caseRecord.setFraudDetermined(true);
         caseRepository.save(caseRecord);
 
@@ -115,26 +98,21 @@ public class FraudRecordService {
         return registered;
     }
 
-    /**
-     * Every fraud record on this case's insured, the case's own included. Filtering it out here
-     * would leave the analyst unable to see the record they just created from the very screen they
-     * created it on; which one is "this case" is something the caller already knows.
-     */
+    /** The case's own record included, so the analyst sees the one they just created. */
     @Transactional(readOnly = true)
     public List<FraudRecordResponse> insuredRecords(Long caseId) {
         return classificationClient.fraudRecordsOf(findCase(caseId).getInsured().getDni());
     }
 
     /**
-     * "Con respaldo pericial" has to mean there is a report saying so. Checked against the stored
-     * verdict and not against what the request claims: the whole difference between the two sources
-     * is that one of them can move a score, and it would be worth nothing if picking it were enough.
+     * Checked against the stored verdict, not the request: an expert-backed record can move a
+     * score, so choosing that source must require an actual report.
      */
     private Long resolveExpertBacking(Case caseRecord, FraudRecordSource source) {
         if (source != FraudRecordSource.EXPERT_BACKED) {
             return null;
         }
-        // Sólo el peritaje respalda un antecedente: una reparación no investiga nada.
+        // Only an assessment can back a record; a repair investigates nothing.
         Optional<ExpertAssessment> assessment = expertAssessmentRepository
                 .findByCaseIdAndProviderType(caseRecord.getId(), ProviderType.ESTUDIO_LIQUIDADOR);
         return assessment
@@ -143,7 +121,7 @@ public class FraudRecordService {
                 .orElseThrow(() -> new FraudRecordNotAllowedException(caseRecord.getId()));
     }
 
-    /** Never off the request body — same mechanism as the derivation and the decision endpoint. */
+    /** From the JWT, never from the request body. */
     private ClaimsAnalyst callerAnalyst() {
         String callerEmail = SecurityContextHolder.getContext().getAuthentication().getName();
         return claimsAnalystRepository.findByEmail(callerEmail)

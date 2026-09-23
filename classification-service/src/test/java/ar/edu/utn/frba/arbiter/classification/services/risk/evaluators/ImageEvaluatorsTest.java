@@ -40,7 +40,7 @@ class ImageEvaluatorsTest {
         ImageForensicReport report = new ImageForensicReport(1, 1, true,
                 List.of(finding(List.of(), new WebFinding(0, 0, List.of(), null))));
         Contribution c = reuse.evaluate(ctx(report));
-        // Analyzed and found no reuse: a genuine low-risk 0, NOT "not evaluable".
+        // Analyzed with no reuse: an evaluable 0.
         assertThat(c.evaluable()).isTrue();
         assertThat(c.score()).isZero();
     }
@@ -73,7 +73,7 @@ class ImageEvaluatorsTest {
         ImageForensicReport report = new ImageForensicReport(1, 1, true,
                 List.of(finding(List.of(), new WebFinding(0, 0, List.of(), null))));
         Contribution c = web.evaluate(ctx(report));
-        // Searched and found nothing on the web: a genuine low-risk 0, NOT "not evaluable".
+        // Searched with no match: an evaluable 0.
         assertThat(c.evaluable()).isTrue();
         assertThat(c.score()).isZero();
     }

@@ -2,13 +2,7 @@ package ar.edu.utn.frba.arbiter.cases.dto;
 
 import ar.edu.utn.frba.arbiter.cases.models.entities.ExpertFirm;
 
-/**
- * A firm the analyst can pick from when deriving. {@code branchName} is null for a generalist,
- * which the frontend renders as "todos los ramos" — the analyst needs to see the difference.
- *
- * <p>The email is exposed: the analyst is the one who deals with the firm, and hiding who the
- * case is about to be sent to would make the choice blind.
- */
+/** {@code branchName} is null for a generalist firm. */
 public record ExpertFirmResponse(
         Long id,
         String name,

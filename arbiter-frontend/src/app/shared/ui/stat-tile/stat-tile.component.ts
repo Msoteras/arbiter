@@ -5,14 +5,7 @@ import { StatusTone } from '../../../core/models/status-tone';
 type Tone = 'default' | 'accent' | 'danger';
 
 /**
- * Tarjeta de métrica de las pantallas de inicio: la etiqueta chica en mayúsculas arriba y el
- * número grande abajo, con una nota opcional (mismo layout que el prototipo hi-fi).
- *
- * `tone` tiñe la tarjeta y el número para el dato que comunica algo:
- *   accent → dato de marca a resaltar (ej. pendientes propios)
- *   danger → señal de alerta (ej. alertas de fraude, vencimientos)
- * Con `loading` muestra un guion mientras el conteo está en vuelo, en vez de un 0 que parpadea a
- * su valor real y se lee como "no hay nada".
+ * `loading` shows a dash while the count is in flight, rather than a 0 that reads as "nothing".
  */
 @Component({
   selector: 'app-stat-tile',
@@ -21,10 +14,7 @@ type Tone = 'default' | 'accent' | 'danger';
     <div class="stat" [class.accent]="tone() === 'accent'" [class.danger]="tone() === 'danger'">
       <span class="stat-label">
         {{ label() }}
-        <!-- La aclaración, opcional, al lado de la etiqueta: hay cifras cuyo nombre no alcanza
-             para saber qué población miden (ej. "Fraude determinado" lo determina un analista,
-             no el sistema). Se proyecta un app-info-tip en vez de recibir un texto para que la
-             burbuja siga siendo la del kit, con su teclado y su posicionamiento. -->
+        <!-- A projected app-info-tip rather than a text input, so the kit's bubble behavior is kept. -->
         <ng-content select="app-info-tip" />
       </span>
       <span class="stat-value tabular">{{ display() }}</span>
@@ -52,7 +42,6 @@ type Tone = 'default' | 'accent' | 'danger';
       background: var(--surface);
       box-shadow: var(--shadow-card);
     }
-    /* Etiqueta arriba: chica, en mayúsculas con tracking, tenue. */
     .stat-label {
       display: flex;
       align-items: center;
@@ -63,7 +52,6 @@ type Tone = 'default' | 'accent' | 'danger';
       letter-spacing: 0.08em;
       color: var(--text-muted);
     }
-    /* Número grande debajo. */
     .stat-value {
       margin-top: var(--space-2);
       font-size: var(--font-size-2xl);
@@ -91,9 +79,7 @@ type Tone = 'default' | 'accent' | 'danger';
     .stat.danger .stat-value {
       color: var(--status-danger);
     }
-    /* Barra opcional bajo el número: da la proporción de un vistazo, sin repetirla en texto.
-       Empujada al fondo de la tarjeta para que todas las barras de una fila queden alineadas
-       aunque los subtítulos ocupen distinta cantidad de renglones. */
+    /* Pushed to the bottom so bars in a row line up regardless of subtitle length. */
     .stat-bar {
       display: block;
       margin-top: auto;
@@ -141,20 +127,11 @@ export class StatTileComponent {
   readonly sub = input('');
   readonly tone = input<Tone>('default');
   readonly loading = input(false);
-  /**
-   * Proporción de 0 a 1 para la barra bajo el número. Null (el default) la oculta: sólo tiene
-   * sentido donde el valor ES una proporción — una tasa, una cobertura —, no en un conteo ni en
-   * una duración, donde una barra no tendría contra qué medirse.
-   */
+  /** 0–1 ratio for the bar under the value; null hides it. Only meaningful when the value is a rate. */
   readonly progress = input<number | null>(null);
-  /** Color de la barra. Sale del semáforo del sistema, igual que el resto de los estados. */
   readonly progressTone = input<StatusTone>('neutral');
 
-  /**
-   * Valor que se pinta. Mientras carga es un guion; con un número, cuenta desde 0 hasta el valor
-   * (una sola vez, al aparecer el dato) para dar el efecto "contador" de dashboard. Con
-   * prefers-reduced-motion o valores no numéricos, se muestra el valor tal cual, sin animar.
-   */
+  /** Numeric values count up from 0 once, unless prefers-reduced-motion is set. */
   protected readonly display = signal<string | number>('—');
 
   constructor() {
@@ -182,7 +159,7 @@ export class StatTileComponent {
       const step = (ts: number) => {
         if (startTs === null) startTs = ts;
         const p = Math.min(1, (ts - startTs) / duration);
-        const eased = 1 - Math.pow(1 - p, 3); // ease-out cubic
+        const eased = 1 - Math.pow(1 - p, 3);
         this.display.set(Math.round(target * eased));
         if (p < 1) raf = requestAnimationFrame(step);
       };

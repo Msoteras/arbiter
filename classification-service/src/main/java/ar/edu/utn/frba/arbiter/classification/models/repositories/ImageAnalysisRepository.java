@@ -10,11 +10,7 @@ import java.util.List;
 
 public interface ImageAnalysisRepository extends JpaRepository<ImageAnalysis, Long> {
 
-    /**
-     * Sets the pgvector column on an already-saved row. Native and separate from the JPA save
-     * because {@code embedding} has no Hibernate type — the cast is what turns the literal into
-     * a vector.
-     */
+    /** Native because {@code embedding} has no Hibernate type. */
     @Modifying
     @Query(value = """
             UPDATE image_analysis
@@ -23,11 +19,7 @@ public interface ImageAnalysisRepository extends JpaRepository<ImageAnalysis, Lo
             """, nativeQuery = true)
     void setEmbedding(@Param("id") Long id, @Param("vector") String vector);
 
-    /**
-     * Records what an external web search found for an image, and flags it as suspicious.
-     * Separate from the initial save because the web search only runs after the internal
-     * comparison comes back empty.
-     */
+    /** Separate from the initial save: the web search only runs if the internal comparison found nothing. */
     @Modifying
     @Query(value = """
             UPDATE image_analysis
@@ -45,12 +37,8 @@ public interface ImageAnalysisRepository extends JpaRepository<ImageAnalysis, Lo
     );
 
     /**
-     * Images from OTHER cases that look like this one. Joins {@code case_documents} to get the
-     * case and identity of each stored image — that table is owned by cases-service, but it
-     * lives in the same tenant schema and the join is read-only.
-     *
-     * <p>Returns {@code (case_id, document_id, type, filename, similarity)}. The document id is
-     * what lets the stored finding point at the exact file that matched.
+     * Images from other cases that look like this one; the join on cases-service's
+     * {@code case_documents} is read-only. Returns {@code (case_id, document_id, type, filename, similarity)}.
      */
     @Query(value = """
             SELECT cd.case_id, cd.id, cd.type, cd.filename,

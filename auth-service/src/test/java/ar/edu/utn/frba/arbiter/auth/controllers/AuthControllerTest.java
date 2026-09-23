@@ -42,10 +42,7 @@ class AuthControllerTest {
     @MockitoBean
     private UserService userService;
 
-    /**
-     * The controller injects it to expose the public key. Decrypting belongs to AuthService, mocked
-     * here, so these tests don't care about the envelope and send any string.
-     */
+    /** Decrypting belongs to the mocked AuthService, so these tests send any string as the password. */
     @MockitoBean
     private PasswordCipher passwordCipher;
 

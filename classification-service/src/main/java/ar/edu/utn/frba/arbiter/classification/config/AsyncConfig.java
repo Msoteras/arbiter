@@ -19,8 +19,7 @@ public class AsyncConfig {
         executor.setMaxPoolSize(10);
         executor.setQueueCapacity(50);
         executor.setThreadNamePrefix("classification-async-");
-        // Without this the classification runs against arbiter_common instead of the
-        // insurer's schema — see TenantAwareTaskDecorator.
+        // Without it the async run would use arbiter_common instead of the insurer's schema.
         executor.setTaskDecorator(new TenantAwareTaskDecorator());
         executor.setWaitForTasksToCompleteOnShutdown(true);
         executor.setAwaitTerminationSeconds(60);

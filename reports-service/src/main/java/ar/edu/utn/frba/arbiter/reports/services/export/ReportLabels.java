@@ -14,10 +14,8 @@ import java.time.format.DateTimeFormatter;
 import java.util.stream.Collectors;
 
 /**
- * Spanish labels for the exported files — the one place outside the frontend that translates enum
- * literals. The JSON the preview reads keeps the literals and the frontend maps them (estado.ts,
- * clasificacion.ts), but a CSV or a PDF is a document someone opens on their own, with no frontend
- * in between to translate it. Keep these in step with those two files.
+ * Spanish labels for exported files, which have no frontend to translate enum literals. Keep in step
+ * with the frontend's estado.ts and clasificacion.ts.
  */
 final class ReportLabels {
 
@@ -28,10 +26,8 @@ final class ReportLabels {
     private static final long MINUTES_PER_DAY = 24 * MINUTES_PER_HOUR;
 
     /**
-     * How many cases the previous period needs before comparing against it means anything — the
-     * same threshold the preview's KPI cards use in the frontend (see {@code trendText} and the
-     * dashboard's own). Below it, one case can swing a rate by ten points and printing a delta would
-     * hand the reader noise dressed up as a trend.
+     * Minimum previous-period cases for a delta to be printed; below it one case swings a rate by ten
+     * points. Same threshold as the frontend's KPI cards.
      */
     private static final int MIN_COMPARISON_BASE = 5;
 
@@ -65,12 +61,7 @@ final class ReportLabels {
         };
     }
 
-    /**
-     * Both spellings, because both are in the data: {@code ClassificationResultsService} normalizes
-     * to APPROVE/REJECT when it writes, but rows recorded before that normalization — and the demo
-     * seed — hold APROBAR/RECHAZAR. Reading only the English ones showed the Spanish rows raw in the
-     * file. Same tolerance {@code CaseServiceImpl} already has when it applies a decision.
-     */
+    /** Both spellings are in the data: APPROVE/REJECT from the app, APROBAR/RECHAZAR from older rows and seeds. */
     static String decision(String decision) {
         if (decision == null) {
             return "Sin decisión";
@@ -82,18 +73,13 @@ final class ReportLabels {
         };
     }
 
-    /** How an optional filter reads in the exported document when it was left unset. */
     static String filterValue(String filter) {
         return filter == null ? "Todos" : filter;
     }
 
     /**
-     * The alert level of the fraud report — whether the score flagged the case, not what it scored.
-     *
-     * <p>A LOW or MEDIUM band reads "No alertó" and never as its band: a low score is not an
-     * indicator of fraud, and printing "Bajo" under "Score de riesgo" reads as "nothing to see"
-     * about a case that is in the report precisely because something else was seen. "Sin evaluar"
-     * is kept apart because there the scoring never ran at all.
+     * Whether the score flagged the case, not what it scored: LOW/MEDIUM read "No alertó" rather than
+     * their band, since the case is listed for another signal.
      */
     static String alertLevel(String bucket) {
         return switch (bucket) {
@@ -110,11 +96,8 @@ final class ReportLabels {
     }
 
     /**
-     * The signals of one case, each with the magnitude that makes it actionable — "3 imágenes con
-     * coincidencia" says what to look at, "incoherencias forenses" only says it was flagged. The
-     * document signal is the exception: its own rationale already names what didn't match, so it
-     * travels verbatim instead of being flattened to a generic label. Mirror of {@code indicators()}
-     * in the frontend's fraud-report.ts; keep the two in step.
+     * Each signal with the magnitude that makes it actionable; the document signal travels verbatim.
+     * Mirrors {@code indicators()} in the frontend's fraud-report.ts.
      */
     static String signals(FraudReportRow row) {
         return row.signals().stream().map(signal -> switch (signal) {
@@ -126,7 +109,6 @@ final class ReportLabels {
         }).collect(Collectors.joining(" · "));
     }
 
-    /** The name of a signal on its own, for the distribution in the heading. */
     static String signal(String literal) {
         return switch (FraudSignal.valueOf(literal)) {
             case HIGH_RISK_SCORE -> "Score de riesgo alto";
@@ -135,7 +117,6 @@ final class ReportLabels {
         };
     }
 
-    /** The analyst's determination, which is the only column of the fraud report that asserts one. */
     static String fraudDetermination(FraudReportRow row) {
         if (!row.fraudDetermined()) {
             return "No";
@@ -143,18 +124,14 @@ final class ReportLabels {
         return row.expertBacked() ? "Sí · con respaldo pericial" : "Sí";
     }
 
-    /**
-     * A rate as a whole percentage — "38%". The report states the Fast Track share next to the count
-     * it came from, so a decimal place would add noise, not precision.
-     */
+    /** Whole percentage; the count is printed next to it, so a decimal adds noise. */
     static String percent(Double rate) {
         return rate == null ? "—" : Math.round(rate * 100) + "%";
     }
 
     /**
-     * A rate with at most one decimal and a decimal comma — "14,3%", "15%". The fraud report's rates
-     * are small, so a whole number would flatten them ("3,6%" and "4,4%" both read "4%"), and it is
-     * also what its preview shows: the screen and the file must state the same figure.
+     * One decimal with a decimal comma: the fraud rates are small and whole numbers would flatten them.
+     * Matches the preview so the screen and the file state the same figure.
      */
     static String percentWithOneDecimal(Double rate) {
         if (rate == null) {
@@ -167,7 +144,7 @@ final class ReportLabels {
                 .replace('.', ',') + "%";
     }
 
-    /** "45 min", "3 h 20 min", "2 d 5 h" — the same format the preview table shows. */
+    /** "45 min", "3 h 20 min", "2 d 5 h": the same format the preview shows. */
     static String duration(long minutes) {
         if (minutes < MINUTES_PER_HOUR) {
             return minutes + " min";
@@ -190,10 +167,7 @@ final class ReportLabels {
                 .replace('.', ',');
     }
 
-    /**
-     * "(+2)", "(-1)", "(=)" — a count next to what it changed by against the previous period, or ""
-     * when that period didn't have enough cases to compare against (see {@link #MIN_COMPARISON_BASE}).
-     */
+    /** "(+2)", "(-1)", "(=)", or "" below {@link #MIN_COMPARISON_BASE}. */
     static String countDelta(long current, long previous, long previousBase) {
         if (previousBase < MIN_COMPARISON_BASE) {
             return "";
@@ -202,11 +176,7 @@ final class ReportLabels {
         return change == 0 ? " (=)" : " (%s%d)".formatted(change > 0 ? "+" : "", change);
     }
 
-    /**
-     * "(+3,9 pp)", "(-1,2 pp)", "(=)" — a rate's change in percentage points, which is what a small
-     * rate actually moves by; "" under the same base rule as {@link #countDelta}, or when either
-     * rate is null because there was nothing to divide.
-     */
+    /** Change in percentage points, "(+3,9 pp)"; "" below the base or when either rate is null. */
     static String rateDelta(Double current, Double previous, long previousBase) {
         if (previousBase < MIN_COMPARISON_BASE || current == null || previous == null) {
             return "";
@@ -219,11 +189,7 @@ final class ReportLabels {
         return " (%s%s pp)".formatted(sign, points.stripTrailingZeros().toPlainString().replace('.', ','));
     }
 
-    /**
-     * "(+2 h)", "(-1 d 3 h)", "(=)" — a duration's change against the previous period, in the same
-     * units {@link #duration} already prints; "" under the same base rule as {@link #countDelta}, or
-     * when either side is null because nothing was decided to average.
-     */
+    /** "(+2 h)", "(-1 d 3 h)", "(=)"; "" below the base or when either average is null. */
     static String durationDelta(Double currentMinutes, Double previousMinutes, long previousBase) {
         if (previousBase < MIN_COMPARISON_BASE || currentMinutes == null || previousMinutes == null) {
             return "";

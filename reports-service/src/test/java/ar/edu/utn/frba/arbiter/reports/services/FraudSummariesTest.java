@@ -34,7 +34,7 @@ class FraudSummariesTest {
         assertThat(summary.backedByExpert()).isEqualTo(1);
     }
 
-    /** "3 expedientes con indicios" means nothing until you know it is 3 out of 20 and not out of 2000. */
+    /** A flagged count only means something next to its population. */
     @Test
     void theRates_areOverEveryClaimOfThePeriod_notOverTheFlaggedOnes() {
         FraudSummary summary = FraudSummaries.of(List.of(
@@ -73,11 +73,7 @@ class FraudSummariesTest {
                 new MetricCount(FraudSummary.NOT_SCORED, 1));
     }
 
-    /**
-     * A low score is not an indicator of fraud, so LOW and MEDIUM are one "did not alert" bucket
-     * rather than two levels of alert. Both cases are still counted — they are in the report for
-     * another signal.
-     */
+    /** LOW and MEDIUM collapse into one "did not alert" bucket; both cases are still counted. */
     @Test
     void lowAndMediumBands_collapseIntoOneBucketThatIsNotAnAlertLevel() {
         FraudSummary summary = FraudSummaries.of(List.of(
@@ -113,7 +109,6 @@ class FraudSummariesTest {
                 new MetricCount("FORENSIC_INCONSISTENCY", 1));
     }
 
-    /** The document signal is just another bucket — nothing about it is special-cased here. */
     @Test
     void theDocumentSignal_bucketsLikeAnyOther() {
         FraudSummary summary = FraudSummaries.of(List.of(

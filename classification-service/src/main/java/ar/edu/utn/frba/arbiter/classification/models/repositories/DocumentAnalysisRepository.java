@@ -9,13 +9,9 @@ import java.util.Collection;
 public interface DocumentAnalysisRepository extends JpaRepository<DocumentAnalysis, Long> {
 
     /**
-     * Clears the previous run's extractions before writing the new ones. The table holds one row
-     * per document ({@code document_analysis_document_unique}), so a reclassification would hit
-     * that constraint instead of replacing what it found.
-     *
-     * <p>{@code @Transactional} is not decoration: a derived delete is not transactional on its own
-     * (unlike the inherited {@code delete}), and without it this fails with
-     * {@code TransactionRequiredException} — the orchestrator calls it outside any transaction.
+     * The table is unique per document, so a reclassification clears the previous run first.
+     * {@code @Transactional} is required: derived deletes aren't transactional on their own, and the
+     * caller has no transaction.
      */
     @Transactional
     void deleteByCaseDocumentIdIn(Collection<Long> caseDocumentIds);

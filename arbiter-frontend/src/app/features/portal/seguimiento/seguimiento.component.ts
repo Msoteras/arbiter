@@ -29,20 +29,13 @@ type LoadState =
   | { status: 'ok'; data: ExpedienteResponse }
   | { status: 'error'; httpStatus: number };
 
-/** Un movimiento real del expediente, ya traducido al vocabulario del asegurado. */
 interface Movimiento {
   label: string;
   date: string;
   current: boolean;
 }
 
-/**
- * Seguimiento de un expediente para el asegurado: hero con estado tranquilizador,
- * acción requerida cuando falta documentación, y timeline de trazabilidad. A
- * diferencia de la vista del analista, acá NO se muestra la recomendación del modelo
- * — el asegurado ve estado y próximos pasos; la clasificación es insumo del analista.
- * La carga de documentación vive en su propia pantalla (portal/cases/:id/documents).
- */
+/** Insured-facing case view: never shows the model's classification or recommendation. */
 @Component({
   selector: 'app-seguimiento',
   imports: [
@@ -63,8 +56,7 @@ export class SeguimientoComponent {
   private readonly service = inject(ExpedienteService);
   private readonly session = inject(InsuredSessionService);
 
-  // Se combinan ruta y query: el id solo no identifica un expediente para un asegurado con
-  // pólizas en dos compañías, porque se repite entre ellas. `insurerId` viaja desde la lista.
+  // Case ids repeat across insurers, so the `insurer` query param is needed to resolve the tenant.
   private readonly state = toSignal(
     combineLatest([this.route.paramMap, this.route.queryParamMap]).pipe(
       map(([params, query]) => ({
@@ -92,8 +84,7 @@ export class SeguimientoComponent {
     if (s.status !== 'ok') {
       return null;
     }
-    // Cortesía de UX hasta que llegue Auth0: no mostrar expedientes de otro asegurado.
-    // El control real de acceso lo va a imponer el backend validando el JWT.
+    // UX courtesy only: the backend enforces access.
     const sessionId = this.session.insuredId();
     if (sessionId && s.data.insuredId !== sessionId) {
       return null;
@@ -111,8 +102,7 @@ export class SeguimientoComponent {
     return d ? estadoBadgeLabelAsegurado(d.status) : '';
   });
 
-  // Los `toStatus` del historial: insumo del progreso EFECTIVO (monótono) y del copy
-  // reproceso-aware, para que el seguimiento nunca retroceda al día 1 tras subir documentación.
+  // Feeds the "effective" progress, so it never goes back to step 1 after re-uploading documents.
   private readonly pastStatuses = computed<string[]>(
     () => this.data()?.statusHistory?.map((h) => h.toStatus) ?? [],
   );
@@ -122,7 +112,6 @@ export class SeguimientoComponent {
     return d ? estadoTituloAseguradoEfectivo(d.status, this.pastStatuses()) : '';
   });
 
-  /** Progreso simplificado (Denunciado → En trámite → Terminado) para el asegurado. */
   protected readonly simplifiedSteps = ['DENUNCIADO', 'EN_TRAMITE', 'TERMINADO'] as const;
 
   protected readonly simplifiedIndex = computed(() => {
@@ -137,8 +126,6 @@ export class SeguimientoComponent {
     return d ? estadoTone(d.status) : 'neutral';
   });
 
-  // Copy asegurado-safe: sin clasificación/IA ni estados técnicos (ver memoria de
-  // visibilidad asegurado vs analista).
   protected readonly statusDescription = computed(() => {
     const d = this.data();
     return d ? estadoDescripcionAseguradoEfectivo(d.status, this.pastStatuses()) : '';
@@ -151,25 +138,16 @@ export class SeguimientoComponent {
 
   protected readonly needsDocs = computed(() => this.data()?.status === 'AWAITING_DOCUMENTATION');
 
-  /**
-   * Quién tiene el equipo mientras se repara. Se le dice al asegurado —sin esto no sabe a dónde
-   * acercarlo ni a quién preguntarle—, al revés que el peritaje, que no se le nombra nunca. El
-   * backend solo lo manda en ese estado; el chequeo acá es para no mostrar un dato viejo si el
-   * expediente ya volvió.
-   */
+  // Unlike the expert assessment, the repair provider is disclosed to the insured. The status
+  // check avoids showing a stale value once the case is back from repair.
   protected readonly servicioTecnico = computed(() => {
     const d = this.data();
     return d?.status === 'PENDING_REPAIR' ? d.repairProvider : null;
   });
 
   /**
-   * Los movimientos del expediente, en el idioma del asegurado. Los tres hitos de arriba dicen en
-   * qué ETAPA está; esto dice QUÉ PASÓ — que era lo que faltaba: "en trámite" durante tres semanas
-   * no distingue un expediente que avanza de uno olvidado.
-   *
-   * Se arma mapeando el ESTADO de cada transición, nunca su {@code reason}: ese campo es interno y
-   * trae la clasificación del modelo y el veredicto del peritaje. Las transiciones que no
-   * significan nada para el asegurado (una falla técnica de clasificación) no se listan.
+   * Built from each transition's status, never its `reason`: that field is internal and carries
+   * the model's classification and the expert's verdict.
    */
   protected readonly movimientos = computed<Movimiento[]>(() => {
     const visibles = (this.data()?.statusHistory ?? [])
@@ -178,20 +156,13 @@ export class SeguimientoComponent {
         changedAt: h.changedAt,
       }))
       .filter((m): m is { label: string; changedAt: string } => m.label !== null)
-      // Una corrida de movimientos que dicen LO MISMO se colapsa en el último. El expediente puede
-      // pasar varias veces por el mismo estado sin que el asegurado vea nada en el medio —
-      // clasificación que falla y se reintenta (CLASSIFICATION_FAILED y su vuelta son invisibles a
-      // propósito), o una reclasificación—, y cada llegada pintaba otra vez "un analista está
-      // revisando tu caso", tres veces en el mismo minuto. El filtro de asignaciones (from == to,
-      // en movimientoAseguradoLabel) no alcanza: acá el from y el to son distintos, lo que se
-      // repite es la traducción. Se conserva el último y no el primero porque es cuándo entró a la
-      // etapa en la que está ahora, que es lo que la línea afirma.
+      // Collapse consecutive entries with the same label (e.g. classification retries), keeping
+      // the last one: it marks when the case entered its current stage.
       .filter((m, i, todos) => i === todos.length - 1 || todos[i + 1].label !== m.label);
 
     return visibles.map((m, i) => ({
       label: m.label,
       date: formatDateTime(m.changedAt, ''),
-      // El último es el estado actual: ahí va el pulso, no en un hito genérico.
       current: i === visibles.length - 1,
     }));
   });
@@ -201,9 +172,7 @@ export class SeguimientoComponent {
   protected readonly fechaHecho = computed(() => formatDateTime(this.data()?.eventDate));
 
   protected goToDocuments(): void {
-    // Same cross-tenant case as the load above (line 65): without forwarding `insurer`, the
-    // documentacion screen re-resolves the case against the login's default tenant instead of the
-    // one that issued it, and 404s (or worse, hits a same-id case from another company).
+    // Forward `insurer`, or the documents screen resolves the case against the default tenant.
     const insurer = this.route.snapshot.queryParamMap.get('insurer');
     this.router.navigate(['documents'], {
       relativeTo: this.route,

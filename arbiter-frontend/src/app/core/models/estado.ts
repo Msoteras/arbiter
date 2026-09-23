@@ -1,8 +1,6 @@
 import { StatusTone } from './status-tone';
 
-// Espejo del enum CaseStatus de common-lib
-// (ar.edu.utn.frba.arbiter.common.enums.CaseStatus).
-// cases-service lo devuelve como String en el campo `status`.
+// Mirrors common-lib's CaseStatus enum; cases-service sends it as a string in `status`.
 export type CaseStatus =
   | 'PENDING_CLASSIFICATION'
   | 'PENDING_ANALYST_REVIEW'
@@ -30,17 +28,8 @@ export function estadoLabel(value: string): string {
   return (LABELS as Record<string, string>)[value] ?? value;
 }
 
-// Etiqueta del badge para el asegurado (portal, definición del equipo). Sigue las mismas 3 fases
-// que el stepper de asegurado-inicio ("Denuncia recibida → En trámite → Resolución" — ver
-// ORDEN/estadoSimplificado): Recibido solo mientras está en la primera fase (PENDING_CLASSIFICATION);
-// la revisión del analista y una falla técnica de clasificación muestran "En análisis" (sin nombrar
-// cuál, para no filtrar jerga interna). Falta documentación es accionable y se mantiene
-// distinguible. La derivación a peritaje se nombra como "En verificación": el seguimiento ya le
-// cuenta "Enviado a verificación" y el perito lo va a contactar igual, así que esconderla solo
-// dejaba el título y el badge contradiciendo al timeline. Lo que nunca se cuenta es el motivo.
-// Resolución se abre en sus 3 desenlaces
-// reales: Aprobado, Rechazado y Caducado (este último separado a propósito — mentiría que fue un
-// rechazo activo del analista cuando en realidad venció por falta de documentación).
+// Insured-facing badge: analyst review and classification failure both read "En análisis" so no
+// internal jargon leaks. LAPSED stays distinct from REJECTED: it expired, nobody rejected it.
 const BADGE_ASEGURADO: Record<CaseStatus, string> = {
   PENDING_CLASSIFICATION: 'Recibido',
   PENDING_ANALYST_REVIEW: 'En análisis',
@@ -58,11 +47,8 @@ export function estadoBadgeLabelAsegurado(value: string): string {
 }
 
 /**
- * Estados terminales: el expediente ya tiene resolución, no hay próximos pasos. Espejo de
- * `case_status.is_final` en la base y de `CaseServiceImpl.FINAL_STATUS_NAMES` en el backend.
- * Se exporta la lista (y no solo el predicado) porque los tableros cuentan "resueltos" sumando
- * estos estados: enumerarlos a mano en cada pantalla fue lo que dejó a LAPSED contando como
- * "en trámite" cuando se sumó el estado.
+ * Mirrors `case_status.is_final` and the backend's `CaseServiceImpl.FINAL_STATUS_NAMES`.
+ * Exported as a list because dashboards count "resolved" cases by summing these statuses.
  */
 export const ESTADOS_FINALES: readonly CaseStatus[] = ['APPROVED', 'REJECTED', 'LAPSED'];
 
@@ -70,28 +56,7 @@ export function isEstadoFinal(value: string): boolean {
   return (ESTADOS_FINALES as readonly string[]).includes(value);
 }
 
-// Qué significa cada estado para quien sigue el expediente (asegurado o analista).
-const DESCRIPCIONES: Record<CaseStatus, string> = {
-  PENDING_CLASSIFICATION:
-    'La denuncia fue registrada y el sistema está generando una clasificación preliminar.',
-  PENDING_ANALYST_REVIEW:
-    'La clasificación preliminar ya está disponible y un analista de siniestros está revisando el caso.',
-  CLASSIFICATION_FAILED:
-    'El análisis automático no pudo completarse tras varios intentos. El caso no se pierde: un analista puede reintentar la clasificación a mano.',
-  AWAITING_DOCUMENTATION: 'Falta documentación obligatoria para poder evaluar el caso.',
-  PENDING_EXPERT_REPORT:
-    'El analista derivó el caso a un perito externo para verificar el hecho. El expediente espera el informe.',
-  PENDING_REPAIR:
-    'El analista derivó el caso a un servicio técnico para reparar o cotizar el bien. El expediente espera su respuesta.',
-  APPROVED: 'El siniestro fue aprobado por un analista.',
-  REJECTED: 'El siniestro fue rechazado por un analista.',
-  LAPSED:
-    'El expediente caducó: pasaron más de 18 meses desde la denuncia sin que el asegurado trajera la documentación pedida.',
-};
-
-// Próximo paso esperado desde cada estado. Lo lee el ASEGURADO en su listado: no nombra la
-// clasificación del modelo ni el peritaje en sí (perito, informe) — alcanza con "verificación",
-// igual que el badge y el timeline.
+// Read by the insured: never names the model's classification or the expert report itself.
 const PROXIMOS_PASOS: Record<CaseStatus, string> = {
   PENDING_CLASSIFICATION:
     'En pocos minutos el caso pasa a revisión de un analista (o se pide documentación si falta algo).',
@@ -110,23 +75,16 @@ const PROXIMOS_PASOS: Record<CaseStatus, string> = {
   LAPSED: 'No quedan pasos pendientes: el expediente se cerró por caducidad.',
 };
 
-export function estadoDescripcion(value: string): string {
-  return (DESCRIPCIONES as Record<string, string>)[value] ?? '';
-}
-
 export function proximoPaso(value: string): string {
   return (PROXIMOS_PASOS as Record<string, string>)[value] ?? '';
 }
 
-// Tono de semáforo por estado. En curso → info; falta algo / falla técnica →
-// warning; resolución a favor → ok; resolución en contra → danger.
 const TONES: Record<CaseStatus, StatusTone> = {
   PENDING_CLASSIFICATION: 'info',
   PENDING_ANALYST_REVIEW: 'info',
   CLASSIFICATION_FAILED: 'warning',
   AWAITING_DOCUMENTATION: 'warning',
-  // info y no warning: el expediente está en curso esperando a un tercero externo, y no hay
-  // nada que el analista pueda hacer — marcarlo en la bandeja pediría una atención que no aplica.
+  // Waiting on an external third party with nothing for the analyst to do, so not a warning.
   PENDING_EXPERT_REPORT: 'info',
   PENDING_REPAIR: 'info',
   APPROVED: 'ok',
@@ -138,11 +96,7 @@ export function estadoTone(value: string): StatusTone {
   return (TONES as Record<string, StatusTone>)[value] ?? 'neutral';
 }
 
-/**
- * Texto del gauge de fraude cuando no hay `riskBand`: distingue por qué falta, en vez del
- * "Sin datos" ambiguo. "En proceso" (todavía clasificando), "No aplica" (Fast Track: el modelo
- * no corre) y "Sin evaluar" (el resto).
- */
+/** Fraud gauge text when there is no `riskBand`, telling apart why it is missing. */
 export function riskBandEmptyLabel(status: string, classification: string | null): string {
   if (status === 'PENDING_CLASSIFICATION') {
     return 'En proceso';
@@ -153,8 +107,7 @@ export function riskBandEmptyLabel(status: string, classification: string | null
   return 'Sin evaluar';
 }
 
-// Simplificado a 3 niveles para el asegurado (portal): sin jerga técnica interna.
-// El detalle técnico completo (estadoLabel) sigue disponible en el timeline del expediente.
+// Three-level progress shown to the insured, free of internal jargon.
 export type EstadoSimplificado = 'DENUNCIADO' | 'EN_TRAMITE' | 'TERMINADO';
 
 const SIMPLIFICADO: Record<CaseStatus, EstadoSimplificado> = {
@@ -188,25 +141,18 @@ export const ESTADOS_SIMPLIFICADOS = Object.entries(SIMPLIFICADO_LABELS).map(([v
   label,
 }));
 
-/** Los `CaseStatus` de un cajón, derivados del mapa: filtrar por cajón son varios estados. */
 export function estadosDelCajon(cajon: EstadoSimplificado): CaseStatus[] {
   return (Object.keys(SIMPLIFICADO) as CaseStatus[]).filter(
     (status) => SIMPLIFICADO[status] === cajon,
   );
 }
 
-// Orden de avance del progreso simplificado. El progreso visible del asegurado es MONÓTONO:
-// una vez que el expediente entró "En trámite" no vuelve a "Denunciado", aunque el estado
-// técnico interno retroceda a PENDING_CLASSIFICATION. Eso pasa cuando el asegurado sube la
-// documentación faltante y cases-service re-encola la clasificación (ver bug #10 del
-// relevamiento de UX): sin esto, el stepper regresaba al día 1 como si se hubiera perdido todo.
 const SIMPLIFICADO_ORDER: EstadoSimplificado[] = ['DENUNCIADO', 'EN_TRAMITE', 'TERMINADO'];
 
 /**
- * Estado simplificado EFECTIVO: el máximo nivel de avance alcanzado según el historial de
- * transiciones, no el estado técnico instantáneo. `pastStatuses` son los `toStatus` del historial
- * (GET /cases/{id} los trae en `statusHistory`). Garantiza que el progreso del asegurado nunca
- * retroceda.
+ * Highest progress level reached across the status history, so the insured's stepper never goes
+ * back to "Denunciado" when uploading documents re-queues the case to PENDING_CLASSIFICATION.
+ * `pastStatuses` are the `toStatus` values of `statusHistory`.
  */
 export function estadoSimplificadoEfectivo(
   currentStatus: string,
@@ -215,20 +161,14 @@ export function estadoSimplificadoEfectivo(
   const maxIndex = [currentStatus, ...pastStatuses]
     .map((s) => SIMPLIFICADO_ORDER.indexOf(estadoSimplificado(s)))
     .reduce((max, i) => Math.max(max, i), 0);
-  // Techo: "Terminado" solo si el expediente está terminado AHORA. La monotonía existe para que
-  // el stepper no retroceda cuando el estado técnico vuelve atrás dentro del trámite (subir
-  // documentación devuelve el caso a PENDING_CLASSIFICATION), no para dejarlo clavado en el
-  // último paso. Una reapertura sí es un retroceso real —el expediente estaba resuelto y volvió a
-  // revisión— y sin este techo el asegurado seguía viendo "Terminado" sobre un caso reabierto.
+  // "Terminado" only while final right now: a reopened case must step back to "En trámite".
   const cap = isEstadoFinal(currentStatus) ? 2 : 1;
   return SIMPLIFICADO_ORDER[Math.min(maxIndex, cap)];
 }
 
 /**
- * True cuando el expediente volvió a PENDING_CLASSIFICATION por una carga de documentación del
- * asegurado (no es una denuncia recién ingresada): se detecta porque ya pasó por
- * AWAITING_DOCUMENTATION en su historial. Sirve para no mostrarle el copy de "día 1" a alguien
- * que acaba de subir lo que le pidieron.
+ * True when the case is back in PENDING_CLASSIFICATION because the insured uploaded missing
+ * documents (it already went through AWAITING_DOCUMENTATION), not because it was just filed.
  */
 export function esReprocesoPorDocumentacion(
   currentStatus: string,
@@ -239,10 +179,6 @@ export function esReprocesoPorDocumentacion(
   );
 }
 
-// Título tranquilizador para el hero del seguimiento (asegurado). Copy orientado a
-// la persona, no a la jerga interna — el detalle técnico vive en estadoLabel.
-// Al asegurado se le habla de "siniestro": el expediente es el caso administrativo que trabaja
-// el analista, y esa distinción no le sirve a quien solo quiere saber cómo viene lo suyo.
 const TITULOS_ASEGURADO: Record<CaseStatus, string> = {
   PENDING_CLASSIFICATION: 'Recibimos tu denuncia',
   PENDING_ANALYST_REVIEW: 'Tu siniestro está en análisis',
@@ -259,8 +195,6 @@ export function estadoTituloAsegurado(value: string): string {
   return (TITULOS_ASEGURADO as Record<string, string>)[value] ?? 'Seguimiento de tu siniestro';
 }
 
-// Copy específico del reproceso tras carga de documentación: reconoce la acción del asegurado
-// en vez de repetir el título de día 1 ("Recibimos tu denuncia"). Ver [[esReprocesoPorDocumentacion]].
 const TITULO_REPROCESO_DOCUMENTACION = 'Recibimos tu documentación';
 const DESCRIPCION_REPROCESO_DOCUMENTACION =
   'Recibimos los documentos que subiste y estamos reevaluando tu caso. Te avisamos ni bien haya novedades.';
@@ -274,10 +208,7 @@ export function estadoTituloAseguradoEfectivo(
     : estadoTituloAsegurado(currentStatus);
 }
 
-// Subtítulo asegurado-safe: NUNCA menciona la clasificación del modelo, el análisis
-// automático ni estados técnicos internos (ver [[project-asegurado-vs-analista-visibility]]).
-// El asegurado no debe enterarse del pipeline de IA ni del scoring de fraude; solo qué
-// pasa con su caso en lenguaje llano. El detalle técnico vive en estadoDescripcion (analista).
+// Insured-safe copy: must NEVER mention the model's classification, fraud scoring or internal statuses.
 const DESCRIPCIONES_ASEGURADO: Record<CaseStatus, string> = {
   PENDING_CLASSIFICATION:
     'Recibimos tu denuncia y la estamos procesando. En breve un analista la revisa.',
@@ -309,27 +240,15 @@ export function estadoDescripcionAseguradoEfectivo(
 }
 
 /**
- * Cómo se llama cada MOVIMIENTO del expediente en el seguimiento del asegurado. Saber que está
- * "en trámite" no le dice si pasó algo, así que el hilo lista los movimientos reales — pero
- * nombrados desde su lado, no con el estado técnico.
- *
- * Se mapea el ESTADO, nunca el `reason` del historial: ese texto es interno y trae cosas como
- * "informe de peritaje recibido: FRAUD_CONFIRMED" o "clasificación: LLM_NO_RECOMIENDA_APROBAR".
- * Renderizarlo filtraría de un saque la clasificación, el veredicto y el motivo de la derivación.
- *
- * `null` = movimiento que NO se le muestra: CLASSIFICATION_FAILED es una falla técnica interna que
- * no le pide nada ni cambia nada de su lado, y contarla solo genera una consulta.
- *
- * @param fromStatus el estado del que viene, para distinguir movimientos que llegan al mismo lugar
- *                   (volver de un peritaje no es lo mismo que entrar a revisión por primera vez).
+ * Names each case movement from the insured's side. Maps the STATUS, never the history `reason`:
+ * that text is internal and would leak the classification, verdict and referral motive.
+ * Returns `null` for movements the insured must not see (e.g. CLASSIFICATION_FAILED).
  */
 export function movimientoAseguradoLabel(
   toStatus: string,
   fromStatus: string | null,
 ): string | null {
-  // Las filas de asignación de analista se guardan con from == to (es el marcador que usa el
-  // timeline del analista para dibujarlas sin flecha). Para el asegurado no son un movimiento del
-  // expediente: sin esto, cada reasignación le repetía "un analista está revisando tu caso".
+  // Analyst-assignment rows are stored with from == to; they are not case movements.
   if (fromStatus !== null && fromStatus === toStatus) {
     return null;
   }
@@ -339,29 +258,21 @@ export function movimientoAseguradoLabel(
       if (fromStatus === null) {
         return 'Denuncia recibida';
       }
-      // El reintento manual del analista sobre un expediente que falló también vuelve acá, y no
-      // es que el asegurado haya mandado nada: es la contracara de no mostrar CLASSIFICATION_FAILED.
-      // Mostrarlo como "recibimos tu documentación" le inventaba una carga que nunca hizo.
+      // Manual retry after a failed classification: the insured sent nothing.
       if (fromStatus === 'CLASSIFICATION_FAILED') {
         return null;
       }
-      // Queda el caso real: subió lo que le faltaba (desde AWAITING_DOCUMENTATION, o desde la
-      // revisión del analista, que también admite carga de documentación).
       return 'Recibimos tu documentación';
     case 'AWAITING_DOCUMENTATION':
       return 'Te pedimos documentación';
     case 'PENDING_ANALYST_REVIEW':
-      // El peritaje sí se le cuenta —va a tener al perito contactándolo igual—, pero nunca por qué.
       if (fromStatus === 'PENDING_EXPERT_REPORT') {
         return 'Verificación finalizada';
       }
       if (fromStatus === 'PENDING_REPAIR') {
         return 'Respuesta del servicio técnico recibida';
       }
-      // Reapertura: el expediente estaba cerrado y volvió a revisión. Se nombra como lo que es —
-      // el asegurado ya recibió el mail de la resolución anterior, y "un analista está revisando
-      // tu caso" no le explicaría por qué su siniestro resuelto volvió a moverse. El motivo, en
-      // cambio, no se le cuenta nunca: es interno.
+      // Reopening a resolved case: named as such, but the reason is never shown.
       if (fromStatus !== null && isEstadoFinal(fromStatus)) {
         return 'Reabrimos tu siniestro';
       }

@@ -1,31 +1,15 @@
 #!/usr/bin/env python3
-"""Compara lo que db/init-multitenant.sql define contra el esquema real de una base viva.
+"""Compares the tables and columns db/init-multitenant.sql defines against a live database.
 
-Por qué existe: no hay Flyway/Liquibase — el esquema vive en db/init-multitenant.sql (solo
-CREATE, pensado para una base vacía) más una serie de parches manuales sueltos
-(db/migrate-*.sql, db/migrations/*.sql) sin tabla de control de cuáles ya se corrieron. La única
-forma confiable de saber si una base viva (Railway hoy, Supabase después de la migración) quedó
-consistente con lo que el repo dice que debería tener es comparar de verdad, no de memoria.
+The schema is init-multitenant.sql plus hand-applied patches in db/migrations/, with no record
+of which ones ran, so the only reliable check is an actual comparison.
 
-Qué compara: tablas y columnas, por (schema, tabla), en las cinco bases que el script define
-(arbiter_common, arbiter_bbva, arbiter_provincia, aseguradora_bbva, aseguradora_provincia).
-NO compara tipos de columna, constraints, índices ni datos — ver "Lo que esto NO prueba" abajo.
-
-Uso:
+Usage:
     python scripts/check-schema-consistency.py
 
-Lee DB_URL / DB_USER / DB_PASSWORD de .env (mismas variables que usan los servicios). Necesita
-Docker (arranca un cliente psql descartable, ver db/migrate-*.sql para el mismo patrón) y sale
-con status 1 si encuentra alguna diferencia — pensado para poder engancharlo a un chequeo manual
-antes/después de migrar a Supabase, no para correr en cada build.
-
-Lo que esto NO prueba (verificar aparte si hace falta):
-  - Tipos de columna, NOT NULL, defaults, FKs, índices, CHECKs — solo nombres.
-  - Migraciones no aditivas (un ALTER que borra filas, un índice UNIQUE que puede fallar en
-    silencio si hay duplicados). Esas se verifican una por una, a mano — ver
-    db/migrations/*.sql y db/migrate-*.sql para la lista de lo que hay que confirmar así.
-  - Los datos de seed-demo.sql en sí — esperable que difieran entre ambientes por las pruebas
-    de cada uno; este script mira estructura, no filas.
+Reads DB_URL / DB_USER / DB_PASSWORD from .env, needs Docker for a throwaway psql client, and
+exits 1 on any difference. It does NOT check column types, constraints, indexes or data, nor
+non-additive migrations: verify those by hand.
 """
 from __future__ import annotations
 
@@ -45,10 +29,8 @@ ENV_PATH = REPO_ROOT / ".env"
 SCHEMAS = ("arbiter_common", "arbiter_bbva", "arbiter_provincia",
            "aseguradora_bbva", "aseguradora_provincia")
 
-# Each region of db/init-multitenant.sql is located by the header of the function that creates it,
-# not by line number. Hardcoded ranges went stale as soon as the file grew, and the failure was
-# quiet: the insurer range ended up in the middle of the tenant function, parsed zero insurer
-# tables, and the diff reported every aseguradora_* table as "extra".
+# Regions of db/init-multitenant.sql are located by the header of the function that creates
+# them, not by line number, which goes stale silently as the file grows.
 TENANT_FN_HEADER = "CREATE OR REPLACE FUNCTION arbiter_common.create_tenant_schema("    # arbiter_bbva/provincia
 INSURER_FN_HEADER = "CREATE OR REPLACE FUNCTION arbiter_common.create_insurer_db_schema("  # aseguradora_bbva/provincia
 FN_TERMINATOR = "$fn$ LANGUAGE plpgsql;"
@@ -120,12 +102,11 @@ def region_bounds(lines: list[str]) -> tuple[tuple[int, int], tuple[int, int], t
 
 def parse_region(lines: list[str], start: int, end: int,
                   table_pattern: re.Pattern) -> dict[str, list[str]]:
-    """Extrae tabla -> columnas de un CREATE TABLE(...) por vez, dentro de [start, end).
+    """Maps table -> columns for each CREATE TABLE in [start, end).
 
-    Corta carácter por carácter y no por línea: la línea de cierre de un bloque %I trae DOS
-    paréntesis de cierre (el del CREATE TABLE y el del format() que lo envuelve, tipo
-    ")$ddl$, p_schema);") — cortar por línea entera se pasa de largo y nunca ve el depth==0
-    exacto que separa "esto es una columna" de "esto es ruido de la función".
+    Scans character by character: the closing line of a %I block also closes the wrapping
+    format() call, so a line-based cut would overshoot the end of the column list.
+    Comments are not stripped here, so parentheses in them must stay balanced.
     """
     tables: dict[str, list[str]] = {}
     i = start - 1
@@ -144,7 +125,7 @@ def parse_region(lines: list[str], start: int, end: int,
                     depth += 1
                     if depth == 1:
                         started = True
-                        continue  # no incluir el "(" de apertura del propio CREATE TABLE
+                        continue  # skip the CREATE TABLE's own opening "("
                 elif ch == ")":
                     if started and depth == 1:
                         done = True
@@ -216,8 +197,7 @@ def fetch_live_schema(env: dict[str, str]) -> dict[tuple[str, str], set[str]]:
         capture_output=True, text=True,
     )
     if proc.returncode != 0:
-        # Nunca imprimir stderr crudo acá: puede traer la connection string con la password si
-        # psql falla antes de conectar (host mal escrito, etc).
+        # Never print raw stderr: it may contain the connection string with the password.
         sys.exit("No se pudo consultar la base — revisá DB_URL/DB_USER/DB_PASSWORD y que Docker "
                  "esté corriendo.")
 

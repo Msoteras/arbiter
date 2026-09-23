@@ -25,12 +25,7 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
-/**
- * H0003 - per-endpoint RBAC. classification-service was the only module with no access control at
- * all (no @PreAuthorize, no SecurityConfig, reachable without a JWT from any caller with network
- * access to port 8082); this closes it. Tokens signed by hand with the same test secret (see
- * {@link AbstractPersistenceIT}) because this module only validates the JWT, it doesn't issue it.
- */
+/** Per-endpoint RBAC. Tokens are signed by hand with the test secret: this module only validates them. */
 @SpringBootTest
 @AutoConfigureMockMvc
 class ClaimSecurityTest extends AbstractPersistenceIT {
@@ -40,11 +35,7 @@ class ClaimSecurityTest extends AbstractPersistenceIT {
     @Autowired
     private MockMvc mockMvc;
 
-    /**
-     * {@code cases} lives in cases-service's schema, not in this module's container — without
-     * mocking it, any endpoint reading it dies with "relation does not exist" before reaching what
-     * this test measures, which is the RBAC gate.
-     */
+    /** Mocked because {@code cases} doesn't exist in this module's test container. */
     @MockitoBean
     private CaseOutcomeRepository caseOutcomeRepository;
 
@@ -110,9 +101,8 @@ class ClaimSecurityTest extends AbstractPersistenceIT {
                 .andExpect(status().isOk());
     }
 
-    // Los bodies de acá abajo llevan `justification` porque es obligatoria (@NotBlank): la
-    // validación del @RequestBody corre ANTES que el @PreAuthorize, así que un body incompleto
-    // devuelve 400 y estos tests dejarían de medir el gate de seguridad, que es lo suyo.
+    // Bodies must be valid: @RequestBody validation runs before @PreAuthorize, so an invalid body
+    // would return 400 and the security gate wouldn't be measured.
 
     @Test
     void recordDecision_asAsegurado_returns403() throws Exception {
@@ -126,10 +116,7 @@ class ClaimSecurityTest extends AbstractPersistenceIT {
                 .andExpect(status().isForbidden());
     }
 
-    /**
-     * El analystId viaja en el body, así que un analista llamando directo podía atribuirle la
-     * decisión a otro. Solo pasa el token de servicio de cases-service, que es quien lo resuelve.
-     */
+    /** The analystId travels in the body, so only cases-service's service token may call this. */
     @Test
     void recordDecision_asAnalista_isRejected() throws Exception {
         mockMvc.perform(post("/api/v1/claims/999999/decision")
@@ -144,7 +131,7 @@ class ClaimSecurityTest extends AbstractPersistenceIT {
 
     @Test
     void recordDecision_withServiceToken_passesTheGate() throws Exception {
-        // Case 999999 no existe: si pasa el gate, la lógica responde 422 y no 401/403.
+        // Case 999999 doesn't exist: past the gate, the logic answers 422 rather than 401/403.
         mockMvc.perform(post("/api/v1/claims/999999/decision")
                         .header("Authorization", "Bearer " + serviceToken())
                         .contentType(MediaType.APPLICATION_JSON)

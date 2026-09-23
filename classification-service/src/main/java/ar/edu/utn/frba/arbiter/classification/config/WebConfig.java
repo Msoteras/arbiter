@@ -4,9 +4,7 @@ import org.springframework.context.annotation.Configuration;
 import org.springframework.web.servlet.config.annotation.CorsRegistry;
 import org.springframework.web.servlet.config.annotation.WebMvcConfigurer;
 
-/**
- * CORS config for local frontend development while services run directly.
- */
+/** CORS for local frontend development when the services run without Nginx in front. */
 @Configuration
 public class WebConfig implements WebMvcConfigurer {
 

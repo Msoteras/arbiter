@@ -19,10 +19,8 @@ import org.springframework.transaction.annotation.Transactional;
 import java.util.List;
 
 /**
- * CRUD of the branch catalog (global {@code arbiter_common.branch} table). It's the catalog shared
- * by every insurer: which branches exist, not which ones each sells (that's narrowed per tenant by
- * its coverages / document schedule). That's why creating or deleting a branch touches the global
- * catalog — the referente administers it, with a unique name.
+ * CRUD of the global branch catalog ({@code arbiter_common.branch}): which branches exist, not which
+ * ones each insurer sells (that's narrowed per tenant by its coverages and document schedule).
  */
 @Service
 @RequiredArgsConstructor
@@ -76,7 +74,7 @@ public class BranchCatalogService {
         }
         try {
             branchRepository.delete(branch);
-            branchRepository.flush(); // fuerza el chequeo del FK ahora, para traducirlo a 409
+            branchRepository.flush(); // surfaces the FK violation here so it becomes a 409
         } catch (DataIntegrityViolationException e) {
             throw new BranchInUseException(id);
         }

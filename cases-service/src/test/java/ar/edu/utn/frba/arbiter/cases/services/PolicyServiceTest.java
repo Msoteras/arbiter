@@ -24,9 +24,8 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 /**
- * Que un asegurado solo llegue a sus propias pólizas (D31). El DNI llega como parámetro del
- * request, así que sin comparar contra el token cambiar un número devolvía nombre, mail, teléfono
- * y pólizas de cualquiera — el mismo agujero que D2, en otro endpoint.
+ * An insured only reaches their own policies. The DNI comes as a request parameter, so without
+ * checking it against the token, changing a number would return anyone's data and policies.
  */
 @ExtendWith(MockitoExtension.class)
 class PolicyServiceTest {
@@ -50,7 +49,7 @@ class PolicyServiceTest {
         CallerContext.set(new CallerContext.Caller(dni, List.of(1L), TENANT));
     }
 
-    /** Analista y referente no tienen fila {@code insured}, así que su token no trae DNI. */
+    /** Analysts and referents have no {@code insured} row, so their token carries no DNI. */
     private void callerIsNotAnInsured() {
         CallerContext.set(new CallerContext.Caller(null, List.of(1L), TENANT));
     }
@@ -78,14 +77,11 @@ class PolicyServiceTest {
         assertThatThrownBy(() -> policyService.listByInsured(SOMEONE_ELSE, false))
                 .isInstanceOf(InsuredIdentityMismatchException.class);
 
-        // No alcanza con que tire: no puede haber ido a buscarlas igual.
+        // Throwing isn't enough: it must not have fetched them anyway.
         verify(insurerAdapter, never()).findPoliciesByInsured(any(), anyBoolean());
     }
 
-    /**
-     * El referente consulta las de su compañía; el recorte ahí lo hace el conjunto de esquemas
-     * que puede leer, no el DNI (que no tiene).
-     */
+    /** A referent is scoped by the schemas it may read, not by DNI (it has none). */
     @Test
     void aCallerWithoutDni_isNotBoundByDni() {
         callerIsNotAnInsured();
@@ -96,9 +92,8 @@ class PolicyServiceTest {
     }
 
     /**
-     * El perfil pide las vencidas y el alta de denuncia no: el flag tiene que llegar al adapter
-     * tal cual. Si el service lo comiera, "Mis pólizas" quedaría mostrando solo las vigentes y
-     * nadie se enteraría — la pantalla igual muestra pólizas.
+     * The profile asks for expired policies and the claim wizard doesn't. If the service dropped the
+     * flag nobody would notice: the screen would still show (only current) policies.
      */
     @Test
     void askingForExpiredPolicies_reachesTheAdapter() {
@@ -119,7 +114,7 @@ class PolicyServiceTest {
         assertThat(policyService.getByNumber("POL-CEL-2026-042").insuredId()).isEqualTo(OWN_DNI);
     }
 
-    /** 404 y no 403: un 403 confirmaría que ese número de póliza existe. */
+    /** 404 rather than 403: a 403 would confirm the policy number exists. */
     @Test
     void gettingSomeoneElsesPolicyByNumber_readsAsNotFound() {
         callerIsInsured(OWN_DNI);

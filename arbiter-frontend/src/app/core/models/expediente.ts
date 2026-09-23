@@ -4,8 +4,7 @@ import { DeadlinePriority } from './deadline-priority';
 import { ImageForensicReport } from './forensic';
 import { PolicySnapshot, RuleResult } from './trazabilidad';
 
-// Espejo de StatusTransitionResponse del cases-service.
-// `fromStatus` es null en la fila de creación del expediente.
+// Mirrors cases-service's StatusTransitionResponse; `fromStatus` is null on the creation row.
 export interface StatusTransition {
   fromStatus: string | null;
   toStatus: string;
@@ -14,77 +13,57 @@ export interface StatusTransition {
   changedAt: string;
 }
 
-/**
- * El aporte de un factor al score de fraude — espejo de RiskBreakdownItem del back. Lo muestra la
- * vista del analista para que el score no sea una caja negra: qué factor pesó y por qué.
- */
+/** One factor's contribution to the fraud score (backend RiskBreakdownItem). */
 export interface RiskBreakdownItem {
   factorId: string;
-  /** Contribución normalizada del factor en [0,1]. */
+  /** Normalized contribution in [0,1]. */
   rawScore: number;
-  /** Peso de la aseguradora para este factor. */
   weight: number;
-  /** rawScore * weight — el empuje absoluto de este factor sobre el total. */
+  /** rawScore * weight. */
   weightedContribution: number;
   rationale: string;
 }
 
 /**
- * Lo que el modelo leyó de un adjunto — espejo de DocumentAnalysisSummary del back (H0031).
- *
- * Un campo en `null` significa **"el documento no lo dice"**, nunca "no coincide": una foto del
- * bien no trae importe y una denuncia policial no trae IMEI. Se muestra como "No aplica", jamás
- * como discrepancia — leer un campo ausente como inconsistencia sería acusar al asegurado por
- * algo que nadie declaró.
+ * What the model read from an attachment (backend DocumentAnalysisSummary).
+ * A `null` field means "the document does not say", never "mismatch": render it as not applicable.
  */
 export interface DocumentAnalysis {
-  /** El slot de la agenda documental que cumple el adjunto (`police_report`, …). */
+  /** The document requirement slot the attachment fulfils (`police_report`, …). */
   documentType: string;
-  /** Lo que dice el documento, en texto plano. */
   transcription: string;
   documentDate: string | null;
   amount: number | null;
   itemDescription: string | null;
-  /** Marca sola, separada de `itemDescription`: es contra lo que se cruza el bien asegurado. */
+  /** Brand alone, apart from `itemDescription`: it is what gets matched against the insured item. */
   brand: string | null;
-  /** Modelo solo, sin la marca. */
   model: string | null;
   imei: string | null;
-  /** TITULAR | FAMILIAR | TERCERO | DESCONOCIDO — quién sufrió el hecho según el documento. */
+  /** TITULAR | FAMILIAR | TERCERO | DESCONOCIDO. */
   affectedParty: string;
-  /**
-   * Señales de manipulación que el modelo de visión notó en la imagen. **Vacío es lo normal**, y
-   * que esté vacío no prueba que el documento sea auténtico.
-   */
+  /** Tampering signals seen by the vision model. Empty is normal and does not prove authenticity. */
   visualFindings: string[];
   /**
-   * Todo otro dato que el documento diga y que ninguna regla lea — nro. de factura, nro. de
-   * serie, comercio. **Vacío es lo normal**: una foto del equipo roto no trae ninguno.
-   *
-   * Es una lista nombre/valor y no campos fijos para que sumar un dato no pida migración. El
-   * `name` es como lo llamó el modelo, así que **se muestra tal cual y nunca se compara**: nada
-   * acá puede decidir nada.
+   * Any other data the document states that no rule reads. `name` is the model's own wording, so
+   * it is displayed as-is and never compared.
    */
   details: ExtractedDetail[];
 }
 
-/** Un dato suelto que el documento indica, tal como el modelo lo leyó. */
 export interface ExtractedDetail {
   name: string;
   value: string;
 }
 
-// Espejo de CaseResponse del cases-service (GET /api/v1/cases/{id})
-/** Calca el enum SettlementStatus del back: es el estado de la liquidación, no del expediente. */
+/** Mirrors the backend SettlementStatus enum: the settlement's status, not the case's. */
 export type SettlementStatus = 'AUTHORIZED' | 'PENDING_AUTHORIZATION' | 'RETURNED';
 
+// Mirrors cases-service's CaseResponse (GET /api/v1/cases/{id}).
 export interface ExpedienteResponse {
   id: number;
   /**
-   * De qué aseguradora es. Sólo vienen en "mis siniestros" del asegurado, la única vista que
-   * mezcla compañías. `insurerSlug` es lo que se usa para volver a pedir el expediente (`id` se
-   * repite entre aseguradoras); `insurerName` es para mostrarlo, porque dos siniestros con el
-   * mismo número no se distinguen si no se dice de quién es cada uno.
+   * Only sent in the insured's cross-insurer list. `insurerSlug` is needed to refetch the case
+   * because `id` repeats across insurers.
    */
   insurerSlug?: string | null;
   insurerName?: string | null;
@@ -96,13 +75,9 @@ export interface ExpedienteResponse {
   coverage: string | null;
   insuredItem: string;
   insuredId: string;
-  /** Nombre real del asegurado, resuelto por classification-service al clasificar. Null hasta entonces. */
+  /** Resolved by classification-service when classifying; null until then. */
   insuredName: string | null;
-  /**
-   * Persona políticamente expuesta, según lo declaró el asegurado al denunciar (UIF/PLA). Es
-   * debida diligencia, no una señal de fraude: se muestra entre los datos del asegurado para que
-   * el analista lo tenga a la vista, y no participa del scoring ni de la clasificación (D16).
-   */
+  /** Politically exposed person, as self-declared (AML due diligence). Not a fraud signal. */
   pep: boolean;
   policyNumber: string;
   description: string;
@@ -110,87 +85,54 @@ export interface ExpedienteResponse {
   eventLocation: string;
   claimedAmount: number | null;
   riskBand: 'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL' | null;
-  /** Score de fraude normalizado en [0,1]. Null cuando no se scoreó ("sin scorear"). */
+  /** Normalized fraud score in [0,1]; null when not scored. */
   riskScore: number | null;
-  /** Desglose del score por factor (analista-only). Null/[] cuando no se scoreó. */
+  /** Analyst-only. */
   riskBreakdown: RiskBreakdownItem[] | null;
-  /**
-   * Análisis forense de imágenes (H0009), analista-only. Null cuando no corrió
-   * (Fast Track o expediente sin adjuntos de imagen).
-   */
+  /** Analyst-only. Null when it did not run (Fast Track or no image attachments). */
   forensicReport: ImageForensicReport | null;
   /**
-   * Analista dueño del expediente, por su id de analista dentro de la aseguradora (el mismo que
-   * devuelve `GET /auth/users/analysts`). Null = sin asignar. No es el id de usuario de la
-   * sesión: son tablas distintas.
+   * Analyst id within the insurer (same as `GET /auth/users/analysts`), not the session user id.
+   * Null = unassigned.
    */
   assignedAnalystId: number | null;
-  /** Nombre del analista asignado, resuelto por el backend. Null = sin asignar. */
   assignedAnalystName: string | null;
   analysisClassification: Clasificacion | string;
   analysisConfidence: number;
-  /**
-   * Los motivos detrás de `analysisClassification`, uno por elemento — espejo de `llm_reason`
-   * (una fila por motivo), no un string armado con join. Vacío en Fast Track (los motivos serían
-   * de la corrida anterior, no del gate) o cuando todavía no hay clasificación.
-   */
+  /** One element per reason. Empty on Fast Track or before classification. */
   analysisReasons: string[];
   /**
-   * Si el relato libre del asegurado coincide con el hecho generador que eligió del selector.
-   * Null cuando el modelo no corrió (Fast Track, exclusión dura) o cuando la clasificación es
-   * anterior a este chequeo: ausente es "no evaluado", nunca MATCHES.
+   * Whether the free-text account matches the selected claim cause. Null means "not evaluated"
+   * (model did not run), never MATCHES.
    */
   causeConsistency: CauseConsistency | string | null;
-  /** Hecho generador que el relato sí describe, del catálogo del ramo. Solo con CONTRADICTS. */
+  /** Only with CONTRADICTS. */
   suggestedClaimCause: string | null;
-  /** Frase textual del relato que sostiene el veredicto. Solo con CONTRADICTS. */
+  /** Only with CONTRADICTS. */
   causeEvidence: string | null;
   createdAt: string;
   updatedAt: string;
-  /** Fecha límite legal para responder (art. 56): denuncia + 30 días, ISO yyyy-MM-dd. */
+  /** Legal response deadline (art. 56), ISO yyyy-MM-dd. */
   responseDeadline: string;
-  /**
-   * Urgencia frente a ese plazo (semáforo de la bandeja). Derivado en el back de `responseDeadline`
-   * y el estado; `NONE` para casos con más de 10 días o ya resueltos.
-   */
   deadlinePriority: DeadlinePriority;
   /**
-   * En qué anda la liquidación, cuando ya hay una. Es lo que separa en la bandeja un expediente
-   * que espera al analista de uno que él ya despachó y espera la firma del referente: los dos
-   * están en `PENDING_ANALYST_REVIEW`, porque el estado del expediente no se mueve para que el
-   * asegurado no vea un trámite interno.
-   *
-   * Al revés que `statusHistory`: **sólo viene en los listados**. El detalle se trae la
-   * liquidación entera por su propio endpoint.
+   * Tells apart, in the inbox, a case waiting on the analyst from one awaiting the referent's
+   * sign-off: both stay in `PENDING_ANALYST_REVIEW` so the insured never sees the internal step.
+   * Only sent in lists; the detail fetches the full settlement from its own endpoint.
    */
   settlementStatus: SettlementStatus | null;
-  /** Solo viene en GET /{id}; en listados es null. */
+  /** Only in GET /{id}; null in lists. */
   statusHistory: StatusTransition[] | null;
-  /**
-   * Lo que el modelo leyó de cada adjunto. Como `statusHistory`, solo viene en GET /{id} — en un
-   * listado sería un join por fila. Vacío cuando el expediente no se clasificó, se resolvió por
-   * Fast Track sin leer nada, o se clasificó antes de que esto existiera.
-   */
+  /** Only in GET /{id}. */
   documentAnalyses: DocumentAnalysis[];
   /**
-   * Las reglas duras evaluadas, PASS incluidos — un Fast Track también las trae, todas en PASS
-   * (el gate corre después de las reglas). Solo en GET /{id}.
-   *
-   * Vacío = no corrió ninguna. `null` = no se pudieron leer. No es lo mismo y en pantalla se dice
-   * distinto: lo primero es un dato del expediente, lo segundo de este request.
+   * Only in GET /{id}; includes PASS results. Empty = no rule ran; `null` = could not be read,
+   * and the UI says so differently.
    */
   ruleResults: RuleResult[] | null;
-  /**
-   * La póliza tal como la contestó la BD Aseguradora al clasificar. Las pólizas actuales del
-   * asegurado NO vienen acá: se piden aparte al abrir su solapa, para no pegarle a la BD
-   * Aseguradora en cada apertura del expediente.
-   */
+  /** The policy as the insurer DB returned it at classification time, not the current one. */
   policySnapshot: PolicySnapshot | null;
-  /**
-   * El servicio técnico que tiene el bien, solo mientras el expediente está en reparación (y solo
-   * en GET /{id}). Es lo único de una derivación que ve el asegurado: necesita saber a qué taller
-   * fue su equipo. El peritaje no se le nombra nunca.
-   */
+  /** Only in GET /{id} while under repair. The one referral the insured gets to see. */
   repairProvider: RepairProvider | null;
 }
 

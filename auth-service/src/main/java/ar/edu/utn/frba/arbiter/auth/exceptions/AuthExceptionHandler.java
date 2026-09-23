@@ -8,11 +8,8 @@ import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 
 /**
- * Every 4xx/5xx auth-service hands back goes through here — and until now, none of it left a
- * trace in the logs. A request that failed and a request that never arrived looked identical
- * from the logs alone (see the mixup debugging a hung password reset: the container had been
- * sent SIGTERM mid-request, and there was nothing here to rule that out from a real failure).
- * Every handler now logs before answering.
+ * Every handler logs before answering, so a rejected request can be told apart from one that
+ * never arrived.
  */
 @RestControllerAdvice
 public class AuthExceptionHandler {
@@ -60,7 +57,6 @@ public class AuthExceptionHandler {
         return warn(400, ex);
     }
 
-    /** The one genuine integration failure in this list — logged with the stack trace, not just the message. */
     @ExceptionHandler(Auth0ProvisioningException.class)
     public ProblemDetail handleAuth0Provisioning(Auth0ProvisioningException ex) {
         log.error("[Auth] Auth0ProvisioningException: {}", ex.getMessage(), ex);
@@ -97,12 +93,7 @@ public class AuthExceptionHandler {
         return warn(404, ex);
     }
 
-    /**
-     * WARN, not ERROR: everything routed here is an expected, client-facing outcome (bad
-     * credentials, an expired token, a role the caller isn't allowed to touch) — not a bug. The
-     * point isn't severity, it's leaving a trace: enough to tell "the request arrived and was
-     * rejected for X" apart from "the request never arrived".
-     */
+    /** WARN, not ERROR: these are expected client-facing outcomes, not bugs. */
     private ProblemDetail warn(int status, Exception ex) {
         log.warn("[Auth] {} — {}", ex.getClass().getSimpleName(), ex.getMessage());
         return ProblemDetail.forStatusAndDetail(HttpStatusCode.valueOf(status), ex.getMessage());

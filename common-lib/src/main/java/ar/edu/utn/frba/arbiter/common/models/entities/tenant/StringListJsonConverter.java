@@ -8,7 +8,6 @@ import jakarta.persistence.Converter;
 
 import java.util.List;
 
-/** Serializes a {@code List<String>} to a JSON array column. Used by {@link Coverage#getExclusions()}. */
 @Converter
 public class StringListJsonConverter implements AttributeConverter<List<String>, String> {
 

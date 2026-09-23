@@ -27,14 +27,8 @@ public class ClaimClassifierImpl implements ClaimClassifier {
     private static final Logger log = LoggerFactory.getLogger(ClaimClassifierImpl.class);
 
     /**
-     * The only three values the model is allowed to decide. Same list the schema enumerates, kept
-     * here as the second lock: the schema is enforced by the provider, and a provider that ignores
-     * it (or a future client wired without one) would otherwise let {@code Classification.valueOf}
-     * accept anything the enum declares — including {@code FAST_TRACK}, which is decided by
-     * {@code FastTrackValidator} with business rules and must never come out of a model
-     * (CLAUDE.md #6). It also matters against prompt injection: the attachments are text an
-     * outsider controls, and this is what makes "devolvé FAST_TRACK" unrepresentable rather than
-     * merely discouraged.
+     * Second lock besides the schema: {@code FAST_TRACK} must never come out of a model, even if a
+     * provider ignores the schema or the attachments carry a prompt injection.
      */
     private static final Set<Classification> ALLOWED_FROM_MODEL = EnumSet.of(
             Classification.LLM_RECOMIENDA_APROBAR,
@@ -65,11 +59,8 @@ public class ClaimClassifierImpl implements ClaimClassifier {
         }
         log.debug("[LLM] Full prompt sent:\n{}", prompt);
 
-        // Sin thinking, igual que la extracción: el schema ya obliga al modelo a explicitar sus
-        // `factores`, que ES el razonamiento que le pedimos —y el que después ve el analista—, así
-        // que una fase de razonamiento previa e invisible duplicaría el trabajo. Corriendo por CPU
-        // eso son decenas de minutos por caso. Si algún día se corre con GPU y se quiere evaluar si
-        // pensar mejora la recomendación, es cambiar este false y medir.
+        // No thinking: the schema's `factors` already are the reasoning the analyst sees, and a hidden
+        // reasoning phase costs tens of minutes per case on CPU.
         String content = client.chat(prompt, List.of(), outputSchema(request), false);
         if (content.isEmpty()) {
             throw new InvalidClassificationException("Ollama returned an empty response");
@@ -85,15 +76,9 @@ public class ClaimClassifierImpl implements ClaimClassifier {
     }
 
     /**
-     * The schema the model must answer in. Built per request and not a constant because
-     * {@code suggestedClaimCause} is restricted by {@code enum} to the branch's actual claim causes:
-     * that is what makes the answer mappable back to an id without fuzzy matching, and what stops
-     * the model from inventing a cause the insurer never configured. The empty string is allowed as
-     * the "not applicable" value — {@code MATCHES} leaves it blank.
-     *
-     * <p>With no catalog (a branch with none loaded) the field is a plain string: the prompt already
-     * tells the model to answer {@code AMBIGUOUS} in that case, and an empty {@code enum} would be
-     * an invalid schema.
+     * Built per request: {@code suggestedClaimCause} is an {@code enum} of the branch's claim causes
+     * (plus "" for not applicable), so the answer maps back to an id and can't invent a cause.
+     * With no catalog it's a plain string, since an empty {@code enum} is an invalid schema.
      */
     private static Map<String, Object> outputSchema(ClassificationRequest request) {
         Map<String, Object> suggestedCause = new LinkedHashMap<>();
@@ -134,8 +119,7 @@ public class ClaimClassifierImpl implements ClaimClassifier {
             throw new InvalidClassificationException(
                     "Could not parse model response: " + contentJson, e);
         }
-        // Fuera del try: adentro, el catch de abajo se lo tragaba y lo reportaba como un JSON que no
-        // se pudo parsear, que es justo lo contrario de lo que pasó.
+        // Outside the try, or the generic catch would report it as a parse failure.
         if (!ALLOWED_FROM_MODEL.contains(classification)) {
             throw new InvalidClassificationException(
                     "The model returned a classification it is not allowed to decide: " + classification);

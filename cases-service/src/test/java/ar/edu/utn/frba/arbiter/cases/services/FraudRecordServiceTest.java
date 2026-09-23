@@ -87,19 +87,18 @@ class FraudRecordServiceTest {
         verify(classificationClient).registerFraudRecord(sent.capture());
         assertThat(sent.getValue().insuredDni()).isEqualTo(DNI);
         assertThat(sent.getValue().expertAssessmentId()).isEqualTo(9L);
-        // El analista sale del token, nunca del body: si viniera del cliente, cualquiera podría
-        // colgarle el antecedente a otro.
+        // The analyst comes from the token, never the body: otherwise anyone could pin a fraud
+        // record on someone else.
         assertThat(sent.getValue().declaredByAnalystId()).isEqualTo(1L);
         assertThat(sent.getValue().declaredByAnalystName()).isEqualTo("Ana Pérez");
 
-        // La columna que el DER tenía desde siempre y nadie escribía.
         assertThat(caseRecord.isFraudDetermined()).isTrue();
         verify(caseRepository).save(caseRecord);
     }
 
     /**
-     * La diferencia entre los dos orígenes es que uno mueve el score. Si alcanzara con elegir la
-     * opción más fuerte en el request, no valdría nada.
+     * Only the expert-backed source moves the score, so picking it in the request must not be
+     * enough on its own.
      */
     @Test
     void expertBackedRecord_isRefusedWhenTheReportDidNotConfirmTheFraud() {
@@ -129,7 +128,7 @@ class FraudRecordServiceTest {
         verify(classificationClient, never()).registerFraudRecord(any());
     }
 
-    /** La lista negra: sin peritaje, sin referencia a ninguno, y no la mira el motor. */
+    /** The blacklist: no expert assessment, no reference to one, and the rules engine ignores it. */
     @Test
     void analystDeclaredRecord_needsNoExpertAssessment() {
         Case caseRecord = caseInStatus(CaseStatus.REJECTED);
@@ -145,7 +144,7 @@ class FraudRecordServiceTest {
         verify(expertAssessmentRepository, never()).findByCaseIdAndProviderType(any(), any());
     }
 
-    /** Pagar el siniestro y registrarlo como fraude se contradicen. */
+    /** Paying the claim and recording it as fraud contradict each other. */
     @Test
     void anApprovedCaseCannotProduceAFraudRecord() {
         Case caseRecord = caseInStatus(CaseStatus.APPROVED);
@@ -158,7 +157,7 @@ class FraudRecordServiceTest {
         verify(classificationClient, never()).registerFraudRecord(any());
     }
 
-    /** La evidencia que se está esperando todavía no llegó. */
+    /** The evidence being waited for hasn't arrived yet. */
     @Test
     void aCaseAwaitingTheExpertReportCannotProduceAFraudRecordYet() {
         Case caseRecord = caseInStatus(CaseStatus.PENDING_EXPERT_REPORT);

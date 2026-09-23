@@ -25,11 +25,9 @@ export const appConfig: ApplicationConfig = {
     provideZoneChangeDetection({ eventCoalescing: true }),
     provideRouter(routes),
     provideHttpClient(withInterceptors([authInterceptor])),
-    // Habilita @angular/animations (transiciones de entrada/stagger de los componentes).
     provideAnimations(),
-    // ECharts, en diferido: el import() lo saca del bundle inicial, así que la librería recién
-    // se descarga cuando alguien abre una pantalla con gráficos. `echarts-core` registra sólo
-    // los tipos que usamos, en vez del catálogo entero.
+    // Lazy import keeps ECharts out of the initial bundle; echarts-core registers only the chart
+    // types in use.
     provideEchartsCore({ echarts: () => import('./shared/ui/chart/echarts-core') }),
   ],
 };

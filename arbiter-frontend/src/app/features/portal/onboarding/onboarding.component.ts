@@ -35,22 +35,8 @@ type PoliciesState =
   { status: 'loading' } | { status: 'ok'; policies: Policy[] } | { status: 'error' };
 
 /**
- * H0009 — pantalla de bienvenida del asegurado (primer ingreso).
- *
- * Se ve UNA sola vez, después de elegir la contraseña y entrar por primera vez: acá el asegurado
- * confirma sus datos de contacto y da sus consentimientos, para no tener que declararlos de nuevo
- * en cada denuncia. `onboardingGuard` la impone; al completarla el backend devuelve un JWT con
- * `onboardingComplete: true` y deja de aparecer.
- *
- * Qué NO se pregunta acá:
- *  · La contraseña, que ya se eligió en ActivateAccountComponent. El orden importa: no se le
- *    piden datos personales a alguien que todavía no probó que el token de invitación es suyo.
- *  · PEP, que la aseguradora ya tiene de la póliza/KYC. Se muestra para que la persona sepa qué
- *    figura de ella, pero no se declara acá: no es un dato autodeclarado.
- *
- * El consentimiento de imágenes NO gatea "Continuar": tiene que ser LIBRE (Ley 25.326,
- * transferencia internacional de datos). Negarse no puede impedir usar el portal ni denunciar,
- * por eso el botón sigue habilitado con el checkbox en false.
+ * Insured's first-login screen, enforced by `onboardingGuard` until the backend issues a JWT with
+ * `onboardingComplete: true`. PEP comes from the insurer's KYC and is shown, never self-declared.
  */
 @Component({
   selector: 'app-onboarding',
@@ -77,7 +63,6 @@ export class OnboardingComponent {
 
   protected readonly nombre = computed(() => this.session.session()?.nombre ?? '');
 
-  // ───────────────── Perfil: precarga del contacto que la aseguradora ya tiene ─────────────────
   private readonly profileState = toSignal(
     this.profileService.get().pipe(
       map((profile): ProfileState => ({ status: 'ok', profile })),
@@ -103,8 +88,7 @@ export class OnboardingComponent {
   protected readonly imageConsent = signal(false);
 
   constructor() {
-    // Un effect y no un valor inicial: el perfil llega después del primer render. Se destruye
-    // apenas aplica, para no volver a pisar lo que la persona ya empezó a tipear.
+    // One-shot prefill: destroyed once applied so it never overwrites what the user typed.
     const prefill = effect(() => {
       const profile = this.profile();
       if (!profile) {
@@ -117,8 +101,6 @@ export class OnboardingComponent {
     });
   }
 
-  // ───────────────── Pólizas (solo lectura) ─────────────────
-  // Para que vea de qué aseguradora es y qué tiene cubierto antes de arrancar.
   private readonly policiesState = toSignal(
     this.policyService.listByInsured(this.session.session()?.insuredId ?? '').pipe(
       map((policies): PoliciesState => ({ status: 'ok', policies })),
@@ -134,7 +116,6 @@ export class OnboardingComponent {
   });
   protected readonly policiesLoading = computed(() => this.policiesState().status === 'loading');
 
-  // ───────────────── Envío ─────────────────
   protected readonly submitting = signal(false);
   protected readonly submitError = signal<string | null>(null);
 
@@ -143,7 +124,10 @@ export class OnboardingComponent {
   );
   protected readonly phoneValid = computed(() => this.phone().trim().length >= 6);
 
-  /** El consentimiento queda fuera a propósito: es libre, no un requisito para continuar. */
+  /**
+   * Image consent is deliberately left out: under Ley 25.326 it must be freely given, so declining
+   * can't block the portal.
+   */
   protected readonly canSubmit = computed(
     () => this.emailValid() && this.phoneValid() && !this.submitting(),
   );
@@ -160,18 +144,15 @@ export class OnboardingComponent {
         email: this.email().trim(),
         phone: this.phone().trim(),
         imageConsent: this.imageConsent(),
-        // Se manda siempre, acepte o no: hay que poder reconstruir a qué texto dijo que sí (o
-        // que no). Un consentimiento sin versión ni fecha no sirve como consentimiento.
+        // Always sent, accepted or not: the consent must be traceable to the exact text shown.
         imageConsentVersion: IMAGE_CONSENT_VERSION,
       })
       .subscribe({
-        // ProfileService ya reemplazó la sesión con el JWT nuevo (onboardingComplete: true),
-        // así que para cuando navegamos el guard deja pasar.
+        // ProfileService already swapped in the new JWT, so the guard lets us through.
         next: () => this.router.navigateByUrl('/portal/home'),
         error: (err: HttpErrorResponse) => {
           this.submitting.set(false);
-          // 409 = ya estaba completo (doble submit, o dos pestañas abiertas). No es un error
-          // para el usuario: el estado deseado ya se cumplió, seguimos al portal.
+          // 409: already completed (double submit or another tab), so just move on.
           if (err.status === 409) {
             this.router.navigateByUrl('/portal/home');
             return;

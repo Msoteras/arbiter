@@ -55,19 +55,16 @@ class ClassificationRefreshSchedulerTest {
     void setUp() {
         scheduler = new ClassificationRefreshScheduler(
                 caseRepository, caseDocumentRepository, caseStatusService, claimsAnalysisClient, insurerRepository);
-        // The sweep is per tenant now, so every test needs at least one insurer to sweep.
-        // A single one keeps these cases testing what they always tested; the multi-tenant
-        // behaviour has its own tests below. Lenient because those two override this stub
-        // before it is ever called, which strict stubs would otherwise flag.
+        // The sweep is per tenant, so every test needs at least one insurer. Lenient because the
+        // multi-tenant tests override this stub before it is ever called.
         lenient().when(insurerRepository.findByActiveTrue())
                 .thenReturn(List.of(insurer(1L, "arbiter_bbva")));
-        // Por default el barrido se queda con el turno (el CAS del contador devuelve 1 fila). Los
-        // tests de concurrencia lo pisan con 0 para simular que otro llegó primero.
+        // By default the sweep wins the turn (the counter CAS updates 1 row); concurrency tests
+        // override it with 0 to simulate another sweep getting there first.
         lenient().when(caseRepository.advanceClassificationAttempts(anyLong(), anyInt(), anyInt()))
                 .thenReturn(1);
         lenient().when(caseDocumentRepository.findByCaseId(any())).thenReturn(List.of());
-        // Ídem para el CAS del barrido de recuperación: por default se queda con el turno. El test
-        // de concurrencia lo pisa con 0.
+        // Same for the recovery sweep's CAS.
         lenient().when(caseRepository.claimFailedCaseForRequeue(anyLong(), any()))
                 .thenReturn(1);
         setMaxAttempts(3);
@@ -103,9 +100,8 @@ class ClassificationRefreshSchedulerTest {
 
         scheduler.refreshPendingCases();
 
-        // Update puntual y condicional del contador, NO save() de la entidad entera: guardar la
-        // entidad reescribía toda la fila desde una copia vieja y revertía cambios concurrentes (un
-        // reintento del analista volvía solo a PENDING_CLASSIFICATION cada pocos segundos).
+        // A conditional update of the counter, NOT save() of the whole entity: saving would rewrite
+        // the row from a stale copy and revert concurrent changes.
         verify(caseRepository).advanceClassificationAttempts(entity.getId(), 0, 1);
         verify(caseRepository, never()).save(any());
         verify(caseStatusService, never()).transition(any(), any(), any(), any());
@@ -127,10 +123,8 @@ class ClassificationRefreshSchedulerTest {
     }
 
     /**
-     * classification-service ya escribió el motivo estructurado en la misma fila
-     * ({@code CaseOutcomeRepository.recordClassificationFailure}) antes de que el barrido se rinda
-     * — esto verifica que la transición lo surface en el motivo en vez de dejar solo el genérico
-     * "N reintentos".
+     * classification-service already wrote the structured failure reason on the row before the
+     * sweep gives up; the transition reason must surface it instead of a generic "N retries".
      */
     @Test
     void maxAttemptsReached_withRecordedInfrastructureFailure_includesItInTransitionReason() {
@@ -149,10 +143,8 @@ class ClassificationRefreshSchedulerTest {
     }
 
     /**
-     * La regresión de las transiciones duplicadas: la base de Railway es compartida, así que hay
-     * más de un barrido corriendo contra los mismos expedientes. El que no se queda con el turno
-     * (el CAS del contador no actualiza ninguna fila) no puede marcar nada como fallido — si no,
-     * quedan dos filas idénticas en case_status_history.
+     * More than one sweep may run against the same cases. The one that loses the turn (the counter
+     * CAS updates no row) must not mark anything as failed, or case_status_history gets duplicates.
      */
     @Test
     void anotherSweepAlreadyAdvancedTheCase_doesNotTransitionAgain() {
@@ -168,9 +160,9 @@ class ClassificationRefreshSchedulerTest {
     }
 
     /**
-     * Entre que el barrido leyó el expediente y se le agotaron los intentos pueden pasar minutos.
-     * Si en el medio salió de PENDING_CLASSIFICATION (lo reintentó un analista, o llegó el
-     * resultado), marcarlo fallido con la copia vieja escribiría una transición que no corresponde.
+     * Minutes may pass between the read and running out of attempts. If the case left
+     * PENDING_CLASSIFICATION meanwhile (an analyst retried it, or the result arrived), marking it
+     * failed from the stale copy would write a wrong transition.
      */
     @Test
     void caseLeftPendingBeforeGivingUp_doesNotTransition() {
@@ -231,9 +223,8 @@ class ClassificationRefreshSchedulerTest {
         assertThat(resolved.getClassificationAttempts()).isEqualTo(0);
         assertThat(unresolved.getStatus()).isEqualTo(CaseStatus.PENDING_CLASSIFICATION);
 
-        // Solo al que sigue pendiente se le sube el contador; el que agotó los intentos pasa por
-        // la transición de estado. El contador ya no se persiste con save() — ver
-        // unresolvedCase_incrementsAttempts.
+        // Only the still-pending case gets its counter bumped; the exhausted one goes through the
+        // status transition.
         verify(caseRepository).advanceClassificationAttempts(unresolved.getId(), 1, 2);
         verify(caseRepository, never()).save(any());
         verify(caseStatusService).transition(eq(failing), eq(CaseStatus.CLASSIFICATION_FAILED),
@@ -244,8 +235,8 @@ class ClassificationRefreshSchedulerTest {
     void sweepsEveryActiveInsurer_withThatTenantResolvedEachTime() {
         when(insurerRepository.findByActiveTrue())
                 .thenReturn(List.of(insurer(1L, "arbiter_bbva"), insurer(2L, "arbiter_provincia")));
-        // Capture the tenant in effect at the moment each schema is queried: proving the
-        // sweep switches tenants is the whole point of the change.
+        // Capture the tenant in effect when each schema is queried: proving the sweep switches
+        // tenants is the point of this test.
         List<String> tenantsSeen = new ArrayList<>();
         when(caseRepository.findByStatus(CaseStatus.PENDING_CLASSIFICATION)).thenAnswer(invocation -> {
             tenantsSeen.add(TenantContext.get());
@@ -276,8 +267,6 @@ class ClassificationRefreshSchedulerTest {
         assertThat(TenantContext.get()).isEqualTo(TenantContext.COMMON_SCHEMA);
     }
 
-    // ─── recoverInfrastructureFailures() — the second, slower sweep ─────────────────────────
-
     @Test
     void recoverInfrastructureFailures_noFailedCases_doesNothing() {
         when(caseRepository.findFailedByReason(ClassificationFailureReason.INFRASTRUCTURE))
@@ -299,7 +288,7 @@ class ClassificationRefreshSchedulerTest {
 
         scheduler.recoverInfrastructureFailures();
 
-        // El CAS es la puerta: se toma el turno antes de tocar nada.
+        // The CAS is the gate: the turn is taken before touching anything.
         verify(caseRepository).claimFailedCaseForRequeue(
                 entity.getId(), ClassificationFailureReason.INFRASTRUCTURE);
         verify(caseStatusService).transition(eq(entity), eq(CaseStatus.PENDING_CLASSIFICATION),
@@ -311,11 +300,8 @@ class ClassificationRefreshSchedulerTest {
     }
 
     /**
-     * La misma regresión que {@link #anotherSweepAlreadyAdvancedTheCase_doesNotTransitionAgain}
-     * cubre para el otro barrido, acá: con la instancia desplegada corriendo al lado de los stacks
-     * locales del equipo, dos barridos leen el mismo CLASSIFICATION_FAILED. El que no se queda con
-     * el turno (el CAS no limpia ninguna fila) no puede reencolar — si no, salen dos
-     * clasificaciones y dos filas en case_status_history.
+     * Same as {@link #anotherSweepAlreadyAdvancedTheCase_doesNotTransitionAgain} for the recovery
+     * sweep: the one that loses the CAS must not requeue, or two classifications go out.
      */
     @Test
     void recoverInfrastructureFailures_anotherSweepAlreadyClaimedTheCase_doesNotRequeueAgain() {
@@ -329,14 +315,13 @@ class ClassificationRefreshSchedulerTest {
 
         verify(caseStatusService, never()).transition(any(), any(), any(), any());
         verifyNoInteractions(claimsAnalysisClient);
-        // Ni siquiera se relee: perder el turno corta antes de tocar la base de nuevo.
+        // Not even re-read: losing the turn stops before touching the database again.
         verify(caseRepository, never()).findById(any());
     }
 
     /**
-     * Un analista puede haber sacado el expediente de {@code CLASSIFICATION_FAILED} con el botón
-     * manual entre que este barrido armó la lista y le tocó el turno. El CAS mira el motivo, no el
-     * estado, así que la relectura posterior es la que tiene que frenarlo.
+     * An analyst may have manually moved the case out of {@code CLASSIFICATION_FAILED} after the
+     * list was built. The CAS checks the failure reason, not the status, so the re-read must stop it.
      */
     @Test
     void recoverInfrastructureFailures_caseNoLongerEligibleByTheTimeItsReRead_isSkipped() {

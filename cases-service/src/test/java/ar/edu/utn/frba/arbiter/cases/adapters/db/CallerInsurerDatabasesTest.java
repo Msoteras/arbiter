@@ -19,9 +19,8 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.when;
 
 /**
- * Qué esquemas de BD Aseguradora puede leer el que llama. Es el reemplazo del esquema
- * {@code aseguradora} único del modelo viejo (D19): ahora hay uno por compañía y el portal tiene
- * que recorrer los del asegurado para que la vista centralizada siga existiendo.
+ * Which insurer database schemas the caller may read. There is one per insurer, and the portal
+ * has to walk all of the insured's to keep a centralized view.
  */
 @ExtendWith(MockitoExtension.class)
 class CallerInsurerDatabasesTest {
@@ -49,7 +48,7 @@ class CallerInsurerDatabasesTest {
         return insurer;
     }
 
-    /** El caso de Martina: cliente de dos compañías con el mismo DNI. */
+    /** A customer of two insurers under the same DNI. */
     @Test
     void resolvesOneDatabasePerInsurerOfTheCaller() {
         CallerContext.set(new CallerContext.Caller("42.987.654", List.of(1L, 2L), CALLER_TENANT));
@@ -74,7 +73,7 @@ class CallerInsurerDatabasesTest {
                 .containsExactly("aseguradora_provincia");
     }
 
-    /** Sin el claim (token viejo, o llamada sin usuario detrás) queda el tenant ya resuelto. */
+    /** Without the claim (old token, or a call with no user behind it) the resolved tenant is used. */
     @Test
     void withoutInsurerIdsClaim_fallsBackToTheCurrentTenant() {
         TenantContext.set(CALLER_TENANT);
@@ -86,7 +85,6 @@ class CallerInsurerDatabasesTest {
                 .containsExactly(new InsurerDatabase(1L, "BBVA Seguros", "aseguradora_bbva"));
     }
 
-    /** Un tenant que no está en el registro no tiene BD Aseguradora que ofrecer. */
     @Test
     void withoutInsurerIdsClaimAndAnUnknownTenant_resolvesNothing() {
         TenantContext.set(CALLER_TENANT);

@@ -20,7 +20,7 @@ class FraudRecordRuleEvaluatorTest {
 
     private final FraudRecordRuleEvaluator evaluator = new FraudRecordRuleEvaluator();
 
-    /** Sin fila no hay nada que evaluar, ni a qué apuntar desde rule_result. */
+    /** Without a rule row there's nothing to evaluate or point rule_result at. */
     @Test
     void withNoRuleConfiguredNothingIsEvaluated() {
         FraudRecordRuleEvaluator.Result result = evaluator.evaluate(
@@ -31,7 +31,6 @@ class FraudRecordRuleEvaluatorTest {
         assertThat(result.reasons()).isEmpty();
     }
 
-    /** PASS is written too: a table with only failures doesn't prove the rule was evaluated. */
     @Test
     void cleanInsuredLeavesAPassFinding() {
         FraudRecordRuleEvaluator.Result result = evaluator.evaluate(rulesWith(policy(true)), List.of());
@@ -56,10 +55,7 @@ class FraudRecordRuleEvaluatorTest {
                 .satisfies(finding -> assertThat(finding.passed()).isFalse());
     }
 
-    /**
-     * The insurer that leaves the veto off still gets the finding and the analyst still gets the
-     * reason — what it doesn't get is the claim losing Fast Track over it.
-     */
+    /** With the veto off, the finding and the reason remain; only Fast Track is kept. */
     @Test
     void vetoOffStillReportsTheRecordWithoutBlocking() {
         FraudRecordRuleEvaluator.Result result =

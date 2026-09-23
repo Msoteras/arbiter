@@ -23,50 +23,32 @@ import java.util.Set;
 import static ar.edu.utn.frba.arbiter.common.enums.CaseStatus.*;
 
 /**
- * Single entry point for every case status change. Both mutating the case and appending the
- * audit row happen here, so a case can't move states without leaving a trail
- * (Expediente = estado + trazabilidad). Nothing else should call {@code Case.setCurrentStatus}.
+ * Single entry point for every case status change: the case and its audit row are written
+ * together, so a case can't move without leaving a trail. Nothing else should call
+ * {@code Case.setCurrentStatus}.
  */
 @Service
 @RequiredArgsConstructor
 public class CaseStatusService {
 
     /**
-     * Ley 17.418 art. 56: the insurer has 30 days from when the term is actually running to
-     * pronounce itself, and staying silent means acceptance. A constant and not a rule in
-     * rules-service because it isn't the insurer's to configure — the law sets it, the same for
-     * every tenant. Owned here (not {@code CaseServiceImpl}) because this service is also what
-     * resets it when the term resumes — see {@link #transition}.
+     * Art. 56 of Ley 17.418: 30 days to respond once the term is running, silence meaning
+     * acceptance. A constant rather than a rule because the law sets it for every insurer.
      */
     public static final int RESPONSE_TERM_DAYS = 30;
 
     /**
-     * States where the case is waiting on a third party (the insured, or an external expert) —
-     * the "requerimiento" the doc de dominio BBVA (§1, §8) describes as what interrupts the art.
-     * 56 term. While a case sits in one of these, {@link CaseServiceImpl#responseDeadline} is
-     * frozen and not counted as due (see {@code DeadlineSweepScheduler},
-     * {@code CaseSpecifications.dueSoonBefore}).
+     * States where the case waits on a third party, which interrupts the art. 56 term. Defined on
+     * the enum because reports-service needs the same list.
      */
-    // La lista vive en el enum, no acá: reports-service la necesita para separar el tiempo propio
-    // del tiempo esperando a terceros, y dos copias se desincronizan.
     public static final Set<CaseStatus> PAUSING_STATUSES = Set.copyOf(CaseStatus.pausingTheTerm());
 
-    /**
-     * States where the case is closed ({@code case_status.is_final = TRUE}). The art. 56 term is
-     * over in all three: two because the insurer pronounced itself, {@code LAPSED} because the
-     * insured never came back. The only way out is a reapertura ({@code CaseServiceImpl.reopenCase}).
-     */
+    /** Closed states; the only way out is reopening. */
     public static final Set<CaseStatus> TERMINAL_STATUSES = Set.of(APPROVED, REJECTED, LAPSED);
 
     /**
-     * Whether the art. 56 clock is ticking in this status — the single definition the deadline
-     * semaphore, the sweep and the term reset all answer to. It is <b>not</b> running while the
-     * case waits on a third party ({@link #PAUSING_STATUSES}: the term is interrupted and the
-     * stored {@code responseDeadline} is a frozen date) nor once it is closed
-     * ({@link #TERMINAL_STATUSES}).
-     *
-     * <p>An unresolvable status counts as running: the safe default is to keep watching a deadline
-     * we can't classify, not to silently stop.
+     * The single definition the deadline priority, the sweep and the term reset answer to. An
+     * unknown status counts as running: better to keep watching a deadline than silently stop.
      */
     public static boolean isDeadlineRunning(CaseStatus status) {
         return status == null
@@ -75,23 +57,15 @@ public class CaseStatusService {
 
     private static final Map<CaseStatus, Set<CaseStatus>> VALID_TRANSITIONS = Map.of(
             PENDING_CLASSIFICATION,  Set.of(PENDING_ANALYST_REVIEW, AWAITING_DOCUMENTATION, CLASSIFICATION_FAILED),
-            // LAPSED: LapseSweepScheduler closes a case that sat here 18 months from the denuncia
-            // with no movement from the insured — "inacción del asegurado ante requerimientos".
             AWAITING_DOCUMENTATION,  Set.of(PENDING_CLASSIFICATION, LAPSED),
             PENDING_ANALYST_REVIEW,  Set.of(APPROVED, REJECTED, PENDING_CLASSIFICATION, PENDING_EXPERT_REPORT,
                     PENDING_REPAIR),
             CLASSIFICATION_FAILED,   Set.of(PENDING_CLASSIFICATION),
-            // Back to the analyst and nowhere else. A derived case can't be approved or rejected
-            // without its report — that is the whole point of having derived it — and it can't be
-            // derived twice, because there is no way out of here except through review.
+            // Back to the analyst only: a referred case can't be decided without its report.
             PENDING_EXPERT_REPORT,   Set.of(PENDING_ANALYST_REVIEW),
-            // Igual que el peritaje: el servicio técnico informa, no resuelve. La devolución
-            // vuelve al analista y la decisión sigue siendo suya (decisión de arquitectura #5).
+            // The repair shop reports, it doesn't decide.
             PENDING_REPAIR,          Set.of(PENDING_ANALYST_REVIEW),
-            // Reapertura ("rehabilitación" in the doc de dominio BBVA): the three terminal states
-            // lead back to the analyst's desk and nowhere else. Reopening is not a new verdict —
-            // it only puts the case in front of a human again, so it lands in the one state that
-            // means exactly that. See CaseServiceImpl.reopenCase.
+            // Reopening is not a new verdict: it only puts the case in front of an analyst again.
             APPROVED,                Set.of(PENDING_ANALYST_REVIEW),
             REJECTED,                Set.of(PENDING_ANALYST_REVIEW),
             LAPSED,                  Set.of(PENDING_ANALYST_REVIEW)
@@ -103,33 +77,22 @@ public class CaseStatusService {
     private final CaseNotificationService notificationService;
     private final Clock clock;
 
-    /**
-     * The state every case is born in. Lives here rather than in {@code CaseServiceImpl} so the
-     * catalog stays behind this service — the entry point for anything status-shaped.
-     */
     public CaseState initialStatus() {
         return caseStateCatalog.resolve(PENDING_CLASSIFICATION);
     }
 
-    /** Records the case's birth (null → its initial status). The case is already persisted. */
+    /** The case must already be persisted. */
     @Transactional
     public void recordCreation(Case caseRecord, StatusChangeActor actor, String reason) {
         appendHistory(caseRecord.getId(), null, caseRecord.getCurrentStatus(), actor, reason);
-        // "We got your claim" belongs to the birth and not to transition(): a case comes back to
-        // PENDING_CLASSIFICATION every time the insured uploads what was missing, and notifying
-        // there would greet them again on every upload.
+        // Notified here rather than in transition(): a case returns to PENDING_CLASSIFICATION on
+        // every document upload, and the insured must not be greeted again each time.
         notificationService.notifyStatusChange(caseRecord, PENDING_CLASSIFICATION);
     }
 
     /**
-     * Moves the case to a new status, records the transition, and persists the case.
-     *
-     * <p>{@code @Transactional}: called from {@code ClassificationRefreshScheduler} (no HTTP
-     * request behind it, so no open-in-view or any other ambient session/transaction to piggyback
-     * on) — without this, the history save and the case save each needed their own implicit
-     * transaction to reliably flush, and in that codepath specifically one of them was failing
-     * with "No EntityManager with actual transaction available ... cannot reliably process
-     * 'flush' call". This also makes the two writes atomic, which they always should've been.
+     * {@code @Transactional} because the schedulers call it with no ambient transaction, and the
+     * history row and the case must be written atomically.
      */
     @Transactional
     public Case transition(Case caseRecord, CaseStatus to, StatusChangeActor actor, String reason) {
@@ -145,13 +108,8 @@ public class CaseStatusService {
         resumeDeadlineIfInterrupted(caseRecord, from, to);
         Case saved = caseRepository.save(caseRecord);
 
-        // After persisting, never before: notifying about a move that then fails to save would tell
-        // the insured something that didn't happen. PENDING_CLASSIFICATION is excluded here — see
-        // recordCreation().
+        // Only after persisting, so the insured is never told about a move that failed to save.
         if (isReopening(from, to)) {
-            // A reopening can't be told apart by its destination — it lands in the same status an
-            // ordinary classification does — so it needs the pair. Resolved here and not by the
-            // caller so any future path that reopens a case notifies too, without remembering to.
             notificationService.notifyReopened(saved);
         } else if (to != PENDING_CLASSIFICATION) {
             notificationService.notifyStatusChange(saved, to);
@@ -160,28 +118,14 @@ public class CaseStatusService {
     }
 
     /**
-     * {@link #transition} para los llamadores que <b>no</b> corren dentro de la transacción que
-     * cargó el expediente — hoy, el barrido de clasificación.
+     * {@link #transition} for callers not running in the transaction that loaded the case, such as
+     * the sweeps: their copy may be stale and several instances may sweep the same schema. The
+     * move only happens if the DB still holds {@code expected}; whoever loses the race writes nothing.
      *
-     * <p>La diferencia es de dónde sale la garantía de que la transición corresponde. En
-     * {@link #transition} sale de la entidad: el llamador la acaba de leer en la misma request, así
-     * que {@code caseRecord.getStatus()} es la verdad. El barrido no tiene eso — su copia es de
-     * varios segundos atrás, y con varios schedulers contra la misma base (la de Railway es
-     * compartida por todo el equipo, cada stack local suma uno más) dos barridos llegaban con la
-     * misma copia en {@code PENDING_CLASSIFICATION} y los dos escribían la transición, duplicando
-     * la fila de {@code case_status_history} y el mail al asegurado.
+     * <p>Returns the entity re-read after the compare-and-set, so the caller can persist more on it
+     * without rewriting the row from the stale copy.
      *
-     * <p>Acá la garantía sale de la base: {@code claimStatusTransition} mueve el estado sólo si
-     * sigue siendo {@code expected}, y quien no se queda con el turno se retira sin escribir nada.
-     * Por eso el estado esperado se pasa explícito en vez de leerse de la entidad — la copia vieja
-     * no es autoridad sobre nada, ni siquiera sobre de dónde sale.
-     *
-     * <p>Devuelve la entidad <b>releída</b> después del CAS, no la que recibió: el llamador que se
-     * queda con el turno suele tener más que persistir (la caché del score, el informe forense), y
-     * guardarlo sobre la copia vieja reescribiría toda la fila desde un estado anterior — incluido
-     * el {@code current_status_id} que este método acaba de mover.
-     *
-     * @return el expediente ya movido, o vacío si otro llegó primero
+     * @return the moved case, or empty if someone else got there first
      */
     @Transactional
     public Optional<Case> transitionIfStillIn(Case caseRecord, CaseStatus expected, CaseStatus to,
@@ -203,8 +147,6 @@ public class CaseStatusService {
         resumeDeadlineIfInterrupted(moved, expected, to);
         Case saved = caseRepository.save(moved);
 
-        // Mismo criterio que transition(): después de persistir, y nunca para
-        // PENDING_CLASSIFICATION (ver recordCreation).
         if (isReopening(expected, to)) {
             notificationService.notifyReopened(saved);
         } else if (to != PENDING_CLASSIFICATION) {
@@ -214,24 +156,16 @@ public class CaseStatusService {
     }
 
     /**
-     * A case coming back out of a closed state — the reapertura ("rehabilitación") of the doc de
-     * dominio BBVA. The destination alone doesn't identify it: an ordinary classification reaches
-     * {@code PENDING_ANALYST_REVIEW} too, and the insured must not be told "reabrimos tu siniestro"
-     * every time the model finishes.
+     * The destination alone doesn't identify a reopening: an ordinary classification also reaches
+     * {@code PENDING_ANALYST_REVIEW}.
      */
     private static boolean isReopening(CaseStatus from, CaseStatus to) {
         return to == PENDING_ANALYST_REVIEW && TERMINAL_STATUSES.contains(from);
     }
 
     /**
-     * Appends an ownership change (assign / reassign / release) to the same trail as the status
-     * moves, so "quién lo tomó y cuándo" is auditable next to "qué pasó con el expediente".
-     *
-     * <p>Assigning is not a state machine move: the case keeps its status, which is why this
-     * bypasses {@link #transition} instead of trying to squeeze through VALID_TRANSITIONS. The row
-     * records {@code from == to} on purpose — that equality is the marker the frontend timeline
-     * uses to render it as a milestone without a status arrow. Human-in-the-loop is untouched:
-     * having an owner is not a decision (decisión de arquitectura #5).
+     * Ownership changes go on the same trail as status moves but bypass the state machine: the row
+     * records {@code from == to}, which is the marker the frontend timeline uses to render it.
      */
     @Transactional
     public void recordAssignment(Case caseRecord, StatusChangeActor actor, String reason) {
@@ -244,25 +178,9 @@ public class CaseStatusService {
     }
 
     /**
-     * The doc de dominio BBVA (§1, regla estructural clave; §8) models the art. 56 term as
-     * something that <b>interrupts</b> while the aseguradora is waiting on a third party, and
-     * runs again <b>in full</b> — not just the remaining days — once the requirement is <b>met</b>.
-     * So any move from a status where the clock was stopped into one where it runs resets
-     * {@code responseDeadline} to a fresh {@link #RESPONSE_TERM_DAYS} from today; the reverse move
-     * freezes it in place (nothing to do here — the sweep/semaphore skip those statuses instead of
-     * reading a stale date as urgency).
-     *
-     * <p>Expressed against {@link #isDeadlineRunning} rather than against
-     * {@link #PAUSING_STATUSES} alone, so the two cases fall out of the same rule:
-     * <ul>
-     *   <li>the requirement was met (leaving a pausing status) — the term resumes in full;</li>
-     *   <li>a terminal case is reopened — the insurer is on the hook again from scratch, which is
-     *       the only reading that doesn't hand the analyst an already-overdue case the moment they
-     *       correct their own mistake.</li>
-     * </ul>
-     * And the moves that must <b>not</b> reset are excluded for free, because both ends are
-     * stopped: {@code AWAITING_DOCUMENTATION → LAPSED} (the requirement was never met, so there's
-     * no term to resume) and {@code PENDING_ANALYST_REVIEW → APPROVED/REJECTED} (answered).
+     * The art. 56 term restarts in full, not with the remaining days, whenever the case moves from
+     * a stopped status to a running one: a requirement was met, or a closed case was reopened.
+     * Moves between two stopped statuses (e.g. {@code AWAITING_DOCUMENTATION → LAPSED}) don't reset.
      */
     private void resumeDeadlineIfInterrupted(Case caseRecord, CaseStatus from, CaseStatus to) {
         if (!isDeadlineRunning(from) && isDeadlineRunning(to)) {

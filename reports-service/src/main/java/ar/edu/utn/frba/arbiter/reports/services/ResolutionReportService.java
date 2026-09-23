@@ -21,19 +21,12 @@ import java.time.ZoneId;
 import java.time.temporal.ChronoUnit;
 import java.util.List;
 
-/**
- * The resolution report: the claims an insurer resolved in a period, with how long each took, how
- * it was classified and what the analyst decided. Always scoped to the caller's insurer — the
- * tenant schema the JWT resolves to.
- */
+/** The resolution report, always scoped to the caller's tenant. */
 @Service
 @RequiredArgsConstructor
 public class ResolutionReportService {
 
-    /**
-     * A year, leap day included. Not a business rule — a guard on how many cases one request can
-     * pull into memory to render a file.
-     */
+    /** Not a business rule: a guard on how many cases one request can pull into memory. */
     static final int MAX_PERIOD_DAYS = 366;
 
     private final ResolvedCaseRepository resolvedCaseRepository;
@@ -67,20 +60,14 @@ public class ResolutionReportService {
         return new ExportedReport(filename, format, content);
     }
 
-    /**
-     * The same summary, over the equal-length stretch immediately before the period — see
-     * {@link PreviousPeriod}. It is queried, not derived: the screen states "2 more than the
-     * previous period" and that sentence has to be something the database said, not an arithmetic
-     * the frontend invented over numbers it never saw.
-     */
     private ResolutionSummary previousSummary(LocalDate from, LocalDate to, Long branchId, String cause) {
         PreviousPeriod previous = PreviousPeriod.immediatelyBefore(from, to);
         return ResolutionSummaries.of(rowsBetween(previous.from(), previous.to(), branchId, cause));
     }
 
     /**
-     * Whole calendar days in the insurer's local time, both ends included: "hasta el 31/08" means up
-     * to the last second of that day, so the upper bound is the next midnight, exclusive.
+     * Whole calendar days in the insurer's time zone, both ends included: the upper bound is the next
+     * midnight, exclusive.
      */
     private List<ResolutionReportRow> rowsBetween(LocalDate from, LocalDate to, Long branchId,
                                                   String cause) {
@@ -93,9 +80,8 @@ public class ResolutionReportService {
     }
 
     /**
-     * Resolved from the catalog and not from the rows: with a filter that matched nothing there is
-     * no row to take it from, and that is precisely the report that most needs to say which branch
-     * it looked at. Looked up before the query, so an unknown branch fails without running it.
+     * From the catalog, not the rows: an empty result still has to name its branch. Looked up first so
+     * an unknown branch fails before the query runs.
      */
     private String branchName(Long branchId) {
         if (branchId == null) {

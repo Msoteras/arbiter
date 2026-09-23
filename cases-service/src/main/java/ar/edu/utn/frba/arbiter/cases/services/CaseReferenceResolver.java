@@ -14,12 +14,10 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
 /**
- * Turns the strings a denuncia arrives with into the rows {@code cases} now points at.
+ * Turns the strings a claim is filed with into the rows {@code cases} points at.
  *
- * <p>Everything here fails with {@link UnresolvedCaseReferenceException} (422) instead of
- * degrading to free text: the wizard only offers policies already synced from the insurer's DB,
- * so an unresolvable value means the request didn't come from the wizard, or the sync hasn't run.
- * Storing it anyway is how a case ends up referring to a policy nobody can find.
+ * <p>Fails with {@link UnresolvedCaseReferenceException} (422) instead of degrading to free text:
+ * storing an unresolvable value is how a case ends up referring to something nobody can find.
  */
 @Service
 @RequiredArgsConstructor
@@ -41,11 +39,8 @@ public class CaseReferenceResolver {
     }
 
     /**
-     * La póliza del snapshot local y, si todavía no está, la que trae la BD Aseguradora en el acto
-     * (decisión #10). Denunciar sobre una póliza que la compañía tiene pero Arbiter no copió es un
-     * caso normal —el portal lista las pólizas leyendo la compañía en vivo—, no un dato inválido:
-     * lo que falta es la sincronización, y se hace acá. El 422 queda para lo que de verdad no
-     * resuelve (ver {@link PolicySynchronizer}).
+     * Falls back to importing the policy from the insurer's DB: the portal lists policies from the
+     * insurer live, so one not yet snapshotted locally is a normal case, not invalid input.
      */
     public Policy resolvePolicy(String policyNumber, Long insuredId) {
         return policyRepository.findByExternalPolicyNumber(policyNumber)
@@ -59,8 +54,7 @@ public class CaseReferenceResolver {
     }
 
     /**
-     * Refreshes the contact fields the denuncia form captures. PEP comes from the insurer's data
-     * and image consent is captured during onboarding — neither belongs in the claim form anymore.
+     * Only the contact fields: PEP comes from the insurer's data and image consent from onboarding.
      */
     public Insured applyDeclaredDetails(Insured insured, CaseRequest request) {
         if (request.contactEmail() != null) {

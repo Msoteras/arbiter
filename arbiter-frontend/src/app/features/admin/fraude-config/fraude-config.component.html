@@ -1,9 +1,8 @@
 @if (loading()) {
   <app-inline-loading [size]="26" message="Cargando gestión de fraude…" />
 } @else if (rule(); as r) {
-  <!-- Encabezado afuera de las cards: las dos de abajo son la misma sección, pero se guardan
-       distinto (los peritos al instante, el antecedente con el botón), y meterlas en una sola card
-       obligaba a que una barra de guardado hablara por las dos. -->
+  <!-- Header outside the cards: expert firms save instantly and the fraud record rule uses the save
+       bar, so they can't share one card. -->
   <header class="gf-head">
     <h2 class="t-section-label">Gestión de fraude</h2>
     <p class="section-hint">
@@ -19,8 +18,7 @@
       <span class="t-section-label">Antecedente de reincidencia</span>
     </div>
     <p class="section-hint">
-      Qué pasa cuando alguien que ya defraudó vuelve a denunciar. No rechaza nada por sí solo: es
-      una señal.
+      Qué pasa cuando alguien que ya defraudó vuelve a denunciar.
       <app-info-tip>
         Lo registra un analista sobre el asegurado, desde el expediente donde se determinó el
         fraude. Solo pesa el que tiene peritaje detrás. Al modelo no se le cuenta: pesa en el nivel
@@ -31,11 +29,9 @@
     <ul class="rule-rows">
       <li class="rule-row">
         <div class="rule-text">
-          <!-- <label for> y no aria-labelledby: app-input no reenvía ese atributo al input
-               interno, pero sí expone su id, así que el label real es lo que lo rotula. -->
+          <!-- <label for>, not aria-labelledby: app-input doesn't forward that attribute to the
+               inner input, but it does expose its id. -->
           <label class="t-field-label" for="ant-ventana">¿Cuánto tiempo sigue pesando?</label>
-          <!-- La primera mitad repetía la etiqueta ("cuánto tiempo sigue pesando"). Lo que la
-               etiqueta NO dice es dónde se configura cuánto suma, que es lo único que queda. -->
           <p class="rule-hint">Qué tanto suma se configura en Puntaje de riesgo.</p>
         </div>
         <div class="rule-value window">

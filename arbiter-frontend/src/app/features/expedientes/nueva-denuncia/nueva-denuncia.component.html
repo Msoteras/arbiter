@@ -38,7 +38,6 @@
     }
 
     <app-card class="wizard-card" [bare]="embedded()">
-      <!-- Stepper: el número deja volver a un paso ya completado. -->
       <div class="stepper">
         @for (s of steps; track s) {
           <button
@@ -61,7 +60,6 @@
         }
       </div>
 
-      <!-- Step 1: Póliza + qué pasó -->
       @if (step() === 1) {
         <section class="step-content">
           <h2 class="step-title">Tu póliza</h2>
@@ -104,10 +102,7 @@
                       <span class="policy-warn">Póliza con premios adeudados</span>
                     }
                   </div>
-                  <!-- La mora (POLICY_STANDING) no necesita la fecha del hecho para evaluarse, así
-                       que el precheck ya puede confirmar acá, en el paso 1, si eso va a bloquear la
-                       denuncia — antes el badge de arriba decía "premios adeudados" sin aclarar si
-                       eso alcanzaba para impedir la denuncia o era solo un aviso. -->
+                  <!-- POLICY_STANDING doesn't need the event date, so the precheck can already tell here whether arrears block the claim. -->
                   @if (eligibilityError(); as reason) {
                     <div class="submit-error" role="alert">{{ reason }}</div>
                   } @else if (eligibilityChecking()) {
@@ -137,7 +132,6 @@
         </section>
       }
 
-      <!-- Step 2: Descripción -->
       @if (step() === 2) {
         <section class="step-content">
           <h2 class="step-title">Contanos los detalles</h2>
@@ -150,8 +144,6 @@
           />
 
           <label class="field-label">¿Cuándo pasó? *</label>
-          <!-- Atajo relativo antes de los campos: el que denuncia a los pocos días —la enorme
-               mayoría— resuelve la fecha con un toque y no vuelve a mirar el input. -->
           <app-chip-group
             class="date-shortcuts"
             size="sm"
@@ -160,9 +152,7 @@
             (valueChange)="selectEventDateShortcut($event)"
             ariaLabel="Fecha del hecho"
           />
-          <!-- Label propio por campo: los navegadores IGNORAN el placeholder en type="date" y
-               type="time", así que el "Hora aprox." que había acá no se veía nunca — el campo
-               mostraba `--:--` pelado. -->
+          <!-- Own labels: browsers ignore the placeholder on type="date" and type="time". -->
           <div class="datetime-grid">
             <label class="subfield">
               <span class="t-note">Fecha</span>
@@ -173,9 +163,7 @@
               <app-input type="time" [(value)]="eventTime" />
             </label>
           </div>
-          <!-- Atajo para el caso normal: al asegurado al que le robaron el celular rara vez le
-               consta "20:47", pero sí "a la noche". El chip escribe una hora representativa en el
-               campo de arriba, que sigue siendo el dato — el que la sabe exacta la corrige. -->
+          <!-- The chip writes a representative hour into the field above, which remains the actual value. -->
           <app-chip-group
             class="time-shortcuts"
             size="sm"
@@ -190,11 +178,7 @@
             tu cobertura, no hace falta que sea al minuto.
           </p>
 
-          <!-- Right under the field it's actually about (policy + this date): buried further down
-               past the police-report block it read as an unrelated mid-form error instead of a
-               validation of the date just above it. The backend rejects these cases without
-               creating the case, so this still fires before the insured fills out the whole form
-               and uploads documentation for nothing. -->
+          <!-- Right under the date it validates, so the insured learns before filling in the rest. -->
           @if (eligibilityError(); as reason) {
             <div class="submit-error" role="alert">{{ reason }}</div>
           } @else if (eligibilityChecking()) {
@@ -206,13 +190,9 @@
             </div>
           }
 
-          <!-- Se oculta solo ante un bloqueo real de la póliza (mora, vigencia, carencia). Un
-               error de coherencia de fechas NO lo esconde: es justo el campo que hay que
-               corregir. -->
+          <!-- Hidden only on a real policy block; a date-consistency error must keep this field editable. -->
           @if (requiresPoliceReport() && !policyBlocked()) {
             <label class="field-label">¿Ya hiciste la denuncia policial?</label>
-            <!-- Antes esto se contestaba dejando el campo de fecha vacío, explicado en una nota
-                 abajo: un campo en blanco no distingue "todavía no la hice" de "me lo salteé". -->
             <div class="toggle-row">
               <app-switch
                 [checked]="policeReportFiled()"
@@ -224,9 +204,7 @@
               }}</span>
             </div>
             @if (policeReportMissingBlocks()) {
-              <!-- La agenda de este hecho generador pide la constancia y todo lo que el referente
-                   guarda es obligatorio, así que sin ella la denuncia no se puede enviar. Se dice
-                   acá y no recién en el paso 3, para no hacerle completar el formulario entero. -->
+              <!-- Every agenda item is mandatory, so warn here rather than at step 3. -->
               <p class="t-note">
                 Para este tipo de siniestro la constancia de la denuncia policial es obligatoria:
                 vas a poder seguir cargando los datos, pero no enviar la denuncia hasta adjuntarla.
@@ -241,8 +219,7 @@
 
           @if (requiresPoliceReport() && !policyBlocked() && policeReportFiled()) {
             <label class="field-label">¿Cuándo la hiciste? *</label>
-            <!-- Relativos a la fecha del hecho: así ninguna de las opciones puede ser anterior al
-                 siniestro que denuncia. -->
+            <!-- Relative to the event date so no option can precede the claim itself. -->
             @if (policeDateAnchored()) {
               <app-chip-group
                 class="date-shortcuts"
@@ -280,21 +257,13 @@
             <p class="t-note">La constancia se adjunta en el paso siguiente.</p>
           }
 
-          <!-- Nothing past this point matters if the case above is a hard block — filling out
-               location/description/contact for a claim that can't be filed is wasted effort, and
-               showing those fields made the eligibility error read as just another note instead of
-               a stop sign. Kept visible while `eligibilityChecking()` so the fields already filled
-               in don't flicker away during the debounce/round trip on every date edit.
-               `policyBlocked()` y no `eligibilityError()`: una incoherencia entre las dos fechas se
-               arregla en los campos de arriba, así que colapsar el formulario por eso dejaba al
-               asegurado con medio paso vacío y sin entender qué había pasado. -->
+          <!-- Hidden on a hard policy block. Deliberately `policyBlocked()`, not `eligibilityError()`:
+               a date inconsistency is fixed in the fields above and must not collapse the form. -->
           @if (!policyBlocked()) {
             <label class="field-label">¿Dónde pasó? *</label>
             <div class="location-fields">
-              <!-- Catálogo cerrado y en cascada, no texto libre: provincia y localidad se guardan
-                   en columnas propias para poder agrupar, y con entrada libre entraban tres formas
-                   distintas de escribir la misma provincia. La localidad espera a la provincia
-                   porque la lista depende de ella. -->
+              <!-- Closed cascading catalog, not free text: province and locality are stored in
+                   their own columns for grouping. -->
               <div class="location-grid">
                 <app-select
                   [(value)]="provincia"
@@ -319,8 +288,7 @@
             </div>
 
             <label class="field-label">Monto reclamado (opcional)</label>
-            <!-- min=0 no es solo el spinner: app-input bloquea el signo menos cuando el campo
-                 numérico tiene un mínimo no negativo. Un monto reclamado negativo no existe. -->
+            <!-- min=0 also makes app-input block the minus sign. -->
             <app-input type="number" [min]="0" placeholder="$" [(value)]="claimedAmount" />
 
             <label class="field-label">Descripción del hecho *</label>
@@ -349,7 +317,6 @@
         </section>
       }
 
-      <!-- Step 3: Documentación -->
       @if (step() === 3) {
         <section class="step-content">
           <h2 class="step-title">Adjuntá documentación</h2>
@@ -362,10 +329,7 @@
               }
             </p>
           } @else if (docsUnavailable()) {
-            <!-- No es lo mismo que "no hace falta nada": no pudimos leer la agenda. Se dice, se deja
-                 enviar igual —dejarlo afuera porque un servicio NUESTRO no responde sería peor— y
-                 la verificación queda del lado del backend, que la vuelve a hacer contra la agenda
-                 real cuando pueda leerla. -->
+            <!-- The agenda couldn't be read: submission is still allowed and the backend re-checks it. -->
             <p class="step-hint">
               No pudimos verificar qué documentación pide tu tipo de siniestro. Podés enviar la
               denuncia igual: si falta algo, te lo vamos a pedir desde el seguimiento.
@@ -428,14 +392,11 @@
         </section>
       }
 
-      <!-- Barra de acciones (inline) -->
       <div class="wizard-actions">
         <div class="wizard-actions-left">
           @if (step() > 1) {
             <app-button variant="secondary" (click)="prev()">‹ Volver</app-button>
           }
-          <!-- Cancelar disponible en TODO paso del pop-up: cerrar sin tener que volver al paso 1.
-               (Solo en modo embedded — como página propia se sale por la navegación.) -->
           @if (embedded()) {
             <app-button variant="secondary" (click)="cancel()">Cancelar</app-button>
           } @else if (step() === 1) {
@@ -444,8 +405,6 @@
         </div>
 
         @if (step() < 3) {
-          <!-- El aviso al lado del botón y no arriba del formulario: es la explicación de por qué
-               "Continuar" está gris, y se lee en el mismo golpe de vista que el botón. -->
           <div class="wizard-actions-right">
             @if (missingFields().length) {
               <p class="missing-hint" role="status">

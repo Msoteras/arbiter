@@ -22,19 +22,13 @@ import { ModalComponent } from './shared/ui/modal/modal.component';
 import { LoadingComponent } from './shared/ui/loading/loading.component';
 import { NotificationsPanelComponent } from './core/notifications/notifications-panel.component';
 import { ToastStackComponent } from './shared/ui/toast/toast-stack.component';
-import { EmptyStateComponent } from './shared/ui/empty-state/empty-state.component';
-import { InlineLoadingComponent } from './shared/ui/inline-loading/inline-loading.component';
-import { formatDateTime } from './core/util/datetime';
 import { NuevaDenunciaComponent } from './features/expedientes/nueva-denuncia/nueva-denuncia.component';
 import { GlobalSearchComponent } from './features/expedientes/global-search/global-search.component';
 
-/** Debajo de este ancho el panel de navegación se superpone al contenido en vez de empujarlo. */
+/** Below this width the nav panel overlays the content instead of pushing it. */
 const OVERLAY_NAV_QUERY = '(max-width: 1024px)';
-/** El panel recuerda si quedó abierto o cerrado entre recargas (solo en modo "empuja"). */
 const NAV_OPEN_KEY = 'arbiter.nav-open';
-/** Lo que dura el cierre de sesión en pantalla: alcanza para leerlo, no tanto como para estorbar. */
 const LOGOUT_DELAY_MS = 900;
-/** Cada cuánto se vuelve a pedir el contador de la campana. */
 const UNREAD_POLL_MS = 30_000;
 
 @Component({
@@ -53,9 +47,8 @@ const UNREAD_POLL_MS = 30_000;
     LoadingComponent,
   ],
   changeDetection: ChangeDetectionStrategy.OnPush,
-  // Desactiva TODAS las animaciones de @angular/animations (stagger, growBar, etc.) del árbol
-  // de la app cuando el sistema pide menos movimiento. Las animaciones CSS ya lo respetan por
-  // su cuenta con media queries; esto cubre las de la DSL, que no lo hacen solas.
+  // CSS animations honor prefers-reduced-motion via media queries; @angular/animations don't, so
+  // they are disabled for the whole tree here.
   host: { '[@.disabled]': 'reduceMotion()' },
   templateUrl: './app.html',
   styleUrl: './app.scss',
@@ -67,7 +60,6 @@ export class App {
   protected readonly newClaim = inject(NewClaimModalService);
   private readonly appReady = inject(AppReadyService);
 
-  // Preferencia de movimiento reducido del sistema, reactiva a cambios en caliente.
   private readonly reduceMotionMql =
     typeof window !== 'undefined' && window.matchMedia
       ? window.matchMedia('(prefers-reduced-motion: reduce)')
@@ -78,15 +70,14 @@ export class App {
     typeof window !== 'undefined' && window.matchMedia
       ? window.matchMedia(OVERLAY_NAV_QUERY)
       : null;
-  /** true = el panel se superpone (pantalla angosta); false = empuja el contenido. */
   protected readonly overlayNav = signal(this.overlayNavMql?.matches ?? false);
 
   constructor() {
     this.reduceMotionMql?.addEventListener('change', (e) => this.reduceMotion.set(e.matches));
     this.overlayNavMql?.addEventListener('change', (e) => {
       this.overlayNav.set(e.matches);
-      // Al angostarse la ventana el panel no puede quedar abierto tapando todo sin que nadie
-      // lo haya pedido; al ensancharse vuelve a lo que el usuario había elegido.
+      // Narrowing must not leave an unrequested overlay covering the screen; widening restores
+      // the user's stored preference.
       this.navOpen.set(e.matches ? false : this.storedNavOpen());
     });
 
@@ -98,8 +89,8 @@ export class App {
       }
     });
 
-    // The effect above runs once per session, so a notice arriving with the screen open went
-    // unseen until a reload. Not asked while the tab is hidden: nobody is watching the bell.
+    // The effect above runs once per session; polling catches notices arriving with the screen
+    // open. Skipped while the tab is hidden: nobody is watching the bell.
     interval(UNREAD_POLL_MS)
       .pipe(takeUntilDestroyed())
       .subscribe(() => {
@@ -109,11 +100,8 @@ export class App {
       });
   }
 
-  // Solo NavigationEnd, no NavigationStart: el marco tiene que llegar DESPUÉS de que la pantalla
-  // nueva esté montada, no antes. Adelantándolo al Start, al entrar recién logueado el chrome
-  // aparecía mientras el outlet todavía mostraba el login — un frame de "app vacía" antes de la
-  // carga de marca. Al revés no se ve nada: el home pinta su `app-loading` a viewport completo
-  // apenas se monta, y el chrome se materializa detrás de ese overlay.
+  // NavigationEnd, not NavigationStart: the chrome must appear after the new screen is mounted,
+  // otherwise right after login it flashes over the still-visible login screen.
   private readonly currentUrl = toSignal(
     this.router.events.pipe(
       filter((event): event is NavigationEnd => event instanceof NavigationEnd),
@@ -122,13 +110,8 @@ export class App {
     { initialValue: this.router.url },
   );
 
-  // Pantallas standalone: ocupan todo el alto, sin el chrome de la app. Se comparan por path,
-  // ignorando el query (activación y reset llevan el token en la URL).
-  //
-  // Las de autenticación lo son por no tener sesión todavía. `/portal/onboarding` sí tiene
-  // sesión, pero también va sin chrome: es un paso obligatorio del que no se puede salir
-  // (onboardingGuard rebota todo el portal hasta completarlo), así que mostrar la navegación
-  // sería ofrecer links que devuelven al mismo lugar.
+  // Matched by path without the query (activation and reset carry the token in the URL).
+  // Onboarding has a session but no chrome: onboardingGuard bounces every portal link back to it.
   private static readonly CHROMELESS_ROUTES = [
     '/login',
     '/forgot-password',
@@ -136,41 +119,33 @@ export class App {
     '/reset-password',
     '/portal/onboarding',
   ];
-  // El shell exige sesión, no solo "no estar en una ruta de auth": la sesión vive en memoria y se
-  // pierde al recargar, así que al refrescar una ruta protegida la URL sigue siendo /inbox por un
-  // instante (antes de que el guard redirija a /login). Sin este chequeo, el chrome se pintaba
-  // vacío ese instante — el "flash" del layout interno al recargar.
+  // The session lives in memory: on reload a protected URL stays up for an instant before the
+  // guard redirects to /login, and without the session check an empty chrome would flash.
   protected readonly showShell = computed(
     () =>
       this.session.session() !== null &&
       !App.CHROMELESS_ROUTES.includes(this.currentUrl().split('?')[0]),
   );
 
-  // H0003 - RBAC: cada rol ve solo su propia sección de la navegación (el referente incluida —
-  // tiene acceso completo a nivel de permisos, pero en el nav solo se le muestra la suya).
+  // Each role sees only its own nav section, even the referente, who has full permissions.
   protected readonly showAnalistaNav = computed(
     () => this.session.session()?.rol === 'ANALISTA_SINIESTROS',
   );
 
   protected readonly showAseguradoNav = computed(() => this.session.session()?.rol === 'ASEGURADO');
 
-  // H0002 - Alta de Usuarios: panel exclusivo del referente.
   protected readonly showAdminNav = computed(
     () => this.session.session()?.rol === 'REFERENTE_ASEGURADORA',
   );
 
-  /** "Inicio" es lo único que la topbar navega; cada rol aterriza en su propio home. */
   protected readonly homeLink = computed(() => (this.showAdminNav() ? '/insurer/home' : '/home'));
 
-  // Campana de la topbar interna (analista y referente). El asegurado también tiene campana, pero
-  // en su propio topbar del portal (se renderiza directo ahí, sin pasar por este flag).
+  // The insured's bell is rendered by the portal topbar, not through this flag.
   protected readonly showBell = computed(() => {
     const rol = this.session.session()?.rol;
     return rol === 'ANALISTA_SINIESTROS' || rol === 'REFERENTE_ASEGURADORA';
   });
 
-  // En el detalle de un expediente (/cases/:id) la topbar suma un "Volver a la bandeja" al lado de
-  // "Inicio" — el detalle ya trae su propio encabezado con el N° de expediente.
   protected readonly showBack = computed(() =>
     this.currentUrl().split('?')[0].startsWith('/cases/'),
   );
@@ -178,10 +153,8 @@ export class App {
     this.router.navigateByUrl('/inbox');
   }
 
-  // ───────────────── Panel de navegación desplegable ─────────────────
-  // La topbar es fija y lleva solo "Inicio" + buscador + acciones; el resto de las secciones vive
-  // en el panel que abre la hamburguesa. En pantalla ancha el panel empuja el contenido y su
-  // estado se recuerda; en angosta se superpone y arranca siempre cerrado.
+  // Nav panel: on wide screens it pushes the content and its state is remembered; on narrow ones
+  // it overlays and always starts closed.
   protected readonly navOpen = signal(
     (this.overlayNavMql?.matches ?? false) ? false : this.storedNavOpen(),
   );
@@ -193,15 +166,12 @@ export class App {
 
   private readonly persistNavOpen = effect(() => {
     const open = this.navOpen();
-    // Solo se recuerda la preferencia del modo "empuja": abrir el overlay en mobile es puntual,
-    // no una preferencia de layout.
+    // Opening the mobile overlay is a one-off action, not a layout preference.
     if (!this.overlayNav() && typeof localStorage !== 'undefined') {
       localStorage.setItem(NAV_OPEN_KEY, String(open));
     }
   });
 
-  // Superpuesto, el panel tapa el contenido: navegar tiene que cerrarlo. Cuando empuja, se queda
-  // como estaba (es parte del layout, no un pop-up).
   private readonly closeNavOnNavigate = effect(() => {
     this.currentUrl();
     if (this.overlayNav()) {
@@ -217,15 +187,11 @@ export class App {
     this.navOpen.set(false);
   }
 
-  // ───────────────── Menú de perfil (topbar) ─────────────────
-  // El perfil vive SOLO acá: el panel de navegación es desplegable y esconder ahí adentro el
-  // "Cerrar sesión" lo dejaría a dos clicks. Antes estaba duplicado en las dos barras.
   protected readonly profileOpen = signal(false);
 
   protected toggleProfile(event: MouseEvent): void {
-    // Sin esto el click llega a document y el listener de abajo lo cierra en el mismo tick.
+    // Otherwise the click reaches document and the listener below closes it in the same tick.
     event.stopPropagation();
-    // Los dos desplegables cuelgan de la misma esquina: abrir uno cierra al otro.
     this.showNotifications.set(false);
     this.profileOpen.update((open) => !open);
   }
@@ -243,14 +209,10 @@ export class App {
     if (this.overlayNav() && this.navOpen()) this.navOpen.set(false);
   }
 
-  // ───────────────── Notificaciones (desplegable anclado a la campana) ─────────────────
-  // Era un modal: tapaba la pantalla entera para mostrar una lista corta que se lee de un vistazo.
-  // Ahora se comporta como el menú de perfil — abre pegado a la campana y cierra al clickear
-  // afuera, con Escape o al abrir el otro menú.
   protected readonly showNotifications = signal(false);
 
   protected toggleNotifications(event: MouseEvent): void {
-    // Sin esto el click llega a document y el listener de abajo lo cierra en el mismo tick.
+    // Otherwise the click reaches document and the listener below closes it in the same tick.
     event.stopPropagation();
     if (this.showNotifications()) {
       this.showNotifications.set(false);
@@ -258,7 +220,7 @@ export class App {
     }
     this.profileOpen.set(false);
     this.showNotifications.set(true);
-    // Abrir es "las vi": el servicio trae la lista y marca como leídas.
+    // Opening the panel marks the notifications as read.
     this.notifications.openPanel();
   }
 
@@ -270,13 +232,10 @@ export class App {
     return userRoleLabel(rol);
   }
 
-  /** Iniciales para el avatar (ej. "María Gómez" → "MG"). */
   protected initials(nombre: string, apellido: string): string {
     return `${nombre?.[0] ?? ''}${apellido?.[0] ?? ''}`.toUpperCase() || '—';
   }
 
-  // Cerrar sesión no es directo: pide confirmación (un click accidental en el ícono no debería
-  // sacar al usuario de la app). Aplica a todos los roles (menú de perfil y topbar del portal).
   protected readonly showLogoutConfirm = signal(false);
 
   protected requestLogout(): void {
@@ -286,18 +245,15 @@ export class App {
   protected cancelLogout(): void {
     this.showLogoutConfirm.set(false);
   }
-  /** Cerrar sesión muestra la carga de marca antes de soltar al login. */
   protected readonly loggingOut = signal(false);
 
   protected confirmLogout(): void {
     this.showLogoutConfirm.set(false);
     this.loggingOut.set(true);
-    // La sesión se limpia recién al final, no acá: limpiarla ahora tira abajo el shell detrás del
-    // overlay y la salida se ve como un parpadeo en vez de un cierre.
+    // Clearing the session now would tear down the shell behind the overlay and flicker.
     setTimeout(() => {
       this.session.clear();
       this.notifications.clear();
-      // El próximo ingreso vuelve a tener su carga de marca completa (login → home).
       this.appReady.reset();
       this.router.navigateByUrl('/login');
       this.loggingOut.set(false);

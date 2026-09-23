@@ -3,17 +3,12 @@ package ar.edu.utn.frba.arbiter.cases.dto;
 import java.util.List;
 
 /**
- * A case's whole conversation plus what the UI needs around it. {@code unread} travels with the
- * thread so opening a case costs one call and still lights up the tab's dot — reading does not mark
- * anything read, that is an explicit call made when the reader actually looks.
+ * Fetching the thread doesn't mark anything read; that is a separate, explicit call.
  *
- * @param canPost      whether the caller may write right now, decided server-side so the two
- *                     clients don't each reimplement the closing rule and drift apart
- * @param closedNotice why not, written for whoever is reading it; null while the thread is open
- * @param topic        the STOMP destination for this thread. Handed over rather than derived by the
- *                     client: the tenant is part of it and the client has no business building it.
- * @param viewerSide   which side the caller is on, so a pushed message —which has one payload for
- *                     both— can be placed without asking the server again. Null for a referente.
+ * @param canPost      decided server-side so the clients don't each reimplement the closing rule
+ * @param closedNotice null while the thread is open
+ * @param topic        handed over rather than built by the client, since it includes the tenant
+ * @param viewerSide   lets the client place pushed messages (one payload for both sides). Null for a referente.
  */
 public record CaseMessageThreadResponse(
         List<CaseMessageResponse> messages,

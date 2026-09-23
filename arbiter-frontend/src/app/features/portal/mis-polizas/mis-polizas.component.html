@@ -1,10 +1,5 @@
 <div class="polizas">
-  <!-- El encabezado se dibuja siempre, también mientras carga: lo que cambia es el contenido, no
-       la pantalla. El overlay a viewport completo (app-loading) se reserva al arranque
-       login → home, igual que en "Mis siniestros". -->
   <header class="head">
-    <!-- El mismo chip teal que llevaba cuando era una sección del perfil, y que usan las otras
-         secciones de "mi cuenta": son la misma familia de pantallas. -->
     <span class="head-icon" aria-hidden="true">
       <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
         <rect x="3" y="4" width="14" height="12" rx="2" stroke="currentColor" stroke-width="1.5" />
@@ -37,8 +32,6 @@
         }
       </ul>
     } @else {
-      <!-- Tiene pólizas, pero ninguna vigente. Decirlo es el dato: si no, la pantalla parece
-           vacía justo cuando la persona necesita saber que hoy no está cubierta. -->
       <app-empty-state
         message="Hoy no tenés ninguna póliza vigente."
         sub="Tus pólizas anteriores están más abajo"

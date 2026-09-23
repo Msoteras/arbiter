@@ -1,10 +1,6 @@
-# Build context: project root, like every other image in the repo.
+# Build context: project root, like every other image in the repo (the hosting platform needs the
+# Dockerfile path and the build context to share the same root).
 # docker build -t clip-embedding-img -f embedding-service/Dockerfile .
-#
-# This image needs nothing from outside its own folder, but the context is the root anyway so
-# that all six services share one rule. Railway resolves RAILWAY_DOCKERFILE_PATH from the
-# repository root and the build context from Root Directory, and those two cannot point at
-# different places — a folder-scoped context here would leave the Dockerfile unfindable.
 
 FROM python:3.11-slim
 
@@ -22,13 +18,11 @@ RUN python -c "import open_clip; open_clip.create_model_and_transforms('ViT-B-32
 
 COPY embedding-service/app.py .
 
-# Unprivileged: nothing in here needs root. After the weights are baked in above, so the pip
-# installs and the model download still run as root at build time.
+# After baking the weights, so pip installs and the model download still run as root.
 RUN useradd --create-home --shell /bin/false arbiter && chown -R arbiter:arbiter /app
 USER arbiter
 
 EXPOSE 8000
 
 # Shell form on purpose: ${PORT} has to expand at runtime, and the exec form does no expansion.
-# 8000 stays as the default so docker-compose and local runs are unchanged.
 CMD uvicorn app:app --host 0.0.0.0 --port ${PORT:-8000}

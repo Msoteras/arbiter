@@ -6,10 +6,8 @@ type Variant = 'primary' | 'secondary' | 'accent';
 type Size = 'md' | 'sm';
 
 /**
- * Botón del design system. Única definición de "qué es un botón" en la app.
- * Variantes cerradas por la API (primary | secondary) → imposible inventar uno nuevo.
- * El click nativo burbujea al host, así que (click) sobre <app-button> funciona — y por eso mismo
- * el estado deshabilitado se corta acá (ver onHostClick).
+ * `tone` (secondary only) tints border and text with a status color, for actions whose outcome is a
+ * status, such as approving or rejecting a case.
  */
 @Component({
   selector: 'app-button',
@@ -25,6 +23,7 @@ type Size = 'md' | 'sm';
       [class.primary]="variant() === 'primary'"
       [class.secondary]="variant() === 'secondary'"
       [class.accent]="variant() === 'accent'"
+      [attr.data-tone]="variant() === 'secondary' ? tone() : null"
       [class.sm]="size() === 'sm'"
       [class.loading]="loading()"
       [type]="type()"
@@ -40,9 +39,9 @@ type Size = 'md' | 'sm';
     :host {
       display: inline-block;
     }
-    /* El (click) de los consumidores vive en el host y se dispara aunque el <button> interno esté
-       disabled; un HostListener no gana, porque el del consumidor se registra primero. Sin eventos
-       de puntero tampoco hay hover: el title de un botón deshabilitado va en algo que lo envuelva. */
+    /* Consumers' (click) lives on the host and fires even if the inner <button> is disabled; a
+       HostListener cannot stop it because the consumer's registers first. With no pointer events
+       there is no hover either: put a disabled button's title on a wrapper. */
     :host(.is-disabled) {
       pointer-events: none;
     }
@@ -88,6 +87,19 @@ type Size = 'md' | 'sm';
     .btn.secondary:hover:not(:disabled) {
       border-color: var(--action-secondary-border-hover);
     }
+    .btn[data-tone='ok'] {
+      --btn-tone: var(--status-ok);
+    }
+    .btn[data-tone='danger'] {
+      --btn-tone: var(--status-danger);
+    }
+    .btn.secondary[data-tone] {
+      color: var(--btn-tone);
+      border-color: color-mix(in srgb, var(--btn-tone) 45%, var(--action-secondary-border));
+    }
+    .btn.secondary[data-tone]:hover:not(:disabled) {
+      border-color: var(--btn-tone);
+    }
     .btn.accent {
       background: var(--action-accent-bg);
       border-color: var(--action-accent-bg);
@@ -97,12 +109,8 @@ type Size = 'md' | 'sm';
       background: var(--action-accent-bg-hover);
       border-color: var(--action-accent-bg-hover);
     }
-    /* :not(.loading) es a propósito: [loading] también marca el <button> nativo como disabled
-       (ver el template — sin eso el click seguiría entrando), y sin esta exclusión CUALQUIER
-       botón "cargando" de la app perdía su color de marca y se veía apagado/roto en vez de
-       mostrar el spinner sobre su variante normal — pasaba en el submit del login, "Guardar" del
-       perfil, "Tomar" de la bandeja, y en todo lo que usara [loading]. Un disabled de verdad
-       (sin loading) sigue apagándose como corresponde. */
+    /* [loading] also disables the native <button>; excluding it keeps a loading button in its
+       variant colors with the spinner instead of looking disabled. */
     .btn:disabled:not(.loading) {
       color: var(--text-muted);
       background: var(--surface-sunken);
@@ -118,6 +126,7 @@ export class ButtonComponent {
   readonly type = input<'button' | 'submit'>('button');
   readonly disabled = input(false);
   readonly block = input(false);
-  /** Muestra un spinner inline y deshabilita el botón mientras dura una acción async. */
+  readonly tone = input<'ok' | 'danger' | null>(null);
+  /** Shows an inline spinner and disables the button. */
   readonly loading = input(false);
 }

@@ -1,6 +1,4 @@
-/* Everything the two report tabs draw the same way. What stays in each tab's own file is what
-   differs: the number of figures in the row, and the cells only that report has.
-   The .params grid lives in report-params.scss, shared with app-report-filters too. */
+/* Styles shared by both report tabs; the .params grid is in report-params.scss. */
 
 .reportes {
   display: flex;
@@ -38,8 +36,6 @@
   margin: 0 0 var(--space-4);
 }
 
-/* Each distribution in its own box: without a surface to hold them they floated on the card's
-   background, and the number drifted to the far end of a very wide row. */
 .distributions {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));

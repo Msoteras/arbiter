@@ -18,8 +18,7 @@ import lombok.Setter;
 import java.math.BigDecimal;
 
 /**
- * Score threshold that maps a normalized risk score to a {@code RiskBand}
- * ("configuracion_banda" in the DER) — same shape as
+ * Score threshold that maps a normalized risk score to a {@code RiskBand}; same shape as
  * {@code BusinessRules.ScoringConfig.Band} in classification-service.
  */
 @Entity

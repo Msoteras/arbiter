@@ -10,10 +10,7 @@ import java.util.Optional;
 @Repository
 public interface PolicyCoverageRepository extends JpaRepository<PolicyCoverage, Long> {
 
-    /** Everything the policy contracted, in the order the company lists it. */
     List<PolicyCoverage> findByPolicyIdOrderByDisplayOrderAsc(Long policyId);
 
     Optional<PolicyCoverage> findByPolicyIdAndCoverageId(Long policyId, Long coverageId);
-
-    void deleteByPolicyId(Long policyId);
 }

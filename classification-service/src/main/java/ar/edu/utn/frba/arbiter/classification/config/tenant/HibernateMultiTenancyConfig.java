@@ -8,13 +8,7 @@ import org.springframework.context.annotation.Configuration;
 
 import java.util.Map;
 
-/**
- * Wires the schema-per-tenant beans into Hibernate. Spring Boot doesn't auto-detect
- * {@link org.hibernate.engine.jdbc.connections.spi.MultiTenantConnectionProvider} /
- * {@link org.hibernate.context.spi.CurrentTenantIdentifierResolver} beans the way it
- * does other Hibernate integration points — they have to be pushed into the properties
- * map by hand, under the exact keys {@link MultiTenancySettings} declares.
- */
+/** Spring Boot doesn't auto-detect the multi-tenancy beans; they have to be pushed into Hibernate's properties by hand. */
 @Configuration
 @RequiredArgsConstructor
 public class HibernateMultiTenancyConfig {

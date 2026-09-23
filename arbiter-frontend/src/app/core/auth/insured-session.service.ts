@@ -3,12 +3,8 @@ import { Injectable, computed, inject, signal } from '@angular/core';
 import { AuthSessionService } from './auth-session.service';
 
 /**
- * Identidad del asegurado para el portal. Sale del login (claim `insuredId` del JWT,
- * vía AuthSessionService): el asegurado ya está autenticado, no vuelve a tipear el DNI.
- *
- * El `identify` manual queda solo como FALLBACK para cuentas sin `insuredId` vinculado
- * (transitorio hasta que toda alta de asegurado quede ligada a su DNI). Cuando la sesión
- * trae insuredId, ese gana y el formulario de identificación del portal no aparece.
+ * The insured's identity comes from the JWT `insuredId` claim; manual `identify` is only a
+ * fallback for accounts without one.
  */
 @Injectable({ providedIn: 'root' })
 export class InsuredSessionService {
@@ -19,7 +15,6 @@ export class InsuredSessionService {
     localStorage.getItem(InsuredSessionService.STORAGE_KEY),
   );
 
-  /** DNI del asegurado: el del JWT si está, si no el identificado a mano. */
   readonly insuredId = computed(() => this.authSession.session()?.insuredId ?? this.manualId());
 
   identify(insuredId: string): void {

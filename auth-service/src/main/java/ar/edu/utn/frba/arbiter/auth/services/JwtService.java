@@ -18,10 +18,6 @@ import java.time.Instant;
 import java.util.Date;
 import java.util.List;
 
-/**
- * Issues the arbiter JWT. Callers only depend on {@link #issue}, so a future Auth0-issued
- * token would only change this class (and its secret/audience config).
- */
 @Component
 @RequiredArgsConstructor
 public class JwtService {
@@ -48,7 +44,7 @@ public class JwtService {
         key = JwtSupport.key(secret);
     }
 
-    /** The same key used to sign — SecurityConfig reuses it to validate, never derives its own. */
+    /** SecurityConfig validates with this same key; it must never derive its own. */
     public SecretKey getKey() {
         return key;
     }
@@ -56,14 +52,8 @@ public class JwtService {
     public record IssuedToken(String token, Instant expiresAt) {}
 
     /**
-     * Every claim here used to be read straight off {@link User}; now that name/last name
-     * and the role live on the per-tenant profile and {@code user_role} respectively, the
-     * caller (AuthService) resolves them first and hands over the result — JwtService just
-     * encodes it, it doesn't know about tenants or profile tables.
-     *
-     * {@code insurerIds} lists every insurer the user belongs to; {@code tenantSchema} is
-     * the one this session actually resolved to (see TenantResolver — first insurer wins
-     * until the multi-insurer login UX is decided).
+     * {@code insurerIds} lists every insurer the user belongs to; {@code tenantSchema} is the one
+     * this session resolved to.
      */
     public IssuedToken issue(
             User user, UserRole rol, String nombre, String apellido, String insuredId,

@@ -34,8 +34,6 @@ class PolicyEligibilityValidatorTest {
     private final RulesServiceClient rulesServiceClient = mock(RulesServiceClient.class);
     private final PolicyEligibilityValidator validator = new PolicyEligibilityValidator(insurerAdapter, rulesServiceClient);
 
-    // ── Vigencia ───────────────────────────────────────────────────────────
-
     @Test
     void anEventInsideThePolicyPeriod_isAccepted() {
         givenPolicy(LocalDate.of(2026, 1, 1), LocalDate.of(2027, 1, 1));
@@ -62,7 +60,6 @@ class PolicyEligibilityValidatorTest {
                 .hasMessageContaining("no estaba vigente");
     }
 
-    /** The last day of coverage still covers. */
     @Test
     void theLastDayOfThePolicy_isStillCovered() {
         givenPolicy(LocalDate.of(2025, 6, 14), LocalDate.of(2026, 6, 13));
@@ -70,8 +67,6 @@ class PolicyEligibilityValidatorTest {
         assertThatCode(() -> validate(LocalDateTime.of(2026, 6, 13, 23, 0), null, coverage(null)))
                 .doesNotThrowAnyException();
     }
-
-    // ── Carencia ───────────────────────────────────────────────────────────
 
     @Test
     void anEventInsideTheWaitingPeriod_isRejected() {
@@ -99,8 +94,6 @@ class PolicyEligibilityValidatorTest {
                 .doesNotThrowAnyException();
     }
 
-    // ── Coherencia de fechas ───────────────────────────────────────────────
-
     @Test
     void aPoliceReportBeforeTheEvent_isRejected() {
         LocalDateTime event = LocalDateTime.now().minusDays(3);
@@ -119,11 +112,9 @@ class PolicyEligibilityValidatorTest {
                 .hasMessageContaining("denuncia policial no puede ser futura");
     }
 
-    // ── Sin datos para verificar ───────────────────────────────────────────
-
     /**
      * A policy that isn't in the insurer DB is a snapshot mismatch, not an expired contract: intake
-     * proceeds and the coverage window gets looked at again by the engine (D13). Rejecting here
+     * proceeds and the coverage window gets looked at again by the engine. Rejecting here
      * would punish the insured for a sync problem.
      */
     @Test
@@ -142,8 +133,6 @@ class PolicyEligibilityValidatorTest {
                 .doesNotThrowAnyException();
     }
 
-    // ── Mora ───────────────────────────────────────────────────────────────
-
     @Test
     void aPolicyInArrears_isRejectedWhenTheRuleIsActiveAndOnArrearsIsReject() {
         givenPolicy(LocalDate.of(2026, 1, 1), LocalDate.of(2027, 1, 1), false);
@@ -155,7 +144,7 @@ class PolicyEligibilityValidatorTest {
                 .hasMessageContaining("saldo pendiente de pago");
     }
 
-    /** STANDBY is the referente's default: arrears stays a Fast Track criterion and a scoring factor. */
+    /** STANDBY is the referent's default: arrears stays a Fast Track criterion and a scoring factor. */
     @Test
     void aPolicyInArrears_isNotRejectedWhenOnArrearsIsStandby() {
         givenPolicy(LocalDate.of(2026, 1, 1), LocalDate.of(2027, 1, 1), false);
@@ -187,7 +176,7 @@ class PolicyEligibilityValidatorTest {
     }
 
     /**
-     * rules-service unreachable does NOT reject: every alta would otherwise hard-depend on its
+     * rules-service unreachable does NOT reject: every claim intake would otherwise hard-depend on its
      * uptime, even for insurers that never configured this rule. The policy really being in
      * arrears still gets caught by the Fast Track criterion and the scoring factor downstream.
      */
@@ -200,8 +189,6 @@ class PolicyEligibilityValidatorTest {
         assertThatCode(() -> validate(LocalDateTime.of(2026, 6, 13, 20, 0), null, coverage(null)))
                 .doesNotThrowAnyException();
     }
-
-    // ── Exclusión de cobertura ───────────────────────────────────────────────
 
     @Test
     void aClaimCauseExcludedByTheCoverage_isRejected() {
@@ -224,7 +211,7 @@ class PolicyEligibilityValidatorTest {
                 .doesNotThrowAnyException();
     }
 
-    /** The eligibility precheck (step 1/2, before "¿Qué te pasó?") doesn't have a claimCause yet. */
+    /** The eligibility precheck runs in the wizard before a claimCause is chosen. */
     @Test
     void withoutAClaimCause_theExclusionIsNotChecked() {
         givenPolicy(LocalDate.of(2026, 1, 1), LocalDate.of(2027, 1, 1));
@@ -248,8 +235,6 @@ class PolicyEligibilityValidatorTest {
                 coverage(null, 1L, "Robo de celular"), claimCause(3L, "Hurto")))
                 .doesNotThrowAnyException();
     }
-
-    // ── Fixtures ───────────────────────────────────────────────────────────
 
     private void validate(LocalDateTime eventDate, LocalDateTime policeReportAt, Coverage coverage) {
         validate(eventDate, policeReportAt, coverage, null);

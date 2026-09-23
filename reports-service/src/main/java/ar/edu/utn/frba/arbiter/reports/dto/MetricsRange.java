@@ -4,10 +4,8 @@ import java.time.Clock;
 import java.time.LocalDate;
 
 /**
- * The shortcut periods the dashboard's selector offers, as an alternative to typing a custom
- * {@code from}/{@code to}. Each one is a window of whole calendar days ending today, included:
- * "el último mes" is the last 30 days up to and including today, not the current calendar month —
- * a dashboard opened on the 2nd of the month would otherwise show two days of data.
+ * Shortcut periods: windows of whole days ending today, included. MONTH is the last 30 days, not the
+ * calendar month, so a dashboard opened on the 2nd does not show two days of data.
  */
 public enum MetricsRange {
 

@@ -17,13 +17,8 @@ import java.time.temporal.ChronoUnit;
 import java.util.List;
 
 /**
- * Tells analysts a case is running out of time to be answered. Separate from
- * {@link CaseNotificationService}, which only ever speaks to the insured: the recipient, the
- * message and the channel policy are all different here.
- *
- * <p>Recipient is the case's assigned analyst; a case nobody owns yet notifies every analyst in the
- * insurer, so a critical case can't sit unclaimed. Best-effort by contract, like its sibling: a
- * delivery failure is logged and never propagates — the daily sweep must finish the schema.
+ * Tells analysts a case is running out of time to be answered. Best-effort: a delivery failure is
+ * logged and never propagates, so the daily sweep always finishes the schema.
  */
 @Service
 @RequiredArgsConstructor
@@ -37,19 +32,14 @@ public class AnalystNotificationService {
     private final SendGridAdapter sendGridAdapter;
 
     /**
-     * Notifies the relevant analyst(s) that {@code caseRecord} is critical or overdue. No-op for any
-     * other priority. Idempotent per (case, recipient, level): the sweep runs daily, and a case that
-     * escalated from CRITICAL to OVERDUE notifies once more because the level — and so the
-     * {@code type} — changed.
+     * Idempotent per (case, recipient, level): a case escalating from CRITICAL to OVERDUE notifies
+     * once more because the level changed.
      *
-     * @param today the sweep's reference day, used only to word the message ("vence en N días")
+     * <p>Deliberately not {@code @Transactional}: holding a DB connection while waiting on SendGrid
+     * (once per analyst for an unowned case) would exhaust the pool under load.
+     *
+     * @param today the sweep's reference day, used only to word the message
      */
-    // Sin @Transactional a propósito: cada save de Notification abre su propia transacción corta y
-    // el envío por SendGrid (I/O de red, y en un caso sin dueño uno por analista en el loop) queda
-    // FUERA de cualquier transacción. Envolver todo en una sola transacción retendría la conexión de
-    // BD mientras se espera a SendGrid y, bajo carga, agotaría el pool. Las entidades que lee el
-    // notifier (analyst, insured, claimCause) son EAGER, y getUser().getId() sale del id del proxy
-    // sin inicializarlo, así que no hace falta una sesión abierta.
     public void notifyDeadline(Case caseRecord, DeadlinePriority priority, LocalDate today) {
         if (!priority.notifiable()) {
             return;
@@ -138,15 +128,8 @@ public class AnalystNotificationService {
     }
 
     /**
-     * El mismo aviso, escrito una sola vez, para los dos destinos que no leen igual.
-     *
-     * <p>{@code body} es texto plano y es lo que se persiste en {@code notification.content}: el
-     * panel de novedades lo muestra tal cual, así que cualquier etiqueta se le aparece al analista
-     * como texto — era el {@code <b>#17</b>} que se veía en el aviso de vencimiento.
-     *
-     * <p>{@code htmlBody} es lo que va al mail, que SendGrid manda como {@code text/html}. Se deriva
-     * del texto plano en vez de escribir la oración dos veces: duplicarla es garantizar que dentro
-     * de tres meses una diga una cosa y la otra otra.
+     * {@code body} is plain text because the in-app panel renders {@code notification.content} as is;
+     * {@code htmlBody} is derived from it for the email so the two can't drift apart.
      */
     private record Message(String subject, String body, long caseId) {
 

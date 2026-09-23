@@ -31,13 +31,14 @@ import java.time.Instant;
 @RequiredArgsConstructor
 public class ScoringConfigurationService {
 
-    // Self-instantiated (Jackson 2): ver el comentario equivalente en FastTrackRuleService.
+    // Self-instantiated Jackson 2 mapper, see FastTrackRuleService.
     private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
 
     private final ScoringConfigurationRepository scoringConfigurationRepository;
     private final FactorWeightRepository factorWeightRepository;
     private final ScoreBandRepository scoreBandRepository;
     private final ScoringConfigurationHistoryRepository historyRepository;
+    private final RuleAuthorResolver authorResolver;
 
     @Transactional(readOnly = true)
     public ScoringConfigDto get() {
@@ -70,7 +71,7 @@ public class ScoringConfigurationService {
                 .changedAt(now)
                 .reason("Scoring actualizado por " + actorEmail)
                 .scoringConfiguration(config)
-                .changedBy(null)
+                .changedBy(authorResolver.referentIdOf(actorEmail))
                 .build());
 
         factorWeightRepository.deleteByScoringConfiguration_Id(config.getId());

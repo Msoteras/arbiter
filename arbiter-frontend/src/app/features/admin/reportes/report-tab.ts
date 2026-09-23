@@ -10,27 +10,18 @@ import { ReportFiltersStore } from './report-filters.store';
 import { rememberReportsTab } from './reports-tab-memory';
 import { ReportFormat } from './resolution-report';
 
-/** What every report answers with: the filters it ran under, and the rows it found. */
 export interface ReportPayload<TRow> {
   branch: string | null;
   rows: TRow[];
 }
 
 /**
- * What the two report tabs do identically: ask for a preview, page through it, export it, and
- * throw it away when a filter changes.
- *
- * <p>It is a base class and not a service because all of it is component state — signals the
- * template reads, a subscription tied to the component's life. The two tabs differ in the report
- * they ask for and the filter they own, which is what the abstract members are.
- *
- * <p>It has no Angular decorator on purpose: it injects with {@link inject} and declares no inputs
- * or lifecycle hooks, so it is a plain class the components extend.
+ * Shared preview/paging/export behaviour of both report tabs. A base class rather than a service
+ * because it's all component state. No Angular decorator on purpose: it declares no inputs or hooks.
  */
 export abstract class ReportTab<TRow, TReport extends ReportPayload<TRow>, TParams> {
   protected readonly filters = inject(ReportFiltersStore);
   protected readonly destroyRef = inject(DestroyRef);
-  /** The query params the tab opened with; each tab restores its own filter from them. */
   protected readonly route = inject(ActivatedRoute);
   private readonly document = inject(DOCUMENT);
 
@@ -38,7 +29,7 @@ export abstract class ReportTab<TRow, TReport extends ReportPayload<TRow>, TPara
   protected readonly loading = signal(false);
   protected readonly exporting = signal<ReportFormat | null>(null);
   protected readonly error = signal<string | null>(null);
-  /** Kept so a filter change can cancel it: otherwise its response lands under the new filters. */
+  /** Kept so a filter change can cancel it; otherwise its response lands under the new filters. */
   private previewRequest: Subscription | null = null;
 
   protected readonly page = signal(0);
@@ -50,10 +41,9 @@ export abstract class ReportTab<TRow, TReport extends ReportPayload<TRow>, TPara
     return this.rows().slice(start, start + this.pageSize());
   });
 
-  /** The filters this tab sends, its own filter included. */
   protected abstract params(): TParams;
 
-  /** This tab's own filter as it travels in the URL; the shell writes it with the shared ones. */
+  /** Written to the URL by the shell, together with the shared filters. */
   protected abstract tabParams(): Params;
 
   protected abstract fetchReport(params: TParams): Observable<TReport>;
@@ -61,23 +51,18 @@ export abstract class ReportTab<TRow, TReport extends ReportPayload<TRow>, TPara
   protected abstract fetchFile(params: TParams, format: ReportFormat): Observable<ReportFile>;
 
   /**
-   * Called from the subclass constructor, once it has restored its own filter from the URL:
-   * wires the URL and the shared filters, and asks for the first preview.
-   *
-   * <p>Not done in this constructor because it would run before the subclass has read its filter,
-   * and the preview would go out without it.
+   * Called from the subclass constructor after it restores its own filter from the URL; doing it in
+   * this constructor would send the first preview without that filter.
    */
   protected start(): void {
-    // Cuál es esta solapa sale de la ruta y no de una constante por tab: la ruta es la que el
-    // redirect de `insurer/reports` va a usar después, así que no pueden discrepar.
+    // Taken from the route, not a per-tab constant: it's what the `insurer/reports` redirect uses.
     rememberReportsTab(this.route.snapshot.routeConfig?.path);
 
     effect(() => this.filters.tabParams.set(this.tabParams()));
     this.destroyRef.onDestroy(() => this.filters.tabParams.set({}));
 
-    // The shared filters are edited outside this component, so discarding the stale preview has to
-    // react to them rather than hang off a setter. The first run is skipped: it only reads the
-    // filters the tab opened with, and would cancel the preview a link asked for.
+    // Shared filters are edited outside this component, so react to them. The first run is skipped:
+    // it would cancel the preview a link asked for.
     let firstRun = true;
     effect(() => {
       this.filters.from();
@@ -90,9 +75,6 @@ export abstract class ReportTab<TRow, TReport extends ReportPayload<TRow>, TPara
       this.discardPreview();
     });
 
-    // The screen opens with its report already on it, whether it was reached from the menu, from
-    // the other tab or from a shared link: the three show the filters that are on screen, so making
-    // only one of them wait for a click is a difference nobody can see and everybody notices.
     this.loadPreview();
   }
 
@@ -144,7 +126,7 @@ export abstract class ReportTab<TRow, TReport extends ReportPayload<TRow>, TPara
     this.page.set(0);
   }
 
-  /** A preview only describes the parameters it ran with; once one changes, it would mislead. */
+  /** A preview only describes the parameters it ran with; after a change it would mislead. */
   protected discardPreview(): void {
     this.previewRequest?.unsubscribe();
     this.previewRequest = null;

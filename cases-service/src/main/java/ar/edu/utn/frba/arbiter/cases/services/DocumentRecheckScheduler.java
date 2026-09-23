@@ -21,29 +21,17 @@ import java.util.Set;
 import java.util.stream.Collectors;
 
 /**
- * Comes back to the denuncias filed without their document schedule verified — the ones
- * {@code CaseServiceImpl.verifyRequiredDocuments} let through because rules-service didn't answer.
- * Leaving the insured out over an outage of ours would be worse than taking the case, but taking it
- * only works if someone checks afterwards: before this nobody did, and the case looked exactly like
- * a verified one.
- *
- * <p>What it does depends on where the case is by the time the sweep reaches it:
+ * Rechecks the cases filed without their document schedule verified because rules-service didn't
+ * answer at filing time. Depending on where the case is by now:
  * <ul>
- *   <li>{@code PENDING_CLASSIFICATION}: reads the schedule and compares it with what's attached.
- *       Something mandatory missing sends the case to {@code AWAITING_DOCUMENTATION} — the same
- *       transition, and so the same notice to the insured, as when the engine finds it. Nothing
- *       missing just clears the mark: no history row, nothing for the analyst to see.</li>
+ *   <li>{@code PENDING_CLASSIFICATION}: compares the schedule with the attachments; anything
+ *       mandatory missing moves it to {@code AWAITING_DOCUMENTATION}, otherwise the mark is cleared.</li>
  *   <li>{@code PENDING_ANALYST_REVIEW} / {@code AWAITING_DOCUMENTATION}: a classification already
- *       ran, and it can't finish without reading the schedule ({@code RulesRestAdapter} fails the
- *       run rather than classify without it), so the engine's own missing-documents gate did this
- *       check. The mark is cleared.</li>
- *   <li>{@code CLASSIFICATION_FAILED}: keeps its mark. The infrastructure recovery sweep requeues
- *       it, and it comes back through one of the cases above.</li>
- *   <li>Past the analyst (expert report, closed): not touched — an outage of ours is no reason to
- *       reopen a verdict. The mark is cleared and the case logged.</li>
+ *       ran, and it can't finish without reading the schedule, so the mark is just cleared.</li>
+ *   <li>{@code CLASSIFICATION_FAILED}: keeps its mark until the recovery sweep requeues it.</li>
+ *   <li>Further along: not reopened over our own outage; the mark is cleared and the case logged.</li>
  * </ul>
- *
- * <p>Never rejects: the outage was ours, not the insured's.
+ * Never rejects: the outage was ours, not the insured's.
  */
 @Component
 @RequiredArgsConstructor
@@ -63,7 +51,6 @@ public class DocumentRecheckScheduler {
 
     @Scheduled(fixedDelayString = "${arbiter.document-recheck.interval-ms:300000}")
     public void recheckUnverifiedCases() {
-        // Read with no tenant set: insurer lives in the common schema, which TenantContext falls back to.
         for (Insurer insurer : insurerRepository.findByActiveTrue()) {
             try {
                 TenantContext.set(insurer.getSchemaName());
@@ -104,11 +91,7 @@ public class DocumentRecheckScheduler {
         }
     }
 
-    /**
-     * Compares the schedule with what's attached and acts on it.
-     *
-     * @return {@code false} when rules-service still doesn't answer
-     */
+    /** @return {@code false} when rules-service still doesn't answer */
     private boolean recheck(Case caseRecord) {
         ClaimCause claimCause = caseRecord.getClaimCause();
         List<String> required = rulesServiceClient.requiredDocumentTypes(

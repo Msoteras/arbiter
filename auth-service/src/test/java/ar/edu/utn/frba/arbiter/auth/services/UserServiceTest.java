@@ -91,10 +91,7 @@ class UserServiceTest {
 
     private UserService userService;
 
-    /**
-     * Sealing the envelope is PasswordCipherTest's job; here it just passes the password through so
-     * these tests keep reading as "activate with this password". Lenient because most never get to it.
-     */
+    /** Passes the password through (sealing is PasswordCipherTest's job). Lenient: most tests never reach it. */
     @BeforeEach
     void passwordCipherPassesThrough() {
         lenient().when(passwordCipher.decrypt(anyString()))
@@ -120,7 +117,6 @@ class UserServiceTest {
         return User.builder().id(3L).email("referente@arbiter.test").build();
     }
 
-    /** Stubs the referente-lookup path createUser/listUsers both go through. */
     private void stubCaller() {
         when(userRepository.findByEmail("referente@arbiter.test")).thenReturn(Optional.of(caller()));
         when(tenantResolver.insurerIdsFor(3L)).thenReturn(java.util.List.of(CALLER_INSURER_ID));
@@ -233,8 +229,6 @@ class UserServiceTest {
 
         LoginResponse result = userService.activateAccount("tok-123", "NuevaPass123!");
 
-        // The session comes from AuthService.issueSessionFor, not built here — activation's job
-        // is establishing the account, not resolving roles/tenant/JWT a second way.
         assertThat(result).isSameAs(session);
         ArgumentCaptor<User> captor = ArgumentCaptor.forClass(User.class);
         verify(userRepository).save(captor.capture());
@@ -242,8 +236,7 @@ class UserServiceTest {
         assertThat(captor.getValue().getInviteToken()).isNull();
         assertThat(captor.getValue().getInviteExpiresAt()).isNull();
         assertThat(captor.getValue().isActivated()).isTrue();
-        // Issued off the SAVED user, not the pre-activation one — otherwise the token this builds
-        // could carry the stale placeholder auth0Sub instead of the real one just set above.
+        // Off the SAVED user: the pre-activation one still has the placeholder auth0Sub.
         verify(authService).issueSessionFor(captor.getValue());
     }
 
@@ -308,16 +301,10 @@ class UserServiceTest {
 
         verify(userRepository, never()).save(any());
         assertThat(pending.getInviteToken()).isEqualTo("tok-123");
-        // Failing before the save means no session for a half-activated account either.
         verifyNoInteractions(authService);
     }
 
-    /**
-     * No role on this fixture (same as every other test in the file that doesn't care about
-     * roles) — greetingFor has to fall back to the email rather than NPE on a null
-     * {@code roles} collection, which is what {@code User.builder()} leaves it as without an
-     * explicit {@code .roles(...)}.
-     */
+    /** {@code User.builder()} without {@code .roles(...)} leaves a null set: must fall back, not NPE. */
     @Test
     void requestPasswordReset_existingEmail_generatesTokenAndSendsMail() {
         userService = userService(Optional.empty());
@@ -335,11 +322,6 @@ class UserServiceTest {
         assertThat(bodyCaptor.getValue()).contains("Hola analista.test@arbiter.test,");
     }
 
-    /**
-     * The case the fallback above exists for NOT to fire: a real account has a role and a
-     * resolvable tenant profile, so the mail should greet by first name — not the email — same
-     * as every other mail this module sends.
-     */
     @Test
     void requestPasswordReset_resolvableProfile_greetsByFirstName() {
         userService = userService(Optional.empty());

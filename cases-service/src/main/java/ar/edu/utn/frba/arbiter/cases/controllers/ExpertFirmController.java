@@ -21,12 +21,8 @@ import org.springframework.web.bind.annotation.RestController;
 import java.util.List;
 
 /**
- * Catálogo de peritos de la aseguradora, administrado por el referente desde la pantalla de reglas.
- * Es lo que ve el analista en el selector al derivar: si acá no hay nadie para el ramo, no hay a
- * quién derivar por más que la regla de monto lo habilite.
- *
- * <p>Solo REFERENTE: el analista lee el catálogo filtrado por su expediente, en
- * {@code GET /cases/{id}/expert-assessment/options}, no acá.
+ * Referente-only. Analysts read the catalog filtered for their case through
+ * {@code GET /cases/{id}/expert-assessment/options}.
  */
 @RestController
 @RequestMapping("/api/v1/expert-firms")

@@ -1,13 +1,14 @@
 package ar.edu.utn.frba.arbiter.auth.services;
 
-import ar.edu.utn.frba.arbiter.auth.config.tenant.TenantContext;
 import ar.edu.utn.frba.arbiter.auth.dto.LoginResponse;
 import ar.edu.utn.frba.arbiter.auth.dto.OnboardingRequest;
 import ar.edu.utn.frba.arbiter.auth.dto.ProfileResponse;
 import ar.edu.utn.frba.arbiter.auth.dto.UpdateProfileRequest;
 import ar.edu.utn.frba.arbiter.auth.exceptions.InsuredProfileNotFoundException;
 import ar.edu.utn.frba.arbiter.auth.exceptions.OnboardingAlreadyCompleteException;
+import ar.edu.utn.frba.arbiter.auth.exceptions.UserNotFoundException;
 import ar.edu.utn.frba.arbiter.auth.models.repositories.InsuredRepository;
+import ar.edu.utn.frba.arbiter.auth.models.repositories.UserRepository;
 import ar.edu.utn.frba.arbiter.common.enums.UserRole;
 import ar.edu.utn.frba.arbiter.common.models.entities.Insurer;
 import ar.edu.utn.frba.arbiter.common.models.entities.User;
@@ -25,17 +26,20 @@ import java.util.Optional;
 public class InsuredProfileService {
 
     private final InsuredRepository insuredRepository;
+    private final UserRepository userRepository;
     private final JwtService jwtService;
     private final TenantResolver tenantResolver;
 
     @Transactional(readOnly = true)
-    public ProfileResponse getProfile(User user) {
+    public ProfileResponse getProfile(String email) {
+        User user = findUserOrThrow(email);
         Insured insured = findInsuredOrThrow(user);
         return toProfileResponse(insured);
     }
 
     @Transactional
-    public LoginResponse completeOnboarding(User user, OnboardingRequest request) {
+    public LoginResponse completeOnboarding(String email, OnboardingRequest request) {
+        User user = findUserOrThrow(email);
         Insured insured = findInsuredOrThrow(user);
 
         if (insured.isOnboardingComplete()) {
@@ -59,7 +63,8 @@ public class InsuredProfileService {
     }
 
     @Transactional
-    public LoginResponse updateProfile(User user, UpdateProfileRequest request) {
+    public LoginResponse updateProfile(String email, UpdateProfileRequest request) {
+        User user = findUserOrThrow(email);
         Insured insured = findInsuredOrThrow(user);
 
         if (request.email() != null) {
@@ -80,6 +85,11 @@ public class InsuredProfileService {
         insured.setImageConsent(consent);
         insured.setImageConsentVersion(version);
         insured.setImageConsentAt(Instant.now());
+    }
+
+    private User findUserOrThrow(String email) {
+        return userRepository.findByEmail(email)
+                .orElseThrow(() -> new UserNotFoundException(-1L));
     }
 
     private Insured findInsuredOrThrow(User user) {

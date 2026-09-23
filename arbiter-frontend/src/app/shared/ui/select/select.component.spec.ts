@@ -2,10 +2,6 @@ import { ComponentFixture, TestBed } from '@angular/core/testing';
 
 import { SelectComponent, SelectOption } from './select.component';
 
-/**
- * La variante `searchable` es lo único del componente con lógica propia (el campo hace de buscador
- * y filtra el listado); el resto es apertura/posicionamiento del panel, que se ve a ojo.
- */
 describe('SelectComponent · searchable', () => {
   let fixture: ComponentFixture<SelectComponent>;
 
@@ -27,7 +23,6 @@ describe('SelectComponent · searchable', () => {
     fixture.detectChanges();
   }
 
-  /** Tipear sobre el campo, que es el buscador: no hay una caja aparte adentro del panel. */
   function type(text: string): void {
     const input = field();
     input.value = text;
@@ -212,7 +207,6 @@ describe('SelectComponent · searchable', () => {
     });
   });
 
-  /** El campo obligatorio no atrapa al usuario adentro: cierra igual, pero queda marcado. */
   describe('required', () => {
     function errorMessage(): string | null {
       const el = fixture.nativeElement.querySelector('.error-msg') as HTMLElement | null;
@@ -224,10 +218,7 @@ describe('SelectComponent · searchable', () => {
       fixture.detectChanges();
     }
 
-    /**
-     * Click afuera que NO llega a document por burbujeo, como los de adentro de un app-modal:
-     * el diálogo corta la propagación para que el backdrop no lo lea como "cerrar el modal".
-     */
+    /** Outside click that never bubbles to document, as inside an app-modal. */
     function clickOutsideInsideModal(): void {
       const dialog = document.createElement('div');
       dialog.addEventListener('click', (e) => e.stopPropagation());

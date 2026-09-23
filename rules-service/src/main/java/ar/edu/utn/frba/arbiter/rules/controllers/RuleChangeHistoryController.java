@@ -21,18 +21,8 @@ import java.time.ZoneId;
 import java.util.List;
 
 /**
- * Referente-facing, read-only: the history of changes to the insurer's rules.
- *
- * <p>Only the referente reads it. The analyst doesn't configure rules and doesn't audit the person
- * who does; the insured has nothing to do with either. That matches how the architecture document
- * words the requirement — the record is "consultable por el referente de la aseguradora".
- *
- * <p>There is no write endpoint here and there never should be: the two tables behind this are
- * append-only, written by the rule services as a side effect of each save. An endpoint that could
- * edit or delete an entry would defeat the whole point of keeping them.
- *
- * <p>The tenant schema comes from the JWT like everywhere else in this module, so a referente only
- * ever sees their own insurer's trail.
+ * Read-only history of changes to the insurer's rules, for the referente. There is deliberately no
+ * write endpoint: the two tables behind it are append-only audit trails.
  */
 @RestController
 @RequestMapping("/api/v1/rules/history")
@@ -69,12 +59,9 @@ public class RuleChangeHistoryController {
     }
 
     /**
-     * The filter is a date and the column is an instant, so a day has to become a range — and which
-     * range depends on whose day it is. It's the referente's: they work in Argentina, and under UTC
-     * every change made after 21:00 local falls into the following day, so filtering "hoy" hides
-     * the afternoon's work. Fixed to the operation's zone rather than taken from the request: two
-     * people filtering the same day have to get the same rows back, which is the whole point of a
-     * shared audit trail.
+     * Date filters become instant ranges in the operation's zone: under UTC every change after 21:00
+     * local would fall into the next day. Fixed rather than taken from the request, so everyone
+     * filtering the same day gets the same rows.
      */
     private static final ZoneId OPERATING_ZONE = ZoneId.of("America/Argentina/Buenos_Aires");
 

@@ -15,10 +15,7 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
 
-/**
- * Cause of the claim (robo en vía pública, hurto, caída, incendio…) — "HechoGenerador"
- * in CLAUDE.md's domain vocabulary. The central field the LLM classifies.
- */
+/** Claim cause (hecho generador): robo en vía pública, hurto, caída, incendio… */
 @Entity
 @Table(name = "claim_cause", schema = "arbiter_common")
 @Getter
@@ -35,11 +32,9 @@ public class ClaimCause {
     @Column(nullable = false)
     private String name;
 
-    // EAGER on purpose: the branch travels in every case response
-    // (CaseServiceImpl.toResponse reads claimCause.getBranch().getName()), and with open-in-view off
-    // there's no open session when the DTO is built. Wrapping the service in @Transactional isn't
-    // enough: the multi-insurer sweep switches schema mid-method, and a transaction holds on to a
-    // connection, so the search_path would stay pinned to the first one.
+    // EAGER on purpose: every case response reads the branch with open-in-view off. @Transactional
+    // isn't an option because the multi-insurer sweep switches schema mid-method and a transaction
+    // would pin the search_path to the first one.
     @ManyToOne(fetch = FetchType.EAGER)
     @JoinColumn(name = "branch_id", nullable = false)
     private Branch branch;

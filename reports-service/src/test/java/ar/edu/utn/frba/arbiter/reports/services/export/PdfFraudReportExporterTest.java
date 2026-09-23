@@ -45,10 +45,7 @@ class PdfFraudReportExporterTest {
                 "Página 1 de 1");
     }
 
-    /**
-     * Every column a reader acts on has to fit on its own line: the widths are hand-tuned, and a
-     * status or a determination wrapping in half would go unnoticed.
-     */
+    /** The widths are hand-tuned; a status or determination cut in half would go unnoticed. */
     @Test
     void theStatusAndTheDeterminationFitWithoutBeingCut() throws IOException {
         Rendered pdf = render(List.of(flaggedRow(1), unscoredRow(2)));
@@ -59,20 +56,12 @@ class PdfFraudReportExporterTest {
                 .doesNotContain("Derivado a p…");
     }
 
-    /**
-     * Two signals don't fit one line of the column, and the coincidence of signals is the whole
-     * finding: the cell wraps instead of ellipsizing the second one away.
-     *
-     * <p>Asserted in halves because the wrap lands inside the second signal and the line break is
-     * not what this is about — matching the phrase whole would make the test fail the next time a
-     * column width moves, which is exactly the kind of change it should survive.
-     */
+    /** Two signals don't fit one line: the cell wraps instead of ellipsizing the second one away. */
     @Test
     void theSignalsOfACase_areWrittenWhole_evenWhenTheyDoNotFitOneLine() throws IOException {
         Rendered pdf = render(List.of(flaggedRow(1482)));
 
-        // Whitespace normalized: the point is that nothing was cut, and where the cell wraps is the
-        // layout's business — with two signals the break falls in the middle of the second phrase.
+        // Whitespace normalized so the assertion survives column width changes.
         assertThat(pdf.text().replaceAll("\\s+", " "))
                 .contains("Score de riesgo alto")
                 .contains("2 imágenes con")
@@ -81,10 +70,8 @@ class PdfFraudReportExporterTest {
     }
 
     /**
-     * The document signal carries its own rationale instead of a generic label — the same reason
-     * the image signal carries a count: what to look at, not just that something was flagged. A
-     * rationale this long still hits the column's own two-line cap (see MAX_CELL_LINES) and gets
-     * ellipsized like any other cell — the CSV and the screen are where it travels whole.
+     * The document signal carries its own rationale; a long one is still capped at two lines and
+     * ellipsized (the CSV and the screen carry it whole).
      */
     @Test
     void theDocumentSignal_printsItsOwnRationale() throws IOException {
@@ -100,8 +87,7 @@ class PdfFraudReportExporterTest {
     void writesTheSummaryAboveTheTable() throws IOException {
         Rendered pdf = render(List.of(flaggedRow(1), flaggedRow(2), unscoredRow(3)));
 
-        // 3 flagged and 1 determined out of the 20 claims the period had: the rate never travels
-        // without the population it was taken from.
+        // 3 flagged and 1 determined out of the period's 20 claims, stated with the population.
         assertThat(pdf.text()).contains(
                 "Total: 3 de 20 denuncias con al menos una señal (15%)",
                 "Con dos o más señales: 2",
@@ -110,7 +96,7 @@ class PdfFraudReportExporterTest {
                 "Por señal (una denuncia puede tener más de una):");
     }
 
-    /** Fraude determinado is left out of the comparison — see the exporter's javadoc on why. */
+    /** "Fraude determinado" is left out of the comparison: it lags in both periods. */
     @Test
     void theSummaryLine_comparesAgainstThePreviousPeriod() throws IOException {
         List<FraudReportRow> rows = List.of(flaggedRow(1), flaggedRow(2), unscoredRow(3));
@@ -146,7 +132,7 @@ class PdfFraudReportExporterTest {
                 "Ninguna denuncia con señales en el período.");
     }
 
-    /** With claims in the period, "none flagged" is a finding, and it keeps its population. */
+    /** "None flagged" is stated with its population. */
     @Test
     void anEmptyReportOverAPeriodWithClaims_statesHowManyItLookedAt() throws IOException {
         Rendered pdf = render(septemberFraudReport(List.of(), null, null, 84));
@@ -154,7 +140,7 @@ class PdfFraudReportExporterTest {
         assertThat(pdf.text()).contains("Total: Ninguna de las 84 denuncias del período con señales");
     }
 
-    /** Same figure the preview shows, which formats the rate with one decimal. */
+    /** One decimal, same as the preview. */
     @Test
     void theRatesKeepOneDecimal() throws IOException {
         Rendered pdf = render(septemberFraudReport(
@@ -165,10 +151,7 @@ class PdfFraudReportExporterTest {
                 "Fraude determinado: 1 (1,2% del período");
     }
 
-    /**
-     * A low score is not an alert, so the page says the score did not flag the case instead of
-     * printing "Bajo" under a column headed "Score".
-     */
+    /** A low score prints as "did not alert", never as "Bajo". */
     @Test
     void aLowScoringCase_readsAsNotAlerted_ratherThanAsItsBand() throws IOException {
         Rendered pdf = render(List.of(lowScoreRow(1455)));

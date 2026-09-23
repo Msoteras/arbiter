@@ -2,10 +2,6 @@ package ar.edu.utn.frba.arbiter.cases.exceptions;
 
 import ar.edu.utn.frba.arbiter.common.enums.CaseStatus;
 
-/**
- * The case isn't in a position to produce a fraud record. Two different situations, told apart on
- * purpose so the analyst reads what's actually missing.
- */
 public class FraudRecordNotAllowedException extends RuntimeException {
 
     /** The case hasn't reached — or has moved past — the point where the analyst determines this. */

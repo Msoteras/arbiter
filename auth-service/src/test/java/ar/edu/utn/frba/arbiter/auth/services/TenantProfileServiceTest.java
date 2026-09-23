@@ -21,11 +21,6 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
-/**
- * The insured profile side of the bulk alta. What is being pinned here is that a document already
- * on the platform is only "nothing to do" when it belongs to the <b>same</b> person — anything else
- * has to stop, not pass silently.
- */
 @ExtendWith(MockitoExtension.class)
 class TenantProfileServiceTest {
 
@@ -70,15 +65,9 @@ class TenantProfileServiceTest {
                 user(1L), "Martina", "Soteras", "42.987.654", "m@example.com", "11-5555-0001");
 
         assertThat(created).isFalse();
-        // Consent and onboarding state live on that row — the company's directory must not overwrite them.
         verify(insuredRepository, never()).save(any(Insured.class));
     }
 
-    /**
-     * The shape the real data already has: the insurer lists a policyholder under an address that on
-     * the platform belongs to a different account. Reporting that as "already provisioned" would
-     * pair her with somebody else's login.
-     */
     @Test
     void dniOwnedByAnotherUser_failsInsteadOfPassingSilently() {
         when(insuredRepository.findByDni("42.987.654")).thenReturn(Optional.of(insuredOf(user(1L))));

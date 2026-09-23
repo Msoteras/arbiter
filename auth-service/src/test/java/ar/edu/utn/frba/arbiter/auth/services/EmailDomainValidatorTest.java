@@ -6,10 +6,7 @@ import org.junit.jupiter.api.Test;
 import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
-/**
- * Does real DNS lookups — depends on the network. Uses stable domains: gmail.com (real MX, it
- * shouldn't change) and the .invalid TLD (RFC 2606, reserved to never resolve).
- */
+/** Real DNS lookups, so it needs network. The .invalid TLD is reserved never to resolve (RFC 2606). */
 class EmailDomainValidatorTest {
 
     private final EmailDomainValidator validator = new EmailDomainValidator();

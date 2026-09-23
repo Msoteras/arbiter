@@ -1,16 +1,30 @@
+:host {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+.at-head {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+.at-head h2 {
+  margin: 0;
+}
 .section-hint {
-  margin: 0 0 var(--space-3);
-  font-size: var(--font-size-xs);
+  margin: 0;
   color: var(--text-secondary);
-  max-width: 68ch;
+  font-size: var(--font-size-sm);
 }
 
 .rows {
   list-style: none;
-  margin: 0;
+  margin: var(--space-3) 0;
   padding: 0;
-  border: 1px solid var(--border-subtle);
-  border-radius: var(--radius-card);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
 }
 
 .row {
@@ -18,53 +32,40 @@
   align-items: center;
   justify-content: space-between;
   gap: var(--space-4);
-  padding: var(--space-3);
-}
-
-.row + .row {
-  border-top: 1px solid var(--border-subtle);
+  padding: var(--space-3) var(--space-4);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-ctl);
+  background: var(--surface-soft);
 }
 
 .row-text {
   display: flex;
   flex-direction: column;
   gap: var(--space-1);
+  min-width: 0;
 }
-
+.row-name {
+  font-weight: var(--font-weight-medium);
+  color: var(--text-primary);
+}
 .row-hint {
   margin: 0;
   font-size: var(--font-size-xs);
-  color: var(--text-muted);
+  color: var(--text-secondary);
 }
 
-.row-action {
-  display: flex;
-  align-items: center;
-  gap: var(--space-2);
+/* The input doesn't compete with the branch name for width. */
+.row app-input {
+  flex: 0 0 12rem;
 }
 
-/* El input no compite con el nombre del ramo por el ancho: el dato que se lee es el ramo. */
-.row-action app-input {
-  width: 12rem;
-}
-
-.rcard-note {
-  margin: var(--space-2) 0 0;
-  font-size: var(--font-size-xs);
-  color: var(--text-muted);
-}
-.rcard-note.error {
-  color: var(--status-danger);
-}
-
-/* En móvil la fila se apila: con el input al lado, el nombre del ramo quedaba en dos renglones. */
+/* Stacked on mobile: beside the input, the branch name wrapped onto two lines. */
 @media (max-width: 640px) {
   .row {
     flex-direction: column;
     align-items: stretch;
   }
-  .row-action app-input {
-    width: auto;
+  .row app-input {
     flex: 1 1 auto;
   }
 }

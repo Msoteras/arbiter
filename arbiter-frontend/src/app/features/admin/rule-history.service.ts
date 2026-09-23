@@ -5,10 +5,10 @@ import { Observable } from 'rxjs';
 import { environment } from '../../../environments/environment';
 import { PagedResponse } from '../expedientes/expediente.service';
 
-/** De qué tabla de auditoría salió la entrada. Reglas y scoring versionan por separado. */
+/** Audit table the entry came from: rules and scoring are versioned separately. */
 export type RuleChangeSource = 'INSURER_RULE' | 'SCORING';
 
-/** Un campo que se movió entre dos versiones de una regla. `null` = el campo no existía de ese lado. */
+/** `null` = the field didn't exist on that side. */
 export interface RuleFieldChange {
   field: string;
   previousValue: string | null;
@@ -16,9 +16,8 @@ export interface RuleFieldChange {
 }
 
 /**
- * Un cambio de configuración tal como lo devuelve rules-service, ya resuelto: qué regla, de qué
- * valor a cuál, cuándo y por qué. El backend arma el par (versión anterior → versión que la
- * reemplazó) porque una fila del historial sola no alcanza — guarda lo que la regla *dejó* de ser.
+ * The backend pairs each history row with the version that replaced it, because a history row alone
+ * only stores what the rule stopped being.
  */
 export interface RuleChangeEntry {
   id: string;
@@ -29,18 +28,18 @@ export interface RuleChangeEntry {
   branchName: string | null;
   coverageId: number | null;
   coverageName: string | null;
-  /** Instante ISO del cambio. */
   changedAt: string;
-  /** Desde cuándo regía la versión reemplazada — con `changedAt` dice cuánto duró. */
+  /** When the replaced version took effect; together with `changedAt` it says how long it lasted. */
   previousValidFrom: string;
   reason: string | null;
   changes: RuleFieldChange[];
-  /** La versión que introdujo este cambio es la que rige hoy. */
+  /** The version introduced by this change is the one in force today. */
   current: boolean;
+  /** The referente's name, or their email if they have no profile. */
+  author: string | null;
   /**
-   * La versión guardada es anterior a que el historial registrara si la regla estaba activa, así
-   * que `changes` solo puede hablar de los parámetros. Con estas filas, `changes` vacío significa
-   * "no quedó registrado", no "no cambió nada" — y la vista tiene que decir cuál de las dos es.
+   * The stored version predates tracking whether the rule was active, so `changes` only covers
+   * parameters: empty means "not recorded", not "nothing changed", and the view must say which.
    */
   partial: boolean;
 }
@@ -48,18 +47,14 @@ export interface RuleChangeEntry {
 export interface RuleHistoryParams {
   ruleType?: string;
   branchId?: number;
-  /** ISO `yyyy-MM-dd`, ambos inclusive. */
+  /** ISO `yyyy-MM-dd`, both inclusive. */
   from?: string;
   to?: string;
   page?: number;
   size?: number;
 }
 
-/**
- * Etiquetas en español de los literales de `RuleType` (+ `SCORING`, que no es un RuleType: el
- * puntaje de riesgo tiene su propia tabla). El backend manda el literal en inglés y traducirlo es
- * responsabilidad del frontend, igual que con el resto de los enums de la plataforma.
- */
+/** `RuleType` labels, plus `SCORING`, which isn't a RuleType: risk scoring has its own table. */
 export const RULE_TYPE_LABELS: Record<string, string> = {
   FAST_TRACK: 'Fast Track',
   EXCLUSIONS: 'Exclusiones del ramo',
@@ -78,11 +73,9 @@ export const RULE_TYPE_LABELS: Record<string, string> = {
 };
 
 /**
- * Etiquetas de los campos que aparecen en un diff. Las claves son rutas JSON de la configuración
- * de cada regla, así que la tabla se lee junto a los DTO de rules-service (`HardRuleConfig`,
- * `FastTrackConfigDto`, `ScoringConfigDto`…). Lo que no esté acá se muestra con la clave cruda:
- * un campo nuevo tiene que verse aunque nadie le haya puesto nombre todavía — dejarlo afuera del
- * historial sería peor que mostrarlo feo.
+ * Keys are JSON paths of each rule's configuration (rules-service `HardRuleConfig`,
+ * `FastTrackConfigDto`, `ScoringConfigDto`…). Unknown keys are shown raw on purpose: a new field
+ * must still appear in the history even before it gets a label.
  */
 export const RULE_FIELD_LABELS: Record<string, string> = {
   active: 'Regla activa',
@@ -92,8 +85,8 @@ export const RULE_FIELD_LABELS: Record<string, string> = {
   windowMonths: 'Ventana del antecedente (meses)',
   excludedClaimCauseIds: 'Hechos generadores excluidos',
   includedClaimCauseIds: 'Hechos generadores cubiertos',
-  // Últimos tramos de las rutas de listas del scoring (`factors[image_reuse].weight`). El código del
-  // factor o el nombre de la banda viaja aparte, como calificador de la fila.
+  // Last segment of scoring list paths (`factors[image_reuse].weight`); the factor code or band name
+  // travels separately as the row qualifier.
   weight: 'Peso',
   factorId: 'Factor',
   band: 'Banda',
@@ -112,23 +105,20 @@ export const RULE_FIELD_LABELS: Record<string, string> = {
   enabled: 'Puntaje habilitado',
   fullAnalysisOnFastTrack: 'Análisis completo en Fast Track',
   id: 'Identificador de la configuración',
-  // Las reglas de texto libre (exclusiones del ramo, reglas de negocio) guardan una lista pelada:
-  // no tiene clave propia, así que el backend la nombra 'configuration'.
+  // Free-text rules store a bare list with no key, so the backend names it 'configuration'.
   configuration: 'Contenido de la regla',
 };
 
 /**
- * Historial de cambios de las reglas de la aseguradora contra rules-service. Solo lectura y sin
- * contraparte de escritura: las dos tablas que lo alimentan son append-only y las escriben los
- * servicios de reglas como efecto de cada guardado. El tenant sale del JWT, así que el referente
- * solo ve el historial de su propia compañía.
+ * Read-only: the append-only history tables are written by rules-service as a side effect of each
+ * save. The tenant comes from the JWT.
  */
 @Injectable({ providedIn: 'root' })
 export class RuleHistoryService {
   private readonly http = inject(HttpClient);
   private readonly base = `${environment.apiBaseUrl}/rules/history`;
 
-  /** Más reciente primero. El orden lo fija el backend: un historial se lee desde lo último. */
+  /** Most recent first; the backend fixes the order. */
   find(params: RuleHistoryParams = {}): Observable<PagedResponse<RuleChangeEntry>> {
     let httpParams = new HttpParams();
     for (const [key, value] of Object.entries(params)) {
@@ -139,7 +129,7 @@ export class RuleHistoryService {
     return this.http.get<PagedResponse<RuleChangeEntry>>(this.base, { params: httpParams });
   }
 
-  /** Solo los tipos que la aseguradora efectivamente editó alguna vez. */
+  /** Only the types the insurer has actually edited at least once. */
   ruleTypes(): Observable<string[]> {
     return this.http.get<string[]>(`${this.base}/rule-types`);
   }

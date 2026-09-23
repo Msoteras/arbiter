@@ -39,13 +39,8 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 /**
- * The narrative-consistency reroute: the insured picks a claim cause from a selector and writes the
- * account separately, and the hard rules only ever evaluated the <b>declared</b> cause — so "Robo en
- * vía pública" (covered) with a hurto narrated underneath used to sail through the exclusion gate.
- *
- * <p>What these tests pin down is the division of labour: the model says which cause the account
- * describes, and this code — not the model — asks the engine whether that one is covered
- * (CLAUDE.md #4). Neither outcome resolves the case; both land on the analyst (#5).
+ * The model names which claim cause the account describes; the engine, not the model, decides
+ * whether that one is covered. Neither outcome resolves the case.
  */
 @ExtendWith(MockitoExtension.class)
 class ClassificationOrchestratorCauseConsistencyTest {
@@ -78,7 +73,7 @@ class ClassificationOrchestratorCauseConsistencyTest {
         when(insurerAdapter.getPolicy(any())).thenReturn(RiskFixtures.policy(true, new BigDecimal("400000")));
         when(insurerAdapter.getHistory(any())).thenReturn(RiskFixtures.history(0));
         when(rulesAdapter.getRules(any(), any(), any())).thenReturn(RiskFixtures.rules(null));
-        // The DECLARED cause is covered: this is the case the gate lets through today.
+        // The declared cause is covered, so the exclusion gate alone would let it through.
         when(coverageRuleEvaluator.evaluate(any(), any()))
                 .thenReturn(new CoverageRuleEvaluator.Result(false, List.of()));
         when(temporalRuleEvaluator.evaluate(any(), any(), any(), any()))
@@ -89,8 +84,7 @@ class ClassificationOrchestratorCauseConsistencyTest {
                 .thenReturn(CoverageScopeEvaluator.Result.none());
         when(fastTrackValidator.evaluate(any(), any(), any(), any(), any()))
                 .thenReturn(new FastTrackValidator.Result(false, List.of("no"), List.of()));
-        // Broad default, overridden per test: the catalog is built by asking this for EVERY cause of
-        // the branch, so stubbing only the interesting id would blow up on the others.
+        // Broad default: the catalog asks this for every cause of the branch.
         lenient().when(coverageRuleEvaluator.isExcluded(any(), any())).thenReturn(false);
         when(claimCauseRepository.findByBranch_NameIgnoreCaseOrderByNameAsc("Celulares"))
                 .thenReturn(List.of(claimCause(ROBO_ID, "Robo en vía pública"),
@@ -115,8 +109,7 @@ class ClassificationOrchestratorCauseConsistencyTest {
 
     @Test
     void contradicts_withACoveredCause_goesToManualReview() {
-        // The account describes another cause, but one the policy does cover: something is off and
-        // it isn't this code's call which way — that's what manual review is for.
+        // Another cause, but a covered one: not this code's call which way, so manual review.
         stubModel(CauseConsistency.CONTRADICTS, "Robo en vía pública", "Me lo arrancaron de la mano");
 
         ClassificationResponse response = classify("Caída");
@@ -127,8 +120,7 @@ class ClassificationOrchestratorCauseConsistencyTest {
 
     @Test
     void contradicts_withAnUnmappableCause_goesToManualReview() {
-        // The schema restricts the model to the catalog, but a name that maps to nothing must not
-        // be read as "covered" — an unknown cause is never grounds for recommending a rejection.
+        // An unmappable name is never grounds for recommending a rejection.
         stubModel(CauseConsistency.CONTRADICTS, "Incendio", "Se prendió fuego");
 
         ClassificationResponse response = classify();
@@ -138,8 +130,7 @@ class ClassificationOrchestratorCauseConsistencyTest {
 
     @Test
     void ambiguous_addsAFactorButKeepsTheModelsClassification() {
-        // "Me robaron" is how people describe a robo, a hurto and an olvido alike: a doubtful
-        // reading must never reroute an honest claim.
+        // Everyday wording is too vague: a doubtful reading must never reroute an honest claim.
         stubModel(CauseConsistency.AMBIGUOUS, null, null);
 
         ClassificationResponse response = classify();

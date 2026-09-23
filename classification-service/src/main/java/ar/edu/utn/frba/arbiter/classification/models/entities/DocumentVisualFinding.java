@@ -14,14 +14,8 @@ import lombok.NoArgsConstructor;
 import lombok.Setter;
 
 /**
- * One observable sign that a document may have been altered or fabricated
- * ("hallazgo_visual_documento" in the DER) — mismatched typefaces, pasted text, a warped stamp.
- *
- * <p>It is an observation about the <b>image</b>, not content of the document: that separation is
- * the whole point of keeping it out of {@link DocumentAnalysis#getTranscription()}, so nothing
- * downstream can read it as something the paper itself said.
- *
- * <p>Never conclusive on its own — it informs the analyst's reading, it doesn't decide a rule.
+ * A visible sign of tampering, kept apart from the transcription so it's never read as document
+ * content. Informs the analyst; never decides a rule.
  */
 @Entity
 @Table(name = "document_visual_finding")

@@ -25,9 +25,8 @@ import { estadoLabel, estadoTone } from '../../../core/models/estado';
 import { StatusTone } from '../../../core/models/status-tone';
 import { BadgeComponent } from '../../../shared/ui/badge/badge.component';
 
-/** Menos de esto no se consulta: dos caracteres traen media aseguradora y no ayudan a nadie. */
 const MIN_CHARS = 2;
-/** Sugerencias del desplegable. El resto sale por "Ver todos los resultados" en la bandeja. */
+/** The rest is reachable through "Ver todos los resultados" in the inbox. */
 const MAX_RESULTS = 6;
 
 interface SearchState {
@@ -39,14 +38,9 @@ interface SearchState {
 const IDLE: SearchState = { items: [], loading: false, failed: false };
 
 /**
- * Buscador de la topbar: escribe → desplegable con los expedientes que matchean → click va al
- * detalle. Pega al mismo `GET /api/v1/cases?q=` que la búsqueda de la bandeja, así que busca por
- * N° de expediente, N° de póliza, DNI y nombre del asegurado (ver `CaseSpecifications.freeText`).
- * No busca por analista: el backend no lo soporta y prometerlo en el placeholder sería mentir.
- *
- * El campo NO usa `app-input`: vive sobre el chrome oscuro de la topbar y el input del kit está
- * calibrado para superficies claras. Se estila acá con los roles `--chrome-*`, igual que el resto
- * de los controles de la barra.
+ * Uses the same `GET /cases?q=` as the inbox (see `CaseSpecifications.freeText`); it can't search by
+ * analyst, so the placeholder must not promise it. Not `app-input`: the kit input is calibrated for
+ * light surfaces and this sits on the dark top bar, styled with the `--chrome-*` roles.
  */
 @Component({
   selector: 'app-global-search',
@@ -147,9 +141,7 @@ const IDLE: SearchState = { items: [], loading: false, failed: false };
       flex: 1 1 auto;
       min-width: 0;
       font: inherit;
-      /* 16px en mobile evita el zoom de iOS al enfocar (misma regla que app-input); en desktop
-         baja a cuerpo para que el placeholder entre completo — es el que dice sobre qué se puede
-         buscar, y truncado deja al usuario creyendo que solo busca por N° de expediente. */
+      /* 16px on mobile avoids the iOS focus zoom; smaller on desktop so the placeholder fits. */
       font-size: var(--font-size-lg);
       background: none;
       border: none;
@@ -167,7 +159,7 @@ const IDLE: SearchState = { items: [], loading: false, failed: false };
     .gsearch-field::placeholder {
       color: var(--chrome-muted);
     }
-    /* La X nativa del type=search compite con el botón de limpiar. */
+    /* Hide the native clear button; we render our own. */
     .gsearch-field::-webkit-search-cancel-button {
       display: none;
     }
@@ -185,9 +177,7 @@ const IDLE: SearchState = { items: [], loading: false, failed: false };
       color: var(--chrome-fg);
     }
 
-    /* El panel sí vuelve a la superficie clara: es contenido, no chrome. Ancla a la derecha y
-       crece hacia la izquierda: el campo vive pegado al borde derecho de la topbar y con el ancho
-       del campo las filas quedaban apretadas. */
+    /* Light surface (content, not chrome); anchored right and grows leftwards, wider than the field. */
     .gsearch-panel {
       position: absolute;
       top: calc(100% + var(--space-2));
@@ -283,7 +273,7 @@ export class GlobalSearchComponent {
         return this.expedientes.list({ q, size: MAX_RESULTS, sort: 'id,desc' }).pipe(
           map((page) => ({ items: page.content, loading: false, failed: false })),
           catchError(() => of({ items: [], loading: false, failed: true })),
-          // Después del debounce: el "Buscando…" aparece recién cuando la request sale de verdad.
+          // After the debounce, so "Buscando…" only shows once the request actually goes out.
           startWith({ items: [], loading: true, failed: false }),
         );
       }),
@@ -309,7 +299,7 @@ export class GlobalSearchComponent {
     this.router.navigate(['/cases', id]);
   }
 
-  /** Enter (o "ver todos"): la bandeja toma la búsqueda por query param y la aplica al listado. */
+  /** The inbox picks the search up from the query param. */
   protected submit(): void {
     const q = this.query().trim();
     if (q.length < MIN_CHARS) return;

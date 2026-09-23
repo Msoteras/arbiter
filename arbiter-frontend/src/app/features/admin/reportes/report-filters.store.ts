@@ -8,42 +8,32 @@ import { BranchesService } from '../branches.service';
 import { periodError } from './resolution-report';
 
 /**
- * The filters both reports share: the period and the branch.
- *
- * <p>They live here and not in each tab because they have to survive the switch between them. A
- * referent looking at "resolved in August, branch Celulares" who taps «Detección de fraude»
- * expects the same slice; resetting to "month so far / every branch" would make the two tabs feel
- * like two screens that happen to sit next to each other.
- *
- * <p>Provided by ReportsComponent, not in root: the filters belong to the reports screen, and
- * coming back to it a week later should start from the current month again, not from whatever was
- * typed last time.
+ * Period and branch filters shared by both reports, so they survive switching tabs. Provided by
+ * ReportsComponent, not in root: re-entering the screen starts from the current month again.
  */
 @Injectable()
 export class ReportFiltersStore {
   private readonly branches = inject(BranchesService);
 
   readonly today = todayIso();
-  /** Default: the month so far — the question a referent asks most often. */
+  /** Default: the month so far. */
   readonly from = signal(`${this.today.slice(0, 8)}01`);
   readonly to = signal(this.today);
   readonly branchId = signal<number | null>(null);
   /**
-   * The active tab's own filter (claim cause, alert level), as it goes in the URL. Held here so the
-   * shell is the only one writing the URL: two writers navigating in the same tick overwrite each
-   * other's params.
+   * The active tab's own filter, as it goes in the URL. Held here so the shell is the only URL
+   * writer: two writers navigating in the same tick overwrite each other's params.
    */
   readonly tabParams = signal<Params>({});
 
-  /** Null until rules-service answers, and for good if it doesn't. */
+  /** null until rules-service answers, and for good if it doesn't. */
   private readonly branchCatalog = signal<SelectOption[] | null>(null);
-  /** The branch's name as the backend resolved it in the last preview, for when there's no catalog. */
+  /** Branch name resolved by the backend in the last preview, for when there's no catalog. */
   private readonly previewedBranch = signal<{ id: number; name: string } | null>(null);
 
   /**
-   * The catalog, plus the selected branch if the catalog doesn't have it — which only happens when
-   * the catalog couldn't be read. Without that option the select would show "Todos" while every
-   * request goes out filtered by the branch the link carried.
+   * Adds the selected branch when the catalog couldn't be read; otherwise the select would show
+   * "Todos" while requests go out filtered by the branch in the link.
    */
   readonly branchOptions = computed<SelectOption[]>(() => {
     const catalog = this.branchCatalog() ?? [];
@@ -56,7 +46,7 @@ export class ReportFiltersStore {
     return [...catalog, { value: String(id), label }];
   });
 
-  /** The select speaks strings; empty is the placeholder, which here means "every branch". */
+  /** Empty string is the placeholder, meaning "every branch". */
   readonly branchValue = computed(() => {
     const id = this.branchId();
     return id === null ? '' : String(id);
@@ -73,8 +63,7 @@ export class ReportFiltersStore {
           this.branchCatalog.set(
             list.map((branch) => ({ value: String(branch.id), label: branch.name })),
           );
-          // A link to a branch that no longer exists: back to every branch rather than filtering by
-          // something the select can't name.
+          // Link to a branch that no longer exists: fall back to every branch.
           const id = this.branchId();
           if (id !== null && !list.some((branch) => branch.id === id)) {
             this.branchId.set(null);
@@ -89,17 +78,12 @@ export class ReportFiltersStore {
     this.branchId.set(value === '' ? null : Number(value));
   }
 
-  /** What the backend called the filtered branch, so the select can name it with no catalog. */
   notePreviewedBranch(name: string | null): void {
     const id = this.branchId();
     this.previewedBranch.set(id !== null && name !== null ? { id, name } : null);
   }
 
-  /**
-   * Restores what the URL carried, so a shared link opens on the same period. Anything missing or
-   * malformed keeps the default rather than putting a broken value on screen — the URL is typed by
-   * hand often enough.
-   */
+  /** Restores filters from the URL; anything missing or malformed keeps the default. */
   hydrate(params: ParamMap): void {
     const from = params.get('from');
     const to = params.get('to');
@@ -118,7 +102,7 @@ export class ReportFiltersStore {
     }
   }
 
-  /** The shared filters only — what a tab link carries to the other tab. */
+  /** Shared filters only: what a tab link carries to the other tab. */
   sharedQueryParams(): Params {
     return {
       from: this.from(),
@@ -127,10 +111,8 @@ export class ReportFiltersStore {
     };
   }
 
-  /** What the shell writes back to the URL on every change. */
   asQueryParams(): Params {
-    // Unset filters dropped here: navigateByUrl over a UrlTree writes an undefined value as the
-    // literal "undefined".
+    // navigateByUrl over a UrlTree writes an undefined value as the literal "undefined".
     return Object.fromEntries(
       Object.entries({ ...this.sharedQueryParams(), ...this.tabParams() }).filter(
         ([, value]) => value !== undefined,

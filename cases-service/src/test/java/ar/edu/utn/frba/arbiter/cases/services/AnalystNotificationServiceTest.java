@@ -67,8 +67,8 @@ class AnalystNotificationServiceTest {
         service.notifyDeadline(caseRecord, DeadlinePriority.CRITICAL, TODAY);
 
         verify(claimsAnalystRepository, never()).findAll();
-        // notifyOne guarda dos veces (crea la fila y la re-guarda con sent=true); es la misma
-        // instancia, así que basta capturar y mirar el valor. El único destinatario ⇒ un solo send.
+        // notifyOne saves the same instance twice (insert, then sent=true), so capturing the last
+        // value is enough.
         verify(sendGridAdapter).send(eq("ana@aseg.com"), anyString(), anyString());
         ArgumentCaptor<Notification> saved = ArgumentCaptor.forClass(Notification.class);
         verify(notificationRepository, atLeastOnce()).save(saved.capture());
@@ -84,7 +84,6 @@ class AnalystNotificationServiceTest {
 
         service.notifyDeadline(caseWith(null, TODAY.plusDays(2)), DeadlinePriority.CRITICAL, TODAY);
 
-        // Un send por analista del equipo — la señal inequívoca de "se notificó a todos".
         verify(sendGridAdapter).send(eq("a@aseg.com"), anyString(), anyString());
         verify(sendGridAdapter).send(eq("b@aseg.com"), anyString(), anyString());
     }
@@ -118,14 +117,13 @@ class AnalystNotificationServiceTest {
 
         service.notifyDeadline(caseWith(assigned, TODAY.minusDays(1)), DeadlinePriority.OVERDUE, TODAY);
 
-        // El panel de novedades renderiza `content` como texto: una etiqueta acá se le aparece al
-        // analista escrita, que es lo que pasaba con "<b>#1</b>" en el aviso de vencimiento.
+        // The notifications panel renders `content` as plain text: any tag would show up literally.
         ArgumentCaptor<Notification> saved = ArgumentCaptor.forClass(Notification.class);
         verify(notificationRepository, atLeastOnce()).save(saved.capture());
         assertThat(saved.getValue().getContent()).doesNotContain("<b>", "</b>");
         assertThat(saved.getValue().getContent()).contains("El expediente #1 ");
 
-        // El mail sí es text/html y conserva el resaltado.
+        // The mail is text/html and keeps the highlight.
         ArgumentCaptor<String> mailBody = ArgumentCaptor.forClass(String.class);
         verify(sendGridAdapter).send(eq("ana@aseg.com"), anyString(), mailBody.capture());
         assertThat(mailBody.getValue()).contains("<b>#1</b>");
@@ -147,13 +145,11 @@ class AnalystNotificationServiceTest {
         org.mockito.Mockito.doThrow(new RuntimeException("SendGrid 500"))
                 .when(sendGridAdapter).send(anyString(), anyString(), anyString());
 
-        // No debe romper el barrido: la fila queda (sent=false) y la excepción se traga.
+        // Must not break the sweep: the row stays (sent=false) and the exception is swallowed.
         service.notifyDeadline(caseWith(assigned, TODAY.plusDays(1)), DeadlinePriority.CRITICAL, TODAY);
 
         verify(notificationRepository, atLeastOnce()).save(any());
     }
-
-    // ─────────── fixtures ───────────
 
     private Case caseWith(ClaimsAnalyst analyst, LocalDate deadline) {
         Insured insured = new Insured();

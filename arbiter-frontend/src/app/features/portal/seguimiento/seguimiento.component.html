@@ -1,7 +1,6 @@
 @if (data(); as d) {
   <a class="breadcrumb" routerLink="/portal">‹ Mis siniestros</a>
 
-  <!-- Hero: estado tranquilizador + progreso simplificado (lo único que ve el asegurado). -->
   <header class="hero">
     <span class="eyebrow">Siniestro #{{ d.id }} · {{ d.claimCause }}</span>
     <h1 class="t-hero-title">{{ heroTitle() }}</h1>
@@ -26,7 +25,6 @@
     </div>
   </header>
 
-  <!-- Acción requerida: el turno del asegurado (falta documentación). -->
   @if (needsDocs()) {
     <div class="action-required" data-tone="warning">
       <span class="action-icon" aria-hidden="true">
@@ -75,9 +73,7 @@
     </div>
   }
 
-  <!-- Dónde está el equipo mientras se repara. Es lo único de una derivación que se le cuenta al
-       asegurado: el peritaje se le oculta para no delatar la sospecha, pero un service que tiene su
-       equipo es alguien a quien necesita poder ubicar. -->
+  <!-- Repair is the only referral disclosed to the insured; the expert assessment stays hidden. -->
   @if (servicioTecnico(); as sv) {
     <div class="action-required" data-tone="info">
       <span class="action-icon" aria-hidden="true">
@@ -105,10 +101,6 @@
     </div>
   }
 
-  <!-- Movimientos del expediente. Los hitos de arriba dicen en qué etapa está; esto dice qué pasó.
-       Cada línea sale del ESTADO de la transición, nunca de su motivo interno: el asegurado ve que
-       su caso se derivó a verificación, no por qué (eso es la sospecha, y todavía no hay nada
-       probado). Tampoco ve la clasificación del modelo ni el veredicto del perito. -->
   <app-card class="seguimiento-card" heading="Seguimiento">
     <ol class="milestones">
       @for (m of movimientos(); track $index) {
@@ -152,7 +144,6 @@
     counterparty="Equipo de siniestros"
   />
 
-  <!-- Detalle de la denuncia. -->
   <app-card class="denuncia-card" heading="Tu denuncia">
     <dl class="fields">
       @if (d.insurerName) {
@@ -188,8 +179,6 @@
     </dl>
   </app-card>
 
-  <!-- Lo que el asegurado ya envió, con vista previa: hasta ahora, una vez subido
-       el documento desaparecía de su vista y no tenía cómo confirmar qué mandó. -->
   <app-case-documents
     class="docs-section"
     [caseId]="d.id"

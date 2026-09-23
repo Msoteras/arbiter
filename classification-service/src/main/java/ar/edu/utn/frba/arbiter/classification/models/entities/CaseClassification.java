@@ -15,18 +15,7 @@ import lombok.Setter;
 
 import java.time.Instant;
 
-/**
- * The analyst's verdict on a case ("clasificacion_expediente" in the DER). Human-in-the-loop is
- * mandatory (decision #5): no case reaches a final state without a row here, and the model's
- * recommendation on the other side of {@link #llmAnalysis} is never binding.
- *
- * <p>It points at the analysis instead of copying it. The classification log this replaces
- * duplicated the whole snapshot — factors, forensic report, insured name — onto a second row
- * just so a later read would still find them; with the FK there is one copy and one truth.
- *
- * <p>{@code llmAnalysis} is nullable: a Fast Track case is still decided by an analyst, but
- * there was no model run to point at.
- */
+/** The analyst's verdict on a case; no case reaches a final state without one. */
 @Entity
 @Table(name = "case_classification")
 @Getter
@@ -38,7 +27,7 @@ public class CaseClassification {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    /** APPROVE | REJECT, normalized before it gets here. */
+    /** APPROVE | REJECT. */
     @Column(nullable = false, length = 20)
     private String decision;
 
@@ -56,12 +45,7 @@ public class CaseClassification {
     @JoinColumn(name = "llm_analysis_id")
     private LlmAnalysis llmAnalysis;
 
-    /**
-     * {@code claims_analyst.id} of whoever decided. A plain column rather than an association:
-     * the analyst profile is written by auth-service, and importing its entity would couple the
-     * two modules — the database still enforces the FK, both tables being in the same tenant
-     * schema.
-     */
+    /** {@code claims_analyst.id}; a plain column because that entity belongs to another module (the DB keeps the FK). */
     @Column(name = "analyst_id", nullable = false)
     private Long analystId;
 }

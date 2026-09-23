@@ -1,9 +1,6 @@
 import { StatusTone } from './status-tone';
 
-/**
- * Espejo del enum FraudRecordSource de common-lib
- * (ar.edu.utn.frba.arbiter.common.enums.FraudRecordSource).
- */
+/** Mirrors common-lib's FraudRecordSource enum. */
 export type OrigenAntecedente = 'EXPERT_BACKED' | 'ANALYST_DECLARED';
 
 const ORIGEN_LABELS: Record<OrigenAntecedente, string> = {
@@ -16,13 +13,8 @@ export function origenAntecedenteLabel(value: string): string {
 }
 
 /**
- * Espejo de FraudRecordResponse.
- *
- * Los dos booleanos dicen cosas distintas y la pantalla tiene que poder separarlas: `inForce` es
- * si el antecedente sigue dentro de la ventana que configuró la aseguradora, y `scores` es si
- * además pesa en el motor — lo que exige respaldo pericial. Un antecedente vigente sin peritaje
- * es una alerta para el analista y nada más; mostrarlo igual que uno pericial daría a entender
- * que movió el score cuando no lo hizo.
+ * Mirrors FraudRecordResponse. `inForce`: within the insurer's window. `scores`: also weighs in the
+ * engine, which requires an expert report. Keep them apart in the UI.
  */
 export interface AntecedenteFraude {
   id: number;
@@ -38,11 +30,9 @@ export interface AntecedenteFraude {
 }
 
 /**
- * Los tres estados posibles, que no son intercambiables:
- * - `pericial`: vigente y con peritaje detrás. Es el único que puntúa y puede vetar el Fast Track.
- * - `declarado`: vigente pero sin peritaje. Se muestra, no cuenta.
- * - `vencido`: quedó fuera de la ventana de la aseguradora. Se sigue mostrando, porque "hubo uno
- *   y ya no cuenta" no es lo mismo que "no hubo ninguno".
+ * - `pericial`: in force and expert-backed; the only one that scores and can veto Fast Track.
+ * - `declarado`: in force without an expert report; shown, not counted.
+ * - `vencido`: outside the window; still shown, since "there was one" differs from "none".
  */
 export type EstadoAntecedente = 'pericial' | 'declarado' | 'vencido';
 
@@ -63,11 +53,7 @@ export function estadoAntecedenteLabel(a: AntecedenteFraude): string {
   return ESTADO_LABELS[estadoAntecedente(a)];
 }
 
-/**
- * El semáforo acompaña cuánto pesa, no cuán grave suena: `danger` solo cuando el antecedente
- * efectivamente entra al motor. Un antecedente declarado en rojo pleno haría que el analista lo
- * lea como evidencia, que es justo lo que no es.
- */
+// Tone follows actual weight: `danger` only when the record feeds the engine.
 const ESTADO_TONES: Record<EstadoAntecedente, StatusTone> = {
   pericial: 'danger',
   declarado: 'warning',
@@ -78,7 +64,6 @@ export function estadoAntecedenteTone(a: AntecedenteFraude): StatusTone {
   return ESTADO_TONES[estadoAntecedente(a)];
 }
 
-/** Lo que la pantalla explica debajo del antecedente: qué efecto tiene, en una línea. */
 const ESTADO_EFECTOS: Record<EstadoAntecedente, string> = {
   pericial: 'Suma al nivel de riesgo y puede impedir la vía rápida.',
   declarado: 'No suma al nivel de riesgo: se muestra como alerta porque no tuvo peritaje detrás.',
@@ -89,11 +74,10 @@ export function efectoAntecedente(a: AntecedenteFraude): string {
   return ESTADO_EFECTOS[estadoAntecedente(a)];
 }
 
-/** Lo que el analista manda al registrar. El motivo tiene un mínimo real, igual que en el back. */
 export interface RegistrarAntecedenteRequest {
   source: OrigenAntecedente;
   reason: string;
 }
 
-/** Mismo mínimo que valida cases-service; acá evita el viaje de ida y vuelta. */
+/** Same minimum cases-service validates. */
 export const MOTIVO_ANTECEDENTE_MIN = 20;

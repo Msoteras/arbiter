@@ -13,10 +13,8 @@ import org.springframework.stereotype.Component;
 import java.util.List;
 
 /**
- * Keeps the user's lifecycle in Auth0 (Management API, Machine-to-Machine app authorized with
- * `create:users`/`delete:users`/`read:users`) in sync with the local create and delete, so the
- * analyst is really enabled or disabled for login. A fresh M2M token per call — no caching, the
- * project's volume doesn't justify the extra complexity.
+ * Mirrors local user creation and deletion in Auth0 through the Management API. Requests a fresh
+ * M2M token per call; the volume doesn't justify caching it.
  */
 @Component
 @ConditionalOnProperty(prefix = "arbiter.auth", name = "provider", havingValue = "auth0")
@@ -26,7 +24,7 @@ public class Auth0UserProvisioner {
     private final AuthAPI auth0ManagementAuthApi;
     private final AuthProperties properties;
 
-    /** @return the Auth0 user id ("auth0|...") — {@code User.authSub}'s source of truth. */
+    /** @return the Auth0 user id ("auth0|..."). */
     public String createUser(String email, String rawPassword) {
         try {
             ManagementAPI management = managementApi();

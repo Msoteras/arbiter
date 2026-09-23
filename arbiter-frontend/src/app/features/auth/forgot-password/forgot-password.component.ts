@@ -8,9 +8,8 @@ import { InputComponent } from '../../../shared/ui/input/input.component';
 import { LogoComponent } from '../../../shared/ui/logo/logo.component';
 
 /**
- * Asks for the email and triggers UserService.requestPasswordReset, which always responds 204
- * whether or not the email exists (no leaking which addresses are registered) — that's why this
- * shows the same confirmation message no matter what, save for a real network/server error.
+ * The backend answers 204 whether or not the email exists (so registered addresses don't leak),
+ * hence the same confirmation is shown regardless, except on a real network/server error.
  */
 @Component({
   selector: 'app-forgot-password',

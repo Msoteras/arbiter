@@ -113,11 +113,7 @@ class FastTrackValidatorTest {
         assertThat(result.fastTrack()).isFalse();
     }
 
-    /**
-     * D14 · the case that motivated the field. With no window, "at most 1 prior claim" is compared
-     * against the whole history, so two claims from 2024 lock a customer who hasn't claimed in two
-     * years out of Fast Track.
-     */
+    /** With no window, "at most 1 prior claim" counts the whole history. */
     @Test
     void withoutWindow_priorClaimsCountTheWholeHistory() {
         BusinessRules rules = baseRules()
@@ -172,7 +168,7 @@ class FastTrackValidatorTest {
         assertThat(result.fastTrack()).isFalse();
     }
 
-    /** D14 · antigüedad mínima de la póliza (alta 01/03/2024, hecho 13/06/2026 ⇒ 27 meses). */
+    /** Minimum policy age (start 01/03/2024, event 13/06/2026: 27 months). */
     @Test
     void policyOlderThanTheMinimum_fastTracks() {
         BusinessRules rules = baseRules()
@@ -226,11 +222,7 @@ class FastTrackValidatorTest {
         assertThat(result.reasons()).anyMatch(r -> r.contains("No se pudo determinar la antigüedad"));
     }
 
-    /**
-     * H0038: what the gate compared has to survive the run. One row per criterion, passes included
-     * — the analyst's question is "why did this Fast Track", and a table with only the failures
-     * can't answer it.
-     */
+    /** One row per criterion, passes included: it answers "why did this Fast Track". */
     @Test
     void everyCriterionComparedLeavesAnAuditableFinding() {
         BusinessRules rules = baseRules()
@@ -256,7 +248,6 @@ class FastTrackValidatorTest {
                 RuleType.FT_POLICY_UP_TO_DATE.name(),
                 RuleType.FT_REQUIRED_DOCS.name());
         assertThat(result.findings()).allMatch(RuleFinding::passed);
-        // No rule id: the thresholds live in a FAST_TRACK insurer_rule row whose id doesn't travel.
         assertThat(result.findings()).allMatch(f -> f.ruleId() == null);
         assertThat(result.findings())
                 .filteredOn(f -> RuleType.FT_PRIOR_CLAIMS.name().equals(f.ruleType()))
@@ -281,15 +272,12 @@ class FastTrackValidatorTest {
         assertThat(result.findings()).singleElement().satisfies(finding -> {
             assertThat(finding.ruleType()).isEqualTo(RuleType.FT_AMOUNT_RATIO.name());
             assertThat(finding.passed()).isFalse();
-            // Sin el separador decimal: lo pone el locale de la JVM y no es lo que se testea.
+            // Without the decimal separator: it depends on the JVM locale.
             assertThat(finding.evaluatedValue()).startsWith("ratio=90").contains("max=50");
         });
     }
 
-    /**
-     * Nothing to compare, nothing to write: with the documents already verified upstream the gate
-     * doesn't re-check them, and a PASS row would claim it verified paperwork it never saw.
-     */
+    /** No documents handed in: no row, since a PASS would claim unseen paperwork was verified. */
     @Test
     void documentsAlreadyVerified_leavesNoDocumentFinding() {
         BusinessRules rules = baseRules()
@@ -363,7 +351,7 @@ class FastTrackValidatorTest {
                 .build();
     }
 
-    /** History with dated claims, to be able to test the window (the event is 13/06/2026). */
+    /** The event is 13/06/2026. */
     private InsuredHistory historyWithClaimsOn(LocalDate... dates) {
         return InsuredHistory.builder()
                 .insuredId("40.123.456")

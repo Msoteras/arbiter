@@ -16,15 +16,9 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
- * "Dar de alta usuarios": provisions platform accounts in bulk for every policyholder of the
- * referente's own insurer that has a policy in force, and mails them the invitation to choose a
- * password. From there they land in the first-login onboarding (H0009) like any other insured.
- *
- * <p>Replaces what was, until now, hand-written SQL — {@code db/migrations/2026-08-21-roman-castillo.sql}
- * is literally one policyholder's account written by hand.
- *
- * <p>Nobody's identity is typed into Arbiter: the company's database is the source of truth for who
- * its insured are (decision #10), so this reads them and mirrors them.
+ * Bulk provisioning: creates an account for every policyholder of the referente's insurer with a
+ * policy in force and mails them an invitation. The insurer's database is the source of truth for
+ * who its insured are.
  */
 @Service
 @RequiredArgsConstructor
@@ -39,27 +33,16 @@ public class InsuredProvisioningService {
     @Value("${arbiter.frontend.base-url:http://localhost:4200}")
     private String frontendBaseUrl;
 
-    /**
-     * Gap between invitation mails. They go out "de a poco" on purpose: a real insurer's book is
-     * tens of thousands of policyholders, and firing that as one burst is a mass mailing — it
-     * burns the sender's reputation and trips SendGrid's rate limits, which would drop exactly the
-     * mails nobody would notice were missing.
-     */
+    /** Paced on purpose: a burst of thousands of mails burns sender reputation and trips SendGrid's rate limits. */
     @Value("${arbiter.provisioning.invite-delay-ms:250}")
     private long inviteDelayMs;
 
-    /** Ceiling per run, so a first run against a large book cannot turn into an overnight send. */
     @Value("${arbiter.provisioning.max-invites-per-run:500}")
     private int maxInvitesPerRun;
 
     /**
-     * Runs off the request thread — the referente gets a 202 and does not sit through thousands of
-     * mails.
-     *
-     * <p>{@link TenantContext} is a plain {@code ThreadLocal}, so it does <b>not</b> follow the
-     * call here: without setting it again the {@code insured} writes would land in
-     * {@code arbiter_common} instead of the insurer's schema. The caller reads it on the request
-     * thread and hands it over as an argument.
+     * {@link TenantContext} is a {@code ThreadLocal} and doesn't follow {@code @Async}: the caller
+     * passes the tenant so it can be set again here, or the writes would land in {@code arbiter_common}.
      */
     @Async
     public void provisionAsync(String tenantSchema, Long insurerId) {
@@ -92,8 +75,6 @@ public class InsuredProvisioningService {
 
         for (InsuredDirectoryEntry entry : directory) {
             if (entry.email() == null || entry.email().isBlank()) {
-                // The email is the account: without one there is nothing to create and nowhere to
-                // invite them. Reported rather than swallowed — it is the company's data to fix.
                 skipped.add("%s %s (%s): la aseguradora no tiene su email"
                         .formatted(entry.name(), entry.surname(), entry.dni()));
                 continue;
@@ -123,8 +104,7 @@ public class InsuredProvisioningService {
                     }
                 }
             } catch (Exception e) {
-                // One person's row must never sink the batch: provisionOne has its own transaction,
-                // so whatever failed rolled back alone and the rest keeps going.
+                // provisionOne has its own transaction, so only this person's changes rolled back.
                 log.warn("[Provisioning] No se pudo dar de alta a {} ({}): {}",
                         entry.email(), entry.dni(), e.getMessage());
                 skipped.add("%s (%s): %s".formatted(entry.email(), entry.dni(), e.getMessage()));
@@ -136,11 +116,8 @@ public class InsuredProvisioningService {
     }
 
     /**
-     * @return whether the mail went out. A send that fails does <b>not</b> undo the account, unlike
-     *         the single-user invitation: there the referente sees the error and retries, here the
-     *         run is unattended, and deleting a user that is already linked and has a profile would
-     *         be the more destructive answer. It lands in the summary, and
-     *         {@code UserService.resendInvite} unsticks that person.
+     * Unlike the single-user invitation, a failed send doesn't undo the account: the run is
+     * unattended, it's reported in the summary and {@code UserService.resendInvite} recovers it.
      */
     private boolean sendInvite(InsuredDirectoryEntry entry, String inviteToken) {
         try {

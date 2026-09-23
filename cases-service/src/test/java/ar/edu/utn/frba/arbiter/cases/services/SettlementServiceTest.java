@@ -17,12 +17,15 @@ import ar.edu.utn.frba.arbiter.cases.models.repositories.CaseDocumentAnalysisRep
 import ar.edu.utn.frba.arbiter.cases.models.repositories.CaseRepository;
 import ar.edu.utn.frba.arbiter.cases.models.repositories.CaseSettlementRepository;
 import ar.edu.utn.frba.arbiter.cases.models.repositories.ExpertAssessmentRepository;
+import ar.edu.utn.frba.arbiter.cases.models.repositories.InsurerReferentRepository;
 import ar.edu.utn.frba.arbiter.cases.models.repositories.PolicyCoverageRepository;
 import ar.edu.utn.frba.arbiter.common.enums.SettlementBasis;
 import ar.edu.utn.frba.arbiter.common.enums.SettlementFormula;
 import ar.edu.utn.frba.arbiter.common.enums.SettlementStatus;
 import ar.edu.utn.frba.arbiter.common.models.entities.Branch;
 import ar.edu.utn.frba.arbiter.common.models.entities.ClaimCause;
+import ar.edu.utn.frba.arbiter.common.models.entities.User;
+import ar.edu.utn.frba.arbiter.common.models.entities.tenant.InsurerReferent;
 import ar.edu.utn.frba.arbiter.common.models.entities.tenant.Coverage;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -69,6 +72,9 @@ class SettlementServiceTest {
     @Mock
     private ExpertAssessmentRepository expertAssessmentRepository;
 
+    @Mock
+    private InsurerReferentRepository insurerReferentRepository;
+
     /** Real, not mocked: the arithmetic under test is exactly the point of these cases. */
     @Spy
     private SettlementCalculator calculator = new SettlementCalculator();
@@ -96,7 +102,7 @@ class SettlementServiceTest {
 
     @Test
     void confirmingTheProposedAmountRecordsItWithNoAdjustment() {
-        // 800.000 − 80.000 de franquicia − 7 × 16.000 de cuotas a vencer.
+        // 800,000 − 80,000 franchise − 7 × 16,000 pending instalments.
         CaseSettlement saved = settlementService.confirm(claim, 7L, "Documentación completa",
                 new SettlementDecisionRequest(null, new BigDecimal("608000.00"), null));
 
@@ -160,8 +166,7 @@ class SettlementServiceTest {
                         org.assertj.core.api.Assertions.tuple("DEDUCTION", "Franquicia"),
                         org.assertj.core.api.Assertions.tuple("DEDUCTION", "Cuotas a vencer"),
                         org.assertj.core.api.Assertions.tuple("TOTAL", "Monto a pagar"));
-        // El importe va entre paréntesis para no obligar a buscarlo arriba. startsWith y no
-        // isEqualTo: el formateador de moneda mete un espacio duro que no aporta nada al test.
+        // startsWith rather than isEqualTo: the currency formatter inserts a non-breaking space.
         assertThat(response.breakdown().get(1).detail()).startsWith("10% de la suma asegurada (");
     }
 
@@ -180,10 +185,9 @@ class SettlementServiceTest {
     }
 
     /**
-     * Una deducción que la cobertura tiene prendida se muestra igual cuando da cero, y con el
-     * motivo al lado. Antes esto era un cartel aparte: el analista leía la cuenta en un lado y por
-     * qué no cerraba en otro, y los dos ceros posibles ("no quedan cuotas" y "no está el dato") se
-     * veían iguales, cuando al segundo él lo puede completar ajustando el monto.
+     * A deduction the coverage enables is shown even at zero, with the reason next to it: the two
+     * possible zeros ("no instalments left" and "data missing") must read differently, since the
+     * analyst can make up for the second by adjusting the amount.
      */
     @Test
     void showsADeductionAtZeroOnTheSheetWithTheReasonInstead() {
@@ -199,7 +203,6 @@ class SettlementServiceTest {
         SettlementResponse response = settlementService.forCase(1L, null);
 
         assertThat(response.calculatedAmount()).isEqualByComparingTo("720000.00");
-        // La línea está, en cero, y explica por qué — no en un aviso suelto lejos de la cuenta.
         assertThat(response.breakdown())
                 .filteredOn(line -> "Cuotas a vencer".equals(line.concept()))
                 .singleElement()
@@ -210,14 +213,14 @@ class SettlementServiceTest {
         assertThat(response.warnings()).isEmpty();
     }
 
-    /** El otro cero no es una falla: no quedaban cuotas por vencer, y así tiene que leerse. */
+    /** The other zero isn't a failure: there were no instalments left, and it must read that way. */
     @Test
     void tellsApartAnEmptyDeductionFromAMissingOne() {
         when(caseRepository.findPolicySnapshot(1L)).thenReturn(Optional.of(PolicySnapshot.builder()
                 .id(99L)
                 .externalPolicyNumber("POL-CEL-2026-042")
                 .sumInsured(new BigDecimal("800000.00"))
-                // Vigencia ya terminada a la fecha del hecho: no resta ninguna cuota.
+                // Term already over at the event date: no instalments left.
                 .effectiveTo(LocalDate.of(2026, 1, 1).atStartOfDay(ZoneId.systemDefault()).toInstant())
                 .installmentAmount(new BigDecimal("16000.00"))
                 .eventsInYear(1)
@@ -259,11 +262,11 @@ class SettlementServiceTest {
         assertThat(response.warnings()).isEmpty();
     }
 
-    // ─── Sugerencia leída de la documentación (bloque 4) ────────────────────────
+    // ─── Amount suggested from the documents ────────────────────────────────────
 
     /**
-     * En una reparación el monto sale del presupuesto, y el modelo ya lo leyó al clasificar. Se
-     * ofrece con su procedencia: un número sin decir de dónde salió vale menos que ninguno.
+     * In a repair the amount comes from the quote, which the model already read while classifying.
+     * It's offered with its source: a number without provenance is worth less than none.
      */
     @Test
     void suggestsTheAmountTheModelReadOffTheRepairQuote() {
@@ -276,11 +279,11 @@ class SettlementServiceTest {
 
         assertThat(response.suggestedAmount()).isEqualByComparingTo("95000.00");
         assertThat(response.suggestedFrom()).isEqualTo("repair_quote");
-        // Sugerida, no aplicada: el cálculo sigue en cero hasta que el analista la tome.
+        // Suggested, not applied: the calculation stays at zero until the analyst takes it.
         assertThat(response.calculatedAmount()).isEqualByComparingTo("0.00");
     }
 
-    /** En pérdida total por el menor de los dos, el que responde es el comprobante de compra. */
+    /** In a total loss settled by the lesser of the two, the purchase proof is what answers. */
     @Test
     void suggestsThePurchaseProofWhenTheCeilingIsTheLesserOfTheTwo() {
         claim.setCoverage(coverage(SettlementBasis.LESSER_OF_SUM_AND_REPLACEMENT, "10.00", false));
@@ -296,8 +299,8 @@ class SettlementServiceTest {
     }
 
     /**
-     * Donde el campo no mueve nada —pérdida total por suma asegurada— no se sugiere: invitaría a
-     * cargar un dato que no cambia el monto, que es justo lo que confundía antes.
+     * Where the field changes nothing (total loss by sum insured) nothing is suggested: it would
+     * invite entering data that doesn't change the amount.
      */
     @Test
     void suggestsNothingWhereTheAccreditedAmountChangesNothing() {
@@ -310,7 +313,7 @@ class SettlementServiceTest {
         assertThat(response.suggestedFrom()).isNull();
     }
 
-    /** El documento correcto sin importe legible no sugiere nada: no se cae al otro tipo. */
+    /** The right document with no readable amount suggests nothing: it doesn't fall back to the other type. */
     @Test
     void suggestsNothingWhenTheRightDocumentHasNoReadableAmount() {
         claim.setCoverage(repairCoverage());
@@ -323,7 +326,6 @@ class SettlementServiceTest {
         assertThat(response.suggestedAmount()).isNull();
     }
 
-    /** Una liquidación ya firmada no sugiere nada: no hay campo que cargar. */
     @Test
     void suggestsNothingOnAConfirmedSettlement() {
         when(settlementRepository.findByCaseId(1L)).thenReturn(Optional.of(CaseSettlement.builder()
@@ -339,9 +341,9 @@ class SettlementServiceTest {
     }
 
     /**
-     * Cuando el expediente pasó por peritaje, el monto que sugiere es el del perito y no el del
-     * presupuesto: lo determinó una persona que fue a mirar el bien, contra un papel que trajo el
-     * asegurado. Ofrecer el segundo teniendo el primero sería sugerir la fuente más débil.
+     * After an expert assessment the suggested amount is the expert's, not the quote's: someone
+     * inspected the item, versus a paper the insured brought. Offering the latter would suggest the
+     * weaker source.
      */
     @Test
     void theExpertAmountWinsOverTheQuote() {
@@ -360,10 +362,9 @@ class SettlementServiceTest {
     }
 
     /**
-     * El presupuesto del taller también le gana al papel que trajo el asegurado, y por la misma
-     * razón: lo firmó alguien que tuvo el equipo en la mano. Vive en su propia columna —el taller
-     * dice cuánto SALE el arreglo, no cuánto vale el siniestro— y en una reparación eso es
-     * exactamente la base del cálculo.
+     * The repair shop's quote also beats the insured's paper, for the same reason. It lives in its
+     * own column (what the repair COSTS, not what the claim is worth), which in a repair is exactly
+     * the calculation base.
      */
     @Test
     void theRepairShopQuoteIsSuggestedAsTheAccreditedAmount() {
@@ -383,8 +384,8 @@ class SettlementServiceTest {
     }
 
     /**
-     * Dos valuaciones sobre el mismo expediente: manda la última recibida, que es como la compañía
-     * trata las que van llegando (NSIN001 §2.7). Acá el taller contestó después del perito.
+     * With two valuations on the same case the latest received wins, as the insurer handles them.
+     * Here the repair shop answered after the expert.
      */
     @Test
     void theLatestValuationReplacesTheEarlierOne() {
@@ -405,9 +406,8 @@ class SettlementServiceTest {
     }
 
     /**
-     * Bajo suma asegurada lo único que puede proponerse es el monto final, y eso sólo lo dice el
-     * perito: lo que el taller cobra por arreglar no es una opinión sobre cuánto corresponde pagar.
-     * Ofrecerlo ahí sería proponerle al analista liquidar por el precio de un arreglo.
+     * By sum insured only the final amount can be proposed, and only the expert speaks to that: what
+     * the shop charges for a repair isn't an opinion on what should be paid.
      */
     @Test
     void theRepairShopQuoteIsNotOfferedAsTheAmountToPay() {
@@ -423,10 +423,9 @@ class SettlementServiceTest {
     }
 
     /**
-     * Lo que el perito determina no es un valor de reposición: es cuánto dice que hay que pagar. Por
-     * eso sigue teniendo dónde ir en una cobertura que liquida por suma asegurada, donde no hay
-     * monto acreditado que cargar — apunta al monto final. Colgarlo del campo de monto acreditado
-     * lo hacía desaparecer justo en las coberturas caras, que son las únicas que llegan a peritaje.
+     * The expert determines what should be paid, not a replacement value, so it still applies when
+     * settling by sum insured (where there's no accredited amount) and targets the final amount.
+     * Those expensive coverages are the only ones that reach an expert assessment.
      */
     @Test
     void theExpertAmountIsSuggestedForTheAmountItselfWhenSettlingBySumInsured() {
@@ -442,8 +441,8 @@ class SettlementServiceTest {
     }
 
     /**
-     * Y el comprobante de compra no se cuela por esa puerta: bajo suma asegurada no mueve el monto,
-     * que es la razón por la que el campo no existe. Sólo el peritaje tiene algo que decir ahí.
+     * The purchase proof doesn't sneak in that way: by sum insured it doesn't change the amount.
+     * Only the expert assessment has a say there.
      */
     @Test
     void aDocumentAmountIsStillNotSuggestedWhenSettlingBySumInsured() {
@@ -459,8 +458,8 @@ class SettlementServiceTest {
     }
 
     /**
-     * Un peritaje sin monto no tapa el presupuesto. No todo informe pone un número —un fraude
-     * confirmado no tiene nada que indemnizar— y ahí el presupuesto sigue siendo lo mejor que hay.
+     * An expert report with no amount doesn't hide the quote: not every report has a number (a
+     * confirmed fraud has nothing to indemnify), and then the quote is still the best there is.
      */
     @Test
     void anExpertReportWithNoAmountFallsBackToTheQuote() {
@@ -491,13 +490,11 @@ class SettlementServiceTest {
                 .build();
     }
 
-    // ─── El equipo que volvió sin arreglo ───────────────────────────────────────
+    // ─── Irreparable item ───────────────────────────────────────────────────────
 
     /**
-     * Una cobertura de daño liquida por reparación porque da por sentado que el bien sobrevivió.
-     * Si el taller lo declara irreparable ese supuesto se cae: el equipo dejó de existir a los
-     * fines del seguro, igual que si se lo hubieran robado, y se paga la suma asegurada. Antes la
-     * hoja le pedía al analista un presupuesto que por definición no existe y proponía pagar cero.
+     * A damage coverage settles by repair assuming the item survived. If the shop declares it
+     * irreparable, for insurance purposes it's gone as if stolen, and the sum insured is paid.
      */
     @Test
     void anIrreparableItemIsSettledAsATotalLoss() {
@@ -513,7 +510,7 @@ class SettlementServiceTest {
         assertThat(response.calculatedAmount()).isEqualByComparingTo("720000.00");
     }
 
-    /** Cambiar de fórmula en silencio le cambiaría la cuenta al analista sin decirle por qué. */
+    /** Switching formulas silently would change the analyst's sheet without saying why. */
     @Test
     void theSheetSaysWhyItStoppedBeingARepair() {
         claim.setCoverage(repairCoverage());
@@ -527,18 +524,16 @@ class SettlementServiceTest {
         assertThat(response.breakdown())
                 .anyMatch(line -> "Suma asegurada".equals(line.concept())
                         && line.detail() != null && line.detail().contains("irreparable"));
-        // Y que esta cobertura no descuenta cuotas, que en un robo sí se descontarían: el
-        // interruptor se configuró para reparaciones, donde la deducción no existe.
+        // And this coverage doesn't deduct instalments, as a theft would: the switch was configured
+        // for repairs, where the deduction doesn't exist.
         assertThat(response.breakdown())
                 .anyMatch(line -> "Cuotas a vencer".equals(line.concept())
                         && line.detail() != null && line.detail().contains("no tiene configurado"));
     }
 
     /**
-     * Y la advertencia también mira la fórmula aplicada. Miraba la de la cobertura, así que sobre un
-     * equipo irreparable le pedía al analista "cargá el presupuesto y recalculá" en la misma
-     * pantalla donde la hoja acababa de decir que se liquidaba como pérdida total. Un cartel que
-     * contradice a la cuenta es peor que ninguno.
+     * The warning looks at the applied formula, not the coverage's: asking for a repair quote next
+     * to a sheet settled as a total loss would contradict it.
      */
     @Test
     void anIrreparableItemIsNotAskedForARepairQuote() {
@@ -553,7 +548,7 @@ class SettlementServiceTest {
         assertThat(response.warnings()).noneMatch(w -> w.contains("presupuesto"));
     }
 
-    /** Reparado o con presupuesto, la cobertura manda: sigue siendo una reparación. */
+    /** Repaired or quoted, the coverage rules: it's still a repair. */
     @Test
     void aRepairedItemStillSettlesAsARepair() {
         claim.setCoverage(repairCoverage());
@@ -568,9 +563,9 @@ class SettlementServiceTest {
         assertThat(response.formula()).isEqualTo(SettlementFormula.REPAIR);
     }
 
-    // ─── Atribuciones (Anexo II) ────────────────────────────────────────────────
+    // ─── Settlement authority ───────────────────────────────────────────────────
 
-    /** Dentro del tope, la firma del analista alcanza: no hay segundo firmante que registrar. */
+    /** Within the ceiling the analyst's signature is enough: there's no second signer to record. */
     @Test
     void anAmountWithinTheBranchAttributionIsAuthorizedOnTheSpot() {
         claim.setClaimCause(claimCause(1L));
@@ -585,7 +580,7 @@ class SettlementServiceTest {
         assertThat(saved.getAuthorizedByUserId()).isNull();
     }
 
-    /** El tope es inclusivo: un monto justo en el límite todavía no necesita al referente. */
+    /** The ceiling is inclusive. */
     @Test
     void anAmountExactlyAtTheCeilingStillNeedsNoReferente() {
         claim.setClaimCause(claimCause(1L));
@@ -598,9 +593,8 @@ class SettlementServiceTest {
     }
 
     /**
-     * Por encima del tope queda esperando, y la justificación del analista se guarda en custodia:
-     * la decisión todavía no se registró, y cuando el referente firme hay que reenviarla con lo
-     * que él escribió, no con una nueva.
+     * Above the ceiling it waits, and the analyst's justification is held: the decision isn't
+     * recorded yet, and when the referent signs it must be forwarded with what the analyst wrote.
      */
     @Test
     void anAmountOverTheCeilingWaitsForTheReferenteAndHoldsTheJustification() {
@@ -615,7 +609,6 @@ class SettlementServiceTest {
         assertThat(saved.getPendingJustification()).isEqualTo("Robo con denuncia y factura");
     }
 
-    /** Un ramo sin tope configurado no frena nada: es como venía funcionando. */
     @Test
     void aBranchWithNoCeilingAuthorizesAnyAmount() {
         claim.setClaimCause(claimCause(1L));
@@ -629,8 +622,8 @@ class SettlementServiceTest {
     }
 
     /**
-     * Volver a confirmar pisa la fila que ya está. Sin heredar el id, el save intentaría insertar
-     * una segunda liquidación para el mismo expediente y chocaría contra el UNIQUE.
+     * Without inheriting the id, the save would insert a second settlement for the same case and hit
+     * the UNIQUE constraint.
      */
     @Test
     void reconfirmingOverwritesTheExistingRowInsteadOfInsertingASecond() {
@@ -646,8 +639,8 @@ class SettlementServiceTest {
                 new SettlementDecisionRequest(null, new BigDecimal("608000.00"), null));
 
         assertThat(saved.getId()).isEqualTo(55L);
-        // El motivo de la devolución se limpia: volver a confirmar ES la respuesta a esa
-        // devolución, y dejarlo la haría ver rechazada de nuevo.
+        // The return reason is cleared: reconfirming IS the answer to it, and keeping it would make
+        // the settlement look returned again.
         assertThat(saved.getReturnReason()).isNull();
     }
 
@@ -664,8 +657,8 @@ class SettlementServiceTest {
         assertThat(saved.getStatus()).isEqualTo(SettlementStatus.AUTHORIZED);
         assertThat(saved.getAuthorizedByUserId()).isEqualTo(3L);
         assertThat(saved.getAuthorizedAt()).isNotNull();
-        // A partir de acá la justificación vive en case_classification: dejarla también acá sería
-        // la misma frase guardada dos veces.
+        // From here on the justification lives in case_classification; keeping it here too would
+        // store it twice.
         assertThat(saved.getPendingJustification()).isNull();
     }
 
@@ -688,7 +681,7 @@ class SettlementServiceTest {
         assertThat(saved.getSettledAmount()).isEqualByComparingTo("608000.00");
     }
 
-    /** Firmar algo que no está esperando firma es actuar sobre una foto vieja de la pantalla. */
+    /** Signing something that isn't waiting for a signature means acting on a stale screen. */
     @Test
     void authorizingSomethingThatIsNotWaitingIsRejected() {
         when(settlementRepository.findByCaseId(1L)).thenReturn(Optional.of(CaseSettlement.builder()
@@ -697,6 +690,50 @@ class SettlementServiceTest {
         assertThatThrownBy(() -> settlementService.markAuthorized(1L, 3L))
                 .isInstanceOf(InvalidSettlementException.class)
                 .hasMessageContaining("no está esperando autorización");
+    }
+
+    /** An authorized one carries who and when, with the excess already subtracted as in the inbox. */
+    @Test
+    void authorizedListCarriesWhoAndWhenWithTheCaseData() {
+        Instant authorizedAt = Instant.parse("2026-09-20T15:00:00Z");
+        when(settlementRepository.findTop50ByStatusAndAuthorizedAtIsNotNullOrderByAuthorizedAtDesc(
+                SettlementStatus.AUTHORIZED)).thenReturn(List.of(CaseSettlement.builder()
+                .id(55L).caseId(1L)
+                .calculatedAmount(new BigDecimal("990000.00"))
+                .settledAmount(new BigDecimal("990000.00"))
+                .authorityLimit(new BigDecimal("500000.00"))
+                .status(SettlementStatus.AUTHORIZED)
+                .authorizedByUserId(3L)
+                .authorizedAt(authorizedAt)
+                .build()));
+        when(caseRepository.findAllById(List.of(1L))).thenReturn(List.of(claim));
+        when(insurerReferentRepository.findByUser_IdIn(List.of(3L))).thenReturn(List.of(
+                InsurerReferent.builder().name("Sofía").surname("Martínez")
+                        .user(User.builder().id(3L).build()).build()));
+
+        var rows = settlementService.authorizedByReferente();
+
+        assertThat(rows).singleElement().satisfies(row -> {
+            assertThat(row.caseId()).isEqualTo(1L);
+            assertThat(row.authorizedAt()).isEqualTo(authorizedAt);
+            assertThat(row.authorizedByName()).isEqualTo("Sofía Martínez");
+            assertThat(row.excess()).isEqualByComparingTo("490000.00");
+        });
+    }
+
+    /** A case that can no longer be read doesn't break the list: it's skipped, as in the pending list. */
+    @Test
+    void authorizedListSkipsSettlementsWhoseCaseIsGone() {
+        when(settlementRepository.findTop50ByStatusAndAuthorizedAtIsNotNullOrderByAuthorizedAtDesc(
+                SettlementStatus.AUTHORIZED)).thenReturn(List.of(CaseSettlement.builder()
+                .id(56L).caseId(99L)
+                .settledAmount(new BigDecimal("700000.00"))
+                .status(SettlementStatus.AUTHORIZED)
+                .authorizedAt(Instant.now())
+                .build()));
+        when(caseRepository.findAllById(List.of(99L))).thenReturn(List.of());
+
+        assertThat(settlementService.authorizedByReferente()).isEmpty();
     }
 
     @Test

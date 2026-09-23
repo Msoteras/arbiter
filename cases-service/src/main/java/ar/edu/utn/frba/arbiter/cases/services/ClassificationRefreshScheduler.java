@@ -20,28 +20,14 @@ import org.springframework.stereotype.Component;
 import java.util.List;
 
 /**
- * Two background sweeps over cases waiting on classification, both cross-tenant (see below) and
- * both with no request behind them.
- *
+ * Two cross-tenant background sweeps over cases waiting on classification:
  * <ul>
- *   <li>{@link #refreshPendingCases()}: asks classification-service whether a
- *       {@code PENDING_CLASSIFICATION} case's result is ready yet, and gives up to
- *       {@code CLASSIFICATION_FAILED} after {@code max-attempts}.</li>
- *   <li>{@link #recoverInfrastructureFailures()}: separately, and on its own slower cadence,
- *       requeues a {@code CLASSIFICATION_FAILED} case back to classification whenever the reason
- *       recorded for it was {@link ClassificationFailureReason#INFRASTRUCTURE} — a dependency that
- *       was down, not the claim itself being unclassifiable. Without this, nothing ever asks
- *       classification-service again for that case: this class's other sweep only polls for a
- *       result, it never re-triggers the run, so once a case reaches {@code CLASSIFICATION_FAILED}
- *       it stayed there until an analyst noticed and pressed the manual retry button — even after
- *       the outage that caused it was long over.</li>
+ *   <li>{@link #refreshPendingCases()} polls classification-service for {@code PENDING_CLASSIFICATION}
+ *       results and gives up to {@code CLASSIFICATION_FAILED} after {@code max-attempts}.</li>
+ *   <li>{@link #recoverInfrastructureFailures()} requeues {@code CLASSIFICATION_FAILED} cases whose
+ *       recorded reason is {@link ClassificationFailureReason#INFRASTRUCTURE}; polling alone never
+ *       re-triggers a run, so they would otherwise stay failed after the outage is over.</li>
  * </ul>
- *
- * <p>Both live in the same class because both are the same kind of background job — no request, no
- * JWT to resolve a tenant from, inherently cross-tenant — and sharing the class means one place
- * enumerates the active insurers and drives {@link TenantContext} instead of two. They keep
- * separate {@code @Scheduled} triggers, though: {@link #recoverInfrastructureFailures()} runs far
- * less often on purpose — see its javadoc.
  */
 @Component
 @RequiredArgsConstructor
@@ -61,7 +47,6 @@ public class ClassificationRefreshScheduler {
     @Value("${arbiter.classification-refresh.interval-ms:5000}")
     private long intervalMs;
 
-    /** La ventana efectiva, para no tener que deducirla de cuándo se rindió el barrido. */
     @PostConstruct
     void logWindow() {
         log.info("[Refresh] Ventana: interval-ms={} x max-attempts={} = {} min",
@@ -70,8 +55,6 @@ public class ClassificationRefreshScheduler {
 
     @Scheduled(fixedDelayString = "${arbiter.classification-refresh.interval-ms:5000}")
     public void refreshPendingCases() {
-        // Read with no tenant set: insurer lives in the common schema, which TenantContext
-        // falls back to.
         for (Insurer insurer : insurerRepository.findByActiveTrue()) {
             try {
                 TenantContext.set(insurer.getSchemaName());
@@ -106,28 +89,16 @@ public class ClassificationRefreshScheduler {
     }
 
     /**
-     * Sube el contador y, al agotarse, marca el expediente como fallido.
-     *
-     * <p>El contador se escribe con un update puntual y no con {@code save(caseRecord)}: la
-     * entidad se cargó al principio del barrido, y guardarla entera reescribía toda la fila desde
-     * esa copia vieja, revirtiendo en silencio cualquier cambio hecho en el medio — el caso
-     * concreto que lo destapó fue un expediente que volvía solo de {@code CLASSIFICATION_FAILED}
-     * a {@code PENDING_CLASSIFICATION} cada pocos segundos, deshaciendo el reintento del analista.
-     * El barrido es dueño del contador y de nada más.
-     *
-     * <p>Y ese update es <b>condicional</b>, porque el barrido no corre solo: la base de Railway es
-     * compartida por el equipo, así que cada stack local levantado suma otro scheduler barriendo
-     * los mismos expedientes. Avanzar el contador es lo que hace de turno — el que lo consigue
-     * sigue, el que llega tarde se retira. Sin eso, dos barridos leían el mismo valor, los dos lo
-     * daban por agotado y los dos marcaban el expediente como fallido, dejando en
-     * {@code case_status_history} dos filas idénticas con el mismo número de reintentos.
+     * The counter is written with a targeted conditional update, never {@code save(caseRecord)}:
+     * saving the sweep's stale copy would silently revert changes made in between (such as an
+     * analyst's retry). Advancing the counter also acts as the lock when several instances sweep
+     * the same schema — whoever loses the compare-and-set backs off.
      */
     private void incrementAttempts(Case caseRecord) {
         int previous = caseRecord.getClassificationAttempts();
         int attempts = previous + 1;
 
         if (caseRepository.advanceClassificationAttempts(caseRecord.getId(), previous, attempts) == 0) {
-            // Otro barrido ya avanzó este expediente en esta vuelta: es su turno, no el nuestro.
             log.debug("Case {} already advanced by another sweep, skipping", caseRecord.getId());
             return;
         }
@@ -136,11 +107,8 @@ public class ClassificationRefreshScheduler {
             return;
         }
 
-        // Releído de la base y no reusando `caseRecord`: la copia del barrido es de hace varios
-        // segundos y transition() valida la transición contra el estado que traiga la entidad. Con
-        // la copia vieja, un expediente que ya salió de PENDING_CLASSIFICATION (lo reintentó un
-        // analista, u otro barrido lo resolvió) pasaría igual la validación y se le escribiría una
-        // transición que no corresponde.
+        // Re-read rather than reusing the sweep's copy: transition() validates against the state
+        // the entity carries, and the case may have left PENDING_CLASSIFICATION in the meantime.
         caseRepository.findById(caseRecord.getId())
                 .filter(fresh -> fresh.getStatus() == CaseStatus.PENDING_CLASSIFICATION)
                 .ifPresentOrElse(fresh -> {
@@ -154,11 +122,8 @@ public class ClassificationRefreshScheduler {
     }
 
     /**
-     * classification-service already wrote {@code classificationFailureReason} onto this same row
-     * (see {@code CaseOutcomeRepository.recordClassificationFailure}) by the time the sweep gives
-     * up — this just surfaces it in the transition's reason instead of leaving the generic
-     * "N reintentos" string as the only trace of why. Empty when nothing was recorded (e.g. the
-     * poll itself kept failing rather than the classification run).
+     * Surfaces the reason classification-service recorded on the row. Empty when none was recorded,
+     * e.g. when the poll itself kept failing.
      */
     private String failureSuffix(Case caseRecord) {
         ClassificationFailureReason reason = caseRecord.getClassificationFailureReason();
@@ -166,16 +131,9 @@ public class ClassificationRefreshScheduler {
     }
 
     /**
-     * Requeues every {@code CLASSIFICATION_FAILED} case whose last run gave up for an
-     * {@link ClassificationFailureReason#INFRASTRUCTURE} reason.
-     *
-     * <p>A far wider {@code fixedDelayString} than {@link #refreshPendingCases()} on purpose, not
-     * just a smaller number: {@code ClaimClassificationService.processClaimClassification}'s own
-     * {@code @Retryable} already spends several minutes retrying before a case even reaches
-     * {@code CLASSIFICATION_FAILED} (see its javadoc), so requeuing it again seconds later would
-     * just hammer a dependency that's still down and start another multi-minute retry window on
-     * top of the one that just finished. Spacing this sweep out lets that window do its job first;
-     * defaults to 5 min, {@code arbiter.classification-refresh.recovery-interval-ms} to tune it.
+     * Runs far less often than the poller on purpose: classification-service already retries for
+     * several minutes before a case fails, and requeuing seconds later would just hammer a
+     * dependency that's still down.
      */
     @Scheduled(fixedDelayString = "${arbiter.classification-refresh.recovery-interval-ms:300000}")
     public void recoverInfrastructureFailures() {
@@ -184,7 +142,7 @@ public class ClassificationRefreshScheduler {
                 TenantContext.set(insurer.getSchemaName());
                 recoverInfrastructureFailuresForCurrentTenant();
             } catch (Exception e) {
-                // One insurer's failure must not stop the sweep for the rest, same as the poller.
+                // One insurer's failure must not stop the sweep for the rest.
                 log.warn("Infrastructure-failure recovery sweep failed for insurer {} ({}): {}",
                         insurer.getName(), insurer.getSchemaName(), e.getMessage());
             } finally {
@@ -210,18 +168,9 @@ public class ClassificationRefreshScheduler {
     }
 
     /**
-     * Toma el turno sobre el expediente y, si se lo queda, lo reencola.
-     *
-     * <p>El turno se toma con un compare-and-set
-     * ({@link CaseRepository#claimFailedCaseForRequeue}) y no releyendo la entidad y filtrando en
-     * Java, por lo mismo que {@link #incrementAttempts} usa el suyo: este barrido no corre solo. Un
-     * simple "releer y chequear" deja la ventana abierta igual — dos barridos leen el mismo
-     * {@code CLASSIFICATION_FAILED}, los dos pasan el filtro y los dos reencolan. El CAS es lo que
-     * cierra eso: sólo uno consigue limpiar el motivo.
-     *
-     * <p>Y encima se relee después del CAS, porque el CAS mira el motivo pero no el estado: un
-     * expediente que salió de {@code CLASSIFICATION_FAILED} en el medio (lo reintentó un analista)
-     * no tiene que volver a pasar por acá aunque el motivo siguiera puesto.
+     * Claims the case with a compare-and-set, since another instance may be sweeping too, then
+     * re-reads it: the CAS checks the reason but not the status, and an analyst may have retried
+     * the case in between.
      */
     private void requeueAfterInfrastructureFailure(Long caseId) {
         if (caseRepository.claimFailedCaseForRequeue(
@@ -242,9 +191,6 @@ public class ClassificationRefreshScheduler {
         caseRecord.setRiskBand(null);
         caseRecord.setDeterministicFastTrack(false);
         caseRecord.setClassificationAttempts(0);
-        // transition() re-validates CLASSIFICATION_FAILED → PENDING_CLASSIFICATION against the
-        // state actually in the DB — a case an analyst already retried by hand in between simply
-        // won't be CLASSIFICATION_FAILED any more and is skipped by the query above regardless.
         caseStatusService.transition(caseRecord, CaseStatus.PENDING_CLASSIFICATION,
                 StatusChangeActor.SYSTEM,
                 "reencolado automático tras falla de infraestructura");

@@ -10,9 +10,8 @@ import { CaseNavigationService } from '../case-navigation.service';
 import { ExpedienteListParams, ExpedienteService } from '../expediente.service';
 
 /**
- * El recorte "en curso" de la bandeja. Lo que se verifica es qué se le pide al backend: filtrar la
- * página ya traída dejaría páginas de tamaño variable y un total que miente, así que el recorte
- * tiene que viajar en los params — del listado y de los conteos, o el toggle contradice a la tabla.
+ * The lifecycle scope must travel in the request params: filtering the fetched page client-side
+ * would yield uneven pages and a wrong total.
  */
 describe('BandejaComponent · recorte en curso', () => {
   let fixture: ComponentFixture<BandejaComponent>;
@@ -69,7 +68,7 @@ describe('BandejaComponent · recorte en curso', () => {
     fixture.detectChanges();
   }
 
-  /** Los miembros del componente son `protected`: la vista los usa, el spec los alcanza así. */
+  /** Component members are `protected`; this is how the spec reaches them. */
   function signalOf(name: string): { set: (value: unknown) => void } {
     return (
       fixture.componentInstance as unknown as Record<string, { set: (value: unknown) => void }>
@@ -80,7 +79,6 @@ describe('BandejaComponent · recorte en curso', () => {
     (fixture.componentInstance as unknown as Record<string, () => void>)[name]();
   }
 
-  /** El recorte ya no es un control aparte: es una pestaña más de la barra de arriba. */
   function clickScope(label: string): void {
     const button = (
       Array.from(fixture.nativeElement.querySelectorAll('.lens-tab')) as HTMLButtonElement[]
@@ -99,18 +97,13 @@ describe('BandejaComponent · recorte en curso', () => {
     expect(listCalls[0].scope).toBe('OPEN');
   });
 
-  /** El referente también: el recorte es sobre qué hay para trabajar, no sobre de quién es. */
   it('arranca igual para el referente', async () => {
     await mount('REFERENTE_ASEGURADORA');
 
     expect(listCalls[0].scope).toBe('OPEN');
   });
 
-  /**
-   * Los conteos se piden SIN recorte por ciclo: cada pestaña muestra cuántos expedientes va a
-   * encontrar quien entre en ella. Si heredaran el recorte de la pestaña activa, parado en
-   * "Cerrados" el contador de "Sin asignar" contaría solo cerrados y cambiaría al entrar.
-   */
+  /** Each tab's count must be what that tab will show, independent of the active scope. */
   it('los conteos de las pestañas no arrastran el recorte', async () => {
     await mount();
 
@@ -129,7 +122,6 @@ describe('BandejaComponent · recorte en curso', () => {
     expect(lastList().scope).toBe('ALL');
   });
 
-  /** La página 4 de un recorte puede no existir en el otro. */
   it('cambiar el recorte vuelve a la primera página', async () => {
     await mount();
     signalOf('page').set(3);
@@ -141,11 +133,7 @@ describe('BandejaComponent · recorte en curso', () => {
     expect(lastList().page).toBe(0);
   });
 
-  /**
-   * El caso que más confunde al analista: "Aprobado" con el recorte en "En curso" no tiene
-   * resultados posibles. En vez de devolver una lista vacía inexplicable, el recorte se afloja
-   * solo — y se ve, porque el control se mueve.
-   */
+  /** A closed status under the "open" scope can never match, so the scope widens itself. */
   it('elegir un estado cerrado afloja el recorte a todos', async () => {
     await mount();
     expect(listCalls[0].scope).toBe('OPEN');

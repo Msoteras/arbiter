@@ -2,7 +2,6 @@ import { HttpErrorResponse } from '@angular/common/http';
 import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
 
 import { CardComponent } from '../../../shared/ui/card/card.component';
-import { InfoTipComponent } from '../../../shared/ui/info-tip/info-tip.component';
 import { InlineLoadingComponent } from '../../../shared/ui/inline-loading/inline-loading.component';
 import { InputComponent } from '../../../shared/ui/input/input.component';
 import { SaveBarComponent } from '../../../shared/ui/save-bar/save-bar.component';
@@ -15,21 +14,13 @@ import {
 } from '../resolution-target.service';
 
 /**
- * El objetivo de resolución de la aseguradora: en cuántos días se propone cerrar un siniestro.
- *
- * Es configuración de toda la compañía y no de un ramo, por eso vive en "Reglas generales". Y es
- * una **meta de gestión**, no el plazo legal: ese corre por expediente, lo fija la ley y pasarse es
- * un problema regulatorio. Este lo fija el referente, puede ser más exigente, y lo único que hace
- * es dar una vara contra la cual leer el tiempo promedio del tablero.
- *
- * No lo evalúa el motor de reglas ni bloquea nada. Un expediente que se pasa del objetivo no cambia
- * de estado ni pierde el Fast Track: sigue su curso y aparece contado en el tablero.
+ * Insurer-wide resolution goal: a management target, not the legal deadline. The rules engine
+ * doesn't evaluate it and it blocks nothing; it's only a yardstick for the dashboard.
  */
 @Component({
   selector: 'app-objetivo-config',
   imports: [
     CardComponent,
-    InfoTipComponent,
     InlineLoadingComponent,
     InputComponent,
     SaveBarComponent,
@@ -43,11 +34,6 @@ import {
       <app-card>
         <div class="head">
           <h2 class="card-title">Objetivo de resolución</h2>
-          <app-info-tip
-            text="Cuántos días se propone la compañía para resolver un siniestro, de la denuncia a
-                  la decisión del analista. Es una meta propia, no el plazo legal: el tablero la usa
-                  para mostrar cuántos expedientes se pasaron de lo que la compañía se propuso."
-          />
         </div>
 
         <label class="row">
@@ -135,7 +121,7 @@ export class ObjetivoConfigComponent {
 
   protected readonly MIN = TARGET_DAYS_MIN;
   protected readonly MAX = TARGET_DAYS_MAX;
-  /** El input tipa `max` como string; el numérico queda para el mensaje de error. */
+  /** The input types `max` as a string. */
   protected readonly MAX_ATTR = String(TARGET_DAYS_MAX);
 
   protected readonly loading = signal(true);
@@ -143,10 +129,10 @@ export class ObjetivoConfigComponent {
   protected readonly error = signal<string | null>(null);
 
   protected readonly enabled = signal(false);
-  /** Texto y no número: el input devuelve string y vacío tiene que ser distinguible de cero. */
+  /** A string so that empty is distinguishable from zero. */
   protected readonly days = signal('');
 
-  /** Lo último confirmado por el backend, para saber qué cambió y para poder descartar. */
+  /** Last state confirmed by the backend, for dirty-checking and discarding. */
   private readonly saved = signal<ResolutionTarget>({ enabled: false, targetDays: null });
 
   protected readonly invalid = computed(() => {
@@ -192,7 +178,7 @@ export class ObjetivoConfigComponent {
     this.service
       .save({
         enabled: this.enabled(),
-        // Apagarlo no borra el número: si lo vuelven a encender, vuelve el que había.
+        // Disabling keeps the number, so re-enabling restores it.
         targetDays: this.days() === '' ? null : Number(this.days()),
       })
       .subscribe({

@@ -6,11 +6,6 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import jakarta.persistence.AttributeConverter;
 import jakarta.persistence.Converter;
 
-/**
- * Persists the structured {@link ImageForensicReport} as JSON in the classification_log row,
- * so the analyst UI can render the forensic section from the audit record. Null when no
- * analysis ran (Fast Track, isolated test, or a claim with no images).
- */
 @Converter
 public class ImageForensicReportJsonConverter implements AttributeConverter<ImageForensicReport, String> {
 

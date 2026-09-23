@@ -6,11 +6,7 @@ import ar.edu.utn.frba.arbiter.classification.services.risk.RiskFactorIds;
 import ar.edu.utn.frba.arbiter.common.dto.ImageForensicReport;
 import org.springframework.stereotype.Component;
 
-/**
- * Reuse of an image already attached to a previous claim (internal pgvector match). Reading the
- * same photo across two claims is a strong fraud signal. Risk = the strongest match's similarity,
- * so a near-identical reuse scores close to 1 and a loose one scores lower.
- */
+/** Risk = the strongest internal match's similarity. */
 @Component
 public class ImageReuseEvaluator implements RiskFactorEvaluator {
 
@@ -34,7 +30,7 @@ public class ImageReuseEvaluator implements RiskFactorEvaluator {
                 .orElse(0.0);
 
         if (maxSimilarity <= 0.0) {
-            // Images were analyzed and none matched a previous claim: a real "no reuse" (evaluable 0).
+            // Analyzed with no match: a real, evaluable 0.
             return new Contribution(factorId(), 0.0,
                     "Ninguna imagen coincide con adjuntos de siniestros previos");
         }

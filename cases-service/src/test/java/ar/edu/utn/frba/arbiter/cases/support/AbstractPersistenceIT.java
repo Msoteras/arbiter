@@ -11,26 +11,17 @@ import java.sql.SQLException;
 import java.sql.Statement;
 
 /**
- * Patrón "singleton container" (recomendado por Testcontainers para compartir un contenedor entre
- * varias clases de test): sin {@code @Testcontainers}/{@code @Container}, porque esas anotaciones
- * paran el contenedor en el {@code afterAll} de cada clase — con un field estático heredado, eso
- * mata el contenedor para la siguiente clase que lo use en la misma corrida. Arrancado una sola vez
- * en el bloque estático (se ejecuta una vez por JVM, al cargar esta clase) y vive hasta que Ryuk lo
- * limpia al terminar el proceso de test.
+ * Singleton-container pattern: no {@code @Testcontainers}/{@code @Container}, because those stop
+ * the container in each class's {@code afterAll} and would kill it for the next class in the same
+ * run. It starts once per JVM in the static block and Ryuk removes it when the run ends.
+ *
+ * <p>ddl-auto is {@code update} only here (production validates against
+ * {@code db/init-multitenant.sql}). {@code update} doesn't create schemas, so
+ * {@code arbiter_common} is created by hand before the context starts.
+ *
+ * <p>Tagged {@code it}: subclasses are excluded from {@code mvn test} and run with
+ * {@code mvn verify -Pit}.
  */
-// SecurityConfig requiere un JWT_SECRET real para levantar el contexto (H0003).
-//
-// ddl-auto se pisa a `update` solo acá: en producción es `validate` (el esquema lo define
-// db/init-multitenant.sql). Las entidades de common-lib son schema-qualified
-// (`arbiter_common`) — no caen en `public` como decía este comentario antes, Hibernate arma la
-// DDL como `create table arbiter_common.branch(...)` literal, y como `update` no crea esquemas
-// solo (`hibernate.hbm2ddl.create_namespaces` es false por default) hacía falta el CREATE SCHEMA
-// manual de acá abajo antes de arrancar el contexto. Sin él, cualquier IT que levante el
-// contexto completo rompe con "schema arbiter_common does not exist" contra un contenedor vacío.
-// Pendiente: hacer que el contenedor corra init-multitenant.sql, que es lo único que detectaría
-// un desfasaje entre las entidades y el esquema real.
-// @Tag("it"): las subclases (ITs con Testcontainers) heredan el tag y quedan fuera del `mvn test`
-// rápido (surefire las excluye); corren con `mvn verify -Pit`, que sí levanta Docker.
 @Tag("it")
 @TestPropertySource(properties = {
         "arbiter.auth.jwt.secret=test-secret-at-least-32-bytes-long-for-hs256",
@@ -47,8 +38,8 @@ public abstract class AbstractPersistenceIT {
                 POSTGRES.getJdbcUrl(), POSTGRES.getUsername(), POSTGRES.getPassword());
              Statement stmt = conn.createStatement()) {
             stmt.execute("CREATE SCHEMA IF NOT EXISTS arbiter_common");
-            // La búsqueda de expedientes usa unaccent() (CaseSpecifications.freeText); en prod la
-            // crea db/init-multitenant.sql, pero acá el contenedor arranca vacío.
+            // Case search uses unaccent() (CaseSpecifications.freeText); in production
+            // db/init-multitenant.sql creates it.
             stmt.execute("CREATE EXTENSION IF NOT EXISTS unaccent");
         } catch (SQLException e) {
             throw new RuntimeException(e);

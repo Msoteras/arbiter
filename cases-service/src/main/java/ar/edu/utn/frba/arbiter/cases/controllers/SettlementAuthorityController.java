@@ -18,9 +18,8 @@ import org.springframework.web.bind.annotation.RestController;
 import java.util.List;
 
 /**
- * Hasta cuánto autoriza un analista por su cuenta en cada ramo (Anexo II del procedimiento).
- * Configuración de la aseguradora, así que es del referente: el analista no puede correr el techo
- * que lo limita a él.
+ * How much an analyst may authorize on their own per branch. Referente-only: the analyst must not
+ * be able to raise the ceiling that limits them.
  */
 @RestController
 @RequestMapping("/api/v1/settlement-authorities")

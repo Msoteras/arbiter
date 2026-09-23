@@ -1,7 +1,6 @@
 package ar.edu.utn.frba.arbiter.classification.services.risk.evaluators;
 
 import ar.edu.utn.frba.arbiter.classification.services.risk.RiskContext;
-import ar.edu.utn.frba.arbiter.classification.services.risk.RiskFactorEvaluator.Contribution;
 import ar.edu.utn.frba.arbiter.classification.services.risk.RiskFixtures;
 import org.junit.jupiter.api.Test;
 

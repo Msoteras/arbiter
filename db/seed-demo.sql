@@ -1,18 +1,9 @@
 -- =============================================================================
 -- Arbiter — demo data, segmented by insurer
 --
--- Run AFTER db/init-multitenant.sql, which creates the schemas, the catalogs and
--- the five seed users.
+-- Run AFTER db/init-multitenant.sql, which creates the schemas, catalogs and seed users.
 --
--- Every claim below belongs to Martina or Julián — the two BBVA insureds with a
--- real, loginable account (Auth0 doesn't have a self-service "alta de asegurado"
--- flow yet, so a fresh identity costs a manual Management API call, not a
--- signup form). Earlier versions of this file spread the same scenarios across
--- eight fictitious `@example.com` people; they were never reachable (no real
--- Auth0 identity behind them) and only added noise to the Usuarios screen. The
--- risk-profile variety is preserved by splitting the claims across two real
--- people instead of eight fake ones — nothing about the scoring engine cares
--- who the repeat claimant is:
+-- Claims belong only to insureds with a real, loginable Auth0 account. Scoring:
 --
 --   claim_frequency = min(1, previous_claims / 3)
 --   policy_standing = 1.0 when the policy is in arrears, 0.0 when up to date
@@ -27,20 +18,10 @@
 --                        claim 2  2 previous · IN ARREARS   → CRITICAL (two factors at once)
 --
 -- Martina is a customer of BOTH insurers: one identity in arbiter_common.users, two
--- `insured` rows in different schemas. That is the case worth demoing — it shows the
--- shared-identity / isolated-data split actually working.
+-- `insured` rows in different schemas, which demonstrates the shared-identity /
+-- isolated-data split.
 --
--- PART 6 (at the end) piles extra volume on top of these core scenarios so the inbox,
--- the referente dashboards and "Mis expedientes" look populated. It stays inside the
--- same rule: the only insureds are Martina and Julián (both real, loginable users), so
--- there Julián also becomes a Provincia customer — no fake @example.com accounts.
---
--- PART 6 used to also ship standalone in db/seed-demo-extra.sql, for topping up an
--- already-seeded database without a destructive reset. That copy drifted (missed the
--- notification-recipient fix below) and, run after this file, duplicate-keyed on
--- every PART 6 row — this file already has it inline. Retired 15/08; if a no-reset
--- top-up script is needed again, cut a fresh one from this file's tail instead of
--- reviving the old copy.
+-- PART 6 adds volume so the inbox and dashboards look populated.
 --
 -- Usage:  psql "$DATABASE_URL" -f db/seed-demo.sql
 -- =============================================================================
@@ -70,7 +51,7 @@ INSERT INTO aseguradora_bbva.asegurado (id, documento, cuil, nombre, apellido, e
 SELECT setval(pg_get_serial_sequence('aseguradora_bbva.asegurado','id'),
               (SELECT MAX(id) FROM aseguradora_bbva.asegurado));
 
--- imei: solo en ramo Celulares; en Tecnología Portátil queda NULL (el equipo no tiene uno).
+-- imei: Celulares only.
 INSERT INTO aseguradora_bbva.poliza (id, numero, nro_certificado, titular_id, rama, producto, bien_asegurado,
                                      imei, vigencia_desde, vigencia_hasta, estado_contrato, estado_pago,
                                      cuotas_pagas, cuotas_impagas, saldo_deuda, forma_pago, cubre_grupo_familiar) VALUES
@@ -102,9 +83,7 @@ INSERT INTO aseguradora_bbva.cobertura (poliza_id, orden, nombre, suma_asegurada
     (5, 3, 'Daño accidental', 1500000.00, 20.00);
 
 -- Julián, policy 2: 3 previous → claim_frequency saturates at 1.0.
--- cobertura_id: cada previo se imputa a la cobertura que lo respondió, que es contra cuyo techo
--- consume (la suma asegurada es de la cobertura, no de la póliza). Se resuelve por subconsulta
--- porque los ids de cobertura son seriales y cambian con cada reseed.
+-- cobertura_id is looked up because its ids are serial and change on every reseed.
 INSERT INTO aseguradora_bbva.siniestro_historico (poliza_id, cobertura_id, asegurado_id, fecha_ocurrencia,
                                                   causa, estado_resolucion, monto_indemnizado) VALUES
     (2, (SELECT id FROM aseguradora_bbva.cobertura WHERE poliza_id = 2 AND nombre = 'Robo de celular'),
@@ -131,7 +110,7 @@ INSERT INTO aseguradora_provincia.poliza (id, numero, nro_certificado, titular_i
                                           cuotas_pagas, cuotas_impagas, saldo_deuda, forma_pago,
                                           max_eventos_anuales, segundo_evento_pct, cubre_grupo_familiar,
                                           datos_proveedor) VALUES
-    -- Tecnología Portátil: sin IMEI, una notebook no tiene.
+    -- Tecnología Portátil: no IMEI.
     (1, 'POL-TEC-2026-311', '700841', 1, 'Tecnología Portátil', 'Seguro de Tecnología Portátil', 'MacBook Air M3 15"',
      NULL, '2026-03-01','2027-03-01 23:59:59','ACTIVA','AL_DIA', 4, 1, 3406.17, 'TARJETA DE CREDITO', 2, 50.00, FALSE,
      '{"codRamaSegR":7,"nroPolizaR":2365301,"nroCertificadoR":700841,"descProductoR":"07 150 TEC PORT","importePrimaTarifa":2762.5,"importePremio":3406.17,"clausulaAjuste":"AJUSTE TASA FIJA","codClausulaAjuste":105}'::jsonb),
@@ -148,9 +127,6 @@ INSERT INTO aseguradora_provincia.cobertura (poliza_id, orden, nombre, suma_aseg
     (1, 1, 'Robo de celular', 170000.00, 10.00),
     (1, 2, 'Daño accidental',  90000.00, 10.00),
     (2, 1, 'Robo de celular', 900000.00, 10.00),
-    -- El hurto de la póliza 2 existía del lado de Arbiter y no del de la compañía. Acá el
-    -- incompleto era la compañía: el criterio del propio seed es que una póliza de celulares
-    -- cubre robo Y hurto (ver el comentario de arbiter_bbva.policy_coverage).
     (2, 2, 'Hurto',           300000.00, 10.00),
     (3, 1, 'Robo de celular', 700000.00, 10.00);
 
@@ -176,20 +152,9 @@ INSERT INTO arbiter_bbva.insured (id, name, surname, dni, email, phone, case_cou
 SELECT setval(pg_get_serial_sequence('arbiter_bbva.insured','id'),
               (SELECT MAX(id) FROM arbiter_bbva.insured));
 
--- ─── Daño accidental: la cobertura que le faltaba al ramo Celulares ─────────────────────────
--- El ramo tiene cuatro hechos generadores (1 Rotura accidental, 2 Robo en vía pública, 3 Hurto,
--- 4 Caída) y hasta acá dos coberturas, cuyas listas negras son [1,3,4] y [1,2,4]: ninguna respondía
--- por una rotura ni por una caída. No era una decisión, era un agujero — la agenda documental sí
--- tiene cargados sus requisitos (document_requirement de los hechos 1 y 4), el selector del wizard
--- filtra por esas mismas listas y por lo tanto no podía ofrecerlos, y los casos 1 y 12 del fixture
--- (dos roturas de pantalla) colgaban de la cobertura de robo, que las excluye: reclasificarlos daba
--- exclusión de cobertura, no el Fast Track que el fixture declara.
---
--- Solo para BBVA: las coberturas son configuración de cada aseguradora. El id 3 no se pisa con el 3
--- de Provincia (Daño accidental de Tecnología Portátil) — son tablas de esquemas distintos.
--- Settles as a repair, like Provincia's Daño accidental: it is damage, not a total loss, and
--- 2026-09-06-formula-de-reparacion.sql sets it for this coverage in both tenants. The other
--- settlement terms keep their defaults.
+-- ─── Daño accidental coverage for Celulares ──────────────────────────────────
+-- Covers the causes the robbery and theft coverages exclude (1 Rotura accidental,
+-- 4 Caída); without it no coverage answers for them. Settles as a repair.
 INSERT INTO arbiter_bbva.coverage (id, name, description, report_deadline_hours, max_events_per_year,
                                    covers_family_group, deductible, claim_exhausts_coverage,
                                    is_individual, waiting_period_days, branch_id, settlement_formula) VALUES
@@ -198,12 +163,8 @@ INSERT INTO arbiter_bbva.coverage (id, name, description, report_deadline_hours,
 SELECT setval(pg_get_serial_sequence('arbiter_bbva.coverage','id'),
               (SELECT MAX(id) FROM arbiter_bbva.coverage));
 
--- Sus reglas, con la misma forma que las de las otras dos coberturas (init-multitenant.sql):
--- la lista negra que la delimita, los umbrales del carril rápido y las temporales.
---
--- Sin POLICE_DEADLINE: una rotura accidental no tiene denuncia policial que presentar, así que la
--- fila sería una regla que nunca se puede cumplir. Franquicia 20% contra el 10% de robo, que es
--- el diferencial habitual del daño accidental.
+-- Same rule set as the other two coverages, minus POLICE_DEADLINE: accidental damage has
+-- no police report to file.
 INSERT INTO arbiter_bbva.insurer_rule (active, valid_from, name, rule_type, effect, priority,
                                        blocks_fast_track, branch_id, coverage_id, configuration) VALUES
     (TRUE, '2026-01-01 00:00:00+00',
@@ -224,7 +185,7 @@ INSERT INTO arbiter_bbva.insurer_rule (active, valid_from, name, rule_type, effe
      'MAX_EVENTS_YEAR', 'DERIVAR', 5, TRUE, 1, 3, '{}');
 
 -- Local snapshots of the policies above. coverage 1 = 'Robo de celular', 2 = 'Hurto',
--- 3 = 'Daño accidental' (solo en las pólizas Premium).
+-- 3 = 'Daño accidental' (Premium policies only).
 INSERT INTO arbiter_bbva.policy (id, external_policy_number, product, in_force, insured_id) VALUES
     (1, 'POL-CEL-2026-042', 'Celular Protegido Premium', TRUE, 1),
     (2, 'POL-CEL-2025-099', 'Celular Protegido Premium', TRUE, 2),
@@ -232,12 +193,8 @@ INSERT INTO arbiter_bbva.policy (id, external_policy_number, product, in_force, 
     (4, 'POL-CEL-2026-118', 'Celular Protegido Básico',  TRUE, 1),
     (5, 'POL-CEL-2026-205', 'Celular Protegido Premium', TRUE, 1);
 
--- Coberturas contratadas de cada póliza. Espejo de aseguradora.cobertura: una póliza de celulares
--- cubre robo Y hurto, cada una con su propia suma asegurada (el hurto siempre por menos — es el
--- criterio de la compañía en su BD Aseguradora).
--- El daño accidental solo lo traen las pólizas Premium, y por la misma suma que el robo: es el
--- mismo equipo, lo que cambia es la franquicia (20%). Las Básico no lo cubren, así que a esos
--- asegurados el wizard no les va a ofrecer rotura ni caída.
+-- Mirrors aseguradora_bbva.cobertura: phone policies cover robbery and theft; only Premium
+-- adds accidental damage, so Básico holders are never offered breakage or drops.
 INSERT INTO arbiter_bbva.policy_coverage (policy_id, coverage_id, display_order, sum_insured, deductible_pct) VALUES
     (1, 1, 1, 1300000.00, 10.00), (1, 2, 2,  650000.00, 10.00), (1, 3, 3, 1300000.00, 20.00),
     (2, 1, 1, 1200000.00, 10.00),                               (2, 3, 3, 1200000.00, 20.00),
@@ -267,8 +224,7 @@ INSERT INTO arbiter_bbva.cases
      current_status_id, analyst_id, insured_id, claim_cause_id, coverage_id, policy_id,
      policy_snapshot_id, scoring_configuration_id) VALUES
     -- 1 · deterministic Fast Track: accidental breakage, low amount, first claim → LOW.
-    --     No llm_analysis row on purpose: FAST_TRACK is decided by FastTrackValidator,
-    --     never by the model (decision #6).
+    --     No llm_analysis row: FAST_TRACK is decided by FastTrackValidator, never by the model.
     (1, '2026-06-14 08:30:00+00', '2026-06-14 08:34:00+00', NULL, '2026-07-14',
      'Se me cayó el celular de las manos en mi casa. Se rompió la pantalla pero el equipo funciona normalmente',
      TRUE, 285000.00, 'Samsung Galaxy S25 Ultra', 'Casa', 'CABA', 'Buenos Aires',
@@ -310,8 +266,7 @@ INSERT INTO arbiter_bbva.llm_analysis (id, recommendation, model, prompt_version
 SELECT setval(pg_get_serial_sequence('arbiter_bbva.llm_analysis','id'),
               (SELECT MAX(id) FROM arbiter_bbva.llm_analysis));
 
--- One row per reason instead of a serialized blob — this is the "factores" the
--- Disposición SSN 2/2023 requires alongside every classification.
+-- One row per reason: the factors audited alongside every classification.
 INSERT INTO arbiter_bbva.llm_reason (reason, analysis_id) VALUES
     ('Más de 2 siniestros en los últimos 12 meses: el asegurado tiene 3 previos (Nov 2025, Feb 2026 y Abr 2026)', 1),
     ('La descripción del incidente presenta inconsistencias con el reporte policial', 1),
@@ -320,7 +275,7 @@ INSERT INTO arbiter_bbva.llm_reason (reason, analysis_id) VALUES
     ('Falta documento requerido: FOTO_BIEN', 2),
     ('Falta documento requerido: FOTO_BIEN', 3);
 
--- Risk analyses. Weights come from the seeded H0012 config: amount_ratio 0.45,
+-- Risk analyses. Weights come from the seeded scoring config: amount_ratio 0.45,
 -- claim_frequency 0.35, policy_standing 0.20.
 INSERT INTO arbiter_bbva.risk_analysis (id, risk_score, risk_band, risk_breakdown, analyzed_at, case_id) VALUES
     (1, 0.099, 'LOW',
@@ -336,17 +291,10 @@ INSERT INTO arbiter_bbva.risk_analysis (id, risk_score, risk_band, risk_breakdow
 SELECT setval(pg_get_serial_sequence('arbiter_bbva.risk_analysis','id'),
               (SELECT MAX(id) FROM arbiter_bbva.risk_analysis));
 
--- Los criterios del gate detrás del Fast Track del caso 1 y del freno del caso 2 (H0038): un tipo
--- por criterio y el valor comparado, igual que los escribe FastTrackValidator. rule_id en NULL
--- —los umbrales son configuración, no una regla evaluable con id propio— y score_contribution
--- también, porque un criterio del carril rápido no aporta al score de fraude.
---
--- Los números salen de los datos de cada expediente contra la fila FAST_TRACK de la cobertura 1
--- (tope 50%, sin siniestros previos, póliza al día): caso 1, 285.000 sobre 1.300.000; caso 2,
--- 950.000 sobre 1.200.000 y 3 siniestros previos.
---
--- Sin fila de documentación: ningún expediente del fixture tiene adjuntos, así que un PASS ahí
--- afirmaría que el gate verificó papeles que no existen.
+-- Fast Track gate criteria behind case 1's pass and case 2's block, as FastTrackValidator
+-- writes them. rule_id and score_contribution are NULL: thresholds are configuration, and
+-- Fast Track criteria don't feed the fraud score. No documentation row: no fixture case
+-- has attachments.
 INSERT INTO arbiter_bbva.rule_result (rule_type, result, evaluated_value, score_contribution,
                                       evaluated_at, rule_id, case_id) VALUES
     ('FT_AMOUNT_RATIO',      'PASS', 'ratio=21.9% max=50.0%', NULL, '2026-06-14 08:35:30+00', NULL, 1),
@@ -356,8 +304,7 @@ INSERT INTO arbiter_bbva.rule_result (rule_type, result, evaluated_value, score_
     ('FT_PRIOR_CLAIMS',      'FAIL', 'priorClaims=3 max=0',   NULL, '2026-06-11 09:10:30+00', NULL, 2),
     ('FT_POLICY_UP_TO_DATE', 'PASS', 'upToDate=true',         NULL, '2026-06-11 09:10:30+00', NULL, 2);
 
--- actor: who drove each transition. SYSTEM rows have no changed_by — an automated
--- transition has no user behind it, which is exactly why actor can't be derived from it.
+-- SYSTEM rows have no changed_by: an automated transition has no user behind it.
 INSERT INTO arbiter_bbva.case_status_history (reason, observation, actor, changed_at, changed_by,
                                               initial_status_id, final_status_id, case_id) VALUES
     ('Denuncia registrada', NULL, 'INSURED', '2026-06-14 08:34:00+00', 1, NULL, 1, 1),
@@ -372,10 +319,7 @@ INSERT INTO arbiter_bbva.case_status_history (reason, observation, actor, change
     ('Falta la foto del bien', NULL, 'SYSTEM', '2026-06-12 19:02:00+00', NULL, 1, 3, 4),
     ('Denuncia registrada', NULL, 'INSURED', '2026-07-31 12:00:00+00', 1, NULL, 1, 5);
 
--- Peritos externos de BBVA. No son usuarios de Arbiter: el analista los contacta por
--- mail. El primero es generalista (branch_id NULL, cubre los dos ramos); el segundo
--- sólo Celulares. Las casillas son de prueba del equipo — el mail de derivación sale
--- de verdad por SendGrid, así que no puede apuntar a una dirección inventada.
+-- Real team inboxes: the derivation email is actually sent through SendGrid.
 INSERT INTO arbiter_bbva.expert_firm (id, name, email, zone, active, branch_id) VALUES
     (1, 'Estudio Verifica S.R.L.',   'perito.arbiter@gmail.com', 'CABA y GBA',      TRUE, NULL),
     (2, 'Peritajes Tecnológicos SA', 'perito.arbiter@gmail.com', 'CABA',            TRUE, 1);
@@ -388,10 +332,8 @@ SELECT setval(pg_get_serial_sequence('arbiter_bbva.expert_firm','id'),
 -- =============================================================================
 
 -- Provincia sells Tecnología Portátil, so it needs a coverage BBVA does not have.
--- settlement_basis = LESSER_OF_SUM_AND_REPLACEMENT: es lo que exige el art. 7 (Bases de
--- Indemnización) de la cláusula 340 en Tecnología Portátil — el asegurador no paga más que el
--- menor entre la suma asegurada y lo que cuesta reponer el bien. Dos eventos al año, el segundo
--- al 50%, como dicen las condiciones particulares de la póliza modelo.
+-- LESSER_OF_SUM_AND_REPLACEMENT, as clause 340 art. 7 requires for Tecnología Portátil.
+-- Two events a year, the second at 50%.
 INSERT INTO arbiter_provincia.coverage (id, name, description, report_deadline_hours, max_events_per_year,
                                         covers_family_group, deductible, claim_exhausts_coverage,
                                         is_individual, waiting_period_days, branch_id,
@@ -403,24 +345,16 @@ INSERT INTO arbiter_provincia.coverage (id, name, description, report_deadline_h
 SELECT setval(pg_get_serial_sequence('arbiter_provincia.coverage','id'),
               (SELECT MAX(id) FROM arbiter_provincia.coverage));
 
--- Qué NO cubre la cobertura de Daño accidental (COVERAGE_EXCLUSION, la lista negra que evalúa
--- CoverageRuleEvaluator). Sin esta fila la cobertura cubre TODO el ramo, que es el fail-open que
--- hace que un robo denunciado sobre ella pase el gate. Ramo 2 (Tecnología Portátil) tiene
--- claim_cause 6 Daño accidental, 7 Robo en vía pública, 8 Hurto: se excluyen los dos últimos.
+-- Without this deny-list the coverage would cover the whole branch. Tecnología Portátil
+-- causes: 6 Daño accidental, 7 Robo en vía pública, 8 Hurto.
 INSERT INTO arbiter_provincia.insurer_rule (active, valid_from, name, rule_type, effect, priority,
                                             blocks_fast_track, branch_id, coverage_id, configuration) VALUES
     (TRUE, '2026-01-01 00:00:00+00',
      'La cobertura de daño accidental solo cubre daño accidental', 'COVERAGE_EXCLUSION', 'RECHAZAR', 1,
      TRUE, 2, 3, '{"excludedClaimCauseIds":[7,8]}');
 
--- Umbrales de Fast Track de esa cobertura. Las dos filas que crea init-multitenant.sql son de
--- Celulares (coberturas 1 y 2); sin esta, un daño accidental no tiene criterios configurados y el
--- gate no puede resolver por sí solo ni el caso más simple del ramo.
---
--- El tope de monto es más alto que en robo (60% contra 50%) y no es un descuido: reparar un equipo
--- portátil cuesta una fracción grande de una suma asegurada chica, así que con el 50% de robo
--- quedarían fuera del carril rápido casi todos los daños accidentales, que son justo los casos que
--- menos discusión tienen.
+-- Fast Track thresholds for this coverage. The amount cap is 60%, above robbery's 50%, on
+-- purpose: a repair is a large share of a small sum insured.
 INSERT INTO arbiter_provincia.insurer_rule (active, valid_from, name, rule_type, effect, priority,
                                             blocks_fast_track, branch_id, coverage_id, configuration) VALUES
     (TRUE, '2026-01-01 00:00:00+00',
@@ -443,9 +377,8 @@ INSERT INTO arbiter_provincia.policy (id, external_policy_number, product, in_fo
     (2, 'POL-CEL-2026-501', 'Celular Protegido',             TRUE, 1),
     (3, 'POL-CEL-2026-777', 'Celular Protegido',             TRUE, 1);
 
--- La póliza 1 es de Tecnología Portátil (ramo 2): su única cobertura es Daño accidental (3). Las
--- de celulares llevan robo + hurto, como en BBVA. Una cobertura de otro ramo en la misma póliza
--- sería inconsistente con coverage.branch_id, así que no se mezcla.
+-- Policy 1 is Tecnología Portátil, so its only coverage is Daño accidental: a policy never
+-- mixes coverages from different branches.
 INSERT INTO arbiter_provincia.policy_coverage (policy_id, coverage_id, display_order, sum_insured, deductible_pct) VALUES
     (1, 3, 1,   90000.00, 10.00),
     (2, 1, 1,  900000.00, 10.00), (2, 2, 2, 300000.00, 10.00),
@@ -528,17 +461,9 @@ SELECT setval(pg_get_serial_sequence('arbiter_provincia.case_classification','id
 
 UPDATE arbiter_provincia.cases SET classification_id = 1 WHERE id = 1;
 
--- Cuánto se pagó, y de dónde salió. Sin esta fila el expediente cerrado mostraba "Aprobado" sin
--- decir el monto, que es lo primero que el asegurado quiere saber.
---
--- La cobertura liquida por el menor entre suma asegurada y valor de reposición: el presupuesto de
--- reparación acredita $38.000, muy por debajo de los $90.000 asegurados, así que ése es el techo.
--- La franquicia es el 10% de la SUMA ASEGURADA ($9.000), no del techo — así lo dicen las
--- condiciones particulares. 38.000 − 9.000 = 29.000, y el analista confirmó ese número sin
--- ajustarlo (por eso adjustment_reason va en NULL).
---
--- `formula` = REPAIR: es un daño (rotura de pantalla), no una pérdida total. El presupuesto es el
--- techo y no se descuentan cuotas a vencer, porque la póliza no se extingue con la reparación.
+-- Settlement of the approved case: the $38.000 repair quote caps it, minus a deductible
+-- of 10% of the SUM INSURED, not of the cap: 38.000 − 9.000 = 29.000, confirmed unadjusted.
+-- REPAIR, so no pending installments are deducted: the policy survives a repair.
 INSERT INTO arbiter_provincia.case_settlement
     (id, case_id, formula, sum_insured, settlement_basis, replacement_value, deductible_rate,
      event_ordinal, event_percentage, pending_installments, installment_amount,
@@ -551,10 +476,7 @@ INSERT INTO arbiter_provincia.case_settlement
      29000.00, 29000.00, NULL,
      3, 1, 1, '2026-05-21 10:29:00+00', '2026-05-21 10:30:00+00');
 
--- $29.000 entra holgado en la atribución de Tecnología Portátil ($50.000), así que la firma del
--- analista alcanzó: status AUTHORIZED y sin segundo firmante que registrar. La bandeja de
--- autorizaciones del referente arranca vacía a propósito — se llena cuando alguien determina un
--- monto por encima del tope, que es justo lo que hay que mostrar en la demo.
+-- Within the $50.000 Tecnología Portátil cap, so AUTHORIZED with no second signer.
 UPDATE arbiter_provincia.case_settlement
    SET status = 'AUTHORIZED', authority_limit = 50000.00
  WHERE case_id = 1;
@@ -562,8 +484,7 @@ UPDATE arbiter_provincia.case_settlement
 SELECT setval(pg_get_serial_sequence('arbiter_provincia.case_settlement','id'),
               (SELECT MAX(id) FROM arbiter_provincia.case_settlement));
 
--- Los tres criterios fallan a la vez: 760.000 sobre 900.000, dos siniestros previos y la póliza con
--- cuotas impagas.
+-- All three criteria fail: 760.000 of 900.000, two previous claims and unpaid installments.
 INSERT INTO arbiter_provincia.rule_result (rule_type, result, evaluated_value, score_contribution,
                                            evaluated_at, rule_id, case_id) VALUES
     ('FT_AMOUNT_RATIO',      'FAIL', 'ratio=84.4% max=50.0%', NULL, '2026-07-05 11:20:30+00', NULL, 2),
@@ -579,8 +500,7 @@ INSERT INTO arbiter_provincia.case_status_history (reason, observation, actor, c
     ('Denuncia registrada', NULL, 'INSURED', '2026-07-05 11:15:00+00', 1, NULL, 1, 2),
     ('Clasificación disponible', 'Riesgo CRÍTICO: mora + reincidencia', 'SYSTEM', '2026-07-05 11:22:00+00', NULL, 1, 2, 2);
 
--- Provincia trabaja con otro estudio: el catálogo es por tenant, y que las dos
--- aseguradoras deriven al mismo perito sería el tipo de cruce que el multi-tenant evita.
+-- The expert catalog is per tenant.
 INSERT INTO arbiter_provincia.expert_firm (id, name, email, zone, active, branch_id) VALUES
     (1, 'Peritos del Sur S.A.', 'perito.arbiter@gmail.com', 'La Plata', TRUE, NULL);
 
@@ -595,16 +515,13 @@ INSERT INTO arbiter_provincia.notification (type, channel, content, sent, read, 
      TRUE, TRUE, '2026-05-21 10:31:00+00', '2026-05-21 18:02:00+00', 1, 1);
 
 -- =============================================================================
--- PART 6 — Volumen extra para la demo (generado, ver scratchpad/gen_seed.py)
+-- PART 6 — Extra demo volume
 --
--- Mantiene la restricción del header: los asegurados son sólo personas con login
--- real. Martina (user 1) y Julián (user 5) ya lo tienen; acá Julián se suma como
--- segundo asegurado de Provincia (no crea usuarios nuevos, no ensucia Usuarios).
--- Los montos y bandas de riesgo se calculan con la fórmula H0012 documentada arriba.
+-- Still only real, loginable insureds; Julián also becomes a Provincia customer.
+-- Amounts and risk bands follow the scoring formula documented above.
 -- =============================================================================
 
--- Julián pasa a ser cliente de Provincia además de BBVA: un user, dos insured en
--- distintos tenants — el mismo patrón que ya demuestra Martina, ahora en el otro sentido.
+-- Julián: one user, two insured rows in different tenants.
 INSERT INTO arbiter_common.user_insurer (user_id, insurer_id) VALUES (5, 2);
 
 INSERT INTO aseguradora_provincia.asegurado (id, documento, cuil, nombre, apellido, email, telefono) VALUES
@@ -617,7 +534,7 @@ INSERT INTO arbiter_provincia.insured (id, name, surname, dni, email, phone, cas
 SELECT setval(pg_get_serial_sequence('arbiter_provincia.insured','id'),
               (SELECT MAX(id) FROM arbiter_provincia.insured));
 
--- ─── BD Aseguradora BBVA: pólizas nuevas ────────────────────────────────────
+-- ─── Insurer DB BBVA: new policies ───────────────────────────────────────────
 INSERT INTO aseguradora_bbva.poliza (id, numero, nro_certificado, titular_id, rama, producto, bien_asegurado,
                                      imei, vigencia_desde, vigencia_hasta, estado_contrato, estado_pago,
                                      cuotas_pagas, cuotas_impagas, saldo_deuda, forma_pago, cubre_grupo_familiar) VALUES
@@ -644,12 +561,9 @@ INSERT INTO aseguradora_bbva.cobertura (poliza_id, orden, nombre, suma_asegurada
     (10, 1, 'Robo de celular', 500000.00, 10.00),
     (10, 2, 'Hurto', 200000.00, 15.00);
 
--- ─── Póliza modelo del proyecto (Proyecto Final/poliza.pdf, referenciada en CLAUDE.md) ──────
--- Vigencia con hora exacta: "desde las 12:00 hs del 14/06/2026 hasta las 12:00 hs del
--- 14/09/2026". Sirve para probar D13 (POLICY_IN_FORCE) por timestamp completo — un siniestro el
--- mismo 14/06 a las 09:40 (2h20 antes de que arranque la vigencia) tiene que rechazar aunque la
--- FECHA coincida con el inicio, que es justo el caso donde comparar solo por fecha daba un falso
--- aceptado.
+-- ─── Reference policy with an exact start hour ───────────────────────────────
+-- In force from 12:00 on 14/06/2026: a claim at 09:40 that same day must fail
+-- POLICY_IN_FORCE even though the date matches.
 INSERT INTO aseguradora_bbva.poliza (id, numero, nro_certificado, titular_id, rama, producto, bien_asegurado,
                                      imei, vigencia_desde, vigencia_hasta, estado_contrato, estado_pago,
                                      cuotas_pagas, cuotas_impagas, saldo_deuda, forma_pago, cubre_grupo_familiar) VALUES
@@ -661,7 +575,7 @@ SELECT setval(pg_get_serial_sequence('aseguradora_bbva.poliza','id'),
 INSERT INTO aseguradora_bbva.cobertura (poliza_id, orden, nombre, suma_asegurada, franquicia_pct) VALUES
     (11, 1, 'Robo de celular', 1300000.00, 10.00);
 
--- ─── BD Aseguradora Provincia: pólizas nuevas ───────────────────────────────
+-- ─── Insurer DB Provincia: new policies ──────────────────────────────────────
 INSERT INTO aseguradora_provincia.poliza (id, numero, nro_certificado, titular_id, rama, producto, bien_asegurado,
                                           imei, vigencia_desde, vigencia_hasta, estado_contrato, estado_pago,
                                           cuotas_pagas, cuotas_impagas, saldo_deuda, forma_pago,
@@ -682,7 +596,7 @@ INSERT INTO aseguradora_provincia.cobertura (poliza_id, orden, nombre, suma_aseg
     (7, 1, 'Robo de celular', 1600000.00, 10.00),
     (7, 2, 'Hurto',            800000.00, 10.00);
 
--- ─── Snapshots locales de las pólizas nuevas (arbiter tenant) ────────────────
+-- ─── Local snapshots of the new policies ─────────────────────────────────────
 INSERT INTO arbiter_bbva.policy (id, external_policy_number, product, in_force, insured_id) VALUES
     (6, 'POL-CEL-2024-010', 'Celular Protegido Premium', TRUE, 1),
     (7, 'POL-CEL-2024-055', 'Celular Protegido Básico',  TRUE, 2),
@@ -690,13 +604,8 @@ INSERT INTO arbiter_bbva.policy (id, external_policy_number, product, in_force, 
     (9, 'POL-CEL-2025-201', 'Celular Protegido Premium', TRUE, 2),
     (10, 'POL-CEL-2026-260', 'Celular Protegido Básico', TRUE, 1);
 
--- Espejo EXACTO de aseguradora_bbva.cobertura. Las tres sumas de hurto de este bloque estaban
--- tipeadas con otro criterio que el de la compañía —la mitad de la suma de robo y franquicia 10%,
--- contra el 40% y 15% del lado de la compañía— y las de las pólizas 7 y 9 faltaban directamente.
--- Nada del código escribió nunca esos números: policy_coverage solo se escribe al importar una
--- póliza que Arbiter no tenía, así que la diferencia era del fixture y se quedaba ahí para siempre.
--- Gana la compañía: la BD Aseguradora es la fuente de verdad del contrato, y desde ahora
--- PolicyResyncScheduler relee esto todas las noches.
+-- Must mirror aseguradora_bbva.cobertura exactly: the insurer DB is the source of truth,
+-- and PolicyResyncScheduler re-reads it nightly.
 INSERT INTO arbiter_bbva.policy_coverage (policy_id, coverage_id, display_order, sum_insured, deductible_pct) VALUES
     (6, 1, 1,  900000.00, 10.00), (6, 2, 2, 360000.00, 15.00), (6, 3, 3,  900000.00, 20.00),
     (7, 1, 1,  300000.00, 10.00), (7, 2, 2, 120000.00, 15.00),
@@ -720,7 +629,7 @@ INSERT INTO arbiter_provincia.policy_coverage (policy_id, coverage_id, display_o
 SELECT setval(pg_get_serial_sequence('arbiter_provincia.policy','id'),
               (SELECT MAX(id) FROM arbiter_provincia.policy));
 
--- ─── arbiter_bbva: casos nuevos ──────────────────────────────────────────────
+-- ─── arbiter_bbva: new cases ─────────────────────────────────────────────────
 INSERT INTO arbiter_bbva.policy_snapshot (id, external_policy_number, sum_insured, in_force,
                                       payments_up_to_date, previous_claims, queried_at) VALUES
     (5, 'POL-CEL-2024-010', 900000.00, TRUE, TRUE, 0, '2024-04-11 08:55:00+00'),
@@ -761,9 +670,7 @@ INSERT INTO arbiter_bbva.cases
      'Salía del trabajo y me robaron el celular con un arma, en la esquina de la oficina.',
      FALSE, 1300000.00, 'Samsung Galaxy S23 Ultra', 'Microcentro', 'CABA', 'Buenos Aires',
      2, 2, 1, 2, 1, 8, 9, 1),
-    -- Fast Track: 240.000 sobre una suma asegurada de 500.000 (48%), debajo del tope de 50% de la
-    -- cobertura. Reclamaba 470.000 (94%) y aun así figuraba como Fast Track, que es justo el caso
-    -- que el carril rápido NO debería tomar: con el gate real nunca habría calificado.
+    -- Fast Track: 240.000 of a 500.000 sum insured (48%), under the coverage's 50% cap.
     (11, '2026-08-01 18:00:00+00', '2026-08-01 18:20:00+00', NULL, '2026-08-31',
      'Me sacaron el celular de la mochila en el tren, me di cuenta al bajar.',
      TRUE, 240000.00, 'Motorola Edge 40', 'Estación Once', 'CABA', 'Buenos Aires',
@@ -867,7 +774,7 @@ INSERT INTO arbiter_bbva.risk_analysis (id, risk_score, risk_band, risk_breakdow
     (8, 0.535, 'MEDIUM',
      '[{"factorId":"amount_ratio","rawScore":0.9286,"weight":0.45,"weightedContribution":0.4179,"rationale":"Monto reclamado es 93% de la suma asegurada"},{"factorId":"claim_frequency","rawScore":0.3333,"weight":0.35,"weightedContribution":0.1167,"rationale":"Siniestros previos del asegurado: 1"},{"factorId":"policy_standing","rawScore":0.0,"weight":0.2,"weightedContribution":0.0,"rationale":"Póliza al día con sus pagos"}]'::jsonb,
      '2026-07-29 09:06:00+00', 10),
-    -- Sigue al monto del caso 11: 240.000 / 500.000 = 48%, que con el peso 0,45 da 0,216 → LOW.
+    -- Case 11: 240.000 / 500.000 = 48%, times weight 0.45 = 0.216 → LOW.
     (9, 0.216, 'LOW',
      '[{"factorId":"amount_ratio","rawScore":0.48,"weight":0.45,"weightedContribution":0.216,"rationale":"Monto reclamado es 48% de la suma asegurada"},{"factorId":"claim_frequency","rawScore":0.0,"weight":0.35,"weightedContribution":0.0,"rationale":"Siniestros previos del asegurado: 0"},{"factorId":"policy_standing","rawScore":0.0,"weight":0.2,"weightedContribution":0.0,"rationale":"Póliza al día con sus pagos"}]'::jsonb,
      '2026-08-01 18:26:00+00', 11),
@@ -888,10 +795,8 @@ INSERT INTO arbiter_bbva.risk_analysis (id, risk_score, risk_band, risk_breakdow
      '2026-08-09 09:06:00+00', 18);
 SELECT setval(pg_get_serial_sequence('arbiter_bbva.risk_analysis','id'), (SELECT MAX(id) FROM arbiter_bbva.risk_analysis));
 
--- COVERAGE_EXCLUSION y no COVERAGE_INCLUSION: la lista blanca nunca se implementó del lado Java
--- (RuleType no tiene esa constante) y las reglas quedaron expresadas como lista negra, que es lo que
--- el motor escribe. El valor lleva el formato de CoverageRuleEvaluator, con el id del hecho
--- generador — los nombres se repiten entre ramos, el id no.
+-- evaluated_value uses CoverageRuleEvaluator's format, keyed by claim cause id since names
+-- repeat across branches.
 INSERT INTO arbiter_bbva.rule_result (rule_type, result, evaluated_value, score_contribution,
                                   evaluated_at, rule_id, case_id) VALUES
     ('COVERAGE_EXCLUSION',   'FAIL', 'claimCause=Hurto (id=3)', NULL, '2025-06-16 10:05:00+00', 3, 8),
@@ -962,7 +867,7 @@ INSERT INTO arbiter_bbva.notification (type, channel, content, sent, read, sent_
     ('CAMBIO_ESTADO', 'EMAIL', 'Tu siniestro fue rechazado. Podés ver el detalle y los motivos en el portal.', TRUE, FALSE, '2026-07-11 11:30:00+00', NULL, 2, 16),
     ('CAMBIO_ESTADO', 'EMAIL', 'Tu siniestro fue rechazado. Podés ver el detalle y los motivos en el portal.', TRUE, FALSE, '2026-08-02 16:30:00+00', NULL, 1, 17);
 
--- ─── arbiter_provincia: casos nuevos ──────────────────────────────────────────────
+-- ─── arbiter_provincia: new cases ────────────────────────────────────────────
 INSERT INTO arbiter_provincia.policy_snapshot (id, external_policy_number, sum_insured, in_force,
                                       payments_up_to_date, previous_claims, queried_at) VALUES
     (3, 'POL-CEL-2025-820', 800000.00, TRUE, TRUE, 0, '2025-08-15 09:25:00+00'),
@@ -1096,8 +1001,7 @@ INSERT INTO arbiter_provincia.risk_analysis (id, risk_score, risk_band, risk_bre
      '2026-08-04 11:26:00+00', 13);
 SELECT setval(pg_get_serial_sequence('arbiter_provincia.risk_analysis','id'), (SELECT MAX(id) FROM arbiter_provincia.risk_analysis));
 
--- 70.000 sobre 120.000: 58,3%, por debajo del 60% que la cobertura de daño accidental admite para el
--- carril rápido. Con el tope de robo (50%) este mismo caso no calificaría.
+-- 70.000 of 120.000 = 58.3%, under the 60% Fast Track cap of the accidental damage coverage.
 INSERT INTO arbiter_provincia.rule_result (rule_type, result, evaluated_value, score_contribution,
                                   evaluated_at, rule_id, case_id) VALUES
     ('FT_AMOUNT_RATIO',      'PASS', 'ratio=58.3% max=60.0%', NULL, '2026-08-04 11:25:00+00', NULL, 13),
@@ -1149,7 +1053,7 @@ INSERT INTO arbiter_provincia.notification (type, channel, content, sent, read, 
     ('CAMBIO_ESTADO', 'EMAIL', 'Tu siniestro fue aprobado. En los próximos días vas a recibir el detalle de la liquidación.', TRUE, FALSE, '2025-09-11 09:30:00+00', NULL, 1, 8),
     ('CAMBIO_ESTADO', 'EMAIL', 'Tu siniestro fue rechazado. Podés ver el detalle y los motivos en el portal.', TRUE, FALSE, '2026-07-16 12:30:00+00', NULL, 1, 10);
 
--- Enlazar cada caso cerrado con su clasificación (human-in-the-loop).
+-- Link each closed case to its classification.
 UPDATE arbiter_bbva.cases SET classification_id = 1 WHERE id = 6;
 UPDATE arbiter_bbva.cases SET classification_id = 2 WHERE id = 7;
 UPDATE arbiter_bbva.cases SET classification_id = 3 WHERE id = 8;
@@ -1159,11 +1063,11 @@ UPDATE arbiter_provincia.cases SET classification_id = 2 WHERE id = 3;
 UPDATE arbiter_provincia.cases SET classification_id = 3 WHERE id = 8;
 UPDATE arbiter_provincia.cases SET classification_id = 4 WHERE id = 10;
 
--- Recontar expedientes por asegurado.
+-- Recount cases per insured.
 UPDATE arbiter_bbva.insured i SET case_count = (SELECT COUNT(*) FROM arbiter_bbva.cases c WHERE c.insured_id = i.id);
 UPDATE arbiter_provincia.insured i SET case_count = (SELECT COUNT(*) FROM arbiter_provincia.cases c WHERE c.insured_id = i.id);
 
--- Copiar el score al read-model de cases (la bandeja lee cases.risk_band, no risk_analysis).
+-- Copy the score into the cases read model, which the inbox reads.
 UPDATE arbiter_bbva.cases c
 SET risk_score = ra.risk_score, risk_band = ra.risk_band
 FROM (SELECT DISTINCT ON (case_id) case_id, risk_score, risk_band
@@ -1176,22 +1080,10 @@ FROM (SELECT DISTINCT ON (case_id) case_id, risk_score, risk_band
 WHERE ra.case_id = c.id;
 
 -- =============================================================================
--- PART 7 — Roman Castillo: policyholder chain for the sinMarca test-doc variant
+-- PART 7 — Roman Castillo: policies for the unbranded test documents
 --
--- docs/postman/test-docs/perfiles.js documents two signers for the same fixture
--- scenarios: Martina (conMarcaDePrueba, with the "documento simulado" banner) and Roman
--- (sinMarca, without it — for exercising the vision model without a cartel that gives
--- away the test up front). Martina's chain is real (PART 1-5); Roman's login-only
--- identity is seeded in init-multitenant.sql (user 9) but he had no policyholder chain
--- at all, so his fixtures pointed at Martina's POL-CEL-2026-042 with his own DNI — a
--- real mismatch, not a fixture quirk: PolicyEligibilityValidator (D2) rejects a claim
--- whose DNI doesn't match the policy's titular. This gives him his own policy on each
--- tenant, mirroring Martina's numbers so the sinMarca fixtures behave the same way hers
--- do (see caso-prueba-fast-track-celulares.md §2.1 for why 620.000 against 1.300.000
--- clears the Fast Track ratio).
---
--- New ids only, placed after every earlier PART so nothing here collides with the
--- volume PART 6 already piled onto the same tables.
+-- Mirrors Martina's policies so the same scenarios work narrated by Roman; his claims
+-- would otherwise fail the DNI/policy holder check. New ids only, after PART 6's.
 -- =============================================================================
 
 INSERT INTO aseguradora_bbva.asegurado (id, documento, cuil, nombre, apellido, email, telefono) VALUES
@@ -1199,8 +1091,7 @@ INSERT INTO aseguradora_bbva.asegurado (id, documento, cuil, nombre, apellido, e
 SELECT setval(pg_get_serial_sequence('aseguradora_bbva.asegurado','id'),
               (SELECT MAX(id) FROM aseguradora_bbva.asegurado));
 
--- Same Samsung A56, same numbers as Martina's POL-CEL-2026-042 (policy 1) — the sinMarca
--- fixtures describe the identical scenario, just narrated by Roman instead of her.
+-- Same device and numbers as Martina's POL-CEL-2026-042.
 INSERT INTO aseguradora_bbva.poliza (id, numero, nro_certificado, titular_id, rama, producto, bien_asegurado,
                                      imei, vigencia_desde, vigencia_hasta, estado_contrato, estado_pago,
                                      cuotas_pagas, cuotas_impagas, saldo_deuda, forma_pago, cubre_grupo_familiar) VALUES
@@ -1212,15 +1103,14 @@ SELECT setval(pg_get_serial_sequence('aseguradora_bbva.poliza','id'),
 INSERT INTO aseguradora_bbva.cobertura (poliza_id, orden, nombre, suma_asegurada, franquicia_pct) VALUES
     (12, 1, 'Robo de celular', 1300000.00, 10.00),
     (12, 2, 'Hurto',            650000.00, 10.00);
--- No siniestro_historico: a clean policyholder, same as Martina's policy 1 — this is the
--- Fast Track reference case, not a risk-factor scenario.
+-- No siniestro_historico: this is the Fast Track reference case.
 
 INSERT INTO aseguradora_provincia.asegurado (id, documento, cuil, nombre, apellido, email, telefono) VALUES
     (3, '33.845.219', '20-33845219-6', 'Roman', 'Castillo', 'asandoval01228@gmail.com', '11-5555-0007');
 SELECT setval(pg_get_serial_sequence('aseguradora_provincia.asegurado','id'),
               (SELECT MAX(id) FROM aseguradora_provincia.asegurado));
 
--- Same MacBook Air M3 15", same numbers as Martina's POL-TEC-2026-311 (policy 1).
+-- Same device and numbers as Martina's POL-TEC-2026-311.
 INSERT INTO aseguradora_provincia.poliza (id, numero, nro_certificado, titular_id, rama, producto, bien_asegurado,
                                           imei, vigencia_desde, vigencia_hasta, estado_contrato, estado_pago,
                                           cuotas_pagas, cuotas_impagas, saldo_deuda, forma_pago,
@@ -1255,8 +1145,7 @@ INSERT INTO arbiter_provincia.insured (id, name, surname, dni, email, phone, cas
 SELECT setval(pg_get_serial_sequence('arbiter_provincia.insured','id'),
               (SELECT MAX(id) FROM arbiter_provincia.insured));
 
--- coverage_id 3 = 'Daño accidental' (arbiter_provincia.coverage, PART 5) — same one Martina's
--- Tecnología policy points at.
+-- coverage_id 3 = 'Daño accidental' in arbiter_provincia.
 INSERT INTO arbiter_provincia.policy (id, external_policy_number, product, in_force, insured_id) VALUES
     (8, 'POL-TEC-2026-350', 'Seguro de Tecnología Portátil', TRUE, 3);
 
@@ -1265,24 +1154,13 @@ INSERT INTO arbiter_provincia.policy_coverage (policy_id, coverage_id, display_o
 SELECT setval(pg_get_serial_sequence('arbiter_provincia.policy','id'),
               (SELECT MAX(id) FROM arbiter_provincia.policy));
 
--- No policy_snapshot rows: those are written by classification-service on the first real
--- run against these policies (D27), not something to pre-seed.
+-- No policy_snapshot rows: classification-service writes them on the first real run.
 
 -- =============================================================================
--- PART 8 — Importe de cuota del premio, para poder liquidar
+-- PART 8 — Installment amount, needed to deduct pending installments at settlement
 -- =============================================================================
--- La determinación del monto a pagar descuenta las cuotas que quedan por vencer, y para
--- eso hace falta el importe de cada una. El HAR de la aseguradora no lo trae, así que acá
--- se deriva, al final y de una sola vez, en vez de repetirlo en los siete bloques de
--- pólizas de arriba.
---
--- Dos criterios, en este orden:
---   1. Con cuotas impagas, manda el saldo real (saldo_deuda / cuotas_impagas). Si no, la
---      cuota y la deuda de la misma póliza se contradirían en pantalla.
---   2. Sin deuda, el 2% mensual de la suma asegurada más alta de la póliza. No es un
---      número inventado: es lo que dan las dos pólizas BBVA de referencia — $3.606,53
---      sobre $180.000 en Celulares (2,00%) y $1.872,11 sobre $86.500 en Tecnología
---      Portátil (2,16%).
+-- With unpaid installments, saldo_deuda / cuotas_impagas, so installment and debt agree.
+-- Otherwise 2% a month of the policy's highest sum insured, as in BBVA's reference policies.
 UPDATE aseguradora_bbva.poliza p
    SET importe_cuota = CASE
            WHEN p.cuotas_impagas > 0 AND p.saldo_deuda > 0

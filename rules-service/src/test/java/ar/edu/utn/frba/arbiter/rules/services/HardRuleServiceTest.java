@@ -35,16 +35,14 @@ class HardRuleServiceTest {
     private final InsurerRuleRepository ruleRepository = mock(InsurerRuleRepository.class);
     private final InsurerRuleHistoryRepository historyRepository = mock(InsurerRuleHistoryRepository.class);
     private final BranchRepository branchRepository = mock(BranchRepository.class);
+    private final RuleAuthorResolver authorResolver = mock(RuleAuthorResolver.class);
 
     private final HardRuleService service =
-            new HardRuleService(ruleRepository, historyRepository, branchRepository);
+            new HardRuleService(ruleRepository, historyRepository, branchRepository, authorResolver);
 
     /**
-     * The panel always shows the four coverage-scoped rules: the one the insurer never configured
-     * comes back disabled, exactly how the engine behaves (it doesn't evaluate it). If get
-     * returned only the configured ones, the referente would have nowhere to turn on the missing
-     * ones. Coverage window and arrears aren't here — they're insurer-scoped, see
-     * {@link InsurerHardRuleServiceTest}.
+     * The panel always shows every coverage-scoped rule, so an unconfigured one comes back disabled
+     * and the referente can still turn it on.
      */
     @Test
     void getReturnsTheWholeCatalogEvenWithNothingConfigured() {
@@ -60,11 +58,7 @@ class HardRuleServiceTest {
         assertThat(rules).allMatch(r -> r.deadlineHours() == null);
     }
 
-    /**
-     * The panel sends all four rules on every save, so most of what arrives is untouched. Writing
-     * an audit row for each of those turned one real edit into six entries in the referente's
-     * history, five of them saying nothing happened.
-     */
+    /** The panel sends every rule on each save; only the ones that changed may leave an audit row. */
     @Test
     void doesNotAuditASaveThatLeavesTheRuleAsItWas() {
         when(ruleRepository.findFirstByBranch_IdAndCoverageIdAndRuleType(1L, 1L, "POLICE_DEADLINE"))
@@ -141,6 +135,25 @@ class HardRuleServiceTest {
         assertThat(existing.getConfiguration()).contains("120");
     }
 
+    /** The snapshot points at the referente who made the change; the reason keeps naming them too. */
+    @Test
+    void historyRecordsTheReferenteWhoMadeTheChange() {
+        InsurerRule existing = rule(7L, RuleType.POLICE_DEADLINE, true, "{\"deadlineHours\":72}");
+        when(ruleRepository.findFirstByBranch_IdAndCoverageIdAndRuleType(1L, 1L, "POLICE_DEADLINE"))
+                .thenReturn(Optional.of(existing));
+        when(ruleRepository.save(any(InsurerRule.class))).thenAnswer(inv -> inv.getArgument(0));
+        when(ruleRepository.findByBranch_IdAndCoverageIdAndRuleTypeIn(eq(1L), eq(1L), any()))
+                .thenReturn(List.of(existing));
+        when(authorResolver.referentIdOf("referente@bbva.com")).thenReturn(11L);
+
+        service.upsert(1L, 1L, List.of(new HardRuleDto(RuleType.POLICE_DEADLINE, true, 120L)), "referente@bbva.com");
+
+        ArgumentCaptor<InsurerRuleHistory> history = ArgumentCaptor.forClass(InsurerRuleHistory.class);
+        verify(historyRepository).save(history.capture());
+        assertThat(history.getValue().getChangedBy()).isEqualTo(11L);
+        assertThat(history.getValue().getReason()).endsWith(" por referente@bbva.com");
+    }
+
     /** Turning a rule off doesn't delete the row: it stays inactive, and history keeps the change. */
     @Test
     void disablingARuleKeepsTheRowInactive() {
@@ -157,11 +170,7 @@ class HardRuleServiceTest {
         verify(historyRepository).save(any(InsurerRuleHistory.class));
     }
 
-    /**
-     * Turning on the police deadline without loading the number would leave a rule that claims to
-     * be active but that the engine still never evaluates: rejected on save instead of failing
-     * silently.
-     */
+    /** An active police deadline with no number would never be evaluated, so it's rejected on save. */
     @Test
     void enablingThePoliceDeadlineWithoutAThreshold_isRejected() {
         assertThatThrownBy(() -> service.upsert(
@@ -187,10 +196,7 @@ class HardRuleServiceTest {
                 .hasMessageContaining("not a coverage-scoped hard rule");
     }
 
-    /**
-     * POLICY_STANDING (arrears) is insurer-scoped now, not coverage-scoped: this endpoint rejects
-     * it the same way it rejects FAST_TRACK. See {@link InsurerHardRuleServiceTest}.
-     */
+    /** POLICY_STANDING is insurer-scoped, so this endpoint rejects it like FAST_TRACK. */
     @Test
     void anInsurerScopedRuleType_isRejectedHere() {
         assertThatThrownBy(() -> service.upsert(

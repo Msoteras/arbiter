@@ -23,9 +23,9 @@ import java.util.List;
 import static org.assertj.core.api.Assertions.assertThat;
 
 /**
- * Con Postgres real (Testcontainers): la JPQL de {@link CaseRepository#findUnansweredDueBy} y el
- * dedup de {@link NotificationRepository} solo se ejercitan de verdad contra la BD (comparación de
- * fecha, navegación a {@code currentStatus.name}, y el {@code existsBy…} derivado).
+ * With real Postgres: the JPQL of {@link CaseRepository#findUnansweredDueBy} and the dedup of
+ * {@link NotificationRepository} (date comparison, navigation to {@code currentStatus.name}, the
+ * derived {@code existsBy…}) are only really exercised against the database.
  */
 @SpringBootTest
 @Transactional
@@ -69,14 +69,12 @@ class CaseDeadlineRepositoryTests extends AbstractPersistenceIT {
 
         assertThat(notificationRepository.existsByCaseEntityIdAndRecipientIdAndType(
                 c.getId(), 777L, "DEADLINE_CRITICAL")).isTrue();
-        // Distinto nivel (escalación) o distinto destinatario ⇒ no es duplicado.
+        // A different level (escalation) or recipient is not a duplicate.
         assertThat(notificationRepository.existsByCaseEntityIdAndRecipientIdAndType(
                 c.getId(), 777L, "DEADLINE_OVERDUE")).isFalse();
         assertThat(notificationRepository.existsByCaseEntityIdAndRecipientIdAndType(
                 c.getId(), 888L, "DEADLINE_CRITICAL")).isFalse();
     }
-
-    // ─────────── seed (mismo patrón que CaseRepositorySpecificationTests) ───────────
 
     private Case save(CaseStatus status, LocalDate deadline, String policyNumber, String dni) {
         Insured owner = insured(dni);
@@ -126,19 +124,14 @@ class CaseDeadlineRepositoryTests extends AbstractPersistenceIT {
         });
     }
 
-    /**
-     * La cobertura del catálogo del tenant. Idempotente, mismo patrón que {@code claimCause()}:
-     * varias pólizas de un test comparten la definición, que es lo que pasa en la realidad.
-     */
     private Coverage testCoverage() {
         return coverageRepository.findByName("Cobertura Celulares")
                 .orElseGet(() -> coverageRepository.save(CaseFixtures.coverage("Celulares")));
     }
 
     /**
-     * Deja la póliza con su cobertura contratada. Desde que una póliza tiene VARIAS coberturas, la
-     * suma asegurada vive en {@code policy_coverage} y no en {@code policy}, así que sin esta fila
-     * la póliza no tiene contra qué evaluarse.
+     * The sum insured lives in {@code policy_coverage}, not in {@code policy}: without this row the
+     * policy has nothing to be evaluated against.
      */
     private Policy withCoverage(Policy policy) {
         policyCoverageRepository.save(CaseFixtures.policyCoverage(policy.getId(), testCoverage(), 1));

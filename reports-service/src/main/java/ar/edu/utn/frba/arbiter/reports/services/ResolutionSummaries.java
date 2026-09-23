@@ -20,12 +20,8 @@ import java.util.function.ToLongFunction;
 import java.util.stream.Collectors;
 
 /**
- * Folds the report's rows into its {@link ResolutionSummary} and its timeline.
- *
- * <p>In memory and not in SQL: the rows are already loaded to render the file, a period is capped at
- * 366 days of one insurer's closed claims, and counting them here is what guarantees the head, the
- * chart and the table describe the same set. Doing it with a second query would reopen the door to
- * them disagreeing whenever only one of them changed.
+ * Folds the report's rows into its {@link ResolutionSummary} and timeline in memory, so the head, the
+ * chart and the table always describe the same set. The rows are already loaded and the period is capped.
  */
 public final class ResolutionSummaries {
 
@@ -40,8 +36,8 @@ public final class ResolutionSummaries {
         long fastTrack = rows.stream()
                 .filter(row -> row.classification() == Classification.FAST_TRACK)
                 .count();
-        // The times are averaged over the decided ones only, the same population the dashboard
-        // measures: a lapsed case wasn't resolved by anybody, it measured the insured's silence.
+        // Times are averaged over decided cases only, like the dashboard: a lapsed case measures the
+        // insured's silence, not the operation.
         List<ResolutionReportRow> decided = rows.stream().filter(ResolutionSummaries::decided).toList();
 
         return new ResolutionSummary(
@@ -56,17 +52,9 @@ public final class ResolutionSummaries {
     }
 
     /**
-     * The same rows spread over the period, one point per bucket, so the average on the card can be
-     * read as a trajectory instead of a single number.
-     *
-     * <p>Every bucket of the period is emitted, including the ones where nothing closed: a gap in
-     * the line is information — that fortnight the company resolved nothing — and dropping the
-     * empty buckets would draw a continuous line over it, moving the neighbouring points closer
-     * together and inventing a smoothness the data doesn't have.
-     *
-     * <p>The average per bucket is over the DECIDED cases, exactly like
-     * {@link ResolutionSummary#averageMinutes()}; the count next to it is every case that closed.
-     * Two populations on purpose — see {@link ResolutionTimelinePoint}.
+     * Emits every bucket of the period, empty ones included: dropping them would draw a continuous line
+     * over a stretch where nothing closed. Averages cover decided cases only; see
+     * {@link ResolutionTimelinePoint}.
      */
     public static List<ResolutionTimelinePoint> timeline(List<ResolutionReportRow> rows, LocalDate from,
                                                          LocalDate to, ZoneId zone,
@@ -88,27 +76,19 @@ public final class ResolutionSummaries {
         return points;
     }
 
-    /**
-     * Decided means an analyst pronounced on it. Same cut as the dashboard's
-     * {@code resolutionSplit}, which counts the cases that closed APPROVED or REJECTED.
-     */
+    /** Same cut as the dashboard's {@code resolutionSplit}: closed APPROVED or REJECTED. */
     private static boolean decided(ResolutionReportRow row) {
         return row.finalStatus() == CaseStatus.APPROVED || row.finalStatus() == CaseStatus.REJECTED;
     }
 
-    /** Null and not zero with nothing to average: an unknown average, not a zero one. */
     private static Double average(List<ResolutionReportRow> rows,
                                   ToLongFunction<ResolutionReportRow> minutes) {
         return rows.isEmpty() ? null : rows.stream().mapToLong(minutes).average().orElseThrow();
     }
 
     /**
-     * Busiest bucket first — the distribution is read to find where the volume is, so the answer
-     * should be the first line. Ties break by label so the same data always renders the same way,
-     * in the file as on the screen.
-     *
-     * <p>Status buckets carry the enum literal, not a Spanish label: translating is the frontend's
-     * job for the preview and {@code ReportLabels}' job for the exports.
+     * Busiest first, ties by label so the same data always renders the same way. Buckets carry enum
+     * literals; the frontend and {@code ReportLabels} translate them.
      */
     private static List<MetricCount> countBy(List<ResolutionReportRow> rows,
                                              Function<ResolutionReportRow, String> bucket) {
