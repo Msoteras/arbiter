@@ -8,12 +8,6 @@
       <app-button variant="secondary" (click)="add()">+ Agregar proveedor</app-button>
     }
   </div>
-  <!-- La barra de abajo gobierna la regla del antecedente, no esta lista: sin este aviso, "Todo
-       guardado" después de tocar un perito se lee como que el cambio no se registró. -->
-  <p class="autosave t-note">
-    <span aria-hidden="true">✓</span>
-    Los peritos se guardan solos al confirmar cada uno: no hace falta usar «Guardar cambios».
-  </p>
 
   @if (loading()) {
     <p class="t-note">Cargando…</p>
