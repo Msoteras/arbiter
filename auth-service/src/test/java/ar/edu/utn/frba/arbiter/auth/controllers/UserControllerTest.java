@@ -40,13 +40,9 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 /**
- * H0002 - Alta de Usuarios. Tokens are issued straight from JwtService instead of hitting
- * /api/v1/auth/login: that endpoint validates against the real Auth0 now (there's no
- * DatabaseCredentialsAuthenticator to point at in a test), so login itself is covered by
- * Auth0AdapterTest with mocks — what's tested here is authorization and CRUD.
+ * Tokens are minted straight from JwtService because login validates against the real Auth0;
+ * login is covered by Auth0AdapterTest. The dummy Auth0 domain only makes the AuthAPI bean buildable.
  */
-// Dummy Auth0 domain: Auth0Config's AuthAPI bean needs a parseable URL to construct, even
-// though nothing here ever calls the real Auth0 API — tokens are minted directly via JwtService.
 @SpringBootTest(properties = "arbiter.auth.auth0.domain=example.auth0.com")
 @AutoConfigureMockMvc
 class UserControllerTest extends AbstractPersistenceIT {
@@ -75,8 +71,6 @@ class UserControllerTest extends AbstractPersistenceIT {
     @Autowired
     private JwtService jwtService;
 
-    /** Neutralizes real Auth0 Management API calls from deleteUser — login itself is
-     * bypassed entirely here (tokens minted directly), Auth0Adapter never touches this. */
     @MockitoBean
     private Auth0UserProvisioner auth0UserProvisioner;
 

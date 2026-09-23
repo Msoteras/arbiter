@@ -25,8 +25,8 @@ import java.util.Base64;
 
 /**
  * Opens the password the browser sends encrypted on login. It doesn't replace TLS — it keeps the
- * password out of devtools, HARs and access logs. The auth-service → Auth0 leg still goes in the
- * clear inside the tunnel, since Auth0's API takes the real password (decision #8).
+ * password out of devtools, HARs and access logs. The auth-service → Auth0 leg still carries the
+ * plain password inside TLS, since Auth0's API takes the real one.
  */
 @Service
 @Slf4j

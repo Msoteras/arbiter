@@ -20,23 +20,18 @@ public final class JwtSupport {
     }
 
     /**
-     * Mints a short-lived token for system-to-system calls that don't happen on behalf of a
-     * user request (e.g. a background scheduler polling another module) — there's no user JWT
-     * to propagate in that case. No {@code rol} claim: the caller only needs to pass
-     * {@code isAuthenticated()} on the receiving end, not any specific role.
+     * Short-lived token for system-to-system calls with no user JWT to propagate (e.g. a
+     * scheduler). No {@code rol} claim: the receiver only checks {@code isAuthenticated()}.
      */
     public static String issueServiceToken(SecretKey key, String subject) {
         return issueServiceToken(key, subject, null);
     }
 
     /**
-     * Same, carrying the tenant the call has to run against. A background job serves no single
-     * insurer, so it sweeps them one at a time and names the schema explicitly — without this
-     * claim the receiving module's TenantResolvingFilter finds nothing and falls back to the
-     * common schema, where the per-tenant tables don't exist.
+     * Carries the tenant explicitly: a background job serves no single insurer, and without the
+     * claim the receiver falls back to the common schema, where tenant tables don't exist.
      *
-     * @param tenantSchema schema to target, or {@code null} for calls that touch only the
-     *                     common schema
+     * @param tenantSchema {@code null} for calls that touch only the common schema
      */
     public static String issueServiceToken(SecretKey key, String subject, String tenantSchema) {
         Instant now = Instant.now();

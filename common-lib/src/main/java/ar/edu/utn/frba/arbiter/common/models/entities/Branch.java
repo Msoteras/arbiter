@@ -12,10 +12,7 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
 
-/**
- * Insurance line (celulares, hogar, automotor, vida…) — "Ramo" in CLAUDE.md's domain
- * vocabulary.
- */
+/** Insurance line (ramo): celulares, hogar, automotor, vida… */
 @Entity
 @Table(name = "branch", schema = "arbiter_common")
 @Getter

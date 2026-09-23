@@ -17,13 +17,7 @@ import lombok.Setter;
 
 import java.io.Serializable;
 
-/**
- * Which insurer a user belongs to ("usuario_aseguradora" in the DER) — a pure junction
- * row, composite PK {@code (user_id, insurer_id)} in the real DDL, no surrogate id
- * column. {@code insurerId} is a real FK now that {@link Insurer} lives in the same
- * common schema (unlike the single-schema DB, where rules-service owned it and this had
- * to be a logical cross-module reference instead).
- */
+/** Which insurers a user belongs to. Junction row with composite PK {@code (user_id, insurer_id)}. */
 @Entity
 @Table(name = "user_insurer", schema = "arbiter_common")
 @IdClass(UserInsurer.Key.class)

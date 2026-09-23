@@ -19,11 +19,6 @@ import lombok.Setter;
 import java.util.HashSet;
 import java.util.Set;
 
-/**
- * Granular role catalog ("rol" in the DER), distinct from the existing {@code User.rol}
- * enum column (ASEGURADO/ANALISTA_SINIESTROS/REFERENTE_ASEGURADORA) — that enum stays as
- * the current single-role source of truth until the migration to this model is decided.
- */
 @Entity
 @Table(name = "role", schema = "arbiter_common")
 @Getter

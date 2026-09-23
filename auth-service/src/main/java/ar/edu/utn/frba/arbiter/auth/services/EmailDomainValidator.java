@@ -9,11 +9,7 @@ import javax.naming.directory.Attributes;
 import javax.naming.directory.InitialDirContext;
 import java.util.Hashtable;
 
-/**
- * Checks the email's domain has MX records (DNS) before creating it — filters out made-up domains
- * (asdf.qwerty) without sending a real mail. It doesn't verify the specific mailbox exists, only
- * that the domain can receive mail.
- */
+/** Rejects domains without MX records. Doesn't verify that the mailbox itself exists. */
 @Component
 public class EmailDomainValidator {
 

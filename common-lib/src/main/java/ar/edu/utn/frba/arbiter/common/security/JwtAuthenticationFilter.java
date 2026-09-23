@@ -21,10 +21,8 @@ import java.io.IOException;
 import java.util.List;
 
 /**
- * Validates our own JWT (H0001, transitional until Auth0) and fills the SecurityContext with the
- * role as an authority (ROLE_&lt;rol&gt;). A missing or invalid token leaves the request
- * unauthenticated — each service decides in its own SecurityConfig whether that's enough (public
- * endpoint) or not.
+ * Validates Arbiter's JWT and exposes the role as {@code ROLE_<rol>}. A missing or invalid token
+ * leaves the request unauthenticated; each module's SecurityConfig decides whether that's enough.
  */
 public class JwtAuthenticationFilter extends OncePerRequestFilter {
 

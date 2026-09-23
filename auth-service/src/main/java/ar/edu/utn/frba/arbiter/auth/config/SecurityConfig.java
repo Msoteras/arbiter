@@ -11,10 +11,6 @@ import org.springframework.security.config.annotation.method.configuration.Enabl
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.web.SecurityFilterChain;
 
-/**
- * Login stays public (it's the only entry point without a JWT); everything else needs to be
- * authenticated. No server session (architecture decision #13): the state lives in the JWT.
- */
 @Configuration
 @EnableMethodSecurity
 @RequiredArgsConstructor
@@ -40,8 +36,6 @@ public class SecurityConfig {
         http.authorizeHttpRequests(auth -> auth
                 .requestMatchers(
                         "/api/v1/auth/login",
-                        // Public by necessity: it's the first thing the browser asks for, before it
-                        // has anything to authenticate with. It's the public key, nothing to guard.
                         "/api/v1/auth/public-key",
                         "/api/v1/auth/activate",
                         "/api/v1/auth/forgot-password",
@@ -49,8 +43,7 @@ public class SecurityConfig {
                         "/api/v1/auth/invite-tokens/**",
                         "/v3/api-docs/**",
                         "/swagger-ui/**",
-                        // The platform's liveness probe has no JWT to present. Only `health` is
-                        // exposed (see application.yml), so this opens a status word, nothing else.
+                        // Liveness probe has no JWT; only `health` is exposed by actuator.
                         "/actuator/health",
                         "/actuator/health/**")
                 .permitAll()

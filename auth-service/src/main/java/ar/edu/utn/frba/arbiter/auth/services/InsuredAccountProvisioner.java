@@ -21,12 +21,9 @@ import java.util.Optional;
 import java.util.UUID;
 
 /**
- * Provisions <b>one</b> policyholder's platform account, idempotently.
- *
- * <p>Separate from {@link InsuredProvisioningService} so each person gets their own transaction:
- * in a bulk of thousands, one bad row must skip that person and not roll back the batch. Calling
- * it from the loop crosses the proxy boundary, which is what actually gives each iteration its
- * own commit.
+ * Provisions one policyholder's account, idempotently. A separate bean from
+ * {@link InsuredProvisioningService} so the call crosses the proxy and each person gets their own
+ * transaction: one bad row mustn't roll back the batch.
  */
 @Component
 @RequiredArgsConstructor
@@ -39,11 +36,7 @@ public class InsuredAccountProvisioner {
     private final UserInsurerRepository userInsurerRepository;
     private final TenantProfileService tenantProfileService;
 
-    /**
-     * @param inviteToken the token to mail, or null when this person needs no invitation (they
-     *                    already had an account — re-inviting them would be unsolicited mail, and
-     *                    {@code UserService.resendInvite} already covers the one-off case)
-     */
+    /** @param inviteToken null when the person already had an account and needs no invitation */
     public record Outcome(
             User user,
             boolean userCreated,
@@ -54,13 +47,10 @@ public class InsuredAccountProvisioner {
 
     /**
      * Matches on <b>email</b>, never on document: the same person insured at two companies is one
-     * login with two {@code user_insurer} rows — Roman Castillo is exactly that in the fixtures.
-     * Keying on (insurer, DNI) would give them a second account and split their identity in half.
+     * login with two {@code user_insurer} rows.
      *
-     * <p>Note {@code users.email} carries no UNIQUE constraint yet (the schema flags it as
-     * pending), so this lookup is the only thing standing between a re-run and a duplicate
-     * identity. The migration that ships with this flow adds the index; until it is applied, do
-     * not run two of these concurrently.
+     * <p>Without the unique index on {@code users.email} this lookup is the only duplicate guard,
+     * so don't run two provisioning runs concurrently.
      */
     @Transactional(propagation = Propagation.REQUIRES_NEW)
     public Outcome provisionOne(InsuredDirectoryEntry entry, Long insurerId) {
@@ -77,9 +67,8 @@ public class InsuredAccountProvisioner {
     }
 
     /**
-     * Created "pending", exactly like the analyst invitation: {@code auth0_sub} is NOT NULL, so it
-     * holds a placeholder derived from the invite token until activation replaces it with the real
-     * Auth0 subject. Nobody exists in Auth0 until they choose a password.
+     * {@code auth0_sub} is NOT NULL, so it holds a placeholder until activation sets the real Auth0
+     * subject. Nobody exists in Auth0 until they choose a password.
      */
     private User createUser(InsuredDirectoryEntry entry) {
         String inviteToken = UUID.randomUUID().toString();
@@ -98,10 +87,8 @@ public class InsuredAccountProvisioner {
     }
 
     /**
-     * The membership row is what actually hands an existing user this insurer's policies: the
-     * portal aggregates them live off the signed {@code insurerIds} claim, which is built from this
-     * table. So for someone already on the platform, linking <i>is</i> the "append their policies"
-     * step — nothing gets copied into {@code arbiter_*.policy}.
+     * Linking is what gives an existing user this insurer's policies: the portal reads them off the
+     * {@code insurerIds} claim, built from this table. Nothing gets copied.
      */
     private boolean linkInsurer(User user, Long insurerId) {
         boolean alreadyLinked = userInsurerRepository.findByUserId(user.getId()).stream()

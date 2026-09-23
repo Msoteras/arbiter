@@ -1,6 +1,5 @@
 package ar.edu.utn.frba.arbiter.auth.services;
 
-import ar.edu.utn.frba.arbiter.auth.config.tenant.TenantContext;
 import ar.edu.utn.frba.arbiter.auth.dto.LoginResponse;
 import ar.edu.utn.frba.arbiter.auth.dto.OnboardingRequest;
 import ar.edu.utn.frba.arbiter.auth.dto.ProfileResponse;

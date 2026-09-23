@@ -13,13 +13,9 @@ import lombok.NoArgsConstructor;
 import lombok.Setter;
 
 /**
- * Configurable case-status catalog ("estado_expediente" in the DER) — the target shape
- * for H0015 ("el referente puede definir los estados activos del flujo").
- *
- * <p>{@code cases.current_status_id} and {@code case_status_history} point here. {@code name}
- * is still 1:1 with common-lib's {@code CaseStatus} enum, which stays as the vocabulary the
- * state machine and the API speak; the enum literal is what resolves a row (the column is
- * UNIQUE). Adding a row the enum doesn't know about is the next step of H0015, not this one.
+ * Case-status catalog that {@code cases.current_status_id} and {@code case_status_history} point
+ * to. {@code name} is 1:1 with {@code CaseStatus}: the enum literal is what resolves a row, so a
+ * row the enum doesn't know about isn't supported.
  */
 @Entity
 @Table(name = "case_status", schema = "arbiter_common")
