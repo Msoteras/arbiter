@@ -27,9 +27,8 @@ import static ar.edu.utn.frba.arbiter.reports.support.CaseTables.ROBO_CELULARES;
 import static org.assertj.core.api.Assertions.assertThat;
 
 /**
- * Against real Postgres, because the query is the whole feature: the two correlated counts (the
- * insured's claims in the trailing window, the flagged images) and the predicate that decides which
- * cases are suspicious at all.
+ * Against real Postgres: the correlated counts and the predicate that decides which cases are
+ * suspicious are the feature.
  */
 @SpringBootTest
 @TestInstance(TestInstance.Lifecycle.PER_CLASS)
@@ -91,11 +90,7 @@ class FlaggedCaseRepositoryTests extends AbstractPersistenceIT {
         assertThat(repository.findFlaggedBetween(SEPTEMBER_FROM, SEPTEMBER_TO, null, null)).isEmpty();
     }
 
-    /**
-     * Claiming twice in a year does NOT put a case in this report: it is not an indication of fraud
-     * and it already weighs inside the score ({@code claim_frequency}). Without another signal, the
-     * case is not listed.
-     */
+    /** Claiming twice in a year alone does not list a case: it already weighs inside the score. */
     @Test
     void aSecondClaimOfTheSameInsured_isNotEnoughToBeListed() {
         tables.insertCase(1, "2026-09-02T10:00:00Z", PENDING_REVIEW, ROBO_CELULARES, false, null, null);
@@ -104,7 +99,7 @@ class FlaggedCaseRepositoryTests extends AbstractPersistenceIT {
         assertThat(repository.findFlaggedBetween(SEPTEMBER_FROM, SEPTEMBER_TO, null, null)).isEmpty();
     }
 
-    /** It is still counted, because the row shows it next to the signal that did flag the case. */
+    /** Still counted, because the row shows it next to the signal that did flag the case. */
     @Test
     void theClaimsOfTheWindow_travelAsContextOfAFlaggedCase() {
         tables.insertCase(1, "2026-09-02T10:00:00Z", PENDING_REVIEW, ROBO_CELULARES, false, null, null);
@@ -161,7 +156,7 @@ class FlaggedCaseRepositoryTests extends AbstractPersistenceIT {
         });
     }
 
-    /** The cross: the two criteria on one case, which is what the report exists to surface. */
+    /** Two signals on one case. */
     @Test
     void theTwoSignals_coincideOnTheSameCase() {
         tables.insertCase(1, "2026-09-02T10:00:00Z", APPROVED, ROBO_CELULARES, false, null, null);
@@ -184,11 +179,7 @@ class FlaggedCaseRepositoryTests extends AbstractPersistenceIT {
         });
     }
 
-    /**
-     * The listing leads with the cases to look at first, which is the whole point of crossing three
-     * signals: a case with all three, filed at the start of the period, must not sit under a case
-     * with one filed yesterday.
-     */
+    /** A case with three signals filed early in the period leads over one with a single signal filed later. */
     @Test
     void theCasesWithMoreSignals_comeFirst_evenIfTheyWereFiledEarlier() {
         // Ana's first claim: no signal of its own, and the reason her second one is a repeat.
@@ -255,10 +246,7 @@ class FlaggedCaseRepositoryTests extends AbstractPersistenceIT {
                 .extracting(FraudReportRow::caseId).containsExactly(2L);
     }
 
-    /**
-     * The denominator counts every claim of the period, flagged or not, and follows the branch cut
-     * but nothing else — it is what turns "2 marcados" into "2 de 3".
-     */
+    /** The denominator counts every claim of the period, flagged or not, and only follows the branch cut. */
     @Test
     void countClaimsBetween_countsThePeriodWhole_andRespectsTheBranch() {
         tables.insertCase(1, "2026-09-10T10:00:00Z", PENDING_REVIEW, ROBO_CELULARES, false, null, null);
@@ -286,10 +274,7 @@ class FlaggedCaseRepositoryTests extends AbstractPersistenceIT {
                 });
     }
 
-    /**
-     * A case reclassified after the insured fixed their documentation reads clean: only the LATEST
-     * scoring run counts, same as {@code cases.risk_band} only ever holds the latest band.
-     */
+    /** Only the LATEST scoring run counts, so a case reclassified after fixing its documentation reads clean. */
     @Test
     void onlyTheLatestRiskAnalysisRun_decidesTheSignal() {
         tables.insertCase(1, "2026-09-10T10:00:00Z", PENDING_REVIEW, ROBO_CELULARES, false, null, null);

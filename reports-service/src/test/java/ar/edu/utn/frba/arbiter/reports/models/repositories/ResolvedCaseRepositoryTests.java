@@ -30,8 +30,8 @@ import static ar.edu.utn.frba.arbiter.reports.support.CaseTables.ROBO_CELULARES;
 import static org.assertj.core.api.Assertions.assertThat;
 
 /**
- * Against real Postgres, because the query is the whole feature: the {@code DISTINCT ON} that picks
- * the last closing, the {@code is_final} join, and the fallbacks for Fast Track and lapsed cases.
+ * Against real Postgres: the {@code DISTINCT ON} that picks the last closing, the {@code is_final}
+ * join and the Fast Track and lapsed fallbacks are the feature.
  */
 @SpringBootTest
 @TestInstance(TestInstance.Lifecycle.PER_CLASS)
@@ -87,10 +87,7 @@ class ResolvedCaseRepositoryTests extends AbstractPersistenceIT {
         });
     }
 
-    /**
-     * The time waiting on somebody outside the insurer, so the average can leave it out — the same
-     * definition the dashboard reads ({@code CaseResolutionSql.WAITING_CTE}).
-     */
+    /** The time waiting on third parties, per {@code CaseResolutionSql.WAITING_CTE}. */
     @Test
     void waitingOnAThirdParty_isMeasuredApartFromTheTotal() {
         tables.insertCase(1, "2026-08-01T10:00:00Z", APPROVED, ROBO_CELULARES, false, LAURA, null);
@@ -107,7 +104,6 @@ class ResolvedCaseRepositoryTests extends AbstractPersistenceIT {
         });
     }
 
-    /** Never derived to anybody: the whole time is the insurer's own. */
     @Test
     void aCaseThatNeverWaited_hasNoWaitingTime() {
         tables.insertCase(1, "2026-08-01T10:00:00Z", APPROVED, ROBO_CELULARES, false, LAURA, null);

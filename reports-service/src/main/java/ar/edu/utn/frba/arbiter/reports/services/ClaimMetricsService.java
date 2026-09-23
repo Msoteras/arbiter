@@ -30,22 +30,14 @@ import java.util.Map;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
-/**
- * The referent's dashboard: how their own portfolio of claims is running over a period. Always
- * scoped to the caller's insurer — the tenant schema their JWT resolves to — so there is no
- * parameter that could point it at another company.
- */
+/** The dashboard, always scoped to the tenant the caller's JWT resolves to. */
 @Service
 @RequiredArgsConstructor
 public class ClaimMetricsService {
 
-    /**
-     * A year, leap day included. Same ceiling as the resolution report: not a business rule, a
-     * guard on how much one request can scan.
-     */
+    /** Not a business rule: a guard on how much one request can scan. */
     static final int MAX_PERIOD_DAYS = 366;
 
-    /** What the dashboard opens on when the caller names no period. */
     private static final MetricsRange DEFAULT_RANGE = MetricsRange.MONTH;
 
     private final ClaimMetricsRepository claimMetricsRepository;
@@ -53,21 +45,15 @@ public class ClaimMetricsService {
     private final Clock clock;
 
     /**
-     * <b>Una sola transacción para las veinte consultas del tablero</b>, y no una por método del
-     * repositorio. No es por atomicidad —es todo lectura— sino por lo que cuesta pedir la conexión:
-     * con multi-tenancy, cada adquisición la apunta al esquema del tenant y cada devolución la
-     * vuelve a {@code arbiter_common}. Una transacción por consulta pagaba ese ida y vuelta veinte
-     * veces, y con la base en otra red eso era el grueso del tiempo de respuesta. Los métodos del
-     * repositorio siguen anotados: se suman a ésta cuando se los llama desde acá, y siguen teniendo
-     * la suya cuando se los llama sueltos (los tests lo hacen).
+     * <b>One transaction for all the dashboard's queries</b>, not for atomicity but because each
+     * connection acquisition sets the tenant search_path and each release resets it; one transaction
+     * per query paid that round trip twenty times.
      *
-     * <p><b>El objetivo se pide antes de tocar la base</b>, y el orden importa: es una llamada HTTP
-     * a rules-service, e ir a buscarla en el medio dejaría una conexión tomada esperando a otro
-     * módulo. Hibernate adquiere la conexión recién en la primera consulta, así que pidiéndolo
-     * primero la llamada queda enteramente fuera.
+     * <p>The resolution target is fetched <b>before</b> the first query on purpose: Hibernate acquires
+     * the connection lazily, so the HTTP call to rules-service never holds one.
      *
-     * @param range shortcut period; mutually exclusive with {@code from}/{@code to}. With all three
-     *              absent the dashboard gets {@link #DEFAULT_RANGE}.
+     * @param range mutually exclusive with {@code from}/{@code to}; with all three absent,
+     *              {@link #DEFAULT_RANGE}
      */
     @Transactional(readOnly = true)
     public ClaimMetrics generate(MetricsRange range, LocalDate from, LocalDate to, MetricsFilter filter) {
@@ -78,9 +64,8 @@ public class ClaimMetricsService {
         ZoneId zone = clock.getZone();
         ResolutionTarget target = rulesServiceClient.resolutionTarget();
 
-        // Whole calendar days in the insurer's time zone, both ends included: "hasta el 31/08"
-        // means up to the last second of that day, so the upper bound is the next midnight,
-        // exclusive. Same convention as the resolution report.
+        // Whole calendar days in the insurer's time zone, both ends included: the upper bound is the
+        // next midnight, exclusive.
         Instant start = period.from().atStartOfDay(zone).toInstant();
         Instant end = period.to().plusDays(1).atStartOfDay(zone).toInstant();
 
@@ -117,13 +102,9 @@ public class ClaimMetricsService {
     }
 
     /**
-     * El objetivo que fijó la aseguradora y cuántas decisiones se pasaron de él.
+     * Only queries when a target is set.
      *
-     * <p>La consulta sólo corre si hay objetivo: sin uno no hay contra qué contar, y preguntarle a
-     * la base "cuántos superaron nada" es una consulta de más en cada carga del tablero.
-     *
-     * @param target lo que contestó rules-service, ya traído por {@link #generate} antes de abrir
-     *               la transacción
+     * @param target already fetched by {@link #generate} before the transaction touched the database
      */
     private ResolutionTarget resolutionTarget(
             ResolutionTarget target, Instant start, Instant end, MetricsFilter filter) {
@@ -134,20 +115,12 @@ public class ClaimMetricsService {
                 claimMetricsRepository.countDecidedOverTarget(start, end, target.targetDays(), filter));
     }
 
-    /**
-     * The same summary over the stretch of equal length ending the day before this period starts.
-     * It's what turns "30,8 días" into "30,8 días, 4 más que antes" — a figure nobody can read
-     * without something to read it against.
-     *
-     * <p>Equal length and immediately before, rather than "the previous calendar month": a custom
-     * 17-day period has to compare against 17 days or the delta is measuring the calendar.
-     */
     private MetricsSummary previousSummary(Period period, ZoneId zone, MetricsFilter filter) {
         PreviousPeriod previous = PreviousPeriod.immediatelyBefore(period.from(), period.to());
         Instant start = previous.from().atStartOfDay(zone).toInstant();
         Instant end = previous.to().plusDays(1).atStartOfDay(zone).toInstant();
-        // Sin la partición: los deltas del encabezado se leen sobre el total, y traerla costaría
-        // una consulta con ventanas más por cada carga del tablero para un número que no se muestra.
+        // No waiting split: the header deltas only use the total, and the split costs an extra
+        // windowed query for a number that isn't shown.
         return summarize(
                 claimMetricsRepository.intakeTotals(start, end, filter),
                 claimMetricsRepository.resolvedTotals(start, end, filter),
@@ -187,8 +160,7 @@ public class ClaimMetricsService {
         long rejected = countOf(byStatus, CaseStatus.REJECTED);
         long lapsed = countOf(byStatus, CaseStatus.LAPSED);
         long resolvedCases = resolved.stream().mapToLong(ResolvedTotals::count).sum();
-        // Decided, not resolved: a lapsed claim closed without anyone deciding it, so it belongs in
-        // neither the rates nor the average (see MetricsSummary).
+        // Decided, not resolved: a lapsed claim closed without anyone deciding it.
         long decided = approved + rejected;
 
         return new MetricsSummary(
@@ -214,11 +186,7 @@ public class ClaimMetricsService {
         return whole == 0 ? null : (double) part / whole;
     }
 
-    /**
-     * The database averaged each final status separately, so the overall figure has to weigh them
-     * by how many claims each one closed — averaging the two averages would let a single rejection
-     * count as much as fifty approvals.
-     */
+    /** Weighted by count: averaging the per-status averages would let one rejection weigh as much as fifty approvals. */
     private static Double averageHours(Map<String, ResolvedTotals> byStatus) {
         double weightedSeconds = 0;
         long decided = 0;
@@ -232,18 +200,14 @@ public class ClaimMetricsService {
         return decided == 0 ? null : weightedSeconds / decided / 3600;
     }
 
-    /**
-     * The database only returns buckets where something happened. A line chart needs the quiet ones
-     * too: without them a fortnight with no claims reads as a straight line between its ends
-     * instead of as a flat zero.
-     */
+    /** The database only returns non-empty buckets; without the quiet ones the chart interpolates over them. */
     private static List<TimelinePoint> fillGaps(
             List<TimelinePoint> points, Period period, TimelineGranularity granularity) {
         Map<LocalDate, TimelinePoint> found = points.stream()
                 .collect(Collectors.toMap(TimelinePoint::bucket, Function.identity()));
         List<TimelinePoint> complete = new ArrayList<>();
-        // Starts at the bucket the period's first day belongs to, which can predate it: a period
-        // starting on a Wednesday is reported under the Monday of that week.
+        // The first bucket can predate the period: a period starting on a Wednesday is reported under
+        // that week's Monday.
         LocalDate bucket = granularity.bucketOf(period.from());
         while (!bucket.isAfter(period.to())) {
             complete.add(found.getOrDefault(bucket, new TimelinePoint(bucket, 0, 0)));

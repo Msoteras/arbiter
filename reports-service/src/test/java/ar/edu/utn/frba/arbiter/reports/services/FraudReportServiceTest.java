@@ -82,7 +82,7 @@ class FraudReportServiceTest {
         verifyNoInteractions(repository);
     }
 
-    /** Whole calendar days, both ends included: "hasta el 30/09" reaches the next midnight. */
+    /** Whole calendar days, both ends included: the last day reaches the next midnight. */
     @Test
     void thePeriod_coversBothDaysWhole() {
         service.generate(SEP_1, SEP_30, null, null);
@@ -99,8 +99,7 @@ class FraudReportServiceTest {
 
         FraudReport report = service.generate(SEP_1, SEP_30, 7L, RiskBand.CRITICAL);
 
-        // The exact period, not just(any(), any()): that wildcard also matches the previous-period
-        // query generate() now makes, and a loose verify here can't tell the two calls apart.
+        // The exact period, not any(): a wildcard would also match the previous-period query.
         verify(repository).findFlaggedBetween(
                 eq(Instant.parse("2026-09-01T03:00:00Z")), eq(Instant.parse("2026-10-01T03:00:00Z")),
                 eq(7L), eq(RiskBand.CRITICAL));
@@ -120,7 +119,7 @@ class FraudReportServiceTest {
         assertThat(report.summary()).isEqualTo(FraudSummary.EMPTY);
     }
 
-    /** Filtering by a branch that doesn't exist would echo "Todos" over a report that matched nothing. */
+    /** An unknown branch would otherwise echo "all branches" over a report that matched nothing. */
     @Test
     void anUnknownBranch_isRejected_beforeRunningTheQuery() {
         given(repository.findBranchName(99L)).willReturn(null);
@@ -137,16 +136,7 @@ class FraudReportServiceTest {
         verify(repository, never()).findBranchName(any());
     }
 
-    /**
-     * The order is the repository's ORDER BY, not a second sort here — see
-     * {@code FlaggedCaseRepositoryTests} for what that order actually is (signal count first, band
-     * as the tie-break). Re-sorting in the service was the bug: it disagreed with the SQL and with
-     * what the screen tells the analyst ("ordenadas por cantidad de señales…").
-     */
-    /**
-     * Equal length, immediately before: 30 days of September compares against 30 days ending the
-     * day before it starts, not against "el mes anterior" by name.
-     */
+    /** Equal length, immediately before: 30 days of September compare against the 30 days before it. */
     @Test
     void generate_alsoQueriesTheEqualLengthStretchRightBefore() {
         service.generate(SEP_1, SEP_30, null, null);
@@ -193,7 +183,7 @@ class FraudReportServiceTest {
                 .containsExactly(4L, 3L, 1L, 2L);
     }
 
-    /** The head describes the very rows underneath it — that is the point of computing it from them. */
+    /** The head describes the very rows underneath it. */
     @Test
     void summarisesTheRowsItReturns() {
         given(repository.findFlaggedBetween(any(), any(), isNull(), isNull())).willReturn(List.of(
@@ -210,9 +200,7 @@ class FraudReportServiceTest {
     }
 
     /**
-     * The denominator is the period and the branch, and nothing else. With a band filter on, the
-     * share still answers "qué parte del período es crítica" — a denominator that shrank with the
-     * filter would always read 100% and say nothing.
+     * The denominator ignores the band filter: one that shrank with it would always read 100%.
      */
     @Test
     void theDenominator_followsTheBranchButNotTheAlertLevel() {

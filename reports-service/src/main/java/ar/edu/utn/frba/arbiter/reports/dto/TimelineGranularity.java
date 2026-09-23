@@ -3,11 +3,7 @@ package ar.edu.utn.frba.arbiter.reports.dto;
 import java.time.LocalDate;
 import java.time.temporal.ChronoUnit;
 
-/**
- * How wide each point of the timeline chart is. Not chosen by the caller: it's derived from the
- * length of the period, so a week reads day by day and a year doesn't come back as 365 points
- * nobody can tell apart on a phone screen.
- */
+/** Derived from the period length (not chosen by the caller) so a year doesn't come back as 365 points. */
 public enum TimelineGranularity {
 
     DAY("day"),
@@ -26,15 +22,8 @@ public enum TimelineGranularity {
     }
 
     /**
-     * The period alone doesn't settle it: volume does too. An insurer with a dozen claims a month
-     * read day by day is a row of thirty points, almost all of them zero, with three spikes — a
-     * chart that is mostly empty space and says less than the same data grouped by week. So a
-     * month's worth of days is only read day by day when there is roughly a claim a day to show.
-     *
-     * <p>A short window is the exception: under a fortnight the daily detail IS the point, whatever
-     * the volume, and grouping it by week would leave one or two bars.
-     *
-     * @param reported how many claims were filed in the period
+     * Volume matters too: a month with a dozen claims read day by day is mostly empty, so a month is
+     * only daily with roughly a claim a day. Under a fortnight the daily detail is always the point.
      */
     public static TimelineGranularity forPeriod(LocalDate from, LocalDate to, long reported) {
         long days = ChronoUnit.DAYS.between(from, to) + 1;

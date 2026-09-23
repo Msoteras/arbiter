@@ -3,27 +3,16 @@ package ar.edu.utn.frba.arbiter.reports.models.repositories;
 import ar.edu.utn.frba.arbiter.common.enums.CaseStatus;
 
 /**
- * The two definitions every figure about resolution times is built on: when a case closed, and how
- * much of that time it spent waiting on somebody outside the insurer.
- *
- * <p>They live here because the dashboard and the resolution report both answer them, and they have
- * to answer them the same way. {@code ClaimMetricsRepository} used to carry its own copy with a
- * comment saying it was "defined exactly as ResolvedCaseRepository defines it" — which is the kind
- * of agreement that holds until someone edits one of the two. Sharing the text is what makes the
- * dashboard's average and the report's average the same number over the same period.
- *
- * <p>Both are CTEs to be concatenated: {@link #RESOLUTION_CTE} opens the {@code WITH}, and anything
- * after it joins with {@code ",\n"}.
+ * When a case closed and how long it waited on third parties, shared so the dashboard and the
+ * resolution report compute the same averages. CTEs to concatenate: {@link #RESOLUTION_CTE} opens the
+ * {@code WITH}, and what follows joins with {@code ",\n"}.
  */
 final class CaseResolutionSql {
 
     /**
-     * When a case closed: it sits in a final status of the platform catalog ({@code is_final}, not a
-     * hardcoded list), and the resolution date is the LAST transition into that status — a case that
-     * was reopened and closed again counts once, on the day it closed for good.
-     *
-     * <p>The latest transition is picked before filtering by period on purpose: filtering first
-     * would pick up an earlier closing that a reopen already undid.
+     * A case is resolved when its current status is final ({@code is_final}); the resolution date is
+     * the LAST transition into it. The latest transition is picked before any period filter, otherwise
+     * an earlier closing undone by a reopen would be picked up.
      */
     static final String RESOLUTION_CTE = """
             WITH resolution AS (
@@ -34,15 +23,9 @@ final class CaseResolutionSql {
             )""";
 
     /**
-     * Per resolved case, how many seconds it spent waiting on somebody outside the insurer:
-     * documents from the insured, an expert's report, the repair shop's equipment. The statuses are
-     * {@link CaseStatus#pausingTheTerm()}, bound as {@code :pausing}; it depends on
-     * {@link #RESOLUTION_CTE} and is concatenated after it.
-     *
-     * <p>Each stretch of the history is clipped to the case's own window ({@code GREATEST} /
-     * {@code LEAST}): a wait that started before the claim was filed, or that was still open when
-     * the case closed, counts only for the part inside. The {@code GREATEST(..., 0)} drops the
-     * stretches that fall entirely outside, which would otherwise subtract.
+     * Seconds each resolved case spent in a {@link CaseStatus#pausingTheTerm()} status (bound as
+     * {@code :pausing}). Each stretch is clipped to the case's own reported/resolved window, and
+     * {@code GREATEST(..., 0)} drops stretches entirely outside it, which would otherwise subtract.
      */
     static final String WAITING_CTE = """
             ordered AS (

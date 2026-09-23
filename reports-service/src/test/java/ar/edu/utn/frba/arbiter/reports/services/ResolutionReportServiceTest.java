@@ -90,8 +90,7 @@ class ResolutionReportServiceTest {
         service.generate(AUG_1, AUG_31, null, "   ");
         service.generate(AUG_1, AUG_31, null, "  Hurto ");
 
-        // The exact period, not any(), any()): that wildcard also matches the previous-period query
-        // generate() now makes, and a loose verify here can't tell the two calls apart.
+        // The exact period, not any(): a wildcard would also match the previous-period query.
         verify(repository).findResolvedBetween(
                 eq(Instant.parse("2026-08-01T03:00:00Z")), eq(Instant.parse("2026-09-01T03:00:00Z")),
                 isNull(), isNull());
@@ -112,7 +111,7 @@ class ResolutionReportServiceTest {
         assertThat(report.branch()).isEqualTo("Celulares");
     }
 
-    /** Filtering by a branch that doesn't exist would echo "Todos" over a report that matched nothing. */
+    /** An unknown branch would otherwise echo "all branches" over a report that matched nothing. */
     @Test
     void generate_rejectsAnUnknownBranch_beforeRunningTheQuery() {
         given(repository.findBranchName(99L)).willReturn(null);
@@ -141,7 +140,7 @@ class ResolutionReportServiceTest {
         verify(repository, never()).findBranchName(any());
     }
 
-    /** The head describes the very rows underneath it — that is the point of computing it from them. */
+    /** The head describes the very rows underneath it. */
     @Test
     void generate_summarisesTheRowsItReturns() {
         given(repository.findResolvedBetween(any(), any(), isNull(), isNull()))
@@ -153,10 +152,7 @@ class ResolutionReportServiceTest {
         assertThat(report.summary().fastTrackCases()).isEqualTo(1);
     }
 
-    /**
-     * Equal length, immediately before: 31 days of August compares against 31 days of July, not
-     * against "el mes anterior" by name.
-     */
+    /** Equal length, immediately before: 31 days of August compare against 31 days of July. */
     @Test
     void generate_alsoQueriesTheEqualLengthStretchRightBefore() {
         service.generate(AUG_1, AUG_31, null, null);
@@ -220,12 +216,7 @@ class ResolutionReportServiceTest {
         verify(csvExporter, never()).export(any());
     }
 
-    /**
-     * The comparison the screen turns into arrows: the period immediately before, of equal length
-     * and under the SAME filters. August compares against July — and a report cut by branch
-     * compares against that branch, not against the whole portfolio, or the direction would come
-     * from a different population than the figure it sits next to.
-     */
+    /** The previous period is queried under the SAME filters, or the trend would mix populations. */
     @Test
     void generate_comparesAgainstTheEquallyLongPeriodBefore_underTheSameFilters() {
         given(repository.findBranchName(7L)).willReturn("Celulares");

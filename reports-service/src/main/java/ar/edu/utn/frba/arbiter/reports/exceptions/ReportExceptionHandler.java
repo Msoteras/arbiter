@@ -9,9 +9,8 @@ import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.servlet.mvc.method.annotation.ResponseEntityExceptionHandler;
 
 /**
- * Extends {@link ResponseEntityExceptionHandler} so a missing {@code from}, a date that doesn't
- * parse or an unknown {@code format} also answer as RFC 7807 {@code ProblemDetail} (400), the same
- * shape as the domain errors below — same reasoning as cases-service's {@code CaseExceptionHandler}.
+ * Extends {@link ResponseEntityExceptionHandler} so binding errors (missing {@code from}, unparsable
+ * date, unknown {@code format}) also answer as a 400 {@code ProblemDetail}, like the domain errors.
  */
 @RestControllerAdvice
 public class ReportExceptionHandler extends ResponseEntityExceptionHandler {

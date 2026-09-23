@@ -16,10 +16,7 @@ import java.util.List;
 @RequiredArgsConstructor
 public class CsvFraudReportExporter implements FraudReportExporter {
 
-    /**
-     * The two counts get columns of their own besides the "Señales" sentence: a spreadsheet is
-     * opened to sort and filter, and "3 denuncias en 12 meses" is text you can't order by.
-     */
+    /** The two counts get their own columns besides "Señales" so the spreadsheet can sort by them. */
     private static final List<String> HEADER = List.of(
             "Nº expediente", "Asegurado", "DNI", "Ramo", "Hecho generador", "Fecha de denuncia",
             "Score de riesgo", "Señales", "Denuncias en 12 meses", "Imágenes con coincidencia",
