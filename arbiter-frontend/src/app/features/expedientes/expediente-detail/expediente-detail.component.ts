@@ -1184,8 +1184,14 @@ export class ExpedienteDetailComponent {
    * no puede decidir. El backend lo exige (409 sin dueño, 403 si es de otro); acá el botón
    * directamente no se ofrece, en vez de habilitarlo para que el click falle.
    */
-  protected readonly puedeDerivar = computed(
-    () => this.canDecide() && this.decisionState() === 'pending' && !this.peritaje(),
+  protected readonly puedeDerivar = computed(() => this.enManosDelAnalista() && !this.peritaje());
+
+  /**
+   * Owner, pending, and not waiting on the referente: once the amount is sent for authorization
+   * the analyst already decided, so deriving or reading "si aprobás" hints no longer applies.
+   */
+  private readonly enManosDelAnalista = computed(
+    () => this.canDecide() && this.decisionState() === 'pending' && !this.esperandoAutorizacion(),
   );
 
   /**
@@ -1195,10 +1201,7 @@ export class ExpedienteDetailComponent {
    */
   protected readonly puedeDerivarAReparacion = computed(
     () =>
-      this.canDecide() &&
-      this.decisionState() === 'pending' &&
-      !this.reparacion() &&
-      this.repairOptions()?.eligible === true,
+      this.enManosDelAnalista() && !this.reparacion() && this.repairOptions()?.eligible === true,
   );
 
   /** Habilitado por la regla de la aseguradora Y con peritos a quien mandarlo. */
@@ -1238,8 +1241,7 @@ export class ExpedienteDetailComponent {
   protected readonly superaAtribucion = computed(() => {
     const s = this.settlement();
     return (
-      this.canAct() &&
-      !this.esperandoAutorizacion() &&
+      this.enManosDelAnalista() &&
       s?.authorityLimit != null &&
       s.calculatedAmount > s.authorityLimit
     );
