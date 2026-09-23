@@ -7,10 +7,10 @@ endobj
 << /Type /Pages /Kids [3 0 R] /Count 1 >>
 endobj
 3 0 obj
-<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595.276 841.89] /Resources << /Font << /F1 5 0 R /F2 6 0 R >> /ProcSet [/PDF /Text] >> /Contents 4 0 R >>
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595.276 841.89] /Resources << /Font << /F1 5 0 R /F2 6 0 R /F3 8 0 R /F4 9 0 R >> /ProcSet [/PDF /Text] >> /Contents 4 0 R >>
 endobj
 4 0 obj
-<< /Length 5344 >>
+<< /Length 5270 >>
 stream
 BT /F2 12 Tf 178.84 785.89 Td (POLIC\315A DE LA CIUDAD DE BUENOS AIRES) Tj ET
 BT /F1 9 Tf 223.39 772.89 Td (Comisar\355a Vecinal 3-B \227 Balvanera) Tj ET
@@ -21,7 +21,7 @@ BT /F1 9 Tf 169.39 717.89 Td (Actuaci\363n N\260 3B-2026-014782 \227 Libro de Gu
 0.6 w 56 701.39 m 539.28 701.39 l S
 BT /F2 9.5 Tf 56.00 693.39 Td (DATOS DE LA ACTUACI\323N) Tj ET
 BT /F2 9 Tf 56 680.89 Td (Fecha y hora de recepci\363n:) Tj ET
-BT /F1 9 Tf 206.00 680.89 Td (10/09/2026, 21:40 hs.) Tj ET
+BT /F1 9 Tf 206.00 680.89 Td (21/09/2026, 21:40 hs.) Tj ET
 BT /F2 9 Tf 56 669.89 Td (Funcionario interviniente:) Tj ET
 BT /F1 9 Tf 206.00 669.89 Td (Of. Sub. Rodrigo A. Ben\355tez \(Leg. 41.207\)) Tj ET
 BT /F2 9 Tf 56 658.89 Td (Car\341tula provisoria:) Tj ET
@@ -39,7 +39,7 @@ BT /F2 9 Tf 56 586.39 Td (Tel\351fono:) Tj ET
 BT /F1 9 Tf 206.00 586.39 Td (11-5555-0001 \227 Correo: martina.soteras@example.com) Tj ET
 BT /F2 9.5 Tf 56.00 570.39 Td (DATOS DEL HECHO) Tj ET
 BT /F2 9 Tf 56 557.89 Td (Fecha y hora del hecho:) Tj ET
-BT /F1 9 Tf 206.00 557.89 Td (10/09/2026, aproximadamente 19:25 hs.) Tj ET
+BT /F1 9 Tf 206.00 557.89 Td (21/09/2026, aproximadamente 19:25 hs.) Tj ET
 BT /F2 9 Tf 56 546.89 Td (Lugar:) Tj ET
 BT /F1 9 Tf 206.00 546.89 Td (Av. Rivadavia al 2800, intersecci\363n con calle Pasco,) Tj ET
 BT /F1 9 Tf 56.00 535.89 Td (             barrio de Balvanera, C.A.B.A. \227 v\355a p\372blica.) Tj ET
@@ -58,18 +58,17 @@ BT /F2 9.5 Tf 56.00 397.89 Td (OBJETO SUSTRA\315DO) Tj ET
 BT /F1 9 Tf 56.00 385.39 Td (Un \(1\) tel\351fono celular marca SAMSUNG, modelo Galaxy A56 5G, color gris,) Tj ET
 BT /F1 9 Tf 56.00 374.89 Td (capacidad 256 GB, IMEI 351000000000042, l\355nea 11-5555-0001.) Tj ET
 BT /F1 9 Tf 56.00 364.39 Td (La denunciante manifiesta haber solicitado el bloqueo de la l\355nea y del IMEI ante) Tj ET
-BT /F1 9 Tf 56.00 353.89 Td (la empresa prestataria del servicio a las 20:15 hs. del 10/09/2026.) Tj ET
+BT /F1 9 Tf 56.00 353.89 Td (la empresa prestataria del servicio a las 20:15 hs. del 21/09/2026.) Tj ET
 BT /F2 9.5 Tf 56.00 338.39 Td (CONSTANCIAS) Tj ET
 BT /F1 9 Tf 56.00 325.89 Td (\225  Se dio intervenci\363n a la Fiscal\355a Penal, Contravencional y de Faltas N\260 8 del) Tj ET
 BT /F1 9 Tf 56.00 315.39 Td (   Poder Judicial de la C.A.B.A.) Tj ET
 BT /F1 9 Tf 56.00 304.89 Td (\225  Se solicit\363 el resguardo de las im\341genes de las c\341maras del Sistema de Monitoreo) Tj ET
 BT /F1 9 Tf 56.00 294.39 Td (   P\372blico correspondientes a la fecha y franja horaria del hecho.) Tj ET
-BT /F1 9 Tf 56.00 283.89 Td (\225  Se extiende la presente constancia a la denunciante a los fines que estime) Tj ET
-BT /F1 9 Tf 56.00 273.39 Td (   corresponder ante su compa\361\355a aseguradora.) Tj ET
-BT /F1 9 Tf 56.00 250.89 Td (Previa lectura y ratificaci\363n, firma la denunciante por ante el funcionario actuante.) Tj ET
-BT /F1 9 Tf 56.00 216.39 Td (...........................................                    ...........................................) Tj ET
-BT /F1 8.5 Tf 56.00 205.89 Td (        Martina Soteras                                     Of. Sub. R. A. Ben\355tez) Tj ET
-BT /F1 8.5 Tf 56.00 195.39 Td (        DNI 42.987.654                                      Comisar\355a Vecinal 3-B) Tj ET
+BT /F1 9 Tf 56.00 283.89 Td (\225  Se extiende la presente constancia a la denunciante a los fines que estime corresponder.) Tj ET
+BT /F1 9 Tf 56.00 261.39 Td (Previa lectura y ratificaci\363n, firma la denunciante por ante el funcionario actuante.) Tj ET
+BT /F1 9 Tf 56.00 226.89 Td (...........................................                    ...........................................) Tj ET
+BT /F1 8.5 Tf 56.00 216.39 Td (        Martina Soteras                                     Of. Sub. R. A. Ben\355tez) Tj ET
+BT /F1 8.5 Tf 56.00 205.89 Td (        DNI 42.987.654                                      Comisar\355a Vecinal 3-B) Tj ET
 0.4 w 56 70.00 m 539.28 70.00 l S
 BT /F1 7 Tf 136.64 62.00 Td (Documento simulado con fines de prueba \227 sistema Arbiter \(UTN FRBA, DDSI K5054, grupo 5303\).) Tj ET
 BT /F1 7 Tf 134.89 54.00 Td (No constituye un comprobante ni una constancia real. Personas, empresas y n\372meros, ficticios.) Tj ET
@@ -82,20 +81,28 @@ endobj
 << /Type /Font /Subtype /Type1 /BaseFont /Helvetica-Bold /Encoding /WinAnsiEncoding >>
 endobj
 7 0 obj
-<< /Title (Acta de denuncia 3B-2026-014782) /Author (Policia de la Ciudad de Buenos Aires) /Subject (Robo en v\355a p\372blica - documento simulado de prueba) /Keywords (fixture de prueba, sistema Arbiter, documento generado, no es un documento real) /Producer (Arbiter test fixture) /CreationDate (D:20260910214000-03'00') >>
+<< /Title (Acta de denuncia 3B-2026-014782) /Author (Policia de la Ciudad de Buenos Aires) /Subject (Robo en v\355a p\372blica - documento simulado de prueba) /Keywords (fixture de prueba, sistema Arbiter, documento generado, no es un documento real) /Producer (Arbiter test fixture) /CreationDate (D:20260921214000-03'00') >>
+endobj
+8 0 obj
+<< /Type /Font /Subtype /Type1 /BaseFont /Times-Roman /Encoding /WinAnsiEncoding >>
+endobj
+9 0 obj
+<< /Type /Font /Subtype /Type1 /BaseFont /Times-Bold /Encoding /WinAnsiEncoding >>
 endobj
 xref
-0 8
+0 10
 0000000000 65535 f 
 0000000015 00000 n 
 0000000064 00000 n 
 0000000121 00000 n 
-0000000286 00000 n 
-0000005682 00000 n 
-0000005779 00000 n 
-0000005881 00000 n 
+0000000306 00000 n 
+0000005628 00000 n 
+0000005725 00000 n 
+0000005827 00000 n 
+0000006169 00000 n 
+0000006268 00000 n 
 trailer
-<< /Size 8 /Root 1 0 R /Info 7 0 R >>
+<< /Size 10 /Root 1 0 R /Info 7 0 R >>
 startxref
-6223
+6366
 %%EOF

@@ -22,7 +22,7 @@ veredictos. Si este falla, el problema está en el gate o en el entorno, no en e
 | Póliza | `POL-CEL-2026-042` — Celular Protegido Premium | `aseguradora_bbva.poliza` |
 | Ramo / Hecho generador | Celulares (id 1) / **Robo en vía pública** (id 2) | `arbiter_common.claim_cause` |
 | Cobertura | `Robo de celular` (id 1) | `arbiter_bbva.coverage` |
-| Bien asegurado | Samsung Galaxy A56 5G 256 GB — IMEI `356938035643809` | denuncia |
+| Bien asegurado | Samsung Galaxy A56 5G 256 GB — IMEI `351000000000042` | `aseguradora_bbva.poliza` |
 | Suma asegurada | **1.300.000** | `aseguradora_bbva.cobertura` |
 | Estado de pago | `AL_DIA`, sin saldo deudor | `poliza.estado_pago` |
 | Siniestros previos | **0** | `aseguradora_bbva.siniestro_historico` |
@@ -33,24 +33,42 @@ El monto es coherente con el bien —620.000 es precio de mercado plausible para
 a la vez cae dentro del umbral. No está elegido para "hacer pasar" el test: es el caso realista que
 el umbral está pensado para dejar pasar.
 
+> ⚠️ **Con Martina este caso ya no da `FAST_TRACK`** (22/09/2026). Cada expediente cargado en
+> Arbiter cuenta como siniestro previo de quien lo cargó (`withArbiterAntecedents`), y ella acumula
+> 15 en BBVA: `maxPriorClaims = 0` y el tope anual (D10) la dejan afuera. El mismo robo, firmado por
+> un asegurado que se limpia antes de cada corrida, es la mutación `control`
+> (`docs/postman/test-docs/mutaciones/celulares/control/`, ver §9 del
+> [README de fixtures](../postman/test-docs/README.md)). Para verificar el gate, usá ese, o
+> `camila/celulares/robo/`, el mismo robo sobre el Pixel 8 de Camila Ferreyra (§10). Los dos piden
+> correr antes `scripts/reset-asegurados-de-prueba.sql`.
+
 ## 2 · Por qué tiene que dar `FAST_TRACK`
 
 No alcanza con los umbrales. El orquestador exige que **cuatro evaluadores** den verde a la vez
-([ClassificationOrchestrator:331](../../classification-service/src/main/java/ar/edu/utn/frba/arbiter/classification/services/ClassificationOrchestrator.java#L331)):
+([ClassificationOrchestrator:381](../../classification-service/src/main/java/ar/edu/utn/frba/arbiter/classification/services/ClassificationOrchestrator.java#L381)):
 
 ```java
 if (fastTrack.fastTrack() && !temporal.blocksFastTrack() && !scope.blocksFastTrack()
         && !fraud.blocksFastTrack())
 ```
 
-y antes de llegar ahí ya se descartaron la exclusión de cobertura y la falta de documentación.
+y antes de llegar ahí ya se descartó la exclusión de cobertura.
 
-### 2.0 · Precondiciones (si fallan, ni se evalúa Fast Track)
+### 2.0 · Precondición (si falla, ni se evalúa Fast Track)
 
 | Compuerta | Qué pide | Este caso |
 |---|---|---|
 | `CoverageRuleEvaluator` — exclusión de cobertura | el hecho generador no puede estar en la lista negra de la cobertura | la cobertura 1 excluye **Hurto** (id 3); acá es **Robo** (id 2) ✅ |
-| Agenda documental | los documentos que la agenda pide para **ramo + hecho generador** (Celulares · Robo: los 4) | los 4 van en el request ✅ |
+
+La **agenda documental completa** (Celulares · Robo: los 4 documentos) ya no es precondición: se
+exige recién si el caso **no** entra en Fast Track. El gate solo pide su propia lista, la de
+`requiredDocumentTypes` (§2.1). El request igual manda los 4, así que el caso pasa por cualquiera
+de los dos caminos.
+
+**En Fast Track solo se extraen los documentos que exige el gate** (acta y factura). La baja de IMEI
+y la última conexión viajan y se guardan, pero no se leen. Tampoco corre el LLM: lo que diga el
+contenido de los documentos no mueve el resultado, salvo quién fue el damnificado (§2.3). Las
+mutaciones de `docs/postman/test-docs/mutaciones/` están hechas para medir justamente eso.
 
 ### 2.1 · Los umbrales — `FastTrackValidator`
 
@@ -62,7 +80,13 @@ Cinco criterios; cada uno se evalúa solo si está configurado (`null` = no apli
 | `maxPriorClaims` (+ ventana) | ≤ 0, sin ventana | **0** previos | ✅ |
 | `minPolicyAgeMonths` | no configurado | — | no evalúa |
 | `requiresUpToDatePolicy` | `true` | póliza **`AL_DIA`** | ✅ |
-| `requiredDocumentTypes` | `["police_report"]` | denuncia policial adjunta | ✅ |
+| `requiredDocumentTypes` | `["police_report", "purchase_proof"]` | acta y factura adjuntas, con texto extraído | ✅ |
+
+La configuración es **por cobertura**: robo y hurto piden acta + factura, y daño accidental pide
+factura + presupuesto. Hasta el 22/09 el panel del referente guardaba una sola configuración por ramo
+y la copiaba a todas las coberturas. El 12/09 eso dejó a robo y hurto de BBVA pidiendo presupuesto de
+reparación, y ningún robo podía entrar en Fast Track. Si este caso no pasa, revisá primero la regla
+FAST_TRACK de la cobertura 1 en `arbiter_bbva.insurer_rule`.
 
 Margen deliberadamente chico en el ratio (47,7% contra un techo de 50%): si alguien mueve el umbral
 o cambia la suma asegurada, el caso lo acusa. Para el caso espejo que **no** debe pasar, subir el
@@ -153,8 +177,8 @@ comprobantes que aparenten ser de una compañía real.
 
 | Parte | Documento | Qué aporta |
 |---|---|---|
-| `police_report` | Acta de denuncia, Comisaría Vecinal 3-B, actuación 3B-2026-014782 | el hecho; es el único que el gate exige |
-| `purchase_proof` | Factura B de un comercio, con IMEI y n.º de serie | titularidad del equipo |
+| `police_report` | Acta de denuncia, Comisaría Vecinal 3-B, actuación 3B-2026-014782 | el hecho; lo exige el gate |
+| `purchase_proof` | Factura B de un comercio, con IMEI y n.º de serie | titularidad del equipo; lo exige el gate |
 | `imei_deregistration` | Constancia de bloqueo y baja de IMEI de la operadora | el equipo quedó inutilizable |
 | `last_connection` | Constancia de último registro en red, con celda y horarios | corrobora hora y lugar del hecho |
 

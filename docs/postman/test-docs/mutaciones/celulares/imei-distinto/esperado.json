@@ -1,0 +1,15 @@
+{
+  "mutacion": "imei-distinto",
+  "base": "celulares/robo",
+  "cambia": "la factura de compra trae un IMEI que no es el del bien asegurado",
+  "documento": "purchase_proof",
+  "seDetectaEn": [
+    "document_analysis.imei del purchase_proof ≠ IMEI de la póliza",
+    "DocumentInconsistencyEvaluator.checkImei"
+  ],
+  "resultadoEsperado": "FAST_TRACK — la mutación no bloquea el gate. Si sale FAST_TRACK, el pipeline se comportó como está diseñado; que ese diseño deje pasar esto es el hallazgo.",
+  "notas": [
+    "El caso base entra en Fast Track. En ese camino solo se extraen police_report y purchase_proof (los que exige el gate) y el LLM no corre: salvo el damnificado, nada de lo que diga un documento saca al caso del carril rápido.",
+    "document_inconsistency no tiene peso en factor_weight (BBVA ni Provincia), y el scoring solo ejecuta los factores con peso: hoy DocumentInconsistencyEvaluator no corre. Ver temas-a-discutir.md."
+  ]
+}

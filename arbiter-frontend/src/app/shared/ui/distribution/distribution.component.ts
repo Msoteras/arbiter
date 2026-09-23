@@ -7,6 +7,8 @@ export interface DistributionItem {
   label: string;
   count: number;
   tone: StatusTone;
+  /** Tooltip opcional, para categorías cuyo nombre solo no alcanza a explicar qué es. */
+  description?: string;
 }
 
 export type DistributionShape = 'bar' | 'ring';
@@ -62,7 +64,7 @@ export type DistributionShape = 'bar' | 'ring';
 
       <ul class="legend">
         @for (slice of slices(); track slice.label) {
-          <li>
+          <li [title]="slice.description ?? null">
             <span
               class="dot tone-{{ slice.tone }}"
               [style.opacity]="shape() === 'ring' ? slice.weight : null"

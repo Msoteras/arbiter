@@ -80,6 +80,30 @@ puede haber.
 
 ---
 
+## 5 · `analisis_documento.hecho_generador_descripto` — columna nueva, falta en el DER
+
+**Encontrado:** 22/09/2026. No es un bache del diagrama sino una columna que el código ya tiene:
+se sumó para comparar el hecho generador que narra un documento contra el declarado (regla
+`CLAIM_CAUSE_MATCH`, que avisa sin bloquear el Fast Track). Implementada en
+`db/init-multitenant.sql` y `db/migrations/2026-09-22-hecho-descripto-en-documento.sql`, ya
+aplicada en Railway.
+
+| Columna | Tipo de dato | Nulo | Restricciones |
+|---|---|---|---|
+| `hecho_generador_descripto` (`described_claim_cause`) | VARCHAR(120) | sí | ninguna — **sin FK** a `hecho_generador` |
+
+Sin FK a propósito, igual que `analisis_llm.hecho_generador_sugerido` (`suggested_claim_cause`): es un
+registro de auditoría de lo que leyó la extracción, y tiene que seguir diciéndolo aunque el
+referente después renombre o dé de baja el hecho generador. NULL es el valor normal: la mayoría de
+los documentos (facturas, constancias técnicas) no narran ningún hecho.
+
+**Acción:** agregar la columna a `analisis_documento` en el `.mdj`.
+
+*Nota: `resultado_regla.tipo_regla` suma el literal `CLAIM_CAUSE_MATCH`. No hace falta tocar el
+DER por eso: la columna es texto libre sin CHECK, y el vocabulario vive en `RuleType`.*
+
+---
+
 ## Plantilla para la próxima entrada
 
 ```

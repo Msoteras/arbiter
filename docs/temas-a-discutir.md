@@ -110,7 +110,18 @@ la compañía deja de alcanzar. **No reabrir sin ese caso.**
 
 ---
 
-## Reservas (SPL) — ¿control transversal o fuera de alcance?
+## ~~Reservas (SPL) — ¿control transversal o fuera de alcance?~~ — ✅ decidido: fuera de alcance (22/09/2026)
+
+**Qué se decidió:** las reservas no se contemplan. Ni como monto ni como flag abierta/cerrada por
+expediente. Si en la defensa sale el tema, se defiende así: la reserva (SPL, siniestros pendientes
+de liquidación) es la provisión contable que la compañía abre al recibir la denuncia y ajusta hasta
+cerrarla. Es un control del área contable de la aseguradora y no del circuito de análisis y
+clasificación que cubre Arbiter.
+
+**Consecuencia asumida:** el estado `DENUNCIA DE HECHO (RC)` del proceso real ("activo sin reserva")
+no se modela. **No reabrir sin un caso nuevo.**
+
+Lo que sigue queda como registro de cómo se llegó a la decisión.
 
 **Encontrado:** 31/08/2026, comparando contra el procedimiento interno de BBVA
 (`Siniestros_NSIN001`). Venía de `gap-dominio-bbva.md` §3.
@@ -194,3 +205,135 @@ presupuesto", el cambio es una línea en `SettlementCalculator` —la que hoy ha
 `percentageOf(sumInsured, deductibleRate(...))`— más un interruptor por cobertura, como los que ya
 tiene.
 
+---
+
+## ~~En Fast Track nadie compara el relato con el hecho generador declarado~~ — ✅ decidido (22/09/2026)
+
+**Qué se decidió:** la segunda opción de abajo. La extracción devuelve el hecho que narra cada
+documento como campo tipado (`describedClaimCause`, un nombre del catálogo del ramo; prompt
+`extraccion-documento-v6.md`), se persiste en `document_analysis.described_claim_cause`, y
+`ClaimCauseConsistencyEvaluator` lo compara por código contra el declarado. **Avisa, no bloquea:** el
+caso conserva su clasificación, Fast Track incluido, y el analista recibe el motivo en los factores,
+una fila `CLAIM_CAUSE_MATCH` en `rule_result` y una tarjeta "Para revisar antes de resolver" en el
+detalle del expediente. El tablero de "reglas que frenaron" no lo cuenta, porque no frenó nada.
+
+**Encontrado:** 22/09/2026, con la mutación `relato-hurto` (`docs/postman/test-docs/mutaciones/`).
+
+**Qué se sabe:** el asegurado elige el hecho generador de un selector y escribe el relato aparte. Si
+eligió "Robo en vía pública" pero cuenta que dejó el celular sobre la mesa de un café y al volver no
+estaba, eso es un hurto, y la cobertura de robo de BBVA excluye el hurto (regla 21). Quien detecta la
+contradicción es el LLM de clasificación (sección "Consistencia del relato" del prompt), y el
+orquestador la convierte en `LLM_NO_RECOMIENDA_APROBAR` si el hecho que describe el relato está
+excluido.
+
+Pero ese LLM **solo corre si el caso no entra en Fast Track**. En el carril rápido el gate extrae el
+acta y la factura con el modelo de visión, y lo único que verifica es que tengan texto: no lee qué
+dicen. Así que el caso entra en Fast Track aunque el acta diga en la carátula `HURTO (art. 162)`.
+El analista igual decide (decisión #5), pero llega con la etiqueta de "todo en regla".
+
+**Qué falta decidir:** si alcanza con eso — el Fast Track agiliza, y el analista puede leer el acta
+—, o si el carril rápido tiene que mirar al menos el hecho. Opciones, de más barata a más cara:
+
+- Dejarlo así y que el analista lo vea en el acta.
+- Pedirle a la extracción del acta (que ya corre en el gate) el hecho generador que describe, como
+  campo tipado, y compararlo por código contra el declarado: mismo patrón que `affectedParty`, que
+  ya bloquea el Fast Track desde el acta. No suma una llamada al modelo.
+- Correr el chequeo de consistencia del LLM también en Fast Track: una inferencia más por caso,
+  justo en el camino que existe para ser rápido.
+
+**Qué bloquea:** nada del desarrollo. Mientras no se decida, un hecho mal declarado a propósito
+entra por el carril rápido.
+
+---
+
+## `document_inconsistency` no tiene peso, así que no corre
+
+**Encontrado:** 22/09/2026, armando las mutaciones de `docs/postman/test-docs/mutaciones/`.
+
+**Qué se sabe:** `DocumentInconsistencyEvaluator` compara lo que dicen los documentos contra el
+siniestro y la póliza: el IMEI, la marca y el modelo, el importe (con 10% de tolerancia), una fecha
+de documento más de 7 días anterior al hecho, y la fecha del acta contra la que declaró el
+asegurado. Pero `RiskScoringService` recorre solo los factores que tienen fila en `factor_weight`, y
+**ninguna de las dos aseguradoras le asignó peso**: el evaluador directamente no se ejecuta. Lo mismo
+pasa con `purchase_to_report_time`.
+
+No es un bug del motor: el seed de `init-multitenant.sql` carga seis factores (`amount_ratio`,
+`claim_frequency`, `policy_standing`, `image_reuse`, `image_web_match`, `fraud_history`) y deja
+afuera esos dos. El panel de scoring del referente sí los ofrece (grupo "Documentos e imágenes"),
+así que cargarles peso no requiere tocar código.
+
+Hoy, un IMEI que no es el de la póliza, una factura de otra marca o una constancia fechada antes
+del hecho **no mueven el score**. Solo quedan en `document_analysis`, y fuera de Fast Track, en lo
+que lea el LLM.
+
+**Qué falta decidir:**
+
+- **Qué peso le damos, y a cuáles de los dos.** Como referencia, los que ya tienen peso van de 0,20
+  (`policy_standing`) a 0,60 (`fraud_history`). El evaluador suma 0,5 por hallazgo y se satura con
+  dos.
+- **Si antes hay que arreglar un falso positivo conocido.** En un reclamo por daño, `checkAmount`
+  compara la factura de compra (lo que vale el equipo) contra el monto reclamado (lo que cuesta la
+  reparación), así que siempre salta. Con peso, todos los casos de daño suben de score sin motivo.
+  Opción: comparar el importe solo contra el documento que fija el monto (el presupuesto en daño, la
+  factura en robo/hurto).
+- **Dónde se carga.** Si va en el seed (para toda base nueva) y además en una migración para
+  Railway, o si lo carga cada referente desde el panel.
+
+**Qué no cambia aunque se le dé peso:** el score es una señal paralela y no bloquea el Fast Track.
+En el carril rápido además se extraen solo los documentos que exige el gate, así que la baja de IMEI
+o la última conexión ni se leen (ver la entrada anterior y `mutaciones/constancia-anterior-al-hecho`).
+
+**Qué bloquea:** nada del desarrollo. Mientras no se decida, las mutaciones de datos del set se leen
+en `document_analysis` y no en el score.
+
+---
+
+## Fast Track negativo: las salidas por reglas se registran como si las hubiera dado el LLM
+
+**Encontrado:** 22/09/2026, discutiendo si un Fast Track tiene que llegarle al analista como "todo en
+regla". No tiene que: Fast Track quiere decir "lo resolvieron las reglas, sin pasar por el LLM", y eso
+puede ir a favor o en contra.
+
+**Qué se sabe:** hay cuatro salidas que decide el motor de reglas sin que corra el modelo, y solo la
+positiva se llama Fast Track:
+
+| Caso | Se clasifica como | En pantalla dice |
+|---|---|---|
+| Cumple el gate | `FAST_TRACK` | "Fast Track" |
+| Exclusión de cobertura | `LLM_SOLICITA_REVISION_MANUAL` | "Requiere revisión manual" |
+| Prescripción (art. 58) | `LLM_NO_RECOMIENDA_APROBAR` | "Recomienda rechazar" |
+| Falta documentación | `FALTA_DOCUMENTACION` | "Falta documentación" |
+
+La exclusión y la prescripción son un Fast Track negativo, pero salen con un literal `LLM_*`, así que
+se leen como recomendación del modelo.
+
+**Además, la auditoría registra mal a esas salidas.** `ClassificationResultsService` solo se saltea
+`llm_analysis` cuando es `FAST_TRACK`. Para la exclusión, la prescripción y la falta de
+documentación escribe una fila con `model` = el LLM configurado y la `prompt_version` vigente,
+aunque el modelo nunca corrió. El registro que pide la Disposición SSN 2/2023 atribuye al LLM una
+recomendación que tomó el motor.
+
+**Choca con la decisión #6 de `CLAUDE.md`:** las 5 categorías están fijadas, `FAST_TRACK` es la
+única determinística y las `LLM_*` son recomendaciones del modelo. Por eso no se tocó.
+
+**Qué falta decidir:**
+
+1. **Registrar quién decidió, sin tocar el enum** (la opción recomendada). Generalizar
+   `cases.was_fast_track` a algo como `resolved_by = RULES | LLM`, no escribir `llm_analysis`
+   cuando decidieron las reglas, y que la UI diga "Por reglas · Recomienda rechazar" en vez de
+   presentarlo como del modelo. Arregla la auditoría y deja claro que Fast Track no significa
+   "aprobable", sin reabrir la decisión #6.
+2. **Que Fast Track sea "resuelto por reglas" con una dirección** (a favor, en contra, a revisión).
+   Más prolijo conceptualmente, pero cambia el enum `Classification`, `llm_analysis` (su CHECK
+   impide guardar `FAST_TRACK`), los reportes y la decisión #6.
+
+**Relacionado — avisos en cualquier salida por reglas.** Los avisos para el analista no cambian la
+dirección del resultado: se suman en cualquiera de estas salidas. El de hecho generador ya existe
+(`CLAIM_CAUSE_MATCH`, ver la entrada de arriba). Queda por decidir si las **señales visuales de
+adulteración** (`document_visual_finding`) también avisan. Hoy se guardan, pero solo se ven abriendo
+documento por documento en la solapa Documentación: no suman un factor, no marcan la solapa y no
+aparecen en la tarjeta "Para revisar antes de resolver". Lo prueban las mutaciones
+`importe-pegado`, `fecha-pegada` y `tipografia-mezclada`, que hoy salen `FAST_TRACK` sin aviso.
+
+**Qué bloquea:** nada del desarrollo. Mientras no se decida, el analista ve una exclusión o una
+prescripción como si las hubiera recomendado el modelo, y la auditoría dice lo mismo.

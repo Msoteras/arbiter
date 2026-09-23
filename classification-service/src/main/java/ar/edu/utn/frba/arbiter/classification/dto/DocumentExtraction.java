@@ -16,6 +16,8 @@ public record DocumentExtraction(String transcription, List<String> visualFindin
     /**
      * Null means "the document doesn't say", never "doesn't match". Data gets a typed field only when
      * a rule compares it; anything the analyst only reads goes in {@code details}.
+     * {@code describedClaimCause} is a name from the branch's catalog — the extraction's schema allows
+     * nothing else — and null when the document narrates no event.
      */
     public record Fields(
             LocalDate documentDate,
@@ -25,6 +27,7 @@ public record DocumentExtraction(String transcription, List<String> visualFindin
             String model,
             String imei,
             AffectedParty affectedParty,
+            String describedClaimCause,
             List<Detail> details
     ) {
         public Fields {
@@ -32,7 +35,7 @@ public record DocumentExtraction(String transcription, List<String> visualFindin
         }
 
         public static Fields none() {
-            return new Fields(null, null, null, null, null, null, null, List.of());
+            return new Fields(null, null, null, null, null, null, null, null, List.of());
         }
     }
 

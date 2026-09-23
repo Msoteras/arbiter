@@ -10,6 +10,7 @@ import ar.edu.utn.frba.arbiter.rules.exceptions.InvalidRuleConfigurationExceptio
 import ar.edu.utn.frba.arbiter.rules.models.entities.InsurerRule;
 import ar.edu.utn.frba.arbiter.rules.models.entities.InsurerRuleHistory;
 import ar.edu.utn.frba.arbiter.rules.models.repositories.BranchRepository;
+import ar.edu.utn.frba.arbiter.rules.models.repositories.CoverageRepository;
 import ar.edu.utn.frba.arbiter.rules.models.repositories.InsurerRuleHistoryRepository;
 import ar.edu.utn.frba.arbiter.rules.models.repositories.InsurerRuleRepository;
 import com.fasterxml.jackson.core.JsonProcessingException;
@@ -40,6 +41,7 @@ public class FastTrackRuleService {
     private final InsurerRuleRepository ruleRepository;
     private final InsurerRuleHistoryRepository historyRepository;
     private final BranchRepository branchRepository;
+    private final CoverageRepository coverageRepository;
     private final RuleAuthorResolver authorResolver;
 
     @Transactional(readOnly = true)
@@ -59,6 +61,7 @@ public class FastTrackRuleService {
 
     @Transactional
     public FastTrackRuleResponse upsert(Long branchId, Long coverageId, FastTrackConfigDto config, String actorEmail) {
+        requireCoverageInBranch(branchId, coverageId);
         String json = serialize(config);
         Instant now = Instant.now();
 
@@ -107,6 +110,22 @@ public class FastTrackRuleService {
         rule = ruleRepository.save(rule);
         log.info("[FastTrackRule] updated — branch={} coverage={} by={}", branchId, coverageId, actorEmail);
         return new FastTrackRuleResponse(rule.getId(), branchId, coverageId, config);
+    }
+
+    /**
+     * The classification engine reads this rule by coverage alone ({@link #getByCoverage}), so a row
+     * saved under a (branch, coverage) pair that doesn't match the catalog would still be picked up —
+     * with the wrong branch recorded next to it. Reject the pair before anything is written.
+     */
+    private void requireCoverageInBranch(Long branchId, Long coverageId) {
+        Long coverageBranchId = coverageRepository.findById(coverageId)
+                .map(coverage -> coverage.getBranchId())
+                .orElseThrow(() -> new InvalidRuleConfigurationException(
+                        "No existe la cobertura con id " + coverageId));
+        if (!coverageBranchId.equals(branchId)) {
+            throw new InvalidRuleConfigurationException(
+                    "La cobertura " + coverageId + " no pertenece al ramo " + branchId);
+        }
     }
 
     private FastTrackConfigDto deserialize(String json) {

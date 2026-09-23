@@ -71,11 +71,11 @@ class DocumentInconsistencyEvaluatorTest {
 
     private DocumentExtraction.Fields fields(LocalDate documentDate, BigDecimal amount, String imei) {
         return new DocumentExtraction.Fields(
-                documentDate, amount, null, null, null, imei, null, List.of());
+                documentDate, amount, null, null, null, imei, null, null, List.of());
     }
 
     private DocumentExtraction.Fields itemFields(String brand, String model) {
-        return new DocumentExtraction.Fields(null, null, null, brand, model, null, null, List.of());
+        return new DocumentExtraction.Fields(null, null, null, brand, model, null, null, null, List.of());
     }
 
     /** No documents analyzed: not evaluable, rather than a 0.0 that would dilute the score. */

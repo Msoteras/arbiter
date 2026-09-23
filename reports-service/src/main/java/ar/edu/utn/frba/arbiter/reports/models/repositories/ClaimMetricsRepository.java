@@ -3,6 +3,7 @@ package ar.edu.utn.frba.arbiter.reports.models.repositories;
 import ar.edu.utn.frba.arbiter.common.enums.CaseStatus;
 import ar.edu.utn.frba.arbiter.common.enums.Classification;
 import ar.edu.utn.frba.arbiter.common.enums.ExpertVerdict;
+import ar.edu.utn.frba.arbiter.common.enums.RuleType;
 import ar.edu.utn.frba.arbiter.common.enums.SettlementStatus;
 import ar.edu.utn.frba.arbiter.reports.dto.DerivationTurnaround;
 import ar.edu.utn.frba.arbiter.reports.dto.FastTrackImpact;
@@ -439,7 +440,8 @@ public class ClaimMetricsRepository {
 
     /**
      * Which rules stopped the most claims filed in the period. Only {@code FAIL} rows (the table also
-     * audits {@code PASS}). {@code count(DISTINCT case_id)} because {@code rule_result} is append-only,
+     * audits {@code PASS}), and no advisory checks ({@link RuleType#advisoryRules()}): their FAIL
+     * stopped nothing. {@code count(DISTINCT case_id)} because {@code rule_result} is append-only,
      * one row per run. The name falls back to the rule type for coverage and Fast Track checks, which
      * are audited with a null {@code rule_id}.
      */
@@ -451,10 +453,13 @@ public class ClaimMetricsRepository {
                 + FROM_CASES + """
 
                   JOIN rule_result rr ON rr.case_id = c.id AND rr.result = :failed
+                                     AND rr.rule_type NOT IN (:advisory)
                   LEFT JOIN insurer_rule ir ON ir.id = rr.rule_id"""
                 + REPORTED_WINDOW + filters(filter)
                 + " GROUP BY 1 ORDER BY total DESC, label";
-        return query(template -> template.query(sql, period(from, to, filter).addValue("failed", FAILED),
+        List<String> advisory = RuleType.advisoryRules().stream().map(RuleType::name).toList();
+        return query(template -> template.query(sql,
+                period(from, to, filter).addValue("failed", FAILED).addValue("advisory", advisory),
                 COUNT_ROW));
     }
 
