@@ -12,13 +12,8 @@ import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.web.SecurityFilterChain;
 
 /**
- * Validates the same JWT auth-service issues (H0001) — needs the same JWT_SECRET.
- * RBAC por endpoint vía {@code @PreAuthorize} en {@link ar.edu.utn.frba.arbiter.classification.controllers.ClaimController}
- * y {@link ar.edu.utn.frba.arbiter.classification.controllers.ClassificationController} (H0003).
- * cases-service forwards the original user's JWT on calls made inside a request (claim creation,
- * analyst decision); the background poller signs its own service token with the same secret (see
- * {@code ClassificationServiceClient}). No server session: the state lives in the JWT (architecture
- * decision #13).
+ * Validates the JWT auth-service issues, so it needs the same secret. cases-service forwards the
+ * user's JWT on request-scoped calls; its background poller signs a service token with that secret.
  */
 @Configuration
 @EnableMethodSecurity
@@ -45,8 +40,7 @@ public class SecurityConfig {
         http.addFilterAfter(tenantFilter, JwtAuthenticationFilter.class);
         http.authorizeHttpRequests(auth -> auth
                 .requestMatchers("/v3/api-docs/**", "/swagger-ui/**").permitAll()
-                // The platform's liveness probe has no JWT to present. Only `health` is exposed
-                // (see application.yml), so this opens a status word, nothing else.
+                // The liveness probe has no JWT; only `health` is exposed.
                 .requestMatchers("/actuator/health", "/actuator/health/**").permitAll()
                 .anyRequest().authenticated());
         return http.build();

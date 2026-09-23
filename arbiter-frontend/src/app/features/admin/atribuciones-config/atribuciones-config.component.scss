@@ -1,4 +1,3 @@
-/* Encabezado afuera y una card abajo, separados por el gap: mismo armado que Gestión de fraude. */
 :host {
   display: flex;
   flex-direction: column;
@@ -28,7 +27,6 @@
   gap: var(--space-2);
 }
 
-/* Cada ramo en su recuadro: el tope se lee como una ficha por ramo, no como una grilla. */
 .row {
   display: flex;
   align-items: center;
@@ -56,12 +54,12 @@
   color: var(--text-secondary);
 }
 
-/* El input no compite con el nombre del ramo por el ancho: el dato que se lee es el ramo. */
+/* The input doesn't compete with the branch name for width. */
 .row app-input {
   flex: 0 0 12rem;
 }
 
-/* En móvil la fila se apila: con el input al lado, el nombre del ramo quedaba en dos renglones. */
+/* Stacked on mobile: beside the input, the branch name wrapped onto two lines. */
 @media (max-width: 640px) {
   .row {
     flex-direction: column;

@@ -6,7 +6,7 @@ import ar.edu.utn.frba.arbiter.common.enums.CaseStatus;
 
 import java.time.Instant;
 
-/** One case status transition, as exposed by the API. {@code fromStatus} is null for the creation row. */
+/** {@code fromStatus} is null for the creation row. */
 public record StatusTransitionResponse(
         CaseStatus fromStatus,
         CaseStatus toStatus,

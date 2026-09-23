@@ -30,7 +30,7 @@
       <p class="error">{{ resendError() }}</p>
     }
     <app-card [flush]="true">
-      <app-table>
+      <app-table [pinLastColumn]="true" scrollLabel="Usuarios">
         <thead>
           <tr>
             <th>Nombre</th>
@@ -77,7 +77,7 @@
                     }}</app-button
                   >
                 }
-                <!-- El title va acá: deshabilitado, app-button no recibe hover. -->
+                <!-- The title lives on the wrapper: a disabled app-button gets no hover. -->
                 <span [title]="isSelf(u) ? 'No podés eliminar tu propia cuenta' : ''">
                   <app-button variant="secondary" [disabled]="isSelf(u)" (click)="requestDelete(u)"
                     >Eliminar</app-button

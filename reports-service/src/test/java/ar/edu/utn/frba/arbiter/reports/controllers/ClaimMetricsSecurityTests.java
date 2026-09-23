@@ -46,11 +46,8 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 /**
- * Who gets the dashboard, and whose numbers they get. The service is mocked — what the figures mean
- * is {@code ClaimMetricsServiceTest}'s job and whether the SQL adds up is
- * {@code ClaimMetricsRepositoryTests}' — so what is under test here is the HTTP contract and the
- * isolation between insurers. Tokens are signed by hand with the test secret, same as
- * cases-service's {@code CaseSecurityTest}.
+ * The HTTP contract, RBAC and isolation between insurers; the service is mocked. Tokens are signed by
+ * hand with the test secret.
  */
 @SpringBootTest
 @AutoConfigureMockMvc
@@ -108,9 +105,8 @@ class ClaimMetricsSecurityTests extends AbstractPersistenceIT {
     }
 
     /**
-     * Acceptance criterion 1. The insurer is never a parameter: whatever the caller asks for, the
-     * schema the query runs against is the one their own token carries, so two referents of
-     * different companies reading the same URL read different data.
+     * The insurer is never a parameter: the query runs against the schema in the caller's own token, so
+     * referents of different companies reading the same URL read different data.
      */
     @Test
     void eachReferentReadsTheirOwnInsurersSchema() throws Exception {

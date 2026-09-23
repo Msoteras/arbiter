@@ -1,8 +1,5 @@
-<!-- Un solo <router-outlet> para toda la app, a propósito. Cuando había uno por rama del @if,
-     entrar recién logueado remontaba la pantalla: el outlet activa la ruta ANTES de que
-     `showShell()` se entere del cambio de URL, así que el home se creaba en la rama sin shell y
-     se destruía y recreaba al aparecer el chrome — se veían las tarjetas y enseguida el spinner
-     de "Actualizando…". El marco cambia alrededor del outlet; el outlet no se mueve. -->
+<!-- A single <router-outlet> on purpose: the outlet activates the route before showShell()
+     updates, so one outlet per @if branch would destroy and recreate the screen right after login. -->
 <div
   class="app-frame"
   [class.app-shell]="showShell()"
@@ -74,9 +71,6 @@
               }
             </div>
 
-            <!-- Mismo menú de avatar que los roles internos: "Mi perfil" salía como tercer link
-                 del nav, que en pantalla angosta ya no entraba y dejaba la barra con scroll
-                 horizontal. El nombre pasa a la cabecera del menú, donde no compite por espacio. -->
             <div class="topbar-profile">
               <button
                 type="button"
@@ -91,8 +85,7 @@
               </button>
 
               @if (profileOpen()) {
-                <!-- Cierra solo al clickear un item: el click burbujea a document y lo levanta
-                     el @HostListener que ya cierra los dos desplegables de la barra. -->
+                <!-- Item clicks bubble to document, where the @HostListener closes the menu. -->
                 <div class="profile-menu" role="menu">
                   <div class="profile-head">
                     <span class="profile-name">{{ s.nombre }} {{ s.apellido }}</span>
@@ -117,9 +110,6 @@
         }
       </header>
     } @else {
-      <!-- Roles internos (analista / referente): topbar fija de ancho completo + panel de
-           navegación desplegable debajo. El perfil vive solo en la topbar; el panel es solo
-           secciones. -->
       <header class="appbar">
         <button
           type="button"
@@ -236,14 +226,11 @@
         </div>
       </header>
 
-      <!-- Scrim: en pantalla angosta el panel se superpone, así que cerrarlo tocando afuera es
-           lo que espera cualquiera que haya usado un cajón lateral. -->
       @if (navOpen() && overlayNav()) {
         <div class="nav-scrim" (click)="closeNav()" aria-hidden="true"></div>
       }
 
       <aside class="navpanel" id="app-nav" [attr.inert]="navOpen() ? null : ''">
-        <!-- H0003: cada rol ve solo su propia sección de la nav. -->
         <nav class="navpanel-nav">
           <p class="navpanel-group">Operación</p>
           @if (showAnalistaNav()) {
@@ -290,8 +277,7 @@
 </div>
 
 @if (showShell()) {
-  <!-- Nueva denuncia como pop-up centrado sobre el portal. El wizard se carga diferido
-       (@defer) recién al abrirlo, así no pesa en el bundle inicial del asegurado. -->
+  <!-- @defer keeps the wizard out of the insured's initial bundle. -->
   @if (showAseguradoNav()) {
     <app-modal
       [open]="newClaim.isOpen()"
@@ -302,9 +288,8 @@
       (close)="newClaim.close()"
     >
       @defer (when newClaim.isOpen()) {
-        <!-- The @if destroys the wizard on close: @defer renders once and never tears down, so
-             without it the component kept its submitted state and reopening showed the previous
-             confirmation instead of a blank step 1 — a second denuncia was impossible. -->
+        <!-- @defer never tears down, so the @if destroys the wizard on close; otherwise reopening
+             shows the previous confirmation instead of a blank first step. -->
         @if (newClaim.isOpen()) {
           <app-nueva-denuncia [embedded]="true" (close)="newClaim.close()" />
         }
@@ -321,9 +306,7 @@
   </app-modal>
 }
 
-<!-- La salida se cierra con la misma carga de marca con la que se entra: tapa el shell mientras se
-     limpia la sesión, así el login no aparece de golpe. Va afuera del shell porque tiene que
-     seguir en pantalla justo cuando el shell deja de existir. -->
+<!-- Outside the shell because it must stay on screen while the shell is torn down. -->
 @if (loggingOut()) {
   <app-loading message="Cerrando sesión" />
 }

@@ -40,15 +40,12 @@
   margin-top: var(--space-1);
 }
 
-// ───────────────── Secciones ─────────────────
 .section {
   display: flex;
   flex-direction: column;
   gap: var(--space-3);
 }
 
-// Mismo chip teal que la pantalla de bienvenida: las dos son "mi cuenta", tienen que leerse
-// como la misma familia.
 .section-title {
   display: flex;
   align-items: center;
@@ -70,7 +67,6 @@
   margin: 0;
 }
 
-// ───────────────── Datos de solo lectura ─────────────────
 .readonly {
   display: flex;
   flex-direction: column;
@@ -99,12 +95,11 @@
   color: var(--text-primary);
   text-align: right;
 }
-// PEP en "Sí": dato informativo, no una alarma. Teal de marca, nunca el semáforo.
+// PEP "Sí" is informational, not an alarm: brand accent, never the --status-* palette.
 .readonly dd.is-yes {
   color: var(--accent-fg);
 }
 
-// ───────────────── Campos ─────────────────
 .fields {
   display: flex;
   flex-direction: column;
@@ -130,7 +125,6 @@
   color: var(--status-danger);
 }
 
-// ───────────────── Consentimiento ─────────────────
 .consent {
   padding: var(--space-3) var(--space-4);
   border: 1px solid var(--border-ai);
@@ -147,7 +141,6 @@
   margin: var(--space-2) 0 0;
 }
 
-// ───────────────── Acciones ─────────────────
 .save-error {
   margin: 0;
   padding: var(--space-3) var(--space-4);

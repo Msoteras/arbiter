@@ -5,18 +5,9 @@ import { InputComponent } from '../../../shared/ui/input/input.component';
 import { BadgeComponent } from '../../../shared/ui/badge/badge.component';
 
 /**
- * Editor de una lista de textos (reglas de negocio, exclusiones, criterios de Fast Track): agrega,
- * edita y quita items. Emite la lista completa en cada cambio; el padre la persiste en su draft.
- * Local al feature de reglas — no es una primitiva del kit.
- *
- * Las filas se muestran en modo lectura y se editan de a una con el lápiz. Antes todas eran un
- * input siempre abierto: una lista de seis reglas se veía como un formulario de seis campos vacíos
- * de contexto, y no se distinguía lo que estaba escrito de lo que faltaba escribir.
- *
- * El estado vacío tiene dos formas. Con `emptyTitle` es el estado vacío completo (ícono, para qué
- * sirve la lista, un ejemplo y el botón): para una sección que ES la lista, donde no hay nada más
- * que mirar. Sin él queda la línea suelta de `emptyText`, que es lo que corresponde cuando la lista
- * es una parte chica de una pantalla más grande (los criterios del Fast Track).
+ * Emits the whole list on every change; the parent keeps it in its draft. Local to the rules
+ * feature, not a kit primitive. Rows are read-only and edited one at a time.
+ * With `emptyTitle` the empty list shows the full empty state; without it, just the `emptyText` line.
  */
 @Component({
   selector: 'app-string-list-editor',
@@ -166,17 +157,14 @@ import { BadgeComponent } from '../../../shared/ui/badge/badge.component';
       padding: var(--space-2) 0;
     }
 
-    /* Cada acción con su color, siempre a la vista: editar en el acento de marca y quitar en el
-       rojo de peligro. Escondidas hasta el hover se descubrían de casualidad, y en touch no hay
-       hover que valga. El color va solo en el ícono — sin relleno — para no gritar desde una lista. */
+    /* Always visible (touch has no hover); color on the icon only, no fill. */
     .row-actions {
       flex: 0 0 auto;
       display: flex;
       gap: var(--space-1);
     }
 
-    /* Marca de "no cubierto" al principio de la fila. Decorativa: lo que la fila significa ya lo
-       dicen el título de la sección y el badge, así que va aria-hidden. */
+    /* Decorative "not covered" mark, hence aria-hidden. */
     .row-marker {
       flex: 0 0 auto;
       display: inline-flex;
@@ -185,7 +173,7 @@ import { BadgeComponent } from '../../../shared/ui/badge/badge.component';
       width: 22px;
       height: 22px;
       border-radius: var(--radius-ctl);
-      /* Fondo derivado del token de peligro, sin inventar uno nuevo en la paleta. */
+      /* Derived from the danger token rather than adding a palette color. */
       background: color-mix(in srgb, var(--status-danger) 10%, transparent);
       color: var(--status-danger);
     }
@@ -227,8 +215,6 @@ import { BadgeComponent } from '../../../shared/ui/badge/badge.component';
       height: 16px;
     }
 
-    /* Estado vacío: borde punteado para que se lea como un lugar por llenar y no como una card
-       con contenido. */
     .empty-box {
       display: flex;
       flex-direction: column;
@@ -248,7 +234,6 @@ import { BadgeComponent } from '../../../shared/ui/badge/badge.component';
       font-weight: var(--font-weight-medium);
       color: var(--text-primary);
     }
-    /* Con medida: el ejemplo es la parte que se lee de verdad y a todo el ancho de la card cuesta. */
     .empty-hint {
       margin: 0;
       max-width: 46ch;
@@ -267,22 +252,21 @@ export class StringListEditorComponent {
   readonly items = input<string[]>([]);
   readonly placeholder = input('');
   readonly addLabel = input('+ Agregar');
-  /** Línea suelta cuando la lista está vacía y NO se usa el estado vacío completo. */
+  /** Shown when the list is empty and no `emptyTitle` is set. */
   readonly emptyText = input('');
-  /** Con título, la lista vacía muestra el estado vacío completo en vez de la línea suelta. */
+  /** When set, an empty list shows the full empty state instead of `emptyText`. */
   readonly emptyTitle = input('');
-  /** Para qué sirve la lista, con un ejemplo: es lo que destraba a alguien que la ve por primera vez. */
   readonly emptyHint = input('');
-  /** Texto del botón del estado vacío ("+ Agregar primera regla"). Por defecto, el de `addLabel`. */
+  /** Empty-state button text; defaults to `addLabel`. */
   readonly emptyCta = input('');
-  /** Etiqueta igual para toda la lista: quién usa estos textos (el motor, el analista, el modelo). */
+  /** Same badge on every row: who consumes these texts (engine, analyst, LLM). */
   readonly badge = input('');
-  /** Marca decorativa al principio de cada fila (la ✗ de "no cubierto", en las exclusiones). */
+  /** Decorative leading mark on each row (the "not covered" ✗ in exclusions). */
   readonly marker = input(false);
 
   readonly itemsChange = output<string[]>();
 
-  /** Índice de la fila en edición; null = todas en lectura. Una por vez, como el acordeón. */
+  /** Row being edited; null = all read-only. One at a time. */
   protected readonly editing = signal<number | null>(null);
 
   protected startEditing(index: number): void {
@@ -295,8 +279,7 @@ export class StringListEditorComponent {
 
   protected add(): void {
     const next = [...this.items(), ''];
-    // La fila nueva nace en edición: agregar y que aparezca un renglón vacío que hay que descubrir
-    // cómo se escribe es exactamente el paso que sobra.
+    // A new row starts in edit mode.
     this.editing.set(next.length - 1);
     this.itemsChange.emit(next);
   }

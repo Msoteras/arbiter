@@ -33,12 +33,11 @@ class InsurerHardRuleServiceTest {
     private final InsurerRuleHistoryRepository historyRepository = mock(InsurerRuleHistoryRepository.class);
 
     private final InsurerHardRuleService service =
-            new InsurerHardRuleService(ruleRepository, historyRepository);
+            new InsurerHardRuleService(ruleRepository, historyRepository, mock(RuleAuthorResolver.class));
 
     /**
-     * The panel always shows both rules: the one the insurer never configured comes back
-     * disabled, and arrears defaults to STANDBY (the behavior before this rule existed) rather
-     * than leaving onArrears null.
+     * The panel always shows both rules: an unconfigured one comes back disabled, and arrears
+     * defaults to STANDBY rather than leaving onArrears null.
      */
     @Test
     void getReturnsBothRulesEvenWithNothingConfigured() {

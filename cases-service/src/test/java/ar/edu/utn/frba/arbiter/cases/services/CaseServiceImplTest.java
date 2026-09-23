@@ -90,7 +90,7 @@ import static org.mockito.Mockito.*;
 @ExtendWith(MockitoExtension.class)
 class CaseServiceImplTest {
 
-    /** El DNI que trae {@link #caseRequest()} y, por defecto, también el token del caller. */
+    /** The DNI in {@link #caseRequest()} and, by default, in the caller's token too. */
     private static final String CALLER_DNI = "40.123.456";
 
     @Mock
@@ -160,13 +160,8 @@ class CaseServiceImplTest {
     private CaseServiceImpl caseService;
 
     /**
-     * Por defecto no hay clasificación joineada. Es lo que devuelve el repositorio para un
-     * expediente recién creado, y deja que cada test que sí la necesita la sobrescriba.
-     */
-    /**
-     * Por defecto la póliza tiene una sola cobertura contratada y es la que responde por cualquier
-     * hecho. Los tests que necesitan varias la sobrescriben — acá lo que se prueba es el alta, no
-     * la resolución de cobertura (eso vive en {@link PolicyCoverageResolverTest}).
+     * By default the policy has a single contracted coverage answering for any cause; coverage
+     * resolution itself is tested in {@link PolicyCoverageResolverTest}.
      */
     @BeforeEach
     void oneContractedCoverageByDefault() {
@@ -176,26 +171,18 @@ class CaseServiceImplTest {
 
     @BeforeEach
     void noAnalysisByDefault() {
-        // toResponse() computa la prioridad de vencimiento con LocalDate.now(clock).
+        // toResponse() computes the deadline priority with LocalDate.now(clock).
         lenient().when(clock.instant()).thenReturn(Instant.parse("2026-06-15T12:00:00Z"));
         lenient().when(clock.getZone()).thenReturn(ZoneOffset.UTC);
         lenient().when(caseAnalysisRepository.findByCaseId(any())).thenReturn(CaseAnalysis.none());
         lenient().when(caseAnalysisRepository.findByCaseIds(any())).thenReturn(Map.of());
-        // Sin extracciones por default: el mock devolvería null, y el real devuelve lista vacía
-        // cuando el expediente no se clasificó todavía — que es el caso de casi todos los tests.
+        // The real repository returns an empty list for a case not yet classified, not null.
         lenient().when(caseDocumentAnalysisRepository.findByCaseId(any())).thenReturn(List.of());
     }
 
     /**
-     * createCase() ahora resuelve el insurerSlug/insurerName de la respuesta contra el tenant
-     * actual (para que el frontend pueda reenviarlo en llamadas posteriores sobre el expediente,
-     * si terminó en una aseguradora distinta de la del login). Sin aseguradora encontrada, la
-     * respuesta simplemente queda con esos dos campos en null — el mismo comportamiento de antes.
-     */
-    /**
-     * Por default la cobertura no tiene configurada su primera tanda, que es lo que hace caer el
-     * gate a la agenda documental completa — el comportamiento que prueban los tests de abajo. Los
-     * que ejercitan la tanda mínima la pisan.
+     * By default the coverage has no fast-track document list, so the gate falls back to the whole
+     * document schedule; tests of the minimal list override it.
      */
     @BeforeEach
     void noFastTrackDocumentListByDefault() {
@@ -215,9 +202,8 @@ class CaseServiceImplTest {
     }
 
     /**
-     * El alta ahora exige que el DNI del payload sea el del token (D2), así que todo test de
-     * createCase necesita un caller con el mismo DNI que usa {@link #caseRequest()}. Los tests que
-     * prueban el rechazo lo pisan.
+     * Filing requires the payload DNI to match the token's, so every createCase test needs a caller
+     * with {@link #caseRequest()}'s DNI; rejection tests override it.
      */
     @BeforeEach
     void callerIsTheInsuredFiling() {
@@ -230,7 +216,7 @@ class CaseServiceImplTest {
         CallerContext.clear();
     }
 
-    /** recordAnalystDecision resuelve el analista contra este email, no contra el request. */
+    /** recordAnalystDecision resolves the analyst from this email, not from the request. */
     private void authenticateAs(String email) {
         SecurityContextHolder.getContext().setAuthentication(
                 new UsernamePasswordAuthenticationToken(email, null, List.of()));
@@ -257,9 +243,7 @@ class CaseServiceImplTest {
         verify(caseRepository).save(captor.capture());
         assertThat(captor.getValue().getStatus()).isEqualTo(CaseStatus.PENDING_CLASSIFICATION);
 
-        // Ubicación normalizada en sus tres columnas: antes el wizard concatenaba todo en
-        // eventAddress y province/locality quedaban en null, dejando la zona del hecho como prosa
-        // no consultable.
+        // Location is normalized into three columns so the event area can be queried.
         assertThat(captor.getValue().getEventAddress()).isEqualTo("Av. Rivadavia 1234");
         assertThat(captor.getValue().getProvince()).isEqualTo("Buenos Aires");
         assertThat(captor.getValue().getLocality()).isEqualTo("CABA");
@@ -269,7 +253,6 @@ class CaseServiceImplTest {
 
     @Test
     void createCase_blankProvinceAndLocalityBecomeNull() {
-        // Campos opcionales: si el asegurado no los carga, se guarda null y no una cadena vacía.
         CaseRequest request = new CaseRequest(
                 "Celulares", "Celular Protegido Básico", "Robo en vía pública",
                 "Motorola Edge 50 Pro", CALLER_DNI, "POL-CEL-2024-001",
@@ -322,8 +305,7 @@ class CaseServiceImplTest {
 
     @Test
     void createCase_routesDeclaredDetailsToTheInsured() {
-        // contacto describe a la persona, no al siniestro: desde el DER vive en `insured`.
-        // pep e imageConsent ya no se tocan acá — vienen del onboarding/perfil.
+        // Contact details describe the person, not the claim, so they go to `insured`.
         CaseRequest request = new CaseRequest(
                 "Celulares", "Celular Protegido Básico", "Robo en vía pública",
                 "Motorola Edge 50 Pro", "40.123.456", "POL-CEL-2024-001",
@@ -354,8 +336,8 @@ class CaseServiceImplTest {
     @Test
     void createCase_unresolvablePolicy_throwsAndPersistsNothing() {
         CaseRequest request = caseRequest();
-        // El asegurado se resuelve antes que la póliza (la sincronización a demanda necesita a quién
-        // apuntar como titular), así que este test también lo necesita aunque no lo ejercite.
+        // The insured is resolved before the policy (on-demand sync needs an owner to point at), so
+        // this test needs it even though it doesn't exercise it.
         Insured insured = CaseFixtures.insured(CALLER_DNI, "Laura", "Fernández");
         insured.setId(1L);
         when(referenceResolver.resolveInsured(CALLER_DNI)).thenReturn(insured);
@@ -371,18 +353,16 @@ class CaseServiceImplTest {
         verify(claimsAnalysisClient, never()).analyzeAndPersist(any(), any());
     }
 
-    // ─────────── D2: no se denuncia a nombre de otro ───────────
+    // ─────────── Filing on someone else's behalf ───────────
 
     @Test
     void createCase_denunciaOnBehalfOfAnotherInsured_isRejected() {
-        // El payload nombra un DNI distinto al del token. Antes se resolvía igual: insuredId y
-        // policyNumber eran dos búsquedas sueltas que nadie cruzaba contra el usuario.
         CallerContext.set(new CallerContext.Caller("42.987.654", List.of(1L), "arbiter_bbva"));
 
         assertThatThrownBy(() -> caseService.createCase(caseRequest(), null))
                 .isInstanceOf(InsuredIdentityMismatchException.class);
 
-        // Falla antes de resolver nada: no se toca la base ni se encola una clasificación.
+        // Fails before resolving anything: no database write and no classification queued.
         verify(referenceResolver, never()).resolvePolicy(any(), any());
         verify(caseRepository, never()).save(any());
         verify(claimsAnalysisClient, never()).analyzeAndPersist(any(), any());
@@ -390,8 +370,8 @@ class CaseServiceImplTest {
 
     @Test
     void createCase_callerWithoutDni_isRejected() {
-        // Analista o referente: no tienen fila en `insured`, así que el token no trae DNI. El rol ya
-        // los bloquea en el controller; acá se verifica que el servicio no los deje pasar por null.
+        // Analysts and referents have no `insured` row, so their token carries no DNI. The
+        // controller already blocks the role; this checks the service doesn't let a null through.
         CallerContext.set(new CallerContext.Caller(null, List.of(1L), "arbiter_bbva"));
 
         assertThatThrownBy(() -> caseService.createCase(caseRequest(), null))
@@ -402,8 +382,8 @@ class CaseServiceImplTest {
 
     @Test
     void createCase_policyBelongingToAnotherInsured_isRejected() {
-        // Los dos resuelven bien por separado; lo que no existe es la combinación. Con ids
-        // explícitos porque es justamente la pareja lo que se compara.
+        // Each resolves fine on its own; what doesn't exist is the pair. Explicit ids because the
+        // pair is exactly what's compared.
         Insured insured = CaseFixtures.insured(CALLER_DNI, "Laura", "Fernández");
         insured.setId(7L);
         Policy someoneElsesPolicy = CaseFixtures.policy("POL-CEL-2024-001", "Celular Protegido Básico");
@@ -423,7 +403,7 @@ class CaseServiceImplTest {
 
     @Test
     void createCase_policyOfTheInsuredFiling_goesThrough() {
-        // La contracara del anterior: misma pareja, ids que coinciden, el alta procede.
+        // The counterpart: same pair with matching ids, so filing goes through.
         Insured insured = CaseFixtures.insured(CALLER_DNI, "Laura", "Fernández");
         insured.setId(7L);
         Policy ownPolicy = CaseFixtures.policy("POL-CEL-2024-001", "Celular Protegido Básico");
@@ -448,9 +428,8 @@ class CaseServiceImplTest {
     }
 
     /**
-     * Al asegurado se le dice a qué servicio técnico fue su equipo: sin eso no sabe dónde está ni a
-     * quién preguntarle. Es el único dato de una derivación que llega a su pantalla — el peritaje
-     * no viaja en ningún campo que él lea.
+     * The insured is told which repair shop has their device, or they wouldn't know where it is.
+     * It's the only derivation detail that reaches their screen; expert assessments never do.
      */
     @Test
     void getCase_inRepair_tellsWhoHasTheItem() {
@@ -470,7 +449,7 @@ class CaseServiceImplTest {
         assertThat(provider.email()).isEqualTo("service@example.com");
     }
 
-    /** En cualquier otro estado el dato no significa nada, y ni siquiera se consulta. */
+    /** In any other status the provider means nothing and isn't even looked up. */
     @Test
     void getCase_outsideRepair_carriesNoProvider() {
         when(caseRepository.findById(1L))
@@ -481,8 +460,8 @@ class CaseServiceImplTest {
 
     @Test
     void getCase_joinsTheClassificationFromLlmAnalysis() {
-        // La recomendación ya no es columna de `cases`: sale del join, y los motivos viajan uno
-        // por fila (llm_reason), no aplanados a un string — respeta el DER.
+        // The recommendation comes from the join, and reasons travel one per row (llm_reason), not
+        // flattened into a string.
         Case entity = caseRecord(1L, CaseStatus.PENDING_ANALYST_REVIEW);
         when(caseRepository.findById(1L)).thenReturn(Optional.of(entity));
         when(caseAnalysisRepository.findByCaseId(1L)).thenReturn(new CaseAnalysis(
@@ -500,8 +479,8 @@ class CaseServiceImplTest {
 
     @Test
     void getCase_fastTracked_reportsFastTrackWithoutAnLlmRow() {
-        // Un Fast Track no deja fila en llm_analysis (el CHECK de la tabla rechaza FAST_TRACK),
-        // así que la clasificación tiene que salir de was_fast_track o se vería "sin clasificar".
+        // Fast Track leaves no llm_analysis row (the table's CHECK rejects FAST_TRACK), so the
+        // classification must come from was_fast_track or it would read as unclassified.
         Case entity = caseRecord(1L, CaseStatus.PENDING_ANALYST_REVIEW);
         entity.setDeterministicFastTrack(true);
         when(caseRepository.findById(1L)).thenReturn(Optional.of(entity));
@@ -510,15 +489,15 @@ class CaseServiceImplTest {
 
         assertThat(response.analysisClassification()).isEqualTo(Classification.FAST_TRACK);
         assertThat(response.analysisConfidence()).isEqualTo(1.0);
-        // Sin motivos propios: los de llm_reason (si los hay) son de la corrida anterior, y
-        // atribuírselos al Fast Track le daría razones que no son suyas.
+        // No reasons of its own: any llm_reason rows belong to a previous run and aren't Fast
+        // Track's.
         assertThat(response.analysisReasons()).isEmpty();
     }
 
     @Test
     void getCase_beingReclassified_doesNotSurfaceThePreviousRun() {
-        // llm_analysis es append-only: mientras se recalcula, la corrida vieja sigue siendo la
-        // última fila. Mostrarla diría que hay recomendación vigente justo cuando no la hay.
+        // llm_analysis is append-only: while reclassifying, the old run is still the latest row.
+        // Showing it would claim a current recommendation exactly when there is none.
         Case entity = caseRecord(1L, CaseStatus.PENDING_CLASSIFICATION);
         when(caseRepository.findById(1L)).thenReturn(Optional.of(entity));
         when(caseAnalysisRepository.findByCaseId(1L)).thenReturn(new CaseAnalysis(
@@ -599,9 +578,8 @@ class CaseServiceImplTest {
 
     @Test
     void addDocumentsAndReclassify_someoneElsesCase_isRejected() {
-        // D1: era un findById pelado, así que cualquier asegurado podía subir documentación al
-        // expediente de otro y forzarle una reclasificación. Ahora pasa por el mismo control de
-        // pertenencia que las lecturas — y falla como 404, no 403, para no confirmar que existe.
+        // Same ownership check as reads, failing as 404 rather than 403 so as not to confirm the
+        // case exists.
         Case someoneElses = caseRecord(1L, CaseStatus.AWAITING_DOCUMENTATION);
         when(caseRepository.findById(1L)).thenReturn(Optional.of(someoneElses));
         doThrow(new CaseNotFoundException(1L)).when(accessPolicy).assertCanRead(someoneElses);
@@ -609,7 +587,7 @@ class CaseServiceImplTest {
         assertThatThrownBy(() -> caseService.addDocumentsAndReclassify(1L, Map.of()))
                 .isInstanceOf(CaseNotFoundException.class);
 
-        // Nada se guardó ni se reencoló: el rechazo es antes de tocar el expediente.
+        // Nothing saved or requeued: the rejection happens before touching the case.
         verify(caseDocumentRepository, never()).save(any());
         verify(claimsAnalysisClient, never()).analyzeAndPersist(any(), any());
         verify(caseStatusService, never()).transition(any(), any(), any(), any());
@@ -631,10 +609,9 @@ class CaseServiceImplTest {
     }
 
     /**
-     * Un expediente que el analista ya despachó y otro que todavía espera su decisión están los dos
-     * en PENDING_ANALYST_REVIEW: el estado del expediente no se mueve mientras el referente firma,
-     * para que el asegurado no vea un trámite interno. Sin el estado de la liquidación la bandeja
-     * los muestra iguales, y el analista vuelve a abrir uno que ya firmó.
+     * A case the analyst already signed and one still awaiting a decision are both
+     * PENDING_ANALYST_REVIEW (the status doesn't move while the referent signs, so the insured
+     * doesn't see internal steps). Only the settlement status tells them apart in the inbox.
      */
     @Test
     void listCases_tellsApartTheOnesWaitingForTheReferente() {
@@ -752,8 +729,7 @@ class CaseServiceImplTest {
 
     @Test
     void assignAnalyst_doesNotChangeCaseStatus() {
-        // Asignar es poner dueño, no resolver: el expediente sigue esperando la decisión del
-        // analista (human-in-the-loop, decisión de arquitectura #5).
+        // Assigning sets an owner, it doesn't resolve: the case still awaits the analyst's decision.
         Case entity = caseRecord(1L, CaseStatus.PENDING_ANALYST_REVIEW);
         when(caseRepository.findById(1L)).thenReturn(Optional.of(entity));
         when(claimsAnalystRepository.findById(7L)).thenReturn(Optional.of(analyst(7L, "Lucas", "Gómez")));
@@ -779,8 +755,8 @@ class CaseServiceImplTest {
 
     @Test
     void assignAnalyst_calledByReferent_attributesTheHistoryRowToTheReferent() {
-        // El endpoint es compartido entre ANALISTA_SINIESTROS y REFERENTE_ASEGURADORA — el
-        // historial no puede atribuirle todo al analista solo porque es el caso más común.
+        // The endpoint is shared by ANALISTA_SINIESTROS and REFERENTE_ASEGURADORA: the history can't
+        // attribute everything to the analyst.
         Case entity = caseRecord(1L, CaseStatus.PENDING_ANALYST_REVIEW);
         when(caseRepository.findById(1L)).thenReturn(Optional.of(entity));
         when(claimsAnalystRepository.findById(7L)).thenReturn(Optional.of(analyst(7L, "Lucas", "Gómez")));
@@ -815,8 +791,8 @@ class CaseServiceImplTest {
 
     @Test
     void assignAnalyst_analystOutsideTheTenant_throwsNotFound() {
-        // claims_analyst es por esquema: un analista de otra aseguradora no está en esta tabla.
-        // Es lo que hace que el aislamiento no necesite un chequeo aparte.
+        // claims_analyst is per schema: another insurer's analyst isn't in this table, which is why
+        // isolation needs no separate check.
         Case entity = caseRecord(1L, CaseStatus.PENDING_ANALYST_REVIEW);
         when(caseRepository.findById(1L)).thenReturn(Optional.of(entity));
         when(claimsAnalystRepository.findById(404L)).thenReturn(Optional.empty());
@@ -853,7 +829,7 @@ class CaseServiceImplTest {
         verify(caseStatusService).recordAssignment(entity, StatusChangeActor.ANALYST, "expediente liberado");
     }
 
-    // ─── reopenCase ("rehabilitación", doc de dominio BBVA) ────────────────────────
+    // ─── reopenCase ────────────────────────────────────────────────────────────────
 
     @Test
     void reopenCase_transitionsBackToAnalystReviewWithThePrefixedReason() {
@@ -863,16 +839,15 @@ class CaseServiceImplTest {
 
         caseService.reopenCase(1L, "el analista se equivocó");
 
-        // El motivo se guarda con prefijo: es lo único que va a quedar en el historial, y sin el
-        // prefijo una fila de reapertura se leería igual que un motivo de decisión cualquiera.
+        // The reason is stored prefixed: it's all the history keeps, and without the prefix a
+        // reopening row would read like any decision reason.
         verify(caseStatusService).transition(entity, CaseStatus.PENDING_ANALYST_REVIEW,
                 StatusChangeActor.ANALYST, "expediente reabierto: el analista se equivocó");
     }
 
     @Test
     void reopenCase_attributesTheHistoryRowToWhoeverIsCalling() {
-        // El endpoint es compartido entre ANALISTA_SINIESTROS y REFERENTE_ASEGURADORA, igual que
-        // assignAnalyst — no puede atribuirle la reapertura a un rol fijo.
+        // Shared by both roles, like assignAnalyst: the reopening can't be attributed to a fixed role.
         Case entity = caseRecord(1L, CaseStatus.LAPSED);
         when(caseRepository.findById(1L)).thenReturn(Optional.of(entity));
         when(accessPolicy.currentAssignmentActor()).thenReturn(StatusChangeActor.REFERENT);
@@ -904,9 +879,8 @@ class CaseServiceImplTest {
     }
 
     /**
-     * La guarda de 409 vive en {@code CaseStatusService.transition} (un expediente no terminal no
-     * tiene salida a PENDING_ANALYST_REVIEW) — acá solo se verifica que el service no la absorbe ni
-     * la traduce, la deja propagar tal cual para que el controller la mapee.
+     * The 409 guard lives in {@code CaseStatusService.transition}; this only checks the service
+     * lets it propagate untouched for the controller to map.
      */
     @Test
     void reopenCase_notTerminal_propagatesTheStateMachinesRefusal() {
@@ -969,10 +943,9 @@ class CaseServiceImplTest {
 
         caseService.recordAnalystDecision(1L, request);
 
-        // Se reenvía con el analista resuelto del JWT (no del request) y el contador de
-        // reintentos del expediente, que el frontend no conoce: case_classification.
-        // classification_attempts se congela con ese valor. La liquidación NO viaja: la plata es
-        // registro de este módulo, classification-service audita el veredicto.
+        // Forwarded with the analyst resolved from the JWT (not the request) and the case's retry
+        // counter, which the frontend doesn't know and case_classification freezes. The settlement
+        // does NOT travel: money is this module's record; classification-service audits the verdict.
         verify(claimsAnalysisClient).forwardAnalystDecision(1L,
                 new AnalystDecisionRequest(7L, "APPROVE", "Documentación completa", entity.getClassificationAttempts(), null));
         verify(settlementService).confirm(entity, 7L, "Documentación completa", settlement);
@@ -981,9 +954,8 @@ class CaseServiceImplTest {
     }
 
     /**
-     * Anexo II: por encima de la atribución del analista, la aprobación NO se registra todavía. Si
-     * se registrara, el expediente quedaría con un veredicto que no surtió efecto — y si el
-     * referente después devuelve la liquidación, con dos decisiones para un mismo siniestro.
+     * Above the analyst's settlement authority the approval is NOT recorded yet: otherwise the case
+     * would carry a verdict with no effect, and two decisions if the referent returns the settlement.
      */
     @Test
     void recordAnalystDecision_settlementOverTheAttribution_holdsTheDecisionAndTheCase() {
@@ -1004,7 +976,7 @@ class CaseServiceImplTest {
         verify(caseStatusService, never()).transition(any(), any(), any(), any());
     }
 
-    /** Autorizar es lo que convierte la aprobación en efectiva, con la justificación en custodia. */
+    /** Authorizing makes the approval effective, using the held justification. */
     @Test
     void authorizeSettlement_recordsTheHeldDecisionAndApprovesTheCase() {
         Case entity = caseRecord(1L, CaseStatus.PENDING_ANALYST_REVIEW);
@@ -1020,15 +992,15 @@ class CaseServiceImplTest {
         caseService.authorizeSettlement(1L);
 
         verify(settlementService).markAuthorized(1L, 3L);
-        // La decisión se atribuye al ANALISTA que la tomó, no al referente que la firmó: el
-        // veredicto sigue siendo suyo, lo que el referente autorizó es el monto.
+        // The decision is attributed to the ANALYST who made it, not the referent who signed: the
+        // verdict is still theirs, the referent authorized the amount.
         verify(claimsAnalysisClient).forwardAnalystDecision(1L, new AnalystDecisionRequest(
                 7L, "APPROVE", "Monto alto pero documentado", entity.getClassificationAttempts(), null));
         verify(caseStatusService).transition(eq(entity), eq(CaseStatus.APPROVED),
                 eq(StatusChangeActor.ANALYST), any());
     }
 
-    /** Devolverla no mueve el expediente: nunca salió de la revisión del analista. */
+    /** Returning it doesn't move the case: it never left the analyst's review. */
     @Test
     void returnSettlement_leavesTheCaseWhereItIs() {
         authenticateAs("referente@example.com");
@@ -1057,8 +1029,8 @@ class CaseServiceImplTest {
     }
 
     /**
-     * Aprobar es también determinar cuánto se paga (NSIN001 §5.2.1.2). Sin monto no hay
-     * aprobación: la compañía quedaría debiendo una suma que nadie fijó.
+     * Approving also means setting how much is paid. Without an amount there's no approval: the
+     * insurer would owe a sum nobody set.
      */
     @Test
     void recordAnalystDecision_approveWithoutSettlement_throwsBeforeForwarding() {
@@ -1073,12 +1045,12 @@ class CaseServiceImplTest {
                 new AnalystDecisionRequest(null, "APPROVE", "Documentación completa", null, null)))
                 .isInstanceOf(InvalidSettlementException.class);
 
-        // Antes de reenviar: una decisión que va a fallar no tiene que llegar al log de auditoría.
+        // Before forwarding: a decision that will fail must not reach the audit log.
         verify(claimsAnalysisClient, never()).forwardAnalystDecision(any(), any());
         verify(caseStatusService, never()).transition(any(), any(), any(), any());
     }
 
-    /** Rechazar no paga nada, así que un monto en el body es un bug del cliente, no un dato. */
+    /** Rejecting pays nothing, so an amount in the body is a client bug, not data. */
     @Test
     void recordAnalystDecision_rejectWithSettlement_throwsBeforeForwarding() {
         Case entity = caseRecord(1L, CaseStatus.PENDING_ANALYST_REVIEW);
@@ -1153,9 +1125,8 @@ class CaseServiceImplTest {
     }
 
     /**
-     * Decidir es lo que gana el que tiene el expediente asignado. Sin analista asignado no hay
-     * a quién dejarle decidir — fuerza el orden asignar → decidir en vez de que la decisión
-     * funcione como una asignación implícita.
+     * Only the assigned analyst may decide: this enforces assign → decide instead of letting a
+     * decision act as an implicit assignment.
      */
     @Test
     void recordAnalystDecision_caseNotAssigned_throwsBeforeForwarding() {
@@ -1173,7 +1144,6 @@ class CaseServiceImplTest {
         verify(caseStatusService, never()).transition(any(), any(), any(), any());
     }
 
-    /** Otro analista con rol válido y perfil propio, pero el expediente no es suyo. */
     @Test
     void recordAnalystDecision_assignedToAnotherAnalyst_throwsBeforeForwarding() {
         Case entity = caseRecord(1L, CaseStatus.PENDING_ANALYST_REVIEW);
@@ -1204,9 +1174,7 @@ class CaseServiceImplTest {
         caseService.addDocumentsAndReclassify(1L, Map.of());
 
         assertThat(entity.getClassificationAttempts()).isZero();
-        // false y no null: la columna was_fast_track es NOT NULL, así que el null que se seteaba
-        // antes reventaba al persistir contra el esquema real. Para el que lee es lo mismo,
-        // wasFastTracked() trata los dos igual.
+        // false, not null: was_fast_track is NOT NULL in the real schema.
         assertThat(entity.getDeterministicFastTrack()).isFalse();
     }
 
@@ -1221,8 +1189,8 @@ class CaseServiceImplTest {
     }
 
     /**
-     * La agenda es el contrato de "expediente completo", y hasta ahora solo la miraba el wizard:
-     * un cliente pegando directo contra el endpoint daba de alta un robo sin denuncia policial.
+     * The document schedule is the "complete case" contract and must be enforced by the backend,
+     * not only by the wizard.
      */
     @Test
     void createCase_missingARequiredDocument_isRejectedAndNothingIsPersisted() {
@@ -1241,7 +1209,7 @@ class CaseServiceImplTest {
         verify(caseRepository, never()).save(any(Case.class));
     }
 
-    /** Un archivo vacío ocupa el slot pero no es el documento: cuenta como faltante. */
+    /** An empty file fills the slot but isn't the document: it counts as missing. */
     @Test
     void createCase_emptyFileDoesNotCountAsTheDocument() {
         CaseRequest request = caseRequest();
@@ -1280,10 +1248,9 @@ class CaseServiceImplTest {
     }
 
     /**
-     * Lista vacía es una respuesta ("este hecho generador no pide documentos"); null es que no se
-     * pudo leer la agenda. Ninguna de las dos frena la denuncia, pero la segunda entra marcada
-     * para que {@code DocumentRecheckScheduler} la verifique después — ver
-     * {@code CaseServiceImpl.verifyRequiredDocuments}.
+     * An empty list is an answer ("this cause requires no documents"); null means the schedule
+     * couldn't be read. Neither blocks filing, but the latter is marked for
+     * {@code DocumentRecheckScheduler} to verify later.
      */
     @Test
     void createCase_withoutAReadableSchedule_goesThroughMarkedUnverified() {
@@ -1324,8 +1291,8 @@ class CaseServiceImplTest {
     }
 
     /**
-     * La primera tanda: con la lista del carril rápido configurada, el alta pide esa y ni mira la
-     * agenda completa — el resto se le pide después, y solo si el siniestro no fast-trackea.
+     * With a fast-track list configured, filing asks only for that list; the rest is requested
+     * later, and only if the claim doesn't fast-track.
      */
     @Test
     void createCase_withTheFastTrackList_doesNotDemandTheWholeSchedule() {
@@ -1365,7 +1332,7 @@ class CaseServiceImplTest {
         verify(caseRepository, never()).save(any(Case.class));
     }
 
-    /** Sin poder leer la lista, la denuncia entra marcada, igual que con la agenda ilegible. */
+    /** If the list can't be read the claim goes through marked, as with an unreadable schedule. */
     @Test
     void createCase_withoutAReadableFastTrackList_goesThroughMarkedUnverified() {
         CaseRequest request = caseRequest();
@@ -1386,7 +1353,7 @@ class CaseServiceImplTest {
         verify(rulesServiceClient, never()).requiredDocumentTypes(any(), any());
     }
 
-    // ─────────── la tanda que el wizard le muestra al asegurado ───────────
+    // ─────────── Document batch the wizard shows the insured ───────────
 
     @Test
     void intakeDocuments_returnsTheFastTrackListWhenTheCoverageHasOne() {
@@ -1405,7 +1372,7 @@ class CaseServiceImplTest {
         verify(rulesServiceClient, never()).requiredDocumentTypes(any(), any());
     }
 
-    /** Sin lista configurada no habría nada que pedir, así que se cae a la agenda completa. */
+    /** With no list configured there'd be nothing to ask for, so it falls back to the whole schedule. */
     @Test
     void intakeDocuments_fallsBackToTheWholeSchedule() {
         stubPolicyAndInsuredResolution();
@@ -1422,7 +1389,7 @@ class CaseServiceImplTest {
         assertThat(response.fastTrackOnly()).isFalse();
     }
 
-    /** 503 y no lista vacía: "no hace falta ningún documento" es la respuesta equivocada. */
+    /** 503 rather than an empty list: "no documents needed" would be the wrong answer. */
     @Test
     void intakeDocuments_failsWhenRulesIsUnreachable() {
         stubPolicyAndInsuredResolution();

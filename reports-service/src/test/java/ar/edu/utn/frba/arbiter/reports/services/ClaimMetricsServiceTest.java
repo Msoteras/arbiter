@@ -42,11 +42,7 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 
-/**
- * What the dashboard's figures mean: which claims each one counts, and which it deliberately
- * leaves out. The repository is mocked — that the SQL adds up is
- * {@code ClaimMetricsRepositoryTests}' job.
- */
+/** Which claims each dashboard figure counts and which it leaves out; the repository is mocked. */
 @ExtendWith(MockitoExtension.class)
 // The happy paths stub every read; the validation ones throw before any of them runs.
 @MockitoSettings(strictness = Strictness.LENIENT)
@@ -152,8 +148,8 @@ class ClaimMetricsServiceTest {
         given(claimMetricsRepository.resolvedTotals(any(), any(), any())).willReturn(List.of(
                 new ResolvedTotals("APPROVED", 6, hours(24)),
                 new ResolvedTotals("REJECTED", 2, hours(48)),
-                // Nobody decided this one; it ran out of time. Counting it would report 60%
-                // approval where the analysts actually approved 75% of what they decided.
+                // Lapsed: counting it would report 60% approval where analysts approved 75% of what
+                // they decided.
                 new ResolvedTotals("LAPSED", 2, hours(13_000))));
 
         MetricsSummary summary = claimMetricsService.generate(MetricsRange.MONTH, null, null, MetricsFilter.NONE).summary();
@@ -174,8 +170,7 @@ class ClaimMetricsServiceTest {
 
         MetricsSummary summary = claimMetricsService.generate(MetricsRange.MONTH, null, null, MetricsFilter.NONE).summary();
 
-        // (3*10 + 1*30) / 4 = 15. Averaging the two averages would have said 20, and letting the
-        // lapsed one in, over 2600.
+        // (3*10 + 1*30) / 4 = 15. Averaging the averages would say 20; including the lapsed ones, over 2600.
         assertThat(summary.averageResolutionHours()).isEqualTo(15.0);
     }
 
@@ -199,16 +194,7 @@ class ClaimMetricsServiceTest {
         assertThat(summary.averageResolutionHours()).isNull();
     }
 
-    /**
-     * The comparison window is the stretch of equal length ending the day before, not "the previous
-     * calendar month": a custom 17-day period has to be compared against 17 days or the delta is
-     * measuring the calendar instead of the operation.
-     */
-    /**
-     * El procedimiento de la compañía dice que pedir documentación o derivar a un perito interrumpe
-     * el plazo. El tablero parte el promedio en las dos mitades para que el referente vea cuánto de
-     * la demora es suya.
-     */
+    /** Waiting on third parties interrupts the term, so the average is split into the two parts. */
     @Test
     void theAverage_separatesTheInsurersOwnTimeFromWaitingOnThirdParties() {
         given(claimMetricsRepository.resolvedTotals(any(), any(), any())).willReturn(List.of(
@@ -219,7 +205,7 @@ class ClaimMetricsServiceTest {
         MetricsSummary summary = claimMetricsService.generate(
                 MetricsRange.MONTH, null, null, MetricsFilter.NONE).summary();
 
-        // 30 días de reloj de pared, de los cuales 18 fueron esperando a alguien de afuera.
+        // 30 wall-clock days, 18 of them waiting on third parties.
         assertThat(summary.averageResolutionHours()).isEqualTo(30 * 24.0);
         assertThat(summary.averageWaitingHours()).isEqualTo(18 * 24.0);
     }
@@ -242,10 +228,7 @@ class ClaimMetricsServiceTest {
         assertThat(metrics.previousSummary().reportedCases()).isEqualTo(10);
     }
 
-    /**
-     * The insurer of the fixtures files about a dozen claims a month. Read day by day that is a row
-     * of thirty points, almost all zero — so the timeline steps up to weeks on its own.
-     */
+    /** About a dozen claims a month: read daily that is mostly zeros, so the timeline steps up to weeks. */
     @Test
     void aQuietMonth_isGroupedByWeekInsteadOfByDay() {
         given(claimMetricsRepository.intakeTotals(any(), any(), any())).willReturn(new IntakeTotals(12, 3));
@@ -271,8 +254,7 @@ class ClaimMetricsServiceTest {
         assertThat(metrics.filter()).isEqualTo(filter);
         verify(claimMetricsRepository, atLeastOnce()).countByStatus(any(), any(), eq(filter));
         verify(claimMetricsRepository, atLeastOnce()).intakeFunnel(any(), any(), eq(filter));
-        // Also on the comparison window, or the delta would compare a filtered period against an
-        // unfiltered one and invent a swing.
+        // Also on the comparison window, or a filtered period would be compared against an unfiltered one.
         verify(claimMetricsRepository, times(2)).intakeTotals(any(), any(), eq(filter));
     }
 
@@ -295,10 +277,7 @@ class ClaimMetricsServiceTest {
         assertThat(target).isEqualTo(new ResolutionTarget(true, 21, 3));
     }
 
-    /**
-     * Un rules-service caído devuelve el objetivo sin fijar, no una excepción: el tablero pierde la
-     * comparación y conserva todo lo demás, que es lo que el referente vino a ver.
-     */
+    /** With rules-service down the target is unset, not an exception: only the comparison is lost. */
     @Test
     void aTargetThatCouldNotBeRead_leavesTheRestOfTheDashboardStanding() {
         given(claimMetricsRepository.resolutionSplit(any(), any(), any()))

@@ -15,10 +15,7 @@ import java.util.List;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
-/**
- * The fraud report as a landscape A4 table. The layout is {@link PdfReportWriter}'s; what lives
- * here is which columns the report has and what goes in each cell.
- */
+/** The fraud report's columns and cells; the layout is {@link PdfReportWriter}'s. */
 @Component
 @RequiredArgsConstructor
 public class PdfFraudReportExporter implements FraudReportExporter {
@@ -29,10 +26,8 @@ public class PdfFraudReportExporter implements FraudReportExporter {
             "Nº", "Asegurado", "DNI", "Ramo · Hecho generador", "Denuncia", "Score", "Señales",
             "Estado", "Fraude determinado"};
     /**
-     * Sums to 766pt, just inside the 770pt a landscape A4 leaves between margins. The risk score,
-     * the status and the determination get room for their longest value; "Señales" gets the widest
-     * column and the 6pt taken off the DNI, because it is the one that carries a list rather than a
-     * value — with three signals it wraps to the second line the writer allows it.
+     * Sums to 766pt, inside the 770pt a landscape A4 leaves between margins. "Señales" is widest since
+     * it carries a list; with three signals it wraps to a second line.
      */
     private static final float[] WIDTHS = {36, 100, 52, 110, 52, 44, 170, 90, 112};
 
@@ -73,8 +68,7 @@ public class PdfFraudReportExporter implements FraudReportExporter {
             return List.of();
         }
         if (summary.flagged() == 0) {
-            // With claims in the period, "none of them" is the finding, and it needs its population
-            // as much as any other rate does.
+            // "None of them" is the finding, and it still needs its population.
             return List.of(
                     "%sNinguna de las %d %s del período con señales".formatted(
                             PdfReportWriter.TOTALS_LABEL,
@@ -83,8 +77,6 @@ public class PdfFraudReportExporter implements FraudReportExporter {
                     comparisonLine(summary, previous));
         }
         return List.of(
-                // The denominator travels with every rate: a share with no population behind it is
-                // the figure people misread the fastest.
                 ("%s%d de %d %s con al menos una señal (%s) · Con dos o más señales: %d · "
                         + "Fraude determinado: %d (%s del período, %d con respaldo pericial)")
                         .formatted(
@@ -100,19 +92,14 @@ public class PdfFraudReportExporter implements FraudReportExporter {
                 comparisonLine(summary, previous),
                 "Por score de riesgo: " + distribution(summary.byAlertLevel(),
                         count -> ReportLabels.alertLevel(count.label())),
-                // The buckets overlap — a case with two signals is in both — so they can add up to
-                // more than the total. Said here so nobody reads it as an arithmetic error.
+                // Buckets overlap, so they can add up to more than the total; the label says so.
                 "Por señal (una denuncia puede tener más de una): "
                         + distribution(summary.bySignal(), count -> ReportLabels.signal(count.label())));
     }
 
     /**
-     * The KPI cards' change against the previous period of equal length, on its own line so the
-     * totals line above stays exactly what it always printed.
-     *
-     * <p>"Fraude determinado" is left out on purpose, the same reason the summary itself calls it
-     * out as lagging: the most recent cases are still open, so a previous period read the same way
-     * would also under-count, and the difference between two under-counts is not a trend.
+     * Change against the previous period of equal length. "Fraude determinado" is left out: it lags in
+     * both periods, and the difference of two under-counts is not a trend.
      */
     private static String comparisonLine(FraudSummary summary, FraudSummary previous) {
         long previousClaims = previous.totalClaims();

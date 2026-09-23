@@ -1,9 +1,8 @@
 package ar.edu.utn.frba.arbiter.cases.exceptions;
 
 /**
- * El perito ya recibió derivaciones, así que no se borra: se desactiva. Borrarlo dejaría
- * peritajes apuntando a una fila que no existe, y aunque el nombre y el mail están copiados en
- * cada peritaje, el referente perdería el rastro de a quién le derivó y por qué.
+ * A firm that already received derivations is deactivated, not deleted: deleting it would leave
+ * assessments pointing to a missing row.
  */
 public class ExpertFirmInUseException extends RuntimeException {
 

@@ -19,11 +19,9 @@ import org.springframework.web.bind.annotation.RestController;
 import java.util.List;
 
 /**
- * Antecedente de fraude del asegurado, registrado desde el expediente que lo originó.
- *
- * <p>Aparte de {@code /decision} y de {@code /expert-assessment/report}, por lo mismo que la
- * derivación: el peritaje verifica un hecho de <b>este</b> siniestro, y decidir que ese hecho
- * acompañe a la persona en el próximo es otro acto, del analista. No se expone al ASEGURADO.
+ * Kept apart from {@code /decision} and the expert report: the assessment verifies a fact of this
+ * claim, while making it follow the insured into future claims is a separate act by the analyst.
+ * Never exposed to the insured.
  */
 @RestController
 @RequestMapping("/api/v1/cases/{caseId}/fraud-record")

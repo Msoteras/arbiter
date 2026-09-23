@@ -27,23 +27,16 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * Reads an attached document with Qwen3-VL's vision capability: what it says (OCR, ready to inject
- * into the classification prompt) and what it looks like (signs of manipulation). PDFs are
- * rasterized page by page first — the model only accepts images. HTTP is delegated to
- * {@link LlmClient}.
- *
- * <p>This is the <b>only</b> pass that has the image in front of it. The classifier itself works on
- * text: sending it the images would spend thousands of tokens of the 32k window (decision #2) on
- * something a vision model already looked at, and image reuse is covered by CLIP/pgvector, not by
- * the model (decision #11). So whatever has to be noticed <i>visually</i> has to be noticed here —
- * that's what {@code visualFindings} is for (D5).
+ * Reads an attachment with the vision model: its text (OCR) and signs of manipulation. This is the
+ * only pass that sees the image (the classifier works on text), so anything visual must be captured
+ * here in {@code visualFindings}.
  */
 @Service
 public class DocumentAnalyzerImpl implements DocumentAnalyzer {
 
     private static final Logger log = LoggerFactory.getLogger(DocumentAnalyzerImpl.class);
 
-    /** Qwen3-VL via Ollama only accepts images (jpg/png/webp/...), not PDF — needs rasterizing first. */
+    /** The vision model only accepts images, so PDFs are rasterized page by page. */
     private static final int MAX_PDF_PAGES = 5;
 
     private static final String UNREADABLE = "No se pudo extraer contenido del documento adjunto.";
@@ -52,18 +45,13 @@ public class DocumentAnalyzerImpl implements DocumentAnalyzer {
     private static final int DETAIL_NAME_MAX = 100;
     private static final int DETAIL_VALUE_MAX = 500;
 
-    /**
-     * Forcing the shape is what keeps the two halves apart. Without it the model returns prose and
-     * an "observación:" line inside the transcription reads as if the document said it.
-     */
+    /** Without a forced shape, the model's own observations blend into the transcription. */
     private static final Map<String, Object> OUTPUT_SCHEMA = Map.of(
             "type", "object",
             "properties", Map.of(
                     "transcription", Map.of("type", "string"),
                     "visualFindings", Map.of("type", "array", "items", Map.of("type", "string")),
-                    // All nullable: a document has no reason to carry every one of them. The
-                    // schema doesn't require them so the model doesn't invent what's missing.
-                    // Map.ofEntries and not Map.of: past ten pairs the varargs overload is gone.
+                    // Not required, so the model doesn't invent what the document lacks.
                     "fields", Map.of(
                             "type", "object",
                             "properties", Map.ofEntries(
@@ -75,8 +63,6 @@ public class DocumentAnalyzerImpl implements DocumentAnalyzer {
                                     Map.entry("imei", Map.of("type", List.of("string", "null"))),
                                     Map.entry("affectedParty", Map.of("enum",
                                             List.of("TITULAR", "FAMILIAR", "TERCERO", "DESCONOCIDO"))),
-                                    // Name and value both required: half a detail says nothing to
-                                    // the analyst and only risks a row that can't be stored.
                                     Map.entry("details", Map.of(
                                             "type", "array",
                                             "items", Map.of(
@@ -142,11 +128,7 @@ public class DocumentAnalyzerImpl implements DocumentAnalyzer {
         }
     }
 
-    /**
-     * Page transcriptions are concatenated with their heading; findings are pooled across pages,
-     * prefixed with the page when there's more than one — a doctored stamp on page 3 is useless
-     * information if the analyst can't tell which page to open.
-     */
+    /** Findings are prefixed with their page so the analyst knows which page to open. */
     private DocumentExtraction extractFromPdf(byte[] content) {
         try (PDDocument document = Loader.loadPDF(content)) {
             PDFRenderer renderer = new PDFRenderer(document);
@@ -183,11 +165,7 @@ public class DocumentAnalyzerImpl implements DocumentAnalyzer {
         }
     }
 
-    /**
-     * A PDF is one document, not several: its fields are the set's. The first page carrying each
-     * value wins — the IMEI is usually on the first and the total on the last, so keeping only one
-     * would lose half.
-     */
+    /** The first page carrying each value wins (e.g. IMEI on the first page, total on the last). */
     private DocumentExtraction.Fields mergeFields(
             DocumentExtraction.Fields accumulated, DocumentExtraction.Fields page) {
         return new DocumentExtraction.Fields(
@@ -202,10 +180,8 @@ public class DocumentAnalyzerImpl implements DocumentAnalyzer {
     }
 
     /**
-     * Details accumulate instead of first-one-wins: they have no fixed set, so a later page adding
-     * its own is the normal case, not a duplicate. Deduplicated by name+value because a multi-page
-     * invoice repeats its number on every page — and by <b>both</b>, so the same name with two
-     * different values survives as two entries: that contradiction is worth showing the analyst.
+     * Details accumulate, deduplicated by name <b>and</b> value: repeated headers collapse, but the
+     * same name with two values survives as a contradiction worth showing the analyst.
      */
     private List<DocumentExtraction.Detail> mergeDetails(
             List<DocumentExtraction.Detail> accumulated, List<DocumentExtraction.Detail> page) {
@@ -226,9 +202,7 @@ public class DocumentAnalyzerImpl implements DocumentAnalyzer {
     private DocumentExtraction extractFromImage(byte[] imageContent) {
         String base64 = Base64.getEncoder().encodeToString(imageContent);
 
-        // Sin thinking: transcribir un documento es una tarea mecánica —leer lo que dice el papel—,
-        // no una que se resuelva razonando. El schema ya fuerza la forma de la salida, así que el
-        // razonamiento solo agrega minutos y consume el presupuesto de num_predict sin aportar.
+        // No thinking: transcription is mechanical, and reasoning would eat the num_predict budget.
         String content = client.chat(documentExtractionPrompt, List.of(base64), OUTPUT_SCHEMA, false);
 
         if (content.isEmpty()) {
@@ -243,11 +217,7 @@ public class DocumentAnalyzerImpl implements DocumentAnalyzer {
         return extraction;
     }
 
-    /**
-     * A document that couldn't be parsed degrades to its raw text with no findings, instead of
-     * failing the classification: the transcription is the part the flow actually depends on, and
-     * a malformed answer is not evidence of anything visual. Silence beats a made-up finding.
-     */
+    /** An unparseable answer degrades to its raw text with no findings: silence beats a made-up finding. */
     private DocumentExtraction parse(String contentJson) {
         try {
             ModelOutput output = objectMapper.readValue(contentJson, ModelOutput.class);
@@ -261,11 +231,7 @@ public class DocumentAnalyzerImpl implements DocumentAnalyzer {
         }
     }
 
-    /**
-     * A field that can't be interpreted stays null, it doesn't break the extraction: the rest of
-     * the document is still useful. And null is never read as an inconsistency downstream — "the
-     * document doesn't say" and "doesn't match" are different things.
-     */
+    /** Uninterpretable fields stay null; downstream, null means "not stated", never "inconsistent". */
     private DocumentExtraction.Fields toFields(ModelFields fields) {
         if (fields == null) {
             return DocumentExtraction.Fields.none();
@@ -282,13 +248,8 @@ public class DocumentAnalyzerImpl implements DocumentAnalyzer {
     }
 
     /**
-     * Drops the ones missing a half, and trims both. A detail with no name or no value can't be
-     * shown as anything — the analyst would read an empty row — and the columns are NOT NULL, so
-     * letting one through would cost the whole document's extraction rather than that one row.
-     *
-     * <p>Truncated to the column widths instead of discarded: a model that runs long on a value is
-     * still telling the analyst something, and losing the datum entirely to save its tail is the
-     * worse trade. Widths mirror {@code DocumentDetail}.
+     * Drops details missing a name or value (the columns are NOT NULL, so one would fail the whole
+     * document) and truncates long ones to {@code DocumentDetail}'s widths rather than dropping them.
      */
     private List<DocumentExtraction.Detail> toDetails(List<ModelDetail> details) {
         if (details == null) {
@@ -333,7 +294,6 @@ public class DocumentAnalyzerImpl implements DocumentAnalyzer {
         }
     }
 
-    /** Digits only: the model may return it with spaces or dashes and that's no real difference. */
     private String normalizeImei(String raw) {
         if (raw == null) {
             return null;
@@ -350,7 +310,6 @@ public class DocumentAnalyzerImpl implements DocumentAnalyzer {
 
     private record ModelDetail(String name, String value) {}
 
-    /** The date arrives as text and the IMEI may carry separators: both normalized on mapping. */
     private record ModelFields(String documentDate, BigDecimal amount, String itemDescription, String brand,
                                String model, String imei, String affectedParty, List<ModelDetail> details) {}
 }

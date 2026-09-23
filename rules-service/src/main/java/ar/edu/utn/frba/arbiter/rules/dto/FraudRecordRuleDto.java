@@ -4,17 +4,10 @@ import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
 
 /**
- * The insurer's policy on fraud records, as the referente edits it and as the classification
- * engine reads it: how long an earlier fraud keeps counting, and whether it disqualifies a claim
- * from Fast Track.
- *
- * <p><b>Whether the record scores is not here.</b> That lives in the scoring config, with every
- * other factor ({@code fraud_history} and its weight). A second switch for the same thing let the
- * referente's panel claim the record was scoring while the scoring config didn't list the factor.
- *
- * <p>Stored as a single {@code insurer_rule} row of type {@code FRAUD_RECORD}, insurer-wide
- * ({@code branch_id} and {@code coverage_id} both null). With two branches there's no case for a
- * window per branch, and one number the referente can point at beats two that can disagree.
+ * The insurer's policy on fraud records: how long an earlier fraud keeps counting, and whether it
+ * disqualifies a claim from Fast Track. Whether the record scores is not here: that's the
+ * {@code fraud_history} factor in the scoring config. Stored as a single insurer-wide
+ * {@code FRAUD_RECORD} {@code insurer_rule}.
  *
  * @param ruleId          the {@code insurer_rule} id, so a fraud-record finding has something to
  *                        point {@code rule_result.rule_id} at. Null when the insurer never

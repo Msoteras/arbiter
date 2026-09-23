@@ -1,23 +1,17 @@
-// Espejo de PolicyResponse de cases-service (GET /api/v1/policies).
-// Multi-aseguradora: cada póliza trae su aseguradora (insurerId/insurerName).
-
 import { StatusTone } from './status-tone';
 
-/**
- * Una cobertura contratada en la póliza. Son VARIAS: una póliza de celulares cubre robo y hurto,
- * cada una con su propia suma asegurada y franquicia. Cuál aplica lo decide el hecho generador
- * denunciado, y eso lo resuelve el backend.
- */
+/** A policy has several coverages; the backend picks the one matching the reported claim cause. */
 export interface PolicyCoverage {
   code: string;
   description: string;
   insuredAmount: number;
-  /** Franquicia en valor absoluto. */
+  /** Absolute amount. */
   deductible: number;
-  /** La misma franquicia en puntos porcentuales (10 = 10%), como la da la compañía. */
+  /** Same deductible in percentage points (10 = 10%). */
   deductiblePct: number | null;
 }
 
+// Mirrors cases-service's PolicyResponse (GET /api/v1/policies).
 export interface Policy {
   policyNumber: string;
   insurerId: string;
@@ -30,40 +24,28 @@ export interface Policy {
   insuredItem: string | null;
   product: string;
   /**
-   * ISO con hora (`2026-01-01T00:00:00`): la vigencia de la póliza modelo arranca y termina a una
-   * hora exacta ("desde las 12:00 hs del..."), no al filo del día, y el backend la manda completa.
-   *
-   * Son para MOSTRAR. Si cubre o no lo dice `validity`, no una comparación contra estas fechas:
-   * vienen sin zona horaria y compararlas acá las lee en el huso del navegador.
+   * ISO with time, for DISPLAY only. They carry no timezone, so never compare them here: whether
+   * the policy covers is decided by `validity`.
    */
   effectiveFrom: string;
   effectiveTo: string;
   validity: PolicyValidity;
   upToDate: boolean;
   /**
-   * Suma asegurada y franquicia de la PRIMERA cobertura, solo para el resumen de la tarjeta de
-   * póliza. No hay una suma asegurada de la póliza: cualquier cosa que decida algo tiene que
-   * mirar `coverages` y quedarse con la que corresponde al hecho denunciado.
+   * The FIRST coverage's amounts, for the policy card summary only. Anything that decides must use
+   * the matching entry in `coverages`.
    */
   insuredAmount: number;
   deductible: number;
   coverages: PolicyCoverage[];
 }
 
-// ───────────────── Vigencia y estado de pago ─────────────────
-// Son dos ejes distintos y hay que leerlos por separado: una póliza puede estar vigente y con
-// deuda, o al día y ya vencida. Colapsarlos en un solo semáforo pierde justamente el caso que al
-// asegurado le importa — "me está cubriendo o no".
+// Validity and payment status are independent axes: a policy can be in force with debt, or paid
+// up and expired. Keep them as separate indicators.
 
 /**
- * Espejo de PolicyResponse.Validity (cases-service). Llega calculado y NO se deriva acá de las
- * fechas: `effectiveFrom/To` viajan sin zona horaria, así que el navegador las leía en hora
- * argentina y el backend en UTC. El día que una póliza vencía, esas tres horas de diferencia
- * alcanzaban para que el portal la mostrara "Vigente" mientras el alta de denuncia ya la había
- * sacado de la lista. Ahora un solo reloj decide y las dos pantallas leen lo mismo.
- *
- * `NOT_YET_ACTIVE` es la póliza ya emitida cuya vigencia todavía no arrancó: la compañía vende con
- * fecha de inicio futura, y sin este caso el asegurado creería que ya está cubierto.
+ * Computed by the backend, never derived here from the timezone-less dates, so every screen reads
+ * the same clock. `NOT_YET_ACTIVE`: issued with a future start date.
  */
 export type PolicyValidity = 'CURRENT' | 'NOT_YET_ACTIVE' | 'EXPIRED';
 
@@ -77,8 +59,6 @@ const VALIDITY_LABELS: Record<PolicyValidity, string> = {
   NOT_YET_ACTIVE: 'Aún no vigente',
 };
 
-// `danger` para vencida, igual que el expediente caducado (LAPSED en estado.ts): para el asegurado
-// significan lo mismo, que eso ya no lo cubre.
 const VALIDITY_TONES: Record<PolicyValidity, StatusTone> = {
   CURRENT: 'ok',
   EXPIRED: 'danger',
@@ -93,13 +73,12 @@ export function policyValidityTone(policy: Policy): StatusTone {
   return VALIDITY_TONES[policy.validity];
 }
 
-/** `upToDate` es estado de PAGO (sin cuotas impagas ni saldo), no vigencia. */
+/** `upToDate` is PAYMENT status, not validity. */
 export function policyPaymentLabel(policy: Policy): string {
   return policy.upToDate ? 'Al día' : 'Con deuda';
 }
 
-// `warning` y no `danger`: una cuota atrasada no anula la póliza por sí sola, es algo que el
-// asegurado puede resolver. Quien decide si la deuda afecta la cobertura es el motor de reglas.
+// Warning, not danger: arrears alone do not void the policy; the rules engine decides that.
 export function policyPaymentTone(policy: Policy): StatusTone {
   return policy.upToDate ? 'ok' : 'warning';
 }

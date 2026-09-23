@@ -20,13 +20,7 @@ import org.springframework.web.bind.annotation.RestController;
 
 import java.time.LocalDate;
 
-/**
- * The resolution report: the JSON the screen previews, and the same data as a downloadable file.
- *
- * <p>The architecture document presents reports to the referent; the analyst reads them too, same
- * as the frontend's {@code insurer/reports} route decides — they're metrics of the operation, not
- * the insurer's configuration.
- */
+/** The resolution report: the JSON the screen previews, and the same data as a downloadable file. */
 @RestController
 @RequestMapping("/api/v1/reports/resolutions")
 @RequiredArgsConstructor

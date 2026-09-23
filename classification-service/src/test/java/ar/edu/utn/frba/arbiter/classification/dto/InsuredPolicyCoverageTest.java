@@ -7,11 +7,7 @@ import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-/**
- * La suma asegurada y la franquicia que lee todo el motor (Fast Track, {@code amount_ratio}, el
- * agotamiento por monto, el prompt, el {@code policy_snapshot} auditado) son las de la cobertura
- * que responde por el siniestro, no las de la primera que devolvió la compañía.
- */
+/** The sum insured and deductible the engine reads are the claim's coverage's, not the first one listed. */
 class InsuredPolicyCoverageTest {
 
     @Test
@@ -22,16 +18,13 @@ class InsuredPolicyCoverageTest {
 
         assertThat(hurto.insuredAmount()).isEqualByComparingTo("650000");
         assertThat(hurto.deductible()).isEqualByComparingTo("65000");
-        // El resto de la póliza no se toca: la vigencia y la mora son del contrato, no del riesgo.
+        // Validity and arrears belong to the policy, not to the coverage.
         assertThat(hurto.policyNumber()).isEqualTo(policy.policyNumber());
         assertThat(hurto.upToDate()).isEqualTo(policy.upToDate());
         assertThat(hurto.coverages()).isEqualTo(policy.coverages());
     }
 
-    /**
-     * El bug concreto: sin estrechar, un hurto sobre una póliza que cubre robo y hurto se medía
-     * contra la suma asegurada del robo — el doble, en la póliza del seed.
-     */
+    /** A theft claim on a robbery+theft policy must be measured against the theft coverage's sum. */
     @Test
     void withoutNarrowing_theAmountIsTheFirstCoverages() {
         assertThat(policyWithBothCoverages().insuredAmount()).isEqualByComparingTo("1300000");
@@ -43,11 +36,7 @@ class InsuredPolicyCoverageTest {
                 .isEqualByComparingTo("650000");
     }
 
-    /**
-     * Un nombre que no está (o ausente) deja la póliza como venía. Es lo que hacía el código
-     * anterior, y es mejor que una suma asegurada nula, que apaga en silencio toda regla que
-     * divida por ella.
-     */
+    /** An unknown or absent name leaves the policy untouched: a null sum insured would silently disable rules. */
     @Test
     void anUnknownOrMissingCoverageLeavesThePolicyUntouched() {
         InsuredPolicy policy = policyWithBothCoverages();

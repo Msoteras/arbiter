@@ -1,9 +1,7 @@
 /**
- * Posiciona un panel flotante anclado a su trigger, en coordenadas de viewport.
- *
- * Los paneles del kit son `fixed` y no `absolute` porque cualquier ancestro con overflow los
- * recorta, y acá pasa seguido: un contenedor con `overflow-x: auto` (las tablas) recorta también
- * en vertical, porque la spec no permite dejar un eje en `visible` si el otro no lo está.
+ * Viewport coordinates for a floating panel anchored to its trigger. Panels are `fixed`, not
+ * `absolute`, because any overflow ancestor clips them: `overflow-x: auto` (tables) clips
+ * vertically too, since the spec forbids one axis `visible` when the other is not.
  */
 export interface OverlayPosition {
   top: number | null;
@@ -13,7 +11,7 @@ export interface OverlayPosition {
   width: number | null;
 }
 
-/** `stretch` = mismo ancho que el trigger (selects); `start`/`end` = anclado a ese borde (menús). */
+/** `stretch` = same width as the trigger (selects); `start`/`end` = anchored to that edge (menus). */
 export type OverlayAlign = 'start' | 'end' | 'stretch';
 
 const GAP = 4;
@@ -23,16 +21,15 @@ export function anchorToTrigger(
   estimatedHeight: number,
   align: OverlayAlign,
 ): OverlayPosition {
-  // clientWidth/Height y no innerWidth/Height: estos incluyen la barra de scroll, contra la que
-  // `fixed` no resuelve — el panel quedaba corrido su ancho (~15px).
+  // clientWidth/Height, not innerWidth/Height: the latter include the scrollbar, which `fixed`
+  // does not resolve against, shifting the panel by its width.
   const viewportWidth = document.documentElement.clientWidth;
   const viewportHeight = document.documentElement.clientHeight;
 
   const spaceBelow = viewportHeight - trigger.bottom;
   const dropUp = spaceBelow < estimatedHeight && trigger.top > spaceBelow;
 
-  // Se fija el borde opuesto al lado hacia el que abre: así no hace falta medir el panel antes
-  // de renderizarlo.
+  // Pin the edge opposite to the opening side so the panel need not be measured before rendering.
   return {
     top: dropUp ? null : trigger.bottom + GAP,
     bottom: dropUp ? viewportHeight - trigger.top + GAP : null,

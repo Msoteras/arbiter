@@ -27,11 +27,8 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * Authenticates the STOMP session and decides who may subscribe to a case's conversation.
- *
- * <p>Neither servlet filter runs here: after the handshake every frame travels outside the filter
- * chain, so identity and tenant are re-established on this channel. The token comes in the CONNECT
- * frame, not the URL — a query string would land in nginx's and the platform's access logs.
+ * After the handshake frames travel outside the servlet filter chain, so identity and tenant are
+ * re-established here. The token comes in the CONNECT frame, not the URL, to keep it out of access logs.
  */
 @Component
 @RequiredArgsConstructor

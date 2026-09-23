@@ -19,12 +19,8 @@ import java.time.LocalDate;
 import java.util.List;
 
 /**
- * Registration and read-back of fraud records against an insured.
- *
- * <p>Registering is deliberately a separate act from filing the expert's report. The expert
- * verifies a fact about one claim; the analyst decides that fact constitutes a record that will
- * weigh on the person's next one. Collapsing the two would mean an external party's report
- * silently starting a file on someone.
+ * Registering a record is deliberately separate from filing the expert's report: the analyst decides
+ * whether a verified fact becomes a record that weighs on the person's next claim.
  */
 @Service
 @RequiredArgsConstructor
@@ -59,12 +55,7 @@ public class InsuredFraudRecordService {
         return toResponse(saved, rulesAdapter.getFraudRecordPolicy(), LocalDate.now());
     }
 
-    /**
-     * Every record about the insured, lapsed ones included. The window is applied as
-     * {@code inForce}/{@code scores} flags instead of as a filter: an analyst who can see "hubo un
-     * antecedente en 2019, fuera de ventana" is reading the same history the engine read, which is
-     * the point of the record being auditable at all.
-     */
+    /** Lapsed records included: the window becomes flags, so the analyst reads the same history the engine did. */
     @Transactional(readOnly = true)
     public List<FraudRecordResponse> findByInsured(String insuredDni) {
         BusinessRules.FraudRecordPolicy policy = rulesAdapter.getFraudRecordPolicy();
@@ -77,9 +68,7 @@ public class InsuredFraudRecordService {
     private FraudRecordResponse toResponse(
             InsuredFraudRecord record, BusinessRules.FraudRecordPolicy policy, LocalDate today) {
         boolean inForce = record.inForce(policy.windowMonths(), today);
-        // "Pesa en el motor" = con respaldo pericial y dentro de la ventana. Cuánto mueve el número
-        // depende del peso que la aseguradora le haya dado al factor en su scoring, que es donde se
-        // configura eso — acá se responde si el antecedente califica, no cuánto suma.
+        // Whether it qualifies, not how much it weighs: that's the scoring config's factor weight.
         boolean scores = record.counts(policy.windowMonths(), today);
         return new FraudRecordResponse(
                 record.getId(),

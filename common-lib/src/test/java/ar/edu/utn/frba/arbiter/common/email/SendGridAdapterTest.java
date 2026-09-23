@@ -27,8 +27,7 @@ class SendGridAdapterTest {
             assertThatCode(() -> adapter.send("destinatario@example.com", "Asunto", "<p>Hola</p>"))
                     .doesNotThrowAnyException();
 
-            // false, not just "no exception": quien anota "notificado" tiene que poder distinguir
-            // esto de un envío real.
+            // Callers that record "notified" need to tell this apart from a real delivery.
             assertThat(adapter.send("destinatario@example.com", "Asunto", "<p>Hola</p>")).isFalse();
             assertThat(mocked.constructed()).isEmpty();
         }

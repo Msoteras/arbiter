@@ -92,10 +92,7 @@ public final class ReportFixtures {
                 3, 2, null, CaseStatus.PENDING_EXPERT_REPORT, false, false);
     }
 
-    /**
-     * Listed for a reused image, and the score put it in LOW. The band is not an alert — it is the
-     * case that made "Bajo" stop being printed as an alert level.
-     */
+    /** Listed for a reused image while scored LOW: the band must not print as an alert level. */
     public static FraudReportRow lowScoreRow(long caseId) {
         return new FraudReportRow(caseId, "Paula Soria", "33.508.901", "Celulares",
                 "Rotura accidental", Instant.parse("2026-09-08T08:30:00Z"), RiskBand.LOW,

@@ -1,16 +1,8 @@
 import { ChangeDetectionStrategy, Component, input, model } from '@angular/core';
 
 /**
- * Interruptor de encendido/apagado del design system.
- *
- * Va donde la decisión es "esto corre o no corre" y el efecto es inmediato sobre lo que hay al lado
- * (una regla del motor, un factor del scoring). Para elegir de una lista está `app-select`; para
- * marcar items de un conjunto, `app-checkbox`; para filtrar o alternar una vista, el chip.
- *
- * El estado se lee por la posición de la perilla además de por el color, así que no depende de
- * distinguir el teal del gris. `role="switch"` + `aria-checked` lo dejan anunciado como
- * interruptor; el nombre va en `ariaLabel` porque en las pantallas donde se usa el rótulo visible
- * es un elemento aparte, al lado.
+ * For on/off settings with immediate effect (a rule, a scoring factor). The accessible name goes in
+ * `ariaLabel` because the visible label is usually a sibling element, not content of the control.
  */
 @Component({
   selector: 'app-switch',
@@ -48,15 +40,12 @@ import { ChangeDetectionStrategy, Component, input, model } from '@angular/core'
       width: 16px;
       height: 16px;
       border-radius: var(--radius-pill);
-      /* Blanca en los dos estados: es la perilla, no el estado. Lo que cambia es dónde está. */
       background: var(--text-on-emphasis);
       box-shadow: var(--shadow-card);
       transition: transform var(--dur-1) ease;
     }
-    /* --accent-fill y no --action-accent-bg: ese es el teal FUERTE del botón sólido, pensado para
-       que un texto blanco encima pase AA, y en un toggle se veía apagado. El sistema ya dice que
-       los rellenos activos (y nombra los toggles) van con el teal de marca; --accent-fill es ese
-       rol, con su borde para que el control se distinga del fondo. */
+    /* --accent-fill, not the strong teal: that one is tuned for white text on solid buttons and
+       looks dull on a toggle. */
     .track[aria-checked='true'] {
       background: var(--accent-fill);
       border-color: var(--accent-fill-border);
@@ -82,10 +71,8 @@ import { ChangeDetectionStrategy, Component, input, model } from '@angular/core'
   `,
 })
 export class SwitchComponent {
-  /** Valor two-way: `[(checked)]`. */
   readonly checked = model(false);
   readonly disabled = input(false);
-  /** Nombre accesible: el rótulo visible suele ser un elemento hermano, no contenido del control. */
   readonly ariaLabel = input<string | null>(null);
 
   protected toggle(): void {

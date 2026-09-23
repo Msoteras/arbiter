@@ -5,48 +5,19 @@ import java.time.LocalDate;
 import java.util.List;
 
 /**
- * Everything the referent's dashboard draws, for one insurer and one period, in a single response:
- * the funnel, the KPI cards, the three distributions and the timeline. One request because the
- * panel shows it all at once — six endpoints would mean six round trips to paint one screen, and a
- * period selector that repaints it piecemeal.
+ * Everything the dashboard draws for one insurer and one period, in a single response so the screen
+ * paints in one round trip. The insurer is never a parameter: it comes from the caller's JWT.
  *
- * <p>The insurer is never a parameter. It's the schema the caller's JWT resolves to, so there is no
- * way to ask for another company's numbers (acceptance criterion 1).
- *
- * @param from             first day of the period, included
- * @param to               last day of the period, included
- * @param granularity      how wide each {@link #timeline()} point is; derived from the period and
- *                         from how much actually happened in it
- * @param filter           the cuts this response was computed under, echoed back so the screen can
- *                         tell "no claims" from "no claims matching this filter"
- * @param funnel           the period's intake, followed forward — a different population from
- *                         {@link #summary()}; see {@link IntakeFunnel}
- * @param previousSummary  the same summary over the period immediately before this one, of equal
- *                         length. It's what turns every figure from a number into a direction. Null
- *                         only if it could not be computed.
- * @param agreement        how often the analyst decided where the model pointed
- * @param resolutionTarget the insurer's own service goal and how many decisions ran past it. Not
- *                         the legal deadline: that one is per claim and missing it is a different,
- *                         worse problem — see {@link #legalDeadline()}.
- * @param legalDeadline    how many of the period's decisions were made within the art. 56 term.
- *                         The regulatory half of the pair above: the target is a goal the company
- *                         sets itself, this one is the law
- * @param reopening        how many of the claims closed in the period had been reopened at least
- *                         once — a quality-of-decision figure, read next to {@link #agreement()}
- * @param settled          what the insurer committed to pay in the period, and how that figure was
- *                         reached from what the insured claimed
- * @param fraud            fraud determined in the period and what it saved — the figure that pays
- *                         for investigating
- * @param fastTrack        how long Fast Track claims took against the rest, as two measured
- *                         figures rather than an estimated saving
- * @param derivations      one row per kind of third party the claims were derived to, with how
- *                         long each takes to answer
- * @param byBlockingRule   which rules stopped the most claims filed in the period
- * @param byStatus         claims filed in the period, by the status they sit in <b>now</b> — a
- *                         snapshot of where the intake ended up, not of transitions
- * @param byBranch         claims filed in the period, by branch ("ramo")
- * @param byClassification claims filed in the period, by classification
- * @param byRiskBand       claims filed in the period, by risk band
+ * @param granularity      derived from the period length and from how much happened in it
+ * @param filter           echoed back so the screen can tell "no claims" from "no claims matching"
+ * @param funnel           the period's intake followed forward; a different population from
+ *                         {@link #summary()}
+ * @param previousSummary  the same summary over the preceding period of equal length; null only if it
+ *                         could not be computed
+ * @param resolutionTarget the insurer's own service goal, not the legal deadline (see
+ *                         {@link #legalDeadline()})
+ * @param legalDeadline    decisions made within the art. 56 term
+ * @param byStatus         claims filed in the period by their <b>current</b> status
  */
 public record ClaimMetrics(
         LocalDate from,

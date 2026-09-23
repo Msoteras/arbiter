@@ -25,10 +25,8 @@ public interface InsurerRuleHistoryRepository extends JpaRepository<InsurerRuleH
     List<InsurerRuleHistory> findAllForHistory();
 
     /**
-     * The rule types the trail holds, for the view's filter. A query of its own and not a pass over
-     * {@link #findAllForHistory()}: the filter loads with the feed, and reusing that method meant
-     * fetching and pairing every version a second time just to collect a handful of distinct
-     * strings — the screen paid for the whole history twice on open.
+     * The rule types the trail holds, for the view's filter. A query of its own so the filter
+     * doesn't load and pair the whole history just to collect a few distinct strings.
      */
     @Query("SELECT DISTINCT h.insurerRule.ruleType FROM InsurerRuleHistory h ORDER BY 1")
     List<String> findDistinctRuleTypes();

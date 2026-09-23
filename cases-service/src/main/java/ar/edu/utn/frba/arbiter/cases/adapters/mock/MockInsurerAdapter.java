@@ -13,14 +13,8 @@ import java.util.List;
 import java.util.Optional;
 
 /**
- * Fallback en memoria cuando el perfil {@code insurer-db} NO está activo (tests / dev sin la
- * BD aseguradora seedeada). Refleja una porción del seed real ({@code db/seed-demo.sql}, esquema
- * {@code aseguradora_bbva}) para el asegurado de prueba (42.987.654). La fuente de verdad es
- * {@link ar.edu.utn.frba.arbiter.cases.adapters.db.InsurerDatabaseAdapter} cuando el perfil está
- * prendido.
- *
- * <p>Devuelve las pólizas de una sola compañía aunque el asegurado real tenga en dos: el recorte
- * multi-aseguradora depende del esquema por tenant, que acá no existe. Alcanza para el wizard.
+ * In-memory fallback when the {@code insurer-db} profile is off. Mirrors part of
+ * {@code db/seed-demo.sql} for the test insured, from a single insurer only.
  */
 @Component
 public class MockInsurerAdapter implements InsurerAdapter {
@@ -58,9 +52,7 @@ public class MockInsurerAdapter implements InsurerAdapter {
                                     .insuredAmount(new BigDecimal("120000")).deductible(new BigDecimal("12000.00")).deductiblePct(new BigDecimal("10.00")).build()
                     ))
                     .build(),
-            // Vencida y con deuda a propósito: es el estado que "Mis pólizas" tiene que poder
-            // mostrar y el wizard tiene que seguir escondiendo. Sin una así, la diferencia entre
-            // los dos llamados no se ve en dev.
+            // Expired and in arrears on purpose: the profile must show it and the wizard must hide it.
             PolicyResponse.builder()
                     .policyNumber("POL-CEL-2025-011")
                     .insurerId("1").insurerName("BBVA Seguros Argentina S.A.")
@@ -98,11 +90,7 @@ public class MockInsurerAdapter implements InsurerAdapter {
                 .toList();
     }
 
-    /**
-     * La vigencia se resuelve al responder y no en la constante: una lista fija se vuelve mentira
-     * sola con el paso del tiempo, y además el recorte y la etiqueta tienen que salir del mismo
-     * instante (ver {@link Validity}).
-     */
+    /** Validity is resolved per call so the filter and the label come from the same instant. */
     private static PolicyResponse withValidity(PolicyResponse policy, LocalDateTime now) {
         return PolicyResponse.builder()
                 .policyNumber(policy.policyNumber())

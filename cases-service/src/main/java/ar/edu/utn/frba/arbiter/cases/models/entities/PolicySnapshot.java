@@ -18,19 +18,9 @@ import java.math.BigDecimal;
 import java.time.Instant;
 
 /**
- * What the insurer's DB answered for one specific claim, frozen at the moment it was filed
- * ("poliza_consultada" in the DER). Distinct from {@link Policy}, which is the synced local
- * copy that keeps changing: this one must not, or the classification stops being reproducible
- * — the audit trail Disposición SSN 2/2023 requires has to show the data the decision was
- * actually made on.
- *
- * <p>{@code paymentsUpToDate} and {@code previousClaims} are what the scoring engine reads for
- * the {@code policy_standing} and {@code claim_frequency} factors.
- *
- * <p>This is the <b>read</b> side. classification-service writes it (its
- * {@code PolicySnapshotRepository}, plain JDBC), because that's where the insurer's answer enters
- * the decision — taking the snapshot here, on creation, would record data the classification never
- * saw.
+ * What the insurer DB answered for one claim, frozen so the classification stays reproducible for
+ * audit (unlike {@link Policy}, which keeps syncing). Read-only here: classification-service writes it,
+ * since that's where the insurer's answer enters the decision.
  */
 @Entity
 @Table(name = "policy_snapshot")
@@ -60,32 +50,25 @@ public class PolicySnapshot {
     @Column(name = "previous_claims", nullable = false)
     private Integer previousClaims;
 
-    /** Nullable, unlike the count: a zero would read as "never claimed a peso". */
+    /** Nullable, unlike the count: a zero would read as "never paid anything". */
     @Column(name = "total_amount_claimed")
     private BigDecimal totalAmountClaimed;
 
-    /**
-     * When the policy's cover ends. The settlement counts the premium installments still to fall
-     * due between the event and this date; frozen for the same reason as everything else here.
-     */
+    /** The settlement counts the installments still due between the event and this date. */
     @Column(name = "effective_to")
     private Instant effectiveTo;
 
-    /** What one premium installment costs. Null where the insurer's DB doesn't carry it. */
+    /** Null where the insurer DB doesn't carry it. */
     @Column(name = "installment_amount")
     private BigDecimal installmentAmount;
 
-    /**
-     * Arrears already due, in money. {@link #paymentsUpToDate} is the boolean reading of the same
-     * fact — the rules ask whether there's debt, the settlement asks how much (clause 102, art. 5).
-     */
+    /** Same fact as {@link #paymentsUpToDate}, in money: rules ask whether there's debt, the settlement how much. */
     @Column(name = "overdue_balance")
     private BigDecimal overdueBalance;
 
     /**
-     * Which event of the rolling year this claim is; 1 is the first. Resolved by
-     * classification-service, where the insured's history lives, with the same 12-month window the
-     * MAX_EVENTS_YEAR rule uses — so the cap on events and the percentage payable can't disagree.
+     * 1 is the first. Uses the same 12-month window as the MAX_EVENTS_YEAR rule, so the events cap and
+     * the percentage payable can't disagree.
      */
     @Column(name = "events_in_year")
     private Integer eventsInYear;
@@ -93,7 +76,7 @@ public class PolicySnapshot {
     @Column(name = "queried_at", nullable = false)
     private Instant queriedAt;
 
-    /** Raw insurer response, kept whole for audit. jsonb in the schema, not TEXT. */
+    /** Raw insurer response, kept whole for audit. */
     @JdbcTypeCode(SqlTypes.JSON)
     @Column(name = "insurer_db_payload")
     private String insurerDbPayload;

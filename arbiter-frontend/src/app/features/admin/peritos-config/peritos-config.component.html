@@ -1,6 +1,3 @@
-<!-- Card propia y separada de la del antecedente: los peritos se guardan solos y el antecedente
-     no, así que la barra "Guardar cambios" queda pegada a lo único que gobierna en vez de flotar
-     abajo de las dos cosas. -->
 <app-card>
   <div class="sc-section-head">
     <span class="t-section-label">Peritos y servicios técnicos</span>
@@ -8,12 +5,6 @@
       <app-button variant="secondary" (click)="add()">+ Agregar proveedor</app-button>
     }
   </div>
-  <!-- La barra de abajo gobierna la regla del antecedente, no esta lista: sin este aviso, "Todo
-       guardado" después de tocar un perito se lee como que el cambio no se registró. -->
-  <p class="autosave t-note">
-    <span aria-hidden="true">✓</span>
-    Los peritos se guardan solos al confirmar cada uno: no hace falta usar «Guardar cambios».
-  </p>
 
   @if (loading()) {
     <p class="t-note">Cargando…</p>
@@ -29,8 +20,6 @@
           <div class="perito-data">
             <span class="perito-name">
               {{ p.name }}
-              <!-- El estado como badge y no como "· inactivo" al final del nombre: un perito
-                   inactivo no aparece en el selector al derivar, así que conviene que salte. -->
               <app-badge variant="solid" [tone]="p.active ? 'ok' : 'neutral'">
                 {{ p.active ? 'Activo' : 'Inactivo' }}
               </app-badge>

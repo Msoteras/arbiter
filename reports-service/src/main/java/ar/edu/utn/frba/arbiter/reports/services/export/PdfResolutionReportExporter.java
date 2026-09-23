@@ -16,10 +16,7 @@ import java.util.List;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
-/**
- * The resolution report as a landscape A4 table. The layout is {@link PdfReportWriter}'s; what
- * lives here is which columns the report has and what goes in each cell.
- */
+/** The resolution report's columns and cells; the layout is {@link PdfReportWriter}'s. */
 @Component
 @RequiredArgsConstructor
 public class PdfResolutionReportExporter implements ResolutionReportExporter {
@@ -53,11 +50,6 @@ public class PdfResolutionReportExporter implements ResolutionReportExporter {
                 zone));
     }
 
-    /**
-     * The filters the report ran with, then the four figures H0019 asks for: whoever opens the PDF
-     * to answer "how did the period go" gets the answer on the first screen instead of adding up a
-     * table.
-     */
     private static List<String> headingLines(ResolutionReport report) {
         List<String> lines = new ArrayList<>();
         lines.add("Período: %s al %s · Ramo: %s · Tipo de siniestro: %s".formatted(
@@ -87,10 +79,7 @@ public class PdfResolutionReportExporter implements ResolutionReportExporter {
                 "Por tipo de siniestro: " + distribution(summary.byClaimCause(), MetricCount::label));
     }
 
-    /**
-     * The KPI cards' change against the previous period of equal length, on its own line so the
-     * totals line above stays exactly what it always printed.
-     */
+    /** Change against the previous period of equal length. */
     private static String comparisonLine(ResolutionSummary summary, ResolutionSummary previous) {
         long previousCases = previous.totalCases();
         String previousTime = previous.averageMinutes() == null
@@ -108,10 +97,8 @@ public class PdfResolutionReportExporter implements ResolutionReportExporter {
     }
 
     /**
-     * The average and what it is an average of. Over the decided cases only — the same population
-     * the dashboard measures — so the document has to say so, or the figure looks like it covers
-     * every row of the table underneath it. Split into the insurer's own time and the wait on a
-     * third party, same pair the dashboard shows.
+     * States what the average is over (decided cases only), or it would read as covering every row,
+     * and splits it into the insurer's own time and the wait on third parties.
      */
     private static String resolutionTime(ResolutionSummary summary) {
         if (summary.averageMinutes() == null) {

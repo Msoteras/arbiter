@@ -1,9 +1,8 @@
 package ar.edu.utn.frba.arbiter.cases.exceptions;
 
 /**
- * Nobody owns this case yet, so nobody can act on it — deciding and deriving to an expert are
- * ownership's payoff, not separate permissions. Forces the assign → act order instead of letting
- * an action silently stand in for an assignment nobody made.
+ * Deciding and deriving require owning the case, so the assign-then-act order is enforced instead
+ * of letting an action silently stand in for an assignment nobody made.
  */
 public class CaseNotAssignedException extends RuntimeException {
 

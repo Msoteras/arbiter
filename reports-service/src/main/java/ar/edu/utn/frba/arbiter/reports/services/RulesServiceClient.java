@@ -14,18 +14,12 @@ import org.springframework.web.client.RestClientException;
 import javax.crypto.SecretKey;
 
 /**
- * Lectura system-to-system de la configuración que administra rules-service. Hoy sólo el objetivo
- * de resolución, que es lo único de la configuración de la aseguradora que el tablero necesita.
+ * System-to-system read of the resolution target from rules-service.
  *
- * <p>Es la única cosa que este módulo NO lee directo de la base, y a propósito: las tablas que lee
- * sin pasar por REST ({@code cases}, {@code llm_analysis}) son datos operativos del esquema del
- * tenant, mientras que {@code insurer_rule} es la configuración que otro módulo administra, con su
- * propio historial y sus propias reglas de validación. Leerla por SQL sería atarse a un formato
- * JSONB que no es nuestro.
- *
- * <p>Firma un token de servicio propio en vez de reenviar el del usuario, igual que
- * {@code cases-service}: el tablero lo puede estar mirando un analista, y el endpoint del referente
- * le cerraría la puerta.
+ * <p>The one thing this module does not read straight from the database: {@code insurer_rule} is
+ * configuration another module administers, and reading it by SQL would couple this module to a JSONB
+ * format it doesn't own. Signs its own service token instead of forwarding the user's, because an
+ * analyst may be viewing the dashboard and the referent-only endpoint would reject them.
  */
 @Component
 public class RulesServiceClient {
@@ -45,13 +39,8 @@ public class RulesServiceClient {
     }
 
     /**
-     * El objetivo de días que fijó la aseguradora, o {@link ResolutionTarget#UNSET} si no fijó
-     * ninguno.
-     *
-     * <p><b>Un rules-service caído no voltea el tablero.</b> El objetivo es un agregado a una
-     * tarjeta, no el tablero: si no se puede leer, la tarjeta muestra el tiempo promedio sin la
-     * comparación, que es exactamente lo que muestra una aseguradora que nunca lo configuró. Dejar
-     * caer toda la pantalla por eso sería desproporcionado.
+     * <b>A rules-service outage doesn't take the dashboard down.</b> Without the target the card shows
+     * the average alone, same as for an insurer that never configured one.
      */
     public ResolutionTarget resolutionTarget() {
         try {
@@ -65,7 +54,7 @@ public class RulesServiceClient {
             if (response == null || !response.enabled() || response.targetDays() == null) {
                 return ResolutionTarget.UNSET;
             }
-            // El conteo lo pone el servicio: rules-service no sabe nada de expedientes.
+            // The exceeded count is filled in by the caller: rules-service knows nothing about cases.
             return new ResolutionTarget(true, response.targetDays(), 0);
         } catch (RestClientException unavailable) {
             log.warn("[Reports] could not read the resolution target, the dashboard goes without it: {}",
@@ -75,12 +64,8 @@ public class RulesServiceClient {
     }
 
     /**
-     * Espeja exactamente lo que devuelve rules-service ({@code ResolutionTargetDto}) y nada más.
-     *
-     * <p>No se deserializa directo sobre {@link ResolutionTarget} porque ese lleva además el
-     * {@code exceeded}, que el otro módulo no manda ni tiene cómo saber: pedirle a Jackson que
-     * arme un record con un componente que nunca viene en el JSON falla, y falla en tiempo de
-     * ejecución. Mismo patrón que el {@code PolicyStandingRule} de cases-service.
+     * Mirrors rules-service's {@code ResolutionTargetDto}. Not deserialized into {@link ResolutionTarget}
+     * because Jackson fails at runtime on its {@code exceeded} component, which the JSON never carries.
      */
     private record Response(boolean enabled, Integer targetDays) {
     }

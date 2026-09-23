@@ -6,11 +6,7 @@ import { CaseMessagesService } from '../case-messages.service';
 import { CaseMessagesSocketService } from '../case-messages-socket.service';
 import { CaseMessageEvent, CaseMessageThread } from '../../../core/models/case-message';
 
-/**
- * Lo que hace el componente con un mensaje que llega por el socket. Es la parte que el backend no
- * puede resolver: el frame es uno solo para los dos lados —no trae `mine`— así que si el
- * componente lo ubica mal, cada uno ve sus mensajes del lado del otro.
- */
+/** The socket frame is shared by both sides and carries no `mine`: the component must place it. */
 describe('CaseChatComponent — mensajes que llegan por el socket', () => {
   let fixture: ComponentFixture<CaseChatComponent>;
   let pushed: Subject<CaseMessageEvent>;
@@ -97,7 +93,7 @@ describe('CaseChatComponent — mensajes que llegan por el socket', () => {
     expect(bubbles()[1]).toEqual({ who: 'Vos', body: 'La subo hoy.', mine: true });
   });
 
-  /** El que escribe también recibe su propio mensaje por el socket: no puede duplicarse. */
+  /** The sender also receives its own message over the socket. */
   it('ignora el eco de un mensaje que ya está en el hilo', () => {
     pushed.next({
       id: 1,

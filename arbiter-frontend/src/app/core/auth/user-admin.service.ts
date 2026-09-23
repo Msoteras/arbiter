@@ -14,11 +14,8 @@ export interface CreateUserRequest {
 }
 
 /**
- * Espejo de `AnalystResponse` del auth-service: un analista asignable de la aseguradora actual.
- *
- * Es más chico que `UserResponse` a propósito — responde "a quién le puedo dar este expediente",
- * no "qué cuentas hay". El `id` es el de `claims_analyst`, que vive en el esquema de cada
- * aseguradora: **no lo compares entre aseguradoras ni contra el id de usuario de la sesión.**
+ * Mirrors auth-service's AnalystResponse. `id` is the per-insurer-schema `claims_analyst` id:
+ * never compare it across insurers or against the session user id.
  */
 export interface AnalystResponse {
   id: number;
@@ -37,7 +34,6 @@ export interface UserResponse {
   createdAt: string;
 }
 
-/** H0002/H0003 - Alta y listado de usuarios. Solo el referente puede llamar a estos endpoints (RBAC). */
 @Injectable({ providedIn: 'root' })
 export class UserAdminService {
   private readonly http = inject(HttpClient);
@@ -51,14 +47,7 @@ export class UserAdminService {
     return this.http.get<UserResponse[]>(this.baseUrl);
   }
 
-  /**
-   * Analistas a los que se les puede asignar un expediente, ordenados por apellido. A diferencia
-   * de `list()`, también lo puede llamar un analista: asignar es acción de los dos roles
-   * operativos. Alimenta el selector de asignación de la bandeja y del detalle.
-   *
-   * Vienen ya acotados a la aseguradora del usuario logueado (la tabla es por esquema), y el
-   * `id` es el que espera `POST /cases/{id}/assign`.
-   */
+  /** Unlike `list()`, analysts may call it too. The `id` is what `POST /cases/{id}/assign` expects. */
   listAnalysts(): Observable<AnalystResponse[]> {
     return this.http.get<AnalystResponse[]>(`${this.baseUrl}/analysts`);
   }
@@ -67,7 +56,7 @@ export class UserAdminService {
     return this.http.put<UserResponse>(`${this.baseUrl}/${id}/role`, { rol });
   }
 
-  /** Borrado definitivo e irreversible (wireframe "Eliminar") — no es una baja/desactivación. */
+  /** Permanent hard delete, not a deactivation. */
   delete(id: number): Observable<void> {
     return this.http.delete<void>(`${this.baseUrl}/${id}`);
   }
@@ -78,15 +67,8 @@ export class UserAdminService {
   }
 
   /**
-   * Da de alta en bloque a los asegurados con póliza vigente de la aseguradora del referente,
-   * leídos de la BD de la compañía, y les manda la invitación para elegir contraseña.
-   *
-   * Responde **202 sin cuerpo**: la corrida sigue en segundo plano y va creando cuentas y mandando
-   * mails de a poco, así que no hay un total que devolver en el momento. Por eso esto no resuelve
-   * con un resumen — para ver el resultado hay que recargar el listado.
-   *
-   * Es idempotente: a quien ya tiene cuenta no se la duplica (se lo reconoce por email), solo se le
-   * vincula esta aseguradora.
+   * Bulk-provisions insured users with an active policy. Returns 202 with no body: the run
+   * continues in the background, so reload the list to see results. Idempotent (de-dup by email).
    */
   provisionInsured(): Observable<void> {
     return this.http.post<void>(`${this.baseUrl}/insured/bulk-provision`, {});

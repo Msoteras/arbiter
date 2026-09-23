@@ -14,19 +14,9 @@ import lombok.NoArgsConstructor;
 import lombok.Setter;
 
 /**
- * One datum the document states that no rule reads — the invoice number, the serial, the store
- * ("dato_documento" in the DER). Name and value instead of a column each, so extending what the
- * model extracts doesn't cost a migration every time.
- *
- * <p>Sibling of {@link DocumentVisualFinding} in shape, opposite in meaning: that one is an
- * observation about how the image <b>looks</b>, this one is content the document <b>says</b>. Both
- * hang off {@link DocumentAnalysis} and are replaced with it on every run.
- *
- * <p><b>For display, never for comparison.</b> {@link #name} is whatever the model called the
- * datum, so it is not a contract: code that looked up a name here would break as soon as the model
- * worded it differently, and would break silently — the check would stop running, which this
- * engine reads as "nothing wrong". Data a rule compares belongs in {@link DocumentAnalysis} as a
- * typed column, which is also where a detail goes once a rule starts needing it.
+ * A name/value datum no rule reads (invoice number, serial, store). For display, never comparison:
+ * {@link #name} is whatever the model called it, so looking it up would break silently. Data a rule
+ * compares belongs in {@link DocumentAnalysis} as a typed column.
  */
 @Entity
 @Table(name = "document_detail")
@@ -39,11 +29,10 @@ public class DocumentDetail {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    /** What the document calls it, as read ("N° de factura"). Not an identifier. */
     @Column(nullable = false, length = 100)
     private String name;
 
-    /** The value verbatim, unnormalized: normalizing here would lose what the paper actually said. */
+    /** Verbatim: normalizing would lose what the document actually said. */
     @Column(nullable = false, length = 500)
     private String value;
 

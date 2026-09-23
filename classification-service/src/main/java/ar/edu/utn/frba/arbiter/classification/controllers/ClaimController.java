@@ -5,6 +5,8 @@ import ar.edu.utn.frba.arbiter.common.dto.ClaimResponse;
 import ar.edu.utn.frba.arbiter.common.dto.RuleResultResponse;
 import ar.edu.utn.frba.arbiter.classification.services.ClassificationResultsService;
 import ar.edu.utn.frba.arbiter.classification.dto.AnalystDecisionRequest;
+import ar.edu.utn.frba.arbiter.classification.dto.ClassificationAcceptedResponse;
+import ar.edu.utn.frba.arbiter.classification.dto.DecisionRecordedResponse;
 import ar.edu.utn.frba.arbiter.classification.services.ClaimClassificationService;
 import ar.edu.utn.frba.arbiter.classification.services.MultipartDocumentMapper;
 import io.swagger.v3.oas.annotations.Operation;
@@ -24,10 +26,8 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * Internal REST API for claim classification — this is the contract cases-service's
- * ClaimsAnalysisClient calls to get a case classified. This module does not persist the
- * claim/case itself (cases-service owns it); it only runs the analysis and keeps the
- * audit log, correlated to the caller's {@code caseId}.
+ * Internal API cases-service calls to classify a case. The case itself is owned by cases-service;
+ * this module only runs the analysis and keeps its audit trail, keyed by {@code caseId}.
  */
 @RestController
 @RequestMapping("/api/v1/claims")
@@ -59,7 +59,7 @@ public class ClaimController {
                     @ApiResponse(responseCode = "400", description = "Invalid claim data")
             }
     )
-    public ResponseEntity<Map<String, Object>> classify(
+    public ResponseEntity<ClassificationAcceptedResponse> classify(
             @RequestParam("caseId") Long caseId,
             @RequestPart("claim") @Valid ClaimReport claim,
             @RequestParam(required = false) Map<String, MultipartFile> documents,
@@ -71,11 +71,8 @@ public class ClaimController {
         return ResponseEntity
                 .status(HttpStatusCode.valueOf(202))
                 .location(URI.create("/api/v1/claims/" + caseId))
-                .body(Map.of(
-                        "caseId", caseId,
-                        "message", "Analysis in progress.",
-                        "checkResultAt", "/api/v1/claims/" + caseId
-                ));
+                .body(new ClassificationAcceptedResponse(
+                        caseId, "Analysis in progress.", "/api/v1/claims/" + caseId));
     }
 
     @GetMapping("/{caseId}")
@@ -102,8 +99,7 @@ public class ClaimController {
         return ResponseEntity.ok(resultsService.getRuleResults(caseId));
     }
 
-    // Solo token de servicio (sin claim `rol`): el analystId viaja en el body y cases-service es el
-    // único que lo resuelve contra claims_analyst.
+    // Service token only (no `rol` claim): the analystId comes in the body, resolved by cases-service.
     @PostMapping("/{caseId}/decision")
     @PreAuthorize("authentication.authorities.isEmpty()")
     @Operation(
@@ -111,16 +107,11 @@ public class ClaimController {
             description = "Stores the analyst's verdict for the classification already produced for the case."
     )
     @ApiResponse(responseCode = "200", description = "Decision persisted")
-    public ResponseEntity<Map<String, Object>> recordDecision(
+    public ResponseEntity<DecisionRecordedResponse> recordDecision(
             @PathVariable Long caseId,
             @RequestBody @Valid AnalystDecisionRequest request
     ) {
         Long classificationId = resultsService.recordAnalystDecision(caseId, request);
-        return ResponseEntity.ok(Map.of(
-                "caseId", caseId,
-                "status", "decision-recorded",
-                // cases-service stores this on cases.classification_id — see Case.classificationId.
-                "classificationId", classificationId
-        ));
+        return ResponseEntity.ok(new DecisionRecordedResponse(caseId, "decision-recorded", classificationId));
     }
 }

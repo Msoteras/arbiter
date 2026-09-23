@@ -125,7 +125,6 @@ class CaseControllerTest {
 
     @Test
     void listCases_sortByResponseDeadline_isAccepted() throws Exception {
-        // El orden "prioritarios primero" de la bandeja: sort por la fecha límite de respuesta.
         Pageable byDeadline = PageRequest.of(0, 20, Sort.by(Sort.Direction.ASC, "responseDeadline"));
         when(caseService.listCases(isNull(), isNull(), isNull(), isNull(), isNull(), isNull(), isNull(),
                 isNull(), isNull(), eq(false), eq(false), eq(false), eq(false), eq(false), isNull(), eq(CaseScope.ALL), isNull(), eq(byDeadline)))
@@ -176,8 +175,8 @@ class CaseControllerTest {
 
     @Test
     void listCases_withAssignedToMe_passesTheLensThrough() throws Exception {
-        // La lente "Míos" viaja como flag: quién es "yo" lo resuelve el service contra el token,
-        // porque el id de analista es local al esquema de cada aseguradora.
+        // "Mine" travels as a flag: the service resolves "me" from the token, because the analyst
+        // id is local to each insurer's schema.
         CaseResponse response = caseResponse(1L, CaseStatus.PENDING_ANALYST_REVIEW);
         when(caseService.listCases(isNull(), isNull(), isNull(), isNull(), isNull(), isNull(), isNull(),
                 isNull(), isNull(), eq(true), eq(false), eq(false), eq(false), eq(false), isNull(), eq(CaseScope.ALL), isNull(), eq(DEFAULT_PAGEABLE)))
@@ -291,9 +290,8 @@ class CaseControllerTest {
                                 StatusChangeActor.SYSTEM, "clasificación: FAST_TRACK",
                                 Instant.parse("2026-06-13T22:55:00Z"))
                 ),
-                // Un adjunto con un campo leído (el importe) y otro que el documento no trae
-                // (el IMEI): null viaja como null, que la pantalla muestra "no aplica" y NUNCA
-                // como discrepancia.
+                // One field read (amount) and one the document doesn't carry (IMEI): the null must
+                // reach the frontend as null, shown as "not applicable", never as a mismatch.
                 List.of(new DocumentAnalysisSummary(
                         "purchase_proof", "Factura de compra…",
                         LocalDate.of(2026, 5, 30), new BigDecimal("150000"),
@@ -308,7 +306,6 @@ class CaseControllerTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.analysisClassification").value("FAST_TRACK"))
                 .andExpect(jsonPath("$.analysisConfidence").value(1.0))
-                // Semáforo de vencimiento: fecha límite + prioridad derivada viajan en el read model.
                 .andExpect(jsonPath("$.responseDeadline").value("2026-07-13"))
                 .andExpect(jsonPath("$.deadlinePriority").value("NONE"))
                 .andExpect(jsonPath("$.analysisReasons.length()").value(3))
@@ -320,8 +317,6 @@ class CaseControllerTest {
                 .andExpect(jsonPath("$.documentAnalyses.length()").value(1))
                 .andExpect(jsonPath("$.documentAnalyses[0].documentType").value("purchase_proof"))
                 .andExpect(jsonPath("$.documentAnalyses[0].amount").value(150000))
-                // El campo que el documento no dice viaja null, no ausente ni "" — es lo que le
-                // permite al front distinguir "no aplica" de un valor que no coincide.
                 .andExpect(jsonPath("$.documentAnalyses[0].imei").doesNotExist())
                 .andExpect(jsonPath("$.documentAnalyses[0].visualFindings.length()").value(1));
     }
@@ -346,8 +341,6 @@ class CaseControllerTest {
                 .andExpect(jsonPath("$.status").value("AWAITING_DOCUMENTATION"));
     }
 
-    // ─── reopenCase ("rehabilitación", doc de dominio BBVA) ────────────────────────
-
     @Test
     void reopenCase_returns200WithTheReopenedCase() throws Exception {
         CaseResponse response = caseResponse(1L, CaseStatus.PENDING_ANALYST_REVIEW);
@@ -360,7 +353,7 @@ class CaseControllerTest {
                 .andExpect(jsonPath("$.status").value("PENDING_ANALYST_REVIEW"));
     }
 
-    /** {@code reason} es obligatorio: es la única explicación que queda en el historial. */
+    /** {@code reason} is mandatory: it's the only explanation left in the status history. */
     @Test
     void reopenCase_blankReason_returns400() throws Exception {
         mockMvc.perform(post("/api/v1/cases/1/reopen")
@@ -379,7 +372,6 @@ class CaseControllerTest {
                 .andExpect(status().isNotFound());
     }
 
-    /** Un expediente que sigue abierto no tiene nada que reabrir — la máquina de estados lo corta con 409. */
     @Test
     void reopenCase_caseStillOpen_returns409() throws Exception {
         when(caseService.reopenCase(1L, "motivo")).thenThrow(
@@ -389,6 +381,41 @@ class CaseControllerTest {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"reason\":\"motivo\"}"))
                 .andExpect(status().isConflict());
+    }
+
+    // The frontend and the settlement panel read these bodies by field name.
+
+    @Test
+    void authorizeSettlement_returnsCaseIdAndOutcome() throws Exception {
+        mockMvc.perform(post("/api/v1/cases/7/settlement/authorize"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.length()").value(2))
+                .andExpect(jsonPath("$.caseId").value(7))
+                .andExpect(jsonPath("$.status").value("settlement-authorized"));
+    }
+
+    @Test
+    void returnSettlement_returnsCaseIdAndOutcome() throws Exception {
+        mockMvc.perform(post("/api/v1/cases/7/settlement/return")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"reason\":\"Revisar el monto\"}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.length()").value(2))
+                .andExpect(jsonPath("$.caseId").value(7))
+                .andExpect(jsonPath("$.status").value("settlement-returned"));
+    }
+
+    @Test
+    void recordDecision_returnsCaseIdAndOutcome() throws Exception {
+        mockMvc.perform(post("/api/v1/cases/7/decision")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"decision": "REJECT", "justification": "Hurto fuera de cobertura"}
+                                """))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.length()").value(2))
+                .andExpect(jsonPath("$.caseId").value(7))
+                .andExpect(jsonPath("$.status").value("decision-recorded"));
     }
 
     private CaseResponse caseResponse(Long id, CaseStatus status) {

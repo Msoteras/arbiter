@@ -41,19 +41,15 @@ import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.anyString;
-import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 /**
- * Barrido de vencimientos punta a punta contra Postgres real: siembra casos en varias bandas de
- * plazo, corre {@link DeadlineSweepScheduler#sweepDeadlines()} y verifica las filas
- * {@code notification} y los envíos. El {@code Clock} se mockea para fijar "hoy"; {@code SendGrid}
- * se mockea para no mandar mail.
+ * End-to-end deadline sweep against real Postgres.
  *
- * <p>En las ITs {@code TenantContext} cae a {@code arbiter_common}, así que la aseguranza sembrada
- * apunta su {@code schemaName} ahí: el barrido setea ese schema y encuentra lo sembrado.
+ * <p>In ITs {@code TenantContext} falls back to {@code arbiter_common}, so the seeded insurer
+ * points its {@code schemaName} there: the sweep sets that schema and finds the seeded rows.
  */
 @SpringBootTest
 @Transactional
@@ -85,7 +81,6 @@ class DeadlineSweepTests extends AbstractPersistenceIT {
     void setUp() {
         when(clock.instant()).thenReturn(TODAY.atStartOfDay(ZoneOffset.UTC).toInstant());
         when(clock.getZone()).thenReturn(ZoneOffset.UTC);
-        // Una aseguradora activa cuyo schema es el que las ITs usan por default.
         insurerRepository.save(Insurer.builder()
                 .legalName("Seguros Test S.A.").name("Seguros Test").taxId("30-99999999-9")
                 .active(true).schemaName("arbiter_common").build());
@@ -99,31 +94,27 @@ class DeadlineSweepTests extends AbstractPersistenceIT {
         Case overdue = save(CaseStatus.PENDING_ANALYST_REVIEW, TODAY.minusDays(3), "POL-O", "2", null);
         Case urgent = save(CaseStatus.PENDING_ANALYST_REVIEW, TODAY.plusDays(4), "POL-U", "3", analystA);
         Case approved = save(CaseStatus.APPROVED, TODAY.plusDays(1), "POL-A", "4", analystA);
-        // Plazo interrumpido: el expediente espera al asegurado, así que su responseDeadline es una
-        // fecha congelada y no una urgencia real (CaseStatusService.PAUSING_STATUSES). Vencido hace
-        // 3 días y aun así no se notifica.
+        // Paused term: the case is waiting on the insured, so its responseDeadline is frozen, not a
+        // real urgency. Overdue by 3 days and still not notified.
         Case paused = save(CaseStatus.AWAITING_DOCUMENTATION, TODAY.minusDays(3), "POL-P", "5", analystA);
 
         scheduler.sweepDeadlines();
 
-        // Crítico → solo el analista asignado, type CRITICAL.
         assertThat(notificationsFor(critical)).singleElement().satisfies(n -> {
             assertThat(n.getType()).isEqualTo("DEADLINE_CRITICAL");
             assertThat(n.getRecipientId()).isEqualTo(analystA.getUser().getId());
         });
-        // Vencido sin asignar → todos los analistas, type OVERDUE.
         assertThat(notificationsFor(overdue))
                 .allMatch(n -> n.getType().equals("DEADLINE_OVERDUE"))
                 .extracting(Notification::getRecipientId)
                 .containsExactlyInAnyOrder(analystA.getUser().getId(), analystB.getUser().getId());
-        // Urgente (>2 días), aprobado (terminal) y pausado (plazo interrumpido) → nada.
         assertThat(notificationsFor(urgent)).isEmpty();
         assertThat(notificationsFor(approved)).isEmpty();
         assertThat(notificationsFor(paused)).isEmpty();
-        // 1 (crítico) + 2 (vencido a los dos analistas) = 3 mails.
+        // 1 (critical) + 2 (overdue, to both analysts) = 3 mails.
         verify(sendGridAdapter, times(3)).send(anyString(), anyString(), anyString());
 
-        // Idempotencia: un segundo barrido el mismo día no agrega filas ni reenvía.
+        // Idempotent: a second sweep on the same day adds no rows and resends nothing.
         long before = notificationRepository.count();
         scheduler.sweepDeadlines();
         assertThat(notificationRepository.count()).isEqualTo(before);
@@ -135,8 +126,6 @@ class DeadlineSweepTests extends AbstractPersistenceIT {
                 .filter(n -> n.getCaseEntity().getId().equals(c.getId()))
                 .toList();
     }
-
-    // ─────────── seed ───────────
 
     private Case save(CaseStatus status, LocalDate deadline, String pol, String dni, ClaimsAnalyst assignee) {
         Insured owner = insured(dni);
@@ -193,19 +182,14 @@ class DeadlineSweepTests extends AbstractPersistenceIT {
         });
     }
 
-    /**
-     * La cobertura del catálogo del tenant. Idempotente, mismo patrón que {@code claimCause()}:
-     * varias pólizas de un test comparten la definición, que es lo que pasa en la realidad.
-     */
     private Coverage testCoverage() {
         return coverageRepository.findByName("Cobertura Celulares")
                 .orElseGet(() -> coverageRepository.save(CaseFixtures.coverage("Celulares")));
     }
 
     /**
-     * Deja la póliza con su cobertura contratada. Desde que una póliza tiene VARIAS coberturas, la
-     * suma asegurada vive en {@code policy_coverage} y no en {@code policy}, así que sin esta fila
-     * la póliza no tiene contra qué evaluarse.
+     * The sum insured lives in {@code policy_coverage}, not in {@code policy}: without this row the
+     * policy has nothing to be evaluated against.
      */
     private Policy withCoverage(Policy policy) {
         policyCoverageRepository.save(CaseFixtures.policyCoverage(policy.getId(), testCoverage(), 1));

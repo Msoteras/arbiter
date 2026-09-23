@@ -16,13 +16,10 @@ import java.math.BigDecimal;
 import java.util.List;
 
 /**
- * System-to-system read of rules-service config that cases-service needs before or instead of
- * classification — the intake gate's insurer-scoped hard rules ({@link PolicyEligibilityValidator})
- * and, for the wizard, which claim causes a coverage excludes. Same criterion
- * {@code ClassificationServiceClient} uses for its own internal calls. Always signs a fresh service
- * token instead of forwarding the caller's JWT: {@code createCase} may already have switched
- * {@link TenantContext} to the policy's issuing tenant (a different insurer than the one in the
- * caller's login token), and rules-service resolves its own tenant off the token it receives.
+ * System-to-system reads of rules-service config that cases-service needs outside classification.
+ * Always signs a fresh service token instead of forwarding the caller's JWT: {@code createCase} may
+ * already have switched {@link TenantContext} to the policy's issuing insurer, and rules-service
+ * resolves its tenant from the token it receives.
  */
 @Component
 public class RulesServiceClient {
@@ -41,12 +38,7 @@ public class RulesServiceClient {
         this.jwtKey = JwtSupport.key(jwtSecret);
     }
 
-    /**
-     * The insurer's current POLICY_STANDING configuration: whether arrears is being evaluated at
-     * all, and — if it is — whether it rejects the denuncia at intake or lets it through to
-     * standby in the engine. No configuration ⇒ {@code enabled=false}, same as "no row" means
-     * "not evaluated" everywhere else in the hard rules.
-     */
+    /** No configuration means {@code enabled=false}: arrears isn't evaluated. */
     public PolicyStandingRule policyStandingRule() {
         String serviceToken = JwtSupport.issueServiceToken(jwtKey, "cases-service-intake", TenantContext.get());
         return restClient.get()
@@ -65,10 +57,8 @@ public class RulesServiceClient {
     }
 
     /**
-     * Hechos generadores (claim_cause ids) the given coverage does NOT cover — a blacklist, not a
-     * whitelist: a coverage covers every claim cause of its branch except the ones listed here.
-     * Empty (not null) when the coverage has no {@code COVERAGE_EXCLUSION} row, active or not — same
-     * "no row ⇒ nothing excluded" the engine already applies.
+     * Claim cause ids the coverage does NOT cover (a blacklist). Empty, not null, when the coverage
+     * has no {@code COVERAGE_EXCLUSION} rule.
      */
     public List<Long> excludedClaimCauseIds(Long coverageId) {
         String serviceToken = JwtSupport.issueServiceToken(jwtKey, "cases-service-claim-causes", TenantContext.get());
@@ -94,17 +84,11 @@ public class RulesServiceClient {
     }
 
     /**
-     * The document schedule the referente configured for that branch + claim cause, by NAME — the
-     * same read the wizard does, so both gates answer off one source instead of two lists that
-     * drift. Every row saved from the panel is persisted mandatory
-     * ({@code DocumentRequirementService.upsert}), so the whole list is required.
+     * The whole schedule is mandatory: every row saved from the panel is persisted as required.
      *
-     * <p>Returns {@code null} when the schedule couldn't be read at all, which is NOT the same as
-     * an empty list: empty is an answer ("this claim cause needs no documents"), null is the
-     * absence of one. Same distinction rules-service makes internally
-     * ({@code InternalDocumentRequirementService.getByCoverage}) and the wizard makes on screen.
-     * The caller lets a denuncia through on null rather than leaving the insured out because a
-     * service of ours is down, and marks it so {@code DocumentRecheckScheduler} checks it later.
+     * <p>Returns {@code null} when the schedule couldn't be read, which is not the same as an empty
+     * list ("no documents needed"). On null the caller files the claim anyway and marks it for
+     * {@code DocumentRecheckScheduler}.
      */
     public List<String> requiredDocumentTypes(String branch, String claimCause) {
         try {
@@ -125,14 +109,9 @@ public class RulesServiceClient {
     }
 
     /**
-     * The short list of documents the expedited path requires for a coverage — the FIRST ROUND the
-     * insured is asked for when filing. Read off the same {@code /internal/fast-track} row the
-     * engine uses to resolve Fast Track, so the wizard asks for exactly what the gate will look at.
-     *
-     * <p>Empty (not null) when the insurer configured no list: that is an answer, and the caller
-     * falls back to the full schedule — with no list there would be nothing to ask for. {@code null}
-     * is the absence of an answer (rules-service didn't respond), and the caller files the denuncia
-     * marked as unverified, same contract as {@link #requiredDocumentTypes(String, String)}.
+     * The first round of documents asked for at filing, read from the same Fast Track config the
+     * engine uses. Empty when none is configured (the caller falls back to the full schedule);
+     * {@code null} when rules-service didn't answer, same contract as {@link #requiredDocumentTypes}.
      */
     public List<String> fastTrackDocumentTypes(Long coverageId) {
         try {
@@ -157,13 +136,8 @@ public class RulesServiceClient {
     }
 
     /**
-     * Si esta aseguradora deriva a peritaje los siniestros del ramo, y desde qué monto. El umbral
-     * es una regla de negocio y por eso vive en el motor (decisión #12), no como constante acá ni
-     * como una columna que cases-service pudiera leer por atrás.
-     *
-     * <p>Un motor caído NO es lo mismo que una aseguradora que no deriva: leer la falla como
-     * "deshabilitado" le mostraría al analista una política que el referente nunca configuró. Por
-     * eso falla explícito en vez de devolver {@link ExpertDerivationPolicy#disabled()}.
+     * Fails explicitly instead of returning {@link ExpertDerivationPolicy#disabled()}: reading an
+     * outage as "disabled" would show the analyst a policy the referent never configured.
      */
     public ExpertDerivationPolicy expertDerivationPolicy(Long branchId) {
         try {
@@ -208,7 +182,6 @@ public class RulesServiceClient {
             return new ExpertDerivationPolicy(false, null, null);
         }
 
-        /** Un monto reclamado nulo nunca supera el umbral: no hay contra qué compararlo. */
         public boolean allows(BigDecimal claimedAmount) {
             return enabled
                     && claimedAmount != null

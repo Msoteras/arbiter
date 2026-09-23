@@ -22,10 +22,8 @@ import org.springframework.web.bind.annotation.RestController;
 import java.util.List;
 
 /**
- * CRUD of the branch catalog (global {@code branch} table), for the referente's backoffice. The
- * list populates the rules screen; create/rename/delete administer the shared catalog. Careful:
- * {@code branch} is global (not per-tenant), so creating or deleting a branch affects every insurer
- * — it's a master catalog, not a per-insurer config.
+ * CRUD of the branch catalog. {@code branch} is global, not per-tenant: creating or deleting a
+ * branch affects every insurer.
  */
 @RestController
 @RequestMapping("/api/v1/rules")
@@ -35,9 +33,11 @@ public class BranchController {
 
     private final BranchCatalogService service;
 
+    // Reading is also for the analyst: the reports screen filters by branch.
     @GetMapping("/branches")
-    @PreAuthorize("hasRole('REFERENTE_ASEGURADORA')")
-    @Operation(summary = "Ramos disponibles", description = "Catálogo de ramos (id + nombre) para la pantalla de reglas.")
+    @PreAuthorize("hasAnyRole('REFERENTE_ASEGURADORA', 'ANALISTA_SINIESTROS')")
+    @Operation(summary = "Ramos disponibles",
+            description = "Catálogo de ramos (id + nombre) para la pantalla de reglas y el filtro de reportes.")
     public List<CatalogOption> list() {
         return service.list();
     }

@@ -17,13 +17,9 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
- * Lays out a report as a landscape A4 table: heading, header row repeated on every page, and
- * "Página n de m" at the foot. Built with PDFBox's own drawing primitives rather than an
- * HTML-to-PDF engine — it's one table, and PDFBox is already the project's PDF library.
- *
- * <p>Shared by every {@code Pdf*Exporter}: the layout is the document's identity, so two reports
- * from the same platform drifting into two different-looking tables is a defect, not a detail. What
- * changes per report is the columns and what goes in them, which is all the spec carries.
+ * Lays out a report as a landscape A4 table: heading, header row repeated on every page, and page
+ * numbers at the foot. Shared by every {@code Pdf*Exporter} so all reports look the same; only the
+ * columns and cells vary, which is all the {@link Spec} carries.
  */
 final class PdfReportWriter {
 
@@ -40,11 +36,8 @@ final class PdfReportWriter {
     /** What a second line of the same cell adds to the row. */
     private static final float LINE_HEIGHT = CELL_SIZE + 2;
     /**
-     * A cell too long for its column wraps this far before it is cut. Two lines and not more,
-     * because a page of three-line rows stops reading as a table; and not one, because the column
-     * that overflows in practice is the fraud report's signals, which is a list of facts — an
-     * ellipsis there hides the second and third signal, and the coincidence of signals is what
-     * that report is for.
+     * Two lines: more stops reading as a table, and one would ellipsize the fraud report's signal list,
+     * hiding the coinciding signals that report exists to show.
      */
     private static final int MAX_CELL_LINES = 2;
 
@@ -55,20 +48,17 @@ final class PdfReportWriter {
 
     private static final String ELLIPSIS = "…";
 
-    /** The width a landscape A4 leaves between margins; every report's columns have to fit in it. */
     static final float CONTENT_WIDTH = PAGE.getWidth() - 2 * MARGIN;
 
-    /** Prefix that marks the one heading line rendered in bold — the totals of the period. */
+    /** Prefix of the one heading line rendered in bold. */
     static final String TOTALS_LABEL = "Total: ";
 
     private PdfReportWriter() {
     }
 
     /**
-     * @param headingLines the filter line and the summary, in order. A line starting with
-     *                     {@link #TOTALS_LABEL} is drawn in bold
-     * @param emptyMessage what the page says when there are no rows — an empty report still has to
-     *                     be distinguishable from any other empty report
+     * @param headingLines the filter line and the summary, in order
+     * @param emptyMessage shown when there are no rows, so an empty report still says which one it is
      */
     record Spec(
             String title,
@@ -109,8 +99,7 @@ final class PdfReportWriter {
                         spec.emptyMessage());
             }
             for (String[] row : spec.rows()) {
-                // Measured before the break is decided: a row that wraps is taller than ROW_HEIGHT,
-                // and asking with the wrong height puts its last line under the bottom margin.
+                // Measured before deciding the page break: a wrapped row is taller than ROW_HEIGHT.
                 List<List<String>> lines = cellLines(row, regular, spec);
                 float height = rowHeight(lines);
                 if (y - height < MARGIN) {
@@ -142,8 +131,7 @@ final class PdfReportWriter {
         float y = top - TITLE_SIZE;
         text(content, bold, TITLE_SIZE, INK, MARGIN, y, spec.title());
 
-        // Wrapped, not cut: a heading line is a filter or a total, and an auditor reading the file
-        // has no screen to go and find the half the ellipsis hid.
+        // Wrapped, not cut: a filter or total hidden behind an ellipsis can't be recovered from a file.
         for (String line : spec.headingLines()) {
             PDFont font = line.startsWith(TOTALS_LABEL) ? bold : regular;
             for (String part : wrap(line, font, META_SIZE, spec.tableWidth())) {
@@ -197,7 +185,6 @@ final class PdfReportWriter {
         return ROW_HEIGHT + (tallest - 1) * LINE_HEIGHT;
     }
 
-    /** Lines grow downwards from the top of the row, so a one-line row sits where it always did. */
     private static void drawCells(PDPageContentStream content, PDFont font, Spec spec,
                                   List<List<String>> lines, float top) throws IOException {
         float x = MARGIN;
@@ -250,7 +237,6 @@ final class PdfReportWriter {
         content.endText();
     }
 
-    /** Cuts the text to the column, with an ellipsis, instead of letting it spill into the next one. */
     private static String fit(String value, PDFont font, float size, float maxWidth) throws IOException {
         String text = printable(value, font);
         if (width(text, font, size) <= maxWidth) {
@@ -262,10 +248,7 @@ final class PdfReportWriter {
         return text + ELLIPSIS;
     }
 
-    /**
-     * Wraps to at most {@code maxLines}; whatever is left over is ellipsized into the last of them,
-     * so a value that still didn't fit ends with the mark that says it was cut.
-     */
+    /** Overflow beyond {@code maxLines} is ellipsized into the last line, so a cut value shows it was cut. */
     private static List<String> wrap(String value, PDFont font, float size, float maxWidth,
                                      int maxLines) throws IOException {
         List<String> lines = wrap(value, font, size, maxWidth);
@@ -277,7 +260,6 @@ final class PdfReportWriter {
         return capped;
     }
 
-    /** Breaks the text at spaces so every line fits; a single word too long for it is cut. */
     private static List<String> wrap(String value, PDFont font, float size, float maxWidth)
             throws IOException {
         List<String> lines = new ArrayList<>();
@@ -302,8 +284,8 @@ final class PdfReportWriter {
     }
 
     /**
-     * The standard 14 fonts only encode WinAnsi: enough for Spanish, but one name with a character
-     * outside it would make {@code showText} throw and lose the whole file over a single glyph.
+     * The standard 14 fonts only encode WinAnsi; one unsupported character would make {@code showText}
+     * throw and lose the whole file.
      */
     private static String printable(String value, PDFont font) {
         if (value == null) {

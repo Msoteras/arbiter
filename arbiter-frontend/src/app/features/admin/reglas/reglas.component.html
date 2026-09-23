@@ -4,9 +4,9 @@
   </header>
 
   <div class="rules-layout">
-    <!-- ───────── Columna izquierda: ramos + scoring ───────── -->
+    <!-- ───────── Left column ───────── -->
     <div class="master-col">
-      <!-- ───────── Master: ramos ───────── -->
+      <!-- ───────── Branches ───────── -->
       <app-card class="list-card" heading="Ramos">
         @if (ramosLoading()) {
           <app-inline-loading [size]="22" message="Cargando ramos…" />
@@ -31,11 +31,7 @@
         }
       </app-card>
 
-      <!-- ───────── Reglas generales: la config que NO es de ningún ramo ─────────
-         Las cuatro comparten alcance (toda la aseguradora) y comportamiento (elegir una cambia el
-         panel derecho), así que van en una sola card con ese título, igual que los ramos van bajo
-         "Ramos". Antes era una card suelta por sección: cuatro recuadros repitiendo "Toda la
-         aseguradora" abajo de cada nombre, sin nada que dijera que eran un grupo. -->
+      <!-- ───────── General rules: insurer-wide, not per branch ───────── -->
       <app-card class="list-card" heading="Reglas generales">
         <p class="list-sub t-note">Toda la aseguradora</p>
         <ul class="ramo-list">
@@ -54,10 +50,8 @@
         </ul>
       </app-card>
 
-      <!-- ───────── Auditoría ─────────
-         Afuera de "Reglas generales" a propósito: el historial no configura nada, es el registro
-         de lo que ya se cambió y se consulta después. Adentro de esa lista se leía como una
-         sección configurable más, al mismo nivel que Hard Stop o Scoring. -->
+      <!-- ───────── Audit ─────────
+         Outside "Reglas generales" on purpose: the history configures nothing. -->
       <section class="audit-block">
         <p class="audit-label t-section-label">Auditoría</p>
         <button
@@ -84,7 +78,7 @@
       </section>
     </div>
 
-    <!-- ───────── Panel derecho: detalle del ramo, Hard Stop o scoring ───────── -->
+    <!-- ───────── Right panel ───────── -->
     <div class="editor">
       @if (view() === 'scoring') {
         <app-scoring-config />
@@ -105,9 +99,6 @@
               <h2 class="card-title">Hard Stop</h2>
             </div>
 
-            <!-- En rojo y no como letra chica: son las únicas reglas de toda la pantalla que le
-                 pueden impedir al asegurado crear su siniestro, y el resto de las solapas configura
-                 cosas que pasan después, sobre un expediente que ya existe. -->
             <p class="hs-banner">
               <span class="hs-banner-icon" aria-hidden="true">!</span>
               <span>
@@ -122,9 +113,6 @@
               <li class="hs-rule" [class.on]="policyInForceRule()?.enabled">
                 <div class="hs-rule-text">
                   <span class="t-field-label">Vigencia de la póliza</span>
-                  <!-- El hint dice la CONDICIÓN; el efecto lo dice el badge de abajo, y que el
-                       bloqueo impide crear el expediente ya lo dijo el banner de la sección.
-                       Decirlo tres veces no lo hacía más claro. -->
                   <p class="rule-hint">Si el hecho ocurrió fuera de la vigencia de la póliza.</p>
                   <span class="hs-effect" [class.blocks]="policyInForceRule()?.enabled">
                     {{
@@ -146,8 +134,8 @@
                 </div>
               </li>
 
-              <!-- La mora es la única que, estando activa, puede NO bloquear: depende de qué se
-                   elija abajo. Por eso el chip lee `arrearsBlocks()` y no solo `enabled`. -->
+              <!-- Arrears may NOT block even when enabled (depends on the choice below), hence
+                   `arrearsBlocks()` rather than `enabled`. -->
               <li class="hs-rule" [class.on]="policyStandingRule()?.enabled">
                 <div class="hs-rule-text">
                   <span class="t-field-label">Mora de la póliza</span>
@@ -197,9 +185,6 @@
           </app-card>
         }
       } @else if (draft(); as d) {
-        <!-- El campo y el botón viven en extremos opuestos de la fila, y nada decía que
-             "Renombrar" aplica al nombre de al lado: los apoya la misma línea a rayas teal, que
-             corre por debajo de los dos y los cierra como un grupo. -->
         <div class="editor-head">
           <div class="editor-title">
             <label class="t-section-label" for="ramo-name">Nombre del ramo</label>
@@ -239,9 +224,8 @@
         </nav>
 
         @switch (activeTab()) {
-          <!-- ============ COBERTURAS ============ -->
-          <!-- Acordeón: una cobertura abierta por vez. Con todas desplegadas la solapa era una tira
-               de formularios idénticos donde no se veía dónde terminaba una y empezaba la otra. -->
+          <!-- ============ COVERAGES ============ -->
+          <!-- Accordion: one coverage open at a time. -->
           @case ('coberturas') {
             @if (detailLoading()) {
               <app-inline-loading [size]="26" message="Cargando coberturas…" />
@@ -276,9 +260,8 @@
                         <span class="cov-title">{{ c.name || 'Cobertura sin nombre' }}</span>
                         @if (!isCoverageOpen(c)) {
                           <span class="cov-chips">
-                            <!-- Visible con la cobertura cerrada: sin esto había que abrirla una por
-                               una para enterarse, y de esto depende con qué suma asegurada se
-                               liquida. Punto de semáforo, no fondo saturado: es para revisar. -->
+                            <!-- Visible while collapsed: exclusions decide the sum insured used to
+                               settle. -->
                             @if (!hasExcludedCauses(c)) {
                               <app-badge variant="solid" tone="warning"
                                 >Cubre todo el ramo</app-badge
@@ -292,9 +275,15 @@
                           </span>
                         }
                       </button>
-                      <button type="button" class="remove-cov" (click)="removeCoverage(c.id)">
+                      <app-button
+                        class="remove-cov"
+                        variant="secondary"
+                        size="sm"
+                        tone="danger"
+                        (click)="removeCoverage(c.id)"
+                      >
                         Quitar cobertura
-                      </button>
+                      </app-button>
                     </div>
 
                     @if (isCoverageOpen(c)) {
@@ -349,8 +338,6 @@
                           </button>
                         </div>
 
-                        <!-- Interruptor y umbral en la misma fila: antes se prendía la regla acá y su
-                           número se cargaba en otra sección, sin nada que dijera que eran lo mismo. -->
                         <div class="cov-section">
                           <span class="t-section-label">Reglas que evalúa el motor</span>
                           @if (!canEditExclusions(c)) {
@@ -392,9 +379,6 @@
                           }
                         </div>
 
-                        <!-- Cuánto se paga cuando el siniestro se aprueba. Va acá y no en una
-                           pantalla aparte porque son parámetros de la cobertura, igual que la
-                           franquicia: lo que cambia entre productos es esto, no el procedimiento. -->
                         <div class="cov-section">
                           <span class="t-section-label">Determinación del monto a pagar</span>
                           <p class="section-hint">
@@ -410,8 +394,7 @@
                                 (valueChange)="setCoverageSettlementFormula(c.id, $event)"
                               />
                             </label>
-                            <!-- En una reparación el techo es el presupuesto: no hay otra base que
-                               elegir, así que el selector no se ofrece. -->
+                            <!-- For repairs the ceiling is the quote: no basis to pick. -->
                             @if (showsSettlementBasis(c)) {
                               <label class="fieldset grow">
                                 <span class="t-field-label">Techo indemnizable</span>
@@ -504,9 +487,7 @@
                                 </button>
                               }
                             </div>
-                            <!-- Avisa, no bloquea: una cobertura que cubre todo el ramo puede ser
-                               correcta. Pero acá se define con qué suma asegurada se liquida un
-                               siniestro, así que dejarlo pasar en silencio no es una opción. -->
+                            <!-- Warns, doesn't block: covering the whole branch can be correct. -->
                             @if (!hasExcludedCauses(c)) {
                               <p class="warn-note cov-warning measure" role="status">
                                 No excluye ningún hecho generador, así que cubre
@@ -537,11 +518,8 @@
             }
           }
 
-          <!-- ============ EXCLUSIONES COMUNES ============ -->
-          <!-- Solapa propia y no un recuadro al pie de Coberturas: no son de ninguna cobertura sino
-               del ramo entero, y ahí abajo quedaban como un apéndice de la lista de coberturas. Su
-               guardado también es propio — es otro endpoint (rules-service), así que separarlas no
-               obliga a guardar las coberturas para cambiar una exclusión. -->
+          <!-- ============ COMMON EXCLUSIONS ============ -->
+          <!-- Branch-wide, not per coverage, and saved through their own rules-service endpoint. -->
           @case ('exclusiones') {
             <app-card heading="Exclusiones comunes del ramo">
               <p class="section-hint">
@@ -589,9 +567,6 @@
           }
 
           <!-- ============ FAST TRACK ============ -->
-          <!-- Mismo patrón de fila que las reglas de cada cobertura (interruptor + qué evalúa +
-               umbral): son la misma clase de decisión, y verlas iguales en las dos solapas evita
-               tener que volver a aprender la pantalla. -->
           @case ('fastTrack') {
             @if (detailLoading()) {
               <app-inline-loading [size]="26" message="Cargando Fast Track…" />
@@ -601,8 +576,7 @@
                   <div class="ft-head">
                     <h2 class="card-title">Fast Track</h2>
                     <span class="t-note">Siniestro express</span>
-                    <!-- El Fast Track no se apaga: es parte del análisis. El badge lo dice en vez de
-                       ofrecer un interruptor que no existe. -->
+                    <!-- Fast Track can't be turned off: it's part of the analysis. -->
                     <app-badge variant="solid" tone="ok">Siempre activo</app-badge>
                   </div>
 
@@ -615,8 +589,6 @@
                     </span>
                   </p>
 
-                  <!-- Las tres secciones en un contenedor con gap propio: colgadas directo de la
-                     card quedaban pegadas entre sí, porque la card no separa a sus hijos. -->
                   <div class="ft-sections">
                     <div class="cov-section">
                       <span class="t-section-label">Condiciones para habilitar el Fast Track</span>
@@ -674,8 +646,8 @@
                           }
                         </li>
 
-                        <!-- Sangrada y solo visible con el umbral de arriba prendido: la ventana no
-                         decide nada sola, únicamente acota qué siniestros previos se cuentan. -->
+                        <!-- Only with the threshold above enabled: the window just bounds which
+                         prior claims are counted. -->
                         @if (ftActive('maxPriorClaims')) {
                           <li class="rule-row nested" @accordion>
                             <div class="rule-text">
@@ -736,7 +708,6 @@
                               La póliza no puede tener cuotas vencidas al momento del hecho.
                             </p>
                           </div>
-                          <!-- Sin número que cargar: la condición es el interruptor mismo. -->
                           <span class="rule-off-note t-note">
                             {{ d.fastTrack.requiresUpToDatePolicy ? 'Sí' : 'No se exige' }}
                           </span>
@@ -793,10 +764,8 @@
             }
           }
 
-          <!-- ============ DOCUMENTACIÓN ============ -->
-          <!-- Matriz documento × hecho generador. Antes había que elegir un hecho generador y ver su
-               lista de a una: comparar qué pedía cada uno obligaba a ir y volver entre chips, y era
-               justo lo que se necesita mirar de una agenda documental. -->
+          <!-- ============ DOCUMENTS ============ -->
+          <!-- Document × claim cause matrix. -->
           @case ('documentacion') {
             @if (detailLoading()) {
               <app-inline-loading [size]="26" message="Cargando documentación…" />
@@ -820,8 +789,6 @@
                           @for (cause of claimCauses(); track cause.id) {
                             <th scope="col" class="doc-col">
                               <span class="doc-col-name">{{ cause.name }}</span>
-                              <!-- El conteo evita tener que contar tildes para saber qué tan exigente
-                                 quedó cada hecho generador. -->
                               <span class="doc-col-count">{{ requiredCountLabel(cause.id) }}</span>
                             </th>
                           }
@@ -837,8 +804,7 @@
                                   [checked]="isDocRequiredFor(cause.id, doc.code)"
                                   (checkedChange)="toggleDocFor(cause.id, doc.code)"
                                 >
-                                  <!-- La casilla sola no dice qué marca: el nombre va para el lector
-                                     de pantalla, que no tiene cómo cruzar fila y columna. -->
+                                  <!-- Names the cell for screen readers. -->
                                   <span class="sr-only">
                                     {{ doc.label }} obligatorio para {{ cause.name }}
                                   </span>
@@ -850,8 +816,6 @@
                       </tbody>
                     </app-table>
 
-                    <!-- Qué significa cada casilla: una tilde sola es ambigua entre "obligatorio" y
-                       "presente", y acá quiere decir lo primero. -->
                     <p class="doc-legend">
                       <span class="doc-legend-item">
                         <span class="doc-legend-box on" aria-hidden="true"></span> Obligatorio
@@ -874,7 +838,7 @@
             }
           }
 
-          <!-- ============ REGLAS DE NEGOCIO ============ -->
+          <!-- ============ BUSINESS RULES ============ -->
           @case ('reglas') {
             @if (detailLoading()) {
               <app-inline-loading [size]="26" message="Cargando reglas de negocio…" />
@@ -929,8 +893,7 @@
   </div>
 </div>
 
-<!-- Confirmación del renombre. El ramo es catálogo global: el nombre nuevo aparece en las pólizas,
-     los expedientes y los reportes de todas las aseguradoras apenas se guarda. -->
+<!-- Branches are a global catalog: the new name shows up for every insurer as soon as it's saved. -->
 <app-modal [open]="showRenameConfirm()" heading="¿Renombrar el ramo?" (close)="cancelRename()">
   <p class="t-body">
     Vas a renombrar <strong>{{ renameFrom() }}</strong> a <strong>{{ draft()?.name }}</strong

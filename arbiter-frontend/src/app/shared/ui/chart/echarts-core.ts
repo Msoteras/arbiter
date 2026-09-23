@@ -4,13 +4,8 @@ import { GridComponent, LegendComponent, TooltipComponent } from 'echarts/compon
 import { CanvasRenderer } from 'echarts/renderers';
 
 /**
- * Build a medida de ECharts: sólo los tres tipos de gráfico que el tablero usa. Importar el
- * paquete entero (`import('echarts')`, que es lo que muestra la documentación) trae mapas,
- * treemaps, gauges y el resto del catálogo — cerca de un megabyte de JS para dibujar tres
- * gráficos. Lo que se registra acá es lo único que el bundle termina cargando.
- *
- * Se carga en diferido desde `app.config.ts`, así que nada de esto entra al bundle inicial:
- * recién llega cuando alguien abre el tablero.
+ * Custom ECharts build with only the chart types the dashboard uses: importing the whole package
+ * adds about 1 MB of JS. Lazy-loaded from `app.config.ts`, so it stays out of the initial bundle.
  */
 echarts.use([
   BarChart,

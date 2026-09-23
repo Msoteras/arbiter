@@ -8,12 +8,8 @@ import org.springframework.stereotype.Component;
 import java.util.List;
 
 /**
- * Default when the {@code insurer-db} profile is off (dev and tests with no insurer database).
- *
- * <p>Returns nothing rather than fixtures: this adapter feeds a flow that creates accounts and
- * sends mail, so inventing policyholders would have it provisioning people who do not exist. An
- * empty run reports zero and changes nothing, which is the honest answer when the source of truth
- * is not plugged in.
+ * Default when the {@code insurer-db} profile is off. Returns nothing rather than fixtures: this
+ * feeds a flow that creates accounts and sends mail to real addresses.
  */
 @Component
 public class MockInsuredDirectoryAdapter implements InsuredDirectoryAdapter {

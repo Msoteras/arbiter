@@ -10,15 +10,13 @@
   flex-direction: column;
   gap: var(--space-4);
 }
-// Dentro del modal (pop-up): el diálogo ya provee la caja y el padding, así que el wizard llena
-// el ancho sin márgenes ni padding de página propios.
+// Inside the modal the dialog already provides the box and padding.
 .wizard.embedded {
   max-width: none;
   margin: 0;
   padding: 0;
 }
 
-/* ===== Encabezado ===== */
 .wizard-head {
   display: flex;
   flex-direction: column;
@@ -40,10 +38,6 @@
   padding: var(--space-6);
 }
 
-/* ===== Stepper ===== */
-// Mismo tratamiento que el stepper del inicio del asegurado: círculos de 28px, todo alineado
-// arriba y el conector al centro del círculo. Acá los pasos son botones (se puede volver a uno
-// ya completado), pero la estética es la misma.
 .stepper {
   display: flex;
   align-items: flex-start;
@@ -119,7 +113,6 @@
   }
 }
 
-/* ===== Contenido del paso ===== */
 .step-title {
   font-size: var(--font-size-lg);
   font-weight: var(--font-weight-medium);
@@ -150,7 +143,6 @@ app-textarea {
   display: block;
 }
 
-/* Resumen de la póliza elegida (aseguradora + vigencia). */
 .policy-summary {
   display: flex;
   flex-wrap: wrap;
@@ -190,8 +182,7 @@ app-textarea {
   gap: var(--space-3);
 }
 
-/* Cada mitad del grid con su propio rótulo: el placeholder no se renderiza en los inputs de
-   fecha y hora, así que sin esto los dos campos quedaban sin nombre. */
+/* Own label per half: date and time inputs don't render a placeholder. */
 .subfield {
   display: flex;
   flex-direction: column;
@@ -201,14 +192,10 @@ app-textarea {
 .time-shortcuts {
   margin-top: var(--space-2);
 }
-/* Van ARRIBA de los campos que completan, al revés que los de hora: son la respuesta rápida a la
-   pregunta del rótulo, no un ajuste de lo ya cargado. */
 .date-shortcuts {
   margin-bottom: var(--space-2);
 }
 
-/* El switch con su estado escrito al lado: la perilla dice sí/no por posición, el texto lo dice
-   con palabras. */
 .doc-missing {
   margin-top: var(--space-3);
   font-size: var(--font-size-sm);
@@ -243,7 +230,6 @@ app-textarea {
   }
 }
 
-/* ===== Documentación ===== */
 .doc-slot {
   display: flex;
   flex-wrap: wrap;
@@ -252,8 +238,7 @@ app-textarea {
   padding: var(--space-3) 0;
   border-bottom: 1px solid var(--border-subtle);
 }
-// flex-basis 100% en un flex row fuerza el salto de línea: el error queda debajo del
-// nombre + botón, no apretado al lado.
+// flex-basis 100% forces the error onto its own line in the flex row.
 .doc-error {
   flex-basis: 100%;
   margin: 0;
@@ -299,14 +284,6 @@ app-textarea {
   align-items: center;
   gap: var(--space-2);
 }
-.doc-filename {
-  font-size: var(--font-size-body);
-  color: var(--accent-fg);
-  max-width: 160px;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
 .doc-remove {
   background: none;
   border: none;
@@ -342,8 +319,7 @@ app-textarea {
   font-size: var(--font-size-md);
 }
 
-// El precheck de elegibilidad no respondió: no es un rechazo (--status-danger), es no saber —
-// tono de advertencia, no de bloqueo.
+// The eligibility precheck didn't answer: unknown is a warning, not a rejection.
 .eligibility-unknown {
   margin-top: var(--space-4);
   padding: var(--space-3);
@@ -354,7 +330,6 @@ app-textarea {
   font-size: var(--font-size-md);
 }
 
-/* ===== Barra de acciones (inline) ===== */
 .wizard-actions {
   display: flex;
   align-items: center;
@@ -364,8 +339,6 @@ app-textarea {
   padding-top: var(--space-4);
   border-top: 1px solid var(--border-subtle);
 }
-/* Grupo izquierdo (Volver / Cancelar / hint): se mantiene junto mientras el botón de avanzar
-   queda a la derecha por el space-between del contenedor. */
 .wizard-actions-left {
   display: flex;
   align-items: center;
@@ -375,8 +348,6 @@ app-textarea {
   font-size: var(--font-size-sm);
   color: var(--text-muted);
 }
-/* Grupo derecho: el aviso de lo que falta, pegado al botón que bloquea. En mobile el aviso se
-   pone arriba del botón en vez de apretarlo contra el borde. */
 .wizard-actions-right {
   display: flex;
   align-items: center;
@@ -404,7 +375,6 @@ app-textarea {
   }
 }
 
-/* ===== Pantalla de éxito ===== */
 .success-card {
   text-align: center;
   padding: var(--space-7) var(--space-6);

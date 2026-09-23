@@ -19,11 +19,9 @@ import java.util.Comparator;
 import java.util.List;
 
 /**
- * El catálogo de peritos que administra el referente, y del que el analista elige al derivar.
- *
- * <p>Vive en cases-service y no en rules-service aunque se edite desde la pantalla de reglas: no es
- * una regla de negocio evaluable, es el directorio de proveedores que usa el módulo que deriva. El
- * umbral de monto —que sí es una regla— sí está en el motor.
+ * The expert firm catalog the referent manages and the analyst picks from when referring a case.
+ * Lives here rather than in rules-service, although edited from the rules screen: it is a provider
+ * directory, not an evaluable rule.
  */
 @Service
 @RequiredArgsConstructor
@@ -33,7 +31,7 @@ public class ExpertFirmService {
     private final ExpertAssessmentRepository expertAssessmentRepository;
     private final BranchRepository branchRepository;
 
-    /** Todos, activos e inactivos: el referente administra el catálogo completo. */
+    /** Inactive ones included: the referent manages the full catalog. */
     @Transactional(readOnly = true)
     public List<ExpertFirmResponse> list() {
         return expertFirmRepository.findAll().stream()
@@ -69,9 +67,8 @@ public class ExpertFirmService {
     }
 
     /**
-     * Solo si nunca se usó. Un perito con peritajes se desactiva ({@code active = false}), que es
-     * para lo que está la columna: deja de aparecer en el selector del analista sin borrar el
-     * rastro de las derivaciones que ya recibió.
+     * Only if never used. A firm with assessments is deactivated instead, which keeps the trail of
+     * the referrals it already received.
      */
     @Transactional
     public void delete(Long id) {
@@ -83,7 +80,7 @@ public class ExpertFirmService {
         expertFirmRepository.delete(firm);
     }
 
-    /** null = generalista, cubre todos los ramos. Un id que no existe es un 422, no un null. */
+    /** Null means a generalist covering every branch; an unknown id is a 422, not a null. */
     private Branch resolveBranch(Long branchId) {
         if (branchId == null) {
             return null;
@@ -92,7 +89,6 @@ public class ExpertFirmService {
                 .orElseThrow(() -> new UnresolvedCaseReferenceException("ramo", String.valueOf(branchId)));
     }
 
-    /** Null = estudio liquidador: es lo que había antes de que el catálogo tuviera tipos. */
     private static ProviderType typeOf(ExpertFirmRequest request) {
         return request.providerType() == null ? ProviderType.ESTUDIO_LIQUIDADOR : request.providerType();
     }

@@ -14,12 +14,9 @@ import java.util.concurrent.ConcurrentHashMap;
  * Translates between the {@code CaseStatus} enum the state machine speaks and the
  * {@code arbiter_common.case_status} rows the FK points at.
  *
- * <p>Cached in memory: six rows, in the common schema (the same for every tenant, so one cache
- * serves them all) and effectively immutable at runtime. The cached instances are detached, which
- * is safe here because nothing writes through them — the association carries no cascade, so
- * Hibernate only ever reads the id off them to fill {@code current_status_id}. Reading
- * {@code getName()} on a detached instance also keeps {@code Case.getStatus()} working outside a
- * session, which a lazy proxy would not.
+ * <p>Cached in memory: the rows live in the common schema, so one cache serves every tenant. The
+ * cached instances are detached, which is safe because the association has no cascade — Hibernate
+ * only reads their id — and it keeps {@code Case.getStatus()} working outside a session.
  */
 @Service
 @RequiredArgsConstructor

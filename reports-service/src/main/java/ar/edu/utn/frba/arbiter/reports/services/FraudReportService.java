@@ -23,22 +23,14 @@ import java.time.temporal.ChronoUnit;
 import java.util.List;
 
 /**
- * The fraud report: the claims filed in a period that carry at least one fraud signal, with the
- * alert level the scoring engine gave them. Always scoped to the caller's insurer — the tenant
- * schema the JWT resolves to.
- *
- * <p>It flags, it doesn't determine. The listing exists so a person looks at those cases; the
- * determination is the analyst's, on the case, and it comes back on each row as
- * {@code fraudDetermined}.
+ * The fraud report, always scoped to the caller's tenant. It flags, it doesn't determine: the
+ * determination is the analyst's and comes back on each row as {@code fraudDetermined}.
  */
 @Service
 @RequiredArgsConstructor
 public class FraudReportService {
 
-    /**
-     * A year, leap day included — the same cap as the resolution report. Not a business rule: a
-     * guard on how many cases one request can pull into memory.
-     */
+    /** Not a business rule: a guard on how many cases one request can pull into memory. */
     static final int MAX_PERIOD_DAYS = 366;
 
     private final FlaggedCaseRepository flaggedCaseRepository;
@@ -52,17 +44,13 @@ public class FraudReportService {
         validatePeriod(from, to);
         String branch = branchName(branchId);
 
-        // Whole calendar days in the insurer's local time, both ends included: "hasta el 30/09"
-        // means up to the last second of that day, so the upper bound is the next midnight,
-        // exclusive. Same convention as the resolution report.
+        // Whole calendar days in the insurer's time zone, both ends included: the upper bound is the
+        // next midnight, exclusive.
         ZoneId zone = clock.getZone();
         Instant start = from.atStartOfDay(zone).toInstant();
         Instant end = to.plusDays(1).atStartOfDay(zone).toInstant();
 
-        // Order comes from the repository's ORDER BY — signal count first, band as the tie-break —
-        // so the screen, the CSV and the PDF all lead with the same case (see FlaggedCaseRepository).
         List<FraudReportRow> rows = flaggedCaseRepository.findFlaggedBetween(start, end, branchId, riskBand);
-        // The denominator of the rates: every claim of the period and branch, flagged or not.
         long totalClaims = flaggedCaseRepository.countClaimsBetween(start, end, branchId);
 
         return new FraudReport(from, to, branch, riskBand, clock.instant(),
@@ -70,12 +58,6 @@ public class FraudReportService {
                 previousSummary(from, to, zone, branchId, riskBand), rows);
     }
 
-    /**
-     * The same summary, over the equal-length stretch immediately before the period — see
-     * {@link PreviousPeriod}. Folded from a second query rather than carried over from
-     * {@link #generate}, same as {@code ClaimMetricsService}: the previous rows aren't part of the
-     * response, so there's nothing to reuse them for besides this fold.
-     */
     private FraudSummary previousSummary(LocalDate from, LocalDate to, ZoneId zone, Long branchId,
                                          RiskBand riskBand) {
         PreviousPeriod previous = PreviousPeriod.immediatelyBefore(from, to);
@@ -95,9 +77,8 @@ public class FraudReportService {
     }
 
     /**
-     * Resolved from the catalog and not from the rows: with a filter that matched nothing there is
-     * no row to take it from, and that is precisely the report that most needs to say which branch
-     * it looked at. Looked up before the query, so an unknown branch fails without running it.
+     * From the catalog, not the rows: an empty result still has to name its branch. Looked up first so
+     * an unknown branch fails before the query runs.
      */
     private String branchName(Long branchId) {
         if (branchId == null) {

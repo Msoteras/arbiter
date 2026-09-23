@@ -17,9 +17,8 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 /**
- * Quién puede leer un expediente ajeno. El modo de falla acá es invisible — alguien viendo un
- * expediente que no le corresponde se ve igual que viendo el propio — así que lo que se prueba no
- * es que "funcione" sino que <b>niegue</b>, y que niegue de la forma correcta (404, no 403).
+ * Who may read someone else's case. The failure mode is invisible (a foreign case looks just like
+ * one's own), so what's tested is that it <b>denies</b>, and denies correctly (404, not 403).
  */
 class CaseAccessPolicyTest {
 
@@ -59,8 +58,8 @@ class CaseAccessPolicyTest {
         Case someoneElses = caseOwnedBy("11.222.333");
 
         assertThat(policy.canRead(someoneElses)).isFalse();
-        // 404 y no 403 a propósito: un 403 confirma que el expediente existe, y como los ids son
-        // secuenciales alcanzaría para mapear la tabla probando de a uno.
+        // 404 rather than 403 on purpose: a 403 confirms the case exists, and with sequential ids
+        // that's enough to map the whole table.
         assertThatThrownBy(() -> policy.assertCanRead(someoneElses))
                 .isInstanceOf(CaseNotFoundException.class);
     }
@@ -70,8 +69,8 @@ class CaseAccessPolicyTest {
         authenticateAs("ROLE_ANALISTA_SINIESTROS");
         CallerContext.set(new CallerContext.Caller(null, List.of(1L), "arbiter_bbva"));
 
-        // Revisar siniestros ajenos es literalmente el trabajo del analista; el esquema ya lo
-        // acota a una sola aseguradora.
+        // Reviewing others' claims is the analyst's job; the schema already limits it to one
+        // insurer.
         assertThat(policy.canRead(caseOwnedBy("11.222.333"))).isTrue();
     }
 
@@ -83,10 +82,7 @@ class CaseAccessPolicyTest {
         assertThat(policy.canRead(caseOwnedBy("11.222.333"))).isTrue();
     }
 
-    /**
-     * Un token de asegurado sin DNI no puede terminar viendo todo: sin ese dato no hay con qué
-     * comparar, y el default seguro es negar.
-     */
+    /** Without a DNI there's nothing to compare against, so the safe default is to deny. */
     @Test
     void insuredWithoutDniClaim_isDenied() {
         authenticateAs("ROLE_ASEGURADO");
@@ -97,8 +93,8 @@ class CaseAccessPolicyTest {
 
     @Test
     void unauthenticatedRequest_isNotTreatedAsInsured() {
-        // Sin Authentication no hay rol ASEGURADO que restringir. No es un agujero: llegar acá ya
-        // exige haber pasado el filtro de seguridad, que rechaza el anónimo antes.
+        // Not a hole: reaching this point requires the security filter, which rejects anonymous
+        // requests first.
         assertThat(policy.currentUserIsInsured()).isFalse();
     }
 
@@ -111,8 +107,8 @@ class CaseAccessPolicyTest {
 
     @Test
     void currentAssignmentActor_forReferent_isReferent() {
-        // El endpoint de asignación es compartido entre los dos roles; el historial necesita
-        // distinguirlos en vez de atribuirle todo al analista.
+        // The assignment endpoint is shared by both roles; the history must tell them apart instead
+        // of attributing everything to the analyst.
         authenticateAs("ROLE_REFERENTE_ASEGURADORA");
 
         assertThat(policy.currentAssignmentActor()).isEqualTo(StatusChangeActor.REFERENT);

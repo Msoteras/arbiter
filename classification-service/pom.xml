@@ -74,17 +74,13 @@
             <artifactId>jackson-databind</artifactId>
         </dependency>
 
-        <!-- java.time para el ObjectMapper de Jackson 2 (OllamaConfig): sin este módulo, serializar
-             un LocalDate explota, y es lo que dejaba en null el payload de auditoría del snapshot
-             de póliza. Ya estaba en el classpath por transitividad; se declara para poder
-             importarlo en tiempo de compilación. -->
+        <!-- Declared (not just transitive) because OllamaConfig registers JavaTimeModule. -->
         <dependency>
             <groupId>com.fasterxml.jackson.datatype</groupId>
             <artifactId>jackson-datatype-jsr310</artifactId>
         </dependency>
 
-        <!-- Gemini por Vertex, detrás de LlmClient junto a Ollama. Trae su propia cadena de
-             credenciales (ADC), así que no hace falta sumar google-auth aparte. -->
+        <!-- Brings its own ADC credential chain; no separate google-auth dependency needed. -->
         <dependency>
             <groupId>com.google.genai</groupId>
             <artifactId>google-genai</artifactId>

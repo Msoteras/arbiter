@@ -15,15 +15,11 @@ import java.util.Map;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-/**
- * D4b · the factor stopped being a stub. What's tested here is that it compares **fields**, and
- * above all that a missing field isn't read as a contradiction: a police certificate carries no
- * IMEI, and that can't turn into a fraud signal.
- */
+/** Above all, a missing field must never be read as a contradiction. */
 class DocumentInconsistencyEvaluatorTest {
 
     private static final String INSURED_IMEI = "351000000000042";
-    /** RiskFixtures.EVENT_DATE es 13/06/2026. */
+    /** RiskFixtures.EVENT_DATE is 13/06/2026. */
     private static final LocalDate EVENT_DAY = LocalDate.of(2026, 6, 13);
 
     private final DocumentInconsistencyEvaluator evaluator = new DocumentInconsistencyEvaluator();
@@ -43,7 +39,7 @@ class DocumentInconsistencyEvaluatorTest {
                 .build();
     }
 
-    /** A Tecnología Portátil policy: an insured item to cross against, and no IMEI. */
+    /** A laptop policy: an insured item to cross against, and no IMEI. */
     private InsuredPolicy laptopPolicy() {
         return InsuredPolicy.builder()
                 .policyNumber("POL-TEC-2026-010")
@@ -73,18 +69,16 @@ class DocumentInconsistencyEvaluatorTest {
         return new DocumentExtraction("texto del documento", List.of(), fields);
     }
 
-    /** Only the fields this test varies; the rest go empty. */
     private DocumentExtraction.Fields fields(LocalDate documentDate, BigDecimal amount, String imei) {
         return new DocumentExtraction.Fields(
                 documentDate, amount, null, null, null, imei, null, List.of());
     }
 
-    /** Same, for the checks that vary make and model instead. */
     private DocumentExtraction.Fields itemFields(String brand, String model) {
         return new DocumentExtraction.Fields(null, null, null, brand, model, null, null, List.of());
     }
 
-    /** With no documents analyzed nothing is known: not evaluable, not a 0.0 that would cheapen the score. */
+    /** No documents analyzed: not evaluable, rather than a 0.0 that would dilute the score. */
     @Test
     void withoutAnalyzedDocuments_isNotEvaluable() {
         Contribution c = evaluator.evaluate(context(policyWithImei(), Map.of()));
@@ -93,7 +87,6 @@ class DocumentInconsistencyEvaluatorTest {
         assertThat(c.rationale()).contains("no evaluable");
     }
 
-    /** The cross-check that motivated the factor. */
     @Test
     void anImeiThatDoesNotMatchTheInsuredItem_isAnInconsistency() {
         Contribution c = evaluator.evaluate(context(policyWithImei(), Map.of(
@@ -111,10 +104,7 @@ class DocumentInconsistencyEvaluatorTest {
         assertThat(c.score()).isEqualTo(0.0);
     }
 
-    /**
-     * The evaluator's most important property: null is "the document doesn't say", never "doesn't
-     * match". A police certificate with no IMEI can't add risk.
-     */
+    /** The most important property: null means "the document doesn't say", never "doesn't match". */
     @Test
     void aMissingFieldIsNeverAnInconsistency() {
         Contribution c = evaluator.evaluate(context(policyWithImei(), Map.of(
@@ -124,7 +114,7 @@ class DocumentInconsistencyEvaluatorTest {
         assertThat(c.rationale()).contains("coinciden");
     }
 
-    /** Sin IMEI en la póliza (Tecnología Portátil) el chequeo no participa. */
+    /** Without an IMEI on the policy (laptops) the check doesn't take part. */
     @Test
     void withoutAnImeiOnThePolicy_theCheckDoesNotParticipate() {
         InsuredPolicy noImei = RiskFixtures.policy(true, new BigDecimal("400000"));
@@ -135,7 +125,6 @@ class DocumentInconsistencyEvaluatorTest {
         assertThat(c.score()).isEqualTo(0.0);
     }
 
-    /** A certificate dated months before the event can't be about that event. */
     @Test
     void aDocumentDatedBeforeTheEvent_isAnInconsistency() {
         Contribution c = evaluator.evaluate(context(policyWithImei(), Map.of(
@@ -145,7 +134,7 @@ class DocumentInconsistencyEvaluatorTest {
         assertThat(c.rationale()).contains("anterior al hecho");
     }
 
-    /** The device's purchase invoice is legitimately earlier: the tolerance lets it through. */
+    /** A purchase invoice is legitimately earlier: the tolerance lets it through. */
     @Test
     void aDocumentDatedAFewDaysBefore_isTolerated() {
         Contribution c = evaluator.evaluate(context(policyWithImei(), Map.of(
@@ -154,7 +143,7 @@ class DocumentInconsistencyEvaluatorTest {
         assertThat(c.score()).isEqualTo(0.0);
     }
 
-    /** El monto reclamado en el fixture es 100.000. */
+    /** The fixture's claimed amount is 100,000. */
     @Test
     void anAmountFarFromTheClaimedOne_isAnInconsistency() {
         Contribution c = evaluator.evaluate(context(policyWithImei(), Map.of(
@@ -164,7 +153,6 @@ class DocumentInconsistencyEvaluatorTest {
         assertThat(c.rationale()).contains("difiere del monto reclamado");
     }
 
-    /** Small gaps (VAT, rounding, shipping) aren't contradictions. */
     @Test
     void anAmountWithinToleranceIsNotAnInconsistency() {
         Contribution c = evaluator.evaluate(context(policyWithImei(), Map.of(
@@ -173,10 +161,7 @@ class DocumentInconsistencyEvaluatorTest {
         assertThat(c.score()).isEqualTo(0.0);
     }
 
-    /**
-     * D12 · what the insured declared against what the certificate says. It's the signal that
-     * justifies storing both dates separately.
-     */
+    /** The declared police report date against the certificate's. */
     @Test
     void aPoliceReportDatedDifferentlyFromWhatWasDeclared_isAnInconsistency() {
         RiskContext context = new RiskContext(
@@ -193,7 +178,7 @@ class DocumentInconsistencyEvaluatorTest {
         assertThat(c.rationale()).contains("declaró haber denunciado");
     }
 
-    /** Same day declared and on the paper: no contradiction (the time isn't compared). */
+    /** Same day: no contradiction (the time isn't compared). */
     @Test
     void aPoliceReportMatchingTheDeclaredDay_isNotAnInconsistency() {
         RiskContext context = new RiskContext(
@@ -207,7 +192,7 @@ class DocumentInconsistencyEvaluatorTest {
         assertThat(evaluator.evaluate(context).score()).isEqualTo(0.0);
     }
 
-    /** Dos contradicciones sobre el mismo documento saturan el factor. */
+    /** Two contradictions on the same document saturate the factor. */
     @Test
     void twoInconsistenciesSaturateTheFactor() {
         Contribution c = evaluator.evaluate(context(policyWithImei(), Map.of(
@@ -216,10 +201,7 @@ class DocumentInconsistencyEvaluatorTest {
         assertThat(c.score()).isEqualTo(1.0);
     }
 
-    // ─── Marca y modelo contra el bien asegurado ──────────────────────────────────
-    // Es el cruce que el IMEI no puede hacer fuera de Celulares: una póliza de Tecnología
-    // Portátil no tiene IMEI, así que sin esto la factura de otra notebook no se compara
-    // contra nada.
+    // ─── Make and model against the insured item ─────────────────────────────────
 
     @Test
     void aRepairInvoiceForAnotherMake_isFlagged() {
@@ -229,7 +211,7 @@ class DocumentInconsistencyEvaluatorTest {
         assertThat(c.rationale()).contains("La marca del documento").contains("Asus");
     }
 
-    /** The make is present in the insured item, spelled differently in case: no finding. */
+    /** Present in the insured item with different case: no finding. */
     @Test
     void theInsuredMake_writtenInAnotherCase_isNotAnInconsistency() {
         Contribution c = evaluator.evaluate(context(laptopPolicy(),
@@ -238,10 +220,7 @@ class DocumentInconsistencyEvaluatorTest {
         assertThat(c.score()).isZero();
     }
 
-    /**
-     * The model is only checked once the make matched. Reporting it under a wrong make would be
-     * the make finding said twice, and the make is the one that actually identifies the device.
-     */
+    /** The model is only checked once the make matched, or it would repeat the make finding. */
     @Test
     void aWrongMake_isReportedOnce_notAlsoAsAWrongModel() {
         Contribution c = evaluator.evaluate(context(laptopPolicy(),
@@ -250,7 +229,6 @@ class DocumentInconsistencyEvaluatorTest {
         assertThat(c.rationale()).doesNotContain("El modelo del documento");
     }
 
-    /** A document that doesn't name a make: nothing to compare, and never an inconsistency. */
     @Test
     void aDocumentWithoutAMake_staysSilent() {
         Contribution c = evaluator.evaluate(context(laptopPolicy(),
@@ -259,11 +237,7 @@ class DocumentInconsistencyEvaluatorTest {
         assertThat(c.score()).isZero();
     }
 
-    /**
-     * The check needs something to cross against. A Celulares policy carries no {@code
-     * insuredItem}, and inventing a mismatch out of a missing operand would accuse the insured
-     * over a field nobody filled.
-     */
+    /** Without an {@code insuredItem} there's nothing to cross against, so no finding. */
     @Test
     void withoutAnInsuredItemOnThePolicy_theMakeIsNotChecked() {
         Contribution c = evaluator.evaluate(context(policyWithImei(),

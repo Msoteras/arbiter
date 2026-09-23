@@ -30,17 +30,14 @@ import java.time.Instant;
 import java.time.LocalDate;
 import java.util.List;
 import java.util.stream.Stream;
-import java.time.LocalDateTime;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatCode;
 
 /**
- * Con Postgres real (Testcontainers), no con {@code CaseRepository} mockeado. Existe porque un bug
- * real de esta historia —{@code Specification.allOf} tirando {@code IllegalArgumentException}
- * cuando no hay filtros, 500 en {@code GET /api/v1/cases} sin query params— no lo agarró ningún
- * test con mocks: {@link CaseSpecifications#withFilters} arma la spec correctamente en Java, pero
- * solo Hibernate ejecutando el Criteria API contra una BD real ejercita el camino que rompía.
+ * Against real Postgres, not a mocked {@code CaseRepository}: {@link CaseSpecifications#withFilters}
+ * may build a spec that looks right in Java, but only Hibernate running the Criteria API against a
+ * real database exercises it.
  */
 @SpringBootTest
 @Transactional
@@ -95,8 +92,8 @@ class CaseRepositorySpecificationTests extends AbstractPersistenceIT {
     }
 
     /**
-     * Same for the rest of the graph the case now points at. Every FK is NOT NULL, so a case
-     * can't be persisted until branch → claim cause, insured and coverage → policy all exist.
+     * Same for the rest of the graph the case points at. Every FK is NOT NULL, so a case can't be
+     * persisted until branch → claim cause, insured and coverage → policy all exist.
      */
     private ClaimCause claimCause(String branchName, String causeName) {
         Branch branch = branchRepository.findByName(branchName)
@@ -109,8 +106,8 @@ class CaseRepositorySpecificationTests extends AbstractPersistenceIT {
     private Insured insured(String dni, String name, String surname) {
         return insuredRepository.findByDni(dni)
                 .orElseGet(() -> {
-                    // insured.user_id es NOT NULL: la identidad vive en el esquema común y el
-                    // perfil en el del tenant, así que hay que crear las dos puntas.
+                    // insured.user_id is NOT NULL: identity lives in the common schema and the
+                    // profile in the tenant's, so both ends must be created.
                     Insured person = CaseFixtures.insured(dni, name, surname);
                     person.setUser(userRepository.save(CaseFixtures.user(dni + "@example.com")));
                     return insuredRepository.save(person);
@@ -129,8 +126,6 @@ class CaseRepositorySpecificationTests extends AbstractPersistenceIT {
     @BeforeEach
     void seed() {
         seeded = caseRepository.saveAll(java.util.List.of(
-                // El asegurado ya no puede ser nulo: el nombre sale del join con `insured`, no de
-                // la primera clasificación, así que todo caso nace con uno.
                 caseOf(CaseStatus.PENDING_ANALYST_REVIEW, "Robo en vía pública", "POL-CEL-2024-001",
                         "40.123.456", "Laura", "Fernández", LocalDate.of(2026, 6, 1), RiskBand.LOW),
                 caseOf(CaseStatus.PENDING_CLASSIFICATION, "Hurto", "POL-CEL-2024-002",
@@ -144,8 +139,8 @@ class CaseRepositorySpecificationTests extends AbstractPersistenceIT {
 
     @Test
     void withoutFilters_doesNotThrow_andReturnsAllCases() {
-        // Regression: Specification.allOf(...) exige que ningún elemento sea null; con todos los
-        // filtros ausentes, withFilters() debía devolver null directo (no una lista con nulls).
+        // Specification.allOf(...) rejects null elements; with every filter absent, withFilters()
+        // must return null itself (not a list of nulls).
         assertThatCode(() -> caseRepository.findAll(CaseSpecifications.withFilters(
                 null, null, null, null, null, null, null, null, null), FIRST_PAGE))
                 .doesNotThrowAnyException();
@@ -157,13 +152,13 @@ class CaseRepositorySpecificationTests extends AbstractPersistenceIT {
     }
 
     /**
-     * El mapeo a {@code CaseResponse} corre con la sesión ya cerrada, así que todo lo que navega
-     * tiene que venir en la query. Reproduce un 500 real: con el {@code FETCH} por default del
-     * {@code @EntityGraph}, {@code claimCause.branch} quedaba lazy y explotaba en el mapeo.
+     * Mapping to {@code CaseResponse} runs with the session closed, so everything it navigates must
+     * come in the query (e.g. {@code claimCause.branch}, which the {@code @EntityGraph}'s default
+     * {@code FETCH} would leave lazy).
      */
     @Test
     void elListadoTraeTodoLoQueElMapeoNavegaConLaSesionCerrada() {
-        // Antes de la query, si no el seed deja el grafo en la caché y el test pasa siempre.
+        // Before the query, or the seed leaves the graph in the cache and the test always passes.
         entityManager.flush();
         entityManager.clear();
 
@@ -197,7 +192,7 @@ class CaseRepositorySpecificationTests extends AbstractPersistenceIT {
                 .allMatch(c -> c.getStatus() == CaseStatus.PENDING_ANALYST_REVIEW);
     }
 
-    /** El portal del asegurado filtra por cajón, y "en trámite" son cuatro estados. */
+    /** The insured's portal filters by bucket, and "in progress" spans four statuses. */
     @Test
     void statusFilter_acceptsSeveralStatuses() {
         Specification<Case> spec = CaseSpecifications.withFilters(
@@ -219,8 +214,8 @@ class CaseRepositorySpecificationTests extends AbstractPersistenceIT {
 
         Page<Case> page = caseRepository.findAll(spec, FIRST_PAGE);
 
-        // Ambos casos con esa causa son del mismo asegurado en la data sembrada; el filtro
-        // combinado no debe traer de más ni de menos.
+        // Both seeded cases with that cause belong to the same insured; the combined filter must
+        // return exactly those.
         assertThat(page.getContent()).hasSize(2);
         assertThat(page.getContent())
                 .allMatch(c -> c.getClaimCause().getName().equals("Robo en vía pública"))
@@ -241,8 +236,7 @@ class CaseRepositorySpecificationTests extends AbstractPersistenceIT {
 
     @Test
     void eventDateRange_isInclusiveOnBothEnds() {
-        // Rango exacto sobre el primer y el último caso sembrados en junio: los dos límites tienen
-        // que incluirse, ni un día de más ni de menos.
+        // Exact range over the first and last cases seeded in June: both ends must be included.
         Specification<Case> spec = CaseSpecifications.withFilters(
                 null, null, null, null, LocalDate.of(2026, 6, 1), LocalDate.of(2026, 6, 30), null, null, null);
 
@@ -250,7 +244,7 @@ class CaseRepositorySpecificationTests extends AbstractPersistenceIT {
 
         assertThat(page.getContent()).hasSize(3);
         assertThat(page.getContent())
-                .noneMatch(c -> c.getPolicy().getExternalPolicyNumber().equals("POL-CEL-2024-004")); // 5/jul, fuera de rango
+                .noneMatch(c -> c.getPolicy().getExternalPolicyNumber().equals("POL-CEL-2024-004")); // July 5th, out of range
     }
 
     @Test
@@ -307,7 +301,7 @@ class CaseRepositorySpecificationTests extends AbstractPersistenceIT {
 
         Page<Case> page = caseRepository.findAll(spec, FIRST_PAGE);
 
-        // Las dos cases sembradas con ese nombre, sin importar mayúsculas en el término buscado.
+        // Both cases seeded with that name, regardless of the search term's case.
         assertThat(page.getContent())
                 .hasSize(2)
                 .allMatch(c -> "Laura Fernández".equals(c.getInsured().fullName()));
@@ -315,7 +309,6 @@ class CaseRepositorySpecificationTests extends AbstractPersistenceIT {
 
     @Test
     void freeTextSearch_matchesByInsuredName_accentInsensitive() {
-        // "fernandez" (sin tilde) tiene que encontrar a "Laura Fernández".
         Specification<Case> spec = CaseSpecifications.withFilters(
                 null, null, null, null, null, null, "fernandez", null, null);
 
@@ -328,7 +321,6 @@ class CaseRepositorySpecificationTests extends AbstractPersistenceIT {
 
     @Test
     void freeTextSearch_matchesByFullName_accentInsensitive() {
-        // El nombre completo sin acentos ni mayúsculas matchea igual: "julio perez" → "Julio Pérez".
         Specification<Case> spec = CaseSpecifications.withFilters(
                 null, null, null, null, null, null, "julio perez", null, null);
 
@@ -341,7 +333,7 @@ class CaseRepositorySpecificationTests extends AbstractPersistenceIT {
 
     @Test
     void freeTextSearch_matchesById() {
-        Long targetId = seeded.get(1).getId(); // el de policyNumber POL-CEL-2024-002
+        Long targetId = seeded.get(1).getId(); // the one with policy number POL-CEL-2024-002
         Specification<Case> spec = CaseSpecifications.withFilters(
                 null, null, null, null, null, null, String.valueOf(targetId), null, null);
 
@@ -352,8 +344,8 @@ class CaseRepositorySpecificationTests extends AbstractPersistenceIT {
 
     @Test
     void freeTextSearch_combinesWithStatusAsAnd() {
-        // "2024-003" matchea policyNumber de un solo case (APPROVED); si combina mal con status
-        // (OR en vez de AND), traería más de lo esperado.
+        // "2024-003" matches a single case's policy number (APPROVED); combining with status as OR
+        // instead of AND would return more.
         Specification<Case> spec = CaseSpecifications.withFilters(
                 List.of(CaseStatus.APPROVED), null, null, null, null, null, "2024-003", null, null);
 
@@ -388,7 +380,7 @@ class CaseRepositorySpecificationTests extends AbstractPersistenceIT {
 
     @Test
     void riskBandFilter_combinesWithStatusAsAnd() {
-        // Dos cases son HIGH; solo uno de ellos está además REJECTED. El AND no debe traer el otro.
+        // Two cases are HIGH; only one of them is also REJECTED. The AND must not return the other.
         Specification<Case> spec = CaseSpecifications.withFilters(
                 List.of(CaseStatus.REJECTED), null, null, null, null, null, null, RiskBand.HIGH, null);
 
@@ -401,7 +393,7 @@ class CaseRepositorySpecificationTests extends AbstractPersistenceIT {
 
     @Test
     void analystFilter_returnsOnlyThatAnalystsCases() {
-        // Lente "Míos": los dos primeros sembrados quedan de un analista, el resto sin asignar.
+        // "Mine" lens: the first two seeded cases go to one analyst, the rest stay unassigned.
         ClaimsAnalyst owner = analyst("lucas.gomez@arbiter.test", "Lucas", "Gómez");
         assign(owner, seeded.get(0), seeded.get(1));
 
@@ -417,8 +409,8 @@ class CaseRepositorySpecificationTests extends AbstractPersistenceIT {
 
     @Test
     void analystFilter_combinesWithStatusAsAnd() {
-        // El analista tiene dos expedientes, pero solo uno está PENDING_ANALYST_REVIEW: cruzar la
-        // lente "Míos" con el filtro de estado no puede traer el otro.
+        // The analyst has two cases but only one is PENDING_ANALYST_REVIEW: crossing "Mine" with the
+        // status filter must not return the other.
         ClaimsAnalyst owner = analyst("lucas.gomez@arbiter.test", "Lucas", "Gómez");
         assign(owner, seeded.get(0), seeded.get(1));
 
@@ -435,8 +427,8 @@ class CaseRepositorySpecificationTests extends AbstractPersistenceIT {
 
     @Test
     void analystFilter_excludesUnassignedCases() {
-        // Un expediente sin dueño no es de nadie: no puede aparecer en la lente "Míos" de ningún
-        // analista. Es lo que distingue "sin asignar" de "asignado a otro".
+        // An unassigned case belongs to nobody: it can't show up in any analyst's "Mine" lens. That's
+        // what tells "unassigned" apart from "assigned to someone else".
         ClaimsAnalyst owner = analyst("lucas.gomez@arbiter.test", "Lucas", "Gómez");
         assign(owner, seeded.get(0));
 
@@ -460,8 +452,8 @@ class CaseRepositorySpecificationTests extends AbstractPersistenceIT {
     }
 
     /**
-     * Un expediente con el plazo del art. 56 vencido sigue en curso: es el más urgente que hay, no
-     * uno cerrado. El único que sale por vencimiento es {@code LAPSED}, que ya está cerrado.
+     * A case past its art. 56 term is still open: it's the most urgent there is, not a closed one.
+     * The only status reached by expiry is {@code LAPSED}, which is already closed.
      */
     @Test
     void openScope_keepsAnOverdueCase() {
@@ -476,9 +468,8 @@ class CaseRepositorySpecificationTests extends AbstractPersistenceIT {
     }
 
     /**
-     * Lente "Frenados". El sello de {@code updatedAt} lo pone Hibernate al guardar, así que para
-     * tener un expediente viejo hay que envejecerlo por SQL: fijarlo desde la entidad lo pisaría
-     * el {@code @UpdateTimestamp} en el mismo flush.
+     * "Stalled" lens. Hibernate stamps {@code updatedAt} on save, so an old case has to be aged by
+     * SQL: setting it on the entity would be overwritten by {@code @UpdateTimestamp} in the same flush.
      */
     @Test
     void staleSince_returnsOnlyOpenCasesNobodyTouched() {
@@ -496,12 +487,11 @@ class CaseRepositorySpecificationTests extends AbstractPersistenceIT {
                 CaseSpecifications.staleSince(Instant.parse("2026-02-01T00:00:00Z")), FIRST_PAGE);
 
         assertThat(page.getContent()).extracting(Case::getId)
-                // El cerrado hace meses no está frenado, está terminado; el recién tocado, tampoco.
+                // Closed months ago isn't stalled, it's finished; the one just touched isn't either.
                 .containsExactly(frozen.getId())
                 .doesNotContain(closedLongAgo.getId(), justTouched.getId());
     }
 
-    /** Envejece la fila por SQL, esquivando el {@code @UpdateTimestamp} de la entidad. */
     private void age(Long caseId, Instant updatedAt) {
         entityManager.flush();
         entityManager.createNativeQuery("UPDATE cases SET updated_at = :updatedAt WHERE id = :id")
@@ -539,10 +529,7 @@ class CaseRepositorySpecificationTests extends AbstractPersistenceIT {
                 .containsExactly(CaseStatus.PENDING_ANALYST_REVIEW.name());
     }
 
-    /**
-     * Los cinco conteos salían de cinco {@code count(spec)}; ahora son agregados de una sola query.
-     * Lo que se fija es que den lo mismo que contar cada lente por separado.
-     */
+    /** The five counts come from a single aggregate query and must match counting each lens separately. */
     @Test
     void losConteosDeLasLentesDanIgualQueContarCadaUnaPorSeparado() {
         ClaimsAnalyst lucas = analyst("lucas.gomez@arbiter.test", "Lucas", "Gómez");
@@ -564,7 +551,7 @@ class CaseRepositorySpecificationTests extends AbstractPersistenceIT {
         assertThat(counts.assigned() + counts.unassigned()).isEqualTo(counts.all());
     }
 
-    /** Sin perfil de analista en el tenant —el referente— "Míos" es 0, no todos. */
+    /** With no analyst profile in the tenant (the referent), "Mine" is 0, not everything. */
     @Test
     void sinAnalistaEnElTokenLosMiosSonCero() {
         CaseLensCountRepository.LensCounts counts = caseRepository.countLenses(
@@ -574,7 +561,7 @@ class CaseRepositorySpecificationTests extends AbstractPersistenceIT {
         assertThat(counts.all()).isEqualTo(4);
     }
 
-    /** Los filtros de la barra recortan los cinco conteos por igual. */
+    /** The filter bar narrows all five counts alike. */
     @Test
     void losConteosRespetanElRecorteYLosFiltros() {
         Specification<Case> soloEnCurso = CaseSpecifications.scope(CaseScope.OPEN);
@@ -585,7 +572,7 @@ class CaseRepositorySpecificationTests extends AbstractPersistenceIT {
         assertThat(counts.all()).isEqualTo(2);
     }
 
-    /** El analista vive en el esquema del tenant y su {@code user_id} es NOT NULL, igual que insured. */
+    /** The analyst lives in the tenant schema and its {@code user_id} is NOT NULL, like insured's. */
     private ClaimsAnalyst analyst(String email, String name, String surname) {
         return claimsAnalystRepository.save(ClaimsAnalyst.builder()
                 .name(name)
@@ -621,19 +608,14 @@ class CaseRepositorySpecificationTests extends AbstractPersistenceIT {
                 .build();
     }
 
-    /**
-     * La cobertura del catálogo del tenant. Idempotente, mismo patrón que {@code claimCause()}:
-     * varias pólizas de un test comparten la definición, que es lo que pasa en la realidad.
-     */
     private Coverage testCoverage() {
         return coverageRepository.findByName("Cobertura Celulares")
                 .orElseGet(() -> coverageRepository.save(CaseFixtures.coverage("Celulares")));
     }
 
     /**
-     * Deja la póliza con su cobertura contratada. Desde que una póliza tiene VARIAS coberturas, la
-     * suma asegurada vive en {@code policy_coverage} y no en {@code policy}, así que sin esta fila
-     * la póliza no tiene contra qué evaluarse.
+     * The sum insured lives in {@code policy_coverage}, not in {@code policy}: without this row the
+     * policy has nothing to be evaluated against.
      */
     private Policy withCoverage(Policy policy) {
         policyCoverageRepository.save(CaseFixtures.policyCoverage(policy.getId(), testCoverage(), 1));

@@ -27,27 +27,16 @@ import java.util.function.Function;
 import java.util.stream.Collectors;
 
 /**
- * Referente-facing backoffice for the <b>coverage-scoped hard temporal rules</b> (waiting period,
- * report deadline, police-report deadline, events-per-year cap): which rules the insurer has
- * active for one coverage and, for the one that carries it, its threshold.
+ * The <b>coverage-scoped hard temporal rules</b> (waiting period, report deadline, police-report
+ * deadline, events-per-year cap). Insurer-wide ones live in {@link InsurerHardRuleService}.
  *
- * <p>Policy-level rules (coverage window, arrears) aren't here — {@link InsurerHardRuleService}
- * handles those, scoped to the whole insurer instead of a coverage (see
- * {@code RuleType#insurerScoped()}'s javadoc for why).
+ * <p>Each rule is <b>one row</b> per (branch, coverage), so every evaluation has its own
+ * {@code rule_result.rule_id} for the audit trail (Disposición SSN 2/2023) and each rule can be
+ * turned off on its own.
  *
- * <p>Each rule is <b>one row</b> of {@code insurer_rule} per (branch, coverage), not one row with
- * every threshold inside. Two reasons: each evaluation needs its own {@code rule_result.rule_id}
- * so the audit trail says which rule was evaluated (Disposición SSN 2/2023), and the referente can
- * turn one off without touching the others.
- *
- * <p><b>The row is the switch, not the number.</b> The waiting period, report deadline and events
- * cap are terms of the contract and keep living in {@code coverage} columns, edited from the
- * Coverages tab; here it's only decided whether the rule runs. The exception is
- * {@code POLICE_DEADLINE}, which has no column and stores its threshold in the
- * {@code configuration} JSONB (see {@link HardRuleConfig}).
- *
- * <p>Every change leaves a snapshot in {@code insurer_rule_history}, same as Fast Track and the
- * exclusions. The tenant schema comes from the JWT: the referente only touches their own insurer.
+ * <p><b>The row is the switch, not the number:</b> thresholds are contract terms on the
+ * {@code coverage} columns. Only {@code POLICE_DEADLINE} stores its threshold in the row (see
+ * {@link HardRuleConfig}). Every change leaves a snapshot in {@code insurer_rule_history}.
  */
 @Service
 @RequiredArgsConstructor
@@ -65,12 +54,9 @@ public class HardRuleService {
     private final InsurerRuleRepository ruleRepository;
     private final InsurerRuleHistoryRepository historyRepository;
     private final BranchRepository branchRepository;
+    private final RuleAuthorResolver authorResolver;
 
-    /**
-     * Every hard rule of the coverage, always all of them: the one with no row comes back
-     * disabled. The panel shows the whole catalog — the referente can't turn on what they don't
-     * see — and "no row" and "inactive row" mean the same thing to the engine: not evaluated.
-     */
+    /** Always the whole catalog: a rule with no row comes back disabled, which to the engine is the same. */
     @Transactional(readOnly = true)
     public List<HardRuleDto> get(Long branchId, Long coverageId) {
         Map<String, InsurerRule> configured = ruleRepository
@@ -87,11 +73,7 @@ public class HardRuleService {
                 .toList();
     }
 
-    /**
-     * Saves whatever rules come in the request; the ones that don't come stay as they are (the
-     * panel always sends the whole catalog, but a partial PUT shouldn't turn off what it doesn't
-     * mention).
-     */
+    /** A partial request leaves the rules it doesn't mention untouched. */
     @Transactional
     public List<HardRuleDto> upsert(Long branchId, Long coverageId, List<HardRuleDto> requested, String actorEmail) {
         requested.forEach(rule -> upsertOne(branchId, coverageId, rule, actorEmail));
@@ -130,9 +112,8 @@ public class HardRuleService {
                     .validFrom(now)
                     .name(defaultName(requested.ruleType(), coverageId))
                     .ruleType(requested.ruleType().name())
-                    // A failed hard rule doesn't reject on its own (human-in-the-loop): it derives
-                    // to the analyst with the reason. It blocks Fast Track, which is what the
-                    // engine does decide on its own.
+                    // A failed hard rule never rejects on its own (human-in-the-loop): it derives to
+                    // the analyst and blocks Fast Track.
                     .effect("DERIVAR")
                     .blocksFastTrack(true)
                     .branch(branch)
@@ -144,9 +125,7 @@ public class HardRuleService {
             return;
         }
 
-        // A save that changes nothing is not a change, and the panel sends all four rules on every
-        // save — so without this, adjusting one deadline left an audit row for the other three too,
-        // and the history of what the referente actually did got buried in its own noise.
+        // The panel sends every rule on each save; unchanged ones must not leave audit noise.
         if (InsurerRuleSnapshot.unchanged(
                 rule.isActive(), rule.isBlocksFastTrack(), rule.getConfiguration(),
                 requested.enabled(), rule.isBlocksFastTrack(), json)) {
@@ -162,7 +141,7 @@ public class HardRuleService {
                 .validTo(now)
                 .reason("Regla dura actualizada por " + actorEmail)
                 .insurerRule(rule)
-                .changedBy(null)
+                .changedBy(authorResolver.referentIdOf(actorEmail))
                 .build());
 
         rule.setActive(requested.enabled());
@@ -180,11 +159,7 @@ public class HardRuleService {
                 : HardRuleConfig.empty();
     }
 
-    /**
-     * {@code insurer_rule.name} is NOT NULL and the referente reads it in the history view, so it
-     * stays in Spanish — it's business-facing text, not an identifier (same treatment as the
-     * audit-trail text elsewhere in the codebase).
-     */
+    /** Business-facing text shown in the history view, hence Spanish. */
     private String defaultName(RuleType type, Long coverageId) {
         String label = switch (type) {
             case WAITING_PERIOD -> "Carencia de la cobertura";

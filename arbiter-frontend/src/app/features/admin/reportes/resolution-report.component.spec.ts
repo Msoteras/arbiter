@@ -33,21 +33,19 @@ describe('resolution report helpers', () => {
     expect(formatDuration(3030)).toBe('2 d 2 h');
   });
 
-  /** The summary's average is a fraction; the PDF rounds it, and the screen has to say the same. */
+  /** The PDF rounds the fractional average; the screen has to match it. */
   it('rounds a fractional average instead of printing its decimals', () => {
     expect(formatDuration(45.4)).toBe('45 min');
     expect(formatDuration(200.333)).toBe('3 h 20 min');
     expect(formatDuration(59.6)).toBe('1 h');
   });
 
-  /** Same split and the same wording the dashboard uses under its own average. */
   it('splits the average into the insurer own time and the wait on a third party', () => {
     const summary = { averageMinutes: 3030, averageWaitingMinutes: 600 } as never;
 
     expect(waitingBreakdown(summary)).toBe('1 d 16 h de gestión · 10 h esperando a terceros');
   });
 
-  /** Under an hour it isn't a wait, it's a case passing through a status while somebody moved it. */
   it('says nothing about a wait of minutes, or about an unknown average', () => {
     expect(waitingBreakdown({ averageMinutes: 3030, averageWaitingMinutes: 12 } as never)).toBe('');
     expect(waitingBreakdown({ averageMinutes: null, averageWaitingMinutes: null } as never)).toBe(
@@ -71,11 +69,9 @@ describe('resolution report helpers', () => {
     expect(periodError('2026-08-15', '2026-08-15')).toBeNull();
   });
 
-  /** Sólo lo que la comparación necesita; el resto del resumen no entra en estas cifras. */
   const summaryOf = (over: Partial<ResolutionSummary>): ResolutionSummary =>
     ({ totalCases: 0, fastTrackRate: null, ...over }) as ResolutionSummary;
 
-  /** El volumen del período no es ni bueno ni malo: la flecha va sin veredicto. */
   it('states the change in resolved cases, and says nothing when it did not change', () => {
     expect(resolvedTrend(summaryOf({ totalCases: 6 }), summaryOf({ totalCases: 4 }))).toBe(
       '▲ 2 vs. el período anterior',
@@ -83,7 +79,6 @@ describe('resolution report helpers', () => {
     expect(resolvedTrend(summaryOf({ totalCases: 4 }), summaryOf({ totalCases: 4 }))).toBe('');
   });
 
-  /** Entre dos tasas la diferencia es en puntos: "17%" se leería como un aumento relativo. */
   it('reads a fast track change in percentage points, and hushes over a tiny base', () => {
     const current = summaryOf({ totalCases: 6, fastTrackRate: 0.5 });
 
@@ -93,7 +88,6 @@ describe('resolution report helpers', () => {
     expect(fastTrackTrend(current, summaryOf({ totalCases: 3, fastTrackRate: 0.33 }))).toBe('');
   });
 
-  /** Tardar más es peor: la flecha para arriba acá es mala noticia. */
   it('reads a resolution-time change against the decided population, and hushes over a tiny base', () => {
     const current = summaryOf({
       decidedCases: 6,
@@ -138,7 +132,7 @@ describe('ResolutionReportComponent', () => {
       ],
       byClaimCause: [{ label: 'Robo en vía pública', count: 4 }],
     },
-    // El período anterior cerró 6 con 1 Fast Track: la tarjeta baja 2 y la tasa sube 8 pp.
+    // Previous period closed 6 with 1 Fast Track: the card drops by 2 and the rate rises 8 pp.
     previousSummary: {
       totalCases: 6,
       decidedCases: 6,
@@ -221,10 +215,7 @@ describe('ResolutionReportComponent', () => {
     expect(text).not.toContain('LLM_RECOMIENDA_APROBAR');
   });
 
-  /**
-   * The average covers the decided ones only, so the screen says which ones those are — next to
-   * the trend, not instead of it: {@link resolutionTimeSub} joins both, it never picks one.
-   */
+  /** {@link resolutionTimeSub} shows the population next to the trend, never instead of it. */
   it('shows the population of the average and how it splits', () => {
     click('Ver vista previa');
 
@@ -233,7 +224,6 @@ describe('ResolutionReportComponent', () => {
     expect(text).toContain('de gestión · 10 h esperando a terceros');
   });
 
-  /** H0019: the four figures, taken from the backend rather than added up on screen. */
   it('shows the totals of the period, with the statuses labelled in Spanish', () => {
     click('Ver vista previa');
 
@@ -247,10 +237,7 @@ describe('ResolutionReportComponent', () => {
     expect(text).not.toContain('LAPSED');
   });
 
-  /**
-   * Taking longer is worse, more Fast Track is better; the case count carries no verdict — same
-   * criteria the dashboard uses for its own KPI cards.
-   */
+  /** Longer is worse, more Fast Track is better; the case count has no verdict. */
   it('compares the KPI cards against the previous period', () => {
     click('Ver vista previa');
 
@@ -260,7 +247,6 @@ describe('ResolutionReportComponent', () => {
     expect(text).toContain('▲ 8 pp mejor que el período anterior');
   });
 
-  /** Below the minimum base the duration and rate deltas drop; the raw count isn't gated the same way. */
   it('drops the duration and rate comparisons when the previous period is too thin', () => {
     reportService.preview.and.returnValue(
       of({
@@ -277,7 +263,6 @@ describe('ResolutionReportComponent', () => {
     expect(text).toContain('▲ 2 vs. el período anterior');
   });
 
-  /** The response of a request whose filters already changed must not land under the new ones. */
   it('drops a preview still in flight when a filter changes', () => {
     const response = new Subject<ResolutionReport>();
     reportService.preview.and.returnValue(response);
@@ -381,7 +366,6 @@ describe('ResolutionReportComponent opened from a link', () => {
     expect(preview).toHaveBeenCalledOnceWith(
       jasmine.objectContaining({ from: '2026-08-01', branchId: 1, claimCause: 'Hurto' }),
     );
-    // The filters as the backend applied them, above the result.
     const text = (fixture.nativeElement as HTMLElement).textContent!.replace(/\s+/g, ' ');
     expect(text).toContain('Ramo: Celulares · Tipo de siniestro: Hurto');
   });
@@ -394,14 +378,12 @@ describe('ResolutionReportComponent opened from a link', () => {
     );
   });
 
-  /** Reached from the menu: the screen opens with its report, same as from a link. */
   it('previews on entry even when the URL carries nothing', () => {
     const { preview } = open({});
 
     expect(preview).toHaveBeenCalledTimes(1);
   });
 
-  /** A cause the catalog doesn't list still shows as selected, not as "Todos". */
   it('keeps a linked claim cause the catalog does not list visible in the select', () => {
     const { fixture } = open({ from: '2026-08-01', to: '2026-08-31', claimCause: 'Granizo' }, []);
 

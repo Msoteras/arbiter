@@ -1,6 +1,5 @@
 package ar.edu.utn.frba.arbiter.reports.dto;
 
-/** File formats a report can be exported to. */
 public enum ReportFormat {
     CSV("text/csv;charset=UTF-8", "csv"),
     PDF("application/pdf", "pdf");

@@ -15,11 +15,7 @@ import org.springframework.web.bind.annotation.RestController;
 
 import java.util.List;
 
-/**
- * Pólizas del asegurado, para autocompletar el alta de denuncia. Puerta del asegurado
- * a la BD Aseguradora (vía {@link PolicyService} → InsurerAdapter). Multi-aseguradora:
- * el listado por asegurado agrega las pólizas de todas las compañías.
- */
+/** The listing by insured aggregates policies across every insurer the caller belongs to. */
 @RestController
 @RequestMapping("/api/v1/policies")
 @RequiredArgsConstructor

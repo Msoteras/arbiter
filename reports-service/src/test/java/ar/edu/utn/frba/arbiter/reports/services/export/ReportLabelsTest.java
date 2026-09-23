@@ -62,7 +62,7 @@ class ReportLabelsTest {
         assertThat(ReportLabels.decision("REJECT")).isEqualTo("Rechazó");
     }
 
-    /** Both spellings live in the database; the report reads them the same way. */
+    /** Both APPROVE/REJECT and APROBAR/RECHAZAR live in the database. */
     @Test
     void aDecisionRecordedInSpanish_readsLikeTheEnglishOne() {
         assertThat(ReportLabels.decision("RECHAZAR")).isEqualTo("Rechazó");

@@ -12,11 +12,7 @@ import java.util.List;
 @Repository
 public interface ExpertFirmRepository extends JpaRepository<ExpertFirm, Long> {
 
-    /**
-     * Who the analyst can derive this case to: the specialists in its branch plus the
-     * generalists (no branch). Inactive firms are left out — deactivating one is how the
-     * referente stops new derivations without erasing the ones already on record.
-     */
+    /** Specialists in the branch plus generalists (no branch); inactive firms are left out. */
     @Query("""
             SELECT f FROM ExpertFirm f
             WHERE f.active = true AND f.providerType = :providerType
@@ -25,6 +21,4 @@ public interface ExpertFirmRepository extends JpaRepository<ExpertFirm, Long> {
             """)
     List<ExpertFirm> findAvailableForBranch(@Param("branchId") Long branchId,
                                             @Param("providerType") ProviderType providerType);
-
-    List<ExpertFirm> findByProviderTypeOrderByName(ProviderType providerType);
 }

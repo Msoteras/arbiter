@@ -50,7 +50,6 @@ describe('fraud report helpers', () => {
     ]);
   });
 
-  /** The document signal carries its own rationale verbatim — it already says what didn't match. */
   it('shows the document signal as its own rationale, not a generic label', () => {
     expect(
       indicators(
@@ -62,11 +61,7 @@ describe('fraud report helpers', () => {
     ).toEqual(['El importe del documento no coincide con el reclamado']);
   });
 
-  /**
-   * The gauge is drawn only when the score alerted. A LOW band gets no segment: a low score is not
-   * an indicator of fraud, and filling one under "Score de riesgo" would read as "nothing here"
-   * about a case listed precisely because something else was found.
-   */
+  /** A LOW band gets no segment: it would read as "nothing here" on a case flagged otherwise. */
   it('draws the gauge only for a score that alerted', () => {
     expect(riskGaugeBand(row())).toBe(4);
     expect(riskGaugeBand(row({ riskBand: 'HIGH' }))).toBe(3);
@@ -74,7 +69,6 @@ describe('fraud report helpers', () => {
     expect(riskGaugeBand(row({ riskBand: null, signals: ['FORENSIC_INCONSISTENCY'] }))).toBeNull();
   });
 
-  /** "No alertó" and "Sin evaluar" are different facts: the engine ran, or it never did. */
   it('tells a score that did not alert apart from a case that was never scored', () => {
     expect(alertEmptyLabel(row({ riskBand: 'LOW', signals: ['FORENSIC_INCONSISTENCY'] }))).toBe(
       'No alertó',
@@ -181,7 +175,7 @@ describe('FraudReportComponent', () => {
     const text = (fixture.nativeElement as HTMLElement).textContent ?? '';
     expect(reportService.report).toHaveBeenCalled();
     expect(text).toContain('Marcos Aguirre');
-    // Contexto de la fila, no una señal: se muestra bajo el asegurado.
+    // Row context, not a signal: shown under the insured.
     expect(text).toContain('3 denuncias en 12 meses');
     expect(text).toContain('2 imágenes con coincidencia');
     expect(text).toContain('Derivado a peritaje');
@@ -189,19 +183,17 @@ describe('FraudReportComponent', () => {
     expect(text).not.toContain('HIGH_RISK_SCORE');
   });
 
-  /** Lo que ordena la tabla tiene que verse en la tabla, o el orden parece un desorden. */
   it('marks the rows whose signals coincide, and says how it sorted them', () => {
     preview();
 
     const host = fixture.nativeElement as HTMLElement;
     const rows = Array.from(host.querySelectorAll('tbody tr'));
     expect(rows[0].classList).toContain('multi-signal');
-    // Una sola señal no es un cruce: sin marca.
+    // A single signal isn't a coincidence: no mark.
     expect(rows[1].classList).not.toContain('multi-signal');
     expect(host.textContent).toContain('Ordenadas por cantidad de señales');
   });
 
-  /** With only two possible signals a count badge would always read "2" — nothing worth a badge. */
   it('does not badge the signal count, only the signals themselves', () => {
     preview();
 
@@ -222,10 +214,6 @@ describe('FraudReportComponent', () => {
     expect(text).toContain('Fraude determinado · pericial');
   });
 
-  /**
-   * No verdict on these three: more or fewer claims, or a higher or lower flagged share, isn't
-   * better or worse news on its own — see the component's own comments on why.
-   */
   it('compares the KPI cards against the previous period, without a verdict', () => {
     preview();
 
@@ -235,11 +223,7 @@ describe('FraudReportComponent', () => {
     expect(text).toContain('▲ 1 vs. el período anterior');
   });
 
-  /**
-   * Below the minimum base a rate can swing ten points on one case — not a trend, just noise. The
-   * raw count above isn't gated the same way: a "+18 denuncias" delta isn't noisy just because the
-   * previous period was thin, same criterion the dashboard's own funnel uses.
-   */
+  /** Rates are gated by the minimum base; the raw count isn't, same as the dashboard. */
   it('drops the rate and cross-count comparisons when the previous period is too thin', () => {
     reportService.report.and.returnValue(
       of({ ...report, previousSummary: { ...report.previousSummary, totalClaims: 2 } }),
@@ -253,7 +237,6 @@ describe('FraudReportComponent', () => {
     expect(text).toContain('▲ 18 vs. el período anterior');
   });
 
-  /** A rate without its population is the figure people misread fastest, so they travel together. */
   it('states each rate next to the claims it was taken over', () => {
     // Previous period too thin to compare against, so the trend doesn't take the sub's place.
     reportService.report.and.returnValue(
@@ -268,10 +251,7 @@ describe('FraudReportComponent', () => {
     expect(text).toContain('1 de 20 · 1 con respaldo pericial');
   });
 
-  /**
-   * "0%" bajo "Fraude determinado" no dice que no haya indicios: dice que todavía nadie determinó
-   * ninguno. Sin la aclaración al lado, la cifra se lee como lo contrario de lo que significa.
-   */
+  /** "0%" under "Fraude determinado" means nobody determined any yet, not that there are no signs. */
   it('explains what each figure counts, and does not paint a zero as an alert', () => {
     reportService.report.and.returnValue(
       of({ ...report, summary: { ...report.summary, fraudDetermined: 0, fraudRate: 0 } }),
@@ -284,7 +264,7 @@ describe('FraudReportComponent', () => {
       tile.textContent?.includes('Fraude determinado'),
     )!;
     expect(determinado.querySelector('app-info-tip')).not.toBeNull();
-    // El tono de alerta se reserva para cuando hay algo determinado.
+    // The alert tone is reserved for when something was determined.
     expect(determinado.querySelector('.stat.danger')).toBeNull();
 
     determinado.querySelector<HTMLElement>('app-info-tip button')!.click();
@@ -302,7 +282,6 @@ describe('FraudReportComponent', () => {
     expect(determinado.querySelector('.stat.danger')).not.toBeNull();
   });
 
-  /** A case with no band is still listed; calling it "Bajo" would be a different claim. */
   it('shows an unscored case as unevaluated rather than as low risk', () => {
     preview();
 
@@ -310,7 +289,6 @@ describe('FraudReportComponent', () => {
     expect(text).toContain('Sin evaluar');
   });
 
-  /** Filtering a fraud report by "alert = Low" means nothing, so it isn't offered. */
   it('offers only the two bands that are an alert', () => {
     expect(fixture.componentInstance['riskBandOptions'].map((o) => o.value)).toEqual([
       'HIGH',
@@ -349,7 +327,6 @@ describe('FraudReportComponent', () => {
     );
   });
 
-  /** The criteria are behind the tip, not spelled out on the card: the copy is in the bubble. */
   it('keeps the detection criteria behind the info tip until it is opened', () => {
     const host = fixture.nativeElement as HTMLElement;
     expect(host.textContent).toContain('Criterios de detección');
@@ -359,7 +336,7 @@ describe('FraudReportComponent', () => {
     fixture.detectChanges();
 
     expect(host.textContent).toContain('score de riesgo alto (banda Alto');
-    expect(host.textContent).toContain('El sistema no determina fraude');
+    expect(host.textContent).toContain('lo declarado en la denuncia.');
   });
 
   it('exports the same filters it previews, in the requested format', () => {
@@ -389,7 +366,7 @@ describe('FraudReportComponent', () => {
     expect(text).not.toContain('14.3');
   });
 
-  /** A case with two signals counts in both, so each share is over the flagged cases. */
+  /** Buckets overlap, so each share is over the flagged cases. */
   it('shows which signals fired, as shares of the flagged cases', () => {
     preview();
 
@@ -436,7 +413,6 @@ describe('FraudReportComponent', () => {
     );
   });
 
-  /** The response of a request whose filters already changed must not land under the new ones. */
   it('drops a preview still in flight when a shared filter changes', () => {
     const response = new Subject<FraudReport>();
     reportService.report.and.returnValue(response);
@@ -529,7 +505,6 @@ describe('FraudReportComponent opened from a link', () => {
     expect(text).toContain('Ramo: Todos · Score de riesgo: Crítico');
   });
 
-  /** Volver a Reportes desde el menú abre la solapa que se estaba usando, no siempre la primera. */
   it('is remembered as the tab to open next time', () => {
     localStorage.removeItem('arbiter.reports.tab');
 

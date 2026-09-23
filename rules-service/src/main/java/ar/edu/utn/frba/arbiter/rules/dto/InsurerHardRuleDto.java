@@ -10,9 +10,9 @@ import jakarta.validation.constraints.Pattern;
  * @param ruleType   {@code POLICY_IN_FORCE} or {@code POLICY_STANDING} (see
  *                   {@link RuleType#insurerScoped()})
  * @param enabled    whether the insurer has it active. {@code false} ⇒ the engine doesn't evaluate it
- * @param onArrears  {@code REJECT} (cases-service rejects the denuncia at intake, no expediente is
- *                   created) or {@code STANDBY} (the expediente is created and the engine derives
- *                   it to the analyst during classification, same as before this rule existed).
+ * @param onArrears  {@code REJECT} (cases-service rejects the claim at intake, no case is
+ *                   created) or {@code STANDBY} (the case is created and the engine derives it
+ *                   to the analyst during classification).
  *                   Only meaningful for {@code POLICY_STANDING}; {@code null} for
  *                   {@code POLICY_IN_FORCE}, which has no such choice — coverage window is never
  *                   a business policy call.

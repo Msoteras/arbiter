@@ -59,7 +59,7 @@ class SettlementCalculatorTest {
         CaseSettlement settlement = calculate(
                 claim(LocalDateTime.of(2026, 6, 1, 10, 0)), coverage, null, snapshot, new BigDecimal("600000.00"));
 
-        // 600.000 de techo, menos 100.000 de franquicia (10% de la SUMA ASEGURADA, no del techo).
+        // 600,000 ceiling minus a 100,000 franchise (10% of the SUM INSURED, not of the ceiling).
         assertThat(settlement.getDeductibleAmount()).isEqualByComparingTo("100000.00");
         assertThat(settlement.getCalculatedAmount()).isEqualByComparingTo("500000.00");
     }
@@ -103,7 +103,7 @@ class SettlementCalculatorTest {
 
         assertThat(settlement.getEventOrdinal()).isEqualTo(2);
         assertThat(settlement.getEventPercentage()).isEqualByComparingTo("50.00");
-        // 400.000 de techo − 80.000 de franquicia (10% de 800.000).
+        // 400,000 ceiling − 80,000 franchise (10% of 800,000).
         assertThat(settlement.getCalculatedAmount()).isEqualByComparingTo("320000.00");
     }
 
@@ -183,10 +183,8 @@ class SettlementCalculatorTest {
     }
 
     /**
-     * Cases filed before the snapshot existed still have to be settleable — falling back to the
-     * synced coverage beats refusing to put a number on them. It reads {@code policy_coverage} and
-     * not the policy because a policy has no single sum insured: it covers robo and hurto with a
-     * different amount each.
+     * Cases without a snapshot must still be settleable, falling back to the synced
+     * {@code policy_coverage} (not the policy: it has a different sum insured per coverage).
      */
     @Test
     void fallsBackToThePolicyCoverageWhenThereIsNoSnapshot() {
@@ -203,10 +201,8 @@ class SettlementCalculatorTest {
     }
 
     /**
-     * Cuando la póliza trae su propia franquicia, esa gana sobre la que el referente configuró en
-     * la cobertura: la de la cobertura es el default de la compañía para ese riesgo, la de la
-     * póliza es la que se escribió en ESTE contrato. Se le descuenta a un asegurado concreto, no
-     * a un promedio.
+     * The policy's own franchise wins over the one configured on the coverage: the coverage's is the
+     * insurer's default for that risk, the policy's is what THIS contract says.
      */
     @Test
     void thePolicyOwnFranchiseWinsOverTheCoverageDefault() {
@@ -242,12 +238,9 @@ class SettlementCalculatorTest {
         assertThat(settlement.getCalculatedAt()).isNotNull();
     }
 
-    // ─── Reparación (bloque 3) ──────────────────────────────────────────────────
-
     /**
-     * Daño por tentativa de robo: se paga el presupuesto, no la suma asegurada. Con $800.000
-     * asegurados y un presupuesto de $95.000, la cuenta arranca en el presupuesto — pero la
-     * franquicia sigue siendo el 10% de la SUMA ASEGURADA, que es lo que dice la póliza.
+     * Damage from attempted theft pays the repair quote, not the sum insured, but the franchise is
+     * still 10% of the SUM INSURED, as the policy says.
      */
     @Test
     void aRepairPaysTheQuoteAndNotTheSumInsured() {
@@ -264,9 +257,8 @@ class SettlementCalculatorTest {
     }
 
     /**
-     * Lo que separa a las dos fórmulas: la reparación NO descuenta las cuotas a vencer, aunque la
-     * cobertura tenga la deducción prendida. La póliza no se extingue con la reparación, así que
-     * cobrarle el resto del año sería cobrárselo a alguien que sigue teniendo la cobertura.
+     * A repair does NOT deduct pending instalments even when the coverage enables it: the policy
+     * survives a repair, so the insured still has the coverage those instalments pay for.
      */
     @Test
     void aRepairNeverDeductsThePendingInstallments() {
@@ -281,11 +273,10 @@ class SettlementCalculatorTest {
 
         assertThat(repair.getPendingInstallments()).isZero();
         assertThat(repair.getPendingInstallmentsAmount()).isEqualByComparingTo("0.00");
-        // La misma póliza, en pérdida total, sí las descuenta: 7 cuotas de 16.000.
+        // The same policy as a total loss does deduct them: 7 instalments of 16,000.
         assertThat(totalLoss.getPendingInstallmentsAmount()).isEqualByComparingTo("112000.00");
     }
 
-    /** El presupuesto es la base: sin él no hay monto, y no se cae a la suma asegurada. */
     @Test
     void aRepairWithNoQuoteProposesZeroInsteadOfTheSumInsured() {
         Coverage coverage = repairCoverage("10.00", false);
@@ -297,7 +288,6 @@ class SettlementCalculatorTest {
         assertThat(settlement.getCalculatedAmount()).isEqualByComparingTo("0.00");
     }
 
-    /** La suma asegurada sigue siendo el techo: un presupuesto mayor no la supera. */
     @Test
     void aRepairQuoteAboveTheSumInsuredIsCappedByIt() {
         Coverage coverage = repairCoverage("0.00", false);
@@ -310,9 +300,7 @@ class SettlementCalculatorTest {
         assertThat(settlement.getCalculatedAmount()).isEqualByComparingTo("90000.00");
     }
 
-    // ─── helpers ────────────────────────────────────────────────────────────────
-
-    /** Cobertura de daño: liquida por reparación. El techo lo pone el presupuesto. */
+    /** A damage coverage: settles by repair, with the quote as the ceiling. */
     private Coverage repairCoverage(String deductible, boolean deductInstallments) {
         return Coverage.builder()
                 .id(43L)
@@ -352,9 +340,8 @@ class SettlementCalculatorTest {
     }
 
     /**
-     * La fórmula que el calculador deducía solo de la cobertura y que hoy le llega decidida: es el
-     * servicio el que sabe si el equipo volvió irreparable del taller. Estos tests siguen probando
-     * el caso normal —liquida como dice su cobertura—, y el otro tiene los suyos.
+     * The formula comes decided by the service, which knows whether the device came back
+     * irreparable; these tests cover the normal case, settling as the coverage says.
      */
     private CaseSettlement calculate(Case claim, Coverage coverage, PolicyCoverage policyCoverage,
                                      PolicySnapshot snapshot, BigDecimal replacementValue) {
@@ -373,7 +360,6 @@ class SettlementCalculatorTest {
                 .build();
     }
 
-    /** Los términos que la póliza contrató para esta cobertura: su suma y su franquicia. */
     private PolicyCoverage policyCoverage(String sumInsured, String deductiblePct) {
         return PolicyCoverage.builder()
                 .policyId(1L)

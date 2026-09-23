@@ -7,10 +7,7 @@ import org.springframework.stereotype.Component;
 
 import java.math.BigDecimal;
 
-/**
- * How large the claimed amount is relative to the insured sum. A claim close to (or above) the
- * full insured amount is riskier than a small one. Risk = clamp(claimed / insured, 0, 1).
- */
+/** Risk = clamp(claimed / insured, 0, 1). */
 @Component
 public class AmountRatioEvaluator implements RiskFactorEvaluator {
 

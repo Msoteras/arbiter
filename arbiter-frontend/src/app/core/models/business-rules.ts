@@ -1,69 +1,45 @@
 import { HardRule } from '../../features/admin/hard-rules.service';
 import { RiskBand } from './risk-band';
 
-// Modelo de configuración de reglas administrado por el referente. Es Ramo-céntrico: el Ramo
-// (Celular Protegido, Tecnología Portátil) es la unidad de configuración, y dentro viven las
-// coberturas, exclusiones, la agenda documental y el Fast Track (que es POR RAMO).
-// El scoring de fraude NO vive acá: es una única config por aseguradora (no por ramo), la
-// administra ScoringConfigComponent contra `/api/v1/rules/scoring`. Ver ScoringConfig abajo.
-// Refleja la estructura real del producto (manuales + condiciones generales BBVA).
+// Rules configuration edited by the referent, organized per branch (ramo). Fraud scoring is not
+// here: it is a single per-insurer config (see ScoringConfig).
 
-/** Una cobertura del ramo (ej. Robo, Daño por tentativa de robo), con su cláusula y franquicia. */
-/** Cómo se calcula el techo indemnizable de una cobertura. Calca el enum SettlementBasis. */
+/** Mirrors the backend SettlementBasis enum. */
 export type SettlementBasis = 'SUM_INSURED' | 'LESSER_OF_SUM_AND_REPLACEMENT';
 
-/** Cómo se liquida un siniestro de esta cobertura. Calca el enum SettlementFormula. */
+/** Mirrors the backend SettlementFormula enum. */
 export type SettlementFormula = 'TOTAL_LOSS' | 'REPAIR';
 
 export interface Coverage {
   id: string;
   name: string;
-  /** Código de cláusula de las condiciones generales (ej. "340"). */
+  /** General conditions clause code (e.g. "340"). */
   clause: string;
-  /** Suma asegurada tope de la cobertura, o null si sale de la póliza. */
+  /** Null when it comes from the policy. */
   insuredAmount: number | null;
-  /** Franquicia como fracción (0..1) del monto, o null. → DER cobertura.franquicia */
+  /** Fraction (0..1) of the amount. */
   deductibleRatio: number | null;
-  /** Plazo para denunciar el siniestro, en días. → DER cobertura.plazo_denuncia_horas */
   reportingWindowDays: number | null;
-  /** Máx. de eventos indemnizables por año y póliza. → DER cobertura.tope_eventos_por_anio */
+  /** Per year and policy. */
   maxAnnualClaims: number | null;
-  /**
-   * Carencia: días desde el alta de la póliza en que la cobertura todavía no aplica, aunque la
-   * póliza esté vigente. null = sin carencia. → DER cobertura.carencia_dias
-   */
+  /** Days after policy start during which the coverage does not apply yet. null = none. */
   waitingPeriodDays: number | null;
-  /** Si la cobertura alcanza al grupo familiar conviviente o solo al titular. */
   coversFamilyGroup: boolean;
-  /** Si un siniestro liquidado agota la cobertura para el período. */
   claimExhaustsCoverage: boolean;
-  /**
-   * Cómo se liquida: pérdida total (el bien no está) o reparación (quedó dañado). Lo que las
-   * separa es que la pérdida total extingue la póliza y la reparación no.
-   * → DER cobertura.settlement_formula
-   */
+  /** Total loss extinguishes the policy; repair does not. */
   settlementFormula: SettlementFormula;
-  /**
-   * Cómo se calcula el techo indemnizable al determinar el monto a pagar: la suma asegurada, o el
-   * menor entre ésa y el valor de reposición acreditado (art. 7, Bases de Indemnización). Solo
-   * aplica a pérdida total. → DER cobertura.settlement_basis
-   */
+  /** Only applies to total loss. */
   settlementBasis: SettlementBasis;
-  /**
-   * Porcentaje del techo que se paga del segundo evento del año en adelante, como fracción 0..1
-   * igual que `deductibleRatio` (0.5 = 50%). null = el número de evento no reduce nada.
-   */
+  /** Fraction 0..1 of the cap paid from the year's second event on. null = no reduction. */
   secondEventRatio: number | null;
-  /** Si se descuentan del monto las cuotas del premio que quedan por vencer (pérdida total). */
+  /** Total loss only: deduct premium installments not yet due. */
   deductPendingInstallments: boolean;
-  /** Si se descuenta el saldo impago del contrato (cláusula 102, art. 5). */
   deductOverdueBalance: boolean;
-  /** Exclusiones específicas de esta cobertura, en texto libre (van al prompt del LLM). */
+  /** Free-text exclusions fed to the LLM prompt. */
   exclusions: string[];
   /**
-   * Hechos generadores (claim_cause ids) que esta cobertura NO cubre — exclusión DURA que evalúa
-   * el motor por código (COVERAGE_EXCLUSION) y audita en rule_result, no el LLM. Opcional: el mock
-   * semilla no lo trae; el detalle real de la cobertura lo carga desde rules-service.
+   * Claim cause ids this coverage does not cover: a hard exclusion evaluated by the rules engine
+   * (COVERAGE_EXCLUSION), not the LLM. Loaded from rules-service with the coverage detail.
    */
   excludedClaimCauseIds?: number[];
   /**
@@ -76,22 +52,16 @@ export interface Coverage {
   hardRules?: HardRule[];
 }
 
-/** Gate determinístico del Fast Track ("Siniestro Express"), configurado por ramo. */
+/** Deterministic Fast Track gate, configured per branch. */
 export interface FastTrackConfig {
   enabled: boolean;
-  /** Antigüedad mínima de la póliza, en meses (ej. 6). */
   minPolicyAgeMonths: number | null;
-  /** Siniestros previos admitidos dentro de la ventana. */
   maxPriorClaims: number | null;
-  /** Ventana para contar los siniestros previos, en meses (ej. 24). */
   priorClaimsWindowMonths: number | null;
-  /** Monto reclamado máximo como fracción (0..1) de la suma asegurada. */
+  /** Fraction (0..1) of the sum insured. */
   maxClaimedAmountRatio: number | null;
-  /** Exige póliza al día. */
   requiresUpToDatePolicy: boolean;
-  /** Documentos que el Fast Track exige presentes. */
   requiredDocumentTypes: string[];
-  /** Criterios descriptivos (human-readable). */
   criteria: string[];
 }
 
@@ -100,30 +70,24 @@ export interface FactorWeight {
   weight: number;
 }
 
-/** Una banda aplica cuando el score normalizado es >= minScoreInclusive (0..1). */
+/** A band applies when the normalized score is >= minScoreInclusive (0..1). */
 export interface RiskBandCut {
   band: RiskBand;
   minScoreInclusive: number;
 }
 
-/**
- * Scoring de fraude de la aseguradora. Es una config ÚNICA por aseguradora (no por ramo): el
- * backend la persiste en `scoring_configuration` sin `branch_id` y la sirve en
- * `/api/v1/rules/scoring`. La administra ScoringConfigComponent, fuera del master-detail de ramos.
- */
+/** Single per-insurer fraud scoring config (not per branch), served at `/api/v1/rules/scoring`. */
 export interface ScoringConfig {
   enabled: boolean;
   /**
-   * Si el Fast Track de la aseguradora igual corre el análisis pesado (OCR + fraude de imágenes)
-   * para que su score de fraude salga completo. false (default) = Fast Track rápido, score parcial.
-   * No vetea el Fast Track — el score es señal paralela; solo decide cuánto análisis corre.
+   * Whether Fast Track still runs the heavy analysis (OCR + image fraud) so the score is complete.
+   * It never vetoes Fast Track: it only decides how much analysis runs.
    */
   fullAnalysisOnFastTrack: boolean;
   factors: FactorWeight[];
   bands: RiskBandCut[];
 }
 
-/** Configuración completa de un ramo. Unidad que edita el referente. */
 export interface RamoRules {
   id: string;
   name: string;
@@ -134,18 +98,14 @@ export interface RamoRules {
    * ramo and its full detail loads. The sidebar badge reads this, not `coverages.length`.
    */
   coverageCount: number;
-  /** Exclusiones comunes a todas las coberturas del ramo. */
   commonExclusions: string[];
-  /** Agenda documental por hecho generador (claimCauseId → códigos de tipo de documento). */
+  /** claimCauseId → required document type codes. */
   requiredDocumentsByClaimCause: { [claimCauseId: number]: string[] };
-  /** Reglas de negocio en texto libre. */
   businessRules: string[];
   fastTrack: FastTrackConfig;
 }
 
-// ───────────────── Catálogos ─────────────────
-
-/** Factores de riesgo disponibles (ids del contrato RiskFactorIds del back). */
+/** Ids match the backend RiskFactorIds contract. */
 export interface RiskFactorDef {
   id: string;
   label: string;
@@ -166,7 +126,6 @@ export function riskFactorLabel(id: string): string {
   return RISK_FACTORS.find((f) => f.id === id)?.label ?? id;
 }
 
-/** Tipos de documento de la agenda documental (mismos códigos que el alta de denuncia). */
 export interface DocumentTypeDef {
   code: string;
   label: string;
@@ -179,8 +138,7 @@ export const DOCUMENT_TYPES: DocumentTypeDef[] = [
   { code: 'last_connection', label: 'Captura de última conexión' },
   { code: 'repair_quote', label: 'Presupuesto de reparación' },
   { code: 'item_photo', label: 'Foto del bien' },
-  // No lo sube el asegurado: lo carga el analista cuando recibe el informe del perito. Está acá
-  // para que tenga label como cualquier otro donde se lo nombre.
+  // Uploaded by the analyst from the expert's report, not by the insured.
   { code: 'expert_report', label: 'Informe de peritaje' },
 ];
 
@@ -188,15 +146,10 @@ export function documentTypeLabel(code: string): string {
   return DOCUMENT_TYPES.find((d) => d.code === code)?.label ?? code;
 }
 
-/**
- * Las razones llegan del backend con el código del documento adentro de la frase ("Falta documento
- * requerido: police_report"), porque los literales van en inglés y traducirlos es del frontend
- * (CLAUDE.md). Acá se cambian por su label: al analista el código interno no le dice nada.
- */
+/** Backend reasons embed document codes ("…: police_report"); swaps them for their labels. */
 export function conLabelesDeDocumento(reason: string): string {
   return DOCUMENT_TYPES.reduce(
-    // String.raw y no un template literal común: ahí `\b` es el carácter de retroceso, no
-    // el límite de palabra de la expresión regular, y así escrito no coincidía con nada.
+    // String.raw: in a plain template literal `\b` is a backspace, not a word boundary.
     (texto, d) => texto.replace(new RegExp(String.raw`\b${d.code}\b`, 'g'), d.label),
     reason,
   );

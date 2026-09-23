@@ -18,12 +18,8 @@ import lombok.NoArgsConstructor;
 import lombok.Setter;
 
 /**
- * Profile for a REFERENTE_ASEGURADORA account ("referente_aseguradora" in the DER),
- * living in the insurer's own tenant schema — {@code name}/{@code surname} is what
- * {@code JwtService} puts in the JWT once the tenant is resolved, and what cases-service shows as
- * who authorized a settlement. Which insurer
- * a referente belongs to is {@link UserInsurer} (common schema) — the schema this row
- * lives in already says the same thing, so there's no insurer_id field here either.
+ * Profile for a REFERENTE_ASEGURADORA account. No insurer_id: the tenant schema it lives in (and
+ * {@link UserInsurer}) already says which insurer it belongs to.
  */
 @Entity
 @Table(name = "insurer_referent")

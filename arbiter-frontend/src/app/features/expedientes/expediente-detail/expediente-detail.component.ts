@@ -132,17 +132,16 @@ type TabId =
   | 'historial';
 type Verb = 'aprobar' | 'rechazar';
 
-/** value=null → la sección muestra "Sin datos" (el backend no provee este campo). */
+/** null renders as "Sin datos": the backend doesn't provide it. */
 interface FieldItem {
   label: string;
   value: string | null;
   mono?: boolean;
   full?: boolean;
-  /** Nota chica debajo del valor, con lo que lo pone en contexto. */
   sub?: string;
 }
 
-/** Cuánto tardó en denunciarse: en horas el primer par de días, en días después. */
+/** Hours for the first couple of days, days afterwards. */
 function demoraDenuncia(eventDate: string, createdAt: string): string | undefined {
   const horas = Math.round((Date.parse(createdAt) - Date.parse(eventDate)) / 3_600_000);
   if (Number.isNaN(horas) || horas < 0) {
@@ -184,8 +183,7 @@ interface BriefAlert {
   changeDetection: ChangeDetectionStrategy.OnPush,
   animations: [fadeInUp, staggerReveal, tabSwitch],
   templateUrl: './expediente-detail.component.html',
-  // El orden importa: los dos archivos se concatenan tal como están acá, y el segundo continúa
-  // exactamente donde termina el primero. Invertirlos cambia la cascada.
+  // Order matters: both files are concatenated in this order and the cascade depends on it.
   styleUrls: [
     './expediente-detail.component.scss',
     './expediente-detail-paneles.scss',
@@ -256,8 +254,7 @@ export class ExpedienteDetailComponent {
   /** The loaded case's id, which unlike {@link data} only changes when the case actually does. */
   private readonly loadedCaseId = computed<number | null>(() => this.data()?.id ?? null);
 
-  // Anterior/siguiente según el orden de la bandeja (no por id correlativo). null cuando no hay
-  // vecino (borde de la lista) o cuando se entró por deep-link sin pasar por la bandeja.
+  // Previous/next in inbox order; null at the edges or on a deep link.
   protected readonly prevId = computed<number | null>(() =>
     this.caseNav.neighbor(this.data()?.id, -1),
   );
@@ -297,28 +294,23 @@ export class ExpedienteDetailComponent {
     return d ? riskBandEmptyLabel(d.status, d.analysisClassification) : 'Sin datos';
   });
 
-  /** Score de fraude como porcentaje entero (0..100), o null si no se scoreó. */
   protected readonly riskScorePct = computed<number | null>(() => {
     const score = this.data()?.riskScore;
     return score == null ? null : Math.round(score * 100);
   });
 
-  /** Desglose del score por factor, ordenado por aporte descendente (el que más pesó primero). */
   protected readonly riskBreakdown = computed<RiskBreakdownItem[]>(() => {
     const items = this.data()?.riskBreakdown ?? [];
     return [...items].sort((a, b) => b.weightedContribution - a.weightedContribution);
   });
 
-  /** Suma de los aportes crudos del breakdown; denominador para normalizar cada aporte. */
   private readonly weightedSum = computed<number>(() =>
     this.riskBreakdown().reduce((sum, item) => sum + item.weightedContribution, 0),
   );
 
   /**
-   * Alcance del score en un Fast Track. En el carril rápido el análisis pesado (documentación +
-   * imágenes) corre solo si la aseguradora lo activó, así que el score puede ser parcial: solo con
-   * factores de datos duros. Detecta si corrió por la presencia del análisis forense o de algún
-   * factor pesado en el desglose. Devuelve null si no es Fast Track o no hay score (no aplica aviso).
+   * In Fast Track the heavy analysis (documents + images) only runs if the insurer enabled it,
+   * so the score may be partial. Null when not Fast Track or not scored.
    */
   protected readonly fastTrackScoreScope = computed<'partial' | 'full' | null>(() => {
     const d = this.data();
@@ -340,11 +332,8 @@ export class ExpedienteDetailComponent {
   }
 
   /**
-   * Aporte de un factor AL score, en la misma escala 0–100 que el score que ve el analista. El
-   * backend guarda el aporte crudo (rawScore × peso) sin normalizar, pero el score final se divide
-   * por la suma de pesos; sin re-normalizar acá, los aportes por factor no sumarían el score de
-   * arriba. Con esto sí: la columna suma exactamente el score. No se muestra el peso crudo — es
-   * config relativa del referente y al analista solo le importa cuánto empujó cada factor ESTE score.
+   * Normalized to the displayed 0–100 scale (the backend stores rawScore × weight unnormalized),
+   * so the column adds up exactly to the score.
    */
   protected aporteAlScore(item: RiskBreakdownItem): number {
     const total = this.weightedSum();
@@ -363,10 +352,8 @@ export class ExpedienteDetailComponent {
   });
 
   /**
-   * El cruce entre el hecho generador que el asegurado eligió del selector y lo que después contó
-   * en el relato. Solo se muestra cuando hay algo que mirar: un MATCHES no aporta nada que el
-   * expediente no diga ya, y null significa que el chequeo no corrió (Fast Track, exclusión dura,
-   * o una clasificación anterior a que esto existiera).
+   * Only shown when there is something to look at: MATCHES adds nothing and null means the check
+   * didn't run.
    */
   protected readonly showCauseConsistency = computed(() =>
     shouldSurfaceCauseConsistency(this.data()?.causeConsistency),
@@ -388,21 +375,14 @@ export class ExpedienteDetailComponent {
   });
 
   /**
-   * Los motivos detrás de la clasificación — `analysisReasons` en la API, una fila por motivo
-   * (espejo de `llm_reason`, no un string armado con join). Vacío en Fast Track/Falta
-   * documentación (son resultados del gate de reglas, no del LLM) o sin clasificación todavía;
-   * la tab "Razones" se oculta en ese caso (ver `tabs`).
+   * Empty for Fast Track / missing documentation (rules gate, not the LLM) or before
+   * classification; the tab is hidden then.
    */
   protected readonly analysisReasons = computed<string[]>(() =>
     (this.data()?.analysisReasons ?? []).map(conLabelesDeDocumento),
   );
 
-  /**
-   * Lo que el modelo leyó de cada adjunto (H0031). Vacío mientras no se clasificó, en un Fast
-   * Track que no abrió ningún documento, o en expedientes clasificados antes de que esto se
-   * persistiera. Se le pasa a `app-case-documents`, que muestra la lectura junto al documento
-   * que la originó.
-   */
+  /** Empty until classified, or when no document was read. */
   protected readonly documentAnalyses = computed<DocumentAnalysis[]>(
     () => this.data()?.documentAnalyses ?? [],
   );
@@ -412,19 +392,14 @@ export class ExpedienteDetailComponent {
   }
 
   /**
-   * Si el resultado lo produjo el LLM o el gate determinístico de reglas.
-   *
-   * `FAST_TRACK` y `FALTA_DOCUMENTACION` no son recomendaciones del modelo: los decide el motor de
-   * reglas (CLAUDE.md decisión #6 — el LLM nunca puede devolver `FAST_TRACK`). Mostrarles
-   * "Confianza del modelo: 100%" es engañoso: no hay inferencia detrás, es un chequeo objetivo, y
-   * el 100% sale de un valor fijo que pone el backend, no de una medición.
+   * FAST_TRACK and FALTA_DOCUMENTACION come from the rules gate, not the LLM, so no model confidence
+   * is shown for them: the backend's 100% is a fixed value, not a measurement.
    */
   protected readonly isDeterministicOutcome = computed(() => {
     const c = this.data()?.analysisClassification;
     return c === 'FAST_TRACK' || c === 'FALTA_DOCUMENTACION';
   });
 
-  /** Grilla del expediente: real donde el backend lo da, null ("Sin datos") en el resto. */
   protected readonly resumenGroups = computed<{ heading: string; fields: FieldItem[] }[]>(() => {
     const d = this.data();
     const sumInsured = this.policySnapshot()?.sumInsured;
@@ -464,9 +439,7 @@ export class ExpedienteDetailComponent {
         fields: [
           { label: 'Asegurado', value: d?.insuredName ?? null },
           { label: 'DNI', value: d?.insuredId ?? null, mono: true },
-          // Declaración UIF/PLA del propio asegurado, junto al resto de sus datos: es donde el
-          // analista la busca. "No" es un valor, no la ausencia de dato, así que no cae en el
-          // `?? null` que el resto de las filas usa para mostrar "Sin datos" (D16).
+          // "No" is a value, not missing data, so it skips the `?? null` "Sin datos" path.
           { label: 'PEP (declarativo)', value: d ? (d.pep ? 'Sí' : 'No') : null },
           { label: 'N° de póliza', value: d?.policyNumber ?? null, mono: true },
           { label: 'Producto', value: d?.product ?? null },
@@ -476,23 +449,15 @@ export class ExpedienteDetailComponent {
     ];
   });
 
-  // ----- trazabilidad -----
+  // ----- traceability -----
   private readonly ruleResults = computed<RuleResult[]>(() => this.data()?.ruleResults ?? []);
 
-  /**
-   * Las reglas duras: las que dicen si el siniestro está cubierto. Van separadas de los criterios
-   * del carril rápido porque un "No cumple" significa cosas distintas en cada tabla, y mezclados
-   * el analista lee una exclusión de cobertura donde solo hubo un umbral de agilidad.
-   */
+  /** Kept apart from the Fast Track criteria: failing one means something different in each table. */
   protected readonly hardRuleResults = computed<RuleResult[]>(() =>
     this.ruleResults().filter((r) => !isFastTrackCriterion(r.ruleType)),
   );
 
-  /**
-   * Los criterios que evaluó el gate de Fast Track, con el valor que comparó (H0038). Están tanto
-   * en un expediente que agarró el carril rápido —y son la respuesta a "por qué"— como en uno que
-   * no, donde muestran qué criterio lo dejó afuera.
-   */
+  /** Present both when the case took Fast Track (why) and when it didn't (which criterion failed). */
   protected readonly fastTrackCriteria = computed<RuleResult[]>(() =>
     this.ruleResults().filter((r) => isFastTrackCriterion(r.ruleType)),
   );
@@ -501,17 +466,12 @@ export class ExpedienteDetailComponent {
     () => this.data()?.analysisClassification === 'FAST_TRACK',
   );
 
-  /**
-   * No se pudieron leer. Distinto de "no corrió ninguna": aquello es un dato del expediente, esto
-   * lo es de este request, y afirmar lo primero cuando pasó lo segundo es inventar.
-   */
+  /** The load failed, as opposed to "no rules ran", which is a fact about the case. */
   protected readonly ruleResultsUnavailable = computed(() => this.data()?.ruleResults === null);
 
   /**
-   * Por qué no hay reglas duras que mostrar. Ninguna de las causas es Fast Track: el gate corre
-   * DESPUÉS de las reglas duras, así que un Fast Track llena la tabla con todas en PASS. Queda
-   * vacío cuando la aseguradora no tiene ninguna activa, o cuando la denuncia frenó en el chequeo
-   * de documentación obligatoria, que vuelve antes de los evaluadores temporal y de fraude.
+   * Never Fast Track: the gate runs after the hard rules. Empty when the insurer has no active rules
+   * or the claim stopped at the mandatory-documents check, which returns before the other evaluators.
    */
   protected readonly sinReglasMotivo = computed(() => {
     if (this.ruleResultsUnavailable()) {
@@ -526,19 +486,12 @@ export class ExpedienteDetailComponent {
     return 'No hay reglas duras activas para esta cobertura.';
   });
 
-  /**
-   * "Análisis" es la lectura del sistema: el score de fraude y las razones del modelo. Si no hay
-   * ninguna de las dos (un Fast Track sin score, por ejemplo) la solapa no aparece.
-   */
+  /** Hidden when there is neither a score nor model reasons (e.g. Fast Track without score). */
   protected readonly hayAnalisis = computed(
     () => this.data()?.riskScore != null || this.analysisReasons().length > 0,
   );
 
-  /**
-   * "Evaluación de reglas" existe si hay algo que contar de las reglas: resultados, la foto con la
-   * que se evaluó, o una clasificación que explique por qué no hay reglas. Sin clasificar no
-   * aparece — ahí "no hay reglas activas" sería falso, todavía no corrieron.
-   */
+  /** Hidden before classification: "no active rules" would be false, they just haven't run yet. */
   protected readonly hayReglas = computed(
     () =>
       this.ruleResults().length > 0 ||
@@ -555,14 +508,12 @@ export class ExpedienteDetailComponent {
     () => this.hardRuleResults().filter((r) => r.result === 'PASS').length,
   );
 
-  /** Cada segmento de la barra del score es el aporte de un factor, en la escala 0–100. */
   protected readonly scoreSegments = computed(() =>
     this.riskBreakdown()
       .map((item) => ({ factorId: item.factorId, aporte: this.aporteAlScore(item) }))
       .filter((s) => s.aporte > 0),
   );
 
-  /** Tono del score según la banda: el mismo semáforo que el medidor del encabezado. */
   protected readonly scoreTone = computed<StatusTone>(() => {
     const tones: Record<number, StatusTone> = { 1: 'ok', 2: 'warning', 3: 'risk', 4: 'danger' };
     const band = this.riskGaugeBand();
@@ -573,9 +524,8 @@ export class ExpedienteDetailComponent {
     () => this.data()?.policySnapshot ?? null,
   );
 
-  // ----- pólizas del asegurado (datos de HOY, no de la clasificación) -----
-  // Carga diferida por su propio endpoint: son una consulta a la BD Aseguradora y la mayoría de
-  // las aperturas del expediente no las mira. Mismo patrón que los antecedentes de fraude.
+  // ----- insured's policies (current data, not the classification snapshot) -----
+  // Lazy-loaded from their own endpoint: an insurer-DB query most case views never need.
   private readonly polizas = toSignal(
     combineLatest([
       this.route.paramMap.pipe(map((params) => params.get('id') ?? '')),
@@ -590,19 +540,12 @@ export class ExpedienteDetailComponent {
     { initialValue: [] as Policy[] },
   );
 
-  /**
-   * Todas, la de esta denuncia incluida — se marca, no se esconde: el analista está mirando la
-   * relación completa de la persona con la compañía, y la póliza del siniestro es parte de eso.
-   */
+  /** All of them, the claim's own policy included. */
   protected readonly polizasDelAsegurado = computed<Policy[]>(() => this.polizas());
 
   /**
-   * La del siniestro primero y bajo su propio título, en vez de marcada dentro de la lista: es la
-   * que el analista está mirando, y encontrarla entre las otras por una etiqueta al costado hacía
-   * trabajar de más.
-   *
-   * <p>Puede no estar: el listado trae sólo las vigentes hoy, así que una póliza que venció después
-   * de la denuncia no aparece. En ese caso no se muestra el título, no un bloque vacío.
+   * Only current policies are listed, so the claim's policy is missing if it expired after the
+   * claim; the title is omitted then.
    */
   protected readonly gruposDePolizas = computed<{ heading: string; polizas: Policy[] }[]>(() => {
     const numero = this.data()?.policyNumber;
@@ -617,8 +560,6 @@ export class ExpedienteDetailComponent {
     ];
   });
 
-  // Las coberturas van plegadas y de a una: son varias por póliza, y desplegarlas todas convierte
-  // la tabla en un muro. Mismo patrón de despliegue que la pantalla de reglas.
   private readonly polizaAbierta = signal<string | null>(null);
 
   protected estaAbierta(p: Policy): boolean {
@@ -630,9 +571,8 @@ export class ExpedienteDetailComponent {
   }
 
   /**
-   * Dos bloques y no una sola lista: los últimos dos campos son del asegurado en toda la compañía,
-   * no de esta póliza. Mezclados con la suma asegurada invitaban a restarlos, y esa resta no
-   * significa nada — el total abarca todas sus pólizas y ramos, no lo consumido de esta cobertura.
+   * Two blocks: the last two fields span all of the insured's policies, so they must not read as
+   * something to subtract from this sum insured.
    */
   protected readonly snapshotGroups = computed<{ heading: string | null; fields: FieldItem[] }[]>(
     () => {
@@ -659,8 +599,7 @@ export class ExpedienteDetailComponent {
           fields: [
             { label: 'Siniestros previos', value: s ? String(s.previousClaims) : null },
             {
-              // Es monto_indemnizado: lo que la compañía pagó, no lo que le reclamaron. El nombre
-              // del campo quedó mal desde el origen (totalAmountClaimed); el label dice la verdad.
+              // Holds monto_indemnizado (what was paid, not what was claimed) despite the field name.
               label: 'Total indemnizado',
               value: s?.totalAmountClaimed != null ? this.formatMonto(s.totalAmountClaimed) : null,
             },
@@ -670,10 +609,7 @@ export class ExpedienteDetailComponent {
     },
   );
 
-  /**
-   * La solapa existe si hay algo de la persona que mostrar. Las pólizas cuentan aunque lleguen
-   * tarde: se piden aparte, así que al abrir el expediente todavía no están.
-   */
+  /** Policies count even though they arrive later, from their own request. */
   protected readonly hayDatosAsegurado = computed(
     () => this.polizasDelAsegurado().length > 0 || this.antecedentes().length > 0,
   );
@@ -686,24 +622,15 @@ export class ExpedienteDetailComponent {
     return value == null ? null : this.formatMonto(value);
   }
 
-  // ----- historial de estados (GET /{id} lo trae con timestamps de cada transición) -----
+  // ----- status history -----
   protected readonly history = computed<StatusTransition[]>(() => this.data()?.statusHistory ?? []);
 
-  /**
-   * La solapa existe si el análisis forense efectivamente corrió sobre alguna imagen. Un
-   * `findings` vacío (o un reporte nulo) es exactamente eso: Fast Track sin análisis completo, o
-   * expediente sin imágenes adjuntas. Mostrar la solapa para que diga "no corrió" es una promesa
-   * que no se cumple — el analista la abre esperando imágenes.
-   */
+  /** Only when forensic analysis actually ran on some image. */
   protected readonly hayAnalisisImagenes = computed(
     () => (this.data()?.forensicReport?.findings?.length ?? 0) > 0,
   );
 
-  /**
-   * Coincidencias de imagen que merecen que el analista abra la solapa: cualquier hallazgo de
-   * nivel medio o alto. Las 'bajo' (la imagen aparece en la web sin coincidencia clara) no llevan
-   * punto — marcarlas todas volvería el punto ruido de fondo y dejaría de significar algo.
-   */
+  /** Medium or high findings only; flagging "low" ones would turn the dot into noise. */
   private readonly hayCoincidenciasImagen = computed(() =>
     (this.data()?.forensicReport?.findings ?? []).some((f) => {
       const level = forensicAlertLevel(f);
@@ -712,15 +639,9 @@ export class ExpedienteDetailComponent {
   );
 
   // ----- tabs -----
-  // Orden por lo que hace el analista: qué pasó (Resumen) → por qué el sistema dice eso (Análisis,
-  // Evaluación de reglas) → con qué evidencia (Documentación, Imágenes) → quién es (Asegurado) → gestión (Peritaje,
-  // Conversación) → auditoría (Historial).
-  //
-  // Las condicionales son las que dependen de que algo haya corrido: "Peritaje" solo si se derivó,
-  // "Análisis" y "Evaluación de reglas" solo si ya se clasificó, "Imágenes" solo si el forense analizó alguna. Una solapa
-  // que se abre para decir "acá no hay nada" es una promesa incumplida.
-  // 'conversacion' is always shown, unlike those: an empty thread isn't noise, it's where talking
-  // to the insured starts. It carries a dot when something is unread.
+  // Conditional tabs appear only once something has run (referral, classification, forensics).
+  // 'conversacion' is always shown: an empty thread is where talking to the insured starts. It
+  // carries a dot when something is unread.
   protected readonly tabs = computed<
     {
       id: TabId;
@@ -775,9 +696,8 @@ export class ExpedienteDetailComponent {
   private readonly selectedTab = signal<TabId>('resumen');
 
   /**
-   * La solapa elegida, salvo que haya dejado de existir: las condicionales aparecen y desaparecen
-   * con los datos (una reclasificación puede dejar al expediente sin análisis de imágenes), y sin
-   * este piso el panel quedaría mostrando una solapa que ya no está en la barra.
+   * Falls back when the selected tab disappears with the data (e.g. a reclassification drops the
+   * image analysis).
    */
   protected readonly activeTab = computed<TabId>(() => {
     const selected = this.selectedTab();
@@ -788,17 +708,13 @@ export class ExpedienteDetailComponent {
     this.selectedTab.set(t);
   }
 
-  // La "aceptación/modificación" local de la recomendación se quitó: no persistía ni auditaba nada
-  // (aparentaba una acción que no ocurría). La única decisión real del analista es Aprobar/Rechazar,
-  // que sí persiste vía POST /cases/{id}/decision (abajo).
-
-  // ----- decisión del analista (persiste vía POST /cases/{id}/decision) -----
+  // ----- analyst decision -----
   private readonly verbLabels: Record<Verb, string> = {
     aprobar: 'Aprobar',
     rechazar: 'Rechazar',
   };
 
-  /** Fuente de verdad: el estado del expediente en el backend, no un flag local. */
+  /** Derived from the backend status, not a local flag. */
   protected readonly decisionState = computed<
     'pending' | 'approved' | 'rejected' | 'lapsed' | 'not-ready'
   >(() => {
@@ -807,8 +723,7 @@ export class ExpedienteDetailComponent {
         return 'approved';
       case 'REJECTED':
         return 'rejected';
-      // Terminal pero sin decisión detrás: lo cerró el sistema por inacción del asegurado. En
-      // 'not-ready' la card decía "Sin clasificación disponible todavía", que es falso.
+      // Terminal without a decision: closed by the system after the insured's inactivity.
       case 'LAPSED':
         return 'lapsed';
       case 'PENDING_ANALYST_REVIEW':
@@ -828,7 +743,6 @@ export class ExpedienteDetailComponent {
     return v ? this.verbLabels[v] : '';
   }
 
-  /** Aprobar es también determinar el monto, y el título del modal tiene que decirlo. */
   protected readonly decisionModalHeading = computed(() =>
     this.pendingDecision() === 'aprobar'
       ? 'Aprobar y determinar el monto a pagar'
@@ -837,6 +751,7 @@ export class ExpedienteDetailComponent {
 
   protected readonly confirmDisabled = computed(
     () =>
+      this.decisionSaving() ||
       !this.justification().trim() ||
       (this.pendingDecision() === 'aprobar' && this.approvalBlockedReason() !== null),
   );
@@ -845,8 +760,7 @@ export class ExpedienteDetailComponent {
     this.pendingDecision.set(v);
     this.justification.set('');
     this.decisionError.set(null);
-    // Se limpia el borrador de liquidación en cada apertura: si el analista canceló una
-    // aprobación, lo que había tipeado no tiene que reaparecer la próxima vez.
+    // Reset the settlement draft so a cancelled approval doesn't reappear.
     this.replacementInput.set('');
     this.replacementApplied.set(null);
     this.settledAmountInput.set('');
@@ -862,8 +776,7 @@ export class ExpedienteDetailComponent {
     if (!verb) {
       return;
     }
-    // Mismo criterio que el botón: si está apagado, esto tampoco pasa. Duplicar la condición es
-    // como se llega a que el Enter mande algo que el click no dejaba mandar.
+    // Same condition as the button, so Enter can't submit what the click wouldn't.
     if (this.confirmDisabled()) {
       return;
     }
@@ -876,7 +789,7 @@ export class ExpedienteDetailComponent {
     const decisionPayload: AnalystDecisionRequest = {
       decision: verb === 'aprobar' ? 'APPROVE' : 'REJECT',
       justification: this.justification().trim(),
-      // Rechazar no paga nada: mandar una liquidación ahí lo rechaza el backend.
+      // The backend rejects a settlement on a rejection.
       settlement:
         verb === 'aprobar'
           ? {
@@ -904,20 +817,17 @@ export class ExpedienteDetailComponent {
     });
   }
 
-  // ----- determinación del monto a pagar -----
-  // El analista no fija el monto a mano: el backend lo calcula con los parámetros de la cobertura
-  // y devuelve la cuenta explicada línea por línea. Acá solo se muestra y se confirma o se ajusta
-  // con justificación — la misma forma que tiene la clasificación (decisión #5).
+  // ----- settlement amount -----
+  // The backend computes it and explains it line by line; the analyst confirms or adjusts it with a
+  // justification.
 
-  /** Valor de reposición que el analista está probando, como lo tipeó. */
   protected readonly replacementInput = signal('');
-  /** El que efectivamente se le pidió al backend. Cambiarlo re-pide la propuesta. */
+  /** The value last sent to the backend; changing it refetches the proposal. */
   private readonly replacementApplied = signal<number | null>(null);
 
   /**
-   * La liquidación del expediente: la ya autorizada si la hay, si no la propuesta. Se pide siempre
-   * (no solo al aprobar) porque también es lo que se muestra en un expediente ya resuelto. Un 403
-   * —el asegurado no puede verla— cae en null y la card simplemente no la muestra.
+   * Always fetched, since resolved cases show it too. A 403 (insured) yields null and the card
+   * hides it.
    */
   protected readonly settlement = toSignal(
     combineLatest([
@@ -934,23 +844,15 @@ export class ExpedienteDetailComponent {
     { initialValue: null as Settlement | null },
   );
 
-  /**
-   * La liquidación ya la firmó el analista y espera al referente. El expediente sigue en revisión
-   * —para el asegurado esto es interno— pero el analista no tiene nada más que hacer acá, así que
-   * los botones de decidir dejan lugar a un cartel que dice por qué.
-   */
+  /** Signed by the analyst and awaiting the supervisor: the decision buttons give way to a notice. */
   protected readonly esperandoAutorizacion = computed(
     () => this.settlement()?.status === 'PENDING_AUTHORIZATION',
   );
 
-  /** El referente la devolvió: vuelve a estar en manos del analista, con un motivo para corregir. */
+  /** Returned by the supervisor, with a reason to fix. */
   protected readonly liquidacionDevuelta = computed(() => this.settlement()?.status === 'RETURNED');
 
-  /**
-   * Este monto va a necesitar la firma del referente. Se calcula sobre la propuesta, antes de
-   * confirmar: enterarse recién después de aprobar es enterarse tarde, y el analista puede querer
-   * revisar el valor de reposición antes de mandar el expediente a una cola de espera.
-   */
+  /** Computed on the proposal, so the analyst learns before confirming that it needs sign-off. */
   protected readonly requiereReferente = computed(() => {
     const limit = this.settlement()?.authorityLimit;
     const amount = this.amountToAuthorize();
@@ -958,21 +860,15 @@ export class ExpedienteDetailComponent {
   });
 
   /**
-   * Si el campo del monto acreditado tiene algo que hacer en esta cobertura. En reparación es la
-   * base del cálculo; en pérdida total solo sirve cuando la cobertura liquida por el menor entre
-   * suma asegurada y reposición. En el resto no mueve el total, y un campo que no hace nada
-   * confunde más de lo que ayuda.
+   * REPAIR: it is the calculation base. TOTAL_LOSS: only matters when the coverage settles by the
+   * lesser of sum insured and replacement value.
    */
   protected readonly pideMontoAcreditado = computed(() => {
     const s = this.settlement();
     return s?.formula === 'REPAIR' || s?.settlementBasis === 'LESSER_OF_SUM_AND_REPLACEMENT';
   });
 
-  /**
-   * La sugerencia se ofrece solo mientras el analista no cargó nada: una vez que puso un número
-   * —el suyo o el sugerido— seguir mostrándola es ruido, y peor, invita a dudar de lo que ya
-   * decidió. No se aplica sola: la toma con un clic, después de verificarla contra el documento.
-   */
+  /** Offered only until the analyst enters a value; never applied automatically. */
   protected readonly sugerenciaDisponible = computed(() => {
     const s = this.settlement();
     return (
@@ -994,10 +890,8 @@ export class ExpedienteDetailComponent {
   }
 
   /**
-   * La otra sugerencia: la que apunta al monto a pagar en sí. Sólo la produce un peritaje sobre una
-   * cobertura que liquida por suma asegurada, donde no hay monto acreditado que cargar — y donde,
-   * antes, lo que determinó el perito no se mostraba en ningún lado. Misma regla que la otra: se
-   * esconde apenas el analista escribe un monto propio.
+   * The expert's payout for coverages that settle by sum insured (no accredited amount to fill in).
+   * Hidden once the analyst types an amount.
    */
   protected readonly sugerenciaDeMontoDisponible = computed(() => {
     const s = this.settlement();
@@ -1008,11 +902,7 @@ export class ExpedienteDetailComponent {
     );
   });
 
-  /**
-   * Tomarla carga el monto en el campo del analista, no en el cálculo: queda como un ajuste sobre
-   * lo que dio la fórmula, y por lo tanto le pide la justificación del ajuste como cualquier otro.
-   * El perito propone; firmar sigue siendo del analista.
-   */
+  /** Taking it fills the analyst's amount, so it counts as an adjustment and needs a justification. */
   protected tomarSugerenciaDeMonto(): void {
     const amount = this.settlement()?.suggestedAmount;
     if (amount == null) {
@@ -1026,14 +916,11 @@ export class ExpedienteDetailComponent {
     this.replacementApplied.set(raw === '' ? null : Number(raw));
   }
 
-  /** Lo que el analista tipeó si quiere otro monto; vacío = se paga lo calculado. */
+  /** Empty = pay the calculated amount. */
   protected readonly settledAmountInput = signal('');
   protected readonly adjustmentReason = signal('');
 
-  /**
-   * El monto que se va a autorizar: el ajuste del analista, o lo calculado si no tocó nada. Null
-   * mientras no hay propuesta o lo tipeado no es un número — ahí no hay nada que confirmar.
-   */
+  /** Null while there is no proposal or the input isn't a number. */
   protected readonly amountToAuthorize = computed<number | null>(() => {
     const raw = this.settledAmountInput().trim();
     if (raw === '') {
@@ -1043,21 +930,21 @@ export class ExpedienteDetailComponent {
     return Number.isFinite(parsed) && parsed >= 0 ? parsed : null;
   });
 
-  /** Si difiere de lo calculado hay que decir por qué: es lo único que hace auditable el ajuste. */
+  /** An adjustment must be justified: that is what makes it auditable. */
   protected readonly settlementAdjusted = computed(() => {
     const proposed = this.settlement()?.calculatedAmount;
     const authorized = this.amountToAuthorize();
     return proposed != null && authorized != null && authorized !== proposed;
   });
 
-  /** La suma asegurada es el límite máximo a indemnizar (art. 3), no algo que se justifique. */
+  /** The sum insured is the indemnity ceiling (art. 3). */
   protected readonly settlementAboveSumInsured = computed(() => {
     const settlement = this.settlement();
     const authorized = this.amountToAuthorize();
     return settlement != null && authorized != null && authorized > settlement.sumInsured;
   });
 
-  /** Por qué no se puede confirmar todavía. Null = se puede. */
+  /** Null = can confirm. */
   protected readonly approvalBlockedReason = computed<string | null>(() => {
     if (!this.settlement()) {
       return 'No se pudo calcular el monto a pagar.';
@@ -1071,16 +958,12 @@ export class ExpedienteDetailComponent {
     if (this.settlementAdjusted() && !this.adjustmentReason().trim()) {
       return 'Ajustaste el monto: hace falta justificar el ajuste.';
     }
-    // La justificación no se repite acá: el campo ya está marcado como obligatorio y el botón
-    // queda apagado. Un cartel rojo diciendo lo mismo que la etiqueta es ruido, no ayuda.
+    // The justification isn't listed: the field is already marked required and the button disabled.
     return null;
   });
 
-  // ----- reapertura de un expediente cerrado ("rehabilitación") -----
-  // Los tres terminales son callejones sin salida: sin esto, un error del analista o la
-  // documentación que el asegurado trae después de que el expediente caducó no tienen arreglo.
-  // La comparte el referente con el analista (canGestionar) por el mismo criterio que asignar:
-  // reabrir no resuelve nada, solo vuelve a poner el expediente frente a una persona.
+  // ----- reopening a closed case -----
+  // Shared with the supervisor, like assigning: reopening resolves nothing.
   protected readonly showReopen = signal(false);
   protected readonly reopenReason = signal('');
   protected readonly reopening = signal(false);
@@ -1122,15 +1005,13 @@ export class ExpedienteDetailComponent {
     });
   }
 
-  // ----- derivación a peritaje -----
-  // Derivar no es un veredicto: suspende el expediente para conseguir evidencia. Por eso va por
-  // su propio endpoint y no por /decision, que es el registro auditable de la resolución.
-  // Frente a indicios de fraude, rechazar apoyándose en una sospecha del modelo no alcanza: el
-  // rechazo exige una causa de exclusión, y el peritaje es lo que convierte la sospecha en hecho.
+  // ----- referral to expert assessment -----
+  // Not a verdict: it suspends the case to gather evidence, hence its own endpoint instead of
+  // /decision.
   protected readonly derivado = computed(() => this.data()?.status === 'PENDING_EXPERT_REPORT');
   protected readonly enReparacion = computed(() => this.data()?.status === 'PENDING_REPAIR');
 
-  /** Se pide junto con el expediente: sin esto no se sabe si ofrecer el botón ni a quién derivar. */
+  /** Fetched with the case: needed to know whether to offer the button and to whom. */
   private readonly derivationOptions = this.optionsFor('ESTUDIO_LIQUIDADOR');
   private readonly repairOptions = this.optionsFor('SERVICIO_TECNICO');
 
@@ -1178,14 +1059,15 @@ export class ExpedienteDetailComponent {
     return this.peritaje() ? 'Peritaje' : 'Servicio técnico';
   });
 
+  /** Owner only, like deciding; the backend enforces it (409 unassigned, 403 someone else's). */
+  protected readonly puedeDerivar = computed(() => this.enManosDelAnalista() && !this.peritaje());
+
   /**
-   * Derivar es del que tiene el expediente asignado, igual que decidir (ver `canDecide`): manda un
-   * mail a un proveedor externo y deja el caso esperándolo, donde el analista que sí es su dueño ya
-   * no puede decidir. El backend lo exige (409 sin dueño, 403 si es de otro); acá el botón
-   * directamente no se ofrece, en vez de habilitarlo para que el click falle.
+   * Owner, pending, and not waiting on the referente: once the amount is sent for authorization
+   * the analyst already decided, so deriving or reading "si aprobás" hints no longer applies.
    */
-  protected readonly puedeDerivar = computed(
-    () => this.canDecide() && this.decisionState() === 'pending' && !this.peritaje(),
+  private readonly enManosDelAnalista = computed(
+    () => this.canDecide() && this.decisionState() === 'pending' && !this.esperandoAutorizacion(),
   );
 
   /**
@@ -1195,21 +1077,17 @@ export class ExpedienteDetailComponent {
    */
   protected readonly puedeDerivarAReparacion = computed(
     () =>
-      this.canDecide() &&
-      this.decisionState() === 'pending' &&
-      !this.reparacion() &&
-      this.repairOptions()?.eligible === true,
+      this.enManosDelAnalista() && !this.reparacion() && this.repairOptions()?.eligible === true,
   );
 
-  /** Habilitado por la regla de la aseguradora Y con peritos a quien mandarlo. */
+  /** Enabled by the insurer's rule AND with experts to send it to. */
   protected readonly derivacionHabilitada = computed(
     () => this.derivationOptions()?.eligible === true,
   );
 
   /**
-   * Con riesgo alto o crítico se sugiere el peritaje. La sugerencia sale del lado determinístico
-   * (banda del scoring) y no de una sexta categoría de Classification: la decisión #6 fija cinco.
-   * Sigue siendo el analista el que decide — esto solo destaca el botón.
+   * Suggested for high or critical risk bands (deterministic, not a sixth classification); it only
+   * highlights the button.
    */
   protected readonly derivacionSugerida = computed(() => {
     const band = this.data()?.riskBand;
@@ -1224,7 +1102,6 @@ export class ExpedienteDetailComponent {
     return `Riesgo ${riskBandLabel(band).toLowerCase()}: se sugiere derivar a peritaje antes de decidir.`;
   });
 
-  /** Las derivaciones posibles, como acciones de la fila de asignación. */
   protected readonly opcionesDerivacion = computed<{ tipo: ProviderType; label: string }[]>(() => [
     ...(this.puedeDerivar() && this.derivacionHabilitada()
       ? [{ tipo: 'ESTUDIO_LIQUIDADOR' as ProviderType, label: 'Derivar a peritaje' }]
@@ -1234,12 +1111,11 @@ export class ExpedienteDetailComponent {
       : []),
   ]);
 
-  /** El monto calculado pasa el tope del ramo: si aprueba, firma el referente. */
+  /** The calculated amount exceeds the branch limit: approving needs the supervisor's sign-off. */
   protected readonly superaAtribucion = computed(() => {
     const s = this.settlement();
     return (
-      this.canAct() &&
-      !this.esperandoAutorizacion() &&
+      this.enManosDelAnalista() &&
       s?.authorityLimit != null &&
       s.calculatedAmount > s.authorityLimit
     );
@@ -1250,14 +1126,11 @@ export class ExpedienteDetailComponent {
       this.showCauseConsistency() ||
       (this.canAct() && this.liquidacionDevuelta() && this.settlement() != null) ||
       this.superaAtribucion() ||
-      (this.puedeDerivar() && (!!this.sugerenciaDerivacion() || !!this.motivoNoDerivable())),
+      (this.puedeDerivar() && !!this.sugerenciaDerivacion()),
   );
 
-  // ----- "Antes de decidir": lo que el analista necesita a la vista junto a los botones -----
-  // Todo esto ya estaba en la pantalla, pero repartido en solapas: el plazo solo en la bandeja, el
-  // veredicto del perito en su solapa, el monto recién adentro del modal de aprobar y las alertas
-  // como un punto en una pestaña. Decidir sin verlo obligaba a recorrer las solapas de memoria.
-  // Acá no se agrega ningún criterio nuevo ni se sugiere qué hacer: solo se acerca la evidencia.
+  // ----- "Antes de decidir" -----
+  // Brings existing evidence next to the buttons; adds no criteria and suggests nothing.
 
   protected readonly plazoTexto = computed(() => {
     const d = this.data();
@@ -1277,7 +1150,7 @@ export class ExpedienteDetailComponent {
       : 'neutral';
   });
 
-  /** Derivaciones que ya volvieron con respuesta: la evidencia que la card de decisión no mostraba. */
+  /** Referrals that already came back. */
   protected readonly derivacionesRespondidas = computed(() =>
     this.derivaciones().filter((p) => p.verdict || p.repairOutcome),
   );
@@ -1324,10 +1197,7 @@ export class ExpedienteDetailComponent {
     return alertas;
   });
 
-  /**
-   * Por qué no se puede derivar. Sin esto el botón queda apagado sin explicación, y el analista
-   * no tiene forma de saber si es una política de la compañía o que falta cargar peritos.
-   */
+  /** Tells the analyst whether it is company policy or missing expert firms. */
   protected readonly motivoNoDerivable = computed<string | null>(() => {
     const options = this.derivationOptions();
     if (!options || options.eligible) {
@@ -1339,9 +1209,7 @@ export class ExpedienteDetailComponent {
     if (options.firms.length === 0) {
       return 'No hay peritos cargados para este ramo.';
     }
-    // Nombra el peritaje como las otras dos variantes. Desde que existe el botón de servicio
-    // técnico justo debajo, un mensaje que dice "no se puede derivar" a secas se lee como si
-    // tampoco se pudiera mandar al taller — y al taller no lo frena el monto reclamado.
+    // Names the expert assessment explicitly so it isn't read as blocking the repair shop too.
     return (
       `El monto reclamado no alcanza el mínimo para derivar a peritaje ` +
       `(${this.formatMonto(options.minClaimedAmount)}).`
@@ -1355,8 +1223,8 @@ export class ExpedienteDetailComponent {
     ((this.esReparacion() ? this.repairOptions() : this.derivationOptions())?.firms ?? []).map(
       (firm) => ({
         value: String(firm.id),
-        // El ramo distingue al especialista del generalista, y la zona importa porque para peritar
-        // un equipo hay que tenerlo delante.
+        // Branch tells specialist from generalist; area matters because the device must be inspected in
+        // person.
         label: [firm.name, firm.branchName ?? 'todos los ramos', firm.zone]
           .filter(Boolean)
           .join(' · '),
@@ -1406,11 +1274,7 @@ export class ExpedienteDetailComponent {
     });
   }
 
-  /**
-   * El peritaje recién creado, mientras se muestra la confirmación. Cerrar el modal y ya: debajo
-   * cambian el estado, las acciones y la solapa de peritaje todas juntas, y sin una confirmación
-   * el analista no tiene cómo saber si el mail salió o si el botón no hizo nada.
-   */
+  /** Kept for the confirmation modal: the only signal that the email went out. */
   protected readonly derivacionHecha = signal<Peritaje | null>(null);
   // Kept apart from data(), which is empty while the case reloads behind the modal.
   protected readonly derivacionHechaCaseId = signal<number | null>(null);
@@ -1419,7 +1283,7 @@ export class ExpedienteDetailComponent {
     this.derivacionHecha.set(null);
   }
 
-  // ----- carga del informe del perito o de la respuesta del servicio técnico -----
+  // ----- expert report / repair shop response -----
   protected readonly showInforme = signal(false);
   protected readonly informeTipo = signal<ProviderType>('ESTUDIO_LIQUIDADOR');
   protected readonly informeEsReparacion = computed(
@@ -1433,8 +1297,8 @@ export class ExpedienteDetailComponent {
   protected readonly informeError = signal<string | null>(null);
 
   /**
-   * Guardar "fraude confirmado" no deja solo el informe: registra el antecedente sobre la persona.
-   * El modal lo avisa antes, porque el antecedente no tiene baja desde la aplicación.
+   * Saving "fraude confirmado" also records a fraud mark on the person, which can't be removed from
+   * the app.
    */
   protected readonly veredictoConfirmaFraude = computed(
     () => !this.informeEsReparacion() && this.veredicto() === 'FRAUD_CONFIRMED',
@@ -1461,19 +1325,12 @@ export class ExpedienteDetailComponent {
   }
 
   /**
-   * El número que trae el informe, tipeado por el analista. Es el mismo campo en pantalla pero no
-   * la misma pregunta: al perito se le pide cuánto determinó que vale el siniestro, al taller
-   * cuánto sale el arreglo. Por eso el label, la obligatoriedad y la columna donde termina son
-   * distintos según de quién sea la vuelta.
+   * Expert: the determined claim value; repair shop: the repair cost. Label, requiredness and target
+   * column differ accordingly.
    */
   protected readonly montoInforme = signal('');
 
-  /**
-   * El taller informa un importe cuando hubo trabajo: el presupuesto de lo que va a hacer, o la
-   * factura de lo que hizo. Con "irreparable" no lo pide, porque no hubo arreglo que cobrar y
-   * ofrecer el campo ahí invita a cargar un número que el backend rechaza. Del lado del perito el
-   * campo va siempre, porque cualquier veredicto puede traer monto.
-   */
+  /** Not asked for IRREPARABLE (the backend rejects it); always offered to the expert. */
   protected readonly pideMontoDelInforme = computed(
     () =>
       !this.informeEsReparacion() ||
@@ -1481,15 +1338,12 @@ export class ExpedienteDetailComponent {
       this.veredicto() === 'REPAIRED',
   );
 
-  /** Ya lo arregló y lo cobró: el importe es la factura, no un presupuesto de algo por hacer. */
+  /** Already repaired and billed: the amount is an invoice, not a quote. */
   protected readonly informeEsFactura = computed(
     () => this.informeEsReparacion() && this.veredicto() === 'REPAIRED',
   );
 
-  /**
-   * Un presupuesto sin importe no es un presupuesto. La factura sí puede faltar —llega después del
-   * informe— y el monto del perito también es opcional.
-   */
+  /** A quote needs an amount; the invoice may come later and the expert's amount is optional. */
   protected readonly montoDelInformeObligatorio = computed(
     () => this.informeEsReparacion() && this.veredicto() === 'QUOTE_SENT',
   );
@@ -1548,11 +1402,9 @@ export class ExpedienteDetailComponent {
     });
   }
 
-  // ----- antecedente de fraude del asegurado -----
-  // Registrar el antecedente NO es lo mismo que subir el informe del perito. El perito verifica un
-  // hecho de ESTE siniestro; decidir que ese hecho acompañe a la persona en su próxima denuncia es
-  // otro acto, y es del analista. Por eso va aparte y queda con su nombre y su motivo: una marca
-  // sobre una persona necesita alguien que se haga cargo (Ley 25.326), no un "lo dijo el informe".
+  // ----- insured's fraud record -----
+  // Separate from the expert report: carrying a finding over to the person's future claims is the
+  // analyst's act, recorded with their name and reason (Ley 25.326).
   private readonly antecedentes = toSignal(
     combineLatest([
       this.route.paramMap.pipe(map((params) => params.get('id') ?? '')),
@@ -1567,21 +1419,17 @@ export class ExpedienteDetailComponent {
     { initialValue: [] as AntecedenteFraude[] },
   );
 
-  /** Los de OTROS expedientes: lo que el analista tiene que saber antes de decidir este. */
+  /** From OTHER cases. */
   protected readonly antecedentesPrevios = computed(() =>
     this.antecedentes().filter((a) => a.caseId !== this.data()?.id),
   );
 
-  /** El que este expediente ya originó, si lo hay: un expediente da un antecedente, no dos. */
+  /** A case yields at most one record. */
   protected readonly antecedentePropio = computed(
     () => this.antecedentes().find((a) => a.caseId === this.data()?.id) ?? null,
   );
 
-  /**
-   * Solo el analista, sobre un expediente que ya tiene la clasificación en la mano (o que ya
-   * rechazó), y una sola vez. Desde APROBADO no aparece: pagar el siniestro y marcarlo como fraude
-   * se contradicen. El backend lo valida igual — esto es para la pantalla, no es el control.
-   */
+  /** Analyst only, once, after classification; never on APPROVED. The backend enforces it too. */
   protected readonly puedeRegistrarAntecedente = computed(() => {
     const status = this.data()?.status;
     return (
@@ -1598,16 +1446,12 @@ export class ExpedienteDetailComponent {
       this.puedeRegistrarAntecedente(),
   );
 
-  /** Con peritaje de fraude confirmado, el respaldo pericial es lo que corresponde por defecto. */
+  /** Defaults to expert-backed when fraud was confirmed. */
   private readonly peritajeConfirmaFraude = computed(
     () => this.peritaje()?.verdict === 'FRAUD_CONFIRMED',
   );
 
-  /**
-   * Sin peritaje confirmado la opción pericial ni se ofrece, en vez de ofrecerla y fallar recién en
-   * el submit: el backend la valida contra el veredicto guardado, no contra lo que diga el
-   * formulario, y un desplegable que acepta algo que después rebota es peor que uno más corto.
-   */
+  /** Not offered without a confirmed expert verdict: the backend validates against the saved one. */
   protected readonly origenOptions = computed<SelectOption[]>(() => [
     ...(this.peritajeConfirmaFraude()
       ? [{ value: 'EXPERT_BACKED', label: origenAntecedenteLabel('EXPERT_BACKED') }]
@@ -1623,12 +1467,11 @@ export class ExpedienteDetailComponent {
 
   protected readonly motivoAntecedenteMin = MOTIVO_ANTECEDENTE_MIN;
 
-  /** El mínimo se avisa mientras escribe, no cuando vuelve el 400. */
+  /** Warned while typing, not on the 400. */
   protected readonly motivoAntecedenteCorto = computed(
     () => this.motivoAntecedente().trim().length < MOTIVO_ANTECEDENTE_MIN,
   );
 
-  /** Lo que va a pasar con lo que está por registrar, dicho antes de que confirme. */
   protected readonly efectoOrigenElegido = computed(() =>
     this.origenElegido() === 'EXPERT_BACKED'
       ? 'Va a sumar al nivel de riesgo de sus próximas denuncias y, si la aseguradora lo configuró así, a impedirles la vía rápida.'
@@ -1691,11 +1534,7 @@ export class ExpedienteDetailComponent {
     }).format(amount);
   }
 
-  /**
-   * Como {@link formatMonto} pero con centavos. En la hoja de liquidación sí importan: es plata
-   * que el analista autoriza, y redondear en pantalla lo dejaría firmando un número que no es el
-   * que se guarda.
-   */
+  /** Like {@link formatMonto} but with cents: rounding would show a figure other than the one saved. */
   protected montoExacto(amount: number | null): string {
     if (amount == null) {
       return '—';
@@ -1708,11 +1547,8 @@ export class ExpedienteDetailComponent {
     }).format(amount);
   }
 
-  // ----- reintento manual de la clasificación (expediente en CLASSIFICATION_FAILED) -----
-  // El scheduler solo barre PENDING_CLASSIFICATION, así que un caso que agotó los reintentos queda
-  // varado hasta que el analista lo reencola a mano (relevamiento de UI de Aylén #22, fuera del
-  // repo). No resuelve el caso: lo devuelve al pipeline, que después vuelve a necesitar la
-  // decisión del analista.
+  // ----- manual classification retry (CLASSIFICATION_FAILED) -----
+  // The scheduler only sweeps PENDING_CLASSIFICATION, so exhausted cases must be requeued by hand.
   protected readonly isFailed = computed(() => this.data()?.status === 'CLASSIFICATION_FAILED');
   protected readonly retrying = signal(false);
   protected readonly retryError = signal<string | null>(null);
@@ -1736,15 +1572,12 @@ export class ExpedienteDetailComponent {
     });
   }
 
-  // ----- asignación del expediente -----
-  // Asignar es poner dueño, no resolver: no mueve el expediente de estado ni reemplaza la
-  // decisión del analista (human-in-the-loop, decisión de arquitectura #5). Los dos roles
-  // operativos pueden asignar; solo el analista puede tomarlo para sí.
+  // ----- assignment -----
+  // Both operational roles can assign; only the analyst can take a case for themselves.
   protected readonly assignSaving = signal(false);
   protected readonly assignError = signal<string | null>(null);
 
-  // Sin esto, el menú "Asignar a…"/"Reasignar" se puede abrir mientras la lista de analistas
-  // todavía está en vuelo y mostrar un panel vacío, como si la aseguradora no tuviera analistas.
+  // Prevents opening the menu while the analyst list is loading and showing it empty.
   protected readonly analystsLoading = signal(true);
 
   private readonly analysts = toSignal(
@@ -1756,7 +1589,7 @@ export class ExpedienteDetailComponent {
   );
 
   protected readonly analystMenuItems = computed<MenuItem[]>(() => {
-    // "Asignar a otro analista": el que ya lo tiene no va en la lista (reasignárselo no es acción).
+    // The current assignee is left out.
     const assignedId = this.data()?.assignedAnalystId;
     return this.analysts()
       .filter((a) => a.id !== assignedId)
@@ -1764,9 +1597,8 @@ export class ExpedienteDetailComponent {
   });
 
   /**
-   * Mi id de analista DENTRO de esta aseguradora — no el de usuario de la sesión, que es otra
-   * tabla. Sale de buscarme por email en el listado de analistas, que ya viene acotado al tenant.
-   * Null para el referente, que no tiene perfil de analista.
+   * Per-tenant analyst id, found by email in the tenant-scoped analyst list (the session only has
+   * the user id). Null for the supervisor.
    */
   private readonly myAnalystId = computed<number | null>(() => {
     const email = this.session.session()?.email;
@@ -1777,16 +1609,12 @@ export class ExpedienteDetailComponent {
     () => this.session.session()?.rol === 'ANALISTA_SINIESTROS' && this.myAnalystId() != null,
   );
 
-  /**
-   * Decidir, reintentar y cargar el informe de peritaje son del analista. El referente no decide
-   * (decisión #5 de CLAUDE.md, y el backend lo rechaza con 403 al resolverlo contra claims_analyst).
-   */
+  /** The supervisor doesn't decide; the backend rejects it with 403. */
   protected readonly canAct = computed(() => this.session.session()?.rol === 'ANALISTA_SINIESTROS');
 
   /**
-   * Mover el expediente sin resolverlo: asignar, reasignar, destrabar una clasificación fallida y
-   * cargar el informe del perito. El referente las comparte con el analista porque ninguna atribuye
-   * una decisión — para eso ve la carga del equipo.
+   * Moving the case without resolving it; shared with the supervisor since none of these is a
+   * decision.
    */
   protected readonly canGestionar = computed(() => {
     const rol = this.session.session()?.rol;
@@ -1796,7 +1624,6 @@ export class ExpedienteDetailComponent {
   protected readonly assignedName = computed(() => this.data()?.assignedAnalystName ?? null);
   protected readonly isAssigned = computed(() => this.data()?.assignedAnalystId != null);
 
-  /** Para el referente: la decisión no es suya, pero repartirla sí. */
   protected readonly esperaDecisionTexto = computed(() => {
     const analista = this.assignedName();
     return analista
@@ -1804,37 +1631,26 @@ export class ExpedienteDetailComponent {
       : 'Espera la decisión de un analista. Asignalo para que alguien lo tome.';
   });
 
-  /** True cuando el expediente está asignado al analista logueado (para el "Vos"). */
   protected readonly isMine = computed(() => {
     const id = this.data()?.assignedAnalystId;
     return id != null && id === this.myAnalystId();
   });
 
   /**
-   * Aprobar/rechazar es del que tiene el expediente asignado, no de cualquier analista — el
-   * backend ya lo exige (403 si es de otro, 409 si no tiene dueño) desde que se detectó que
-   * cualquier ANALISTA_SINIESTROS podía decidir sobre cualquier expediente. Antes de este chequeo,
-   * `canAct()` solo → el botón quedaba habilitado igual y el click terminaba pegando contra esos
-   * códigos, con un mensaje genérico de error en vez de guiar hacia "Asignarme"/"Reasignar", que
-   * están en la misma pantalla, en la card de al lado.
+   * Only the assignee decides (backend: 403 someone else's, 409 unassigned); hiding it here points
+   * to "Asignarme" instead of a generic error.
    */
   protected readonly canDecide = computed(() => this.canAct() && this.isMine());
 
-  /**
-   * Por qué no puede actuar alguien con rol de analista pero sin este expediente asignado. Cubre
-   * decidir y derivar (a peritaje o a servicio técnico): todo eso es del dueño del expediente.
-   */
+  /** Why an analyst who isn't the assignee can't act (decide or refer). */
   protected readonly decisionBlockedReason = computed(() => {
     if (!this.isAssigned()) {
       return 'Asignate el expediente para decidir o derivarlo.';
     }
     const analista = this.assignedName();
-    return analista
-      ? `Asignado a ${analista}. Solo esa persona puede aprobar, rechazar o derivar.`
-      : 'Expediente asignado a otro analista.';
+    return analista ? `Asignado a ${analista}` : 'Asignado a otro analista';
   });
 
-  /** Iniciales del analista asignado para el avatar (hasta 2). */
   protected readonly analystInitials = computed(() =>
     (this.assignedName() ?? '')
       .split(/\s+/)
@@ -1845,10 +1661,8 @@ export class ExpedienteDetailComponent {
   );
 
   /**
-   * Fecha de la asignación vigente, sacada del historial: la asignación deja un hito con
-   * fromStatus == toStatus y actor ANALYST o REFERENT — el endpoint de asignación admite ambos
-   * roles (ver CaseAccessPolicy.currentAssignmentActor / CaseStatusService.recordAssignment). El
-   * último de esos hitos, estando asignado, es la asignación actual.
+   * Assignment date from the history: an assignment leaves an entry with fromStatus == toStatus and
+   * actor ANALYST or REFERENT; the last one is the current assignment.
    */
   private readonly assignedSince = computed<string | null>(() => {
     const milestones = (this.data()?.statusHistory ?? []).filter(
@@ -1860,7 +1674,7 @@ export class ExpedienteDetailComponent {
       : null;
   });
 
-  /** Subtítulo del avatar: "Vos · desde el 04/06" (cada parte según disponibilidad). */
+  /** e.g. "Vos · desde el 04/06". */
   protected readonly assignedContext = computed(() => {
     const parts: string[] = [];
     if (this.isMine()) parts.push('Vos');
@@ -1869,7 +1683,6 @@ export class ExpedienteDetailComponent {
     return parts.join(' · ');
   });
 
-  /** Reasignar lista a los otros analistas y, al final y separado, liberar el expediente. */
   protected readonly reasignarMenuItems = computed<MenuItem[]>(() => [
     ...this.analystMenuItems(),
     { value: 'release', label: 'Liberar', danger: true },
@@ -1919,7 +1732,7 @@ export class ExpedienteDetailComponent {
     request.subscribe({
       next: () => {
         this.assignSaving.set(false);
-        // Releer: la asignación también deja un hito nuevo en el historial de transiciones.
+        // Refetch: assignment also adds a history entry.
         this.reloadTrigger.update((v) => v + 1);
       },
       error: (err: HttpErrorResponse) => {
@@ -1929,31 +1742,23 @@ export class ExpedienteDetailComponent {
     });
   }
 
-  // ----- documentación faltante (FALTA_DOCUMENTACION), SOLO LECTURA para el analista -----
-  // El analista no sube documentos: la carga es exclusiva del asegurado desde su portal. Acá
-  // solo se le listan los tipos requeridos que todavía no se cargaron.
+  // ----- missing documentation (read-only for the analyst) -----
   protected readonly needsDocs = computed(
     () => this.data()?.analysisClassification === 'FALTA_DOCUMENTACION',
   );
 
-  /**
-   * "Resolución" solo tiene sentido cuando hay (o hubo) algo que decidir. Mientras el
-   * expediente espera que el asegurado suba lo que falta, no hay ninguna decisión pendiente ni
-   * tomada — el título mentía sobre qué mostraba la card.
-   */
+  /** "Resolución" only applies when there is or was something to decide. */
   protected readonly decisionCardHeading = computed(() =>
     this.decisionState() === 'not-ready' && this.needsDocs() && !this.derivado() && !this.isFailed()
       ? 'Estado del expediente'
       : 'Resolución',
   );
 
-  /** La agenda documental es otra llamada al backend: se refresca con el mismo trigger. */
+  /** Refreshed with the same trigger as the case. */
   protected readonly docsReloadToken = computed(() => this.reloadTrigger());
 
-  // Estado explícito (no solo el array) para poder tapar el checklist de "Falta documentación"
-  // mientras esta request —independiente de la principal (getById)— todavía está en vuelo: sin
-  // esto, `missingDocLabels` computa con `documents()` en [] y por un instante lista TODOS los
-  // tipos requeridos como faltantes, aunque ya estén cargados.
+  // Explicit loading state: while this separate request is in flight, an empty documents() would
+  // list every required type as missing.
   private readonly documentsState = toSignal(
     combineLatest([
       this.route.paramMap.pipe(map((params) => params.get('id') ?? '')),
@@ -1981,10 +1786,6 @@ export class ExpedienteDetailComponent {
 
   private readonly agenda = inject(DocumentAgendaService);
 
-  /**
-   * La agenda REAL del ramo + hecho generador del expediente (la que configuró el referente), o el
-   * catálogo completo.
-   */
   private readonly requiredDocTypes = toSignal(
     toObservable(
       computed(() => ({
@@ -2001,7 +1802,6 @@ export class ExpedienteDetailComponent {
     { initialValue: CASE_DOCUMENT_TYPES as readonly CaseDocumentType[] },
   );
 
-  /** Tipos requeridos que todavía no se cargaron — lo que el analista ve como "falta". */
   protected readonly missingDocLabels = computed(() => {
     const present = new Set(this.documents().map((d) => d.type));
     return this.requiredDocTypes()

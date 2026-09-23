@@ -32,12 +32,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
-/**
- * RBAC and the HTTP contract of the report endpoints. The service is mocked: what the report
- * contains is {@code ResolvedCaseRepositoryTests}' job, this one is about who gets it and in what
- * shape. Tokens are signed by hand with the test secret, same as cases-service's
- * {@code CaseSecurityTest}.
- */
+/** RBAC and the HTTP contract of the report endpoints; the service is mocked. */
 @SpringBootTest
 @AutoConfigureMockMvc
 class ResolutionReportSecurityTests extends AbstractPersistenceIT {
@@ -92,7 +87,7 @@ class ResolutionReportSecurityTests extends AbstractPersistenceIT {
                 .andExpect(jsonPath("$.rows[0].caseId").value(42))
                 .andExpect(jsonPath("$.rows[0].finalStatus").value("APPROVED"))
                 .andExpect(jsonPath("$.rows[0].classification").value("LLM_RECOMIENDA_APROBAR"))
-                // The aggregates H0019 asks for travel with the preview, not only with the file.
+                // The aggregates travel with the preview, not only with the file.
                 .andExpect(jsonPath("$.summary.totalCases").value(1))
                 .andExpect(jsonPath("$.summary.fastTrackCases").value(0))
                 .andExpect(jsonPath("$.summary.byStatus[0].label").value("APPROVED"));

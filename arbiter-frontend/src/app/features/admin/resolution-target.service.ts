@@ -4,19 +4,17 @@ import { Observable } from 'rxjs';
 
 import { environment } from '../../../environments/environment';
 
-/** Los extremos que acepta el backend. Un objetivo de 0 días no se puede cumplir nunca. */
+/** Backend bounds. A 0-day target could never be met. */
 export const TARGET_DAYS_MIN = 1;
 export const TARGET_DAYS_MAX = 365;
 
 /**
- * El objetivo de resolución de la aseguradora: en cuántos días se propone cerrar un siniestro.
- *
- * No es el plazo legal — ese es por expediente y no lo fija nadie — sino una meta de gestión que
- * puede ser más exigente que la ley.
+ * The insurer's goal, in days, for closing a claim. A management target, not the legal deadline
+ * (which is per case), and it may be stricter than the law.
  */
 export interface ResolutionTarget {
   enabled: boolean;
-  /** Null mientras la aseguradora no haya fijado ninguno. */
+  /** null until the insurer sets one. */
   targetDays: number | null;
 }
 

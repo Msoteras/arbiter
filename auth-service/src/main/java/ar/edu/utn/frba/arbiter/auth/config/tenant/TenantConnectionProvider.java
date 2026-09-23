@@ -12,36 +12,22 @@ import java.sql.Statement;
 import java.util.regex.Pattern;
 
 /**
- * One shared {@link DataSource}, one schema per tenant — switches which schema a
- * borrowed connection sees via {@code SET search_path}, not a different DataSource per
- * tenant (there's only one database). The common schema is always appended after the
- * tenant's own: resolve in the tenant first, fall back to the common catalogs.
+ * One shared {@link DataSource}, one schema per tenant, switched via {@code SET search_path}. The
+ * common schema is always appended after the tenant's own.
  */
 @Component
 @RequiredArgsConstructor
 public class TenantConnectionProvider implements MultiTenantConnectionProvider<String> {
 
-    // Schema names come from insurer.schema_name (server-controlled, set at seed/onboarding
-    // time), never from request input directly — this is still a defense-in-depth guard
-    // against building an unsafe SET search_path string, since identifiers can't be bind
-    // parameters.
+    // Defense in depth: schema names are server-controlled, but identifiers can't be bind parameters.
     private static final Pattern SAFE_SCHEMA = Pattern.compile("^[a-z_][a-z0-9_]*$");
 
     private final DataSource dataSource;
 
     /**
-     * A connection with no tenant resolved yet — Hibernate's boot-time schema validation is
-     * the main caller — needs SOME schema on its search_path to see anything: entities live
-     * split between {@code arbiter_common} and each tenant's own schema, and Postgres defaults
-     * an unqualified connection to {@code public}, where none of this app's tables are. Every
-     * tenant schema is structurally identical (the same {@code create_tenant_schema} function
-     * builds them all), so which one gets picked doesn't matter for validation purposes —
-     * this reads the first active one off the registry itself.
-     *
-     * <p>Best-effort: if the query fails — a fresh database before {@code init-multitenant.sql}
-     * ran, or the flat single-schema layout {@code AbstractPersistenceIT} builds for tests,
-     * where {@code arbiter_common} doesn't exist as a schema at all — this falls back to the
-     * connection's own default rather than throwing, which is exactly today's behavior.
+     * Used mainly by Hibernate's boot-time schema validation, which needs some tenant schema on the
+     * search_path. All tenant schemas are identical, so the first active insurer's is enough.
+     * Best-effort: without {@code arbiter_common} (fresh DB, test layout) it keeps the default path.
      */
     @Override
     public Connection getAnyConnection() throws SQLException {
@@ -54,7 +40,7 @@ public class TenantConnectionProvider implements MultiTenantConnectionProvider<S
                 applySearchPath(connection, rs.getString(1));
             }
         } catch (SQLException noRegistryYet) {
-            // See the Javadoc: with no arbiter_common yet, stay on the default search_path.
+            // No arbiter_common yet: keep the default search_path.
         }
         return connection;
     }
@@ -65,16 +51,8 @@ public class TenantConnectionProvider implements MultiTenantConnectionProvider<S
     }
 
     /**
-     * Toma una conexión del pool y la apunta al esquema del tenant. <b>No</b> pasa por
-     * {@link #getAnyConnection()}: ése resuelve un esquema cualquiera consultando el registro de
-     * aseguradoras, y acá el esquema ya lo sabemos. Hacerlo costaba tres viajes a la base antes de
-     * cada consulta —la consulta al registro, el {@code SET} hacia ese esquema y el {@code SET}
-     * hacia el verdadero, que lo pisaba—, y con la base en otra red eso era el grueso del tiempo de
-     * respuesta de cualquier pantalla.
-     *
-     * <p>De paso desaparece un tramo en el que la conexión apuntaba al esquema de OTRA aseguradora.
-     * No se consultaba nada en el medio, así que no filtraba datos, pero no había razón para que
-     * existiera.
+     * Deliberately skips {@link #getAnyConnection()}: its registry lookup and extra {@code SET}
+     * cost several round trips per query, and the schema is already known here.
      */
     @Override
     public Connection getConnection(String tenantIdentifier) throws SQLException {
@@ -85,8 +63,7 @@ public class TenantConnectionProvider implements MultiTenantConnectionProvider<S
 
     @Override
     public void releaseConnection(String tenantIdentifier, Connection connection) throws SQLException {
-        // HikariCP does not reset session state on its own — leaving this set would leak
-        // the tenant into whatever request borrows the connection next.
+        // HikariCP doesn't reset session state: without this the tenant leaks into the next borrower.
         applySearchPath(connection, TenantContext.COMMON_SCHEMA);
         releaseAnyConnection(connection);
     }

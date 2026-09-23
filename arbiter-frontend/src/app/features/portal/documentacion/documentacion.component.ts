@@ -15,16 +15,6 @@ type LoadState =
   | { status: 'ok'; data: ExpedienteResponse }
   | { status: 'error'; httpStatus: number };
 
-/**
- * Los documentos del expediente, del lado del asegurado: lo que ya envió y —solo si la aseguradora
- * se lo pidió (AWAITING_DOCUMENTATION)— la carga de lo que falta. Reusa app-case-documents para la
- * lista y app-doc-upload para la mecánica de carga (valida, arrastra, POST /cases/{id}/documents →
- * re-dispara la clasificación). Al enviarse, vuelve al seguimiento, que refleja el nuevo estado.
- *
- * <p>Se entra por dos puertas distintas y la pantalla no puede hablarles igual: "cargar
- * documentación" cuando la aseguradora le pidió algo, y "ver mis documentos" desde cualquier otro
- * estado, donde solo hay lista — subir algo no pedido re-dispararía una clasificación de la nada.
- */
 @Component({
   selector: 'app-documentacion',
   imports: [RouterLink, CardComponent, DocUploadComponent, CaseDocumentsComponent],
@@ -38,11 +28,7 @@ export class DocumentacionComponent {
   private readonly service = inject(ExpedienteService);
 
   protected readonly caseId = Number(this.route.snapshot.paramMap.get('id'));
-  /**
-   * Mismo motivo que en seguimiento: un asegurado con pólizas en más de una compañía puede tener
-   * este expediente en un tenant distinto del default de su sesión. La viene arrastrando la URL
-   * desde el link que trajo hasta acá (inicio, mis siniestros, seguimiento).
-   */
+  /** The case may live in a tenant other than the session's default (multi-insurer insureds). */
   protected readonly insurerSlug = this.route.snapshot.queryParamMap.get('insurer');
 
   private readonly state = toSignal(
@@ -67,16 +53,10 @@ export class DocumentacionComponent {
     return s.status === 'ok' ? s.data : null;
   });
 
-  /**
-   * La aseguradora le pidió documentación puntual: es el único momento en que tiene sentido
-   * ofrecer la carga. Subir un documento re-dispara la clasificación (POST /cases/{id}/documents),
-   * así que fuera de este estado no hay nada que "sumar" — solo se muestra lo que ya envió.
-   */
+  /** Upload is offered only when requested: uploading a document re-triggers classification. */
   protected readonly needsDocs = computed(() => this.data()?.status === 'AWAITING_DOCUMENTATION');
 
   protected onUploaded(): void {
-    // El backend ya recibió los documentos y re-encoló la clasificación: volvemos al
-    // seguimiento, que va a mostrar el estado actualizado.
     this.router.navigate(['/portal/cases', this.caseId], {
       queryParams: this.insurerSlug ? { insurer: this.insurerSlug } : {},
     });

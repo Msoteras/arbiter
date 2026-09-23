@@ -41,10 +41,6 @@ class PolicyResyncSchedulerTest {
         verify(policySynchronizer, times(2)).resync(any(Policy.class));
     }
 
-    /**
-     * La BD de una compañía caída esta noche no puede dejar sin refrescar a las demás: cada
-     * aseguradora es un tenant aparte y no comparten nada.
-     */
     @Test
     void oneInsurerFailingDoesNotStopTheRest() {
         when(insurerRepository.findByActiveTrue())
@@ -58,7 +54,6 @@ class PolicyResyncSchedulerTest {
         verify(policySynchronizer).resync(any(Policy.class));
     }
 
-    /** Ni una póliza que la compañía contesta mal puede costarle el refresco a las otras. */
     @Test
     void onePolicyFailingDoesNotStopTheOthers() {
         when(insurerRepository.findByActiveTrue()).thenReturn(List.of(insurer("arbiter_bbva")));
@@ -72,7 +67,6 @@ class PolicyResyncSchedulerTest {
         verify(policySynchronizer, times(2)).resync(any(Policy.class));
     }
 
-    /** Sin pólizas copiadas no hay nada que releer — y no se le pregunta nada a la compañía. */
     @Test
     void aTenantWithNoPoliciesAsksTheCompanyNothing() {
         when(insurerRepository.findByActiveTrue()).thenReturn(List.of(insurer("arbiter_bbva")));

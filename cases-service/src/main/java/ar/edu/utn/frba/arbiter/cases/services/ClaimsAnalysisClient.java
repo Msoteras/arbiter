@@ -16,39 +16,27 @@ import java.util.List;
  */
 public interface ClaimsAnalysisClient {
 
-    /**
-     * Triggers classification for a case, forwarding its data and the full set of
-     * accumulated documents to classification-service (tagged with the case id).
-     */
+    /** Sends the case data and the full set of accumulated documents, not just the new ones. */
     AnalysisResult analyzeAndPersist(Case caseRecord, List<CaseDocument> documents);
 
     /**
-     * Same trigger as {@link #analyzeAndPersist}, for callers with no HTTP request behind them
-     * (e.g. {@code ClassificationRefreshScheduler}'s infrastructure-failure recovery sweep) —
-     * signs a service token instead of forwarding a caller's JWT, since there isn't one to forward.
+     * Same as {@link #analyzeAndPersist}, for callers with no HTTP request behind them: signs a
+     * service token since there is no caller JWT to forward.
      */
     AnalysisResult analyzeAndPersistAsSystem(Case caseRecord, List<CaseDocument> documents);
 
-    /**
-     * Single, non-blocking attempt to pull the classification result.
-     * Returns true if classification is now available, false if still pending.
-     */
+    /** Single, non-blocking attempt; returns false while classification is still pending. */
     boolean refreshClassification(Case caseRecord);
 
     /**
-     * Forwards the analyst's decision to classification-service so it is persisted
-     * in the audit trail (llm_analysis + llm_reason).
+     * Forwards the analyst's decision so classification-service records it in the audit trail.
      *
      * @return the id of the {@code case_classification} row it created, to be stored on
      *         {@code cases.classification_id}; null if the response didn't carry one.
      */
     Long forwardAnalystDecision(Long caseId, AnalystDecisionRequest request);
 
-    /**
-     * Registers a fraud record against an insured. Rides this boundary and not one of its own
-     * because classification-service owns the record: it's the module that reads it while scoring
-     * the insured's next claim.
-     */
+    /** classification-service owns fraud records: it reads them while scoring the insured's next claim. */
     FraudRecordResponse registerFraudRecord(FraudRecordRequest request);
 
     /** The insured's fraud records, lapsed ones included (each says whether it's still in force). */

@@ -1,6 +1,5 @@
 import { ChangeDetectionStrategy, Component, computed, input, model } from '@angular/core';
 
-/** Área de texto multilínea. Mismo estilo de campo que app-input. */
 @Component({
   selector: 'app-textarea',
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -21,7 +20,7 @@ import { ChangeDetectionStrategy, Component, computed, input, model } from '@ang
     .field {
       width: 100%;
       font: inherit;
-      /* 16px en mobile evita el zoom de iOS Safari al enfocar; 13px desde sm hacia arriba. */
+      /* 16px on mobile prevents iOS Safari from zooming on focus. */
       font-size: var(--font-size-lg);
       padding: var(--space-2) var(--space-3);
       border: 1px solid var(--border-control);

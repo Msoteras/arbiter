@@ -11,8 +11,6 @@
   font-family: var(--font-mono);
 }
 
-/* Checklist a la izquierda, visor a la derecha: el analista lee el documento sin
-   perder de vista qué le falta al expediente. */
 .docs-layout {
   display: grid;
   grid-template-columns: minmax(240px, 320px) 1fr;
@@ -20,7 +18,6 @@
   align-items: start;
 }
 
-/* ===== Checklist ===== */
 .docs-count {
   margin: 0 0 var(--space-3);
   font-size: var(--font-size-sm);
@@ -38,8 +35,7 @@
   border-top: 1px solid var(--border-subtle);
 }
 
-/* Separador de los adjuntos que no son de la agenda. Borde arriba en vez de + .doc-item
-   porque abre grupo: lo que sigue ya no es checklist. */
+/* Opens the non-agenda group, hence its own top border instead of `+ .doc-item`. */
 .doc-section {
   margin-top: var(--space-2);
   padding: var(--space-3) var(--space-3) var(--space-1);
@@ -105,7 +101,6 @@ button.doc-btn.selected {
   font-variant-numeric: tabular-nums;
 }
 
-/* ===== Visor ===== */
 .viewer-bar {
   display: flex;
   align-items: center;
@@ -123,8 +118,7 @@ button.doc-btn.selected {
   white-space: nowrap;
 }
 
-/* min-height 40px: es el único control de descarga de la sección, tiene que ser
-   cómodo de tocar (40px es el piso en escritorio; 44px si se usa desde el celular). */
+/* Touch target: 40px on desktop, 44px on mobile. */
 .doc-download {
   flex-shrink: 0;
   display: inline-flex;
@@ -164,9 +158,8 @@ button.doc-btn.selected {
   overflow: auto;
 }
 
-/* Sin radio propio: el marco redondea 7px pero tiene 12px de padding, así que la esquina
-   de la imagen nunca llega a la curva. El contorno va negro puro al 10% — un neutro
-   teñido toma el color de la superficie de atrás y se lee como suciedad en el borde. */
+/* No radius: the frame's padding keeps the corner off its curve. Pure black outline because a
+   tinted neutral picks up the surface color and reads as dirt on the edge. */
 .viewer-frame.image img {
   max-width: 100%;
   max-height: 100%;
@@ -187,9 +180,7 @@ button.doc-btn.selected {
   text-align: center;
 }
 
-/* ===== Lo que el modelo leyó del documento abierto ===== */
-/* Debajo del visor y no al lado: se lee contra el papel, y partir el ancho dejaría al PDF
-   ilegible. Va plegable porque el analista que solo quiere mirar el documento no la necesita. */
+/* Stacked below the viewer, not beside it: splitting the width would make the PDF unreadable. */
 .docs-viewer-col {
   display: grid;
   gap: var(--space-4);
@@ -211,8 +202,6 @@ button.doc-btn.selected {
   color: var(--text-muted);
 }
 
-/* Las señales de la imagen van visualmente separadas de los campos: son una observación sobre
-   la foto, no algo que el documento diga, y mezclarlas las haría leer como contenido. */
 .visual-findings {
   margin-top: var(--space-4);
   padding-top: var(--space-3);
@@ -231,8 +220,6 @@ button.doc-btn.selected {
   line-height: 1.4;
 }
 
-/* La transcripción entera es larga y rara vez es lo que el analista busca primero: va plegada,
-   disponible sin empujar los campos fuera de la vista. */
 .transcription {
   margin-top: var(--space-3);
 }
@@ -247,7 +234,6 @@ button.doc-btn.selected {
   white-space: pre-line;
 }
 
-/* ===== Responsive ===== */
 @media (max-width: 820px) {
   .docs-layout {
     grid-template-columns: 1fr;

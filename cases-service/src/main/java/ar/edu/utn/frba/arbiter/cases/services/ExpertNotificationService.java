@@ -24,17 +24,11 @@ import java.util.Locale;
 import java.util.Set;
 
 /**
- * Emails the external expert the case they have to verify.
+ * Emails the external expert the case they have to verify. The send is recorded on
+ * {@code expert_assessment.notified_at}, not as a {@code notification} row: the expert isn't a {@code User}.
  *
- * <p>Separate from {@link CaseNotificationService}, which writes a {@code notification} row per
- * message: that table's recipient is a {@code User}, and the expert deliberately isn't one. The
- * record of this send is {@code expert_assessment.notified_at} instead.
- *
- * <p>What goes in the email is the case, not the analysis: no classification, no risk score, no
- * reasons the model gave. The expert is asked to verify facts — telling them what the system
- * already suspects would be handing them the conclusion before they look. Inside that limit they
- * get everything: the same summary the analyst reads, plus the documentation on file, because an
- * expert who has to ask for the police report by reply loses a day on every case.
+ * <p>The email carries the case, never the analysis (classification, risk score, model reasons):
+ * telling the expert what the system suspects would hand them the conclusion before they look.
  */
 @Service
 @RequiredArgsConstructor
@@ -42,9 +36,8 @@ import java.util.Set;
 public class ExpertNotificationService {
 
     /**
-     * What the attachments may add up to. SendGrid rejects the whole message past 30 MB (base64
-     * included, ~33% over the raw bytes), and a rejected message means the expert gets nothing —
-     * better to send the case with fewer files and name the ones left out.
+     * SendGrid rejects the whole message past 30 MB including base64 overhead (~33%), so it's better
+     * to send fewer files and name the ones left out.
      */
     private static final long MAX_ATTACHMENT_BYTES = 18L * 1024 * 1024;
 
@@ -61,16 +54,13 @@ public class ExpertNotificationService {
     private final BranchRepository branchRepository;
 
     /**
-     * Best-effort, like every other notification: a delivery failure must not undo a derivation
-     * that already happened. Returns when the message went out, or null if it didn't — the
-     * caller stores it, and a null is what tells the analyst nobody was actually asked.
+     * Best-effort: a delivery failure must not undo the referral. Returns null when nothing went
+     * out, which is what tells the analyst nobody was actually asked.
      */
     public Instant notifyDerivation(Case caseRecord, ExpertAssessment assessment) {
         try {
             boolean repair = assessment.getProviderType() == ProviderType.SERVICIO_TECNICO;
-            // A repair shop fixes the item; it does not verify the claim. The police report, the
-            // purchase invoice and the rest are the insured's paperwork, and there is no reason for
-            // them to leave the insurer to get a screen quoted.
+            // A repair shop fixes the item, it doesn't verify the claim: the insured's paperwork stays in.
             List<SendGridAdapter.Attachment> attachments =
                     repair ? List.of() : attachmentsOf(caseRecord.getId());
             boolean sent = sendGridAdapter.send(
@@ -79,22 +69,18 @@ public class ExpertNotificationService {
                             + " · Siniestro #" + caseRecord.getId(),
                     repair ? repairBody(caseRecord, assessment) : body(caseRecord, assessment, attachments),
                     attachments);
-            // Not `Instant.now()` unconditionally: with no API key the adapter logs and returns
-            // without sending, and stamping that as notified told the analyst the expert had been
-            // asked when nobody had.
+            // With no API key the adapter returns without sending; that must not read as notified.
             return sent ? Instant.now() : null;
         } catch (Exception | LinkageError e) {
-            // LinkageError too: a missing mail SDK surfaces as NoClassDefFoundError, which is not
-            // an Exception — same trap CaseNotificationService already fell into once.
+            // LinkageError too: a missing mail SDK surfaces as NoClassDefFoundError, not an Exception.
             log.error("Could not email the expert assessment for case {}", caseRecord.getId(), e);
             return null;
         }
     }
 
     /**
-     * Everything on file, oldest first, up to the size budget. Ordered by id so that what a
-     * heavy case drops is its tail and not an arbitrary pick, and logged when it happens: sending
-     * five documents out of seven without saying so reads as "these are all of them".
+     * Oldest first up to the size budget, so a heavy case drops its tail rather than an arbitrary
+     * pick; every dropped file is logged.
      */
     private List<SendGridAdapter.Attachment> attachmentsOf(Long caseId) {
         List<SendGridAdapter.Attachment> attachments = new ArrayList<>();
@@ -162,10 +148,8 @@ public class ExpertNotificationService {
     }
 
     /**
-     * Lo mínimo para reparar o cotizar: qué equipo es, cuándo pasó y qué hay que hacerle. Sin
-     * nombre, DNI, domicilio ni el relato de la denuncia — al taller no le hace falta saber de
-     * quién es el equipo para arreglarlo, y son datos personales del asegurado (Ley 25.326).
-     * Tampoco el importe reclamado: es lo que la compañía va a pagar, y lo leería quien cotiza.
+     * Only what a repair shop needs. No name, DNI, address or narrative (personal data, Ley 25.326),
+     * and no claimed amount, which whoever quotes the repair would otherwise read.
      */
     private String repairBody(Case caseRecord, ExpertAssessment assessment) {
         return """

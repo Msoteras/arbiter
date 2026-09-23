@@ -21,33 +21,23 @@ import java.time.ZoneOffset;
 import java.util.List;
 
 /**
- * Read side of the resolution report: the cases that reached a final status, with the
- * classification and the analyst's decision that closed them.
+ * Read side of the resolution report.
  *
- * <p>It reads tables other modules own — {@code cases} and {@code case_status_history}
- * (cases-service), {@code llm_analysis} and {@code case_classification} (classification-service).
- * That is what the architecture document draws for this module: Reportes connects straight to
- * PostgreSQL, with no REST link to Expedientes (§3, and §10: "La base de datos es compartida entre
- * todos ellos"). It is also the same documented exception as cases-service's
- * {@code CaseAnalysisRepository}: every one of those tables lives in the same tenant schema, so a
- * report over a whole period is one query instead of one HTTP call per case. Read-only, plain JDBC
- * over a named set of columns and no entities, so this module never claims ownership of them.
+ * <p>Reads tables owned by other modules ({@code cases}, {@code case_status_history},
+ * {@code llm_analysis}, {@code case_classification}) directly, as the architecture document draws
+ * this module: all live in the same tenant schema, so a whole-period report is one query instead of
+ * one HTTP call per case. Read-only plain JDBC over named columns, no entities, so this module never
+ * claims ownership of those tables.
  *
- * <p>The query runs on Hibernate's connection, not on one from the pool: the table names are
- * unqualified and resolve through the {@code search_path} that {@code TenantConnectionProvider}
- * sets, which it only does on the connections Hibernate asks for (see the Javadoc of cases-service's
- * {@code CaseAnalysisRepository} for the bug that caused over there).
+ * <p>The query runs on Hibernate's connection, not one from the pool: the table names are unqualified
+ * and resolve through the {@code search_path} that {@code TenantConnectionProvider} only sets on
+ * connections Hibernate asks for.
  */
 @Repository
 @RequiredArgsConstructor
 public class ResolvedCaseRepository {
 
-    /**
-     * The analyst is whoever decided; a LAPSED case has no decision, so it falls back to whoever
-     * owned the case when it lapsed. The resolution and the waiting time are
-     * {@link CaseResolutionSql}'s, the same definitions the dashboard reads, so the two screens
-     * can't state two different averages for the same period.
-     */
+    /** The analyst is whoever decided; a LAPSED case has no decision, so it falls back to its owner. */
     private static final String RESOLVED_CASES = CaseResolutionSql.RESOLUTION_CTE + ",\n"
             + CaseResolutionSql.WAITING_CTE + """
             ,
@@ -80,11 +70,8 @@ public class ResolvedCaseRepository {
     /**
      * @param from       inclusive
      * @param to         exclusive
-     * @param branchId   branch ("ramo") of the claim's cause; null for every branch
-     * @param claimCause claim cause name, matched across branches (the same "Hurto" exists in each
-     *                   one, same as the inbox's filter); null for every cause. Combined with
-     *                   {@code branchId} it narrows to that one branch's cause, which is how the
-     *                   two filters read together on screen.
+     * @param claimCause matched by name across branches (each branch has its own "Hurto"); combined
+     *                   with {@code branchId} it narrows to that branch's cause
      */
     @Transactional(readOnly = true)
     public List<ResolutionReportRow> findResolvedBetween(Instant from, Instant to, Long branchId,
@@ -95,8 +82,7 @@ public class ResolvedCaseRepository {
                 .addValue("pausing", CaseStatus.pausingTheTerm().stream().map(Enum::name).toList());
         StringBuilder sql = new StringBuilder(RESOLVED_CASES);
         // Appended rather than `:claimCause IS NULL OR ...`: Postgres can't infer the type of a
-        // parameter that is only ever compared to NULL and rejects the statement. Same reason
-        // ClaimMetricsRepository appends its own cuts.
+        // parameter that is only ever compared to NULL and rejects the statement.
         if (branchId != null) {
             sql.append("   AND cc.branch_id = :branchId\n");
             params.addValue("branchId", branchId);
@@ -114,9 +100,7 @@ public class ResolvedCaseRepository {
     }
 
     /**
-     * The branch's name, so the report can say what it was filtered by even when the filter matched
-     * nothing — an exported document that doesn't name its own filter is indistinguishable from an
-     * unfiltered one, which for something an auditor reads is a defect, not a detail.
+     * Lets the report name its branch filter even when it matched nothing.
      *
      * @return null if no branch has that id
      */
@@ -148,10 +132,7 @@ public class ResolvedCaseRepository {
                 fullName(rs.getString("analyst_name"), rs.getString("analyst_surname")));
     }
 
-    /**
-     * A Fast Track leaves no {@code llm_analysis} row — the model never ran — so the flag on the
-     * case is the only trace of it, and it wins over any older model run.
-     */
+    /** A Fast Track leaves no {@code llm_analysis} row, so the case flag wins over any older model run. */
     private static Classification classification(boolean wasFastTrack, String recommendation) {
         if (wasFastTrack) {
             return Classification.FAST_TRACK;

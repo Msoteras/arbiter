@@ -19,11 +19,8 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 /**
- * Cuál de las coberturas de la póliza responde por el hecho denunciado.
- *
- * <p>La pregunta existe porque una póliza tiene varias: la de celulares cubre robo Y hurto, cada
- * una con su suma asegurada, su franquicia y su carencia. Antes el expediente heredaba la única
- * cobertura de la póliza, así que un hurto se evaluaba contra la cobertura de robo.
+ * Which of the policy's coverages answers for the reported claim cause. A policy has several (the
+ * phone one covers theft AND larceny), each with its own sum insured, deductible and waiting period.
  */
 class PolicyCoverageResolverTest {
 
@@ -43,7 +40,7 @@ class PolicyCoverageResolverTest {
     @Test
     void picksTheCoverageThatCoversTheDenouncedCause() {
         givenContracted(coverage(1L, "Robo de celular"), coverage(2L, "Hurto"));
-        // La cobertura de robo excluye el hurto; la de hurto, al revés.
+        // The theft coverage excludes larceny, and vice versa.
         when(rulesServiceClient.excludedClaimCauseIds(1L)).thenReturn(List.of(HURTO));
         when(rulesServiceClient.excludedClaimCauseIds(2L)).thenReturn(List.of(ROBO_VIA_PUBLICA));
 
@@ -53,10 +50,8 @@ class PolicyCoverageResolverTest {
     }
 
     /**
-     * Si el referente no cargó las exclusiones de ninguna cobertura, todas cubren todo y ninguna se
-     * descarta: se toma la primera en el orden de la compañía. Es la misma cobertura que elegía el
-     * código viejo, así que un tenant sin configurar no queda peor que antes — pero la respuesta es
-     * tan precisa como las exclusiones cargadas.
+     * With no exclusions configured every coverage covers everything, so the first one in the
+     * insurer's order wins. The answer is only as precise as the configured exclusions.
      */
     @Test
     void withNoExclusionsConfigured_fallsBackToTheCompanysOrder() {
@@ -67,7 +62,7 @@ class PolicyCoverageResolverTest {
         assertThat(resolver.resolveFor(POLICY_ID, HURTO).getDisplayOrder()).isEqualTo(1);
     }
 
-    /** El precheck de elegibilidad corre antes de "¿qué te pasó?": todavía no hay hecho generador. */
+    /** The eligibility precheck runs before a claim cause is chosen. */
     @Test
     void withNoClaimCause_takesTheFirstContractedCoverage() {
         givenContracted(coverage(1L, "Robo de celular"), coverage(2L, "Hurto"));
@@ -76,9 +71,8 @@ class PolicyCoverageResolverTest {
     }
 
     /**
-     * Ninguna cobertura cubre el hecho: no se corta acá. El expediente se crea y lo rechaza
-     * PolicyEligibilityValidator, que le explica al asegurado que no está cubierto — un 422 sobre
-     * coberturas no le diría nada.
+     * Not failing here: the case is created and PolicyEligibilityValidator rejects it, telling the
+     * insured it isn't covered. A 422 about coverages would tell them nothing.
      */
     @Test
     void whenNothingCoversTheCause_stillReturnsOneForTheEligibilityGateToReject() {
@@ -89,11 +83,9 @@ class PolicyCoverageResolverTest {
     }
 
     /**
-     * The exact shape of the Provincia bug: a Tecnología Portátil policy ended up with "Robo de
-     * celular" — a Celulares coverage — contracted alongside its real "Daño accidental" coverage,
-     * first in display_order. With no exclusion list configured for it, the old logic read that as
-     * "covers everything" and it won by order, so a Daño accidental claim was evaluated (and asked
-     * for documents) against the theft coverage of a different branch entirely.
+     * A Celulares coverage contracted on a Tecnología Portátil policy, first in display_order and
+     * with no exclusions, would "cover everything" and win by order, evaluating the claim against
+     * another branch's coverage.
      */
     @Test
     void aCoverageFromAnotherBranchNeverAnswers_evenWithNoExclusionsConfigured() {
@@ -101,7 +93,7 @@ class PolicyCoverageResolverTest {
         givenContracted(
                 coverage(1L, "Robo de celular", CELULARES_BRANCH),
                 coverage(3L, "Daño accidental", TECNOLOGIA_BRANCH));
-        // Ninguna de las dos tiene exclusiones cargadas: por displayOrder solo, ganaría la de robo.
+        // Neither has exclusions configured: by displayOrder alone, the theft one would win.
         when(rulesServiceClient.excludedClaimCauseIds(1L)).thenReturn(List.of());
         when(rulesServiceClient.excludedClaimCauseIds(3L)).thenReturn(List.of());
         when(claimCauseRepository.findById(danioAccidental))
@@ -119,23 +111,16 @@ class PolicyCoverageResolverTest {
                 .isInstanceOf(UnresolvedCaseReferenceException.class);
     }
 
-    /**
-     * El bug más visible del modelo viejo: el wizard filtraba los hechos generadores por la ÚNICA
-     * cobertura de la póliza, así que al titular de una póliza que cubre robo y hurto nunca se le
-     * ofrecía hurto. Se ofrece si al menos una cobertura responde — la intersección de las listas
-     * negras.
-     */
+    /** A cause is offered if at least one coverage answers for it: the intersection of the exclusion lists. */
     @Test
     void offersEveryCauseAtLeastOneCoverageAnswersFor() {
         givenContracted(coverage(1L, "Robo de celular"), coverage(2L, "Hurto"));
         when(rulesServiceClient.excludedClaimCauseIds(1L)).thenReturn(List.of(HURTO));
         when(rulesServiceClient.excludedClaimCauseIds(2L)).thenReturn(List.of(ROBO_VIA_PUBLICA));
 
-        // Ninguno de los dos queda excluido: cada uno lo cubre una de las coberturas.
         assertThat(resolver.excludedClaimCauseIds(POLICY_ID)).isEmpty();
     }
 
-    /** Un hecho que TODAS las coberturas excluyen sí queda fuera del selector. */
     @Test
     void excludesOnlyWhatEveryCoverageExcludes() {
         givenContracted(coverage(1L, "Robo de celular"), coverage(2L, "Hurto"));

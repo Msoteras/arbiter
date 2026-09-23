@@ -1,11 +1,7 @@
-/* Shared bits in report-tab.scss and report-params.scss; here only what this tab has of its own. */
-
 .figures {
   grid-template-columns: repeat(3, minmax(0, 1fr));
 }
 
-/* El gráfico, en su propia caja: misma superficie que las distribuciones de abajo, para que el
-   resumen se lea como un bloque y no como tres cosas sueltas sobre la tarjeta. */
 .timeline {
   margin: 0 0 var(--space-3);
   padding: var(--space-4);

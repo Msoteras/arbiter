@@ -2,10 +2,7 @@ import { ChangeDetectionStrategy, Component, computed, input } from '@angular/co
 
 type Severity = 'bajo' | 'medio' | 'alto';
 
-/**
- * Etiqueta de severidad del design system. Diferencia por PESO tipográfico + ícono
- * triangular, nunca por color (regla de diseño de Arbiter).
- */
+/** Severity is conveyed by font weight and a triangle glyph, never by color (design rule). */
 @Component({
   selector: 'app-severity-label',
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -33,7 +30,6 @@ type Severity = 'bajo' | 'medio' | 'alto';
       color: var(--text-primary);
       font-weight: var(--font-weight-bold);
     }
-    /* El triángulo va un escalón por debajo del texto: es un glifo decorativo, no contenido. */
     .tri {
       font-size: var(--font-size-2xs);
     }

@@ -5,10 +5,7 @@ import org.springframework.context.annotation.Configuration;
 
 import java.time.Clock;
 
-/**
- * A single injectable {@link Clock} so time-dependent logic (the deadline sweep) can be tested with
- * a fixed "today" instead of the wall clock.
- */
+/** Injectable so time-dependent logic (the deadline sweep) can be tested with a fixed "today". */
 @Configuration
 public class ClockConfig {
 

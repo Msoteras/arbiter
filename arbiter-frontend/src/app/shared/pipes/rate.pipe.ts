@@ -5,9 +5,7 @@ import { formatRate } from '../../core/util/percent';
 /**
  * `{{ tasa | rate }}` → `25%`, `{{ tasa | rate: 1 }}` → `14,3%`, `null` → `—`.
  *
- * Envoltorio de {@link formatRate} para templates, en lugar del pipe `percent` de Angular: el
- * locale es-AR escribe "25 %" con espacio y el equipo lo quiere pegado (ver el comentario de
- * percent.ts). Un solo lugar para esa decisión, en vez de un `.replace(' ', '')` por pantalla.
+ * Used instead of Angular's `percent` pipe because the es-AR locale renders "25 %" with a space.
  */
 @Pipe({ name: 'rate' })
 export class RatePipe implements PipeTransform {

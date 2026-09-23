@@ -4,7 +4,7 @@ import java.util.Optional;
 
 /**
  * The STOMP destination a case's conversation is broadcast on. The insurer slug is part of it
- * because case ids repeat across schemas: without it, case 16 of BBVA and of Provincia would share
+ * because case ids repeat across schemas: without it, case 16 of two different insurers would share
  * a topic. Built here so the publisher and the interceptor that authorizes cannot drift apart.
  */
 public final class CaseTopic {

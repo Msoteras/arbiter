@@ -22,13 +22,7 @@ import java.math.BigDecimal;
 import java.time.Instant;
 import java.util.List;
 
-/**
- * One row per risk-scoring run ("analisis_riesgo_expediente" in the DER) — mirrors how
- * {@link LlmAnalysis} is append-only per classification attempt. Was previously
- * columns on the old classification log; split out because the DER models risk scoring
- * and claim classification as separate concerns. case_id is a logical reference to
- * cases-service's Case, not a real FK — same criterion as LlmAnalysis.caseId.
- */
+/** Append-only, one row per scoring run, like {@link LlmAnalysis}. */
 @Entity
 @Table(name = "risk_analysis")
 @Getter
@@ -50,9 +44,7 @@ public class RiskAnalysis {
     @Column(name = "risk_band", nullable = false, length = 20)
     private RiskBand riskBand;
 
-    // jsonb, not text: that's how the column is in the schema, and with ddl-auto=validate a text
-    // here would fail the whole module's startup. The converter still produces the String;
-    // @JdbcTypeCode is what tells Hibernate how to write it.
+    // The column is jsonb; with ddl-auto=validate, mapping it as text fails startup.
     @Convert(converter = RiskBreakdownJsonConverter.class)
     @JdbcTypeCode(SqlTypes.JSON)
     @Column(name = "risk_breakdown", nullable = false, columnDefinition = "jsonb")

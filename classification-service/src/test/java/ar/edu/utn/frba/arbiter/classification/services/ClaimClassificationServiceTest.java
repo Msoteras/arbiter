@@ -26,14 +26,8 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 /**
- * What {@code processClaimClassification} records once it gives up (retries exhausted, or a
- * non-retryable exception on the first try): a case-scoped run must classify why it failed and
- * persist that onto {@code cases}, so {@code ClassificationRefreshScheduler}'s infrastructure-
- * failure recovery sweep later knows whether the case is worth auto-requeuing.
- *
- * <p>{@code @Async}/{@code @Retryable} aren't exercised here — calling the method directly runs
- * the plain body, with no Spring proxy in the way. That's enough for this: the retry policy itself
- * is framework configuration (see the annotation on the method), not logic to unit test.
+ * The failure reason recorded on {@code cases} decides whether cases-service's recovery sweep requeues
+ * the case. Called without the Spring proxy, so {@code @Async}/{@code @Retryable} don't apply.
  */
 @ExtendWith(MockitoExtension.class)
 class ClaimClassificationServiceTest {

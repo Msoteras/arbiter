@@ -2,11 +2,7 @@ import { ChangeDetectionStrategy, Component, input } from '@angular/core';
 
 import { SpinnerComponent } from '../spinner/spinner.component';
 
-/**
- * Pantalla de carga de marca: el símbolo de Arbiter girando (app-spinner) + un mensaje contextual.
- * Se usa mientras una pantalla espera TODOS sus datos, en vez de dejar cada recuadro con su propio
- * "Cargando…". Overlay a viewport completo: tapa la sidebar/topbar y el contenido.
- */
+/** Full-viewport loading overlay that covers the sidebar, topbar and content. */
 @Component({
   selector: 'app-loading',
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -29,9 +25,7 @@ import { SpinnerComponent } from '../spinner/spinner.component';
     :host {
       display: block;
     }
-    /* Pantalla de carga a viewport completo: tapa la sidebar/topbar y el contenido, centrada sobre
-       el lienzo de la app. position:fixed para cubrir todo aunque el loader se renderice dentro de
-       una pantalla puntual. */
+    /* fixed so it covers everything even when rendered inside a single screen. */
     .loading {
       position: fixed;
       inset: 0;
@@ -57,12 +51,10 @@ import { SpinnerComponent } from '../spinner/spinner.component';
       font-weight: var(--font-weight-medium);
       color: var(--text-secondary);
     }
-    /* Segunda línea, tenue: una cortesía ("Aguardá un momento") bajo el mensaje principal. */
     .sub {
       font-size: var(--font-size-sm);
       color: var(--text-muted);
     }
-    /* Los tres puntos que laten mientras carga. */
     .dots span {
       animation: arb-dots 1.2s ease-in-out infinite;
     }
@@ -90,8 +82,6 @@ import { SpinnerComponent } from '../spinner/spinner.component';
   `,
 })
 export class LoadingComponent {
-  /** Mensaje contextual, ej. "Preparando tu espacio de trabajo". */
   readonly message = input('Cargando');
-  /** Segunda línea opcional, tenue (ej. "Aguardá un momento"). */
   readonly sub = input('');
 }

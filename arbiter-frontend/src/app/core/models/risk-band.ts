@@ -1,5 +1,4 @@
-// Espejo del enum RiskBand de common-lib (ar.edu.utn.frba.arbiter.common.enums.RiskBand).
-// Ordenado de menor a mayor riesgo. Los labels (Bajo/Medio/Alto/Crítico) son cosa del front.
+// Mirrors common-lib's RiskBand enum, ordered from lowest to highest risk.
 export type RiskBand = 'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL';
 
 export const RISK_BANDS: RiskBand[] = ['LOW', 'MEDIUM', 'HIGH', 'CRITICAL'];

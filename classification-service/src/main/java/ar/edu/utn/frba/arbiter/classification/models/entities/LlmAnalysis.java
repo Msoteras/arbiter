@@ -22,17 +22,8 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
- * What the model recommended for one case ("analisis_llm" in the DER). Immutable once written:
- * together with its {@link LlmReason} rows it is the audit trail Disposición SSN 2/2023 requires
- * — the recommendation, the reasons behind it, and when it was produced.
- *
- * <p>Only exists for classifications that actually went through the LLM. A deterministic Fast
- * Track produces no row here at all, which is why the table's CHECK rejects {@code FAST_TRACK}
- * as a recommendation (decision #6: the model can never return it). Whether a case was fast
- * tracked is {@code cases.was_fast_track}, not something inferred from here.
- *
- * <p>{@code caseId} is a plain column: the case belongs to cases-service, and this module keeps
- * a historical reference, not a navigable relationship.
+ * The model's recommendation for a case; with its {@link LlmReason} rows, the immutable audit trail
+ * (Disposición SSN 2/2023). A Fast Track writes no row here: that is {@code cases.was_fast_track}.
  */
 @Entity
 @Table(name = "llm_analysis")
@@ -45,7 +36,7 @@ public class LlmAnalysis {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    /** Never {@code FAST_TRACK} — see the class comment. */
+    /** Never {@code FAST_TRACK}. */
     @Enumerated(EnumType.STRING)
     @Column(nullable = false, length = 50)
     private Classification recommendation;
@@ -65,37 +56,24 @@ public class LlmAnalysis {
     @Column(name = "analyzed_at", nullable = false)
     private Instant analyzedAt;
 
-    /** Id of the case (owned by cases-service) this analysis belongs to. */
     @Column(name = "case_id", nullable = false)
     private Long caseId;
 
-    /**
-     * Whether the insured's account matched the claim cause they declared. Null for analyses
-     * written before this check existed — absent is not {@code MATCHES}.
-     */
+    /** Null for analyses predating this check; absent is not {@code MATCHES}. */
     @Enumerated(EnumType.STRING)
     @Column(name = "cause_consistency", length = 20)
     private CauseConsistency causeConsistency;
 
-    /**
-     * The claim cause the account described, by name and not by FK: this row is immutable audit
-     * evidence and has to keep saying what the model answered even if the cause is later renamed.
-     */
+    /** By name, not FK: immutable audit evidence must survive a later rename. */
     @Column(name = "suggested_claim_cause", length = 120)
     private String suggestedClaimCause;
 
-    /** Verbatim sentence of the account backing the verdict. */
     @Column(name = "cause_evidence", columnDefinition = "TEXT")
     private String causeEvidence;
 
-    /**
-     * The factors backing the recommendation, one row each instead of a serialized list —
-     * that's what makes them queryable, which is the point of the audit requirement.
-     */
     @OneToMany(mappedBy = "analysis", cascade = CascadeType.ALL, orphanRemoval = true)
     private List<LlmReason> reasons = new ArrayList<>();
 
-    /** Keeps both sides of the association consistent when building the aggregate. */
     public void addReason(String reason) {
         LlmReason row = new LlmReason();
         row.setReason(reason);

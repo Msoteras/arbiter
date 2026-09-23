@@ -10,27 +10,20 @@ import {
 } from '../../core/models/case-document';
 
 /**
- * Agenda documental REQUERIDA por ramo + hecho generador, para el asegurado (arma el uploader) y el
- * analista (checklist de faltantes). Es la misma agenda que edita el referente en la pantalla de
- * reglas; acá se lee por NOMBRE de ramo y de hecho generador —lo único que la póliza y el expediente
- * tienen a mano; los ids numéricos solo los maneja el referente—. Si esa combinación no tiene agenda
- * configurada (o el backend está caído), se cae al catálogo completo (`CASE_DOCUMENT_TYPES`, mismo
- * vocabulario del referente) para no dejar al asegurado sin poder subir nada.
+ * Required documents per branch + claim cause, looked up by NAME (the policy and the case don't
+ * carry the numeric ids). With no configured agenda or a failed call it falls back to the full
+ * catalog, so the insured is never left unable to upload anything.
  */
 @Injectable({ providedIn: 'root' })
 export class DocumentAgendaService {
   private readonly http = inject(HttpClient);
   private readonly base = `${environment.apiBaseUrl}/rules/document-requirements`;
 
-  /** Códigos crudos de la agenda (lista vacía si no hay agenda configurada). */
+  /** Empty list when no agenda is configured. */
   getForBranch(branch: string, claimCause: string): Observable<string[]> {
     return this.http.get<string[]>(`${this.base}/for-branch`, { params: { branch, claimCause } });
   }
 
-  /**
-   * La agenda como filas {type,label} listas para el uploader / checklist. Sin agenda o backend
-   * caído ⇒ cae al catálogo completo, nunca deja la lista vacía.
-   */
   slotsForBranch(branch: string, claimCause: string): Observable<readonly CaseDocumentType[]> {
     return this.getForBranch(branch, claimCause).pipe(
       map((codes) =>

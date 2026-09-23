@@ -14,15 +14,11 @@ import java.util.Map;
 import java.util.stream.Collectors;
 
 /**
- * Folds the fraud report's rows into its {@link FraudSummary}.
- *
- * <p>In memory and not in SQL, same reasoning as {@code ResolutionSummaries}: the rows are already
- * loaded to render the screen, a period is capped at 366 days of one insurer's claims, and counting
- * them here is what guarantees the head and the table describe the same set.
+ * Folds the fraud report's rows into its {@link FraudSummary} in memory, so the head and the table
+ * always describe the same set. The rows are already loaded and the period is capped.
  */
 public final class FraudSummaries {
 
-    /** Riskiest first, then the two buckets where the score is not what flagged the case. */
     private static final List<String> ALERT_ORDER = List.of(
             RiskBand.CRITICAL.name(), RiskBand.HIGH.name(),
             FraudSummary.NOT_FLAGGED, FraudSummary.NOT_SCORED);
@@ -31,10 +27,8 @@ public final class FraudSummaries {
     }
 
     /**
-     * @param totalClaims every claim filed in the period and branch, which is the denominator of
-     *                    the rates. It deliberately ignores the alert-level filter: with "Crítico"
-     *                    selected the rate answers "qué parte del período es crítica", and a
-     *                    denominator that moved with the filter could never answer that
+     * @param totalClaims the rates' denominator; ignores the alert-level filter on purpose, so with
+     *                    "critical" selected the rate still reads as a share of the whole period
      */
     public static FraudSummary of(List<FraudReportRow> rows, long totalClaims) {
         if (rows.isEmpty() && totalClaims == 0) {
@@ -53,19 +47,11 @@ public final class FraudSummaries {
                 bySignal(rows));
     }
 
-    /**
-     * Null and not zero when there is nothing to divide: with no claims in the period the share is
-     * unknown, which is not the same as "none of them were flagged".
-     */
     private static Double rateOf(long part, long total) {
         return total == 0 ? null : (double) part / total;
     }
 
-    /**
-     * Which bucket a case falls in. A LOW or MEDIUM band is not an alert level — a low score is not
-     * an indicator of fraud — so it collapses into {@link FraudSummary#NOT_FLAGGED} instead of being
-     * reported as its band.
-     */
+    /** LOW and MEDIUM are not alert levels, so they collapse into {@link FraudSummary#NOT_FLAGGED}. */
     public static String alertLevel(RiskBand band) {
         if (band == null) {
             return FraudSummary.NOT_SCORED;
@@ -75,12 +61,7 @@ public final class FraudSummaries {
                 : FraudSummary.NOT_FLAGGED;
     }
 
-    /**
-     * Riskiest bucket first, not busiest: this distribution is read top-down to find what needs
-     * attention, so "Crítico" belongs on the first line even when it is the smallest. (The status
-     * distribution of the resolution report sorts by volume instead — there the buckets have no
-     * order of their own.)
-     */
+    /** Riskiest first, not busiest: the list is read top-down to find what needs attention. */
     private static List<MetricCount> byAlertLevel(List<FraudReportRow> rows) {
         Map<String, Long> counts = rows.stream().collect(Collectors.groupingBy(
                 row -> alertLevel(row.riskBand()), LinkedHashMap::new, Collectors.counting()));
@@ -90,7 +71,7 @@ public final class FraudSummaries {
                 .toList();
     }
 
-    /** The buckets overlap on purpose: a case with two signals is counted in both. */
+    /** Buckets overlap on purpose: a case with two signals is counted in both. */
     private static List<MetricCount> bySignal(List<FraudReportRow> rows) {
         return Arrays.stream(FraudSignal.values())
                 .map(signal -> new MetricCount(signal.name(),

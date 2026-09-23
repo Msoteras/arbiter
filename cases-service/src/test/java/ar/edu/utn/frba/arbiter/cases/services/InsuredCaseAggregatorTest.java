@@ -29,10 +29,9 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 /**
- * "Mis expedientes" cuando el asegurado es cliente de más de una aseguradora. Lo que se prueba es
- * el aislamiento entre tenants: que los esquemas recorridos salgan del claim firmado y no de otro
- * lado, y que el tenant del request quede siempre restaurado — si no, la conexión vuelve al pool
- * viendo el esquema equivocado y se lo lleva puesto el próximo request.
+ * "My cases" for an insured who is a customer of several insurers. Tests tenant isolation: schemas
+ * come only from the signed claim, and the request tenant is always restored, otherwise the
+ * connection goes back to the pool on the wrong schema and the next request inherits it.
  */
 @ExtendWith(MockitoExtension.class)
 class InsuredCaseAggregatorTest {
@@ -82,8 +81,8 @@ class InsuredCaseAggregatorTest {
         when(insurerRepository.findAllById(List.of(1L, 2L))).thenReturn(List.of(
                 insurer(1L, "arbiter_bbva", true),
                 insurer(2L, "arbiter_provincia", true)));
-        // Cada esquema devuelve lo suyo: el id 1 se repite a propósito, es autoincremental POR
-        // esquema, así que colisiona entre aseguradoras y no sirve para ordenar.
+        // Id 1 repeats on purpose: ids are sequences per schema, so they collide across insurers
+        // and can't be used for ordering.
         when(caseRepository.findAll(any(Specification.class), any(Sort.class)))
                 .thenReturn(List.of(caseReportedAt(1L, Instant.parse("2026-06-01T10:00:00Z"))))
                 .thenReturn(List.of(caseReportedAt(1L, Instant.parse("2026-07-01T10:00:00Z"))));
@@ -91,11 +90,10 @@ class InsuredCaseAggregatorTest {
         Page<InsuredCaseAggregator.InsuredCase> result = findOwnCases();
 
         assertThat(result.getTotalElements()).isEqualTo(2);
-        // Más reciente primero: es lo que el portal del asegurado espera ver arriba.
         assertThat(result.getContent().get(0).caseRecord().getReportedAt())
                 .isEqualTo(Instant.parse("2026-07-01T10:00:00Z"));
-        // Y cada uno sabe de qué aseguradora vino: con ids que colisionan, es lo único que
-        // después permite volver a abrir el correcto.
+        // Each one carries its insurer: with colliding ids, that's the only way to reopen the right
+        // one.
         assertThat(result.getContent()).extracting(InsuredCaseAggregator.InsuredCase::insurerSlug)
                 .containsExactly("provincia", "bbva");
     }
@@ -126,7 +124,7 @@ class InsuredCaseAggregatorTest {
         try {
             findOwnCases();
         } catch (RuntimeException expected) {
-            // El punto del test es el finally, no la excepción.
+            // The point of the test is the finally, not the exception.
         }
 
         assertThat(TenantContext.get()).isEqualTo(CALLER_TENANT);
@@ -148,8 +146,8 @@ class InsuredCaseAggregatorTest {
     }
 
     /**
-     * Sin DNI en el token no hay con qué atar el resultado a quien pregunta. Devolver vacío y no
-     * "todos" es, textualmente, la diferencia entre un bug y una fuga.
+     * Without a DNI there's nothing to bind the result to the caller. Returning nothing rather than
+     * everything is the difference between a bug and a leak.
      */
     @Test
     void callerWithoutDni_getsNothingRatherThanEverything() {
@@ -170,9 +168,8 @@ class InsuredCaseAggregatorTest {
     }
 
     /**
-     * La regla más importante del handoff: los esquemas salen del claim firmado. Este test la fija
-     * como contrato — si alguien agrega un parámetro de aseguradora al request y lo usa acá, esto
-     * tiene que romper.
+     * Schemas come from the signed claim only: if someone adds an insurer parameter to the request
+     * and uses it here, this must break.
      */
     @Test
     void onlySweepsSchemasFromTheSignedClaim() {
@@ -193,7 +190,7 @@ class InsuredCaseAggregatorTest {
         verify(insurerRepository).findAllById(List.of(1L));
     }
 
-    /** Filtrar por aseguradora es no visitar el otro esquema, no descartar sus filas después. */
+    /** Filtering by insurer means not visiting the other schema, not discarding its rows afterwards. */
     @Test
     void insurerFilterNarrowsTheSchemasVisited() {
         TenantContext.set(CALLER_TENANT);

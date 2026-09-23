@@ -23,9 +23,7 @@ import java.util.function.Function;
 import java.util.stream.Collectors;
 
 /**
- * The per-branch ceilings the referente configures (Anexo II attributions). Small on purpose: the
- * whole rule is "is this amount above the branch's limit", and the only thing worth centralizing
- * is that a branch with no row has no limit.
+ * The per-branch settlement ceilings the referent configures. A branch with no row has no limit.
  */
 @Service
 @RequiredArgsConstructor
@@ -35,11 +33,7 @@ public class SettlementAuthorityService {
     private final BranchRepository branchRepository;
     private final UserRepository userRepository;
 
-    /**
-     * One row per branch, including the branches with no ceiling — those come back with a null
-     * {@code maxAmount}. The referente's screen has to list every ramo it can configure, not only
-     * the ones already configured.
-     */
+    /** One row per branch, including those with no ceiling (null {@code maxAmount}). */
     @Transactional(readOnly = true)
     public List<SettlementAuthorityResponse> list() {
         Map<Long, SettlementAuthority> byBranch = authorityRepository.findAll().stream()
@@ -59,7 +53,7 @@ public class SettlementAuthorityService {
                 .toList();
     }
 
-    /** Sets or clears a branch's ceiling. A null amount deletes the row — no limit, not a zero. */
+    /** A null amount deletes the row — no limit, not a zero. */
     @Transactional
     public void set(Long branchId, SettlementAuthorityUpsertRequest request) {
         Optional<SettlementAuthority> existing = authorityRepository.findByBranchId(branchId);
@@ -77,7 +71,6 @@ public class SettlementAuthorityService {
         authorityRepository.save(authority);
     }
 
-    /** El id del que llama, resuelto contra arbiter_common.users por el mail del JWT. */
     private Long currentUserId() {
         Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
         if (authentication == null) {
@@ -89,11 +82,8 @@ public class SettlementAuthorityService {
     }
 
     /**
-     * The ceiling in force for a branch, or null when it has none.
-     *
-     * <p>Read at the moment a settlement is confirmed and frozen onto it: the referente can raise
-     * or lower this tomorrow, and a settlement already decided has to keep explaining itself with
-     * the limit that actually sent it for authorization.
+     * Null when the branch has none. Frozen onto the settlement when confirmed, so a later change
+     * to the ceiling doesn't rewrite why a past settlement needed authorization.
      */
     @Transactional(readOnly = true)
     public BigDecimal limitFor(Long branchId) {

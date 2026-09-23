@@ -10,13 +10,8 @@ import { ECharts, EChartsCoreOption } from 'echarts/core';
 import { NgxEchartsDirective } from 'ngx-echarts';
 
 /**
- * Un gráfico del tablero. Envuelve a ECharts para que los componentes no toquen la librería
- * directo: acá viven el alto (de los tokens, nunca px sueltos en la pantalla que lo usa), el
- * redimensionado y el texto alternativo.
- *
- * Un canvas no dice nada a un lector de pantalla, así que `description` es obligatorio y se
- * publica como el contenido accesible del gráfico: los mismos números que el dibujo, en palabras.
- * La pantalla que lo usa ya tiene los datos para armarla.
+ * Wraps ECharts so screens never use the library directly. A canvas says nothing to a screen
+ * reader, so `description` is required: the same figures as the chart, in words.
  */
 @Component({
   selector: 'app-chart',
@@ -54,23 +49,15 @@ import { NgxEchartsDirective } from 'ngx-echarts';
 })
 export class ChartComponent {
   readonly options = input.required<EChartsCoreOption>();
-  /** Lo que el gráfico dice, en texto. Lo lee el lector de pantalla en lugar del canvas. */
   readonly description = input.required<string>();
-  /** Para la línea de tiempo, que necesita más aire vertical que las distribuciones. */
   readonly tall = input(false);
 
   private chart: ECharts | null = null;
 
   /**
-   * El redimensionado propio no es redundante con el `autoResize` de ngx-echarts: hace falta
-   * porque la directiva **descarta a propósito el primer aviso** de su ResizeObserver ("ignore
-   * first fire on insertion"), y ese primero es justamente el que importa. El gráfico se inicializa
-   * un tick después de entrar al DOM, mientras la tarjeta todavía está animando su aparición, así
-   * que se dibuja contra un contenedor de unos pocos píxeles de ancho; el aviso que traía el ancho
-   * real llega después y se descarta, y el canvas queda del tamaño equivocado para siempre.
-   *
-   * Además la directiva reacciona dentro de un `requestAnimationFrame`, que el navegador congela
-   * en pestañas en segundo plano: ahí ni siquiera el segundo aviso alcanzaba.
+   * Not redundant with ngx-echarts' `autoResize`: the directive ignores its ResizeObserver's first
+   * fire, which is the one carrying the real width when the chart initializes inside an animating
+   * card. It also reacts inside `requestAnimationFrame`, which background tabs freeze.
    */
   constructor() {
     const host = inject(ElementRef<HTMLElement>).nativeElement as HTMLElement;
@@ -81,7 +68,7 @@ export class ChartComponent {
 
   protected onChartInit(chart: ECharts): void {
     this.chart = chart;
-    // Por si el contenedor ya creció entre que la directiva armó el gráfico y este callback.
+    // The container may have grown between the directive creating the chart and this callback.
     chart.resize();
   }
 }

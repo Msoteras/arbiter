@@ -9,8 +9,8 @@ public record ScoringConfigDto(
         /**
          * The {@code scoring_configuration} row. The server sends it on reads and <b>ignores</b> it
          * on save (there's a single config per insurer, found on its own). It travels so the engine
-         * can record on the case which configuration computed the score (D29): without it, an
-         * audited score can't be explained once the referente changes the weights.
+         * can record which configuration computed the score, which keeps it explainable after the
+         * weights change.
          */
         Long id,
         boolean enabled,

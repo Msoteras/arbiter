@@ -37,8 +37,7 @@
     @if (loading()) {
       <app-inline-loading message="Armando la vista previa…" />
     } @else if (report(); as current) {
-      <!-- The filters as the backend applied them, not as the controls read: the two can only
-           disagree when something went wrong, and that is when it has to be visible. -->
+      <!-- Filters as the backend applied them, so any mismatch with the controls is visible. -->
       <p class="applied t-note">
         {{ formatDate(current.from) }} al {{ formatDate(current.to) }} · Ramo:
         {{ current.branch ?? 'Todos' }} · Tipo de siniestro: {{ current.claimCause ?? 'Todos' }}
@@ -57,8 +56,6 @@
                 [value]="totals.totalCases"
                 [sub]="resolvedSub()"
               />
-              <!-- Over the decided cases and split into management time and waiting, same as the
-                   dashboard: a lapsed case measured the insured's silence, not the operation. -->
               <app-stat-tile
                 label="Tiempo promedio de resolución"
                 [value]="
@@ -74,8 +71,6 @@
                   le imputa a la gestión.
                 </app-info-tip>
               </app-stat-tile>
-              <!-- The bar only here: it is the only one of the three that is a proportion, and so the
-                   only one with something to be measured against. -->
               <app-stat-tile
                 label="Resueltos por Fast Track"
                 [value]="totals.fastTrackRate | rate"
@@ -98,9 +93,6 @@
 
               <section class="distribution">
                 <h3 class="t-section-label">Por tipo de siniestro</h3>
-                <!-- Anillo y no barra: acá la pregunta es qué parte del total es cada hecho
-                     generador. Una sola tinta en distintas intensidades — el hecho generador no
-                     comunica estado, así que no lleva semáforo. -->
                 <app-distribution
                   shape="ring"
                   centerLabel="expedientes"
@@ -111,8 +103,7 @@
           </section>
         }
 
-        <!-- Eleven columns don't fit a laptop: it scrolls, with the case number and the header
-             pinned so a row read at the far right still says which case it is. -->
+        <!-- Eleven columns scroll horizontally: case number and header stay pinned. -->
         <app-table
           [pinFirstColumn]="true"
           [stickyHeader]="true"

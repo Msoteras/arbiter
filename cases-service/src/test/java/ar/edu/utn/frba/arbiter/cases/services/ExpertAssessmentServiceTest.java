@@ -78,7 +78,7 @@ class ExpertAssessmentServiceTest {
     @Mock
     private ClaimsAnalystRepository claimsAnalystRepository;
 
-    /** El guardián de la máquina de estados se prueba aparte, en CaseStatusServiceTest. */
+    /** The state machine guard is tested separately, in CaseStatusServiceTest. */
     @Mock
     private CaseStatusService caseStatusService;
 
@@ -119,8 +119,8 @@ class ExpertAssessmentServiceTest {
         ExpertAssessmentResponse response = expertAssessmentService.derive(CASE_ID,
                 new DeriveToExpertRequest(3L, "Banda CRÍTICA e imagen reutilizada"), ProviderType.ESTUDIO_LIQUIDADOR);
 
-        // Copiados, no leídos por la asociación: si mañana editan el catálogo, el registro de
-        // quién peritó ESTE siniestro no cambia atrás.
+        // Copied, not read through the association: editing the catalog later must not rewrite
+        // who assessed THIS claim.
         assertThat(response.expertName()).isEqualTo("Estudio Verifica S.R.L.");
         assertThat(response.expertEmail()).isEqualTo("verifica@example.com");
         assertThat(response.reason()).isEqualTo("Banda CRÍTICA e imagen reutilizada");
@@ -132,9 +132,8 @@ class ExpertAssessmentServiceTest {
     }
 
     /**
-     * El mail es best-effort, igual que el resto de las notificaciones: que SendGrid falle no
-     * puede deshacer una derivación que ya ocurrió. Pero tiene que notarse — un expediente
-     * esperando a un perito al que nadie le avisó es invisible sin esto.
+     * The mail is best-effort: a SendGrid failure can't undo a derivation that happened. But it must
+     * show, or a case waiting on an expert nobody told would be invisible.
      */
     @Test
     void derive_recordsThatNobodyWasNotified_whenTheEmailNeverWentOut() {
@@ -153,7 +152,6 @@ class ExpertAssessmentServiceTest {
         verify(caseStatusService).transition(any(), eq(CaseStatus.PENDING_EXPERT_REPORT), any(), any());
     }
 
-    /** Un perito de otro ramo (o inactivo) no está en la lista, así que no se puede elegir. */
     @Test
     void derive_rejectsAFirmThatIsNotAvailableForTheCase() {
         Case caseRecord = caseAwaitingReview();
@@ -203,9 +201,8 @@ class ExpertAssessmentServiceTest {
     }
 
     /**
-     * El perito ya probó el hecho: pedirle al analista un segundo clic para que llegue al legajo de
-     * la persona agregaba un paso que se olvida, y olvidarlo deja a alguien sin marca con un informe
-     * que dice lo contrario.
+     * The expert already proved it: an extra manual step to reach the person's record would be
+     * forgotten, leaving someone unflagged with a report that says otherwise.
      */
     @Test
     void receiveReport_confirmingFraud_recordsItOnTheInsured() {
@@ -216,14 +213,13 @@ class ExpertAssessmentServiceTest {
 
         ArgumentCaptor<String> reason = ArgumentCaptor.forClass(String.class);
         verify(fraudRecordService).registerFromExpertReport(eq(CASE_ID), reason.capture());
-        // El motivo tiene que decir quién lo encontró y qué escribió: es lo que se lee años después
-        // al lado de la marca sobre la persona.
+        // The reason must say who found it and what they wrote: it's what gets read years later
+        // next to the flag on the person.
         assertThat(reason.getValue())
                 .contains("Estudio Verifica S.R.L.")
                 .contains("El equipo ya estaba dañado antes de la vigencia");
     }
 
-    /** Descartado o no concluyente no dejan nada sobre la persona. */
     @Test
     void receiveReport_withoutConfirmedFraud_recordsNothingOnTheInsured() {
         givenAReportCanBeFiled();
@@ -249,9 +245,8 @@ class ExpertAssessmentServiceTest {
     }
 
     /**
-     * El informe es evidencia: no se pisa. El estado del expediente no alcanza para detectarlo —
-     * un caso que ya volvió a revisión con su informe está en el mismo estado que uno que nunca
-     * se derivó.
+     * The report is evidence and is never overwritten. The case status can't detect it: a case back
+     * in review with its report is in the same status as one never derived.
      */
     @Test
     void receiveReport_rejectsASecondReport() {
@@ -296,7 +291,7 @@ class ExpertAssessmentServiceTest {
                 .satisfies(option -> assertThat(option.name()).isEqualTo("Estudio Verifica S.R.L."));
     }
 
-    /** El umbral es lo que hace que el peritaje no salga más caro que el siniestro. */
+    /** The threshold keeps the assessment from costing more than the claim. */
     @Test
     void options_isNotEligible_whenTheClaimedAmountIsBelowTheThreshold() {
         when(caseRepository.findById(CASE_ID)).thenReturn(Optional.of(caseAwaitingReview()));
@@ -307,15 +302,15 @@ class ExpertAssessmentServiceTest {
         DerivationOptionsResponse options = expertAssessmentService.options(CASE_ID, ProviderType.ESTUDIO_LIQUIDADOR);
 
         assertThat(options.eligible()).isFalse();
-        // Los peritos viajan igual: la pantalla explica por qué no se puede, y para eso necesita
-        // los dos montos, no solo el veredicto.
+        // The firms are still returned: the screen explains why it can't derive, and needs both
+        // amounts for that, not just the verdict.
         assertThat(options.firms()).hasSize(1);
         assertThat(options.minClaimedAmount()).isEqualByComparingTo("2000000");
     }
 
     /**
-     * Una aseguradora que nunca configuró la regla no deriva. Es el caso real de una compañía de
-     * garantía extendida: el peritaje cuesta más que el equipo.
+     * An insurer that never configured the rule doesn't derive (e.g. extended warranty, where the
+     * assessment costs more than the device).
      */
     @Test
     void options_isNotEligible_whenTheInsurerDoesNotDeriveThisBranch() {
@@ -331,7 +326,7 @@ class ExpertAssessmentServiceTest {
         assertThat(options.minClaimedAmount()).isNull();
     }
 
-    /** Habilitado por regla pero sin peritos cargados: igual no hay a quién derivar. */
+    /** Enabled by rule but with no firms loaded: there's still nobody to derive to. */
     @Test
     void options_isNotEligible_whenTheCatalogIsEmpty() {
         when(caseRepository.findById(CASE_ID)).thenReturn(Optional.of(caseAwaitingReview()));
@@ -341,10 +336,7 @@ class ExpertAssessmentServiceTest {
         assertThat(expertAssessmentService.options(CASE_ID, ProviderType.ESTUDIO_LIQUIDADOR).eligible()).isFalse();
     }
 
-    /**
-     * El umbral se aplica en el backend y no solo escondiendo el botón: una regla que aplica el
-     * frontend es una sugerencia.
-     */
+    /** The threshold is enforced in the backend, not just by hiding the button: a frontend rule is a suggestion. */
     @Test
     void derive_refusesWhenTheAmountIsBelowTheInsurersThreshold() {
         when(caseRepository.findById(CASE_ID)).thenReturn(Optional.of(caseAwaitingReview()));
@@ -455,9 +447,8 @@ class ExpertAssessmentServiceTest {
     }
 
     /**
-     * El presupuesto del taller va a su propia columna y NO a la del perito: los dos números
-     * contestan preguntas distintas —cuánto vale el siniestro contra cuánto sale el arreglo— y
-     * mezclarlos haría que la liquidación no supiera cuál está leyendo.
+     * The repair quote goes to its own column, NOT the expert's: one answers what the claim is worth,
+     * the other what the repair costs, and the settlement needs to know which one it's reading.
      */
     @Test
     void receiveRepairReport_storesTheQuoteInItsOwnColumn() {
@@ -484,7 +475,7 @@ class ExpertAssessmentServiceTest {
         assertThat(response.indemnifiableAmount()).isNull();
     }
 
-    /** Decir que mandaron presupuesto sin decir cuánto no contesta la pregunta que se les hizo. */
+    /** Reporting a quote without its amount doesn't answer what was asked. */
     @Test
     void receiveRepairReport_rejectsAQuoteWithNoAmount() {
         when(caseRepository.findById(CASE_ID))
@@ -498,7 +489,7 @@ class ExpertAssessmentServiceTest {
         verify(expertAssessmentRepository, never()).save(any());
     }
 
-    /** Nada se arregló, así que nadie lo cobró: un importe ahí es un error, no un presupuesto bajo. */
+    /** Nothing was repaired, so nothing was charged: an amount there is a mistake, not a low quote. */
     @Test
     void receiveRepairReport_rejectsACostOnAnIrreparableItem() {
         when(caseRepository.findById(CASE_ID))
@@ -513,9 +504,8 @@ class ExpertAssessmentServiceTest {
     }
 
     /**
-     * El taller que ya arregló cobra por el trabajo, y ese importe es lo que se liquida. Quedaba
-     * afuera porque el campo se había atado al presupuesto: un equipo reparado volvía sin número y
-     * la liquidación proponía pagar cero, el mismo callejón que tenía el irreparable.
+     * A shop that already repaired the item charges for the work, and that amount is what gets
+     * settled; without it the settlement would propose paying zero.
      */
     @Test
     void receiveRepairReport_takesTheInvoiceOfAnAlreadyRepairedItem() {
@@ -541,7 +531,7 @@ class ExpertAssessmentServiceTest {
         assertThat(response.repairCost()).isEqualByComparingTo("210000.00");
     }
 
-    /** Y puede llegar sin él: la factura del taller no siempre viene con el informe. */
+    /** The shop's invoice doesn't always come with the report. */
     @Test
     void receiveRepairReport_acceptsARepairWithNoInvoiceYet() {
         Case caseRecord = caseInStatus(CaseStatus.PENDING_REPAIR);
@@ -567,11 +557,9 @@ class ExpertAssessmentServiceTest {
     }
 
     /**
-     * Derivar es del dueño del expediente, no de cualquier analista del tenant. No es un detalle de
-     * permisos: la derivación le manda un mail a un perito externo y deja el caso en
-     * PENDING_EXPERT_REPORT, donde el analista asignado ya no puede decidir. {@code @PreAuthorize}
-     * solo valida el rol; esto valida el expediente. Mismo chequeo que aprobar/rechazar, que lo
-     * tenía desde antes — la derivación se sumó después y quedó sin él.
+     * Only the case owner may derive, not any analyst in the tenant: deriving mails an external
+     * expert and leaves the case where the assigned analyst can no longer decide.
+     * {@code @PreAuthorize} only checks the role; this checks the case, same as approve/reject.
      */
     @Test
     void derive_refusesWhenNobodyOwnsTheCase() {
@@ -602,7 +590,7 @@ class ExpertAssessmentServiceTest {
 
         verify(expertAssessmentRepository, never()).save(any());
         verify(caseStatusService, never()).transition(any(), any(), any(), any());
-        // Lo que más importa: al perito no le llegó nada. El mail sale del sistema.
+        // What matters most: nothing reached the expert. The mail leaves the system.
         verify(expertNotificationService, never()).notifyDerivation(any(), any());
     }
 
@@ -627,8 +615,8 @@ class ExpertAssessmentServiceTest {
     }
 
     private Case caseInStatus(CaseStatus status) {
-        // El branch necesita id porque el servicio filtra el catálogo de peritos por ramo, y el
-        // fixture lo arma sin id (los tests que lo usan no lo miran).
+        // The branch needs an id because the service filters the expert catalog by branch, and the
+        // fixture builds it without one.
         ClaimCause cause = CaseFixtures.claimCause("Celulares", "Robo en vía pública");
         cause.setBranch(Branch.builder().id(BRANCH_ID).name("Celulares").build());
         cause.setId(CLAIM_CAUSE_ID);
@@ -637,7 +625,7 @@ class ExpertAssessmentServiceTest {
                 .claimCause(cause)
                 .claimedAmount(CLAIMED_AMOUNT)
                 .currentStatus(CaseStates.of(status))
-                // Con dueño: derivar es del analista asignado, igual que decidir.
+                // Owned: deriving belongs to the assigned analyst, like deciding.
                 .analyst(analyst())
                 .build();
     }

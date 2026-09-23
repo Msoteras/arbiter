@@ -14,11 +14,8 @@ import org.springframework.stereotype.Component;
 import java.util.Optional;
 
 /**
- * Reads/writes the per-tenant profile table for a user's role (insured / claims_analyst
- * / insurer_referent) — name and last name moved there when {@link User} lost its own
- * columns for them. Every method here has to run with
- * {@link ar.edu.utn.frba.arbiter.auth.config.tenant.TenantContext} already pointed at
- * the right schema; none of this touches the common schema.
+ * Per-tenant profile tables for each role (insured / claims_analyst / insurer_referent). Every
+ * method needs {@code TenantContext} already pointed at the right schema.
  */
 @Component
 @RequiredArgsConstructor
@@ -42,16 +39,8 @@ public class TenantProfileService {
     }
 
     /**
-     * The insured's tenant profile, created by the bulk "dar de alta usuarios" run from the
-     * company's own directory.
-     *
-     * <p>Keyed by document, and a no-op when the row is already there <b>for this same user</b>: by
-     * then it may carry consent and onboarding state the person set themselves, which the insurer's
-     * directory knows nothing about and must not overwrite.
-     *
-     * <p>A row under a different user is a different story — see
-     * {@link InsuredProfileConflictException}. Treating it as "nothing to do" would report the
-     * person as already provisioned while pairing them with somebody else's login.
+     * Keyed by document. A no-op when the row already exists for this same user, since it may carry
+     * consent and onboarding state the insurer's directory must not overwrite.
      *
      * @return whether it created the row
      * @throws InsuredProfileConflictException if the document already belongs to another user
@@ -77,7 +66,6 @@ public class TenantProfileService {
         return true;
     }
 
-    /** Only ANALISTA_SINIESTROS gets created through the Usuarios panel today (decision #8). */
     public void createClaimsAnalyst(User user, String name, String surname, String email) {
         claimsAnalystRepository.save(ClaimsAnalyst.builder()
                 .user(user)
@@ -87,10 +75,7 @@ public class TenantProfileService {
                 .build());
     }
 
-    /**
-     * The profile FKs to {@code users} aren't {@code ON DELETE CASCADE} — deleting the
-     * user without this first fails with a constraint violation.
-     */
+    /** The profile FKs to {@code users} aren't {@code ON DELETE CASCADE}: call this before deleting the user. */
     public void deleteProfile(UserRole role, Long userId) {
         switch (role) {
             case ASEGURADO -> insuredRepository.findByUserId(userId).ifPresent(insuredRepository::delete);

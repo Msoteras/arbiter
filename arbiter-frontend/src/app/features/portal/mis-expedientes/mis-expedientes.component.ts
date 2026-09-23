@@ -42,11 +42,6 @@ type LoadState =
   | { status: 'ok'; data: ExpedienteResponse[]; totalElements: number; totalPages: number }
   | { status: 'error' };
 
-/**
- * Portal del asegurado — sus expedientes, con estado actual y próximo paso.
- * Consume GET /api/v1/cases?insuredId=… (el filtro por asegurado del backend);
- * la identidad sale de InsuredSessionService (stub hasta integrar Auth0).
- */
 @Component({
   selector: 'app-mis-expedientes',
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -87,10 +82,7 @@ export class MisExpedientesComponent {
     { initialValue: '' },
   );
 
-  /**
-   * Las compañías salen de sus pólizas y no de los expedientes ya cargados: con la vista paginada,
-   * la página que estás mirando puede no tener ninguno de la otra.
-   */
+  // Insurers come from policies, not loaded cases: a page may not include every insurer.
   private readonly policies = toSignal(
     toObservable(this.session.insuredId).pipe(
       switchMap((insuredId) => (insuredId ? this.policies$(insuredId) : of<Policy[]>([]))),
@@ -103,7 +95,6 @@ export class MisExpedientesComponent {
     return [...byId].map(([value, label]) => ({ value, label }));
   });
 
-  /** Con una sola compañía el filtro es ruido: todos los siniestros son de ella. */
   protected readonly showInsurerFilter = computed(() => this.insurerOptions().length > 1);
 
   private readonly params = computed(() => ({
@@ -140,8 +131,7 @@ export class MisExpedientesComponent {
     { initialValue: { status: 'idle' } as LoadState },
   );
 
-  // Con las vencidas: el filtro recorta siniestros históricos, y una póliza que venció el año
-  // pasado dejó siniestros que siguen en la lista.
+  // Includes expired policies: their past claims are still on the list.
   private policies$(insuredId: string) {
     return this.policyService
       .listByInsured(insuredId, true)
@@ -232,7 +222,6 @@ export class MisExpedientesComponent {
     return c.createdAt ? new Date(c.createdAt).toLocaleDateString('es-AR') : '—';
   }
 
-  /** La que filtra el rango de fechas, así que tiene que estar a la vista. */
   protected fechaHecho(c: ExpedienteResponse): string {
     return c.eventDate ? new Date(c.eventDate).toLocaleDateString('es-AR') : '—';
   }

@@ -3,10 +3,8 @@ package ar.edu.utn.frba.arbiter.classification.config;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 
 /**
- * There is no on/off switch here on purpose: reuse detection is part of what the analysis IS,
- * not an optional extra. A switch also made a second flag lie — with embeddings off nothing ever
- * matched internally, and the web escalation (which triggers precisely on "no internal match")
- * would have sent every claim image to a third party.
+ * No on/off switch on purpose: with embeddings off nothing would match internally, and the web
+ * escalation (triggered on "no internal match") would send every claim image to a third party.
  */
 @ConfigurationProperties(prefix = "arbiter.embedding")
 public record EmbeddingProperties(

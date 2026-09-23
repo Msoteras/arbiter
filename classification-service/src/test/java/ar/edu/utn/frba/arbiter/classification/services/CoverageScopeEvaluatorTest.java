@@ -17,16 +17,12 @@ import java.util.Map;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-/**
- * D9 · alcance de la cobertura: a quién alcanza ({@code covers_family_group}) y si le queda saldo
- * ({@code claim_exhausts_coverage}). What matters most to test is when the rule does <b>not</b>
- * fire: these are rules that can cost someone their coverage.
- */
+/** What matters most is when these rules do <b>not</b> fire: they can cost someone their coverage. */
 class CoverageScopeEvaluatorTest {
 
     private static final String POLICY = "POL-CEL-2024-001";
 
-    /** Las dos coberturas de una póliza de celulares: cada una con su propia suma asegurada. */
+    /** A cellphone policy's two coverages, each with its own sum insured. */
     private static final String ROBO = "Robo de celular";
     private static final String HURTO = "Hurto";
 
@@ -134,10 +130,7 @@ class CoverageScopeEvaluatorTest {
         assertThat(result.blocksFastTrack()).isFalse();
     }
 
-    /**
-     * The most important one: if the document doesn't say whose device it was, the rule sits out.
-     * Que el papel no lo diga no puede costarle la cobertura a nadie.
-     */
+    /** The most important one: if no document says whose device it was, the rule sits out. */
     @Test
     void anUnknownAffectedParty_doesNotBlock() {
         CoverageScopeEvaluator.Result result = evaluator.evaluate(
@@ -146,7 +139,6 @@ class CoverageScopeEvaluatorTest {
         assertThat(result.blocksFastTrack()).isFalse();
     }
 
-    /** With no documents read there's no data either: the rule can't be evaluated. */
     @Test
     void withoutDocuments_theFamilyGroupRuleDoesNotParticipate() {
         CoverageScopeEvaluator.Result result = evaluator.evaluate(
@@ -155,7 +147,6 @@ class CoverageScopeEvaluatorTest {
         assertThat(result.blocksFastTrack()).isFalse();
     }
 
-    /** With the column unconfigured the rule doesn't exist for that coverage. */
     @Test
     void withoutTheColumnConfigured_theRuleDoesNotParticipate() {
         CoverageScopeEvaluator.Result result = evaluator.evaluate(
@@ -175,7 +166,7 @@ class CoverageScopeEvaluatorTest {
         assertThat(result.reasons()).anyMatch(r -> r.contains("ya fue consumida"));
     }
 
-    /** Un siniestro rechazado no consumió nada. */
+    /** A rejected claim consumed nothing. */
     @Test
     void aRejectedPriorClaim_doesNotExhaustTheCoverage() {
         CoverageScopeEvaluator.Result result = evaluator.evaluate(
@@ -184,7 +175,6 @@ class CoverageScopeEvaluatorTest {
         assertThat(result.blocksFastTrack()).isFalse();
     }
 
-    /** Coverage is exhausted per policy: a claim on another policy of the same insured doesn't count. */
     @Test
     void aSettledClaimOnAnotherPolicy_doesNotExhaustThisCoverage() {
         CoverageScopeEvaluator.Result result = evaluator.evaluate(
@@ -201,7 +191,7 @@ class CoverageScopeEvaluatorTest {
         assertThat(result.blocksFastTrack()).isFalse();
     }
 
-    // ─── suma asegurada (monto acumulado) ──────────────────────────────────────────
+    // ─── sum insured (accumulated amount) ─────────────────────────────────────────
 
     @Test
     void settledClaimsPlusThisOne_exceedingTheInsuredAmount_blocks() {
@@ -224,12 +214,7 @@ class CoverageScopeEvaluatorTest {
         assertThat(result.blocksFastTrack()).isFalse();
     }
 
-    /**
-     * El motivo del cambio: la suma asegurada es de la COBERTURA y no hay tope agregado de póliza
-     * (confirmado con la analista, 01/09/2026). Un robo liquidado no consume nada del techo de
-     * hurto. Antes se sumaba todo lo liquidado de la póliza contra el techo de una sola cobertura,
-     * y esto reportaba la cobertura agotada sin que se hubiera denunciado un solo hurto.
-     */
+    /** The sum insured is per coverage (no policy-wide ceiling): a settled robbery doesn't consume the theft one. */
     @Test
     void settledClaimsOnAnotherCoverage_doNotConsumeThisOne() {
         CoverageScopeEvaluator.Result result = evaluator.evaluate(
@@ -240,11 +225,7 @@ class CoverageScopeEvaluatorTest {
         assertThat(result.blocksFastTrack()).isFalse();
     }
 
-    /**
-     * Un previo sin cobertura imputada por la compañía se saltea en vez de cargarlo contra la
-     * cobertura equivocada: la regla solo bloquea Fast Track y le da un motivo al analista, y un
-     * motivo falso es peor que uno que falta.
-     */
+    /** A prior claim with no recorded coverage is skipped: a false reason is worse than a missing one. */
     @Test
     void priorClaimsWithNoCoverageOnRecord_areLeftOut() {
         CoverageScopeEvaluator.Result result = evaluator.evaluate(
@@ -255,7 +236,7 @@ class CoverageScopeEvaluatorTest {
         assertThat(result.blocksFastTrack()).isFalse();
     }
 
-    /** Un siniestro rechazado no consumió nada de la suma asegurada. */
+    /** A rejected claim consumed none of the sum insured. */
     @Test
     void rejectedPriorClaims_doNotCountTowardTheInsuredAmount() {
         CoverageScopeEvaluator.Result result = evaluator.evaluate(
@@ -266,7 +247,7 @@ class CoverageScopeEvaluatorTest {
         assertThat(result.blocksFastTrack()).isFalse();
     }
 
-    /** La suma asegurada es por póliza: lo liquidado en otra póliza no cuenta acá. */
+    /** What was settled on another policy doesn't count here. */
     @Test
     void settledClaimsOnAnotherPolicy_doNotCountTowardThisInsuredAmount() {
         CoverageScopeEvaluator.Result result = evaluator.evaluate(
@@ -277,7 +258,7 @@ class CoverageScopeEvaluatorTest {
         assertThat(result.blocksFastTrack()).isFalse();
     }
 
-    /** Sin `insuredAmount` no hay contra qué comparar: la regla no participa. */
+    /** Without `insuredAmount` there's nothing to compare against: the rule doesn't take part. */
     @Test
     void withoutInsuredAmount_theRuleDoesNotParticipate() {
         CoverageScopeEvaluator.Result result = evaluator.evaluate(
@@ -288,7 +269,7 @@ class CoverageScopeEvaluatorTest {
         assertThat(result.blocksFastTrack()).isFalse();
     }
 
-    /** Sin `claimedAmount` en el reclamo actual, tampoco hay nada que sumar todavía. */
+    /** Without the current `claimedAmount` there's nothing to add either. */
     @Test
     void withoutClaimedAmount_theRuleDoesNotParticipate() {
         CoverageScopeEvaluator.Result result = evaluator.evaluate(
@@ -299,10 +280,8 @@ class CoverageScopeEvaluatorTest {
         assertThat(result.blocksFastTrack()).isFalse();
     }
 
-    // ─── rastro auditable (SSN 2/2023) ────────────────────────────────────────────
-    // Las dos reglas frenaban el Fast Track sin dejar fila en rule_result, así que el analista
-    // veía el motivo en prosa pero no la regla. Van sin ruleId a propósito: son columnas de
-    // `coverage`, no filas de `insurer_rule`.
+    // ─── audit trail ──────────────────────────────────────────────────────────────
+    // No ruleId on purpose: these are `coverage` columns, not `insurer_rule` rows.
 
     @Test
     void anExhaustedCoverage_leavesAnAuditableFailure() {
@@ -317,7 +296,7 @@ class CoverageScopeEvaluatorTest {
         });
     }
 
-    /** El punto de la historia: que se vean las que pasaron, no solo las que fallaron. */
+    /** Passes are recorded too, not only failures. */
     @Test
     void aCoverageWithBalanceLeft_leavesAnAuditablePass() {
         CoverageScopeEvaluator.Result result = evaluator.evaluate(
@@ -349,11 +328,7 @@ class CoverageScopeEvaluatorTest {
                 .containsExactly("COVERS_FAMILY_GROUP", "PASS", "affectedParty=TITULAR");
     }
 
-    /**
-     * Sin evaluar es un tercer estado y no escribe fila: que ningún papel diga de quién era el
-     * equipo no puede contar ni a favor ni en contra. Un PASS acá diría que se verificó algo que
-     * nadie verificó.
-     */
+    /** Unevaluated is a third state and writes no row: a PASS would claim something was verified. */
     @Test
     void anUnknownInjuredParty_leavesNoTraceAtAll() {
         CoverageScopeEvaluator.Result result = evaluator.evaluate(
@@ -363,7 +338,7 @@ class CoverageScopeEvaluatorTest {
         assertThat(result.findings()).isEmpty();
     }
 
-    /** Regla apagada, regla que no se evalúa: tampoco deja rastro. */
+    /** A disabled rule leaves no row either. */
     @Test
     void rulesTurnedOff_leaveNoTrace() {
         CoverageScopeEvaluator.Result result = evaluator.evaluate(

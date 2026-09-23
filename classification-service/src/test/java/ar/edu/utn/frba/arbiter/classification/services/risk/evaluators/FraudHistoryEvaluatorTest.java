@@ -21,11 +21,7 @@ class FraudHistoryEvaluatorTest {
 
     private final FraudHistoryEvaluator evaluator = new FraudHistoryEvaluator();
 
-    /**
-     * Sin regla configurada el factor igual se evalúa, con la ventana por defecto: que el
-     * antecedente puntúe o no lo decide la aseguradora incluyendo el factor en su scoring, no un
-     * segundo interruptor. "Sin configurar" tampoco puede significar "cuenta para siempre".
-     */
+    /** With no rule configured the factor still runs, with the default window. */
     @Test
     void withNoRuleConfiguredItStillGradesWithTheDefaultWindow() {
         Contribution reciente = evaluator.evaluate(context(sinRegla(), expertBacked(monthsAgo(1))));
@@ -53,7 +49,7 @@ class FraudHistoryEvaluatorTest {
         assertThat(contribution.rationale()).contains("expediente 77");
     }
 
-    /** The window is the whole point: an old fraud stops counting without anyone clearing it. */
+    /** An old fraud stops counting without anyone clearing it. */
     @Test
     void expertBackedRecordPastTheWindowStopsCounting() {
         Contribution contribution = evaluator.evaluate(
@@ -63,10 +59,7 @@ class FraudHistoryEvaluatorTest {
         assertThat(contribution.score()).isEqualTo(0.0);
     }
 
-    /**
-     * The decision this factor exists to protect: a suspicion the analyst wrote down never moves
-     * the score, or the score of today would be feeding the score of tomorrow.
-     */
+    /** An analyst-declared suspicion never moves the score, or today's score would feed tomorrow's. */
     @Test
     void analystDeclaredRecordNeverScores() {
         Contribution contribution = evaluator.evaluate(
@@ -140,8 +133,7 @@ class FraudHistoryEvaluatorTest {
     }
 
     private Instant monthsAgo(int months) {
-        // 31 días por mes: se aleja del borde en vez de acercarse, así el caso "vencido" queda
-        // vencido y el "vigente" vigente sin que el test dependa de qué día se corre.
+        // 31 days per month keeps both cases away from the edge, whatever day the test runs.
         return Instant.now().minus(31L * months, ChronoUnit.DAYS);
     }
 }

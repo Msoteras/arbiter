@@ -18,8 +18,6 @@
   </header>
 
   @if (needsIdentity()) {
-    <!-- Identificación provisoria: cuando se integre Auth0, esto desaparece
-         y la identidad sale del JWT. -->
     <app-card class="identify-card" heading="Identificate para ver tus siniestros">
       <p class="t-body muted">
         Ingresá tu número de documento o identificación de asegurado (el mismo que usaste al
@@ -71,8 +69,6 @@
     </div>
 
     @if (loading()) {
-      <!-- Carga en el lugar del listado: la barra superior del portal queda visible; no se tapa
-           la pantalla entera (esa se reserva al arranque login → home). -->
       <app-inline-loading message="Cargando tus siniestros…" />
     } @else if (hasError()) {
       <app-card>
@@ -91,8 +87,7 @@
       </app-card>
     } @else {
       <ul class="case-list" @listStagger>
-        <!-- El track combina aseguradora + id: el id solo se repite entre compañías, y con dos
-           siniestros "#4" Angular reusaría la misma fila para los dos. -->
+        <!-- Case ids repeat across insurers, so the track key needs both. -->
         @for (c of cases(); track c.insurerSlug + '-' + c.id) {
           <li>
             <a
@@ -101,8 +96,6 @@
               [queryParams]="c.insurerSlug ? { insurer: c.insurerSlug } : {}"
             >
               <div class="case-head">
-                <!-- La aseguradora va al lado del número porque el número se repite entre
-                   compañías: "Siniestro #4" puede ser de dos pólizas distintas. -->
                 <span class="case-id mono">
                   Siniestro #{{ c.id }}
                   @if (c.insurerName) {

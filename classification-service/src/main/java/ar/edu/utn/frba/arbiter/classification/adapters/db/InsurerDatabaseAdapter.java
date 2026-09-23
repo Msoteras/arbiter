@@ -20,28 +20,13 @@ import java.time.LocalDateTime;
 import java.util.List;
 
 /**
- * Reads policies and insured history from the "BD Aseguradora" — the insurer's system of record,
- * integrated as separate schemas inside the same Postgres instance (see arch doc, decision #10).
- * One schema per insurer ({@code aseguradora_bbva}, {@code aseguradora_provincia}), resolved from
- * the request's tenant via {@link InsurerDbSchema}: the {@code search_path} only covers Arbiter's
- * own schemas, so every query qualifies this one explicitly.
+ * Reads policies and insured history from the insurer's database, one schema per insurer resolved
+ * via {@link InsurerDbSchema}. The {@code search_path} only covers Arbiter's schemas, so every query
+ * qualifies the insurer schema explicitly. History is tenant-scoped on purpose: another insurer's
+ * claims would be a leak. Enabled by the {@code insurer-db} profile; otherwise the mock is used.
  *
- * <p>Scoped to the current tenant on purpose, history included: an insurer's database holds its
- * own claims, and showing it another company's would be a leak, not a richer history. The
- * cross-insurer view is Arbiter's (see cases-service's portal), not the insurer's.
- *
- * <p>Active only under the {@code insurer-db} profile and marked {@code @Primary}, so it
- * shadows {@link ar.edu.utn.frba.arbiter.classification.adapters.mock.MockInsurerAdapter}
- * when enabled and leaves it untouched otherwise (tests keep the in-memory mock).
- *
- * <p>Mapping notes (the DTO is flatter than the schema):
- * <ul>
- *   <li>policy-level {@code insuredAmount}/{@code deductible} come from the primary
- *       coverage (lowest {@code orden}); the deductible is derived from
- *       {@code franquicia_pct} as an absolute amount.</li>
- *   <li>{@code upToDate} maps from {@code estado_pago = 'AL_DIA'} with no outstanding debt.</li>
- *   <li>{@code applicableClauses} is empty: the seed has no clause catalogue yet.</li>
- * </ul>
+ * <p>Policy-level {@code insuredAmount}/{@code deductible} come from the primary coverage (lowest
+ * {@code orden}), with the deductible derived from {@code franquicia_pct}.
  */
 @Component
 @Primary
@@ -51,10 +36,7 @@ public class InsurerDatabaseAdapter implements InsurerAdapter {
 
     private final JdbcTemplate jdbc;
 
-    /**
-     * The insurer database of the tenant this request (or async classification) runs for. Read per
-     * call rather than injected: the bean is a singleton and the tenant changes per request.
-     */
+    /** Resolved per call: the bean is a singleton and the tenant changes per request. */
     private static String schema() {
         return InsurerDbSchema.forTenant(TenantContext.get());
     }
@@ -153,8 +135,7 @@ public class InsurerDatabaseAdapter implements InsurerAdapter {
                         .date(rs.getObject("fecha_ocurrencia", LocalDate.class))
                         .policyNumber(rs.getString("numero"))
                         .branch(rs.getString("rama"))
-                        // LEFT JOIN: un histórico sin cobertura imputada llega null y la regla de
-                        // agotamiento lo saltea, en vez de cargarlo contra la cobertura equivocada.
+                        // Null when no coverage was recorded: the exhaustion rule skips it rather than guessing.
                         .coverageName(rs.getString("cobertura"))
                         .claimCause(rs.getString("causa"))
                         .status(rs.getString("estado_resolucion"))
@@ -167,9 +148,6 @@ public class InsurerDatabaseAdapter implements InsurerAdapter {
                 .filter(a -> a != null)
                 .reduce(BigDecimal.ZERO, BigDecimal::add);
 
-        // ::date acá porque customerSince es de granularidad diaria: no hace falta la hora, y
-        // castear en SQL evita tener que cambiar el tipo de InsuredHistory.customerSince por un
-        // cambio que no le importa a este campo.
         LocalDate customerSince = jdbc.query(
                         """
                         SELECT MIN(p.vigencia_desde)::date AS since
@@ -197,7 +175,6 @@ public class InsurerDatabaseAdapter implements InsurerAdapter {
         return "AL_DIA".equalsIgnoreCase(estadoPago) && noDebt;
     }
 
-    /** Turns the coverage's percentage franchise into an absolute amount over its insured sum. */
     private static BigDecimal absoluteDeductible(BigDecimal insuredSum, BigDecimal franchisePct) {
         if (insuredSum == null || franchisePct == null) {
             return null;

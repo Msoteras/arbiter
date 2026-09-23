@@ -7,7 +7,7 @@ import {
   inject,
   signal,
 } from '@angular/core';
-import { ActivatedRoute, Params, RouterLink } from '@angular/router';
+import { Params, RouterLink } from '@angular/router';
 import { Observable } from 'rxjs';
 
 import { estadoLabel, estadoTone } from '../../../core/models/estado';
@@ -46,14 +46,10 @@ import { FraudReportService } from './fraud-report.service';
 import { ReportActionsComponent } from './report-actions.component';
 import { ReportFile } from './report-download';
 import { ReportFiltersComponent } from './report-filters.component';
-import { ReportFiltersStore } from './report-filters.store';
 import { ReportTab } from './report-tab';
 import { ReportFormat } from './resolution-report';
 
-/**
- * Alert level → traffic light. Only the two bands that alert carry color; the other two buckets
- * are not alert levels (the score didn't flag the case, or never ran) and stay grey.
- */
+/** Only the two alerting bands carry color; "not flagged" and "not scored" stay grey. */
 const ALERT_TONES: Record<string, StatusTone> = {
   CRITICAL: 'danger',
   HIGH: 'risk',
@@ -61,17 +57,9 @@ const ALERT_TONES: Record<string, StatusTone> = {
   NOT_SCORED: 'neutral',
 };
 
-/** The only two bands that are an alert, and so the only ones the filter offers. */
+/** The only alerting bands, and so the only ones the filter offers. */
 const ALERT_BANDS: RiskBand[] = ['HIGH', 'CRITICAL'];
 
-/**
- * Fraud report: the claims filed in the period that carry at least one signal — a high risk score,
- * the same insured claiming more than once in the trailing year, or a forensic finding on the
- * images. The alert level is the engine's risk band, the same one the case detail's gauge shows.
- *
- * <p>Period and branch come from {@link ReportFiltersStore} (shared with the resolution tab); the
- * risk band is this report's own filter.
- */
 @Component({
   selector: 'app-fraud-report',
   imports: [
@@ -105,18 +93,17 @@ export class FraudReportComponent extends ReportTab<
   private readonly locale = inject(LOCALE_ID);
 
   protected readonly riskBand = signal('');
-  /** No Low or Medium: filtering a fraud report by "alert = Low" means nothing. */
   protected readonly riskBandOptions: SelectOption[] = ALERT_BANDS.map((band) => ({
     value: band,
     label: riskBandLabel(band),
   }));
 
-  /** From the backend, not added up here: the head and the table must describe the same set. */
+  /** From the backend, not summed here, so the header and the table describe the same set. */
   protected readonly summary = computed(() => this.report()?.summary ?? null);
 
   private readonly previousSummary = computed(() => this.report()?.previousSummary ?? null);
 
-  /** Pure volume, no verdict: more or fewer claims filed isn't better or worse on its own. */
+  /** Volume only: no better/worse verdict. */
   protected readonly totalClaimsTrend = computed(() => {
     const summary = this.summary();
     const previous = this.previousSummary();
@@ -131,10 +118,7 @@ export class FraudReportComponent extends ReportTab<
     });
   });
 
-  /**
-   * No verdict either: a higher share with at least one signal can mean the scoring is catching
-   * more, or that more denuncias actually warrant a look — it isn't this screen's call to say which.
-   */
+  /** No verdict: a higher share may mean better detection or more suspicious claims. */
   protected readonly flaggedRateTrend = computed(() => {
     const summary = this.summary();
     const previous = this.previousSummary();
@@ -150,7 +134,7 @@ export class FraudReportComponent extends ReportTab<
     });
   });
 
-  /** Same reasoning as {@link flaggedRateTrend}: more coinciding signals isn't good or bad news. */
+  /** No verdict, same as {@link flaggedRateTrend}. */
   protected readonly multiSignalTrend = computed(() => {
     const summary = this.summary();
     const previous = this.previousSummary();
@@ -166,11 +150,9 @@ export class FraudReportComponent extends ReportTab<
     });
   });
 
-  // "Fraude determinado" carries no trend on purpose: it lags (the most recent flagged cases are
-  // still open), so a previous period read the same way would also under-count, and the difference
-  // between two under-counts isn't a trend — see FraudSummary.fraudRate's own javadoc.
+  // "Fraude determinado" has no trend on purpose: it lags (see FraudSummary.fraudRate), and the
+  // difference between two under-counts isn't a trend.
 
-  /** The alert level does communicate state: same traffic light as each row's gauge. */
   protected readonly alertItems = computed<DistributionItem[]>(() =>
     (this.summary()?.byAlertLevel ?? []).map((bucket) => ({
       label: alertLevelLabel(bucket.label),
@@ -180,9 +162,8 @@ export class FraudReportComponent extends ReportTab<
   );
 
   /**
-   * Which signal fired, neutral like the claim cause: a signal is a reason, not a level. The
-   * buckets overlap (a case with two signals counts in both), so the shares are over the flagged
-   * cases and not over the sum of the buckets — the distribution's own share would read 100% split.
+   * Neutral tone: a signal is a reason, not a level. Buckets overlap, so shares are over flagged
+   * cases, not over the sum of buckets.
    */
   protected readonly signalItems = computed<DistributionItem[]>(() =>
     (this.summary()?.bySignal ?? []).map((bucket) => ({
@@ -203,7 +184,7 @@ export class FraudReportComponent extends ReportTab<
 
   constructor() {
     super();
-    // Only a band the filter offers: anything else in a hand-typed link reads as every band.
+    // Anything the filter doesn't offer (hand-typed link) means every band.
     const band = this.route.snapshot.queryParamMap.get('riskBand') as RiskBand | null;
     this.riskBand.set(band !== null && ALERT_BANDS.includes(band) ? band : '');
     this.start();

@@ -27,9 +27,6 @@
 </header>
 
 @if (needsDocs()) {
-  <!-- Lo accionable va primero: es la única razón por la que el asegurado llegó a esta pantalla,
-       y antes quedaba después de la lista de lo ya enviado — había que scrollear pasando algo
-       que no pedía ninguna acción para llegar a lo que sí. -->
   <app-card heading="Documentos requeridos">
     <app-doc-upload
       [caseId]="caseId"

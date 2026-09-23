@@ -1,56 +1,35 @@
 -- =============================================================================
 -- Arbiter — DB initialization script (multi-tenant by schema)
 --
--- Source of truth: docs/arbiter der.mdj (36 entities, 54 relationships). Table and
--- column names are the English translation of the DER, following the project's code
--- convention (identifiers in English, Spanish only in business prose).
+-- 48 tables: 10 shared + 33 per tenant + 5 per simulated insurer DB. Risk factors are
+-- not a table: their codes live in classification-service's RiskFactorIds.
 --
--- One DER entity is deliberately NOT created:
---   · factor — drawn without types or PK; it is an enum, not a table (the factor
---              codes live in classification-service's RiskFactorIds).
--- That leaves 34 tables: 10 shared + 24 per insurer.
---
--- `regla` is not created either: the DER still draws it, but there is no platform-wide
--- rule — every rule belongs to an insurer, so regla_aseguradora is the only one.
--- historial_regla_aseguradora and resultado_regla point at it.
---
--- Materializes architecture decision #10: one PostgreSQL instance, one schema per
--- insurer. NO tenant discriminator column anywhere in a tenant schema — the schema is
--- the tenant, and `insurer` exists only in the shared schema, as the registry that
--- says which tenants exist and which schema to route to.
---
--- Column sizes come from the DER where it states one. Where it only gives the base
--- type, a reasonable width is chosen here and flagged as such.
+-- One schema per insurer, with NO tenant discriminator column anywhere in a tenant
+-- schema: the schema is the tenant, and `insurer` exists only in the shared schema, as
+-- the registry that says which tenants exist and which schema to route to.
 --
 -- Schema layout:
 --   arbiter_common         Tenant registry, identity, RBAC, global catalogs.
 --   arbiter_bbva           Tenant schema — BBVA Seguros.
 --   arbiter_provincia      Tenant schema — Provincia Seguros.
---   aseguradora_bbva       Simulated "BD Aseguradora" (external system) for BBVA.
---   aseguradora_provincia  Idem for Provincia.
+--   aseguradora_bbva       Simulated insurer DB (external system) for BBVA.
+--   aseguradora_provincia  Same, for Provincia.
 --
--- REQUIRED runtime configuration — the services must resolve the tenant schema per
--- request. Set the connection's search_path to "<tenant>, arbiter_common, public" so
--- unqualified table names resolve tenant-first and fall back to the shared catalogs.
--- With that in place ddl-auto MUST be `validate`, never `update`: on `update`
--- Hibernate recreates the arbiter_common tables inside each tenant schema as soon as
--- it fails to find them qualified.
+-- Services must set the connection's search_path to "<tenant>, arbiter_common, public"
+-- so unqualified names resolve tenant-first. With that, ddl-auto MUST be `validate`:
+-- `update` recreates the arbiter_common tables inside each tenant schema.
 --
 -- Usage (Railway):  psql "$DATABASE_URL" -f db/init-multitenant.sql
 -- Usage (local):    docker exec -i arbiter-postgres-1 psql -U arbiter -d arbiter < db/init-multitenant.sql
 -- =============================================================================
 
--- Creates only — no DROP anywhere. This script targets an empty database and fails
--- loudly (rather than silently wiping data) if run against one that isn't.
+-- Creates only, no DROP: targets an empty database and fails loudly on a populated one.
 --
--- pgvector lives in `public` so every tenant schema can reference the `vector` type
--- through the search_path fallback. Extensions are database-wide objects: installing
--- it once here replaces the runtime CREATE EXTENSION in PgVectorConfig.
+-- Extensions live in `public` so every tenant schema reaches them through the
+-- search_path fallback (the `vector` type, and unaccent called unqualified by
+-- CaseSpecifications.freeText).
 CREATE EXTENSION IF NOT EXISTS vector SCHEMA public;
 
--- unaccent lives in `public` too: la búsqueda de expedientes (CaseSpecifications.freeText)
--- lo llama sin calificar para que "julian perez" matchee "Julián Pérez", y resuelve por el
--- mismo fallback del search_path del tenant que usa el tipo `vector`.
 CREATE EXTENSION IF NOT EXISTS unaccent SCHEMA public;
 
 BEGIN;
@@ -63,39 +42,37 @@ CREATE SCHEMA arbiter_common;
 -- are identical for every insurer.
 -- =============================================================================
 
--- ─── insurer / "aseguradora" ─────────────────────────────────────────────────
--- The tenant registry. Must be shared: it is what the tenant resolver reads before
--- it knows the tenant. schema_name is the routing key.
+-- ─── insurer ─────────────────────────────────────────────────────────────────
+-- Shared because the tenant resolver reads it before it knows the tenant.
+-- schema_name is the routing key.
 CREATE TABLE arbiter_common.insurer (
     id              BIGINT GENERATED BY DEFAULT AS IDENTITY PRIMARY KEY,
-    legal_name      VARCHAR(200) NOT NULL,          -- razon_social
-    name            VARCHAR(150) NOT NULL,          -- nombre
-    tax_id          VARCHAR(13)  NOT NULL UNIQUE,   -- cuit
+    legal_name      VARCHAR(200) NOT NULL,
+    name            VARCHAR(150) NOT NULL,
+    tax_id          VARCHAR(13)  NOT NULL UNIQUE,
     active          BOOLEAN      NOT NULL DEFAULT TRUE,
-    schema_name     VARCHAR(60)  NOT NULL UNIQUE    -- nombre_esquema
+    schema_name     VARCHAR(60)  NOT NULL UNIQUE
 );
 
--- ─── users / "usuario" ───────────────────────────────────────────────────────
--- Centralized identity backed by Auth0 (auth0_sub is the subject claim). Shared
--- because login happens before the tenant is known. Per the DER the user carries no
--- name: those live on the role profiles (insured / claims_analyst / insurer_referent),
--- which are per tenant.
+-- ─── users ───────────────────────────────────────────────────────────────────
+-- Identity backed by Auth0. Shared because login happens before the tenant is known;
+-- names live on the per-tenant role profiles (insured, claims_analyst, insurer_referent).
 CREATE TABLE arbiter_common.users (
     id                      BIGINT GENERATED BY DEFAULT AS IDENTITY PRIMARY KEY,
-    -- Per the DER only token_invitacion is UNIQUE. Worth revisiting: auth0_sub and
-    -- email are both login keys, and without a constraint two rows can claim the same
-    -- identity.
     auth0_sub               VARCHAR(255) NOT NULL,
     email                   VARCHAR(255) NOT NULL,
-    active                  BOOLEAN      NOT NULL DEFAULT TRUE,   -- activo
+    active                  BOOLEAN      NOT NULL DEFAULT TRUE,
     failed_attempts         INTEGER      NOT NULL DEFAULT 0,
     locked_until            TIMESTAMPTZ,
     invite_token            VARCHAR(128) UNIQUE,
     invite_expires_at       TIMESTAMPTZ,
-    created_at              TIMESTAMPTZ  NOT NULL DEFAULT NOW(),  -- fecha_alta
-    last_access_at          TIMESTAMPTZ,                          -- fecha_ultimo_acceso
+    created_at              TIMESTAMPTZ  NOT NULL DEFAULT NOW(),
+    last_access_at          TIMESTAMPTZ,
     activated               BOOLEAN      NOT NULL DEFAULT FALSE
 );
+
+-- Bulk provisioning de-duplicates insureds by email, case-insensitively.
+CREATE UNIQUE INDEX users_email_lower_uq ON arbiter_common.users (lower(email));
 
 -- ─── role, permission, role_permission, user_role / RBAC ─────────────────────
 -- Platform-wide: the same roles and permissions apply across every insurer.
@@ -122,47 +99,44 @@ CREATE TABLE arbiter_common.user_role (
     PRIMARY KEY (user_id, role_id)
 );
 
--- ─── user_insurer / "usuario_aseguradora" ────────────────────────────────────
--- Membership, and the routing table: joined against insurer.schema_name it tells the
--- resolver which schema to serve a request from.
+-- ─── user_insurer ────────────────────────────────────────────────────────────
+-- Membership and routing: joined with insurer.schema_name it tells the resolver which
+-- schema serves a request.
 CREATE TABLE arbiter_common.user_insurer (
     user_id     BIGINT NOT NULL REFERENCES arbiter_common.users(id),
     insurer_id  BIGINT NOT NULL REFERENCES arbiter_common.insurer(id),
     PRIMARY KEY (user_id, insurer_id)
 );
 
--- ─── branch / "rama" ─────────────────────────────────────────────────────────
--- Global catalog of insurance lines. Which ones an insurer actually sells is
--- per-tenant: an insurer restricts them through its own document_requirement rows.
+-- ─── branch ──────────────────────────────────────────────────────────────────
+-- Global catalog; an insurer restricts which ones it sells through its own
+-- document_requirement rows.
 CREATE TABLE arbiter_common.branch (
     id      BIGINT GENERATED BY DEFAULT AS IDENTITY PRIMARY KEY,
     name    VARCHAR(100) NOT NULL UNIQUE
 );
 
--- ─── claim_cause / "hecho_generador" ─────────────────────────────────────────
--- Global catalog of claim causes. Which ones an insurer accepts, against which
--- coverage, is per-tenant (<tenant>.document_requirement / <tenant>.coverage).
+-- ─── claim_cause ─────────────────────────────────────────────────────────────
+-- Global catalog; which causes an insurer accepts, and under which coverage, is
+-- per tenant.
 CREATE TABLE arbiter_common.claim_cause (
     id          BIGINT GENERATED BY DEFAULT AS IDENTITY PRIMARY KEY,
-    -- Not globally unique: the same cause (a street robbery, a theft) applies to more
-    -- than one branch, so the name repeats with a different branch_id. Unique within a
-    -- branch, though — (branch_id, name) is the natural key.
+    -- The same cause repeats across branches: the natural key is (branch_id, name).
     name        VARCHAR(100) NOT NULL,
     branch_id   BIGINT       NOT NULL REFERENCES arbiter_common.branch(id),
 
     CONSTRAINT claim_cause_branch_name_unique UNIQUE (branch_id, name)
 );
 
--- ─── case_status / "estado_expediente" ───────────────────────────────────────
--- The DEFINITION of the case lifecycle states — a platform standard. Each case's
--- transitions are per-tenant (<tenant>.case_status_history).
--- insured_status is the simplified state shown to the insured, who must not see the
+-- ─── case_status ─────────────────────────────────────────────────────────────
+-- Lifecycle state definitions; each case's transitions are per tenant.
+-- insured_status is the simplified label shown to the insured, who must not see the
 -- internal analyst-facing state.
 CREATE TABLE arbiter_common.case_status (
     id              BIGINT GENERATED BY DEFAULT AS IDENTITY PRIMARY KEY,
-    name            VARCHAR(60)  NOT NULL UNIQUE,   -- = common-lib's CaseStatus enum
+    name            VARCHAR(60)  NOT NULL UNIQUE,   -- matches common-lib's CaseStatus
     description     VARCHAR(255) NOT NULL,
-    insured_status  VARCHAR(60)  NOT NULL,          -- estado_asegurado
+    insured_status  VARCHAR(60)  NOT NULL,
     is_final        BOOLEAN      NOT NULL DEFAULT FALSE
 );
 
@@ -177,41 +151,29 @@ INSERT INTO arbiter_common.insurer (id, legal_name, name, tax_id, active, schema
 SELECT setval(pg_get_serial_sequence('arbiter_common.insurer', 'id'),
               (SELECT MAX(id) FROM arbiter_common.insurer));
 
--- auth0_sub follows the 'auth0|<id>' shape Auth0 issues; these are placeholders until
--- the real tenant is wired. Passwords are not stored here at all any more — that is
--- Auth0's job, per the DER.
+-- 'auth0|seed-*' subs are placeholders. Passwords live only in Auth0.
 INSERT INTO arbiter_common.users (id, auth0_sub, email, active, activated) VALUES
     (1, 'auth0|seed-asegurado',           'asegurado.arbiter@gmail.com',           TRUE, TRUE),
     (2, 'auth0|seed-analista',            'analista.arbiter@gmail.com',            TRUE, TRUE),
     (3, 'auth0|seed-referente',           'referente.arbiter@gmail.com',           TRUE, TRUE),
-    -- Analyst on the second insurer: without someone on the other side there is no way
-    -- to demonstrate that tenant isolation actually holds.
+    -- Users on the second insurer exist to demonstrate tenant isolation.
     (4, 'auth0|seed-analista-provincia',  'analista.provincia.arbiter@gmail.com',  TRUE, TRUE),
-    -- Second BBVA policyholder: without one, every claim in the fixtures piles onto
-    -- insured(1), which looks less like demo data and more like one very unlucky person.
     (5, 'auth0|6a71248c6b9165b91b479173',  'asegurado2.arbiter@gmail.com',          TRUE, TRUE),
-    -- Referent on the second insurer, same reasoning as the analyst above: without one there is
-    -- no way to check that the rules backoffice stays inside its own tenant.
     (6, 'auth0|seed-referente-provincia', 'referente.provincia.arbiter@gmail.com',  TRUE, TRUE),
-    -- Real team accounts, one per insurer. They exist in Auth0, but the login reads the local
-    -- row before validating there, so without these a re-init locks them out.
+    -- Real Auth0 accounts: login reads the local row first, so a re-init without them
+    -- locks them out.
     (7, 'auth0|seed-analista-provincia-2', 'mocciafederico@hotmail.com',            TRUE, TRUE),
     (8, 'auth0|seed-analista-bbva-2',      'federico21433@hotmail.com',             TRUE, TRUE),
-    -- Second identity for the sinMarca test-doc variant (Roman Castillo, see
-    -- docs/postman/test-docs/perfiles.js): documents without the "documento simulado" banner,
-    -- so the vision model reads them without a cartel that gives away the test. Needs his own
-    -- policyholder chain (below) or the claim rejects on DNI/policy mismatch, same as any
-    -- insured filing against a policy that isn't theirs (D2).
-    -- TODO: 'auth0|seed-asegurado-roman' is a placeholder, not a real Auth0 sub — swap it for
-    -- the real one once Fede provisions asandoval01228@gmail.com in Auth0 (same treatment
-    -- user(5)/Julián got in 6a71248c6b9165b91b479173 once his account went from placeholder to
-    -- real). Until then this account can't actually complete an Auth0 login.
+    -- Insured for the unbranded test documents; needs his own policies (seed-demo.sql) or
+    -- his claims fail the DNI/policy holder check.
+    -- TODO: placeholder sub; replace it with the real one once the Auth0 account exists.
+    -- Until then this user can't log in.
     (9, 'auth0|seed-asegurado-roman',      'asandoval01228@gmail.com',               TRUE, TRUE);
 
 SELECT setval(pg_get_serial_sequence('arbiter_common.users', 'id'),
               (SELECT MAX(id) FROM arbiter_common.users));
 
--- code matches the UserRole enum values 1:1.
+-- code matches the UserRole enum 1:1.
 INSERT INTO arbiter_common.role (id, code, name) VALUES
     (1, 'ASEGURADO', 'Asegurado'),
     (2, 'ANALISTA_SINIESTROS', 'Analista de siniestros'),
@@ -223,17 +185,11 @@ SELECT setval(pg_get_serial_sequence('arbiter_common.role', 'id'),
 INSERT INTO arbiter_common.user_role (user_id, role_id) VALUES
     (1, 1), (2, 2), (3, 3), (4, 2), (6, 3), (7, 2), (8, 2), (9, 1);
 
--- permission / role_permission stay empty on purpose — no permission catalog has been
--- defined yet, and seeding invented ones would be made-up data.
+-- permission / role_permission stay empty on purpose: no permission catalog is defined yet.
 
--- user(9) = Roman: BBVA (his Celulares policy) and Provincia (his Tecnología Portátil
--- policy) — same two-tenant pattern Martina already demonstrates, mirrored for the
--- sinMarca variant so it can exercise both fixture sets end to end.
 INSERT INTO arbiter_common.user_insurer (user_id, insurer_id) VALUES
     (1, 1), (2, 1), (3, 1), (4, 2), (6, 2), (7, 2), (8, 1), (9, 1), (9, 2);
 
--- Los dos ramos que el negocio cubre hoy. Hogar quedó fuera por ahora (no se trabaja con ese
--- ramo todavía), así que Tecnología Portátil pasa a ser el branch 2 y los ids quedan contiguos.
 INSERT INTO arbiter_common.branch (id, name) VALUES
     (1, 'Celulares'),
     (2, 'Tecnología Portátil');
@@ -241,23 +197,21 @@ INSERT INTO arbiter_common.branch (id, name) VALUES
 SELECT setval(pg_get_serial_sequence('arbiter_common.branch', 'id'),
               (SELECT MAX(id) FROM arbiter_common.branch));
 
--- Causes repeat across branches on purpose: a street robbery is the same event
--- whether the insured item is a phone or a laptop, but it is a different row because
--- the required documentation and the coverage differ per branch.
+-- Causes repeat across branches on purpose: required documents and coverage differ
+-- per branch, so each branch gets its own row.
 INSERT INTO arbiter_common.claim_cause (id, name, branch_id) VALUES
     (1, 'Rotura accidental',   1),   -- Celulares
     (2, 'Robo en vía pública', 1),
     (3, 'Hurto',               1),
     (4, 'Caída',               1),
-    (6, 'Daño accidental',     2),   -- Tecnología Portátil (branch 2; Hogar quedó fuera)
+    (6, 'Daño accidental',     2),   -- Tecnología Portátil
     (7, 'Robo en vía pública', 2),
     (8, 'Hurto',               2);
 
 SELECT setval(pg_get_serial_sequence('arbiter_common.claim_cause', 'id'),
               (SELECT MAX(id) FROM arbiter_common.claim_cause));
 
--- 1:1 with common-lib's CaseStatus. insured_status collapses the internal states into
--- what the insured is allowed to see.
+-- 1:1 with common-lib's CaseStatus.
 INSERT INTO arbiter_common.case_status (id, name, description, insured_status, is_final) VALUES
     (1, 'PENDING_CLASSIFICATION', 'Denuncia registrada, clasificación en curso',      'En análisis',           FALSE),
     (2, 'PENDING_ANALYST_REVIEW', 'Clasificación lista, esperando al analista',       'En análisis',           FALSE),
@@ -265,32 +219,28 @@ INSERT INTO arbiter_common.case_status (id, name, description, insured_status, i
     (4, 'CLASSIFICATION_FAILED',  'La clasificación falló tras agotar reintentos',    'En análisis',           FALSE),
     (5, 'APPROVED',               'El analista aprobó el siniestro',                  'Aprobado',              TRUE),
     (6, 'REJECTED',               'El analista rechazó el siniestro',                 'Rechazado',             TRUE),
-    -- El asegurado ve 'En verificación': el perito lo va a contactar igual, así que la
-    -- derivación no se le esconde. Lo que nunca se le cuenta es el motivo.
+    -- The expert will contact the insured anyway, so the derivation is shown; the reason never is.
     (7, 'PENDING_EXPERT_REPORT',  'Derivado a peritaje, esperando el informe',        'En verificación',       FALSE),
-    -- Caducidad por inacción (regla interna, 18 meses desde la denuncia sin movimiento):
-    -- distinta de un rechazo, así que el asegurado sí se entera de que el expediente se cerró.
+    -- Closed after 18 months without activity from the insured; unlike a rejection, shown to them.
     (8, 'LAPSED',                 'Caducado por 18 meses de inacción del asegurado',  'Caducado',              TRUE),
-    -- Acá el asegurado SÍ se entera, al revés que con el peritaje: mandar el equipo al service no
-    -- delata ninguna sospecha, y es lo que explica por qué el expediente no se mueve.
+    -- Shown to the insured: a repair reveals no suspicion and explains why the case is idle.
     (9, 'PENDING_REPAIR',         'Derivado a servicio técnico, esperando su respuesta', 'En reparación',      FALSE);
 
 SELECT setval(pg_get_serial_sequence('arbiter_common.case_status', 'id'),
               (SELECT MAX(id) FROM arbiter_common.case_status));
 
 -- =============================================================================
--- TENANT SCHEMA TEMPLATE — 26 tables, created once per insurer
+-- TENANT SCHEMA TEMPLATE — 33 tables, created once per insurer
 -- =============================================================================
 
--- Takes only the schema name: nothing inside a tenant schema references the insurer,
--- because the schema already is the insurer.
+-- Takes only the schema name: the schema itself identifies the insurer.
 CREATE OR REPLACE FUNCTION arbiter_common.create_tenant_schema(
     p_schema TEXT
 ) RETURNS VOID AS $fn$
 BEGIN
     EXECUTE format('CREATE SCHEMA %I', p_schema);
 
-    -- ─── Role profiles: insured, claims_analyst, insurer_referent ────────────
+    -- ─── Role profiles: insured, claims_analyst, insurer_referent ────────────────
     -- The DER splits the person out of `usuario`: identity is shared, the profile
     -- belongs to the insurer the person works for or is insured by.
 
@@ -303,7 +253,7 @@ BEGIN
             dni             VARCHAR(20)  NOT NULL UNIQUE,
             email           VARCHAR(255),
             phone           VARCHAR(30),
-            case_count      INTEGER      NOT NULL DEFAULT 0,  -- cantidad_expedientes
+            case_count      INTEGER      NOT NULL DEFAULT 0,
             pep             BOOLEAN      NOT NULL DEFAULT FALSE,
             image_consent           BOOLEAN      NOT NULL DEFAULT FALSE,
             image_consent_version   VARCHAR(20),
@@ -313,9 +263,7 @@ BEGIN
             user_id         BIGINT       NOT NULL REFERENCES arbiter_common.users(id)
         )$ddl$, p_schema);
 
-    -- claims_analyst / "analista_seguro"
-    -- The DER's aseguradora_id is dropped here and everywhere else in the tenant
-    -- schema: the schema already identifies the insurer.
+    -- claims_analyst
     EXECUTE format($ddl$
         CREATE TABLE %I.claims_analyst (
             id              BIGINT GENERATED BY DEFAULT AS IDENTITY PRIMARY KEY,
@@ -325,7 +273,7 @@ BEGIN
             user_id         BIGINT       NOT NULL REFERENCES arbiter_common.users(id)
         )$ddl$, p_schema);
 
-    -- insurer_referent / "referente_aseguradora"
+    -- insurer_referent
     EXECUTE format($ddl$
         CREATE TABLE %I.insurer_referent (
             id              BIGINT GENERATED BY DEFAULT AS IDENTITY PRIMARY KEY,
@@ -334,49 +282,36 @@ BEGIN
             user_id         BIGINT       NOT NULL REFERENCES arbiter_common.users(id)
         )$ddl$, p_schema);
 
-    -- ─── coverage / "cobertura" ──────────────────────────────────────────────
-    -- Local snapshot of the insurer's coverage definitions (decision #10: Arbiter
-    -- persists what the BD Aseguradora hands over, it does not query it live).
+    -- ─── coverage ────────────────────────────────────────────────────────────────
+    -- Coverage definitions, administered by the referent and shared by every policy.
     EXECUTE format($ddl$
         CREATE TABLE %I.coverage (
             id                              BIGINT GENERATED BY DEFAULT AS IDENTITY PRIMARY KEY,
             name                            VARCHAR(100)  NOT NULL UNIQUE,
             description                     TEXT,
-            report_deadline_hours           BIGINT,  -- plazo_denuncia_horas
-            max_events_per_year             INTEGER,                 -- tope_eventos_por_anio
+            report_deadline_hours           BIGINT,
+            max_events_per_year             INTEGER,
             covers_family_group             BOOLEAN       NOT NULL DEFAULT FALSE,
-            deductible                      NUMERIC(15,2),           -- franquicia, en puntos porcentuales (10.00 = 10%%)
+            deductible                      NUMERIC(15,2),           -- percentage points: 10.00 = 10%%
             claim_exhausts_coverage         BOOLEAN       NOT NULL DEFAULT FALSE,
             is_individual                   BOOLEAN       NOT NULL DEFAULT TRUE,
-            waiting_period_days             INTEGER,                 -- carencia_dias
+            waiting_period_days             INTEGER,
             branch_id                       BIGINT        NOT NULL REFERENCES arbiter_common.branch(id),
-            -- clause y exclusions: sin respaldo en el DER.
             clause                          VARCHAR(20),
             exclusions                      JSONB,
-            -- ─── Determinación del monto a pagar ─────────────────────────────
-            -- Cómo se calcula el techo indemnizable. SUM_INSURED = la suma asegurada,
-            -- tal cual lo plantea el manual de Celulares. LESSER_OF_SUM_AND_REPLACEMENT
-            -- = el menor entre la suma asegurada y el valor de reposición acreditado,
-            -- que es lo que exige el art. 7 (Bases de Indemnización) de la cláusula 340
-            -- en Tecnología Portátil.
-            -- Qué le pasó al bien, que es lo que decide cómo se liquida. Va en la cobertura
-            -- porque el catálogo de la aseguradora ya las separa así ("Robo"/"Hurto" son
-            -- pérdidas, "Daño accidental" es daño) y PolicyCoverageResolver ya resuelve cuál
-            -- responde por cada hecho generador.
+            -- ─── Settlement terms ────────────────────────────────────────────────────────
+            -- Whether a claim settles as a total loss or a repair. Lives on the coverage because
+            -- the insurer's catalog already splits losses from damage.
             settlement_formula              VARCHAR(20)   NOT NULL DEFAULT 'TOTAL_LOSS',
-            -- Solo aplica a TOTAL_LOSS: en una reparación el techo es el presupuesto, no hay
-            -- otra base posible.
+            -- TOTAL_LOSS only; a repair is capped by its quote. LESSER_OF_SUM_AND_REPLACEMENT is
+            -- what clause 340 art. 7 requires for Tecnología Portátil.
             settlement_basis                VARCHAR(30)   NOT NULL DEFAULT 'SUM_INSURED',
-            -- Porcentaje del techo que corresponde al segundo evento del año y los
-            -- siguientes ("segundo evento hasta un 50%% de la suma asegurada" en las
-            -- condiciones particulares). NULL = el número de evento no reduce nada.
+            -- Share of the cap paid for the second and later events of the year.
+            -- NULL = the event number reduces nothing.
             second_event_percentage         NUMERIC(5,2),
-            -- Las dos deducciones que el asegurador aplica sobre el monto, aparte de la
-            -- franquicia. Se configuran por separado porque tienen fundamentos distintos:
-            -- las cuotas a vencer salen del manual del producto (la póliza se extingue con
-            -- la pérdida total, así que se cobra el resto del año), y el saldo vencido del
-            -- art. 5 de la cláusula 102 ("podrá descontar de la indemnización cualquier
-            -- saldo o deuda vencida de este contrato").
+            -- Configured separately because they have different grounds: pending installments
+            -- come from the product manual, since the policy ends with a total loss; the overdue
+            -- balance from clause 102 art. 5.
             deduct_pending_installments     BOOLEAN       NOT NULL DEFAULT FALSE,
             deduct_overdue_balance          BOOLEAN       NOT NULL DEFAULT FALSE,
 
@@ -386,45 +321,34 @@ BEGIN
                 CHECK (settlement_formula IN ('TOTAL_LOSS', 'REPAIR'))
         )$ddl$, p_schema);
 
-    -- ─── policy / "poliza" ───────────────────────────────────────────────────
-    -- Local snapshot of the policy. external_policy_number is the key back to the
-    -- insurer's own system; synced_at records when the snapshot was refreshed.
-    -- Sin sum_insured ni coverage_id: una póliza tiene VARIAS coberturas, y la suma asegurada
-    -- (y la franquicia) son de cada cobertura contratada, no del contrato — así lo modela la BD
-    -- Aseguradora, que es el origen ("poliza 1──* cobertura (la SUMA ASEGURADA vive en cobertura)",
-    -- create_insurer_db_schema, más abajo). Eso vive en policy_coverage, abajo.
+    -- ─── policy ──────────────────────────────────────────────────────────────────
+    -- Local snapshot of the insurer's policy; external_policy_number is the key back to it.
+    -- Sum insured and deductible belong to each contracted coverage, see policy_coverage.
     EXECUTE format($ddl$
         CREATE TABLE %I.policy (
             id                      BIGINT GENERATED BY DEFAULT AS IDENTITY PRIMARY KEY,
             external_policy_number  VARCHAR(50)   NOT NULL,
             product                 VARCHAR(1000) NOT NULL,
-            in_force                BOOLEAN       NOT NULL DEFAULT TRUE,   -- vigente
-            synced_at               TIMESTAMPTZ   NOT NULL DEFAULT NOW(),  -- fecha_sincronizacion
+            in_force                BOOLEAN       NOT NULL DEFAULT TRUE,
+            synced_at               TIMESTAMPTZ   NOT NULL DEFAULT NOW(),
             insured_id              BIGINT        NOT NULL REFERENCES %I.insured(id),
 
             CONSTRAINT policy_external_number_unique UNIQUE (external_policy_number)
         )$ddl$, p_schema, p_schema);
 
-    -- ─── policy_coverage / "cobertura_contratada" ────────────────────────────
-    -- Qué coberturas tiene contratadas una póliza y con qué números. Espejo local de
-    -- aseguradora.cobertura (una fila por cobertura de la póliza, `orden` = cobertura1..cobertura20
-    -- en el origen de BBVA).
-    --
-    -- Separada del catálogo %I.coverage a propósito: ahí vive la DEFINICIÓN del riesgo, que
-    -- administra el referente y es igual para toda la aseguradora (carencia, tope de eventos,
-    -- plazo de denuncia, si alcanza al grupo familiar). Acá vive lo CONTRATADO en esta póliza
-    -- puntual, que lo fija la compañía. Mezclarlas obligaba a una fila de catálogo por póliza.
+    -- ─── policy_coverage ─────────────────────────────────────────────────────────
+    -- What one policy contracted and for how much; mirrors the insurer DB's cobertura.
+    -- Kept apart from coverage, which defines the risk for the whole insurer: merging them
+    -- would need one catalog row per policy.
     EXECUTE format($ddl$
         CREATE TABLE %I.policy_coverage (
             id              BIGINT GENERATED BY DEFAULT AS IDENTITY PRIMARY KEY,
             policy_id       BIGINT        NOT NULL REFERENCES %I.policy(id) ON DELETE CASCADE,
             coverage_id     BIGINT        NOT NULL REFERENCES %I.coverage(id),
-            display_order   INTEGER       NOT NULL DEFAULT 1,      -- orden
-            sum_insured     NUMERIC(15,2) NOT NULL,                -- suma_asegurada
-            -- En puntos porcentuales (10.00 = 10%%), igual que coverage.deductible y que
-            -- aseguradora.cobertura.franquicia_pct. El valor absoluto lo calcula quien lo necesita
-            -- (InsurerDatabaseAdapter.absoluteDeductible): guardar el derivado invita a que quede
-            -- desfasado de la suma asegurada que lo produjo.
+            display_order   INTEGER       NOT NULL DEFAULT 1,
+            sum_insured     NUMERIC(15,2) NOT NULL,
+            -- Percentage points, like coverage.deductible. The absolute amount is derived on read
+            -- so it can never drift from sum_insured.
             deductible_pct  NUMERIC(5,2),
 
             CONSTRAINT policy_coverage_unique UNIQUE (policy_id, coverage_id)
@@ -432,46 +356,34 @@ BEGIN
 
     EXECUTE format('CREATE INDEX idx_policy_coverage_policy ON %I.policy_coverage (policy_id)', p_schema);
 
-    -- ─── policy_snapshot / "poliza_consultada" ───────────────────────────────
-    -- Point-in-time answer from the BD Aseguradora for one specific claim: what the
-    -- policy looked like when the claim was filed. Keeps the classification auditable
-    -- even if the insurer's data changes afterwards.
+    -- ─── policy_snapshot ─────────────────────────────────────────────────────────
+    -- The policy as the insurer DB described it when the claim was filed. Keeps the
+    -- classification and the settlement auditable after the insurer's data changes.
     EXECUTE format($ddl$
         CREATE TABLE %I.policy_snapshot (
             id                      BIGINT GENERATED BY DEFAULT AS IDENTITY PRIMARY KEY,
             external_policy_number  VARCHAR(50)   NOT NULL,
             sum_insured             NUMERIC(15,2) NOT NULL,
             in_force                BOOLEAN       NOT NULL,
-            payments_up_to_date     BOOLEAN       NOT NULL,   -- al_dia → policy_standing factor
-            previous_claims         INTEGER       NOT NULL DEFAULT 0,  -- → claim_frequency factor
-            -- Sum of siniestro_historico.monto_indemnizado, frozen next to the count. Nullable
-            -- unlike previous_claims: a 0 would read as "never claimed a peso".
+            payments_up_to_date     BOOLEAN       NOT NULL,   -- feeds the policy_standing factor
+            previous_claims         INTEGER       NOT NULL DEFAULT 0,  -- feeds claim_frequency
+            -- Nullable unlike previous_claims: a 0 would read as "never claimed anything".
             total_amount_claimed    NUMERIC(15,2),
-            -- ─── Lo que la liquidación necesita congelado ────────────────────────
-            -- Frozen here and not read live at settlement time for the same reason as
-            -- everything above it: the amount the analyst authorized has to stay
-            -- explainable months later, and the insurer's DB will have moved on.
-            effective_to            TIMESTAMPTZ,              -- vigencia_hasta, para contar cuotas a vencer
-            installment_amount      NUMERIC(15,2),            -- importe de cada cuota del premio
-            overdue_balance         NUMERIC(15,2),            -- saldo_deuda vencido a la fecha de la consulta
-            -- Qué número de evento es este dentro del año móvil, ya resuelto: 1 es el
-            -- primero. Se calcula donde está el historial (classification-service) con la
-            -- misma ventana de 12 meses que usa MAX_EVENTS_YEAR, para que el tope de
-            -- eventos y el porcentaje que se paga no puedan contar distinto.
+            -- ─── Settlement inputs ───────────────────────────────────────────────────────
+            effective_to            TIMESTAMPTZ,              -- to count pending installments
+            installment_amount      NUMERIC(15,2),
+            overdue_balance         NUMERIC(15,2),            -- as of queried_at
+            -- 1 = first event in the rolling year. Uses the same 12-month window as
+            -- MAX_EVENTS_YEAR so the events cap and the paid percentage never disagree.
             events_in_year          INTEGER,
             queried_at              TIMESTAMPTZ   NOT NULL DEFAULT NOW(),
-            insurer_db_payload      JSONB                     -- payload_bd_aseguradora
+            insurer_db_payload      JSONB
         )$ddl$, p_schema);
 
-    -- ─── insurer_rule / "regla_aseguradora" ──────────────────────────────────
-    -- The insurer's activation and parameterization of a rule. `configuration` is
-    -- JSONB so the referente can change thresholds without a redeploy (decision #12).
-    -- branch_id is nullable: branch_id IS NULL AND coverage_id IS NULL scopes the rule to
-    -- the whole insurer (the schema already identifies it) instead of one branch/coverage —
-    -- used by POLICY_IN_FORCE and POLICY_STANDING, which the BBVA HAR confirms are validated
-    -- against the policy as a whole, not per coverage (error code 6, "Fecha de Ocurrencia de
-    -- Siniestro Fuera de la Vigencia de la Operación Siniestrada", carries no coverage in the
-    -- request payload).
+    -- ─── insurer_rule ────────────────────────────────────────────────────────────
+    -- `configuration` is JSONB so the referent can change thresholds without a redeploy.
+    -- branch_id and coverage_id both NULL scope the rule to the whole insurer, used by
+    -- rules checked against the policy as a whole (POLICY_IN_FORCE, POLICY_STANDING).
     EXECUTE format($ddl$
         CREATE TABLE %I.insurer_rule (
             id                  BIGINT GENERATED BY DEFAULT AS IDENTITY PRIMARY KEY,
@@ -487,7 +399,7 @@ BEGIN
             coverage_id         BIGINT       REFERENCES %I.coverage(id)
         )$ddl$, p_schema, p_schema);
 
-    -- ─── insurer_rule_history / "historial_regla_aseguradora" ────────────────
+    -- ─── insurer_rule_history ────────────────────────────────────────────────────
     EXECUTE format($ddl$
         CREATE TABLE %I.insurer_rule_history (
             id              BIGINT GENERATED BY DEFAULT AS IDENTITY PRIMARY KEY,
@@ -500,25 +412,22 @@ BEGIN
             changed_by      BIGINT       REFERENCES %I.insurer_referent(id)
         )$ddl$, p_schema, p_schema, p_schema);
 
-    -- ─── scoring_configuration / "configuracion_scoring" + friends ───────────
-    -- Data-driven backing for classification-service's RiskScoringService. Per tenant
-    -- so each insurer calibrates its own weights and bands without a redeploy. Una sola
-    -- fila por aseguradora: todos los ramos comparten el mismo scoring (decisión explícita,
-    -- no por ramo — a diferencia de Fast Track y de la agenda documental).
+    -- ─── scoring_configuration ───────────────────────────────────────────────────
+    -- Backs RiskScoringService, so each insurer calibrates weights and bands without a
+    -- redeploy. One per insurer: unlike Fast Track and the document schedule, scoring is
+    -- not per branch.
     EXECUTE format($ddl$
         CREATE TABLE %I.scoring_configuration (
             id          BIGINT GENERATED BY DEFAULT AS IDENTITY PRIMARY KEY,
             name        VARCHAR(100) NOT NULL,
             active      BOOLEAN      NOT NULL DEFAULT TRUE,
-            -- Si el Fast Track igual corre el análisis pesado (OCR + fraude de imágenes) para que su
-            -- score salga completo. Default false: el Fast Track queda rápido, score parcial. No
-            -- vetea el Fast Track — el score es señal paralela; solo decide cuánto análisis corre.
+            -- Whether Fast Track cases still run the heavy analysis, OCR and image fraud, for a
+            -- complete score. It only decides how much runs; it never vetoes Fast Track.
             full_analysis_on_fast_track BOOLEAN NOT NULL DEFAULT FALSE,
             valid_from  TIMESTAMPTZ  NOT NULL
         )$ddl$, p_schema);
 
-    -- factor_code matches RiskFactorIds by string, not by FK — `factor` is an enum in
-    -- the DER, not a table.
+    -- factor_code matches RiskFactorIds by string: factors are an enum, not a table.
     EXECUTE format($ddl$
         CREATE TABLE %I.factor_weight (
             id                       BIGINT GENERATED BY DEFAULT AS IDENTITY PRIMARY KEY,
@@ -548,114 +457,82 @@ BEGIN
             scoring_configuration_id BIGINT       NOT NULL REFERENCES %I.scoring_configuration(id)
         )$ddl$, p_schema, p_schema, p_schema);
 
-    -- ─── document_requirement / "requisito_documental" ───────────────────────
-    -- The AgendaDocumental: which documents are required for a given branch + claim
-    -- cause, optionally tightened for a risk band. This is the contract that decides
-    -- whether a case is complete.
+    -- ─── document_requirement ────────────────────────────────────────────────────
+    -- The document schedule: required documents per branch and claim cause, optionally
+    -- tightened for a risk band. It decides whether a case is complete.
     EXECUTE format($ddl$
         CREATE TABLE %I.document_requirement (
             id                  BIGINT GENERATED BY DEFAULT AS IDENTITY PRIMARY KEY,
             document_type       VARCHAR(50)  NOT NULL,
             mandatory           BOOLEAN      NOT NULL DEFAULT TRUE,
-            risk_band           VARCHAR(20),  -- banda_riesgo: NULL = applies to every band
+            risk_band           VARCHAR(20),  -- NULL = applies to every band
             branch_id           BIGINT       NOT NULL REFERENCES arbiter_common.branch(id),
             claim_cause_id      BIGINT       NOT NULL REFERENCES arbiter_common.claim_cause(id)
         )$ddl$, p_schema);
 
-    -- ─── settlement_authority / "atribucion_liquidacion" ─────────────────────
-    -- Hasta cuánto puede autorizar un analista por su cuenta en cada ramo. Sale del
-    -- Anexo II del procedimiento de la compañía: "Aprobar liquidaciones hasta el
-    -- límite del atributo asignado por rama". Por encima de ese monto la liquidación
-    -- queda esperando al referente.
-    --
-    -- Por RAMA y no por analista: el Anexo II cruza rama × nivel jerárquico, y acá hay
-    -- un solo rol de analista, así que la dimensión del nivel no existe. Si algún día
-    -- hay analistas senior y junior, se le agrega la columna.
-    --
-    -- Sin fila para un ramo NO hay tope: el analista autoriza todo, que es como venía
-    -- funcionando. Poner el límite es la acción explícita del referente, igual que
-    -- prender una regla dura.
+    -- ─── settlement_authority ────────────────────────────────────────────────────
+    -- The most an analyst can authorize alone per branch; above it the settlement waits
+    -- for the referent. Per branch, not per analyst, because there is a single analyst
+    -- level. No row for a branch means no cap.
     EXECUTE format($ddl$
         CREATE TABLE %I.settlement_authority (
             id          BIGINT        GENERATED BY DEFAULT AS IDENTITY PRIMARY KEY,
             branch_id   BIGINT        NOT NULL REFERENCES arbiter_common.branch(id),
             max_amount  NUMERIC(15,2) NOT NULL,
             updated_at  TIMESTAMPTZ   NOT NULL DEFAULT NOW(),
-            -- Quién tocó el tope por última vez. NULL en filas viejas, de antes de que se
-            -- empezara a registrar: no hay con qué completarlo retroactivamente.
+            -- NULL on rows older than the tracking of this column.
             updated_by  BIGINT        REFERENCES arbiter_common.users(id),
 
             CONSTRAINT settlement_authority_branch_unique UNIQUE (branch_id),
             CONSTRAINT settlement_authority_amount_check CHECK (max_amount >= 0)
         )$ddl$, p_schema);
 
-    -- ─── cases / "expediente" ────────────────────────────────────────────────
-    -- The case file. Far more normalized than the flat table it replaces: the branch,
-    -- claim cause, policy and coverage are FKs now, not free text.
-    -- classification_id closes a cycle (cases → case_classification → llm_analysis →
-    -- cases), so its FK is added by ALTER TABLE once every table exists.
-    -- No insurer_id: the DER draws aseguradora → expediente, and the schema satisfies
-    -- that relationship by construction.
+    -- ─── cases ───────────────────────────────────────────────────────────────────
+    -- classification_id closes a cycle cases → case_classification → llm_analysis →
+    -- cases, so its FK is added by ALTER TABLE once every table exists.
     EXECUTE format($ddl$
         CREATE TABLE %I.cases (
             id                          BIGINT GENERATED BY DEFAULT AS IDENTITY PRIMARY KEY,
-            occurred_at                 TIMESTAMPTZ   NOT NULL,  -- fecha_hora_ocurrencia_siniestro
-            reported_at                 TIMESTAMPTZ   NOT NULL,  -- fecha_hora_denuncia_siniestro
-            police_report_at            TIMESTAMPTZ,             -- fecha_hora_denuncia_policial
+            occurred_at                 TIMESTAMPTZ   NOT NULL,
+            reported_at                 TIMESTAMPTZ   NOT NULL,
+            police_report_at            TIMESTAMPTZ,
             updated_at                  TIMESTAMPTZ   NOT NULL DEFAULT NOW(),
-            response_deadline           DATE          NOT NULL,  -- fecha_limite_respuesta
+            response_deadline           DATE          NOT NULL,
             description                 TEXT          NOT NULL,
             was_fast_track              BOOLEAN       NOT NULL DEFAULT FALSE,
             fraud_determined            BOOLEAN       NOT NULL DEFAULT FALSE,
-            destination                 VARCHAR(40),             -- destino (enum in the DER)
-            -- What the insured claims, as opposed to what the insurer has on file.
-            -- claimed_amount feeds AmountRatioEvaluator (the heaviest scoring factor);
-            -- declared_item fills the {{insuredItem}} slot in the classification prompt.
-            -- Both compare against policy_snapshot to surface declared-vs-recorded gaps.
-            claimed_amount              NUMERIC(38,2),           -- monto_reclamado
-            declared_item               VARCHAR(255),            -- bien_declarado
-            -- ─── Read model for the analyst's inbox ──────────────────────────────
-            -- The ONLY two denormalized columns, and only because the inbox filters, sorts
-            -- and pages by risk band. risk_analysis is append-only (one row per scoring run),
-            -- so reading the band off it means "the latest row per case" — a DISTINCT ON or a
-            -- correlated subquery under the paging, which is far harder to index than this.
-            -- risk_analysis remains the auditable source; these two are the copy you can put
-            -- a WHERE on. Everything else the analyst UI needs (the recommendation, its
-            -- confidence, the score breakdown) is read by joining llm_analysis / risk_analysis
-            -- one case at a time, where latest-per-case costs nothing.
+            destination                 VARCHAR(40),
+            -- What the insured claims, compared against policy_snapshot to surface gaps with
+            -- what the insurer has on file.
+            claimed_amount              NUMERIC(38,2),
+            declared_item               VARCHAR(255),
+            -- ─── Read model for the analyst's inbox ──────────────────────────────────────
+            -- The only denormalized columns: the inbox filters, sorts and pages by risk band,
+            -- and "latest risk_analysis row per case" is hard to index under paging.
+            -- risk_analysis stays the auditable source.
             risk_score                  NUMERIC(4,3),
             risk_band                   VARCHAR(20),
-            -- Not denormalization: classification-service's own scratch space. The assembled
-            -- report has no table of its own — the per-image findings are normalized into
-            -- image_analysis, but nothing rebuilds the report from them yet. Remove this once
-            -- something does.
+            -- classification-service's assembled report. Per-image findings are also in
+            -- image_analysis, but nothing rebuilds the report from them yet.
             forensic_report             JSONB,
-            -- Retry counter for the classification poller. Belongs to the case, not to
-            -- case_classification: the analyst's row only exists once they decide, which is
-            -- after this counter has done its job (marking CLASSIFICATION_FAILED).
+            -- Retry counter for the classification poller. On the case because
+            -- case_classification only exists once the analyst decides.
             classification_attempts     INTEGER       NOT NULL DEFAULT 0,
-            -- Structured cause of the last failed classification run, written by
-            -- classification-service the same way as was_fast_track: async, so there's no
-            -- request left to answer by the time it gives up. Cleared once a run succeeds.
-            -- INFRASTRUCTURE vs. OTHER is what the startup recovery sweep in cases-service
-            -- filters on — no point auto-requeuing a case that will just fail the same way.
+            -- Cause of the last failed classification run, cleared once a run succeeds.
+            -- cases-service's startup recovery only requeues INFRASTRUCTURE failures.
             classification_failure_reason  VARCHAR(20),
             classification_failure_message TEXT,
-            -- Set when the denuncia came in with its document schedule unreadable (rules-service
-            -- down at filing): taken anyway, checked later by DocumentRecheckScheduler. NULL once
-            -- verified, which is the normal case.
+            -- Set when the claim was filed while the document schedule was unreadable;
+            -- DocumentRecheckScheduler checks it later. NULL once verified.
             documents_unverified_since  TIMESTAMPTZ,
-            -- The analyst's note adjusting the score WITHOUT overwriting it. Distinct from
-            -- case_classification.analyst_justification: this is written while the case is
-            -- still open, that one is part of the verdict.
+            -- The analyst's note on the score, which it never overwrites. Written while the
+            -- case is open, unlike case_classification.analyst_justification.
             manual_adjustment_note      TEXT,
-            -- Where the event happened
             event_address               VARCHAR(120)  NOT NULL,
             event_latitude              NUMERIC(9,6),
             event_longitude             NUMERIC(9,6),
             locality                    VARCHAR(120),
             province                    VARCHAR(40),
-            -- Relationships
             current_status_id           BIGINT        NOT NULL REFERENCES arbiter_common.case_status(id),
             analyst_id                  BIGINT        REFERENCES %I.claims_analyst(id),
             insured_id                  BIGINT        NOT NULL REFERENCES %I.insured(id),
@@ -663,26 +540,23 @@ BEGIN
             coverage_id                 BIGINT        NOT NULL REFERENCES %I.coverage(id),
             policy_id                   BIGINT        NOT NULL REFERENCES %I.policy(id),
             policy_snapshot_id          BIGINT        REFERENCES %I.policy_snapshot(id),
-            -- Which scoring configuration produced this case's risk score. The DER
-            -- draws the relationship without the column; it is a real FK.
             scoring_configuration_id    BIGINT        REFERENCES %I.scoring_configuration(id),
             classification_id           BIGINT
         )$ddl$, p_schema, p_schema, p_schema, p_schema, p_schema, p_schema, p_schema);
 
     EXECUTE format('CREATE INDEX idx_cases_status ON %I.cases (current_status_id)', p_schema);
     EXECUTE format('CREATE INDEX idx_cases_insured ON %I.cases (insured_id)', p_schema);
-    -- The analyst's inbox filters by risk band.
+    -- The analyst's inbox filters by risk band and, by default, by owner.
     EXECUTE format('CREATE INDEX idx_cases_risk_band ON %I.cases (risk_band)', p_schema);
-    -- ...and by owner: the inbox's default lens is "Míos", so this filter runs on every load.
     EXECUTE format('CREATE INDEX idx_cases_analyst ON %I.cases (analyst_id)', p_schema);
 
-    -- ─── case_documents / "documento_expediente" ─────────────────────────────
+    -- ─── case_documents ──────────────────────────────────────────────────────────
     EXECUTE format($ddl$
         CREATE TABLE %I.case_documents (
             id              BIGINT GENERATED BY DEFAULT AS IDENTITY PRIMARY KEY,
             type            VARCHAR(255) NOT NULL,
             filename        VARCHAR(255) NOT NULL,
-            content_type    VARCHAR(255) NOT NULL,   -- MIME
+            content_type    VARCHAR(255) NOT NULL,
             content         BYTEA        NOT NULL,
             uploaded_at     TIMESTAMPTZ  NOT NULL DEFAULT NOW(),
             case_id         BIGINT       NOT NULL REFERENCES %I.cases(id) ON DELETE CASCADE,
@@ -690,17 +564,14 @@ BEGIN
             CONSTRAINT case_documents_case_type_unique UNIQUE (case_id, type)
         )$ddl$, p_schema, p_schema);
 
-    -- ─── image_analysis / "analisis_imagen" ──────────────────────────────────
-    -- Forensic analysis of an uploaded image: the CLIP embedding, the most similar
-    -- document found (self-reference), and any external web match.
-    -- Scoped per tenant so reuse detection never compares across insurers.
+    -- ─── image_analysis ──────────────────────────────────────────────────────────
+    -- Per tenant so image reuse detection never compares across insurers.
     EXECUTE format($ddl$
         CREATE TABLE %I.image_analysis (
             id                      BIGINT GENERATED BY DEFAULT AS IDENTITY PRIMARY KEY,
             embedding               public.vector(512),   -- CLIP ViT-B-32
-            -- Which model produced the embedding. Not in the DER, added deliberately:
-            -- vectors from different models are not comparable, so without this a model
-            -- change would silently invalidate every stored vector with no way to tell.
+            -- Vectors from different models are not comparable; without this a model change
+            -- would silently invalidate every stored vector.
             model                   VARCHAR(80)  NOT NULL,
             similarity_score        NUMERIC(5,2),
             is_suspicious           BOOLEAN      NOT NULL DEFAULT FALSE,
@@ -713,39 +584,27 @@ BEGIN
             similar_document_id     BIGINT REFERENCES %I.case_documents(id)
         )$ddl$, p_schema, p_schema, p_schema);
 
-    -- IVFFlat index for cosine distance — needs ~100 rows to be effective. For small
-    -- datasets the sequential scan is fine; the index kicks in at scale.
+    -- IVFFlat only pays off from ~100 rows; below that a sequential scan is fine.
     EXECUTE format($ddl$
         CREATE INDEX idx_image_analysis_cosine ON %I.image_analysis
             USING ivfflat (embedding public.vector_cosine_ops) WITH (lists = 100)
         $ddl$, p_schema);
 
-    -- ─── document_analysis / "analisis_documento" ────────────────────────────
-    -- What the vision pass read out of one attachment: the transcription plus the
-    -- same data as typed fields. Sibling of image_analysis — that one is about how the
-    -- image LOOKS (embedding, reuse), this one about what the document SAYS.
-    --
-    -- The fields are all nullable on purpose: a photo of the broken phone has no
-    -- amount, a police report has no IMEI. NULL means "the document doesn't say it",
-    -- never "it doesn't match" — a missing field must never read as an inconsistency.
-    --
-    -- One row per document: the extraction is redone on every reclassification, so the
-    -- UNIQUE lets it be upserted instead of piling up runs (unlike llm_analysis, which
-    -- is append-only because the recommendation itself is what gets audited).
+    -- ─── document_analysis ───────────────────────────────────────────────────────
+    -- What the vision pass read out of one attachment. NULL means "the document doesn't
+    -- say it", never "it doesn't match": a missing field must not read as an inconsistency.
+    -- One row per document, upserted on every reclassification.
     EXECUTE format($ddl$
         CREATE TABLE %I.document_analysis (
             id                  BIGINT GENERATED BY DEFAULT AS IDENTITY PRIMARY KEY,
             transcription       TEXT         NOT NULL,
             document_date       DATE,
             amount              NUMERIC(14,2),
-            -- Texto libre del modelo de visión, sin tope: con VARCHAR el INSERT de la extracción
-            -- entera falla y el expediente queda clasificado sin los datos de sus documentos, en
-            -- silencio (el orquestador atrapa el error para no voltear la clasificación). Marca y
-            -- modelo además se COMPARAN contra el bien asegurado, así que truncarlos daría un
-            -- hallazgo falso.
+            -- Unbounded on purpose: an overflow fails the whole extraction silently, and
+            -- brand/model are compared against the insured item, so truncating them would
+            -- produce false findings.
             item_description    TEXT,
-            -- Make and model split out of item_description: they are what the documents are
-            -- crossed against outside Celulares, where there is no IMEI to compare.
+            -- What documents are matched on outside Celulares, where there is no IMEI.
             brand               TEXT,
             model               TEXT,
             imei                VARCHAR(20),
@@ -754,17 +613,14 @@ BEGIN
             case_document_id    BIGINT       NOT NULL REFERENCES %I.case_documents(id) ON DELETE CASCADE,
 
             CONSTRAINT document_analysis_document_unique UNIQUE (case_document_id),
-            -- DESCONOCIDO is a first-class value, not an error: if the document doesn't
-            -- say whose device it was, the covers_family_group rule stays out of it.
+            -- DESCONOCIDO is valid: the covers_family_group rule then stays out of it.
             CONSTRAINT document_analysis_affected_party_valid CHECK (
                 affected_party IN ('TITULAR', 'FAMILIAR', 'TERCERO', 'DESCONOCIDO'))
         )$ddl$, p_schema, p_schema);
 
-    -- ─── document_visual_finding / "hallazgo_visual_documento" ───────────────
-    -- Signs of tampering the vision model noticed while looking at the image. One row
-    -- each rather than a serialized list, same criterion as llm_reason. EMPTY IS THE
-    -- NORMAL CASE: an ordinary document has no reason to raise any, and their absence
-    -- is not evidence of authenticity.
+    -- ─── document_visual_finding ─────────────────────────────────────────────────
+    -- Signs of tampering noticed by the vision model. Usually empty, and their absence is
+    -- not evidence of authenticity.
     EXECUTE format($ddl$
         CREATE TABLE %I.document_visual_finding (
             id              BIGINT GENERATED BY DEFAULT AS IDENTITY PRIMARY KEY,
@@ -772,12 +628,9 @@ BEGIN
             analysis_id     BIGINT NOT NULL REFERENCES %I.document_analysis(id) ON DELETE CASCADE
         )$ddl$, p_schema, p_schema);
 
-    -- ─── document_detail / "dato_documento" ──────────────────────────────────
-    -- Everything else the document states and no rule reads: invoice number, serial,
-    -- store. Name/value instead of a column each, so extending the extraction costs no
-    -- migration. DISPLAYED, NEVER COMPARED: the name is whatever the model called the
-    -- datum, so a rule keying off it would break silently the day the model words it
-    -- differently. Data a rule compares gets a typed column in document_analysis.
+    -- ─── document_detail ─────────────────────────────────────────────────────────
+    -- Other data the document states, shown but never compared: the name is whatever the
+    -- model called it. Data a rule compares gets a typed column in document_analysis.
     EXECUTE format($ddl$
         CREATE TABLE %I.document_detail (
             id              BIGINT       GENERATED BY DEFAULT AS IDENTITY PRIMARY KEY,
@@ -786,19 +639,16 @@ BEGIN
             analysis_id     BIGINT       NOT NULL REFERENCES %I.document_analysis(id) ON DELETE CASCADE
         )$ddl$, p_schema, p_schema);
 
-    -- ─── case_status_history / "historial_estado_expediente" ─────────────────
-    -- Append-only audit trail of every transition. The states are the global catalog;
-    -- these transitions are this tenant's data.
+    -- ─── case_status_history ─────────────────────────────────────────────────────
+    -- Append-only audit trail of every transition.
     EXECUTE format($ddl$
         CREATE TABLE %I.case_status_history (
             id                  BIGINT GENERATED BY DEFAULT AS IDENTITY PRIMARY KEY,
-            reason              VARCHAR(255) NOT NULL,   -- razon
+            reason              VARCHAR(255) NOT NULL,
             observation         TEXT,
             changed_at          TIMESTAMPTZ  NOT NULL DEFAULT NOW(),
-            -- Who drove the transition, as a role: INSURED / ANALYST / SYSTEM. Distinct from
-            -- changed_by, which is nullable precisely because SYSTEM moves have no user behind
-            -- them (the classification poller, the retry sweep). The analyst's timeline shows
-            -- this, so it cannot be derived from changed_by being NULL alone. Falta en el DER.
+            -- INSURED / ANALYST / SYSTEM. Not derivable from changed_by: that is NULL for
+            -- SYSTEM moves, which have no user behind them.
             actor               VARCHAR(20)  NOT NULL,
             changed_by          BIGINT       REFERENCES arbiter_common.users(id),
             initial_status_id   BIGINT       REFERENCES arbiter_common.case_status(id),
@@ -806,15 +656,10 @@ BEGIN
             case_id             BIGINT       NOT NULL REFERENCES %I.cases(id) ON DELETE CASCADE
         )$ddl$, p_schema, p_schema);
 
-    -- ─── expert_firm / "perito" ──────────────────────────────────────────────
-    -- Directory of the external firms that verify a claim when the analyst derives it.
-    -- Per tenant because each insurer works with its own. They are NOT users of Arbiter:
-    -- no account, no login, no role — the analyst reaches them by email, which is why
-    -- the address lives here and not in arbiter_common.users.
-    -- branch_id NULL = covers every branch; a row with a branch is a specialist. BBVA
-    -- assigns "en función de su ubicación geográfica y/o especialidad" (procedimiento
-    -- 2.6); with two branches the specialty is what discriminates, so zone is a plain
-    -- label the analyst reads, with no assignment logic on it.
+    -- ─── expert_firm ─────────────────────────────────────────────────────────────
+    -- External providers the analyst derives a case to. Not Arbiter users: they are
+    -- reached by email, hence the address here. branch_id NULL = covers every branch;
+    -- zone is an informative label with no assignment logic.
     EXECUTE format($ddl$
         CREATE TABLE %I.expert_firm (
             id          BIGINT GENERATED BY DEFAULT AS IDENTITY PRIMARY KEY,
@@ -823,57 +668,41 @@ BEGIN
             zone        VARCHAR(80),
             active      BOOLEAN      NOT NULL DEFAULT TRUE,
             branch_id   BIGINT       REFERENCES arbiter_common.branch(id),
-            -- Qué hace el proveedor: el estudio liquidador investiga la causa, el servicio técnico
-            -- gestiona la reparación. Mismo catálogo porque el referente los administra igual
-            -- (por zona y ramo) y el analista los deriva igual; lo único que cambia es a qué
-            -- pregunta responden. El default deja las filas que ya existen donde estaban.
+            -- A loss adjuster investigates the cause, a repair shop handles the repair. One
+            -- catalog because both are administered and derived to the same way.
             provider_type VARCHAR(20) NOT NULL DEFAULT 'ESTUDIO_LIQUIDADOR',
             CONSTRAINT expert_firm_provider_type_valid CHECK (
                 provider_type IN ('ESTUDIO_LIQUIDADOR', 'SERVICIO_TECNICO'))
         )$ddl$, p_schema);
 
-    -- ─── expert_assessment / "peritaje" ──────────────────────────────────────
-    -- One derivation to an external expert, and the report that comes back.
-    -- The firm's name and email are COPIED, not just referenced: the catalog can be
-    -- edited or the firm deactivated, and the record of who actually verified THIS claim
-    -- must not change underneath it (same reasoning as policy_snapshot).
-    -- Una fila por caso Y POR TIPO de proveedor: un expediente puede ir al estudio liquidador,
-    -- volver sin fraude, y recién entonces al servicio técnico. Lo que no puede es ir dos veces
-    -- al mismo, y de eso se ocupa el unique de abajo (más la máquina de estados).
+    -- ─── expert_assessment ───────────────────────────────────────────────────────
+    -- One derivation to an external provider and the report that comes back. Name and
+    -- email are copied so the record survives catalog edits. One row per case and
+    -- provider type: a case may go to the loss adjuster and later to a repair shop,
+    -- but never twice to the same kind.
     EXECUTE format($ddl$
         CREATE TABLE %I.expert_assessment (
             id                  BIGINT GENERATED BY DEFAULT AS IDENTITY PRIMARY KEY,
             expert_name         VARCHAR(120) NOT NULL,
             expert_email        VARCHAR(150) NOT NULL,
-            reason              TEXT         NOT NULL,   -- por qué el analista derivó
+            reason              TEXT         NOT NULL,   -- why the analyst derived it
             derived_at          TIMESTAMPTZ  NOT NULL DEFAULT NOW(),
-            -- When the derivation email actually went out. NULL means it never did: the
-            -- case would be waiting on an expert nobody asked, which is invisible without
-            -- this column (the send is best-effort, like every other notification).
+            -- NULL = the best-effort email never went out, so nobody was actually asked.
             notified_at         TIMESTAMPTZ,
-            -- Both NULL until the report is in. report_received_at is not derivable from
-            -- the document's uploaded_at: these two dates are the round trip, and the
-            -- round trip is what interrupts the art. 56 term (Ley 17.418).
+            -- derived_at → report_received_at is the round trip that pauses the art. 56 term.
             report_received_at  TIMESTAMPTZ,
             provider_type       VARCHAR(20)  NOT NULL DEFAULT 'ESTUDIO_LIQUIDADOR',
             verdict             VARCHAR(20),
-            -- Con qué vuelve el servicio técnico. Columna propia y no `verdict`: ese es
-            -- vocabulario de fraude, y un FRAUD_CONFIRMED le deja el antecedente al asegurado —
-            -- una reparación no puede disparar eso.
+            -- Separate from verdict, which is fraud vocabulary: a repair must never leave a
+            -- fraud record on the insured.
             repair_outcome      VARCHAR(20),
             verdict_note        TEXT,
-            -- El monto indemnizable que determinó el perito. Lo carga el analista junto con el
-            -- veredicto, del informe que recibió: el perito está fuera del sistema y contesta por
-            -- mail, así que el número llega en un PDF y alguien tiene que transcribirlo.
-            --
-            -- Nullable porque no todo peritaje termina en un monto: un fraude confirmado o un
-            -- hecho no amparado no tienen nada que indemnizar, y un cero ahí se leería como "el
-            -- perito dijo que no se paga nada", que es una conclusión distinta a no haber opinado.
+            -- Transcribed by the analyst from the expert's report. NULL = the expert gave no
+            -- amount, which is not the same as saying zero.
             indemnifiable_amount NUMERIC(15,2),
             repair_cost         NUMERIC(15,2),
             derived_by          BIGINT       NOT NULL REFERENCES %I.claims_analyst(id),
-            -- Nullable and ON DELETE SET NULL is deliberate: the assessment outlives the
-            -- catalog row, and the copied name/email are what the record actually reads.
+            -- ON DELETE SET NULL: the assessment outlives the catalog row.
             expert_firm_id      BIGINT       REFERENCES %I.expert_firm(id) ON DELETE SET NULL,
             report_document_id  BIGINT       REFERENCES %I.case_documents(id),
             case_id             BIGINT       NOT NULL REFERENCES %I.cases(id) ON DELETE CASCADE,
@@ -881,22 +710,16 @@ BEGIN
             CONSTRAINT expert_assessment_case_unique UNIQUE (case_id, provider_type),
             CONSTRAINT expert_assessment_provider_type_valid CHECK (
                 provider_type IN ('ESTUDIO_LIQUIDADOR', 'SERVICIO_TECNICO')),
-            -- = common-lib's ExpertVerdict. Same guard as llm_analysis's: the enum is
-            -- the contract, and the DB refuses anything the code could not have meant.
+            -- Matches common-lib's ExpertVerdict.
             CONSTRAINT expert_assessment_verdict_valid CHECK (
                 verdict IS NULL
                 OR verdict IN ('FRAUD_CONFIRMED', 'FRAUD_DISCARDED', 'INCONCLUSIVE')),
             CONSTRAINT expert_assessment_repair_outcome_valid CHECK (
                 repair_outcome IS NULL
                 OR repair_outcome IN ('REPAIRED', 'IRREPARABLE', 'QUOTE_SENT')),
-            -- Un resultado sin fecha, o una fecha sin resultado, es media devolución. Y cada tipo
-            -- de proveedor vuelve con SU resultado: el CHECK impide que un peritaje traiga un
-            -- resultado de reparación, o al revés.
-            -- repair_cost acompaña al resultado del taller, y cuál admite qué no es
-            -- caprichoso: QUOTE_SENT lo exige —decir que mandaron presupuesto sin decir
-            -- cuánto no contesta nada—, REPAIRED lo acepta opcional porque la factura
-            -- puede llegar después del informe, e IRREPARABLE lo prohíbe porque no
-            -- hubo trabajo que cobrar.
+            -- A report is all-or-nothing, and each provider type returns only its own result.
+            -- repair_cost is required for QUOTE_SENT, optional for REPAIRED since the invoice
+            -- may come later, and forbidden for IRREPARABLE.
             CONSTRAINT expert_assessment_report_complete CHECK (
                 (report_received_at IS NULL AND verdict IS NULL AND repair_outcome IS NULL
                  AND repair_cost IS NULL)
@@ -910,57 +733,43 @@ BEGIN
                          OR (repair_outcome = 'IRREPARABLE' AND repair_cost IS NULL))))
         )$ddl$, p_schema, p_schema, p_schema, p_schema, p_schema);
 
-    -- ─── insured_fraud_record / "antecedente_fraude" ─────────────────────────
-    -- La memoria que Arbiter tenía del expediente pero no de la persona: un asegurado
-    -- con fraude comprobado arrancaba su próxima denuncia como si nada. Es de
-    -- classification-service (el módulo que ya guarda memoria entre denuncias — los
-    -- embeddings de pgvector — y el que la lee al scorear), aunque el analista lo
-    -- confirme desde el expediente, en cases-service.
-    --
-    -- No se toca nunca después de creado: es una afirmación sobre una persona, así que
-    -- qué dice y quién lo dijo tienen que seguir siendo legibles años después (Disp. SSN
-    -- 2/2023 y Ley 25.326). Deja de contar por vencimiento de la ventana que configura
-    -- la aseguradora (insurer_rule FRAUD_RECORD), no por edición.
-    --
-    -- source decide cuánto pesa: EXPERT_BACKED (hay peritaje con FRAUD_CONFIRMED)
-    -- puntúa y puede vetar Fast Track; ANALYST_DECLARED es alerta para el analista y no
-    -- entra al motor — una sospecha que mueve el score realimenta el score siguiente.
+    -- ─── insured_fraud_record ────────────────────────────────────────────────────
+    -- Fraud memory about the person across claims. Owned by classification-service,
+    -- which reads it when scoring, although the analyst confirms it from cases-service.
+    -- Never updated: it is a statement about a person and must stay readable for audit.
+    -- It stops counting when the FRAUD_RECORD rule's window expires.
+    -- EXPERT_BACKED scores and can veto Fast Track; ANALYST_DECLARED only alerts the
+    -- analyst, so a suspicion never feeds back into the next score.
     EXECUTE format($ddl$
         CREATE TABLE %I.insured_fraud_record (
             id                       BIGINT GENERATED BY DEFAULT AS IDENTITY PRIMARY KEY,
-            -- El DNI y no insured_id: es la identidad con la que la persona viaja entre
-            -- módulos (ClaimReport.insuredId) y la que el motor tiene a mano cuando llega
-            -- la denuncia siguiente. Único por esquema, igual que insured.dni.
+            -- DNI rather than insured_id: it is the identity the engine has at hand when the
+            -- next claim arrives.
             insured_dni              VARCHAR(20)  NOT NULL,
             source                   VARCHAR(20)  NOT NULL,
             reason                   TEXT         NOT NULL,
             declared_by_analyst_id   BIGINT       NOT NULL REFERENCES %I.claims_analyst(id),
-            -- Copiado, no joineado: el registro tiene que seguir leyéndose cuando el
-            -- analista ya no esté en la compañía.
+            -- Copied so the record stays readable after the analyst leaves.
             declared_by_analyst_name VARCHAR(255) NOT NULL,
             declared_at              TIMESTAMPTZ  NOT NULL DEFAULT NOW(),
             expert_assessment_id     BIGINT       REFERENCES %I.expert_assessment(id),
             case_id                  BIGINT       NOT NULL REFERENCES %I.cases(id) ON DELETE CASCADE,
 
-            -- Un expediente origina un antecedente y no dos: la determinación es un acto
-            -- del analista sobre un legajo, y dos filas duplicarían a la persona o se
-            -- contradirían entre sí.
             CONSTRAINT insured_fraud_record_case_unique UNIQUE (case_id),
             CONSTRAINT insured_fraud_record_source_valid CHECK (
                 source IN ('EXPERT_BACKED', 'ANALYST_DECLARED')),
-            -- "Con respaldo pericial" tiene que tener un peritaje al que apuntar. Es la
-            -- única diferencia entre los dos orígenes, y sin esto sería solo una etiqueta.
+            -- EXPERT_BACKED must point at an assessment, or it would be just a label.
             CONSTRAINT insured_fraud_record_backing_valid CHECK (
                 (source = 'EXPERT_BACKED'    AND expert_assessment_id IS NOT NULL)
                 OR (source = 'ANALYST_DECLARED' AND expert_assessment_id IS NULL))
         )$ddl$, p_schema, p_schema, p_schema, p_schema);
 
-    -- La lectura del motor es siempre por asegurado, en cada clasificación.
+    -- Read by insured on every classification.
     EXECUTE format($ddl$
         CREATE INDEX idx_insured_fraud_record_dni ON %I.insured_fraud_record (insured_dni)
         $ddl$, p_schema);
 
-    -- ─── risk_analysis / "analisis_riesgo_expediente" ────────────────────────
+    -- ─── risk_analysis ───────────────────────────────────────────────────────────
     EXECUTE format($ddl$
         CREATE TABLE %I.risk_analysis (
             id              BIGINT GENERATED BY DEFAULT AS IDENTITY PRIMARY KEY,
@@ -971,27 +780,24 @@ BEGIN
             case_id         BIGINT       NOT NULL REFERENCES %I.cases(id) ON DELETE CASCADE
         )$ddl$, p_schema, p_schema);
 
-    -- ─── rule_result / "resultado_regla" ─────────────────────────────────────
+    -- ─── rule_result ─────────────────────────────────────────────────────────────
     EXECUTE format($ddl$
         CREATE TABLE %I.rule_result (
             id                  BIGINT GENERATED BY DEFAULT AS IDENTITY PRIMARY KEY,
-            -- 40 y no 20: CLAIM_EXHAUSTS_COVERAGE no entraba.
             rule_type           VARCHAR(40)   NOT NULL,
             result              VARCHAR(20)   NOT NULL,
             evaluated_value     VARCHAR(150),
-            score_contribution  NUMERIC(5,4),   -- aporte_score
+            score_contribution  NUMERIC(5,4),
             evaluated_at        TIMESTAMPTZ   NOT NULL DEFAULT NOW(),
-            -- NULL para las reglas de alcance de cobertura (covers_family_group,
-            -- claim_exhausts_coverage): son columnas de `coverage`, no filas de `insurer_rule`,
-            -- así que no hay id al que apuntar. Ser auditable y ser una fila de la tabla de
-            -- reglas son dos cosas distintas.
+            -- NULL for coverage-scope rules, which are columns of coverage rather than
+            -- insurer_rule rows.
             rule_id             BIGINT        REFERENCES %I.insurer_rule(id),
             case_id             BIGINT        NOT NULL REFERENCES %I.cases(id) ON DELETE CASCADE
         )$ddl$, p_schema, p_schema, p_schema);
 
-    -- ─── llm_analysis / "analisis_llm" + llm_reason / "razon_llm" ────────────
-    -- The model's non-binding recommendation, with its reasons as rows rather than a
-    -- serialized blob. Immutable: required by Disposición SSN 2/2023.
+    -- ─── llm_analysis ────────────────────────────────────────────────────────────
+    -- The model's non-binding recommendation, reasons as rows. Immutable for audit
+    -- purposes, per SSN Disposición 2/2023.
     EXECUTE format($ddl$
         CREATE TABLE %I.llm_analysis (
             id                  BIGINT GENERATED BY DEFAULT AS IDENTITY PRIMARY KEY,
@@ -1002,10 +808,9 @@ BEGIN
             latency_ms          INTEGER,
             analyzed_at         TIMESTAMPTZ  NOT NULL DEFAULT NOW(),
             case_id             BIGINT       NOT NULL REFERENCES %I.cases(id) ON DELETE CASCADE,
-            -- Whether the narrative matches the declared claim cause: the interpretive reading the
-            -- model is there for ("does this describe a theft or a loss?"). Nullable because an
-            -- analysis may not assess it; suggested_claim_cause is the cause the narrative points
-            -- to, and cause_evidence the passage it rests on.
+            -- Whether the narrative matches the declared claim cause. NULL when not assessed.
+            -- suggested_claim_cause is a claim_cause name but deliberately not an FK: this
+            -- audit row must keep what the model answered even if the cause is renamed.
             cause_consistency       VARCHAR(20),
             suggested_claim_cause   VARCHAR(120),
             cause_evidence          TEXT,
@@ -1015,30 +820,13 @@ BEGIN
                 OR cause_consistency IN ('MATCHES', 'AMBIGUOUS', 'CONTRADICTS')
             ),
 
-            -- Whether the insured's free-text account matches the claim cause they picked from the
-            -- wizard's selector. NULL on every path that skips the model, so absent is not MATCHES.
-            -- suggested_claim_cause is always a name from arbiter_common.claim_cause (the output
-            -- schema restricts the model to the branch's list) but deliberately not an FK: this is
-            -- an immutable audit row, and it must keep saying what the model answered even if the
-            -- referente later renames or removes the cause.
-            cause_consistency     VARCHAR(20),
-            suggested_claim_cause VARCHAR(120),
-            cause_evidence        TEXT,
-
-            -- FAST_TRACK is decided by FastTrackValidator, never by the model
-            -- (decision #6) — the DB refuses to record it as an LLM recommendation.
+            -- FAST_TRACK is decided by FastTrackValidator, never by the model.
             CONSTRAINT llm_analysis_recommendation_check CHECK (
                 recommendation IN (
                     'FALTA_DOCUMENTACION',
                     'LLM_RECOMIENDA_APROBAR',
                     'LLM_NO_RECOMIENDA_APROBAR',
                     'LLM_SOLICITA_REVISION_MANUAL'
-                )
-            ),
-
-            CONSTRAINT llm_analysis_cause_consistency_check CHECK (
-                cause_consistency IS NULL OR cause_consistency IN (
-                    'MATCHES', 'AMBIGUOUS', 'CONTRADICTS'
                 )
             )
         )$ddl$, p_schema, p_schema);
@@ -1050,10 +838,9 @@ BEGIN
             analysis_id     BIGINT NOT NULL REFERENCES %I.llm_analysis(id) ON DELETE CASCADE
         )$ddl$, p_schema, p_schema);
 
-    -- ─── case_classification / "clasificacion_expediente" ────────────────────
-    -- The analyst's decision on top of the model's recommendation. Human-in-the-loop
-    -- is mandatory (decision #5): there is no path from llm_analysis to a resolved
-    -- case that does not pass through here.
+    -- ─── case_classification ─────────────────────────────────────────────────────
+    -- The analyst's decision. Every resolved case passes through here: the model never
+    -- resolves a case on its own.
     EXECUTE format($ddl$
         CREATE TABLE %I.case_classification (
             id                      BIGINT GENERATED BY DEFAULT AS IDENTITY PRIMARY KEY,
@@ -1072,79 +859,50 @@ BEGIN
             FOREIGN KEY (classification_id) REFERENCES %I.case_classification(id)
         $ddl$, p_schema, p_schema);
 
-    -- ─── case_settlement / "liquidacion_expediente" ──────────────────────────
-    -- Cuánto se paga, y de dónde salió ese número. Es el paso que faltaba entre
-    -- "el analista aprueba" y "la aseguradora paga": el procedimiento de la compañía
-    -- (NSIN001 §5.2.1.2) separa determinar el monto de resolver el siniestro, y sin
-    -- esta tabla el expediente llegaba a APROBADO sin decir cuánto.
-    --
-    -- Cada fila guarda las entradas Y el resultado, no solo el resultado. Rehacer la
-    -- cuenta meses después tiene que dar lo mismo aunque hayan cambiado la póliza, la
-    -- cobertura o los parámetros que el referente configura — es la misma exigencia de
-    -- la Disposición SSN 2/2023 que ya cumple case_classification, aplicada a la plata.
-    --
-    -- calculated_amount vs. settled_amount: el primero es lo que dio la fórmula, el
-    -- segundo lo que el analista autorizó. Guardar los dos es lo que permite mostrar
-    -- que hubo un ajuste manual en vez de que el ajuste se coma la propuesta original.
-    -- Si difieren, adjustment_reason es obligatorio (lo exige el servicio, no el
-    -- esquema: la regla mira la diferencia entre dos columnas).
-    --
-    -- Una fila por expediente (UNIQUE), y solo cuando el analista confirmó. La
-    -- propuesta previa no se persiste: es determinística a partir de entradas ya
-    -- congeladas, así que recalcularla es gratis y guardarla sería una segunda
-    -- verdad que puede quedar vieja.
+    -- ─── case_settlement ─────────────────────────────────────────────────────────
+    -- How much is paid and how it was computed. Stores the inputs as well as the result,
+    -- so the math is reproducible after the policy or the referent's parameters change.
+    -- calculated_amount is the formula's result, settled_amount what the analyst
+    -- authorized; if they differ the service requires adjustment_reason.
+    -- One row per case, written only on confirmation: the proposal is recomputed.
     EXECUTE format($ddl$
         CREATE TABLE %I.case_settlement (
             id                          BIGINT GENERATED BY DEFAULT AS IDENTITY PRIMARY KEY,
             case_id                     BIGINT        NOT NULL REFERENCES %I.cases(id),
-            -- Qué fórmula se aplicó: pérdida total o reparación.
             formula                     VARCHAR(20)   NOT NULL DEFAULT 'TOTAL_LOSS',
-            -- ─── Entradas congeladas ─────────────────────────────────────────
+            -- ─── Frozen inputs ───────────────────────────────────────────────────────────
             sum_insured                 NUMERIC(15,2) NOT NULL,
             settlement_basis            VARCHAR(30)   NOT NULL,
-            replacement_value           NUMERIC(15,2),           -- valor de reposición acreditado
-            deductible_rate             NUMERIC(5,2),            -- franquicia en puntos porcentuales
+            replacement_value           NUMERIC(15,2),
+            deductible_rate             NUMERIC(5,2),            -- percentage points
             event_ordinal               INTEGER       NOT NULL DEFAULT 1,
             event_percentage            NUMERIC(5,2)  NOT NULL DEFAULT 100,
             pending_installments        INTEGER       NOT NULL DEFAULT 0,
             installment_amount          NUMERIC(15,2),
-            -- ─── Deducciones aplicadas ───────────────────────────────────────
+            -- ─── Applied deductions ──────────────────────────────────────────────────────
             deductible_amount           NUMERIC(15,2) NOT NULL DEFAULT 0,
             pending_installments_amount NUMERIC(15,2) NOT NULL DEFAULT 0,
             overdue_balance_amount      NUMERIC(15,2) NOT NULL DEFAULT 0,
-            -- ─── Resultado ───────────────────────────────────────────────────
+            -- ─── Result ──────────────────────────────────────────────────────────────────
             calculated_amount           NUMERIC(15,2) NOT NULL,
             settled_amount              NUMERIC(15,2) NOT NULL,
             adjustment_reason           TEXT,
-            -- ─── Atribuciones (Anexo II) ─────────────────────────────────────
-            -- AUTHORIZED: el monto entraba en la atribución del analista, su firma
-            -- alcanza. PENDING_AUTHORIZATION: la superó y espera al referente — el
-            -- EXPEDIENTE no cambia de estado mientras tanto, sigue en revisión del
-            -- analista, porque para el asegurado esto es interno y no tiene por qué
-            -- ver un intermedio. RETURNED: el referente lo devolvió con un motivo.
+            -- ─── Settlement authority ────────────────────────────────────────────────────
+            -- PENDING_AUTHORIZATION: above the analyst's cap, waiting for the referent. The
+            -- case keeps its status meanwhile: this step is internal to the insurer.
             status                      VARCHAR(25)   NOT NULL DEFAULT 'AUTHORIZED',
-            -- El tope vigente cuando se confirmó, congelado como el resto de las
-            -- entradas: el referente puede cambiarlo mañana y esta liquidación tiene
-            -- que seguir explicándose con el que la mandó a autorizar. NULL = el ramo
-            -- no tenía tope configurado.
+            -- The cap in force at confirmation, frozen. NULL = the branch had no cap.
             authority_limit             NUMERIC(15,2),
-            -- Quién autorizó por encima del tope. NULL cuando entró en la atribución
-            -- del analista: ahí no hay un segundo firmante que registrar. Apunta a
-            -- arbiter_common.users y no a insurer_referent porque la identidad de la
-            -- plataforma es la de users, y cases-service no declara al referente.
+            -- NULL when within the analyst's cap. Points at users because cases-service
+            -- does not map insurer_referent.
             authorized_by_user_id       BIGINT        REFERENCES arbiter_common.users(id),
             authorized_at               TIMESTAMPTZ,
-            -- Por qué el referente la devolvió. Vive hasta que el analista vuelve a
-            -- confirmar: la fila se pisa, no se acumula historial de idas y vueltas.
+            -- Overwritten on the next confirmation; no history of round trips is kept.
             return_reason               TEXT,
-            -- La justificación del analista, en custodia mientras la liquidación espera
-            -- autorización. No es duplicado de case_classification.analyst_justification:
-            -- esa fila todavía no existe. Una aprobación que necesita al referente NO se
-            -- registra como decisión hasta que él la autoriza —si no, el expediente
-            -- quedaría con un veredicto que no surtió efecto, y una devolución dejaría
-            -- dos decisiones para un solo siniestro—. Se vacía al reenviarla.
+            -- The analyst's justification held while authorization is pending: the decision
+            -- is only recorded in case_classification once the referent authorizes.
             pending_justification       TEXT,
-            -- ─── Trazabilidad ────────────────────────────────────────────────
+            -- ─── Traceability ────────────────────────────────────────────────────────────
             coverage_id                 BIGINT        NOT NULL REFERENCES %I.coverage(id),
             policy_snapshot_id          BIGINT        REFERENCES %I.policy_snapshot(id),
             analyst_id                  BIGINT        NOT NULL REFERENCES %I.claims_analyst(id),
@@ -1159,18 +917,17 @@ BEGIN
                 CHECK (settlement_basis IN ('SUM_INSURED', 'LESSER_OF_SUM_AND_REPLACEMENT'))
         )$ddl$, p_schema, p_schema, p_schema, p_schema, p_schema);
 
-    -- ─── notification / "notificacion" ───────────────────────────────────────
-    -- Outbound messages to the insured (SendGrid, decision #9).
+    -- ─── notification ────────────────────────────────────────────────────────────
+    -- Outbound messages to the insured.
     EXECUTE format($ddl$
         CREATE TABLE %I.notification (
             id              BIGINT GENERATED BY DEFAULT AS IDENTITY PRIMARY KEY,
             type            VARCHAR(60)  NOT NULL,
             channel         VARCHAR(30)  NOT NULL,
             content         TEXT         NOT NULL,
-            sent            BOOLEAN      NOT NULL DEFAULT FALSE,   -- enviada
-            read            BOOLEAN      NOT NULL DEFAULT FALSE,   -- leida
-            -- When the notice was raised. Separate from sent_at, which stays NULL if the mail never
-            -- went out: the notification still exists and the panel has to date it.
+            sent            BOOLEAN      NOT NULL DEFAULT FALSE,
+            read            BOOLEAN      NOT NULL DEFAULT FALSE,
+            -- Separate from sent_at, which stays NULL if the mail never went out.
             created_at      TIMESTAMPTZ  NOT NULL DEFAULT now(),
             sent_at         TIMESTAMPTZ,
             read_at         TIMESTAMPTZ,
@@ -1178,71 +935,53 @@ BEGIN
             case_id         BIGINT       REFERENCES %I.cases(id) ON DELETE CASCADE
         )$ddl$, p_schema, p_schema);
 
-    -- ─── case_message ────────────────────────────────────────────────────────
-    -- The conversation between the insured and the analyst about one case. Distinct from
-    -- notification, which is outbound and automatic: this one has two sides and someone types it.
+    -- ─── case_message ────────────────────────────────────────────────────────────
+    -- Insured-analyst conversation about one case.
     EXECUTE format($ddl$
         CREATE TABLE %I.case_message (
             id              BIGINT       GENERATED BY DEFAULT AS IDENTITY PRIMARY KEY,
             case_id         BIGINT       NOT NULL REFERENCES %I.cases(id) ON DELETE CASCADE,
             sender_id       BIGINT       NOT NULL REFERENCES arbiter_common.users(id),
-            -- Frozen at write time, like case_status_history.actor: INSURED | ANALYST.
+            -- INSURED | ANALYST, frozen at write time.
             sender_role     VARCHAR(30)  NOT NULL,
             body            TEXT         NOT NULL,
             created_at      TIMESTAMPTZ  NOT NULL DEFAULT now(),
-            -- When the OTHER side read it. NULL is what the unread badge counts.
+            -- When the other side read it; NULL counts toward the unread badge.
             read_at         TIMESTAMPTZ
         )$ddl$, p_schema, p_schema);
 
     EXECUTE format('CREATE INDEX idx_case_message_case ON %I.case_message (case_id, created_at)',
                    p_schema);
 
-    -- ─── Per-tenant seed ─────────────────────────────────────────────────────
+    -- ─── Per-tenant seed ─────────────────────────────────────────────────────────
     EXECUTE format($ddl$
         INSERT INTO %I.coverage (id, name, description, report_deadline_hours,
                                  max_events_per_year, covers_family_group, deductible,
                                  claim_exhausts_coverage, is_individual, waiting_period_days, branch_id,
                                  settlement_formula, settlement_basis, second_event_percentage,
                                  deduct_pending_installments, deduct_overdue_balance) VALUES
-            -- Robo: pérdida total, así que liquida como el manual de Celulares — suma asegurada
-            -- menos franquicia menos las cuotas que restan del año, porque la póliza se extingue
-            -- con el siniestro. Dos eventos por año, el segundo al 50%%.
+            -- Total loss: sum insured minus deductible minus the year's pending installments,
+            -- since the policy ends with the claim. Two events a year, the second at 50%%.
             (1, 'Robo de celular', 'Cobertura por robo en vía pública', 72, 2, FALSE, 10.00, FALSE, TRUE, 30, 1,
              'TOTAL_LOSS', 'SUM_INSURED', 50.00, TRUE, TRUE),
-            -- Hurto: un solo evento por año, sin segundo porcentaje que aplicar.
+            -- One event a year, so no second-event percentage.
             (2, 'Hurto', 'Cobertura por hurto sin violencia', 72, 1, FALSE, 20.00, TRUE, TRUE, 30, 1,
              'TOTAL_LOSS', 'SUM_INSURED', NULL, TRUE, TRUE)
         $ddl$, p_schema);
 
-    -- Atribuciones por ramo (Anexo II): hasta acá firma el analista solo. Los montos salen de
-    -- las sumas aseguradas reales de cada ramo — en Celulares se asegura del orden del millón y
-    -- en Tecnología Portátil de las decenas de miles, así que un tope único no separaría nada.
-    -- Con estos, los siniestros chicos los cierra el analista y los grandes pasan por el
-    -- referente, que es exactamente lo que el Anexo II busca.
+    -- Per-branch caps sized to each branch's typical sum insured, so small claims stay with
+    -- the analyst and large ones go to the referent.
     EXECUTE format($ddl$
         INSERT INTO %I.settlement_authority (branch_id, max_amount) VALUES
             (1, 500000.00),
             (2,  50000.00)
         $ddl$, p_schema);
 
-    -- Umbrales del gate de Fast Track, una fila por cobertura: es lo que lee FastTrackRuleService
-    -- (GET /internal/fast-track, por cobertura) y lo que edita el referente en su pantalla.
-    --
-    -- Antes acá había dos filas de ejemplo —"Monto reclamado dentro del 50%", "Póliza al día"—
-    -- sin coverage_id y sin configuration. El servicio busca por (branch, coverage), así que no las
-    -- encontraba nunca: el referente veía la pantalla en blanco y los umbrales que realmente
-    -- decidían salían del baseline de MockRulesAdapter, o sea de código. Con la configuración acá,
-    -- levantar la BD limpia da lo mismo que el fallback y además se puede editar sin redeploy
-    -- (decisión #12).
-    --
-    -- Los valores son los del baseline. `requiredDocumentTypes` es la PRIMERA TANDA: lo mínimo
-    -- que se le pide al asegurado en el alta, y lo único que el gate mira para resolver el carril
-    -- rápido. La agenda documental completa (document_requirement) se exige recién si el caso NO
-    -- fast-trackea, y se le pide por la pantalla de Documentación.
-    --
-    -- Ojo con el criterio: el gate compara el TEXTO EXTRAÍDO de cada uno de estos documentos, no
-    -- su presencia. Un adjunto ilegible no alcanza — el caso pierde el carril rápido y pasa a
-    -- pedir la agenda completa. Por eso acá nunca va item_photo: una foto no tiene texto.
+    -- Fast Track gate thresholds, one row per coverage; values match MockRulesAdapter's
+    -- baseline. requiredDocumentTypes is only the first batch asked at filing: the full
+    -- document schedule is required only if the case does not fast-track.
+    -- The gate reads the text extracted from these documents, not their presence, so an
+    -- unreadable attachment loses Fast Track. Hence never item_photo: a photo has no text.
     EXECUTE format($ddl$
         INSERT INTO %I.insurer_rule (id, active, valid_from, name, rule_type, effect, priority,
                                      blocks_fast_track, branch_id, coverage_id, configuration) VALUES
@@ -1262,30 +1001,11 @@ BEGIN
                            "Póliza al día con sus pagos"]}')
         $ddl$, p_schema);
 
-    -- Regla dura EVALUABLE por código. A diferencia de las de arriba, que son configuración (el
-    -- gate lee sus umbrales), estas se evalúan contra el siniestro y dejan fila en rule_result.
-    -- COVERAGE_EXCLUSION: lista NEGRA de hechos generadores que la cobertura no cubre. Es lo que
-    -- evalúa CoverageRuleEvaluator (matchea por claim_cause id y deja fila en rule_result, D3/D4c),
-    -- lo que expone /internal/evaluable, lo que filtra el selector del wizard y lo que el referente
-    -- edita en "Hechos generadores NO cubiertos" de la solapa Coberturas.
-    --
-    -- Estas filas estuvieron un tiempo cargadas como 'COVERAGE_INCLUSION' (lista blanca) con la
-    -- idea de invertir el criterio para que una cobertura sin regla no cubriera nada. Esa inversión
-    -- nunca se implementó del lado Java —RuleType no tiene esa constante y los cuatro lectores
-    -- filtran por COVERAGE_EXCLUSION—, así que las filas quedaron invisibles para el motor y toda
-    -- cobertura terminaba cubriendo todo. Se vuelven a expresar como lista negra, que es lo que el
-    -- sistema sabe evaluar, sin cambiar el comportamiento que se quería: los ramos de hoy tienen 4
-    -- y 3 hechos generadores, así que enumerar lo NO cubierto es igual de explícito.
-    --
-    -- Ramo 1 (Celulares) tiene claim_cause 1 Rotura accidental, 2 Robo en vía pública, 3 Hurto,
-    -- 4 Caída. Caso 6 del handoff, "Hurto no cubierto": la cobertura de robo (1) excluye todo menos
-    -- Robo en vía pública, así que un hurto denunciado sobre ella queda no cubierto; la cobertura de
-    -- Hurto (2) excluye todo menos Hurto. Con las dos listas cargadas, cada hecho generador del ramo
-    -- lo cubre exactamente una cobertura, que es lo que PolicyCoverageResolver necesita para saber
-    -- cuál responde cuando la póliza tiene varias.
-    --
-    -- OJO (handoff §8): confirmar los ids de coverage/claim_cause contra Railway antes de fijarlos —
-    -- Tecnología pasó de branch 3 a 2 en el último reseed.
+    -- COVERAGE_EXCLUSION is a deny-list of claim causes the coverage does not cover; unlike
+    -- the rows above, it is evaluated against the claim and leaves a rule_result row.
+    -- Each claim cause of a branch must be covered by exactly one coverage, which is how
+    -- PolicyCoverageResolver picks the coverage when a policy has several.
+    -- Celulares causes: 1 Rotura accidental, 2 Robo en vía pública, 3 Hurto, 4 Caída.
     EXECUTE format($ddl$
         INSERT INTO %I.insurer_rule (id, active, valid_from, name, rule_type, effect, priority,
                                      blocks_fast_track, branch_id, coverage_id, configuration) VALUES
@@ -1297,21 +1017,10 @@ BEGIN
              TRUE, 1, 2, '{"excludedClaimCauseIds":[1,2,4]}')
         $ddl$, p_schema);
 
-    -- TEMPORAL hard rules, coverage-scoped: one row per rule and per coverage. The row is the
-    -- switch: without it, TemporalRuleEvaluator doesn't evaluate that rule (so a new insurer
-    -- doesn't inherit rules nobody configured). The threshold does NOT live here except for
-    -- POLICE_DEADLINE: the waiting period, report deadline, and events cap are terms of the
-    -- contract and are coverage columns, which the referente edits from the Coverages tab. The
-    -- police-report deadline has no column of its own — coverage.report_deadline_hours is already
-    -- the deadline for the report TO THE INSURER, a different deadline — so its threshold goes in
-    -- the JSONB. Used to be the fixed property arbiter.rules.police-report-deadline-hours = 72,
-    -- the same for every company, against decision #12. Each evaluation leaves a rule_result row
-    -- pointing at these ids (SSN 2/2023). The ids mirror MockRulesAdapter's baseline.
-    --
-    -- Coverage window (POLICY_IN_FORCE) is NOT in this block: it's insurer-scoped, see the
-    -- INSERT right below this one — a policy is or isn't in force regardless of which coverage
-    -- the claim lands under (BBVA's real API confirms this: it rejects a claim against the whole
-    -- "Operación Siniestrada", no coverage in the request payload).
+    -- Coverage-scoped temporal rules. The row is the switch: without it TemporalRuleEvaluator
+    -- skips the rule, so a new insurer inherits nothing unconfigured. Thresholds are coverage
+    -- columns, except POLICE_DEADLINE's: report_deadline_hours is the deadline to report to
+    -- the insurer, a different one. Ids mirror MockRulesAdapter's baseline.
     EXECUTE format($ddl$
         INSERT INTO %I.insurer_rule (id, active, valid_from, name, rule_type, effect, priority,
                                      blocks_fast_track, branch_id, coverage_id, configuration) VALUES
@@ -1319,11 +1028,8 @@ BEGIN
              'WAITING_PERIOD',  'DERIVAR', 2, TRUE, 1, 1, '{}'),
             (6,  TRUE, '2026-01-01 00:00:00+00', 'Plazo de denuncia a la aseguradora (cobertura 1)',
              'REPORT_DEADLINE', 'DERIVAR', 3, TRUE, 1, 1, '{}'),
-            -- Apagada por defecto (17/08): Mar consultó y el plazo de 72hs no es tan rígido como
-            -- para bloquear/derivar solo — importa más la fecha que tiene la denuncia policial en
-            -- sí (chequeo de coherencia, que sigue estando) que cuándo se sube a Arbiter. Sigue
-            -- existiendo como fila para que la aseguradora que la quiera estricta la prenda desde
-            -- el panel, sin deploy — mismo criterio que POLICY_STANDING.
+            -- Off by default: the deadline is not strict enough to derive on its own. An insurer
+            -- that wants it can turn it on from the panel.
             (7,  FALSE, '2026-01-01 00:00:00+00', 'Plazo de la denuncia policial (cobertura 1)',
              'POLICE_DEADLINE', 'DERIVAR', 4, TRUE, 1, 1, '{"deadlineHours":72}'),
             (8,  TRUE, '2026-01-01 00:00:00+00', 'Tope de eventos por año (cobertura 1)',
@@ -1338,10 +1044,8 @@ BEGIN
              'MAX_EVENTS_YEAR', 'DERIVAR', 5, TRUE, 1, 2, '{}')
         $ddl$, p_schema);
 
-    -- TEMPORAL hard rule, insurer-scoped: coverage window, one row for the whole insurer
-    -- (branch_id and coverage_id both null). POLICY_STANDING (arrears) is NOT seeded here: unlike
-    -- this one, it starts inactive on purpose (see RuleType#POLICY_STANDING's javadoc) — an
-    -- insurer that wants it has to turn it on from the Hard Stop tab.
+    -- Insurer-scoped: a policy is in force or not regardless of the coverage. POLICY_STANDING
+    -- is not seeded on purpose; an insurer turns it on from the Hard Stop tab.
     EXECUTE format($ddl$
         INSERT INTO %I.insurer_rule (id, active, valid_from, name, rule_type, effect, priority,
                                      blocks_fast_track, branch_id, coverage_id, configuration) VALUES
@@ -1349,17 +1053,10 @@ BEGIN
              'POLICY_IN_FORCE', 'DERIVAR', 1, TRUE, NULL, NULL, '{}')
         $ddl$, p_schema);
 
-    -- Política de derivación a peritaje, una por ramo (coverage_id NULL: que un peritaje se pague
-    -- solo depende del tipo de bien, no de qué cobertura se afectó). El monto mínimo es lo que la
-    -- hace configurable: el peritaje tiene un costo fijo, así que abajo de cierto reclamo sale más
-    -- caro que el siniestro. Una aseguradora que solo vende celulares de ticket bajo simplemente no
-    -- carga esta regla y sus analistas nunca ven la opción de derivar — es opt-in, y por eso
-    -- `enabled=false` es la respuesta cuando no hay fila.
-    --
-    -- Ojo con el effect: acá DERIVAR significa "derivar a un perito externo", que es el valor que
-    -- el DER le da al campo (ver InsurerRule.effect). Las reglas TEMPORAL de arriba usan el mismo
-    -- literal para "derivar a revisión del analista" — son dos derivaciones distintas y las
-    -- distingue el rule_type, no el effect.
+    -- Expert derivation policy, opt-in per branch: an assessment has a fixed cost, so below a
+    -- minimum claim it costs more than the claim. Without a row the option is not offered.
+    -- DERIVAR here means "to an external expert"; the temporal rules above use the same
+    -- literal for "to analyst review". rule_type tells them apart.
     EXECUTE format($ddl$
         INSERT INTO %I.insurer_rule (id, active, valid_from, name, rule_type, effect, priority,
                                      blocks_fast_track, branch_id, coverage_id, configuration) VALUES
@@ -1371,18 +1068,11 @@ BEGIN
              FALSE, 2, NULL, '{"minClaimedAmount":700000}')
         $ddl$, p_schema);
 
-    -- Política de antecedentes de fraude, una por aseguradora (branch_id y coverage_id NULL): el
-    -- antecedente es de la persona, no de la cobertura que afectó. La ventana es lo que la hace
-    -- defendible — un fraude de hace seis años no puede pesar como uno del año pasado, y dónde cae
-    -- esa línea es decisión de la compañía, no nuestra (Ley 25.326). Tres años acá.
-    --
-    -- blocks_fast_track=TRUE: a alguien con un fraude verificado no se le vuelve a resolver un
-    -- siniestro por la vía expedita. No rechaza nada — el effect es DERIVAR: el antecedente no es
-    -- "una causa legal o convencional de exclusión" de ESTE siniestro, es un motivo para que lo
-    -- mire una persona (decisión de arquitectura #5).
-    --
-    -- Sin esta fila (o con active=false) los antecedentes se siguen registrando y viendo, pero no
-    -- puntúan ni vetan: el factor fraud_history sale del promedio y no se evalúa la regla.
+    -- Fraud record policy, insurer-scoped: the record belongs to the person. The window keeps
+    -- old records from weighing forever, and is the insurer's call.
+    -- It blocks Fast Track but never rejects: a past fraud is a reason for a human to look,
+    -- not an exclusion of this claim. Without an active row records are still kept and
+    -- shown, but neither score nor veto.
     EXECUTE format($ddl$
         INSERT INTO %I.insurer_rule (id, active, valid_from, name, rule_type, effect, priority,
                                      blocks_fast_track, branch_id, coverage_id, configuration) VALUES
@@ -1390,9 +1080,8 @@ BEGIN
              'FRAUD_RECORD', 'DERIVAR', 1, TRUE, NULL, NULL, '{"windowMonths":36}')
         $ddl$, p_schema);
 
-    -- Which claim causes of each branch can go to a repair shop. Opt-in like peritaje: without
-    -- this row the analyst never sees "Derivar a servicio técnico". A stolen item has nothing to
-    -- repair, so only the damage causes are listed (ids from the claim_cause seed above).
+    -- Claim causes that can go to a repair shop; opt-in like expert derivation. Only damage
+    -- causes: a stolen item has nothing to repair.
     EXECUTE format($ddl$
         INSERT INTO %I.insurer_rule (id, active, valid_from, name, rule_type, effect, priority,
                                      blocks_fast_track, branch_id, coverage_id, configuration) VALUES
@@ -1404,11 +1093,8 @@ BEGIN
              FALSE, 2, NULL, '{"claimCauseIds":[6]}')
         $ddl$, p_schema);
 
-    -- Objetivo de resolución: cuántos días se da la compañía para resolver un siniestro. NO es el
-    -- plazo legal (ese es cases.response_deadline, por expediente): es una meta de gestión que el
-    -- referente fija, y puede ser más exigente que la ley. No la evalúa nadie ni bloquea nada — la
-    -- lee el tablero para decir cuántos expedientes decididos se pasaron de lo que la compañía se
-    -- propuso. Sin esta fila el tablero simplemente no muestra el objetivo.
+    -- The insurer's own resolution target, not the legal deadline in cases.response_deadline.
+    -- Nothing enforces it; only the dashboard reads it.
     EXECUTE format($ddl$
         INSERT INTO %I.insurer_rule (id, active, valid_from, name, rule_type, effect, priority,
                                      blocks_fast_track, branch_id, coverage_id, configuration) VALUES
@@ -1416,21 +1102,11 @@ BEGIN
              'RESOLUTION_TARGET', NULL, NULL, FALSE, NULL, NULL, '{"targetDays":21}')
         $ddl$, p_schema);
 
-    -- AgendaDocumental sembrada con los códigos CANÓNICOS de tipo de documento — los mismos que usa
-    -- el alta de denuncia y classification (police_report / purchase_proof / imei_deregistration /
-    -- last_connection). Antes se sembraba con códigos ad-hoc (DNI/DENUNCIA_POLICIAL/…) que el front
-    -- no reconocía, y por eso la solapa Documentación no mostraba los defaults. El referente la
-    -- amplía/recorta desde la pantalla de reglas (solapa Documentación), que persiste sobre esta
-    -- misma tabla.
-    -- Every claim cause of both branches is seeded, not just two: the schedule is what tells the
-    -- engine a case is missing documentation, and a claim cause with no rows means "requires
-    -- none". Leaving five of the seven empty let a theft be reported with no police report at all.
-    --
-    -- The lists differ by what the claim cause IS, not by branch:
-    --   · theft (Robo en vía pública, Hurto) → police report + proof of purchase, plus IMEI
-    --     deregistration and last-connection capture ONLY for Celulares; a notebook has no IMEI.
-    --   · damage (Caída, Rotura accidental, Daño accidental) → proof of purchase + repair quote +
-    --     photo of the item. No police report: there is no crime to report.
+    -- Document types use the same codes as claim filing and classification. Every claim
+    -- cause is seeded: a cause with no rows means "requires nothing".
+    -- Theft asks for police report and proof of purchase, plus IMEI deregistration and last
+    -- connection only for Celulares. Damage asks for proof of purchase, repair quote and a
+    -- photo of the item.
     EXECUTE format($ddl$
         INSERT INTO %I.document_requirement (id, document_type, mandatory, risk_band, branch_id, claim_cause_id) VALUES
             -- Celulares · Robo en vía pública
@@ -1465,9 +1141,7 @@ BEGIN
             (23, 'item_photo',          TRUE, NULL, 2, 8)
         $ddl$, p_schema);
 
-    -- Same values as classification-service's MockRulesAdapter.DEFAULT_SCORING_CONFIG
-    -- (the "faithful H0012 reference config"). Every tenant starts from this baseline
-    -- and diverges from there.
+    -- Same values as MockRulesAdapter.DEFAULT_SCORING_CONFIG; each tenant diverges from here.
     EXECUTE format($ddl$
         INSERT INTO %I.scoring_configuration (id, name, active, full_analysis_on_fast_track, valid_from) VALUES
             (1, 'Default (H0012 reference config)', TRUE, FALSE, '2026-01-01 00:00:00+00')
@@ -1480,12 +1154,8 @@ BEGIN
             (3, 'policy_standing', 0.20, 1),
             (4, 'image_reuse', 0.50, 1),
             (5, 'image_web_match', 0.40, 1),
-            -- El antecedente de fraude cierra el ciclo que claim_frequency deja abierto:
-            -- ese factor cuenta cuántas veces denunció el asegurado y es ciego al
-            -- desenlace. Pesa más que ninguno porque es el único apoyado en un hecho
-            -- verificado por una persona, pero no alcanza solo para llegar a CRITICAL:
-            -- el antecedente informa la lectura, no la reemplaza. Sin la regla
-            -- FRAUD_RECORD activa el factor no se evalúa y sale del promedio.
+            -- Heaviest factor, being the only one backed by a human-verified fact, but not
+            -- enough alone to reach CRITICAL. Skipped without an active FRAUD_RECORD rule.
             (6, 'fraud_history', 0.60, 1)
         $ddl$, p_schema);
 
@@ -1516,11 +1186,8 @@ $fn$ LANGUAGE plpgsql;
 -- =============================================================================
 -- "BD ASEGURADORA" SCHEMA TEMPLATE — the external insurer system, simulated
 --
--- Not Arbiter's data: this stands in for the insurer's own database, integrated by
--- shared database per the architecture doc. One schema per insurer, so the
--- aseguradora_id discriminator the single-schema version carried is gone.
--- Names stay in Spanish here — it simulates a third-party system with its own
--- vocabulary, and Arbiter only reads it through InsurerDatabaseAdapter.
+-- Stands in for the insurer's own database, one schema per insurer. Names stay in
+-- Spanish: it simulates a third-party system, read only through InsurerDatabaseAdapter.
 -- =============================================================================
 
 CREATE OR REPLACE FUNCTION arbiter_common.create_insurer_db_schema(
@@ -1562,19 +1229,12 @@ BEGIN
             rama                  VARCHAR(80)   NOT NULL,
             producto              VARCHAR(160)  NOT NULL,
             bien_asegurado        VARCHAR(255),
-            -- Identificador del equipo cuando el ramo lo tiene (Celulares). NULL en los ramos donde
-            -- no aplica. Es el operando que le faltaba al cruce "el IMEI del documento no coincide
-            -- con el del bien" (D4b): sin esto, extraer el IMEI de la factura no servía de nada.
+            -- Celulares only; compared against the IMEI extracted from the documents.
             imei                  VARCHAR(20),
             moneda                VARCHAR(3)    NOT NULL DEFAULT 'ARS',
-            -- TIMESTAMP (sin timezone), no DATE: la póliza modelo (BBVA) fija la vigencia con hora
-            -- exacta ("desde las 12:00 hs del..."), y con solo la fecha un siniestro dos horas
-            -- antes de que arranque la vigencia, mismo día, pasaba el chequeo de
-            -- PolicyEligibilityValidator / TemporalRuleEvaluator (D13) como si estuviera cubierto.
-            -- Sin timezone a propósito: InsurerDatabaseAdapter la lee con JDBC crudo vía
-            -- rs.getObject(col, LocalDateTime.class), que el driver de Postgres rechaza para
-            -- TIMESTAMPTZ (pide OffsetDateTime/Instant) — y en el resto del dominio la fecha del
-            -- hecho tampoco lleva timezone, es LocalDateTime a secas.
+            -- TIMESTAMP, not DATE: coverage starts at an exact hour, so a claim earlier that same
+            -- day must fail the in-force check. Without time zone because InsurerDatabaseAdapter
+            -- reads it as LocalDateTime, which the driver rejects for TIMESTAMPTZ.
             vigencia_desde        TIMESTAMP     NOT NULL,
             vigencia_hasta        TIMESTAMP     NOT NULL,
             estado_contrato       VARCHAR(20)   NOT NULL,
@@ -1583,8 +1243,7 @@ BEGIN
             cuotas_impagas        INTEGER       NOT NULL DEFAULT 0,
             saldo_deuda           NUMERIC(38,2) NOT NULL DEFAULT 0,
             forma_pago            VARCHAR(60),
-            -- Importe de cada cuota del premio. Es lo que falta para poder descontar las
-            -- cuotas a vencer de la indemnizacion: saldo_deuda solo cubre lo ya vencido.
+            -- Needed to deduct pending installments; saldo_deuda only covers what is overdue.
             importe_cuota         NUMERIC(38,2),
             max_eventos_anuales   INTEGER,
             segundo_evento_pct    NUMERIC(5,2),
@@ -1620,11 +1279,8 @@ BEGIN
         CREATE TABLE %I.siniestro_historico (
             id                  BIGINT GENERATED BY DEFAULT AS IDENTITY PRIMARY KEY,
             poliza_id           BIGINT       NOT NULL REFERENCES %I.poliza(id),
-            -- A qué cobertura se imputó. La suma asegurada es de la COBERTURA y no hay tope
-            -- agregado por póliza, así que lo que consume el techo de una cobertura es lo
-            -- liquidado contra ESA cobertura (CoverageScopeEvaluator.evaluateSumInsuredLimit).
-            -- Nullable: un histórico sin imputar hace que la regla lo saltee, en vez de cargarlo
-            -- contra la cobertura equivocada.
+            -- What consumes a coverage's sum insured is what was paid against that coverage.
+            -- NULL makes the rule skip the row instead of charging the wrong coverage.
             cobertura_id        BIGINT       REFERENCES %I.cobertura(id),
             asegurado_id        BIGINT       NOT NULL REFERENCES %I.asegurado(id),
             fecha_ocurrencia    DATE         NOT NULL,
@@ -1650,15 +1306,12 @@ $fn$ LANGUAGE plpgsql;
 SELECT arbiter_common.create_tenant_schema('arbiter_bbva');
 SELECT arbiter_common.create_tenant_schema('arbiter_provincia');
 
--- CUITs and SSN registration numbers carried over from the old single-schema `aseguradora` seed.
 SELECT arbiter_common.create_insurer_db_schema(
     'aseguradora_bbva', 'BBVA Seguros Argentina S.A.', '30-50006423-0', '0396');
 SELECT arbiter_common.create_insurer_db_schema(
     'aseguradora_provincia', 'Provincia Seguros S.A.', '30-57411408-6', '0326');
 
 -- ─── Role profiles, per tenant ───────────────────────────────────────────────
--- The DER moves the person's name off `usuario` and onto the role profile, which is
--- tenant-scoped — so these cannot live in the shared seed above.
 INSERT INTO arbiter_bbva.insured (id, name, surname, dni, email, phone, pep, user_id) VALUES
     (1, 'Martina', 'Soteras', '42.987.654', 'asegurado.arbiter@gmail.com', '+54 9 11 5555-0001', FALSE, 1);
 
@@ -1701,21 +1354,5 @@ COMMIT;
 --   SELECT arbiter_common.create_insurer_db_schema(
 --       'aseguradora_lasegunda', 'La Segunda Seguros S.A.', '30-50001328-8', '0331');
 --
--- La Segunda's insurer data, rescued from the old single-schema `aseguradora` (dropped 2026-09-12)
--- and reshaped for its own schema — no aseguradora_id, ids restart at 1. One insured with one
--- active Celulares policy and no claim history:
---   INSERT INTO aseguradora_lasegunda.asegurado (id, documento, cuil, nombre, apellido, email, telefono)
---        VALUES (1, '45.111.888', '27-45111888-3', 'Brenda', 'Molina', 'brenda.molina@example.com', '11-5555-0010');
---   INSERT INTO aseguradora_lasegunda.poliza (id, numero, nro_certificado, titular_id, rama, producto,
---               bien_asegurado, moneda, vigencia_desde, vigencia_hasta, estado_contrato, estado_pago,
---               cuotas_pagas, cuotas_impagas, saldo_deuda, forma_pago, importe_cuota, cubre_grupo_familiar)
---        VALUES (1, 'POL-CEL-2026-909', '900110', 1, 'Celulares', 'Celular Protegido Básico',
---               'Samsung Galaxy A15', 'ARS', '2026-05-01', '2027-05-01', 'ACTIVA', 'AL_DIA',
---               3, 0, 0.00, 'TARJETA DE CREDITO', 12000.00, FALSE);
---   INSERT INTO aseguradora_lasegunda.cobertura (id, poliza_id, orden, nombre, suma_asegurada, franquicia_pct)
---        VALUES (1, 1, 1, 'Robo de celular', 600000.00, 10.00);
---
--- Still to come, kept out of this file so it stays DDL + catalogs:
---   · policies / insured / claim history per aseguradora_* schema
---   · demo cases (db/seed-demo-bbva.sql)
+-- Policies, insured, claim history and demo cases live in db/seed-demo.sql.
 -- =============================================================================

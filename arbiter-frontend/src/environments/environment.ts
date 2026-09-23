@@ -1,5 +1,4 @@
-// Paths relativos: en dev los rutea proxy.conf.json al puerto de cada módulo;
-// en prod los rutea Nginx. El frontend nunca hardcodea host/puerto.
+// Relative path: proxy.conf.json routes it in dev, Nginx in production.
 export const environment = {
   apiBaseUrl: '/api/v1',
 };

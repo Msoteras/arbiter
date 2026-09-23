@@ -1,4 +1,4 @@
 package ar.edu.utn.frba.arbiter.rules.dto;
 
-/** Confirmación de guardado: la fila de {@code scoring_configuration} + su config, tal como quedó en la DB. */
+/** Save confirmation: the {@code scoring_configuration} row and its config as persisted. */
 public record ScoringConfigResponse(Long id, ScoringConfigDto config) {}
