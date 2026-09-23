@@ -359,7 +359,7 @@ describe('FraudReportComponent', () => {
     fixture.detectChanges();
 
     expect(host.textContent).toContain('score de riesgo alto (banda Alto');
-    expect(host.textContent).toContain('El sistema no determina fraude');
+    expect(host.textContent).toContain('lo declarado en la denuncia.');
   });
 
   it('exports the same filters it previews, in the requested format', () => {

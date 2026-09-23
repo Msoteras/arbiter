@@ -29,6 +29,7 @@ describe('HistorialReglasComponent', () => {
     changes: [{ field: 'deadlineHours', previousValue: '72', newValue: '120' }],
     current: true,
     partial: false,
+    author: 'Ana Pérez',
     ...over,
   });
 
@@ -102,20 +103,19 @@ describe('HistorialReglasComponent', () => {
   });
 
   /**
-   * Del motivo se muestra el autor y nada más: la prosa era "<qué cambió> por <quién>" y el qué ya
-   * está en el título y el alcance. De paso, así no llega a pantalla el inglés de los motivos
-   * viejos, que están persistidos y no se pueden reescribir.
+   * The author comes resolved by the backend; the reason's prose (old ones in English) is not
+   * shown, since what changed is already in the title and the scope.
    */
-  it('muestra solo el autor del cambio, no el motivo entero', async () => {
+  it('muestra el autor que resuelve el back, no el motivo entero', async () => {
     await mount([entry({ reason: 'Hard rule POLICE_DEADLINE updated by ana@bbva.com' })]);
 
-    expect(text()).toContain('ana@bbva.com');
+    expect(text()).toContain('por Ana Pérez');
     expect(text()).not.toContain('Hard rule');
     expect(text()).not.toContain('updated by');
   });
 
   it('no deja un "por" colgado cuando el motivo no nombra a nadie', async () => {
-    await mount([entry({ reason: 'Actualización automática' })]);
+    await mount([entry({ reason: 'Actualización automática', author: null })]);
 
     expect(text()).not.toContain('Actualización automática');
     expect(text()).not.toMatch(/por\s*$/);
