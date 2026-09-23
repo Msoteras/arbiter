@@ -11,24 +11,11 @@ import {
 } from '@angular/core';
 
 /**
- * The design system's table. The content (real thead/tbody with th/td) is projected as plain
- * HTML — this component only adds the standard look (faint uppercase header, rows separated by a
- * border). ::ng-deep is needed because that content arrives through <ng-content>, which Angular's
- * style encapsulation doesn't reach any other way; it stays scoped to the host.
+ * The thead/tbody are projected, so styling them needs ::ng-deep (still scoped to the host).
  *
- * `fixed` splits the width per column instead of per content: the ones with no declared width end
- * up equal. For a matrix (the documentation schedule, document × claim cause) that is what fits —
- * by content, each column measures whatever its title measures and the grid looks crooked.
- *
- * A table that doesn't fit widthwise scrolls, and `pinFirstColumn` and `stickyHeader` are what
- * make that scroll usable: without the first column in view you can't tell which row you are
- * reading, and without the header, which column. Both are opt-in — a narrow table needs neither.
- *
- * `stickyHeader` also gives the table its own height (`maxHeight`) and vertical scroll. Not a
- * whim: the `overflow-x` the horizontal scroll needs already makes the table a scroll container,
- * so a `position: sticky` here sticks to IT and not to the page — with no height of its own the
- * header rides up with the rows and sticks to nothing. With its own viewport the header stays
- * above the rows while the table is read, which is the point.
+ * `stickyHeader` also gives the table its own height and vertical scroll: the `overflow-x` needed
+ * for horizontal scrolling makes the host a scroll container, so `position: sticky` sticks to it,
+ * not to the page, and without a height of its own the header would scroll away with the rows.
  */
 @Component({
   selector: 'app-table',
@@ -107,8 +94,7 @@ import {
       z-index: 2;
     }
 
-    /* Pinned first column: while the table scrolls sideways, the case number stays in view. It
-       needs a background of its own — otherwise the cells next to it show through. */
+    /* Pinned cells need their own background, or the scrolled cells show through. */
     :host ::ng-deep .table.pinned th:first-child,
     :host ::ng-deep .table.pinned td:first-child {
       position: sticky;
@@ -126,8 +112,6 @@ import {
       border-right: 1px solid var(--border-default);
     }
 
-    /* Pinned last column, for row actions: on a narrow screen they would otherwise sit past the
-       right edge, and the row can't be acted on without scrolling first. */
     :host ::ng-deep .table.pinned-end th:last-child,
     :host ::ng-deep .table.pinned-end td:last-child {
       position: sticky;
@@ -148,17 +132,14 @@ import {
 export class TableComponent {
   private readonly host: ElementRef<HTMLElement> = inject(ElementRef);
 
-  /** Width per column instead of per content: columns with no declared width end up equal. */
+  /** Columns with no declared width end up equal (useful for matrices). */
   readonly fixed = input(false);
-  /** Keeps the first column in view while the table scrolls sideways. */
   readonly pinFirstColumn = input(false);
-  /** Keeps the last column (row actions) in view while the table scrolls sideways. */
   readonly pinLastColumn = input(false);
-  /** Gives the table its own height and keeps the header in view while it is read. */
   readonly stickyHeader = input(false);
-  /** Height of that own viewport, only with `stickyHeader`. Too much of it = a page with two scrolls. */
+  /** Only applies with `stickyHeader`. */
   readonly maxHeight = input('70vh');
-  /** What this table is, for the screen reader that lands on the scrollable region. */
+  /** Accessible name of the scrollable region. */
   readonly scrollLabel = input('Tabla desplazable');
 
   private readonly scrollLeft = signal(0);
@@ -166,7 +147,6 @@ export class TableComponent {
   private readonly clientWidth = signal(0);
 
   protected readonly scrolled = computed(() => this.scrollLeft() > 0);
-  /** Columns still hidden to the right, i.e. behind a pinned last column. */
   protected readonly moreRight = computed(
     () => this.scrollLeft() + this.clientWidth() < this.scrollWidth() - 1,
   );
@@ -174,9 +154,7 @@ export class TableComponent {
 
   constructor() {
     const destroyRef = inject(DestroyRef);
-    // The width comes from the projected content, so it is only known once rendered. Both are
-    // observed: the host changes with the window, and the table with its rows and columns
-    // (paging, filtering) without the host moving at all.
+    // Observe both: the host resizes with the window, the table with its rows (paging, filtering).
     afterNextRender(() => {
       const element = this.host.nativeElement;
       const observer = new ResizeObserver(() => this.measure(element));

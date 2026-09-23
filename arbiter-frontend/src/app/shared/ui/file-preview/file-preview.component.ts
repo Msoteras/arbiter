@@ -16,15 +16,7 @@ import {
   isPreviewablePdf,
 } from '../../../core/models/case-document';
 
-/**
- * Vista previa de un archivo que el usuario acaba de elegir, ANTES de subirlo.
- *
- * A diferencia del visor del expediente, acá no hay backend: el File ya está en memoria,
- * así que alcanza con un object URL. Sirve para no mandar la foto movida o el PDF
- * equivocado y tener que repetir el ciclo de "falta documentación".
- *
- * Miniatura siempre visible + click para agrandar en línea (sin modal ni pestaña nueva).
- */
+/** Preview of a locally selected file before upload, served from an object URL. */
 @Component({
   selector: 'app-file-preview',
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -160,9 +152,6 @@ import {
       place-items: center;
       padding: var(--space-3);
     }
-    /* Sin radio: el marco redondea 7px pero tiene 12px de padding, así que el borde de la
-       imagen nunca toca la curva. Contorno negro puro al 10% — un neutro teñido se lee
-       como suciedad en el borde. */
     .expanded.image img {
       max-width: 100%;
       max-height: 420px;
@@ -191,7 +180,7 @@ export class FilePreviewComponent {
   protected readonly size = computed(() => formatFileSize(this.file().size));
 
   constructor() {
-    // Un object URL nuevo por archivo; el anterior se revoca o queda colgado en memoria.
+    // Revoke the previous object URL, or it leaks.
     effect((onCleanup) => {
       const file = this.file();
       const objectUrl = URL.createObjectURL(file);

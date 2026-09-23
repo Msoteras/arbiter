@@ -1,10 +1,6 @@
 import { ChangeDetectionStrategy, Component, computed, input, output } from '@angular/core';
 
-/**
- * Pager reutilizable para listados paginados server-side (Spring Data: `page` 0-based).
- * Muestra el rango visible ("1–20 de 57"), navegación anterior/siguiente y un selector de
- * tamaño de página. No conoce nada del dominio — cualquier listado paginado puede usarlo.
- */
+/** Pager for server-side paginated lists (Spring Data, 0-based `page`). */
 @Component({
   selector: 'app-pagination',
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -27,9 +23,8 @@ import { ChangeDetectionStrategy, Component, computed, input, output } from '@an
             (change)="sizeChange.emit(+$any($event.target).value)"
           >
             @for (s of sizeOptions(); track s) {
-              <!-- [selected] además de [value] en el select: sin esto, el <select> nativo se
-                   renderiza antes que sus <option> y cae en la primera (mostraba "10" aunque el
-                   tamaño real fuera 20). -->
+              <!-- [selected] as well as the select's [value]: the native <select> renders before
+                   its options and would otherwise fall back to the first one. -->
               <option [value]="s" [selected]="s === size()">{{ s }}</option>
             }
           </select>

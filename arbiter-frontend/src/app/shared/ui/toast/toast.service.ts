@@ -8,11 +8,7 @@ export interface Toast {
   tone: ToastTone;
 }
 
-/**
- * Avisos efímeros para errores/confirmaciones que no ameritan quedar clavados en la pantalla como
- * texto fijo (ej. "El backend dio error" al lado de un botón). `app-toast-stack`, montado una sola
- * vez en `app.html`, es quien los dibuja — este service solo lleva la cola.
- */
+/** Holds the toast queue; `app-toast-stack`, mounted once in `app.html`, renders it. */
 @Injectable({ providedIn: 'root' })
 export class ToastService {
   private readonly _toasts = signal<Toast[]>([]);

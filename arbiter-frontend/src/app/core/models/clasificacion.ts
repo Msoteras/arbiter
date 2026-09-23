@@ -1,8 +1,6 @@
 import { StatusTone } from './status-tone';
 
-// Espejo del enum Classification de common-lib
-// (ar.edu.utn.frba.arbiter.common.enums.Classification).
-// cases-service lo devuelve hoy como String en analysisClassification.
+// Mirrors common-lib's Classification enum.
 export type Clasificacion =
   | 'FAST_TRACK'
   | 'FALTA_DOCUMENTACION'
@@ -22,10 +20,6 @@ export function clasificacionLabel(value: string): string {
   return (LABELS as Record<string, string>)[value] ?? value;
 }
 
-// Tono de semáforo por recomendación del modelo. Recomienda aprobar → ok;
-// no recomienda → danger; Fast Track → info; falta doc o requiere revisión
-// manual → warning. La decisión sigue siendo del analista:
-// el color es una señal, no un veredicto.
 const TONES: Record<Clasificacion, StatusTone> = {
   FAST_TRACK: 'info',
   FALTA_DOCUMENTACION: 'warning',

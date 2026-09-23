@@ -1,14 +1,9 @@
 import { ChangeDetectionStrategy, Component, input } from '@angular/core';
 
-/** Instancias distintas no pueden compartir el id del mask: el segundo pisaría al primero. */
+/** Each instance needs its own mask id, or the second one would override the first. */
 let uid = 0;
 
-/**
- * Spinner de marca: el símbolo de Arbiter girando, sin texto. Reutilizable en tamaño chico —
- * dentro de un botón mientras guarda, junto a un texto de "cargando", etc. — y grande (la
- * pantalla de carga lo usa a 72px). El trazo va en `currentColor`, así queda blanco sobre un
- * botón oscuro y tinta sobre fondo claro sin configurar nada. Respeta `prefers-reduced-motion`.
- */
+/** Strokes use `currentColor`, so the spinner adapts to dark buttons and light surfaces alike. */
 @Component({
   selector: 'app-spinner',
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -70,7 +65,7 @@ let uid = 0;
   `,
 })
 export class SpinnerComponent {
-  /** Lado del símbolo en píxeles. */
+  /** Side length in px. */
   readonly size = input(20);
 
   private readonly id = `arb-spinner-gap-${uid++}`;

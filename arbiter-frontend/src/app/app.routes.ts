@@ -38,9 +38,7 @@ export const routes: Routes = [
       ),
   },
 
-  // ----- Pantallas de inicio (una por rol) -----
-  // Cada rol aterriza acá después del login. El home es su propia sección: no comparten
-  // componente porque el contenido y los datos son distintos por rol.
+  // ----- Home screens (one per role) -----
   {
     path: 'home',
     canActivate: [roleGuard],
@@ -69,8 +67,7 @@ export const routes: Routes = [
       ),
   },
 
-  // ----- Portal del analista (la bandeja y el detalle también los ve el referente, en
-  //        modo solo lectura: sin asignar ni decidir) -----
+  // ----- Analyst portal (the referente also sees it, read-only: no assigning or deciding) -----
   {
     path: 'inbox',
     canActivate: [roleGuard],
@@ -88,18 +85,16 @@ export const routes: Routes = [
       ),
   },
   {
-    // Sin roles en data: cualquier sesión autenticada entra (no es de un rol en particular,
-    // es la vitrina del design system) — pero sí requiere login, no queda pública en
-    // producción.
+    // No roles in data: any authenticated session gets in, but it is not public in production.
     path: 'styleguide',
     canActivate: [roleGuard],
     loadComponent: () =>
       import('./features/styleguide/styleguide.component').then((m) => m.StyleguideComponent),
   },
 
-  // ----- Portal del asegurado -----
-  // H0009 — primer ingreso. Va sin `onboardingGuard` (se redirige a sí misma) y con
-  // `onboardingPendingGuard` en su lugar: quien ya lo completó no vuelve a verla.
+  // ----- Insured portal -----
+  // No onboardingGuard here (it would redirect to itself); onboardingPendingGuard keeps users who
+  // already completed it out.
   {
     path: 'portal/onboarding',
     canActivate: [roleGuard, onboardingPendingGuard],
@@ -117,9 +112,6 @@ export const routes: Routes = [
       import('./features/portal/perfil/perfil.component').then((m) => m.PerfilComponent),
   },
   {
-    // Pantalla aparte y no una sección del perfil: el perfil son datos de la persona (los suyos,
-    // su contacto, sus consentimientos) y esto es la relación con la compañía. Además crece con
-    // cada póliza, y ahí adentro tapaba lo editable.
     path: 'portal/policies',
     canActivate: [roleGuard, onboardingGuard],
     data: { roles: ['ASEGURADO'] },
@@ -165,7 +157,7 @@ export const routes: Routes = [
       ),
   },
 
-  // ----- Panel del referente -----
+  // ----- Referente panel -----
   {
     path: 'insurer/users',
     canActivate: [roleGuard],
@@ -181,9 +173,7 @@ export const routes: Routes = [
       import('./features/admin/reglas/reglas.component').then((m) => m.ReglasComponent),
   },
   {
-    // Bandeja de firma del referente: liquidaciones que superaron la atribución del analista.
-    // Fuera de 'insurer/rules' a propósito — esto no se configura, se resuelve, y es trabajo
-    // sobre expedientes concretos como la bandeja, no una pantalla de parámetros.
+    // Settlements above the analyst's authority limit, awaiting the referente's sign-off.
     path: 'insurer/settlements',
     canActivate: [roleGuard],
     data: { roles: ['REFERENTE_ASEGURADORA'] },
@@ -195,8 +185,7 @@ export const routes: Routes = [
   {
     path: 'insurer/dashboard',
     canActivate: [roleGuard],
-    // El analista también los ve: son métricas de la operación, no configuración de la
-    // aseguradora (a diferencia de usuarios y reglas, que siguen siendo del referente).
+    // Operational metrics, not insurer configuration, so the analyst sees them too.
     data: { roles: ['REFERENTE_ASEGURADORA', 'ANALISTA_SINIESTROS'] },
     loadComponent: () =>
       import('./features/admin/dashboard/dashboard.component').then((m) => m.DashboardComponent),
@@ -204,16 +193,13 @@ export const routes: Routes = [
   {
     path: 'insurer/reports',
     canActivate: [roleGuard],
-    // El analista también los ve: son métricas de la operación, no configuración de la
-    // aseguradora (a diferencia de usuarios y reglas, que siguen siendo del referente).
     data: { roles: ['REFERENTE_ASEGURADORA', 'ANALISTA_SINIESTROS'] },
-    // El tab es una ruta y no un signal: así el referente puede marcar o pasar "el reporte de
-    // fraude de agosto", y volver del detalle de un expediente lo deja en el tab que estaba.
+    // Tabs are routes rather than a signal so they can be bookmarked and survive navigating back
+    // from a case.
     loadComponent: () =>
       import('./features/admin/reportes/reports.component').then((m) => m.ReportsComponent),
     children: [
-      // La solapa que se estaba usando, no siempre la primera: el referente entra a Reportes
-      // varias veces por semana y casi siempre al mismo reporte.
+      // Reopens the last-used tab, not always the first.
       { path: '', pathMatch: 'full', redirectTo: () => rememberedReportsTab() },
       {
         path: 'resolutions',
@@ -232,8 +218,7 @@ export const routes: Routes = [
     ],
   },
 
-  // redirectTo: '' no vuelve a disparar la regla '' → login (Angular no re-evalúa el
-  // redirect resultante) — una URL inexistente quedaba en pantalla en blanco, sin
-  // mensaje ni forma de volver.
+  // Not redirectTo: '' — Angular does not re-evaluate the resulting redirect, so the '' -> login
+  // rule would not fire and unknown URLs would render blank.
   { path: '**', redirectTo: 'login' },
 ];

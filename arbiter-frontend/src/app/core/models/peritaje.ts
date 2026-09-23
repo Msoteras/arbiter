@@ -1,7 +1,6 @@
 import { StatusTone } from './status-tone';
 
-// Espejo del enum ExpertVerdict de common-lib
-// (ar.edu.utn.frba.arbiter.common.enums.ExpertVerdict).
+// Mirrors common-lib's ExpertVerdict enum.
 export type ExpertVerdict = 'FRAUD_CONFIRMED' | 'FRAUD_DISCARDED' | 'INCONCLUSIVE';
 
 const VERDICT_LABELS: Record<ExpertVerdict, string> = {
@@ -14,9 +13,6 @@ export function veredictoLabel(value: string): string {
   return (VERDICT_LABELS as Record<string, string>)[value] ?? value;
 }
 
-// A diferencia de la recomendación del modelo, esto es evidencia de una persona que inspeccionó
-// el caso. Aun así no resuelve nada: el color señala qué encontró el perito, no qué hay que hacer
-// — la decisión sigue siendo del analista.
 const VERDICT_TONES: Record<ExpertVerdict, StatusTone> = {
   FRAUD_CONFIRMED: 'danger',
   FRAUD_DISCARDED: 'ok',
@@ -60,20 +56,19 @@ export const REPAIR_OUTCOME_OPTIONS = Object.entries(REPAIR_LABELS).map(([value,
   label,
 }));
 
-/** Un perito del catálogo de la aseguradora — espejo de ExpertFirmResponse. */
+/** Mirrors ExpertFirmResponse. */
 export interface Perito {
   id: number;
   name: string;
   email: string;
   zone: string | null;
-  /** null = generalista (cubre todos los ramos). */
+  /** null = generalist (covers every branch). */
   branchName: string | null;
 }
 
 /**
- * Espejo de DerivationOptionsResponse. `eligible` combina la regla de la aseguradora (monto
- * mínimo) con que haya peritos disponibles; los dos montos vienen para poder explicar el "no"
- * en vez de mostrar un botón apagado sin motivo.
+ * Mirrors DerivationOptionsResponse. `eligible` combines the insurer's minimum amount with expert
+ * availability; both amounts come so the UI can explain a "no".
  */
 export interface OpcionesDerivacion {
   eligible: boolean;
@@ -82,7 +77,7 @@ export interface OpcionesDerivacion {
   firms: Perito[];
 }
 
-/** Espejo de ExpertAssessmentResponse. Sin informe todavía, `verdict` y `reportReceivedAt` son null. */
+/** Mirrors ExpertAssessmentResponse. Before the report, `verdict` and `reportReceivedAt` are null. */
 export interface Peritaje {
   id: number;
   expertName: string;
@@ -91,25 +86,16 @@ export interface Peritaje {
   reason: string;
   derivedAt: string;
   derivedByName: string;
-  /** false = el mail nunca salió; el expediente estaría esperando a alguien a quien nadie avisó. */
+  /** false = the email never went out, so nobody was told. */
   notified: boolean;
   reportReceivedAt: string | null;
   verdict: ExpertVerdict | null;
   repairOutcome: RepairOutcome | null;
   providerType: ProviderType;
   verdictNote: string | null;
-  /**
-   * Lo que el perito determinó que vale el siniestro, transcripto del informe por el analista.
-   * Null cuando el informe no puso un número — un fraude confirmado o un hecho no amparado no
-   * tienen nada que indemnizar, y ahí un cero diría otra cosa.
-   */
+  /** Null when the report gives no figure (e.g. confirmed fraud); zero would mean something else. */
   indemnifiableAmount: number | null;
-  /**
-   * Lo que el taller cobra por el trabajo: presupuestado si todavía no lo hizo, facturado si ya lo
-   * hizo. Null con un equipo irreparable, donde no hubo arreglo que cobrar. Campo aparte del monto
-   * del perito porque contestan preguntas distintas — cuánto vale el siniestro contra cuánto sale
-   * el arreglo.
-   */
+  /** Quoted or invoiced repair cost; null when irreparable. Distinct from `indemnifiableAmount`. */
   repairCost: number | null;
   reportDocumentId: number | null;
 }

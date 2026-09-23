@@ -1,36 +1,23 @@
 import { estadoSimplificadoEfectivo, movimientoAseguradoLabel, proximoPaso } from './estado';
 
-/**
- * El seguimiento del asegurado lista los movimientos del expediente, y ese listado sale de acá.
- * Lo que se prueba no es la redacción sino el contrato: qué movimientos ve, cuáles no, y que la
- * derivación se le cuente SIN el motivo — el motivo es la sospecha, y todavía no hay nada probado.
- */
+// Tests the contract, not the wording: which movements the insured sees, and never the referral reason.
 describe('movimientoAseguradoLabel', () => {
   it('distingue el alta de la vuelta con documentación', () => {
-    // fromStatus null = fila de creación del expediente.
     expect(movimientoAseguradoLabel('PENDING_CLASSIFICATION', null)).toBe('Denuncia recibida');
     expect(movimientoAseguradoLabel('PENDING_CLASSIFICATION', 'AWAITING_DOCUMENTATION')).toBe(
       'Recibimos tu documentación',
     );
-    // También se puede cargar documentación con el expediente ya en revisión.
+    // Documents can also be uploaded while the case is under review.
     expect(movimientoAseguradoLabel('PENDING_CLASSIFICATION', 'PENDING_ANALYST_REVIEW')).toBe(
       'Recibimos tu documentación',
     );
   });
 
-  /**
-   * El reintento manual del analista sobre un expediente que falló vuelve a PENDING_CLASSIFICATION
-   * sin que el asegurado haya mandado nada. Se le mostraba "Recibimos tu documentación", que le
-   * inventaba una carga que nunca hizo (lo pescó la usuaria en el siniestro 15 de Provincia).
-   */
   it('no muestra el reintento manual como una carga de documentación', () => {
     expect(movimientoAseguradoLabel('PENDING_CLASSIFICATION', 'CLASSIFICATION_FAILED')).toBeNull();
   });
 
-  /**
-   * Las filas de asignación de analista se guardan con from == to. No son un movimiento del
-   * expediente: sin esto, cada reasignación repetía "un analista está revisando tu caso".
-   */
+  // Analyst-assignment rows are stored with from == to.
   it('no muestra las asignaciones de analista', () => {
     expect(movimientoAseguradoLabel('PENDING_ANALYST_REVIEW', 'PENDING_ANALYST_REVIEW')).toBeNull();
     expect(movimientoAseguradoLabel('CLASSIFICATION_FAILED', 'CLASSIFICATION_FAILED')).toBeNull();
@@ -43,11 +30,6 @@ describe('movimientoAseguradoLabel', () => {
     );
   });
 
-  /**
-   * Una reapertura vuelve al mismo PENDING_ANALYST_REVIEW que una clasificación normal, pero para
-   * el asegurado no es lo mismo: ya recibió el mail de la resolución anterior. El motivo de la
-   * reapertura no se le cuenta nunca — es interno.
-   */
   it('nombra la reapertura de un expediente cerrado', () => {
     expect(movimientoAseguradoLabel('PENDING_ANALYST_REVIEW', 'APPROVED')).toBe(
       'Reabrimos tu siniestro',
@@ -58,7 +40,6 @@ describe('movimientoAseguradoLabel', () => {
     expect(movimientoAseguradoLabel('PENDING_ANALYST_REVIEW', 'LAPSED')).toBe(
       'Reabrimos tu siniestro',
     );
-    // Y la clasificación normal sigue siendo la de siempre.
     expect(movimientoAseguradoLabel('PENDING_ANALYST_REVIEW', 'PENDING_CLASSIFICATION')).toBe(
       'Un analista está revisando tu caso',
     );
@@ -82,7 +63,6 @@ describe('movimientoAseguradoLabel', () => {
     );
   });
 
-  /** Una falla técnica del clasificador no le pide nada ni cambia nada de su lado. */
   it('no muestra la falla de clasificación', () => {
     expect(movimientoAseguradoLabel('CLASSIFICATION_FAILED', 'PENDING_CLASSIFICATION')).toBeNull();
   });
@@ -96,15 +76,6 @@ describe('movimientoAseguradoLabel', () => {
     );
   });
 
-  /**
-   * La red de seguridad de todo esto: ninguna etiqueta puede filtrar la clasificación del modelo,
-   * el veredicto del peritaje ni el nivel de riesgo. Se mapea el ESTADO y nunca el `reason` del
-   * historial, que trae textos como "informe de peritaje recibido: FRAUD_CONFIRMED".
-   */
-  /**
-   * El "próximo paso" del listado del asegurado nombra la verificación, no el peritaje en sí:
-   * nada de perito ni informe, y menos la clasificación.
-   */
   it('ningún próximo paso filtra el peritaje ni la clasificación', () => {
     const prohibidas = ['perito', 'peritaje', 'informe', 'fraude', 'clasificac', 'riesgo', 'score'];
     const estados: string[] = [
@@ -154,11 +125,6 @@ describe('movimientoAseguradoLabel', () => {
   });
 });
 
-/**
- * El progreso que ve el asegurado es monótono para que el stepper no vuelva al día 1 cuando el
- * estado técnico retrocede dentro del trámite. Pero "Terminado" tiene que seguir significando
- * "terminado ahora": una reapertura es un retroceso real.
- */
 describe('estadoSimplificadoEfectivo', () => {
   it('no retrocede cuando el asegurado sube documentación', () => {
     expect(
@@ -175,8 +141,6 @@ describe('estadoSimplificadoEfectivo', () => {
   });
 
   it('vuelve a En trámite cuando un expediente cerrado se reabre', () => {
-    // Reapertura: el expediente pasó por un terminal pero hoy está de nuevo en revisión. Sin el
-    // techo, el máximo histórico lo dejaba clavado en "Terminado" sobre un caso reabierto.
     expect(
       estadoSimplificadoEfectivo('PENDING_ANALYST_REVIEW', ['PENDING_ANALYST_REVIEW', 'REJECTED']),
     ).toBe('EN_TRAMITE');

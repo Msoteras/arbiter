@@ -12,15 +12,8 @@ import { formatDeductible, formatMoney } from '../../../core/util/money';
 import { BadgeComponent } from '../badge/badge.component';
 
 /**
- * Una póliza del asegurado, en solo lectura. La usan la bienvenida (H0009) y "Mis pólizas" del
- * perfil: es el mismo dato y tiene que leerse igual en los dos lados.
- *
- * Las coberturas se despliegan en vez de mostrarse siempre: son el dato que el asegurado más
- * pregunta —cuánto le cubre y cuánta franquicia tiene—, pero con tres pólizas abiertas a la vez
- * la pantalla se vuelve una tabla y se pierde justo lo que vino a buscar. `compact` las saca del
- * todo, para la bienvenida, donde las pólizas son contexto de un formulario y no el tema.
- *
- * Nada de esto se edita desde Arbiter: la póliza es dato de la compañía (decisión #10).
+ * Read-only: policies are insurer data and are never edited in Arbiter. Coverages are collapsed
+ * by default so several open policies do not turn the screen into a table.
  */
 @Component({
   selector: 'app-policy-card',
@@ -111,15 +104,12 @@ import { BadgeComponent } from '../badge/badge.component';
 
     .policy {
       padding: var(--space-3) var(--space-4);
-      /* Filo teal a la izquierda: marca la póliza como "tuyo" sin teñir toda la tarjeta. */
       border: 1px solid var(--border-default);
       border-left: 3px solid var(--accent);
       border-radius: var(--radius-card);
       background: var(--surface-soft);
     }
 
-    /* Vencida: el filo pierde el teal y la tarjeta se apaga. Es lo que la distingue de un vistazo
-       sin leer las fechas — el badge solo confirma lo que el bloque entero ya dice. */
     .policy[data-validity='EXPIRED'] {
       border-left-color: var(--border-strong);
       background: var(--surface-sunken);
@@ -177,7 +167,6 @@ import { BadgeComponent } from '../badge/badge.component';
       color: var(--text-secondary);
     }
 
-    /* ───────────────── Coberturas ───────────────── */
     .coverages-toggle {
       display: inline-flex;
       align-items: center;
@@ -259,7 +248,7 @@ import { BadgeComponent } from '../badge/badge.component';
 export class PolicyCardComponent {
   readonly policy = input.required<Policy>();
 
-  /** Sin coberturas desplegables: la póliza es contexto, no el tema de la pantalla. */
+  /** Hides coverages, for screens where the policy is context rather than the subject. */
   readonly compact = input(false);
 
   protected readonly open = signal(false);
@@ -276,7 +265,6 @@ export class PolicyCardComponent {
     () => `${formatDate(this.policy().effectiveFrom)} – ${formatDate(this.policy().effectiveTo)}`,
   );
 
-  /** El id sale del número de póliza: con varias tarjetas, `aria-controls` tiene que ser único. */
   protected readonly panelId = computed(
     () => `coverages-${this.policy().policyNumber.replace(/[^\w-]/g, '')}`,
   );

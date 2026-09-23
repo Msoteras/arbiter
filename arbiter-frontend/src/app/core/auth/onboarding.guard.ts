@@ -4,16 +4,8 @@ import { CanActivateFn, Router } from '@angular/router';
 import { AuthSessionService } from './auth-session.service';
 
 /**
- * H0009 — primer ingreso del asegurado. Mientras `onboardingComplete` sea false, toda ruta del
- * portal rebota a la pantalla de bienvenida: es lo que hace que retome donde quedó si la
- * abandonó a la mitad (el claim sigue en false, así que el próximo login vuelve acá).
- *
- * Va ENCIMA de `roleGuard`, no en su lugar: aquel resuelve "quién puede entrar", este "si ya
- * completó el primer paso". Se aplica a `/portal/*` salvo a la propia pantalla de onboarding,
- * que quedaría en un ciclo de redirecciones consigo misma.
- *
- * Solo aplica al ASEGURADO. Analista y referente no tienen onboarding: su claim viaja en null
- * y pasan derecho — incluido el referente, que en `roleGuard` tiene acceso total.
+ * Sends an insured with pending onboarding to the onboarding screen. Runs on top of `roleGuard`
+ * for `/portal/*`, except the onboarding route itself (it would redirect to itself).
  */
 export const onboardingGuard: CanActivateFn = () => {
   const session = inject(AuthSessionService).session();
@@ -22,9 +14,7 @@ export const onboardingGuard: CanActivateFn = () => {
     return true;
   }
 
-  // Solo false bloquea. Un null en un ASEGURADO significa que el backend todavía no emite el
-  // claim (o un token viejo de sessionStorage anterior a este cambio): dejarlo pasar es lo
-  // correcto — mejor no mostrar el onboarding que encerrar al usuario fuera del portal.
+  // Only false blocks: a null claim must never lock the user out of the portal.
   if (session.onboardingComplete === false) {
     return inject(Router).parseUrl('/portal/onboarding');
   }
@@ -32,11 +22,7 @@ export const onboardingGuard: CanActivateFn = () => {
   return true;
 };
 
-/**
- * El complemento del anterior, para la ruta de onboarding: si ya lo completó, no tiene sentido
- * volver a verlo (criterio de aceptación "terminado el primer ingreso, no vuelve a verlo") —
- * entrar a mano por la URL manda al home del portal.
- */
+/** Guards the onboarding route itself: once completed, it redirects to the portal home. */
 export const onboardingPendingGuard: CanActivateFn = () => {
   const session = inject(AuthSessionService).session();
 

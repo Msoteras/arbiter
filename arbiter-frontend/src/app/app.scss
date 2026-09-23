@@ -9,12 +9,9 @@
   background: var(--surface-sunken);
 }
 
-/* ===== Chrome de los roles internos (analista / referente) =====
-   Topbar fija + panel de navegación desplegable debajo. Comparten la superficie oscura
-   (--chrome-*): son el marco de la app, no contenido. */
+/* ===== Internal roles chrome (analyst / referente) ===== */
 .app-shell--chrome {
   --navpanel-w: 236px;
-  /* La topbar es `fixed`: el contenido arranca debajo de ella, no atrás. */
   padding-top: var(--appbar-h);
 }
 
@@ -70,7 +67,6 @@
   letter-spacing: -0.02em;
 }
 
-/* Solo "Inicio" (+ el "volver" del detalle): el resto de las secciones vive en el panel. */
 .appbar-nav {
   flex: none;
   display: flex;
@@ -116,11 +112,8 @@
   background: var(--chrome-item-active);
 }
 
-/* El buscador va con las acciones, a la derecha: no es navegación, es una herramienta más de la
-   barra — vive al lado de la campana.
-   El `min-width` es lo que necesita el placeholder completo a 11px (medido: 337px). Sin él, un
-   `flex-basis` solo es una sugerencia: apenas la barra aprieta, flexbox encoge el campo y el texto
-   que dice sobre qué se puede buscar queda cortado en "Buscar por N° de expediente, ase…". */
+/* min-width fits the full placeholder (measured 337px); without it flexbox shrinks the field and
+   truncates the hint of what can be searched. */
 .appbar-search {
   flex: 0 1 440px;
   min-width: 340px;
@@ -150,25 +143,8 @@
   color: var(--chrome-fg);
   background: var(--chrome-item-active);
 }
-/* Indicador de notificaciones sin leer, recortado sobre la superficie oscura. */
-.bell-dot {
-  position: absolute;
-  top: 4px;
-  right: 4px;
-  width: 8px;
-  height: 8px;
-  border-radius: var(--radius-pill);
-  background: var(--status-info);
-  border: 2px solid var(--chrome-bg);
-}
-/* Variante del punto sobre superficie clara (campana del portal del asegurado). */
-.bell-dot--light {
-  border-color: var(--surface);
-}
 
-/* Contador de no leídas. Va en el oscuro de énfasis y no en el semáforo --status-*: ese comunica
-   estado del expediente, y esto es un contador. El teal queda reservado a selección y foco.
-   El borde recorta contra la superficie de cada barra: clara en el portal, oscura en el chrome. */
+/* Unread counter uses the emphasis color, not --status-*: it is a count, not a case status. */
 .bell-count {
   position: absolute;
   top: 0;
@@ -185,15 +161,14 @@
   text-align: center;
   font-variant-numeric: tabular-nums;
 }
-/* Sobre el chrome oscuro el contador se invierte: fondo claro, texto oscuro, y recorta contra
-   la barra. Con --action-primary-* quedaba oscuro sobre oscuro. */
+/* Inverted on the dark chrome, where --action-primary-* would be dark on dark. */
 .appbar .bell-count {
   background: var(--chrome-fg);
   color: var(--chrome-bg);
   border-color: var(--chrome-bg);
 }
 
-/* ===== Perfil (único lugar donde aparece: la topbar) ===== */
+/* ===== Profile menu ===== */
 .appbar-profile {
   position: relative;
 }
@@ -259,8 +234,7 @@
   font-size: var(--font-size-xs);
   color: var(--text-muted);
 }
-/* Sirve para <button> y para <a>: el menú del asegurado mezcla los dos (navegar al perfil vs.
-   cerrar sesión) y tienen que verse idénticos — de ahí el text-decoration explícito. */
+/* Shared by <button> and <a> items, hence the explicit text-decoration. */
 .profile-item {
   display: block;
   width: 100%;
@@ -280,7 +254,7 @@
   color: var(--text-primary);
 }
 
-/* ===== Panel de navegación desplegable ===== */
+/* ===== Nav panel ===== */
 .navpanel {
   position: fixed;
   top: var(--appbar-h);
@@ -347,7 +321,6 @@
   background: var(--accent);
 }
 
-/* Superpuesto (pantalla angosta): fondo que atenúa el contenido y cierra al tocarlo. */
 .nav-scrim {
   position: fixed;
   inset: var(--appbar-h) 0 0 0;
@@ -358,12 +331,11 @@
 .app-content {
   flex: 1 1 auto;
   min-width: 0;
-  // Columna flex para que una pantalla pueda estirarse al alto disponible (ej. la bandeja ancla
-  // su paginación al pie). Las pantallas que no lo piden se dimensionan por su contenido igual.
+  // Flex column so a screen can stretch to the available height (e.g. the inbox pins its
+  // pagination to the bottom).
   display: flex;
   flex-direction: column;
 }
-/* Abierto en pantalla ancha, el panel EMPUJA el contenido (es layout); angosto, se superpone. */
 .app-shell--chrome.nav-open:not(.nav-overlay) .app-content {
   margin-left: var(--navpanel-w);
 }
@@ -378,17 +350,13 @@
   }
 }
 
-/* Antes de que el buscador tenga que encogerse (y cortar el placeholder, que es donde dice sobre
-   qué se puede buscar), lo que cede es el nombre de la marca: el símbolo alcanza para identificar
-   la app y libera el ancho justo. */
+/* The brand name gives way before the search field has to shrink and truncate its placeholder. */
 @media (max-width: 900px) {
   .appbar-brand-name {
     display: none;
   }
 }
 
-/* Recién acá el campo puede encogerse: ya no hay ancho para el placeholder completo, y cortarlo
-   es mejor que desbordar la barra. */
 @media (max-width: 720px) {
   .appbar-search {
     min-width: 0;
@@ -400,7 +368,6 @@
     gap: var(--space-2);
     padding: 0 var(--space-3);
   }
-  /* Ya sin lugar para nada, "Inicio" también cede: se llega igual desde el panel de la hamburguesa. */
   .appbar-nav {
     display: none;
   }
@@ -409,7 +376,7 @@
   }
 }
 
-/* ===== Barra superior (portal del asegurado) ===== */
+/* ===== Insured portal topbar ===== */
 .app-shell--top {
   flex-direction: column;
 }
@@ -469,7 +436,6 @@
   gap: var(--space-3);
   flex: none;
 }
-/* Perfil del asegurado: mismo menú que la barra de los roles internos (.profile-menu). */
 .topbar-profile {
   position: relative;
   flex: none;
@@ -531,15 +497,14 @@
     padding: var(--space-3) var(--space-4);
   }
 }
-/* A 375px "Mis siniestros" queda cortado por diez píxeles y el nav arranca con scroll lateral.
-   Se va la palabra y queda el símbolo: la marca ya está, y un link legible vale más. */
+/* At 375px the nav would otherwise overflow horizontally. */
 @media (max-width: 480px) {
   .topbar-brand-name {
     display: none;
   }
 }
-/* ===== Notificaciones ===== */
-/* Contenedor relativo de la campana: el panel (app-notifications-panel) se ancla a ella. */
+/* ===== Notifications ===== */
+/* Anchor for app-notifications-panel. */
 .appbar-notifs,
 .topbar-notifs {
   position: relative;

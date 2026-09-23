@@ -17,24 +17,16 @@ const NOTIFICATION_TITLES: Record<string, string> = {
   APPROVED: 'Tu siniestro fue aprobado',
   REJECTED: 'Novedades sobre tu siniestro',
   LAPSED: 'Tu siniestro caducó',
-  // REOPENED no es un CaseStatus: una reapertura aterriza en PENDING_ANALYST_REVIEW, igual que
-  // una clasificación normal, así que el backend le da su propio `type` para poder distinguirla.
+  // Not a CaseStatus: a reopening lands in PENDING_ANALYST_REVIEW, so the backend gives it its own type.
   REOPENED: 'Reabrimos tu siniestro',
 };
 
-/**
- * Panel de notificaciones que cuelga de la campana. Es un componente y no markup del shell porque
- * lo usan las dos barras (el topbar del portal del asegurado y el chrome de los roles internos)
- * y el contenido es idéntico: solo cambia de qué campana cuelga.
- *
- * Quién lo abre y lo cierra es el shell; acá adentro solo se avisa con `close` cuando el propio
- * panel resuelve la interacción (seguir el link a un expediente).
- */
+/** Shared by the insured portal and internal shells; the shell owns opening and closing it. */
 @Component({
   selector: 'app-notifications-panel',
   imports: [RouterLink, EmptyStateComponent, InlineLoadingComponent],
   changeDetection: ChangeDetectionStrategy.OnPush,
-  // El click no sale del panel: el shell cierra los desplegables con un listener en document.
+  // The shell closes dropdowns with a document click listener.
   host: { '(click)': '$event.stopPropagation()' },
   template: `
     <div class="notif-panel" role="dialog" aria-label="Notificaciones">
@@ -81,7 +73,7 @@ const NOTIFICATION_TITLES: Record<string, string> = {
   `,
   styles: `
     :host {
-      /* Cuelga de la campana, que es quien pone el contexto de posicionamiento. */
+      /* Positioned against the bell, which sets the containing block. */
       position: absolute;
       top: calc(100% + var(--space-2));
       right: 0;
@@ -163,7 +155,6 @@ export class NotificationsPanelComponent {
   private readonly session = inject(AuthSessionService);
   protected readonly notifications = inject(NotificationsService);
 
-  /** Lo emite cuando el propio panel resuelve la interacción; cerrarlo es del shell. */
   readonly close = output<void>();
 
   /** Same wording the insured sees on the case: no classification, no score. */
