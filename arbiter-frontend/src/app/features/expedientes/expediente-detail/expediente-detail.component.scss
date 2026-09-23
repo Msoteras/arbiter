@@ -99,7 +99,26 @@
   padding-top: var(--space-3);
   border-top: 1px solid var(--border-subtle);
 }
-.fraude-card app-button {
+/* Sin antecedentes: una línea con el punto de estado y el alta como link, no un botón. */
+.fraude-vacio {
+  margin: 0;
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: var(--space-3);
+  font-size: var(--font-size-sm);
+}
+.fraude-vacio-texto::before {
+  content: '';
+  display: inline-block;
+  width: 6px;
+  height: 6px;
+  margin-right: var(--space-2);
+  border-radius: var(--radius-pill);
+  background: var(--status-ok);
+  vertical-align: middle;
+}
+.fraude-registrar {
   margin-top: var(--space-3);
 }
 
@@ -110,9 +129,6 @@
 }
 .rcard-note.error {
   color: var(--status-danger);
-}
-.rcard-note.suggested {
-  color: var(--status-risk);
 }
 .reco-value {
   margin: 0;
@@ -148,38 +164,23 @@
   font-weight: var(--font-weight-medium);
   color: var(--accent-fg);
 }
-/* "Antes de decidir": etiqueta a la izquierda y dato a la derecha, en filas cortas, para que se
-   lea de un vistazo antes de los botones y no compita con ellos. */
-.brief {
-  margin: 0 0 var(--space-3);
-  padding-bottom: var(--space-3);
-  border-bottom: 1px solid var(--border-subtle);
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-2);
-}
-.brief-row {
-  display: grid;
-  grid-template-columns: 7.5rem 1fr;
-  gap: var(--space-2);
-  align-items: baseline;
-}
-.brief-row dd {
+/* "Antes de decidir": el plazo y el monto en una línea, para que se lea de un vistazo antes de los
+   botones y no compita con ellos. */
+.brief,
+.brief-alerts {
   margin: 0;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-1) var(--space-3);
   font-size: var(--font-size-sm);
-  color: var(--text-primary);
-  min-width: 0;
+  color: var(--text-secondary);
 }
-.brief-sub {
-  display: block;
-  font-size: var(--font-size-xs);
-  color: var(--status-risk);
+.brief strong {
+  color: var(--text-primary);
 }
 .brief-alerts {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-  gap: var(--space-1);
+  margin-top: var(--space-1);
 }
 /* Enlace a la solapa con la evidencia: el triángulo va sin color (la severidad se lee por forma). */
 .brief-link {
@@ -189,7 +190,6 @@
   cursor: pointer;
   text-align: left;
   font: inherit;
-  font-size: var(--font-size-sm);
   color: var(--accent-fg);
   text-decoration: underline;
   text-underline-offset: 0.2em;
@@ -203,24 +203,37 @@
   box-shadow: var(--focus-ring);
   border-radius: var(--radius-ctl);
 }
-@media (max-width: 640px) {
-  .brief-row {
-    grid-template-columns: 1fr;
-    gap: 0;
-  }
+
+/* Arriba y no centrado: centrado, el plazo flotaba lejos del título de la card. */
+.decision-row {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-3);
+}
+.decision-info {
+  flex: 1;
+  min-width: 0;
+}
+/* Ancho fijo y no el del texto: "Rechazar" y "Aprobar" miden distinto y sueltos quedaban chicos. */
+.decision-side {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  flex-shrink: 0;
+  width: 10rem;
+  /* Sube hasta la línea del título de la card (su alto + el margen de la cabecera): así los dos
+     botones no estiran la card por debajo de las otras dos. */
+  margin-top: calc(-1 * (var(--font-size-xs) * 1.5 + var(--space-3)));
 }
 
+/* Una sola fila de acciones en cualquier estado: derivar vive en la card "Analista asignado". */
 .decision-btns {
   display: flex;
   gap: var(--space-2);
+  margin-top: var(--space-3);
 }
-.decision-btns app-button {
+.decision-btns > * {
   flex: 1;
-}
-/* Derivar va debajo y a lo ancho: no es una tercera decisión, es suspender para conseguir
-   evidencia — ponerlo en la misma fila lo leería como una salida más del expediente. */
-.decision-btns + app-button {
-  margin-top: var(--space-2);
 }
 
 /* ===== Peritaje ===== */
@@ -381,18 +394,4 @@
   margin: var(--space-1) 0 0;
   font-size: var(--font-size-xs);
   color: var(--text-muted);
-}
-
-/* Motivos detrás de la clasificación, tab "Razones" (analysisReasons, uno por fila). */
-.reasons-list {
-  margin: 0;
-  padding-left: var(--space-4);
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-2);
-}
-.reasons-list li {
-  font-size: var(--font-size-body);
-  color: var(--text-secondary);
-  line-height: 1.4;
 }

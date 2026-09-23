@@ -8,6 +8,8 @@ type Size = 'md' | 'sm';
 /**
  * Botón del design system. Única definición de "qué es un botón" en la app.
  * Variantes cerradas por la API (primary | secondary) → imposible inventar uno nuevo.
+ * `tone` (solo con secondary) tiñe borde y texto con el semáforo de estado, sin fondo: para
+ * acciones cuyo resultado ES un estado, como aprobar o rechazar un expediente.
  * El click nativo burbujea al host, así que (click) sobre <app-button> funciona — y por eso mismo
  * el estado deshabilitado se corta acá (ver onHostClick).
  */
@@ -25,6 +27,7 @@ type Size = 'md' | 'sm';
       [class.primary]="variant() === 'primary'"
       [class.secondary]="variant() === 'secondary'"
       [class.accent]="variant() === 'accent'"
+      [attr.data-tone]="variant() === 'secondary' ? tone() : null"
       [class.sm]="size() === 'sm'"
       [class.loading]="loading()"
       [type]="type()"
@@ -88,6 +91,19 @@ type Size = 'md' | 'sm';
     .btn.secondary:hover:not(:disabled) {
       border-color: var(--action-secondary-border-hover);
     }
+    .btn[data-tone='ok'] {
+      --btn-tone: var(--status-ok);
+    }
+    .btn[data-tone='danger'] {
+      --btn-tone: var(--status-danger);
+    }
+    .btn.secondary[data-tone] {
+      color: var(--btn-tone);
+      border-color: color-mix(in srgb, var(--btn-tone) 45%, var(--action-secondary-border));
+    }
+    .btn.secondary[data-tone]:hover:not(:disabled) {
+      border-color: var(--btn-tone);
+    }
     .btn.accent {
       background: var(--action-accent-bg);
       border-color: var(--action-accent-bg);
@@ -118,6 +134,7 @@ export class ButtonComponent {
   readonly type = input<'button' | 'submit'>('button');
   readonly disabled = input(false);
   readonly block = input(false);
+  readonly tone = input<'ok' | 'danger' | null>(null);
   /** Muestra un spinner inline y deshabilita el botón mientras dura una acción async. */
   readonly loading = input(false);
 }

@@ -4,15 +4,23 @@ import { ChangeDetectionStrategy, Component, computed, input, model, signal } fr
  * Input de una línea del design system. Valor two-way vía model() → `[(value)]`.
  * Liviano a propósito: no implementa ControlValueAccessor (la app no usa Angular Forms).
  * `revealable` agrega el toggle de "mostrar/ocultar" (ojo) para campos de contraseña.
+ * `prefix` pone una unidad fija adentro del campo, a la izquierda (el "$" de un monto), y
+ * `align="end"` alinea el valor a la derecha, como se leen las cifras.
  */
 @Component({
   selector: 'app-input',
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <div class="input-wrap">
+      @if (prefix()) {
+        <span class="prefix" aria-hidden="true">{{ prefix() }}</span>
+      }
       <input
         class="field"
         [class.has-reveal]="showReveal()"
+        [class.has-prefix]="!!prefix()"
+        [class.align-end]="align() === 'end'"
+        [attr.inputmode]="inputmode()"
         [id]="resolvedId()"
         [type]="effectiveType()"
         [placeholder]="placeholder()"
@@ -95,6 +103,11 @@ import { ChangeDetectionStrategy, Component, computed, input, model, signal } fr
     .field.has-reveal {
       padding-right: calc(var(--space-2) + 30px);
     }
+    /* Edge dibuja su propio ojo en los campos de contraseña, y al lado del nuestro quedaban dos. */
+    .field.has-reveal::-ms-reveal,
+    .field.has-reveal::-ms-clear {
+      display: none;
+    }
     @media (min-width: 640px) {
       .field {
         font-size: var(--font-size-body);
@@ -107,6 +120,21 @@ import { ChangeDetectionStrategy, Component, computed, input, model, signal } fr
     }
     .field::placeholder {
       color: var(--text-muted);
+    }
+    .prefix {
+      position: absolute;
+      top: 50%;
+      left: var(--space-3);
+      transform: translateY(-50%);
+      color: var(--text-muted);
+      pointer-events: none;
+    }
+    .field.has-prefix {
+      padding-left: calc(var(--space-3) + var(--space-4));
+    }
+    .field.align-end {
+      text-align: right;
+      font-variant-numeric: tabular-nums;
     }
 
     .reveal {
@@ -151,6 +179,10 @@ export class InputComponent {
   readonly autocomplete = input<string | null>(null);
   readonly readonly = input(false);
   readonly revealable = input(false);
+  readonly prefix = input<string | null>(null);
+  readonly align = input<'start' | 'end'>('start');
+  /** Teclado en mobile: `numeric` para un monto que va como texto para poder mostrarse con puntos. */
+  readonly inputmode = input<string | null>(null);
 
   /**
    * Campo numérico que no admite negativos. El `min` nativo lo respetan las flechas y el submit

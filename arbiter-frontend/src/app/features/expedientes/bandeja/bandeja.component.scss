@@ -445,6 +445,14 @@ th:last-child {
   gap: var(--space-2);
   flex-shrink: 0;
 }
+// Sin asignar, "Asignarme" ocupa el lugar del nombre: la fila no cambia de forma entre un estado
+// y el otro, y el "⋯" queda en la misma columna.
+.assign-actions.fill {
+  flex: 1;
+}
+.assign-actions .grow {
+  flex: 1;
+}
 
 // ───────────────── Paginación como pie de página ─────────────────
 // `margin-top: auto` la empuja al pie del área de contenido cuando hay pocas filas (la pantalla

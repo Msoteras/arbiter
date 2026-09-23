@@ -2,7 +2,6 @@ import { HttpErrorResponse } from '@angular/common/http';
 import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
 
 import { CardComponent } from '../../../shared/ui/card/card.component';
-import { InfoTipComponent } from '../../../shared/ui/info-tip/info-tip.component';
 import { InlineLoadingComponent } from '../../../shared/ui/inline-loading/inline-loading.component';
 import { InputComponent } from '../../../shared/ui/input/input.component';
 import { SaveBarComponent } from '../../../shared/ui/save-bar/save-bar.component';
@@ -29,7 +28,6 @@ import {
   selector: 'app-objetivo-config',
   imports: [
     CardComponent,
-    InfoTipComponent,
     InlineLoadingComponent,
     InputComponent,
     SaveBarComponent,
@@ -43,11 +41,6 @@ import {
       <app-card>
         <div class="head">
           <h2 class="card-title">Objetivo de resolución</h2>
-          <app-info-tip
-            text="Cuántos días se propone la compañía para resolver un siniestro, de la denuncia a
-                  la decisión del analista. Es una meta propia, no el plazo legal: el tablero la usa
-                  para mostrar cuántos expedientes se pasaron de lo que la compañía se propuso."
-          />
         </div>
 
         <label class="row">
